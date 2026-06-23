@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="CGImap 0.0.2">
+ <node id="1" lat="50.0" lon="14.5" />
+ <node id="2" lat="51.0" lon="14.5" />
+ <node id="3" lat="51.0" lon="15.5" />
+ <node id="4" lat="50.0" lon="15.5" />
+ <node id="5" lat="52.0" lon="14.5" />
+ <way id="1">
+  <nd ref="1"/>
+  <nd ref="2"/>
+  <nd ref="3"/>
+  <tag k="highway" v="path"/>
+ </way>
+ <way id="2">
+  <nd ref="3"/>
+  <nd ref="4"/>
+  <nd ref="1"/>
+  <tag k="highway" v="path"/>
+ </way>
+ <way id="3">
+  <nd ref="2"/>
+  <nd ref="5"/>
+  <tag k="highway" v="path"/>
+ </way>
+</osm>

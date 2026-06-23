@@ -1,0 +1,81 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyTitle>ARBot.Common</AssemblyTitle>
+    <Product>ARBot.Common</Product>
+    <Copyright>Copyright ©  2015</Copyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;IsX64</DefineConstants>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+	<PropertyGroup Condition="'$(Platform)' == 'x64'">
+		<DefineConstants>$(DefineConstants);IsX64</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Platform)' == 'x86'">
+		<DefineConstants>$(DefineConstants);IsX86</DefineConstants>
+	</PropertyGroup>
+  <ItemGroup Label="Compile items now included by globbing that were not in the original project file">
+    <Compile Remove="Algorithms\EdgeTPU\EdgeTPUSemanticSegmentation.cs" />
+    <Compile Remove="Common\TFSemanticSegmentation.cs" />
+    <Compile Remove="Common\VirtualizedImage.cs" />
+    <Compile Remove="Coordinates\CameraProjection2.cs" />
+    <Compile Remove="Common\Graphics2D.cs" />
+    <Compile Remove="Algorithms\Voronoi\VoronoiDiagram.cs" />
+    <Compile Remove="Algorithms\Voronoi\SiteSorterYX.cs" />
+    <Compile Remove="Algorithms\Voronoi\Site.cs" />
+    <Compile Remove="Algorithms\Voronoi\Point.cs" />
+    <Compile Remove="Algorithms\Voronoi\Halfedge.cs" />
+    <Compile Remove="Algorithms\Voronoi\GraphEdge.cs" />
+    <Compile Remove="Algorithms\Voronoi\Edge.cs" />
+    <Compile Remove="Algorithms\Voronoi2\VoronoiElements.cs" />
+    <Compile Remove="Algorithms\Voronoi2\Voronoi.cs" />
+    <Compile Remove="Algorithms\ComputeUnit\Akcelerator.cs" />
+    <Compile Remove="Driver\ARBotState.cs" />
+    <Compile Remove="Driver\ARBotStateCollection.cs" />
+    <Compile Remove="Models\EKFModel2.cs" />
+    <Compile Remove="Models\EKFModel2Input.cs" />
+    <Compile Remove="Models\EKFModel2Measurement.cs" />
+    <Compile Remove="Models\EKFModel2State.cs" />
+    <Compile Remove="Models\EKFModel3.cs" />
+    <Compile Remove="Models\EKFModel3Input.cs" />
+    <Compile Remove="Models\EKFModel3Measurement.cs" />
+    <Compile Remove="Models\EKFModel3State.cs" />
+    <Compile Remove="Models\EKFModelInput.cs" />
+    <Compile Remove="Models\EKFModelMeasurement.cs" />
+    <Compile Remove="Models\IModel.cs" />
+    <Compile Remove="Models\ModelState.cs" />
+    <Compile Remove="Models\ModelStateHistory.cs" />
+    <Compile Remove="Models\SimpleModel.cs" />
+    <Compile Remove="Navigations\LidarFolowMeNavigation.cs" />
+    <Compile Remove="Navigations\MapCorelator.cs" />
+    <Compile Remove="Navigations\RayExtensions.cs" />
+    <Compile Remove="Navigations\RRT.cs" />
+    <Compile Remove="Navigations\RRTModel.cs" />
+    <Compile Remove="Navigations\RRTStateSimple.cs" />
+    <Compile Remove="SLAM\TopologicalLine.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="ARBot.Common.LocalMaps.GraphMapBase" Collapsed="true">
+    <Position X="5.5" Y="1" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAYAAAAAAAAAAAEAAAAAAAAIAAAAAAAAAAAABAAAAAA=</HashCode>
+      <FileName>LocalMaps\GraphMapBase.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ARBot.Common.LocalMaps.GraphMap" Collapsed="true">
+    <Position X="4.5" Y="2.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAIAAAAAAAAA=</HashCode>
+      <FileName>LocalMaps\GraphMap.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ARBot.Common.SLAM.ICP" Collapsed="true">
+    <Position X="6.75" Y="2.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>CBYAAAQCAACIBIAGAAAAAAJIABAAAAAAAAAAABBwAAA=</HashCode>
+      <FileName>SLAM\ICP.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>
