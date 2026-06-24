@@ -1,4 +1,5 @@
 ﻿using ARBot.Common.Common;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,7 +36,7 @@ namespace ARBot.Common.SLAM
         /// <summary>
         /// Reprezentuje sum mereni 
         /// </summary>
-        public Matrix R;
+        public Matrix<double> R;
 
         /// <summary>
         /// Orientace pri zaznamu prekazky, v radianech a svetovych souradnicich

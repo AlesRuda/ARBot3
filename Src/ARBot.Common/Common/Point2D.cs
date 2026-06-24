@@ -34,8 +34,10 @@ namespace ARBot.Common
             X = x;
             Y = y;
         }
-        public Point2D(Matrix m)
+        public Point2D(MathNet.Numerics.LinearAlgebra.Matrix<double> m)
         {
+            if(m.RowCount != 2 || m.ColumnCount != 1)
+                throw new ArgumentException("Matrix must be 2x1");
             X = (float)m[0, 0];
             Y = (float)m[1, 0];
         }
@@ -233,13 +235,23 @@ namespace ARBot.Common
         {
             return !a.Equals(b);
         }
-        public static Vector2D operator -(Point2D a, Point2D b)
+        public static Common.Vector2D operator -(Point2D a, Point2D b)
         {
-            return new Vector2D(a.X- b.X, a.Y- b.Y);
+            return new Common.Vector2D(a.X- b.X, a.Y- b.Y);
         }
-        public static Point2D operator *(Matrix t, Point2D b)
+        public static Point2D operator *(MathNet.Numerics.LinearAlgebra.Matrix<double> t, Point2D b)
         {
+            if(t.RowCount != 2 || t.ColumnCount != 2)
+                throw new ArgumentException("Matrix must be 2x2");
             return new Point2D(t[0, 0]*b.X+t[0, 1]*b.Y, t[1, 0] * b.X + t[1, 1] * b.Y);
+        }
+
+        /// <summary>
+        /// Explicitni konverze na sloupcovy vektor 2x1 (MathNet). Inverzni k Point2D(Matrix).
+        /// </summary>
+        public static explicit operator MathNet.Numerics.LinearAlgebra.Matrix<double>(Point2D p)
+        {
+            return MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(new double[,] { { p.X }, { p.Y } });
         }
 
     }

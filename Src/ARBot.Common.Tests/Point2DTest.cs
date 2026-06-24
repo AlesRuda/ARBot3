@@ -1,5 +1,6 @@
 using ARBot.Common;
 using ARBot.Common.Common;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace ARBot.Common.Tests
 {
@@ -87,10 +88,34 @@ namespace ARBot.Common.Tests
         [Test]
         public void Constructor_FromMatrix_TakesFirstColumn()
         {
-            var m = new Matrix(new double[,] { { 7 }, { 8 } });
+            var m = Matrix<double>.Build.DenseOfArray(new double[,] { { 7 }, { 8 } });
             var p = new Point2D(m);
             Assert.That(p.X, Is.EqualTo(7f));
             Assert.That(p.Y, Is.EqualTo(8f));
+        }
+
+        /// <summary>
+        /// Explicitni konverze na MathNet Matrix da sloupcovy vektor 2x1.
+        /// </summary>
+        [Test]
+        public void ExplicitToMathNetMatrix_ReturnsColumnVector()
+        {
+            var m = (Matrix<double>)new Point2D(7, 8);
+            Assert.That(m.RowCount, Is.EqualTo(2));
+            Assert.That(m.ColumnCount, Is.EqualTo(1));
+            Assert.That(m[0, 0], Is.EqualTo(7.0));
+            Assert.That(m[1, 0], Is.EqualTo(8.0));
+        }
+
+        /// <summary>
+        /// Konverze Point2D -> Matrix -> Point2D zachova slozky (round-trip).
+        /// </summary>
+        [Test]
+        public void ExplicitToMathNetMatrix_RoundTrip_PreservesComponents()
+        {
+            var original = new Point2D(1.5, -2.5);
+            var roundTrip = new Point2D((Matrix<double>)original);
+            Assert.That(roundTrip, Is.EqualTo(original));
         }
 
         /// <summary>
@@ -194,7 +219,7 @@ namespace ARBot.Common.Tests
         [Test]
         public void OperatorMultiply_MatrixTimesPoint_Rotates()
         {
-            var rot = new Matrix(new double[,] { { 0, -1 }, { 1, 0 } });
+            var rot = Matrix<double>.Build.DenseOfArray(new double[,] { { 0, -1 }, { 1, 0 } });
             var r = rot * new Point2D(1, 0);
             Assert.That(r.X, Is.EqualTo(0f).Within(1e-5));
             Assert.That(r.Y, Is.EqualTo(1f).Within(1e-5));

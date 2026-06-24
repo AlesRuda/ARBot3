@@ -1,6 +1,7 @@
 ﻿using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
 using ARBot.Common.Logs;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -177,7 +178,7 @@ namespace ARBot.Common.Navigations
         /// <returns></returns>
         protected Point CalcTarget(double c)
         {
-            var rot = Matrix.Rotate2D(-Orientation);
+            var rot = Rotate2D(-Orientation);
             var o = rot * new Point2D(Target.X, Target.Y);
 
             double x = Width / 2+o.X/ Resolution;
@@ -565,7 +566,14 @@ namespace ARBot.Common.Navigations
             }
             return b;
         }
-
-
+        public static Matrix<double> Rotate2D(double dir)
+        {
+            var t = Matrix<double>.Build.Dense(2, 2);
+            t[0, 0] = Math.Cos(dir);
+            t[0, 1] = -Math.Sin(dir);
+            t[1, 0] = Math.Sin(dir);
+            t[1, 1] = Math.Cos(dir);
+            return t;
+        }
     }
 }

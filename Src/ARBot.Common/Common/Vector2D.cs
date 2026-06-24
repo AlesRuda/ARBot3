@@ -1,6 +1,7 @@
 ﻿using ARBot.Common.Coordinates;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -95,7 +96,7 @@ namespace ARBot.Common.Common
 
         public override string ToString()
         {
-            return string.Format("[{0}, {1}]", X, Y);
+            return string.Format(CultureInfo.InvariantCulture, "[{0}, {1}]", X, Y);
         }
 
         public static Vector2D operator +(Vector2D a, Vector2D b)
@@ -139,6 +140,14 @@ namespace ARBot.Common.Common
         public static Vector2D operator /(Vector2D b, double k)
         {
             return new Vector2D(b.X/k, b.Y/k);
+        }
+
+        /// <summary>
+        /// Explicitni konverze na sloupcovy vektor 2x1 (MathNet).
+        /// </summary>
+        public static explicit operator MathNet.Numerics.LinearAlgebra.Matrix<double>(Vector2D v)
+        {
+            return MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(new double[,] { { v.X }, { v.Y } });
         }
 
     }

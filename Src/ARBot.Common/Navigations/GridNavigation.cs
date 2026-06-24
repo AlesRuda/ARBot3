@@ -81,8 +81,8 @@ namespace ARBot.Common.Navigations
             if (result != null)
                 return result;
 
-            var rot = Matrix.Rotate2D(-Orientation);
-            var roti = Matrix.Rotate2D(Orientation);
+            var rot = Rotate2D(-Orientation);
+            var roti = Rotate2D(Orientation);
 
             if (ObstaclesChanged)
             {

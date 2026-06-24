@@ -1,5 +1,6 @@
 ﻿using ARBot.Common.Logs;
 using ARBot.Common.SLAM;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,7 +38,7 @@ namespace ARBot.Common.LocalMaps
                     IsMain = i.IsMain,
                     Type=i.Type,
                     SubType = i.SubType,
-                    P = new Common.Matrix(1, 1),
+                    P = Matrix<double>.Build.Dense(1, 1),
                     Orientation=i.Orientation,
                 }).ToList(),
                 0, 0, 0);

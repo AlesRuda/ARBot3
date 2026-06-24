@@ -1,4 +1,5 @@
 ﻿using ARBot.Common.Common;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,7 +42,7 @@ namespace ARBot.Common.SLAM
         /// <summary>
         /// Kovariancni matice 
         /// </summary>
-        public Matrix P;
+        public Matrix<double> P;
         /// <summary>
         /// Odkaz prirazeni. Pouziva se behem vypoctu ICP, aby byl jeden state pouzit jen k jednomu mereni.
         /// </summary>

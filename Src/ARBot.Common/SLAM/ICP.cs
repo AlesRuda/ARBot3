@@ -7,6 +7,7 @@ using MathNet.Numerics.LinearAlgebra;
 using ARBot.Common.Logs;
 using System.Diagnostics;
 using ARBot.Common.LocalMaps;
+using ARBot.Common.Navigations;
 
 namespace ARBot.Common.SLAM
 {
@@ -52,7 +53,7 @@ namespace ARBot.Common.SLAM
         /// <summary>
         /// Kovariance mereni
         /// </summary>
-        public ARBot.Common.Common.Matrix P { get; private set; }
+        public Matrix<double> P { get; private set; }
 
         /// <summary>
         /// Rotace ve stupnich
@@ -178,7 +179,7 @@ namespace ARBot.Common.SLAM
             double[] row0 = { 0, 0 };
             double[] row1 = { 0, 0 };
 
-            ARBot.Common.Common.Matrix p =P= new Common.Matrix(2, 2);
+            var p =P= Matrix<double>.Build.Dense(2, 2);
 
             foreach (var f in fit)
             {
@@ -250,7 +251,7 @@ namespace ARBot.Common.SLAM
         /// <summary>
         /// Reprezentuje sum systemu
         /// </summary>
-        public ARBot.Common.Common.Matrix Q;
+        public Matrix<double> Q;
 
         /// <summary>
         /// 
@@ -262,7 +263,8 @@ namespace ARBot.Common.SLAM
         public override void Update(double dx, double dy, double alfa)
         {
             Point2D d = new Point2D(dx, dy);
-            var rot = new ARBot.Common.Common.Matrix(new double[,] { { Math.Cos(alfa), -Math.Sin(alfa) }, { Math.Sin(alfa), Math.Cos(alfa) } });
+//            var rot = new ARBot.Common.Common.Matrix(new double[,] { { Math.Cos(alfa), -Math.Sin(alfa) }, { Math.Sin(alfa), Math.Cos(alfa) } });
+            var rot = GridNavigationBase.Rotate2D(alfa);
             foreach (var s in States)
             {
                 // posunuto do dalsiho kroku
@@ -275,15 +277,15 @@ namespace ARBot.Common.SLAM
                 {
                     ICPStatePoint s = m.State;
 
-                    var diff = new Point2D(rot*new ARBot.Common.Common.Matrix(m.Observation.Point)) - s.Point; // rozdil pozorovane a predikovane polohy
-                    ARBot.Common.Common.Matrix dd = new Common.Matrix(diff);
-                    ARBot.Common.Common.Matrix p = s.P;
-                    ARBot.Common.Common.Matrix k;
+                    var diff = rot*m.Observation.Point - s.Point; // rozdil pozorovane a predikovane polohy
+                    var dd = (Matrix<double>)diff;
+                    var p = s.P;
+                    Matrix<double> k;
                     if(m.Observation.R!=null)
-                        k= p * ARBot.Common.Common.Matrix.Inverse(p + m.Observation.R);
+                        k= p * ((p + m.Observation.R).Inverse());
                     else
-                        k = p * ARBot.Common.Common.Matrix.Inverse(p);
-                    ARBot.Common.Common.Matrix ddx = k*dd;
+                        k = p * (p.Inverse());
+                    var ddx = k*dd;
                     s.Point +=new Point2D(ddx);
                     s.P = p - k * p;
                 }
