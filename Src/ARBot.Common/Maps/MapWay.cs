@@ -99,13 +99,13 @@ namespace ARBot.Common.Maps
             ECEF d21 = p1 - p0;
             ECEF d = p - p0;
 
-            double r2 = Matrix.DotProduct(d21, d21);
+            double r2 = d21.Dot(d21);
             if (r2 == 0)
             {
                 pos = -1;
                 return null;
             }
-            pos = Matrix.DotProduct(d21, d) / r2;
+            pos = d21.Dot(d) / r2;
             return new ECEF() { X = p0.X + pos * d21.X, Y = p0.Y + pos * d21.Y, Z=p0.Z+pos*d21.Z };
         }
 

@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ARBot.Common.Common;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace ARBot.Common.Coordinates
 {
     public class Transformation
     {
-        public Matrix Rotation { get; private set; }
-        public Matrix Offset { get; private set; }
+        public Matrix<double> Rotation { get; private set; }
+        public Matrix<double> Offset { get; private set; }
 
         public Transformation()
         {
@@ -52,14 +52,14 @@ namespace ARBot.Common.Coordinates
         /// </summary>
         public void ResetOffset()
         {
-            Offset = new Matrix(3, 1);
+            Offset = Matrix<double>.Build.Dense(3, 1);
         }
         /// <summary>
         /// Vynuluje rotaci
         /// </summary>
         public void ResetRotation()
         {
-            Rotation = new Matrix(Matrix.Identity(3));
+            Rotation = Matrix<double>.Build.DenseIdentity(3);
         }
         /// <summary>
         /// Vynuluje posunuti a rotaci
@@ -83,7 +83,7 @@ namespace ARBot.Common.Coordinates
                 double s = Scale;
                 if (s != value)
                 {
-                    Rotation=Rotation.Mul(value / s);
+                    Rotation = Rotation * (value / s);
                 }
             }
         }
@@ -95,14 +95,14 @@ namespace ARBot.Common.Coordinates
         /// <returns></returns>
         public void RotateZ(double angle)
         {
-            Matrix t = new Matrix(3, 3);
+            var t = Matrix<double>.Build.Dense(3, 3);
             t[0, 0] = Math.Cos(angle);
             t[0, 1] = -Math.Sin(angle);
             t[1, 0] = Math.Sin(angle);
             t[1, 1] = Math.Cos(angle);
             t[2, 2] = 1;
 
-            Rotation = Rotation.Mul(t);
+            Rotation = Rotation * t;
         }
 
         /// <summary>
@@ -112,14 +112,14 @@ namespace ARBot.Common.Coordinates
         /// <returns></returns>
         public void RotateY(double angle)
         {
-            Matrix t = new Matrix(3, 3);
+            var t = Matrix<double>.Build.Dense(3, 3);
             t[0, 0] = Math.Cos(angle);
             t[1, 1] = 1;
             t[2, 2] = Math.Cos(angle);
             t[0, 2] = Math.Sin(angle);
             t[2, 0] = -Math.Sin(angle);
 
-            Rotation = Rotation.Mul(t);
+            Rotation = Rotation * t;
         }
 
         /// <summary>
@@ -129,14 +129,14 @@ namespace ARBot.Common.Coordinates
         /// <returns></returns>
         public void RotateX(double angle)
         {
-            Matrix t = new Matrix(3, 3);
+            var t = Matrix<double>.Build.Dense(3, 3);
             t[0, 0] = 1;
             t[1, 1] = Math.Cos(angle);
             t[2, 2] = Math.Cos(angle);
             t[1, 2] = -Math.Sin(angle);
             t[2, 1] = Math.Sin(angle);
 
-            Rotation = Rotation.Mul(t);
+            Rotation = Rotation * t;
         }
         /// <summary>
         /// Pootaci souradnicovy system
@@ -178,12 +178,12 @@ namespace ARBot.Common.Coordinates
 
         public ECEF Transform(ECEF ecef)
         {
-            return new ECEF(Rotation.Mul(ecef) + Offset);
+            return new ECEF(Rotation * ecef.ToColumn() + Offset);
         }
 
-        public Matrix ToMatrix()
+        public Matrix<double> ToMatrix()
         {
-            var m = new Matrix(4, 3);
+            var m = Matrix<double>.Build.Dense(4, 3);
             m[0, 0] = Rotation[0, 0];
             m[0, 1] = Rotation[0, 1];
             m[0, 2] = Rotation[0, 2];
@@ -204,8 +204,8 @@ namespace ARBot.Common.Coordinates
         public Transformation Clone()
         {
             Transformation t = new Transformation();
-            t.Rotation = new Matrix(this.Rotation.in_Mat);
-            t.Offset = new Matrix(this.Offset.in_Mat);
+            t.Rotation = this.Rotation.Clone();
+            t.Offset = this.Offset.Clone();
             return t;
         }
     }

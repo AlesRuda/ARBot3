@@ -1,4 +1,5 @@
 ﻿using ARBot.Common.Common;
+using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -80,7 +81,7 @@ namespace ARBot.Common.Coordinates
         /// <param name="k"></param>
         /// <param name="radialDistortion"></param>
         /// <param name="tangentialDistortion"></param>
-        public Intrinsics(int width, int height, Matrix k, Matrix radialDistortion, Matrix tangentialDistortion)
+        public Intrinsics(int width, int height, Matrix<double> k, Matrix<double> radialDistortion, Matrix<double> tangentialDistortion)
         {
             Height = height;
             Width = width;

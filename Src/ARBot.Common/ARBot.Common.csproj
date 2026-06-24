@@ -38,6 +38,8 @@
   <ItemGroup Label="Compile items now included by globbing that were not in the original project file">
     <Compile Remove="Algorithms\EdgeTPU\EdgeTPUSemanticSegmentation.cs" />
     <Compile Remove="Common\TFSemanticSegmentation.cs" />
+    <Compile Remove="Common\EKF.cs" />
+    <Compile Remove="Common\EKFStep.cs" />
     <Compile Remove="Common\VirtualizedImage.cs" />
     <Compile Remove="Coordinates\CameraProjection2.cs" />
     <Compile Remove="Common\Graphics2D.cs" />

@@ -1,25 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using ARBot.Common.Common;
+using ARBot.Common;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace ARBot.Common.Coordinates
 {
-    public class ECEF : Matrix
+    /// <summary>
+    /// Bod v ECEF souradnicich. Interne sloupcovy vektor [X, Y, Z].
+    /// </summary>
+    public class ECEF : IEquatable<ECEF>
     {
         public ECEF()
-            : base(3, 1)
         {
         }
 
-        public ECEF(Matrix m)
-            : base(m.in_Mat)
+        public ECEF(Matrix<double> m)
         {
-            if (m.NoCols != 1 || m.NoRows != 3)
+            if (m.ColumnCount != 1 || m.RowCount != 3)
                 throw new ArgumentException("Pozadovany rozmer matice je 3x1.");
+            X = m[0, 0];
+            Y = m[1, 0];
+            Z = m[2, 0];
         }
 
         /// <summary>
@@ -30,7 +31,6 @@ namespace ARBot.Common.Coordinates
         /// <param name="longitude">Zemepisna delka v radianech. S nulou na nultem poledniku. Roste smerem na vychod.</param>
         /// <param name="altitude">Vyska nad povrchem</param>
         public ECEF(Ellipsoid ellipsoid, double latitude, double longitude, double altitude)
-            : this()
         {
             double slat = Math.Sin(latitude);
             double clat = Math.Cos(latitude);
@@ -40,12 +40,9 @@ namespace ARBot.Common.Coordinates
             double N = ellipsoid.SemiMajorAxis / Math.Sqrt(1 - ellipsoid.EccentricitySquared * slat * slat);
 
             double c = (N + altitude) * clat;
-            double x = c * clng;
-            double y = c * slng;
-            double z = (N * (1 - ellipsoid.EccentricitySquared) + altitude) * slat;
-            X = x;
-            Y = y;
-            Z = z;
+            X = c * clng;
+            Y = c * slng;
+            Z = (N * (1 - ellipsoid.EccentricitySquared) + altitude) * slat;
         }
 
 
@@ -53,7 +50,7 @@ namespace ARBot.Common.Coordinates
         /// Konstruktor
         /// </summary>
         /// <param name="ellipsoid">Elipsoid popisujici Zem</param>
-        /// <param name="latitude">LLA souradnice</param>
+        /// <param name="lla">LLA souradnice</param>
         public ECEF(Ellipsoid ellipsoid, LLA lla)
             : this(ellipsoid, lla.Latitude, lla.Longitude, lla.Altitude)
         {
@@ -62,51 +59,38 @@ namespace ARBot.Common.Coordinates
         /// <summary>
         /// Miri na nutly polednik
         /// </summary>
-        public double X
-        {
-            get
-            {
-                return this[0, 0];
-            }
-            set
-            {
-                this[0, 0] = value;
-            }
-        }
+        public double X { get; set; }
         /// <summary>
         /// Miri smerem na vychod
         /// </summary>
-        public double Y
-        {
-            get
-            {
-                return this[1, 0];
-            }
-            set
-            {
-                this[1, 0] = value;
-            }
-        }
+        public double Y { get; set; }
         /// <summary>
         /// Roste smerem na sever
         /// </summary>
-        public double Z
-        {
-            get
-            {
-                return this[2, 0];
-            }
-            set
-            {
-                this[2, 0] = value;
-            }
-        }
+        public double Z { get; set; }
+
         public double Radius
         {
             get
             {
                 return Math.Sqrt(X * X + Y * Y + Z * Z);
             }
+        }
+
+        /// <summary>
+        /// Sloupcovy vektor 3x1 [X; Y; Z] pro maticove operace.
+        /// </summary>
+        public Matrix<double> ToColumn()
+        {
+            return Matrix<double>.Build.DenseOfArray(new double[,] { { X }, { Y }, { Z } });
+        }
+
+        /// <summary>
+        /// Skalarni soucin s vektorem o.
+        /// </summary>
+        public double Dot(ECEF o)
+        {
+            return X * o.X + Y * o.Y + Z * o.Z;
         }
 
         public static ECEF operator +(ECEF x1, ECEF x2)
@@ -121,7 +105,7 @@ namespace ARBot.Common.Coordinates
 
         public static ECEF operator *(ECEF x1, double d)
         {
-            return new ECEF(x1.Mul(d));
+            return new ECEF() { X = x1.X * d, Y = x1.Y * d, Z = x1.Z * d };
         }
 
         /// <summary>
@@ -142,51 +126,20 @@ namespace ARBot.Common.Coordinates
             return new Point2D((float)e.Y, (float)-e.Z);
         }
 
-        /*
-                public Matice Rotate()
-                {
-                    double la = Math.Atan2(Z, Math.Sqrt(X * X + Y * Y));
-                    double lo = Math.Atan2(Y, X);
+        public bool Equals(ECEF other)
+        {
+            return other != null && X == other.X && Y == other.Y && Z == other.Z;
+        }
 
-                    Matice t = new Matice(3, 3);
-                    t[0, 0] = Math.Cos(lo);
-                    t[0, 1] = -Math.Sin(lo);
-                    t[1, 0] = Math.Sin(lo);
-                    t[1, 1] = Math.Cos(lo);
-                    t[2, 2] = 1;
+        public override bool Equals(object obj)
+        {
+            return obj is ECEF e && Equals(e);
+        }
 
-                    Matice t1 = new Matice(3, 3);
-                    t1[0, 0] = Math.Cos(la);
-                    t1[1, 1] = 1;
-                    t1[2, 2] = Math.Cos(la);
-                    t1[0, 2] =-Math.Sin(la);
-                    t1[2, 0] =Math.Sin(la);
-
-                    return t.Mul(t1);
-                }
-
-                public Matice RotateBack()
-                {
-                    double la = -Math.Atan2(Z, Math.Sqrt(X * X + Y * Y));
-                    double lo = -Math.Atan2(Y, X);
-
-                    Matice t = new Matice(3, 3);
-                    t[0, 0] = Math.Cos(lo);
-                    t[0, 1] = Math.Sin(lo);
-                    t[1, 0] = -Math.Sin(lo);
-                    t[1, 1] = Math.Cos(lo);
-                    t[2, 2] = 1;
-
-                    Matice t1 = new Matice(3, 3);
-                    t1[0, 0] = Math.Cos(la);
-                    t1[1, 1] = 1;
-                    t1[2, 2] = Math.Cos(la);
-                    t1[0, 2] = Math.Sin(la);
-                    t1[2, 0] = -Math.Sin(la);
-
-                    return t.Mul(t1);
-                }
-                */
+        public override int GetHashCode()
+        {
+            return X.GetHashCode() ^ Y.GetHashCode() ^ Z.GetHashCode();
+        }
 
         public override string ToString()
         {
