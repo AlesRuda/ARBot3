@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ARBot.Common.NMEA
+namespace ARBot.HAL.NMEA
 {
     /// <summary>
     /// Fix quality indicater

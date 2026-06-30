@@ -21,6 +21,11 @@ namespace ARBot.Common.Devices
         protected uint frameNum = 0;
         bool disposed = false;
 
+        /// <summary>
+        /// Vyvolano (mimo zamek) po prichodu noveho mereni v ramci zpracovani na pozadi.
+        /// </summary>
+        public event EventHandler<TState> MeasurementArived;
+
 
         protected virtual void Pickedup(TState s)
         {
@@ -47,7 +52,7 @@ namespace ARBot.Common.Devices
         }
         public bool IsRunning => task != null;
         /// <summary>
-        /// Spusti smycku spracovani
+        /// Spusti smycku zpracovani
         /// </summary>
         public void Start()
         {
@@ -102,6 +107,9 @@ namespace ARBot.Common.Devices
                         }
                         lastMeasurement = v;
                     }
+
+                    if (v != null)
+                        OnMeasurement(v);
                 }
                 catch(Exception ex)
                 {
@@ -109,6 +117,15 @@ namespace ARBot.Common.Devices
                 }
             }
             task = null;
+        }
+
+        /// <summary>
+        /// Hook volany (mimo zamek) po prichodu a ulozeni noveho mereni. Vychozi implementace
+        /// vyvola udalost MeasurementArived; potomci mohou prepsat.
+        /// </summary>
+        protected virtual void OnMeasurement(TState v)
+        {
+            MeasurementArived?.Invoke(this, v);
         }
         // Public implementation of Dispose pattern callable by consumers.
         public void Dispose()

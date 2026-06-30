@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Nepouzivane VectorNav SDK (pouziva se vndotnetlib-0.4)
+/vectornav-sdk-1-2-0/

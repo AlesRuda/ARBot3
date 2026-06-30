@@ -79,34 +79,6 @@ namespace ARBot.Common.Coordinates
             double clat = Math.Cos(Latitude);
             N = ellipsoid.SemiMajorAxis / Math.Sqrt(1 - ellipsoid.EccentricitySquared * slat * slat);
             Altitude = p / clat - N;
-
-/*
- * 
-            double e2 = ellipsoid.EccentricitySquared;
-            double ex2 = ellipsoid.SemiMajorAxisSquared / ellipsoid.SemiMinorAxisSquared - 1;
-            double e4 = e2 * e2;
-            double e = Math.Sqrt(e2);
-            double E2 = ellipsoid.SemiMinorAxisSquared - ellipsoid.SemiMinorAxisSquared;
-
-            double r2 = x * x + y * y;
-            double r = Math.Sqrt(r2);
-            double z2 = z * z;
-            double F = 54 * e2 * z2;
-            double G = r2 + (1 - e2) * z2 - e2 * E2;
-            double C = e4 * F * r2 / (G * G * G);
-            double S = Math.Pow(1 + C + Math.Sqrt(C * C + 2 * C), 1 / 3);
-            double P = F / (3 * (S + 1 / S + 1) * (S + 1 / S + 1) * G * G);
-            double Q = Math.Sqrt(1 + 2 * e4 * P);
-            double r0 = (-(P * e2 * r) / (1 + Q)) + Math.Sqrt(ellipsoid.SemiMajorAxisSquared / 2 * (1 + 1 / Q) - ((P * (1 - e2) * z * z) / (Q * (1 + Q))) - P * r2 / 2);
-            double i = (r - e2 * r0) * (r - e2 * r0);
-            double U = Math.Sqrt(i + z * z);
-            double V = Math.Sqrt(i + (1 - e2) * z * z);
-            i = ellipsoid.SemiMinorAxisSquared / (ellipsoid.SemiMajorAxis * V);
-            double Z0 = i * z;
-            Altitude = U * (1 - i);
-            Latitude = Math.Atan((z + ex2 * Z0) / r);
-            Longitude = Math.Atan2(y, x);
-*/
         }
 
         /// <summary>

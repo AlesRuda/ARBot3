@@ -1,11 +1,12 @@
-﻿using System;
+﻿using ARBot.HAL.NMEA;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ARBot.Common.NMEA
+namespace ARBot.HAL.NMEA
 {
     /// <summary>
     /// NMEA Message base class.

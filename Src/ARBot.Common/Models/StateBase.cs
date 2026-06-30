@@ -37,7 +37,7 @@ namespace ARBot.Common.Models
         public double? CameraToWayOrientation;
 
         /// <summary>
-        /// Orientace robotu urcena z GPS v dadianech a matematickem smyslu.
+        /// Orientace robotu urcena z GPS v radianech a matematickem smyslu.
         /// </summary>
         public virtual double? GPSOriantation => null;
 

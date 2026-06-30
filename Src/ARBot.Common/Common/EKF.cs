@@ -182,7 +182,7 @@ namespace ARBot.Common.Common
         }
 
         /// <summary>
-        /// Vytvori novu matici jejiz hodnoty podle mask IsNaN budou nahrazeny def
+        /// Vytvori novou matici jejiz hodnoty podle mask IsNaN budou nahrazeny def
         /// </summary>
         /// <param name="m">Ctvercova matice</param>
         /// <param name="mask">Sloupcovy vektor, stejneho rozmeru jako m</param>

@@ -71,6 +71,7 @@
     <Compile Remove="Models\SimpleModel.cs" />
     <Compile Remove="Navigations\LidarFolowMeNavigation.cs" />
     <Compile Remove="Navigations\MapCorelator.cs" />
+    <Compile Remove="Navigations\RayEx.cs" />
     <Compile Remove="Navigations\RayExtensions.cs" />
     <Compile Remove="Navigations\RRT.cs" />
     <Compile Remove="Navigations\RRTModel.cs" />
