@@ -1,6 +1,7 @@
-﻿using ARBot.Common.Algorithms.ComputeUnit;
+using ARBot.Common.Algorithms.ComputeUnit;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
+using ARBot.Common.Devices;
 using ARBot.Common.LocalMaps;
 using ARBot.HAL;
 using Intel.RealSense;
@@ -8,20 +9,16 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Numerics;
 
 namespace HALWindows
 {
     /// <summary>
     /// Ovladac hloubkove kamery Intel RealSense D435.
-    /// Po vytvoreni (resp. po Init) bezi na pozadi task, ktery cte snimky z pipeline,
-    /// vyvolava udalost ImageGrabed a posledni snimek zpristupnuje pres GetLastMeasurement.
+    /// Dedi ze SensorBase: po Init bezi na pozadi task ctouci snimky z pipeline,
+    /// posledni snimek je dostupny pres GetLastMeasurement a udalost MeasurementArived.
     /// </summary>
-    public sealed class D435Camera:ICamera, IDisposable
+    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
     {
         /// <summary>Vypocetni jednotka pro detekci hran cesty (volitelna).</summary>
         IComputeUnit cu;
@@ -29,11 +26,6 @@ namespace HALWindows
         string sn;
         /// <summary>Zpetna projekce barev na pravdepodobnostni obraz (volitelna).</summary>
         public IBackProject BackProject { get; set; }
-
-        /// <summary>Bezi prave zpracovavaci task?</summary>
-        private bool processingIsRunning = false;
-        private Task processingTask;
-        CancellationTokenSource ctSource;
 
         /// <summary>Nastaveni barevneho (RGB) streamu.</summary>
         CameraSettings settingsRGB;
@@ -44,12 +36,7 @@ namespace HALWindows
         private PipelineProfile pipelineProfile;
 
         /// <summary>
-        /// Vyvolano z pozadiho tasku pri kazdem nove zachycenem snimku.
-        /// </summary>
-        public event EventHandler<ImageGrabedEventArgs> ImageGrabed;
-
-        /// <summary>
-        /// Otoceni kamery vzuhu nokama, tj. rotace podel z o 180 stupnu
+        /// Otoceni kamery vzuhu nohama, tj. rotace podel z o 180 stupnu.
         /// </summary>
         public bool Swap;
 
@@ -62,12 +49,10 @@ namespace HALWindows
         public static DateTime CalcTimeStamp(double miliseconds)
         {
             return new DateTime(1970, 1, 1).Add(DateTimeOffset.Now.Offset).AddMilliseconds(miliseconds);
-
-            //new DateTime(1970, 1, 1, 0, 0, 0, 0).ToLocalTime().AddMilliseconds(
         }
 
         /// <summary>Prvni dostupna kamera, RGB 640x480, bez vypocetni jednotky.</summary>
-        public D435Camera():this(null, null, new CameraSettings(640, 480))
+        public D435Camera() : this(null, null, new CameraSettings(640, 480))
         {
         }
 
@@ -99,35 +84,10 @@ namespace HALWindows
         }
 
         /// <summary>Aktualni nastaveni hloubkoveho streamu.</summary>
-        public CameraSettings DepthSettings
-        {
-            get
-            {
-                return settingsDepth;
-            }
-        }
+        public CameraSettings DepthSettings => settingsDepth;
 
         /// <summary>Aktualni nastaveni barevneho (RGB) streamu.</summary>
-        public CameraSettings RGBSettings
-        {
-            get
-            {
-                return settingsRGB;
-            }
-        }
-        /*
-                public bool AWB
-                {
-                    get
-                    {
-                        return device.QueryColorAutoWhiteBalance();
-                    }
-                    set
-                    {
-                        device.SetColorAutoWhiteBalance(value);
-                    }
-                }
-                */
+        public CameraSettings RGBSettings => settingsRGB;
 
         /// <summary>
         /// Zkopiruje data hloubkoveho snimku (16 bit) do ciloveho bufferu, pripadne v obracenem poradi (Swap).
@@ -142,31 +102,9 @@ namespace HALWindows
             using (f)
             {
                 if (Swap)
-                {
                     NativeComputeUnit.ReverseInt16IntPtr(d, f.Data, f.Width * f.Height);
-
-                    /*
-                    Marshal.Copy(f.Data, d, 0, d.Length);
-                    byte b;
-                    int cnt = f.Stride * f.Height / 2;
-                    for (int i = 0, j = f.Stride * f.Height - 2; i < cnt; i += 2, j -= 2)
-                    {
-                        b = d[i];
-                        d[i] = d[j];
-                        d[j] = b;
-
-                        b = d[i + 1];
-                        d[i + 1] = d[j + 1];
-                        d[j + 1] = b;
-                    }
-                    */
-                }
                 else
-                {
-                    NativeComputeUnit.CopyIntPtr(d, f.Data, f.Width * f.Height*2);
-
-//                    Marshal.Copy(f.Data, d, 0, d.Length);
-                }
+                    NativeComputeUnit.CopyIntPtr(d, f.Data, f.Width * f.Height * 2);
             }
         }
 
@@ -183,66 +121,23 @@ namespace HALWindows
             using (f)
             {
                 if (Swap)
-                {
                     NativeComputeUnit.ReverseRGB24ToBGR32IntPtr(d, f.Data, f.Width * f.Height);
-                    /*
-                Marshal.Copy(f.Data, d, 0, d.Length);
-                    byte b;
-                    int cnt = f.Stride * f.Height / 2;
-                    for (int i = 0, j = f.Stride * f.Height - 3; i < cnt; i += 3, j -= 3)
-                    {
-                        for (int k = 0; k < 3; k += 3)
-                        {
-                            b = d[i + k];
-                            d[i + k] = d[j + k + 2];
-                            d[j + k + 2] = b;
-
-                            b = d[i + k + 1];
-                            d[i + k + 1] = d[j + k + 1];
-                            d[j + k + 1] = b;
-
-                            b = d[i + k + 2];
-                            d[i + k + 2] = d[j + k];
-                            d[j + k] = b;
-                        }
-                    }
-                    */
-                }
                 else
-                {
                     NativeComputeUnit.CopyRGB24ToBGR32IntPtr(d, f.Data, f.Width * f.Height);
-                    /*
-                    Marshal.Copy(f.Data, d, 0, d.Length);
-                    byte b;
-                    int cnt = f.Stride * f.Height;
-                    for (int i = 0; i < cnt; i +=3)
-                    {
-                        for (int j = 0; j < 3; j += 3)
-                        {
-                            b = d[i + j];
-                            d[i + j] = d[i + j + 2];
-                            d[i + j + 2] = b;
-                        }
-                    }*/
-                }
             }
         }
 
-        /// <summary>Priznak, ze je k dispozici novy (jeste neodebrany) snimek.</summary>
-        bool imageGrabed;
-
         /// <summary>
         /// Pocka na dalsi snimek z pipeline, zpracuje ho (RGB, hloubka, volitelne backprojection/hrany)
-        /// a vrati jako novy CameraFrame s vlastnimi buffery.
+        /// a vrati jako novy CameraFrame s vlastnimi buffery. Volano ze SensorBase.Process.
         /// </summary>
-        protected CameraFrame GetMeasurement()
+        protected override CameraFrame GetMeasurement()
         {
             Image<BGR32> imageRGB = null;
             Image<BGR32> resizedColorImage = null;
             Image<Gray16> imageDepth = null;
             Image<Gray> probabilityImage = null;
             List<PathEdge> edges = null;
-
 
             if (settingsRGB != null)
             {
@@ -293,93 +188,14 @@ namespace HALWindows
             }
         }
 
-        /// <summary>Posledni zachyceny snimek (sdileny mezi pozadim taskem a GetLastMeasurement).</summary>
-        CameraFrame lastFrame;
-
         /// <summary>
-        /// Spusti zpracovani snimku na pozadi (volano z Init po (re)konfiguraci pipeline).
-        /// </summary>
-        private void Start()
-        {
-            if (!processingIsRunning)
-            {
-                ctSource = new CancellationTokenSource();
-                processingTask = new Task(Process, ctSource.Token);
-                processingIsRunning = true;
-                processingTask.Start();
-            }
-        }
-
-        /// <summary>
-        /// Pozadi smycka: na kazdy prichozi snimek ho zapamatuje, nastavi priznak a vyvola ImageGrabed.
-        /// Bezi az do zruseni tokenu (StopProcessing/Dispose).
-        /// </summary>
-        private void Process()
-        {
-            try
-            {
-                while (!ctSource.IsCancellationRequested)
-                {
-                    var frame = GetMeasurement();
-
-                    lock (this)
-                    {
-                        lastFrame = frame;
-                        imageGrabed = true;
-                    }
-
-                    ImageGrabed?.Invoke(this, new ImageGrabedEventArgs() { Frames = new List<CameraFrame>() { frame } });
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.ToString());
-            }
-            finally
-            {
-                processingIsRunning = false;
-            }
-        }
-
-
-        /// <summary>
-        /// Vraci posledni zachyceny snimek. Opakovane volani bez prichodu noveho snimku vraci null.
-        /// </summary>
-        public CameraFrame GetLastMeasurement()
-        {
-            lock (this)
-            {
-                if (imageGrabed)
-                {
-                    imageGrabed = false;
-                    return lastFrame;
-                }
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Zastavi zpracovani na pozadi a pocka na dobehnuti tasku.
-        /// </summary>
-        private void StopProcessing()
-        {
-            if (processingIsRunning)
-            {
-                ctSource?.Cancel();
-                try { processingTask?.Wait(); }
-                catch (Exception ex) { Debug.WriteLine(ex.ToString()); }
-                processingIsRunning = false;
-            }
-        }
-
-        /// <summary>
-        /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pipeline.
+        /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pipeline + pozadi task.
         /// Lze volat opakovane za behu - bezici zpracovani se pred rekonfiguraci zastavi a po ni obnovi.
         /// </summary>
         public bool Init(CameraSettings rgbSettings, CameraSettings depthSettings)
         {
-            if (processingIsRunning)
-                StopProcessing();
+            if (IsRunning)
+                Stop();
 
             settingsRGB = rgbSettings;
             settingsDepth = depthSettings;
@@ -391,7 +207,6 @@ namespace HALWindows
                 cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, 30);
             if (settingsRGB != null)
                 cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, 30);
-//            cfg.EnableStream(Stream.Infrared);
 
             if (pipeline == null)
                 pipeline = new Pipeline();
@@ -404,26 +219,15 @@ namespace HALWindows
 
             return true;
         }
-/*
-        public ICameraProjection<Image<BGR>> CreateColorProjector(ILocalMap lm, BackProject bp)
-        {
-            return new ColorProjector(Projection, lm, bp);
-        }
-        */
-        bool disposed;
 
         /// <summary>
-        /// Zastavi zpracovani na pozadi a uvolni pipeline (nativni prostredky kamery). Idempotentni.
+        /// Zastavi pozadi task (base) a uvolni pipeline (nativni prostredky kamery).
         /// </summary>
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            if (disposed)
-                return;
-            disposed = true;
-
-            StopProcessing();       // zrusi token a pocka na dobehnuti tasku
-            ctSource?.Dispose();
-            pipeline?.Dispose();    // uvolni nativni prostredky kamery
+            base.Dispose(disposing);
+            if (disposing)
+                pipeline?.Dispose();
         }
 
         /// <summary>
@@ -483,10 +287,10 @@ namespace HALWindows
             Intel.RealSense.Extrinsics? depth2Color
             )
         {
-            Intel.RealSense.Intrinsics? i = depthIntrin?? colorIntrin;
+            Intel.RealSense.Intrinsics? i = depthIntrin ?? colorIntrin;
 
             var i1 = Simplify(i.Value);
-            Debug.WriteLine(name+": " + i1.ToString());
+            Debug.WriteLine(name + ": " + i1.ToString());
             var ii = i1.Inverse();
             if (Swap)
             {
@@ -496,7 +300,7 @@ namespace HALWindows
                 ii.PPx = ii.Width - ii.PPx;
                 ii.PPy = ii.Height - ii.PPy;
             }
-            if(depthIntrin == null)
+            if (depthIntrin == null)
                 return new CameraProjection(i1, ii, Extrinsic2Transform(color2Depth.Value), Extrinsic2Transform(depth2Color.Value));
             else
                 return new D435CameraProjection(i1, ii, colorIntrin.Value, depthIntrin.Value, color2Depth.Value, depth2Color.Value);

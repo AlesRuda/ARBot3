@@ -15,9 +15,9 @@ namespace ARBot.HAL
     public interface ICamera
     {
         /// <summary>
-        /// Vyvolano pri kazdem nove zachycenem snimku.
+        /// Vyvolano po prichodu noveho snimku (poskytuje ho SensorBase).
         /// </summary>
-        event EventHandler<ImageGrabedEventArgs> ImageGrabed;
+        event EventHandler<CameraFrame> MeasurementArived;
 
         /// <summary>Aktualni nastaveni barevneho (RGB) streamu.</summary>
         CameraSettings RGBSettings { get;  }

@@ -33,5 +33,22 @@ namespace ARBot.ViewModels
         {
             // TODO: implementovat ulozeni
         }
+
+        /// <summary>
+        /// Otevre novy dokument s RGB streamem z kamery D435.
+        /// </summary>
+        [RelayCommand]
+        private void TestD435()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var doc = new D435TestDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
     }
 }

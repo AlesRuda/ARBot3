@@ -14,7 +14,7 @@ namespace HALWindows
     public class D435CameraProjection: CameraProjection
     {
 #if IsX64
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ColorPixel23D", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
+        [DllImport("NativeLib.dll", EntryPoint = "ColorPixel23D", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
         private static extern void ColorPixel23D(
             Point[] colorXYs,
             [In, Out]Point4D[] cameradPoints,

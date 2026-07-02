@@ -10,6 +10,9 @@ namespace ARBot.ViewModels
     /// </summary>
     public class DockFactory : Factory
     {
+        /// <summary>Dok pro dokumenty (sem se pridavaji nove dokumenty, napr. z menu).</summary>
+        public IDocumentDock DocumentDock { get; private set; }
+
         public override IRootDock CreateLayout()
         {
             var document = new Document { Id = "Document1", Title = "Document" };
@@ -25,6 +28,7 @@ namespace ARBot.ViewModels
                 ActiveDockable = document,
                 CanCreateDocument = true
             };
+            DocumentDock = documentDock;
 
             var toolDock = new ToolDock
             {

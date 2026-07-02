@@ -23,7 +23,9 @@
                 <MenuItem Header="Save" Command="{Binding SaveCommand}"/>
             </MenuItem>
             <MenuItem Header="Utils"/>
-            <MenuItem Header="Test"/>
+            <MenuItem Header="Test">
+                <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>
+            </MenuItem>
         </Menu>
 
         <dock:DockControl Layout="{Binding Layout}"/>

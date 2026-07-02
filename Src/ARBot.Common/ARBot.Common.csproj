@@ -81,4 +81,11 @@
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
   </ItemGroup>
+  <!-- Nativni knihovna (P/Invoke NativeLib.dll) - kopiruje se do output vc. navazujicich projektu -->
+  <ItemGroup Condition="'$(Platform)' == 'x64'">
+    <None Include="..\NativeFuncs\bin\NativeLib.dll">
+      <Link>NativeLib.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

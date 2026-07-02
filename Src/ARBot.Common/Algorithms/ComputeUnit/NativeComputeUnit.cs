@@ -34,45 +34,47 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         }
 
 
+        private static class NativeMethods
+        {
 #if IsX64
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ComputeAlloc", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
-        private static extern IntPtr ComputeAlloc(int maxPoints, int width, int height, int xOff, int yOff, float resolution);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ComputeFree", SetLastError = true)]
-        private static extern void ComputeFree(IntPtr ci);
+        [DllImport("NativeLib.dll", EntryPoint = "ComputeAlloc", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
+        internal static extern IntPtr ComputeAlloc(int maxPoints, int width, int height, int xOff, int yOff, float resolution);
+        [DllImport("NativeLib.dll", EntryPoint = "ComputeFree", SetLastError = true)]
+        internal static extern void ComputeFree(IntPtr ci);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Segment2", SetLastError = true)]
-        private static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
+        [DllImport("NativeLib.dll", EntryPoint = "Segment2", SetLastError = true)]
+        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
             byte[] rightDist, float[] rightTransformMatrix, Point2DF[,] rightTransform,
             float[] globalTransformMatrix,
             int len, float maxZ);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "BackProjectImpl")]
-        private static extern void BackProject(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "BackProjectBGR32Impl")]
-        private static extern void BackProjectBGR32(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "BackProjectImpl")]
+        internal static extern void BackProject(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "BackProjectBGR32Impl")]
+        internal static extern void BackProjectBGR32(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "FindPathEdge", SetLastError = true)]
-        private static extern int FindPathEdge([In, Out] PathEdgeItem[] dst, byte[] probability, int width, int height);
+        [DllImport("NativeLib.dll", EntryPoint = "FindPathEdge", SetLastError = true)]
+        internal static extern int FindPathEdge([In, Out] PathEdgeItem[] dst, byte[] probability, int width, int height);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TestCopy", SetLastError = false)]
-        private static extern int TestCopy(byte[] i, byte[] o, int mode, int cnt);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TestCopy", SetLastError = false)]
-        private static extern int TestCopy2(IntPtr i, IntPtr o, int mode, int cnt);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Test2", SetLastError = false)]
-        public static extern void Test2();
+        [DllImport("NativeLib.dll", EntryPoint = "TestCopy", SetLastError = false)]
+        internal static extern int TestCopy(byte[] i, byte[] o, int mode, int cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "TestCopy", SetLastError = false)]
+        internal static extern int TestCopy2(IntPtr i, IntPtr o, int mode, int cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "Test2", SetLastError = false)]
+        internal static extern void Test2();
 
         /// <summary>
         /// Alokuje blok pameti
         /// </summary>
         /// <param name="len">delka bloku v bajtech</param>
         /// <returns></returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Alloc", SetLastError = false)]
-        public static extern IntPtr Alloc(Int32 len);
+        [DllImport("NativeLib.dll", EntryPoint = "Alloc", SetLastError = false)]
+        internal static extern IntPtr Alloc(Int32 len);
         /// <summary>
         /// Uvolnuje blok pameti
         /// </summary>
         /// <param name="ptr">pointer na blok pameti, ktery ma byt ovolnen, puvodne vracena hodnota metodou Alloc</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Free", SetLastError = false)]
-        public static extern void Free(IntPtr ptr);
+        [DllImport("NativeLib.dll", EntryPoint = "Free", SetLastError = false)]
+        internal static extern void Free(IntPtr ptr);
 
         /// <summary>
         /// Agreguje body sveta v rovine x,y pro budouci extrakci prekazek. 
@@ -88,10 +90,10 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="height">vyska (odpovida y) agregacniho pole</param>
         /// <param name="v">rovnice roviny po ktere robot jede, vznika regresi z bodu v okoli robotu, slouzi pro upravu z souradnice agregovaneho bodu z' = v.x * p.x + v.y * p.y + v.z * p.z + v.a * p.a; </param>
         /// <returns>pocet obsazenych agregacnich bodu</returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "AggregateObstacles", SetLastError = false)]
-        public static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false)]
-        public static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
+        [DllImport("NativeLib.dll", EntryPoint = "AggregateObstacles", SetLastError = false)]
+        internal static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
+        [DllImport("NativeLib.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false)]
+        internal static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
 
         /// <summary>
         /// Prolozi rovinou mnozinu bodu jejichz abs(z) je mensi jak MaxZ.
@@ -102,24 +104,24 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="src">Prokladane body</param>
         /// <param name="maxZ">Maximalni hodnota abs(z) aby byl bod pouzit pro vypocet prolozeni</param>
         /// <param name="len">Pocet bodu v poli src</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "XYZ2PlaneImpl", SetLastError = false)]
-        public static extern void XYZ2PlaneImpl([In, Out] ref PlaneParams param, Point4D[] src, float maxZ, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "XYZ2PlaneImpl", SetLastError = false)]
+        internal static extern void XYZ2PlaneImpl([In, Out] ref PlaneParams param, Point4D[] src, float maxZ, int len);
 
         /// <summary>
         /// Prepocte agregovane hodnoty pro prolozeni bodu rovinou na rovinu
 	    /// vysledkem bude nastaveni atributu v
         /// </summary>
         /// <param name="pars"></param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CalcPlaneParams", SetLastError = false)]
-        public static extern void CalcPlaneParams([In, Out] ref PlaneParams pars);
+        [DllImport("NativeLib.dll", EntryPoint = "CalcPlaneParams", SetLastError = false)]
+        internal static extern void CalcPlaneParams([In, Out] ref PlaneParams pars);
 
         /// <summary>
         /// Inizializuje pouzite agregacni itemy nastavenim Count na 0
         /// </summary>
         /// <param name="uais">Pole offseru pouzitych AggregateItem</param>
         /// <param name="cnt">Pocet prvku v uias</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ClearAggregateImpl", SetLastError = false)]
-        public static extern void ClearAggregateImpl([In, Out] AggregateItem[] ais, Int32[] uias, Int32 cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "ClearAggregateImpl", SetLastError = false)]
+        internal static extern void ClearAggregateImpl([In, Out] AggregateItem[] ais, Int32[] uias, Int32 cnt);
 
         /// <summary>
         /// Z hloubkoveho obrazu vypocte xyz souradnice bodu v prostoru kamery (x - roste doprava, y - roste dolu a z od kamery)
@@ -131,16 +133,16 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="transform">Pole popisujici kameru. Pro kazdy bod kamery obsahuje promitnuti do plochy XY</param>
         /// <param name="len">Delky poli dist a transform</param>
         /// <returns>Pocet zapsanych bodu do dst</returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false)]
-        public static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false)]
+        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
 
         // z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
         // nasledne bod pootoci v prostoru pomoci rotate
         // transform je pole vektoru xy, plati xyz = [x*dist, y*dist, dist], pole transform a dist obsahuje len prvku,
         // hodnoty 0 a -1 v dist reporezentuji nezmerenou hodnotu, tyto body se do vystupu dst neukladaji
         // funkce vraci pocet zapsanych zaznamu do dst
-        [DllImport("AkceleratorDll.dll", EntryPoint = "DepthTransformImpl", SetLastError = false)]
-        public static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "DepthTransformImpl", SetLastError = false)]
+        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
 
         /// <summary>
         /// z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
@@ -155,8 +157,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dist"></param>
         /// <param name="len"></param>
         /// <returns></returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "DepthTransform2Impl", SetLastError = false)]
-        public static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "DepthTransform2Impl", SetLastError = false)]
+        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len);
 
         /// <summary>
         /// extrahuje z agregacniho pole prekazky
@@ -168,15 +170,15 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="minCount">Minimalni pocet pointu z kterych bylo agregovano tj. AggregateItem.Count</param>
         /// <param name="minStd2">Minimalni hodnota rozptylu</param>
         /// <returns></returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ExtractObstaclesImpl", SetLastError = false)]
-        public static extern int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, [In, Out] Point4D[] ops, float minCount, float minStd2);
+        [DllImport("NativeLib.dll", EntryPoint = "ExtractObstaclesImpl", SetLastError = false)]
+        internal static extern int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, [In, Out] Point4D[] ops, float minCount, float minStd2);
 
         /// <summary>
         /// Resetuje agrgovane udaje ve vypoctu aproximace bodu rovinou
         /// </summary>
         /// <param name="ptr">pointer na blok pameti, ktery ma byt ovolnen, puvodne vracena hodnota metodou Alloc</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ResetPlaneParams", SetLastError = false)]
-        public static extern void ResetPlaneParams([In, Out] ref PlaneParams pars);
+        [DllImport("NativeLib.dll", EntryPoint = "ResetPlaneParams", SetLastError = false)]
+        internal static extern void ResetPlaneParams([In, Out] ref PlaneParams pars);
 
         /// <summary>
         /// Pole vektoru src vynasobi matici transform a vysledek ulozi do dst
@@ -186,8 +188,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="rotate">Pole transformacni matice float[16]. V matici na pozici 0 je prvni radek prvni sloupec, na pozici 1 je prvni radek druhy sloupec, ....</param>
         /// <param name="src">Zdrojove pole</param>
         /// <param name="len">Delka pole dst a src</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TransformPoint4DImpl", SetLastError = false)]
-        public static extern void TransformPoint4DImpl([In, Out]Point4D[] dst, float[] rotate, Point4D[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "TransformPoint4DImpl", SetLastError = false)]
+        internal static extern void TransformPoint4DImpl([In, Out]Point4D[] dst, float[] rotate, Point4D[] src, int len);
 
 
         /// <summary>
@@ -197,8 +199,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false)]
-        public static extern void ReverseRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false)]
+        internal static extern void ReverseRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32 v reverznim poradi
@@ -207,8 +209,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false)]
-        public static extern void ReverseRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false)]
+        internal static extern void ReverseRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
         /// <summary>
         /// Reverzuje pole Int16, ze zdroje src kopiruje do dst
@@ -217,8 +219,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseInt16", SetLastError = false)]
-        public static extern void ReverseInt16([In, Out] Int16[] dst, Int16[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseInt16", SetLastError = false)]
+        internal static extern void ReverseInt16([In, Out] Int16[] dst, Int16[] src, int len);
 
         /// <summary>
         /// Reverzuje pole Int16, ze zdroje src kopiruje do dst
@@ -227,8 +229,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych in16</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseInt16", SetLastError = false)]
-        public static extern void ReverseInt16IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseInt16", SetLastError = false)]
+        internal static extern void ReverseInt16IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -237,8 +239,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false)]
-        public static extern void CopyRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false)]
+        internal static extern void CopyRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -247,8 +249,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false)]
-        public static extern void CopyRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false)]
+        internal static extern void CopyRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
         /// <summary>
@@ -258,8 +260,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false)]
-        public static extern void CopyBGR24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false)]
+        internal static extern void CopyBGR24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -268,8 +270,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false)]
-        public static extern void CopyBGR24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false)]
+        internal static extern void CopyBGR24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
         /// <summary>
@@ -279,8 +281,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Copy", SetLastError = false)]
-        public static extern void CopyByte([In, Out] byte[] dst, byte[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Copy", SetLastError = false)]
+        internal static extern void CopyByte([In, Out] byte[] dst, byte[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole bajtu, ze zdroje src kopiruje do dst.
@@ -289,8 +291,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Copy", SetLastError = false)]
-        public static extern void CopyIntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Copy", SetLastError = false)]
+        internal static extern void CopyIntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
         /// <summary>
@@ -302,50 +304,50 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="width">Sirka radku v pixelech</param>
         /// <param name="worldPoints">XYZ souradnice boduv prostoru. Prvni radek odpovida pixelum nejbliz robotu tj. spodni radek kamery. Delka poje je len.</param>
         /// <returns>Vraci pocet zapsanych pixelu do dst</returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "SegmentNew2Impl", SetLastError = false)]
-        public static extern int SegmentNew2Impl([In, Out] Point4D[] dst, int len, int width, [In] Point4D[] worldPoints);
+        [DllImport("NativeLib.dll", EntryPoint = "SegmentNew2Impl", SetLastError = false)]
+        internal static extern int SegmentNew2Impl([In, Out] Point4D[] dst, int len, int width, [In] Point4D[] worldPoints);
 
 
 #else
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ComputeAlloc", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr ComputeAlloc(int maxPoints, int width, int height, int xOff, int yOff, float resolution);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ComputeFree", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void ComputeFree(IntPtr ci);
+        [DllImport("NativeLib.dll", EntryPoint = "ComputeAlloc", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr ComputeAlloc(int maxPoints, int width, int height, int xOff, int yOff, float resolution);
+        [DllImport("NativeLib.dll", EntryPoint = "ComputeFree", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ComputeFree(IntPtr ci);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Segment2", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
+        [DllImport("NativeLib.dll", EntryPoint = "Segment2", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
             byte[] rightDist, float[] rightTransformMatrix, Point2DF[,] rightTransform,
             float[] globalTransformMatrix,
             int len, float maxZ);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "BackProjectImpl", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void BackProject(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "BackProjectBGR32Impl", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void BackProjectBGR32(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "BackProjectImpl", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void BackProject(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "BackProjectBGR32Impl", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void BackProjectBGR32(byte[] probability, byte[] imgData, byte[] backProjectTab, int len);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "FindPathEdge", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int FindPathEdge([In, Out] PathEdgeItem[] dst, byte[] probability, int width, int height);
+        [DllImport("NativeLib.dll", EntryPoint = "FindPathEdge", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int FindPathEdge([In, Out] PathEdgeItem[] dst, byte[] probability, int width, int height);
 
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TestCopy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int TestCopy(byte[] i, byte[] o, int mode, int cnt);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TestCopy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int TestCopy2(IntPtr i, IntPtr o, int mode, int cnt);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Test2", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Test2();
+        [DllImport("NativeLib.dll", EntryPoint = "TestCopy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int TestCopy(byte[] i, byte[] o, int mode, int cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "TestCopy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int TestCopy2(IntPtr i, IntPtr o, int mode, int cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "Test2", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void Test2();
 
         /// <summary>
         /// Alokuje blok pameti
         /// </summary>
         /// <param name="len">delka bloku v bajtech</param>
         /// <returns></returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Alloc", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr Alloc(Int32 len);
+        [DllImport("NativeLib.dll", EntryPoint = "Alloc", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr Alloc(Int32 len);
         /// <summary>
         /// Uvolnuje blok pameti
         /// </summary>
         /// <param name="ptr">pointer na blok pameti, ktery ma byt ovolnen, puvodne vracena hodnota metodou Alloc</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Free", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Free(IntPtr ptr);
+        [DllImport("NativeLib.dll", EntryPoint = "Free", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void Free(IntPtr ptr);
 
         /// <summary>
         /// extrahuje z agregacniho pole prekazky
@@ -357,16 +359,16 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="minCount">Minimalni pocet pointu z kterych bylo agregovano tj. AggregateItem.Count</param>
         /// <param name="minStd2">Minimalni hodnota rozptylu</param>
         /// <returns></returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ExtractObstaclesImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, [In, Out] Point4D[] ops, float minCount, float minStd2);
+        [DllImport("NativeLib.dll", EntryPoint = "ExtractObstaclesImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, [In, Out] Point4D[] ops, float minCount, float minStd2);
 
         /// <summary>
         /// Inizializuje pouzite agregacni itemy nastavenim Count na 0
         /// </summary>
         /// <param name="uais">Pole offseru pouzitych AggregateItem</param>
         /// <param name="cnt">Pocet prvku v uias</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ClearAggregateImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ClearAggregateImpl([In, Out] AggregateItem[] ais, Int32[] uias, Int32 cnt);
+        [DllImport("NativeLib.dll", EntryPoint = "ClearAggregateImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ClearAggregateImpl([In, Out] AggregateItem[] ais, Int32[] uias, Int32 cnt);
 
         /// <summary>
         /// Agreguje body sveta v rovine x,y pro budouci extrakci prekazek. 
@@ -382,18 +384,18 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="height">vyska (odpovida y) agregacniho pole</param>
         /// <param name="v">rovnice roviny po ktere robot jede, vznika regresi z bodu v okoli robotu, slouzi pro upravu z souradnice agregovaneho bodu z' = v.x * p.x + v.y * p.y + v.z * p.z + v.a * p.a; </param>
         /// <returns>pocet obsazenych agregacnich bodu</returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "AggregateObstacles", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
-        [DllImport("AkceleratorDll.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
+        [DllImport("NativeLib.dll", EntryPoint = "AggregateObstacles", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
+        [DllImport("NativeLib.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
 
         // z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
         // nasledne bod pootoci v prostoru pomoci rotate
         // transform je pole vektoru xy, plati xyz = [x*dist, y*dist, dist], pole transform a dist obsahuje len prvku,
         // hodnoty 0 a -1 v dist reporezentuji nezmerenou hodnotu, tyto body se do vystupu dst neukladaji
         // funkce vraci pocet zapsanych zaznamu do dst
-        [DllImport("AkceleratorDll.dll", EntryPoint = "DepthTransformImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "DepthTransformImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
 
 
 
@@ -407,8 +409,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="rotate">Pole transformacni matice float[16]. V matici na pozici 0 je prvni radek prvni sloupec, na pozici 1 je prvni radek druhy sloupec, ....</param>
         /// <param name="src">Zdrojove pole</param>
         /// <param name="len">Delak pole dst a src</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "TransformPoint4DImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void TransformPoint4DImpl([In, Out]Point4D[] dst, float[] rotate, Point4D[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "TransformPoint4DImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void TransformPoint4DImpl([In, Out]Point4D[] dst, float[] rotate, Point4D[] src, int len);
 
 
         /// <summary>
@@ -421,23 +423,23 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="transform">Pole popisujici kameru. Pro kazdy bod kamery obsahuje promitnuti do plochy XY</param>
         /// <param name="len">Delky poli dist a transform</param>
         /// <returns>Pocet zapsanych bodu do dst</returns>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
 
         /// <summary>
         /// Resetuje agrgovane udaje ve vypoctu aproximace bodu rovinou
         /// </summary>
         /// <param name="ptr">pointer na blok pameti, ktery ma byt ovolnen, puvodne vracena hodnota metodou Alloc</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ResetPlaneParams", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ResetPlaneParams([In, Out] ref PlaneParams pars);
+        [DllImport("NativeLib.dll", EntryPoint = "ResetPlaneParams", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ResetPlaneParams([In, Out] ref PlaneParams pars);
 
         /// <summary>
         /// Prepocte agregovane hodnoty pro prolozeni bodu rovinou na rovinu
 	    /// vysledkem bude nastaveni atributu v
         /// </summary>
         /// <param name="pars"></param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CalcPlaneParams", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CalcPlaneParams([In, Out] ref PlaneParams pars);
+        [DllImport("NativeLib.dll", EntryPoint = "CalcPlaneParams", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CalcPlaneParams([In, Out] ref PlaneParams pars);
 
 
         /// <summary>
@@ -449,8 +451,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="src">Prokladane body</param>
         /// <param name="maxZ">Maximalni hodnota abs(z) aby byl bod pouzit pro vypocet prolozeni</param>
         /// <param name="len">Pocet bodu v poli src</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "XYZ2PlaneImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void XYZ2PlaneImpl([In, Out] ref PlaneParams param, Point4D[] src, float maxZ, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "XYZ2PlaneImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void XYZ2PlaneImpl([In, Out] ref PlaneParams param, Point4D[] src, float maxZ, int len);
 
 
         /// <summary>
@@ -460,8 +462,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Copy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyByte([In, Out] byte[] dst, byte[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Copy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyByte([In, Out] byte[] dst, byte[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole bajtu, ze zdroje src kopiruje do dst.
@@ -470,8 +472,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "Copy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyIntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "Copy", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyIntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
         /// <summary>
         /// Reverzuje pole Int16, ze zdroje src kopiruje do dst
@@ -480,8 +482,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseInt16", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ReverseInt16([In, Out] Int16[] dst, Int16[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseInt16", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ReverseInt16([In, Out] Int16[] dst, Int16[] src, int len);
 
         /// <summary>
         /// Reverzuje pole Int16, ze zdroje src kopiruje do dst
@@ -490,8 +492,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych in16</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseInt16", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ReverseInt16IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseInt16", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ReverseInt16IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
         /// <summary>
@@ -501,8 +503,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -511,8 +513,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -521,8 +523,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyBGR24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyBGR24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32
@@ -531,8 +533,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CopyBGR24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "CopyBGR24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void CopyBGR24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
         /// <summary>
@@ -542,8 +544,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ReverseRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ReverseRGB24ToBGR32([In, Out] BGR32[] dst, RGB[] src, int len);
 
         /// <summary>
 	    /// Kopiruje pole RGB do pole BGR32 v reverznim poradi
@@ -552,8 +554,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="dst">Cil kopirovani</param>
         /// <param name="src">Zdroj kopirovani</param>
         /// <param name="len">Pocet komirovanych bajtu</param>
-        [DllImport("AkceleratorDll.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ReverseRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
+        [DllImport("NativeLib.dll", EntryPoint = "ReverseRGB24ToBGR32", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void ReverseRGB24ToBGR32IntPtr([In, Out] byte[] dst, IntPtr src, int len);
 
 
 
@@ -561,11 +563,56 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
         /*
                         //Pro kazdy pixel BGR vezme nejvysi 4 bity barvy, slozi index do backProjectTab a vysledek ulozi do probability
-                        public static extern void BackProjectImpl(char* probability, BGR* img, char* backProjectTab, int len);
+                        internal static extern void BackProjectImpl(char* probability, BGR* img, char* backProjectTab, int len);
                         */
 
 
 #endif
+        }
+
+        // Verejne wrappery nad P/Invoke deklaracemi v NativeMethods.
+        // Zachovavaji puvodni verejne API (volani NativeComputeUnit.X z jinych assembly).
+        public static void Test2() => NativeMethods.Test2();
+
+        public static int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, AggregateItem[] ais, Int32[] uais, Int32 width, Int32 height, Point4D v)
+            => NativeMethods.AggregateObstaclesImpl(wordPoints, wordPointsCount, r, xOff, yOff, ais, uais, width, height, v);
+
+        public static void XYZ2PlaneImpl(ref PlaneParams param, Point4D[] src, float maxZ, int len)
+            => NativeMethods.XYZ2PlaneImpl(ref param, src, maxZ, len);
+
+        public static void CalcPlaneParams(ref PlaneParams pars) => NativeMethods.CalcPlaneParams(ref pars);
+
+        public static void ClearAggregateImpl(AggregateItem[] ais, Int32[] uias, Int32 cnt) => NativeMethods.ClearAggregateImpl(ais, uias, cnt);
+
+        public static int Depth2XYZImpl(Point4D[] dst, short[] dist, Point2DF[] transform, int len)
+            => NativeMethods.Depth2XYZImpl(dst, dist, transform, len);
+
+        public static int DepthTransformImpl(Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len)
+            => NativeMethods.DepthTransformImpl(dst, transform, rotate, dist, len);
+
+        public static int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, Point4D[] ops, float minCount, float minStd2)
+            => NativeMethods.ExtractObstaclesImpl(ais, uais, len, ops, minCount, minStd2);
+
+        public static void ResetPlaneParams(ref PlaneParams pars) => NativeMethods.ResetPlaneParams(ref pars);
+
+        public static void TransformPoint4DImpl(Point4D[] dst, float[] rotate, Point4D[] src, int len)
+            => NativeMethods.TransformPoint4DImpl(dst, rotate, src, len);
+
+        public static void ReverseRGB24ToBGR32(BGR32[] dst, RGB[] src, int len) => NativeMethods.ReverseRGB24ToBGR32(dst, src, len);
+
+        public static void ReverseRGB24ToBGR32IntPtr(byte[] dst, IntPtr src, int len) => NativeMethods.ReverseRGB24ToBGR32IntPtr(dst, src, len);
+
+        public static void ReverseInt16(Int16[] dst, Int16[] src, int len) => NativeMethods.ReverseInt16(dst, src, len);
+
+        public static void ReverseInt16IntPtr(byte[] dst, IntPtr src, int len) => NativeMethods.ReverseInt16IntPtr(dst, src, len);
+
+        public static void CopyRGB24ToBGR32(BGR32[] dst, RGB[] src, int len) => NativeMethods.CopyRGB24ToBGR32(dst, src, len);
+
+        public static void CopyRGB24ToBGR32IntPtr(byte[] dst, IntPtr src, int len) => NativeMethods.CopyRGB24ToBGR32IntPtr(dst, src, len);
+
+        public static void CopyByte(byte[] dst, byte[] src, int len) => NativeMethods.CopyByte(dst, src, len);
+
+        public static void CopyIntPtr(byte[] dst, IntPtr src, int len) => NativeMethods.CopyIntPtr(dst, src, len);
 
             /// <summary>
             /// rozliseni agregacniho pole
@@ -734,7 +781,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         public NativeComputeUnit(int maxPoints, int width, int height, int xOff, int yOff, float aggregateResolution, BackProject backProject)
         {
             AggregateResolution = aggregateResolution;
-            computeInfoPtr = ComputeAlloc(maxPoints, width, height, xOff, yOff, aggregateResolution);
+            computeInfoPtr = NativeMethods.ComputeAlloc(maxPoints, width, height, xOff, yOff, aggregateResolution);
             BackProjectData = backProject;
             dist2Cnt.Clear();
             dist2Cnt.Add(0, 12);
@@ -835,7 +882,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             float[] gt = Transformation(globalTransform);
 
             if(leftImage?.Data!=null)
-                Segment2(computeInfoPtr, leftImage?.Data, lt, lct, rightImage?.Data, rt, rct, gt, leftImage.Width * leftImage.Height, 0.1f);
+                NativeMethods.Segment2(computeInfoPtr, leftImage?.Data, lt, lct, rightImage?.Data, rt, rct, gt, leftImage.Width * leftImage.Height, 0.1f);
             computeInfo = null;
             obstaclePoints = null;
             wordPoints = null;
@@ -860,7 +907,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             float[] gt = Transformation(globalTransform);
 
             if (image?.Data != null)
-                Segment2(computeInfoPtr, image?.Data, lt, lct, null, lt, lct, gt, image.Width * image.Height, 0.1f);
+                NativeMethods.Segment2(computeInfoPtr, image?.Data, lt, lct, null, lt, lct, gt, image.Width * image.Height, 0.1f);
             computeInfo = null;
             obstaclePoints = null;
             wordPoints = null;
@@ -893,7 +940,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             float resolution = 0.1f;
             int w = 160;
@@ -1008,7 +1055,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
             {
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
             }
 
 //            var s = String.Join("\r\n", wordPoints.Where(xx => xx.A == 1).Select(xx => $"{xx.X}\t{xx.Y}\t{xx.Z}"));
@@ -1095,7 +1142,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p=new Point4D();
@@ -1192,7 +1239,7 @@ repeat_y1:
 
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
 
 
             var l = new List<Point4D>();
@@ -1305,7 +1352,7 @@ repeat_y1:
 
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p;
@@ -1371,7 +1418,7 @@ repeat_y1:
 
             wordPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p;
@@ -1403,7 +1450,7 @@ repeat_y1:
         public void BackProject(Image<Gray> probability, Image<BGR> img, BackProject backProject)
         {
             if (probability.Width == img.Width && probability.Height == img.Height)
-                BackProject(probability.Data, img.Data, backProject.Data, probability.Width * probability.Height);
+                NativeMethods.BackProject(probability.Data, img.Data, backProject.Data, probability.Width * probability.Height);
             else
                 throw new Exception("Rozmery probability a img musibyt stejny.");
         }
@@ -1411,7 +1458,7 @@ repeat_y1:
         public void BackProject(Image<Gray> probability, Image<ARBot.Common.Common.BGR32> img, BackProject backProject)
         {
             if (probability.Width == img.Width && probability.Height == img.Height)
-                BackProjectBGR32(probability.Data, img.Data, backProject.Data, probability.Width * probability.Height);
+                NativeMethods.BackProjectBGR32(probability.Data, img.Data, backProject.Data, probability.Width * probability.Height);
             else
                 throw new Exception("Rozmery probability a img musi byt stejny.");
         }
@@ -1419,7 +1466,7 @@ repeat_y1:
         public void BackProject(Image<Gray> probability, Image<ARBot.Common.Common.BGR32> img, byte[] backProject)
         {
             if (probability.Width == img.Width && probability.Height == img.Height)
-                BackProjectBGR32(probability.Data, img.Data, backProject, probability.Width * probability.Height);
+                NativeMethods.BackProjectBGR32(probability.Data, img.Data, backProject, probability.Width * probability.Height);
             else
                 throw new Exception("Rozmery probability a img musi byt stejny.");
         }
@@ -1440,7 +1487,7 @@ repeat_y1:
         public List<PathEdge> PathEdges(Image<Gray> image, double scaleX, double scaleY)
         {
             PathEdgeItem[] dst = new PathEdgeItem[image.Height];
-            int cnt = FindPathEdge(dst, image.Data, image.Width, image.Height);
+            int cnt = NativeMethods.FindPathEdge(dst, image.Data, image.Width, image.Height);
 
             var l = new List<PathEdge>();
 
@@ -1451,7 +1498,7 @@ repeat_y1:
 
         ~NativeComputeUnit()
         {
-            ComputeFree(computeInfoPtr);
+            NativeMethods.ComputeFree(computeInfoPtr);
         }
 
         public void Test()
@@ -1461,8 +1508,8 @@ repeat_y1:
             byte[] i = new byte[len];
             byte[] o = new byte[len];
 
-            IntPtr i1 = Alloc((int)len +100)+8;
-            IntPtr o1 = Alloc((int)len +100)+8;
+            IntPtr i1 = NativeMethods.Alloc((int)len +100)+8;
+            IntPtr o1 = NativeMethods.Alloc((int)len +100)+8;
 
             StringBuilder sb = new StringBuilder();
             Stopwatch sw = new Stopwatch();
@@ -1471,13 +1518,13 @@ repeat_y1:
             {
                 sw.Restart();
                 for(int j=0;j<cnt;j++)
-                    TestCopy(i, o, mode, (int)len /mode);
+                    NativeMethods.TestCopy(i, o, mode, (int)len /mode);
                 sw.Stop();
                 sb.AppendLine(string.Format("mode={0}, ts={1}", mode, cnt*len / mode / sw.Elapsed.TotalSeconds ));
 
                 sw.Restart();
                 for (int j = 0; j < cnt; j++)
-                    TestCopy2(i1, o1, mode, (int)len / mode);
+                    NativeMethods.TestCopy2(i1, o1, mode, (int)len / mode);
                 sw.Stop();
                 sb.AppendLine(string.Format("mode={0}, ts={1}", mode, cnt*len / mode / sw.Elapsed.TotalSeconds));
 
