@@ -107,7 +107,7 @@ AsmAddProc endp
 
 PUBLIC TransformPoint4DImpl
 
-TransformPoint4DImpl PROC 
+TransformPoint4DImpl PROC EXPORT
 
 	movsxd	r9, r9d			;znamenkove rozsireni r9d do r9
 	shl		r9, 4			;r9<<=4, 16 je pocet bajtu struktury Point4D tj. 4*float
@@ -154,7 +154,7 @@ TransformPoint4DImpl ENDP
 ; rcx - dst
 
 
-Depth2XYZImpl PROC 
+Depth2XYZImpl PROC EXPORT
 	movsxd		r9, r9d			;r9=len, znamenkove rozsireni r9d do r9
     sub			r9, 1
 
@@ -363,7 +363,7 @@ DepthTransform2Impl ENDP
 ;xmm1 = suma (1, z*x, y*z, x*y)
 ;xmm2 = suma (1, z*z, y*y, x*x)
 
-XYZ2PlaneImpl PROC 
+XYZ2PlaneImpl PROC EXPORT
 	cmp		r9d, 0		;pokud len==0 return
 	je		XYZ2Plane3
 
@@ -472,7 +472,7 @@ BackProjectBGR32Impl ENDP
 ; rcx - ais
 ;
 
-ClearAggregateImpl PROC 
+ClearAggregateImpl PROC EXPORT
  	mov		rsi, rdx					;rsi=uais
  	mov		rdi, rcx					;rdi=ais
 	mov		rdx, r8						;rdx=cnt

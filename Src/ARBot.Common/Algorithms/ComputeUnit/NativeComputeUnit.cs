@@ -397,6 +397,14 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         [DllImport("NativeLib.dll", EntryPoint = "DepthTransformImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
 
+        /// <summary>
+        /// z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery, pote pootoci pomoci rotate.
+        /// dst[i] = [transform[i].x * dist[i], transform[i].y * dist[i], dist[i]] * rotate; data se ukladaji v opacnem poradi.
+        /// (deklarace i pro non-x64/ARM - funkce je exportovana i v asm_linux_arm64.S a pouziva ji SegmentNew*)
+        /// </summary>
+        [DllImport("NativeLib.dll", EntryPoint = "DepthTransform2Impl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len);
+
 
 
 

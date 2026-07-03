@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +23,19 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ARBot.Common\ARBot.Common.csproj" />
+  </ItemGroup>
+
+  <!-- Nativni knihovna (P/Invoke NativeLib.dll) - testy NativeComputeUnit ji potrebuji v output adresari.
+       Windows: NativeLib.dll (x64), Linux/ARM: libNativeLib.so - vyber resi NativeLibraryResolver. -->
+  <ItemGroup>
+    <None Include="..\NativeFuncs\bin\NativeLib.dll" Condition="Exists('..\NativeFuncs\bin\NativeLib.dll')">
+      <Link>NativeLib.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\NativeFuncs\bin\libNativeLib.so" Condition="Exists('..\NativeFuncs\bin\libNativeLib.so')">
+      <Link>libNativeLib.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -300,16 +300,19 @@ DepthTransform2Impl:
 // X0 - param, X1 - src, S2 - MaxZ, W3 - len
 // ============================================================================
 XYZ2PlaneImpl:
-    cmp w3, #0
+    // ARM64 AAPCS64: param=x0, src=x1, MaxZ=s0 (1. FP arg), len=w2 (2. integer arg).
+    cmp w2, #0
     b.eq .LXYZ2Plane_Exit
-    
+
+    fmov s23, s0                   // zachovat MaxZ (s0/v0 se nize prepise nactenim sum)
+
     // Načtení stávajících sum z param
     ld1 {v0.4s}, [x0], #16
     ld1 {v1.4s}, [x0], #16
     ld1 {v2.4s}, [x0]
     sub x0, x0, #32                // Vrátit pointer na začátek
-    
-    sxtw x3, w3
+
+    sxtw x3, w2
     lsl x3, x3, #4                 // len * 16
 
 .LXYZ2Plane_Loop:
@@ -317,30 +320,26 @@ XYZ2PlaneImpl:
     add x4, x1, x3
     ld1 {v3.4s}, [x4]              // v3 = (1, z, y, x)
     
-    // OPRAVA SYNTAXE: Extrakce elementů z vektoru do nultých pozic pomocných registrů
-    mov v20.s[0], v3.s[3]          // X -> s20 (v20.s[0])
-    mov v21.s[0], v3.s[2]          // Y -> s21 (v21.s[0])
-    mov v22.s[0], v3.s[1]          // Z -> s22 (v22.s[0])
-    
-    // Nyní můžeme k registrům přistupovat jako ke skalárům s20, s21, s22
-    fabs s4, s22                   // Absolutní hodnota ze Z (s22)
-    
-    fcmp s4, s2                    // Porovnání s MaxZ
+    // Point4D v pameti = (x, y, z, a): v3.s[0]=x, s[1]=y, s[2]=z, s[3]=a(=1).
+    mov v20.s[0], v3.s[0]          // X
+    mov v21.s[0], v3.s[1]          // Y
+    mov v22.s[0], v3.s[2]          // Z
+
+    fabs s4, s22                   // |Z|
+    fcmp s4, s23                   // Porovnání s MaxZ (zachovano v s23)
     bhi .LXYZ2Plane_Next
-    
-    // xmm0 += xmm3
+
+    // v0 += (x, y, z, 1): SumX, SumY, SumZ, Count1
     fadd v0.4s, v0.4s, v3.4s
-    
-    // Bezpečné skalární násobení (skalár * skalár)
-    fmul s16, s22, s20             // s16 = z * x
-    fmul s17, s21, s22             // s17 = y * z
-    fmul s18, s20, s21             // s18 = x * y
-    
-    // Sestavení výsledného registru v4 = (1, z*x, y*z, x*y)
-    mov v4.s[0], v3.s[0]           // 1.0f
-    mov v4.s[1], v16.s[0]          // z * x
-    mov v4.s[2], v17.s[0]          // y * z
-    mov v4.s[3], v18.s[0]          // x * y
+
+    // v1 += (x*y, y*z, z*x, 1): SumXY, SumYZ, SumZX, Count2
+    fmul s16, s20, s21             // x * y
+    fmul s17, s21, s22             // y * z
+    fmul s18, s22, s20             // z * x
+    mov v4.s[0], v16.s[0]          // x * y
+    mov v4.s[1], v17.s[0]          // y * z
+    mov v4.s[2], v18.s[0]          // z * x
+    mov v4.s[3], v3.s[3]           // 1 (a)
     fadd v1.4s, v1.4s, v4.4s
     
     // Cílové rozložení xmm2: (1, z*z, y*y, x*x)
@@ -442,12 +441,11 @@ ClearAggregateImpl:
     lsl x3, x2, #2
     ldr w3, [x1, x3]               // w3 = index do ais
     
-    // Výpočet adresy ais[index].Count
-    // Struktura má 32 bajtů. Count je na offsetu 12.
+    // uais[i] je JIZ bajtovy offset (index * sizeof(AggregateItem)=32), viz native_funcs.cpp.
+    // Adresa je tedy ais + uais[i], NIKOLIV ais + uais[i]*32.
     sxtw x3, w3
-    lsl x3, x3, #5                 // index * 32
     add x4, x0, x3
-    
+
     str s0, [x4, #12]              // ais[index].Count = 0.0f
     
     cbnz x2, .LClearAgg_Loop
@@ -463,51 +461,33 @@ ClearAggregateImpl:
 // Na zásobníku: [sp] - height, [sp+8] - v (pointer)
 // ============================================================================
 AggregateObstaclesImpl:
-    // Načtení parametrů ze zásobníku
-    ldr w8, [sp]                   // w8 = height
-    ldr x9, [sp, #8]               // x9 = v (pointer na Point4D)
-    
+    // ARM64 AAPCS64: wordPoints=x0, count=w1, r=d0, xOff=w2, yOff=w3,
+    //   ais=x4, uais=x5, width=w6, height=w7, v (Point4D by value, HFA) = v1,v2,v3,v4.
     cmp w1, #0
     ble .LAggObst_Zero
-    
-    // Příprava vektorů
-    fcvt s0, d2                    // Převod double r na float s0
-    dup v0.4s, v0.s[0]             // v0 = (r, r, r, r)
-    
-    scvtf s1, w3                   // xOff float
-    scvtf s2, w4                   // yOff float
-    mov v1.s[1], v2.s[0]           // Kopírujeme s2 (v2.s[0]) do indexu 1
-    // indexy 2 a 3 vynulujeme, pokud je potřeba čistý vektor
+
+    // Posbirat HFA 'v' (v1..v4) do v24 = (v.x, v.y, v.z, v.a) drive nez prepiseme v1-v4.
+    mov v24.s[0], v1.s[0]          // v.x
+    mov v24.s[1], v2.s[0]          // v.y
+    mov v24.s[2], v3.s[0]          // v.z
+    mov v24.s[3], v4.s[0]          // v.a
+
+    // v0 = (r, r, r, r); r je float (C#/hpp: float r) predany v s0.
+    dup v0.4s, v0.s[0]
+
+    // v1 = (xOff, yOff, 0, 0)
+    scvtf s1, w2                   // xOff
+    scvtf s2, w3                   // yOff
+    mov v1.s[1], v2.s[0]
     mov w11, #0
     mov v1.s[2], w11
     mov v1.s[3], w11
-    
-scvtf s3, w7                   // width float
-    scvtf s4, w8                   // height float
-    
-    // OPRAVENO: s3 a s4 předhozeny jako v3.s[0] a v4.s[0]
-    mov v2.s[0], v3.s[0]
-    mov v2.s[1], v4.s[0]           // v2 = (0, 0, height, width)
-    mov w11, #0
-    mov v2.s[2], w11               // Vynulování indexu 2
-    mov v2.s[3], w11               // Vynulování indexu 3
-    
-    // Nastavení vektoru v4 na (0, 0, 32*width, 32)
-    adrp x11, Const32
-    ldr s5, [x11, :lo12:Const32]   // s5 = 32.0f
-    fmov s6, s5                    // s6 = 32.0f
-    fmul s7, s5, v3.s[0]           // s7 = 32.0f * width
-    
-    mov v4.s[0], v6.s[0]           // index 0 = 32.0f
-    mov v4.s[1], v7.s[0]           // index 1 = 32.0f * width
-    mov v4.s[2], w11               // Vynulování indexu 2
-    mov v4.s[3], w11               // Vynulování indexu 3
-    
-    ld1 {v3.4s}, [x9]              // v3 = v vektor (přepíše dočasná data ve v3)
-    
+
+    mov v3.16b, v24.16b            // v3 = v = (v.x, v.y, v.z, v.a)
+
     sxtw x1, w1
-    lsl x1, x1, #4                 // wordPointsCount * 16    
-    mov w10, #0                    // rax = 0 (čítač unikátních indexů)
+    lsl x1, x1, #4                 // wordPointsCount * 16
+    mov w10, #0                    // citac unikatnich indexu
 .LAggObst_Loop:
     sub x1, x1, #16
     add x11, x0, x1
@@ -520,24 +500,24 @@ scvtf s3, w7                   // width float
     fadd v6.4s, v6.4s, v1.4s       // v6 = (?, ?, y/r+yOff, x/r+xOff)
     
     // Kontrola mezí (0 <= x < width && 0 <= y < height)
-    fcvtzu w12, s6            // x_idx
+    // fcvtzs (SIGNED) - zaporne souradnice musi zustat zaporne, aby se odfiltrovaly.
+    fcvtzs w12, s6            // x_idx
     mov v25.s[0], v6.s[1]          // 1. Vytáhneme prvek z v6.s[1] do nulté pozice v25 (což je registr s25)
-    fcvtzu w13, s25                // 2. Teď už provedeme převod ze čistého skaláru s25 do w13
-    
+    fcvtzs w13, s25                // 2. Teď už provedeme převod ze čistého skaláru s25 do w13
+
     cmp w12, #0
-    bl .LAggObst_Next
-    cmp w12, w7
+    b.lt .LAggObst_Next            // x < 0 -> preskocit
+    cmp w12, w6                    // x >= width -> preskocit
     bge .LAggObst_Next
     cmp w13, #0
-    bl .LAggObst_Next
-    cmp w13, w8
+    b.lt .LAggObst_Next            // y < 0 -> preskocit
+    cmp w13, w7                    // y >= height -> preskocit
     bge .LAggObst_Next
-    
-    // Výpočet indexu do ais: (y_idx * 32 * width) + (x_idx * 32)
-    // Což je totéž jako: ((y_idx * width) + x_idx) * 32
-    madd w14, w13, w7, w12
+
+    // Výpočet indexu do ais: ((y_idx * width) + x_idx) * 32
+    madd w14, w13, w6, w12         // w6 = width
     lsl x14, x14, #5               // x14 = finální offset v bajtech do ais
-    add x15, x5, x14               // x15 = adresa konkrétní položky AggregateItem
+    add x15, x4, x14               // x4 = ais
     
     // Výpočet nového z' = d + c*z + b*y + a*x (skalární součin v7 a v3)
     fmul v16.4s, v7.4s, v3.4s
@@ -545,8 +525,8 @@ scvtf s3, w7                   // width float
     faddp v16.4s, v16.4s, v16.4s
     faddp v16.4s, v16.4s, v16.4s   // s16 = z'
     
-    // Úprava vektoru v7 na (1, z', y, x)
-    mov v7.s[1], v16.s[0]
+    // Point4D v pameti = (x, y, z, a); nahradime z (index 2) hodnotou z', aby SumZ += z'
+    mov v7.s[2], v16.s[0]
     fmul s17, s16, s16             // s17 = z'^2
     
     // Načtení stávajícího Count
@@ -572,10 +552,10 @@ scvtf s3, w7                   // width float
     st1 {v7.4s}, [x15]             // Zapíše SumX, SumY, SumZ, Count
     str s17, [x15, #16]            // Zapíše SumZ2
     
-    // Uložení indexu do uais
-    lsr x14, x14, #5               // Zpět na čistý index (podělit 32)
+    // Uložení bajtoveho offsetu (index*32) do uais - shodne s C++ (uais[i]=idx*sizeof)
+    // a s tim, co ocekava ClearAggregateImpl/ExtractObstaclesImpl.
     lsl x11, x10, #2
-    str w14, [x6, x11]
+    str w14, [x5, x11]             // x5 = uais
     add w10, w10, #1
 
 .LAggObst_Next:
@@ -604,9 +584,8 @@ ExtractObstaclesImpl:
     lsl x5, x2, #2
     ldr w5, [x1, x5]               // w5 = index z uais
     
-    sxtw x5, w5
-    lsl x5, x5, #5                 // index * 32
-    add x5, x0, x5                 // x5 = adresa AggregateItem
+    sxtw x5, w5                    // uais[i] je jiz bajtovy offset (index*32)
+    add x5, x0, x5                 // x5 = adresa AggregateItem = ais + uais[i]
     
     ld1 {v2.4s}, [x5]              // v2 = (SumX, SumY, SumZ, Count)
     ldr s3, [x5, #16]              // s3 = SumZ2

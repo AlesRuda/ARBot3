@@ -138,14 +138,26 @@ extern "C"
 		int n = p->Count1;
 
 		float d = (syy * sx * sx - 2 * sx * sxy * sy + n * sxy * sxy + sxx * sy * sy - n * sxx * syy);
-		float a = (sxz * sy * sy + n * sxy * syz - n * sxz * syy - sx * sy * syz + sx * syy * sz - sxy * sy * sz) / d;
-		float b = (sx * sx * syz + n * sxy * sxz - n * sxx * syz - sx * sxz * sy - sx * sxy * sz + sxx * sy * sz) / d;
-		float c = (sxy * sxy * sz - sx * sxy * syz + sx * sxz * syy - sxy * sxz * sy + sxx * sy * syz - sxx * syy * sz) / d;
+		// Ochrana proti singularite (shodne s managed PlaneParams.Calc()): pri d==0
+		// vratime svislou normalu misto deleni nulou (NaN).
+		if (d != 0)
+		{
+			float a = (sxz * sy * sy + n * sxy * syz - n * sxz * syy - sx * sy * syz + sx * syy * sz - sxy * sy * sz) / d;
+			float b = (sx * sx * syz + n * sxy * sxz - n * sxx * syz - sx * sxz * sy - sx * sxy * sz + sxx * sy * sz) / d;
+			float c = (sxy * sxy * sz - sx * sxy * syz + sx * sxz * syy - sxy * sxz * sy + sxx * sy * syz - sxx * syy * sz) / d;
 
-		p->v.x = -a;
-		p->v.y = -b;
-		p->v.z = 1;
-		p->v.a = -c;
+			p->v.x = -a;
+			p->v.y = -b;
+			p->v.z = 1;
+			p->v.a = -c;
+		}
+		else
+		{
+			p->v.x = 0;
+			p->v.y = 0;
+			p->v.z = 1;
+			p->v.a = 0;
+		}
 	}
 
 	void ClearAggregate(AggregateItem* ais, int32_t* uais, int cnt)
