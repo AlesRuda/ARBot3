@@ -1,0 +1,364 @@
+using ARBot.Common.Algorithms.ComputeUnit;
+using ARBot.Common.Common;
+using ARBot.Common.Coordinates;
+using ARBot.Common.Devices;
+using ARBot.Common.LocalMaps;
+using ARBot.HAL;
+using Intel.RealSense;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Numerics;
+
+namespace ARBot.HALArmbian
+{
+    /// <summary>
+    /// Ovladac hloubkove kamery Intel RealSense D435 pro Armbian/ARM64.
+    /// Funkcne shodny s HALWindows variantou, ale linkuje managed wrapper Intel.RealSense 2.53
+    /// (odpovida native librealsense2.so 2.53 na Orange Pi). Nacteni nativni knihovny resi
+    /// <see cref="RealSenseNativeResolver"/>.
+    /// Dedi ze SensorBase: po Init bezi na pozadi task ctouci snimky z pipeline,
+    /// posledni snimek je dostupny pres GetLastMeasurement a udalost MeasurementArived.
+    /// </summary>
+    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
+    {
+        /// <summary>Vypocetni jednotka pro detekci hran cesty (volitelna).</summary>
+        IComputeUnit cu;
+        /// <summary>Seriove cislo zarizeni; null = prvni dostupna kamera.</summary>
+        string sn;
+        /// <summary>Zpetna projekce barev na pravdepodobnostni obraz (volitelna).</summary>
+        public IBackProject BackProject { get; set; }
+
+        /// <summary>Nastaveni barevneho (RGB) streamu.</summary>
+        CameraSettings settingsRGB;
+        /// <summary>Nastaveni hloubkoveho streamu.</summary>
+        CameraSettings settingsDepth;
+
+        private Pipeline pipeline;
+        private PipelineProfile pipelineProfile;
+
+        /// <summary>
+        /// Otoceni kamery vzuhu nohama, tj. rotace podel z o 180 stupnu.
+        /// </summary>
+        public bool Swap;
+
+
+        /// <summary>
+        /// Prevede timestamp snimku (ms od epochy) na lokalni DateTime.
+        /// </summary>
+        /// <param name="miliseconds">Cas v milisekundach od 1.1.1970.</param>
+        /// <returns>Lokalni cas snimku.</returns>
+        public static DateTime CalcTimeStamp(double miliseconds)
+        {
+            return new DateTime(1970, 1, 1).Add(DateTimeOffset.Now.Offset).AddMilliseconds(miliseconds);
+        }
+
+        /// <summary>Prvni dostupna kamera, RGB 640x480, bez vypocetni jednotky.</summary>
+        public D435Camera() : this(null, null, new CameraSettings(640, 480))
+        {
+        }
+
+        /// <summary>Kamera dle serioveho cisla, RGB 640x480.</summary>
+        /// <param name="sn">Seriove cislo zarizeni.</param>
+        public D435Camera(string sn) : this(sn, null, new CameraSettings(640, 480))
+        {
+        }
+
+        /// <summary>Kamera dle serioveho cisla s vypocetni jednotkou, RGB 640x480.</summary>
+        /// <param name="sn">Seriove cislo zarizeni.</param>
+        /// <param name="cu">Vypocetni jednotka pro detekci hran.</param>
+        public D435Camera(string sn, IComputeUnit cu) : this(sn, cu, new CameraSettings(640, 480))
+        {
+        }
+
+        /// <summary>
+        /// Hlavni konstruktor. Nakonfiguruje a spusti kameru pres Init (depth je fixne 480x270).
+        /// </summary>
+        /// <param name="sn">Seriove cislo zarizeni; null = prvni dostupne.</param>
+        /// <param name="cu">Vypocetni jednotka pro detekci hran (volitelna).</param>
+        /// <param name="rgb">Nastaveni barevneho streamu.</param>
+        public D435Camera(string sn, IComputeUnit cu, CameraSettings rgb)
+        {
+            this.sn = sn;
+            this.cu = cu;
+
+            Init(rgb, new CameraSettings(480, 270));
+        }
+
+        /// <summary>Aktualni nastaveni hloubkoveho streamu.</summary>
+        public CameraSettings DepthSettings => settingsDepth;
+
+        /// <summary>Aktualni nastaveni barevneho (RGB) streamu.</summary>
+        public CameraSettings RGBSettings => settingsRGB;
+
+        /// <summary>
+        /// Zkopiruje data hloubkoveho snimku (16 bit) do ciloveho bufferu, pripadne v obracenem poradi (Swap).
+        /// </summary>
+        /// <param name="f">Zdrojovy hloubkovy frame (bude uvolnen).</param>
+        /// <param name="d">Cilovy buffer.</param>
+        private void GetDataGray(VideoFrame f, byte[] d)
+        {
+            if (f == null)
+                return;
+
+            using (f)
+            {
+                if (Swap)
+                    NativeComputeUnit.ReverseInt16IntPtr(d, f.Data, f.Width * f.Height);
+                else
+                    NativeComputeUnit.CopyIntPtr(d, f.Data, f.Width * f.Height * 2);
+            }
+        }
+
+        /// <summary>
+        /// Zkopiruje barevny snimek (RGB24) do ciloveho bufferu jako BGR32, pripadne v obracenem poradi (Swap).
+        /// </summary>
+        /// <param name="f">Zdrojovy barevny frame (bude uvolnen).</param>
+        /// <param name="d">Cilovy buffer (BGR32).</param>
+        private void GetDataRGB(VideoFrame f, byte[] d)
+        {
+            if (f == null)
+                return;
+
+            using (f)
+            {
+                if (Swap)
+                    NativeComputeUnit.ReverseRGB24ToBGR32IntPtr(d, f.Data, f.Width * f.Height);
+                else
+                    NativeComputeUnit.CopyRGB24ToBGR32IntPtr(d, f.Data, f.Width * f.Height);
+            }
+        }
+
+        // Diagnostika (env ARBOT_DIAG) - log vedle appky, sdileny s D435TestDocument.
+        private static readonly string DiagCamLog =
+            Environment.GetEnvironmentVariable("ARBOT_DIAG") != null
+                ? System.IO.Path.Combine(AppContext.BaseDirectory, "d435-diag.log") : null;
+        private static void DiagCam(string m)
+        {
+            if (DiagCamLog == null) return;
+            try { System.IO.File.AppendAllText(DiagCamLog, DateTime.Now.ToString("HH:mm:ss.fff") + " [cam] " + m + "\n"); } catch { }
+        }
+        private int getCount;
+
+        /// <summary>
+        /// Pocka na dalsi snimek z pipeline, zpracuje ho (RGB, hloubka, volitelne backprojection/hrany)
+        /// a vrati jako novy CameraFrame s vlastnimi buffery. Volano ze SensorBase.Process.
+        /// </summary>
+        protected override CameraFrame GetMeasurement()
+        {
+            int g = System.Threading.Interlocked.Increment(ref getCount);
+            if (g <= 2) DiagCam($"GetMeasurement #{g} enter");
+
+            Image<BGR32> imageRGB = null;
+            Image<BGR32> resizedColorImage = null;
+            Image<Gray16> imageDepth = null;
+            Image<Gray> probabilityImage = null;
+            List<PathEdge> edges = null;
+
+            if (settingsRGB != null)
+            {
+                imageRGB = new Image<BGR32>(settingsRGB.Width, settingsRGB.Height);
+                if (BackProject != null)
+                {
+                    var size = BackProject.Size(settingsRGB.Width, settingsRGB.Height);
+                    if (size.Width != settingsRGB.Width || size.Height != settingsRGB.Height)
+                        resizedColorImage = new Image<BGR32>(size.Width, size.Height);
+                    probabilityImage = new Image<Gray>(size.Width, size.Height);
+                }
+            }
+            if (settingsDepth != null)
+                imageDepth = new Image<Gray16>(settingsDepth.Width, settingsDepth.Height);
+
+            if (g <= 2) DiagCam($"GetMeasurement #{g}: WaitForFrames...");
+            try
+            {
+            using (var frames = pipeline.WaitForFrames())
+            {
+                if (g <= 2) DiagCam($"GetMeasurement #{g}: frames received");
+                var ts = TimeBase.Now;
+                var colorFrame = frames.ColorFrame;
+                var depthFrame = frames.DepthFrame;
+
+                var RGBTimeStamp = CalcTimeStamp(colorFrame.Timestamp);
+                var DepthTimeStamp = CalcTimeStamp(depthFrame.Timestamp);
+                if (imageDepth != null)
+                    GetDataGray(depthFrame, imageDepth.Data);
+                if (imageRGB != null)
+                {
+                    GetDataRGB(colorFrame, imageRGB.Data);
+
+                    if (probabilityImage != null)
+                    {
+                        if (resizedColorImage != null)
+                        {
+                            resizedColorImage.Resize(imageRGB);
+                            BackProject.Process(resizedColorImage, probabilityImage);
+                        }
+                        else
+                            BackProject.Process(imageRGB, probabilityImage);
+
+                        if (cu != null)
+                        {
+                            edges = cu.PathEdges(probabilityImage, (double)imageRGB.Width / (double)probabilityImage.Width, (double)imageRGB.Height / (double)probabilityImage.Height);
+                        }
+                    }
+                }
+
+                return new CameraFrame() { ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
+            }
+            }
+            catch (Exception ex)
+            {
+                DiagCam($"GetMeasurement #{g} EX: " + ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pipeline + pozadi task.
+        /// Lze volat opakovane za behu - bezici zpracovani se pred rekonfiguraci zastavi a po ni obnovi.
+        /// </summary>
+        public bool Init(CameraSettings rgbSettings, CameraSettings depthSettings)
+        {
+            if (IsRunning)
+                Stop();
+
+            settingsRGB = rgbSettings;
+            settingsDepth = depthSettings;
+
+            var cfg = new Config();
+            if (sn != null)
+                cfg.EnableDevice(sn);
+            if (settingsDepth != null)
+                cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, 30);
+            if (settingsRGB != null)
+                cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, 30);
+
+            if (pipeline == null)
+                pipeline = new Pipeline();
+            else
+                pipeline.Stop();
+
+            pipelineProfile = pipeline.Start(cfg);
+
+            Start();
+
+            return true;
+        }
+
+        /// <summary>
+        /// Zastavi pozadi task (base) a uvolni pipeline (nativni prostredky kamery).
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing)
+                pipeline?.Dispose();
+        }
+
+        /// <summary>
+        /// Prevede RealSense vnitrni parametry kamery (Intrinsics) na vlastni ARBot Intrinsics
+        /// vcetne mapovani modelu zkresleni.
+        /// </summary>
+        private ARBot.Common.Coordinates.Intrinsics Simplify(Intel.RealSense.Intrinsics i)
+        {
+            var ii = new ARBot.Common.Coordinates.Intrinsics();
+            ii.Coeffs = i.coeffs;
+            ii.Fx = i.fx;
+            ii.Fy = i.fy;
+            ii.Height = i.height;
+            ii.Width = i.width;
+            ii.PPx = i.ppx;
+            ii.PPy = i.ppy;
+            if (i.coeffs.All(f => f == 0))
+                ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.None;
+            else
+            {
+                switch (i.model)
+                {
+                    case Distortion.BrownConrady:
+                        ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.BrownConrady;
+                        break;
+                    case Distortion.Ftheta:
+                        ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.Ftheta;
+                        break;
+                    case Distortion.InverseBrownConrady:
+                        ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.InverseBrownConrady;
+                        break;
+                    case Distortion.ModifiedBrownConrady:
+                        ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.ModifiedBrownConrady;
+                        break;
+                    default:
+                        ii.Model = ARBot.Common.Coordinates.Intrinsics.Distortion.None;
+                        break;
+                }
+            }
+            return ii;
+        }
+
+        /// <summary>
+        /// Sestavi projekci kamery z RealSense intrinsics/extrinsics. Pokud je zadana hloubkova
+        /// intrinsika, vrati D435CameraProjection (3D), jinak zakladni CameraProjection.
+        /// Zohlednuje prevraceni obrazu (Swap).
+        /// </summary>
+        /// <param name="name">Popis pro ladici vypis.</param>
+        /// <param name="colorIntrin">Vnitrni parametry barevne kamery.</param>
+        /// <param name="depthIntrin">Vnitrni parametry hloubkove kamery (null = jen barevna projekce).</param>
+        /// <param name="color2Depth">Transformace z barevne do hloubkove kamery.</param>
+        /// <param name="depth2Color">Transformace z hloubkove do barevne kamery.</param>
+        private CameraProjection CreateProjector(string name,
+            Intel.RealSense.Intrinsics? colorIntrin,
+            Intel.RealSense.Intrinsics? depthIntrin,
+            Intel.RealSense.Extrinsics? color2Depth,
+            Intel.RealSense.Extrinsics? depth2Color
+            )
+        {
+            Intel.RealSense.Intrinsics? i = depthIntrin ?? colorIntrin;
+
+            var i1 = Simplify(i.Value);
+            Debug.WriteLine(name + ": " + i1.ToString());
+            var ii = i1.Inverse();
+            if (Swap)
+            {
+                i1.PPx = i1.Width - i1.PPx;
+                i1.PPy = i1.Height - i1.PPy;
+
+                ii.PPx = ii.Width - ii.PPx;
+                ii.PPy = ii.Height - ii.PPy;
+            }
+            if (depthIntrin == null)
+                return new CameraProjection(i1, ii, Extrinsic2Transform(color2Depth.Value), Extrinsic2Transform(depth2Color.Value));
+            else
+                return new D435CameraProjection(i1, ii, colorIntrin.Value, depthIntrin.Value, color2Depth.Value, depth2Color.Value);
+        }
+
+        /// <summary>
+        /// Prevede RealSense extrinsics (rotace 3x3 + translace) na transformacni matici 4x4.
+        /// </summary>
+        Matrix4x4 Extrinsic2Transform(Intel.RealSense.Extrinsics e)
+        {
+            return new Matrix4x4(e.rotation[0], e.rotation[1], e.rotation[2], 0, e.rotation[3], e.rotation[4], e.rotation[5], 0, e.rotation[6], e.rotation[7], e.rotation[8], 0, e.translation[0], e.translation[1], e.translation[2], 1);
+        }
+
+        /// <summary>
+        /// Vytvori projekci barevne kamery do roviny po ktere jede robot (bez hloubky).
+        /// </summary>
+        public ICameraProjection CreateProjector()
+        {
+            var c = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Color);
+            var d = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Depth);
+            return CreateProjector("Color Intrinsics", c.GetIntrinsics(), null, c.GetExtrinsicsTo(d), d.GetExtrinsicsTo(c));
+        }
+
+        /// <summary>
+        /// Vytvori hloubkovou projekci (3D rekonstrukce bodu z hloubkove mapy).
+        /// </summary>
+        public IDepthCameraProjection CreateDepthProjector()
+        {
+            var c = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Color);
+            var d = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Depth);
+            return CreateProjector("Depth Intrinsics", c.GetIntrinsics(), d.GetIntrinsics(), c.GetExtrinsicsTo(d), d.GetExtrinsicsTo(c));
+        }
+    }
+}

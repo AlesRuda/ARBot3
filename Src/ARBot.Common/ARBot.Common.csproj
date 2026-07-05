@@ -8,7 +8,7 @@
     <Copyright>Copyright ©  2015</Copyright>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms>AnyCPU;x64;OrangePI</Platforms>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <OutputPath>bin\x86\Debug\</OutputPath>
@@ -34,6 +34,11 @@
 
 	<PropertyGroup Condition="'$(Platform)' == 'x86'">
 		<DefineConstants>$(DefineConstants);IsX86</DefineConstants>
+	</PropertyGroup>
+
+	<!-- Platforma OrangePI (Armbian/ARM64): stejny styl jako IsX64/IsX86 -> IsARM64 -->
+	<PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
+		<DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
 	</PropertyGroup>
   <ItemGroup Label="Compile items now included by globbing that were not in the original project file">
     <Compile Remove="Algorithms\EdgeTPU\EdgeTPUSemanticSegmentation.cs" />
@@ -85,6 +90,13 @@
   <ItemGroup Condition="'$(Platform)' == 'x64'">
     <None Include="..\NativeFuncs\bin\NativeLib.dll">
       <Link>NativeLib.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <!-- Platforma OrangePI: nativni ARM knihovna libNativeLib.so -->
+  <ItemGroup Condition="'$(Platform)' == 'OrangePI'">
+    <None Include="..\NativeFuncs\bin\libNativeLib.so" Condition="Exists('..\NativeFuncs\bin\libNativeLib.so')">
+      <Link>libNativeLib.so</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

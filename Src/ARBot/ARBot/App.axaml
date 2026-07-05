@@ -10,7 +10,12 @@
     <Application.DataTemplates>
         <local:ViewLocator/>
         <DataTemplate DataType="vm:D435TestDocument">
-            <Image Source="{Binding Image}" Stretch="Uniform"/>
+            <Grid Background="#202020">
+                <Image Source="{Binding Image}" Stretch="Uniform"/>
+                <TextBlock Text="{Binding Status}" Foreground="Lime" FontSize="18" FontWeight="Bold"
+                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8"
+                           Background="#80000000" Padding="6,3"/>
+            </Grid>
         </DataTemplate>
     </Application.DataTemplates>
   

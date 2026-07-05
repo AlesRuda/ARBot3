@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Managed C# wrapper Intel RealSense SDK verze 2.53.1 (zdroje z librealsense v2.53.1,
+    wrappers/csharp/Intel.RealSense). Kompilovan primo do net10.0, aby verzi presne
+    odpovidal native librealsense2.so 2.53.1 na Orange Pi (ARM64). Windows cast (HALWindows)
+    nadale pouziva binarni wrapper 2.47 - viz plan platform-dedikovaneho HAL.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Intel.RealSense</AssemblyName>
+    <RootNamespace>Intel.RealSense</RootNamespace>
+    <Platforms>AnyCPU;x64;OrangePI</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- AssemblyInfo.cs je soucasti zdroju wrapperu -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+    <!-- Stary kod z upstream wrapperu - potlacit sum -->
+    <NoWarn>$(NoWarn);CS0618;CS0612;CS1591;CS0414;CS0169;CS0649;CA1401;SYSLIB1054;SYSLIB0003;SYSLIB0004</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Nezahrnovat build/config artefakty upstream stromu -->
+  <ItemGroup>
+    <None Remove="**\CMakeLists.txt" />
+    <None Include="packages.config" />
+  </ItemGroup>
+
+</Project>

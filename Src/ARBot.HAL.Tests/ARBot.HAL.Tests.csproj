@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <Platforms>AnyCPU;x64;OrangePI</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.7.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ARBot.HALArmbian\ARBot.HALArmbian.csproj" />
+  </ItemGroup>
+
+  <!-- NativeLib (P/Invoke z NativeComputeUnit, ktere D435Camera pouziva pro kopie snimku).
+       Windows: NativeLib.dll (x64), Linux/ARM: libNativeLib.so - vyber resi NativeLibResolver. -->
+  <ItemGroup>
+    <None Include="..\NativeFuncs\bin\NativeLib.dll" Condition="Exists('..\NativeFuncs\bin\NativeLib.dll')">
+      <Link>NativeLib.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\NativeFuncs\bin\libNativeLib.so" Condition="Exists('..\NativeFuncs\bin\libNativeLib.so')">
+      <Link>libNativeLib.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

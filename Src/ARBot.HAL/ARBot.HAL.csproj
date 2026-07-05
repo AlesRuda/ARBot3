@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <Platforms>AnyCPU;x64;x86</Platforms>
+    <Platforms>AnyCPU;x64;x86;OrangePI</Platforms>
     <RootNamespace>ARBot.HAL</RootNamespace>
     <AssemblyName>ARBot.HAL</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -40,9 +40,20 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="10.0.0" />
   </ItemGroup>
-  <ItemGroup>
+  <!-- Platforma OrangePI (Armbian/ARM64) -> IsARM64 (stejny styl jako IsX64/IsX86) -->
+  <PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
+    <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
+  </PropertyGroup>
+
+  <!-- VN100 IMU (VectorNav) je Windows/x64 HW komponenta se zavislosti na VectorNav.dll
+       (mimo repo). Na platforme OrangePI (ARM/Armbian) se reference i VN100IMU.cs vynechavaji,
+       aby sel HAL zkompilovat pro Orange Pi. -->
+  <ItemGroup Condition="'$(Platform)' != 'OrangePI'">
     <Reference Include="VectorNav">
       <HintPath>..\..\vndotnetlib-0.4\VectorNav.dll</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Platform)' == 'OrangePI'">
+    <Compile Remove="Devices\AHRS\VN100IMU.cs" />
   </ItemGroup>
 </Project>

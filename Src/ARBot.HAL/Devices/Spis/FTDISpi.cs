@@ -429,7 +429,11 @@ namespace ARBot.HAL.Devices.Spis
         }
 
         private uint clockDivisor;
+#if IsX64
         Int32 handle;
+#else
+        IntPtr handle;
+#endif
         bool hiSpeedClock;
         bool emptySequence = true;
         public HiSpeedDeviceInfo Info { get; private set; }

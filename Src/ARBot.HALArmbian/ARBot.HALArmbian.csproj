@@ -2,10 +2,14 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <Platforms>AnyCPU;x64;x86</Platforms>
+    <Platforms>AnyCPU;x64;x86;OrangePI</Platforms>
     <RootNamespace>ARBot.HALArmbian</RootNamespace>
     <AssemblyName>ARBot.HALArmbian</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <!-- Platforma OrangePI (Armbian/ARM64) -> IsARM64 (stejny styl jako IsX64/IsX86) -->
+  <PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
+    <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -31,5 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ARBot.Common\ARBot.Common.csproj" />
     <ProjectReference Include="..\ARBot.HAL\ARBot.HAL.csproj" />
+    <!-- Managed wrapper Intel RealSense 2.53 (odpovida native librealsense2.so na ARM/Pi) -->
+    <ProjectReference Include="..\ThirdParty\Intel.RealSense\Intel.RealSense.csproj" />
   </ItemGroup>
 </Project>

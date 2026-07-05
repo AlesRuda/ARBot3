@@ -204,6 +204,34 @@ realsense-viewer            # GUI (na desktopu) – depth, RGB, póza T265
 **Zapojení kamer:** D435 → **USB3** port, T265 → **USB2** port (T265 stačí USB2).
 Po kroku 1 (`dwc3-host`) jsou funkční **oba** USB3-A porty.
 
+### 10. Managed wrapper Intel.RealSense (2.53) pro .NET aplikaci/testy
+Krok 9 buildí jen **nativní** `librealsense2.so`. Managed C# wrapper
+(`Intel.RealSense.dll`) se **NEbuildí přes cmake** — `BUILD_CSHARP_BINDINGS` je
+Visual-Studio-only (`VS_DOTNET_TARGET_FRAMEWORK_VERSION`). Místo toho je v solution
+projekt **`Src/ThirdParty/Intel.RealSense`** (zdroje wrapperu **v2.53.1** z
+`librealsense/wrappers/csharp`, kompilované rovnou do `net10.0`), aby verze managed
+wrapperu **přesně odpovídala** nativní `librealsense2.so`.
+
+> **Proč shoda verzí:** `rs.h` říká, že interface-compatible jsou jen rozdíly v
+> *patch* úrovni. Wrapper 2.47 (Windows) proti native 2.53 (Pi) je rozdíl v *minor*
+> → mimo garantovanou zónu (riziko „api version mismatch" nebo tichého ABI driftu
+> struktur `rs2_intrinsics`/`extrinsics`). Proto **platform-dedikovaný HAL**:
+> `ARBot.HALArmbian.D435Camera` s wrapperem **2.53**, `ARBot.HALWindows.D435Camera`
+> zůstává na **2.47** (odpovídá Windows native).
+
+Nativní naming řeší `ARBot.HALArmbian/RealSenseNativeResolver.cs` (mapuje
+`realsense2`/`realsense2d` → `librealsense2.so`).
+
+**POZOR:** při upgradu nativní `librealsense` na Pi je nutné aktualizovat i zdroje
+wrapperu v `Src/ThirdParty/Intel.RealSense`, aby verze zůstaly shodné.
+
+**Spuštění D435 integračního testu na Pi** (kamera na USB3):
+```bash
+cd ~/arbot/ARBot.HAL.Tests
+dotnet test -c Debug --filter Category=Hardware
+```
+Bez připojené kamery se test gracefully přeskočí (`Assert.Ignore`).
+
 ---
 
 ## ⚠️ Důležité poznámky
