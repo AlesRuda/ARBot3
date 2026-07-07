@@ -13,10 +13,18 @@
   <PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
     <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
   </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'x64'">
+	    <DefineConstants>$(DefineConstants);IsX64</DefineConstants>
+    </PropertyGroup>
 
-  <ItemGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'x86'">
+	    <DefineConstants>$(DefineConstants);IsX86</DefineConstants>
+    </PropertyGroup>
+
+	<ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <Folder Include="Robot\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +40,11 @@
     <PackageReference Include="Dock.Avalonia" Version="12.0.0.2" />
     <PackageReference Include="Dock.Model.Mvvm" Version="12.0.0.2" />
     <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="12.0.0.2" />
+
+	  <Reference Include="FTD2XX_NET" Condition="'$(Platform)' == 'x64'">
+		  <HintPath>..\..\ARBot.HALWindows\FTD2XX_NET.dll</HintPath>
+	  </Reference>
+
   </ItemGroup>
 
   <!-- Platform-dedikovany HAL: OrangePI -> HALArmbian (RealSense 2.53),

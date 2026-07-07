@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ARBot.HAL;
 
-namespace ARBot.HALArmbian
+namespace ARBot.HAL.Devices.Uart
 {
     public class UartNative : IUart, IDisposable
     {
@@ -69,6 +69,11 @@ namespace ARBot.HALArmbian
             }
             disposed = true;
         }
+
+        /// <summary>
+        /// Zda je uart otevren
+        /// </summary>
+        public bool IsOpen => true;
 
         /// <summary>
         /// Read timeout in ms

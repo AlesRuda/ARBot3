@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HALWindows
+namespace ARBot.HAL.Devices.Camera
 {
     public class D435CameraProjection: CameraProjection
     {

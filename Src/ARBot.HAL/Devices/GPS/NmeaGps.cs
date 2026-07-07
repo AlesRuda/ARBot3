@@ -15,20 +15,21 @@ using ARBot.HAL.NMEA;
 
 namespace ARBot.HAL.Devices.GPSs
 {
-    public class NmeaGps:SensorBase<GPSState>, IGPS
+    public class NmeaGps: UartSensorBase<GPSState>, IGPS
     {
-        IUart uart;
-
         /// <summary>
         /// Constructor for the Device class.
         /// </summary>
-        public NmeaGps(IUart uart)
+        public NmeaGps(IUart uart):base(uart)
         {
-            if (uart == null)
-                throw new ArgumentNullException("uart");
-            this.uart = uart;
             Start();
         }
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => "NmeaGps";
+
         /// <summary>
         /// Provides a mechanism to send an NMEA sentence to the GPS Device.
         /// </summary>

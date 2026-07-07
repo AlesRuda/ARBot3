@@ -71,6 +71,11 @@ namespace ARBot.HALLinux
         }
 
         /// <summary>
+        /// Zda je uart otevren
+        /// </summary>
+        public bool IsOpen => true;
+
+        /// <summary>
         /// Read timeout in ms
         /// </summary>
         public int ReadTimeout

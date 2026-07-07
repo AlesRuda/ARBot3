@@ -3,8 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <Platforms>AnyCPU;x64;x86</Platforms>
-    <RootNamespace>ARBot.HALWindows</RootNamespace>
-    <AssemblyName>ARBot.HALWindows</AssemblyName>
+	  <RootNamespace>ARBot.HAL</RootNamespace>
+	  <AssemblyName>ARBot.HALWindows</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
@@ -28,7 +28,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="FTD2XX_NET">
-      <HintPath>..\ARBot.HAL\FTD2XX_NET.dll</HintPath>
+      <HintPath>FTD2XX_NET.dll</HintPath>
     </Reference>
     <PackageReference Include="SharpDX" Version="4.2.0" />
     <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" />

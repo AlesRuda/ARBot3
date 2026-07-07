@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HALWindows
+namespace ARBot.HAL.Devices.Joystick
 {
     public class Joystick : IJoystick
     {

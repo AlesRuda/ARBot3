@@ -8,7 +8,7 @@ namespace ARBot.Common.Regulators
     public interface IRegulator
     {
         /// <summary>
-        /// Spocte na jake vzdalenosti zrychli ze statSpeed na endSpeed.
+        /// Spocte na jake vzdalenosti zrychli ze startSpeed na endSpeed.
         /// </summary>
         /// <param name="startSpeed"></param>
         /// <param name="endSpeed"></param>
@@ -39,7 +39,7 @@ namespace ARBot.Common.Regulators
         RegulatorResult Control(IModelState state, RegulatorWayPoint[] points);
 
         /// <summary>
-        /// Omezi doprednou rychlost na zaklade tychlosti rotace
+        /// Omezi doprednou rychlost na zaklade rychlosti rotace
         /// </summary>
         /// <param name="speed">dopredna rychlost </param>
         /// <param name="d">vzdalenost na ktere musi dojit k otoceni</param>

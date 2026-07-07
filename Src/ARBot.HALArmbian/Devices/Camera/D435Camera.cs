@@ -11,7 +11,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 
-namespace ARBot.HALArmbian
+namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Ovladac hloubkove kamery Intel RealSense D435 pro Armbian/ARM64.
@@ -43,6 +43,10 @@ namespace ARBot.HALArmbian
         /// </summary>
         public bool Swap;
 
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => $"D435 {sn}";
 
         /// <summary>
         /// Prevede timestamp snimku (ms od epochy) na lokalni DateTime.
@@ -130,26 +134,12 @@ namespace ARBot.HALArmbian
             }
         }
 
-        // Diagnostika (env ARBOT_DIAG) - log vedle appky, sdileny s D435TestDocument.
-        private static readonly string DiagCamLog =
-            Environment.GetEnvironmentVariable("ARBOT_DIAG") != null
-                ? System.IO.Path.Combine(AppContext.BaseDirectory, "d435-diag.log") : null;
-        private static void DiagCam(string m)
-        {
-            if (DiagCamLog == null) return;
-            try { System.IO.File.AppendAllText(DiagCamLog, DateTime.Now.ToString("HH:mm:ss.fff") + " [cam] " + m + "\n"); } catch { }
-        }
-        private int getCount;
-
         /// <summary>
         /// Pocka na dalsi snimek z pipeline, zpracuje ho (RGB, hloubka, volitelne backprojection/hrany)
         /// a vrati jako novy CameraFrame s vlastnimi buffery. Volano ze SensorBase.Process.
         /// </summary>
         protected override CameraFrame GetMeasurement()
         {
-            int g = System.Threading.Interlocked.Increment(ref getCount);
-            if (g <= 2) DiagCam($"GetMeasurement #{g} enter");
-
             Image<BGR32> imageRGB = null;
             Image<BGR32> resizedColorImage = null;
             Image<Gray16> imageDepth = null;
@@ -170,12 +160,8 @@ namespace ARBot.HALArmbian
             if (settingsDepth != null)
                 imageDepth = new Image<Gray16>(settingsDepth.Width, settingsDepth.Height);
 
-            if (g <= 2) DiagCam($"GetMeasurement #{g}: WaitForFrames...");
-            try
-            {
             using (var frames = pipeline.WaitForFrames())
             {
-                if (g <= 2) DiagCam($"GetMeasurement #{g}: frames received");
                 var ts = TimeBase.Now;
                 var colorFrame = frames.ColorFrame;
                 var depthFrame = frames.DepthFrame;
@@ -206,12 +192,6 @@ namespace ARBot.HALArmbian
                 }
 
                 return new CameraFrame() { ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
-            }
-            }
-            catch (Exception ex)
-            {
-                DiagCam($"GetMeasurement #{g} EX: " + ex);
-                throw;
             }
         }
 
@@ -261,9 +241,9 @@ namespace ARBot.HALArmbian
         /// Prevede RealSense vnitrni parametry kamery (Intrinsics) na vlastni ARBot Intrinsics
         /// vcetne mapovani modelu zkresleni.
         /// </summary>
-        private ARBot.Common.Coordinates.Intrinsics Simplify(Intel.RealSense.Intrinsics i)
+        private Common.Coordinates.Intrinsics Simplify(Intel.RealSense.Intrinsics i)
         {
-            var ii = new ARBot.Common.Coordinates.Intrinsics();
+            var ii = new Common.Coordinates.Intrinsics();
             ii.Coeffs = i.coeffs;
             ii.Fx = i.fx;
             ii.Fy = i.fy;

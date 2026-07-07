@@ -5,7 +5,7 @@ using Intel.RealSense;
 using System;
 using System.Numerics;
 
-namespace HALWindows
+namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Ovladac sledovaci kamery Intel RealSense T265 (6DOF pose / IMU).
@@ -34,6 +34,11 @@ namespace HALWindows
             this.sn = sn;
             Init();
         }
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => $"T265 {sn}";
 
         /// <summary>
         /// Otaci souradnicovy system (x roste na vychod, y roste na sever a z nahoru) pro rotacni vektory.

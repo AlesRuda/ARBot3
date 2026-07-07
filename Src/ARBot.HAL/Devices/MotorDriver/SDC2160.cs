@@ -7,12 +7,12 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
-namespace ARBot.HAL
+namespace ARBot.HAL.Devices.MotorDrivers
 {
     /// <summary>
     /// Implement Roboteq SDC2160 driver
     /// </summary>
-    public class SDC2160:SensorBase<IMotorState>, IMotorControl
+    public class SDC2160: UartSensorBase<IMotorState>, IMotorControl
     {
         double maxPossibleSpeed;
         double speedLimit;
@@ -20,17 +20,13 @@ namespace ARBot.HAL
         double wheelCircumference;
         double enc2Rotation;
         bool isEmergencyStop=true;
-        IUart uart;
         double lastRightEnc, lastLeftEnc;
         /// <summary>
         /// Construktor
         /// </summary>
         /// <param name="uart">UART used to comunication</param>
-        public SDC2160(IUart uart, double maxPossibleSpeed, double speedLimit, double wheelCircumference, double enc2Rotation)
+        public SDC2160(IUart uart, double maxPossibleSpeed, double speedLimit, double wheelCircumference, double enc2Rotation):base(uart)
         {
-            if (uart == null)
-                throw new ArgumentNullException("uart");
-            this.uart = uart;
             this.maxPossibleSpeed = maxPossibleSpeed;
             this.speedLimit = Math.Min(speedLimit, maxPossibleSpeed);
             this.wheelCircumference = wheelCircumference;
@@ -43,6 +39,11 @@ namespace ARBot.HAL
 
             Start();
         }
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => "SDC2160";
 
         private int CalcSpeed(double speed)
         {

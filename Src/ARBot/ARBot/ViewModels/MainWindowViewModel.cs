@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
+using Dock.Model.Mvvm.Controls;
 
 namespace ARBot.ViewModels
 {
@@ -49,6 +50,81 @@ namespace ARBot.ViewModels
             _factory.SetActiveDockable(doc);
             if (Layout is not null)
                 _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>
+        /// Otevre (nebo aktivuje, pokud uz je otevreny) panel s prehledem senzoru.
+        /// Po zavreni se levy dok sbali - pri zavreni posledniho nastroje Dock navic
+        /// rozpusti i obalujici proporcionalni dok, takze ulozene reference na nej uz
+        /// nejsou v layoutu. Proto panel dokujeme vzdy vuci zivemu <see cref="DockFactory.DocumentDock"/>
+        /// pres <see cref="Dock.Model.Core.IFactory.SplitToDock"/> (ten se nikdy nesbali).
+        /// </summary>
+        [RelayCommand]
+        private void OpenSensors()
+        {
+            var tool = _factory.SensorStatus;
+            var documentDock = _factory.DocumentDock;
+            if (tool == null || documentDock == null || Layout is null)
+                return;
+
+            // Nastroj muze byt v ruznych stavech - je nutne je odlisit, jinak by se pri
+            // "otevreni" pinnuteho/skryteho panelu vytvoril druhy (duplikat).
+            if (_factory.IsDockablePinned(tool, Layout))
+            {
+                // Pinnuty (auto-hide prouzek) -> vrat do normalniho (odepnuteho) stavu.
+                _factory.UnpinDockable(tool);
+            }
+            else if (Layout.HiddenDockables != null && Layout.HiddenDockables.Contains(tool))
+            {
+                // Skryty (zavren s HideToolsOnClose) -> obnov na puvodni misto.
+                _factory.RestoreDockable(tool);
+            }
+            else if (!ContainsVisible(Layout, tool))
+            {
+                // Neni ve viditelnem strome hlavniho okna - bud uplne mimo layout (zavren
+                // se sbalenim doku), nebo vytazeny do plovouciho okna. Odpoj ho z aktualniho
+                // umisteni (collapse zavre i pripadne prazdne plovouci okno) a nadokuj zpet
+                // do hlavniho layoutu. SplitToDock s IDock parametrem pouzije nas dok primo
+                // (spravne vykresleni vcetne zalozky) a vyresi i orientaci.
+                if (tool.Owner is IDock current && current.VisibleDockables != null
+                    && current.VisibleDockables.Contains(tool))
+                    _factory.RemoveDockable(tool, true);
+
+                var toolDock = new ToolDock
+                {
+                    Id = "ToolDock",
+                    Title = "ToolDock",
+                    Alignment = Alignment.Left,
+                    Proportion = 0.25,
+                    VisibleDockables = _factory.CreateList<IDockable>(tool),
+                    ActiveDockable = tool
+                };
+                _factory.SplitToDock(documentDock, toolDock, DockOperation.Left);
+            }
+            // else: uz je viditelny v hlavnim okne -> jen aktivovat nize.
+
+            _factory.SetActiveDockable(tool);
+            _factory.SetFocusedDockable(Layout, tool);
+        }
+
+        /// <summary>
+        /// Rekurzivne hleda dockable ve viditelnem strome (VisibleDockables) daneho doku.
+        /// Zamerne NEprochazi plovouci okna (RootDock.Windows) - slouzi k rozliseni, zda je
+        /// nastroj v hlavnim okne, nebo vytazeny do plovouciho okna (pripadne uplne mimo).
+        /// </summary>
+        private static bool ContainsVisible(IDock dock, IDockable target)
+        {
+            if (dock.VisibleDockables == null)
+                return false;
+
+            foreach (var d in dock.VisibleDockables)
+            {
+                if (ReferenceEquals(d, target))
+                    return true;
+                if (d is IDock child && ContainsVisible(child, target))
+                    return true;
+            }
+            return false;
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ARBot.Common.Algorithms.ComputeUnit;
 
-namespace ARBot.HALArmbian
+namespace ARBot.HAL
 {
     /// <summary>
     /// Mapuje P/Invoke jmena nativnich knihoven na jejich Linux/ARM ekvivalenty:
@@ -15,6 +15,8 @@ namespace ARBot.HALArmbian
     /// takze bez tohoto resolveru appka na Pi pada na DllNotFoundException('NativeLib.dll').
     /// Registruje se automaticky pri nacteni ARBot.HALArmbian.
     /// </summary>
+    // Pozn.: assembly je ARBot.HALArmbian, ale RootNamespace projektu je ARBot.HAL,
+    // proto soubor v korenu adresare patri do namespace ARBot.HAL.
     internal static class RealSenseNativeResolver
     {
         [ModuleInitializer]

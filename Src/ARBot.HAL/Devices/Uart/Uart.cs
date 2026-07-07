@@ -5,8 +5,9 @@ using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-namespace ARBot.HAL
+namespace ARBot.HAL.Devices.Uart
 {
     /// <summary>
     /// Implementuje pristup k Uartum
@@ -45,15 +46,23 @@ namespace ARBot.HAL
                 sp.StopBits = StopBits.One;
                 sp.Handshake = Handshake.None;
                 sp.NewLine = newLine;
-                sp.Open();
+                ReOpen();
             }
             catch (Exception ex)
             {
                 throw new Exception(string.Format("Could not open UART {0} ({1}).", name, device), ex);
             }
         }
-
-
+        /// <summary>
+        /// Zda je uart otevren
+        /// </summary>
+        public bool IsOpen
+        {
+            get
+            {
+                return sp.IsOpen;
+            }
+        }
 
         /// <summary>
         /// Finalizer
@@ -114,12 +123,21 @@ namespace ARBot.HAL
             }
         }
 
-        private void ReOpen()
+        private bool ReOpen()
         {
             if (!sp.IsOpen)
             {
-                sp.Open();
+                try
+                {
+                    sp.Open();
+                }
+                catch(Exception ex)
+                {
+                    ReportEx(ex);
+                    Thread.Sleep(1000);
+                }
             }
+            return sp.IsOpen;
         }
 
         /// <summary>
@@ -133,8 +151,9 @@ namespace ARBot.HAL
         {
             try
             {
-                ReOpen();
-                return sp.Read(buffer, offset, count);
+                if(ReOpen())
+                    return sp.Read(buffer, offset, count);
+                return 0;
             }
             catch (Exception ex)
             {
@@ -182,13 +201,16 @@ namespace ARBot.HAL
             //          Logger.WriteLine(count);
             while (idx < count)
             {
-                int len = sp.BytesToRead;
-                if (len > 0)
+                if (ReOpen())
                 {
-                    len = Read(bytes, idx, Math.Min(count - idx, len));
+                    int len = sp.BytesToRead;
                     if (len > 0)
-                        idx += len;
-                    //                    Logger.WriteLine(idx);
+                    {
+                        len = Read(bytes, idx, Math.Min(count - idx, len));
+                        if (len > 0)
+                            idx += len;
+                        //                    Logger.WriteLine(idx);
+                    }
                 }
             }
             return bytes;
@@ -202,8 +224,8 @@ namespace ARBot.HAL
         {
             try
             {
-                ReOpen();
-                return sp.ReadLine().Replace("\x00", "");
+                if (ReOpen())
+                    return sp.ReadLine().Replace("\x00", "");
             }
             catch (Exception ex)
             {
@@ -220,8 +242,8 @@ namespace ARBot.HAL
         {
             try
             {
-                ReOpen();
-                return sp.ReadExisting();
+                if (ReOpen())
+                    return sp.ReadExisting();
             }
             catch (Exception ex)
             {
@@ -266,8 +288,8 @@ namespace ARBot.HAL
         {
             try
             {
-                ReOpen();
-                sp.Write(buffer, 0, buffer.Length);
+                if (ReOpen())
+                    sp.Write(buffer, 0, buffer.Length);
             }
             catch (Exception ex)
             {
@@ -283,8 +305,8 @@ namespace ARBot.HAL
         {
             try
             {
-                ReOpen();
-                sp.WriteLine(txt);
+                if (ReOpen())
+                    sp.WriteLine(txt);
             }
             catch (Exception ex)
             {

@@ -10,7 +10,7 @@ namespace ARBot.Common.Devices
     /// <summary>
     /// Predek pro sensory
     /// </summary>
-    public abstract class SensorBase<TState>:IDisposable where TState: class
+    public abstract class SensorBase<TState>:IDisposable, ISensor where TState: class
     {
         protected Task task;
         protected bool stopRequired = false;
@@ -26,6 +26,12 @@ namespace ARBot.Common.Devices
         /// </summary>
         public event EventHandler<TState> MeasurementArived;
 
+
+        private bool isError = false;
+        /// <summary>
+        /// Pehem zpracovani doslo k chybe.
+        /// </summary>
+        public virtual bool IsError => isError;
 
         protected virtual void Pickedup(TState s)
         {
@@ -51,6 +57,12 @@ namespace ARBot.Common.Devices
             return v;
         }
         public bool IsRunning => task != null;
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public abstract string Name { get; }
+
         /// <summary>
         /// Spusti smycku zpracovani
         /// </summary>
@@ -110,9 +122,11 @@ namespace ARBot.Common.Devices
 
                     if (v != null)
                         OnMeasurement(v);
+                    isError = false;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
+                    isError = true;
                     Debug.WriteLine(ex.ToString());
                 }
             }

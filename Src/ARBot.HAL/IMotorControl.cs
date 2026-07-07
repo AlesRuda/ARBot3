@@ -1,4 +1,5 @@
-﻿using ARBot.Common.Models;
+﻿using ARBot.Common.Devices;
+using ARBot.Common.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ namespace ARBot.HAL
     /// <summary>
     /// Controls motors
     /// </summary>
-    public interface IMotorControl
+    public interface IMotorControl: ISensor
     {
         /// <summary>
         /// Sets motors speed 

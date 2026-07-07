@@ -15,21 +15,20 @@ using VectorNav.Maths;
 
 namespace ARBot.HAL.Devices.AHRS
 {
-    public class VN100IMU : SensorBase<IMUState>, IIMU
+    public class VN100IMU : UartSensorBase<IMUState>, IIMU
     {
-        private IUart uart;
         VnAsciiPacket vn;
         DateTime lastReset;
 
-        public VN100IMU(IUart uart)
+        public VN100IMU(IUart uart):base(uart)
         {
             vn = new VnAsciiPacket();
-            if (uart == null)
-                throw new ArgumentNullException("urt");
-            this.uart = uart;
             Reset();
             Start();
         }
+
+        public override string Name => "VN100 IMU";
+
         /// <summary>
         /// Povoluje pouziti modelu magnetickeho a gravitacniho pole zeme v danem miste.
         /// </summary>

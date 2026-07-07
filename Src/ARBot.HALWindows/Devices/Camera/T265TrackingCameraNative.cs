@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace HALWindows
+namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Nativni varianta ovladace T265 (pres AkceleratorDll). Dedi ze SensorBase;
@@ -75,6 +75,12 @@ namespace HALWindows
             info = T265Start(sn);
             Start();
         }
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => $"T265";
+
 
         /// <summary>
         /// Otaci souradnicovy system (x roste na vychod, y roste na sever a z nahoru) pro rotacni vektory.

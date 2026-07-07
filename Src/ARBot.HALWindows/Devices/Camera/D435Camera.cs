@@ -11,7 +11,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 
-namespace HALWindows
+namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Ovladac hloubkove kamery Intel RealSense D435.
@@ -40,6 +40,10 @@ namespace HALWindows
         /// </summary>
         public bool Swap;
 
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => $"D435 {sn}";
 
         /// <summary>
         /// Prevede timestamp snimku (ms od epochy) na lokalni DateTime.
@@ -234,9 +238,9 @@ namespace HALWindows
         /// Prevede RealSense vnitrni parametry kamery (Intrinsics) na vlastni ARBot Intrinsics
         /// vcetne mapovani modelu zkresleni.
         /// </summary>
-        private ARBot.Common.Coordinates.Intrinsics Simplify(Intel.RealSense.Intrinsics i)
+        private Common.Coordinates.Intrinsics Simplify(Intel.RealSense.Intrinsics i)
         {
-            var ii = new ARBot.Common.Coordinates.Intrinsics();
+            var ii = new Common.Coordinates.Intrinsics();
             ii.Coeffs = i.coeffs;
             ii.Fx = i.fx;
             ii.Fy = i.fy;

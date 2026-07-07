@@ -11,6 +11,10 @@ namespace ARBot.HAL
     public interface IUart
     {
         /// <summary>
+        /// Zda je uart otevren
+        /// </summary>
+        bool IsOpen { get; }
+        /// <summary>
         /// Read timeout in ms
         /// </summary>
         int ReadTimeout { get; set; }

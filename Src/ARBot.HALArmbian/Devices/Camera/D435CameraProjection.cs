@@ -4,7 +4,7 @@ using ARBot.Common.Coordinates;
 using System;
 using System.Collections.Generic;
 
-namespace ARBot.HALArmbian
+namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Hloubkova projekce D435 pro Armbian/ARM64.

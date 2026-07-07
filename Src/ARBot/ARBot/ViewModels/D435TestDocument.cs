@@ -6,14 +6,12 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Dock.Model.Mvvm.Controls;
-#if IsARM64
-using ARBot.HALArmbian;
-#else
-using HALWindows;
-#endif
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+// D435Camera je platformove dedikovana (HALArmbian/HALWindows), ale v obou
+// vrstvach ji najdeme ve stejnem namespace ARBot.HAL.Devices.Camera.
+using ARBot.HAL.Devices.Camera;
 
 namespace ARBot.ViewModels
 {

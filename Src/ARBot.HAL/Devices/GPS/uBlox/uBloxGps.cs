@@ -9,20 +9,21 @@ using System.Threading.Tasks;
 
 namespace ARBot.HAL.Devices.GPSs.uBlox
 {
-    public class uBloxGps : SensorBase<GPSState>, IGPS
+    public class uBloxGps : UartSensorBase<GPSState>, IGPS
     {
-        IUart uart;
-
         /// <summary>
         /// Constructor for the Device class.
         /// </summary>
-        public uBloxGps(IUart uart)
+        public uBloxGps(IUart uart):base(uart)
         {
-            if (uart == null)
-                throw new ArgumentNullException("uart");
-            this.uart = uart;
             Start();
         }
+
+        /// <summary>
+        /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
+        /// </summary>
+        public override string Name => "uBloxGps";
+
         protected override GPSState GetMeasurement()
         {
             PVTMessage pos = null;

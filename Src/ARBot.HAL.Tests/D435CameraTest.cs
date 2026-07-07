@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using ARBot.HAL;
-using ARBot.HALArmbian;
+using ARBot.HAL.Devices.Camera;
 
 namespace ARBot.HAL.Tests
 {

@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <Platforms>AnyCPU;x64;x86;OrangePI</Platforms>
-    <RootNamespace>ARBot.HALArmbian</RootNamespace>
+    <RootNamespace>ARBot.HAL</RootNamespace>
     <AssemblyName>ARBot.HALArmbian</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -32,6 +32,10 @@
     <OutputPath>bin\x86\Release\</OutputPath>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- System.Device.Spi.SpiDevice pro pristup k /dev/spidev* (WS2812 NeoPixel na Orange Pi). -->
+    <PackageReference Include="System.Device.Gpio" Version="4.2.0" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ARBot.Common\ARBot.Common.csproj" />
     <ProjectReference Include="..\ARBot.HAL\ARBot.HAL.csproj" />

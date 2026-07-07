@@ -1,4 +1,5 @@
-﻿using ARBot.Common.Models;
+﻿using ARBot.Common.Devices;
+using ARBot.Common.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,7 @@ namespace ARBot.HAL
     /// <summary>
     /// Rozhrani pro inercialni jednotky
     /// </summary>
-    public interface IIMU
+    public interface IIMU:ISensor
     {
         /// <summary>
         /// Vraci posledni zmerene hodnoty. Bez noveho mereni vraci null.

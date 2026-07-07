@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ARBot.HAL
+namespace ARBot.HAL.Devices.MotorDrivers
 {
 /*    /// <summary>
     ///  motor control unit driver.
