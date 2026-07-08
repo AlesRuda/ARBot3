@@ -77,6 +77,52 @@ namespace ARBot.Common.Tests.Fusion
         }
 
         [Test]
+        public void SoftGate_NeverRejects_ButDownweights()
+        {
+            var ungated = new EKFModel();
+            var soft = new EKFModel();
+
+            var mU = new PositionMeasurement(10, 0, 0.5, 0.5, T0, "GPS");
+            var mS = new PositionMeasurement(10, 0, 0.5, 0.5, T0, "GPS")
+            {
+                GateThreshold = Gating.ChiSquareThreshold(2, 0.99),
+                GateMode = GateMode.Soft
+            };
+            ungated.Update(mU);
+            soft.Update(mS);
+
+            Assert.That(soft.LastAccepted, Is.True);                          // nikdy nezamitne
+            Assert.That(soft.Current(T0).X, Is.GreaterThan(0));               // ale pohne se
+            Assert.That(soft.Current(T0).X, Is.LessThan(ungated.Current(T0).X)); // min nez plne duverovane
+        }
+
+        [Test]
+        public void SoftGate_RecoversFromLockout_WhereRejectStaysStuck()
+        {
+            // robot "zabloudil" na X=30 s prilis sebejistym P; GPS spravne ukazuje 0.
+            double gate = Gating.ChiSquareThreshold(2, 0.99);
+
+            var reject = new EKFModel();
+            reject.SetPose(30, 0, 0);
+            var soft = new EKFModel();
+            soft.SetPose(30, 0, 0);
+
+            for (int i = 0; i < 100; i++)
+            {
+                var t = T0.AddSeconds(i * 0.1);
+                var gr = new PositionMeasurement(0, 0, 0.5, 0.5, t, "GPS") { GateThreshold = gate, GateMode = GateMode.Reject };
+                var gs = new PositionMeasurement(0, 0, 0.5, 0.5, t, "GPS") { GateThreshold = gate, GateMode = GateMode.Soft };
+                reject.Update(gr);
+                soft.Update(gs);
+            }
+
+            // tvrdy reject: NIS trvale nad prahem, nic se neprijme -> zustane zaseknuty u 30
+            Assert.That(reject.Current(T0).X, Is.GreaterThan(29.0));
+            // mekky gating: postupne se pritahne ke spravne poloze
+            Assert.That(soft.Current(T0).X, Is.LessThan(1.0));
+        }
+
+        [Test]
         public void Engine_GatedOutlier_DoesNotCorruptEstimate()
         {
             var e = new AsyncFusionEngine(new EKFModel());

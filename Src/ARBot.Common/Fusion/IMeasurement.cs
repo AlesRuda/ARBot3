@@ -35,6 +35,9 @@ namespace ARBot.Common.Fusion
         /// </summary>
         double? GateThreshold { get; }
 
+        /// <summary>Rezim gatingu (tvrde zahozeni vs. mekke down-weight). Vyznam jen kdyz je nastaven GateThreshold.</summary>
+        GateMode GateMode { get; }
+
         /// <summary>Reziduum z - h(x) se spravnym zabalenim uhlu.</summary>
         Vector<double> Residual(Vector<double> z, Vector<double> hx);
     }

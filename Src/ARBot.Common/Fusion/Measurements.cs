@@ -14,6 +14,7 @@ namespace ARBot.Common.Fusion
         public DateTime TimeStamp { get; }
         public string Source { get; }
         public double? GateThreshold { get; set; }
+        public GateMode GateMode { get; set; } = GateMode.Reject;
 
         public PositionMeasurement(double x, double y, double stdX, double stdY, DateTime t, string source)
         {
@@ -50,6 +51,7 @@ namespace ARBot.Common.Fusion
         public DateTime TimeStamp { get; }
         public string Source { get; }
         public double? GateThreshold { get; set; }
+        public GateMode GateMode { get; set; } = GateMode.Reject;
 
         public HeadingMeasurement(double theta, double std, DateTime t, string source)
         {
@@ -88,6 +90,7 @@ namespace ARBot.Common.Fusion
         public DateTime TimeStamp { get; }
         public string Source { get; }
         public double? GateThreshold { get; set; }
+        public GateMode GateMode { get; set; } = GateMode.Reject;
 
         public ScalarStateMeasurement(int stateIndex, double value, double std, DateTime t, string source)
         {
@@ -132,6 +135,7 @@ namespace ARBot.Common.Fusion
         public DateTime TimeStamp { get; }
         public string Source { get; }
         public double? GateThreshold { get; set; }
+        public GateMode GateMode { get; set; } = GateMode.Reject;
 
         public PoseMeasurement(double x, double y, double theta, double stdX, double stdY, double stdTheta, DateTime t, string source)
         {

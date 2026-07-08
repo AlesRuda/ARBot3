@@ -95,13 +95,25 @@ namespace ARBot.Common.Fusion
             var hx = m.Predict(x);
             var y = m.Residual(m.Value, hx);
             var Ht = H.Transpose();
-            var S = H * P * Ht + R;
+            var HPHt = H * P * Ht;
+            var S = HPHt + R;
             var Sinv = S.Inverse();
 
             double nis = y.DotProduct(Sinv * y);
 
+            // efektivni kovariance sumu merenia (muze se pri Soft gatingu nafouknout)
+            var Reff = R;
             if (m.GateThreshold.HasValue && nis > m.GateThreshold.Value)
-                return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false };
+            {
+                if (m.GateMode == GateMode.Reject)
+                    return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false };
+
+                // GateMode.Soft: nafoukni R umerne prekroceni prahu (robustni down-weight)
+                double w = nis / m.GateThreshold.Value;   // > 1
+                Reff = R * w;
+                S = HPHt + Reff;
+                Sinv = S.Inverse();
+            }
 
             var K = P * Ht * Sinv;
             var xn = x + K * y;
@@ -109,7 +121,7 @@ namespace ARBot.Common.Fusion
             // Joseph form kvuli numericke stabilite a zachovani symetrie/PSD
             var I = Matrix<double>.Build.DenseIdentity(x.Count);
             var IKH = I - K * H;
-            var Pn = IKH * P * IKH.Transpose() + K * R * K.Transpose();
+            var Pn = IKH * P * IKH.Transpose() + K * Reff * K.Transpose();
             return new UpdateResult { X = xn, P = Pn, Nis = nis, Accepted = true };
         }
     }
