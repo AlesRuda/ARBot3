@@ -152,7 +152,10 @@ namespace ARBot.Common.Models
         }
 
         /// <summary>
-        /// Orintace robotu vzhledem k severu v radianech, roste v matematickem smeru.
+        /// Euler úhel okolo svislé osy v radianech, roste v matematickém směru (proti směru
+        /// hodinových ručiček). Význam počátku závisí na referenčním framu zdrojového kvaternionu;
+        /// pro ENU atitude v tomto projektu je to matematická orientace (0 = východ, +CCW).
+        /// Převod na/z azimutu (0 = sever, +CW) přes <see cref="ARBot.Common.Common.Conversions.Orientation2Azimut"/>.
         /// </summary>
         public float Yaw
         {

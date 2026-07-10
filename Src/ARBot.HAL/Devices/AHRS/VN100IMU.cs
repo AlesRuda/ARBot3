@@ -114,7 +114,9 @@ namespace ARBot.HAL.Devices.AHRS
                                     (float)vals[2],
                                     (float)vals[3]));
 
-                            //TODO: nejsem si jist vektor uhlovych rychlosti, nevim zda je v NED a nebo BODY souradnicovem systemu
+                            // Uhlova rychlost z gyroskopu je v BODY framu. Nasledujici prehazeni
+                            // os a znamenek sjednocuje osy VN (X vpred, Y vpravo, Z dolu) na body
+                            // konvenci projektu (X vpred, Y vlevo, Z nahoru) - stale BODY frame.
                             state = new IMUState(
                                 q
                                 ,

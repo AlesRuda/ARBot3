@@ -10,38 +10,62 @@ using System.Threading.Tasks;
 namespace ARBot.Common.Models
 {
     /// <summary>
-    /// Mereni inercialni jednotky
+    /// Mereni inercialni jednotky.
     /// </summary>
+    /// <remarks>
+    /// KONVENCE SOURADNICOVYCH SYSTEMU:
+    /// - Surova inercialni mereni (Magnetometer, Acceleration, AngularAcceleration,
+    ///   AngularVelocity) jsou v BODY framu senzoru (osy telesa: X vpred, Y vlevo, Z nahoru).
+    /// - Navigacni veliciny (Translation, Velocity, Rotation) jsou v REFERENCNIM framu ZDROJE,
+    ///   ktery NENI u vsech senzoru stejny:
+    ///     * VN-100 IMU (ma magnetometr i akcelerometr): Rotation je ABSOLUTNI atitude v ENU
+    ///       (sever z magnetometru, dolu z gravitace). Prevod z NED resi driver.
+    ///     * T265 trekovaci kamera (NEMA magnetometr): vlastni VIO frame - pocatek pri startu,
+    ///       gravitacne zarovnany, takze PITCH/ROLL jsou absolutni, ale YAW i poloha jsou jen
+    ///       RELATIVNI (bez severu). Do ENU je nutne yaw/polohu teprve zarovnat (napr. pres
+    ///       GPS kurz nebo kompas).
+    /// Fuze proto z T265 bere pitch/roll absolutne, ale yaw a polohu jen jako relativni (delta),
+    /// resp. az po zarovnani na ENU.
+    /// </remarks>
     public class IMUState: SensorStateBase, ICloneable, IHistoryItem<IMUState>
     {
         /// <summary>
-        /// Uzaje z magnetometru
+        /// Udaje z magnetometru [BODY frame]. Surove pole senzoru.
         /// </summary>
         public Vector3? Magnetometer;
         /// <summary>
-        /// Akcelerace v m/s^2
+        /// Akcelerace v m/s^2 [BODY frame]. Surove mereni akcelerometru (vc. gravitace).
         /// </summary>
         public Vector3? Acceleration ;
         /// <summary>
-        /// Uhlova akcelerace rad/s^2
+        /// Uhlova akcelerace rad/s^2 [BODY frame].
         /// </summary>
         public Vector3? AngularAcceleration;
         /// <summary>
-        /// Uhlova rychlost rad/s
+        /// Uhlova rychlost rad/s [BODY frame] (gyroskop). Slozka Z je rychlost staceni (yaw rate)
+        /// pri rovinnem pohybu; pri naklonu je treba projekce pres pitch/roll.
         /// </summary>
         public Vector3? AngularVelocity;
         /// <summary>
-        /// Posunuti od pocatecni pozice v metrech
+        /// Posunuti od pocatecni pozice v metrech [referencni frame ZDROJE]. Typicky z T265 -
+        /// pak je RELATIVNI k mistu startu (vlastni VIO frame), NENI to ENU.
         /// </summary>
         public Vector3? Translation;
         /// <summary>
-        /// Rychlost v m/s
+        /// Rychlost v m/s [referencni frame ZDROJE]. Typicky z T265 (VIO frame), viz remarks tridy.
         /// </summary>
         public Vector3? Velocity;
         /// <summary>
-        /// Orientace senzoru
+        /// Atitude telesa. VN-100: ABSOLUTNI v ENU (sever z magnetometru). T265: gravitacne
+        /// zarovnany VIO frame - pitch/roll absolutni, YAW relativni (bez severu). Viz remarks tridy.
         /// </summary>
         public Quaternion? Rotation;
+        /// <summary>
+        /// Odhad nejistoty orientace (1 sigma) v radianech jako [yaw, pitch, roll].
+        /// Napr. z VN100 (attitude uncertainty / kovariance AHRS filtru). Slouzi jako
+        /// zdroj kovariance mereni R pro fuzni filtr. null = neni k dispozici.
+        /// </summary>
+        public Vector3? OrientationUncertainty;
 
         DateTime IHistoryItem<IMUState>.TimeStamp { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
@@ -90,6 +114,7 @@ namespace ARBot.Common.Models
             v.Translation = Translation;
             v.Velocity = Velocity;
             v.Magnetometer = Magnetometer;
+            v.OrientationUncertainty = OrientationUncertainty;
 
             return v;
         }
@@ -183,6 +208,7 @@ namespace ARBot.Common.Models
                 s.Rotation = Quaternion.Slerp(prev.Rotation.Value, next.Rotation.Value, d);
             s.AngularVelocity = Interpolate(prev.AngularVelocity, next.AngularVelocity, d);
             s.AngularAcceleration = Interpolate(prev.AngularAcceleration, next.AngularAcceleration, d);
+            s.OrientationUncertainty = Interpolate(prev.OrientationUncertainty, next.OrientationUncertainty, d);
 
             return s;
         }

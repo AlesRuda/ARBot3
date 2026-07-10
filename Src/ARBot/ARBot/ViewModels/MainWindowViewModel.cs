@@ -1,4 +1,8 @@
-﻿using CommunityToolkit.Mvvm.Input;
+﻿using System;
+using System.Linq;
+using ARBot.Common.Devices;
+using ARBot.HAL;
+using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm.Controls;
@@ -21,7 +25,49 @@ namespace ARBot.ViewModels
             Layout = _factory.CreateLayout();
             if (Layout is not null)
                 _factory.InitLayout(Layout);
+
+            // Dvojklik na senzor v panelu Sensors otevře jeho detailní dokument.
+            if (_factory.SensorStatus is not null)
+                _factory.SensorStatus.SensorActivated += OpenSensorDocument;
         }
+
+        /// <summary>
+        /// Otevře (nebo aktivuje, je-li už otevřený) detailní dokument pro daný senzor.
+        /// Mapování typu senzoru na dokument je v <see cref="CreateSensorDocument"/> —
+        /// sem se budou přidávat další typy (kamery, GPS, motory, ...).
+        /// </summary>
+        private void OpenSensorDocument(ISensor sensor)
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null || Layout == null || sensor == null)
+                return;
+
+            var doc = CreateSensorDocument(sensor);
+            if (doc == null)
+                return;   // typ senzoru zatím nemá vlastní dokument
+
+            // Už otevřený dokument pro tentýž senzor jen aktivovat (podle Id).
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == doc.Id);
+            if (existing != null)
+            {
+                (doc as IDisposable)?.Dispose();
+                _factory.SetActiveDockable(existing);
+                _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>Vytvoří detailní dokument podle typu senzoru (rozšiřitelné).</summary>
+        private static Document? CreateSensorDocument(ISensor sensor) => sensor switch
+        {
+            IIMU imu => new IMUDocument(imu),
+            // TODO: ICamera -> CameraDocument, IGPS -> GpsDocument, IMotorControl -> MotorDocument, ...
+            _ => null
+        };
 
         [RelayCommand]
         private void Open()

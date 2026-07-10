@@ -106,6 +106,11 @@ namespace ARBot.HAL.Devices.Camera
         /// Pocka na dalsi pose snimek z pipeline a vrati ho jako IMUState.
         /// Bookkeeping (FrameNum/periody) doplni SensorBase.
         /// </summary>
+        /// <remarks>
+        /// POZOR na frame: T265 nema magnetometr, takze Rotation/Translation/Velocity jsou ve
+        /// vlastnim VIO framu - pocatek pri startu, gravitacne zarovnany (pitch/roll absolutni),
+        /// ale yaw a poloha jen RELATIVNI (bez severu, NENI ENU). Viz remarks u IMUState.
+        /// </remarks>
         protected override IMUState GetMeasurement()
         {
             using (var frames = pipeline.WaitForFrames())

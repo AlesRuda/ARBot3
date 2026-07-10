@@ -44,7 +44,7 @@ namespace ARBot.Robot
         public T265TrackingCamera TrackingCamera { get; set; }
         public IMotorControl Motor { get; set; }
         public IGPS GPS { get; set; }
-        public VN100IMU IMU { get; set; }
+        public IIMU IMU { get; set; }
         //        public SndGenerator SndGenerator { get; set; }
         public NeoPixelProcessor NeoPixel { get; set; }
         protected IUart UartMotor { get; set; }
@@ -73,9 +73,9 @@ namespace ARBot.Robot
 
             //                UartGimbal = new Uart("UartGimbal", "COM11", 9600);
 
-            UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", "COM10"), 115200);
+            UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", "COM5"), 115200);
 
-            UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", "COM4"), 921600);
+            UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", "COM6"), 921600);
 
             UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", "COM9"), 115200, "\r");
 
@@ -97,7 +97,7 @@ namespace ARBot.Robot
             if (UartAHRS != null)
             {
                 //                AHRS = new VN100(UartAHRS);
-                IMU = new VN100IMU(UartAHRS);
+                IMU = new VN100IMUBinary(UartAHRS);
             }
 
             Joystick = new Joystick();

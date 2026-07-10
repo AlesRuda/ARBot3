@@ -118,7 +118,7 @@ namespace ARBot.Common.Common
         }
 
         /// <summary>
-        /// Konverze mezi matematickym smerem a smerem kompasu v radianech
+        /// Konverze mezi matematickym smerem a smerem kompasu v radianech. 
         /// </summary>
         /// <param name="orientation"></param>
         /// <returns></returns>

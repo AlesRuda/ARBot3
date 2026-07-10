@@ -74,6 +74,20 @@ namespace ARBot.ViewModels
             if (Sensors.Count == 0 && Status.Length == 0)
                 Status = "Zadne senzory";
         }
+
+        /// <summary>
+        /// Vyvoláno při aktivaci senzoru (dvojklik). Naslouchá např. MainWindowViewModel,
+        /// který otevře odpovídající detailní dokument.
+        /// </summary>
+        public event Action<ISensor>? SensorActivated;
+
+        /// <summary>Aktivuje senzor daného řádku (otevře jeho dokument).</summary>
+        [RelayCommand]
+        private void Activate(SensorRow? row)
+        {
+            if (row?.Sensor != null)
+                SensorActivated?.Invoke(row.Sensor);
+        }
     }
 
     /// <summary>Jeden radek panelu senzoru - obal nad <see cref="ISensor"/> s obnovitelnym IsError.</summary>

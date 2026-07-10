@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.SensorStatusToolView"
+             x:CompileBindings="False">
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Button Grid.Row="0" Content="Refresh" Command="{Binding RefreshCommand}"
+                HorizontalAlignment="Left" Margin="4"/>
+        <TextBlock Grid.Row="1" Text="{Binding Status}" Foreground="Gray"
+                   Margin="6,0,6,4" TextWrapping="Wrap"/>
+        <ScrollViewer Grid.Row="2">
+            <ItemsControl ItemsSource="{Binding Sensors}" DoubleTapped="OnItemDoubleTapped"
+                          ToolTip.Tip="Dvojklik otevře detail senzoru">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:SensorRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,3" Background="Transparent">
+                            <Border Grid.Column="0" Width="12" Height="12" CornerRadius="6"
+                                    VerticalAlignment="Center" Background="{Binding StatusBrush}"/>
+                            <TextBlock Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center"
+                                       Text="{Binding Name}"/>
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold"
+                                       Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
