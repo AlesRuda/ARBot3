@@ -17,8 +17,10 @@ namespace ARBot.ViewModels
     /// (pitch/roll), ostatní veličiny jsou číselné. IMU je předána jako parametr a
     /// dokument ji NEvlastní (jen se odhlásí z události, nezavírá ji).
     /// </summary>
-    public partial class IMUDocument : Document, IDisposable
+    public partial class IMUDocument : DocumentBase, IDisposable
     {
+        public override Type ViewType => typeof(ARBot.Views.IMUDocumentView);
+
         private readonly IIMU? imu;
 
         /// <summary>Kurz pro kompas [°], 0 = sever, roste po směru hod. ručiček.</summary>

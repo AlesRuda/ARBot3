@@ -3,6 +3,9 @@
              xmlns:vm="using:ARBot.ViewModels"
              x:Class="ARBot.Views.SensorStatusToolView"
              x:CompileBindings="False">
+    <Design.DataContext>
+        <vm:SensorStatusTool/>
+    </Design.DataContext>
     <Grid RowDefinitions="Auto,Auto,*">
         <Button Grid.Row="0" Content="Refresh" Command="{Binding RefreshCommand}"
                 HorizontalAlignment="Left" Margin="4"/>

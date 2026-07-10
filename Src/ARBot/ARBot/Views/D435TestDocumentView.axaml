@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.D435TestDocumentView"
+             x:DataType="vm:D435TestDocument">
+    <Design.DataContext>
+        <vm:D435TestDocument/>
+    </Design.DataContext>
+    <Grid Background="#202020">
+        <Image Source="{Binding Image}" Stretch="Uniform"/>
+        <TextBlock Text="{Binding Status}" Foreground="Lime" FontSize="18" FontWeight="Bold"
+                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8"
+                   Background="#80000000" Padding="6,3"/>
+    </Grid>
+</UserControl>

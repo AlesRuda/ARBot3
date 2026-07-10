@@ -19,6 +19,12 @@ namespace ARBot
             if (param is null)
                 return null;
 
+            // Dockable, ktery zna typ sveho controlu (DocumentBase/ToolBase).
+            if (param is IViewProvider vp)
+                return Activator.CreateInstance(vp.ViewType) as Control
+                       ?? new TextBlock { Text = "Not a Control: " + vp.ViewType.FullName };
+
+            // Jinak konvence nazvu: ...ViewModel -> ...View.
             var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
             var type = Type.GetType(name);
 
@@ -32,7 +38,7 @@ namespace ARBot
 
         public bool Match(object? data)
         {
-            return data is ViewModelBase;
+            return data is IViewProvider || data is ViewModelBase;
         }
     }
 }

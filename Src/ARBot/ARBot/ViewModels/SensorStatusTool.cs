@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using ARBot.Common.Devices;
 using ARBot.Robot;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,8 +18,10 @@ namespace ARBot.ViewModels
     /// (jmeno + chybovy stav). Stav se periodicky obnovuje - <see cref="ISensor.IsError"/>
     /// se muze menit za behu a sam zmenu nehlasi.
     /// </summary>
-    public partial class SensorStatusTool : Tool
+    public partial class SensorStatusTool : ToolBase
     {
+        public override Type ViewType => typeof(ARBot.Views.SensorStatusToolView);
+
         private readonly DispatcherTimer timer;
 
         /// <summary>Radky se senzory (jmeno + IsError).</summary>
@@ -32,6 +35,10 @@ namespace ARBot.ViewModels
         {
             Id = "SensorStatus";
             Title = "Sensors";
+
+            // V design-time nahledu nepristupovat k ARBotHW ani nespoustet casovac.
+            if (Design.IsDesignMode)
+                return;
 
             // ISensor.IsError se meni za behu bez notifikace -> periodicky refresh na UI vlakne.
             timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };

@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.IMUDocumentView"
+             x:DataType="vm:IMUDocument">
+    <Design.DataContext>
+        <vm:IMUDocument/>
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
+        <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0">
+            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                <TextBlock Text="Kompas (yaw)" Foreground="Gray"
+                           HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                <ctl:CompassControl Width="220" Height="220" Heading="{Binding HeadingDeg}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                <TextBlock Text="Umělý horizont (pitch/roll)" Foreground="Gray"
+                           HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                <ctl:ArtificialHorizonControl Width="220" Height="220"
+                                              Pitch="{Binding PitchDeg}" Roll="{Binding RollDeg}"/>
+            </StackPanel>
+        </Grid>
+        <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                  VerticalAlignment="Top">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Orientace" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding OrientationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Úhlová rychlost" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AngularVelocityText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Akcelerace" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AccelerationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Magnetometr" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MagnetometerText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Kvaternion" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding QuaternionText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Nejistota orient." Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding UncertaintyText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="Snímek" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding FrameText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

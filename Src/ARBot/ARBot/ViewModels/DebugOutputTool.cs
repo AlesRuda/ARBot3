@@ -1,5 +1,7 @@
+using System;
 using System.Diagnostics;
 using System.Text;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,8 +14,10 @@ namespace ARBot.ViewModels
     /// V konstruktoru zaregistruje <see cref="RelayTraceListener"/>, ktery presmeruje
     /// vystup ze <c>System.Diagnostics.Debug</c>/<c>Trace</c> do tohoto panelu.
     /// </summary>
-    public partial class DebugOutputTool : Tool
+    public partial class DebugOutputTool : ToolBase
     {
+        public override Type ViewType => typeof(ARBot.Views.DebugOutputToolView);
+
         /// <summary>Maximalni pocet znaku v bufferu (starsi vystup se orezava).</summary>
         private const int MaxChars = 100_000;
 
@@ -29,7 +33,8 @@ namespace ARBot.ViewModels
             Id = "DebugOutput";
             Title = "Debug output";
 
-            Trace.Listeners.Add(new RelayTraceListener(Append));
+            if (!Design.IsDesignMode)
+                Trace.Listeners.Add(new RelayTraceListener(Append));
         }
 
         /// <summary>Vymaze obsah panelu.</summary>

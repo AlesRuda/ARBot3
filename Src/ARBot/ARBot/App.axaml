@@ -2,75 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="ARBot.App"
              xmlns:local="using:ARBot"
-             xmlns:vm="using:ARBot.ViewModels"
-             xmlns:views="using:ARBot.Views"
-             xmlns:ctl="using:ARBot.Views.Controls"
              xmlns:dockThemes="using:Dock.Avalonia.Themes.Fluent"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
+        <!-- View se vytvari podle typu dockable: DocumentBase/ToolBase.ViewType (viz ViewLocator),
+             jinak konvence nazvu ...ViewModel -> ...View. Prezentacni UserControly jsou ve Views/. -->
         <local:ViewLocator/>
-        <DataTemplate DataType="vm:D435TestDocument">
-            <Grid Background="#202020">
-                <Image Source="{Binding Image}" Stretch="Uniform"/>
-                <TextBlock Text="{Binding Status}" Foreground="Lime" FontSize="18" FontWeight="Bold"
-                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8"
-                           Background="#80000000" Padding="6,3"/>
-            </Grid>
-        </DataTemplate>
-        <DataTemplate DataType="vm:DebugOutputTool">
-            <Grid RowDefinitions="Auto,*">
-                <Button Grid.Row="0" Content="Clear" Command="{Binding ClearCommand}"
-                        HorizontalAlignment="Left" Margin="4"/>
-                <TextBox Grid.Row="1" Text="{Binding Text}"
-                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
-                         FontFamily="Consolas,Menlo,monospace"
-                         VerticalContentAlignment="Top"/>
-            </Grid>
-        </DataTemplate>
-        <DataTemplate DataType="vm:SensorStatusTool">
-            <views:SensorStatusToolView/>
-        </DataTemplate>
-        <DataTemplate DataType="vm:IMUDocument">
-            <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
-                <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
-                <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0">
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                        <TextBlock Text="Kompas (yaw)" Foreground="Gray"
-                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                        <ctl:CompassControl Width="220" Height="220" Heading="{Binding HeadingDeg}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                        <TextBlock Text="Umělý horizont (pitch/roll)" Foreground="Gray"
-                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                        <ctl:ArtificialHorizonControl Width="220" Height="220"
-                                                      Pitch="{Binding PitchDeg}" Roll="{Binding RollDeg}"/>
-                    </StackPanel>
-                </Grid>
-                <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-                          VerticalAlignment="Top">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Orientace" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding OrientationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Úhlová rychlost" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AngularVelocityText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Akcelerace" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AccelerationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Magnetometr" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MagnetometerText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Kvaternion" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding QuaternionText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Nejistota orient." Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding UncertaintyText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Snímek" Foreground="Gray" Margin="0,2,12,2"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding FrameText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                    </Grid>
-                </Border>
-            </Grid>
-        </DataTemplate>
     </Application.DataTemplates>
-  
+
     <Application.Styles>
         <FluentTheme />
         <dockThemes:DockFluentTheme />

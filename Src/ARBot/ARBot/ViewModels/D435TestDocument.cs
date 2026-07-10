@@ -20,8 +20,10 @@ namespace ARBot.ViewModels
     /// Po vytvoreni se pripoji k D435Camera (sn=null) a na kazdy prichozi snimek
     /// aktualizuje obraz (na UI vlakne).
     /// </summary>
-    public partial class D435TestDocument : Document, IDisposable
+    public partial class D435TestDocument : DocumentBase, IDisposable
     {
+        public override Type ViewType => typeof(ARBot.Views.D435TestDocumentView);
+
         private readonly D435Camera camera;
 
         // Diagnostika (zapnuta env ARBOT_DIAG) - zapisuje do d435-diag.log vedle appky.
@@ -49,6 +51,10 @@ namespace ARBot.ViewModels
         {
             Id = "D435Test";
             Title = "D435 Test";
+
+            // V design-time nahledu nezakladat kameru (jen prazdny nahled).
+            if (Avalonia.Controls.Design.IsDesignMode)
+                return;
 
             try
             {
