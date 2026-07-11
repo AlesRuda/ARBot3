@@ -42,7 +42,7 @@
     <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="12.0.0.2" />
 
 	  <Reference Include="FTD2XX_NET" Condition="'$(Platform)' == 'x64'">
-		  <HintPath>..\..\ARBot.HALWindows\FTD2XX_NET.dll</HintPath>
+		  <HintPath>..\ARBot.HALWindows\FTD2XX_NET.dll</HintPath>
 	  </Reference>
 
   </ItemGroup>
@@ -50,9 +50,9 @@
   <!-- Platform-dedikovany HAL: OrangePI -> HALArmbian (RealSense 2.53),
        jinak (x64/x86/AnyCPU) -> HALWindows (RealSense 2.47). -->
   <ItemGroup Condition="'$(Platform)' == 'OrangePI'">
-    <ProjectReference Include="..\..\ARBot.HALArmbian\ARBot.HALArmbian.csproj" />
+    <ProjectReference Include="..\ARBot.HALArmbian\ARBot.HALArmbian.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(Platform)' != 'OrangePI'">
-    <ProjectReference Include="..\..\ARBot.HALWindows\ARBot.HALWindows.csproj" />
+    <ProjectReference Include="..\ARBot.HALWindows\ARBot.HALWindows.csproj" />
   </ItemGroup>
 </Project>

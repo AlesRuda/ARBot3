@@ -1,49 +1,46 @@
 <Solution>
   <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="ARM" />
-    <Platform Name="ARM64" />
     <Platform Name="OrangePI" />
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Solution Items/" />
-  <Project Path="../ARBot.Common.Tests/ARBot.Common.Tests.csproj" Id="3b5b9146-0e80-4caf-bdca-13e9bdf7cd8d">
+  <Project Path="ARBot.Common.Tests/ARBot.Common.Tests.csproj" Id="3b5b9146-0e80-4caf-bdca-13e9bdf7cd8d">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Build Solution="*|OrangePI" Project="false" />
   </Project>
-  <Project Path="../ARBot.Common/ARBot.Common.csproj" Id="8fc467c6-a350-4674-9814-b285d5a9af66">
+  <Project Path="ARBot.Common/ARBot.Common.csproj" Id="8fc467c6-a350-4674-9814-b285d5a9af66">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Platform Solution="*|OrangePI" Project="OrangePI" />
   </Project>
-  <Project Path="../ARBot.HAL/ARBot.HAL.csproj" Id="53067c2d-6d84-4735-8fcb-68c096d27868">
+  <Project Path="ARBot.HAL/ARBot.HAL.csproj" Id="53067c2d-6d84-4735-8fcb-68c096d27868">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Platform Solution="*|OrangePI" Project="OrangePI" />
   </Project>
-  <Project Path="../ARBot.HALArmbian/ARBot.HALArmbian.csproj">
+  <Project Path="ARBot.HALArmbian/ARBot.HALArmbian.csproj">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Platform Solution="*|OrangePI" Project="OrangePI" />
   </Project>
-  <Project Path="../ARBot.HALWindows/ARBot.HALWindows.csproj" Id="2d590165-532a-44f2-809b-3fbef89821a7">
+  <Project Path="ARBot.HALWindows/ARBot.HALWindows.csproj" Id="2d590165-532a-44f2-809b-3fbef89821a7">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Build Solution="*|OrangePI" Project="false" />
   </Project>
-  <Project Path="../ARBot.HALZBoard/ARBot.HALZBoard.csproj" Id="61a8f1d9-f8c1-4255-9863-fa2f5f653d05">
+  <Project Path="ARBot.HALZBoard/ARBot.HALZBoard.csproj" Id="61a8f1d9-f8c1-4255-9863-fa2f5f653d05">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
     <Build Solution="*|OrangePI" Project="false" />
   </Project>
-  <Project Path="../ARBot.HAL.Tests/ARBot.HAL.Tests.csproj">
+  <Project Path="ARBot.HAL.Tests/ARBot.HAL.Tests.csproj">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|OrangePI" Project="OrangePI" />
     <Build Solution="*|x86" Project="false" />
   </Project>
-  <Project Path="../ThirdParty/Intel.RealSense/Intel.RealSense.csproj">
+  <Project Path="ThirdParty/Intel.RealSense/Intel.RealSense.csproj">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|OrangePI" Project="OrangePI" />
     <Build Solution="*|x86" Project="false" />
