@@ -45,15 +45,12 @@
     <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
   </PropertyGroup>
 
-  <!-- VN100 IMU (VectorNav) je Windows/x64 HW komponenta se zavislosti na VectorNav.dll
-       (mimo repo). Na platforme OrangePI (ARM/Armbian) se reference i VN100IMU.cs vynechavaji,
-       aby sel HAL zkompilovat pro Orange Pi. -->
-  <ItemGroup Condition="'$(Platform)' != 'OrangePI'">
+  <!-- VN100 IMU (VectorNav.dll, mimo repo) je MSIL/AnyCPU managed knihovna (.NET FW 4.0),
+       bez nativnich zavislosti -> referencuje se na VSECH platformach vcetne OrangePI
+       (ARM64/Armbian). Nacteni net40 assembly pod .NET 10 funguje i na ARM (overit na zarizeni). -->
+  <ItemGroup>
     <Reference Include="VectorNav">
       <HintPath>..\..\vndotnetlib-0.4\VectorNav.dll</HintPath>
     </Reference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Platform)' == 'OrangePI'">
-    <Compile Remove="Devices\AHRS\VN100IMU.cs" />
   </ItemGroup>
 </Project>

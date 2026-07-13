@@ -10,13 +10,21 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 
 namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
     /// Ovladac hloubkove kamery Intel RealSense D435.
-    /// Dedi ze SensorBase: po Init bezi na pozadi task ctouci snimky z pipeline,
+    /// Dedi ze SensorBase: po Start bezi na pozadi task ctouci snimky z pipeline,
     /// posledni snimek je dostupny pres GetLastMeasurement a udalost MeasurementArived.
+    /// <para>
+    /// Ovladac je odolny proti odpojeni a pripojeni kamery za behu: pipeline se
+    /// nezaklada v konstruktoru, ale az v pozadi smycce, jakmile je zarizeni k dispozici.
+    /// Vypadek za behu (odpojeni) se detekuje pri cteni snimku, pipeline se zbouri a smycka
+    /// se v intervalu <see cref="ReconnectPeriodMs"/> pokousi o opetovne pripojeni. Dokud
+    /// kamera neni pripojena, <see cref="IsError"/> vraci true a smycka nezahlcuje CPU.
+    /// </para>
     /// </summary>
     public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
     {
@@ -32,8 +40,20 @@ namespace ARBot.HAL.Devices.Camera
         /// <summary>Nastaveni hloubkoveho streamu.</summary>
         CameraSettings settingsDepth;
 
+        /// <summary>Interval opakovanych pokusu o pripojeni, kdyz kamera chybi [ms].</summary>
+        private const int ReconnectPeriodMs = 1000;
+        /// <summary>Timeout cekani na snimek [ms]. Kratky, aby smycka rychle reagovala
+        /// na Stop() i na odpojeni kamery.</summary>
+        private const uint FrameTimeoutMs = 1000;
+
+        /// <summary>Kontext pro zjisteni pritomnosti zarizeni (detekce (od|při)pojeni).</summary>
+        private readonly Context ctx = new Context();
+
         private Pipeline pipeline;
         private PipelineProfile pipelineProfile;
+
+        /// <summary>true = pipeline bezi a streamuje z pripojene kamery.</summary>
+        private volatile bool connected = false;
 
         /// <summary>
         /// Otoceni kamery vzuhu nohama, tj. rotace podel z o 180 stupnu.
@@ -44,6 +64,12 @@ namespace ARBot.HAL.Devices.Camera
         /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
         /// </summary>
         public override string Name => $"D435 {sn}";
+
+        /// <summary>
+        /// Chybovy stav: krome chyby zpracovani (base) je za chybu povazovano i odpojeni
+        /// kamery (dokud neni pipeline pripojena).
+        /// </summary>
+        public override bool IsError => !connected || base.IsError;
 
         /// <summary>
         /// Prevede timestamp snimku (ms od epochy) na lokalni DateTime.
@@ -137,65 +163,221 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         protected override CameraFrame GetMeasurement()
         {
-            Image<BGR32> imageRGB = null;
-            Image<BGR32> resizedColorImage = null;
-            Image<Gray16> imageDepth = null;
-            Image<Gray> probabilityImage = null;
-            List<PathEdge> edges = null;
-
-            if (settingsRGB != null)
+            // (Re)pripojeni: kdyz kamera chybi, nezahlcovat CPU a vratit null (bez udalosti).
+            if (!EnsureConnected())
             {
-                imageRGB = new Image<BGR32>(settingsRGB.Width, settingsRGB.Height);
-                if (BackProject != null)
-                {
-                    var size = BackProject.Size(settingsRGB.Width, settingsRGB.Height);
-                    if (size.Width != settingsRGB.Width || size.Height != settingsRGB.Height)
-                        resizedColorImage = new Image<BGR32>(size.Width, size.Height);
-                    probabilityImage = new Image<Gray>(size.Width, size.Height);
-                }
+                Thread.Sleep(ReconnectPeriodMs);
+                return null;
             }
-            if (settingsDepth != null)
-                imageDepth = new Image<Gray16>(settingsDepth.Width, settingsDepth.Height);
 
-            using (var frames = pipeline.WaitForFrames())
+            try
             {
-                var ts = TimeBase.Now;
-                var colorFrame = frames.ColorFrame;
-                var depthFrame = frames.DepthFrame;
-
-                var RGBTimeStamp = CalcTimeStamp(colorFrame.Timestamp);
-                var DepthTimeStamp = CalcTimeStamp(depthFrame.Timestamp);
-                if (imageDepth != null)
-                    GetDataGray(depthFrame, imageDepth.Data);
-                if (imageRGB != null)
+                if (pipeline.TryWaitForFrames(out var frames, FrameTimeoutMs))
+                using (frames)
                 {
-                    GetDataRGB(colorFrame, imageRGB.Data);
+                    Image<BGR32> imageRGB = null;
+                    Image<BGR32> resizedColorImage = null;
+                    Image<Gray16> imageDepth = null;
+                    Image<Gray> probabilityImage = null;
+                    List<PathEdge> edges = null;
 
-                    if (probabilityImage != null)
+                    if (settingsRGB != null)
                     {
-                        if (resizedColorImage != null)
+                        imageRGB = new Image<BGR32>(settingsRGB.Width, settingsRGB.Height);
+                        if (BackProject != null)
                         {
-                            resizedColorImage.Resize(imageRGB);
-                            BackProject.Process(resizedColorImage, probabilityImage);
-                        }
-                        else
-                            BackProject.Process(imageRGB, probabilityImage);
-
-                        if (cu != null)
-                        {
-                            edges = cu.PathEdges(probabilityImage, (double)imageRGB.Width / (double)probabilityImage.Width, (double)imageRGB.Height / (double)probabilityImage.Height);
+                            var size = BackProject.Size(settingsRGB.Width, settingsRGB.Height);
+                            if (size.Width != settingsRGB.Width || size.Height != settingsRGB.Height)
+                                resizedColorImage = new Image<BGR32>(size.Width, size.Height);
+                            probabilityImage = new Image<Gray>(size.Width, size.Height);
                         }
                     }
+                    if (settingsDepth != null)
+                        imageDepth = new Image<Gray16>(settingsDepth.Width, settingsDepth.Height);
+
+                    var ts = TimeBase.Now;
+                    var colorFrame = frames.ColorFrame;
+                    var depthFrame = frames.DepthFrame;
+
+                    var RGBTimeStamp = CalcTimeStamp(colorFrame.Timestamp);
+                    var DepthTimeStamp = CalcTimeStamp(depthFrame.Timestamp);
+                    if (imageDepth != null)
+                        GetDataGray(depthFrame, imageDepth.Data);
+                    if (imageRGB != null)
+                    {
+                        GetDataRGB(colorFrame, imageRGB.Data);
+
+                        if (probabilityImage != null)
+                        {
+                            if (resizedColorImage != null)
+                            {
+                                resizedColorImage.Resize(imageRGB);
+                                BackProject.Process(resizedColorImage, probabilityImage);
+                            }
+                            else
+                                BackProject.Process(imageRGB, probabilityImage);
+
+                            if (cu != null)
+                            {
+                                edges = cu.PathEdges(probabilityImage, (double)imageRGB.Width / (double)probabilityImage.Width, (double)imageRGB.Height / (double)probabilityImage.Height);
+                            }
+                        }
+                    }
+
+                    return new CameraFrame() { ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
                 }
 
-                return new CameraFrame() { ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
+                // Timeout bez snimku: odpojeni se nemusi projevit vyjimkou, jen prestanou chodit
+                // snimky. Overit fyzickou pritomnost - kdyz kamera zmizela, zbourat pipeline (jinak
+                // by connected zustalo true, IsError by hlasil OK a reconnect by se nespustil).
+                if (!DevicePresent())
+                {
+                    Debug.WriteLine($"{Name}: kamera odpojena (timeout + zarizeni chybi).");
+                    Teardown();
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // Tvrdy vypadek za behu (odpojeni kamery) -> zbourat pipeline, priste se zkusi reconnect.
+                Debug.WriteLine($"{Name}: cteni snimku selhalo (odpojeno?): {ex.Message}");
+                Teardown();
+                return null;
             }
         }
 
         /// <summary>
-        /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pipeline + pozadi task.
-        /// Lze volat opakovane za behu - bezici zpracovani se pred rekonfiguraci zastavi a po ni obnovi.
+        /// Zjisti, zda je pozadovana kamera fyzicky pripojena. Pri sn==null hleda libovolnou
+        /// hloubkovou kameru radu D4xx (podle nazvu), jinak podle serioveho cisla.
         /// </summary>
+        private bool DevicePresent()
+        {
+            try
+            {
+                using (var devices = ctx.QueryDevices())
+                {
+                    foreach (var d in devices)
+                    {
+                        using (d)
+                        {
+                            if (sn != null)
+                            {
+                                if (d.Info[CameraInfo.SerialNumber] == sn)
+                                    return true;
+                            }
+                            else
+                            {
+                                var name = d.Info[CameraInfo.Name];
+                                if (name != null && name.IndexOf("D4", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    return true;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Zajisti pripojenou a bezici pipeline s aktualnim nastavenim streamu. Pokud kamera
+        /// chybi nebo se start nezdari, vrati false (a pipeline necha zbouranou pro dalsi pokus).
+        /// </summary>
+        private bool EnsureConnected()
+        {
+            if (connected)
+                return true;
+
+            if (!DevicePresent())
+                return false;
+
+            try
+            {
+                var cfg = new Config();
+                if (sn != null)
+                    cfg.EnableDevice(sn);
+                if (settingsDepth != null)
+                    cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, 30);
+                if (settingsRGB != null)
+                    cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, 30);
+
+                // Po odpojeni je pipeline zbourana (Teardown) - vzdy tvorime cerstvou instanci
+                // ze sdileneho kontextu; znovupouzita pipeline se na nove zarizeni nenavaze.
+                if (pipeline == null)
+                    pipeline = new Pipeline(ctx);
+
+                pipelineProfile = pipeline.Start(cfg);
+                connected = true;
+                Debug.WriteLine($"{Name}: pipeline pripojena.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
+                Teardown();
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Zastavi a UVOLNI pipeline a oznaci odpojeno. Pipeline se zahazuje (ne jen Stop),
+        /// protoze po odpojeni USB se stara instance na znovupripojene zarizeni nenavaze -
+        /// pri reconnectu se v EnsureConnected vytvori cerstva.
+        /// </summary>
+        private void Teardown()
+        {
+            connected = false;
+            pipelineProfile = null;
+            if (pipeline != null)
+            {
+                try
+                {
+                    pipeline.Stop();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{Name}: Stop pipeline: {ex.Message}");
+                }
+                try
+                {
+                    pipeline.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{Name}: Dispose pipeline: {ex.Message}");
+                }
+                pipeline = null;
+            }
+        }
+
+        /// <summary>
+        /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pozadi task.
+        /// Lze volat opakovane za behu - bezici zpracovani se pred rekonfiguraci zastavi.
+        /// Pipeline se sama pripoji az v pozadi smycce (kamera nemusi byt prave pripojena).
+        /// </summary>
+        public bool Init(CameraSettings rgbSettings, CameraSettings depthSettings)
+        {
+            if (IsRunning)
+                Stop();   // pockej na dobehnuti smycky - pote lze bezpecne menit nastaveni
+
+            settingsRGB = rgbSettings;
+            settingsDepth = depthSettings;
+
+            Teardown();   // vynutit reconnect s novym nastavenim
+            Start();      // znovu spustit smycku (pripoji se lazily, jakmile je kamera k dispozici)
+
+            return true;
+        }
+
+        /* STARA IMPLEMENTACE Init - ponechana do overeni na zarizeni (viz CLAUDE.md:
+           "pri prepisech nemazat starou implementaci, dokud novou nepotvrdi testy").
+           Puvodni Init konfiguroval a spoustel pipeline synchronne a nezvladal
+           odpojeni/pripojeni za behu (pri odpojeni WaitForFrames vyhazoval vyjimku
+           v tesne smycce a pipeline se uz neobnovila).
+
         public bool Init(CameraSettings rgbSettings, CameraSettings depthSettings)
         {
             if (IsRunning)
@@ -223,15 +405,19 @@ namespace ARBot.HAL.Devices.Camera
 
             return true;
         }
+        */
 
         /// <summary>
-        /// Zastavi pozadi task (base) a uvolni pipeline (nativni prostredky kamery).
+        /// Zastavi pozadi task (base) a uvolni pipeline + kontext (nativni prostredky kamery).
         /// </summary>
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
+            base.Dispose(disposing);   // zastavi a pocka na dokonceni pozadi smycky
             if (disposing)
-                pipeline?.Dispose();
+            {
+                Teardown();   // zastavi a uvolni pipeline
+                ctx?.Dispose();
+            }
         }
 
         /// <summary>
@@ -323,6 +509,8 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         public ICameraProjection CreateProjector()
         {
+            if (pipelineProfile == null)
+                throw new InvalidOperationException($"{Name}: kamera neni pripojena.");
             var c = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Color);
             var d = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Depth);
             return CreateProjector("Color Intrinsics", c.GetIntrinsics(), null, c.GetExtrinsicsTo(d), d.GetExtrinsicsTo(c));
@@ -333,6 +521,8 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         public IDepthCameraProjection CreateDepthProjector()
         {
+            if (pipelineProfile == null)
+                throw new InvalidOperationException($"{Name}: kamera neni pripojena.");
             var c = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Color);
             var d = pipelineProfile.GetStream<VideoStreamProfile>(Stream.Depth);
             return CreateProjector("Depth Intrinsics", c.GetIntrinsics(), d.GetIntrinsics(), c.GetExtrinsicsTo(d), d.GetExtrinsicsTo(c));

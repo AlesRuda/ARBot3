@@ -10,6 +10,14 @@ namespace ARBot.HAL
 {
     public interface IGPS:ISensor
     {
+        /// <summary>
+        /// Vraci posledni zmerene hodnoty. Bez noveho mereni vraci null.
+        /// </summary>
         GPSState GetLastMeasurement();
+
+        /// <summary>
+        /// Vyvolano po prichodu noveho mereni (v ramci zpracovani na pozadi).
+        /// </summary>
+        event EventHandler<GPSState> MeasurementArived;
     }
 }

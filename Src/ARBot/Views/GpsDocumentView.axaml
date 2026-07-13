@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.GpsDocumentView"
+             x:DataType="vm:GpsDocument">
+    <Design.DataContext>
+        <vm:GpsDocument/>
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
+        <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="8,0">
+            <TextBlock Text="Kurz (azimut)" Foreground="Gray"
+                       HorizontalAlignment="Center" Margin="0,0,0,4"/>
+            <ctl:CompassControl Width="220" Height="220" Heading="{Binding HeadingDeg}"/>
+        </StackPanel>
+        <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                  VerticalAlignment="Top">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Poloha" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PositionText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Nadm. výška" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AltitudeText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Kvalita fixu" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding QualityText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Satelity" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SatellitesText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="HDOP" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding HdopText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Kurz" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding OrientationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="Rychlost" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SpeedText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="7" Grid.Column="0" Text="Čas fixu" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding FixTimeText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="8" Grid.Column="0" Text="Snímek" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding FrameText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

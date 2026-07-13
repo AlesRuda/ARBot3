@@ -65,7 +65,9 @@ namespace ARBot.ViewModels
         private static Document? CreateSensorDocument(ISensor sensor) => sensor switch
         {
             IIMU imu => new IMUDocument(imu),
-            // TODO: ICamera -> CameraDocument, IGPS -> GpsDocument, IMotorControl -> MotorDocument, ...
+            IGPS gps => new GpsDocument(gps),
+            IMotorControl motors => new MotorControlDocument(motors),
+            ICamera cam => new CameraDocument(cam),
             _ => null
         };
 

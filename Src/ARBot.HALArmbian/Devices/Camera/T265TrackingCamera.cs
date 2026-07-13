@@ -10,7 +10,10 @@ using System.Threading;
 namespace ARBot.HAL.Devices.Camera
 {
     /// <summary>
-    /// Ovladac sledovaci kamery Intel RealSense T265 (6DOF pose / IMU).
+    /// Ovladac sledovaci kamery Intel RealSense T265 (6DOF pose / IMU) pro Armbian/ARM64.
+    /// Funkcne shodny s HALWindows variantou, ale linkuje managed wrapper Intel.RealSense 2.53
+    /// (odpovida native librealsense2.so 2.53 na Orange Pi). Nacteni nativni knihovny resi
+    /// <see cref="RealSenseNativeResolver"/>.
     /// Dedi ze SensorBase: po Start bezi na pozadi task ctouci pose snimky z pipeline;
     /// posledni stav je dostupny pres GetLastMeasurement a udalost MeasurementArived.
     /// <para>
@@ -270,33 +273,6 @@ namespace ARBot.HAL.Devices.Camera
                 return null;
             }
         }
-
-        /* STARA IMPLEMENTACE - ponechana do overeni na zarizeni (viz CLAUDE.md:
-           "pri prepisech nemazat starou implementaci, dokud novou nepotvrdi testy").
-           Puvodni Init konfiguroval a spoustel pipeline synchronne v konstruktoru a
-           nezvladal odpojeni/pripojeni za behu (pri odpojeni WaitForFrames vyhazoval
-           vyjimku v tesne smycce a pipeline se uz neobnovila).
-
-        private void Init()
-        {
-            if (IsRunning)
-                Stop();
-
-            var cfg = new Config();
-            if (sn != null)
-                cfg.EnableDevice(sn);
-            cfg.EnableStream(Stream.Pose, Format.SixDOF);
-
-            if (pipeline == null)
-                pipeline = new Pipeline();
-            else
-                pipeline.Stop();
-
-            pipelineProfile = pipeline.Start(cfg);
-
-            Start();
-        }
-        */
 
         /// <summary>
         /// Zastavi pozadi task (base) a uvolni pipeline + kontext (nativni prostredky kamery).

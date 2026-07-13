@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.CameraDocumentView"
+             x:DataType="vm:CameraDocument">
+    <Design.DataContext>
+        <vm:CameraDocument/>
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,*" Background="#202020">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,6">
+            <ctl:SensorStatusControl Grid.Column="0" Sensor="{Binding Sensor}" Height="26"/>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowDepth}"
+                          OffContent="RGB" OnContent="Hloubka" VerticalAlignment="Center"/>
+        </Grid>
+        <Grid Grid.Row="1" Margin="8,0,8,8">
+            <Image Source="{Binding Image}" Stretch="Uniform"/>
+            <!-- Info overlay vlevo dole: rozlišení + snímek/Hz/čas -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                    Background="#80000000" Padding="8,4" CornerRadius="3">
+                <StackPanel>
+                    <TextBlock Text="{Binding ResolutionText}" Foreground="White"
+                               FontFamily="Consolas,monospace"/>
+                    <TextBlock Text="{Binding FrameText}" Foreground="#A0FFFFFF"
+                               FontFamily="Consolas,monospace"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

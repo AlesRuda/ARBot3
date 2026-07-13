@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.MotorControlDocumentView"
+             x:DataType="vm:MotorControlDocument">
+    <Design.DataContext>
+        <vm:MotorControlDocument/>
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
+        <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
+
+        <Border Grid.Row="1" Margin="8,0" Padding="10,6" CornerRadius="4"
+                Background="#181818" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                <Ellipse Width="14" Height="14" VerticalAlignment="Center" Fill="{Binding EmergencyBrush}"/>
+                <TextBlock Text="{Binding EmergencyText}" Foreground="White"
+                           FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
+            <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                  VerticalAlignment="Top">
+                <!-- záhlaví sloupců -->
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="Levý" Foreground="Gray" HorizontalAlignment="Right" Margin="0,2,12,6"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Pravý" Foreground="Gray" HorizontalAlignment="Right" Margin="0,2,0,6"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Rychlost kola" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LeftWheelSpeedText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding RightWheelSpeedText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Enkodér (dráha)" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LeftEncoderText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding RightEncoderText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Proud motoru" Foreground="Gray" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LeftCurrentText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2,12,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding RightCurrentText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,2"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Napětí" Foreground="Gray" Margin="0,10,12,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding VoltageText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,10,0,2"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

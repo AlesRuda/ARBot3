@@ -97,8 +97,14 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
                 byte msgID = Read(u);
                 ushort len = Read(u);
                 len+= (ushort)(Read(u)*256);
-                byte[] buf = new byte[len];
-                u.Read(buf, 0, len);
+                // POZOR: u.Read(buf, 0, len) je JEDNORAZOVE cteni SerialPortu a vraci jen
+                // aktualne dostupne bajty (casto < len pri fragmentaci na vysokych baudech).
+                // Zbytek payloadu se pak cetl jako checksum + zacatek dalsi zpravy -> checksum
+                // nesedi -> zprava se zahodi -> desync -> mereni chodi neravnomerne ("v blocich").
+                // u.Read(len) blokujicne docte PRESNE len bajtu (jako Read(1) u ostatnich poli).
+                byte[] buf = u.Read(len);
+                //byte[] buf = new byte[len];
+                //u.Read(buf, 0, len);
                 byte ca = Read(u);
                 byte cb = Read(u);
 

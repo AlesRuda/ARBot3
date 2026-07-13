@@ -1,5 +1,6 @@
 ﻿using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Logs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -53,7 +54,8 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
                 Altitude = pos.HeightMSL,
                 DynamicOrientation = Math.Atan2(pos.VelocityN, pos.VelocityE),
                 Orientation= pos.HeadVehValid?Conversions.Azimut2Orientation(Conversions.Deg2Rad(pos.HeadVeh)):(double?)null,
-                Speed = pos.GroundSpeed
+                Speed = pos.GroundSpeed,
+                TimeStamp = TimeBase.Now
             };
         }
 

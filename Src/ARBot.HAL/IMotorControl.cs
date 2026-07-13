@@ -40,5 +40,10 @@ namespace ARBot.HAL
         /// </summary>
         /// <returns></returns>
         IMotorState GetLastMeasurement();
+
+        /// <summary>
+        /// Vyvolano po prichodu noveho mereni (v ramci zpracovani na pozadi).
+        /// </summary>
+        event EventHandler<IMotorState> MeasurementArived;
     }
 }

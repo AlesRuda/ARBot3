@@ -68,4 +68,24 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
 - `SensorStatusControl` — indikátor stavu `ISensor` (tečka + jméno + OK/CHYBA), poll
   `DispatcherTimer` 1 s (protože `ISensor.IsError` nenotifikuje). Dej do záhlaví každého
   dokumentu senzoru: `<ctl:SensorStatusControl Sensor="{Binding Sensor}"/>`.
-- `CompassControl`, `ArtificialHorizonControl` — kompas a umělý horizont pro IMU.
+- `CompassControl`, `ArtificialHorizonControl` — kompas a umělý horizont pro IMU
+  (kompas využívá i `GpsDocument` pro kurz/azimut).
+
+## Hotové dokumenty senzorů
+
+- `IMUDocument` (`IIMU`) — kompas (yaw) + umělý horizont (pitch/roll), orientace,
+  úhlová rychlost, akcelerace, magnetometr, kvaternion, nejistota. Obnova událostí
+  `MeasurementArived`.
+- `GpsDocument` (`IGPS`) — kompas (kurz/azimut), poloha, výška, kvalita fixu, satelity,
+  HDOP, rychlost. Obnova událostí `MeasurementArived` (jako IMU).
+- `MotorControlDocument` (`IMotorControl`) — indikátor nouzového zastavení, rychlosti kol,
+  enkodéry, proudy motorů, napětí. Obnova událostí `MeasurementArived`.
+- `CameraDocument` (`ICamera`) — RGB / hloubkový stream (WriteableBitmap, Bgra8888) s přepínačem
+  `ToggleSwitch` (RGB/Hloubka) + overlay s rozlišením a snímkem/Hz/časem. Hloubka (Gray16, ~mm)
+  se normalizuje do grayscale (blízko světlé, daleko tmavé). Obnova událostí `MeasurementArived`.
+  Kameru **NEvlastní** (je sdílená z `ARBotHW.Sensors`) — v `Dispose` se jen odhlásí. (Odlišné od
+  `D435TestDocument`, který si vlastní kameru vytváří a zavírá — ten slouží jako samostatný test D435.)
+
+Pozn.: dokumenty senzorů se obnovují **událostí `MeasurementArived`**, ne časovačem —
+data se tak zobrazují rovnoměrně, jak chodí z driveru. Rozhraní `IIMU`/`IGPS`/`IMotorControl`/`ICamera`
+proto událost vystavují (implementace ji dědí ze `SensorBase`).

@@ -6,13 +6,14 @@ using System.Threading.Tasks;
 using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
 using ARBot.Common.Coordinates;
+using ARBot.Common.Devices;
 
 namespace ARBot.HAL
 {
     /// <summary>
     /// Abstrakce kamery (barevny + volitelne hloubkovy stream) a jeji projekce do sveta.
     /// </summary>
-    public interface ICamera
+    public interface ICamera : ISensor
     {
         /// <summary>
         /// Vyvolano po prichodu noveho snimku (poskytuje ho SensorBase).

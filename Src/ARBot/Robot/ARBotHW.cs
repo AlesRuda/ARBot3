@@ -9,10 +9,9 @@ using ARBot.HAL.Devices.Camera;
 using ARBot.HAL.Devices.Uart;
 using ARBot.HAL.Devices.NeoPixel;
 using ARBot.HAL.Devices.MotorDrivers;
-using ARBot.HAL.Devices.Joystick;
-using FTD2XX_NET;
 using System.Collections.Generic;
 using ARBot.Common.Devices;
+using System.Threading.Tasks;
 
 namespace ARBot.Robot
 {
@@ -32,16 +31,16 @@ namespace ARBot.Robot
                 if (current == null)
                 {
                     current = new ARBotHW();
-                    current.Init();
+                    Task.Run(() => current.Init());
                 }
                 return current;
             }
         }
 
         public IJoystick Joystick { get; set; }
-        public D435Camera LeftCamera { get; set; }
-        public D435Camera RightCamera { get; set; }
-        public T265TrackingCamera TrackingCamera { get; set; }
+        public ICamera LeftCamera { get; set; }
+        public ICamera RightCamera { get; set; }
+        public IIMU TrackingCamera { get; set; }
         public IMotorControl Motor { get; set; }
         public IGPS GPS { get; set; }
         public IIMU IMU { get; set; }
@@ -62,25 +61,42 @@ namespace ARBot.Robot
 
         protected virtual void Init()
         {
+            string? PortAHRS = null;
+            string? PortMotor = null;
+            string? PortGPS = null;
+
 #if IsX64
+            PortAHRS = "COM5";
+            PortMotor = "COM9";
+            PortGPS = "COM7";
+#endif
+#if IsARM64
+            // OrangePI/Armbian: VN100 IMU pres sdilenou tridu Uart (System.IO.Ports) - stejny kod
+            // jako na x64, jen s linuxovym zarizenim /dev/tty... System.IO.Ports (v10) podporuje
+            // i Linux/ARM64. Zarizeni lze zadat argumentem "UartAHRS=/dev/ttyS0"; vychozi hodnotu
+            // nutno overit dle zapojeni. Obaleno try/catch, aby chyba senzoru neshodila cely Init.
+            PortAHRS = "/dev/ttyS0";
+#endif
+
             /*
-            var f = new FTDI();
+            var f = new FTD2XX_NET.FTDI();
             var spiList = FTD2xxNeoPixelDriver.GetDeviceList(f);
             var n = spiList.FirstOrDefault(i => i.Type == FTDI.FT_DEVICE.FT_DEVICE_4232H && i.Description.EndsWith(" A"));
             if (n != null)
                 NeoPixel = new NeoPixelProcessor(new FTD2xxNeoPixelDriver(f, n));
             */
 
-            //                UartGimbal = new Uart("UartGimbal", "COM11", 9600);
-
-            UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", "COM5"), 115200);
-
-            UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", "COM6"), 921600);
-
-            UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", "COM9"), 115200, "\r");
-
-            if (UartMotor != null)
+            if (!string.IsNullOrEmpty(PortAHRS))
             {
+                UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", PortAHRS), 115200);
+                //                AHRS = new VN100(UartAHRS);
+                IMU = new VN100IMUBinary(UartAHRS);
+                sensors.Add(IMU);
+            }
+
+            if (!string.IsNullOrEmpty(PortMotor))
+            {
+                UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", PortMotor), 115200, "\r");
                 Debug.WriteLine($"MaxTheoreticalSpeed={Profile.MaxTheoreticalSpeed}");
                 Debug.WriteLine($"MaxAllowedSpeed={Profile.MaxAllowedSpeed}");
                 Debug.WriteLine($"WheelPerimeter={Profile.WheelPerimeter}");
@@ -88,26 +104,20 @@ namespace ARBot.Robot
                 Debug.WriteLine($"MotorGearBoxReduction={Profile.MotorGearBoxReduction}");
                 Motor = new SDC2160Ex(UartMotor, Profile.MaxTheoreticalSpeed, Profile.MaxAllowedSpeed, Profile.WheelPerimeter, Profile.EncoderCounts * Profile.MotorGearBoxReduction);
                 Motor.SetAcceleration(Profile.MaxAcceleration);
-            }
-
-            if (UartGPS != null)
-                //                GPS = new NmeaGps(UartGPS);
-                GPS = new uBloxGps(UartGPS);
-
-            if (UartAHRS != null)
-            {
-                //                AHRS = new VN100(UartAHRS);
-                IMU = new VN100IMUBinary(UartAHRS);
-            }
-
-            Joystick = new Joystick();
-#endif
-            if(Motor != null)
                 sensors.Add(Motor);
-            if (GPS != null)
+            }
+
+            if (!string.IsNullOrEmpty(PortGPS))
+            { 
+                UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", PortGPS), 921600);
+                GPS = new uBloxGps(UartGPS);
                 sensors.Add(GPS);
-            if (IMU != null)
-                sensors.Add(IMU);
+            }
+
+#if IsX64
+            Joystick = new HAL.Devices.Joystick.Joystick();
+#endif
+            CameraStart();
         }
 
 

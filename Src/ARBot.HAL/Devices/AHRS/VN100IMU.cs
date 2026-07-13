@@ -15,6 +15,10 @@ using VectorNav.Maths;
 
 namespace ARBot.HAL.Devices.AHRS
 {
+    /// <summary>
+    /// Driver pro IMU VectorNav VN100. Komunikuje po UARTu a pouziva ASCII protokol. Vysledkem je IMUState s rotaci a uhlovou rychlosti.
+    /// !!! Pozor nepodporuje OrientationUncertainty, bude vzdy null !!!
+    /// </summary>
     public class VN100IMU : UartSensorBase<IMUState>, IIMU
     {
         VnAsciiPacket vn;
