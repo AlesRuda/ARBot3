@@ -25,6 +25,7 @@
             <MenuItem Header="Utils"/>
             <MenuItem Header="Tools">
                 <MenuItem Header="Sensors overview" Command="{Binding OpenSensorsCommand}"/>
+                <MenuItem Header="Images" Command="{Binding OpenImagesCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>

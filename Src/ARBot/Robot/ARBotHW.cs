@@ -151,9 +151,9 @@ namespace ARBot.Robot
                 sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
 //            TrackingCamera = new T265TrackingCameraNative(T265Serial);
             if (LeftCamera == null)
-                sensors.Add(LeftCamera = new D435Camera(D435LeftSerial) { Swap = true });
+                sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
             if (RightCamera == null)
-                sensors.Add(RightCamera = new D435Camera(D435RightSerial) { Swap = false });
+                sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
             if (CameraStateChanged != null)
                 CameraStateChanged();
         }

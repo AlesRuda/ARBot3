@@ -15,6 +15,12 @@ namespace ARBot.Common.Models
     public class YawPitchRoll : SensorStateBase, IHistoryItem<YawPitchRoll>
     {
         public enum Euler { zyx, zyz, zxy, zxz, yxz, yxy, yzx, yzy, xyz, xyx, xzy, xzx };
+
+        /// <summary>Bezparametrický ctor (nutný pro reflexi prototypů v MessageCollection.Msgs / Build).</summary>
+        public YawPitchRoll()
+        {
+        }
+
         public YawPitchRoll(float yaw, float pitch, float roll)
         {
             Yaw = yaw;

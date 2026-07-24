@@ -85,6 +85,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <!-- Cross-platform JPEG kodek (Blob komprese). Native assets: Win32 (dev/x64) + Linux (OrangePI/arm64). -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4-preview.1.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4-preview.1.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4-preview.1.1" />
   </ItemGroup>
   <!-- Nativni knihovna (P/Invoke NativeLib.dll) - kopiruje se do output vc. navazujicich projektu -->
   <ItemGroup Condition="'$(Platform)' == 'x64'">

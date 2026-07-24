@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.ImageDocumentView"
+             x:DataType="vm:ImageDocument">
+    <Design.DataContext>
+        <vm:ImageDocument/>
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,*" Background="#202020">
+        <!-- Ovladaci radek: vyber vrstev do slotu + pruhlednost overlaye -->
+        <WrapPanel Grid.Row="0" Margin="8,6" VerticalAlignment="Center">
+            <TextBlock Text="Levý:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding LeftLayer}"
+                      MinWidth="180" Margin="0,0,12,0"/>
+            <TextBlock Text="Pravý:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding RightLayer}"
+                      MinWidth="180" Margin="0,0,12,0"/>
+            <TextBlock Text="Overlay:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding OverlayLayer}"
+                      MinWidth="180" Margin="0,0,12,0"/>
+            <TextBlock Text="Průhlednost:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <Slider Minimum="0" Maximum="1" Value="{Binding OverlayOpacity}" Width="130"
+                    VerticalAlignment="Center"/>
+        </WrapPanel>
+
+        <!-- Dva panely: levy a pravy snimek, kazdy s polopruhlednym overlayem -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0,8,8">
+            <Grid Grid.Column="0" Margin="0,0,4,0">
+                <Image Source="{Binding LeftImage}" Stretch="Uniform"/>
+                <Image Source="{Binding OverlayImage}" Stretch="Uniform"
+                       Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                        Background="#80000000" Padding="8,4" CornerRadius="3">
+                    <StackPanel>
+                        <TextBlock Text="{Binding LeftInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
+                        <TextBlock Text="{Binding OverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+            <Grid Grid.Column="1" Margin="4,0,0,0">
+                <Image Source="{Binding RightImage}" Stretch="Uniform"/>
+                <Image Source="{Binding OverlayImage}" Stretch="Uniform"
+                       Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                        Background="#80000000" Padding="8,4" CornerRadius="3">
+                    <TextBlock Text="{Binding RightInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

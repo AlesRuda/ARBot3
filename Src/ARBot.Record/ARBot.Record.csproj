@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Platforms>AnyCPU;x64</Platforms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ARBot.Record</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;IsX64</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE;IsX64</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ARBot.Common\ARBot.Common.csproj" />
+    <ProjectReference Include="..\ARBot.HAL\ARBot.HAL.csproj" />
+    <ProjectReference Include="..\ARBot.HALWindows\ARBot.HALWindows.csproj" />
+  </ItemGroup>
+
+  <!-- Native RealSense (x64) - do output runneru (None kopie se z HALWindows nepropaguje). -->
+  <ItemGroup Condition="'$(Platform)' == 'x64'">
+    <None Include="..\..\RealSense 2.0\x64\realsense2.dll">
+      <Link>realsense2.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\NativeFuncs\bin\NativeLib.dll">
+      <Link>NativeLib.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

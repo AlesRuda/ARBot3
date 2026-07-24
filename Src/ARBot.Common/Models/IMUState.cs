@@ -1,7 +1,9 @@
 ﻿using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Logs;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -275,6 +277,39 @@ namespace ARBot.Common.Models
 
             return quaternion;
 
+        }
+
+        /// <inheritdoc/>
+        public override Message Build() => new IMUState();
+
+        /// <inheritdoc/>
+        public override void ToData(BinaryWriter bw)
+        {
+            WriteMeta(bw);
+            bw.Write(Confidence);
+            Write(bw, Magnetometer);
+            Write(bw, Acceleration);
+            Write(bw, AngularAcceleration);
+            Write(bw, AngularVelocity);
+            Write(bw, Translation);
+            Write(bw, Velocity);
+            Write(bw, Rotation);
+            Write(bw, OrientationUncertainty);
+        }
+
+        /// <inheritdoc/>
+        public override void FromData(BinaryReader br)
+        {
+            ReadMeta(br);
+            Confidence = br.ReadDouble();
+            Magnetometer = ReadNullableVector3(br);
+            Acceleration = ReadNullableVector3(br);
+            AngularAcceleration = ReadNullableVector3(br);
+            AngularVelocity = ReadNullableVector3(br);
+            Translation = ReadNullableVector3(br);
+            Velocity = ReadNullableVector3(br);
+            Rotation = ReadNullableQuaternion(br);
+            OrientationUncertainty = ReadNullableVector3(br);
         }
     }
 }

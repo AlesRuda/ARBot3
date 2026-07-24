@@ -35,6 +35,8 @@ namespace ARBot.HAL.Devices.Camera
         IComputeUnit cu;
         /// <summary>Seriove cislo zarizeni; null = prvni dostupna kamera.</summary>
         string sn;
+        /// <summary>Nazev kamery (napr. "Left"/"Right") - soucast <see cref="Name"/>.</summary>
+        string nazev = "D435";
         /// <summary>Zpetna projekce barev na pravdepodobnostni obraz (volitelna).</summary>
         public IBackProject BackProject { get; set; }
 
@@ -66,7 +68,7 @@ namespace ARBot.HAL.Devices.Camera
         /// <summary>
         /// Jmeno sensoru, ktere se zobrazuje v logu a GUI
         /// </summary>
-        public override string Name => $"D435 {sn}";
+        public override string Name => $"{nazev} {sn}";
 
         /// <summary>
         /// Chybovy stav: krome chyby zpracovani (base) je za chybu povazovano i odpojeni
@@ -93,6 +95,14 @@ namespace ARBot.HAL.Devices.Camera
         /// <param name="sn">Seriove cislo zarizeni.</param>
         public D435Camera(string sn) : this(sn, null, new CameraSettings(640, 480))
         {
+        }
+
+        /// <summary>Kamera dle serioveho cisla s nazvem (napr. "Left"/"Right"), RGB 640x480.</summary>
+        /// <param name="sn">Seriove cislo zarizeni.</param>
+        /// <param name="nazev">Nazev kamery (soucast <see cref="Name"/>).</param>
+        public D435Camera(string sn, string nazev) : this(sn, null, new CameraSettings(640, 480))
+        {
+            this.nazev = nazev;
         }
 
         /// <summary>Kamera dle serioveho cisla s vypocetni jednotkou, RGB 640x480.</summary>
@@ -227,7 +237,7 @@ namespace ARBot.HAL.Devices.Camera
                         }
                     }
 
-                    return new CameraFrame() { ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
+                    return new CameraFrame() { Name = Name, ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
                 }
 
                 // Timeout bez snimku: odpojeni se nemusi projevit vyjimkou, jen prestanou chodit

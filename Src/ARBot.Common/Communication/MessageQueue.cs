@@ -28,7 +28,7 @@ namespace ARBot.Common.Communication
 
         public MessageQueue()
         {
-            Message m=new State();
+/*            Message m=new State();
             Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
             m = new EKFStepMsg();
             Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
@@ -51,7 +51,7 @@ namespace ARBot.Common.Communication
             m = new PathEdgeMsg();
             Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
             m = new GraphNavigationMsg();
-            Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
+            Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });*/
         }
 
         public Message Dequeue()

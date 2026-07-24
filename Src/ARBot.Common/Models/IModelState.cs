@@ -4,7 +4,7 @@ using System.Numerics;
 
 namespace ARBot.Common.Models
 {
-    public interface IModelState: IHistoryItem<IModelState>
+    public interface IModelState//: IHistoryItem<IModelState>
     {
         double Orientation { get; set; }
         /// <summary>
@@ -22,7 +22,7 @@ namespace ARBot.Common.Models
         double X { get; set; }
         double Y { get; set; }
 
-        IModelState Clone();
-        IModelState Interpolate(IModelState prev, IModelState next, double d);
+//        IModelState Clone();
+  //      IModelState Interpolate(IModelState prev, IModelState next, double d);
     }
 }

@@ -1,4 +1,5 @@
 using ARBot.Common.Common;
+using ARBot.Common.Devices;
 using ARBot.HAL;
 using Avalonia;
 using Avalonia.Media.Imaging;

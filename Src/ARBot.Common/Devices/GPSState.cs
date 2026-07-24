@@ -1,11 +1,12 @@
-﻿using ARBot.Common.Devices;
+using ARBot.Common.Logs;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ARBot.HAL
+namespace ARBot.Common.Devices
 {
     public class GPSState: SensorStateBase
     {
@@ -89,5 +90,42 @@ namespace ARBot.HAL
         /// Speed reported by GPS in m/s.
         /// </summary>
         public double? Speed { get; set; }
+
+        /// <inheritdoc/>
+        public override Message Build() => new GPSState();
+
+        /// <inheritdoc/>
+        public override void ToData(BinaryWriter bw)
+        {
+            WriteMeta(bw);
+            bw.Write(FixTime.Ticks);
+            bw.Write(Latitude);
+            bw.Write(Longitude);
+            bw.Write((int)Quality);
+            bw.Write(NumberOfSatellites);
+            bw.Write(Hdop);
+            bw.Write(Altitude);
+            Write(bw, DynamicOrientation);
+            Write(bw, DynamicSpeed);
+            Write(bw, Orientation);
+            Write(bw, Speed);
+        }
+
+        /// <inheritdoc/>
+        public override void FromData(BinaryReader br)
+        {
+            ReadMeta(br);
+            FixTime = new TimeSpan(br.ReadInt64());
+            Latitude = br.ReadDouble();
+            Longitude = br.ReadDouble();
+            Quality = (FixQuality)br.ReadInt32();
+            NumberOfSatellites = br.ReadInt32();
+            Hdop = br.ReadDouble();
+            Altitude = br.ReadDouble();
+            DynamicOrientation = ReadDouble(br);
+            DynamicSpeed = ReadDouble(br);
+            Orientation = ReadDouble(br);
+            Speed = ReadDouble(br);
+        }
     }
 }

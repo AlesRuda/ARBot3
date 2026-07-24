@@ -1,7 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using ARBot.Common.Common;
+using ARBot.Common.Communication;
 using ARBot.Common.Devices;
 using ARBot.HAL;
+using ARBot.Common.Vision;
+using ARBot.Robot;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
@@ -70,6 +75,78 @@ namespace ARBot.ViewModels
             ICamera cam => new CameraDocument(cam),
             _ => null
         };
+
+        /// <summary>
+        /// Otevre dokument pro zobrazeni obrazku (Blob i CameraFrame) a napoji zivy feed z kamer:
+        /// CameraFrame -> ImageDocument (RGB/Depth vrstvy) a soucasne -> BackProjectProcessor,
+        /// jehoz vystup (pravdepodobnostni Blob) jde take do dokumentu jako overlay.
+        /// Kamery se berou z ARBotHW; pokud tam zadna neni (jine S/N, chybi COM porty), zkusi
+        /// se prvni dostupna D435.
+        /// </summary>
+        [RelayCommand]
+        private void OpenImages()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            // Uz otevreny dokument jen aktivovat.
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "Images");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new ImageDocument();
+
+            // Kamery z ARBotHW (sdilene), jinak fallback na prvni dostupnou.
+            var cameras = new List<ICamera>();
+            try
+            {
+                foreach (var s in ARBotHW.Current.Sensors)
+                    if (s is ICamera c) cameras.Add(c);
+            }
+            catch { /* ARBotHW nedostupne */ }
+
+            bool ownCamera = false;
+            if (cameras.Count == 0)
+            {
+                try
+                {
+                    cameras.Add(new ARBot.HAL.Devices.Camera.D435Camera());
+                    ownCamera = true;
+                }
+                catch { /* zadna kamera */ }
+            }
+
+            var bp = new BackProject(BackProject.RoadProbability);
+            foreach (var cam in cameras)
+            {
+                var c = cam;   // lokalni kopie pro closure
+                var camSrc = new SensorMessageSource<CameraFrame>(
+                    h => c.MeasurementArived += h,
+                    h => c.MeasurementArived -= h);
+                var proc = new BackProjectProcessor(bp, includeSourceRgb: false)
+                {
+                    ResultName = (c.Name ?? "cam") + "/backproject"
+                };
+                camSrc.Connect(doc);        // CameraFrame -> dokument (RGB/Depth vrstvy)
+                camSrc.Connect(proc);       // CameraFrame -> BackProject
+                proc.Output.Connect(doc);   // pravdepodobnostni Blob -> dokument (overlay)
+                proc.Start();
+                camSrc.Start();
+                doc.AttachFeed(camSrc, proc);
+                if (ownCamera && c is IDisposable disp)
+                    doc.AttachFeed(disp);   // vlastni kameru pri zavreni uvolnit
+            }
+
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
 
         [RelayCommand]
         private void Open()

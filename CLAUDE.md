@@ -9,6 +9,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 
 ## Pravidla / konvence (dodržovat)
 
+- **Vše v repozitáři** — všechny poznatky, poznámky a dokumentace musí být uloženy v rámci
+  projektu (`doc/`, README, komentáře v kódu). **Žádné ukládání mimo repozitář** (žádná externí
+  ani soukromá úložiště mimo git).
 - **Jazyk: čeština** — komunikace, komentáře v kódu i dokumentace jsou česky.
 - **Build vždy pro konkrétní platformu — NE `AnyCPU`.** Windows/vývoj/testy = `x64`,
   cílové zařízení (Armbian/ARM64) = `OrangePI`. Např.
@@ -31,6 +34,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/imu-and-frames.md](doc/imu-and-frames.md) — IMU, souřadnicové systémy, VN100
   (drivery, montáž, reference frame rotation).
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
+- [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
+  vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [Src/ARBot/ARBot/Views/README.md](Src/ARBot/ARBot/Views/README.md) — dokovatelné
   dokumenty a nástroje UI (DocumentBase/ToolBase + ViewType, design-time náhled).
 

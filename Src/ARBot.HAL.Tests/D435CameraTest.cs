@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using ARBot.Common.Devices;
 using ARBot.HAL;
 using ARBot.HAL.Devices.Camera;
 
