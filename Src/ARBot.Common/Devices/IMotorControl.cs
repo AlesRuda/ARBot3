@@ -1,11 +1,10 @@
-﻿using ARBot.Common.Devices;
 using ARBot.Common.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ARBot.HAL
+namespace ARBot.Common.Devices
 {
     /// <summary>
     /// Controls motors
@@ -13,7 +12,7 @@ namespace ARBot.HAL
     public interface IMotorControl: ISensor
     {
         /// <summary>
-        /// Sets motors speed 
+        /// Sets motors speed
         /// </summary>
         /// <param name="forvardSpeed">Forvard speed (left and right motor common speed) in m/s.</param>
         /// <param name="difSpeed">Diferencial speed in m/s. Positive value - right rotation, left motor is faster.</param>

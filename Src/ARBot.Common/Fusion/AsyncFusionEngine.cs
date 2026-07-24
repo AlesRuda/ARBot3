@@ -45,6 +45,10 @@ namespace ARBot.Common.Fusion
         private readonly EKFModel model;
         private readonly TimeSpan window;
         private readonly List<Node> nodes = new List<Node>();
+        // Zamek chranici cely vnitrni stav (nodes, base checkpoint, model.X/P) - umoznuje
+        // provozovat fuzi (Enqueue, reaktivni vlakno) a rizeni (GetStateAt, vlakno scheduleru)
+        // jako paralelni stupne bez datoveho zavodu.
+        private readonly object sync = new object();
 
         // bazovy checkpoint: stav filtru v case tBase (zahrnuje vsechna merenia s casem <= tBase)
         private Vector<double> xBase;
@@ -63,10 +67,16 @@ namespace ARBot.Common.Fusion
         public EKFModel Model => model;
 
         /// <summary>Cas nejnovejsiho merenia v bufferu (resp. tBase kdyz je prazdny).</summary>
-        public DateTime FilterTime => nodes.Count > 0 ? nodes[nodes.Count - 1].T : tBase;
+        public DateTime FilterTime
+        {
+            get { lock (sync) { return nodes.Count > 0 ? nodes[nodes.Count - 1].T : tBase; } }
+        }
 
         /// <summary>Pocet merenia aktualne drzenych v okne (pro diagnostiku/testy).</summary>
-        public int BufferedCount => nodes.Count;
+        public int BufferedCount
+        {
+            get { lock (sync) { return nodes.Count; } }
+        }
 
         /// <summary>Zaradi merenie k fuzi. Prepocet je odlozeny do prvniho dotazu.</summary>
         public void Enqueue(IMeasurement m)
@@ -74,6 +84,8 @@ namespace ARBot.Common.Fusion
             if (m == null)
                 return;
 
+            lock (sync)
+            {
             if (!initialized)
             {
                 tBase = m.TimeStamp;
@@ -100,6 +112,7 @@ namespace ARBot.Common.Fusion
                 dirtyFrom = i;
 
             Prune();
+            }
         }
 
         /// <summary>Index, kam vlozit merenie s casem t, aby zustal buffer serazen vzestupne.</summary>
@@ -196,29 +209,32 @@ namespace ARBot.Common.Fusion
         /// </summary>
         public RobotState GetStateAt(DateTime t)
         {
-            if (!initialized)
-                return model.Current(t);
-
-            EnsureValid();
-
-            if (t <= tBase)
-                return model.ToRobotState(xBase, pBase, t);
-
-            int idx = LastNodeAtOrBefore(t);
-            Vector<double> x;
-            Matrix<double> P;
-            DateTime tt;
-            if (idx < 0)
+            lock (sync)
             {
-                x = xBase; P = pBase; tt = tBase;
-            }
-            else
-            {
-                x = nodes[idx].X; P = nodes[idx].P; tt = nodes[idx].T;
-            }
+                if (!initialized)
+                    return model.Current(t);
 
-            var fin = model.PredictStep(x, P, (t - tt).TotalSeconds);
-            return model.ToRobotState(fin.X, fin.P, t);
+                EnsureValid();
+
+                if (t <= tBase)
+                    return model.ToRobotState(xBase, pBase, t);
+
+                int idx = LastNodeAtOrBefore(t);
+                Vector<double> x;
+                Matrix<double> P;
+                DateTime tt;
+                if (idx < 0)
+                {
+                    x = xBase; P = pBase; tt = tBase;
+                }
+                else
+                {
+                    x = nodes[idx].X; P = nodes[idx].P; tt = nodes[idx].T;
+                }
+
+                var fin = model.PredictStep(x, P, (t - tt).TotalSeconds);
+                return model.ToRobotState(fin.X, fin.P, t);
+            }
         }
 
         /// <summary>
@@ -227,11 +243,14 @@ namespace ARBot.Common.Fusion
         /// </summary>
         public IReadOnlyList<MeasurementInfo> Diagnostics()
         {
-            EnsureValid();
-            var list = new List<MeasurementInfo>(nodes.Count);
-            foreach (var n in nodes)
-                list.Add(new MeasurementInfo { Source = n.M.Source, Time = n.T, Nis = n.Nis, Accepted = n.Accepted });
-            return list;
+            lock (sync)
+            {
+                EnsureValid();
+                var list = new List<MeasurementInfo>(nodes.Count);
+                foreach (var n in nodes)
+                    list.Add(new MeasurementInfo { Source = n.M.Source, Time = n.T, Nis = n.Nis, Accepted = n.Accepted });
+                return list;
+            }
         }
     }
 }

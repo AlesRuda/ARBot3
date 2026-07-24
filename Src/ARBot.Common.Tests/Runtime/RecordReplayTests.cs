@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using ARBot.Common.Communication;
+using ARBot.Common.Configuration;
+using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
 using ARBot.Common.Models;
+using ARBot.Common.Regulators;
 using ARBot.Common.Runtime;
 
 namespace ARBot.Common.Tests.Runtime
@@ -89,6 +92,9 @@ namespace ARBot.Common.Tests.Runtime
                 Assert.That(entries[i].Seq, Is.EqualTo(i), $"Seq[{i}]");
                 Assert.That(entries[i].MsgName, Is.EqualTo("IMUState"), $"MsgName[{i}]");
                 Assert.That(entries[i].CaptureTime, Is.EqualTo(imus[i].TimeStamp), $"CaptureTime[{i}]");
+                // T_out (ArrivalTicks) se stampuje pri prichodu; IMUState neni INamedMessage -> Name prazdne.
+                Assert.That(entries[i].ArrivalTicks, Is.GreaterThan(0), $"ArrivalTicks[{i}]");
+                Assert.That(entries[i].Name, Is.EqualTo(string.Empty), $"Name[{i}]");
                 if (i > 0)
                     Assert.That(entries[i].Offset, Is.GreaterThan(entries[i - 1].Offset), $"Offset[{i}]");
             }
@@ -102,56 +108,90 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(msg.TimeStamp, Is.EqualTo(imus[k].TimeStamp));
         }
 
-        // ---- 3) golden replay regrese: replay ze surovych dat reprodukuje mezivysledky ----
+        // Regulator z parametru Profile (MVP dle record-replay.md).
+        private static Regulator MakeRegulator()
+            => new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                             Profile.MaxAcceleration, Profile.Rozchod);
+
+        /// <summary>
+        /// Deterministicky scenar: pro kazdou IMU vlozi mereni do fuze a napumpuje scheduler
+        /// jejim casem porizeni (mrizka t0 + k*ts). Ridici smycka na kazdem taktu vzorkuje
+        /// engine.GetStateAt a emituje RobotStateMsg + DriveCommandMsg pres Output. Synchronni
+        /// (jedno vlakno) - vysledek je reprodukovatelny bez zavislosti na planovani vlaken.
+        /// </summary>
+        private static void DriveScenario(AsyncFusionEngine engine,
+                                          IScheduler scheduler, IMeasurementMapper mapper,
+                                          IReadOnlyList<IMUState> imus, Action<IMUState>? onRaw)
+        {
+            foreach (var imu in imus)
+            {
+                onRaw?.Invoke(imu);
+                foreach (var m in mapper.ToMeasurements(imu))
+                    engine.Enqueue(m);
+                scheduler.PumpDue(imu.TimeStamp);   // vyda takty az do casu tohoto mereni
+            }
+        }
+
+        // ---- 3) golden replay regrese: RobotStateMsg emituje ridici smycka (ControlLoop) ----
         [Test]
-        public void GoldenReplay_ReproducesFusionOutput()
+        public void GoldenReplay_ReproducesControlLoopOutput()
         {
             var catalog = MessageCatalog.CommonDefaults();
             var imus = SyntheticImu(50);
             var ts = TimeSpan.FromMilliseconds(20);
+            var mapper = new DefaultMeasurementMapper();
 
-            // --- LIVE (record): surova IMU + odvozene RobotStateMsg do zaznamu ---
+            // --- LIVE (record): surova IMU + odvozene RobotStateMsg/DriveCommandMsg do zaznamu ---
             byte[] dataBytes;
             using (var dataMs = new MemoryStream())
             {
                 var rec = new RecordingTarget(dataMs, null, TestHelpers.Enc);
-                var fp = new FusionProcessor(new AsyncFusionEngine(new EKFModel()),
-                                             new DefaultMeasurementMapper(), ts, new VirtualClock());
+                var engine = new AsyncFusionEngine(new EKFModel());
+                var scheduler = new Scheduler();
+                var loop = new ControlLoop(engine, MakeRegulator(), new DummyMotors(),
+                                           new VirtualClock(), scheduler,
+                                           targetX: 5.0, targetY: 5.0, period: ts);
                 rec.Start();
-                fp.Start();
-                using (fp.Output.Connect(rec))
+                using (loop.Output.Connect(rec))
                 {
-                    foreach (var m in imus)
-                    {
-                        rec.Post(m);   // surova data
-                        fp.Post(m);    // do fuze -> odvozene RobotStateMsg jdou pres Output do rec
-                    }
-                    fp.Stop();         // dozpracuje frontu a vysle zbyle takty
+                    DriveScenario(engine, scheduler, mapper, imus, raw => rec.Post(raw));
                 }
+                loop.Stop();
                 rec.Stop();
                 dataBytes = dataMs.ToArray();
             }
 
-            // referencni odvozene stavy
+            // referencni odvozene stavy z ridici smycky
             var reference = TestHelpers.ReadMessages(dataBytes, catalog).OfType<RobotStateMsg>().ToList();
             Assert.That(reference.Count, Is.GreaterThan(0), "zadny referencni RobotStateMsg");
 
-            // --- REPLAY: jen surova IMU -> fresh fuze -> porovnani ---
-            var comparison = new ComparisonTarget(reference, tolerance: 1e-6);
-            var fp2 = new FusionProcessor(new AsyncFusionEngine(new EKFModel()),
-                                          new DefaultMeasurementMapper(), ts, new VirtualClock());
-            comparison.Start();
-            fp2.Start();
-            using (fp2.Output.Connect(comparison))
+            // --- REPLAY: jen surova IMU ze souboru -> fresh fuze + ridici smycka -> porovnani ---
+            var replayImus = new List<IMUState>();
             using (var readMs = new MemoryStream(dataBytes))
             {
+                var sink = new DelegateTarget(m => { if (m is IMUState s) lock (replayImus) replayImus.Add(s); });
+                sink.Start();
                 var src = new FileMessageSource(readMs, TestHelpers.Enc, catalog,
                                                 FileMessageSource.ReplayPacing.AsFastAsPossible);
                 src.SetTypeFilter(new[] { "IMUState" });   // rez na surovych datech
-                src.Connect(fp2);
+                src.Connect(sink);
                 src.RunToEnd();
-                fp2.Stop();
+                sink.Stop();
             }
+            Assert.That(replayImus.Count, Is.EqualTo(imus.Count), "replay nenacetl vsechna surova IMU");
+
+            var comparison = new ComparisonTarget(reference, tolerance: 1e-6);
+            var engine2 = new AsyncFusionEngine(new EKFModel());
+            var scheduler2 = new Scheduler();
+            var loop2 = new ControlLoop(engine2, MakeRegulator(), new DummyMotors(),
+                                        new VirtualClock(), scheduler2,
+                                        targetX: 5.0, targetY: 5.0, period: ts);
+            comparison.Start();
+            using (loop2.Output.Connect(comparison))
+            {
+                DriveScenario(engine2, scheduler2, mapper, replayImus, null);
+            }
+            loop2.Stop();
             comparison.Stop();
 
             Assert.That(comparison.Compared, Is.EqualTo(reference.Count), "jiny pocet taktu nez v referenci");

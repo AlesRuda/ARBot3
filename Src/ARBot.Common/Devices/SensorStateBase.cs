@@ -18,7 +18,7 @@ namespace ARBot.Common.Devices
     /// impl., ktera vyhodi <see cref="NotSupportedException"/>. Metadata ramce lze
     /// (de)serializovat pomocnymi <see cref="WriteMeta"/> / <see cref="ReadMeta"/>.
     /// </summary>
-    public abstract class SensorStateBase : Message, IHasCaptureTime
+    public abstract class SensorStateBase : Message, IHasCaptureTime, IPrimaryMessage
     {
         /// <summary>Nazev zpravy = jmeno konkretniho typu (napr. "IMUState").</summary>
         protected SensorStateBase() : base(string.Empty, 1)

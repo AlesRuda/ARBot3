@@ -43,7 +43,12 @@ namespace ARBot.Common.Communication
         }
 
         /// <inheritdoc/>
-        public void Post(Message msg)
+        /// <remarks>
+        /// <c>virtual</c> kvuli best-effort odberatelum (napr. <see cref="RecordingTarget"/>),
+        /// ktere potrebuji na vlakne producenta rozhodnout o zahozeni (drop) drive, nez se
+        /// zprava dostane do fronty.
+        /// </remarks>
+        public virtual void Post(Message msg)
         {
             if (msg == null) return;
             var writer = channel.Writer;

@@ -16,13 +16,19 @@ namespace ARBot.Common.Communication
         public long Offset;
         /// <summary>Delka celeho ramce (hlavicka + payload) v bajtech.</summary>
         public int Length;
-        /// <summary>Cas porizeni v tickach (0 = neznamy).</summary>
+        /// <summary>Cas porizeni (T_in) v tickach (0 = neznamy).</summary>
         public long CaptureTicks;
+        /// <summary>Cas prichodu na Stream (T_out) v tickach (0 = neznamy). Stampuje <see cref="RecordingTarget"/>.</summary>
+        public long ArrivalTicks;
         /// <summary>Nazev typu zpravy.</summary>
         public string MsgName;
+        /// <summary>Jmeno instance zpravy z <see cref="ARBot.Common.Logs.INamedMessage"/> (jinak prazdne).</summary>
+        public string Name;
 
-        /// <summary>Cas porizeni jako <see cref="DateTime"/>.</summary>
+        /// <summary>Cas porizeni (T_in) jako <see cref="DateTime"/>.</summary>
         public DateTime CaptureTime => new DateTime(CaptureTicks);
+        /// <summary>Cas prichodu (T_out) jako <see cref="DateTime"/>.</summary>
+        public DateTime ArrivalTime => new DateTime(ArrivalTicks);
     }
 
     /// <summary>
@@ -45,7 +51,9 @@ namespace ARBot.Common.Communication
             bw.Write(e.Offset);
             bw.Write(e.Length);
             bw.Write(e.CaptureTicks);
+            bw.Write(e.ArrivalTicks);
             bw.Write(e.MsgName ?? string.Empty);
+            bw.Write(e.Name ?? string.Empty);
         }
 
         public void Flush() => bw.Flush();
@@ -78,7 +86,9 @@ namespace ARBot.Common.Communication
                         Offset = br.ReadInt64(),
                         Length = br.ReadInt32(),
                         CaptureTicks = br.ReadInt64(),
-                        MsgName = br.ReadString()
+                        ArrivalTicks = br.ReadInt64(),
+                        MsgName = br.ReadString(),
+                        Name = br.ReadString()
                     };
                     list.Add(e);
                 }

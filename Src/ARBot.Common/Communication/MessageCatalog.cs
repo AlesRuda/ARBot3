@@ -56,6 +56,7 @@ namespace ARBot.Common.Communication
             // Odvozene / debug zpravy
             c.Register(new RobotStateMsg());
             c.Register(new MeasurementDiagMsg());
+            c.Register(new DriveCommandMsg());
             return c;
         }
     }

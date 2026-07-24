@@ -32,6 +32,8 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+# 'Logs' je i nazev ZDROJOVEHO adresare (Src/ARBot.Common/Logs) - nesmi byt ignorovan build-output pravidlem [Ll]ogs/ vyse.
+!Src/ARBot.Common/Logs/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
