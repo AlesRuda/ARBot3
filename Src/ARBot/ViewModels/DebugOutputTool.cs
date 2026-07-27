@@ -1,9 +1,9 @@
-using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
 
@@ -13,20 +13,27 @@ namespace ARBot.ViewModels
     /// Dokovaci nastroj zobrazujici Debug/Trace vystup aplikace.
     /// V konstruktoru zaregistruje <see cref="RelayTraceListener"/>, ktery presmeruje
     /// vystup ze <c>System.Diagnostics.Debug</c>/<c>Trace</c> do tohoto panelu.
+    ///
+    /// Vystup je drzen jako kolekce radku (<see cref="Lines"/>) a zobrazovan virtualizovanym
+    /// listem - na rozdil od jednoho velkeho <c>string</c> v <c>TextBox</c> (ten se pri kazde
+    /// aktualizaci cely znovu skladal/vykresloval a pri zaplave logu shazoval responzivitu).
     /// </summary>
     public partial class DebugOutputTool : ToolBase
     {
-        public override Type ViewType => typeof(ARBot.Views.DebugOutputToolView);
+        public override System.Type ViewType => typeof(ARBot.Views.DebugOutputToolView);
 
-        /// <summary>Maximalni pocet znaku v bufferu (starsi vystup se orezava).</summary>
-        private const int MaxChars = 100_000;
+        /// <summary>Maximalni pocet drzenych radku (starsi se orezavaji zepredu).</summary>
+        private const int MaxLines = 5000;
+        /// <summary>Hystereze orezu: orezavame az pri prekroceni o tuto rezervu (min. CollectionChanged).</summary>
+        private const int TrimSlack = 512;
 
-        private readonly StringBuilder buffer = new();
+        /// <summary>Radky debug vystupu (bindovane na virtualizovany list v UI).</summary>
+        public ObservableCollection<string> Lines { get; } = new();
+
         private readonly object gate = new();
-
-        /// <summary>Nahromadeny text debug vystupu.</summary>
-        [ObservableProperty]
-        private string text = string.Empty;
+        private readonly List<string> pending = new();   // hotove radky cekajici na preneseni do UI
+        private readonly StringBuilder current = new();   // rozdelana (jeste neuzavrena) radka
+        private volatile bool updateQueued;
 
         public DebugOutputTool()
         {
@@ -42,26 +49,67 @@ namespace ARBot.ViewModels
         private void Clear()
         {
             lock (gate)
-                buffer.Clear();
-            Text = string.Empty;
+            {
+                pending.Clear();
+                current.Clear();
+            }
+            Lines.Clear();
         }
 
+        /// <summary>
+        /// Prijme kus vystupu (muze obsahovat 0..N koncu radku). Rozdeli ho na radky, nedokoncenou
+        /// radku si drzi v <see cref="current"/> do prichodu <c>\n</c>. UI aktualizace je koalescovana
+        /// (nejvyse jedna naplanovana davka), aby zaplava zprav neutopila dispatcher.
+        /// </summary>
         private void Append(string message)
         {
-            string snapshot;
             lock (gate)
             {
-                buffer.Append(message);
-                if (buffer.Length > MaxChars)
-                    buffer.Remove(0, buffer.Length - MaxChars);
-                snapshot = buffer.ToString();
+                foreach (char c in message)
+                {
+                    if (c == '\n')
+                    {
+                        pending.Add(current.ToString());
+                        current.Clear();
+                    }
+                    else if (c != '\r')
+                    {
+                        current.Append(c);
+                    }
+                }
             }
 
-            // Aktualizace bindovane vlastnosti musi probehnout na UI vlakne.
-            if (Dispatcher.UIThread.CheckAccess())
-                Text = snapshot;
-            else
-                Dispatcher.UIThread.Post(() => Text = snapshot);
+            if (updateQueued)
+                return;
+            updateQueued = true;
+            Dispatcher.UIThread.Post(Flush);
+        }
+
+        /// <summary>Prenese nahromadene radky do <see cref="Lines"/> a orizne na <see cref="MaxLines"/>.</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            List<string> batch;
+            lock (gate)
+            {
+                if (pending.Count == 0)
+                    return;
+                batch = new List<string>(pending);
+                pending.Clear();
+            }
+
+            foreach (var line in batch)
+                Lines.Add(line);
+
+            // Orez zepredu s hysterezi - jen kdyz pretece o rezervu, aby se RemoveAt(0)
+            // nedelal kazdou davku.
+            if (Lines.Count > MaxLines + TrimSlack)
+            {
+                int remove = Lines.Count - MaxLines;
+                for (int i = 0; i < remove; i++)
+                    Lines.RemoveAt(0);
+            }
         }
     }
 }

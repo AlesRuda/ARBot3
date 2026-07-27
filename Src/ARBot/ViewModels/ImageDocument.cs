@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using ARBot.Common.Common;
 using ARBot.Common.Communication;
+using ARBot.Common.Devices;
 using ARBot.Common.Logs;
 using ARBot.Common.Vision;
 using Avalonia;
@@ -35,21 +36,31 @@ namespace ARBot.ViewModels
         private readonly Dictionary<string, ImageLayer> registry = new Dictionary<string, ImageLayer>();
         private readonly List<IDisposable> feeds = new List<IDisposable>();
 
+        // Backpressure: nejnovejsi nezpracovana zprava na kazdy zdroj (klic). Starsi framy se
+        // zahazuji, aby pri zaplave z kamer/backprojectu nerostla dispatcher fronta a UI
+        // zustalo responzivni (viz Post/Flush).
+        private readonly object pendingGate = new object();
+        private readonly Dictionary<string, Message> pending = new Dictionary<string, Message>();
+        private volatile bool updateQueued;
+
         /// <summary>Dostupne pojmenovane vrstvy (pro comba).</summary>
         public ObservableCollection<string> Layers { get; } = new ObservableCollection<string>();
 
         [ObservableProperty] private string leftLayer;
         [ObservableProperty] private string rightLayer;
-        [ObservableProperty] private string overlayLayer;
-        [ObservableProperty] private double overlayOpacity = 0.5;
+        [ObservableProperty] private string leftOverlayLayer;
+        [ObservableProperty] private string rightOverlayLayer;
+        [ObservableProperty] private double overlayOpacity = 0.5;   // spolecna pruhlednost obou overlayu
 
         [ObservableProperty] private WriteableBitmap leftImage;
         [ObservableProperty] private WriteableBitmap rightImage;
-        [ObservableProperty] private WriteableBitmap overlayImage;
+        [ObservableProperty] private WriteableBitmap leftOverlayImage;
+        [ObservableProperty] private WriteableBitmap rightOverlayImage;
 
         [ObservableProperty] private string leftInfo = "-";
         [ObservableProperty] private string rightInfo = "-";
-        [ObservableProperty] private string overlayInfo = "-";
+        [ObservableProperty] private string leftOverlayInfo = "-";
+        [ObservableProperty] private string rightOverlayInfo = "-";
 
         /// <summary>Konstruktor pro design-time / navrhar.</summary>
         public ImageDocument()
@@ -66,11 +77,48 @@ namespace ARBot.ViewModels
         }
 
         // --- IMessageSink ---
+        // Bezi na vlakne producenta (RelaySource fan-out) - musi byt neblokujici. Proto zde
+        // jen ulozime nejnovejsi obrazovou zpravu na zdroj (starsi zahodime) a koalescovane
+        // naplanujeme jednu UI aktualizaci. Tim se ze zpracovani vyrizne backlog: UI vzdy
+        // renderuje jen posledni frame kazdeho zdroje, takze se nehromadi a nezaostava cas.
         public void Post(Message msg)
         {
             if (msg == null) return;
-            // Zpracovani a render na UI vlakne (comba + WriteableBitmap + bindingy).
-            Dispatcher.UIThread.Post(() => Ingest(msg));
+
+            // Coalescing klic - jen obrazove zpravy (ostatni ignorujeme, at neplanujeme flush zbytecne).
+            string key = msg switch
+            {
+                CameraFrame cf => "C:" + (cf.Name ?? string.Empty),
+                ImageMsg m => "B:" + (m.Name ?? string.Empty),
+                _ => null
+            };
+            if (key == null) return;
+
+            lock (pendingGate)
+                pending[key] = msg;   // nejnovejsi vyhrava (drop stale)
+
+            if (updateQueued) return;
+            updateQueued = true;
+            // Background priorita: vstup a vykreslovani maji prednost pred zpracovanim obrazu,
+            // takze UI zustane responzivni i pri zaplave framu.
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>Zpracuje nejnovejsi nasbirane framy (nejvyse jeden na zdroj) na UI vlakne.</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            List<Message> batch;
+            lock (pendingGate)
+            {
+                if (pending.Count == 0) return;
+                batch = new List<Message>(pending.Values);
+                pending.Clear();
+            }
+
+            foreach (var m in batch)
+                Ingest(m);
         }
 
         private void Ingest(Message msg)
@@ -87,7 +135,8 @@ namespace ARBot.ViewModels
 
                 if (layer.Name == LeftLayer) RenderSlot(Slot.Left, layer);
                 if (layer.Name == RightLayer) RenderSlot(Slot.Right, layer);
-                if (layer.Name == OverlayLayer) RenderSlot(Slot.Overlay, layer);
+                if (layer.Name == LeftOverlayLayer) RenderSlot(Slot.LeftOverlay, layer);
+                if (layer.Name == RightOverlayLayer) RenderSlot(Slot.RightOverlay, layer);
             }
         }
 
@@ -99,7 +148,9 @@ namespace ARBot.ViewModels
 
             if (isProbability)
             {
-                if (string.IsNullOrEmpty(OverlayLayer)) OverlayLayer = layer.Name;
+                // Vychozi: stejny probability overlay na obou stranach (uzivatel muze zmenit zvlast).
+                if (string.IsNullOrEmpty(LeftOverlayLayer)) LeftOverlayLayer = layer.Name;
+                if (string.IsNullOrEmpty(RightOverlayLayer)) RightOverlayLayer = layer.Name;
             }
             else if (layer.Kind == LayerKind.Color)
             {
@@ -110,9 +161,10 @@ namespace ARBot.ViewModels
 
         partial void OnLeftLayerChanged(string value) => RenderFromRegistry(Slot.Left, value);
         partial void OnRightLayerChanged(string value) => RenderFromRegistry(Slot.Right, value);
-        partial void OnOverlayLayerChanged(string value) => RenderFromRegistry(Slot.Overlay, value);
+        partial void OnLeftOverlayLayerChanged(string value) => RenderFromRegistry(Slot.LeftOverlay, value);
+        partial void OnRightOverlayLayerChanged(string value) => RenderFromRegistry(Slot.RightOverlay, value);
 
-        private enum Slot { Left, Right, Overlay }
+        private enum Slot { Left, Right, LeftOverlay, RightOverlay }
 
         private void RenderFromRegistry(Slot slot, string name)
         {
@@ -136,7 +188,8 @@ namespace ARBot.ViewModels
             {
                 case Slot.Left: LeftImage = bmp; LeftInfo = info; break;
                 case Slot.Right: RightImage = bmp; RightInfo = info; break;
-                case Slot.Overlay: OverlayImage = bmp; OverlayInfo = info; break;
+                case Slot.LeftOverlay: LeftOverlayImage = bmp; LeftOverlayInfo = info; break;
+                case Slot.RightOverlay: RightOverlayImage = bmp; RightOverlayInfo = info; break;
             }
         }
 

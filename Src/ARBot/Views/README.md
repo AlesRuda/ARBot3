@@ -89,3 +89,51 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
 Pozn.: dokumenty senzorů se obnovují **událostí `MeasurementArived`**, ne časovačem —
 data se tak zobrazují rovnoměrně, jak chodí z driveru. Rozhraní `IIMU`/`IGPS`/`IMotorControl`/`ICamera`
 proto událost vystavují (implementace ji dědí ze `SensorBase`).
+
+## Backpressure: aktualizace z `MeasurementArived` / `Post` (POVINNÝ vzor)
+
+`MeasurementArived` (i `IMessageSink.Post` u `ImageDocument`) běží **na vlákně producenta**
+(`SensorBase.Process`, resp. `RelaySource` fan-out — ten nemá vlastní frontu). Při vysoké
+frekvenci (kamera ~30 Hz, IMU/motor ~100 Hz, backproject) by naivní
+`Dispatcher.UIThread.Post(() => Apply(x))` na **každou** zprávu zahltil dispatcher frontu →
+UI ztratí responzivitu a zpracovává staré framy (typicky „stall → dávka stovek Hz → zpět").
+
+Všechny dokumenty přijímající data proto MUSÍ použít jednotný vzor **„latest-wins + Background
+flush"**:
+
+1. Handler (na vlákně producenta) je **neblokující**: pod zámkem uloží jen **nejnovější**
+   payload (starší zahodí) a když `!updateQueued`, naplánuje jednu aktualizaci:
+   `Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background)`.
+2. `Flush` (na UI vlákně) pod zámkem vyzvedne + vynuluje pending a zavolá `Apply`/render.
+
+```csharp
+private readonly object pendingGate = new();
+private TState? pendingState;              // nebo Dictionary<klíč,zpráva> pro víc zdrojů
+private volatile bool updateQueued;
+
+private void OnMeasurement(object? sender, TState state)
+{
+    if (state == null) return;
+    lock (pendingGate) pendingState = state;       // nejnovější vyhrává (drop stale)
+    if (updateQueued) return;
+    updateQueued = true;
+    Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);  // vstup/render mají přednost
+}
+
+private void Flush()
+{
+    updateQueued = false;
+    TState? s; lock (pendingGate) { s = pendingState; pendingState = null; }
+    if (s != null) Apply(s);
+}
+```
+
+Aplikováno v: `CameraDocument`, `D435TestDocument`, `IMUDocument`, `GpsDocument`,
+`MotorControlDocument`, `ImageDocument` (ten drží `Dictionary` pending per zdroj —
+`C:<kamera>` / `B:<blob>` — aby se nestarval žádný slot). `DebugOutputTool` má obdobnou
+koalescenci nad řádky. **Každý nový dokument aktualizovaný z eventu/streamu musí tenhle vzor
+dodržet.**
+
+Možné další optimalizace obrazových dokumentů (zatím neuděláno): recyklace `WriteableBitmap`
+místo alokace na každý frame; přesun `MessageImageLayers.Extract` (JPEG dekód / barevný
+převod) na worker vlákno mimo UI — viz TODO v [build-and-platforms.md](../../../doc/build-and-platforms.md).

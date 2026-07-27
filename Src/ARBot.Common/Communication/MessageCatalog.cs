@@ -42,7 +42,7 @@ namespace ARBot.Common.Communication
             c.Register(new State());
             c.Register(new EKFStepMsg());
             c.Register(new Info());
-            c.Register(new Blob());
+            c.Register(new ImageMsg());
             c.Register(new Marker());
             c.Register(new Module());
             c.Register(new VFH());

@@ -22,6 +22,12 @@ namespace ARBot.ViewModels
 
         private readonly IGPS? gps;
 
+        // Backpressure: nejnovější nezpracované měření (starší se zahazují), jednotně s ostatními
+        // dokumenty - viz OnMeasurement/Flush.
+        private readonly object pendingGate = new object();
+        private GPSState? pendingState;
+        private volatile bool updateQueued;
+
         /// <summary>Kurz pro kompas [°], 0 = sever, roste po směru hod. ručiček.</summary>
         [ObservableProperty] private double headingDeg;
         /// <summary>Zda je kurz k dispozici (jinak se kompas zbytečně netočí na 0).</summary>
@@ -61,11 +67,36 @@ namespace ARBot.ViewModels
             Apply(gps.GetLastMeasurement());
         }
 
+        // Běží na vlákně senzoru. Uloží jen nejnovější měření a koalescovaně naplánuje jednu
+        // UI aktualizaci na Background prioritě (starší měření se zahodí).
         private void OnMeasurement(object? sender, GPSState state)
         {
             if (state == null)
                 return;
-            Dispatcher.UIThread.Post(() => Apply(state));
+
+            lock (pendingGate)
+                pendingState = state;
+
+            if (updateQueued)
+                return;
+            updateQueued = true;
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>Promítne poslední nasbírané měření na UI vlákně (starší mezitím zahozená).</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            GPSState? s;
+            lock (pendingGate)
+            {
+                s = pendingState;
+                pendingState = null;
+            }
+
+            if (s != null)
+                Apply(s);
         }
 
         /// <summary>Promítne měření do vlastností (musí běžet na UI vlákně).</summary>

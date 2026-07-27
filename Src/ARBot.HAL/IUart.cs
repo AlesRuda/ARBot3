@@ -63,5 +63,12 @@ namespace ARBot.HAL
         /// </summary>
         /// <param name="txt"></param>
         void WriteLine(string txt);
+        /// <summary>
+        /// Kooperativne zrusi probihajici blokujici cteni (<see cref="Read(int)"/>,
+        /// <see cref="ReadAsync(int)"/>): visici cteci smycka se ukonci vyjimkou, takze
+        /// se cteci vlakno senzoru muze zastavit (jinak by <c>Stop()</c> cekal donekonecna
+        /// na nedostupnem portu). Priznak se resetuje pri zacatku dalsiho cteni.
+        /// </summary>
+        void CancelRead();
     }
 }

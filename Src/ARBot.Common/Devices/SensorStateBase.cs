@@ -20,8 +20,13 @@ namespace ARBot.Common.Devices
     /// </summary>
     public abstract class SensorStateBase : Message, IHasCaptureTime, IPrimaryMessage
     {
-        /// <summary>Nazev zpravy = jmeno konkretniho typu (napr. "IMUState").</summary>
-        protected SensorStateBase() : base(string.Empty, 1)
+        /// <summary>
+        /// Nazev zpravy = jmeno konkretniho typu (napr. "IMUState"). Potomek MUSI predat verzi
+        /// formatu serializace (typicky svou konstantu <c>FormatVersion</c>): pri kazde zmene
+        /// obsahu zpravy se verze zvedne a <see cref="Message.FromData(BinaryReader)"/> vetvi
+        /// podle <see cref="Message.Verze"/> (viz doc/record-replay.md → Verzovani zprav).
+        /// </summary>
+        protected SensorStateBase(int verze) : base(string.Empty, verze)
         {
             MsgName = GetType().Name;
         }

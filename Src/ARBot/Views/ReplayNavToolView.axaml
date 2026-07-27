@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="120"
+             x:Class="ARBot.Views.ReplayNavToolView"
+             x:DataType="vm:ReplayNavTool">
+    <Design.DataContext>
+        <vm:ReplayNavTool/>
+    </Design.DataContext>
+
+    <StackPanel Margin="8" Spacing="6">
+        <TextBlock Text="{Binding Info}" FontFamily="Consolas,monospace"/>
+
+        <Slider Minimum="0"
+                Maximum="{Binding Maximum}"
+                Value="{Binding Position, Mode=TwoWay}"
+                IsSnapToTickEnabled="True"
+                TickFrequency="1"
+                SmallChange="1" LargeChange="10"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="◀ Krok" Command="{Binding StepBackCommand}"/>
+            <Button Content="Play"    Command="{Binding PlayCommand}"/>
+            <Button Content="Pause"   Command="{Binding PauseCommand}"/>
+            <Button Content="Krok ▶"  Command="{Binding StepForwardCommand}"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

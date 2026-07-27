@@ -20,6 +20,17 @@ namespace ARBot.HAL.Devices.Uart
         string device;
         string name;
 
+        // Neblokujici backoff pro znovuotevreni portu: pokus o sp.Open() se dela nejvyse jednou
+        // za ReopenBackoffMs. Diky tomu ReOpen() nikdy neblokuje volajici vlakno (drive ridici
+        // smycku, zapis) - drive to delal Thread.Sleep(1000) primo v ReOpen a pri nedostupnem
+        // portu zahlcoval threadpool (viz doc/record-replay.md).
+        const int ReopenBackoffMs = 1000;
+        DateTime lastOpenAttempt = DateTime.MinValue;
+
+        // Kooperativni zruseni blokujiciho cteni (viz CancelRead). Volatile - nastavuje jine
+        // vlakno (Stop senzoru) nez cte cteci smycka.
+        private volatile bool readCancel;
+
 
         /// <summary>
         /// konstruktor
@@ -86,6 +97,7 @@ namespace ARBot.HAL.Devices.Uart
             {
                 if (disposing)
                 {
+                    readCancel = true;   // odblokuj pripadne visici cteni
                     if (sp != null)
                     {
                         if (sp.IsOpen)
@@ -125,17 +137,24 @@ namespace ARBot.HAL.Devices.Uart
 
         private bool ReOpen()
         {
-            if (!sp.IsOpen)
+            if (sp.IsOpen)
+                return true;
+
+            // Neblokujici backoff: mezi neuspesnymi pokusy o otevreni nedelame nic (hned
+            // vracime false), misto abychom spali na volajicim vlakne. Throtlovani cteci
+            // smycky resi volajici (Read/Process idle-sleep).
+            DateTime now = DateTime.UtcNow;
+            if ((now - lastOpenAttempt).TotalMilliseconds < ReopenBackoffMs)
+                return false;
+            lastOpenAttempt = now;
+
+            try
             {
-                try
-                {
-                    sp.Open();
-                }
-                catch(Exception ex)
-                {
-                    ReportEx(ex);
-                    Thread.Sleep(1000);
-                }
+                sp.Open();
+            }
+            catch (Exception ex)
+            {
+                ReportEx(ex);
             }
             return sp.IsOpen;
         }
@@ -171,9 +190,14 @@ namespace ARBot.HAL.Devices.Uart
         {
             byte[] bytes = new byte[count];
             int idx = 0;
+            readCancel = false;   // novy pozadavek na cteni
             //Logger.WriteLine(count);
             while (idx < count)
             {
+                // Kooperativni zruseni (viz CancelRead) - odblokuje visici cteni pri Stop().
+                if (readCancel)
+                    throw new OperationCanceledException("UART read cancelled.");
+
                 int len = sp.BytesToRead;
                 if (len > 0)
                 {
@@ -197,10 +221,16 @@ namespace ARBot.HAL.Devices.Uart
         {
             byte[] bytes = new byte[count];
             int idx = 0;
+            readCancel = false;   // novy pozadavek na cteni
             //            Logger.WriteLine("Read");
             //          Logger.WriteLine(count);
             while (idx < count)
             {
+                // Kooperativni zruseni: umoznuje Stop() senzoru odblokovat visici cteni na
+                // nedostupnem portu (jinak by se tato smycka tocila donekonecna).
+                if (readCancel)
+                    throw new OperationCanceledException("UART read cancelled.");
+
                 if (ReOpen())
                 {
                     int len = sp.BytesToRead;
@@ -211,7 +241,14 @@ namespace ARBot.HAL.Devices.Uart
                             idx += len;
                         //                    Logger.WriteLine(idx);
                     }
+                    else
+                        // Port otevren, ale zadna data - kratky spanek misto busy-waitu.
+                        Thread.Sleep(10);
                 }
+                else
+                    // Port neni dostupny: throtlovani, aby cteci vlakno nebusy-spinovalo
+                    // (ReOpen uz sam nespi). Otevreni se stejne zkusi az za ReopenBackoffMs.
+                    Thread.Sleep(ReopenBackoffMs);
             }
             return bytes;
         }
@@ -312,6 +349,14 @@ namespace ARBot.HAL.Devices.Uart
             {
                 ReportEx(ex);
             }
+        }
+
+        /// <summary>
+        /// Kooperativne zrusi probihajici blokujici cteni (viz <see cref="IUart.CancelRead"/>).
+        /// </summary>
+        public void CancelRead()
+        {
+            readCancel = true;
         }
 
         private void ReportEx(Exception ex)

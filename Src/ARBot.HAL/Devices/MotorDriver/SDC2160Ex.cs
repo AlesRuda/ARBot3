@@ -271,8 +271,12 @@ end while
                     fail = true;
                     break;
                 }
+                if (str == null)
+                    // Port nedostupny (ReadLine vraci null hned, ReOpen uz neblokuje) -
+                    // kratky spanek, aby smycka behem 500ms okna nebusy-spinovala.
+                    System.Threading.Thread.Sleep(10);
             }
-            while (!str.StartsWith("DI="));
+            while (str == null || !str.StartsWith("DI="));
             di = GetValue(str);
 
             str = uart.ReadLine();

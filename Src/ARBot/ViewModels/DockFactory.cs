@@ -19,6 +19,9 @@ namespace ARBot.ViewModels
         /// <summary>Nastroj s prehledem senzoru (otviratelny z menu).</summary>
         public SensorStatusTool SensorStatus { get; private set; }
 
+        /// <summary>Panel s Debug/Trace vystupem (otviratelny/znovuotviratelny z menu).</summary>
+        public DebugOutputTool DebugOutput { get; private set; }
+
         /// <summary>
         /// Inicializace layoutu. Nastavuje tvurce hostitelskeho okna, aby fungovala
         /// plovouci okna - bez <see cref="DefaultHostWindowLocator"/> by se dockable po
@@ -73,6 +76,7 @@ namespace ARBot.ViewModels
 
             // Spodni panel s vystupem Debug/Trace (zalozka "Debug output").
             var debugOutput = new DebugOutputTool();
+            DebugOutput = debugOutput;
 
             var bottomDock = new ToolDock
             {

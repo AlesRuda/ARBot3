@@ -32,6 +32,12 @@ namespace ARBot.ViewModels
         /// <summary>Poslední přijatý snímek – drží se kvůli překreslení při přepnutí RGB/hloubka.</summary>
         private CameraFrame? lastFrame;
 
+        // Backpressure: nejnovější nezpracovaný snímek. Starší se zahazují, aby se při zaostání
+        // UI nehromadila dispatcher fronta (jinak stall + dávkové "stovky Hz" místo plynulých 30).
+        private readonly object pendingGate = new object();
+        private CameraFrame? pendingFrame;
+        private volatile bool updateQueued;
+
         /// <summary>Aktuální obraz pro zobrazení (RGB nebo hloubka dle <see cref="ShowDepth"/>).</summary>
         [ObservableProperty] private WriteableBitmap? image;
 
@@ -65,11 +71,37 @@ namespace ARBot.ViewModels
             Apply(camera.GetLastMeasurement());
         }
 
+        // Běží na vlákně kamery (SensorBase). Musí být neblokující: jen uloží nejnovější snímek
+        // (starší zahodí) a koalescovaně naplánuje jednu UI aktualizaci na Background prioritě,
+        // aby měl vstup/vykreslování přednost a UI zůstalo plynulé.
         private void OnMeasurement(object? sender, CameraFrame frame)
         {
             if (frame == null)
                 return;
-            Dispatcher.UIThread.Post(() => Apply(frame));
+
+            lock (pendingGate)
+                pendingFrame = frame;   // nejnovější vyhrává (drop stale)
+
+            if (updateQueued)
+                return;
+            updateQueued = true;
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>Vykreslí poslední nasbíraný snímek na UI vlákně (zbylé mezitím zahozené).</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            CameraFrame? f;
+            lock (pendingGate)
+            {
+                f = pendingFrame;
+                pendingFrame = null;
+            }
+
+            if (f != null)
+                Apply(f);
         }
 
         /// <summary>Promítne snímek do vlastností (musí běžet na UI vlákně).</summary>

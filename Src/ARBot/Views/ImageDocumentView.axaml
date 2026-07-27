@@ -15,9 +15,12 @@
             <TextBlock Text="Pravý:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding RightLayer}"
                       MinWidth="180" Margin="0,0,12,0"/>
-            <TextBlock Text="Overlay:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding OverlayLayer}"
-                      MinWidth="180" Margin="0,0,12,0"/>
+            <TextBlock Text="Overlay L:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding LeftOverlayLayer}"
+                      MinWidth="160" Margin="0,0,12,0"/>
+            <TextBlock Text="Overlay P:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox ItemsSource="{Binding Layers}" SelectedItem="{Binding RightOverlayLayer}"
+                      MinWidth="160" Margin="0,0,12,0"/>
             <TextBlock Text="Průhlednost:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <Slider Minimum="0" Maximum="1" Value="{Binding OverlayOpacity}" Width="130"
                     VerticalAlignment="Center"/>
@@ -27,23 +30,26 @@
         <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0,8,8">
             <Grid Grid.Column="0" Margin="0,0,4,0">
                 <Image Source="{Binding LeftImage}" Stretch="Uniform"/>
-                <Image Source="{Binding OverlayImage}" Stretch="Uniform"
+                <Image Source="{Binding LeftOverlayImage}" Stretch="Uniform"
                        Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
                         Background="#80000000" Padding="8,4" CornerRadius="3">
                     <StackPanel>
                         <TextBlock Text="{Binding LeftInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
-                        <TextBlock Text="{Binding OverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
+                        <TextBlock Text="{Binding LeftOverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
                     </StackPanel>
                 </Border>
             </Grid>
             <Grid Grid.Column="1" Margin="4,0,0,0">
                 <Image Source="{Binding RightImage}" Stretch="Uniform"/>
-                <Image Source="{Binding OverlayImage}" Stretch="Uniform"
+                <Image Source="{Binding RightOverlayImage}" Stretch="Uniform"
                        Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
                         Background="#80000000" Padding="8,4" CornerRadius="3">
-                    <TextBlock Text="{Binding RightInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding RightInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
+                        <TextBlock Text="{Binding RightOverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
+                    </StackPanel>
                 </Border>
             </Grid>
         </Grid>

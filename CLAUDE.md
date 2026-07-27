@@ -27,6 +27,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
   (`Common ← HAL ← app`), kam patří fúze / adaptéry / řídicí smyčka.
+- [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
+  netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
 - [doc/build-and-platforms.md](doc/build-and-platforms.md) — platformy, HAL (Windows/Armbian),
   nativní knihovna, RealSense verze, externí (ne-NuGet) reference.
 - [doc/ekf-fusion.md](doc/ekf-fusion.md) — EKF senzorická fúze (`ARBot.Common/Fusion`);
@@ -36,7 +38,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
-- [Src/ARBot/ARBot/Views/README.md](Src/ARBot/ARBot/Views/README.md) — dokovatelné
-  dokumenty a nástroje UI (DocumentBase/ToolBase + ViewType, design-time náhled).
+- [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
+  (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
 
 Když vznikne nová netriviální doménová oblast, přidej k ní `doc/*.md` a odkaz sem.

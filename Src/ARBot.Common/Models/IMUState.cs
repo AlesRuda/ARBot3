@@ -76,17 +76,20 @@ namespace ARBot.Common.Models
         /// </summary>
         public double Confidence { get; set; }
 
+        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
+        public const int FormatVersion = 1;
+
         /// <summary>
         /// Konstruktor
         /// </summary>
-        public IMUState()
+        public IMUState() : base(FormatVersion)
         {
         }
 
         /// <summary>
         /// Konstruktor
         /// </summary>
-        public IMUState(Quaternion rotation)
+        public IMUState(Quaternion rotation) : this()
         {
             Rotation = rotation;
         }
@@ -94,7 +97,7 @@ namespace ARBot.Common.Models
         /// <summary>
         /// Konstruktor
         /// </summary>
-        public IMUState(Quaternion rotation, Vector3 angularVelocity)
+        public IMUState(Quaternion rotation, Vector3 angularVelocity) : this()
         {
             Rotation = rotation;
             AngularVelocity = angularVelocity;
@@ -230,7 +233,7 @@ namespace ARBot.Common.Models
             if (Rotation == null)
                 return null;
             var ypr = new YawPitchRoll(Rotation.Value, YawPitchRoll.Euler.zxy);
-            ypr.TimeStamp = TimeStamp;
+//            ypr.TimeStamp = TimeStamp;
             return ypr;
         }
 

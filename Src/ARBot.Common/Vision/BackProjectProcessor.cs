@@ -41,12 +41,11 @@ namespace ARBot.Common.Vision
 
             var rgb = frame.ImageRGB;
 
-            // Volitelne zdrojovy RGB snimek (JPEG) - aby replay videl vstup i vystup.
+            // Volitelne zdrojovy RGB snimek (JPEG pri zaznamu) - aby replay videl vstup i vystup.
             if (includeSourceRgb)
             {
-                var srcBlob = Blob.FromImage(SourceName, rgb, compress: true);
-                srcBlob.TimeStamp = frame.TimeStamp;
-                EmitDerived(srcBlob);
+                var srcMsg = new ImageMsg(rgb, SourceName, ImageMsg.Compression.Jpeg) { TimeStamp = frame.TimeStamp };
+                EmitDerived(srcMsg);
             }
 
             // BackProject: barva -> pravdepodobnost. Pripadne resize na velikost dle Size().
@@ -61,9 +60,9 @@ namespace ARBot.Common.Vision
             var prob = new Image<Gray>(size.Width, size.Height);
             backProject.Process(src, prob);
 
-            var blob = Blob.FromImage(ResultName, prob);   // Type=Probability (bezztratove)
-            blob.TimeStamp = frame.TimeStamp;
-            EmitDerived(blob);
+            // Pravdepodobnost (Gray) - bezztratove (None).
+            var probMsg = new ImageMsg(prob, ResultName) { TimeStamp = frame.TimeStamp };
+            EmitDerived(probMsg);
         }
     }
 }

@@ -84,7 +84,7 @@ namespace ARBot.Record
             int rgb = 0, backproj = 0; DateTime firstTs = default, lastTs = default; bool haveTs = false;
             var reader = new ReplayCollector(m =>
             {
-                if (m is Blob b)
+                if (m is ImageMsg b)
                 {
                     if (b.Name == "rgb") rgb++;
                     else if (b.Name == "backproject") backproj++;

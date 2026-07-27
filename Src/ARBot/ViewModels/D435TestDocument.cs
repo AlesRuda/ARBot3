@@ -40,6 +40,14 @@ namespace ARBot.ViewModels
         private int measCount;
         private int updCount;
 
+        // Backpressure: nejnovější nezpracovaný snímek (starší se zahazují), aby se při zaostání
+        // UI nehromadila dispatcher fronta. Diagnostika (measCount/Diag) bezi dal per-frame.
+        private readonly object pendingGate = new object();
+        private CameraFrame? pendingFrame;
+        private int pendingN;
+        private long pendingSum;
+        private volatile bool updateQueued;
+
         /// <summary>Aktualni RGB snimek pro zobrazeni.</summary>
         [ObservableProperty]
         private WriteableBitmap? image;
@@ -82,19 +90,45 @@ namespace ARBot.ViewModels
             if (n <= 3 || n % 30 == 0)
                 Diag($"OnMeasurement #{n}: rgb={(rgb == null ? "null" : rgb.Width + "x" + rgb.Height)} dataLen={(dd?.Length ?? -1)} sum4k={sum}");
 
+            // Uloz nejnovejsi snimek a koalescovane naplanuj jednu UI aktualizaci (starsi zahod).
+            lock (pendingGate)
+            {
+                pendingFrame = frame;
+                pendingN = n;
+                pendingSum = sum;
+            }
+
+            if (updateQueued)
+                return;
+            updateQueued = true;
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>Zpracuje posledni nasbirany snimek na UI vlakne (starsi mezitim zahozene).</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            CameraFrame? frame; int n; long sum;
+            lock (pendingGate)
+            {
+                frame = pendingFrame;
+                pendingFrame = null;
+                n = pendingN;
+                sum = pendingSum;
+            }
+            if (frame == null)
+                return;
+
+            var rgb = frame.ImageRGB;
             if (rgb == null)
             {
-                Dispatcher.UIThread.Post(() => Status = $"snimek #{n}: ImageRGB == null");
+                Status = $"snimek #{n}: ImageRGB == null";
                 return;
             }
 
-            int rw = rgb.Width, rh = rgb.Height;
-            // Aktualizace bitmapy + stavu musi probehnout na UI vlakne.
-            Dispatcher.UIThread.Post(() =>
-            {
-                UpdateImage(rgb);
-                Status = $"snimek #{n}  {rw}x{rh}  sum4k={sum}  upd={updCount}";
-            });
+            UpdateImage(rgb);
+            Status = $"snimek #{n}  {rgb.Width}x{rgb.Height}  sum4k={sum}  upd={updCount}";
         }
 
         private void UpdateImage(Image<BGR32> rgb)

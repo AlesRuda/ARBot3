@@ -384,14 +384,13 @@ namespace ARBot.Common.Navigations
         /// Pravdepodobnost sjizdnosti
         /// </summary>
         /// <returns></returns>
-        public virtual Blob ToLogMessage()
+        /// <summary>Zabalí grayscale (probability) data do <see cref="ImageMsg"/> (Image&lt;Gray&gt;).</summary>
+        private ImageMsg GrayLog(string name, byte[] data)
+            => new ImageMsg(new ARBot.Common.Common.Image<ARBot.Common.Common.Gray>(Width, Height) { Data = data }, name);
+
+        public virtual ImageMsg ToLogMessage()
         {
-            Blob b = new Blob();
-            b.Name = "ObstacleDistances";
-            b.Height = Height;
-            b.Width = Width;
-            b.Type = Blob.BlobType.Probability;
-            b.Data = new byte[Height * Width];
+            byte[] data = new byte[Height * Width];
 
             double max = 0;
             for (int y = 0; y < Height; y++)
@@ -407,30 +406,23 @@ namespace ARBot.Common.Navigations
             {
                 for (int x = 0; x < Width; x++)
                 {
-                    //                    Debug.WriteLine("ToLogMessage {0}, {1}", x, y);
-                    //                    b.Data[x + y * Width] = (byte)(pixels[x, y].ObstacleDistance * 5);
                     if(pixels[x, y].Weight==double.PositiveInfinity)
-                        b.Data[x + y * Width] = 255;
+                        data[x + y * Width] = 255;
                     else
-                        b.Data[x + y * Width] = (byte)(255.0*pixels[x, y].Weight/max);
+                        data[x + y * Width] = (byte)(255.0*pixels[x, y].Weight/max);
                 }
             }
-            return b;
+            return GrayLog("ObstacleDistances", data);
         }
         /// <summary>
         /// Vizualizace cesty
         /// </summary>
         /// <returns></returns>
-        public virtual Blob ToLogMessage2()
+        public virtual ImageMsg ToLogMessage2()
         {
             if (directResult)
             {
-                Blob b = new Blob();
-                b.Name = "Way";
-                b.Height = Height;
-                b.Width = Width;
-                b.Type = Blob.BlobType.Probability;
-                b.Data = new byte[Height * Width];
+                byte[] data = new byte[Height * Width];
 
                 Point p1 = new Point(0, 0);
                 if (result != null)
@@ -438,31 +430,24 @@ namespace ARBot.Common.Navigations
                     int w2 = Width / 2;
                     int h2 = Height / 2;
                     DrawEngine de = new DrawEngine() { XMin = -w2, XMax = w2 - 1, YMin = -h2, YMax = h2 - 1, Clipping = true };
-                    de.PixelSetter = (x, y) => b.Data[x + w2 + (h2 - y - 1) * Width] = 255;
+                    de.PixelSetter = (x, y) => data[x + w2 + (h2 - y - 1) * Width] = 255;
                     de.Line(p1, new Point((int)(result.X / Resolution), (int)(result.Y / Resolution)));
                 }
 
-                return b;
+                return GrayLog("Way", data);
             }
             else
             {
-                Blob b = new Blob();
-                b.Name = "Way";
-                b.Height = Height;
-                b.Width = Width;
-                b.Type = Blob.BlobType.Probability;
-                b.Data = new byte[Height * Width];
+                byte[] data = new byte[Height * Width];
 
                 for (int y = 0; y < Height; y++)
                 {
                     for (int x = 0; x < Width; x++)
                     {
-                        //                    Debug.WriteLine("ToLogMessage {0}, {1}", x, y);
-                        b.Data[x + y * Width] = pixels[x, y].Way ? (byte)255 : (pixels[x, y].WayDistance < 0 ? (byte)0 : (byte)(pixels[x, y].WayDistance));
-                        //                    b.Data[x + y * Width] = pixels[x, y].WayDistanceCalculated ? (byte)255 : (byte) 0;
+                        data[x + y * Width] = pixels[x, y].Way ? (byte)255 : (pixels[x, y].WayDistance < 0 ? (byte)0 : (byte)(pixels[x, y].WayDistance));
                     }
                 }
-                return b;
+                return GrayLog("Way", data);
             }
         }
         /// <summary>
@@ -509,41 +494,30 @@ namespace ARBot.Common.Navigations
         /// Vizualizace potencialu
         /// </summary>
         /// <returns></returns>
-        public Blob ToLogMessage3()
+        public ImageMsg ToLogMessage3()
         {
-            Blob b = new Blob();
-            b.Name = "Potencial";
-            b.Height = Height;
-            b.Width = Width;
-            b.Type = Blob.BlobType.Probability;
-            b.Data = new byte[Height * Width];
+            byte[] data = new byte[Height * Width];
 
             for (int y = 0; y < Height; y++)
             {
                 for (int x = 0; x < Width; x++)
                 {
                     BigInteger p = pixels[x, y].Potencial;
-                    //                    Debug.WriteLine("ToLogMessage {0}, {1}", x, y);
                     decimal d = PotencialScale==0?0:(decimal)((255 * p)/PotencialScale);
                     if (d > 255)
                         d = 255;
-                    b.Data[x + y * Width] = pixels[x, y].Way ? (byte)255 : (byte)d;
+                    data[x + y * Width] = pixels[x, y].Way ? (byte)255 : (byte)d;
                 }
             }
-            return b;
+            return GrayLog("Potencial", data);
         }
         /// <summary>
         /// Vizualizace vzdalenosti od prekazek
         /// </summary>
         /// <returns></returns>
-        public Blob ToLogMessage4()
+        public ImageMsg ToLogMessage4()
         {
-            Blob b = new Blob();
-            b.Name = "ObstacleDistances";
-            b.Height = Height;
-            b.Width = Width;
-            b.Type = Blob.BlobType.Probability;
-            b.Data = new byte[Height * Width];
+            byte[] data = new byte[Height * Width];
 
             double max = 0;
             for (int y = 0; y < Height; y++)
@@ -559,12 +533,10 @@ namespace ARBot.Common.Navigations
             {
                 for (int x = 0; x < Width; x++)
                 {
-                    //                    Debug.WriteLine("ToLogMessage {0}, {1}", x, y);
-                    //                    b.Data[x + y * Width] = (byte)(pixels[x, y].ObstacleDistance * 5);
-                    b.Data[x + y * Width] = (byte)(255.0 * pixels[x, y].ObstacleDistance / max);
+                    data[x + y * Width] = (byte)(255.0 * pixels[x, y].ObstacleDistance / max);
                 }
             }
-            return b;
+            return GrayLog("ObstacleDistances", data);
         }
         public static Matrix<double> Rotate2D(double dir)
         {

@@ -22,10 +22,18 @@
                 <MenuItem Header="Open" Command="{Binding OpenCommand}"/>
                 <MenuItem Header="Save" Command="{Binding SaveCommand}"/>
             </MenuItem>
+            <MenuItem Header="Runtime">
+                <MenuItem Header="Run without log" Command="{Binding RunModeCommand}"/>
+                <MenuItem Header="Run and log" Command="{Binding RunAndLogCommand}"/>
+                <MenuItem Header="View…" Command="{Binding ViewModeCommand}"/>
+                <Separator/>
+                <MenuItem Header="Stop" Command="{Binding StopRuntimeCommand}"/>
+            </MenuItem>
             <MenuItem Header="Utils"/>
             <MenuItem Header="Tools">
                 <MenuItem Header="Sensors overview" Command="{Binding OpenSensorsCommand}"/>
                 <MenuItem Header="Images" Command="{Binding OpenImagesCommand}"/>
+                <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>

@@ -22,7 +22,7 @@ namespace ARBot.Common.LocalMaps
         /// <param name="y"></param>
         /// <returns></returns>
         BayesPixel this[double x, double y] { get; }
-        ARBot.Common.Logs.Blob ToLogMessage(string name);
+        ARBot.Common.Logs.ImageMsg ToLogMessage(string name);
         /// <summary>
         /// Aktualizuje lokalni mapu podle jine lokalni mapy
         /// </summary>

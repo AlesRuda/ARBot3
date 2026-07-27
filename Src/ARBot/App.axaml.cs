@@ -28,5 +28,12 @@ namespace ARBot
 
             base.OnFrameworkInitializationCompleted();
         }
+
+        /// <summary>
+        /// Hlavni okno jako <see cref="Avalonia.Controls.TopLevel"/> (pro souborove dialogy
+        /// z ViewModelu). null v design-time / bez desktopoveho lifetime.
+        /// </summary>
+        public static Avalonia.Controls.TopLevel MainTopLevel
+            => (Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
     }
 }

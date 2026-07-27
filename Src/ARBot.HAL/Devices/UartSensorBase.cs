@@ -30,5 +30,19 @@ namespace ARBot.HAL
         /// Zda je senzor v chybovem stavu
         /// </summary>
         public override bool IsError => base.IsError || !uart.IsOpen;
+
+        /// <summary>
+        /// Zastavi zpracovani. Nejprve nastavi <see cref="SensorBase{TState}.stopRequired"/> a
+        /// pak odblokuje pripadne visici blokujici cteni na UARTu (<see cref="IUart.CancelRead"/>).
+        /// Poradi je dulezite: kdyz cteni vyhodi vyjimku, smycka <c>Process</c> uz vidi
+        /// <c>stopRequired</c> a nevstoupi do dalsiho <c>Read</c> (ktery si priznak zruseni
+        /// na zacatku resetuje). Bez toho by <c>task.Wait()</c> na nedostupnem portu zatuhl.
+        /// </summary>
+        public override void Stop()
+        {
+            stopRequired = true;
+            uart.CancelRead();
+            base.Stop();
+        }
     }
 }

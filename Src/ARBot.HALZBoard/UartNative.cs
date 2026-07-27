@@ -14,6 +14,8 @@ namespace ARBot.HALLinux
     {
         Encoding encoding = Encoding.ASCII;
         bool disposed = false;
+        // Kooperativni zruseni blokujiciho cteni (viz CancelRead).
+        private volatile bool readCancel;
         string device;
         FileStream stream;
         StreamReader sr;
@@ -59,6 +61,7 @@ namespace ARBot.HALLinux
             {
                 if (disposing)
                 {
+                    readCancel = true;   // odblokuj pripadne visici cteni
                     if (sr != null)
                         sr.Dispose();
                     if (sw != null)
@@ -111,8 +114,11 @@ namespace ARBot.HALLinux
         {
             byte[] bytes = new byte[count];
             int idx = 0;
+            readCancel = false;   // novy pozadavek na cteni
             while (idx < count)
             {
+                if (readCancel)
+                    throw new OperationCanceledException("UART read cancelled.");
                 int len = Read(bytes, idx, Math.Min(count - idx, count));
                 if (len > 0)
                     idx += len;
@@ -169,7 +175,13 @@ namespace ARBot.HALLinux
             sw.WriteLine(txt);
         }
 
-        public int ReadByte() 
+        /// <summary>Kooperativne zrusi probihajici blokujici cteni (viz <see cref="IUart.CancelRead"/>).</summary>
+        public void CancelRead()
+        {
+            readCancel = true;
+        }
+
+        public int ReadByte()
  		{ 
  			byte [] buff = new byte [1]; 
  			if (Read(buff, 0, 1) > 0) 
@@ -212,8 +224,10 @@ namespace ARBot.HALLinux
  			List<byte> seen = new List<byte> (); 
 
  			while (true)
-            { 
- 				int n = ReadByte(); 
+            {
+                if (readCancel)
+                    throw new OperationCanceledException("UART read cancelled.");
+ 				int n = ReadByte();
 // 				if (n == -1) 
  //					break; 
                 if (n != -1)

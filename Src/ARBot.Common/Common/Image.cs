@@ -16,10 +16,45 @@ namespace ARBot.Common.Common
     /// <remarks>
     /// Pro rychly pristup se vytvori jeden pixel a nastavuje se mu index=image.Index(x, y), je to vyznamne rychlejsi jak pouzivat indexer, ktery musi alokovat vzdy novy pixel.
     /// Data jsou uchovavana v poli byte Data a je mozne je tak velmi rychle vymnenit za jine.
-    /// Priznak SharedData indikuje ze data jsou sdilena a mohou byt mnenena nezavisle na obrazku.
     /// </remarks>
+    /// <summary>
+    /// Netypovy zaklad <see cref="Image{T}"/> - umoznuje drzet/predavat obraz bez znalosti
+    /// pixel typu (napr. vlastnost <c>Image</c> na <see cref="ARBot.Common.Logs.ImageMsg"/>).
+    /// Nese rozmery, surova data a identitu pixelu (<see cref="PixelTypeName"/>).
+    /// </summary>
+    public abstract class Image
+    {
+        /// <summary>Sirka [px].</summary>
+        public abstract int Width { get; }
+        /// <summary>Vyska [px].</summary>
+        public abstract int Height { get; }
+        /// <summary>Pocet bajtu na pixel.</summary>
+        public abstract int Step { get; }
+        /// <summary>Surova pixelova data (delka = <see cref="DataLength"/>).</summary>
+        public abstract byte[] Data { get; set; }
+        /// <summary>Nazev pixel typu (<c>typeof(T).Name</c>, napr. "BGR32", "Gray16") - identita obrazu.</summary>
+        public abstract string PixelTypeName { get; }
+
+        /// <summary>Delka dat = Width*Height*Step.</summary>
+        public int DataLength => Width * Height * Step;
+
+        /// <summary>
+        /// Vytvori <see cref="Image{T}"/> podle nazvu pixel typu (napr. "Gray16"). Slouzi k
+        /// rekonstrukci pri deserializaci, kdy pixel typ neni znam staticky. Pixel typy zijou
+        /// v namespace <c>ARBot.Common.Common</c>.
+        /// </summary>
+        public static Image Create(string pixelTypeName, int width, int height)
+        {
+            Type pixel = typeof(IPixel).Assembly.GetType("ARBot.Common.Common." + pixelTypeName);
+            if (pixel == null || !typeof(IPixel).IsAssignableFrom(pixel))
+                throw new NotSupportedException($"Neznamy pixel typ '{pixelTypeName}'.");
+            Type imgType = typeof(Image<>).MakeGenericType(pixel);
+            return (Image)Activator.CreateInstance(imgType, width, height);
+        }
+    }
+
     /// <typeparam name="T"></typeparam>
-    public class Image<T>: IEnumerable<T> where T : IPixel, new()
+    public class Image<T>: Image, IEnumerable<T>, ICloneable where T : IPixel, new()
     {
         protected int width;
         protected int height;
@@ -29,8 +64,8 @@ namespace ARBot.Common.Common
 
         T t;
 
-        public bool SharedData = false;
-        public int Step => step;
+        public override int Step => step;
+        public override string PixelTypeName => typeof(T).Name;
 
         public Image(int width, int height)
         {
@@ -41,6 +76,19 @@ namespace ARBot.Common.Common
             data = new byte[DataLength];
             t.Data = data;
         }
+
+        /// <summary>
+        /// Hluboka kopie obrazku - stejne rozmery, ale VLASTNI (nezavisla) kopie dat, takze
+        /// zmeny v kopii neovlivni original a naopak.
+        /// </summary>
+        public Image<T> Clone()
+        {
+            var copy = new Image<T>(width, height);
+            copy.Data = (byte[])data.Clone();   // setter overi delku a nastavi i pixel.Data
+            return copy;
+        }
+
+        object ICloneable.Clone() => Clone();
 
         //public static Image<BGR> BGRFromBitmap(string fn)
         //{
@@ -123,22 +171,14 @@ namespace ARBot.Common.Common
         //    return BGR32FromBitmap(Image.FromFile(fn) as Bitmap);
         //}
 
-        public int DataLength
-        {
-            get
-            {
-                return width * height * step;
-            }
-        }
-
-        public int Width
+        public override int Width
         {
             get
             {
                 return width;
             }
         }
-        public int Height
+        public override int Height
         {
             get
             {
@@ -146,7 +186,7 @@ namespace ARBot.Common.Common
             }
         }
 
-        public byte[] Data
+        public override byte[] Data
         {
             get
             {

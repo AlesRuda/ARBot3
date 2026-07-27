@@ -18,8 +18,7 @@ namespace ARBot.HAL.Tests
         public void Blob_Probability_OneGrayLayer()
         {
             var img = new Image<Gray>(8, 6);
-            var blob = Blob.FromImage("sjizdnost", img);   // Type=Probability
-            blob.TimeStamp = T0;
+            var blob = new ImageMsg(img, "sjizdnost") { TimeStamp = T0 };   // Gray -> Probability
 
             var layers = MessageImageLayers.Extract(blob).ToList();
 
@@ -34,7 +33,7 @@ namespace ARBot.HAL.Tests
         public void Blob_Jpeg_OneColorLayer()
         {
             var rgb = new Image<BGR32>(16, 16);
-            var blob = Blob.FromImage("rgb", rgb, compress: true);   // Type=Jpeg
+            var blob = new ImageMsg(rgb, "rgb", ImageMsg.Compression.Jpeg);   // BGR32 -> Color
 
             var layers = MessageImageLayers.Extract(blob).ToList();
 

@@ -78,7 +78,7 @@ namespace ARBot.Common.Devices
         /// <summary>
         /// Ukoncuje smycku zpracovani
         /// </summary>
-        public void Stop()
+        public virtual void Stop()
         {
             if(IsRunning)
             {
@@ -95,6 +95,9 @@ namespace ARBot.Common.Devices
         /// <summary>
         /// Smycka zpracovani
         /// </summary>
+        /// <summary>Idle-backoff [ms] pri chybe/prazdnem mereni, aby smycka nebusy-spinovala.</summary>
+        protected virtual int IdleBackoffMs => 20;
+
         protected void Process()
         {
             while (!stopRequired)
@@ -122,12 +125,19 @@ namespace ARBot.Common.Devices
 
                     if (v != null)
                         OnMeasurement(v);
+                    else
+                        // Zadne mereni (typicky nedostupny senzor/zavreny port): kratky
+                        // backoff, aby smycka nebusy-spinovala a nezaplavovala Debug log.
+                        System.Threading.Thread.Sleep(IdleBackoffMs);
                     isError = false;
                 }
                 catch (Exception ex)
                 {
                     isError = true;
                     Debug.WriteLine(ex.ToString());
+                    // Chyba ve zpracovani: backoff, aby se pri trvale chybe (napr. NRE z
+                    // nedostupneho UARTu) nezacyklila tesna smycka s logovanim.
+                    System.Threading.Thread.Sleep(IdleBackoffMs);
                 }
             }
             task = null;

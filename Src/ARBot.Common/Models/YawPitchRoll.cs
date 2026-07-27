@@ -12,16 +12,16 @@ namespace ARBot.Common.Models
     /// <summary>
     /// Orientation in radians.
     /// </summary>
-    public class YawPitchRoll : SensorStateBase, IHistoryItem<YawPitchRoll>
+    public class YawPitchRoll
     {
         public enum Euler { zyx, zyz, zxy, zxz, yxz, yxy, yzx, yzy, xyz, xyx, xzy, xzx };
 
-        /// <summary>Bezparametrický ctor (nutný pro reflexi prototypů v MessageCollection.Msgs / Build).</summary>
-        public YawPitchRoll()
+        /// <summary>Bezparametrický ctor.</summary>
+        public YawPitchRoll() 
         {
         }
 
-        public YawPitchRoll(float yaw, float pitch, float roll)
+        public YawPitchRoll(float yaw, float pitch, float roll) : this()
         {
             Yaw = yaw;
             Pitch = pitch;
@@ -34,7 +34,7 @@ namespace ARBot.Common.Models
         /// Matrix3D je transponovana oproto standardu.
         /// </summary>
         /// <param name="m"></param>
-        public YawPitchRoll(Matrix4x4 m)
+        public YawPitchRoll(Matrix4x4 m) : this()
         {
             Yaw = MathF.Atan2(m.M12, m.M11);
             Pitch = -MathF.Atan2(-m.M13, MathF.Sqrt(m.M23*m.M23+m.M33*m.M33));
@@ -47,7 +47,7 @@ namespace ARBot.Common.Models
         /// </summary>
         /// <param name="q"></param>
         /// <param name="type"></param>
-        public YawPitchRoll(Quaternion q, Euler type)
+        public YawPitchRoll(Quaternion q, Euler type) : this()
         {
             // matlab: q=a+bi+cj+dk, i^2=j^2=k^2=ijk=-1
             // WPF: q=w+xi+yj+zk
@@ -184,12 +184,6 @@ namespace ARBot.Common.Models
         {
             get;
             private set;
-        }
-        DateTime IHistoryItem<YawPitchRoll>.TimeStamp { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
-        public YawPitchRoll Interpolate(YawPitchRoll prev, YawPitchRoll next, float d)
-        {
-            return new YawPitchRoll(prev.Yaw + d * (next.Yaw - prev.Yaw), prev.Pitch + d * (next.Pitch - prev.Pitch), prev.Roll + d * (next.Roll - prev.Roll));
         }
 
         public override string ToString()

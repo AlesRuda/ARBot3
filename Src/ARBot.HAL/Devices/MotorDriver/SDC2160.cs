@@ -128,7 +128,7 @@ namespace ARBot.HAL.Devices.MotorDrivers
 
         protected override IMotorState GetMeasurement()
         {
-            string str = uart.ReadAll();
+            uart.ReadAll();   // vyprazdni vstupni buffer (vysledek se zahazuje)
             var ts = TimeBase.Now;
             uart.WriteLine("?CR");
             uart.WriteLine("?V 2");
@@ -136,7 +136,15 @@ namespace ARBot.HAL.Devices.MotorDrivers
             uart.WriteLine("?DI 3");
 
 
-            str = uart.ReadLine();
+            string str = uart.ReadLine();
+            if (str == null)
+            {
+                // Port nedostupny (ReadLine vraci null hned, ReOpen uz neblokuje): vrat
+                // emergency stav misto bogus nuloveho a kratce pockej, aby smycka Process
+                // nebusy-spinovala (nenulovy stav ji jinak nenechaji backnout).
+                System.Threading.Thread.Sleep(10);
+                return new MotorStateBase(isEmergencyStop = true, 0, 0, 0, 0, 0) { TimeStamp = ts };
+            }
             str = GetValue(str);
             string[] enc = str.Split(new string[] { ":" }, StringSplitOptions.RemoveEmptyEntries);
 

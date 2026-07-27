@@ -77,11 +77,11 @@ namespace ARBot.ViewModels
         };
 
         /// <summary>
-        /// Otevre dokument pro zobrazeni obrazku (Blob i CameraFrame) a napoji zivy feed z kamer:
-        /// CameraFrame -> ImageDocument (RGB/Depth vrstvy) a soucasne -> BackProjectProcessor,
-        /// jehoz vystup (pravdepodobnostni Blob) jde take do dokumentu jako overlay.
-        /// Kamery se berou z ARBotHW; pokud tam zadna neni (jine S/N, chybi COM porty), zkusi
-        /// se prvni dostupna D435.
+        /// Otevre dokument pro zobrazeni obrazku (Blob i CameraFrame) a pripoji ho na
+        /// <see cref="ARBotRuntime.Stream"/> (jediny verejny fan-out proud). Vize
+        /// (<see cref="BackProjectProcessor"/>) je v Run soucasti grafu runtime, takze
+        /// dokument uz zadny vlastni feed / BackProject nedrzí - jen zobrazuje, co teče
+        /// na Streamu (surove CameraFrame i odvozene Blob vrstvy). Ve View totez ze zaznamu.
         /// </summary>
         [RelayCommand]
         private void OpenImages()
@@ -101,46 +101,12 @@ namespace ARBot.ViewModels
 
             var doc = new ImageDocument();
 
-            // Kamery z ARBotHW (sdilene), jinak fallback na prvni dostupnou.
-            var cameras = new List<ICamera>();
+            // Pripoj dokument na verejny Stream runtime; odpojeni pri zavreni resi AttachFeed/Dispose.
             try
             {
-                foreach (var s in ARBotHW.Current.Sensors)
-                    if (s is ICamera c) cameras.Add(c);
+                doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
             }
-            catch { /* ARBotHW nedostupne */ }
-
-            bool ownCamera = false;
-            if (cameras.Count == 0)
-            {
-                try
-                {
-                    cameras.Add(new ARBot.HAL.Devices.Camera.D435Camera());
-                    ownCamera = true;
-                }
-                catch { /* zadna kamera */ }
-            }
-
-            var bp = new BackProject(BackProject.RoadProbability);
-            foreach (var cam in cameras)
-            {
-                var c = cam;   // lokalni kopie pro closure
-                var camSrc = new SensorMessageSource<CameraFrame>(
-                    h => c.MeasurementArived += h,
-                    h => c.MeasurementArived -= h);
-                var proc = new BackProjectProcessor(bp, includeSourceRgb: false)
-                {
-                    ResultName = (c.Name ?? "cam") + "/backproject"
-                };
-                camSrc.Connect(doc);        // CameraFrame -> dokument (RGB/Depth vrstvy)
-                camSrc.Connect(proc);       // CameraFrame -> BackProject
-                proc.Output.Connect(doc);   // pravdepodobnostni Blob -> dokument (overlay)
-                proc.Start();
-                camSrc.Start();
-                doc.AttachFeed(camSrc, proc);
-                if (ownCamera && c is IDisposable disp)
-                    doc.AttachFeed(disp);   // vlastni kameru pri zavreni uvolnit
-            }
+            catch { /* runtime nedostupne (napr. design-time) */ }
 
             _factory.AddDockable(dock, doc);
             _factory.SetActiveDockable(doc);
@@ -158,6 +124,139 @@ namespace ARBot.ViewModels
         private void Save()
         {
             // TODO: implementovat ulozeni
+        }
+
+        // ---------------- Rezimy runtime (Run / View) ----------------
+
+        // Stavovy automat prikazu: Run/View jen kdyz NEbezi, Stop jen kdyz bezi. Po kazde
+        // zmene stavu (Start/Stop) je nutne prekreslit CanExecute vsech prikazu (RefreshRuntimeCommands).
+        private bool CanStart => !ARBotRuntime.Current.IsRunning;
+        private bool CanStop => ARBotRuntime.Current.IsRunning;
+
+        private void RefreshRuntimeCommands()
+        {
+            RunModeCommand.NotifyCanExecuteChanged();
+            RunAndLogCommand.NotifyCanExecuteChanged();
+            ViewModeCommand.NotifyCanExecuteChanged();
+            StopRuntimeCommand.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>Spusti runtime v rezimu Run BEZ zaznamu (realne senzory + rizeni).</summary>
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private void RunMode()
+        {
+            try { ARBotRuntime.Current.Start(ARBot.Robot.Mode.Run); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            RefreshRuntimeCommands();
+        }
+
+        /// <summary>
+        /// Spusti runtime v rezimu Run SE zaznamem. Vystupni soubor se pojmenuje automaticky
+        /// <c>yyyyMMdd-HHmmss.rec</c> ve slozce <c>records</c> v korenu repa (sidecar index
+        /// <c>.rec.idx</c> resi runtime). Slozka se pripadne vytvori.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private void RunAndLog()
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(RepoRootOrBase(), "records");
+                System.IO.Directory.CreateDirectory(dir);
+                string file = System.IO.Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".rec");
+
+                ARBotRuntime.Current.Start(ARBot.Robot.Mode.Run, file);
+                System.Diagnostics.Debug.WriteLine("Run + zaznam do: " + file);
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            RefreshRuntimeCommands();
+        }
+
+        /// <summary>
+        /// Koren git repa (slozka obsahujici <c>.git</c>) hledany smerem nahoru od build outputu;
+        /// fallback na <see cref="AppContext.BaseDirectory"/> (nasazeni bez repa, napr. na Pi).
+        /// </summary>
+        private static string RepoRootOrBase()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                string git = System.IO.Path.Combine(dir.FullName, ".git");
+                if (System.IO.Directory.Exists(git) || System.IO.File.Exists(git))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            return AppContext.BaseDirectory;
+        }
+
+        /// <summary>Zastavi runtime (Run i View).</summary>
+        [RelayCommand(CanExecute = nameof(CanStop))]
+        private void StopRuntime()
+        {
+            try { ARBotRuntime.Current.Stop(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            RefreshRuntimeCommands();
+        }
+
+        /// <summary>
+        /// Spusti runtime v rezimu View nad zvolenym zaznamem. Cestu vybere uzivatel pres
+        /// souborovy dialog (StorageProvider hlavniho okna); pri nedostupnem dialogu se
+        /// pouzije zadana <paramref name="file"/> (jinak se nic nestane).
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private async System.Threading.Tasks.Task ViewMode()
+        {
+            string file = null;
+            try
+            {
+                var top = App.MainTopLevel;
+                if (top?.StorageProvider is { } sp)
+                {
+                    var picks = await sp.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+                    {
+                        Title = "Otevrit zaznam (View)",
+                        AllowMultiple = false
+                    });
+                    if (picks != null && picks.Count > 0)
+                        file = picks[0].Path?.LocalPath;
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+
+            if (string.IsNullOrEmpty(file))
+                return;
+
+            try { ARBotRuntime.Current.Start(ARBot.Robot.Mode.View, file); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            RefreshRuntimeCommands();
+
+            // Po startu View otevri navigacni nastroj (krok 9) i obrazovy dokument.
+            OpenReplayNav();
+            OpenImages();
+        }
+
+        /// <summary>Otevre (nebo aktivuje) navigacni nastroj pro replay (View).</summary>
+        private void OpenReplayNav()
+        {
+            var src = ARBotRuntime.Current.FileSource;
+            if (src == null)
+                return;
+
+            var dock = _factory.DocumentDock;
+            if (dock == null || Layout is null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "ReplayNav");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var tool = new ReplayNavTool(src);
+            _factory.AddDockable(dock, tool);
+            _factory.SetActiveDockable(tool);
+            _factory.SetFocusedDockable(Layout, tool);
         }
 
         /// <summary>
@@ -185,15 +284,26 @@ namespace ARBot.ViewModels
         /// pres <see cref="Dock.Model.Core.IFactory.SplitToDock"/> (ten se nikdy nesbali).
         /// </summary>
         [RelayCommand]
-        private void OpenSensors()
+        private void OpenSensors() => ReopenTool(_factory.SensorStatus, Alignment.Left, DockOperation.Left);
+
+        /// <summary>Otevre (nebo aktivuje) panel s Debug/Trace vystupem.</summary>
+        [RelayCommand]
+        private void OpenDebugOutput() => ReopenTool(_factory.DebugOutput, Alignment.Bottom, DockOperation.Bottom);
+
+        /// <summary>
+        /// Otevre (nebo aktivuje, pokud uz je otevreny) dokovaci nastroj. Osetruje vsechny stavy,
+        /// v nichz se nastroj muze po zavreni nachazet, jinak by se vytvoril duplikat:
+        /// pinnuty (auto-hide prouzek), skryty (HideToolsOnClose) i uplne odpojeny (zavren se
+        /// sbalenim doku nebo vytazeny do plovouciho okna). V poslednim pripade ho nadokuje zpet
+        /// do hlavniho layoutu vuci stabilnimu <see cref="DockFactory.DocumentDock"/> (ten se
+        /// nikdy nesbaluje), s danym <paramref name="alignment"/>/<paramref name="operation"/>.
+        /// </summary>
+        private void ReopenTool(IDockable tool, Alignment alignment, DockOperation operation)
         {
-            var tool = _factory.SensorStatus;
             var documentDock = _factory.DocumentDock;
             if (tool == null || documentDock == null || Layout is null)
                 return;
 
-            // Nastroj muze byt v ruznych stavech - je nutne je odlisit, jinak by se pri
-            // "otevreni" pinnuteho/skryteho panelu vytvoril druhy (duplikat).
             if (_factory.IsDockablePinned(tool, Layout))
             {
                 // Pinnuty (auto-hide prouzek) -> vrat do normalniho (odepnuteho) stavu.
@@ -219,12 +329,12 @@ namespace ARBot.ViewModels
                 {
                     Id = "ToolDock",
                     Title = "ToolDock",
-                    Alignment = Alignment.Left,
+                    Alignment = alignment,
                     Proportion = 0.25,
                     VisibleDockables = _factory.CreateList<IDockable>(tool),
                     ActiveDockable = tool
                 };
-                _factory.SplitToDock(documentDock, toolDock, DockOperation.Left);
+                _factory.SplitToDock(documentDock, toolDock, operation);
             }
             // else: uz je viditelny v hlavnim okne -> jen aktivovat nize.
 

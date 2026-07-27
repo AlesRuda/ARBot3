@@ -103,7 +103,7 @@ namespace ARBot.Common.Communication
                 arrival = env.ArrivalTicks;
             }
 
-            // Dekrement poctu v obehu (jen sledovane typy).
+            // Dekrement poctu v obehu (jen sledovane typy).n
             if (limits != null && limits.ContainsKey(inner.MsgName))
             {
                 lock (countsLock)

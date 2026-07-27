@@ -22,6 +22,12 @@ namespace ARBot.ViewModels
 
         private readonly IMotorControl? motors;
 
+        // Backpressure: nejnovější nezpracované měření (starší se zahazují), jednotně s ostatními
+        // dokumenty - viz OnMeasurement/Flush.
+        private readonly object pendingGate = new object();
+        private IMotorState? pendingState;
+        private volatile bool updateQueued;
+
         [ObservableProperty] private bool isEmergencyStop;
         /// <summary>Text nouzového stavu pro záhlaví.</summary>
         [ObservableProperty] private string emergencyText = "-";
@@ -60,11 +66,36 @@ namespace ARBot.ViewModels
             Apply(motors.GetLastMeasurement());
         }
 
+        // Běží na vlákně senzoru. Uloží jen nejnovější měření a koalescovaně naplánuje jednu
+        // UI aktualizaci na Background prioritě (starší měření se zahodí).
         private void OnMeasurement(object? sender, IMotorState state)
         {
             if (state == null)
                 return;
-            Dispatcher.UIThread.Post(() => Apply(state));
+
+            lock (pendingGate)
+                pendingState = state;
+
+            if (updateQueued)
+                return;
+            updateQueued = true;
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>Promítne poslední nasbírané měření na UI vlákně (starší mezitím zahozená).</summary>
+        private void Flush()
+        {
+            updateQueued = false;
+
+            IMotorState? s;
+            lock (pendingGate)
+            {
+                s = pendingState;
+                pendingState = null;
+            }
+
+            if (s != null)
+                Apply(s);
         }
 
         /// <summary>Promítne měření do vlastností (musí běžet na UI vlákně).</summary>

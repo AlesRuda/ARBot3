@@ -89,7 +89,7 @@ namespace ARBot.HAL.Tests
             using (var readMs = new MemoryStream(dataBytes))
             {
                 var src = new FileMessageSource(readMs, Enc, catalog);
-                src.SetTypeFilter(new[] { "Blob" });
+                src.SetTypeFilter(new[] { "ImageMsg" });
                 src.Connect(collector);
                 src.RunToEnd();
             }
@@ -101,16 +101,16 @@ namespace ARBot.HAL.Tests
             int probIdx = 0;
             foreach (var m in collector.Items)
             {
-                var blob = (Blob)m;
+                var blob = (ImageMsg)m;
                 if (blob.Name != "backproject") continue;
 
-                Assert.That(blob.Type, Is.EqualTo(Blob.BlobType.Probability), "typ vysledku");
-                Assert.That(blob.Width, Is.EqualTo(W));
-                Assert.That(blob.Height, Is.EqualTo(H));
+                Assert.That(blob.Image, Is.InstanceOf<Image<Gray>>(), "typ vysledku (Gray/probability)");
+                Assert.That(blob.Image.Width, Is.EqualTo(W));
+                Assert.That(blob.Image.Height, Is.EqualTo(H));
                 Assert.That(blob.TimeStamp, Is.EqualTo(frames[probIdx].TimeStamp), "capture time");
 
                 var expected = ExpectedProbability(frames[probIdx].ImageRGB, bp);
-                Assert.That(blob.Data, Is.EqualTo(expected), $"probability data snimku {probIdx}");
+                Assert.That(blob.Image.Data, Is.EqualTo(expected), $"probability data snimku {probIdx}");
                 probIdx++;
             }
             Assert.That(probIdx, Is.EqualTo(frames.Count), "pocet backproject blobu");
@@ -134,13 +134,13 @@ namespace ARBot.HAL.Tests
             }
             collector.Stop();
 
-            Blob rgbBlob = null;
+            ImageMsg rgbBlob = null;
             foreach (var m in collector.Items)
-                if (m is Blob b && b.Name == "rgb") rgbBlob = b;
+                if (m is ImageMsg b && b.Name == "rgb") rgbBlob = b;
 
             Assert.That(rgbBlob, Is.Not.Null, "rgb blob");
-            Assert.That(rgbBlob.Type, Is.EqualTo(Blob.BlobType.Jpeg));
-            var dec = rgbBlob.ToBGR32Image();
+            Assert.That(rgbBlob.Comp, Is.EqualTo(ImageMsg.Compression.Jpeg), "rgb ma nastavenou JPEG kompresi");
+            var dec = (Image<BGR32>)rgbBlob.Image;
             Assert.That(dec.Width, Is.EqualTo(W));
             Assert.That(dec.Height, Is.EqualTo(H));
         }

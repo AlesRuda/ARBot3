@@ -233,13 +233,43 @@ public enum Mode { Run, View /*, Simulate (odloženo) */ }
    `OpenImages` = `Stream.Connect(doc)`; vize (`BackProjectProcessor`) je součást runtime grafu v Run.
 9. **View navigace:** `FileMessageSource` Play/Paused + `SeekTo` (náhodné čtení) + navigační tool.
 
+## Verzování zpráv (serializace) — POVINNÝ princip
+
+Každá `Message` nese číslo verze **formátu, ve kterém vznikla** (`Message(string name, int verze)`
+→ vlastnost `Verze`). Slouží k **dopředné kompatibilitě záznamů**: starý `.rec` musí jít přehrát
+i po změně obsahu zprávy.
+
+**Jak verze prochází I/O** (ověřeno proti kódu):
+- **Zápis** — `MessageWriter.Write` zapíše do hlavičky rámce řetězec `"{MsgName}:{délka}:{Verze}"`
+  a za něj `data` (z `ToData`). Verze je tedy uložená v každém rámci.
+- **Čtení** — `MessageReader.Read` z hlavičky vyparsuje jméno/délku/verzi, přes katalog udělá
+  `Build()` (čerstvý prototyp), **nastaví `msg.Verze` na ULOŽENOU verzi z rámce** (chybí-li, `1`)
+  a teprve pak volá `FromData(...)`. Uvnitř `FromData` je tedy `this.Verze` = verze dat na disku.
+
+**Pravidla pro každý potomek `Message`:**
+1. Konstruktorem předej **aktuální** verzi formátu: `base("Xxx", verze: N)`. `N` je konstanta u dané
+   třídy. Potomci `SensorStateBase` to mají **vynucené** — `SensorStateBase(int verze)` verzi
+   vyžaduje (nemá bezparametrický ctor), takže každý senzorový stav musí předat svou konstantu
+   (konvence: `public const int FormatVersion = N;` → `base(FormatVersion)`).
+2. `ToData` zapisuje **vždy aktuální** (nejnovější) layout.
+3. `FromData` **větví podle `this.Verze`**: pro starší verze načte starý layout a namapuje ho do
+   aktuálního objektového modelu (nová pole doplní rozumným defaultem, přejmenovaná/změněná pole
+   dopočítá). Pro aktuální verzi čte přímo.
+4. **Při jakékoli změně obsahu zprávy zvýš verzní konstantu o 1** a v `FromData` přidej větev pro
+   předchozí verzi. Bez toho se starší záznamy rozbijí (posun v binárním streamu).
+
+Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `MessageReader` ji před
+`FromData` přepíše uloženou verzí — po deserializaci proto objekt nese verzi, ze které byl načten
+(pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`
+udělá už v novém formátu).
+
 ## Kde to je (namespaces)
 
 - **Pipeline** — `Src/ARBot.Common/Communication/`: `MessageSource`, `MessageTarget`, `MessageProcessor`,
   `IMessageSink`, `OverflowPolicy`, `SensorMessageSource`, `RecordingTarget`, `MessageQueue`,
   `MessageIndex`, `FileMessageSource`, `MessageCatalog`, `MessageReader`/`MessageWriter`.
 - **Zprávy** — `Src/ARBot.Common/Logs/`: `Message`, `RobotStateMsg`, `MeasurementDiagMsg`,
-  `DriveCommandMsg`(nový), `Blob`, `IHasCaptureTime`, `IPrimaryMessage`(nový).
+  `DriveCommandMsg`(nový), `ImageMsg` (obrazová zpráva, dříve `Blob`), `IHasCaptureTime`, `IPrimaryMessage`(nový).
 - **Měření / zařízení** — `Src/ARBot.Common/Devices/`: `SensorStateBase`(+`IMUState`, `GPSState`,
   `MotorStateBase`, `CameraFrame`), `IMotorControl`(přesun sem), `DummyMotors`(nový).
 - **Runtime** — `Src/ARBot.Common/Runtime/`: `IClock`/`SystemClock`/`VirtualClock`, `IScheduler`(nový),
@@ -250,14 +280,22 @@ public enum Mode { Run, View /*, Simulate (odloženo) */ }
 
 ## Stav implementace
 
-**Hotovo:** pipeline primitiva, `SensorMessageSource`, `RecordingTarget` (zatím `Block`, bez `T_out`),
-`MessageIndex` (bez `Name`/`ArrivalTicks`), `FileMessageSource` (jen Play, bez `SeekTo`),
-`FusionProcessor` (zatím **s** `PumpTicks` — bude odstraněn), `BackProjectProcessor`, `ImageDocument`
-(vlastní feed — bude migrován), hodiny, mapper, `Blob` JPEG (SkiaSharp), `MessageQueue`, `ComparisonTarget`.
+**Hotovo (kroky 1–9):** pipeline primitiva, `SensorMessageSource`, `RecordingTarget` (best-effort
+per-typ retence, drop v `Post`, `T_out`/`ArrivalTicks` + `Name` v `MessageIndex`), `FusionProcessor`
+(bez `PumpTicks`), `IScheduler`+`Scheduler`+periodická `ControlLoop`, `DummyMotors`, `IMotorControl`
+v `ARBot.Common.Devices`, thread-safe `AsyncFusionEngine`, `RobotState` Roll/Pitch → `IModelState`,
+`DriveCommandMsg`, `IPrimaryMessage`, `BackProjectProcessor`, hodiny, mapper, `Blob` JPEG (SkiaSharp),
+`ComparisonTarget`;
+**krok 7** `RelaySource` (pruchozi fan-out) + `RoleRouter` (primární → zpracování i `Stream`, odvozené
+jen `Stream`);
+**krok 8** `ARBotRuntime` (`Mode {Run,View}`, `Start/Stop`, veřejný `Stream`, drátování grafu per
+režim; čeká na init `ARBotHW`), migrace `ImageDocument` na `Stream.Connect(doc)` (vize je v Run součástí
+grafu runtime), UI menu **Runtime → Run / View… / Stop**;
+**krok 9** `FileMessageSource` Play/Paused + `SeekTo` (index-aware, náhodné čtení rámce z `Offset`) +
+navigační nástroj `ReplayNavTool`.
 
-**Zatím není:** `ARBotRuntime`+režimy, `IPrimaryMessage`+router, `IScheduler`+periodická řídicí smyčka,
-`DummyMotors`, `IMotorControl` v Common, thread-safe engine, best-effort per-typ záznam, `T_out`+`Name`
-v indexu, `SeekTo`, `DriveCommandMsg`, `RobotState` Roll/Pitch, migrace dokumentů na `Stream`.
+**Zatím není (mimo rozsah kroků 7–9):** migrace ostatních senzorových dokumentů (`CameraDocument`,
+`IMUDocument`, …) na `Stream` (fungují dál přes přímý odběr senzoru); Simulate (viz níže).
 
 ## Odložený Simulate
 
@@ -274,7 +312,15 @@ pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při 
 - **Runtime + režimy + scheduler + periodická řídicí smyčka** (viz Implementační kontrakt).
 - **Revize `FusionConfig`** — duplicitní rozchod (`FusionConfig.WheelBase = 0.5` vs `Profile.Rozchod = 0.41`);
   projít obsah `FusionConfig` a **sjednotit zdroj rozchodu** (řízení bere `Profile.Rozchod`).
-- **Simulate** (viz §Odložený Simulate) vč. serializace `CameraFrame` / rozhodnutí o zdroji vize.
+- **Serializace `CameraFrame` — HOTOVO** (2026-07-25). `CameraFrame` má versioned
+  `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`) a je v replay
+  katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
+  `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Vrstvy se ukládají přes
+  `ImageMsg.Write` **bez komprese (`None`)** — šetří CPU (žádné Jpeg/Png/Deflate kódování).
+  `CameraFrame` je **měření (primární) → zaznamenává se VŽDY** (v `RecordingTarget` bez limitu).
+  Objem ~1,8 GB/min (2 kamery @10 Hz, RGB BGR32 640×480 + Depth Z16 480×270) — na NVMe pár hodin,
+  dost pro testy i soutěžní jízdu. Komprese je připravená (`ImageMsg.Compression` Jpeg/Png/Deflate)
+  a lze ji u vrstev zapnout, když bude potřeba šetřit místo.
 - **Akcelerace barevných převodů přes `NativeComputeUnit`.** `MessageImageLayers` dělá RGB/BGR → BGR32
   **dočasně** managed přes `Image<T>.ConvertTo`. `NativeComputeUnit` je od SIMD/HW akcelerace — má
   `CopyRGB24ToBGR32` / `CopyBGR24ToBGR32`, ale zatím jen nad typovými poli a `IntPtr`, ne nad managed

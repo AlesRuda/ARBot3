@@ -31,10 +31,28 @@ namespace ARBot.Robot
                 if (current == null)
                 {
                     current = new ARBotHW();
-                    Task.Run(() => current.Init());
+                    // Init bezi asynchronne (dotazovani portu/kamer muze trvat). Task
+                    // ukladame, aby na nej mohl ARBotRuntime.Start(Run) pockat pred
+                    // dratovanim grafu (viz InitTask / WaitReady / IsReady).
+                    current.initTask = Task.Run(() => current.Init());
                 }
                 return current;
             }
+        }
+
+        private Task initTask;
+
+        /// <summary>Task probihajiciho asynchronniho <see cref="Init"/> (null jen do prvniho pristupu).</summary>
+        public Task InitTask => initTask ?? Task.CompletedTask;
+
+        /// <summary>Je asynchronni init hotov (senzory nadratovane)?</summary>
+        public bool IsReady => initTask != null && initTask.IsCompleted;
+
+        /// <summary>Pocka na dokonceni asynchronniho <see cref="Init"/> (idempotentni).</summary>
+        public void WaitReady()
+        {
+            try { initTask?.Wait(); }
+            catch (Exception ex) { Debug.WriteLine(ex.ToString()); }
         }
 
         public IJoystick Joystick { get; set; }

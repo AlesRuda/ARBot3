@@ -16,14 +16,14 @@ namespace ARBot.Common.Tests.Runtime
     {
         private static readonly DateTime T0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        private static Blob MakeBlob(string name)
-            => Blob.FromRGB(name, 1, 1, new byte[] { 1, 2, 3 });
+        private static ImageMsg MakeBlob(string name)
+            => new ImageMsg(new ARBot.Common.Common.Image<ARBot.Common.Common.RGB>(1, 1) { Data = new byte[] { 1, 2, 3 } }, name);
 
         [Test]
         public void PerTypeLimit_DropsExcessBlobs_KeepsUntrackedTypes()
         {
             // Blob ma limit 2; IMUState neni v mape -> neomezeny (bezztratovy).
-            var limits = new Dictionary<string, int> { ["Blob"] = 2 };
+            var limits = new Dictionary<string, int> { ["ImageMsg"] = 2 };
 
             byte[] dataBytes, idxBytes;
             using (var dataMs = new MemoryStream())
@@ -46,7 +46,7 @@ namespace ARBot.Common.Tests.Runtime
             }
 
             var entries = MessageIndex.Read(new MemoryStream(idxBytes), TestHelpers.Enc);
-            int blobCount = entries.Count(e => e.MsgName == "Blob");
+            int blobCount = entries.Count(e => e.MsgName == "ImageMsg");
             int imuCount = entries.Count(e => e.MsgName == "IMUState");
 
             Assert.That(blobCount, Is.LessThanOrEqualTo(2), "bloby prekrocily limit retence");
@@ -56,7 +56,7 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(entries.All(e => e.ArrivalTicks > 0), Is.True, "chybi T_out (ArrivalTicks)");
 
             // Name se plni z INamedMessage (Blob), u IMU je prazdne.
-            var blobEntries = entries.Where(e => e.MsgName == "Blob").ToList();
+            var blobEntries = entries.Where(e => e.MsgName == "ImageMsg").ToList();
             Assert.That(blobEntries.Select(e => e.Name), Is.EqualTo(new[] { "cam0", "cam1" }));
             Assert.That(entries.Where(e => e.MsgName == "IMUState").All(e => e.Name == ""), Is.True);
         }

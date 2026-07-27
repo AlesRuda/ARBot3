@@ -195,14 +195,10 @@ namespace ARBot.Common.LocalMaps
             }
         }
 
-        public Blob ToLogMessage(string name)
+        public ImageMsg ToLogMessage(string name)
         {
-            Blob b = new Blob();
-            b.Name = name;
-            b.Height = Height;
-            b.Width = Width;
-            b.Type = Blob.BlobType.Probability;
-            b.Data = new byte[Height * Width];
+            var img = new ARBot.Common.Common.Image<ARBot.Common.Common.Gray>(Width, Height);
+            byte[] data = img.Data;
 
             int xd = Width / 2;
             int yd = Height / 2-1;
@@ -211,11 +207,10 @@ namespace ARBot.Common.LocalMaps
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    //                    Debug.WriteLine("ToLogMessage {0}, {1}", x, y);
-                    b.Data[x + y * Width] = (byte)(this[x-xd, yd-y].Value * 255);
+                    data[x + y * Width] = (byte)(this[x-xd, yd-y].Value * 255);
                 }
             }
-            return b;
+            return new ImageMsg(img, name);
         }
     }
 }

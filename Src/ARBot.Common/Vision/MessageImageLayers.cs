@@ -17,8 +17,8 @@ namespace ARBot.Common.Vision
         {
             switch (msg)
             {
-                case Blob b:
-                    var layer = FromBlob(b);
+                case ImageMsg m:
+                    var layer = FromImageMsg(m);
                     if (layer != null) yield return layer;
                     break;
 
@@ -34,28 +34,29 @@ namespace ARBot.Common.Vision
             }
         }
 
-        private static ImageLayer FromBlob(Blob b)
+        /// <summary>
+        /// Vrstva z <see cref="ImageMsg"/> - druh (Kind) se urcuje z pixel typu neseneho obrazu
+        /// (drive z BlobType): barevne (BGR32/RGB/BGR) -&gt; Color, Gray -&gt; Probability, Gray16 -&gt; Depth.
+        /// </summary>
+        private static ImageLayer FromImageMsg(ImageMsg m)
         {
             try
             {
-                switch (b.Type)
+                switch (m.Image)
                 {
-                    case Blob.BlobType.Jpeg:
-                    case Blob.BlobType.BGR32:
-                        return Color(b, b.ToBGR32Image());
-                    case Blob.BlobType.RGB:
-                        // TODO(NativeComputeUnit): docasne managed Image<T>.ConvertTo. Barevne prevody
-                        // patri na akcelerovany NativeComputeUnit (SIMD/HW) - viz CopyRGB24ToBGR32 /
-                        // CopyBGR24ToBGR32 (zatim jen typova pole / IntPtr). Doplnit byte[]->byte[] variantu.
-                        return Color(b, b.ToRGBImage().ConvertTo<BGR32>((s, d) => { d.R = s.R; d.G = s.G; d.B = s.B; }));
-                    case Blob.BlobType.BGR:
-                        var bgr = new Image<BGR>(b.Width, b.Height) { Data = (byte[])b.Data.Clone() };
-                        return Color(b, bgr.ConvertTo<BGR32>((s, d) => { d.R = s.R; d.G = s.G; d.B = s.B; }));
-                    case Blob.BlobType.Gray:
-                    case Blob.BlobType.Probability:
-                        return new ImageLayer { Name = b.Name, Kind = LayerKind.Probability, Gray = b.ToGrayImage(), TimeStamp = b.TimeStamp };
-                    case Blob.BlobType.Gray16:
-                        return new ImageLayer { Name = b.Name, Kind = LayerKind.Depth, Depth = b.ToGray16Image(), TimeStamp = b.TimeStamp };
+                    case null:
+                        return null;
+                    case Image<BGR32> c:
+                        return new ImageLayer { Name = m.Name, Kind = LayerKind.Color, Color = c, TimeStamp = m.TimeStamp };
+                    case Image<RGB> rgb:
+                        // TODO(NativeComputeUnit): docasne managed Image<T>.ConvertTo (barevne prevody patri na akcelerovany NativeComputeUnit).
+                        return new ImageLayer { Name = m.Name, Kind = LayerKind.Color, Color = rgb.ConvertTo<BGR32>((s, d) => { d.R = s.R; d.G = s.G; d.B = s.B; }), TimeStamp = m.TimeStamp };
+                    case Image<BGR> bgr:
+                        return new ImageLayer { Name = m.Name, Kind = LayerKind.Color, Color = bgr.ConvertTo<BGR32>((s, d) => { d.R = s.R; d.G = s.G; d.B = s.B; }), TimeStamp = m.TimeStamp };
+                    case Image<Gray> g:
+                        return new ImageLayer { Name = m.Name, Kind = LayerKind.Probability, Gray = g, TimeStamp = m.TimeStamp };
+                    case Image<Gray16> d16:
+                        return new ImageLayer { Name = m.Name, Kind = LayerKind.Depth, Depth = d16, TimeStamp = m.TimeStamp };
                     default:
                         return null;
                 }
@@ -65,8 +66,5 @@ namespace ARBot.Common.Vision
                 return null;   // nepodporovana konverze - vrstvu vynechame
             }
         }
-
-        private static ImageLayer Color(Blob b, Image<BGR32> img)
-            => new ImageLayer { Name = b.Name, Kind = LayerKind.Color, Color = img, TimeStamp = b.TimeStamp };
     }
 }

@@ -13,6 +13,9 @@ namespace ARBot.Common.Devices
     /// </summary>
     public class MotorStateBase : SensorStateBase, IMotorState
     {
+        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
+        public const int FormatVersion = 1;
+
         bool emergencyStop;
         double leftEncoder, rightEncoder, voltage, leftMotorCurrent, rightMotorCurrent;
 
@@ -26,6 +29,7 @@ namespace ARBot.Common.Devices
         /// <param name="leftMotorCurrent"></param>
         /// <param name="rightMotorCurrent"></param>
         public MotorStateBase(bool emergencyStop, double leftEncoder, double rightEncoder, double voltage, double leftMotorCurrent, double rightMotorCurrent)
+            : base(FormatVersion)
         {
             this.emergencyStop = emergencyStop;
             this.leftEncoder=leftEncoder;

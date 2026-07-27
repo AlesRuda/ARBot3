@@ -9,9 +9,31 @@
     <Grid RowDefinitions="Auto,*">
         <Button Grid.Row="0" Content="Clear" Command="{Binding ClearCommand}"
                 HorizontalAlignment="Left" Margin="4"/>
-        <TextBox Grid.Row="1" Text="{Binding Text}"
-                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+        <!-- Virtualizovany list radku: vykresluji se jen viditelne polozky (na rozdil od
+             jednoho velkeho TextBoxu, ktery se cely znovu skladal pri kazde aktualizaci). -->
+        <ListBox Grid.Row="1" x:Name="LinesList"
+                 ItemsSource="{Binding Lines}"
+                 SelectionMode="Multiple"
                  FontFamily="Consolas,Menlo,monospace"
-                 VerticalContentAlignment="Top"/>
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.Styles>
+                <!-- Kompaktni radky bez zbytecneho paddingu. -->
+                <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="4,0"/>
+                    <Setter Property="MinHeight" Value="0"/>
+                </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <SelectableTextBlock Text="{Binding}" TextWrapping="NoWrap"/>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
     </Grid>
 </UserControl>

@@ -10,6 +10,13 @@ namespace ARBot.Common.Devices
 {
     public class GPSState: SensorStateBase
     {
+        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
+        public const int FormatVersion = 1;
+
+        public GPSState() : base(FormatVersion)
+        {
+        }
+
         /// <summary>
         /// Fix quality indicater
         /// </summary>
