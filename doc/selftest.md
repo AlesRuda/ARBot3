@@ -21,7 +21,24 @@ Kód: [`Src/ARBot/Diagnostics/SelfTest.cs`](../Src/ARBot/Diagnostics/SelfTest.cs
 | `st_robot` | `true` | otevřít okno Robot-centric |
 | `st_name` | `baseline` | štítek varianty (jen do hlavičky souhrnu) |
 | `st_out` | `logs/selftest-result.txt` | cesta k souboru souhrnu |
+| `st_shot` | `false` | pořídit screenshot hlavního okna → `doc/media/selftest-<name>.png` |
+| `st_video` | `false` | nahrát krátké video (animovaný GIF) → `doc/media/selftest-<name>.gif` |
+| `st_video_seconds` | `5` | délka videa [s] |
+| `st_video_fps` | `8` | snímků za sekundu |
+| `st_video_scale` | `3` | zmenšení (cílová šířka = šířka okna / scale) |
+| `st_video_format` | auto | `gif` (vynutí vestavěný nekomprimovaný), `mp4`, nebo auto (ffmpeg gif) |
+| `ffmpeg` | auto | override cesty k `ffmpeg.exe` (jinak auto-detekce) |
 | `no_uart` | `false` | přeskočit UART senzory (IMU/GPS/motor) — čte `ARBotHW` |
+
+> **Screenshot/video** (`doc/media/`): pro ilustrace do deníčku.
+> - **Screenshot** (`st_shot`) přes Avalonia `RenderTargetBitmap` → PNG.
+> - **Video** (`st_video`): je-li k dispozici **ffmpeg** (auto-detekce: PATH → Shotcut → winget → `ffmpeg=<cesta>`
+>   / env `ARBOT_FFMPEG`), vytvoří se **komprimovaný GIF** (palettegen, ~100–150 KB) nebo **mp4**
+>   (`st_video_format=mp4`, ~30 KB). Bez ffmpeg se použije **vestavěný nekomprimovaný GIF** (`GifWriter`) —
+>   korektní, ale velký (drž `st_video_scale` vyšší a délku krátkou).
+>
+> Auto-generované `selftest-*.{png,gif,mp4}` jsou v gitignore; do repa se komitují jen kurátorované
+> obrázky (např. `robot-centric-grid.png/gif`).
 
 **Výstup:** `logs/selftest-result.txt` (přepisuje se) + běhový `logs/traversability-timing-*.csv`.
 Souhrn na kameru: `frames, compute avg/p50/p95/max, >100ms %, gen2 (∑ během Process), wait_avg, cam_alloc_avg`.

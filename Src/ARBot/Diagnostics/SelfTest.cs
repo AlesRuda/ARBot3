@@ -36,6 +36,14 @@ namespace ARBot.Diagnostics
         public bool OpenRobotCentric = true;
         public string OutPath;
 
+        public bool Shot;           // st_shot: pořídit screenshot hlavního okna na konci běhu
+        public bool Video;          // st_video: nahrát krátké video (animovaný GIF) během běhu
+        public double VideoSeconds = 5;  // st_video_seconds
+        public double VideoFps = 8;      // st_video_fps
+        public int VideoScale = 3;       // st_video_scale: zmenšení (nekomprimovaný GIF je velký -> menší = menší soubor)
+        public string VideoFormat;       // st_video_format: "gif" | "mp4" | null(auto: ffmpeg gif, jinak vestavěný gif)
+        public string FfmpegPath;        // ffmpeg=<cesta>: override umístění ffmpeg
+
         /// <summary>Sestaví konfiguraci z parametrů příkazové řádky.</summary>
         public static SelfTestConfig FromArgs()
         {
@@ -50,6 +58,13 @@ namespace ARBot.Diagnostics
                 ImagesActive = Program.GetParamBool("st_images_active", false),
                 OpenRobotCentric = Program.GetParamBool("st_robot", true),
                 OutPath = Program.GetParam("st_out", null),
+                Shot = Program.GetParamBool("st_shot", false),
+                Video = Program.GetParamBool("st_video", false),
+                VideoSeconds = Program.GetParamDouble("st_video_seconds", 5),
+                VideoFps = Program.GetParamDouble("st_video_fps", 8),
+                VideoScale = (int)Program.GetParamDouble("st_video_scale", 3),
+                VideoFormat = Program.GetParam("st_video_format", null),
+                FfmpegPath = Program.GetParam("ffmpeg", null),
             };
             if (cfg.Seconds < 1) cfg.Seconds = 1;
             return cfg;
@@ -75,6 +90,14 @@ namespace ARBot.Diagnostics
                 return Path.Combine(root, "logs");
             }
             catch { return Path.Combine(AppContext.BaseDirectory, "logs"); }
+        }
+
+        /// <summary>Složka <c>doc/media/</c> v kořenu repa - pro screenshoty/videa do deníčku.</summary>
+        public static string MediaDir()
+        {
+            var logs = LogsDir();                       // .../logs
+            var root = Path.GetDirectoryName(logs);     // kořen repa
+            return Path.Combine(root ?? AppContext.BaseDirectory, "doc", "media");
         }
 
         /// <summary>
