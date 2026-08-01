@@ -1,6 +1,7 @@
 using Dock.Avalonia.Controls;
 using Dock.Model.Controls;
 using Dock.Model.Core;
+using Dock.Model.Core.Events;
 using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
 
@@ -30,7 +31,21 @@ namespace ARBot.ViewModels
         public override void InitLayout(IDockable layout)
         {
             DefaultHostWindowLocator = () => new HostWindow();
+            // Sleduj zmenu aktivniho tabu -> nastav IsActive nasim dokumentum (viditelny = aktivni tab
+            // DocumentDock). Umoznuje dokumentum gatovat drahy render, kdyz nejsou videt (viz ImageDocument).
+            ActiveDockableChanged += OnActiveDockableChanged;
             base.InitLayout(layout);
+        }
+
+        private void OnActiveDockableChanged(object sender, ActiveDockableChangedEventArgs e)
+        {
+            var dock = DocumentDock;
+            var active = dock?.ActiveDockable;
+            var docs = dock?.VisibleDockables;
+            if (docs == null) return;
+            foreach (var d in docs)
+                if (d is DocumentBase doc)
+                    doc.SetActive(ReferenceEquals(doc, active));
         }
 
         public override IRootDock CreateLayout()

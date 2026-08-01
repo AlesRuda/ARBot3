@@ -84,9 +84,9 @@ namespace ARBot.Robot
             string? PortGPS = null;
 
 #if IsX64
-            PortAHRS = "COM5";
-            PortMotor = "COM9";
-            PortGPS = "COM7";
+//            PortAHRS = "COM5";
+  //          PortMotor = "COM9";
+    //        PortGPS = "COM7";
 #endif
 #if IsARM64
             // OrangePI/Armbian: VN100 IMU pres sdilenou tridu Uart (System.IO.Ports) - stejny kod
@@ -103,6 +103,16 @@ namespace ARBot.Robot
             if (n != null)
                 NeoPixel = new NeoPixelProcessor(new FTD2xxNeoPixelDriver(f, n));
             */
+
+            // Diagnostický přepínač: no_uart=true přeskočí UART senzory (IMU/GPS/motor). Odpojené UART
+            // drivery házejí výjimky v těsné smyčce (GC churn + CPU) - toto umožní je při měření výkonu
+            // vizuální cesty vypnout bez fyzického odpojení (viz devlog 2026-08-01, self-test no_uart).
+            bool noUart = Program.GetParamBool("no_uart", false);
+            if (noUart)
+            {
+                PortAHRS = null; PortMotor = null; PortGPS = null;
+                Debug.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor) přeskočeny.");
+            }
 
             if (!string.IsNullOrEmpty(PortAHRS))
             {

@@ -34,6 +34,9 @@ namespace ARBot.ViewModels
             // Dvojklik na senzor v panelu Sensors otevře jeho detailní dokument.
             if (_factory.SensorStatus is not null)
                 _factory.SensorStatus.SensorActivated += OpenSensorDocument;
+
+            // Bezobslužný self-test (parametr selftest=1) - reprodukovatelné měření výkonu bez obsluhy.
+            StartSelfTestIfRequested();
         }
 
         /// <summary>
@@ -102,6 +105,41 @@ namespace ARBot.ViewModels
             var doc = new ImageDocument();
 
             // Pripoj dokument na verejny Stream runtime; odpojeni pri zavreni resi AttachFeed/Dispose.
+            try
+            {
+                doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
+            }
+            catch { /* runtime nedostupne (napr. design-time) */ }
+
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>
+        /// Otevre (nebo aktivuje) robot-centricky pohled (grid sjizdnosti a vyhledove dalsi
+        /// robot-centricke vrstvy) a pripoji ho na <see cref="ARBotRuntime.Stream"/>. V Run se grid
+        /// pocita synchronne na vlakne kamery (<see cref="ARBot.Common.Vision.CameraFrameProcessor"/>) a je
+        /// soucasti <see cref="ARBot.Common.Devices.CameraFrame"/>; ve View se prehrava zaznamenany -
+        /// dokument v obou pripadech jen zobrazuje, co tece na Streamu.
+        /// </summary>
+        [RelayCommand]
+        private void OpenRobotCentric()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "RobotCentric");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new RobotCentricDocument();
             try
             {
                 doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
@@ -229,9 +267,10 @@ namespace ARBot.ViewModels
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
             RefreshRuntimeCommands();
 
-            // Po startu View otevri navigacni nastroj (krok 9) i obrazovy dokument.
+            // Po startu View otevri navigacni nastroj (krok 9), obrazovy dokument i robot-centricky pohled.
             OpenReplayNav();
             OpenImages();
+            OpenRobotCentric();
         }
 
         /// <summary>Otevre (nebo aktivuje) navigacni nastroj pro replay (View).</summary>

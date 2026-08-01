@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Numerics;
 using System.Text;
 using System.Threading;
 using ARBot.Common.Common;
 using ARBot.Common.Communication;
 using ARBot.Common.Configuration;
+using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
@@ -161,30 +163,54 @@ namespace ARBot.Robot
             var regulator = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
                                           Profile.MaxAcceleration, Profile.Rozchod);
 
+            // Vizualni cesta (krok 3): kamery uz nejsou v pipeline pres SensorMessageSource; ridici
+            // smycka si je na tiku PULLNE pres injektovanou abstrakci (Common nesmi referencovat
+            // HAL/app) a cely CameraFrame forwardne na Stream. Zdroj cte ARBotHW.Current za behu.
+            var cameraPull = new HwCameraPullSource(hw);
+
             // MVP waypoint: (0,0) = bezpecny default (nikam nejede), dokud nebude plano­vac.
             var loop = new ControlLoop(engine, regulator, motor, clock, scheduler,
                                        targetX: 0.0, targetY: 0.0,
-                                       period: TimeSpan.FromMilliseconds(Profile.Ts));
+                                       period: TimeSpan.FromMilliseconds(Profile.Ts),
+                                       cameras: cameraPull);
             stages.Add(loop);
 
             var fusion = new FusionProcessor(engine, mapper);
             stages.Add(fusion);
 
-            // Vize: BackProject nad CameraFrame -> pravdepodobnostni ImageMsg.
-            // includeSourceRgb=false: RGB je uz v zaznamu uvnitr CameraFrame (measurement se zapisuje
-            // vzdy), samostatny "rgb" ImageMsg by byl duplicitni a jen by pridaval Jpeg encode.
-            var vision = new BackProjectProcessor(new BackProject(BackProject.RoadProbability),
-                                                  includeSourceRgb: false);
-            stages.Add(vision);
+            // Vize: probability (barva -> pravdepodobnost) + polarni grid sjizdnosti z hloubky se
+            // pocitaji SYNCHRONNE na vlakne kamery pres CameraFrameProcessor a zapisuji se PRIMO do
+            // CameraFrame (frame.ImageProbability, frame.Grid). Nahrazuje drivejsi asynchronni stupne
+            // BackProjectProcessor + DepthTraversabilityProcessor (viz doc/plan-camera-vision-refactor.md).
+            // Projekce se sestavuje LINE z pripojene kamery (Profile.Left/RightCameraTransform) pres
+            // stavajici lazy resolver; dokud kamera neni pripojena, grid se preskoci. Grid je nyni
+            // soucasti CameraFrame -> tece na Stream a do zaznamu spolu s ramcem; ve View se prehraje.
+            var gridCfg = new PolarGridConfig { UseNativeTransform = true };   // nativni SIMD transform (viz ekvivalencni test)
+            var projectionResolver = BuildDepthProjectionResolver(hw);
+            // Diagnostika (traversability-timing CSV + GC merani na vlakne kamery) je volitelna: pro
+            // soutezni jizdu ji lze vypnout parametrem diag=false (vypne co neni potreba). Default on.
+            bool diag = Program.GetParamBool("diag", true);
+            foreach (var s in hw.Sensors)
+            {
+                if (s is ICamera cam)
+                {
+                    var fp = new CameraFrameProcessor(
+                        projectionResolver, gridCfg,
+                        backProject: new BackProject(BackProject.RoadProbability),
+                        diagnosticsCsvPath: diag ? DiagCsvPath($"traversability-timing-{FileToken(cam.Name)}.csv") : null);
+                    cam.FrameProcessor = fp;
+                    // Pri Stop: odpoj procesor od kamery (prestane pocitat) a zavri jeho diagnostiku.
+                    var c = cam;
+                    connections.Add(new ActionDisposable(() => { c.FrameProcessor = null; fp.Dispose(); }));
+                }
+            }
 
-            // Vstup zpracovani (fan-out primarnich zprav do stupnu).
+            // Vstup zpracovani (fan-out primarnich zprav do stupnu). Vize uz neni v grafu -> jen fuze + rizeni.
             var processing = new RelaySource();
-            connections.Add(processing.Connect(vision));
             connections.Add(processing.Connect(fusion));
             connections.Add(processing.Connect(loop));
 
             // Odvozene vystupy stupnu -> Stream.
-            connections.Add(vision.Output.Connect(stream));
             connections.Add(loop.Output.Connect(stream));
 
             // Router: primarni -> Stream i processing; odvozene -> jen Stream.
@@ -230,21 +256,49 @@ namespace ARBot.Robot
             foreach (var s in sources) s.Start();
         }
 
+        /// <summary>
+        /// Vrati resolver projekci hloubkovych kamer pro <see cref="CameraFrameProcessor"/>:
+        /// mapuje <see cref="CameraFrame.Name"/> na <see cref="IDepthCameraProjection"/> s robot-centrickou
+        /// orientaci (<see cref="Profile.LeftCameraTransform"/> / <see cref="Profile.RightCameraTransform"/>).
+        /// Projekce se sestavuje LINE (kamera se pripojuje az v pozadi smycce a <c>CreateDepthProjector</c>
+        /// vyzaduje pripojenou pipeline) a cachuje; dokud kamera neni pripojena, vraci null.
+        /// </summary>
+        private static Func<string, IDepthCameraProjection> BuildDepthProjectionResolver(ARBotHW hw)
+        {
+            var xforms = new List<(ICamera cam, Matrix4x4 transform)>();
+            if (hw.LeftCamera != null) xforms.Add((hw.LeftCamera, Profile.LeftCameraTransform));
+            if (hw.RightCamera != null) xforms.Add((hw.RightCamera, Profile.RightCameraTransform));
+
+            var cache = new Dictionary<string, IDepthCameraProjection>();
+            return name =>
+            {
+                if (cache.TryGetValue(name, out var p)) return p;
+                foreach (var (cam, tf) in xforms)
+                {
+                    if (cam.Name != name) continue;
+                    try
+                    {
+                        var proj = cam.CreateDepthProjector();   // vyhodi, dokud kamera neni pripojena
+                        proj.SetOrientation(tf);
+                        cache[name] = proj;
+                        return proj;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"DepthProjector '{name}' zatim nedostupny: {ex.Message}");
+                        return null;   // zkusi se znovu pri pristim snimku
+                    }
+                }
+                return null;
+            };
+        }
+
         /// <summary>Sestavi zdroje pro dostupne senzory a pripoji je na router.</summary>
         private void BuildSensorSources(ARBotHW hw, RoleRouter router)
         {
-            // Kamery (CameraFrame).
-            foreach (var s in hw.Sensors)
-            {
-                if (s is ICamera cam)
-                {
-                    var c = cam;
-                    var src = new SensorMessageSource<CameraFrame>(
-                        h => c.MeasurementArived += h, h => c.MeasurementArived -= h);
-                    connections.Add(src.Connect(router));
-                    sources.Add(src);
-                }
-            }
+            // Kamery (CameraFrame) uz NEJSOU zdrojem v pipeline: od kroku 3 je ridici smycka pulluje
+            // (viz HwCameraPullSource) a cely ramec forwardne na Stream. Ostatni senzory (IMU/GPS/motor)
+            // jdou dal pres router/Stream.
 
             // IMU (IMUState).
             if (hw.IMU != null)
@@ -314,12 +368,93 @@ namespace ARBot.Robot
 
         // ---------------- pomocne ----------------
 
+        /// <summary>
+        /// Cesta k diagnostickemu CSV logu ve slozce <c>logs/</c> v korenu repa (fallback build output).
+        /// Prepisuje se pri kazdem Startu (append:false v processoru). null pri selhani.
+        /// </summary>
+        private static string DiagCsvPath(string fileName)
+        {
+            try
+            {
+                var dir = new DirectoryInfo(AppContext.BaseDirectory);
+                while (dir != null)
+                {
+                    string git = Path.Combine(dir.FullName, ".git");
+                    if (Directory.Exists(git) || File.Exists(git)) break;
+                    dir = dir.Parent;
+                }
+                string root = dir?.FullName ?? AppContext.BaseDirectory;
+                string logs = Path.Combine(root, "logs");
+                return Path.Combine(logs, fileName);
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Bezpecny token do nazvu souboru z nazvu kamery (mezery/neplatne znaky -> '_').</summary>
+        private static string FileToken(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "cam";
+            var chars = name.ToCharArray();
+            foreach (var bad in Path.GetInvalidFileNameChars())
+                for (int i = 0; i < chars.Length; i++)
+                    if (chars[i] == bad) chars[i] = '_';
+            for (int i = 0; i < chars.Length; i++)
+                if (char.IsWhiteSpace(chars[i])) chars[i] = '_';
+            return new string(chars);
+        }
+
+        /// <summary>IDisposable, ktery pri <see cref="Dispose"/> zavola predanou akci (uklid pri Stop).</summary>
+        private sealed class ActionDisposable : IDisposable
+        {
+            private Action action;
+            public ActionDisposable(Action action) => this.action = action;
+            public void Dispose()
+            {
+                var a = action;
+                action = null;
+                try { a?.Invoke(); } catch (Exception ex) { Debug.WriteLine(ex); }
+            }
+        }
+
         private void CloseFiles()
         {
             try { fileData?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
             try { fileIndex?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
             fileData = null;
             fileIndex = null;
+        }
+
+        /// <summary>
+        /// Pull kamer pro ridici smycku (krok 3): implementace <see cref="ICameraPullSource"/> nad
+        /// <see cref="ARBotHW"/>. Cte <c>hw.Sensors</c> ZA BEHU (podchyti prip. (od|při)pojeni kamer
+        /// pres CameraStart/CameraStop) a z kazde kamery vyzvedne nejnovejsi nevyzvednuty snimek
+        /// (<see cref="ICamera.GetLastMeasurement"/> - vraci null, kdyz neni novy snimek).
+        ///
+        /// <para>Tim se zachova smer zavislosti <c>Common ← HAL ← app</c>: <see cref="ControlLoop"/>
+        /// v Common zna jen rozhrani <see cref="ICameraPullSource"/>, konkretni cteni HW je zde v app.</para>
+        /// </summary>
+        private sealed class HwCameraPullSource : ICameraPullSource
+        {
+            private readonly ARBotHW hw;
+            public HwCameraPullSource(ARBotHW hw) => this.hw = hw ?? throw new ArgumentNullException(nameof(hw));
+
+            public IReadOnlyList<CameraFrame> PullLatest()
+            {
+                List<CameraFrame> frames = null;
+                // ToArray: hw.Sensors se muze za behu menit (CameraStart/Stop na jinem vlakne);
+                // snapshot zabrani "collection modified" pri iteraci.
+                foreach (var s in System.Linq.Enumerable.ToArray(hw.Sensors))
+                {
+                    if (s is ICamera cam)
+                    {
+                        CameraFrame f = null;
+                        try { f = cam.GetLastMeasurement(); }
+                        catch (Exception ex) { Debug.WriteLine(ex); }
+                        if (f != null) (frames ??= new List<CameraFrame>(2)).Add(f);
+                    }
+                }
+                return (IReadOnlyList<CameraFrame>)frames ?? Array.Empty<CameraFrame>();
+            }
         }
 
         /// <summary>

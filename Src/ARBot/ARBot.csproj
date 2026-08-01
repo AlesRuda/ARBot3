@@ -15,6 +15,12 @@
   </PropertyGroup>
     <PropertyGroup Condition="'$(Platform)' == 'x64'">
 	    <DefineConstants>$(DefineConstants);IsX64</DefineConstants>
+	    <!-- GC: NECHAT defaultni Workstation + background (Concurrent). Server GC byl zkousen a
+	         ZHORSIL latenci (viz doc/devlog.md 2026-07-30): jeho background GC vlakna pri mnoha
+	         stupnich pipeline pretizila CPU (compute wall-time vzrostl, >100ms z 8 % na 20 %).
+	         Trvale reseni GC spicek je snizit alokace (pooling image bufferu kamer), ne menit rezim. -->
+	    <ServerGarbageCollection>false</ServerGarbageCollection>
+	    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Platform)' == 'x86'">

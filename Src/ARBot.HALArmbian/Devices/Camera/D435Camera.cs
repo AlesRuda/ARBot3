@@ -3,6 +3,7 @@ using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.LocalMaps;
+using ARBot.Common.Vision;
 using ARBot.HAL;
 using Intel.RealSense;
 using System;
@@ -40,10 +41,19 @@ namespace ARBot.HAL.Devices.Camera
         /// <summary>Zpetna projekce barev na pravdepodobnostni obraz (volitelna).</summary>
         public IBackProject BackProject { get; set; }
 
+        /// <inheritdoc/>
+        public ICameraFrameProcessor FrameProcessor { get; set; }
+
         /// <summary>Nastaveni barevneho (RGB) streamu.</summary>
         CameraSettings settingsRGB;
         /// <summary>Nastaveni hloubkoveho streamu.</summary>
         CameraSettings settingsDepth;
+
+        /// <summary>Triple-buffer capture pool (krok 4): recyklovane buffery misto alokace per grab.
+        /// Pouziva jen vlakno kamery (GetMeasurement) -> bez zamku.</summary>
+        private readonly CaptureFramePool capturePool = new CaptureFramePool(3);
+        /// <summary>Znovupouzity resize buffer pro (dev) kamerovou BackProject vetev; v Run nepouzito.</summary>
+        private Image<BGR32> resizedColorImage;
 
         /// <summary>Interval opakovanych pokusu o pripojeni, kdyz kamera chybi [ms].</summary>
         private const int ReconnectPeriodMs = 1000;
@@ -188,25 +198,12 @@ namespace ARBot.HAL.Devices.Camera
                 if (pipeline.TryWaitForFrames(out var frames, FrameTimeoutMs))
                 using (frames)
                 {
-                    Image<BGR32> imageRGB = null;
-                    Image<BGR32> resizedColorImage = null;
-                    Image<Gray16> imageDepth = null;
-                    Image<Gray> probabilityImage = null;
-                    List<PathEdge> edges = null;
-
-                    if (settingsRGB != null)
-                    {
-                        imageRGB = new Image<BGR32>(settingsRGB.Width, settingsRGB.Height);
-                        if (BackProject != null)
-                        {
-                            var size = BackProject.Size(settingsRGB.Width, settingsRGB.Height);
-                            if (size.Width != settingsRGB.Width || size.Height != settingsRGB.Height)
-                                resizedColorImage = new Image<BGR32>(size.Width, size.Height);
-                            probabilityImage = new Image<Gray>(size.Width, size.Height);
-                        }
-                    }
-                    if (settingsDepth != null)
-                        imageDepth = new Image<Gray16>(settingsDepth.Width, settingsDepth.Height);
+                    // Poolovany capture slot (recyklovane buffery, krok 4) misto alokace per grab.
+                    var frame = capturePool.Next(
+                        settingsRGB != null, settingsRGB?.Width ?? 0, settingsRGB?.Height ?? 0,
+                        settingsDepth != null, settingsDepth?.Width ?? 0, settingsDepth?.Height ?? 0);
+                    var imageRGB = frame.ImageRGB;
+                    var imageDepth = frame.ImageDepth;
 
                     var ts = TimeBase.Now;
                     var colorFrame = frames.ColorFrame;
@@ -220,24 +217,38 @@ namespace ARBot.HAL.Devices.Camera
                     {
                         GetDataRGB(colorFrame, imageRGB.Data);
 
-                        if (probabilityImage != null)
+                        // Kamerova BackProject vetev (dev): v Run NEpouzita - probability pocita
+                        // CameraFrameProcessor. Buffery jsou znovupouzite (Ensure) misto alokace.
+                        if (BackProject != null)
                         {
-                            if (resizedColorImage != null)
+                            var size = BackProject.Size(imageRGB.Width, imageRGB.Height);
+                            Image<BGR32> bpSrc = imageRGB;
+                            if (size.Width != imageRGB.Width || size.Height != imageRGB.Height)
                             {
+                                resizedColorImage = CameraFramePool.Ensure(resizedColorImage, size.Width, size.Height);
                                 resizedColorImage.Resize(imageRGB);
-                                BackProject.Process(resizedColorImage, probabilityImage);
+                                bpSrc = resizedColorImage;
                             }
-                            else
-                                BackProject.Process(imageRGB, probabilityImage);
+                            frame.ImageProbability = CameraFramePool.Ensure(frame.ImageProbability, size.Width, size.Height);
+                            BackProject.Process(bpSrc, frame.ImageProbability);
 
                             if (cu != null)
-                            {
-                                edges = cu.PathEdges(probabilityImage, (double)imageRGB.Width / (double)probabilityImage.Width, (double)imageRGB.Height / (double)probabilityImage.Height);
-                            }
+                                _ = cu.PathEdges(frame.ImageProbability,
+                                    (double)imageRGB.Width / frame.ImageProbability.Width,
+                                    (double)imageRGB.Height / frame.ImageProbability.Height);
                         }
                     }
 
-                    return new CameraFrame() { Name = Name, ImageRGB = imageRGB, ImageDepth = imageDepth, ImageProbability = probabilityImage, TimeStamp = ts, RGBTimeStamp = RGBTimeStamp, DepthTimeStamp = DepthTimeStamp };
+                    frame.Name = Name;
+                    frame.TimeStamp = ts;
+                    frame.RGBTimeStamp = RGBTimeStamp;
+                    frame.DepthTimeStamp = DepthTimeStamp;
+
+                    // Synchronni dopocet odvozenych vlastnosti (probability, polarni grid) na vlakne
+                    // kamery - misto asynchronniho fan-outu do pipeline (viz doc/plan-camera-vision-refactor.md).
+                    FrameProcessor?.Process(frame);
+
+                    return frame;
                 }
 
                 // Timeout bez snimku: odpojeni se nemusi projevit vyjimkou, jen prestanou chodit

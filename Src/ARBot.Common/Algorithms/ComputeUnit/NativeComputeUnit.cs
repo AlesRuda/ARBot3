@@ -598,6 +598,14 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         public static int DepthTransformImpl(Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len)
             => NativeMethods.DepthTransformImpl(dst, transform, rotate, dist, len);
 
+        /// <summary>
+        /// Nativni SIMD depth-&gt;pointcloud. <paramref name="dist"/> je surovy Gray16 obraz (mm),
+        /// prevod mm-&gt;m je uvnitr. Vystup <paramref name="dst"/> je v OPACNEM poradi oproti pixelum
+        /// (dst[len-1-p] = bod pixelu p); nezmerene pixely = [0,0,0,0].
+        /// </summary>
+        public static int DepthTransform2Impl(Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len)
+            => NativeMethods.DepthTransform2Impl(dst, transform, rotate, dist, len);
+
         public static int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, Point4D[] ops, float minCount, float minStd2)
             => NativeMethods.ExtractObstaclesImpl(ais, uais, len, ops, minCount, minStd2);
 

@@ -230,7 +230,8 @@ public enum Mode { Run, View /*, Simulate (odloženo) */ }
 7. **Router** (`IPrimaryMessage`): primární → zpracování i `Stream`.
 8. **`ARBotRuntime`** (`Mode {Run,View}`, `Start/Stop`, `Stream`, drátování grafu per režim);
    **migrace dokumentů na odběr `Stream`u** (`ImageDocument`, `CameraDocument`…) místo vlastního feedu;
-   `OpenImages` = `Stream.Connect(doc)`; vize (`BackProjectProcessor`) je součást runtime grafu v Run.
+   `OpenImages` = `Stream.Connect(doc)`; vize byla tehdy stupněm grafu (`BackProjectProcessor`) — dnes ji
+   počítá `CameraFrameProcessor` synchronně v kameře a kamery se pullují `ControlLoop`em (viz Otevřené úkoly).
 9. **View navigace:** `FileMessageSource` Play/Paused + `SeekTo` (náhodné čtení) + navigační tool.
 
 ## Verzování zpráv (serializace) — POVINNÝ princip
@@ -309,12 +310,32 @@ pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při 
 
 ## Otevřené úkoly
 
+- **Revize vizuální cesty na synchronní vlákno-per-kamera** (proti GC pauzám z per-snímek alokací
+  velkých `Image`): kamera → vize synchronně na vlákně kamery, grid v `CameraFrame`, kamery pullované
+  `ControlLoop`em místo `SensorSource`, poolované buffery + kopie s release pro záznam/UI. Fúze a
+  řídicí smyčka (malé zprávy) zůstávají. Návrh + odůvodnění: [decisions.md 2026-08-01](decisions.md).
+  Plán: [plan-camera-vision-refactor.md](plan-camera-vision-refactor.md).
+  - **Krok 1–2 HOTOVO** (2026-08-01, ověřeno buildem/testy **i na HW** — 1 kamera, `wait` avg 37→13 ms):
+    `ICameraFrameProcessor`/`CameraFrameProcessor` počítá probability + grid synchronně v kameře, grid je
+    v `CameraFrame.Grid` (FormatVersion 2), konzumenti čtou `frame.Grid`, staré async stupně vyřazeny
+    z grafu, `PolarTraversabilityGridMsg` zrušen.
+  - **Krok 3–4 HOTOVO v kódu** (2026-08-01, build x64 i OrangePI + testy zelené, **HW ověření pod zátěží
+    čeká**): kamery **nejsou** v grafu přes `SensorMessageSource`; `ControlLoop` je na tiku **pulluje**
+    (`ICameraPullSource` naplněný `ARBotRuntime.HwCameraPullSource` z `ARBotHW.Current`) a **celý
+    `CameraFrame`** (raw + grid) forwardne na `Stream` pro záznam/UI — bezztrátově vzhledem k datům, která
+    řízení reálně vzorkovalo. Buffery kamery jsou **poolované** (`CaptureFramePool`, triple-buffer) a každý
+    async odběratel (`RecordingTarget`, `ImageDocument`) si drží **vlastní pool kopií** (`CameraFramePool`)
+    s Acquire/Release (best-effort drop při vyschnutí). Cíl: churn ~0 v ustáleném stavu (ověřit na HW přes
+    `logs/traversability-timing-*.csv`). `BackProject` (probability) je vstup **pro řízení** → počítá se vždy
+    (viz [decisions.md 2026-08-01](decisions.md)).
+
 - **Runtime + režimy + scheduler + periodická řídicí smyčka** (viz Implementační kontrakt).
 - **Revize `FusionConfig`** — duplicitní rozchod (`FusionConfig.WheelBase = 0.5` vs `Profile.Rozchod = 0.41`);
   projít obsah `FusionConfig` a **sjednotit zdroj rozchodu** (řízení bere `Profile.Rozchod`).
-- **Serializace `CameraFrame` — HOTOVO** (2026-07-25). `CameraFrame` má versioned
-  `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`) a je v replay
-  katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
+- **Serializace `CameraFrame` — HOTOVO** (2026-07-25, rozšířeno 2026-08-01 na **FormatVersion 2**:
+  uvnitř rámce se nově serializuje i `Grid`; `FromData` má větev `case 1` (bez gridu) i `case 2`).
+  `CameraFrame` má versioned `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`)
+  a je v replay katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
   `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Vrstvy se ukládají přes
   `ImageMsg.Write` **bez komprese (`None`)** — šetří CPU (žádné Jpeg/Png/Deflate kódování).
   `CameraFrame` je **měření (primární) → zaznamenává se VŽDY** (v `RecordingTarget` bez limitu).

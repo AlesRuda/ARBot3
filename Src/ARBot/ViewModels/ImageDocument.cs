@@ -30,6 +30,11 @@ namespace ARBot.ViewModels
     {
         public override Type ViewType => typeof(ARBot.Views.ImageDocumentView);
 
+        /// <summary>DIAGNOSTIKA (self-test): počet zpracovaných snímků a vytvořených <c>WriteableBitmap</c>
+        /// napříč všemi instancemi (proces). Ověřuje, zda okno Images reálně churnuje. Jen UI vlákno.</summary>
+        public static long DiagFramesIngested;
+        public static long DiagBitmapsCreated;
+
         /// <summary>Rozsah hloubky pro normalizaci Gray16 do grayscale [mm].</summary>
         private const double DepthMaxMm = 6000.0;
 
@@ -42,6 +47,21 @@ namespace ARBot.ViewModels
         private readonly object pendingGate = new object();
         private readonly Dictionary<string, Message> pending = new Dictionary<string, Message>();
         private volatile bool updateQueued;
+
+        // Vlastni pool kopii surovych snimku (krok 4): CameraFrame nese poolovane capture buffery kamery,
+        // ktere UI renderuje az POZDEJI na UI vlakne (Flush). V Post() (na vlakne producenta) si proto
+        // porizeme stabilni kopii; po vyrenderovani ji v Flush vratime. Vycerpani = drop (nech stary snimek).
+        // Grid se nekopiruje (referenci - je immutable per snimek, viz CameraFramePool).
+        private readonly CameraFramePool framePool = new CameraFramePool(6);
+
+        // Grid sjizdnosti jako overlay vrstva "<kamera>/Traversability": rasterizuje se do velikosti
+        // depth snimku (per-pixel alfa) a zarovnava se pres ColumnsPerCell (azimut) x RadialEdge.Row
+        // (radialne). Rozmer se bere z depth vrstvy stejne kamery (grid rozmer obrazu nenese).
+        private readonly Dictionary<string, (PolarTraversabilityGrid grid, DateTime ts)> gridByCam
+            = new Dictionary<string, (PolarTraversabilityGrid, DateTime)>();
+        private readonly Dictionary<string, (int w, int h)> depthSizeByCam = new Dictionary<string, (int, int)>();
+        private readonly Dictionary<string, WriteableBitmap> prerendered = new Dictionary<string, WriteableBitmap>();
+        private const string TraversabilitySuffix = "/Traversability";
 
         /// <summary>Dostupne pojmenovane vrstvy (pro comba).</summary>
         public ObservableCollection<string> Layers { get; } = new ObservableCollection<string>();
@@ -85,22 +105,58 @@ namespace ARBot.ViewModels
         {
             if (msg == null) return;
 
+            // CameraFrame nese poolovane capture buffery kamery (krok 4): porizeme stabilni poolovanou
+            // kopii, protoze render probiha az pozdeji na UI vlakne. Vycerpani poolu = drop (nech stary).
+            Message store = msg;
+            if (msg is CameraFrame cf0)
+            {
+                var copy = framePool.Acquire(cf0);
+                if (copy == null) return;   // pool vyschl -> drop
+                store = copy;
+            }
+
             // Coalescing klic - jen obrazove zpravy (ostatni ignorujeme, at neplanujeme flush zbytecne).
-            string key = msg switch
+            // Grid je nyni soucasti CameraFrame (klic "C:") - samostatna grid zprava uz neexistuje.
+            string key = store switch
             {
                 CameraFrame cf => "C:" + (cf.Name ?? string.Empty),
                 ImageMsg m => "B:" + (m.Name ?? string.Empty),
                 _ => null
             };
-            if (key == null) return;
+            if (key == null)
+            {
+                if (store is CameraFrame stray) framePool.Release(stray);
+                return;
+            }
 
             lock (pendingGate)
-                pending[key] = msg;   // nejnovejsi vyhrava (drop stale)
+            {
+                // Nahrazeny snimek (drop stale) vratime do poolu, at neteceme sloty.
+                if (pending.TryGetValue(key, out var old) && old is CameraFrame oldCf)
+                    framePool.Release(oldCf);
+                pending[key] = store;   // nejnovejsi vyhrava (drop stale)
+            }
+
+            // Skryty dokument (neaktivni tab): nejnovejsi si PAMATUJEME (pending vyse, poolovana kopie),
+            // ale NErenderujeme (drahe WriteableBitmapy = GC churn - viz devlog: 397 bitmap -> gen2).
+            // Render se provede az pri zviditelneni (OnActiveChanged) na zapamatovana data.
+            if (!IsActive) return;
 
             if (updateQueued) return;
             updateQueued = true;
             // Background priorita: vstup a vykreslovani maji prednost pred zpracovanim obrazu,
             // takze UI zustane responzivni i pri zaplave framu.
+            Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// Pri zviditelneni (dokument se stal aktivnim tabem) vyrenderuj zapamatovanou nejnovejsi zpravu
+        /// (pending) hned - okno okamzite ukaze aktualni snimek a pak jede zive. Skryty se nerenderuje.
+        /// </summary>
+        protected override void OnActiveChanged(bool active)
+        {
+            if (!active || updateQueued) return;
+            updateQueued = true;
             Dispatcher.UIThread.Post(Flush, DispatcherPriority.Background);
         }
 
@@ -118,11 +174,22 @@ namespace ARBot.ViewModels
             }
 
             foreach (var m in batch)
+            {
                 Ingest(m);
+                // Po vyrenderovani (Ingest zkopiroval data do WriteableBitmap, grid drzime referenci)
+                // vratime poolovanou kopii snimku zpet. No-op pro nepoolovane zpravy (ImageMsg).
+                if (m is CameraFrame cf) framePool.Release(cf);
+            }
         }
 
         private void Ingest(Message msg)
         {
+            DiagFramesIngested++;
+            // Grid je soucasti CameraFrame (spolu s depth vrstvou stejneho ramce) - zpracuj ho jako prvni,
+            // pak pokracuj bezne rozkladem na obrazove vrstvy (RGB/Probability/Depth).
+            if (msg is CameraFrame f && f.Grid != null)
+                IngestGrid(f.Name ?? string.Empty, f.Grid, f.TimeStamp);
+
             foreach (var layer in MessageImageLayers.Extract(msg))
             {
                 bool isNew = !registry.ContainsKey(layer.Name);
@@ -133,11 +200,55 @@ namespace ARBot.ViewModels
                     AutoSelect(layer);
                 }
 
+                // Zapamatuj rozmer depth vrstvy (pro rasterizaci gridu stejne kamery).
+                if (layer.Kind == LayerKind.Depth && layer.Depth != null && layer.Name.EndsWith(DepthSuffix))
+                {
+                    string cam = layer.Name.Substring(0, layer.Name.Length - DepthSuffix.Length);
+                    depthSizeByCam[cam] = (layer.Depth.Width, layer.Depth.Height);
+                    if (gridByCam.TryGetValue(cam, out var pending))
+                        RegisterGridOverlay(cam, pending.grid, pending.ts);
+                }
+
                 if (layer.Name == LeftLayer) RenderSlot(Slot.Left, layer);
                 if (layer.Name == RightLayer) RenderSlot(Slot.Right, layer);
                 if (layer.Name == LeftOverlayLayer) RenderSlot(Slot.LeftOverlay, layer);
                 if (layer.Name == RightOverlayLayer) RenderSlot(Slot.RightOverlay, layer);
             }
+        }
+
+        private const string DepthSuffix = "/Depth";
+
+        private void IngestGrid(string cam, PolarTraversabilityGrid grid, DateTime ts)
+        {
+            gridByCam[cam] = (grid, ts);
+            // Rasterizovat lze az kdyz znam rozmer depth snimku te kamery (jinak pockame na nej).
+            if (depthSizeByCam.ContainsKey(cam))
+                RegisterGridOverlay(cam, grid, ts);
+        }
+
+        private void RegisterGridOverlay(string cam, PolarTraversabilityGrid grid, DateTime ts)
+        {
+            if (!depthSizeByCam.TryGetValue(cam, out var sz)) return;
+            var bmp = RenderGridOverlay(grid, sz.w, sz.h);
+            if (bmp == null) return;
+
+            string name = cam + TraversabilitySuffix;
+            prerendered[name] = bmp;
+            string info = string.Format(CultureInfo.InvariantCulture, "{0}  {1:HH:mm:ss.fff}  Δ{2:F0} ms",
+                name, ts, (DateTime.Now - ts).TotalMilliseconds);
+
+            if (!Layers.Contains(name))
+            {
+                Layers.Add(name);
+                // Vychozi: grid do leveho overlaye a jako podklad depth stejne kamery (pokud volno).
+                if (string.IsNullOrEmpty(LeftOverlayLayer)) LeftOverlayLayer = name;
+                if (string.IsNullOrEmpty(LeftLayer)) LeftLayer = cam + DepthSuffix;
+            }
+
+            if (name == LeftLayer) SetSlotImage(Slot.Left, bmp, info);
+            if (name == RightLayer) SetSlotImage(Slot.Right, bmp, info);
+            if (name == LeftOverlayLayer) SetSlotImage(Slot.LeftOverlay, bmp, info);
+            if (name == RightOverlayLayer) SetSlotImage(Slot.RightOverlay, bmp, info);
         }
 
         /// <summary>Rozumne vychozi prirazeni slotu pri objeveni nove vrstvy.</summary>
@@ -168,7 +279,9 @@ namespace ARBot.ViewModels
 
         private void RenderFromRegistry(Slot slot, string name)
         {
-            if (!string.IsNullOrEmpty(name) && registry.TryGetValue(name, out var layer))
+            if (!string.IsNullOrEmpty(name) && prerendered.TryGetValue(name, out var bmp))
+                SetSlotImage(slot, bmp, name);
+            else if (!string.IsNullOrEmpty(name) && registry.TryGetValue(name, out var layer))
                 RenderSlot(slot, layer);
             else
                 SetSlotImage(slot, null, "-");
@@ -210,6 +323,7 @@ namespace ARBot.ViewModels
         {
             if (rgb == null || rgb.Width <= 0 || rgb.Height <= 0) return null;
             int w = rgb.Width, h = rgb.Height;
+            DiagBitmapsCreated++;
             var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Opaque);
             using (var fb = bmp.Lock())
@@ -227,6 +341,7 @@ namespace ARBot.ViewModels
             if (gray == null || gray.Width <= 0 || gray.Height <= 0) return null;
             int w = gray.Width, h = gray.Height;
             var src = gray.Data;   // 1 bajt/pixel
+            DiagBitmapsCreated++;
             var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Opaque);
             byte[] row = new byte[w * 4];
@@ -252,6 +367,7 @@ namespace ARBot.ViewModels
             if (depth == null || depth.Width <= 0 || depth.Height <= 0) return null;
             int w = depth.Width, h = depth.Height;
             var src = depth.Data;   // 2 bajty/pixel, little-endian
+            DiagBitmapsCreated++;
             var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Opaque);
             byte[] row = new byte[w * 4];
@@ -271,6 +387,67 @@ namespace ARBot.ViewModels
                     }
                     Marshal.Copy(row, 0, fb.Address + y * fb.RowBytes, w * 4);
                 }
+            }
+            return bmp;
+        }
+
+        /// <summary>
+        /// Rasterizuje grid sjizdnosti do overlaye velikosti depth snimku (per-pixel alfa, prazdno =
+        /// pruhledne). Zarovnani: azimut = skupina <see cref="PolarTraversabilityGrid.ColumnsPerCell"/>
+        /// sloupcu (trim dopocten z sirky), radialne = pasmo radku <see cref="RadialEdge.Row"/>.
+        /// Unknown/prazdne bunky se nevykresluji (depth pak prosvita).
+        /// </summary>
+        private static WriteableBitmap RenderGridOverlay(PolarTraversabilityGrid g, int w, int h)
+        {
+            if (g?.Cells == null || g.RadialEdges == null || w <= 0 || h <= 0) return null;
+            int N = g.ColumnsPerCell, A = g.AzimuthCount, R = g.RadialCount;
+            if (N <= 0 || A <= 0 || R <= 0) return null;
+
+            int trim = Math.Max(0, (w - A * N) / 2);
+            var buf = new byte[w * h * 4];   // Bgra8888, vynulovano = pruhledne
+
+            for (int a = 0; a < A; a++)
+            {
+                int x0 = Math.Max(0, a * N + trim);
+                int x1 = Math.Min(w, a * N + N + trim);
+                if (x0 >= x1) continue;
+
+                for (int r = 0; r < R; r++)
+                {
+                    var cell = g.Cells[a * R + r];
+                    if (cell.Count <= 0 || cell.Class == TraversabilityClass.Unknown) continue;
+
+                    int rowNear = g.RadialEdges[r].Row;
+                    int rowFar = g.RadialEdges[r + 1].Row;
+                    if (rowNear < 0 || rowFar < 0) continue;
+                    int y0 = Math.Max(0, Math.Min(rowNear, rowFar));
+                    int y1 = Math.Min(h, Math.Max(rowNear, rowFar));
+                    if (y0 >= y1) continue;
+
+                    byte b, gc, rc;
+                    if (cell.Class == TraversabilityClass.Obstacle) { b = 0x35; gc = 0x39; rc = 0xE5; }
+                    else { b = 0x50; gc = 0xAF; rc = 0x4C; }
+                    byte alpha = (byte)Math.Clamp(60f + 160f * cell.Confidence, 0f, 255f);
+
+                    for (int y = y0; y < y1; y++)
+                    {
+                        int rowBase = y * w * 4;
+                        for (int x = x0; x < x1; x++)
+                        {
+                            int o = rowBase + x * 4;
+                            buf[o] = b; buf[o + 1] = gc; buf[o + 2] = rc; buf[o + 3] = alpha;
+                        }
+                    }
+                }
+            }
+
+            DiagBitmapsCreated++;
+            var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
+                PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+            using (var fb = bmp.Lock())
+            {
+                for (int y = 0; y < h; y++)
+                    Marshal.Copy(buf, y * w * 4, fb.Address + y * fb.RowBytes, w * 4);
             }
             return bmp;
         }

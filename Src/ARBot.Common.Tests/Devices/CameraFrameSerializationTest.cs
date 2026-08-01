@@ -6,6 +6,7 @@ using ARBot.Common.Communication;
 using ARBot.Common.Devices;
 using ARBot.Common.Logs;
 using ARBot.Common.Tests.Runtime;   // TestHelpers, DelegateTarget
+using ARBot.Common.Vision;
 
 namespace ARBot.Common.Tests.Devices
 {
@@ -146,6 +147,168 @@ namespace ARBot.Common.Tests.Devices
             using var ms = new MemoryStream(new byte[64]);
             using var br = new BinaryReader(ms, TestHelpers.Enc);
             Assert.That(() => f.FromData(br), Throws.TypeOf<NotSupportedException>());
+        }
+
+        // --- Verzovani gridu (FormatVersion 2) ---
+
+        private static PolarTraversabilityGrid MakeGrid()
+        {
+            // A=2 azimuty, R=2 prstence (RadialEdges.Length = R+1 = 3).
+            return new PolarTraversabilityGrid
+            {
+                AzimuthCount = 2,
+                ColumnsPerCell = 16,
+                RadialEdges = new[]
+                {
+                    new RadialEdge(0.30f, 40),
+                    new RadialEdge(0.80f, 30),
+                    new RadialEdge(1.50f, 20),
+                },
+                Cells = new[]
+                {
+                    new PolarCell { Count = 10, MeanX = 0.5f, MeanY = 0.1f, MeanZ = 0.01f, StdZ = 0.02f, MaxZ = 0.05f, EdgeRange = 0.40f, Confidence = 0.70f, Class = TraversabilityClass.Free },
+                    new PolarCell { Count = 12, MeanX = 0.9f, MeanY = 0.2f, MeanZ = 0.30f, StdZ = 0.08f, MaxZ = 0.35f, EdgeRange = 0.85f, Confidence = 0.40f, Class = TraversabilityClass.Obstacle },
+                    new PolarCell { Count = 0,  MeanX = 0f,   MeanY = 0f,   MeanZ = 0f,    StdZ = 0f,    MaxZ = 0f,    EdgeRange = float.NaN, Confidence = 0f,  Class = TraversabilityClass.Unknown },
+                    new PolarCell { Count = 9,  MeanX = 1.1f, MeanY = -0.3f, MeanZ = 0.02f, StdZ = 0.03f, MaxZ = 0.06f, EdgeRange = 1.05f, Confidence = 0.55f, Class = TraversabilityClass.Free },
+                },
+                ComputeMs = 12.3,   // diagnostika - NESMI se serializovat (po replay = 0)
+            };
+        }
+
+        [Test]
+        public void CameraFrame_V2_WithGrid_RoundTrips()
+        {
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                TimeStamp = T0,
+                RGBTimeStamp = T0.AddMilliseconds(1),
+                DepthTimeStamp = T0.AddMilliseconds(2),
+                ImageDepth = MakeImage<Gray16>(4, 4, 100),
+                Grid = MakeGrid(),
+            };
+
+            using var ms = new MemoryStream();
+            var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
+            rec.Start(); rec.Post(frame); rec.Stop();
+
+            var catalog = MessageCatalog.CommonDefaults().Register(new CameraFrame());
+            CameraFrame r = null;
+            var sink = new DelegateTarget(m => { if (m is CameraFrame c) r = c; });
+            sink.Start();
+            using (var rms = new MemoryStream(ms.ToArray()))
+            {
+                var src = new FileMessageSource(rms, TestHelpers.Enc, catalog);
+                src.Connect(sink);
+                src.RunToEnd();
+            }
+            sink.Stop();
+
+            Assert.That(r, Is.Not.Null);
+            Assert.That(r.Verze, Is.EqualTo(CameraFrame.FormatVersion));
+            Assert.That(r.Grid, Is.Not.Null, "grid se prenesl");
+
+            var g = MakeGrid();
+            Assert.That(r.Grid.AzimuthCount, Is.EqualTo(g.AzimuthCount));
+            Assert.That(r.Grid.ColumnsPerCell, Is.EqualTo(g.ColumnsPerCell));
+            Assert.That(r.Grid.RadialEdges.Length, Is.EqualTo(g.RadialEdges.Length));
+            for (int i = 0; i < g.RadialEdges.Length; i++)
+            {
+                Assert.That(r.Grid.RadialEdges[i].Range, Is.EqualTo(g.RadialEdges[i].Range), $"Edge.Range[{i}]");
+                Assert.That(r.Grid.RadialEdges[i].Row, Is.EqualTo(g.RadialEdges[i].Row), $"Edge.Row[{i}]");
+            }
+            Assert.That(r.Grid.Cells.Length, Is.EqualTo(g.Cells.Length));
+            for (int i = 0; i < g.Cells.Length; i++)
+            {
+                Assert.That(r.Grid.Cells[i].Count, Is.EqualTo(g.Cells[i].Count), $"Count[{i}]");
+                Assert.That(r.Grid.Cells[i].MeanX, Is.EqualTo(g.Cells[i].MeanX), $"MeanX[{i}]");
+                Assert.That(r.Grid.Cells[i].MeanY, Is.EqualTo(g.Cells[i].MeanY), $"MeanY[{i}]");
+                Assert.That(r.Grid.Cells[i].MeanZ, Is.EqualTo(g.Cells[i].MeanZ), $"MeanZ[{i}]");
+                Assert.That(r.Grid.Cells[i].StdZ, Is.EqualTo(g.Cells[i].StdZ), $"StdZ[{i}]");
+                Assert.That(r.Grid.Cells[i].MaxZ, Is.EqualTo(g.Cells[i].MaxZ), $"MaxZ[{i}]");
+                Assert.That(r.Grid.Cells[i].Confidence, Is.EqualTo(g.Cells[i].Confidence), $"Conf[{i}]");
+                Assert.That(r.Grid.Cells[i].Class, Is.EqualTo(g.Cells[i].Class), $"Class[{i}]");
+            }
+            Assert.That(r.Grid.ComputeMs, Is.EqualTo(0.0), "ComputeMs je diagnostika - neserializuje se");
+        }
+
+        [Test]
+        public void CameraFrame_V2_NullGrid_RoundTripsToNull()
+        {
+            var frame = new CameraFrame { Name = "Left", TimeStamp = T0, Grid = null };
+
+            using var ms = new MemoryStream();
+            var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
+            rec.Start(); rec.Post(frame); rec.Stop();
+
+            var catalog = MessageCatalog.CommonDefaults().Register(new CameraFrame());
+            CameraFrame r = null;
+            var sink = new DelegateTarget(m => { if (m is CameraFrame c) r = c; });
+            sink.Start();
+            using (var rms = new MemoryStream(ms.ToArray()))
+            {
+                var src = new FileMessageSource(rms, TestHelpers.Enc, catalog);
+                src.Connect(sink);
+                src.RunToEnd();
+            }
+            sink.Stop();
+
+            Assert.That(r, Is.Not.Null);
+            Assert.That(r.Verze, Is.EqualTo(2));
+            Assert.That(r.Grid, Is.Null);
+        }
+
+        [Test]
+        public void CameraFrame_V1_ReadsWithoutGrid()
+        {
+            // Stary zaznam (verze 1) NEobsahoval grid uvnitr ramce - musi se precist bez chyby (Grid=null).
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                FrameNum = 5,
+                TimeStamp = T0,
+                RGBTimeStamp = T0.AddMilliseconds(1),
+                DepthTimeStamp = T0.AddMilliseconds(2),
+                ImageProbability = MakeImage<Gray>(4, 4, 1),
+            };
+
+            byte[] v1 = SerializeV1(frame);
+
+            var read = new CameraFrame { Verze = 1 };
+            read.FromData(TestHelpers.Enc, v1);
+
+            Assert.That(read.Grid, Is.Null, "verze 1 nema grid");
+            Assert.That(read.Name, Is.EqualTo("Left"));
+            Assert.That(read.FrameNum, Is.EqualTo(5u));
+            Assert.That(read.TimeStamp, Is.EqualTo(T0));
+            Assert.That(read.RGBTimeStamp, Is.EqualTo(frame.RGBTimeStamp));
+            Assert.That(read.DepthTimeStamp, Is.EqualTo(frame.DepthTimeStamp));
+            Assert.That(read.ImageRGB, Is.Null);
+            Assert.That(read.ImageDepth, Is.Null);
+            Assert.That(read.ImageProbability, Is.Not.Null);
+            Assert.That(read.ImageProbability.Data, Is.EqualTo(frame.ImageProbability.Data));
+        }
+
+        /// <summary>Zapise ramec ve STAREM (verze 1) layoutu: meta + name + 3 obrazy + 2 casy, BEZ gridu.</summary>
+        private static byte[] SerializeV1(CameraFrame f)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, TestHelpers.Enc, leaveOpen: true))
+            {
+                // meta (viz Message.Write(SensorStateBase)): FrameNum, DropedOutNum, periody(Ticks), TimeStamp(Ticks)
+                bw.Write(f.FrameNum);
+                bw.Write(f.DropedOutNum);
+                bw.Write(f.FrameReceivePeriod.Ticks);
+                bw.Write(f.FramePickupPeriod.Ticks);
+                bw.Write(f.TimeStamp.Ticks);
+                bw.Write(f.Name ?? string.Empty);
+                ImageMsg.Write(bw, f.ImageRGB, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageProbability, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageDepth, ImageMsg.Compression.None);
+                bw.Write(f.RGBTimeStamp.ToBinary());
+                bw.Write(f.DepthTimeStamp.ToBinary());
+            }
+            return ms.ToArray();
         }
     }
 }
