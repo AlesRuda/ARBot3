@@ -21,7 +21,17 @@ Kód: [`Src/ARBot/Diagnostics/SelfTest.cs`](../Src/ARBot/Diagnostics/SelfTest.cs
 | `st_robot` | `true` | otevřít okno Robot-centric |
 | `st_name` | `baseline` | štítek varianty (jen do hlavičky souhrnu) |
 | `st_out` | `logs/selftest-result.txt` | cesta k souboru souhrnu |
+| `st_shot` | `false` | pořídit screenshot hlavního okna → `doc/media/selftest-<name>.png` |
+| `st_video` | `false` | nahrát krátké video (animovaný GIF) → `doc/media/selftest-<name>.gif` |
+| `st_video_seconds` | `5` | délka videa [s] |
+| `st_video_fps` | `8` | snímků za sekundu |
+| `st_video_scale` | `3` | zmenšení (GIF je nekomprimovaný → větší číslo = menší soubor) |
 | `no_uart` | `false` | přeskočit UART senzory (IMU/GPS/motor) — čte `ARBotHW` |
+
+> **Screenshot/video** (`doc/media/`): pro ilustrace do deníčku. GIF je **nekomprimovaný** (jednoduchý
+> a korektní zapisovač bez závislostí — ffmpeg není), takže je poměrně velký; pro rozumnou velikost drž
+> `st_video_scale=3..4` a `st_video_seconds<=3`. Auto-generované `selftest-*.{png,gif}` jsou v gitignore;
+> do repa se komitují jen kurátorované obrázky (např. `robot-centric-grid.png`).
 
 **Výstup:** `logs/selftest-result.txt` (přepisuje se) + běhový `logs/traversability-timing-*.csv`.
 Souhrn na kameru: `frames, compute avg/p50/p95/max, >100ms %, gen2 (∑ během Process), wait_avg, cam_alloc_avg`.

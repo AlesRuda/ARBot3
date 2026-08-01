@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ARBot.Diagnostics;
@@ -57,6 +58,21 @@ namespace ARBot.ViewModels
                 // Nech běžet zadaný čas.
                 await Task.Delay(TimeSpan.FromSeconds(cfg.Seconds));
 
+                // Volitelně nahraj krátké video (animovaný GIF) z živých dat.
+                if (cfg.Video)
+                    await RecordVideoAsync(cfg);
+
+                // Screenshot hlavního okna (s živými daty, ještě před zastavením).
+                if (cfg.Shot)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        string path = System.IO.Path.Combine(SelfTest.MediaDir(), $"selftest-{cfg.Name}.png");
+                        if (App.MainTopLevel is Avalonia.Visual v && ScreenCapture.SavePng(v, path))
+                            System.Diagnostics.Debug.WriteLine("SelfTest screenshot: " + path);
+                    });
+                }
+
                 // Zastav (drain + flush diagnostiky).
                 await Dispatcher.UIThread.InvokeAsync(() => StopRuntime());
                 await Task.Delay(300);
@@ -76,6 +92,34 @@ namespace ARBot.ViewModels
                     (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(0);
                 });
             }
+        }
+
+        /// <summary>Zachytí sérii snímků hlavního okna (na UI vlákně) a zakóduje je do animovaného GIF.</summary>
+        private async Task RecordVideoAsync(SelfTestConfig cfg)
+        {
+            int fps = (int)Math.Max(1, cfg.VideoFps);
+            int frameCount = Math.Max(1, (int)(cfg.VideoSeconds * fps));
+            int delayMs = 1000 / fps;
+            var frames = new List<byte[]>(frameCount);
+            int w = 0, h = 0;
+
+            for (int i = 0; i < frameCount; i++)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (App.MainTopLevel is Avalonia.Visual v)
+                    {
+                        var rgb = ScreenCapture.CaptureRgb(v, downscale: Math.Max(1, cfg.VideoScale), out int fw, out int fh);
+                        if (rgb != null) { frames.Add(rgb); w = fw; h = fh; }
+                    }
+                });
+                await Task.Delay(delayMs);
+            }
+
+            // Kódování GIF je CPU náročné - mimo UI vlákno.
+            string gifPath = System.IO.Path.Combine(SelfTest.MediaDir(), $"selftest-{cfg.Name}.gif");
+            bool ok = await Task.Run(() => GifWriter.Save(frames, w, h, delayMs, gifPath));
+            System.Diagnostics.Debug.WriteLine($"SelfTest video: {(ok ? gifPath : "GIF selhal")} ({frames.Count} snímků {w}x{h})");
         }
     }
 }

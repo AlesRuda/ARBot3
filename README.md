@@ -12,4 +12,12 @@ dokumentace v [`doc/`](doc/):
 - [EKF senzorická fúze](doc/ekf-fusion.md)
 - [IMU, souřadnicové systémy a VN100](doc/imu-and-frames.md)
 - [Hardware a připojení](doc/hardware.md)
-- [UI: dokovatelné dokumenty a nástroje](Src/ARBot/ARBot/Views/README.md)
+- [Záznam/přehrávání a vizuální cesta](doc/record-replay.md)
+- [Polární grid sjízdnosti](doc/traversability-grid.md)
+- [UI: dokovatelné dokumenty a nástroje](Src/ARBot/Views/README.md)
+- [Self-test (bezobslužné měření výkonu)](doc/selftest.md)
+
+Deníky projektu:
+
+- 📓 **[DevLog — deníček vývoje](doc/devlog.md)** (co se dělo den po dni; nejnovější nahoře)
+- 🧭 [Deník rozhodnutí](doc/decisions.md) (proč jsme co udělali)
