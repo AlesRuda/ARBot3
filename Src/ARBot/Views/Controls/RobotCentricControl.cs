@@ -15,10 +15,13 @@ namespace ARBot.Views.Controls
     /// Zatim je vrstvou polarni grid sjizdnosti (<see cref="Grids"/>); dalsi vrstvy
     /// (sjizdnost z RGB, okraje vozovky, ...) pribudou jako dalsi vlastnosti + render metody.
     ///
-    /// Kazda bunka gridu se kresli jako vyplneny ctverec u sveho teziste, obarveny podle
+    /// Kazda bunka gridu se kresli jako jeji SKUTECNY pudorys = mezikruhova vysec (radialni pasmo
+    /// z <see cref="PolarTraversabilityGrid.RadialEdges"/> x azimutovy slot sloupce), obarvena podle
     /// <see cref="TraversabilityClass"/> a s pruhlednosti podle <see cref="PolarCell.Confidence"/>.
-    /// Vice kamer se kresli pres sebe (grid je per-kamera). Prekresli se pri zmene vrstev
-    /// (<see cref="AffectsRender{T}"/>).
+    /// Vysece se diky sdilenym hranicim dokonale skladaji (zadny prekryv ani mezery) - drivejsi ctverec
+    /// u teziste se u robota prekryval. Azimutove hranice grid neuklada, rekonstruuji se z lozisek bunek
+    /// (<see cref="AzimuthBoundaries"/>). Vice kamer se kresli pres sebe (grid je per-kamera). Prekresli
+    /// se pri zmene vrstev (<see cref="AffectsRender{T}"/>).
     /// </summary>
     public class RobotCentricControl : Control
     {
@@ -133,22 +136,34 @@ namespace ARBot.Views.Controls
                 {
                     if (g?.Cells == null || g.RadialEdges == null) continue;
                     int R = g.RadialCount;
-                    if (R <= 0) continue;
+                    int A = g.AzimuthCount;
+                    if (R <= 0 || A <= 0) continue;
 
-                    for (int a = 0; a < g.AzimuthCount; a++)
+                    // Azimutove hranice bunek rekonstruovane z lozisek (bearing per sloupec).
+                    // Kdyz je nelze urcit (malo dat), fallback na puvodni ctverce u teziste.
+                    var bnd = AzimuthBoundaries(g, A, R);
+                    if (bnd == null)
                     {
+                        DrawCellsAsSquares(ctx, g, R, A, scale, Screen);
+                        continue;
+                    }
+
+                    for (int a = 0; a < A; a++)
+                    {
+                        double thA = bnd[a], thB = bnd[a + 1];
                         for (int r = 0; r < R; r++)
                         {
                             var cell = g.Cells[a * R + r];
-                            if (cell.Count <= 0) continue;   // prazdna bunka nema teziste
+                            if (cell.Count <= 0) continue;   // prazdna bunka se nekresli
 
-                            // Stetec dle tridy + duvery (znovupouzity z cache, misto new per bunku).
+                            // Bunku kreslime jako jeji SKUTECNY pudorys = mezikruhovou vysec
+                            // (radialni pasmo z RadialEdges x azimutovy slot sloupce). Sdilene hranice
+                            // -> vysece se dokonale skladaji (zadny prekryv ani mezery), na rozdil od
+                            // drivejsiho ctverce u teziste, ktery se u robota prekryval.
                             var brush = CellBrush(cell.Class, cell.Confidence);
-
-                            double side = Math.Max(2.0, (g.RadialEdges[r + 1].Range - g.RadialEdges[r].Range) * scale);
-                            var p = Screen(cell.MeanX, cell.MeanY);
-                            ctx.DrawRectangle(brush, null,
-                                new Rect(p.X - side / 2, p.Y - side / 2, side, side));
+                            double r0 = g.RadialEdges[r].Range * scale;
+                            double r1 = g.RadialEdges[r + 1].Range * scale;
+                            FillSector(ctx, brush, cx, cy, r0, r1, thA, thB);
                         }
                     }
                 }
@@ -165,6 +180,107 @@ namespace ARBot.Views.Controls
                 var ft = Fmt("Čekám na data…", 14, TextBrush);
                 ctx.DrawText(ft, new Point(cx - ft.Width / 2, H / 2 - ft.Height / 2));
             }
+        }
+
+        // Azimutove hranice bunek (A+1 uhlu, rostouci s indexem sloupce) rekonstruovane z lozisek bunek.
+        // Grid neuklada uhly paprsku (jen ColumnsPerCell) - odvodime smer kazdeho azimutoveho sloupce
+        // z prumeru smeru jeho obsazenych bunek a hranice klademe do PULKY mezi sousedni sloupce.
+        // Diky sdilenym hranicim se vysece dokonale skladaji. Uhel je ~linearni v indexu sloupce, takze
+        // chybejici (prazdne) sloupce doplnime lin. interpolaci. Vraci null, kdyz je obsazenych sloupcu < 2.
+        private static double[] AzimuthBoundaries(PolarTraversabilityGrid g, int A, int R)
+        {
+            var bearing = new double[A];
+            var has = new bool[A];
+            int populated = 0;
+            for (int a = 0; a < A; a++)
+            {
+                // Prumer pres JEDNOTKOVE vektory smeru (robustni k rozptylu vzdalenosti v sloupci).
+                double sx = 0, sy = 0; int n = 0;
+                for (int r = 0; r < R; r++)
+                {
+                    var c = g.Cells[a * R + r];
+                    if (c.Count <= 0) continue;
+                    double rr = Math.Sqrt((double)c.MeanX * c.MeanX + (double)c.MeanY * c.MeanY);
+                    if (rr < 1e-6) continue;
+                    sx += c.MeanX / rr; sy += c.MeanY / rr; n++;
+                }
+                if (n > 0) { bearing[a] = Math.Atan2(sy, sx); has[a] = true; populated++; }
+            }
+            if (populated < 2) return null;
+
+            FillMissingBearings(bearing, has, A);
+
+            var bnd = new double[A + 1];
+            for (int a = 1; a < A; a++) bnd[a] = 0.5 * (bearing[a - 1] + bearing[a]);
+            // Kraje: zrcadli pulsirku sousedniho slotu, aby krajni bunky mely realnou sirku.
+            bnd[0] = bearing[0] - (bnd[1] - bearing[0]);
+            bnd[A] = bearing[A - 1] + (bearing[A - 1] - bnd[A - 1]);
+            return bnd;
+        }
+
+        // Doplni bearing[] pro prazdne sloupce (has==false) linearni interpolaci pres index sloupce;
+        // pred prvnim / za poslednim znamym extrapoluje smernici dvou nejblizsich znamych (nebo konst.).
+        private static void FillMissingBearings(double[] bearing, bool[] has, int A)
+        {
+            int first = -1, last = -1;
+            for (int a = 0; a < A; a++) if (has[a]) { if (first < 0) first = a; last = a; }
+
+            // Vnitrni mezery: linearni interpolace mezi ohranicujicimi znamymi sloupci.
+            int prev = first;
+            for (int a = first + 1; a <= last; a++)
+            {
+                if (!has[a]) continue;
+                if (a - prev > 1)
+                {
+                    double step = (bearing[a] - bearing[prev]) / (a - prev);
+                    for (int k = prev + 1; k < a; k++) bearing[k] = bearing[prev] + step * (k - prev);
+                }
+                prev = a;
+            }
+
+            // Kraje: extrapolace smernici u prvni/posledni dvojice znamych (fallback: konstanta).
+            double slopeFront = 0, slopeBack = 0;
+            int next = -1; for (int a = first + 1; a <= last; a++) if (has[a]) { next = a; break; }
+            if (next > first) slopeFront = (bearing[next] - bearing[first]) / (next - first);
+            int prevLast = -1; for (int a = last - 1; a >= first; a--) if (has[a]) { prevLast = a; break; }
+            if (prevLast >= 0 && prevLast < last) slopeBack = (bearing[last] - bearing[prevLast]) / (last - prevLast);
+            for (int a = 0; a < first; a++) bearing[a] = bearing[first] - slopeFront * (first - a);
+            for (int a = last + 1; a < A; a++) bearing[a] = bearing[last] + slopeBack * (a - last);
+        }
+
+        // Vyplni mezikruhovou vysec (radialni pasmo r0..r1 [px] x azimutovy klin thA..thB [rad]) danym
+        // stetcem. Body: bearing 0 = vpred (+X, nahoru), kladny doleva (+Y). Sdilene rohy sousednich
+        // bunek zajisti dokonale skladani. Kvuli jemnosti u robota staci rovne tetivy (ne obloucky).
+        private static void FillSector(DrawingContext ctx, IBrush brush, double cx, double cy,
+                                       double r0, double r1, double thA, double thB)
+        {
+            Point P(double rho, double th) => new Point(cx - rho * Math.Sin(th), cy - rho * Math.Cos(th));
+            var geo = new StreamGeometry();
+            using (var gc = geo.Open())
+            {
+                gc.BeginFigure(P(r0, thA), isFilled: true);
+                gc.LineTo(P(r1, thA));
+                gc.LineTo(P(r1, thB));
+                gc.LineTo(P(r0, thB));
+                gc.EndFigure(true);
+            }
+            ctx.DrawGeometry(brush, null, geo);
+        }
+
+        // Fallback (degenerovana data - viz AzimuthBoundaries == null): puvodni ctverec u teziste.
+        private static void DrawCellsAsSquares(DrawingContext ctx, PolarTraversabilityGrid g, int R, int A,
+                                               double scale, Func<double, double, Point> screen)
+        {
+            for (int a = 0; a < A; a++)
+                for (int r = 0; r < R; r++)
+                {
+                    var cell = g.Cells[a * R + r];
+                    if (cell.Count <= 0) continue;
+                    var brush = CellBrush(cell.Class, cell.Confidence);
+                    double side = Math.Max(2.0, (g.RadialEdges[r + 1].Range - g.RadialEdges[r].Range) * scale);
+                    var p = screen(cell.MeanX, cell.MeanY);
+                    ctx.DrawRectangle(brush, null, new Rect(p.X - side / 2, p.Y - side / 2, side, side));
+                }
         }
 
         private void DrawLegend(DrawingContext ctx)

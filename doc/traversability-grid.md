@@ -67,9 +67,16 @@ Dokovatelný dokument [`RobotCentricDocument`](../Src/ARBot/ViewModels/RobotCent
 control [`RobotCentricControl`](../Src/ARBot/Views/Controls/RobotCentricControl.cs): ptačí pohled,
 robot dole uprostřed, směr vpřed nahoru (X vpřed → nahoru, Y vlevo → vlevo). Dokument je **obecně
 robot-centrický** — časem přibudou další robot-centrické vrstvy (sjízdnost z RGB, okraje vozovky…);
-zatím je vrstvou polární grid sjízdnosti. Každá buňka = vyplněný čtverec u těžiště, barva dle třídy
+zatím je vrstvou polární grid sjízdnosti. Každá buňka se kreslí jako svůj **skutečný půdorys =
+mezikruhová výseč** (radiální pásmo z `RadialEdges` × azimutový slot sloupce), barva dle třídy
 (zelená sjízdné / červená překážka / šedá neznámé), průhlednost dle `Confidence`; dosahové kružnice po
-metrech; robot je vykreslen v měřítku gridu. Odebírá `Stream` (Run i View), backpressure „latest-wins"
+metrech; robot je vykreslen v měřítku gridu. Výseče se díky **sdíleným hranicím dokonale skládají**
+(žádný překryv ani mezery). *(Dřívější vykreslení jako čtverec u těžiště se u robota překrývalo — šířka
+čtverce byla vázaná na radiální tloušťku ≥ 5 cm, což je u malých vzdáleností mnohem víc než azimutová
+rozteč sousedních buněk.)* Azimutové hranice grid **neukládá** (jen `ColumnsPerCell`) — renderer je
+**rekonstruuje z ložisek buněk** (průměrný směr obsazených buněk sloupce → hranice do půlky mezi
+sousedy; prázdné sloupce lin. interpolací). Řešeno čistě v `RobotCentricControl` (bez změny datového
+modelu / serializace; funguje i ve View/replay); při málo datech fallback na původní čtverce. Odebírá `Stream` (Run i View), backpressure „latest-wins"
 ([Views/README.md](../Src/ARBot/Views/README.md)). Menu **Tools → Robot-centric**, ve View automaticky
 po startu. Více kamer se kreslí přes sebe.
 
