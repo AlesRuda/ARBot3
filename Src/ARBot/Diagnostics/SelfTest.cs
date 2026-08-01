@@ -41,6 +41,8 @@ namespace ARBot.Diagnostics
         public double VideoSeconds = 5;  // st_video_seconds
         public double VideoFps = 8;      // st_video_fps
         public int VideoScale = 3;       // st_video_scale: zmenšení (nekomprimovaný GIF je velký -> menší = menší soubor)
+        public string VideoFormat;       // st_video_format: "gif" | "mp4" | null(auto: ffmpeg gif, jinak vestavěný gif)
+        public string FfmpegPath;        // ffmpeg=<cesta>: override umístění ffmpeg
 
         /// <summary>Sestaví konfiguraci z parametrů příkazové řádky.</summary>
         public static SelfTestConfig FromArgs()
@@ -61,6 +63,8 @@ namespace ARBot.Diagnostics
                 VideoSeconds = Program.GetParamDouble("st_video_seconds", 5),
                 VideoFps = Program.GetParamDouble("st_video_fps", 8),
                 VideoScale = (int)Program.GetParamDouble("st_video_scale", 3),
+                VideoFormat = Program.GetParam("st_video_format", null),
+                FfmpegPath = Program.GetParam("ffmpeg", null),
             };
             if (cfg.Seconds < 1) cfg.Seconds = 1;
             return cfg;

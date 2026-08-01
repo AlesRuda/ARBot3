@@ -131,10 +131,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   takže není frameworkem gatován viditelností).
 - **Self-test umí screenshot + video** (návrh uživatele) — pro ilustrace do deníčku. `st_shot=true`
   vyrenderuje hlavní okno do PNG (`ScreenCapture` přes Avalonia `RenderTargetBitmap`); `st_video=true`
-  nahraje krátký animovaný GIF (`GifWriter` — self-contained, ffmpeg tu není). GIF používá
-  **nekomprimovaný LZW** (periodický Clear kód, bez růstu slovníku) — korektní a jednoduché, jen větší
-  soubor (drž `st_video_scale` a krátkou délku). Ověřeno dekódováním přes GDI+ (24 snímků, obraz sedí).
-  Ukázka (robot-centrický grid s živými daty z levé kamery):
+  nahraje krátké video. **Video pipeline:** je-li k dispozici **ffmpeg** (auto-detekce PATH → Shotcut →
+  winget → override), vytvoří se **komprimovaný GIF** (palettegen, ~117 KB) nebo **mp4**
+  (`st_video_format=mp4`, ~34 KB) — obojí ověřeno vytažením snímku zpět. Bez ffmpeg fallback na
+  **vestavěný `GifWriter`** (nekomprimovaný LZW s periodickým Clear kódem — korektní, jen velký;
+  ověřeno přes GDI+). Ukázka (robot-centrický grid s živými daty z levé kamery):
 
   ![Robot-centrický grid sjízdnosti (self-test screenshot)](media/robot-centric-grid.png)
 

@@ -94,32 +94,79 @@ namespace ARBot.ViewModels
             }
         }
 
-        /// <summary>Zachytí sérii snímků hlavního okna (na UI vlákně) a zakóduje je do animovaného GIF.</summary>
+        /// <summary>
+        /// Zachytí sérii snímků hlavního okna a zakóduje video. Když je k dispozici ffmpeg (auto-detekce),
+        /// vytvoří komprimovaný GIF (nebo mp4) - malý a kvalitní; jinak fallback na vestavěný nekomprimovaný GIF.
+        /// </summary>
         private async Task RecordVideoAsync(SelfTestConfig cfg)
         {
             int fps = (int)Math.Max(1, cfg.VideoFps);
             int frameCount = Math.Max(1, (int)(cfg.VideoSeconds * fps));
             int delayMs = 1000 / fps;
+            int scale = Math.Max(1, cfg.VideoScale);
+
+            string ffmpeg = Ffmpeg.Find(cfg.FfmpegPath);
+            bool wantMp4 = string.Equals(cfg.VideoFormat, "mp4", StringComparison.OrdinalIgnoreCase);
+            bool wantBuiltinGif = string.Equals(cfg.VideoFormat, "gif", StringComparison.OrdinalIgnoreCase);
+            bool useFfmpeg = ffmpeg != null && !wantBuiltinGif;
+
+            if (useFfmpeg)
+            {
+                // Šířku okna přečteme na UI vlákně (pro cílovou šířku videa; sudou kvůli yuv420p).
+                int winW = 1280;
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (App.MainTopLevel is Avalonia.Visual v && v.Bounds.Width > 0) winW = (int)v.Bounds.Width;
+                });
+                int targetW = Math.Max(2, (winW / scale) & ~1);
+
+                // Snímky uložíme jako PNG do dočasné složky a necháme je zakódovat ffmpegem.
+                string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arbot-sf-" + Guid.NewGuid().ToString("N"));
+                System.IO.Directory.CreateDirectory(tmp);
+                try
+                {
+                    int captured = 0;
+                    for (int i = 0; i < frameCount; i++)
+                    {
+                        int idx = i;
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            if (App.MainTopLevel is Avalonia.Visual v &&
+                                ScreenCapture.SavePng(v, System.IO.Path.Combine(tmp, $"f_{idx:D5}.png")))
+                                captured++;
+                        });
+                        await Task.Delay(delayMs);
+                    }
+                    string ext = wantMp4 ? "mp4" : "gif";
+                    string outPath = System.IO.Path.Combine(SelfTest.MediaDir(), $"selftest-{cfg.Name}.{ext}");
+                    bool ok = await Task.Run(() => wantMp4
+                        ? Ffmpeg.EncodeMp4(ffmpeg, tmp, "f_%05d.png", fps, targetW, outPath)
+                        : Ffmpeg.EncodeGif(ffmpeg, tmp, "f_%05d.png", fps, targetW, outPath));
+                    System.Diagnostics.Debug.WriteLine($"SelfTest video (ffmpeg {ext}): {(ok ? outPath : "SELHALO")} ({captured} snímků)");
+                    if (ok) return;
+                }
+                finally { try { System.IO.Directory.Delete(tmp, true); } catch { } }
+                // Když ffmpeg selhal, spadneme do vestavěného GIF níže.
+            }
+
+            // Fallback: vestavěný nekomprimovaný GIF (bez ffmpeg).
             var frames = new List<byte[]>(frameCount);
             int w = 0, h = 0;
-
             for (int i = 0; i < frameCount; i++)
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (App.MainTopLevel is Avalonia.Visual v)
                     {
-                        var rgb = ScreenCapture.CaptureRgb(v, downscale: Math.Max(1, cfg.VideoScale), out int fw, out int fh);
+                        var rgb = ScreenCapture.CaptureRgb(v, downscale: scale, out int fw, out int fh);
                         if (rgb != null) { frames.Add(rgb); w = fw; h = fh; }
                     }
                 });
                 await Task.Delay(delayMs);
             }
-
-            // Kódování GIF je CPU náročné - mimo UI vlákno.
             string gifPath = System.IO.Path.Combine(SelfTest.MediaDir(), $"selftest-{cfg.Name}.gif");
-            bool ok = await Task.Run(() => GifWriter.Save(frames, w, h, delayMs, gifPath));
-            System.Diagnostics.Debug.WriteLine($"SelfTest video: {(ok ? gifPath : "GIF selhal")} ({frames.Count} snímků {w}x{h})");
+            bool okGif = await Task.Run(() => GifWriter.Save(frames, w, h, delayMs, gifPath));
+            System.Diagnostics.Debug.WriteLine($"SelfTest video (builtin gif): {(okGif ? gifPath : "GIF selhal")} ({frames.Count} snímků {w}x{h})");
         }
     }
 }
