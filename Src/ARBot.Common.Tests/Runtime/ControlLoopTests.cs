@@ -8,6 +8,7 @@ using ARBot.Common.Logs;
 using ARBot.Common.Models;
 using ARBot.Common.Regulators;
 using ARBot.Common.Runtime;
+using ARBot.Common.Vision;
 
 namespace ARBot.Common.Tests.Runtime
 {
@@ -92,6 +93,70 @@ namespace ARBot.Common.Tests.Runtime
             // Argumenty poslani do motoru odpovidaji poslednimu prikazu.
             Assert.That(motor.LastDif, Is.EqualTo(last.Dif).Within(1e-12));
             Assert.That(motor.LastForvard, Is.EqualTo(last.Forvard).Within(1e-12));
+        }
+
+        /// <summary>Pull kamer (test double): vrati na kazdem pullu predpripravene snimky.</summary>
+        private sealed class FakeCameraPull : ICameraPullSource
+        {
+            public readonly List<CameraFrame> ToReturn = new List<CameraFrame>();
+            public int PullCount;
+            public IReadOnlyList<CameraFrame> PullLatest()
+            {
+                PullCount++;
+                // Snimky se pri pullu "vyzvednou" (jako GetLastMeasurement): dalsi pull uz vraci prazdno.
+                var snap = new List<CameraFrame>(ToReturn);
+                ToReturn.Clear();
+                return snap;
+            }
+        }
+
+        [Test]
+        public void OnTick_PullsCameras_AndForwardsFrameToOutput()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var regulator = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                          Profile.MaxAcceleration, Profile.Rozchod);
+            var ts = TimeSpan.FromMilliseconds(20);
+
+            var pull = new FakeCameraPull();
+            var loop = new ControlLoop(engine, regulator, motor, new VirtualClock(), scheduler,
+                                       targetX: 0.0, targetY: 0.0, period: ts, cameras: pull);
+
+            var frames = new List<CameraFrame>();
+            var collector = new DelegateTarget(m => { if (m is CameraFrame f) lock (frames) frames.Add(f); });
+            collector.Start();
+
+            using (loop.Output.Connect(collector))
+            {
+                // Pripravime jeden snimek s gridem a napumpujeme jeden takt -> snimek se forwardne.
+                var cam = new CameraFrame
+                {
+                    Name = "Left",
+                    TimeStamp = T0,
+                    Grid = new PolarTraversabilityGrid
+                    {
+                        AzimuthCount = 1,
+                        ColumnsPerCell = 1,
+                        RadialEdges = new[] { new RadialEdge(0f, 0), new RadialEdge(1f, 1) },
+                        Cells = new[] { new PolarCell { Count = 1, Class = TraversabilityClass.Free } },
+                    }
+                };
+                pull.ToReturn.Add(cam);
+                scheduler.PumpDue(T0);           // takt s dostupnym snimkem
+                scheduler.PumpDue(T0.AddMilliseconds(20));   // dalsi takt, uz bez noveho snimku
+            }
+            loop.Stop();
+            collector.Stop();
+
+            Assert.That(pull.PullCount, Is.GreaterThanOrEqualTo(2), "PullLatest nebyl volan na kazdem tiku");
+
+            List<CameraFrame> got;
+            lock (frames) got = new List<CameraFrame>(frames);
+            Assert.That(got.Count, Is.EqualTo(1), "forwardnut ma byt prave jeden snimek");
+            Assert.That(got[0].Name, Is.EqualTo("Left"));
+            Assert.That(got[0].Grid, Is.Not.Null, "forwardnut ma byt cely ramec vcetne gridu");
         }
     }
 }

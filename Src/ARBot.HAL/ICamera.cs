@@ -7,6 +7,7 @@ using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
+using ARBot.Common.Vision;
 
 namespace ARBot.HAL
 {
@@ -25,6 +26,13 @@ namespace ARBot.HAL
 
         /// <summary>Aktualni nastaveni hloubkoveho streamu.</summary>
         CameraSettings DepthSettings { get;}
+
+        /// <summary>
+        /// Volitelny synchronni procesor snimku: vola se na vlakne kamery hned po nasnimani a dopocte
+        /// odvozene vlastnosti primo do <see cref="CameraFrame"/> (pravdepodobnost, polarni grid).
+        /// null = kamera jen snima (chovani jako drive). Viz doc/plan-camera-vision-refactor.md.
+        /// </summary>
+        ICameraFrameProcessor FrameProcessor { get; set; }
 
         /// <summary>
         /// (Re)konfiguruje kameru na zadana rozliseni a (znovu)spusti snimani.

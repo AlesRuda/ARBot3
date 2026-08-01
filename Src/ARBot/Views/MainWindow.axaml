@@ -33,6 +33,7 @@
             <MenuItem Header="Tools">
                 <MenuItem Header="Sensors overview" Command="{Binding OpenSensorsCommand}"/>
                 <MenuItem Header="Images" Command="{Binding OpenImagesCommand}"/>
+                <MenuItem Header="Robot-centric" Command="{Binding OpenRobotCentricCommand}"/>
                 <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">

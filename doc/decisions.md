@@ -13,6 +13,119 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-01 — Dominantní zdroj GC pauz byla SERIALIZACE, ne kamerové buffery — ROZHODNUTO/OPRAVENO
+Po nasazení kroku 4 (pooling kamerových bufferů) **200–455 ms záseky přetrvaly** (HW: `compute_ms` max 345 ms,
+~11 % snímků >100 ms; `wait_ms` malý → pull OK). Root-cause: **`MessageWriter.Write` serializoval každou zprávu
+přes novou `MemoryStream` + `ms.ToArray()`** — u `CameraFrame` (~1,8 MB nekomprimované) několik **LOH** alokací
+na snímek (~90 MB/s na vlákně recorderu) → periodická blokující gen2 GC, která pauzovala i vlákno kamery
+uprostřed `Process` (odtud špičky v `compute_ms`). **Pooling image bufferů (krok 4) to nemohl vyřešit** —
+churn byl v serializaci, ne v grabu. **Oprava:** `MessageWriter` serializuje do **jedné znovupoužité
+`MemoryStream`** a zapisuje přímo z `GetBuffer()` (0 alokací/zprávu, wire formát beze změny). Doplněno
+poolování transientů `BuildGrid` (`acc`/`dev`/plane-fit `List`). **Poučení:** měř, kde je churn — dominantní
+zdroj (40×) byl jinde, než plán předpokládal (`Src/ARBot.Common/Communication/MessageWriter.cs`,
+`Src/ARBot.Common/Vision/CameraFrameProcessor.cs`). **Stav:** opraveno, build+testy zelené; **HW re-test čeká.**
+
+### 2026-08-01 — BackProject (probability) je vstup pro řízení robota — ROZHODNUTO
+Otevřená otázka „je RGB→probability (BackProject, ~25 ms/snímek) potřeba pro **řízení**, nebo **jen pro
+vizualizaci**?" (viz [plan-camera-vision-refactor.md](plan-camera-vision-refactor.md), „Rozhodnout před krokem
+3/4") je rozhodnuta: **BackProject bude použit pro řízení robota.** Proto se `ImageProbability` počítá
+**vždy** (když je RGB k dispozici) na vlákně kamery v `CameraFrameProcessor` — **nedělá se z něj volitelný/
+on-demand výpočet** a neschovává se za flag. Důsledek pro krok 4: probability buffer je součást poolovaného
+capture slotu (recykluje se jako RGB/Depth), takže „vždy počítat" nepřidává alokace v ustáleném stavu.
+**Odkazy:** `Src/ARBot.Common/Vision/CameraFrameProcessor.cs` (ComputeProbability, reuse bufferu).
+
+### 2026-08-01 — Synchronní vlákno-per-kamera pro vizuální cestu (proti GC pauzám z alokací) — HOTOVO (kroky 1–4)
+Přepracovat **vizuální cestu** (kamera → vize) z dnešního async fan-outu (`SensorSource` → `RoleRouter`
+→ `Stream` → N `MessageProcessor` stupňů) na **synchronní zpracování na vlákně kamery + pull**. Body:
+
+1. **`CameraFrame` nese i odvozené** (probability, traversability grid). Grid jako **strukturovaná data**
+   (`PolarCell[]` + `RadialEdge[]`), **NE `Image<PolarCell>`** (`IPixel` mismatch — buňka není pixel; a
+   `RadialEdge[]` se do `Image` nevejde; reuse serializace/resize nic neušetří).
+2. **`ICameraFrameProcessor`** — jedna sdílená platformně-nezávislá implementace (výpočet jede přes
+   `NativeComputeUnit`), **per-kamera konfigurace** (projekce + Left/Right transform). `Process(CameraFrame)`
+   se volá **synchronně v rámci kamery** a dopočte probability + grid. **Blokuje vlákno kamery** — to je
+   žádoucí backpressure (kamera zpracuje, kolik stihne; ostatní snímky driver zahodí bez alokace).
+3. **Kamery nejsou v pipeline přes `SensorSource`.** Běží vlastní vlákno (grab + `Process` → nejnovější
+   frame v **poolovaných** bufferech). **`ControlLoop` je pulluje** (čte nejnovější grid pro řízení) a
+   posílá frame na `Stream` pro záznam/UI. (Forward = jen neblokující `Post`; RT tik nezatěžovat víc.)
+4. **Buffery kamery i kopie pro async odběratele (recorder, UI) jsou POOLOVANÉ s explicitním release** —
+   recyklace, ne `new`. **Tvrdý požadavek** (jinak je refaktor zbytečný, viz níže).
+
+**Proč:** Změřené GC pauzy **200–455 ms (~13 % snímků)** — periodické blokující gen2/LOH z per-snímek
+alokací velkých `Image` (~1,8 MB/snímek × 30 fps ≈ 54 MB/s do LOH). Srovnání se starým **ARBot2**
+(WPF/.NET 4.8) ukázalo, že tam to nevadilo **ne** frameworkem (`.NET 10` GC je lepší) ani recyklací
+bufferů (starý app taky `new`oval per snímek), ale **architekturou**: pull + synchronní zpracování na
+vlákně kamery + **jeden živý frame** + **málo vláken**. Nový async fan-out: 30 fps alokace, stejný frame
+v mnoha (neomezených) frontách na mnoha vláknech → vysoký a dlouho žijící LOH churn + víc GC koordinace.
+
+**Klíčový princip (jinak refaktor nemá smysl):** **GC tlak ≠ memcpy.** Zisk je v **recyklaci**, ne ve
+vyhýbání se kopiím. Robot **vždy nahrává** (záznam je nutný pro zpětné prozkoumání) a odběratelé surového
+framu jsou **dva** (recorder vždy, UI když otevřené) — takže „běžný stav bez kopie" ani „jeden vlastník"
+neplatí. Řešení: **každý async odběratel má vlastní pool kopií** a po použití buffer **vrátí**; kamera
+recykluje své buffery. Memcpy 1,5 MB ≈ 0,3 ms CPU a **nealokuje** (cíl je reused) → **~0 alokací/snímek**
+v ustáleném stavu vs. dnešních ~54 MB/s. Kopie `new` každý snímek = jen posun alokace, bez zisku.
+(Alternativa: refcountovaný sdílený pool bez memcpy; při málu odběratelích volíme per-konzument kopie —
+jednodušší vlastnictví.)
+
+**Důsledky / omezení:**
+- Pod přetížením (recorder nestíhá disk) pool kopií vyschne → best-effort drop záznamu, nebo dočasný
+  `new` (churn zpět). Ustálený stav 0.
+- Mění model vizuální cesty z [record-replay.md](record-replay.md) (kroky 1–9). **Fúze** (reaktivní nad
+  měřeními) a **řídicí smyčka** (periodická) zůstávají — pracují s malými zprávami.
+- **`PolarTraversabilityGridMsg` zanikne** (grid je v `CameraFrame`); struktury (`PolarCell`, `RadialEdge`,
+  klasifikace) i výpočet (`BuildGrid`, nativní transform, ekvivalenční test) **zůstávají**,
+  `DepthTraversabilityProcessor` → `ICameraFrameProcessor`.
+- `CameraFrame.ToData/FromData` + grid → **bump `FormatVersion`**.
+
+**Sekvence (inkrementálně, ať se nerozbije naráz):**
+1. `ICameraFrameProcessor` + grid v `CameraFrame`, voláno **synchronně v kameře**; zatím přes stávající Stream.
+2. Konzumenti (robot-centric, overlay) na `CameraFrame.Grid`; `PolarTraversabilityGridMsg` pryč.
+3. **Pull přes `ControlLoop`** + odpojit `SensorSource` pro kamery.
+4. **Pooling** bufferů + per-konzument kopie s release (recorder, UI).
+
+**Stav:** kroky 1–4 **naimplementovány** (build x64 i OrangePI + testy zelené). Kroky 1–2 ověřeny na HW
+(1 kamera, `wait` avg 37→13 ms). Kroky 3–4 (pull přes `ControlLoop`, pooling + per-konzument kopie s release)
+čekají na **HW ověření pod zátěží** (klíčová brána: `logs/traversability-timing-*.csv` — churn ~0, bez
+periodických 200–455 ms špiček; integrita záznamu ve View bez tearingu). **Prováděcí plán (pro agenta):**
+[plan-camera-vision-refactor.md](plan-camera-vision-refactor.md). **Odkazy:** [record-replay.md](record-replay.md),
+`Src/ARBot.Common/Devices/{CameraFrame,CameraFramePool}.cs`, `Src/ARBot.Common/Runtime/{ControlLoop,ICameraPullSource}.cs`,
+`Src/ARBot.Common/Vision/CameraFrameProcessor.cs`, `Src/ARBot/Robot/ARBotRuntime.cs` (HwCameraPullSource),
+`Src/ARBot.Common/Communication/RecordingTarget.cs`, `Src/ARBot/ViewModels/ImageDocument.cs`,
+analýza latence: `logs/traversability-timing.csv`, [devlog.md 2026-07-30](devlog.md).
+
+### 2026-07-29 — Polární grid sjízdnosti z hloubkové kamery (robot-centrický, per-kamera)
+Nový pipeline stupeň `DepthTraversabilityProcessor`: depth → point cloud → **polární grid** sjízdnosti
+→ `PolarTraversabilityGridMsg`. Klíčová rozhodnutí návrhu:
+- **Robot-centrický** (jen transformace kamery vůči tělu, ne světová póza) — detekce nezávisí na
+  lokalizaci.
+- **Per-kamera** grid s vlastním fitem roviny — redundance při výpadku kamery, mizí systematický
+  z-offset mezi kamerami (různý pitch), v překryvu dva nezávislé hlasy pro kartézskou vrstvu.
+- **Azimut = konstantní počet sloupců** (`ColumnsPerCell`, N=16 → 30 buněk), ne konstantní Δθ —
+  celočíselné mapování obraz→buňka, dělitelnost šířky; reálné úhly z `Camera2DToCamera3D`.
+- **Radiálně Δr = max(5 cm, pro cíl bodů)** — 5 cm blízko (návaznost na kartézský occupancy ~5 cm),
+  roste s dálkou; **tvrdá podlaha 8 bodů → `Unknown`** (a `Unknown` ≠ `Free`, nezapisovat jako sjízdné).
+- Buňka nese i **`Confidence`** (váha pro agregaci) a **`EdgeRange`** (sub-buňková náběžná hrana pro
+  „vejde se robot" místo plného TSDF — 2D distance transform + přesná hrana).
+- **Depth→cloud managed** (přes projekci), ne nativní `Segment2` (padá na x64) — plně testovatelné.
+- **Proč tyto parametry:** hustota depth bodů na plochu klesá ~1/r² (konstantní úhlové vzorkování),
+  polární grid s rostoucím Δr drží ~konstantní počet bodů/buňku; odvození řádek→vzdálenost viz
+  [doc/traversability-grid.md](traversability-grid.md).
+- **Zapojení do runtime:** v **Run** jako stupeň grafu (`ARBotRuntime.WireRun`), projekce líně z živé
+  kamery + `Profile.Left/RightCameraTransform`. Ve **View** se grid **nepřepočítává, jen přehrává**
+  zaznamenaný (rozhodnuto 2026-07-30) — přepočet ze záznamu odložen, protože živé intrinsics se
+  nezaznamenávají (offline projekce by chtěla nominální intrinsics nebo rozšíření formátu `.rec`).
+- **Vizualizace:** dokument je obecně **robot-centrický** (`RobotCentricDocument`/`RobotCentricControl`),
+  grid sjízdnosti je první vrstva (časem RGB sjízdnost, okraje vozovky). Tvar robotu je ve sdílené
+  `RobotGlyph` (parametr orientace + pozice) — použitelné i pro budoucí world view.
+- **`RadialEdge { Range, Row }`:** radiální hrana nese metry **i řádek depth obrazu**, kde se láme →
+  grid jde vykreslit přímo přes depth snímek (bez samostatného obrázku tříd, který by zbytečně nafukoval
+  data). Overlay přes depth se tak počítá z `PolarTraversabilityGridMsg` (sloupce z `ColumnsPerCell`,
+  řádky z `Row`).
+- **Stav:** geometrie + klasifikace ověřeny syntetickým testem (kamera shora); prahy/šumový model
+  se doladí na reálných datech.
+- **Odkazy:** `Src/ARBot.Common/Vision/{DepthTraversabilityProcessor,PolarTraversabilityGridMsg,PolarGridConfig}.cs`,
+  test `Src/ARBot.Common.Tests/Vision/DepthTraversabilityProcessorTest.cs`, registrace v `MessageCatalog.CommonDefaults`.
+
 ### 2026-07-25 — `Blob` → `ImageMsg`; obraz jako `Image`, bez `BlobType`/`Data`; komprese v serializaci
 Původní `Blob` (BlobType + syrové `Data` + lazy JPEG) přejmenován na **`ImageMsg`** a přepracován:
 nese přímo netypový **`Common.Image`** (pixel typ = identita, `PixelTypeName`), `Data` a `BlobType`

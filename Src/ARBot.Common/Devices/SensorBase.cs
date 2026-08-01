@@ -98,6 +98,14 @@ namespace ARBot.Common.Devices
         /// <summary>Idle-backoff [ms] pri chybe/prazdnem mereni, aby smycka nebusy-spinovala.</summary>
         protected virtual int IdleBackoffMs => 20;
 
+        /// <summary>Horni mez backoffu [ms] pri trvale chybe (odpojeny senzor polluje pomalu).</summary>
+        protected virtual int MaxErrorBackoffMs => 1000;
+
+        // Pocet po sobe jdoucich chyb (0 = OK). Rizeni exponencialniho backoffu a throttlingu logu,
+        // aby trvale chybujici senzor (napr. odpojeny UART) NEspaloval CPU ani nealokoval stack-trace
+        // stringy kazdou iteraci (jinak periodicky gen2 churn na jeho vlakne - viz devlog 2026-08-01).
+        private int errStreak;
+
         protected void Process()
         {
             while (!stopRequired)
@@ -130,14 +138,20 @@ namespace ARBot.Common.Devices
                         // backoff, aby smycka nebusy-spinovala a nezaplavovala Debug log.
                         System.Threading.Thread.Sleep(IdleBackoffMs);
                     isError = false;
+                    errStreak = 0;
                 }
                 catch (Exception ex)
                 {
                     isError = true;
-                    Debug.WriteLine(ex.ToString());
-                    // Chyba ve zpracovani: backoff, aby se pri trvale chybe (napr. NRE z
-                    // nedostupneho UARTu) nezacyklila tesna smycka s logovanim.
-                    System.Threading.Thread.Sleep(IdleBackoffMs);
+                    // Trvale chybujici senzor (odpojeny UART): NElogovat kazdou iteraci - ex.ToString()
+                    // alokuje cely stack-trace string (zbytecny GC churn na vlakne senzoru). Logujeme
+                    // jen prvni chybu a pak rIdce jen ex.Message; backoff roste exponencialne (mrtvy
+                    // senzor pak polluje ~1x/s misto 50x/s).
+                    if (errStreak == 0 || (errStreak & 63) == 0)
+                        Debug.WriteLine($"{Name}: {ex.Message}");
+                    errStreak++;
+                    int backoff = Math.Min(MaxErrorBackoffMs, IdleBackoffMs << Math.Min(6, errStreak));
+                    System.Threading.Thread.Sleep(backoff);
                 }
             }
             task = null;

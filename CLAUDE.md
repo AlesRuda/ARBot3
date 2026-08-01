@@ -22,6 +22,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   body **FLU** (X vpřed, Y vlevo, Z nahoru). Viz [doc/imu-and-frames.md](doc/imu-and-frames.md).
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
   s dopadem na HW napiš, co je odsimulované vs. co je nutné ověřit na zařízení.
+- **Průběžně veď DevLog** — na konci sezení se smysluplnou změnou přidej záznam dne do
+  [doc/devlog.md](doc/devlog.md) (pravidla psaní jsou v hlavičce toho souboru).
 
 ## Doménová dokumentace
 
@@ -29,6 +31,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (`Common ← HAL ← app`), kam patří fúze / adaptéry / řídicí smyčka.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
   netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
+- [doc/devlog.md](doc/devlog.md) — **DevLog / deníček vývoje** (co se dělo den po dni);
+  chronologický příběh projektu. Nejnovější nahoru; udržuj průběžně.
 - [doc/build-and-platforms.md](doc/build-and-platforms.md) — platformy, HAL (Windows/Armbian),
   nativní knihovna, RealSense verze, externí (ne-NuGet) reference.
 - [doc/ekf-fusion.md](doc/ekf-fusion.md) — EKF senzorická fúze (`ARBot.Common/Fusion`);
@@ -38,7 +42,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
+- [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
+  kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
   (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
+- [doc/selftest.md](doc/selftest.md) — bezobslužný self-test (`selftest=true`): reprodukovatelné
+  A/B měření výkonu vizuální cesty (otevře okna, Run, počká, souhrn z CSV, ukončí se).
 
 Když vznikne nová netriviální doménová oblast, přidej k ní `doc/*.md` a odkaz sem.

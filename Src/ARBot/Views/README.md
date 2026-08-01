@@ -86,6 +86,18 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   Kameru **NEvlastní** (je sdílená z `ARBotHW.Sensors`) — v `Dispose` se jen odhlásí. (Odlišné od
   `D435TestDocument`, který si vlastní kameru vytváří a zavírá — ten slouží jako samostatný test D435.)
 
+## Dokumenty nad `Stream` (ne senzory)
+
+- `ImageDocument` — obrazové vrstvy (ImageMsg/CameraFrame), odběr `ARBotRuntime.Stream`. Umí i overlay
+  gridu sjízdnosti jako vrstvu `"<kamera>/Traversability"` (rasterizace z `PolarTraversabilityGridMsg`
+  do velikosti depth snímku, per-pixel alfa) — vybere se do overlay slotu nad `"<kamera>/Depth"`.
+- `RobotCentricDocument` (`RobotCentricControl`) — robot-centrický (ptačí) pohled na robot-centrická
+  měření. Robot dole, vpřed nahoru; sdílené scaffolding (dosahové kružnice, osa, tvar robotu v měřítku)
+  + vrstvy. Zatím vrstva: polární grid sjízdnosti (`PolarTraversabilityGridMsg`) — buňky obarvené dle
+  třídy, průhlednost dle důvěry. Výhledově další vrstvy (RGB sjízdnost, okraje vozovky…). Odběr `Stream`
+  (Run i View), backpressure „latest-wins". Menu **Tools → Robot-centric**.
+  Viz [doc/traversability-grid.md](../../../doc/traversability-grid.md).
+
 Pozn.: dokumenty senzorů se obnovují **událostí `MeasurementArived`**, ne časovačem —
 data se tak zobrazují rovnoměrně, jak chodí z driveru. Rozhraní `IIMU`/`IGPS`/`IMotorControl`/`ICamera`
 proto událost vystavují (implementace ji dědí ze `SensorBase`).
@@ -134,6 +146,18 @@ Aplikováno v: `CameraDocument`, `D435TestDocument`, `IMUDocument`, `GpsDocument
 koalescenci nad řádky. **Každý nový dokument aktualizovaný z eventu/streamu musí tenhle vzor
 dodržet.**
 
+## Gate renderu na viditelnost tabu (DocumentBase.IsActive)
+
+`DocumentBase.IsActive` (nastavuje `DockFactory` z `ActiveDockableChanged` = aktivní tab
+`DocumentDock`) umožňuje dokumentu **gatovat drahý render, když není vidět**. Nutné pro
+vizualizace, jejichž render **neběží přes Avalonia `Control.Render`** (ten framework gatuje
+viditelností sám) — typicky tvorba `WriteableBitmap` ve ViewModelu. `ImageDocument`: nejnovější
+zprávu si **vždy pamatuje** (`pending`, poolovaná kopie), ale renderuje **jen když je aktivní**;
+při zviditelnění (`OnActiveChanged`) hned vyrenderuje zapamatovaný snímek. Bez toho skrytý tab
+chrlí `WriteableBitmap` (GC gen2) na pozadí — viz [devlog 2026-08-01](../../../doc/devlog.md).
+`RobotCentricControl` gate nepotřebuje (renderuje přes `Control.Render`).
+
 Možné další optimalizace obrazových dokumentů (zatím neuděláno): recyklace `WriteableBitmap`
-místo alokace na každý frame; přesun `MessageImageLayers.Extract` (JPEG dekód / barevný
-převod) na worker vlákno mimo UI — viz TODO v [build-and-platforms.md](../../../doc/build-and-platforms.md).
+místo alokace na každý frame **když je dokument viditelný** (skrytý už díky IsActive nerenderuje);
+přesun `MessageImageLayers.Extract` (JPEG dekód / barevný převod) na worker vlákno mimo UI — viz
+TODO v [build-and-platforms.md](../../../doc/build-and-platforms.md).

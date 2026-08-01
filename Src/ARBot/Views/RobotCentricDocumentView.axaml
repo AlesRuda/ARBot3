@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.RobotCentricDocumentView"
+             x:DataType="vm:RobotCentricDocument">
+    <Design.DataContext><vm:RobotCentricDocument/></Design.DataContext>
+
+    <Grid>
+        <ctl:RobotCentricControl Grids="{Binding Grids}"/>
+
+        <!-- Info overlay vpravo dole -->
+        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6"
+                Background="#80000000" Padding="8,4" CornerRadius="3">
+            <TextBlock Text="{Binding Info}" Foreground="White" FontSize="12"/>
+        </Border>
+    </Grid>
+</UserControl>

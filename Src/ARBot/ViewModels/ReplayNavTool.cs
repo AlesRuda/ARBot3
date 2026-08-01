@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ARBot.Common.Communication;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -27,6 +28,9 @@ namespace ARBot.ViewModels
         [ObservableProperty] private int maximum;
         [ObservableProperty] private bool isPlaying;
         [ObservableProperty] private string info = "-";
+
+        /// <summary>Radky indexu pro grid (Seq/typ/jmeno/cas). Vyber v gridu = <see cref="Position"/>.</summary>
+        public IReadOnlyList<IndexEntry> Rows => src?.Index;
 
         /// <summary>Konstruktor pro design-time / navrhar (bez zdroje).</summary>
         public ReplayNavTool()

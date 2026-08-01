@@ -11,23 +11,23 @@ namespace ARBot.Common.Communication
     public struct IndexEntry
     {
         /// <summary>Poradove cislo zpravy (od 0).</summary>
-        public long Seq;
+        public long Seq { get; set; }
         /// <summary>Offset zacatku ramce v datovem souboru.</summary>
-        public long Offset;
+        public long Offset { get; set; }
         /// <summary>Delka celeho ramce (hlavicka + payload) v bajtech.</summary>
-        public int Length;
+        public int Length { get; set; }
         /// <summary>Cas porizeni (T_in) v tickach (0 = neznamy).</summary>
-        public long CaptureTicks;
+        public long CaptureTicks { get; set; }
         /// <summary>Cas prichodu na Stream (T_out) v tickach (0 = neznamy). Stampuje <see cref="RecordingTarget"/>.</summary>
-        public long ArrivalTicks;
+        public long ArrivalTicks { get; set; }
         /// <summary>Nazev typu zpravy.</summary>
-        public string MsgName;
+        public string MsgName { get; set; }
         /// <summary>Jmeno instance zpravy z <see cref="ARBot.Common.Logs.INamedMessage"/> (jinak prazdne).</summary>
-        public string Name;
+        public string Name { get; set; }
 
-        /// <summary>Cas porizeni (T_in) jako <see cref="DateTime"/>.</summary>
+        /// <summary>Cas porizeni (T_in) jako <see cref="DateTime"/>. K tomuto okamziku se data uplatnuji.</summary>
         public DateTime CaptureTime => new DateTime(CaptureTicks);
-        /// <summary>Cas prichodu (T_out) jako <see cref="DateTime"/>.</summary>
+        /// <summary>Cas prichodu (T_out) jako <see cref="DateTime"/>. Okamzik kdy se data dostanou do streamu, ale jejich platnost je zpetne k CaptureTime.</summary>
         public DateTime ArrivalTime => new DateTime(ArrivalTicks);
     }
 

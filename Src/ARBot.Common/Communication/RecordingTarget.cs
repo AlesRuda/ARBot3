@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using ARBot.Common.Common;
+using ARBot.Common.Devices;
 using ARBot.Common.Logs;
 
 namespace ARBot.Common.Communication
@@ -36,6 +37,11 @@ namespace ARBot.Common.Communication
         private readonly Dictionary<string, int> limits;
         private readonly Dictionary<string, int> inflight;
         private readonly object countsLock = new object();
+
+        // Vlastni pool kopii surovych snimku (krok 4): CameraFrame nese poolovane capture buffery kamery,
+        // ktere se serializuji az POZDEJI na vlakne recorderu. V Post() (na vlakne producenta = tik) si
+        // proto porizeme stabilni kopii; po zapisu (Consume) ji vratime. Vycerpani = best-effort drop.
+        private readonly CameraFramePool framePool = new CameraFramePool(8);
 
         /// <param name="dataStream">Datovy soubor (proud zprav).</param>
         /// <param name="indexStream">Sidecar index; null = bez indexu.</param>
@@ -74,6 +80,18 @@ namespace ARBot.Common.Communication
         public override void Post(Message msg)
         {
             if (msg == null) return;
+
+            // CameraFrame nese poolovane capture buffery kamery (krok 4). Serializace probiha az na
+            // vlakne recorderu (async fronta), takze si synchronne porizeme STABILNI poolovanou kopii,
+            // nez kamera buffer recykluje. Vycerpani poolu = best-effort drop zaznamu tohoto snimku
+            // (zadna alokace, RT se nebrzdi). Kopie se vraci po zapisu v Consume.
+            if (msg is CameraFrame cf)
+            {
+                var copy = framePool.Acquire(cf);
+                if (copy == null) return;   // pool vyschl -> drop
+                base.Post(new Envelope(copy, TimeBase.Now.Ticks));
+                return;
+            }
 
             long arrival = TimeBase.Now.Ticks;   // T_out (cas prichodu)
 
@@ -132,6 +150,9 @@ namespace ARBot.Common.Communication
                 });
             }
             seq++;
+
+            // Poolovanou kopii snimku vratime zpet (no-op pro snimky mimo pool, napr. ostatni typy).
+            if (inner is CameraFrame cf) framePool.Release(cf);
         }
 
         /// <inheritdoc/>

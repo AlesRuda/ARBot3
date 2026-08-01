@@ -57,6 +57,9 @@ namespace ARBot.Common.Communication
             c.Register(new RobotStateMsg());
             c.Register(new MeasurementDiagMsg());
             c.Register(new DriveCommandMsg());
+            // POZN.: PolarTraversabilityGridMsg zrusen - grid je nyni soucasti CameraFrame
+            // (viz doc/plan-camera-vision-refactor.md). Stare zaznamy s touto zpravou se pri replay
+            // preskoci (neznamy typ), prehravani se nerozbije.
             return c;
         }
     }
