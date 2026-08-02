@@ -160,17 +160,15 @@ namespace ARBot.Robot
             // Motory: realny driver z ARBotHW, jinak DummyMotors (dev bez HW).
             IMotorControl motor = hw.Motor ?? (IMotorControl)new DummyMotors();
 
-            var regulator = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                                          Profile.MaxAcceleration, Profile.Rozchod);
-
             // Vizualni cesta (krok 3): kamery uz nejsou v pipeline pres SensorMessageSource; ridici
             // smycka si je na tiku PULLNE pres injektovanou abstrakci (Common nesmi referencovat
             // HAL/app) a cely CameraFrame forwardne na Stream. Zdroj cte ARBotHW.Current za behu.
             var cameraPull = new HwCameraPullSource(hw);
 
-            // MVP waypoint: (0,0) = bezpecny default (nikam nejede), dokud nebude plano­vac.
-            var loop = new ControlLoop(engine, regulator, motor, clock, scheduler,
-                                       targetX: 0.0, targetY: 0.0,
+            // Ridici smycka jede naplanovanou drahu (ControlLoop.Path); dokud ji vyssi smycka
+            // (mapa/OSM -> IPathPlanner.Plan) nenastavi, Path je null -> robot stoji (bezpecny stav).
+            // Viz doc/path-following.md.
+            var loop = new ControlLoop(engine, motor, clock, scheduler,
                                        period: TimeSpan.FromMilliseconds(Profile.Ts),
                                        cameras: cameraPull);
             stages.Add(loop);

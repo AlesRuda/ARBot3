@@ -351,7 +351,7 @@ namespace UnitTests
         public void Regulator1()
         {
             var reg = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed, Profile.MaxAcceleration, Profile.Rozchod);
-            RegulatorResult r = reg.Control(new ModelState(Profile.Rozchod) { Orientation=Conversions.Deg2Rad(100), LeftWheelVelocity=-0.01, RightWheelVelocity=0.01 }, new RegulatorWayPoint[] { new RegulatorWayPoint() { X = -6.1, Y = -0.005, Speed = 0, MaxPositionError = 0.1 } });
+            RegulatorResult r = reg.Control(new ModelState(Profile.Rozchod) { Orientation=Conversions.Deg2Rad(100), LeftWheelVelocity=-0.01, RightWheelVelocity=0.01 }, new RegulatorWayPoint() { X = -6.1, Y = -0.005, Speed = 0, MaxPositionError = 0.1 });
 
             var a=Conversions.Rad2Deg(Conversions.Orientation2Azimut(Math.Atan2(0.5, -0.1)));
         }
@@ -371,10 +371,10 @@ namespace UnitTests
             m.CurrentState.X = 1;
             m.CurrentState.Y = 2;
             m.CurrentState.Orientation = 0;
-            var ret =r.Control(m.CurrentState, new RegulatorWayPoint[] { new RegulatorWayPoint() { X = 2, Y = 3 } });
+            var ret =r.Control(m.CurrentState, new RegulatorWayPoint() { X = 2, Y = 3 });
             Assert.IsTrue(ret.RotationSpeed > 0, "Musi rotovat doleva");
             m.CurrentState.Orientation = Math.PI;
-            ret = r.Control(m.CurrentState, new RegulatorWayPoint[] { new RegulatorWayPoint() { X = 2, Y = 3 } });
+            ret = r.Control(m.CurrentState, new RegulatorWayPoint() { X = 2, Y = 3 });
             Assert.IsTrue(ret.RotationSpeed < 0, "Musi rotovat doprava");
 
         }

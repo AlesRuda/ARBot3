@@ -13,6 +13,44 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-02 — Sjednocení regulátorů: jedno `IRegulator`, jeden bodový regulátor přes `IMotionProfile` — ROZHODNUTO/HOTOVO
+Navazuje na regulátor sledování dráhy (níže). Sjednocení, aby nižší smyčka regulovala transparentně na bod
+i na dráhu:
+- **`IRegulator` = `IPathController`** (splynuly): `Control(IModelState) → RegulatorResult` + `IsFinished`.
+  Cíl (bod / dráha) drží regulátor uvnitř; profilové metody (`Dist2Speed`, …) z rozhraní zmizely (jsou v
+  `IMotionProfile`). Dvě implementace: `PointRegulator` (bod) a `PathResult` (dráha).
+- **`PointRegulator` nahradil `Regulator` i `SimplRegulator`.** Jediný rozdíl mezi nimi byl `IMotionProfile`
+  (lichoběžník vs. odmocnina) a koeficient `stability` — obojí je teď parametr profilu. Vznikl
+  `SqrtMotionProfile` (odmocninový zákon z `SimplRegulator`, ale **konzistentně** — `SimplRegulator.Control`
+  počítal rotaci buggy). Staré třídy **smazány** až po důkazu parity (`PointRegulator(Trapezoid)` bit-identický
+  s `Regulator.Control` přes mřížku stavů; `SqrtMotionProfile` == odmocninový zákon `SimplRegulator`), pak
+  paritní testy překlopeny na golden/closed-form.
+- **`ControlLoop.Path` → `ControlLoop.Regulator`** (typ `IRegulator`). Nižší smyčka teď jede libovolný regulátor.
+**Odkazy:** `Src/ARBot.Common/Regulators/{IRegulator,PointRegulator,SqrtMotionProfile}.cs`, `ControlLoop.cs`,
+[path-following.md](path-following.md). **Stav:** hotové, build + 242 testů zeleno.
+
+### 2026-08-02 — Regulátor sledování dráhy: feedforward + brzdná obálka, ne proporcionální řízení — ROZHODNUTO/HOTOVO (Fáze 1–5)
+Nový obecný regulátor, který robota vede **dráhou z waypointů** tak, aby každý uzel projel v rámci
+`MaxPositionError` (ε) **maximální rychlostí** (uzly bez zastavení). Klíčová rozhodnutí a *proč*:
+- **Feedforward + přeplánování z pózy, ne pure-pursuit `ω=v·κ`.** Statické proporcionální řízení na
+  odchylku ignoruje dynamiku (accel-limit `ω`, `Ts=100 ms`, zpoždění EKF) a v tomto setupu **kmitá**
+  (ověřeno z praxe). Zásah se místo toho každý tik generuje přes accel-limitovaný profil (`IMotionProfile`),
+  uzavřená smyčka jde do plánu přes dynamiku, ne přes gain. Recykluje se bodová mechanika starého regulátoru.
+- **Rohy kruhovým obloukem, ne klotoidou.** Chyba oblouk-vs-klotoida je na reálných parametrech **≤ ~5 mm**
+  proti ε=100 mm (< 5 %), přechodová a hluboko pod nejistotou EKF (cm). Rozhoduje malý náběhový úhel
+  `ω²/(2α)≈8°`. Klotoida se nevyplatí. Kryto rezervou `PathEpsilonMargin≈1 cm`.
+- **Plán počítá jen zpětnou brzdnou obálku, ne dopředný průchod.** Akceleraci řeší runtime živě —
+  `startSpeed = IModelState.Velocity`. Plán drží jen `VLimit(uzel)` = strop, ze kterého jde splnit budoucnost.
+- **`τ_look ≈ 3·Ts` (lookahead úměrný rychlosti).** Analýza odchylky vs. `L_d` (viz doc): drží odchylku
+  1–5 % ε a stabilitu při všech rychlostech (v ostrém rohu je `v` malé → `L_d` malé; `L_d/(v·Ts)` konstantní).
+- **`ControlLoop.Path` jako settable property + watchdog, bez výchozí dráhy.** Vyšší smyčka (mapa/OSM)
+  atomicky přehazuje dráhu; `null` = stání (bezpečný stav); zastaralá dráha (`PathControlTimeOut`) = dobrzdění
+  po poslední trase. Nahrazuje dřívější pevný waypoint + starý `Regulator` v `ControlLoop`.
+- **Staré regulátory (`Regulator`, `SimplRegulator`) ponechány beze změny chování** (pravidlo „nemazat staré
+  dokud nové nepotvrdí testy"); `Control` narovnán na jeden waypoint (Fáze 1). Nový kód proven 237 testy
+  (parita profilu, plánovač, simulace sledování, integrace).
+**Odkazy:** [path-following.md](path-following.md), `Src/ARBot.Common/Regulators/{IMotionProfile,TrapezoidMotionProfile,IPathPlanner,IRegulator,PathPlanner,PathResult}.cs`, `Src/ARBot.Common/Runtime/ControlLoop.cs`, `Src/ARBot.Common/Configuration/Profile.cs`. **Stav:** Fáze 1–5 hotové (rozhraní `IPathController` později sjednoceno do `IRegulator` — viz záznam výše), build+237 testů zeleno; **ověření na HW čeká** (dynamika motorů, τ_look sweep na record/replay + selftestu, vyšší smyčka = plánovač trasy zatím neexistuje).
+
 ### 2026-08-01 — Dominantní zdroj GC pauz byla SERIALIZACE, ne kamerové buffery — ROZHODNUTO/OPRAVENO
 Po nasazení kroku 4 (pooling kamerových bufferů) **200–455 ms záseky přetrvaly** (HW: `compute_ms` max 345 ms,
 ~11 % snímků >100 ms; `wait_ms` malý → pull OK). Root-cause: **`MessageWriter.Write` serializoval každou zprávu

@@ -108,10 +108,16 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(msg.TimeStamp, Is.EqualTo(imus[k].TimeStamp));
         }
 
-        // Regulator z parametru Profile (MVP dle record-replay.md).
-        private static Regulator MakeRegulator()
-            => new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                             Profile.MaxAcceleration, Profile.Rozchod);
+        // Naplanovana draha (0,0)->(5,5) z parametru Profile. Kazde volani vraci novou (stavovou)
+        // instanci PathResult, aby kazda smycka mela vlastni progres.
+        private static IRegulator MakePath()
+            => new PathPlanner(new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                                          Profile.MaxAcceleration, Profile.Rozchod))
+               .Plan(new[]
+               {
+                   new RegulatorWayPoint { X = 0, Y = 0 },
+                   new RegulatorWayPoint { X = 5, Y = 5 },
+               });
 
         /// <summary>
         /// Deterministicky scenar: pro kazdou IMU vlozi mereni do fuze a napumpuje scheduler
@@ -148,9 +154,8 @@ namespace ARBot.Common.Tests.Runtime
                 var rec = new RecordingTarget(dataMs, null, TestHelpers.Enc);
                 var engine = new AsyncFusionEngine(new EKFModel());
                 var scheduler = new Scheduler();
-                var loop = new ControlLoop(engine, MakeRegulator(), new DummyMotors(),
-                                           new VirtualClock(), scheduler,
-                                           targetX: 5.0, targetY: 5.0, period: ts);
+                var loop = new ControlLoop(engine, new DummyMotors(),
+                                           new VirtualClock(), scheduler, period: ts) { Regulator = MakePath() };
                 rec.Start();
                 using (loop.Output.Connect(rec))
                 {
@@ -183,9 +188,8 @@ namespace ARBot.Common.Tests.Runtime
             var comparison = new ComparisonTarget(reference, tolerance: 1e-6);
             var engine2 = new AsyncFusionEngine(new EKFModel());
             var scheduler2 = new Scheduler();
-            var loop2 = new ControlLoop(engine2, MakeRegulator(), new DummyMotors(),
-                                        new VirtualClock(), scheduler2,
-                                        targetX: 5.0, targetY: 5.0, period: ts);
+            var loop2 = new ControlLoop(engine2, new DummyMotors(),
+                                        new VirtualClock(), scheduler2, period: ts) { Regulator = MakePath() };
             comparison.Start();
             using (loop2.Output.Connect(comparison))
             {

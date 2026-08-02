@@ -45,12 +45,17 @@ namespace ARBot.Common.Tests.Runtime
             var engine = new AsyncFusionEngine(new EKFModel());
             var scheduler = new Scheduler();
             var motor = new SpyMotors();
-            var regulator = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                                          Profile.MaxAcceleration, Profile.Rozchod);
             var ts = TimeSpan.FromMilliseconds(20);
 
-            var loop = new ControlLoop(engine, regulator, motor, new VirtualClock(), scheduler,
-                                       targetX: 3.0, targetY: 2.0, period: ts);
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler, period: ts);
+            // Naplanovana draha (0,0)->(3,2): smycka jede path controller.
+            var profile = new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                                     Profile.MaxAcceleration, Profile.Rozchod);
+            loop.Regulator = new PathPlanner(profile).Plan(new[]
+            {
+                new RegulatorWayPoint { X = 0, Y = 0 },
+                new RegulatorWayPoint { X = 3, Y = 2 },
+            });
 
             var msgs = new List<Message>();
             var collector = new DelegateTarget(m => { lock (msgs) msgs.Add(m); });
@@ -116,13 +121,10 @@ namespace ARBot.Common.Tests.Runtime
             var engine = new AsyncFusionEngine(new EKFModel());
             var scheduler = new Scheduler();
             var motor = new SpyMotors();
-            var regulator = new Regulator(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                                          Profile.MaxAcceleration, Profile.Rozchod);
             var ts = TimeSpan.FromMilliseconds(20);
 
             var pull = new FakeCameraPull();
-            var loop = new ControlLoop(engine, regulator, motor, new VirtualClock(), scheduler,
-                                       targetX: 0.0, targetY: 0.0, period: ts, cameras: pull);
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler, period: ts, cameras: pull);
 
             var frames = new List<CameraFrame>();
             var collector = new DelegateTarget(m => { if (m is CameraFrame f) lock (frames) frames.Add(f); });
@@ -157,6 +159,63 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(got.Count, Is.EqualTo(1), "forwardnut ma byt prave jeden snimek");
             Assert.That(got[0].Name, Is.EqualTo("Left"));
             Assert.That(got[0].Grid, Is.Not.Null, "forwardnut ma byt cely ramec vcetne gridu");
+        }
+
+        [Test]
+        public void NoPath_StandsStill()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var ts = TimeSpan.FromMilliseconds(20);
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler, period: ts);
+            // Path zamerne NEnastaven -> bezpecny stav (stani).
+
+            for (int i = 0; i < 5; i++)
+                scheduler.PumpDue(T0.AddMilliseconds(i * 20));
+            loop.Stop();
+
+            Assert.That(motor.DriveCount, Is.GreaterThan(0), "Drive se vola i bez drahy");
+            Assert.That(motor.LastForvard, Is.EqualTo(0.0), "bez drahy stoji (forvard=0)");
+            Assert.That(motor.LastDif, Is.EqualTo(0.0), "bez drahy stoji (dif=0)");
+        }
+
+        [Test]
+        public void Watchdog_StalePath_RampsForwardDown()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var ts = TimeSpan.FromMilliseconds(100);
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: ts, pathTimeout: TimeSpan.FromMilliseconds(250));
+            var profile = new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                                     Profile.MaxAcceleration, Profile.Rozchod);
+            loop.Regulator = new PathPlanner(profile).Plan(new[]
+            {
+                new RegulatorWayPoint { X = 0, Y = 0 },
+                new RegulatorWayPoint { X = 5, Y = 0 },
+            });
+
+            var cmds = new List<DriveCommandMsg>();
+            var collector = new DelegateTarget(m => { if (m is DriveCommandMsg c) lock (cmds) cmds.Add(c); });
+            collector.Start();
+            using (loop.Output.Connect(collector))
+            {
+                // t=0..600ms; draha se neobnovuje -> po 250ms zastarala -> dobrzdeni.
+                for (int i = 0; i <= 6; i++)
+                    scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            }
+            loop.Stop();
+            collector.Stop();
+
+            List<DriveCommandMsg> got;
+            lock (cmds) got = new List<DriveCommandMsg>(cmds);
+            Assert.That(got.Count, Is.GreaterThan(3));
+            double peak = 0;
+            foreach (var c in got) peak = Math.Max(peak, c.Forvard);
+            Assert.That(peak, Is.GreaterThan(0), "pred zastaranim robot jel");
+            Assert.That(got[^1].Forvard, Is.LessThan(peak), "po zastarani drahy dobrzduje");
         }
     }
 }

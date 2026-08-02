@@ -34,47 +34,62 @@ namespace ARBot.Common.Runtime
     public sealed class ControlLoop : MessageProcessor
     {
         private readonly AsyncFusionEngine engine;
-        private readonly IRegulator regulator;
         private readonly IMotorControl motor;
         private readonly IClock clock;
         private readonly IScheduler scheduler;
-        private readonly RegulatorWayPoint[] waypoints;
         private readonly double wheelBase;
         private readonly ICameraPullSource cameras;   // volitelny pull kamer (krok 3); null = bez vize
         private readonly IDisposable registration;
+        private readonly TimeSpan period;
+        private readonly TimeSpan pathTimeout;
 
         // Posledni IMU (kvuli Roll/Pitch); ctou/zapisuji ruzna vlakna -> volatile reference.
         private volatile IMUState lastImu;
 
+        // Aktualni regulator (nizsi smycka jej jede; vyssi smycka jej atomicky prehazuje pres Regulator).
+        private volatile IRegulator regulator;
+        private volatile bool regulatorFresh;   // Regulator byl nastaven; tik ho orazitkuje casem tk.
+        private DateTime lastRegulatorTick;      // cas posledni aktualizace regulatoru (v case tiku)
+        private double lastForward;              // posledni dopredna rychlost (pro nouzove dobrzdeni)
+
+        /// <summary>
+        /// Regulator, ktery smycka jede (bodovy <see cref="PointRegulator"/> nebo dráhový <see cref="PathResult"/>).
+        /// Nastavuje ho vyssi ridici smycka (mapa/OSM -> <see cref="IPathPlanner.Plan"/>); vymena je atomicka
+        /// (volatile). <c>null</c> = zadny cil -> robot stoji (bezpecny stav). Kdyz se regulator dele nez
+        /// <see cref="Profile.PathControlTimeOut"/> neaktualizuje, smycka nouzove dobrzdi po posledni trase.
+        /// Viz doc/path-following.md.
+        /// </summary>
+        public IRegulator Regulator
+        {
+            get => regulator;
+            set { regulator = value; regulatorFresh = true; }
+        }
+
         /// <param name="engine">Fuzni engine (dotazovany na tiku).</param>
-        /// <param name="regulator">Regulator (MVP: <see cref="Regulator"/> z parametru <see cref="Profile"/>).</param>
         /// <param name="motor">Motory (Run: realny driver, Simulate: <see cref="DummyMotors"/>).</param>
         /// <param name="clock">Hodiny (zdroj "ted" pro <see cref="Pump"/>).</param>
         /// <param name="scheduler">Scheduler periodickych taktu.</param>
-        /// <param name="targetX">Cilovy waypoint X [m] (svetove ENU).</param>
-        /// <param name="targetY">Cilovy waypoint Y [m] (svetove ENU).</param>
         /// <param name="period">Perioda taktu; default <c>Profile.Ts</c> ms.</param>
         /// <param name="wheelBase">Rozchod kol pro prepocet dif = RotationSpeed * rozchod; default <c>Profile.Rozchod</c>.</param>
         /// <param name="cameras">Volitelny pull kamer (krok 3): na kazdem tiku se pullnou nejnovejsi
         /// snimky a cely <see cref="CameraFrame"/> se forwardne na <see cref="MessageProcessor.Output"/>.
         /// null = smycka kamery nepulluje (napr. testy nebo bezvize rezim).</param>
-        public ControlLoop(AsyncFusionEngine engine, IRegulator regulator, IMotorControl motor,
+        /// <param name="pathTimeout">Timeout zastaralosti drahy; default <c>Profile.PathControlTimeOut</c> ms.</param>
+        public ControlLoop(AsyncFusionEngine engine, IMotorControl motor,
                            IClock clock, IScheduler scheduler,
-                           double targetX, double targetY,
                            TimeSpan? period = null, double? wheelBase = null,
-                           ICameraPullSource cameras = null)
+                           ICameraPullSource cameras = null, TimeSpan? pathTimeout = null)
         {
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            this.regulator = regulator ?? throw new ArgumentNullException(nameof(regulator));
             this.motor = motor ?? throw new ArgumentNullException(nameof(motor));
             this.clock = clock;
             this.scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             this.wheelBase = wheelBase ?? Profile.Rozchod;
             this.cameras = cameras;
-            waypoints = new[] { new RegulatorWayPoint { X = targetX, Y = targetY } };
+            this.period = period ?? TimeSpan.FromMilliseconds(Profile.Ts);
+            this.pathTimeout = pathTimeout ?? TimeSpan.FromMilliseconds(Profile.PathControlTimeOut);
 
-            var ts = period ?? TimeSpan.FromMilliseconds(Profile.Ts);
-            registration = scheduler.Register(ts, OnTick);
+            registration = scheduler.Register(this.period, OnTick);
         }
 
         /// <summary>Vhodny helper pro Run: napumpuje scheduler aktualnim casem hodin.</summary>
@@ -113,20 +128,38 @@ namespace ARBot.Common.Runtime
                 rs.Roll = ypr.Roll;
             }
 
-            // MVP: rizeni na pevny waypoint. Grid(y) z frames budou vstupem plaznovace/vyhybani
-            // az v dalsim kroku (probability i grid se pocitaji na vlakne kamery a jsou pripravene
-            // pro rizeni - viz CameraFrameProcessor). Zatim grid jen forwardujeme na Stream.
-            RegulatorResult r = regulator.Control(rs, waypoints);
+            // Rizeni regulatorem (Regulator). Vyssi smycka (mapa/OSM) jej nastavuje a obnovuje;
+            // grid(y) z frames budou jeho vstupem. null = zadny cil -> stani; zastaraly regulator ->
+            // nouzove dobrzdeni po posledni trase. Viz doc/path-following.md.
+            var reg = regulator;
+            if (regulatorFresh) { regulatorFresh = false; lastRegulatorTick = tk; }
 
-            double forvard = r.Speed;
-            double dif = r.RotationSpeed * wheelBase;   // dif>0 = vpravo
+            double forvard = 0, rotationSpeed = 0;
+            if (reg != null)
+            {
+                var r = reg.Control(rs);
+                rotationSpeed = r.RotationSpeed;
+                if (tk - lastRegulatorTick > pathTimeout)
+                {
+                    // Zastarala draha: rizeni (smer) z posledni trasy, dopredna rychlost rampou k nule.
+                    double decel = Profile.MaxDecceleration * period.TotalSeconds;
+                    forvard = Math.Max(0, lastForward - decel);
+                }
+                else
+                {
+                    forvard = r.Speed;
+                }
+            }
+            lastForward = forvard;
+
+            double dif = rotationSpeed * wheelBase;   // dif>0 = vpravo
             motor.Drive(forvard, dif);
 
             EmitDerived(new RobotStateMsg(rs));
             EmitDerived(new DriveCommandMsg
             {
-                Speed = r.Speed,
-                RotationSpeed = r.RotationSpeed,
+                Speed = forvard,
+                RotationSpeed = rotationSpeed,
                 Forvard = forvard,
                 Dif = dif,
                 TimeStamp = tk

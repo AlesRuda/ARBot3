@@ -44,6 +44,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
   kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
+- [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
+  `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +
+  brzdná obálka, exekuce = feedforward + lookahead; analýza odchylky vs. vzdálenost cílového bodu.
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
   (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
 - [doc/selftest.md](doc/selftest.md) — bezobslužný self-test (`selftest=true`): reprodukovatelné

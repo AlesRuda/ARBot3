@@ -1,54 +1,28 @@
-﻿using ARBot.Common.Models;
-using System;
+using ARBot.Common.Models;
+
 namespace ARBot.Common.Regulators
 {
     /// <summary>
-    /// Rozhrani pro regulator
+    /// Regulátor pohybu robota k cíli. Cíl (jeden bod nebo celá dráha) drží regulátor <b>uvnitř</b>;
+    /// každý tik řídicí smyčky se zavolá <see cref="Control"/>, který robota z aktuální pózy dovede k cíli.
+    /// Sjednocené rozhraní pro bodovou regulaci (<see cref="PointRegulator"/>) i sledování dráhy
+    /// (<see cref="PathResult"/>) — nižší řídicí smyčka (<c>ControlLoop.Regulator</c>) je používá
+    /// transparentně. Viz <c>doc/path-following.md</c>.
     /// </summary>
+    /// <remarks>
+    /// Instance je typicky <b>stavová</b> (drží cíl, případně progres na trase) a určená pro jednoho
+    /// konzumenta (nižší smyčku); není thread-safe. Změna cíle = výměna instance (atomicky přes
+    /// <c>ControlLoop.Regulator</c>). Kinematiku (accel-limitované zásahy) řeší <see cref="IMotionProfile"/>.
+    /// </remarks>
     public interface IRegulator
     {
         /// <summary>
-        /// Spocte na jake vzdalenosti zrychli ze startSpeed na endSpeed.
+        /// Spočte řídicí zásah (dopredná a rotační rychlost) pro daný stav robota.
         /// </summary>
-        /// <param name="startSpeed"></param>
-        /// <param name="endSpeed"></param>
-        /// <returns></returns>
-        double Speed2Dist(double startSpeed, double endSpeed);
-        /// <summary>
-        /// Spocte rychlost (akcni zasah), kterou by mel jet rovne robot aby z pocatecni rychlosti na vzdalenosti dist dosahnul koncovou rychlost.
-        /// </summary>
-        /// <param name="dist"></param>
-        /// <param name="startSpeed"></param>
-        /// <param name="endSpeed"></param>
-        /// <returns></returns>
-        RegulatorResult Dist2Speed(double dist, double startSpeed, double endSpeed);
-        /// <summary>
-        /// Spocte rotacni rychlost (akcni zasah), kterou by mel robot otacet aby z pocatecni rychlosti na vzdalenosti uhlu beta dosahnul koncovou rychlost.
-        /// </summary>
-        /// <param name="beta"></param>
-        /// <param name="startRotSpeed"></param>
-        /// <param name="endRotSpeed"></param>
-        /// <returns></returns>
-        RegulatorResult Rot2RotSpeed(double beta, double startRotSpeed, double endRotSpeed);
-        /// <summary>
-        /// Spocte regulacni zasah pro projeti zadanymi body
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="points"></param>
-        /// <returns></returns>
-        RegulatorResult Control(IModelState state, RegulatorWayPoint[] points);
+        /// <param name="state">Aktuální stav robota (póza + rychlosti), typicky z EKF.</param>
+        RegulatorResult Control(IModelState state);
 
-        /// <summary>
-        /// Omezi doprednou rychlost na zaklade rychlosti rotace
-        /// </summary>
-        /// <param name="speed">dopredna rychlost </param>
-        /// <param name="d">vzdalenost na ktere musi dojit k otoceni</param>
-        /// <param name="rotationResul">Vysledek vypoctu rotacni rychlosti</param>
-        /// <returns></returns>
-        double SpeedLimit(double speed, double d, RegulatorResult rotationResul);
-        /// <summary>
-        /// Maximalni pocet bodu na ktere regulator reguluje
-        /// </summary>
-        int MaxWayPoints { get; }
+        /// <summary>True, pokud robot dosáhl cíle (v rámci tolerance).</summary>
+        bool IsFinished { get; }
     }
 }

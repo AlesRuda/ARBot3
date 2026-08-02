@@ -17,6 +17,24 @@ namespace ARBot.Common.Configuration
         public static int Ts = 100;
 
         /// <summary>
+        /// Timeout zastaralosti dráhy pro nižší řídicí smyčku [ms]. Když path controller nedostane
+        /// novou dráhu déle než tento čas, smyčka nouzově dobrzdí po poslední trase. Viz doc/path-following.md.
+        /// </summary>
+        public static int PathControlTimeOut = 500;
+        /// <summary>
+        /// Čas dohledu τ_look [s] pro cílový (lookahead) bod sledování dráhy (<c>L_d = τ_look·v</c>).
+        /// </summary>
+        public static double LookaheadTime = 0.3;
+        /// <summary>
+        /// Minimální vzdálenost cílového bodu [m] (floor při nízké rychlosti).
+        /// </summary>
+        public static double LookaheadMin = 0.15;
+        /// <summary>
+        /// Bezpečnostní rezerva odečtená od tolerance ε při plánování rohů [m].
+        /// </summary>
+        public static double PathEpsilonMargin = 0.01;
+
+        /// <summary>
         /// Rozchod kol robotu
         /// </summary>
         public static double Rozchod = 0.41;
