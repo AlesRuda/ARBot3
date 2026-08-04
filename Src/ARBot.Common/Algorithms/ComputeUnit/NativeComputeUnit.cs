@@ -43,8 +43,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         internal static extern void ComputeFree(IntPtr ci);
 
         [DllImport("NativeLib.dll", EntryPoint = "Segment2", SetLastError = true)]
-        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
-            byte[] rightDist, float[] rightTransformMatrix, Point2DF[,] rightTransform,
+        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2D[,] leftTransform,
+            byte[] rightDist, float[] rightTransformMatrix, Point2D[,] rightTransform,
             float[] globalTransformMatrix,
             int len, float maxZ);
         [DllImport("NativeLib.dll", EntryPoint = "BackProjectImpl")]
@@ -134,7 +134,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="len">Delky poli dist a transform</param>
         /// <returns>Pocet zapsanych bodu do dst</returns>
         [DllImport("NativeLib.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false)]
-        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
+        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2D[] transform, int len);
 
         // z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
         // nasledne bod pootoci v prostoru pomoci rotate
@@ -142,7 +142,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         // hodnoty 0 a -1 v dist reporezentuji nezmerenou hodnotu, tyto body se do vystupu dst neukladaji
         // funkce vraci pocet zapsanych zaznamu do dst
         [DllImport("NativeLib.dll", EntryPoint = "DepthTransformImpl", SetLastError = false)]
-        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
+        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2D[] transform, float[] rotate, short[] dist, int len);
 
         /// <summary>
         /// z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
@@ -158,7 +158,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="len"></param>
         /// <returns></returns>
         [DllImport("NativeLib.dll", EntryPoint = "DepthTransform2Impl", SetLastError = false)]
-        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len);
+        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2D[,] transform, float[] rotate, byte[] dist, int len);
 
         /// <summary>
         /// extrahuje z agregacniho pole prekazky
@@ -315,8 +315,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         internal static extern void ComputeFree(IntPtr ci);
 
         [DllImport("NativeLib.dll", EntryPoint = "Segment2", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
-            byte[] rightDist, float[] rightTransformMatrix, Point2DF[,] rightTransform,
+        internal static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2D[,] leftTransform,
+            byte[] rightDist, float[] rightTransformMatrix, Point2D[,] rightTransform,
             float[] globalTransformMatrix,
             int len, float maxZ);
 
@@ -395,7 +395,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         // hodnoty 0 a -1 v dist reporezentuji nezmerenou hodnotu, tyto body se do vystupu dst neukladaji
         // funkce vraci pocet zapsanych zaznamu do dst
         [DllImport("NativeLib.dll", EntryPoint = "DepthTransformImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len);
+        internal static extern int DepthTransformImpl([In, Out] Point4D[] dst, Point2D[] transform, float[] rotate, short[] dist, int len);
 
         /// <summary>
         /// z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery, pote pootoci pomoci rotate.
@@ -403,7 +403,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// (deklarace i pro non-x64/ARM - funkce je exportovana i v asm_linux_arm64.S a pouziva ji SegmentNew*)
         /// </summary>
         [DllImport("NativeLib.dll", EntryPoint = "DepthTransform2Impl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len);
+        internal static extern int DepthTransform2Impl([In, Out] Point4D[] dst, Point2D[,] transform, float[] rotate, byte[] dist, int len);
 
 
 
@@ -432,7 +432,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="len">Delky poli dist a transform</param>
         /// <returns>Pocet zapsanych bodu do dst</returns>
         [DllImport("NativeLib.dll", EntryPoint = "Depth2XYZImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2DF[] transform, int len);
+        internal static extern int Depth2XYZImpl([In, Out]Point4D[] dst, short[] dist, Point2D[] transform, int len);
 
         /// <summary>
         /// Resetuje agrgovane udaje ve vypoctu aproximace bodu rovinou
@@ -592,10 +592,10 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
         public static void ClearAggregateImpl(AggregateItem[] ais, Int32[] uias, Int32 cnt) => NativeMethods.ClearAggregateImpl(ais, uias, cnt);
 
-        public static int Depth2XYZImpl(Point4D[] dst, short[] dist, Point2DF[] transform, int len)
+        public static int Depth2XYZImpl(Point4D[] dst, short[] dist, Point2D[] transform, int len)
             => NativeMethods.Depth2XYZImpl(dst, dist, transform, len);
 
-        public static int DepthTransformImpl(Point4D[] dst, Point2DF[] transform, float[] rotate, short[] dist, int len)
+        public static int DepthTransformImpl(Point4D[] dst, Point2D[] transform, float[] rotate, short[] dist, int len)
             => NativeMethods.DepthTransformImpl(dst, transform, rotate, dist, len);
 
         /// <summary>
@@ -603,7 +603,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// prevod mm-&gt;m je uvnitr. Vystup <paramref name="dst"/> je v OPACNEM poradi oproti pixelum
         /// (dst[len-1-p] = bod pixelu p); nezmerene pixely = [0,0,0,0].
         /// </summary>
-        public static int DepthTransform2Impl(Point4D[] dst, Point2DF[,] transform, float[] rotate, byte[] dist, int len)
+        public static int DepthTransform2Impl(Point4D[] dst, Point2D[,] transform, float[] rotate, byte[] dist, int len)
             => NativeMethods.DepthTransform2Impl(dst, transform, rotate, dist, len);
 
         public static int ExtractObstaclesImpl(AggregateItem[] ais, Int32[] uais, Int32 len, Point4D[] ops, float minCount, float minStd2)
@@ -890,10 +890,10 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         public void Segment(Image<Gray16> leftImage, IDepthCameraProjection leftProjection, Image<Gray16> rightImage, IDepthCameraProjection rightProjection, System.Numerics.Matrix4x4 globalTransform)
         {
             float[] lt = Transformation(leftProjection.Transformation);
-            Point2DF[,] lct = leftProjection.Camera2DToCamera3D;
+            Point2D[,] lct = leftProjection.Camera2DToCamera3D;
 
             float[] rt = Transformation(rightProjection.Transformation);
-            Point2DF[,] rct = rightProjection.Camera2DToCamera3D;
+            Point2D[,] rct = rightProjection.Camera2DToCamera3D;
 
             float[] gt = Transformation(globalTransform);
 
@@ -918,7 +918,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         {
              // extrakce ppomoci agregacniho pole
             float[] lt = Transformation(projection.Transformation);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             float[] gt = Transformation(globalTransform);
 
@@ -944,7 +944,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             };
 
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             //            float[] gt = Transformation(globalTransform);
 
@@ -1058,7 +1058,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         public void SegmentNew1(Image<Gray16> image, IDepthCameraProjection projection, System.Numerics.Matrix4x4 globalTransform)
         {
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             //            float[] gt = Transformation(globalTransform);
 
@@ -1146,7 +1146,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             minZ2_2 = minZ2_2 * minZ2_2;
 
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             //            float[] gt = Transformation(globalTransform);
 
@@ -1245,7 +1245,7 @@ repeat_y1:
             float rMax = 9;
 
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             computeInfo = null;
             obstaclePoints = null;
@@ -1356,7 +1356,7 @@ repeat_y1:
             float minZ2 = 0.01f * 0.01f;
 
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             //            float[] gt = Transformation(globalTransform);
 
@@ -1422,7 +1422,7 @@ repeat_y1:
         public void SegmentNew5(Image<Gray16> image, IDepthCameraProjection projection, System.Numerics.Matrix4x4 globalTransform, float zLimit, float r2)
         {
             float[] lt = Transformation(projection.Transformation * globalTransform);
-            Point2DF[,] lct = projection.Camera2DToCamera3D;
+            Point2D[,] lct = projection.Camera2DToCamera3D;
 
             //            float[] gt = Transformation(globalTransform);
 

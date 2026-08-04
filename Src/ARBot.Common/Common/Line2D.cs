@@ -12,6 +12,10 @@ namespace ARBot.Common.Common
     /// </summary>
     public class Line2D:Vector2D
     {
+        /// <summary>
+        /// Koeficient <c>a</c> rovnice přímky <c>a·x + b·y + c = 0</c>. Uložen jako <c>-Y</c>
+        /// zděděného směru (X,Y je směr přímky, (A,B) = normála).
+        /// </summary>
         public double A
         {
             get
@@ -23,6 +27,7 @@ namespace ARBot.Common.Common
                 Y = -value;
             }
         }
+        /// <summary>Koeficient <c>b</c> rovnice přímky <c>a·x + b·y + c = 0</c> (= <c>X</c> směru).</summary>
         public double B
         {
             get
@@ -34,6 +39,7 @@ namespace ARBot.Common.Common
                 X = value;
             }
         }
+        /// <summary>Absolutní člen <c>c</c> rovnice přímky <c>a·x + b·y + c = 0</c>.</summary>
         public double C;
 
         /// <summary>
@@ -132,11 +138,7 @@ namespace ARBot.Common.Common
             C = Y * p.X - X * p.Y;
         }
 
-        /// <summary>
-        /// Primka v opacnem smeru 
-        /// </summary>
-        /// <param name="normal"></param>
-        /// <param name="p"></param>
+        /// <summary>Táž přímka s opačně orientovanou normálou (A, B, C → -A, -B, -C).</summary>
         public Line2D Reverse()
         {
             return new Line2D(-A, -B, -C);
@@ -205,12 +207,11 @@ namespace ARBot.Common.Common
             return Intersection(-Y, X, C, -l.Y, l.X, l.C);
         }
         /// <summary>
-        /// Prusecik primky s normalou k ni jdouci bodem 
-        /// a*x+b*y+c=0
+        /// Pata kolmice z bodu <paramref name="p"/> na tuto přímku = <b>projekce bodu na přímku</b>
+        /// (průsečík přímky s kolmicí procházející bodem p). Vrací nejbližší bod na přímce.
         /// </summary>
-        /// <param name="p"></param>
-        /// <returns></returns>
-        public Point2D Intersection(Point2D p)
+        /// <param name="p">Promítaný bod.</param>
+        public Point2D ProjectOntoLine(Point2D p)
         {
             var l = Perpendicular(p);
             return Intersection(-Y, X, C, -l.Y, l.X, l.C);
@@ -276,6 +277,10 @@ namespace ARBot.Common.Common
             return (Y * x - C) / X;
         }
 
+        /// <summary>
+        /// Dominantní osa přímky: <see cref="RegresionMode.X"/> pro spíš vodorovnou (|X| &gt; |Y|),
+        /// jinak <see cref="RegresionMode.Y"/>. Určuje, zda počítat y = f(x), nebo x = f(y).
+        /// </summary>
         public RegresionMode Mode
         {
             get
@@ -287,6 +292,10 @@ namespace ARBot.Common.Common
             }
         }
 
+        /// <summary>
+        /// Průsečíky přímky s kružnicí (<paramref name="center"/>, poloměr <paramref name="r"/>).
+        /// Vrací 2 body (sečna), příp. dotyk; <c>null</c>, pokud přímka kružnici neprotíná.
+        /// </summary>
         public Point2D[] CircleIntersect(Point2D center, double r)
         {
             /*

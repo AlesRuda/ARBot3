@@ -183,13 +183,13 @@ namespace ARBot.Common.Tests
         {
             Point4D[] dst = new Point4D[5];
             short[] dist = new short[5];
-            Point2DF[] transform = new Point2DF[5];
+            Point2D[] transform = new Point2D[5];
 
-            transform[0] = new Point2DF(-1, -2);
-            transform[1] = new Point2DF(-1, -3);
-            transform[2] = new Point2DF(-1, -4);
-            transform[3] = new Point2DF(1, 5);
-            transform[4] = new Point2DF(1, 6);
+            transform[0] = new Point2D(-1, -2);
+            transform[1] = new Point2D(-1, -3);
+            transform[2] = new Point2D(-1, -4);
+            transform[3] = new Point2D(1, 5);
+            transform[4] = new Point2D(1, 6);
 
             dist[0] = 0;
             dist[1] = -1;
@@ -214,13 +214,13 @@ namespace ARBot.Common.Tests
 
             var r = NativeComputeUnit.Transformation(Matrix4x4.Identity);
 
-            Point2DF[] transform = new Point2DF[5];
+            Point2D[] transform = new Point2D[5];
 
-            transform[0] = new Point2DF(-1, -2);
-            transform[1] = new Point2DF(-1, -3);
-            transform[2] = new Point2DF(-1, -4);
-            transform[3] = new Point2DF(1, 5);
-            transform[4] = new Point2DF(1, 6);
+            transform[0] = new Point2D(-1, -2);
+            transform[1] = new Point2D(-1, -3);
+            transform[2] = new Point2D(-1, -4);
+            transform[3] = new Point2D(1, 5);
+            transform[4] = new Point2D(1, 6);
 
             dist[0] = 0;
             dist[1] = -1;
@@ -593,10 +593,10 @@ namespace ARBot.Common.Tests
         {
             Point4D[] dst = new Point4D[4];
             short[] dist = { 0, -1, 0, -1 };
-            Point2DF[] transform =
+            Point2D[] transform =
             {
-                new Point2DF(1, 1), new Point2DF(1, 1),
-                new Point2DF(1, 1), new Point2DF(1, 1)
+                new Point2D(1, 1), new Point2D(1, 1),
+                new Point2D(1, 1), new Point2D(1, 1)
             };
 
             int cnt = NativeComputeUnit.Depth2XYZImpl(dst, dist, transform, 4);
@@ -610,10 +610,10 @@ namespace ARBot.Common.Tests
             Point4D[] dst = new Point4D[4];
             short[] dist = { 0, -1, 0, -1 };
             var r = NativeComputeUnit.Transformation(Matrix4x4.Identity);
-            Point2DF[] transform =
+            Point2D[] transform =
             {
-                new Point2DF(1, 1), new Point2DF(1, 1),
-                new Point2DF(1, 1), new Point2DF(1, 1)
+                new Point2D(1, 1), new Point2D(1, 1),
+                new Point2D(1, 1), new Point2D(1, 1)
             };
 
             int cnt = NativeComputeUnit.DepthTransformImpl(dst, transform, r, dist, 4);
@@ -666,7 +666,7 @@ namespace ARBot.Common.Tests
         private sealed class FakeProjection : IDepthCameraProjection
         {
             public Matrix4x4 Transformation { get; set; } = Matrix4x4.Identity;
-            public Point2DF[,] Camera2DToCamera3D { get; set; } = new Point2DF[0, 0];
+            public Point2D[,] Camera2DToCamera3D { get; set; } = new Point2D[0, 0];
             public List<Point2D> TargetPoly => throw new NotImplementedException();
             public void SetOrientation(Matrix4x4 transform) => Transformation = transform;
             public List<Point4D> GetPointCloud(Image<Gray16> depth) => throw new NotImplementedException();
@@ -677,9 +677,9 @@ namespace ARBot.Common.Tests
             => new NativeComputeUnit(maxPoints, 64, 64, 32, 32, 0.1f, new BackProject(BackProject.RoadProbability));
 
         // Projekce mapujici kazdy pixel na stejny smerovy vektor (x,y) v rovine kamery.
-        private static FakeProjection ConstProjection(int w, int h, Point2DF map)
+        private static FakeProjection ConstProjection(int w, int h, Point2D map)
         {
-            var lct = new Point2DF[h, w];
+            var lct = new Point2D[h, w];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                     lct[y, x] = map;
@@ -718,7 +718,7 @@ namespace ARBot.Common.Tests
         {
             const int w = 8, h = 8, n = w * h;
             var unit = CreateUnit(n);
-            var proj = ConstProjection(w, h, new Point2DF(0, 0));
+            var proj = ConstProjection(w, h, new Point2D(0, 0));
             var img = DepthImage(w, h, (x, y) => 1000); // 1 m
 
             unit.Segment(img, proj, Matrix4x4.Identity);
@@ -751,7 +751,7 @@ namespace ARBot.Common.Tests
         {
             const int w = 8, h = 8, n = w * h;
             var unit = CreateUnit(n);
-            var proj = ConstProjection(w, h, new Point2DF(0, 0));
+            var proj = ConstProjection(w, h, new Point2D(0, 0));
             // mereny jen kazdy druhy pixel (dist=0 => nezmereno)
             var img = DepthImage(w, h, (x, y) => (ushort)(((y * w + x) % 2 == 0) ? 500 : 0));
 
@@ -767,7 +767,7 @@ namespace ARBot.Common.Tests
         {
             const int w = 8, h = 8, n = w * h;
             var unit = CreateUnit(2 * n);
-            var proj = ConstProjection(w, h, new Point2DF(0, 0));
+            var proj = ConstProjection(w, h, new Point2D(0, 0));
             var img = DepthImage(w, h, (x, y) => 1000);
 
             unit.Segment(img, proj, img, proj, Matrix4x4.Identity);
@@ -782,7 +782,7 @@ namespace ARBot.Common.Tests
         {
             const int w = 8, h = 8, n = w * h;
             var unit = CreateUnit(n);
-            var proj = ConstProjection(w, h, new Point2DF(0, 0));
+            var proj = ConstProjection(w, h, new Point2D(0, 0));
             var img = DepthImage(w, h, (x, y) => 0); // vse nezmereno
 
             unit.Segment(img, proj, Matrix4x4.Identity);
@@ -811,7 +811,7 @@ namespace ARBot.Common.Tests
         {
             const int w = 16, h = 16, n = w * h;
             var unit = CreateUnit(n);
-            var proj = ConstProjection(w, h, new Point2DF(0, 0));
+            var proj = ConstProjection(w, h, new Point2D(0, 0));
             var img = DepthImage(w, h, (x, y) => 1000);
 
             unit.SegmentNew3(img, proj, Matrix4x4.Identity);

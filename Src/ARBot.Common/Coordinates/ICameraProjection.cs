@@ -120,7 +120,7 @@ namespace ARBot.Common.Coordinates
         /// <summary>
         /// Transformace bodu z plochy kamery do xyz prosotru kamery xyz=(Camera2DToCamera3D[x, y].xy*Dist[x, y], Dist[x, y])
         /// </summary>
-        Point2DF[,] Camera2DToCamera3D { get; }
+        Point2D[,] Camera2DToCamera3D { get; }
         /// <summary>
         /// Polygon oznacujici kam se na vozovce promitne obraz kamery
         /// </summary>

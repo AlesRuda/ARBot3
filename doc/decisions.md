@@ -13,6 +13,87 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-04 — Názvosloví geometrie: `ProjectOnto…` (projekce) vs `Intersection` (průsečík) — ROZHODNUTO/HOTOVO
+Napříč kódem se pro **projekci bodu na přímku/úsek** (pata kolmice) používalo matoucí sloveso `Intersect`
+(`MapWay.Intersect`, `NavigationBase.Intersect`), zatímco `Intersection` (`Line2D`/`LineSegment2D`) znamená
+**skutečný průsečík dvou přímek** — dvě různé operace se zaměnitelnými názvy. Sjednocená konvence:
+- **Projekce bodu** na přímku/úsek → `ProjectOnto…`:
+  - `ProjectOntoLine(...)` = na **nekonečnou** přímku, `pos` neomezené (může být mimo úsek).
+  - `ProjectOntoSegment(...)` = na **úsek**, t ořezané do [0,1].
+- **Průsečík** dvou přímek/úseček → podstatné jméno `Intersection(...)` (beze změny).
+- **Provedeno:** `MapWay.Intersect`→`ProjectOntoLine`, `NavigationBase.Intersect`→`ProjectOntoLine`
+  (+ volání v `Map.cs`), a `Line2D.Intersection(Point2D)`→`ProjectOntoLine` (byla to projekce/pata kolmice,
+  ne průsečík — call-sity v `Points2Lines`, `PathEdgeFinder`, testech). Skutečné průsečíky
+  `Line2D.Intersection(Line2D)`/statická a `Line2D.CircleIntersect` i `Graph.Intersect` (jiná doména) ponechány.
+- **Souvislý úklid:** `ProjectOntoSegment` přesunut z krátkovlnné `GeoSegment` **do `LLA`** jako instanční
+  metoda (konzistentně s `LLA.Distance`; `GeoSegment` smazán) — na přání „věci na jednom místě".
+- **Neuzavřeno (možný další krok):** nested `NavigationBase.IntersectI` (drží výsledek projekce) a rodina
+  `NearestPoint`/`Project`/`Closest` (Map, PathMapCorelator, MotionArc) zůstávají — širší sjednocení odloženo.
+**Ověřeno x64:** celá sada 321 / 4 skip / 0 fail, appka `ARBot` build zeleno.
+**Odkazy:** `Maps/MapWay.cs`, `Navigations/NavigationBase.cs`, `Maps/Map.cs`, `Coordinates/LLA.cs`.
+
+### 2026-08-04 — Sjednocení geo: OsmNav `GeoPoint`/`GeoMath` → systémové `LLA`/`GreatCircle` — ROZHODNUTO/HOTOVO
+OsmNav měl vlastní lehký geotyp `GeoPoint` (`record struct`, **stupně**) + `GeoMath` (Haversine +
+projekce na úsek). Zbytek systému (GPS, `ARBotState`, mapy) používá `ARBot.Common.Coordinates.LLA`.
+Sjednoceno na `LLA`, `GeoPoint`/`GeoMath` **smazány**.
+- **Proč (i přes rozdíly):** není to čistý duplikát jako `Point2DF` — `LLA` je **radiány + class + altitude/
+  ellipsoid**, `GeoPoint` byl **stupně + value struct**. Rozhodlo, že **lokalizace produkuje `LLA`**
+  (GPS/EKF) → až se OsmNav napojí na řídicí smyčku, poloha do `Navigator.Update` přijde jako `LLA` bez
+  konverzního švu. Jednotný geotyp v celém systému.
+- **Náhrady:** `GeoMath.HaversineMeters` → `GreatCircle.Distance` (haversine, R=6371000 — **numericky
+  identické**). `GeoMath.ProjectOntoSegment` → **double** equirectangular projekce (přesně jako původní math;
+  finálně `LLA.ProjectOntoSegment`, viz záznam výše). `GeoReference` (ECEF ENU) se pro projekci nepoužil:
+  jeho `ToLocal` vrací `Point2D` (**float**) → ztráta přesnosti (~2e-6 na split ceně) shodila oracle testy;
+  `double` projekce je vrátila přesně. Konstrukce ze stupňů: přidán `LLA.FromDegrees`.
+- **Jednotky:** OSM je ve stupních; převod deg→rad je jen na hranici (`GraphBuilder`: `LLA.FromDegrees`;
+  testy taktéž). Vnitřek počítá v radiánech.
+- **Dotčeno:** `Node`, `RoadNetwork`, `GoalField`, `Navigator`, `Router`, `GraphBuilder` (6 zdrojů) +
+  testy (`new GeoPoint(→LLA.FromDegrees(`, geo testy přepsány na nové API). `HALArmbian`/`HALWindows`
+  se `GeoPoint` netýkají. **Ověřeno x64:** OsmNav 76/76, celá sada 321 / 4 skip / 0 fail.
+**Odkazy:** `Coordinates/{LLA,GreatCircle}.cs`, `Maps/OsmNav/{Graph,Routing,Navigation,Osm}/…`,
+[osm-nav.md](osm-nav.md) (sekce „Geo — sdílený Coordinates stack").
+
+### 2026-08-04 — Sjednocení `Point2DF` → `Point2D` (odstranění duplicitního float bodu) — ROZHODNUTO/HOTOVO
+Navazuje na sjednocení `Point2D` (níže). `ARBot.Common` měl **dva** float bodové typy: `Point2D`
+a `Point2DF` (oba `[StructLayout(Sequential)]`, 2× `float`). `Point2DF` sloužil jen jako **blittable
+nosič** pro nativní interop (pole `Point2DF[]`/`Point2DF[,]`: `Depth2XYZ`, `DepthTransform*`, `Segment2`)
+a pro tabulku `IDepthCameraProjection.Camera2DToCamera3D`. `Point2DF` **smazán**, vše převedeno na `Point2D`.
+- **Proč bezpečné:** oba typy mají identický nativní layout (Sequential, 2× float) → **ABI beze změny**,
+  nativní strana nic nepozná. `Point2DF` se nikde nepoužíval přes operátory (`+`/`−`/`/`) ani `.Distance`,
+  jen konstrukce `new Point2DF(x,y)` a pole → **žádný sémantický konflikt** (na rozdíl od `Point2D`/`Vector2D`).
+  Přesnost se nemění (oba float).
+- **Dopad na projekty:** `ICameraProjection`/`IDepthCameraProjection` člen `Camera2DToCamera3D` je teď
+  `Point2D[,]`; implementace v `CameraProjection` a fake projekce v testech upraveny. `HALWindows`
+  (nativní import v `D435CameraProjection`) upraven. `HALArmbian` **dědí** z `CameraProjection` a `Point2DF`
+  nikde nejmenuje → beze změny, ARM build netřeba.
+- **Orphan:** `ARBot.Common.Tests1` (není v `ARBot.slnx`) přejmenován pro konzistenci, ale nebuildí se.
+- **Ověřeno x64:** `ARBot.Common` + `ARBot.HALWindows` build zeleno; testy 318 / 4 skip / 0 fail. Přeskočené
+  jsou `Segment_*` (pre-existing) — ta cesta přes `Point2D[,]` ověřena kompilací + ABI-identitou, ne během.
+**Odkazy:** `Common/Point2D.cs` (Point2DF.cs smazán), `Algorithms/ComputeUnit/NativeComputeUnit.cs`,
+`Coordinates/{ICameraProjection,CameraProjection}.cs`, `HALWindows/Devices/Camera/D435CameraProjection.cs`.
+
+### 2026-08-04 — Sjednocení `Point2D`: OsmNav/Colider převeden na sdílený `ARBot.Common.Point2D` (float) — ROZHODNUTO/HOTOVO
+Nakopírovaný modul `Maps/OsmNav` přinesl vlastní `Colider.Point2D` (`readonly record struct`, **double**),
+který kolidoval jménem se stávajícím `ARBot.Common.Point2D` (**float**). Sjednoceno na jeden typ:
+- **Ponechán `ARBot.Common.Point2D` (float), OsmNav-verze smazána.** `ARBot.Common.Point2D` je základní
+  bodový typ celého kódu (a `[StructLayout]`); float zůstává. (Pozn.: do nativního interopu jde `Point2DF`,
+  ne `Point2D` — interop tím není dotčen.)
+- **Přijata algebra bod/vektor z `ARBot.Common`.** Tam `Point2D − Point2D → Vector2D` (a `Vector2D` je
+  **double**, nese `Length`/`Angle`), kdežto OsmNav `Point2D` slučoval bod i vektor (měl `Length`, `Angle`,
+  skalární `*`, `−`→`Point2D`). Nelze přetížit podle návratového typu → **`MotionArc` přepsán** do této algebry.
+- **`MotionArc` přepsán bez alokací.** `Vector2D` je *class* (reference typ); použít ho v O(1) analytickém
+  `Project` by zaneslo alokace do hot-path (proti jeho návrhu). Proto pozice = `Point2D` (float), ale posuny,
+  rotace a vzdálenosti se počítají v **lokálních `double`** (helpery `Offset`/`Rotate`/`Hypot`) — přesné
+  a bez heap alokací. Ostatní Colider soubory (`Obstacle`, `RobotState`, `TrajectoryPredictor`) berou
+  `Point2D` jen jako pozici → beze změny.
+- **Přesnost (float) — vědomý kompromis.** Geo vrstva je mimo (má vlastní `GeoPoint` double). Colider je
+  lokální planární matematika; jediné citlivé místo je `Math.Abs(d − Radius)` (rozdíl velkých téměř stejných
+  čísel) u téměř rovných oblouků: práh `StraightYawRate = 1e-4` dovolí poloměr až ~10 km → ulp(float) ~1 mm.
+  Proti `SafetyMargin = 0.5 m` a horizontu ~2 m funkčně nevadí; kdyby vadilo, řešením je zvednout
+  `StraightYawRate`. Ověřeno: OsmNav 76/76, celá sada 318 zeleno (tolerance `1e-6`/`1e-9` přežily).
+**Odkazy:** `Src/ARBot.Common/Maps/OsmNav/Colider/MotionArc.cs`, `Common/{Point2D,Vector2D}.cs`,
+`Src/ARBot.Common.Tests/OsmNav.Tests/Colider/Point2DTests.cs`.
+
 ### 2026-08-02 — Sjednocení regulátorů: jedno `IRegulator`, jeden bodový regulátor přes `IMotionProfile` — ROZHODNUTO/HOTOVO
 Navazuje na regulátor sledování dráhy (níže). Sjednocení, aby nižší smyčka regulovala transparentně na bod
 i na dráhu:

@@ -22,7 +22,7 @@ namespace ARBot.Common.Coordinates
         Matrix4x4 to;
 
         Point2D[,] toDistortCache;
-        protected Point2DF[,] camera2DToCamera3DCache;
+        protected Point2D[,] camera2DToCamera3DCache;
         /// <summary>
         /// Konstruktor
         /// </summary>
@@ -36,7 +36,7 @@ namespace ARBot.Common.Coordinates
             this.intrinsics = intrinsics;
             this.inverseIntrinsics = inverseIntrinsics;
             toDistortCache = new Point2D[inverseIntrinsics.Width, inverseIntrinsics.Height];
-            camera2DToCamera3DCache = new Point2DF[inverseIntrinsics.Height, inverseIntrinsics.Width];
+            camera2DToCamera3DCache = new Point2D[inverseIntrinsics.Height, inverseIntrinsics.Width];
             for (int x = 0; x < inverseIntrinsics.Width; x++)
             {
                 for (int y = 0; y < inverseIntrinsics.Height; y++)
@@ -46,7 +46,7 @@ namespace ARBot.Common.Coordinates
                     ToDistort(x, y, out dx, out dy);
                     toDistortCache[x, y] = new Point2D(dx, dy);
                     Camera2DToCamera3DCalc(x, y, out dx, out dy);
-                    camera2DToCamera3DCache[y, x] = new Point2DF((float)dx, (float)dy);
+                    camera2DToCamera3DCache[y, x] = new Point2D((float)dx, (float)dy);
                 }
             }
         }
@@ -295,7 +295,7 @@ namespace ARBot.Common.Coordinates
 
         public Matrix4x4 Transformation => transformation;
 
-        Point2DF[,] IDepthCameraProjection.Camera2DToCamera3D => camera2DToCamera3DCache;
+        Point2D[,] IDepthCameraProjection.Camera2DToCamera3D => camera2DToCamera3DCache;
 
         /// <summary>
         /// Polygon oznacujici kam se na vozovce promitne obraz kamery

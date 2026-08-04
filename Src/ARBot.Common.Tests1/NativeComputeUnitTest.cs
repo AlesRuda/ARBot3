@@ -179,13 +179,13 @@ namespace UnitTests
         {
             Point4D[] dst = new Point4D[5];
             short[] dist = new short[5];
-            Point2DF[] transform = new Point2DF[5];
+            Point2D[] transform = new Point2D[5];
 
-            transform[0] = new Point2DF(-1, -2);
-            transform[1] = new Point2DF(-1, -3);
-            transform[2] = new Point2DF(-1, -4);
-            transform[3] = new Point2DF(1, 5);
-            transform[4] = new Point2DF(1, 6);
+            transform[0] = new Point2D(-1, -2);
+            transform[1] = new Point2D(-1, -3);
+            transform[2] = new Point2D(-1, -4);
+            transform[3] = new Point2D(1, 5);
+            transform[4] = new Point2D(1, 6);
 
             dist[0] = 0;
             dist[1] = -1;
@@ -211,13 +211,13 @@ namespace UnitTests
             var m = System.Windows.Media.Media3D.Matrix3D.Identity;
             var r = NativeComputeUnit.Transformation(m);
 
-            Point2DF[] transform = new Point2DF[5];
+            Point2D[] transform = new Point2D[5];
 
-            transform[0] = new Point2DF(-1, -2);
-            transform[1] = new Point2DF(-1, -3);
-            transform[2] = new Point2DF(-1, -4);
-            transform[3] = new Point2DF(1, 5);
-            transform[4] = new Point2DF(1, 6);
+            transform[0] = new Point2D(-1, -2);
+            transform[1] = new Point2D(-1, -3);
+            transform[2] = new Point2D(-1, -4);
+            transform[3] = new Point2D(1, 5);
+            transform[4] = new Point2D(1, 6);
 
             dist[0] = 0;
             dist[1] = -1;

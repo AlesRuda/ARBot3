@@ -13,12 +13,16 @@ namespace ARBot.Common.Common
     /// </summary>
     public class Vector2D
     {
+        /// <summary>Složka X (vpravo/východ).</summary>
         public double X;
+        /// <summary>Složka Y (nahoru/sever).</summary>
         public double Y;
 
+        /// <summary>Nulový vektor (0, 0).</summary>
         public Vector2D()
         {
         }
+        /// <summary>Vektor ze složek.</summary>
         public Vector2D(double x, double y)
         {
             X = x;
@@ -33,6 +37,7 @@ namespace ARBot.Common.Common
             X = Math.Cos(angle);
             Y = Math.Sin(angle);
         }
+        /// <summary>Vektor z ECEF: bere složky Y→X a Z→Y (projekce do roviny fúzního rámce).</summary>
         public Vector2D(ECEF ecef)
         {
             X = ecef.Y;
@@ -94,27 +99,33 @@ namespace ARBot.Common.Common
             }
         }
 
+        /// <summary>Textová reprezentace „[X, Y]" (invariantní kultura).</summary>
         public override string ToString()
         {
             return string.Format(CultureInfo.InvariantCulture, "[{0}, {1}]", X, Y);
         }
 
+        /// <summary>Součet dvou vektorů.</summary>
         public static Vector2D operator +(Vector2D a, Vector2D b)
         {
             return new Vector2D(a.X + b.X, a.Y + b.Y);
         }
+        /// <summary>Rozdíl dvou vektorů.</summary>
         public static Vector2D operator -(Vector2D a, Vector2D b)
         {
             return new Vector2D(a.X - b.X, a.Y - b.Y);
         }
+        /// <summary>Posun bodu o vektor (vektor + bod = bod).</summary>
         public static Point2D operator +(Vector2D a, Point2D b)
         {
             return new Point2D(a.X + b.X, a.Y + b.Y);
         }
+        /// <summary>Posun bodu o vektor (bod + vektor = bod).</summary>
         public static Point2D operator +(Point2D a, Vector2D b)
         {
             return new Point2D(a.X + b.X, a.Y + b.Y);
         }
+        /// <summary>Posun bodu o opačný vektor (bod − vektor = bod).</summary>
         public static Point2D operator -(Point2D a, Vector2D b)
         {
             return new Point2D(a.X - b.X, a.Y - b.Y);
@@ -129,14 +140,17 @@ namespace ARBot.Common.Common
         {
             return a.X*b.X+a.Y*b.Y;
         }
+        /// <summary>Násobení vektoru skalárem (skalár vlevo).</summary>
         public static Vector2D operator *(double k, Vector2D b)
         {
             return new Vector2D(k*b.X, k*b.Y);
         }
+        /// <summary>Násobení vektoru skalárem (skalár vpravo).</summary>
         public static Vector2D operator *(Vector2D b, double k)
         {
             return new Vector2D(k * b.X, k * b.Y);
         }
+        /// <summary>Dělení vektoru skalárem.</summary>
         public static Vector2D operator /(Vector2D b, double k)
         {
             return new Vector2D(b.X/k, b.Y/k);

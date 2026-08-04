@@ -127,7 +127,7 @@ namespace ARBot.Common.Tests
         {
             var l = new Line2D(new Point2D(0, 0), new Point2D(0, 10));
             var p1 = new Point2D(10, 0);
-            var p = l.Intersection(p1);
+            var p = l.ProjectOntoLine(p1);
             Assert.That(p.X, Is.EqualTo(0).Within(1e-4));
             Assert.That(p.Y, Is.EqualTo(0).Within(1e-4));
         }
@@ -140,7 +140,7 @@ namespace ARBot.Common.Tests
         {
             var l = new Line2D(new Point2D(0, 0), new Point2D(10, 10));
             var p1 = new Point2D(1, -1);
-            var p = l.Intersection(p1);
+            var p = l.ProjectOntoLine(p1);
             Assert.That(p.X, Is.EqualTo(0).Within(1e-4));
             Assert.That(p.Y, Is.EqualTo(0).Within(1e-4));
         }

@@ -7,8 +7,19 @@ using ARBot.Common.Common;
 
 namespace ARBot.Common.Coordinates
 {
+    /// <summary>
+    /// Geodetická souřadnice (Latitude/Longitude/Altitude) ve WGS84. Šířka i délka jsou
+    /// v <b>radiánech</b> (délka roste na východ, 0 = rovník / nultý poledník), výška v metrech
+    /// nad povrchem. Systémový geotyp (GPS, <c>ARBotState</c>, mapy, OsmNav). Ze stupňů viz
+    /// <see cref="FromDegrees"/>; převody přes <see cref="ECEF"/>/<see cref="Ellipsoid"/> a lokální
+    /// ENU rovinu řeší <see cref="GeoReference"/>, vzdálenost <see cref="GreatCircle"/>.
+    /// </summary>
     public class LLA
     {
+        /// <summary>Stredni polomer Zeme [m] (shodny s <see cref="GreatCircle"/>).</summary>
+        private const double EarthRadiusMeters = 6_371_000.0;
+
+        /// <summary>Prázdná souřadnice (0, 0, 0).</summary>
         public LLA()
         {
         }
@@ -38,7 +49,11 @@ namespace ARBot.Common.Coordinates
             Altitude = 0;
         }
 
-     
+        /// <summary>Vytvoří LLA z hodnot ve stupních (interně se drží radiány).</summary>
+        public static LLA FromDegrees(double latitudeDeg, double longitudeDeg, double altitude = 0)
+            => new LLA(Conversions.Deg2Rad(latitudeDeg), Conversions.Deg2Rad(longitudeDeg), altitude);
+
+
 
         /// <summary>
         /// Konstruktor z ecef na sfere
@@ -110,6 +125,40 @@ namespace ARBot.Common.Coordinates
             return R * c;
         }
 
+        /// <summary>
+        /// Promitne tento bod na usecku [<paramref name="a"/>, <paramref name="b"/>] lokalni rovinnou
+        /// (equirectangular) projekci kolem <paramref name="a"/>. Vraci nejblizsi bod, kolmou vzdalenost
+        /// [m] a parametr t ∈ [0,1] podel useku. Vse v double; presne pro kratke segmenty (OSM hrany).
+        /// </summary>
+        public (LLA Closest, double DistanceMeters, double T) ProjectOntoSegment(LLA a, LLA b)
+        {
+            double cosLat0 = Math.Cos(a.Latitude);
+
+            // lokalni metry vuci a
+            (double x, double y) Local(LLA g) => (
+                EarthRadiusMeters * (g.Longitude - a.Longitude) * cosLat0,
+                EarthRadiusMeters * (g.Latitude - a.Latitude));
+
+            var (bx, by) = Local(b);
+            var (px, py) = Local(this);
+
+            double len2 = bx * bx + by * by;
+            double t = len2 <= 1e-9 ? 0.0 : (px * bx + py * by) / len2;
+            t = Math.Clamp(t, 0.0, 1.0);
+
+            double cx = t * bx, cy = t * by;
+            double dist = Math.Sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));
+
+            var closest = new LLA(
+                a.Latitude + cy / EarthRadiusMeters,
+                a.Longitude + cx / (EarthRadiusMeters * cosLat0));
+            return (closest, dist, t);
+        }
+
+        /// <summary>
+        /// Rovnost <b>toleranční</b>: dva body jsou shodné, pokud je jejich vzdálenost po kouli
+        /// menší než 1 mm. (Pozor: není to přesná rovnost složek — nehodí se jako přesný klíč.)
+        /// </summary>
         public override bool Equals(object obj)
         {
             LLA lla = obj as LLA;
@@ -119,11 +168,13 @@ namespace ARBot.Common.Coordinates
             return Distance(Ellipsoid.Sphere, lla) < 0.001;
         }
 
+        /// <summary>Hash ze složek. Pozn.: nekonzistentní s tolerančním <see cref="Equals(object)"/>.</summary>
         public override int GetHashCode()
         {
             return Latitude.GetHashCode()+Longitude.GetHashCode()+Altitude.GetHashCode();
         }
 
+        /// <summary>Textová reprezentace „lat, lon, alt" — šířka/délka ve <b>stupních</b>, výška v metrech.</summary>
         public override string ToString()
         {
             return string.Format("{0}, {1}, {2}", Conversions.Rad2Deg(Latitude), Conversions.Rad2Deg(Longitude), Altitude);

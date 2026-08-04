@@ -12,28 +12,35 @@ using System.Threading.Tasks;
 namespace ARBot.Common
 {
     /// <summary>
-    /// jeste existuje Point2DF, poboji pouziva float
+    /// 2D bod (float X,Y). Sekvenční layout (blittable) — používá se i jako prvek polí
+    /// předávaných do nativního kódu (dřív k tomu sloužil samostatný Point2DF, sjednoceno sem).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct Point2D : IEquatable<Point2D>
     {
+        /// <summary>Souřadnice X (vpravo/východ) [m nebo px podle kontextu].</summary>
         public float X;
+        /// <summary>Souřadnice Y (nahoru/sever) [m nebo px podle kontextu].</summary>
         public float Y;
 
+        /// <summary>Bod z polárních souřadnic: délka a úhel [rad] (CCW od osy +X).</summary>
         public static Point2D FromPolar(float length, float angle)
         {
             return new Point2D(length*Math.Cos(angle), length*Math.Sin(angle));
         }
+        /// <summary>Bod z double souřadnic (uloží se jako float).</summary>
         public Point2D(double x, double y)
         {
             X = (float)x;
             Y = (float)y;
         }
+        /// <summary>Bod z float souřadnic.</summary>
         public Point2D(float x, float y)
         {
             X = x;
             Y = y;
         }
+        /// <summary>Bod ze sloupcového vektoru 2×1 (MathNet). Inverzní k explicitnímu operátoru na Matrix.</summary>
         public Point2D(MathNet.Numerics.LinearAlgebra.Matrix<double> m)
         {
             if(m.RowCount != 2 || m.ColumnCount != 1)
@@ -41,11 +48,13 @@ namespace ARBot.Common
             X = (float)m[0, 0];
             Y = (float)m[1, 0];
         }
+        /// <summary>Textová reprezentace „X, Y" (invariantní kultura).</summary>
         public override string ToString()
         {
             return string.Format(CultureInfo.InvariantCulture, "{0}, {1}", X, Y);
         }
 
+        /// <summary>Součet dvou bodů/vektorů po složkách.</summary>
         public static Point2D operator +(Point2D a, Point2D b)
         {
             Point2D x;
@@ -54,6 +63,7 @@ namespace ARBot.Common
             return x;
         }
 
+        /// <summary>Opačný vektor (negace obou složek).</summary>
         public static Point2D operator -(Point2D a)
         {
             Point2D x;
@@ -70,6 +80,7 @@ namespace ARBot.Common
                     return x;
                 }
                 */
+        /// <summary>Dělení vektoru skalárem (double); výsledek se ukládá jako float.</summary>
         public static Point2D operator /(Point2D a, double b)
         {
             Point2D x;
@@ -77,11 +88,44 @@ namespace ARBot.Common
             x.Y = a.Y / (float)b;
             return x;
         }
+        /// <summary>Dělení vektoru skalárem (float).</summary>
         public static Point2D operator /(Point2D a, float b)
         {
             Point2D x;
             x.X = a.X / b;
             x.Y = a.Y / b;
+            return x;
+        }
+        /// <summary>Násobení vektoru skalárem (float).</summary>
+        public static Point2D operator *(Point2D a, float s)
+        {
+            Point2D x;
+            x.X = a.X * s;
+            x.Y = a.Y * s;
+            return x;
+        }
+        /// <summary>Násobení vektoru skalárem (float), komutativně.</summary>
+        public static Point2D operator *(float s, Point2D a)
+        {
+            Point2D x;
+            x.X = a.X * s;
+            x.Y = a.Y * s;
+            return x;
+        }
+        /// <summary>Násobení vektoru skalárem (double); výsledek se ukládá jako float.</summary>
+        public static Point2D operator *(Point2D a, double s)
+        {
+            Point2D x;
+            x.X = a.X * (float)s;
+            x.Y = a.Y * (float)s;
+            return x;
+        }
+        /// <summary>Násobení vektoru skalárem (double), komutativně; výsledek se ukládá jako float.</summary>
+        public static Point2D operator *(double s, Point2D a)
+        {
+            Point2D x;
+            x.X = a.X * (float)s;
+            x.Y = a.Y * (float)s;
             return x;
         }
         /// <summary>
@@ -195,6 +239,10 @@ namespace ARBot.Common
             }
         }
 
+        /// <summary>
+        /// Sjednocení více polygonů přes ClipperLib. <paramref name="resolution"/> = velikost
+        /// kroku [m] pro převod na celočíselné souřadnice Clipperu (menší = přesnější, pomalejší).
+        /// </summary>
         public static List<Point2D> PolyUnion(IEnumerable<List<Point2D>> polys, double resolution)
         {
             Clipper c = new Clipper();
@@ -216,29 +264,38 @@ namespace ARBot.Common
             return X == other.X && Y == other.Y;
         }
 
+        /// <summary>Rovnost s libovolným objektem (true jen pro shodný <see cref="Point2D"/>).</summary>
         public override bool Equals(object obj)
         {
             return obj is Point2D p && Equals(p);
         }
 
+        /// <summary>Hash z obou složek (přesná float rovnost).</summary>
         public override int GetHashCode()
         {
             return X.GetHashCode()^Y.GetHashCode();
         }
 
+        /// <summary>Rovnost po složkách (přesná float rovnost).</summary>
         public static bool operator ==(Point2D a, Point2D b)
         {
             return a.Equals(b);
         }
 
+        /// <summary>Nerovnost po složkách.</summary>
         public static bool operator !=(Point2D a, Point2D b)
         {
             return !a.Equals(b);
         }
+        /// <summary>
+        /// Rozdíl dvou bodů = <see cref="Vector2D"/> (posun z <paramref name="b"/> do <paramref name="a"/>).
+        /// Pozor: výsledek je vektor (double), ne bod — bod−bod dává posun (algebra bod/vektor).
+        /// </summary>
         public static Common.Vector2D operator -(Point2D a, Point2D b)
         {
             return new Common.Vector2D(a.X- b.X, a.Y- b.Y);
         }
+        /// <summary>Transformace bodu maticí 2×2 (MathNet): <c>t · b</c>.</summary>
         public static Point2D operator *(MathNet.Numerics.LinearAlgebra.Matrix<double> t, Point2D b)
         {
             if(t.RowCount != 2 || t.ColumnCount != 2)

@@ -51,6 +51,33 @@ namespace ARBot.Common.Tests
             Assert.That(new Point2D(-1, 1).IsLeft(new Point2D(1, 1), new Point2D(-1, -1)) < 0, Is.True);
         }
 
+        /// <summary>Skalarni nasobeni (float) skaluje obe slozky.</summary>
+        [Test]
+        public void ScalarMultiply_Float_ScalesBothComponents()
+        {
+            var v = new Point2D(2f, -3f) * 2f;
+            Assert.That(v.X, Is.EqualTo(4).Within(1e-6));
+            Assert.That(v.Y, Is.EqualTo(-6).Within(1e-6));
+        }
+
+        /// <summary>Skalarni nasobeni je komutativni (skalar vlevo).</summary>
+        [Test]
+        public void ScalarMultiply_FloatCommutative_ScalesBothComponents()
+        {
+            var v = 2f * new Point2D(2f, -3f);
+            Assert.That(v.X, Is.EqualTo(4).Within(1e-6));
+            Assert.That(v.Y, Is.EqualTo(-6).Within(1e-6));
+        }
+
+        /// <summary>Skalarni nasobeni (double) skaluje obe slozky (vysledek jako float).</summary>
+        [Test]
+        public void ScalarMultiply_Double_ScalesBothComponents()
+        {
+            var v = new Point2D(2, -3) * 2.0;
+            Assert.That(v.X, Is.EqualTo(4).Within(1e-6));
+            Assert.That(v.Y, Is.EqualTo(-6).Within(1e-6));
+        }
+
         /// <summary>
         /// Otoceni orientace primky (zadane jako Line2D) obraci znamenko: tentyz bod je nyni vpravo, IsLeft &lt; 0.
         /// </summary>

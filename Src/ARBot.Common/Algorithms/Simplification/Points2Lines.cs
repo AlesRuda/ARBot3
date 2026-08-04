@@ -103,7 +103,7 @@ namespace ARBot.Common.Algorithms.Simplification
             {
                 int ii = Convert.ToInt16((k + 1.0) * i / (dist.Length + 1.0));
                 pp = points[s + ii];
-                prusecik = tl.Intersection(pp);
+                prusecik = tl.ProjectOntoLine(pp);
 
                 dist[k] = Math.Sqrt((pp.X - prusecik.X) * (pp.X - prusecik.X) + (pp.Y - prusecik.Y) * (pp.Y - prusecik.Y));
                 if (Math.Abs(dist[k]) / l > 0.3)

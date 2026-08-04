@@ -437,7 +437,7 @@ namespace ARBot.Common.Maps
             {
                 if (all || (!w.TemporaryDisable && w.Start.Final && w.End.Final))
                 {
-                    ECEF i = w.Intersect(p, out ipos);
+                    ECEF i = w.ProjectOntoLine(p, out ipos);
                     if (ipos >= 0 && ipos <= 1)
                     {
                         ECEF dp = i - p;
@@ -487,7 +487,7 @@ namespace ARBot.Common.Maps
             MapPoint np = GetNearestPoint(p, out pd, all);
             MapWay nw = GetNearestWay(p, out wd, all);
             if (nw != null && pd >= wd)
-                return nw.Intersect(p, out wd);
+                return nw.ProjectOntoLine(p, out wd);
             if (np != null)
                 return np.Position;
             return null;
@@ -597,7 +597,7 @@ namespace ARBot.Common.Maps
         MapPoint SplitWay(MapWay w, ECEF point)
         {
             double ipos;
-            ECEF inter = w.Intersect(point, out ipos);
+            ECEF inter = w.ProjectOntoLine(point, out ipos);
 
             double d = w.Distance;
 

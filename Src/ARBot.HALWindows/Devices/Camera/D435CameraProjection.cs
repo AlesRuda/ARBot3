@@ -26,7 +26,7 @@ namespace ARBot.HAL.Devices.Camera
             ref Intel.RealSense.Intrinsics depth_intrin,
 		    ref Intel.RealSense.Extrinsics color_to_depth,
             ref Intel.RealSense.Extrinsics depth_to_color,
-		    Point2DF[,] transform,
+		    Point2D[,] transform,
             float[] rotate);
 #endif
 

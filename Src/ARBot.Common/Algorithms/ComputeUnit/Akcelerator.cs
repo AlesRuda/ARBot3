@@ -19,8 +19,8 @@ namespace ARBot.Common.Common
         private static extern void ComputeFree(IntPtr ci);
 
         [DllImport("AkceleratorDll.dll", EntryPoint = "Segment2", SetLastError = true)]
-        private static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2DF[,] leftTransform,
-            byte[] rightDist, float[] rightTransformMatrix, Point2DF[,] rightTransform,
+        private static extern void Segment2(IntPtr ci, byte[] leftDist, float[] leftTransformMatrix, Point2D[,] leftTransform,
+            byte[] rightDist, float[] rightTransformMatrix, Point2D[,] rightTransform,
             float[] globalTransformMatrix,
             int len, float maxZ);
 
@@ -168,10 +168,10 @@ namespace ARBot.Common.Common
         public void Segment(Image<Gray16> leftImage, IDepthCameraProjection leftProjection, Image<Gray16> rightImage, IDepthCameraProjection rightProjection, Matrix3D globalTransform)
         {
             float[] lt = Transformation(leftProjection.Transformation);
-            Point2DF[,] lct = leftProjection.Camera2DToCamera3D;
+            Point2D[,] lct = leftProjection.Camera2DToCamera3D;
 
             float[] rt = Transformation(rightProjection.Transformation);
-            Point2DF[,] rct = rightProjection.Camera2DToCamera3D;
+            Point2D[,] rct = rightProjection.Camera2DToCamera3D;
 
             float[] gt = Transformation(globalTransform);
 

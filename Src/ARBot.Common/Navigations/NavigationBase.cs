@@ -41,15 +41,16 @@ namespace ARBot.Common.Navigations
         }
 
         /// <summary>
-        /// Spocte prusecik primky prochazejici body p0 a p1 a kolmice prochazejici bodem p.
-        /// Parametr pos je relativni pozice mezi p0 (pos=0) a p1 (pos=1)
+        /// Projekce bodu <paramref name="p"/> na (nekonecnou) primku prochazejici body p0 a p1 =
+        /// pata kolmice. Parametr pos je relativni pozice na primce mezi p0 (pos=0) a p1 (pos=1),
+        /// NENI orezany do [0,1] (muze byt i mimo usecku).
         /// </summary>
         /// <param name="p0">Prvni bod na primce</param>
         /// <param name="p1">Druhy bod na primce</param>
         /// <param name="p">Bod na kolmici</param>
         /// <param name="pos">Relativni pozice pruseciku usecky s kolmici z bodu p. 0=na bodu p0, 1=na bodu p1</param>
         /// <returns></returns>
-        protected static Point2D? Intersect(
+        protected static Point2D? ProjectOntoLine(
             Point2D p0,
             Point2D p1,
             Point2D p,
@@ -103,7 +104,7 @@ namespace ARBot.Common.Navigations
             foreach (var p in l)
             {
                 double pos;
-                var i = Intersect(from, to, p, out pos);
+                var i = ProjectOntoLine(from, to, p, out pos);
                 if (i != null && pos >= 0 && pos <= 1)
                     yield return new IntersectI() { P = p, I = i, Pos = pos, Length = (i.Value - p).Length };
             }

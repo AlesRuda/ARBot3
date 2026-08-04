@@ -295,13 +295,13 @@ namespace ARBot.Common.Common
             var orientationLine = new Line2D(new Vector2D(currentOrientation).Normal, o);
             Left = le?.LinearRegesion;
             if (Left != null)
-                LeftDistance = Left.Distance(o) * Math.Sign(Left.Intersection(o).IsLeft(orientationLine));
+                LeftDistance = Left.Distance(o) * Math.Sign(Left.ProjectOntoLine(o).IsLeft(orientationLine));
             else
                 LeftDistance = null;
 
             Right = re?.LinearRegesion;
             if (Right != null)
-                RightDistance = Right.Distance(o) * Math.Sign(-Right.Intersection(o).IsLeft(orientationLine));
+                RightDistance = Right.Distance(o) * Math.Sign(-Right.ProjectOntoLine(o).IsLeft(orientationLine));
             else
                 RightDistance = null;
         }

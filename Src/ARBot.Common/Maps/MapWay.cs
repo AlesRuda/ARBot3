@@ -82,15 +82,17 @@ namespace ARBot.Common.Maps
         }
 
         /// <summary>
-        /// Spocte prusecik primky prochazejici body p0 a p1 a kolmice prochazejici bodem p.
-        /// Parametr pos je relativni pozice mezi p0 (pos=0) a p1 (pos=1)
+        /// Projekce bodu <paramref name="p"/> na (nekonecnou) primku prochazejici body p0 a p1 =
+        /// pata kolmice. Parametr pos je relativni pozice na primce mezi p0 (pos=0) a p1 (pos=1),
+        /// NENI orezany do [0,1] (muze byt i mimo usecku). Pro projekci na USEK (orezanou) viz
+        /// <see cref="ARBot.Common.Coordinates.LLA.ProjectOntoSegment"/>.
         /// </summary>
         /// <param name="p0">Prvni bod na primce</param>
         /// <param name="p1">Druhy bod na primce</param>
         /// <param name="p">Bod na kolmici</param>
         /// <param name="pos">Relativni pozice pruseciku usecky s kolmici z bodu p. 0=na bodu p0, 1=na bodu p1</param>
         /// <returns></returns>
-        public static ECEF Intersect(
+        public static ECEF ProjectOntoLine(
             ECEF p0,
             ECEF p1,
             ECEF p,
@@ -109,9 +111,9 @@ namespace ARBot.Common.Maps
             return new ECEF() { X = p0.X + pos * d21.X, Y = p0.Y + pos * d21.Y, Z=p0.Z+pos*d21.Z };
         }
 
-        public ECEF Intersect(ECEF p, out double pos)
+        public ECEF ProjectOntoLine(ECEF p, out double pos)
         {
-            return Intersect(Start.Position, End.Position, p, out pos);
+            return ProjectOntoLine(Start.Position, End.Position, p, out pos);
         }
 
         /// <summary>
@@ -122,7 +124,7 @@ namespace ARBot.Common.Maps
         public double GetDistance(ECEF p)
         {
             double pos;
-            ECEF i = Intersect(p, out pos);
+            ECEF i = ProjectOntoLine(p, out pos);
             //prusecik je pred zacatkem - vzdalenost od zacatku
             if (pos < 0)
                 return (i - Start.Position).Radius;

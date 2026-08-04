@@ -37,8 +37,8 @@ namespace ARBot.Common.Tests.Vision
         private sealed class FakeProjection : IDepthCameraProjection
         {
             public Matrix4x4 Transformation { get; private set; }
-            public Point2DF[,] Camera2DToCamera3D { get; }
-            public FakeProjection(Point2DF[,] table, Matrix4x4 t) { Camera2DToCamera3D = table; Transformation = t; }
+            public Point2D[,] Camera2DToCamera3D { get; }
+            public FakeProjection(Point2D[,] table, Matrix4x4 t) { Camera2DToCamera3D = table; Transformation = t; }
             public void SetOrientation(Matrix4x4 transform) => Transformation = transform;
             public List<Point4D> GetPointCloud(Image<Gray16> depth) => throw new NotImplementedException();
             public List<Point2D> TargetPoly => throw new NotImplementedException();
@@ -48,10 +48,10 @@ namespace ARBot.Common.Tests.Vision
         // Pinhole tabulka smeru paprsku (stred obrazu = 0), index [y, x].
         private static FakeProjection MakeProjection()
         {
-            var table = new Point2DF[H, W];
+            var table = new Point2D[H, W];
             for (int y = 0; y < H; y++)
                 for (int x = 0; x < W; x++)
-                    table[y, x] = new Point2DF((x - W / 2f) / F, (y - H / 2f) / F);
+                    table[y, x] = new Point2D((x - W / 2f) / F, (y - H / 2f) / F);
             return new FakeProjection(table, DownCamera());
         }
 
