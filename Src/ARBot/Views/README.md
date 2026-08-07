@@ -97,6 +97,12 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   třídy, průhlednost dle důvěry. Výhledově další vrstvy (RGB sjízdnost, okraje vozovky…). Odběr `Stream`
   (Run i View), backpressure „latest-wins". Menu **Tools → Robot-centric**.
   Viz [doc/traversability-grid.md](../../../doc/traversability-grid.md).
+- `WorldViewDocument` (Mapsui `MapControl`) — world (geo) pohled: mapa s přepínatelným podkladem
+  (OSM online / MBTiles offline / žádný) a vypínatelnými vrstvami dat ze `Stream` (poloha+kurz z `GPSState`/
+  `RobotStateMsg`, trajektorie z GPS, trasa/graf a značky z `GraphNavigationMsg`). Podklad lze úplně vypnout ⇒
+  **na OrangePI žádné pokusy o internet** (na ARM je i výchozí podklad `None`). ViewModel vlastní Mapsui `Map`,
+  View mu ho přiřadí do `MapControl.Map` v code-behind (mimo design-time). Odběr `Stream` (Run i View),
+  backpressure „latest-wins". Menu **Tools → World**. Viz [doc/world-view.md](../../../doc/world-view.md).
 
 Pozn.: dokumenty senzorů se obnovují **událostí `MeasurementArived`**, ne časovačem —
 data se tak zobrazují rovnoměrně, jak chodí z driveru. Rozhraní `IIMU`/`IGPS`/`IMotorControl`/`ICamera`

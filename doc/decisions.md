@@ -13,6 +13,21 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-04 — World pohled: mapový engine **Mapsui** (vs. vlastní tile control) — ROZHODNUTO/HOTOVO
+Nový world (geo) pohled potřebuje mapu s dlaždicovým podkladem, zoom/pan a vrstvami. Zvažovány dvě cesty:
+(a) **vlastní** slippy-map `Control` přes `DrawingContext` (jako `RobotCentricControl`) — bez závislostí,
+plná kontrola nad offline/ARM, ale hodně kódu (dlaždicová matematika, async stahování, disková cache,
+gesta); (b) knihovna **Mapsui**. Zvoleno **(b) Mapsui** — hotový pan/zoom/vrstvy, rychlé zprovoznění,
+existuje dedikovaný balíček **`Mapsui.Avalonia12`** kompatibilní s Avalonia 12.0.3 (ověřeno restore+build).
+- **Důsledky:** přidány NuGet závislosti `Mapsui.Avalonia12`, `Mapsui.Nts` (čáry/geometrie),
+  `BruTile.MbTiles` (offline). ViewModel vlastní Mapsui `Map`; View mu ho přiřadí do `MapControl.Map`
+  v code-behind (mimo design-time). Mapsui renderuje přes **SkiaSharp** → na ARM64 nutno ověřit nativní
+  assety na zařízení (build neblokuje).
+- **Offline/ARM:** podklad je plně vypínatelný a na ARM je výchozí `None` ⇒ na OrangePI žádné pokusy
+  o internet (splněn požadavek zadání).
+- **Nezvoleno teď:** vyhledávání (geocoding) a podklady Mapy.cz/Google (API klíč + ToS omezení).
+- **Odkazy:** [doc/world-view.md](world-view.md), `Src/ARBot/ViewModels/WorldViewDocument.cs`, `Src/ARBot/ARBot.csproj`.
+
 ### 2026-08-04 — Názvosloví geometrie: `ProjectOnto…` (projekce) vs `Intersection` (průsečík) — ROZHODNUTO/HOTOVO
 Napříč kódem se pro **projekci bodu na přímku/úsek** (pata kolmice) používalo matoucí sloveso `Intersect`
 (`MapWay.Intersect`, `NavigationBase.Intersect`), zatímco `Intersection` (`Line2D`/`LineSegment2D`) znamená

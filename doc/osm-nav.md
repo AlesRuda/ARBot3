@@ -58,7 +58,8 @@ jen ke čtení, bezpečná ke sdílení mezi vlákny/hypotézami). Klíčové ro
 - **přechod grafu = odbočení** (turn cost / turn restriction).
 
 Díky tomu jdou přirozeně modelovat **zákazy a ceny odbočení** (co by uzel-based graf neuměl).
-[`Node`](../Src/ARBot.Common/Maps/OsmNav/Graph/Node.cs) = křižovatka/bod lomu se zeměpisnou polohou.
+[`Node`](../Src/ARBot.Common/Maps/OsmNav/Graph/Node.cs) = křižovatka/bod lomu se zeměpisnou polohou
+(+ `Width` = šířka cesty v uzlu [m], pro vizualizaci proměnné šířky a hladké napojení; plní `GraphBuilder`).
 `Edge.Index` je **hustý** index do polí plánovače. API: `Successors`/`Predecessors`, `BaseTraversalCost`,
 `BaseTurnCost`/`BaseEdgeCost`, `FindReverse`, `NearestEdge` (mapmatching přes geo projekci).
 

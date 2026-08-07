@@ -37,6 +37,9 @@ namespace ARBot.ViewModels
 
             // Bezobslužný self-test (parametr selftest=1) - reprodukovatelné měření výkonu bez obsluhy.
             StartSelfTestIfRequested();
+
+            // Bezobslužný screenshot World pohledu do deníčku (parametr worldshot=true).
+            StartWorldShotIfRequested();
         }
 
         /// <summary>
@@ -140,6 +143,39 @@ namespace ARBot.ViewModels
             }
 
             var doc = new RobotCentricDocument();
+            try
+            {
+                doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
+            }
+            catch { /* runtime nedostupne (napr. design-time) */ }
+
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>
+        /// Otevre (nebo aktivuje) svetovy (world) pohled - mapa s prepinatelnym podkladem a vrstvami dat
+        /// ze <see cref="ARBotRuntime.Stream"/> (poloha/kurz, trajektorie, trasa/graf, znacky). Base vrstvu
+        /// lze vypnout (na OrangePI = zadne pokusy o internet). Viz <see cref="WorldViewDocument"/>.
+        /// </summary>
+        [RelayCommand]
+        private void OpenWorldView()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "WorldView");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new WorldViewDocument();
             try
             {
                 doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));

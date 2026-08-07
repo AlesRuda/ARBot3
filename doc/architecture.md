@@ -26,6 +26,19 @@ ARBot (Avalonia app)  ──►  ARBot.HALWindows / ARBot.HALArmbian  ──► 
 - **UI dokovatelné dokumenty/nástroje**: viz
   [Src/ARBot/ARBot/Views/README.md](../Src/ARBot/ARBot/Views/README.md).
 
+## Konvence: převod doménového stavu na zprávu — `ToLogMessage()`
+
+Doménové/algoritmické objekty si **samy vyrábějí svou log/telemetrickou zprávu** metodou
+**`ToLogMessage()`** (vrací příslušný `*Msg` odvozený z [`Message`](../Src/ARBot.Common/Logs/Message.cs)),
+případně `ToLogMessages()` pro více zpráv. **Konverzi vlastní doména, ne zpráva.**
+
+- Směr závislosti je **doména → `Logs` (její zpráva)**, ne naopak. Zpráva (`Message`) zůstává **pasivní DTO**
+  (nese jen data + serializaci `ToData`/`FromData`) a nezná doménový typ, ze kterého vznikla.
+- Nezakládej opačné statické tovární metody na zprávě (`XxxMsg.FromDomain(...)`) — místo toho přidej
+  `ToLogMessage()` na doménový objekt.
+- Zavedeno napříč projektem: `ICP`, `Collider2`, `EKFStep`, `VoronoiNavigation`/`RRT` (navigace),
+  `RoadNetwork` (OsmNav) → `MapMsg`, atd.
+
 ## Poznámka: probíhající migrace z ARBot2
 
 Část kódu se portuje ze staršího ARBotu (ARBot2). Starý/nekompilovatelný kód bývá vyřazen

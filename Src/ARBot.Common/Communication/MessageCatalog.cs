@@ -51,6 +51,7 @@ namespace ARBot.Common.Communication
             c.Register(new ColliderMsg());
             c.Register(new PathEdgeMsg());
             c.Register(new GraphNavigationMsg());
+            c.Register(new MapMsg());
             // Sjednocena merenia (Common)
             c.Register(new IMUState());
             // Odvozene / debug zpravy

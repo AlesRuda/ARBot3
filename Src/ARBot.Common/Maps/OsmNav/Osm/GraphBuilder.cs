@@ -12,18 +12,31 @@ public static class GraphBuilder
 {
     private static readonly GreatCircle _greatCircle = new();
 
-    public static RoadNetwork BuildNetwork(OsmData data, TravelProfile profile)
+    public static RoadNetwork BuildNetwork(OsmData data, TravelProfile profile, double defaultWidthMeters = 2.0)
     {
         var builder = new RoadNetwork.Builder();
         var nodeIndex = data.Nodes.ToDictionary(n => n.Id);
         var mapNodes = new Dictionary<long, Node>();
+
+        // Sirka cesty v uzlu: prvni pruchod - kazdemu uzlu prirad MAX sirku z cest, ktere jim vedou
+        // (default, nebo z OSM tagu 'width'/'est_width' na ceste). Uzel s vlastnim 'width' tagem ma prednost.
+        var nodeWidth = new Dictionary<long, double>();
+        foreach (var way in data.Ways)
+        {
+            if (!profile.AcceptsWay(way)) continue;
+            double w = TryParseWidth(way.Tags, out double ww) ? ww : defaultWidthMeters;
+            foreach (long id in way.NodeRefs)
+                if (!nodeWidth.TryGetValue(id, out double cur) || w > cur) nodeWidth[id] = w;
+        }
 
         Node GetNode(long id)
         {
             if (!mapNodes.TryGetValue(id, out Node? n))
             {
                 var raw = nodeIndex[id];
-                n = new Node(id, LLA.FromDegrees(raw.Lat, raw.Lon));
+                double width = nodeWidth.TryGetValue(id, out double w) ? w : defaultWidthMeters;
+                if (TryParseWidth(raw.Tags, out double nw)) width = nw;   // vlastni sirka uzlu ma prednost
+                n = new Node(id, LLA.FromDegrees(raw.Lat, raw.Lon), width);
                 mapNodes[id] = n;
             }
             return n;
@@ -47,6 +60,30 @@ public static class GraphBuilder
         }
         BuildTurnsInto(builder, built, data, profile);
         return builder.Build();
+    }
+
+    /// <summary>
+    /// Precte sirku cesty z OSM tagu (<c>width</c>, fallback <c>est_width</c>) v METRECH. Bere vedouci
+    /// cislo (napr. "3", "3.5", "3 m", "2.5 m"); pripady jako stopy/palce ignoruje (vraci false).
+    /// </summary>
+    private static bool TryParseWidth(IReadOnlyDictionary<string, string> tags, out double meters)
+    {
+        meters = 0;
+        string? v = null;
+        if (tags.TryGetValue("width", out var w)) v = w;
+        else if (tags.TryGetValue("est_width", out var ew)) v = ew;
+        if (string.IsNullOrWhiteSpace(v)) return false;
+
+        v = v.Trim();
+        int i = 0;
+        while (i < v.Length && (char.IsDigit(v[i]) || v[i] == '.' || v[i] == '-')) i++;
+        if (i == 0) return false;
+        if (!double.TryParse(v.Substring(0, i), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out double m) || m <= 0) return false;
+
+        string unit = v.Substring(i).Trim().ToLowerInvariant();
+        if (unit.Length == 0 || unit == "m") { meters = m; return true; }   // jen metry (jinak radeji default)
+        return false;
     }
 
     private static void BuildTurnsInto(RoadNetwork.Builder builder, List<Edge> edges, OsmData data, TravelProfile profile)

@@ -18,6 +18,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `dotnet test <proj> -p:Platform=x64`. Podrobnosti: [doc/build-and-platforms.md](doc/build-and-platforms.md).
 - **Při migracích/přepisech nemazat starou ani zakomentovanou implementaci, dokud
   novou nepotvrdí unit testy.**
+- **Převod doménového stavu na zprávu:** doménové/algoritmické objekty si vyrábějí svou log-zprávu
+  metodou **`ToLogMessage()`** (→ příslušný `*Msg`); konverzi vlastní doména, `Message` zůstává pasivní
+  DTO (směr závislosti doména → `Logs`). Nezakládej `XxxMsg.FromDomain(...)`. Detail:
+  [doc/architecture.md](doc/architecture.md).
 - **Souřadnicové konvence:** world **ENU** + matematická orientace (0 = východ, +CCW),
   body **FLU** (X vpřed, Y vlevo, Z nahoru). Viz [doc/imu-and-frames.md](doc/imu-and-frames.md).
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
@@ -44,6 +48,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
   kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
+- [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
+  (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze
+  streamu (poloha+kurz, trajektorie, trasa/graf, značky).
 - [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
   `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +
   brzdná obálka, exekuce = feedforward + lookahead; analýza odchylky vs. vzdálenost cílového bodu.

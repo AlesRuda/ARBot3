@@ -86,7 +86,7 @@ namespace ARBot.Robot
 #if IsX64
             PortAHRS = "COM5";
             PortMotor = "COM9";
-            PortGPS = "COM7";
+            PortGPS = "COM8";
 #endif
 #if IsARM64
             // OrangePI/Armbian: VN100 IMU pres sdilenou tridu Uart (System.IO.Ports) - stejny kod

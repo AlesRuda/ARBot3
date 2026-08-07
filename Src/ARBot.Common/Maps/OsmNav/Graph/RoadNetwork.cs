@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
+using ARBot.Common.Logs;
 
 namespace ARBot.Common.Maps.OsmNav.Graph;
 
@@ -58,6 +60,46 @@ public sealed class RoadNetwork
             if (d < distance) { distance = d; best = e; t = tt; proj = cp; }
         }
         return best;
+    }
+
+    /// <summary>
+    /// Zkonvertuje síť na <see cref="MapMsg"/> pro logování/vizualizaci (uzly v LLA stupních, hrany
+    /// deduplikované na jednu úsečku — síť má forward i reverzní hranu). Konvence <c>ToLogMessage</c>
+    /// jako u ostatních domén (ICP, Collider, EKFStep, navigace).
+    /// </summary>
+    public MapMsg ToLogMessage(string? name = null)
+    {
+        var msg = new MapMsg { Name = name ?? string.Empty };
+        var index = new Dictionary<long, int>();
+        var seen = new HashSet<(long, long, long)>();
+
+        foreach (var e in _edges)
+        {
+            int fi = AddNode(msg, index, e.From);
+            int ti = AddNode(msg, index, e.To);
+
+            long a = e.From.Id, b = e.To.Id;
+            var key = a < b ? (a, b, e.WayId) : (b, a, e.WayId);
+            if (!seen.Add(key)) continue;   // obousměrnou hranu kresli jen jednou
+
+            msg.Edges.Add(new MapMsg.MapEdge { From = fi, To = ti, WayId = e.WayId, LengthMeters = e.LengthMeters });
+        }
+        return msg;
+
+        static int AddNode(MapMsg msg, Dictionary<long, int> index, Node n)
+        {
+            if (index.TryGetValue(n.Id, out int i)) return i;
+            i = msg.Nodes.Count;
+            index[n.Id] = i;
+            msg.Nodes.Add(new MapMsg.MapNode
+            {
+                Id = n.Id,
+                LatDeg = Conversions.Rad2Deg(n.Location.Latitude),
+                LonDeg = Conversions.Rad2Deg(n.Location.Longitude),
+                WidthMeters = n.Width,
+            });
+            return i;
+        }
     }
 
     /// <summary>Mutovatelný builder; po <see cref="Build"/> je síť neměnná.</summary>

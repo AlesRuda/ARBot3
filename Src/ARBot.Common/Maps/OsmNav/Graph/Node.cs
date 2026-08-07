@@ -11,9 +11,16 @@ public sealed class Node
     public long Id { get; }
     public LLA Location { get; }
 
-    public Node(long id, LLA location)
+    /// <summary>
+    /// Šířka cesty v tomto uzlu [m]. Cesta pak může být na začátku a konci různě široká (interpolace
+    /// podél hrany) a v křižovatce se hrany hladce napojí (všechny sdílí šířku uzlu). 0 = neurčeno.
+    /// </summary>
+    public double Width { get; }
+
+    public Node(long id, LLA location, double widthMeters = 0.0)
     {
         Id = id;
         Location = location;
+        Width = widthMeters;
     }
 }

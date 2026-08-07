@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Media;
 
@@ -21,6 +22,10 @@ namespace ARBot.Views.Controls
             (-0.20, 0.00), (-0.20, 0.10), (-0.25, 0.10), (-0.25, -0.10), (-0.20, -0.10),
             (-0.20, 0.00), (-0.15, 0.00), (-0.15, -0.15),
         };
+
+        /// <summary>Obrys robota v metrech (lx = vpravo, ly = vpřed) — jediný zdroj tvaru; využívá ho
+        /// i world view k vykreslení robota jako metrického polygonu na mapě (mimo Avalonia render).</summary>
+        public static IReadOnlyList<(double lx, double ly)> OutlineMeters => Outline;
 
         /// <summary>Dosah tvaru od počátku (osy otáčení) v metrech — robot NENÍ symetrický
         /// (dozadu delší než dopředu). Pro layout, aby se celý robot vešel do pohledu.</summary>
