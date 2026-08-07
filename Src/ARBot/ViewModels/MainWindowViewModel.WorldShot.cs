@@ -44,6 +44,19 @@ namespace ARBot.ViewModels
                 });
                 if (doc == null) return;
 
+                // Zachyti hlavni okno do doc/media pod danym nazvem (kazdy snimek vlastni soubor).
+                async Task CaptureWorld(string name)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        string path = Path.Combine(SelfTest.MediaDir(), name);
+                        if (App.MainTopLevel is Visual v && ScreenCapture.SavePng(v, path))
+                            System.Diagnostics.Debug.WriteLine("WorldShot: " + path);
+                        else
+                            System.Diagnostics.Debug.WriteLine("WorldShot: screenshot se nezdaril (" + name + ")");
+                    });
+                }
+
                 // Synteticka trajektorie + poloha (Praha) - postupne, aby se stopa naakumulovala
                 // (Post koalescuje "latest-wins", takze mezi body je potreba nechat probehnout flush).
                 double lat0 = 50.08758, lon0 = 14.42076;
@@ -69,30 +82,29 @@ namespace ARBot.ViewModels
                     V = 0.6,
                 }));
 
-                // Nacti malou vzorovou OSM sit u robota (overi cestu MapMsg + vrstva "Mapa").
-                string osmPath = Path.Combine(Path.GetTempPath(), "arbot-worldshot.osm");
-                await File.WriteAllTextAsync(osmPath, SampleOsm);
-                await Dispatcher.UIThread.InvokeAsync(() => doc.LoadOsmMapAsync(osmPath));
+                await Task.Delay(3500);   // nech nacist dlazdice OSM
 
-                await Task.Delay(3500);   // nech nacist dlazdice OSM + sestavit sit
-
-                // Hluboky zoom na robota, aby byl videt jeho metricky tvar (nad max dlazdic = overzoom).
+                // --- Snimek 1: obecny World pohled (robot jako metricky tvar), jeste BEZ OsmNav mapy. ---
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     var (mx, my) = SphericalMercator.FromLonLat(lon0 + (steps - 1) * dLon, lat0 + (steps - 1) * dLat);
-                    doc.Map.Navigator.CenterOnAndZoomTo(new MPoint(mx, my), 0.10);   // vidět celou síť + proměnnou šířku
+                    doc.Map.Navigator.CenterOnAndZoomTo(new MPoint(mx, my), 0.05);   // videt metricky tvar robota
                 });
+                await Task.Delay(2500);
+                await CaptureWorld("world-view.png");
 
-                await Task.Delay(3500);   // nech dorenderovat po zoomu
-
+                // --- Snimek 2: sit z OsmNav se sirkami cest (vrstva "Mapa (sit)"). ---
+                string osmPath = Path.Combine(Path.GetTempPath(), "arbot-worldshot.osm");
+                await File.WriteAllTextAsync(osmPath, SampleOsm);
+                await Dispatcher.UIThread.InvokeAsync(() => doc.LoadOsmMapAsync(osmPath));
+                await Task.Delay(3000);   // nech sestavit + vykreslit sit
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    string path = Path.Combine(SelfTest.MediaDir(), "world-view.png");
-                    if (App.MainTopLevel is Visual v && ScreenCapture.SavePng(v, path))
-                        System.Diagnostics.Debug.WriteLine("WorldShot: " + path);
-                    else
-                        System.Diagnostics.Debug.WriteLine("WorldShot: screenshot se nezdaril");
+                    var (mx, my) = SphericalMercator.FromLonLat(lon0 + (steps - 1) * dLon, lat0 + (steps - 1) * dLat);
+                    doc.Map.Navigator.CenterOnAndZoomTo(new MPoint(mx, my), 0.10);   // cela sit + promenna sirka
                 });
+                await Task.Delay(3000);
+                await CaptureWorld("world-view-road-width.png");
             }
             catch (Exception ex)
             {

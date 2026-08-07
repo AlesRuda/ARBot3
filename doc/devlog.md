@@ -43,6 +43,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   (Mercator). V panelu pole **„Šířka cesty [m]"** (`DefaultRoadWidthMeters`, `NumericUpDown`) se uplatní
   při načtení. Ověřeno: OsmNav testy 76/76, screenshot (vzorová `.osm`: obvod `width=6`, diagonály default 2
   → viditelný taper + hladké křižovatky). Build x64 zeleno.
+
+  ![Mapa z OsmNav se šířkami cest: obvod (OSM width=6 m) široký, diagonály se zužují k prostřednímu uzlu (default 2 m), hladké křižovatky](media/world-view-road-width.png)
+
 - **Fix UI: panel „Mapa a vrstvy" přetékal.** Tělo panelu (`ScrollViewer`) mělo pevný `MaxHeight=440`,
   takže na nižším okně obsah přetékal pod mapu bez scrollbaru. Nově se `MaxHeight` odvíjí od výšky mapy
   (`$parent[Grid].Bounds.Height` − chrome, přes `SubtractConverter`) → scrollbar naskočí přesně, když se
