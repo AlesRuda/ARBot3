@@ -44,6 +44,10 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `ARBot.Common.Tests` 326/326 (nové: roundtrip v3 s hranami, čtení v2 bez hran, procesor s fake
   `IComputeUnit` vč. škálování do RGB). **Na HW neověřeno** (výkon nativního `FindPathEdge` na vlákně
   kamery per snímek — sledovat `compute_ms` v traversability CSV).
+- **Úklid `D435Camera`: odstraněna kamerová `BackProject` větev** (obě HAL). Mrtvý dev kód — probability
+  i hrany počítá `CameraFrameProcessor`; s větví odešla i property `BackProject`, `resizedColorImage`
+  a zakomentovaný zbytek `cu.PathEdges` (nová cesta už potvrzena testy). Pole `cu` + konstruktory
+  s `IComputeUnit` zatím ponechány. Build x64 + OrangePI zeleno.
 
 ## 2026-08-07
 

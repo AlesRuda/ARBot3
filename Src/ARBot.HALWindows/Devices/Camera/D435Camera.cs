@@ -35,9 +35,6 @@ namespace ARBot.HAL.Devices.Camera
         string sn;
         /// <summary>Nazev kamery (napr. "Left"/"Right") - soucast <see cref="Name"/>.</summary>
         string nazev = "D435";
-        /// <summary>Zpetna projekce barev na pravdepodobnostni obraz (volitelna).</summary>
-        public IBackProject BackProject { get; set; }
-
         /// <inheritdoc/>
         public ICameraFrameProcessor FrameProcessor { get; set; }
 
@@ -49,8 +46,6 @@ namespace ARBot.HAL.Devices.Camera
         /// <summary>Triple-buffer capture pool (krok 4): recyklovane buffery misto alokace per grab.
         /// Pouziva jen vlakno kamery (GetMeasurement) -> bez zamku.</summary>
         private readonly CaptureFramePool capturePool = new CaptureFramePool(3);
-        /// <summary>Znovupouzity resize buffer pro (dev) kamerovou BackProject vetev; v Run nepouzito.</summary>
-        private Image<BGR32> resizedColorImage;
 
         /// <summary>Interval opakovanych pokusu o pripojeni, kdyz kamera chybi [ms].</summary>
         private const int ReconnectPeriodMs = 1000;
@@ -178,8 +173,8 @@ namespace ARBot.HAL.Devices.Camera
         }
 
         /// <summary>
-        /// Pocka na dalsi snimek z pipeline, zpracuje ho (RGB, hloubka, volitelne backprojection/hrany)
-        /// a vrati jako novy CameraFrame s vlastnimi buffery. Volano ze SensorBase.Process.
+        /// Pocka na dalsi snimek z pipeline, zpracuje ho (RGB, hloubka; odvozene entity dopocte
+        /// <see cref="FrameProcessor"/>) a vrati jako CameraFrame z capture poolu. Volano ze SensorBase.Process.
         /// </summary>
         protected override CameraFrame GetMeasurement()
         {
@@ -211,33 +206,7 @@ namespace ARBot.HAL.Devices.Camera
                     if (imageDepth != null)
                         GetDataGray(depthFrame, imageDepth.Data);
                     if (imageRGB != null)
-                    {
                         GetDataRGB(colorFrame, imageRGB.Data);
-
-                        // Kamerova BackProject vetev (dev): v Run NEpouzita - probability pocita
-                        // CameraFrameProcessor. Buffery jsou znovupouzite (Ensure) misto alokace.
-                        if (BackProject != null)
-                        {
-                            var size = BackProject.Size(imageRGB.Width, imageRGB.Height);
-                            Image<BGR32> bpSrc = imageRGB;
-                            if (size.Width != imageRGB.Width || size.Height != imageRGB.Height)
-                            {
-                                resizedColorImage = CameraFramePool.Ensure(resizedColorImage, size.Width, size.Height);
-                                resizedColorImage.Resize(imageRGB);
-                                bpSrc = resizedColorImage;
-                            }
-                            frame.ImageProbability = CameraFramePool.Ensure(frame.ImageProbability, size.Width, size.Height);
-                            BackProject.Process(bpSrc, frame.ImageProbability);
-
-                            // PRESUNUTO: hranice cesty pocita CameraFrameProcessor (frame.PathEdges);
-                            // zdejsi volani vysledek jen zahazovalo. Ponechano do overeni testy
-                            // (pravidlo CLAUDE.md o nemazani stare implementace):
-                            // if (cu != null)
-                            //     _ = cu.PathEdges(frame.ImageProbability,
-                            //         (double)imageRGB.Width / frame.ImageProbability.Width,
-                            //         (double)imageRGB.Height / frame.ImageProbability.Height);
-                        }
-                    }
 
                     frame.Name = Name;
                     frame.TimeStamp = ts;
