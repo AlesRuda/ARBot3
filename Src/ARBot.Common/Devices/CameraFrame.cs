@@ -20,7 +20,7 @@ namespace ARBot.Common.Devices
         /// <see cref="ToData"/>/<see cref="FromData"/>) zvys o 1 a v <see cref="FromData"/>
         /// pridej cteci vetev pro predchozi verzi (viz doc/record-replay.md → Verzovani zprav).
         /// </summary>
-        public const int FormatVersion = 2;
+        public const int FormatVersion = 3;
 
         public CameraFrame() : base(FormatVersion)
         {
@@ -53,6 +53,15 @@ namespace ARBot.Common.Devices
         /// </summary>
         public PolarTraversabilityGrid Grid { get; set; }
 
+        /// <summary>
+        /// Hranice cesty nalezene v <see cref="ImageProbability"/>, prepocitane do souradnic
+        /// <see cref="ImageRGB"/> (viz <see cref="ARBot.Common.Algorithms.ComputeUnit.IComputeUnit.PathEdges"/>).
+        /// Pocita je synchronne <see cref="ARBot.Common.Vision.ICameraFrameProcessor"/> na vlakne kamery;
+        /// null = nepocitano (procesor bez vypocetni jednotky nebo chybi probability). Per snimek cerstvy
+        /// seznam - sdili se referenci (jako <see cref="Grid"/>) a serializuje se s ramcem (od verze 3).
+        /// </summary>
+        public List<PathEdge> PathEdges { get; set; }
+
         /// <inheritdoc/>
         public override Message Build() => new CameraFrame();
 
@@ -70,7 +79,35 @@ namespace ARBot.Common.Devices
             ImageMsg.Write(bw, ImageDepth, ImageMsg.Compression.None);
             Write(bw, RGBTimeStamp);
             Write(bw, DepthTimeStamp);
-            WriteGrid(bw, Grid);   // od verze 2 (diagnosticke ComputeMs se NEserializuje)
+            WriteGrid(bw, Grid);           // od verze 2 (diagnosticke ComputeMs se NEserializuje)
+            WritePathEdges(bw, PathEdges); // od verze 3
+        }
+
+        /// <summary>Zapise hranice cesty: flag "ma hrany", a pokud ano pocet + {Y, Left?, Right?}.</summary>
+        private void WritePathEdges(BinaryWriter bw, List<PathEdge> edges)
+        {
+            bw.Write(edges != null);
+            if (edges == null) return;
+
+            bw.Write(edges.Count);
+            for (int i = 0; i < edges.Count; i++)
+            {
+                bw.Write(edges[i].Y);
+                Write(bw, edges[i].Left);
+                Write(bw, edges[i].Right);
+            }
+        }
+
+        /// <summary>Nacte hranice cesty zapsane <see cref="WritePathEdges"/>; null, kdyz "ma hrany" == false.</summary>
+        private List<PathEdge> ReadPathEdges(BinaryReader br)
+        {
+            if (!br.ReadBoolean()) return null;
+
+            int n = br.ReadInt32();
+            var edges = new List<PathEdge>(n);
+            for (int i = 0; i < n; i++)
+                edges.Add(new PathEdge { Y = br.ReadInt32(), Left = ReadInt32(br), Right = ReadInt32(br) });
+            return edges;
         }
 
         /// <summary>Zapise polarni grid: flag "ma grid", a pokud ano geometrii + bunky.</summary>
@@ -159,9 +196,11 @@ namespace ARBot.Common.Devices
                     RGBTimeStamp = ReadDateTime(br);
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = null;
+                    PathEdges = null;
                     break;
 
                 case 2:
+                    // Layout s gridem, ale jeste bez hranic cesty (PathEdges).
                     ReadMeta(br);
                     Name = br.ReadString();
                     ImageRGB = ImageMsg.ReadImage<BGR32>(br);
@@ -170,6 +209,19 @@ namespace ARBot.Common.Devices
                     RGBTimeStamp = ReadDateTime(br);
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = ReadGrid(br);
+                    PathEdges = null;
+                    break;
+
+                case 3:
+                    ReadMeta(br);
+                    Name = br.ReadString();
+                    ImageRGB = ImageMsg.ReadImage<BGR32>(br);
+                    ImageProbability = ImageMsg.ReadImage<Gray>(br);
+                    ImageDepth = ImageMsg.ReadImage<Gray16>(br);
+                    RGBTimeStamp = ReadDateTime(br);
+                    DepthTimeStamp = ReadDateTime(br);
+                    Grid = ReadGrid(br);
+                    PathEdges = ReadPathEdges(br);
                     break;
 
                 default:

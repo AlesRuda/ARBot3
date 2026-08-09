@@ -10,8 +10,8 @@ namespace ARBot.Common.Vision
     /// </summary>
     public interface ICameraFrameProcessor
     {
-        /// <summary>Dopocte odvozene vlastnosti (Probability, Grid) primo do <paramref name="frame"/>.
-        /// Vola se SYNCHRONNE (na vlakne kamery).</summary>
+        /// <summary>Dopocte odvozene vlastnosti (Probability, PathEdges, Grid) primo do
+        /// <paramref name="frame"/>. Vola se SYNCHRONNE (na vlakne kamery).</summary>
         void Process(CameraFrame frame);
     }
 }

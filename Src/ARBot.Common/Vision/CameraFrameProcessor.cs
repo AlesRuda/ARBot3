@@ -12,7 +12,8 @@ namespace ARBot.Common.Vision
     /// <summary>
     /// Platformne nezavisly synchronni procesor snimku kamery: z jednoho <see cref="CameraFrame"/>
     /// dopocte primo do ramce (a) pravdepodobnost sjizdnosti (<see cref="CameraFrame.ImageProbability"/>)
-    /// pres volitelny <see cref="IBackProject"/> a (b) robot-centricky polarni grid sjizdnosti
+    /// pres volitelny <see cref="IBackProject"/>, (b) hranice cesty (<see cref="CameraFrame.PathEdges"/>)
+    /// z probability pres volitelny <see cref="IComputeUnit"/> a (c) robot-centricky polarni grid sjizdnosti
     /// (<see cref="CameraFrame.Grid"/>) z hloubkoveho obrazu. Vola se SYNCHRONNE na vlakne kamery,
     /// takze <see cref="cloud"/> buffer i <see cref="edgeCache"/> jsou bez zamku (jedna instance = jedno
     /// vlakno kamery).
@@ -35,6 +36,7 @@ namespace ARBot.Common.Vision
         private readonly Func<string, IDepthCameraProjection> resolveProjection;
         private readonly PolarGridConfig cfg;
         private readonly IBackProject backProject;
+        private readonly IComputeUnit computeUnit;
 
         // Cache radialnich hran per projekce (geometrie kamery je stala).
         private readonly Dictionary<IDepthCameraProjection, RadialEdge[]> edgeCache
@@ -69,32 +71,38 @@ namespace ARBot.Common.Vision
         /// <param name="config">Konfigurace gridu; null = vychozi.</param>
         /// <param name="backProject">Volitelny prevod barvy na pravdepodobnost sjizdnosti; null = nepocitat
         /// (<see cref="CameraFrame.ImageProbability"/> zustane, jak prislo z kamery).</param>
+        /// <param name="computeUnit">Volitelna vypocetni jednotka pro detekci hranic cesty z probability
+        /// (<see cref="CameraFrame.PathEdges"/>); null = nepocitat (zadny managed fallback neni).</param>
         /// <param name="diagnosticsCsvPath">Volitelna cesta k CSV logu casu (wait/compute per snimek) pro
         /// diagnostiku latence; null = nelogovat.</param>
         public CameraFrameProcessor(
             Func<string, IDepthCameraProjection> projectionResolver,
             PolarGridConfig config = null,
             IBackProject backProject = null,
+            IComputeUnit computeUnit = null,
             string diagnosticsCsvPath = null)
         {
             this.resolveProjection = projectionResolver ?? throw new ArgumentNullException(nameof(projectionResolver));
             this.cfg = config ?? new PolarGridConfig();
             this.backProject = backProject;
+            this.computeUnit = computeUnit;
             this.diag = OpenDiag(diagnosticsCsvPath);
         }
 
         /// <param name="projections">Projekce per kamera (klic = <see cref="CameraFrame.Name"/>).</param>
         /// <param name="config">Konfigurace gridu; null = vychozi.</param>
         /// <param name="backProject">Volitelny prevod barvy na pravdepodobnost; null = nepocitat.</param>
+        /// <param name="computeUnit">Volitelna vypocetni jednotka pro hranice cesty; null = nepocitat.</param>
         /// <param name="diagnosticsCsvPath">Volitelna cesta k CSV logu casu; null = nelogovat.</param>
         public CameraFrameProcessor(
             IReadOnlyDictionary<string, IDepthCameraProjection> projections,
             PolarGridConfig config = null,
             IBackProject backProject = null,
+            IComputeUnit computeUnit = null,
             string diagnosticsCsvPath = null)
             : this(name => (projections ?? throw new ArgumentNullException(nameof(projections)))
                               .TryGetValue(name, out var p) ? p : null,
-                   config, backProject, diagnosticsCsvPath)
+                   config, backProject, computeUnit, diagnosticsCsvPath)
         {
         }
 
@@ -123,6 +131,17 @@ namespace ARBot.Common.Vision
             // krok 4) - kdyz ma spravny rozmer, prepise se bez alokace.
             if (backProject != null && frame.ImageRGB != null)
                 frame.ImageProbability = ComputeProbability(frame.ImageRGB, frame.ImageProbability);
+
+            // (1b) Hranice cesty z probability (drive mrtvy kod v D435Camera - vysledek se zahazoval).
+            // Souradnice hran se skaluji do prostoru ImageRGB (viz PathEdgeFinderItem.Edges); bez RGB
+            // (probability prisla uz hotova bez barevneho obrazu) se pouzije meritko 1:1.
+            if (computeUnit != null && frame.ImageProbability != null)
+            {
+                var prob = frame.ImageProbability;
+                double sx = frame.ImageRGB != null ? (double)frame.ImageRGB.Width / prob.Width : 1.0;
+                double sy = frame.ImageRGB != null ? (double)frame.ImageRGB.Height / prob.Height : 1.0;
+                frame.PathEdges = computeUnit.PathEdges(prob, sx, sy);
+            }
 
             // (2) Polarni grid z hloubky (jen kdyz je depth i projekce k dispozici).
             int cells = 0;

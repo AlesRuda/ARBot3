@@ -333,7 +333,8 @@ pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při 
 - **Revize `FusionConfig`** — duplicitní rozchod (`FusionConfig.WheelBase = 0.5` vs `Profile.Rozchod = 0.41`);
   projít obsah `FusionConfig` a **sjednotit zdroj rozchodu** (řízení bere `Profile.Rozchod`).
 - **Serializace `CameraFrame` — HOTOVO** (2026-07-25, rozšířeno 2026-08-01 na **FormatVersion 2**:
-  uvnitř rámce se nově serializuje i `Grid`; `FromData` má větev `case 1` (bez gridu) i `case 2`).
+  uvnitř rámce se nově serializuje i `Grid`; 2026-08-09 na **FormatVersion 3**: serializují se
+  i hranice cesty `PathEdges`; `FromData` má větve `case 1`–`case 3`).
   `CameraFrame` má versioned `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`)
   a je v replay katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
   `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Vrstvy se ukládají přes

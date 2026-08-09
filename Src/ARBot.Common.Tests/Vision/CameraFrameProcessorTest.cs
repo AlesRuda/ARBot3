@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using ARBot.Common.Algorithms.ComputeUnit;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
@@ -261,6 +262,104 @@ namespace ARBot.Common.Tests.Vision
             Assert.That(frame.ImageProbability, Is.Not.Null);
             Assert.That((frame.ImageProbability.Width, frame.ImageProbability.Height), Is.EqualTo((8, 8)));
             Assert.That(frame.ImageProbability[0, 0].Value, Is.EqualTo(90));
+        }
+
+        // Fake vypocetni jednotka: zaznamena vstup PathEdges a vrati pripravene hrany;
+        // ostatni cleny IComputeUnit se v procesoru nepouzivaji.
+        private sealed class FakeComputeUnit : IComputeUnit
+        {
+            public Image<Gray> LastImage;
+            public double LastScaleX, LastScaleY;
+            public List<PathEdge> Result = new List<PathEdge> { new PathEdge { Y = 1, Left = 2, Right = 3 } };
+
+            public List<PathEdge> PathEdges(Image<Gray> image, double scaleX, double scaleY)
+            {
+                LastImage = image;
+                LastScaleX = scaleX;
+                LastScaleY = scaleY;
+                return Result;
+            }
+
+            public float AggregateResolution => 0f;
+            public PlaneParams LeftCameraParams => default;
+            public PlaneParams RightCameraParams => default;
+            public int WordPointsCount => 0;
+            public Point4D[] ObstaclePoints => null;
+            public Point4D[] WordPoints => null;
+            public Point4D[] WordObstaclePoints => null;
+            public Point4D[] CameraPoints => null;
+            public AggregateItem? GetAggregateItem(int x, int y) => null;
+            public void Segment(Image<Gray16> l, IDepthCameraProjection lp, Image<Gray16> r, IDepthCameraProjection rp, Matrix4x4 t) => throw new NotImplementedException();
+            public void Segment(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew1(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew2(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew3(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew4(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t) => throw new NotImplementedException();
+            public void SegmentNew5(Image<Gray16> i, IDepthCameraProjection p, Matrix4x4 t, float z, float r2) => throw new NotImplementedException();
+            public System.Drawing.Size Size(int width, int height) => new System.Drawing.Size(width, height);
+            public void Process(Image<BGR32> src, Image<Gray> dest) => throw new NotImplementedException();
+        }
+
+        [Test]
+        public void Process_WithComputeUnit_ComputesPathEdges()
+        {
+            // RGB + IdentityBackProject (prob stejneho rozmeru) -> meritko 1:1, hrany z jednotky do ramce.
+            var rgb = new Image<BGR32>(8, 8);
+            var frame = new CameraFrame { Name = "Cam", TimeStamp = T0, ImageRGB = rgb };
+            var cu = new FakeComputeUnit();
+            var proc = new CameraFrameProcessor(
+                new Dictionary<string, IDepthCameraProjection> { ["Cam"] = MakeProjection() },
+                TestConfig(), backProject: new IdentityBackProject(), computeUnit: cu);
+
+            proc.Process(frame);
+
+            Assert.That(frame.PathEdges, Is.SameAs(cu.Result), "hrany dopoctene do ramce");
+            Assert.That(cu.LastImage, Is.SameAs(frame.ImageProbability), "vstupem je probability");
+            Assert.That(cu.LastScaleX, Is.EqualTo(1.0));
+            Assert.That(cu.LastScaleY, Is.EqualTo(1.0));
+        }
+
+        [Test]
+        public void Process_ComputeUnit_ScalesEdgesToRgb()
+        {
+            // Probability prisla uz hotova (bez backProject) v polovicnim rozliseni RGB -> meritko 2:2.
+            var frame = new CameraFrame
+            {
+                Name = "Cam",
+                TimeStamp = T0,
+                ImageRGB = new Image<BGR32>(16, 16),
+                ImageProbability = new Image<Gray>(8, 8),
+            };
+            var cu = new FakeComputeUnit();
+            var proc = new CameraFrameProcessor(
+                new Dictionary<string, IDepthCameraProjection> { ["Cam"] = MakeProjection() },
+                TestConfig(), computeUnit: cu);
+
+            proc.Process(frame);
+
+            Assert.That(frame.PathEdges, Is.SameAs(cu.Result));
+            Assert.That(cu.LastScaleX, Is.EqualTo(2.0));
+            Assert.That(cu.LastScaleY, Is.EqualTo(2.0));
+        }
+
+        [Test]
+        public void Process_WithoutComputeUnit_LeavesPathEdgesNull()
+        {
+            var frame = new CameraFrame
+            {
+                Name = "Cam",
+                TimeStamp = T0,
+                ImageRGB = new Image<BGR32>(8, 8),
+            };
+            var proc = new CameraFrameProcessor(
+                new Dictionary<string, IDepthCameraProjection> { ["Cam"] = MakeProjection() },
+                TestConfig(), backProject: new IdentityBackProject());
+
+            proc.Process(frame);
+
+            Assert.That(frame.ImageProbability, Is.Not.Null, "probability se pocita");
+            Assert.That(frame.PathEdges, Is.Null, "bez jednotky se hrany nepocitaji (zadny fallback)");
         }
     }
 }

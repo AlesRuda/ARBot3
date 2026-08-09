@@ -106,7 +106,8 @@ namespace ARBot.Common.Devices
             dst.ImageDepth = CopyImage(src.ImageDepth, dst.ImageDepth);
             dst.ImageProbability = CopyImage(src.ImageProbability, dst.ImageProbability);
 
-            dst.Grid = src.Grid;   // reference (grid je per-snimek cerstvy a nerecykluje se)
+            dst.Grid = src.Grid;             // reference (grid je per-snimek cerstvy a nerecykluje se)
+            dst.PathEdges = src.PathEdges;   // reference (stejny kontrakt jako Grid - cerstvy seznam per snimek)
         }
 
         /// <summary>
@@ -173,7 +174,8 @@ namespace ARBot.Common.Devices
 
             f.ImageRGB = wantRgb ? CameraFramePool.Ensure(f.ImageRGB, rgbW, rgbH) : null;
             f.ImageDepth = wantDepth ? CameraFramePool.Ensure(f.ImageDepth, depthW, depthH) : null;
-            f.Grid = null;   // procesor spocte cerstvy grid
+            f.Grid = null;        // procesor spocte cerstvy grid
+            f.PathEdges = null;   // procesor spocte cerstve hrany (jinak by ve slotu zustaly stare)
             return f;
         }
     }

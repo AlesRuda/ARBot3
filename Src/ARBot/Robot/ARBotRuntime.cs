@@ -192,9 +192,15 @@ namespace ARBot.Robot
             {
                 if (s is ICamera cam)
                 {
+                    // Vypocetni jednotka jen pro PathEdges (nativni FindPathEdge je bezstavovy -
+                    // agregacni pole jednotky se nepouziva, proto minimalni rozmery). Per kamera
+                    // vlastni instance: procesor bezi na vlakne sve kamery.
+                    var cu = new ARBot.Common.Algorithms.ComputeUnit.NativeComputeUnit(
+                        1, 1, 1, 0, 0, 0.1f, null);
                     var fp = new CameraFrameProcessor(
                         projectionResolver, gridCfg,
                         backProject: new BackProject(BackProject.RoadProbability),
+                        computeUnit: cu,
                         diagnosticsCsvPath: diag ? DiagCsvPath($"traversability-timing-{FileToken(cam.Name)}.csv") : null);
                     cam.FrameProcessor = fp;
                     // Pri Stop: odpoj procesor od kamery (prestane pocitat) a zavri jeho diagnostiku.

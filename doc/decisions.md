@@ -13,6 +13,24 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-09 — Hranice cesty (`PathEdges`): počítá `CameraFrameProcessor`, ukládají se do `CameraFrame` — ROZHODNUTO/HOTOVO
+Volání `cu.PathEdges(...)` v `D435Camera.GetMeasurement` **výsledek odjakživa zahazovalo** (i před
+refaktorem vizuální cesty šel jen do lokální proměnné) a downstream konzument `PathEdgeFinder` si hrany
+počítal znovu sám — navíc se v runtime vůbec nevolal. Rozhodnutí:
+- **Výpočet vlastní `CameraFrameProcessor`** (odvozené entity rámce patří jemu, ne HAL kameře): dostává
+  volitelný `IComputeUnit` a hrany počítá z `frame.ImageProbability` **bez fallbacku** — bez jednotky se
+  hrany prostě nepočítají (`PathEdges = null`). Souřadnice hran se škálují do prostoru `ImageRGB`
+  (konvence `PathEdgeFinderItem.Edges`).
+- **Úložiště je `CameraFrame.PathEdges`** (`List<PathEdge>`, per snímek čerstvý seznam — sdílí se referencí
+  jako `Grid`) a serializuje se s rámcem (**FormatVersion 2 → 3**, čtecí větve pro v1/v2 zachovány).
+- **`PathEdgeFinder.Process` už hrany nedetekuje** — bere předem spočtené `PathEdgeFinderItem.Edges`
+  (plněné z `CameraFrame.PathEdges`); parametr `NativeComputeUnit sc` odstraněn, stará detekce ponechána
+  zakomentovaná do ověření (pravidlo CLAUDE.md).
+- **Runtime:** `ARBotRuntime` předává procesoru per-kamera `NativeComputeUnit` s minimálními rozměry
+  agregačního pole (pro `PathEdges` se používá jen bezstavový nativní `FindPathEdge`).
+- **Odkazy:** `Src/ARBot.Common/Vision/CameraFrameProcessor.cs`, `Src/ARBot.Common/Devices/CameraFrame.cs`,
+  `Src/ARBot.Common/Common/PathEdgeFinder.cs`, [doc/record-replay.md](record-replay.md) (verzování zpráv).
+
 ### 2026-08-04 — World pohled: mapový engine **Mapsui** (vs. vlastní tile control) — ROZHODNUTO/HOTOVO
 Nový world (geo) pohled potřebuje mapu s dlaždicovým podkladem, zoom/pan a vrstvami. Zvažovány dvě cesty:
 (a) **vlastní** slippy-map `Control` přes `DrawingContext` (jako `RobotCentricControl`) — bez závislostí,

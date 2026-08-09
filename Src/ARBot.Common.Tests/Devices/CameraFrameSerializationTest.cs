@@ -149,7 +149,7 @@ namespace ARBot.Common.Tests.Devices
             Assert.That(() => f.FromData(br), Throws.TypeOf<NotSupportedException>());
         }
 
-        // --- Verzovani gridu (FormatVersion 2) ---
+        // --- Verzovani gridu (od FormatVersion 2) a hranic cesty (od FormatVersion 3) ---
 
         private static PolarTraversabilityGrid MakeGrid()
         {
@@ -176,7 +176,7 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
-        public void CameraFrame_V2_WithGrid_RoundTrips()
+        public void CameraFrame_WithGrid_RoundTrips()
         {
             var frame = new CameraFrame
             {
@@ -233,9 +233,9 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
-        public void CameraFrame_V2_NullGrid_RoundTripsToNull()
+        public void CameraFrame_NullGridAndEdges_RoundTripsToNull()
         {
-            var frame = new CameraFrame { Name = "Left", TimeStamp = T0, Grid = null };
+            var frame = new CameraFrame { Name = "Left", TimeStamp = T0, Grid = null, PathEdges = null };
 
             using var ms = new MemoryStream();
             var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
@@ -254,8 +254,102 @@ namespace ARBot.Common.Tests.Devices
             sink.Stop();
 
             Assert.That(r, Is.Not.Null);
-            Assert.That(r.Verze, Is.EqualTo(2));
+            Assert.That(r.Verze, Is.EqualTo(CameraFrame.FormatVersion));
             Assert.That(r.Grid, Is.Null);
+            Assert.That(r.PathEdges, Is.Null);
+        }
+
+        [Test]
+        public void CameraFrame_V3_WithPathEdges_RoundTrips()
+        {
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                TimeStamp = T0,
+                ImageProbability = MakeImage<Gray>(8, 6, 3),
+                PathEdges = new List<PathEdge>
+                {
+                    new PathEdge { Y = 5, Left = 10, Right = 30 },
+                    new PathEdge { Y = 4, Left = null, Right = 28 },
+                    new PathEdge { Y = 3, Left = 12, Right = null },
+                },
+            };
+
+            using var ms = new MemoryStream();
+            var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
+            rec.Start(); rec.Post(frame); rec.Stop();
+
+            var catalog = MessageCatalog.CommonDefaults().Register(new CameraFrame());
+            CameraFrame r = null;
+            var sink = new DelegateTarget(m => { if (m is CameraFrame c) r = c; });
+            sink.Start();
+            using (var rms = new MemoryStream(ms.ToArray()))
+            {
+                var src = new FileMessageSource(rms, TestHelpers.Enc, catalog);
+                src.Connect(sink);
+                src.RunToEnd();
+            }
+            sink.Stop();
+
+            Assert.That(r, Is.Not.Null);
+            Assert.That(r.Verze, Is.EqualTo(CameraFrame.FormatVersion));
+            Assert.That(r.PathEdges, Is.Not.Null, "hrany se prenesly");
+            Assert.That(r.PathEdges.Count, Is.EqualTo(3));
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.That(r.PathEdges[i].Y, Is.EqualTo(frame.PathEdges[i].Y), $"Y[{i}]");
+                Assert.That(r.PathEdges[i].Left, Is.EqualTo(frame.PathEdges[i].Left), $"Left[{i}]");
+                Assert.That(r.PathEdges[i].Right, Is.EqualTo(frame.PathEdges[i].Right), $"Right[{i}]");
+            }
+        }
+
+        [Test]
+        public void CameraFrame_V2_ReadsWithoutPathEdges()
+        {
+            // Zaznam verze 2 (grid, ale jeste bez hranic cesty) se musi precist bez chyby (PathEdges=null).
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                FrameNum = 6,
+                TimeStamp = T0,
+                RGBTimeStamp = T0.AddMilliseconds(1),
+                DepthTimeStamp = T0.AddMilliseconds(2),
+                ImageProbability = MakeImage<Gray>(4, 4, 1),
+            };
+
+            byte[] v2 = SerializeV2(frame);
+
+            var read = new CameraFrame { Verze = 2 };
+            read.FromData(TestHelpers.Enc, v2);
+
+            Assert.That(read.PathEdges, Is.Null, "verze 2 nema hranice cesty");
+            Assert.That(read.Grid, Is.Null);
+            Assert.That(read.Name, Is.EqualTo("Left"));
+            Assert.That(read.FrameNum, Is.EqualTo(6u));
+            Assert.That(read.ImageProbability, Is.Not.Null);
+            Assert.That(read.ImageProbability.Data, Is.EqualTo(frame.ImageProbability.Data));
+        }
+
+        /// <summary>Zapise ramec ve v2 layoutu: meta + name + 3 obrazy + 2 casy + grid (zde bez gridu), BEZ hranic cesty.</summary>
+        private static byte[] SerializeV2(CameraFrame f)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, TestHelpers.Enc, leaveOpen: true))
+            {
+                bw.Write(f.FrameNum);
+                bw.Write(f.DropedOutNum);
+                bw.Write(f.FrameReceivePeriod.Ticks);
+                bw.Write(f.FramePickupPeriod.Ticks);
+                bw.Write(f.TimeStamp.Ticks);
+                bw.Write(f.Name ?? string.Empty);
+                ImageMsg.Write(bw, f.ImageRGB, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageProbability, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageDepth, ImageMsg.Compression.None);
+                bw.Write(f.RGBTimeStamp.ToBinary());
+                bw.Write(f.DepthTimeStamp.ToBinary());
+                bw.Write(false);   // grid flag: bez gridu
+            }
+            return ms.ToArray();
         }
 
         [Test]

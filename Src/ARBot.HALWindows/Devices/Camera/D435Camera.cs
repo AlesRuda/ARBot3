@@ -229,10 +229,13 @@ namespace ARBot.HAL.Devices.Camera
                             frame.ImageProbability = CameraFramePool.Ensure(frame.ImageProbability, size.Width, size.Height);
                             BackProject.Process(bpSrc, frame.ImageProbability);
 
-                            if (cu != null)
-                                _ = cu.PathEdges(frame.ImageProbability,
-                                    (double)imageRGB.Width / frame.ImageProbability.Width,
-                                    (double)imageRGB.Height / frame.ImageProbability.Height);
+                            // PRESUNUTO: hranice cesty pocita CameraFrameProcessor (frame.PathEdges);
+                            // zdejsi volani vysledek jen zahazovalo. Ponechano do overeni testy
+                            // (pravidlo CLAUDE.md o nemazani stare implementace):
+                            // if (cu != null)
+                            //     _ = cu.PathEdges(frame.ImageProbability,
+                            //         (double)imageRGB.Width / frame.ImageProbability.Width,
+                            //         (double)imageRGB.Height / frame.ImageProbability.Height);
                         }
                     }
 

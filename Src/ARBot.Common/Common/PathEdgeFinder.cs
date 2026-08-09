@@ -123,7 +123,13 @@ namespace ARBot.Common.Common
             return points;
         }
 
-        public void Process(NativeComputeUnit sc, IEnumerable<PathEdgeFinderItem> items, MapWay way, double maxAngleDiff, double currentOrientation)
+        /// <summary>
+        /// Zpracuje polozky s PREDEM spoctenymi hranicemi cesty (<see cref="PathEdgeFinderItem.Edges"/>
+        /// naplnene z <see cref="ARBot.Common.Devices.CameraFrame.PathEdges"/>, ktere pocita
+        /// CameraFrameProcessor na vlakne kamery). Sam uz hrany NEdetekuje - polozka bez hran
+        /// (Edges == null) se preskoci.
+        /// </summary>
+        public void Process(IEnumerable<PathEdgeFinderItem> items, MapWay way, double maxAngleDiff, double currentOrientation)
         {
             float radius = 8;
             float pointDist = 0.4f; // vzdalenost testovanych bodu od sebe
@@ -152,10 +158,14 @@ namespace ARBot.Common.Common
 
             foreach (var i in items)
             {
-                if (sc != null)
-                    i.Edges = sc.PathEdges(i.Probability, i.ScaleX, i.ScaleY);
-                else
-                    i.Edges = i.Probability.PathEdges2().ToList();
+                // Hrany jsou predem spoctene v CameraFrameProcessor (frame.PathEdges) - zadny fallback.
+                // STARA IMPLEMENTACE (vypocet zde) - ponechana do overeni testy (pravidlo CLAUDE.md):
+                // if (sc != null)
+                //     i.Edges = sc.PathEdges(i.Probability, i.ScaleX, i.ScaleY);
+                // else
+                //     i.Edges = i.Probability.PathEdges2().ToList();
+                if (i.Edges == null)
+                    continue;
 
                 var points = TransformEdges(i.Edges.Where(e => e.Left.HasValue).Select(e => new Point(e.Left.Value, e.Y)).ToList(), i, true);
                 Edges.AddRange(points); 
