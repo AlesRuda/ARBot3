@@ -32,8 +32,6 @@ namespace ARBot.HAL.Devices.Camera
     /// </summary>
     public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
     {
-        /// <summary>Vypocetni jednotka pro detekci hran cesty (volitelna).</summary>
-        IComputeUnit cu;
         /// <summary>Seriove cislo zarizeni; null = prvni dostupna kamera.</summary>
         string sn;
         /// <summary>Nazev kamery (napr. "Left"/"Right") - soucast <see cref="Name"/>.</summary>
@@ -91,42 +89,33 @@ namespace ARBot.HAL.Devices.Camera
             return new DateTime(1970, 1, 1).Add(DateTimeOffset.Now.Offset).AddMilliseconds(miliseconds);
         }
 
-        /// <summary>Prvni dostupna kamera, RGB 640x480, bez vypocetni jednotky.</summary>
-        public D435Camera() : this(null, null, new CameraSettings(640, 480))
+        /// <summary>Prvni dostupna kamera, RGB 640x480.</summary>
+        public D435Camera() : this(null, new CameraSettings(640, 480))
         {
         }
 
         /// <summary>Kamera dle serioveho cisla, RGB 640x480.</summary>
         /// <param name="sn">Seriove cislo zarizeni.</param>
-        public D435Camera(string sn) : this(sn, null, new CameraSettings(640, 480))
+        public D435Camera(string sn) : this(sn, new CameraSettings(640, 480))
         {
         }
 
         /// <summary>Kamera dle serioveho cisla s nazvem (napr. "Left"/"Right"), RGB 640x480.</summary>
         /// <param name="sn">Seriove cislo zarizeni.</param>
         /// <param name="nazev">Nazev kamery (soucast <see cref="Name"/>).</param>
-        public D435Camera(string sn, string nazev) : this(sn, null, new CameraSettings(640, 480))
+        public D435Camera(string sn, string nazev) : this(sn, new CameraSettings(640, 480))
         {
             this.nazev = nazev;
-        }
-
-        /// <summary>Kamera dle serioveho cisla s vypocetni jednotkou, RGB 640x480.</summary>
-        /// <param name="sn">Seriove cislo zarizeni.</param>
-        /// <param name="cu">Vypocetni jednotka pro detekci hran.</param>
-        public D435Camera(string sn, IComputeUnit cu) : this(sn, cu, new CameraSettings(640, 480))
-        {
         }
 
         /// <summary>
         /// Hlavni konstruktor. Nakonfiguruje a spusti kameru pres Init (depth je fixne 480x270).
         /// </summary>
         /// <param name="sn">Seriove cislo zarizeni; null = prvni dostupne.</param>
-        /// <param name="cu">Vypocetni jednotka pro detekci hran (volitelna).</param>
         /// <param name="rgb">Nastaveni barevneho streamu.</param>
-        public D435Camera(string sn, IComputeUnit cu, CameraSettings rgb)
+        public D435Camera(string sn, CameraSettings rgb)
         {
             this.sn = sn;
-            this.cu = cu;
 
             Init(rgb, new CameraSettings(480, 270));
         }
