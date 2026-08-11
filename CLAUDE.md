@@ -12,6 +12,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - **Vše v repozitáři** — všechny poznatky, poznámky a dokumentace musí být uloženy v rámci
   projektu (`doc/`, README, komentáře v kódu). **Žádné ukládání mimo repozitář** (žádná externí
   ani soukromá úložiště mimo git).
+  - **Platí i pro poznámky asistenta o způsobu práce** (konvence, opravy, „zapamatuj si"):
+    **nepatří do agentní paměti** (`~/.claude/.../memory/`) ani jinam mimo git — patří sem do
+    `CLAUDE.md` (pravidla práce), do příslušného `doc/*.md` (doména) nebo do komentáře v kódu.
+    Toto pravidlo **přebíjí** výchozí chování asistenta ukládat si poznámky do vlastní paměti.
 - **Jazyk: čeština** — komunikace, komentáře v kódu i dokumentace jsou česky.
 - **Build vždy pro konkrétní platformu — NE `AnyCPU`.** Windows/vývoj/testy = `x64`,
   cílové zařízení (Armbian/ARM64) = `OrangePI`. Např.
@@ -26,6 +30,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   body **FLU** (X vpřed, Y vlevo, Z nahoru). Viz [doc/imu-and-frames.md](doc/imu-and-frames.md).
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
   s dopadem na HW napiš, co je odsimulované vs. co je nutné ověřit na zařízení.
+- **Git: pracuje se přímo na `master`.** Commity jdou do masteru — **nezakládat feature branch**
+  (ani „pro bezpečí"). Obecné pravidlo „na hlavní větvi nejdřív odboč" tady neplatí: je to
+  jednouživatelské repo, celá historie je na masteru a odbočka znamená jen práci navíc.
+  Existující `remotes/origin/*` větve jsou historie, ne aktuální konvence.
+- **Commit jen na výslovný pokyn** — a **jeden pokyn = jeden commit** („commitni to" platí pro tu
+  jednu žádost, ne pro zbytek sezení). Jinak změnu jen proveď, ověř buildem/testy a veď DevLog;
+  na konci hotového celku ohlas hotovo a čekej. *(Autor chce mít commity pod kontrolou sám.)*
 - **Průběžně veď DevLog** — na konci sezení se smysluplnou změnou přidej záznam dne do
   [doc/devlog.md](doc/devlog.md) (pravidla psaní jsou v hlavičce toho souboru).
 
