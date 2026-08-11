@@ -179,6 +179,8 @@ namespace ARBot.ViewModels
             try
             {
                 doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
+                // Ctrl + klik v mape = cil lokalniho planovace (v Run; ve View navigace nebezi).
+                doc.GoalRequested = (x, y) => ARBotRuntime.Current.Navigator?.SetGoal(x, y);
             }
             catch { /* runtime nedostupne (napr. design-time) */ }
 

@@ -168,6 +168,10 @@ převisy/podjezdy stačí 2,5D (`MaxZ` per buňka).
 - **Přepočet ve View** ze záznamu (odloženo) — vyžadoval by projekci offline (živé intrinsics se
   nezaznamenávají): buď nominální intrinsics D435 480×270 v `Profile`, nebo zaznamenat intrinsics/tabulku
   paprsků do `.rec`. Zvoleno zatím: View jen přehrává grid zaznamenaný v Run.
-- **Agregace do kartézského occupancy** + distance transform pro plánovač (další stupeň).
+- ~~**Agregace do kartézského occupancy** + distance transform pro plánovač~~ — **hotovo**, viz
+  [occupancy-and-local-planning.md](occupancy-and-local-planning.md). Pozn.: zápis do occupancy hledá
+  azimutovou buňku **projekcí bodu země do obrazu** (sloupec), protože u sklopené kamery není sloupec
+  konstantním azimutem — proto se azimutové hranice do gridu neukládají a renderer si je dál
+  rekonstruuje z těžišť (a jinak to ani nejde).
 - **Výkon na ARM** — managed per-pixel `Transform`; případně přesměrovat na `NativeComputeUnit`
   (`DepthTransform2Impl` funguje na x64/ARM).

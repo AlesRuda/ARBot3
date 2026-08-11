@@ -39,3 +39,28 @@ Zdroj R pro orientaci: `IMUState.OrientationUncertainty` z VN100 (viz
   (`<Compile Remove>` v `ARBot.Common.csproj`) — slouží jen jako referenční matematika.
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
+
+### Otevřený úkol: Pitch/Roll patří do stavu EKF (2026-08-11)
+
+`RobotState.Roll`/`Pitch` dnes **nejsou součástí stavu filtru** — doplňuje je
+[`ControlLoop`](../Src/ARBot.Common/Runtime/ControlLoop.cs) z **posledního IMU**, které proteklo jeho
+`Consume` (`lastImu`). Dva problémy s tím:
+
+1. **Není poznat, které IMU vzorek poslalo.** [`IMUState`](../Src/ARBot.Common/Models/IMUState.cs) je
+   `SensorStateBase`, ale **ne** `INamedMessage` — nenese žádnou identitu zdroje. Při více IMU tedy
+   vyhrává prostě to, které dorazilo naposled, a Roll/Pitch mohou mezi tiky přeskakovat mezi čidly
+   s jinou montáží i kvalitou. (Fúzní strana měření sice značkuje `Source` — `"IMU/heading"`,
+   `"IMU/gyro"` — ale to jsou **konstanty**, takže ani tam se dvě IMU nerozliší.)
+2. **Obchází to fúzi.** Roll/Pitch jdou mimo EKF: bez gatingu (divoký vzorek se nezahodí), bez
+   kovariance, bez korektního vzorkování v čase `t` (`GetStateAt` je nedopředikuje, jen se přilepí
+   poslední hodnota). Zbytek `RobotState` je přitom fúzovaný a časově konzistentní — je to nekonzistence
+   v jednom objektu.
+
+**Návrh:** přidat pitch/roll **do stavového vektoru EKF** (měření z IMU akcelerometru/YPR jako
+regulérní `IMeasurement` s vlastním σ a gatingem) a `RobotState.Roll`/`Pitch` plnit z filtru jako
+ostatní složky. Pak zmizí i `ControlLoop.lastImu` a smyčka nebude muset odebírat `IMUState`.
+
+**Kdo to používá** (kontrola dopadu): `RobotState.ToWorldTransform()` /
+`ToWorldTransformWithPosition()` (`Conversions.WordToWordTransform(Orientation, Pitch, Roll, …)`).
+Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
+vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.

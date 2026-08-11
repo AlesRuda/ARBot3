@@ -56,6 +56,10 @@
                 <CheckBox Content="Mapa (síť)" IsChecked="{Binding ShowMap}" Foreground="White"/>
                 <CheckBox Content="Trasa / graf" IsChecked="{Binding ShowRoute}" Foreground="White"/>
                 <CheckBox Content="Značky" IsChecked="{Binding ShowMarkers}" Foreground="White"/>
+                <CheckBox Content="Lokální mapa" IsChecked="{Binding ShowOccupancy}" Foreground="White"
+                          ToolTip.Tip="Akumulovaná sjízdnost okolo robota (occupancy grid)"/>
+                <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"
+                          ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy."/>
 
                 <Separator Margin="0,4"/>
 

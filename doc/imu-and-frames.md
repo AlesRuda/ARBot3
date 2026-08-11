@@ -23,6 +23,13 @@
     absolutně, yaw/polohu jen jako relativní (delta) nebo po zarovnání.
 - `OrientationUncertainty` (yaw/pitch/roll 1σ, rad) = zdroj kovariance R pro orientaci.
 
+> **Pozor — `IMUState` nenese identitu zdroje** (je `SensorStateBase`, ale ne `INamedMessage`).
+> Při dvou IMU (VN100 + T265) tedy nelze poznat, od kterého vzorek je. `ControlLoop` z toho plní
+> `RobotState.Pitch`/`Roll` metodou „poslední došlé vyhrává" — mezi tiky to může přeskakovat mezi
+> čidly s jinou montáží a kvalitou. (Pitch/roll jsou u obou absolutní z gravitace, takže nejde o chybu
+> framu, ale o nekonzistenci kvality — a hlavně to obchází fúzi.) Otevřený úkol a návrh řešení:
+> [ekf-fusion.md → Pitch/Roll patří do stavu EKF](ekf-fusion.md).
+
 ## VN100 (VectorNav)
 
 Dva drivery v `ARBot.HAL/Devices/AHRS/`:

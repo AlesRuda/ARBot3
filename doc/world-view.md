@@ -5,6 +5,12 @@ Dokovatelný dokument **`WorldViewDocument`** — geografický (world) pohled na
 [robot-centrického pohledu](traversability-grid.md) (`RobotCentricDocument`), ale v geografickém rámci
 (WGS84 / Web Mercator EPSG:3857). Menu **Tools → World**.
 
+> **Doplněno 2026-08-11:** přibyly vrstvy **Lokální mapa** (occupancy grid jako rastr) a **Lokální
+> plán** (dráha + cíl); **Ctrl + klik** do mapy zadává cíl lokálnímu plánovači. Patří sem, a ne do
+> robot-centrického pohledu, protože occupancy grid je world-kotvený a akumulovaný — v pohledu
+> otáčeném s robotem by se s každou zatáčkou točil. Viz
+> [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
 Kód:
 - [`Src/ARBot/ViewModels/WorldViewDocument.cs`](../Src/ARBot/ViewModels/WorldViewDocument.cs) — ViewModel
   (data, vrstvy, podklad, backpressure).

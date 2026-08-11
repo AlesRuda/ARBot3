@@ -100,6 +100,14 @@ namespace ARBot.Common.Runtime
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// OTEVRENY UKOL: <see cref="IMUState"/> nenese identitu zdroje (neni INamedMessage), takze pri
+        /// dvou IMU (VN100 + T265) tady vyhrava "posledni dosle" a Roll/Pitch mohou mezi tiky preskakovat
+        /// mezi cidly s jinou montazi a kvalitou. Navic to obchazi fuzi (bez gatingu, bez kovariance, bez
+        /// dopredikovani do casu tiku). Spravne resen: mit pitch/roll ve STAVU EKF a brat je z
+        /// <see cref="RobotState"/> jako ostatni slozky - pak tento Consume i <see cref="lastImu"/> zmizi.
+        /// Viz doc/ekf-fusion.md → "Pitch/Roll patri do stavu EKF".
+        /// </remarks>
         protected override void Consume(Message msg)
         {
             // Ridici smycka odebira jen posledni IMU (kvuli Roll/Pitch).
@@ -118,6 +126,18 @@ namespace ARBot.Common.Runtime
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
 
             RobotState rs = engine.GetStateAt(tk);
+            if (rs == null)
+            {
+                // Fuze neumi rict, kde robot je (tik je mimo okno historie - napr. po dlouhem
+                // vypadku senzoru nebo zaseknuti smycky). Bezpecny stav = stat; radit podle
+                // neznamé pozy je horsi nez nejet.
+                lastForward = 0;
+                motor.Drive(0, 0);
+                if (frames != null)
+                    for (int i = 0; i < frames.Count; i++)
+                        ForwardFrame(frames[i]);
+                return;
+            }
 
             // Roll/Pitch doplnime z posledniho IMU (EKF je nedrzi).
             var imu = lastImu;

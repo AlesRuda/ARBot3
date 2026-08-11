@@ -96,5 +96,49 @@ namespace ARBot.Common.Vision
 
         /// <summary>Pristup k bunce podle azimutoveho a radialniho indexu.</summary>
         public PolarCell this[int azimuth, int radius] => Cells[azimuth * RadialCount + radius];
+
+        /// <summary>
+        /// Najde azimutovou bunku pro SLOUPEC hloubkoveho obrazu (bunka = skupina
+        /// <see cref="ColumnsPerCell"/> sloupcu). Vraci -1 mimo pouzitelnou sirku.
+        ///
+        /// <para><b>Proc podle sloupce a ne podle uhlu:</b> u sklonene kamery NENI sloupec obrazu
+        /// konstantnim azimutem - azimut pozemniho bodu na jednom sloupci se meni s radkem (u nasi
+        /// geometrie o velikost cele bunky). Azimutova bunka je tedy definovana <b>skupinou sloupcu</b>,
+        /// nikoli intervalem uhlu, a jediny presny zpusob, jak najit bunku pro bod <c>(x,y)</c>, je
+        /// promitnout ten bod do obrazu (<c>ICameraProjection.Transform</c>) a vzit jeho sloupec -
+        /// tim se presne invertuje mapovani, ktere pouzil <c>CameraFrameProcessor.BuildGrid</c>.
+        /// Viz doc/occupancy-and-local-planning.md.</para>
+        /// </summary>
+        /// <param name="column">Sloupec hloubkoveho obrazu.</param>
+        /// <param name="edgeColumnTrim">Kolik sloupcu bylo oriznuto z kazde strany
+        /// (<c>PolarGridConfig.EdgeColumnTrim</c>).</param>
+        public int AzimuthBinFromColumn(int column, int edgeColumnTrim = 0)
+        {
+            if (ColumnsPerCell <= 0) return -1;
+            int c = column - edgeColumnTrim;
+            if (c < 0) return -1;
+            int bin = c / ColumnsPerCell;
+            return bin < AzimuthCount ? bin : -1;
+        }
+
+        /// <summary>
+        /// Najde radialni prstenec pro vzdalenost <paramref name="range"/> [m]; -1 mimo rozsah.
+        /// </summary>
+        public int RadialBin(float range)
+        {
+            var e = RadialEdges;
+            if (e == null || e.Length < 2) return -1;
+            int n = e.Length;
+            if (range < e[0].Range || range >= e[n - 1].Range) return -1;
+
+            int lo = 0, hi = n - 1;
+            while (hi - lo > 1)
+            {
+                int mid = (lo + hi) >> 1;
+                if (range < e[mid].Range) hi = mid;
+                else lo = mid;
+            }
+            return lo;
+        }
     }
 }

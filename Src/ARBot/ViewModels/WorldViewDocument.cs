@@ -20,8 +20,10 @@ using Mapsui.Nts;
 using Mapsui.Projections;
 using Mapsui.Styles;
 using Mapsui.Tiling;
+using ARBot.Common.Occupancy;
 using NetTopologySuite.Geometries;
 using BruTile.MbTiles;
+using SkiaSharp;
 using Color = Mapsui.Styles.Color;   // rozlisit od ARBot.Common.Common.Color
 
 namespace ARBot.ViewModels
@@ -103,6 +105,8 @@ namespace ARBot.ViewModels
         private RobotStateMsg? pendingRobot;
         private GraphNavigationMsg? pendingGraph;
         private MapMsg? pendingMap;
+        private OccupancyGridMsg? pendingOccupancy;
+        private LocalPlanMsg? pendingPlan;
         private volatile bool updateQueued;
 
         // Aktualni (posledni zpracovane) zpravy pouzite napric flushi.
@@ -110,6 +114,8 @@ namespace ARBot.ViewModels
         private RobotStateMsg? lastRobot;
         private GraphNavigationMsg? lastGraph;
         private MapMsg? lastMap;
+        private OccupancyGridMsg? lastOccupancy;
+        private LocalPlanMsg? lastPlan;
 
         // Trajektorie (stopa) v Web Mercator metrech; capovana delka.
         private const int MaxTrackPoints = 5000;
@@ -127,6 +133,8 @@ namespace ARBot.ViewModels
         private readonly MemoryLayer routeLayer = new MemoryLayer("Trasa");
         private readonly MemoryLayer markerLayer = new MemoryLayer("Znacky");
         private readonly MemoryLayer mapLayer = new MemoryLayer("Mapa");   // sit z OsmNav (MapMsg)
+        private readonly MemoryLayer occupancyLayer = new MemoryLayer("Occupancy");   // lokalni mapa (rastr)
+        private readonly MemoryLayer planLayer = new MemoryLayer("Plan");             // lokalni plan + cil
 
         private ILayer? osmLayer;            // cache OSM dlazdicove vrstvy (aby se pri toggle neztracela cache)
         private ILayer? offlineLayer;       // cache offline (MBTiles) vrstvy pro aktualni cestu
@@ -138,6 +146,12 @@ namespace ARBot.ViewModels
         [ObservableProperty] private bool showTrajectory = true;
         [ObservableProperty] private bool showRoute = true;
         [ObservableProperty] private bool showMarkers = true;
+
+        /// <summary>Vrstva: lokalni mapa (occupancy grid) - akumulovana sjizdnost okolo robotu.</summary>
+        [ObservableProperty] private bool showOccupancy = true;
+
+        /// <summary>Vrstva: lokalni plan (draha + cil).</summary>
+        [ObservableProperty] private bool showPlan = true;
 
         /// <summary>Vrstva: silnicni sit nactena z OsmNav (MapMsg).</summary>
         [ObservableProperty] private bool showMap = true;
@@ -212,6 +226,29 @@ namespace ARBot.ViewModels
                 feeds.AddRange(disposables);
         }
 
+        /// <summary>
+        /// Zadani cile lokalniho planovace [m, world ENU]. Nastavuje ten, kdo dokument zaklada
+        /// (viz <c>MainWindowViewModel</c>) - dokument sam runtime nezna.
+        /// </summary>
+        public Action<double, double>? GoalRequested { get; set; }
+
+        /// <summary>
+        /// Prevede kliknuti do mapy (Web Mercator) na cil lokalniho planovace. Prevod jde pres
+        /// stejny <see cref="GeoReference"/>, kterym se kresli ostatni lokalni vrstvy - bez GPS fixu
+        /// a pozy tedy cil zadat nelze (vraci false).
+        /// </summary>
+        public bool RequestGoalFromMercator(double mercX, double mercY)
+        {
+            var geoRef = BuildGeoReference();
+            if (geoRef == null || GoalRequested == null) return false;
+
+            var (lon, lat) = SphericalMercator.ToLonLat(mercX, mercY);
+            var local = geoRef.ToLocal(LLA.FromDegrees(lat, lon));
+
+            GoalRequested(local.X, local.Y);
+            return true;
+        }
+
         // ============================ IMessageSink (vlakno producenta) ============================
         public void Post(Message msg)
         {
@@ -221,6 +258,8 @@ namespace ARBot.ViewModels
                 case RobotStateMsg r: lock (gate) pendingRobot = r; break;
                 case GraphNavigationMsg gn: lock (gate) pendingGraph = gn; break;
                 case MapMsg m: lock (gate) pendingMap = m; break;
+                case OccupancyGridMsg og: lock (gate) pendingOccupancy = og; break;
+                case LocalPlanMsg lp: lock (gate) pendingPlan = lp; break;
                 default: return;   // ostatni zpravy nas nezajimaji
             }
 
@@ -235,17 +274,22 @@ namespace ARBot.ViewModels
             updateQueued = false;
 
             GPSState? gps; RobotStateMsg? robot; GraphNavigationMsg? graph; MapMsg? map;
+            OccupancyGridMsg? occupancy; LocalPlanMsg? plan;
             lock (gate)
             {
                 gps = pendingGps; pendingGps = null;
                 robot = pendingRobot; pendingRobot = null;
                 graph = pendingGraph; pendingGraph = null;
                 map = pendingMap; pendingMap = null;
+                occupancy = pendingOccupancy; pendingOccupancy = null;
+                plan = pendingPlan; pendingPlan = null;
             }
 
             if (gps != null) lastGps = gps;
             if (robot != null) lastRobot = robot;
             if (graph != null) lastGraph = graph;
+            if (occupancy != null) lastOccupancy = occupancy;
+            if (plan != null) lastPlan = plan;
 
             // Mapa (sit) je staticka a muze byt velka - featury prestavuj JEN kdyz prisla nova mapa.
             if (map != null)
@@ -276,11 +320,18 @@ namespace ARBot.ViewModels
             var geoRef = BuildGeoReference();
             UpdateRouteAndMarkers(lastGraph, geoRef);
 
+            // --- Lokalni mapa + plan (take v lokalnim ENU -> stejny GeoReference) ---
+            // Prestavuj JEN kdyz prisla nova zprava - occupancy je rastr 256x256 (prekodovani do PNG).
+            if (occupancy != null) UpdateOccupancyFeature(occupancy, geoRef);
+            if (plan != null || occupancy != null) UpdatePlanFeature(lastPlan, geoRef);
+
             // Prekresli data v aktualne pripojenych vrstvach.
             robotLayer.DataHasChanged();
             trajectoryLayer.DataHasChanged();
             routeLayer.DataHasChanged();
             markerLayer.DataHasChanged();
+            occupancyLayer.DataHasChanged();
+            planLayer.DataHasChanged();
 
             // Prvni fix: vycentruj a zoomni; dale (kdyz Follow) drz robota v centru.
             if (robotMerc != null)
@@ -380,6 +431,151 @@ namespace ARBot.ViewModels
             var gpsLLA = LLA.FromDegrees(lastGps.Latitude, lastGps.Longitude);
             var originLLA = new GeoReference(gpsLLA).ToLLA(-lastRobot.X, -lastRobot.Y);   // posun o -(X,Y)
             return new GeoReference(originLLA);
+        }
+
+        /// <summary>
+        /// Vrstva lokalni mapy (occupancy grid). Grid je <b>osove srovnany se svetem</b> (ENU), takze
+        /// se da vykreslit jako obycejny RASTR v obdelniku - v tomto pohledu se tedy NEROTUJE
+        /// (na rozdil od robot-centrickeho pohledu, kde by se s kurzem tocil, coz je pro akumulovanou
+        /// mapu matouci; proto je tato vrstva tady a ne tam).
+        ///
+        /// <para>256 x 256 bunek nelze delat jako featury - koduje se do PNG a vklada jako
+        /// <see cref="MRaster"/>. Web Mercator je konformni, takze mala oblast (12,8 m) se do
+        /// osove srovnaneho obdelniku mapuje bez znatelneho zkresleni.</para>
+        /// </summary>
+        private void UpdateOccupancyFeature(OccupancyGridMsg og, GeoReference? geoRef)
+        {
+            if (geoRef == null || og.Occ == null || og.Size <= 0)
+            {
+                occupancyLayer.Features = Array.Empty<IFeature>();
+                return;
+            }
+
+            // Rohy gridu v lokalnim ENU -> Web Mercator.
+            double x0 = og.OriginX * og.Resolution, y0 = og.OriginY * og.Resolution;
+            double x1 = (og.OriginX + og.Size) * og.Resolution, y1 = (og.OriginY + og.Size) * og.Resolution;
+
+            MPoint ToMerc(double lx, double ly)
+            {
+                var lla = geoRef.ToLLA(lx, ly);
+                var (mx, my) = SphericalMercator.FromLonLat(
+                    Conversions.Rad2Deg(lla.Longitude), Conversions.Rad2Deg(lla.Latitude));
+                return new MPoint(mx, my);
+            }
+
+            var min = ToMerc(x0, y0);
+            var max = ToMerc(x1, y1);
+            var rect = new MRect(Math.Min(min.X, max.X), Math.Min(min.Y, max.Y),
+                                 Math.Max(min.X, max.X), Math.Max(min.Y, max.Y));
+
+            var png = EncodeOccupancyPng(og);
+            if (png == null)
+            {
+                occupancyLayer.Features = Array.Empty<IFeature>();
+                return;
+            }
+
+            occupancyLayer.Features = new IFeature[] { new RasterFeature(new MRaster(png, rect)) };
+        }
+
+        /// <summary>
+        /// Zakoduje occupancy grid do PNG (BGRA, premultiplied): neprujezdne cervene, potvrzene volne
+        /// zelene, nezname pruhledne. Radek 0 obrazu je SEVER (nejvyssi j) - rastr se kresli shora dolu.
+        /// </summary>
+        private static byte[]? EncodeOccupancyPng(OccupancyGridMsg og)
+        {
+            int n = og.Size;
+            try
+            {
+                using var bmp = new SKBitmap(new SKImageInfo(n, n, SKColorType.Bgra8888, SKAlphaType.Premul));
+                var pixels = new uint[n * n];
+                for (int j = 0; j < n; j++)
+                {
+                    int row = (n - 1 - j) * n;   // otoceni: sever nahoru
+                    for (int i = 0; i < n; i++)
+                    {
+                        pixels[row + i] = og.State(i, j) switch
+                        {
+                            CellState.Blocked => OccBlockedBgra,
+                            CellState.Free => OccFreeBgra,
+                            _ => 0u,             // Unknown = pruhledne
+                        };
+                    }
+                }
+
+                var handle = System.Runtime.InteropServices.GCHandle.Alloc(
+                    pixels, System.Runtime.InteropServices.GCHandleType.Pinned);
+                try { bmp.InstallPixels(bmp.Info, handle.AddrOfPinnedObject(), bmp.Info.RowBytes); }
+                finally { /* pixely se hned zakoduji, pak uz je nikdo nedrzi */ }
+
+                using var image = SKImage.FromBitmap(bmp);
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                handle.Free();
+                return data.ToArray();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"WorldView: kodovani occupancy selhalo: {ex.Message}");
+                return null;
+            }
+        }
+
+        // Barvy occupancy rastru (BGRA premultiplied, jako u SKColorType.Bgra8888).
+        private static readonly uint OccBlockedBgra = PremulBgra(0xE5, 0x39, 0x35, 0xB0);
+        private static readonly uint OccFreeBgra = PremulBgra(0x4C, 0xAF, 0x50, 0x50);
+
+        private static uint PremulBgra(byte r, byte g, byte b, byte a)
+        {
+            uint rr = (uint)(r * a / 255), gg = (uint)(g * a / 255), bb = (uint)(b * a / 255);
+            return ((uint)a << 24) | (rr << 16) | (gg << 8) | bb;
+        }
+
+        /// <summary>Vrstva lokalniho planu: draha jako cara + cil jako bod.</summary>
+        private void UpdatePlanFeature(LocalPlanMsg? plan, GeoReference? geoRef)
+        {
+            if (plan == null || geoRef == null)
+            {
+                planLayer.Features = Array.Empty<IFeature>();
+                return;
+            }
+
+            Coordinate ToMerc(double lx, double ly)
+            {
+                var lla = geoRef.ToLLA(lx, ly);
+                var (mx, my) = SphericalMercator.FromLonLat(
+                    Conversions.Rad2Deg(lla.Longitude), Conversions.Rad2Deg(lla.Latitude));
+                return new Coordinate(mx, my);
+            }
+
+            var features = new List<IFeature>();
+
+            if (plan.WayPoints != null && plan.WayPoints.Length >= 2)
+            {
+                var coords = new Coordinate[plan.WayPoints.Length];
+                for (int i = 0; i < plan.WayPoints.Length; i++)
+                    coords[i] = ToMerc(plan.WayPoints[i].X, plan.WayPoints[i].Y);
+
+                var line = new GeometryFeature { Geometry = new LineString(coords) };
+                line.Styles.Add(new VectorStyle { Line = new Pen(new Color(0x42, 0xA5, 0xF5), 3) });
+                features.Add(line);
+            }
+
+            // Cil (pozadovany, tedy i kdyz plan skoncil oriznuty na hranici gridu).
+            var goal = ToMerc(plan.RequestedGoalX, plan.RequestedGoalY);
+            var goalFeature = new GeometryFeature
+            {
+                Geometry = new NetTopologySuite.Geometries.Point(goal),
+            };
+            goalFeature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                SymbolScale = 0.6,
+                Fill = new Brush(new Color(0xFF, 0xD5, 0x4F)),
+                Outline = new Pen(new Color(0x21, 0x21, 0x21), 1),
+            });
+            features.Add(goalFeature);
+
+            planLayer.Features = features;
         }
 
         private void UpdateRouteAndMarkers(GraphNavigationMsg? gn, GeoReference? geoRef)
@@ -771,6 +967,8 @@ namespace ARBot.ViewModels
         partial void OnShowTrajectoryChanged(bool value) => RebuildLayers();
         partial void OnShowRouteChanged(bool value) => RebuildLayers();
         partial void OnShowMarkersChanged(bool value) => RebuildLayers();
+        partial void OnShowOccupancyChanged(bool value) => RebuildLayers();
+        partial void OnShowPlanChanged(bool value) => RebuildLayers();
         partial void OnShowMapChanged(bool value) => RebuildLayers();
         partial void OnSelectedBaseMapChanged(BaseMapChoice value) => RebuildLayers();
         partial void OnMbTilesPathChanged(string value) => RebuildLayers();
@@ -797,7 +995,9 @@ namespace ARBot.ViewModels
             }
 
             if (ShowMap) Map.Layers.Add(mapLayer);   // sit z OsmNav nad podkladem, pod ostatnimi daty
+            if (ShowOccupancy) Map.Layers.Add(occupancyLayer);   // lokalni mapa nad siti, pod vektory
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);
+            if (ShowPlan) Map.Layers.Add(planLayer);
             if (ShowRoute) Map.Layers.Add(routeLayer);
             if (ShowMarkers) Map.Layers.Add(markerLayer);
             if (ShowRobot) Map.Layers.Add(robotLayer);   // robot navrchu

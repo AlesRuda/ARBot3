@@ -13,6 +13,120 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-11 — Lokální mapa patří do WORLD pohledu; rozjetá dráha se hlídá proti mapě — ROZHODNUTO/HOTOVO
+Dvě korekce z revize předchozí implementace (obojí vzešlo z připomínek při review):
+- **Vrstvy occupancy + plán jsou ve world pohledu, ne v robot-centrickém.** Robot-centrický pohled je
+  svázaný s robotem **včetně orientace**, takže world-kotvená akumulovaná mapa by se v něm s každou
+  zatáčkou otáčela — pro mapu matoucí (a rotace navíc mizí smysl toho, že je grid osově srovnaný).
+  Ve world pohledu leží mapa pevně, robot se po ní pohybuje a sedí to na podklad (OSM/MBTiles).
+  Robot-centrický pohled zůstává tomu, co je robot-centrické z podstaty: polárním gridům z kamer.
+  Důsledek: rastr místo bitmapy s rotací (`MRaster` v obdélníku, PNG), cíl se zadává **Ctrl+klikem**
+  do mapy (převod Web Mercator → lokální ENU přes stejný `GeoReference` jako ostatní lokální vrstvy).
+- **Když nový plán nevznikne, kontroluje se rozjetá dráha proti AKTUÁLNÍ mapě.** Původní „plán bez
+  dráhy regulátor nepřepisuje" byla díra: mapa se mezitím změnila a na trase, po které robot jede,
+  už může být překážka. Watchdog nižší smyčky dobrzdí až po `PathControlTimeOut` (500 ms) a z 0,8 m/s
+  je brzdná dráha dalších ~1 m — pozdě. Nově se každý cyklus ověřuje úsek, na který je robot fakticky
+  zavázaný (`v²/(2a) + v·Ts + rezerva` od průmětu robotu na dráhu); při kolizi (`Blocked` nebo odstup
+  pod `SafeDist`; `Unknown` kolize NENÍ) se řízení zahodí **okamžitě** (`Regulator = null`) a hlásí se
+  `LocalPlanStatus.AbortedCollision`. Volná dráha se nezahazuje — dobrzdění zůstává řízené na
+  watchdogu; stojící robot nouzově nezastavuje (nulová brzdná dráha).
+- **Odkazy:** `Src/ARBot.Common/Occupancy/LocalNavigator.cs`,
+  `Src/ARBot/ViewModels/WorldViewDocument.cs`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
+### 2026-08-11 — `GetStateAt` mimo okno historie vrací `null`; occupancy se kreslí bitmapou — ROZHODNUTO/HOTOVO
+Dvě rozhodnutí z dotažení lokální navigace do runtime (detaily v
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md)):
+- **`AsyncFusionEngine.GetStateAt(t)` vrací pro `t < tBase` `null`** místo dosavadního tichého
+  fallbacku na bazový stav. Ten vracel pózu až o `HistoryWindow` (1 s) starou, aniž to volající poznal
+  — při 0,8 m/s je to 80 cm. Zapsat takovou pózu do lokální mapy ji otráví mnohem hůř, než když jeden
+  snímek chybí. `ControlLoop` na `null` **zastaví** (bezpečný stav), `LocalNavigator` snímek **zahodí**.
+  *Hranice okna sama je uvnitř* (`t == tBase` vrací bazový stav) — jinak by první tik, jehož čas je
+  shodný s časem prvního měření, zbytečně zastavil; odhalil to existující test `ControlLoopTests`.
+  Případ „ještě nedošlo žádné měření" zůstal beze změny, aby se při startu emitoval `RobotStateMsg`.
+- **Occupancy vrstva se kreslí jako rastr, ne po buňkách.** 65 536 buněk jako featury/kreslené obdélníky
+  by UI zabilo. Grid je **osově srovnaný se světem**, takže z něj stačí udělat obrázek a položit ho do
+  obdélníku — právě world-kotvení, které dělá akumulaci levnou, dělá levnou i vizualizaci.
+  *(Upřesněno záznamem výše: vrstva se přesunula do world pohledu, takže rastr je `MRaster`/PNG bez
+  jakékoli rotace; původní varianta s `WriteableBitmap` a afinní transformací v robot-centrickém
+  pohledu odpadla i s tou rotací.)*
+- **Odkazy:** `Src/ARBot.Common/Fusion/AsyncFusionEngine.cs`, `Src/ARBot.Common/Runtime/ControlLoop.cs`,
+  `Src/ARBot.Common/Occupancy/LocalNavigator.cs`, `Src/ARBot/Views/Controls/RobotCentricControl.cs`.
+
+### 2026-08-10 — Azimutové hranice gridu zamítnuty; azimut se hledá přes SLOUPEC obrazu — ROZHODNUTO/HOTOVO
+**Koriguje níže uvedený návrh z téhož dne.** Návrh počítal s tím, že se do `PolarTraversabilityGrid`
+přidá tabulka **azimutových hranic** (pole A+1 úhlů) a zápis do occupancy pak z bodu `(x,y)` najde
+azimutovou buňku binárním hledáním v úhlu. **Při implementaci se ukázalo, že je to geometricky
+neproveditelné:** u sklopené kamery **není sloupec obrazu konstantním azimutem** — azimut pozemního
+bodu na jednom sloupci se mění s řádkem (u naší geometrie sklon 20°, HFOV ~77° o ~0,15 rad, tedy
+skoro o celou šířku azimutové buňky). Jediná hodnota na hranici by byla systematicky špatná; odhalil
+to test, který měl hranice ověřit (těžiště buňky vycházelo mimo vlastní buňku).
+- **Řešení:** bod země se **promítne do obrazu** (`ICameraProjection.Transform`, rovina `z = 0`) a
+  azimutová buňka se vezme z jeho **sloupce**. Tím se **přesně invertuje** mapování, které použil
+  `CameraFrameProcessor.BuildGrid` (azimut = skupina `ColumnsPerCell` sloupců) — lookup sedí přesně,
+  nikoli přibližně. Radiální prstenec se bere ze vzdálenosti, protože přesně tak ho počítal i `BuildGrid`.
+  Stejný vzor (bod země → pixel → vzorek) už v repozitáři používá `PathEdgeFinder`.
+- **Důsledky:** `AzimuthEdges` v gridu nevznikly (formát záznamu se o ně nerozšířil); místo nich jsou
+  na gridu `AzimuthBinFromColumn(column, edgeColumnTrim)` a `RadialBin(range)`. `CameraFrame`
+  **FormatVersion 3 → 4** kvůli `Projection` (samotné) zůstává. Renderer polárního gridu si azimutové
+  hranice dál rekonstruuje z těžišť — a je teď zřejmé, že jinak to ani nejde.
+- **Odkazy:** `Src/ARBot.Common/Occupancy/OccupancyIntegrator.cs`,
+  `Src/ARBot.Common/Vision/PolarTraversabilityGrid.cs`,
+  `Src/ARBot.Common.Tests/Vision/PolarGridLookupTest.cs`,
+  [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
+### 2026-08-10 — Occupancy grid a lokální plánování: návrh — ROZHODNUTO/ČÁSTEČNĚ IMPLEMENTOVÁNO
+Sloučení sjízdnosti z hloubky (`CameraFrame.Grid`) a z barvy (`CameraFrame.ImageProbability`) do
+jednoho kartézského occupancy gridu + plánovač, který z něj vyrobí `RegulatorWayPoint[]` pro
+`IPathPlanner`. Celý návrh je v [occupancy-and-local-planning.md](occupancy-and-local-planning.md);
+sem jen rozhodnutí a *proč*:
+- **Grid kotvený ve světě (ENU), kruhový buffer jen v posunu.** Rotace robotu se mapy nedotkne;
+  alternativa „grid natočený s robotem" by vyžadovala resampling každý tik (rozmazává, dražší).
+  Cenou je závislost na kvalitě lokalizace — řeší se clampem log-odds a krátkou pamětí (jednotky
+  sekund), ne dokonalou lokalizací.
+- **Dva rovnocenné kanály `LOcc` (geometrie) + `LRoad` (sémantika), log-odds ve `sbyte`.** Dvě různé
+  modality s různou charakteristikou chyb; sloučením do jednoho čísla by zmizela informace, *který*
+  z nich průjezd zakázal (ladění, diagnostika). Pro jízdu jsou ale rovnocenné — stačí, aby jeden
+  nedovolil průjezd. `sbyte` (měřítko 0,1, clamp ±5) → 128 KB celkem, vejde se do L2.
+- **„Nemám data o cestě" ≠ „není to cesta".** `LRoad` blokuje jen pod prahem s dostatečnou jistotou —
+  jinak by robot po startu nikdy nevyjel (RGB kanál je zpočátku všude nulový). Symetrické k
+  `Unknown ≠ Free` u polárního gridu.
+- **Skrz `UNKNOWN` se smí plánovat, ale nesmí se do něj vjet** — a neřeší se to zvláštním pravidlem,
+  nýbrž jediným invariantem rychlostní obálky: *nikdy nejeď rychleji, než z čeho zastavíš na hranici
+  potvrzeně průjezdného* (`v ≤ sqrt(2·a·s_free)`). Robot k nejasnému místu dojede, senzory ho cestou
+  dosvítí, a buď se otevře, nebo ho přeplánování objede, nebo robot zastaví na hranici.
+- **Cena plánování = jízdní čas** (`délka / v_limit(d)`), tvrdý odstup `SafeDist` zvlášť jako
+  neprůchodnost. Tím se požadavek „drž se dál, ale smíš blíž za cenu nižší rychlosti" stane jedinou
+  cenovou funkcí — žádné ruční vyvažování vzdálenosti proti délce, žádný druhý režim.
+  Nový `Profile.PrefDist = 0,8 m` = odkud výš už se rychlost neomezuje; mezi `SafeDist` a `PrefDist`
+  **lineární** rampa (u bočního odstupu nejde o brzdnou dráhu — ta je výhradně v `v_brake`).
+- **A\* na 5 cm mřížce, ne hybrid-A\*/lattice/RRT** — kinematiku a dynamiku už řeší `PathPlanner` +
+  `PathResult` (geometrie rohů, brzdná obálka, feedforward); duplikovat ji v plánovači je zbytečné.
+- **`MaxPositionError` waypointu = skutečná volná rezerva** (`d_min − SafeDist`). Zaoblení rohu
+  obloukem, které z ε ukusuje, tak nikdy nezasáhne do bezpečnostního odstupu.
+- **Žádná hystereze plánu.** Držet plán spočtený nad starší mapou = jet proti důkazům, které robot
+  už má → riziko kolize. Každý cyklus plný přepočet a validace proti aktuálnímu gridu. Riziko
+  oscilace (skákání mezi objetím zleva/zprava) se řeší **poctivější cenou** — započtením času
+  otočení `|Δθ|/ω_max` z aktuálního kurzu — ne lepivostí v čase.
+- **Póza z EKF v čase pořízení snímku, per kamera zvlášť** (`GetStateAt(frame.TimeStamp)`). Jen tak
+  se snímky obou kamer zarovnají správně (100 ms = 8 cm = 1,6 buňky při 0,8 m/s). `GetStateAt` je
+  zamčené, umí dotaz do minulosti a `Enqueue` řadí podle času, ne podle příchodu — stojí to na
+  předpokladu, že zpracování kamery trvá výrazně déle než IMU/GPS/motorů.
+- **`GetStateAt(t)` vrací `null` mimo okno historie** místo tichého fallbacku na bazový stav (ten
+  vracel pózu až o vteřinu starou, aniž to volající poznal). Snímek se pak zahodí — zapsat ho se
+  špatnou pózou otráví mapu hůř, než když jeden chybí. `ControlLoop` na `null` zastaví.
+- **Ve View navigace neběží** (jen přehrávání zpráv) → occupancy grid a plán se **zaznamenávají**
+  jako zprávy. Projekce ukládaná do `CameraFrame` je investice do budoucího `Simulate` a offline
+  analýzy, ne pro View; cache se neserializují (odvozené, ~5 MB) a staví se líně per kamera.
+- **Odkazy:** [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
+  [traversability-grid.md](traversability-grid.md), [path-following.md](path-following.md),
+  [ekf-fusion.md](ekf-fusion.md).
+- **Upřesnění z implementace:** (a) *azimutové hranice zamítnuty* — viz záznam výše; (b) za hranicí
+  potvrzeného je strop `MinCostSpeed` (~5 cm/s), ne přesná nula, protože `PathPlanner` chápe
+  `Speed == 0` jako „bez stropu" a tvrdé zastavení může zadrhnout (stání prostor nedosvítí);
+  (c) konec dráhy je vždy hranicí známého, jinak by poslední uzel dostal plnou rychlost; (d) přidána
+  **eskapovací zóna** `EscapeRadius` (0,5 m) — bez ní by robot zastavený blíž než `SafeDist` neměl
+  průjezdnou výchozí buňku a nemohl by odjet.
+
 ### 2026-08-09 — Hranice cesty (`PathEdges`): počítá `CameraFrameProcessor`, ukládají se do `CameraFrame` — ROZHODNUTO/HOTOVO
 Volání `cu.PathEdges(...)` v `D435Camera.GetMeasurement` **výsledek odjakživa zahazovalo** (i před
 refaktorem vizuální cesty šel jen do lokální proměnné) a downstream konzument `PathEdgeFinder` si hrany

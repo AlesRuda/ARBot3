@@ -352,6 +352,161 @@ namespace ARBot.Common.Tests.Devices
             return ms.ToArray();
         }
 
+        // --- Projekce kamery (od FormatVersion 4) ---
+
+        [Test]
+        public void CameraFrame_Projekce_RoundTrip()
+        {
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                TimeStamp = T0,
+                ImageProbability = MakeImage<Gray>(4, 4, 1),
+                Grid = MakeGrid(),
+                Projection = MakeProjectionInfo(),
+            };
+
+            var r = RoundTrip(frame);
+
+            Assert.That(r.Verze, Is.EqualTo(CameraFrame.FormatVersion));
+            Assert.That(r.Grid, Is.Not.Null);
+
+            Assert.That(r.Projection, Is.Not.Null, "projekce se prenesla");
+            Assert.That(r.Projection.Intrinsics.Width, Is.EqualTo(8));
+            Assert.That(r.Projection.Intrinsics.Height, Is.EqualTo(6));
+            Assert.That(r.Projection.Intrinsics.Fx, Is.EqualTo(5.5f));
+            Assert.That(r.Projection.Intrinsics.PPy, Is.EqualTo(3.25f));
+            Assert.That(r.Projection.Intrinsics.Model,
+                        Is.EqualTo(ARBot.Common.Coordinates.Intrinsics.Distortion.InverseBrownConrady));
+            Assert.That(r.Projection.Intrinsics.Coeffs, Is.EqualTo(new[] { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f }));
+            Assert.That(r.Projection.InverseIntrinsics.Width, Is.EqualTo(8));
+            Assert.That(r.Projection.Transformation, Is.EqualTo(frame.Projection.Transformation));
+            Assert.That(r.Projection.From, Is.EqualTo(frame.Projection.From));
+        }
+
+        [Test]
+        public void CameraFrame_BezProjekce_RoundTripsToNull()
+        {
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                TimeStamp = T0,
+                ImageProbability = MakeImage<Gray>(4, 4, 1),
+                Grid = MakeGrid(),
+                Projection = null,
+            };
+
+            var r = RoundTrip(frame);
+
+            Assert.That(r.Grid, Is.Not.Null);
+            Assert.That(r.Projection, Is.Null);
+        }
+
+        [Test]
+        public void CameraFrame_V3_ReadsWithoutProjection()
+        {
+            // Zaznam verze 3 (grid + hrany cesty, ale bez projekce).
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                FrameNum = 9,
+                TimeStamp = T0,
+                RGBTimeStamp = T0.AddMilliseconds(1),
+                DepthTimeStamp = T0.AddMilliseconds(2),
+                ImageProbability = MakeImage<Gray>(4, 4, 1),
+                PathEdges = new List<PathEdge> { new PathEdge { Y = 3, Left = 1, Right = 7 } },
+            };
+
+            byte[] v3 = SerializeV3(frame);
+
+            var read = new CameraFrame { Verze = 3 };
+            read.FromData(TestHelpers.Enc, v3);
+
+            Assert.That(read.Name, Is.EqualTo("Left"));
+            Assert.That(read.FrameNum, Is.EqualTo(9u));
+            Assert.That(read.Grid, Is.Null);
+            Assert.That(read.Projection, Is.Null, "verze 3 nema projekci");
+            Assert.That(read.PathEdges, Is.Not.Null);
+            Assert.That(read.PathEdges.Count, Is.EqualTo(1));
+            Assert.That(read.PathEdges[0].Y, Is.EqualTo(3));
+        }
+
+        /// <summary>Zapise ramec ve v3 layoutu: meta + name + 3 obrazy + 2 casy + grid + hrany cesty,
+        /// BEZ azimutovych hranic gridu a BEZ projekce.</summary>
+        private static byte[] SerializeV3(CameraFrame f)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, TestHelpers.Enc, leaveOpen: true))
+            {
+                bw.Write(f.FrameNum);
+                bw.Write(f.DropedOutNum);
+                bw.Write(f.FrameReceivePeriod.Ticks);
+                bw.Write(f.FramePickupPeriod.Ticks);
+                bw.Write(f.TimeStamp.Ticks);
+                bw.Write(f.Name ?? string.Empty);
+                ImageMsg.Write(bw, f.ImageRGB, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageProbability, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageDepth, ImageMsg.Compression.None);
+                bw.Write(f.RGBTimeStamp.ToBinary());
+                bw.Write(f.DepthTimeStamp.ToBinary());
+                bw.Write(false);   // grid flag: bez gridu
+                bw.Write(true);    // hrany cesty
+                bw.Write(f.PathEdges.Count);
+                foreach (var e in f.PathEdges)
+                {
+                    bw.Write(e.Y);
+                    bw.Write(e.Left.HasValue);
+                    if (e.Left.HasValue) bw.Write(e.Left.Value);
+                    bw.Write(e.Right.HasValue);
+                    if (e.Right.HasValue) bw.Write(e.Right.Value);
+                }
+            }
+            return ms.ToArray();
+        }
+
+        private static ARBot.Common.Coordinates.CameraProjectionInfo MakeProjectionInfo()
+            => new ARBot.Common.Coordinates.CameraProjectionInfo
+            {
+                Intrinsics = new ARBot.Common.Coordinates.Intrinsics
+                {
+                    Width = 8, Height = 6, PPx = 4.5f, PPy = 3.25f, Fx = 5.5f, Fy = 5.25f,
+                    Model = ARBot.Common.Coordinates.Intrinsics.Distortion.InverseBrownConrady,
+                    Coeffs = new[] { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f },
+                },
+                InverseIntrinsics = new ARBot.Common.Coordinates.Intrinsics
+                {
+                    Width = 8, Height = 6, PPx = 4.5f, PPy = 3.25f, Fx = 5.5f, Fy = 5.25f,
+                    Model = ARBot.Common.Coordinates.Intrinsics.Distortion.None,
+                    Coeffs = new float[5],
+                },
+                From = System.Numerics.Matrix4x4.CreateRotationZ(0.3f),
+                To = System.Numerics.Matrix4x4.CreateRotationZ(-0.3f),
+                Transformation = System.Numerics.Matrix4x4.CreateTranslation(1, 2, 3),
+            };
+
+        /// <summary>Zapise a znovu precte ramec pres zaznam/replay (aktualni FormatVersion).</summary>
+        private static CameraFrame RoundTrip(CameraFrame frame)
+        {
+            using var ms = new MemoryStream();
+            var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
+            rec.Start(); rec.Post(frame); rec.Stop();
+
+            var catalog = MessageCatalog.CommonDefaults().Register(new CameraFrame());
+            CameraFrame r = null;
+            var sink = new DelegateTarget(m => { if (m is CameraFrame c) r = c; });
+            sink.Start();
+            using (var rms = new MemoryStream(ms.ToArray()))
+            {
+                var src = new FileMessageSource(rms, TestHelpers.Enc, catalog);
+                src.Connect(sink);
+                src.RunToEnd();
+            }
+            sink.Stop();
+
+            Assert.That(r, Is.Not.Null, "ramec se neprecetl");
+            return r;
+        }
+
         [Test]
         public void CameraFrame_V1_ReadsWithoutGrid()
         {

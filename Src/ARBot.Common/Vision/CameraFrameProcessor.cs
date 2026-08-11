@@ -42,6 +42,7 @@ namespace ARBot.Common.Vision
         private readonly Dictionary<IDepthCameraProjection, RadialEdge[]> edgeCache
             = new Dictionary<IDepthCameraProjection, RadialEdge[]>();
 
+
         // Volitelny CSV log casu (diagnostika latence). Zapisuje se z vlakna kamery (jedna instance).
         private TextWriter diag;
         private int diagSeq;
@@ -153,6 +154,11 @@ namespace ARBot.Common.Vision
                     var grid = BuildGrid(frame.ImageDepth, proj);
                     frame.Grid = grid;
                     cells = grid?.Cells?.Length ?? 0;
+
+                    // (2b) Popis projekce do ramce (od FormatVersion 4) - kvuli offline prepoctu
+                    // ze zaznamu. Je to per kamera nemenna instance (projekce ji cachuje), takze
+                    // se jen predava referenci, bez alokace per snimek.
+                    frame.Projection = proj.Info;
                 }
             }
 

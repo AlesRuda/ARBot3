@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using ARBot.ViewModels;
 using Avalonia.Controls;
+using Mapsui.Extensions;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 
@@ -35,11 +36,33 @@ namespace ARBot.Views
             if (mapControl == null)
             {
                 mapControl = new Mapsui.UI.Avalonia.MapControl();
+                // Ctrl + klik = zadani cile lokalniho planovace. Ctrl proto, aby se to nepletlo
+                // s beznym pan/zoom (viz doc/occupancy-and-local-planning.md).
+                mapControl.PointerPressed += OnMapPointerPressed;
                 host.Children.Insert(0, mapControl);
             }
 
             if (!ReferenceEquals(mapControl.Map, vm.Map))
                 mapControl.Map = vm.Map;
+        }
+
+        /// <summary>Ctrl + klik do mapy = cil lokalniho planovace (pixel -&gt; Web Mercator -&gt; lokalni ENU).</summary>
+        private void OnMapPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+        {
+            if (mapControl == null || DataContext is not WorldViewDocument vm) return;
+            if ((e.KeyModifiers & Avalonia.Input.KeyModifiers.Control) == 0) return;
+
+            try
+            {
+                var p = e.GetPosition(mapControl);
+                var world = mapControl.Map.Navigator.Viewport.ScreenToWorld(p.X, p.Y);
+                if (vm.RequestGoalFromMercator(world.X, world.Y))
+                    e.Handled = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
         }
 
         /// <summary>Vybere .mbtiles soubor pro offline podklad a ulozi cestu do ViewModelu.</summary>

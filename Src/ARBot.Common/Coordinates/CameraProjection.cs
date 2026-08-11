@@ -43,7 +43,10 @@ namespace ARBot.Common.Coordinates
                 {
                     float dx;
                     float dy;
-                    ToDistort(x, y, out dx, out dy);
+                    // POZOR: pretypovani na float je nutne - s int argumenty by se vybralo
+                    // pretizeni ToDistort(int,int), ktere cte prave plnenou (jeste prazdnou)
+                    // toDistortCache, a cache by se naplnila samymi nulami.
+                    ToDistort((float)x, (float)y, out dx, out dy);
                     toDistortCache[x, y] = new Point2D(dx, dy);
                     Camera2DToCamera3DCalc(x, y, out dx, out dy);
                     camera2DToCamera3DCache[y, x] = new Point2D((float)dx, (float)dy);
@@ -118,13 +121,18 @@ namespace ARBot.Common.Coordinates
             dy = dy * inverseIntrinsics.Fy + inverseIntrinsics.PPy;
         }
 
+        /// <summary>
+        /// Zkresleni pro celopixelovou souradnici - z cache, mimo rozsah dopocet.
+        /// Vraci pixelove souradnice (stejne jako <see cref="ToDistort(float,float,out float,out float)"/>).
+        /// </summary>
         void ToDistort(int ux, int uy, out float dx, out float dy)
         {
             if (ux < 0 || uy < 0 || ux >= inverseIntrinsics.Width || uy >= inverseIntrinsics.Height)
             {
-                ToDistort(ux, uy, out dx, out dy);
-                dx = dx * inverseIntrinsics.Fx + inverseIntrinsics.PPx;
-                dy = dy * inverseIntrinsics.Fy + inverseIntrinsics.PPy;
+                // Pretypovani na float je nutne: s int argumenty by tato vetev volala SAMA SEBE
+                // (nekonecna rekurze). Float pretizeni uz prevod do pixelu (Fx/PPx) dela samo,
+                // takze se tu uz znovu neskaluje.
+                ToDistort((float)ux, (float)uy, out dx, out dy);
             }
             else
             {
@@ -297,6 +305,14 @@ namespace ARBot.Common.Coordinates
 
         Point2D[,] IDepthCameraProjection.Camera2DToCamera3D => camera2DToCamera3DCache;
 
+        // Popis projekce pro serializaci; staví se lazy a zneplatnuje ho SetOrientation
+        // (jedina vec, ktera se za zivota projekce meni).
+        private CameraProjectionInfo info;
+
+        /// <inheritdoc/>
+        public CameraProjectionInfo Info
+            => info ??= CameraProjectionInfo.Capture(intrinsics, inverseIntrinsics, from, to, transformation);
+
         /// <summary>
         /// Polygon oznacujici kam se na vozovce promitne obraz kamery
         /// </summary>
@@ -352,6 +368,7 @@ namespace ARBot.Common.Coordinates
         {
             // 1. Uložení původní kompletní transformace
             transformation = transform;
+            info = null;   // popis pro serializaci se prepocita az bude potreba
 
             // 2. Vytvoření čisté rotace (zkopírujeme matici a vynulujeme její posun)
             rotation = transform;
@@ -418,6 +435,13 @@ namespace ARBot.Common.Coordinates
         {
             var p = new Vector3(x - offset.X, y - offset.Y, -offset.Z);
             p=Vector3.Transform(p, rotationWord2Cam);
+
+            // Bod ZA kamerou (Z <= 0) neni videt. Bez teto kontroly by ho perspektivni deleni
+            // v Camera3DToCamera2D promitlo na zdanlive platny pixel (deleni zapornym Z prevrati
+            // znamenka), takze napr. bod 4 m za robotem by vysel jako pixel pred nim.
+            if (p.Z <= 0)
+                return false;
+
             var pc = Camera3DToCamera2D(p);
 
             if (pc == null)

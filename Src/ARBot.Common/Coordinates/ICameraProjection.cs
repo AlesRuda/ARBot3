@@ -118,6 +118,13 @@ namespace ARBot.Common.Coordinates
         /// </summary>
         Matrix4x4 Transformation { get; }
         /// <summary>
+        /// Serializovatelny popis projekce (intrinsics + transformace), ze ktereho ji lze postavit
+        /// znovu - uklada se do <c>CameraFrame.Projection</c> kvuli offline prepoctu ze zaznamu.
+        /// Vychozi implementace vraci <c>null</c> ("nemam"), aby jednoduche/testovaci projekce
+        /// nemusely nic doplnovat. Viz doc/occupancy-and-local-planning.md.
+        /// </summary>
+        CameraProjectionInfo Info => null;
+        /// <summary>
         /// Transformace bodu z plochy kamery do xyz prosotru kamery xyz=(Camera2DToCamera3D[x, y].xy*Dist[x, y], Dist[x, y])
         /// </summary>
         Point2D[,] Camera2DToCamera3D { get; }

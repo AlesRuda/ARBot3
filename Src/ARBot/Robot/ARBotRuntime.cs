@@ -13,6 +13,7 @@ using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
 using ARBot.Common.Models;
+using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
 using ARBot.Common.Runtime;
 using ARBot.Common.Vision;
@@ -88,6 +89,14 @@ namespace ARBot.Robot
 
         /// <summary>Kořenovy zdroj replay ve View (jinak null) - pro navigacni nastroj (krok 9).</summary>
         public FileMessageSource FileSource => fileSource;
+
+        /// <summary>
+        /// Vyssi ridici smycka (occupancy grid + lokalni planovani) v rezimu Run; jinak null.
+        /// UI ji pres <see cref="LocalNavigator.SetGoal"/> zadava cil. Ve View NEbezi - jen se
+        /// prehravaji zaznamenane <c>OccupancyGridMsg</c> / <c>LocalPlanMsg</c>
+        /// (viz doc/occupancy-and-local-planning.md).
+        /// </summary>
+        public LocalNavigator Navigator { get; private set; }
 
         /// <summary>
         /// Spusti runtime v danem rezimu. <paramref name="file"/>: ve View cesta k zaznamu
@@ -214,6 +223,27 @@ namespace ARBot.Robot
             connections.Add(processing.Connect(fusion));
             connections.Add(processing.Connect(loop));
 
+            // Vyssi ridici smycka: occupancy grid + lokalni planovani. Bezi na VLASTNIM vlakne
+            // (MessageProcessor), takze tik ControlLoop zustava deterministicky. Odebira snimky z
+            // loop.Output (ridici smycka je forwarduje po pullu), pozu si bere z fuze v case
+            // PORIZENI snimku, a hotovy regulator atomicky preda zpet do loop.Regulator.
+            // Viz doc/occupancy-and-local-planning.md.
+            var navigator = new LocalNavigator(
+                engine,
+                depthProjections: name => projectionResolver(name) as ICameraProjection,
+                colorProjections: BuildColorProjectionResolver(hw),
+                pathPlanner: new PathPlanner(
+                    new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                               Profile.MaxAcceleration, Profile.Rozchod),
+                    Profile.PathEpsilonMargin, Profile.LookaheadTime, Profile.LookaheadMin))
+            {
+                ControlLoop = loop,
+            };
+            Navigator = navigator;
+            stages.Add(navigator);
+            connections.Add(loop.Output.Connect(navigator));
+            connections.Add(navigator.Output.Connect(stream));
+
             // Odvozene vystupy stupnu -> Stream.
             connections.Add(loop.Output.Connect(stream));
 
@@ -290,6 +320,42 @@ namespace ARBot.Robot
                     catch (Exception ex)
                     {
                         Debug.WriteLine($"DepthProjector '{name}' zatim nedostupny: {ex.Message}");
+                        return null;   // zkusi se znovu pri pristim snimku
+                    }
+                }
+                return null;
+            };
+        }
+
+        /// <summary>
+        /// Vrati resolver projekci BAREVNEHO streamu kamer (klic = <see cref="CameraFrame.Name"/>)
+        /// s robot-centrickou orientaci - pro semanticky kanal occupancy gridu (bod zeme -&gt; pixel
+        /// probability). Stejny lazy vzor jako <see cref="BuildDepthProjectionResolver"/>: dokud
+        /// kamera neni pripojena, vraci null a kanal se preskoci.
+        /// </summary>
+        private static Func<string, ICameraProjection> BuildColorProjectionResolver(ARBotHW hw)
+        {
+            var xforms = new List<(ICamera cam, Matrix4x4 transform)>();
+            if (hw.LeftCamera != null) xforms.Add((hw.LeftCamera, Profile.LeftCameraTransform));
+            if (hw.RightCamera != null) xforms.Add((hw.RightCamera, Profile.RightCameraTransform));
+
+            var cache = new Dictionary<string, ICameraProjection>();
+            return name =>
+            {
+                if (cache.TryGetValue(name, out var p)) return p;
+                foreach (var (cam, tf) in xforms)
+                {
+                    if (cam.Name != name) continue;
+                    try
+                    {
+                        var proj = cam.CreateProjector();   // vyhodi, dokud kamera neni pripojena
+                        proj.SetOrientation(tf);
+                        cache[name] = proj;
+                        return proj;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"ColorProjector '{name}' zatim nedostupny: {ex.Message}");
                         return null;   // zkusi se znovu pri pristim snimku
                     }
                 }

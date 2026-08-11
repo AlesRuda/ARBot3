@@ -1,4 +1,5 @@
 using ARBot.Common.Common;
+using ARBot.Common.Coordinates;
 using ARBot.Common.Logs;
 using ARBot.Common.Vision;
 using System;
@@ -20,7 +21,7 @@ namespace ARBot.Common.Devices
         /// <see cref="ToData"/>/<see cref="FromData"/>) zvys o 1 a v <see cref="FromData"/>
         /// pridej cteci vetev pro predchozi verzi (viz doc/record-replay.md → Verzovani zprav).
         /// </summary>
-        public const int FormatVersion = 3;
+        public const int FormatVersion = 4;
 
         public CameraFrame() : base(FormatVersion)
         {
@@ -62,6 +63,15 @@ namespace ARBot.Common.Devices
         /// </summary>
         public List<PathEdge> PathEdges { get; set; }
 
+        /// <summary>
+        /// Popis projekce kamery, ze ktereho lze <see cref="ARBot.Common.Coordinates.CameraProjection"/>
+        /// znovu postavit (od FormatVersion 4; u starsich zaznamu null). Slouzi k prepoctu vizualni
+        /// cesty offline ze zaznamu - dnes ji v Run nikdo necte (procesor i navigace maji projekci
+        /// primo z kamery), je to priprava na rezim Simulate. Rezie ~150 B/snimek proti ~1 MB obrazu.
+        /// Viz doc/occupancy-and-local-planning.md.
+        /// </summary>
+        public CameraProjectionInfo Projection { get; set; }
+
         /// <inheritdoc/>
         public override Message Build() => new CameraFrame();
 
@@ -79,8 +89,9 @@ namespace ARBot.Common.Devices
             ImageMsg.Write(bw, ImageDepth, ImageMsg.Compression.None);
             Write(bw, RGBTimeStamp);
             Write(bw, DepthTimeStamp);
-            WriteGrid(bw, Grid);           // od verze 2 (diagnosticke ComputeMs se NEserializuje)
-            WritePathEdges(bw, PathEdges); // od verze 3
+            WriteGrid(bw, Grid);                            // od verze 2 (diagnosticke ComputeMs se NEserializuje)
+            WritePathEdges(bw, PathEdges);                  // od verze 3
+            CameraProjectionInfo.Write(bw, Projection);     // od verze 4
         }
 
         /// <summary>Zapise hranice cesty: flag "ma hrany", a pokud ano pocet + {Y, Left?, Right?}.</summary>
@@ -197,6 +208,7 @@ namespace ARBot.Common.Devices
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = null;
                     PathEdges = null;
+                    Projection = null;
                     break;
 
                 case 2:
@@ -210,9 +222,11 @@ namespace ARBot.Common.Devices
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = ReadGrid(br);
                     PathEdges = null;
+                    Projection = null;
                     break;
 
                 case 3:
+                    // Layout s gridem a hranicemi cesty, ale bez azimutovych hranic a bez projekce.
                     ReadMeta(br);
                     Name = br.ReadString();
                     ImageRGB = ImageMsg.ReadImage<BGR32>(br);
@@ -222,6 +236,20 @@ namespace ARBot.Common.Devices
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = ReadGrid(br);
                     PathEdges = ReadPathEdges(br);
+                    Projection = null;
+                    break;
+
+                case 4:
+                    ReadMeta(br);
+                    Name = br.ReadString();
+                    ImageRGB = ImageMsg.ReadImage<BGR32>(br);
+                    ImageProbability = ImageMsg.ReadImage<Gray>(br);
+                    ImageDepth = ImageMsg.ReadImage<Gray16>(br);
+                    RGBTimeStamp = ReadDateTime(br);
+                    DepthTimeStamp = ReadDateTime(br);
+                    Grid = ReadGrid(br);
+                    PathEdges = ReadPathEdges(br);
+                    Projection = CameraProjectionInfo.Read(br);
                     break;
 
                 default:

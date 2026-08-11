@@ -33,9 +33,15 @@ namespace ARBot.Common.Fusion
         /// <summary>Kovariance stavu (5x5), muze byt null.</summary>
         public Matrix<double> Covariance;
 
-        /// <summary>Naklon vlevo/vpravo [rad] (z posledniho IMU, ne z EKF).</summary>
+        /// <summary>Naklon vlevo/vpravo [rad] (z posledniho IMU, NE z EKF - viz pozn. u <see cref="Pitch"/>).</summary>
         public double Roll { get; set; }
-        /// <summary>Predozadni naklon [rad] (z posledniho IMU, ne z EKF).</summary>
+        /// <summary>
+        /// Predozadni naklon [rad] (z posledniho IMU, NE z EKF).
+        /// <para>OTEVRENY UKOL: na rozdil od ostatnich slozek nejsou Pitch/Roll fuzovane - plni je
+        /// <c>ControlLoop</c> z posledniho dosleho <c>IMUState</c>, ktery navic nenese identitu zdroje
+        /// (pri dvou IMU neni poznat od ktereho). Meli by byt ve stavu EKF. Viz
+        /// doc/ekf-fusion.md → "Pitch/Roll patri do stavu EKF".</para>
+        /// </summary>
         public double Pitch { get; set; }
 
         /// <summary>Svetova orientace [rad], matematicky. Namapovana na <see cref="Theta"/>.</summary>

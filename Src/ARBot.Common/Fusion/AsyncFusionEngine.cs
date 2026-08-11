@@ -205,8 +205,19 @@ namespace ARBot.Common.Fusion
         /// - t &gt;= cas posledniho merenia: dopREDna predikce z posledniho stavu (na "ted"/budoucnost).
         /// - t v okne historie: najde nejblizsi drivejsi checkpoint a dopredikuje do t (filtrovany
         ///   odhad platny v case t; ne smoother - nepouziva pozdejsi merenia).
-        /// - t &lt;= tBase (mimo okno): vraci nejstarsi drzeny (bazovy) stav (best effort).
+        /// - t == tBase: vraci presne bazovy stav (zadna extrapolace, odhad tam plati).
+        /// - <b>t &lt; tBase (mimo okno historie): vraci <c>null</c></b>.
+        ///
+        /// <para><b>Proc null a ne "nejlepsi snaha":</b> drive se v tomto pripade vracel bazovy stav,
+        /// tedy poza az o <c>FusionConfig.HistoryWindow</c> (1 s) stara, a volajici to nijak nepoznal.
+        /// Pri 0,8 m/s je to 80 cm - zapsat takovou pozu do lokalni mapy ji otravi mnohem hur, nez kdyz
+        /// jeden snimek chybi. Volajici tedy MUSI null osetrit: <c>ControlLoop</c> zastavi (bezpecny
+        /// stav), <c>LocalNavigator</c> snimek zahodi. Viz doc/occupancy-and-local-planning.md.</para>
+        ///
+        /// <para>Pripad "jeste nedoslo zadne merenie" (<c>initialized == false</c>) zustava beze zmeny -
+        /// vraci pocatecni stav modelu, aby se pri startu emitoval <c>RobotStateMsg</c>.</para>
         /// </summary>
+        /// <returns>Odhad stavu, nebo <c>null</c>, je-li <paramref name="t"/> mimo okno historie.</returns>
         public RobotState GetStateAt(DateTime t)
         {
             lock (sync)
@@ -216,8 +227,10 @@ namespace ARBot.Common.Fusion
 
                 EnsureValid();
 
-                if (t <= tBase)
-                    return model.ToRobotState(xBase, pBase, t);
+                if (t < tBase)
+                    return null;                                        // mimo okno -> "nevim"
+                if (t == tBase)
+                    return model.ToRobotState(xBase, pBase, t);         // presne na bazi odhad plati
 
                 int idx = LastNodeAtOrBefore(t);
                 Vector<double> x;

@@ -112,9 +112,18 @@ namespace ARBot.Common.Configuration
         public static double LidarSafetyZone = 0.6;
 
         /// <summary>
-        /// Bezpecna vzdalenost prekazek od robota, aby projel
+        /// Bezpecna vzdalenost prekazek od robota, aby projel.
+        /// TVRDY minimalni odstup - planovac ho nikdy neporusi (blize je neprujezdno).
         /// </summary>
         public static double SafeDist = 0.4;
+
+        /// <summary>
+        /// Odstup od prekazek, od ktereho uz se rychlost neomezuje - dal je bezpecne volno pro
+        /// prujezd i otoceni. Mezi <see cref="SafeDist"/> a timto odstupem se rychlost linearne
+        /// snizuje (u BOCNIHO odstupu nejde o brzdnou drahu - ta je zvlast v brzdne obalce).
+        /// Viz doc/occupancy-and-local-planning.md.
+        /// </summary>
+        public static double PrefDist = 0.8;
 
         /// <summary>
         /// Posunuti lidaru vuci referencnimu bodu robotu (prusecik osy rotace a zeme).
