@@ -169,7 +169,7 @@ public enum Mode { Run, View /*, Simulate (odloženo) */ }
 - **`RobotState : IModelState`.** `IModelState` je oříznut (odstraněny `IHistoryItem`, `Clone`,
   `Interpolate`). `RobotState` doplnit/namapovat: `Orientation`←`Theta`, `Velocity`←`V`,
   `OrientationVelocity`←`Omega`, `X`/`Y` (get/set), **`Roll`/`Pitch`** (z posledního IMU, ne z EKF);
-  `Rotation` = `Matrix4x4` z (`Orientation`,`Pitch`,`Roll`); `Trasnformation` = `Rotation` + posun
+  `Rotation` = `Matrix4x4` z (`Orientation`,`Pitch`,`Roll`); `Transformation` = `Rotation` + posun
   (`X`,`Y`). Konvence úhlů/os dle [imu-and-frames.md](imu-and-frames.md) (world ENU, 0=východ, +CCW).
 - **Router:** `if (msg is IPrimaryMessage) → zpracování i Stream; else (odvozené ze souboru) → jen Stream`.
 - **Záznam Run:** `RecordingTarget` s per-typ retencí (`MessageQueue` sémantika), drop v `Post`,

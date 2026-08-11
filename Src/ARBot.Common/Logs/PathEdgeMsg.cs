@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -83,7 +83,7 @@ namespace ARBot.Common.Logs
             for (int i = 0; i < (Edges?.Count??0); i++)
             {
                 Write(bw, Edges[i].Point);
-                Write(bw, Edges[i].WordPoint);
+                Write(bw, Edges[i].WorldPoint);
                 bw.Write(Edges[i].Name);
                 bw.Write(Edges[i].Left);
                 bw.Write(Edges[i].Used);
@@ -148,7 +148,7 @@ namespace ARBot.Common.Logs
                     double x = br.ReadDouble();
                     Edges.Add(new PathEdge2()
                     {
-                        WordPoint = new Point4D() { X = (float)x, Y = (float)y, Z = 0, A = 1 },
+                        WorldPoint = new Point4D() { X = (float)x, Y = (float)y, Z = 0, A = 1 },
                         Left=true,
                         Used=true
                     });
@@ -161,7 +161,7 @@ namespace ARBot.Common.Logs
                     double x = br.ReadDouble();
                     Edges.Add(new PathEdge2()
                     {
-                        WordPoint = new Point4D() { X = (float)x, Y = (float)y, Z = 0, A = 1 },
+                        WorldPoint = new Point4D() { X = (float)x, Y = (float)y, Z = 0, A = 1 },
                         Left = false,
                         Used = true
                     });
@@ -197,7 +197,7 @@ namespace ARBot.Common.Logs
                     Edges.Add(new PathEdge2()
                     {
                         Point = p,
-                        WordPoint = wp,
+                        WorldPoint = wp,
                         Name = name,
                         Left = left,
                         Used = used,

@@ -1,4 +1,4 @@
-﻿using ARBot.Common;
+using ARBot.Common;
 using ARBot.Common.Common;
 using System;
 using System.Collections.Generic;
@@ -156,19 +156,19 @@ namespace ARBot.Common.Configuration
         /// <summary>
         /// Transformace leve kamery
         /// </summary>
-        public static Matrix4x4 LeftCameraTransform = Conversions.CameraToWordTransform(CameraYaw, Conversions.Deg2Rad(-20.2), Conversions.Deg2Rad(0.9), LeftCameraOff);
+        public static Matrix4x4 LeftCameraTransform = Conversions.CameraToWorldTransform(CameraYaw, Conversions.Deg2Rad(-20.2), Conversions.Deg2Rad(0.9), LeftCameraOff);
         /// <summary>
         /// Transformace prave kamery
         /// </summary>
-        public static Matrix4x4 RightCameraTransform = Conversions.CameraToWordTransform(-CameraYaw, Conversions.Deg2Rad(-18.6), Conversions.Deg2Rad(-1.1), RightCameraOff);
+        public static Matrix4x4 RightCameraTransform = Conversions.CameraToWorldTransform(-CameraYaw, Conversions.Deg2Rad(-18.6), Conversions.Deg2Rad(-1.1), RightCameraOff);
         /// <summary>
         /// Rotace leve kamery
         /// </summary>
-        public static Matrix4x4 LeftCameraRotation = Conversions.CameraToWordTransform(CameraYaw, Conversions.Deg2Rad(-20.2), Conversions.Deg2Rad(0.9), new Vector3(0, 0, 0));
+        public static Matrix4x4 LeftCameraRotation = Conversions.CameraToWorldTransform(CameraYaw, Conversions.Deg2Rad(-20.2), Conversions.Deg2Rad(0.9), new Vector3(0, 0, 0));
         /// <summary>
         /// Rotace prave kamery
         /// </summary>
-        public static Matrix4x4 RightCameraRotation = Conversions.CameraToWordTransform(-CameraYaw, Conversions.Deg2Rad(-18.6), Conversions.Deg2Rad(-1.1), new Vector3(0, 0, 0));
+        public static Matrix4x4 RightCameraRotation = Conversions.CameraToWorldTransform(-CameraYaw, Conversions.Deg2Rad(-18.6), Conversions.Deg2Rad(-1.1), new Vector3(0, 0, 0));
 
 
         /// <summary>

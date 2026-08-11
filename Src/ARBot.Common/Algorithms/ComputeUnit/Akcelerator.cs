@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Algorithms.ComputeUnit;
+using ARBot.Common.Algorithms.ComputeUnit;
 using ARBot.Common.Coordinates;
 using System;
 using System.Collections.Generic;
@@ -57,47 +57,47 @@ namespace ARBot.Common.Common
             }
         }
 
-        Point4D[] wordPoints;
-        public Point4D[] WordPoints
+        Point4D[] worldPoints;
+        public Point4D[] WorldPoints
         {
             get
             {
-                if (wordPoints == null)
+                if (worldPoints == null)
                 {
                     var ci = ComputeInfo;
-                    float[] f = new float[ci.WordPointsCount * 4];
-                    Marshal.Copy(ci.WordPointsPtr, f, 0, ci.WordPointsCount * 4);
-                    Point4D[] o = new Point4D[ci.WordPointsCount];
-                    for (int i = 0; i < ci.WordPointsCount; i++)
+                    float[] f = new float[ci.WorldPointsCount * 4];
+                    Marshal.Copy(ci.WorldPointsPtr, f, 0, ci.WorldPointsCount * 4);
+                    Point4D[] o = new Point4D[ci.WorldPointsCount];
+                    for (int i = 0; i < ci.WorldPointsCount; i++)
                     {
                         o[i] = new Point4D() { X = f[i * 4], Y = f[i * 4 + 1], Z = f[i * 4 + 2], A = f[i * 4 + 3] };
                     }
-                    wordPoints = o;
+                    worldPoints = o;
                 }
-                return wordPoints;
+                return worldPoints;
             }
         }
 
-        Point4D[] wordObstaclePoints;
-        public Point4D[] WordObstaclePoints
+        Point4D[] worldObstaclePoints;
+        public Point4D[] WorldObstaclePoints
         {
             get
             {
-                if (wordObstaclePoints == null)
+                if (worldObstaclePoints == null)
                 {
                     var ci = ComputeInfo;
-                    if (ci.WordObstaclePointsCount == 0)
+                    if (ci.WorldObstaclePointsCount == 0)
                         return ObstaclePoints;
-                    float[] f = new float[ci.WordObstaclePointsCount * 4];
-                    Marshal.Copy(ci.WordObstaclePointsPtr, f, 0, ci.WordObstaclePointsCount * 4);
-                    Point4D[] o = new Point4D[ci.WordObstaclePointsCount];
-                    for (int i = 0; i < ci.WordObstaclePointsCount; i++)
+                    float[] f = new float[ci.WorldObstaclePointsCount * 4];
+                    Marshal.Copy(ci.WorldObstaclePointsPtr, f, 0, ci.WorldObstaclePointsCount * 4);
+                    Point4D[] o = new Point4D[ci.WorldObstaclePointsCount];
+                    for (int i = 0; i < ci.WorldObstaclePointsCount; i++)
                     {
                         o[i] = new Point4D() { X = f[i * 4], Y = f[i * 4 + 1], Z = f[i * 4 + 2], A = f[i * 4 + 3] };
                     }
-                    wordObstaclePoints = o;
+                    worldObstaclePoints = o;
                 }
-                return wordObstaclePoints;
+                return worldObstaclePoints;
             }
         }
 
@@ -178,8 +178,8 @@ namespace ARBot.Common.Common
             Segment2(computeInfoPtr, leftImage?.Data, lt, lct, rightImage?.Data, rt, rct, gt, leftImage.Width * leftImage.Height, 0.1f);
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
         }
 

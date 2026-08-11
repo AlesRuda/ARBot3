@@ -81,17 +81,17 @@ struct ComputeInfo
 	// pocet bodu v poli CameraPoints
 	int CameraPointsCount;
 	//xyz body z hloubkoveho obrazku ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
-	Point4D* WordPoints;
-	// pocet bodu v poli WordPoints
-	int WordPointsCount;
+	Point4D* WorldPoints;
+	// pocet bodu v poli WorldPoints
+	int WorldPointsCount;
 	//body prekazek  - xyz body v orientaci kamery tj. podle left/right TransformMatrix - x roste na vychod, y roste na sever a z smerem nahoru
 	Point4D* ObstaclePoints;
 	// pocet bodu v poli ObstaclePoints
 	int ObstaclePointsCount;
 	//body prekazek  - xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
-	Point4D* WordObstaclePoints;
-	// pocet bodu v poli WordObstaclePoints
-	int WordObstaclePointsCount;
+	Point4D* WorldObstaclePoints;
+	// pocet bodu v poli WorldObstaclePoints
+	int WorldObstaclePointsCount;
 	//Sirka agregacniho pele
 	int Width;
 	//Vyska agregacniho pele
@@ -173,8 +173,8 @@ extern "C"
 	EXPORT_API int ExtractObstaclesImpl(AggregateItem* ais, int* uais, int len, Point4D* ops, float minCount, float minStd2);
 
 	//Agreguje body sveta v rovine x,y pro budouci extrakci prekazek. 
-	//wordPoints - pole bodu sveta v metrech
-	//wordPointsCount - pocet bodu sveta
+	//worldPoints - pole bodu sveta v metrech
+	//worldPointsCount - pocet bodu sveta
 	//r - rozliseni pro agregaci
 	//xOff, yOff - posunuti v agregacnim poli ais
 	//ais - pole agregacnich bodu o velikosti width*height
@@ -182,8 +182,8 @@ extern "C"
 	//width, height - sirka a viska agregacniho pole, sirka odpovida souradnici x
 	//v - rovnice roviny po ktere robot jede, vznika regresi z bodu v okoli robotu, slouzi pro upravu z souradnice agregovaneho bodu z' = v.x * p.x + v.y * p.y + v.z * p.z + v.a * p.a; 
 	//vraci pocet obsazenych agregacnich bodu
-	EXPORT_API int AggregateObstacles(Point4D* wordPoints, int wordPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v);
-	EXPORT_API int AggregateObstaclesImpl(Point4D* wordPoints, int wordPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v);
+	EXPORT_API int AggregateObstacles(Point4D* worldPoints, int worldPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v);
+	EXPORT_API int AggregateObstaclesImpl(Point4D* worldPoints, int worldPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v);
 
 	// z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
 	// nasledne bod pootoci v prostoru pomoci rotate

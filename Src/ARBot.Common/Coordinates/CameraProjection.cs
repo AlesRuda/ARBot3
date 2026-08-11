@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Common;
+using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
 using System;
 using System.Collections.Generic;
@@ -295,7 +295,7 @@ namespace ARBot.Common.Coordinates
         /// <summary>
         /// Rotace svetovych souradnic do souradnic kamery
         /// </summary>
-        Matrix4x4 rotationWord2Cam;
+        Matrix4x4 rotationWorld2Cam;
         /// <summary>
         /// Posunuti kamery nad terenem 
         /// </summary>
@@ -374,29 +374,29 @@ namespace ARBot.Common.Coordinates
             rotation = transform;
             rotation.Translation = Vector3.Zero; // Tímto se M41, M42, M43 nastaví na 0 (včetně M14, M24, M34 z definice)
 
-            // 3. V původním kódu se na tomto řádku do 'rotationWord2Cam' i do 'rotation' 
+            // 3. V původním kódu se na tomto řádku do 'rotationWorld2Cam' i do 'rotation' 
             // paradoxně vrátil původní offset (protože OffsetX/Y/Z se četly z té osekané rotace, kde byly nuly,
             // ale původní M14, M24, M34 tam zůstaly).
             // Pro zachování identického chování 1:1 s WPF to přepíšeme takto:
-            rotationWord2Cam = rotation;
-            rotationWord2Cam.M41 = transform.M41;
-            rotationWord2Cam.M42 = transform.M42;
-            rotationWord2Cam.M43 = transform.M43;
-            rotation = rotationWord2Cam; // Obě proměnné teď mají opět matici i s posunem
+            rotationWorld2Cam = rotation;
+            rotationWorld2Cam.M41 = transform.M41;
+            rotationWorld2Cam.M42 = transform.M42;
+            rotationWorld2Cam.M43 = transform.M43;
+            rotation = rotationWorld2Cam; // Obě proměnné teď mají opět matici i s posunem
 
             // 4. Inverze matice (WPF .Invert() měnilo matici na místě, System.Numerics vrací novou)
-            if (Matrix4x4.Invert(rotationWord2Cam, out Matrix4x4 inverted))
+            if (Matrix4x4.Invert(rotationWorld2Cam, out Matrix4x4 inverted))
             {
-                rotationWord2Cam = inverted;
+                rotationWorld2Cam = inverted;
             }
             else
             {
                 // Pojistka pro případ, že by matice nešla invertovat (byla singulární)
-                rotationWord2Cam = Matrix4x4.Identity;
+                rotationWorld2Cam = Matrix4x4.Identity;
             }
 
-            // 5. Append(to) ve WPF znamenal: vynásob to maticí 'to' ZPRAVA (rotationWord2Cam * to)
-            rotationWord2Cam = rotationWord2Cam * to;
+            // 5. Append(to) ve WPF znamenal: vynásob to maticí 'to' ZPRAVA (rotationWorld2Cam * to)
+            rotationWorld2Cam = rotationWorld2Cam * to;
 
             // 6. Uložení čistého offsetu (pozice) z původní transformační matice
             this.offset = transform.Translation;
@@ -434,7 +434,7 @@ namespace ARBot.Common.Coordinates
         public bool Transform(float x, float y, ref float xc, ref float yc)
         {
             var p = new Vector3(x - offset.X, y - offset.Y, -offset.Z);
-            p=Vector3.Transform(p, rotationWord2Cam);
+            p=Vector3.Transform(p, rotationWorld2Cam);
 
             // Bod ZA kamerou (Z <= 0) neni videt. Bez teto kontroly by ho perspektivni deleni
             // v Camera3DToCamera2D promitlo na zdanlive platny pixel (deleni zapornym Z prevrati

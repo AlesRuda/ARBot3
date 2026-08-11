@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Common;
+using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using System;
 using System.Collections.Generic;
@@ -17,8 +17,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         float AggregateResolution { get; }
         PlaneParams LeftCameraParams { get; }
         PlaneParams RightCameraParams { get; }
-        // pocet bodu v poli WordPoints, muze byt rychlejsi nez WordPoints.Count
-        int WordPointsCount {get; }
+        // pocet bodu v poli WorldPoints, muze byt rychlejsi nez WorldPoints.Count
+        int WorldPointsCount {get; }
         /// <summary>
         /// Body prekazek  - xyz body v orientaci kamery tj. podle left/right TransformMatrix - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
@@ -26,11 +26,11 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <summary>
         /// xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
-        Point4D[] WordPoints { get; }
+        Point4D[] WorldPoints { get; }
         /// <summary>
         /// Body prekazek  - xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
-        Point4D[] WordObstaclePoints { get; }
+        Point4D[] WorldObstaclePoints { get; }
         Point4D[] CameraPoints { get; }
         AggregateItem? GetAggregateItem(int x, int y);
         /// <summary>

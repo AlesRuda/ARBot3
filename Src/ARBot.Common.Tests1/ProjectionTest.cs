@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using AForge.Math;
 using ARBot.Common.Common;
@@ -36,7 +36,7 @@ namespace UnitTests
             var ii = Intrinsics.TestDepth.Inverse();
 
             var p = new CameraProjection(i, ii, Matrix3D.Identity, Matrix3D.Identity);
-            p.SetOrientation(Profile.LeftCameraTransform*Conversions.WordToWordTransform(1.57, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
+            p.SetOrientation(Profile.LeftCameraTransform*Conversions.WorldToWorldTransform(1.57, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
 
 
             var pol = p.TargetPoly;

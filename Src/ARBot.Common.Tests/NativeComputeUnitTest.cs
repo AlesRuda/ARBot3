@@ -704,7 +704,7 @@ namespace ARBot.Common.Tests
         // POZOR: Nasledujici Segment_* testy jsou [Ignore] - nativni Segment2 cesta
         // (Segment2 -> Segment -> DepthTransformImpl) pada na x64 s AccessViolation (0xC0000005)
         // pri zpracovani realnych hloubkovych dat (validni body). Prazdny obraz nepada, ale
-        // vraci nedeterministicky WordPointsCount (znak poskozeni pameti / use-after-free).
+        // vraci nedeterministicky WorldPointsCount (znak poskozeni pameti / use-after-free).
         // NativeComputeUnit.Segment se v produkci nepouziva (nikde neni 'new NativeComputeUnit').
         // Testy jsou pripravene - zapnout az bude nativni Segment cesta na x64 opravena.
 
@@ -723,9 +723,9 @@ namespace ARBot.Common.Tests
 
             unit.Segment(img, proj, Matrix4x4.Identity);
 
-            Assert.That(unit.WordPointsCount, Is.EqualTo(n), "WordPointsCount");
-            Assert.That(unit.WordPoints.Length, Is.EqualTo(n), "WordPoints.Length");
-            foreach (var p in unit.WordPoints)
+            Assert.That(unit.WorldPointsCount, Is.EqualTo(n), "WorldPointsCount");
+            Assert.That(unit.WorldPoints.Length, Is.EqualTo(n), "WorldPoints.Length");
+            foreach (var p in unit.WorldPoints)
             {
                 Assert.That(p.X, Is.EqualTo(0).Within(1e-3), "X");
                 Assert.That(p.Y, Is.EqualTo(0).Within(1e-3), "Y");
@@ -757,7 +757,7 @@ namespace ARBot.Common.Tests
 
             unit.Segment(img, proj, Matrix4x4.Identity);
 
-            Assert.That(unit.WordPointsCount, Is.EqualTo(n / 2), "WordPointsCount");
+            Assert.That(unit.WorldPointsCount, Is.EqualTo(n / 2), "WorldPointsCount");
             GC.KeepAlive(unit);
         }
 
@@ -772,7 +772,7 @@ namespace ARBot.Common.Tests
 
             unit.Segment(img, proj, img, proj, Matrix4x4.Identity);
 
-            Assert.That(unit.WordPointsCount, Is.EqualTo(2 * n), "WordPointsCount (left+right)");
+            Assert.That(unit.WorldPointsCount, Is.EqualTo(2 * n), "WorldPointsCount (left+right)");
             GC.KeepAlive(unit);
         }
 
@@ -787,7 +787,7 @@ namespace ARBot.Common.Tests
 
             unit.Segment(img, proj, Matrix4x4.Identity);
 
-            Assert.That(unit.WordPointsCount, Is.EqualTo(0), "WordPointsCount");
+            Assert.That(unit.WorldPointsCount, Is.EqualTo(0), "WorldPointsCount");
             Assert.That(unit.ObstaclePoints.Length, Is.EqualTo(0), "ObstaclePoints");
             GC.KeepAlive(unit);
         }
@@ -804,7 +804,7 @@ namespace ARBot.Common.Tests
 
         /// <summary>
         /// SegmentNew3 (aktualne pouzivana detekce prekazek) - managed algoritmus nad
-        /// DepthTransform2Impl. WordPoints ma delku w*h, WordObstaclePoints je vyplneno.
+        /// DepthTransform2Impl. WorldPoints ma delku w*h, WorldObstaclePoints je vyplneno.
         /// </summary>
         [Test]
         public void SegmentNew3_RunsAndFillsWorldPoints()
@@ -816,8 +816,8 @@ namespace ARBot.Common.Tests
 
             unit.SegmentNew3(img, proj, Matrix4x4.Identity);
 
-            Assert.That(unit.WordPoints.Length, Is.EqualTo(n), "WordPoints.Length");
-            Assert.That(unit.WordObstaclePoints, Is.Not.Null, "WordObstaclePoints");
+            Assert.That(unit.WorldPoints.Length, Is.EqualTo(n), "WorldPoints.Length");
+            Assert.That(unit.WorldObstaclePoints, Is.Not.Null, "WorldObstaclePoints");
             GC.KeepAlive(unit);
         }
 

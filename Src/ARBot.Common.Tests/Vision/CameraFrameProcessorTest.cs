@@ -283,10 +283,10 @@ namespace ARBot.Common.Tests.Vision
             public float AggregateResolution => 0f;
             public PlaneParams LeftCameraParams => default;
             public PlaneParams RightCameraParams => default;
-            public int WordPointsCount => 0;
+            public int WorldPointsCount => 0;
             public Point4D[] ObstaclePoints => null;
-            public Point4D[] WordPoints => null;
-            public Point4D[] WordObstaclePoints => null;
+            public Point4D[] WorldPoints => null;
+            public Point4D[] WorldObstaclePoints => null;
             public Point4D[] CameraPoints => null;
             public AggregateItem? GetAggregateItem(int x, int y) => null;
             public void Segment(Image<Gray16> l, IDepthCameraProjection lp, Image<Gray16> r, IDepthCameraProjection rp, Matrix4x4 t) => throw new NotImplementedException();

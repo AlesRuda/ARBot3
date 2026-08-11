@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Common;
+using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using System;
 using System.Collections.Generic;
@@ -79,8 +79,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <summary>
         /// Agreguje body sveta v rovine x,y pro budouci extrakci prekazek. 
         /// </summary>
-        /// <param name="wordPoints">pole bodu sveta v metrech</param>
-        /// <param name="wordPointsCount">Pocet bodu v poli wordPoints</param>
+        /// <param name="worldPoints">pole bodu sveta v metrech</param>
+        /// <param name="worldPointsCount">Pocet bodu v poli worldPoints</param>
         /// <param name="r">rozliseni pro agregaci</param>
         /// <param name="xOff">posunuti v agregacnim poli ais</param>
         /// <param name="yOff">posunuti v agregacnim poli ais</param>
@@ -91,9 +91,9 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="v">rovnice roviny po ktere robot jede, vznika regresi z bodu v okoli robotu, slouzi pro upravu z souradnice agregovaneho bodu z' = v.x * p.x + v.y * p.y + v.z * p.z + v.a * p.a; </param>
         /// <returns>pocet obsazenych agregacnich bodu</returns>
         [DllImport("NativeLib.dll", EntryPoint = "AggregateObstacles", SetLastError = false)]
-        internal static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
+        internal static extern int AggregateObstacles(IntPtr worldPoints, int worldPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
         [DllImport("NativeLib.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false)]
-        internal static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
+        internal static extern int AggregateObstaclesImpl(Point4D[] worldPoints, Int32 worldPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
 
         /// <summary>
         /// Prolozi rovinou mnozinu bodu jejichz abs(z) je mensi jak MaxZ.
@@ -373,8 +373,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <summary>
         /// Agreguje body sveta v rovine x,y pro budouci extrakci prekazek. 
         /// </summary>
-        /// <param name="wordPoints">pole bodu sveta v metrech</param>
-        /// <param name="wordPointsCount">Pocet bodu v poli wordPoints</param>
+        /// <param name="worldPoints">pole bodu sveta v metrech</param>
+        /// <param name="worldPointsCount">Pocet bodu v poli worldPoints</param>
         /// <param name="r">rozliseni pro agregaci</param>
         /// <param name="xOff">posunuti v agregacnim poli ais</param>
         /// <param name="yOff">posunuti v agregacnim poli ais</param>
@@ -385,9 +385,9 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <param name="v">rovnice roviny po ktere robot jede, vznika regresi z bodu v okoli robotu, slouzi pro upravu z souradnice agregovaneho bodu z' = v.x * p.x + v.y * p.y + v.z * p.z + v.a * p.a; </param>
         /// <returns>pocet obsazenych agregacnich bodu</returns>
         [DllImport("NativeLib.dll", EntryPoint = "AggregateObstacles", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int AggregateObstacles(IntPtr wordPoints, int wordPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
+        internal static extern int AggregateObstacles(IntPtr worldPoints, int worldPointsCount, double r, int xOff, int yOff, IntPtr ais, IntPtr uais, int width, int height, Point4D v);
         [DllImport("NativeLib.dll", EntryPoint = "AggregateObstaclesImpl", SetLastError = false, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
+        internal static extern int AggregateObstaclesImpl(Point4D[] worldPoints, Int32 worldPointsCount, float r, Int32 xOff, Int32 yOff, [In, Out] AggregateItem[] ais, [In, Out] Int32[] uais, Int32 width, Int32 height, Point4D v);
 
         // z hloubkoveho obrazu dist vypocte xyz souradnice bodu v prostoru kamery(x - roste doprava, y - roste dolu a z od kamery)
         // nasledne bod pootoci v prostoru pomoci rotate
@@ -582,8 +582,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         // Zachovavaji puvodni verejne API (volani NativeComputeUnit.X z jinych assembly).
         public static void Test2() => NativeMethods.Test2();
 
-        public static int AggregateObstaclesImpl(Point4D[] wordPoints, Int32 wordPointsCount, float r, Int32 xOff, Int32 yOff, AggregateItem[] ais, Int32[] uais, Int32 width, Int32 height, Point4D v)
-            => NativeMethods.AggregateObstaclesImpl(wordPoints, wordPointsCount, r, xOff, yOff, ais, uais, width, height, v);
+        public static int AggregateObstaclesImpl(Point4D[] worldPoints, Int32 worldPointsCount, float r, Int32 xOff, Int32 yOff, AggregateItem[] ais, Int32[] uais, Int32 width, Int32 height, Point4D v)
+            => NativeMethods.AggregateObstaclesImpl(worldPoints, worldPointsCount, r, xOff, yOff, ais, uais, width, height, v);
 
         public static void XYZ2PlaneImpl(ref PlaneParams param, Point4D[] src, float maxZ, int len)
             => NativeMethods.XYZ2PlaneImpl(ref param, src, maxZ, len);
@@ -651,8 +651,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
         public PlaneParams LeftCameraParams => ComputeInfo.LeftCameraParams;
         public PlaneParams RightCameraParams => ComputeInfo.RightCameraParams;
-        // pocet bodu v poli WordPoints
-        public int WordPointsCount => ComputeInfo.WordPointsCount;
+        // pocet bodu v poli WorldPoints
+        public int WorldPointsCount => ComputeInfo.WorldPointsCount;
 
         Point4D[] obstaclePoints;
         /// <summary>
@@ -678,53 +678,53 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             }
         }
 
-        Point4D[] wordPoints;
+        Point4D[] worldPoints;
         /// <summary>
         /// xyz body zhloubkoveho obrazku ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
-        public Point4D[] WordPoints
+        public Point4D[] WorldPoints
         {
             get
             {
-                if (wordPoints == null)
+                if (worldPoints == null)
                 {
                     var ci = ComputeInfo;
-                    float[] f = new float[ci.WordPointsCount * 4];
-                    Marshal.Copy(ci.WordPointsPtr, f, 0, ci.WordPointsCount * 4);
-                    Point4D[] o = new Point4D[ci.WordPointsCount];
-                    for (int i = 0; i < ci.WordPointsCount; i++)
+                    float[] f = new float[ci.WorldPointsCount * 4];
+                    Marshal.Copy(ci.WorldPointsPtr, f, 0, ci.WorldPointsCount * 4);
+                    Point4D[] o = new Point4D[ci.WorldPointsCount];
+                    for (int i = 0; i < ci.WorldPointsCount; i++)
                     {
                         o[i] = new Point4D() { X = f[i * 4], Y = f[i * 4 + 1], Z = f[i * 4 + 2], A = f[i * 4 + 3] };
                     }
-                    wordPoints = o;
+                    worldPoints = o;
                 }
-                return wordPoints;
+                return worldPoints;
             }
         }
 
-        Point4D[] wordObstaclePoints;
+        Point4D[] worldObstaclePoints;
         /// <summary>
         /// Body prekazek  - xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
-        public Point4D[] WordObstaclePoints
+        public Point4D[] WorldObstaclePoints
         {
             get
             {
-                if (wordObstaclePoints == null)
+                if (worldObstaclePoints == null)
                 {
                     var ci = ComputeInfo;
-                    if (ci.WordObstaclePointsCount == 0)
+                    if (ci.WorldObstaclePointsCount == 0)
                         return ObstaclePoints;
-                    float[] f = new float[ci.WordObstaclePointsCount * 4];
-                    Marshal.Copy(ci.WordObstaclePointsPtr, f, 0, ci.WordObstaclePointsCount * 4);
-                    Point4D[] o = new Point4D[ci.WordObstaclePointsCount];
-                    for (int i = 0; i < ci.WordObstaclePointsCount; i++)
+                    float[] f = new float[ci.WorldObstaclePointsCount * 4];
+                    Marshal.Copy(ci.WorldObstaclePointsPtr, f, 0, ci.WorldObstaclePointsCount * 4);
+                    Point4D[] o = new Point4D[ci.WorldObstaclePointsCount];
+                    for (int i = 0; i < ci.WorldObstaclePointsCount; i++)
                     {
                         o[i] = new Point4D() { X = f[i * 4], Y = f[i * 4 + 1], Z = f[i * 4 + 2], A = f[i * 4 + 3] };
                     }
-                    wordObstaclePoints = o;
+                    worldObstaclePoints = o;
                 }
-                return wordObstaclePoints;
+                return worldObstaclePoints;
             }
         }
 
@@ -901,8 +901,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                 NativeMethods.Segment2(computeInfoPtr, leftImage?.Data, lt, lct, rightImage?.Data, rt, rct, gt, leftImage.Width * leftImage.Height, 0.1f);
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
         }
 
@@ -926,8 +926,8 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                 NativeMethods.Segment2(computeInfoPtr, image?.Data, lt, lct, null, lt, lct, gt, image.Width * image.Height, 0.1f);
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
         }
 
@@ -950,13 +950,13 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             float resolution = 0.1f;
             int w = 160;
@@ -972,7 +972,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                 for (int y = 0; y < image.Height; y++)
                 {
                     int idx = x + image.Width * y;
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 1)
                     {
                         x1 = (int)(p.X / resolution + 0.5) + w / 2;
@@ -1051,7 +1051,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                     }
                 }
             }
-            wordObstaclePoints = l.ToArray();
+            worldObstaclePoints = l.ToArray();
         }
 
         // segmentace stoupani mezi pixely vzdalenymi aspon 10cm
@@ -1064,17 +1064,17 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
             {
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
             }
 
-//            var s = String.Join("\r\n", wordPoints.Where(xx => xx.A == 1).Select(xx => $"{xx.X}\t{xx.Y}\t{xx.Z}"));
+//            var s = String.Join("\r\n", worldPoints.Where(xx => xx.A == 1).Select(xx => $"{xx.X}\t{xx.Y}\t{xx.Z}"));
 
             var l = new List<Point4D>();
             Point4D p, p1;
@@ -1085,7 +1085,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                 for (int y = image.Height - 1, y1 = image.Height - 1; y >= 0; y--)
                 {
                     int idx = x + image.Width * y;
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 0)
                         continue;
                     d = p.X * p.X + p.Y * p.Y;
@@ -1096,7 +1096,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                     {
                         idx = x + image.Width * y1;
 
-                        p1 = wordPoints[idx];
+                        p1 = worldPoints[idx];
                         if (p1.A == 0)
                         {
                             y1--;
@@ -1132,7 +1132,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                     }
                 }
             }
-            wordObstaclePoints = l.ToArray();
+            worldObstaclePoints = l.ToArray();
         }
         // segmentace zalozena na rozdilu z dvou pixelu, ktere maji vzdalenost v z>konst. Pak jeste je nutna smernice >konst
         public void SegmentNew2(Image<Gray16> image, IDepthCameraProjection projection, System.Numerics.Matrix4x4 globalTransform)
@@ -1152,13 +1152,13 @@ namespace ARBot.Common.Algorithms.ComputeUnit
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p=new Point4D();
@@ -1177,7 +1177,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
             {
                 for (idx=x; idx < idxMax; idx += image.Width)
                 {
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 1 || p.X * p.X + p.Y * p.Y > r2)
                     {
                         break;
@@ -1187,7 +1187,7 @@ namespace ARBot.Common.Algorithms.ComputeUnit
                 p1 = p;
                 for (idx1=idx; idx < idxMax; idx += image.Width)
                 {
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 1)
                     {
                         if (p.Z - pLast.Z < zStepDown)
@@ -1214,7 +1214,7 @@ repeat_y1:
                                 }
                                 do
                                 {
-                                    p1 = wordPoints[idx1];
+                                    p1 = worldPoints[idx1];
                                     idx1 += image.Width;
                                 }
                                 while (p1.Z == 0);
@@ -1227,7 +1227,7 @@ repeat_y1:
                     }
                 }
             }
-            wordObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
+            worldObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
             {
                 var d = (int)Math.Sqrt(g.Key.X * g.Key.X + g.Key.Y + g.Key.Y);
                 if (dist2Cnt.ContainsKey(d))
@@ -1249,13 +1249,13 @@ repeat_y1:
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
 
 
             var l = new List<Point4D>();
@@ -1272,7 +1272,7 @@ repeat_y1:
 
             for (int x = 10; x < image.Width - 10; x++)
             {
-                p1 = wordPoints[x];
+                p1 = worldPoints[x];
                 p2 = p1;
                 p = new Point4D();
                 d = new Point4D();
@@ -1300,20 +1300,20 @@ repeat_y1:
                                     p = p2;
                                 }
                                 i2 += w;
-                                p2 = wordPoints[i2];
+                                p2 = worldPoints[i2];
                                 r = p2.X * p2.X + p2.Y * p2.Y;
                             }
                             else
                             {
                                 i1 += w;
-                                p1 = wordPoints[i1];
+                                p1 = worldPoints[i1];
 //                                r = p1.X * p1.X + p1.Y * p1.Y;
                             }
                         }
                         else
                         {
                             i1 += w;
-                            p1 = wordPoints[i1];
+                            p1 = worldPoints[i1];
 //                            r = p1.X * p1.X + p1.Y * p1.Y;
                         }
                     }
@@ -1322,13 +1322,13 @@ repeat_y1:
                         if (p1.A == 0)
                         {
                             i1 += w;
-                            p1 = wordPoints[i1];
+                            p1 = worldPoints[i1];
 //                            r = p1.X * p1.X + p1.Y * p1.Y;
                         }
                         if (p2.A == 0)
                         {
                             i2 += w;
-                            p2 = wordPoints[i2];
+                            p2 = worldPoints[i2];
                             r = p2.X * p2.X + p2.Y * p2.Y;
                         }
                     }
@@ -1336,16 +1336,16 @@ repeat_y1:
                 if (rMin < rMax)
                     l.Add(p);
             }
-            wordObstaclePoints = l.ToArray();
+            worldObstaclePoints = l.ToArray();
 
-            //wordObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
+            //worldObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
             //{
             //    var d1 = (int)Math.Sqrt(g.Key.X * g.Key.X + g.Key.Y + g.Key.Y);
             //    if (dist2Cnt.ContainsKey(d1))
             //        return g.Count() >= dist2Cnt[d1];
             //    return false;
             //}).Select(g => g.First()).ToArray();
-            wordObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
+            worldObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
             {
                     return g.Count() >= 4;
             }).Select(g => g.First()).ToArray();
@@ -1362,13 +1362,13 @@ repeat_y1:
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p;
@@ -1379,7 +1379,7 @@ repeat_y1:
                 for (int y = image.Height - 1; y >= 0; y--)
                 {
                     int idx = x + image.Width * y;
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 1)
                     {
                         if (p1 != null)
@@ -1408,7 +1408,7 @@ repeat_y1:
                     }
                 }
             }
-            wordObstaclePoints = l.ToArray();
+            worldObstaclePoints = l.ToArray();
         }
 
         /// <summary>
@@ -1428,13 +1428,13 @@ repeat_y1:
 
             computeInfo = null;
             obstaclePoints = null;
-            wordPoints = null;
-            wordObstaclePoints = null;
+            worldPoints = null;
+            worldObstaclePoints = null;
             cameraPoints = null;
 
-            wordPoints = new Point4D[image.Width * image.Height];
+            worldPoints = new Point4D[image.Width * image.Height];
             if (image?.Data != null)
-                NativeMethods.DepthTransform2Impl(wordPoints, lct, lt, image?.Data, image.Width * image.Height);
+                NativeMethods.DepthTransform2Impl(worldPoints, lct, lt, image?.Data, image.Width * image.Height);
 
             var l = new List<Point4D>();
             Point4D p;
@@ -1443,7 +1443,7 @@ repeat_y1:
                 for (int y = image.Height - 1; y >= 0; y--)
                 {
                     int idx = x + image.Width * y;
-                    p = wordPoints[idx];
+                    p = worldPoints[idx];
                     if (p.A == 1)
                     {
                         if (p.X * p.X + p.Y * p.Y < r2)
@@ -1456,7 +1456,7 @@ repeat_y1:
                     }
                 }
             }
-            wordObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
+            worldObstaclePoints = l.GroupBy(v => new { X = (int)(v.X * 10), Y = (int)(v.Y * 10) }).Where(g =>
             {
                 return g.Count() >= 6;
             }).Select(g => g.First()).ToArray();

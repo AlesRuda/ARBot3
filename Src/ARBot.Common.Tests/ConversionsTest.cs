@@ -161,7 +161,7 @@ namespace ARBot.Common.Tests
         private static void AssertYprRoundTrip(float yaw, float pitch, float roll)
         {
             var ypr = new YawPitchRoll(yaw, pitch, roll);
-            var t = Conversions.WordToWordTransform(ypr.Yaw, ypr.Pitch, ypr.Roll, new Vector3(0, 0, 0));
+            var t = Conversions.WorldToWorldTransform(ypr.Yaw, ypr.Pitch, ypr.Roll, new Vector3(0, 0, 0));
             var ypr1 = new YawPitchRoll(t);
 
             Assert.That(ypr1.Yaw, Is.EqualTo(ypr.Yaw).Within(1e-4));
@@ -170,10 +170,10 @@ namespace ARBot.Common.Tests
         }
 
         /// <summary>
-        /// WordToWordTransform -> YawPitchRoll(matice) je round-trip pro ruzne kombinace yaw/pitch/roll.
+        /// WorldToWorldTransform -> YawPitchRoll(matice) je round-trip pro ruzne kombinace yaw/pitch/roll.
         /// </summary>
         [Test]
-        public void WordToWordTransform_RoundTripsYawPitchRoll()
+        public void WorldToWorldTransform_RoundTripsYawPitchRoll()
         {
             AssertYprRoundTrip(1, 0, 0);
             AssertYprRoundTrip(0, 1, 0);

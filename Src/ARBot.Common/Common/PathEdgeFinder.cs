@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Algorithms;
+using ARBot.Common.Algorithms;
 using ARBot.Common.Algorithms.ComputeUnit;
 using ARBot.Common.Algorithms.ML;
 using ARBot.Common.Coordinates;
@@ -27,7 +27,7 @@ namespace ARBot.Common.Common
             {
                 Points = points;
 //                LinearRegesion = points.LinearRegesion();
-                LinearRegesion = RANSAC.LinearRegresion(points.Where(i => i.Used).ToList(), 3, 0.3, 0.99, (pe)=>pe.WordPoint2D.Value, pe=>pe.Inlier=true);
+                LinearRegesion = RANSAC.LinearRegresion(points.Where(i => i.Used).ToList(), 3, 0.3, 0.99, (pe)=>pe.WorldPoint2D.Value, pe=>pe.Inlier=true);
             }
         }
 
@@ -113,8 +113,8 @@ namespace ARBot.Common.Common
                 var wp = worldPoints[idx];
                 if (wp.A == 1)
                 {
-                    pe.WordPoint = wp;
-                    pe.Used = pe.WordPoint.Value.Length < 8 && wp.A==1;
+                    pe.WorldPoint = wp;
+                    pe.Used = pe.WorldPoint.Value.Length < 8 && wp.A==1;
                 }
                 pe.Left = left;
                 points.Add(pe);

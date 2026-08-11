@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,32 +17,32 @@ namespace ARBot.Common.Common
         /// </summary>
         /// </summary>
         public Point Point { get; set; }
-        private Point4D? wordPoint;
+        private Point4D? worldPoint;
         /// <summary>
         /// Souradnice kraje v prostoru s pocatkem v miste robotu a svetove orientace.
         /// Ne kazdy bod musi lezet na rovine po ktere jede robot.
         /// Asi by bak mel byt oznacen jako Used=false, ale ne nutne
         /// </summary>
-        public Point4D? WordPoint 
+        public Point4D? WorldPoint 
         { 
-            get=>wordPoint;
+            get=>worldPoint;
             set
             {
-                wordPoint2D = null;
-                wordPoint = value;
+                worldPoint2D = null;
+                worldPoint = value;
             }
         }
-        private Point2D? wordPoint2D;
+        private Point2D? worldPoint2D;
         /// <summary>
         /// Souradnice kraje v rovine co jede robot
         /// </summary>
-        public Point2D? WordPoint2D
+        public Point2D? WorldPoint2D
         {
             get
             {
-                if (wordPoint2D == null && wordPoint != null)
-                    wordPoint2D = new Point2D(wordPoint.Value.X, wordPoint.Value.Y);
-                return wordPoint2D;
+                if (worldPoint2D == null && worldPoint != null)
+                    worldPoint2D = new Point2D(worldPoint.Value.X, worldPoint.Value.Y);
+                return worldPoint2D;
             }
         }
         /// <summary>

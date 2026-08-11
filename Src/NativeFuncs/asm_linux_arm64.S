@@ -454,14 +454,14 @@ ClearAggregateImpl:
     ret
 
 // ============================================================================
-// int AggregateObstaclesImpl(Point4D* wordPoints, int wordPointsCount, double r, 
+// int AggregateObstaclesImpl(Point4D* worldPoints, int worldPointsCount, double r, 
 //                            int xOff, int yOff, AggregateItem* ais, int32* uais, 
 //                            int width, int height, Point4D* v)
-// X0-wordPoints, X1-wordPointsCount, D2-r, W3-xOff, W4-yOff, X5-ais, X6-uais, W7-width
+// X0-worldPoints, X1-worldPointsCount, D2-r, W3-xOff, W4-yOff, X5-ais, X6-uais, W7-width
 // Na zásobníku: [sp] - height, [sp+8] - v (pointer)
 // ============================================================================
 AggregateObstaclesImpl:
-    // ARM64 AAPCS64: wordPoints=x0, count=w1, r=d0, xOff=w2, yOff=w3,
+    // ARM64 AAPCS64: worldPoints=x0, count=w1, r=d0, xOff=w2, yOff=w3,
     //   ais=x4, uais=x5, width=w6, height=w7, v (Point4D by value, HFA) = v1,v2,v3,v4.
     cmp w1, #0
     ble .LAggObst_Zero
@@ -486,14 +486,14 @@ AggregateObstaclesImpl:
     mov v3.16b, v24.16b            // v3 = v = (v.x, v.y, v.z, v.a)
 
     sxtw x1, w1
-    lsl x1, x1, #4                 // wordPointsCount * 16
+    lsl x1, x1, #4                 // worldPointsCount * 16
     mov w10, #0                    // citac unikatnich indexu
 .LAggObst_Loop:
     sub x1, x1, #16
     add x11, x0, x1
-    ld1 {v7.4s}, [x11]             // v7 = wordPoints[i] = (1, z, y, x)
+    ld1 {v7.4s}, [x11]             // v7 = worldPoints[i] = (1, z, y, x)
     
-    fdiv v6.4s, v7.4s, v0.4s       // wordPoints / r
+    fdiv v6.4s, v7.4s, v0.4s       // worldPoints / r
     
     // Zaokrouhlení na nejbližší celé číslo (roundps ekvivalent)
     frintn v6.4s, v6.4s

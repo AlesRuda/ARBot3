@@ -492,7 +492,7 @@ ClearAggregateImpl ENDP
 
 
 
-; int AggregateObstaclesImpl(Point4D* wordPoints, int wordPointsCount, double r, int xOff, int yOff, AggregateItem* ais, int32* uais, int width, int height, Point4D v)
+; int AggregateObstaclesImpl(Point4D* worldPoints, int worldPointsCount, double r, int xOff, int yOff, AggregateItem* ais, int32* uais, int width, int height, Point4D v)
 
 ; [rsp+80] - v
 ; [rsp+72] - height
@@ -503,8 +503,8 @@ ClearAggregateImpl ENDP
 ; [rsp+40] - yOff
 ; r9 - xOff
 ; xmm2 - r
-; rdx - wordPointsCount
-; rcx - wordPoints
+; rdx - worldPointsCount
+; rcx - worldPoints
 
 AggregateObstaclesImpl PROC EXPORT
  	mov			rax, rsp
@@ -523,8 +523,8 @@ AggregateObstaclesImpl PROC EXPORT
 
 	xor			rax, rax		;rax=0
 
-	mov			rsi, rcx		;rsi=wordPoints
-	mov			rbx, rdx		;rbx=wordPointsCount
+	mov			rsi, rcx		;rsi=worldPoints
+	mov			rbx, rdx		;rbx=worldPointsCount
 	shl			rbx, 4			;rbx*=16, 16 je velikost Point4D
 	movss		xmm0, xmm2		;xmm0=r
     shufps		xmm0, xmm0, 0	;vsechny 4 floaty xmm0 obsahuji r
@@ -554,9 +554,9 @@ AggregateObstaclesImpl PROC EXPORT
 	jmp		AggregateObstaclesImpl2
 
 AggregateObstaclesImpl1:
-	movups	xmm7, [rsi+rbx]			;xmm7=(1, z, y, x)=wordPoints[ebx]
+	movups	xmm7, [rsi+rbx]			;xmm7=(1, z, y, x)=worldPoints[ebx]
 	movaps	xmm6, xmm7
-	divps	xmm6, xmm0				;xmm6=wordPoints[ebx]/r
+	divps	xmm6, xmm0				;xmm6=worldPoints[ebx]/r
 	roundps	xmm6, xmm6,0			;zaokrouhleni
 	addps	xmm6, xmm1				;xmm6=(?, ?, (int32)(y/r)+yOff, (int32)(x/r)+xOff)  
 	movaps	xmm5, xmm6				;xmm5=(?, ?, (int32)(y/r)+yOff, (int32)(x/r)+xOff)  

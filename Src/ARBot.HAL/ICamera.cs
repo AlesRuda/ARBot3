@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -66,7 +66,7 @@ namespace ARBot.HAL
         /// <returns>Hloubkova projekce.</returns>
         IDepthCameraProjection CreateDepthProjector();
 
-        //        Matrix3D WordToCameraTransform(double roll, double pitch, double yaw, Vector3D offset);
+        //        Matrix3D WorldToCameraTransform(double roll, double pitch, double yaw, Vector3D offset);
         //      void ProjectColor(ILocalMap localMap, Image<BGR> image, Matrix3D transform, BackProject bp);
     }
 }

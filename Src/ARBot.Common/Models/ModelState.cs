@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,8 +13,8 @@ namespace ARBot.Common.Models
         private double rozchod;
         public double Roll { get; set; }
         public double Pitch { get; set; }
-        public Matrix3D Rotation => Conversions.WordToWordTransform(Orientation, Pitch, Roll, new Vector3D(0, 0, 0));
-        public Matrix3D Trasnformation => Conversions.WordToWordTransform(Orientation, Pitch, Roll, new Vector3D(X, Y, 0));
+        public Matrix3D Rotation => Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, new Vector3D(0, 0, 0));
+        public Matrix3D Transformation => Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, new Vector3D(X, Y, 0));
         public ModelState(double rozchod)
             : base(5, 1)
         {

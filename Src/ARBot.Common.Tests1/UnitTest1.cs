@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using AForge.Math;
 using ARBot.Common.Common;
@@ -450,7 +450,7 @@ namespace UnitTests
             var c = CameraProjection();
 
             // orientace kamery smerem dolu a horejsek na sever
-            c.SetOrientation(Conversions.CameraToWordTransform(0, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
+            c.SetOrientation(Conversions.CameraToWorldTransform(0, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
             /*
             double xc = 0, yc = 0;
             bool r;
@@ -476,7 +476,7 @@ namespace UnitTests
             Assert.IsTrue(!r, "Transform(0, 0, -1) -> [false]");
 
             // orientace kamery - ve smeru klesani y - na jih a vodorovne
-            c.SetOrientation(Conversions.CameraToWordTransform(0, Math.PI / 2, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
+            c.SetOrientation(Conversions.CameraToWorldTransform(0, Math.PI / 2, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
 
 
             r = c.Transform(0, -1, 0, false, ref xc, ref yc);
@@ -489,7 +489,7 @@ namespace UnitTests
             Assert.IsTrue(r && eq(xc, 100) && eq(yc, 52), "Transform(1, 0, 2) -> [true, 100, 52]");
 
             // orientace kamery ve smeru rustu y 
-            c.SetOrientation(Conversions.CameraToWordTransform(0, -Math.PI / 2, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
+            c.SetOrientation(Conversions.CameraToWorldTransform(0, -Math.PI / 2, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
 
             r = c.Transform(0, 1, 0, false, ref xc, ref yc);
             Assert.IsTrue(r && xc == 100 && yc == 50, "Transform(0, 1, 0) -> [true, 100, 50]");
@@ -505,7 +505,7 @@ namespace UnitTests
 
 
             // orientace kamery ve smeru rustu y 
-            c.SetOrientation(Conversions.CameraToWordTransform(-Math.PI / 2, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
+            c.SetOrientation(Conversions.CameraToWorldTransform(-Math.PI / 2, 0, 0, new System.Windows.Media.Media3D.Vector3D(0, 0, 0)));
 
             r = c.Transform(-1, 0, 0, false, ref xc, ref yc);
             Assert.IsTrue(r && eq(xc, 100) && eq(yc, 50), "Transform(1, 0, 0) -> [true, 100, 50]");

@@ -7,7 +7,7 @@ namespace ARBot.Common.Tests.Fusion
 {
     /// <summary>
     /// Overuje, ze <see cref="RobotState"/> spravne implementuje <see cref="IModelState"/>
-    /// (mapovani Orientation/Velocity/OrientationVelocity a matice Rotation/Trasnformation).
+    /// (mapovani Orientation/Velocity/OrientationVelocity a matice Rotation/Transformation).
     /// </summary>
     [TestFixture]
     public class RobotStateModelStateTests
@@ -42,7 +42,7 @@ namespace ARBot.Common.Tests.Fusion
             IModelState s = rs;
 
             var rot = s.Rotation;            // nesmi vyhodit
-            var tr = s.Trasnformation;       // nesmi vyhodit
+            var tr = s.Transformation;       // nesmi vyhodit
 
             // Rotace nema translacni cast
             Assert.That(rot.M41, Is.EqualTo(0f).Within(1e-5f));

@@ -61,6 +61,6 @@ regulérní `IMeasurement` s vlastním σ a gatingem) a `RobotState.Roll`/`Pitch
 ostatní složky. Pak zmizí i `ControlLoop.lastImu` a smyčka nebude muset odebírat `IMUState`.
 
 **Kdo to používá** (kontrola dopadu): `RobotState.ToWorldTransform()` /
-`ToWorldTransformWithPosition()` (`Conversions.WordToWordTransform(Orientation, Pitch, Roll, …)`).
+`ToWorldTransformWithPosition()` (`Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, …)`).
 Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
 vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.

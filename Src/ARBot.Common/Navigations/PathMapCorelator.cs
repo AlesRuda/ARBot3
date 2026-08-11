@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Algorithms;
+using ARBot.Common.Algorithms;
 using ARBot.Common.Algorithms.Simplification;
 using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
@@ -422,9 +422,9 @@ namespace ARBot.Common.Navigations
             var l2 = l.ToList();
             for (int i = 0; i < l2.Count; i++)
             {
-                var ep = i == 0 ? (Point2D?)null : l2[i - 1].WordPoint2D;
-                var e = l2[i].WordPoint2D;
-                var en = i <l2.Count-1 ? l2[i + 1].WordPoint2D : (Point2D?)null;
+                var ep = i == 0 ? (Point2D?)null : l2[i - 1].WorldPoint2D;
+                var e = l2[i].WorldPoint2D;
+                var en = i <l2.Count-1 ? l2[i + 1].WorldPoint2D : (Point2D?)null;
 
                 var op = ep != null ? (ep.Value - e.Value).Angle:(double?)null;
                 var on = en != null ? (e.Value-en.Value).Angle : (double?)null;
@@ -441,7 +441,7 @@ namespace ARBot.Common.Navigations
         }
 
         /// <summary>
-        /// Predpoklada, ze na vstupu jsou jen platne body WordPoint2D.HasValue==true
+        /// Predpoklada, ze na vstupu jsou jen platne body WorldPoint2D.HasValue==true
         /// </summary>
         /// <param name="l"></param>
         /// <param name="p"></param>
@@ -454,7 +454,7 @@ namespace ARBot.Common.Navigations
             for (int i = 0; i < l.Count; i++)
             {
                 var pe = l[i];
-                p1 = pe.WordPoint2D.Value;
+                p1 = pe.WorldPoint2D.Value;
                 var dist = (p1 - p).LengthSquerd;
                 if (dist < min)
                 {
@@ -481,9 +481,9 @@ namespace ARBot.Common.Navigations
             for (int i = 0; i < l.Count; i++)
             {
                 var pe = l[i];
-                if (pe.WordPoint2D.HasValue && !p.Equals(pe.WordPoint2D.Value))
+                if (pe.WorldPoint2D.HasValue && !p.Equals(pe.WorldPoint2D.Value))
                 {
-                    p1 = pe.WordPoint2D.Value;
+                    p1 = pe.WorldPoint2D.Value;
                     var dist = (p1 - p).LengthSquerd;
                     if (dist < min1)
                     {
@@ -506,7 +506,7 @@ namespace ARBot.Common.Navigations
         List<PathEdge2> OrderNearest(List<PathEdge2> c)
         {
             List<PathEdge2> ret = new List<PathEdge2>();
-            var toProcess = c.Where(i => i.WordPoint2D.HasValue).ToList();
+            var toProcess = c.Where(i => i.WorldPoint2D.HasValue).ToList();
             var f = NearestIndex(toProcess, new Point2D());
 
             if (f.Index>-1)
@@ -514,7 +514,7 @@ namespace ARBot.Common.Navigations
                 var first = toProcess[f.Index];
                 toProcess.RemoveAt(f.Index);
                 ret.Add(first);
-                f = NearestIndex(toProcess, first.WordPoint2D.Value);
+                f = NearestIndex(toProcess, first.WorldPoint2D.Value);
                 if (f.Index > -1)
                 {
                     var l = f;
@@ -530,8 +530,8 @@ namespace ARBot.Common.Navigations
                                 if (l.Index > f.Index)
                                     l.Index--;
                                 else if (l.Index == f.Index)
-                                    l = NearestIndex(toProcess, ret[ret.Count - 1].WordPoint2D.Value);
-                                f = NearestIndex(toProcess, ret[0].WordPoint2D.Value);
+                                    l = NearestIndex(toProcess, ret[ret.Count - 1].WorldPoint2D.Value);
+                                f = NearestIndex(toProcess, ret[0].WorldPoint2D.Value);
                                 first = toProcess[f.Index];
                             }
                         }
@@ -544,14 +544,14 @@ namespace ARBot.Common.Navigations
                                 if (f.Index > l.Index)
                                     f.Index--;
                                 else if (l.Index == f.Index)
-                                    f = NearestIndex(toProcess, ret[0].WordPoint2D.Value);
-                                l = NearestIndex(toProcess, ret[ret.Count - 1].WordPoint2D.Value);
+                                    f = NearestIndex(toProcess, ret[0].WorldPoint2D.Value);
+                                l = NearestIndex(toProcess, ret[ret.Count - 1].WorldPoint2D.Value);
                             }
                         }
                     }
                 }
             }
-            if(ret.Count>0 && ret[0].WordPoint2D.Value.Distance< ret[ret.Count-1].WordPoint2D.Value.Distance)
+            if(ret.Count>0 && ret[0].WorldPoint2D.Value.Distance< ret[ret.Count-1].WorldPoint2D.Value.Distance)
                 ret.Reverse();
             return ret;
         }
@@ -570,10 +570,10 @@ namespace ARBot.Common.Navigations
             for (int i = 0; i < l.Count; i++)
             {
                 var pe = l[i];
-                if (pe.WordPoint2D.HasValue)
+                if (pe.WorldPoint2D.HasValue)
                 {
-                    Point2D last = pe.WordPoint2D.Value;
-                    idxs[i] = NearestIndex2(l, pe.WordPoint2D.Value);
+                    Point2D last = pe.WorldPoint2D.Value;
+                    idxs[i] = NearestIndex2(l, pe.WorldPoint2D.Value);
                 }
                 else
                     idxs[i] = (-1, -1);
@@ -620,7 +620,7 @@ namespace ARBot.Common.Navigations
         {
             DouglasPeuckerReduction r = new DouglasPeuckerReduction(0.01);
             List<PathEdge2> l3 = new List<PathEdge2>();
-            var l2 = OrderNearest(l.Where(i => i.WordPoint2D.HasValue && i.WordPoint2D.Value.Distance > 0.3 && i.WordPoint2D.Value.Distance < 10).ToList());
+            var l2 = OrderNearest(l.Where(i => i.WorldPoint2D.HasValue && i.WorldPoint2D.Value.Distance > 0.3 && i.WorldPoint2D.Value.Distance < 10).ToList());
             if (l2.Count > 0)
             {
                 Point2D? po = null;
@@ -628,14 +628,14 @@ namespace ARBot.Common.Navigations
                 {
                     if (po != null)
                     {
-                        if ((po.Value - p.WordPoint2D.Value).Length > 0.1)
+                        if ((po.Value - p.WorldPoint2D.Value).Length > 0.1)
                         {
                             l3.Add(p);
-                            po = p.WordPoint2D.Value;
+                            po = p.WorldPoint2D.Value;
                         }
                     }
                     else
-                        po = p.WordPoint2D.Value;
+                        po = p.WorldPoint2D.Value;
                 }
 
                 PointsFrom(l3, offset);

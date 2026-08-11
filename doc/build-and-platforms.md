@@ -67,13 +67,13 @@ v `ARBot.Common.Tests`, resp. `NativeLibResolver` v HAL) — mapuje `NativeLib.d
 `NativeComputeUnit` (`ARBot.Common/Algorithms/ComputeUnit`) staví/testuje se jen jako **x64**
 (`-p:Platform=x64`, kvůli `IsX64`).
 
-- **`Segment`/`Segment2` padá na x64** — `DepthTransformImpl` zápis do `ci->WordPoints` způsobí
+- **`Segment`/`Segment2` padá na x64** — `DepthTransformImpl` zápis do `ci->WorldPoints` způsobí
   AccessViolation na reálných hloubkových datech (x64 nativní cesta je historicky nedodělaná).
   Tyto testy jsou `[Ignore]`. Fungují: `DepthTransform2Impl` (`SegmentNew3`), `FindPathEdge`,
   `BackProjectBGR32`, `CopyRGB24ToBGR32`/`CopyBGR24ToBGR32`.
 - **Třída se v produkci nepoužívá** (nikde `new NativeComputeUnit`, jen testy) a **není
   `IDisposable`** — nativní paměť uvolní až finalizer, takže v testech nutné `GC.KeepAlive(unit)`
-  než přečteš `WordPoints`/`ComputeInfo` (jinak use-after-free).
+  než přečteš `WorldPoints`/`ComputeInfo` (jinak use-after-free).
 - **TODO (barevné převody):** RGB/BGR→BGR32 v `Src/ARBot.Common/Vision/MessageImageLayers.cs`
   se dělá **dočasně** managed (`Image<T>.ConvertTo`, per-pixel v C#). Cíl: směrovat přes
   akcelerovaný `NativeComputeUnit` (SIMD/HW) — doplnit `byte[]→byte[]` varianty

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -20,9 +20,9 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         // pocet bodu v poli CameraPoints
         public int CameraPointsCount;
         //xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
-        public IntPtr WordPointsPtr;
-        // pocet bodu v poli WordPoints
-        public int WordPointsCount;
+        public IntPtr WorldPointsPtr;
+        // pocet bodu v poli WorldPoints
+        public int WorldPointsCount;
         /// <summary>
         /// Body prekazek  - xyz body v orientaci kamer - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
@@ -32,9 +32,9 @@ namespace ARBot.Common.Algorithms.ComputeUnit
         /// <summary>
         /// body prekazek  - xyz body ve svetove orientaci - x roste na vychod, y roste na sever a z smerem nahoru
         /// </summary>
-        public IntPtr WordObstaclePointsPtr;
-        // pocet bodu v poli WordObstaclePoints
-        public int WordObstaclePointsCount;
+        public IntPtr WorldObstaclePointsPtr;
+        // pocet bodu v poli WorldObstaclePoints
+        public int WorldObstaclePointsCount;
         //Sirka
         public int Width;
         //Vyska

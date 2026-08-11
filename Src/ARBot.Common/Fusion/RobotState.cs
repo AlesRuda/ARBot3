@@ -56,16 +56,16 @@ namespace ARBot.Common.Fusion
         /// <summary>
         /// Rotacni matice ve svetovych souradnicich ENU z (<see cref="Orientation"/>,
         /// <see cref="Pitch"/>, <see cref="Roll"/>). Pouziva projektovou konvenci
-        /// <see cref="Conversions.WordToWordTransform"/> (yaw kolem svisle osy Z).
+        /// <see cref="Conversions.WorldToWorldTransform"/> (yaw kolem svisle osy Z).
         /// </summary>
         public Matrix4x4 Rotation
-            => Conversions.WordToWordTransform(Orientation, Pitch, Roll, Vector3.Zero);
+            => Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, Vector3.Zero);
 
         /// <summary>
         /// Kompletni transformace = <see cref="Rotation"/> + posun (<see cref="X"/>, <see cref="Y"/>).
         /// </summary>
-        public Matrix4x4 Trasnformation
-            => Conversions.WordToWordTransform(Orientation, Pitch, Roll, new Vector3((float)X, (float)Y, 0f));
+        public Matrix4x4 Transformation
+            => Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, new Vector3((float)X, (float)Y, 0f));
 
         public override string ToString()
         {

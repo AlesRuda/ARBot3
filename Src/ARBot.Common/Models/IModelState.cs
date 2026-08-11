@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Common;
+using ARBot.Common.Common;
 using System;
 using System.Numerics;
 
@@ -14,7 +14,7 @@ namespace ARBot.Common.Models
         double Pitch { get; set; }
         double Roll { get; set; }
         Matrix4x4 Rotation { get; }
-        Matrix4x4 Trasnformation { get; }
+        Matrix4x4 Transformation { get; }
         /// <summary>
         /// Rychlost v m/s
         /// </summary>

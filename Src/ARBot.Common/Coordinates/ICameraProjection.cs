@@ -1,4 +1,4 @@
-﻿using ARBot.Common.Common;
+using ARBot.Common.Common;
 using ARBot.Common.LocalMaps;
 using System.Collections.Generic;
 using System.Numerics;
@@ -54,11 +54,11 @@ namespace ARBot.Common.Coordinates
         /*        /// <summary>
                 /// Prepocte bod v realnem svete (pocatek souradnic je robot) do souradnice camery v pixelech.
                 /// </summary>
-                /// <param name="word"></param>
+                /// <param name="world"></param>
                 /// <param name="xc"></param>
                 /// <param name="yc"></param>
                 /// <returns></returns>
-                bool Transform(Point3D word, out double xc, out double yc);
+                bool Transform(Point3D world, out double xc, out double yc);
                 */
         /*        /// <summary>
                 /// Spocte transformaci 
@@ -88,11 +88,11 @@ namespace ARBot.Common.Coordinates
         /*        /// <summary>
                 /// Prepocte bod v realnem svete (pocatek souradnic je robot) do souradnice camery v pixelech.
                 /// </summary>
-                /// <param name="word"></param>
+                /// <param name="world"></param>
                 /// <param name="xc"></param>
                 /// <param name="yc"></param>
                 /// <returns></returns>
-                bool Transform(Point3D word, out double xc, out double yc);
+                bool Transform(Point3D world, out double xc, out double yc);
                 */
         /*        /// <summary>
                 /// Spocte transformaci 

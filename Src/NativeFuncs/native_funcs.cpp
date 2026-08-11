@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 
 //#include "stdafx.h"
 
@@ -71,12 +71,12 @@ extern "C"
 		ci->UsedAggregates = (int*)Alloc((ci->AggregatesCount + 1) * sizeof(int));
 		ci->UsedAggregatesCount = 0;
 		//		memset((void*)ci->UsedAggregates, 0, (ci->AggregatesCount + 1) * sizeof(int));
-		ci->WordObstaclePoints = (Point4D*)Alloc(width * height * sizeof(Point4D));
+		ci->WorldObstaclePoints = (Point4D*)Alloc(width * height * sizeof(Point4D));
 		ci->MaxCameraPoints = maxPoints;
 		ci->CameraPoints = (Point4D*)Alloc(maxPoints * sizeof(Point4D));
-		ci->WordPoints = (Point4D*)Alloc(maxPoints * sizeof(Point4D));
+		ci->WorldPoints = (Point4D*)Alloc(maxPoints * sizeof(Point4D));
 		ci->ObstaclePoints = (Point4D*)Alloc(width * height * sizeof(Point4D));
-		ci->WordObstaclePoints = (Point4D*)Alloc(width * height * sizeof(Point4D));
+		ci->WorldObstaclePoints = (Point4D*)Alloc(width * height * sizeof(Point4D));
 
 		InitAggregate(ci->Aggregates, ci->Width * ci->Height);
 		return ci;
@@ -85,11 +85,11 @@ extern "C"
 	EXPORT_API void ComputeFree(ComputeInfo* ci)
 	{
 		Free(ci->CameraPoints);
-		Free(ci->WordPoints);
+		Free(ci->WorldPoints);
 		Free(ci->UsedAggregates);
 		Free(ci->Aggregates);
 		Free(ci->ObstaclePoints);
-		Free(ci->WordObstaclePoints);
+		Free(ci->WorldObstaclePoints);
 		Free(ci);
 	}
 
@@ -195,7 +195,7 @@ extern "C"
 		return idx;
 	}
 
-	int AggregateObstacles(Point4D* wordPoints, int wordPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v)
+	int AggregateObstacles(Point4D* worldPoints, int worldPointsCount, float r, int xOff, int yOff, AggregateItem* ais, int* uais, int width, int height, Point4D v)
 	{
 		float a = v.x;
 		float b = v.y;
@@ -210,9 +210,9 @@ extern "C"
 		int usedAggregateCount = 0;
 		int idx = 0;
 
-		for (int i = 0; i < wordPointsCount; i++)
+		for (int i = 0; i < worldPointsCount; i++)
 		{
-			Point4D p = wordPoints[i];
+			Point4D p = worldPoints[i];
 			x = p.x / r + xOff;
 			y = p.y / r + yOff;
 			if (x >= 0 && x < width && y >= 0 && y < height)
@@ -272,14 +272,14 @@ extern "C"
 		if (ci != NULL && params != NULL && dist != NULL && transformMatrix != NULL && transform != NULL)
 		{
 			Point4D* cameraPoints = &(ci->CameraPoints[ci->CameraPointsCount]);
-			Point4D* wordPoints = &(ci->WordPoints[ci->WordPointsCount]);
+			Point4D* worldPoints = &(ci->WorldPoints[ci->WorldPointsCount]);
 
-			int wordPointsCount;
-			wordPointsCount = DepthTransformImpl(wordPoints, transform, transformMatrix, dist, len);
-			ci->WordPointsCount += wordPointsCount;
+			int worldPointsCount;
+			worldPointsCount = DepthTransformImpl(worldPoints, transform, transformMatrix, dist, len);
+			ci->WorldPointsCount += worldPointsCount;
 
 			ResetPlaneParams(params);
-			XYZ2PlaneImpl(params, wordPoints, maxZ, wordPointsCount);
+			XYZ2PlaneImpl(params, worldPoints, maxZ, worldPointsCount);
 			CalcPlaneParams(params);
 
 			float r = ci->Resolution;
@@ -291,7 +291,7 @@ extern "C"
 			int* uais = ci->UsedAggregates;
 			AggregateItem* ais = ci->Aggregates;
 
-			ci->UsedAggregatesCount = AggregateObstaclesImpl(wordPoints, wordPointsCount, r, xOff, yOff, ais, uais, w, h, (params->v));
+			ci->UsedAggregatesCount = AggregateObstaclesImpl(worldPoints, worldPointsCount, r, xOff, yOff, ais, uais, w, h, (params->v));
 		}
 	}
 
@@ -306,17 +306,17 @@ extern "C"
 		ci->UsedAggregatesCount = 0;
 
 		ci->CameraPointsCount = 0;
-		ci->WordPointsCount = 0;
+		ci->WorldPointsCount = 0;
 
 		Segment(ci, &ci->LeftCameraParams, leftDist, leftTransformMatrix, leftTransform, len, maxZ);
 		Segment(ci, &ci->RightCameraParams, rightDist, rightTransformMatrix, rightTransform, len, maxZ);
 
 		ci->ObstaclePointsCount = ExtractObstaclesImpl(ci->Aggregates, ci->UsedAggregates, ci->UsedAggregatesCount, ci->ObstaclePoints, 15, 0.0025);
 
-		ci->WordObstaclePointsCount = 0;
+		ci->WorldObstaclePointsCount = 0;
 		if (globalTransformMatrix != NULL)
 		{
-			TransformPoint4DImpl(ci->WordObstaclePoints, globalTransformMatrix, ci->ObstaclePoints, ci->WordObstaclePointsCount = ci->ObstaclePointsCount);
+			TransformPoint4DImpl(ci->WorldObstaclePoints, globalTransformMatrix, ci->ObstaclePoints, ci->WorldObstaclePointsCount = ci->ObstaclePointsCount);
 		}
 	}
 
@@ -521,9 +521,9 @@ extern "C"
 	{
 		int l1 = len;
 
-		Point4D* wordPoints = &(ci->WordPoints[0]);
-		int l = DepthTransformImpl(wordPoints, transform, rotate, dist, len);
-		ci->WordPointsCount = l;
+		Point4D* worldPoints = &(ci->WorldPoints[0]);
+		int l = DepthTransformImpl(worldPoints, transform, rotate, dist, len);
+		ci->WorldPointsCount = l;
 	}
 
 	// reverzuje pole Int16, ze zdroje src kopiruje do dst

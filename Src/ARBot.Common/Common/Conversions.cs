@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -137,7 +137,7 @@ namespace ARBot.Common.Common
         /// </param>
         /// <param name="offset">Posunuti kamery v metrech vzhledem k rovine po ktere jede robot.</param>
         /// <returns></returns>pootoceni kamery vhledem k realnemu svetu.
-        /*        public static Matrix3D CameraToWordTransform(double yaw, double pitch, double roll, Vector3D offset)
+        /*        public static Matrix3D CameraToWorldTransform(double yaw, double pitch, double roll, Vector3D offset)
                 {
                     var m = Matrix3D.Identity;
 
@@ -150,7 +150,7 @@ namespace ARBot.Common.Common
                 }*/
 
 
-        public static Matrix4x4 CameraToWordTransform(double yaw, double pitch, double roll, Vector3 offset)
+        public static Matrix4x4 CameraToWorldTransform(double yaw, double pitch, double roll, Vector3 offset)
         {
             // 1. Přepočet úhlů na radiány s tvými posunů o -90 stupňů
             float p = (float)pitch + (-(float)Math.PI / 2f);
@@ -183,7 +183,7 @@ namespace ARBot.Common.Common
         /// <param name="yaw">Otoceni podel svisle osy v radianech a matematickem smyslu.</param>
         /// <param name="offset">Posunuti kamery v metrech vzhledem k rovine po ktere jede robot.</param>
         /// <returns></returns>pootoceni kamery vhledem k realnemu svetu.
-/*        public static Matrix3D WordToWordTransform(double yaw, double pitch, double roll, Vector3D offset)
+/*        public static Matrix3D WorldToWorldTransform(double yaw, double pitch, double roll, Vector3D offset)
         {
             var m = Matrix3D.Identity;
 
@@ -194,7 +194,7 @@ namespace ARBot.Common.Common
             m.Translate(offset);
             return m;
         }*/
-        public static Matrix4x4 WordToWordTransform(double yaw, double pitch, double roll, Vector3 offset)
+        public static Matrix4x4 WorldToWorldTransform(double yaw, double pitch, double roll, Vector3 offset)
         {
             // 1. Přepočet úhlů na radiány (s tvým otočeným znaménkem u pitch)
             float r = (float)roll;
