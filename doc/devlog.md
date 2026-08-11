@@ -812,7 +812,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Hotovo:** úvodní commit a **založení repa** (`.gitattributes`/`.gitignore`/README/LICENSE).
   `98d6c14`, `9b1be0e`.
 - **Hotovo (OS/device bring-up Orange Pi 5 Ultra — Armbian/KDE; ops, mimo repo):** zprovozněna cílová
-  HW platforma pro ARBot. Práce běžela napříč **~06-17→06-23** (rekonstrukce z časů souborů a Pi logů;
+  HW platforma pro ARBot.
+
+  ![OrangePi 5 Ultra, 8GB, Cooler](media/OrangePiUltra_Top.jpg)
+  ![OrangePi 5 Ultra, NVME Disk 512 GB](media/OrangePiUltra_Bottom.jpg)
+  
+  Práce běžela napříč **~06-17→06-23** (rekonstrukce z časů souborů a Pi logů;
   v gitu jen anchor 06-23 — `setup-orangepi.sh` mtime + úvodní commit). V repu je z toho jen
   `OrangePi5Ultra/setup-orangepi.sh` + `POSTUP.md` — **idempotentní recovery celého setupu** pro případ
   reinstalace.
