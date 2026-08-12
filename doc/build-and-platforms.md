@@ -122,4 +122,7 @@ bez nich se nesestaví:
 - **`NativeLib` / `libNativeLib.so`** — vlastní nativní knihovna (`NativeFuncs`),
   viz výše.
 - **Intel RealSense** — SDK ve složce `RealSense 2.0/` (kamery D435/T265); wrapper verze
-  podle platformy (2.47 x64 / 2.53 ARM).
+  podle platformy (2.47 x64 / 2.53 ARM). **V gitu jsou jen DLL** (`Intel.Realsense.dll`
+  + `realsense2.dll`, x64 i x86, ~56 MB) — `.gitignore` je pro tyhle dva podadresáře
+  vyjímá z build-output pravidel `x64/` / `x86/`. Doprovodné `*.pdb` (~200 MB, z toho jeden
+  soubor 104 MB → nad limitem GitHubu) v gitu **nejsou**; k buildu ani běhu nejsou potřeba.

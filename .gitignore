@@ -34,6 +34,11 @@ bld/
 [Ll]ogs/
 # 'Logs' je i nazev ZDROJOVEHO adresare (Src/ARBot.Common/Logs) - nesmi byt ignorovan build-output pravidlem [Ll]ogs/ vyse.
 !Src/ARBot.Common/Logs/
+# 'x64'/'x86' jsou i nazvy podadresaru SDK 'RealSense 2.0' (externi zavislost, referuje ji
+# ARBot.HALWindows.csproj) - musi byt v gitu, jinak se projekt nesestavi.
+# PDB (debug symboly nativni knihovny, ~200 MB) zustavaji ignorovane pravidlem *.pdb nize.
+!RealSense 2.0/x64/
+!RealSense 2.0/x86/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

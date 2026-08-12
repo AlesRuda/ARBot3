@@ -85,6 +85,17 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   cestou); drsnost trávy hashovat podle světové polohy místo pixelu (dnes mezi snímky „bliká");
   virtuální GPS a IMU do stejného ševu.
 
+- **`RealSense 2.0/` doplněna do gitu** (řeší „stále chybí složka" výše — na čistém stroji už není
+  co dohledávat z jiného počítače). Složka nebyla ignorovaná omylem: build-output pravidla `x64/` /
+  `x86/` v `.gitignore` chytala i její podadresáře. Doplněny negace `!RealSense 2.0/x64/` a `x86/`.
+  - **Do gitu jen DLL** (`Intel.Realsense.dll` + `realsense2.dll` pro obě platformy, ~56 MB) — to je
+    vše, co `ARBot.HALWindows.csproj` referencuje. Doprovodné `*.pdb` (~200 MB) zůstávají mimo git:
+    jsou to debug symboly nativní knihovny, k buildu ani běhu nepotřebné, a `x64/realsense2.pdb`
+    má 104 MB, tedy nad 100MB limitem GitHubu — přes LFS by se to protlačit dalo, ale za cenu
+    čtvrtiny LFS kvóty a povinného `git-lfs` při klonování (i na OrangePI). Vyloučí je pravidlo
+    `*.pdb`, které v `.gitignore` už bylo.
+  - Odkazy: [build-and-platforms.md](build-and-platforms.md) (sekce *Externí závislosti*), `.gitignore`.
+
 ## 2026-08-11
 
 - **Occupancy + lokální plánování dotaženo do runtime.** Přidán `LocalNavigator` (vyšší řídicí smyčka
