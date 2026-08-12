@@ -11,6 +11,7 @@ using ARBot.HAL.Devices.NeoPixel;
 using ARBot.HAL.Devices.MotorDrivers;
 using System.Collections.Generic;
 using ARBot.Common.Devices;
+using ARBot.Common.Vision.Synthetic;
 using System.Threading.Tasks;
 
 namespace ARBot.Robot
@@ -145,7 +146,7 @@ namespace ARBot.Robot
 #if IsX64
             Joystick = new HAL.Devices.Joystick.Joystick();
 #endif
-            CameraStart();
+            SetRealHW();
         }
 
 
@@ -173,7 +174,11 @@ namespace ARBot.Robot
             if (CameraStateChanged != null)
                 CameraStateChanged();
         }
-        public void CameraStart()
+        /// <summary>
+        /// Zalozi REALNE senzory zavisle na hardwaru (kamery). Vola se automaticky z <see cref="Init"/>,
+        /// takze bez dalsiho zasahu bezi aplikace nad skutecnym HW.
+        /// </summary>
+        public void SetRealHW()
         {
             if (TrackingCamera == null)
                 sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
@@ -182,6 +187,39 @@ namespace ARBot.Robot
                 sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
             if (RightCamera == null)
                 sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
+            if (CameraStateChanged != null)
+                CameraStateChanged();
+        }
+
+        /// <summary>
+        /// Vymeni kamery za SIMULOVANE, ktere rendruji scenu z OsmNav mapy a pozy robota
+        /// (viz doc/virtual-hw.md). Jmena kamer ("Left"/"Right") i montazni transformace zustavaji
+        /// stejne jako u realnych, takze zbytek aplikace (vize, occupancy, UI) rozdil nepozna.
+        /// <para>
+        /// Virtualni kamera nema <c>Swap</c>: prevraceni leve D435 je artefakt fyzicke montaze,
+        /// simulace rovnou rendruje podle montazni transformace.
+        /// </para>
+        /// <para>
+        /// T265 (<see cref="TrackingCamera"/>) zustava nezalozena - virtualni IMU/GPS jsou zatim
+        /// otevreny ukol.
+        /// </para>
+        /// </summary>
+        public void SetVirtualHW(VirtualHWOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            options.Validate();
+
+            CameraStop();   // uvolni pripadne realne kamery
+
+            var scene = new RoadScene(options.Network, options.Origin);
+
+            sensors.Add(LeftCamera = new VirtualCamera(
+                "Left", scene, options.Scene, options.LeftCameraTransform, options.PoseAt, options.Camera));
+            sensors.Add(RightCamera = new VirtualCamera(
+                "Right", scene, options.Scene, options.RightCameraTransform, options.PoseAt, options.Camera));
+
+            Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery Left/Right renderovane z mapy).");
+
             if (CameraStateChanged != null)
                 CameraStateChanged();
         }

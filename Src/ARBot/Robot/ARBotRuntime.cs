@@ -12,6 +12,8 @@ using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
+using ARBot.Common.Maps.OsmNav.Graph;
+using ARBot.Common.Maps.OsmNav.Osm;
 using ARBot.Common.Models;
 using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
@@ -161,8 +163,13 @@ namespace ARBot.Robot
             hw.WaitReady();
 
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
-            var engine = new AsyncFusionEngine(new EKFModel());
+            var fusionConfig = new FusionConfig();
+            var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
             var mapper = new DefaultMeasurementMapper();
+
+            // Virtualni HW (kamery renderovane z mapy) - az ZA vytvorenim enginu, aby slo predat
+            // zdroj pozy primo v opcich. Viz doc/virtual-hw.md.
+            TryEnableVirtualHW(hw, engine, fusionConfig);
             var clock = new SystemClock();
             var scheduler = new Scheduler();
 
@@ -288,6 +295,93 @@ namespace ARBot.Robot
             }, null, periodMs, periodMs);
 
             foreach (var s in sources) s.Start();
+        }
+
+        /// <summary>
+        /// Silnicni sit nactena pri startu (parametr <c>map=</c>). Sdilena: dnes ji cte virtualni HW
+        /// a world view, do budoucna i navigace (viz doc/osm-nav.md → otevrene ukoly). null = bez mapy.
+        /// </summary>
+        public RoadNetwork RoadNetwork { get; private set; }
+
+        /// <summary>
+        /// Pocatek lokalni ENU roviny odpovidajici <see cref="RoadNetwork"/>. null = bez mapy.
+        /// </summary>
+        public GeoReference MapOrigin { get; private set; }
+
+        /// <summary>
+        /// Kdyz je zadano <c>virtualhw=true</c> a <c>map=&lt;cesta.osm&gt;</c>, nacte mapu a vymeni
+        /// kamery za simulovane. Bez mapy nebo pri chybe zustava realny HW (jen zaznam do ladeni) -
+        /// simulace nesmi shodit start aplikace. Viz doc/virtual-hw.md.
+        /// </summary>
+        private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig)
+        {
+            if (!Program.GetParamBool("virtualhw", false)) return;
+
+            string mapPath = Program.GetParam("map");
+            if (string.IsNullOrWhiteSpace(mapPath) || !File.Exists(mapPath))
+            {
+                Debug.WriteLine($"virtualhw=true, ale mapa neni k dispozici (map={mapPath ?? "<nezadano>"}) " +
+                                 "-> zustava realny HW.");
+                return;
+            }
+
+            try
+            {
+                double defaultWidth = Program.GetParamDouble("roadwidth", 3.0);
+                using (var fs = File.OpenRead(mapPath))
+                {
+                    var data = OsmXmlReader.Read(fs);
+                    RoadNetwork = GraphBuilder.BuildNetwork(data, TravelProfile.Pedestrian(), defaultWidth);
+                }
+
+                MapOrigin = BuildOriginFromMap(RoadNetwork);
+                if (MapOrigin == null)
+                {
+                    Debug.WriteLine("virtualhw: mapa neobsahuje zadne uzly -> zustava realny HW.");
+                    return;
+                }
+
+                // Mapa i fuze musi pocitat od TEHOZ pocatku, jinak by kamera koukala jinam, nez robot
+                // jede. Pokud uz pocatek nekdo urcil, respektujeme ho (viz doc/virtual-hw.md).
+                if (fusionConfig.GeoReference == null)
+                    fusionConfig.GeoReference = MapOrigin;
+
+                hw.SetVirtualHW(new VirtualHWOptions
+                {
+                    Network = RoadNetwork,
+                    Origin = fusionConfig.GeoReference,
+                    PoseAt = t => engine.GetStateAt(t),
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"virtualhw: zapnuti simulovaneho HW selhalo -> zustava realny HW. {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Pocatek lokalni roviny ze stredu obalky uzlu mapy - aby lokalni souradnice zustaly male
+        /// (equirectangular projekce je presna jen v okoli pocatku). Vraci null pro prazdnou sit.
+        /// </summary>
+        private static GeoReference BuildOriginFromMap(RoadNetwork network)
+        {
+            double minLat = double.MaxValue, maxLat = double.MinValue;
+            double minLon = double.MaxValue, maxLon = double.MinValue;
+            bool any = false;
+
+            foreach (var e in network.Edges)
+                foreach (var n in new[] { e.From, e.To })
+                {
+                    any = true;
+                    if (n.Location.Latitude < minLat) minLat = n.Location.Latitude;
+                    if (n.Location.Latitude > maxLat) maxLat = n.Location.Latitude;
+                    if (n.Location.Longitude < minLon) minLon = n.Location.Longitude;
+                    if (n.Location.Longitude > maxLon) maxLon = n.Location.Longitude;
+                }
+
+            if (!any) return null;
+
+            return new GeoReference(new LLA((minLat + maxLat) / 2, (minLon + maxLon) / 2, 0));
         }
 
         /// <summary>
