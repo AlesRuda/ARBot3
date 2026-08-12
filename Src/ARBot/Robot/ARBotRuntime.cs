@@ -165,7 +165,14 @@ namespace ARBot.Robot
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
-            var mapper = new DefaultMeasurementMapper();
+            // Mapper dostava TUTEZ instanci konfigurace jako model (zapisuje do ni GeoReference,
+            // kdyz ji nezalozila mapa) a engine kvuli fallback inicializaci polohy z prvniho
+            // pouzitelneho GPS fixu. Viz doc/global-navigation-runtime.md.
+            var mapper = new DefaultMeasurementMapper(fusionConfig, engine);
+
+            // Mapa (parametr map=): sit + pocatek lokalni ENU roviny. Musi byt PRED prvnim merenim
+            // polohy, aby fuze pocitala od pocatku danem mapou, ne od prvniho fixu.
+            LoadMapIfSpecified(fusionConfig);
 
             // Virtualni HW (kamery renderovane z mapy) - az ZA vytvorenim enginu, aby slo predat
             // zdroj pozy primo v opcich. Viz doc/virtual-hw.md.
@@ -309,19 +316,24 @@ namespace ARBot.Robot
         public GeoReference MapOrigin { get; private set; }
 
         /// <summary>
-        /// Kdyz je zadano <c>virtualhw=true</c> a <c>map=&lt;cesta.osm&gt;</c>, nacte mapu a vymeni
-        /// kamery za simulovane. Bez mapy nebo pri chybe zustava realny HW (jen zaznam do ladeni) -
-        /// simulace nesmi shodit start aplikace. Viz doc/virtual-hw.md.
+        /// Nacte silnicni sit z parametru <c>map=&lt;cesta.osm&gt;</c> do <see cref="RoadNetwork"/> a
+        /// zalozi z ni <see cref="MapOrigin"/> (stred obalky uzlu) jako pocatek lokalni ENU roviny.
+        ///
+        /// <para>Zamerne <b>nezavisi na <c>virtualhw</c></b>: sit i pocatek potrebuje i realny beh
+        /// (globalni navigace, world view), a pocatek dany mapou je lepsi nez pocatek z prvniho fixu -
+        /// je znamy pred fixem a je stejny napric behy i zaznamy. Viz doc/global-navigation-runtime.md.</para>
+        ///
+        /// <para>Chyba nacteni nesmi shodit start: bez mapy se jen jede dal (pocatek pak zalozi
+        /// fallbackem GPS adapter z prvniho platneho fixu).</para>
         /// </summary>
-        private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig)
+        private void LoadMapIfSpecified(FusionConfig fusionConfig)
         {
-            if (!Program.GetParamBool("virtualhw", false)) return;
-
             string mapPath = Program.GetParam("map");
-            if (string.IsNullOrWhiteSpace(mapPath) || !File.Exists(mapPath))
+            if (string.IsNullOrWhiteSpace(mapPath))
+                return;
+            if (!File.Exists(mapPath))
             {
-                Debug.WriteLine($"virtualhw=true, ale mapa neni k dispozici (map={mapPath ?? "<nezadano>"}) " +
-                                 "-> zustava realny HW.");
+                Debug.WriteLine($"map={mapPath} neexistuje -> beh bez mapy.");
                 return;
             }
 
@@ -337,15 +349,40 @@ namespace ARBot.Robot
                 MapOrigin = BuildOriginFromMap(RoadNetwork);
                 if (MapOrigin == null)
                 {
-                    Debug.WriteLine("virtualhw: mapa neobsahuje zadne uzly -> zustava realny HW.");
+                    Debug.WriteLine("map: sit neobsahuje zadne uzly -> beh bez mapy.");
+                    RoadNetwork = null;
                     return;
                 }
 
-                // Mapa i fuze musi pocitat od TEHOZ pocatku, jinak by kamera koukala jinam, nez robot
-                // jede. Pokud uz pocatek nekdo urcil, respektujeme ho (viz doc/virtual-hw.md).
+                // Pokud uz pocatek nekdo urcil, respektujeme ho (viz doc/virtual-hw.md).
                 if (fusionConfig.GeoReference == null)
                     fusionConfig.GeoReference = MapOrigin;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"map: nacteni mapy selhalo -> beh bez mapy. {ex}");
+                RoadNetwork = null;
+                MapOrigin = null;
+            }
+        }
 
+        /// <summary>
+        /// Kdyz je zadano <c>virtualhw=true</c>, vymeni kamery za simulovane renderovane z mapy
+        /// nactene v <see cref="LoadMapIfSpecified"/>. Bez mapy nebo pri chybe zustava realny HW
+        /// (jen zaznam do ladeni) - simulace nesmi shodit start aplikace. Viz doc/virtual-hw.md.
+        /// </summary>
+        private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig)
+        {
+            if (!Program.GetParamBool("virtualhw", false)) return;
+
+            if (RoadNetwork == null || fusionConfig.GeoReference == null)
+            {
+                Debug.WriteLine("virtualhw=true, ale mapa neni k dispozici (parametr map=) -> zustava realny HW.");
+                return;
+            }
+
+            try
+            {
                 hw.SetVirtualHW(new VirtualHWOptions
                 {
                     Network = RoadNetwork,

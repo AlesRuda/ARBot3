@@ -196,3 +196,53 @@ přetlumeno (bez překmitu). Při `v_max`: `L_d = 0,24 m` → návrat ~0,5–0,7
 5. **Integrace** `ControlLoop` (volatile `IRegulator` v `ControlLoop.Regulator`, atomická výměna, watchdog
    `PathControlTimeOut`) + `Profile`; record/replay + selftest.
 6. **Dokumentace + DevLog** (tento dokument, `decisions.md`, odkaz z `CLAUDE.md`).
+
+## Převod ω → `dif` a otevřený úkol: ověřit znaménko rotace na HW
+
+[`ControlLoop.OnTick`](../Src/ARBot.Common/Runtime/ControlLoop.cs) předává výstup regulátoru motorům
+jako `motor.Drive(forvard, dif)`, kde
+
+```
+dif = rotationSpeed * Rozchod / 2        // rotationSpeed [rad/s], matematicky (+CCW)
+```
+
+**Půlka tam patří**, protože `dif` je **offset na kolo**, ne rozdíl rychlostí kol: driver ho k jednomu
+kolu přičte a od druhého odečte, takže `vR − vL = ω·Rozchod = 2·dif`. Shodují se na tom tři nezávislé
+zdroje — předchozí generace robotu (`Drive(ReqSpeed, ReqRotationSpeed * Rozchod / 2)`),
+[`TrapezoidMotionProfile`](../Src/ARBot.Common/Regulators/TrapezoidMotionProfile.cs) (používá
+`rozchod2 = rozchod/2` jako rameno pro převod ω ↔ rychlost kola) a MicroBasic skript v
+[`SDC2160Ex`](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs)
+(`motor1 = −(curSpeed+curRotSpeed)`, `motor2 = curSpeed−curRotSpeed`). Bez půlky robot zatáčel
+**dvakrát rychleji, než regulátor chtěl** — opraveno 2026-08-12, hlídá test
+`RotationSpeed_ToDif_IsHalfWheelBase`. `ControlLoop` je jediné místo v repu, kde se ω na `dif` převádí.
+
+### ⬜ Otevřený úkol: znaménko rotace ověřit na zařízení
+
+**Znaménko** je jiná otázka než faktor a **z kódu se rozhodnout nedá** — musí se změřit na robotu.
+Papírová nesrovnalost:
+
+- `rotationSpeed` je matematické, **+CCW = vlevo**;
+- `IMotorControl.Drive` dokumentuje `difSpeed > 0` jako **pravé** otáčení;
+- `SDC2160Ex.Drive` navíc posílá `!VAR 4 −CalcSpeed(difSpeed)`, tedy do řadiče jde `−dif`, přičemž
+  `VAR 4` je ve skriptu dokumentovaná jako „+ = matematický smysl";
+- skript pak počítá `motor1 = −(curSpeed+curRotSpeed)`, `motor2 = curSpeed−curRotSpeed`, takže výsledek
+  závisí i na tom, **které kolo je motor 1** a jak jsou motory namontované (proto ta asymetrická
+  negace).
+
+Složením těch čtyř míst může znaménko vyjít správně i obráceně; předchozí generace jela s
+`+ω·Rozchod/2` **bez explicitního přehození** a fungovala, což mluví pro to, že to celé vychází.
+**Autorův odhad: komentář `dif>0 = vpravo` je správný a nesrovnalost je jen zdánlivá.**
+
+**Zkouška na robotu** (jedna, rozhodne obojí):
+
+1. Zadat malé konstantní `+ω` (např. 0,3 rad/s) při nulové dopředné rychlosti a sledovat, **kam se
+   robot otočí**. Vlevo (CCW) = řetěz je konzistentní, nechat být. Vpravo = někde v kompozici je
+   přehození; opravit **na jednom místě** a zdůvodnit v [decisions.md](decisions.md).
+2. Týmž pokusem porovnat **odometrické ω** (`Odo/rate` = `(vR − vL)/rozchod`, viz
+   [ekf-fusion.md](ekf-fusion.md)) proti gyroskopu (`IMUState.AngularVelocity.Z`). Musí mít **stejné
+   znaménko** — jinak je fúze proti sobě váží a kurz se rozjede; pojistka je
+   `FusionConfig.OdoOmegaSign`.
+
+*Proč to nespravovat „naslepo": je to příkazová cesta. Otočené znaménko rotace znamená, že robot
+zatáčí od dráhy místo k ní — regulátor pak divergovaně kmitá a při nešťastné konstelaci ujede z cesty.
+Hádat tady je dražší než změřit.*

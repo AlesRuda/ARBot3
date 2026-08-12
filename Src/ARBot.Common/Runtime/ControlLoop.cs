@@ -19,7 +19,8 @@ namespace ARBot.Common.Runtime
     /// <c>motor.Drive(...)</c> a emituje <see cref="RobotStateMsg"/> + <see cref="DriveCommandMsg"/>.
     ///
     /// Uzel je zaroven <see cref="MessageProcessor"/> - odebira <see cref="IMUState"/> (kvuli
-    /// Roll/Pitch) a odvozene zpravy vysila pres <see cref="MessageProcessor.Output"/>.
+    /// Roll/Pitch) a <see cref="IMotorState"/> (kvuli nouzovemu zastaveni), odvozene zpravy vysila
+    /// pres <see cref="MessageProcessor.Output"/>.
     /// Scheduler nema vlastni vlakno; takty pumpuje volajici pres <see cref="IScheduler.PumpDue"/>
     /// (v Run casovac s <c>clock.Now</c>) nebo pomocna metoda <see cref="Pump"/>.
     ///
@@ -46,6 +47,11 @@ namespace ARBot.Common.Runtime
         // Posledni IMU (kvuli Roll/Pitch); ctou/zapisuji ruzna vlakna -> volatile reference.
         private volatile IMUState lastImu;
 
+        // Posledni stav motoru (kvuli nouzovemu zastaveni a aktualni rychlosti kol); stejny
+        // volatile vzor jako lastImu. null = stav motoru jeste nedosel (napr. DummyMotors bez
+        // zdroje zprav) -> nouzove zastaveni se NEuplatnuje, robot normalne jede.
+        private volatile IMotorState lastMotor;
+
         // Aktualni regulator (nizsi smycka jej jede; vyssi smycka jej atomicky prehazuje pres Regulator).
         private volatile IRegulator regulator;
         private volatile bool regulatorFresh;   // Regulator byl nastaven; tik ho orazitkuje casem tk.
@@ -65,12 +71,19 @@ namespace ARBot.Common.Runtime
             set { regulator = value; regulatorFresh = true; }
         }
 
+        /// <summary>
+        /// DIAGNOSTIKA: posledni stav motoru, ktery smycka prevzala (podle nej se uplatnuje nouzove
+        /// zastaveni a posuzuje, zda kola stoji). <c>null</c> = zadny stav jeste nedosel.
+        /// </summary>
+        public IMotorState LastMotorState => lastMotor;
+
         /// <param name="engine">Fuzni engine (dotazovany na tiku).</param>
         /// <param name="motor">Motory (Run: realny driver, Simulate: <see cref="DummyMotors"/>).</param>
         /// <param name="clock">Hodiny (zdroj "ted" pro <see cref="Pump"/>).</param>
         /// <param name="scheduler">Scheduler periodickych taktu.</param>
         /// <param name="period">Perioda taktu; default <c>Profile.Ts</c> ms.</param>
-        /// <param name="wheelBase">Rozchod kol pro prepocet dif = RotationSpeed * rozchod; default <c>Profile.Rozchod</c>.</param>
+        /// <param name="wheelBase">Rozchod kol pro prepocet <c>dif = RotationSpeed * rozchod / 2</c>
+        /// (dif je offset na kolo - viz OnTick); default <c>Profile.Rozchod</c>.</param>
         /// <param name="cameras">Volitelny pull kamer (krok 3): na kazdem tiku se pullnou nejnovejsi
         /// snimky a cely <see cref="CameraFrame"/> se forwardne na <see cref="MessageProcessor.Output"/>.
         /// null = smycka kamery nepulluje (napr. testy nebo bezvize rezim).</param>
@@ -110,9 +123,12 @@ namespace ARBot.Common.Runtime
         /// </remarks>
         protected override void Consume(Message msg)
         {
-            // Ridici smycka odebira jen posledni IMU (kvuli Roll/Pitch).
+            // Ridici smycka odebira posledni IMU (kvuli Roll/Pitch) a posledni stav motoru
+            // (kvuli nouzovemu zastaveni - viz OnTick).
             if (msg is IMUState imu)
                 lastImu = imu;
+            else if (msg is IMotorState motorState)
+                lastMotor = motorState;
         }
 
         /// <summary>Jeden takt ridici smycky v case <paramref name="tk"/> (bod mrizky).</summary>
@@ -170,9 +186,46 @@ namespace ARBot.Common.Runtime
                     forvard = r.Speed;
                 }
             }
+            // Nouzove zastaveni: dopredna rychlost na nulu, rotace az kdyz robot SKUTECNE stoji.
+            // Dokud se kola jeste toci, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi
+            // v zatacce); jak robot stoji, rotaci nulujeme, aby se netocil na miste - a posledni
+            // odeslany prikaz je (0,0), takze po uvolneni stopu nevznika zadny transient.
+            //
+            // Porovnava se na PRESNOU nulu, bez epsilonu: MotorStateBase.LeftWheelSpeed je
+            // prirustek enkoderu / FramePickupPeriod (SDC2160Ex posila leftEnc - lastLeftEnc), tedy
+            // nefiltrovana hodnota, ktera je pri nulovem prirustku presne 0. Motory jsou navic
+            // rizene pozicne ve zpetne vazbe, takze "nepohnul se ani tik" znamena "stoji".
+            //
+            // Skutecne brzdeni (a bezpecnost) resi radic motorove jednotky, ktery na temze signalu
+            // dela totez (MicroBasic skript v SDC2160Ex.cs). Tady jde o konzistenci softwaru
+            // s realitou: DriveCommandMsg nesmi tvrdit "jedu", kdyz robot stoji, posledni odeslany
+            // prikaz nesmi byt zastaraly a vyssi vrstvy musi vedet, ze stani neni zasek.
+            // Viz doc/robotour-mission.md.
+            var mot = lastMotor;
+            bool emergencyStop = mot != null && mot.IsEmergencyStop;
+            if (emergencyStop)
+            {
+                forvard = 0;
+                bool standing = mot == null || (mot.LeftWheelSpeed == 0 && mot.RightWheelSpeed == 0);
+                if (standing) rotationSpeed = 0;
+            }
+
             lastForward = forvard;
 
-            double dif = rotationSpeed * wheelBase;   // dif>0 = vpravo
+            // dif je OFFSET NA KOLO, ne rozdil rychlosti kol: driver ho k jednomu kolu prictе a od
+            // druheho odecte (MicroBasic skript: motor1 = -(curSpeed+curRotSpeed),
+            // motor2 = curSpeed-curRotSpeed). Plati tedy vR - vL = omega*rozchod = 2*dif, takze
+            // dif = omega * rozchod / 2. Bez pulky by robot zataceL DVAKRAT rychleji, nez regulator
+            // chce. Totez pulkovani ma predchozi generace (Drive(ReqSpeed, ReqRotationSpeed*Rozchod/2))
+            // i TrapezoidMotionProfile (rozchod2 = rozchod/2 jako rameno pro prepocet omega <-> kolo).
+            //
+            // OTEVRENY UKOL - ZNAMENKO OVERIT NA ZARIZENI: rotationSpeed je +CCW (vlevo), ale
+            // IMotorControl.Drive dokumentuje dif>0 jako PRAVE otaceni a SDC2160Ex jeste posila
+            // -CalcSpeed(dif). Z kodu se to rozhodnout neda (zalezi i na tom, ktere kolo je motor 1);
+            // predchozi generace jela s +omega*Rozchod/2 bez prehozeni, takze to nejspis vychazi.
+            // Zkouska: zadat male +omega pri nulove rychlosti a videt, kam se robot otoci.
+            // Viz doc/path-following.md -> "Otevreny ukol: znamenko rotace overit na zarizeni".
+            double dif = rotationSpeed * wheelBase / 2.0;
             motor.Drive(forvard, dif);
 
             EmitDerived(new RobotStateMsg(rs));
@@ -182,6 +235,7 @@ namespace ARBot.Common.Runtime
                 RotationSpeed = rotationSpeed,
                 Forvard = forvard,
                 Dif = dif,
+                EmergencyStop = emergencyStop,
                 TimeStamp = tk
             });
 

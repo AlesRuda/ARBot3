@@ -73,26 +73,36 @@ fixu**. Je to výrazně lepší než „vždycky z prvního fixu":
 
 Počátek se posílá v `MapMsg`, takže UI i případný offline nástroj používají tentýž.
 
-#### Důsledek, který se musí ošetřit: první fix by dnešní filtr zahodil
+#### Důsledek, který se musí ošetřit: první fix filtr netrefí
 
 Počátek uprostřed mapy znamená, že robot startuje **stovky metrů od `[0, 0]`** — a to dnešní filtr
-neustojí:
+neustojí. Stav začíná na nule a **počáteční kovariance je `P0 = DenseIdentity(5)`**
+([`EKFModel`](../Src/ARBot.Common/Fusion/EKFModel.cs)), tedy σ = **1 m** pro polohu: filtr si o své
+(nulové) poloze myslí, že ji zná na metr. Selže to **dvakrát, každou z jiné strany**:
 
-- stav začíná na nule a **počáteční kovariance je `P0 = DenseIdentity(5)`**
-  ([`EKFModel`](../Src/ARBot.Common/Fusion/EKFModel.cs)), tedy σ = **1 m** pro polohu — filtr si o své
-  (nulové) poloze myslí, že ji zná na metr;
-- první `PositionMeasurement` má residuum třeba 300 m, takže `NIS = d²/S ≈ 300²/3,25 ≈ 2,7·10⁴`, což je
-  proti χ² prahu (2 stupně volnosti, 0,95 → ≈ 6,0) astronomicky vysoko. `GateMode.Reject` měření
-  **zahodí**, `Soft` nafoukne `R` — v obou případech se filtr k robotovi **nikdy nedostane**.
+- **Dnes** (prahy gatingu nikdo nenastavuje — `IMeasurement.GateThreshold` je `null`, takže se
+  [gating](../Src/ARBot.Common/Fusion/Ekf.cs) vůbec neuplatní) se vzdálený fix **přijme**, ale
+  Kalmanův zesílení je `K = P/(P+R) = 1/(1 + 1,5²) ≈ 0,31` — stav se k pravdě **plazí** několik sekund
+  a mezitím se do occupancy gridu zapisují pózy stovky metrů mimo. *(Doloženo testem
+  `FarAwayFix_WithoutInit_OnlyCreeps_WithInit_IsExact`.)*
+- **Jakmile se prahy zapnou** (na to `Gating.ChiSquareThreshold` je a je to plánované), má takový fix
+  `NIS ≈ 300²/3,25 ≈ 2,7·10⁴` proti χ² prahu (2 DOF, 0,95 → ≈ 6,0), takže ho `GateMode.Reject`
+  **zahodí** a filtr by robota **nikdy nenašel**. *(Doloženo testem
+  `FarAwayFix_WithGating_WouldBeRejected`.)*
 
-Řešení (patří do fáze 0): **explicitní inicializace polohy jako funkce fúze**, ne magie schovaná
-v cestě měření:
+Inicializace to řeší v obou světech — proto nestačí „počkat, ono se to dofúzuje".
+
+Řešení: **explicitní inicializace polohy jako funkce fúze**, ne magie schovaná v cestě měření
+(✅ hotovo, [`AsyncFusionEngine`](../Src/ARBot.Common/Fusion/AsyncFusionEngine.cs)):
 
 ```csharp
-// AsyncFusionEngine
 bool IsPositionInitialized { get; }
 void InitializePosition(double x, double y, double std, DateTime t);   // nastaví X,Y a blok P = std²
 ```
+
+Kromě polohy a její kovariance **vynuluje i korelace polohy se zbytkem stavu** (poloha je teď známá
+nezávisle na kurzu i rychlostech) a **zahodí měření starší než `t`** (poloha před inicializací nemá
+význam), zatímco novější zůstanou a přepočítají se z nového základu.
 
 Je to lepší než „první měření polohy se chová jinak než ostatní": rozhodnutí *„tomuhle fixu už věřím
 tak, že podle něj postavím počátek"* je **rozhodnutí volajícího**, ne vlastnost filtru. Volající je
@@ -417,12 +427,16 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 
 ## Plán realizace (fáze)
 
-0. ⬜ **Prerekvizita — GPS + odometrie do EKF**, `GeoReference` **ze středu bboxu OSM mapy** (zakládá se
-   při načtení mapy) vystavená z `AsyncFusionEngine`, **`InitializePosition` + `IsPositionInitialized`**
-   a fallback auto-inicializace pro běh bez mise; world pohled přejde na tutéž referenci.
-   *(Bez toho nemá zbytek co číst — viz [výše](#prerekvizita-fáze-0-gps-a-odometrie-do-ekf).)*
-1. ⬜ **`RoadNetwork` jako property `ARBotRuntime`**: parametr `osm=<cesta>`, `MapMsg` z runtime
-   (včetně počátku ENU), UI jen požádá a kreslí. K tomu **`ILocalGoalSink`** (+ `corridorWidthM`).
+0. 🟡 **Prerekvizita — GPS + odometrie do EKF.** ✅ `InitializePosition` + `IsPositionInitialized`
+   + `GeoReference` vystavená z `AsyncFusionEngine`; ✅ `GPSState` → `PositionMeasurement` (+ rychlost
+   nad prahem) a odometrie → `v`/`ω` v `DefaultMeasurementMapper`; ✅ `GeoReference` **ze středu obalky
+   uzlů OSM mapy** zakládaná při načtení mapy (`map=`, nezávisle na `virtualhw`), ✅ fallback
+   auto-inicializace z prvního použitelného fixu pro běh bez mise. **Zbývá:** ⬜ world pohled přejde
+   na tutéž referenci (dnes si ji staví ad hoc), ⬜ **ověření znaménka odometrického `ω` na zařízení**
+   (`FusionConfig.OdoOmegaSign`), ⬜ ladění σ a prahů gatingu na reálných datech.
+1. 🟡 **`RoadNetwork` jako property `ARBotRuntime`**: ✅ property + `MapOrigin` + parametr `map=<cesta>`.
+   **Zbývá:** ⬜ `MapMsg` z runtime (včetně počátku ENU) a UI, které jen požádá a kreslí (dnes si síť
+   staví world pohled sám); ⬜ **`ILocalGoalSink`** (+ `corridorWidthM`).
 2. ⬜ **`GlobalNavigator` skeleton**: póza → LLA → `Navigator.Update` → **mrkev na okraji gridu** →
    `SetGoal`; `HorizonM` na 25 m; dojezd, `GlobalNavStatus`, `GlobalNavMsg`; testy nad syntetickou sítí.
 3. ⬜ **Trasa a její zobrazení**: extrakce trasy (`Router.Plan`) → `GraphNavigationMsg`;

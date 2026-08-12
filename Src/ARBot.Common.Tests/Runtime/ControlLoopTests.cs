@@ -90,9 +90,9 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(states.Count, Is.EqualTo(motor.DriveCount), "pocet RobotStateMsg != pocet taktu");
             Assert.That(cmds.Count, Is.EqualTo(motor.DriveCount), "pocet DriveCommandMsg != pocet taktu");
 
-            // Posledni prikaz: dif = RotationSpeed * Rozchod; Forvard = Speed.
+            // Posledni prikaz: dif = RotationSpeed * Rozchod / 2 (dif je offset na kolo); Forvard = Speed.
             var last = cmds[^1];
-            Assert.That(last.Dif, Is.EqualTo(last.RotationSpeed * Profile.Rozchod).Within(1e-12));
+            Assert.That(last.Dif, Is.EqualTo(last.RotationSpeed * Profile.Rozchod / 2.0).Within(1e-12));
             Assert.That(last.Forvard, Is.EqualTo(last.Speed).Within(1e-12));
 
             // Argumenty poslani do motoru odpovidaji poslednimu prikazu.
@@ -178,6 +178,187 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(motor.DriveCount, Is.GreaterThan(0), "Drive se vola i bez drahy");
             Assert.That(motor.LastForvard, Is.EqualTo(0.0), "bez drahy stoji (forvard=0)");
             Assert.That(motor.LastDif, Is.EqualTo(0.0), "bez drahy stoji (dif=0)");
+        }
+
+        /// <summary>
+        /// Prevod uhlove rychlosti na argument <c>Drive</c>: <c>dif = omega * rozchod / 2</c>, protoze
+        /// dif je OFFSET NA KOLO (driver ho k jednomu kolu prictе a od druheho odecte), tedy
+        /// <c>vR - vL = omega*rozchod = 2*dif</c>. Bez pulky by robot zatacel dvakrat rychleji, nez
+        /// regulator chce. Test je tu proto, ze presne tuhle pulku kod driv nemel.
+        /// </summary>
+        [Test]
+        public void RotationSpeed_ToDif_IsHalfWheelBase()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = MakeDrivingLoop();
+
+            var tk = T0.AddMilliseconds(100);
+            scheduler.PumpDue(tk);
+            var last = CmdAt(cmds, tk);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12));
+            Assert.That(last.Dif, Is.EqualTo(0.3 * Profile.Rozchod / 2.0).Within(1e-12));
+            Assert.That(motor.LastDif, Is.EqualTo(last.Dif).Within(1e-12));
+        }
+
+        // ---------------- Nouzove zastaveni (doc/robotour-mission.md) ----------------
+
+        /// <summary>
+        /// Stav motoru pro testy nouzoveho zastaveni. Rychlost kol vznika jako
+        /// prirustek enkoderu / <see cref="ARBot.Common.Devices.SensorStateBase.FramePickupPeriod"/>,
+        /// takze "jede" = nenulovy prirustek, "stoji" = nulovy.
+        /// </summary>
+        private static MotorStateBase Motor(bool estop, double wheelSpeed)
+            => new MotorStateBase(estop, wheelSpeed * 0.1, wheelSpeed * 0.1, 24, 0, 0)
+            {
+                FramePickupPeriod = TimeSpan.FromMilliseconds(100),
+                TimeStamp = T0,
+            };
+
+        [Test]
+        public void EmergencyStop_WhileRolling_ZerosForward_KeepsRotation()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = MakeDrivingLoop();
+
+            // Robot jede (nenulova rychlost kol) a je zmacknute nouzove zastaveni.
+            var tk = T0.AddMilliseconds(100);
+            Feed(loop, Motor(estop: true, wheelSpeed: 0.5));
+            scheduler.PumpDue(tk);
+
+            var last = CmdAt(cmds, tk);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.EmergencyStop, Is.True, "priznak nouzoveho zastaveni ma byt v zaznamu");
+            Assert.That(last.Forvard, Is.EqualTo(0.0), "dopredna rychlost musi byt nulova");
+            Assert.That(motor.LastForvard, Is.EqualTo(0.0), "do motoru se posila nula");
+            // Dokud se kola toci, zatoceni podle regulatoru zustava - dobrzdeni je rizene.
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12), "pri dotaceni rotace zustava");
+            Assert.That(motor.LastDif, Is.EqualTo(0.3 * Profile.Rozchod / 2.0).Within(1e-12));
+        }
+
+        [Test]
+        public void EmergencyStop_WhenStanding_ZerosRotationToo()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = MakeDrivingLoop();
+
+            // Nouzove zastaveni a kola uz stoji (nulovy prirustek enkoderu).
+            var tk = T0.AddMilliseconds(100);
+            Feed(loop, Motor(estop: true, wheelSpeed: 0));
+            scheduler.PumpDue(tk);
+
+            var last = CmdAt(cmds, tk);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.EmergencyStop, Is.True);
+            Assert.That(last.Forvard, Is.EqualTo(0.0));
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.0), "ve stoje se rotace nuluje - zadne otaceni na miste");
+            Assert.That(motor.LastDif, Is.EqualTo(0.0), "posledni odeslany prikaz je (0,0)");
+        }
+
+        [Test]
+        public void EmergencyStop_Released_ResumesControl()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = MakeDrivingLoop();
+
+            var tkStop = T0.AddMilliseconds(100);
+            Feed(loop, Motor(estop: true, wheelSpeed: 0));
+            scheduler.PumpDue(tkStop);
+            Assert.That(CmdAt(cmds, tkStop).Forvard, Is.EqualTo(0.0), "pod stopem stoji");
+
+            // Uvolneni: regulator zas generuje zasahy (draha se mezitim NEzastarala - smycka bezi dal).
+            var tkGo = T0.AddMilliseconds(200);
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            scheduler.PumpDue(tkGo);
+
+            var last = CmdAt(cmds, tkGo);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.EmergencyStop, Is.False);
+            Assert.That(last.Forvard, Is.GreaterThan(0.0), "po uvolneni se zas jede");
+        }
+
+        [Test]
+        public void NoMotorState_DoesNotStop()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = MakeDrivingLoop();
+
+            // Stav motoru vubec nedosel (napr. DummyMotors bez zdroje zprav) - jizda se nesmi zastavit.
+            var tk = T0.AddMilliseconds(100);
+            scheduler.PumpDue(tk);
+
+            var last = CmdAt(cmds, tk);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.EmergencyStop, Is.False);
+            Assert.That(last.Forvard, Is.GreaterThan(0.0), "bez stavu motoru robot normalne jede");
+        }
+
+        /// <summary>
+        /// Regulator s pevnym zasahem - chovani nouzoveho zastaveni se ma testovat na smycce,
+        /// ne na geometrii <see cref="PathPlanner"/>u (jinak by test zavisel na tom, jakou rotaci
+        /// zrovna vyjde zatacka).
+        /// </summary>
+        private sealed class ConstRegulator : IRegulator
+        {
+            public double Speed = 0.8, Rotation = 0.3;
+            public bool IsFinished => false;
+            public RegulatorResult Control(IModelState state)
+                => new RegulatorResult { Speed = Speed, RotationSpeed = Rotation };
+        }
+
+        /// <summary>
+        /// Smycka s konstantnim regulatorem (0,8 m/s, 0,3 rad/s), spustena a s pripojenym sberacem
+        /// <see cref="DriveCommandMsg"/>. Fuze je prazdna - <c>GetStateAt</c> pak vraci bazovy stav
+        /// (nikoli null), takze smycka regularne ridi.
+        /// </summary>
+        private static (ControlLoop loop, Scheduler scheduler, SpyMotors motor,
+                        List<DriveCommandMsg> cmds, DelegateTarget collector, IDisposable conn) MakeDrivingLoop()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(100));
+            loop.Start();
+            loop.Regulator = new ConstRegulator();
+
+            var cmds = new List<DriveCommandMsg>();
+            var collector = new DelegateTarget(m => { if (m is DriveCommandMsg c) lock (cmds) cmds.Add(c); });
+            collector.Start();
+            var conn = loop.Output.Connect(collector);
+            return (loop, scheduler, motor, cmds, collector, conn);
+        }
+
+        /// <summary>
+        /// Posle stav motoru do smycky a POCKA, nez ho jeji vlakno prevezme - jinak by takt mohl
+        /// probehnout jeste se starym stavem a test by prochazel naprazdno.
+        /// </summary>
+        private static void Feed(ControlLoop loop, MotorStateBase state)
+        {
+            loop.Post(state);
+            var until = DateTime.UtcNow.AddSeconds(2);
+            while (loop.LastMotorState != state && DateTime.UtcNow < until)
+                System.Threading.Thread.Sleep(1);
+            Assert.That(loop.LastMotorState, Is.SameAs(state), "smycka neprevzala stav motoru");
+        }
+
+        /// <summary>
+        /// Pocka na prikaz z taktu v case <paramref name="tk"/> a vrati ho. Ceka se na KONKRETNI
+        /// takt (podle casu), ne jen "na posledni prikaz" - sberac je na vlastnim vlakne, takze
+        /// "posledni" by mohl byt jeste ten z predchoziho taktu a test by prosel naprazdno.
+        /// </summary>
+        private static DriveCommandMsg CmdAt(List<DriveCommandMsg> cmds, DateTime tk)
+        {
+            var until = DateTime.UtcNow.AddSeconds(2);
+            while (DateTime.UtcNow < until)
+            {
+                lock (cmds)
+                    for (int i = cmds.Count - 1; i >= 0; i--)
+                        if (cmds[i].TimeStamp == tk) return cmds[i];
+                System.Threading.Thread.Sleep(1);
+            }
+            Assert.Fail($"prikaz z taktu {tk:HH:mm:ss.fff} nedosel");
+            return null;
         }
 
         [Test]

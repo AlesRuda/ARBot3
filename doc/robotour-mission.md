@@ -424,11 +424,13 @@ Automat je čistá logika → testovatelný celý, bez HW, bez kamer a bez fúze
 Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navigation-runtime.md)
 (bez LLA cíle a bez dojezdu není co řídit).
 
-0. ⬜ **Nouzové zastavení v `ControlLoop`** — odběr `IsEmergencyStop` (jeden `volatile` field vedle
-   `lastImu`), `Drive(0, stojí ? 0 : rotace)`, příznak do `DriveCommandMsg` (ať je v záznamu vidět
-   **proč** byla nula), a **vypnutí detektoru záseku** v globální vrstvě. Testy: dotáčí se → rotace
-   zůstává, enkodéry na nule → nula, chybějící stav motorů → nula, po uvolnění zásahy zas jdou.
-   Malé, samostatné a užitečné i bez mise.
+0. ✅ **Nouzové zastavení v `ControlLoop`** — odběr `IsEmergencyStop` (`volatile` field vedle
+   `lastImu`), `Drive(0, stojí ? 0 : rotace)`, příznak `EmergencyStop` v `DriveCommandMsg`
+   (**FormatVersion 1 → 2**, starší záznamy se čtou dál), diagnostická property `LastMotorState`.
+   Odometrie se pod stopem do fúze **nepouští**. 4 testy (dotáčí se → rotace zůstává; enkodéry na nule
+   → nula; bez stavu motorů se nezastavuje; po uvolnění zásahy zas jdou).
+   **Zbývá:** ⬜ vypnutí detektoru záseku v globální vrstvě (až ta vznikne),
+   ⬜ **ověření na zařízení** (i nahrání upraveného MicroBasic skriptu).
 1. ⬜ **ZBar do repa a na obě platformy** — `Src/ThirdParty/ZBar/` (binding z ARBot2), `libzbar.dll`
    pro x64, `libzbar.so` + `DllImportResolver` pro OrangePI; zápis do
    [build-and-platforms.md](build-and-platforms.md). *Ověřit na zařízení, že se knihovna nahraje.*

@@ -41,6 +41,18 @@ namespace ARBot.Common.Fusion
         /// <summary>Rychlost, pod kterou nedavame smysl kurzu/rychlosti z GPS [m/s].</summary>
         public double GpsMinSpeed = 0.3;
 
+        /// <summary>
+        /// Znamenko odometricke uhlove rychlosti: <c>omega = OdoOmegaSign * (vR - vL) / WheelBase</c>.
+        /// Default <b>+1</b> je fyzikalne spravny (rychlejsi prave kolo = zatoceni vlevo = +CCW) a
+        /// <b>shoduje se s predchozi generaci robotu</b>, ktera pocitala
+        /// <c>OdometryRotationSpeed = (RightWheelSpeed - LeftWheelSpeed) / rozchod</c> - tedy tentyz
+        /// vzorec vcetne znamenka. Prepinac tu zustava jen jako pojistka pro pripad zmeny polarity
+        /// enkoderu driveru: kdyby odometricke omega slo proti gyroskopu, filtr by je proti sobe vazil
+        /// a kurz by se rozjel. Overeni na zarizeni: otocit robotem na miste vlevo a porovnat znamenko
+        /// s <c>IMUState.AngularVelocity.Z</c>.
+        /// </summary>
+        public double OdoOmegaSign = +1.0;
+
         /// <summary>Okno historie = max kompenzovatelna latence.</summary>
         public TimeSpan HistoryWindow = TimeSpan.FromSeconds(1);
 

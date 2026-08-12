@@ -57,6 +57,7 @@ namespace ARBot.Common.Fusion
         // index prvniho neplatneho uzlu; == nodes.Count kdyz je cely buffer platny
         private int dirtyFrom;
         private bool initialized;
+        private bool positionInitialized;
 
         public AsyncFusionEngine(EKFModel model, TimeSpan? historyWindow = null)
         {
@@ -65,6 +66,98 @@ namespace ARBot.Common.Fusion
         }
 
         public EKFModel Model => model;
+
+        /// <summary>
+        /// Referencni bod lokalni ENU roviny (kde plati X=Y=0), sdileny s celym runtime - occupancy
+        /// grid, globalni navigace i UI musi pouzivat TUTEZ rovinu. Zaklada ji ten, kdo nacte mapu
+        /// (stred bboxu OSM mapy), nebo fallbackem GPS adapter z prvniho platneho fixu.
+        /// <c>null</c> = jeste neni znama -&gt; nelze prevadet LLA &lt;-&gt; metry.
+        /// Viz doc/global-navigation-runtime.md.
+        /// </summary>
+        public Coordinates.GeoReference GeoReference
+        {
+            get => model.Config.GeoReference;
+            set => model.Config.GeoReference = value;
+        }
+
+        /// <summary>
+        /// Byla uz polohova cast stavu inicializovana (viz <see cref="InitializePosition"/>)?
+        /// Dokud ne, jsou X/Y filtru bez vyznamu - stav zacina na [0,0], coz je pri pocatku ENU
+        /// roviny ve stredu mapy misto stovky metru daleko.
+        /// </summary>
+        public bool IsPositionInitialized
+        {
+            get { lock (sync) { return positionInitialized; } }
+        }
+
+        /// <summary>
+        /// Nastavi polohovou cast stavu na <paramref name="x"/>, <paramref name="y"/> [m, ENU] s
+        /// nejistotou <paramref name="std"/> [m] v case <paramref name="t"/>. Neni to korekce
+        /// merenim, ale <b>inicializace</b> - stav se na polohu prepise a jeji kovariance se nastavi
+        /// na <c>std²</c> (vcetne vynulovani korelaci polohy se zbytkem stavu).
+        ///
+        /// <para><b>Proc to nejde nechat na prvnim merenii polohy:</b> filtr startuje s
+        /// <c>P0 = I</c>, tedy sigma = 1 m, a je-li pocatek ENU roviny ve stredu mapy, je prvni fix
+        /// stovky metru daleko. NIS takoveho merenia je radove 10⁴ proti chi² prahu ~6, takze by ho
+        /// gating <b>zahodil</b> a filtr by robota nikdy nenasel. Rozhodnuti "tomuhle fixu uz verim
+        /// tak, ze podle nej postavim pocatek" navic patri volajicimu (mise ceka v depu na kvalitni
+        /// fix a prumeruje ho), ne merici ceste. Viz doc/global-navigation-runtime.md.</para>
+        ///
+        /// <para>Merenia starsi nez <paramref name="t"/> se zahodi (poloha pred inicializaci nema
+        /// vyznam); novejsi zustanou a prepocitaji se z noveho zakladu.</para>
+        /// </summary>
+        public void InitializePosition(double x, double y, double std, DateTime t)
+        {
+            if (std <= 0) throw new ArgumentOutOfRangeException(nameof(std), "std musi byt > 0");
+
+            lock (sync)
+            {
+                // Zaklad = aktualni stav filtru v case t (kdyz uz nejaky mame), s prepsanou polohou.
+                var xv = (initialized ? StateAtLocked(t) ?? xBase : model.X).Clone();
+                var P = (initialized ? pBase : model.P).Clone();
+
+                xv[EKFModel.IX] = x;
+                xv[EKFModel.IY] = y;
+
+                // Poloha je nyni znama nezavisle na zbytku stavu -> vynuluj korelace a nastav sigma².
+                for (int k = 0; k < P.ColumnCount; k++)
+                {
+                    P[EKFModel.IX, k] = 0; P[k, EKFModel.IX] = 0;
+                    P[EKFModel.IY, k] = 0; P[k, EKFModel.IY] = 0;
+                }
+                P[EKFModel.IX, EKFModel.IX] = std * std;
+                P[EKFModel.IY, EKFModel.IY] = std * std;
+
+                xBase = xv;
+                pBase = P;
+                tBase = t;
+
+                // Merenia z doby pred inicializaci zahodit, novejsi prepocitat z noveho zakladu.
+                while (nodes.Count > 0 && nodes[0].T <= t)
+                    nodes.RemoveAt(0);
+                dirtyFrom = 0;
+
+                model.X = xv.Clone();
+                model.P = P.Clone();
+
+                initialized = true;
+                positionInitialized = true;
+            }
+        }
+
+        /// <summary>Stav v case t bez zamku (volat pod <see cref="sync"/>); null = mimo okno.</summary>
+        private Vector<double> StateAtLocked(DateTime t)
+        {
+            EnsureValid();
+            if (t < tBase) return null;
+            if (t == tBase) return xBase;
+
+            int idx = LastNodeAtOrBefore(t);
+            var x = idx < 0 ? xBase : nodes[idx].X;
+            var P = idx < 0 ? pBase : nodes[idx].P;
+            var tt = idx < 0 ? tBase : nodes[idx].T;
+            return model.PredictStep(x, P, (t - tt).TotalSeconds).X;
+        }
 
         /// <summary>Cas nejnovejsiho merenia v bufferu (resp. tBase kdyz je prazdny).</summary>
         public DateTime FilterTime

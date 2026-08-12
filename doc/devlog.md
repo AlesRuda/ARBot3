@@ -96,6 +96,64 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     `*.pdb`, které v `.gitignore` už bylo.
   - Odkazy: [build-and-platforms.md](build-and-platforms.md) (sekce *Externí závislosti*), `.gitignore`.
 
+- **Implementována fáze 0 mise: nouzové zastavení v `ControlLoop`** (zadání:
+  [robotour-mission.md](robotour-mission.md)). Smyčka nově odebírá i `IMotorState` (`MotorStateBase` je
+  `IPrimaryMessage`, takže do `Consume` už tekla — jen se zahazovala) a při `IsEmergencyStop` posílá
+  `Drive(0, stojí ? 0 : rotace)` podle pravidla „rotaci nuluj až ve stoje". `DriveCommandMsg` dostal
+  příznak `EmergencyStop` (**FormatVersion 1 → 2**; v1 záznamy se čtou dál, příznak zůstane `false`),
+  aby v záznamu bylo vidět *proč* byla nula; přidána diagnostická property `ControlLoop.LastMotorState`.
+  Odometrie se pod stopem do fúze **nepouští**.
+- **Implementována fáze 0 globální navigace: GPS a odometrie do EKF** (zadání:
+  [global-navigation-runtime.md](global-navigation-runtime.md)).
+  - `AsyncFusionEngine.InitializePosition(x, y, std, t)` + `IsPositionInitialized` + vystavená
+    `GeoReference`. Inicializace navíc **vynuluje korelace polohy se zbytkem stavu** a **zahodí měření
+    starší než `t`** (novější přepočítá z nového základu).
+  - `DefaultMeasurementMapper`: `GPSState` → `PositionMeasurement` (+ `GPS/speed` nad `GpsMinSpeed`),
+    odometrie → `Odo/speed` a `Odo/rate` (`v = (vL+vR)/2`, `ω = (vR−vL)/rozchod`). **První použitelný
+    fix polohu inicializuje**, další už jen korigují.
+  - Načtení mapy **osamostatněno od `virtualhw`**: `map=<cesta.osm>` nastaví `RoadNetwork` + `MapOrigin`
+    a založí z něj `FusionConfig.GeoReference` — počátek daný mapou potřebuje i reálný běh, ne jen
+    simulace (a je stejný napříč běhy i záznamy). `virtualhw=true` už jen vymění kamery. Mapper i model
+    dostávají **tutéž** instanci `FusionConfig`, jinak by se referenční bod rozešel.
+- **Dvě věci našly testy, ne úvaha:**
+  1. **`GPSState` je ve STUPNÍCH** (u-blox posílá `1e-7 deg`), `LLA` v radiánech. První verze mapperu
+     stupně předávala jako radiány — přesně ta tichá fatální chyba, o jaké si píšeme u
+     `InvariantCulture`. Hlídá to test `Gps_IsInterpretedAsDegrees_NotRadians` (fix v počátku roviny
+     musí dát lokální `[0,0]`).
+  2. **Odůvodnění inicializace polohy v návrhu bylo nepřesné.** Tvrdilo, že vzdálený první fix „gating
+     zahodí" — gating se ale uplatní **jen když má měření nastavený `GateThreshold`**, což dnes nikdo
+     nedělá. Skutečnost: dnes se fix *přijme*, ale `K = P/(P+R) ≈ 0,31`, takže se stav k pravdě plazí
+     sekundy a mezitím se do gridu zapisují pózy stovky metrů mimo; **a jakmile se prahy zapnou, fix se
+     opravdu zahodí a filtr robota nenajde nikdy.** Inicializace je potřeba v obou světech. Oba scénáře
+     mají po testu a dokument je opravený.
+- **Zapsán otevřený úkol: znaménko rotace ověřit na zařízení** — [path-following.md](path-following.md)
+  („Převod ω → `dif`"), s odkazem z komentáře v `ControlLoop.OnTick`. Nesrovnalost je jen papírová:
+  `rotationSpeed` je +CCW (vlevo), ale `Drive` dokumentuje `dif>0` jako pravé otáčení a `SDC2160Ex`
+  ještě posílá `−CalcSpeed(dif)`; výsledek závisí i na tom, které kolo je motor 1. Z kódu se to
+  rozhodnout **nedá**. **Autorův odhad: komentář `dif>0 = vpravo` je správný a nesrovnalost je jen
+  zdánlivá** (předchozí generace jela s `+ω·Rozchod/2` bez přehození a fungovala). Zkouška je jedna a
+  rozhodne obojí: zadat malé `+ω` při nulové rychlosti, vidět kam se robot otočí, a týmž pokusem
+  porovnat odometrické `ω` proti `IMUState.AngularVelocity.Z`. Naslepo se to opravovat nemá — je to
+  příkazová cesta a otočené znaménko znamená zatáčení od dráhy místo k ní.
+- **Opraven faktor 2 v převodu ω → `dif`** (`ControlLoop`). Bylo `dif = rotationSpeed * wheelBase`,
+  správně je **`/ 2`**: `dif` je **offset na kolo**, ne rozdíl rychlostí kol, takže
+  `vR − vL = ω·rozchod = 2·dif`. Robot by tedy zatáčel **dvakrát rychleji, než regulátor chce**.
+  Shodují se na tom tři nezávislé zdroje: (a) předchozí generace
+  (`Drive(ReqSpeed, ReqRotationSpeed * Rozchod / 2)`), (b) `TrapezoidMotionProfile`, který používá
+  `rozchod2 = rozchod/2` jako rameno pro převod ω ↔ rychlost kola, (c) MicroBasic skript driveru
+  (`motor1 = −(curSpeed+curRotSpeed)`, `motor2 = curSpeed−curRotSpeed` — dif se k jednomu kolu přičte
+  a od druhého odečte). `ControlLoop` je jediné místo v repu, kde se ω na `dif` převádí. Přidán test
+  `RotationSpeed_ToDif_IsHalfWheelBase`; dva existující testy ten starý faktor **kódovaly**, takže
+  byly upraveny — a doplněn komentář do `IMotorControl.Drive`, že `difSpeed` je offset na kolo.
+  *(Nesahal jsem na **znaménko** — to je zvlášť a patří k ověření na zařízení.)*
+- **Znaménko odometrického ω potvrzeno předchozí generací:** `(RightWheelSpeed − LeftWheelSpeed) / rozchod`,
+  tedy přesně to, co je implementované (`OdoOmegaSign = +1`). Přepínač zůstává jen jako pojistka pro
+  případ jiné polarity enkodérů; formulace v kódu opravena z „NEOVĚŘENO" na „shodné s předchozí generací".
+- **Ověřeno:** `ARBot.Common.Tests` **454/458** pod x64 (4 přeskočené jsou původní; nově +16 fúzních
+  testů, +4 testy nouzového zastavení, +1 test převodu ω→dif), `ARBot.HAL.Tests` 15/16, build `ARBot`
+  (x64) i `ARBot.HALArmbian` (OrangePI) zeleno. **Na zařízení neověřeno nic** — GPS ani motory v běhu
+  nebyly a upravený MicroBasic skript není nahraný.
+
 ## 2026-08-11
 
 - **Occupancy + lokální plánování dotaženo do runtime.** Přidán `LocalNavigator` (vyšší řídicí smyčka

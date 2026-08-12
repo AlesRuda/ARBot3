@@ -15,7 +15,9 @@ namespace ARBot.Common.Devices
         /// Sets motors speed
         /// </summary>
         /// <param name="forvardSpeed">Forvard speed (left and right motor common speed) in m/s.</param>
-        /// <param name="difSpeed">Diferencial speed in m/s. Positive value - right rotation, left motor is faster.</param>
+        /// <param name="difSpeed">Diferencial speed in m/s. Positive value - right rotation, left motor is faster.
+        /// Je to OFFSET NA KOLO (driver ho k jednomu kolu prictе a od druheho odecte), takze pro
+        /// uhlovou rychlost omega plati <c>difSpeed = omega * rozchod / 2</c>. Viz ControlLoop.OnTick.</param>
         void Drive(double forvardSpeed, double difSpeed);
 
         /// <summary>
