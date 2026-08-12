@@ -37,6 +37,54 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-12
+
+- **Zprovoznění repa na čistém počítači.** `NativeLib.dll` nešla vybuildit — `build_all.bat` hlásil
+  „cmake is not recognized". Příčina nebyla v projektu: VS 2022 Community bylo nainstalované jen
+  s .NET workloady, takže chyběl Windows SDK, `vcvarsall.bat` i C++ CMake tools (MSVC toolset
+  14.44 tam paradoxně byl jako závislost, ale bez SDK je k ničemu). Po doinstalování komponent
+  postavena `Src/NativeFuncs/bin/NativeLib.dll` dokumentovaným postupem (`vcvars64` →
+  `cmake --preset windows-x64`). Druhá půlka `build_all.bat` (ARM64 `.so` přes WSL) padá — WSL
+  distro Ubuntu na stroji není; pro běh na Windows není potřeba.
+  - **Stále chybí složka `RealSense 2.0/`** v rootu repa (není v gitu, jako NativeLib). Bez ní se
+    nesestaví `ARBot.HALWindows` → ani `ARBot` pro `x64`. Doplní se z jiného počítače.
+  - Repo bylo vlastněné `BUILTIN\Administrators` (klon z elevated shellu) → `git` hlásil *dubious
+    ownership*; srovnáno přes `safe.directory`.
+
+- **Virtuální HW: `VirtualCamera` jako náhrada D435.** Nová simulace, která místo snímání renderuje
+  RGB + hloubku z načtené OsmNav mapy a pózy robota — účel je vývoj vizuální cesty bez hardwaru
+  a reprodukovatelné testy. Návrh i popis: [virtual-hw.md](virtual-hw.md).
+  - **Rozvrstvení:** `RoadScene` + `SyntheticFrameRenderer` (čistá geometrie/rasterizace) v
+    `ARBot.Common/Vision/Synthetic`, `VirtualCamera` (slupka `ICamera`) v **`ARBot.HAL`** — bez
+    platformní závislosti a **bez Intel.RealSense**, takže jde postavit i tam, kde `HALWindows` ne.
+  - **Klíčové rozhodnutí:** kamera si vyrobí syntetické pinhole intrinsics a **tutéž instanci
+    `CameraProjection` použije k renderování i vrátí z `CreateProjector()`**. Rasterizace je psaná
+    jako přesná inverze rozbalení ve `CameraFrameProcessor` (`Vector3.Transform(ray*d, Transformation)`),
+    takže neshoda v hloubkové cestě je skutečná chyba, ne artefakt simulace. Hlídá to round-trip test.
+  - **Model světa:** dvě vodorovné roviny (vozovka `z=0`, tráva `z=GrassHeight`), na pixel jeden
+    paprsek, vyhrává bližší platný zásah — z toho vypadne i správná okluze hrany vozovky. Šum je
+    čistá funkce `(seed, snímek, pixel, kanál)`, ne sekvence `Random` → snímek je bitově
+    reprodukovatelný nezávisle na počtu vláken.
+  - **Šev v `ARBotHW`:** `SetRealHW()` (default, volá se z `Init`) / `SetVirtualHW(VirtualHWOptions)`.
+    `ARBotRuntime` ho volá **až za** vytvořením `AsyncFusionEngine`, takže `PoseAt = t =>
+    engine.GetStateAt(t)` jde předat rovnou v opcích. Zapíná se `virtualhw=true` + `map=<cesta.osm>`;
+    best-effort (chybějící mapa simulaci nezapne, nikdy neshodí start). Runtime nově drží síť
+    v `RoadNetwork`/`MapOrigin` — první krok k otevřenému úkolu z [osm-nav.md](osm-nav.md).
+  - **`GeoReference` si kamera nezakládá** — dostane ji hotovou. Při té příležitosti zjištěno, že
+    `FusionConfig.GeoReference` je dnes **deklarované, ale nezadrátované** (nikdo ho nečte ani
+    nenastavuje; komentář slibuje GPS adapter, který neexistuje). Runtime ho při zapnutí simulace
+    naplní, aby mapa i fúze počítaly od stejného počátku.
+- **Nález k ladění vize:** klasifikátor polárního gridu povoluje `MaxHeightDev(r) = 0,03 + 0,02·r`,
+  takže **výchozí tráva 0,10 m je překážkou jen do ~3,5 m**; při 0,25 m je nesjízdná v celém dosahu
+  gridu. Není to chyba geometrie (round-trip sedí) — je to vlastnost klasifikátoru, viz
+  [virtual-hw.md](virtual-hw.md).
+- **Ověřeno:** `ARBot.Common.Tests` 422 prošlo / 4 přeskočeno, `ARBot.HAL.Tests` 15 / 1, obojí `x64`.
+  Celá aplikace se sestaví pro `OrangePI` (tj. i drátování se překládá). **Neověřeno:** běh aplikace
+  se simulovanými kamerami a `x64` build — čeká na `RealSense 2.0/`.
+- **Rozpracováno / další krok:** sjednotit mapu s `WorldViewDocument` (UI si ji pořád načítá vlastní
+  cestou); drsnost trávy hashovat podle světové polohy místo pixelu (dnes mezi snímky „bliká");
+  virtuální GPS a IMU do stejného ševu.
+
 ## 2026-08-11
 
 - **Occupancy + lokální plánování dotaženo do runtime.** Přidán `LocalNavigator` (vyšší řídicí smyčka
