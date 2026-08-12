@@ -1,0 +1,153 @@
+' var 1 - dopredna akcelerace v tisicanach max vykonu za s^2
+' var 2 - rotacni akcelerace v tisicanach max vykonu za s^2
+' var 3 - pozadovana dopredna rychlost v tisicanach max rychlosti
+' var 4 - pozadovana rotacni rychlost v tisicanach max rychlosti, kladna hodnota je v matematickem smyslu
+' var 5 - aktualni dopredna rychlost v miliontinach max rychlosti
+' var 6 - aktualni rotacni rychlost v miliontinach max rychlosti, kladna hodnota je v matematickem smyslu
+' var 7 - mark, pri jeho zmene se resetne timeout, po vyprseni timeoutu se robot zastavi
+
+Option Explicit
+
+'timer 0 se pouziva pro mereni casu
+'SetTimerCount(1, 0x7fffffff)
+SetTimerCount(1, 12000)
+'predchozi hodnota timeru
+dim lastTimer as integer
+'aktualni hodnota timeru
+dim currentTimer as integer
+'uplynuly cas tohoto vzorku
+dim time as integer
+
+dim acceleration as integer
+dim rotacceleration as integer
+dim reqSpeed as integer
+dim reqRotSpeed as integer
+dim curSpeed as integer
+dim curRotSpeed as integer
+dim di3 as integer
+dim timeout as integer
+dim lastMark as integer
+dim mark as integer
+
+timeout=0
+currentTimer=GetTimerCount(1)
+
+while true
+	lastTimer=currentTimer
+	currentTimer=GetTimerCount(1)
+	'vypocet uplynuleho casu v ms
+	time =lastTimer-currentTimer
+	'pokud ma timer milou hodnotu tak ho restratnu
+	if currentTimer<10000 then
+		currentTimer=0x7fffffff
+		SetTimerCount(1, currentTimer)
+	end if
+
+	mark=GetValue(_VAR, 7) 
+	if mark<>lastMark then
+		timeout=500
+		lastMark=mark
+	end if
+	
+	'print("time=", time, "\n")
+	'print("timeout=", timeout, "\n")
+	
+	acceleration=GetValue(_VAR, 1)
+	rotacceleration=GetValue(_VAR, 2)
+
+	reqSpeed=GetValue(_VAR, 3)
+	reqRotSpeed=GetValue(_VAR, 4)
+
+	curSpeed=GetValue(_VAR, 5)
+	curRotSpeed=GetValue(_VAR, 6)
+	
+
+	'zde osetrit emergency stop
+	'pozadovana rychlost na nulu, pomale zpomaleni
+	di3=GetValue(_DI, 3)
+	if di3=0 then
+		reqSpeed=0
+		'rotaci zastavit az dopredna rychlost bude nula, aby robot 
+		if curSpeed=0 then
+			reqRotSpeed=0
+		end if
+	end if
+
+
+
+	timeout-=time
+	if timeout<0 then
+		reqSpeed=0
+		reqRotSpeed=0
+		timeout=0
+	end if
+
+
+	'pocitani aktualni dopredne rychlosti
+	if curSpeed<1000*reqSpeed then
+		curSpeed+=time*acceleration
+		if curSpeed>1000*reqSpeed then
+			curSpeed=1000*reqSpeed
+		end if
+	end if		
+	if curSpeed>1000*reqSpeed then
+		curSpeed-=time*acceleration
+		if curSpeed<1000*reqSpeed then
+			curSpeed=1000*reqSpeed
+		end if
+	end if		
+	
+	'pocitani aktualni rotacni rychlosti
+	if curRotSpeed<1000*reqRotSpeed then
+		curRotSpeed+=time*rotAcceleration
+		if curRotSpeed>1000*reqRotSpeed then
+			curRotSpeed=1000*reqRotSpeed
+		end if
+	end if		
+	if curRotSpeed>1000*reqRotSpeed then
+		curRotSpeed-=time*rotAcceleration
+		if curRotSpeed<1000*reqRotSpeed then
+			curRotSpeed=1000*reqRotSpeed
+		end if
+	end if		
+	
+	'pri otaceni omezim doprednou rychlost, aby nebyla prekrocena maximalni mozna rychlost kazdeho z kol
+	if curSpeed>1000000-Abs(curRotSpeed) then
+		curSpeed=1000000-Abs(curRotSpeed)
+	end if
+	
+	if curSpeed<-1000000+Abs(curRotSpeed) then
+		curSpeed=-1000000+Abs(curRotSpeed)
+	end if
+
+	
+	'zde osetrit emergency stop
+	'motory okamzite na nulu
+'	di3=GetValue(_DI, 3)
+'	if di3=0 then
+'		curSpeed=0
+'		curRotSpeed=0
+'	end if
+' 
+'	timeout-=time
+'	if timeout<0 then
+'		curSpeed=0
+'		curRotSpeed=0
+'		timeout=0
+'	end if
+		
+	SetCommand(_G, 1, -(curSpeed+curRotSpeed)/1000)
+	SetCommand(_G, 2, (curSpeed-curRotSpeed)/1000)
+	
+		
+	SetCommand(_VAR, 5, curSpeed)
+	SetCommand(_VAR, 6, curRotSpeed)
+
+	print("DI=", di3, "\r")
+	print("C=", GetValue(_C, 1), ":", GetValue(_C, 2), "\r")
+	print("V=", GetValue(_V, 2), "\r")
+	print("A=", GetValue(_A, 1), ":", GetValue(_A, 2), "\r")
+	wait(10)
+
+end while
+

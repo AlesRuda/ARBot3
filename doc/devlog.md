@@ -87,6 +87,115 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   a binární formáty zpráv (`PathEdgeMsg`) se nemění. Stejným tahem opraven i překlep
   `Trasnformation` → `Transformation` (`IModelState`, `RobotState`, `ModelState`, `EKFModel3State`).
   **Ověřeno:** `ARBot.Common.Tests` 419/419 pod x64, build `ARBot.Common` i `ARBot` (x64) zeleno.
+- **Návrh dalšího kroku: OsmNav v runtime + mise Robotour (zatím jen na papíře, žádný kód).** Rozdělen
+  na dvě vrstvy nad `LocalNavigatorem` a zapsán do dvou nových dokumentů:
+  [global-navigation-runtime.md](global-navigation-runtime.md) (`GlobalNavigator` — LLA cíl, trasa po
+  OSM síti, metadata o postupu úseků, detekce záseku/bloudění/přehrazené cesty, uzavírání hran) a
+  [robotour-mission.md](robotour-mission.md) (`MissionController` — depo → nakládka → vykládka → depo,
+  čtení QR z pravé kamery). Klíčová rozhodnutí návrhu: **globální vrstva předává dolů „mrkev" na trase
+  (~5 m), ne cílový bod** (vzdálený cíl si `LocalPathPlanner` promítá po přímce na hranici gridu, což by
+  mířilo přes domy); **postup se měří jediným potenciálem** φ = zbytek hrany + cost-to-goal ze `GoalFieldu`
+  (klesá i při objíždění, na rozdíl od vzdušné vzdálenosti); **tři oddělené detektory** (nehýbu se /
+  nepostupuju / přehrazeno) s eskalací soft-penalizace → `CloseRoad` obou směrů + TTL; **overlay uzavření
+  přežije změnu cíle**, takže návrat do depa nezajede do téže slepé uličky. Znovupoužívá se `MapMsg`
+  a `GraphNavigationMsg` (world pohled je už kreslí).
+- **Nález při analýze: GPS ani odometrie nejsou napojené na fúzi.** `DefaultMeasurementMapper` mapuje jen
+  `IMUState` (kurz + gyro), `PositionMeasurement` nikdo nevyrábí a `FusionConfig.GeoReference` nikdo
+  nenastavuje ani nečte (world pohled si ji sestavuje ad hoc z posledního fixu a `RobotStateMsg`).
+  Stav EKF `[X, Y, θ, v, ω]` tedy nemá **žádné** měření polohy ani rychlosti — pro globální navigaci je
+  to **blokující prerekvizita** (fáze 0 v novém dokumentu). Doplněno i do
+  [ekf-fusion.md](ekf-fusion.md) souvislosti („zbývá: SensorAdapters").
+- **Revize návrhu po diskusi (šest změn, všechny věcné):**
+  1. **Mrkev jde až na okraj lokální mapy**, ne 5 m dopředu (poslední bod trasy uvnitř gridu, po
+     *prvním* výstupu z něj) — jinak je lokální plánovač krátkozraký a v bludišti vjede do slepé
+     odbočky, o které occupancy grid **už ví**. Důsledek: `LocalPlannerConfig.HorizonM` je **limit
+     délky dráhy** (ne radius), takže z 6 m na **25 m** — cesta k bodu 6 m daleko může mít v bludišti
+     30 m a plán by se utínal. Parametr `FinalApproachM` tím zanikl: „cíl uvnitř gridu ⇒ mrkev = cíl".
+  2. **`RoadNetwork` je property `ARBotRuntime`** (+ `GlobalNavigator`); mapa se načítá **parametrem
+     příkazové řádky `osm=`** (soutěž musí startovat bez klikání) nebo z UI, které o stavbu požádá
+     runtime a jen odebírá `MapMsg`.
+  3. **Návrat do depa je normální `SetGoal(depo)`**, nikoli `ClearGoal` — v textu se to pletlo
+     s interním `GoalField.ClearGoal()`. `Cancel()` teď znamená výhradně „přestaň jezdit".
+  4. **Počátek ENU roviny se bere ze OSM mapy** (střed bboxu), ne z prvního GPS fixu: je znám před
+     fixem, je stejný napříč běhy i záznamy a nemůže se za běhu posunout. Důsledek pro EKF: první
+     `PositionMeasurement` musí stav **inicializovat**, ne jen korigovat (jinak by grid skočil).
+  5. **Čtení QR = handshake s nouzovým zastavením.** Robot dojede a stojí; obsluha zmáčkne
+     nouzové zastavení, **teprve pak** se zapne scanner; přečtený cíl obsluha v UI **potvrdí**
+     (s odvozenými souřadnicemi, vzdáleností a délkou trasy) a pak stop uvolní. Jeden opakovaně
+     použitý podautomat „servisní okno" pro všechna tři zastavení. `IMotorState.IsEmergencyStop`
+     **už existuje** a teče ve `MotorStateBase`, takže je to jen odběr zprávy. Zametání otočkou za
+     kódem **zamítnuto** — pod nouzovým zastavením se robot nesmí hýbat a u něj stojí člověk. Nouzové
+     zastavení za jízdy → `Paused` a po uvolnění se pokračuje k témuž cíli (ne `Aborted`).
+  6. **Dekodér QR = ZBar** (binding `zbar-sharp` z ARBot2 → `Src/ThirdParty/ZBar/`), ne ZXing.Net:
+     v předchozí generaci se osvědčil. Dvě povinné odchylky od původního kódu: **nepoužívat
+     `System.Drawing`** (`ToBitmap()`/`Scan(System.Drawing.Image)` je na Armbianu nedostupné — místo
+     toho surové **Y800** přes `ZBar.Image.Data`, což je i rychlejší) a zajistit `libzbar` na obou
+     platformách (`DllImportResolver` kvůli `libzbar.so.0`). Formát kódu je `geo:` a parser se portuje
+     1:1 včetně sufixů `n/s/e/w` a **`InvariantCulture`** (pod `cs-CZ` by `49.2103` → 492103; má na to
+     test).
+- **Druhá revize (upřesnění zadání):**
+  1. **`GeoReference` se zakládá v rámci načtení mapy** (`ARBotRuntime` vyplní `FusionConfig.GeoReference`),
+     takže první `PositionMeasurement` už ji má; fallback „z prvního fixu" zůstává pro běh bez mapy —
+     přesně jak to `FusionConfig` už dnes popisuje.
+  2. **Nalezen konkrétní důsledek počátku uprostřed mapy:** `EKFModel` startuje s `P0 = DenseIdentity(5)`,
+     tedy σ = 1 m pro polohu, a gating je χ² (2 DOF, 0,95 → ≈ 6,0). První fix stovky metrů od nuly dá
+     `NIS ≈ 2,7·10⁴` → `Reject` ho **zahodí** a filtr robota nikdy nenajde. Fáze 0 proto musí obsahovat
+     **inicializaci stavu z prvního přijatého měření polohy** (nastavit `X, Y` a blok `P` na `R`,
+     gating pro toto jedno měření vynechat). Latentní chyba už dnes — neprojeví se jen proto, že GPS
+     do filtru nevstupuje vůbec.
+  3. **Nouzové zastavení řeší `ControlLoop`, ne stavový automat mise:** drží si poslední
+     `IsEmergencyStop` (`MotorStateBase` už do `Consume` teče, jen se zahazuje) a nuluje rychlost;
+     **všechny ostatní smyčky běží dál**, takže watchdog nevyprší, plán je pořád aktuální a po uvolnění
+     regulátor plynule pokračuje. Stav `Paused` z předchozí verze návrhu tím **zanikl** (a mapa se
+     mezitím dál plní). Dopad: detektor záseku „nehýbu se" musí být pod stopem **vypnutý**, jinak by
+     stání u nakládky vyrobilo falešný zásek a zavíralo hrany v mapě. Přidána fáze 0 mise — je to malý
+     samostatný kus, užitečný i bez mise.
+  4. **Čtení kódů potvrzeno:** dvě čtení — v depu (místo nakládky) a na místě nakládky (místo
+     vykládky); na vykládce už se nečte nic a jede se na zapamatované depo.
+- **Třetí revize (dotažení tří detailů):**
+  1. **Inicializace polohy je funkce fúze, volaná misí:** `AsyncFusionEngine.InitializePosition(x, y, std, t)`
+     + `IsPositionInitialized` místo „první měření se chová jinak". `MissionController` ve stavu
+     `ArmingAtDepot` čeká na nepřerušeně kvalitní fix (`IsFixed`/`NumberOfSatellites`/`Hdop`) po
+     `DepotFixSec`, fixy z okna **zprůměruje** (robot stojí) a **rozptyl** okna použije jako `std` i jako
+     kontrolu kvality. Depo je tím nejpřesněji zaměřený bod mise — a je to jediný cíl, který nepřijde
+     z QR kódu. Pro běh bez mise má `ARBotRuntime` hloupější fallback (první vyhovující fix).
+  2. **`Arrived` stojí na póze z EKF a na toleranci `NavigatorOptions.ArrivalRadiusMeters`**, která se
+     nastavuje podle toho, že **stanoviště je větší než chyba dojezdu** (12 → **3 m**). Zrušena
+     podmínka „a musí stát" i ruční tlačítko „jsem na místě" z předchozí verze — obojí bylo řešení
+     problému, který neexistuje. Zastavení na stanovišti je dvoufázové: `Cancel()` (řízené dobrzdění
+     existující cestou přes watchdog, dráha se přitom pořád hlídá proti mapě) a `Regulator = null`
+     teprve až robot stojí; tvrdá varianta zůstala pro `Aborted`.
+  3. **Vzorec pro stop:** `Drive(0, aktuální rychlost == 0 ? 0 : požadovaná rotace)` — jedno pravidlo
+     pro obě situace: dokud se kola točí, zůstává rotace (dobrzdění je **řízené**), a jak robot stojí,
+     je poslední odeslaný příkaz `(0, 0)`, takže po uvolnění stopu není žádný transient. Tím padla moje
+     otázka „nulovat i rotaci?" — odpověď je „ano, ale až ve stoje". Rychlost se bere z motorů
+     ne z fúze; chybějící stav motorů = počítá se jako stojící.
+  4. **Bez epsilonu — porovnává se na přesnou nulu.** `MotorStateBase.LeftWheelSpeed` je
+     `LeftEncoder / FramePickupPeriod`, kde `LeftEncoder` je **přírůstek** enkodéru za rámec
+     (`SDC2160Ex` posílá `leftEnc - lastLeftEnc`) — není to filtrovaná ani derivovaná hodnota, takže
+     když se nepohnul ani tik, je to přesně 0,0. Motory jsou řízené pozičně ve zpětné vazbě, takže
+     „nepohnul se ani tik" znamená „stojí". Parametr `EStopSpeedEps` tím zanikl.
+  5. **Nález: řadič si nouzové zastavení ošetřuje sám** — MicroBasic skript v SDC2160 (v hlavičce
+     `SDC2160Ex.cs`) při `di3=0` nuloval `reqSpeed` **i** `reqRotSpeed`; `curSpeed`/`curRotSpeed`
+     k nule dojedou přes svou `acceleration`, tedy pozvolna (varianta s okamžitým `curSpeed=0` je
+     záměrně zakomentovaná). Rotaci ale nuloval hned, takže dobrzdění bylo vždy „rovně" a hostitelské
+     pravidlo by se k motorům nedostalo. Řadič je ten, kdo skutečně brzdí — hostitelská změna
+     v `ControlLoop` drží konzistenci softwaru s realitou (`DriveCommandMsg`, žádný zastaralý příkaz,
+     „stání není zásek") a funguje i pro `DummyMotors`/simulaci.
+- **Změna firmwaru motorové jednotky (jediná dnešní změna kódu).** Skript v `SDC2160Ex.cs` upraven na
+  totéž pravidlo jako host: `if di3=0 then reqSpeed=0; if curSpeed=0 or acceleration<=0 then reqRotSpeed=0`.
+  `curSpeed=0` je dosažitelné **přesně** (celočíselná rampa končí clampem `curSpeed=1000*reqSpeed`);
+  pojistka `acceleration<=0` uzavírá jedinou cestu k nekonečné otočce na místě (nenastavená `VAR 1` ⇒
+  rampa nepostupuje ⇒ `curSpeed` nuly nikdy nedosáhne). **Watchdog (500 ms) zůstal záměrně jiný** —
+  nuluje obě složky hned, protože u mrtvého hosta je poslední rotační příkaz zastaralý a slepé zatočení
+  při dojezdu je horší než dojezd rovně. Předchozí varianta je ve skriptu zachovaná zakomentovaná
+  (pravidlo „nemazat starou implementaci, dokud novou nepotvrdí ověření").
+  **Ověřeno: build `ARBot.HAL` (x64) zeleno — nic víc ověřit nešlo.** Skript je *zdroj*, ne kompilovaný
+  kód: do jednotky se nahrává zvlášť (Roborun+ / MicroBasic), takže **dokud se nenahraje, chování robota
+  se nemění**. Na zařízení je nutné ověřit: stop rovně → zastaví rovně; stop v zatáčce → dotočí,
+  zastaví a **netočí se na místě**; uvolnění → plynule pokračuje; zabitý host → obě složky na nulu.
+- **Rozpracováno / další krok:** fáze 0 mise (nouzové zastavení v `ControlLoop` — malý samostatný kus)
+  a fáze 0 globální navigace (GPS + odometrie do EKF, `GeoReference` z mapy, `InitializePosition`).
 
 ## 2026-08-10
 

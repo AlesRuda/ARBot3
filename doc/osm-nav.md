@@ -148,7 +148,10 @@ a rámců je konzistentní s [imu-and-frames.md](imu-and-frames.md).
 
 ## Otevřené úkoly
 
-- **Napojení na řídicí smyčku** (`ControlLoop`): zdroj polohy (EKF/GNSS → `LLA`), předání směru z
-  `Navigator` do regulátoru ([path-following.md](path-following.md)) a Colideru jako bezpečnostní brzdy.
-- Zdroj `.osm` dat a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat).
+- **Napojení na řídicí smyčku** — návrh je hotový v
+  [global-navigation-runtime.md](global-navigation-runtime.md) (`GlobalNavigator`: zdroj polohy
+  EKF/GNSS → `LLA`, předání „mrkve" lokálnímu plánovači, metadata o postupu a uzavírání neprůchodných
+  hran). **Zatím neimplementováno**; blokující prerekvizita je GPS + odometrie do EKF.
+- Zdroj `.osm` dat a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat) —
+  rozhodnutí je v návrhu výše (síť vlastní runtime, jedno `GoalField` na misi).
 - Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).

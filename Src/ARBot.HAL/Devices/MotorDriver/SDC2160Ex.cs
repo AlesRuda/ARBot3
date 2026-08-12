@@ -11,7 +11,12 @@ namespace ARBot.HAL.Devices.MotorDrivers
 {
     /// <summary>
     /// Implement Roboteq SDC2160 driver.
-    /// Vyzaduje nahrany ridici program v motorove jednotce
+    /// Vyzaduje nahrany ridici program v motorove jednotce (MicroBasic skript nize).
+    ///
+    /// <para><b>POZOR - skript nize NENI kompilovany kod.</b> Je to zdroj programu, ktery bezi
+    /// V MOTOROVE JEDNOTCE; do zarizeni se nahrava zvlast (Roborun+ / MicroBasic upload). Zmena
+    /// tady sama o sobe chovani robota NEZMENI, dokud se skript do jednotky nenahraje - a protoze
+    /// jde o cestu nouzoveho zastaveni, je nutne ji po nahrani OVERIT NA ZARIZENI.</para>
     /// </summary>
     /*
 
@@ -80,13 +85,29 @@ while true
 	
 
 	'zde osetrit emergency stop
-	'pozadovana rychlost na nulu, pomale zpomaleni
+	'pozadovana dopredna rychlost na nulu, pomale zpomaleni.
+	'Rotaci nulujeme az kdyz robot skutecne stoji (curSpeed=0), aby bylo dobrzdeni RIZENE:
+	'dokud se jeste jede, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi v zatacce);
+	'jak robot stoji, rotaci nulujeme, aby se netocil na miste - a posledni odeslany prikaz je (0,0),
+	'takze po uvolneni stopu nevznika zadny transient.
+	'Pojistka acceleration<=0: kdyby dopredna rampa nemohla postupovat, curSpeed by nulu nikdy
+	'nedosahl a robot by se pod stopem otacel na miste porad. Radeji rovnou obe nuly.
 	di3=GetValue(_DI, 3)
 	if di3=0 then
 		reqSpeed=0
-		reqRotSpeed=0
+		if curSpeed=0 then
+			reqRotSpeed=0
+		end if
 	end if
- 
+	'PREDCHOZI VARIANTA (nulovala obe slozky hned; nahrazeno 2026-08-11, viz doc/robotour-mission.md):
+	'	if di3=0 then
+	'		reqSpeed=0
+	'		reqRotSpeed=0
+	'	end if
+
+	'Watchdog (host uz 500 ms nemluvi) nuluje OBE slozky hned - zamerne jinak nez emergency stop:
+	'pri mrtvem hostovi je posledni rotacni prikaz zastaraly a slepe zatoceni pri dojezdu je horsi
+	'nez dojezd rovne. Pri emergency stopu host zije a jeho zatoceni je aktualni.
 	timeout-=time
 	if timeout<0 then
 		reqSpeed=0
