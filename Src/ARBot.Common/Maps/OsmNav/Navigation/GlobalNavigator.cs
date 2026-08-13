@@ -6,6 +6,10 @@ using ARBot.Common.Coordinates;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Maps.OsmNav.Routing;
+// Pozn.: z Occupancy se bere JEN enum LocalPlanStatus - tedy smlouva zpravy, kterou tato vrstva
+// odebira (zavisi na nem i Logs.LocalPlanMsg). Na grid ani planovac vrstva nezavisi, jak vyzaduje
+// doc/global-navigation-runtime.md.
+using ARBot.Common.Occupancy;
 using ARBot.Common.Runtime;
 
 namespace ARBot.Common.Maps.OsmNav.Navigation
@@ -41,6 +45,46 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
         private DateTime lastCycle = DateTime.MinValue;
 
+        // --- Metadata o postupu a detektory (viz doc/global-navigation-runtime.md) ---
+
+        private SignApplier signs;
+
+        /// <summary>Klouzave okno (ujeta draha, φ) pro detektor B.</summary>
+        private readonly ProgressWindow progress;
+
+        /// <summary>Kumulativni ujeta draha [m] - integruje se z po sobe jdoucich poz.</summary>
+        private double travelledM;
+        private double lastX, lastY;
+        private bool hasLastPose;
+
+        /// <summary>Pocet po sobe jdoucich neuspechu lokalniho planovani (detektor C).</summary>
+        private int planFailureStreak;
+
+        /// <summary>Posledni znamy stav nouzoveho zastaveni (z <c>DriveCommandMsg</c>).</summary>
+        private volatile bool emergencyStop;
+
+        /// <summary>Hlasi lokalni vrstva platny plan? Bez nej detektor A nema co resit.</summary>
+        private bool localPlanValid;
+
+        // Detektor A: draha a cas na zacatku okna klidu.
+        private DateTime noMotionSince = DateTime.MinValue;
+        private double noMotionStartOdo;
+
+        /// <summary>Kolikrat uz se na teto hrane zkousela naprava (detektor A).</summary>
+        private readonly Dictionary<EdgeKey, int> recoveryCount = new();
+
+        /// <summary>Autoritativni seznam uzavrenych / penalizovanych hran.</summary>
+        private readonly Dictionary<EdgeKey, EdgeClosure> closures = new();
+
+        /// <summary>Hrany site podle trvaleho klice - pro znovuaplikovani uzavreni.</summary>
+        private readonly Dictionary<EdgeKey, Edge> edgeByKey = new();
+
+        /// <summary>Uzavrene a penalizovane hrany (pro UI a diagnostiku).</summary>
+        public IReadOnlyCollection<EdgeClosure> Closures => closures.Values;
+
+        /// <summary>Potencial postupu φ [s] z posledniho cyklu (klesa pri priblizovani k cili).</summary>
+        public double Phi { get; private set; }
+
         /// <summary>Posledni spocteny stav (pro UI).</summary>
         public GlobalNavStatus Status { get; private set; } = GlobalNavStatus.NoGoal;
 
@@ -70,6 +114,11 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             this.localGoal = localGoal ?? throw new ArgumentNullException(nameof(localGoal));
             cfg = config ?? new GlobalNavigatorConfig();
             navOptions = navigatorOptions;
+
+            progress = new ProgressWindow(cfg.ProgressWindowM);
+
+            foreach (var e in this.network.Edges)
+                edgeByKey[EdgeKey.Of(e)] = e;
         }
 
         /// <summary>
@@ -90,12 +139,16 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                     field = new GoalField(network, target);
                     navigator = new Navigator(field, navOptions);
                     router = new Router(field);
+                    signs = new SignApplier(field);
                 }
                 else
                 {
                     field.ClearGoal();
                     field.InsertGoal(target);
                 }
+
+                // Potencial je vazany na cil - po jeho zmene je stara historie bezcenna.
+                progress.Reset();
 
                 lastCycle = DateTime.MinValue;   // spocitat hned pri nejblizsi poze
             }
@@ -119,6 +172,22 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <inheritdoc/>
         protected override void Consume(Message msg)
         {
+            // Nouzove zastaveni: pod nim robot legitimne stoji, i kdyz ma cil i platny plan -
+            // bez teto podminky by kazde zmacknuti stopu za jizdy po 10 s vyrobilo falesny zasek
+            // a robot by zacal zavirat hrany kvuli tomu, ze u nej nekdo stal.
+            if (msg is DriveCommandMsg drive)
+            {
+                OnDriveCommand(drive.EmergencyStop);
+                return;
+            }
+
+            // Zpetna vazba od lokalni vrstvy: jak se ji dari planovat (detektory A a C).
+            if (msg is LocalPlanMsg plan)
+            {
+                OnLocalPlan(plan.PlanStatus);
+                return;
+            }
+
             if (msg is not RobotStateMsg state) return;
 
             // Vlastni praci jen jednou za ReplanPeriod; mezi tim se poza jen zahodi.
@@ -133,6 +202,23 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             var route = BuildRouteMessageIfDue(state.X, state.Y, state.TimeStamp);
             if (route != null)
                 EmitDerived(route);
+        }
+
+        /// <summary>
+        /// Stav nouzoveho zastaveni z ridici smycky. Pod stopem robot legitimne stoji, i kdyz ma
+        /// cil i platny plan - detektor A se proto musi vypnout.
+        /// </summary>
+        public void OnDriveCommand(bool emergencyStopActive) => emergencyStop = emergencyStopActive;
+
+        /// <summary>
+        /// Zpetna vazba od lokalni vrstvy. Volatelne primo z testu.
+        /// </summary>
+        public void OnLocalPlan(LocalPlanStatus status)
+        {
+            bool failed = status == LocalPlanStatus.NoRoute || status == LocalPlanStatus.RobotBlocked;
+            localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial;
+
+            planFailureStreak = failed ? planFailureStreak + 1 : 0;
         }
 
         /// <summary>
@@ -196,6 +282,25 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                         Path = true,
                     });
                 }
+            }
+
+            // Uzavrene a penalizovane hrany - at je v mape videt, cemu se robot vyhyba a proc.
+            // Na trase uz nejsou (prave proto se objizdi), takze se pridavaji zvlast.
+            foreach (var c in closures.Values)
+            {
+                if (!edgeByKey.TryGetValue(c.Key, out var e)) continue;
+
+                vertexes.Add(ToVertex(e.From));
+                vertexes.Add(ToVertex(e.To));
+                edges.Add(new GraphNavigationMsg.Edge(msg)
+                {
+                    ID = e.WayId,
+                    From = vertexes.Count - 2,
+                    To = vertexes.Count - 1,
+                    Length = e.LengthMeters,
+                    Collision = true,        // ve world pohledu odlisena barva
+                    Graph = true,
+                });
             }
 
             return msg;
@@ -296,7 +401,203 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             Carrot = carrot;
             localGoal.SetGoal(carrot.Value.X, carrot.Value.Y);
 
+            TrackProgressAndDetect(here, fix, x, y, now);
+
             return BuildMessage(here, target, carrot, fix.OffRouteDist, route.Count, now);
+        }
+
+        /// <summary>
+        /// Vede metadata o postupu a spousti detektory zaseku. Viz doc/global-navigation-runtime.md.
+        /// </summary>
+        private void TrackProgressAndDetect(LLA here, NavigationFix fix, double x, double y, DateTime now)
+        {
+            // Ujeta draha z po sobe jdoucich poz (odometr pro okno i pro detektor A).
+            if (hasLastPose)
+            {
+                double dx = x - lastX, dy = y - lastY;
+                travelledM += Math.Sqrt(dx * dx + dy * dy);
+            }
+            lastX = x; lastY = y; hasLastPose = true;
+
+            ExpireClosures(now);
+
+            var edge = fix.CurrentEdge;
+            if (edge == null) return;
+
+            Phi = ComputePhi(here, edge);
+            progress.Add(travelledM, Phi);
+
+            DetectNoProgress(edge, now);     // B
+            DetectRoadBlocked(edge, now);    // C
+            DetectNoMotion(edge, now);       // A
+        }
+
+        /// <summary>
+        /// Potencial postupu φ = (1 − t) · cena zbytku hrany + cost-to-goal [s].
+        /// <para>Skalar, ktery pri postupu k cili monotonne klesa i pres krizovatky - a klesa
+        /// i kdyz robot prekazku OBJIZDI jinou cestou, protoze pole je goal-rooted. Proti prosté
+        /// vzdusne vzdalenosti (ktera pri objizdeni roste) je to poctiva mira postupu.</para>
+        /// </summary>
+        private double ComputePhi(LLA here, Edge edge)
+        {
+            var f = field;
+            if (f == null) return 0;
+
+            f.NearestNode(here, out double t, out _, out _);
+            double cost = f.CostToGoal(edge);
+            if (double.IsInfinity(cost) || double.IsNaN(cost)) return double.PositiveInfinity;
+
+            return (1.0 - t) * f.BaseTraversalCost(edge) + cost;
+        }
+
+        /// <summary>
+        /// Detektor B - bloudim. Za posledních <c>ProgressWindowM</c> ujete drahy neklesl potencial
+        /// dost. Reakce je <b>soft penalizace</b>: hrana se nezakaze, jen zdrazi, takze robot zkusi
+        /// jinudy a sem se vrati, jen kdyz nic jineho neni. Falesny poplach tak nezniči trasu.
+        /// </summary>
+        private void DetectNoProgress(Edge edge, DateTime now)
+        {
+            if (!progress.TryGetDrop(out double drop)) return;
+            if (drop >= cfg.RequiredPhiDrop) return;
+
+            var key = EdgeKey.Of(edge);
+            if (closures.TryGetValue(key, out var existing) && existing.Reason == ClosureReason.NoProgress)
+                CloseEdge(edge, ClosureReason.NoProgress, now, hard: true);   // opakuje se -> jako C
+            else
+                PenalizeEdge(edge, ClosureReason.NoProgress, now);
+
+            progress.Reset();   // at se totez nevyhodnoti hned znovu
+        }
+
+        /// <summary>
+        /// Detektor C - cesta je prehrazena (mapa lze). Lokalni planovani opakovane hlasi, ze
+        /// se neda projet. Reakce: zakazat hranu <b>i jeji reverzni</b> - fyzicka zabrana blokuje
+        /// oba smery.
+        /// </summary>
+        private void DetectRoadBlocked(Edge edge, DateTime now)
+        {
+            if (planFailureStreak < cfg.BlockedPlanCount) return;
+
+            CloseEdge(edge, ClosureReason.RoadBlocked, now, hard: true);
+            planFailureStreak = 0;
+        }
+
+        /// <summary>
+        /// Detektor A - nehybu se. Vypnuty, kdyz robot legitimne stoji: bez aktivniho cile,
+        /// bez platneho planu, nebo pod nouzovym zastavenim.
+        /// <para><b>Zotaveni (couvnuti/otocka) dnes neexistuje</b> - detektor proto umi jen pockat
+        /// a po vycerpani pokusu s hranou zachazet jako u prehrazeni. Viz otevrene ukoly.</para>
+        /// </summary>
+        private void DetectNoMotion(Edge edge, DateTime now)
+        {
+            if (emergencyStop || !localPlanValid)
+            {
+                noMotionSince = DateTime.MinValue;
+                return;
+            }
+
+            if (noMotionSince == DateTime.MinValue)
+            {
+                noMotionSince = now;
+                noMotionStartOdo = travelledM;
+                return;
+            }
+
+            // Pohnul se dost -> okno klidu zacina znovu.
+            if (travelledM - noMotionStartOdo >= cfg.MinMotionM)
+            {
+                noMotionSince = now;
+                noMotionStartOdo = travelledM;
+                return;
+            }
+
+            if (now - noMotionSince < cfg.NoMotionSec + cfg.EscalateSec) return;
+
+            var key = EdgeKey.Of(edge);
+            recoveryCount.TryGetValue(key, out int tries);
+            recoveryCount[key] = tries + 1;
+
+            // Zotaveni neexistuje, takze po vycerpani pokusu rovnou uzavreni.
+            if (tries + 1 > cfg.MaxRecoveries)
+                CloseEdge(edge, ClosureReason.NoMotion, now, hard: true);
+
+            noMotionSince = now;
+            noMotionStartOdo = travelledM;
+        }
+
+        /// <summary>Zdrazi hranu (soft penalizace) a zapise to do seznamu.</summary>
+        private void PenalizeEdge(Edge edge, ClosureReason reason, DateTime now)
+        {
+            var f = field;
+            if (f == null) return;
+
+            var key = EdgeKey.Of(edge);
+            double baseCost = f.BaseTraversalCost(edge);
+
+            f.SetTraversalCost(edge, baseCost * cfg.PenaltyFactor);
+
+            closures[key] = new EdgeClosure
+            {
+                Key = key,
+                Reason = reason,
+                At = now,
+                Count = closures.TryGetValue(key, out var old) ? old.Count : 0,
+                Hard = false,
+                BaseCost = baseCost,
+            };
+        }
+
+        /// <summary>
+        /// Zakaze hranu i jeji reverzni (fyzicka zabrana blokuje oba smery) a zapise to do seznamu.
+        /// </summary>
+        private void CloseEdge(Edge edge, ClosureReason reason, DateTime now, bool hard)
+        {
+            var f = field;
+            if (f == null || signs == null) return;
+
+            var key = EdgeKey.Of(edge);
+            double baseCost = f.BaseTraversalCost(edge);
+            int count = closures.TryGetValue(key, out var old) ? old.Count + 1 : 1;
+
+            signs.CloseRoad(edge);
+            var reverse = f.FindReverse(edge);
+            if (reverse != null) signs.CloseRoad(reverse);
+
+            closures[key] = new EdgeClosure
+            {
+                Key = key,
+                Reason = reason,
+                At = now,
+                Count = count,
+                Hard = true,
+                BaseCost = double.IsInfinity(baseCost) ? (old?.BaseCost ?? 0) : baseCost,
+            };
+        }
+
+        /// <summary>
+        /// Zapominani uzavreni: po <c>ClosureTtl</c> se hrana nevraci do plne ceny, ale na
+        /// <b>soft penalizaci</b> - kdo vi, jestli tam ta prekazka porad je, ale preferovat ji
+        /// nebudeme. Po <c>MaxClosures</c> potvrzenich je uzavreni trvale.
+        /// </summary>
+        private void ExpireClosures(DateTime now)
+        {
+            var f = field;
+            if (f == null) return;
+
+            foreach (var c in closures.Values)
+            {
+                if (!c.Hard || c.Count > cfg.MaxClosures) continue;
+                if (now - c.At < cfg.ClosureTtl) continue;
+
+                if (!edgeByKey.TryGetValue(c.Key, out var edge)) continue;
+
+                f.SetTraversalCost(edge, c.BaseCost * cfg.PenaltyFactor);
+                var reverse = f.FindReverse(edge);
+                if (reverse != null) f.SetTraversalCost(reverse, c.BaseCost * cfg.PenaltyFactor);
+
+                c.Hard = false;
+                c.At = now;
+            }
         }
 
         /// <summary>Lezi cil uz uvnitr lokalni mapy? Pak je mrkev primo cil a zadny zvlastni dojezd netreba.</summary>
@@ -350,6 +651,8 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 OffRouteDist = offRoute,
                 RouteEdgeCount = routeEdges,
                 RouteLengthM = routeLength,
+                Phi = Phi,
+                ClosureCount = closures.Count,
                 TimeStamp = now,
             };
         }

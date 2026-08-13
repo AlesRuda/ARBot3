@@ -6,9 +6,10 @@ cílem**. Navíc si o každém úseku trasy vede **metadata o postupu**, aby poz
 zasekl se, nebo že mapou uváděná cesta reálně **není průchozí** — a v takovém případě hranu v grafu
 uzavře a přeplánuje.
 
-> **Stav (2026-08-13): fáze 0–3 hotové, fáze 4–6 neimplementované.** Robot jede k cíli po síti
-> a trasa je vidět v mapě; detekce záseku/bloudění/přehrazení (fáze 4) a ověření na HW (fáze 6)
-> zbývají. Podrobně v [Plánu realizace](#plán-realizace-fáze).
+> **Stav (2026-08-13): fáze 0–3 hotové, fáze 4 z větší části, fáze 5–6 neimplementované.**
+> Robot jede k cíli po síti, trasa je vidět v mapě a vrstva si sama uzavírá cesty, které se ukážou
+> jako neprůchozí. Chybí recovery manévr, průřez koridorem (4b) a ověření na HW.
+> Podrobně v [Plánu realizace](#plán-realizace-fáze).
 
 Nad touto vrstvou stojí ještě mise soutěže — [robotour-mission.md](robotour-mission.md).
 
@@ -449,9 +450,18 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
    míří do globální vrstvy jako LLA (kus fáze 5 předtažený, aby šlo fáze 2–3 vůbec vyzkoušet).
    **Zbývá:** ⬜ **inkrementální mapmatching** (hledat jen v okolí poslední hrany, plný scan jako
    fallback — `GoalField.NearestNode` dnes prochází všechny hrany; na malé mapě parku to zatím stačí).
-4. ⬜ **`RouteProgress` + detektory A/B/C + eskalace** (penalizace / `CloseRoad` + TTL), seznam
-   uzavření, zobrazení uzavřených hran v mapě. **4b:** průřez koridorem v `LocalNavigatoru`
-   (`corridorWidthM` → `CorridorBlocked`).
+4. 🟡 **Detektory A/B/C + eskalace**: ✅ potenciál φ, klouzavé okno postupu (`ProgressWindow`,
+   běží proti **ujeté dráze**, ne času), detektor **A** (nehýbu se — vypnutý pod `EmergencyStop`
+   a bez platného plánu), **B** (bloudím → soft penalizace, při opakování na téže hraně uzavření),
+   **C** (přehrazeno → `CloseRoad` hrany **i reverzní**); ✅ autoritativní seznam uzavření
+   (`EdgeKey` = `(WayId, From, To)`, tedy trvalá identita napříč přestavbou sítě), TTL s návratem
+   na soft penalizaci a trvalé uzavření po `MaxClosures`; ✅ uzavřené hrany v mapě (`Collision`)
+   a `Phi`/`ClosureCount` v `GlobalNavMsg`.
+   **Zbývá:** ⬜ **recovery manévr** (couvnutí / otočka) — neexistuje, takže detektor A umí jen
+   počkat a po vyčerpání pokusů hranu uzavřít; ⬜ `RouteProgress` jako plná sada metadat per hrana
+   (dnes jen to, co detektory potřebují: počet pokusů o nápravu a záznam uzavření);
+   ⬜ **4b** průřez koridorem v `LocalNavigatoru` (`corridorWidthM` → `CorridorBlocked`) —
+   `SetGoal` parametr už přijímá, ale test průřezu zatím nedělá.
 5. ⬜ **Cíl z UI jako LLA** (Ctrl+klik → globální vrstva), panel stavu globální navigace.
 6. ⬜ **Ověření na HW** — celý řetěz na OrangePI: doba stavby sítě, doba cyklu, chování na reálné trase.
 

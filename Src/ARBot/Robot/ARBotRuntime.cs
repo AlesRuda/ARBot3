@@ -283,7 +283,11 @@ namespace ARBot.Robot
 
                 GlobalNavigator = globalNav;
                 stages.Add(globalNav);
+                // Z ridici smycky: RobotStateMsg (hodinky cyklu) + DriveCommandMsg (nouzove
+                // zastaveni - pod nim se nesmi hlasit zasek). Z lokalni vrstvy: LocalPlanMsg
+                // (jak se ji dari planovat - detektor prehrazene cesty).
                 connections.Add(loop.Output.Connect(globalNav));
+                connections.Add(navigator.Output.Connect(globalNav));
                 connections.Add(globalNav.Output.Connect(stream));
             }
 

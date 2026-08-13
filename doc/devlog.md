@@ -59,8 +59,24 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     `NavigatorOptions.ArrivalRadiusMeters` 12 → **3 m**.
   - Past při psaní testů: síť je **edge-based**, takže přechody jsou odbočení a musí se registrovat
     `AddTurn` — bez nich trasa neexistuje. Testovací síť to zpočátku neměla a hlásila `NoRoute`.
-- **Neověřeno:** běh v aplikaci. Fáze 4 (detektory záseku/bloudění/přehrazení a uzavírání hran)
-  a fáze 6 (ověření na HW) zůstávají otevřené.
+- **Fáze 4 — detektory záseku a uzavírání hran.** Vrstva si teď sama zavírá cesty, které se ukážou
+  jako neprůchozí.
+  - **Potenciál φ** = `(1−t)·cena zbytku hrany + cost-to-goal`. Klesá i když robot překážku
+    **objíždí** (pole je goal-rooted) — proti vzdušné vzdálenosti, která při objíždění roste,
+    je to poctivá míra postupu.
+  - **`ProgressWindow`** běží proti **ujeté dráze**, ne času: když robot stojí, okno se neposouvá
+    a detektor bloudění se vůbec neuplatní (od stání je detektor A).
+  - **A** (nehýbu se) je vypnutý pod `EmergencyStop` a bez platného plánu — jinak by každé zmáčknutí
+    stopu za jízdy po 10 s vyrobilo falešný zásek a robot by začal zavírat hrany kvůli tomu, že u něj
+    někdo stál. `DriveCommandMsg` nese `EmergencyStop` a chodí po `loop.Output`, takže to nechtělo
+    žádné nové drátování.
+  - **B** (bloudím) → soft penalizace (hrana jen zdraží), při opakování na téže hraně uzavření.
+  - **C** (přehrazeno) → `CloseRoad` hrany **i reverzní** — fyzická zábrana blokuje oba směry.
+  - Seznam uzavření je klíčovaný `(WayId, From, To)`, tedy **trvalou identitou** — `Edge.Index`
+    platí jen pro jednu instanci sítě. TTL vrací uzavření na soft penalizaci, po `MaxClosures`
+    je trvalé. Uzavřené hrany jdou do mapy jako `Collision`.
+- **Neověřeno:** běh v aplikaci. Zbývá recovery manévr (couvnutí/otočka — neexistuje, takže A umí
+  jen počkat a pak zavřít), průřez koridorem (4b) a ověření na HW (fáze 6).
 
 ## 2026-08-13
 

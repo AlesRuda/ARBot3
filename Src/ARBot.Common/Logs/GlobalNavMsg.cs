@@ -40,6 +40,15 @@ namespace ARBot.Common.Logs
         /// <summary>Delka zbyvajici trasy [m].</summary>
         public double RouteLengthM;
 
+        /// <summary>
+        /// Potencial postupu φ [s] - pri priblizovani k cili klesa, a to i kdyz robot prekazku
+        /// objizdi (pole je goal-rooted). Proti vzdusne vzdalenosti poctiva mira postupu.
+        /// </summary>
+        public double Phi;
+
+        /// <summary>Pocet uzavrenych / penalizovanych hran, kterym se robot vyhyba.</summary>
+        public int ClosureCount;
+
         /// <summary>Cas cyklu.</summary>
         public DateTime TimeStamp;
 
@@ -68,6 +77,8 @@ namespace ARBot.Common.Logs
             bw.Write(OffRouteDist);
             bw.Write(RouteEdgeCount);
             bw.Write(RouteLengthM);
+            bw.Write(Phi);
+            bw.Write(ClosureCount);
             bw.Write(TimeStamp.Ticks);
         }
 
@@ -86,6 +97,8 @@ namespace ARBot.Common.Logs
             OffRouteDist = br.ReadDouble();
             RouteEdgeCount = br.ReadInt32();
             RouteLengthM = br.ReadDouble();
+            Phi = br.ReadDouble();
+            ClosureCount = br.ReadInt32();
             TimeStamp = new DateTime(br.ReadInt64());
         }
 

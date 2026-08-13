@@ -1,6 +1,8 @@
+using System.Linq;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Maps.OsmNav.Navigation;
+using ARBot.Common.Occupancy;
 using ARBot.Common.Runtime;
 
 namespace ARBot.Common.Tests.OsmNav.Navigation;
@@ -196,6 +198,128 @@ public class GlobalNavigatorTests
         Assert.That(nav.BuildRouteMessageIfDue(0, 0, t), Is.Not.Null);
         Assert.That(nav.BuildRouteMessageIfDue(0, 0, t.AddMilliseconds(200)), Is.Null,
                     "hned potom uz ne");
+    }
+
+    // ---------------- Detektory zaseku (faze 4) ----------------
+
+    /// <summary>
+    /// Prehrazena cesta: lokalni vrstva opakovane hlasi, ze se neda projet -> hrana se uzavre.
+    /// Fyzicka zabrana blokuje oba smery, takze se musi zavrit i reverzni hrana.
+    /// </summary>
+    [Test]
+    public void RepeatedPlanFailures_CloseTheEdgeInBothDirections()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { BlockedPlanCount = 3 };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.Step(10, 0, t);
+
+        for (int i = 0; i < cfg.BlockedPlanCount; i++)
+            nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+
+        nav.Step(10, 0, t.AddSeconds(1));
+
+        Assert.That(nav.Closures, Is.Not.Empty, "opakovane selhani planovani ma uzavrit hranu");
+        var closure = nav.Closures.First();
+        Assert.Multiple(() =>
+        {
+            Assert.That(closure.Reason, Is.EqualTo(ClosureReason.RoadBlocked));
+            Assert.That(closure.Hard, Is.True, "prehrazeni je tvrde uzavreni, ne jen penalizace");
+        });
+    }
+
+    /// <summary>Uspesny plan mezi selhanimi vynuluje pocitadlo - jinak by staciler nasbirat selhani kdykoli.</summary>
+    [Test]
+    public void PlanFailures_AreCountedOnlyWhenConsecutive()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { BlockedPlanCount = 3 };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.Step(10, 0, t);
+
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+        nav.OnLocalPlan(LocalPlanStatus.Ok);      // preruseni serie
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+
+        nav.Step(10, 0, t.AddSeconds(1));
+
+        Assert.That(nav.Closures, Is.Empty, "prerusena serie nesmi hranu uzavrit");
+    }
+
+    /// <summary>
+    /// Bloudeni: robot ujede kus cesty, ale k cili se nepriblizi. Reakce je jen zdrazeni hrany -
+    /// falesny poplach nesmi znicit trasu.
+    /// </summary>
+    /// <summary>Jizda sem a tam: ujeta draha roste, vzdalenost k cili ne.</summary>
+    private static void Wander(GlobalNavigator nav, DateTime t, int steps)
+    {
+        for (int i = 0; i < steps; i++)
+            nav.Step(10 + (i % 2 == 0 ? 0 : 1), 0, t.AddSeconds(i));
+    }
+
+    [Test]
+    public void NoProgress_FirstTime_OnlyPenalizesTheEdge()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { ProgressWindowM = 5.0 };
+        var nav = Create(origin, sink, cfg);
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        Wander(nav, DateTime.UtcNow, steps: 7);
+
+        Assert.That(nav.Closures, Is.Not.Empty, "bloudeni ma hranu penalizovat");
+        Assert.That(nav.Closures.First().Hard, Is.False,
+                    "prvni poplach je jen zdrazeni - falesny nesmi znicit trasu");
+    }
+
+    [Test]
+    public void NoProgress_RepeatedOnSameEdge_EscalatesToClosure()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { ProgressWindowM = 5.0 };
+        var nav = Create(origin, sink, cfg);
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        Wander(nav, DateTime.UtcNow, steps: 16);
+
+        Assert.That(nav.Closures.First().Hard, Is.True,
+                    "opakovane bloudeni na teze hrane uz znamena uzavreni");
+    }
+
+    /// <summary>Pod nouzovym zastavenim robot legitimne stoji - zasek se nesmi hlasit.</summary>
+    [Test]
+    public void NoMotionUnderEmergencyStop_DoesNotCloseAnything()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);          // plan je platny
+        nav.OnDriveCommand(emergencyStopActive: true);
+
+        for (int i = 0; i < 10; i++)
+            nav.Step(10, 0, t.AddSeconds(i));         // robot stoji
+
+        Assert.That(nav.Closures, Is.Empty, "pod stopem se zasek hlasit nesmi");
     }
 
     [Test]
