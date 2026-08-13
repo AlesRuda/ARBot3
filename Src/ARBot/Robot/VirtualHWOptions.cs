@@ -5,6 +5,7 @@ using ARBot.Common.Coordinates;
 using ARBot.Common.Fusion;
 using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Vision.Synthetic;
+using ARBot.HAL.Devices;
 using ARBot.HAL.Devices.Camera;
 
 namespace ARBot.Robot
@@ -45,6 +46,24 @@ namespace ARBot.Robot
 
         /// <summary>Montazni transformace prave kamery (vychozi ze skutecneho profilu robota).</summary>
         public Matrix4x4 RightCameraTransform = Profile.RightCameraTransform;
+
+        /// <summary>Sum a frekvence simulovane GPS a IMU.</summary>
+        public VirtualSensorOptions Sensors = new VirtualSensorOptions();
+
+        /// <summary>Rozchod kol simulovaneho robota [m].</summary>
+        public double WheelBase = Profile.Rozchod;
+
+        /// <summary>Omezeni zrychleni kol [m/s^2].</summary>
+        public double Acceleration = Profile.MaxAcceleration;
+
+        /// <summary>Pocatecni poloha robota v lokalni ENU rovine [m] (na vychod).</summary>
+        public double StartX;
+
+        /// <summary>Pocatecni poloha robota v lokalni ENU rovine [m] (na sever).</summary>
+        public double StartY;
+
+        /// <summary>Pocatecni kurz [rad], matematicky (0 = vychod, +CCW).</summary>
+        public double StartTheta;
 
         /// <summary>Overi, ze jsou vyplnene povinne polozky.</summary>
         public void Validate()

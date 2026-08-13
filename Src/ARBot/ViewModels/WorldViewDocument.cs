@@ -373,9 +373,9 @@ namespace ARBot.ViewModels
             var ring = new Coordinate[outline.Count + 1];
             for (int i = 0; i < outline.Count; i++)
             {
-                double lx = outline[i].lx, ly = outline[i].ly;
-                double east = lx * s + ly * c;     // lokalni (vpravo/vpred) -> svet ENU (shodne s RobotGlyph)
-                double north = -lx * c + ly * s;
+                // Prevod lokalni -> ENU dela RobotGlyph.ToWorld (vcetne obraceni WPF osy Y).
+                // Drive tu byl rozkopirovany a bez toho obraceni, takze robot mířil proti smeru jizdy.
+                var (east, north) = ARBot.Views.Controls.RobotGlyph.ToWorld(outline[i].lx, outline[i].ly, s, c);
                 ring[i] = new Coordinate(merc.X + east * k, merc.Y + north * k);
             }
             ring[outline.Count] = ring[0];   // uzavrit prstenec

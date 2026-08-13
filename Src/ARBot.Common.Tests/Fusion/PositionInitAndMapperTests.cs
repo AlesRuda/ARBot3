@@ -36,9 +36,10 @@ namespace ARBot.Common.Tests.Fusion
             };
 
         private static MotorStateBase Odo(double vLeft, double vRight, DateTime t, bool estop = false)
-            => new MotorStateBase(estop, vLeft * 0.1, vRight * 0.1, 24, 0, 0)
+            // Rychlosti kol jsou od verze 2 vlastni pole zpravy (uz se nedopocitavaji z prirustku
+            // enkoderu a doby od vyzvednuti); enkodery jsou kumulativni.
+            => new MotorStateBase(estop, vLeft * 0.1, vRight * 0.1, 24, 0, 0, vLeft, vRight)
             {
-                FramePickupPeriod = TimeSpan.FromMilliseconds(100),
                 TimeStamp = t,
             };
 

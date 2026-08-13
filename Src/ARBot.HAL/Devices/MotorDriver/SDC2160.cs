@@ -21,6 +21,9 @@ namespace ARBot.HAL.Devices.MotorDrivers
         double enc2Rotation;
         bool isEmergencyStop=true;
         double lastRightEnc, lastLeftEnc;
+
+        /// <summary>Cas predchoziho vzorku - z nej se pocita rychlost kol.</summary>
+        DateTime? prevEncTime;
         /// <summary>
         /// Construktor
         /// </summary>
@@ -143,7 +146,7 @@ namespace ARBot.HAL.Devices.MotorDrivers
                 // emergency stav misto bogus nuloveho a kratce pockej, aby smycka Process
                 // nebusy-spinovala (nenulovy stav ji jinak nenechaji backnout).
                 System.Threading.Thread.Sleep(10);
-                return new MotorStateBase(isEmergencyStop = true, 0, 0, 0, 0, 0) { TimeStamp = ts };
+                return new MotorStateBase(isEmergencyStop = true, 0, 0, 0, 0, 0, 0, 0) { TimeStamp = ts };
             }
             str = GetValue(str);
             string[] enc = str.Split(new string[] { ":" }, StringSplitOptions.RemoveEmptyEntries);
@@ -180,7 +183,16 @@ namespace ARBot.HAL.Devices.MotorDrivers
             lastLeftEnc += leftEnc;
             lastRightEnc += rightEnc;
 
-            MotorStateBase s = new MotorStateBase(isEmergencyStop = (str == "0"), lastLeftEnc, lastRightEnc, batVolts, leftCurrent, rightCurrent) { TimeStamp = ts };
+            // Rychlost z vlastniho vzorkovaciho intervalu (leftEnc je prirustek za tento vzorek) -
+            // nesmi zaviset na tom, kdo a kdy mereni cte. Viz doc/virtual-hw.md.
+            double dt = prevEncTime.HasValue ? (ts - prevEncTime.Value).TotalSeconds : 0;
+            double leftSpeed = dt > 0.001 ? leftEnc / dt : 0;
+            double rightSpeed = dt > 0.001 ? rightEnc / dt : 0;
+            prevEncTime = ts;
+
+            MotorStateBase s = new MotorStateBase(isEmergencyStop = (str == "0"), lastLeftEnc, lastRightEnc,
+                                                  batVolts, leftCurrent, rightCurrent,
+                                                  leftSpeed, rightSpeed) { TimeStamp = ts };
             return s;
         }
     }

@@ -40,7 +40,7 @@ namespace ARBot.HAL.Tests
         public void MotorStateBase_RoundTrips()
         {
             var t = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-            var m = new MotorStateBase(true, 1.5, -2.5, 24.0, 0.1, 0.2)
+            var m = new MotorStateBase(true, 1.5, -2.5, 24.0, 0.1, 0.2, 0.7, 0.9)
             {
                 TimeStamp = t,
                 FrameNum = 7
@@ -55,6 +55,8 @@ namespace ARBot.HAL.Tests
             Assert.That(back.Voltage, Is.EqualTo(24.0));
             Assert.That(back.LeftMotorCurrent, Is.EqualTo(0.1));
             Assert.That(back.RightMotorCurrent, Is.EqualTo(0.2));
+            Assert.That(back.LeftWheelSpeed, Is.EqualTo(0.7), "rychlosti kol se od verze 2 serializuji");
+            Assert.That(back.RightWheelSpeed, Is.EqualTo(0.9));
             Assert.That(back.TimeStamp, Is.EqualTo(t));
             Assert.That(back.FrameNum, Is.EqualTo(7u));
         }

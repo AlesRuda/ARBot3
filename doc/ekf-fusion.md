@@ -64,3 +64,32 @@ ostatní složky. Pak zmizí i `ControlLoop.lastImu` a smyčka nebude muset odeb
 `ToWorldTransformWithPosition()` (`Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, …)`).
 Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
 vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.
+
+### Otevřený úkol: diagnostika EKF do streamu a záznamu (2026-08-13)
+
+Chování filtru dnes nejde zpětně prohlédnout ze záznamu — `AsyncFusionEngine.Diagnostics()`
+vrací per-měření `Source / Time / Nis / Accepted`, ale nikam se to neemituje, takže je to vidět
+jen za běhu v debuggeru. Když robot v simulaci „poskakoval", nedalo se odlišit, jestli je to
+šum GPS, nebo gating zahazující měření.
+
+**Zpráva už existuje a je připravená:** [`MeasurementDiagMsg`](../Src/ARBot.Common/Logs/MeasurementDiagMsg.cs)
+má přesně potřebná pole (`Source`, `Z`, `DiagR`, `Nis`, `Accepted`, `TimeStamp`) a je
+**zaregistrovaná v katalogu** (`MessageCatalog`), takže by se rovnou serializovala i přehrála
+ve View. Jen ji nikdo neplní. (`EKFStepMsg` vedle ní je něco jiného — dump celých matic
+z předchozí generace, na průběžný záznam příliš těžký.)
+
+**Pozor na jeden detail, který určuje, kde se emituje:** NIS při `Enqueue` **ještě neexistuje**.
+Měření se jen zařadí a buffer se označí za špinavý; `Nis`/`Accepted` plní až `EnsureValid()`
+a při doražení opožděného měření se uzly **přepočítají**, takže se NIS může zpětně změnit.
+Emitovat při vložení by tedy zapisovalo hodnotu, která ještě není spočtená. Nabízí se odběr
+až usazených hodnot — např. `FusionProcessor` si periodicky (~10 Hz, bezpečně pod oknem
+historie 1 s) přečte `Diagnostics()` a pošle záznamy novější než poslední odeslaný.
+
+Doplnit bude potřeba `Z` a `DiagR` do `AsyncFusionEngine.MeasurementInfo` (dnes nese jen
+`Source/Time/Nis/Accepted`).
+
+Objem: ~155 měření/s (IMU 100 Hz, odometrie 50 Hz, GPS 5 Hz) ≈ 12 kB/s — proti obrazům z kamer
+(~1,8 GB/min) zanedbatelné. Alternativa je periodický souhrn po zdrojích (počet, podíl přijatých,
+průměrný a maximální NIS), ale ten neumožní dohledat konkrétní zahozené měření.
+
+K tomu patří i dokovatelný dokument, který to zobrazí. **Nerozhodnuto, neimplementováno.**

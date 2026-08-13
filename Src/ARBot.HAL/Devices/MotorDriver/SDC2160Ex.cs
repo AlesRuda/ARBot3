@@ -196,8 +196,15 @@ end while
         double wheelCircumference;
         double enc2Rotation;
         bool isEmergencyStop=true;
-        double? lastRightEnc, lastLeftEnc;
-        double currentRightEnc, currentLeftEnc;
+
+        /// <summary>
+        /// Stav enkoderu a cas PREDCHOZIHO vzorku - rychlost kol si driver pocita ze sveho
+        /// vzorkovaciho intervalu, aby nezavisela na tom, kdo a kdy mereni cte.
+        /// Drive se odvozovala z <c>FramePickupPeriod</c>, takze bez vyzvedavani vychazela nula
+        /// (v runtime se motory odebiraji jen udalosti). Viz doc/virtual-hw.md.
+        /// </summary>
+        double? prevRightEnc, prevLeftEnc;
+        DateTime? prevEncTime;
         int cnt = 0;
         /// <summary>
         /// Construktor
@@ -270,12 +277,6 @@ end while
             return str;
         }
 
-        protected override void Pickedup(IMotorState s)
-        {
-            base.Pickedup(s);
-            lastRightEnc = currentRightEnc;
-            lastLeftEnc = currentLeftEnc;
-        }
 
         protected override IMotorState GetMeasurement()
         {
@@ -343,16 +344,27 @@ end while
 
             MotorStateBase s;
             if (fail)
-                s= new MotorStateBase(true, 0, 0, 0, 0, 0) { TimeStamp = ts };
+                s= new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0) { TimeStamp = ts };
             else
             {
-                s = new MotorStateBase(isEmergencyStop = (di == "0"), leftEnc - lastLeftEnc ?? leftEnc, rightEnc - lastRightEnc ?? rightEnc, batVolts, leftCurrent, rightCurrent) { TimeStamp = ts };
+                // Rychlost z vlastniho vzorkovaciho intervalu; prvni vzorek ji jeste nema.
+                double dt = prevEncTime.HasValue ? (ts - prevEncTime.Value).TotalSeconds : 0;
+                double leftSpeed = 0, rightSpeed = 0;
+                if (dt > 0.001)
+                {
+                    leftSpeed = (leftEnc - (prevLeftEnc ?? leftEnc)) / dt;
+                    rightSpeed = (rightEnc - (prevRightEnc ?? rightEnc)) / dt;
+                }
 
-//                Debug.WriteLine($"leftEnc2={leftEnc}" );
-  //              Debug.WriteLine($"rightEnc2={rightEnc}");
+                // Enkodery se hlasi KUMULATIVNE - odberatel si prirustek spocte pres svuj interval
+                // (a neprijde o nej, i kdyz nejaky vzorek preskoci).
+                s = new MotorStateBase(isEmergencyStop = (di == "0"), leftEnc, rightEnc,
+                                       batVolts, leftCurrent, rightCurrent,
+                                       leftSpeed, rightSpeed) { TimeStamp = ts };
 
-                currentLeftEnc = leftEnc;
-                currentRightEnc = rightEnc;
+                prevLeftEnc = leftEnc;
+                prevRightEnc = rightEnc;
+                prevEncTime = ts;
             }
             return s;
         }

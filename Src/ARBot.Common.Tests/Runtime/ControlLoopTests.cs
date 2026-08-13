@@ -34,7 +34,7 @@ namespace ARBot.Common.Tests.Runtime
                 LastDif = dif;
             }
             public void SetAcceleration(double a) { }
-            public IMotorState GetLastMeasurement() => new MotorStateBase(false, 0, 0, 0, 0, 0);
+            public IMotorState GetLastMeasurement() => new MotorStateBase(false, 0, 0, 0, 0, 0, 0, 0);
             public event EventHandler<IMotorState> MeasurementArived { add { } remove { } }
         }
 
@@ -204,14 +204,13 @@ namespace ARBot.Common.Tests.Runtime
         // ---------------- Nouzove zastaveni (doc/robotour-mission.md) ----------------
 
         /// <summary>
-        /// Stav motoru pro testy nouzoveho zastaveni. Rychlost kol vznika jako
-        /// prirustek enkoderu / <see cref="ARBot.Common.Devices.SensorStateBase.FramePickupPeriod"/>,
-        /// takze "jede" = nenulovy prirustek, "stoji" = nulovy.
+        /// Stav motoru pro testy nouzoveho zastaveni. Rychlost kol je od verze 2 vlastni pole
+        /// zpravy (uz se nedopocitava z prirustku enkoderu a doby od vyzvednuti).
         /// </summary>
         private static MotorStateBase Motor(bool estop, double wheelSpeed)
-            => new MotorStateBase(estop, wheelSpeed * 0.1, wheelSpeed * 0.1, 24, 0, 0)
+            => new MotorStateBase(estop, wheelSpeed * 0.1, wheelSpeed * 0.1, 24, 0, 0,
+                                  wheelSpeed, wheelSpeed)
             {
-                FramePickupPeriod = TimeSpan.FromMilliseconds(100),
                 TimeStamp = T0,
             };
 

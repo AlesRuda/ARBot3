@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Numerics;
 using System.Text;
@@ -174,9 +175,16 @@ namespace ARBot.Robot
             // polohy, aby fuze pocitala od pocatku danem mapou, ne od prvniho fixu.
             LoadMapIfSpecified(fusionConfig);
 
+            // Znama pocatecni poza (parametr start=) jde rovnou do EKF - plati i pro realny HW.
+            // Bez zadani se hada jen v simulaci (prichycenim na sit), jinak inicializuje prvni fix.
+            bool virtualHw = Program.GetParamBool("virtualhw", false);
+            var startPose = InitializeStartPose(engine, fusionConfig.GeoReference,
+                                                allowSnapToRoad: virtualHw);
+
             // Virtualni HW (kamery renderovane z mapy) - az ZA vytvorenim enginu, aby slo predat
             // zdroj pozy primo v opcich. Viz doc/virtual-hw.md.
-            TryEnableVirtualHW(hw, engine, fusionConfig);
+            TryEnableVirtualHW(hw, engine, fusionConfig, startPose);
+
             var clock = new SystemClock();
             var scheduler = new Scheduler();
 
@@ -302,6 +310,11 @@ namespace ARBot.Robot
             }, null, periodMs, periodMs);
 
             foreach (var s in sources) s.Start();
+
+            // Mapa na Stream az uplne nakonec - to uz je pripojeny zaznam i otevrene dokumenty,
+            // takze ji world view vykresli a soucasne se ulozi do zaznamu (prehraje se ve View).
+            if (MapMessage != null)
+                stream.Publish(MapMessage);
         }
 
         /// <summary>
@@ -314,6 +327,14 @@ namespace ARBot.Robot
         /// Pocatek lokalni ENU roviny odpovidajici <see cref="RoadNetwork"/>. null = bez mapy.
         /// </summary>
         public GeoReference MapOrigin { get; private set; }
+
+        /// <summary>
+        /// Nactena mapa jako zprava pro world view. Publikuje se na <see cref="Stream"/> na konci
+        /// dratovani (odtud i do zaznamu, takze se prehraje i ve View), ale drzi se **i potom** -
+        /// Stream zpravy neprehrava, takze pohled otevreny az za behu by ji jinak neuvidel.
+        /// null = bez mapy.
+        /// </summary>
+        public MapMsg MapMessage { get; private set; }
 
         /// <summary>
         /// Nacte silnicni sit z parametru <c>map=&lt;cesta.osm&gt;</c> do <see cref="RoadNetwork"/> a
@@ -357,12 +378,16 @@ namespace ARBot.Robot
                 // Pokud uz pocatek nekdo urcil, respektujeme ho (viz doc/virtual-hw.md).
                 if (fusionConfig.GeoReference == null)
                     fusionConfig.GeoReference = MapOrigin;
+
+                MapMessage = RoadNetwork.ToLogMessage(Path.GetFileName(mapPath));
+                Debug.WriteLine($"map={mapPath}: {MapMessage.Nodes.Count} uzlu, {MapMessage.Edges.Count} hran.");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"map: nacteni mapy selhalo -> beh bez mapy. {ex}");
                 RoadNetwork = null;
                 MapOrigin = null;
+                MapMessage = null;
             }
         }
 
@@ -371,7 +396,8 @@ namespace ARBot.Robot
         /// nactene v <see cref="LoadMapIfSpecified"/>. Bez mapy nebo pri chybe zustava realny HW
         /// (jen zaznam do ladeni) - simulace nesmi shodit start aplikace. Viz doc/virtual-hw.md.
         /// </summary>
-        private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig)
+        private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig,
+                                        (double X, double Y, double Theta)? startPose)
         {
             if (!Program.GetParamBool("virtualhw", false)) return;
 
@@ -383,17 +409,139 @@ namespace ARBot.Robot
 
             try
             {
+                // Simulovany robot stoji TAM, kde si mysli fuze - obojí z tehoz zdroje.
+                var start = startPose ?? (0.0, 0.0, 0.0);
+
                 hw.SetVirtualHW(new VirtualHWOptions
                 {
                     Network = RoadNetwork,
                     Origin = fusionConfig.GeoReference,
                     PoseAt = t => engine.GetStateAt(t),
+                    StartX = start.X,
+                    StartY = start.Y,
+                    StartTheta = start.Theta,
                 });
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"virtualhw: zapnuti simulovaneho HW selhalo -> zustava realny HW. {ex}");
             }
+        }
+
+        /// <summary>
+        /// Urci pocatecni pozu simulovaneho robota v lokalni ENU rovine.
+        /// <para>Parametr <c>start=lat,lon[,kurzDeg]</c> ma prednost. Bez nej se robot prichyti na
+        /// nejblizsi hranu site od pocatku roviny a natoci se podel ni - vzdy tedy stoji na ceste
+        /// a kamera hned neco vidi. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        private bool TryResolveStartPose(GeoReference origin, bool allowSnapToRoad,
+                                         out double x, out double y, out double theta)
+        {
+            x = 0; y = 0; theta = 0;
+            if (origin == null) return false;
+
+            LLA where = null;
+            double? explicitHeading = null;
+
+            var start = Program.GetParam("start");
+
+            // start=gps: polohu urci az prvni pouzitelny fix (DefaultMeasurementMapper zavola
+            // InitializePosition). Je to vyslovna volba tehoz, co se jinak deje jako fallback -
+            // navic tim vypina hadani polohy z mapy. V simulaci nema smysl: virtualni GPS hlasi
+            // polohu simulovaneho robota, ktery by musel odnekud startovat.
+            if (string.Equals(start, "gps", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!allowSnapToRoad)
+                {
+                    Debug.WriteLine("start=gps: pocatecni polohu urci prvni GPS fix.");
+                    return false;
+                }
+
+                Debug.WriteLine("start=gps nema pri virtualhw smysl (virtualni GPS mari simulovaneho "
+                                + "robota) -> pouzivam prichyceni na nejblizsi cestu.");
+                start = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(start))
+            {
+                var parts = start.Split(',');
+                if (parts.Length >= 2
+                    && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+                    && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+                {
+                    where = LLA.FromDegrees(lat, lon);
+                    if (parts.Length >= 3
+                        && double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double hdg))
+                        explicitHeading = Conversions.Deg2Rad(hdg);
+                }
+                else
+                {
+                    Debug.WriteLine($"start={start}: necekany format (ocekavam lat,lon[,kurz]) -> ignoruji.");
+                }
+            }
+
+            // Bez zadani ma smysl hadat polohu jen v simulaci (na realnem HW robot nestoji tam,
+            // kde je stred mapy) - jinak zustane inicializace na prvnim GPS fixu.
+            if (where == null)
+            {
+                if (!allowSnapToRoad || RoadNetwork == null) return false;
+                where = origin.Origin;
+            }
+
+            var local = origin.ToLocal(where);
+            x = local.X;
+            y = local.Y;
+
+            // Prichyceni na sit: poloha na ose cesty a kurz podel ni. Zadany kurz ma prednost,
+            // prichyceni pak jen srovna polohu na cestu.
+            LLA proj = null;
+            var edge = RoadNetwork?.NearestEdge(where, out _, out proj, out _);
+            if (edge != null && proj != null)
+            {
+                var snapped = origin.ToLocal(proj);
+                x = snapped.X;
+                y = snapped.Y;
+
+                var a = origin.ToLocal(edge.From.Location);
+                var b = origin.ToLocal(edge.To.Location);
+                theta = Math.Atan2(b.Y - a.Y, b.X - a.X);
+            }
+
+            if (explicitHeading.HasValue)
+                theta = explicitHeading.Value;
+
+            return true;
+        }
+
+        /// <summary>Nejistota zadane pocatecni polohy [m] - "vim, kam jsem robota postavil".</summary>
+        private const double StartPositionStd = 1.0;
+
+        /// <summary>Nejistota zadaneho pocatecniho kurzu [rad] (~6 stupnu).</summary>
+        private const double StartHeadingStd = 0.1;
+
+        /// <summary>
+        /// Zna-li se pocatecni poza, vlozi ji rovnou do EKF (<see cref="AsyncFusionEngine.InitializePosition"/>)
+        /// misto cekani na prvni GPS fix. Plati <b>i pro realny HW</b> - kdyz vim, kam jsem robota
+        /// postavil, nema smysl to filtru tajit; nasledna merenia polohu jen koriguji.
+        /// <para>V simulaci ma jeste jeden efekt: kamera bere pozu z fuze, takze bez inicializace
+        /// by nedodavala snimky az do prvniho fixu.</para>
+        /// </summary>
+        /// <returns>Poza, kterou dostane i simulovany robot; null = pocatek neni znam.</returns>
+        private (double X, double Y, double Theta)? InitializeStartPose(
+            AsyncFusionEngine engine, GeoReference origin, bool allowSnapToRoad)
+        {
+            if (!TryResolveStartPose(origin, allowSnapToRoad, out double x, out double y, out double theta))
+                return null;
+
+            var t = TimeBase.Now;
+            engine.InitializePosition(x, y, StartPositionStd, t);
+
+            // Kurz se neinicializuje, jen se posle jako merenie - na rozdil od polohy je jeho chyba
+            // omezena a filtr si ho srovna (v simulaci navic hned z IMU).
+            engine.Enqueue(new HeadingMeasurement(theta, StartHeadingStd, t, "Start/heading"));
+
+            Debug.WriteLine($"start: X={x:F1} Y={y:F1} theta={Conversions.Rad2Deg(theta):F0} deg -> vlozeno do EKF.");
+            return (x, y, theta);
         }
 
         /// <summary>

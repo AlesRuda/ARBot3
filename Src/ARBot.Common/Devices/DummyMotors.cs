@@ -24,7 +24,7 @@ namespace ARBot.Common.Devices
         public void SetAcceleration(double acceleration) { /* no-op */ }
 
         /// <inheritdoc/>
-        public IMotorState GetLastMeasurement() => new MotorStateBase(false, 0, 0, 0, 0, 0);
+        public IMotorState GetLastMeasurement() => new MotorStateBase(false, 0, 0, 0, 0, 0, 0, 0);
 
         /// <inheritdoc/>
         /// <remarks>Nikdy se nevyvola - fiktivni motory neprodukuji zadna mereni.</remarks>

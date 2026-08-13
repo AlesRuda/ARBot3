@@ -10,8 +10,11 @@ using ARBot.HAL.Devices.Uart;
 using ARBot.HAL.Devices.NeoPixel;
 using ARBot.HAL.Devices.MotorDrivers;
 using System.Collections.Generic;
+using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Simulation;
 using ARBot.Common.Vision.Synthetic;
+using ARBot.HAL.Devices.GPSs;
 using System.Threading.Tasks;
 
 namespace ARBot.Robot
@@ -150,6 +153,30 @@ namespace ARBot.Robot
         }
 
 
+        /// <summary>
+        /// Ground truth simulovaneho robota - nenulovy jen pri virtualnim HW. Slouzi k porovnani
+        /// skutecnosti s odhadem fuze (viz doc/virtual-hw.md).
+        /// </summary>
+        public SimulatedRobot SimulatedRobot { get; private set; }
+
+        /// <summary>
+        /// Uvolni motory, GPS a IMU (obdoba <see cref="CameraStop"/> pro zbytek senzoru) -
+        /// pouziva se pri prepnuti na virtualni HW.
+        /// </summary>
+        private void MotionSensorsStop()
+        {
+            foreach (var s in new object[] { Motor, GPS, IMU })
+            {
+                if (s == null) continue;
+                if (s is ISensor sensor) sensors.Remove(sensor);
+                (s as IDisposable)?.Dispose();
+            }
+
+            Motor = null;
+            GPS = null;
+            IMU = null;
+        }
+
         public Action CameraStateChanged;
         public void CameraStop()
         {
@@ -209,7 +236,8 @@ namespace ARBot.Robot
             if (options == null) throw new ArgumentNullException(nameof(options));
             options.Validate();
 
-            CameraStop();   // uvolni pripadne realne kamery
+            CameraStop();          // uvolni pripadne realne kamery
+            MotionSensorsStop();   // uvolni pripadne realne motory/GPS/IMU
 
             var scene = new RoadScene(options.Network, options.Origin);
 
@@ -218,7 +246,22 @@ namespace ARBot.Robot
             sensors.Add(RightCamera = new VirtualCamera(
                 "Right", scene, options.Scene, options.RightCameraTransform, options.PoseAt, options.Camera));
 
-            Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery Left/Right renderovane z mapy).");
+            // Ground truth: motory ho posouvaji, GPS a IMU ho zasumene meri.
+            SimulatedRobot = new SimulatedRobot(options.WheelBase, TimeBase.Now)
+            {
+                X = options.StartX,
+                Y = options.StartY,
+                Theta = options.StartTheta,
+            };
+            SimulatedRobot.SetAcceleration(options.Acceleration);
+
+            sensors.Add((ISensor)(Motor = new VirtualMotors(SimulatedRobot)));
+            Motor.SetAcceleration(options.Acceleration);
+
+            sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, options.Sensors));
+            sensors.Add(IMU = new VirtualImu(SimulatedRobot, options.Sensors));
+
+            Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery, motory, GPS a IMU ze simulace).");
 
             if (CameraStateChanged != null)
                 CameraStateChanged();

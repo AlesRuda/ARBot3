@@ -37,6 +37,84 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-13
+
+- **Rebuild na čistém klonu + oprava `build_all.bat`.** Po smazání a novém klonu chyběla
+  `NativeLib.dll`; postavena. Skript sám padal na `'cmake' is not recognized` — CMake není
+  v systémové `PATH` (je jen ten z VS a přidá ho až `vcvars64.bat`, který skript nevolal) a druhá
+  půlka hlásila chyby WSL, protože distro Ubuntu na stroji není. Nejhorší bylo, že skript nakonec
+  vypsal „HOTOVO! Zkontrolujte složku /bin." i když nepostavil nic. Nově si VS najde přes `vswhere`,
+  ARM64 část se s vysvětlením přeskočí a souhrn říká pravdu (`[OK]`/`[CHYBÍ]` + nenulový exit).
+  Past při psaní: `wsl` u chybějící distribuce vrací **-1**, ale `if errorlevel 1` znamená „≥ 1",
+  takže záporný kód propadne jako úspěch — všechny kontroly teď porovnávají s nulou.
+  - **`RealSense 2.0/` je nově v gitu** → aplikace jde poprvé přeložit i pro `x64`.
+
+- **Mapa se zobrazuje ve world view.** `WorldViewDocument` `MapMsg` uměl už dřív, chyběl druhý
+  konec: runtime svou načtenou síť do Streamu neposílal. `ARBotRuntime.MapMessage` se publikuje
+  na konci `WireRun` (kdy je připojený i záznam → mapa se přehraje ve View) a pohled otevřený
+  až za běhu si ji vyzvedne z runtime (Stream zprávy nepřehrává).
+
+- **Virtuální motory, GPS a IMU — uzavřená simulační smyčka.** Nad ground-truth modelem
+  `SimulatedRobot` (`ARBot.Common/Simulation`) přibyly `VirtualMotors`, `VirtualGps` a `VirtualImu`
+  v `ARBot.HAL`. Model je ideální + rampa zrychlení; motory jsou **přesná inverze odometrie**
+  v `DefaultMeasurementMapper`, takže `omega`, které fúze spočítá, je to, které chtěl regulátor.
+  Zapnutí `virtualhw=true` teď vymění i motory/GPS/IMU, start řeší `start=lat,lon[,kurz]`
+  s fallbackem na přichycení k nejbližší hraně sítě. Detail: [virtual-hw.md](virtual-hw.md).
+  - **Integrace pohybu:** koncová rychlost dělala z rampy dvojnásobnou dráhu, lichoběžník zase
+    při velkém kroku rozmazal rychlou rampu přes celý interval → integruje se po 5 ms krocích.
+  - **Ověřeno testem uzavřené smyčky** přes skutečný `AsyncFusionEngine`: po jízdě rovně
+    i v oblouku je chyba odhadu polohy ~0,2 m a kurzu ~0,01 rad.
+
+- **Opraveno: `FusionConfig.WheelBase` bylo natvrdo 0,5 m** proti profilovým `Profile.Rozchod`
+  = 0,41 m a nikde se nesesouhlasovalo (přiřazení existovalo jen ve třech testech). Odometrická
+  úhlová rychlost tím byla systematicky podhodnocená o 18 % — **i na reálném robotu**. Nově se
+  bere z profilu, regresi hlídá `FusionConfigDefaultsTests`.
+
+- **Opravený závod ve `VirtualMotors`:** baseline enkodéru držené v poli přepisoval
+  `GetMeasurement` dřív, než báze stav zveřejnila, takže vyzvednutí v tom okně spárovalo přírůstek
+  s časem jiného vzorku (projevovalo se jako občas padající test v plné sadě). Nově se baseline
+  posouvá o přírůstek nesený přímo vyzvednutým stavem. **Stejnou strukturu má i `SDC2160Ex`.**
+
+- **Opraveno: odometrie hlásila nulovou rychlost, když ji nikdo nevyzvedával.**
+  `MotorStateBase.LeftWheelSpeed` se počítala jako `LeftEncoder / FramePickupPeriod`, jenže
+  `FramePickupPeriod` závisí na `GetLastMeasurement()` — a ten v runtime nevolá nikdo,
+  `MotorSource` jen odebírá událost. Bez otevřeného okna motorů tak do EKF teklo trvale
+  `Velocity(0)` a `AngularRate(0)`; s otevřeným se rychlost počítala přes interval překreslování
+  UI. **Týkalo se to i reálného robota.**
+  - **Řešení (`MotorStateBase` verze 2):** rychlost kol je vlastní pole, které plní driver ze
+    svého vzorkovacího intervalu, a enkodéry jsou kumulativní. Rychlost je tak vlastnost měření
+    v jeho čase, ne vlastnost odběru, a mezi oběma cestami odběru nezůstal žádný sdílený stav.
+    Upraveny `SDC2160Ex` i `SDC2160`. Zpětně: záznamy verze 1 se načtou, ale rychlosti v nich
+    nejsou (enkodér je tam přírůstek a doba vyzvednutí se neserializovala).
+  - Zajímavost: přesně takhle to dělal původní zakomentovaný driver `MD23` — odchýlil se až
+    `SDC2160Ex`.
+
+- **`start=` inicializuje EKF, ne jen simulaci.** Známá počáteční poloha jde přes
+  `AsyncFusionEngine.InitializePosition` rovnou do filtru (kurz jako `HeadingMeasurement`) —
+  **platí i pro reálný HW**, kde vím, kam jsem robota postavil. `start=gps` je výslovná volba
+  „počkej na fix" (dosud tichý fallback), v simulaci nemá smysl a spadne zpět na přichycení
+  k cestě. Bez zadání se na reálném HW nic nemění.
+
+- **První běh se simulovaným HW** (screenshot uživatele): senzory hlásí OK, robot jede po mapě.
+  Tři nálezy:
+  - **Robot se kreslil otočený o 180°** — `RobotGlyph.Draw` převádí obrys z původní WPF konvence
+    (osa Y dolů) přes `lym = -ly`, ale world view si ten výpočet rozkopíroval a převod v něm chyběl,
+    přestože komentář tvrdil „shodne s RobotGlyph". Opraveno zavedením společné `RobotGlyph.ToWorld()`,
+    kterou teď volají oba pohledy — duplikace byla příčinou, proč se to mohlo rozejít.
+    **Netestováno** (žádný testovací projekt nereferencuje `ARBot`).
+  - **„Trasa / graf" zůstává prázdná** — čeká na `GraphNavigationMsg`, kterou nikdo neemituje;
+    globální navigace zatím neexistuje. Ctrl+klik nastavuje cíl *lokálního* plánovače, ten se kreslí
+    do vrstvy „Lokální plán".
+  - **Poskakování polohy** je očekávané: virtuální GPS sype σ = 1,5 m a `FusionConfig.GpsPosStd`
+    je taky 1,5, takže filtr nepřehání důvěru — jen 1,5 m při 5 Hz je vidět, když robot skoro stojí.
+
+- **Poznamenáno k dořešení:** diagnostika EKF do streamu a záznamu — viz
+  [ekf-fusion.md](ekf-fusion.md) → „Otevřený úkol: diagnostika EKF do streamu a záznamu".
+  Zpráva `MeasurementDiagMsg` k tomu už existuje i je v katalogu, jen ji nikdo neplní.
+
+- **Ověřeno:** `ARBot.Common.Tests` 447/4, `ARBot.HAL.Tests` 23/1, aplikace se sestaví pro `x64`
+  i `OrangePI`. **Neověřeno:** běh aplikace se simulovaným HW po opravě natočení robota.
+
 ## 2026-08-12
 
 - **Zprovoznění repa na čistém počítači.** `NativeLib.dll` nešla vybuildit — `build_all.bat` hlásil

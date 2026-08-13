@@ -13,22 +13,34 @@ namespace ARBot.Common.Devices
     /// </summary>
     public class MotorStateBase : SensorStateBase, IMotorState
     {
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        /// <para>Verze 2: enkodery jsou KUMULATIVNI a rychlosti kol se prenaseji jako vlastni pole.
+        /// Do verze 1 byl enkoder prirustek od posledniho vyzvednuti a rychlost se z nej dopocitavala
+        /// pres <c>FramePickupPeriod</c> - to davalo nulu, kdyz mereni nikdo nevyzvedaval (v runtime
+        /// se motory odebiraji udalosti). Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        public const int FormatVersion = 2;
 
         bool emergencyStop;
         double leftEncoder, rightEncoder, voltage, leftMotorCurrent, rightMotorCurrent;
+        double leftWheelSpeed, rightWheelSpeed;
 
         /// <summary>
         /// Contructor
         /// </summary>
-        /// <param name="emergencyStop"></param>
-        /// <param name="leftEncoder"></param>
-        /// <param name="rightEncoder"></param>
-        /// <param name="voltage"></param>
-        /// <param name="leftMotorCurrent"></param>
-        /// <param name="rightMotorCurrent"></param>
-        public MotorStateBase(bool emergencyStop, double leftEncoder, double rightEncoder, double voltage, double leftMotorCurrent, double rightMotorCurrent)
+        /// <param name="emergencyStop">Aktivni nouzove zastaveni.</param>
+        /// <param name="leftEncoder">KUMULATIVNI ujeta draha leveho kola [m].</param>
+        /// <param name="rightEncoder">KUMULATIVNI ujeta draha praveho kola [m].</param>
+        /// <param name="voltage">Napeti baterie [V].</param>
+        /// <param name="leftMotorCurrent">Proud leveho motoru [A].</param>
+        /// <param name="rightMotorCurrent">Proud praveho motoru [A].</param>
+        /// <param name="leftWheelSpeed">Rychlost leveho kola [m/s] - meri ji driver ze SVEHO
+        /// vzorkovaciho intervalu, aby nezavisela na tom, kdo a kdy mereni cte.</param>
+        /// <param name="rightWheelSpeed">Rychlost praveho kola [m/s].</param>
+        public MotorStateBase(bool emergencyStop, double leftEncoder, double rightEncoder, double voltage,
+                              double leftMotorCurrent, double rightMotorCurrent,
+                              double leftWheelSpeed, double rightWheelSpeed)
             : base(FormatVersion)
         {
             this.emergencyStop = emergencyStop;
@@ -37,10 +49,12 @@ namespace ARBot.Common.Devices
             this.voltage=voltage;
             this.leftMotorCurrent=leftMotorCurrent;
             this.rightMotorCurrent = rightMotorCurrent;
+            this.leftWheelSpeed = leftWheelSpeed;
+            this.rightWheelSpeed = rightWheelSpeed;
         }
 
         /// <summary>Bezparametrický ctor (nutný pro Build/reflexi prototypů zpráv).</summary>
-        public MotorStateBase() : this(false, 0, 0, 0, 0, 0)
+        public MotorStateBase() : this(false, 0, 0, 0, 0, 0, 0, 0)
         {
         }
 
@@ -107,25 +121,11 @@ namespace ARBot.Common.Devices
         /// <summary>
         /// Left wheel speed in m/s
         /// </summary>
-        public double LeftWheelSpeed
-        {
-            get
-            {
-                var t = FramePickupPeriod.TotalSeconds;
-                return t < 0.001 ? 0 : LeftEncoder /t;
-            }
-        }
+        public double LeftWheelSpeed => leftWheelSpeed;
         /// <summary>
         /// Right wheel speed in m/s
         /// </summary>
-        public double RightWheelSpeed
-        {
-            get
-            {
-                var t = FramePickupPeriod.TotalSeconds;
-                return t<0.001?0:RightEncoder / t;
-            }
-        }
+        public double RightWheelSpeed => rightWheelSpeed;
 
         public override string ToString()
         {
@@ -145,6 +145,8 @@ namespace ARBot.Common.Devices
             bw.Write(voltage);
             bw.Write(leftMotorCurrent);
             bw.Write(rightMotorCurrent);
+            bw.Write(leftWheelSpeed);
+            bw.Write(rightWheelSpeed);
         }
 
         /// <inheritdoc/>
@@ -157,6 +159,20 @@ namespace ARBot.Common.Devices
             voltage = br.ReadDouble();
             leftMotorCurrent = br.ReadDouble();
             rightMotorCurrent = br.ReadDouble();
+
+            if (Verze >= 2)
+            {
+                leftWheelSpeed = br.ReadDouble();
+                rightWheelSpeed = br.ReadDouble();
+            }
+            else
+            {
+                // Verze 1 rychlosti neukladala (dopocitavala se z prirustku enkoderu a doby od
+                // vyzvednuti). Zpetne to nejde rekonstruovat - enkoder je tam prirustek, ne
+                // kumulativni hodnota, a doba vyzvednuti se neserializovala.
+                leftWheelSpeed = 0;
+                rightWheelSpeed = 0;
+            }
         }
     }
 }

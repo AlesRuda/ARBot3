@@ -1,4 +1,5 @@
 using System;
+using ARBot.Common.Configuration;
 using ARBot.Common.Coordinates;
 
 namespace ARBot.Common.Fusion
@@ -9,8 +10,15 @@ namespace ARBot.Common.Fusion
     /// </summary>
     public class FusionConfig
     {
-        /// <summary>Rozchod kol [m] - pro prepocet odometrie na uhlovou rychlost.</summary>
-        public double WheelBase = 0.5;
+        /// <summary>
+        /// Rozchod kol [m] - pro prepocet odometrie na uhlovou rychlost
+        /// (<c>omega = (vR - vL) / WheelBase</c>).
+        /// <para>Bere se z <see cref="Profile.Rozchod"/>, aby byl jeden zdroj pravdy: konfigurace
+        /// se v provozu nikde neprepisuje, takze nesouhlas s profilem by znamenal trvalou
+        /// systematickou chybu uhlove rychlosti (drive tu bylo natvrdo 0,5 proti profilovym
+        /// 0,41 = -18 %).</para>
+        /// </summary>
+        public double WheelBase = Profile.Rozchod;
 
         // --- procesni sum (near-constant-velocity) ---
         /// <summary>Smerodatna odchylka linearniho zrychleni [m/s^2].</summary>

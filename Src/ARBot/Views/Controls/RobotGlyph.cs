@@ -27,6 +27,30 @@ namespace ARBot.Views.Controls
         /// i world view k vykreslení robota jako metrického polygonu na mapě (mimo Avalonia render).</summary>
         public static IReadOnlyList<(double lx, double ly)> OutlineMeters => Outline;
 
+        /// <summary>
+        /// Prevede bod obrysu z lokalniho ramce robota do sveta ENU (east, north) pro danou orientaci.
+        /// <para><b>Pozor na konvenci obrysu:</b> <see cref="Outline"/> je v puvodni WPF konvenci
+        /// s osou <b>Y DOLU</b>, takze vpred je <c>-ly</c>. Prevod je proto soucasti teto metody -
+        /// drive byl rozkopirovany ve <see cref="Draw"/> a ve world view, kde se pri kopirovani
+        /// ztratil a robot se kreslil otoceny o 180 stupnu.</para>
+        /// </summary>
+        /// <param name="lx">Lokalni souradnice vpravo [m].</param>
+        /// <param name="ly">Lokalni souradnice v konvenci obrysu (Y dolu) [m].</param>
+        /// <param name="orientationRad">Orientace v matematickem smyslu (0 = vychod, +CCW).</param>
+        public static (double East, double North) ToWorld(double lx, double ly, double orientationRad)
+        {
+            double s = Math.Sin(orientationRad), c = Math.Cos(orientationRad);
+            return ToWorld(lx, ly, s, c);
+        }
+
+        /// <summary>Varianta s predpocitanym sinem a kosinem (pro smycky pres cely obrys).</summary>
+        public static (double East, double North) ToWorld(double lx, double ly, double sin, double cos)
+        {
+            double lym = -ly;                       // WPF Y dolu -> matematicke "vpred"
+            return (lx * sin + lym * cos,           // east
+                    -lx * cos + lym * sin);         // north
+        }
+
         /// <summary>Dosah tvaru od počátku (osy otáčení) v metrech — robot NENÍ symetrický
         /// (dozadu delší než dopředu). Pro layout, aby se celý robot vešel do pohledu.</summary>
         public static readonly double ForwardExtentMeters;
@@ -65,9 +89,7 @@ namespace ARBot.Views.Controls
             // dopredu). Pak: lokalni (lx vpravo, lym vpred) -> svet (rotace o orientaci) -> obrazovka.
             Point P(double lx, double ly)
             {
-                double lym = -ly;
-                double wx = lx * s + lym * c;
-                double wy = -lx * c + lym * s;
+                var (wx, wy) = ToWorld(lx, ly, s, c);
                 return new Point(cx + wx * pxPerMeter, cy - wy * pxPerMeter);
             }
 

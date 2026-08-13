@@ -181,6 +181,12 @@ namespace ARBot.ViewModels
                 doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
                 // Ctrl + klik v mape = cil lokalniho planovace (v Run; ve View navigace nebezi).
                 doc.GoalRequested = (x, y) => ARBotRuntime.Current.Navigator?.SetGoal(x, y);
+
+                // Mapa se na Stream publikuje jednou pri startu behu - pohled otevreny az potom
+                // by ji neuvidel, proto si ji vyzvedne z runtime.
+                var map = ARBotRuntime.Current.MapMessage;
+                if (map != null)
+                    doc.Post(map);
             }
             catch { /* runtime nedostupne (napr. design-time) */ }
 

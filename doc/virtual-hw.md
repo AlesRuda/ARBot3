@@ -1,26 +1,27 @@
 # Virtuální HW (simulované senzory)
 
 Simulované senzory, které se v aplikaci tváří jako reálné — robot „vidí" scénu odvozenou
-z načtené OsmNav mapy a vlastní pózy, bez připojeného hardwaru. První (a zatím jediný)
-obyvatel je **`VirtualCamera`** (náhrada D435: RGB + hloubka). Šev je ale navržený tak,
-aby vedle ní později přibyly **virtuální GPS a IMU**.
+z načtené OsmNav mapy, **jezdí po ní** a měří se zašuměnými GPS/IMU/odometrií, bez připojeného
+hardwaru. Obyvatelé: **`VirtualCamera`** (náhrada D435), **`VirtualMotors`**, **`VirtualGps`**
+a **`VirtualImu`** nad společným ground-truth modelem **`SimulatedRobot`**.
 
-> **Stav (2026-08-12): implementováno, na HW neověřeno.** `RoadScene`, `SyntheticFrameRenderer`,
-> `VirtualCamera` i drátování (`SetRealHW`/`SetVirtualHW`) hotové a pokryté testy. Neintegrováno:
-> sdílení mapy s `WorldViewDocument` (viz „Otevřené / budoucí").
+> **Stav (2026-08-13): implementováno a otestováno včetně uzavřené smyčky.**
+> Běh celé aplikace se simulovaným HW zatím neověřen.
 
 ## Účel
 
-Dva doložené případy užití (určují míru věrnosti):
+Tři doložené případy užití (určují míru věrnosti):
 
 1. **Vývoj vizuální cesty bez HW** — ladit řetěz depth → polární grid → occupancy →
    lokální plánování na počítači bez kamer. Rozhoduje **geometrická** věrnost, ne
    fotorealismus.
 2. **Reprodukovatelné automatické testy** — deterministický vstup pro testy vizuální
    cesty. Šum proto musí být seedovatelný a vypnutelný.
+3. **Uzavřená smyčka** — robot v simulaci skutečně jede: regulátor řídí motory, ty posouvají
+   ground truth, senzory ho zašuměně měří a fúze ho odhaduje zpět.
 
-Mimo rozsah: uzavřená smyčka (simulace pohybu robota), fotorealistický vzhled,
-jiné objekty než vozovka a okolní tráva.
+Mimo rozsah: fotorealistický vzhled, jiné objekty než vozovka a okolní tráva, prokluz kol
+a dynamika podvozku.
 
 ## Architektura
 
@@ -31,6 +32,10 @@ Renderer je oddělený od kamery — tři jednotky s jasnou hranicí:
 | `ARBot.Common/Vision/Synthetic/RoadScene.cs` | Geometrie scény v lokální ENU rovině: úseky vozovky (osa + šířka) postavené z `RoadNetwork` přes `GeoReference` + prostorový index | Čistý algoritmus bez HW → `Common` (směr závislostí `Common ← HAL ← app`) |
 | `ARBot.Common/Vision/Synthetic/SyntheticFrameRenderer.cs` | Vlastní vykreslení: (scéna, póza, projekce) → naplní `Image<BGR32>` + `Image<Gray16>` | Jádro, které se testuje deterministicky. Nezná `ICamera` ani senzory |
 | `ARBot.HAL/Devices/Camera/VirtualCamera.cs` | `SensorBase<CameraFrame>, ICamera` — časování snímků, capture pool, `CreateProjector()` / `CreateDepthProjector()` | Bez platformní závislosti → do **`ARBot.HAL`**, ne do `HALWindows`/`HALArmbian`. Jedna kopie pro x64 i OrangePI a **nezávislá na Intel.RealSense** |
+| `ARBot.Common/Simulation/SimulatedRobot.cs` | **Ground truth**: skutečná póza (X, Y, Θ), rychlosti kol, integrály enkodérů; `Drive`, `SetAcceleration`, `Advance(t)` | Čistý model pohybu bez HW → `Common`. Thread-safe: motory do něj píšou z řídicí smyčky, senzory čtou každý ze svého vlákna |
+| `ARBot.HAL/Devices/MotorDriver/VirtualMotors.cs` | `IMotorControl` — příkazy do simulátoru, zpět `MotorStateBase` (odometrie) | Slupka nad modelem, stejný vzor jako `VirtualCamera` |
+| `ARBot.HAL/Devices/GPS/VirtualGps.cs` | `IGPS` — pravá póza → `GeoReference` → LLA + šum → `GPSState` | |
+| `ARBot.HAL/Devices/AHRS/VirtualImu.cs` | `IIMU` — pravý kurz jako kvaternion + `omega` z gyra + šum → `IMUState` | |
 
 ### Projekce
 
@@ -87,19 +92,143 @@ Až vlastník počátku vznikne (GPS adapter nebo virtuální GPS), v kameře se
 `null` bez mapy) — naplní je při startu z `.osm` podle parametrů. Je to první krok k otevřenému
 úkolu z [osm-nav.md](osm-nav.md) → „Napojení na řídicí smyčku".
 
-`WorldViewDocument` si **zatím pořád načítá mapu vlastní cestou** — sdílení s runtime hotové
-není (viz „Otevřené / budoucí").
+Načtená síť se navíc publikuje na `Stream` jako `MapMsg` (`ARBotRuntime.MapMessage`) — až
+**úplně nakonec** `WireRun`, kdy je připojený záznam i otevřené dokumenty. World view ji tedy
+vykreslí sám a současně se uloží do záznamu, takže se **přehraje i ve View**. Pohled otevřený
+až za běhu by jednorázovou zprávu prošvihl (Stream zprávy nepřehrává), proto si ji při otevření
+vyzvedne z `ARBotRuntime.MapMessage`.
+
+`WorldViewDocument` si pořád **umí** načíst mapu i vlastní cestou (file picker) — ta cesta zůstává.
 
 ### Parametry příkazové řádky
 
 | Parametr | Význam |
 |---|---|
-| `virtualhw=true` | zapne simulované kamery místo D435 |
+| `virtualhw=true` | zapne simulovaný HW (kamery, motory, GPS, IMU) místo reálného |
 | `map=<cesta.osm>` | mapa, ze které se scéna renderuje (bez ní zůstane reálný HW) |
 | `roadwidth=<m>` | výchozí šířka cesty pro uzly bez `width` (default 3) |
+| `start=lat,lon[,kurz]` | známá počáteční póza → vloží se do EKF (**platí i pro reálný HW**); bez ní se v simulaci přichytí na nejbližší cestu |
 
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
+
+## Pohyb: `SimulatedRobot` a virtuální motory
+
+Model pohybu je **ideální plus rampa zrychlení** — žádný prokluz ani systematická chyba.
+Rychlost každého kola se rampuje k cíli podle `SetAcceleration`, pak se integruje unicycle:
+
+```
+v = (vL + vR) / 2        omega = (vR − vL) / rozchod
+X += v·cosΘ·dt           Y += v·sinΘ·dt           Θ += omega·dt
+```
+
+### Motory jsou přesná inverze odometrie
+
+`VirtualMotors.Drive(v, difSpeed)` rozloží příkaz na `vR = v + difSpeed`, `vL = v − difSpeed`.
+Když pak `DefaultMeasurementMapper` spočítá z hlášených rychlostí kol `omega = (vR − vL)/rozchod`,
+vyjde **přesně to `omega`, které chtěl regulátor** (`difSpeed = omega·rozchod/2`). Je to táž
+symetrie jako u kamery (renderer = inverze rozbalení hloubky) a ze stejného důvodu: neshoda pak
+znamená skutečnou chybu, ne artefakt simulace.
+
+Dvojitou negaci ve skutečném driveru (`SDC2160Ex.Drive` posílá `-CalcSpeed(...)` u obou složek —
+kompenzace zapojení motorů) simulace **nekopíruje**; to je detail hardwaru, ne konvence rozhraní.
+
+> **Pozor na zastaralý komentář.** `IMotorControl.Drive` v první větě tvrdí „Positive value -
+> right rotation, left motor is faster", ale hned pod tím uvádí `difSpeed = omega·rozchod/2`
+> a MicroBasic skript v jednotce má u rotační rychlosti „kladná hodnota je v matematickém smyslu".
+> Platí formule: **kladné `difSpeed` = otáčení doleva (CCW)**. První věta je relikt.
+
+### Start robota — známá póza jde rovnou do EKF
+
+Parametr `start=lat,lon[,kurzDeg]` **není věcí simulace**: pokud je zadaný, vloží se poloha
+rovnou do filtru přes `AsyncFusionEngine.InitializePosition` a kurz se pošle jako
+`HeadingMeasurement`. Platí to **i pro reálný robot** — když vím, kam jsem ho postavil, nemá
+smysl to filtru tajit a čekat, až polohu určí první GPS fix. Následná měření polohu jen korigují.
+
+Je to přesně případ, pro který `InitializePosition` vznikla: filtr startuje s `P0 = I` (σ = 1 m),
+takže první fix stovky metrů daleko by gating zahodil a robot by se „nenašel". Rozhodnutí
+„téhle poloze už věřím" patří volajícímu.
+
+Kurz se **neinicializuje**, jen posílá jako měření — na rozdíl od polohy je jeho chyba omezená
+a filtr si ho srovná (v simulaci navíc okamžitě z IMU).
+
+Bez `start=` se póza hádá **jen v simulaci**: robot se přichytí na nejbližší hranu sítě
+(`RoadNetwork.NearestEdge`) od středu mapy a natočí se podél ní, takže vždy stojí na cestě.
+Na reálném HW se bez zadání nic neinicializuje a zůstává původní chování (první GPS fix).
+
+Vedlejší, ale praktický efekt: kamera bere pózu z fúze, takže **bez inicializace by nedodávala
+snímky až do prvního fixu**. Se zadaným startem jede od začátku.
+
+## Senzory: GPS a IMU
+
+Obojí čte ground truth a přidává šum; frekvence jsou blízko skutečným zařízením.
+
+| Senzor | Takt | Co produkuje |
+|---|---|---|
+| `VirtualImu` | 100 Hz | `IMUState`: `Rotation` (kvaternion z pravého kurzu), `AngularVelocity.Z` = `omega`, `OrientationUncertainty.X` = σ kurzu |
+| `VirtualGps` | 5 Hz | `GPSState`: `Latitude`/`Longitude` ve **stupních**, `Quality = GpsFix`, `Speed` |
+| `VirtualMotors` | 50 Hz | `MotorStateBase`: rychlosti kol + integrály enkodérů, `IsEmergencyStop = false` |
+
+**Tři pasti, které testy hlídají** (všechny jsou v kódu explicitně varované):
+
+- `GPSState.Latitude/Longitude` jsou ve **stupních**, `LLA` drží radiány. Mapper na to má
+  varování velkými písmeny — chyba znamená posun o stovky kilometrů bez jediného hlášení.
+- `IMUState.Rotation` je kvaternion, ze kterého mapper bere `YPR().Yaw`; musí vyjít přesně
+  skutečný kurz v ENU konvenci.
+- `AngularVelocity.Z` je v **body** rámci.
+
+Šum je stejného druhu jako u kamery — čistá funkce `(seed, pořadí vzorku, kanál)`, každá složka
+vypnutelná nulou. Volba „ideální motory" se týká **modelu pohybu**, ne senzorů: odometrie hlásí
+přesné rychlosti kol, ale GPS a IMU šum mají, jinak by fúze neměla co opravovat.
+
+| Parametr | Default |
+|---|---|
+| σ polohy GPS | 1,5 m |
+| σ rychlosti GPS | 0,1 m/s |
+| σ kurzu IMU | 1° |
+| σ gyra | 0,5 °/s |
+
+### Rychlost kol měří driver (oprava, `MotorStateBase` verze 2)
+
+Do verze 1 hlásil `MotorStateBase` v `LeftEncoder`/`RightEncoder` **přírůstek od posledního
+vyzvednutí** a rychlost z něj dopočítával jako `LeftEncoder / FramePickupPeriod`.
+`FramePickupPeriod` se ale odvozuje od `lastPickupTimeStamp`, který nastavuje **jedině
+`GetLastMeasurement()`** — a v runtime se motory odebírají **událostí** (`MotorSource`),
+takže je nevyzvedával nikdo kromě UI dokumentu `MotorControlDocument`. Bez otevřeného okna
+motorů tak `LeftWheelSpeed` vracela 0 a do EKF teklo `Velocity(0)` a `AngularRate(0)`
+padesátkrát za sekundu; s otevřeným oknem se rychlost počítala přes interval překreslování UI.
+Týkalo se to **i reálného robota**.
+
+Od verze 2 platí:
+
+- **rychlost kol je vlastní pole zprávy**, které plní driver ze **svého** vzorkovacího intervalu.
+  Rychlost je tak vlastnost měření v jeho čase, ne vlastnost toho, kdo a kdy si ho přečetl —
+  což je podstatné pro EKF i `SlipDetector`;
+- **enkodéry jsou kumulativní**, takže si libovolný odběratel spočítá přírůstek přes svůj
+  interval, a nepřijde o něj, ani když nějaký vzorek přeskočí.
+
+Tím zmizel sdílený stav mezi oběma cestami odběru, místo aby se zdvojoval. Mimochodem přesně
+takhle to dělal původní (dnes zakomentovaný) driver `MD23` — `left + last.LeftEncoder`
+kumulativně a rychlost zvlášť; odchýlil se až `SDC2160Ex`.
+
+Starší záznamy (verze 1) se načtou dál, ale **rychlosti kol v nich nejsou** a zpětně je nelze
+dopočítat: enkodér je v nich přírůstek a doba vyzvednutí se neserializovala.
+
+### Časování
+
+`SimulatedRobot` integruje **na vyžádání**: `Advance(t)` pod zámkem, každý senzor si před čtením
+posune stav na svůj čas. Hodiny jsou `TimeBase.Now`, tedy tytéž, které razítkují snímky kamery.
+Za běhu to bitově reprodukovatelné není (`dt` z reálných hodin); v testech se `Advance(t)` volá
+s explicitními časy, takže tam determinismus je.
+
+### Póza kamery zůstává z fúze
+
+Kamera bere pózu dál z `engine.GetStateAt(t)`, ne z ground truth — **vědomé rozhodnutí**.
+Důsledek: obraz vždy „sedí" s odhadem, takže **chyba lokalizace není v obraze vidět**. Kdyby
+bylo potřeba ji zviditelnit, stačí `PoseAt` namířit na `SimulatedRobot`; nic dalšího se nemění.
+
+Praktický důsledek: `GetStateAt` vrací `null`, dokud fúze nemá inicializovanou polohu, takže
+kamera začne dodávat snímky **až po prvním virtuálním GPS fixu** (do té doby snímky přeskakuje).
 
 ## Model světa
 
@@ -209,32 +338,44 @@ kamera rovnou renderuje podle montážní transformace z `Profile`.
 - **Nulový šum** — hloubka přesně na rovině (analyticky ověřitelné).
 - **Klasifikace** — tráva projde `PolarTraversabilityGrid` jako nesjízdná, vozovka jako sjízdná.
 
+K pohybu a senzorům:
+
+- **`SimulatedRobot`** — jízda rovně posune polohu o `v·t`; otáčení na místě mění kurz o `omega·t`
+  a **doleva** pro kladné `difSpeed`; rampa zrychlení omezí přírůstek rychlosti.
+- **Motory jsou inverzí odometrie** — `Drive(v, difSpeed)` → `MotorState` → mapper → zpět `v`
+  a `2·difSpeed/rozchod`.
+- **GPS round-trip** — pravé (x, y) → `GPSState` → mapper se stejnou `GeoReference` → zpět (x, y)
+  v mezích šumu. Chytá past se stupni.
+- **IMU round-trip** — pravý kurz → `IMUState` → mapper → `HeadingMeasurement` se stejným yaw
+  (ošetřené přetečení přes ±π).
+- **Uzavřená smyčka (hlavní)** — simulátor + všechny tři senzory + **skutečný `AsyncFusionEngine`
+  a `DefaultMeasurementMapper`** → jízda rovně i v oblouku → odhad fúze sleduje ground truth
+  v dané toleranci. Tenhle test říká, jestli to celé funguje; ostatní jen lokalizují chybu.
+- **`SetVirtualHW`** — po zavolání jsou `hw.Motor`, `hw.GPS` i `hw.IMU` virtuální a `Sensors`
+  je obsahuje.
+
 ## Stav ověření
 
 | Co | Jak ověřeno |
 |---|---|
 | `RoadScene`, `SyntheticFrameRenderer` | `ARBot.Common.Tests` na `x64` (13 testů vč. round-tripu a klasifikace) |
-| `VirtualCamera` | `ARBot.HAL.Tests` na `x64` (3 testy, bez HW) |
-| Drátování v `ARBotHW` / `ARBotRuntime` | **jen překlad** — celá aplikace se sestaví pro `OrangePI` |
-| Běh aplikace se simulovanými kamerami | **neověřeno** |
-
-Aplikaci nelze na tomto stroji přeložit pro `x64`, protože chybí složka `RealSense 2.0/`
-(viz [build-and-platforms.md](build-and-platforms.md) → Externí závislosti) a bez ní se
-nesestaví `ARBot.HALWindows`. Platforma `OrangePI` ji nepoužívá (bere `ARBot.HALArmbian`
-se zdrojově překládaným wrapperem), takže překlad aplikační vrstvy ověřit šlo — ale skutečný
-běh, obraz v UI ani chování celé smyčky se simulovanými kamerami zatím ne.
+| `SimulatedRobot` | `ARBot.Common.Tests` (3 testy: přímá jízda, otáčení, rampa) |
+| `VirtualCamera` | `ARBot.HAL.Tests` (3 testy, bez HW) |
+| `VirtualMotors` | `ARBot.HAL.Tests` (2 testy vč. round-tripu přes mapper) |
+| `VirtualGps`, `VirtualImu` | `ARBot.HAL.Tests` (3 testy, round-trip přes mapper) |
+| **Uzavřená smyčka přes skutečnou fúzi** | `ARBot.HAL.Tests` (1 test; chyba polohy ~0,2 m, kurzu ~0,01 rad po jízdě rovně i v oblouku) |
+| Drátování v `ARBotHW` / `ARBotRuntime` | **jen překlad** (`x64` i `OrangePI`) |
+| Běh aplikace se simulovaným HW | **neověřeno** |
 
 ## Otevřené / budoucí
 
-- **Sdílení mapy s `WorldViewDocument`** — runtime už síť drží (`ARBotRuntime.RoadNetwork`),
-  ale UI si ji pořád načítá vlastní cestou. Sjednotit, aby byla v aplikaci jedna.
 - **Drsnost trávy je per pixel, ne per místo v terénu** — výška se rozhazuje podle pixelu
   a snímku, takže při pohybu robota „bliká" místo aby byla svázaná se zemí. Pro rozptyl výšky
   v buňce polárního gridu (kvůli čemuž tam je) to stačí; pro časovou konzistenci mezi snímky ne.
   Oprava: hashovat podle kvantované světové polohy zásahu a jednou zpřesnit průsečík.
-- **Virtuální GPS a IMU** — přibydou do `VirtualHWOptions`, `SetVirtualHW` je založí vedle kamer.
-- **Ground-truth póza.** Až budou virtuální GPS/IMU, přestane dávat smysl brát pózu z fúze —
-  fúze by četla sama sebe přes vlastní virtuální senzory. Póza pak musí jít ze simulovaného
-  pohybu (ground truth). Šev je stejný: `PoseAt` se namíří jinam, `VirtualCamera` se nemění.
+- **Chyba lokalizace není v obraze vidět** — plyne z rozhodnutí brát pózu kamery z fúze
+  (viz „Póza kamery zůstává z fúze"). Přepnutí na ground truth je jednořádkové, až bude potřeba.
+- **Prokluz a dynamika podvozku** — model je ideální, takže odometrie proti skutečnosti nedriftuje
+  a fúze opravuje jen šum GPS/IMU.
 - **Obloha jako samostatná barva** (dnes zelená jako tráva).
 - **Objekty mimo vozovku** (překážky, zdi) — dnes scéna zná jen vozovku a trávu.

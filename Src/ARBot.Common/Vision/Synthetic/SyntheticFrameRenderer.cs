@@ -3,6 +3,7 @@ using System.Numerics;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Fusion;
+using ARBot.Common.Simulation;
 
 namespace ARBot.Common.Vision.Synthetic
 {
@@ -79,7 +80,7 @@ namespace ARBot.Common.Vision.Synthetic
                     if (s == Surface.None) continue;
 
                     if (options.DepthNoiseM > 0)
-                        range += SyntheticNoise.Gaussian(options.Seed, frameIndex, pixel, ChannelDepth)
+                        range += DeterministicNoise.Gaussian(options.Seed, frameIndex, pixel, ChannelDepth)
                                  * options.DepthNoiseM;
 
                     int mm = (int)Math.Round(range * 1000.0);
@@ -188,7 +189,7 @@ namespace ARBot.Common.Vision.Synthetic
         {
             if (options.ColorNoise <= 0) return value;
 
-            double v = value + SyntheticNoise.Gaussian(options.Seed, frameIndex, pixel, channel) * options.ColorNoise;
+            double v = value + DeterministicNoise.Gaussian(options.Seed, frameIndex, pixel, channel) * options.ColorNoise;
             if (v <= 0) return 0;
             if (v >= 255) return 255;
             return (byte)Math.Round(v);
@@ -203,7 +204,7 @@ namespace ARBot.Common.Vision.Synthetic
             if (options.GrassRoughnessM <= 0) return options.GrassHeightM;
 
             return options.GrassHeightM
-                   + SyntheticNoise.Gaussian(options.Seed, frameIndex, pixel, ChannelGrass)
+                   + DeterministicNoise.Gaussian(options.Seed, frameIndex, pixel, ChannelGrass)
                      * options.GrassRoughnessM;
         }
 
