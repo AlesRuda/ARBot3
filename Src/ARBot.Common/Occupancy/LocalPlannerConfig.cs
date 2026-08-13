@@ -46,7 +46,15 @@ namespace ARBot.Common.Occupancy
         public double EpsMax = 0.15;
 
         /// <summary>Maximalni delka planovane drahy [m] (horizont lokalniho planu).</summary>
-        public double HorizonM = 6.0;
+        /// <remarks>
+        /// NENI to radius, ale <b>maximalni delka planovane drahy</b> - planovac preruší expanzi,
+        /// jakmile <c>lenFromStart >= HorizonM</c>. Globalni navigace pokláda mrkev az na okraj
+        /// lokalni mapy (~6,4 m vzdusne), ale cesta k ni pres bludiste muze mit 20 i 30 m; s puvodnimi
+        /// 6 m by se plan utnul v polovine a mrkev by byl nedosazitelny pokazde, kdyz cesta neni skoro
+        /// prima. Cena je jen vypocetni (A* smi v nejhorsim expandovat cely grid).
+        /// Viz doc/global-navigation-runtime.md.
+        /// </remarks>
+        public double HorizonM = 25.0;
 
         /// <summary>
         /// Radius "eskapovaci zony" okolo vychozi bunky [m], ve ktere se pripousti i mensi odstup nez

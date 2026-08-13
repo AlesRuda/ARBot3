@@ -34,7 +34,7 @@ namespace ARBot.Common.Occupancy
     /// gridu; drzet plan spocteny nad starsi mapou = jet proti dukazum, ktere robot uz ma. Stabilitu
     /// resi cena otoceni v <see cref="LocalPathPlanner"/>, ne lepivost v case.</para>
     /// </summary>
-    public sealed class LocalNavigator : MessageProcessor
+    public sealed class LocalNavigator : MessageProcessor, ARBot.Common.Runtime.ILocalGoalSink
     {
         private readonly AsyncFusionEngine engine;
         private readonly Func<string, ICameraProjection> depthProjectionResolver;
@@ -59,6 +59,9 @@ namespace ARBot.Common.Occupancy
         private readonly object goalLock = new object();
         private bool hasGoal;
         private double goalX, goalY;
+
+        /// <summary>Sirka koridoru cesty v miste cile [m]; zatim jen ulozena (faze 4b).</summary>
+        private double goalCorridorWidth;
 
         /// <summary>Occupancy grid, ktery smycka akumuluje (jen ke cteni zvenci - vlastni ho toto vlakno).</summary>
         public OccupancyGrid Grid => grid;
@@ -126,12 +129,17 @@ namespace ARBot.Common.Occupancy
         /// Nastavi cil lokalniho planovani [m, world ENU]. Volatelne z jineho vlakna (UI).
         /// Cil dal nez grid se orizne na jeho hranici - jede se jeho smerem.
         /// </summary>
-        public void SetGoal(double worldX, double worldY)
+        /// <param name="corridorWidthM">
+        /// Sirka koridoru cesty v miste cile [m]; zatim se jen prijima (test prurezu koridorem
+        /// je faze 4b v doc/global-navigation-runtime.md). 0 = neresit.
+        /// </param>
+        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0)
         {
             lock (goalLock)
             {
                 goalX = worldX;
                 goalY = worldY;
+                goalCorridorWidth = corridorWidthM;
                 hasGoal = true;
             }
         }

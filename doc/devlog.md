@@ -37,6 +37,31 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-13 (odpoledne)
+
+- **Globální navigace, fáze 2 a 3** podle [global-navigation-runtime.md](global-navigation-runtime.md).
+  Robot teď jede k cíli po OSM síti a trasa je vidět v mapě.
+  - **`RouteCarrot`** — jádro celé vrstvy: mrkev je *poslední bod trasy uvnitř lokální mapy*,
+    počítáno od průmětu robota k **prvnímu** výstupu. První výstup a ne poslední proto, že kdyby se
+    trasa z mapy vynořila a zase vrátila, byl by pozdější kus s robotem nespojený a lokální plánovač
+    by cíl na něm neobsloužil. Čistá funkce, 4 testy.
+  - **`GlobalNavigator`** (`MessageProcessor`, odebírá jen `RobotStateMsg`, ne celý Stream) —
+    póza → LLA → `Navigator.Update` → mrkev → `ILocalGoalSink.SetGoal`. Stavy `NoGoal`/`Driving`/
+    `GoalInMap`/`Arrived`/`OffRoute`/`NoRoute`, nová `GlobalNavMsg` (v katalogu → do záznamu a do View).
+    8 testů nad syntetickou sítí, bez gridu i bez HW.
+  - **Trasa do `GraphNavigationMsg`** při změně trasy nebo jednou za `RouteMessagePeriod` — rozsvítí
+    se vrstva „Trasa / graf". Ctrl+klik nově míří do globální vrstvy jako LLA (kus fáze 5 předtažený,
+    jinak by nešlo fáze 2–3 vyzkoušet).
+  - **`ILocalGoalSink`** dán do `ARBot.Common/Runtime`, ne do `Occupancy` — aby `OsmNav`
+    a `Occupancy` na sobě nezávisely, jak návrh vyžaduje.
+  - **Změny parametrů podle návrhu:** `LocalPlannerConfig.HorizonM` 6 → **25 m** (není to radius, ale
+    délka dráhy; mrkev na okraji mapy je vzdušně 5,9 m, ale cesta k ní přes bludiště klidně 30 m),
+    `NavigatorOptions.ArrivalRadiusMeters` 12 → **3 m**.
+  - Past při psaní testů: síť je **edge-based**, takže přechody jsou odbočení a musí se registrovat
+    `AddTurn` — bez nich trasa neexistuje. Testovací síť to zpočátku neměla a hlásila `NoRoute`.
+- **Neověřeno:** běh v aplikaci. Fáze 4 (detektory záseku/bloudění/přehrazení a uzavírání hran)
+  a fáze 6 (ověření na HW) zůstávají otevřené.
+
 ## 2026-08-13
 
 - **Rebuild na čistém klonu + oprava `build_all.bat`.** Po smazání a novém klonu chyběla

@@ -39,6 +39,7 @@ namespace ARBot.Views
                 // Ctrl + klik = zadani cile lokalniho planovace. Ctrl proto, aby se to nepletlo
                 // s beznym pan/zoom (viz doc/occupancy-and-local-planning.md).
                 mapControl.PointerPressed += OnMapPointerPressed;
+                mapControl.PointerMoved += OnMapPointerMoved;
                 host.Children.Insert(0, mapControl);
             }
 
@@ -58,6 +59,34 @@ namespace ARBot.Views
                 var world = mapControl.Map.Navigator.Viewport.ScreenToWorld(p.X, p.Y);
                 if (vm.RequestGoalFromMercator(world.X, world.Y))
                     e.Handled = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+
+        /// <summary>
+        /// Tooltip nad znackami (start / cil / mrkev). Znacky se od sebe lisi jen barvou, takze bez
+        /// popisu jsou to tri puntiky bez vysvetleni. Hit-test delame nad vlastnimi daty ViewModelu
+        /// (pozice znacek si stejne stavime sami), tolerance se prepocita z rozliseni viewportu,
+        /// aby byla konstantni v pixelech nezavisle na zoomu.
+        /// </summary>
+        private void OnMapPointerMoved(object? sender, Avalonia.Input.PointerEventArgs e)
+        {
+            if (mapControl == null || DataContext is not WorldViewDocument vm) return;
+
+            try
+            {
+                var p = e.GetPosition(mapControl);
+                var viewport = mapControl.Map.Navigator.Viewport;
+                var world = viewport.ScreenToWorld(p.X, p.Y);
+
+                const double hitRadiusPx = 12.0;
+                string? tip = vm.FindMarkerTip(world.X, world.Y, hitRadiusPx * viewport.Resolution);
+
+                ToolTip.SetTip(mapControl, tip);
+                ToolTip.SetIsOpen(mapControl, tip != null);
             }
             catch (Exception ex)
             {

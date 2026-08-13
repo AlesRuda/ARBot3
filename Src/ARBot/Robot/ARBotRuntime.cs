@@ -14,6 +14,7 @@ using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Graph;
+using ARBot.Common.Maps.OsmNav.Navigation;
 using ARBot.Common.Maps.OsmNav.Osm;
 using ARBot.Common.Models;
 using ARBot.Common.Occupancy;
@@ -266,6 +267,26 @@ namespace ARBot.Robot
             connections.Add(loop.Output.Connect(navigator));
             connections.Add(navigator.Output.Connect(stream));
 
+            // Globalni navigace: trasa po OSM siti + "mrkev" pro lokalni vrstvu. Bez mapy nevznikne.
+            // Odebira POUZE RobotStateMsg z ridici smycky (ne cely Stream - tam tecou CameraFrame
+            // s ~1 MB obrazu). Viz doc/global-navigation-runtime.md.
+            if (RoadNetwork != null && fusionConfig.GeoReference != null)
+            {
+                var globalNav = new GlobalNavigator(
+                    RoadNetwork, fusionConfig.GeoReference, navigator,
+                    new GlobalNavigatorConfig
+                    {
+                        // Polovina hrany occupancy gridu - aby globalni vrstva nemusela znat occupancy.
+                        LocalMapHalfExtentM = new OccupancyGridConfig().Size
+                                              * new OccupancyGridConfig().Resolution / 2.0,
+                    });
+
+                GlobalNavigator = globalNav;
+                stages.Add(globalNav);
+                connections.Add(loop.Output.Connect(globalNav));
+                connections.Add(globalNav.Output.Connect(stream));
+            }
+
             // Odvozene vystupy stupnu -> Stream.
             connections.Add(loop.Output.Connect(stream));
 
@@ -335,6 +356,12 @@ namespace ARBot.Robot
         /// null = bez mapy.
         /// </summary>
         public MapMsg MapMessage { get; private set; }
+
+        /// <summary>
+        /// Globalni navigace (trasa po OSM siti). null = bez mapy nebo mimo rezim Run.
+        /// Vystavena UI pro zadani cile. Viz doc/global-navigation-runtime.md.
+        /// </summary>
+        public GlobalNavigator GlobalNavigator { get; private set; }
 
         /// <summary>
         /// Nacte silnicni sit z parametru <c>map=&lt;cesta.osm&gt;</c> do <see cref="RoadNetwork"/> a

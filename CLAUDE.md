@@ -74,8 +74,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   predikce trajektorie a detekce kolizí (`Colider`). Mapa kódu + odkaz na návrhové PDF.
 - [doc/global-navigation-runtime.md](doc/global-navigation-runtime.md) — **napojení OsmNav na runtime**
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
-  detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Návrh, neimplementováno**; obsahuje
-  blokující prerekvizitu (GPS + odometrie do EKF).
+  detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–3 hotové** (jízda k cíli po síti
+  + trasa v mapě), fáze 4 (detektory záseku) a 6 (ověření na HW) otevřené.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI

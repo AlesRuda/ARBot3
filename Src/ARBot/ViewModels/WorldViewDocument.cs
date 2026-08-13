@@ -426,6 +426,16 @@ namespace ARBot.ViewModels
         /// </summary>
         private GeoReference? BuildGeoReference()
         {
+            // Pevny pocatek z nactene mapy (stred obalky uzlu) - tentyz, se kterym pocita fuze
+            // i navigace. Dokud existuje, je to jedina spravna volba.
+            var mapOrigin = ARBot.Robot.ARBotRuntime.Current?.MapOrigin;
+            if (mapOrigin != null)
+                return mapOrigin;
+
+            // Fallback bez mapy: pocatek se dopocita z posledniho fixu a pozy.
+            // POZOR: takovy pocatek se posouva s KAZDYM fixem (pri sigma 1,5 m o metry), takze
+            // vsechno kreslene v lokalnim ENU - trasa, occupancy, plan, znacky - s nim poskakuje.
+            // Je to jen nouzova varianta pro beh bez mapy. Viz doc/global-navigation-runtime.md.
             if (lastGps == null || lastRobot == null || !IsValidFix(lastGps))
                 return null;
             var gpsLLA = LLA.FromDegrees(lastGps.Latitude, lastGps.Longitude);
@@ -625,15 +635,59 @@ namespace ARBot.ViewModels
             }
             routeLayer.Features = edges;
 
-            // Znacky: start / cil / vysledek.
-            var markers = new List<IFeature>
+            // Znacky: start / cil / vysledek. K rozliseni slouzi barva, takze k nim drzime
+            // i popis pro tooltip - jinak jsou to tri barevne puntiky bez vysvetleni.
+            var markers = new List<IFeature>();
+            var tips = new List<(double X, double Y, string Text)>();
+
+            void AddMarker(MPoint at, Color color, string text)
             {
-                MakeMarker(LocalToMerc(gn.StartX, gn.StartY), new Color(0x4C, 0xAF, 0x50)),   // start - zelena
-                MakeMarker(LocalToMerc(gn.TargetX, gn.TargetY), new Color(0xE5, 0x39, 0x35)), // cil - cervena
-            };
+                markers.Add(MakeMarker(at, color));
+                tips.Add((at.X, at.Y, text));
+            }
+
+            AddMarker(LocalToMerc(gn.StartX, gn.StartY), new Color(0x4C, 0xAF, 0x50),
+                      "Start – poloha robota, ze které se trasa počítá");
+            AddMarker(LocalToMerc(gn.TargetX, gn.TargetY), new Color(0xE5, 0x39, 0x35),
+                      "Cíl – zadaný cíl globální navigace (Ctrl + klik do mapy)");
+
             if (gn.ResultX.HasValue && gn.ResultY.HasValue)
-                markers.Add(MakeMarker(LocalToMerc(gn.ResultX.Value, gn.ResultY.Value), new Color(0x21, 0x96, 0xF3)));
+                AddMarker(LocalToMerc(gn.ResultX.Value, gn.ResultY.Value), new Color(0x21, 0x96, 0xF3),
+                          "Mrkev – bod na trase předaný lokálnímu plánovači;\n"
+                          + "je to poslední bod trasy uvnitř lokální mapy, aby plánovač\n"
+                          + "prohledal celou známou mapu a nezajel do slepé odbočky");
+
             markerLayer.Features = markers;
+            markerTips = tips;
+        }
+
+        /// <summary>Popisy znacek pro tooltip (Web Mercator + text). Prepisuje se s kazdou trasou.</summary>
+        private IReadOnlyList<(double X, double Y, string Text)> markerTips
+            = Array.Empty<(double, double, string)>();
+
+        /// <summary>
+        /// Najde popis znacky pod zadanym bodem v Web Mercatoru, nebo null. Tolerance se predava
+        /// ve svetovych jednotkach (View si ji spocte z rozliseni viewportu, aby byla konstantni
+        /// v pixelech nezavisle na zoomu).
+        /// </summary>
+        public string? FindMarkerTip(double mercX, double mercY, double toleranceWorld)
+        {
+            var tips = markerTips;
+            double best = toleranceWorld * toleranceWorld;
+            string? found = null;
+
+            foreach (var (x, y, text) in tips)
+            {
+                double dx = x - mercX, dy = y - mercY;
+                double d2 = dx * dx + dy * dy;
+                if (d2 <= best)
+                {
+                    best = d2;
+                    found = text;
+                }
+            }
+
+            return found;
         }
 
         /// <summary>

@@ -6,9 +6,9 @@ cílem**. Navíc si o každém úseku trasy vede **metadata o postupu**, aby poz
 zasekl se, nebo že mapou uváděná cesta reálně **není průchozí** — a v takovém případě hranu v grafu
 uzavře a přeplánuje.
 
-> **Stav (2026-08-11): NÁVRH, nic z toho není implementované.** Tento dokument je zadání pro
-> realizaci (viz [Plán realizace](#plán-realizace-fáze)); jak se bude plnit, doplní se skutečný stav.
-> Předchozí stav OsmNav („modul zaintegrován, ale nenapojen na řídicí smyčku") je v [osm-nav.md](osm-nav.md).
+> **Stav (2026-08-13): fáze 0–3 hotové, fáze 4–6 neimplementované.** Robot jede k cíli po síti
+> a trasa je vidět v mapě; detekce záseku/bloudění/přehrazení (fáze 4) a ověření na HW (fáze 6)
+> zbývají. Podrobně v [Plánu realizace](#plán-realizace-fáze).
 
 Nad touto vrstvou stojí ještě mise soutěže — [robotour-mission.md](robotour-mission.md).
 
@@ -431,17 +431,24 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
    + `GeoReference` vystavená z `AsyncFusionEngine`; ✅ `GPSState` → `PositionMeasurement` (+ rychlost
    nad prahem) a odometrie → `v`/`ω` v `DefaultMeasurementMapper`; ✅ `GeoReference` **ze středu obalky
    uzlů OSM mapy** zakládaná při načtení mapy (`map=`, nezávisle na `virtualhw`), ✅ fallback
-   auto-inicializace z prvního použitelného fixu pro běh bez mise. **Zbývá:** ⬜ world pohled přejde
-   na tutéž referenci (dnes si ji staví ad hoc), ⬜ **ověření znaménka odometrického `ω` na zařízení**
+   auto-inicializace z prvního použitelného fixu pro běh bez mise; ✅ **world pohled používá tutéž
+   referenci** (`ARBotRuntime.MapOrigin`) — jeho původní ad hoc počátek z posledního fixu se posouval
+   s **každým** fixem, takže trasa, occupancy i plán poskakovaly se šumem GPS; ad hoc varianta zůstala
+   jen jako fallback pro běh bez mapy. **Zbývá:** ⬜ **ověření znaménka odometrického `ω` na zařízení**
    (`FusionConfig.OdoOmegaSign`), ⬜ ladění σ a prahů gatingu na reálných datech.
-1. 🟡 **`RoadNetwork` jako property `ARBotRuntime`**: ✅ property + `MapOrigin` + parametr `map=<cesta>`.
-   **Zbývá:** ⬜ `MapMsg` z runtime (včetně počátku ENU) a UI, které jen požádá a kreslí (dnes si síť
-   staví world pohled sám); ⬜ **`ILocalGoalSink`** (+ `corridorWidthM`).
-2. ⬜ **`GlobalNavigator` skeleton**: póza → LLA → `Navigator.Update` → **mrkev na okraji gridu** →
-   `SetGoal`; `HorizonM` na 25 m; dojezd, `GlobalNavStatus`, `GlobalNavMsg`; testy nad syntetickou sítí.
-3. ⬜ **Trasa a její zobrazení**: extrakce trasy (`Router.Plan`) → `GraphNavigationMsg`;
-   **inkrementální mapmatching** (hledat jen v okolí poslední hrany, plný scan jako fallback —
-   `GoalField.NearestNode` dnes prochází všechny hrany).
+1. ✅ **`RoadNetwork` jako property `ARBotRuntime`**: property + `MapOrigin` + parametr `map=<cesta>`,
+   `MapMsg` emitovaná runtimem (world view ji kreslí a dostane ji i pohled otevřený za běhu),
+   **`ILocalGoalSink`** (+ `corridorWidthM`) v `ARBot.Common/Runtime` — záměrně mimo `Occupancy`
+   i `OsmNav`, aby na sobě ty dvě vrstvy nezávisely.
+   *(UI si mapu pořád umí načíst i vlastní cestou přes file picker — ta zůstává.)*
+2. ✅ **`GlobalNavigator` skeleton**: póza → LLA → `Navigator.Update` → **mrkev na okraji gridu** →
+   `SetGoal`; `HorizonM` na 25 m; `ArrivalRadiusMeters` na 3 m; `GlobalNavStatus`, `GlobalNavMsg`
+   (registrovaná v katalogu → teče do záznamu a přehraje se ve View); testy nad syntetickou sítí.
+3. ✅ **Trasa a její zobrazení**: `Router.Plan` → `GraphNavigationMsg` (při změně trasy nebo jednou
+   za `RouteMessagePeriod`), vrstva „Trasa / graf" se rozsvítí. Cíl se zadává Ctrl+klikem, který nově
+   míří do globální vrstvy jako LLA (kus fáze 5 předtažený, aby šlo fáze 2–3 vůbec vyzkoušet).
+   **Zbývá:** ⬜ **inkrementální mapmatching** (hledat jen v okolí poslední hrany, plný scan jako
+   fallback — `GoalField.NearestNode` dnes prochází všechny hrany; na malé mapě parku to zatím stačí).
 4. ⬜ **`RouteProgress` + detektory A/B/C + eskalace** (penalizace / `CloseRoad` + TTL), seznam
    uzavření, zobrazení uzavřených hran v mapě. **4b:** průřez koridorem v `LocalNavigatoru`
    (`corridorWidthM` → `CorridorBlocked`).

@@ -179,8 +179,17 @@ namespace ARBot.ViewModels
             try
             {
                 doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
-                // Ctrl + klik v mape = cil lokalniho planovace (v Run; ve View navigace nebezi).
-                doc.GoalRequested = (x, y) => ARBotRuntime.Current.Navigator?.SetGoal(x, y);
+                // Ctrl + klik v mape = cil. Kdyz bezi globalni navigace (je nactena mapa), jde cil
+                // TAM jako LLA a ona uz krmi lokalni vrstvu mrkvi po trase; jinak zustava puvodni
+                // chovani (cil primo lokalnimu planovaci). Viz doc/global-navigation-runtime.md.
+                doc.GoalRequested = (x, y) =>
+                {
+                    var rt = ARBotRuntime.Current;
+                    if (rt.GlobalNavigator != null && rt.MapOrigin != null)
+                        rt.GlobalNavigator.SetGoal(rt.MapOrigin.ToLLA(x, y));
+                    else
+                        rt.Navigator?.SetGoal(x, y);
+                };
 
                 // Mapa se na Stream publikuje jednou pri startu behu - pohled otevreny az potom
                 // by ji neuvidel, proto si ji vyzvedne z runtime.
