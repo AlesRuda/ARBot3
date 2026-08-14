@@ -133,6 +133,9 @@ namespace ARBot.ViewModels
 
         private bool initialCentered;
 
+        /// <summary>Sezeni, ke kteremu patri akumulovana data (viz <c>ARBotRuntime.SessionId</c>).</summary>
+        private int lastSessionId;
+
         // --- Mapsui model + vrstvy (vlastni tento ViewModel) ---
         /// <summary>Mapsui mapa - View ji priradi do MapControl.Map (mimo design-time).</summary>
         public Map Map { get; } = new Map();
@@ -293,6 +296,14 @@ namespace ARBot.ViewModels
         private void Flush()
         {
             updateQueued = false;
+
+            // Nove sezeni (Run/View) - zahodit vse akumulovane z predchoziho behu.
+            int session = ARBot.Robot.ARBotRuntime.Current?.SessionId ?? 0;
+            if (session != lastSessionId)
+            {
+                lastSessionId = session;
+                ResetSessionState();
+            }
 
             GPSState? gps; RobotStateMsg? robot; GraphNavigationMsg? graph; MapMsg? map;
             OccupancyGridMsg? occupancy; LocalPlanMsg? plan;
@@ -518,6 +529,14 @@ namespace ARBot.ViewModels
             if (mapOrigin != null)
                 return mapOrigin;
 
+            // Ve VIEW runtime mapu nenacita (MapOrigin je null), ale mapa je v ZAZNAMU - pocatek
+            // se z ni dopocita stejnym pravidlem jako v ARBotRuntime.BuildOriginFromMap.
+            // Bez toho spadne View na zalozni variantu nize, ve ktere plati origin + poza == GPS,
+            // takze kreslena poloha degeneruje na surovy fix a stopa se rozskace.
+            var fromMap = OriginFromMap(lastMap);
+            if (fromMap != null)
+                return fromMap;
+
             // Fallback bez mapy: pocatek se dopocita z posledniho fixu a pozy.
             // POZOR: takovy pocatek se posouva s KAZDYM fixem (pri sigma 1,5 m o metry), takze
             // vsechno kreslene v lokalnim ENU - trasa, occupancy, plan, znacky - s nim poskakuje.
@@ -527,6 +546,66 @@ namespace ARBot.ViewModels
             var gpsLLA = LLA.FromDegrees(lastGps.Latitude, lastGps.Longitude);
             var originLLA = new GeoReference(gpsLLA).ToLLA(-lastRobot.X, -lastRobot.Y);   // posun o -(X,Y)
             return new GeoReference(originLLA);
+        }
+
+        /// <summary>
+        /// Pocatek lokalni ENU roviny ze zaznamenane mapy = STRED OBALKY uzlu, ktere lezi na hranach.
+        /// Musi to byt tataz definice jako <c>ARBotRuntime.BuildOriginFromMap</c> (odtud i pruchod
+        /// pres hrany, ne pres vsechny uzly), jinak by se data ve View kreslila posunuta.
+        /// </summary>
+        private static GeoReference? OriginFromMap(MapMsg? map)
+        {
+            if (map?.Nodes == null || map.Edges == null || map.Nodes.Count == 0) return null;
+
+            double minLat = double.MaxValue, maxLat = double.MinValue;
+            double minLon = double.MaxValue, maxLon = double.MinValue;
+            bool any = false;
+
+            foreach (var e in map.Edges)
+            {
+                foreach (int idx in new[] { e.From, e.To })
+                {
+                    if (idx < 0 || idx >= map.Nodes.Count) continue;
+                    var n = map.Nodes[idx];
+                    any = true;
+                    if (n.LatDeg < minLat) minLat = n.LatDeg;
+                    if (n.LatDeg > maxLat) maxLat = n.LatDeg;
+                    if (n.LonDeg < minLon) minLon = n.LonDeg;
+                    if (n.LonDeg > maxLon) maxLon = n.LonDeg;
+                }
+            }
+
+            if (!any) return null;
+            return GeoReference.FromDegrees((minLat + maxLat) / 2, (minLon + maxLon) / 2);
+        }
+
+        /// <summary>
+        /// Zahodi vse, co se akumuluje pres sezeni (stopa, posledni zpravy, vrstvy). Vola se, kdyz
+        /// <c>ARBotRuntime.SessionId</c> ukaze na nove sezeni - jinak by se prehravany zaznam kreslil
+        /// pres stopu z predchoziho behu.
+        /// </summary>
+        private void ResetSessionState()
+        {
+            track.Clear();
+            gpsTrack.Clear();
+            lastGps = null;
+            lastRobot = null;
+            lastGraph = null;
+            lastMap = null;
+            lastOccupancy = null;
+            lastPlan = null;
+            initialCentered = false;
+
+            robotLayer.Features = Array.Empty<IFeature>();
+            trajectoryLayer.Features = Array.Empty<IFeature>();
+            gpsLayer.Features = Array.Empty<IFeature>();
+            routeLayer.Features = Array.Empty<IFeature>();
+            markerLayer.Features = Array.Empty<IFeature>();
+            mapLayer.Features = Array.Empty<IFeature>();
+            occupancyLayer.Features = Array.Empty<IFeature>();
+            planLayer.Features = Array.Empty<IFeature>();
+            markerTips = Array.Empty<(double, double, string)>();
+            planTips = Array.Empty<(double, double, string)>();
         }
 
         /// <summary>

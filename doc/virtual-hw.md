@@ -48,13 +48,37 @@ i vrátí z `CreateProjector()` / `CreateDepthProjector()`**.
 To je záměr, ne úspora: vize dostane přesně tu projekci, kterou byl obraz myšlen, takže
 neshoda v hloubkové cestě je skutečná chyba, ne artefakt simulace.
 
-## Šev: `SetRealHW` / `SetVirtualHW`
+## Šev: `SetNoHW` / `SetRealHW` / `SetVirtualHW`
 
 ```csharp
 // ARBotHW
-public void SetRealHW();                       // default (dnešní chování při initu)
-public void SetVirtualHW(VirtualHWOptions o);  // vymění senzory za simulované
+public HwMode Mode { get; }                    // None / Real / Virtual
+public void SetNoHW();                         // uvolní VŠECHNO (kamery i UART senzory)
+public void SetRealHW();                       // skutečné kamery + IMU/GPS/motor
+public void SetVirtualHW(VirtualHWOptions o);  // simulované senzory
 ```
+
+**Po startu aplikace neběží žádný hardware** (`HwMode.None`) — `Init()` jen zjistí porty
+a nic neotevře. Co se založí, určuje `ARBotRuntime.RequestedHwMode`, a stane se to
+až v `ARBotRuntime.Start(Run)`.
+
+`SetRealHW` i `SetVirtualHW` volají na začátku `SetNoHW()`, takže **přepnutí je čisté v obou
+směrech**. Dřív to byla jednosměrka: `SetRealHW` zakládal kamery jen `if (LeftCamera == null)`,
+a po virtuálním HW ta pole null nejsou — skutečné kamery se tedy už nikdy nevrátily. Proto taky
+po přechodu Run → View zůstávaly viset virtuální kamery a renderovaly na pozadí.
+
+`SetNoHW` uvolňuje i **UART porty** (`UartAHRS`/`UartMotor`/`UartGPS`); bez toho by je následný
+`SetRealHW` nemohl znovu otevřít.
+
+### Volba režimu
+
+- **Parametr `virtualhw=true`** → požadovaný režim `Virtual`; bez něj `Real`.
+  Samostatný parametr na „žádný HW" nemá smysl — to je stav po startu, než se pustí Run.
+- **Menu `Runtime → Hardware`** (Žádný / Reálný / Virtuální) mění požadovaný režim; přepínat
+  lze **jen se zastaveným runtime**. `Žádný` uvolní HW hned, ostatní dva se projeví až při Startu.
+- **Bez mapy se virtuální HW nezaloží a zůstane `None`** — záměrně *ne* fallback na reálný,
+  aby se při žádosti o simulaci nerozjely skutečné kamery.
+- **`Start(View)` hardware uvolní** — přehrávání záznamu ho nepotřebuje.
 
 Obojí prochází existujícími `CameraStop()` / `CameraStart()`, které už dnes slouží
 k výměně kamer za běhu — nezavádí se nový životní cyklus.
@@ -69,10 +93,13 @@ k výměně kamer za běhu — nezavádí se nový životní cyklus.
 
 ### Pořadí volání
 
-`ARBotHW.Current` (a s ním kamery) vzniká v `ARBotRuntime.Start()` **dřív** než
-`AsyncFusionEngine`. `SetVirtualHW` proto volá `ARBotRuntime.Start()` až **za** vytvořením
-enginu, takže `PoseAt = t => engine.GetStateAt(t)` jde předat rovnou v opcích a nic se
-nedodrátovává dodatečně.
+`ARBotHW.Current` vzniká v `ARBotRuntime.Start()` **dřív** než `AsyncFusionEngine`.
+`SetVirtualHW` proto volá `ARBotRuntime.Start()` až **za** vytvořením enginu, takže
+`PoseAt = t => engine.GetStateAt(t)` jde předat rovnou v opcích a nic se nedodrátovává dodatečně.
+
+**Právě proto menu jen nastavuje požadovaný režim a nezakládá HW samo.** Virtuální hardware
+nejde vytvořit dřív než fúzi (zdroj pózy) a mapu, takže jediné místo, kde to jde udělat
+konzistentně pro oba režimy, je `Start`.
 
 ### `GeoReference` není věcí kamery
 

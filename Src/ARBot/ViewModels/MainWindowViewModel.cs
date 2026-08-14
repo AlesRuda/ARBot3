@@ -230,7 +230,47 @@ namespace ARBot.ViewModels
             RunAndLogCommand.NotifyCanExecuteChanged();
             ViewModeCommand.NotifyCanExecuteChanged();
             StopRuntimeCommand.NotifyCanExecuteChanged();
+            UseNoHwCommand.NotifyCanExecuteChanged();
+            UseRealHwCommand.NotifyCanExecuteChanged();
+            UseVirtualHwCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(IsNoHwSelected));
+            OnPropertyChanged(nameof(IsRealHwSelected));
+            OnPropertyChanged(nameof(IsVirtualHwSelected));
         }
+
+        // ---------------- volba hardwaru ----------------
+        // Menu jen nastavuje POZADOVANY rezim; skutecne se HW zaklada az v ARBotRuntime.Start,
+        // protoze virtualni potrebuje fuzi (zdroj pozy) a mapu. Prepinat lze jen kdyz runtime
+        // stoji - za behu by se pod grafem vymenily senzory. Viz doc/virtual-hw.md.
+
+        /// <summary>Je vybrany rezim „bez hardwaru"? (Zaskrtnuti v menu.)</summary>
+        public bool IsNoHwSelected => ARBotRuntime.Current.RequestedHwMode == HwMode.None;
+        /// <summary>Je vybrany realny hardware?</summary>
+        public bool IsRealHwSelected => ARBotRuntime.Current.RequestedHwMode == HwMode.Real;
+        /// <summary>Je vybrany virtualni (simulovany) hardware?</summary>
+        public bool IsVirtualHwSelected => ARBotRuntime.Current.RequestedHwMode == HwMode.Virtual;
+
+        private void SetHwMode(HwMode mode)
+        {
+            ARBotRuntime.Current.RequestedHwMode = mode;
+
+            // Zadny HW jde uvolnit hned; realny i virtualni se zakladaji az pri Startu
+            // (u virtualniho to ani driv nejde - chybi fuze a mapa).
+            if (mode == HwMode.None)
+                try { ARBotHW.Current.SetNoHW(); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+
+            RefreshRuntimeCommands();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private void UseNoHw() => SetHwMode(HwMode.None);
+
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private void UseRealHw() => SetHwMode(HwMode.Real);
+
+        [RelayCommand(CanExecute = nameof(CanStart))]
+        private void UseVirtualHw() => SetHwMode(HwMode.Virtual);
 
         /// <summary>Spusti runtime v rezimu Run BEZ zaznamu (realne senzory + rizeni).</summary>
         [RelayCommand(CanExecute = nameof(CanStart))]

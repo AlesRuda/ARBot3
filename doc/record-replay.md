@@ -264,6 +264,46 @@ Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `M
 (pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`
 udělá už v novém formátu).
 
+## Debugovací výstup v záznamu (Trace → `Info`)
+
+**Textový log aplikace je součástí nahrávky.** [`TraceInfoBridge`](../Src/ARBot.Common/Logs/TraceInfoBridge.cs)
+visí na `Trace.Listeners`, každý řádek zabalí do zprávy [`Info`](../Src/ARBot.Common/Logs/Info.cs)
+a pošle na `Stream` — odtud jde do záznamu jako každá jiná zpráva. Díky tomu jde zpětně přečíst, co
+program hlásil, i u běhu, kde nikdo neseděl u okna Debug output (typicky běh na zařízení).
+
+Zapojuje ho `ARBotRuntime` při Startu a odpojuje hned na začátku `Stop()` (zbytek vypínání sám loguje
+a nemá smysl to cpát do pipeline, která se právě rozebírá).
+
+**Co se sbírá:** všechno, co projde `Trace`/`Debug` — včetně hlášek Avalonie a Mapsui. Nefiltruje se
+na vstupu záměrně: co je šum se pozná až při čtení. Aby to šlo rozlišit, nese `Info` i **oblast**
+a **úroveň**; `FilteredTraceLogSink` je kolem svého zápisu nastaví přes
+[`TraceLogContext`](../Src/ARBot.Common/Logs/TraceLogContext.cs) (thread-static obálka), takže
+Avalonia hlášky mají `Area = "Avalonia:<oblast>"`, kdežto vlastní `Debug.WriteLine` dostane `"App"`.
+Alternativa — vlepit úroveň do textu a parsovat ji zpět — by byla křehká.
+
+**Dvě pojistky, bez kterých to nefunguje:**
+
+- **Neblokuje producenta.** Logovat může řídicí smyčka i vlákno kamery a ty se nesmí zdržet, takže
+  zápis jen padne do fronty (`DropOldest`) a odesílá se z vlastního vlákna.
+- **Smyčka log → `Info` → odběratel → log.** Odběratelé proudu (záznam, UI) sami logují. Thread-static
+  potlačení pokryje jen odběratele běžící synchronně; ten s vlastní frontou loguje z **jiného vlákna**,
+  kam nedosáhne. Proto je tvrdý **strop `MaxPerSecond`** (default 200) — co je nad, se zahodí a nahradí
+  souhrnným řádkem. Bez něj vyrobil test `Odberatel_KteryLoguje_SeUtneNaStropu` přes 24 000 zpráv
+  za 200 ms.
+
+**Čtení záznamu bez GUI:** `[Explicit]` nástroj
+[`RecordingDumpTest`](../Src/ARBot.Common.Tests/Diagnostics/RecordingDumpTest.cs) —
+cesta v `ARBOT_RECORD`, volitelné filtry `ARBOT_RECORD_AREA` / `ARBOT_RECORD_GREP`, výstup do konzole
+testu a do `<záznam>.log.txt`:
+
+```bash
+ARBOT_RECORD=logs/beh.rec dotnet test Src/ARBot.Common.Tests -p:Platform=x64 --filter "FullyQualifiedName~RecordingDumpTest"
+```
+
+> ⚠️ **`.gitignore` obsahuje `[Ll]ogs/`**, takže nová zdrojová složka pojmenovaná `Logs` je tiše
+> ignorovaná (existující `Src/ARBot.Common/Logs/` přežívá jen proto, že už má sledované soubory).
+> Testy k tomuhle tématu proto leží v `Src/ARBot.Common.Tests/Diagnostics/`, ne v `.../Logs/`.
+
 ## Kde to je (namespaces)
 
 - **Pipeline** — `Src/ARBot.Common/Communication/`: `MessageSource`, `MessageTarget`, `MessageProcessor`,

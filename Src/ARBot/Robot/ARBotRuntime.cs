@@ -75,6 +75,7 @@ namespace ARBot.Robot
 
         private Timer schedTimer;
         private RecordingTarget recording;
+        private TraceInfoBridge traceBridge;
         private FileMessageSource fileSource;
         private Stream fileData;
         private Stream fileIndex;
@@ -87,6 +88,13 @@ namespace ARBot.Robot
 
         /// <summary>Je runtime spusteny?</summary>
         public bool IsRunning => running;
+
+        /// <summary>
+        /// Poradove cislo sezeni - zvysi se pri kazdem <see cref="Start"/>. Odberatele, kteri si
+        /// neco AKUMULUJI (stopa v mape, ...), podle nej poznaji, ze zacalo nove sezeni a maji
+        /// zahodit stary obsah; jinak by se zaznam kreslil pres stopu z predchoziho behu.
+        /// </summary>
+        public int SessionId { get; private set; }
 
         /// <summary>Verejny fan-out proud (raw &cup; derived). Odberatele: <c>Stream.Connect(sink)</c>.</summary>
         public MessageSource Stream => stream;
@@ -112,6 +120,7 @@ namespace ARBot.Robot
             {
                 if (running) Stop();
                 Mode = mode;
+                SessionId++;   // odberatele si podle nej zahodi akumulovany obsah (viz SessionId)
                 if (mode == Mode.Run) WireRun(file);
                 else WireView(file);
                 running = true;
@@ -124,6 +133,11 @@ namespace ARBot.Robot
             lock (gate)
             {
                 if (!running) return;
+
+                // 0) Odpoj sber logu HNED - zbytek Stop() sam loguje a nema smysl to cpat
+                //    do pipeline, ktera se prave rozebira. (Stop() mostu Detach zopakuje, je idempotentni.)
+                try { traceBridge?.Detach(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                traceBridge = null;
 
                 // 1) Zastav zdroje (prestanou prichazet nove zpravy).
                 foreach (var s in sources)
@@ -158,11 +172,29 @@ namespace ARBot.Robot
 
         // ---------------- Run ----------------
 
+        /// <summary>
+        /// Pozadovany rezim hardwaru pro pristi <see cref="Start"/>(Run). Vychozi je
+        /// <see cref="HwMode.Real"/>, s parametrem <c>virtualhw=true</c> pak <see cref="HwMode.Virtual"/>;
+        /// za behu ho meni volba v menu.
+        ///
+        /// <para><b>Samotny start aplikace zadny HW nezaklada</b> - <c>ARBotHW</c> je po initu
+        /// v <see cref="HwMode.None"/> a na kamery/porty se sahne az tady. Virtualni HW navic nejde
+        /// zalozit driv, protoze potrebuje fuzi (zdroj pozy) a mapu. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        public HwMode RequestedHwMode { get; set; }
+            = Program.GetParamBool("virtualhw", false) ? HwMode.Virtual : HwMode.Real;
+
         private void WireRun(string recordFile)
         {
             // Pockej na dokonceni asynchronniho initu ARBotHW pred dratovanim grafu.
             var hw = ARBotHW.Current;
             hw.WaitReady();
+
+            // Realny HW jde zalozit hned; virtualni az za fuzi a mapou (viz TryEnableVirtualHW nize).
+            if (RequestedHwMode == HwMode.Real && hw.Mode != HwMode.Real)
+                hw.SetRealHW();
+            else if (RequestedHwMode == HwMode.None && hw.Mode != HwMode.None)
+                hw.SetNoHW();
 
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
@@ -314,9 +346,20 @@ namespace ARBot.Robot
             // Kořenove zdroje ze senzoru ARBotHW (robustni: chybejici senzor se preskoci).
             BuildSensorSources(hw, router);
 
+            // Most Trace -> Info: debugovaci vystup (Debug.WriteLine i logy Avalonie) tece do Stream,
+            // takze se ULOZI DO ZAZNAMU a da se precist zpetne - i z behu na zarizeni, kde k oknu
+            // Debug output nikdo nesedi. Pripojuje se az sem, aby uz stal zaznam i dokumenty.
+            // Viz doc/record-replay.md.
+            traceBridge = new TraceInfoBridge();
+            stages.Add(traceBridge);
+            connections.Add(traceBridge.Output.Connect(stream));
+
             // --- Start: cile pred zdroji ---
             foreach (var st in stages) st.Start();
             recording?.Start();
+
+            // Az po startu stupnu - drive by zpravy padaly do fronty bez konzumenta.
+            traceBridge.Attach();
 
             // Casovac scheduleru: pravidelne pumpuje ridici smycku (~Profile.Ts).
             // Reentrancni pojistka: System.Threading.Timer callbacky se pri pomalem Pump()
@@ -430,11 +473,13 @@ namespace ARBot.Robot
         private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig,
                                         (double X, double Y, double Theta)? startPose)
         {
-            if (!Program.GetParamBool("virtualhw", false)) return;
+            if (RequestedHwMode != HwMode.Virtual) return;
 
             if (RoadNetwork == null || fusionConfig.GeoReference == null)
             {
-                Debug.WriteLine("virtualhw=true, ale mapa neni k dispozici (parametr map=) -> zustava realny HW.");
+                // Zamerne NE fallback na realny HW: pri zadosti o simulaci se nesmi necekane
+                // rozjet skutecne kamery. Zustane HwMode.None (nic).
+                Debug.WriteLine("virtualni HW: mapa neni k dispozici (parametr map=) -> zadny HW.");
                 return;
             }
 
@@ -715,6 +760,12 @@ namespace ARBot.Robot
         {
             if (string.IsNullOrEmpty(file))
                 throw new ArgumentException("View vyzaduje cestu k zaznamu.", nameof(file));
+
+            // Prehravani zaznamu zadny hardware nepotrebuje - uvolnit ho. Bez toho po prechodu
+            // Run -> View zustaly viset kamery z predchoziho behu (u virtualnich i renderovani
+            // na pozadi), coz matlo panel Sensors i zralo vykon.
+            try { ARBotHW.Current.SetNoHW(); }
+            catch (Exception ex) { Debug.WriteLine(ex); }
 
             var catalog = BuildCatalog();
             fileData = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);

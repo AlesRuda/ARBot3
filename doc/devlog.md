@@ -37,6 +37,70 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-14 (pozdě večer)
+
+- **Volba hardwaru v menu + čistý šev `ARBotHW`.** Návrh autora: po startu aplikace neběží žádný HW,
+  v menu jde přepnout Reálný/Virtuální. Vyšlo to z pozorování, že po přechodu Run → View zůstaly
+  viset virtuální kamery.
+- **Nalezená příčina toho pozorování:** šev byl **jednosměrný**. `SetRealHW` zakládal kamery jen
+  `if (LeftCamera == null)`, ale po `SetVirtualHW` ta pole null nejsou — skutečné kamery se tedy už
+  nikdy nevrátily a virtuální běžely dál (renderovaly na pozadí i ve View).
+- **Hotovo:** `HwMode` (None/Real/Virtual) + `SetNoHW()`, který uvolní kamery **i UART porty**
+  (bez toho by je `SetRealHW` nemohl znovu otevřít). `SetRealHW`/`SetVirtualHW` ho volají na začátku,
+  takže přepnutí je čisté v obou směrech. `Init()` už HW nezakládá — jen zjistí porty. Založení řídí
+  `ARBotRuntime.RequestedHwMode` (výchozí `Real`, s `virtualhw=true` pak `Virtual`) až v `Start(Run)`;
+  `Start(View)` HW uvolní. Menu `Runtime → Hardware` (radio, aktivní jen se zastaveným runtime).
+- **Rozhodnutí:** samostatný parametr `hw=` se nezavádí — `virtualhw=true` stačí a „žádný HW" je
+  stav po startu, ne volba parametru. A **bez mapy virtuální HW nespadne na reálný**, ale zůstane
+  `None`: při žádosti o simulaci se nesmí nečekaně rozjet skutečné kamery.
+- **Hotovo (World view):** (a) ve View se počátek ENU dopočítá ze **zaznamenané `MapMsg`** stejným
+  pravidlem jako `BuildOriginFromMap`. Bez toho `MapOrigin == null` → záložní varianta, ve které
+  platí `origin + póza == GPS`, takže kreslená poloha degenerovala na surový fix a stopa se rozskákala
+  (projevilo se jen na čerstvě puštěné aplikaci — po Run tam `MapOrigin` z předchozího běhu zůstal).
+  (b) `ARBotRuntime.SessionId` se zvyšuje při každém `Start` a `WorldViewDocument` podle něj zahodí
+  akumulovaný stav — jinak se záznam kreslil přes stopu z předchozího běhu.
+- **Ověřeno:** `ARBot.Common.Tests` 481 ✓, `ARBot.HAL.Tests` 30 ✓, aplikace se přeloží pro `x64`
+  i `OrangePI`. **Neověřeno:** cokoliv se skutečnými kamerami (na vývojovém stroji nejsou) — tedy
+  `SetRealHW` po `SetNoHW`, znovuotevření UART portů a chování menu za běhu.
+- **Odkazy:** `Src/ARBot/Robot/{ARBotHW,ARBotRuntime}.cs`,
+  `Src/ARBot/ViewModels/{MainWindowViewModel,WorldViewDocument}.cs`,
+  `Src/ARBot/Views/MainWindow.axaml`, [doc/virtual-hw.md](virtual-hw.md).
+
+## 2026-08-14 (večer)
+
+- **Debugovací výstup teče do záznamu (`Trace` → zpráva `Info`).** Návrh autora: napojit
+  `Trace.Listeners` na existující zprávu `Info`, aby šlo pustit reálnou aplikaci (i na HW), a pak si
+  debug hlášky přečíst z nahrávky — místo posílání výpisů z okna Debug output ručně. Zkracuje to
+  ladicí cyklus na jeden běh.
+- **Hotovo:** `Info` povýšena na **verzi 2** (přibyl čas, oblast a úroveň; `FromData` se větví podle
+  `Verze`, takže staré záznamy se čtou dál). Nový `TraceInfoBridge` (`MessageProcessor` s frontou
+  `DropOldest` a vlastním vláknem) + `TraceLogContext` (thread-static obálka, kterou
+  `FilteredTraceLogSink` doplní oblast/úroveň Avalonie). Zapojení v `ARBotRuntime` (Start/Stop).
+  Čtení bez GUI: `[Explicit]` nástroj `RecordingDumpTest` (cesta v `ARBOT_RECORD`).
+- **Filtruje se až při čtení, ne na vstupu** — do proudu jde všechno včetně hlášek Avalonie/Mapsui,
+  aby se nic neztratilo; oblast a úroveň slouží k filtrování nad záznamem.
+- **Dvě věci, které test odhalil a bez kterých by to nefungovalo:**
+  - **Smyčka log → `Info` → odběratel → log.** Thread-static potlačení pokryje jen synchronní
+    odběratele; ten s vlastní frontou loguje z jiného vlákna. Bez tvrdého stropu `MaxPerSecond`
+    vyrobil test **přes 24 000 zpráv za 200 ms**. Strop navrhované chování „nic nezahazovat" trochu
+    porušuje, ale bez něj se to nedá pustit.
+  - **`.gitignore` má `[Ll]ogs/`**, takže nová složka `Src/ARBot.Common.Tests/Logs/` byla tiše
+    ignorovaná a testy by se nikdy nedostaly do commitu (existující `Src/ARBot.Common/Logs/` přežívá
+    jen díky už sledovaným souborům). Testy přesunuty do `.../Diagnostics/`.
+- **Vedlejší nález:** `LocalNavigatorTest.PrekazkaNaRozjeteDraze_ZpusobiNouzoveZastaveni` padal —
+  **není to regrese téhle práce**, ale důsledek změny `Profile.MaxDecceleration` 0,30 → 0,50
+  z předchozího commitu (ta, co v commit message figuruje jako „nevznikla v tomto sezení a není
+  pokryta testy"). `PathCollides` kontroluje dráhu jen na vzdálenost závazku
+  `v²/(2·a) + v·Ts + rozlišení`; při v = 0,5 m/s to je 0,52 m pro deceleraci 0,30, ale jen 0,35 m
+  pro 0,50 — a zeď měl test natvrdo v 0,8 m, kde odstup klesá pod `SafeDist` až od 0,4 m. Chování je
+  správné (silnější brzda = kratší závazek = kratší dohled), brittle byl test; zeď přesunuta na 0,5 m,
+  aby seděla pro obě hodnoty, s vysvětlením v komentáři.
+- **Ověřeno:** `ARBot.Common.Tests` 481 ✓ (9 nových), `ARBot.HAL.Tests` 30 ✓, aplikace se přeloží.
+  **Neověřeno:** běh v aplikaci a skutečné čtení záznamu z reálného běhu.
+- **Odkazy:** `Src/ARBot.Common/Logs/{Info,TraceInfoBridge,TraceLogContext}.cs`,
+  `Src/ARBot/{FilteredTraceLogSink.cs,Robot/ARBotRuntime.cs}`,
+  `Src/ARBot.Common.Tests/Diagnostics/*`, [doc/record-replay.md](record-replay.md).
+
 ## 2026-08-14
 
 - **Vyšetřeno: „occupancy grid přichází prázdný".** Hlášení znělo, že v `OccupancyGridMsg` jsou

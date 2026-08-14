@@ -19,6 +19,17 @@ using System.Threading.Tasks;
 
 namespace ARBot.Robot
 {
+    /// <summary>Ktery hardware je prave zalozeny (viz doc/virtual-hw.md).</summary>
+    public enum HwMode
+    {
+        /// <summary>Zadny - zadne senzory. Stav po startu aplikace.</summary>
+        None = 0,
+        /// <summary>Skutecne senzory (kamery, IMU, GPS, motor).</summary>
+        Real = 1,
+        /// <summary>Simulovane senzory renderovane z mapy (vyzaduje mapu a fuzi).</summary>
+        Virtual = 2,
+    }
+
     public class ARBotHW
     {
         const string T265Serial = "925122110155";
@@ -72,6 +83,16 @@ namespace ARBot.Robot
         protected IUart UartGPS { get; set; }
         protected IUart UartAHRS { get; set; }
 
+        /// <summary>
+        /// Ktery hardware je prave zalozeny. Po startu aplikace <see cref="HwMode.None"/> -
+        /// co se zalozi, urcuje parametr <c>hw=</c> nebo volba v menu; skutecne se to stane
+        /// az v <c>ARBotRuntime.Start</c> (virtualni HW potrebuje fuzi a mapu).
+        /// </summary>
+        public HwMode Mode { get; private set; } = HwMode.None;
+
+        // Porty UART senzoru zjistene v Init; senzory z nich vznikaji az v SetRealHW.
+        private string portAHRS, portMotor, portGPS;
+
         protected ARBotHW()
         {
         }
@@ -118,38 +139,15 @@ namespace ARBot.Robot
                 Debug.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor) přeskočeny.");
             }
 
-            if (!string.IsNullOrEmpty(PortAHRS))
-            {
-                UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", PortAHRS), 115200);
-                //                AHRS = new VN100(UartAHRS);
-                IMU = new VN100IMUBinary(UartAHRS);
-                sensors.Add(IMU);
-            }
-
-            if (!string.IsNullOrEmpty(PortMotor))
-            {
-                UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", PortMotor), 115200, "\r");
-                Debug.WriteLine($"MaxTheoreticalSpeed={Profile.MaxTheoreticalSpeed}");
-                Debug.WriteLine($"MaxAllowedSpeed={Profile.MaxAllowedSpeed}");
-                Debug.WriteLine($"WheelPerimeter={Profile.WheelPerimeter}");
-                Debug.WriteLine($"EncoderCounts={Profile.EncoderCounts}");
-                Debug.WriteLine($"MotorGearBoxReduction={Profile.MotorGearBoxReduction}");
-                Motor = new SDC2160Ex(UartMotor, Profile.MaxTheoreticalSpeed, Profile.MaxAllowedSpeed, Profile.WheelPerimeter, Profile.EncoderCounts * Profile.MotorGearBoxReduction);
-                Motor.SetAcceleration(Profile.MaxAcceleration);
-                sensors.Add(Motor);
-            }
-
-            if (!string.IsNullOrEmpty(PortGPS))
-            { 
-                UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", PortGPS), 921600);
-                GPS = new uBloxGps(UartGPS);
-                sensors.Add(GPS);
-            }
+            // Porty se jen zapamatuji - senzory z nich zaklada az SetRealHW. Po startu aplikace
+            // zadny HW nebezi (HwMode.None); co se zalozi, urcuje parametr hw= nebo menu.
+            portAHRS = PortAHRS;
+            portMotor = PortMotor;
+            portGPS = PortGPS;
 
 #if IsX64
             Joystick = new HAL.Devices.Joystick.Joystick();
 #endif
-            SetRealHW();
         }
 
 
@@ -175,6 +173,32 @@ namespace ARBot.Robot
             Motor = null;
             GPS = null;
             IMU = null;
+
+            // I porty - bez toho by je nasledny SetRealHW nemohl znovu otevrit (obsazene).
+            foreach (var u in new object[] { UartMotor, UartGPS, UartAHRS })
+                (u as IDisposable)?.Dispose();
+
+            UartMotor = null;
+            UartGPS = null;
+            UartAHRS = null;
+        }
+
+        /// <summary>
+        /// Uvolni VSECHEN hardware (kamery, IMU, GPS, motor, simulaci) a prepne do
+        /// <see cref="HwMode.None"/>. Volaji ho <see cref="SetRealHW"/> i <see cref="SetVirtualHW"/>
+        /// na zacatku, takze prepnuti mezi rezimy je ciste v obou smerech - drive slo prejit
+        /// jen z realneho na virtualni a zpatky uz ne (<c>SetRealHW</c> zaklada kamery jen kdyz
+        /// jsou pole null, a ta po virtualnim HW null nejsou).
+        /// </summary>
+        public void SetNoHW()
+        {
+            CameraStop();
+            MotionSensorsStop();
+            SimulatedRobot = null;
+            Mode = HwMode.None;
+
+            if (CameraStateChanged != null)
+                CameraStateChanged();
         }
 
         public Action CameraStateChanged;
@@ -202,18 +226,51 @@ namespace ARBot.Robot
                 CameraStateChanged();
         }
         /// <summary>
-        /// Zalozi REALNE senzory zavisle na hardwaru (kamery). Vola se automaticky z <see cref="Init"/>,
-        /// takze bez dalsiho zasahu bezi aplikace nad skutecnym HW.
+        /// Zalozi SKUTECNE senzory: kamery i UART (IMU, GPS, motor). Porty zjistil <see cref="Init"/>;
+        /// prazdny port (nebo <c>no_uart=true</c>) prislusny senzor preskoci.
+        /// <para>Nevola se automaticky - po startu aplikace bezi <see cref="HwMode.None"/> a rezim
+        /// urcuje parametr <c>hw=real</c> nebo volba v menu. Viz doc/virtual-hw.md.</para>
         /// </summary>
         public void SetRealHW()
         {
-            if (TrackingCamera == null)
-                sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
+            SetNoHW();   // ciste vychozi stav (i kdyz predtim bezel virtualni HW)
+
+            if (!string.IsNullOrEmpty(portAHRS))
+            {
+                UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", portAHRS), 115200);
+                //                AHRS = new VN100(UartAHRS);
+                IMU = new VN100IMUBinary(UartAHRS);
+                sensors.Add(IMU);
+            }
+
+            if (!string.IsNullOrEmpty(portMotor))
+            {
+                UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", portMotor), 115200, "\r");
+                Debug.WriteLine($"MaxTheoreticalSpeed={Profile.MaxTheoreticalSpeed}");
+                Debug.WriteLine($"MaxAllowedSpeed={Profile.MaxAllowedSpeed}");
+                Debug.WriteLine($"WheelPerimeter={Profile.WheelPerimeter}");
+                Debug.WriteLine($"EncoderCounts={Profile.EncoderCounts}");
+                Debug.WriteLine($"MotorGearBoxReduction={Profile.MotorGearBoxReduction}");
+                Motor = new SDC2160Ex(UartMotor, Profile.MaxTheoreticalSpeed, Profile.MaxAllowedSpeed, Profile.WheelPerimeter, Profile.EncoderCounts * Profile.MotorGearBoxReduction);
+                Motor.SetAcceleration(Profile.MaxAcceleration);
+                sensors.Add(Motor);
+            }
+
+            if (!string.IsNullOrEmpty(portGPS))
+            {
+                UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", portGPS), 921600);
+                GPS = new uBloxGps(UartGPS);
+                sensors.Add(GPS);
+            }
+
+            sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
 //            TrackingCamera = new T265TrackingCameraNative(T265Serial);
-            if (LeftCamera == null)
-                sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
-            if (RightCamera == null)
-                sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
+            sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
+            sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
+
+            Mode = HwMode.Real;
+            Debug.WriteLine("ARBotHW: realny HW aktivni.");
+
             if (CameraStateChanged != null)
                 CameraStateChanged();
         }
@@ -236,8 +293,7 @@ namespace ARBot.Robot
             if (options == null) throw new ArgumentNullException(nameof(options));
             options.Validate();
 
-            CameraStop();          // uvolni pripadne realne kamery
-            MotionSensorsStop();   // uvolni pripadne realne motory/GPS/IMU
+            SetNoHW();   // uvolni pripadny predchozi HW (kamery i UART senzory)
 
             var scene = new RoadScene(options.Network, options.Origin);
 
@@ -261,6 +317,7 @@ namespace ARBot.Robot
             sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, options.Sensors));
             sensors.Add(IMU = new VirtualImu(SimulatedRobot, options.Sensors));
 
+            Mode = HwMode.Virtual;
             Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery, motory, GPS a IMU ze simulace).");
 
             if (CameraStateChanged != null)

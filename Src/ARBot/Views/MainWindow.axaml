@@ -28,6 +28,17 @@
                 <MenuItem Header="View…" Command="{Binding ViewModeCommand}"/>
                 <Separator/>
                 <MenuItem Header="Stop" Command="{Binding StopRuntimeCommand}"/>
+                <Separator/>
+                <MenuItem Header="Hardware"
+                          ToolTip.Tip="Co se založí při dalším spuštění Run.&#10;Přepínat lze jen se zastaveným runtime.">
+                    <MenuItem Header="Žádný" Command="{Binding UseNoHwCommand}"
+                              ToggleType="Radio" IsChecked="{Binding IsNoHwSelected, Mode=OneWay}"/>
+                    <MenuItem Header="Reálný" Command="{Binding UseRealHwCommand}"
+                              ToggleType="Radio" IsChecked="{Binding IsRealHwSelected, Mode=OneWay}"/>
+                    <MenuItem Header="Virtuální (simulace)" Command="{Binding UseVirtualHwCommand}"
+                              ToggleType="Radio" IsChecked="{Binding IsVirtualHwSelected, Mode=OneWay}"
+                              ToolTip.Tip="Vyžaduje načtenou mapu (parametr map=). Bez ní se nezaloží nic."/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="Utils"/>
             <MenuItem Header="Tools">

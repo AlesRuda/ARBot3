@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using ARBot.Common.Logs;
 using Avalonia.Logging;
 
 namespace ARBot
@@ -39,13 +40,17 @@ namespace ARBot
 
         public void Log(LogEventLevel level, string area, object? source, string messageTemplate)
         {
-            if (IsEnabled(level, area))
+            if (!IsEnabled(level, area)) return;
+            // Kontext kolem zapisu, aby TraceInfoBridge doplnil do Info oblast a uroven - jinak by
+            // v zaznamu neslo odlisit hlasky Avalonie od naseho Debug.WriteLine. Viz TraceLogContext.
+            using (TraceLogContext.Scope("Avalonia:" + area, level.ToString()))
                 Trace.WriteLine(Format(area, source, messageTemplate, null));
         }
 
         public void Log(LogEventLevel level, string area, object? source, string messageTemplate, params object?[] propertyValues)
         {
-            if (IsEnabled(level, area))
+            if (!IsEnabled(level, area)) return;
+            using (TraceLogContext.Scope("Avalonia:" + area, level.ToString()))
                 Trace.WriteLine(Format(area, source, messageTemplate, propertyValues));
         }
 
