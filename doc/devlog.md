@@ -37,7 +37,7 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
-## 2026-08-14 (pozdě večer)
+## 2026-08-14
 
 - **Volba hardwaru v menu + čistý šev `ARBotHW`.** Návrh autora: po startu aplikace neběží žádný HW,
   v menu jde přepnout Reálný/Virtuální. Vyšlo to z pozorování, že po přechodu Run → View zůstaly
@@ -65,9 +65,6 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Odkazy:** `Src/ARBot/Robot/{ARBotHW,ARBotRuntime}.cs`,
   `Src/ARBot/ViewModels/{MainWindowViewModel,WorldViewDocument}.cs`,
   `Src/ARBot/Views/MainWindow.axaml`, [doc/virtual-hw.md](virtual-hw.md).
-
-## 2026-08-14 (večer)
-
 - **Debugovací výstup teče do záznamu (`Trace` → zpráva `Info`).** Návrh autora: napojit
   `Trace.Listeners` na existující zprávu `Info`, aby šlo pustit reálnou aplikaci (i na HW), a pak si
   debug hlášky přečíst z nahrávky — místo posílání výpisů z okna Debug output ručně. Zkracuje to
@@ -100,9 +97,6 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Odkazy:** `Src/ARBot.Common/Logs/{Info,TraceInfoBridge,TraceLogContext}.cs`,
   `Src/ARBot/{FilteredTraceLogSink.cs,Robot/ARBotRuntime.cs}`,
   `Src/ARBot.Common.Tests/Diagnostics/*`, [doc/record-replay.md](record-replay.md).
-
-## 2026-08-14
-
 - **Vyšetřeno: „occupancy grid přichází prázdný".** Hlášení znělo, že v `OccupancyGridMsg` jsou
   pole `Occ` a `Road` samé nuly, i když kamery evidentně cestu vidí. Postup byl shora dolů po
   řetězu, ne hádáním:
@@ -230,7 +224,7 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   [doc/occupancy-and-local-planning.md](occupancy-and-local-planning.md), [doc/world-view.md](world-view.md),
   [doc/imu-and-frames.md](imu-and-frames.md).
 
-## 2026-08-13 (odpoledne)
+## 2026-08-13
 
 - **Globální navigace, fáze 2 a 3** podle [global-navigation-runtime.md](global-navigation-runtime.md).
   Robot teď jede k cíli po OSM síti a trasa je vidět v mapě.
@@ -270,9 +264,6 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     je trvalé. Uzavřené hrany jdou do mapy jako `Collision`.
 - **Neověřeno:** běh v aplikaci. Zbývá recovery manévr (couvnutí/otočka — neexistuje, takže A umí
   jen počkat a pak zavřít), průřez koridorem (4b) a ověření na HW (fáze 6).
-
-## 2026-08-13
-
 - **Rebuild na čistém klonu + oprava `build_all.bat`.** Po smazání a novém klonu chyběla
   `NativeLib.dll`; postavena. Skript sám padal na `'cmake' is not recognized` — CMake není
   v systémové `PATH` (je jen ten z VS a přidá ho až `vcvars64.bat`, který skript nevolal) a druhá
