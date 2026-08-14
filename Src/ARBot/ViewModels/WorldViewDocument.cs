@@ -118,9 +118,18 @@ namespace ARBot.ViewModels
         private LocalPlanMsg? lastPlan;
 
         // Trajektorie (stopa) v Web Mercator metrech; capovana delka.
+        //
+        // POZOR (2026-08-14): stopa i znacka robotu se plni z FUZOVANE pozy prevedene stejnym
+        // GeoReference jako plan a occupancy - ne ze suroveho GPS. Drive to bylo z GPS, takze
+        // (a) stopa byla klubko sumu misto drahy (prah 0,5 m propousti prave ty vychylky) a
+        // (b) znacka robotu stala jinde nez zacatek planu, protoze plan vychazi z fuzovane pozy.
+        // Surove fixy se kresli zvlast ve vrstve GPS - rozdil obou je videt, ale nemate obrazek.
         private const int MaxTrackPoints = 5000;
         private const double MinTrackStepMeters = 0.5;
         private readonly List<MPoint> track = new List<MPoint>();
+
+        // Surove GPS fixy (Web Mercator) - jen pro diagnostickou vrstvu, stejny cap i prah.
+        private readonly List<MPoint> gpsTrack = new List<MPoint>();
 
         private bool initialCentered;
 
@@ -130,10 +139,15 @@ namespace ARBot.ViewModels
 
         private readonly MemoryLayer robotLayer = new MemoryLayer("Poloha");
         private readonly MemoryLayer trajectoryLayer = new MemoryLayer("Trajektorie");
+        private readonly MemoryLayer gpsLayer = new MemoryLayer("GPS");   // surove fixy (diagnostika)
         private readonly MemoryLayer routeLayer = new MemoryLayer("Trasa");
         private readonly MemoryLayer markerLayer = new MemoryLayer("Znacky");
         private readonly MemoryLayer mapLayer = new MemoryLayer("Mapa");   // sit z OsmNav (MapMsg)
-        private readonly MemoryLayer occupancyLayer = new MemoryLayer("Occupancy");   // lokalni mapa (rastr)
+        // Lokalni mapa je RASTR (PNG v RasterFeature), ne vektor. MemoryLayer ma ale ve vychozim
+        // stavu Style = VectorStyle, takze by se feature dostala na VectorStyleRenderer, ktery ji
+        // neumi - Mapsui to jen zaloguje ("VectorStyleRenderer can not render feature of type
+        // 'Mapsui.Layers.RasterFeature'") a vrstva zustane neviditelna. Proto explicitne RasterStyle.
+        private readonly MemoryLayer occupancyLayer = new MemoryLayer("Occupancy") { Style = new RasterStyle() };
         private readonly MemoryLayer planLayer = new MemoryLayer("Plan");             // lokalni plan + cil
 
         private ILayer? osmLayer;            // cache OSM dlazdicove vrstvy (aby se pri toggle neztracela cache)
@@ -144,6 +158,13 @@ namespace ARBot.ViewModels
         [ObservableProperty] private bool showBaseMap = true;
         [ObservableProperty] private bool showRobot = true;
         [ObservableProperty] private bool showTrajectory = true;
+
+        /// <summary>
+        /// Vrstva: surove GPS fixy (poloha + stopa) vedle fuzovane pozy. Diagnostika kvality fixu -
+        /// rozestup od zlute znacky robotu je prave aktualni chyba GPS. Vychozi vypnuto.
+        /// </summary>
+        [ObservableProperty] private bool showGps;
+
         [ObservableProperty] private bool showRoute = true;
         [ObservableProperty] private bool showMarkers = true;
 
@@ -302,22 +323,37 @@ namespace ARBot.ViewModels
 
             MPoint? robotMerc = null;
 
-            // --- Poloha + kurz (GPS poloha, kurz z fuze nebo z GPS) ---
+            // Rámec pro VSECHNA lokalni data (poloha, stopa, trasa, occupancy, plan) - jeden a tentyz,
+            // jinak spolu nesedi. Musi se ziskat pred polohou, ta uz ho potrebuje.
+            var geoRef = BuildGeoReference();
+
+            // --- Poloha + kurz z FUZOVANE pozy (tedy odtud, odkud vychazi i lokalni plan) ---
+            if (lastRobot != null && geoRef != null)
+            {
+                robotMerc = LocalToMercator(geoRef, lastRobot.X, lastRobot.Y);
+                UpdateRobotFeature(robotMerc, LatitudeOf(geoRef, lastRobot.X, lastRobot.Y), lastRobot.Theta);
+                AppendTrack(robotMerc);
+            }
+
+            // --- Surove GPS fixy vedle toho (diagnostika kvality fixu) ---
             if (lastGps != null && IsValidFix(lastGps))
             {
-                var (mx, my) = SphericalMercator.FromLonLat(lastGps.Longitude, lastGps.Latitude);
-                robotMerc = new MPoint(mx, my);
+                var (gx, gy) = SphericalMercator.FromLonLat(lastGps.Longitude, lastGps.Latitude);
+                var gpsMerc = new MPoint(gx, gy);
+                AppendGpsTrack(gpsMerc);
+                UpdateGpsFeature(gpsMerc);
 
-                double? headingRad = lastRobot?.Theta ?? lastGps.DynamicOrientation ?? lastGps.Orientation;
-                UpdateRobotFeature(robotMerc, lastGps.Latitude, headingRad);
-
-                AppendTrack(robotMerc);
+                // Bez pozy nebo bez rámce je surovy fix jedina znama poloha - at se ma podle ceho
+                // centrovat a at je robot videt aspon priblizne.
+                robotMerc ??= gpsMerc;
+                if (lastRobot == null || geoRef == null)
+                    UpdateRobotFeature(gpsMerc, lastGps.Latitude,
+                                       lastRobot?.Theta ?? lastGps.DynamicOrientation ?? lastGps.Orientation);
             }
 
             UpdateTrajectoryFeature();
 
-            // --- Trasa/graf + znacky (lokalni ENU -> LLA pres GeoReference zarovnany na GPS) ---
-            var geoRef = BuildGeoReference();
+            // --- Trasa/graf + znacky (lokalni ENU -> LLA pres tentyz GeoReference) ---
             UpdateRouteAndMarkers(lastGraph, geoRef);
 
             // --- Lokalni mapa + plan (take v lokalnim ENU -> stejny GeoReference) ---
@@ -328,6 +364,7 @@ namespace ARBot.ViewModels
             // Prekresli data v aktualne pripojenych vrstvach.
             robotLayer.DataHasChanged();
             trajectoryLayer.DataHasChanged();
+            gpsLayer.DataHasChanged();
             routeLayer.DataHasChanged();
             markerLayer.DataHasChanged();
             occupancyLayer.DataHasChanged();
@@ -390,18 +427,67 @@ namespace ARBot.ViewModels
             robotLayer.Features = new IFeature[] { gf };
         }
 
-        private void AppendTrack(MPoint merc)
+        /// <summary>Bod lokalni ENU roviny [m] -&gt; Web Mercator (tentyz prevod jako u ostatnich vrstev).</summary>
+        private static MPoint LocalToMercator(GeoReference geoRef, double localX, double localY)
         {
-            if (track.Count > 0)
+            var lla = geoRef.ToLLA(localX, localY);
+            var (mx, my) = SphericalMercator.FromLonLat(
+                Conversions.Rad2Deg(lla.Longitude), Conversions.Rad2Deg(lla.Latitude));
+            return new MPoint(mx, my);
+        }
+
+        /// <summary>Zemepisna sirka [deg] bodu lokalni roviny - meritko Web Mercatoru (1/cos(lat)).</summary>
+        private static double LatitudeOf(GeoReference geoRef, double localX, double localY)
+            => Conversions.Rad2Deg(geoRef.ToLLA(localX, localY).Latitude);
+
+        private void AppendTrack(MPoint merc) => AppendTo(track, merc);
+
+        private void AppendGpsTrack(MPoint merc) => AppendTo(gpsTrack, merc);
+
+        private static void AppendTo(List<MPoint> points, MPoint merc)
+        {
+            if (points.Count > 0)
             {
-                var last = track[track.Count - 1];
+                var last = points[points.Count - 1];
                 double dx = merc.X - last.X, dy = merc.Y - last.Y;
                 if (dx * dx + dy * dy < MinTrackStepMeters * MinTrackStepMeters)
                     return;   // pohyb pod prahem - neukladat (setri body a prekresleni)
             }
-            track.Add(merc);
-            if (track.Count > MaxTrackPoints)
-                track.RemoveRange(0, track.Count - MaxTrackPoints);
+            points.Add(merc);
+            if (points.Count > MaxTrackPoints)
+                points.RemoveRange(0, points.Count - MaxTrackPoints);
+        }
+
+        /// <summary>Vrstva surovych GPS fixu: aktualni fix jako bod + jejich stopa (diagnostika).</summary>
+        private void UpdateGpsFeature(MPoint merc)
+        {
+            var features = new List<IFeature>();
+
+            if (gpsTrack.Count >= 2)
+            {
+                var coords = new Coordinate[gpsTrack.Count];
+                for (int i = 0; i < gpsTrack.Count; i++)
+                    coords[i] = new Coordinate(gpsTrack[i].X, gpsTrack[i].Y);
+
+                var line = new GeometryFeature { Geometry = new LineString(coords) };
+                line.Styles.Add(new VectorStyle { Line = new Pen(new Color(0x9E, 0x9E, 0x9E, 0xC0), 1) });
+                features.Add(line);
+            }
+
+            var pt = new GeometryFeature
+            {
+                Geometry = new NetTopologySuite.Geometries.Point(new Coordinate(merc.X, merc.Y)),
+            };
+            pt.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                SymbolScale = 0.4,
+                Fill = new Brush(new Color(0x9E, 0x9E, 0x9E, 0xC0)),
+                Outline = new Pen(new Color(0x42, 0x42, 0x42), 1),
+            });
+            features.Add(pt);
+
+            gpsLayer.Features = features;
         }
 
         private void UpdateTrajectoryFeature()
@@ -491,6 +577,12 @@ namespace ARBot.ViewModels
         /// <summary>
         /// Zakoduje occupancy grid do PNG (BGRA, premultiplied): neprujezdne cervene, potvrzene volne
         /// zelene, nezname pruhledne. Radek 0 obrazu je SEVER (nejvyssi j) - rastr se kresli shora dolu.
+        ///
+        /// <para><b>Pozn. k ladeni:</b> <see cref="CellState.Unknown"/> je pruhledne, takze v mape
+        /// nejde odlisit od plochy, o ktere grid nic nevi. Pri otazce „proc robot leze" to muze svest
+        /// - brzdna obalka (<c>VBrake</c>) jede jen pres bunky <see cref="CellState.Free"/>, takze
+        /// souvisle vypadajici plocha jeste neznamena potvrzenou. Cisla jsou v Debug outputu
+        /// (<c>LocalNavigator</c>: <c>koridor: free=… unknown=…</c>).</para>
         /// </summary>
         private static byte[]? EncodeOccupancyPng(OccupancyGridMsg og)
         {
@@ -532,7 +624,9 @@ namespace ARBot.ViewModels
 
         // Barvy occupancy rastru (BGRA premultiplied, jako u SKColorType.Bgra8888).
         private static readonly uint OccBlockedBgra = PremulBgra(0xE5, 0x39, 0x35, 0xB0);
-        private static readonly uint OccFreeBgra = PremulBgra(0x4C, 0xAF, 0x50, 0x50);
+        // Free ma vyssi alfu nez puvodnich 0x50: pri prekryvu se zelenym podkladem OSM se slaba
+        // zelena od nej nedala rozeznat. Takto je potvrzena plocha citelna i bez zvyrazneni Unknown.
+        private static readonly uint OccFreeBgra = PremulBgra(0x4C, 0xAF, 0x50, 0x80);
 
         private static uint PremulBgra(byte r, byte g, byte b, byte a)
         {
@@ -546,6 +640,7 @@ namespace ARBot.ViewModels
             if (plan == null || geoRef == null)
             {
                 planLayer.Features = Array.Empty<IFeature>();
+                planTips = Array.Empty<(double, double, string)>();
                 return;
             }
 
@@ -586,6 +681,13 @@ namespace ARBot.ViewModels
             features.Add(goalFeature);
 
             planLayer.Features = features;
+            planTips = new[]
+            {
+                (goal.X, goal.Y,
+                 "Cíl lokálního plánovače – bod, se kterým počítal POSLEDNÍ hotový plán.\n"
+                 + "V ustáleném stavu je to tentýž bod jako modrá „mrkev“ ve Značkách;\n"
+                 + "ta se přepočítává průběžně, takže se od sebe můžou o kus lišit."),
+            };
         }
 
         private void UpdateRouteAndMarkers(GraphNavigationMsg? gn, GeoReference? geoRef)
@@ -661,31 +763,47 @@ namespace ARBot.ViewModels
             markerTips = tips;
         }
 
-        /// <summary>Popisy znacek pro tooltip (Web Mercator + text). Prepisuje se s kazdou trasou.</summary>
+        /// <summary>Popisy znacek vrstvy Znacky (Web Mercator + text). Prepisuje se s kazdou trasou.</summary>
         private IReadOnlyList<(double X, double Y, string Text)> markerTips
+            = Array.Empty<(double, double, string)>();
+
+        /// <summary>
+        /// Popisy bodu vrstvy Lokalni plan (zatim jen cil). Drzi se ZVLAST od <see cref="markerTips"/>,
+        /// protoze obe vrstvy se prestavuji nezavisle - jeden spolecny seznam by si prepisovaly.
+        /// </summary>
+        private IReadOnlyList<(double X, double Y, string Text)> planTips
             = Array.Empty<(double, double, string)>();
 
         /// <summary>
         /// Najde popis znacky pod zadanym bodem v Web Mercatoru, nebo null. Tolerance se predava
         /// ve svetovych jednotkach (View si ji spocte z rozliseni viewportu, aby byla konstantni
         /// v pixelech nezavisle na zoomu).
+        ///
+        /// <para>Hleda se jen ve VIDITELNYCH vrstvach - popisek k necemu, co neni videt, mate.</para>
         /// </summary>
         public string? FindMarkerTip(double mercX, double mercY, double toleranceWorld)
         {
-            var tips = markerTips;
             double best = toleranceWorld * toleranceWorld;
             string? found = null;
 
-            foreach (var (x, y, text) in tips)
+            void Search(IReadOnlyList<(double X, double Y, string Text)> tips)
             {
-                double dx = x - mercX, dy = y - mercY;
-                double d2 = dx * dx + dy * dy;
-                if (d2 <= best)
+                foreach (var (x, y, text) in tips)
                 {
-                    best = d2;
-                    found = text;
+                    double dx = x - mercX, dy = y - mercY;
+                    double d2 = dx * dx + dy * dy;
+                    if (d2 <= best)
+                    {
+                        best = d2;
+                        found = text;
+                    }
                 }
             }
+
+            // Poradi odpovida vykresleni: plan je POD znackami, takze pri prekryvu (mrkev a cil
+            // lokalniho planu jsou tyz bod) vyhraje popis te znacky, kterou uzivatel opravdu vidi.
+            if (ShowPlan) Search(planTips);
+            if (ShowMarkers) Search(markerTips);
 
             return found;
         }
@@ -1019,6 +1137,7 @@ namespace ARBot.ViewModels
         partial void OnShowBaseMapChanged(bool value) => RebuildLayers();
         partial void OnShowRobotChanged(bool value) => RebuildLayers();
         partial void OnShowTrajectoryChanged(bool value) => RebuildLayers();
+        partial void OnShowGpsChanged(bool value) => RebuildLayers();
         partial void OnShowRouteChanged(bool value) => RebuildLayers();
         partial void OnShowMarkersChanged(bool value) => RebuildLayers();
         partial void OnShowOccupancyChanged(bool value) => RebuildLayers();
@@ -1050,6 +1169,7 @@ namespace ARBot.ViewModels
 
             if (ShowMap) Map.Layers.Add(mapLayer);   // sit z OsmNav nad podkladem, pod ostatnimi daty
             if (ShowOccupancy) Map.Layers.Add(occupancyLayer);   // lokalni mapa nad siti, pod vektory
+            if (ShowGps) Map.Layers.Add(gpsLayer);   // surove fixy pod fuzovanou stopou
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);
             if (ShowPlan) Map.Layers.Add(planLayer);
             if (ShowRoute) Map.Layers.Add(routeLayer);

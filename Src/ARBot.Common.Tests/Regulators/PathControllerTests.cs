@@ -29,6 +29,7 @@ namespace ARBot.Common.Tests.Regulators
         {
             public bool Finished;
             public double FinalSpeed;
+            public double MaxSpeed;
             public double MaxCrossTrack;
             public int OmegaSignChanges;
             public double[] MinDistToWaypoint;
@@ -77,6 +78,7 @@ namespace ARBot.Common.Tests.Regulators
                 }
 
                 // Metriky.
+                res.MaxSpeed = Math.Max(res.MaxSpeed, v);
                 res.MaxCrossTrack = Math.Max(res.MaxCrossTrack, DistToPath(path, state.X, state.Y));
                 for (int i = 0; i < wps.Length; i++)
                 {
@@ -124,6 +126,59 @@ namespace ARBot.Common.Tests.Regulators
             Assert.That(r.MinDistToWaypoint[1], Is.LessThanOrEqualTo(0.1), "prošel v toleranci cíle");
             Assert.That(r.MaxCrossTrack, Is.LessThan(0.02), "drží přímku");
             Assert.That(r.OmegaSignChanges, Is.LessThanOrEqualTo(2), "nekmitá");
+        }
+
+        /// <summary>
+        /// Na dlouhém rovném úseku musí robot rozjet na strop, i když startuje s malou odchylkou
+        /// kurzu. Hlídá regresi „rychlost uzamčená vazbou na dobu rotace" (viz doc/path-following.md):
+        /// dokud se do <c>SpeedLimit</c> posílala vzdálenost k LOOKAHEAD bodu, závisel omezovač na
+        /// vlastním výstupu — nízká rychlost → lookahead na podlaze 0,15 m → nízký strop → nízká
+        /// rychlost. Robot pak trvale lezl ~0,1 m/s, i když plán povoloval plnou rychlost.
+        /// </summary>
+        [TestCase(0.0, TestName = "Rovinka_RozjedeSeNaStrop_BezOdchylky")]
+        [TestCase(12.0, TestName = "Rovinka_RozjedeSeNaStrop_SOdchylkouKurzu")]
+        public void Straight_ReachesFullSpeed(double startHeadingDeg)
+        {
+            // 20 m rovinky: dost dlouhá, aby se stihlo rozjet i s accelerací 0,2 m/s^2 a zase zastavit.
+            var wps = new[] { Wp(0, 0), Wp(20, 0, speed: 0) };
+            var path = (PathResult)MakePlanner().Plan(wps);
+            var r = Simulate(path, wps, 0, 0, startHeadingDeg * Math.PI / 180.0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.MaxSpeed, Is.GreaterThan(0.9 * VMax),
+                            $"robot se nerozjel (max {r.MaxSpeed:F2} m/s z povolených {VMax:F2}) - "
+                            + "rychlost nejspis znovu drzi vazba na dobu rotace");
+                Assert.That(r.Finished, Is.True, "dojel na konec");
+                Assert.That(r.FinalSpeed, Is.LessThan(0.05), "zastavil");
+                Assert.That(r.MaxCrossTrack, Is.LessThan(0.35), "nevybocil z drahy");
+            });
+        }
+
+        /// <summary>
+        /// Hustá řada kolineárních uzlů (typický výstup A* po string-pullingu) nesmí robota brzdit.
+        /// Cíl řízení je uzel dráhy, takže vzdálenost k němu jde při průjezdu k nule — kdyby se
+        /// uzel "pod robotem" nepřeskakoval, spadl by strop z <c>SpeedLimit</c> na nulu u KAŽDÉHO
+        /// uzlu a robot by popojížděl. Viz doc/path-following.md.
+        /// </summary>
+        [Test]
+        public void ManyCollinearWaypoints_DoesNotStallAtEach()
+        {
+            var wps = new List<RegulatorWayPoint>();
+            for (int i = 0; i <= 20; i++) wps.Add(Wp(i, 0));            // uzel po 1 m
+            wps[wps.Count - 1] = Wp(20, 0, speed: 0);                   // na konci zastavit
+            var arr = wps.ToArray();
+
+            var path = (PathResult)MakePlanner().Plan(arr);
+            var r = Simulate(path, arr, 0, 0, 0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.MaxSpeed, Is.GreaterThan(0.9 * VMax),
+                            $"robot se nerozjel (max {r.MaxSpeed:F2} m/s) - brzdi nejspis na kazdem uzlu");
+                Assert.That(r.Finished, Is.True, "dojel na konec");
+                Assert.That(r.MaxCrossTrack, Is.LessThan(0.05), "drzi primku");
+            });
         }
 
         [Test]

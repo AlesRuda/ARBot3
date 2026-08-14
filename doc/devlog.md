@@ -37,6 +37,135 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-14
+
+- **Vyšetřeno: „occupancy grid přichází prázdný".** Hlášení znělo, že v `OccupancyGridMsg` jsou
+  pole `Occ` a `Road` samé nuly, i když kamery evidentně cestu vidí. Postup byl shora dolů po
+  řetězu, ne hádáním:
+  1. `logs/traversability-timing-*.csv` z běhu ukázal `cells=1680` u každého snímku → **polární
+     grid se počítá**, vstup do agregace existuje.
+  2. Napsán offline test celého runtime řetězu (viz níže) → **agregace i převod na zprávu jsou
+     v pořádku**, chyba tedy nebyla v `ARBot.Common/Occupancy`.
+  3. Diagnostika přidaná do `OccupancyIntegrator`/`LocalNavigator` z běžící aplikace potvrdila,
+     že se grid **plní i za běhu** (`touched=9470`, `occ=8619`, `road=3771`, `drop=0`).
+- **Dvě skutečné příčiny (obě opraveny / vysvětleny):**
+  - **Vrstva „Lokální mapa" se nevykreslovala.** `occupancyLayer` je `MemoryLayer`, který má
+    ve výchozím stavu `Style = VectorStyle`, ale plní se `RasterFeature` (PNG rastr). Mapsui to
+    jen zalogovalo (`VectorStyleRenderer can not render feature of type 'Mapsui.Layers.RasterFeature'`
+    — ten WARN byl v Debug outputu celou dobu vidět) a vrstva zůstala neviditelná. Opraveno
+    explicitním `Style = new RasterStyle()`. *(Pozn.: `RasterStyle` v Mapsui 5.1.0 existuje, jen
+    není v XML dokumentaci balíčku — proto se hůř hledal.)*
+  - **„Samé nuly" v debuggeru byl klamný pohled.** Zapsané buňky leží v kuželu **před** robotem,
+    tj. uprostřed pole; první stovky prvků `Occ`/`Road` jsou jihozápadní roh gridu, kam kamera
+    nevidí. V měření je první nenulový prvek až na indexu **5239 z 65536** — pohled na začátek
+    pole v debuggeru tedy ukáže nuly zcela právem. Zadokumentováno testem, ať to příště nikoho
+    nesvede.
+- **Hotovo:** diagnostika `OccupancyIntegrator.IntegrateStats` (`LastStats`) — počitadla podél celé
+  cesty zápisu (chybějící projekce → buňky mimo zorné pole → azimut/prstenec → samé `Unknown` →
+  stín → zápis), vypisovaná z `LocalNavigator` do Debug outputu jednou za 2 s
+  (`IntegrateStatsLogPeriod`). Když bude grid někdy opravdu prázdný, první nula v tom řádku rovnou
+  řekne, který článek selhal.
+- **Hotovo:** nový test `VirtualHwOccupancyTest` — celý řetěz `VirtualCamera` → `CameraFrameProcessor`
+  → `OccupancyIntegrator` → `OccupancyGrid` → `ToLogMessage()` **bez GUI**, se stejnými montážními
+  transformacemi z `Profile` a stejným přetypováním projekcí jako v `ARBotRuntime`; varianty
+  managed/nativní transform a robot v počátku i desítky metrů od něj se záporným kurzem. Dosavadní
+  `OccupancyIntegratorTest` používaly umělou projekci a robota v počátku, takže tuhle kombinaci
+  (a hlavně *složení* dílů) nepokrývaly.
+- **Ověřeno:** buildy x64 zelené; `ARBot.Common.Tests` 469 ✓, `ARBot.HAL.Tests` 28 ✓.
+  **Neověřeno:** vykreslení vrstvy v běžící aplikaci po opravě stylu (nutné potvrdit okem) a
+  celé chování na reálném HW.
+- **Navazující nález (tentýž den): `CameraProjection.Transform` počítal posunutí kamery dvakrát.**
+  Po zviditelnění vrstvy bylo vidět, že plocha **mimo cestu se neoznačuje jako nesjízdná**, i když
+  probability je počítaná správně. Postup měření (vše offline, nad `RoadScene.IsRoad` jako ground truth):
+  1. LUT `BackProject.RoadProbability` rozlišuje barvy scény správně (vozovka 128,128,128 → **254**,
+     tráva 60,140,60 → **0**) — chyba tedy nebyla v klasifikaci barvy.
+  2. Příčný profil: barva se překlápí na trávu až v `y ≈ 3,9 m`, ačkoli scéna má okraj v `y = 2,0 m`,
+     a to **nezávisle na vzdálenosti** → translace, ne chyba perspektivy.
+  3. Round-trip `pixel → zem → pixel` (renderer vs. `Transform`): chyba **~95 px**, blízké body
+     `Transform` dokonce zahodil jako „mimo obraz".
+- **Příčina:** `rotationWorld2Cam` je inverze **celé** transformace včetně translace (viz `SetOrientation`,
+  kde se `M41..M43` před inverzí vrací zpět), a `Vector3.Transform` translaci matice uplatňuje. Ruční
+  `x - offset.X, y - offset.Y, -offset.Z` ji tedy započítalo **podruhé**. Chyba je úměrná posunutí kamery
+  (`Profile.LeftCameraOff`, výška 0,52 m) — proto se projevila hlavně v řádku obrazu.
+  **Platí i pro reálný HW**, ne jen pro simulaci: `OccupancyIntegrator` přes `Transform` vzorkuje *oba*
+  kanály a `PathEdgeFinder` jím promítá body cesty.
+- **Proč to testy nechytly:** `PolarGridLookupTest` `CameraProjection.Transform` vůbec nevolá — má vlastní
+  referenční `GroundToPixel`, a to pro kameru **bez postranního posunutí**, kde je dvojí odečet neškodný.
+  Reálná metoda tak nikdy nebyla pokrytá s nenulovým offsetem.
+- **Hotovo:** oprava v `CameraProjection.Transform` (původní řádky ponechány zakomentované do ověření
+  na HW, viz CLAUDE.md) + dva regresní testy: `ProjekceTamZpet_JeInverzniKRenderu` (round-trip < 0,5 px;
+  před opravou ~95 px) a `MimoCestu_JeZeSemantikyNesjizdne` (věcné očekávání nad ground truth scény).
+  Měřeno: mimo cestu **647 správně / 0 špatně** (před opravou 741 vzorků, z toho 4 správně).
+- **Třetí nález téhož dne: World view kreslil polohu ve dvou různých rámcích.** Z obrázku vypadalo, že
+  lokální plán nevychází z robota, ale „z ideální pozice uprostřed cesty". Ve skutečnosti plán vycházel
+  správně — z **fúzované pózy** (přes `BuildGeoReference()`, při načtené mapě pevný `MapOrigin`), zatímco
+  **značka robota a trajektorie se kreslily ze surového GPS**. Rozestup byl přesně aktuální chyba fixu.
+  Oranžové „klubko" v mapě nebyla dráha robota, ale stopa surových fixů — práh `MinTrackStepMeters`
+  (0,5 m) propouští právě jen šumové výchylky. Značka navíc míchala zdroje: poloha z GPS, kurz z fúze.
+  **Opraveno:** poloha i stopa jdou z fúzované pózy přes tentýž `GeoReference` jako plán a occupancy;
+  surové fixy zůstávají jako samostatná vypínatelná vrstva **„Surové GPS"** (výchozí vypnuto) — rozestup
+  od značky robota je teď čitelná diagnostika kvality fixu. Detail:
+  [world-view.md → Jeden rámec pro všechna lokální data](world-view.md).
+  **Neověřeno:** vzhled v běžící aplikaci (nutné potvrdit okem).
+- **Drobnost k tomu:** žlutý cíl lokálního plánu neměl tooltip (modrá „mrkev" ve Značkách ho měla).
+  Doplněn — popisy se nově drží ve dvou seznamech (`markerTips` pro Značky, `planTips` pro Lokální
+  plán), protože se obě vrstvy přestavují nezávisle a jeden společný by si přepisovaly. `FindMarkerTip`
+  navíc hledá **jen ve viditelných vrstvách** (dřív by popisek vyskočil i nad vypnutou vrstvou).
+- **Čtvrtý nález: robot jede 0,1 m/s, i když je povoleno 1,2 m/s.** Příčinu se podařilo najít až
+  měřením v běžící aplikaci — dvě mé hypotézy předtím padly (viz níže), obě proto, že jsem je stavěl
+  na offline testu s jednou kamerou a stojícím robotem místo na reálném běhu.
+  Postup byl „shora dolů" po stupních, každý stupeň s vlastním číslem z logu:
+  1. occupancy grid: `free=3955 unknown=534 blocked=70` — mapa v pořádku;
+  2. rychlostní obálka plánovače: `v=1,20 VClear=1,20 VBrake=1,20 freeAhead=5,3 m` — **nesráží**;
+  3. `PathPlanner`: `vLimit[0]=1,20`, dráha rovná 6 m, `nejostrejsiRoh=0°` — **nesráží**;
+  4. regulátor: `vCmd=0,95 -> v=0,05 m/s, beta=-11,9°, Trot=0,786 s, lookahead=0,15 m` — **zde**.
+- **Příčina:** `IMotionProfile.SpeedLimit` váže dopřednou rychlost na dobu dorovnání rotace:
+  `v ≤ d / (stability · T_rot)`, kde `stability = 4` a `d` je vzdálenost k lookahead bodu. Dosazeno:
+  `0,15 / (4 · 0,786) = 0,048 m/s` — sedí na setinu.
+  **Strukturální problém:** `d = max(LookaheadMin, LookaheadTime · v)` se počítá z AKTUÁLNÍ rychlosti,
+  takže omezovač závisí na vlastním výstupu. Při nízké rychlosti je `d` zaražené na podlaze 0,15 m →
+  strop zůstává nízký → rychlost nízká. Je to západka, ze které se soustava sama nedostane; aby při
+  `T_rot = 0,786 s` vyšlo 1,2 m/s, musel by být lookahead 3,8 m.
+  Druhý faktor je `MaxAllowedRotationSpeed = π/6` (jen **30°/s**) — proto trvá dorovnání pouhých 12°
+  celých 0,79 s.
+- **Opraveno (návrh autora):** cílem řízení je nově **nejbližší UZEL DRÁHY před robotem** — z něj se
+  bere směr i vzdálenost, do které se váže dopředná rychlost. Dřív se mířilo na *virtuální* bod na
+  ideální trase ve vzdálenosti `max(LookaheadMin, LookaheadTime·v)`; ten drží menší boční odchylku,
+  ale počítá se z aktuální rychlosti, takže omezovač závisel na vlastním výstupu → západka.
+  Autorova formulace: *„musím mířit na bod dráhy před sebou a zároveň uvažovat vzdálenost k němu;
+  virtuální bod na ideální trase sice zmenší odchylku, ale blokuje rychlost — kde potřebuju přesný
+  průjezd, nasekám waypointy blízko sebe."* Sedí to i s tím, že se dráha přeplánovává každý snímek
+  z aktuální pózy, takže se boční odchylka vynuluje sama.
+  **Nutný detail:** uzel blíž než `L_d` se musí přeskakovat — jinak je azimut k bodu „pod robotem"
+  špatně podmíněný a vzdálenost jde k nule, což by robota zastavilo na každém uzlu.
+  Zbývající délka celé dráhy by nešla: na dojezd už je brzdná obálka o krok dřív, byla by to duplicita.
+  *(`distToNext` se v `Control` počítalo už předtím a nikde se nepoužívalo — původní návrh tedy
+  nejspíš mířil sem.)* Původní varianta ponechána zakomentovaná do ověření na HW.
+  Hlídají dva testy, oba ověřené tak, že bez opravy padají: `Straight_ReachesFullSpeed`
+  (bez opravy **0,19 z 0,80 m/s**) a `ManyCollinearWaypoints_DoesNotStallAtEach` (bez přeskakování
+  uzlů **0,62 z 0,80 m/s** a padají i rohové testy).
+  **Neověřeno na HW ani v aplikaci.** Detail a co zbývá viz [path-following.md](path-following.md).
+- **Hotovo (diagnostika, zůstává v repu):** `LocalNavigator` vypisuje do Debug outputu čtyři řádky —
+  rozpad zápisu snímku (`IntegrateStats`), stavy buněk v koridoru **v rámci robota**, rozpad rychlostní
+  obálky (`LocalPlanResult.MinFreeAheadM/MinVClear/MinVBrake` + `SpeedLimitedBy`) a rozpad posledního
+  zásahu regulátoru (`PathResult.LastVCmd/LastSpeed/LastBeta/LastRotTime/LastLookahead`). Bez těchto
+  čísel se problém hádal třikrát špatně; s nimi byl nalezený na jeden běh.
+- **Poučení:** diagnostiku regulátoru je nutné číst z **odcházející** instance při výměně — ta nová
+  ještě neřídila (napoprvé z toho byly samé nuly). A minimum přes uzly dráhy musí vynechat poslední
+  uzel (tam je zastavení z definice) a inicializovat se z `PositiveInfinity`, ne z `MaxValue`
+  (`+Inf < MaxValue` neplatí → vypsalo se `1,8e308`).
+- **Otevřené (obojí zapsáno mezi úkoly, neřešeno — mimo rozsah tohoto ladění):**
+  - `CameraProjection.TransformBack` vypadá na stejnou třídu chyby (v měření vracel `false` pro
+    většinu pixelů a nesmyslné souřadnice pro zbytek); používá ho `TargetPoly` →
+    [imu-and-frames.md → Otevřený úkol: ověřit `TransformBack`](imu-and-frames.md).
+  - Okluzní pravidlo `InShadow` zahazuje většinu barevných vzorků (`shadow ≈ 5 200` z ~12 000) →
+    [occupancy-and-local-planning.md → Otevřené úkoly](occupancy-and-local-planning.md).
+- **Odkazy:** `Src/ARBot.Common/Occupancy/{OccupancyIntegrator,LocalNavigator}.cs`,
+  `Src/ARBot.Common/Coordinates/CameraProjection.cs`, `Src/ARBot/ViewModels/WorldViewDocument.cs`,
+  `Src/ARBot.HAL.Tests/VirtualHwOccupancyTest.cs`,
+  [doc/occupancy-and-local-planning.md](occupancy-and-local-planning.md), [doc/world-view.md](world-view.md),
+  [doc/imu-and-frames.md](imu-and-frames.md).
+
 ## 2026-08-13 (odpoledne)
 
 - **Globální navigace, fáze 2 a 3** podle [global-navigation-runtime.md](global-navigation-runtime.md).

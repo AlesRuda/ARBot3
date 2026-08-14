@@ -9,6 +9,32 @@
   `Conversions.Orientation2Azimut` / `Azimut2Orientation`.
 - `YawPitchRoll.Yaw` = matematická orientace (0 = východ, +CCW) — NE „vzhledem k severu".
 
+## Projekce kamery: kde je posunutí kamery (`CameraProjection`)
+
+`SetOrientation(transform)` si z montážní matice odvodí `rotationWorld2Cam` jako **inverzi celé
+transformace, tedy včetně translace** (`M41..M43` se před inverzí vrací zpět). `Vector3.Transform`
+translaci matice uplatňuje — **posunutí kamery se proto už NESMÍ odečítat ručně**. Přesně na tom
+`Transform` do 2026-08-14 padal: `new Vector3(x - offset.X, y - offset.Y, -offset.Z)` ho započetlo
+podruhé, bod na zemi se promítl ~95 px vedle a blízké body metoda zahodila jako „mimo obraz". Chyba
+je úměrná posunutí kamery, takže na kameře v počátku (typická testovací projekce) není vidět vůbec.
+
+Invariant, který to hlídá: **`Transform` musí být inverzní k mapování `Camera2DToCamera3D` +
+`Transformation`** (paprsek protnutý s rovinou `z = 0`) — z toho se rendruje virtuální scéna
+i staví polární grid. Testuje `VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu`.
+
+### Otevřený úkol: ověřit `TransformBack` (nalezeno 2026-08-14)
+
+⬜ `CameraProjection.TransformBack` (pixel → bod na zemi) vypadá na **stejnou třídu chyby** jako
+opravený `Transform`: aplikuje `rotation` — matici **s translací** — na *směrový vektor* paprsku
+(`Vector3.Transform(point, rotation)`), takže se do směru přičte posunutí kamery. Při ladění
+occupancy vracela metoda pro většinu pixelů `false` a pro zbytek nesmyslné souřadnice (pro bod
+zhruba (1; 2) m vyšlo (76; 152)).
+
+**Neověřeno a neopraveno** — bylo mimo rozsah tehdejšího ladění. Používá ho `TargetPoly`
+(polygon dosahu kamery na vozovce). Před opravou dohledat všechny konzumenty a napsat na to test
+po vzoru `VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu` (round-trip proti mapování
+`Camera2DToCamera3D` + `Transformation`, tedy proti témuž invariantu jako u `Transform`).
+
 ## IMUState — které pole je v jakém framu
 
 `ARBot.Common/Models/IMUState.cs` (viz `<remarks>` třídy):

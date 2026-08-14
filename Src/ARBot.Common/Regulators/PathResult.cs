@@ -53,6 +53,35 @@ namespace ARBot.Common.Regulators
         /// <inheritdoc/>
         public bool IsFinished { get; private set; }
 
+        // --- Diagnostika posledniho Control (proc jede robot zrovna takhle rychle) ---
+        // Ridici smycka vola Control ~50x za sekundu, logovat odsud nelze; hodnoty se proto jen
+        // ulozi a vypise je ten, kdo ma na diagnostiku takt (LocalNavigator). Viz doc/path-following.md.
+
+        /// <summary>Rychlost z brzdne obalky drahy, JESTE pred vazbou na dobu rotace [m/s].</summary>
+        public double LastVCmd { get; private set; }
+
+        /// <summary>Skutecne predana rychlost po <c>IMotionProfile.SpeedLimit</c> [m/s].</summary>
+        public double LastSpeed { get; private set; }
+
+        /// <summary>Uhlova odchylka na lookahead bod [rad].</summary>
+        public double LastBeta { get; private set; }
+
+        /// <summary>Doba dorovnani rotace, do ktere se vaze dopredna rychlost [s].</summary>
+        public double LastRotTime { get; private set; }
+
+        /// <summary>Prah preskoceni uzlu [m] (<c>max(LookaheadMin, LookaheadTime * v)</c>) - uzel bliz
+        /// nez tohle uz robot bere jako projety.</summary>
+        public double LastLookahead { get; private set; }
+
+        /// <summary>Vzdalenost k cilovemu UZLU drahy [m] - z nej se bere smer i strop rychlosti.</summary>
+        public double LastLimitDist { get; private set; }
+
+        /// <summary>Index uzlu drahy, na ktery robot miri.</summary>
+        public int LastTargetIndex { get; private set; }
+
+        /// <summary>Vzdalenost k nejblizsimu uzlu pred robotem [m] (i kdyz uz se preskocil) - diagnostika.</summary>
+        public double LastDistToNextVertex { get; private set; }
+
         /// <inheritdoc/>
         public RegulatorResult Control(IModelState state)
         {
@@ -86,18 +115,63 @@ namespace ARBot.Common.Regulators
                 if (vk < vCmd) vCmd = vk;
             }
 
-            // 4) Rotační rychlost z lookahead bodu (řídí jen směr).
+            // 4) Cíl řízení = nejbližší UZEL DRÁHY před robotem (ne virtuální bod na ideální trase).
+            //    Ze stejného bodu se bere směr i vzdálenost, do které se musím stihnout natočit —
+            //    jsou to dvě strany téže věci. Přesnost průjezdu se pak řídí hustotou waypointů
+            //    (a jejich tolerancí MaxPositionError), ne umělým zkrácením dohledu.
+            //
+            //    Uzel blíž než ld se PŘESKAKUJE: směr k bodu, na kterém robot prakticky stojí, je
+            //    špatně podmíněný (azimut poskakuje o desítky stupňů) a vzdálenost k němu jde k nule,
+            //    což by přes SpeedLimit robota zastavilo na každém uzlu. ld tady tedy neurčuje cíl,
+            //    jen práh "tenhle uzel už mám za sebou".
             double ld = Math.Max(lookaheadMin, lookaheadTime * Math.Abs(v));
-            PointAtArcLength(globalS + ld, out double tx, out double ty);
+            int target = WayPoints.Length - 1;
+            double distToTarget;
+            {
+                double dxL = WayPoints[target].X - state.X, dyL = WayPoints[target].Y - state.Y;
+                distToTarget = Math.Sqrt(dxL * dxL + dyL * dyL);
+                for (int k = seg + 1; k < WayPoints.Length; k++)
+                {
+                    double dxk = WayPoints[k].X - state.X, dyk = WayPoints[k].Y - state.Y;
+                    double dk = Math.Sqrt(dxk * dxk + dyk * dyk);
+                    target = k;
+                    distToTarget = dk;
+                    if (dk >= ld) break;
+                }
+            }
+            double tx = WayPoints[target].X, ty = WayPoints[target].Y;
+
             double beta = Conversions.NormalizeOrientation(Math.Atan2(ty - state.Y, tx - state.X) - state.Orientation);
             var rot = profile.Rot2RotSpeed(beta, state.OrientationVelocity, 0);
 
             // 5) Vazba dopredné rychlosti na dobu rotace + otočka na místě při velké odchylce.
-            double dxT = tx - state.X, dyT = ty - state.Y;
-            double distToTarget = Math.Sqrt(dxT * dxT + dyT * dyT);
+            //    Vzdálenost je k TÉMUŽ bodu, na který se robot natáčí (viz bod 4).
+            //
+            // POZOR (2026-08-14): dřív se sem posílala vzdálenost k VIRTUÁLNÍMU lookahead bodu na
+            // ideální trase. Ta se počítá jako max(LookaheadMin, LookaheadTime · v), tedy z AKTUÁLNÍ
+            // rychlosti — omezovač tak závisel na vlastním výstupu a soustava se zamkla v pomalém
+            // stavu: nízká rychlost → lookahead na podlaze 0,15 m → nízký strop → nízká rychlost.
+            // Naměřeno na robotu: plán povoloval 1,20 m/s, brzdná obálka 0,95 m/s a SpeedLimit z toho
+            // udělal 0,05 m/s (0,15 / (4 · 0,786)), takže robot trvale lezl ~0,1 m/s.
+            // Viz doc/path-following.md.
+            //
+            // Původní (chybná) varianta, ponechaná do ověření na HW — viz CLAUDE.md:
+            //     double ld = Math.Max(lookaheadMin, lookaheadTime * Math.Abs(v));
+            //     PointAtArcLength(globalS + ld, out double tx, out double ty);   // virtuální bod
+            //     double dxT = tx - state.X, dyT = ty - state.Y;
+            //     double s = profile.SpeedLimit(vCmd, Math.Sqrt(dxT * dxT + dyT * dyT), rot);
             double s = profile.SpeedLimit(vCmd, distToTarget, rot);
             if (Math.Abs(beta) > Math.PI / 2)
                 s = 0;
+
+            LastVCmd = vCmd;
+            LastSpeed = s;
+            LastBeta = beta;
+            LastRotTime = rot.RegulationTime;
+            LastLookahead = ld;
+            LastLimitDist = distToTarget;
+            LastTargetIndex = target;
+            LastDistToNextVertex = distToNext;
 
             return new RegulatorResult
             {

@@ -49,6 +49,7 @@ namespace ARBot.Common.Occupancy
         private readonly Stopwatch sw = new Stopwatch();
         private DateTime lastGridMsg;
         private DateTime lastFrameTime;
+        private DateTime lastStatsLog;
 
         // Draha, po ktere robot prave jede (posledni predana). Kazdy cyklus se overuje proti
         // AKTUALNI mape - viz KontrolaKolize v Process.
@@ -83,6 +84,15 @@ namespace ARBot.Common.Occupancy
 
         /// <summary>DIAGNOSTIKA: pocet zpracovanych snimku (zapsanych do mapy).</summary>
         public long ProcessedFrames { get; private set; }
+
+        /// <summary>DIAGNOSTIKA: rozpad posledniho zapisu snimku do gridu (kde se ztraceji zapisy).</summary>
+        public OccupancyIntegrator.IntegrateStats LastIntegrateStats => integrator.LastStats;
+
+        /// <summary>
+        /// Jak casto vypsat <see cref="LastIntegrateStats"/> do Debug outputu (podle casu snimku).
+        /// <see cref="TimeSpan.Zero"/> = kazdy snimek, <see cref="TimeSpan.MaxValue"/> = nikdy.
+        /// </summary>
+        public TimeSpan IntegrateStatsLogPeriod { get; set; } = TimeSpan.FromSeconds(2);
 
         /// <summary>DIAGNOSTIKA: pocet snimku zahozenych proto, ze fuze neumela dat pozu v jejich
         /// case (starsi nez okno historie). Rostouci cislo = zpracovani nestiha nebo vypadla fuze.</summary>
@@ -208,6 +218,7 @@ namespace ARBot.Common.Occupancy
             lock (goalLock) { goal = hasGoal; gx = goalX; gy = goalY; }
             if (!goal && activePath == null)
             {
+                LogIntegrateStats(frame, pose);
                 EmitGridIfDue(frame.TimeStamp);
                 return;
             }
@@ -229,8 +240,15 @@ namespace ARBot.Common.Occupancy
                     try
                     {
                         var regulator = pathPlanner.Plan(plan.WayPoints);
+                        lastPathDiag = DescribePath(regulator);
                         var loop = ControlLoop;
-                        if (loop != null) loop.Regulator = regulator;
+                        if (loop != null)
+                        {
+                            // Diagnostiku ODEBRAT z odchazejiciho regulatoru: ten uz ridil (Control
+                            // bezel na 50 Hz), kdezto na novem jeste nic neprobehlo a byly by tam nuly.
+                            lastControlDiag = ControlBreakdown(loop.Regulator);
+                            loop.Regulator = regulator;
+                        }
                         activePath = plan.WayPoints;
                         handedOver = true;
                     }
@@ -272,6 +290,7 @@ namespace ARBot.Common.Occupancy
                 LastPlan = plan;
                 EmitDerived(plan.ToLogMessage());
             }
+            LogIntegrateStats(frame, pose);   // az tady - at je v logu AKTUALNI plan, ne minuly
             EmitGridIfDue(frame.TimeStamp);
         }
 
@@ -354,6 +373,121 @@ namespace ARBot.Common.Occupancy
                 double d2 = px * px + py * py;
                 if (d2 < best) { best = d2; segment = i; t = u; }
             }
+        }
+
+        /// <summary>
+        /// Vypise rozpad zapisu snimku do gridu (viz <see cref="OccupancyIntegrator.IntegrateStats"/>)
+        /// do Debug outputu - jen obcas, aby to nezahltilo okno.
+        /// </summary>
+        private void LogIntegrateStats(CameraFrame frame, RobotState pose)
+        {
+            var period = IntegrateStatsLogPeriod;
+            if (period == TimeSpan.MaxValue) return;
+            if (frame.TimeStamp - lastStatsLog < period) return;
+            lastStatsLog = frame.TimeStamp;
+
+            Debug.WriteLine($"Occupancy[{frame.Name}] {integrator.LastStats} "
+                            + $"origin=({grid.OriginX},{grid.OriginY}) frames={ProcessedFrames} drop={DroppedFrames}");
+            Debug.WriteLine("  " + CorridorStates(pose) + "  " + PlanEnvelope());
+            Debug.WriteLine("  " + lastPathDiag + $"  poza: v={pose.V:F2} m/s");
+            Debug.WriteLine("  " + lastControlDiag);
+        }
+
+        /// <summary>
+        /// Zastoupeni stavu bunek v koridoru PRED robotem (pas 2 m siroky, 0,3-6 m dopredu, v ramci
+        /// robotu). Jen <see cref="CellState.Free"/> posouva hranici brzdne obalky, takze kdyz robot
+        /// leze, je tohle prvni cislo, na ktere se divat. <c>bezBarvy</c> = z Unknown ty, ktere nemaji
+        /// zadny vzorek semantiky (<c>LRoad == 0</c>) - ty se Free nemuzou stat, at je hloubka
+        /// potvrdi jakkoliv.
+        /// </summary>
+        private string CorridorStates(RobotState pose)
+        {
+            double cosH = Math.Cos(pose.Theta), sinH = Math.Sin(pose.Theta);
+            int free = 0, unknown = 0, blocked = 0, bezBarvy = 0;
+
+            for (int j = 0; j < grid.Size; j++)
+            {
+                for (int i = 0; i < grid.Size; i++)
+                {
+                    int cx = grid.OriginX + i, cy = grid.OriginY + j;
+                    double dx = grid.CenterX(cx) - pose.X, dy = grid.CenterY(cy) - pose.Y;
+                    double fwd = dx * cosH + dy * sinH;          // dopredu v ramci robotu
+                    double side = -dx * sinH + dy * cosH;        // doleva
+                    if (fwd <= 0.3 || fwd > 6.0 || Math.Abs(side) > 1.0) continue;
+
+                    switch (grid.State(cx, cy))
+                    {
+                        case CellState.Free: free++; break;
+                        case CellState.Blocked: blocked++; break;
+                        default:
+                            unknown++;
+                            if (grid.LogOddsRoad(cx, cy) == 0f) bezBarvy++;
+                            break;
+                    }
+                }
+            }
+            return $"koridor: free={free} unknown={unknown} (bezBarvy={bezBarvy}) blocked={blocked}";
+        }
+
+        /// <summary>Popis posledni predane drahy (naplni se pri predani regulatoru).</summary>
+        private string lastPathDiag = "-";
+
+        /// <summary>
+        /// Co z drahy udelal <see cref="IPathPlanner"/>: stropy rychlosti v uzlech
+        /// (<see cref="PathResult.VLimit"/>) a nejostrejsi roh. Rychlost v rohu je
+        /// <c>MaxRotationSpeed * polomer</c>, kde polomer plyne z tolerance
+        /// <see cref="RegulatorWayPoint.MaxPositionError"/> - ostry roh na uzke tolerance ji tedy
+        /// srazi bez ohledu na to, co predepsal occupancy planovac. Zpetny pruchod brzdnou obalkou
+        /// pak nizkou rychlost roztahne i pred roh. Viz doc/path-following.md.
+        /// </summary>
+        private static string DescribePath(IRegulator regulator)
+        {
+            if (!(regulator is PathResult pr) || pr.VLimit == null || pr.VLimit.Length == 0)
+                return "draha: -";
+
+            // Posledni uzel se vynechava: tam je zastaveni z definice (konec drahy) a jeho polomer
+            // je nekonecno - minimum by vzdycky vyslo tam a nic by nereklo.
+            int n = pr.VLimit.Length;
+            // rMin z NEKONECNA, ne z MaxValue: polomer rovneho useku je +Inf a "+Inf < MaxValue"
+            // neplati, takze by minimum zustalo na MaxValue a vypsalo se jako 1,8e308.
+            double vMin = pr.VLimit[0], turnMax = 0, rMin = double.PositiveInfinity;
+            for (int i = 0; i < n - 1; i++)
+            {
+                if (pr.VLimit[i] < vMin) vMin = pr.VLimit[i];
+                if (pr.TurnAngle[i] > turnMax) turnMax = pr.TurnAngle[i];
+                if (pr.CornerRadius[i] < rMin) rMin = pr.CornerRadius[i];
+            }
+            string polomer = double.IsInfinity(rMin) ? "rovna" : $"{rMin:F2} m";
+            return $"draha: uzlu={n} delka={pr.TotalLength:F1} m vLimit[0]={pr.VLimit[0]:F2} "
+                 + $"vLimitMin={vMin:F2} m/s nejostrejsiRoh={turnMax * 180.0 / Math.PI:F0}° minPolomer={polomer}";
+        }
+
+        /// <summary>
+        /// Rozpad posledniho zasahu regulatoru: co z predepsane rychlosti zbylo po vazbe na dobu
+        /// rotace (<c>IMotionProfile.SpeedLimit</c>: <c>v &lt;= d / (stability * T_rot)</c>, kde
+        /// <c>d</c> je vzdalenost k lookahead bodu). Cte se z regulatoru, ktery prave drzi ridici
+        /// smycka - ten uz je odtikany na 50 Hz, takze hodnoty jsou aktualni.
+        /// </summary>
+        private static string ControlBreakdown(IRegulator regulator)
+        {
+            if (!(regulator is PathResult pr)) return "regulator: -";
+            return $"regulator: vCmd={pr.LastVCmd:F2} -> v={pr.LastSpeed:F2} m/s  "
+                 + $"beta={pr.LastBeta * 180.0 / Math.PI:F1}° Trot={pr.LastRotTime:F3} s  "
+                 + $"cil=uzel[{pr.LastTargetIndex}] ve {pr.LastLimitDist:F2} m (prah preskoku "
+                 + $"{pr.LastLookahead:F2} m)";
+        }
+
+        /// <summary>Rozpad posledniho zasahu regulatoru (naplni se pri vymene regulatoru).</summary>
+        private string lastControlDiag = "regulator: -";
+
+        /// <summary>Rozpad rychlostni obalky posledniho planu - ktery clen srazi rychlost.</summary>
+        private string PlanEnvelope()
+        {
+            var p = LastPlan;
+            if (p == null || !p.HasPath) return "plan: zadny";
+            return $"plan: v={p.MinWayPointSpeed:F2} m/s (podlaha {planner.Config.MinCostSpeed:F2}), "
+                 + $"VClear={p.MinVClear:F2} VBrake={p.MinVBrake:F2} freeAhead={p.MinFreeAheadM:F2} m, "
+                 + $"vaze {p.SpeedLimitedBy}";
         }
 
         /// <summary>Emituje snapshot gridu, kdyz od posledniho uplynula <see cref="gridMsgPeriod"/>.</summary>

@@ -62,6 +62,9 @@ namespace ARBot.Common.Occupancy
         private double[] nodeS = new double[0];
         private int[] nodeSample = new int[0];
 
+        // Rozpad rychlostni obalky posledniho planu (naplni BuildWayPoints, prectе Plan do vysledku).
+        private double envMinFreeAhead, envMinVClear, envMinVBrake, envMinSpeed;
+
         /// <summary>Konfigurace planovace.</summary>
         public LocalPlannerConfig Config => cfg;
 
@@ -172,6 +175,12 @@ namespace ARBot.Common.Occupancy
                                            finalGoal: res.Status == LocalPlanStatus.Ok,
                                            minClearance: out double minClear);
             res.MinClearanceM = minClear;
+
+            // Rozpad rychlostni obalky (diagnostika "proc robot leze") - viz LocalPlanResult.
+            res.MinFreeAheadM = envMinFreeAhead;
+            res.MinVClear = envMinVClear;
+            res.MinVBrake = envMinVBrake;
+            res.MinWayPointSpeed = envMinSpeed;
 
             if (res.WayPoints == null || res.WayPoints.Length < 2)
                 res.Status = LocalPlanStatus.AlreadyAtGoal;   // cil je blize nez jedna pouzitelna hrana
@@ -398,6 +407,10 @@ namespace ARBot.Common.Occupancy
                                                    bool finalGoal, out double minClearance)
         {
             minClearance = double.MaxValue;
+            envMinFreeAhead = double.MaxValue;
+            envMinVClear = double.MaxValue;
+            envMinVBrake = double.MaxValue;
+            envMinSpeed = double.MaxValue;
             if (pulled.Count < 1) return null;
 
             // Vrcholy ve svetovych souradnicich; prvni bod je SKUTECNA poloha robotu (ne stred bunky).
@@ -457,8 +470,20 @@ namespace ARBot.Common.Occupancy
                 double freeAhead = frontierAfter[nodeSample[k]] - nodeS[k];
                 if (freeAhead < 0) freeAhead = 0;
 
-                double v = Math.Min(cfg.VClear(clr), cfg.VBrake(freeAhead));
+                double vClear = cfg.VClear(clr), vBrake = cfg.VBrake(freeAhead);
+                double v = Math.Min(vClear, vBrake);
                 bool last = k == n - 1;
+
+                // Diagnostika obalky - jen mezilehle uzly: v poslednim je Speed = 0 z definice
+                // (konec drahy), takze by minimum vzdycky vyslo tam a nic by nereklo.
+                if (!last)
+                {
+                    if (freeAhead < envMinFreeAhead) envMinFreeAhead = freeAhead;
+                    if (vClear < envMinVClear) envMinVClear = vClear;
+                    if (vBrake < envMinVBrake) envMinVBrake = vBrake;
+                    double speed = Math.Max(cfg.MinCostSpeed, v);
+                    if (speed < envMinSpeed) envMinSpeed = speed;
+                }
 
                 wps[k] = new RegulatorWayPoint
                 {

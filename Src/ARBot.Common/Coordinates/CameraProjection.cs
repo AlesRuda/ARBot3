@@ -433,8 +433,20 @@ namespace ARBot.Common.Coordinates
         /// <param name="yc">Y v rovine kamery. Roste smerem dolu v pixlech.</param>
         public bool Transform(float x, float y, ref float xc, ref float yc)
         {
-            var p = new Vector3(x - offset.X, y - offset.Y, -offset.Z);
-            p=Vector3.Transform(p, rotationWorld2Cam);
+            // POZOR (2026-08-14): rotationWorld2Cam je inverze CELE transformace, tedy VCETNE
+            // posunuti kamery (viz SetOrientation - M41..M43 se pred inverzi vraci zpet).
+            // Vector3.Transform translaci matice uplatnuje, takze rucni odecteni offsetu navic
+            // ho zapocitalo DVAKRAT: bod zeme se promitl o ~95 px vedle (u Profile.LeftCameraOff,
+            // vyska 0,52 m) a blizke body metoda dokonce zahodila jako "mimo obraz". Dopad:
+            // OccupancyIntegrator vzorkoval oba kanaly ze spatnych pixelu -> plocha mimo cestu se
+            // neoznacila jako nesjizdna. Overeno round-tripem pixel -> zem -> pixel
+            // (VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu): puvodne chyba ~95 px,
+            // nyni < 0,5 px.
+            //
+            // Puvodni (chybna) varianta - ponechana do overeni na HW, viz CLAUDE.md:
+            //     var p = new Vector3(x - offset.X, y - offset.Y, -offset.Z);
+            //     p = Vector3.Transform(p, rotationWorld2Cam);
+            var p = Vector3.Transform(new Vector3(x, y, 0f), rotationWorld2Cam);
 
             // Bod ZA kamerou (Z <= 0) neni videt. Bez teto kontroly by ho perspektivni deleni
             // v Camera3DToCamera2D promitlo na zdanlive platny pixel (deleni zapornym Z prevrati

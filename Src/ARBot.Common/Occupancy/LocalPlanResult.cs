@@ -72,6 +72,29 @@ namespace ARBot.Common.Occupancy
         /// <summary>Nejmensi odstup od neprujezdneho podel cele drahy [m] (diagnostika bezpecnosti).</summary>
         public double MinClearanceM;
 
+        // --- Diagnostika rychlostni obalky: PROC plan predepisuje zrovna takovou rychlost ---
+        // Rychlost uzlu = max(MinCostSpeed, min(VClear(odstup), VBrake(freeAhead))). Kdyz robot
+        // leze, je potreba vedet, ktery z obou clenu ji srazi - odstup od prekazek (bocni), nebo
+        // hranice potvrzene sjizdne plochy (brzdna obalka). Viz doc/occupancy-and-local-planning.md.
+
+        /// <summary>Nejmensi <c>freeAhead</c> podel drahy [m] - vzdalenost k prvni bunce, ktera neni
+        /// <see cref="CellState.Free"/>. Male cislo = brzdna obalka drzi rychlost dole.</summary>
+        public double MinFreeAheadM;
+
+        /// <summary>Nejnizsi strop z BOCNIHO odstupu podel drahy [m/s] (<c>VClear</c>).</summary>
+        public double MinVClear;
+
+        /// <summary>Nejnizsi strop z BRZDNE OBALKY podel drahy [m/s] (<c>VBrake</c>).</summary>
+        public double MinVBrake;
+
+        /// <summary>Nejnizsi predepsana rychlost mezilehleho uzlu [m/s] (uz vcetne podlahy
+        /// <c>MinCostSpeed</c>). Rovna-li se podlaze, robot jede nejpomaleji, jak plan dovoluje.</summary>
+        public double MinWayPointSpeed;
+
+        /// <summary>Ktery clen rychlostni obalky vazal (diagnosticky popis pro log).</summary>
+        public string SpeedLimitedBy
+            => MinVBrake <= MinVClear ? "VBrake (hranice potvrzeneho)" : "VClear (odstup od prekazek)";
+
         /// <summary>Doba vypoctu [ms] (integrace snimku + EDT + A*), plni <c>LocalNavigator</c>.</summary>
         public double ComputeMs;
 

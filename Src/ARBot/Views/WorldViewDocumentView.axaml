@@ -51,8 +51,12 @@
                 <Separator Margin="0,4"/>
 
                 <TextBlock Text="Vrstvy" Foreground="White" FontSize="11" Opacity="0.7"/>
-                <CheckBox Content="Poloha + kurz" IsChecked="{Binding ShowRobot}" Foreground="White"/>
-                <CheckBox Content="Trajektorie" IsChecked="{Binding ShowTrajectory}" Foreground="White"/>
+                <CheckBox Content="Poloha + kurz" IsChecked="{Binding ShowRobot}" Foreground="White"
+                          ToolTip.Tip="Fúzovaná póza (EKF) – tatáž, ze které vychází lokální plán."/>
+                <CheckBox Content="Trajektorie" IsChecked="{Binding ShowTrajectory}" Foreground="White"
+                          ToolTip.Tip="Stopa fúzované pózy."/>
+                <CheckBox Content="Surové GPS" IsChecked="{Binding ShowGps}" Foreground="White"
+                          ToolTip.Tip="Fixy tak, jak přišly z přijímače (šedě), bez fúze.&#10;Rozestup od žluté značky robota = aktuální chyba GPS."/>
                 <CheckBox Content="Mapa (síť)" IsChecked="{Binding ShowMap}" Foreground="White"/>
                 <CheckBox Content="Trasa / graf" IsChecked="{Binding ShowRoute}" Foreground="White"/>
                 <CheckBox Content="Značky" IsChecked="{Binding ShowMarkers}" Foreground="White"/>

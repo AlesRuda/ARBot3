@@ -447,6 +447,15 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 
 ## Otevřené úkoly
 
+- **Není okluzní pravidlo `InShadow` příliš přísné?** (nalezeno 2026-08-14) V měření nad virtuálním
+  HW zahodilo **~5 200 z ~12 000** kandidátů na barevný vzorek — tedy většinu. Důsledek: semantický
+  kanál dostane řádově míň dat než geometrický (`road ≈ 3 800` vs. `occ ≈ 8 600` zápisů na snímek)
+  a plocha mimo cestu se potvrzuje pomalu. Záměr pravidla je správný (za první překážkou v daném
+  azimutu patří barva té překážce, ne zemi za ní), ale stíní se **celý zbytek paprsku**, včetně
+  míst, kam kamera zjevně vidí. K rozmyšlení: stínit jen do určité vzdálenosti za překážkou, nebo
+  podle její výšky, případně vzorek jen zeslabit (nižší confidence) místo úplného zahození.
+  Měřicí nástroj je `VirtualHwOccupancyTest.Diagnostika_PricnyProfilSemantiky` (pole `ColorShadowed`
+  v `OccupancyIntegrator.IntegrateStats`).
 - **Dvě EDT místo jedné** (zvlášť překážky, zvlášť okraj cesty), kdyby bylo potřeba v nouzi
   vyjet z cesty. Zatím schválně jedna společná maska — rozdělí se, až se ukáže, že to chybí.
 - **`MaxZ` per buňka** (2,5D) pro převisy a podjezdy.

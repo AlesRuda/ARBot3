@@ -216,6 +216,93 @@ zdroje — předchozí generace robotu (`Drive(ReqSpeed, ReqRotationSpeed * Rozc
 **dvakrát rychleji, než regulátor chtěl** — opraveno 2026-08-12, hlídá test
 `RotationSpeed_ToDif_IsHalfWheelBase`. `ControlLoop` je jediné místo v repu, kde se ω na `dif` převádí.
 
+### ✅ Vyřešeno 2026-08-14: rychlost uzamčená vazbou na dobu rotace
+
+**Robot jel ~0,1 m/s, i když plán i `PathPlanner` povolovaly 1,2 m/s.** Změřeno v běžící aplikaci
+(diagnostika `LocalNavigator` → Debug output); occupancy grid i obě plánovací vrstvy jsou přitom
+v pořádku a nic nesrážejí:
+
+```
+plan:      v=1,20 m/s  VClear=1,20 VBrake=1,20 freeAhead=5,3 m
+draha:     vLimit[0]=1,20 m/s  delka=6,0 m  nejostrejsiRoh=0°
+regulator: vCmd=0,95 -> v=0,05 m/s  beta=-11,9° Trot=0,786 s lookahead=0,15 m
+```
+
+Rychlost sráží [`TrapezoidMotionProfile.SpeedLimit`](../Src/ARBot.Common/Regulators/TrapezoidMotionProfile.cs):
+
+```
+v ≤ d / (stability · T_rot)          stability = 4
+d = max(LookaheadMin, LookaheadTime · v) = max(0,15; 0,3·v)
+```
+
+Dosazeno: `0,15 / (4 · 0,786) = 0,048 m/s` — sedí na setinu.
+
+**Proč je to západka:** `d` se počítá z **aktuální** rychlosti, takže omezovač závisí na vlastním
+výstupu. Dokud je robot pomalý, `d` leží na podlaze `LookaheadMin` = 0,15 m a strop zůstává nízký —
+soustava se z toho stavu sama nedostane. Aby při `T_rot = 0,786 s` vyšlo 1,2 m/s, musel by být
+lookahead **3,8 m**.
+
+Druhý faktor: `MaxAllowedRotationSpeed = π/6`, tedy jen **30°/s** — proto trvá dorovnání pouhých
+12° celých 0,79 s.
+
+Odhad dopadu jednotlivých zásahů (samostatně, při `T_rot` = 0,79 s):
+
+| změna | výsledný strop |
+|---|---|
+| `stability` 4 → 1 | 0,19 m/s |
+| lookahead z **řízené** rychlosti místo měřené (rozbije západku) | 0,09 m/s |
+| obojí | 0,36 m/s |
+| + `MaxAllowedRotationSpeed` π/6 → π/2 (`T_rot` klesne ~3×) | ~1,1 m/s |
+
+#### Oprava: cíl řízení je UZEL DRÁHY, ne virtuální bod
+
+Robot se natáčí na **nejbližší uzel dráhy před sebou** a do **téže** vzdálenosti se váže dopředná
+rychlost. Směr i vzdálenost tedy pocházejí z jednoho bodu — jsou to dvě strany téhož: *mířím tam
+a tam se musím stihnout natočit*.
+
+Dřív se mířilo na **virtuální bod na ideální trase** ve vzdálenosti `L_d = max(LookaheadMin,
+LookaheadTime·v)`. Ten sice drží menší boční odchylku, ale:
+
+- `L_d` se počítá z **aktuální** rychlosti → omezovač závisel na vlastním výstupu → **západka**
+  (nízká rychlost → `L_d` na podlaze 0,15 m → nízký strop → nízká rychlost);
+- a hlavně: zkrácením dohledu se uměle blokuje rychlost, i když geometrie dráhy nic takového nežádá.
+
+**Přesnost průjezdu se tedy řídí hustotou waypointů** (a jejich `MaxPositionError`), ne umělým
+zkrácením dohledu. Kde je potřeba projet přesně, nasází lokální plánovač uzly blízko sebe — a protože
+se dráha přeplánovává každý snímek z *aktuální* pózy robota, boční odchylka se průběžně vynuluje sama.
+
+**Uzel blíž než `L_d` se přeskakuje.** Bez toho by to nefungovalo ze dvou důvodů: směr k bodu, na
+kterém robot prakticky stojí, je špatně podmíněný (azimut poskakuje o desítky stupňů), a vzdálenost
+k němu jde k nule → `SpeedLimit` by robota zastavil na **každém** uzlu. `L_d` tady tedy neurčuje cíl,
+jen práh „tenhle uzel už mám za sebou".
+
+**Proč ne zbývající délka celé dráhy:** na dojezd už je brzdná obálka o krok dřív (`vCmd` = minimum
+přes uzly z `Dist2Speed`) — byla by to duplicita. `SpeedLimit` neřeší dojezd, ale geometrii řízení.
+
+*(Zajímavost: `distToNext` se v `Control` počítalo už předtím a nikde se nepoužívalo — původní návrh
+nejspíš mířil sem a napojení na virtuální bod byla odbočka.)*
+
+Hlídají dva testy (`PathControllerTests`), oba ověřené tak, že bez opravy padají:
+
+| test | bez opravy |
+|---|---|
+| `Straight_ReachesFullSpeed` (rovinka 20 m, s odchylkou kurzu i bez ní) | rozjel se jen na **0,19 z 0,80 m/s** |
+| `ManyCollinearWaypoints_DoesNotStallAtEach` (uzel po 1 m) | bez přeskakování **0,62 z 0,80 m/s** + padají i rohové testy |
+
+Původní varianta je ponechaná zakomentovaná do ověření na HW (viz CLAUDE.md).
+
+#### Co zůstává otevřené
+
+⬜ **`MaxAllowedRotationSpeed = π/6` (30°/s) je nízké.** Po opravě už rychlost nezamyká, ale zůstává
+mezí toho, jak rychle se robot srovná na cílový uzel. Jestli robot mechanicky unese víc, se musí
+potvrdit na zařízení — „maximální **dovolená**" není technická mez. Souvisí s tím i `LookaheadMin`
+(0,15 m), který teď funguje jako práh přeskoku uzlu: příliš malý = míří se na uzly těsně před robotem
+(neklidný azimut), příliš velký = přeskakují se i rohy, které se měly projet. **Neověřeno na HW.**
+
+⬜ **`beta = −11,9°` na rovné 6m dráze** je samo o sobě dost. Může jít o důsledek plazení (robot se
+nestihl srovnat) — po rozjezdu bude vidět, jestli odchylka zmizí, nebo je to samostatná chyba
+ve sledování dráhy.
+
 ### ⬜ Otevřený úkol: znaménko rotace ověřit na zařízení
 
 **Znaménko** je jiná otázka než faktor a **z kódu se rozhodnout nedá** — musí se změřit na robotu.

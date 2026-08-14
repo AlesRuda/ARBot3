@@ -11,6 +11,31 @@ Dokovatelný dokument **`WorldViewDocument`** — geografický (world) pohled na
 > otáčeném s robotem by se s každou zatáčkou točil. Viz
 > [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
 
+> **Pozor (2026-08-14): rastrové vrstvě je nutné nastavit `Style = new RasterStyle()`.**
+> `MemoryLayer` má ve výchozím stavu `Style = VectorStyle`; vrstva **Lokální mapa** se ale plní
+> `RasterFeature` (PNG). Bez explicitního `RasterStyle` Mapsui feature nevykreslí a jen zaloguje
+> `VectorStyleRenderer can not render feature of type 'Mapsui.Layers.RasterFeature'` — vrstva
+> vypadá prázdně, i když data v `OccupancyGridMsg` jsou v pořádku. Tohle nás stálo jedno ladění.
+
+### Legenda vrstvy Lokální mapa
+
+| stav buňky | vykreslení |
+|---|---|
+| `Blocked` | červená (alfa 0xB0) |
+| `Free` | zelená (alfa 0x80) |
+| `Unknown` | průhledné |
+
+`Free` má vyšší alfu než původních `0x50` (2026-08-14): slabá zelená splývala se zeleným podkladem
+OSM, takže nešlo poznat, co je potvrzená plocha a co jen podklad. Po zesílení je `Free` čitelná
+a `Unknown` proto může zůstat průhledné — zkoušené zvýraznění `Unknown` šachovnicí se ukázalo jako
+zbytečné a jen zašumilo obrázek.
+
+> **Pozn. při ladění:** `Unknown` průhledné znamená, že skrz něj prosvítá podklad i fialová síť
+> OsmNav (occupancy se kreslí *nad* ní — vypnutí podkladu s tím nehne). Souvisle vypadající plocha
+> tedy ještě nemusí být potvrzená. Když jde o to, **proč robot jede pomalu**, čti radši čísla
+> z Debug outputu (`LocalNavigator`: `koridor: free=… unknown=…` a rozpad rychlostní obálky) —
+> brzdná obálka `VBrake` jede jen přes buňky `Free`.
+
 Kód:
 - [`Src/ARBot/ViewModels/WorldViewDocument.cs`](../Src/ARBot/ViewModels/WorldViewDocument.cs) — ViewModel
   (data, vrstvy, podklad, backpressure).
@@ -36,8 +61,9 @@ Pořadí zdola nahoru: **podklad → trajektorie → trasa/graf → značky → 
 | Vrstva | Zdroj (Message) | Rámec | Stav |
 |---|---|---|---|
 | **Podklad** | OSM online / MBTiles offline / žádný | Web Mercator | funkční |
-| **Poloha + kurz** | [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) (poloha) + [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) (kurz) | WGS84 → Mercator | živé v Run/View |
-| **Trajektorie** | `GPSState` (akumulované fixy) | WGS84 → Mercator | živé |
+| **Poloha + kurz** | [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) (**fúzovaná póza**) | lokální ENU → LLA | živé v Run/View |
+| **Trajektorie** | `RobotStateMsg` (akumulovaná fúzovaná póza) | lokální ENU → LLA | živé |
+| **Surové GPS** | [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) (fixy bez fúze) | WGS84 → Mercator | živé; **výchozí vypnuto** |
 | **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav) | WGS84 → Mercator | ruční načtení**; ze streamu dormantní* |
 | **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | dormantní* |
 | **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | dormantní* |
@@ -47,6 +73,27 @@ na `Stream` **neemitují** (OsmNav není napojen na řídicí smyčku — viz [o
 Otevřené úkoly). Do té doby zůstávají tyto vrstvy (ze streamu) prázdné.
 
 \*\* Vrstvu **Mapa (síť)** lze naplnit ručně tlačítkem **„Načíst OSM mapu…"** (viz níže) i bez runtime.
+
+### Jeden rámec pro všechna lokální data (2026-08-14)
+
+**Poloha, trajektorie, trasa/graf, značky, lokální mapa i lokální plán se kreslí přes tentýž
+`BuildGeoReference()`** — tedy z **fúzované pózy** v lokální ENU rovině. Je to podmínka toho, aby
+spolu vrstvy seděly: plánovač počítá z fúzované pózy, takže cokoliv jiného pod značkou robota nutně
+znamená, že plán „nevychází z robota".
+
+Do 2026-08-14 se **poloha a trajektorie braly ze surového GPS**, zatímco plán a occupancy z fúzované
+pózy. Projevy: (a) začátek plánu byl posunutý od značky robota přesně o aktuální chybu fixu, což
+vypadalo, že plán vychází z „ideální pozice uprostřed cesty"; (b) trajektorie byla klubko šumu místo
+dráhy — práh `MinTrackStepMeters` (0,5 m) propouští právě jen ty šumové výchylky; (c) značka míchala
+dva zdroje, protože polohu brala z GPS, ale kurz z fúze.
+
+Surové fixy se kreslí dál, ale jako **samostatná vypínatelná vrstva „Surové GPS"** (šedě, výchozí
+vypnuto). Rozestup šedého bodu od žluté značky robota je přímo aktuální chyba GPS — užitečná
+diagnostika kvality fixu a fúze.
+
+*Fallback:* bez načtené mapy nemá `BuildGeoReference()` pevný `MapOrigin` a odvozuje počátek z posledního
+fixu a pózy — pak se lokální ENU rovina posouvá s každým fixem a všechno kreslené v ní poskakuje.
+Bez pózy nebo bez rámce se značka robota vykreslí aspoň na surovém fixu, ať je robot vidět.
 
 ### Mapa (síť) z OsmNav
 
@@ -140,7 +187,17 @@ minimální krok 0,5 m).
 - **Sbalení panelu**: přepínacím tlačítkem („☰ Mapa a vrstvy") vlevo nahoře lze ovládací panel sbalit,
   aby nebránil pohledu na mapu (sbalený zabírá jen tlačítko). Stav drží `PanelExpanded` na ViewModelu.
 - **Podklad**: combobox zdroje + checkbox zapnutí + cesta k MBTiles.
-- **Vrstvy**: checkboxy Poloha+kurz / Trajektorie / Trasa+graf / Značky.
+- **Vrstvy**: checkboxy Poloha+kurz / Trajektorie / Surové GPS / Mapa (síť) / Trasa+graf / Značky /
+  Lokální mapa / Lokální plán.
+- **Tooltipy značek** (`FindMarkerTip`): barevné puntíky samy o sobě nic neříkají, proto k nim jde
+  najet myší. Popisy se drží ve **dvou seznamech** — `markerTips` (vrstva Značky) a `planTips`
+  (vrstva Lokální plán); jeden společný by si obě vrstvy přepisovaly, protože se přestavují nezávisle.
+  Hledá se **jen ve viditelných vrstvách** (popisek k něčemu, co není vidět, mate).
+  - **Modrá „mrkev"** (Značky, z `GraphNavigationMsg.ResultX/Y`) a **žlutý cíl** (Lokální plán,
+    z `LocalPlanMsg.RequestedGoalX/Y`) jsou v ustáleném stavu **tentýž bod** — globální vrstva mrkev
+    spočítá a předá ji přes `SetGoal()` lokální. Kreslí se dvakrát schválně: rozestup mezi nimi ukáže,
+    že se globální a lokální vrstva rozešly (mrkev se přepočítává průběžně, žlutá je cíl posledního
+    hotového plánu).
 - **Sledovat robota**: centruje mapu na polohu při každé aktualizaci (první fix navíc nastaví zoom).
 - Zoom/pan/rotace: standardní gesta Mapsui (kolečko, tažení).
 - **Hluboký zoom**: povoleno přiblížení hluboko nad rámec zdroje dlaždic (`OverrideZoomBounds`, min.

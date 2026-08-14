@@ -103,8 +103,8 @@ namespace ARBot.Common.Configuration
         /// <remarks>
         /// Magicky koeficient 0.45 je odhad z odezvy na jednotkovy skok, aby fungovat Regulator a nedochazelo k preregulovani
         /// </remarks>
-        public static double MaxAcceleration = 0.20;// * WheelPerimeter * MotorMaxRPS / MotorGearBoxReduction ;
-        public static double MaxDecceleration = 0.30;// odhad na zaklade mereni pro Akceleraci 1 m/s^2;
+        public static double MaxAcceleration = 0.50;// * WheelPerimeter * MotorMaxRPS / MotorGearBoxReduction ;
+        public static double MaxDecceleration = 0.50;// odhad na zaklade mereni pro Akceleraci 1 m/s^2;
 
         /// <summary>
         /// Robot se bude snazit zastavit dle udaju z lidaru LidarSafetyZone mru pred prekazkou.
