@@ -58,7 +58,10 @@ namespace ARBot.Common.Tests.Fusion
             var local = r.ToLocal(p);
             double planar = local.Distance;                         // sqrt(X^2+Y^2)
             double gc = r.Origin.Distance(Ellipsoid.Wgs84, p);      // po povrchu
-            Assert.That(planar, Is.EqualTo(gc).Within(gc * 0.001)); // do 0.1 %
+            // Obojí uz pocita na WGS84 (GeoReference pres ECEF, Distance pres geodetiku),
+            // takze se musi shodnout radove na milimetry - ne jen "do promile" jako drive,
+            // kdy Distance jela na kouli o rovnikovem polomeru. Viz GreatCircle.
+            Assert.That(planar, Is.EqualTo(gc).Within(0.001));
         }
     }
 }

@@ -49,6 +49,12 @@ public sealed class RoadNetwork
         return r >= 0 ? _edges[r] : null;
     }
 
+    /// <summary>
+    /// Nejblizsi hrana k bodu (+ parametr na ni, prumet a vzdalenost).
+    /// <para><b>Pri shodne vzdalenosti vyhrava drive pridana hrana</b> (ostre <c>&lt;</c>) - na tom
+    /// zavisi vyber cilove hrany pri splitu, viz <c>GoalFieldSplitTests</c>. Bod lezici PRESNE na
+    /// obousmerne hrane je stejne daleko od obou jejich smeru, takze tohle poradi neni detail.</para>
+    /// </summary>
     public Edge? NearestEdge(LLA p, out double t, out LLA proj, out double distance)
     {
         Edge? best = null; distance = double.PositiveInfinity; t = 0; proj = p;

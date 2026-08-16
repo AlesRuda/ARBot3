@@ -16,8 +16,6 @@ namespace ARBot.Common.Coordinates
     /// </summary>
     public class LLA
     {
-        /// <summary>Stredni polomer Zeme [m] (shodny s <see cref="GreatCircle"/>).</summary>
-        private const double EarthRadiusMeters = 6_371_000.0;
 
         /// <summary>Prázdná souřadnice (0, 0, 0).</summary>
         public LLA()
@@ -109,21 +107,14 @@ namespace ARBot.Common.Coordinates
         /// </summary>
         public double Altitude { get; set; }
 
+        /// <summary>
+        /// Vzdalenost po povrchu daneho modelu [m]. Deleguje na <see cref="GreatCircle"/>, aby byl
+        /// v aplikaci jediny vypocet vzdalenosti.
+        /// <para>Drive to byl vlastni haversine s polomerem <c>e.SemiMajorAxis</c> - tedy koule
+        /// o rovnikovem polomeru i pro WGS84, coz na nasi sirce delalo chybu radove promile.</para>
+        /// </summary>
         public double Distance(Ellipsoid e, LLA point)
-        {
-            var R = e.SemiMajorAxis; // metres
-            var f1 = Latitude;
-            var f2 = point.Latitude;
-            var df = (point.Latitude - Latitude);
-            var dl = (point.Longitude - Longitude);
-
-            var a = Math.Sin(df / 2) * Math.Sin(df / 2) +
-                    Math.Cos(f1) * Math.Cos(f2) *
-                    Math.Sin(dl / 2) * Math.Sin(dl / 2);
-            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-            return R * c;
-        }
+            => new GreatCircle(e).Distance(this, point);
 
         /// <summary>
         /// Promitne tento bod na usecku [<paramref name="a"/>, <paramref name="b"/>] lokalni rovinnou
@@ -133,6 +124,14 @@ namespace ARBot.Common.Coordinates
         public (LLA Closest, double DistanceMeters, double T) ProjectOntoSegment(LLA a, LLA b)
         {
             double cosLat0 = Math.Cos(a.Latitude);
+
+            // POZOR: tady zamerne ZUSTAVA jedina stredni koule, i kdyz zbytek aplikace uz pocita
+            // na WGS84 (viz GreatCircle). Meritko se totiz pri projekci na usecku vykrati - t i
+            // pomer vzdalenosti vyjdou stejne - takze presnejsi polomery nic nezpresni, jen posunou
+            // posledni bity vraceneho bodu. A prave na tech tady zavisi degenerovany split cilove
+            // hrany (cil presne v uzlu, t = 0 nebo 1), viz GoalFieldSplitTests. Meni-li se to,
+            // musi to byt spolu s poctivym osetrenim degenerovaneho splitu, ne mimochodem.
+            const double EarthRadiusMeters = 6_371_000.0;
 
             // lokalni metry vuci a
             (double x, double y) Local(LLA g) => (
@@ -165,7 +164,7 @@ namespace ARBot.Common.Coordinates
             if (lla == null)
                 return false;
 
-            return Distance(Ellipsoid.Sphere, lla) < 0.001;
+            return GreatCircle.Sphere.Distance(this, lla) < 0.001;
         }
 
         /// <summary>Hash ze složek. Pozn.: nekonzistentní s tolerančním <see cref="Equals(object)"/>.</summary>

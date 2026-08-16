@@ -77,6 +77,27 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `Src/ARBot/ViewModels/MainWindowViewModel.Capture.cs`, `Src/ARBot/Views/MainWindow.axaml`,
   ukázka [media/SimulovaneOdboceni.gif](media/SimulovaneOdboceni.gif).
 
+- **`GreatCircle` bere `Ellipsoid`; vzdálenosti sjednoceny na WGS84** (žádost autora, navazuje na
+  zjištění u syntetické mapy). Místo haversinu na pevné kouli R = 6 371 000 m počítá geodetiku
+  (Vincentyho inverzní úloha) na zvoleném modelu, výchozí je `Wgs84` — tedy tentýž, se kterým
+  pracuje `GeoReference` i fúze. Pro `a == b` se vzorec sám degeneruje na obyčejný great-circle,
+  takže koule zůstává dostupná (`Ellipsoid.Sphere`, nebo `new Ellipsoid(r, r)` pro přesně původní
+  chování). `LLA.Distance(Ellipsoid, …)` na `GreatCircle` deleguje — dřív měla vlastní haversine
+  s poloměrem `SemiMajorAxis`, takže „WGS84" tam znamenalo kouli o rovníkovém poloměru.
+- **Efekt:** délky hran v grafu teď sedí na metrický svět. Na syntetickém koridoru vychází
+  `graf 9.800 / ENU 9.800` a `10.000 / 10.000` (dřív `9.770` a `9.969`). Test konzistence
+  `GeoReferenceTests.LocalDistance_MatchesGreatCircle` šlo zpřísnit z „do 0,1 %" na 1 mm.
+  Nových 10 testů v `GreatCircleEllipsoidTests`; celá sada `ARBot.Common.Tests` (506) zelená.
+- **Kam se nešlo a proč:** `LLA.ProjectOntoSegment` dál počítá na střední kouli. Měřítko se při
+  projekci na úsečku vykrátí, takže přesnější poloměry nic nezpřesní — jen posunou poslední bity
+  vráceného bodu, a na těch visí degenerovaný split cílové hrany (cíl přesně v uzlu). Pokus to
+  „taky sjednotit" shodil regresní test `GoalFieldSplitTests.DeadEndGoal_RobotOnGoalSegment_FiniteCost`,
+  tak jsem to vrátil a nechal u toho poznámku v kódu. Podrobně v [decisions.md](decisions.md).
+- **`Ellipsoid.Eccentricity` → `Flattening`.** Ta vlastnost počítá `1 − b/a`, což je **zploštění**
+  (WGS84 ≈ 0,00335), ne excentricita (`e = sqrt(1 − b²/a²)` ≈ 0,0818) — jméno lhalo o řád.
+  Nikde se nepoužívala, takže přejmenování bylo bez rizika; `EccentricitySquared` (`e² = 1 − b²/a²`)
+  je naopak správně a zůstává. `GreatCircle` teď bere `f` odtud místo vlastního přepočtu.
+
 - **Replay (`ReplayNavTool`): kompaktnější ovládání, víc místa pro grid.** Tři řádky nad sebou
   (textová pozice / posuvník / tlačítka) se složily do **jednoho**: `poradi/celkem`, roztahovací
   posuvník a tlačítka vpravo. **Play a Pauza je jedno přepínací tlačítko** (`TogglePlay`,
@@ -154,10 +175,10 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   aplikace používá) a mapa načtena zpět reálným `OsmXmlReader` + `GraphBuilder`: v lokálním ENU
   vycházejí vzdálenosti 9,800 / 0,200 / 2,300 / 0,200 / 3,000 / 10,000 m a šířky 3/3/2/2/1/1/3 m
   přesně. Mapa načtena i v aplikaci (`virtualhw=true map=…`) — World view koridor vykreslil.
-- **Vedlejší zjištění (neopraveno):** `GreatCircle` počítá s koulí R = 6371000 m, zatímco
-  `GeoReference` s elipsoidem WGS84, takže délky hran v grafu vycházejí ve směru východ–západ
-  na naší šířce asi o 0,3 % kratší (10,000 m v ENU = 9,969 m v grafu). Týká se to všech map
-  stejně, včetně reálných OSM dat — není to vlastnost téhle mapy.
+- **Vedlejší zjištění:** `GreatCircle` počítal s koulí R = 6371000 m, zatímco `GeoReference`
+  s elipsoidem WGS84, takže délky hran v grafu vycházely ve směru východ–západ na naší šířce
+  asi o 0,3 % kratší (10,000 m v ENU = 9,969 m v grafu). Týkalo se to všech map stejně, včetně
+  reálných OSM dat. **Opraveno tentýž den — viz níže.**
 
 ## 2026-08-14
 

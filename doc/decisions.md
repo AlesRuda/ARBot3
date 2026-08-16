@@ -13,6 +13,31 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-16 — Vzdálenosti se počítají na WGS84, ne na kouli; `ProjectOntoSegment` zůstává výjimkou — ROZHODNUTO/HOTOVO
+**Co:** `GreatCircle` bere `Ellipsoid` (výchozí `Wgs84`) a počítá geodetiku (Vincenty) místo
+haversinu na pevné kouli R = 6 371 000 m. `LLA.Distance(Ellipsoid, …)` na něj deleguje, aby byl
+v aplikaci jediný výpočet vzdálenosti.
+
+**Proč:** modely se rozcházely. `GeoReference` převádí na lokální metry přes WGS84 (ECEF),
+`GreatCircle` měřil na kouli — na šířce 50° vyšlo 10,000 m v ENU jako 9,969 m v grafu (−0,31 %).
+Ve směru východ–západ je totiž směrodatný poloměr křivosti v prvním vertikálu N(50°) ≈ 6 390 693 m,
+ne střední poloměr koule. Délky hran v grafu se tím rozcházely s metrickým světem, ve kterém robot
+jede. Koule zůstává dostupná jako `Ellipsoid.Sphere` (nebo libovolný `new Ellipsoid(r, r)`) —
+vzorec se pro `a == b` sám degeneruje na great-circle.
+
+**Výjimka, která zůstala:** `LLA.ProjectOntoSegment` dál používá jedinou střední kouli. Měřítko se
+při projekci na úsečku **vykrátí** (parametr `t` i poměry vzdáleností vyjdou stejné), takže přesnější
+poloměry nic nezpřesní — jen posunou poslední bity vráceného bodu. A právě na nich visí degenerovaný
+split cílové hrany (cíl přesně v uzlu, `t` = 0 nebo 1): pokus o „sjednocení" i tady shodil regresní
+test `GoalFieldSplitTests.DeadEndGoal_RobotOnGoalSegment_FiniteCost`. **Důsledek:** až se to bude
+měnit, musí to být spolu s poctivým ošetřením degenerovaného splitu, ne mimochodem.
+
+**Nedotčeno:** stará generace kódu (`Driver/`, `Maps/Map.cs`, `Logs/Marker.cs`, `MapPoint.cs`)
+používá `Ellipsoid.Sphere` jako součást vlastní konvence transformací — tam se nesahalo.
+
+**Odkazy:** `Src/ARBot.Common/Coordinates/{GreatCircle,LLA}.cs`,
+`Src/ARBot.Common.Tests/OsmNav.Tests/Geo/GreatCircleEllipsoidTests.cs`.
+
 ### 2026-08-11 — Lokální mapa patří do WORLD pohledu; rozjetá dráha se hlídá proti mapě — ROZHODNUTO/HOTOVO
 Dvě korekce z revize předchozí implementace (obojí vzešlo z připomínek při review):
 - **Vrstvy occupancy + plán jsou ve world pohledu, ne v robot-centrickém.** Robot-centrický pohled je
