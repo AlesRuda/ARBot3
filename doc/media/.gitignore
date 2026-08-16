@@ -3,3 +3,9 @@ selftest-*.png
 selftest-*.gif
 selftest-*.mp4
 _*.png
+
+# Ad-hoc snímky a záznamy z toolbaru (nekomitovat) - viz doc/screen-capture.md.
+# Co má zůstat v deníčku, přejmenuj na popisný název (např. world-view-road-width.png).
+shot-*.png
+rec-*.mp4
+rec-*.gif

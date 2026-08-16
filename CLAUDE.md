@@ -85,5 +85,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované, **běh aplikace neověřen**.
 - [doc/selftest.md](doc/selftest.md) — bezobslužný self-test (`selftest=true`): reprodukovatelné
   A/B měření výkonu vizuální cesty (otevře okna, Run, počká, souhrn z CSV, ukončí se).
+- [doc/screen-capture.md](doc/screen-capture.md) — toolbar pro **snímek obrazovky a videozáznam okna**
+  (PNG / mp4 / GIF do `doc/media/`): surové snímky rourou do ffmpegu, fallback bez něj, limity záznamu.
 
 Když vznikne nová netriviální doménová oblast, přidej k ní `doc/*.md` a odkaz sem.

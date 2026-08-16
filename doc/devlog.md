@@ -37,6 +37,46 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-16
+
+- **Toolbar pro snímek obrazovky a videozáznam okna** (žádost autora). Pod menu přibyl pruh
+  s tlačítky **Snímek** / **● MP4** / **● GIF**; výstup jde do `doc/media/` jako `shot-*.png`
+  a `rec-*.mp4|gif` (nové vzory v `doc/media/.gitignore` — je to pracovní výstup; co má zůstat
+  v deníčku, se přejmenuje na popisný název).
+- **Většina schopností už v repu byla** — `ScreenCapture`, `Ffmpeg`, `GifWriter` z self-testu.
+  Chyběla jen interaktivní cesta k nim: dosud šly použít výhradně parametry z příkazové řádky
+  (`selftest=true st_shot=…`), tedy s ukončením aplikace na konci.
+- **Nové je průběžné kódování:** self-test ukládá každý snímek jako PNG do dočasné složky a kóduje
+  až nakonec — pro záznam bez předem známé délky se to nehodí. `FfmpegPipe` proto drží běžící ffmpeg
+  a posílá mu surové BGRA na stdin (`-f rawvideo`): konstantní paměť i disk, na UI vlákně zbyde jen
+  kopie pixelů. Zápis do roury má vlastní vlákno a frontu na 8 snímků; při nestíhání se snímek zahodí,
+  aby se UI nikdy nezablokovalo. Buffery se recyklují (jinak megabajty alokací na snímek).
+- **Limity a auto-stop:** mp4 15 fps/1280 px/10 min, GIF 8 fps/800 px/60 s (GIF je omezenější,
+  protože `palettegen` si drží celý stream v paměti). Po limitu se záznam sám uloží — zapomenuté
+  nahrávání nemá zaplnit disk. Bez ffmpegu funguje GIF přes vestavěný zapisovač, mp4 to odmítne
+  s hláškou.
+- **Ověřeno za běhu na Windows/x64** (tlačítka odkliknuta přes UI Automation): PNG, GIF i mp4 vzniknou,
+  popisky tlačítek se přepínají na Stop, druhý formát je během záznamu zamčený, hláška ukazuje délku,
+  počet snímků a zbývající čas. Výsledný mp4 zkontrolován ffmpegem (1280x642, h264, 15 fps).
+  **Neověřeno:** Armbian/OrangePI (`Ffmpeg.Find()` hledá jen `ffmpeg.exe` → tam bude nutné
+  `ARBOT_FFMPEG`) a fallback bez ffmpegu.
+- **Doplněno na žádost autora:** jméno uloženého souboru je v toolbaru **odkaz** (otevře ho
+  v přidružené aplikaci) a přibyla **ikona složky** (otevře `doc/media/` a soubor v ní označí).
+  Kvůli tomu se cesta oddělila od textu hlášky (`RecordingResult.Path` vs. `Message`).
+  Otevírání je v `ShellOpen` (Windows `explorer /select`, Linux `xdg-open`) a ikona je vektorová
+  (`PathIcon`), ne emoji — na Armbianu nemusí být emoji font.
+- **První ostré použití** (autor) — simulované odbočení ve World pohledu na virtuálním HW.
+  Záznam je pořízený právě novým tlačítkem **● GIF**, takže je v něm vidět i toolbar sám:
+  vlevo nahoře přepnuté **■ Stop GIF** a průběžná hláška `● REC gif · … · zbývá … s`.
+
+  ![Simulované odbočení: World pohled s OSM podkladem, virtuální HW (VirtualMotors/GPS/IMU), robot
+  projíždí zatáčku po trase; nahoře toolbar v režimu záznamu](media/SimulovaneOdboceni.gif)
+
+- **Odkazy:** [doc/screen-capture.md](screen-capture.md) (nový),
+  `Src/ARBot/Diagnostics/{ScreenRecorder,FfmpegPipe,ShellOpen}.cs`,
+  `Src/ARBot/ViewModels/MainWindowViewModel.Capture.cs`, `Src/ARBot/Views/MainWindow.axaml`,
+  ukázka [media/SimulovaneOdboceni.gif](media/SimulovaneOdboceni.gif).
+
 ## 2026-08-14
 
 - **Volba hardwaru v menu + čistý šev `ARBotHW`.** Návrh autora: po startu aplikace neběží žádný HW,
