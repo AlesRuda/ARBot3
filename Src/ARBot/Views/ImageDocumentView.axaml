@@ -28,8 +28,11 @@
 
         <!-- Dva panely: levy a pravy snimek, kazdy s polopruhlednym overlayem -->
         <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0,8,8">
+            <!-- Overlay ma IsHitTestVisible=False, takze ukazovani mysi obsluhuje podkladovy Image.
+                 Tag rozlisuje panel (L/P) v obsluze v code-behind. -->
             <Grid Grid.Column="0" Margin="0,0,4,0">
-                <Image Source="{Binding LeftImage}" Stretch="Uniform"/>
+                <Image Source="{Binding LeftImage}" Stretch="Uniform" Tag="L"
+                       PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited"/>
                 <Image Source="{Binding LeftOverlayImage}" Stretch="Uniform"
                        Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
@@ -37,11 +40,14 @@
                     <StackPanel>
                         <TextBlock Text="{Binding LeftInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
                         <TextBlock Text="{Binding LeftOverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
+                        <TextBlock Text="{Binding LeftCursorInfo}" Foreground="#FFD080" FontFamily="Consolas,monospace"
+                                   IsVisible="{Binding LeftCursorInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                     </StackPanel>
                 </Border>
             </Grid>
             <Grid Grid.Column="1" Margin="4,0,0,0">
-                <Image Source="{Binding RightImage}" Stretch="Uniform"/>
+                <Image Source="{Binding RightImage}" Stretch="Uniform" Tag="R"
+                       PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited"/>
                 <Image Source="{Binding RightOverlayImage}" Stretch="Uniform"
                        Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
@@ -49,6 +55,8 @@
                     <StackPanel>
                         <TextBlock Text="{Binding RightInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
                         <TextBlock Text="{Binding RightOverlayInfo}" Foreground="#A0FFFFFF" FontFamily="Consolas,monospace"/>
+                        <TextBlock Text="{Binding RightCursorInfo}" Foreground="#FFD080" FontFamily="Consolas,monospace"
+                                   IsVisible="{Binding RightCursorInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                     </StackPanel>
                 </Border>
             </Grid>

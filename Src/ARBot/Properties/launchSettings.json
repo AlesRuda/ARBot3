@@ -5,7 +5,7 @@
     },
     "ARBot - virtualni HW": {
       "commandName": "Project",
-      "commandLineArgs": "virtualhw=true map=D:\\Work\\ARBot3\\OSM\\haje.osm no_uart=true"
+      "commandLineArgs": "virtualhw=true map=C:\\work\\projekty\\ARBot3\\OSM\\SyntetickyKoridor.osm no_uart=true"
     },
     "WSL": {
       "commandName": "WSL2",

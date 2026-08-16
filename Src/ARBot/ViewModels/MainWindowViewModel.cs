@@ -35,6 +35,18 @@ namespace ARBot.ViewModels
             if (_factory.SensorStatus is not null)
                 _factory.SensorStatus.SensorActivated += OpenSensorDocument;
 
+            // Panel senzorů je po startu SBALENÝ do auto-hide proužku na levé hraně - dokumenty
+            // tak dostanou celou šířku. Rozbalí se kliknutím na záložku nebo z menu Tools →
+            // Sensors overview (ReopenTool si s odepnutým i připnutým stavem poradí).
+            // Až po InitLayout: pinování pracuje se ŽIVÝM stromem layoutu (PinnedDockables rootu).
+            if (Layout is not null && _factory.SensorStatus is not null)
+            {
+                // Sirka vysunuteho prouzku: pinnuty panel se neridi proporci doku, ale vlastnimi
+                // "pinned bounds" (x, y, sirka, vyska); 0 u vysky = neomezeno.
+                _factory.SensorStatus.SetPinnedBounds(0, 0, DockFactory.SensorPanelPinnedWidth, 0);
+                _factory.PinDockable(_factory.SensorStatus);
+            }
+
             // Bezobslužný self-test (parametr selftest=1) - reprodukovatelné měření výkonu bez obsluhy.
             StartSelfTestIfRequested();
 
@@ -462,7 +474,9 @@ namespace ARBot.ViewModels
                     Id = "ToolDock",
                     Title = "ToolDock",
                     Alignment = alignment,
-                    Proportion = 0.25,
+                    // Tataz proporce jako ve vychozim layoutu - jinak by mel panel po znovuotevreni
+                    // jinou sirku nez po startu.
+                    Proportion = DockFactory.SensorPanelProportion,
                     VisibleDockables = _factory.CreateList<IDockable>(tool),
                     ActiveDockable = tool
                 };

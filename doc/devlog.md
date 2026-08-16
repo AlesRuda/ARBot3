@@ -77,6 +77,88 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `Src/ARBot/ViewModels/MainWindowViewModel.Capture.cs`, `Src/ARBot/Views/MainWindow.axaml`,
   ukázka [media/SimulovaneOdboceni.gif](media/SimulovaneOdboceni.gif).
 
+- **Replay (`ReplayNavTool`): kompaktnější ovládání, víc místa pro grid.** Tři řádky nad sebou
+  (textová pozice / posuvník / tlačítka) se složily do **jednoho**: `poradi/celkem`, roztahovací
+  posuvník a tlačítka vpravo. **Play a Pauza je jedno přepínací tlačítko** (`TogglePlay`,
+  popisek z `PlayPauseText`) — třetí stav neexistuje, takže dvě tlačítka byla zbytečná.
+  Textová pozice ukazuje **jen `poradi/celkem`**; typ zprávy a čas z ní zmizely, protože jsou
+  vidět na vybraném řádku gridu a jen braly místo. V gridu je **čas jako druhý sloupec** hned za
+  `Seq` (pořadí sloupců: Seq, Čas, Typ, Jméno). Ušetřily se dva řádky výšky.
+- **Replay: skok na předchozí/následující zprávu téhož proudu** (`◀◀ Stejná` / `Stejná ▶▶`).
+  „Stejná" znamená shodnou dvojici **`(MsgName, Name)`** — tedy tutéž identitu proudu, jakou
+  používá `FileMessageSource.SeekTo` při rekonstrukci stavu. Díky tomu krokování drží *jednu*
+  kameru a nepřepíná se mezi levou a pravou. Když už tím směrem žádná taková zpráva není,
+  tlačítko nedělá nic (zůstane na místě). **Ověřeno nad záznamem `20260816-134136.rec`**
+  (27 246 zpráv): z `5428 MotorStateBase` dvě stisknutí → `5432` → `5434`, obojí `MotorStateBase`,
+  s přeskočením proložených `IMUState` / `RobotStateMsg` / `DriveCommandMsg`; zpět na `5432`.
+  Při ověření se ukázalo, že sloupec Čas byl úzký a `HH:mm:ss.fff` přetékal do typu — rozšířen.
+
+- **ImageDocument: hodnota pixelu pod kurzorem.** Při ukazování myší do panelu se ve spodním
+  informačním boxu objeví třetí řádek `[x,y] <podklad> | <overlay>` — tedy hodnota ze **stejného
+  místa v obou vrstvách naráz** (RGB proti pravděpodobnosti sjízdnosti, hloubka v mm). Přepočet
+  pozice na pixel dělá View, protože závisí na `Stretch="Uniform"` (obraz je vycentrovaný
+  a olemovaný prázdnem); ViewModel jen čte z `registry`, tedy z téhož zdroje, ze kterého se panel
+  kreslí. Grid sjízdnosti se rasterizuje zvlášť a v registry není, u něj se hodnota nehlásí.
+  **Ověřeno:** vozovka `RGB 131,125,132 | p 251`, tráva `RGB 61,138,62 | p 0` — sedí na čísla
+  z diagnostického testu (`probability vozovky = 254`, `travy = 0`). Hodí se rovnou na ladění
+  sémantického kanálu occupancy gridu (viz níže).
+
+- **Tři drobnosti v UI** (hlášené autorem, všechny ověřené za běhu nad virtuálním HW):
+  - **Overlay nad pravou kamerou ukazoval `left/probability`.** `AutoSelect` dával *tutéž*
+    probability vrstvu do obou overlayů (bral první, co dorazila). Nově se overlay páruje
+    s **kamerou svého panelu** (`EnsureDefaultOverlays` + `FindOverlayFor`) — a protože pořadí
+    příchodu vrstev není zaručené, dělá se to až po zpracování snímku, ne při objevení vrstvy.
+    Při ověření se ukázala i druhá polovina problému: **panely samotné se přiřazovaly podle pořadí
+    příchodu**, takže vlevo klidně byla pravá kamera. Teď rozhoduje jméno kamery (`AssignBaseLayer`).
+  - **Panel senzorů je po startu sbalený** do auto-hide proužku na levé hraně (`PinDockable`
+    v konstruktoru `MainWindowViewModel`, až po `InitLayout` — pinování pracuje se živým stromem)
+    a má **pevnou šířku 300 px**. Šířku řídí dvě různé věci podle stavu: připnutý panel
+    `SetPinnedBounds` (v pixelech), rozbalený `Proportion` doku — a ta se navíc normalizuje mezi
+    sourozenci, takže není podílem šířky okna (změřeno na okně 1424 px: 0,35 → 370 px,
+    0,50 → 475 px). Proporce je zkalibrovaná tak, aby rozbalený panel vyšel stejně široký jako
+    vysunutý proužek, jinak by při odepnutí poskočil. Obě hodnoty jsou konstanty v `DockFactory`;
+    při té příležitosti zmizelo natvrdo psané `0.25` v `ReopenTool`, kvůli kterému měl panel po
+    znovuotevření z menu jinou šířku než po startu.
+  - **World view otevřený před Startem poskakoval.** Příčina: Mapsui navigační volání
+    (`CenterOnAndZoomTo`, `ZoomToBox`) při nepřipraveném viewportu **nezahodí ani nevyhodí výjimku,
+    ale odloží si ho** a přehraje později (`Executing postponed call …`). Zařadila se tak dvě
+    odložená volání za sebou a po připojení viewportu se provedla hned po sobě; `initialCentered`
+    se navíc nastavil už při odložení, takže pojistka „centruj jen jednou" neplatila. Nově se
+    necentruje, dokud `ViewportReady()` nehlásí nenulový viewport, a centrování na mapu se zkouší
+    i v dalších cyklech (mapa přijde jen jednou). **Ověřeno:** v Debug outputu je po opravě
+    `Executing postponed call` **0×** (dřív 2×: `ZoomToBox` + `CenterOn`).
+
+- **Syntetická testovací mapa `OSM/SyntetickyKoridor.osm`** (zadání autora): koridor 10 m na západ
+  (šířka 3 m, úsek A) → pravoúhlý zlom na sever 2,5 m (šířka 2 m, B) → zlom na západ 3 m
+  (šířka 1 m, C) → 10 m, ve kterých se rozšíří zpět na 3 m (D). Z konce úseku B pokračuje ještě
+  10 m na sever, šířka 2 m (E) — z uzlu 5 je tedy **křižovatka tvaru T**. Slouží k testu průjezdu
+  zúžením, pravoúhlými rohy a odbočení z průchozího koridoru do úzké boční větve.
+  *(Zadání vznikalo ve třech krocích — severní úsek nejdřív 1 m, pak 2,5 m, nakonec přibyla
+  větev E; mapa se pokaždé přegenerovala, ne ručně přepsala.)*
+- **Co si vyžádalo pozornost:** šířka v OsmNav **není vlastností úseku, ale uzlu** — uzel dostane
+  maximum ze šířek cest, které jím vedou, a mezi uzly se lineárně interpoluje
+  (`GraphBuilder.cs`, `RoadScene.cs`). Naivní mapa se 4 uzly by proto 1m zúžení vůbec neměla:
+  rohové uzly by převzaly širší hodnotu a koridor by se jen plynule přeléval. Řešeno tagem
+  `width` **na každém uzlu** (ten má přednost před cestami, takže mapa vypadá stejně bez ohledu
+  na výchozí šířku, která se navíc liší podle způsobu načtení — 2,0 m ve World view vs. 3,0 m
+  u `map=`) a uzly 0,2 m před rohy, aby si úseky udržely šířku po celé délce.
+- **Na křižovatce (uzel 5) to platí obráceně** než v rohu: nese šířku **průchozího** koridoru
+  B→E (2 m), ne nejužší větve. S 1 m podle odbočky C by robot jedoucí z B na sever do E našel
+  na křižovatce falešné zúžení, které tam fyzicky není. Zúžení na 1 m proto začíná až uzlem 8,
+  0,2 m západně od křižovatky.
+- **Rozhodnutí u poslední části:** „rozšíří se na 3 m ve délce 10 m" je čteno jako **nálevka** —
+  šířka roste rovnoměrně po celých 10 m (uzel 1 m → uzel 3 m). Kdyby šlo o skokové rozšíření
+  a rovný 10m úsek, stačí změnit `width` uzlu 6 na 3 a přidat uzel 0,2 m za ním — popsáno
+  v komentáři přímo v souboru.
+- **Ověřeno:** souřadnice vyrobeny přímo přes `GeoReference.ToLLA` (přesná inverze převodu, který
+  aplikace používá) a mapa načtena zpět reálným `OsmXmlReader` + `GraphBuilder`: v lokálním ENU
+  vycházejí vzdálenosti 9,800 / 0,200 / 2,300 / 0,200 / 3,000 / 10,000 m a šířky 3/3/2/2/1/1/3 m
+  přesně. Mapa načtena i v aplikaci (`virtualhw=true map=…`) — World view koridor vykreslil.
+- **Vedlejší zjištění (neopraveno):** `GreatCircle` počítá s koulí R = 6371000 m, zatímco
+  `GeoReference` s elipsoidem WGS84, takže délky hran v grafu vycházejí ve směru východ–západ
+  na naší šířce asi o 0,3 % kratší (10,000 m v ENU = 9,969 m v grafu). Týká se to všech map
+  stejně, včetně reálných OSM dat — není to vlastnost téhle mapy.
+
 ## 2026-08-14
 
 - **Volba hardwaru v menu + čistý šev `ARBotHW`.** Návrh autora: po startu aplikace neběží žádný HW,

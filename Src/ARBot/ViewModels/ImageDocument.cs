@@ -82,6 +82,10 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string leftOverlayInfo = "-";
         [ObservableProperty] private string rightOverlayInfo = "-";
 
+        /// <summary>Pixel pod kurzorem v levem/pravem panelu; prazdne, kdyz je kurzor mimo obraz.</summary>
+        [ObservableProperty] private string leftCursorInfo = "";
+        [ObservableProperty] private string rightCursorInfo = "";
+
         /// <summary>Konstruktor pro design-time / navrhar.</summary>
         public ImageDocument()
         {
@@ -214,6 +218,8 @@ namespace ARBot.ViewModels
                 if (layer.Name == LeftOverlayLayer) RenderSlot(Slot.LeftOverlay, layer);
                 if (layer.Name == RightOverlayLayer) RenderSlot(Slot.RightOverlay, layer);
             }
+
+            EnsureDefaultOverlays();
         }
 
         private const string DepthSuffix = "/Depth";
@@ -240,9 +246,9 @@ namespace ARBot.ViewModels
             if (!Layers.Contains(name))
             {
                 Layers.Add(name);
-                // Vychozi: grid do leveho overlaye a jako podklad depth stejne kamery (pokud volno).
-                if (string.IsNullOrEmpty(LeftOverlayLayer)) LeftOverlayLayer = name;
-                if (string.IsNullOrEmpty(LeftLayer)) LeftLayer = cam + DepthSuffix;
+                // Podklad: depth TEZE kamery, kdyz je jeji panel jeste volny. Overlay uz resi
+                // EnsureDefaultOverlays podle kamery panelu - jinak by grid skoncil nad cizi kamerou.
+                AssignBaseLayer(cam + DepthSuffix);
             }
 
             if (name == LeftLayer) SetSlotImage(Slot.Left, bmp, info);
@@ -254,26 +260,166 @@ namespace ARBot.ViewModels
         /// <summary>Rozumne vychozi prirazeni slotu pri objeveni nove vrstvy.</summary>
         private void AutoSelect(ImageLayer layer)
         {
-            bool isProbability = layer.Kind == LayerKind.Probability
-                                 || layer.Name.IndexOf("backproject", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (layer.Kind == LayerKind.Color)
+                AssignBaseLayer(layer.Name);
+            // Probability se prirazuje az v EnsureDefaultOverlays - musi znat kameru podkladu.
+        }
 
-            if (isProbability)
+        /// <summary>
+        /// Prirad podkladovou vrstvu do leveho/praveho panelu podle JMENA kamery, ne podle poradi
+        /// prichodu snimku. Bez toho zalezi na tom, ci snimek dorazi driv, takze levy panel klidne
+        /// ukazuje pravou kameru a mezi bezy si strany prohazuji.
+        /// Zdroj s jinym jmenem (jedina kamera, backproject) padne do prvniho volneho panelu.
+        /// </summary>
+        private void AssignBaseLayer(string name)
+        {
+            string cam = CameraOf(name) ?? name;
+            bool left = cam.IndexOf("left", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool right = cam.IndexOf("right", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (left && !right)
             {
-                // Vychozi: stejny probability overlay na obou stranach (uzivatel muze zmenit zvlast).
-                if (string.IsNullOrEmpty(LeftOverlayLayer)) LeftOverlayLayer = layer.Name;
-                if (string.IsNullOrEmpty(RightOverlayLayer)) RightOverlayLayer = layer.Name;
+                if (string.IsNullOrEmpty(LeftLayer)) LeftLayer = name;
+                return;
             }
-            else if (layer.Kind == LayerKind.Color)
+            if (right && !left)
             {
-                if (string.IsNullOrEmpty(LeftLayer)) LeftLayer = layer.Name;
-                else if (string.IsNullOrEmpty(RightLayer) && layer.Name != LeftLayer) RightLayer = layer.Name;
+                if (string.IsNullOrEmpty(RightLayer)) RightLayer = name;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(LeftLayer)) LeftLayer = name;
+            else if (string.IsNullOrEmpty(RightLayer) && name != LeftLayer) RightLayer = name;
+        }
+
+        /// <summary>
+        /// Doplni vychozi overlay tak, aby patril STEJNE kamere jako podklad na te strane
+        /// (nad pravou kamerou tedy right/probability, ne left/probability).
+        /// <para>Deje se to az tady, a ne v <see cref="AutoSelect"/> pri objeveni vrstvy: poradi
+        /// prichodu vrstev neni zarucene a probability muze dorazit driv nez barva, ktera teprve
+        /// urci, ktera kamera je vlevo a ktera vpravo. Volani je levne - jakmile jsou oba overlaye
+        /// obsazene, hned se vrati.</para>
+        /// </summary>
+        private void EnsureDefaultOverlays()
+        {
+            if (string.IsNullOrEmpty(LeftOverlayLayer))
+            {
+                string name = FindOverlayFor(LeftLayer);
+                if (name != null) LeftOverlayLayer = name;
+            }
+            if (string.IsNullOrEmpty(RightOverlayLayer))
+            {
+                string name = FindOverlayFor(RightLayer);
+                if (name != null) RightOverlayLayer = name;
             }
         }
+
+        /// <summary>
+        /// Najde overlay pro panel s podkladem <paramref name="baseLayer"/>: vrstvu TEHOZ zdroje
+        /// (kamery), prednostne probability, jinak grid sjizdnosti.
+        /// </summary>
+        private string FindOverlayFor(string baseLayer)
+        {
+            string cam = CameraOf(baseLayer);
+            if (cam == null) return null;
+
+            string grid = null;
+            foreach (var kv in registry)
+            {
+                if (!string.Equals(CameraOf(kv.Key), cam, StringComparison.OrdinalIgnoreCase)) continue;
+                if (IsProbability(kv.Value)) return kv.Key;
+            }
+            // Grid sjizdnosti neni v registry (rasterizuje se zvlast) - hledej mezi nazvy vrstev.
+            foreach (string n in Layers)
+                if (n.EndsWith(TraversabilitySuffix, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(CameraOf(n), cam, StringComparison.OrdinalIgnoreCase))
+                { grid = n; break; }
+            return grid;
+        }
+
+        /// <summary>Nazev zdroje (kamery) z nazvu vrstvy <c>"&lt;kamera&gt;/&lt;vrstva&gt;"</c>; null, kdyz ho nema.</summary>
+        private static string CameraOf(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName)) return null;
+            int i = layerName.IndexOf('/');
+            return i > 0 ? layerName.Substring(0, i) : null;
+        }
+
+        private static bool IsProbability(ImageLayer layer)
+            => layer.Kind == LayerKind.Probability
+               || layer.Name.IndexOf("backproject", StringComparison.OrdinalIgnoreCase) >= 0;
 
         partial void OnLeftLayerChanged(string value) => RenderFromRegistry(Slot.Left, value);
         partial void OnRightLayerChanged(string value) => RenderFromRegistry(Slot.Right, value);
         partial void OnLeftOverlayLayerChanged(string value) => RenderFromRegistry(Slot.LeftOverlay, value);
         partial void OnRightOverlayLayerChanged(string value) => RenderFromRegistry(Slot.RightOverlay, value);
+
+        // ---------------- pixel pod kurzorem ----------------
+
+        /// <summary>
+        /// Ohlasi polohu kurzoru nad panelem v souradnicich PIXELU zdrojoveho obrazu (prepocet z
+        /// pozice v ovladacim prvku dela View - zna rozmery a zpusob roztazeni). Vypise hodnotu
+        /// pixelu z podkladu i z overlaye, aby slo srovnat treba RGB proti pravdepodobnosti sjizdnosti.
+        /// </summary>
+        public void UpdateCursor(bool right, int x, int y)
+        {
+            string info = BuildCursorInfo(right ? RightLayer : LeftLayer,
+                                          right ? RightOverlayLayer : LeftOverlayLayer, x, y);
+            if (right) RightCursorInfo = info;
+            else LeftCursorInfo = info;
+        }
+
+        /// <summary>Kurzor opustil panel (nebo je mimo obraz).</summary>
+        public void ClearCursor(bool right)
+        {
+            if (right) RightCursorInfo = "";
+            else LeftCursorInfo = "";
+        }
+
+        private string BuildCursorInfo(string baseName, string overlayName, int x, int y)
+        {
+            string b = DescribePixel(baseName, x, y);
+            if (b == null) return "";   // mimo obraz nebo vrstva neni k dispozici
+
+            string o = DescribePixel(overlayName, x, y);
+            return o == null ? $"[{x},{y}]  {b}" : $"[{x},{y}]  {b}   |   {o}";
+        }
+
+        /// <summary>
+        /// Hodnota pixelu dane vrstvy jako text; null, kdyz vrstva neexistuje nebo je bod mimo ni.
+        /// <para>Cte se ze <see cref="registry"/>, tedy z TEHOZ zdroje, ze ktereho se panel
+        /// vykresluje (stejne jako <see cref="RenderFromRegistry"/> pri prepnuti comba). Grid
+        /// sjizdnosti se rasterizuje zvlast a v registry neni - u nej se hodnota nehlasi.</para>
+        /// </summary>
+        private string DescribePixel(string layerName, int x, int y)
+        {
+            if (string.IsNullOrEmpty(layerName)) return null;
+            if (!registry.TryGetValue(layerName, out var layer) || layer == null) return null;
+            if (x < 0 || y < 0 || x >= layer.Width || y >= layer.Height) return null;
+
+            try
+            {
+                switch (layer.Kind)
+                {
+                    case LayerKind.Color when layer.Color != null:
+                        var c = layer.Color[x, y];
+                        return $"RGB {c.R},{c.G},{c.B}";
+
+                    case LayerKind.Probability when layer.Gray != null:
+                        return $"p {layer.Gray[x, y].Value}";
+
+                    case LayerKind.Depth when layer.Depth != null:
+                        int mm = layer.Depth[x, y].Value;
+                        return mm > 0 ? $"{mm} mm" : "bez hloubky";
+                }
+            }
+            catch
+            {
+                // Buffer snimku se mezitim vratil do poolu a prepsal - hodnota proste neni.
+                return null;
+            }
+            return null;
+        }
 
         private enum Slot { Left, Right, LeftOverlay, RightOverlay }
 

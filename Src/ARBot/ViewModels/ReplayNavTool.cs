@@ -26,8 +26,15 @@ namespace ARBot.ViewModels
 
         [ObservableProperty] private int position;
         [ObservableProperty] private int maximum;
-        [ObservableProperty] private bool isPlaying;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(PlayPauseText))]
+        private bool isPlaying;
+
         [ObservableProperty] private string info = "-";
+
+        /// <summary>Popisek jednoho prepinaciho tlacitka Play/Pauza.</summary>
+        public string PlayPauseText => IsPlaying ? "⏸ Pauza" : "▶ Play";
 
         /// <summary>Radky indexu pro grid (Seq/typ/jmeno/cas). Vyber v gridu = <see cref="Position"/>.</summary>
         public IReadOnlyList<IndexEntry> Rows => src?.Index;
@@ -57,8 +64,15 @@ namespace ARBot.ViewModels
             UpdateInfo();
         }
 
-        /// <summary>Spusti/obnovi prehravani od aktualniho kurzoru.</summary>
+        /// <summary>Jedno tlacitko pro obe akce - prehrava se, nebo stoji, treti stav neni.</summary>
         [RelayCommand]
+        private void TogglePlay()
+        {
+            if (IsPlaying) Pause();
+            else Play();
+        }
+
+        /// <summary>Spusti/obnovi prehravani od aktualniho kurzoru.</summary>
         private void Play()
         {
             src?.Play();
@@ -68,7 +82,6 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>Pozastavi prehravani a synchronizuje pozici na kurzor.</summary>
-        [RelayCommand]
         private void Pause()
         {
             if (src == null) return;
@@ -114,6 +127,42 @@ namespace ARBot.ViewModels
         [RelayCommand]
         private void StepBack() => SeekToPosition(Position - 1);
 
+        /// <summary>Nasledujici zprava tehoz proudu (viz <see cref="SeekToSame"/>).</summary>
+        [RelayCommand]
+        private void NextSame() => SeekToSame(+1);
+
+        /// <summary>Predchozi zprava tehoz proudu (viz <see cref="SeekToSame"/>).</summary>
+        [RelayCommand]
+        private void PrevSame() => SeekToSame(-1);
+
+        /// <summary>
+        /// Skoci na nejblizsi zpravu TEHOZ proudu v danem smeru, tedy se stejnou dvojici
+        /// <c>(MsgName, Name)</c>.
+        /// <para>Tutez dvojici pouziva jako identitu proudu i <see cref="FileMessageSource.SeekTo"/>
+        /// pri rekonstrukci stavu, takze "stejna zprava" znamena dalsi snimek TEZE kamery, ne
+        /// libovolne kamery - jinak by se krokovani prepinalo mezi levou a pravou.</para>
+        /// <para>Kdyz uz v tom smeru zadna takova neni, nedela nic (zustane na miste).</para>
+        /// </summary>
+        private void SeekToSame(int direction)
+        {
+            var idx = src?.Index;
+            if (idx == null) return;
+
+            int from = Position;
+            if (from < 0 || from >= idx.Count) return;
+
+            var cur = idx[from];
+            for (int i = from + direction; i >= 0 && i < idx.Count; i += direction)
+            {
+                if (string.Equals(idx[i].MsgName, cur.MsgName, StringComparison.Ordinal)
+                    && string.Equals(idx[i].Name, cur.Name, StringComparison.Ordinal))
+                {
+                    SeekToPosition(i);
+                    return;
+                }
+            }
+        }
+
         // Uzivatelska zmena slideru -> seek.
         partial void OnPositionChanged(int value)
         {
@@ -146,21 +195,14 @@ namespace ARBot.ViewModels
             suppressSeek = false;
         }
 
+        /// <summary>
+        /// Pozice jako <c>poradi/celkem</c>. Zamerne NIC dalsiho - typ zpravy i cas jsou videt
+        /// na vybranem radku gridu, takze by se tu jen duplikovaly a braly misto tomu gridu.
+        /// </summary>
         private void UpdateInfo()
         {
             if (src?.Index == null) { Info = "(bez indexu)"; return; }
-            int p = Position;
-            if (p >= 0 && p < src.Index.Count)
-            {
-                var e = src.Index[p];
-                Info = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                    "{0}/{1}  {2}  {3:HH:mm:ss.fff}",
-                    p, src.Index.Count - 1, e.MsgName, e.CaptureTime);
-            }
-            else
-            {
-                Info = $"{p}/{Maximum}";
-            }
+            Info = $"{Position}/{Maximum}";
         }
     }
 }

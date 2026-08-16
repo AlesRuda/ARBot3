@@ -12,6 +12,21 @@ namespace ARBot.ViewModels
     /// </summary>
     public class DockFactory : Factory
     {
+        /// <summary>
+        /// Proporce leveho doku se senzory, kdyz je panel rozbaleny (odepnuty).
+        /// <para>NENI to primo podil sirky okna - Dock proporce normalizuje mezi sourozenci
+        /// v <see cref="Dock.Model.Mvvm.Controls.ProportionalDock"/>. Zmerene na okne 1424 px:
+        /// 0,35 → 370 px, 0,50 → 475 px (tedy zhruba <c>125 + 700·p</c>). Hodnota je zkalibrovana
+        /// tak, aby rozbaleny panel vysel stejne siroky jako vysunuty prouzek
+        /// (<see cref="SensorPanelPinnedWidth"/>) - jinak by pri odepnuti poskocil.</para>
+        /// </summary>
+        public const double SensorPanelProportion = 0.25;
+
+        /// <summary>Sirka vysunuteho panelu senzoru [px], kdyz je sbaleny do auto-hide prouzku.
+        /// Pinnuty panel se nerozmeruje podle <see cref="SensorPanelProportion"/>, ale podle
+        /// vlastnich "pinned bounds" - viz <c>MainWindowViewModel</c>.</summary>
+        public const double SensorPanelPinnedWidth = 300;
+
         /// <summary>Dok pro dokumenty (sem se pridavaji nove dokumenty, napr. z menu).
         /// Nikdy se nesbaluje (IsCollapsable=false), takze slouzi i jako stabilni kotva
         /// pro (znovu)otevirani nastroju vuci zivemu stromu layoutu.</summary>
@@ -72,7 +87,8 @@ namespace ARBot.ViewModels
                 Id = "ToolDock",
                 Title = "ToolDock",
                 Alignment = Alignment.Left,
-                Proportion = 0.25,
+                // Sirsi nez vychozich 0,25 - do uzkeho panelu se nevesly delsi nazvy senzoru.
+                Proportion = SensorPanelProportion,
                 // Sbalitelny (default): po zavreni posledniho nastroje se dok odstrani z layoutu
                 // (uvolni misto). Menu Tools -> Sensors overview ho pak zase vlozi (viz OpenSensors).
                 VisibleDockables = CreateList<IDockable>(sensorStatus),

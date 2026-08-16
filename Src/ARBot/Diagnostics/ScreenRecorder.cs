@@ -41,7 +41,7 @@ namespace ARBot.Diagnostics
         // menší šířka a kratší strop.
         private const int Mp4Fps = 15, Mp4MaxWidth = 1280;
         private const double Mp4MaxSeconds = 600;
-        private const int GifFps = 8, GifMaxWidth = 800;
+        private const int GifFps = 8, GifMaxWidth = 1280;
         private const double GifMaxSeconds = 60;
         /// <summary>Strop pro fallback bez ffmpegu - snímky se drží v paměti (300 @ 8 fps ≈ 37 s).</summary>
         private const int MemMaxFrames = 300;

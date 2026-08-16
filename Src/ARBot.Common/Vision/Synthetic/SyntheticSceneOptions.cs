@@ -7,7 +7,7 @@ namespace ARBot.Common.Vision.Synthetic
     public sealed class SyntheticSceneOptions
     {
         /// <summary>Vyska travy nad rovinou vozovky [m]. 0 = trava lezi v rovine vozovky.</summary>
-        public double GrassHeightM = 0.10;
+        public double GrassHeightM = 0.0;
 
         /// <summary>Rozptyl vysky travy [m] (drsnost povrchu). 0 = hladka rovina.</summary>
         public double GrassRoughnessM = 0.03;

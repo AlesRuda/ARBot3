@@ -329,8 +329,12 @@ namespace ARBot.ViewModels
                 lastMap = map;
                 UpdateMapFeature(map);
                 mapLayer.DataHasChanged();
-                CenterOnMapIfNeeded(map);
             }
+
+            // Vycentrovani na mapu se zkousi i v dalsich cyklech: mapa prijde jen jednou, a kdyby
+            // v tu chvili jeste nebyl viewport (pohled otevreny pred Startem), uz by se nezopakovalo.
+            if (!initialCentered && lastMap != null)
+                CenterOnMapIfNeeded(lastMap);
 
             MPoint? robotMerc = null;
 
@@ -382,7 +386,8 @@ namespace ARBot.ViewModels
             planLayer.DataHasChanged();
 
             // Prvni fix: vycentruj a zoomni; dale (kdyz Follow) drz robota v centru.
-            if (robotMerc != null)
+            // Dokud mapa nema viewport, se necentruje VUBEC - viz ViewportReady.
+            if (robotMerc != null && ViewportReady())
             {
                 try
                 {
@@ -396,7 +401,7 @@ namespace ARBot.ViewModels
                         Map.Navigator.CenterOn(robotMerc);
                     }
                 }
-                catch { /* Navigator jeste nema viewport (control nepripojen) - zkusi se priste */ }
+                catch { /* nemelo by nastat - zkusi se priste */ }
             }
 
             Info = BuildInfo();
@@ -975,10 +980,30 @@ namespace ARBot.ViewModels
             polys.Add(new Polygon(new LinearRing(ring)));
         }
 
+        /// <summary>
+        /// Ma mapa uz platny viewport (tedy vykreslenou plochu)?
+        /// <para>Bez teto kontroly Mapsui navigacni volani nezahodi ani nevyhodi vyjimku, ale
+        /// ODLOZI si ho a provede pozdeji (v logu <c>Executing postponed call 'ZoomToBox'</c>).
+        /// Kdyz je world pohled otevreny drive nez Start, stihnou se takto zaradit dve odlozena
+        /// volani za sebou (zoom na mapu + centrovani na robota) a po pripojeni viewportu se
+        /// prehraji hned po sobe - to je to "poskakovani" pohledu. Navic se <see cref="initialCentered"/>
+        /// nastavil uz pri odlozeni, takze prvni centrovani neplnilo svou roli pojistky.</para>
+        /// </summary>
+        private bool ViewportReady()
+        {
+            try
+            {
+                var vp = Map.Navigator.Viewport;
+                return vp.Width > 0 && vp.Height > 0;
+            }
+            catch { return false; }
+        }
+
         /// <summary>Pri prvnim nacteni mapy (a bez GPS fixu) vycentruje/zoomne na rozsah site.</summary>
         private void CenterOnMapIfNeeded(MapMsg map)
         {
             if (initialCentered || map.Nodes == null || map.Nodes.Count == 0) return;
+            if (!ViewportReady()) return;   // odlozene volani by pozdeji skocilo pres jine centrovani
 
             double minx = double.MaxValue, miny = double.MaxValue, maxx = double.MinValue, maxy = double.MinValue;
             foreach (var n in map.Nodes)
