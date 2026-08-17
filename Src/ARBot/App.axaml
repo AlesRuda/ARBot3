@@ -15,5 +15,7 @@
     <Application.Styles>
         <FluentTheme />
         <dockThemes:DockFluentTheme />
+        <!-- Tema DataGridu (telemetricky pohled). Bez nej se DataGrid vykresli jako prazdne misto. -->
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
     </Application.Styles>
 </Application>

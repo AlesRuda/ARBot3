@@ -103,6 +103,14 @@ namespace ARBot.Robot
         public FileMessageSource FileSource => fileSource;
 
         /// <summary>
+        /// Cesta k prehravanemu zaznamu (rezim View), jinak null. Pouziva ji telemetricky pohled,
+        /// ktery si nad souborem otevira VLASTNI read-only stream - soubor je otevreny
+        /// s <c>FileShare.Read</c>, takze sken nekoliduje s prehravanim.
+        /// Viz doc/telemetry-view.md.
+        /// </summary>
+        public string RecordPath { get; private set; }
+
+        /// <summary>
         /// Vyssi ridici smycka (occupancy grid + lokalni planovani) v rezimu Run; jinak null.
         /// UI ji pres <see cref="LocalNavigator.SetGoal"/> zadava cil. Ve View NEbezi - jen se
         /// prehravaji zaznamenane <c>OccupancyGridMsg</c> / <c>LocalPlanMsg</c>
@@ -164,6 +172,7 @@ namespace ARBot.Robot
 
                 // 6) Zavri soubory replay/zaznamu.
                 fileSource = null;
+                RecordPath = null;
                 CloseFiles();
 
                 running = false;
@@ -769,6 +778,7 @@ namespace ARBot.Robot
 
             var catalog = BuildCatalog();
             fileData = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+            RecordPath = file;   // telemetricky pohled si nad tymz souborem otevre vlastni stream
 
             // Volitelny sidecar index (*.idx) - pro navigaci/seek (krok 9).
             List<IndexEntry> index = null;
@@ -790,8 +800,12 @@ namespace ARBot.Robot
             fileSource.Start();
         }
 
-        /// <summary>Katalog prototypu zprav pro replay (Common + zarizeni).</summary>
-        private static MessageCatalog BuildCatalog()
+        /// <summary>
+        /// Katalog prototypu zprav pro replay (Common + zarizeni). <b>Internal</b>, protoze tentyz
+        /// katalog potrebuje i telemetricky sken - kdyby cetl s jinym, nektere typy by neznal
+        /// (viz doc/telemetry-view.md).
+        /// </summary>
+        internal static MessageCatalog BuildCatalog()
             => MessageCatalog.CommonDefaults()
                 .Register(new GPSState())
                 .Register(new MotorStateBase())

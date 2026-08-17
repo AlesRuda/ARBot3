@@ -80,6 +80,27 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   neměnil, protože o to nikdo nežádal.
 - **Ověřeno:** build `x64`. **Neověřeno:** vzhled a chování za běhu (vše je čistě UI, bez testů —
   aplikace nemá testovací projekt).
+- **Nový telemetrický pohled — fáze 1** (žádost autora: vidět stav robota, řídicí zásahy a údaje
+  z dalších zpráv *pohromadě* a srovnané v čase). Návrh v [telemetry-view.md](telemetry-view.md),
+  kroky v [plan-telemetry-view.md](plan-telemetry-view.md).
+  - **Stojí na indexu záznamu, ne na odběru `Stream`u.** Index má čas u *každé* zprávy (`ArrivalTicks`
+    stampuje `RecordingTarget`, `CaptureTicks` je 0 u zpráv bez `IHasCaptureTime`), takže je to jediné
+    místo s úplnou časovou osou. Navíc dovolí **přeskočit obrázky bez čtení** — sken čte jen typy,
+    které mají sloupec.
+  - **Řádek = jedna zpráva**, zprávy se shodným časem se slévají. Na skutečném záznamu se 4833
+    registrovaných zpráv slilo do 2806 řádků, tedy póza a řídicí zásah z jednoho taktu skutečně
+    padnou na jeden řádek. **Kotvicí typ zprávy se ukázal jako zbytečný** (autorova otázka „proč to
+    potřebuju" byla oprávněná) — zjednodušeno.
+  - **„Právě přišlo" se neukládá**, plyne ze změny času hodnoty (`ValueTicks[r] != ValueTicks[r-1]`) —
+    nemůže se to s daty rozejít. V tabulce je to tučně, v detailu jako stáří v ms.
+  - **Jádro v `ARBot.Common/Telemetry`** (15 testů, celá sada 505 zelená), registr sloupců v UI
+    vrstvě — jednotky a formát nepatří do domény. Přidat údaj = jeden řádek v registru.
+  - **Ověřeno i na reálném záznamu**: 27 541 zpráv v indexu, sken **29 ms**, 2806 řádků.
+  - **Neověřeno:** UI za běhu — aplikace se rozběhne, ale tabulku jsem neotevřel (vyžaduje kliknutí
+    Runtime → View… a Tools → Telemetrie). Nová závislost `Avalonia.Controls.DataGrid` **12.0.0**;
+    novější verze vynucují Avalonia ≥ 12.0.5, což projekt nemá.
+  - Chybí ve zprávách: *max. povolená rychlost z plánovače* (`LocalPlanResult` ji zná, `LocalPlanMsg`
+    ji nepřenáší) a *plánované odbočení* (neexistuje nikde) — obojí je samostatný krok.
 
 ## 2026-08-16
 

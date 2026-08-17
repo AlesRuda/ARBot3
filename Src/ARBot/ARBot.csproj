@@ -47,6 +47,11 @@
     <PackageReference Include="Dock.Model.Mvvm" Version="12.0.0.2" />
     <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="12.0.0.2" />
 
+    <!-- Telemetricky pohled: tabulka s desitkami sloupcu a tisici radku - DataGrid ma virtualizaci,
+         menitelne sirky sloupcu i razeni. Verze 12.0.x drzi krok s Avalonia 12.0.3.
+         Vyzaduje i StyleInclude sveho tematu v App.axaml. Viz doc/telemetry-view.md. -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
+
     <!-- World pohled (mapa): Mapsui pro Avalonia 12 + NTS (cary/geometrie) + MBTiles (offline podklad).
          Base vrstvu lze vypnout (viz WorldViewDocument) -> na OrangePI zadne pokusy o internet.
          Pozn.: Mapsui renderuje pres SkiaSharp; na ARM64 overit nativni SkiaSharp assety na zarizeni. -->

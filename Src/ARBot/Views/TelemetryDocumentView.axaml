@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="520"
+             x:Class="ARBot.Views.TelemetryDocumentView"
+             x:DataType="vm:TelemetryDocument">
+    <Design.DataContext>
+        <vm:TelemetryDocument/>
+    </Design.DataContext>
+
+    <DockPanel>
+        <!-- Stavovy radek: pocet radku, casovy rozsah, pripadne varovani o orezani stropem. -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,6">
+            <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+            <ProgressBar Grid.Column="1" Width="160" Height="6" Minimum="0" Maximum="1"
+                         Value="{Binding Progress}" IsVisible="{Binding IsScanning}"
+                         VerticalAlignment="Center" Margin="8,0,0,0"/>
+        </Grid>
+
+        <!-- Detail vybraneho radku: hodnoty vcetne toho, jak jsou stare proti casu radku. -->
+        <Grid DockPanel.Dock="Right" Width="330" Margin="6,0,8,8" RowDefinitions="Auto,Auto,*">
+            <TextBlock Grid.Row="0" Text="{Binding DetailHeader}" TextWrapping="Wrap"
+                       FontFamily="Consolas,monospace" FontSize="11" Margin="0,0,0,6"/>
+
+            <Button Grid.Row="1" Content="Skočit sem v přehrávání"
+                    Command="{Binding SeekToSelectedCommand}"
+                    HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
+
+            <ListBox Grid.Row="2" ItemsSource="{Binding Detail}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="4,1"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TelemetryDetailLine">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Header}"
+                                       FontFamily="Consolas,monospace" FontSize="12"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Text}"
+                                       FontFamily="Consolas,monospace" FontSize="12"
+                                       FontWeight="{Binding Fresh, Converter={x:Static vm:BoolToWeight.Instance}}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                       Text="{Binding Age}" FontSize="10" Opacity="0.6"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- Sloupce se stavi az v code-behind podle registru (je jich desitky a jsou datove
+             rizene), viz TelemetryDocumentView.axaml.cs. -->
+        <DataGrid x:Name="Grid"
+                  ItemsSource="{Binding Rows}"
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserSortColumns="False"
+                  CanUserResizeColumns="True"
+                  GridLinesVisibility="Vertical"
+                  HeadersVisibility="Column"
+                  FontFamily="Consolas,monospace"
+                  FontSize="12"/>
+    </DockPanel>
+</UserControl>

@@ -46,6 +46,7 @@
                 <MenuItem Header="Images" Command="{Binding OpenImagesCommand}"/>
                 <MenuItem Header="Robot-centric" Command="{Binding OpenRobotCentricCommand}"/>
                 <MenuItem Header="World" Command="{Binding OpenWorldViewCommand}"/>
+                <MenuItem Header="Telemetrie" Command="{Binding OpenTelemetryCommand}"/>
                 <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">

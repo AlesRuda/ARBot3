@@ -168,6 +168,34 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
+        /// Otevre (nebo aktivuje) telemetricky pohled - tabulka udaju v case nad prehravanym
+        /// zaznamem (stav robotu, ridici zasahy, plan, globalni navigace). Dokument si data
+        /// nacte sam jednim skenem zaznamu; ve Run zustane prazdny s vysvetlenim.
+        /// Viz doc/telemetry-view.md.
+        /// </summary>
+        [RelayCommand]
+        private void OpenTelemetry()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "Telemetry");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new TelemetryDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>
         /// Otevre (nebo aktivuje) svetovy (world) pohled - mapa s prepinatelnym podkladem a vrstvami dat
         /// ze <see cref="ARBotRuntime.Stream"/> (poloha/kurz, trajektorie, trasa/graf, znacky). Base vrstvu
         /// lze vypnout (na OrangePI = zadne pokusy o internet). Viz <see cref="WorldViewDocument"/>.
