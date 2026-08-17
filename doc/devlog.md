@@ -105,6 +105,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   oficiální `OxyPlot.Avalonia` cílí na Avalonii 11 a pro dvanáctku je jen neoficiální fork se 162
   staženími — na produkční závislost robota málo. Zdůvodnění a podmínky přehodnocení jsou
   v [decisions.md](decisions.md). Build `x64`, testy 522 zelených; **UI za běhu neověřeno**.
+- **Snímky telemetrie a grafu do deníčku** — a s nimi první běh celé věci. Přibyl parametr
+  `telemetryshot=true` (obdoba `worldshot=true`): otevře poslední záznam se sidecar indexem ve
+  `records/`, počká na sken, posune přehrávání doprostřed, uloží snímek tabulky, pak zapne tři
+  údaje do grafu a uloží snímek grafu. Bezobslužně a reprodukovatelně — snímky featury se tím dají
+  kdykoli pořídit znovu ([MainWindowViewModel.TelemetryShot.cs](../Src/ARBot/ViewModels/MainWindowViewModel.TelemetryShot.cs)).
+
+  ![Telemetrická tabulka](media/telemetry-view.png)
+
+  Tabulka nad reálným záznamem: milisekundy se vejdou, záhlaví je čitelné a nese ikonu grafu,
+  hodnoty jsou svisle na střed, vpravo detail se stářím údajů. Vybraný řádek (22:45:35.949)
+  odpovídá kurzoru přehrávání v Replay panelu (`Seq` 3065) — **synchronizace funguje**.
+
+  ![Graf telemetrie](media/telemetry-chart.png)
+
+  Graf tří řad (`v`, `cmd v`, `omega`) s kurzorem přehrávání a legendou, která u každé řady ukazuje
+  hodnotu v místě kurzoru a rozsah řady.
+- **Nález ze snímku: čas řádku není monotónní.** Na obrázku tabulky jsou dvě sousední `LocalPlanMsg`
+  s klesajícím T_in (35.243 → 35.195) a `GPSState` proložené mimo pořadí. Je to logické — řádky jdou
+  v pořadí **záznamu** (T_out), ale čas řádku je čas **pořízení** (T_in) a každá zpráva putuje
+  pipeline jinak dlouho. Tabulce to nevadí, ale **řada v grafu je osa X** a musí být rostoucí, jinak
+  by křivka dělala klikyháky a půlení v `ValueAtTime` vracelo nesmysly. `TelemetrySeries.From` proto
+  řadu setřídí (jen když je potřeba), +1 test. Opraveno dřív, než to stihlo někoho zmást — v grafu
+  na snímku je to vidět nebylo, protože `LocalPlanMsg` v něm zapnutý není.
 - **Replay panel se dokuje k Debug outputu, ne mezi dokumenty** (žádost autora). Dosud vznikal jako
   další záložka v `DocumentDock`, takže při jeho aktivaci zmizel obrazový dokument — a přitom se na
   replay kroky člověk dívá právě kvůli obrázkům. Nově jde do téhož (spodního) doku jako Debug output;

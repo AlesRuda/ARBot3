@@ -81,7 +81,26 @@ namespace ARBot.Common.Telemetry
 
             if (t.Count == 0) { min = 0; max = 0; }
 
-            return new TelemetrySeries(column.Spec, t.ToArray(), v.ToArray(), min, max);
+            var ticksArray = t.ToArray();
+            var valuesArray = v.ToArray();
+
+            // Radky tabulky jdou v poradi ZAZNAMU (Seq), ale cas radku je cas PORIZENI (T_in) -
+            // a ten nemusi byt rostouci: kazda zprava putuje pipeline jinak dlouho a nektere nesou
+            // cas svych vstupnich dat. V realnem zaznamu se to opravdu deje (dva sousedni
+            // LocalPlanMsg s klesajicim T_in). Rada je osa X grafu, takze musi byt setridena -
+            // jinak by krivka delala klikyhaky a puleni v ValueAtTime by vracelo nesmysly.
+            if (!IsSorted(ticksArray))
+                Array.Sort(ticksArray, valuesArray);
+
+            return new TelemetrySeries(column.Spec, ticksArray, valuesArray, min, max);
+        }
+
+        /// <summary>Jsou casy neklesajici? (Bezny pripad - tridit se pak nemusi.)</summary>
+        private static bool IsSorted(long[] ticks)
+        {
+            for (int i = 1; i < ticks.Length; i++)
+                if (ticks[i] < ticks[i - 1]) return false;
+            return true;
         }
 
         /// <summary>

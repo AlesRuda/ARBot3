@@ -1,8 +1,8 @@
 # Telemetrický pohled — tabulka údajů v čase
 
 Jeden pohled, ve kterém je vidět **stav robota, řídicí zásahy a údaje z dalších zpráv pohromadě
-a srovnané v čase**: tabulka řazená podle času (sloupec = jeden údaj), detail vybraného řádku, a v
-druhé fázi graf vybraných údajů v čase (víc řad v jednom grafu).
+a srovnané v čase**: tabulka v pořadí záznamu (sloupec = jeden údaj), detail vybraného řádku
+a graf vybraných údajů v čase (víc řad v jednom grafu).
 
 Motivace: dnes jde každý údaj hledat jen ve svém vlastním okně (World pohled, dokumenty senzorů,
 Debug output). Nejde odpovědět na otázku typu „proč v 12:34:56 zpomalil" — to vyžaduje vidět
@@ -15,17 +15,20 @@ záznamem. Implementační kroky: [plan-telemetry-view.md](plan-telemetry-view.m
 
 | Část | Stav |
 |---|---|
-| Jádro `ARBot.Common/Telemetry` (tabulka, builder, skener, řady) | **hotové**, 20 testů, ověřené i na skutečném záznamu |
+| Jádro `ARBot.Common/Telemetry` (tabulka, builder, skener, řady) | **hotové**, 21 testů, ověřené i na skutečném záznamu |
 | Registr sloupců (25 údajů z 5 typů zpráv, s popisy) | **hotové** |
-| UI: tabulka, detail řádku, tooltipy, sken na pozadí | **hotové**, autor spustil nad záznamem |
-| Napojení na Replay (oba směry) | **hotové**; směr „kurzor → řádek" dodělán 17. 8., **za běhu neověřený** |
-| Výběr viditelných sloupců, filtr řádků podle typu | **hotové**, za běhu neověřené |
-| Fáze 2: graf řad v čase | **hotové**, za běhu neověřené |
+| UI: tabulka, detail řádku, tooltipy, sken na pozadí | **hotové a viděné za běhu** |
+| Napojení na Replay: kurzor → řádek | **hotové a viděné za běhu** (viz snímek níže) |
+| Napojení na Replay: dvojklik = seek | hotové, **za běhu neověřené** |
+| Výběr sloupců, filtr řádků, přehazování sloupců | hotové, **za běhu neověřené** |
+| Fáze 2: graf řad v čase — kreslení, legenda, kurzor | **hotové a viděné za běhu** |
+| Graf: ovládání myší (lupy, tažení, odečítátko, klik = seek) | hotové, **za běhu neověřené** |
 | Rozšíření `LocalPlanMsg` o rychlostní diagnostiku | **není** — viz [Co zbývá](#co-zbývá) |
 | Režim Run (živé plnění) | **není** (záměrně mimo fázi 1) |
 
-**Ověřeno buildem `-p:Platform=x64` a testy; na cílovém HW (OrangePI) neběželo.** Co vzniklo
-17. 8. odpoledne (výběr sloupců, filtr řádků, graf) autor za běhu ještě neviděl.
+**Ověřeno buildem `-p:Platform=x64`, testy a bezobslužným během** (`telemetryshot=true`, viz níže) —
+ten projde celou cestu View → sken → tabulka → graf a pořídí obrázky do deníčku. **Co se ovládá
+myší, tím ověřit nejde** a na cílovém HW (OrangePI) to neběželo.
 
 ## Rozsah fáze 1
 
@@ -84,6 +87,13 @@ z jednoho taktu rozcházely o zlomky.
 U slitého řádku platí `RowSeq` a `RowMsgName` **první** zprávy taktu — ta řádek založila. Seek
 z tabulky tedy míří na začátek taktu, ne doprostřed; hodnoty ostatních zpráv téhož taktu už v řádku
 jsou, takže se ničemu nezmešká.
+
+> **Pozor: čas řádku není monotónní.** Řádky jdou v pořadí **záznamu** (`Seq`, tedy T_out), ale čas
+> řádku je čas **pořízení** (T_in) — a každá zpráva putuje pipeline jinak dlouho, některé navíc
+> nesou čas svých vstupních dat. V reálném záznamu se to opravdu děje: dvě sousední `LocalPlanMsg`
+> s klesajícím T_in, a `GPSState` prokládající `RobotStateMsg` mimo pořadí. Pro tabulku to nevadí
+> (řádek = jedna zpráva, sloupec `Čas` říká, kdy vznikla), pro **graf ano** — proto se řada před
+> kreslením třídí, viz [Fáze 2](#fáze-2--graf-řad-v-čase).
 
 **Čas řádku** = `CaptureTicks`, a když je 0, pak `ArrivalTicks`. Detail řádku ukazuje **oba** časy —
 rozdíl T_in/T_out je sám o sobě diagnostika (jak dlouho měření putovalo pipeline).
@@ -197,6 +207,8 @@ Telemetrie**) s view [`TelemetryDocumentView`](../Src/ARBot/Views/TelemetryDocum
 tab jako World. Nad tabulkou je stavový řádek (počet řádků, časový rozsah, případné varování
 o oříznutí) a během skenu ukazatel postupu.
 
+![Telemetrická tabulka](media/telemetry-view.png)
+
 - **Tučně = hodnota právě přišla**, obyčejně = drží se z minula, prázdná buňka = ta zpráva zatím
   nepřišla. Na jeden pohled je tak vidět, co je nové a co stará hodnota.
 - **Detail řádku** (panel u tabulky): všechny sloupce s hodnotou, časem a **stářím** vůči řádku
@@ -273,9 +285,8 @@ notifikací).
 
 Obě fáze stojí; tohle zbývá:
 
-1. **Projít to za běhu.** Výběr sloupců, filtr řádků, graf a obousměrná synchronizace s přehráváním
-   jsou ověřené jen buildem a testy — jádro grafu (řady) testy má, ale kreslení a ovládání myší
-   z podstaty ne.
+1. **Proklikat myší to, co bezobslužný běh neověří:** flyouty (výběr sloupců, filtr řádků),
+   přehazování sloupců, dvojklik = seek a v grafu lupy, tažení, odečítátko a klik = skok.
 2. **Rozšíření `LocalPlanMsg`** o rychlostní diagnostiku (+ verze) — viz
    [Co ve zprávách chybí](#co-ve-zprávách-chybí). Pak je to jeden řádek v registru a údaj je i v grafu.
 3. **Režim Run** — živé plnění, buď „ocas" právě zapisovaného záznamu, nebo odběr `Stream`u
@@ -284,14 +295,19 @@ Obě fáze stojí; tohle zbývá:
 
 ## Fáze 2 — graf řad v čase
 
-Přepínač *graf* u sloupce (ve flyoutu *Sloupce ▾*) přidá jeho řadu do dokumentu **Graf telemetrie**
-a rovnou ho otevře. Dokument [`TelemetryChartDocument`](../Src/ARBot/ViewModels/TelemetryChartDocument.cs)
+![Graf telemetrie](media/telemetry-chart.png)
+
+Přepínač *graf* u sloupce (v záhlaví sloupce nebo ve flyoutu *Sloupce ▾*) přidá jeho řadu do
+dokumentu **Graf telemetrie** a rovnou ho otevře. Dokument [`TelemetryChartDocument`](../Src/ARBot/ViewModels/TelemetryChartDocument.cs)
 drží řady a legendu, kreslí
 [`TelemetryChartControl`](../Src/ARBot/Views/Controls/TelemetryChartControl.cs).
 
 **Řada = jen skutečné příchody.** [`TelemetrySeries`](../Src/ARBot.Common/Telemetry/TelemetrySeries.cs)
 vytáhne ze sloupce dvojice (čas, hodnota) pro buňky, které jsou *fresh*; držené hodnoty jsou jen
-opakování té předchozí a v grafu by z nich byla hustší řada bez jediné nové informace. Ze samotných
+opakování té předchozí a v grafu by z nich byla hustší řada bez jediné nové informace.
+**Řada se třídí podle času** (jen když to je potřeba — obvykle ne): čas řádku není monotónní, viz
+poznámka v [datovém modelu](#datový-model-arbotcommontelemetry), a osa X grafu monotónní být musí,
+jinak by křivka dělala klikyháky a půlení v `ValueAtTime` vracelo nesmysly. Ze samotných
 příchodů jde nakreslit obojí — **schod** (hodnota platí až do dalšího příchodu) i **rampa**
 (interpolace mezi příchody), přepínač je per řada. Výchozí je schod u výčtů a logických hodnot
 (mezi `Driving` a `Blocked` se nic neinterpoluje) a rampa u čísel.
@@ -334,6 +350,18 @@ Výřez se drží i při přidání další řady (zoom se nezahodí), ale **res
 neprotíná** — to nastane po přepnutí na jiný záznam, kde by graf jinak zůstal prázdný, aniž by bylo
 poznat proč.
 
+## Reprodukovatelný screenshot (`telemetryshot`)
+
+Spuštění s parametrem `telemetryshot=true` bezobslužně otevře **poslední záznam se sidecar indexem**
+ve `records/` (nebo ten zadaný v `ts_rec=<cesta>`), počká na sken, posune přehrávání doprostřed
+záznamu, uloží `doc/media/telemetry-view.png`, pak zapne tři údaje do grafu (`v`, `cmd v`, `omega`),
+uloží `doc/media/telemetry-chart.png` a aplikaci ukončí. Obrázky výše vznikly takhle.
+
+Stejný vzor jako `worldshot=true` ve [world-view.md](world-view.md#reprodukovatelný-screenshot-worldshot);
+kód je v [MainWindowViewModel.TelemetryShot.cs](../Src/ARBot/ViewModels/MainWindowViewModel.TelemetryShot.cs).
+Smysl: obrázek featury jde kdykoli pořídit znovu, bez ručního proklikávání — a při té příležitosti
+se celá cesta (View → sken → tabulka → graf) projde za běhu, což testy neumí.
+
 ## Co ve zprávách chybí
 
 Ze zadání jsou tři údaje, které dnes v žádné zprávě nejsou:
@@ -349,7 +377,8 @@ Tabulka je proti tomu odolná: jakmile hodnota ve zprávě bude, je to jeden ř�
 ## Testy
 
 Jádro je v `ARBot.Common` právě proto, aby šlo testovat — `ARBot` (UI) testovací projekt nemá,
-takže **UI se ověřuje jen spuštěním**. `ARBot.Common.Tests/Telemetry/`, 20 testů ve třech souborech:
+takže **UI se ověřuje jen spuštěním** (bezobslužně přes `telemetryshot=true`, viz níže).
+`ARBot.Common.Tests/Telemetry/`, 21 testů ve třech souborech:
 
 [`TelemetryTableBuilderTests`](../Src/ARBot.Common.Tests/Telemetry/TelemetryTableBuilderTests.cs)
 plní builder přímo zprávami (bez souboru) a ověřuje pravidla tabulky:
@@ -381,6 +410,8 @@ vytažení řady pro graf:
 - zná svůj rozsah a krajní časy,
 - `ValueAtTime` se čte jako **schod** a je `null` před prvním příchodem,
 - `InterpolatedAt` **interpoluje** mezi příchody (rampa) a mimo rozsah drží krajní hodnotu,
+- řada se **setřídí podle času**, i když v záznamu jdou zprávy s klesajícím T_in (a hodnoty se
+  přesunou spolu s časy) — reálný případ ze záznamu, viz poznámka v datovém modelu,
 - sloupec, který v záznamu nikdy nepřišel, dá prázdnou řadu (a ne výjimku),
 - text hodnoty respektuje `Text` z definice sloupce (výčet jménem).
 

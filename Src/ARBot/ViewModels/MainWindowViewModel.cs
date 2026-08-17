@@ -52,6 +52,9 @@ namespace ARBot.ViewModels
 
             // Bezobslužný screenshot World pohledu do deníčku (parametr worldshot=true).
             StartWorldShotIfRequested();
+
+            // Totéž pro telemetrickou tabulku a graf (parametr telemetryshot=true).
+            StartTelemetryShotIfRequested();
         }
 
         /// <summary>

@@ -114,6 +114,34 @@ namespace ARBot.Common.Tests.Telemetry
         }
 
         [Test]
+        public void Series_IsSortedByTime_EvenWhenRecordOrderIsNot()
+        {
+            // Realny pripad ze zaznamu: dve sousedni zpravy TEHOZ typu s KLESAJICIM casem porizeni
+            // (kazda putuje pipeline jinak dlouho). Radky tabulky jdou v poradi zaznamu, ale rada
+            // je osa X grafu - musi byt setridena.
+            var b = new TelemetryTableBuilder(new[] { PlanLengthColumn() });
+            b.Add(Plan(T0.AddMilliseconds(243), 9.0), Entry(0, T0.AddMilliseconds(243)));
+            b.Add(Plan(T0.AddMilliseconds(195), 4.0), Entry(1, T0.AddMilliseconds(195)));
+            b.Add(Plan(T0.AddMilliseconds(300), 7.0), Entry(2, T0.AddMilliseconds(300)));
+            var table = b.Build();
+
+            var plan = TelemetrySeries.From(table, table.Columns[0]);
+
+            Assert.That(plan.Count, Is.EqualTo(3));
+            Assert.That(plan.TicksAt(0), Is.EqualTo(T0.AddMilliseconds(195).Ticks));
+            Assert.That(plan.TicksAt(1), Is.EqualTo(T0.AddMilliseconds(243).Ticks));
+            Assert.That(plan.TicksAt(2), Is.EqualTo(T0.AddMilliseconds(300).Ticks));
+
+            // Hodnoty se musi presunout SPOLU s casy, ne jen setridit casy.
+            Assert.That(plan.ValueAt(0), Is.EqualTo(4.0));
+            Assert.That(plan.ValueAt(1), Is.EqualTo(9.0));
+            Assert.That(plan.ValueAt(2), Is.EqualTo(7.0));
+
+            // A puleni pak vraci spravne hodnoty.
+            Assert.That(plan.ValueAtTime(T0.AddMilliseconds(250).Ticks), Is.EqualTo(9.0));
+        }
+
+        [Test]
         public void EmptySeries_HasNoPointsAndZeroRange()
         {
             // Sloupec, ktery v zaznamu nikdy neprisel (zadna GPS zprava).
