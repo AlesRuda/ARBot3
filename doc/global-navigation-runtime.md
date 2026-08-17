@@ -341,7 +341,9 @@ mapě, mrkev = cíl), `Arrived`, `OffRoute`, `NoRoute`, `StuckNoMotion`, `StuckN
 
 - **`MapMsg`** — už existuje; nově ji emituje **runtime** (jednorázově po sestavení sítě), takže UI
   kreslí navigovanou síť. Vrstva „Mapa" ve [world pohledu](world-view.md) se nemění.
-- **`GraphNavigationMsg`** — už existuje **a už je ve world pohledu vykreslená** jako vrstva
+- **`GraphNavigationMsg`** ([dokumentace třídy](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs),
+  past s víc producenty: [record-replay.md](record-replay.md#zprávy-s-víc-producenty--graphnavigationmsg))
+  — už existuje **a už je ve world pohledu vykreslená** jako vrstva
   „trasa/graf" (vrcholy v lokálním ENU, `HightLight` = zvýrazněná cesta, `Path` = trasa,
   `Collision` = ⇒ použijeme pro **uzavřené hrany**, `Start`/`Target`/`Result` = robot/cíl/mrkev).
   Znovupoužít ji je jednoznačně lepší než zavádět novou geometrickou zprávu. Emituje se při **změně
@@ -352,6 +354,10 @@ mapě, mrkev = cíl), `Arrived`, `OffRoute`, `NoRoute`, `StuckNoMotion`, `StuckN
   příběh globální navigace**, včetně toho, proč se která hrana zavřela.
 - Konverzi vlastní doména: `RouteProgress.ToLogMessage()` / stavový objekt → `GlobalNavMsg`
   (nikoli `GlobalNavMsg.FromDomain`, viz [CLAUDE.md](../CLAUDE.md)).
+- **Zobrazení obou zpráv ve world pohledu:** `GraphNavigationMsg` se kreslí jako vrstva „Trasa+graf"
+  a každá hrana má **tooltip** (OSM `WayId`, druh hrany, délka, azimut, šířka, uzly). `GlobalNavMsg`
+  vlastní geometrii nemá, takže se přidává jako **hlavička tooltipu** ke značkám i k hranám trasy
+  (stav, cíl, off-route, zbývající trasa, φ, počet uzavření). Detaily: [world-view.md](world-view.md).
 
 ## Rozhraní a testovatelnost
 

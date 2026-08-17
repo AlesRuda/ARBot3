@@ -378,29 +378,63 @@ namespace ARBot.ViewModels
             OpenRobotCentric();
         }
 
-        /// <summary>Otevre (nebo aktivuje) navigacni nastroj pro replay (View).</summary>
+        /// <summary>Prave otevreny navigacni nastroj replay (nebo <c>null</c>). Drzime referenci,
+        /// protoze panel nezije v <see cref="DockFactory.DocumentDock"/>, ale ve spodnim doku vedle
+        /// Debug outputu - a ten se muze sbalit/odpojit, takze ho v layoutu nelze spolehlive najit.</summary>
+        private ReplayNavTool _replayNav;
+
+        /// <summary>
+        /// Otevre (nebo aktivuje) navigacni nastroj pro replay (View). Panel se dokuje do
+        /// TEHOZ doku jako Debug output (spodni panel), ne mezi dokumenty: je to nastroj, ktery
+        /// ma byt videt SOUCASNE s obrazovymi dokumenty, ne misto nich.
+        /// </summary>
         private void OpenReplayNav()
         {
             var src = ARBotRuntime.Current.FileSource;
-            if (src == null)
+            if (src == null || Layout is null)
                 return;
 
-            var dock = _factory.DocumentDock;
-            if (dock == null || Layout is null)
-                return;
-
-            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "ReplayNav");
-            if (existing != null)
+            // Nastroj z predchoziho zaznamu je navazany na jiny (uz zavreny) zdroj - zahodit.
+            if (_replayNav != null && !ReferenceEquals(_replayNav.Source, src))
             {
-                _factory.SetActiveDockable(existing);
-                _factory.SetFocusedDockable(Layout, existing);
-                return;
+                if (_replayNav.Owner is IDock owner && owner.VisibleDockables != null
+                    && owner.VisibleDockables.Contains(_replayNav))
+                    _factory.RemoveDockable(_replayNav, true);
+                _replayNav = null;
             }
 
-            var tool = new ReplayNavTool(src);
-            _factory.AddDockable(dock, tool);
-            _factory.SetActiveDockable(tool);
-            _factory.SetFocusedDockable(Layout, tool);
+            if (_replayNav == null)
+            {
+                _replayNav = new ReplayNavTool(src);
+
+                // Preferovane umisteni: jako dalsi zalozka v doku, kde sedi Debug output.
+                var host = HostDockOfDebugOutput();
+                if (host != null)
+                {
+                    _factory.AddDockable(host, _replayNav);
+                    _factory.SetActiveDockable(_replayNav);
+                    _factory.SetFocusedDockable(Layout, _replayNav);
+                    return;
+                }
+            }
+
+            // Debug output neni v hlavnim okne (zavren/pinnut/vytazen) nebo uz nastroj existuje -
+            // spolecna cesta: nadokovat/aktivovat dole stejne jako Debug output.
+            ReopenTool(_replayNav, Alignment.Bottom, DockOperation.Bottom);
+        }
+
+        /// <summary>Dok, ve kterem prave sedi Debug output - jen kdyz je normalne viditelny
+        /// v hlavnim okne (ne pinnuty do auto-hide prouzku, ne v plovoucim okne).</summary>
+        private IDock HostDockOfDebugOutput()
+        {
+            var debug = _factory.DebugOutput;
+            if (debug == null || Layout is null)
+                return null;
+            if (_factory.IsDockablePinned(debug, Layout))
+                return null;
+            if (!ContainsVisible(Layout, debug))
+                return null;
+            return debug.Owner as IDock;
         }
 
         /// <summary>

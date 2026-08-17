@@ -39,6 +39,10 @@ namespace ARBot.ViewModels
         /// <summary>Radky indexu pro grid (Seq/typ/jmeno/cas). Vyber v gridu = <see cref="Position"/>.</summary>
         public IReadOnlyList<IndexEntry> Rows => src?.Index;
 
+        /// <summary>Zdroj, ke kteremu je nastroj navazany. Slouzi k rozpoznani, zda uz otevreny
+        /// panel patri k prave prehravanemu zaznamu, nebo je z predchoziho (a ma se nahradit).</summary>
+        public FileMessageSource Source => src;
+
         /// <summary>Konstruktor pro design-time / navrhar (bez zdroje).</summary>
         public ReplayNavTool()
         {

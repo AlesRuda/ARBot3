@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ARBot.Common.Common;
@@ -107,6 +108,7 @@ namespace ARBot.ViewModels
         private MapMsg? pendingMap;
         private OccupancyGridMsg? pendingOccupancy;
         private LocalPlanMsg? pendingPlan;
+        private GlobalNavMsg? pendingGlobalNav;
         private volatile bool updateQueued;
 
         // Aktualni (posledni zpracovane) zpravy pouzite napric flushi.
@@ -116,6 +118,14 @@ namespace ARBot.ViewModels
         private MapMsg? lastMap;
         private OccupancyGridMsg? lastOccupancy;
         private LocalPlanMsg? lastPlan;
+
+        /// <summary>
+        /// Stav globalni navigace jako hotovy text do tooltipu (viz <see cref="BuildGlobalNavTip"/>).
+        /// <c>GlobalNavMsg</c> nema vlastni geometrii - cil i mrkev uz kresli vrstva Znacky - takze
+        /// se z ni nedrzi cela zprava, jen tento popis. Sklada se pri prijmu, aby hledani tooltipu
+        /// zustalo jen porovnavanim vzdalenosti.
+        /// </summary>
+        private string? globalNavTip;
 
         // Trajektorie (stopa) v Web Mercator metrech; capovana delka.
         //
@@ -284,6 +294,7 @@ namespace ARBot.ViewModels
                 case MapMsg m: lock (gate) pendingMap = m; break;
                 case OccupancyGridMsg og: lock (gate) pendingOccupancy = og; break;
                 case LocalPlanMsg lp: lock (gate) pendingPlan = lp; break;
+                case GlobalNavMsg gnv: lock (gate) pendingGlobalNav = gnv; break;
                 default: return;   // ostatni zpravy nas nezajimaji
             }
 
@@ -306,7 +317,7 @@ namespace ARBot.ViewModels
             }
 
             GPSState? gps; RobotStateMsg? robot; GraphNavigationMsg? graph; MapMsg? map;
-            OccupancyGridMsg? occupancy; LocalPlanMsg? plan;
+            OccupancyGridMsg? occupancy; LocalPlanMsg? plan; GlobalNavMsg? globalNav;
             lock (gate)
             {
                 gps = pendingGps; pendingGps = null;
@@ -315,6 +326,7 @@ namespace ARBot.ViewModels
                 map = pendingMap; pendingMap = null;
                 occupancy = pendingOccupancy; pendingOccupancy = null;
                 plan = pendingPlan; pendingPlan = null;
+                globalNav = pendingGlobalNav; pendingGlobalNav = null;
             }
 
             if (gps != null) lastGps = gps;
@@ -322,6 +334,10 @@ namespace ARBot.ViewModels
             if (graph != null) lastGraph = graph;
             if (occupancy != null) lastOccupancy = occupancy;
             if (plan != null) lastPlan = plan;
+
+            // Zadna vlastni vrstva - jen text do tooltipu znacek a hran trasy.
+            if (globalNav != null)
+                globalNavTip = BuildGlobalNavTip(globalNav);
 
             // Mapa (sit) je staticka a muze byt velka - featury prestavuj JEN kdyz prisla nova mapa.
             if (map != null)
@@ -599,6 +615,7 @@ namespace ARBot.ViewModels
             lastMap = null;
             lastOccupancy = null;
             lastPlan = null;
+            globalNavTip = null;
             initialCentered = false;
 
             robotLayer.Features = Array.Empty<IFeature>();
@@ -611,6 +628,9 @@ namespace ARBot.ViewModels
             planLayer.Features = Array.Empty<IFeature>();
             markerTips = Array.Empty<(double, double, string)>();
             planTips = Array.Empty<(double, double, string)>();
+            planSegTips = Array.Empty<(double, double, double, double, string)>();
+            routeSegTips = Array.Empty<(double, double, double, double, string)>();
+            mapSegHits = Array.Empty<(double, double, double, double, double, int)>();
         }
 
         /// <summary>
@@ -718,6 +738,26 @@ namespace ARBot.ViewModels
             return ((uint)a << 24) | (rr << 16) | (gg << 8) | bb;
         }
 
+        // --- Sirky car navigacnich vrstev [px] ---
+        //
+        // Tri urovne navigace vedou po sobe (sit → trasa → lokalni plan), takze se v mape PREKRYVAJI.
+        // Aby byly videt vsechny naraz, plati dve pravidla dohromady:
+        //   1) poradi vykresleni od nejsirsi po nejuzsi (viz RebuildLayers) a
+        //   2) kazda dalsi uroven je vyrazne uzsi nez ta pod ni.
+        // Bez toho zmizi ta uzsi POD sirsi - presne to se stavalo modremu planu pod zelenou trasou,
+        // kdyz se plan kreslil prvni. Sit je uroven 0: kresli se v metricke sirce cesty (pas), takze
+        // ji tenhle pomer neresi - staci ze je uplne dole.
+
+        /// <summary>Sirka cary lokalniho planu - nejuzsi, kresli se navrch.</summary>
+        private const double PlanLineWidth = 3;
+
+        /// <summary>Sirka hrany trasy/grafu - o 50 % vic nez plan, aby zpod nej koukala na obe strany.</summary>
+        private const double RouteLineWidth = PlanLineWidth * 1.5;
+
+        /// <summary>Sirka ZVYRAZNENE hrany (cesta, po ktere se prave jede) - dvojnasobek planu.
+        /// Zachovava puvodni pomer „zvyraznena je 2x sirsi nez bezna hrana".</summary>
+        private const double RouteHighlightWidth = PlanLineWidth * 2.0;
+
         /// <summary>Vrstva lokalniho planu: draha jako cara + cil jako bod.</summary>
         private void UpdatePlanFeature(LocalPlanMsg? plan, GeoReference? geoRef)
         {
@@ -725,6 +765,7 @@ namespace ARBot.ViewModels
             {
                 planLayer.Features = Array.Empty<IFeature>();
                 planTips = Array.Empty<(double, double, string)>();
+                planSegTips = Array.Empty<(double, double, double, double, string)>();
                 return;
             }
 
@@ -745,8 +786,14 @@ namespace ARBot.ViewModels
                     coords[i] = ToMerc(plan.WayPoints[i].X, plan.WayPoints[i].Y);
 
                 var line = new GeometryFeature { Geometry = new LineString(coords) };
-                line.Styles.Add(new VectorStyle { Line = new Pen(new Color(0x42, 0xA5, 0xF5), 3) });
+                line.Styles.Add(new VectorStyle { Line = new Pen(new Color(0x42, 0xA5, 0xF5), PlanLineWidth) });
                 features.Add(line);
+
+                planSegTips = BuildPlanSegmentTips(plan, coords);
+            }
+            else
+            {
+                planSegTips = Array.Empty<(double, double, double, double, string)>();
             }
 
             // Cil (pozadovany, tedy i kdyz plan skoncil oriznuty na hranici gridu).
@@ -774,12 +821,74 @@ namespace ARBot.ViewModels
             };
         }
 
+        /// <summary>
+        /// Popisy jednotlivych USEKU lokalniho planu (waypoint <c>k</c> → <c>k+1</c>) pro tooltip.
+        /// Plan je jedna modra cara bez cisel - parametry, ktere ji urcily (predepsana rychlost,
+        /// tolerance polohy), jinak nejsou v mape videt vubec.
+        ///
+        /// <para>Delky a smery se pocitaji z LOKALNICH metrickych souradnic (world ENU), NE z Web
+        /// Mercatoru: ten je v metrech jen priblizne (meritko roste s 1/cos(lat)), takze delky by
+        /// vysly nadhodnocene. Souradnice usecky jsou naopak v Mercatoru, protoze v nem probiha
+        /// hit-test proti pozici mysi ve viewportu.</para>
+        /// </summary>
+        private static (double AX, double AY, double BX, double BY, string Text)[] BuildPlanSegmentTips(
+            LocalPlanMsg plan, Coordinate[] merc)
+        {
+            var wps = plan.WayPoints;
+            int n = wps.Length;
+
+            // Kumulativni vzdalenost od robotu (prvni waypoint = aktualni poloha robotu).
+            var s = new double[n];
+            for (int i = 1; i < n; i++)
+            {
+                double ddx = wps[i].X - wps[i - 1].X, ddy = wps[i].Y - wps[i - 1].Y;
+                s[i] = s[i - 1] + Math.Sqrt(ddx * ddx + ddy * ddy);
+            }
+
+            // Hlavicka je v kazdem useku zamerne zopakovana: tooltip je jedine misto, kde se
+            // diagnostika planu v mape vubec objevi, a bez ni by cisla useku nemela kontext.
+            string header = $"Lokální plán: {plan.PlanStatus} · {n} bodů · {plan.LengthM:F2} m · "
+                          + $"{plan.CostSeconds:F1} s · min. odstup {plan.MinClearanceM:F2} m · "
+                          + $"výpočet {plan.ComputeMs:F1} ms";
+
+            var tips = new (double, double, double, double, string)[n - 1];
+            for (int k = 0; k < n - 1; k++)
+            {
+                var a = wps[k];
+                var b = wps[k + 1];
+                double dx = b.X - a.X, dy = b.Y - a.Y;
+                double len = Math.Sqrt(dx * dx + dy * dy);
+
+                var sb = new StringBuilder();
+                sb.Append(header).Append('\n');
+                sb.Append($"Úsek {k} → {k + 1} (z {n - 1})\n");
+                sb.Append($"délka {len:F2} m · od robota {s[k]:F2} → {s[k + 1]:F2} m\n");
+                sb.Append($"směr {Conversions.Rad2Deg(Math.Atan2(dy, dx)):F0}° "
+                          + "(ENU: 0 = východ, + proti hodinovým ručičkám)\n");
+                sb.Append($"rychlost (strop plánu) {a.Speed:F2} → {b.Speed:F2} m/s\n");
+                sb.Append($"tolerance polohy {a.MaxPositionError:F2} → {b.MaxPositionError:F2} m");
+
+                // Jen kdyz je opravdu zadano - planner necha oboji na vychozich hodnotach, takze
+                // by to jinak byly dva radky konstant navic.
+                if (b.Orientation.HasValue)
+                    sb.Append($"\norientace v konci úseku {Conversions.Rad2Deg(b.Orientation.Value):F0}° "
+                              + $"(± {Conversions.Rad2Deg(b.MaxOrientationError):F0}°)");
+                if (b.MaxSpeedError > 0)
+                    sb.Append($"\ntolerance rychlosti {b.MaxSpeedError:F2} m/s");
+
+                tips[k] = (merc[k].X, merc[k].Y, merc[k + 1].X, merc[k + 1].Y, sb.ToString());
+            }
+
+            return tips;
+        }
+
         private void UpdateRouteAndMarkers(GraphNavigationMsg? gn, GeoReference? geoRef)
         {
             if (gn == null || geoRef == null)
             {
                 routeLayer.Features = Array.Empty<IFeature>();
                 markerLayer.Features = Array.Empty<IFeature>();
+                routeSegTips = Array.Empty<(double, double, double, double, string)>();
                 return;
             }
 
@@ -793,6 +902,7 @@ namespace ARBot.ViewModels
 
             // Hrany grafu / trasy - z vrcholu podle indexu From/To (Line2D je nekonecna primka bez koncu).
             var edges = new List<IFeature>();
+            var edgeTips = new List<(double AX, double AY, double BX, double BY, string Text)>();
             if (gn.Edges != null && gn.Vertexes != null)
             {
                 int vc = gn.Vertexes.Count;
@@ -815,11 +925,16 @@ namespace ARBot.ViewModels
                     var color = e.HightLight ? new Color(0x4C, 0xAF, 0x50)       // zelena - vybrana cesta
                               : e.Path ? new Color(0x90, 0xCA, 0xF9)             // svetle modra - trasa
                               : new Color(0x9E, 0x9E, 0x9E);                     // seda - graf
-                    gf.Styles.Add(new VectorStyle { Line = new Pen(color, e.HightLight ? 4 : 2) });
+                    gf.Styles.Add(new VectorStyle
+                    {
+                        Line = new Pen(color, e.HightLight ? RouteHighlightWidth : RouteLineWidth)
+                    });
                     edges.Add(gf);
+                    edgeTips.Add((a.X, a.Y, b.X, b.Y, BuildEdgeTip(e, v1, v2)));
                 }
             }
             routeLayer.Features = edges;
+            routeSegTips = edgeTips;
 
             // Znacky: start / cil / vysledek. K rozliseni slouzi barva, takze k nim drzime
             // i popis pro tooltip - jinak jsou to tri barevne puntiky bez vysvetleni.
@@ -847,9 +962,75 @@ namespace ARBot.ViewModels
             markerTips = tips;
         }
 
+        /// <summary>
+        /// Popis JEDNE hrany trasy/grafu pro tooltip. Hrany se od sebe lisi jen barvou a tloustkou,
+        /// takze bez popisu nejde poznat ani ktera cesta v OSM to je, ani proc je zrovna takova.
+        ///
+        /// <para><b>Vyznam poli zavisi na producentovi zpravy:</b> <c>GlobalNavigator</c> plni
+        /// <c>ID</c> = OSM <c>WayId</c>, <c>Length</c> = metricka delka hrany a <c>Distance</c>
+        /// vrcholu nechava nespoctenou; starsi cesta pres <c>Map</c> naopak plni <c>Length</c>
+        /// vahou hrany a <c>Distance</c> = metricka vzdalenost uzlu k cili. Proto se
+        /// <c>Distance</c> ukazuje jen pri <c>DistanceCalculated</c>.</para>
+        /// </summary>
+        private static string BuildEdgeTip(GraphNavigationMsg.Edge e,
+                                           GraphNavigationMsg.Vertex v1, GraphNavigationMsg.Vertex v2)
+        {
+            // Poradi testu odpovida tomu, co hrana znamena: uzavreni se pozna podle Collision
+            // (GlobalNavigator ho posila s Graph=true, Path=false), zvyrazneni prebiji vse.
+            string kind = e.HightLight ? "vybraná trasa (jede se po ní)"
+                        : e.Collision ? "uzavřená / penalizovaná hrana (robot ji objíždí)"
+                        : e.Path ? "trasa"
+                        : "graf sítě";
+
+            double dx = v2.X - v1.X, dy = v2.Y - v1.Y;
+            double azDeg = Conversions.Rad2Deg(Conversions.Orientation2Azimut(Math.Atan2(dy, dx)));
+            if (azDeg < 0) azDeg += 360;   // NormalizeOrientation vraci (-180°, 180°]
+
+            var sb = new StringBuilder();
+            sb.Append($"Hrana {e.ID} · {kind}\n");
+            sb.Append($"délka {e.Length:F2} m · azimut {azDeg:F0}° · přímo {Math.Sqrt(dx * dx + dy * dy):F2} m\n");
+            sb.Append($"šířka cesty {(v1.Width + v2.Width) / 2:F2} m (průměr obou uzlů)\n");
+            sb.Append($"uzly {v1.ID} → {v2.ID}");
+
+            if (v1.DistanceCalculated || v2.DistanceCalculated)
+                sb.Append($"\nvzdálenost k cíli {Dist(v1)} → {Dist(v2)}");
+
+            return sb.ToString();
+
+            // "Final" = uzel je v Dijkstrovi uzavreny (hodnota uz se nezmeni); bez nej je to odhad.
+            static string Dist(GraphNavigationMsg.Vertex v)
+                => v.DistanceCalculated ? $"{v.Distance:F1} m{(v.Final ? "" : " (předběžně)")}" : "?";
+        }
+
+        /// <summary>
+        /// Stav globalni navigace jako hlavicka tooltipu. <see cref="GlobalNavMsg"/> nema vlastni
+        /// geometrii - cil i mrkev uz kresli vrstva Znacky - takze se pripoji k tomu, co globalni
+        /// navigace vyrobila: ke znackam a k hranam trasy.
+        /// </summary>
+        private static string BuildGlobalNavTip(GlobalNavMsg g)
+        {
+            var status = (ARBot.Common.Maps.OsmNav.Navigation.GlobalNavStatus)g.Status;
+
+            var sb = new StringBuilder();
+            sb.Append($"Globální navigace: {status} · ");
+            sb.Append(g.HasGoal ? $"cíl {g.GoalLatDeg:F6}° {g.GoalLonDeg:F6}°" : "cíl nezadán");
+            sb.Append($"\nod sítě {g.OffRouteDist:F2} m · zbývá {g.RouteLengthM:F0} m / "
+                      + $"{g.RouteEdgeCount} hran · φ {g.Phi:F1} s · uzavřených hran {g.ClosureCount}");
+            if (g.HasCarrot)
+                sb.Append($"\nmrkev [{g.CarrotX:F1}; {g.CarrotY:F1}] m (ENU)");
+            sb.Append($"\ncyklus {g.TimeStamp:HH:mm:ss.fff}");
+
+            return sb.ToString();
+        }
+
         /// <summary>Popisy znacek vrstvy Znacky (Web Mercator + text). Prepisuje se s kazdou trasou.</summary>
         private IReadOnlyList<(double X, double Y, string Text)> markerTips
             = Array.Empty<(double, double, string)>();
+
+        /// <summary>Popisy HRAN vrstvy Trasa+graf (usecka v Web Mercatoru + text; viz
+        /// <see cref="BuildEdgeTip"/>). Stejny hit-test na usecku jako u useku planu.</summary>
+        private IReadOnlyList<(double AX, double AY, double BX, double BY, string Text)> routeSegTips
+            = Array.Empty<(double, double, double, double, string)>();
 
         /// <summary>
         /// Popisy bodu vrstvy Lokalni plan (zatim jen cil). Drzi se ZVLAST od <see cref="markerTips"/>,
@@ -858,19 +1039,85 @@ namespace ARBot.ViewModels
         private IReadOnlyList<(double X, double Y, string Text)> planTips
             = Array.Empty<(double, double, string)>();
 
+        /// <summary>Popisy USEKU lokalniho planu: usecka v Web Mercatoru + text (viz
+        /// <see cref="BuildPlanSegmentTips"/>). Hit-test je na usecku, ne na bod - plan je cara,
+        /// takze uzivatel miri kamkoli na ni, ne na (neviditelne) waypointy.</summary>
+        private IReadOnlyList<(double AX, double AY, double BX, double BY, string Text)> planSegTips
+            = Array.Empty<(double, double, double, double, string)>();
+
+        /// <summary>
+        /// Hit-test data vrstvy Mapa (sit z OsmNav): usecka hrany v Mercatoru, polovicni sirka pasu
+        /// a index hrany do <see cref="lastMap"/>. Na rozdil od ostatnich vrstev se tu <b>text
+        /// nepredpocitava</b> - sit ma i desetitisice hran, takze retezec ke kazde by byly zbytecne
+        /// megabajty; sklada se az pri trefe (<see cref="FindMapEdgeTip"/>).
+        /// </summary>
+        private (double AX, double AY, double BX, double BY, double Half, int Edge)[] mapSegHits
+            = Array.Empty<(double, double, double, double, double, int)>();
+
+        /// <summary>
+        /// Popis cesty ze site OsmNav pod zadanym bodem, nebo null. Trefou je <b>pas cesty</b>
+        /// (vzdalenost od osy do jeji poloviny sirky), ne pevny okruh kolem kurzoru: cesty se kresli
+        /// v metricke sirce, takze uzivatel miri na to, co vidi. Tolerance z viewportu slouzi jen
+        /// jako minimum, aby sla trefit i uzka cesta pri odzoomovani.
+        /// </summary>
+        private string? FindMapEdgeTip(double mercX, double mercY, double toleranceWorld)
+        {
+            var map = lastMap;
+            if (map == null || mapSegHits.Length == 0) return null;
+
+            double bestD2 = double.MaxValue;
+            int bestEdge = -1;
+
+            foreach (var (ax, ay, bx, by, half, edge) in mapSegHits)
+            {
+                // Levny odrez podle obalky usecky - hran jsou desetitisice a tohle je par porovnani.
+                double reach = Math.Max(half, toleranceWorld);
+                if (mercX < Math.Min(ax, bx) - reach || mercX > Math.Max(ax, bx) + reach) continue;
+                if (mercY < Math.Min(ay, by) - reach || mercY > Math.Max(ay, by) + reach) continue;
+
+                double d2 = DistanceToSegmentSquared(mercX, mercY, ax, ay, bx, by);
+                if (d2 > reach * reach || d2 >= bestD2) continue;
+
+                bestD2 = d2;
+                bestEdge = edge;
+            }
+
+            if (bestEdge < 0 || bestEdge >= map.Edges.Count) return null;
+
+            var e = map.Edges[bestEdge];
+            if (e.From < 0 || e.To < 0 || e.From >= map.Nodes.Count || e.To >= map.Nodes.Count) return null;
+            var n1 = map.Nodes[e.From];
+            var n2 = map.Nodes[e.To];
+
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(map.Name))
+                sb.Append($"Síť OsmNav: {map.Name}\n");
+            sb.Append($"Cesta {e.WayId} · délka {e.LengthMeters:F2} m\n");
+            sb.Append($"šířka {(n1.WidthMeters + n2.WidthMeters) / 2:F2} m "
+                      + $"(v uzlech {n1.WidthMeters:F2} → {n2.WidthMeters:F2} m)\n");
+            sb.Append($"uzly {n1.Id} → {n2.Id}");
+
+            return sb.ToString();
+        }
+
         /// <summary>
         /// Najde popis znacky pod zadanym bodem v Web Mercatoru, nebo null. Tolerance se predava
         /// ve svetovych jednotkach (View si ji spocte z rozliseni viewportu, aby byla konstantni
         /// v pixelech nezavisle na zoomu).
         ///
         /// <para>Hleda se jen ve VIDITELNYCH vrstvach - popisek k necemu, co neni videt, mate.</para>
+        ///
+        /// <para>Ke vsemu, co vyrobila globalni navigace (znacky, hrany trasy), se pripoji hlavicka
+        /// se stavem z <see cref="GlobalNavMsg"/> - ta vlastni geometrii nema, takze jinak by nemela
+        /// kde byt videt.</para>
         /// </summary>
         public string? FindMarkerTip(double mercX, double mercY, double toleranceWorld)
         {
             double best = toleranceWorld * toleranceWorld;
             string? found = null;
+            bool fromGlobalNav = false;
 
-            void Search(IReadOnlyList<(double X, double Y, string Text)> tips)
+            void Search(IReadOnlyList<(double X, double Y, string Text)> tips, bool globalNav)
             {
                 foreach (var (x, y, text) in tips)
                 {
@@ -880,16 +1127,63 @@ namespace ARBot.ViewModels
                     {
                         best = d2;
                         found = text;
+                        fromGlobalNav = globalNav;
+                    }
+                }
+            }
+
+            void SearchSegments(IReadOnlyList<(double AX, double AY, double BX, double BY, string Text)> tips,
+                                bool globalNav)
+            {
+                foreach (var (ax, ay, bx, by, text) in tips)
+                {
+                    double d2 = DistanceToSegmentSquared(mercX, mercY, ax, ay, bx, by);
+                    if (d2 <= best)
+                    {
+                        best = d2;
+                        found = text;
+                        fromGlobalNav = globalNav;
                     }
                 }
             }
 
             // Poradi odpovida vykresleni: plan je POD znackami, takze pri prekryvu (mrkev a cil
             // lokalniho planu jsou tyz bod) vyhraje popis te znacky, kterou uzivatel opravdu vidi.
-            if (ShowPlan) Search(planTips);
-            if (ShowMarkers) Search(markerTips);
+            if (ShowPlan) Search(planTips, false);
+            if (ShowMarkers) Search(markerTips, true);
+
+            // Cary az nakonec: bodove znacky lezi NA carach, takze by je popis useku jinak prebil
+            // (kruh kolem kurzoru chyti usecku vzdycky, bod jen kdyz na nej uzivatel opravdu miri).
+            // Mezi carami rozhoduje vzdalenost; pri shode vyhrava plan, ten se kresli nad trasou.
+            if (found == null)
+            {
+                if (ShowRoute) SearchSegments(routeSegTips, true);
+                if (ShowPlan) SearchSegments(planSegTips, false);
+            }
+
+            // Sit uplne nakonec: kresli se pod vsim a jako siroky pas, takze ji kurzor trefi skoro
+            // vzdycky - kdyby mela prednost, prebila by trasu i plan, ktere po ni vedou.
+            if (found == null && ShowMap)
+                found = FindMapEdgeTip(mercX, mercY, toleranceWorld);
+
+            if (found != null && fromGlobalNav && globalNavTip != null)
+                found = globalNavTip + "\n\n" + found;
 
             return found;
+        }
+
+        /// <summary>Kvadrat vzdalenosti bodu od USECKY AB (ne od nekonecne primky - konce useku
+        /// se pak nepretahuji pres sousedni useky).</summary>
+        private static double DistanceToSegmentSquared(double px, double py,
+                                                       double ax, double ay, double bx, double by)
+        {
+            double vx = bx - ax, vy = by - ay;
+            double len2 = vx * vx + vy * vy;
+            double t = len2 > 0 ? ((px - ax) * vx + (py - ay) * vy) / len2 : 0.0;
+            if (t < 0) t = 0;
+            else if (t > 1) t = 1;
+            double dx = px - (ax + t * vx), dy = py - (ay + t * vy);
+            return dx * dx + dy * dy;
         }
 
         /// <summary>
@@ -905,6 +1199,7 @@ namespace ARBot.ViewModels
             if (map.Edges == null || map.Edges.Count == 0 || map.Nodes == null || map.Nodes.Count == 0)
             {
                 mapLayer.Features = Array.Empty<IFeature>();
+                mapSegHits = Array.Empty<(double, double, double, double, double, int)>();
                 return;
             }
 
@@ -921,10 +1216,12 @@ namespace ARBot.ViewModels
             }
 
             var polys = new List<Polygon>(map.Edges.Count + map.Nodes.Count);
+            var hits = new List<(double AX, double AY, double BX, double BY, double Half, int Edge)>(map.Edges.Count);
 
             // Hrany -> lichobezniky (promenna sirka po delce).
-            foreach (var e in map.Edges)
+            for (int ei = 0; ei < map.Edges.Count; ei++)
             {
+                var e = map.Edges[ei];
                 if (e.From < 0 || e.To < 0 || e.From >= pts.Length || e.To >= pts.Length) continue;
                 var a = pts[e.From]; var b = pts[e.To];
                 double dx = b.X - a.X, dy = b.Y - a.Y;
@@ -933,6 +1230,11 @@ namespace ARBot.ViewModels
                 double px = -dy / len, py = dx / len;          // jednotkova kolmice
                 double hA = halfW[e.From], hB = halfW[e.To];
                 if (hA <= 0 && hB <= 0) continue;
+
+                // Hit-test data pro tooltip - stejne preskoky jako u vykreslovani (co se nekresli,
+                // nema mit ani popisek). Sirsi z obou koncu staci: pas se stejne trefuje "od oka".
+                hits.Add((a.X, a.Y, b.X, b.Y, Math.Max(hA, hB), ei));
+
                 var ring = new[]
                 {
                     new Coordinate(a.X + px * hA, a.Y + py * hA),
@@ -943,6 +1245,8 @@ namespace ARBot.ViewModels
                 };
                 polys.Add(new Polygon(new LinearRing(ring)));
             }
+
+            mapSegHits = hits.ToArray();
 
             // Uzly -> kotouce (zaobli konce a vyplni klin v krizovatce = hladke napojeni).
             for (int i = 0; i < pts.Length; i++)
@@ -1271,12 +1575,15 @@ namespace ARBot.ViewModels
                 if (b != null) Map.Layers.Add(b);
             }
 
+            // Poradi = od nejsirsiho k nejuzsimu, at se navigacni vrstvy neschovaji jedna pod druhou:
+            // sit (pas v metricke sirce) → trasa → lokalni plan (nejuzsi, navrch). Sirky car k tomu
+            // viz PlanLineWidth / RouteLineWidth / RouteHighlightWidth.
             if (ShowMap) Map.Layers.Add(mapLayer);   // sit z OsmNav nad podkladem, pod ostatnimi daty
             if (ShowOccupancy) Map.Layers.Add(occupancyLayer);   // lokalni mapa nad siti, pod vektory
             if (ShowGps) Map.Layers.Add(gpsLayer);   // surove fixy pod fuzovanou stopou
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);
-            if (ShowPlan) Map.Layers.Add(planLayer);
             if (ShowRoute) Map.Layers.Add(routeLayer);
+            if (ShowPlan) Map.Layers.Add(planLayer);
             if (ShowMarkers) Map.Layers.Add(markerLayer);
             if (ShowRobot) Map.Layers.Add(robotLayer);   // robot navrchu
 

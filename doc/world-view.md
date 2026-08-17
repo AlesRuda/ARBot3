@@ -54,9 +54,23 @@ návrháře; ovládací prvky (combobox podkladu, checkboxy vrstev) jsou v XAML 
 
 ## Vrstvy (každá samostatně vypínatelná)
 
-Pořadí zdola nahoru: **podklad → trajektorie → trasa/graf → značky → poloha**. Přepínače jsou
-`[ObservableProperty]` na ViewModelu; jejich změna přestaví `Map.Layers`
-(`RebuildLayers`, běží na UI vlákně).
+Pořadí zdola nahoru: **podklad → mapa (síť) → lokální mapa → surové GPS → trajektorie → trasa/graf →
+lokální plán → značky → poloha**. Přepínače jsou `[ObservableProperty]` na ViewModelu; jejich změna
+přestaví `Map.Layers` (`RebuildLayers`, běží na UI vlákně).
+
+**Šířky a pořadí navigačních vrstev spolu souvisí.** Tři úrovně navigace (síť → globální trasa →
+lokální plán) vedou po sobě, takže se v mapě překrývají; aby byly vidět všechny naráz, platí obě
+pravidla dohromady: kreslí se **od nejširší po nejužší** a každá další je **výrazně užší** než ta
+pod ní. Konkrétně (konstanty `PlanLineWidth` / `RouteLineWidth` / `RouteHighlightWidth`):
+
+| Úroveň | Šířka | Pozn. |
+|---|---|---|
+| Mapa (síť) | metrická šířka cesty (pás) | úroveň 0 — pásu se poměr netýká, stačí že je úplně dole |
+| Trasa / graf | 1,5× plán; zvýrazněná cesta 2× plán | zpod plánu kouká na obě strany |
+| Lokální plán | 3 px (základ) | nejužší, kreslí se navrch |
+
+*Proč:* dokud se plán kreslil **pod** trasou a byl užší, modrá čára plánu úplně zmizela pod zelenou
+zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto potřeba zkontrolovat i ostatní.
 
 | Vrstva | Zdroj (Message) | Rámec | Stav |
 |---|---|---|---|
@@ -189,15 +203,50 @@ minimální krok 0,5 m).
 - **Podklad**: combobox zdroje + checkbox zapnutí + cesta k MBTiles.
 - **Vrstvy**: checkboxy Poloha+kurz / Trajektorie / Surové GPS / Mapa (síť) / Trasa+graf / Značky /
   Lokální mapa / Lokální plán.
-- **Tooltipy značek** (`FindMarkerTip`): barevné puntíky samy o sobě nic neříkají, proto k nim jde
-  najet myší. Popisy se drží ve **dvou seznamech** — `markerTips` (vrstva Značky) a `planTips`
-  (vrstva Lokální plán); jeden společný by si obě vrstvy přepisovaly, protože se přestavují nezávisle.
-  Hledá se **jen ve viditelných vrstvách** (popisek k něčemu, co není vidět, mate).
+- **Tooltipy v mapě** (`FindMarkerTip`): barevné puntíky ani čáry samy o sobě nic neříkají, proto
+  k nim jde najet myší. Popisy se drží v **oddělených seznamech** podle vrstvy — `markerTips`
+  a `planTips` (body), `routeSegTips` a `planSegTips` (úsečky); jeden společný by si vrstvy
+  přepisovaly, protože se přestavují nezávisle. Hledá se **jen ve viditelných vrstvách** (popisek
+  k něčemu, co není vidět, mate). Pořadí: nejdřív **body**, a teprve když žádný netrefil, **čáry** —
+  body leží NA čárách, takže kruh kolem kurzoru chytí úsečku vždycky, kdežto bod jen když na něj
+  uživatel opravdu míří. Mezi čarami rozhoduje vzdálenost, při shodě vyhrává plán (kreslí se
+  nad trasou — pořadí hledání kopíruje pořadí vykreslení).
   - **Modrá „mrkev"** (Značky, z `GraphNavigationMsg.ResultX/Y`) a **žlutý cíl** (Lokální plán,
     z `LocalPlanMsg.RequestedGoalX/Y`) jsou v ustáleném stavu **tentýž bod** — globální vrstva mrkev
     spočítá a předá ji přes `SetGoal()` lokální. Kreslí se dvakrát schválně: rozestup mezi nimi ukáže,
     že se globální a lokální vrstva rozešly (mrkev se přepočítává průběžně, žlutá je cíl posledního
     hotového plánu).
+  - **Hrany trasy/grafu** (`routeSegTips` + `BuildEdgeTip`): hrany se od sebe liší jen barvou
+    a tloušťkou. Tooltip řekne, **která** cesta to je a **čím** je: `Hrana <OSM WayId> · vybraná
+    trasa / trasa / graf sítě / uzavřená a penalizovaná`, délka, azimut, přímá vzdálenost koncových
+    uzlů, šířka cesty (průměr obou uzlů), ID uzlů a — pokud je spočtená — vzdálenost uzlů k cíli
+    (`Final` = hodnota už je v Dijkstrovi uzavřená, jinak „předběžně").
+    **Pozor na producenta zprávy:** `GlobalNavigator` plní `ID` = OSM `WayId`, `Length` = metrickou
+    délku hrany a `Distance` vrcholů nechává nespočtenou; starší cesta přes `Map` plní `Length`
+    *váhou* hrany a `Distance` metrickou vzdáleností uzlu k cíli. Proto se `Distance` ukazuje jen
+    při `DistanceCalculated`.
+  - **Stav globální navigace** (`globalNavTip` + `BuildGlobalNavTip`, z `GlobalNavMsg`): tahle zpráva
+    **nemá vlastní geometrii** (cíl i mrkev už kreslí Značky), takže se přidává jako **hlavička**
+    tooltipu ke všemu, co globální navigace vyrobila — ke značkám a k hranám trasy. Obsahuje
+    `GlobalNavStatus`, cíl (lat/lon), vzdálenost od sítě, zbývající trasu (m / počet hran),
+    potenciál postupu φ, počet uzavřených hran, mrkev v ENU a čas cyklu. Text se skládá **při
+    příjmu zprávy** (chodí každý cyklus), hledání tooltipu pak jen porovnává vzdálenosti.
+  - **Úseky lokálního plánu** (`planSegTips` + `BuildPlanSegmentTips`): plán je jedna modrá čára bez
+    čísel, takže parametry, které ji určily, nejsou v mapě vidět vůbec. Najetím **kamkoli na čáru**
+    se ukáže tooltip úseku `k → k+1`: hlavička plánu (stav, počet bodů, délka, cena, min. odstup,
+    doba výpočtu), délka úseku a kumulativní vzdálenost od robota, směr (ENU), předepsaná rychlost
+    a tolerance polohy v obou koncích (`Orientation` / `MaxSpeedError` jen když jsou zadané —
+    plánovač je nechává na výchozích hodnotách). Délky a směry se počítají z lokálních metrických
+    souřadnic (ENU), ne z Web Mercatoru (ten je v metrech jen přibližně).
+  - **Cesty sítě OsmNav** (`mapSegHits` + `FindMapEdgeTip`, z `MapMsg`): název sítě, OSM `WayId`,
+    délka hrany, šířka (průměr + obě koncové hodnoty) a ID uzlů. Dvě odlišnosti proti ostatním
+    vrstvám: (1) **trefou je pas cesty**, ne pevný okruh kolem kurzoru — cesty se kreslí v metrické
+    šířce, takže uživatel míří na to, co vidí (tolerance z viewportu slouží jen jako minimum, aby
+    šla trefit i úzká cesta při odzoomování); (2) **text se nepředpočítává** — síť má i desetitisíce
+    hran, řetězec ke každé by byly zbytečné megabajty, takže se skládá až při trefě z `lastMap`
+    (hit-test drží jen úsečku, poloviční šířku a index hrany, s levným odřezem podle obálky).
+    Síť se hledá **úplně nakonec**: kreslí se pode vším a jako široký pás, takže by jinak přebila
+    trasu i plán, které po ní vedou.
 - **Sledovat robota**: centruje mapu na polohu při každé aktualizaci (první fix navíc nastaví zoom).
 - Zoom/pan/rotace: standardní gesta Mapsui (kolečko, tažení).
 - **Hluboký zoom**: povoleno přiblížení hluboko nad rámec zdroje dlaždic (`OverrideZoomBounds`, min.

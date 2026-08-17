@@ -37,6 +37,50 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-17
+
+- **Replay panel se dokuje k Debug outputu, ne mezi dokumenty** (žádost autora). Dosud vznikal jako
+  další záložka v `DocumentDock`, takže při jeho aktivaci zmizel obrazový dokument — a přitom se na
+  replay kroky člověk dívá právě kvůli obrázkům. Nově jde do téhož (spodního) doku jako Debug output;
+  když tam Debug output není (zavřený / připnutý / vytažený do plovoucího okna), nadokuje se dolů
+  samostatně stejnou cestou jako `ReopenTool(..., Alignment.Bottom)`. Vedlejší oprava: při otevření
+  **dalšího** záznamu se starý panel (navázaný na už zavřený `FileMessageSource`) zahodí a vytvoří
+  nový — dřív se jen aktivoval ten starý s neplatným zdrojem. Viz [record-replay.md](record-replay.md).
+- **Tooltip na úseky lokálního plánu ve World pohledu** (žádost autora). Plán byl jen modrá čára —
+  parametry, které ji určily, nešly v mapě zjistit vůbec. Najetím kamkoli na čáru se teď ukáže popis
+  úseku `k → k+1`: hlavička plánu (stav, počet bodů, délka, cena, min. odstup, doba výpočtu), délka
+  úseku, kumulativní vzdálenost od robota, směr v ENU a předepsaná rychlost + tolerance polohy v obou
+  koncích. Hit-test je na **úsečku** (waypointy se nekreslí, míří se na čáru) a běží až po bodových
+  značkách, aby jim popis úseku nepřebil jejich vlastní tooltip. Viz [world-view.md](world-view.md).
+- **Tooltipy i pro `GraphNavigationMsg` a `GlobalNavMsg`** (navazující žádost). Hrany trasy/grafu
+  dostaly vlastní popis (OSM `WayId`, druh hrany včetně **uzavřených/penalizovaných**, délka, azimut,
+  šířka cesty, uzly, vzdálenost k cíli když je spočtená). `GlobalNavMsg` žádnou geometrii nemá — cíl
+  i mrkev už kreslí Značky — takže se z něj skládá **hlavička** připojená ke všemu, co globální
+  navigace vyrobila (značky + hrany trasy): stav, cíl, vzdálenost od sítě, zbývající trasa, φ, počet
+  uzavření, mrkev, čas cyklu. World pohled si tím poprvé bere `GlobalNavMsg` ze streamu.
+- **Doplněna i síť OsmNav** (`MapMsg`, vrstva „Mapa"). Tím mají tooltip všechny tři úrovně
+  navigace: síť → globální trasa (`GraphNavigationMsg`) → lokální plán (`LocalPlanMsg`).
+  U sítě je trefou **pás cesty** (kreslí se v metrické šířce, tak se na ni i míří) a text se skládá
+  až při trefě — desetitisíce hran, předpočítané řetězce by byly megabajty. Hledá se poslední:
+  pás leží pode vším, jinak by přebil trasu i plán, které po něm vedou.
+- **Zdokumentován `GraphNavigationMsg`** (žádost autora) — XML komentáře u třídy, vrcholu, hrany
+  i konstruktorů + sekce „Zprávy s víc producenty" v [record-replay.md](record-replay.md).
+  Jádro věci: je to **obecný kontejner**, který plní čtyři různí producenti a **každý jinak** —
+  souřadnice jsou jednou lokální ENU (`GlobalNavigator`), jindy složky ECEF (starší `Maps.Map`);
+  `Edge.Length` je jednou metr, jindy váha; `Vertex.Distance` platí jen při `DistanceCalculated`.
+  Verze 1 vs 2 se liší jediným polem (`HightLight`).
+- **Šířky a pořadí navigačních vrstev ve World pohledu** (z fotky autora: modrý plán byl schovaný
+  pod zelenou trasou). Plán se kreslil **pod** trasou a byl užší → zmizel. Nově se kreslí od nejširší
+  po nejužší (síť → trasa → plán) a šířky jsou odvozené z jedné konstanty: plán 3 px, hrana trasy
+  1,5× plán, zvýrazněná cesta 2× plán. Pořadí hledání tooltipu kopíruje pořadí vykreslení (při shodě
+  vyhrává plán).
+- **Při tom vyšlo najevo:** uzavřené/penalizované hrany se kreslí **šedě jako zbytek grafu** —
+  `GlobalNavigator` je posílá s `Collision=true`, ale vykreslování rozlišuje jen `HightLight`/`Path`
+  (komentář v `BuildRouteMessage` slibuje odlišenou barvu). Zatím to řeší jen tooltip; barvu jsem
+  neměnil, protože o to nikdo nežádal.
+- **Ověřeno:** build `x64`. **Neověřeno:** vzhled a chování za běhu (vše je čistě UI, bez testů —
+  aplikace nemá testovací projekt).
+
 ## 2026-08-16
 
 - **Toolbar pro snímek obrazovky a videozáznam okna** (žádost autora). Pod menu přibyl pruh

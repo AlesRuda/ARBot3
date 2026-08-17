@@ -110,6 +110,13 @@ sledují `Stream`. Index (`MessageIndex`, sidecar `*.idx`) nese `Seq`, `CaptureT
 
 Příklad: `Blob X`@80,100; `IMU`@81,85,91,95,101; seek na 90 → `Blob X`@80 + `IMU`@85.
 
+**Umístění panelu v UI:** `ReplayNavTool` se dokuje do **téhož doku jako Debug output** (spodní panel),
+ne mezi dokumenty — je to nástroj, který má být vidět *současně* s obrazovými dokumenty, ne místo nich
+(jako záložka mezi dokumenty by je při seeku zakrýval). Když Debug output v hlavním okně není (zavřený,
+připnutý do auto-hide proužku, vytažený do plovoucího okna), panel se nadokuje dolů samostatně —
+stejnou cestou jako `ReopenTool(..., Alignment.Bottom)`. Panel drží `MainWindowViewModel._replayNav`;
+při otevření dalšího záznamu se starý (navázaný na už zavřený `FileMessageSource`) zahodí a vytvoří nový.
+
 ## Determinismus
 
 „Teď" jde z `IClock`. V Run porovnání neprobíhá → stačí tolerance / best-effort. `AsyncFusionEngine`
@@ -263,6 +270,33 @@ Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `M
 `FromData` přepíše uloženou verzí — po deserializaci proto objekt nese verzi, ze které byl načten
 (pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`
 udělá už v novém formátu).
+
+### Zprávy s víc producenty — `GraphNavigationMsg`
+
+Většina zpráv má jednoho producenta, takže význam polí je jednoznačný.
+[`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) je výjimka a stojí za
+zvláštní zmínku: je to **obecný kontejner „graf navigace"** (vrcholy + hrany + značky
+start/cíl/výsledek), který plní **čtyři různí producenti** a **každý jinak**. Úplná tabulka je
+v XML komentáři třídy; sem patří jen to, co z toho plyne pro čtení záznamů:
+
+- **Souřadnice nejsou univerzální.** `GlobalNavigator` (dnešní runtime, OsmNav) posílá lokální
+  **ENU metry**; starší cesta přes `Maps.Map` posílá **složky ECEF** (X = `Position.Y`,
+  Y = `Position.Z`). Kdo zprávu kreslí, musí vědět, odkud je — world pohled ji vykresluje přes
+  `GeoReference` platný pro ENU.
+- **`Edge.Length` je jednou metr, jindy váha.** OsmNav = metrická délka hrany, `Maps.Map` =
+  `WeigthDistance`.
+- **`Vertex.Distance` platí jen při `DistanceCalculated`.** `GlobalNavigator` ho nepočítá vůbec,
+  `GridNavigationBase` do něj dává vzdálenost **od začátku** (ale příznak nechá `false`, takže se
+  nikde neinterpretuje). Vzdálenost k cíli tedy znamená jen tam, kde příznak je.
+- **Příznaky hrany nejsou výlučné**: trasa = `HightLight` + `Path`, uzavřená/penalizovaná hrana =
+  `Collision` + `Graph`.
+- **Verze 1 vs 2:** jediný rozdíl je `Edge.HightLight` (v1 ho nemá). Starší záznam se přehraje,
+  jen v něm není zvýrazněná cesta. Bezparametrový konstruktor (prototyp pro katalog) hlásí verzi 1,
+  ne aktuální 2 — při čtení to nevadí (verzi přepíše `MessageReader` podle rámce), ale ručně
+  složená zpráva z tohoto konstruktoru by se zapsala ve starém formátu.
+
+Zobrazení: vrstva „Trasa+graf" ve [world pohledu](world-view.md) (včetně tooltipu na hranu);
+runtime a smysl trasy popisuje [global-navigation-runtime.md](global-navigation-runtime.md).
 
 ## Debugovací výstup v záznamu (Trace → `Info`)
 
