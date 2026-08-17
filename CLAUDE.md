@@ -85,9 +85,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované, **běh aplikace neověřen**.
 - [doc/telemetry-view.md](doc/telemetry-view.md) — **telemetrický pohled** (tabulka údajů v čase):
   stav robota, řídicí zásahy a údaje z dalších zpráv srovnané v čase (řádek = zpráva, sloupec = údaj,
-  tučně = hodnota právě přišla), detail řádku, později grafy vybraných údajů. Staví na indexu záznamu
-  (režim View). **Fáze 1 hotová** (jádro s testy + tabulka a detail v UI), UI neověřeno za běhu;
-  grafy a režim Run zbývají. Kroky: [doc/plan-telemetry-view.md](doc/plan-telemetry-view.md).
+  tučně = hodnota právě přišla), detail řádku, tooltipy s významem údajů, výběr sloupců a filtr
+  řádků, obousměrné napojení na Replay a **graf vybraných údajů v čase** (schod/rampa, kurzor
+  přehrávání, klik = skok). Staví na indexu záznamu (režim View). **Fáze 1 i 2 hotové**, jádro
+  má testy; UI ověřeno za běhu jen zčásti. Zbývá režim Run a rychlostní diagnostika plánovače.
+  Kroky: [doc/plan-telemetry-view.md](doc/plan-telemetry-view.md).
 - [doc/selftest.md](doc/selftest.md) — bezobslužný self-test (`selftest=true`): reprodukovatelné
   A/B měření výkonu vizuální cesty (otevře okna, Run, počká, souhrn z CSV, ukončí se).
 - [doc/screen-capture.md](doc/screen-capture.md) — toolbar pro **snímek obrazovky a videozáznam okna**

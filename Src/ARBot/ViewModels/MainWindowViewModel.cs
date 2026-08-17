@@ -189,10 +189,47 @@ namespace ARBot.ViewModels
             }
 
             var doc = new TelemetryDocument();
+
+            // Tabulka je misto, kde se vybira co kreslit; dokument grafu zaklada a aktivuje
+            // ale az tohle - tabulka o docich nic nevi (viz doc/telemetry-view.md).
+            doc.ChartSeriesChanged += (_, request) => ShowTelemetryChart(request);
+
             _factory.AddDockable(dock, doc);
             _factory.SetActiveDockable(doc);
             if (Layout is not null)
                 _factory.SetFocusedDockable(Layout, doc);
+        }
+
+        /// <summary>
+        /// Predá rady do dokumentu grafu; kdyz jeste neni a zadost o to stoji
+        /// (<see cref="TelemetryChartRequest.Open"/>), zalozi ho. Zadost bez otevirani se pouzije
+        /// pri preskenovani zaznamu - aktualizuje uz otevreny graf, ale zadny novy neotvira.
+        /// </summary>
+        private void ShowTelemetryChart(TelemetryChartRequest request)
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null || request == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "TelemetryChart")
+                           as TelemetryChartDocument;
+
+            if (existing == null)
+            {
+                if (!request.Open) return;
+
+                existing = new TelemetryChartDocument();
+                _factory.AddDockable(dock, existing);
+            }
+
+            existing.SetSeries(request.Series);
+
+            if (request.Open)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null)
+                    _factory.SetFocusedDockable(Layout, existing);
+            }
         }
 
         /// <summary>

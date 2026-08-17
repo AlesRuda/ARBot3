@@ -11,19 +11,79 @@
     </Design.DataContext>
 
     <DockPanel>
-        <!-- Stavovy radek: pocet radku, casovy rozsah, pripadne varovani o orezani stropem. -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,6">
+        <!-- Stavovy radek: pocet radku, casovy rozsah, varovani o orezani stropem + prepinace
+             zobrazeni (sloupce / typy radku). Filtruje se JEN zobrazeni, data zustavaji cela. -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="8,6">
             <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"/>
+
             <ProgressBar Grid.Column="1" Width="160" Height="6" Minimum="0" Maximum="1"
                          Value="{Binding Progress}" IsVisible="{Binding IsScanning}"
                          VerticalAlignment="Center" Margin="8,0,0,0"/>
+
+            <Button Grid.Column="2" Content="Sloupce ▾" Margin="8,0,0,0" Padding="8,3"
+                    ToolTip.Tip="Které údaje zobrazit. Skrytí sloupce nemění data ani sken.">
+                <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                        <StackPanel Width="260" Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Button Content="Vše" Padding="8,2"
+                                        Command="{Binding ShowAllColumnsCommand}"/>
+                                <Button Content="Nic" Padding="8,2"
+                                        Command="{Binding HideAllColumnsCommand}"/>
+                            </StackPanel>
+                            <ScrollViewer MaxHeight="420">
+                                <ItemsControl ItemsSource="{Binding ColumnToggles}">
+                                    <ItemsControl.ItemTemplate>
+                                        <!-- Vlevo viditelnost sloupce, vpravo „kreslit v grafu"
+                                             (fáze 2 — zapnutí otevře dokument grafu). -->
+                                        <DataTemplate x:DataType="vm:TelemetryToggle">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <CheckBox Grid.Column="0" Content="{Binding Label}"
+                                                          IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                                          ToolTip.Tip="{Binding Description}"
+                                                          ToolTip.ShowDelay="300"
+                                                          MinHeight="0" Padding="6,1"/>
+                                                <ToggleButton Grid.Column="1" Content="graf"
+                                                              IsChecked="{Binding InChart, Mode=TwoWay}"
+                                                              Padding="6,0" MinHeight="0" FontSize="11"
+                                                              ToolTip.Tip="Kreslit tento údaj v grafu (otevře dokument Graf telemetrie)"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+
+            <Button Grid.Column="3" Content="Řádky ▾" Margin="4,0,0,0" Padding="8,3"
+                    ToolTip.Tip="Které zprávy zakládají řádek. Necháte-li jen DriveCommandMsg, je jeden řádek = jeden takt řídicí smyčky; ostatní hodnoty se drží z minula.">
+                <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                        <StackPanel Width="260" Spacing="4">
+                            <Button Content="Vše" Padding="8,2" HorizontalAlignment="Left"
+                                    Command="{Binding ShowAllTypesCommand}"/>
+                            <ItemsControl ItemsSource="{Binding TypeToggles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TelemetryToggle">
+                                        <CheckBox Content="{Binding Label}"
+                                                  IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                                  MinHeight="0" Padding="6,1"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
         </Grid>
 
         <!-- Detail vybraneho radku: hodnoty vcetne toho, jak jsou stare proti casu radku. -->
-        <Grid DockPanel.Dock="Right" Width="330" Margin="6,0,8,8" RowDefinitions="Auto,Auto,*">
+        <Grid DockPanel.Dock="Right" Width="380" Margin="6,0,8,8" RowDefinitions="Auto,Auto,*">
             <TextBlock Grid.Row="0" Text="{Binding DetailHeader}" TextWrapping="Wrap"
-                       FontFamily="Consolas,monospace" FontSize="11" Margin="0,0,0,6"/>
+                       FontFamily="Consolas,monospace" FontSize="13" Margin="0,0,0,6"/>
 
             <Button Grid.Row="1" Content="Skočit sem v přehrávání"
                     Command="{Binding SeekToSelectedCommand}"
@@ -33,20 +93,24 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.Styles>
                     <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="4,1"/>
+                        <Setter Property="Padding" Value="4,2"/>
                         <Setter Property="MinHeight" Value="0"/>
                     </Style>
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
+                    <!-- Tooltip = vysvetleni udaje z registru sloupcu (Description); zahlavi je
+                         jen zkratka, takze vyznam se dozvi az najeti mysi. -->
                     <DataTemplate x:DataType="vm:TelemetryDetailLine">
-                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+                              Background="Transparent"
+                              ToolTip.Tip="{Binding Description}" ToolTip.ShowDelay="300">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Header}"
-                                       FontFamily="Consolas,monospace" FontSize="12"/>
+                                       FontFamily="Consolas,monospace" FontSize="14"/>
                             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Text}"
-                                       FontFamily="Consolas,monospace" FontSize="12"
+                                       FontFamily="Consolas,monospace" FontSize="14"
                                        FontWeight="{Binding Fresh, Converter={x:Static vm:BoolToWeight.Instance}}"/>
                             <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                                       Text="{Binding Age}" FontSize="10" Opacity="0.6"/>
+                                       Text="{Binding Age}" FontSize="12" Opacity="0.6"/>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -62,9 +126,19 @@
                   IsReadOnly="True"
                   CanUserSortColumns="False"
                   CanUserResizeColumns="True"
+                  CanUserReorderColumns="True"
                   GridLinesVisibility="Vertical"
                   HeadersVisibility="Column"
                   FontFamily="Consolas,monospace"
-                  FontSize="12"/>
+                  FontSize="12">
+            <!-- Zahlavi je vetsim pismem nez data (staveji se v code-behind s tooltipem), takze
+                 potrebuje i vyssi radek zahlavi. -->
+            <DataGrid.Styles>
+                <Style Selector="DataGridColumnHeader">
+                    <Setter Property="MinHeight" Value="30"/>
+                    <Setter Property="Padding" Value="6,2"/>
+                </Style>
+            </DataGrid.Styles>
+        </DataGrid>
     </DockPanel>
 </UserControl>

@@ -193,7 +193,7 @@ Obojí čte ground truth a přidává šum; frekvence jsou blízko skutečným z
 | Senzor | Takt | Co produkuje |
 |---|---|---|
 | `VirtualImu` | 100 Hz | `IMUState`: `Rotation` (kvaternion z pravého kurzu), `AngularVelocity.Z` = `omega`, `OrientationUncertainty.X` = σ kurzu |
-| `VirtualGps` | 5 Hz | `GPSState`: `Latitude`/`Longitude` ve **stupních**, `Quality = GpsFix`, `Speed` |
+| `VirtualGps` | 5 Hz | `GPSState`: `Latitude`/`Longitude` ve **stupních**, `Quality = GpsFix`, `Speed`, `NumberOfSatellites`, `Hdop` |
 | `VirtualMotors` | 50 Hz | `MotorStateBase`: rychlosti kol + integrály enkodérů, `IsEmergencyStop = false` |
 
 **Tři pasti, které testy hlídají** (všechny jsou v kódu explicitně varované):
@@ -214,6 +214,12 @@ přesné rychlosti kol, ale GPS a IMU šum mají, jinak by fúze neměla co opra
 | σ rychlosti GPS | 0,1 m/s |
 | σ kurzu IMU | 1° |
 | σ gyra | 0,5 °/s |
+| družic ve fixu | 12 |
+| HDOP | 0,9 |
+
+Družice a HDOP jsou **jen kosmetika pro UI a logy** — simulace geometrii družic nemodeluje.
+Konstanty tam přesto jsou proto, že prázdná (nulová) hodnota v telemetrii vypadá jako rozbitý
+údaj; HDOP se do virtuálního fixu doplnil až 17. 8. 2026, starší záznamy ze simulace mají nulu.
 
 ### Rychlost kol měří driver (oprava, `MotorStateBase` verze 2)
 

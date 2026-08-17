@@ -57,14 +57,18 @@ namespace ARBot.ViewModels
             Maximum = Math.Max(0, (src?.Count ?? 0) - 1);
             IsPlaying = src != null && src.State == FileMessageSource.ReplayState.Playing;
 
-            // Behem Play nema FileMessageSource udalost o postupu -> pollujeme kurzor casovacem.
+            // FileMessageSource nema udalost o postupu -> pollujeme kurzor casovacem. Casovac bezi
+            // PORAD, ne jen behem Play: kurzorem muze pohnout i nekdo jiny (telemetricka tabulka
+            // umi skocit na radek), a to se musi projevit i tady.
             playTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             playTimer.Tick += (_, _) => SyncFromPlayback();
             if (src != null)
+            {
                 src.Completed += OnCompleted;
-            if (IsPlaying)
                 playTimer.Start();
+            }
 
+            SetPositionSilently(CursorPosition);
             UpdateInfo();
         }
 
@@ -81,33 +85,45 @@ namespace ARBot.ViewModels
         {
             src?.Play();
             IsPlaying = src != null && src.State == FileMessageSource.ReplayState.Playing;
-            if (IsPlaying)
-                playTimer?.Start();
         }
 
         /// <summary>Pozastavi prehravani a synchronizuje pozici na kurzor.</summary>
         private void Pause()
         {
             if (src == null) return;
-            playTimer?.Stop();
             src.Pause();
             IsPlaying = false;
-            SetPositionSilently((int)Math.Min(src.Cursor, Maximum));
+            SetPositionSilently(CursorPosition);
             UpdateInfo();
         }
 
-        /// <summary>Tik casovace behem Play: srovna slider/text s aktualnim kurzorem zdroje.</summary>
+        /// <summary>
+        /// Pozice POSLEDNI prehrane zpravy. <see cref="FileMessageSource.Cursor"/> je <c>Seq</c>
+        /// <b>nasledujici</b> zpravy (a <c>SeekTo(pos)</c> nastavi kurzor na <c>pos+1</c>), takze
+        /// pozice v timeline je o jednu min - jinak by slider po kazdem seeku ujel o radek.
+        /// </summary>
+        private int CursorPosition
+        {
+            get
+            {
+                if (src == null) return 0;
+                long pos = src.Cursor - 1;
+                if (pos < 0) pos = 0;
+                if (pos > Maximum) pos = Maximum;
+                return (int)pos;
+            }
+        }
+
+        /// <summary>Tik casovace: srovna slider/text s aktualnim kurzorem zdroje (i kdyz stoji -
+        /// kurzorem mohl pohnout skok z telemetricke tabulky).</summary>
         private void SyncFromPlayback()
         {
             if (src == null)
                 return;
             if (src.State != FileMessageSource.ReplayState.Playing)
-            {
-                // Prehravani skoncilo/pozastaveno jinou cestou -> zastavit polling a srovnat stav.
-                playTimer?.Stop();
-                IsPlaying = false;
-            }
-            SetPositionSilently((int)Math.Min(src.Cursor, Maximum));
+                IsPlaying = false;   // prehravani skoncilo/pozastaveno jinou cestou
+
+            SetPositionSilently(CursorPosition);
             UpdateInfo();
         }
 
@@ -116,7 +132,6 @@ namespace ARBot.ViewModels
         {
             Dispatcher.UIThread.Post(() =>
             {
-                playTimer?.Stop();
                 IsPlaying = false;
                 SetPositionSilently(Maximum);
                 UpdateInfo();
@@ -182,7 +197,6 @@ namespace ARBot.ViewModels
             if (pos > Maximum) pos = Maximum;
 
             // Seek je povolen jen v Paused.
-            playTimer?.Stop();
             src.Pause();
             IsPlaying = false;
             try { src.SeekTo(pos); }

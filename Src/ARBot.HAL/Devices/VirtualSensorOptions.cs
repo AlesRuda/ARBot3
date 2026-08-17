@@ -22,6 +22,11 @@ namespace ARBot.HAL.Devices
         /// <summary>Pocet „viditelnych druzic" hlaseny ve fixu (jen kosmetika pro UI a logy).</summary>
         public int GpsSatellites = 12;
 
+        /// <summary>HDOP hlaseny ve fixu (jen kosmetika pro UI a logy - simulace geometrii druzic
+        /// nemodeluje). Nula by v telemetrii vypadala jako rozbity udaj, proto realna hodnota
+        /// odpovidajici dobremu fixu pod otevrenym nebem.</summary>
+        public double GpsHdop = 0.9;
+
         /// <summary>Smerodatna odchylka kurzu z IMU [rad] (~1 stupen).</summary>
         public double ImuHeadingNoiseRad = 0.017;
 

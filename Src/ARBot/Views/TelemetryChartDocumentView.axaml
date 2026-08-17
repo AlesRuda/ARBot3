@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="420"
+             x:Class="ARBot.Views.TelemetryChartDocumentView"
+             x:DataType="vm:TelemetryChartDocument">
+    <Design.DataContext>
+        <vm:TelemetryChartDocument/>
+    </Design.DataContext>
+
+    <DockPanel>
+        <!-- Stavovy radek s napovedou k ovladani + hromadne prepnuti schod/rampa. -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="8,6">
+            <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+            <Button Grid.Column="1" Content="Schody" Padding="8,3" Margin="8,0,0,0"
+                    Command="{Binding AllStepsCommand}"
+                    ToolTip.Tip="Všechny řady jako schod — hodnota platí až do dalšího příchodu."/>
+            <Button Grid.Column="2" Content="Rampy" Padding="8,3" Margin="4,0,0,0"
+                    Command="{Binding AllRampsCommand}"
+                    ToolTip.Tip="Všechny řady jako rampa — mezi příchody se interpoluje."/>
+            <Button Grid.Column="3" Content="Celý rozsah" Padding="8,3" Margin="4,0,0,0"
+                    Command="{Binding ResetZoomCommand}"/>
+        </Grid>
+
+        <!-- Legenda: barva, údaj, rozsah, hodnota pod kurzorem přehrávání. -->
+        <Border DockPanel.Dock="Right" Width="290" Margin="6,0,8,8"
+                BorderThickness="1" BorderBrush="#2E2E2E">
+            <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding Series}" Margin="4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TelemetryChartSeries">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto"
+                                  Margin="0,3" Background="Transparent"
+                                  ToolTip.Tip="{Binding Description}" ToolTip.ShowDelay="300">
+                                <CheckBox Grid.Row="0" Grid.Column="0" MinHeight="0" Padding="4,0"
+                                          IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
+                                <Border Grid.Row="0" Grid.Column="1" Width="12" Height="3"
+                                        Background="{Binding Brush}" VerticalAlignment="Center"
+                                        Margin="0,0,6,0"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Header}"
+                                           FontFamily="Consolas,monospace" FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding CursorText}"
+                                           FontFamily="Consolas,monospace" FontSize="13"
+                                           FontWeight="Bold" VerticalAlignment="Center"
+                                           Margin="6,0,2,0"
+                                           ToolTip.Tip="Hodnota v místě kurzoru přehrávání."/>
+
+                                <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2"
+                                            Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding RangeText}" FontSize="11" Opacity="0.6"
+                                               VerticalAlignment="Center"/>
+                                    <CheckBox Content="schod" MinHeight="0" Padding="4,0" FontSize="11"
+                                              IsChecked="{Binding IsStep, Mode=TwoWay}"
+                                              ToolTip.Tip="Zapnuto = hodnota platí až do dalšího příchodu; vypnuto = mezi příchody se interpoluje."/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <ctl:TelemetryChartControl x:Name="Chart" Margin="8,0,0,8"
+                                   Series="{Binding Series}"
+                                   CursorTicks="{Binding CursorTicks}"
+                                   Revision="{Binding Revision}"/>
+    </DockPanel>
+</UserControl>

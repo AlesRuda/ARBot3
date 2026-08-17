@@ -21,6 +21,11 @@ namespace ARBot.Common.Telemetry
         /// <summary>Zahlavi sloupce vcetne jednotky, napr. <c>"v [m/s]"</c>.</summary>
         public string Header;
 
+        /// <summary>Textove vysvetleni udaje (co to je, odkud se bere, jak to cist). Zobrazuje se
+        /// jako tooltip na zahlavi sloupce v tabulce a na radku v detailu - zahlavi je zkratka
+        /// (musi se vejit do sloupce), takze vyznam patri sem.</summary>
+        public string Description;
+
         /// <summary>Format cisla pro zobrazeni; uplatni se, kdyz neni zadany <see cref="Text"/>.</summary>
         public string Format = "F2";
 

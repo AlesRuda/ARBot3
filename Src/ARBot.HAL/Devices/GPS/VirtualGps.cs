@@ -75,6 +75,7 @@ namespace ARBot.HAL.Devices.GPSs
                 Altitude = lla.Altitude,
                 Quality = GPSState.FixQuality.GpsFix,
                 NumberOfSatellites = options.GpsSatellites,
+                Hdop = options.GpsHdop,
                 Speed = speed,
                 TimeStamp = ts,
             };

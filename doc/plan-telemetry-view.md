@@ -1,9 +1,16 @@
 # Telemetrický pohled — implementační plán (fáze 1)
 
-> **Stav 2026-08-17:** Tasky 1–5 **hotové**. Jádro má 15 testů (zelené, celá sada 505) a je ověřené
+> **Stav 2026-08-17 (večer):** Tento plán pokrýval fázi 1; ta je hotová **a nad rámec plánu** k ní
+> přibyl výběr sloupců, filtr řádků a **fáze 2 (graf řad v čase)**. Aktuální stav drží
+> [telemetry-view.md](telemetry-view.md) — plán níž je od té chvíle jen historie postupu.
+>
+> **Stav 2026-08-17:** Tasky 1–5 **hotové**. Jádro má 14 testů (zelené, celá sada 516) a je ověřené
 > i na skutečném záznamu (`records/20260814-132817.rec`: index 27 541 zpráv, sken 29 ms, 2806 řádků).
-> UI se sestaví a aplikace se rozběhne, ale **tabulka nebyla za běhu otevřena** — to je jediná
-> zbývající kontrola fáze 1. Odchylky proti plánu jsou zaznamenané u příslušných tasků níže.
+> **Tabulku autor téhož dne otevřel nad reálným záznamem**; z jeho zpětné vazby vzešlo doladění
+> čitelnosti, tooltipy s významem údajů a hlavně **dodělání směru „kurzor přehrávání → řádek"**,
+> který v tasku 5 chyběl (byl jen seek z tabulky) — ten zatím **za běhu ověřený není**. Aktuální
+> stav a co zbývá drží [telemetry-view.md](telemetry-view.md); odchylky proti plánu jsou
+> zaznamenané u příslušných tasků níže.
 
 **Spec:** [doc/telemetry-view.md](telemetry-view.md) — plán z ní vychází, čti obojí.
 

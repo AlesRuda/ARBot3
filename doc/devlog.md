@@ -39,6 +39,72 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-08-17
 
+- **Telemetrický pohled: čitelnost, tooltipy a chybějící synchronizace s přehráváním** (zpětná vazba
+  autora z prvního spuštění nad reálným záznamem). Sloupec času byl užší než `HH:mm:ss.fff`, takže
+  ořezával **milisekundy** — u telemetrie zrovna to podstatné (130 px, typ zprávy 155 px). Záhlaví
+  je větším písmem (14) a hodnoty v buňkách se svisle centrují jako čas, aby se řádek četl jako
+  jeden celek; detail řádku je z 11/12 na 13/14. Nově má každý sloupec v registru **`Description`** —
+  vysvětlení údaje, které se ukáže jako tooltip na záhlaví i na řádku detailu (záhlaví musí zůstat
+  zkratka, význam patří jinam). **Synchronizace kurzor přehrávání → řádek** přitom nebyla vůbec
+  implementovaná, jen opačný směr (dvojklik = seek): dokument teď polluje `FileMessageSource.Cursor`
+  a vybírá poslední už přehraný řádek (scrolluje jen když výběr udělalo přehrávání). Vedlejší
+  oprava: `Cursor` je `Seq` **následující** zprávy, takže se pozice v `ReplayNavTool` opravila o
+  jednu a jeho časovač běží pořád — jinak by slider po skoku z tabulky ujel o řádek a o skoku odjinud
+  by se vůbec nedozvěděl. Ověřeno buildem (`x64`) a testy (516 zelených); **UI za běhu neověřeno**.
+  Viz [telemetry-view.md](telemetry-view.md).
+- **Navazující drobnosti z téhož pohledu:** `fi` (cost-to-goal) se zobrazuje na **3 desetinná
+  místa** — na `F1` vypadalo zamrzle, protože se mezi takty mění o zlomky sekundy. A **HDOP byl
+  v celém záznamu nula**: není to chyba telemetrie, ale `VirtualGps`, který ho vůbec nenastavoval
+  (že jde o simulaci, prozradí i konstantních 12 družic a stále `GpsFix`). Doplněn `GpsHdop = 0,9`
+  do `VirtualSensorOptions` — stejná kosmetika jako počet družic, simulace geometrii družic
+  nemodeluje. **Starší záznamy ze simulace mají v HDOP dál nulu.** Na reálném HW je hodnota
+  namapovaná správně (uBlox `PVT.pDOP`, NMEA `GGA[7]`). Viz [virtual-hw.md](virtual-hw.md).
+- **[telemetry-view.md](telemetry-view.md) srovnán se skutečností** — byl pořád psaný jako návrh
+  v budoucím čase, i když fáze 1 stojí. Nová tabulka **Stavu** a sekce **Co zbývá** oddělují hotové
+  od slíbeného; opraveno několik tvrzení, která v kódu neplatila: skener si sidecar `*.idx` sám
+  **nečte** (bere hotový index z runtime), seznam sloupců neodpovídal registru (uváděl `Forvard`
+  a „expandované buňky", které nikdy nevznikly), a **výběr sloupců ani filtr řádků nejsou
+  implementované**, přestože je dokument popisoval jako součást UI. Doplněno chování, na které
+  se přišlo až při čtení kódu: u slitého řádku platí `Seq` **první** zprávy taktu (seek míří na
+  začátek taktu), `Truncated` se nehlásí, když za stropem už nic sledovaného není, poškozený rámec
+  sken nezastaví, a skener filtruje jen podle `MsgName` (`Name` řeší až builder). Testů je **14**,
+  ne 15, jak tvrdil plán.
+- **Oprava nalezená tou revizí: tabulka se držela prvního záznamu.** Sken běžel jen v konstruktoru
+  dokumentu, takže po otevření **jiného** záznamu zůstaly v tabulce staré řádky (a `Seq` z nich
+  ukazovaly do cizího souboru — dvojklik by skákal jinam, než uživatel čte). Stejná díra platila
+  obráceně: telemetrie otevřená **dřív než záznam** už se nikdy nenaplnila. Nově týž časovač, který
+  hlídá kurzor přehrávání, porovnává i `RecordPath` + referenci na `FileMessageSource` a při změně
+  přeskenuje; výsledek zastaralého skenu se zahodí podle jeho `CancellationTokenSource`, aby
+  nepřepsal tabulku nového záznamu. Ověřeno buildem a testy (516), **za běhu neověřeno**.
+- **Dotažena fáze 1 telemetrie + udělána fáze 2 (grafy).** Výběr viditelných sloupců a filtr řádků
+  podle typu zakládající zprávy (obojí návrh sliboval a chybělo) jsou dvě tlačítka s flyoutem ve
+  stavovém řádku; filtruje se **jen zobrazení**, data zůstávají celá. Filtrovaná kolekce se vyměňuje
+  celá — u desetitisíc řádků by jednotlivé notifikace tabulku na vteřiny zastavily.
+- **Graf telemetrických řad** (`TelemetryChartDocument` + `TelemetryChartControl`): řada se vytahuje
+  z tabulky jako **jen skutečné příchody** (`TelemetrySeries` v `ARBot.Common`, 5 testů) — držené
+  hodnoty jsou opakování bez informace a schod/rampa se dá nakreslit i tak. Dvě rozhodnutí proti
+  původnímu návrhu: (a) místo „volitelně druhé osy Y" má **každá řada vlastní měřítko**, protože dvě
+  osy stačí na dvě řady a v grafu jsou metry, °/s i stav výčtu; osa Y s čísly se kreslí, jen když je
+  zapnutá jedna řada. (b) Kreslí se **vlastním `Control.Render`**, ne knihovnou — data už jsou v poli,
+  projekt kreslené controly má a balíček by přinesl další nároky na verzi Avalonie (přesně ten
+  problém, co má `Avalonia.Controls.DataGrid`). Hustá data se kreslí jako obálka min/max po pixelech.
+  Klik do grafu skáče v přehrávání, kurzor přehrávání je svislá čára a legenda ukazuje hodnotu v tom
+  místě. Build `x64`, testy 521 zelených; **kreslení ani ovládání myší za běhu neověřeno**.
+  Drobnost pro příště: emoji mimo BMP (📈) rozbije build C# souboru bez BOM — BMP znaky (▶, ⏸, ▾)
+  fungují.
+- **Zpětná vazba k telemetrii a grafu (4 body autora), všechny hotové:** (1) sloupce tabulky jde
+  **přehazovat myší** (mapa sloupců drží reference, ne pozice, takže to nic nerozbije); (2) přidání
+  údaje do grafu je i **ikonou přímo v záhlaví sloupce** — svázanou obousměrně s přepínačem ve
+  flyoutu, aby se ovladače nerozešly; ikona je nakreslená geometrie, protože symboly grafu nemusí
+  být v použitém fontu; (3) graf umí **lupu na ose Y** (Ctrl+kolečko) — zoomuje se v normalizované
+  ose společné všem řadám, aby jejich vzájemné porovnání zůstalo platné, a popisky osy procházejí
+  týmž přepočtem, takže po přiblížení nelžou; (4) **odečítátko hodnot pod myší** (obdoba trackeru
+  z OxyPlotu): svislá čára, tečka na každé křivce a rámeček s hodnotou **každé** viditelné řady —
+  u schodu poslední příchod, u rampy interpolace (`InterpolatedAt`, +1 test).
+- **K OxyPlotu** (autor ho historicky používal a chválí): zůstáváme u vlastního kreslení, protože
+  oficiální `OxyPlot.Avalonia` cílí na Avalonii 11 a pro dvanáctku je jen neoficiální fork se 162
+  staženími — na produkční závislost robota málo. Zdůvodnění a podmínky přehodnocení jsou
+  v [decisions.md](decisions.md). Build `x64`, testy 522 zelených; **UI za běhu neověřeno**.
 - **Replay panel se dokuje k Debug outputu, ne mezi dokumenty** (žádost autora). Dosud vznikal jako
   další záložka v `DocumentDock`, takže při jeho aktivaci zmizel obrazový dokument — a přitom se na
   replay kroky člověk dívá právě kvůli obrázkům. Nově jde do téhož (spodního) doku jako Debug output;

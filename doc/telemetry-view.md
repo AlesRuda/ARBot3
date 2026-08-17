@@ -1,10 +1,5 @@
 # Telemetrický pohled — tabulka údajů v čase
 
-**Stav: fáze 1 implementována** (2026-08-17). Jádro (`ARBot.Common/Telemetry`) je pokryté testy
-a ověřené i na skutečném záznamu; **UI zatím neověřeno za běhu** — aplikace se rozběhne, ale
-tabulku nikdo neotevřel jinak než ručně. Implementační kroky: [plan-telemetry-view.md](plan-telemetry-view.md).
-Datum návrhu: 2026-08-17.
-
 Jeden pohled, ve kterém je vidět **stav robota, řídicí zásahy a údaje z dalších zpráv pohromadě
 a srovnané v čase**: tabulka řazená podle času (sloupec = jeden údaj), detail vybraného řádku, a v
 druhé fázi graf vybraných údajů v čase (víc řad v jednom grafu).
@@ -13,11 +8,30 @@ Motivace: dnes jde každý údaj hledat jen ve svém vlastním okně (World pohl
 Debug output). Nejde odpovědět na otázku typu „proč v 12:34:56 zpomalil" — to vyžaduje vidět
 **vedle sebe** pózu, příkaz do motorů, stav plánu a stav globální navigace v tom okamžiku.
 
+## Stav (2026-08-17)
+
+Návrh vznikl 17. 8. 2026 a **fáze 1 i fáze 2 jsou téhož dne hotové**; tabulka běžela nad reálným
+záznamem. Implementační kroky: [plan-telemetry-view.md](plan-telemetry-view.md).
+
+| Část | Stav |
+|---|---|
+| Jádro `ARBot.Common/Telemetry` (tabulka, builder, skener, řady) | **hotové**, 20 testů, ověřené i na skutečném záznamu |
+| Registr sloupců (25 údajů z 5 typů zpráv, s popisy) | **hotové** |
+| UI: tabulka, detail řádku, tooltipy, sken na pozadí | **hotové**, autor spustil nad záznamem |
+| Napojení na Replay (oba směry) | **hotové**; směr „kurzor → řádek" dodělán 17. 8., **za běhu neověřený** |
+| Výběr viditelných sloupců, filtr řádků podle typu | **hotové**, za běhu neověřené |
+| Fáze 2: graf řad v čase | **hotové**, za běhu neověřené |
+| Rozšíření `LocalPlanMsg` o rychlostní diagnostiku | **není** — viz [Co zbývá](#co-zbývá) |
+| Režim Run (živé plnění) | **není** (záměrně mimo fázi 1) |
+
+**Ověřeno buildem `-p:Platform=x64` a testy; na cílovém HW (OrangePI) neběželo.** Co vzniklo
+17. 8. odpoledne (výběr sloupců, filtr řádků, graf) autor za běhu ještě neviděl.
+
 ## Rozsah fáze 1
 
 - **Jen režim View** (nad hotovým záznamem). Za běhu (Run) se do tabulky nikdo nekouká a index se
   v paměti nedrží; Run se dá přidat později jako „on-line ocas" právě zapisovaného záznamu, bez
-  přepisu zbytku (viz [Fáze a kroky](#fáze-a-kroky)).
+  přepisu zbytku (viz [Co zbývá](#co-zbývá)).
 - **Tabulka + detail řádku.** Grafy jsou fáze 2 — návrh je připravuje, ale nestaví.
 - **Údaje, které v záznamech opravdu jsou.** Tři z původně jmenovaných tam nejsou; viz
   [Co ve zprávách chybí](#co-ve-zprávách-chybí).
@@ -44,10 +58,12 @@ Tabulka je **sloupcová** — sloupec je pole hodnot, řádky jsou indexy:
 ```
 TelemetryTable
   int RowCount
-  long[] RowTicks        // čas řádku
-  long[] RowSeq          // Seq zprávy, která řádek založila  -> seek
-  string[] RowMsgName    // typ té zprávy
+  long[] RowTicks          // čas řádku (T_in, jinak T_out)
+  long[] RowArrivalTicks   // T_out zakládající zprávy (detail ukazuje oba časy)
+  long[] RowSeq            // Seq zprávy, která řádek založila  -> seek
+  string[] RowMsgName      // typ té zprávy
   TelemetryColumn[] Columns
+  bool Truncated           // narazilo se na strop řádků
 
 TelemetryColumn
   ColumnSpec Spec
@@ -55,12 +71,19 @@ TelemetryColumn
   long[]   ValueTicks    // čas zprávy, ze které hodnota je; 0 = ještě nikdy nepřišla
 ```
 
+Tabulku skládá [`TelemetryTableBuilder`](../Src/ARBot.Common/Telemetry/TelemetryTableBuilder.cs)
+(volatelný i samostatně — testy ho plní přímo, bez souboru), plní ji `TelemetryScanner`.
+
 **Řádek = jedna přijatá registrovaná zpráva.** Žádný „kotvicí typ" — každý příchod je vidět ve svém
 pravém čase a řádek zároveň doslova odpovídá jednomu záznamu, což dělá detail řádku přímočarým.
 Zprávy se **shodným časem řádku** (tentýž takt) se slévají do jednoho řádku, aby póza a řídicí
 zásah z jednoho taktu nebyly na dvou řádcích. Slévají se jen **sousední** položky indexu a jen při
 **přesné** shodě času; tolerance („sluč, co je do 5 ms") se dá přidat později, kdyby se časy
 z jednoho taktu rozcházely o zlomky.
+
+U slitého řádku platí `RowSeq` a `RowMsgName` **první** zprávy taktu — ta řádek založila. Seek
+z tabulky tedy míří na začátek taktu, ne doprostřed; hodnoty ostatních zpráv téhož taktu už v řádku
+jsou, takže se ničemu nezmešká.
 
 **Čas řádku** = `CaptureTicks`, a když je 0, pak `ArrivalTicks`. Detail řádku ukazuje **oba** časy —
 rozdíl T_in/T_out je sám o sobě diagnostika (jak dlouho měření putovalo pipeline).
@@ -87,6 +110,7 @@ sealed class ColumnSpec
     string MsgName;                  // ze které zprávy
     string Name;                     // volitelně i která instance (INamedMessage, např. kamera)
     string Header;                   // "v [m/s]"
+    string Description;              // vysvětlení do tooltipu (záhlaví je jen zkratka)
     string Format;                   // "F2"
     bool   Graphable;                // smí do grafu
     Func<Message, double?> Value;    // hodnota (null = tato zpráva sloupec neplní)
@@ -97,17 +121,36 @@ sealed class ColumnSpec
 Přidat údaj = **jeden záznam v seznamu**. Nečíselné údaje jsou uvnitř vždy číslo (bool → 0/1,
 enum → jeho hodnota) a `Text` je jen zobrazí (`Driving`, `STOP`) — takže i stav jde vykreslit do
 grafu jako schod. Je-li `Text` zadaný, má přednost před `Format`; jinak se hodnota zobrazí přes
-`Format`.
+`Format`. Registr má na to tři tovární metody: `Num` (číslo), `Flag` (logická hodnota → zkratka
+nebo `-`) a `Enum` (výčet → jméno hodnoty). `MsgName` si berou z **prototypu** (`new T().MsgName`),
+aby se název typu nepsal jako řetězec a nerozešel se při přejmenování.
 
-Sloupce ve fázi 1 (z toho, co záznamy nesou):
+**`Description` je povinná část definice** — záhlaví musí být zkratka (šířka sloupce), takže význam
+údaje nese popis a nový sloupec s ním přijde rovnou. Zobrazuje se jako tooltip (viz [UI](#ui--tabulka-a-detail)).
+
+Sloupce ve fázi 1 — 25 údajů z pěti typů zpráv (z toho, co záznamy opravdu nesou):
 
 | Zpráva | Sloupce |
 |---|---|
-| [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) | X, Y, Θ [°], v [m/s], ω [°/s] |
-| [`DriveCommandMsg`](../Src/ARBot.Common/Logs/DriveCommandMsg.cs) | Speed, RotationSpeed, Forvard, Dif, EmergencyStop |
-| [`LocalPlanMsg`](../Src/ARBot.Common/Logs/LocalPlanMsg.cs) | Status, délka, min. odstup, počet bodů, doba výpočtu, expandované buňky |
-| [`GlobalNavMsg`](../Src/ARBot.Common/Logs/GlobalNavMsg.cs) | Status, zbývající trasa [m], počet hran, off-route, φ, počet uzavření |
-| [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) | lat, lon, kvalita fixu, satelity, HDOP |
+| [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) | X [m], Y [m], theta [°], v [m/s], omega [°/s] |
+| [`DriveCommandMsg`](../Src/ARBot.Common/Logs/DriveCommandMsg.cs) | cmd v [m/s], cmd omega [°/s], cmd dif [m/s], STOP |
+| [`LocalPlanMsg`](../Src/ARBot.Common/Logs/LocalPlanMsg.cs) | plan stav, délka [m], odstup [m], počet bodů, výpočet [ms] |
+| [`GlobalNavMsg`](../Src/ARBot.Common/Logs/GlobalNavMsg.cs) | nav stav, do cíle [m], hran trasy, od sítě [m], fi [s], uzavřeno hran |
+| [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) | lat [°], lon [°], fix, satelitů, HDOP |
+
+Poznámky ke konkrétním sloupcům:
+
+- **`theta`/`omega`** jsou ve **stupních** (zprávy nesou radiány) — v tabulce se čísla čtou očima,
+  ne dosazují do vzorců. Kurz je matematická orientace v ENU (0° = východ, +CCW), **ne azimut**;
+  proto to má i v tooltipu.
+- **`fi`** (cost-to-goal) má **3 desetinná místa**: mezi takty se mění o zlomky sekundy a na jednom
+  desetinném místě vypadalo zamrzle.
+- **`HDOP` je ve starších záznamech ze simulace nula** — `VirtualGps` ho do 17. 8. 2026 nevyplňoval
+  (viz [virtual-hw.md](virtual-hw.md)). Na reálném HW je namapovaný (uBlox `PVT.pDOP`, NMEA `GGA[7]`).
+- **`Graphable`** dnes nikdo nečte (všechny sloupce ho mají implicitně `true`) — je to příprava
+  na fázi 2.
+- **`Name`** (rozlišení instance, např. levá/pravá kamera) zatím **žádný sloupec nepoužívá**; kód
+  pro něj je v builderu hotový.
 
 ## Skener (`ARBot.Common/Telemetry/TelemetryScanner`)
 
@@ -122,51 +165,174 @@ Jeden průchod indexem (v pořadí `Seq`):
    Do řádku se zapíše celý aktuální stav, takže neaktualizované sloupce nesou hodnotu i čas
    z minula (odtud „drží se z minula").
 
-Skener si otevírá **vlastní** read-only stream nad souborem záznamu (soubor je otevřený s
-`FileShare.Read`), takže **nekoliduje s přehráváním** a nevyžaduje změnu `FileMessageSource`.
-Index bere z `FileSource.Index`, pokud je k dispozici, jinak si přečte sidecar `*.idx` sám.
+Skener bere `Stream` (ne cestu) — volající si soubor otevře sám. `TelemetryDocument` mu otevře
+**vlastní** read-only stream nad souborem záznamu (ten je otevřený s `FileShare.Read`), takže sken
+**nekoliduje s přehráváním** a nevyžaduje změnu `FileMessageSource`; testy místo toho podstrčí
+`MemoryStream`. Index bere hotový z `FileSource.Index` — **sidecar si sám nečte**: v režimu View ho
+runtime už načetl, a bez runtime (dávkové použití) si ho volající přečte přes `MessageIndex.Read`
+a předá.
 
-Běží na worker vlákně, hlásí postup a je zrušitelný (`CancellationToken`) — zavření dokumentu nebo
-otevření jiného záznamu sken ukončí.
+Běží na worker vlákně, hlásí postup (0..1, ~100 hlášení na celý sken) a je zrušitelný
+(`CancellationToken`) — zavření dokumentu sken ukončí.
 
-**Záznam bez sidecar indexu tabulku nepodpoří** (nejsou offsety ani časová osa). Hlásí se to
-hláškou; teoretický fallback — sekvenční průchod celým souborem — by musel deserializovat i obrázky,
-takže se do fáze 1 nedělá.
+**Poškozený rámec sken nezastaví** — přeskočí se a jede se dál (jinak by jedna vadná zpráva
+zahodila celý zbytek záznamu).
+
+**Strop řádků** (`maxRows`, default 500 000) se hlásí jako `Truncated` jen tehdy, když za ním
+opravdu ještě nějaká sledovaná zpráva je — záznam, který skončí přesně na stropu, o nic nepřišel
+a varování by bylo lživé.
+
+**Záznam bez sidecar indexu tabulku nepodpoří** (nejsou offsety ani časová osa). Dokument to hlásí
+hláškou „Záznam nemá sidecar index (*.idx)"; teoretický fallback — sekvenční průchod celým souborem —
+by musel deserializovat i obrázky, takže se nedělal.
+
+**Skener filtruje jen podle `MsgName`, ne podle `Name`.** Zprávu jiné instance (jiná kamera) tedy
+přečte a zahodí ji až builder. Dokud je `Name` nevyužité, nestojí to nic; kdyby přibyl sloupec
+vázaný na jednu instanci, je to místo, kde se ušetří čtení.
 
 ## UI — tabulka a detail
 
-Nový dokument `TelemetryDocument` (menu **Tools**), tab jako World.
+Dokument [`TelemetryDocument`](../Src/ARBot/ViewModels/TelemetryDocument.cs) (menu **Tools →
+Telemetrie**) s view [`TelemetryDocumentView`](../Src/ARBot/Views/TelemetryDocumentView.axaml),
+tab jako World. Nad tabulkou je stavový řádek (počet řádků, časový rozsah, případné varování
+o oříznutí) a během skenu ukazatel postupu.
 
 - **Tučně = hodnota právě přišla**, obyčejně = drží se z minula, prázdná buňka = ta zpráva zatím
   nepřišla. Na jeden pohled je tak vidět, co je nové a co stará hodnota.
 - **Detail řádku** (panel u tabulky): všechny sloupce s hodnotou, časem a **stářím** vůči řádku
   („v = 1,20 m/s · 12:34:56.789 · o 0,8 s starší než řádek"), plus zpráva, která řádek založila
   (`Seq`, typ, T_in, T_out).
-- **Napojení na Replay:** dvojklik na řádek zavolá `SeekTo(RowSeq)`; naopak kurzor přehrávání
-  zvýrazní odpovídající řádek. Tabulka a [Replay panel](record-replay.md) tak spolupracují.
-- **Výběr viditelných sloupců** — registr bude delší než obrazovka.
-- **Filtr řádků podle typu zakládající zprávy** (nepovinné, ale levné — `RowMsgName` už v tabulce
-  je): zapnutím jen `DriveCommandMsg` se z tabulky stane „jeden řádek = jeden takt řídicí smyčky",
-  ostatní hodnoty se drží. Filtruje se **zobrazení**, sken i tabulka zůstávají celé.
+- **Tooltip s významem údaje.** Záhlaví sloupce musí být zkratka (šířka sloupce), takže vysvětlení
+  — co to je, odkud se to bere, jak to číst — nese `ColumnSpec.Description` a ukáže se najetím myší
+  **na záhlaví v tabulce i na řádek v detailu**. Je to součást definice sloupce, takže nový údaj
+  přijde s popisem rovnou (jeden záznam v registru, ne zvláštní tabulka textů).
+- **Napojení na Replay** obousměrné:
+  - dvojklik na řádek (nebo tlačítko v detailu) zavolá `Pause()` + `SeekTo(RowSeq)`;
+  - naopak **kurzor přehrávání vybírá řádek** — dokument polluje `FileMessageSource.Cursor`
+    (100 ms, stejně jako [`ReplayNavTool`](../Src/ARBot/ViewModels/ReplayNavTool.cs); zdroj o postupu
+    událost nemá) a vybere poslední řádek s `RowSeq ≤ Cursor-1`, tedy poslední **už přehranou**
+    zprávu. Vybraný řádek View odscrolluje do viditelné části — ale **jen** když ho vybralo
+    přehrávání (událost `PlaybackRowChanged`), aby tabulka uživateli neskákala pod rukama.
+  - Přestavuje se jen při **změně** kurzoru: když přehrávání stojí, uživatelův výběr v tabulce
+    zůstane, kde je. Skrytý tab synchronizaci zastavuje (`OnActiveChanged`).
+  - `Cursor` je `Seq` **následující** zprávy (a `SeekTo(pos)` ho nastaví na `pos+1`) — proto to
+    `-1`. Ze stejného důvodu se o jednu opravila i pozice v `ReplayNavTool`, jinak by slider po
+    každém skoku z tabulky ujel o řádek. Jeho časovač nově běží pořád (ne jen během Play), protože
+    kurzorem hýbe i tabulka.
+- **Výběr viditelných sloupců** (tlačítko *Sloupce ▾*): registr je 25 údajů, což je víc, než se
+  vejde na obrazovku. Zaškrtávátko skrývá `DataGridColumn` — **data ani sken se nemění**, jen
+  zobrazení. Vedle každého je přepínač *graf*, který ten údaj přidá do grafu (fáze 2 níže).
+  Tlačítka *Vše* / *Nic* jsou tam proto, že odklikat 25 položek ručně nikdo nechce.
+- **Přehazování sloupců myší** (`CanUserReorderColumns`) — pořadí v registru je dané tím, jak
+  údaje spolu souvisejí, ale při konkrétním hledání chce mít člověk vedle sebe jiné dvojice.
+  Mapa sloupců v code-behind drží **reference** na `DataGridColumn`, ne pozice, takže přeházení
+  pořadí nerozbije skrývání ani ikonu grafu.
+- **Ikona grafu přímo v záhlaví sloupce** — tentýž přepínač jako ve flyoutu (obousměrně svázané,
+  aby se ovladače nerozešly), ale na místě, kam se člověk zrovna dívá; přes flyout by musel hledat,
+  který řádek seznamu odpovídá sloupci pod kurzorem. Ikona je **nakreslená geometrie**, ne znak:
+  symboly grafu (`∿`, `📈`) nemusí být v použitém fontu a vysypal by se prázdný obdélník.
+- **Filtr řádků podle typu zakládající zprávy** (tlačítko *Řádky ▾*): nabízí typy, které v tomhle
+  záznamu opravdu jsou, i s počtem řádků. Necháte-li jen `DriveCommandMsg`, je **jeden řádek =
+  jeden takt řídicí smyčky** a ostatní hodnoty se drží z minula jako vždycky. Filtruje se zobrazení,
+  tabulka zůstává celá; stavový řádek pak hlásí „X z Y řádků (filtr)".
+  - Filtrovaná kolekce se **vyměňuje celá** (ne položka po položce) — u desetitisíc řádků by
+    jednotlivé notifikace tabulku na vteřiny zastavily. Výběr řádku se po výměně obnoví (nebo
+    padne na nejbližší předchozí viditelný), aby detail nebliknul na prázdno.
+- **Tabulka se drží aktuálního záznamu.** Týž časovač (100 ms) hlídá i to, jestli tabulka pořád
+  patří k tomu, co se přehrává — porovnává `RecordPath` **a referenci** na `FileMessageSource`
+  (tentýž soubor otevřený znovu je nový zdroj s novým indexem, takže i ten se přeskenuje). Když se
+  záznam změní, staré řádky se zahodí hned a spustí se nový sken; výsledek zastaralého skenu se
+  zahazuje podle jeho `CancellationTokenSource`, aby nepřepsal tabulku toho nového. Ze stejného
+  důvodu časovač běží **od otevření dokumentu**, ne až po prvním úspěšném skenu: telemetrii jde
+  otevřít i **dřív než záznam** a naplní se, jakmile záznam přijde.
 - **Backpressure** se tady neřeší: data nepřicházejí ze `Stream`u, ale z jednorázového skenu.
   (Až přijde Run, platí povinný vzor z [Views/README.md](../Src/ARBot/Views/README.md).)
 
-Vykreslení: **`Avalonia.Controls.DataGrid` 12.0.0** (virtualizace, měnitelné šířky sloupců).
-Pozor na verzi — 12.0.1 a novější si vynucují Avalonia ≥ 12.0.5, kdežto projekt drží 12.0.3, takže
-by build spadl na `NU1605`. Balíček potřebuje i `StyleInclude` svého tématu v `App.axaml`, jinak se
-tabulka vykreslí jako prázdné místo. Sloupce se staví **v code-behind** (je jich desítky a jsou
-datově řízené registrem) a jsou to `DataGridTemplateColumn`, protože textový sloupec neumí tučně
-jen u některých buněk.
+Čitelnost (dolazeno 17. 8. podle první zkušenosti s reálným záznamem — vypadá to jako drobnosti,
+ale tabulka se bez nich četla špatně):
 
-## Fáze 2 — grafy (jen připraveno)
+- Sloupec času musí být tak široký, aby se vešlo **`HH:mm:ss.fff` včetně milisekund** (130 px) —
+  u telemetrie jsou zrovna milisekundy to podstatné. Typ zprávy 155 px.
+- **Záhlaví je větším písmem (14) než data (12)** a řádek záhlaví vyšší, aby se v desítkách úzkých
+  sloupců dalo orientovat.
+- **Hodnoty v buňkách se svisle centrují** stejně jako čas — jinak „plavou" nahoře a řádek se
+  nečte jako jeden celek.
+- Detail řádku má písmo 13/14 (stáří 12); panel je 380 px široký.
 
-Ikonka u číselného sloupce přidá jeho řadu do grafu. Graf je další dokument: osa X = čas, víc řad,
-volitelně druhá osa Y. **Schod vs. rampa** se řídí příznakem *fresh*: držené hodnoty jako schod
-(hodnota platí až do další zprávy), hustá data jako rampa; přepínač per řada.
+Vykreslení: **`Avalonia.Controls.DataGrid` 12.0.0** (virtualizace, měnitelné šířky sloupců) —
+existuje a funguje, riziko z návrhu je vyřešené. Pozor na verzi: 12.0.1 a novější si vynucují
+Avalonia ≥ 12.0.5, kdežto projekt drží 12.0.3, takže by build spadl na `NU1605`. Balíček potřebuje
+i `StyleInclude` svého tématu v `App.axaml` (`avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml`),
+jinak se tabulka vykreslí jako prázdné místo. Sloupce se staví **v code-behind** (je jich desítky
+a jsou datově řízené registrem) a jsou to `DataGridTemplateColumn`, protože textový sloupec neumí
+tučně jen u některých buněk. Buňky se **nebindují** — řádek je hotový a už se nemění, takže se text
+čte přímo při vykreslení (desetitisíce řádků × desítky sloupců by jinak znamenaly desetitisíce
+notifikací).
 
-Sloupcová pole jsou přesně to, co kreslení potřebuje, takže volba knihovny (vlastní
-`Control.Render` — projekt už vlastní kreslené controly má — vs. externí balíček) zůstává na fázi 2
-a tento návrh ji nepředjímá.
+## Co zbývá
+
+Obě fáze stojí; tohle zbývá:
+
+1. **Projít to za běhu.** Výběr sloupců, filtr řádků, graf a obousměrná synchronizace s přehráváním
+   jsou ověřené jen buildem a testy — jádro grafu (řady) testy má, ale kreslení a ovládání myší
+   z podstaty ne.
+2. **Rozšíření `LocalPlanMsg`** o rychlostní diagnostiku (+ verze) — viz
+   [Co ve zprávách chybí](#co-ve-zprávách-chybí). Pak je to jeden řádek v registru a údaj je i v grafu.
+3. **Režim Run** — živé plnění, buď „ocas" právě zapisovaného záznamu, nebo odběr `Stream`u
+   s povinným backpressure vzorem z [Views/README.md](../Src/ARBot/Views/README.md).
+4. **Změřit sken na OrangePI** (SD karta, náhodné čtení desetitisíc rámců).
+
+## Fáze 2 — graf řad v čase
+
+Přepínač *graf* u sloupce (ve flyoutu *Sloupce ▾*) přidá jeho řadu do dokumentu **Graf telemetrie**
+a rovnou ho otevře. Dokument [`TelemetryChartDocument`](../Src/ARBot/ViewModels/TelemetryChartDocument.cs)
+drží řady a legendu, kreslí
+[`TelemetryChartControl`](../Src/ARBot/Views/Controls/TelemetryChartControl.cs).
+
+**Řada = jen skutečné příchody.** [`TelemetrySeries`](../Src/ARBot.Common/Telemetry/TelemetrySeries.cs)
+vytáhne ze sloupce dvojice (čas, hodnota) pro buňky, které jsou *fresh*; držené hodnoty jsou jen
+opakování té předchozí a v grafu by z nich byla hustší řada bez jediné nové informace. Ze samotných
+příchodů jde nakreslit obojí — **schod** (hodnota platí až do dalšího příchodu) i **rampa**
+(interpolace mezi příchody), přepínač je per řada. Výchozí je schod u výčtů a logických hodnot
+(mezi `Driving` a `Blocked` se nic neinterpoluje) a rampa u čísel.
+
+**Každá řada má vlastní měřítko osy Y** (autoscale na svoje min/max). Návrh počítal s „volitelně
+druhou osou Y", ale to problém neřeší: v jednom grafu jsou metry, stupně za sekundu i stav výčtu —
+dvě osy by stačily na dvě řady. Rozsah každé řady je proto vidět v legendě a osa Y s čísly se kreslí,
+jen když je zapnutá **právě jedna** řada (tam je jednoznačná).
+
+**Lupa na ose Y** (Ctrl+kolečko) zoomuje v *normalizované* ose — 0 = spodek rozsahu řady, 1 = vrch —
+takže roztáhne všechny řady zároveň a jejich vzájemné porovnání zůstane platné. Kdyby se zoomovalo
+v hodnotách, byla by u každé řady jiná a graf by přestal dávat smysl. Popisky osy Y procházejí týmž
+přepočtem, takže po přiblížení nelžou.
+
+**Odečítátko hodnot pod myší** (jako „tracker" v OxyPlotu): svislá čára v místě kurzoru, tečka na
+každé křivce a rámeček s časem a hodnotou **každé** viditelné řady — ne jen té nejbližší, protože
+smysl grafu je porovnávat je mezi sebou. Hodnota se čte tak, jak je řada nakreslená: u schodu
+poslední příchod (`ValueAtTime`), u rampy interpolace mezi sousedními příchody (`InterpolatedAt`).
+Rámeček se u pravého okraje sklopí na druhou stranu čáry, aby nevylezl z plochy.
+
+**Kreslí se vlastním `Control.Render`**, ne grafovou knihovnou. OxyPlot by byl přirozená volba, ale
+oficiální `OxyPlot.Avalonia` cílí na Avalonii 11 a pro dvanáctku existuje jen neoficiální fork se
+162 staženími — viz [decisions.md](decisions.md#2026-08-17--graf-telemetrie-se-kreslí-vlastním-controlem-ne-oxyplotem--rozhodnutohotovo).
+Data jsou navíc už v poli a projekt kreslené controly má (kompas, umělý horizont, robot-centrický
+pohled). **Až OxyPlot vydá podporu Avalonie 12, stojí za to se k tomu vrátit** — cena přechodu je
+jeden control, `TelemetrySeries` je na kreslení nezávislá. Co dnes proti knihovně chybí: anotace,
+výběr obdélníkem, export obrázku a legenda v ploše grafu.
+
+Ovládání: kolečko = lupa času **kolem času pod myší** (jinak by ujíždělo místo, na které se člověk
+dívá), Ctrl+kolečko = lupa hodnot (taky kolem bodu pod myší), pravé tlačítko táhne oběma směry,
+dvojklik = celý rozsah i výchozí měřítko, **levý klik = skok v přehrávání** na ten okamžik (čas se
+půlením přeloží na `Seq` v indexu). Kurzor přehrávání je svislá čára a legenda u každé řady ukazuje
+její hodnotu v tom místě — čtenou jako schod, tedy tutéž hodnotu, jakou má v tom okamžiku tabulka.
+
+Při hustých datech (víc bodů než pixelů) se kreslí **obálka min/max po pixelech** místo lomené čáry
+přes všechny body: desetitisíce úseček by se stejně slily, jen by zdržely, a obálka navíc ukazuje
+rozptyl, ne náhodně vybraný vzorek.
+
+Výřez se drží i při přidání další řady (zoom se nezahodí), ale **resetuje se, když se s daty vůbec
+neprotíná** — to nastane po přepnutí na jiný záznam, kde by graf jinak zůstal prázdný, aniž by bylo
+poznat proč.
 
 ## Co ve zprávách chybí
 
@@ -182,50 +348,68 @@ Tabulka je proti tomu odolná: jakmile hodnota ve zprávě bude, je to jeden ř�
 
 ## Testy
 
-Jádro je v `ARBot.Common` právě proto, aby šlo testovat — `ARBot` (UI) testovací projekt nemá.
-`ARBot.Common.Tests/Telemetry/`: záznam se složí do `MemoryStream` přes `RecordingTarget`
-(data + index), pak se přeskenuje. Ověřuje se:
+Jádro je v `ARBot.Common` právě proto, aby šlo testovat — `ARBot` (UI) testovací projekt nemá,
+takže **UI se ověřuje jen spuštěním**. `ARBot.Common.Tests/Telemetry/`, 20 testů ve třech souborech:
+
+[`TelemetryTableBuilderTests`](../Src/ARBot.Common.Tests/Telemetry/TelemetryTableBuilderTests.cs)
+plní builder přímo zprávami (bez souboru) a ověřuje pravidla tabulky:
 
 - držení hodnot (sloupec z pomalé zprávy má na následujících řádcích tutéž hodnotu i čas),
 - *fresh* na správných řádcích a **jen** na nich,
 - prázdné buňky před první zprávou daného typu,
-- čas řádku: `CaptureTicks`, a fallback na `ArrivalTicks` u zprávy bez `IHasCaptureTime`,
+- čas řádku: `CaptureTicks`, fallback na `ArrivalTicks` u zprávy bez `IHasCaptureTime`, a že si
+  řádek drží **oba** časy,
 - slévání řádků při shodném čase,
-- přeskočení neregistrovaných typů (ověřitelné tím, že se jejich rámce nečtou),
-- zrušení skenu (`CancellationToken`) a strop na počet řádků.
+- strop řádků (přestane přidávat a ohlásí `Truncated`),
+- `Text` má přednost před `Format`.
+
+[`TelemetryScannerTests`](../Src/ARBot.Common.Tests/Telemetry/TelemetryScannerTests.cs) skládají
+záznam do `MemoryStream` přes `RecordingTarget` (data + index) a skenují ho:
+
+- řádky vzniknou **jen** z registrovaných typů,
+- časy řádků jdou v pořadí záznamu,
+- **náhodné čtení opravdu funguje**: mezi sledované zprávy se vloží velké přeskakované rámce
+  a řádky přesto vyjdou úplné (kdyby se četlo sekvenčně, rozpadlo by se to),
+- strop řádků hlásí `Truncated`,
+- zrušení skenu (`CancellationToken`),
+- sken bez indexu vyhodí výjimku.
+
+[`TelemetrySeriesTests`](../Src/ARBot.Common.Tests/Telemetry/TelemetrySeriesTests.cs) ověřují
+vytažení řady pro graf:
+
+- řada bere **jen příchody**, ne držené hodnoty (5 řádků tabulky → 2 body pomalé zprávy),
+- zná svůj rozsah a krajní časy,
+- `ValueAtTime` se čte jako **schod** a je `null` před prvním příchodem,
+- `InterpolatedAt` **interpoluje** mezi příchody (rampa) a mimo rozsah drží krajní hodnotu,
+- sloupec, který v záznamu nikdy nepřišel, dá prázdnou řadu (a ne výjimku),
+- text hodnoty respektuje `Text` z definice sloupce (výčet jménem).
 
 ## Zásahy do stávajícího kódu
 
-Návrh je záměrně navržený tak, aby jich bylo minimum:
+Návrh byl záměrně dělaný tak, aby jich bylo minimum. Co se nakonec doopravdy změnilo:
 
-- **`ARBotRuntime`** — vystavit cestu k přehrávanému záznamu (`RecordPath`); dnes je jen lokální
-  proměnná v `StartView`. Bez ní si skener nemá co otevřít.
-- **`MainWindowViewModel`** — položka menu Tools → Telemetrie, otevření dokumentu.
-- **`FileMessageSource`** — **žádná změna** (skener má vlastní stream, index je už public).
+- **`ARBotRuntime`** — přibylo `RecordPath` (cesta k přehrávanému záznamu); do té doby to byla jen
+  lokální proměnná v `StartView` a skener neměl co otevřít.
+- **`MainWindowViewModel` + `MainWindow.axaml`** — položka menu Tools → Telemetrie a zakládání
+  dokumentu grafu (`ShowTelemetryChart`). Tabulka o docích nic neví — jen vyvolá událost
+  s řadami, dokument grafu založí a aktivuje hlavní okno.
+- **`ARBot.csproj` + `App.axaml`** — balíček `Avalonia.Controls.DataGrid` 12.0.0 a `StyleInclude`
+  jeho tématu.
+- **`ReplayNavTool`** — pozice opravená o jednu (`Cursor-1`) a časovač běží pořád; vynutilo si to
+  napojení tabulky na přehrávání (viz [UI](#ui--tabulka-a-detail)).
+- **`FileMessageSource`** — **žádná změna**, jak návrh sliboval (skener má vlastní stream, index
+  i `Cursor` jsou už public).
 - **`CLAUDE.md`** — odkaz na tento dokument.
-
-## Fáze a kroky
-
-1. **Jádro + testy** — `TelemetryTable`, `ColumnSpec`, `TelemetryScanner` v `ARBot.Common/Telemetry`,
-   testy v `ARBot.Common.Tests`. Bez UI.
-2. **Registr sloupců** — `TelemetryColumns` v `ARBot` pro zprávy z tabulky výše.
-3. **UI: tabulka** — dokument, virtualizovaná tabulka, tučné/obyčejné/prázdné buňky, výběr sloupců,
-   sken na pozadí s postupem.
-4. **UI: detail řádku + napojení na Replay** (dvojklik = seek, kurzor = zvýraznění).
-5. **Rozšíření `LocalPlanMsg`** o rychlostní diagnostiku (+ verze) — až po jádru.
-6. **Fáze 2: grafy** — volba kreslení, dokument grafu, přidávání řad z tabulky.
-7. **Později: Run** — živé plnění (buď „ocas" zapisovaného záznamu, nebo odběr `Stream`u
-   s povinným backpressure vzorem).
-
-Po každém kroku build `-p:Platform=x64` a zelené testy (viz [CLAUDE.md](../CLAUDE.md)).
 
 ## Otevřené otázky a rizika
 
-- **`Avalonia.Controls.DataGrid` pro Avalonia 12** — existuje? Neověřeno. Fallback je popsaný výše.
 - **Rychlost skenu** — náhodné čtení desítek tisíc malých rámců na OrangePI (SD karta) může být
-  pomalé. Změřit; kdyby to vadilo, přejít na sekvenční čtení s přeskakováním (`Seek` přes
-  neregistrované rámce) nebo na plnění tabulky průběžně během skenu.
+  pomalé. Na vývojovém stroji je to bez problému (`records/20260814-132817.rec`: index 27 541 zpráv
+  → **29 ms**, 2806 řádků), na cílovém HW **neměřeno**. Kdyby to vadilo, přejít na sekvenční čtení
+  s přeskakováním (`Seek` přes neregistrované rámce) nebo na plnění tabulky průběžně během skenu.
 - **Časy z jednoho taktu** — slévání funguje na přesnou shodu. Jestli se v praxi časy z jednoho
   taktu rozcházejí, bude potřeba tolerance (a je pak otázka, jaká, aby neslila dva různé takty).
+  Ze záznamu, na kterém tabulka běžela, se to zatím nedá říct — je vidět, že se **některé** takty
+  slily a jiné ne.
 - **Strop řádků vs. dlouhý běh** — hodinový záznam na 65 zpráv/s je ~230 000 řádků; vejde se do
   stropu, ale je to ~110 MB. Případné řešení je rozsahový filtr (skenovat jen výsek času).

@@ -13,6 +13,28 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-17 — Graf telemetrie se kreslí vlastním controlem, ne OxyPlotem — ROZHODNUTO/HOTOVO
+**Co:** `TelemetryChartControl` (vlastní `Control.Render`) místo grafové knihovny. Autor měl dobrou
+zkušenost s **OxyPlotem** a explicitně ho zmínil.
+
+**Proč:** oficiální `OxyPlot.Avalonia` je ve verzi 2.1.0 a cílí na **Avalonii 11**; projekt drží
+Avalonii 12. Pro dvanáctku existuje jen neoficiální fork `Oxyplot.Avalonia12` (2.1.2) od jednoho
+vydavatele se **162 staženími** — na knihovnu, kterou by měl robot vozit v produkci, je to příliš
+málo ověřená a příliš snadno opuštěná závislost. Přesně ten typ problému, který už projekt řeší
+u `Avalonia.Controls.DataGrid` (verze nad 12.0.0 si vynucují Avalonii ≥ 12.0.5 a build spadne na
+`NU1605`). Data jsou navíc už ve sloupcových polích a projekt kreslené controly má (kompas, umělý
+horizont, robot-centrický pohled), takže vlastní kreslení nebylo drahé.
+
+**Důsledky:** funkce, které by knihovna dala zadarmo, se dopisují ručně — hotové je odečítátko
+hodnot pod myší (obdoba trackeru), lupa času i hodnot, obálka min/max u hustých dat, kurzor
+přehrávání a klik = skok v přehrávání. Chybí anotace, výběr obdélníkem, export obrázku a legenda
+v ploše grafu. **Rozhodnutí se má přehodnotit, až OxyPlot (nebo jiná knihovna) vydá oficiální
+podporu Avalonie 12** — cena přechodu je jeden control, protože `TelemetrySeries` je na kreslení
+nezávislá.
+
+**Odkazy:** [doc/telemetry-view.md](telemetry-view.md), `Src/ARBot/Views/Controls/TelemetryChartControl.cs`,
+`Src/ARBot.Common/Telemetry/TelemetrySeries.cs`.
+
 ### 2026-08-16 — Vzdálenosti se počítají na WGS84, ne na kouli; `ProjectOntoSegment` zůstává výjimkou — ROZHODNUTO/HOTOVO
 **Co:** `GreatCircle` bere `Ellipsoid` (výchozí `Wgs84`) a počítá geodetiku (Vincenty) místo
 haversinu na pevné kouli R = 6 371 000 m. `LLA.Distance(Ellipsoid, …)` na něj deleguje, aby byl
