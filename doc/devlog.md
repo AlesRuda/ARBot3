@@ -39,6 +39,40 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-08-18
 
+- **World pohled: Shift + klik přesune simulovaného robota** (žádost autora) — vývojářská pomůcka
+  na zkoušení scénářů bez restartu běhu, vedle existujícího Ctrl + klik = cíl. Detail:
+  [virtual-hw.md](virtual-hw.md).
+  - Podstatné je, že se **nemění jen poloha**: srovnat se musí naráz ground truth simulace, **fúze**
+    (`InitializePosition` — jinak by EKF držel starou polohu a přetahoval se) a **rozjetá dráha**
+    (vede odjinud; regulátor se nuluje hned, dráhu zahodí navigátor na svém vlákně přes nový
+    `LocalNavigator.RequestPathReset`). Na tu poslední část je test.
+  - **Kurz zůstává** a **occupancy grid se nečistí** (rozhodnutí autora) — integrátor ho na novou
+    pózu vycentruje sám při dalším snímku. Trajektorie se při skoku > 2 m začne kreslit znovu.
+  - Platí jen v Run s virtuálním HW; jinak runtime vrátí `false` a napíše důvod do Debug outputu.
+  - **Ověřeno:** build `x64`, 535 testů. **Za běhu neověřeno** — neklikal jsem.
+
+- **Lokální plánovač: únik z blokované buňky** (myšlenka autora — robot uvázne, když se na `Blocked`
+  buňku dostane). Návrh v [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+  - **Rozbor záznamu rozhodl, kudy do toho.** V `20260818-093903.rec` robot 5 s (47 plánů) hlásil
+    `RobotBlocked` až do konce záznamu. Buňka pod ním: `LOcc = −4,85` (hloubka na **záporném** dorazu
+    = jistě volno), `LRoad = +5,00` (barva na **kladném** dorazu = jistě mimo cestu). Nejbližší
+    nezablokovaná buňka **0,05 m**. Nebyla to překážka, ale okraj cesty.
+  - **Relaxaci gridu jsme zamítli**: `LRoad` sedí na clampu, robot stojí, a buňku pod sebou dopředu
+    hledící kamera nikdy neuvidí — evidence-based zapomínání se nemá o co opřít. Časový decay by
+    nechal vyblednout i skutečné překážky.
+  - **Dělicí čára je kanál, ne vzdálenost:** ven se smí přes semanticky blokované buňky (z trávy na
+    cestu), přes geometricky blokované nikdy. Výchozí buňka je výjimka — robot na ní stojí.
+  - Cílem úniku není cíl mise, ale nejbližší buňka průjezdná běžným pravidlem; hledá se uniformní
+    cenou do `EscapeMaxLength` (1,5 m), jinak `RobotBlocked` (bloudit mimo cestu je horší než stát).
+    Rychlost srazí brzdná obálka sama — únik je popojetí krokem.
+  - Dvě návaznosti: `PathCollides` posuzuje únikovou dráhu **jen podle geometrie** (jinak by ji hned
+    zahodil), a `EscapingBlocked` v `GlobalNavigator` **není selhání plánu** (jinak by uváznutí
+    nakonec zavřelo hranu, která je v pořádku) — na obojí je test.
+  - **Ověřeno:** 6 nových testů, celkem 534 zelených, build `x64`. Regresní test drží, že běžné
+    plánování přes `Blocked` dál nevede. **Za běhu neověřeno** — v aplikaci to neběželo.
+  - **Odloženo (krok 3 z návrhu):** zapisovat pod půdorysem robotu důkaz „volno" do kanálu hloubky.
+    Do semantického kanálu psát nelze — robot by se naučil, že cesta je všude, kam zabloudí.
+
 - **Sjednocené směrové údaje v telemetrii** (pozorování autora: „jednou mají nulu na severu,
   podruhé v matematickém smyslu"). Nově platí jedno pravidlo: **uloženo je vždy matematicky ve
   stupních**, převod na azimut dělá až zobrazení. Sloupec k tomu nese `AngleKind`

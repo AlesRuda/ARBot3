@@ -275,6 +275,10 @@ namespace ARBot.ViewModels
                         rt.Navigator?.SetGoal(x, y);
                 };
 
+                // Shift + klik = presun simulovaneho robotu (vyvojarska pomucka). Pohled o runtime
+                // nic nevi, jen se zepta; runtime rozhodne, jestli to ma smysl (viz doc/virtual-hw.md).
+                doc.TeleportRequested = (x, y) => ARBotRuntime.Current.TeleportSimulatedRobot(x, y);
+
                 // Mapa se na Stream publikuje jednou pri startu behu - pohled otevreny az potom
                 // by ji neuvidel, proto si ji vyzvedne z runtime.
                 var map = ARBotRuntime.Current.MapMessage;
@@ -429,7 +433,21 @@ namespace ARBot.ViewModels
                     var picks = await sp.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
                     {
                         Title = "Otevrit zaznam (View)",
-                        AllowMultiple = false
+                        AllowMultiple = false,
+                        // Vedle zaznamu lezi sidecar index *.rec.idx (a v adresari byvaji i jine
+                        // soubory) - bez filtru se v tom hleda spatne. "Vse" zustava pro pripad
+                        // zaznamu s jinou priponou.
+                        FileTypeFilter = new[]
+                        {
+                            new Avalonia.Platform.Storage.FilePickerFileType("Záznam ARBot")
+                            {
+                                Patterns = new[] { "*.rec" },
+                            },
+                            new Avalonia.Platform.Storage.FilePickerFileType("Vše")
+                            {
+                                Patterns = new[] { "*.*" },
+                            },
+                        },
                     });
                     if (picks != null && picks.Count > 0)
                         file = picks[0].Path?.LocalPath;

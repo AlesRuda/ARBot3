@@ -30,6 +30,14 @@ namespace ARBot.Common.Occupancy
         /// AKTUALNI mapy koliduje (v dosahu brzdne drahy). Regulator se zahodil -&gt; robot stoji.
         /// </summary>
         AbortedCollision = 6,
+
+        /// <summary>
+        /// UNIK: robot stoji v blokovane bunce a plan vede k nejblizsi bunce, odkud muze pokracovat
+        /// bezne planovani. Neni to selhani - robot jede (pomalu, rychlostni obalka ho zdrzi sama).
+        /// <para>Ven se smi jen pres bunky blokovane <b>semantikou</b>; pres geometricky blokovane
+        /// nikdy. Viz doc/occupancy-and-local-planning.md.</para>
+        /// </summary>
+        EscapingBlocked = 7,
     }
 
     /// <summary>
@@ -43,7 +51,8 @@ namespace ARBot.Common.Occupancy
         public LocalPlanStatus Status;
 
         /// <summary>Lze podle vysledku ridit? (Plan existuje a ma alespon 2 body.)</summary>
-        public bool HasPath => (Status == LocalPlanStatus.Ok || Status == LocalPlanStatus.Partial)
+        public bool HasPath => (Status == LocalPlanStatus.Ok || Status == LocalPlanStatus.Partial
+                                || Status == LocalPlanStatus.EscapingBlocked)
                                && WayPoints != null && WayPoints.Length >= 2;
 
         /// <summary>Waypointy pro <see cref="IPathPlanner.Plan"/> (prvni = aktualni poloha robotu);

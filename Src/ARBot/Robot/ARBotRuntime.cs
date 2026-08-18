@@ -77,6 +77,10 @@ namespace ARBot.Robot
         private RecordingTarget recording;
         private TraceInfoBridge traceBridge;
         private FileMessageSource fileSource;
+        /// <summary>Fuzni engine aktualniho behu (Run); ve View null. Drzi se kvuli teleportu
+        /// simulovaneho robotu - viz <see cref="TeleportSimulatedRobot"/>.</summary>
+        private AsyncFusionEngine fusionEngine;
+
         private Stream fileData;
         private Stream fileIndex;
         private bool running;
@@ -208,6 +212,7 @@ namespace ARBot.Robot
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
+            fusionEngine = engine;   // drzime kvuli teleportu robotu (viz TeleportSimulatedRobot)
             // Mapper dostava TUTEZ instanci konfigurace jako model (zapisuje do ni GeoReference,
             // kdyz ji nezalozila mapa) a engine kvuli fallback inicializaci polohy z prvniho
             // pouzitelneho GPS fixu. Viz doc/global-navigation-runtime.md.
@@ -798,6 +803,58 @@ namespace ARBot.Robot
 
             // Ve View se prehrava rovnou; navigacni nastroj muze prepnout na Paused + Seek.
             fileSource.Start();
+        }
+
+        /// <summary>
+        /// Presune SIMULOVANEHO robota na zadane misto (Shift + klik ve World pohledu - vyvojarska
+        /// pomucka pro zkouseni scenaru bez restartu behu). Vraci false, kdyz to nema smysl:
+        /// v rezimu View, s realnym HW nebo bez bezicí simulace.
+        ///
+        /// <para><b>Kurz se nemeni</b> - klik dava jen polohu. Menit se musi TROJE naraz, jinak si
+        /// to odporuje:</para>
+        /// <list type="number">
+        /// <item><description><b>Ground truth</b> simulace (odtud merí virtualni senzory).</description></item>
+        /// <item><description><b>Fuze</b> - stejnou cestou jako startovni poza
+        /// (<c>InitializePosition</c>). Bez toho by EKF drzel starou polohu a s teleportem se
+        /// pretahoval.</description></item>
+        /// <item><description><b>Rozjeta draha</b> - vede odjinud, takze se zahodi (regulator se
+        /// vynuluje uz tady, aby robot stal hned, ne az za jeden takt navigatoru).</description></item>
+        /// </list>
+        ///
+        /// <para>Occupancy grid se NEcisti: integrator ho na novou pozu vycentruje sam pri dalsim
+        /// snimku a nove vstoupivsi pruhy vynuluje. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        /// <param name="x">Cilova poloha [m, lokalni ENU].</param>
+        /// <param name="y">Cilova poloha [m, lokalni ENU].</param>
+        public bool TeleportSimulatedRobot(double x, double y)
+        {
+            lock (gate)
+            {
+                var sim = ARBotHW.Current?.SimulatedRobot;
+                if (!running || Mode != Mode.Run || sim == null || fusionEngine == null)
+                {
+                    Debug.WriteLine("teleport: nema smysl (neni Run s virtualnim HW).");
+                    return false;
+                }
+
+                sim.X = x;
+                sim.Y = y;
+
+                var t = TimeBase.Now;
+                fusionEngine.InitializePosition(x, y, StartPositionStd, t);
+
+                var nav = Navigator;
+                if (nav != null)
+                {
+                    var loop = nav.ControlLoop;
+                    if (loop != null) loop.Regulator = null;   // null = stat (bezpecny stav)
+                    nav.RequestPathReset();
+                }
+
+                Debug.WriteLine($"teleport: robot na X={x:F2} Y={y:F2} "
+                                + $"(kurz {Conversions.Rad2Deg(sim.Theta):F0} deg zustava).");
+                return true;
+            }
         }
 
         /// <summary>

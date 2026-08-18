@@ -232,6 +232,32 @@ public class GlobalNavigatorTests
         });
     }
 
+
+    /// <summary>
+    /// UNIK z blokovane bunky NENI selhani planu: robot jede (jen kratce a pomalu), takze se serie
+    /// selhani nesmi scitat - jinak by uvaznuti nakonec zavrelo hranu, ktera je v poradku.
+    /// Nalez ze zaznamu 20260818-093903.rec, viz doc/occupancy-and-local-planning.md.
+    /// </summary>
+    [Test]
+    public void EscapingBlocked_IsNotAPlanFailure()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { BlockedPlanCount = 3 };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.Step(10, 0, t);
+
+        for (int i = 0; i < 10; i++)
+            nav.OnLocalPlan(LocalPlanStatus.EscapingBlocked);
+
+        nav.Step(10, 0, t.AddSeconds(1));
+
+        Assert.That(nav.Closures, Is.Empty, "unik se nesmi scitat jako selhani planu");
+    }
+
     /// <summary>Uspesny plan mezi selhanimi vynuluje pocitadlo - jinak by staciler nasbirat selhani kdykoli.</summary>
     [Test]
     public void PlanFailures_AreCountedOnlyWhenConsecutive()

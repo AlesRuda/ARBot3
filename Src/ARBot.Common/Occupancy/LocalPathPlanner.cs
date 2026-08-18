@@ -43,12 +43,19 @@ namespace ARBot.Common.Occupancy
 
         // Znovupouzite buffery (velikost size*size, lokalni indexovani i + j*size).
         private readonly byte[] state;        // CellState po bunkach (snapshot gridu)
+        private readonly byte[] blockReason;  // CellBlockReason po bunkach (cim je blokovana)
         private readonly float[] clearance;   // odstup [m] po bunkach (snapshot pole vzdalenosti)
         private readonly double[] gScore;
         private readonly float[] lenFromStart;
         private readonly int[] parent;
         private readonly int[] stamp;         // generace "bunka ma platne gScore" - nahrazuje mazani poli
         private readonly int[] closedStamp;   // generace "bunka je uz expandovana" (lazy deletion ve fronte)
+
+        /// <summary>Rezim UNIKU z blokovane bunky - meni pravidlo prujezdnosti i cil hledani.</summary>
+        private bool escape;
+
+        /// <summary>Index vychozi bunky (pri uniku je vzdy prujezdna - robot na ni stoji).</summary>
+        private int startIdx;
         private readonly OpenQueue open = new OpenQueue();
         private readonly List<int> pathCells = new List<int>();
         private readonly List<int> pulled = new List<int>();
@@ -79,6 +86,7 @@ namespace ARBot.Common.Occupancy
 
             int n = size * size;
             state = new byte[n];
+            blockReason = new byte[n];
             clearance = new float[n];
             gScore = new double[n];
             lenFromStart = new float[n];
@@ -129,11 +137,11 @@ namespace ARBot.Common.Occupancy
 
             Snapshot(grid, field);
 
+            // Robot UZ STOJI v blokovane bunce (dojel tam, nez se to o ni vedelo, nebo se posunula
+            // mapa). Vracet RobotBlocked znamena stat tam navzdy - misto toho se hleda nejkratsi
+            // cesta VEN. Viz doc/occupancy-and-local-planning.md.
             if (state[i0 + j0 * size] == (byte)CellState.Blocked)
-            {
-                res.Status = LocalPlanStatus.RobotBlocked;
-                return res;
-            }
+                return PlanEscape(res, grid, robotX, robotY, heading, i0, j0, cell);
 
             // Cil orizneme na grid (o bunku od kraje) - dalsi cil znamena jet k hranici gridu jeho smerem.
             bool goalClipped = ClipToGrid(grid, robotX, robotY, ref goalX, ref goalY);
@@ -188,6 +196,75 @@ namespace ARBot.Common.Occupancy
             return res;
         }
 
+        // ---------------- unik z blokovane bunky ----------------
+
+        /// <summary>
+        /// Robot stoji v blokovane bunce - najde nejkratsi cestu k nejblizsi bunce, odkud muze
+        /// pokracovat BEZNE planovani (neni blokovana a ma odstup &ge; <c>SafeDist</c>).
+        ///
+        /// <para><b>Delici cara je kanal, ne vzdalenost:</b> ven se smi pres bunky blokovane
+        /// SEMANTIKOU (z travy zpatky na cestu), pres geometricky blokovane NIKDY. Vychozi bunka je
+        /// vyjimka - robot na ni stoji, takze z ni odjet musi i kdyz ji blokuje geometrie (to je
+        /// typicky posun mapy chybou lokalizace).</para>
+        ///
+        /// <para>Draha je omezena na <see cref="LocalPlannerConfig.EscapeMaxLength"/>: kdyz je
+        /// nejblizsi legalni bunka dal, unik se nezkousi a vraci se
+        /// <see cref="LocalPlanStatus.RobotBlocked"/> - bloudit metry mimo cestu je horsi nez stat.
+        /// Rychlost neresi zadny zvlastni strop: rychlostni obalka v <see cref="BuildWayPoints"/>
+        /// srazi rychlost sama (uvnitr skvrny neni nic potvrzene sjizdneho pred robotem), takze
+        /// unik je popojeti krokem.</para>
+        /// </summary>
+        private LocalPlanResult PlanEscape(LocalPlanResult res, OccupancyGrid grid,
+                                           double robotX, double robotY, double heading,
+                                           int i0, int j0, double cell)
+        {
+            escape = true;
+            try
+            {
+                int exit = Search(i0, j0, -1, -1, heading, cell, out _, out int expanded);
+                res.ExpandedCells = expanded;
+
+                if (exit < 0)
+                {
+                    // Legalni bunka v dosahu neexistuje (nebo vede jen pres geometrii) - stat.
+                    res.Status = LocalPlanStatus.RobotBlocked;
+                    return res;
+                }
+
+                res.Status = LocalPlanStatus.EscapingBlocked;
+                res.CostSeconds = gScore[exit];
+                res.LengthM = lenFromStart[exit];
+                res.ReachedGoalX = grid.CenterX(grid.OriginX + exit % size);
+                res.ReachedGoalY = grid.CenterY(grid.OriginY + exit / size);
+
+                BuildPathCells(exit);
+                StringPull(grid, i0, j0);
+
+                // finalGoal: true - na konci uniku robot zastavi a dalsi cyklus uz planuje bezne.
+                res.WayPoints = BuildWayPoints(grid, robotX, robotY,
+                                               finalGoal: true, minClearance: out double minClear);
+                res.MinClearanceM = minClear;
+                res.MinFreeAheadM = envMinFreeAhead;
+                res.MinVClear = envMinVClear;
+                res.MinVBrake = envMinVBrake;
+                res.MinWayPointSpeed = envMinSpeed;
+
+                // Vylez blize nez jedna pouzitelna hrana - neni co predat regulatoru.
+                if (res.WayPoints == null || res.WayPoints.Length < 2)
+                    res.Status = LocalPlanStatus.RobotBlocked;
+
+                return res;
+            }
+            finally
+            {
+                escape = false;
+            }
+        }
+
+        /// <summary>Je bunka prujezdna BEZNYM pravidlem? Tam unik konci.</summary>
+        private bool IsEscapeExit(int idx)
+            => state[idx] != (byte)CellState.Blocked && clearance[idx] >= cfg.SafeDist;
+
         // ---------------- snapshot gridu ----------------
 
         /// <summary>Prekopiruje stav bunek a odstupy do lokalne indexovanych bufferu (i + j*size),
@@ -199,7 +276,9 @@ namespace ARBot.Common.Occupancy
                 int row = j * size;
                 for (int i = 0; i < size; i++)
                 {
-                    state[row + i] = (byte)grid.StateAt(grid.LocalIndex(i, j));
+                    int local = grid.LocalIndex(i, j);
+                    state[row + i] = (byte)grid.StateAt(local);
+                    blockReason[row + i] = (byte)grid.BlockReasonAt(local);
                     clearance[row + i] = field.DistanceLocal(i, j);
                 }
             }
@@ -218,8 +297,11 @@ namespace ARBot.Common.Occupancy
             generation++;
             open.Clear();
 
-            int startIdx = i0 + j0 * size;
+            startIdx = i0 + j0 * size;
             double escapeR2 = cfg.EscapeRadius * cfg.EscapeRadius;
+            // Pri uniku neni cil bod, ale "prvni legalni bunka" - heuristika by nemela k cemu merit,
+            // takze se hleda uniformni cenou (Dijkstra) a jen do EscapeMaxLength.
+            double horizon = escape ? cfg.EscapeMaxLength : cfg.HorizonM;
             double invMaxSpeed = 1.0 / cfg.MaxSpeed;
             double diag = Math.Sqrt(2.0) * cell;
 
@@ -227,7 +309,7 @@ namespace ARBot.Common.Occupancy
             gScore[startIdx] = 0;
             lenFromStart[startIdx] = 0;
             parent[startIdx] = -1;
-            open.Enqueue(startIdx, Heuristic(i0, j0, iG, jG, cell, invMaxSpeed));
+            open.Enqueue(startIdx, escape ? 0 : Heuristic(i0, j0, iG, jG, cell, invMaxSpeed));
 
             bestIdx = startIdx;
             double bestGoalDist2 = Dist2Cells(i0, j0, iG, jG);
@@ -240,9 +322,9 @@ namespace ARBot.Common.Occupancy
                 expanded++;
 
                 int ci = cur % size, cj = cur / size;
-                if (ci == iG && cj == jG)
+                // Pri uniku je cilem prvni bunka prujezdna BEZNYM pravidlem, ne konkretni bod.
+                if (escape ? IsEscapeExit(cur) : (ci == iG && cj == jG))
                     return cur;
-
                 double d2 = Dist2Cells(ci, cj, iG, jG);
                 if (d2 < bestGoalDist2)
                 {
@@ -251,7 +333,7 @@ namespace ARBot.Common.Occupancy
                 }
 
                 // Horizont lokalniho planu.
-                if (lenFromStart[cur] >= cfg.HorizonM) continue;
+                if (lenFromStart[cur] >= horizon) continue;
 
                 for (int k = 0; k < 8; k++)
                 {
@@ -278,6 +360,10 @@ namespace ARBot.Common.Occupancy
                     double stepCost = stepLen / cfg.VCost(clr);
                     if (state[nidx] == (byte)CellState.Unknown)
                         stepCost *= cfg.UnknownCostFactor;
+                    // Pri uniku se pres semanticky blokovane bunky smi, ale drazeji - unik ma
+                    // mimo cestu strávit co nejmene.
+                    if (escape && state[nidx] == (byte)CellState.Blocked)
+                        stepCost *= cfg.EscapeBlockedCostFactor;
 
                     // Cena pocatecniho otoceni je soucasti prvni hrany.
                     if (cur == startIdx)
@@ -294,7 +380,7 @@ namespace ARBot.Common.Occupancy
                     gScore[nidx] = ng;
                     lenFromStart[nidx] = (float)(lenFromStart[cur] + stepLen);
                     parent[nidx] = cur;
-                    open.Enqueue(nidx, ng + Heuristic(ni, nj, iG, jG, cell, invMaxSpeed));
+                    open.Enqueue(nidx, escape ? ng : ng + Heuristic(ni, nj, iG, jG, cell, invMaxSpeed));
                 }
             }
 
@@ -321,6 +407,14 @@ namespace ARBot.Common.Occupancy
                               out double clr)
         {
             clr = clearance[idx];
+
+            // UNIK z blokovane bunky ma vlastni pravidlo: rozhoduje KANAL, ne odstup.
+            if (escape)
+            {
+                if (idx == startIdx) return true;   // na vychozi bunce robot stoji, odjet z ni musi
+                return (blockReason[idx] & (byte)CellBlockReason.Geometry) == 0;
+            }
+
             if (state[idx] == (byte)CellState.Blocked) return false;
             if (clr >= cfg.SafeDist) return true;
 

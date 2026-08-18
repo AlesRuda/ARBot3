@@ -136,6 +136,9 @@ namespace ARBot.ViewModels
         // Surove fixy se kresli zvlast ve vrstve GPS - rozdil obou je videt, ale nemate obrazek.
         private const int MaxTrackPoints = 5000;
         private const double MinTrackStepMeters = 0.5;
+
+        /// <summary>Skok pozy [m], od ktereho se stopa zacina znovu (teleport robotu, ne jizda).</summary>
+        private const double TrackJumpMeters = 2.0;
         private readonly List<MPoint> track = new List<MPoint>();
 
         // Surove GPS fixy (Web Mercator) - jen pro diagnostickou vrstvu, stejny cap i prah.
@@ -281,6 +284,31 @@ namespace ARBot.ViewModels
 
             GoalRequested(local.X, local.Y);
             return true;
+        }
+
+
+        /// <summary>
+        /// Shift + klik ve World pohledu = <b>presun simulovaneho robotu</b> (vyvojarska pomucka).
+        /// Vyplni ho <see cref="MainWindowViewModel"/> na
+        /// <see cref="ARBot.Robot.ARBotRuntime.TeleportSimulatedRobot"/> - pohled o runtime nic nevi.
+        /// Vraci false, kdyz to nema smysl (View, realny HW).
+        /// </summary>
+        public Func<double, double, bool>? TeleportRequested { get; set; }
+
+        /// <summary>
+        /// Prevede bod v Web Mercatoru na lokalni ENU a pozada o presun robotu. Stejna cesta jako
+        /// <see cref="RequestGoalFromMercator"/> - tentyz GeoReference, aby klik mířil tam, kam
+        /// uzivatel ukazal.
+        /// </summary>
+        public bool RequestTeleportFromMercator(double mercX, double mercY)
+        {
+            var geoRef = BuildGeoReference();
+            if (geoRef == null || TeleportRequested == null) return false;
+
+            var (lon, lat) = SphericalMercator.ToLonLat(mercX, mercY);
+            var local = geoRef.ToLocal(LLA.FromDegrees(lat, lon));
+
+            return TeleportRequested(local.X, local.Y);
         }
 
         // ============================ IMessageSink (vlakno producenta) ============================
@@ -484,6 +512,16 @@ namespace ARBot.ViewModels
                 double dx = merc.X - last.X, dy = merc.Y - last.Y;
                 if (dx * dx + dy * dy < MinTrackStepMeters * MinTrackStepMeters)
                     return;   // pohyb pod prahem - neukladat (setri body a prekresleni)
+
+                // Skok pozy (teleport robotu, Shift + klik) - stopa je zaznam SPOJITEHO pohybu,
+                // takze by ji cara pres pul mapy jen znecitelnila. Zacne se znovu.
+                if (dx * dx + dy * dy > TrackJumpMeters * TrackJumpMeters)
+                {
+                    points.Clear();
+                    points.Add(merc);
+                    return;
+                }
+
             }
             points.Add(merc);
             if (points.Count > MaxTrackPoints)

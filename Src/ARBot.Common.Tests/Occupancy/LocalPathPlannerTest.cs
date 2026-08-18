@@ -522,5 +522,110 @@ namespace ARBot.Common.Tests.Occupancy
                                 $"waypoint {k}: tolerance ukusuje z bezpecnostniho odstupu");
             }
         }
+
+        // ---------------- unik z blokovane bunky (18. 8. 2026) ----------------
+        //
+        // Nalez ze zaznamu 20260818-093903.rec: robot dobrzdil na bunce, kterou blokoval JEN
+        // semanticky kanal (hloubka na zapornem dorazu -5 = jiste volno, barva na kladnem +5),
+        // planovac vratil RobotBlocked a robot uz se nehnul. Delici cara je proto "kanal":
+        // ven se smi pres semanticky blokovane bunky, pres geometricky NIKDY.
+        // Viz doc/occupancy-and-local-planning.md.
+
+        /// <summary>Je bunka prujezdna beznym pravidlem (odtud muze pokracovat normalni planovani)?</summary>
+        private static bool LegalCell(Scene s, double x, double y)
+        {
+            int cx = s.Grid.CellX(x), cy = s.Grid.CellY(y);
+            return s.Grid.State(cx, cy) != CellState.Blocked
+                   && s.Field.Distance(cx, cy) >= s.Planner.Config.SafeDist - 1e-9;
+        }
+
+        [Test]
+        public void StojimMimoCestu_PlanujeUnikNaLegalniBunku()
+        {
+            var s = Scene.Create();
+            s.MarkFree(0.8, -1.5, 3.0, 1.5);          // cesta pred robotem
+            s.MarkOffRoad(-1.5, -1.5, 0.7, 1.5);      // robot stoji mimo cestu (jen semantika)
+            s.Rebuild();
+
+            Assert.That(s.Grid.StateAtWorld(0, 0), Is.EqualTo(CellState.Blocked),
+                        "predpoklad testu: robot stoji na blokovane bunce");
+
+            var r = s.Plan(3.0, 0.0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.EscapingBlocked));
+                Assert.That(r.HasPath, Is.True, "unik se musi predat regulatoru");
+                Assert.That(LegalCell(s, r.ReachedGoalX, r.ReachedGoalY), Is.True,
+                            "unik konci na bunce, odkud muze pokracovat normalni planovani");
+            });
+        }
+
+        [Test]
+        public void UnikNikdyNejdePresGeometrickouPrekazku()
+        {
+            var s = Scene.Create();
+            s.MarkFree(0.8, -1.5, 3.0, 1.5);
+            s.MarkOffRoad(-1.5, -1.5, 0.7, 1.5);
+            s.MarkObstacle(0.5, -1.5, 0.7, 1.5);      // zed mezi robotem a cestou
+            s.Rebuild();
+
+            var r = s.Plan(3.0, 0.0);
+
+            if (r.WayPoints != null)
+                foreach (var w in r.WayPoints)
+                    Assert.That(s.Grid.BlockReasonAtWorld(w.X, w.Y).HasFlag(CellBlockReason.Geometry),
+                                Is.False, $"draha uniku vede pres geometrickou prekazku ({w.X:F2}, {w.Y:F2})");
+        }
+
+        [Test]
+        public void StojimUprostredGeometrickePrekazky_NemaKamJit()
+        {
+            var s = Scene.Create();
+            s.MarkObstacle(-1.5, -1.5, 1.5, 1.5);     // geometricky zablokovano vsude dokola
+            s.Rebuild();
+
+            var r = s.Plan(3.0, 0.0);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.RobotBlocked),
+                        "pres geometrii se ven nesmi - zadny unik neexistuje");
+        }
+
+        [Test]
+        public void LegalniBunkaDal_NezStropUniku_Neuteka()
+        {
+            var s = Scene.Create();
+            var cfg = PlannerCfg();
+            cfg.EscapeMaxLength = 0.3;                // kratsi, nez je nejblizsi legalni bunka
+            var s2 = Scene.Create(cfg);
+            s2.MarkFree(2.5, -1.5, 3.0, 1.5);
+            s2.MarkOffRoad(-1.5, -1.5, 2.4, 1.5);
+            s2.Rebuild();
+
+            var r = s2.Plan(3.0, 0.0);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.RobotBlocked),
+                        "bloudit metry mimo cestu se nesmi");
+            Assert.That(s, Is.Not.Null);              // scena s vychozi konfiguraci se nepouziva
+        }
+
+        [Test]
+        public void BezneePlanovani_PresMimoCestu_Neprojede()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-1.0, -1.5, 3.0, 1.5);
+            s.MarkOffRoad(1.0, -1.5, 1.4, 1.5);       // pas mimo cestu napric koridorem
+            s.Rebuild();
+
+            Assert.That(s.Grid.StateAtWorld(0, 0), Is.EqualTo(CellState.Free),
+                        "predpoklad testu: robot stoji legalne");
+
+            var r = s.Plan(2.5, 0.0);
+
+            if (r.WayPoints != null)
+                foreach (var w in r.WayPoints)
+                    Assert.That(s.Grid.StateAtWorld(w.X, w.Y), Is.Not.EqualTo(CellState.Blocked),
+                                "bezny plan nesmi vest pres blokovanou bunku ani po zavedeni uniku");
+        }
     }
 }

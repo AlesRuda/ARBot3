@@ -65,6 +65,19 @@ namespace ARBot.Common.Occupancy
         public double EscapeRadius = 0.5;
 
         /// <summary>
+        /// Nejdelsi pripustna draha UNIKU z blokovane bunky [m]. Kdyz je nejblizsi legalni bunka
+        /// dal, unik se nezkousi (<see cref="LocalPlanStatus.RobotBlocked"/>) - bloudit metry mimo
+        /// cestu je horsi nez stat a nechat to na vyssi vrstve.
+        /// </summary>
+        public double EscapeMaxLength = 1.5;
+
+        /// <summary>
+        /// Nasobek ceny za prujezd bunkou, kterou blokuje semantika (pri uniku). Nezakazuje ji -
+        /// jen davá prednost uniku, ktery mimo cestu stravi co nejmene.
+        /// </summary>
+        public double EscapeBlockedCostFactor = 4.0;
+
+        /// <summary>
         /// Bocni rychlostni strop z odstupu od prekazky [m/s]: linearni rampa mezi
         /// <see cref="SafeDist"/> (0) a <see cref="PrefDist"/> (<see cref="MaxSpeed"/>).
         /// <para>Zamerne NE odmocnina - u bocniho odstupu nejde o brzdnou drahu, ta patri

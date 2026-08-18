@@ -47,10 +47,32 @@ namespace ARBot.Views
                 mapControl.Map = vm.Map;
         }
 
-        /// <summary>Ctrl + klik do mapy = cil lokalniho planovace (pixel -&gt; Web Mercator -&gt; lokalni ENU).</summary>
+        /// <summary>
+        /// Klik do mapy s modifikatorem: <b>Ctrl</b> = cil lokalniho planovace, <b>Shift</b> =
+        /// presun simulovaneho robotu (pixel -&gt; Web Mercator -&gt; lokalni ENU). Bez modifikatoru
+        /// se nic nedeje - klik patri beznemu pan/zoom.
+        /// </summary>
         private void OnMapPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
         {
             if (mapControl == null || DataContext is not WorldViewDocument vm) return;
+            // Shift + klik = presun SIMULOVANEHO robotu na to misto (vyvojarska pomucka, viz
+            // doc/virtual-hw.md). Testuje se PRED Ctrl, aby se obe modifikatory nepletly.
+            if ((e.KeyModifiers & Avalonia.Input.KeyModifiers.Shift) != 0)
+            {
+                try
+                {
+                    var sp = e.GetPosition(mapControl);
+                    var sw = mapControl.Map.Navigator.Viewport.ScreenToWorld(sp.X, sp.Y);
+                    if (vm.RequestTeleportFromMercator(sw.X, sw.Y))
+                        e.Handled = true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex);
+                }
+                return;
+            }
+
             if ((e.KeyModifiers & Avalonia.Input.KeyModifiers.Control) == 0) return;
 
             try

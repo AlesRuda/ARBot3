@@ -239,6 +239,27 @@ namespace ARBot.Common.Occupancy
         public CellState StateAtWorld(double worldX, double worldY)
             => State(CellX(worldX), CellY(worldY));
 
+        /// <summary>
+        /// Cim je bunka blokovana (viz <see cref="CellBlockReason"/>) pro uz spocteny index.
+        /// Oba kanaly se testuji tymz prahem jako ve <see cref="StateAt"/> - jen se nesloucí
+        /// do jedne odpovedi.
+        /// </summary>
+        public CellBlockReason BlockReasonAt(int index)
+        {
+            var reason = CellBlockReason.None;
+            if (occ[index] >= blockedQ) reason |= CellBlockReason.Geometry;
+            if (road[index] >= blockedQ) reason |= CellBlockReason.Semantics;
+            return reason;
+        }
+
+        /// <summary>Cim je bunka blokovana; mimo grid <see cref="CellBlockReason.None"/>.</summary>
+        public CellBlockReason BlockReason(int cx, int cy)
+            => Contains(cx, cy) ? BlockReasonAt(Index(cx, cy)) : CellBlockReason.None;
+
+        /// <summary>Cim je blokovana bunka na svetovych souradnicich [m].</summary>
+        public CellBlockReason BlockReasonAtWorld(double worldX, double worldY)
+            => BlockReason(CellX(worldX), CellY(worldY));
+
         // ---------------- prevod na zpravu ----------------
 
         /// <summary>

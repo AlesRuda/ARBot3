@@ -254,6 +254,37 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(loop.Regulator, Is.Not.Null, "naplanovana draha se ma predat nizsi smycce");
         }
 
+
+        // ---------------- teleport robotu (18. 8. 2026) ----------------
+
+        /// <summary>
+        /// Po teleportu (Shift + klik ve World pohledu) nesmi robot pokracovat po drazе, ktera vede
+        /// odjinud. <see cref="LocalNavigator.RequestPathReset"/> ji zahodi; grid se resit nemusi -
+        /// integrator ho na novou pozu vycentruje sam pri dalsim snimku.
+        /// Viz doc/virtual-hw.md.
+        /// </summary>
+        [Test]
+        public void RequestPathReset_ZahodiRozjetouDrahu()
+        {
+            var engine = Engine(T0);
+            var nav = MakeNavigator(engine);
+            using var loop = new ControlLoop(engine, new DummyMotors(), new VirtualClock(), new Scheduler(),
+                                             period: TimeSpan.FromMilliseconds(100));
+            nav.ControlLoop = loop;
+            nav.SetGoal(3.0, 0.0);
+            using var s = new Session(nav);
+
+            s.Send(Frame(T0.AddSeconds(1.0)));
+            Assert.That(nav.HasActivePath, Is.True, "predpoklad testu: draha je rozjeta");
+
+            // Teleport: cil uz neplati (robot je jinde) a stara draha nesmi zustat.
+            nav.ClearGoal();
+            nav.RequestPathReset();
+            s.Send(Frame(T0.AddSeconds(1.1)));
+
+            Assert.That(nav.HasActivePath, Is.False, "stara draha se musi zahodit");
+        }
+
         // ---------------- kontrola rozjete drahy proti aktualni mape ----------------
 
         /// <summary>

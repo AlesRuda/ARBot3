@@ -460,3 +460,29 @@ když je rampa mrtvá, nemá čím brzdit. Hlídá to proto
 [`MotorAcceleration.ToUnits`](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), společný
 pro oba drivery: bere velikost (zápornou hodnotu nepustí) a nikdy neposílá nulu — i malé zrychlení,
 které by se zaokrouhlilo k nule, zvedne na 1 a zapíše to do Debug outputu.
+
+## Přesun robota za běhu (Shift + klik ve World pohledu)
+
+Vývojářská pomůcka: **Shift + klik** do mapy přesune *simulovaného* robota na to místo, aby se dala
+zkoušet scénáře bez restartu běhu (Ctrl + klik zůstává cílem plánovače). **Kurz se nemění** — klik
+dává jen polohu.
+
+Platí jen v **Run s virtuálním HW**; ve View a s reálným hardwarem
+[`ARBotRuntime.TeleportSimulatedRobot`](../Src/ARBot/Robot/ARBotRuntime.cs) vrátí `false` a napíše
+důvod do Debug outputu. Pohled o runtime nic neví — jen se zeptá přes `TeleportRequested`.
+
+Podstatné je, že se **nemění jen poloha**. Tři věci na sobě závisí a musí se srovnat naráz:
+
+| Co | Proč |
+|---|---|
+| `SimulatedRobot.X/Y` (ground truth) | odtud měří virtuální senzory |
+| `engine.InitializePosition(x, y, …)` (fúze) | jinak by EKF držel starou polohu a s teleportem se „přetahoval" — je to tatáž cesta, jakou se vkládá startovní póza |
+| rozjetá dráha + regulátor | dráha vede odjinud; regulátor se nuluje hned (robot stojí), dráhu zahodí navigátor na svém vlákně přes `RequestPathReset()` |
+
+**Occupancy grid se nečistí.** Integrátor ho na novou pózu vycentruje sám při dalším snímku a nově
+vstoupivší pruhy vynuluje; při skoku delším než je grid (12,8 m) se tím vyčistí celý. Po krátkém
+skoku tedy část staré mapy zůstane — vědomé rozhodnutí (2026-08-18), protože `Recenter` už dělá to
+podstatné a zvláštní mazání by bylo další cesta ke stejnému cíli.
+
+**Trajektorie v mapě** se při skoku pózy delším než 2 m začne kreslit znovu (stopa je záznam
+*spojitého* pohybu, čára přes půl mapy by ji jen znečitelnila).

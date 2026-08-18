@@ -55,6 +55,15 @@ namespace ARBot.Common.Occupancy
         // AKTUALNI mape - viz KontrolaKolize v Process.
         private RegulatorWayPoint[] activePath;
 
+        /// <summary>Je aktivni draha UNIKEM z blokovane bunky? Pak se kolize posuzuje jen podle
+        /// geometrie - viz PathCollides a doc/occupancy-and-local-planning.md.</summary>
+        private bool activePathIsEscape;
+
+        /// <summary>Zadost o zahozeni rozjete drahy (z jineho vlakna - viz <see cref="RequestPathReset"/>).
+        /// Vyzvedne se na zacatku dalsiho tiku, aby se s <c>activePath</c> pracovalo jen na vlakne
+        /// navigatoru.</summary>
+        private volatile bool pathResetRequested;
+
         // Cil: nastavuje ho UI / globalni navigace z jineho vlakna -> pod zamkem (dve doubly nejde
         // menit atomicky).
         private readonly object goalLock = new object();
@@ -204,8 +213,31 @@ namespace ARBot.Common.Occupancy
             finally { ProcessedFrames++; }
         }
 
+        /// <summary>Ma navigator rozjetou drahu? (Diagnostika a testy.)</summary>
+        public bool HasActivePath => activePath != null;
+
+        /// <summary>
+        /// Zahodi rozjetou drahu (pri dalsim tiku). Pouziva se, kdyz se robot octne JINDE, nez
+        /// pro co byla draha spoctena - typicky po teleportu ve World pohledu (Shift + klik, viz
+        /// doc/virtual-hw.md). Bez toho by nizsi smycka jela dal po drazе, ktera vede odjinud.
+        ///
+        /// <para>Grid se resit nemusi: integrator ho na novou pozu vycentruje sam pri dalsim
+        /// snimku (nove vstoupivsi pruhy vynuluje).</para>
+        /// </summary>
+        public void RequestPathReset() => pathResetRequested = true;
+
         private void ProcessCore(CameraFrame frame, RobotState pose)
         {
+            if (pathResetRequested)
+            {
+                pathResetRequested = false;
+                activePath = null;
+                activePathIsEscape = false;
+
+                var loopToStop = ControlLoop;
+                if (loopToStop != null) loopToStop.Regulator = null;   // null = stat (bezpecny stav)
+            }
+
             // (2) Zapis do gridu (grid se pritom vycentruje na robota).
             var depthProj = depthProjectionResolver(frame.Name ?? string.Empty);
             var colorProj = colorProjectionResolver?.Invoke(frame.Name ?? string.Empty);
@@ -250,6 +282,7 @@ namespace ARBot.Common.Occupancy
                             loop.Regulator = regulator;
                         }
                         activePath = plan.WayPoints;
+                        activePathIsEscape = plan.Status == LocalPlanStatus.EscapingBlocked;
                         handedOver = true;
                     }
                     catch (Exception ex)
@@ -261,6 +294,7 @@ namespace ARBot.Common.Occupancy
                 else if (plan.HasPath)
                 {
                     activePath = plan.WayPoints;   // bez IPathPlanneru jen evidujeme (testy/ladeni)
+                    activePathIsEscape = plan.Status == LocalPlanStatus.EscapingBlocked;
                     handedOver = true;
                 }
             }
@@ -270,11 +304,12 @@ namespace ARBot.Common.Occupancy
             //     dobrzdi az po Profile.PathControlTimeOut (500 ms) a z 0,8 m/s je brzdna draha
             //     dalsi ~1 m - to je pozde. Proto se draha KAZDY CYKLUS overuje proti aktualni mape
             //     a pri kolizi v dosahu brzdne drahy se rizeni zahazuje OKAMZITE (robot stoji).
-            if (!handedOver && activePath != null && PathCollides(activePath, pose, out double hitDist))
+            if (!handedOver && activePath != null && PathCollides(activePath, pose, activePathIsEscape, out double hitDist))
             {
                 var loop = ControlLoop;
                 if (loop != null) loop.Regulator = null;   // ControlLoop: null = stat (bezpecny stav)
                 activePath = null;
+                activePathIsEscape = false;
 
                 Debug.WriteLine($"LocalNavigator: NOUZOVE ZASTAVENI - kolize {hitDist:F2} m na aktualni draze");
                 plan ??= new LocalPlanResult { RequestedGoalX = gx, RequestedGoalY = gy };
@@ -305,7 +340,8 @@ namespace ARBot.Common.Occupancy
         /// rychlostni obalka (nejed rychleji, nez z ceho zastavis na hranici potvrzeneho).</para>
         /// </summary>
         /// <param name="hitDistance">Vzdalenost k nalezene kolizi podel drahy [m]; jinak NaN.</param>
-        private bool PathCollides(RegulatorWayPoint[] path, RobotState pose, out double hitDistance)
+        private bool PathCollides(RegulatorWayPoint[] path, RobotState pose, bool escapePath,
+                                  out double hitDistance)
         {
             hitDistance = double.NaN;
             if (path == null || path.Length < 2) return false;
@@ -340,7 +376,13 @@ namespace ARBot.Common.Occupancy
                     int cx = grid.CellX(x), cy = grid.CellY(y);
                     if (!grid.Contains(cx, cy)) continue;           // mimo mapu = nevim, ne kolize
 
-                    if (grid.State(cx, cy) == CellState.Blocked || field.Distance(cx, cy) < cfg.SafeDist)
+                    // Unikova draha vede ZAMERNE pres blokovane bunky (semanticky) a s malym
+                    // odstupem - jinak by robot z blokovane bunky nikdy neodjel. Kolizi tam tedy
+                    // dela jen GEOMETRIE, tedy totez pravidlo, jakym unik planoval.
+                    bool hit = escapePath
+                        ? grid.BlockReason(cx, cy).HasFlag(CellBlockReason.Geometry)
+                        : grid.State(cx, cy) == CellState.Blocked || field.Distance(cx, cy) < cfg.SafeDist;
+                    if (hit)
                     {
                         hitDistance = d;
                         return true;

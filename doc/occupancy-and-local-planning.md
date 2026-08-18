@@ -265,6 +265,63 @@ Jinak by robot stál hned po startu, protože RGB kanál je zpočátku všude nu
 
 ---
 
+
+### Únik z blokované buňky (18. 8. 2026)
+
+Buňka je `BLOCKED`, když ji zablokuje **kterýkoli** kanál — pro plánování je to správně, oběma se
+vyhýbáme. Rozdíl mezi kanály ale začne být podstatný ve chvíli, kdy robot v blokované buňce **už
+stojí**: plánovač vracel `RobotBlocked`, žádnou dráhu, a robot tam zůstal stát navždy.
+
+**Nález ze záznamu `20260818-093903.rec`:** robot dobrzdil z 1,1 m/s mimo koridor a od 09:39:19.5 do
+konce záznamu (5 s, 47 plánů) hlásil `RobotBlocked`. Buňka pod ním měla `LOcc = −4,85` (**hloubka na
+záporném dorazu: jistě volno**) a `LRoad = +5,00` (**barva na kladném dorazu: jistě mimo cestu**).
+Nejbližší nezablokovaná buňka byla **0,05 m** daleko — jedna buňka. Nebyla to tedy fyzická překážka,
+ale okraj cesty; robot uvázl 5 cm od svobody.
+
+Relaxace gridu by nepomohla: `LRoad` sedí na clampu a robot stojí, takže žádné nové pozorování
+nepřichází — a buňku pod sebou dopředu hledící kamera nikdy neuvidí. Evidence-based zapomínání
+(které grid má) se tedy nemá o co opřít.
+
+**Dělicí čára je proto kanál, ne vzdálenost:**
+
+> Ven se smí přes buňky blokované **semantikou** (z trávy zpátky na cestu). Přes buňky blokované
+> **geometrií** se nesmí nikdy — do zdi se nejede.
+
+Chování (`LocalPathPlanner.PlanEscape`, stav `EscapingBlocked`):
+
+- Cílem hledání **není cíl mise**, ale **nejbližší buňka průjezdná běžným pravidlem**
+  (není `BLOCKED` a má odstup ≥ `SafeDist`) — odtud může pokračovat normální plánování.
+- Hledá se **uniformní cenou** (Dijkstra, bez heuristiky — cíl není bod) a jen do
+  `EscapeMaxLength` (default 1,5 m). Když je nejbližší legální buňka dál, vrací se `RobotBlocked`:
+  bloudit metry mimo cestu je horší než stát a nechat to na vyšší vrstvě.
+- **Výchozí buňka je vždy průjezdná** — robot na ní stojí, takže z ní odjet musí i tehdy, když ji
+  blokuje geometrie (typicky posun mapy chybou lokalizace). Do *další* geometricky blokované buňky
+  se nevjede.
+- Průjezd semanticky blokovanou buňkou je dražší (`EscapeBlockedCostFactor`, default 4×), aby únik
+  mimo cestu strávil co nejméně.
+- **Rychlost neřeší žádný zvláštní strop.** Uvnitř skvrny není před robotem nic potvrzeně sjízdného,
+  takže brzdná obálka srazí rychlost na `MinCostSpeed` sama — únik je popojetí krokem. Kdyby se to
+  v praxi ukázalo jako příliš pomalé, je to na samostatný knoflík.
+- Na konci úniku robot **zastaví** (`finalGoal: true`) a další cyklus už plánuje běžně.
+
+Dvě návaznosti, bez kterých by to nefungovalo:
+
+- **`LocalNavigator.PathCollides`** by únikovou dráhu okamžitě zahodil jako kolizi (vede přes
+  `BLOCKED` a s malým odstupem). Pro únikovou dráhu se proto kolize posuzuje **jen podle geometrie**
+  — tedy tímtéž pravidlem, jakým se plánovala.
+- **`GlobalNavigator.OnLocalPlan`**: `EscapingBlocked` záměrně nepadne ani do „selhání", ani do
+  „platný plán". Série selhání se vynuluje (uváznutí nesmí nakonec zavřít hranu, která je
+  v pořádku) a detektor záseku zůstane odzbrojený, dokud únik trvá.
+
+**Co se nezměnilo:** pravidlo „kterýkoli kanál blokuje ⇒ `BLOCKED`" pro běžné plánování. Mění se
+výhradně chování ve chvíli, kdy robot v blokované buňce už stojí (regresní test na to je).
+
+**Odloženo:** zapisovat pod půdorysem robotu důkaz „volno" do kanálu **hloubky** (robot tam
+prokazatelně stojí, a je to jediná buňka, kterou kamera nikdy neuvidí). Do semantického kanálu se
+psát nesmí — jinak by se robot naučil, že cesta je všude, kam zabloudí.
+
+---
+
 ## Vzdálenostní pole a rychlostní stropy
 
 Z masky `BLOCKED` → **euklidovský distance transform** (Felzenszwalb–Huttenlocher, dva průchody,

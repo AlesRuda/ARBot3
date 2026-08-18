@@ -215,6 +215,11 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// </summary>
         public void OnLocalPlan(LocalPlanStatus status)
         {
+            // POZOR na EscapingBlocked: robot uvazl v blokovane bunce a prave se z ni vyhrabava.
+            // NENI to selhani (jede) ani platny plan k cili (nemiri k mrkvi), takze zamerne nepadne
+            // do zadne z obou vetvi: serie selhani se vynuluje (uvaznuti nesmi nakonec zavrit hranu,
+            // ktera je v poradku) a detektor zaseku zustane odzbrojeny, dokud unik trva.
+            // Viz doc/occupancy-and-local-planning.md.
             bool failed = status == LocalPlanStatus.NoRoute || status == LocalPlanStatus.RobotBlocked;
             localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial;
 
