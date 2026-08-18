@@ -65,6 +65,14 @@ namespace ARBot.ViewModels
         [ObservableProperty] private double progress;
         [ObservableProperty] private bool isScanning;
 
+        /// <summary>
+        /// Zobrazovat uhlove udaje ve SVETOVE konvenci (kurz jako azimut 0 = sever po smeru
+        /// hodinovych rucicek, kladna uhlova rychlost = doprava)? Vychozi je matematicka konvence
+        /// projektu (0 = vychod, +CCW), tedy tataz cisla, jaka jsou ve zpravach.
+        /// <para>Meni jen zobrazeni, ne data - viz doc/telemetry-view.md.</para>
+        /// </summary>
+        [ObservableProperty] private bool worldAngles;
+
         /// <summary>Vybrany radek - plni panel detailu.</summary>
         [ObservableProperty] private TelemetryRow selectedRow;
 
@@ -249,10 +257,9 @@ namespace ARBot.ViewModels
             }
 
             table = task.Result;
-            var built = new TelemetryRow[table.RowCount];
-            for (int r = 0; r < table.RowCount; r++)
-                built[r] = new TelemetryRow(table, r);
+            table.AngleMode = WorldAngles ? AngleMode.World : AngleMode.Math;
 
+            var built = BuildRows(table);
             allRows = built;
             BuildTypeToggles(built);
             ApplyRowFilter();
@@ -272,6 +279,36 @@ namespace ARBot.ViewModels
             UpdateStatus();
 
             SyncFromPlayback();   // hned vyber radek, kde prehravani stoji
+        }
+
+        /// <summary>Obali kazdy radek tabulky do ViewModelu pro DataGrid.</summary>
+        private static TelemetryRow[] BuildRows(TelemetryTable source)
+        {
+            var built = new TelemetryRow[source.RowCount];
+            for (int r = 0; r < source.RowCount; r++)
+                built[r] = new TelemetryRow(source, r);
+            return built;
+        }
+
+        /// <summary>
+        /// Prepnuti konvence uhlu. Bunky ctou hodnoty pres tabulku, takze staci prepnout rezim -
+        /// ale uz vykreslene radky si text drzi, proto se kolekce postavi znovu. Rady grafu jsou
+        /// snimek hodnot, takze se musi vytahnout znovu taky.
+        /// </summary>
+        partial void OnWorldAnglesChanged(bool value)
+        {
+            if (table == null) return;
+
+            table.AngleMode = value ? AngleMode.World : AngleMode.Math;
+
+            allRows = BuildRows(table);
+            ApplyRowFilter();
+            UpdateStatus();
+            PublishChartSeries(open: false);
+
+            // Detail drzi hotove retezce z bunek stareho radku - prestavet ho musime rucne,
+            // protoze SelectedRow se obnovuje az asynchronne (a nemusi se zmenit vubec).
+            RebuildDetail(SelectedRow);
         }
 
         /// <summary>
@@ -331,7 +368,8 @@ namespace ARBot.ViewModels
                 series.Add(TelemetrySeries.From(table, table.Columns[t.Index]));
             }
 
-            ChartSeriesChanged?.Invoke(this, new TelemetryChartRequest(series, open && series.Count > 0));
+            ChartSeriesChanged?.Invoke(this,
+                new TelemetryChartRequest(series, open && series.Count > 0, WorldAngles));
         }
 
         /// <summary>
@@ -438,7 +476,11 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>Zmena vyberu -> prestav detail. Generuje CommunityToolkit z ObservableProperty.</summary>
-        partial void OnSelectedRowChanged(TelemetryRow value)
+        partial void OnSelectedRowChanged(TelemetryRow value) => RebuildDetail(value);
+
+        /// <summary>Prestavi panel detailu z daneho radku (vola se pri zmene vyberu i pri
+        /// prepnuti konvence uhlu, kdy se vyber nemeni, ale hodnoty ano).</summary>
+        private void RebuildDetail(TelemetryRow value)
         {
             Detail.Clear();
             if (value == null)
@@ -541,7 +583,11 @@ namespace ARBot.ViewModels
     /// <summary>Zadost tabulky o vykresleni rad v grafu.</summary>
     /// <param name="Series">Rady vyrobene z prave zaskrtnutych sloupcu (muze byt i prazdne).</param>
     /// <param name="Open">Ma se dokument grafu otevrit/aktivovat? (Jen kdyz zmenu vyvolal uzivatel.)</param>
-    public sealed record TelemetryChartRequest(IReadOnlyList<TelemetrySeries> Series, bool Open);
+    /// <param name="Series">Rady k vykresleni (uz v konvenci podle <paramref name="WorldAngles"/>).</param>
+    /// <param name="Open">Otevrit a aktivovat dokument grafu?</param>
+    /// <param name="WorldAngles">Konvence uhlu, ve ktere rady jsou - graf podle ni srovna svuj prepinac.</param>
+    public sealed record TelemetryChartRequest(IReadOnlyList<TelemetrySeries> Series, bool Open,
+                                               bool WorldAngles);
 
     /// <summary>Co se na prepinaci zmenilo - reakce je u kazdeho jina.</summary>
     public enum TelemetryToggleKind

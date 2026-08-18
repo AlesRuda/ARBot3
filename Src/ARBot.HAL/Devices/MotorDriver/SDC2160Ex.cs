@@ -90,8 +90,10 @@ while true
 	'dokud se jeste jede, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi v zatacce);
 	'jak robot stoji, rotaci nulujeme, aby se netocil na miste - a posledni odeslany prikaz je (0,0),
 	'takze po uvolneni stopu nevznika zadny transient.
-	'Pojistka acceleration<=0: kdyby dopredna rampa nemohla postupovat, curSpeed by nulu nikdy
-	'nedosahl a robot by se pod stopem otacel na miste porad. Radeji rovnou obe nuly.
+	'Predpoklad: acceleration > 0. Pri nule by rampa zamrzla a curSpeed by nuly nikdy nedosahl,
+	'takze by se robot pod stopem vezl dal (a drzel posledni zatoceni); pri zaporne by dokonce
+	'vyrazil na plnou opacnym smerem. Skript se proti tomu branit neumi - hlida to host,
+	'viz MotorAcceleration.ToUnits (nikdy neposle nulu ani zapornou hodnotu).
 	di3=GetValue(_DI, 3)
 	if di3=0 then
 		reqSpeed=0
@@ -261,7 +263,7 @@ end while
         /// <param name="acceleration"></param>
         public void SetAcceleration(double acceleration)
         {
-            int v = (int)Math.Round(10 * 60 * acceleration / wheelCircumference);
+            int v = MotorAcceleration.ToUnits(acceleration, wheelCircumference);
             Debug.WriteLine(string.Format("Akceleration={0}", v));
             uart.WriteLine(string.Format("!VAR 1 {0}", v));
             uart.WriteLine(string.Format("!VAR 2 {0}", v));

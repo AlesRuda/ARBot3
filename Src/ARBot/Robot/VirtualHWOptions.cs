@@ -56,6 +56,13 @@ namespace ARBot.Robot
         /// <summary>Omezeni zrychleni kol [m/s^2].</summary>
         public double Acceleration = Profile.MaxAcceleration;
 
+        /// <summary>
+        /// Nejvyssi mozna rychlost jednoho kola [m/s]. Pri jejim dosazeni ustupuje dopredna
+        /// rychlost, aby se zachovala rotace - stejne jako u skutecneho driveru, ktery dostava
+        /// tutez hodnotu jako <c>maxPossibleSpeed</c>. Viz doc/virtual-hw.md.
+        /// </summary>
+        public double MaxWheelSpeed = Profile.MaxTheoreticalSpeed;
+
         /// <summary>Pocatecni poloha robota v lokalni ENU rovine [m] (na vychod).</summary>
         public double StartX;
 

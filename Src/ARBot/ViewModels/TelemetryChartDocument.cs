@@ -51,6 +51,25 @@ namespace ARBot.ViewModels
 
         [ObservableProperty] private string status = "Vyber údaje v telemetrii: Sloupce ▾ → graf";
 
+        /// <summary>
+        /// Zobrazovat uhlove udaje ve svetove konvenci (azimut)? Graf data nevlastni - prepnuti
+        /// jen POZADA tabulku (<see cref="WorldAnglesRequested"/>), ta prepocita rady a posle je
+        /// sem zpatky. Diky tomu nemuze graf ukazovat jinou konvenci nez tabulka.
+        /// </summary>
+        [ObservableProperty] private bool worldAngles;
+
+        /// <summary>Uzivatel prepnul konvenci uhlu v grafu - vyrizuje to telemetricka tabulka.</summary>
+        public event EventHandler<bool> WorldAnglesRequested;
+
+        /// <summary>Prave se prebira stav z tabulky - prepnuti tedy nesmi poslat zadost zpatky.</summary>
+        private bool applyingWorldAngles;
+
+        partial void OnWorldAnglesChanged(bool value)
+        {
+            if (applyingWorldAngles) return;
+            WorldAnglesRequested?.Invoke(this, value);
+        }
+
         /// <summary>Casovac synchronizace s prehravanim (stejny vzor jako telemetricka tabulka).</summary>
         private DispatcherTimer watchTimer;
 
@@ -73,8 +92,14 @@ namespace ARBot.ViewModels
         /// schod/rampa) se <b>zachova</b> - jinak by pridani dalsiho udaje shodilo, co si uzivatel
         /// v grafu nastavil.
         /// </summary>
-        public void SetSeries(IReadOnlyList<TelemetrySeries> series)
+        /// <param name="series">Rady uz prepoctene do platne konvence uhlu.</param>
+        /// <param name="worldAngles">Konvence, ve ktere rady jsou - srovna prepinac v liste grafu.</param>
+        public void SetSeries(IReadOnlyList<TelemetrySeries> series, bool worldAngles)
         {
+            applyingWorldAngles = true;
+            WorldAngles = worldAngles;
+            applyingWorldAngles = false;
+
             var previous = new Dictionary<string, TelemetryChartSeries>(StringComparer.Ordinal);
             foreach (var s in Series)
                 previous[s.Header] = s;

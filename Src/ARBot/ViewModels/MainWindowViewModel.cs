@@ -195,7 +195,7 @@ namespace ARBot.ViewModels
 
             // Tabulka je misto, kde se vybira co kreslit; dokument grafu zaklada a aktivuje
             // ale az tohle - tabulka o docich nic nevi (viz doc/telemetry-view.md).
-            doc.ChartSeriesChanged += (_, request) => ShowTelemetryChart(request);
+            doc.ChartSeriesChanged += (_, request) => ShowTelemetryChart(doc, request);
 
             _factory.AddDockable(dock, doc);
             _factory.SetActiveDockable(doc);
@@ -208,7 +208,7 @@ namespace ARBot.ViewModels
         /// (<see cref="TelemetryChartRequest.Open"/>), zalozi ho. Zadost bez otevirani se pouzije
         /// pri preskenovani zaznamu - aktualizuje uz otevreny graf, ale zadny novy neotvira.
         /// </summary>
-        private void ShowTelemetryChart(TelemetryChartRequest request)
+        private void ShowTelemetryChart(TelemetryDocument telemetry, TelemetryChartRequest request)
         {
             var dock = _factory.DocumentDock;
             if (dock == null || request == null)
@@ -222,10 +222,14 @@ namespace ARBot.ViewModels
                 if (!request.Open) return;
 
                 existing = new TelemetryChartDocument();
+
+                // Prepinac konvence uhlu v grafu meni stav TABULKY - ta data vlastni a posle
+                // zpatky prepoctene rady. Jinak by kazdy dokument mohl ukazovat jinou konvenci.
+                existing.WorldAnglesRequested += (_, world) => telemetry.WorldAngles = world;
                 _factory.AddDockable(dock, existing);
             }
 
-            existing.SetSeries(request.Series);
+            existing.SetSeries(request.Series, request.WorldAngles);
 
             if (request.Open)
             {

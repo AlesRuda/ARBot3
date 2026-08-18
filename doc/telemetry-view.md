@@ -16,7 +16,7 @@ záznamem. Implementační kroky: [plan-telemetry-view.md](plan-telemetry-view.m
 | Část | Stav |
 |---|---|
 | Jádro `ARBot.Common/Telemetry` (tabulka, builder, skener, řady) | **hotové**, 21 testů, ověřené i na skutečném záznamu |
-| Registr sloupců (25 údajů z 5 typů zpráv, s popisy) | **hotové** |
+| Registr sloupců (47 údajů ze 7 typů zpráv, s popisy) | **hotové** |
 | UI: tabulka, detail řádku, tooltipy, sken na pozadí | **hotové a viděné za běhu** |
 | Napojení na Replay: kurzor → řádek | **hotové a viděné za běhu** (viz snímek níže) |
 | Napojení na Replay: dvojklik = seek | hotové, **za běhu neověřené** |
@@ -123,6 +123,7 @@ sealed class ColumnSpec
     string Description;              // vysvětlení do tooltipu (záhlaví je jen zkratka)
     string Format;                   // "F2"
     bool   Graphable;                // smí do grafu
+    AngleKind Angle;                 // Heading / Rate / None — řídí převod konvence při zobrazení
     Func<Message, double?> Value;    // hodnota (null = tato zpráva sloupec neplní)
     Func<double, string> Text;       // volitelný převod čísla na text (enum, bool)
 }
@@ -138,7 +139,7 @@ aby se název typu nepsal jako řetězec a nerozešel se při přejmenování.
 **`Description` je povinná část definice** — záhlaví musí být zkratka (šířka sloupce), takže význam
 údaje nese popis a nový sloupec s ním přijde rovnou. Zobrazuje se jako tooltip (viz [UI](#ui--tabulka-a-detail)).
 
-Sloupce ve fázi 1 — 25 údajů z pěti typů zpráv (z toho, co záznamy opravdu nesou):
+Sloupce — 47 údajů ze sedmi typů zpráv (z toho, co záznamy opravdu nesou):
 
 | Zpráva | Sloupce |
 |---|---|
@@ -146,9 +147,25 @@ Sloupce ve fázi 1 — 25 údajů z pěti typů zpráv (z toho, co záznamy opra
 | [`DriveCommandMsg`](../Src/ARBot.Common/Logs/DriveCommandMsg.cs) | cmd v [m/s], cmd omega [°/s], cmd dif [m/s], STOP |
 | [`LocalPlanMsg`](../Src/ARBot.Common/Logs/LocalPlanMsg.cs) | plan stav, délka [m], odstup [m], počet bodů, výpočet [ms] |
 | [`GlobalNavMsg`](../Src/ARBot.Common/Logs/GlobalNavMsg.cs) | nav stav, do cíle [m], hran trasy, od sítě [m], fi [s], uzavřeno hran |
-| [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) | lat [°], lon [°], fix, satelitů, HDOP |
+| [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) | lat [°], lon [°], fix, satelitů, HDOP, alt [m], v [m/s], kurz [°] |
+| [`MotorStateBase`](../Src/ARBot.Common/Devices/MotorStateBase.cs) | kolo L/R [m/s], odo v [m/s], odo omega [°/s], enc L/R [m], bat [V], I L/R [A], HW STOP, mot drop |
+| [`IMUState`](../Src/ARBot.Common/Models/IMUState.cs) | IMU yaw/pitch/roll [°], gyro z [°/s], acc x/z [m/s²], IMU conf, IMU drop |
 
 Poznámky ke konkrétním sloupcům:
+
+- **Senzorové zprávy dají tabulce smysl „příkaz → skutečnost", ale nafouknou počet řádků.**
+  `MotorStateBase` a `IMUState` chodí mnohem častěji než řídicí smyčka (v testovacím záznamu 6 761
+  a 13 475 zpráv proti 1 351 taktům), takže řádků je 21 556 místo 2 806 a sken trvá 71 ms místo 29.
+  Zaplatí se to tím, že jde srovnat `cmd omega` (co chtěla smyčka) → `gyro z` (co naměřilo IMU) →
+  `omega` (co z toho udělala fúze), nebo `cmd v` → `kolo L`/`kolo R`. Když je řádků moc, filtr
+  **Řádky ▾** nechá zakládat řádky jen vybraným typům a hodnoty ostatních se dál drží z minula.
+- **`HW STOP` vs. `STOP`** jsou dva různé údaje: `HW STOP` hlásí hardware motorů, `STOP` je to, co si
+  o nouzovém zastavení myslela řídicí smyčka. Rozdíl mezi nimi je diagnostika sama pro sebe.
+- **`acc x`/`acc z` mohou zůstat prázdné.** V testovacím záznamu IMU dodává jen orientaci, úhlovou
+  rychlost a důvěru — `Acceleration` je `null` (serializace ho přenáší, ale driver ho neplní).
+  Prázdná buňka správně znamená „tato hodnota nikdy nepřišla", ne nulu.
+- **`enc L`/`enc R` jsou kumulativní** (od verze 2 zprávy `MotorStateBase`): roste to od startu,
+  není to přírůstek za takt.
 
 - **`theta`/`omega`** jsou ve **stupních** (zprávy nesou radiány) — v tabulce se čísla čtou očima,
   ne dosazují do vzorců. Kurz je matematická orientace v ENU (0° = východ, +CCW), **ne azimut**;
@@ -161,6 +178,39 @@ Poznámky ke konkrétním sloupcům:
   na fázi 2.
 - **`Name`** (rozlišení instance, např. levá/pravá kamera) zatím **žádný sloupec nepoužívá**; kód
   pro něj je v builderu hotový.
+
+
+### Konvence úhlů: uloženo matematicky, přepíná se zobrazení
+
+Směrové údaje přicházejí z různých zdrojů v různých konvencích — fúze a IMU hlásí **matematickou
+orientaci** (0° = východ, kladně proti hodinovým ručičkám), GPS přijímač naopak **azimut**
+(0° = sever, po směru hodinových ručiček). Dokud si každý sloupec převáděl po svém, míchala tabulka
+obojí: `theta` a `IMU yaw` matematicky, `GPS azimut` kompasově.
+
+Nově platí jedno pravidlo: **uloženo je vždy matematicky ve stupních**, a převod dělá až zobrazení.
+Sloupec k tomu nese druh úhlové veličiny ([`AngleKind`](../Src/ARBot.Common/Telemetry/AnglePresentation.cs)):
+
+| `AngleKind` | Které sloupce | Světové zobrazení |
+|---|---|---|
+| `Heading` | `theta`, `IMU yaw`, `GPS kurz` | azimut = `90° − hodnota`, do [0, 360) |
+| `Rate` | `omega`, `cmd omega`, `gyro z`, `odo omega` | obrácené znaménko (kladně = doprava) |
+| `None` | vše ostatní **včetně `IMU pitch`/`roll`** | beze změny (náklony nejsou kurzy) |
+
+Přepíná se tlačítkem **Azimut** — je v liště tabulky **i grafu** a platí **pro celou tabulku
+najednou**; jinak by polovina mluvila jiným jazykem než druhá (kompasový kurz vedle zatáčení
+„doleva kladně" je ta samá past, jen posunutá). Výchozí je matematická konvence: jsou to tatáž
+čísla, jaká jsou ve zprávách a v debuggeru, takže tabulka při ladění nelže; azimut je vědomé
+přepnutí, když chceš srovnat s mapou nebo kompasem.
+
+Převod je na jednom místě (`AnglePresentation.Present`) a aplikuje se v `TelemetryColumn.ValueAt`
+a `TextAt` — tedy i v grafu, protože řady se táhnou přes `ValueAt`. **Data se nemění**, jen se jinak
+čtou; surová hodnota zůstává dostupná přes `RawValueAt`. Klasifikace sloupců je v registru
+pohromadě (`TelemetryColumns.Mark`) a **neznámé záhlaví je chyba** — po přejmenování sloupce se
+příznak nemůže tiše ztratit.
+
+Přepínač v grafu **data nevlastní**: jen požádá tabulku (`TelemetryChartDocument.WorldAnglesRequested`),
+ta přepne režim, přepočítá řady a pošle je zpátky (`SetSeries(series, worldAngles)`). Obě okna tak
+nikdy neukazují jinou konvenci a graf zůstává čistým kreslítkem nad hotovými řadami.
 
 ## Skener (`ARBot.Common/Telemetry/TelemetryScanner`)
 

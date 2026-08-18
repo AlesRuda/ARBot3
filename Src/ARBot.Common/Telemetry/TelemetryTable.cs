@@ -28,6 +28,14 @@ namespace ARBot.Common.Telemetry
         /// <summary>Definice sloupce (zahlavi, format, jde-li do grafu).</summary>
         public ColumnSpec Spec { get; }
 
+        /// <summary>
+        /// Konvence, ve ktere sloupec VYDAVA uhlove hodnoty. Nastavuje ji tabulka
+        /// (<see cref="TelemetryTable.AngleMode"/>) - uklada se vzdy matematicky, prepocet je az
+        /// tady, takze prepnuti rezimu nesaha na data. Sloupce s <see cref="AngleKind.None"/>
+        /// se netykaji.
+        /// </summary>
+        public AngleMode AngleMode { get; internal set; } = AngleMode.Math;
+
         /// <summary>Prisla uz nekdy (do tohoto radku vcetne) hodnota tohoto sloupce?</summary>
         public bool HasValue(int row) => ticks[row] != 0;
 
@@ -35,8 +43,18 @@ namespace ARBot.Common.Telemetry
         public bool IsFresh(int row)
             => ticks[row] != 0 && (row == 0 || ticks[row] != ticks[row - 1]);
 
-        /// <summary>Hodnota, nebo <c>null</c> kdyz jeste nikdy neprisla.</summary>
-        public double? ValueAt(int row) => ticks[row] == 0 ? (double?)null : value[row];
+        /// <summary>
+        /// Hodnota <b>k zobrazeni</b> (uhly prepoctene podle <see cref="AngleMode"/>), nebo
+        /// <c>null</c> kdyz jeste nikdy neprisla. Tabulka, detail i graf ctou tudy, aby vsude
+        /// platila tataz konvence.
+        /// </summary>
+        public double? ValueAt(int row)
+            => ticks[row] == 0
+                ? (double?)null
+                : AnglePresentation.Present(value[row], Spec.Angle, AngleMode);
+
+        /// <summary>Hodnota tak, jak je ULOZENA (uhly matematicky) - bez prepoctu konvence.</summary>
+        public double? RawValueAt(int row) => ticks[row] == 0 ? (double?)null : value[row];
 
         /// <summary>Cas zpravy, ze ktere hodnota je.</summary>
         public DateTime TimeAt(int row) => new DateTime(ticks[row]);
@@ -45,7 +63,7 @@ namespace ARBot.Common.Telemetry
         public string TextAt(int row)
         {
             if (ticks[row] == 0) return string.Empty;
-            double v = value[row];
+            double v = AnglePresentation.Present(value[row], Spec.Angle, AngleMode);
             if (Spec.Text != null) return Spec.Text(v);
             return v.ToString(Spec.Format ?? "F2", CultureInfo.CurrentCulture);
         }
@@ -94,6 +112,23 @@ namespace ARBot.Common.Telemetry
 
         /// <summary>Sloupce v poradi, v jakem byly zadany v registru.</summary>
         public IReadOnlyList<TelemetryColumn> Columns { get; }
+
+        /// <summary>
+        /// Konvence zobrazeni uhlovych udaju pro CELOU tabulku (kurzy i uhlove rychlosti naraz -
+        /// jinak by pulka tabulky mluvila jinym jazykem nez druha). Meni jen zobrazeni, ne data;
+        /// kdo uz si hodnoty vytahl (radky v UI, rady grafu), musi si je po zmene vzit znovu.
+        /// </summary>
+        public AngleMode AngleMode
+        {
+            get => angleMode;
+            set
+            {
+                angleMode = value;
+                foreach (var c in Columns) c.AngleMode = value;
+            }
+        }
+
+        private AngleMode angleMode = AngleMode.Math;
 
         /// <summary>Narazilo skladani na strop radku? Tabulka pak <b>nekonci s koncem zaznamu</b>
         /// a je potreba to uzivateli rict.</summary>

@@ -37,6 +37,95 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-18
+
+- **Sjednocené směrové údaje v telemetrii** (pozorování autora: „jednou mají nulu na severu,
+  podruhé v matematickém smyslu"). Nově platí jedno pravidlo: **uloženo je vždy matematicky ve
+  stupních**, převod na azimut dělá až zobrazení. Sloupec k tomu nese `AngleKind`
+  (`Heading` / `Rate` / `None`) a v liště je přepínač **Azimut** pro celou tabulku najednou.
+  - **Proč i `Rate`:** kdyby se přepínaly jen kurzy, byl by ve světovém režimu kompasový kurz vedle
+    zatáčení „doleva kladně" — tatáž past, jen posunutá. Ve světové konvenci se proto úhlovým
+    rychlostem obrací znaménko. `IMU pitch`/`roll` jsou náklony, ne kurzy — těch se to netýká.
+  - **Co to opravilo:** `GPS azimut` se převáděl na azimut už při čtení ze zprávy, kdežto `theta`
+    a `IMU yaw` zůstávaly matematické — tabulka tedy míchala dvě konvence. Sloupec se jmenuje
+    `GPS kurz` a vrací matematickou orientaci jako ostatní.
+  - Převod je na jednom místě (`AnglePresentation.Present`) a sedí v `TelemetryColumn.ValueAt`
+    a `TextAt`, takže ho podědí i graf (řady se táhnou přes `ValueAt`). Data se nemění, surová
+    hodnota zůstává na `RawValueAt`.
+  - Klasifikace je v registru pohromadě (`TelemetryColumns.Mark`) a **neznámé záhlaví hodí výjimku** —
+    po přejmenování sloupce se příznak nemůže tiše ztratit.
+  - Přepínač je v liště **tabulky i grafu**; graf data nevlastní, jen o přepnutí požádá tabulku
+    (`WorldAnglesRequested`), ta přepočítá řady a pošle je zpátky — obě okna tedy nikdy neukazují
+    jinou konvenci a graf zůstává kreslítkem nad hotovými řadami.
+  - **Ověřeno:** 13 nových testů (převodní tabulka, obě konvence v tabulce, řada grafu jde za
+    tabulkou), celkem 528 zelených, build `x64`. **Za běhu neověřeno** — přepínač jsem neklikal.
+
+- **Pojistka na zrychlení motorů — na hostovi, ne ve skriptu** (diskuse s autorem: „`acceleration<=0`
+  je technicky nesmysl"). Souhlas, ale s ostřejším důvodem: i kdyby pojistka ve skriptu zafungovala,
+  robota **nezastaví** — při nulovém zrychlení je rampa mrtvá, takže `reqSpeed=0` nemá čím zabrat
+  a vynulování rotace jen sebere zatáčení. Zpřesnění k nule: nebezpečná není nula od začátku
+  (to se robot nerozjede), ale nula, která přijde **za jízdy**. U záporné hodnoty má autor pravdu
+  bez výhrad — rampa diverguje od cíle až na saturaci, tedy plná rychlost opačným směrem.
+  - Skutečná díra byla na hostovi: `SetAcceleration` v obou driverech posílal hodnotu bez kontroly
+    (záporná prošla, malá se zaokrouhlila na nulu — `v = 1182·a`, takže pod 0,00043 m/s² nula).
+    Nově společný [`MotorAcceleration.ToUnits`](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs):
+    bere velikost, nikdy neposílá nulu (minimum 1) a clampování hlásí do Debug outputu. 5 testů.
+  - Z komentáře u skriptu (a tím i z `.mbs`) vypadl slib pojistky, která tam není a nepomohla by;
+    místo něj je tam napsaný **předpoklad** `acceleration > 0` a odkaz, kdo ho hlídá.
+
+- **Opravena dynamika virtuálního robotu** (navazuje na rozbor výše). `SimulatedRobot` rampoval
+  každé kolo zvlášť; nově drží stav v `(dopředná, rozdíl)`, každá složka má svou rampu a při
+  saturaci **ustupuje dopředná rychlost, rotace se drží** — přesně jako skutečný řadič
+  (`RizeniDiffPodvozku.mbs`, totéž v `SDC2160.Drive`). Simulace navíc poprvé má strop rychlosti kola
+  (`VirtualHWOptions.MaxWheelSpeed`, default `Profile.MaxTheoreticalSpeed`), který dosud neměla vůbec.
+  - **TDD doloženo:** regresní test na starém modelu vrací 0,0 rad/s místo 0,428 (rozdíl kol zmražen)
+    a saturační test pustil kolo na 1,3 m/s při stropu 1,0. Po opravě 6/6 zelených, celkem 515 + 30.
+  - **Rozhodnutí nedělat 50/50:** referencí je skutečný řadič a ten dává rotaci absolutní přednost;
+    kompromis by simulaci rozešel s robotem jiným způsobem. Detail: [virtual-hw.md](virtual-hw.md).
+- **`RizeniDiffPodvozku.mbs` dosynchronizován** ze skriptu v komentáři `SDC2160Ex.cs` — ten byl
+  novější (změna nouzového zastavení z 11. 8.: rotace se nuluje až při `curSpeed = 0`, rozlišení
+  watchdogu od e-stopu, oprava „tisicanach" → „tisicinach"). Výpočetní jádro bylo shodné.
+  **Do jednotky se to musí nahrát a ověřit na zařízení** — soubor sám chování robota nezmění.
+  - **Nález při synchronizaci:** komentář slibuje pojistku `acceleration<=0` v cestě nouzového
+    zastavení, ale v kódu skriptu není. Neopravováno — je to firmware a bezpečnostní cesta.
+
+- **Rozbor dynamiky virtuálního robotu** (pozorování autora: při požadavku −30 a +30 °/s nejsou
+  směrnice `theta` symetrické; záznam `20260818-093903.rec`). **Kořenová příčina nalezena:**
+  `SimulatedRobot.Step` omezuje zrychlení **per kolo**, takže když jsou saturovaná obě, rozdíl
+  rychlostí kol (a tím `ω`) se zmrazí. Detail v [virtual-hw.md](virtual-hw.md).
+  - Data z obou oken: fúze, odometrie i sklon `theta` **spolu souhlasí** (vpravo −30,0 / −30,0 /
+    −30,0 °/s; vlevo +5,8 / +5,8 / +5,8) — chyba tedy není ve fúzi ani v měření, ale v tom, že kola
+    nevykonala příkaz.
+  - Nešlo o asymetrii vlevo/vpravo: při zatáčce doleva smyčka **současně** poručila skok rychlosti
+    1,20 → 0,17 m/s; obě kola šla na dorazovou deceleraci 0,5 m/s² a rozdíl zůstal 2 s zmražený na
+    0,041 m/s. Při zatáčce doprava byl rozdíl ustavený dřív, než kola narazila do limitu.
+  - **Neopraveno záměrně** — oprava je rozhodnutí o modelu (rampovat zvlášť `v` a rozdíl kol) nebo
+    o řídicí smyčce, a napřed je potřeba vědět, jak rampuje skutečný driver.
+  - **Vedlejší nález:** XML dokumentace `DriveCommandMsg.Dif` tvrdí `dif = RotationSpeed * Rozchod`,
+    ale v záznamu i v `IMotorControl` platí `dif = omega * rozchod / 2`. Dokumentace zprávy lže.
+- **Telemetrie: odometrická rychlost a rychlost otáčení** (`odo v`, `odo omega` z `MotorStateBase`) —
+  právě ta dvojice, která šla srovnat s `cmd v`/`cmd omega` a s `v`/`omega` z fúze. Registr má 47 sloupců.
+
+- **Telemetrie: doplněny senzorové zprávy** (žádost autora) — `MotorStateBase` (rychlosti kol,
+  kumulativní enkodéry, napětí baterie, proudy motorů, `HW STOP`, zahozené vzorky), `IMUState`
+  (yaw/pitch/roll z kvaternionu, `gyro z`, `acc x`/`acc z`, důvěra, zahozené vzorky) a rozšířená
+  `GPSState` (výška, rychlost, azimut). Registr má teď 45 sloupců ze 7 typů zpráv.
+- **Proč to stálo za to:** teprve s těmito sloupci jde v jedné tabulce srovnat řetěz
+  *příkaz → skutečnost*: `cmd omega` (co chtěla smyčka) → `gyro z` (co naměřilo IMU) → `omega`
+  (co z toho udělala fúze), nebo `cmd v` → `kolo L`/`kolo R`.
+- **Jedna úprava jádra registru:** `Num<T>` teď bere `Func<T, double?>` místo `Func<T, double>` —
+  senzorová pole jsou nullable (`Vector3?`, `Quaternion?`, `double?`) a chybějící hodnota musí
+  zůstat chybějící, ne nula. Existující sloupce se nezměnily (`double` se na `double?` převede sám).
+- **Cena, kterou je dobré znát:** senzory chodí mnohem častěji než řídicí smyčka, takže na testovacím
+  záznamu vyrostl počet řádků z 2 806 na 21 556 a sken z 29 na 71 ms. Filtr **Řádky ▾** to řeší —
+  nechá zakládat řádky jen vybraným typům, hodnoty ostatních se dál drží z minula.
+- **Zjištění ze záznamu:** IMU v tom běhu dodává jen orientaci, úhlovou rychlost a důvěru —
+  `Acceleration` je `null` (serializace ho přenáší, driver ho neplní), takže `acc x`/`acc z` zůstávají
+  prázdné. Prázdná buňka správně znamená „nikdy nepřišlo", ne nulu.
+- **Ověřeno:** build `x64`, testy (512 zelených) a sken skutečného záznamu — motory i IMU plní
+  hodnoty (enkodér 117,1 m, baterie 24,0 V, yaw 115,6°, gyro z 0,92 °/s). **Neověřeno za běhu**
+  v UI (nová jsou jen data v registru, mechanismus tabulky je týž).
+
 ## 2026-08-17
 
 - **Telemetrický pohled: čitelnost, tooltipy a chybějící synchronizace s přehráváním** (zpětná vazba

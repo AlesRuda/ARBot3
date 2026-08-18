@@ -88,7 +88,7 @@ namespace ARBot.HAL.Devices.MotorDrivers
         /// <param name="acceleration"></param>
         public void SetAcceleration(double acceleration)
         {
-            int v = (int)Math.Round(10 * 60 * acceleration / wheelCircumference);
+            int v = MotorAcceleration.ToUnits(acceleration, wheelCircumference);
 //            Debug.WriteLine(string.Format("Acc={0}", v));
             uart.WriteLine(string.Format("!AC 1 {0}", v));
             uart.WriteLine(string.Format("!DC 1 {0}", v));

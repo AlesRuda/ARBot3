@@ -13,7 +13,7 @@
 
     <DockPanel>
         <!-- Stavovy radek s napovedou k ovladani + hromadne prepnuti schod/rampa. -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="8,6">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="8,6">
             <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"/>
             <Button Grid.Column="1" Content="Schody" Padding="8,3" Margin="8,0,0,0"
@@ -24,6 +24,12 @@
                     ToolTip.Tip="Všechny řady jako rampa — mezi příchody se interpoluje."/>
             <Button Grid.Column="3" Content="Celý rozsah" Padding="8,3" Margin="4,0,0,0"
                     Command="{Binding ResetZoomCommand}"/>
+
+            <!-- Tyz prepinac jako v tabulce; graf o nej pozada tabulku, ta prepocita rady
+                 a posle je zpatky - obe okna tak nikdy neukazuji jinou konvenci. -->
+            <ToggleButton Grid.Column="4" Content="Azimut" Padding="8,3" Margin="4,0,0,0"
+                          IsChecked="{Binding WorldAngles, Mode=TwoWay}"
+                          ToolTip.Tip="Vypnuto: matematická konvence (kurz 0° = východ, kladně proti hodinovým ručičkám; kladná úhlová rychlost = doleva). Zapnuto: světová (kurz jako azimut 0° = sever po směru hodinových ručiček; kladná úhlová rychlost = doprava). Přepíná se společně s tabulkou."/>
         </Grid>
 
         <!-- Legenda: barva, údaj, rozsah, hodnota pod kurzorem přehrávání. -->

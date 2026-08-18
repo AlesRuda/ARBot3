@@ -303,7 +303,7 @@ namespace ARBot.Robot
                 "Right", scene, options.Scene, options.RightCameraTransform, options.PoseAt, options.Camera));
 
             // Ground truth: motory ho posouvaji, GPS a IMU ho zasumene meri.
-            SimulatedRobot = new SimulatedRobot(options.WheelBase, TimeBase.Now)
+            SimulatedRobot = new SimulatedRobot(options.WheelBase, TimeBase.Now, options.MaxWheelSpeed)
             {
                 X = options.StartX,
                 Y = options.StartY,

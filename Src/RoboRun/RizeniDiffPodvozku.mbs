@@ -1,7 +1,7 @@
-' var 1 - dopredna akcelerace v tisicanach max vykonu za s^2
-' var 2 - rotacni akcelerace v tisicanach max vykonu za s^2
-' var 3 - pozadovana dopredna rychlost v tisicanach max rychlosti
-' var 4 - pozadovana rotacni rychlost v tisicanach max rychlosti, kladna hodnota je v matematickem smyslu
+' var 1 - dopredna akcelerace v tisicinach max vykonu za s^2
+' var 2 - rotacni akcelerace v tisicinach max vykonu za s^2
+' var 3 - pozadovana dopredna rychlost v tisicinach max rychlosti
+' var 4 - pozadovana rotacni rychlost v tisicinach max rychlosti, kladna hodnota je v matematickem smyslu
 ' var 5 - aktualni dopredna rychlost v miliontinach max rychlosti
 ' var 6 - aktualni rotacni rychlost v miliontinach max rychlosti, kladna hodnota je v matematickem smyslu
 ' var 7 - mark, pri jeho zmene se resetne timeout, po vyprseni timeoutu se robot zastavi
@@ -63,18 +63,31 @@ while true
 	
 
 	'zde osetrit emergency stop
-	'pozadovana rychlost na nulu, pomale zpomaleni
+	'pozadovana dopredna rychlost na nulu, pomale zpomaleni.
+	'Rotaci nulujeme az kdyz robot skutecne stoji (curSpeed=0), aby bylo dobrzdeni RIZENE:
+	'dokud se jeste jede, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi v zatacce);
+	'jak robot stoji, rotaci nulujeme, aby se netocil na miste - a posledni odeslany prikaz je (0,0),
+	'takze po uvolneni stopu nevznika zadny transient.
+	'Predpoklad: acceleration > 0. Pri nule by rampa zamrzla a curSpeed by nuly nikdy nedosahl,
+	'takze by se robot pod stopem vezl dal (a drzel posledni zatoceni); pri zaporne by dokonce
+	'vyrazil na plnou opacnym smerem. Skript se proti tomu branit neumi - hlida to host,
+	'viz MotorAcceleration.ToUnits (nikdy neposle nulu ani zapornou hodnotu).
 	di3=GetValue(_DI, 3)
 	if di3=0 then
 		reqSpeed=0
-		'rotaci zastavit az dopredna rychlost bude nula, aby robot 
 		if curSpeed=0 then
 			reqRotSpeed=0
 		end if
 	end if
+	'PREDCHOZI VARIANTA (nulovala obe slozky hned; nahrazeno 2026-08-11, viz doc/robotour-mission.md):
+	'	if di3=0 then
+	'		reqSpeed=0
+	'		reqRotSpeed=0
+	'	end if
 
-
-
+	'Watchdog (host uz 500 ms nemluvi) nuluje OBE slozky hned - zamerne jinak nez emergency stop:
+	'pri mrtvem hostovi je posledni rotacni prikaz zastaraly a slepe zatoceni pri dojezdu je horsi
+	'nez dojezd rovne. Pri emergency stopu host zije a jeho zatoceni je aktualni.
 	timeout-=time
 	if timeout<0 then
 		reqSpeed=0
@@ -150,4 +163,3 @@ while true
 	wait(10)
 
 end while
-

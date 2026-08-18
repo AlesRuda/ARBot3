@@ -412,3 +412,51 @@ K pohybu a senzorům:
   a fúze opravuje jen šum GPS/IMU.
 - **Obloha jako samostatná barva** (dnes zelená jako tráva).
 - **Objekty mimo vozovku** (překážky, zdi) — dnes scéna zná jen vozovku a trávu.
+
+## Rampa je v (dopředná, rozdíl), ne po kolech
+
+**Nalezeno 18. 8. 2026** rozborem záznamu `20260818-093903.rec`: robot dostal požadavek na zatáčku
++30 °/s, ale otáčel se jen +5,8 °/s — a přitom fúze, odometrie i směrnice `theta` spolu souhlasily
+do desetiny. Kola prostě příkaz nevykonala.
+
+**Příčina:** `SimulatedRobot.Step` rampoval **každé kolo zvlášť**. Dokud je aspoň jedno kolo pod
+limitem zrychlení, rozdíl rychlostí (a tím `ω`) se dorovná; **jakmile jsou saturovaná obě, rozdíl se
+zmrazí** — obě kola se mění stejným krokem. V tom záznamu řídicí smyčka požádala současně o skok
+rychlosti 1,20 → 0,17 m/s a o zatáčku, obě kola šla na dorazovou deceleraci (0,5 m/s²) a rozdíl
+zůstal dvě sekundy zmražený. Nešlo o asymetrii vlevo/vpravo: při zatáčce doprava byl rozdíl ustavený
+**dřív**, než kola do limitu narazila.
+
+**Skutečný řadič to tak nedělá** — a to rozhodlo. `Src/RoboRun/RizeniDiffPodvozku.mbs` (tentýž
+skript je v komentáři u [`SDC2160Ex`](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs)) rampuje
+**zvlášť dopřednou a zvlášť rotační složku**, každou svou akcelerací (`var 1` / `var 2`; náš driver
+posílá do obou tutéž hodnotu), a saturaci řeší tak, že **ustoupí dopředná rychlost**:
+
+```basic
+'pri otaceni omezim doprednou rychlost, aby nebyla prekrocena maximalni mozna rychlost kazdeho z kol
+if curSpeed>1000000-Abs(curRotSpeed) then curSpeed=1000000-Abs(curRotSpeed)
+```
+
+Totéž je i v C# variantě [`SDC2160.Drive`](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160.cs)
+(„pokud by bylo kolo rychlejsi jak maxPossibleSpeed, tak sniz doprednou rychlost"). **Rotace má
+absolutní přednost** — i na cestě nouzového zastavení, kde se `reqRotSpeed` nuluje teprve až robot
+stojí. Protože jsou obě rampy nezávislé, náraz do akceleračního limitu v dopředné složce nemůže
+rotační rampu vůbec zdržet: skutečný řadič rozdíl kol nikdy nezmrazí.
+
+**Simulace to teď kopíruje.** Stav je `(speedForward, speedDif)`, každá složka má svou rampu, a po
+rampě se dopředná složka srazí na `±(maxWheelSpeed − |speedDif|)`. `maxWheelSpeed` chodí z
+`VirtualHWOptions.MaxWheelSpeed` (default `Profile.MaxTheoreticalSpeed` — týž zdroj, jaký dostává
+driver jako `maxPossibleSpeed`); dřív simulace strop rychlosti kola **neměla vůbec**.
+
+Pokryto testy v `ARBot.Common.Tests/Simulation/SimulatedRobotTests.cs`: regrese na tento nález
+(na starém modelu vracela 0,0 rad/s místo 0,428), zrcadlová symetrie a saturace (rotace se drží,
+dopředná ustoupí, žádné kolo nepřekročí maximum).
+
+**Pojistka je na hostovi, ne ve skriptu.** Hodnota zrychlení jde do rampy v řídicí jednotce
+(`curSpeed += time * acceleration`) a nesmyslná hodnota tam nadělá víc škody než chybějící příkaz:
+**záporná** by rampu hnala od cíle až na saturaci, tedy na plnou rychlost opačným směrem;
+**nula** rampu zmrazí, takže už jedoucí robot nezastaví ani pod nouzovým zastavením (a protože se
+rotace nuluje až při `curSpeed = 0`, jel by dál i v zatáčce). Skript se proti tomu bránit nemůže —
+když je rampa mrtvá, nemá čím brzdit. Hlídá to proto
+[`MotorAcceleration.ToUnits`](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), společný
+pro oba drivery: bere velikost (zápornou hodnotu nepustí) a nikdy neposílá nulu — i malé zrychlení,
+které by se zaokrouhlilo k nule, zvedne na 1 a zapíše to do Debug outputu.

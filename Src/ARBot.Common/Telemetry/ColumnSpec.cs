@@ -32,6 +32,13 @@ namespace ARBot.Common.Telemetry
         /// <summary>Smi tento sloupec do grafu? (Faze 2 - viz doc/telemetry-view.md.)</summary>
         public bool Graphable = true;
 
+        /// <summary>
+        /// Druh uhlove veliciny. Ulozena hodnota je vzdy MATEMATICKA (kurz 0 = vychod a +CCW,
+        /// kladna rychlost = doleva); podle tohoto priznaku ji zobrazeni umi prepocitat do svetove
+        /// konvence. Viz <see cref="AnglePresentation"/> a doc/telemetry-view.md.
+        /// </summary>
+        public AngleKind Angle = AngleKind.None;
+
         /// <summary>Hodnota ze zpravy; <c>null</c> = tato zprava tento sloupec neplni.</summary>
         public Func<Message, double?> Value;
 

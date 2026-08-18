@@ -13,7 +13,7 @@
     <DockPanel>
         <!-- Stavovy radek: pocet radku, casovy rozsah, varovani o orezani stropem + prepinace
              zobrazeni (sloupce / typy radku). Filtruje se JEN zobrazeni, data zustavaji cela. -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="8,6">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="8,6">
             <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"/>
 
@@ -78,6 +78,12 @@
                     </Flyout>
                 </Button.Flyout>
             </Button>
+
+            <!-- Konvence uhlu: prepina JEN zobrazeni (kurzy i uhlove rychlosti naraz), data
+                 zustavaji matematicka. Viz doc/telemetry-view.md. -->
+            <ToggleButton Grid.Column="4" Content="Azimut" Margin="4,0,0,0" Padding="8,3"
+                          IsChecked="{Binding WorldAngles, Mode=TwoWay}"
+                          ToolTip.Tip="Vypnuto: matematická konvence projektu (kurz 0° = východ, kladně proti hodinovým ručičkám; kladná úhlová rychlost = doleva) — stejná čísla jako ve zprávách. Zapnuto: světová konvence (kurz jako azimut 0° = sever po směru hodinových ručiček; kladná úhlová rychlost = doprava). Mění se jen zobrazení, ne data."/>
         </Grid>
 
         <!-- Detail vybraneho radku: hodnoty vcetne toho, jak jsou stare proti casu radku. -->
