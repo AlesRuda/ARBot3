@@ -148,10 +148,9 @@ a rámců je konzistentní s [imu-and-frames.md](imu-and-frames.md).
 
 ## Otevřené úkoly
 
-- **Napojení na řídicí smyčku** — návrh je hotový v
-  [global-navigation-runtime.md](global-navigation-runtime.md) (`GlobalNavigator`: zdroj polohy
-  EKF/GNSS → `LLA`, předání „mrkve" lokálnímu plánovači, metadata o postupu a uzavírání neprůchodných
-  hran). **Zatím neimplementováno**; blokující prerekvizita je GPS + odometrie do EKF.
+- ~~**Napojení na řídicí smyčku**~~ — **hotové** (`GlobalNavigator`, fáze 0–4; robot jede k cíli po
+  síti, trasa je vidět v mapě a vrstva si uzavírá neprůchozí hrany). Zbývá recovery manévr, průřez
+  koridorem a ověření na HW — vede se to v [global-navigation-runtime.md](global-navigation-runtime.md).
 - Zdroj `.osm` dat a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat) —
   rozhodnutí je v návrhu výše (síť vlastní runtime, jedno `GoalField` na misi).
 - Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).

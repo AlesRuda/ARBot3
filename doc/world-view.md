@@ -78,13 +78,13 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 | **Poloha + kurz** | [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) (**fúzovaná póza**) | lokální ENU → LLA | živé v Run/View |
 | **Trajektorie** | `RobotStateMsg` (akumulovaná fúzovaná póza) | lokální ENU → LLA | živé |
 | **Surové GPS** | [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) (fixy bez fúze) | WGS84 → Mercator | živé; **výchozí vypnuto** |
-| **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav) | WGS84 → Mercator | ruční načtení**; ze streamu dormantní* |
-| **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | dormantní* |
-| **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | dormantní* |
+| **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav) | WGS84 → Mercator | živé v Run (emituje runtime); ruční načtení** |
+| **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | živé v Run |
+| **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | živé v Run |
 
-\* *Dormantní* = kód vrstvu vykreslí, jakmile zpráva začne téct; `GraphNavigationMsg`/`MapMsg` se však zatím
-na `Stream` **neemitují** (OsmNav není napojen na řídicí smyčku — viz [osm-nav.md](osm-nav.md),
-Otevřené úkoly). Do té doby zůstávají tyto vrstvy (ze streamu) prázdné.
+* Do 2026-08-13 byly tyto vrstvy *dormantní* — kód je uměl vykreslit, ale `GraphNavigationMsg`/`MapMsg`
+se na `Stream` neemitovaly. Dnes je emituje runtime (`GlobalNavigator` trasu, `ARBotRuntime` mapu po
+sestavení sítě), takže vrstvy žijí; ve View se přehrávají ze záznamu.
 
 \*\* Vrstvu **Mapa (síť)** lze naplnit ručně tlačítkem **„Načíst OSM mapu…"** (viz níže) i bez runtime.
 
@@ -267,6 +267,6 @@ k pořízení obrázku featury do [devlog.md](devlog.md) bez ruční obsluhy.
   na zařízení (build ne­blokuje, jde o runtime závislost). Odsimulováno jen na x64.
 - **Vyhledávání (geocoding)** zatím není (vyžadovalo by online službu, např. Nominatim) — možný
   další krok.
-- **Trasa/graf/značky** ožijí po napojení OsmNav na řídicí smyčku a emitaci `GraphNavigationMsg` na
-  `Stream` (viz [osm-nav.md](osm-nav.md)).
+- ~~**Trasa/graf/značky** ožijí po napojení OsmNav~~ — **ožily**: `GlobalNavigator` emituje
+  `GraphNavigationMsg` na `Stream`, vrstva se kreslí včetně tooltipů na hranách i značkách.
 - Další podklady (Mapy.cz / Google) vyžadují API klíč a mají ToS omezení — neimplementováno.

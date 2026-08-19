@@ -483,5 +483,6 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 - **Korelace occupancy gridu s mapou pro odhad polohy** — už otevřené v
   [occupancy-and-local-planning.md](occupancy-and-local-planning.md); pro globální navigaci je to
   nejsilnější léčba na „špatná lokalizace ⇒ špatná mrkev".
-- **Zdroj `.osm` dat** a jejich verzování v repu (dnes je `OSM/` mimo git — viz stav pracovní kopie).
+- **Zdroj `.osm` dat** a jejich verzování — soubory v `OSM/` jsou verzované; otevřené zůstává, odkud
+  se berou a jak se aktualizují (dnes ručně stažené výřezy).
 - **Uzavření napříč běhy** — přežití restartu (soutěžní jízda po havárii aplikace).

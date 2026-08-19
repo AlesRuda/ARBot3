@@ -19,16 +19,17 @@ záznamem. Implementační kroky: [plan-telemetry-view.md](plan-telemetry-view.m
 | Registr sloupců (47 údajů ze 7 typů zpráv, s popisy) | **hotové** |
 | UI: tabulka, detail řádku, tooltipy, sken na pozadí | **hotové a viděné za běhu** |
 | Napojení na Replay: kurzor → řádek | **hotové a viděné za běhu** (viz snímek níže) |
-| Napojení na Replay: dvojklik = seek | hotové, **za běhu neověřené** |
-| Výběr sloupců, filtr řádků, přehazování sloupců | hotové, **za běhu neověřené** |
+| Napojení na Replay: dvojklik = seek | **hotové a proklikané** (2026-08-18) |
+| Výběr sloupců, filtr řádků, přehazování sloupců | **hotové a proklikané** (2026-08-18) |
 | Fáze 2: graf řad v čase — kreslení, legenda, kurzor | **hotové a viděné za běhu** |
-| Graf: ovládání myší (lupy, tažení, odečítátko, klik = seek) | hotové, **za běhu neověřené** |
+| Graf: ovládání myší (lupy, tažení, odečítátko, klik = seek) | **hotové a proklikané** (2026-08-18) |
 | Rozšíření `LocalPlanMsg` o rychlostní diagnostiku | **není** — viz [Co zbývá](#co-zbývá) |
 | Režim Run (živé plnění) | **není** (záměrně mimo fázi 1) |
 
 **Ověřeno buildem `-p:Platform=x64`, testy a bezobslužným během** (`telemetryshot=true`, viz níže) —
-ten projde celou cestu View → sken → tabulka → graf a pořídí obrázky do deníčku. **Co se ovládá
-myší, tím ověřit nejde** a na cílovém HW (OrangePI) to neběželo.
+ten projde celou cestu View → sken → tabulka → graf a pořídí obrázky do deníčku. Co se ovládá myší,
+tím ověřit nejde, ale **18. 8. 2026 to autor proklikal ručně a chová se to podle očekávání**.
+Na cílovém HW (OrangePI) to neběželo.
 
 ## Rozsah fáze 1
 
@@ -333,15 +334,13 @@ notifikací).
 
 ## Co zbývá
 
-Obě fáze stojí; tohle zbývá:
+Obě fáze stojí a ruční proklikání UI proběhlo (18. 8. 2026); tohle zbývá:
 
-1. **Proklikat myší to, co bezobslužný běh neověří:** flyouty (výběr sloupců, filtr řádků),
-   přehazování sloupců, dvojklik = seek a v grafu lupy, tažení, odečítátko a klik = skok.
-2. **Rozšíření `LocalPlanMsg`** o rychlostní diagnostiku (+ verze) — viz
+1. **Rozšíření `LocalPlanMsg`** o rychlostní diagnostiku (+ verze) — viz
    [Co ve zprávách chybí](#co-ve-zprávách-chybí). Pak je to jeden řádek v registru a údaj je i v grafu.
-3. **Režim Run** — živé plnění, buď „ocas" právě zapisovaného záznamu, nebo odběr `Stream`u
+2. **Režim Run** — živé plnění, buď „ocas" právě zapisovaného záznamu, nebo odběr `Stream`u
    s povinným backpressure vzorem z [Views/README.md](../Src/ARBot/Views/README.md).
-4. **Změřit sken na OrangePI** (SD karta, náhodné čtení desetitisíc rámců).
+3. **Změřit sken na OrangePI** (SD karta, náhodné čtení desetitisíc rámců).
 
 ## Fáze 2 — graf řad v čase
 

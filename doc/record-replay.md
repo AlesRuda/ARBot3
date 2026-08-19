@@ -404,8 +404,9 @@ pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při 
     (viz [decisions.md 2026-08-01](decisions.md)).
 
 - **Runtime + režimy + scheduler + periodická řídicí smyčka** (viz Implementační kontrakt).
-- **Revize `FusionConfig`** — duplicitní rozchod (`FusionConfig.WheelBase = 0.5` vs `Profile.Rozchod = 0.41`);
-  projít obsah `FusionConfig` a **sjednotit zdroj rozchodu** (řízení bere `Profile.Rozchod`).
+- ~~**Revize `FusionConfig`** — duplicitní rozchod~~ — **vyřešeno**: `FusionConfig.WheelBase` se bere
+  z `Profile.Rozchod` (0,41), takže je jeden zdroj pravdy. Natvrdo zapsaných 0,5 znamenalo trvalou
+  systematickou chybu úhlové rychlosti −18 %; odůvodnění je v komentáři u toho pole.
 - **Serializace `CameraFrame` — HOTOVO** (2026-07-25, rozšířeno 2026-08-01 na **FormatVersion 2**:
   uvnitř rámce se nově serializuje i `Grid`; 2026-08-09 na **FormatVersion 3**: serializují se
   i hranice cesty `PathEdges`; `FromData` má větve `case 1`–`case 3`).

@@ -39,6 +39,20 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-08-18
 
+- **Srovnání dokumentace se skutečností** (podnět autora: „máme někde seznam věcí k řešení?").
+  Seznam úkolů je záměrně u domén (`Otevřené úkoly` v devíti docs), souhrn nikde — při sbírání
+  vyplavaly **čtyři zastaralé položky**, opraveno:
+  - `osm-nav.md`: „napojení na řídicí smyčku — zatím neimplementováno" → hotové (fáze 0–4).
+  - `world-view.md`: vrstvy Trasa/graf/Značky/Mapa už nejsou *dormantní* — runtime zprávy emituje;
+    opravena i tabulka vrstev a poznámka pod ní.
+  - `global-navigation-runtime.md`: „`OSM/` je mimo git" → je verzované; otevřené zůstává jen to,
+    odkud se výřezy berou.
+  - `record-replay.md`: „duplicitní rozchod 0,5 vs 0,41" → **vyřešeno** už dříve,
+    `FusionConfig.WheelBase = Profile.Rozchod` (ověřeno v kódu).
+- **Ruční proklikání telemetrického UI** (autor): flyouty, filtr řádků, přehazování sloupců,
+  dvojklik = seek i ovládání grafu myší — chová se to podle očekávání. Stavová tabulka
+  v [telemetry-view.md](telemetry-view.md) srovnána, položka „proklikat myší" z „Co zbývá" vypadla.
+
 - **World pohled: Shift + klik přesune simulovaného robota** (žádost autora) — vývojářská pomůcka
   na zkoušení scénářů bez restartu běhu, vedle existujícího Ctrl + klik = cíl. Detail:
   [virtual-hw.md](virtual-hw.md).
