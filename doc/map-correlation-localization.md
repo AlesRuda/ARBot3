@@ -85,11 +85,57 @@ prostě na GPS a korelaci ignoruje.
 > nebo vypnout GPS** (což je i skutečný účel funkce — je na „špatná lokalizace ⇒ špatná mrkev"),
 > nebo vnutit tutéž chybu i GPS, nebo měřit nad reálným záznamem se skutečnou chybou lokalizace.
 
-**Proč od druhé korekce nic:** nejpravděpodobnější je **gating**. Korelátor hlásí σ ≈ 0,10 m; první
-korekce prošla, protože `P` bylo velké, ale **tím ho sama stáhla** na ~σ². Od té chvíle je
-`S = P + R ≈ 2σ²` a tvrzený posun 0,28 m dá NIS ≈ 3,5–3,6 proti prahu χ²(1; 0,95) = 3,84 — na hraně
-a při menším `P` nad ní. Je to strukturální past: **sebejistý korelátor tvrdící velkou chybu si ji
-sám zamkne.** Čím větší chybu najde, tím spolehlivěji ji gate zamítne.
+#### Tři různé experimenty, tři různá místa vnucení chyby
+
+Z toho výše plyne, že to nebyl jeden test, ale **tři** — a `poseerror` umí jen první:
+
+| co se ověřuje | kam vnutit chybu | co má vyjít | stav |
+|---|---|---|---|
+| korelátor **najde** příčnou odchylku (znaménko, velikost) | póza kamery — `poseerror=` | `D` = vnucená chyba | **hotovo**, naměřeno na jednotky mm |
+| korelace **opraví špatnou lokalizaci** | **GPS** (bias, šum) | póza se vrátí k pravdě | chybí |
+| posun `d` **identifikuje posunutou mapu** | **mapa pro kameru** (dvě mapy) | `d` → posun mapy, póza zůstane na GPS | chybí |
+
+**Vnucená chyba pózy je fyzikálně nesmysl** — „kamerina představa o tom, kde je" v realitě
+neexistuje. Proto z ní vyšel ten kruh: posunutí odhadu posune i obraz. Naproti tomu **posunutá mapa
+je reálný jev** (mis-georeferencovaná OSM), takže vnucení chyby tam měří skutečnou hypotézu.
+
+**Klíčový rozdíl u dvou map:** hlášený posun zůstane konstantní — ale z *poctivého* důvodu, protože
+posunutou mapu **nelze spravit posunutím robota**. Z toho posunu se tím stane **pravda pro `d`**
+a jde ověřit falsifikovatelná předpověď: `d` má zkonvergovat k vnucenému posunu, zatímco póza má
+zůstat na GPS. Sestava s `poseerror` to dát nemohla — tam se konstantní posun tvářil jako chyba
+lokalizace, kterou má filtr opravit, a on ji „opravoval" do prázdna.
+
+Mechanismus a past viz [virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru).
+
+**Proč od druhé korekce nic:** **gating**. Korelátor hlásí σ ≈ 0,10 m; první korekce prošla, protože
+`P` bylo velké, ale **tím ho sama stáhla** na ~σ². Od té chvíle je `S = P + R ≈ 2σ²` a tvrzený posun
+0,28 m dá NIS ≈ 3,5–3,6 proti prahu χ²(1; 0,95) = 3,84. Je to strukturální past: **sebejistý
+korelátor tvrdící velkou chybu si ji sám zamkne.** Čím větší chybu najde, tím spolehlivěji ji gate
+zamítne.
+
+#### Při `GateMode.Reject` se velký posun absorbovat NEDÁ — výpočet
+
+Namítalo se (správně), že stav filtrovaný EKF nemusí skákat: začne na nule a poroste postupně, jak
+se odchylka měří. Postupnost ale není vlastnost toho, že je to „v EKF" — je to vlastnost `P` na
+startu, a ta dvě podmínky si **protiřečí**. Pro skutečný posun 0,8 m a σ korelace 0,105 m
+(`R ≈ 0,011`):
+
+| požadavek | podmínka | vyjde |
+|---|---|---|
+| neuskočit nad toleranci `PoseJumpDetector` 0,5 m | `K = P/(P+R) < 0,625` | **σ < 0,135 m** |
+| projít gatingem (`NIS < 3,84`) | `S = P + R > 0,167` | **σ > 0,395 m** |
+
+**Žádná hodnota nesplní obojí.** Posun 0,8 m se buď zamítne, nebo uskočí — postupně nikdy. To
+vysvětluje naměřené „67 poslaných korekcí, stav zareagoval 3×" lépe než hypotéza o zamčení `P`:
+není to nastavení, je to struktura.
+
+> **Kandidát na řešení už v kódu je: `GateMode.Soft`** (`R' = R × NIS/prah`) — odlehlé měření se jen
+> málo zváží, **nikdy nevypne**, a komentář u něj přímo říká „filtr se z dlouheho vypadku vzdy
+> vzpamatuje". To je doslova ta postupná absorpce. Korelační měření jsou dnes na `Reject` (výchozí
+> u `AxisOffsetMeasurement` i `HeadingMeasurement`).
+>
+> **Není to zdarma:** `Reject` byl vědomá volba a je v seznamu bezpečnostních pojistek („jeden
+> výstřel robota neposune"). `Soft` pustí i špatné korelace, jen potlačené. Je to výměna rizik.
 
 > **⚠️ Potvrdit to ze záznamu nelze** — chybí NIS a příznak přijetí. `MeasurementDiagMsg` přitom nese
 > přesně `Source`, `Z`, `DiagR`, `Nis`, `Accepted`, ale **nikdo ji nepublikuje**: je to mrtvý DTO

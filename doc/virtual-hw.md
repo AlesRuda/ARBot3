@@ -312,7 +312,42 @@ Tři vlastnosti, na kterých záleží:
 - **GPS a IMU dál měří pravdu.** Kdyby se zkazily i ony, filtr se rozjede a známá odpověď zmizí.
   Chyba je záměrně jen na straně obrazu.
 
-> **Až se zapnou korekce** (`MapCorrelatorConfig.Enabled = true`), přestane to být statická pravda:
+### Dvě mapy — vnucená chyba do mapy pro kameru
+
+**Návrh, neimplementováno** (20. 8. 2026). Vnucená chyba pózy výš má principiální slabinu:
+„kamerina představa o tom, kde je" v realitě **neexistuje**. Protože kamera renderuje z odhadu,
+posunutí odhadu posune i obraz — hlášený posun se nevynuluje a smyčka je kruhová. Naměřeno:
+`Dx` stálo celý běh na 0,800 a korekce se po první zamítaly.
+
+Správnější je vnutit chybu do něčeho, co **může být špatně i v realitě** — do **mapy**. Tedy dvě
+mapy: jedna, na které robot naviguje (pravá), a druhá, **posunutá**, kterou vidí kamera.
+
+Implementačně je to **jeden řádek**: scéna pro kamery vzniká v `ARBotHW.SetVirtualHW` jako
+`new RoadScene(options.Network, options.Origin)`; stačí ji postavit s **posunutým počátkem**
+(`new GeoReference(origin.ToLLA(-dx, -dy))`), protože `GeoReference.ToLocal` je lokální linearizace,
+takže posun počátku přeloží každý uzel o `-s`. Korelátor si dál drží scénu z pravého počátku.
+Rotace je taky levná (pootočit lokální souřadnice uzlů); obecná **deformace** už chce klonovat síť
+a hýbat uzly — to je větší krok a translace s rotací pokryjí, co u mis-georeferencované mapy
+nastává nejčastěji.
+
+**Co to umožní.** Hlášený posun zůstane konstantní, ale z *poctivého* důvodu: posunutou mapu nelze
+spravit posunutím robota. Z vnuceného posunu se tím stane **pravda pro odhad posunu mapa↔GPS**
+(návrh v [decisions.md](decisions.md)) a jde ověřit falsifikovatelná předpověď — posun má
+zkonvergovat k vnucené hodnotě, zatímco póza má zůstat na GPS.
+
+> **Past: posun drž pod polovinou šířky cesty.** Occupancy grid sleduje to, co vidí kamera (posunutou
+> mapu), zatímco mrkev sleduje pravou. Při velkém posunu se dostanou do konfliktu — mrkev tahá robota
+> tam, kde grid říká „mimo cestu", a lokální plánovač může odmítnout jet. Pak už experiment neměří
+> identifikaci posunu, ale řešení konfliktu.
+
+Vedlejší užitek: dvě mapy udělají oba rámce **viditelnými** — world view může nakreslit obě sítě
+a mezeru mezi nimi, což je přímé zobrazení nesouhlasu místo abstraktního čísla.
+
+`VirtualPoseError` tím **nezaniká** — ověřuje jinou věc (že korelátor odchylku vůbec najde, což už
+doložil na jednotky milimetrů). Viz tabulka tří experimentů v
+[map-correlation-localization.md](map-correlation-localization.md).
+
+> **Až se zapnou korekce** (`MapCorrelatorConfig.SendCorrections = true`), přestane to být statická pravda:
 > korelátor začne odhad tlačit, kamera renderuje z odhadu, a vnucený posun se rozjede do zpětné
 > vazby. Pak to měří **konvergenci smyčky**, ne přesnost odhadu — jiný experiment, který je potřeba
 > číst jinak.

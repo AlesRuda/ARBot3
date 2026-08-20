@@ -132,6 +132,22 @@ z definice GPS. Rozhodovací branka je proto měření nesouhlasu GPS↔mapa na 
   prezentační dvojznačnost) a stavové řešení navíc potřebuje čas na identifikaci `d`, kdežto tohle
   funguje okamžitě. Proto je doporučené jako **první krok**, ne jen jako záloha.
 
+**Jak to vůbec ověřit: dvě mapy** (návrh autora, tentýž den). Dnešní `poseerror` na to nestačí —
+vnucuje chybu do „kameriny představy o tom, kde je", což je fyzikálně nesmysl, a protože kamera
+renderuje z odhadu, posunutí odhadu posune i obraz. Smyčka je kruhová a naměřilo se to (`Dx` stálo
+na 0,800). Správně je vnutit chybu do **mapy pro kameru** a nechat robota navigovat na pravé — dvě
+mapy. Hlášený posun pak zůstane konstantní z *poctivého* důvodu (posunutou mapu nelze spravit
+posunutím robota) a stane se z něj **pravda pro `d`**: ověřitelná předpověď je „`d` zkonverguje
+k vnucenému posunu, póza zůstane na GPS". Mechanismus a past (posun držet pod polovinou šířky cesty)
+viz [virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru).
+
+**Předpoklad, bez kterého to nepojede: `GateMode.Soft`.** Při `Reject` se velký posun absorbovat
+**nedá** — pro 0,8 m a σ 0,105 m vychází „neuskočit" jako σ < 0,135 m a „projít gatingem" jako
+σ > 0,395 m, tedy protiřečící si podmínky (výpočet v
+[map-correlation-localization.md](map-correlation-localization.md)). `Soft` (`R' = R × NIS/prah`)
+odlehlé měření jen potlačí a nikdy nevypne, což je přesně ta postupná absorpce; korelační měření
+jsou dnes na `Reject`. Je to ale výměna rizik — `Reject` byl vědomá bezpečnostní volba.
+
 **Co změřit před rozhodnutím:** jak velký je nesouhlas GPS↔mapa v praxi (na reálném záznamu, ne ve
 virtuálním HW — tam je „pravda" z definice GPS), jak často robot potká podélnou strukturu, a jaká σ
 korelace vychází po opravě úkolu č. 1.

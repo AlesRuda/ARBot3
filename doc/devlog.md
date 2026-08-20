@@ -280,6 +280,35 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) → „Korelace přes
     FFT" (včetně FMT) a otevřený úkol o eskalaci. Bez commitu.
 
+- **Oprava návrhu testovací sestavy: dvě mapy** (úvaha autora: „problém je tedy v systematické chybě,
+  kterou zavádí posunutá kamera — správnější by bylo mít dvě mapy, jednu na které naviguje robot
+  a druhou posunutou/zdeformovanou, co vidí kamera"). **Návrh, neimplementováno**; zapsáno.
+  - **Proč je to lepší:** `poseerror` vnucuje chybu do „kameriny představy o tom, kde je", což
+    fyzikálně **neexistuje** — a protože kamera renderuje z odhadu, posunutí odhadu posune i obraz.
+    Odtud ten kruh (`Dx` stálo celý běh na 0,800). Posunutá mapa je naproti tomu **reálný jev**
+    (mis-georeferencovaná OSM), takže vnucení chyby tam měří skutečnou hypotézu.
+  - **Klíčový důsledek:** hlášený posun zůstane konstantní, ale z *poctivého* důvodu — posunutou mapu
+    nelze spravit posunutím robota. Stane se z něj **pravda pro `d`** a jde ověřit falsifikovatelná
+    předpověď: `d` zkonverguje k vnucenému posunu, póza zůstane na GPS.
+  - **Cena:** jeden řádek. Scéna pro kamery vzniká v `ARBotHW.SetVirtualHW` jako
+    `new RoadScene(options.Network, options.Origin)`; stačí posunutý počátek
+    (`new GeoReference(origin.ToLLA(-dx, -dy))`). Levnější než `VirtualPoseError`, který jsem dnes
+    napsal. Rotace taky levná, obecná deformace chce klonovat síť.
+  - **Past:** posun držet **pod polovinou šířky cesty** — grid sleduje kameru, mrkev pravou mapu,
+    a při velkém posunu se dostanou do konfliktu (mrkev tahá tam, kde grid říká „mimo cestu").
+  - **Tři experimenty, tři místa vnucení** (zapsáno jako tabulka): póza kamery → korelátor odchylku
+    *najde* (hotovo, mm); **GPS** → korekce *opraví lokalizaci* (chybí); **mapa pro kameru** → `d`
+    *identifikuje posunutou mapu* (chybí). `poseerror` tedy nebyl zbytečný, umí jen první řádek.
+  - **A k tomu výpočet nemožnosti + `GateMode.Soft`:** při `Reject` se velký posun absorbovat **nedá**
+    — pro 0,8 m a σ 0,105 m vychází „neuskočit" jako σ < 0,135 m a „projít gatingem" jako σ > 0,395 m,
+    tedy protiřečící si podmínky. Vysvětluje to naměřené „67 poslaných, 3 zareagovaly" lépe než moje
+    hypotéza o zamčení `P`: není to nastavení, je to struktura. Kandidát `GateMode.Soft`
+    (`R' = R × NIS/prah`) v kódu **už je** a jeho komentář slibuje přesně tu postupnou absorpci;
+    korelační měření jsou dnes na `Reject`. Výměna rizik, ne výhra.
+  - **Odkazy:** [virtual-hw.md](virtual-hw.md) → „Dvě mapy",
+    [map-correlation-localization.md](map-correlation-localization.md) → tabulka tří experimentů
+    a výpočet nemožnosti, [decisions.md](decisions.md).
+
 ## 2026-08-19
 
 - **Korelace occupancy gridu s mapou — zapojení do runtime a telemetrie** (poslední díl dvanáctidílného
