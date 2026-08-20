@@ -308,6 +308,32 @@ program hlásil, i u běhu, kde nikdo neseděl u okna Debug output (typicky běh
 Zapojuje ho `ARBotRuntime` při Startu a odpojuje hned na začátku `Stop()` (zbytek vypínání sám loguje
 a nemá smysl to cpát do pipeline, která se právě rozebírá).
 
+### `Trace.WriteLine` vs. `Debug.WriteLine` — na tom záleží
+
+| kdy | čím | proč |
+|---|---|---|
+| hláška, kterou chci **přečíst ze záznamu** (rozhodnutí při startu, zahození měření, degradace) | **`Trace.WriteLine`** | `TRACE` je definované v Debug **i Release** (v Release ho doplňuje SDK), takže hláška přežije |
+| vývojářský šum při ladění na stole | `Debug.WriteLine` | `[Conditional("DEBUG")]` — v Release ho překladač **vypustí beze stopy** |
+
+Není to teoretický rozdíl. Zahazování měření starších než okno historie ve `AsyncFusionEngine`
+hlásil `Debug.WriteLine`, takže **v Release po něm nezůstala žádná stopa** — a právě v Release se
+měří na zařízení. U korekce z korelace s mapou (stará o celou dobu výpočtu, viz
+[map-correlation-localization.md](map-correlation-localization.md)) je to rozdíl mezi „funkce jede"
+a „funkce nedělá nic", přičemž telemetrie by v obou případech hlásila totéž. Opraveno 20. 8. 2026:
+ta hláška jde přes `Trace.WriteLine` a k tomu má `AsyncFusionEngine.DroppedTooOld` /
+`DroppedTooOldBySource()` jako strojově čitelné počítadlo.
+
+> **Obalovací metoda na to nevznikla, a je to tak správně.** Zvažovalo se `ARBotRuntime.Log(...)`,
+> ale nepřidalo by mechanismus, jen jméno — a `ARBot.Common` na aplikační vrstvu sahat nesmí
+> (`Common ← HAL ← app`), takže právě tam, kde to bylo potřeba, by se použít nedalo. Skončily by dvě
+> cesty k témuž podle vrstvy. Platí jedno pravidlo pro obě: `Trace.WriteLine`.
+
+> **⚠️ Hlášky ze startu do záznamu nedorazí.** Most se připojuje (`traceBridge.Attach()`) až na konci
+> `WireRun`, kdy už stojí záznam a dokumenty — ale načtení mapy, `poseerror=` a vložení počáteční
+> pózy proběhnou o ~170 řádků wiringu dřív. Jdou tedy jen do debug outputu. Kdo je bude chtít
+> v záznamu ze zařízení, musí buď přesunout zapojení záznamu a mostu na začátek `WireRun`, nebo
+> nechat most pufrovat řádky před připojením. **Neopraveno.**
+
 **Co se sbírá:** všechno, co projde `Trace`/`Debug` — včetně hlášek Avalonie a Mapsui. Nefiltruje se
 na vstupu záměrně: co je šum se pozná až při čtení. Aby to šlo rozlišit, nese `Info` i **oblast**
 a **úroveň**; `FilteredTraceLogSink` je kolem svého zápisu nastaví přes

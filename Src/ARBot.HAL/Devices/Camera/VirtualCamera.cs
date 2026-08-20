@@ -6,6 +6,7 @@ using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
+using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Vision;
 using ARBot.Common.Vision.Synthetic;
 

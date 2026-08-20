@@ -176,11 +176,19 @@ namespace ARBot.Views.Controls
 
         // ---- prevody mezi hodnotou a obrazovkou ----
 
-        /// <summary>Rozsah osy Y rady s malym odsazenim, aby se krivka nelepila na okraj.</summary>
+        /// <summary>
+        /// Rozsah osy Y rady s malym odsazenim, aby se krivka nelepila na okraj.
+        /// <para>Nekonečné hodnoty se do rozsahu <b>nezapočítávají</b>. Nejsou to chyby: „korel
+        /// sig+ [m]“ je na přímé cestě +∞ a znamená „podélná poloha není určená“. Kdyby do rozsahu
+        /// vstoupily, měla by osa nekonečné rozpětí a všechny skutečné vzorky by se slily na spodní
+        /// hranu. Samotné body se pak kreslí jako <b>mezera</b> (viz <see cref="DrawSeries"/>).</para>
+        /// </summary>
         private static void GetRange(TelemetryChartSeries s, out double min, out double max)
         {
             min = s.Data.Min;
             max = s.Data.Max;
+
+            if (!double.IsFinite(min) || !double.IsFinite(max)) FiniteRange(s.Data, out min, out max);
 
             if (max - min < 1e-9)
             {
@@ -194,6 +202,25 @@ namespace ARBot.Views.Controls
             double margin = (max - min) * 0.05;
             min -= margin;
             max += margin;
+        }
+
+        /// <summary>
+        /// Min/max jen z konečných bodů řady (řada si předpočítané min/max drží včetně nekonečen).
+        /// Když konečný bod není žádný, vrátí nulový rozsah — o ten se pak postará odsazení
+        /// konstantní řady.
+        /// </summary>
+        private static void FiniteRange(TelemetrySeries data, out double min, out double max)
+        {
+            min = double.MaxValue;
+            max = double.MinValue;
+            for (int i = 0; i < data.Count; i++)
+            {
+                double v = data.ValueAt(i);
+                if (!double.IsFinite(v)) continue;
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+            if (min > max) { min = 0; max = 0; }
         }
 
         /// <summary>
@@ -274,7 +301,7 @@ namespace ARBot.Views.Controls
             {
                 // Ve vyrezu neni zadny prichod - u schodu presto plati posledni znama hodnota.
                 double? held = data.ValueAtTime(viewTo);
-                if (s.IsStep && held.HasValue)
+                if (s.IsStep && held.HasValue && double.IsFinite(held.Value))
                 {
                     double y = YOf(plot, held.Value, min, span);
                     ctx.DrawLine(pen, new Point(plot.X, y), new Point(plot.Right, y));
@@ -299,8 +326,17 @@ namespace ARBot.Views.Controls
                     double prevY = 0;
                     for (int i = first; i <= last; i++)
                     {
+                        double value = data.ValueAt(i);
+                        if (!double.IsFinite(value))
+                        {
+                            // Nekonečno se na osu umístit nedá; křivka se přeruší a mezera se čte
+                            // správně jako „hodnota není určená“ (viz GetRange).
+                            started = false;
+                            continue;
+                        }
+
                         double x = XOf(plot, data.TicksAt(i));
-                        double y = YOf(plot, data.ValueAt(i), min, span);
+                        double y = YOf(plot, value, min, span);
 
                         if (!started)
                         {
@@ -345,6 +381,7 @@ namespace ARBot.Views.Controls
                 if (px < 0 || px >= pixels) continue;
 
                 double v = data.ValueAt(i);
+                if (!double.IsFinite(v)) continue;      // stejný důvod jako v DrawSeries — mezera
                 if (!has[px]) { lo[px] = hi[px] = v; has[px] = true; }
                 else if (v < lo[px]) lo[px] = v;
                 else if (v > hi[px]) hi[px] = v;

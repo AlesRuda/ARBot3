@@ -233,7 +233,12 @@ namespace ARBot.ViewModels
             return base.OnClose();
         }
 
-        public void Dispose()
+        /// <summary>
+        /// Virtuální, aby ho odvozený dokument (<see cref="VirtualCameraDocument"/>) mohl rozšířit —
+        /// v <see cref="OpenSensorDocument"/> se volá přes <see cref="IDisposable"/>, takže bez
+        /// virtuality by úklid potomka utekl.
+        /// </summary>
+        public virtual void Dispose()
         {
             // Kameru NEvlastníme (je sdílená z ARBotHW.Sensors) -> jen se odhlásíme.
             if (camera != null)

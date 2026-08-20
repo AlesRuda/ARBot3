@@ -14,6 +14,7 @@ using ARBot.Common.Devices;
 using ARBot.Common.Fusion;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Graph;
+using ARBot.Common.Simulation;
 using ARBot.Common.Maps.OsmNav.Navigation;
 using ARBot.Common.Maps.OsmNav.Osm;
 using ARBot.Common.Models;
@@ -102,6 +103,11 @@ namespace ARBot.Robot
 
         /// <summary>Verejny fan-out proud (raw &cup; derived). Odberatele: <c>Stream.Connect(sink)</c>.</summary>
         public MessageSource Stream => stream;
+
+        // LOGOVANI: co ma prezit Release, jde pres Trace.WriteLine - TraceInfoBridge je
+        // zaregistrovany v Trace.Listeners a udela z toho Info na Stream (tedy i do zaznamu),
+        // soucasne to dorazi do debug outputu. Debug.WriteLine je [Conditional("DEBUG")] a v Release
+        // se vypusti BEZE STOPY, takze patri jen na vyvojarsky sum. Viz doc/record-replay.md.
 
         /// <summary>Kořenovy zdroj replay ve View (jinak null) - pro navigacni nastroj (krok 9).</summary>
         public FileMessageSource FileSource => fileSource;
@@ -337,6 +343,45 @@ namespace ARBot.Robot
                 connections.Add(globalNav.Output.Connect(stream));
             }
 
+            // Korelace occupancy gridu s mapou: z posunu mezi semantikou (LRoad) a vozovkou podle
+            // OSM se odhadne chyba polohy a kurzu. Vlastni vlakno nad snapshotem gridu, takze tik
+            // LocalNavigatoru zustava nedotceny. Nezna trasu - mapovou pravdou je cela sit.
+            // Viz doc/map-correlation-localization.md.
+            // Parametr mapcorr rozhoduje, jestli se ten stupen VUBEC zalozi. Vychozi false: korelator
+            // dnes nic nerididi (viz decisions.md, navrh na prestavbu na posun mapa<->GPS), takze by
+            // jen spaloval ~126 ms na cyklus (ctvrt jadra na x64, na ARM vic). POZOR na zamenu
+            // s MapCorrelatorConfig.SendCorrections - to je "posilat do fuze", ne "pocitat".
+            bool mapCorr = Program.GetParamBool("mapcorr", false);
+            if (!mapCorr)
+            {
+                Trace.WriteLine("mapcorr=false: korelace s mapou se nezaklada (nepocita se). "
+                                + "Zapnout lze parametrem mapcorr=true.");
+            }
+            else if (RoadNetwork == null || fusionConfig.GeoReference == null)
+            {
+                Trace.WriteLine("mapcorr=true, ale neni mapa (parametr map=) -> korelace se nezaklada.");
+            }
+
+            if (mapCorr && RoadNetwork != null && fusionConfig.GeoReference != null)
+            {
+                var correlator = new ARBot.Common.Localization.MapCorrelator(
+                    engine,
+                    new RoadScene(RoadNetwork, fusionConfig.GeoReference),
+                    new ARBot.Common.Localization.MapCorrelatorConfig(),
+                    // Fronta musí unést plán z celého jednoho cyklu korelace (na ARM 100–200 ms
+                    // proti periodě plánu 33 ms), jinak by DropOldest vytlačil zařazený snapshot.
+                    queueCapacity: 16);
+
+                MapCorrelator = correlator;
+                stages.Add(correlator);
+                // Napojeno na výstup lokální vrstvy, ne na celý Stream — tam tečou CameraFrame
+                // s ~1 MB obrazu. Tímhle výstupem chodí OccupancyGridMsg (snapshot, 500 ms)
+                // i LocalPlanMsg (každý tik plánovače, 10–30 Hz); korelátor si snapshot vybírá
+                // až v Consume a plány zahazuje.
+                connections.Add(navigator.Output.Connect(correlator));
+                connections.Add(correlator.Output.Connect(stream));
+            }
+
             // Odvozene vystupy stupnu -> Stream.
             connections.Add(loop.Output.Connect(stream));
 
@@ -425,6 +470,12 @@ namespace ARBot.Robot
         public GlobalNavigator GlobalNavigator { get; private set; }
 
         /// <summary>
+        /// Korelace occupancy gridu s mapou (odhad chyby polohy). Bez mapy nevznikne.
+        /// Viz doc/map-correlation-localization.md.
+        /// </summary>
+        public ARBot.Common.Localization.MapCorrelator MapCorrelator { get; private set; }
+
+        /// <summary>
         /// Nacte silnicni sit z parametru <c>map=&lt;cesta.osm&gt;</c> do <see cref="RoadNetwork"/> a
         /// zalozi z ni <see cref="MapOrigin"/> (stred obalky uzlu) jako pocatek lokalni ENU roviny.
         ///
@@ -442,7 +493,7 @@ namespace ARBot.Robot
                 return;
             if (!File.Exists(mapPath))
             {
-                Debug.WriteLine($"map={mapPath} neexistuje -> beh bez mapy.");
+                Trace.WriteLine($"map={mapPath} neexistuje -> beh bez mapy.");
                 return;
             }
 
@@ -458,7 +509,7 @@ namespace ARBot.Robot
                 MapOrigin = BuildOriginFromMap(RoadNetwork);
                 if (MapOrigin == null)
                 {
-                    Debug.WriteLine("map: sit neobsahuje zadne uzly -> beh bez mapy.");
+                    Trace.WriteLine("map: sit neobsahuje zadne uzly -> beh bez mapy.");
                     RoadNetwork = null;
                     return;
                 }
@@ -468,11 +519,11 @@ namespace ARBot.Robot
                     fusionConfig.GeoReference = MapOrigin;
 
                 MapMessage = RoadNetwork.ToLogMessage(Path.GetFileName(mapPath));
-                Debug.WriteLine($"map={mapPath}: {MapMessage.Nodes.Count} uzlu, {MapMessage.Edges.Count} hran.");
+                Trace.WriteLine($"map={mapPath}: {MapMessage.Nodes.Count} uzlu, {MapMessage.Edges.Count} hran.");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"map: nacteni mapy selhalo -> beh bez mapy. {ex}");
+                Trace.WriteLine($"map: nacteni mapy selhalo -> beh bez mapy. {ex}");
                 RoadNetwork = null;
                 MapOrigin = null;
                 MapMessage = null;
@@ -493,8 +544,26 @@ namespace ARBot.Robot
             {
                 // Zamerne NE fallback na realny HW: pri zadosti o simulaci se nesmi necekane
                 // rozjet skutecne kamery. Zustane HwMode.None (nic).
-                Debug.WriteLine("virtualni HW: mapa neni k dispozici (parametr map=) -> zadny HW.");
+                Trace.WriteLine("virtualni HW: mapa neni k dispozici (parametr map=) -> zadny HW.");
                 return;
+            }
+
+            // Umela chyba pozy z prikazove radky (poseerror=vpred,vlevo[,stupne]) - kvuli
+            // reprodukovatelnemu bezobsluznemu mereni korelace. V UI ji lze menit za behu
+            // nastrojem nad virtualni kamerou. Viz doc/virtual-hw.md.
+            string poseError = Program.GetParam("poseerror");
+            if (!string.IsNullOrWhiteSpace(poseError))
+            {
+                if (VirtualPoseError.TryParse(poseError, out var parsed))
+                {
+                    hw.VirtualPoseError.CopyFrom(parsed);
+                    Trace.WriteLine($"poseerror={poseError}: vpred {parsed.ForwardM:F3} m, "
+                                    + $"vlevo {parsed.LeftM:F3} m, kurz {parsed.HeadingRad * 180.0 / Math.PI:F2} deg.");
+                }
+                else
+                {
+                    Trace.WriteLine($"poseerror={poseError} se neda rozebrat -> bez umele chyby.");
+                }
             }
 
             try
@@ -506,7 +575,11 @@ namespace ARBot.Robot
                 {
                     Network = RoadNetwork,
                     Origin = fusionConfig.GeoReference,
-                    PoseAt = t => engine.GetStateAt(t),
+                    // Sem se vlepuje umela chyba pozy: kamera renderuje z pozy POSUNUTE proti te,
+                    // kterou se ukotvuje occupancy grid, takze korelace s mapou dostane znamou
+                    // nenulovou odpoved. Bez nastaveni chyby vraci Apply tentyz stav (zadna rezie).
+                    // Viz doc/virtual-hw.md a doc/map-correlation-localization.md.
+                    PoseAt = t => hw.VirtualPoseError.Apply(engine.GetStateAt(t)),
                     StartX = start.X,
                     StartY = start.Y,
                     StartTheta = start.Theta,
@@ -514,7 +587,7 @@ namespace ARBot.Robot
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"virtualhw: zapnuti simulovaneho HW selhalo -> zustava realny HW. {ex}");
+                Trace.WriteLine($"virtualhw: zapnuti simulovaneho HW selhalo -> zustava realny HW. {ex}");
             }
         }
 
@@ -543,11 +616,11 @@ namespace ARBot.Robot
             {
                 if (!allowSnapToRoad)
                 {
-                    Debug.WriteLine("start=gps: pocatecni polohu urci prvni GPS fix.");
+                    Trace.WriteLine("start=gps: pocatecni polohu urci prvni GPS fix.");
                     return false;
                 }
 
-                Debug.WriteLine("start=gps nema pri virtualhw smysl (virtualni GPS mari simulovaneho "
+                Trace.WriteLine("start=gps nema pri virtualhw smysl (virtualni GPS mari simulovaneho "
                                 + "robota) -> pouzivam prichyceni na nejblizsi cestu.");
                 start = null;
             }
@@ -566,7 +639,7 @@ namespace ARBot.Robot
                 }
                 else
                 {
-                    Debug.WriteLine($"start={start}: necekany format (ocekavam lat,lon[,kurz]) -> ignoruji.");
+                    Trace.WriteLine($"start={start}: necekany format (ocekavam lat,lon[,kurz]) -> ignoruji.");
                 }
             }
 
@@ -626,11 +699,15 @@ namespace ARBot.Robot
             var t = TimeBase.Now;
             engine.InitializePosition(x, y, StartPositionStd, t);
 
-            // Kurz se neinicializuje, jen se posle jako merenie - na rozdil od polohy je jeho chyba
-            // omezena a filtr si ho srovna (v simulaci navic hned z IMU).
-            engine.Enqueue(new HeadingMeasurement(theta, StartHeadingStd, t, "Start/heading"));
+            // Kurz se INICIALIZUJE stejne jako poloha (od 19. 8. 2026; drive se jen posilal jako
+            // merenie). Kdyz kurz znam, nema smysl ho filtru tajit a nechat ho k nemu dojit pres
+            // merenie: pri P0 = I je sigma kurzu 1 rad, takze merenie o 170 deg vedle by po zapnuti
+            // gatingu spadlo pod prah. A dokud kurz nekonvergoval, zapisoval LocalNavigator do
+            // world-kotveneho occupancy gridu bunky se spatnym kurzem - prvni korelace s mapou pak
+            // vysla s opacnym znamenkem. Viz doc/map-correlation-localization.md.
+            engine.InitializeHeading(theta, StartHeadingStd, t);
 
-            Debug.WriteLine($"start: X={x:F1} Y={y:F1} theta={Conversions.Rad2Deg(theta):F0} deg -> vlozeno do EKF.");
+            Trace.WriteLine($"start: X={x:F1} Y={y:F1} theta={Conversions.Rad2Deg(theta):F0} deg -> vlozeno do EKF.");
             return (x, y, theta);
         }
 

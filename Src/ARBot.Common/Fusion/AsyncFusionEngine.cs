@@ -1,4 +1,6 @@
+using ARBot.Common.Common;
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Diagnostics;
 using MathNet.Numerics.LinearAlgebra;
@@ -59,6 +61,10 @@ namespace ARBot.Common.Fusion
         private bool initialized;
         private bool positionInitialized;
 
+        // Kolik merenii se zahodilo jako starsi nez okno historie (celkem a po zdrojich).
+        private long droppedTooOld;
+        private readonly Dictionary<string, long> droppedBySource = new Dictionary<string, long>();
+
         public AsyncFusionEngine(EKFModel model, TimeSpan? historyWindow = null)
         {
             this.model = model ?? throw new ArgumentNullException(nameof(model));
@@ -78,6 +84,34 @@ namespace ARBot.Common.Fusion
         {
             get => model.Config.GeoReference;
             set => model.Config.GeoReference = value;
+        }
+
+        /// <summary>
+        /// Kolik merenii se zahodilo, protoze prisla STARSI nez okno historie
+        /// (<see cref="FusionConfig.HistoryWindow"/>).
+        ///
+        /// <para><b>Proc to ma vlastni pocitadlo.</b> Zahozeni je spravne chovani, ale bylo
+        /// <b>neviditelne</b>: hlasil ho jen <c>Debug.WriteLine</c>, ktery je
+        /// <c>[Conditional("DEBUG")]</c>, takze v Release nezustala zadna stopa - a v Release se
+        /// meri na zarizeni. <see cref="Diagnostics"/> to ukazat nemuze: zahozene merenie do
+        /// bufferu nikdy nevstoupi. Nejvic to hrozi korekci z korelace s mapou, ktera je stara
+        /// o celou dobu vypoctu (194 ms na x64, na ARM vic) - kdyby se zacala zahazovat, telemetrie
+        /// by dal hlasila <c>Reason = Ok</c> a vypadalo by to, ze funkce jede.
+        /// Viz doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public long DroppedTooOld
+        {
+            get { lock (sync) { return droppedTooOld; } }
+        }
+
+        /// <summary>
+        /// Zahozena merenia (viz <see cref="DroppedTooOld"/>) rozpadla podle
+        /// <see cref="IMeasurement.Source"/> - aby slo odlisit podezrele (korelace s mapou) od
+        /// bezneho (opozdeny GPS fix). Vraci KOPII.
+        /// </summary>
+        public IReadOnlyDictionary<string, long> DroppedTooOldBySource()
+        {
+            lock (sync) { return new Dictionary<string, long>(droppedBySource); }
         }
 
         /// <summary>
@@ -112,37 +146,100 @@ namespace ARBot.Common.Fusion
 
             lock (sync)
             {
-                // Zaklad = aktualni stav filtru v case t (kdyz uz nejaky mame), s prepsanou polohou.
-                var xv = (initialized ? StateAtLocked(t) ?? xBase : model.X).Clone();
-                var P = (initialized ? pBase : model.P).Clone();
-
-                xv[EKFModel.IX] = x;
-                xv[EKFModel.IY] = y;
-
-                // Poloha je nyni znama nezavisle na zbytku stavu -> vynuluj korelace a nastav sigma².
-                for (int k = 0; k < P.ColumnCount; k++)
-                {
-                    P[EKFModel.IX, k] = 0; P[k, EKFModel.IX] = 0;
-                    P[EKFModel.IY, k] = 0; P[k, EKFModel.IY] = 0;
-                }
-                P[EKFModel.IX, EKFModel.IX] = std * std;
-                P[EKFModel.IY, EKFModel.IY] = std * std;
-
-                xBase = xv;
-                pBase = P;
-                tBase = t;
-
-                // Merenia z doby pred inicializaci zahodit, novejsi prepocitat z noveho zakladu.
-                while (nodes.Count > 0 && nodes[0].T <= t)
-                    nodes.RemoveAt(0);
-                dirtyFrom = 0;
-
-                model.X = xv.Clone();
-                model.P = P.Clone();
-
-                initialized = true;
+                InitializeAxesLocked(t,
+                                     new[] { EKFModel.IX, EKFModel.IY },
+                                     new[] { x, y },
+                                     new[] { std, std });
                 positionInitialized = true;
             }
+        }
+
+        /// <summary>
+        /// Nastavi KURZ stavu na <paramref name="theta"/> [rad, matematicky] s nejistotou
+        /// <paramref name="std"/> [rad] v case <paramref name="t"/>. Stejne jako u
+        /// <see cref="InitializePosition"/> je to <b>inicializace</b>, ne korekce merenim.
+        ///
+        /// <para><b>Proc to nejde nechat na merenii kurzu</b> (tak to bylo do 19. 8. 2026): filtr
+        /// startuje s <c>P0 = I</c>, tedy sigma = 1 rad (57 deg). Merenie o 170 deg vedle - a presne
+        /// to nastane, kdyz robot miri na zapad - ma NIS ~8,7 proti chi²(1; 0,95) = 3,84, takze
+        /// jakmile se zapnou prahy gatingu, <b>zahodi se</b>. Tataz latentni past jako u polohy.</para>
+        ///
+        /// <para>Dopad nebyl teoreticky: dokud kurz nekonvergoval, zapisoval <c>LocalNavigator</c>
+        /// do world-kotveneho occupancy gridu bunky se spatnym kurzem, takze prvni korelace s mapou
+        /// z nich vysla s OPACNYM znamenkem. Viz doc/map-correlation-localization.md.</para>
+        ///
+        /// <para>Kdo kurz nezna (napr. GPS fix ho nenese), tuhle metodu nevola a posila ho dal jako
+        /// <c>HeadingMeasurement</c> - to zustava v platnosti.</para>
+        /// </summary>
+        public void InitializeHeading(double theta, double std, DateTime t)
+        {
+            if (std <= 0) throw new ArgumentOutOfRangeException(nameof(std), "std musi byt > 0");
+
+            lock (sync)
+            {
+                // Normalizace, aby stav zustal kanonicky (jinak by rezidua pocitala s 190 misto -170).
+                InitializeAxesLocked(t,
+                                     new[] { EKFModel.ITh },
+                                     new[] { Conversions.NormalizeOrientation(theta) },
+                                     new[] { std });
+            }
+        }
+
+        /// <summary>
+        /// Spolecne jadro inicializaci: prepise zadane slozky stavu, prohlasi je za znama nezavisle
+        /// na zbytku (vynuluje korelace, nastavi sigma²) a prerovna zaklad na cas <paramref name="t"/>.
+        /// Volat pod <see cref="sync"/>.
+        ///
+        /// <para>Zamerne jedno misto pro polohu i kurz - dve kopie te same logiky by se casem
+        /// rozesly a chyba by se projevila az na zarizeni.</para>
+        /// </summary>
+        private void InitializeAxesLocked(DateTime t, int[] indices, double[] values, double[] stds)
+        {
+            // Zaklad = aktualni stav filtru v case t (kdyz uz nejaky mame), s prepsanymi slozkami.
+            var xv = (initialized ? StateAtLocked(t) ?? xBase : model.X).Clone();
+            var P = (initialized ? pBase : model.P).Clone();
+
+            for (int n = 0; n < indices.Length; n++)
+                xv[indices[n]] = values[n];
+
+            // Slozka je nyni znama nezavisle na zbytku stavu -> vynuluj korelace a nastav sigma².
+            foreach (int i in indices)
+                for (int k = 0; k < P.ColumnCount; k++)
+                {
+                    P[i, k] = 0; P[k, i] = 0;
+                }
+
+            for (int n = 0; n < indices.Length; n++)
+                P[indices[n], indices[n]] = stds[n] * stds[n];
+
+            xBase = xv;
+            pBase = P;
+            tBase = t;
+
+            // Merenia z doby pred inicializaci zahodit, novejsi prepocitat z noveho zakladu.
+            while (nodes.Count > 0 && nodes[0].T <= t)
+                nodes.RemoveAt(0);
+            dirtyFrom = 0;
+
+            model.X = xv.Clone();
+            model.P = P.Clone();
+
+            initialized = true;
+        }
+
+        /// <summary>Krátky vypis hodnoty merenia do logu (delsi vektory se zkrati).</summary>
+        private static string Format(Vector<double> z)
+        {
+            if (z == null) return "?";
+            var sb = new System.Text.StringBuilder();
+            int n = Math.Min(z.Count, 4);
+            for (int i = 0; i < n; i++)
+            {
+                if (i > 0) sb.Append("; ");
+                sb.Append(z[i].ToString("F3", CultureInfo.InvariantCulture));
+            }
+            if (z.Count > n) sb.Append("; ...");
+            return sb.ToString();
         }
 
         /// <summary>Stav v case t bez zamku (volat pod <see cref="sync"/>); null = mimo okno.</summary>
@@ -192,9 +289,30 @@ namespace ARBot.Common.Fusion
 
             if (m.TimeStamp <= tBase)
             {
-                Debug.WriteLine(string.Format(
-                    "[Fusion] zahozeno merenie starsi nez okno: {0} @ {1:HH:mm:ss.fff} (tBase={2:HH:mm:ss.fff})",
-                    m.Source, m.TimeStamp, tBase));
+                droppedTooOld++;
+                string src = m.Source ?? "?";
+                droppedBySource.TryGetValue(src, out long c);
+                droppedBySource[src] = c + 1;
+
+                // TRACE, ne Debug: Debug.WriteLine je [Conditional("DEBUG")], takze v Release
+                // nezustala po zahozeni ZADNA stopa - a prave v Release se meri na zarizeni.
+                // Pri latenci korekce z korelace az k oknu je rozdil mezi "jede" a "nedela nic"
+                // (viz doc/map-correlation-localization.md).
+                //
+                // Hlaska schvalne nese TYP merenia i O KOLIK bylo pozde: samo "starsi nez okno"
+                // nerika, jestli pomuze vetsi okno nebo rychlejsi vypocet, a u korelace s mapou
+                // chodi tri RUZNA merenia (dve osova + kurz), takze bez typu nejde poznat ktere.
+                // Po Initialize* je buffer PRAZDNY, i kdyz je filtr inicializovany (uzly se
+                // promazou a zustane jen bazovy checkpoint) - pak je nejnovejsi znalosti tBase.
+                // Bez tohoto osetreni padal prvni opozdeny prispevek po inicializaci na index -1.
+                DateTime newest = nodes.Count > 0 ? nodes[nodes.Count - 1].T : tBase;
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "[Fusion] zahozeno mereni starsi nez okno historie: {0} '{1}' @ {2:HH:mm:ss.fff}"
+                    + " z=[{3}] - opozdeno o {4:F0} ms za nejnovejsim ({5:HH:mm:ss.fff}),"
+                    + " okno je {6:F0} ms (tBase={7:HH:mm:ss.fff})",
+                    m.GetType().Name, src, m.TimeStamp, Format(m.Value),
+                    (newest - m.TimeStamp).TotalMilliseconds, newest,
+                    window.TotalMilliseconds, tBase));
                 return;
             }
 

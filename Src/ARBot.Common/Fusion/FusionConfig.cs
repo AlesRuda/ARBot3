@@ -62,7 +62,7 @@ namespace ARBot.Common.Fusion
         public double OdoOmegaSign = +1.0;
 
         /// <summary>Okno historie = max kompenzovatelna latence.</summary>
-        public TimeSpan HistoryWindow = TimeSpan.FromSeconds(1);
+        public TimeSpan HistoryWindow = TimeSpan.FromSeconds(3);
 
         /// <summary>
         /// Referencni bod lokalni ENU roviny - misto, kde plati [X, Y] = [0, 0].

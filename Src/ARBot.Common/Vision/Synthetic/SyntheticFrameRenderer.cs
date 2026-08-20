@@ -3,6 +3,7 @@ using System.Numerics;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Fusion;
+using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Simulation;
 
 namespace ARBot.Common.Vision.Synthetic

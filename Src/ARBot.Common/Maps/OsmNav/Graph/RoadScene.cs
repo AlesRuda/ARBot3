@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
 using ARBot.Common.Coordinates;
-using ARBot.Common.Maps.OsmNav.Graph;
 
-namespace ARBot.Common.Vision.Synthetic
+namespace ARBot.Common.Maps.OsmNav.Graph
 {
     /// <summary>
-    /// Geometrie sceny pro virtualni kameru: vozovka prevedena z OsmNav site do lokalni ENU roviny.
-    /// Vozovka je sjednoceni kapsli kolem os hran (polosirka se interpoluje mezi uzly).
-    /// Viz doc/virtual-hw.md.
+    /// Geometrie vozovky z OsmNav site v lokalni ENU rovine: sjednoceni kapsli kolem os hran
+    /// (polosirka se interpoluje mezi uzly). Mapova "pravda" pro dva nezavisle konzumenty -
+    /// virtualni kameru (doc/virtual-hw.md) a korelaci s mapou (doc/map-correlation-localization.md).
     /// <para>
     /// Dotaz <see cref="IsRoad"/> se vola radove statisickrat na snimek (jednou na pixel), proto jsou
     /// useky zaindexovane v uniformni mrizce a testuje se jen obsah jedne bunky.

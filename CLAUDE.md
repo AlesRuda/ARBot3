@@ -76,13 +76,25 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
   trasa v mapě, detektory + uzavírání hran); zbývá recovery manévr, průřez koridorem a ověření na HW.
+- [doc/map-correlation-localization.md](doc/map-correlation-localization.md) — **korelace occupancy gridu
+  s mapou** (`MapCorrelator`): shoda semantického kanálu `LRoad` s OSM sítí (`RoadScene.IsRoad`) dá odhad
+  chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová
+  měření. Léčba na „špatná lokalizace ⇒ špatná mrkev". **Fáze 1–3 hotové** (jádro, měření ve fúzi,
+  zpráva + telemetrie, napojení na runtime), jádro má testy. **Ve výchozím stavu se ale vůbec
+  nepočítá** (`mapcorr=false`, od 20. 8. 2026) — nic neřídí a stálo by čtvrt jádra; zapnout
+  `mapcorr=true`. Korekce samotné posílat umí (`SendCorrections`, dřív `Enabled`), okno EKF je 3 s.
+  **Návrh na přestavbu je pod revizí** — korelace jako odhad posunu mapa↔GPS, viz
+  [doc/decisions.md](doc/decisions.md); do rozhodnutí nemá smysl ladit současné chování. Otevřené
+  vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°, chybí limit korekce za cyklus.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
   (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
 - [doc/virtual-hw.md](doc/virtual-hw.md) — virtuální HW (simulované senzory): `VirtualCamera` jako
   náhrada D435 — RGB + hloubka renderované z OsmNav mapy a pózy robota, šev `SetRealHW`/`SetVirtualHW`
-  v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované, **běh aplikace neověřen**.
+  v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované; **běh aplikace ověřen** (19. 8. 2026).
+  Umí i **umělou chybu pózy** (`poseerror=`, nástroj nad virtuální kamerou) — vnutí do renderu známý
+  posun, takže korelace s mapou má proti čemu měřit.
 - [doc/telemetry-view.md](doc/telemetry-view.md) — **telemetrický pohled** (tabulka údajů v čase):
   stav robota, řídicí zásahy a údaje z dalších zpráv srovnané v čase (řádek = zpráva, sloupec = údaj,
   tučně = hodnota právě přišla), detail řádku, tooltipy s významem údajů, výběr sloupců a filtr

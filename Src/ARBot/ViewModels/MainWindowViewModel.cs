@@ -5,6 +5,7 @@ using ARBot.Common.Common;
 using ARBot.Common.Communication;
 using ARBot.Common.Devices;
 using ARBot.HAL;
+using ARBot.HAL.Devices.Camera;
 using ARBot.Common.Vision;
 using ARBot.Robot;
 using CommunityToolkit.Mvvm.Input;
@@ -93,6 +94,9 @@ namespace ARBot.ViewModels
             IIMU imu => new IMUDocument(imu),
             IGPS gps => new GpsDocument(gps),
             IMotorControl motors => new MotorControlDocument(motors),
+            // POŘADÍ: VirtualCamera musí být PŘED obecnou ICamera — u switch expression vyhrává
+            // první odpovídající vzor, takže obráceně by se speciální dokument nikdy nevytvořil.
+            VirtualCamera vcam => new VirtualCameraDocument(vcam),
             ICamera cam => new CameraDocument(cam),
             _ => null
         };

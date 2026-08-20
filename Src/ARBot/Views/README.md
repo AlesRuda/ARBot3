@@ -60,6 +60,10 @@ Panel **Sensors** ([`SensorStatusToolView`](SensorStatusToolView.axaml)) vypisuj
 podle typu senzoru vytvoří dokument ve **`CreateSensorDocument`** (switch) a přidá ho do
 doku (deduplikace podle `Id`). Nový typ senzoru = přidat větev do `CreateSensorDocument`.
 
+> **Pozor na pořadí větví.** `CreateSensorDocument` je `switch` *expression* — vyhrává **první**
+> odpovídající vzor. Speciálnější typ proto musí být **výš** než obecné rozhraní: `VirtualCamera`
+> stojí nad `ICamera`, jinak by se `VirtualCameraDocument` nikdy nevytvořil.
+
 ## Znovupoužitelné controly (`Views/Controls/`)
 
 Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty` +
@@ -85,6 +89,14 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   se normalizuje do grayscale (blízko světlé, daleko tmavé). Obnova událostí `MeasurementArived`.
   Kameru **NEvlastní** (je sdílená z `ARBotHW.Sensors`) — v `Dispose` se jen odhlásí. (Odlišné od
   `D435TestDocument`, který si vlastní kameru vytváří a zavírá — ten slouží jako samostatný test D435.)
+- `VirtualCameraDocument` (`VirtualCamera`) — **dědí z `CameraDocument`** (celý stream i backpressure
+  se znovupoužívá; view vkládá `CameraDocumentView` a přidá panel vedle něj) a doplňuje **umělou
+  chybu pózy**: vpřed / vlevo / kurz v rámci robotu, vynulování, a **očekávané hodnoty vedle
+  naměřených** z `MapCorrelationMsg` (odběr ze `Stream`). Slouží k ověření korelace occupancy gridu
+  s mapou — viz [doc/virtual-hw.md](../../../doc/virtual-hw.md#umělá-chyba-pózy-poseerror).
+  Chyba je sdílená oběma kamerami (`ARBotHW.VirtualPoseError`), takže panel je pro Left i Right tentýž.
+  Vlastnosti navázané na `NumericUpDown` jsou **`decimal`** (`NumericUpDown.Value` je `decimal?` —
+  `double` by selhal až za běhu); stejný vzor jako `WorldViewDocument.DefaultRoadWidthMeters`.
 
 ## Dokumenty nad `Stream` (ne senzory)
 

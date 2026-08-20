@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:v="using:ARBot.Views"
+             x:Class="ARBot.Views.VirtualCameraDocumentView"
+             x:DataType="vm:VirtualCameraDocument">
+    <Design.DataContext>
+        <vm:VirtualCameraDocument/>
+    </Design.DataContext>
+
+    <Grid ColumnDefinitions="*,Auto">
+
+        <!-- Standardní náhled kamery: znovupoužitý beze změny (DataContext se dědí,
+             VirtualCameraDocument JE CameraDocument). -->
+        <v:CameraDocumentView Grid.Column="0"/>
+
+        <!-- Panel umělé chyby pózy -->
+        <Border Grid.Column="1" Width="330" Background="#252526" Padding="12">
+            <StackPanel Spacing="10">
+
+                <TextBlock Text="Umělá chyba pózy" FontWeight="Bold" Foreground="White"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                           Text="Kamera renderuje z pózy posunuté proti té, kterou je ukotvený occupancy grid. Korelátor musí ohlásit právě tuhle chybu. Platí pro obě kamery."/>
+
+                <!-- Výstraha: nenulová chyba se snadno zapomene zapnutá -->
+                <Border Background="#5A3A00" CornerRadius="3" Padding="8,5"
+                        IsVisible="{Binding IsErrorActive}">
+                    <TextBlock Text="⚠ Chyba je aktivní — obraz NEodpovídá skutečné póze."
+                               Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
+                </Border>
+
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" >
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="vpřed [m]" Foreground="White"
+                               VerticalAlignment="Center" Margin="0,0,8,4"/>
+                    <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding ForwardM}"
+                                   Increment="0.1" FormatString="F2" Margin="0,0,0,4"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="vlevo [m]" Foreground="White"
+                               VerticalAlignment="Center" Margin="0,0,8,4"/>
+                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding LeftM}"
+                                   Increment="0.1" FormatString="F2" Margin="0,0,0,4"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="kurz [°]" Foreground="White"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding HeadingDeg}"
+                                   Increment="0.5" FormatString="F1"/>
+                </Grid>
+
+                <Button Content="Vynulovat" Command="{Binding ResetErrorCommand}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+
+                <Separator Margin="0,4"/>
+
+                <TextBlock Text="Očekáváno (ENU)" Foreground="#A0FFFFFF" FontSize="11"/>
+                <TextBlock Text="{Binding ExpectedText}" Foreground="#8AD48A"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+
+                <TextBlock Text="Naměřeno korelátorem" Foreground="#A0FFFFFF" FontSize="11"/>
+                <TextBlock Text="{Binding MeasuredText}" Foreground="White"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+
+                <TextBlock Text="Rozdíl" Foreground="#A0FFFFFF" FontSize="11"/>
+                <TextBlock Text="{Binding ResidualText}" Foreground="#FFD48A"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+
+                <TextBlock Text="{Binding StatusText}" Foreground="#A0FFFFFF" FontSize="11"
+                           TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

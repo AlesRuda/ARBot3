@@ -59,6 +59,7 @@ namespace ARBot.Common.Communication
             c.Register(new MeasurementDiagMsg());
             c.Register(new DriveCommandMsg());
             c.Register(new OccupancyGridMsg());
+            c.Register(new MapCorrelationMsg());
             c.Register(new LocalPlanMsg());
             c.Register(new GlobalNavMsg());
             // POZN.: PolarTraversabilityGridMsg zrusen - grid je nyni soucasti CameraFrame

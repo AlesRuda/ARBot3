@@ -12,6 +12,7 @@ using ARBot.HAL.Devices.MotorDrivers;
 using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Simulation;
 using ARBot.Common.Vision.Synthetic;
 using ARBot.HAL.Devices.GPSs;
@@ -156,6 +157,16 @@ namespace ARBot.Robot
         /// skutecnosti s odhadem fuze (viz doc/virtual-hw.md).
         /// </summary>
         public SimulatedRobot SimulatedRobot { get; private set; }
+
+        /// <summary>
+        /// Umela chyba pozy vnucena do renderovaci cesty OBOU virtualnich kamer - ladici pomucka
+        /// pro overeni korelace s mapou (viz doc/virtual-hw.md). Nenulova jen kdyz ji nekdo nastavi
+        /// nastrojem nad virtualni kamerou; ve vychozim stavu se nedeje nic.
+        ///
+        /// <para>Zije po celou dobu behu aplikace (ne jen pri virtualnim HW), aby si ji nastroj
+        /// mohl drzet i pres prepnuti rezimu HW a nemusel resit null.</para>
+        /// </summary>
+        public VirtualPoseError VirtualPoseError { get; } = new VirtualPoseError();
 
         /// <summary>
         /// Uvolni motory, GPS a IMU (obdoba <see cref="CameraStop"/> pro zbytek senzoru) -

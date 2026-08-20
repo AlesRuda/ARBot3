@@ -1,8 +1,7 @@
 using ARBot.Common.Coordinates;
 using ARBot.Common.Maps.OsmNav.Graph;
-using ARBot.Common.Vision.Synthetic;
 
-namespace ARBot.Common.Tests.Vision.Synthetic;
+namespace ARBot.Common.Tests.OsmNav.Graph;
 
 /// <summary>
 /// Testy geometrie sceny pro virtualni kameru (viz doc/virtual-hw.md).

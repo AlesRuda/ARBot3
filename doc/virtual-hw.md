@@ -135,6 +135,7 @@ vyzvedne z `ARBotRuntime.MapMessage`.
 | `map=<cesta.osm>` | mapa, ze které se scéna renderuje (bez ní zůstane reálný HW) |
 | `roadwidth=<m>` | výchozí šířka cesty pro uzly bez `width` (default 3) |
 | `start=lat,lon[,kurz]` | známá počáteční póza → vloží se do EKF (**platí i pro reálný HW**); bez ní se v simulaci přichytí na nejbližší cestu |
+| `poseerror=vpřed,vlevo[,stupně]` | umělá chyba pózy vnucená do renderu kamer (metry v rámci robotu, kurz ve stupních) — viz níž |
 
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
@@ -176,8 +177,17 @@ Je to přesně případ, pro který `InitializePosition` vznikla: filtr startuje
 takže první fix stovky metrů daleko by gating zahodil a robot by se „nenašel". Rozhodnutí
 „téhle poloze už věřím" patří volajícímu.
 
-Kurz se **neinicializuje**, jen posílá jako měření — na rozdíl od polohy je jeho chyba omezená
-a filtr si ho srovná (v simulaci navíc okamžitě z IMU).
+Kurz se **inicializuje taky** (`AsyncFusionEngine.InitializeHeading`), od 19. 8. 2026.
+
+> **Změna rozhodnutí.** Do té doby se kurz jen posílal jako měření s odůvodněním „na rozdíl od
+> polohy je jeho chyba omezená a filtr si ho srovná". Neplatí to ze dvou důvodů. Za prvé: při
+> `P0 = I` je σ kurzu **1 rad (57°)**, takže měření o 170° vedle — a přesně to nastane, když robot
+> míří na západ — má NIS ~8,7 proti χ²(1; 0,95) = 3,84 a po zapnutí gatingu by se **zahodilo**.
+> Je to tatáž latentní past, jakou u polohy popisuje `InitializePosition`. Za druhé: „filtr si ho
+> srovná" znamená, že po nějakou dobu je kurz špatný — a `LocalNavigator` mezitím zapisuje do
+> **world-ukotveného** occupancy gridu buňky s tím špatným kurzem. První korelace s mapou z nich
+> vycházela s **opačným znaménkem**. Když kurz znám, není důvod ho filtru tajit a nechat ho k němu
+> dojít přes měření. Podrobně v [map-correlation-localization.md](map-correlation-localization.md).
 
 Bez `start=` se póza hádá **jen v simulaci**: robot se přichytí na nejbližší hranu sítě
 (`RoadNetwork.NearestEdge`) od středu mapy a natočí se podél ní, takže vždy stojí na cestě.
@@ -262,6 +272,50 @@ bylo potřeba ji zviditelnit, stačí `PoseAt` namířit na `SimulatedRobot`; ni
 
 Praktický důsledek: `GetStateAt` vrací `null`, dokud fúze nemá inicializovanou polohu, takže
 kamera začne dodávat snímky **až po prvním virtuálním GPS fixu** (do té doby snímky přeskakuje).
+
+### Umělá chyba pózy (`poseerror`)
+
+Předchozí odstavec má nepříjemný důsledek pro **korelaci occupancy gridu s mapou**: obraz i
+ukotvení gridu vycházejí z téže pózy, takže grid s mapou souhlasí vždycky a korelátor hlásí
+`Dx = Dy = 0` **strukturálně** — i kdyby byl rozbitý. Ve virtuálním HW tedy jeho výsledek sám
+o sobě nic nedokazuje (viz [map-correlation-localization.md](map-correlation-localization.md)).
+
+Léčba je vnutit do **renderovací** cesty známý posun:
+
+```
+kamera renderuje z:  P_odhad ⊕ e          grid se ukotví na:  P_odhad (beze změny)
+```
+
+Obsah gridu se tím proti mapě posune o `−e`, což je přesně totéž, jako kdyby robot ve skutečnosti
+stál na `P_odhad + e`. Protože korelátor hlásí „skutečná poloha = odhad + D", musí vyjít **`D = e`**
+— predikce se známou odpovědí. Ověřeno na jednotky milimetrů (tabulka měření je ve specifikaci
+korelace).
+
+**Rámec je robotu** (FLU: vpřed, vlevo, kurz), protože otevřená vada „falešná podélná jistota" je
+právě o rozdílu podél vs. napříč cesty. Do světových složek to převádí
+`VirtualPoseError.ExpectedWorldOffset(theta)`.
+
+Kód: [`ARBot.Common/Simulation/VirtualPoseError.cs`](../Src/ARBot.Common/Simulation/VirtualPoseError.cs)
+(čistá funkce, má testy), sdílená instance na `ARBotHW.VirtualPoseError`, vlepená v `ARBotRuntime`
+do `PoseAt`. Nastavit ji jde dvěma cestami:
+
+- **`poseerror=vpřed,vlevo[,stupně]`** na příkazové řádce — pro reprodukovatelné bezobslužné měření.
+- **Nástroj nad virtuální kamerou** — dvojklik na `Left`/`Right` v panelu Sensors otevře
+  `VirtualCameraDocument`: standardní náhled plus panel, kde jde chybu měnit za běhu a kde se
+  **očekávané** hodnoty ukazují vedle **naměřených** z `MapCorrelationMsg`.
+
+Tři vlastnosti, na kterých záleží:
+
+- **Sdílená oběma kamerami.** Kdyby měla levá jinou chybu než pravá, fúzovaný grid by nedával smysl.
+- **Nemutuje stav fúze.** `Apply` vrací kopii — jinak by injektáž prosákla zpátky do filtru
+  a experiment by se sežral sám.
+- **GPS a IMU dál měří pravdu.** Kdyby se zkazily i ony, filtr se rozjede a známá odpověď zmizí.
+  Chyba je záměrně jen na straně obrazu.
+
+> **Až se zapnou korekce** (`MapCorrelatorConfig.Enabled = true`), přestane to být statická pravda:
+> korelátor začne odhad tlačit, kamera renderuje z odhadu, a vnucený posun se rozjede do zpětné
+> vazby. Pak to měří **konvergenci smyčky**, ne přesnost odhadu — jiný experiment, který je potřeba
+> číst jinak.
 
 ## Model světa
 

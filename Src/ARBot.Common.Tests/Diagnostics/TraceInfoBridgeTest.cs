@@ -59,6 +59,43 @@ namespace ARBot.Common.Tests.Diagnostics
             }
         }
 
+        /// <summary>
+        /// INTEGRACE (20. 8. 2026): zahozeni merenia starsiho nez okno musi byt videt i v zaznamu.
+        /// Do teto zmeny to hlasil <c>Debug.WriteLine</c>, ktery je <c>[Conditional("DEBUG")]</c> -
+        /// v Release se vypustil beze stopy, a prave v Release se meri na zarizeni. U korekce
+        /// z korelace s mapou (stara o celou dobu vypoctu) je to rozdil mezi "funkce jede"
+        /// a "funkce nedela nic". Viz doc/map-correlation-localization.md.
+        /// </summary>
+        [Test]
+        public void ZahozeneMerenieVeFuzi_DorazidoProudu()
+        {
+            using var rig = new Rig();
+
+            var engine = new ARBot.Common.Fusion.AsyncFusionEngine(new ARBot.Common.Fusion.EKFModel());
+            engine.InitializePosition(0, 0, 1.0, T0.AddSeconds(2));   // tBase = T0 + 2 s
+
+            engine.Enqueue(new ARBot.Common.Fusion.HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));
+
+            Assert.That(rig.WaitFor(1), Is.True, "zahozeni se neobjevilo v proudu");
+            lock (rig.Received)
+            {
+                string msg = rig.Received[0].Message;
+                Assert.Multiple(() =>
+                {
+                    Assert.That(msg, Does.Contain("starsi nez okno"));
+                    Assert.That(msg, Does.Contain("MapCorr"),
+                                "ze zpravy musi byt poznat ZDROJ, jinak nepozna, co se zahazuje");
+                    Assert.That(msg, Does.Contain(nameof(ARBot.Common.Fusion.HeadingMeasurement)),
+                                "a taky TYP merenia - u korelace jde o tri rozdilna (osa, osa, kurz)");
+                    Assert.That(msg, Does.Contain("opozdeno"),
+                                "nejakcnejsi cislo je, O KOLIK bylo pozde - z toho se pozna, "
+                                + "jestli pomoct zvetsenim okna nebo zrychlenim vypoctu");
+                    Assert.That(msg, Does.Contain("okno"), "a proti cemu se to merilo");
+                    Assert.That(engine.DroppedTooOld, Is.EqualTo(1), "a soucasne se to pocita");
+                });
+            }
+        }
+
         [Test]
         public void DebugWriteLine_ProjdeDoProudu()
         {

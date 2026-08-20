@@ -37,6 +37,422 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-20
+
+- **„Při řídkém důkazu propustí hlídač volnou osu" — dohledáno a rozhodnuto NEOPRAVOVAT zvlášť.**
+  Vypadalo to na samostatnou vadu; po změření je to **třetí stopa téhož problému** jako otevřený
+  úkol č. 1. Beze změny kódu, jen měření a dokumentace.
+  - **Co se změřilo:** profil skóre podél volné osy nad skutečnými snapshoty gridu ze záznamu
+    (stejným kódem jako robot, nástroj mimo repozitář). Skóre podél volné osy **není ploché** —
+    klesá vždy, ale u malého oblaku výrazně strměji: při posunu 2,5 m spadne na 0,58 (2 214 buněk)
+    proti 0,82 (18 465 buněk).
+  - **Není to o řídkosti.** Hustota je ve všech případech shodná (~230 buněk/m², ~57 % zaplnění)
+    a podíl buněk mimo cestu taky (59–65 %). Rozhoduje **prostorový rozsah**, hlavně napříč:
+    2,20 m proti 10,84 m — a 2,20 m je *méně než šířka cesty*. Pojmenování „řídký důkaz" bylo tedy
+    od začátku špatné.
+  - **Mechanismus:** u velkého oblaku leží většina buněk daleko od okraje cesty. Ty souhlasí
+    u každého kandidáta, nic neurčují a jen **ředí procento** — posun s ním hne málo, konkurent
+    zůstane u vrcholu, hlídač správně zhasne. Malý oblak žádnou nudnou buňku nemá, takže posun
+    procentem hne hodně a hlídač propustí. Skóre se nezhoršilo proto, že by malý oblak věděl víc,
+    ale proto, že nemá co ředit.
+  - **Proč je to tentýž problém:** skóre je **normalizované**, takže o množství důkazu za sebou
+    neví nic — a σ z jeho zakřivení (× konstantní `α`) to nemůže vědět taky. Proto vyjde pro malý
+    oblak σ **menší** (0,1412 proti 0,23–0,29 m): větší jistota tam, kde je podkladu nejmíň. Jako
+    s anketou — tři dotázaní se stoprocentní shodou vypadají lépe než tři tisíce s 94 %.
+  - **Rozhodnutí (autor):** připsat k úkolu č. 1 a neřešit zvlášť. Až se σ naučí počítat, kolik
+    informativního důkazu za ní stojí, případ zmizí sám (velká σ → strop σ podélnou osu potlačí →
+    hlídač marže není potřeba). Opravovat to teď zvlášť by znamenalo přidat další ruční práh, což
+    dokumentace projektu sama zakazuje. Naléhavost nízká: korekce vypnuté, nastane to jednou za pět
+    běhů na jediný cyklus, hodnota byla správná — *ale* ve virtuálním HW je hodnota přišpendlená
+    cirkularitou renderu, takže to není důkaz správnosti, jen absence protidůkazu.
+  - **Vyzkoušeno a nefunguje:** poměrové přeformulování hlídače (marže volné osy proti marži určené
+    osy na tomtéž oblaku, aby se ředění vykrátilo) — poměr vyjde 0,27 proti 0,10–0,13, takže rozumný
+    práh problémový cyklus pustí taky. Zapsáno, ať se to nezkouší znovu.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) →
+    „Proč malý oblak obelže hlídač" (obrázky obou oblaků, tabulka, mechanismus, nejlevnější pojistka
+    kdyby byla potřeba dřív). Bez commitu.
+
+- **Latence korekce proti oknu historie EKF** (podnět autora: „v .rec jsem viděl, že korelace trvá
+  cca 800 ms, vzhledem k 1s oknu u EKF je to dost na hraně"). Měl pravdu a to číslo situaci ještě
+  podceňovalo. Beze změny kódu, jen měření a dokumentace.
+  - **Naměřeno** z indexu záznamu (`ArrivalTicks − CaptureTicks`): celá latence korekce je
+    v **Debugu p50 1 427 ms** (max 1 807), tedy **51 z 55 korekcí by EKF zahodil** jako starší než
+    okno 1 s. V Release p50 194 ms (max 294), nic nad oknem — rezerva ~3,4×.
+  - **⚠️ Zahození je neviditelné:** `Enqueue` starší měření zahodí a jen zaloguje `Debug.WriteLine`,
+    což je `[Conditional("DEBUG")]` → v Release neprojde nikam a počítadlo neexistuje. Telemetrie
+    přitom dál hlásí `Reason = Ok`, takže by to vypadalo, že funkce jede. Před měřením na OrangePI
+    je potřeba to zviditelnit, jinak měření nic nerozliší.
+  - **Proč je Debug/Release rozdíl tak velký:** izolovaně (tentýž snapshot, shodné skóre) trvá
+    `CorrelationScorer.Scan` 523–583 ms v Debugu proti 118–131 ms v Release = **4,3×**. Je to
+    vlastnost tvaru práce: horká smyčka udělá ~10–12 M iterací a v každé třikrát sáhne do pole přes
+    property a zavolá `TryIsRoad`. Release to inlinuje a drží lokály v registrech, Debug má
+    z každého přístupu skutečné volání (`DisableOptimizations`).
+  - **Důležitější než ten poměr:** latence se zhorší **víc** než výpočet (7,4× proti 5,5×), protože
+    v Debugu cyklus (696 ms) přeteče periodu snapshotu (500 ms) → využití 1,39 → fronta se zasytí.
+    Ověřeno aritmeticky: 228 + 696 = 924 ms proti naměřeným 1 427, rozdíl ≈ jedna perioda čekání.
+    **Návrhový důsledek:** cíl není „cyklus pod 1 s", ale „cyklus pohodlně pod 500 ms" — při
+    přiblížení k periodě snapshotu se okno prolomí skokem, ne postupně.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) → „Latence korekce
+    proti oknu historie EKF". Bez commitu.
+
+- **Zviditelnění zahazovaných měření ve fúzi** (rozhodnutí autora po předchozí odrážce). Sada
+  **666 prošlo, 4 skipy, 0 selhalo**, build 0 chyb.
+  - **Hotovo:** `AsyncFusionEngine.DroppedTooOld` a `DroppedTooOldBySource()` — počítadlo měření
+    zahozených jako starší než okno historie, rozpadlé podle `Source` (aby šlo odlišit podezřelé
+    „MapCorr" od běžného opozdělého GPS fixu). `Diagnostics()` to ukázat nemůže: zahozené měření do
+    bufferu nikdy nevstoupí. Hláška o zahození jde nově přes **`Trace.WriteLine`**, takže dorazí do
+    záznamu i v Release. +5 testů na počítadlo, +1 integrační (zahození → `Info` v proudu).
+  - **`ARBotRuntime.Log` NEvznikla** — autor to zamítl správně: nepřidávala by mechanismus, jen
+    jméno, a `ARBot.Common` na aplikační vrstvu sahat nesmí, takže právě tam, kde to bylo potřeba,
+    by se použít nedala. Platí jedno pravidlo pro obě vrstvy: `Trace.WriteLine`. Zapsáno do
+    [record-replay.md](record-replay.md) i s tabulkou „kdy Trace a kdy Debug".
+  - **Ověřeno mimochodem:** `TRACE` je definované i v Release (doplňuje ho SDK), přestože
+    `ARBot.Common.csproj` ho explicitně uvádí jen v Debug konfiguraci — zkontrolováno na příkazové
+    řádce překladače (`/define:TRACE;IsX64;RELEASE;...`).
+  - **⚠️ Nedořešeno:** hlášky ze **startu** (načtení mapy, `poseerror=`, vložení počáteční pózy) do
+    záznamu pořád nedorazí — most se připojuje až na konci `WireRun`, o ~170 řádků wiringu později.
+    Převedl jsem je na `Trace.WriteLine`, ale bez přesunu zapojení mostu (nebo pufrování) jdou jen
+    do debug outputu. Popsáno v [record-replay.md](record-replay.md).
+  - **Opravena latentní vada testu**, kterou to odhalilo: `AsyncFusionEngineConcurrencyTests`
+    tvrdil uvnitř spotřebitele `Assert.That(rs, Is.Not.Null)`, tedy že spotřebitel vždy stihne
+    zůstat v okně 1 s, zatímco producent žene 25 s modelového času co nejrychleji. Při zatížení
+    stroje producent vyhraje, staré časy se prořežou a `GetStateAt` **správně** vrátí `null` — test
+    pak padal podle vytížení CPU (2 ze 3 běhů celé sady; izolovaně vždy prošel). Deklarovaný záměr
+    testu je „bez výjimky a bez deadlocku", takže tvrzení bylo mimo jeho vlastní kontrakt. Nově se
+    null toleruje a místo toho se hlídá `answered > 0`, aby test nezhloupl na „všechno null, nic se
+    neověřilo". Sada 5× po sobě zelená. *Poznámka: na pomalejším stroji (OrangePI, CI) by to padalo
+    i beze mne.*
+
+
+- **Korekce zapnuté, okno EKF na 3 s — a hláška o zahození doplněná** (autor zapnul
+  `MapCorrelatorConfig.Enabled = true` a `FusionConfig.HistoryWindow = 3 s`, v logu ale dál viděl
+  zahazování `MapCorr`). Sada **667 prošlo, 4 skipy, 0 selhalo**, build 0 chyb.
+  - **Z logu šlo hned vyloučit okno jako příčinu:** `MapCorr @ 11:59:21.196 (tBase=11:59:21.628)` je
+    proti `tBase` staré jen **432 ms**, ne 3 s. Protože `tBase ≈ nejnovější měření − okno`, znamená
+    to, že korekce byla opožděná o ~3,4 s — tedy latence, ne velikost okna. Prodloužení okna proto
+    nemohlo pomoct a při větším okně navíc roste přepočítávaný ocas.
+  - **Hláška teď nese typ, hodnotu a hlavně O KOLIK bylo pozdě** (žádost autora „bylo by pěkné říct
+    i jaké měření bylo zahozeno"):
+    `[Fusion] zahozeno merenie starsi nez okno historie: AxisOffsetMeasurement 'MapCorr' @ 11:59:21.196
+    z=[12.345] - opozdeno o 3804 ms za nejnovejsim (11:59:25.000), okno je 3000 ms (tBase=11:59:21.900)`.
+    Typ je podstatný: z korelace chodí **tři různá** měření (dvě osová + kurz). „Opozdeno o N ms
+    proti oknu W ms" je akční číslo — řekne, jestli pomůže větší okno nebo rychlejší výpočet.
+  - **Test odhalil skutečnou vadu v mém kódu:** hláška sahala na `nodes[Count-1]`, ale `Initialize*`
+    uzly promaže, takže buffer je prázdný i u inicializovaného filtru → index −1. V provozu by to
+    shodilo první opožděné měření po inicializaci. Opraveno (`nodes.Count > 0 ? … : tBase`) a
+    pokryto testy pro obě větve (prázdný i neprázdný buffer).
+  - **Aktualizován test i dokumentace:** `Vychozi_JeVypnuty` → `Vychozi_MaZapnuteKorekce` (ten test
+    je tam schválně, aby stav přepínače byl vědomé rozhodnutí; teď nese datum a důvod). Srovnána
+    čtyři místa v `CLAUDE.md` a specifikaci, která ještě tvrdila „korekce jsou vypnuté".
+  - **Nejakutnější otevřená vada při zapnutých korekcích:** chybí **tvrdý limit korekce za cyklus** —
+    `MaxOffsetM` omezuje naměřený posun, ne aplikovaný krok, takže při malé σ proti velkému `P` může
+    filtr aplikovat skoro dva metry v jednom updatu. Vyzdviženo ve specifikaci.
+  - **Odkazy:** [AsyncFusionEngine.cs](../Src/ARBot.Common/Fusion/AsyncFusionEngine.cs),
+    [map-correlation-localization.md](map-correlation-localization.md). Bez commitu.
+
+- **Ovlivňují korekce polohu robota? — změřeno nad `20260820-122026.rec`** (pozorování autora:
+  „v Release to nezahazuje, ale nezdá se mi, že by korelace ovlivňovaly pozici robota"). Měl pravdu,
+  a příčina je v zadání experimentu, ne v korelátoru. Beze změny kódu, jen měření a dokumentace.
+  - **Naměřeno:** korekci poslalo **67 ze 67** cyklů (všechny tři složky), ale stav zareagoval aspoň
+    30 % tvrzeného posunu jen **3×**. Součet tvrzených posunů 10,41 m proti 1,83 m skutečných do
+    250 ms (17,6 %, a většina z toho je jízda, ne odezva).
+  - **První korekce se aplikovala** — stav uskočil v jednom 100 ms tiku přesně o tvrzených 0,800 m
+    (zesílení ≈ 1, `P` bylo po startu volné). Od druhé už jemná stopa v 10 Hz nemá v okamžiku
+    korekce **žádnou nespojitost**.
+  - **Vyvrácena moje vlastní obava:** vyslovil jsem hypotézu, že ta jedna přijatá korekce mohla filtr
+    zamknout mimo pravdu. Neplatí — systematický posun stavu proti GPS je **0,141 m** při standardní
+    chybě průměru **0,152 m** (šum virtuální GPS σ = 2,12 m, 194 fixů). Tedy v šumu; filtr jede na
+    GPS a zůstává na pravdě.
+  - **Ten experiment vyjít nemůže, a je to vlastnost zadání.** Chyba pózy byla vnucená z UI virtuální
+    kamery, ale je **fiktivní** — virtuální GPS měří simulovaného robota, tedy pravdu, a tu chybu
+    popírá. Správně fungující filtr *má* dát přednost GPS. Ta jedna korekce, co prošla, odtlačila
+    odhad 0,8 m **od** pravdy a GPS ho vytáhla zpět. Navíc se hlášený posun nemůže vynulovat ani
+    principiálně: kamera renderuje z odhadu, takže posunutí odhadu posune i obraz — proto `Dx` stojí
+    konstantně na 0,800. Na ověření, že korekce pracují, musí být korelace jediná absolutní
+    reference: zhoršit/vypnout GPS (což je i skutečný účel funkce), nebo vnutit tutéž chybu i GPS,
+    nebo měřit nad reálným záznamem.
+  - **Proč od druhé nic — hypotéza, ne fakt:** gating. σ ≈ 0,10 m, první korekce prošla při velkém
+    `P`, ale **tím ho sama stáhla** na ~σ²; pak `S = P + R ≈ 2σ²` a posun 0,28 m dá NIS ≈ 3,5–3,6
+    proti prahu 3,84. Strukturální past: **sebejistý korelátor tvrdící velkou chybu si ji sám
+    zamkne** — čím větší chybu najde, tím spolehlivěji ji gate zamítne.
+  - **⚠️ Potvrdit to nelze** — v záznamu není NIS ani příznak přijetí. `MeasurementDiagMsg` přitom
+    nese přesně `Source`, `Z`, `DiagR`, `Nis`, `Accepted`, ale **nikdo ji nepublikuje**; je to mrtvý
+    DTO. Zapojit ji je doporučený další krok.
+  - **Mimochodem:** `MapMsg` drží souřadnice ve **stupních** (`LatDeg`), zatímco `RoadNetwork` uzly
+    v **radiánech** (`LLA.FromDegrees` v `GraphBuilder`) — na tom si při analýze záznamu snadno
+    naběhnout (mně se to stalo). `GPSState.Latitude/Longitude` jsou stupně.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) → „Co virtuální HW
+    o funkčnosti korekcí ukázat nemůže". Bez commitu.
+
+- **Návrhová rozvaha: korelace jako odhad posunu mapa↔GPS** (úvaha autora: „GPS může kecat, mapa může
+  být špatně nakreslená do tvaru i polohy — to pozorování kamerou je vlastně to nejpřesnější, co se
+  týče pozice robota vůči cestě"). **Zapsáno jako návrh k rozhodnutí, kód nedotčen** — viz
+  [decisions.md](decisions.md).
+  - **Jádro:** kamera neměří polohu, měří **vztah k cestě**. Podporují to naměřená čísla z 19. 8.:
+    příčná chyba nalezena s přesností jednotek **milimetrů**, podélná na přímé cestě **vůbec**.
+    Dnešní `(Dx, Dy)` slévá tři věci: polohu robota napříč cestou, tvar cesty v mapě a umístění celé
+    mapy vůči GNSS rámci.
+  - **Návrh autora:** nový stav filtru — aditivní posun `d` mezi rámcem GPS a rámcem mapy, krmený
+    korelací. Obě role, které autor chce, padnou na dvě složky s různou observovatelností: napříč
+    pořád, podél jen na struktuře (odbočka, ohyb) — tedy „odbočení zpřesní pozici" je doslova
+    observovatelnost podélné složky.
+  - **Co jsem k tomu přidal:** atribuce (mapa vs. GPS) není potřeba ani možná — `d` je prostě
+    transformace, která srovná GPS s mapou. Aplikovat ho **na mapu, ne na robota**, aby póza
+    a ukotvení gridu neskákaly (jinak se vrátí kolo „skok pózy → zahodit grid → divná σ"). A do EKF
+    místo vedle něj, protože rozdělení „chyba je v GPS" vs. „v mapě" pak vypadne z kovariancí samo
+    místo ručního pravidla. Rozhodující konstanta je **procesní šum na `d`**.
+  - **Rozpouští to gating** naměřený téhož dne: filtr zamítá to, co neumí vysvětlit; jak nesouhlas
+    dostane stav, přestane být odlehlý a stane se z něj informace.
+  - **Námitka autora a její vyřešení:** „když posuneš mapu, musím dostat novou mapovou zprávu".
+    Platí na naivní čtení, ale `MapMsg` má **jediného konzumenta** — `WorldViewDocument` (kreslení).
+    Řídicí cesta bere in-process `RoadNetwork`. Graf se tedy nepřeposílá nikdy; `d` jsou **dva
+    doubly** v `RobotStateMsg` (verze +1) a konzumenti si posun přičtou sami.
+  - **Dvě námitky autora, obě věcné, obě zapsané:** (1) *posun ovlivní naplánovanou trasu i lokální
+    plán* — míří na slabinu mého triku „aplikovat na mapu": ten zachrání grid, ale **mrkev se posune
+    tak jako tak**, a mrkev robota řídí. Přeprodal jsem to. Trasa jako posloupnost hran se ale nemění
+    (topologie); mění se „na které hraně jsem", což je právě to, co má korelace spravit. Léčba je
+    rychlostní limit na Δ`d` — a to je ten „tvrdý limit korekce za cyklus" z otevřených úkolů, jen
+    aplikovaný na posun, kde sedí lépe. (2) *bude se to blbě prezentovat* — UI je řešitelné a zlepší
+    to (kreslit **použitou** mapu; zbylá mezera proti podkladu OSM je přímo ten posun, dnes nevidět),
+    ale **pojmová cena je trvalá**: dva rámce, a každé číslo musí říct, ve kterém je.
+  - **Zaostřené rozhodnutí:** ty námitky jsou cena stavového řešení. Jednodušší varianta „příčný
+    offset jen do lokální navigace, EKF obejít" je **neplatí** — proto je doporučená jako **první
+    krok** a stavová až po měření nesouhlasu GPS↔mapa na **reálném** záznamu. Zatím nevíme, jestli
+    stavové řešení řeší problém, který v praxi máme, nebo problém, který si umíme představit.
+  - **Důsledek pro plán:** otevřený úkol č. 1 (σ slepá k množství důkazu) tímhle nabývá na
+    důležitosti — rozdělení mezi pózou a `d` řídí poměr rozptylů. A dokud se o návrhu nerozhodne,
+    nemá smysl dolaďovat současné chování korekcí.
+
+- **Korelace se ve výchozím stavu vůbec nepočítá** (`mapcorr=false`) **a `Enabled` → `SendCorrections`**
+  (podnět autora: „vzhledem k tomu, že se to zatím nepoužívá, mi přijde zbytečné i korelaci počítat —
+  lze to nějak jednoduše vypnout?"). Odpověď byla: **nešlo**, a přepínač, který tak zní, to nedělal.
+  - **Nález:** `MapCorrelatorConfig.Enabled` se testuje **až za celým výpočtem** — přeskočí jen
+    `SendMeasurements`. Sken, rastr, důkazní seznam i kovariance se spočítaly vždycky, takže
+    `false` neuspořilo **nic**. Sám jsem na tu záměnu naletěl: psal jsem „korekce jsou vypnuté" ve
+    chvíli, kdy korelátor spaloval 126 ms na cyklus (~čtvrt jádra na x64, na ARM víc).
+  - **Hotovo:** parametr `mapcorr=true/false` (default **false**) rozhoduje, jestli se ten stupeň
+    v `WireRun` vůbec založí — při `false` nevznikne ani vlákno, ani fronta, ani rastr. A přejmenování
+    `Enabled` → `SendCorrections`, aby dva různé přepínače měly dvě různá jména; u obou je v kódu
+    i v dokumentaci napsané, že „posílat" není totéž jako „počítat".
+  - **Ověřeno za běhu:** bez parametru **0** `MapCorrelationMsg` v záznamu (grid se publikuje dál,
+    21 zpráv), s `mapcorr=true` jich je 21. Build 0 chyb, sada **667 prošlo, 4 skipy, 0 selhalo**.
+  - **Proč default false:** korelátor dnes nic neřídí (korekce jsou neúčinné — viz odrážky výš),
+    telemetrii nikdo nečte a návrh je pod revizí, takže jediné, co produkuje, je zátěž. Kdo se
+    k tomu vrátí, zapne si to parametrem; stav je navíc z každého záznamu poznat na první pohled
+    (přítomnost `MapCorrelationMsg`).
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) (tabulka „dva
+    přepínače"), [CLAUDE.md](../CLAUDE.md). Bez commitu.
+
+- **Rozvaha: korelace přes FFT?** (dotaz autora). Zapsáno do specifikace k otevřenému úkolu č. 1,
+  kód nedotčen. Závěr: **jako zrychlení téhož nejspíš prohraje, jako jiný estimátor by vyhrála.**
+  - **Proč ne rychlost:** FFT dá korelaci pro *všechny* posuny, ale dnešní sken je postavený na tom,
+    že je nechce — hierarchicky (1 325 kandidátů proti 512² = 262 144), řídce (`Stride = 4`, ~5 150
+    z 20 600 buněk) a v okně ±50 buněk. Rotace navíc zůstane vnější smyčkou (FFT umí translaci),
+    normalizace „buňka mimo rastr se přeskočí včetně jmenovatele" potřebuje **druhou** korelaci
+    s maskou, a kvůli cyklické konvoluci je potřeba padding 456² → 512².
+  - **Proč možná ano:** dala by celou **plochu skóre** místo tří sond Hessiánu. Přímo je to
+    nedostupné (~210 M vyhodnocení, odhadem ~1,9 s na jeden úhel), FFT to zvládne čtyřmi
+    transformacemi. Míří to na tři největší otevřené vady naráz: vychýlenou `TightAxisAngle` (změřit
+    směr hřebene místo fitu kvadratiky na „tent"), heuristický hlídač nejednoznačnosti (detekovat
+    vícemodálnost pořádně) — a hlavně ten **jmenovatel pro každý posun**, který FFT musí spočítat
+    kvůli normalizaci, **je efektivní množství důkazu**, tedy přesně ta veličina, ke které je σ dnes
+    slepá.
+  - **Nepřeprodávat:** FFT dá lepší *měření* plochy, ne lepší *model*. Že skóre není věrohodnost, je
+    vada modelu, ne vzorkování.
+  - **Cena:** `MathNet.Numerics` je už referencovaná, ale její FFT je managed a na tohle
+    pravděpodobně moc pomalá → nativní knihovna, tedy nová externí závislost i pro ARM64.
+  - **Kdy:** ne dřív, než padne rozhodnutí o přestavbě. Když vyhraje „příčný offset do lokální
+    navigace", hledání se scvrkne skoro na jednorozměrné a FFT je zbytečná.
+  - **Fourier-Mellin (návrh autora):** rotaci opravdu **odděluje** a je asi 5× lacinější než FFT na
+    každý úhel — námitku „rotace zůstane vnější smyčkou" to boří. Pro tenhle problém tomu ale stojí
+    v cestě čtyři věci: (1) **částečné překrytí** — spektra budou dominovaná nosiči (vějíř proti
+    hranici rastru), ne strukturou cesty, což je známý režim selhání FMT; (2) **rotace a translace
+    jsou tu skutečně provázané** (malá rotace kolem vzdáleného bodu vypadá jako příčný posun) a
+    stávající návrh tu vazbu záměrně marginalizuje — nezávislý odhad by ji zahodil; (3) odhad by
+    běžel na **jiném kritériu** (magnituda zahazuje fázi; normalizaci ani „přeskoč buňku mimo rastr"
+    v |F| vyjádřit nelze); (4) **úhlové rozlišení na hraně** (potřeba 0,5°, FMT typicky 0,5–1°
+    a při částečném překrytí horší).
+  - **Kde FMT naopak sedí:** jako **hrubý inicializátor pro široký záběr**. Dnešní záchytný rozsah je
+    jen ±2,5 m a ±8°, takže po delším výpadku GNSS nebo po přenesení robota hierarchický sken
+    principiálně nedosáhne a korelátor mlčí. Jeden výstřel, široký rozsah, nízká přesnost — a sken to
+    dojemní. Je to zároveň chybějící kus otevřeného úkolu „eskalace stavu *lokalizace nepodložená
+    mapou*", kam jsem to připsal jako kandidáta.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) → „Korelace přes
+    FFT" (včetně FMT) a otevřený úkol o eskalaci. Bez commitu.
+
+## 2026-08-19
+
+- **Korelace occupancy gridu s mapou — zapojení do runtime a telemetrie** (poslední díl dvanáctidílného
+  plánu [plan-map-correlation.md](plan-map-correlation.md), viz [map-correlation-localization.md](map-correlation-localization.md)).
+  - **Hotovo:** `ARBotRuntime.MapCorrelator` — nový korelátor vedle `GlobalNavigator` v `WireRun`,
+    stejný vzor (guard `RoadNetwork != null && fusionConfig.GeoReference != null`, vlastní vlákno nad
+    snapshotem occupancy gridu z `LocalNavigator.Output`, ne nad celým `Stream`). Do
+    `TelemetryColumns` přibyla sekce `korel …` (17 sloupců: posun, kurz, skóre, oba konkurenty,
+    sigmy, směr určené osy, počet buněk, příznaky odeslání korekcí, důvod, doba výpočtu). Ověřeno
+    buildem celého řešení (`dotnet build Src/ARBot.slnx -p:Platform=x64`, 0 chyb) a celou sadou
+    (`dotnet test Src/ARBot.Common.Tests -p:Platform=x64` — **631 passed, 4 skipped, 0 failed**).
+  - **Finální whole-branch review a její oprava (téhož dne):** review nad celou prací našla šest
+    nálezů, které per-task review vidět nemohly, protože každá viděla jen svůj výřez. Podstatné:
+    fronta korelátoru (`capacity 2`) nesla i `LocalPlanMsg` při 10–30 Hz, takže při delším cyklu
+    tiše vytlačila snapshot gridu; práh nejednoznačnosti porovnával skóre měřená ve **dvou různých
+    bodech** (naměřeno 0,8583 místo zamýšlených 0,9000); `SigmaLoose = +∞`, což je na přímé cestě
+    **normální** hodnota, rozbíjelo autoscale grafu telemetrie — tedy právě té metody, na které
+    stojí ladění ve fázi 4; a marže rastru neuvažovala **rotaci** kandidáta, takže u extrémních
+    kandidátů se zahazovaly převážně nesouhlasné buňky a jejich skóre se nadhodnocovalo.
+    Přidáno osm testů, mezi nimi tři, které dosud chyběly: že korekce **posune pózu ke skutečnosti**
+    (naměřeno Y 0,0000 → 0,6679 proti pravdě 0,7 — obrácení znaménka by dosud prošlo celou sadou),
+    že remíza na přímé cestě vyhrává **středem okna** (`Dx` = 0,000, dřív okraj −2,4 m), a že šikmá
+    cesta podélnou osu **nepošle**.
+  - **Runtime nález (autor si telemetrii zkusil zobrazit):** řada s korelacemi spadla na
+    `ArgumentException`. Příčina byla v mém kódu: `MapCorrelationReason` je `: byte` (aby se do
+    zprávy vešel na jeden bajt), ale sdílený helper `Enum<T,TEnum>` v `TelemetryColumns` předával
+    `Enum.IsDefined` vždy `int` — a to vyžaduje shodu s **podkladovým** typem výčtu. Všechny starší
+    výčtové sloupce (`GlobalNavStatus`, `LocalPlanStatus`, `GPSState.FixQuality`) mají standardní
+    `int`, takže ta past ležela v `TelemetryColumns` nepovšimnutá a odhalilo ji teprve spuštění.
+    Opraven **helper**, ne můj výčet — převod se přesunul do
+    `ARBot.Common/Telemetry/EnumPresentation.cs` (vedle `AnglePresentation`), kde ho jde pokrýt
+    testy: `byte` i `int` výčet, celý výčet po hodnotách, neznámá hodnota, hodnota mimo podkladový
+    typ. Sada 640 testů, 636 prošlo. Poučení: čtrnáct review to nenašlo, protože **UI vrstva nemá
+    testovací projekt** — `TelemetryColumns` žije v `Src/ARBot`, na který žádný test neukazuje.
+  - **Odsimulované / zbývá ověřit:** samotný běh aplikace (Run, virtuální i reálný HW) s mapou a
+    zapnutým korelátorem se nespouštěl — jen kompilace a testy nad `ARBot.Common`. Telemetrické
+    sloupce se v běžící aplikaci nezobrazily.
+  - **Záměrně beze změny:** `MapCorrelatorConfig.Enabled` zůstává `false` — korelátor počítá a hlásí,
+    ale nic neřídí, dokud se nevyřeší otevřená vada „falešná podélná jistota na cestě pod úhlem
+    k osám gridu" (viz `map-correlation-localization.md` → Otevřené úkoly).
+  - **Rozpracováno / další krok:** fáze 4 (ladění `α`, prahů a σ nad záznamy a virtuálním HW) a
+    fáze 5 (měření na OrangePI) nejsou implementační kroky plánu, jsou to měřicí úkoly nad hotovým
+    základem.
+
+- **Korelace s mapou — první skutečné spuštění aplikace** (navazuje na předchozí odrážku; **beze
+  změny kódu**, jen měření a dokumentace). Dvakrát 40 s s virtuálním HW nad `OSM/HajeRovne.osm`
+  (`selftest=true st_record=true virtualhw=true`), Debug i Release; výsledky vytaženy ze záznamu
+  diagnostickým nástrojem mimo repozitář.
+  - **Korelátor běží a hlásí:** 69 `MapCorrelationMsg` za 40 s, všechny `Reason = Ok`. Proti známé
+    pravdě vyšlo `Dx = Dy = 0,000 m`, `Phi = 0,00°` — na správné póze si tedy chybu nevymýšlí.
+    Pozor na cirkularitu: `korel skore` ≈ 0,996 je vysoké i proto, že virtuální kamera renderuje
+    z **téže** mapy, proti které se koreluje.
+  - **Pád na `: byte` výčtu je ověřeně opravený.** Průchod skutečného registru `TelemetryColumns.All`
+    přes celý záznam — 64 sloupců × 4 457 řádků, 168 419 neprázdných buněk — proběhl **bez jediné
+    výjimky**, `korel duvod` vrací `Ok`. To je právě ta cesta, která se minule sesypala; formátování
+    výčtu se volá až při zobrazení (`TelemetryColumn.TextAt`), takže stavba řádků ji sama nepokryje.
+  - **Vada „falešná podélná jistota" potvrzena za běhu a zpřesněna.** `SigmaLoose` vyšla konečná
+    (≈ 0,32 m) ve **všech 69 cyklech**, ani jednou `+∞` — a to při určené ose 93,6°, tedy cestě jen
+    ~3,6° mimo osu gridu. Předpoklad „na přímé cestě bývá `korel sig+` = `+∞`" tedy v praxi neplatí
+    skoro nikdy. Hlídač konkurenta podélnou korekci zadržel v 68 z 69 cyklů, ale **v prvním cyklu
+    selhal** — a to je nový spouštěč: při řídkém důkazu (5 195 buněk) je konkurent ještě
+    rozlišitelný, odstup 0,1456 projde prahem 0,10 a pošle se podélná korekce s **nejmenší σ
+    z celého běhu** (0,2481 m). Selhává tedy tam, kde je odhad nejmíň podložený; `MinEvidenceCells`
+    proti tomu nechrání. Deterministické, Debug i Release shodně.
+  - **Doba cyklu změřena:** Release 126,5 ms průměr / 169,9 max (69 ze 70 snapshotů), Debug 696 ms /
+    829 max (55 ze 70, 21 % zahodil `DropOldest`). Poučení pro další měření: **Debug číslo je
+    bezcenné**, je 5,5× pomalejší a sám přeteče periodu snapshotu. Odhad „na ARM 100–200 ms"
+    v komentáři u fronty v `ARBotRuntime` je nejspíš optimistický — 126 ms je z desktopového x64.
+  - **Nový otevřený úkol:** bezobslužný běh **neumí zadat cíl** (jen Ctrl+klik v mapě), takže robot
+    vždy stojí a všechna tři měřitelná kritéria fáze 4 zůstávají nedosažitelná bez ruční jízdy.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) — doplněn Stav,
+    naměřená doba cyklu v sekci rizik, rozšířený otevřený úkol č. 1 a nový úkol o cíli.
+    Bez commitu (pravidlo CLAUDE.md).
+
+- **Umělá chyba pózy pro virtuální kameru — korelace poprvé měřená proti známé pravdě**
+  (návrh autora: „pro virtuální kameru udělejme speciální nástroj, který umožní nastavit umělou
+  chybu; tu by pak měl reportovat korelátor").
+  - **Proč to bylo potřeba:** při ověřování za běhu (odrážka výš) se ukázalo, že `Dx = Dy = 0`
+    ve virtuálním HW **nic nedokazuje** — kamera renderuje z `engine.GetStateAt(t)` a occupancy
+    grid se ukotvuje touž pózou, takže nula je strukturální a vyšla by i rozbitému korelátoru.
+    Předchozí formulace v dokumentaci ji četla jako „end-to-end test znamének"; opraveno.
+  - **Mechanismus:** do renderovací cesty se vlepí známý posun (`PoseAt = t =>
+    hw.VirtualPoseError.Apply(engine.GetStateAt(t))`). Obsah gridu se proti mapě posune o `−e`, což
+    je totéž, jako by robot stál na `odhad + e` — a protože korelátor hlásí „skutečná = odhad + D",
+    musí vyjít `D = e`. `VirtualCamera` se **nemění vůbec**; GPS a IMU dál měří pravdu, aby známá
+    odpověď nezmizela.
+  - **Hotovo:** [`VirtualPoseError`](../Src/ARBot.Common/Simulation/VirtualPoseError.cs) v `Common`
+    (čistá funkce, 14 testů — znaménka FLU→ENU, neměnnost vstupního stavu, parsování nezávislé na
+    národním prostředí), sdílená instance na `ARBotHW`, parametr `poseerror=vpřed,vlevo[,stupně]`,
+    a `VirtualCameraDocument` dědící z `CameraDocument` (panel vedle náhledu, očekávané vedle
+    naměřených z `MapCorrelationMsg`). Sada **650 prošlo, 4 skipy, 0 selhalo**.
+  - **Naměřeno — korelátor obstál:** příčná chyba 0,5 m vlevo → hlášeno 0,5050 m; 0,5 m vpravo →
+    −0,4972 m; kurz 3° → `Phi` 3,00°; čistě podélná chyba 0,5 m → příčná složka 0,0000 m (podélnou
+    na přímé cestě najít nelze a korelátor si ji **nevymýšlí**). Chyba jednotky milimetrů — poprvé
+    je doložené správné znaménko i velikost.
+  - **Dva nové nálezy, oba z téhož rozbitého fitu Hessiánu:**
+    1. `TightAxisAngle` je soustavně vychýlená o **−6,3°** proti kolmici na cestu. Kdo podle ní
+       rozkládá hlášený posun, dostane u velké podélné nejednoznačnosti o 40 % víc (0,695 m místo
+       0,505 m) — na tohle jsem sám naletěl, než jsem rozklad převedl na kurz robotu.
+    2. **První cyklus je chybný soustavně a přitom se odesílá:** osa je odchýlená o −51° až −89°,
+       takže „lépe určená osa" míří skoro podél cesty, a hlášená příčná složka má u obou posunů
+       **opačné znaménko** než pravda (−0,484 místo +0,500). Od druhého cyklu (≥ 7 000 buněk) je
+       vše v pořádku. `MinEvidenceCells = 400` je proti tomu bezcenné.
+  - **Ověření UI:** `Src/ARBot` nemá testovací projekt, tak jsem view nechal projít layoutem mimo
+    okno (`AppBuilder…SetupWithoutStarting`) — vazby drží obousměrně. Při té příležitosti se chytla
+    past: `NumericUpDown.Value` je `decimal?`, takže vlastnosti musí být `decimal` (jinak by to
+    selhalo až za běhu); `WorldViewDocument` to tak dělá už dávno.
+  - **Odkazy:** [virtual-hw.md](virtual-hw.md#umělá-chyba-pózy-poseerror) (mechanismus, parametr),
+    [map-correlation-localization.md](map-correlation-localization.md) (tabulka měření, varování
+    u `TightAxisAngle`, zpřesněný úkol č. 1), [Views/README.md](../Src/ARBot/Views/README.md).
+    Bez commitu.
+
+- **Proč je první korelace chybná — příčina dohledána, pojistka rozšířena o rotaci**
+  (dotaz autora: „není mi jasné, proč je první korelace chybná, to přece musí mít nějaký důvod").
+  Měl pravdu — „řídký důkaz" z předchozí odrážky byla souběžná okolnost, ne příčina.
+  - **Příčina:** grid je znečištěný. `InitializePosition` inicializuje jen X/Y, **kurz ne**, takže
+    startuje na 0 a ke skutečným −170° dojde až přes `HeadingMeasurement`. `LocalNavigator` mezitím
+    fúzuje snímky do world-ukotveného gridu — s kurzem u nuly se ukládají skoro obráceně. A pojistka
+    na přesně tento případ (`PoseJumpDetector`, v komentáři „obsah gridu je na spatnem miste")
+    byla **o jeden argument krátká**: dostávala jen polohu a `v`, takže rotace o 170° u stojícího
+    robotu dala `moved ≈ 0` a skok nehlásila.
+  - **Jak se to dokázalo:** vykreslení důkazního seznamu z prvního snapshotu (nástroj mimo
+    repozitář). Leží **za** robotem (0,75–5 m) jako zorný kužel s vrcholem u robota mířící dozadu —
+    u robota úzký, dál širší, tedy zápis proběhl s kurzem blízko 0°. Od druhého snapshotu je kužel
+    normálně vpřed. Třída „cesta" v prvním snapshotu zabírá **5,00 m** napříč proti pozdějším
+    přesně **3,00 m** (= `roadwidth`), což je na tři metry široké cestě nemožné, pokud jsou buňky
+    umístěné konzistentně. Posun to vysvětlit neumí (odhad se hýbe o ~1,4 m); kužel otočí jen rotace.
+  - **Hotovo:** `PoseJumpDetector.Check(x, y, theta, v, omega, t)` — hlídá i rotaci proti novému
+    `ToleranceRad` (default 5°, zvoleno tak, aby při dohledu ~6 m odpovídalo `ToleranceM` = 0,5 m).
+    Úmyslně **změna podpisu, ne přetížení**: že šla zavolat verze slepá ke kurzu, byla ta vada.
+    Úhel se normalizuje přes `Conversions.NormalizeOrientation` — bez toho by přechod přes ±180°
+    hlásil skok pokaždé, když robot míří na západ (a tam na `HajeRovne` míří). +6 testů, sada
+    **656 prošlo, 4 skipy, 0 selhalo**.
+  - **Sama pojistka symptom NESUNDALA:** první cyklus byl pořád chybný ve **2 ze 4 běhů** (týž
+    příkaz dvakrát dal jednou −0,492 správně, jednou +0,394 s opačným znaménkem). Souběh, protože
+    detektor je *per-krok*: první volání zakládá referenci a skok hlásit nemůže, a plynulá
+    konvergence kurzu se pod toleranci 5° za krok schová. Zásah zůstává správný nezávisle na tom —
+    abrupt skok kurzu byl pro pojistku slepý plošně, ne jen při startu.
+
+  - **Opraveno chybné tvrzení v dokumentaci:** ve „Zpětná vazba na grid" stálo, že „korekce kurzu
+    grid nijak nepoškodí: je world-kotvený, jeho obsah se nerotuje". První část platí, závěr ne —
+    a vada plyne přesně z toho. Že se obsah **nerotuje**, je zdroj problému: buňky zapsané starým
+    kurzem zůstanou ležet, takže vůči novým zápisům jsou posunuté o `R · dTheta`. Rotace grid
+    poškodí **víc** než posun stejné velikosti, ne méně.
+  - **Dvě poznámky pro další měření:** v **Release** buildu jsou `Debug.WriteLine` kompilačně
+    odstraněné, takže záznam neobsahuje žádné `Info` — logy jdou vytáhnout jen z Debug běhu.
+    A `MapMsg` v záznamu **je**, jen se `MsgName` jmenuje `Map` (dřívější poznámka o jeho absenci
+    byla omyl ve způsobu hledání).
+  - **Odkazy:** [PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs),
+    [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs),
+    [map-correlation-localization.md](map-correlation-localization.md). Bez commitu.
+
+- **Kurz se v EKF inicializuje — první korelace je poprvé správná** (rozhodnutí autora ze tří
+  navržených cest: „pokud znám kurz, tak proč ho neinicializovat; ARBotRuntime o inicializaci hned
+  posílá měření směru, aby se to srovnalo — takhle to bude umět rovnou EKF"). Viz
+  [decisions.md](decisions.md).
+  - **Hotovo:** `AsyncFusionEngine.InitializeHeading(theta, std, t)` jako obdoba
+    `InitializePosition`; sdílené jádro obou v jednom privátním `InitializeAxesLocked`, aby se
+    nemohly rozejít. `ARBotRuntime.InitializeStartPose` ji volá místo `HeadingMeasurement`.
+    Kdo kurz nezná (GPS fix ho nenese), posílá ho dál jako měření — ta cesta zůstává.
+    +5 testů, sada **661 prošlo, 4 skipy, 0 selhalo**.
+  - **Test, který to odůvodňuje:** při `P0 = I` je σ kurzu 1 rad (57°), takže startovní měření
+    o 170° vedle má NIS ~8,7 proti χ²(1; 0,95) = 3,84 — se zapnutým gatingem se **zahodí**. Tatáž
+    latentní past, jakou u polohy popisuje `FarAwayFix_WithGating_WouldBeRejected`. Do teď to
+    nebylo vidět jen proto, že prahy gatingu nikdo nenastavuje.
+  - **Naměřeno:** vnucená chyba −0,5 m napříč, čtyři běhy → první cyklus −0,487 / −0,481 / −0,487 /
+    −0,479 m (chyba 1,3–2,1 cm), určená osa −6,3 až −6,8° místo −51 až −89°, `korel os+` zhasnutý.
+    Před opravou chybný ve 3 ze 3. Ustálený stav nedotčen (0,5048 proti 0,5000 m).
+  - **Zbývá:** po zahození gridu se objeví cyklus s ~2 000 buňkami, kde `korel os+` svítí, byť
+    hodnota je správná. Není to regrese — a po doměření (viz další odrážka) se ukázalo, že to není
+    ani samostatná vada.
+
+
 ## 2026-08-18
 
 - **Srovnání dokumentace se skutečností** (podnět autora: „máme někde seznam věcí k řešení?").

@@ -168,4 +168,64 @@ namespace ARBot.Common.Fusion
                 Conversions.NormalizeOrientation(z[2] - hx[2])
             });
     }
+
+    /// <summary>
+    /// Merenie polohy PODEL JEDNE OSY: <c>h(x) = u . p</c>, kde <c>u</c> je jednotkovy vektor osy
+    /// a <c>p = (X, Y)</c>. Viz doc/map-correlation-localization.md.
+    ///
+    /// <para><b>K cemu:</b> korelace s mapou zna polohu dobre v jednom smeru a spatne v kolmem
+    /// (na prime ceste napric ano, podel ne). <see cref="PositionMeasurement"/> ma R jen
+    /// DIAGONALNI v osach sveta, takze otocenou anizotropni kovarianci nepobere. Dve tato merenia
+    /// po vlastnich osach kovariance to resi exaktne - a "podel nevim" je vyjadreno tim, ze se ta
+    /// osa posle s velkou sigmou nebo vubec, ne trikem s nekonecnem.</para>
+    /// </summary>
+    public class AxisOffsetMeasurement : IMeasurement
+    {
+        private readonly Vector<double> z;
+        private readonly Matrix<double> r;
+        private readonly double ax;
+        private readonly double ay;
+
+        public DateTime TimeStamp { get; }
+        public string Source { get; }
+        public double? GateThreshold { get; set; }
+        public GateMode GateMode { get; set; } = GateMode.Reject;
+
+        /// <param name="axisX">Slozka osy na vychod (nemusi byt normovana).</param>
+        /// <param name="axisY">Slozka osy na sever (nemusi byt normovana).</param>
+        /// <param name="value">Namerena projekce polohy na osu [m].</param>
+        /// <param name="std">Sigma merenia [m].</param>
+        /// <param name="t">Cas porizeni.</param>
+        /// <param name="source">Nazev zdroje pro logovani.</param>
+        public AxisOffsetMeasurement(double axisX, double axisY, double value, double std,
+                                     DateTime t, string source)
+        {
+            double len = Math.Sqrt(axisX * axisX + axisY * axisY);
+            if (!(len > 0) || double.IsNaN(len) || double.IsInfinity(len))
+                throw new ArgumentException("Osa merenia musi byt nenulovy konecny vektor.", nameof(axisX));
+
+            ax = axisX / len;
+            ay = axisY / len;
+            z = Vector<double>.Build.Dense(1, value);
+            r = Matrix<double>.Build.Dense(1, 1, std * std);
+            TimeStamp = t;
+            Source = source;
+        }
+
+        public Vector<double> Value => z;
+        public Matrix<double> NoiseCovariance => r;
+
+        public Vector<double> Predict(Vector<double> x)
+            => Vector<double>.Build.Dense(1, ax * x[EKFModel.IX] + ay * x[EKFModel.IY]);
+
+        public Matrix<double> Jacobian(Vector<double> x)
+        {
+            var H = Matrix<double>.Build.Dense(1, x.Count);
+            H[0, EKFModel.IX] = ax;
+            H[0, EKFModel.IY] = ay;
+            return H;
+        }
+
+        public Vector<double> Residual(Vector<double> z, Vector<double> hx) => z - hx;
+    }
 }

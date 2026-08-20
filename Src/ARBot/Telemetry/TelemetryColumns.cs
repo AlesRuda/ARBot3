@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Configuration;
 using ARBot.Common.Devices;
+using ARBot.Common.Localization;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Navigation;
 using ARBot.Common.Models;
@@ -91,6 +92,56 @@ namespace ARBot.Telemetry
             Num<GlobalNavMsg>("uzavreno hran", m => m.ClosureCount,
                 "Kolik hran navigace zatím uzavřela jako neprůjezdné (přehrazená cesta). Skok "
                 + "znamená, že se právě přeplánovávalo.", "F0"),
+
+            // --- korelace s mapou (odhad polohy) ---
+            Num<MapCorrelationMsg>("korel dx [m]", m => m.Dx,
+                "Naměřený posun na východ: skutečná poloha = odhad + dx. Trvale nenulová hodnota "
+                + "znamená systematickou chybu lokalizace. Viz doc/map-correlation-localization.md."),
+            Num<MapCorrelationMsg>("korel dy [m]", m => m.Dy,
+                "Naměřený posun na sever: skutečná poloha = odhad + dy."),
+            Num<MapCorrelationMsg>("korel fi [°]", m => Deg(m.Phi),
+                "Naměřená chyba kurzu: skutečný kurz = odhad + fi."),
+            Num<MapCorrelationMsg>("korel skore", m => m.Score,
+                "Shoda semantiky gridu s vozovkou podle mapy (-1 až 1). Zároveň metrika kvality: "
+                + "pod prahem korelátor mlčí, protože robot nejspíš není na mapované cestě.", "F3"),
+            Num<MapCorrelationMsg>("korel konkurent", m => m.SecondBestScore,
+                "Skóre nejlepšího vzdáleného konkurenta. Když se přiblíží skóre maxima, je shoda "
+                + "nejednoznačná (souběžná cesta) a nekoriguje se.", "F3"),
+            Num<MapCorrelationMsg>("korel konk+", m => m.SecondBestScoreLoose,
+                "Skóre nejlepšího konkurenta podél HŮŘE určené osy (podél cesty). Když je vypnutý "
+                + "sloupec „korel os+“ a přitom je tohle číslo blízko skóre maxima, osu vynechal "
+                + "právě tenhle konkurent, ne strop sigma — a to je příznak falešné podélné "
+                + "jistoty. Prázdné (−∞) znamená, že se konkurent vůbec neměřil.", "F3"),
+            Num<MapCorrelationMsg>("korel osa [°]", m => Deg(m.TightAxisAngle),
+                "Směr LÉPE určené osy (matematicky, 0° = východ). Přímá kontrola, že určená osa "
+                + "míří skutečně napříč cestou — jinak korekce tlačí robot jinam, než se čeká.", "F1"),
+            Num<MapCorrelationMsg>("korel sig- [m]", m => m.SigmaTight,
+                "Sigma LÉPE určené osy posunu — na cestě typicky napříč. Malá hodnota = příčné "
+                + "poloze se dá věřit."),
+            Num<MapCorrelationMsg>("korel sig+ [m]", m => m.SigmaLoose,
+                "Sigma HŮŘE určené osy posunu — na přímé cestě podél. Velká hodnota je správná "
+                + "odpověď, ne chyba: podélná poloha bez odbočky není určená."),
+            Num<MapCorrelationMsg>("korel sig fi [°]", m => Deg(m.SigmaPhi),
+                "Sigma naměřené chyby kurzu."),
+            Num<MapCorrelationMsg>("korel bunek", m => m.EvidenceCells,
+                "Kolik buněk gridu vstoupilo do korelace. Malé číslo = semantika ještě nemá dost "
+                + "dat (souvisí s okluzním pravidlem InShadow).", "F0"),
+            Flag<MapCorrelationMsg>("korel", m => m.Emitted,
+                "Poslala se do fúze aspoň jedna korekce? Když ne, důvod je ve sloupci „korel duvod“."),
+            Flag<MapCorrelationMsg>("korel os-", m => m.EmitTightAxis,
+                "Poslala se korekce podél LÉPE určené osy (na cestě typicky napříč)? Na přímé cestě "
+                + "je to běžný stav."),
+            Flag<MapCorrelationMsg>("korel os+", m => m.EmitLooseAxis,
+                "Poslala se korekce podél HŮŘE určené osy (podél cesty)? Na přímé cestě má být "
+                + "vypnutá — podélná sigma přeroste strop. Když svítí trvale, něco předstírá "
+                + "podélnou jistotu."),
+            Flag<MapCorrelationMsg>("korel kurz", m => m.EmitHeading,
+                "Poslala se korekce kurzu?"),
+            Enum<MapCorrelationMsg, MapCorrelationReason>("korel duvod", m => m.Reason,
+                "Proč se (ne)korigovalo: Ok / málo důkazů / nízké skóre / nejednoznačné / "
+                + "příliš velký posun / žádné maximum."),
+            Num<MapCorrelationMsg>("korel vypocet [ms]", m => m.ProcessingMs,
+                "Doba výpočtu jednoho cyklu korelace. Diagnostika zátěže (na ARM je to hlídané).", "F1"),
 
             // --- surove GPS (bez fuze) ---
             Num<GPSState>("GPS lat [°]", m => m.Latitude,
@@ -250,9 +301,9 @@ namespace ARBot.Telemetry
                 Description = description,
                 Format = "F0",
                 Value = m => m is T typed ? value(typed) : (double?)null,
-                Text = v => System.Enum.IsDefined(typeof(TEnum), (int)v)
-                            ? ((TEnum)(object)(int)v).ToString()
-                            : ((int)v).ToString(),
+                // Prevod resi EnumPresentation v ARBot.Common - je tam kvuli testum a kvuli pasti
+                // s podkladovym typem vyctu, kterou popisuje jeho dokumentace.
+                Text = v => EnumPresentation.Text<TEnum>((int)v),
             };
     }
 }

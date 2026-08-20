@@ -41,6 +41,7 @@ namespace ARBot.Common.Tests.Fusion
             });
 
             // vlakno "rizeni" - opakovane se ptá na aktualni odhad
+            int answered = 0;
             var consumer = Task.Run(() =>
             {
                 try
@@ -48,8 +49,14 @@ namespace ARBot.Common.Tests.Fusion
                     for (int i = 0; i < iterations; i++)
                     {
                         var t = T0.AddMilliseconds(i * 5);
-                        var rs = engine.GetStateAt(t);
-                        Assert.That(rs, Is.Not.Null);
+                        // POZOR: null je tady LEGITIMNI vysledek, ne chyba. Producent zene 25 s
+                        // modeloveho casu co nejrychleji, okno historie je 1 s - kdyz spotrebitel
+                        // pri zatizeni stroje zaostane, dotazovany cas uz je proriznuty a
+                        // GetStateAt spravne vrati null. Puvodni Assert.That(rs, Is.Not.Null) tedy
+                        // tvrdil neco, co tento test nezarucuje, a padal podle vytizeni CPU
+                        // (odhaleno 20. 8. 2026 pri behu cele sady). Zamer testu je "bez vyjimky
+                        // a bez deadlocku" - drzime se ho.
+                        if (engine.GetStateAt(t) != null) answered++;
                         _ = engine.BufferedCount;
                         _ = engine.FilterTime;
                     }
@@ -60,6 +67,9 @@ namespace ARBot.Common.Tests.Fusion
             bool finished = Task.WaitAll(new[] { producer, consumer }, TimeSpan.FromSeconds(30));
             Assert.That(finished, Is.True, "deadlock: vlakna nedobehla do 30 s");
             Assert.That(failure, Is.Null, () => $"soubezny pristup vyhodil vyjimku: {failure}");
+            // Aby test nezhloupl na "vsechno vratilo null, tedy se nic neoverilo": aspon nekdy se
+            // spotrebitel do okna vejit MUSI, jinak se soubezny pristup ke stavu vubec neprocvicil.
+            Assert.That(answered, Is.GreaterThan(0), "spotrebitel nedostal ani jeden stav");
         }
     }
 }

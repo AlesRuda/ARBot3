@@ -92,6 +92,197 @@ namespace ARBot.Common.Tests.Fusion
             Assert.That(st.X, Is.GreaterThan(299.5).And.LessThan(301.5));
         }
 
+        // ---------------- Zahozeni merenia starsiho nez okno ----------------
+
+        /// <summary>
+        /// Merenie starsi nez okno historie se zahodi - to je spravne. Do 20. 8. 2026 se to ale
+        /// dalo poznat JEN z <c>Debug.WriteLine</c>, ktery je <c>[Conditional("DEBUG")]</c>, takze
+        /// v Release nezustala zadna stopa. Pri latenci korekce z korelace 194 ms (x64) az ~1,4 s
+        /// (Debug) je to rozdil mezi "funkce jede" a "funkce nedela nic" - a telemetrie by v obou
+        /// pripadech hlasila totez. Viz doc/map-correlation-localization.md.
+        /// </summary>
+        [Test]
+        public void MerenieStarsiNezOkno_SeZahodi_APocitaSe()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            engine.InitializePosition(0, 0, 1.0, T0.AddSeconds(2));   // tBase = T0 + 2 s
+
+            Assert.That(engine.DroppedTooOld, Is.EqualTo(0), "na zacatku nic zahozeneho");
+
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));   // 2 s pozadu
+
+            Assert.That(engine.DroppedTooOld, Is.EqualTo(1));
+        }
+
+        /// <summary>Merenie V okne se pocitadla nedotkne.</summary>
+        [Test]
+        public void MerenieVOkne_PocitadloNezvysi()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            engine.InitializePosition(0, 0, 1.0, T0);
+
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0.AddSeconds(0.2), "MapCorr"));
+
+            Assert.That(engine.DroppedTooOld, Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// Pocitadlo musi rozlisovat ZDROJ - jinak nepozna, jestli zahazuje korekce z korelace
+        /// (podezrele, ta je pomala) nebo treba opozdeny GPS fix (bezne).
+        /// </summary>
+        [Test]
+        public void PocitadloRozlisujeZdroj()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            engine.InitializePosition(0, 0, 1.0, T0.AddSeconds(2));
+
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));
+            engine.Enqueue(new PositionMeasurement(1, 1, 1, 1, T0, "GPS/position"));
+
+            var bySource = engine.DroppedTooOldBySource();
+            Assert.Multiple(() =>
+            {
+                Assert.That(engine.DroppedTooOld, Is.EqualTo(3));
+                Assert.That(bySource["MapCorr"], Is.EqualTo(2));
+                Assert.That(bySource["GPS/position"], Is.EqualTo(1));
+            });
+        }
+
+        /// <summary>
+        /// REGRESE: <c>Initialize*</c> uzly promaze, takze buffer je PRAZDNY i kdyz je filtr
+        /// inicializovany. Hlaska o zahozeni sahala na <c>nodes[Count-1]</c> a padala na index -1
+        /// (odhaleno testem 20. 8. 2026, v provozu by to shodilo prvni opozdene merenie po
+        /// inicializaci). Tady je varianta s NEPRAZDNYM bufferem - produkcni cesta pres Prune.
+        /// </summary>
+        [Test]
+        public void ZahozeniFunguje_IKdyzJeBufferNeprazdny()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel(), TimeSpan.FromSeconds(1));
+            engine.InitializePosition(0, 0, 1.0, T0);
+
+            // Naplneni bufferu a posun casu tak, aby Prune odsunul tBase.
+            for (int i = 1; i <= 40; i++)
+                engine.Enqueue(ScalarStateMeasurement.Velocity(1.0, 0.05, T0.AddMilliseconds(i * 100), "Odo"));
+            engine.GetStateAt(T0.AddSeconds(4));   // vynuti prepocet a Prune
+
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0.AddMilliseconds(50), "MapCorr"));
+
+            Assert.That(engine.DroppedTooOld, Is.EqualTo(1));
+        }
+
+        /// <summary>Vraceny prehled je KOPIE - volajici jim nesmi zamichat vnitrnim stavem.</summary>
+        [Test]
+        public void PrehledZdroju_JeKopie()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            engine.InitializePosition(0, 0, 1.0, T0.AddSeconds(2));
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));
+
+            var first = engine.DroppedTooOldBySource();
+            engine.Enqueue(new HeadingMeasurement(0.5, 0.1, T0, "MapCorr"));
+
+            Assert.That(first["MapCorr"], Is.EqualTo(1), "drive vraceny prehled se nesmi menit");
+            Assert.That(engine.DroppedTooOldBySource()["MapCorr"], Is.EqualTo(2));
+        }
+
+        // ---------------- InitializeHeading ----------------
+
+        [Test]
+        public void InitializeHeading_SetsStateAndCovariance()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+
+            engine.InitializeHeading(1.2, 0.1, T0);
+
+            var st = engine.GetStateAt(T0);
+            Assert.That(st, Is.Not.Null);
+            Assert.That(st.Theta, Is.EqualTo(1.2).Within(1e-9));
+
+            var P = engine.Model.P;
+            Assert.That(P[EKFModel.ITh, EKFModel.ITh], Is.EqualTo(0.1 * 0.1).Within(1e-12));
+            // Kurz je znamy nezavisle na zbytku stavu -> zadne korelace.
+            Assert.That(P[EKFModel.ITh, EKFModel.IX], Is.EqualTo(0).Within(1e-12));
+            Assert.That(P[EKFModel.IW, EKFModel.ITh], Is.EqualTo(0).Within(1e-12));
+        }
+
+        /// <summary>Stav ma zustat kanonicky - jinak by pozdejsi rezidua pocitala s 190 misto -170.</summary>
+        [Test]
+        public void InitializeHeading_NormalizujeUhel()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+
+            engine.InitializeHeading(190.0 * Math.PI / 180.0, 0.1, T0);
+
+            Assert.That(engine.GetStateAt(T0).Theta * 180.0 / Math.PI,
+                        Is.EqualTo(-170.0).Within(1e-9));
+        }
+
+        [Test]
+        public void InitializeHeading_RejectsNonPositiveStd()
+            => Assert.That(() => new AsyncFusionEngine(new EKFModel()).InitializeHeading(0, 0, T0),
+                           Throws.InstanceOf<ArgumentOutOfRangeException>());
+
+        /// <summary>
+        /// Inicializace polohy NESMI zahodit uz inicializovany kurz (v <c>ARBotRuntime</c> se volaji
+        /// obe hned po sobe se stejnym casem).
+        /// </summary>
+        [Test]
+        public void InitializePozice_NezahodiInicializovanyKurz()
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+
+            engine.InitializeHeading(1.2, 0.1, T0);
+            engine.InitializePosition(300, -150, 1.5, T0);
+
+            var st = engine.GetStateAt(T0);
+            Assert.Multiple(() =>
+            {
+                Assert.That(st.Theta, Is.EqualTo(1.2).Within(1e-9));
+                Assert.That(st.X, Is.EqualTo(300).Within(1e-9));
+            });
+        }
+
+        /// <summary>
+        /// Duvod, proc <c>InitializeHeading</c> vznikla (19. 8. 2026): kurz se drive jen POSILAL
+        /// jako merenie. Filtr ale startuje s <c>P0 = I</c>, tedy sigma = 1 rad (57 deg), takze
+        /// merenie o 170 deg vedle ma NIS ~8,7 proti chi2(1; 0,95) = 3,84 - a jakmile se zapnou
+        /// prahy gatingu, <b>zahodi se</b>. Tataz latentni past, jakou u polohy popisuje
+        /// <see cref="FarAwayFix_WithGating_WouldBeRejected"/>.
+        ///
+        /// <para>Dopad nebyl teoreticky: dokud kurz nekonvergoval, zapisoval <c>LocalNavigator</c>
+        /// do world-kotveneho occupancy gridu bunky se spatnym kurzem a prvni korelace s mapou
+        /// z nich vysla s OPACNYM znamenkem. Viz doc/map-correlation-localization.md.</para>
+        /// </summary>
+        [Test]
+        public void ChybnyStartovniKurz_SGatingem_BySeZahodil_SInicializaciJePresny()
+        {
+            double sto70 = 170.0 * Math.PI / 180.0;
+
+            // (a) jen merenie + zapnuty gating -> zamitnuto, stav zustava na nule
+            var byMeasurement = new AsyncFusionEngine(new EKFModel());
+            byMeasurement.Enqueue(new HeadingMeasurement(sto70, 0.1, T0, "Start/heading")
+            {
+                GateThreshold = Gating.ChiSquareThreshold(1, 0.95),   // ~3,84
+                GateMode = GateMode.Reject,
+            });
+
+            var diag = byMeasurement.Diagnostics();
+            Assert.Multiple(() =>
+            {
+                Assert.That(diag.Count, Is.EqualTo(1));
+                Assert.That(diag[0].Accepted, Is.False, "s prahem gatingu je chybny kurz zamitnut");
+                Assert.That(diag[0].Nis, Is.GreaterThan(8.0));
+                Assert.That(byMeasurement.GetStateAt(T0).Theta, Is.EqualTo(0).Within(1e-9),
+                            "stav zustal na nule, tedy 170 deg mimo");
+            });
+
+            // (b) inicializace -> stav je presne na zadanem kurzu bez ohledu na gating
+            var byInit = new AsyncFusionEngine(new EKFModel());
+            byInit.InitializeHeading(sto70, 0.1, T0);
+            Assert.That(byInit.GetStateAt(T0).Theta, Is.EqualTo(sto70).Within(1e-9));
+        }
+
         /// <summary>
         /// A druhy, jeste tvrdsi duvod - LATENTNI past: gating se dnes neuplatnuje jen proto, ze
         /// nikdo merenim nenastavuje <see cref="IMeasurement.GateThreshold"/>. Jakmile se prahy

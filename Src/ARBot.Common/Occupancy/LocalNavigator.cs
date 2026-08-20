@@ -45,6 +45,7 @@ namespace ARBot.Common.Occupancy
         private readonly ClearanceField field;
         private readonly LocalPathPlanner planner;
         private readonly TimeSpan gridMsgPeriod;
+        private readonly PoseJumpDetector poseJump = new PoseJumpDetector();
 
         private readonly Stopwatch sw = new Stopwatch();
         private DateTime lastGridMsg;
@@ -106,6 +107,19 @@ namespace ARBot.Common.Occupancy
         /// <summary>DIAGNOSTIKA: pocet snimku zahozenych proto, ze fuze neumela dat pozu v jejich
         /// case (starsi nez okno historie). Rostouci cislo = zpracovani nestiha nebo vypadla fuze.</summary>
         public long DroppedFrames { get; private set; }
+
+        /// <summary>
+        /// O kolik smi poza pretect nad to, co vysvetli rychlost, nez se grid zahodi [m].
+        /// Viz doc/map-correlation-localization.md ("Zpetna vazba na grid").
+        /// </summary>
+        public double PoseJumpToleranceM
+        {
+            get => poseJump.ToleranceM;
+            set => poseJump.ToleranceM = value;
+        }
+
+        /// <summary>DIAGNOSTIKA: kolikrat se grid zahodil kvuli skoku pozy.</summary>
+        public long GridResets { get; private set; }
 
         /// <param name="engine">Fuze - dotazuje se na pozu v case snimku.</param>
         /// <param name="depthProjections">Projekce HLOUBKOVEHO streamu per kamera
@@ -205,6 +219,16 @@ namespace ARBot.Common.Occupancy
             {
                 DroppedFrames++;
                 return;
+            }
+
+            // Skok pozy (korekce z korelace s mapou, znovuzachyceni GPS, konvergence kurzu po
+            // startu) znamena, ze obsah gridu je na spatnem miste. Zahodit je bezpecnejsi i
+            // levnejsi nez resamplovat. Kurz se predava spolu s polohou: grid je world-kotveny,
+            // takze jeho obsah posouva i ROTACE (o R*dTheta), a to i kdyz robot stoji.
+            if (poseJump.Check(pose.X, pose.Y, pose.Theta, pose.V, pose.Omega, pose.TimeStamp))
+            {
+                grid.Clear();
+                GridResets++;
             }
 
             // Pocitadlo az PO dokonceni cele prace - jinak by pozorovatel (UI, test) videl
