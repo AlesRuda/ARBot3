@@ -34,6 +34,13 @@ jako u [`BackProjectProcessor`](../Src/ARBot.Common/Vision/BackProjectProcessor.
 - **Robot-centrické** (rozhodnutí): používá **jen transformaci kamery vůči tělu robotu**
   (`Profile.LeftCameraTransform` / `RightCameraTransform`), **ne** světovou pózu. Detekce překážek
   tak nezávisí na kvalitě lokalizace. Projekce se předávají per kamera (klíč = `CameraFrame.Name`).
+
+  > **Přesnost té transformace ale není jen kosmetika.** Pro detekci překážek stačí hrubá, ale grid
+  > z ní jde dál do **korelace s mapou**, a tam se z chyby extrinsiky stane systematický bias, který
+  > fúze **integruje** (je dokonale korelovaný napříč cykly, kdežto filtr měření bere jako nezávislá).
+  > Chyba yaw 1° dá při dohledu 3–6 m příčný posun 5–10 cm, zatímco korelátor sám měří na 5 mm —
+  > kalibrace je tedy pravděpodobně dominantní chybový člen. Podrobně a s čísly v
+  > [map-correlation-localization.md](map-correlation-localization.md).
 - **Per-kamera** (rozhodnutí): každá kamera má vlastní grid a **vlastní fit referenční roviny**.
   Důvody: (1) redundance — při výpadku jedné kamery běží druhá; (2) mizí systematický z-offset mezi
   kamerami (různý pitch −20,2° vs −18,6°); (3) v překryvu dostane kartézská vrstva dva nezávislé hlasy.

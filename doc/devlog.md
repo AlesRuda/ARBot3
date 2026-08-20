@@ -309,6 +309,61 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     [map-correlation-localization.md](map-correlation-localization.md) → tabulka tří experimentů
     a výpočet nemožnosti, [decisions.md](decisions.md).
 
+- **Revize návrhu: přímá korekce pózy stačí, stav pro posun se odkládá** (otázka autora: „je potřeba
+  vůbec odhadovat pomocí EKF ten posun? nestačilo by se vrátit k přímému zásahu? ano, bude se
+  přetahovat GPS s kamerou, vadí to?"). Vadí to méně, než jsem tvrdil, a stavová varianta stojí víc,
+  než jsem přiznával — **závěr v `decisions.md` jsem otočil**. Dokumentace, kód nedotčen.
+  - **„Přetahování" není kmitání** — jsou to dvě měření téže veličiny a filtr je zváží podle σ. Poměr
+    vah z naměřených hodnot `(2,12/0,105)² ≈ 400`, takže korelace přehlasuje GPS ~400:1 a póza sedne
+    na mapu. Nic neosciluje.
+  - **A to je pro jízdu žádoucí:** mrkev, trasa i cíle misí jsou mapově relativní, takže póza
+    v mapovém rámci dává správnou mrkev vůči cestě. K tomu argument, který jsem dřív nedomyslel —
+    **absolutní přesnost je stejně omezená chybou mapy**, takže oddělovat rámce se vyplatí jen
+    s použitím pro absolutní polohu, které nejde přes mapu. U tohohle robota takové není.
+  - **Jediná vážná ztráta:** při 400:1 přestává být GPS nezávislou kontrolou, takže záchyt na souběžné
+    cestě dva metry vedle si unese pózu a nikdo to nezastaví. Jde to ale koupit zpět **levněji než
+    stavem** — explicitní strop na nesouhlas s GPS, jedna podmínka v `SendMeasurements`.
+  - **Tři podmínky, než to pustit naostro:** honestní σ (jinak přehlasuje GPS na základě jistoty,
+    kterou si nezasloužila — to je skutečný problém, ne přetahování), rychlostní limit na aplikovanou
+    korekci, a ten strop na nesouhlas s GPS. Plus `GateMode.Soft` místo `Reject`: u přímé korekce je
+    nesouhlas **přechodný** (póza se posune do mapového rámce a inovace klesne k nule), takže stačí
+    projít tím přechodem — stav k tomu potřeba není.
+  - **Co jsem přeceňoval:** (1) „paměť přes výpadky dá jen stav" — po dopočtu slabé, po korekci je `P`
+    utažené, jeden GPS fix má zesílení ~0,0025 a korekce odtéká na škále **desítek sekund**;
+    (2) výhoda „aplikovat posun na mapu" — zachrání grid, ale mrkev se posune tak jako tak;
+    (3) prezentovatelnost — u přímého zásahu problém vůbec nevzniká, takže autorova námitka nakonec
+    argumentuje **pro** jednodušší variantu.
+  - **Co platí dál:** observovatelnost dvou složek (napříč pořád, podél jen na struktuře), že atribuce
+    mapa vs. GPS není potřeba ani možná, ověření dvěma mapami, a výpočet nemožnosti u `Reject`.
+  - **Kdy by stav byl potřeba:** až bude použití pro absolutní polohu nezávislou na mapě (návrat do
+    depa podle GNSS, hlášení polohy mimo mapový rámec, fúze s jiným zdrojem mapy).
+  - **Odkazy:** [decisions.md](decisions.md) (přepsaný zápis, revize označená),
+    [map-correlation-localization.md](map-correlation-localization.md) (otevřený úkol přepsán na „tři
+    podmínky"), [CLAUDE.md](../CLAUDE.md).
+
+- **Chybná kalibrace kamer je bias, který systém integruje** (závěr autora z dnešního zkoumání).
+  Zapsáno; kód nedotčen. Je to **nejhorší případ** už vedené aproximace „časová korelace mezi cykly".
+  - **Mechanismus:** chyba extrinsiky posune celý bodový oblak, tedy i grid. Korelátor to naměří jako
+    chybu pózy — a protože ta chyba **není odeznívající, ale dokonale korelovaná napříč všemi cykly**,
+    zatímco filtr měření bere jako nezávislá, efektivní σ klesá jako `σ/√N` a bias **vyhraje vahou
+    počtu**. Výsledek není šum kolem pravdy, ale **posunutá póza držená s falešnou jistotou**.
+  - **Naměřený poměr, který mění pohled na celou úlohu:** korelátor nachází příčnou chybu na **5 mm**,
+    ale yaw kalibrovaný na 1° zavádí při dohledu 3–6 m **5–10 cm**. Tedy **o řádek víc než vlastní šum
+    korelace** — kalibrace je pravděpodobně **dominantní chybový člen**, ne korelátor. Ta
+    pětimilimetrová přesnost je bezcenná, pokud extrinsika není dobrá na desetiny stupně.
+  - **Rozpad podle složky:** yaw 1° → *L·ε*, tedy 5–10 cm; chyba translace → **1:1**; pitch/roll 1° →
+    jen ~`h·δ` = 9 mm, protože hloubka se *měří* a rotací skutečných 3D bodů se vodorovná složka
+    posune málo (mění to ale klasifikaci, a tedy zdánlivé okraje cesty — nekvantifikováno).
+  - **Padá to do téhož koše** jako posunutá mapa a bias GPS: tři přispěvatelé, jeden pozorovatelný jev,
+    z jednoho měření neoddělitelní. Potvrzuje to „neatribuovat, ohraničit" — strop na nesouhlas s GPS
+    (podmínka 3) chytá i tohle, takže dělá dvojí službu.
+  - **Rozlišovací znak, který jde změřit hned:** bias z montáže je vázaný na **tělo**, takže se
+    s kurzem **otáčí**; posun mapy je vázaný na **svět**, takže ne. Stačí robota otočit nebo nechat
+    projet smyčku a sledovat hlášený nesouhlas ve světových souřadnicích. Nepotřebuje to nic nového.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) → „Chybná kalibrace
+    kamer" + řádek v tabulce rizik, [traversability-grid.md](traversability-grid.md) (varování u
+    robot-centrické transformace — pro detekci překážek stačí hrubá, pro korelaci ne).
+
 ## 2026-08-19
 
 - **Korelace occupancy gridu s mapou — zapojení do runtime a telemetrie** (poslední díl dvanáctidílného

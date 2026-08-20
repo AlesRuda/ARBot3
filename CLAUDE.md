@@ -83,9 +83,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   zpráva + telemetrie, napojení na runtime), jádro má testy. **Ve výchozím stavu se ale vůbec
   nepočítá** (`mapcorr=false`, od 20. 8. 2026) — nic neřídí a stálo by čtvrt jádra; zapnout
   `mapcorr=true`. Korekce samotné posílat umí (`SendCorrections`, dřív `Enabled`), okno EKF je 3 s.
-  **Návrh na přestavbu je pod revizí** — korelace jako odhad posunu mapa↔GPS, viz
-  [doc/decisions.md](doc/decisions.md); do rozhodnutí nemá smysl ladit současné chování. Otevřené
-  vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°, chybí limit korekce za cyklus.
+  **Tři podmínky, než korekce pustit naostro** (honestní σ, rychlostní limit, strop na nesouhlas
+  s GPS) — viz [doc/decisions.md](doc/decisions.md); do jejich splnění nemá smysl ladit současné
+  chování. Otevřené vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI

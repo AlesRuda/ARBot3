@@ -519,6 +519,43 @@ Dva důsledky: mírný překmit (geometrická řada, konverguje — nejde o dive
 se zužuje **rychleji, než informace opravňuje**. Filtr si tedy věří o něco víc, než by měl, a to nad
 rámec aproximace popsané výše. Zjištěno finální review 2026-08-19.
 
+### Chybná kalibrace kamer: bias, který systém integruje
+
+**Nejhorší případ té časové korelace** (zjištěno 20. 8. 2026 při rozvaze nad dnešním měřením).
+Chyba extrinsiky kamer (`Profile.Left/RightCameraTransform`) posune celý bodový oblak, tedy i grid,
+proti skutečnosti. Korelátor to naměří jako chybu pózy — a protože ta chyba **není odeznívající, ale
+dokonale korelovaná napříč všemi cykly**, zatímco filtr měření bere jako nezávislá, efektivní σ klesá
+jako `σ/√N` a bias **vyhraje vahou počtu**. Výsledek není šum kolem pravdy, ale **posunutá póza
+držená s falešnou jistotou**.
+
+Kamery jsou v montáži 0,52 m nad zemí, yaw ±29°, pitch ~−20°. Dopad chyby 1° na **vodorovnou** polohu:
+
+| chyba montáže | dopad |
+|---|---|
+| **yaw 1°** | bod ve vzdálenosti *L* se posune příčně o *L·ε* → při dohledu 3–6 m **5–10 cm** |
+| **translace** (poloha kamery na robotu) | **1:1**, přímý konstantní bias |
+| **pitch / roll 1°** | jen ~`h·δ` = **9 mm** — hloubka se *měří*, takže rotací skutečných 3D bodů se vodorovná složka posune málo |
+
+Pitch a roll jsou tedy pro *polohu* méně kritické, než by se čekalo. Mění ale **klasifikaci**
+(vzdálená zem se zdánlivě zvedne nebo klesne), takže posouvají zdánlivé okraje cesty — to se
+kvantifikuje horší a tady kvantifikované není.
+
+> **Rozhodující srovnání:** příčnou chybu korelátor nachází s přesností **5 mm** (naměřeno vnucenou
+> chybou 19. 8. 2026). Yaw kalibrovaný na 1° zavádí **5–10 cm**, tedy **o řádek víc než vlastní šum
+> korelátoru**. Ta pětimilimetrová přesnost je proto bezcenná, pokud extrinsika není dobrá na
+> **desetiny stupně**. Kalibrace není nice-to-have, je to předpoklad s odvozeným požadavkem — a je to
+> pravděpodobně **dominantní chybový člen celé úlohy**, ne šum korelace.
+
+**Padá to do téhož koše** jako posunutá mapa a bias GPS: tři různí přispěvatelé, jeden pozorovatelný
+jev, z jednoho měření neoddělitelní. Potvrzuje to zásadu „neatribuovat, ohraničit" — **strop na
+nesouhlas s GPS** (podmínka 3 v [Otevřených úkolech](#otevřené-úkoly)) chytá i tohle, takže dělá
+dvojí službu.
+
+> **Rozlišovací znak, který jde změřit hned:** bias z montáže je vázaný na **tělo** robota, takže se
+> s kurzem **otáčí**; posun mapy je vázaný na **svět**, takže se neotáčí. Stačí robota otočit nebo ho
+> nechat projet smyčku a sledovat hlášený nesouhlas ve světových souřadnicích — rotuje-li s kurzem, je
+> to kalibrace; stojí-li, je to mapa. Nepotřebuje to nic nového.
+
 Je to nejsilnější jednotlivý argument pro to, aby se teď při zapnutých korekcích prioritně měřilo
 rozdělení NIS pro `Source = "MapCorr"` — u konzistentního filtru s gatingem na 95 %
 χ²(1) má být zamítnutých kolem 5 %; výrazně víc znamená příliš malou σ.
@@ -639,6 +676,7 @@ Další:
 | Výkon na ARM (OrangePI) | korelace nestíhá 2 Hz | `DropOldest` frontou to degraduje bezpečně; pyramida rastru je nevyužitá páka — **viz naměřené hodnoty níž** |
 | `α` naladěné na jednom prostředí | přecenění nebo nedocenění korekce jinde | σ hranice a `GateMode.Reject` drží dopad omezený |
 | Mapa posunutá vůči GNSS rámci | systematická „korekce" všude stejná | korelátor to nepozná; vyloučit porovnáním záznamu s ortofotem |
+| **Chybná kalibrace kamer (extrinsika)** | systematický bias, který **systém integruje** — viz níž | strop na nesouhlas s GPS; rozlišit od posunu mapy otočením robota |
 
 ### Naměřená doba cyklu (2026-08-19, x64, virtuální HW, ~22 000 důkazních buněk, 1 325 kandidátů)
 
@@ -1067,24 +1105,29 @@ Implementační kroky: [plan-map-correlation.md](plan-map-correlation.md).
      odlišení, jestli osu zhasl strop σ, nebo hlídač konkurenta. Když svítí, „falešná podélná jistota"
      protéká přes hlídač a zapínat se nesmí bez ohledu na body 1 a 2.
 
-- **⚠️ Návrh přestavby: korelace jako odhad posunu mapa↔GPS, ne absolutní oprava polohy**
-  (20. 8. 2026, **návrh k rozhodnutí** — viz [decisions.md](decisions.md)). To, co kamera měří, není
-  poloha, ale **vztah k cestě**; GPS může lhát a mapa může být špatně nakreslená ve tvaru i v pozici.
-  Dnešní `(Dx, Dy)` slévá tři různé věci do jedné. Návrh: nový stav filtru `d = (dx, dy)` = posun mezi
-  rámcem GPS a rámcem mapy, krmený korelací, aplikovaný **na mapu** (aby póza a ukotvení gridu
-  neskákaly) a publikovaný jako **dva doubly** v `RobotStateMsg`, ne přeposíláním grafu.
-  Rozpustilo by to i gating popsaný výš — filtr zamítá to, co neumí vysvětlit. Rozhodující konstanta
-  je procesní šum na `d`.
+- **⚠️ Tři podmínky, než korekce pustit naostro** (20. 8. 2026, **návrh k rozhodnutí** — viz
+  [decisions.md](decisions.md)). Rozvaha začala u toho, že kamera neměří polohu, ale **vztah k cestě**
+  (GPS může lhát, mapa může být špatně nakreslená ve tvaru i v pozici), a mířila na nový stav filtru
+  pro posun mapa↔GPS. **Závěr se ale otočil:** přímá korekce pózy stačí, protože mapový rámec *je*
+  provozní rámec — mrkev, trasa i cíle misí jsou mapově relativní, a absolutní přesnost je stejně
+  omezená chybou mapy. Stavová varianta se odkládá jako záloha.
 
-  **Dvě věcné námitky autora zůstávají v platnosti** (rozebrané v [decisions.md](decisions.md)):
-  posun hýbe **mrkví** (trik „aplikovat na mapu" zachrání grid, mrkev ne — chce to rychlostní limit
-  na Δ`d`), a vznikají **dva rámce**, takže každé zobrazené číslo musí říct, ve kterém z nich je.
-  Obojí je cena tohoto řešení; jednodušší varianta „příčný offset jen do lokální navigace, EKF
-  obejít" ji neplatí, ale vzdává se zpřesnění polohy na odbočkách. Doporučení: **ta jednodušší hned,
-  stavová až po měření nesouhlasu GPS↔mapa na reálném záznamu** — virtuální HW to nerozhodne, tam je
-  „pravda" z definice GPS.
+  Přímý zásah ale **nepustit, dokud nebude splněné tohle** (všechno tři jsou body odsud):
+  1. **Honestní σ** (úkol o slepotě σ k množství důkazu výš). Bez toho korelace přehlasuje GPS
+     **~400:1** — poměr vah `(σ_GPS/σ_korel)² = (2,12/0,105)²` z naměřených hodnot — na základě
+     jistoty, kterou si nezasloužila. To je skutečný problém, ne „přetahování" s GPS.
+  2. **Rychlostní limit na aplikovanou korekci.** `MaxOffsetM` omezuje **naměřený** posun, ne
+     aplikovaný krok, takže korekce mezi 0,5 a 2,0 m je současně „povolená" i „ničící grid"
+     (`PoseJumpDetector`, tolerance 0,5 m). Bez limitu trhne gridem, mrkví i regulátorem.
+  3. **Strop na nesouhlas s GPS.** Při 400:1 přestává být GPS nezávislou kontrolou — kdyby se
+     korelace zachytila na souběžné cestě dva metry vedle (vedeno jako riziko výš), unese si pózu
+     a nikdo to nezastaví. Jedna podmínka v `SendMeasurements` je levnější náhrada než celý stav.
 
-  **Než se o tom rozhodne, nemá smysl dolaďovat současné chování korekcí.**
+  K tomu **`GateMode.Soft`** místo `Reject` — u přímé korekce je nesouhlas **přechodný** (póza se
+  posune do mapového rámce a inovace klesne k nule), stačí projít tím přechodem.
+
+  **Než jsou ty tři podmínky splněné, nemá smysl dolaďovat současné chování korekcí** — ladil by se
+  mechanismus, který stojí na σ, jež si svou jistotu nezasloužila.
 
 - **Eskalace stavu „lokalizace nepodložená mapou"** — dnes korelátor jen mlčí a stav si nikdo nečte.
   Chybí k tomu i **schopnost se znovu najít**: záchytný rozsah je jen ±2,5 m a ±8°, takže po delším

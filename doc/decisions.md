@@ -13,147 +13,103 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
-### 2026-08-20 — Korelace jako odhad aditivního posunu mapa↔GPS ve stavu EKF — NÁVRH, NEROZHODNUTO
-**Co (návrh autora):** korelace s mapou by neměla hlásit absolutní opravu polohy, ale krmit **nový
-stav filtru** — aditivní posun mezi rámcem GPS a rámcem mapy `d = (dx, dy)`. Póza robota se dál
-odhaduje z GPS a odometrie; `d` se přičítá tam, kde se pracuje s mapou.
+### 2026-08-20 — Korelace: přímá korekce pózy, ne stav pro posun mapa↔GPS — NÁVRH, NEROZHODNUTO
+**Co:** korelace s mapou koriguje **přímo pózu** ve fúzi (tedy tak, jak to dnes dělá), ale až po
+splnění **tří podmínek** níž. Estimace posunu mapa↔GPS jako samostatného stavu EKF se **odkládá**
+jako záložní varianta pro případ, že bude potřeba absolutní poloha nezávislá na mapě.
 
-**Proč vůbec:** to, co kamera měří, **není poloha, ale vztah k cestě**. GPS může lhát (multipath,
-bias), mapa může být špatně nakreslená — a to jak ve tvaru, tak v absolutní pozici. Dnešní návrh
-slévá do jednoho čísla `(Dx, Dy)` tři různé věci: kde je robot napříč cestou, jaký má cesta v mapě
-tvar, a kde je celá mapa. Riziko „mapa posunutá vůči GNSS rámci" je v
-[map-correlation-localization.md](map-correlation-localization.md) vedeno s poznámkou „korelátor to
-nepozná" — tenhle návrh říká, že to není okrajový případ, ale **centrální omezení návrhu**.
+> **Revize téhož dne.** Zápis původně doporučoval opačně — stavovou variantu jako cíl a přímý zásah
+> jako mezikrok. Otočila to autorova otázka „je potřeba vůbec ten posun odhadovat EKF? nestačilo by se
+> vrátit k přímému zásahu? ano, bude se přetahovat GPS s kamerou, vadí to?". Vadí to méně, než jsem
+> myslel, a stavová varianta stojí víc, než jsem přiznával. Původní analýza zůstává níž, protože
+> většina platí dál — změnil se závěr, ne fakta.
 
-**Obě role, dvě složky, různá observovatelnost.** Autor chce obojí: příčný odhad na udržení robota
-na cestě *a* zpřesnění polohy. Padne to přesně na složky posunu:
+**Proč přímý zásah stačí.** „Přetahování" GPS s kamerou není kmitání, jsou to dvě měření téže
+veličiny a filtr je zváží podle σ. S naměřenými čísly (σ korelace 0,105 m, σ virtuální GPS 2,12 m)
+je poměr vah `(2,12/0,105)² ≈ 400`, takže korelace přehlasuje GPS **~400:1** a póza sedne prakticky
+na mapu. Nic neosciluje.
 
-| složka | observovatelná | poznámka |
-|---|---|---|
-| **napříč** cestou | pořád | naměřeno na jednotky mm (vnucená chyba, 19. 8. 2026) |
-| **podél** cesty | jen na struktuře — odbočka, ohyb, změna šířky | jinak nejistota roste, na odbočce skokem klesne |
+A **to je pro jízdu žádoucí**: mrkev, trasa, cíle misí i výdejní místa jsou mapově relativní, takže
+póza v mapovém rámci dává správnou mrkev vůči cestě. Nesouhlas s GNSS rámcem by vadil jen u něčeho,
+co jde mimo mapu — a u tohoto robota nic takového není. K tomu: **absolutní přesnost je stejně
+omezená chybou mapy** — kdo se lokalizuje proti mapě, nemůže být absolutně přesnější než ta mapa.
+Oddělovat rámce se vyplatí jen s použitím pro absolutní polohu, které nejde přes mapu.
 
-Je to stejný vzor jako uzavření smyčky v SLAMu. Korelátor už anizotropní kovarianci s určenou osou
-počítá, takže mašinerie na to pasuje.
+**Co se tím ztratí — jediná vážná věc.** Při 400:1 přestane být **GPS nezávislou kontrolou**.
+Specifikace vede riziko „souběžná cesta blíž než `SearchRangeM` → přeskočení na vedlejší cestu";
+kdyby se korelace zachytila na paralelní cestě dva metry vedle, se stavem by ji GPS k póze nepustila
+a projevilo by se to jako nesmyslný posun, kdežto při přímém zásahu **si pózu unese a nikdo to
+nezastaví**.
 
-**Atribuce není potřeba.** Jestli je chyba v mapě nebo v GPS, dává stejný pozorovatelný jev a z dat
-se to oddělit nedá — a pro použití („jakou pózou spočítám mrkev z mapy") na tom nezáleží. `d` je
-prostě *transformace, která srovná GPS s mapou*.
+Jde to ale koupit zpět **mnohem levněji než celým stavem**: explicitní strop na nesouhlas s GPS —
+„nepřijmi korekci, která posadí pózu dál než N·σ_GPS od GPS oblaku". Jedna podmínka
+v `SendMeasurements` proti třem novým stavům, druhému rámci a povinnosti u každého čísla říkat,
+ve kterém rámci je.
 
-**Hlavní výhra: rozpustí to gating.** Filtr zamítá to, co neumí vysvětlit. Dnes nemá trvalý nesouhlas
-GPS↔mapa ve stavu kde bydlet, takže se projeví jako nekonečný proud odlehlých měření — přesně to,
-co se 20. 8. 2026 naměřilo (67 poslaných korekcí, stav zareagoval 3×). Jak ten nesouhlas dostane
-stav, přestane být odlehlý a **stane se z něj informace**; není třeba obcházet prahy.
+**Tři podmínky, bez kterých to nepustit** (všechny už jsou na seznamu otevřených úkolů):
+1. **Honestní σ** — [otevřený úkol č. 1](map-correlation-localization.md). Bez toho korelace
+   přehlasuje GPS 400:1 na základě jistoty, kterou si nezasloužila. **To je skutečný problém, ne to
+   přetahování.**
+2. **Rychlostní limit na aplikovanou korekci** — jinak je to krok a rozbije grid
+   (`PoseJumpDetector`, tolerance 0,5 m), mrkev i regulátor. `MaxOffsetM` omezuje naměřený posun, ne
+   aplikovaný krok.
+3. **Strop na nesouhlas s GPS** — náhrada za ztracenou nezávislou kontrolu (viz výš).
 
-**Posun aplikovat na MAPU, ne na robota.** Matematicky totéž, prakticky velký rozdíl: póza robota
-(a tedy ukotvení occupancy gridu) se při aktualizaci `d` **nikdy neskočí**. Nespustí se
-`PoseJumpDetector`, grid se nezahazuje, ve virtuálním HW se nepřerenderovává — a nevznikne to kolo
-„korekce → skok pózy → zahodit grid → málo důkazu → divná σ". Robot zůstává v GPS rámci, mapa se
-rasterizuje s posunem a `GlobalNavigator` převede cíl do světa tímtéž posunem.
+**Gating:** výpočet nemožnosti v [map-correlation-localization.md](map-correlation-localization.md)
+platí i tady, ale s podstatným rozdílem — u přímé korekce je nesouhlas **přechodný**, ne trvalý.
+Póza se posune do mapového rámce a inovace klesne k nule; stačí projít tím přechodem, na což je
+`GateMode.Soft` (`R' = R × NIS/prah`). U stavové varianty by nesouhlas dostal místo ve stavu, ale
+tuhle výhodu `Soft` dorovná i bez ní.
 
-> **Pozor, tenhle trik zachrání grid, ale NE mrkev** — viz „Námitky autora" níž. Bylo to původně
-> podané jako větší výhoda, než jaká je.
+**Co z původní analýzy platí dál:**
 
-**Neposílá se posunutá mapa, posílá se posun** (námitka autora: „když to posune mapu, tak musím
-dostat novou mapovou zprávu s posunutýma souřadnicema"). Ta námitka platí na naivní čtení, ale
-`MapMsg` má **jediného konzumenta** — `WorldViewDocument`, tedy kreslení. Řídicí cesta ji nepoužívá:
-`GlobalNavigator` i `RoadScene` pro korelátor berou **in-process `RoadNetwork`**
-(`ARBotRuntime.cs`, zapojení v `WireRun`). `MapMsg` je prezentační a záznamový artefakt.
+- **Kamera neměří polohu, měří vztah k cestě.** Podporují to naměřená čísla: příčná chyba nalezena
+  s přesností jednotek **mm**, podélná na přímé cestě **vůbec**. Obě role, které autor chce, padnou
+  na dvě složky s různou observovatelností:
 
-Takže se graf nepřeposílá nikdy. `d` jsou **dva doubly** a patří do `RobotStateMsg` (jde 10 Hz a nese
-fúzovaný stav — a `d` *je* stav filtru), verze +1. Konzumenti si posun přičtou sami: dvě místa
-v řídicí cestě, která `RoadNetwork` už drží, a world view při kreslení. Přeposílat tisíce uzlů 2×
-za sekundu by bylo absurdní a není to potřeba.
+  | složka | observovatelná | poznámka |
+  |---|---|---|
+  | **napříč** cestou | pořád | naměřeno na jednotky mm (vnucená chyba, 19. 8. 2026) |
+  | **podél** cesty | jen na struktuře — odbočka, ohyb, změna šířky | jinak nejistota roste, na odbočce skokem klesne |
 
-Vedlejší užitek: s `d` v záznamu jde zpětně přehrát, jak nesouhlas rostl, a world view může nakreslit
-mapu **dvakrát** — jak je georeferencovaná a jak posunutá — což je přímé zobrazení toho, o kolik se
-mapa s GPS rozchází.
+  „Odbočení zpřesní pozici" je doslova observovatelnost podélné složky. Stejný vzor jako uzavření
+  smyčky v SLAMu.
+- **GPS může lhát a mapa může být špatně nakreslená** ve tvaru i v pozici. To se nemění; mění se jen
+  odpověď na to, kde ten nesouhlas nechat bydlet — v póze místo ve vlastním stavu.
+- **Atribuce není potřeba ani možná.** Jestli je chyba v mapě nebo v GPS, dává stejný pozorovatelný
+  jev a z dat se to oddělit nedá — a pro použití na tom nezáleží.
 
-**Proč do EKF a ne vedle.** Estimátor mimo filtr by vyžadoval ruční pravidlo, kdy je chyba v GPS
-a kdy v mapě. V jednom filtru to vypadne **z kovariancí samo**: dobré GPS → nesouhlas si vezme `d`;
-špatné GPS → koriguje se póza. Oddělitelné je to časovým podpisem — `x` se hýbe s robotem a GPS ho
-drží bílým šumem, `d` je téměř konstantní.
+**Co jsem (asistent) přeceňoval:**
+- *Paměť přes výpadky korelace.* Tvrdil jsem, že ji dá jen stav. Po dopočtu je ten argument slabý:
+  po korekci je `P` utažené, jeden GPS fix má zesílení ~0,0025, takže korekce odtéká na časové škále
+  **desítek sekund**. Přímý zásah paměť drží taky, jen ne navždy.
+- *Výhoda „aplikovat posun na mapu, ne na robota".* Zachrání grid od zahazování, ale **mrkev se
+  posune tak jako tak** — a mrkev robota řídí.
+- *Prezentovatelnost.* U přímého zásahu problém vůbec nevzniká: jeden rámec, jedna mapa, jedna póza.
+  Autorova námitka („bude se to blbě prezentovat") tedy nakonec argumentuje **pro** jednodušší
+  variantu.
 
-**Rozhodující konstanta: procesní šum na `d`.** Jediný knoflík, který určuje celé chování:
-- moc velký → `d` pohltí i **skutečnou** chybu lokalizace a korelace přestane zpřesňovat pózu, tedy
-  zahodí se druhá polovina účelu;
-- moc malý → posun nestíhá **pootočenou** mapu ani plovoucí bias GPS.
+**Kdy by stavová varianta byla potřeba:** až bude použití pro absolutní polohu nezávislou na mapě
+(návrat do depa podle GNSS, hlášení polohy mimo mapový rámec, fúze s jiným zdrojem mapy). Dnes to
+není vidět. Rozhodující konstantou by pak byl **procesní šum na posunu** — moc velký pohltí i
+skutečnou chybu lokalizace, moc malý nestíhá pootočenou mapu ani plovoucí bias GPS. A aditivní
+translace pohltí *rotaci* mapy jen lokálně, takže by to nesměla být konstanta.
 
-**Past:** aditivní translace pohltí *rotaci* mapy jen **lokálně**. Jak robot popojede, potřebný posun
-se změní — `d` proto nesmí být konstanta, ale pomalu plovoucí stav.
-
-**Souvislost:** otevřený úkol č. 1 (σ slepá k množství důkazu) tímhle **nabývá na důležitosti**, ne
-naopak — rozdělení mezi `x` a `d` řídí poměr rozptylů, takže soustavně podhodnocená σ přeteče do
-obojího.
-
-**Námitky autora (obě věcné, obě zůstávají v platnosti):**
-
-**1) Posun ovlivní naplánovanou trasu i lokální plán.** Platí, a míří na slabinu triku „aplikovat na
-mapu": ten zachrání occupancy grid od zahazování, ale **mrkev se posune tak jako tak** — a mrkev je
-to, co robota řídí. Cyklus je „póza → LLA → sledovač gradientu → mrkev" a mrkev je ve světových
-metrech, takže `d` do ní vstupuje přímo. Je potřeba rozlišit dvě věci:
-
-- *Trasa jako posloupnost hran se nemění* — to je topologie. Mění se jen „na které hraně jsem"
-  u odbočky, a to je přesně to, co má korelace **spravit**; tam je dopad záměr, ne vedlejší efekt.
-- *Mrkev se posune* o `d` a lokální plán ji sleduje. To je skutečná porucha řízení.
-
-Nezabíjí to návrh, ale **disciplinuje** ho — a shodou okolností chce tato námitka **totéž** co
-požadavek „`d` nesmí pohltit skutečnou chybu lokalizace": malý procesní šum. Není to protichůdný
-knoflík. K tomu se přirozeně nabízí **rychlostní limit na Δ`d` za cyklus** — což je mimochodem ten
-„tvrdý limit korekce za cyklus" z otevřených úkolů, jen aplikovaný na posun místo na pózu, kde sedí
-lépe. Při jednotkách cm/s se mrkev hýbe pomaleji než vlastní přeplánovací šum lokálního plánovače.
-
-**2) Bude se to blbě prezentovat.** Rozpadá se na dvě části a jen jedna je skutečná cena:
-
-- *UI je řešitelné a vlastně to zlepší.* Kreslit **použitou** mapu, tedy posunutou o `d`. Pak jsou
-  cesty, trasa i mrkev vzájemně konzistentní, robot sedí tam, kam ho dává GPS, a **zbylá mezera proti
-  podkladu OSM je přímo ten posun** — viditelný na první pohled. Dnes ten nesouhlas nejde vidět
-  vůbec. `WorldViewDocument` mapovou vrstvu i tak přestavuje (`UpdateMapFeature`), takže je to
-  přičtení při převodu uzlů.
-- *Pojmová cena je skutečná a trvalá.* Existují dva rámce a **každé zobrazené číslo musí říct, ve
-  kterém z nich je** — telemetrické sloupce, logy, vrstvy world view. Nezmizí to nikdy; je to
-  povinnost k disciplíně, ne vada. Tohle je daň, kterou návrh platí.
-
-**Zaostřené rozhodnutí:** ty dvě námitky jsou **cena varianty B**. Varianta C (příčný offset přímo do
-lokální navigace, EKF obejít) ji **neplatí** — žádný druhý rámec, žádná porucha plánu, žádná
-prezentační dvojznačnost — ale vzdává se zpřesnění polohy na odbočkách. Otázka tedy je: *stojí
-zpřesnění polohy za dva rámce a rychlostně omezenou mrkev?*
-
-**Doporučení (asistent):** **C hned, B teprve po měření.** Zatím nevíme, jestli B řeší problém, který
-v praxi máme, nebo problém, který si umíme představit — virtuální HW to neřekne, tam je „pravda"
-z definice GPS. Rozhodovací branka je proto měření nesouhlasu GPS↔mapa na **reálném** záznamu.
-
-**Zvažované alternativy:**
-- *Hlásit jen relativní vztah k cestě, bez stavu.* Zavrženo: nese složitost stavového řešení, ale
-  bez jeho užitku — do EKF se to bez reprezentace rozdílu rámců vložit nedá.
-- *Obejít EKF a dát příčný offset jen lokální navigaci* (varianta **C**). Jednodušší a spraví mrkev
-  hned, ale vzdá se zpřesnění polohy na odbočkách. **Po námitkách autora si stojí lépe, než jak
-  vypadala původně:** neplatí ani jednu z jejich cen (žádný druhý rámec, žádná porucha plánu, žádná
-  prezentační dvojznačnost) a stavové řešení navíc potřebuje čas na identifikaci `d`, kdežto tohle
-  funguje okamžitě. Proto je doporučené jako **první krok**, ne jen jako záloha.
-
-**Jak to vůbec ověřit: dvě mapy** (návrh autora, tentýž den). Dnešní `poseerror` na to nestačí —
+**Jak to ověřit: dvě mapy.** Platí bez ohledu na zvolenou variantu a `poseerror` na to nestačí —
 vnucuje chybu do „kameriny představy o tom, kde je", což je fyzikálně nesmysl, a protože kamera
-renderuje z odhadu, posunutí odhadu posune i obraz. Smyčka je kruhová a naměřilo se to (`Dx` stálo
-na 0,800). Správně je vnutit chybu do **mapy pro kameru** a nechat robota navigovat na pravé — dvě
-mapy. Hlášený posun pak zůstane konstantní z *poctivého* důvodu (posunutou mapu nelze spravit
-posunutím robota) a stane se z něj **pravda pro `d`**: ověřitelná předpověď je „`d` zkonverguje
-k vnucenému posunu, póza zůstane na GPS". Mechanismus a past (posun držet pod polovinou šířky cesty)
-viz [virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru).
+renderuje z odhadu, posunutí odhadu posune i obraz (naměřeno, `Dx` stálo na 0,800). Správně je
+vnutit chybu do **mapy pro kameru** a nechat robota navigovat na pravé. U přímé korekce je pak
+předpověď „póza zkonverguje k pravdě + vnucený posun a zůstane tam". Mechanismus a past (posun držet
+pod polovinou šířky cesty) viz
+[virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru).
 
-**Předpoklad, bez kterého to nepojede: `GateMode.Soft`.** Při `Reject` se velký posun absorbovat
-**nedá** — pro 0,8 m a σ 0,105 m vychází „neuskočit" jako σ < 0,135 m a „projít gatingem" jako
-σ > 0,395 m, tedy protiřečící si podmínky (výpočet v
-[map-correlation-localization.md](map-correlation-localization.md)). `Soft` (`R' = R × NIS/prah`)
-odlehlé měření jen potlačí a nikdy nevypne, což je přesně ta postupná absorpce; korelační měření
-jsou dnes na `Reject`. Je to ale výměna rizik — `Reject` byl vědomá bezpečnostní volba.
-
-**Co změřit před rozhodnutím:** jak velký je nesouhlas GPS↔mapa v praxi (na reálném záznamu, ne ve
-virtuálním HW — tam je „pravda" z definice GPS), jak často robot potká podélnou strukturu, a jaká σ
+**Co změřit před rozhodnutím:** jak velký je nesouhlas GPS↔mapa v praxi (na **reálném** záznamu — ve
+virtuálním HW je „pravda" z definice GPS), jak často robot potká podélnou strukturu, a jaká σ
 korelace vychází po opravě úkolu č. 1.
 
 **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md) (naměřená data,
-otevřené úkoly), [ekf-fusion.md](ekf-fusion.md), [global-navigation-runtime.md](global-navigation-runtime.md).
+otevřené úkoly, výpočet nemožnosti), [virtual-hw.md](virtual-hw.md),
+[global-navigation-runtime.md](global-navigation-runtime.md), [ekf-fusion.md](ekf-fusion.md).
 
 ### 2026-08-19 — Kurz se v EKF INICIALIZUJE, nejen měří (revize dřívějšího rozhodnutí) — ROZHODNUTO/HOTOVO
 **Co:** vznikla `AsyncFusionEngine.InitializeHeading(theta, std, t)` jako obdoba
