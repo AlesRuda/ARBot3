@@ -445,8 +445,9 @@ namespace ARBot.Robot
         }
 
         /// <summary>
-        /// Silnicni sit nactena pri startu (parametr <c>map=</c>). Sdilena: dnes ji cte virtualni HW
-        /// a world view, do budoucna i navigace (viz doc/osm-nav.md → otevrene ukoly). null = bez mapy.
+        /// Silnicni sit nactena pri startu (parametr <c>map=</c>) - mapa, podle ktere se robot
+        /// naviguje a se kterou koreluje occupancy grid. Sdilena: cte ji navigace, world view
+        /// a (kdyz neni <c>visionmap=</c>) i render virtualnich kamer. null = bez mapy.
         /// </summary>
         public RoadNetwork RoadNetwork { get; private set; }
 
@@ -462,6 +463,40 @@ namespace ARBot.Robot
         /// null = bez mapy.
         /// </summary>
         public MapMsg MapMessage { get; private set; }
+
+        /// <summary>
+        /// Silnicni sit pro RENDER virtualnich kamer (parametr <c>visionmap=</c>). null = neni zadana,
+        /// kamery renderuji z <see cref="RoadNetwork"/>.
+        ///
+        /// <para><b>Nac to je:</b> kamery pak vidi JINOU mapu, nez podle ktere se robot naviguje
+        /// a nez se kterou koreluje occupancy grid - tedy znama, kontrolovana nesrovnalost mezi
+        /// "svetem" a "mapou". Je to druha (a cistsi) cesta k temuz, co dela umela chyba pozy
+        /// (<c>poseerror=</c>): tam se posouva pozorovatel, tady svet. Viz doc/virtual-hw.md
+        /// a doc/map-correlation-localization.md.</para>
+        ///
+        /// <para>Do fuze, navigace ani korelace tato sit NEVSTUPUJE - je jen zdrojem obrazu.</para>
+        /// </summary>
+        public RoadNetwork VisionRoadNetwork { get; private set; }
+
+        /// <summary>
+        /// <see cref="VisionRoadNetwork"/> jako zprava pro world view (aby bylo videt, jak daleko
+        /// je "svet" od mapy).
+        ///
+        /// <para><b>Zamerne se NEPUBLIKUJE na <see cref="Stream"/></b> - a tedy ani do zaznamu.
+        /// Zaznam ma popisovat, co robot vedel a videl, ne kulisu, ve ktere jsme ho zkouseli;
+        /// druha <c>MapMsg</c> ve streamu by navic prepsala tu navigacni (odberatele si drzi
+        /// posledni podle typu) a rozhodila pocatek lokalni ENU roviny ve View. World view si ji
+        /// proto vyzvedava primo z runtime.</para>
+        ///
+        /// <para>null = <c>visionmap=</c> neni zadana nebo se nepovedlo nacist.</para>
+        /// </summary>
+        public MapMsg VisionMapMessage { get; private set; }
+
+        /// <summary>
+        /// Sit, ze ktere skutecne renderuji virtualni kamery: <see cref="VisionRoadNetwork"/>,
+        /// kdyz je zadana, jinak navigacni <see cref="RoadNetwork"/>.
+        /// </summary>
+        public RoadNetwork CameraRoadNetwork => VisionRoadNetwork ?? RoadNetwork;
 
         /// <summary>
         /// Globalni navigace (trasa po OSM siti). null = bez mapy nebo mimo rezim Run.
@@ -485,32 +520,35 @@ namespace ARBot.Robot
         ///
         /// <para>Chyba nacteni nesmi shodit start: bez mapy se jen jede dal (pocatek pak zalozi
         /// fallbackem GPS adapter z prvniho platneho fixu).</para>
+        ///
+        /// <para>Nakonec zkusi jeste <see cref="LoadVisionMapIfSpecified"/> - mapu pro render
+        /// virtualnich kamer (<c>visionmap=</c>), ktera muze byt jina nez tato.</para>
         /// </summary>
         private void LoadMapIfSpecified(FusionConfig fusionConfig)
         {
             string mapPath = Program.GetParam("map");
             if (string.IsNullOrWhiteSpace(mapPath))
+            {
+                LoadVisionMapIfSpecified();
                 return;
+            }
             if (!File.Exists(mapPath))
             {
                 Trace.WriteLine($"map={mapPath} neexistuje -> beh bez mapy.");
+                LoadVisionMapIfSpecified();
                 return;
             }
 
             try
             {
-                double defaultWidth = Program.GetParamDouble("roadwidth", 3.0);
-                using (var fs = File.OpenRead(mapPath))
-                {
-                    var data = OsmXmlReader.Read(fs);
-                    RoadNetwork = GraphBuilder.BuildNetwork(data, TravelProfile.Pedestrian(), defaultWidth);
-                }
+                RoadNetwork = ReadNetwork(mapPath);
 
                 MapOrigin = BuildOriginFromMap(RoadNetwork);
                 if (MapOrigin == null)
                 {
                     Trace.WriteLine("map: sit neobsahuje zadne uzly -> beh bez mapy.");
                     RoadNetwork = null;
+                    LoadVisionMapIfSpecified();
                     return;
                 }
 
@@ -528,11 +566,106 @@ namespace ARBot.Robot
                 MapOrigin = null;
                 MapMessage = null;
             }
+
+            LoadVisionMapIfSpecified();
+        }
+
+        /// <summary>
+        /// Nacte silnicni sit z parametru <c>visionmap=&lt;cesta.osm&gt;</c> do
+        /// <see cref="VisionRoadNetwork"/> - mapu, ze ktere renderuji virtualni kamery (misto
+        /// navigacni <c>map=</c>). Bez parametru se nedeje nic a kamery renderuji z <c>map=</c>.
+        ///
+        /// <para><b>Nesaha na pocatek lokalni ENU roviny.</b> Ten dal urcuje jen <c>visionmap=</c>
+        /// nezavisla mapa z <c>map=</c> (nebo prvni GPS fix) - jinak by se lisil pocatek, ve kterem
+        /// se pocita, od toho, ktery se zaznamena, a vsechna lokalni data by se ve View kreslila
+        /// posunuta. Dusledek: <c>visionmap=</c> bez <c>map=</c> virtualni HW nerozjede (nema
+        /// pocatek); to je zamer, protoze rozdil obou map je prave to, co se meri.</para>
+        ///
+        /// <para>Chyba nacteni nesmi shodit start - jen se zapise do ladeni a kamery renderuji
+        /// z navigacni mapy. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        private void LoadVisionMapIfSpecified()
+        {
+            string path = Program.GetParam("visionmap");
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+            if (!File.Exists(path))
+            {
+                Trace.WriteLine($"visionmap={path} neexistuje -> kamery renderuji z map=.");
+                return;
+            }
+
+            try
+            {
+                var network = ReadNetwork(path);
+                if (BuildOriginFromMap(network) == null)
+                {
+                    Trace.WriteLine("visionmap: sit neobsahuje zadne uzly -> kamery renderuji z map=.");
+                    return;
+                }
+
+                VisionRoadNetwork = network;
+                VisionMapMessage = network.ToLogMessage(Path.GetFileName(path));
+                Trace.WriteLine($"visionmap={path}: {VisionMapMessage.Nodes.Count} uzlu, "
+                                + $"{VisionMapMessage.Edges.Count} hran - kamery renderuji z TETO mapy.");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"visionmap: nacteni selhalo -> kamery renderuji z map=. {ex}");
+                VisionRoadNetwork = null;
+                VisionMapMessage = null;
+            }
+        }
+
+        /// <summary>
+        /// Precte <c>.osm</c> a sestavi sit pesim profilem. Vychozi sirka cesty (pro cesty bez tagu
+        /// <c>width</c>) je z parametru <c>roadwidth=</c> - tatáž pro navigacni i vizualni mapu, aby
+        /// se obe mapy lisily jen tim, cim se lisi jejich soubory.
+        /// </summary>
+        private static RoadNetwork ReadNetwork(string path)
+        {
+            double defaultWidth = Program.GetParamDouble("roadwidth", 3.0);
+            using (var fs = File.OpenRead(path))
+            {
+                var data = OsmXmlReader.Read(fs);
+                return GraphBuilder.BuildNetwork(data, TravelProfile.Pedestrian(), defaultWidth);
+            }
+        }
+
+        /// <summary>
+        /// Vysvetli, proc se nepovedlo zalozit virtualni HW - aby hlaska mirila na skutecnou pricinu
+        /// (chybejici/nenalezena <c>map=</c> vs. <c>visionmap=</c> bez <c>map=</c>) a ne obecne
+        /// "mapa neni k dispozici". Viz doc/virtual-hw.md.
+        /// </summary>
+        private string DescribeMissingMapReason(FusionConfig fusionConfig)
+        {
+            string mapPath = Program.GetParam("map");
+            string visionPath = Program.GetParam("visionmap");
+
+            if (CameraRoadNetwork == null)
+            {
+                if (string.IsNullOrWhiteSpace(mapPath) && string.IsNullOrWhiteSpace(visionPath))
+                    return "neni zadana zadna mapa (parametr map=)";
+                return $"zadnou mapu se nepovedlo nacist (map={mapPath ?? "<nezadano>"}, "
+                       + $"visionmap={visionPath ?? "<nezadano>"}) - viz radky 'map:' / 'visionmap:' vyse. "
+                       + "Pozor na relativni cesty: resi se proti pracovnimu adresari, ne proti repozitari";
+            }
+
+            if (fusionConfig.GeoReference == null)
+            {
+                if (VisionRoadNetwork != null && RoadNetwork == null)
+                    return "je zadana jen visionmap=, ta ale zamerne nezaklada pocatek lokalni ENU "
+                           + "roviny - doplnit map= (navigacni mapu)";
+                return "neni pocatek lokalni ENU roviny (mapa se nenactla a neni ani GPS fix)";
+            }
+
+            return "mapa neni k dispozici (parametr map=)";
         }
 
         /// <summary>
         /// Kdyz je zadano <c>virtualhw=true</c>, vymeni kamery za simulovane renderovane z mapy
-        /// nactene v <see cref="LoadMapIfSpecified"/>. Bez mapy nebo pri chybe zustava realny HW
+        /// nactene v <see cref="LoadMapIfSpecified"/> - konkretne z <see cref="CameraRoadNetwork"/>,
+        /// tedy z <c>visionmap=</c>, kdyz je zadana, jinak z <c>map=</c>. Bez mapy nebo pri chybe zustava realny HW
         /// (jen zaznam do ladeni) - simulace nesmi shodit start aplikace. Viz doc/virtual-hw.md.
         /// </summary>
         private void TryEnableVirtualHW(ARBotHW hw, AsyncFusionEngine engine, FusionConfig fusionConfig,
@@ -540,11 +673,16 @@ namespace ARBot.Robot
         {
             if (RequestedHwMode != HwMode.Virtual) return;
 
-            if (RoadNetwork == null || fusionConfig.GeoReference == null)
+            if (CameraRoadNetwork == null || fusionConfig.GeoReference == null)
             {
                 // Zamerne NE fallback na realny HW: pri zadosti o simulaci se nesmi necekane
                 // rozjet skutecne kamery. Zustane HwMode.None (nic).
-                Trace.WriteLine("virtualni HW: mapa neni k dispozici (parametr map=) -> zadny HW.");
+                //
+                // Hlaska musi rict, CO presne chybi. Puvodni "mapa neni k dispozici (parametr map=)"
+                // svadela na spatnou stopu ve dvou castych pripadech: (a) cesta v map= neexistuje
+                // (typicky preklep nebo relativni cesta - ta se resi proti pracovnimu adresari, ne
+                // proti repu), (b) zadana je jen visionmap=, ktera zamerne pocatek roviny nezaklada.
+                Trace.WriteLine("virtualni HW: " + DescribeMissingMapReason(fusionConfig) + " -> zadny HW.");
                 return;
             }
 
@@ -573,7 +711,10 @@ namespace ARBot.Robot
 
                 hw.SetVirtualHW(new VirtualHWOptions
                 {
-                    Network = RoadNetwork,
+                    // Kamery renderuji z visionmap=, kdyz je zadana - tedy z JINE mapy, nez podle
+                    // ktere se robot naviguje a se kterou koreluje occupancy grid. Viz
+                    // doc/virtual-hw.md a VisionRoadNetwork.
+                    Network = CameraRoadNetwork,
                     Origin = fusionConfig.GeoReference,
                     // Sem se vlepuje umela chyba pozy: kamera renderuje z pozy POSUNUTE proti te,
                     // kterou se ukotvuje occupancy grid, takze korelace s mapou dostane znamou

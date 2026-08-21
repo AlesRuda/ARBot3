@@ -32,7 +32,7 @@ namespace ARBot.ViewModels
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"SelfTest '{cfg.Name}' start: {cfg.Seconds}s record={cfg.Record} " +
-                    $"images={cfg.OpenImages} robot={cfg.OpenRobotCentric}");
+                    $"images={cfg.OpenImages} robot={cfg.OpenRobotCentric} world={cfg.OpenWorld}");
 
                 // Počkej na inicializaci HW (kamery/porty) a chvíli na ustálení UI (kamera se připojuje líně).
                 await Task.Run(() => ARBotHW.Current.WaitReady());
@@ -51,6 +51,11 @@ namespace ARBot.ViewModels
                         var img = _factory.DocumentDock?.VisibleDockables?.FirstOrDefault(d => d.Id == "Images");
                         if (img != null) _factory.SetActiveDockable(img);
                     }
+
+                    // World az nakonec, aby zustal aktivnim tabem - jinak by ho screenshot
+                    // (st_shot) nezachytil. Otevira se PRED Run: mapove vrstvy tak dostanou
+                    // i zpravy z uvodu behu.
+                    if (cfg.OpenWorld) OpenWorldView();
 
                     if (cfg.Record) RunAndLog(); else RunMode();
                 });

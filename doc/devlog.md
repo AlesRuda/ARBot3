@@ -37,6 +37,66 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-21
+
+- **Posunutá kopie syntetické testovací mapy.** Nový soubor
+  [OSM/SyntetickyKoridorPosunuty.osm](../OSM/SyntetickyKoridorPosunuty.osm) — kopie
+  `SyntetickyKoridor.osm`, ve které je každý uzel náhodně posunutý proti originálu
+  (rovnoměrně v kruhu o poloměru **max 1 m**, skutečný posun 0,66–0,99 m). Šířky uzlů ani
+  topologie cest se nemění, mění se jen geometrie — koridor už tedy nemá přesně pravoúhlé
+  zlomy ani přesně zadané délky.
+  - **Načpak to je:** druhá mapa pro testovací sestavu korelace (jedna mapa do renderu
+    virtuální kamery, druhá do korelátoru) — místo vnucené chyby pózy, viz záznam 19. 8.
+  - **Jak je to spočítané:** posun se aplikuje v lokálních metrech a zpět do LLA se převádí
+    přesnou kopií `GeoReference.ToLLA` (WGS84 přes ECEF), aby souřadnice seděly na to, co
+    počítá aplikace. Generátor byl jednorázový skript mimo repozitář; **tabulka posunů
+    (orig x/y → dx/dy → nové x/y) i seed jsou zapsané v hlavičce vzniklého `.osm`**, takže
+    soubor je reprodukovatelný a jde z něj odečíst zavedená chyba.
+  - **Ověřeno:** validní XML, `<way>` bloky bit-shodné s originálem, posun každého uzlu po
+    zaokrouhlení lat/lon na 8 desetinných míst stále ≤ 1 m. **Nezkoušeno za běhu aplikace.**
+
+- **Dvě mapy pro test korelátoru: `visionmap=`** (dokončení návrhu z 20. 8. — [virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru)).
+  Virtuální kamery renderují z mapy z nového parametru `visionmap=<cesta.osm>`, když je zadaný, jinak
+  dál z `map=`. Vnucená chyba je tím **v datech**, ne v pozorovateli — tedy to, co `poseerror=` dát
+  nemohl (posunutí odhadu posune i obraz, smyčka je kruhová).
+  - **Jak:** `ARBotRuntime.VisionRoadNetwork` / `VisionMapMessage` vedle navigační sítě;
+    `CameraRoadNetwork = VisionRoadNetwork ?? RoadNetwork` jde do `VirtualHWOptions.Network`, odkud si
+    ho bere `RoadScene`. Do fúze, navigace ani korelace vizuální síť **nevstupuje**.
+  - **Proti návrhu:** návrh počítal s posunutým počátkem téže sítě (jeden řádek); vyšlo z toho
+    **druhý `.osm`**, protože umí libovolnou deformaci, ne jen translaci, a vnucená chyba je pak
+    zapsaná v souboru (reprodukovatelná, odečitatelná). Dvojice
+    `SyntetickyKoridor.osm` + `SyntetickyKoridorPosunuty.osm` je tím rovnou hotová sestava.
+  - **Počátek lokální ENU roviny určuje dál jen `map=`.** `visionmap=` na něj nesahá — jinak by se
+    lišil počátek, ve kterém se počítá, od toho, který se zaznamená. Důsledek: `visionmap=` bez `map=`
+    virtuální HW nerozjede, a to je záměr.
+  - **Do streamu ani do záznamu nejde** (žádost). Záznam má popisovat, co robot věděl a viděl, ne
+    kulisu; druhá `MapMsg` ve streamu by navíc přepsala navigační (odběratelé drží poslední podle typu)
+    a ve View by z ní vyšel jiný počátek. World view si ji proto bere přímo z runtime
+    (`WorldViewDocument.SetVisionMap`) — při otevření a při změně sezení, takže ji dostane i pohled
+    otevřený před Startem.
+  - **Nová vrstva „Mapa (vize)"** ve World pohledu: navigační síť fialový pás, vizuální mapa **oranžová
+    kontura** nad ním; mezera *je* vnucená chyba. Obrázek: [visionmap-world-view.png](media/visionmap-world-view.png).
+  - **Narazil jsem na to, že Mapsui 5.1 výplň polygonu nevypne** — `VectorStyle.Fill = null` ani
+    `new Brush(alfa 0)` nepomůže, ploška se vykreslí **bíle** a navigační síť pod ní zmizí (dvě verze
+    snímku to ukázaly). Řešení: z tvaru se bere `Geometry.Boundary` a kreslí se jako `VectorStyle.Line`.
+  - **Přidán `st_world=true`** do self-testu (otevře World a nechá ho aktivní), aby se mapové vrstvy
+    daly ověřit a nasnímat bezobslužně — jinak by na to nebyla cesta.
+  - **Ověřeno za běhu** (`x64`, self-test, žádný HW): A/B se stejným `map=`, jednou bez `visionmap=`
+    a jednou s ním → robot-centrický grid se prokazatelně liší, zopakované A je identické (takže to
+    není šum renderu). Snímek World pohledu ukazuje obě mapy s rozestupem ≈ 1 m. Build `x64` i `OrangePI`.
+  - **Po prvním spuštění hlásilo `virtualni HW: mapa neni k dispozici (parametr map=) -> zadny HW`** —
+    nešlo o vadu kódu, ale o **argumenty**: v `launchSettings.json` se slepily dva příkazové řádky, takže
+    `map=` bylo dvakrát a `Program.GetParam` bere **první** výskyt (cesta `D:\Work\...` z jiného stroje);
+    druhá, relativní `map=OSM/...` se navíc řeší proti pracovnímu adresáři, ne proti repu. Reprodukováno
+    (0 snímků proti 21 s opravenými argumenty). Opraveno: absolutní cesty + samostatný profil
+    „virtualni HW + dve mapy (visionmap)". A hláška teď říká, **co přesně** chybí
+    (`DescribeMissingMapReason`) — nenalezená `map=` vs. `visionmap=` bez `map=` vs. žádná mapa.
+  - **Otevřené:** posun uzlů v `SyntetickyKoridorPosunuty.osm` je **náhodný per uzel**, ne tuhá
+    translace — `MapCorrelator` hledá jedno 3-DOF `(dx, dy, φ)` na celý grid, takže tady nemá jednu
+    správnou odpověď a dostane vážený kompromis podle úseků právě v gridu. Na falsifikovatelnou
+    předpověď „`d` → vnucený posun" je potřeba mapa posunutá **jako celek**; posunuté uzly zkoušejí
+    spíš robustnost proti deformaci. Viz [map-correlation-localization.md](map-correlation-localization.md).
+
 ## 2026-08-20
 
 - **„Při řídkém důkazu propustí hlídač volnou osu" — dohledáno a rozhodnuto NEOPRAVOVAT zvlášť.**

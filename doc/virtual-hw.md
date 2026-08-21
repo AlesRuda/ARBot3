@@ -127,18 +127,35 @@ vyzvedne z `ARBotRuntime.MapMessage`.
 
 `WorldViewDocument` si pořád **umí** načíst mapu i vlastní cestou (file picker) — ta cesta zůstává.
 
+Vedle navigační sítě drží runtime ještě `VisionRoadNetwork` / `VisionMapMessage` (parametr
+`visionmap=`) — síť **jen pro render kamer**. Ta se na `Stream` **nepublikuje**; world view si ji
+vyzvedává přímo z runtime. Viz „Dvě mapy" níž.
+
 ### Parametry příkazové řádky
 
 | Parametr | Význam |
 |---|---|
 | `virtualhw=true` | zapne simulovaný HW (kamery, motory, GPS, IMU) místo reálného |
-| `map=<cesta.osm>` | mapa, ze které se scéna renderuje (bez ní zůstane reálný HW) |
+| `map=<cesta.osm>` | **navigační** mapa: robot podle ní jede, koreluje s ní occupancy grid a určuje počátek lokální ENU roviny (bez ní zůstane reálný HW) |
+| `visionmap=<cesta.osm>` | mapa, **ze které renderují kamery** — když je zadaná, jinak renderují z `map=`. Vnucená chyba mapy pro test korelátoru; do streamu ani do záznamu nejde. Viz níž |
 | `roadwidth=<m>` | výchozí šířka cesty pro uzly bez `width` (default 3) |
 | `start=lat,lon[,kurz]` | známá počáteční póza → vloží se do EKF (**platí i pro reálný HW**); bez ní se v simulaci přichytí na nejbližší cestu |
 | `poseerror=vpřed,vlevo[,stupně]` | umělá chyba pózy vnucená do renderu kamer (metry v rámci robotu, kurz ve stupních) — viz níž |
 
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
+
+> **Dvě pasti u cest k mapám** (obě stály čas 21. 8. 2026, projevily se jako
+> `virtualni HW: ... -> zadny HW`):
+> - **Relativní cesta se řeší proti pracovnímu adresáři**, ne proti repozitáři. Při spuštění z VS
+>   (`launchSettings.json`) ani z `bin\...` to není kořen repa, takže `map=OSM/Neco.osm` nenajde nic.
+>   V `launchSettings.json` proto **absolutní cesty**.
+> - **Zdvojený parametr = platí první.** `Program.GetParam` bere `args.FirstOrDefault(...)`, takže
+>   když se v příkazovém řádku octne `map=` dvakrát (typicky slepením dvou příkazů), tiše vyhraje ten
+>   první a druhý se ignoruje. Bez varování.
+>
+> Hláška při nezapnutí proto říká, **co přesně** chybí (`ARBotRuntime.DescribeMissingMapReason`):
+> nenalezená `map=` vs. `visionmap=` bez `map=` vs. žádná mapa zadaná.
 
 ## Pohyb: `SimulatedRobot` a virtuální motory
 
@@ -312,23 +329,54 @@ Tři vlastnosti, na kterých záleží:
 - **GPS a IMU dál měří pravdu.** Kdyby se zkazily i ony, filtr se rozjede a známá odpověď zmizí.
   Chyba je záměrně jen na straně obrazu.
 
-### Dvě mapy — vnucená chyba do mapy pro kameru
+### Dvě mapy — vnucená chyba do mapy pro kameru (`visionmap=`)
 
-**Návrh, neimplementováno** (20. 8. 2026). Vnucená chyba pózy výš má principiální slabinu:
-„kamerina představa o tom, kde je" v realitě **neexistuje**. Protože kamera renderuje z odhadu,
-posunutí odhadu posune i obraz — hlášený posun se nevynuluje a smyčka je kruhová. Naměřeno:
-`Dx` stálo celý běh na 0,800 a korekce se po první zamítaly.
+**Hotové** (21. 8. 2026). Vnucená chyba pózy výš má principiální slabinu: „kamerina představa o tom,
+kde je" v realitě **neexistuje**. Protože kamera renderuje z odhadu, posunutí odhadu posune i obraz —
+hlášený posun se nevynuluje a smyčka je kruhová. Naměřeno: `Dx` stálo celý běh na 0,800 a korekce se
+po první zamítaly.
 
-Správnější je vnutit chybu do něčeho, co **může být špatně i v realitě** — do **mapy**. Tedy dvě
-mapy: jedna, na které robot naviguje (pravá), a druhá, **posunutá**, kterou vidí kamera.
+Správnější je vnutit chybu do něčeho, co **může být špatně i v realitě** — do **mapy**. Tedy dvě mapy:
+jedna, na které robot naviguje (`map=`), a druhá, kterou vidí kamery (`visionmap=`).
 
-Implementačně je to **jeden řádek**: scéna pro kamery vzniká v `ARBotHW.SetVirtualHW` jako
-`new RoadScene(options.Network, options.Origin)`; stačí ji postavit s **posunutým počátkem**
-(`new GeoReference(origin.ToLLA(-dx, -dy))`), protože `GeoReference.ToLocal` je lokální linearizace,
-takže posun počátku přeloží každý uzel o `-s`. Korelátor si dál drží scénu z pravého počátku.
-Rotace je taky levná (pootočit lokální souřadnice uzlů); obecná **deformace** už chce klonovat síť
-a hýbat uzly — to je větší krok a translace s rotací pokryjí, co u mis-georeferencované mapy
-nastává nejčastěji.
+```bash
+ARBot.exe virtualhw=true mapcorr=true map=OSM/SyntetickyKoridor.osm visionmap=OSM/SyntetickyKoridorPosunuty.osm
+```
+
+**Jak je to udělané.** `visionmap=` je **samostatný `.osm` soubor**, ne posunutý počátek téže sítě.
+Runtime ho načte do `ARBotRuntime.VisionRoadNetwork` (vedle navigační `RoadNetwork`) a
+`ARBotRuntime.CameraRoadNetwork` = `VisionRoadNetwork ?? RoadNetwork` jde do
+`VirtualHWOptions.Network`, odkud si ho bere `RoadScene` pro render. Do fúze, navigace ani korelace
+tato síť **nevstupuje** — je jen zdrojem obrazu.
+
+*Proč druhý soubor a ne posun počátku* (původní návrh): posun počátku umí jen translaci (a s trochou
+práce rotaci), zatímco druhý soubor umí **libovolnou deformaci** — právě tu, kterou má
+[`OSM/SyntetickyKoridorPosunuty.osm`](../OSM/SyntetickyKoridorPosunuty.osm) (každý uzel posunutý
+náhodně do 1 m, tabulka posunů je v hlavičce toho souboru). Navíc je vnucená chyba **zapsaná
+v datech**, ne v parametru, takže je reprodukovatelná a dá se z výsledku odečíst.
+
+**Počátek lokální ENU roviny určuje dál jen `map=`.** `visionmap=` na něj nesahá — jinak by se lišil
+počátek, ve kterém se počítá, od toho, který se zaznamená, a všechna lokální data by se ve View
+kreslila posunutá. Důsledek: `visionmap=` **bez** `map=` virtuální HW nerozjede (nemá počátek). To je
+záměr — rozdíl obou map je právě to, co se měří.
+
+**Do záznamu `visionmap` nejde.** `VisionMapMessage` se **záměrně nepublikuje na `Stream`**: záznam má
+popisovat, co robot věděl a viděl, ne kulisu, ve které jsme ho zkoušeli. Druhá `MapMsg` ve streamu by
+navíc přepsala tu navigační (odběratelé si drží poslední zprávu podle typu) a ve View by z ní vyšel
+jiný počátek. World view si ji proto bere **přímo z runtime** (`WorldViewDocument.SetVisionMap`) —
+při otevření a při změně sezení.
+
+**Vidět je to ve World pohledu** jako vrstva **„Mapa (vize)"**: navigační síť je fialový pás, vizuální
+mapa **oranžová kontura** nad ním. Mezera mezi nimi *je* vnucená chyba — nesouhlas na přímý pohled
+místo abstraktního čísla.
+
+![World pohled: fialový pás = navigační mapa (`map=`), oranžová kontura = mapa pro kamery
+(`visionmap=`); rozestup ≈ 1 m je vnucená chyba](media/visionmap-world-view.png)
+
+> **Kreslí se kontura, ne plocha.** Mapsui 5.1 u polygonu výplň nevypne — `VectorStyle.Fill = null`
+> ani `new Brush(alfa 0)` nepomůže, ploška se vykreslí **bíle** a navigační síť pod ní zmizí (ověřeno
+> na snímcích 21. 8. 2026). Proto se z tvaru bere jeho hranice (`Geometry.Boundary`) a kreslí se jako linie
+> (`VectorStyle.Line`), která žádnou výplň nemá.
 
 **Co to umožní.** Hlášený posun zůstane konstantní, ale z *poctivého* důvodu: posunutou mapu nelze
 spravit posunutím robota. Z vnuceného posunu se tím stane **pravda pro odhad posunu mapa↔GPS**
@@ -339,9 +387,6 @@ zkonvergovat k vnucené hodnotě, zatímco póza má zůstat na GPS.
 > mapu), zatímco mrkev sleduje pravou. Při velkém posunu se dostanou do konfliktu — mrkev tahá robota
 > tam, kde grid říká „mimo cestu", a lokální plánovač může odmítnout jet. Pak už experiment neměří
 > identifikaci posunu, ale řešení konfliktu.
-
-Vedlejší užitek: dvě mapy udělají oba rámce **viditelnými** — world view může nakreslit obě sítě
-a mezeru mezi nimi, což je přímé zobrazení nesouhlasu místo abstraktního čísla.
 
 `VirtualPoseError` tím **nezaniká** — ověřuje jinou věc (že korelátor odchylku vůbec najde, což už
 doložil na jednotky milimetrů). Viz tabulka tří experimentů v
@@ -487,7 +532,9 @@ K pohybu a senzorům:
 | `VirtualGps`, `VirtualImu` | `ARBot.HAL.Tests` (3 testy, round-trip přes mapper) |
 | **Uzavřená smyčka přes skutečnou fúzi** | `ARBot.HAL.Tests` (1 test; chyba polohy ~0,2 m, kurzu ~0,01 rad po jízdě rovně i v oblouku) |
 | Drátování v `ARBotHW` / `ARBotRuntime` | **jen překlad** (`x64` i `OrangePI`) |
-| Běh aplikace se simulovaným HW | **neověřeno** |
+| Běh aplikace se simulovaným HW | **ověřeno** (self-test `x64`, 21. 8. 2026) |
+| Dvě mapy (`visionmap=`) — render z jiné mapy | **ověřeno za běhu** (21. 8. 2026): A/B self-test se stejným `map=`, jednou bez `visionmap=` a jednou s ním → robot-centrický grid se prokazatelně liší, zopakované A je identické. Do streamu nejde (v kódu se `Publish` volá jen pro `MapMessage`) |
+| Vrstva „Mapa (vize)" ve World pohledu | **ověřeno za běhu** (21. 8. 2026, snímek výš) — vrstva se naplní z runtime i když pohled vznikl před Startem |
 
 ## Otevřené / budoucí
 

@@ -288,6 +288,11 @@ namespace ARBot.ViewModels
                 var map = ARBotRuntime.Current.MapMessage;
                 if (map != null)
                     doc.Post(map);
+
+                // Mapa pro render virtualnich kamer (visionmap=) NEJDE pres Stream - zamerne, aby
+                // zaznam popisoval, co robot vedel, ne kulisu, ve ktere jsme ho zkouseli. Pohled si
+                // ji proto bere primo z runtime. Viz ARBotRuntime.VisionMapMessage.
+                doc.SetVisionMap(ARBotRuntime.Current.VisionMapMessage);
             }
             catch { /* runtime nedostupne (napr. design-time) */ }
 

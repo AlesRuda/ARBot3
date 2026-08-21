@@ -20,7 +20,13 @@ namespace ARBot.Robot
     /// </summary>
     public sealed class VirtualHWOptions
     {
-        /// <summary>Silnicni sit, ze ktere se rendruje scena.</summary>
+        /// <summary>
+        /// Silnicni sit, ze ktere se rendruje scena.
+        /// <para>Je to sit <b>pro obraz</b>, ne pro navigaci - runtime sem dava
+        /// <c>ARBotRuntime.CameraRoadNetwork</c>, tedy mapu z <c>visionmap=</c>, kdyz je zadana,
+        /// jinak navigacni <c>map=</c>. Kamery tak mohou videt jinou mapu, nez podle ktere se robot
+        /// naviguje (viz doc/virtual-hw.md).</para>
+        /// </summary>
         public RoadNetwork Network;
 
         /// <summary>

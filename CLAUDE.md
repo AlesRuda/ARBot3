@@ -61,7 +61,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
 - [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze
-  streamu (poloha+kurz, trajektorie, trasa/graf, značky).
+  streamu (poloha+kurz, trajektorie, trasa/graf, značky) + vrstva „Mapa (vize)" mimo stream
+  (`visionmap=`, viz [doc/virtual-hw.md](doc/virtual-hw.md)).
 - [doc/occupancy-and-local-planning.md](doc/occupancy-and-local-planning.md) — kartézský occupancy grid
   (fúze sjízdnosti z hloubky + z RGB, log-odds, kruhový buffer) a lokální plánování cesty nad ním
   (odstupy od překážek, rychlostní obálka, A\* → `RegulatorWayPoint[]`) + `LocalNavigator` jako vyšší
@@ -94,7 +95,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   náhrada D435 — RGB + hloubka renderované z OsmNav mapy a pózy robota, šev `SetRealHW`/`SetVirtualHW`
   v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované; **běh aplikace ověřen** (19. 8. 2026).
   Umí i **umělou chybu pózy** (`poseerror=`, nástroj nad virtuální kamerou) — vnutí do renderu známý
-  posun, takže korelace s mapou má proti čemu měřit.
+  posun, takže korelace s mapou má proti čemu měřit. Od 21. 8. 2026 i **dvě mapy** (`visionmap=`):
+  kamery renderují z jiného `.osm` než podle kterého robot jede — vnucená chyba je v datech, ne
+  v pozorovateli. Ve World pohledu je vidět jako vrstva „Mapa (vize)"; do streamu ani do záznamu nejde.
 - [doc/telemetry-view.md](doc/telemetry-view.md) — **telemetrický pohled** (tabulka údajů v čase):
   stav robota, řídicí zásahy a údaje z dalších zpráv srovnané v čase (řádek = zpráva, sloupec = údaj,
   tučně = hodnota právě přišla), detail řádku, tooltipy s významem údajů, výběr sloupců a filtr

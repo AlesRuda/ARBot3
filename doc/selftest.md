@@ -19,6 +19,7 @@ Kód: [`Src/ARBot/Diagnostics/SelfTest.cs`](../Src/ARBot/Diagnostics/SelfTest.cs
 | `st_images` | `false` | otevřít okno Images (obrazové vrstvy + overlay) |
 | `st_images_active` | `false` | zviditelnit tab Images (jinak zůstane na pozadí — ověří gate viditelnosti) |
 | `st_robot` | `true` | otevřít okno Robot-centric |
+| `st_world` | `false` | otevřít okno World (mapové vrstvy) a nechat ho aktivní — se `st_shot=true` dá bezobslužný snímek mapových vrstev (např. „Mapa (vize)" z `visionmap=`, viz [virtual-hw.md](virtual-hw.md)) |
 | `st_name` | `baseline` | štítek varianty (jen do hlavičky souhrnu) |
 | `st_out` | `logs/selftest-result.txt` | cesta k souboru souhrnu |
 | `st_shot` | `false` | pořídit screenshot hlavního okna → `doc/media/selftest-<name>.png` |

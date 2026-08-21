@@ -57,7 +57,10 @@
                           ToolTip.Tip="Stopa fúzované pózy."/>
                 <CheckBox Content="Surové GPS" IsChecked="{Binding ShowGps}" Foreground="White"
                           ToolTip.Tip="Fixy tak, jak přišly z přijímače (šedě), bez fúze.&#10;Rozestup od žluté značky robota = aktuální chyba GPS."/>
-                <CheckBox Content="Mapa (síť)" IsChecked="{Binding ShowMap}" Foreground="White"/>
+                <CheckBox Content="Mapa (síť)" IsChecked="{Binding ShowMap}" Foreground="White"
+                          ToolTip.Tip="Navigační síť z parametru map= – mapa, podle které robot jede a se kterou koreluje occupancy grid."/>
+                <CheckBox Content="Mapa (vize)" IsChecked="{Binding ShowVisionMap}" Foreground="White"
+                          ToolTip.Tip="Mapa z parametru visionmap=, ze které renderují virtuální kamery (oranžově).&#10;Rozestup od fialové navigační sítě = záměrně zavedená chyba mapy.&#10;Bez parametru je vrstva prázdná."/>
                 <CheckBox Content="Trasa / graf" IsChecked="{Binding ShowRoute}" Foreground="White"/>
                 <CheckBox Content="Značky" IsChecked="{Binding ShowMarkers}" Foreground="White"/>
                 <CheckBox Content="Lokální mapa" IsChecked="{Binding ShowOccupancy}" Foreground="White"

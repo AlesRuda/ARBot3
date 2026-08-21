@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="ARBot3 - synteticka testovaci mapa (posunute uzly, max 1 m)">
+
+  <!--
+    SYNTETICKY KORIDOR SE ZUZENIM, POSUNUTE UZLY - testovaci mapa, nejde o realne
+    misto. Kopie SyntetickyKoridor.osm s nahodne posunutymi uzly (max 1 m); slouzi
+    jako 'jina mapa' proti originalu (napr. pro korelaci occupancy gridu s mapou,
+    viz doc/map-correlation-localization.md).
+
+    POSUNUTA KOPIE - uzly jsou proti originalu nahodne posunute (max 1 m):
+
+      uzel   orig x   orig y    dx      dy    posun   nove x   nove y
+      1        0.00     0.00   -0.96   +0.00    0.96    -0.96     0.00
+      2       -9.80     0.00   +0.81   -0.16    0.83    -8.99    -0.16
+      3      -10.00     0.00   -0.50   -0.42    0.66   -10.50    -0.42
+      5      -10.00     2.50   -0.45   -0.48    0.66   -10.45     2.02
+      8      -10.20     2.50   -0.79   -0.37    0.87   -10.99     2.13
+      6      -13.00     2.50   -0.85   +0.51    0.99   -13.85     3.01
+      7      -23.00     2.50   -0.18   -0.87    0.89   -23.18     1.63
+      9      -10.00    12.50   -0.75   +0.63    0.98   -10.75    13.13
+
+    Posun je rovnomerne rozdeleny v kruhu o polomeru 1 m (nahodny generator se
+    seedem 20260820, aby byl soubor reprodukovatelny). Sirky uzlu i topologie cest
+    zustavaji shodne s originalem - posunuta je jen geometrie, takze koridor uz
+    nema presne pravouhle zlomy ani presne zadane delky. Tabulka vyse popisuje
+    SKUTECNE souradnice teto kopie; popis nize (vcetne puvodni tabulky) plati
+    pro original.
+
+    Zadani: 10 m dlouhy usek sirky 3 m vedouci na zapad (A), pravouhly zlom na sever
+    (B, delka 2,5 m, sirka 2 m), dalsi zlom na zapad (C, delka 3 m, sirka 1 m),
+    ktery se nasledne ve 10 m rozsiri na 3 m (D). Z konce useku B jeste pokracuje
+    dalsich 10 m na sever, sirka 2 m (E) - z uzlu 5 je tedy krizovatka tvaru T.
+
+    Geometrie v lokalnich metrech (x = vychod+, y = sever+); pocatek je uzel 1 na
+    lat=50.0290000 lon=14.5200000. Souradnice jsou spocitane primo pres
+    GeoReference.ToLLA, tedy presnou inverzi prevodu, ktery aplikace pouziva -
+    v lokalnich metrech geometrie sedi na milimetry.
+
+      uzel    x [m]    y [m]   sirka [m]   poznamka
+      1          0.0     0.0         3   zacatek useku A (vychodni konec)
+      2         -9.8     0.0         3   drzi A na 3 m az k rohu
+      3        -10.0     0.0         2   pravouhly roh A -> B (sirka podle uzsiho B)
+      5        -10.0     2.5         2   krizovatka B / C / E - sirka pruchoziho koridoru (2 m)
+      8        -10.2     2.5         1   0,2 m zapadne od krizovatky: tady zacina 1m zuzeni
+      6        -13.0     2.5         1   konec C = nejuzsi misto, zacatek rozsireni D
+      7        -23.0     2.5         3   konec D, rozsireno na 3 m
+      9        -10.0    12.5         2   konec E (10 m na sever od krizovatky)
+
+    JAK SE TU POCITA SIRKA (ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs):
+    sirka neni vlastnosti useku, ale UZLU - uzel dostane maximum ze sirek cest,
+    ktere jim vedou, a mezi dvema uzly se linearne interpoluje (viz
+    Vision/Synthetic/RoadScene.cs). Tag 'width' primo na uzlu ma prednost pred
+    cestami, a proto je tu sirka zadana explicitne na kazdem uzlu: mapa pak
+    vypada stejne bez ohledu na vychozi sirku, ktera se lisi podle zpusobu
+    nacteni (2.0 m ve World view vs. 3.0 m u parametru map=, resp. roadwidth=).
+
+    Dusledky pro tvar koridoru:
+     - uzly 2 a 8 lezi 0,2 m od rohu (resp. od krizovatky) jen proto, aby si sousedni
+       useky udrzely svou sirku po cele delce; zmena sirky pak padne do onech 0,2 m
+       misto aby se cely usek pozvolna prelival.
+     - rohovy uzel 3 nese UZSI z obou navazujicich sirek (A 3 m -> B 2 m, tedy 2 m),
+       aby koridor nesliboval vic volneho mista, nez kolik ho ve skutecnosti je.
+     - krizovatka (uzel 5) ma naopak sirku PRUCHOZIHO koridoru B -> E, tedy 2 m, ne
+       sirku nejuzsi vetve. Kdyby mela 1 m podle odbocky C, robot jedouci z B na sever
+       do E by na krizovatce nasel falesne zuzeni, ktere tam fyzicky neni. 1m zuzeni
+       proto zacina az uzlem 8, 0,2 m zapadne od krizovatky.
+     - usek D je nalevka: uzel 6 ma 1 m, uzel 7 ma 3 m, takze se koridor
+       rovnomerne rozsiruje po celych 10 m - tak je ctena formulace 'rozsiri se
+       na 3 m ve delce 10 m'. Kdyby melo jit o skokove rozsireni a pak rovny
+       10m usek siroky 3 m, staci uzlu 6 zmenit width na 3 a pridat novy uzel
+       0,2 m zapadne od nej se sirkou 1.
+
+    Cesty jsou highway=footway, aby je prijal chodecky profil
+    (TravelProfile.Pedestrian), ktery aplikace pouziva pri obou zpusobech nacteni.
+  -->
+
+  <bounds minlat="50.02899619" minlon="14.51967647" maxlat="50.02911800" maxlon="14.51998666"/>
+
+  <node id="1" visible="true" version="1" lat="50.02900000" lon="14.51998666">
+    <tag k="width" v="3"/>   <!-- x=-0.96 m, y=0.00 m: zacatek useku A (vychodni konec) (posun -0.96, +0.00 m) -->
+  </node>
+  <node id="2" visible="true" version="1" lat="50.02899859" lon="14.51987458">
+    <tag k="width" v="3"/>   <!-- x=-8.99 m, y=-0.16 m: drzi A na 3 m az k rohu (posun +0.81, -0.16 m) -->
+  </node>
+  <node id="3" visible="true" version="1" lat="50.02899619" lon="14.51985345">
+    <tag k="width" v="2"/>   <!-- x=-10.50 m, y=-0.42 m: pravouhly roh A -> B (sirka podle uzsiho B) (posun -0.50, -0.42 m) -->
+  </node>
+  <node id="5" visible="true" version="1" lat="50.02901815" lon="14.51985422">
+    <tag k="width" v="2"/>   <!-- x=-10.45 m, y=2.02 m: krizovatka B / C / E - sirka pruchoziho koridoru (2 m) (posun -0.45, -0.48 m) -->
+  </node>
+  <node id="8" visible="true" version="1" lat="50.02901916" lon="14.51984668">
+    <tag k="width" v="1"/>   <!-- x=-10.99 m, y=2.13 m: 0,2 m zapadne od krizovatky: tady zacina 1m zuzeni (posun -0.79, -0.37 m) -->
+  </node>
+  <node id="6" visible="true" version="1" lat="50.02902704" lon="14.51980675">
+    <tag k="width" v="1"/>   <!-- x=-13.85 m, y=3.01 m: konec C = nejuzsi misto, zacatek rozsireni D (posun -0.85, +0.51 m) -->
+  </node>
+  <node id="7" visible="true" version="1" lat="50.02901467" lon="14.51967647">
+    <tag k="width" v="3"/>   <!-- x=-23.18 m, y=1.63 m: konec D, rozsireno na 3 m (posun -0.18, -0.87 m) -->
+  </node>
+  <node id="9" visible="true" version="1" lat="50.02911800" lon="14.51984995">
+    <tag k="width" v="2"/>   <!-- x=-10.75 m, y=13.13 m: konec E (10 m na sever od krizovatky) (posun -0.75, +0.63 m) -->
+  </node>
+
+  <way id="101" visible="true" version="1">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="3"/>
+    <tag k="name" v="A - zapad, delka 10 m, sirka 3 m"/>
+  </way>
+  <way id="102" visible="true" version="1">
+    <nd ref="3"/>
+    <nd ref="5"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="2"/>
+    <tag k="name" v="B - sever, delka 2,5 m, sirka 2 m"/>
+  </way>
+  <way id="103" visible="true" version="1">
+    <nd ref="5"/>
+    <nd ref="8"/>
+    <nd ref="6"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="1"/>
+    <tag k="name" v="C - zapad, delka 3 m, sirka 1 m"/>
+  </way>
+  <way id="104" visible="true" version="1">
+    <nd ref="6"/>
+    <nd ref="7"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="3"/>
+    <tag k="name" v="D - zapad, delka 10 m, rozsireni z 1 m na 3 m"/>
+  </way>
+  <way id="105" visible="true" version="1">
+    <nd ref="5"/>
+    <nd ref="9"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="2"/>
+    <tag k="name" v="E - sever, delka 10 m, sirka 2 m"/>
+  </way>
+
+</osm>

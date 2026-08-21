@@ -120,6 +120,14 @@ namespace ARBot.ViewModels
         private LocalPlanMsg? lastPlan;
 
         /// <summary>
+        /// Mapa pro render virtualnich kamer (<c>visionmap=</c>). <b>Nechodi pres Post/Flush</b> -
+        /// ve streamu zamerne neni (viz <c>ARBotRuntime.VisionMapMessage</c>), dokument si ji bere
+        /// primo z runtime pres <see cref="SetVisionMap"/>. Proto neni v <c>lastXxx</c> skupine
+        /// a <see cref="ResetSessionState"/> ji nezahazuje, jen prekresli.
+        /// </summary>
+        private MapMsg? visionMap;
+
+        /// <summary>
         /// Stav globalni navigace jako hotovy text do tooltipu (viz <see cref="BuildGlobalNavTip"/>).
         /// <c>GlobalNavMsg</c> nema vlastni geometrii - cil i mrkev uz kresli vrstva Znacky - takze
         /// se z ni nedrzi cela zprava, jen tento popis. Sklada se pri prijmu, aby hledani tooltipu
@@ -159,6 +167,9 @@ namespace ARBot.ViewModels
         private readonly MemoryLayer routeLayer = new MemoryLayer("Trasa");
         private readonly MemoryLayer markerLayer = new MemoryLayer("Znacky");
         private readonly MemoryLayer mapLayer = new MemoryLayer("Mapa");   // sit z OsmNav (MapMsg)
+        // Mapa, ze ktere renderuji virtualni kamery (parametr visionmap=). NEJDE ze streamu - viz
+        // SetVisionMap; ve streamu zamerne neni, aby zaznam popisoval, co robot vedel, ne kulisu.
+        private readonly MemoryLayer visionMapLayer = new MemoryLayer("Mapa (vize)");
         // Lokalni mapa je RASTR (PNG v RasterFeature), ne vektor. MemoryLayer ma ale ve vychozim
         // stavu Style = VectorStyle, takze by se feature dostala na VectorStyleRenderer, ktery ji
         // neumi - Mapsui to jen zaloguje ("VectorStyleRenderer can not render feature of type
@@ -192,6 +203,12 @@ namespace ARBot.ViewModels
 
         /// <summary>Vrstva: silnicni sit nactena z OsmNav (MapMsg).</summary>
         [ObservableProperty] private bool showMap = true;
+
+        /// <summary>
+        /// Vrstva: mapa, ze ktere renderuji virtualni kamery (parametr <c>visionmap=</c>). Kdyz
+        /// parametr neni zadany, vrstva je prazdna. Viz <see cref="SetVisionMap"/>.
+        /// </summary>
+        [ObservableProperty] private bool showVisionMap = true;
 
         /// <summary>Stav nacitani OSM mapy (progress / vysledek / chyba).</summary>
         [ObservableProperty] private string mapStatus = string.Empty;
@@ -669,6 +686,10 @@ namespace ARBot.ViewModels
             planSegTips = Array.Empty<(double, double, double, double, string)>();
             routeSegTips = Array.Empty<(double, double, double, double, string)>();
             mapSegHits = Array.Empty<(double, double, double, double, double, int)>();
+
+            // Vizualni mapa (visionmap=) je vlastnost PROCESU, ne sezeni - nezahazuje se, jen se
+            // znovu vyzvedne z runtime (pohled mohl byt otevreny drive, nez se mapa nactla).
+            RefreshVisionMapFromRuntime();
         }
 
         /// <summary>
@@ -1234,12 +1255,43 @@ namespace ARBot.ViewModels
         /// </summary>
         private void UpdateMapFeature(MapMsg map)
         {
-            if (map.Edges == null || map.Edges.Count == 0 || map.Nodes == null || map.Nodes.Count == 0)
-            {
-                mapLayer.Features = Array.Empty<IFeature>();
-                mapSegHits = Array.Empty<(double, double, double, double, double, int)>();
-                return;
-            }
+            mapLayer.Features = BuildMapFeatures(map, MapFill, MapOutline, 1, outlineOnly: false, out mapSegHits);
+        }
+
+        /// <summary>Vypln navigacni site (<c>map=</c>) - fialova, polopruhledna.</summary>
+        private static readonly Color MapFill = new Color(0x7E, 0x57, 0xC2, 0xA0);
+
+        /// <summary>Obrys navigacni site.</summary>
+        private static readonly Color MapOutline = new Color(0x4A, 0x2F, 0x8F);
+
+        /// <summary>
+        /// Vizualni mapa (<c>visionmap=</c>) se kresli <b>jen obrysem</b>, bez vyplne - lezi nad
+        /// navigacni siti a vypln by ji prebarvila. Takhle je videt oboji: fialovy pas = mapa, podle
+        /// ktere robot jede, oranzova kontura = mapa, kterou vidi kamery. Rozestup obou je prave ta
+        /// zavedena chyba, kvuli ktere se to zapina. Obrys je silnejsi (2 px), aby byl citelny.
+        ///
+        /// <para><b>POZOR - proc obrysem a ne polygonem s pruhlednou vyplni:</b> Mapsui 5.1 plochu
+        /// vypln nevypne. <c>VectorStyle.Fill = null</c> ani <c>new Brush(alfa 0)</c> nepomuze -
+        /// polygon se vykresli BILE a navigacni sit pod nim zmizi (overeno na snimcich, 20. 8. 2026).
+        /// Proto se z tvaru bere jeho <b>hranice</b> (<c>Geometry.Boundary</c>) a kresli se jako
+        /// linie (<c>VectorStyle.Line</c>) - ta zadnou vypln nema.</para>
+        /// </summary>
+        private static readonly Color VisionMapOutline = new Color(0xE6, 0x5C, 0x00);
+
+        /// <summary>
+        /// Postavi featury jedne silnicni site (viz <see cref="UpdateMapFeature"/> - popis geometrie
+        /// je tam). Vydeleno z <c>UpdateMapFeature</c>, protoze se timtez kresli dve site: navigacni
+        /// (<c>map=</c>) jako vyplneny pas a vizualni (<c>visionmap=</c>) jen jako obrys
+        /// (<paramref name="outlineOnly"/> - viz <see cref="VisionMapOutline"/>).
+        /// </summary>
+        private static IFeature[] BuildMapFeatures(
+            MapMsg? map, Color fill, Color outline, double outlineWidth, bool outlineOnly,
+            out (double AX, double AY, double BX, double BY, double Half, int Edge)[] segHits)
+        {
+            segHits = Array.Empty<(double, double, double, double, double, int)>();
+
+            if (map?.Edges == null || map.Edges.Count == 0 || map.Nodes == null || map.Nodes.Count == 0)
+                return Array.Empty<IFeature>();
 
             // Uzly -> Mercator + polovicni sirka v Mercator metrech (1/cos(lat) korekce).
             var pts = new MPoint[map.Nodes.Count];
@@ -1284,27 +1336,44 @@ namespace ARBot.ViewModels
                 polys.Add(new Polygon(new LinearRing(ring)));
             }
 
-            mapSegHits = hits.ToArray();
+            segHits = hits.ToArray();
 
             // Uzly -> kotouce (zaobli konce a vyplni klin v krizovatce = hladke napojeni).
             for (int i = 0; i < pts.Length; i++)
                 AddDisc(polys, pts[i].X, pts[i].Y, halfW[i]);
 
-            if (polys.Count == 0) { mapLayer.Features = Array.Empty<IFeature>(); return; }
+            if (polys.Count == 0) return Array.Empty<IFeature>();
 
             // Sjednoceni prekryvu -> uniformni vypln + jeden vnejsi obrys (jinak by se prekryvy scitaly v alfe).
             NetTopologySuite.Geometries.Geometry geom;
             try { geom = new MultiPolygon(polys.ToArray()).Union(); }
             catch { geom = new MultiPolygon(polys.ToArray()); }
 
+            if (outlineOnly)
+            {
+                // Jen hranice tvaru jako linie - polygon by se vykreslil s vyplni, kterou v Mapsui
+                // nejde vypnout (viz VisionMapOutline).
+                try { geom = geom.Boundary; }
+                catch { /* degenerovana geometrie - necháme polygon, aspon neco */ }
+
+                var lf = new GeometryFeature { Geometry = geom };
+                lf.Styles.Add(new VectorStyle
+                {
+                    Fill = null,
+                    Outline = null,
+                    Line = new Pen(outline, outlineWidth),
+                });
+                return new IFeature[] { lf };
+            }
+
             var gf = new GeometryFeature { Geometry = geom };
             gf.Styles.Add(new VectorStyle
             {
-                Fill = new Brush(new Color(0x7E, 0x57, 0xC2, 0xA0)),   // fialova, polopruhledna
-                Outline = new Pen(new Color(0x4A, 0x2F, 0x8F), 1),     // tmavsi obrys site
+                Fill = new Brush(fill),
+                Outline = new Pen(outline, outlineWidth),
                 Line = null,
             });
-            mapLayer.Features = new IFeature[] { gf };
+            return new IFeature[] { gf };
         }
 
         // Kotouc (n-uhelnik) jako Polygon - pro zaobleni uzlu/konce cesty.
@@ -1339,6 +1408,44 @@ namespace ARBot.ViewModels
                 return vp.Width > 0 && vp.Height > 0;
             }
             catch { return false; }
+        }
+
+        /// <summary>
+        /// Nastavi mapu, ze ktere renderuji virtualni kamery (parametr <c>visionmap=</c>), a prekresli
+        /// jeji vrstvu. null = zadna (vrstva zustane prazdna).
+        ///
+        /// <para><b>Proc zvlast a ne pres <see cref="Post"/>:</b> tato mapa se zamerne nepublikuje
+        /// na Stream (viz <c>ARBotRuntime.VisionMapMessage</c>) - druha <c>MapMsg</c> ve streamu by
+        /// prepsala tu navigacni, protoze odberatele si drzi posledni zpravu podle typu, a ve View
+        /// by z ni vysel jiny pocatek lokalni ENU roviny. Dokument si ji proto vyzvedava primo
+        /// z runtime: pri otevreni (<c>MainWindowViewModel</c>) a pri zmene sezeni (<see cref="Flush"/>).</para>
+        /// </summary>
+        public void SetVisionMap(MapMsg? map)
+        {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(() => SetVisionMap(map));
+                return;
+            }
+
+            visionMap = map;
+            visionMapLayer.Features = BuildMapFeatures(map, MapFill, VisionMapOutline, 2, outlineOnly: true, out _);
+            visionMapLayer.DataHasChanged();
+
+            // Bez navigacni mapy je tato jedina znama geometrie - at je aspon na co koukat.
+            if (map != null && lastMap == null)
+                CenterOnMapIfNeeded(map);
+        }
+
+        /// <summary>
+        /// Vyzvedne aktualni <c>visionmap=</c> z runtime. Vola se pri zmene sezeni - pohled muze byt
+        /// otevreny drive nez Start, kdy mapa jeste nactena neni.
+        /// </summary>
+        private void RefreshVisionMapFromRuntime()
+        {
+            if (designMode) return;
+            try { SetVisionMap(ARBot.Robot.ARBotRuntime.Current?.VisionMapMessage); }
+            catch { /* runtime nedostupne */ }
         }
 
         /// <summary>Pri prvnim nacteni mapy (a bez GPS fixu) vycentruje/zoomne na rozsah site.</summary>
@@ -1589,6 +1696,7 @@ namespace ARBot.ViewModels
         partial void OnShowOccupancyChanged(bool value) => RebuildLayers();
         partial void OnShowPlanChanged(bool value) => RebuildLayers();
         partial void OnShowMapChanged(bool value) => RebuildLayers();
+        partial void OnShowVisionMapChanged(bool value) => RebuildLayers();
         partial void OnSelectedBaseMapChanged(BaseMapChoice value) => RebuildLayers();
         partial void OnMbTilesPathChanged(string value) => RebuildLayers();
 
@@ -1617,6 +1725,9 @@ namespace ARBot.ViewModels
             // sit (pas v metricke sirce) → trasa → lokalni plan (nejuzsi, navrch). Sirky car k tomu
             // viz PlanLineWidth / RouteLineWidth / RouteHighlightWidth.
             if (ShowMap) Map.Layers.Add(mapLayer);   // sit z OsmNav nad podkladem, pod ostatnimi daty
+            // Vizualni mapa hned nad navigacni: ma slabou vypln a silny obrys, takze prekryv obou
+            // je citelny a rozestup (= zavedena chyba) je videt.
+            if (ShowVisionMap) Map.Layers.Add(visionMapLayer);
             if (ShowOccupancy) Map.Layers.Add(occupancyLayer);   // lokalni mapa nad siti, pod vektory
             if (ShowGps) Map.Layers.Add(gpsLayer);   // surove fixy pod fuzovanou stopou
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);

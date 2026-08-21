@@ -93,7 +93,7 @@ Z toho výše plyne, že to nebyl jeden test, ale **tři** — a `poseerror` um�
 |---|---|---|---|
 | korelátor **najde** příčnou odchylku (znaménko, velikost) | póza kamery — `poseerror=` | `D` = vnucená chyba | **hotovo**, naměřeno na jednotky mm |
 | korelace **opraví špatnou lokalizaci** | **GPS** (bias, šum) | póza se vrátí k pravdě | chybí |
-| posun `d` **identifikuje posunutou mapu** | **mapa pro kameru** (dvě mapy) | `d` → posun mapy, póza zůstane na GPS | chybí |
+| posun `d` **identifikuje posunutou mapu** | **mapa pro kameru** (dvě mapy, `visionmap=`) | `d` → posun mapy, póza zůstane na GPS | **sestava hotová** (21. 8. 2026), měření chybí |
 
 **Vnucená chyba pózy je fyzikálně nesmysl** — „kamerina představa o tom, kde je" v realitě
 neexistuje. Proto z ní vyšel ten kruh: posunutí odhadu posune i obraz. Naproti tomu **posunutá mapa
@@ -106,6 +106,22 @@ zůstat na GPS. Sestava s `poseerror` to dát nemohla — tam se konstantní pos
 lokalizace, kterou má filtr opravit, a on ji „opravoval" do prázdna.
 
 Mechanismus a past viz [virtual-hw.md](virtual-hw.md#dvě-mapy--vnucená-chyba-do-mapy-pro-kameru).
+
+**Sestava pro třetí experiment je od 21. 8. 2026 k dispozici** — parametr `visionmap=<cesta.osm>`
+řekne virtuálním kamerám, aby renderovaly z jiné mapy než z té navigační (`map=`). Vnucená chyba je
+tak **v datech**, ne v parametru: [`OSM/SyntetickyKoridorPosunuty.osm`](../OSM/SyntetickyKoridorPosunuty.osm)
+je kopie `SyntetickyKoridor.osm` s každým uzlem posunutým náhodně do 1 m a tabulkou posunů v hlavičce,
+takže se dá z výsledku odečíst. Ve World pohledu je rozestup obou map vidět jako vrstva „Mapa (vize)".
+
+```bash
+ARBot.exe virtualhw=true mapcorr=true map=OSM/SyntetickyKoridor.osm visionmap=OSM/SyntetickyKoridorPosunuty.osm
+```
+
+> **Pozor u tohoto experimentu:** posun uzlů je **náhodný per uzel**, ne tuhá translace celé mapy.
+> `MapCorrelator` hledá jedno 3-DOF `(dx, dy, φ)` na celý grid, takže při náhodných posunech nemá
+> ke konvergenci jednu správnou odpověď — dostane vážený kompromis podle toho, které úseky má právě
+> v gridu. Pro *tuhý* posun (kde se dá předpověď `d` → vnucený posun ověřit přímo) je potřeba mapa
+> posunutá **jako celek**; posunuté uzly zkoušejí spíš robustnost proti deformaci mapy.
 
 **Proč od druhé korekce nic:** **gating**. Korelátor hlásí σ ≈ 0,10 m; první korekce prošla, protože
 `P` bylo velké, ale **tím ho sama stáhla** na ~σ². Od té chvíle je `S = P + R ≈ 2σ²` a tvrzený posun

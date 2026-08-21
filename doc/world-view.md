@@ -54,8 +54,8 @@ návrháře; ovládací prvky (combobox podkladu, checkboxy vrstev) jsou v XAML 
 
 ## Vrstvy (každá samostatně vypínatelná)
 
-Pořadí zdola nahoru: **podklad → mapa (síť) → lokální mapa → surové GPS → trajektorie → trasa/graf →
-lokální plán → značky → poloha**. Přepínače jsou `[ObservableProperty]` na ViewModelu; jejich změna
+Pořadí zdola nahoru: **podklad → mapa (síť) → mapa (vize) → lokální mapa → surové GPS → trajektorie →
+trasa/graf → lokální plán → značky → poloha**. Přepínače jsou `[ObservableProperty]` na ViewModelu; jejich změna
 přestaví `Map.Layers` (`RebuildLayers`, běží na UI vlákně).
 
 **Šířky a pořadí navigačních vrstev spolu souvisí.** Tři úrovně navigace (síť → globální trasa →
@@ -79,6 +79,7 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 | **Trajektorie** | `RobotStateMsg` (akumulovaná fúzovaná póza) | lokální ENU → LLA | živé |
 | **Surové GPS** | [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) (fixy bez fúze) | WGS84 → Mercator | živé; **výchozí vypnuto** |
 | **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav) | WGS84 → Mercator | živé v Run (emituje runtime); ruční načtení** |
+| **Mapa (vize)** | `MapMsg` z `ARBotRuntime.VisionMapMessage` (parametr `visionmap=`) | WGS84 → Mercator | živé v Run; **ne ze Streamu***** |
 | **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | živé v Run |
 | **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | živé v Run |
 
@@ -87,6 +88,13 @@ se na `Stream` neemitovaly. Dnes je emituje runtime (`GlobalNavigator` trasu, `A
 sestavení sítě), takže vrstvy žijí; ve View se přehrávají ze záznamu.
 
 \*\* Vrstvu **Mapa (síť)** lze naplnit ručně tlačítkem **„Načíst OSM mapu…"** (viz níže) i bez runtime.
+
+\*\*\* Vrstva **Mapa (vize)** je mapa, ze které renderují **virtuální kamery** (`visionmap=`) —
+záměrně **nechodí přes `Stream`** (a tedy ani do záznamu): druhá `MapMsg` ve streamu by přepsala tu
+navigační a ve View by z ní vyšel jiný počátek lokální ENU roviny. Dokument si ji bere přímo z runtime
+(`SetVisionMap`) při otevření a při změně sezení. Kreslí se **jen oranžovou konturou** (ne plochou —
+Mapsui 5.1 výplň polygonu nevypne, viz [virtual-hw.md](virtual-hw.md)); rozestup od fialového pásu
+navigační sítě *je* záměrně zavedená chyba mapy. Bez parametru je vrstva prázdná.
 
 ### Jeden rámec pro všechna lokální data (2026-08-14)
 

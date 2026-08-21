@@ -20,6 +20,7 @@ namespace ARBot.Diagnostics
     /// <item><c>st_record=false</c> — Run se záznamem (<c>true</c>) nebo bez (<c>false</c>).</item>
     /// <item><c>st_images=false</c> — otevřít okno Images (obrazové vrstvy).</item>
     /// <item><c>st_robot=true</c> — otevřít okno Robot-centric.</item>
+    /// <item><c>st_world=false</c> — otevřít okno World (mapové vrstvy) a nechat ho aktivní.</item>
     /// <item><c>st_name=baseline</c> — štítek varianty (jen do souhrnu/názvu výstupu).</item>
     /// <item><c>st_out=</c> — cesta k souboru souhrnu (default <c>logs/selftest-result.txt</c>).</item>
     /// <item><c>no_uart=true</c> — přeskočit UART senzory (IMU/GPS/motor) - čte <see cref="Robot.ARBotHW"/>.</item>
@@ -34,6 +35,14 @@ namespace ARBot.Diagnostics
         public bool OpenImages;
         public bool ImagesActive;   // st_images_active: aktivovat (zviditelnit) tab Images (jinak je na pozadi)
         public bool OpenRobotCentric = true;
+
+        /// <summary>
+        /// <c>st_world=true</c> — otevřít okno World (a udělat z něj aktivní tab, aby ho zachytil
+        /// <c>st_shot</c>). Slouží k bezobslužnému ověření mapových vrstev — mj. vrstvy „Mapa (vize)"
+        /// z parametru <c>visionmap=</c>. Viz doc/virtual-hw.md.
+        /// </summary>
+        public bool OpenWorld;
+
         public string OutPath;
 
         public bool Shot;           // st_shot: pořídit screenshot hlavního okna na konci běhu
@@ -57,6 +66,7 @@ namespace ARBot.Diagnostics
                 OpenImages = Program.GetParamBool("st_images", false),
                 ImagesActive = Program.GetParamBool("st_images_active", false),
                 OpenRobotCentric = Program.GetParamBool("st_robot", true),
+                OpenWorld = Program.GetParamBool("st_world", false),
                 OutPath = Program.GetParam("st_out", null),
                 Shot = Program.GetParamBool("st_shot", false),
                 Video = Program.GetParamBool("st_video", false),
