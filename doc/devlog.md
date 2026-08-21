@@ -39,6 +39,97 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-08-21
 
+- **Cesty k mapám v `launchSettings.json` jsou relativní.** Profily měly absolutní
+  `C:\work\projekty\ARBot3\OSM\...` (viz past popsaná dříve dnes), což je nepřenositelné mezi
+  pracovními kopiemi. Řešení není v JSONu, ale v runtime: `map=` a `visionmap=` čtou novou
+  `Program.GetParamPath`, která **relativní cestu řeší proti kořenu repa** (složka s `.git`,
+  stejný postup jako u `logs/` a `records/`); absolutní cesta se nechá. Profily teď mají
+  `map=OSM\SyntetickyKoridor.osm`.
+  - **Ověřeno za běhu:** self-test (`st_seconds=6`, `virtualhw=true`, relativní `map=` +
+    `visionmap=`) spuštěný z `%USERPROFILE%` — tedy z pracovního adresáře mimo repo — rozjel
+    virtuální kamery (33/34 snímků), takže mapa se našla. Build `x64` bez chyb.
+  - **Dluh:** hledání kořene repa je teď ve čtyřech kopiích (`Program`, `SelfTest.LogsDir`,
+    `ARBotRuntime.DiagCsvPath`, `MainWindowViewModel.RepoRootOrBase`) — sjednotit na
+    `Program.RepoRootOrBase` při nejbližším doteku těch míst.
+
+- **Stop/Start jednotlivého senzoru v panelu Sensors** — a k tomu zrušené skryté `Start()`
+  v `SensorBase.GetLastMeasurement()`.
+  - **Jádro problému:** vyzvednutí měření senzor **spustilo**, takže zastavit senzor nešlo vůbec —
+    pull kamer v runtime nebo detailní okno v UI ho do jednoho tiku zapnuly zpátky. Návrh na to
+    měl zámek („vypnuto" jako stav, který `Start()` respektuje); autorův dotaz *„co zrušit Start
+    v GetLastMeasurement?"* byl lepší. Při ověřování se ukázalo, že to `Start()` bylo **redundantní**:
+    každý senzor (virtuální i reálný, u kamer přes `Init()`) se spouští ve svém konstruktoru. Můj
+    odhad, že to rozbije čtyři dokumenty a čtyři testy, byl mylný — nerozbilo to nic.
+  - **Hotovo:** `IControllableSensor` (Start/Stop/IsRunning) implementuje `SensorBase`; `MD23`
+    a `DummyMotors` ho zámyslně nemají (žádná smyčka na pozadí), takže se u nich tlačítko neukáže.
+    Řádek panelu má `ToggleCommand`, stav `OK` / `STOP` / `CHYBA`. U motorů se před zastavením
+    posílá `Drive(0,0)`.
+  - **Rozhodnutí:** vypnutí **nepřežije** start runtime (pipeline si senzory spouští sama) — na
+    žádost autora, aby nevznikal další skrytý stav. Vypínat se má až za běhu.
+  - **Ověřeno:** `ARBot.Common.Tests` **686 prošlo / 0 selhalo** (6 nových testů na životní cyklus
+    senzoru), `ARBot.HAL.Tests` 35/0 bez úprav, build `x64`. Logika řádku ověřena headless proti VM
+    z aplikace (11 kontrol: Stop→STOP, nulová rychlost jen při zastavení, znovuspuštění,
+    neovladatelný senzor bez tlačítka). **Neověřeno za běhu: vykreslení tlačítka v panelu** —
+    panel je připnutý a kliknutí v Avalonii nejde zautomatizovat, potřebuje jeden pohled.
+  - **Odkazy:** [Views/README.md](../Src/ARBot/Views/README.md#stopstart-jednotlivého-senzoru-21-8-2026).
+
+- **Přístroje do fúze + A/B: gating není zácpa, korekce se přijímají a přesto nekonvergují.**
+  Doplněny tři věci, které při ranním rozboru chyběly (zadání „pusť se do toho"):
+  - **`MeasurementDiagMsg` se konečně publikuje** (verze 2, `FusionProcessor` za parametrem
+    `measdiag=`; `true`/`*` = vše, jinak seznam podřetězců zdroje, typicky `measdiag=MapCorr`).
+    Nese navíc **verdikt** `Accepted` / `GatedOut` / `TooOld` — samo „nepřijato" nerozliší „přišlo
+    pozdě" od „zamítl gating", a to jsou dvě různé diagnózy. Verdikt se hlásí až když uzel vypadne
+    z okna historie (do té doby se přepočítává), `TooOld` hned.
+  - **`MapCorrelationMsg.DroppedByFusion`** (verze 2, vždy, bez parametru) + telemetrický sloupec
+    „korel zahozeno fuzi" — kumulativní počet korekcí zahozených pro stáří. Právě proto, že past
+    byla „`Reason = Ok` svítí a do fúze nedojde nic".
+  - **`mapcorrsend=`** — přepínač posílání korekcí z příkazové řádky, aby šlo měřit A/B se stejnou
+    zátěží. Drát `fusion.Output → stream` mimochodem nikdy neexistoval (fúze dosud neemitovala nic),
+    takže první A/B běh byl naprázdno; doplněno.
+  - **Výsledek A/B** (2× 30 s, Release, dvě mapy, jediný rozdíl `mapcorrsend=`): 146 korekcí,
+    **126 přijato (86 %)**, 20 zamítl gating (NIS až 11,3), **0 zahozeno pro stáří**. Hlášený
+    posun přitom klesl jen z 0,411 na 0,376 m (8 %), zatímco bez korekcí drží 0,40 m; trajektorie
+    se mezi běhy rozešla o 1,9 m. Takže: **gating to nebrzdí** a korekce **autoritu mají**, ale
+    hlášený posun nekonverguje — zbývá vysvětlení, že důkazní oblak je z devíti desetin historie
+    zapsaná staršími pózami. Lék je stejný jako na rostoucí cenu cyklu: omezit paměť důkazů
+    (okno kolem robotu). 14 % zamítnutých gatingem je navíc třetí nezávislý doklad, že σ korelace
+    je moc optimistická.
+  - **Ověřeno:** sada `ARBot.Common.Tests` **680 prošlo / 0 selhalo** (13 nových testů, jeden
+    z nich rovnou opravil můj chybný model prahu zahození — `tBase` není „nejnovější mínus okno",
+    viz doc), `ARBot.HAL.Tests` 35/0, build `x64` Debug i Release bez chyb, telemetrická tabulka
+    postavena nad záznamem (4 947 řádků) — nové sloupce registr nerozbily.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#přístroje-verdikt-měření-a-zpětná-vazba-o-zahození),
+    záznamy `records/20260821-095328.rec` (A) a `…-095415.rec` (B).
+
+- **Rozbor záznamu `20260821-085733.rec`: zahazování korekcí a poměr vlivu proti GPS.** Autorův
+  odhad („zahazuje se to kvůli latenci, 1:400 nebude reálné, korelace chodí řídce") vyšel ve všech
+  třech bodech, ale první má jinou příčinu, než to vypadá. Měřeno nad indexem záznamu a dekódovanými
+  `MapCorrelationMsg`/`Info`, plus kontrolní běh v Release (`20260821-090853.rec`).
+  - **Zahazování potvrzeno:** 12 měření z 5 posledních 6 cyklů, opoždění 3 031–3 225 ms proti oknu
+    3 000 ms. **Ale ten záznam je Debug build** (pozná se po hlášce `Run + zaznam do:` z
+    `Debug.WriteLine`), a skórovací smyčka je v Debugu ~6,8× dražší na buňku (36 vs 5,3 µs).
+    V Release stejná scéna: 53 cyklů, latence p50 179 ms, **0 zahozených**.
+  - **Co zůstává i v Release:** důkazních buněk je 17 400 (v Debug běhu 48 800) a roste s ujetou
+    dráhou — devět desetin důkazu je historie zapsaná staršími pózami. Na ARM to je právě to pásmo,
+    kde latence přeskočí o celou periodu snapshotu. Strop na počet buněk je potřeba bez ohledu na build.
+  - **1:400 → ~35:1** (těsná osa; ~18:1 volná): σ GPS 2,12 m je 2D radiální proti 1D osovému měření
+    korelace (per osu je 1,5), naměřená σ korelace je 0,150 ne 0,105, a hlavně se nepočítala kadence
+    (GPS 5 Hz vs korelace 1,74 Hz). Oprava zapsána do [decisions.md](decisions.md).
+  - **Otevřené:** 158 přijatých měření za 30 s a hlášený posun přesto neklesá (`dx` drží 0,35–0,50 m).
+    Nejde rozhodnout, jestli je to dlouhý chvost historie v gridu, nebo gating — protože
+    `MeasurementDiagMsg` se **nikde nepublikuje** (jen je v katalogu), `DroppedTooOld` není
+    v telemetrii a `SendCorrections` nemá parametr, takže A/B „stejná zátěž bez korekcí" nejde spustit.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#naměřeno-21-8-2026-debug-vs-release-nad-dvěma-záznamy).
+
+- **Korelátor zapnutý v profilech virtuálního HW** (`mapcorr=true` i v profilu bez `visionmap=`).
+  Default v kódu zůstává `false` — rozhodnutí z 20. 8. platí (korelátor nic neřídí a stojí ~čtvrt
+  jádra), zapnuto je to jen tam, kde se právě testuje. `SendCorrections` je `true` už z defaultu,
+  takže korekce jdou do fúze; **pozor, tři podmínky z [decisions.md](decisions.md) pro pouštění
+  korekcí naostro nejsou splněné** — v simulaci je to na testování, ne k jízdě na reálném HW.
+  - **Ověřeno za běhu:** self-test 10 s s `mapcorr=true` a záznamem → v indexu **16
+    `MapCorrelationMsg`** (proti 18 `OccupancyGridMsg`), tj. stupeň se opravdu zakládá a publikuje.
+    Testovací záznam smazán.
+
 - **Posunutá kopie syntetické testovací mapy.** Nový soubor
   [OSM/SyntetickyKoridorPosunuty.osm](../OSM/SyntetickyKoridorPosunuty.osm) — kopie
   `SyntetickyKoridor.osm`, ve které je každý uzel náhodně posunutý proti originálu

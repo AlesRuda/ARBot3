@@ -30,12 +30,22 @@ na OrangePI) — viz [Fáze](#fáze) níže.
 neřídí (korekce jsou neúčinné, viz níž) a návrh je pod revizí, takže by jen spaloval ~126 ms na
 cyklus, tedy čtvrt jádra na x64 a víc na ARM. Zapnout: **`mapcorr=true`**.
 
-**Dva různé přepínače, nepleteme si je:**
+Kód **default nemění** — `false` zůstává. Zapnuto je to jen ve **spouštěcích profilech virtuálního
+HW** ([launchSettings.json](../Src/ARBot/Properties/launchSettings.json), od 21. 8. 2026), protože
+tam se korelátor právě testuje. Reálný HW i běh bez profilu tím nedotčen.
+
+**Tři různé přepínače, nepleteme si je:**
 
 | přepínač | co dělá | výchozí |
 |---|---|---|
 | `mapcorr=` (příkazová řádka) | zakládá se stupeň korelace **vůbec**? | **`false`** |
-| `MapCorrelatorConfig.SendCorrections` | posílají se měření **do fúze**? | `true` |
+| `mapcorrsend=` (příkazová řádka) | posílají se měření **do fúze**? (= `SendCorrections`) | `true` |
+| `measdiag=` (příkazová řádka) | publikují se **verdikty jednotlivých měření** (`MeasurementDiagMsg`)? | vypnuto |
+
+`mapcorrsend=` je od 21. 8. 2026 a existuje pro jediné čisté měření skutečné autority korelace:
+**A/B se stejnou zátěží** (výpočet běží v obou bězích, jen jeden neposílá). `measdiag=` bere
+`true`/`*` = všechna měření, nebo seznam podřetězců zdroje oddělený čárkou — typicky
+`measdiag=MapCorr`. Naplocho by to zaplavilo stream, měření chodí stovky za sekundu.
 
 `SendCorrections` se dříve jmenovalo `Enabled` a byla to past: test je **až za celým výpočtem**
 ([MapCorrelator.cs](../Src/ARBot.Common/Localization/MapCorrelator.cs)), takže `false` neuspořilo nic
@@ -629,7 +639,7 @@ odložená — viz [Otevřené úkoly](#otevřené-úkoly).
 
 | Parametr | Default | Význam |
 |---|---|---|
-| `SendCorrections` | `true` | posílat měření do fúze; **výpočet tím nevypneš** — na to je `mapcorr=false` |
+| `SendCorrections` | `true` | posílat měření do fúze; **výpočet tím nevypneš** — na to je `mapcorr=false`. Z příkazové řádky `mapcorrsend=` |
 | `EvidenceThreshold` | 0,4 | absolutní hodnota `LRoad`, od které buňka vstupuje do korelace |
 | `MinScore` | 0,25 | pod tím korelátor mlčí |
 | `AmbiguityMargin` | 0,10 | o kolik musí být maximum lepší než konkurent |
@@ -660,8 +670,10 @@ vyrábí svou zprávu):
 
 `TimeStamp` (čas snapshotu) · `Dx`, `Dy`, `Phi` · `Score`, `SecondBestScore` · `SigmaTight`,
 `SigmaLoose`, `TightAxisAngle`, `SigmaPhi` · `EvidenceCells`, `Candidates` · `Emitted`,
-`EmitTightAxis`, `EmitLooseAxis`, `EmitHeading`, `Reason` · `ProcessingMs`. Konkurent se nese
-dvakrát: `SecondBestScore` podél určené osy a `SecondBestScoreLoose` podél volné.
+`EmitTightAxis`, `EmitLooseAxis`, `EmitHeading`, `Reason` · `ProcessingMs` · `DroppedByFusion`
+(verze 2). Konkurent se nese dvakrát: `SecondBestScore` podél určené osy a `SecondBestScoreLoose`
+podél volné. `DroppedByFusion` je **zpětná vazba z fúze**, ne výsledek korelace — doplňuje ji
+korelátor po odeslání (viz [Přístroje](#přístroje-verdikt-měření-a-zpětná-vazba-o-zahození)).
 
 **Per-osové příznaky nesou vlastní informaci, nestačí souhrnné `Emitted`** (doplněno 2026-08-19 po
 review). Normální stav na přímé cestě je „poslala se příčná korekce, podélná se vynechala kvůli
@@ -710,9 +722,13 @@ na zařízení (fáze 5) dřív, než se korekce zapnou. Náklad roste lineárn�
 
 ### Latence korekce proti oknu historie EKF
 
+> **Čísla v této podsekci jsou z 19. 8. 2026, kdy bylo okno historie 1 s.** Od 20. 8. 2026 je
+> `FusionConfig.HistoryWindow` **3 s**, takže absolutní rezervy níž už neplatí — mechanismus
+> a poměr Debug/Release ano. Nová měření jsou v [Naměřeno 21. 8. 2026](#naměřeno-21-8-2026-debug-vs-release-nad-dvěma-záznamy).
+
 Korekce se stempluje **časem snapshotu gridu** (`r.TimeStamp`), ne časem zařazení — fúze pracuje
 podle času pořízení, takže je to správně. Znamená to ale, že do EKF dorazí stará o celou dobu cesty,
-a `FusionConfig.HistoryWindow` je **1 s**. `Prune()` posouvá `tBase` na „nejnovější měření − okno";
+a `FusionConfig.HistoryWindow` byl tehdy **1 s**. `Prune()` posouvá `tBase` na „nejnovější měření − okno";
 IMU jede ~75 Hz, takže nejnovější měření je prakticky *teď* a uzávěrka je skutečně 1 s od snapshotu.
 
 Naměřeno z indexu záznamu (`ArrivalTicks − CaptureTicks`):
@@ -749,6 +765,139 @@ zasytí a každý snapshot čeká na předchozí. Naměřený rozdíl to potvrzu
 > **periodě snapshotu (500 ms)**, přiskočí k latenci celá perioda čekání a okno 1 s se prolomí
 > **skokem, ne postupně**. Bezpečný cíl je proto cyklus **pohodlně pod 500 ms**. Poměr 4,3× mezi
 > Debugem a Release na ARM extrapolovat nelze — to je jiná osa (slabší jádra, menší cache).
+
+### Naměřeno 21. 8. 2026 (Debug vs Release) nad dvěma záznamy
+
+Podnět: autor pořídil záznam `records/20260821-085733.rec` s tím, že *„korelace se dle mého názoru
+zahazuje kvůli velké latenci, odhad vlivu 1:400 nebude taky úplně reálný a korelace chodí velmi
+řídce oproti GPS."* Změřeno nad indexem záznamu (`ArrivalTicks − CaptureTicks`) a dekódovanými
+`MapCorrelationMsg` + `Info`; kontrolní běh v Release je `records/20260821-090853.rec`
+(30 s, self-test, `virtualhw` + `visionmap`, tedy dvě mapy).
+
+| | **Debug** (`…085733`, 28,5 s) | **Release** (`…090853`, 30,0 s) |
+|---|---|---|
+| cyklů korelace | 27 (**1,03 Hz**) | 53 (**1,74 Hz** = každý snapshot) |
+| doba cyklu (`korel vypocet`) | 180 → **1 805 ms** (roste) | 62 → **104 ms** (plateau) |
+| cena na důkazní buňku | **~36 µs** | **~5,3 µs** |
+| důkazních buněk | 3 133 → **48 800** | 3 133 → **17 400** |
+| latence korekce (p50 / max) | **1 756 / 3 320 ms** | **179 / 314 ms** |
+| poslaných měření | 72 | 158 |
+| **zahozeno fúzí jako starší okna** | **12 (17 %)** | **0** |
+
+**Zahazování potvrzeno — ale je to Debug.** Ve sporném záznamu fúze zahodila 12 měření
+z 5 posledních 6 cyklů, opoždění 3 031–3 225 ms proti oknu 3 000 ms (hlášky `[Fusion] zahozeno
+mereni starsi nez okno historie` jsou v záznamu jako `Info`). Že jde o Debug build, se z toho
+záznamu pozná: nese hlášku `Run + zaznam do:`, která jde z `Debug.WriteLine`, tedy
+`[Conditional("DEBUG")]`. Skórovací smyčka je v Debugu ~6,8× dražší na buňku (36 vs 5,3 µs),
+takže v Release stejná zátěž (48 800 buněk) vyjde na ~260 ms a do okna se vejde s velkou rezervou.
+Platí tedy varování z předchozí podsekce: **měřit jen Release**.
+
+**Co ale zůstává i v Release:** cena roste lineárně s počtem důkazních buněk a ten roste s ujetou
+dráhou (grid je world-kotvený kruhový buffer, LRoad se z buňky bez opačného důkazu neztrácí).
+17 400 buněk × 0,1 m = **174 m² důkazu** proti ~18 m², které kamera vidí *teď* — devět desetin
+důkazu je historie zapsaná staršími pózami. Na ARM (~5–10× slabší jádro) je 17 000 buněk už
+~0,5–1 s, tedy přesně v pásmu, kde podle předchozí podsekce latence přeskočí o celou periodu
+snapshotu. **Strop na počet důkazních buněk (`Stride`, nebo okno kolem robotu) je tedy potřeba
+bez ohledu na build.**
+
+**Řídkost proti GPS — potvrzeno, číslo:** GPS jde **5,00 Hz**, korelace **1,74 Hz** v Release
+(1,03 Hz v Debugu). Poměr měření na sekundu je tedy ~1 : 2,9 (Debug 1 : 4,9).
+
+**Odhad „400:1" je nadsazený asi o řád.** Rozpad rozdílu proti
+[decisions.md](decisions.md) (`(2,12/0,105)² ≈ 408`):
+
+| krok | činitel | poměr |
+|---|---|---|
+| původní odhad | | **408 : 1** |
+| σ GPS je **per osu 1,5 m**, ne 2,12 m (to je 2D radiální = 1,5·√2), zatímco osové měření korelace je 1D | ÷2 | 204 : 1 |
+| σ korelace naměřená v tomto běhu je **0,150 m** (medián `sTight`), ne 0,105 | ×(0,105/0,150)² | 100 : 1 |
+| **kadence**: 1,74 Hz proti 5,00 Hz | ×0,348 | **35 : 1** |
+| volná osa (`sLoose` ≈ 0,21 m) místo těsné | | **~18 : 1** |
+| Debug (5 z posledních 6 cyklů zahozeno) | | **0** v posledních 11 s |
+
+A i těch 35:1 je **strop, ne skutečnost**: cykly nejsou nezávislé (viz
+[Časová korelace mezi cykly](#časová-korelace-mezi-cykly-druhá-přiznaná-aproximace)) — sousední
+cyklus koreluje z **téhož** nahromaděného oblaku, takže 53 měření za 30 s nenese 53 nezávislých
+informací, ale fúze je tak bere. To je věcně [otevřený úkol č. 1 (honestní σ)](#otevřené-úkoly)
+z druhé strany: chyba není jen v hodnotě σ, ale i v počtu měření, kterými se σ dělí.
+
+**Pozorování, které stojí za vysvětlení:** v Release běhu bylo 158 měření přijato (0 zahozeno,
+všech 53 cyklů `Ok`), a přesto **hlášený posun neklesá** — `dx` drží 0,35–0,50 m a `φ` 1,0–2,5°
+po celých 30 s bez klesajícího trendu. Kandidáti na vysvětlení: (a) měření je z devíti desetin
+historie, takže korekce pózy se do dalšího cyklu propíše jen málo — smyčka má velmi dlouhý chvost;
+(b) gating měření zahazuje (NIS nad prahem); (c) GPS to táhne zpět (při 35:1 by ale musela být
+skutečná chyba mapy ~7 m, což je vylučuje). **Rozhodnout mezi (a) a (b) z dnešního záznamu nelze**
+— viz chybějící přístroje.
+
+**Chybějící přístroje** — ~~bez nich se to dál ladit nedá~~ **doplněno 21. 8. 2026**, viz
+[Přístroje](#přístroje-verdikt-měření-a-zpětná-vazba-o-zahození) a A/B měření níž:
+- ~~`MeasurementDiagMsg` nikdo nepublikuje~~ → publikuje `FusionProcessor` za parametrem `measdiag=`,
+  a nese navíc **verdikt** (`Accepted` / `GatedOut` / `TooOld`), protože samo „nepřijato" nerozliší
+  „přišlo pozdě" od „zamítl gating".
+- ~~`DroppedTooOld` nejde do telemetrie~~ → `MapCorrelationMsg.DroppedByFusion` (kumulativně, vždy,
+  bez parametru) + sloupec „korel zahozeno fuzi" v telemetrickém pohledu.
+- ~~`SendCorrections` nemá parametr~~ → `mapcorrsend=`.
+
+### Přístroje: verdikt měření a zpětná vazba o zahození
+
+**`MeasurementDiagMsg` (verze 2, publikuje se za `measdiag=`).** U každého měření, které projde
+fúzí: zdroj, `z`, diagonála `R`, NIS a **verdikt**:
+
+| verdikt | co znamená | co s tím |
+|---|---|---|
+| `Accepted` | měření se aplikovalo | — |
+| `GatedOut` | přišlo včas, ale NIS přerostl práh gatingu | σ je moc optimistická, nebo model nesedí |
+| `TooOld` | přišlo starší než okno historie, do filtru vůbec nevstoupilo | zkrátit výpočet, ne ladit σ |
+
+Zdroj měření nese `INamedMessage.Name`, takže se řádky v indexu záznamu i v telemetrii rozliší
+podle zdroje (jako „Left"/„Right" u kamer).
+
+> **Verdikt chodí opožděně o okno historie** (3 s). Do té chvíle není konečný: kdykoli dorazí
+> starší měření (out-of-sequence), NIS i přijetí se přepočítají. Hlásí se proto až ve chvíli, kdy
+> uzel z okna **vypadává** — `TooOld` je jediná výjimka, ta je konečná hned (měření do bufferu
+> nevstoupí). Důsledek: poslední okno běhu se v záznamu neobjeví.
+
+**`MapCorrelationMsg.DroppedByFusion`** (verze 2) je kumulativní počet korekcí z korelace, které
+fúze zahodila jako starší než okno. Je **vždy**, bez parametru — právě proto, že past byla
+„`Reason = Ok` svítí, a do fúze nedojde nic".
+
+> **Prahové překvapení k `TooOld`.** Měření se zahodí při `m.TimeStamp <= tBase`, a `tBase` je čas
+> **posledního uzlu, který z okna vypadl** — ne „nejnovější mínus okno". Když měření dorazí hodně
+> pozdě, ale `tBase` je ještě daleko vzadu (buffer se nestihl posunout), měření se **vloží
+> a hned zapeče do báze** — tedy se použije, jen se z něj nestane trvalý uzel. Práh je proto
+> volnější, než se z okna zdá; při hustém provozu (IMU 100 Hz) `tBase` dohání a rozdíl je malý.
+> *(Napsáno až po tom, co na to spadl test — původní odhad prahu byl přísnější než skutečnost.)*
+
+### A/B: skutečná autorita korekcí (21. 8. 2026, Release, dvě mapy)
+
+Dva běhy 30 s, **stejná zátěž** (korelace počítá v obou), jediný rozdíl je `mapcorrsend=`:
+
+| | A (`mapcorrsend=true`) | B (`mapcorrsend=false`) |
+|---|---|---|
+| korekcí do fúze (`MeasurementDiagMsg`) | 146 | 0 |
+| z toho **`Accepted`** | **126 (86 %)** | — |
+| z toho `GatedOut` | 20 (14 %), NIS max 11,3 | — |
+| z toho `TooOld` | **0** | — |
+| `DroppedByFusion` na konci | 0 | 0 |
+| hlášené \|dx\| (0–10 / 10–20 / 20–30 s) | 0,411 → 0,383 → **0,376** | 0,414 → 0,400 → **0,400** |
+| póza proti druhému běhu (t = 30 s) | — | **1,90 m** rozdíl |
+
+**Co z toho plyne:**
+
+1. **Gating není ta zácpa.** 86 % korekcí se aplikuje, `TooOld` je v Release nula. Hypotéza (b)
+   z rozboru výš tedy padá.
+2. **Korekce autoritu mají.** Trajektorie se mezi A a B rozejde o **1,6–1,9 m**, což je řádově
+   víc než vnucený rozdíl map (~0,4 m) — póza se hýbe a robot podle ní jede jinudy. *(Pozor na
+   interpretaci: robot jede autonomně, takže se malý posun pózy zesílí jinou volbou trasy. Číslo
+   dokládá „korekce mají vliv", ne „vliv je takhle velký".)*
+3. **A přesto hlášený posun neklesá** — za 30 s a 126 přijatých korekcí z 0,411 na 0,376 m, tedy
+   **8 %**, kdežto bez korekcí drží 0,40 m. Zbývá tedy hypotéza (a): důkazní oblak je z devíti
+   desetin **historie** zapsaná staršími pózami, takže korekce se do dalšího cyklu propíše jen
+   málo a smyčka má velmi dlouhý chvost. Potvrdit se to dá zkrácením paměti důkazů (okno kolem
+   robotu) — to je zároveň lék na rostoucí cenu cyklu, viz výš.
+4. **14 % zamítnutých gatingem s NIS až 11,3** je nezávislý doklad, že σ korelace je moc
+   optimistická — [otevřený úkol č. 1 (honestní σ)](#otevřené-úkoly) potřetí, tentokrát přímo
+   z čísla NIS.
 
 ### Vnucená chyba pózy — měření se známou odpovědí
 

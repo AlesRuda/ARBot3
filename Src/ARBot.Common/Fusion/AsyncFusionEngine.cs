@@ -42,7 +42,47 @@ namespace ARBot.Common.Fusion
             public DateTime Time;
             public double Nis;
             public bool Accepted;
+
+            /// <summary>Jak s merenim fuze naloadila (rozlisi „pozde" od „zamitl gating").</summary>
+            public MeasurementVerdict Verdict;
+
+            /// <summary>Namerena hodnota z (kopie, muze byt null u starsich cest).</summary>
+            public double[] Z;
+
+            /// <summary>Diagonala kovariance sumu R (kopie).</summary>
+            public double[] DiagR;
+
+            /// <summary>
+            /// Zprava pro telemetrii a zaznam. Konverzi vlastni domena — zprava zustava pasivni
+            /// DTO (viz CLAUDE.md).
+            /// </summary>
+            public Logs.MeasurementDiagMsg ToLogMessage()
+                => new Logs.MeasurementDiagMsg
+                {
+                    Source = Source,
+                    TimeStamp = Time,
+                    Nis = Nis,
+                    Accepted = Accepted,
+                    Verdict = (byte)Verdict,
+                    Z = Z,
+                    DiagR = DiagR,
+                };
         }
+
+        /// <summary>
+        /// Odberatel verdiktu o kazdem merenii (null = vypnuto, nic se nepocita ani nealokuje).
+        ///
+        /// <para><b>Kdy se vola.</b> <see cref="MeasurementVerdict.TooOld"/> <b>ihned</b> pri
+        /// zarazeni (merenie do bufferu nevstoupi, tak uz se o nem nic nedozvime). Ostatni
+        /// verdikty az ve chvili, kdy merenie <b>vypadava z okna</b> historie: do te doby se
+        /// jeho NIS i prijeti muze prepocitat, kdykoli dojde starsi merenie (out-of-sequence),
+        /// takze verdikt neni konecny. Diagnostika je proto opozdena az o okno historie —
+        /// pro rozbor zaznamu to nevadi, pro rizeni se nepouziva.</para>
+        ///
+        /// <para><b>Vola se pod vnitrnim zamkem</b> — odberatel musi jen odlozit data (frontu),
+        /// ne pocitat ani volat zpet do fuze, jinak si zamek zablokuje.</para>
+        /// </summary>
+        public Action<MeasurementInfo> OnMeasurement;
 
         private readonly EKFModel model;
         private readonly TimeSpan window;
@@ -313,6 +353,9 @@ namespace ARBot.Common.Fusion
                     m.GetType().Name, src, m.TimeStamp, Format(m.Value),
                     (newest - m.TimeStamp).TotalMilliseconds, newest,
                     window.TotalMilliseconds, tBase));
+
+                // Zahozene merenie do bufferu nevstoupi, takze verdikt je konecny uz tady.
+                Report(m, double.NaN, false, MeasurementVerdict.TooOld);
                 return;
             }
 
@@ -383,6 +426,7 @@ namespace ARBot.Common.Fusion
                 {
                     // checkpoint nejstarsiho uzlu je platny -> je to primo novy bazovy stav
                     xBase = n0.X; pBase = n0.P;
+                    ReportFinal(n0);
                 }
                 else
                 {
@@ -390,12 +434,52 @@ namespace ARBot.Common.Fusion
                     var pr = model.PredictStep(xBase, pBase, (n0.T - tBase).TotalSeconds);
                     var up = model.UpdateStep(pr.X, pr.P, n0.M);
                     xBase = up.X; pBase = up.P;
+                    n0.Nis = up.Nis; n0.Accepted = up.Accepted;
+                    ReportFinal(n0);
                 }
                 tBase = n0.T;
                 nodes.RemoveAt(0);
                 if (dirtyFrom > 0)
                     dirtyFrom--;
             }
+        }
+
+        /// <summary>
+        /// Konecny verdikt uzlu, ktery prave vypadava z okna historie (uz se neprepocita).
+        /// </summary>
+        private void ReportFinal(Node n)
+            => Report(n.M, n.Nis, n.Accepted,
+                      n.Accepted ? MeasurementVerdict.Accepted : MeasurementVerdict.GatedOut);
+
+        /// <summary>
+        /// Ohlasi verdikt odberateli <see cref="OnMeasurement"/>. Bez odberatele se nic nepocita
+        /// ani nealokuje (kopie z/R je jinak alokace na kazde merenie, tedy stovky za sekundu).
+        /// </summary>
+        private void Report(IMeasurement m, double nis, bool accepted, MeasurementVerdict verdict)
+        {
+            var sink = OnMeasurement;
+            if (sink == null) return;
+
+            sink(new MeasurementInfo
+            {
+                Source = m.Source ?? "?",
+                Time = m.TimeStamp,
+                Nis = nis,
+                Accepted = accepted,
+                Verdict = verdict,
+                Z = m.Value?.ToArray(),
+                DiagR = Diagonal(m.NoiseCovariance),
+            });
+        }
+
+        /// <summary>Diagonala matice jako pole (null pro null matici).</summary>
+        private static double[] Diagonal(Matrix<double> r)
+        {
+            if (r == null) return null;
+            int n = Math.Min(r.RowCount, r.ColumnCount);
+            var d = new double[n];
+            for (int i = 0; i < n; i++) d[i] = r[i, i];
+            return d;
         }
 
         /// <summary>Index posledniho uzlu s casem &lt;= t (-1 kdyz zadny takovy neni).</summary>

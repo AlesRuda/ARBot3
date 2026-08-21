@@ -22,6 +22,12 @@ namespace ARBot.Common.Runtime
         private readonly IMeasurementMapper mapper;
         private readonly IClock clock;
 
+        // Diagnostika merenii (zapina EnableMeasurementDiagnostics). Motor hlasi verdikty pod svym
+        // vnitrnim zamkem, takze se tady jen odlozi do fronty a emituje az z Consume.
+        private readonly System.Collections.Concurrent.ConcurrentQueue<AsyncFusionEngine.MeasurementInfo>
+            diagQueue = new System.Collections.Concurrent.ConcurrentQueue<AsyncFusionEngine.MeasurementInfo>();
+        private Func<string, bool> diagFilter;
+
         /// <param name="engine">Fuzni engine.</param>
         /// <param name="mapper">Prevod senzor -&gt; IMeasurement.</param>
         /// <param name="controlPeriod">Zachovano kvuli kompatibilite volajicich; nepouziva se
@@ -38,9 +44,38 @@ namespace ARBot.Common.Runtime
             this.clock = clock;
         }
 
+        /// <summary>
+        /// Zapne publikovani <see cref="MeasurementDiagMsg"/> - u kazdeho merenia verdikt fuze
+        /// (NIS, prijeti gatingem, nebo „prislo pozde"). <b>Vychozi stav je vypnuto</b>: merenii
+        /// chodi stovky za sekundu (IMU 100 Hz + odometrie 50 Hz + GPS), takze by to zaplavilo
+        /// stream i zaznam, a za normalniho behu to nikdo nepotrebuje.
+        ///
+        /// <para><paramref name="sourceFilter"/> = predikat nad <c>IMeasurement.Source</c>
+        /// (null = vse). Typicke pouziti je vyzobat jen korekce z korelace s mapou.</para>
+        ///
+        /// <para>Verdikt chodi az ve chvili, kdy merenie vypadne z okna historie (viz
+        /// <see cref="AsyncFusionEngine.OnMeasurement"/>) - tedy opozdene o okno. Pro rozbor
+        /// zaznamu to nevadi, k rizeni se to nepouziva.</para>
+        /// </summary>
+        public void EnableMeasurementDiagnostics(Func<string, bool> sourceFilter = null)
+        {
+            diagFilter = sourceFilter;
+            engine.OnMeasurement = info =>
+            {
+                var f = diagFilter;
+                if (f != null && !f(info.Source)) return;
+                diagQueue.Enqueue(info);              // jen odlozit - jsme pod zamkem motoru
+            };
+        }
+
         /// <inheritdoc/>
         protected override void Consume(Message msg)
         {
+            // Odlozene verdikty (viz EnableMeasurementDiagnostics). Nejdriv, at je poradi v proudu
+            // co nejblizsi poradi vzniku.
+            while (diagQueue.TryDequeue(out var info))
+                EmitDerived(info.ToLogMessage());
+
             // Runtime reaguje jen na surova senzorova mereni.
             if (msg is not SensorStateBase s) return;
 

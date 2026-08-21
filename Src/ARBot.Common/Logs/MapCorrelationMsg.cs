@@ -62,14 +62,52 @@ namespace ARBot.Common.Logs
         /// <summary>Cas, ke kteremu vysledek plati (cas snapshotu gridu).</summary>
         public DateTime TimeStamp;
 
+        /// <summary>
+        /// Kolik korekci z korelace uz fuze zahodila jako <b>starsi nez okno historie</b>
+        /// (kumulativne za beh, verze 2).
+        ///
+        /// <para><b>Proc je to prave v teto zprave.</b> 21. 8. 2026 se nad zaznamem ukazalo, ze
+        /// fuze zahodila 12 korekci z 5 cyklu, a telemetrie u vsech dal hlasila <c>Reason = Ok</c>
+        /// — tedy „korelace jede", i kdyz do fuze nedoslo nic. Pocitadlo primo tady to prozradi
+        /// bez zapnute diagnostiky merenii a bez hrabani v <c>Info</c> hlaskach.
+        /// Viz doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public long DroppedByFusion;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public MapCorrelationMsg() : base("MapCorrelationMsg", 1)
+        /// <summary><b>Verze 2</b> (2026-08-21) pridala <see cref="DroppedByFusion"/>.</summary>
+        public MapCorrelationMsg() : base("MapCorrelationMsg", 2)
         {
         }
 
         public override void ToData(BinaryWriter bw)
+        {
+            bw.Write(Dx);
+            bw.Write(Dy);
+            bw.Write(Phi);
+            bw.Write(Score);
+            bw.Write(SecondBestScore);
+            bw.Write(SecondBestScoreLoose);
+            bw.Write(SigmaTight);
+            bw.Write(SigmaLoose);
+            bw.Write(TightAxisAngle);
+            bw.Write(SigmaPhi);
+            bw.Write(EvidenceCells);
+            bw.Write(Candidates);
+            bw.Write(Emitted);
+            bw.Write(EmitTightAxis);
+            bw.Write(EmitLooseAxis);
+            bw.Write(EmitHeading);
+            bw.Write(Reason);
+            bw.Write(ProcessingMs);
+            Write(bw, TimeStamp);
+            bw.Write(DroppedByFusion);
+        }
+
+        /// <summary>Zapis ve formatu verze 1 - jen pro test cteni starych zaznamu.</summary>
+        public void ToDataV1ForTest(BinaryWriter bw)
         {
             bw.Write(Dx);
             bw.Write(Dy);
@@ -113,6 +151,8 @@ namespace ARBot.Common.Logs
             Reason = br.ReadByte();
             ProcessingMs = br.ReadDouble();
             TimeStamp = ReadDateTime(br);
+            // Verze 1 pocitadlo zahozeni nenesla - zustane 0 (starsi zaznamy se ctou dal).
+            DroppedByFusion = Verze < 2 ? 0 : br.ReadInt64();
         }
 
         public override Message Build() => new MapCorrelationMsg();

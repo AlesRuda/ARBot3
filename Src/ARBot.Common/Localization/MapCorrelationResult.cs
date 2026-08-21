@@ -96,6 +96,13 @@ namespace ARBot.Common.Localization
         /// <summary>Doba vypoctu cyklu.</summary>
         public TimeSpan ProcessingTime;
 
+        /// <summary>
+        /// Kolik korekci z korelace uz fuze zahodila jako starsi nez okno historie (kumulativne).
+        /// Doplnuje korelator po odeslani; sama korelace to nespocita, je to zpetna vazba z fuze.
+        /// Viz <see cref="Logs.MapCorrelationMsg.DroppedByFusion"/>.
+        /// </summary>
+        public long DroppedByFusion;
+
         /// <summary>Poslalo se aspon neco?</summary>
         public bool Emitted => EmitTightAxis || EmitLooseAxis || EmitHeading;
 
@@ -220,6 +227,7 @@ namespace ARBot.Common.Localization
                 Reason = (byte)Reason,
                 ProcessingMs = ProcessingTime.TotalMilliseconds,
                 TimeStamp = TimeStamp,
+                DroppedByFusion = DroppedByFusion,
             };
     }
 }

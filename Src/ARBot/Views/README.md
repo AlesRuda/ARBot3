@@ -64,6 +64,34 @@ doku (deduplikace podle `Id`). Nový typ senzoru = přidat větev do `CreateSens
 > odpovídající vzor. Speciálnější typ proto musí být **výš** než obecné rozhraní: `VirtualCamera`
 > stojí nad `ICamera`, jinak by se `VirtualCameraDocument` nikdy nevytvořil.
 
+### Stop/Start jednotlivého senzoru (21. 8. 2026)
+
+Na řádku je tlačítko **Stop/Start** — `SensorRow.ToggleCommand` nad
+[`IControllableSensor`](../../ARBot.Common/Devices/IControllableSensor.cs). Stav řádku je
+`OK` (běží) / `STOP` (zastavený, indikátor zešedne) / `CHYBA`; obnovuje ho sekundový časovač
+panelu a po kliknutí se překreslí hned.
+
+Tři věci, které je potřeba vědět:
+
+- **Příkaz je na `SensorRow`, ne na `SensorStatusTool`** — šablona binduje `{Binding ToggleCommand}`
+  bez hledání předka. Cesta přes `$parent[ItemsControl].DataContext` by při přejmenování selhala
+  **tiše**: view má `CompileBindings="False"` a hlášky oblasti `Binding` jsou ve `FilteredTraceLogSink`
+  odfiltrované, takže by se chyba neobjevila ani v Debug outputu.
+- **Vypnutí nepřežije Run.** Pipeline si senzory spouští sama
+  (`SensorMessageSource(controlSensor: true)`), takže start runtime zastavený senzor zapne zpátky —
+  vypínat se má až za běhu. Vědomé rozhodnutí: zámek, který by Run přebil, by byl další skrytý stav.
+- **Tlačítko se u některých řádků neukáže.** `MD23` (motory po I2C) ani `DummyMotors` žádnou smyčku
+  na pozadí nemají, takže `IControllableSensor` neimplementují a `CanControl` je `false`.
+  U motorů s vlastní smyčkou (UART) Stop zastaví **jen odometrii** — kola to nezastaví, poslední
+  příkaz jízdy v řídicí jednotce platí dál. Proto se před zastavením posílá `Drive(0,0)`; když ale
+  běží řídicí smyčka, ta si za svůj tik pošle vlastní příkaz a nulu přebije. **Není to
+  bezpečnostní funkce.**
+
+> **Souvisí:** kvůli tomuhle přestalo `SensorBase.GetLastMeasurement()` senzor spouštět. Dřív tam
+> bylo `Start()`, takže zastavený senzor kdokoli vyzvednutím měření zapnul zpátky (pull kamer
+> v runtime, detailní okno) a zastavit se nedal vůbec. Redundantní to bylo i tak — **každý senzor
+> se spouští ve svém konstruktoru**.
+
 ## Znovupoužitelné controly (`Views/Controls/`)
 
 Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty` +

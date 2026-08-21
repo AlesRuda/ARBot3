@@ -61,6 +61,58 @@ namespace ARBot
             return val;
         }
 
+        /// <summary>
+        /// Vraci hodnotu parametru z prikazove radky jako **cestu k souboru/slozce**: relativni
+        /// cesta se resi proti <b>korenu repa</b> (slozka s <c>.git</c>), ne proti pracovnimu
+        /// adresari procesu. Absolutni cesta se necha, jak je.
+        ///
+        /// <para><i>Proc:</i> pracovni adresar se lisi podle toho, jak se app spusti (z VS je to
+        /// build output <c>bin\...</c>, z <c>dotnet run</c> slozka projektu), takze
+        /// <c>map=OSM/Neco.osm</c> by jednou nasel a jindy ne. Proti korenu repa to plati vzdy -
+        /// diky tomu mohou byt cesty v <c>launchSettings.json</c> relativni, a tedy prenositelne
+        /// mezi pracovnimi kopiemi. Viz doc/virtual-hw.md.</para>
+        ///
+        /// <para>Bez repa (nasazeni na zarizeni) je zakladem <see cref="AppContext.BaseDirectory"/>;
+        /// tam se stejne pouzivaji absolutni cesty.</para>
+        /// </summary>
+        public static string GetParamPath(string param, string def = null)
+        {
+            var val = GetParam(param, def);
+            if (string.IsNullOrWhiteSpace(val))
+                return val;
+            try
+            {
+                if (System.IO.Path.IsPathRooted(val))
+                    return val;
+                return System.IO.Path.GetFullPath(System.IO.Path.Combine(RepoRootOrBase(), val));
+            }
+            catch
+            {
+                return val;             // vadna cesta -> at ji resi volajici (File.Exists + hlaska)
+            }
+        }
+
+        /// <summary>
+        /// Koren git repa (slozka obsahujici <c>.git</c>) hledany smerem nahoru od build outputu;
+        /// fallback na <see cref="AppContext.BaseDirectory"/> (nasazeni bez repa, napr. na Pi).
+        /// </summary>
+        public static string RepoRootOrBase()
+        {
+            try
+            {
+                var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+                while (dir != null)
+                {
+                    string git = System.IO.Path.Combine(dir.FullName, ".git");
+                    if (System.IO.Directory.Exists(git) || System.IO.File.Exists(git))
+                        return dir.FullName;
+                    dir = dir.Parent;
+                }
+            }
+            catch { }
+            return AppContext.BaseDirectory;
+        }
+
 
 
         // Initialization code. Don't use any Avalonia, third-party APIs or any

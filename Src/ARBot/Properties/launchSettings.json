@@ -5,11 +5,11 @@
     },
     "ARBot - virtualni HW": {
       "commandName": "Project",
-      "commandLineArgs": "virtualhw=true no_uart=true map=C:\\work\\projekty\\ARBot3\\OSM\\SyntetickyKoridor.osm"
+      "commandLineArgs": "virtualhw=true no_uart=true mapcorr=true map=OSM\\SyntetickyKoridor.osm"
     },
     "ARBot - virtualni HW + dve mapy (visionmap)": {
       "commandName": "Project",
-      "commandLineArgs": "virtualhw=true no_uart=true mapcorr=true map=C:\\work\\projekty\\ARBot3\\OSM\\SyntetickyKoridor.osm visionmap=C:\\work\\projekty\\ARBot3\\OSM\\SyntetickyKoridorPosunuty.osm"
+      "commandLineArgs": "virtualhw=true no_uart=true mapcorr=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
     },
     "WSL": {
       "commandName": "WSL2",

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -73,7 +74,7 @@ namespace ARBot.ViewModels
             {
                 var row = Sensors.FirstOrDefault(r => ReferenceEquals(r.Sensor, s));
                 if (row == null)
-                    Sensors.Add(new SensorRow(s));
+                    Sensors.Add(new SensorRow(s, msg => Status = msg));
                 else
                     row.Update();
             }
@@ -95,6 +96,7 @@ namespace ARBot.ViewModels
             if (row?.Sensor != null)
                 SensorActivated?.Invoke(row.Sensor);
         }
+
     }
 
     /// <summary>Jeden radek panelu senzoru - obal nad <see cref="ISensor"/> s obnovitelnym IsError.</summary>
@@ -111,20 +113,95 @@ namespace ARBot.ViewModels
         [NotifyPropertyChangedFor(nameof(StatusBrush))]
         private bool isError;
 
-        public SensorRow(ISensor sensor)
+        /// <summary>Bezi smycka mereni senzoru? U neovladatelnych senzoru zustava <c>true</c>.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(StatusText))]
+        [NotifyPropertyChangedFor(nameof(StatusBrush))]
+        [NotifyPropertyChangedFor(nameof(ToggleText))]
+        private bool isRunning = true;
+
+        // Kam ohlasit chybu ovladani (stavova radka panelu). null = nikam.
+        private readonly Action<string>? report;
+
+        public SensorRow(ISensor sensor, Action<string>? report = null)
         {
             Sensor = sensor;
             Name = sensor.Name;
+            this.report = report;
             IsError = sensor.IsError;
+            Update();
         }
 
+        /// <summary>
+        /// Zastaví běžící senzor, nebo znovu spustí zastavený.
+        ///
+        /// <para><b>Příkaz je na řádku, ne na panelu</b> — šablona pak binduje
+        /// <c>{Binding ToggleCommand}</c> bez hledání předka. Cesta přes
+        /// <c>$parent[ItemsControl].DataContext</c> by při přejmenování selhala <b>tiše</b>
+        /// (view má <c>CompileBindings=False</c> a chyby oblasti Binding jsou v logu odfiltrované).</para>
+        ///
+        /// <para><b>Vypnutí nepřežije Run.</b> Řídicí pipeline si senzory spouští sama
+        /// (<c>SensorMessageSource(controlSensor: true)</c>), takže start runtime zastavený senzor
+        /// zapne zpátky — vypínat se má až za běhu. Vědomé rozhodnutí (21. 8. 2026): zámek, který
+        /// by Run přebil, by byl další skrytý stav.</para>
+        ///
+        /// <para><b>U motorů to nezastaví kola.</b> Zastaví se jen jejich smyčka měření, tedy
+        /// odometrie; poslední příkaz jízdy platí v řídicí jednotce dál. Proto se před zastavením
+        /// posílá <c>Drive(0,0)</c> — ale když běží řídicí smyčka, ta si za svůj tik pošle vlastní
+        /// příkaz a nulu přebije. Zastavení motorů proto <b>není</b> bezpečnostní funkce.</para>
+        /// </summary>
+        [RelayCommand]
+        private void Toggle()
+        {
+            if (Sensor is not IControllableSensor ctl)
+                return;
+
+            try
+            {
+                if (ctl.IsRunning)
+                {
+                    // Motory: nejdriv nulova rychlost, at robot nezustane jezdit na posledni prikaz.
+                    if (Sensor is IMotorControl motors)
+                        motors.Drive(0, 0);
+                    ctl.Stop();
+                }
+                else
+                {
+                    ctl.Start();
+                }
+                report?.Invoke(string.Empty);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SensorStatus: {Name} Stop/Start selhalo. {ex}");
+                report?.Invoke($"{Name}: {ex.Message}");
+            }
+
+            Update();       // stav prekreslit hned, necekat na sekundovy refresh
+        }
+
+        /// <summary>
+        /// Da se tenhle senzor spustit/zastavit? <c>false</c> u senzoru bez vlastni smycky
+        /// (MD23 po I2C, fiktivni motory) - tam se tlacitko neukazuje, viz
+        /// <see cref="IControllableSensor"/>.
+        /// </summary>
+        public bool CanControl => Sensor is IControllableSensor;
+
         /// <summary>Textovy stav pro UI.</summary>
-        public string StatusText => IsError ? "CHYBA" : "OK";
+        public string StatusText => IsError ? "CHYBA" : (IsRunning ? "OK" : "STOP");
 
-        /// <summary>Barva indikatoru dle stavu.</summary>
-        public IBrush StatusBrush => IsError ? Brushes.OrangeRed : Brushes.LimeGreen;
+        /// <summary>Barva indikatoru dle stavu (zastaveny senzor je seda, ne zelena).</summary>
+        public IBrush StatusBrush => IsError ? Brushes.OrangeRed
+                                             : (IsRunning ? Brushes.LimeGreen : Brushes.Gray);
 
-        /// <summary>Nacte aktualni IsError z podkladoveho senzoru.</summary>
-        public void Update() => IsError = Sensor.IsError;
+        /// <summary>Popis tlacitka - co se stane po kliknuti.</summary>
+        public string ToggleText => IsRunning ? "Stop" : "Start";
+
+        /// <summary>Nacte aktualni stav z podkladoveho senzoru (IsError + bezi/nebezi).</summary>
+        public void Update()
+        {
+            IsError = Sensor.IsError;
+            IsRunning = Sensor is IControllableSensor ctl ? ctl.IsRunning : true;
+        }
     }
 }

@@ -179,6 +179,12 @@ namespace ARBot.Common.Localization
             LastResult = result;
 
             if (config.SendCorrections) SendMeasurements(result, pose);
+
+            // Zpetna vazba z fuze: kolik NASICH korekci uz zahodila jako starsi nez okno historie.
+            // Cte se AZ PO odeslani, aby zprava odpovidala stavu po tomto cyklu. Bez toho hlasi
+            // telemetrie "Reason = Ok" i ve chvili, kdy do fuze nedojde nic (viz doc).
+            engine.DroppedTooOldBySource().TryGetValue(config.MeasurementSource, out long dropped);
+            result.DroppedByFusion = dropped;
             return result;
         }
 

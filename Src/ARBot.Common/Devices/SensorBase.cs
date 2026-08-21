@@ -10,7 +10,7 @@ namespace ARBot.Common.Devices
     /// <summary>
     /// Predek pro sensory
     /// </summary>
-    public abstract class SensorBase<TState>:IDisposable, ISensor where TState: class
+    public abstract class SensorBase<TState>:IDisposable, ISensor, IControllableSensor where TState: class
     {
         protected Task task;
         protected bool stopRequired = false;
@@ -43,12 +43,18 @@ namespace ARBot.Common.Devices
 
         protected TState lastMeasurement;
         /// <summary>
-        /// Posledni vzorek, pokud je vyzvednut tak null
+        /// Posledni vzorek, pokud je vyzvednut tak null.
+        ///
+        /// <para><b>Senzor NESPOUSTI</b> (zmena 21. 8. 2026). Driv tady bylo <c>Start()</c>, takze
+        /// vyzvednuti mereni senzor rozjelo — a zastavit se pak nedal vubec: pull kamer v runtime
+        /// nebo detailni okno v UI ho do jednoho tiku zapnuly zpatky. Kdo chce mereni, musi si
+        /// senzor spustit sam (<see cref="Start"/>); v pipeline to dela
+        /// <c>SensorMessageSource(controlSensor: true)</c>, v UI dokumenty senzoru a rucne panel
+        /// senzoru. Vraci <c>null</c>, dokud senzor nebezi (stejne jako kdyz jen neni novy vzorek).</para>
         /// </summary>
         public TState GetLastMeasurement()
         {
             TState v = null;
-            Start();
             lock (lck)
             {
                 v = lastMeasurement;

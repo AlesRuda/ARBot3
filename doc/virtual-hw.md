@@ -145,11 +145,14 @@ vyzvedává přímo z runtime. Viz „Dvě mapy" níž.
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
 
-> **Dvě pasti u cest k mapám** (obě stály čas 21. 8. 2026, projevily se jako
+**Relativní cesta se řeší proti kořenu repa** (složka s `.git`), ne proti pracovnímu adresáři —
+o to se stará `Program.GetParamPath`, kterou `map=` i `visionmap=` používají místo `GetParam`.
+Absolutní cesta se nechá, jak je. Díky tomu jsou cesty v `launchSettings.json` relativní
+(`map=OSM\SyntetickyKoridor.osm`), a tedy přenositelné mezi pracovními kopiemi. Mimo repo
+(nasazení na zařízení) je základem `AppContext.BaseDirectory` — tam se používají absolutní cesty.
+
+> **Past u cest k mapám** (stála čas 21. 8. 2026, projevila se jako
 > `virtualni HW: ... -> zadny HW`):
-> - **Relativní cesta se řeší proti pracovnímu adresáři**, ne proti repozitáři. Při spuštění z VS
->   (`launchSettings.json`) ani z `bin\...` to není kořen repa, takže `map=OSM/Neco.osm` nenajde nic.
->   V `launchSettings.json` proto **absolutní cesty**.
 > - **Zdvojený parametr = platí první.** `Program.GetParam` bere `args.FirstOrDefault(...)`, takže
 >   když se v příkazovém řádku octne `map=` dvakrát (typicky slepením dvou příkazů), tiše vyhraje ten
 >   první a druhý se ignoruje. Bez varování.

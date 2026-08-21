@@ -142,6 +142,24 @@ namespace ARBot.Telemetry
                 + "příliš velký posun / žádné maximum."),
             Num<MapCorrelationMsg>("korel vypocet [ms]", m => m.ProcessingMs,
                 "Doba výpočtu jednoho cyklu korelace. Diagnostika zátěže (na ARM je to hlídané).", "F1"),
+            Num<MapCorrelationMsg>("korel zahozeno fuzi", m => m.DroppedByFusion,
+                "Kolik korekcí z korelace už fúze zahodila, protože přišly STARŠÍ než okno historie "
+                + "(kumulativně za běh). Když tohle roste, „korel“ svítí a přitom se do fúze "
+                + "nedostane nic — výpočet je pomalejší, než dovolí okno. Naměřeno 21. 8. 2026 "
+                + "v Debug buildu: 12 korekcí z 5 cyklů.", "F0"),
+
+            // --- verdikt fuze u jednotlivych merenii (jen s parametrem measdiag=) ---
+            // Zdroj merenia nese INamedMessage.Name, takze radky rozlisi sloupec „Jmeno“; vlastni
+            // textovy sloupec by tabulka (ciselna) neumela.
+            Num<MeasurementDiagMsg>("mereni NIS", m => m.Nis,
+                "Normalized innovation squared — jak daleko bylo měření od predikce, v jednotkách "
+                + "vlastního rozptylu. Nad prahem gatingu se měření zahodí. NaN = měření přišlo "
+                + "pozdě, na NIS vůbec nedošlo.", "F2"),
+            Enum<MeasurementDiagMsg, ARBot.Common.Fusion.MeasurementVerdict>("mereni verdikt", m => m.Verdict,
+                "Jak s měřením fúze naložila: Accepted (aplikovalo se) / GatedOut (zamítl gating "
+                + "jako odlehlé) / TooOld (přišlo starší než okno historie, do filtru vůbec "
+                + "nevstoupilo). Rozdíl mezi GatedOut a TooOld je rozdíl mezi „opravit sigma“ "
+                + "a „zkrátit výpočet“."),
 
             // --- surove GPS (bez fuze) ---
             Num<GPSState>("GPS lat [°]", m => m.Latitude,

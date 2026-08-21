@@ -260,6 +260,12 @@ namespace ARBot.Robot
             var fusion = new FusionProcessor(engine, mapper);
             stages.Add(fusion);
 
+            // Diagnostika merenii (parametr measdiag=): u kazdeho merenia verdikt fuze - NIS,
+            // prijeti gatingem, nebo "prislo pozde". Vypnuto by default, protoze merenii chodi
+            // stovky za sekundu. Hodnoty: true/* = vse, jinak seznam podretezcu zdroje oddeleny
+            // carkou (napr. measdiag=MapCorr). Viz doc/map-correlation-localization.md.
+            ConfigureMeasurementDiagnostics(fusion);
+
             // Vize: probability (barva -> pravdepodobnost) + polarni grid sjizdnosti z hloubky se
             // pocitaji SYNCHRONNE na vlakne kamery pres CameraFrameProcessor a zapisuji se PRIMO do
             // CameraFrame (frame.ImageProbability, frame.Grid). Nahrazuje drivejsi asynchronni stupne
@@ -297,6 +303,10 @@ namespace ARBot.Robot
             var processing = new RelaySource();
             connections.Add(processing.Connect(fusion));
             connections.Add(processing.Connect(loop));
+
+            // Fuze emituje jen kdyz je zapnuta diagnostika merenii (measdiag=) - jinak je jeji
+            // vystup trvale prazdny. Drat sem ale patri vzdy, at neni "zapnuto a nic nechodi".
+            connections.Add(fusion.Output.Connect(stream));
 
             // Vyssi ridici smycka: occupancy grid + lokalni planovani. Bezi na VLASTNIM vlakne
             // (MessageProcessor), takze tik ControlLoop zustava deterministicky. Odebira snimky z
@@ -364,10 +374,19 @@ namespace ARBot.Robot
 
             if (mapCorr && RoadNetwork != null && fusionConfig.GeoReference != null)
             {
+                // mapcorrsend= rozhoduje, jestli se spocitane korekce POSILAJI do fuze (vypocet
+                // bezi dal a zprava se emituje). Dva prepinace, dva ucely: mapcorr= "pocitat
+                // vubec", mapcorrsend= "posilat". Bez toho nesla zmerit skutecna autorita korelace
+                // — A/B "stejna zatez, jen bez korekci". Viz doc/map-correlation-localization.md.
+                bool sendCorrections = Program.GetParamBool("mapcorrsend", true);
+                if (!sendCorrections)
+                    Trace.WriteLine("mapcorrsend=false: korelace pocita a hlasi zpravou, "
+                                    + "ale do fuze neposila nic.");
+
                 var correlator = new ARBot.Common.Localization.MapCorrelator(
                     engine,
                     new RoadScene(RoadNetwork, fusionConfig.GeoReference),
-                    new ARBot.Common.Localization.MapCorrelatorConfig(),
+                    new ARBot.Common.Localization.MapCorrelatorConfig { SendCorrections = sendCorrections },
                     // Fronta musí unést plán z celého jednoho cyklu korelace (na ARM 100–200 ms
                     // proti periodě plánu 33 ms), jinak by DropOldest vytlačil zařazený snapshot.
                     queueCapacity: 16);
@@ -511,6 +530,48 @@ namespace ARBot.Robot
         public ARBot.Common.Localization.MapCorrelator MapCorrelator { get; private set; }
 
         /// <summary>
+        /// Zapne diagnostiku merenii ve fuzi podle parametru <c>measdiag=</c>, pokud je zadany.
+        ///
+        /// <para>Hodnoty: <c>false</c> / nezadano = vypnuto (vychozi); <c>true</c> nebo <c>*</c> =
+        /// vsechna merenia; cokoli jineho = seznam <b>podretezcu</b> nazvu zdroje oddeleny carkou,
+        /// napr. <c>measdiag=MapCorr</c> nebo <c>measdiag=MapCorr,GPS</c>.</para>
+        ///
+        /// <para><b>Proc ne vzdycky.</b> Merenii chodi stovky za sekundu (IMU 100 Hz, odometrie
+        /// 50 Hz, GPS 5 Hz), takze zapnute naplocho by to zaplavilo stream, zaznam i telemetricky
+        /// pohled. Filtr na zdroj je proto pravidlo, ne vyjimka.</para>
+        /// </summary>
+        private static void ConfigureMeasurementDiagnostics(FusionProcessor fusion)
+        {
+            string spec = Program.GetParam("measdiag");
+            if (string.IsNullOrWhiteSpace(spec)) return;
+            if (bool.TryParse(spec, out bool all))
+            {
+                if (!all) return;
+                fusion.EnableMeasurementDiagnostics();
+                Trace.WriteLine("measdiag=true: publikuji se MeasurementDiagMsg pro VSECHNA merenia "
+                                + "(stovky za sekundu - jen pro ladeni).");
+                return;
+            }
+            if (spec.Trim() == "*")
+            {
+                fusion.EnableMeasurementDiagnostics();
+                Trace.WriteLine("measdiag=*: publikuji se MeasurementDiagMsg pro vsechna merenia.");
+                return;
+            }
+
+            var needles = spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            fusion.EnableMeasurementDiagnostics(source =>
+            {
+                if (source == null) return false;
+                foreach (var n in needles)
+                    if (source.Contains(n, StringComparison.OrdinalIgnoreCase)) return true;
+                return false;
+            });
+            Trace.WriteLine($"measdiag={spec}: publikuji se MeasurementDiagMsg pro zdroje obsahujici "
+                            + string.Join(" | ", needles) + ".");
+        }
+
+        /// <summary>
         /// Nacte silnicni sit z parametru <c>map=&lt;cesta.osm&gt;</c> do <see cref="RoadNetwork"/> a
         /// zalozi z ni <see cref="MapOrigin"/> (stred obalky uzlu) jako pocatek lokalni ENU roviny.
         ///
@@ -526,7 +587,7 @@ namespace ARBot.Robot
         /// </summary>
         private void LoadMapIfSpecified(FusionConfig fusionConfig)
         {
-            string mapPath = Program.GetParam("map");
+            string mapPath = Program.GetParamPath("map");
             if (string.IsNullOrWhiteSpace(mapPath))
             {
                 LoadVisionMapIfSpecified();
@@ -586,7 +647,7 @@ namespace ARBot.Robot
         /// </summary>
         private void LoadVisionMapIfSpecified()
         {
-            string path = Program.GetParam("visionmap");
+            string path = Program.GetParamPath("visionmap");
             if (string.IsNullOrWhiteSpace(path))
                 return;
             if (!File.Exists(path))
@@ -639,8 +700,8 @@ namespace ARBot.Robot
         /// </summary>
         private string DescribeMissingMapReason(FusionConfig fusionConfig)
         {
-            string mapPath = Program.GetParam("map");
-            string visionPath = Program.GetParam("visionmap");
+            string mapPath = Program.GetParamPath("map");
+            string visionPath = Program.GetParamPath("visionmap");
 
             if (CameraRoadNetwork == null)
             {

@@ -16,13 +16,21 @@
                           ToolTip.Tip="Dvojklik otevře detail senzoru">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:SensorRow">
-                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,3" Background="Transparent">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="6,3" Background="Transparent">
                             <Border Grid.Column="0" Width="12" Height="12" CornerRadius="6"
                                     VerticalAlignment="Center" Background="{Binding StatusBrush}"/>
                             <TextBlock Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center"
                                        Text="{Binding Name}"/>
                             <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold"
+                                       MinWidth="48" TextAlignment="Right"
                                        Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"/>
+                            <!-- Stop/Start jednotliveho senzoru. U senzoru bez vlastni smycky
+                                 (MD23, fiktivni motory) se tlacitko neukazuje. -->
+                            <Button Grid.Column="3" Margin="8,0,0,0" Padding="8,2" MinWidth="52"
+                                    IsVisible="{Binding CanControl}"
+                                    Content="{Binding ToggleText}"
+                                    Command="{Binding ToggleCommand}"
+                                    ToolTip.Tip="Zastaví/spustí smyčku měření tohoto senzoru. Vypnutí NEPŘEŽIJE start runtime (Run si senzory spouští sám). U motorů se zastaví jen odometrie — kola to nezastaví."/>
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

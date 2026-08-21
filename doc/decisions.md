@@ -29,6 +29,15 @@ veličiny a filtr je zváží podle σ. S naměřenými čísly (σ korelace 0,1
 je poměr vah `(2,12/0,105)² ≈ 400`, takže korelace přehlasuje GPS **~400:1** a póza sedne prakticky
 na mapu. Nic neosciluje.
 
+> **Oprava čísla (21. 8. 2026).** Poměr 400:1 je nadsazený asi o řád a autor to odhadl správně
+> („odhad vlivu 1:400 nebude taky úplně reálný"). Tři chyby: 2,12 m je **2D radiální** σ GPS
+> (= 1,5·√2), kdežto osové měření korelace je 1D (per osu je σ GPS `GpsPosStd` = 1,5 m); naměřená
+> σ korelace je 0,150 m, ne 0,105; a hlavně se **nepočítala kadence** — GPS jde 5 Hz, korelace
+> 1,74 Hz. Po opravě **~35:1** na těsné ose, ~18:1 na volné. I to je strop, protože sousední cykly
+> korelace nejsou nezávislé. Závěr rozhodnutí („přetahování nevadí, hlídat se musí honestní σ")
+> tím **nepadá** — jen je ta jednička v poměru blíž, než se psalo. Rozpad čísla a měření:
+> [map-correlation-localization.md](map-correlation-localization.md#naměřeno-21-8-2026-debug-vs-release-nad-dvěma-záznamy).
+
 A **to je pro jízdu žádoucí**: mrkev, trasa, cíle misí i výdejní místa jsou mapově relativní, takže
 póza v mapovém rámci dává správnou mrkev vůči cestě. Nesouhlas s GNSS rámcem by vadil jen u něčeho,
 co jde mimo mapu — a u tohoto robota nic takového není. K tomu: **absolutní přesnost je stejně
