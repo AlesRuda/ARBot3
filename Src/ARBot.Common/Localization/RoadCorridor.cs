@@ -22,6 +22,12 @@ namespace ARBot.Common.Localization
 
         /// <summary>RANSAC nenasel dost inlieru, aby primka nesla nahodu.</summary>
         TooFewInliers = 5,
+
+        /// <summary>
+        /// Koridor se vubec nepocital (chybela druha kamera). Vlastni hodnota proto, aby
+        /// telemetrie nehlasila „Ok" u cyklu, kde zadny koridor nebyl.
+        /// </summary>
+        NotComputed = 6,
     }
 
     /// <summary>

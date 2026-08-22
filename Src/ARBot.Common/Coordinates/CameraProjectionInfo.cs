@@ -54,7 +54,7 @@ namespace ARBot.Common.Coordinates
         /// hloubkovemu). <c>null</c> = neznama.
         ///
         /// <para><b>Proc tady</b> (21. 8. 2026): prepocet pixelu barevneho obrazu na metricky bod
-        /// (<see cref="ARBot.Common.Vision.ColorEdgeProjector"/>) ji potrebuje, a dopocitat ji
+        /// (<see cref="ARBot.Common.Vision.ColorPixelTo3D"/>) ji potrebuje, a dopocitat ji
         /// z hloubkove nejde - streamy maji jine FOV (u D435 69,4° vs 87°). Tim, ze je v popisu,
         /// je i v zaznamu, takze offline prepocet nepotrebuje zivou kameru.</para>
         /// </summary>

@@ -9,7 +9,7 @@
     },
     "ARBot - virtualni HW + dve mapy (visionmap)": {
       "commandName": "Project",
-      "commandLineArgs": "virtualhw=true no_uart=true mapcorr=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
     },
     "WSL": {
       "commandName": "WSL2",

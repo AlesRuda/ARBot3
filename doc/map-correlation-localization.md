@@ -41,6 +41,8 @@ tam se korelátor právě testuje. Reálný HW i běh bez profilu tím nedotčen
 | `mapcorr=` (příkazová řádka) | zakládá se stupeň korelace **vůbec**? | **`false`** |
 | `mapcorrsend=` (příkazová řádka) | posílají se měření **do fúze**? (= `SendCorrections`) | `true` |
 | `measdiag=` (příkazová řádka) | publikují se **verdikty jednotlivých měření** (`MeasurementDiagMsg`)? | vypnuto |
+| `corridor=` (příkazová řádka) | zakládá se **hranová** lokalizace (`CorridorLocalizer`)? | **`false`** |
+| `corridorsend=` (příkazová řádka) | posílá hranová lokalizace měření do fúze? | `true` |
 
 `mapcorrsend=` je od 21. 8. 2026 a existuje pro jediné čisté měření skutečné autority korelace:
 **A/B se stejnou zátěží** (výpočet běží v obou bězích, jen jeden neposílá). `measdiag=` bere
@@ -1052,7 +1054,7 @@ u plošného skenu — a bez rostoucí paměti, protože se nic neakumuluje.
 
 Tři nové kusy v `ARBot.Common`; napojení na mapu a měření do fúze je **další krok**.
 
-**[`ColorEdgeProjector`](../Src/ARBot.Common/Vision/ColorEdgeProjector.cs)** — managed náhrada
+**[`ColorPixelTo3D`](../Src/ARBot.Common/Vision/ColorPixelTo3D.cs)** — managed náhrada
 nativního `ColorPixel23D`, které **v `NativeLib` dnes vůbec není** (takže
 `D435CameraProjection.TransformBack(points, depth)` je mrtvá cesta na *všech* platformách, na ARM
 navíc vyhazuje `NotSupportedException`). Postup je shodný s originálem: barevný pixel → hloubkový
@@ -1082,7 +1084,7 @@ Místo smazání s tichým propadem na bázi (ta hloubku **ignorovala** a promí
 u horizontu stovky metrů) se **opravila báze**: `CameraProjection.TransformBack(points, depth)`
 hloubku používá, protože ji báze umí — má tabulku směrů i montážní transformaci, a od téhož dne
 i barevnou intrinsiku s extrinsikami. Přepočet pixel → metry drží
-[`ColorEdgeProjector`](../Src/ARBot.Common/Vision/ColorEdgeProjector.cs) (má testy), báze si ho
+[`ColorPixelTo3D`](../Src/ARBot.Common/Vision/ColorPixelTo3D.cs) (má testy), báze si ho
 jen cachuje. Když barevná intrinsika není známá, bere se intrinsika té projekce — tedy předpoklad,
 že body pocházejí z téhož streamu.
 
@@ -1124,6 +1126,173 @@ Dvě věci, které při psaní vyplavaly z testů:
 **Ověřeno:** `CorridorFinder` z repozitáře nad `records/20260821-095328.rec` dává 277 koridorů
 z 560 (283× `TooFewInliers`), šířka p50 1,986 m (sd 0,023), směr sd 0,31°, σ příčně 0,030 m,
 cena **0,072 ms** na snímek. Sada `ARBot.Common.Tests` 709 prošlo / 0 selhalo.
+
+### Krok 4: napojení na mapu a měření do fúze (21. 8. 2026)
+
+Zbývající tři kusy v `ARBot.Common/Localization` a napojení do runtime:
+
+| kus | co dělá |
+|---|---|
+[`RoadAxis`](../Src/ARBot.Common/Localization/RoadAxis.cs) | mapová protistrana: pro pózu najde nejbližší hranu a vrátí znaménkový odstup od osy, sklon vůči kurzu, šířku a normálu |
+[`RoadWidthFilter`](../Src/ARBot.Common/Localization/RoadWidthFilter.cs) | odhad skutečné šířky **per hrana** (klíč OSM way), exponenciální průměr |
+[`CorridorLocalizer`](../Src/ARBot.Common/Localization/CorridorLocalizer.cs) | stupeň pipeline: páruje kamery, spočítá koridor, srovná s mapou, pošle měření a emituje `RoadCorridorMsg` |
+
+**Měření do fúze jsou dvě skalární**, přesně jak to popisuje sekce o autoritě korelátoru:
+
+- **příčné** podél **normály mapové osy** — `n · p_true = n · A + e`, kde `e` je měřená příčná
+  poloha z kamer a `A` bod na ose. Osa měření je *přesně známá z mapy*, ne odhadovaná ze zakřivení
+  skóre; σ je z reziduí proložení.
+- **kurz** — `θ_true = θ_edge − d`, kde `d` je směr cesty v rámci robotu.
+- **podélná složka se neposílá vůbec**, takže nejsou potřeba stropy σ ani test nejednoznačnosti
+  podél osy.
+
+> **Orientace hrany se srovnává s kurzem robotu.** Hrany sítě jsou orientované (obousměrná cesta
+> jsou dvě hrany), takže bez toho by se levá a pravá strana občas prohodily a znaménko příčné
+> korekce by přeskakovalo. `RoadAxis` proto směr hrany převrací tak, aby měl s kurzem robotu
+> kladný skalární součin. Je na to test (`JizdaProtiSmeruHrany_neprohodiStrany`).
+
+**Gaty a zpětná vazba na šířku**
+
+| gate | proč |
+|---|---|
+| `MaxLateralDisagreementM` (1,5 m) | strop na nesouhlas s mapou — náhrada za chybějící nezávislou kontrolu (viz [decisions.md](decisions.md), třetí podmínka) |
+| `MaxWidthDisagreementM` (1,5 m) | velký rozdíl šířky = proložila se jiná dvojice hranic, ne ta cesta |
+| `MaxEdgeDistanceM` (8 m) | nejsme na té cestě |
+| `WidthUpdateMaxDisagreementM` (0,3 m) | šířka se učí **jen** z cyklů, kde póza sedí — jinak by se do ní zapsala chyba pózy a ta by se pak sama utvrzovala |
+
+**Přepínače** (stejný vzor jako u plošné korelace): `corridor=true` zakládá stupeň (default
+**false**), `corridorsend=` rozhoduje o posílání měření do fúze (default `true`) — tedy A/B se
+stejnou zátěží.
+
+**Ověřeno nad `records/20260821-095328.rec`** (celý řetěz z repozitáře, póza ze záznamu vložená do
+fúze, `corridorsend=false` aby se neměnilo, co měříme):
+
+| | hodnota |
+|---|---|
+| snímků / z toho měření | 562 / **286** (274× `NoPair`, 2× `NoCorridor`) |
+| **rozdíl příčně** (kamera − mapa) | p50 **0,541 m**, sd 0,067 |
+| rozdíl směru | p50 0,84°, sd 0,30 |
+| rozdíl šířky | p50 −0,028 m, sd 0,022 |
+
+Tedy: vnucený rozdíl obou map se najde jako **0,54 m** (spike offline dával 0,51 m), šířka sedí na
+**3 cm** a kadence je ~9 měření/s proti 5 Hz GPS. `NoPair` je polovina snímků — kamery jdou každá
+~13,9 Hz nezávisle, takže část snímků nemá partnera v okně 60 ms.
+
+**Co je vidět v telemetrii:** `RoadCorridorMsg` dává **16 sloupců** — měřená šířka, příčná poloha
+a směr se σ a inliery, mapová protistrana (`kor pricne mapa`, `kor sirka mapa`), **rozdíly**
+(`kor rozdil pricne/smer/sirka` — to je vlastní chyba lokalizace), příznaky `kor pricna` / `kor kurz`
+(poslalo se) a dva důvody (`kor duvod` = proč koridor, `kor fix` = proč měření). Zpráva se emituje
+**i když měření nevzniklo** — důvod je její hlavní obsah.
+
+> **`kor zahozeno fuzi`** je tam ze stejného důvodu jako u plošné korelace: `kor pricna` říká
+> „poslali jsme", ne „došlo to". Počítadlo se plní u **každého** cyklu (i neúspěšného), aby číslo
+> nechybělo právě v okamžicích, kdy je nejzajímavější.
+>
+> Samotné verdikty jednotlivých měření (NIS, `Accepted` / `GatedOut` / `TooOld`) jsou za parametrem
+> **`measdiag=Corridor`** — zdroj měření se jmenuje `Corridor`.
+
+### Za běhu (22. 8. 2026): dvě vady a jedna vlastnost rigu
+
+Self-test 20 s, `corridor=true`, dvě mapy. Do záznamu jde **318 `RoadCorridorMsg`** a s
+`measdiag=Corridor` i verdikty měření, takže se dá číst, co se dělo.
+
+**Vada 1: gating zahazoval 77 % korekcí.** S `GateMode.Reject` prošlo jen 65 z 280 měření
+(NIS p50 10, max 196) a hlášený nesouhlas s mapou v průběhu běhu **neklesal vůbec**. Není to vada
+gatingu: měření tvrdí „jsem si jistý na 3 cm" a přitom nesouhlasí o 55 cm, což z pohledu filtru
+odlehlá hodnota **je** — jenže právě ten nesouhlas má měření opravit. Řešení už předepisovalo
+rozhodnutí z 20. 8. 2026: `GateMode.Soft` (`R' = R · NIS/práh`) místo zahození nafoukne R, takže
+se korekce uplatní. Po přepnutí: **268 z 268 přijato**.
+
+**Vada 2: chyběl gate „jsem vůbec uvnitř koridoru".** Stupeň hlásil platné měření i při příčné
+poloze **2,1 m od osy koridoru širokého 2 m** — tedy metr mimo cestu, což s tvrzením „jsem na této
+cestě" nejde dohromady. Doplněn `MaxOutsideCorridorM` (0,5 m nad pološířku) →
+`CorridorFixReason.OutsideCorridor`.
+
+**A/B, které to vysvětlilo** (`corridorsend=` při stejné zátěži):
+
+| | příčná poloha z kamer (po třetinách) | mimo koridor | rozdíl s mapou |
+|---|---|---|---|
+| `corridorsend=false` | 0,44 → 0,84 → **0,87 m** | 0× | stabilní 0,557 m |
+| `corridorsend=true` | 1,12 → 1,30 → **1,44 m** (bez gatu až 2,11) | **137×** | stabilní ~0,53 m |
+
+Robot se od osy vzdaluje i **bez** korekcí (to dělá lokální plánovač v tomhle syntetickém
+koridoru), ale s korekcemi je ten posun **dvojnásobný** a vytlačí ho z cesty.
+
+> **Není to chyba znaménka, je to vlastnost rigu dvou map.** Kamery renderují z posunuté mapy,
+> takže korekce posadí pózu na **vizní** mapu — a plánovač pak podle špatné pózy jede vedle
+> skutečné (navigační) cesty, přesně o ten rozdíl map. Rozdíl proto zůstává konstantní (~0,55 m):
+> je to rozdíl **map**, který žádná korekce neodstraní.
+>
+> **Důsledek pro testování:** ani dvě mapy, ani `poseerror=` nemohou ověřit, že korekce
+> **konvergují** — oba rigy vkládají chybu do *pozorování*, ne do pózy. Na konvergenci je potřeba
+> vnutit chybu **počáteční póze** (jedna mapa + posunutý `start=`) a měřit, jak rychle ji koridor
+> smaže. To je další krok a **zatím se neudělal**.
+
+#### Nastane totéž na reálné trase?
+
+Ano — ale jen v jednom ze dvou případů, a je potřeba je rozlišit.
+
+| případ | co koridor naměří | co udělá korekce |
+|---|---|---|
+| **chyba pózy** (drift odometrie, GPS multipath, bias kurzu) | rozdíl **je** chyba pózy | odstraní ji, **konverguje** — tohle je případ, pro který estimátor je |
+| **chyba mapy** (OSM osa vedle o metry, `width` odhad) | rozdíl **není** chyba pózy | posadí pózu do **mapového rámce**; mrkev pak míří vedle skutečné cesty |
+
+Naměřené chování v rigu dvou map je věrný model **druhého** případu — a ten je na reálném OSM
+normální stav, ne výjimka.
+
+**Estimátor ty dva případy rozlišit nemůže.** Koridor měří „póza vůči skutečné cestě", mapa dodá
+„cesta vůči mapovému rámci"; jejich rozdíl je *chyba pózy + chyba mapy* a jedno pozorování to
+neoddělí. Není to vada implementace, je to vlastnost úlohy.
+
+Oddělit to umí jen něco **nezávislého na mapě**, tedy GPS: trvalý nesouhlas = chyba mapy,
+přechodný = drift pózy. Tím přestává být [třetí podmínka z decisions.md](decisions.md) („strop na
+nesouhlas s GPS") volitelná — bez ní se chyba mapy tiše převede na posun pózy.
+
+> **Bezpečnostní důsledek.** Pózu v mapovém rámci *lze* unést (mrkev, trasa i cíle misí jsou mapově
+> relativní — viz decisions.md), a konstantní posun rámce lokálnímu plánování nevadí: grid i póza
+> jsou posunuté stejně, takže relativní geometrie překážek zůstává správná. Otázka je, jestli
+> **globální mrkev nepřebije lokální vrstvu** — změřeno níž, viz `camerapose=truth`.
+
+### `camerapose=` a dva testy, které díky němu jdou (22. 8. 2026)
+
+Virtuální kamera renderovala **z odhadu fúze** (`PoseAt = engine.GetStateAt`). To je důvod, proč
+chyba odhadu byla pro kameru neviditelná (posun odhadu posune i obraz — viz
+[Co virtuální HW ukázat NEMŮŽE](#co-virtuální-hw-o-funkčnosti-korekcí-ukázat-nemůže)) a proč se
+chyba musela vnucovat do pozorování. Reálná kamera je ale přišroubovaná k **robotu**, ne k odhadu.
+Nový parametr `camerapose=fusion|truth` (default `fusion`, aby se nezměnil význam dřívějších
+experimentů) umí renderovat z **ground truth** (`SimulatedRobot`) — a tím se obojí stane měřitelné.
+
+**Test 1 — konverguje korekce na chybu pózy?** Jedna mapa, `camerapose=truth`, A/B `corridorsend=`.
+Chybu vyrobí sám šum GPS a drift, protože kamera už na odhadu nezávisí.
+
+| | chyba pózy (rozdíl kamera − mapa) po třetinách | p50 | sd |
+|---|---|---|---|
+| `corridorsend=false` | 0,008 → −0,331 → −0,314 m | −0,303 | 0,208 |
+| `corridorsend=true` | 0,000 → 0,001 → 0,001 m | **0,001** | **0,007** |
+
+**Ano.** Bez korekcí odhad ujede o 0,3 m; s korekcemi drží koridor pózu na cestě s rozptylem
+**7 mm**. Robot přitom fyzicky jede středem koridoru (0,002 m).
+
+**Test 2 — udrží lokální vrstva robota na cestě, když je špatná mapa?** Dvě mapy (= chyba mapy),
+`camerapose=truth`, takže měřená příčná poloha je **fyzická** poloha robotu na cestě, kterou vidí.
+
+| | fyzická poloha v koridoru | rozdíl s mapou |
+|---|---|---|
+| `corridorsend=false` | 0,562 → 0,561 → 0,559 m | 0,56 → 0,24 (odhad ujíždí) |
+| `corridorsend=true` | 0,560 → 0,561 → **0,561 m** | **−0,001 m** |
+
+**Ano, udrží.** Robot jede 0,56 m mimo osu (globální mrkev sleduje osu špatné mapy), ale to je
+uvnitř dvoumetrového koridoru — a korekce na tom nezmění nic (0,560 vs 0,561 m). `OutsideCorridor`
+nepadl ani jednou. Korekce naopak srovnají odhad se světem, který kamery vidí (rozdíl −0,001 m).
+
+> **Oprava dřívějšího čtení.** V dvoumapových bězích s `camerapose=fusion` vypadalo, že korekce
+> robota vytlačují z cesty (příčná poloha rostla na 2,1 m v koridoru širokém 2 m). To ale **nebyla
+> fyzická poloha** — kamera byla ukotvená k odhadu, takže to číslo měřilo posun *pohledu*, ne
+> robotu. S fyzikálně správným rigem robot na cestě zůstává.
+>
+> **Mez, kterou to neověřuje:** posun mimo osu je velký jako chyba mapy. Tady 0,56 m proti
+> pološířce 1 m projde; při chybě OSM v řádu metrů by mrkev robota z cesty vyvést mohla a lokální
+> vrstva by se musela postavit proti ní. **Nezměřeno.**
 
 ### Co zůstává neověřené
 

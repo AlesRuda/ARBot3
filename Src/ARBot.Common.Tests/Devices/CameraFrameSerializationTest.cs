@@ -306,7 +306,7 @@ namespace ARBot.Common.Tests.Devices
         [Test]
         public void CameraFrame_V5_MetrickeBodyHran_RoundTrips()
         {
-            // Od verze 5 nesou hranice cesty i metricky bod v ramci robotu (ColorEdgeProjector),
+            // Od verze 5 nesou hranice cesty i metricky bod v ramci robotu (ColorPixelTo3D),
             // aby konzument nepotreboval projekce a offline prepocet nezavisel na tom, jestli je
             // v ramci barevna projekce. Viz doc/map-correlation-localization.md.
             var frame = new CameraFrame
@@ -515,7 +515,7 @@ namespace ARBot.Common.Tests.Devices
         public void CameraFrame_Projekce_NeseBarevnouIntrinsikuIExtrinsiky()
         {
             // Od v5 nese popis projekce i BAREVNOU intrinsiku a extrinsiky color<->depth. Bez nich
-            // nejde prepocitat pixel barevneho obrazu na metricky bod (ColorEdgeProjector) - a driv
+            // nejde prepocitat pixel barevneho obrazu na metricky bod (ColorPixelTo3D) - a driv
             // z kamery vubec nevylezly: D435CameraProjection je drzel v privatnich polich a na ARM
             // je konstruktor zahazoval. Viz doc/map-correlation-localization.md.
             var info = MakeProjectionInfo();

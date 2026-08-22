@@ -317,7 +317,7 @@ namespace ARBot.Common.Coordinates
         // Barevna intrinsika a extrinsiky color<->depth. Doplneno 21. 8. 2026: kamera je zna, ale
         // do ARBot.Common nemely kudy vylezt (D435CameraProjection je drzel v privatnich polich jen
         // pro nativni ColorPixel23D, na ARM je konstruktor zahazoval). Prepocet hranic cesty do
-        // metru je potrebuje - viz Vision/ColorEdgeProjector.
+        // metru je potrebuje - viz Vision/ColorPixelTo3D.
         private Intrinsics colorIntrinsics;
         private Matrix4x4 colorToDepth = Matrix4x4.Identity;
         private Matrix4x4 depthToColor = Matrix4x4.Identity;
@@ -543,12 +543,12 @@ namespace ARBot.Common.Coordinates
             return l;
         }
 
-        // Prepocet pixel -> metry drzi Vision/ColorEdgeProjector (ma testy); tady se jen cachuje,
+        // Prepocet pixel -> metry drzi Vision/ColorPixelTo3D (ma testy); tady se jen cachuje,
         // protoze se stavi z nemennych parametru projekce.
-        private ARBot.Common.Vision.ColorEdgeProjector edgeProjector;
+        private ARBot.Common.Vision.ColorPixelTo3D edgeProjector;
 
-        private ARBot.Common.Vision.ColorEdgeProjector EdgeProjector()
-            => edgeProjector ??= new ARBot.Common.Vision.ColorEdgeProjector(
+        private ARBot.Common.Vision.ColorPixelTo3D EdgeProjector()
+            => edgeProjector ??= new ARBot.Common.Vision.ColorPixelTo3D(
                    colorIntrinsics ?? intrinsics, intrinsics, this, colorToDepth, depthToColor);
     }
 }

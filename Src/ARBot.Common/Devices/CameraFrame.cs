@@ -278,7 +278,7 @@ namespace ARBot.Common.Devices
 
                 case 5:
                     // Jako verze 4, ale hranice cesty nesou i metricke body v ramci robotu
-                    // (viz PathEdge.LeftPoint/RightPoint a ColorEdgeProjector).
+                    // (viz PathEdge.LeftPoint/RightPoint a ColorPixelTo3D).
                     ReadMeta(br);
                     Name = br.ReadString();
                     ImageRGB = ImageMsg.ReadImage<BGR32>(br);

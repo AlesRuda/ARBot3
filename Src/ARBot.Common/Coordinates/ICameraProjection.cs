@@ -51,7 +51,7 @@ namespace ARBot.Common.Coordinates
         /// u <see cref="IDepthCameraProjection.Info"/>.
         ///
         /// <para>Doplneno 21. 8. 2026: prepocet hranic cesty do metru
-        /// (<see cref="ARBot.Common.Vision.ColorEdgeProjector"/>) potrebuje <b>barevnou</b>
+        /// (<see cref="ARBot.Common.Vision.ColorPixelTo3D"/>) potrebuje <b>barevnou</b>
         /// intrinsiku, a ta se do <c>ARBot.Common</c> jinak nedostane. Dopocitat ji z hloubkove
         /// nejde - streamy maji jine FOV (u D435 69,4° vs 87°).</para>
         /// </summary>

@@ -177,7 +177,7 @@ namespace ARBot.HAL.Devices.Camera
             projection.SetOrientation(mount);
 
             // Barevna intrinsika do popisu projekce, aby ji mel prepocet hranic cesty do metru
-            // (ColorEdgeProjector) k dispozici i offline ze zaznamu. Extrinsiky zustavaji identita:
+            // (ColorPixelTo3D) k dispozici i offline ze zaznamu. Extrinsiky zustavaji identita:
             // virtualni kamera renderuje oba streamy z tehoz optickeho stredu, takze prepocet
             // barevny -> hloubkovy pixel je exaktni uz z intrinsik.
             projection.SetColorAlignment(

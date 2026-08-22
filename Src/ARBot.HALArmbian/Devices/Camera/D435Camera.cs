@@ -488,7 +488,7 @@ namespace ARBot.HAL.Devices.Camera
             // Barevna intrinsika a extrinsiky color<->depth do POPISU projekce. Na ARM je puvodni
             // konstruktor zahazoval uplne (prazdne telo), takze sem nedotekly vubec. Managed
             // prepocet hranic cesty do metru je potrebuje.
-            // Viz ARBot.Common/Vision/ColorEdgeProjector.cs.
+            // Viz ARBot.Common/Vision/ColorPixelTo3D.cs.
             proj.SetColorAlignment(Simplify(colorIntrin.Value),
                                    Extrinsic2Transform(color2Depth.Value),
                                    Extrinsic2Transform(depth2Color.Value));

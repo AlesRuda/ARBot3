@@ -43,7 +43,7 @@ namespace ARBot.Common.Common
 
         /// <summary>
         /// Levy kraj jako <b>metricky bod v ramci robotu</b> [m] (<c>A == 0</c> = neplatny).
-        /// Dopocitava <see cref="ARBot.Common.Vision.ColorEdgeProjector"/> na vlakne kamery.
+        /// Dopocitava <see cref="ARBot.Common.Vision.ColorPixelTo3D"/> na vlakne kamery.
         /// </summary>
         public Point4D LeftPoint;
 

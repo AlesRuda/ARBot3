@@ -486,7 +486,7 @@ namespace ARBot.HAL.Devices.Camera
             // driv nemely kudy vylezt - zustavaly v privatnich polich podtridy jen pro nativni
             // volani. Prepocet hranic cesty do metru je potrebuje: bez extrinsik se barevny pixel
             // priradi na spatny hloubkovy (~1,5 cm pri 3 m).
-            // Viz ARBot.Common/Vision/ColorEdgeProjector.cs.
+            // Viz ARBot.Common/Vision/ColorPixelTo3D.cs.
             proj.SetColorAlignment(Simplify(colorIntrin.Value),
                                    Extrinsic2Transform(color2Depth.Value),
                                    Extrinsic2Transform(depth2Color.Value));

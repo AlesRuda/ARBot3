@@ -148,6 +148,50 @@ namespace ARBot.Telemetry
                 + "nedostane nic — výpočet je pomalejší, než dovolí okno. Naměřeno 21. 8. 2026 "
                 + "v Debug buildu: 12 korekcí z 5 cyklů.", "F0"),
 
+            // --- hranova lokalizace: koridor z obrazu proti ose cesty z mapy (corridor=true) ---
+            Num<RoadCorridorMsg>("kor sirka [m]", m => m.Width,
+                "Šířka koridoru měřená z hranic cesty v obraze. Srovnává se se šířkou z mapy "
+                + "(sloupec „kor sirka mapa“); trvalý rozdíl znamená, že OSM `width` nesedí.", "F2"),
+            Num<RoadCorridorMsg>("kor pricne [m]", m => m.Lateral,
+                "Příčná poloha robotu vůči ose koridoru z kamer; kladné = robot je vlevo od osy."),
+            Num<RoadCorridorMsg>("kor smer [°]", m => Deg(m.DirectionRad),
+                "Směr cesty v rámci robotu podle kamer; 0 = cesta vede přímo vpřed."),
+            Num<RoadCorridorMsg>("kor sig pricne [m]", m => m.SigmaLateral,
+                "σ příčné polohy z rozptylu reziduí proložení. Nedělí se √n (sousední hraniční body "
+                + "si chybu detekce sdílejí), podlaha 3 cm odpovídá naměřené opakovatelnosti.", "F3"),
+            Num<RoadCorridorMsg>("kor inlieru L", m => m.InliersLeft,
+                "Kolik bodů RANSAC použil na levou hranici. Málo inlierů = přímka proložená šumem; "
+                + "to je ten gate, který nad záznamem zahodil polovinu snímků.", "F0"),
+            Num<RoadCorridorMsg>("kor inlieru P", m => m.InliersRight,
+                "Totéž pro pravou hranici. Každá kamera vidí jen jednu stranu, takže koridor "
+                + "vzniká z dvojice snímků.", "F0"),
+            Num<RoadCorridorMsg>("kor pricne mapa [m]", m => m.MapLateral,
+                "Odstup pózy od osy cesty podle mapy; kladné = vlevo. Protistrana k „kor pricne“."),
+            Num<RoadCorridorMsg>("kor sirka mapa [m]", m => m.MapWidth,
+                "Šířka, se kterou se srovnávalo — z filtru šířky, dokud nemá odhad, tak z mapy.", "F2"),
+            Num<RoadCorridorMsg>("kor rozdil pricne [m]", m => m.LateralDisagreement,
+                "KAMERA MINUS MAPA příčně — vlastní chyba lokalizace, kterou měření opravuje. "
+                + "Nad záznamem se takto našel vnucený rozdíl dvou map: 0,51 m ± 0,03."),
+            Num<RoadCorridorMsg>("kor rozdil smer [°]", m => Deg(m.HeadingDisagreementRad),
+                "Kamera minus mapa ve sklonu cesty — chyba kurzu."),
+            Num<RoadCorridorMsg>("kor rozdil sirka [m]", m => m.WidthDisagreement,
+                "Kamera minus mapa v šířce. Velký rozdíl = proložila se jiná dvojice hranic než "
+                + "ta cesta, a měření se nepustí.", "F2"),
+            Flag<RoadCorridorMsg>("kor pricna", m => m.EmittedLateral,
+                "Poslala se do fúze příčná korekce?"),
+            Flag<RoadCorridorMsg>("kor kurz", m => m.EmittedHeading,
+                "Poslala se korekce kurzu?"),
+            Enum<RoadCorridorMsg, ARBot.Common.Localization.CorridorReason>("kor duvod", m => m.CorridorReason,
+                "Proč koridor (ne)vznikl: Ok / málo bodů / jen jedna hranice / hranice nejsou "
+                + "rovnoběžné / nesmyslná šířka / málo inlierů."),
+            Num<RoadCorridorMsg>("kor zahozeno fuzi", m => m.DroppedByFusion,
+                "Kolik měření z hranové lokalizace už fúze zahodila, protože přišla STARŠÍ než okno "
+                + "historie (kumulativně). „kor pricna“ říká „poslali jsme“, ne „došlo to“ — když "
+                + "tohle roste, do fúze se nedostane nic. Stejná past jako u plošné korelace.", "F0"),
+            Enum<RoadCorridorMsg, ARBot.Common.Localization.CorridorFixReason>("kor fix", m => m.FixReason,
+                "Proč se z koridoru (ne)stalo měření: Ok / bez koridoru / chybí druhá kamera / "
+                + "fúze nezná pózu / mapa bez cesty / hrana daleko / nesouhlas příčně / nesouhlas šířky."),
+
             // --- verdikt fuze u jednotlivych merenii (jen s parametrem measdiag=) ---
             // Zdroj merenia nese INamedMessage.Name, takze radky rozlisi sloupec „Jmeno“; vlastni
             // textovy sloupec by tabulka (ciselna) neumela.

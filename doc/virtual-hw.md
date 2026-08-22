@@ -141,6 +141,7 @@ vyzvedává přímo z runtime. Viz „Dvě mapy" níž.
 | `roadwidth=<m>` | výchozí šířka cesty pro uzly bez `width` (default 3) |
 | `start=lat,lon[,kurz]` | známá počáteční póza → vloží se do EKF (**platí i pro reálný HW**); bez ní se v simulaci přichytí na nejbližší cestu |
 | `poseerror=vpřed,vlevo[,stupně]` | umělá chyba pózy vnucená do renderu kamer (metry v rámci robotu, kurz ve stupních) — viz níž |
+| `camerapose=fusion\|truth` | z které pózy kamery renderují: `fusion` (výchozí, dosavadní chování) = z **odhadu** fúze, `truth` = z **ground truth** (`SimulatedRobot`) — viz níž |
 
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
@@ -159,6 +160,24 @@ Absolutní cesta se nechá, jak je. Díky tomu jsou cesty v `launchSettings.json
 >
 > Hláška při nezapnutí proto říká, **co přesně** chybí (`ARBotRuntime.DescribeMissingMapReason`):
 > nenalezená `map=` vs. `visionmap=` bez `map=` vs. žádná mapa zadaná.
+
+## Z které pózy kamery renderují (`camerapose=`, 22. 8. 2026)
+
+Výchozí `fusion`: `PoseAt = engine.GetStateAt(t)` — kamera renderuje **z odhadu fúze**. Má to jeden
+zásadní důsledek: **chyba odhadu je pro kameru neviditelná**, protože posun odhadu posune i obraz.
+Proto se chyba pro testy lokalizace musela vnucovat do *pozorování* (`poseerror=`, `visionmap=`)
+a proto v tomhle režimu nelze změřit, jestli korekce **konvergují**.
+
+`camerapose=truth` renderuje ze **ground truth** (`SimulatedRobot`), tedy tak, jak to dělá reálná
+kamera — je přišroubovaná k robotu, ne k odhadu. Chyba odhadu se tím stane měřitelnou: šum GPS
+a drift odometrie vyrobí skutečnou chybu lokalizace a jde měřit, jestli ji vize odstraní.
+
+Naměřeno s hranovou lokalizací (`corridor=true`, jedna mapa): bez korekcí odhad ujede 0,31 m,
+s korekcemi drží chybu na **1 mm (sd 7 mm)**. Detail a druhý test (chyba mapy vs. lokální vrstva):
+[map-correlation-localization.md](map-correlation-localization.md#camerapose-a-dva-testy-které-díky-němu-jdou-22-8-2026).
+
+> **Výchozí zůstává `fusion`,** aby se nezměnil význam dřívějších experimentů (zejména měření
+> z 20. 8. o tom, co virtuální HW ukázat nemůže). Pro nové testy lokalizace je správný `truth`.
 
 ## Pohyb: `SimulatedRobot` a virtuální motory
 

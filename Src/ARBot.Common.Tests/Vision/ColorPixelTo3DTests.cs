@@ -22,7 +22,7 @@ namespace ARBot.Common.Tests.Vision;
 /// smeru (<c>Camera2DToCamera3D</c>) se vezme paprsek a bod je <c>(ray.x·d, ray.y·d, d)</c>,
 /// nakonec se aplikuje montazni transformace kamery.</para>
 /// </summary>
-public class ColorEdgeProjectorTests
+public class ColorPixelTo3DTests
 {
     private const int ColorW = 640, ColorH = 480;
     private const int DepthW = 480, DepthH = 270;
@@ -48,8 +48,8 @@ public class ColorEdgeProjectorTests
         return img;
     }
 
-    private static ColorEdgeProjector Projector(Matrix4x4 mount)
-        => new ColorEdgeProjector(Color(), Depth(), DepthProjection(mount));
+    private static ColorPixelTo3D Projector(Matrix4x4 mount)
+        => new ColorPixelTo3D(Color(), Depth(), DepthProjection(mount));
 
     [Test]
     public void StredObrazu_daBodPredKameroui()
@@ -165,8 +165,8 @@ public class ColorEdgeProjectorTests
         int cx = (int)Math.Round(color.PPx + 0.15 * color.Fx);
         int cy = (int)Math.Round(color.PPy + 0.05 * color.Fy);
 
-        var aligned = new ColorEdgeProjector(Color(), Depth(), DepthProjection(Matrix4x4.Identity));
-        var viaSearch = new ColorEdgeProjector(Color(), Depth(), DepthProjection(Matrix4x4.Identity),
+        var aligned = new ColorPixelTo3D(Color(), Depth(), DepthProjection(Matrix4x4.Identity));
+        var viaSearch = new ColorPixelTo3D(Color(), Depth(), DepthProjection(Matrix4x4.Identity),
                                                colorToDepth: Matrix4x4.CreateTranslation(0, 0, 0),
                                                depthToColor: Matrix4x4.CreateTranslation(0, 0, 0));
 
@@ -192,10 +192,10 @@ public class ColorEdgeProjectorTests
         int cy = (int)Math.Round(color.PPy);
 
         var baseline = Matrix4x4.CreateTranslation(-0.015f, 0, 0);
-        var withExtr = new ColorEdgeProjector(Color(), Depth(), DepthProjection(Matrix4x4.Identity),
+        var withExtr = new ColorPixelTo3D(Color(), Depth(), DepthProjection(Matrix4x4.Identity),
                                               colorToDepth: baseline,
                                               depthToColor: Matrix4x4.CreateTranslation(0.015f, 0, 0));
-        var naive = new ColorEdgeProjector(Color(), Depth(), DepthProjection(Matrix4x4.Identity));
+        var naive = new ColorPixelTo3D(Color(), Depth(), DepthProjection(Matrix4x4.Identity));
 
         var withE = withExtr.ToRobot(cx, cy, img);
         var withoutE = naive.ToRobot(cx, cy, img);

@@ -73,12 +73,12 @@ namespace ARBot.Common.Vision
         }
 
         // Prepocet hran do metru per kamera (geometrie je stala, tabulky uvnitr projekce velke).
-        private readonly Dictionary<IDepthCameraProjection, ColorEdgeProjector> edgeProjectors
-            = new Dictionary<IDepthCameraProjection, ColorEdgeProjector>();
+        private readonly Dictionary<IDepthCameraProjection, ColorPixelTo3D> edgeProjectors
+            = new Dictionary<IDepthCameraProjection, ColorPixelTo3D>();
 
         /// <summary>
         /// Doplni hranicim cesty metricke body v ramci robotu (<see cref="PathEdge.LeftPoint"/> /
-        /// <see cref="PathEdge.RightPoint"/>) pomoci <see cref="ColorEdgeProjector"/>.
+        /// <see cref="PathEdge.RightPoint"/>) pomoci <see cref="ColorPixelTo3D"/>.
         ///
         /// <para>Barevna intrinsika se bere z rozmeru <see cref="CameraFrame.ImageRGB"/> a FOV
         /// hloubkove intrinsiky <b>jen kdyz jinou nemame</b> — pro spravny prepocet je potreba
@@ -104,7 +104,7 @@ namespace ARBot.Common.Vision
                                 ?? resolveColorProjection?.Invoke(frame.Name ?? string.Empty)?.Info?.Intrinsics;
                 if (colorIntr == null) return;
 
-                edgeProjectors[proj] = projector = new ColorEdgeProjector(
+                edgeProjectors[proj] = projector = new ColorPixelTo3D(
                     colorIntr, depthIntr, proj,
                     colorToDepth: info?.ColorToDepth, depthToColor: info?.DepthToColor);
             }

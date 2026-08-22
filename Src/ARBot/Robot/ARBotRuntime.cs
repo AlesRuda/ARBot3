@@ -405,6 +405,42 @@ namespace ARBot.Robot
                 connections.Add(correlator.Output.Connect(stream));
             }
 
+            // Hranova lokalizace: koridor z hranic cesty v obraze (PathEdge metricke body) proti
+            // ose cesty z mapy -> pricna korekce a kurz. Parametr corridor= rozhoduje, jestli se
+            // stupen vubec zaklada; corridorsend= jestli posila merenia do fuze (A/B se stejnou
+            // zatezi). Viz doc/map-correlation-localization.md.
+            bool corridorOn = Program.GetParamBool("corridor", false);
+            if (!corridorOn)
+            {
+                Trace.WriteLine("corridor=false: hranova lokalizace se nezaklada. "
+                                + "Zapnout lze parametrem corridor=true.");
+            }
+            else if (RoadNetwork == null || fusionConfig.GeoReference == null)
+            {
+                Trace.WriteLine("corridor=true, ale neni mapa (parametr map=) -> hranova lokalizace "
+                                + "se nezaklada.");
+            }
+            else
+            {
+                bool send = Program.GetParamBool("corridorsend", true);
+                if (!send)
+                    Trace.WriteLine("corridorsend=false: koridor se pocita a hlasi zpravou, "
+                                    + "ale do fuze neposila nic.");
+
+                var corridorCfg = new ARBot.Common.Localization.CorridorLocalizerConfig
+                {
+                    SendCorrections = send,
+                };
+                var corridor = new ARBot.Common.Localization.CorridorLocalizer(
+                    engine, RoadNetwork, fusionConfig.GeoReference, corridorCfg);
+
+                CorridorLocalizer = corridor;
+                stages.Add(corridor);
+                // Snimky kamer forwarduje ridici smycka po pullu (stejny zdroj jako LocalNavigator).
+                connections.Add(loop.Output.Connect(corridor));
+                connections.Add(corridor.Output.Connect(stream));
+            }
+
             // Odvozene vystupy stupnu -> Stream.
             connections.Add(loop.Output.Connect(stream));
 
@@ -532,6 +568,13 @@ namespace ARBot.Robot
         /// Viz doc/map-correlation-localization.md.
         /// </summary>
         public ARBot.Common.Localization.MapCorrelator MapCorrelator { get; private set; }
+
+        /// <summary>
+        /// Hranova lokalizace: koridor z hranic cesty v obraze proti ose cesty z mapy
+        /// (parametr <c>corridor=true</c>). Bez mapy nevznikne.
+        /// Viz doc/map-correlation-localization.md.
+        /// </summary>
+        public ARBot.Common.Localization.CorridorLocalizer CorridorLocalizer { get; private set; }
 
         /// <summary>
         /// Zapne diagnostiku merenii ve fuzi podle parametru <c>measdiag=</c>, pokud je zadany.
@@ -785,7 +828,7 @@ namespace ARBot.Robot
                     // kterou se ukotvuje occupancy grid, takze korelace s mapou dostane znamou
                     // nenulovou odpoved. Bez nastaveni chyby vraci Apply tentyz stav (zadna rezie).
                     // Viz doc/virtual-hw.md a doc/map-correlation-localization.md.
-                    PoseAt = t => hw.VirtualPoseError.Apply(engine.GetStateAt(t)),
+                    PoseAt = BuildCameraPose(hw, engine),
                     StartX = start.X,
                     StartY = start.Y,
                     StartTheta = start.Theta,
@@ -795,6 +838,49 @@ namespace ARBot.Robot
             {
                 Trace.WriteLine($"virtualhw: zapnuti simulovaneho HW selhalo -> zustava realny HW. {ex}");
             }
+        }
+
+        /// <summary>
+        /// Z ktere pozy renderuji virtualni kamery — parametr <c>camerapose=</c>.
+        ///
+        /// <para><b>`fusion` (vychozi, dosavadni chovani):</b> kamera renderuje z <b>odhadu</b>
+        /// fuze. Ma to jeden zasadni dusledek: <b>chyba odhadu je pro kameru neviditelna</b> —
+        /// posun odhadu posune i obraz, takze korelace i koridor hlasi tentyz nesouhlas nezavisle
+        /// na tom, kde filtr je. Konvergenci korekci proto v tomhle rezimu <b>nelze zmerit</b>
+        /// (viz doc/map-correlation-localization.md, „Co virtualni HW ukazat NEMUZE") a chybu je
+        /// nutne vnucovat do pozorovani (<c>poseerror=</c>, <c>visionmap=</c>).</para>
+        ///
+        /// <para><b>`truth`:</b> kamera renderuje ze <b>ground truth</b>
+        /// (<see cref="ARBot.Common.Simulation.SimulatedRobot"/>), tedy tak, jak to dela realna
+        /// kamera — je prisroubovana k robotu, ne k odhadu. Chyba odhadu se tim stane
+        /// <b>meritelnou</b>: GPS sum a drift odometrie vyrobi skutecnou chybu lokalizace, kterou
+        /// ma koridor odstranit, a da se merit, jestli klesa.</para>
+        ///
+        /// <para>Vychozi zustava <c>fusion</c>, aby se nezmenil vyznam drivejsich experimentu;
+        /// <c>truth</c> je fyzikalne spravnejsi a je pro test konvergence.</para>
+        /// </summary>
+        private static Func<DateTime, ARBot.Common.Fusion.RobotState> BuildCameraPose(
+            ARBotHW hw, ARBot.Common.Fusion.AsyncFusionEngine engine)
+        {
+            string mode = Program.GetParam("camerapose", "fusion");
+            if (string.Equals(mode, "truth", StringComparison.OrdinalIgnoreCase))
+            {
+                Trace.WriteLine("camerapose=truth: virtualni kamery renderuji z ground truth "
+                                + "(SimulatedRobot), takze chyba odhadu je pro ne viditelna.");
+                return t =>
+                {
+                    var r = hw.SimulatedRobot;
+                    if (r == null) return null;
+                    r.Read(out double x, out double y, out double theta, out _, out _, out _, out _);
+                    return hw.VirtualPoseError.Apply(
+                        new ARBot.Common.Fusion.RobotState { X = x, Y = y, Theta = theta, TimeStamp = t });
+                };
+            }
+
+            if (!string.Equals(mode, "fusion", StringComparison.OrdinalIgnoreCase))
+                Trace.WriteLine($"camerapose={mode}: necekana hodnota (ocekavam fusion|truth) "
+                                + "-> pouzivam fusion.");
+            return t => hw.VirtualPoseError.Apply(engine.GetStateAt(t));
         }
 
         /// <summary>

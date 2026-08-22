@@ -40,7 +40,7 @@ namespace ARBot.Common.Vision
     /// <para>Instance se drzi <b>per kamera</b> (geometrie je stala) a je bezstavova vuci snimku,
     /// takze ji smi pouzivat vlakno kamery bez zamku.</para>
     /// </summary>
-    public sealed class ColorEdgeProjector
+    public sealed class ColorPixelTo3D
     {
         private readonly Intrinsics color;
         private readonly Intrinsics depth;
@@ -60,7 +60,7 @@ namespace ARBot.Common.Vision
         /// <param name="depthScale">Prevod hodnoty hloubky na metry (RealSense: 0,001 = mm).</param>
         /// <param name="minRangeM">Dolni mez dosahu (original: 0,6 m).</param>
         /// <param name="maxRangeM">Horni mez dosahu (original: 8 m).</param>
-        public ColorEdgeProjector(Intrinsics colorIntrinsics, Intrinsics depthIntrinsics,
+        public ColorPixelTo3D(Intrinsics colorIntrinsics, Intrinsics depthIntrinsics,
                                   IDepthCameraProjection depthProjection,
                                   Matrix4x4? colorToDepth = null, Matrix4x4? depthToColor = null,
                                   float depthScale = 0.001f, float minRangeM = 0.6f, float maxRangeM = 8f)
