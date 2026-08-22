@@ -169,6 +169,41 @@ namespace ARBot.Robot
         public VirtualPoseError VirtualPoseError { get; } = new VirtualPoseError();
 
         /// <summary>
+        /// Sum, biasy a prokluz kol simulovanych senzoru - <b>jedna sdilena instance</b> pro cely
+        /// virtualni HW (viz doc/virtual-hw.md). Zije po celou dobu behu aplikace, aby si na ni
+        /// nastroj mohl drzet odkaz i pres prepnuti rezimu HW (stejne jako
+        /// <see cref="VirtualPoseError"/>).
+        ///
+        /// <para>Sum a biasy ctou senzory pri kazdem vzorku, takze zmena plati hned. Prokluz kol
+        /// drzi <see cref="SimulatedRobot"/>, ktery o teto tride nevi (je v HAL, on v Common) -
+        /// po zmene je proto potreba zavolat <see cref="ApplyVirtualSensorOptions"/>.</para>
+        /// </summary>
+        public ARBot.HAL.Devices.VirtualSensorOptions VirtualSensors { get; }
+            = new ARBot.HAL.Devices.VirtualSensorOptions();
+
+        /// <summary>Nastaveni, se kterym bezi PRAVE ZALOZENY virtualni HW - obvykle
+        /// <see cref="VirtualSensors"/>, ale test si smi predat vlastni instanci.</summary>
+        private ARBot.HAL.Devices.VirtualSensorOptions activeSensorOptions;
+
+        /// <summary>
+        /// Prenese prokluz kol z nastaveni do beziciho <see cref="SimulatedRobot"/>.
+        /// Bez virtualniho HW nedela nic.
+        /// <para>Vola se pri zalozeni virtualniho HW a po kazde zmene z UI nebo prikazove radky.
+        /// Sum a biasy se prenaset nemusi - senzory ctou tutez instanci pri kazdem vzorku;
+        /// prokluz ano, protoze <see cref="SimulatedRobot"/> je v <c>Common</c> a o nastaveni
+        /// v <c>HAL</c> nevi.</para>
+        /// </summary>
+        public void ApplyVirtualSensorOptions()
+        {
+            var sim = SimulatedRobot;
+            var opt = activeSensorOptions;
+            if (sim == null || opt == null) return;
+
+            sim.LeftWheelSlip = opt.LeftWheelSlip;
+            sim.RightWheelSlip = opt.RightWheelSlip;
+        }
+
+        /// <summary>
         /// Uvolni motory, GPS a IMU (obdoba <see cref="CameraStop"/> pro zbytek senzoru) -
         /// pouziva se pri prepnuti na virtualni HW.
         /// </summary>
@@ -306,6 +341,11 @@ namespace ARBot.Robot
 
             SetNoHW();   // uvolni pripadny predchozi HW (kamery i UART senzory)
 
+            // Sdilena instance nastaveni senzoru: bez vyslovneho zadani se bere ta, kterou drzi
+            // ARBotHW - jen tak se dá sum a chyby menit za behu z UI (viz VirtualSensors).
+            var sensorOptions = options.Sensors ?? VirtualSensors;
+            activeSensorOptions = sensorOptions;
+
             var scene = new RoadScene(options.Network, options.Origin);
 
             sensors.Add(LeftCamera = new VirtualCamera(
@@ -321,12 +361,13 @@ namespace ARBot.Robot
                 Theta = options.StartTheta,
             };
             SimulatedRobot.SetAcceleration(options.Acceleration);
+            ApplyVirtualSensorOptions();   // prokluz kol ze sdilene instance (options.Sensors)
 
             sensors.Add((ISensor)(Motor = new VirtualMotors(SimulatedRobot)));
             Motor.SetAcceleration(options.Acceleration);
 
-            sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, options.Sensors));
-            sensors.Add(IMU = new VirtualImu(SimulatedRobot, options.Sensors));
+            sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, sensorOptions));
+            sensors.Add(IMU = new VirtualImu(SimulatedRobot, sensorOptions));
 
             Mode = HwMode.Virtual;
             Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery, motory, GPS a IMU ze simulace).");

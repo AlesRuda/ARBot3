@@ -57,6 +57,13 @@ namespace ARBot.Common.Localization
         /// <summary>Odchylka smeru obou hranic [rad] - kontrola, ze jde skutecne o koridor.</summary>
         public double ParallelErrorRad;
 
+        /// <summary>
+        /// Smery LEVE a PRAVE hranice zvlast [rad], normalizovane na +-90 stupnu. Diagnostika:
+        /// pri <see cref="CorridorReason.NotParallel"/> rekne, ktera strana je vedle - prumer
+        /// v <see cref="DirectionRad"/> se v tom pripade vubec nespocita.
+        /// </summary>
+        public double DirectionLeftRad, DirectionRightRad;
+
         /// <summary>Odhad sigma pricne polohy [m] z rozptylu reziduí a poctu inlieru.</summary>
         public double SigmaLateral;
 

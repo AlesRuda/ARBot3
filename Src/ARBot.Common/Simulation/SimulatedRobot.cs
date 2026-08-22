@@ -39,6 +39,10 @@ namespace ARBot.Common.Simulation
         private double x, y, theta;
         private double encoderLeft, encoderRight;
 
+        // Prokluz kol: nasobek mezi tim, co kolo NAMERI (enkoder), a tim, oc se robot SKUTECNE
+        // posune. 1.0 = ideal. Viz LeftWheelSlip.
+        private double slipLeft = 1.0, slipRight = 1.0;
+
         /// <param name="wheelBase">Rozchod kol [m].</param>
         /// <param name="startTime">Cas, ke kteremu plati pocatecni stav.</param>
         /// <param name="maxWheelSpeed">Nejvyssi mozna rychlost jednoho kola [m/s]; pri jejim
@@ -74,6 +78,42 @@ namespace ARBot.Common.Simulation
         {
             get { lock (gate) return theta; }
             set { lock (gate) theta = value; }
+        }
+
+        /// <summary>
+        /// Prokluz LEVEHO kola: nasobek mezi tim, co kolo <b>namerí</b> (enkoder, odometrie),
+        /// a tim, oc se robot <b>skutecne</b> posune. <c>1.0</c> = ideal (vychozi),
+        /// <c>0.98</c> = kolo se otoci o 2 % vic, nez ujede.
+        ///
+        /// <para><b>K cemu to je.</b> Bez prokluzu je odometrie <i>presna</i>, takze chyba odhadu
+        /// fuze je jen bily sum GPS/IMU - nulova stredni hodnota, ohranicena, nikam nedriftuje.
+        /// Realny pripad, ktery ma hranova lokalizace lecit (pomalu rostouci chyba polohy a kurzu),
+        /// tak v simulaci vubec nevznikne. Ruzny prokluz vlevo/vpravo vyrobi <b>drift kurzu</b>,
+        /// stejny na obou kolech <b>chybu merítka drahy</b>. Viz doc/virtual-hw.md.</para>
+        ///
+        /// <para><b>Co je nominalni a co skutecne.</b> <see cref="LeftWheelSpeed"/>,
+        /// <see cref="RightWheelSpeed"/> a enkodery hlasi <b>nominalni</b> hodnoty (to, co kolo
+        /// udela) - to je vstup odometrie. <see cref="Speed"/>, <see cref="AngularSpeed"/> a poloha
+        /// jsou <b>skutecne</b> (po prokluzu) - to meri GPS a gyro. Rozdil mezi nimi je prave ta
+        /// chyba, kterou ma fuze najit.</para>
+        /// </summary>
+        public double LeftWheelSlip
+        {
+            get { lock (gate) return slipLeft; }
+            set { lock (gate) slipLeft = value; }
+        }
+
+        /// <summary>Prokluz PRAVEHO kola - viz <see cref="LeftWheelSlip"/>.</summary>
+        public double RightWheelSlip
+        {
+            get { lock (gate) return slipRight; }
+            set { lock (gate) slipRight = value; }
+        }
+
+        /// <summary>Prokluji kola jinak nez idealne? (Zvyrazneni v UI - snadno se zapomene vypnout.)</summary>
+        public bool HasWheelSlip
+        {
+            get { lock (gate) return slipLeft != 1.0 || slipRight != 1.0; }
         }
 
         /// <summary>
@@ -151,6 +191,19 @@ namespace ARBot.Common.Simulation
             double v = 0.5 * (forwardBefore + speedForward);
             double omega = (difBefore + speedDif) / wheelBase;
 
+            // Prokluz: enkodery dal pocitaji NOMINALNI drahu (kolo se opravdu otocilo), ale robot
+            // se posune min / jinak. Bez prokluzu se vetev preskakuje zamerne - vzorec pres kola
+            // je v realnych cislech totozny, ale ne bit po bitu, a deterministicke testy se opiraji
+            // o dosavadni hodnoty. Viz LeftWheelSlip.
+            if (slipLeft != 1.0 || slipRight != 1.0)
+            {
+                double leftAvg = 0.5 * (leftBefore + left) * slipLeft;
+                double rightAvg = 0.5 * (rightBefore + right) * slipRight;
+
+                v = 0.5 * (leftAvg + rightAvg);
+                omega = (rightAvg - leftAvg) / wheelBase;
+            }
+
             // Poloha se posouva ve smeru uprostred kroku (presnejsi pri soucasnem otaceni).
             double thetaMid = theta + 0.5 * omega * dt;
 
@@ -163,17 +216,43 @@ namespace ARBot.Common.Simulation
             encoderRight += 0.5 * (rightBefore + right) * dt;
         }
 
-        /// <summary>Skutecna rychlost leveho kola [m/s].</summary>
+        /// <summary>Nominalni rychlost leveho kola [m/s] - to, co hlasi odometrie (bez prokluzu).</summary>
         public double LeftWheelSpeed { get { lock (gate) return speedForward - speedDif; } }
 
-        /// <summary>Skutecna rychlost praveho kola [m/s].</summary>
+        /// <summary>Nominalni rychlost praveho kola [m/s] - to, co hlasi odometrie (bez prokluzu).</summary>
         public double RightWheelSpeed { get { lock (gate) return speedForward + speedDif; } }
 
-        /// <summary>Skutecna dopredna rychlost [m/s].</summary>
-        public double Speed { get { lock (gate) return speedForward; } }
+        /// <summary>
+        /// Skutecna dopredna rychlost [m/s] - <b>po prokluzu</b>, tedy to, co meri GPS.
+        /// Bez prokluzu je to presne nominalni dopredna rychlost.
+        /// </summary>
+        public double Speed
+        {
+            get
+            {
+                lock (gate)
+                {
+                    if (slipLeft == 1.0 && slipRight == 1.0) return speedForward;
+                    return 0.5 * ((speedForward - speedDif) * slipLeft + (speedForward + speedDif) * slipRight);
+                }
+            }
+        }
 
-        /// <summary>Skutecna uhlova rychlost [rad/s], matematicky (+CCW).</summary>
-        public double AngularSpeed { get { lock (gate) return 2 * speedDif / wheelBase; } }
+        /// <summary>
+        /// Skutecna uhlova rychlost [rad/s], matematicky (+CCW) - <b>po prokluzu</b>, tedy to,
+        /// co meri gyro. Bez prokluzu je to presne <c>2*dif/rozchod</c>.
+        /// </summary>
+        public double AngularSpeed
+        {
+            get
+            {
+                lock (gate)
+                {
+                    if (slipLeft == 1.0 && slipRight == 1.0) return 2 * speedDif / wheelBase;
+                    return ((speedForward + speedDif) * slipRight - (speedForward - speedDif) * slipLeft) / wheelBase;
+                }
+            }
+        }
 
         /// <summary>Ujeta draha leveho kola [m] (integral, jako enkoder).</summary>
         public double LeftEncoder { get { lock (gate) return encoderLeft; } }
@@ -194,6 +273,37 @@ namespace ARBot.Common.Simulation
                 x = this.x; y = this.y; theta = this.theta;
                 leftSpeed = speedForward - speedDif; rightSpeed = speedForward + speedDif;
                 leftEncoder = encoderLeft; rightEncoder = encoderRight;
+            }
+        }
+
+        /// <summary>
+        /// Skutecny stav jako zprava do zaznamu (konvence: doménovy objekt si vyrabi svou
+        /// log-zpravu sam - viz CLAUDE.md). Cte se atomicky, aby zprava nebyla slozena
+        /// z nekolika ruznych okamziku.
+        /// </summary>
+        /// <param name="timeStamp">Cas, ke kteremu se stav hlasi (tik ridici smycky) - musi byt
+        /// tentyz jako u <c>RobotStateMsg</c>, jinak by rozdil obou zprav nebyl chyba odhadu.</param>
+        public Logs.GroundTruthMsg ToLogMessage(DateTime timeStamp)
+        {
+            lock (gate)
+            {
+                bool ideal = slipLeft == 1.0 && slipRight == 1.0;
+                double left = speedForward - speedDif, right = speedForward + speedDif;
+
+                return new Logs.GroundTruthMsg
+                {
+                    X = x,
+                    Y = y,
+                    Theta = theta,
+                    V = ideal ? speedForward : 0.5 * (left * slipLeft + right * slipRight),
+                    Omega = ideal ? 2 * speedDif / wheelBase
+                                  : (right * slipRight - left * slipLeft) / wheelBase,
+                    LeftEncoder = encoderLeft,
+                    RightEncoder = encoderRight,
+                    LeftWheelSlip = slipLeft,
+                    RightWheelSlip = slipRight,
+                    TimeStamp = timeStamp,
+                };
             }
         }
 

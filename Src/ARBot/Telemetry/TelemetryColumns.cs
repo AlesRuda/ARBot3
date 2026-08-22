@@ -46,6 +46,27 @@ namespace ARBot.Telemetry
                 "Skutečná úhlová rychlost otáčení z fúze; kladně = doleva (proti hodinovým "
                 + "ručičkám); s přepínačem Azimut je kladně doprava.", "F1"),
 
+            // --- skutecna poza (ground truth, jen virtualni HW) ---
+            // Emituje se na temze tiku a se stejnym casem jako RobotStateMsg, takze rozdil proti
+            // sloupcum X/Y/theta vyse je primo chyba lokalizace. Viz doc/virtual-hw.md.
+            Num<GroundTruthMsg>("truth X [m]", m => m.X,
+                "SKUTEČNÁ poloha simulovaného robota v ose X (world ENU, východ). Jen při "
+                + "virtuálním HW. Rozdíl proti „X“ je chyba lokalizace."),
+            Num<GroundTruthMsg>("truth Y [m]", m => m.Y,
+                "SKUTEČNÁ poloha simulovaného robota v ose Y (world ENU, sever). Jen při "
+                + "virtuálním HW. Rozdíl proti „Y“ je chyba lokalizace."),
+            Num<GroundTruthMsg>("truth theta [°]", m => Conversions.Rad2Deg(m.Theta),
+                "SKUTEČNÝ kurz simulovaného robota (matematická orientace, 0° = východ). Rozdíl "
+                + "proti „theta“ je chyba kurzu.", "F1"),
+            Num<GroundTruthMsg>("truth v [m/s]", m => m.V,
+                "SKUTEČNÁ dopředná rychlost simulovaného robota (po prokluzu kol). Rozdíl proti "
+                + "rychlosti z odometrie ukazuje, kolik kola proklouzla."),
+            Num<GroundTruthMsg>("prokluz L [-]", m => m.LeftWheelSlip,
+                "Nastavený prokluz levého kola v tomto běhu (1 = ideál). V záznamu kvůli tomu, "
+                + "aby šlo dohledat, s jakou vnucenou chybou experiment běžel.", "F4"),
+            Num<GroundTruthMsg>("prokluz P [-]", m => m.RightWheelSlip,
+                "Nastavený prokluz pravého kola v tomto běhu (1 = ideál).", "F4"),
+
             // --- ridici zasah ---
             Num<DriveCommandMsg>("cmd v [m/s]", m => m.Speed,
                 "Požadovaná dopředná rychlost poslaná do motorů. Rozdíl proti „v“ ukazuje, jak "
@@ -165,6 +186,16 @@ namespace ARBot.Telemetry
             Num<RoadCorridorMsg>("kor inlieru P", m => m.InliersRight,
                 "Totéž pro pravou hranici. Každá kamera vidí jen jednu stranu, takže koridor "
                 + "vzniká z dvojice snímků.", "F0"),
+            Num<RoadCorridorMsg>("kor nerovnobeznost [°]", m => Deg(m.ParallelErrorRad),
+                "O kolik se liší směr levé a pravé hranice. Nad 10° se cyklus zahodí jako "
+                + "„NotParallel“ — to je za jízdy nejčastější důvod, proč koridor nic nepošle "
+                + "(u stojícího robota nenastane vůbec). Ve starších záznamech je 0.", "F1"),
+            Num<RoadCorridorMsg>("kor hranice L [°]", m => Deg(m.DirectionLeftRad),
+                "Směr LEVÉ hranice v rámci robotu (0 = cesta vede rovně vpřed). Spolu s pravou "
+                + "řekne, která strana je vedle — průměr („kor smer“) se při zamítnutí nepočítá.", "F1"),
+            Num<RoadCorridorMsg>("kor hranice P [°]", m => Deg(m.DirectionRightRad),
+                "Totéž pro pravou hranici. Symetrické sbíhání obou (L kladně, P záporně) = hranice "
+                + "se ohýbají dovnitř s rostoucí vzdáleností; symetrické rozbíhání = konec cesty.", "F1"),
             Num<RoadCorridorMsg>("kor pricne mapa [m]", m => m.MapLateral,
                 "Odstup pózy od osy cesty podle mapy; kladné = vlevo. Protistrana k „kor pricne“."),
             Num<RoadCorridorMsg>("kor sirka mapa [m]", m => m.MapWidth,

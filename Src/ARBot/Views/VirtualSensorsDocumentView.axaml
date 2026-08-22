@@ -1,0 +1,124 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.VirtualSensorsDocumentView"
+             x:DataType="vm:VirtualSensorsDocument">
+    <Design.DataContext>
+        <vm:VirtualSensorsDocument/>
+    </Design.DataContext>
+
+    <ScrollViewer Background="#252526">
+        <StackPanel Spacing="10" Margin="12" MaxWidth="480" HorizontalAlignment="Left">
+
+            <!-- ================= Skutečná chyba lokalizace ================= -->
+
+            <TextBlock Text="Skutečná chyba lokalizace" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Rozdíl mezi skutečnou pózou simulovaného robota a odhadem fúze, obojí ze stejného tiku řídicí smyčky. Klesající RMS = korekce konvergují."/>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="skutečnost" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding TruthText}" Foreground="#8AD48A"
+                           FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="odhad" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding EstimateText}" Foreground="White"
+                           FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="chyba" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ErrorText}" Foreground="#FFD48A"
+                           FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="statistika" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding StatsText}" Foreground="White"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+            </Grid>
+
+            <Button Content="Vynulovat statistiku" Command="{Binding ResetStatsCommand}"
+                    HorizontalAlignment="Left"/>
+
+            <TextBlock Text="{Binding StatusText}" Foreground="#A0FFFFFF" FontSize="11"
+                       TextWrapping="Wrap"/>
+
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Systematické chyby ================= -->
+
+            <TextBlock Text="Systematické chyby" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Neprůměrují se pryč — chyba polohy a kurzu roste s časem. Právě to má hranová lokalizace léčit. Prokluz 1 = ideál; rozdíl vlevo/vpravo dělá drift kurzu, stejná hodnota na obou chybu měřítka dráhy."/>
+
+            <!-- Výstraha: nenulová chyba se snadno zapomene zapnutá -->
+            <Border Background="#5A3A00" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding IsSystematicErrorActive}">
+                <TextBlock Text="⚠ Systematická chyba je aktivní — odhad bude driftovat."
+                           Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
+            </Border>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="prokluz vlevo [-]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding LeftWheelSlip}"
+                               Increment="0.005" Minimum="0.5" Maximum="1.5"
+                               FormatString="F4" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="prokluz vpravo [-]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding RightWheelSlip}"
+                               Increment="0.005" Minimum="0.5" Maximum="1.5"
+                               FormatString="F4" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="bias kurzu [°]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding ImuHeadingBiasDeg}"
+                               Increment="0.5" FormatString="F2" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="bias gyra [°/s]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding ImuGyroBiasDegPerSec}"
+                               Increment="0.05" FormatString="F3"/>
+            </Grid>
+
+            <Button Content="Vynulovat chyby" Command="{Binding ResetSystematicErrorCommand}"
+                    HorizontalAlignment="Left"/>
+
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Šum ================= -->
+
+            <TextBlock Text="Šum senzorů" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Náhodný, s nulovou střední hodnotou — fúze si ho vyprůměruje a chyba zůstane ohraničená. Nula vypíná (režim pro deterministické testy). Frekvence senzorů se čtou jen při zapnutí virtuálního HW, proto tu nejsou."/>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="GPS poloha σ [m]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding GpsPositionNoiseM}"
+                               Increment="0.1" Minimum="0" FormatString="F2" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="GPS rychlost σ [m/s]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding GpsSpeedNoiseMps}"
+                               Increment="0.05" Minimum="0" FormatString="F3" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="IMU kurz σ [°]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding ImuHeadingNoiseDeg}"
+                               Increment="0.1" Minimum="0" FormatString="F2" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="IMU gyro σ [°/s]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding ImuGyroNoiseDegPerSec}"
+                               Increment="0.1" Minimum="0" FormatString="F2"/>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

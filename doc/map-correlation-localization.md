@@ -182,10 +182,10 @@ není to nastavení, je to struktura.
 - **Pozor na cirkularitu simulace:** `korel skore` vychází ≈ 0,996, jenže virtuální kamera
   renderuje scénu **z téže OSM mapy**, proti které se koreluje (viz [virtual-hw.md](virtual-hw.md)).
   Vysoké skóre tedy potvrzuje geometrii a znaménka, **ne** kvalitu semantiky `LRoad` v reálu.
-- **Bez cíle robot stojí.** Cíl jde zadat jen Ctrl+klikem ve world view, parametr příkazové řádky
-  pro něj není — bezobslužný běh proto proměří jen statickou scénu. Pro fázi 4 (σ proti
+- **Bez cíle robot stojí.** *(Vyřešeno 22. 8. 2026 parametrem `goal=lat,lon`.)* Cíl šel zadat jen
+  Ctrl+klikem ve world view, takže bezobslužný běh proměřil jen statickou scénu. Pro fázi 4 (σ proti
   realizovanému rozptylu, rozdělení NIS, duty cycle `korel os+` na zakřivených cestách) je pohyb
-  nutný, takže bude potřeba buď ruční jízda, nebo doplnit parametr typu `goal=lat,lon`.
+  nutný — teď už jde zadat z příkazové řádky.
 - Telemetrické sloupce (`korel …`) autor **zkusil zobrazit 19. 8. 2026 a narazil na výjimku**:
   `MapCorrelationReason` je `: byte` (aby se do zprávy vešel na jeden bajt), ale sdílený helper
   `Enum<T,TEnum>` v `TelemetryColumns` předával `Enum.IsDefined` vždy `int`, což vyžaduje shodu
@@ -1259,8 +1259,13 @@ Virtuální kamera renderovala **z odhadu fúze** (`PoseAt = engine.GetStateAt`)
 chyba odhadu byla pro kameru neviditelná (posun odhadu posune i obraz — viz
 [Co virtuální HW ukázat NEMŮŽE](#co-virtuální-hw-o-funkčnosti-korekcí-ukázat-nemůže)) a proč se
 chyba musela vnucovat do pozorování. Reálná kamera je ale přišroubovaná k **robotu**, ne k odhadu.
-Nový parametr `camerapose=fusion|truth` (default `fusion`, aby se nezměnil význam dřívějších
-experimentů) umí renderovat z **ground truth** (`SimulatedRobot`) — a tím se obojí stane měřitelné.
+Nový parametr `camerapose=fusion|truth` umí renderovat z **ground truth** (`SimulatedRobot`) —
+a tím se obojí stane měřitelné.
+
+> **Default se změnil na `truth`** (22. 8. 2026, tentýž den odpoledne). Původně zůstal `fusion`,
+> aby se nezměnil význam dřívějších experimentů — jenže tím byl výchozím režimem simulace ten,
+> ve kterém lokalizaci změřit nelze. Běhy popsané níž jely s explicitním `camerapose=truth`,
+> takže jejich čísla platí beze změny; starší dvoumapové běhy jely na `fusion`.
 
 **Test 1 — konverguje korekce na chybu pózy?** Jedna mapa, `camerapose=truth`, A/B `corridorsend=`.
 Chybu vyrobí sám šum GPS a drift, protože kamera už na odhadu nezávisí.
@@ -1302,6 +1307,127 @@ podélná složka observabilní), a **jednostranná viditelnost** (v tomto zázn
 vidět z dvojice kamer po celou dobu).
 
 ## Otevřené úkoly
+
+- **⚠️ Za jízdy koridor skoro nic nepošle — hranice se sbíhají** (naměřeno 2026-08-22,
+  **neopraveno**). Za 40 s jízdy dalo měření jen **35 ze 411** cyklů (8 %). Za tím číslem se ale
+  skrývají **tři různé věci** a jen jedna z nich je vada:
+
+  | důvod | podíl | co to je |
+  |---|---|---|
+  | `NoPair` | ~60 % | druhá kamera nemá snímek v okně 60 ms (`MaxCameraSkewMs`) |
+  | `NotParallel` ~68° | 99 cyklů | robot **stojí v cíli na konci cesty** — legitimní, cesta tam končí |
+  | `NotParallel` ~11° | 36 cyklů | **vada** — za plné rychlosti, těsně nad prahem 10° |
+
+  **`NoPair` je zdaleka největší ztráta** a není specifická pro jízdu — stejný podíl má i stojící
+  robot. Koridor potřebuje dvojici snímků, protože každá kamera vidí jen jednu stranu; víc než
+  polovina snímků partnera v okně 60 ms nenajde.
+
+  **Konec cesty** (robot zaparkovaný v cíli, 18 z 40 s běhu) dává hranice symetricky **rozbíhavé**
+  (levá −29°, pravá +27°) a málo inlierů (43/42). Zamítnutí je správně — koridor tam není. Do
+  statistiky „za jízdy" to ale nepatří, protože robot nejede.
+
+  **Skutečná vada** je v úseku 12–20 s, kdy robot jede 1,2 m/s po rovné cestě: nerovnoběžnost sedí
+  ustáleně na **10,8–11,4°**, tedy **těsně nad prahem**, a koridor se vypne úplně (v okně 12–18 s
+  ani jedno přijaté měření). Geometrie je symetrické **sbíhání**: levá +5,1°, pravá −6,2°, zatímco
+  mapa hlásí cestu rovně vpřed (0,0°). Inlierů je přitom **víc** než u přijatých cyklů (231/226
+  proti 167/126).
+
+  **Původní hypotéza (systematická chyba zpětné projekce rostoucí s dosahem) je VYVRÁCENÁ.**
+  Ověřil ji test `BoundaryStraightnessTests`: dokonale rovná hranice na rovné zemi, promítnutá
+  skutečnou montáží kamer a zpětně přepočtená přes `ColorPixelTo3D`, zůstane rovná — směr do 1°,
+  body do 5 cm od přímky, a `CorridorFinder` z toho udělá koridor s nerovnoběžností pod 2°
+  a šířkou 2,00 m. Směr navíc nezávisí na dosahu (blízká část 1–2,5 m vs. celá 1–6 m se liší
+  o méně než 1°). **Geometrie od pixelu k metrickému bodu tedy neohýbá nic.**
+
+  **Kde selhání skutečně je — podle polohy na trase** (X kladné = východ, křižovatka u X ≈ +1,5 m,
+  slepý konec u X ≈ −11,5 m):
+
+  | úsek | dvojic | přijato | nerovnoběžnost p50 |
+  |---|---|---|---|
+  | X 0..+2 m (u křižovatky) | 39 | **36** | 86° (zbytek) |
+  | X −2..−8 m (**rovný otevřený úsek**) | 29 | **0** | **11,3°** |
+  | X −12..−10 m (slepý konec) | 29 | 3 | 55° |
+
+  Není to tedy křižovatkou — u ní to naopak funguje. Selhává to **na rovném otevřeném úseku**,
+  a to stoprocentně.
+
+  **Co ukazují syrová data.** Zaznamenané hraniční body (`PathEdge.LeftPoint/RightPoint`
+  v `CameraFrame`) **neleží na přímce**: největší odchylka od proložené přímky má medián 0,45 m
+  u stojícího robota a **1,28 m** za jízdy (odlehlé až 5 m). Po pásmech vzdálenosti se hranice
+  vějířovitě rozbíhá — na rovném úseku je pravá hranice v pásmu 5–6 m na Y = −4,0 m, ačkoli cesta
+  je 2 m široká. Vzdálená část hranice je prostě špatně. Chyba dosahu by bod posunula *podél*
+  paprsku (poměr Y/X by zůstal), tady se mění směr — takže jde o **špatný sloupec z detektoru
+  hran**, ne o špatnou hloubku.
+
+  **Změřeno proti mapě: není to ohyb, je to ROSTOUCÍ ROZPTYL.** Každý detekovaný hraniční bod
+  se promítl **skutečnou pózou** (`GroundTruthMsg`, tedy bez chyby lokalizace) do světa a porovnal
+  s okrajem vozovky podle mapy. 12 631 bodů z rovného úseku:
+
+  | vzdálenost | n | medián | p10 | p90 | dál než 5 cm |
+  |---|---|---|---|---|---|
+  | 0–1 m | 5890 | +0,01 m | −0,04 | +0,08 | 20 % |
+  | 2–3 m | 1246 | +0,03 m | −0,19 | +0,24 | 65 % |
+  | 5–6 m | 530 | +0,01 m | −0,26 | +0,31 | 77 % |
+  | 9–10 m | 30 | −0,07 m | −0,63 | +0,40 | 83 % |
+
+  (kladné = bod leží ven z cesty, záporné = dovnitř)
+
+  **Medián sedí na okraji vozovky v každé vzdálenosti** — systematický posun tam není žádný.
+  Roste jen **rozptyl**: z ±5 cm na metru na −0,6/+0,4 m na deseti metrech. Hranice tedy není
+  ohnutá, je čím dál rozmazanější.
+
+  Tím padá i „symetrické sbíhání" jako geometrický jev — to, co se měřilo v `DirectionLeftRad`
+  /`DirectionRightRad`, je **volba RANSACu** mezi rozptýlenými vzdálenými body, ne skutečný ohyb.
+
+  **Proč to shodí koridor.** RANSAC má jeden práh inlierů (`InlierThresholdM = 0,10 m`) pro celou
+  hranici. Do 1 m je uvnitř prahu skoro všechno, nad 3 m je mimo něj většina bodů. Když se do
+  proložení dostane hodně vzdálených bodů, RANSAC se může chytit náhodného zarovnání dvou z nich —
+  a výsledný směr je pak libovolný. Odtud „delší hranice = víc zamítnutí" i to, že směr vychází
+  ustáleně 11°, ale bez fyzikálního významu.
+
+  **Náprava, která z toho plyne:** vážit hraniční body podle vzdálenosti, nebo dosah omezit —
+  blízké pásmo je přesné na 2 cm, vzdálené na půl metru, a dnes se s nimi zachází stejně. Zvednout
+  práh `MaxParallelErrorRad` je naopak zametení pod koberec: chyba by se promítla do měřené šířky
+  a osy.
+
+  **Co to vysvětlit nemůže:** párovací okno 60 ms. Posun robota vpřed směr přímky nemění vůbec
+  a otočení mezi snímky je ~1,4 °/s × 0,06 s ≈ 0,1°.
+
+  **Vizuální kontrola** je od 22. 8. 2026 v UI: overlay `"<kamera>/Hranice"` v pohledu Obrázky
+  a vrstva „Hranice cesty" ve World pohledu (promítnutá ground truth pózou). Viz
+  [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md).
+
+  **Diagnostika k tomu** (doplněno týž den): `RoadCorridorMsg` verze 2 nese `ParallelErrorRad`
+  a verze 3 i `DirectionLeftRad`/`DirectionRightRad` — bez nich se ze záznamu nedalo zjistit ani
+  jak moc, ani která strana. V telemetrii sloupce `kor nerovnobeznost`, `kor hranice L`,
+  `kor hranice P`.
+
+
+- **⚠️ Korekce kurzu je ve fúzi bezmocná — a soft gating to zhoršuje** (naměřeno 2026-08-22,
+  **neopraveno**). `CorridorLocalizer` kurz posílá (`SendHeading = true`, σ podlaha 0,5°) a měří ho
+  správně: při vnuceném biasu kompasu 5° hlásí nesouhlas 4,8°. Fúze se přesto nehne — chyba kurzu
+  zůstane **4,96°**, tedy korekce odstraní ~1 %.
+
+  Dvě příčiny, obě ověřené číselně (detail a tabulky:
+  [virtual-hw.md → Kurz](virtual-hw.md#kurz-proč-ho-koridor-neopraví-22-8-2026)):
+
+  1. **IMU kurz je nesrovnatelně silnější.** `VirtualImu` hlásí absolutní kurz při 100 Hz se
+     σ = 1° → informace 100 deg⁻²s⁻¹ proti nominálním 12 u koridoru (3 Hz, σ 0,5°). Bez vnucené
+     chyby proto vychází chyba kurzu 0,12° = 1°/√100 a **není co opravovat**.
+  2. **`GateMode.Soft` korekci u velkých chyb udusí.** Nafoukne `R` o `w = NIS / práh`; tady
+     NIS = (4,8/0,5)² ≈ 92 a práh χ²(1; 0,95) = 3,84, takže σ koridoru vyroste z 0,5° na **2,45°**
+     a informace spadne na 0,5. Predikce zbytkové chyby 5° × 100/100,5 = 4,97°, naměřeno 4,96°.
+     **Čím větší skutečná chyba, tím slabší korekce** — přesný opak toho, co je potřeba. Týká se to
+     i příčné složky, tam to jen není vidět, protože polohu nikdo jiný tak tvrdě nedrží.
+
+  Že je samotná cesta v pořádku, ukazuje běh s oslabeným kompasem (`imunoise=10,0.5`): tentýž bias
+  5° klesne z 4,76° na **0,58°** a dál klesá. Problém je **relativní váha**, ne výpočet.
+
+  **Co s tím.** Buď dát kompasu σ, které je poctivé vůči jeho *biasu* (ne jen krátkodobému šumu —
+  VN100 má magnetometrický bias korelovaný v čase, ne bílý šum), nebo přidat **bias kurzu do stavu
+  EKF** a nechat ho estimovat. Do té doby je korekce kurzu z koridoru dekorace. Souvisí s podmínkou
+  „honestní σ" z [decisions.md](decisions.md).
+
 
 - **⚠️ Falešná podélná jistota na cestě pod úhlem k osám gridu** (naměřeno 2026-08-19, **neopraveno**).
   Na šikmé **přímé** cestě vychází `SigmaLoose` konečná — 0,1848 m — přesto že přímá cesta žádnou
@@ -1587,12 +1713,13 @@ vidět z dvojice kamer po celou dobu).
   aplikovat téměř celé dva metry v jednom updatu. Slib „jednotky cm za cyklus" je dnes jen naděje
   o tom, jak vyjde `α`. Před zapnutím korekcí přidat limiter nezávislý na σ i na Kalmanově zesílení.
 
-- **Bezobslužný běh neumí zadat cíl** (zjištěno 19. 8. 2026 při ověřování za běhu, **neimplementováno**).
-  Cíl se zadává jen Ctrl+klikem ve world view (`WorldViewDocument.GoalRequested`), parametr
-  příkazové řádky pro něj není. Bezobslužné běhy (`selftest=true`, `telemetryshot=true`) tedy vždy
-  proměří jen **stojící robot** — což na kontrolu znamének stačí, ale všechna tři kritéria fáze 4
-  potřebují pohyb. Doplnit `goal=lat,lon` vedle existujícího `start=lat,lon[,kurz]` (stejná cesta:
-  `GlobalNavigator.SetGoal(LLA)`) je malá změna s velkým dopadem na měřitelnost.
+- ~~**Bezobslužný běh neumí zadat cíl**~~ (zjištěno 19. 8. 2026, **doplněno 22. 8. 2026** jako
+  `goal=lat,lon`). Cíl šel zadat jen Ctrl+klikem ve world view (`WorldViewDocument.GoalRequested`),
+  takže bezobslužné běhy (`selftest=true`, `telemetryshot=true`) vždy proměřily jen **stojící
+  robot**. Že to tak opravdu je, se ukázalo až 22. 8. při rozboru kurzu: všechny tehdejší A/B běhy
+  měly ujetou dráhu **0,00 m**, takže z nich šlo o chování za jízdy usuzovat jen omylem. Parametr
+  jde stejnou cestou jako klik (`GlobalNavigator.SetGoal(LLA)`); bez mapy padne přímo lokálnímu
+  plánovači. Fáze 4 tím přestává být blokovaná.
 
 - **Co proměřit nad záznamy před zapnutím** (fáze 4), v tomto pořadí:
   1. **σ proti realizované chybě** — reportovanou `korel sig-` proti skutečnému rozptylu `korel dx`/

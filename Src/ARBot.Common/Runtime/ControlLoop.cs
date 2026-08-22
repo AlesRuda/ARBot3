@@ -77,6 +77,18 @@ namespace ARBot.Common.Runtime
         /// </summary>
         public IMotorState LastMotorState => lastMotor;
 
+        /// <summary>
+        /// Volitelny zdroj SKUTECNE pozy (ground truth) - nenulovy jen pri virtualnim HW.
+        /// Kdyz je nastaveny, smycka emituje <see cref="Logs.GroundTruthMsg"/> na temze tiku a se
+        /// stejnym casem jako <see cref="RobotStateMsg"/>, takze rozdil obou zprav v jednom taktu
+        /// je primo chyba odhadu (viz doc/virtual-hw.md).
+        ///
+        /// <para>Zamerne <c>Func</c>, a ne odkaz na simulovaneho robota: ridici smycka nema duvod
+        /// vedet o simulaci, a virtualni HW se da za behu zapnout i vypnout (funkce smi vratit
+        /// <c>null</c> - pak se nic neemituje).</para>
+        /// </summary>
+        public Func<DateTime, Logs.GroundTruthMsg> GroundTruthAt { get; set; }
+
         /// <param name="engine">Fuzni engine (dotazovany na tiku).</param>
         /// <param name="motor">Motory (Run: realny driver, Simulate: <see cref="DummyMotors"/>).</param>
         /// <param name="clock">Hodiny (zdroj "ted" pro <see cref="Pump"/>).</param>
@@ -229,6 +241,20 @@ namespace ARBot.Common.Runtime
             motor.Drive(forvard, dif);
 
             EmitDerived(new RobotStateMsg(rs));
+
+            // Ground truth (jen virtualni HW) - se STEJNYM casem jako RobotStateMsg, aby rozdil
+            // obou zprav v jednom taktu byl primo chyba odhadu. Viz GroundTruthAt.
+            var truthSource = GroundTruthAt;
+            if (truthSource != null)
+            {
+                try
+                {
+                    var truth = truthSource(rs.TimeStamp);
+                    if (truth != null) EmitDerived(truth);
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            }
+
             EmitDerived(new DriveCommandMsg
             {
                 Speed = forvard,

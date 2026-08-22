@@ -13,6 +13,47 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-22 — Virtuální kamera visí na ground truth (default) a simulace umí systematické chyby
+**Co:** (a) `camerapose=` má **výchozí hodnotu `truth`** — virtuální kamery renderují ze
+`SimulatedRobot`, ne z odhadu fúze; (b) simulace dostala **prokluz kol** (`wheelslip=`) a **bias
+kurzu a gyra** (`imubias=`), obojí ve výchozím stavu vypnuté; (c) skutečná póza jde do záznamu
+jako `GroundTruthMsg` na témže tiku a se stejným razítkem jako `RobotStateMsg`.
+
+**Proč.** Autorova diagnóza: „spousta problémů plyne z mého rozhodnutí přišpendlit virtuální kameru
+a GPS na EKF". Zčásti seděla — GPS na odhadu nikdy nevisela (`VirtualGps` čte ground truth od
+začátku), ale kamera ano, a to strukturálně skrývá chybu odhadu. Léčba (`camerapose=truth`) už
+existovala od rána téhož dne, jenže jako nevýchozí volba: výchozím režimem simulace tak byl ten,
+ve kterém **lokalizaci změřit nelze**. Kamera přišroubovaná k odhadu je navíc fyzikální nesmysl.
+
+Samotné přepnutí ale nestačilo. Model pohybu je ideální (žádný prokluz, odometrie hlásí přesné
+rychlosti kol) a IMU hlásí **absolutní** kurz + bílý šum. Všechny chyby proto měly nulovou střední
+hodnotu a byly ohraničené: odhad kolem pravdy jen šumí a **nikam nedriftuje**. Případ, který má
+hranová lokalizace léčit — pomalu rostoucí chyba polohy a kurzu — v simulaci vůbec nevznikal, takže
+se musel vnucovat ručně (`poseerror=`). To je *známá odpověď*, ne úloha. Prokluz kol a bias gyra
+jsou systematické: neprůměrují se pryč a chyba roste s časem.
+
+Bez ground truth v záznamu by se konvergence dala posoudit zase jen proti vnucené známé hodnotě —
+odhad v záznamu byl, skutečnost nikde.
+
+**Důsledky.**
+- Záznamy pořízené do 22. 8. 2026 běžely na `fusion`; kdo reprodukuje starší běh, zadá
+  `camerapose=fusion` explicitně. Čísla obou testů z téhož dne platí beze změny (jely
+  s explicitním `truth`).
+- `SimulatedRobot` nově rozlišuje **nominální** veličiny (enkodéry, rychlosti kol → odometrie)
+  od **skutečných** (poloha, `Speed`, `AngularSpeed` → GPS, gyro). Bez prokluzu jsou totožné
+  a rychlá větev v `Step` drží dosavadní výsledky bit po bitu.
+- Nastavení žije v jedné sdílené instanci `ARBotHW.VirtualSensors` a mění se za běhu (panel
+  *Tools → Virtuální senzory*, který zároveň živě měří chybu lokalizace a její RMS).
+- **Ověřeno za běhu** (22. 8. 2026): A/B self-test dal chybu polohy p50 0,304 m bez korekcí vs.
+  0,027 m s nimi. **Ale robot přitom stál** — self-test nemá jak zadat cíl navigace
+  (`goal=lat,lon` neexistuje), takže **prokluz kol zůstává za běhu neověřený** a čísla popisují
+  usazení odhadu u stojícího robota. Panel „Virtuální senzory" za běhu neotevřen.
+
+**Odkazy:** [virtual-hw.md](virtual-hw.md#systematické-chyby-prokluz-kol-a-bias-imu-22-8-2026),
+`Src/ARBot.Common/Simulation/SimulatedRobot.cs`, `Src/ARBot.Common/Logs/GroundTruthMsg.cs`,
+`Src/ARBot.HAL/Devices/VirtualSensorOptions.cs`, `Src/ARBot/ViewModels/VirtualSensorsDocument.cs`.
+
+
 ### 2026-08-20 — Korelace: přímá korekce pózy, ne stav pro posun mapa↔GPS — NÁVRH, NEROZHODNUTO
 **Co:** korelace s mapou koriguje **přímo pózu** ve fúzi (tedy tak, jak to dnes dělá), ale až po
 splnění **tří podmínek** níž. Estimace posunu mapa↔GPS jako samostatného stavu EKF se **odkládá**

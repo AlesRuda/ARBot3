@@ -93,6 +93,9 @@ namespace ARBot.Common.Localization
                 m.ResidualRight = Corridor.ResidualRight;
                 m.InliersLeft = Corridor.InliersLeft;
                 m.InliersRight = Corridor.InliersRight;
+                m.ParallelErrorRad = Corridor.ParallelErrorRad;
+                m.DirectionLeftRad = Corridor.DirectionLeftRad;
+                m.DirectionRightRad = Corridor.DirectionRightRad;
                 m.CorridorReason = (byte)Corridor.Reason;
             }
             return m;

@@ -53,8 +53,14 @@ namespace ARBot.Robot
         /// <summary>Montazni transformace prave kamery (vychozi ze skutecneho profilu robota).</summary>
         public Matrix4x4 RightCameraTransform = Profile.RightCameraTransform;
 
-        /// <summary>Sum a frekvence simulovane GPS a IMU.</summary>
-        public VirtualSensorOptions Sensors = new VirtualSensorOptions();
+        /// <summary>
+        /// Sum, biasy a prokluz kol simulovane GPS, IMU a odometrie.
+        /// <para><b>null (vychozi) = sdilena instance</b> <c>ARBotHW.VirtualSensors</c>. Jen tak
+        /// jde sum a chyby menit za behu z UI - kdyby si tu kazdy beh zalozil vlastni objekt,
+        /// nastroj by prepisoval neco, co uz nikdo necte. Vlastni instanci ma smysl predat jen
+        /// v testech.</para>
+        /// </summary>
+        public VirtualSensorOptions Sensors;
 
         /// <summary>Rozchod kol simulovaneho robota [m].</summary>
         public double WheelBase = Profile.Rozchod;

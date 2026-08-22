@@ -86,7 +86,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `mapcorr=true`. Korekce samotné posílat umí (`SendCorrections`, dřív `Enabled`), okno EKF je 3 s.
   **Tři podmínky, než korekce pustit naostro** (honestní σ, rychlostní limit, strop na nesouhlas
   s GPS) — viz [doc/decisions.md](doc/decisions.md); do jejich splnění nemá smysl ladit současné
-  chování. Otevřené vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°.
+  chování. Otevřené vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°,
+  **korekce kurzu je ve fúzi bezmocná** (IMU kompas ji přehlasuje ~200:1 a soft gating ji
+  u velkých chyb udusí, naměřeno 22. 8. 2026).
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
@@ -95,7 +97,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   náhrada D435 — RGB + hloubka renderované z OsmNav mapy a pózy robota, šev `SetRealHW`/`SetVirtualHW`
   v `ARBotHW` (později i virtuální GPS/IMU). Hotové a otestované; **běh aplikace ověřen** (19. 8. 2026).
   Umí i **umělou chybu pózy** (`poseerror=`, nástroj nad virtuální kamerou) — vnutí do renderu známý
-  posun, takže korelace s mapou má proti čemu měřit. Od 21. 8. 2026 i **dvě mapy** (`visionmap=`):
+  posun, takže korelace s mapou má proti čemu měřit. Od 22. 8. 2026 renderují kamery **ve výchozím
+  stavu z ground truth** (`camerapose=truth`), takže chyba odhadu je měřitelná; simulace umí
+  **systematické chyby** (prokluz kol `wheelslip=`, bias IMU `imubias=`), skutečná póza jde do
+  záznamu jako `GroundTruthMsg` a mění se to i za běhu v panelu *Tools → Virtuální senzory*.
+  Cíl jízdy jde zadat i z příkazové řádky (`goal=lat,lon`), takže bezobslužné běhy umí měřit
+  i za jízdy — dřív vždy jen stály. Od 21. 8. 2026 i **dvě mapy** (`visionmap=`):
   kamery renderují z jiného `.osm` než podle kterého robot jede — vnucená chyba je v datech, ne
   v pozorovateli. Ve World pohledu je vidět jako vrstva „Mapa (vize)"; do streamu ani do záznamu nejde.
 - [doc/telemetry-view.md](doc/telemetry-view.md) — **telemetrický pohled** (tabulka údajů v čase):

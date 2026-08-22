@@ -56,6 +56,7 @@ namespace ARBot.Common.Communication
             c.Register(new IMUState());
             // Odvozene / debug zpravy
             c.Register(new RobotStateMsg());
+            c.Register(new GroundTruthMsg());
             c.Register(new MeasurementDiagMsg());
             c.Register(new DriveCommandMsg());
             c.Register(new OccupancyGridMsg());

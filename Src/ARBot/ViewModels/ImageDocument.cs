@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -194,6 +194,7 @@ namespace ARBot.ViewModels
             if (msg is CameraFrame f && f.Grid != null)
                 IngestGrid(f.Name ?? string.Empty, f.Grid, f.TimeStamp);
 
+
             foreach (var layer in MessageImageLayers.Extract(msg))
             {
                 bool isNew = !registry.ContainsKey(layer.Name);
@@ -218,6 +219,17 @@ namespace ARBot.ViewModels
                 if (layer.Name == LeftOverlayLayer) RenderSlot(Slot.LeftOverlay, layer);
                 if (layer.Name == RightOverlayLayer) RenderSlot(Slot.RightOverlay, layer);
             }
+
+            // Detekovane hranice cesty jako vlastni overlay vrstva "<kamera>/Hranice". Slouzi
+            // k VIZUALNI kontrole detektoru: statistika nad zaznamem rekla, ze vzdalena cast
+            // hranice je vedle, ale ne PROC - to je videt az na obraze. Viz
+            // doc/map-correlation-localization.md.
+            //
+            // AZ TADY, ne pred rozkladem na vrstvy: AssignBaseLayer nize by jinak na prvnim snimku
+            // nastavil podklad na "<kamera>/RGB" driv, nez ta vrstva vubec je v Layers - a combo
+            // si SelectedItem mimo ItemsSource srazi na null, cimz zhasne i podkladovy panel.
+            if (msg is CameraFrame fe && fe.PathEdges != null && fe.PathEdges.Count > 0)
+                IngestEdges(fe.Name ?? string.Empty, fe, fe.TimeStamp);
 
             EnsureDefaultOverlays();
         }
@@ -255,6 +267,110 @@ namespace ARBot.ViewModels
             if (name == RightLayer) SetSlotImage(Slot.Right, bmp, info);
             if (name == LeftOverlayLayer) SetSlotImage(Slot.LeftOverlay, bmp, info);
             if (name == RightOverlayLayer) SetSlotImage(Slot.RightOverlay, bmp, info);
+        }
+
+        private const string EdgesSuffix = "/Hranice";
+
+        /// <summary>
+        /// Posledni hranice per vrstva - kvuli dorenderovani pri prvnim vyberu vrstvy.
+        /// Seznam <see cref="PathEdge"/> je per snimek cerstvy (viz <c>CameraFramePool</c>),
+        /// takze drzet na nej referenci je bezpecne.
+        /// </summary>
+        private readonly Dictionary<string, (List<PathEdge> Edges, int Width, int Height, DateTime Ts)> lastEdges
+            = new Dictionary<string, (List<PathEdge>, int, int, DateTime)>();
+
+        /// <summary>
+        /// Vyrenderuje detekovane hranice cesty do overlay vrstvy nad BAREVNYM obrazem — sloupce
+        /// <see cref="PathEdge.Left"/>/<see cref="PathEdge.Right"/> jsou v souradnicich barevneho
+        /// snimku (tamtez je hleda detektor).
+        /// </summary>
+        private void IngestEdges(string cam, CameraFrame frame, DateTime ts)
+        {
+            var rgb = frame.ImageRGB;
+            if (rgb == null) return;
+
+            string name = cam + EdgesSuffix;
+            lastEdges[name] = (frame.PathEdges, rgb.Width, rgb.Height, ts);
+
+            if (!Layers.Contains(name))
+            {
+                Layers.Add(name);
+                AssignBaseLayer(cam + "/RGB");
+            }
+
+            // Rendruje se JEN kdyz je vrstva nekde vybrana - jinak by kazdy snimek alokoval
+            // bitmapu 640x480x4, tedy ~1 MB pri 30 Hz, jen proto, ze by ji nekdo MOHL chtit videt.
+            if (name != LeftLayer && name != RightLayer
+                && name != LeftOverlayLayer && name != RightOverlayLayer)
+                return;
+
+            var bmp = RenderEdgesOverlay(frame.PathEdges, rgb.Width, rgb.Height, out int marks);
+            if (bmp == null) return;
+
+            prerendered[name] = bmp;
+            string info = string.Format(CultureInfo.InvariantCulture, "{0}  {1:HH:mm:ss.fff}  {2} radku, {3} znacek",
+                name, ts, frame.PathEdges.Count, marks);
+
+            if (name == LeftLayer) SetSlotImage(Slot.Left, bmp, info);
+            if (name == RightLayer) SetSlotImage(Slot.Right, bmp, info);
+            if (name == LeftOverlayLayer) SetSlotImage(Slot.LeftOverlay, bmp, info);
+            if (name == RightOverlayLayer) SetSlotImage(Slot.RightOverlay, bmp, info);
+        }
+
+        /// <summary>
+        /// Hranice jako barevne znacky: <b>modra</b> = leva, <b>oranzova</b> = prava,
+        /// <b>fialova</b> = sloupec detekovany, ale metricky bod nevznikl (chybi hloubka) — prave
+        /// tyhle radky delaji v koridoru mezery, a v cislech je nepoznat.
+        /// </summary>
+        private static WriteableBitmap RenderEdgesOverlay(List<PathEdge> edges, int w, int h, out int marks)
+        {
+            marks = 0;
+            if (edges == null || w <= 0 || h <= 0) return null;
+
+            var buf = new byte[w * h * 4];   // Bgra8888, vynulovano = pruhledne
+
+            int drawn = 0;
+            void Mark(int x, int y, byte b, byte g, byte r)
+            {
+                if (x >= 0 && x < w && y >= 0 && y < h) drawn++;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int px = x + dx, py = y + dy;
+                        if (px < 0 || py < 0 || px >= w || py >= h) continue;
+                        int o = (py * w + px) * 4;
+                        buf[o] = b; buf[o + 1] = g; buf[o + 2] = r; buf[o + 3] = 235;
+                    }
+            }
+
+            foreach (var e in edges)
+            {
+                if (e.Y < 0 || e.Y >= h) continue;
+
+                if (e.Left.HasValue)
+                {
+                    bool metric = e.LeftPoint.A != 0;
+                    if (metric) Mark(e.Left.Value, e.Y, 0xF0, 0xAF, 0x4C);      // modra
+                    else Mark(e.Left.Value, e.Y, 0xE0, 0x40, 0xC0);            // fialova
+                }
+                if (e.Right.HasValue)
+                {
+                    bool metric = e.RightPoint.A != 0;
+                    if (metric) Mark(e.Right.Value, e.Y, 0x4D, 0xB7, 0xFF);    // oranzova
+                    else Mark(e.Right.Value, e.Y, 0xE0, 0x40, 0xC0);
+                }
+            }
+
+            marks = drawn;
+            DiagBitmapsCreated++;
+            var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
+                PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+            using (var fb = bmp.Lock())
+            {
+                for (int y = 0; y < h; y++)
+                    Marshal.Copy(buf, y * w * 4, fb.Address + y * fb.RowBytes, w * 4);
+            }
+            return bmp;
         }
 
         /// <summary>Rozumne vychozi prirazeni slotu pri objeveni nove vrstvy.</summary>
@@ -425,6 +541,17 @@ namespace ARBot.ViewModels
 
         private void RenderFromRegistry(Slot slot, string name)
         {
+            // Hranice se rendruji az kdyz je nekdo chce videt - pri PRVNIM vyberu tedy jeste
+            // v prerendered nic neni. Bez tohoto dorenderovani by panel zustal prazdny az do
+            // dalsiho snimku, a ve View (pauza) uz zadny dalsi nemusi prijit.
+            if (!string.IsNullOrEmpty(name) && !prerendered.ContainsKey(name)
+                && name.EndsWith(EdgesSuffix, StringComparison.Ordinal)
+                && lastEdges.TryGetValue(name, out var e))
+            {
+                var edgeBmp = RenderEdgesOverlay(e.Edges, e.Width, e.Height, out int n);
+                if (edgeBmp != null) prerendered[name] = edgeBmp;
+            }
+
             if (!string.IsNullOrEmpty(name) && prerendered.TryGetValue(name, out var bmp))
                 SetSlotImage(slot, bmp, name);
             else if (!string.IsNullOrEmpty(name) && registry.TryGetValue(name, out var layer))

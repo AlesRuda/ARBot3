@@ -67,6 +67,8 @@
                           ToolTip.Tip="Akumulovaná sjízdnost okolo robota (occupancy grid)"/>
                 <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"
                           ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy."/>
+                <CheckBox Content="Hranice cesty" IsChecked="{Binding ShowEdges}" Foreground="White"
+                          ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy. Vizuální kontrola detektoru proti mapě.&#10;Při virtuálním HW se promítá skutečnou pózou, jinak fúzovanou.&#10;Ladicí vrstva — výchozí vypnuto."/>
 
                 <Separator Margin="0,4"/>
 

@@ -126,6 +126,56 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   Vlastnosti navázané na `NumericUpDown` jsou **`decimal`** (`NumericUpDown.Value` je `decimal?` —
   `double` by selhal až za běhu); stejný vzor jako `WorldViewDocument.DefaultRoadWidthMeters`.
 
+- `VirtualSensorsDocument` — panel **Tools → Virtuální senzory** (není to dokument senzoru, nevzniká
+  dvojklikem v Sensors). Nastavení šumu a **systematických chyb** simulovaných senzorů (prokluz kol,
+  bias kurzu a gyra) nad sdílenou instancí `ARBotHW.VirtualSensors` + **živé měření skutečné chyby
+  lokalizace**: páruje `GroundTruthMsg` s `RobotStateMsg` podle shodného časového razítka a počítá
+  statistiku (n, průměr, RMS, max). Odběr ze `Stream`, backpressure „latest-wins".
+  Viz [doc/virtual-hw.md](../../../doc/virtual-hw.md#systematické-chyby-prokluz-kol-a-bias-imu-22-8-2026).
+  Prokluz kol se po změně musí přenést do `SimulatedRobot` (`ARBotHW.ApplyVirtualSensorOptions`) —
+  nastavení žije v `HAL`, simulovaný robot v `Common`, takže o sobě nevědí.
+
+## Vrstvy pro kontrolu detektoru hranic cesty (22. 8. 2026)
+
+Hranice cesty (`CameraFrame.PathEdges`) jdou zobrazit **ve dvou pohledech současně** — statistika
+nad záznamem řekla, že vzdálená část hranice je vedle, ale ne proč; to je vidět až na obraze.
+
+- **Obrázky** — overlay vrstva `"<kamera>/Hranice"` nad barevným snímkem (sloupce `Left`/`Right`
+  jsou v souřadnicích barevného obrazu, tam je hledá detektor — `CameraFrameProcessor` je tam
+  přepočítává měřítkem `ImageRGB/ImageProbability`). **Modrá** = levá hranice, **oranžová** = pravá,
+  **fialová** = sloupec detekovaný, ale metrický bod nevznikl (chybí hloubka). Vybírá se ručně
+  v comboboxu overlaye; automaticky se nenabízí, protože `FindOverlayFor` dává přednost
+  probability. V popisce je počet řádků a **počet skutečně vykreslených značek** — když je nula,
+  je hned vidět, že problém není ve vrstvě, ale v datech.
+
+  ![Hranice cesty nad barevným snímkem](../../../doc/media/road-edges-image-20260822.png)
+- **World** — vrstva „Hranice cesty" (výchozí **vypnuto**, je to ladicí vrstva). Body z rámce
+  robotu se promítnou pózou do mapy, takže jdou porovnat s vozovkou podle OSM. Přednost má
+  **ground truth** (`GroundTruthMsg`, virtuální HW) — jinak by se do obrázku přičetla i chyba
+  lokalizace a nebylo by poznat, jestli je vedle detektor, nebo odhad pózy.
+
+Čtyři věci, na které se dá narazit (na první tři jsem narazil):
+
+- **Pořadí v `Ingest` rozhoduje.** Hranice se musí zpracovat **až za** rozkladem na vrstvy
+  (`MessageImageLayers.Extract`). Když se `AssignBaseLayer("<kamera>/RGB")` zavolá dřív, než ta
+  vrstva vůbec je v `Layers`, combobox si `SelectedItem` mimo `ItemsSource` srazí na `null` —
+  a zhasne i podkladový panel. Vrstva se pak tvářila jako nefunkční.
+- **Líné rendrování potřebuje dorenderování při výběru.** Když se rendruje jen pro vybranou vrstvu,
+  je při **prvním** výběru `prerendered` prázdný a `RenderFromRegistry` by slot vyprázdnil; ve View
+  (pauza) už žádný další snímek nemusí přijít, takže by zůstal prázdný natrvalo. Proto se
+  z posledních hranic dorenderuje na místě.
+- **`MemoryLayer` má výchozí styl.** Bez `Style = null` kreslí pod každou featuru ještě své bílé
+  kolečko — u stovek bodů z toho je nečitelná kaše.
+- **Snímky jsou poolované.** `WorldViewDocument.Post` proto body kopíruje **hned**; držet referenci
+  na `CameraFrame` po návratu z `Post` je cesta k přepsaným datům. (`PathEdges` je naopak per snímek
+  čerstvý seznam — `CameraFramePool` ho jen přenáší referencí — takže na něj `ImageDocument` držet
+  referenci smí.)
+
+Póza se bere **poslední známá**, ne póza v čase snímku — za jízdy je tedy o jeden takt pozadu.
+Na vizuální kontrolu to stačí, na měření ne.
+
+![Hranice cesty ve World pohledu](../../../doc/media/road-edges-world-20260822.png)
+
 ## Dokumenty nad `Stream` (ne senzory)
 
 - `ImageDocument` — obrazové vrstvy (ImageMsg/CameraFrame), odběr `ARBotRuntime.Stream`. Umí i overlay

@@ -48,6 +48,7 @@
                 <MenuItem Header="World" Command="{Binding OpenWorldViewCommand}"/>
                 <MenuItem Header="Telemetrie" Command="{Binding OpenTelemetryCommand}"/>
                 <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
+                <MenuItem Header="Virtuální senzory" Command="{Binding OpenVirtualSensorsCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>

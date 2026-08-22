@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -255,6 +255,12 @@ namespace ARBot.Robot
             var loop = new ControlLoop(engine, motor, clock, scheduler,
                                        period: TimeSpan.FromMilliseconds(Profile.Ts),
                                        cameras: cameraPull);
+
+            // Ground truth do zaznamu (jen virtualni HW): bez nej se chyba lokalizace ze zaznamu
+            // spocitat neda - odhad tam je (RobotStateMsg), skutecnost nikde. Zdroj se cte za behu,
+            // takze prezije i prepnuti rezimu HW. Viz doc/virtual-hw.md.
+            loop.GroundTruthAt = t => ARBotHW.Current?.SimulatedRobot?.ToLogMessage(t);
+
             stages.Add(loop);
 
             var fusion = new FusionProcessor(engine, mapper);
@@ -356,6 +362,10 @@ namespace ARBot.Robot
                 connections.Add(navigator.Output.Connect(globalNav));
                 connections.Add(globalNav.Output.Connect(stream));
             }
+
+            // Cil z prikazove radky (goal=lat,lon) - az ZA zalozenim globalni navigace, aby se dal
+            // predat rovnou jí.
+            ApplyGoalParam(fusionConfig.GeoReference);
 
             // Korelace occupancy gridu s mapou: z posunu mezi semantikou (LRoad) a vozovkou podle
             // OSM se odhadne chyba polohy a kurzu. Vlastni vlakno nad snapshotem gridu, takze tik
@@ -812,6 +822,8 @@ namespace ARBot.Robot
                 }
             }
 
+            ApplySensorErrorParams(hw);
+
             try
             {
                 // Simulovany robot stoji TAM, kde si mysli fuze - obojí z tehoz zdroje.
@@ -841,6 +853,113 @@ namespace ARBot.Robot
         }
 
         /// <summary>
+        /// Chyby a sum simulovanych senzoru z prikazove radky - <c>wheelslip=vlevo,vpravo</c>
+        /// (prokluz kol, 1 = ideal), <c>imubias=kurzDeg,gyroDegZaSekundu</c>,
+        /// <c>imunoise=kurzDeg,gyroDegZaSekundu</c> a <c>gpsnoise=polohaM,rychlostMps</c>.
+        ///
+        /// <para><b>Proc to existuje.</b> Bily sum GPS a IMU ma nulovou stredni hodnotu, takze
+        /// chyba odhadu jen kolisa a nikam neroste. Prokluz kol a bias gyra jsou systematicke -
+        /// vyrobi <b>rostouci</b> chybu polohy a kurzu, tedy prave ten pripad, ktery ma hranova
+        /// lokalizace lecit. Bez nich se chyba musela vnucovat rucne (<c>poseerror=</c>), coz je
+        /// znama odpoved, ne skutecna uloha. Viz doc/virtual-hw.md.</para>
+        ///
+        /// <para>Nesmysl se ignoruje s hlaskou - vadny parametr nesmi shodit start aplikace
+        /// (stejna zasada jako u <c>map=</c>, <c>start=</c> a <c>poseerror=</c>).</para>
+        /// </summary>
+        private static void ApplySensorErrorParams(ARBotHW hw)
+        {
+            var sensors = hw.VirtualSensors;
+
+            string slip = Program.GetParam("wheelslip");
+            if (!string.IsNullOrWhiteSpace(slip))
+            {
+                if (TryParsePair(slip, out double left, out double right) && left > 0 && right > 0)
+                {
+                    sensors.LeftWheelSlip = left;
+                    sensors.RightWheelSlip = right;
+                    Trace.WriteLine($"wheelslip={slip}: prokluz kol vlevo {left:F4}, vpravo {right:F4} "
+                                    + "(1 = ideal; odometrie hlasi nominal, robot jede jinak).");
+                }
+                else
+                {
+                    Trace.WriteLine($"wheelslip={slip} se neda rozebrat (cekam dve kladna cisla "
+                                    + "'vlevo,vpravo') -> bez prokluzu.");
+                }
+            }
+
+            // Sum senzoru z prikazove radky. Duvod: sum urcuje, jak SILNE dane merenie ve fuzi je,
+            // takze bez nej nejde bezobsluzne zmerit, ktere merenie ktere prehlasuje. Konkretne
+            // sigma kurzu z IMU rozhoduje o tom, jestli ma korekce kurzu z koridoru vubec sanci -
+            // viz doc/virtual-hw.md, „Kurz: proc ho koridor neopravi".
+            string imuNoise = Program.GetParam("imunoise");
+            if (!string.IsNullOrWhiteSpace(imuNoise))
+            {
+                if (TryParsePair(imuNoise, out double headDeg, out double gyroDeg)
+                    && headDeg >= 0 && gyroDeg >= 0)
+                {
+                    sensors.ImuHeadingNoiseRad = Conversions.Deg2Rad(headDeg);
+                    sensors.ImuGyroNoiseRad = Conversions.Deg2Rad(gyroDeg);
+                    Trace.WriteLine($"imunoise={imuNoise}: sigma kurzu {headDeg:F2} deg, "
+                                    + $"sigma gyra {gyroDeg:F3} deg/s.");
+                }
+                else
+                {
+                    Trace.WriteLine($"imunoise={imuNoise} se neda rozebrat (cekam dve nezaporna cisla "
+                                    + "'kurzDeg,gyroDegZaS') -> vychozi sum.");
+                }
+            }
+
+            string gpsNoise = Program.GetParam("gpsnoise");
+            if (!string.IsNullOrWhiteSpace(gpsNoise))
+            {
+                if (TryParsePair(gpsNoise, out double posM, out double speedMps)
+                    && posM >= 0 && speedMps >= 0)
+                {
+                    sensors.GpsPositionNoiseM = posM;
+                    sensors.GpsSpeedNoiseMps = speedMps;
+                    Trace.WriteLine($"gpsnoise={gpsNoise}: sigma polohy {posM:F2} m, "
+                                    + $"sigma rychlosti {speedMps:F3} m/s.");
+                }
+                else
+                {
+                    Trace.WriteLine($"gpsnoise={gpsNoise} se neda rozebrat (cekam dve nezaporna cisla "
+                                    + "'polohaM,rychlostMps') -> vychozi sum.");
+                }
+            }
+
+            string bias = Program.GetParam("imubias");
+            if (!string.IsNullOrWhiteSpace(bias))
+            {
+                if (TryParsePair(bias, out double headingDeg, out double gyroDegPerSec))
+                {
+                    sensors.ImuHeadingBiasRad = Conversions.Deg2Rad(headingDeg);
+                    sensors.ImuGyroBiasRadPerSec = Conversions.Deg2Rad(gyroDegPerSec);
+                    Trace.WriteLine($"imubias={bias}: kurz {headingDeg:F3} deg, gyro "
+                                    + $"{gyroDegPerSec:F4} deg/s (systematicka chyba, neprumeruje se pryc).");
+                }
+                else
+                {
+                    Trace.WriteLine($"imubias={bias} se neda rozebrat (cekam 'kurzDeg,gyroDegZaS') -> bez biasu.");
+                }
+            }
+
+            hw.ApplyVirtualSensorOptions();
+        }
+
+        /// <summary>Rozebere dvojici cisel oddelenou carkou; vzdy invariantni kultura, aby tentyz
+        /// prikazovy radek delal totez na ceskem i anglickem stroji.</summary>
+        private static bool TryParsePair(string text, out double a, out double b)
+        {
+            a = 0; b = 0;
+            if (string.IsNullOrWhiteSpace(text)) return false;
+
+            var parts = text.Split(',');
+            return parts.Length >= 2
+                   && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out a)
+                   && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out b);
+        }
+
+        /// <summary>
         /// Z ktere pozy renderuji virtualni kamery — parametr <c>camerapose=</c>.
         ///
         /// <para><b>`fusion` (vychozi, dosavadni chovani):</b> kamera renderuje z <b>odhadu</b>
@@ -856,13 +975,16 @@ namespace ARBot.Robot
         /// <b>meritelnou</b>: GPS sum a drift odometrie vyrobi skutecnou chybu lokalizace, kterou
         /// ma koridor odstranit, a da se merit, jestli klesa.</para>
         ///
-        /// <para>Vychozi zustava <c>fusion</c>, aby se nezmenil vyznam drivejsich experimentu;
-        /// <c>truth</c> je fyzikalne spravnejsi a je pro test konvergence.</para>
+        /// <para><b>Vychozi je <c>truth</c></b> (od 22. 8. 2026). Puvodne to byl <c>fusion</c>, aby
+        /// se nezmenil vyznam drivejsich experimentu, jenze tim byl vychozi rezim simulace ten,
+        /// ve kterem lokalizaci <b>nelze zmerit</b> - kamera prisroubovana k odhadu je fyzikalni
+        /// nesmysl a chybu odhadu strukturalne skryva. Merit se ma ve vychozim stavu; kdo chce
+        /// stare chovani, zada <c>camerapose=fusion</c>.</para>
         /// </summary>
         private static Func<DateTime, ARBot.Common.Fusion.RobotState> BuildCameraPose(
             ARBotHW hw, ARBot.Common.Fusion.AsyncFusionEngine engine)
         {
-            string mode = Program.GetParam("camerapose", "fusion");
+            string mode = Program.GetParam("camerapose", "truth");
             if (string.Equals(mode, "truth", StringComparison.OrdinalIgnoreCase))
             {
                 Trace.WriteLine("camerapose=truth: virtualni kamery renderuji z ground truth "
@@ -881,6 +1003,64 @@ namespace ARBot.Robot
                 Trace.WriteLine($"camerapose={mode}: necekana hodnota (ocekavam fusion|truth) "
                                 + "-> pouzivam fusion.");
             return t => hw.VirtualPoseError.Apply(engine.GetStateAt(t));
+        }
+
+        /// <summary>
+        /// Cil jizdy z prikazove radky - <c>goal=lat,lon</c> (stupne, protejsek k
+        /// <c>start=lat,lon[,kurzDeg]</c>).
+        ///
+        /// <para><b>Proc to existuje.</b> Cil se dosud dal zadat <b>jen mysi</b> (Ctrl + klik ve
+        /// World pohledu), takze bezobsluzny self-test spustil Run, ale robot **stal** - regulator
+        /// zustal <c>null</c>, coz je bezpecny stav "nevim kam". Kazde mereni za jizdy proto
+        /// vyzadovalo cloveka u mysi a nedalo se reprodukovat. Nalezeno 22. 8. 2026 pri rozboru
+        /// kurzu: vsechny dosavadni A/B behy mely ujetou drahu 0,00 m, takze prokluz kol nemel jak
+        /// se projevit. Viz doc/virtual-hw.md.</para>
+        ///
+        /// <para><b>Kam cil jde.</b> Stejnou cestou jako klik v mape (viz
+        /// <c>MainWindowViewModel.OpenWorldView</c>): kdyz bezi globalni navigace, dostane ji ona
+        /// jako LLA a krmi lokalni vrstvu mrkvi po trase; bez mapy se preda primo lokalnimu
+        /// planovaci v lokalni ENU rovine. Nesmysl se ignoruje s hlaskou - vadny parametr nesmi
+        /// shodit start aplikace (stejna zasada jako u <c>map=</c> a <c>start=</c>).</para>
+        /// </summary>
+        private void ApplyGoalParam(GeoReference origin)
+        {
+            string goal = Program.GetParam("goal");
+            if (string.IsNullOrWhiteSpace(goal)) return;
+
+            if (!TryParsePair(goal, out double lat, out double lon))
+            {
+                Trace.WriteLine($"goal={goal} se neda rozebrat (cekam 'lat,lon' ve stupnich) -> bez cile.");
+                return;
+            }
+
+            var target = LLA.FromDegrees(lat, lon);
+
+            if (GlobalNavigator != null)
+            {
+                GlobalNavigator.SetGoal(target);
+                Trace.WriteLine($"goal={goal}: cil predan globalni navigaci (trasa po siti).");
+                return;
+            }
+
+            if (origin == null)
+            {
+                Trace.WriteLine($"goal={goal}: neni pocatek lokalni ENU roviny (chybi map= i GPS fix) "
+                                + "-> bez cile.");
+                return;
+            }
+
+            if (Navigator == null)
+            {
+                Trace.WriteLine($"goal={goal}: neni lokalni navigator -> bez cile.");
+                return;
+            }
+
+            // Bez mapy neni po cem trasovat - cil jde primo lokalnimu planovaci, stejne jako klik
+            // v mape pri nenactene siti. Za horizontem occupancy gridu to nikam nedojede.
+            var p = origin.ToLocal(target);
+            Navigator.SetGoal(p.X, p.Y);
+            Trace.WriteLine($"goal={goal}: bez mapy -> cil primo lokalnimu planovaci "
+                            + $"({p.X:F1}, {p.Y:F1}) m od pocatku roviny.");
         }
 
         /// <summary>

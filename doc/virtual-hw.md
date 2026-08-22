@@ -140,8 +140,13 @@ vyzvedává přímo z runtime. Viz „Dvě mapy" níž.
 | `visionmap=<cesta.osm>` | mapa, **ze které renderují kamery** — když je zadaná, jinak renderují z `map=`. Vnucená chyba mapy pro test korelátoru; do streamu ani do záznamu nejde. Viz níž |
 | `roadwidth=<m>` | výchozí šířka cesty pro uzly bez `width` (default 3) |
 | `start=lat,lon[,kurz]` | známá počáteční póza → vloží se do EKF (**platí i pro reálný HW**); bez ní se v simulaci přichytí na nejbližší cestu |
+| `goal=lat,lon` | **cíl jízdy** — protějšek `start=`. Bez něj robot stojí (`Regulator` zůstane `null`), takže bezobslužné běhy měřily jen statickou scénu. S mapou jde cíl globální navigaci (trasa po síti), bez ní přímo lokálnímu plánovači |
 | `poseerror=vpřed,vlevo[,stupně]` | umělá chyba pózy vnucená do renderu kamer (metry v rámci robotu, kurz ve stupních) — viz níž |
-| `camerapose=fusion\|truth` | z které pózy kamery renderují: `fusion` (výchozí, dosavadní chování) = z **odhadu** fúze, `truth` = z **ground truth** (`SimulatedRobot`) — viz níž |
+| `camerapose=truth\|fusion` | z které pózy kamery renderují: `truth` (**výchozí od 22. 8. 2026**) = z **ground truth** (`SimulatedRobot`), `fusion` = z **odhadu** fúze (staré chování) — viz níž |
+| `wheelslip=vlevo,vpravo` | prokluz kol (1 = ideál): násobek mezi tím, co kolo naměří, a tím, oč se robot skutečně posune — viz [Systematické chyby](#systematické-chyby-prokluz-kol-a-bias-imu-22-8-2026) |
+| `imubias=kurzDeg,gyroDegZaS` | systematická chyba IMU: konstantní posun kurzu a offset gyra — viz tamtéž |
+| `imunoise=kurzDeg,gyroDegZaS` | σ šumu IMU (default 1°, 0,5 °/s). **σ kurzu zároveň říká fúzi, jak moc kompasu věřit** — rozhoduje o tom, jestli má korekce kurzu z koridoru vůbec šanci, viz [Kurz](#kurz-proč-ho-koridor-neopraví-22-8-2026) |
+| `gpsnoise=polohaM,rychlostMps` | σ šumu GPS (default 1,5 m, 0,1 m/s) |
 
 Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne (a zaloguje důvod),
 nikdy neshodí start aplikace.
@@ -163,21 +168,24 @@ Absolutní cesta se nechá, jak je. Díky tomu jsou cesty v `launchSettings.json
 
 ## Z které pózy kamery renderují (`camerapose=`, 22. 8. 2026)
 
-Výchozí `fusion`: `PoseAt = engine.GetStateAt(t)` — kamera renderuje **z odhadu fúze**. Má to jeden
-zásadní důsledek: **chyba odhadu je pro kameru neviditelná**, protože posun odhadu posune i obraz.
-Proto se chyba pro testy lokalizace musela vnucovat do *pozorování* (`poseerror=`, `visionmap=`)
-a proto v tomhle režimu nelze změřit, jestli korekce **konvergují**.
+**Výchozí je `truth`:** kamera renderuje ze **ground truth** (`SimulatedRobot`), tedy tak, jak to
+dělá reálná kamera — je přišroubovaná k robotu, ne k odhadu. Chyba odhadu je proto v obraze
+viditelná, a tím **měřitelná**.
 
-`camerapose=truth` renderuje ze **ground truth** (`SimulatedRobot`), tedy tak, jak to dělá reálná
-kamera — je přišroubovaná k robotu, ne k odhadu. Chyba odhadu se tím stane měřitelnou: šum GPS
-a drift odometrie vyrobí skutečnou chybu lokalizace a jde měřit, jestli ji vize odstraní.
+`camerapose=fusion` (staré chování) renderuje z `engine.GetStateAt(t)`, tedy **z odhadu fúze**.
+Má to jeden zásadní důsledek: **chyba odhadu je pro kameru neviditelná**, protože posun odhadu
+posune i obraz. Chyba se pak musí vnucovat do *pozorování* (`poseerror=`, `visionmap=`) a nejde
+změřit, jestli korekce **konvergují**.
 
 Naměřeno s hranovou lokalizací (`corridor=true`, jedna mapa): bez korekcí odhad ujede 0,31 m,
 s korekcemi drží chybu na **1 mm (sd 7 mm)**. Detail a druhý test (chyba mapy vs. lokální vrstva):
 [map-correlation-localization.md](map-correlation-localization.md#camerapose-a-dva-testy-které-díky-němu-jdou-22-8-2026).
 
-> **Výchozí zůstává `fusion`,** aby se nezměnil význam dřívějších experimentů (zejména měření
-> z 20. 8. o tom, co virtuální HW ukázat nemůže). Pro nové testy lokalizace je správný `truth`.
+> **Proč se výchozí hodnota změnila** (22. 8. 2026). Původně zůstal výchozí `fusion`, aby se
+> nezměnil význam dřívějších experimentů. Jenže tím byl výchozím režimem simulace právě ten,
+> ve kterém lokalizaci **změřit nelze** — kamera přišroubovaná k odhadu je fyzikální nesmysl
+> a chybu odhadu strukturálně skrývá. Měřit se má ve výchozím stavu; kdo potřebuje reprodukovat
+> starší běh, zadá `camerapose=fusion`. Záznamy pořízené do 22. 8. 2026 běžely na `fusion`.
 
 ## Pohyb: `SimulatedRobot` a virtuální motory
 
@@ -265,10 +273,76 @@ přesné rychlosti kol, ale GPS a IMU šum mají, jinak by fúze neměla co opra
 | σ gyra | 0,5 °/s |
 | družic ve fixu | 12 |
 | HDOP | 0,9 |
+| bias kurzu IMU | 0 (vypnuto) |
+| bias gyra | 0 (vypnuto) |
+| prokluz kol | 1 (ideál) |
 
 Družice a HDOP jsou **jen kosmetika pro UI a logy** — simulace geometrii družic nemodeluje.
 Konstanty tam přesto jsou proto, že prázdná (nulová) hodnota v telemetrii vypadá jako rozbitý
 údaj; HDOP se do virtuálního fixu doplnil až 17. 8. 2026, starší záznamy ze simulace mají nulu.
+
+### Systematické chyby: prokluz kol a bias IMU (22. 8. 2026)
+
+Do 22. 8. 2026 uměla simulace **jen bílý šum**. To je málo: šum má nulovou střední hodnotu, takže
+si ho fúze vyprůměruje a chyba odhadu **kolísá kolem pravdy, ale nikam neroste**. Případ, který má
+hranová lokalizace léčit — pomalu rostoucí chyba polohy a kurzu — v simulaci vůbec nevznikl, a
+proto se musel vnucovat ručně (`poseerror=`). To je ale *známá odpověď*, ne skutečná úloha.
+
+Přibyly dva systematické zdroje chyby. Oba jsou ve výchozím stavu **vypnuté** (drift se zapíná
+vědomě, ne omylem) a oba jdou měnit **za běhu** — z příkazové řádky i z panelu *Tools → Virtuální
+senzory*.
+
+| Zdroj | Parametr | Co dělá |
+|---|---|---|
+| prokluz kol | `wheelslip=vlevo,vpravo` | násobek mezi tím, co kolo **naměří** (enkodér), a tím, oč se robot **skutečně** posune |
+| bias kurzu | `imubias=kurzDeg,·` | konstantní posun kurzu — špatně zkalibrovaný magnetometr |
+| bias gyra | `imubias=·,gyroDegZaS` | konstantní offset úhlové rychlosti; fúze ho **integruje** → rostoucí chyba kurzu |
+
+**Prokluz: co je nominální a co skutečné.** `SimulatedRobot` od té doby rozlišuje dvojí pohled na
+tentýž pohyb:
+
+- **nominální** (`LeftWheelSpeed`, `RightWheelSpeed`, enkodéry) = to, co kolo udělalo. Tohle je
+  vstup odometrie — ta o prokluzu neví;
+- **skutečný** (`Speed`, `AngularSpeed`, poloha, kurz) = po prokluzu. Tohle měří GPS a gyro.
+
+Rozdíl mezi nimi **je** ta chyba, kterou má fúze najít. Stejný prokluz na obou kolech dělá chybu
+měřítka dráhy (robot ujede míň, než kola naměřila, ale jede rovně); různý vlevo/vpravo dělá
+**drift kurzu**, i když odometrie tvrdí, že se jede rovně. Druhý případ je ten zajímavý.
+
+> Prokluz drží `SimulatedRobot` (v `Common`), zatímco nastavení žije v `VirtualSensorOptions`
+> (v `HAL`) — směr závislosti nedovolí, aby o sobě věděly. Přenáší je proto
+> `ARBotHW.ApplyVirtualSensorOptions()`, které se volá při zapnutí virtuálního HW a po každé změně
+> z UI nebo příkazové řádky. Šum a biasy se přenášet nemusí: senzory čtou tutéž instanci nastavení
+> při každém vzorku.
+
+### Ground truth v záznamu (`GroundTruthMsg`, 22. 8. 2026)
+
+Chyba lokalizace = skutečnost minus odhad. Odhad v záznamu byl (`RobotStateMsg`), **skutečnost
+nikde** — takže se konvergence dala posoudit jen tak, že se chyba předem vnutila známou hodnotou
+a hledalo se, jestli ji korelátor ohlásí. Jakmile kamery renderují z ground truth a chybu vyrábí
+šum a prokluz, žádná „známá odpověď" neexistuje.
+
+`ControlLoop` proto emituje `GroundTruthMsg` — skutečnou pózu, rychlosti, kumulativní enkodéry
+a nastavený prokluz. Klíčové je, že jde ven **na témže tiku a se stejným časovým razítkem** jako
+`RobotStateMsg`: rozdíl obou zpráv v jednom taktu je tedy přímo chyba odhadu a nemusí se nic
+interpolovat.
+
+- Zdrojem je `ControlLoop.GroundTruthAt` — záměrně `Func`, ne odkaz na simulovaného robota: řídicí
+  smyčka nemá důvod vědět o simulaci a virtuální HW se dá za běhu zapnout i vypnout. Při reálném
+  HW je funkce nastavená, ale vrací `null`, takže se nic neemituje.
+- Zpráva je **odvozená** (při replay se regeneruje, není replay-vstup). Ve starších záznamech
+  chybí; analýza si s tím musí poradit.
+- V telemetrii jsou sloupce `truth X/Y/theta/v` a `prokluz L/P` — poslední dva proto, aby ze
+  záznamu šlo dohledat, s jakou vnucenou chybou experiment běžel.
+
+### Panel „Virtuální senzory" (Tools → Virtuální senzory)
+
+Nastavení šumu a systematických chyb + **živé měření skutečné chyby lokalizace**: skutečnost,
+odhad, jejich rozdíl a statistika (n, průměr, RMS, maximum) od posledního vynulování. Klesající
+RMS = korekce konvergují; RMS, které se drží, znamená, že jen šumí.
+
+Frekvence senzorů (`GpsRateHz`, `ImuRateHz`) se čtou **jen při založení senzoru**, takže v panelu
+nejsou — jejich změna by nic neudělala. Šum, biasy a prokluz se čtou při každém vzorku.
 
 ### Rychlost kol měří driver (oprava, `MotorStateBase` verze 2)
 
@@ -303,14 +377,17 @@ posune stav na svůj čas. Hodiny jsou `TimeBase.Now`, tedy tytéž, které raz�
 Za běhu to bitově reprodukovatelné není (`dt` z reálných hodin); v testech se `Advance(t)` volá
 s explicitními časy, takže tam determinismus je.
 
-### Póza kamery zůstává z fúze
+### Póza kamery (historie rozhodnutí)
 
-Kamera bere pózu dál z `engine.GetStateAt(t)`, ne z ground truth — **vědomé rozhodnutí**.
-Důsledek: obraz vždy „sedí" s odhadem, takže **chyba lokalizace není v obraze vidět**. Kdyby
-bylo potřeba ji zviditelnit, stačí `PoseAt` namířit na `SimulatedRobot`; nic dalšího se nemění.
+Původně brala kamera pózu z `engine.GetStateAt(t)`, ne z ground truth — vědomé rozhodnutí
+s nepříjemným důsledkem: obraz vždy „seděl" s odhadem, takže **chyba lokalizace nebyla v obraze
+vidět**. Od 22. 8. 2026 je výchozí `camerapose=truth` a `PoseAt` míří na `SimulatedRobot`
+(viz [výše](#z-které-pózy-kamery-renderují-camerapose-22-8-2026)); staré chování zůstává
+dostupné pod `camerapose=fusion`.
 
-Praktický důsledek: `GetStateAt` vrací `null`, dokud fúze nemá inicializovanou polohu, takže
-kamera začne dodávat snímky **až po prvním virtuálním GPS fixu** (do té doby snímky přeskakuje).
+Praktický důsledek režimu `fusion`: `GetStateAt` vrací `null`, dokud fúze nemá inicializovanou
+polohu, takže kamera začne dodávat snímky **až po prvním virtuálním GPS fixu** (do té doby snímky
+přeskakuje). V režimu `truth` toto omezení odpadá — ground truth existuje od začátku.
 
 ### Umělá chyba pózy (`poseerror`)
 
@@ -543,12 +620,33 @@ K pohybu a senzorům:
 - **`SetVirtualHW`** — po zavolání jsou `hw.Motor`, `hw.GPS` i `hw.IMU` virtuální a `Sensors`
   je obsahuje.
 
+K systematickým chybám a ground truth (22. 8. 2026):
+
+- **Prokluz kol** — výchozí stav je ideální; symetrický prokluz zkrátí dráhu a **nestočí** kurz,
+  asymetrický kurz stočí, **zatímco oba enkodéry hlásí tutéž dráhu** (odometrie o stočení neví);
+  nominální a skutečné rychlosti se rozejdou.
+- **`ToLogMessage`** — zpráva nese skutečnost (ne nominál) a nastavený prokluz.
+- **`GroundTruthMsg` round-trip** — přes `MessageWriter`/`MessageReader` a katalog; zpráva musí
+  být v `CommonDefaults`, jinak by se při přehrávání tiše přeskočila jako neznámý typ.
+- **`ControlLoop`** — se zdrojem skutečnosti emituje ke každému `RobotStateMsg` právě jednu
+  `GroundTruthMsg` **se stejným časem** (bez shody času by rozdíl nebyl chyba odhadu, ale chyba
+  plus posun v čase); bez zdroje neemituje nic navíc.
+- **Bias IMU** — bias kurzu posune hlášený kurz, bias gyra hlásí otáčení i u **stojícího** robota.
+
 ## Stav ověření
 
 | Co | Jak ověřeno |
 |---|---|
 | `RoadScene`, `SyntheticFrameRenderer` | `ARBot.Common.Tests` na `x64` (13 testů vč. round-tripu a klasifikace) |
 | `SimulatedRobot` | `ARBot.Common.Tests` (3 testy: přímá jízda, otáčení, rampa) |
+| Prokluz kol, `ToLogMessage` | `ARBot.Common.Tests` (5 testů, 22. 8. 2026) |
+| `GroundTruthMsg` (serializace, katalog) | `ARBot.Common.Tests` (2 testy) |
+| `ControlLoop` emituje ground truth párovaně | `ARBot.Common.Tests` (2 testy) |
+| Bias kurzu a gyra, výchozí hodnoty | `ARBot.HAL.Tests` (3 testy) |
+| `camerapose=truth` jako výchozí, `GroundTruthMsg` v záznamu, bias IMU | **ověřeno** (22. 8. 2026, 6 self-testů po 30 s se záznamem) — viz A/B níž |
+| Prokluz kol za běhu | **ověřeno** (22. 8. 2026, jízda 40 s s `goal=`): enkodéry 17,89 m proti skutečným 17,71 m |
+| `goal=lat,lon` | **ověřeno** (22. 8. 2026): bez něj ujeto 0,00 m, s ním 16,3 m po síti k zadanému uzlu |
+| Panel „Virtuální senzory" | **jen překlad** — okno za běhu neotevřeno (self-test ho neotevírá) |
 | `VirtualCamera` | `ARBot.HAL.Tests` (3 testy, bez HW) |
 | `VirtualMotors` | `ARBot.HAL.Tests` (2 testy vč. round-tripu přes mapper) |
 | `VirtualGps`, `VirtualImu` | `ARBot.HAL.Tests` (3 testy, round-trip přes mapper) |
@@ -558,16 +656,124 @@ K pohybu a senzorům:
 | Dvě mapy (`visionmap=`) — render z jiné mapy | **ověřeno za běhu** (21. 8. 2026): A/B self-test se stejným `map=`, jednou bez `visionmap=` a jednou s ním → robot-centrický grid se prokazatelně liší, zopakované A je identické. Do streamu nejde (v kódu se `Publish` volá jen pro `MapMessage`) |
 | Vrstva „Mapa (vize)" ve World pohledu | **ověřeno za běhu** (21. 8. 2026, snímek výš) — vrstva se naplní z runtime i když pohled vznikl před Startem |
 
+### A/B se stojícím robotem (22. 8. 2026)
+
+> **Pozor, co ta čísla jsou.** V těchto bězích **robot nikam nejel** — ujetá dráha podle ground
+> truth i podle enkodérů je **0,00 m**. Vznikly totiž ještě předtím, než přibyl parametr
+> `goal=lat,lon`: self-test spustil Run, ale cíl navigace nikdo nezadal, takže `Regulator` zůstal
+> `null` a robot stál (bezpečný stav). Měří se tedy **usazení odhadu u stojícího robota**.
+>
+> Praktický důsledek: **prokluz kol se v nich neprojeví vůbec** (stojící kolo nemá jak
+> proklouznout). Chyba polohy 0,30 m je čistě šum GPS — proto vychází ve všech těchto bězích na
+> 3 desetinná místa **stejně**, ať se nastaví cokoli. Právě ta shoda to prozradila.
+> Měření za jízdy je [níž](#ab-za-jízdy-22-8-2026).
+
+Dva self-testy po 30 s, jediný rozdíl je `corridorsend=`. Chyba se počítá **ze záznamu** jako
+`GroundTruthMsg − RobotStateMsg` v témže taktu — přesně to, co do 22. 8. 2026 nešlo.
+
+| | chyba polohy p50 (po třetinách) | p50 celkem |
+|---|---|---|
+| `corridorsend=false` | 0,241 → 0,324 → 0,256 m | **0,304 m** |
+| `corridorsend=true` | 0,080 → 0,019 → 0,021 m | **0,027 m** |
+
+Příčná korekce z koridoru tedy funguje: usadí odhad na osu cesty a drží ho tam na jednotky
+centimetrů, zatímco bez ní odhad zůstane tam, kam ho posadil šum GPS. Za jízdy to ověřené není.
+
+### A/B za jízdy (22. 8. 2026)
+
+S `goal=lat,lon` už jde měřit i za pohybu. Dvě jízdy po 40 s po `SyntetickyKoridor.osm`
+(ujeto 16–18 m), prokluz pravého kola 2 %, jediný rozdíl je `corridorsend=`.
+
+**Prokluz se konečně projevil.** Enkodéry hlásí **17,89 m**, skutečně ujeto **17,71 m** — odometrie
+o ~1 % přestřeluje, přesně jak má při prokluzu 0,98 na jednom z kol. Tím je prokluz ověřený i za
+běhu, ne jen jednotkovými testy.
+
+| | chyba polohy p50 (po třetinách) | p50 celkem | ujeto |
+|---|---|---|---|
+| `corridorsend=false` | 0,302 → 0,323 → 0,060 m | **0,268 m** | 17,71 m |
+| `corridorsend=true` | 0,448 → 0,126 → 0,126 m | **0,130 m** | 16,55 m |
+
+**Ale opatrně s výkladem.** Medián korekce zhruba půlí, jenže po třetinách je obrázek smíšený —
+v poslední třetině je běh **bez** korekcí lepší (0,060 vs 0,126 m). Obě jízdy navíc ujedou jinou
+dráhu, takže v tomtéž čase nejsou na tomtéž místě a porovnání bod po bodu neplatí. Na čisté měření
+by se muselo srovnávat proti **ujeté dráze**, ne proti času. Zatím tedy: *korekce za jízdy zjevně
+neškodí a nejspíš pomáhají*, ale silnější tvrzení z těchto dvou běhů nevytáhnu.
+
+Za jízdy taky výrazně klesne úspěšnost koridoru: `FixReason=Ok` jen **34 z 426** cyklů (8 %) proti
+~90 u stojícího robota. Neprozkoumáno.
+
+Záznamy: `20260822-225028.rec` (s korekcemi), `20260822-224944.rec` (bez).
+
+### Kurz: proč ho koridor neopraví (22. 8. 2026)
+
+V A/B výše **chyba kurzu zůstala stejná** (0,12° v obou bězích). Prozkoumáno čtyřmi běhy; nejde
+o jednu příčinu, ale o dvě, a obě jsou poučné.
+
+**1. Nebylo co opravovat — virtuální IMU je nerealisticky dobrý kompas.** `VirtualImu` hlásí
+**absolutní** kurz (pravda + bílý šum σ = 1°, žádný drift) při **100 Hz**. Sto nezávislých vzorků
+za sekundu se zprůměruje na σ_ef = 1°/√100 = **0,1°** — a naměřená chyba kurzu je 0,12°. Vnucený
+bias gyra 0,2 °/s se v kurzu vůbec neprojeví, protože absolutní měření kurzu integrovanou rychlost
+přehlasuje.
+
+**2. I když je co opravovat, koridor je přehlasovaný.** Běh s `imubias=5,0` (kompas se mýlí
+o 5°): koridor chybu **změří správně** (nesouhlas s mapou 4,8° proti skutečným 5°) a **pošle ji**
+(90 měření, σ 0,5°) — a přesto chyba kurzu ve fúzi zůstane **4,96°**, tedy korekce odstraní ~1 %.
+
+Rozvaha přes informační toky (informace = frekvence / σ²) to vysvětlí do dvou desetinných míst:
+
+| zdroj | frekvence | σ | informace [deg⁻²s⁻¹] |
+|---|---|---|---|
+| IMU kurz | 100 Hz | 1° | 100 |
+| koridor kurz (nominálně) | ~3 Hz | 0,5° | 12 |
+| koridor kurz **po soft gatingu** | ~3 Hz | 2,45° | **0,5** |
+
+Chybějící faktor je **`GateMode.Soft`** ([Ekf.cs:111](../Src/ARBot.Common/Fusion/Ekf.cs:111)):
+při překročení prahu nafoukne `R` o `w = NIS / práh`. Tady je NIS = (4,8/0,5)² ≈ 92 a práh
+χ²(1; 0,95) = 3,84, takže `w ≈ 24` → σ vyroste 4,9× na 2,45°. Výsledná predikce zbytkové chyby
+je 5° × 100/100,5 = **4,97°** — naměřeno 4,96°.
+
+> **Soft gating je u velkých chyb sebemařící.** Čím větší je skutečná chyba, tím větší NIS, tím
+> víc se σ nafoukne a tím slabší korekce — přesný opak toho, co je potřeba. Soft se zavedl
+> 22. 8. ráno proto, že `Reject` zahazoval 77 % korekcí; propustnost to opravilo, ale slepotu vůči
+> velkým a **pravdivým** odchylkám ne. Týká se to i příčné složky — tam to jen není vidět, protože
+> polohu nikdo jiný tak tvrdě nedrží.
+
+**3. Důkaz, že samotná korekce kurzu je v pořádku.** Tentýž bias 5°, ale oslabený kompas
+(`imunoise=10,0.5`, tedy σ 10° místo 1°):
+
+| | chyba kurzu p50 (po třetinách) | p50 celkem |
+|---|---|---|
+| `corridorsend=false` | 4,99 → 4,68 → 4,68° | **4,76°** |
+| `corridorsend=true` | 0,71 → 0,59 → 0,48° | **0,58°** |
+
+Koridor odstraní 88 % biasu a chyba dál klesá. Na cestě kurzu tedy nic rozbité není — problém je
+**relativní váha**.
+
+**Co z toho plyne pro skutečný robot.** VN100 dává yaw taky jako absolutní kurz, jenže jeho chyba
+**není** bílý šum s nulovou střední hodnotou: je to bias magnetometru, rušený kovem a motory,
+korelovaný v čase. Simulace dnes dává kompasu σ, které je poctivé vůči jeho *šumu*, ale mlčky
+tvrdí nulový *bias* — a fúze žádný stav biasu kurzu nemá. Aby korekce kurzu z koridoru měla na
+skutečném robotu vůbec šanci, musí být buď σ kompasu podstatně větší než jeho krátkodobý šum,
+nebo musí bias kurzu přibýt do stavu EKF.
+
 ## Otevřené / budoucí
 
 - **Drsnost trávy je per pixel, ne per místo v terénu** — výška se rozhazuje podle pixelu
   a snímku, takže při pohybu robota „bliká" místo aby byla svázaná se zemí. Pro rozptyl výšky
   v buňce polárního gridu (kvůli čemuž tam je) to stačí; pro časovou konzistenci mezi snímky ne.
   Oprava: hashovat podle kvantované světové polohy zásahu a jednou zpřesnit průsečík.
-- **Chyba lokalizace není v obraze vidět** — plyne z rozhodnutí brát pózu kamery z fúze
-  (viz „Póza kamery zůstává z fúze"). Přepnutí na ground truth je jednořádkové, až bude potřeba.
-- **Prokluz a dynamika podvozku** — model je ideální, takže odometrie proti skutečnosti nedriftuje
-  a fúze opravuje jen šum GPS/IMU.
+- **Koridor za jízdy skoro nic nepošle** — 35 měření ze 411 cyklů. Rozebráno 22. 8. 2026: největší
+  ztráta je `NoPair` (~60 %, druhá kamera nemá snímek v okně 60 ms), pak stání v cíli na konci
+  cesty, a jako skutečná vada **nerovnoběžnost ~11° na rovném úseku** (projekce vyvrácena testem, podezřelý je detektor hran). Detail:
+  [map-correlation-localization.md → Otevřené úkoly](map-correlation-localization.md#otevřené-úkoly).
+- **A/B za jízdy je zašuměné** — dvě jízdy se stejným zadáním ujedou různou dráhu (17,7 vs 16,6 m),
+  takže se nedají porovnat bod po bodu. Na čisté měření by bylo potřeba porovnávat proti ujeté
+  dráze, ne proti času.
+- **σ kompasu je poctivé vůči šumu, ne vůči biasu** — `VirtualImu` hlásí absolutní kurz s bílým
+  šumem, takže při 100 Hz vyjde efektivní σ 0,1° a **žádný jiný zdroj kurzu nemá šanci** (viz
+  [Kurz](#kurz-proč-ho-koridor-neopraví-22-8-2026)). Skutečný VN100 má bias, ne bílý šum. Buď dát
+  kompasu σ odpovídající biasu, nebo přidat bias kurzu do stavu EKF.
+- **Dynamika podvozku** — model je jinak ideální (rampa zrychlení, žádné boční síly).
 - **Obloha jako samostatná barva** (dnes zelená jako tráva).
 - **Objekty mimo vozovku** (překážky, zdi) — dnes scéna zná jen vozovku a trávu.
 

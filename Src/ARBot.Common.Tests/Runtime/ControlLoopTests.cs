@@ -100,6 +100,100 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(motor.LastForvard, Is.EqualTo(last.Forvard).Within(1e-12));
         }
 
+        /// <summary>
+        /// Ground truth (22. 8. 2026): kdyz je zdroj nastaveny, smycka emituje
+        /// <see cref="GroundTruthMsg"/> ke KAZDEMU <see cref="RobotStateMsg"/> a se STEJNYM casem.
+        /// Bez shody casu by rozdil obou zprav nebyl chyba odhadu, ale chyba odhadu plus posun
+        /// v case - a cele mereni konvergence by bylo k nicemu. Viz doc/virtual-hw.md.
+        /// </summary>
+        [Test]
+        public void OnTick_WithGroundTruthSource_EmitsPairedTruthMessages()
+        {
+            var mapper = new DefaultMeasurementMapper();
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(20));
+
+            // Zdroj skutecnosti: staci cokoli, co vrati zpravu s pozadovanym casem.
+            int truthCalls = 0;
+            loop.GroundTruthAt = t =>
+            {
+                truthCalls++;
+                return new GroundTruthMsg { X = 1.0, Y = 2.0, Theta = 0.5, TimeStamp = t };
+            };
+
+            var msgs = new List<Message>();
+            var collector = new DelegateTarget(m => { lock (msgs) msgs.Add(m); });
+            collector.Start();
+
+            using (loop.Output.Connect(collector))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    var imu = TestHelpers.MakeImu(T0.AddMilliseconds(i * 20), yaw: i * 0.02, omega: 0.1);
+                    foreach (var m in mapper.ToMeasurements(imu))
+                        engine.Enqueue(m);
+                    scheduler.PumpDue(imu.TimeStamp);
+                }
+            }
+            loop.Stop();
+            collector.Stop();
+
+            List<RobotStateMsg> states;
+            List<GroundTruthMsg> truths;
+            lock (msgs)
+            {
+                states = msgs.FindAll(m => m is RobotStateMsg).ConvertAll(m => (RobotStateMsg)m);
+                truths = msgs.FindAll(m => m is GroundTruthMsg).ConvertAll(m => (GroundTruthMsg)m);
+            }
+
+            Assert.That(states, Is.Not.Empty, "predpoklad testu: smycka tikala");
+            Assert.That(truthCalls, Is.GreaterThan(0), "zdroj skutecnosti nebyl dotazan");
+            Assert.That(truths.Count, Is.EqualTo(states.Count), "ke kazdemu odhadu patri jedna skutecnost");
+
+            for (int i = 0; i < states.Count; i++)
+                Assert.That(truths[i].TimeStamp, Is.EqualTo(states[i].TimeStamp),
+                            $"takt {i}: skutecnost a odhad musi mit tentyz cas");
+        }
+
+        /// <summary>Bez zdroje skutecnosti (realny HW) se zadna zprava navic emitovat nesmi.</summary>
+        [Test]
+        public void OnTick_WithoutGroundTruthSource_EmitsNothingExtra()
+        {
+            var mapper = new DefaultMeasurementMapper();
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+
+            var loop = new ControlLoop(engine, new SpyMotors(), new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(20));
+
+            var msgs = new List<Message>();
+            var collector = new DelegateTarget(m => { lock (msgs) msgs.Add(m); });
+            collector.Start();
+
+            using (loop.Output.Connect(collector))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    var imu = TestHelpers.MakeImu(T0.AddMilliseconds(i * 20), yaw: i * 0.02, omega: 0.1);
+                    foreach (var m in mapper.ToMeasurements(imu))
+                        engine.Enqueue(m);
+                    scheduler.PumpDue(imu.TimeStamp);
+                }
+            }
+            loop.Stop();
+            collector.Stop();
+
+            lock (msgs)
+            {
+                Assert.That(msgs.Exists(m => m is RobotStateMsg), Is.True, "predpoklad testu: smycka tikala");
+                Assert.That(msgs.Exists(m => m is GroundTruthMsg), Is.False);
+            }
+        }
+
         /// <summary>Pull kamer (test double): vrati na kazdem pullu predpripravene snimky.</summary>
         private sealed class FakeCameraPull : ICameraPullSource
         {

@@ -146,6 +146,34 @@ namespace ARBot.ViewModels
         /// soucasti <see cref="ARBot.Common.Devices.CameraFrame"/>; ve View se prehrava zaznamenany -
         /// dokument v obou pripadech jen zobrazuje, co tece na Streamu.
         /// </summary>
+        /// <summary>
+        /// Otevre (nebo aktivuje) panel „Virtuální senzory": sum a systematicke chyby simulovanych
+        /// senzoru + zive mereni skutecne chyby lokalizace (skutecnost vs. odhad). Ma smysl jen
+        /// pri virtualnim HW; pri realnem zustane prazdny (ground truth neexistuje).
+        /// Viz doc/virtual-hw.md.
+        /// </summary>
+        [RelayCommand]
+        private void OpenVirtualSensors()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "VirtualSensors");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new VirtualSensorsDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
         [RelayCommand]
         private void OpenRobotCentric()
         {

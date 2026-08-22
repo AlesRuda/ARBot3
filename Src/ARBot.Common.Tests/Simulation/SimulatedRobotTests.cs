@@ -134,4 +134,128 @@ public class SimulatedRobotTests
         // Ujeta draha za rampu 0 -> 0,5 m/s je 0,25 m; bez omezeni by to byly 2 m.
         Assert.That(robot.X, Is.EqualTo(0.25).Within(0.02));
     }
+
+    // ==================== Prokluz kol (22. 8. 2026) ====================
+    //
+    // Duvod: bez prokluzu je odometrie presna, takze chyba odhadu fuze je jen bily sum GPS/IMU -
+    // nulova stredni hodnota a nikam nedriftuje. Pripad, ktery ma hranova lokalizace lecit
+    // (pomalu rostouci chyba), tak v simulaci vubec nevznikl. Viz doc/virtual-hw.md.
+
+    /// <summary>Vychozi stav musi byt idealni - prokluz se zapina vedome, ne omylem.</summary>
+    [Test]
+    public void WheelSlip_DefaultsToIdeal()
+    {
+        var robot = AtOrigin();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(robot.LeftWheelSlip, Is.EqualTo(1.0));
+            Assert.That(robot.RightWheelSlip, Is.EqualTo(1.0));
+            Assert.That(robot.HasWheelSlip, Is.False);
+        });
+    }
+
+    /// <summary>
+    /// Stejny prokluz na obou kolech = chyba MERITKA drahy: robot ujede min, nez kola namerila,
+    /// ale jede porad rovne.
+    /// </summary>
+    [Test]
+    public void SymmetricSlip_ShortensDistance_ButKeepsHeading()
+    {
+        var robot = AtOrigin();
+        robot.LeftWheelSlip = 0.9;
+        robot.RightWheelSlip = 0.9;
+
+        robot.Drive(1.0, 0.0);
+        robot.Advance(T0.AddSeconds(2));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(robot.X, Is.EqualTo(1.8).Within(0.01), "skutecna draha je o 10 % kratsi");
+            Assert.That(robot.LeftEncoder, Is.EqualTo(2.0).Within(0.01),
+                        "enkoder hlasi NOMINAL - kolo se opravdu otocilo, jen to nikam nevedlo");
+            Assert.That(robot.RightEncoder, Is.EqualTo(2.0).Within(0.01));
+            Assert.That(robot.Theta, Is.EqualTo(0.0).Within(1e-9), "symetricky prokluz nesmi tocit");
+        });
+    }
+
+    /// <summary>
+    /// Ruzny prokluz vlevo/vpravo = DRIFT KURZU, i kdyz odometrie hlasi jizdu rovne. To je ta
+    /// systematicka chyba, kterou ma hranova lokalizace opravit.
+    /// </summary>
+    [Test]
+    public void AsymmetricSlip_DriftsHeading_WhileOdometrySaysStraight()
+    {
+        var robot = AtOrigin();
+        robot.LeftWheelSlip = 1.0;
+        robot.RightWheelSlip = 0.98;   // prave kolo o 2 % pomalejsi -> stoceni DOPRAVA (zaporne)
+
+        robot.Drive(1.0, 0.0);
+        robot.Advance(T0.AddSeconds(2));
+
+        // omega = (vR*sR - vL*sL)/rozchod = (0,98 - 1,0)/0,5 = -0,04 rad/s; za 2 s tedy -0,08 rad.
+        // Tolerance 2e-4: prvni krok integrace (5 ms) jeste dobiha rampa zrychleni z nuly, takze
+        // uhel je o ~1e-4 rad mensi. Neni to nepresnost prokluzu, ale rozjezd.
+        Assert.Multiple(() =>
+        {
+            Assert.That(robot.Theta, Is.EqualTo(-0.08).Within(2e-4));
+            Assert.That(robot.HasWheelSlip, Is.True);
+            Assert.That(robot.LeftEncoder, Is.EqualTo(robot.RightEncoder).Within(1e-9),
+                        "odometrie o stoceni nevi - oba enkodery hlasi tutez drahu");
+        });
+    }
+
+    /// <summary>
+    /// Nominalni (odometrie) vs. skutecne (GPS, gyro) rychlosti se pri prokluzu musi rozejit -
+    /// jinak by fuze mela z ceho chybu poznat a experiment by nemeril to, co ma.
+    /// </summary>
+    [Test]
+    public void Slip_SplitsNominalFromActualSpeeds()
+    {
+        var robot = AtOrigin();
+        robot.LeftWheelSlip = 1.0;
+        robot.RightWheelSlip = 0.98;
+
+        robot.Drive(1.0, 0.0);
+        robot.Advance(T0.AddSeconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(robot.LeftWheelSpeed, Is.EqualTo(1.0).Within(1e-9), "odometrie: nominal");
+            Assert.That(robot.RightWheelSpeed, Is.EqualTo(1.0).Within(1e-9));
+            Assert.That(robot.Speed, Is.EqualTo(0.99).Within(1e-9), "GPS: skutecna rychlost");
+            Assert.That(robot.AngularSpeed, Is.EqualTo(-0.04).Within(1e-9), "gyro: skutecne otaceni");
+        });
+    }
+
+    /// <summary>
+    /// Zprava do zaznamu nese SKUTECNOST - bez ni se chyba lokalizace ze zaznamu spocitat neda
+    /// (odhad tam je, skutecnost nikde). Nese i nastaveni prokluzu, aby slo dohledat, s cim beh jel.
+    /// </summary>
+    [Test]
+    public void ToLogMessage_CarriesTruthAndSlipSetting()
+    {
+        var robot = AtOrigin();
+        robot.LeftWheelSlip = 1.0;
+        robot.RightWheelSlip = 0.98;
+
+        robot.Drive(1.0, 0.0);
+        robot.Advance(T0.AddSeconds(1));
+
+        var stamp = T0.AddSeconds(1);
+        var msg = robot.ToLogMessage(stamp);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(msg.X, Is.EqualTo(robot.X).Within(1e-12));
+            Assert.That(msg.Y, Is.EqualTo(robot.Y).Within(1e-12));
+            Assert.That(msg.Theta, Is.EqualTo(robot.Theta).Within(1e-12));
+            Assert.That(msg.V, Is.EqualTo(0.99).Within(1e-9), "skutecna, ne nominalni rychlost");
+            Assert.That(msg.Omega, Is.EqualTo(-0.04).Within(1e-9));
+            Assert.That(msg.LeftEncoder, Is.EqualTo(robot.LeftEncoder).Within(1e-12));
+            Assert.That(msg.LeftWheelSlip, Is.EqualTo(1.0));
+            Assert.That(msg.RightWheelSlip, Is.EqualTo(0.98));
+            Assert.That(msg.TimeStamp, Is.EqualTo(stamp));
+        });
+    }
 }

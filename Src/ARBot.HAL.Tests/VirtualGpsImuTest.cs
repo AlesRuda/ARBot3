@@ -105,4 +105,81 @@ public class VirtualGpsImuTest
         Assert.That(rate, Is.Not.Null, "z gyra ma vzniknout mereni uhlove rychlosti");
         Assert.That(rate!.Value[0], Is.EqualTo(1.0).Within(0.05));
     }
+
+    // ==================== Systematicke chyby (22. 8. 2026) ====================
+    //
+    // Bily sum ma nulovou stredni hodnotu, takze se vyprumeruje a chyba odhadu nikam neroste.
+    // Bias se neprumeruje - a bias gyra se navic integruje do rostouci chyby kurzu. Prave to ma
+    // hranova lokalizace lecit. Viz doc/virtual-hw.md.
+
+    [Test]
+    public void Imu_HeadingBias_ShiftsReportedHeading()
+    {
+        const double heading = 0.7;         // rad, skutecny kurz
+        const double bias = 0.05;           // rad, systematicka chyba (~2,9 deg)
+        var robot = StandingRobot(0, 0, heading);
+
+        var options = new VirtualSensorOptions
+        {
+            ImuHeadingNoiseRad = 0,
+            ImuHeadingBiasRad = bias,
+        };
+        using var imu = new VirtualImu(robot, options);
+
+        var state = WaitFor(() => imu.GetLastMeasurement(), TimeSpan.FromSeconds(5));
+        Assert.That(state, Is.Not.Null, "virtualni IMU ma merit");
+
+        var mapper = new DefaultMeasurementMapper(new FusionConfig());
+        var yaw = mapper.ToMeasurements(state!).FirstOrDefault(m => m.Source == "IMU/heading");
+
+        Assert.That(yaw, Is.Not.Null);
+        Assert.That(yaw!.Value[0], Is.EqualTo(heading + bias).Within(0.02),
+                    "hlaseny kurz je skutecny plus bias");
+    }
+
+    [Test]
+    public void Imu_GyroBias_ShiftsReportedRate_EvenWhenStanding()
+    {
+        var robot = StandingRobot(0, 0, 0);   // stoji: skutecna uhlova rychlost je nula
+        const double bias = 0.02;             // rad/s
+
+        var options = new VirtualSensorOptions
+        {
+            ImuGyroNoiseRad = 0,
+            ImuGyroBiasRadPerSec = bias,
+        };
+        using var imu = new VirtualImu(robot, options);
+
+        var state = WaitFor(() => imu.GetLastMeasurement(), TimeSpan.FromSeconds(5));
+        Assert.That(state, Is.Not.Null);
+
+        var mapper = new DefaultMeasurementMapper(new FusionConfig());
+        var rate = mapper.ToMeasurements(state!).FirstOrDefault(m => m.Source == "IMU/gyro");
+
+        Assert.That(rate, Is.Not.Null);
+        Assert.That(rate!.Value[0], Is.EqualTo(bias).Within(1e-6),
+                    "stojici robot s biasem gyra hlasi otaceni - z toho vznikne rostouci chyba kurzu");
+    }
+
+    [Test]
+    public void VirtualSensorOptions_DefaultsHaveNoSystematicError()
+    {
+        var options = new VirtualSensorOptions();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(options.HasSystematicError, Is.False, "drift se zapina vedome, ne omylem");
+            Assert.That(options.ImuHeadingBiasRad, Is.EqualTo(0.0));
+            Assert.That(options.ImuGyroBiasRadPerSec, Is.EqualTo(0.0));
+            Assert.That(options.LeftWheelSlip, Is.EqualTo(1.0));
+            Assert.That(options.RightWheelSlip, Is.EqualTo(1.0));
+        });
+
+        options.RightWheelSlip = 0.98;
+        Assert.That(options.HasSystematicError, Is.True);
+
+        options.ResetSystematicError();
+        Assert.That(options.HasSystematicError, Is.False);
+        Assert.That(options.RightWheelSlip, Is.EqualTo(1.0));
+    }
 }

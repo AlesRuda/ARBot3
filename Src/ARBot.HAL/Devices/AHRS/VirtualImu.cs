@@ -58,6 +58,12 @@ namespace ARBot.HAL.Devices.AHRS
             if (options.ImuGyroNoiseRad > 0)
                 omega += DeterministicNoise.Gaussian(options.Seed, n, ChannelGyro) * options.ImuGyroNoiseRad;
 
+            // Bias je SYSTEMATICKA chyba - na rozdil od sumu se neprumeruje pryc. Kurz posunuty
+            // o konstantu je spatna kalibrace magnetometru, bias gyra se navic integruje do
+            // rostouci chyby kurzu. Prave to ma hranova lokalizace lecit. Viz doc/virtual-hw.md.
+            heading += options.ImuHeadingBiasRad;
+            omega += options.ImuGyroBiasRadPerSec;
+
             var ypr = new YawPitchRoll((float)heading, 0f, 0f);
 
             return new IMUState

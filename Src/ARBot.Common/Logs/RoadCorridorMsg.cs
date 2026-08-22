@@ -93,10 +93,31 @@ namespace ARBot.Common.Logs
         /// </summary>
         public long DroppedByFusion;
 
+        /// <summary>
+        /// O kolik se smery obou hranic lisi [rad] - kontrola „je to koridor". Nad
+        /// <c>CorridorConfig.MaxParallelErrorRad</c> (10 stupnu) se cyklus zahodi jako
+        /// <see cref="CorridorReason.NotParallel"/>.
+        ///
+        /// <para><b>Proc to je ve zprave</b> (doplneno 22. 8. 2026, verze 2): za jizdy propadalo
+        /// <c>NotParallel</c> 132 z 174 sparovanych cyklu, zatimco u stojiciho robota ani jeden -
+        /// a ze zaznamu neslo zjistit, jestli je odchylka tesne nad prahem, nebo o rad vedle.
+        /// Bez teto hodnoty se ta otazka nedala zodpovedet jinak nez novym behem s ladicim vypisem.
+        /// Viz doc/map-correlation-localization.md.</para>
+        ///
+        /// <para>Ve zpravach verze 1 chybi - nacte se jako 0.</para>
+        /// </summary>
+        public double ParallelErrorRad;
+
+        /// <summary>
+        /// Smery LEVE a PRAVE hranice zvlast [rad] - diagnostika k <see cref="ParallelErrorRad"/>:
+        /// rekne, ktera strana je vedle. Ve zpravach verze &lt; 3 chybi (nactou se jako 0).
+        /// </summary>
+        public double DirectionLeftRad, DirectionRightRad;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RoadCorridorMsg() : base("RoadCorridorMsg", 1)
+        public RoadCorridorMsg() : base("RoadCorridorMsg", 3)
         {
         }
 
@@ -126,6 +147,9 @@ namespace ARBot.Common.Logs
             bw.Write(EmittedHeading);
             bw.Write(FixReason);
             bw.Write(DroppedByFusion);
+            bw.Write(ParallelErrorRad);     // verze 2
+            bw.Write(DirectionLeftRad);     // verze 3
+            bw.Write(DirectionRightRad);
         }
 
         public override void FromData(BinaryReader br)
@@ -154,6 +178,16 @@ namespace ARBot.Common.Logs
             EmittedHeading = br.ReadBoolean();
             FixReason = br.ReadByte();
             DroppedByFusion = br.ReadInt64();
+
+            // Verze 1 tenhle udaj nemela - starsi zaznamy se nactou s nulou.
+            if (Verze >= 2)
+                ParallelErrorRad = br.ReadDouble();
+
+            if (Verze >= 3)
+            {
+                DirectionLeftRad = br.ReadDouble();
+                DirectionRightRad = br.ReadDouble();
+            }
         }
 
         public override Message Build() => new RoadCorridorMsg();

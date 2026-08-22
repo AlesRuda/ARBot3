@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -107,6 +107,11 @@ namespace ARBot.ViewModels
         private GraphNavigationMsg? pendingGraph;
         private MapMsg? pendingMap;
         private OccupancyGridMsg? pendingOccupancy;
+        private GroundTruthMsg? pendingTruth;
+
+        /// <summary>Hranice cesty per kamera (body v ramci robotu) — nejnovejsi vyhrava.</summary>
+        private readonly Dictionary<string, List<(double X, double Y, bool Left)>> pendingEdges
+            = new Dictionary<string, List<(double X, double Y, bool Left)>>();
         private LocalPlanMsg? pendingPlan;
         private GlobalNavMsg? pendingGlobalNav;
         private volatile bool updateQueued;
@@ -117,6 +122,12 @@ namespace ARBot.ViewModels
         private GraphNavigationMsg? lastGraph;
         private MapMsg? lastMap;
         private OccupancyGridMsg? lastOccupancy;
+        private GroundTruthMsg? lastTruth;
+
+        /// <summary>Posledni hranice per kamera (uz vyzvednute z fronty).</summary>
+        private readonly Dictionary<string, List<(double X, double Y, bool Left)>> edgesByCam
+            = new Dictionary<string, List<(double X, double Y, bool Left)>>();
+        private bool edgesDirty;
         private LocalPlanMsg? lastPlan;
 
         /// <summary>
@@ -177,6 +188,16 @@ namespace ARBot.ViewModels
         private readonly MemoryLayer occupancyLayer = new MemoryLayer("Occupancy") { Style = new RasterStyle() };
         private readonly MemoryLayer planLayer = new MemoryLayer("Plan");             // lokalni plan + cil
 
+        /// <summary>
+        /// Detekovane hranice cesty z kamer, promitnute pozou do mapy — <b>vizualni kontrola
+        /// detektoru proti mape</b>. Statistika nad zaznamem rekla, ze vzdalena cast hranice je
+        /// vedle, ale ne proc; tady je videt, kam presne ty body padaji.
+        /// Viz doc/map-correlation-localization.md.
+        /// </summary>
+        // Style = null: bez toho kresli MemoryLayer pod kazdou featuru jeste svuj vychozi symbol
+        // (bile kolecko) - u stovek bodu z toho je necitelna kase.
+        private readonly MemoryLayer edgesLayer = new MemoryLayer("Hranice cesty") { Style = null };
+
         private ILayer? osmLayer;            // cache OSM dlazdicove vrstvy (aby se pri toggle neztracela cache)
         private ILayer? offlineLayer;       // cache offline (MBTiles) vrstvy pro aktualni cestu
         private string? offlineLayerPath;   // cesta, pro kterou je offlineLayer postaveny
@@ -200,6 +221,10 @@ namespace ARBot.ViewModels
 
         /// <summary>Vrstva: lokalni plan (draha + cil).</summary>
         [ObservableProperty] private bool showPlan = true;
+
+        /// <summary>Hranice cesty z kamer. <b>Vychozi vypnuto</b> — je to ladici vrstva a pri
+        /// 30 snimcich za sekundu se prekresluje casto.</summary>
+        [ObservableProperty] private bool showEdges;
 
         /// <summary>Vrstva: silnicni sit nactena z OsmNav (MapMsg).</summary>
         [ObservableProperty] private bool showMap = true;
@@ -340,6 +365,24 @@ namespace ARBot.ViewModels
                 case OccupancyGridMsg og: lock (gate) pendingOccupancy = og; break;
                 case LocalPlanMsg lp: lock (gate) pendingPlan = lp; break;
                 case GlobalNavMsg gnv: lock (gate) pendingGlobalNav = gnv; break;
+
+                // Hranice cesty: body se kopiruji HNED. Snimky jsou poolovane, takze drzet
+                // referenci na CameraFrame po navratu z Post je cesta k prepsanym datum.
+                case CameraFrame cf when ShowEdges && cf.PathEdges != null:
+                    var pts = new List<(double X, double Y, bool Left)>(cf.PathEdges.Count * 2);
+                    foreach (var e in cf.PathEdges)
+                    {
+                        if (e.LeftPoint.A != 0) pts.Add((e.LeftPoint.X, e.LeftPoint.Y, true));
+                        if (e.RightPoint.A != 0) pts.Add((e.RightPoint.X, e.RightPoint.Y, false));
+                    }
+                    lock (gate) pendingEdges[cf.Name ?? string.Empty] = pts;
+                    break;
+
+                // Ground truth: kdyz je (virtualni HW), hranice se promitaji SKUTECNOU pozou —
+                // jinak by se do obrazku pricetla jeste chyba lokalizace a nebylo by poznat,
+                // jestli je vedle detektor, nebo odhad pozy.
+                case GroundTruthMsg gt: lock (gate) pendingTruth = gt; break;
+
                 default: return;   // ostatni zpravy nas nezajimaji
             }
 
@@ -372,6 +415,14 @@ namespace ARBot.ViewModels
                 occupancy = pendingOccupancy; pendingOccupancy = null;
                 plan = pendingPlan; pendingPlan = null;
                 globalNav = pendingGlobalNav; pendingGlobalNav = null;
+                if (pendingTruth != null) { lastTruth = pendingTruth; pendingTruth = null; }
+                if (pendingEdges.Count > 0)
+                {
+                    edgesByCam.Clear();
+                    foreach (var kv in pendingEdges) edgesByCam[kv.Key] = kv.Value;
+                    pendingEdges.Clear();
+                    edgesDirty = true;
+                }
             }
 
             if (gps != null) lastGps = gps;
@@ -436,6 +487,13 @@ namespace ARBot.ViewModels
             // Prestavuj JEN kdyz prisla nova zprava - occupancy je rastr 256x256 (prekodovani do PNG).
             if (occupancy != null) UpdateOccupancyFeature(occupancy, geoRef);
             if (plan != null || occupancy != null) UpdatePlanFeature(lastPlan, geoRef);
+
+            if (edgesDirty)
+            {
+                edgesDirty = false;
+                UpdateEdgesFeature(geoRef);
+                edgesLayer.DataHasChanged();
+            }
 
             // Prekresli data v aktualne pripojenych vrstvach.
             robotLayer.DataHasChanged();
@@ -816,6 +874,57 @@ namespace ARBot.ViewModels
         /// <summary>Sirka ZVYRAZNENE hrany (cesta, po ktere se prave jede) - dvojnasobek planu.
         /// Zachovava puvodni pomer „zvyraznena je 2x sirsi nez bezna hrana".</summary>
         private const double RouteHighlightWidth = PlanLineWidth * 2.0;
+
+        /// <summary>
+        /// Vrstva detekovanych hranic cesty: body z ramce ROBOTU promitnute pozou do mapy.
+        ///
+        /// <para><b>Kterou pozou.</b> Prednost ma <see cref="GroundTruthMsg"/> (virtualni HW) —
+        /// jinak by se do obrazku pricetla i chyba lokalizace a nebylo by poznat, jestli je vedle
+        /// detektor, nebo odhad pozy. Bez ground truth se pouzije fuzovana poza.</para>
+        ///
+        /// <para><b>Pozor na cas.</b> Pouzije se POSLEDNI znama poza, ne poza v case snimku —
+        /// za jizdy je tedy o jeden takt pozadu. Na vizualni kontrolu to staci, na mereni ne.</para>
+        /// </summary>
+        private void UpdateEdgesFeature(GeoReference? geoRef)
+        {
+            if (geoRef == null || edgesByCam.Count == 0)
+            {
+                edgesLayer.Features = Array.Empty<IFeature>();
+                return;
+            }
+
+            double px, py, theta;
+            if (lastTruth != null) { px = lastTruth.X; py = lastTruth.Y; theta = lastTruth.Theta; }
+            else if (lastRobot != null) { px = lastRobot.X; py = lastRobot.Y; theta = lastRobot.Theta; }
+            else { edgesLayer.Features = Array.Empty<IFeature>(); return; }
+
+            double c = Math.Cos(theta), sn = Math.Sin(theta);
+            var features = new List<IFeature>();
+
+            foreach (var kv in edgesByCam)
+                foreach (var (bx, by, isLeft) in kv.Value)
+                {
+                    // FLU (X vpred, Y vlevo) -> ENU podle kurzu robotu.
+                    double ex = px + bx * c - by * sn;
+                    double ey = py + bx * sn + by * c;
+
+                    var m = LocalToMercator(geoRef, ex, ey);
+                    var f = new GeometryFeature
+                    {
+                        Geometry = new NetTopologySuite.Geometries.Point(new Coordinate(m.X, m.Y)),
+                    };
+                    f.Styles.Add(new SymbolStyle
+                    {
+                        SymbolType = SymbolType.Ellipse,
+                        SymbolScale = 0.12,
+                        Fill = new Brush(isLeft ? new Color(0x4C, 0xAF, 0xF0)      // modra = leva
+                                                : new Color(0xFF, 0xB7, 0x4D)),   // oranzova = prava
+                    });
+                    features.Add(f);
+                }
+
+            edgesLayer.Features = features;
+        }
 
         /// <summary>Vrstva lokalniho planu: draha jako cara + cil jako bod.</summary>
         private void UpdatePlanFeature(LocalPlanMsg? plan, GeoReference? geoRef)
@@ -1695,6 +1804,17 @@ namespace ARBot.ViewModels
         partial void OnShowMarkersChanged(bool value) => RebuildLayers();
         partial void OnShowOccupancyChanged(bool value) => RebuildLayers();
         partial void OnShowPlanChanged(bool value) => RebuildLayers();
+
+        partial void OnShowEdgesChanged(bool value)
+        {
+            if (!value)
+            {
+                lock (gate) pendingEdges.Clear();
+                edgesByCam.Clear();
+                edgesLayer.Features = Array.Empty<IFeature>();
+            }
+            RebuildLayers();
+        }
         partial void OnShowMapChanged(bool value) => RebuildLayers();
         partial void OnShowVisionMapChanged(bool value) => RebuildLayers();
         partial void OnSelectedBaseMapChanged(BaseMapChoice value) => RebuildLayers();
@@ -1733,6 +1853,7 @@ namespace ARBot.ViewModels
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);
             if (ShowRoute) Map.Layers.Add(routeLayer);
             if (ShowPlan) Map.Layers.Add(planLayer);
+            if (ShowEdges) Map.Layers.Add(edgesLayer);
             if (ShowMarkers) Map.Layers.Add(markerLayer);
             if (ShowRobot) Map.Layers.Add(robotLayer);   // robot navrchu
 

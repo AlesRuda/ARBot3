@@ -80,6 +80,10 @@ namespace ARBot.Common.Localization
             double aL = Normalize(left.line.Angle), aR = Normalize(right.line.Angle);
             double parallelError = Normalize(aL - aR);
             r.ParallelErrorRad = Math.Abs(parallelError);
+            // Obe strany zvlast - i kdyz se zamitne. Bez toho nejde poznat, ktera hranice je vedle
+            // (prumer se pri zamitnuti nepocita). Viz doc/map-correlation-localization.md.
+            r.DirectionLeftRad = aL;
+            r.DirectionRightRad = aR;
             if (r.ParallelErrorRad > cfg.MaxParallelErrorRad)
             {
                 r.Reason = CorridorReason.NotParallel;
