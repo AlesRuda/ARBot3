@@ -45,6 +45,17 @@ namespace ARBot.Common.Coordinates
         /// Polygon oznacujici kam se na vozovce promitne obraz kamery
         /// </summary>
         List<Point2D> TargetPoly { get; }
+        /// <summary>
+        /// Serializovatelny popis projekce (intrinsika + transformace). Vychozi <c>null</c>
+        /// ("nemam"), aby jednoduche/testovaci projekce nemusely nic doplnovat - stejne jako
+        /// u <see cref="IDepthCameraProjection.Info"/>.
+        ///
+        /// <para>Doplneno 21. 8. 2026: prepocet hranic cesty do metru
+        /// (<see cref="ARBot.Common.Vision.ColorEdgeProjector"/>) potrebuje <b>barevnou</b>
+        /// intrinsiku, a ta se do <c>ARBot.Common</c> jinak nedostane. Dopocitat ji z hloubkove
+        /// nejde - streamy maji jine FOV (u D435 69,4° vs 87°).</para>
+        /// </summary>
+        CameraProjectionInfo Info => null;
     }
     /// <summary>
     /// Projekce kamery

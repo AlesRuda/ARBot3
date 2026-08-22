@@ -175,6 +175,14 @@ namespace ARBot.HAL.Devices.Camera
             // zadny prevod mezi barevnou a hloubkovou kamerou).
             var projection = new CameraProjection(intrinsics, intrinsics, Matrix4x4.Identity, Matrix4x4.Identity);
             projection.SetOrientation(mount);
+
+            // Barevna intrinsika do popisu projekce, aby ji mel prepocet hranic cesty do metru
+            // (ColorEdgeProjector) k dispozici i offline ze zaznamu. Extrinsiky zustavaji identita:
+            // virtualni kamera renderuje oba streamy z tehoz optickeho stredu, takze prepocet
+            // barevny -> hloubkovy pixel je exaktni uz z intrinsik.
+            projection.SetColorAlignment(
+                SyntheticIntrinsics.Pinhole(settingsRGB.Width, settingsRGB.Height,
+                                            options.RgbHorizontalFovDeg));
             return projection;
         }
 

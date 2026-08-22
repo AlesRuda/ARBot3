@@ -21,7 +21,7 @@ namespace ARBot.Common.Devices
         /// <see cref="ToData"/>/<see cref="FromData"/>) zvys o 1 a v <see cref="FromData"/>
         /// pridej cteci vetev pro predchozi verzi (viz doc/record-replay.md → Verzovani zprav).
         /// </summary>
-        public const int FormatVersion = 4;
+        public const int FormatVersion = 5;
 
         public CameraFrame() : base(FormatVersion)
         {
@@ -94,7 +94,10 @@ namespace ARBot.Common.Devices
             CameraProjectionInfo.Write(bw, Projection);     // od verze 4
         }
 
-        /// <summary>Zapise hranice cesty: flag "ma hrany", a pokud ano pocet + {Y, Left?, Right?}.</summary>
+        /// <summary>
+        /// Zapise hranice cesty: flag "ma hrany", a pokud ano pocet + {Y, Left?, Right?} a od
+        /// verze 5 i metricke body obou kraju v ramci robotu.
+        /// </summary>
         private void WritePathEdges(BinaryWriter bw, List<PathEdge> edges)
         {
             bw.Write(edges != null);
@@ -106,20 +109,41 @@ namespace ARBot.Common.Devices
                 bw.Write(edges[i].Y);
                 Write(bw, edges[i].Left);
                 Write(bw, edges[i].Right);
+                WritePoint4D(bw, edges[i].LeftPoint);       // od verze 5
+                WritePoint4D(bw, edges[i].RightPoint);      // od verze 5
             }
         }
 
-        /// <summary>Nacte hranice cesty zapsane <see cref="WritePathEdges"/>; null, kdyz "ma hrany" == false.</summary>
-        private List<PathEdge> ReadPathEdges(BinaryReader br)
+        /// <summary>
+        /// Nacte hranice cesty zapsane <see cref="WritePathEdges"/>; null, kdyz "ma hrany" == false.
+        /// </summary>
+        /// <param name="withPoints">Nese layout i metricke body (verze &gt;= 5)?</param>
+        private List<PathEdge> ReadPathEdges(BinaryReader br, bool withPoints)
         {
             if (!br.ReadBoolean()) return null;
 
             int n = br.ReadInt32();
             var edges = new List<PathEdge>(n);
             for (int i = 0; i < n; i++)
-                edges.Add(new PathEdge { Y = br.ReadInt32(), Left = ReadInt32(br), Right = ReadInt32(br) });
+            {
+                var e = new PathEdge { Y = br.ReadInt32(), Left = ReadInt32(br), Right = ReadInt32(br) };
+                if (withPoints)
+                {
+                    e.LeftPoint = ReadPoint4D(br);
+                    e.RightPoint = ReadPoint4D(br);
+                }
+                edges.Add(e);
+            }
             return edges;
         }
+
+        private static void WritePoint4D(BinaryWriter bw, Point4D p)
+        {
+            bw.Write(p.X); bw.Write(p.Y); bw.Write(p.Z); bw.Write(p.A);
+        }
+
+        private static Point4D ReadPoint4D(BinaryReader br)
+            => new Point4D { X = br.ReadSingle(), Y = br.ReadSingle(), Z = br.ReadSingle(), A = br.ReadSingle() };
 
         /// <summary>Zapise polarni grid: flag "ma grid", a pokud ano geometrii + bunky.</summary>
         private static void WriteGrid(BinaryWriter bw, PolarTraversabilityGrid g)
@@ -235,7 +259,7 @@ namespace ARBot.Common.Devices
                     RGBTimeStamp = ReadDateTime(br);
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = ReadGrid(br);
-                    PathEdges = ReadPathEdges(br);
+                    PathEdges = ReadPathEdges(br, withPoints: false);
                     Projection = null;
                     break;
 
@@ -248,8 +272,23 @@ namespace ARBot.Common.Devices
                     RGBTimeStamp = ReadDateTime(br);
                     DepthTimeStamp = ReadDateTime(br);
                     Grid = ReadGrid(br);
-                    PathEdges = ReadPathEdges(br);
+                    PathEdges = ReadPathEdges(br, withPoints: false);
                     Projection = CameraProjectionInfo.Read(br);
+                    break;
+
+                case 5:
+                    // Jako verze 4, ale hranice cesty nesou i metricke body v ramci robotu
+                    // (viz PathEdge.LeftPoint/RightPoint a ColorEdgeProjector).
+                    ReadMeta(br);
+                    Name = br.ReadString();
+                    ImageRGB = ImageMsg.ReadImage<BGR32>(br);
+                    ImageProbability = ImageMsg.ReadImage<Gray>(br);
+                    ImageDepth = ImageMsg.ReadImage<Gray16>(br);
+                    RGBTimeStamp = ReadDateTime(br);
+                    DepthTimeStamp = ReadDateTime(br);
+                    Grid = ReadGrid(br);
+                    PathEdges = ReadPathEdges(br, withPoints: true);
+                    Projection = CameraProjectionInfo.Read(br, withColorExtras: true);
                     break;
 
                 default:

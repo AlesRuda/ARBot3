@@ -311,7 +311,30 @@ namespace ARBot.Common.Coordinates
 
         /// <inheritdoc/>
         public CameraProjectionInfo Info
-            => info ??= CameraProjectionInfo.Capture(intrinsics, inverseIntrinsics, from, to, transformation);
+            => info ??= CameraProjectionInfo.Capture(intrinsics, inverseIntrinsics, from, to, transformation,
+                                                     colorIntrinsics, colorToDepth, depthToColor);
+
+        // Barevna intrinsika a extrinsiky color<->depth. Doplneno 21. 8. 2026: kamera je zna, ale
+        // do ARBot.Common nemely kudy vylezt (D435CameraProjection je drzel v privatnich polich jen
+        // pro nativni ColorPixel23D, na ARM je konstruktor zahazoval). Prepocet hranic cesty do
+        // metru je potrebuje - viz Vision/ColorEdgeProjector.
+        private Intrinsics colorIntrinsics;
+        private Matrix4x4 colorToDepth = Matrix4x4.Identity;
+        private Matrix4x4 depthToColor = Matrix4x4.Identity;
+
+        /// <summary>
+        /// Doplni popis o <b>barevnou</b> intrinsiku a extrinsiky color↔depth (volitelne; identita
+        /// = zarovnane streamy). Voli to ten, kdo projekci stavi z kamery - HAL.
+        /// </summary>
+        public void SetColorAlignment(Intrinsics color, Matrix4x4? colorToDepthExtrinsics = null,
+                                      Matrix4x4? depthToColorExtrinsics = null)
+        {
+            colorIntrinsics = color;
+            colorToDepth = colorToDepthExtrinsics ?? Matrix4x4.Identity;
+            depthToColor = depthToColorExtrinsics ?? Matrix4x4.Identity;
+            info = null;         // popis se prepocita
+            edgeProjector = null;   // i prepocet pixel -> metry
+        }
 
         /// <summary>
         /// Polygon oznacujici kam se na vozovce promitne obraz kamery
@@ -488,26 +511,44 @@ namespace ARBot.Common.Coordinates
             return true;
         }
         /// <summary>
-        /// Transformuje souradnice v rovine color kamery (pocatek vlevo nahore) do svetovych souradnic robotu (pocatek v miste robotu).
-        /// Roli hraje nastavena orientace kamery pomoci SetOrientation.
+        /// Transformuje souradnice v rovine color kamery (pocatek vlevo nahore) do souradnic robotu
+        /// (pocatek v miste robotu) <b>pomoci hloubky</b>. Roli hraje orientace nastavena
+        /// <see cref="SetOrientation"/>.
+        ///
+        /// <para><b>Zmena 21. 8. 2026: hloubka se opravdu pouziva.</b> Do te doby tato metoda
+        /// parametr <c>depth</c> <b>ignorovala</b> a promitala paprsek na rovinu zeme — u pixelu
+        /// blizko horizontu to davalo body ve stovkach metru (nameren maximum 444–803 m). Skutecny
+        /// vypocet delaly az prepisy v <c>D435CameraProjection</c>, ktere ale volaly nativni
+        /// <c>ColorPixel23D</c> — a to v <c>NativeLib</c> <b>neni</b> (na ARM varianta rovnou
+        /// vyhazovala <c>NotSupportedException</c>). Ted to umi baze pro vsechny platformy stejne,
+        /// takze ty prepisy zmizely. Viz doc/map-correlation-localization.md.</para>
+        ///
+        /// <para>Barevny pixel se na hloubkovy prevadi podle
+        /// <see cref="SetColorAlignment"/> (intrinsika barevneho streamu + extrinsiky color↔depth).
+        /// <b>Kdyz je barevna intrinsika neznama</b>, bere se intrinsika teto projekce — tedy
+        /// predpoklad, ze body pochazi z TOHO SAMEHO streamu, ktery projekce popisuje.</para>
         /// </summary>
-        /// <param name="points">Body v rovine kamery. Roste smerem doprava a dolu v pixlech.</param>
-        /// <param name="depth">Hloubkova mapa korespondujici k bodum points</param>
-        /// <returns>Pole tranformovanych bodu do svetovych souradnic. Pokud je A slozka bodu rovna 0 (vlastne cely bod bude identicky 0) je tento bod nevalidni.</returns>
+        /// <param name="points">Body v rovine barevne kamery. Roste doprava a dolu v pixlech.</param>
+        /// <param name="depth">Hloubkova mapa odpovidajici snimku.</param>
+        /// <returns>Body v souradnicich robotu; <c>A == 0</c> = neplatny (chybi hloubka, mimo obraz,
+        /// mimo dosah senzoru).</returns>
         public virtual List<Common.Point4D> TransformBack(List<Point> points, Image<Gray16> depth)
         {
-            float x =0;
-            float y =0;
-            var l = new List<Common.Point4D>(points.Count);
+            var l = new List<Common.Point4D>(points?.Count ?? 0);
+            if (points == null) return l;
 
-            foreach(var p in points)
-            {
-                if (TransformBack(p.X, p.Y, ref x, ref y))
-                    l.Add(new Common.Point4D() { X = (float)x, Y = (float)y, Z = 0, A=1 });
-                else
-                    l.Add(new Common.Point4D() { X = 0, Y = 0, Z = 0, A = 0 });
-            }
+            var projector = EdgeProjector();
+            foreach (var p in points)
+                l.Add(projector.ToRobot(p.X, p.Y, depth));
             return l;
         }
+
+        // Prepocet pixel -> metry drzi Vision/ColorEdgeProjector (ma testy); tady se jen cachuje,
+        // protoze se stavi z nemennych parametru projekce.
+        private ARBot.Common.Vision.ColorEdgeProjector edgeProjector;
+
+        private ARBot.Common.Vision.ColorEdgeProjector EdgeProjector()
+            => edgeProjector ??= new ARBot.Common.Vision.ColorEdgeProjector(
+                   colorIntrinsics ?? intrinsics, intrinsics, this, colorToDepth, depthToColor);
     }
 }

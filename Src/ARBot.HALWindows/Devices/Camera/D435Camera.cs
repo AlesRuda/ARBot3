@@ -474,8 +474,23 @@ namespace ARBot.HAL.Devices.Camera
             }
             if (depthIntrin == null)
                 return new CameraProjection(i1, ii, Extrinsic2Transform(color2Depth.Value), Extrinsic2Transform(depth2Color.Value));
-            else
-                return new D435CameraProjection(i1, ii, colorIntrin.Value, depthIntrin.Value, color2Depth.Value, depth2Color.Value);
+
+            // Hloubkova projekce je od 21. 8. 2026 obycejna CameraProjection: podtrida
+            // D435CameraProjection existovala jen kvuli prepisu TransformBack(points, depth), ktery
+            // volal nativni ColorPixel23D - a to v NativeLib NENI (na ARM varianta rovnou vyhazovala
+            // NotSupportedException). Ten prepocet umi ted baze pro vsechny platformy stejne.
+            var proj = new CameraProjection(i1, ii, System.Numerics.Matrix4x4.Identity,
+                                            System.Numerics.Matrix4x4.Identity);
+
+            // Barevna intrinsika a extrinsiky color<->depth do POPISU projekce. Kamera je zna, ale
+            // driv nemely kudy vylezt - zustavaly v privatnich polich podtridy jen pro nativni
+            // volani. Prepocet hranic cesty do metru je potrebuje: bez extrinsik se barevny pixel
+            // priradi na spatny hloubkovy (~1,5 cm pri 3 m).
+            // Viz ARBot.Common/Vision/ColorEdgeProjector.cs.
+            proj.SetColorAlignment(Simplify(colorIntrin.Value),
+                                   Extrinsic2Transform(color2Depth.Value),
+                                   Extrinsic2Transform(depth2Color.Value));
+            return proj;
         }
 
         /// <summary>

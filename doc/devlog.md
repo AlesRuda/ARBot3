@@ -52,6 +52,62 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     `ARBotRuntime.DiagCsvPath`, `MainWindowViewModel.RepoRootOrBase`) — sjednotit na
     `Program.RepoRootOrBase` při nejbližším doteku těch míst.
 
+- **Spike: korelace z hran místo z plochy.** Autorův podnět — plošná korelace platí za informaci,
+  kterou vnitřek cesty nenese; stačí detekovat hranici cesty a porovnat ji s mapou. Autor doplnil,
+  že `PathMapCorelator` se na starém robotu **odladit nepodařilo**, ale spolehlivě fungovalo
+  RANSAC proložení hranic přímkou + kolmice v místě robotu (šířka, příčná poloha, odchylka osy) —
+  což je přesně to, co `PathEdgeFinder` umí a co dnes nikdo nevolá. Spike nad
+  `records/20260821-095328.rec`: **příčná poloha sd 3 cm, směr sd 0,77°, rezidua 4 cm**, koridor na
+  50 % snímků (277 z 559). Proti plošné variantě (σ 0,150 m / 1,85–4,34° *odvozené ze zakřivení
+  skóre*) je to naměřená opakovatelnost, ne odhad.
+  - **Tři překážky, které spike odkryl:** rovinná projekce hloubku ignoruje a u horizontu vyhodí
+    body na stovky metrů; `ColorPixel23D` **na ARM neexistuje** (vyhazuje `NotSupportedException`),
+    takže je potřeba managed přepočet hloubky; a každá kamera vidí jen jednu stranu cesty, takže
+    koridor se musí skládat z obou.
+  - **Krok 2 (znaménková geometrie + mapa) vyšel.** Podezření na chybu znaménka se potvrdilo;
+    po opravě čísla sednou **absolutně**: naměřená šířka koridoru 2,01 m ± 0,06 proti 2,00 m
+    v mapě, rezidua proti **vizní** mapě p50 −0,01 m / −0,59° (sd 0,03 m / 0,71°), a vnucený
+    rozdíl map se najde jako **0,51 m ± 0,03 m**. Plošná korelace tutéž veličinu hlásila jako
+    `dx` 0,35–0,50 m se σ 0,150 m — pětkrát horší rozptyl a 8× nižší kadence. Cena **~0,1 ms
+    na snímek** (projekce 0,02 + dva RANSACy 0,06) proti 62–104 ms plošného skenu.
+  - **Krok 3: kód v repozitáři.** `ColorEdgeProjector` (managed náhrada `ColorPixel23D`, které
+    **v NativeLib vůbec není** — cesta byla mrtvá na všech platformách, ne jen na ARM; extrinsiky
+    color↔depth jsou vstup, ne vynechaná věc, ale HAL je do Common nepouští, takže na reálném HW
+    neověřeno), `PathEdge.LeftPoint/RightPoint` s metrickým bodem v rámci robotu (počítá vlákno
+    kamery, `CameraFrame` layout **v5**, starší záznamy se čtou dál) a nový bezstavový
+    `CorridorFinder` → `RoadCorridor`.
+  - **Dvě věci, které vyplavaly z testů:** po RANSACu je potřeba proložit přes inliery — RANSAC
+    hledá *konsenzus* a vrací model z minimálního vzorku, proložení konsenzuální sady je práce
+    volajícího (bez něj nesla přímka šum tří bodů, nad šumem 5 cm to dělalo 5 cm chybu). Doplnění
+    nejmenších čtverců zpřesnilo šířku na sd 0,023 m a směr na 0,31°. A σ se **záměrně nedělí √n**:
+    sousední hraniční body si chybu detekce sdílejí, takže dělením by vyšla milimetrová jistota —
+    přesně ta vada, kterou má estimátor nahradit.
+  - **Extrinsiky color↔depth protaženy HALem.** Kamera je znala, ale neměly kudy vylézt: Windows
+    `D435CameraProjection` je držel v privátních polích jen pro nativní `ColorPixel23D`, **ARM
+    varianta je v konstruktoru zahazovala úplně** (prázdné tělo) a oba předávaly bázi
+    `Matrix4x4.Identity`, takže i serializovaný popis projekce tvrdil „žádná transformace".
+    `CameraProjectionInfo` teď nese `ColorIntrinsics` + `ColorToDepth`/`DepthToColor`
+    (`CameraProjection.SetColorAlignment`), plní to Windows i ARM D435 (konverze `Extrinsic2Transform`
+    už v repu byla) a virtuální kamera (identita = zarovnané streamy). Jde to i do záznamu, takže
+    offline přepočet nepotřebuje živou kameru.
+  - **`D435CameraProjection` zrušena v obou variantách.** Autorův postřeh: podtřídy neobsahovaly nic
+    než konstruktor a `override TransformBack(points, depth)`, a ten nefungoval nikde (Windows volal
+    `ColorPixel23D`, které v `NativeLib` není; ARM vyhazoval `NotSupportedException`). Místo tichého
+    propadu na bázi — která hloubku **ignorovala** a promítala na rovinu země, u horizontu stovky
+    metrů — se podle autorova návrhu **opravila báze**: `CameraProjection.TransformBack(points, depth)`
+    hloubku používá (báze má tabulku směrů, montáž i nově barevnou intrinsiku s extrinsikami),
+    přepočet drží `ColorEdgeProjector` a báze si ho cachuje. Vedlejší efekt: `PathEdgeFinder` tím
+    přestal být závislý na nativní knihovně (neoživujeme ho, ale už není mrtvý z tohoto důvodu).
+    Zkompilováno pro `x64` i `OrangePI`.
+  - **Ověřeno:** `CorridorFinder` z repa nad `20260821-095328.rec` dává 277 koridorů z 560, šířka
+    p50 1,986 m (sd 0,023), σ příčně 0,030 m, cena 0,072 ms/snímek. Sady **709/0** a **35/0**,
+    build `x64` bez chyb.
+  - **Neověřeno:** kvalita hranice na reálných datech (záznam je z virtuálních kamer), křižovatka
+    (koridor tam zaniká), jednostranná viditelnost a extrinsiky reálné D435. Napojení na mapu
+    a měření do fúze je další krok.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#směr-z-hran-místo-z-plochy--spike-21-8-2026).
+    Kód spiku je jednorázový, mimo repozitář (scratchpad).
+
 - **Stop/Start jednotlivého senzoru v panelu Sensors** — a k tomu zrušené skryté `Start()`
   v `SensorBase.GetLastMeasurement()`.
   - **Jádro problému:** vyzvednutí měření senzor **spustilo**, takže zastavit senzor nešlo vůbec —

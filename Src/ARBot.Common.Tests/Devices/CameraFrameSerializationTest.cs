@@ -304,6 +304,133 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
+        public void CameraFrame_V5_MetrickeBodyHran_RoundTrips()
+        {
+            // Od verze 5 nesou hranice cesty i metricky bod v ramci robotu (ColorEdgeProjector),
+            // aby konzument nepotreboval projekce a offline prepocet nezavisel na tom, jestli je
+            // v ramci barevna projekce. Viz doc/map-correlation-localization.md.
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                TimeStamp = T0,
+                PathEdges = new List<PathEdge>
+                {
+                    new PathEdge
+                    {
+                        Y = 5, Left = 10, Right = 30,
+                        LeftPoint = new Point4D { X = 1.25f, Y = -0.5f, Z = 0.02f, A = 1 },
+                        RightPoint = new Point4D { X = 1.30f, Y = 1.75f, Z = -0.01f, A = 1 },
+                    },
+                    new PathEdge
+                    {
+                        Y = 4, Left = null, Right = 28,
+                        RightPoint = new Point4D { X = 2.0f, Y = 1.8f, Z = 0f, A = 1 },
+                    },
+                },
+            };
+
+            using var ms = new MemoryStream();
+            var rec = new RecordingTarget(ms, null, TestHelpers.Enc);
+            rec.Start(); rec.Post(frame); rec.Stop();
+
+            var catalog = MessageCatalog.CommonDefaults().Register(new CameraFrame());
+            CameraFrame r = null;
+            var sink = new DelegateTarget(m => { if (m is CameraFrame c) r = c; });
+            sink.Start();
+            using (var rms = new MemoryStream(ms.ToArray()))
+            {
+                var src = new FileMessageSource(rms, TestHelpers.Enc, catalog);
+                src.Connect(sink);
+                src.RunToEnd();
+            }
+            sink.Stop();
+
+            Assert.That(r, Is.Not.Null);
+            Assert.That(r.Verze, Is.EqualTo(5));
+            Assert.That(r.PathEdges, Has.Count.EqualTo(2));
+
+            Assert.That(r.PathEdges[0].LeftPoint.A, Is.EqualTo(1));
+            Assert.That(r.PathEdges[0].LeftPoint.X, Is.EqualTo(1.25f).Within(1e-6));
+            Assert.That(r.PathEdges[0].LeftPoint.Y, Is.EqualTo(-0.5f).Within(1e-6));
+            Assert.That(r.PathEdges[0].LeftPoint.Z, Is.EqualTo(0.02f).Within(1e-6));
+            Assert.That(r.PathEdges[0].RightPoint.Y, Is.EqualTo(1.75f).Within(1e-6));
+
+            // Radek bez leveho kraje nesmi predstirat platny bod.
+            Assert.That(r.PathEdges[1].LeftPoint.A, Is.EqualTo(0), "chybejici kraj = neplatny bod");
+            Assert.That(r.PathEdges[1].RightPoint.A, Is.EqualTo(1));
+            Assert.That(r.PathEdges[1].HasMetricPoints, Is.True);
+        }
+
+        [Test]
+        public void CameraFrame_V4_ReadsWithoutMetrickeBody()
+        {
+            // Zaznam verze 4 (hrany jen v pixelech) se musi precist a metricke body zustat
+            // NEPLATNE - jinak by starsi zaznamy tvrdily, ze hranice cesty lezi v pocatku.
+            var frame = new CameraFrame
+            {
+                Name = "Left",
+                FrameNum = 9,
+                TimeStamp = T0,
+                RGBTimeStamp = T0.AddMilliseconds(1),
+                DepthTimeStamp = T0.AddMilliseconds(2),
+                PathEdges = new List<PathEdge>
+                {
+                    new PathEdge { Y = 7, Left = 3, Right = 9 },
+                    new PathEdge { Y = 6, Left = null, Right = 11 },
+                },
+            };
+
+            byte[] v4 = SerializeV4(frame);
+
+            var read = new CameraFrame { Verze = 4 };
+            read.FromData(TestHelpers.Enc, v4);
+
+            Assert.That(read.PathEdges, Has.Count.EqualTo(2), "hrany se z v4 precetly");
+            Assert.That(read.PathEdges[0].Y, Is.EqualTo(7));
+            Assert.That(read.PathEdges[0].Left, Is.EqualTo(3));
+            Assert.That(read.PathEdges[1].Left, Is.Null);
+            Assert.That(read.PathEdges[0].LeftPoint.A, Is.EqualTo(0), "v4 metricke body nenese");
+            Assert.That(read.PathEdges[0].RightPoint.A, Is.EqualTo(0));
+            Assert.That(read.PathEdges[0].HasMetricPoints, Is.False);
+        }
+
+        /// <summary>Zapise ramec ve v4 layoutu: jako v5, ale hranice cesty BEZ metrickych bodu.</summary>
+        private static byte[] SerializeV4(CameraFrame f)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, TestHelpers.Enc, leaveOpen: true))
+            {
+                bw.Write(f.FrameNum);
+                bw.Write(f.DropedOutNum);
+                bw.Write(f.FrameReceivePeriod.Ticks);
+                bw.Write(f.FramePickupPeriod.Ticks);
+                bw.Write(f.TimeStamp.Ticks);
+                bw.Write(f.Name ?? string.Empty);
+                ImageMsg.Write(bw, f.ImageRGB, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageProbability, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageDepth, ImageMsg.Compression.None);
+                bw.Write(f.RGBTimeStamp.ToBinary());
+                bw.Write(f.DepthTimeStamp.ToBinary());
+                bw.Write(false);                       // grid flag: bez gridu
+                bw.Write(f.PathEdges != null);         // hrany
+                if (f.PathEdges != null)
+                {
+                    bw.Write(f.PathEdges.Count);
+                    foreach (var e in f.PathEdges)
+                    {
+                        bw.Write(e.Y);
+                        bw.Write(e.Left.HasValue);
+                        if (e.Left.HasValue) bw.Write(e.Left.Value);
+                        bw.Write(e.Right.HasValue);
+                        if (e.Right.HasValue) bw.Write(e.Right.Value);
+                    }
+                }
+                bw.Write(false);                       // projekce: neni
+            }
+            return ms.ToArray();
+        }
+
+        [Test]
         public void CameraFrame_V2_ReadsWithoutPathEdges()
         {
             // Zaznam verze 2 (grid, ale jeste bez hranic cesty) se musi precist bez chyby (PathEdges=null).
@@ -382,6 +509,47 @@ namespace ARBot.Common.Tests.Devices
             Assert.That(r.Projection.InverseIntrinsics.Width, Is.EqualTo(8));
             Assert.That(r.Projection.Transformation, Is.EqualTo(frame.Projection.Transformation));
             Assert.That(r.Projection.From, Is.EqualTo(frame.Projection.From));
+        }
+
+        [Test]
+        public void CameraFrame_Projekce_NeseBarevnouIntrinsikuIExtrinsiky()
+        {
+            // Od v5 nese popis projekce i BAREVNOU intrinsiku a extrinsiky color<->depth. Bez nich
+            // nejde prepocitat pixel barevneho obrazu na metricky bod (ColorEdgeProjector) - a driv
+            // z kamery vubec nevylezly: D435CameraProjection je drzel v privatnich polich a na ARM
+            // je konstruktor zahazoval. Viz doc/map-correlation-localization.md.
+            var info = MakeProjectionInfo();
+            info.ColorIntrinsics = new ARBot.Common.Coordinates.Intrinsics
+            {
+                Width = 640, Height = 480, Fx = 460.5f, Fy = 460.5f, PPx = 320f, PPy = 240f,
+                Model = ARBot.Common.Coordinates.Intrinsics.Distortion.None,
+            };
+            info.ColorToDepth = System.Numerics.Matrix4x4.CreateTranslation(-0.015f, 0.001f, 0.002f);
+            info.DepthToColor = System.Numerics.Matrix4x4.CreateTranslation(0.015f, -0.001f, -0.002f);
+
+            var frame = new CameraFrame { Name = "Left", TimeStamp = T0, Projection = info };
+
+            var r = RoundTrip(frame);
+
+            Assert.That(r.Projection.ColorIntrinsics, Is.Not.Null, "barevna intrinsika se prenesla");
+            Assert.That(r.Projection.ColorIntrinsics.Width, Is.EqualTo(640));
+            Assert.That(r.Projection.ColorIntrinsics.Fx, Is.EqualTo(460.5f));
+            Assert.That(r.Projection.ColorToDepth, Is.EqualTo(info.ColorToDepth));
+            Assert.That(r.Projection.DepthToColor, Is.EqualTo(info.DepthToColor));
+        }
+
+        [Test]
+        public void CameraFrame_Projekce_BezBarevneCastiJeIdentita()
+        {
+            // Kdyz kamera barevnou cast nedoda, extrinsiky musi byt IDENTITA (= zarovnane streamy),
+            // ne nuly - nulova matice by bod poslala do pocatku.
+            var frame = new CameraFrame { Name = "Left", TimeStamp = T0, Projection = MakeProjectionInfo() };
+
+            var r = RoundTrip(frame);
+
+            Assert.That(r.Projection.ColorIntrinsics, Is.Null);
+            Assert.That(r.Projection.ColorToDepth, Is.EqualTo(System.Numerics.Matrix4x4.Identity));
+            Assert.That(r.Projection.DepthToColor, Is.EqualTo(System.Numerics.Matrix4x4.Identity));
         }
 
         [Test]

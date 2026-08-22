@@ -966,6 +966,172 @@ Build i testy vždy `-p:Platform=x64`; měření na cílovém HW pod `OrangePI`.
 
 Implementační kroky: [plan-map-correlation.md](plan-map-correlation.md).
 
+## Směr „z hran" místo „z plochy" — spike 21. 8. 2026
+
+Podnět autora: plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí v obraze
+detekovat **hranici** cesty a porovnat ji s mapou. Spolehlivá varianta ze starého robotu (autor):
+RANSAC proloží hraniční body přímkou vlevo a vpravo, v místě robotu se spočítá kolmice na cestu,
+průsečíky s oběma hranicemi dají **šířku cesty, příčnou polohu robotu a odchylku osy**.
+(`PathMapCorelator` se na starém robotu **odladit nepodařilo** — ten směr se neopakuje.)
+
+### Co pro to v repozitáři už je
+
+| kus | stav |
+|---|---|
+| `NativeComputeUnit.PathEdges` | **běží každý snímek**, jde do `CameraFrame` v3 → je to v záznamech; dnes to nikdo nekonzumuje |
+| [`PathEdgeFinder`](../Src/ARBot.Common/Common/PathEdgeFinder.cs) | RANSAC vlevo/vpravo, kontrola paralelnosti, výběr páru podle očekávaného směru, `LeftDistance`/`RightDistance`/`AngleDiff` — přesně ta spolehlivá varianta, nenapojené |
+| `PathEdgeMsg` v4 | zpráva ta čísla už umí zaznamenat |
+| `RoadScene` | úsečky **s pološířkou** → mapová hranice je analytická, `RoadRaster` netřeba |
+
+### Naměřeno nad `records/20260821-095328.rec` (562 snímků, virtuální HW, dvě mapy)
+
+Materiál je celý: **všech 562 rámců** má `PathEdges`, hloubku, probability i popis projekce.
+
+| údaj | hodnota |
+|---|---|
+| snímků s koridorem po gatech | **277 z 559** (50 %) |
+| **příčná poloha** | p50 1,00 m, **sd 0,03 m**, p5–p95 = 0,95–1,05 |
+| **směr cesty** | p50 0,90°, **sd 0,77°** |
+| šířka | p50 3,21 m, sd 0,45 m |
+| paralelnost hranic | p50 1,26° |
+| rezidua bodů od přímky | **p50 0,04 m** |
+
+Pro srovnání: plošná korelace hlásí σ 0,150 m příčně a σφ 1,85–4,34°, a to **odvozené ze zakřivení
+skóre**, ne z opakovatelnosti. Tady je 3 cm a 0,77° **naměřená rozptylem** přes 277 snímků.
+
+Gaty, které to čistí, jsou ty z návrhu: **minimální počet inlierů** (25) zahodil 282 snímků,
+paralelnost < 10° nezahodila nic. Bez gatu na inliery se do statistiky mísí přímky proložené
+3–6 body, které vyjdou kolmo na cestu (šířka až 10 m, směr −88°).
+
+### Tři překážky, které spike odkryl
+
+1. **Rovinná projekce nestačí.** Základní `CameraProjection.TransformBack(points, depth)` hloubku
+   **ignoruje** a promítá paprsek na rovinu země: body těsně pod horizontem vyjdou na stovky metrů
+   (naměřeno max 444–803 m) a 60 % bodů padne „nad horizont". S hloubkou jsou rezidua 4 cm.
+2. **Na ARM ta funkce neexistuje.** `D435CameraProjection.TransformBack` (Armbian) vyhazuje
+   `NotSupportedException` — *„ColorPixel23D neni na ARM implementovana v libNativeLib.so"*. Na
+   Windows je to nativní `ColorPixel23D`, u virtuální kamery se použije rovinný základ. **Hranová
+   cesta tedy potřebuje managed přepočet hloubky** (ingredience jsou: `Camera2DToCamera3D`,
+   hloubka v mm × 0,001, montážní `Transformation`) — ve spiku odzkoušeno, ~40 řádků.
+3. **Každá kamera vidí jen jednu stranu cesty** (levá 379 vs 16 bodů, pravá 165 vs 5 — jsou
+   namířené do stran). Koridor se **musí** skládat z obou kamer, párovaných časem (< 60 ms).
+   Vedlejší nález: v záznamu je jen **hloubková** projekce, ale `PathEdges` jsou v souřadnicích RGB
+   → pro offline přepočet chybí barevná projekce (u virtuální kamery se dá dopočítat, u reálné ne).
+
+### Krok 2: znaménková geometrie + porovnání s mapou
+
+Podezření z kroku 1 (`dL ≈ 0,12 m`) bylo skutečně chyba znaménka. Se znaménkovou geometrií
+(směr koridoru `u`, levá normála `n`, offsety obou přímek podél `n`) čísla sednou — a sednou
+**absolutně**, ne jen opakovatelně. Tentýž záznam, 275 snímků po gatech:
+
+| veličina | pozorováno | mapa (ground truth) |
+|---|---|---|
+| **šířka koridoru** | p50 **2,01 m**, sd 0,06 | 2,00 m (tag `width` v obou mapách) |
+
+| rezidua pozorování − mapa | příčně [m] | směr [°] | šířka [m] |
+|---|---|---|---|
+| proti **vizní** mapě (kamery renderují z ní) | p50 **−0,01**, sd **0,03** | p50 −0,59, sd 0,71 | p50 0,01, sd 0,06 |
+| proti **navigační** mapě (to má korelace měřit) | p50 **+0,51**, sd **0,03** | p50 +0,98, sd 0,71 | p50 0,01, sd 0,06 |
+
+**Čtení:** proti mapě, ze které se obraz renderuje, se pozorování shoduje na **1 cm příčně
+a 0,6°** — tím je ověřený celý řetězec (`PathEdges` → hloubková projekce → RANSAC → znaménkový
+koridor → dotaz do mapy). A vnucený rozdíl obou map to najde jako **0,51 m ± 0,03 m**. Pro
+srovnání: plošná korelace na tomtéž záznamu hlásila `dx` 0,35–0,50 m se σ 0,150 m — **stejná
+veličina, pětkrát horší rozptyl a 8× nižší kadence**.
+
+> **Pozor na výklad rigu.** Vnucená chyba je rozdíl **map**, ne chyba pózy: kamery renderují
+> z vizní mapy z *pravé* pózy. Že rezidua proti vizní mapě vyšla nulová, tedy znamená, že fúze
+> v tom běhu pózu držela správně. Těch 0,51 m je poctivě naměřený nesouhlas mapy s viděným
+> světem — test měří, že se ta veličina **najde**, ne že je žádoucí podle ní pózu opravit.
+
+**Cena** (x64, Release, per snímek): projekce hraničních bodů **0,02 ms** (p95 0,07),
+dvě RANSAC prokládání **0,06 ms** (p95 0,09). Tedy **~0,1 ms na snímek** proti 62–104 ms
+u plošného skenu — a bez rostoucí paměti, protože se nic neakumuluje.
+
+### Krok 3: kód v repozitáři (21. 8. 2026)
+
+Tři nové kusy v `ARBot.Common`; napojení na mapu a měření do fúze je **další krok**.
+
+**[`ColorEdgeProjector`](../Src/ARBot.Common/Vision/ColorEdgeProjector.cs)** — managed náhrada
+nativního `ColorPixel23D`, které **v `NativeLib` dnes vůbec není** (takže
+`D435CameraProjection.TransformBack(points, depth)` je mrtvá cesta na *všech* platformách, na ARM
+navíc vyhazuje `NotSupportedException`). Postup je shodný s originálem: barevný pixel → hloubkový
+(hledání podél epipolary mezi `depth_min` a `depth_max`), z tabulky směrů paprsek, bod
+`(ray.x·d, ray.y·d, d)`, nakonec montážní transformace. **Extrinsiky color↔depth jsou vstup**, ne
+mlčky vynechaná věc: při identitě (virtuální kamera, zarovnané streamy) hledání degeneruje na
+přepočet intrinsik a je exaktní. Zkreslení objektivu se na barevné straně zanedbává.
+
+> **Kde se extrinsiky ztrácely.** Kamera je zná (`new D435CameraProjection(i1, ii, colorIntrin,
+> depthIntrin, color2Depth, depth2Color)`), ale neměly kudy vylézt: na Windows zůstaly
+> v **privátních polích** jako argumenty nativního `ColorPixel23D`, na **ARM je konstruktor
+> zahazoval úplně** (prázdné tělo), a oba předávaly bázi `Matrix4x4.Identity`, takže i serializovaný
+> popis projekce tvrdil „žádná transformace color↔depth". Od 21. 8. 2026 je
+> `CameraProjectionInfo.ColorIntrinsics` + `ColorToDepth`/`DepthToColor`
+> (`CameraProjection.SetColorAlignment`) plní Windows i ARM D435 (konverze `Extrinsic2Transform`
+> už v repu byla) a virtuální kamera identitou. Jde to i do záznamu, takže offline přepočet
+> nepotřebuje živou kameru. **Na reálném HW pořád neověřeno** — jen zkompilováno pro `OrangePI`.
+
+#### `D435CameraProjection` zrušena (obě varianty)
+
+Obě podtřídy neobsahovaly **nic než** konstruktor a jeden `override TransformBack(points, depth)`:
+na Windows volal nativní `ColorPixel23D` (v `NativeLib` **není** → `EntryPointNotFound`), na ARM
+rovnou vyhazoval `NotSupportedException`. Nefunkční tedy byly obě. Jediný volající toho přetížení
+je `PathEdgeFinder.TransformEdges`, který v pipeline nikdo nekonstruuje.
+
+Místo smazání s tichým propadem na bázi (ta hloubku **ignorovala** a promítala na rovinu země —
+u horizontu stovky metrů) se **opravila báze**: `CameraProjection.TransformBack(points, depth)`
+hloubku používá, protože ji báze umí — má tabulku směrů i montážní transformaci, a od téhož dne
+i barevnou intrinsiku s extrinsikami. Přepočet pixel → metry drží
+[`ColorEdgeProjector`](../Src/ARBot.Common/Vision/ColorEdgeProjector.cs) (má testy), báze si ho
+jen cachuje. Když barevná intrinsika není známá, bere se intrinsika té projekce — tedy předpoklad,
+že body pocházejí z téhož streamu.
+
+Vedlejší efekt: `PathEdgeFinder` tím **přestal být závislý na nativní knihovně**. Neoživujeme ho
+(nahrazuje ho `CorridorFinder`), ale už není mrtvý kvůli chybějícímu `ColorPixel23D`.
+
+**`PathEdge.LeftPoint` / `RightPoint`** — hranice cesty nesou i **metrický bod v rámci robotu**,
+dopočítaný na vlákně kamery (`CameraFrameProcessor`, ~0,02 ms/snímek). Konzument tak nepotřebuje
+projekce vůbec a v záznamu jsou metry. `CameraFrame` má proto **layout v5**; starší záznamy se
+čtou dál a body v nich zůstanou neplatné.
+
+> **Rámec je ROBOT, ne ENU.** Vlákno kamery pózu nezná a znát nemá — tím zůstává pozorování
+> nezávislé na odhadu pózy, což je právě to, co z něj dělá poctivé měření (plošná korelace naopak
+> koreluje grid ukotvený tím odhadem). Převod do ENU patří až tam, kde se porovnává s mapou.
+>
+> Barevná intrinsika musí přijít z **barevné** projekce — dopočítat ji z hloubkové nejde, streamy
+> mají jiné FOV (u D435 69,4° vs 87°). Proto má procesor nový volitelný `colorProjectionResolver`
+> a `ICameraProjection` dostalo `Info` (výchozí `null`, stejný vzor jako u hloubkové).
+
+**[`CorridorFinder`](../Src/ARBot.Common/Localization/CorridorFinder.cs) → `RoadCorridor`** —
+bezstavový estimátor: dvě RANSAC přímky, kolmice v místě robotu, znaménková geometrie. Vrací
+šířku, příčnou polohu (+ = vlevo od osy), směr, σ, inliery, rezidua a `Reason`. Párování kamer
+i mapa patří do volajícího stupně, aby to šlo testovat bez HW (12 testů nad syntetickým koridorem).
+
+Dvě věci, které při psaní vyplavaly z testů:
+
+1. **Po RANSACu je potřeba proložit přes inliery.** RANSAC hledá *konsenzus* — vrátí model
+   z minimálního vzorku (3 body), který má nejvíc inlierů; proložení nalezené konsenzuální sady je
+   práce volajícího, ne úkol RANSACu. Bez něj nese přímka šum těch tří bodů (nad syntetickým šumem
+   5 cm to dělalo 5 cm chybu příčné polohy) a rezidua by se měřila proti špatné přímce. Nad
+   záznamem se doplněním nejmenších čtverců zlepšila i skutečná čísla: šířka sd **0,023 m**
+   (dřív 0,06) a směr sd **0,31°** (dřív 0,71°).
+2. **σ se zásadně nedělí √n.** Sousední hraniční body pocházejí ze sousedních řádků téhož obrazu
+   a chybu detekce si **sdílejí** (stín nebo tráva přerůstající asfalt posunou celou hranici, ne
+   jeden bod), takže dělením √n by z 200 bodů vyšla milimetrová jistota — přesně ta vada, kterou
+   má tenhle estimátor na plošné korelaci nahradit. σ je tedy `max(podlaha, rezidua)`, kde podlaha
+   3 cm je **naměřená opakovatelnost**, tedy systematika, kterou rezidua nevidí.
+
+**Ověřeno:** `CorridorFinder` z repozitáře nad `records/20260821-095328.rec` dává 277 koridorů
+z 560 (283× `TooFewInliers`), šířka p50 1,986 m (sd 0,023), směr sd 0,31°, σ příčně 0,030 m,
+cena **0,072 ms** na snímek. Sada `ARBot.Common.Tests` 709 prošlo / 0 selhalo.
+
+### Co zůstává neověřené
+
+Kvalita hranice na **reálných** datech — záznam je z virtuálních kamer, takže žádné stíny, kaluže
+ani listí. Dál chování **na křižovatce**, kde koridor zaniká (gate ho zahodí, ale právě tam je
+podélná složka observabilní), a **jednostranná viditelnost** (v tomto záznamu byly obě hranice
+vidět z dvojice kamer po celou dobu).
+
 ## Otevřené úkoly
 
 - **⚠️ Falešná podélná jistota na cestě pod úhlem k osám gridu** (naměřeno 2026-08-19, **neopraveno**).

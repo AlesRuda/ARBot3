@@ -34,6 +34,11 @@ namespace ARBot.Common.Vision
     public sealed class CameraFrameProcessor : ICameraFrameProcessor, IDisposable
     {
         private readonly Func<string, IDepthCameraProjection> resolveProjection;
+
+        // Barevna projekce (volitelna) - jen kvuli barevne intrinsice pro prepocet hranic cesty
+        // do metru. null = metricke body se nepocitaji (zustanou neplatne).
+        private readonly Func<string, ICameraProjection> resolveColorProjection;
+
         private readonly PolarGridConfig cfg;
         private readonly IBackProject backProject;
         private readonly IComputeUnit computeUnit;
@@ -67,6 +72,53 @@ namespace ARBot.Common.Vision
             if (cloud == null || cloud.Length < len) cloud = new Point4D[len];
         }
 
+        // Prepocet hran do metru per kamera (geometrie je stala, tabulky uvnitr projekce velke).
+        private readonly Dictionary<IDepthCameraProjection, ColorEdgeProjector> edgeProjectors
+            = new Dictionary<IDepthCameraProjection, ColorEdgeProjector>();
+
+        /// <summary>
+        /// Doplni hranicim cesty metricke body v ramci robotu (<see cref="PathEdge.LeftPoint"/> /
+        /// <see cref="PathEdge.RightPoint"/>) pomoci <see cref="ColorEdgeProjector"/>.
+        ///
+        /// <para>Barevna intrinsika se bere z rozmeru <see cref="CameraFrame.ImageRGB"/> a FOV
+        /// hloubkove intrinsiky <b>jen kdyz jinou nemame</b> — pro spravny prepocet je potreba
+        /// skutecna barevna intrinsika. Bez <c>ImageRGB</c> nebo bez popisu projekce se body
+        /// nepocitaji (zustanou neplatne).</para>
+        /// </summary>
+        private void ProjectPathEdges(CameraFrame frame, IDepthCameraProjection proj)
+        {
+            var edges = frame.PathEdges;
+            if (edges == null || edges.Count == 0 || frame.ImageDepth == null) return;
+
+            var depthIntr = proj.Info?.Intrinsics;
+            if (depthIntr == null || frame.ImageRGB == null) return;
+
+            if (!edgeProjectors.TryGetValue(proj, out var projector))
+            {
+                // Barevna intrinsika MUSI prijit od kamery - dopocitat ji z hloubkove nejde,
+                // streamy maji jine FOV (u D435 69,4° vs 87°). Primarne z popisu hloubkove
+                // projekce (HAL ji tam dava spolu s extrinsikami color<->depth), zaloha je
+                // samostatna barevna projekce. Bez ni se metricke body nepocitaji.
+                var info = proj.Info;
+                var colorIntr = info?.ColorIntrinsics
+                                ?? resolveColorProjection?.Invoke(frame.Name ?? string.Empty)?.Info?.Intrinsics;
+                if (colorIntr == null) return;
+
+                edgeProjectors[proj] = projector = new ColorEdgeProjector(
+                    colorIntr, depthIntr, proj,
+                    colorToDepth: info?.ColorToDepth, depthToColor: info?.DepthToColor);
+            }
+
+            for (int i = 0; i < edges.Count; i++)
+            {
+                var e = edges[i];
+                e.LeftPoint = e.Left.HasValue
+                    ? projector.ToRobot(e.Left.Value, e.Y, frame.ImageDepth) : default;
+                e.RightPoint = e.Right.HasValue
+                    ? projector.ToRobot(e.Right.Value, e.Y, frame.ImageDepth) : default;
+            }
+        }
+
         /// <param name="projectionResolver">Vrati projekci pro kameru dle <see cref="CameraFrame.Name"/>,
         /// nebo null, neni-li (jeste) k dispozici (napr. kamera se pripojuje line - grid se preskoci).</param>
         /// <param name="config">Konfigurace gridu; null = vychozi.</param>
@@ -76,14 +128,19 @@ namespace ARBot.Common.Vision
         /// (<see cref="CameraFrame.PathEdges"/>); null = nepocitat (zadny managed fallback neni).</param>
         /// <param name="diagnosticsCsvPath">Volitelna cesta k CSV logu casu (wait/compute per snimek) pro
         /// diagnostiku latence; null = nelogovat.</param>
+        /// <param name="colorProjectionResolver">Volitelna barevna projekce dle
+        /// <see cref="CameraFrame.Name"/> - potrebna <b>jen</b> pro prepocet hranic cesty do metru
+        /// (<see cref="PathEdge.LeftPoint"/>); null = metricke body se nepocitaji.</param>
         public CameraFrameProcessor(
             Func<string, IDepthCameraProjection> projectionResolver,
             PolarGridConfig config = null,
             IBackProject backProject = null,
             IComputeUnit computeUnit = null,
-            string diagnosticsCsvPath = null)
+            string diagnosticsCsvPath = null,
+            Func<string, ICameraProjection> colorProjectionResolver = null)
         {
             this.resolveProjection = projectionResolver ?? throw new ArgumentNullException(nameof(projectionResolver));
+            this.resolveColorProjection = colorProjectionResolver;
             this.cfg = config ?? new PolarGridConfig();
             this.backProject = backProject;
             this.computeUnit = computeUnit;
@@ -159,6 +216,12 @@ namespace ARBot.Common.Vision
                     // ze zaznamu. Je to per kamera nemenna instance (projekce ji cachuje), takze
                     // se jen predava referenci, bez alokace per snimek.
                     frame.Projection = proj.Info;
+
+                    // (2c) Hranice cesty do METRU v ramci robotu (od FormatVersion 5). Dela se to
+                    // az tady, protoze prave tady je po ruce hloubka i projekce - a stoji to
+                    // ~0,02 ms na snimek. Konzument (koridor pro lokalizaci) pak nepotrebuje
+                    // projekce vubec. Viz doc/map-correlation-localization.md.
+                    ProjectPathEdges(frame, proj);
                 }
             }
 

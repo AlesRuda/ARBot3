@@ -49,9 +49,36 @@ namespace ARBot.Common.Coordinates
             return p;
         }
 
+        /// <summary>
+        /// Intrinsika <b>barevneho</b> streamu (jina nez <see cref="Intrinsics"/>, ktera patri
+        /// hloubkovemu). <c>null</c> = neznama.
+        ///
+        /// <para><b>Proc tady</b> (21. 8. 2026): prepocet pixelu barevneho obrazu na metricky bod
+        /// (<see cref="ARBot.Common.Vision.ColorEdgeProjector"/>) ji potrebuje, a dopocitat ji
+        /// z hloubkove nejde - streamy maji jine FOV (u D435 69,4° vs 87°). Tim, ze je v popisu,
+        /// je i v zaznamu, takze offline prepocet nepotrebuje zivou kameru.</para>
+        /// </summary>
+        public Intrinsics ColorIntrinsics;
+
+        /// <summary>
+        /// Extrinsika barevna → hloubkova kamera. Identita = zarovnane streamy (virtualni kamera).
+        ///
+        /// <para><b>Proc tady:</b> u realne D435 jsou senzory ~15 mm od sebe a bez teto transformace
+        /// se barevny pixel priradi na spatny hloubkovy (chyba radu 1,5 cm pri 3 m). Do 21. 8. 2026
+        /// tyto hodnoty <b>nemely kudy vylezt</b>: <c>D435CameraProjection</c> je drzel v privatnich
+        /// polich jen pro nativni <c>ColorPixel23D</c> a na ARM je konstruktor zahazoval.</para>
+        /// </summary>
+        public Matrix4x4 ColorToDepth = Matrix4x4.Identity;
+
+        /// <summary>Extrinsika hloubkova → barevna kamera. Identita = zarovnane streamy.</summary>
+        public Matrix4x4 DepthToColor = Matrix4x4.Identity;
+
         /// <summary>Zachyti popis z parametru projekce (vc. aktualni <c>Transformation</c>).</summary>
         public static CameraProjectionInfo Capture(Intrinsics intrinsics, Intrinsics inverseIntrinsics,
-                                                   Matrix4x4 from, Matrix4x4 to, Matrix4x4 transformation)
+                                                   Matrix4x4 from, Matrix4x4 to, Matrix4x4 transformation,
+                                                   Intrinsics colorIntrinsics = null,
+                                                   Matrix4x4? colorToDepth = null,
+                                                   Matrix4x4? depthToColor = null)
             => new CameraProjectionInfo
             {
                 Intrinsics = intrinsics,
@@ -59,6 +86,9 @@ namespace ARBot.Common.Coordinates
                 From = from,
                 To = to,
                 Transformation = transformation,
+                ColorIntrinsics = colorIntrinsics,
+                ColorToDepth = colorToDepth ?? Matrix4x4.Identity,
+                DepthToColor = depthToColor ?? Matrix4x4.Identity,
             };
 
         // ---------------- serializace ----------------
@@ -74,14 +104,22 @@ namespace ARBot.Common.Coordinates
             WriteMatrix(bw, info.From);
             WriteMatrix(bw, info.To);
             WriteMatrix(bw, info.Transformation);
+            WriteIntrinsics(bw, info.ColorIntrinsics);      // od CameraFrame v5
+            WriteMatrix(bw, info.ColorToDepth);             // od CameraFrame v5
+            WriteMatrix(bw, info.DepthToColor);             // od CameraFrame v5
         }
 
-        /// <summary>Nacte popis zapsany <see cref="Write"/>; null, kdyz nebyl k dispozici.</summary>
-        public static CameraProjectionInfo Read(BinaryReader br)
+        /// <summary>
+        /// Nacte popis zapsany <see cref="Write"/>; null, kdyz nebyl k dispozici.
+        /// </summary>
+        /// <param name="withColorExtras">Nese layout i barevnou intrinsiku a extrinsiky color↔depth
+        /// (<c>CameraFrame</c> od verze 5)? U v4 zaznamu <c>false</c> - jinak by se cetlo za konec
+        /// popisu.</param>
+        public static CameraProjectionInfo Read(BinaryReader br, bool withColorExtras = false)
         {
             if (!br.ReadBoolean()) return null;
 
-            return new CameraProjectionInfo
+            var info = new CameraProjectionInfo
             {
                 Intrinsics = ReadIntrinsics(br),
                 InverseIntrinsics = ReadIntrinsics(br),
@@ -89,6 +127,13 @@ namespace ARBot.Common.Coordinates
                 To = ReadMatrix(br),
                 Transformation = ReadMatrix(br),
             };
+            if (withColorExtras)
+            {
+                info.ColorIntrinsics = ReadIntrinsics(br);
+                info.ColorToDepth = ReadMatrix(br);
+                info.DepthToColor = ReadMatrix(br);
+            }
+            return info;
         }
 
         private static void WriteIntrinsics(BinaryWriter bw, Intrinsics i)

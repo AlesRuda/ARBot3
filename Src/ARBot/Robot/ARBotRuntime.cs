@@ -275,6 +275,7 @@ namespace ARBot.Robot
             // soucasti CameraFrame -> tece na Stream a do zaznamu spolu s ramcem; ve View se prehraje.
             var gridCfg = new PolarGridConfig { UseNativeTransform = true };   // nativni SIMD transform (viz ekvivalencni test)
             var projectionResolver = BuildDepthProjectionResolver(hw);
+            var colorProjectionResolver = BuildColorProjectionResolver(hw);
             // Diagnostika (traversability-timing CSV + GC merani na vlakne kamery) je volitelna: pro
             // soutezni jizdu ji lze vypnout parametrem diag=false (vypne co neni potreba). Default on.
             bool diag = Program.GetParamBool("diag", true);
@@ -291,7 +292,10 @@ namespace ARBot.Robot
                         projectionResolver, gridCfg,
                         backProject: new BackProject(BackProject.RoadProbability),
                         computeUnit: cu,
-                        diagnosticsCsvPath: diag ? DiagCsvPath($"traversability-timing-{FileToken(cam.Name)}.csv") : null);
+                        diagnosticsCsvPath: diag ? DiagCsvPath($"traversability-timing-{FileToken(cam.Name)}.csv") : null,
+                        // Barevna projekce jen kvuli intrinsice pro prepocet hranic cesty do metru
+                        // (PathEdge.LeftPoint/RightPoint) - viz doc/map-correlation-localization.md.
+                        colorProjectionResolver: colorProjectionResolver);
                     cam.FrameProcessor = fp;
                     // Pri Stop: odpoj procesor od kamery (prestane pocitat) a zavri jeho diagnostiku.
                     var c = cam;
