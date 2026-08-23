@@ -319,4 +319,80 @@ public class CorridorLocalizerTests
         Assert.That(() => loc.Process(frame), Throws.Nothing);
         Assert.That(loc.Frames, Is.EqualTo(1));
     }
+
+    // ============ Kompenzace pohybu mezi snimky (23. 8. 2026) ============
+
+    /// <summary>
+    /// Kamery nejsou fazove svazane a jedou jen ~6,8 Hz, takze snimek druhe kamery je bezne
+    /// o 100+ ms starsi. Body z nej jsou v ramci robotu z JEJIHO casu — bez prepoctu by se
+    /// hranice skladaly z ruznych poz a nerovnobeznost by vznikla z niceho.
+    ///
+    /// <para>Test: bod, ktery ve svete stoji na miste, musi po prepoctu vyjit tam, kde ho robot
+    /// v novem case skutecne vidi.</para>
+    /// </summary>
+    [Test]
+    public void Reproject_StationaryWorldPoint_LandsWhereRobotNowSeesIt()
+    {
+        // Robot jel 2 m na vychod a pootocil se o 10 stupnu.
+        var then = new RobotState { X = 0, Y = 0, Theta = 0 };
+        var now = new RobotState { X = 2, Y = 0, Theta = Conversions.Deg2Rad(10) };
+
+        // Bod 5 m pred robotem (a 1 m vlevo) v case "then" = svetove (5, 1).
+        var p = new Point2D(5, 1);
+
+        var moved = CorridorLocalizer.Reproject(new List<Point2D> { p }, then, now)[0];
+
+        // Svetovy bod (5,1) videny z pozy (2,0,10 deg): posun (3,1) otoceny o -10 stupnu.
+        double c = Math.Cos(-Conversions.Deg2Rad(10)), s = Math.Sin(-Conversions.Deg2Rad(10));
+        double expX = 3 * c - 1 * s, expY = 3 * s + 1 * c;
+
+        Assert.Multiple(() =>
+        {
+            // Point2D drzi float, takze tolerance je na urovni jeho presnosti, ne double.
+            Assert.That(moved.X, Is.EqualTo(expX).Within(1e-5));
+            Assert.That(moved.Y, Is.EqualTo(expY).Within(1e-5));
+        });
+    }
+
+    /// <summary>Stejna poza = zadna zmena. Pojistka proti prehozenemu znamenku.</summary>
+    [Test]
+    public void Reproject_SamePose_ChangesNothing()
+    {
+        var pose = new RobotState { X = 7, Y = -3, Theta = 1.1 };
+        var pts = new List<Point2D> { new Point2D(1, 2), new Point2D(-4, 0.5) };
+
+        var moved = CorridorLocalizer.Reproject(pts, pose, pose);
+
+        Assert.Multiple(() =>
+        {
+            for (int i = 0; i < pts.Count; i++)
+            {
+                Assert.That(moved[i].X, Is.EqualTo(pts[i].X).Within(1e-12));
+                Assert.That(moved[i].Y, Is.EqualTo(pts[i].Y).Within(1e-12));
+            }
+        });
+    }
+
+    /// <summary>
+    /// Prepocet tam a zpet musi vratit puvodni body — jinak by se do merenia vloudil systematicky
+    /// posun umerny rozestupu snimku.
+    /// </summary>
+    [Test]
+    public void Reproject_ThereAndBack_IsIdentity()
+    {
+        var a = new RobotState { X = 1.5, Y = -2.5, Theta = 0.3 };
+        var b = new RobotState { X = 3.0, Y = -2.0, Theta = -0.4 };
+        var pts = new List<Point2D> { new Point2D(4, 1), new Point2D(8, -1.2) };
+
+        var back = CorridorLocalizer.Reproject(CorridorLocalizer.Reproject(pts, a, b), b, a);
+
+        Assert.Multiple(() =>
+        {
+            for (int i = 0; i < pts.Count; i++)
+            {
+                Assert.That(back[i].X, Is.EqualTo(pts[i].X).Within(1e-5));
+                Assert.That(back[i].Y, Is.EqualTo(pts[i].Y).Within(1e-5));
+            }
+        });
+    }
 }

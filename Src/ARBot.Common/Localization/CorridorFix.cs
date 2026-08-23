@@ -96,6 +96,14 @@ namespace ARBot.Common.Localization
                 m.ParallelErrorRad = Corridor.ParallelErrorRad;
                 m.DirectionLeftRad = Corridor.DirectionLeftRad;
                 m.DirectionRightRad = Corridor.DirectionRightRad;
+
+                // Usecky prolozeni - i kdyz se cyklus zamitl (prave tehdy jsou nejzajimavejsi).
+                m.HasLeftLine = Corridor.HasLeftLine;
+                m.LeftFromX = Corridor.LeftFrom.X; m.LeftFromY = Corridor.LeftFrom.Y;
+                m.LeftToX = Corridor.LeftTo.X; m.LeftToY = Corridor.LeftTo.Y;
+                m.HasRightLine = Corridor.HasRightLine;
+                m.RightFromX = Corridor.RightFrom.X; m.RightFromY = Corridor.RightFrom.Y;
+                m.RightToX = Corridor.RightTo.X; m.RightToY = Corridor.RightTo.Y;
                 m.CorridorReason = (byte)Corridor.Reason;
             }
             return m;

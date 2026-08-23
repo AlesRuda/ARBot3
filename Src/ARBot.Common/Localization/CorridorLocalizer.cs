@@ -124,9 +124,35 @@ namespace ARBot.Common.Localization
                 return null;
             }
 
+            // KOMPENZACE POHYBU mezi snimky. Body druhe kamery jsou v ramci robotu z JEJIHO casu;
+            // mezitim robot popojel a pootocil se, takze slozit je s aktualnimi bez prepoctu
+            // znamena vyrobit si nerovnobeznost z niceho. Pri 1,2 m/s a 150 ms je to 0,18 m posunu.
+            //
+            // Prevadi se jen RELATIVNI pohyb mezi dvema casy (odometrie na desetiny sekundy),
+            // ne absolutni poza - merenie tedy zustava nezavisle na chybe lokalizace, coz je prave
+            // to, co z nej dela poctivy vstup do fuze. Viz doc/map-correlation-localization.md.
+            var otherLeft = other.Left;
+            var otherRight = other.Right;
+            double skewMs = Math.Abs((other.T - frame.TimeStamp).TotalMilliseconds);
+
+            if (config.CompensateCameraSkew && skewMs > config.NoCompensationSkewMs)
+            {
+                var poseNow = engine.GetStateAt(frame.TimeStamp);
+                var poseThen = engine.GetStateAt(other.T);
+                if (poseNow == null || poseThen == null)
+                {
+                    // Bez pozy nelze prepocitat a bez prepoctu by to lhalo - radsi nic.
+                    LastFix = new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPose };
+                    return null;
+                }
+
+                otherLeft = Reproject(otherLeft, poseThen, poseNow);
+                otherRight = Reproject(otherRight, poseThen, poseNow);
+            }
+
             // Leva hranice od te kamery, ktera ji vidi lip; totez pro pravou.
-            var leftPts = left.Count >= other.Left.Count ? left : other.Left;
-            var rightPts = right.Count >= other.Right.Count ? right : other.Right;
+            var leftPts = left.Count >= otherLeft.Count ? left : otherLeft;
+            var rightPts = right.Count >= otherRight.Count ? right : otherRight;
 
             var corridor = finder.Find(leftPts, rightPts);
             var fix = new CorridorFix { Time = frame.TimeStamp, Corridor = corridor };
@@ -256,6 +282,32 @@ namespace ARBot.Common.Localization
                 }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"CorridorLocalizer: {ex}"); }
+        }
+
+        /// <summary>
+        /// Prepocte body z ramce robotu v case <paramref name="then"/> do ramce robotu v case
+        /// <paramref name="now"/>. Cistě rigidni transformace z ROZDILU obou poz - absolutni poloha
+        /// se vykrati, takze chyba lokalizace do vysledku nevstupuje.
+        /// </summary>
+        public static List<Point2D> Reproject(List<Point2D> pts, Fusion.RobotState then, Fusion.RobotState now)
+        {
+            if (pts == null || pts.Count == 0) return pts;
+
+            // p_svet = P_then + R(th_then) * p_then;  p_now = R(-th_now) * (p_svet - P_now)
+            //       => p_now = d + R(th_then - th_now) * p_then
+            double dth = then.Theta - now.Theta;
+            double cd = Math.Cos(dth), sd = Math.Sin(dth);
+
+            double ex = then.X - now.X, ey = then.Y - now.Y;
+            double cn = Math.Cos(now.Theta), sn = Math.Sin(now.Theta);
+            double dx = ex * cn + ey * sn;
+            double dy = -ex * sn + ey * cn;
+
+            var result = new List<Point2D>(pts.Count);
+            foreach (var p in pts)
+                result.Add(new Point2D(dx + p.X * cd - p.Y * sd,
+                                       dy + p.X * sd + p.Y * cd));
+            return result;
         }
 
         /// <summary>Metricke hranicni body snimku (uz je nese <see cref="PathEdge"/>).</summary>

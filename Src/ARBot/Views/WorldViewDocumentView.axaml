@@ -68,7 +68,7 @@
                 <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"
                           ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy."/>
                 <CheckBox Content="Hranice cesty" IsChecked="{Binding ShowEdges}" Foreground="White"
-                          ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy. Vizuální kontrola detektoru proti mapě.&#10;Při virtuálním HW se promítá skutečnou pózou, jinak fúzovanou.&#10;Ladicí vrstva — výchozí vypnuto."/>
+                          ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy — a přes ně PROLOŽENÉ PŘÍMKY z koridoru,&#10;i u zamítnutých cyklů (tenčí a průhlednější).&#10;&#10;Body jsou vidět vždy, ale přímky POUZE s parametrem corridor=true —&#10;bez něj se hranová lokalizace vůbec nezakládá. Stav je v rámečku vpravo dole.&#10;&#10;Při virtuálním HW se promítá skutečnou pózou, jinak fúzovanou.&#10;Ladicí vrstva — výchozí vypnuto."/>
 
                 <Separator Margin="0,4"/>
 

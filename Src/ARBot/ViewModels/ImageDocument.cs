@@ -304,12 +304,13 @@ namespace ARBot.ViewModels
                 && name != LeftOverlayLayer && name != RightOverlayLayer)
                 return;
 
-            var bmp = RenderEdgesOverlay(frame.PathEdges, rgb.Width, rgb.Height, out int marks);
+            var bmp = RenderEdgesOverlay(frame.PathEdges, rgb.Width, rgb.Height, out int marks, out int missing);
             if (bmp == null) return;
 
             prerendered[name] = bmp;
-            string info = string.Format(CultureInfo.InvariantCulture, "{0}  {1:HH:mm:ss.fff}  {2} radku, {3} znacek",
-                name, ts, frame.PathEdges.Count, marks);
+            string info = string.Format(CultureInfo.InvariantCulture,
+                "{0}  {1:HH:mm:ss.fff}  {2} radku, {3} znacek, {4} bez bodu",
+                name, ts, frame.PathEdges.Count, marks, missing);
 
             if (name == LeftLayer) SetSlotImage(Slot.Left, bmp, info);
             if (name == RightLayer) SetSlotImage(Slot.Right, bmp, info);
@@ -319,22 +320,27 @@ namespace ARBot.ViewModels
 
         /// <summary>
         /// Hranice jako barevne znacky: <b>modra</b> = leva, <b>oranzova</b> = prava,
-        /// <b>fialova</b> = sloupec detekovany, ale metricky bod nevznikl (chybi hloubka) — prave
-        /// tyhle radky delaji v koridoru mezery, a v cislech je nepoznat.
+        /// <b>fialova</b> = sloupec detekovany, ale metricky bod nevznikl (chybi hloubka).
+        ///
+        /// <para>Vypadky se kresli jako <b>siroka vodorovna cara</b>, ne jako tecka. Duvod: nad
+        /// zaznamem jich je ~25 % vsech sloupcu, ale rozstrikane po cele hranici a pri 50%
+        /// pruhlednosti overlaye je 3px tecka jine barvy okem nerozeznatelna — vypadalo to, ze
+        /// zadne vypadky nejsou. Jejich POCET je proto i v popisce panelu.</para>
         /// </summary>
-        private static WriteableBitmap RenderEdgesOverlay(List<PathEdge> edges, int w, int h, out int marks)
+        private static WriteableBitmap RenderEdgesOverlay(List<PathEdge> edges, int w, int h,
+                                                          out int marks, out int missing)
         {
-            marks = 0;
+            marks = 0; missing = 0;
             if (edges == null || w <= 0 || h <= 0) return null;
 
             var buf = new byte[w * h * 4];   // Bgra8888, vynulovano = pruhledne
 
-            int drawn = 0;
-            void Mark(int x, int y, byte b, byte g, byte r)
+            int drawn = 0, bad = 0;
+            void Mark(int x, int y, byte b, byte g, byte r, int halfWidth)
             {
                 if (x >= 0 && x < w && y >= 0 && y < h) drawn++;
                 for (int dy = -1; dy <= 1; dy++)
-                    for (int dx = -1; dx <= 1; dx++)
+                    for (int dx = -halfWidth; dx <= halfWidth; dx++)
                     {
                         int px = x + dx, py = y + dy;
                         if (px < 0 || py < 0 || px >= w || py >= h) continue;
@@ -343,25 +349,27 @@ namespace ARBot.ViewModels
                     }
             }
 
+            const int Dot = 1;       // bezna znacka: 3x3 px
+            const int Dash = 5;      // vypadek: 11x3 px, aby byl nepreslechnutelny
+
             foreach (var e in edges)
             {
                 if (e.Y < 0 || e.Y >= h) continue;
 
                 if (e.Left.HasValue)
                 {
-                    bool metric = e.LeftPoint.A != 0;
-                    if (metric) Mark(e.Left.Value, e.Y, 0xF0, 0xAF, 0x4C);      // modra
-                    else Mark(e.Left.Value, e.Y, 0xE0, 0x40, 0xC0);            // fialova
+                    if (e.LeftPoint.A != 0) Mark(e.Left.Value, e.Y, 0xF0, 0xAF, 0x4C, Dot);   // modra
+                    else { Mark(e.Left.Value, e.Y, 0xE0, 0x40, 0xC0, Dash); bad++; }          // fialova
                 }
                 if (e.Right.HasValue)
                 {
-                    bool metric = e.RightPoint.A != 0;
-                    if (metric) Mark(e.Right.Value, e.Y, 0x4D, 0xB7, 0xFF);    // oranzova
-                    else Mark(e.Right.Value, e.Y, 0xE0, 0x40, 0xC0);
+                    if (e.RightPoint.A != 0) Mark(e.Right.Value, e.Y, 0x4D, 0xB7, 0xFF, Dot); // oranzova
+                    else { Mark(e.Right.Value, e.Y, 0xE0, 0x40, 0xC0, Dash); bad++; }
                 }
             }
 
             marks = drawn;
+            missing = bad;
             DiagBitmapsCreated++;
             var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Unpremul);
@@ -548,7 +556,7 @@ namespace ARBot.ViewModels
                 && name.EndsWith(EdgesSuffix, StringComparison.Ordinal)
                 && lastEdges.TryGetValue(name, out var e))
             {
-                var edgeBmp = RenderEdgesOverlay(e.Edges, e.Width, e.Height, out int n);
+                var edgeBmp = RenderEdgesOverlay(e.Edges, e.Width, e.Height, out _, out _);
                 if (edgeBmp != null) prerendered[name] = edgeBmp;
             }
 

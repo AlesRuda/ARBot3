@@ -64,6 +64,20 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double DirectionLeftRad, DirectionRightRad;
 
+        /// <summary>
+        /// Prolozene primky jako <b>usecky</b> v ramci robotu - koncove body dane rozsahem inlieru
+        /// (krajni inliery promitnute na primku). Levá: <see cref="LeftFrom"/> → <see cref="LeftTo"/>.
+        ///
+        /// <para><b>Nacpak to je.</b> Cisla o nerovnobeznosti rikaji ZE je neco spatne, ne CO.
+        /// Usecky jde nakreslit do mapy a rovnou videt, kudy ta prolozeni vedou - i u cyklu, ktere
+        /// se zamitly. Plni se proto <b>hned po prolozeni</b>, jeste pred jakoukoli kontrolou.
+        /// Viz doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public Point2D LeftFrom, LeftTo, RightFrom, RightTo;
+
+        /// <summary>Je usecka leve/prave hranice vyplnena? (Prolozeni mohlo selhat uplne.)</summary>
+        public bool HasLeftLine, HasRightLine;
+
         /// <summary>Odhad sigma pricne polohy [m] z rozptylu reziduí a poctu inlieru.</summary>
         public double SigmaLateral;
 

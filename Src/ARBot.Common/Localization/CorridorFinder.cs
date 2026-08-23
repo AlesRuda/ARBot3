@@ -64,6 +64,22 @@ namespace ARBot.Common.Localization
             r.InliersLeft = left.inliers; r.InliersRight = right.inliers;
             r.ResidualLeft = left.rms; r.ResidualRight = right.rms;
 
+            // Usecky se ukladaji HNED - at je videt i to, co se za chvili zamitne.
+            if (left.line != null)
+            {
+                r.HasLeftLine = true; r.LeftFrom = left.from; r.LeftTo = left.to;
+                r.DirectionLeftRad = Normalize(left.line.Angle);
+            }
+            else
+            {
+
+            }
+            if (right.line != null)
+            {
+                r.HasRightLine = true; r.RightFrom = right.from; r.RightTo = right.to;
+                r.DirectionRightRad = Normalize(right.line.Angle);
+            }
+
             if (left.line == null || right.line == null)
             {
                 r.Reason = CorridorReason.TooFewPoints;
@@ -80,10 +96,6 @@ namespace ARBot.Common.Localization
             double aL = Normalize(left.line.Angle), aR = Normalize(right.line.Angle);
             double parallelError = Normalize(aL - aR);
             r.ParallelErrorRad = Math.Abs(parallelError);
-            // Obe strany zvlast - i kdyz se zamitne. Bez toho nejde poznat, ktera hranice je vedle
-            // (prumer se pri zamitnuti nepocita). Viz doc/map-correlation-localization.md.
-            r.DirectionLeftRad = aL;
-            r.DirectionRightRad = aR;
             if (r.ParallelErrorRad > cfg.MaxParallelErrorRad)
             {
                 r.Reason = CorridorReason.NotParallel;
@@ -131,16 +143,23 @@ namespace ARBot.Common.Localization
         private sealed class Holder { public Point2D P; public bool Inlier; }
 
         /// <summary>RANSAC prolozeni primkou + rezidua a pocet inlieru.</summary>
-        private (Line2D line, int inliers, double rms) Fit(IReadOnlyList<Point2D> pts)
+        private (Line2D line, int inliers, double rms, Point2D from, Point2D to) Fit(IReadOnlyList<Point2D> pts)
         {
-            if (pts == null || pts.Count < cfg.MinPoints) return (null, 0, 0);
+            if (pts == null || pts.Count < cfg.MinPoints) return (null, 0, 0, default, default);
 
             var holders = new List<Holder>(pts.Count);
             for (int i = 0; i < pts.Count; i++) holders.Add(new Holder { P = pts[i] });
 
-            var line = RANSAC.LinearRegresion(holders, 3, cfg.InlierThresholdM, 0.99,
-                                              h => h.P, h => h.Inlier = true);
-            if (line == null) return (null, 0, 0);
+            // Prah inlieru roste se vzdalenosti bodu - blizka hranice je presna na centimetry,
+            // vzdalena na decimetry az pul metru. Viz CorridorConfig.InlierThresholdPerMeter.
+            // Velikost vzorku pro jednu hypotezu - viz CorridorConfig.ModelSamplePoints. Nesmi
+            // presahnout pocet bodu, jinak RANSAC nema z ceho losovat.
+            int sample = Math.Max(2, Math.Min(cfg.ModelSamplePoints, holders.Count));
+
+            var line = cfg.InlierThresholdPerMeter > 0
+                ? RANSAC.LinearRegresion(holders, sample, ThresholdAt, 0.99, h => h.P, h => h.Inlier = true)
+                : RANSAC.LinearRegresion(holders, sample, cfg.InlierThresholdM, 0.99, h => h.P, h => h.Inlier = true);
+            if (line == null) return (null, 0, 0, default, default);
 
             // RANSAC hleda KONSENZUS - vrati model z minimalniho vzorku, ktery ma nejvic inlieru.
             // To je jeho uloha, ne vada; prolozeni pres nalezenou konsenzualni sadu je prace
@@ -149,6 +168,11 @@ namespace ARBot.Common.Localization
             var inliers = holders.Where(h => h.Inlier).Select(h => h.P).ToList();
             if (inliers.Count >= 2)
             {
+                // POZOR, nevazene zamerne: vazeni 1/sigma^2 podle vzdalenosti bylo zmereno
+                // (23. 8. 2026) a vysledek ZHORSILO. Vzdalene body jsou sice nejistejsi, ale
+                // zaroven jsou to jedine, co urcuje SMER primky - jejich potlacenim se zkrati
+                // efektivni zakladna a smer zesumi vic, nez kolik se ziska. Viz
+                // doc/map-correlation-localization.md.
                 var refined = Line2D.LinearRegesion(inliers);
                 if (refined != null) line = refined;
             }
@@ -161,8 +185,41 @@ namespace ARBot.Common.Localization
                 sum += d * d;
                 n++;
             }
-            return (line, n, n == 0 ? 0 : Math.Sqrt(sum / n));
+
+            // Koncove body usecky: krajni inliery promitnute NA primku. Kreslit nekonecnou primku
+            // by v mape nic nereklo - podstatne je, ktery usek hranice vlastne videla.
+            var (from, to) = Extent(line, inliers);
+
+            return (line, n, n == 0 ? 0 : Math.Sqrt(sum / n), from, to);
         }
+
+        /// <summary>Krajni body sady promitnute na primku (podle polohy podel jejiho smeru).</summary>
+        private static (Point2D from, Point2D to) Extent(Line2D line, IReadOnlyList<Point2D> pts)
+        {
+            if (pts == null || pts.Count == 0) return (default, default);
+
+            var dir = line.Angle;
+            double ux = Math.Cos(dir), uy = Math.Sin(dir);
+
+            double min = double.MaxValue, max = double.MinValue;
+            Point2D a = default, b = default;
+            foreach (var p in pts)
+            {
+                var q = line.ProjectOntoLine(p);
+                double t = q.X * ux + q.Y * uy;
+                if (t < min) { min = t; a = q; }
+                if (t > max) { max = t; b = q; }
+            }
+            return (a, b);
+        }
+
+        /// <summary>
+        /// Prah inlieru pro dany bod: konstanta z blizkeho pole plus prirustek na metr vzdalenosti
+        /// od robotu. Bod je v ramci robotu, takze vzdalenost je proste jeho norma.
+        /// </summary>
+        private double ThresholdAt(Point2D p)
+            => cfg.InlierThresholdM
+               + cfg.InlierThresholdPerMeter * Math.Sqrt(p.X * p.X + p.Y * p.Y);
 
         /// <summary>Offset primky podel normaly (n · p pro libovolny bod p na primce).</summary>
         private static double Offset(Line2D line, double nx, double ny)

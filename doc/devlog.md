@@ -37,6 +37,152 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-23
+
+- **`NoPair` vyřešen kompenzací pohybu mezi snímky — a měření se ztrojnásobilo.** Autor zkusil
+  léčit 56% `NoPair` oknem 500 ms: *„v cca 50 % případů nepřijdou snímky do 60 ms, to je
+  nepoužitelný"*. Měření ukázalo, že příčina je jinde.
+  - **Snímky jsou blízko sebe:** k *nejbližšímu* snímku druhé kamery je p50 **21 ms**, max 136 ms,
+    do 60 ms se vejde 86 %. Jenže `TryPair` se dívá **jen dozadu** (`lastByCamera`), takže
+    rozhoduje rozestup k *předchozímu* snímku — při periodě 147 ms a náhodné fázi rovnoměrně
+    0–147 ms, tedy do 60 ms jen ~40 %. Odtud těch 56 %.
+  - **Širší okno samo je past:** při 1,2 m/s a 400 ms je to 0,48 m posunu mezi snímky, takže by se
+    nerovnoběžnost vyrobila z ničeho — přesně ta veličina, kterou zkoumáme.
+  - **`CorridorLocalizer.Reproject`** převede body druhé kamery do rámce aktuálního snímku podle
+    **rozdílu** obou póz. Vstupuje jen relativní pohyb za desetiny sekundy (prakticky odometrie),
+    takže měření zůstává nezávislé na chybě lokalizace. Tři testy (stojící světový bod, identita
+    při stejné póze, tam a zpět).
+  - **Výsledek** (táž 40s trasa): `NoPair` 260 → **20**, `Ok` 76 → **159** (16 % → 55 % cyklů),
+    a `NotParallel` **kleslo** 110 → 81 — dvojice jsou po přepočtu konzistentnější. Šířka 1,98 m
+    proti mapovým 1,98, příčný nesouhlas 0,010 m.
+  - **Vedlejší nález, neřešeno:** kamery dodávají jen **6,8 Hz**, ačkoli `VirtualCameraOptions`
+    říká 30 Hz. Na plný takt by byl rozestup ≤ 17 ms a párování by nebyl problém vůbec.
+  - **Pád vrstvy hranic při přehrávání — odloženo jako nereprodukovatelné.** Diagnostika doplněná
+    do `catch` dala v okamžiku pádu `featur=395 null=0 bezExtentu=0 nekonecnych=0`, takže obsahem
+    featur to není. Tytéž featury z téhož záznamu prohnané **skutečným Mapsui** offline: 322 cyklů,
+    nula pádů — takže ani daty. Rozbor IL `GetExtent` (74 B) ukazuje **jediné nechráněné
+    dereferencování — argument**; ten přichází z `MemoryLayer._localFeatures`, kam se zapisuje jen
+    výsledek `ToArray()` a nikdy null. Chování navíc **není deterministické**: na témž místě
+    záznamu jednou nastane a jednou ne, a objevilo se i jinde. Vypadá to na **souběh na straně
+    Mapsui**. Po dohodě s autorem odloženo; platí pojistka (`try/catch` → vrstva se vypne a důvod
+    je v rámečku). Detail: [world-view.md](world-view.md).
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#nopair-kamery-nejsou-svázané-párování-se-dívalo-jen-dozadu-23-8-2026).
+
+
+- **Proložené přímky vidět v mapě — a ukázalo se, že většina zamítnutí je správně.** Autor:
+  „furt tomu pořádně nerozumím, nedokážu si to představit" — a navrhl kreslit detekované
+  linearizace ve World pohledu **bez ohledu na to, jak dopadlo jejich vzájemné vyhodnocení**.
+  - `RoadCorridorMsg` verze 4 nese obě proložení jako **úsečky v rámci robotu**
+    (`LeftFrom/LeftTo`, `RightFrom/RightTo`, konce dané rozsahem inlierů). Plní se **hned po
+    proložení**, ještě před jakoukoli kontrolou — u zamítnutých cyklů jsou nejzajímavější.
+    Starší záznamy se čtou dál.
+  - Ve World pohledu je kreslí vrstva „Hranice cesty": přijatý cyklus plnou tlustou čarou,
+    zamítnutý tenčí a průhlednější.
+  - **Přijaté** vypadají jak mají: `L (0,4; 1,0) → (4,8; 1,1)`, `P (0,2; −1,0) → (7,9; −1,2)`,
+    nerovnoběžnost 2,5°. **Zamítnuté jsou skoro kolmé:** `L (1,7; 3,3) → (9,0; 0,3)` proti
+    `P (0,8; −0,1) → (2,1; 2,2)`, 83,5°. Ta „pravá" hranice běží od osy doleva — je to **příčná
+    hrana křižovatky**, ne okraj koridoru.
+  - **Rozpad podle polohy na trase to potvrdil:** křižovatka (X 0..+4) 29 zamítnutí, slepý konec
+    (X −12..−10) 49, tedy **78 ze 110 tam, kde koridor prostě neexistuje**. Na rovném úseku
+    (X −8..−10) je nově **0 zamítnutí** — předtím tam bylo 100 %.
+  - **Přeformulování problému:** není to „koridor za jízdy nefunguje", ale „**testovací trasa je
+    ze ~40 % křižovatka a slepý konec**". Na měření kvality lokalizace je potřeba delší rovný
+    úsek, nebo statistiku počítat jen tam, kde koridor podle mapy existovat může.
+  - **Hned nato: „žádnou linearizaci nevidím".** Autor měl vrstvu zapnutou, body viděl, přímky ne —
+    a měl pravdu, že to vypadá jako vada. Příčina: běžel bez `corridor=`, které je výchozí `false`,
+    takže se stupeň hranové lokalizace vůbec nezaložil. Body nese `CameraFrame` a tečou pořád,
+    proložení počítá až ten stupeň. **Prázdná vrstva musí mít vysvětlení v UI**, ne jen řádek
+    v Debug outputu — proto je v rámečku vpravo dole
+    `Hranice: <n> b. ze <k> kamer, prolozeni: ano / ceka se / NENI (corridor=false)`.
+    Ověřeno oběma běhy: [bez corridor=](media/road-edges-nocorridor-20260823.png) hlásí
+    `NENI (corridor=false)`, [s corridor=true](media/road-edges-fitlines-20260823.png) `ano`
+    a přímky jsou vidět.
+  - **A hned další vada, kterou autor našel:** ve World byla vidět jen **jedna** hranice, zatímco
+    v Obrázcích obě. Prozradil to řádek v rámečku — `ze 1 kamer`. `Flush` běží z `Dispatcher`u
+    a mezi dva snímky téže kamery se vejde, takže ve frontě je často jen jedna; moje
+    `edgesByCam.Clear()` tu druhou pokaždé smazalo. Teď se přepisuje **per kameru** a zastaralé
+    záznamy se zahazují až při kreslení, proti času nejnovějšího snímku (ne proti hodinám — kvůli
+    přehrávání). Ověřeno: `ze 2 kamer`, obě hranice i proložení vidět.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#jak-ty-proložené-přímky-vypadají-23-8-2026).
+
+
+- **Práh inlieru RANSACu úměrný vzdálenosti bodu.** Autorův návrh: `NotParallel` neřešit ořezáním
+  dosahu, ale upravit vyhodnocovací funkci `Distances` — RANSAC měřil všechny body týmž metrem,
+  což platí jen kdyby měly stejnou nejistotu.
+  - **Implementováno** jako přetížení `RANSAC.LinearRegresion` s `Func<Point2D, double>` místo
+    konstanty; `CorridorConfig.InlierThresholdPerMeter` (výchozí 0,05 m/m), nula = původní chování.
+    Za běhu `corridortol=konstanta,přírůstek`.
+  - **⚠️ RANSAC je nedeterministický** — `Compute` používá neseedovaný `new Random()`, takže tentýž
+    vstup dá pokaždé jiný výsledek (±8 přijatých ze 421 dvojic). Než mi to došlo, vyvodil jsem
+    z jednotlivých běhů **dva závěry, které neplatily**. Všechna čísla níž jsou průměr z 12
+    opakování. Vedlejší důsledek: **replay hranové lokalizace není reprodukovatelný**, což jde proti
+    zbytku projektu (`DeterministicNoise`, `ComparisonTarget`). Neopraveno, jen zapsáno.
+  - **Se správným měřením práh funguje, jen ho bylo málo.** Optimum je **0,15 m/m**, ne 0,05:
+    `Ok` 158,9 → **175,8**, `NotParallel` 244,8 → **230,9**, a rozpětí se s původním stavem
+    nepřekrývají. Nad 0,20 se to prudce láme (práh projde i nesmysl).
+  - **Velikost vzorku pro hypotézu je bez vlivu.** Autor upozornil, že je to parametr RANSACu
+    (v `Fit` byl natvrdo 3). Vzorek 2 až 50: `Ok` 162,2 při 20 bodech, tedy plný překryv s původním
+    stavem. Má to důvod — výsledná přímka se prokládá **přes celou konsenzuální sadu**, takže šum
+    vzorku se do ní nepromítne. Parametr zůstal (bylo to magické číslo) a hlídá to test.
+  - **Vážené proložení 1/σ² taky ne — a vím proč.** Autor se ptal, jestli jsem zkoušel srazit vliv
+    vzdálených bodů na finální regresi. Zkoušel, dvakrát: poprvé slabě (jako σ jsem vzal práh, poměr
+    vah 1 m : 8 m jen 11:1), podruhé se sweepem síly až 54:1. **Žádné nastavení nepomohlo, silnější
+    vážení naopak škodí.** Vzdálené body jsou sice nejistější, ale jsou to zároveň jediné, co určuje
+    **směr** přímky — jejich potlačením se zkrátí efektivní základna a směr zašumí víc, než kolik se
+    získá. Implementace vrácena, poznatek zapsán.
+  - **Závěr:** funguje jen práh (+11 % přijatých), zbytek ne. `NotParallel` tím neizmizí — vstupní
+    množiny bodů v ~55 % dvojic skutečně popisují nerovnoběžné přímky. Další krok je podívat se na
+    konkrétní selhávající pózu těmi novými vrstvami.
+  - **Dva testy:** hranice s rostoucím rozptylem — škálovaný práh udrží víc vzdálených bodů než
+    jednotný; a nula se musí chovat přesně jako dřív.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#otevřené-úkoly).
+
+
+- **Oprava mého tvrzení o levé kameře + výpadky jsou vidět.** Autor poslal snímek z běhu, kde obě
+  kamery vidí cestu srovnatelně (383 vs 361 řádků), a namítl, že žádné výpadky na levé kameře
+  nevidí. Měl pravdu v obojím.
+  - **Zobecnění „levá kamera často nevidí cestu" bylo z jednoho snímku** a neplatí. Přes celý
+    záznam (221 vs 216 snímků) dávají obě kamery **343 a 311 řádků na snímek** — rozdíl je
+    zanedbatelný. Ta jedna póza, ze které jsem to vyvodil, byla výjimka, ne pravidlo.
+  - **Výpadky ale existují a je jich hodně:** **18–36 %** detekovaných sloupců nemá metrický bod
+    (`LeftPoint.A == 0`), a to na obou kamerách stejně (levá 17,6 / 32,1 %, pravá 19,3 / 30,8 %).
+    Nejsou u horizontu, jak by se čekalo — medián řádku výpadku 230 proti 243 u platných, tedy
+    rozprostřené po celém obraze.
+  - **Proč nebyly vidět:** kreslily se jako 3px tečka jiné barvy, při 50% průhlednosti overlaye
+    okem nerozeznatelná od sousedních platných značek. **Není to chyba dat ani vrstvy, ale
+    čitelnosti.** Výpadky se teď kreslí jako **široká vodorovná čára** a hlavně je jejich **počet
+    v popisce panelu** („374 řádků, 286 značek, **51 bez bodu**"). Číslo v popisce je to, co
+    otázku zodpoví bez zírání do pixelů.
+  - **Mimochodem se tím vysvětlil i nižší počet značek než řádků:** 35 % řádků `PathEdge` nemá ani
+    jeden sloupec, takže na 383 řádků vyjde ~280 značek. Souřadnice jsou přitom v pořádku —
+    probability i RGB jsou 640×480 (měřítko 1:1) a **žádný sloupec ani řádek nepadne mimo obraz**.
+  - **Dohledáno týž den: šev na hranici dělá drsnost trávy.** `SyntheticFrameRenderer.Trace`
+    přijme zásah roviny vozovky jen když bod leží **na cestě**, a zásah roviny trávy jen když
+    **není** — a `GrassRoughnessM` (3 cm) obě roviny rozdvojí, takže u paprsků mířících na hranici
+    padne zásah vozovky těsně ven a zásah trávy těsně dovnitř. Neprojde ani jeden →
+    `Surface.None` → hloubka 0 v tenké čáře podél celé hranice. Izolováno měřením: s drsností 0
+    je pod horizontem **0 nul**, s 3 cm jich je **744**; šum hloubky s tím nemá nic společného.
+    Rozpad příčin přes celý záznam (103 503 sloupců): platný bod 75,5 %, **hloubka 0 22,9 %**,
+    dál než 8 m 1,6 %, zbytek nula. Je to **vada simulace**, ne detektoru — skutečná kamera tenhle
+    šev nemá, vozovka a tráva jsou táž rovina.
+  - **Opraveno — chyběla svislá stěna.** Můj první návrh („vzít bližší zásah") autor zamítl: vedl by
+    k tomu, že se tráva rendruje blíž, než je. Správně je fyzika — tráva má výšku, takže na okraji
+    cesty stojí **svislá stěna** a paprsek do ní narazí. `Trace` ji dopočítá bisekcí na `IsRoad`
+    mezi oběma průsečíky; zásah leží **vždy mezi nimi**, takže se tráva blíž rendrovat nemůže.
+  - **Výsledek** (tentýž běh, 40 s): sloupců s platným bodem **75,5 % → 96,7 %**, chybějící hloubka
+    **22,9 % → 1,3 %**, příčný nesouhlas přijatých koridorů 0,024 → **0,007 m**, naměřená šířka
+    2,02 → **1,98 m** (mapa 1,99), `TooFewInliers` 18 → 4, chyba polohy p50 0,151 → **0,055 m**.
+  - **Ale `NotParallel` stoupl ze 79 na 115.** Zaplněné díry přidaly body i ve vzdálené —
+    rozptýlené — části hranice. Odstranění artefaktu je správně, hlavní problém (vážit body podle
+    vzdálenosti) to ale neřeší, spíš ho vytáhlo na světlo.
+  - **Musel jsem upravit jeden starší test:** `RenderDepth_OffRoad_UnprojectsOntoGrassPlane` tvrdil,
+    že každý platný pixel leží na jedné ze dvou rovin. To platilo jen dokud stěna neexistovala —
+    teď leží tenká čára pixelů mezi nimi. Přidány dva nové testy (žádné díry z drsnosti; stěna leží
+    mezi rovinami, ověřeno analytickou mezí `s(h)/s(0) = (eye.Z − h)/eye.Z`).
+  - **Odkazy:** [virtual-hw.md](virtual-hw.md#svislá-stěna-na-rozhraní-cesty-a-trávy-23-8-2026).
+  - **Odkazy:** [media/road-edges-image-20260823.png](media/road-edges-image-20260823.png),
+    [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md).
+
 ## 2026-08-22
 
 - **Hranice cesty vidět v UI — a tím i vysvětlení, proč koridor padá.** Autor navrhl zobrazit
@@ -70,7 +216,8 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     z posledních hranic při výběru. Do popisky přibyl **počet vykreslených značek**, aby bylo hned
     poznat, jestli je prázdno kvůli vrstvě, nebo kvůli datům.
     Ověřeno snímkem ([media/road-edges-image-20260822.png](media/road-edges-image-20260822.png)):
-    pravá kamera 373 řádků / 594 značek přesně na okraji vozovky, levá jen 22 řádků (vidí trávu).
+    pravá kamera 373 řádků / 594 značek přesně na okraji vozovky, levá v tom okamžiku jen 22 řádků
+    (mířila do trávy). **Pozor, to je jedna póza, ne vlastnost levé kamery** — viz oprava 23. 8.
   - **Další dvě věci, na které jsem narazil:** `MemoryLayer` kreslí pod každou featuru svůj výchozí
     bílý symbol (nutné `Style = null`, jinak je z toho kaše) a snímky jsou poolované, takže `Post`
     musí body kopírovat hned.

@@ -441,6 +441,27 @@ namespace ARBot.Robot
                 {
                     SendCorrections = send,
                 };
+
+                // Prah inlieru RANSACu: corridortol=konstanta,prirustekNaMetr. Vzdalena hranice je
+                // radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne - viz
+                // CorridorConfig.InlierThresholdPerMeter. Parametr je tu proto, aby se ta hodnota
+                // dala ZMERIT bezobsluznym A/B, ne uhodnout.
+                string tol = Program.GetParam("corridortol");
+                if (!string.IsNullOrWhiteSpace(tol))
+                {
+                    if (TryParsePair(tol, out double abs, out double perM) && abs > 0 && perM >= 0)
+                    {
+                        corridorCfg.Corridor.InlierThresholdM = abs;
+                        corridorCfg.Corridor.InlierThresholdPerMeter = perM;
+                        Trace.WriteLine($"corridortol={tol}: prah inlieru {abs:F3} m + {perM:F3} m na metr "
+                                        + "vzdalenosti bodu.");
+                    }
+                    else
+                    {
+                        Trace.WriteLine($"corridortol={tol} se neda rozebrat (cekam 'konstanta,prirustek', "
+                                        + "konstanta kladna) -> vychozi prah.");
+                    }
+                }
                 var corridor = new ARBot.Common.Localization.CorridorLocalizer(
                     engine, RoadNetwork, fusionConfig.GeoReference, corridorCfg);
 

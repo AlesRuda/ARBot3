@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -109,9 +110,14 @@ namespace ARBot.ViewModels
         private OccupancyGridMsg? pendingOccupancy;
         private GroundTruthMsg? pendingTruth;
 
-        /// <summary>Hranice cesty per kamera (body v ramci robotu) — nejnovejsi vyhrava.</summary>
-        private readonly Dictionary<string, List<(double X, double Y, bool Left)>> pendingEdges
-            = new Dictionary<string, List<(double X, double Y, bool Left)>>();
+        /// <summary>Prolozene primky z posledniho cyklu koridoru (v ramci robotu) + jak dopadl.</summary>
+        private (bool HasL, double LFx, double LFy, double LTx, double LTy,
+                 bool HasR, double RFx, double RFy, double RTx, double RTy,
+                 byte FixReason, byte CorridorReason, double ParallelErrorRad)? pendingCorridor;
+
+        /// <summary>Hranice cesty per kamera (body v ramci robotu + cas snimku) — nejnovejsi vyhrava.</summary>
+        private readonly Dictionary<string, (List<(double X, double Y, bool Left)> Pts, DateTime Ts)> pendingEdges
+            = new Dictionary<string, (List<(double X, double Y, bool Left)>, DateTime)>();
         private LocalPlanMsg? pendingPlan;
         private GlobalNavMsg? pendingGlobalNav;
         private volatile bool updateQueued;
@@ -124,9 +130,13 @@ namespace ARBot.ViewModels
         private OccupancyGridMsg? lastOccupancy;
         private GroundTruthMsg? lastTruth;
 
+        private (bool HasL, double LFx, double LFy, double LTx, double LTy,
+                 bool HasR, double RFx, double RFy, double RTx, double RTy,
+                 byte FixReason, byte CorridorReason, double ParallelErrorRad)? lastCorridor;
+
         /// <summary>Posledni hranice per kamera (uz vyzvednute z fronty).</summary>
-        private readonly Dictionary<string, List<(double X, double Y, bool Left)>> edgesByCam
-            = new Dictionary<string, List<(double X, double Y, bool Left)>>();
+        private readonly Dictionary<string, (List<(double X, double Y, bool Left)> Pts, DateTime Ts)> edgesByCam
+            = new Dictionary<string, (List<(double X, double Y, bool Left)>, DateTime)>();
         private bool edgesDirty;
         private LocalPlanMsg? lastPlan;
 
@@ -375,7 +385,15 @@ namespace ARBot.ViewModels
                         if (e.LeftPoint.A != 0) pts.Add((e.LeftPoint.X, e.LeftPoint.Y, true));
                         if (e.RightPoint.A != 0) pts.Add((e.RightPoint.X, e.RightPoint.Y, false));
                     }
-                    lock (gate) pendingEdges[cf.Name ?? string.Empty] = pts;
+                    lock (gate) pendingEdges[cf.Name ?? string.Empty] = (pts, cf.TimeStamp);
+                    break;
+
+                // Prolozene primky z koridoru. Berou se BEZ OHLEDU na to, jak dopadlo jejich
+                // vzajemne vyhodnoceni — zamitnuty cyklus je pro pochopeni ten nejzajimavejsi.
+                case RoadCorridorMsg rc when ShowEdges:
+                    lock (gate) pendingCorridor = (rc.HasLeftLine, rc.LeftFromX, rc.LeftFromY, rc.LeftToX, rc.LeftToY,
+                                                   rc.HasRightLine, rc.RightFromX, rc.RightFromY, rc.RightToX, rc.RightToY,
+                                                   rc.FixReason, rc.CorridorReason, rc.ParallelErrorRad);
                     break;
 
                 // Ground truth: kdyz je (virtualni HW), hranice se promitaji SKUTECNOU pozou —
@@ -416,9 +434,14 @@ namespace ARBot.ViewModels
                 plan = pendingPlan; pendingPlan = null;
                 globalNav = pendingGlobalNav; pendingGlobalNav = null;
                 if (pendingTruth != null) { lastTruth = pendingTruth; pendingTruth = null; }
+                if (pendingCorridor != null) { lastCorridor = pendingCorridor; pendingCorridor = null; edgesDirty = true; }
                 if (pendingEdges.Count > 0)
                 {
-                    edgesByCam.Clear();
+                    // POZOR, nemazat celou mapu (chyba nalezena 23. 8. 2026): Flush bezi
+                    // z Dispatcheru a mezi dvema snimky teze kamery se klidne vejde, takze ve
+                    // fronte je casto JEN JEDNA kamera. Puvodni Clear() proto tu druhou pokazde
+                    // smazal a ve World pohledu byla videt jen jedna hranice - v Obrazcich pritom
+                    // obe. Prepisuje se per kamera; zastarale zaznamy resi az kresleni.
                     foreach (var kv in pendingEdges) edgesByCam[kv.Key] = kv.Value;
                     pendingEdges.Clear();
                     edgesDirty = true;
@@ -729,6 +752,8 @@ namespace ARBot.ViewModels
             lastOccupancy = null;
             lastPlan = null;
             globalNavTip = null;
+            edgesByCam.Clear();
+            lastCorridor = null;
             initialCentered = false;
 
             robotLayer.Features = Array.Empty<IFeature>();
@@ -887,7 +912,83 @@ namespace ARBot.ViewModels
         /// </summary>
         private void UpdateEdgesFeature(GeoReference? geoRef)
         {
-            if (geoRef == null || edgesByCam.Count == 0)
+            // Ladici vrstva nesmi shodit aplikaci. Pri prehravani se zapnutymi hranicemi spadla
+            // (23. 8. 2026) na NullReferenceException uvnitr Mapsui pri prirazeni Features.
+            //
+            // Co je o tom zjisteno (viz doc/world-view.md):
+            //  - NENI to obsahem featur. Diagnostika v okamziku padu hlasila 395 featur, z toho
+            //    0 null, 0 bez extentu, 0 s nekonecnou souradnici.
+            //  - NENI to daty. Presne tytez featury z tehoz zaznamu prohnane skutecnym Mapsui
+            //    v konzolovem programu: 322 cyklu, zadny pad.
+            //  - Rozbor IL `FeatureExtensions.GetExtent` (74 B): jedine nechranene dereferencovani
+            //    je `ldarg.0` (argument). Vsechno ostatni ma null-check - prvek i jeho Extent.
+            //    Argument prichazi z `MemoryLayer._localFeatures`, do ktereho se zapisuje jedine
+            //    vysledek `ToArray()` a nikdy null.
+            //  - NENI to deterministicke: na temz miste zaznamu jednou nastane a jednou ne,
+            //    a objevilo se i jinde.
+            // Zbyva tedy soubeh nad TOUTEZ instanci vrstvy, tedy vec na strane Mapsui. Odlozeno;
+            // plati pojistka: vrstva se vypne a duvod se ukaze v ramecku, misto aby si vzala
+            // s sebou cely beh.
+            try
+            {
+                BuildEdgesFeatures(geoRef);
+                edgesFailure = null;
+            }
+            catch (Exception ex)
+            {
+                edgesFailure = ex.GetType().Name;
+                System.Diagnostics.Debug.WriteLine("WorldView: vrstva hranic selhala -> vypina se.");
+                System.Diagnostics.Debug.WriteLine("  " + DescribeEdgesState());
+                System.Diagnostics.Debug.WriteLine(ex.ToString());
+                try { edgesLayer.Features = Array.Empty<IFeature>(); } catch { /* uz nic */ }
+                ShowEdges = false;
+            }
+        }
+
+        /// <summary>Duvod, proc se vrstva hranic vypnula (null = v poradku). Ukazuje se v ramecku.</summary>
+        private string? edgesFailure;
+
+        /// <summary>Posledni sada featur predana Mapsui - drzi se JEN kvuli diagnostice padu.</summary>
+        private IFeature[]? lastEdgesFeatures;
+
+        /// <summary>
+        /// Popis stavu vrstvy pro Debug output pri padu. Vypisuje presne to, co je potreba vedet:
+        /// kolik featur slo dovnitr, jestli mezi nimi byla null nebo bez extentu a jestli nejsou
+        /// souradnice nekonecne. Rozbor IL `Mapsui.FeatureExtensions.GetExtent` rika, ze jina
+        /// pricina NullReferenceException uvnitr te smycky nez callvirt na null neexistuje.
+        /// </summary>
+        private string DescribeEdgesState()
+        {
+            var f = lastEdgesFeatures;
+            if (f == null) return "featury: jeste zadne";
+
+            int nulls = 0, noExtent = 0, notFinite = 0;
+            foreach (var x in f)
+            {
+                if (x == null) { nulls++; continue; }
+                MRect? e;
+                try { e = x.Extent; }
+                catch (Exception ex) { noExtent++; System.Diagnostics.Debug.WriteLine("  Extent hodil " + ex.GetType().Name); continue; }
+                if (e == null) { noExtent++; continue; }
+                if (double.IsNaN(e.MinX) || double.IsNaN(e.MinY) || double.IsNaN(e.MaxX) || double.IsNaN(e.MaxY)
+                    || double.IsInfinity(e.MinX) || double.IsInfinity(e.MinY)
+                    || double.IsInfinity(e.MaxX) || double.IsInfinity(e.MaxY)) notFinite++;
+            }
+
+            string pose = lastTruth != null
+                ? $"truth ({lastTruth.X:F2}, {lastTruth.Y:F2}, {Conversions.Rad2Deg(lastTruth.Theta):F1} deg)"
+                : lastRobot != null
+                    ? $"fuze ({lastRobot.X:F2}, {lastRobot.Y:F2}, {Conversions.Rad2Deg(lastRobot.Theta):F1} deg)"
+                    : "zadna";
+
+            return $"featur={f.Length} null={nulls} bezExtentu={noExtent} nekonecnych={notFinite}"
+                   + $"  kamer={edgesByCam.Count} zahozeno={edgesDropped} koridor={(lastCorridor != null ? "ano" : "ne")}"
+                   + $"  poza={pose}";
+        }
+
+        private void BuildEdgesFeatures(GeoReference? geoRef)
+        {
+            if (geoRef == null || (edgesByCam.Count == 0 && lastCorridor == null))
             {
                 edgesLayer.Features = Array.Empty<IFeature>();
                 return;
@@ -900,15 +1001,24 @@ namespace ARBot.ViewModels
 
             double c = Math.Cos(theta), sn = Math.Sin(theta);
             var features = new List<IFeature>();
+            int dropped = 0;
+
+            // Zastarale kamery se nekresli: kdyby jedna prestala dodavat, jeji posledni body by
+            // v mape zustaly viset jako duch. Mez se pocita proti NEJNOVEJSIMU snimku, ne proti
+            // hodinam - jinak by to nefungovalo pri prehravani zaznamu.
+            DateTime newest = DateTime.MinValue;
+            foreach (var kv in edgesByCam) if (kv.Value.Ts > newest) newest = kv.Value.Ts;
 
             foreach (var kv in edgesByCam)
-                foreach (var (bx, by, isLeft) in kv.Value)
+            {
+                if (newest - kv.Value.Ts > TimeSpan.FromSeconds(1)) continue;
+
+                foreach (var (bx, by, isLeft) in kv.Value.Pts)
                 {
                     // FLU (X vpred, Y vlevo) -> ENU podle kurzu robotu.
-                    double ex = px + bx * c - by * sn;
-                    double ey = py + bx * sn + by * c;
+                    var m = Robot2Mercator(geoRef, px, py, c, sn, bx, by);
+                    if (!IsDrawable(m)) { dropped++; continue; }
 
-                    var m = LocalToMercator(geoRef, ex, ey);
                     var f = new GeometryFeature
                     {
                         Geometry = new NetTopologySuite.Geometries.Point(new Coordinate(m.X, m.Y)),
@@ -922,9 +1032,59 @@ namespace ARBot.ViewModels
                     });
                     features.Add(f);
                 }
+            }
 
-            edgesLayer.Features = features;
+            // --- Proložené přímky z koridoru (i zamítnuté) ---
+            if (lastCorridor is { } lc)
+            {
+                // Přijatý cyklus = plná tlustá čára, zamítnutý = tenčí a průhlednější. Vidět mají
+                // být oba: zamítnutá dvojice je právě ta, u které je potřeba pochopit proč.
+                bool accepted = lc.FixReason == 0;
+                byte alpha = (byte)(accepted ? 255 : 150);
+                double width = accepted ? 4 : 2.5;
+
+                void AddLine(double fx, double fy, double tx, double ty, Color color)
+                {
+                    var a = Robot2Mercator(geoRef, px, py, c, sn, fx, fy);
+                    var b = Robot2Mercator(geoRef, px, py, c, sn, tx, ty);
+                    if (!IsDrawable(a) || !IsDrawable(b)) { dropped++; return; }
+
+                    var f = new GeometryFeature
+                    {
+                        Geometry = new LineString(new[] { new Coordinate(a.X, a.Y), new Coordinate(b.X, b.Y) }),
+                    };
+                    f.Styles.Add(new VectorStyle { Line = new Pen(color, width) });
+                    features.Add(f);
+                }
+
+                if (lc.HasL) AddLine(lc.LFx, lc.LFy, lc.LTx, lc.LTy, new Color(0x1E, 0x88, 0xE5, alpha));
+                if (lc.HasR) AddLine(lc.RFx, lc.RFy, lc.RTx, lc.RTy, new Color(0xF5, 0x7C, 0x00, alpha));
+            }
+
+            edgesDropped = dropped;
+
+            // Featury bez extentu se do Mapsui nepousteji. Rozbor IL `FeatureExtensions.GetExtent`
+            // (Mapsui 5.1.0) ukazuje smycku `get_Extent` -> `MRect.Join` / `new MRect(..)`, tedy
+            // jediny zpusob, jak v ni muze vzniknout NullReferenceException, je callvirt na null -
+            // prvek seznamu nebo jeho Extent. Samostatnym testem se to vyvolat nepodarilo (Mapsui
+            // 5.1.0 snesl null prvky, null geometrii i NaN), ale pad pri prehravani se stal
+            // (23. 8. 2026) a tohle je jedina trida vstupu, ktera tomu odpovida.
+            lastEdgesFeatures = features.Where(f => f?.Extent != null).ToArray();
+            edgesLayer.Features = lastEdgesFeatures;
         }
+
+        /// <summary>Kolik bodu/usecek se v posledni prestavbe zahodilo jako nekonecne nebo NaN.</summary>
+        private int edgesDropped;
+
+        /// <summary>Da se bod nakreslit? Nekonecne a NaN souradnice se do mapy nepousteji.</summary>
+        private static bool IsDrawable(MPoint p)
+            => p != null && !double.IsNaN(p.X) && !double.IsNaN(p.Y)
+               && !double.IsInfinity(p.X) && !double.IsInfinity(p.Y);
+
+        /// <summary>Bod z rámce robotu (FLU) do Mercatoru přes zadanou pózu.</summary>
+        private MPoint Robot2Mercator(GeoReference geoRef, double px, double py,
+                                      double cos, double sin, double bx, double by)
+            => LocalToMercator(geoRef, px + bx * cos - by * sin, py + bx * sin + by * cos);
 
         /// <summary>Vrstva lokalniho planu: draha jako cara + cil jako bod.</summary>
         private void UpdatePlanFeature(LocalPlanMsg? plan, GeoReference? geoRef)
@@ -1645,6 +1805,30 @@ namespace ARBot.ViewModels
             if (track.Count >= 2)
                 sb.AppendFormat(CultureInfo.InvariantCulture, "\nStopa: {0} b.", track.Count);
 
+            // Stav ladici vrstvy hranic. Bez tohohle radku nema jeji prazdnota vysvetleni:
+            // prolozeni kresli jen stupen hranove lokalizace, a ten se pri corridor=false
+            // (vychozi) vubec nezaklada - body z kamer pritom tecou dal, takze to vypada jako
+            // vada vrstvy. Nahlaseno 23. 8. 2026.
+            if (edgesFailure != null)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                                "{0}Hranice: VRSTVA VYPNUTA po chybe ({1}) - viz Debug output",
+                                (char)10, edgesFailure);
+
+            if (ShowEdges)
+            {
+                int edgePts = 0;
+                foreach (var kv in edgesByCam) edgePts += kv.Value.Pts.Count;
+
+                string fit = lastCorridor != null ? "ano"
+                    : ARBot.Robot.ARBotRuntime.Current?.CorridorLocalizer != null ? "ceka se"
+                    : "NENI (corridor=false)";
+                if (edgesDropped > 0) fit += ", zahozeno " + edgesDropped;
+
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                                "\nHranice: {0} b. ze {1} kamer, prolozeni: {2}",
+                                edgePts, edgesByCam.Count, fit);
+            }
+
             return sb.ToString();
         }
 
@@ -1809,8 +1993,9 @@ namespace ARBot.ViewModels
         {
             if (!value)
             {
-                lock (gate) pendingEdges.Clear();
+                lock (gate) { pendingEdges.Clear(); pendingCorridor = null; }
                 edgesByCam.Clear();
+                lastCorridor = null;
                 edgesLayer.Features = Array.Empty<IFeature>();
             }
             RebuildLayers();

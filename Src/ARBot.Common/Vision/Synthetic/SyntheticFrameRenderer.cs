@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
@@ -117,18 +117,38 @@ namespace ARBot.Common.Vision.Synthetic
             var best = Surface.None;
             double bestRange = double.PositiveInfinity;
 
-            if (HitsPlane(0.0, dir, eye, pose, cos, sin, out double sRoad, out bool roadHere)
-                && roadHere && sRoad < bestRange)
+            bool hitRoad = HitsPlane(0.0, dir, eye, pose, cos, sin, out double sRoad, out bool roadHere);
+            if (hitRoad && roadHere && sRoad < bestRange)
             {
                 best = Surface.Road;
                 bestRange = sRoad;
             }
 
-            if (HitsPlane(grassHeight, dir, eye, pose, cos, sin, out double sGrass, out bool grassOnRoad)
-                && !grassOnRoad && sGrass < bestRange)
+            bool hitGrass = HitsPlane(grassHeight, dir, eye, pose, cos, sin,
+                                      out double sGrass, out bool grassOnRoad);
+            if (hitGrass && !grassOnRoad && sGrass < bestRange)
             {
                 best = Surface.Grass;
                 bestRange = sGrass;
+            }
+
+            // SVISLA STENA na rozhrani vozovky a travy. Bez ni v hloubce vznikala tenka dira podel
+            // cele hranice cesty (nalezeno 23. 8. 2026): kdyz paprsek protne rovinu travy jeste NAD
+            // vozovkou a rovinu vozovky uz ZA jejim okrajem, neplati ani jedna podminka a pixel
+            // propadl jako Surface.None. Fyzikalne ale tráva neni papir - ma vysku, takze na okraji
+            // cesty stoji svisla hrana a prave do ni paprsek narazi.
+            //
+            // Zasah se hleda bisekci na IsRoad mezi obema prusecíky: hledany bod je ten, kde paprsek
+            // v horizontalni rovine prekroci okraj cesty. Lezi tedy VZDY mezi nimi - nikdy ne bliz
+            // nez rovina travy, takze se tim trava nerendruje driv, nez kde skutecne je.
+            if (best == Surface.None && hitRoad && hitGrass && !roadHere && grassOnRoad)
+            {
+                double sWall = FindRoadBoundary(sGrass, sRoad, dir, eye, pose, cos, sin);
+                if (sWall > 0)
+                {
+                    best = Surface.Grass;   // je to bocni stena travniku, ne vozovka
+                    bestRange = sWall;
+                }
             }
 
             if (best == Surface.None || bestRange > options.MaxRangeM) return Surface.None;
@@ -213,6 +233,34 @@ namespace ARBot.Common.Vision.Synthetic
         /// Protne paprsek s vodorovnou rovinou v dane vysce a rekne, zda zasah lezi na vozovce.
         /// </summary>
         /// <returns>true, kdyz je prusecik pred kamerou.</returns>
+        /// <summary>
+        /// Vzdalenost, ve ktere paprsek prekroci okraj cesty - tedy zasah svisle steny mezi
+        /// vozovkou a travou. Bisekce na <c>IsRoad</c> mezi parametrem, kde je paprsek jeste NAD
+        /// cestou (<paramref name="sOnRoad"/>), a tim, kde uz je za jejim okrajem
+        /// (<paramref name="sOffRoad"/>).
+        /// </summary>
+        /// <remarks>
+        /// 24 pulení staci: pri rozsahu jednotek metru je vysledna presnost pod desetinu milimetru,
+        /// tedy hluboko pod rozlisenim hloubky (1 mm). Cena je zanedbatelna - vetev se uplatni jen
+        /// na tenke care pixelu podel hranice (radove tisicina obrazu).
+        /// </remarks>
+        private double FindRoadBoundary(double sOnRoad, double sOffRoad, in Vector3 dir, in Vector3 eye,
+                                        RobotState pose, double cos, double sin)
+        {
+            for (int i = 0; i < 24; i++)
+            {
+                double mid = 0.5 * (sOnRoad + sOffRoad);
+                double hx = eye.X + mid * dir.X;
+                double hy = eye.Y + mid * dir.Y;
+
+                if (scene.IsRoad(pose.X + hx * cos - hy * sin, pose.Y + hx * sin + hy * cos))
+                    sOnRoad = mid;
+                else
+                    sOffRoad = mid;
+            }
+            return 0.5 * (sOnRoad + sOffRoad);
+        }
+
         private bool HitsPlane(double height, in Vector3 dir, in Vector3 eye, RobotState pose,
                                double cos, double sin, out double s, out bool onRoad)
         {

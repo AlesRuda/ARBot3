@@ -198,4 +198,94 @@ public class CorridorFinderTests
         Assert.That(c.InliersLeft, Is.GreaterThan(20));
         Assert.That(c.InliersRight, Is.GreaterThan(20));
     }
+
+    // ============ Prah inlieru zavisly na vzdalenosti (23. 8. 2026) ============
+
+    /// <summary>
+    /// Hranice s <b>rostoucim rozptylem</b>: blizke body presne, vzdalene rozhazene umerne
+    /// vzdalenosti. Presne takhle se chova skutecny detektor (nameřeno: medián sedi na okraji
+    /// vozovky v kazde vzdalenosti, ale p10/p90 roste z ±5 cm na 1 m na −0,63/+0,40 m na 10 m).
+    ///
+    /// <para>S jednim prahem pro vsechny body vypadnou vzdalene jako outliery a koridor prijde
+    /// o dosah; prah umerny nejistote je udrzi. Viz
+    /// <see cref="CorridorConfig.InlierThresholdPerMeter"/>.</para>
+    /// </summary>
+    [Test]
+    public void RangeDependentThreshold_KeepsFarPointsThatUniformThresholdDrops()
+    {
+        // Hranice od 1 do 9 m, rozptyl 4 cm na metr vzdalenosti (deterministicky, at test nekmita).
+        var rnd = new Random(4242);
+        var left = new List<Point2D>();
+        var right = new List<Point2D>();
+        for (int i = 0; i < 60; i++)
+        {
+            double x = 1.0 + i * 0.135;
+            double spread = 0.04 * x;
+            double j1 = (rnd.NextDouble() - 0.5) * 2 * spread;
+            double j2 = (rnd.NextDouble() - 0.5) * 2 * spread;
+            left.Add(new Point2D(x, 1.0 + j1));
+            right.Add(new Point2D(x, -1.0 + j2));
+        }
+
+        var uniform = new CorridorFinder(new CorridorConfig { InlierThresholdPerMeter = 0 })
+            .Find(left, right);
+        var scaled = new CorridorFinder(new CorridorConfig { InlierThresholdPerMeter = 0.05 })
+            .Find(left, right);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(uniform.Reason, Is.EqualTo(CorridorReason.Ok), "predpoklad testu");
+            Assert.That(scaled.Reason, Is.EqualTo(CorridorReason.Ok));
+            Assert.That(scaled.InliersLeft + scaled.InliersRight,
+                        Is.GreaterThan(uniform.InliersLeft + uniform.InliersRight),
+                        "prah rostouci se vzdalenosti musi udrzet vic vzdalenych bodu");
+            Assert.That(scaled.Width, Is.EqualTo(2.0).Within(0.15));
+        });
+    }
+
+    /// <summary>
+    /// Velikost vzorku pro hypotezu nesmi rozhodovat o vysledku: RANSAC sice z nej model spocita,
+    /// ale vysledna primka se pak <b>prolozi pres celou konsenzualni sadu</b>, takze sum vzorku
+    /// se do ni nepromitne. Zmereno i nad zaznamem: vzorek 2 az 50 dava <c>Ok</c> 149-167
+    /// a <c>NotParallel</c> 236-254, tedy nic. Test hlida, ze to tak zustane - kdyby na vzorku
+    /// zaleželo, znamena to, ze se prolozeni konsenzualni sady rozbilo.
+    /// </summary>
+    [Test]
+    public void ModelSamplePoints_DoesNotChangeTheResult()
+    {
+        var (left, right) = Corridor(width: 2.0, lateral: 0.3, dirRad: 0.05, noise: 0.03);
+
+        var small = new CorridorFinder(new CorridorConfig { ModelSamplePoints = 3 }).Find(left, right);
+        var big = new CorridorFinder(new CorridorConfig { ModelSamplePoints = 20 }).Find(left, right);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(small.Reason, Is.EqualTo(CorridorReason.Ok), "predpoklad testu");
+            Assert.That(big.Reason, Is.EqualTo(CorridorReason.Ok));
+            Assert.That(big.Width, Is.EqualTo(small.Width).Within(0.05));
+            Assert.That(big.Lateral, Is.EqualTo(small.Lateral).Within(0.05));
+            Assert.That(big.DirectionRad, Is.EqualTo(small.DirectionRad).Within(0.02));
+        });
+    }
+
+    /// <summary>
+    /// Nula = puvodni chovani. Pojistka proti tomu, aby se novy parametr tise projevil i tam,
+    /// kde ho nikdo nechce.
+    /// </summary>
+    [Test]
+    public void RangeDependentThreshold_Zero_BehavesLikeUniform()
+    {
+        var (left, right) = Corridor(width: 2.0, lateral: 0.0, dirRad: 0.0, noise: 0.02);
+
+        var a = new CorridorFinder(new CorridorConfig { InlierThresholdPerMeter = 0 }).Find(left, right);
+        var b = new CorridorFinder(new CorridorConfig { InlierThresholdM = 0.10, InlierThresholdPerMeter = 0 })
+            .Find(left, right);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(b.Reason, Is.EqualTo(a.Reason));
+            Assert.That(b.Width, Is.EqualTo(a.Width).Within(1e-9));
+            Assert.That(b.Lateral, Is.EqualTo(a.Lateral).Within(1e-9));
+        });
+    }
 }

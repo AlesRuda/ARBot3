@@ -114,10 +114,28 @@ namespace ARBot.Common.Logs
         /// </summary>
         public double DirectionLeftRad, DirectionRightRad;
 
+        /// <summary>
+        /// Prolozene primky jako <b>usecky v ramci robotu</b> [m] (X vpred, Y vlevo) - leva
+        /// <c>(LeftFromX, LeftFromY)</c> → <c>(LeftToX, LeftToY)</c>, prava obdobne. Koncove body
+        /// odpovidaji rozsahu inlieru, takze usecka ukazuje, ktery usek hranice kamera videla.
+        ///
+        /// <para><b>Plni se i u ZAMITNUTYCH cyklu</b> (doplneno 23. 8. 2026, verze 4). Cisla
+        /// o nerovnobeznosti rikaji ZE je neco spatne, ne CO; usecky jde nakreslit do mapy
+        /// (vrstva „Hranice cesty" ve World pohledu) a rovnou videt, kudy prolozeni vedou.
+        /// Ve zpravach verze &lt; 4 chybi.</para>
+        /// </summary>
+        public double LeftFromX, LeftFromY, LeftToX, LeftToY;
+
+        /// <summary>Usecka prave hranice - viz <see cref="LeftFromX"/>.</summary>
+        public double RightFromX, RightFromY, RightToX, RightToY;
+
+        /// <summary>Je usecka leve/prave hranice vyplnena?</summary>
+        public bool HasLeftLine, HasRightLine;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RoadCorridorMsg() : base("RoadCorridorMsg", 3)
+        public RoadCorridorMsg() : base("RoadCorridorMsg", 4)
         {
         }
 
@@ -150,6 +168,11 @@ namespace ARBot.Common.Logs
             bw.Write(ParallelErrorRad);     // verze 2
             bw.Write(DirectionLeftRad);     // verze 3
             bw.Write(DirectionRightRad);
+
+            bw.Write(HasLeftLine);          // verze 4
+            bw.Write(LeftFromX); bw.Write(LeftFromY); bw.Write(LeftToX); bw.Write(LeftToY);
+            bw.Write(HasRightLine);
+            bw.Write(RightFromX); bw.Write(RightFromY); bw.Write(RightToX); bw.Write(RightToY);
         }
 
         public override void FromData(BinaryReader br)
@@ -187,6 +210,16 @@ namespace ARBot.Common.Logs
             {
                 DirectionLeftRad = br.ReadDouble();
                 DirectionRightRad = br.ReadDouble();
+            }
+
+            if (Verze >= 4)
+            {
+                HasLeftLine = br.ReadBoolean();
+                LeftFromX = br.ReadDouble(); LeftFromY = br.ReadDouble();
+                LeftToX = br.ReadDouble(); LeftToY = br.ReadDouble();
+                HasRightLine = br.ReadBoolean();
+                RightFromX = br.ReadDouble(); RightFromY = br.ReadDouble();
+                RightToX = br.ReadDouble(); RightToY = br.ReadDouble();
             }
         }
 

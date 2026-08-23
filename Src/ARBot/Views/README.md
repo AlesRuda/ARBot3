@@ -145,14 +145,39 @@ nad záznamem řekla, že vzdálená část hranice je vedle, ale ne proč; to j
   přepočítává měřítkem `ImageRGB/ImageProbability`). **Modrá** = levá hranice, **oranžová** = pravá,
   **fialová** = sloupec detekovaný, ale metrický bod nevznikl (chybí hloubka). Vybírá se ručně
   v comboboxu overlaye; automaticky se nenabízí, protože `FindOverlayFor` dává přednost
-  probability. V popisce je počet řádků a **počet skutečně vykreslených značek** — když je nula,
-  je hned vidět, že problém není ve vrstvě, ale v datech.
+  probability. V popisce je počet řádků, **počet vykreslených značek** a **počet výpadků**
+  (sloupec bez metrického bodu) — čísla zodpoví otázku „je tam něco?" bez zírání do pixelů.
 
-  ![Hranice cesty nad barevným snímkem](../../../doc/media/road-edges-image-20260822.png)
-- **World** — vrstva „Hranice cesty" (výchozí **vypnuto**, je to ladicí vrstva). Body z rámce
-  robotu se promítnou pózou do mapy, takže jdou porovnat s vozovkou podle OSM. Přednost má
-  **ground truth** (`GroundTruthMsg`, virtuální HW) — jinak by se do obrázku přičetla i chyba
-  lokalizace a nebylo by poznat, jestli je vedle detektor, nebo odhad pózy.
+  Výpadky se kreslí jako **široká vodorovná čára**, ne tečka: nad záznamem jich je 18–36 % všech
+  sloupců, ale rozstříkané po celé hranici, a 3px tečka jiné barvy je při 50% průhlednosti overlaye
+  okem nerozeznatelná — vypadalo to, že žádné nejsou (nahlásil autor 23. 8. 2026).
+
+  Pozor na výklad: **35 % řádků `PathEdge` nemá ani jeden sloupec**, takže značek je vždy citelně
+  míň než řádků (383 řádků ≈ 280 značek). Není to chyba vrstvy.
+
+  ![Hranice cesty nad barevným snímkem](../../../doc/media/road-edges-image-20260823.png)
+- **World** — vrstva „Hranice cesty" (výchozí **vypnuto**, je to ladicí vrstva). Kreslí dvoje data:
+  **body** z rámce robotu promítnuté pózou do mapy (modrá levá, oranžová pravá) a přes ně
+  **proložené přímky z koridoru** jako úsečky (`RoadCorridorMsg` verze 4) — přijatý cyklus plnou
+  tlustou čarou, zamítnutý tenčí a průhlednější. Zamítnuté se kreslí **schválně**: statistika řekne
+  že přímky nejsou rovnoběžné, ale teprve obrázek ukáže, že ta „pravá" hranice je ve skutečnosti
+  příčná hrana křižovatky. Přednost má **ground truth** (`GroundTruthMsg`, virtuální HW) — jinak by
+  se do obrázku přičetla i chyba lokalizace a nebylo by poznat, jestli je vedle detektor, nebo
+  odhad pózy.
+
+  > **Body jedou vždycky, přímky jen s `corridor=true`.** Hraniční body nese `CameraFrame`, ale
+  > proložení počítá až stupeň hranové lokalizace — a ten se při výchozím `corridor=false` vůbec
+  > nezakládá. Vypadá to pak jako vada vrstvy (nahlášeno 23. 8. 2026), proto je v rámečku vpravo
+  > dole řádek `Hranice: <n> b. ze <k> kamer, prolozeni: ano / ceka se / NENI (corridor=false)`.
+  > Prázdná vrstva má mít vysvětlení přímo v UI, ne v Debug outputu.
+
+  > **Past při slučování kamer** (nalezeno 23. 8. 2026 — ve World byla vidět jen jedna hranice,
+  > v Obrázcích obě). `Flush` běží z `Dispatcher`u a mezi dva snímky téže kamery se klidne vejde,
+  > takže ve frontě je často **jen jedna kamera**. Původní `edgesByCam.Clear()` proto tu druhou
+  > pokaždé smazal. Správně je **přepisovat per kameru**; zastaralé záznamy (kamera přestala
+  > dodávat) se zahodí až při kreslení — proti času **nejnovějšího snímku**, ne proti hodinám,
+  > aby to fungovalo i při přehrávání záznamu. Počet kamer je vidět v rámečku
+  > (`… ze 2 kamer`), takže se to příště pozná hned.
 
 Čtyři věci, na které se dá narazit (na první tři jsem narazil):
 
@@ -174,7 +199,7 @@ nad záznamem řekla, že vzdálená část hranice je vedle, ale ne proč; to j
 Póza se bere **poslední známá**, ne póza v čase snímku — za jízdy je tedy o jeden takt pozadu.
 Na vizuální kontrolu to stačí, na měření ne.
 
-![Hranice cesty ve World pohledu](../../../doc/media/road-edges-world-20260822.png)
+![Hranice cesty ve World pohledu](../../../doc/media/road-edges-fitlines-20260823.png)
 
 ## Dokumenty nad `Stream` (ne senzory)
 

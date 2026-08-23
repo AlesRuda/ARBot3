@@ -1385,10 +1385,140 @@ vidět z dvojice kamer po celou dobu).
   a výsledný směr je pak libovolný. Odtud „delší hranice = víc zamítnutí" i to, že směr vychází
   ustáleně 11°, ale bez fyzikálního významu.
 
-  **Náprava, která z toho plyne:** vážit hraniční body podle vzdálenosti, nebo dosah omezit —
-  blízké pásmo je přesné na 2 cm, vzdálené na půl metru, a dnes se s nimi zachází stejně. Zvednout
-  práh `MaxParallelErrorRad` je naopak zametení pod koberec: chyba by se promítla do měřené šířky
-  a osy.
+  **Náprava (23. 8. 2026, částečná):** práh inlieru v RANSACu je nově **úměrný vzdálenosti bodu**
+  — `InlierThresholdM + InlierThresholdPerMeter · r`, výchozí `0,10 m + 0,15 m/m`. Rozhoduje se tím
+  na správném místě (ve vyhodnocení inlierů), ne ořezáním vstupu. Implementováno jako přetížení
+  `RANSAC.LinearRegresion` s `Func<Point2D, double>` místo konstanty; nula = původní chování.
+  Za běhu jde zkoušet parametrem `corridortol=konstanta,přírůstek`.
+
+  > **⚠️ RANSAC je nedeterministický.** `RANSAC<T>.Compute` používá **neseedovaný `new Random()`**,
+  > takže tentýž vstup dá pokaždé jiný výsledek. Nad týmiž 421 dvojicemi kolísá počet přijatých
+  > koridorů o ±8. **Jedno měření na variantu proto nic neznamená** — a než jsem to zjistil, stihl
+  > jsem z jednotlivých běhů vyvodit dva závěry, které neplatily. Všechna čísla níž jsou průměr
+  > z 12 opakování. Vedlejší důsledek: **replay hranové lokalizace není reprodukovatelný**, což jde
+  > proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`). Neopraveno.
+
+  Sweep nad **týmiž daty** (421 dvojic, záznam `20260823-084807`, 12 opakování na variantu):
+
+  | přírůstek [m/m] | Ok (rozpětí) | NotParallel (rozpětí) |
+  |---|---|---|
+  | 0 (původní) | 158,9 (156–162) | 244,8 (242–249) |
+  | 0,05 | 166,4 (162–171) | 236,7 (233–243) |
+  | 0,10 | 169,2 (167–173) | 234,6 (232–237) |
+  | **0,15** | **175,8 (171–180)** | **230,9 (227–235)** |
+  | 0,20 | 169,7 (165–174) | 242,2 (237–246) |
+  | 0,30 | 155,2 (151–158) | 259,2 (256–264) |
+
+  Přínos **+11 % přijatých, −6 % `NotParallel`**; rozpětí se s původním stavem nepřekrývají, takže
+  to není šum. Nad 0,20 se to prudce láme — práh už je tak volný, že projde i nesmysl.
+
+  **Dvě hypotézy, které padly** (obě měřeny týmž způsobem):
+
+  - **Vážené proložení konsenzuální sady 1/σ²** — Ok 163,4 (160–168), `NotParallel` 241,2, tedy
+    v překryvu s původním stavem; v kombinaci se škálovaným prahem dokonce **horší** než práh sám.
+    Sweep síly vážení (poměr vah 1 m : 8 m od 11:1 do 54:1) nepomohl v žádném nastavení.
+    **Proč:** vzdálené body jsou sice nejistější, ale jsou to zároveň jediné, co určuje **směr**
+    přímky. Jejich potlačením se zkrátí efektivní základna a směr zašumí víc, než kolik se získá.
+    Implementace vrácena; vzorce jsou tytéž jako `Line2D.LinearRegesion`, jen s vahami místo počtu.
+  - **Velikost vzorku pro hypotézu** (`ModelSamplePoints`, do 23. 8. 2026 natvrdo 3) — vzorek 2 až 50
+    nezmění nic (20 bodů: Ok 162,2, `NotParallel` 245,2, tedy plný překryv s původním stavem).
+    **Proč:** výsledná přímka se prokládá **přes celou konsenzuální sadu**, takže šum vzorku se do
+    ní vůbec nepromítne — vzorek jen rozhoduje, která sada vyhraje, a bez hrubých outlierů najde
+    skoro každý podobnou. Parametr v konfiguraci zůstal (bylo to magické číslo) a hlídá to test.
+
+  Zvednout práh `MaxParallelErrorRad` je naopak zametení pod koberec: chyba by se promítla do
+  měřené šířky a osy.
+
+### `NoPair`: kamery nejsou svázané, párování se dívalo jen dozadu (23. 8. 2026)
+
+Největší ztrátou koridoru byl `NoPair` (~56 % cyklů). Autor to zkusil léčit oknem 500 ms a shrnul
+to trefně: *„v cca 50 % případů nepřijdou snímky do 60 ms, to je nepoužitelný"*. Měření ale ukázalo,
+že příčina je jinde, než se zdálo:
+
+| co | hodnota |
+|---|---|
+| rozestup vlastních snímků kamery | p50 **147 ms** (≈ 6,8 Hz, ne 30 Hz) |
+| rozestup k **nejbližšímu** snímku druhé kamery | p50 21 ms, p90 70 ms, **max 136 ms** |
+| kolik dvojic je do 60 ms | **86 %** |
+
+Takže snímky *jsou* blízko sebe — problém byl, že `TryPair` se dívá **jen dozadu**
+(`lastByCamera` drží poslední už přijatý snímek). Rozhoduje proto rozestup k **předchozímu**
+snímku druhé kamery, který je při periodě 147 ms a náhodné fázi rovnoměrně 0–147 ms → do 60 ms
+padne jen ~40 %. Odtud těch 56 % `NoPair`.
+
+**Širší okno samo o sobě je ale past.** Body druhé kamery jsou v rámci robotu z *jejího* času;
+při 1,2 m/s a 400 ms je to 0,48 m posunu. Skládat je s aktuálními bez přepočtu znamená vyrobit si
+nerovnoběžnost z ničeho — přesně tu veličinu, kterou zkoumáme.
+
+**Řešení: kompenzace pohybu.** `CorridorLocalizer.Reproject` převede body druhé kamery z rámce
+robotu v jejím čase do rámce v čase aktuálního snímku podle **rozdílu** obou póz z fúze. Vstupuje
+jen relativní pohyb za desetiny sekundy (prakticky odometrie), ne absolutní poloha — měření tedy
+zůstává nezávislé na chybě lokalizace, což je právě to, co z něj dělá poctivý vstup do fúze.
+
+Na téže 40s trase:
+
+| okno | kompenzace | `NoPair` | `Ok` | `NotParallel` | přijato z cyklů |
+|---|---|---|---|---|---|
+| 60 ms | ne | 260 | 76 | 110 | 16 % |
+| 200 ms | ano | 75 | 106 | 116 | 34 % |
+| **400 ms** | **ano** | **20** | **159** | **81** | **55 %** |
+
+Nejen že měření **ztrojnásobil**, ale i `NotParallel` **kleslo** (110 → 81) — dvojice jsou po
+přepočtu konzistentnější. Kvalita přijatých je přitom lepší: šířka 1,98 m proti mapovým 1,98
+a příčný nesouhlas 0,010 m.
+
+> **Vedlejší nález, neřešeno:** kamery dodávají jen **6,8 Hz**, ačkoli `VirtualCameraOptions`
+> říká 30 Hz. Kdyby jely na plný takt, byl by rozestup ≤ 17 ms a párování by nebyl problém vůbec.
+> Stojí za prozkoumání, kde se ten čas ztrácí (render scény je per pixel).
+
+### Jak ty proložené přímky vypadají (23. 8. 2026)
+
+Statistika říkala, že přímky nejsou rovnoběžné, ale ne **jak** vypadají. `RoadCorridorMsg` proto od
+verze 4 nese obě proložení jako **úsečky v rámci robotu** (`LeftFrom/LeftTo`, `RightFrom/RightTo`,
+koncové body dané rozsahem inlierů) — a plní je **i u zamítnutých cyklů**, protože právě ty je
+potřeba pochopit. Ve World pohledu je kreslí vrstva „Hranice cesty" (přijatý cyklus plnou tlustou
+čarou, zamítnutý tenčí a průhlednější).
+
+![Proložené přímky ve World pohledu](media/road-edges-fitlines-20260823.png)
+
+> **Pozor:** body z kamer se kreslí vždy, ale **přímky jen s `corridor=true`** — bez něj se stupeň
+> hranové lokalizace vůbec nezakládá. Stav hlásí rámeček vpravo dole
+> (`prolozeni: ano / ceka se / NENI (corridor=false)`).
+
+Přijaté cykly vypadají přesně jak mají — obě přímky běží rovně vpřed ve vzdálenosti ±1 m od osy:
+
+```
+L (0.4, 1.0) -> (4.8, 1.1)    P (0.2, -1.0) -> (7.9, -1.2)    nerovnoběžnost 2.5°
+```
+
+Zamítnuté jsou naopak **na sebe skoro kolmé**:
+
+```
+L (1.7,  3.3) -> (9.0,  0.3)  P (0.8, -0.1) -> (2.1,  2.2)    nerovnoběžnost 83.5°
+L (2.9,  2.8) -> (9.4,  0.3)  P (0.8, -0.0) -> (2.0,  2.2)    nerovnoběžnost 82.7°
+```
+
+Ta „pravá" hranice běží od osy doleva (Y z −0,1 na +2,2) — je to **příčná hrana křižovatky**, ne
+okraj koridoru. A „levá" míří šikmo od 3,3 m vlevo zpátky k ose, tedy protější strana rozšíření.
+
+**A tady je pointa: většina zbývajících `NotParallel` je geometricky správně.** Rozpad podle polohy
+na trase (křižovatka u X ≈ +1,5 m, slepý konec u X ≈ −11,5 m):
+
+| úsek | Ok | NotParallel | nerovnoběžnost |
+|---|---|---|---|
+| X 0..+4 m (**křižovatka**) | 24 | 29 | 37–47° |
+| X −4..−8 m | 9 | 8 | ~10° |
+| X −8..−10 m (**rovný úsek**) | 10 | **0** | — |
+| X −12..−10 m (**slepý konec**) | 0 | 49 | 71° |
+
+78 ze 110 zamítnutí padne na křižovatku a na konec cesty, kde koridor **prostě neexistuje** —
+zamítnutí je tam správná odpověď, ne vada. Na rovném úseku (X −8..−10) je nově **0 zamítnutí**;
+v běhu z 22. 8. tam bylo 100 %. Zbývá pásmo X −4..−8 s ~10°, což je jediné místo, kde ještě může
+být co zlepšovat.
+
+**Přeformulování problému:** není to „koridor za jízdy nefunguje", ale „**testovací trasa je z ~40 %
+křižovatka a slepý konec**". Na měření kvality lokalizace je potřeba delší rovný úsek, nebo
+statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
 
   **Co to vysvětlit nemůže:** párovací okno 60 ms. Posun robota vpřed směr přímky nemění vůbec
   a otočení mezi snímky je ~1,4 °/s × 0,06 s ≈ 0,1°.

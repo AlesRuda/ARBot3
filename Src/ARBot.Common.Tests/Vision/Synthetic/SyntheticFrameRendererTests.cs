@@ -134,12 +134,18 @@ public class SyntheticFrameRendererTests
         int onRoad = points.Count(p => Math.Abs(p.Z) < 0.02f);
         int onGrass = points.Count(p => Math.Abs(p.Z - 0.20f) < 0.02f);
 
+        // Od 23. 8. 2026 je na okraji cesty jeste SVISLA STENA (viz doc/virtual-hw.md), takze
+        // tenka cara pixelu lezi MEZI obema rovinami. Drive tam nelezelo nic - byla to dira.
+        int onWall = points.Count(p => p.Z >= 0.02f && p.Z <= 0.18f);
+
         Assert.Multiple(() =>
         {
             Assert.That(onRoad, Is.GreaterThan(0), "cast vyhledu ma padnout na vozovku");
             Assert.That(onGrass, Is.GreaterThan(0), "cast vyhledu ma padnout na travu");
-            Assert.That(onRoad + onGrass, Is.EqualTo(points.Count),
-                        "kazdy platny pixel lezi bud na vozovce, nebo na trave");
+            Assert.That(onRoad + onGrass + onWall, Is.EqualTo(points.Count),
+                        "kazdy platny pixel lezi na vozovce, na trave, nebo na stene mezi nimi");
+            Assert.That(onWall, Is.LessThan(points.Count / 10),
+                        "stena je tenka cara podel hranice, ne plocha");
         });
     }
 
@@ -307,5 +313,92 @@ public class SyntheticFrameRendererTests
         var second = RenderDepthFrame(new SyntheticSceneOptions { DepthNoiseM = 0.02, MaxRangeM = 20, Seed = 2 }, 0, proj);
 
         Assert.That(second.Data, Is.Not.EqualTo(first.Data));
+    }
+
+    // ==================== Svisla stena na rozhrani cesty a travy (23. 8. 2026) ====================
+
+    /// <summary>
+    /// REGRESE: drsnost travy nesmi delat diry v hloubce podel hranice cesty.
+    ///
+    /// <para><b>Co se delo.</b> <c>Trace</c> prijimal zasah roviny vozovky jen kdyz bod lezi
+    /// NA ceste a zasah roviny travy jen kdyz na ceste NENI. Drsnost obe roviny rozdvoji, takze
+    /// u paprsku miricich na hranici padl zasah vozovky tesne VEN a zasah travy tesne DOVNITR -
+    /// neprosel ani jeden a pixel zustal nulovy. Vysledkem byla tenka cara chybejici hloubky podel
+    /// cele hranice; detektor hranic hleda presne tam, takze <b>22,9 % jeho sloupcu nemelo metricky
+    /// bod</b> (nameřeno nad zaznamem 20260822-230538).</para>
+    ///
+    /// <para>Fyzikalne je to spatne: trava ma vysku, takze na okraji cesty stoji <b>svisla stena</b>
+    /// a paprsek do ni narazi. Viz doc/virtual-hw.md.</para>
+    /// </summary>
+    [Test]
+    public void RenderDepth_GrassRoughness_LeavesNoHolesAlongRoadEdge()
+    {
+        var proj = ForwardDownCamera();
+
+        // Uzka cesta, aby hranice byla ve vyhledu; bez sumu hloubky, at meri jen tu vadu.
+        var smooth = RenderDepthFrame(
+            new SyntheticSceneOptions { GrassRoughnessM = 0, DepthNoiseM = 0, MaxRangeM = 20 }, 0, proj, roadWidth: 4.0);
+        var rough = RenderDepthFrame(
+            new SyntheticSceneOptions { GrassRoughnessM = 0.03, DepthNoiseM = 0, MaxRangeM = 20 }, 0, proj, roadWidth: 4.0);
+
+        int holesSmooth = CountZeros(smooth), holesRough = CountZeros(rough);
+
+        Assert.That(holesRough, Is.EqualTo(holesSmooth),
+                    $"drsnost travy nesmi ubrat pixely s hloubkou (hladka {holesSmooth}, drsna {holesRough})");
+    }
+
+    /// <summary>
+    /// Stena musi lezet <b>mezi</b> obema rovinami — nikdy ne pred rovinou travy. Jinak by se
+    /// oprava projevila prave tim, ceho se autor obaval: ze se trava rendruje bliz, nez ve
+    /// skutecnosti je.
+    ///
+    /// <para><b>Analyticka mez.</b> Kamera je ve vysce 0,5 m, obe roviny jsou vodorovne, takze pro
+    /// tentyz paprsek plati <c>s(vyska h) / s(vyska 0) = (0,5 − h) / 0,5</c>. Pri
+    /// <c>GrassHeightM = 0,20</c> tedy zadny pixel nesmi hlasit min nez <b>0,6×</b> hloubky nad
+    /// rovnou zemi — a zaroven ne vic nez tu rovnou zem (rovina vozovky je nejdal, co muze byt).</para>
+    /// </summary>
+    [Test]
+    public void RenderDepth_Wall_LiesBetweenBothPlanes()
+    {
+        var proj = ForwardDownCamera();
+        var flat = RenderDepthFrame(
+            new SyntheticSceneOptions { GrassHeightM = 0, GrassRoughnessM = 0, DepthNoiseM = 0, MaxRangeM = 20 },
+            0, proj, roadWidth: 4.0);
+        var raised = RenderDepthFrame(
+            new SyntheticSceneOptions { GrassHeightM = 0.20, GrassRoughnessM = 0, DepthNoiseM = 0, MaxRangeM = 20 },
+            0, proj, roadWidth: 4.0);
+
+        const double ratio = (0.5 - 0.20) / 0.5;   // rovina travy je nejbliz, co paprsek muze trefit
+        const double epsM = 0.002;                 // hloubka je v milimetrech, plus zaokrouhleni
+
+        int compared = 0;
+        double worstNear = 0, worstFar = 0;
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                double f = flat[x, y].Value / 1000.0, r = raised[x, y].Value / 1000.0;
+                if (f <= 0 || r <= 0) continue;
+                compared++;
+                worstNear = Math.Max(worstNear, ratio * f - r);   // > 0 = bliz nez rovina travy
+                worstFar = Math.Max(worstFar, r - f);             // > 0 = dal nez rovina vozovky
+            }
+
+        Assert.That(compared, Is.GreaterThan(100), "predpoklad testu: je co porovnavat");
+        Assert.Multiple(() =>
+        {
+            Assert.That(worstNear, Is.LessThan(epsM),
+                        $"zadny pixel nesmi byt bliz nez rovina travy (nejhorsi {worstNear:F3} m)");
+            Assert.That(worstFar, Is.LessThan(epsM),
+                        $"zadny pixel nesmi byt dal nez rovina vozovky (nejhorsi {worstFar:F3} m)");
+        });
+    }
+
+    private static int CountZeros(Image<Gray16> depth)
+    {
+        int zeros = 0;
+        for (int y = 0; y < depth.Height; y++)
+            for (int x = 0; x < depth.Width; x++)
+                if (depth[x, y].Value == 0) zeros++;
+        return zeros;
     }
 }

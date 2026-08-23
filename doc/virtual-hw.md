@@ -145,6 +145,7 @@ vyzvedává přímo z runtime. Viz „Dvě mapy" níž.
 | `camerapose=truth\|fusion` | z které pózy kamery renderují: `truth` (**výchozí od 22. 8. 2026**) = z **ground truth** (`SimulatedRobot`), `fusion` = z **odhadu** fúze (staré chování) — viz níž |
 | `wheelslip=vlevo,vpravo` | prokluz kol (1 = ideál): násobek mezi tím, co kolo naměří, a tím, oč se robot skutečně posune — viz [Systematické chyby](#systematické-chyby-prokluz-kol-a-bias-imu-22-8-2026) |
 | `imubias=kurzDeg,gyroDegZaS` | systematická chyba IMU: konstantní posun kurzu a offset gyra — viz tamtéž |
+| `corridortol=konstanta,přírůstek` | práh inlieru RANSACu pro hranice cesty: konstanta [m] + přírůstek na metr vzdálenosti bodu [m/m]. Slouží k proměření, ne k běžnému provozu — viz [map-correlation-localization.md](map-correlation-localization.md#otevřené-úkoly) |
 | `imunoise=kurzDeg,gyroDegZaS` | σ šumu IMU (default 1°, 0,5 °/s). **σ kurzu zároveň říká fúzi, jak moc kompasu věřit** — rozhoduje o tom, jestli má korekce kurzu z koridoru vůbec šanci, viz [Kurz](#kurz-proč-ho-koridor-neopraví-22-8-2026) |
 | `gpsnoise=polohaM,rychlostMps` | σ šumu GPS (default 1,5 m, 0,1 m/s) |
 
@@ -536,6 +537,79 @@ ukrojí kousek vozovky za sebou. Vyplyne to ze dvou rovin samo, bez kódu navíc
 zelené — **včetně oblohy nad horizontem** (obloha jako samostatná barva je jeden parametr,
 až bude potřeba). RGB a hloubka mají vlastní rozlišení i intrinsics (jako D435:
 640×480 / 480×270).
+
+### Svislá stěna na rozhraní cesty a trávy (23. 8. 2026)
+
+`Trace` střílí paprsek proti **dvěma rovinám** a každý zásah přijme jen s podmínkou:
+
+- zásah roviny **vozovky** (z = 0) platí, jen když bod leží **na cestě** (`roadHere`),
+- zásah roviny **trávy** (z = `GrassHeightM` ± drsnost) platí, jen když bod na cestě **není**
+  (`!grassOnRoad`).
+
+Jenže `GrassRoughnessM` (výchozí 3 cm) obě roviny **rozdvojí**, takže jejich průsečíky s paprskem
+nejsou v témže místě. U paprsků mířících přesně na hranici cesty pak může zásah vozovky padnout
+**těsně ven** a zásah trávy **těsně dovnitř** — a neprojde ani jeden. Výsledek je
+`Surface.None`, tedy **hloubka 0** v tenké čáře podél celé hranice.
+
+Změřeno na rovném úseku (pravá kamera, 480×270, počítáno pod horizontem, tedy bez oblohy):
+
+| drsnost trávy | šum hloubky | nul pod horizontem |
+|---|---|---|
+| 0 | 0 | **0** |
+| 0,03 m | 0 | **744** |
+| 0 | 0,003 m | 0 |
+| 0,03 m | 0,003 m | 744 |
+
+Drsnost to tedy dělá celá, šum hloubky s tím nemá nic společného (přičítá se až po testu zásahu).
+
+**Proč na tom záleží.** Detektor hranic hledá právě ty pixely, takže mu chybí hloubka přesně tam,
+kde ji potřebuje: **22,9 % všech detekovaných sloupců nemá metrický bod** (měřeno přes celý záznam
+`20260822-230538`, 103 503 sloupců). Rozpad příčin:
+
+| příčina | podíl |
+|---|---|
+| platný bod | 75,5 % |
+| **hloubka 0** | **22,9 %** |
+| dál než 8 m (`ColorPixelTo3D.maxRangeM`) | 1,6 % |
+| blíž než 0,6 m | 0,0 % |
+| mimo hloubkový obraz / 0xffff | 0,0 % |
+
+Hranová lokalizace tak přichází o čtvrtinu důkazů — a ne náhodně, ale systematicky na hranici.
+Je to **vada simulace**, ne detektoru ani zpětné projekce: skutečná kamera tenhle šev nemá
+(vozovka a tráva jsou tu táž rovina, žádná hloubková nespojitost tam není).
+
+**Opraveno: chyběla svislá stěna.** První návrh („vzít bližší zásah") byl špatně — vedl by k tomu,
+že se tráva rendruje **blíž**, než ve skutečnosti je. Správně je fyzika: tráva není papír, má výšku,
+takže na okraji cesty stojí **svislá stěna** a paprsek do ní narazí. `Trace` proto v tom případě
+dopočítá zásah stěny **bisekcí na `IsRoad`** mezi oběma průsečíky — hledá bod, kde paprsek
+v horizontální rovině překročí okraj cesty. Ten leží **vždy mezi nimi**, takže se tráva nikdy
+nerendruje blíž, než kde je. Stěna se počítá jako `Surface.Grass` (je to boční stěna trávníku).
+
+24 půlení stačí: při rozsahu jednotek metrů je přesnost pod desetinu milimetru, tedy hluboko pod
+rozlišením hloubky. Cena je zanedbatelná — větev se uplatní jen na tenké čáře pixelů podél hranice.
+
+**Výsledek na datech** (tentýž běh, 40 s, ujeto ~24 m):
+
+| | před | po |
+|---|---|---|
+| sloupců s platným bodem | 75,5 % | **96,7 %** |
+| chybějící hloubka | 22,9 % | **1,3 %** (zbytek u horizontu, za dosahem) |
+| příčný nesouhlas přijatých koridorů | 0,024 m | **0,007 m** |
+| naměřená šířka (mapa 1,99–2,00 m) | 2,02 m | **1,98 m** |
+| `TooFewInliers` | 18 | **4** |
+| chyba polohy p50 | 0,151 m | **0,055 m** |
+| **`NotParallel`** | 79 | **115** |
+
+**Ale pozor: `NotParallel` se zhoršil.** Zaplněné díry přidaly body i ve vzdálené části hranice —
+a to je právě ta rozptýlená část (viz
+[map-correlation-localization.md](map-correlation-localization.md#otevřené-úkoly)). Takže odstranění
+artefaktu je jednoznačně správně a kvalita *přijatých* koridorů znatelně stoupla, ale hlavní
+problém — vážit hraniční body podle vzdálenosti — to neřeší, spíš ho vytáhlo víc na světlo.
+
+**Hlídají to tři testy** (`SyntheticFrameRendererTests`): drsnost trávy nesmí ubrat žádný pixel
+s hloubkou; každý platný pixel leží na vozovce, na trávě, nebo na stěně mezi nimi (a stěna je tenká
+čára, ne plocha); a žádný pixel nesmí být blíž než rovina trávy ani dál než rovina vozovky —
+analyticky, protože pro vodorovné roviny platí `s(h)/s(0) = (eye.Z − h)/eye.Z`.
 
 ### Šum a determinismus
 

@@ -269,6 +269,45 @@ polohou (Praha), počká na dlaždice OSM, hluboko přiblíží na robota, ulož
 a ukončí se (obdoba self-testu, ale bez HW/Run). Kód: `MainWindowViewModel.WorldShot.cs`. Slouží
 k pořízení obrázku featury do [devlog.md](devlog.md) bez ruční obsluhy.
 
+## ⚠️ Vrstva „Hranice cesty" občas shodí Mapsui (23. 8. 2026, neuzavřeno)
+
+Při přehrávání se zapnutou vrstvou hranic vyskočí `NullReferenceException` **uvnitř Mapsui**:
+
+```
+Mapsui.Extensions.FeatureExtensions.GetExtent(IEnumerable<IFeature>)
+Mapsui.Layers.MemoryLayer.set_Features(IEnumerable<IFeature>)
+WorldViewDocument.BuildEdgesFeatures(...)
+```
+
+**Co je vyloučeno** (v tomto pořadí se to zjišťovalo):
+
+- **Obsah featur.** Diagnostika v okamžiku pádu: 395 featur, z toho **0 null, 0 bez extentu,
+  0 s nekonečnou souřadnicí**.
+- **Data v záznamu.** 38 841 hraničních bodů, 143 úseček a 716 póz v `20260823-154828.rec` — žádné
+  NaN ani nekonečno.
+- **Data jako taková.** Tytéž featury z téhož záznamu (stejná póza, stejný `GeoReference`) prohnané
+  **skutečným Mapsui 5.1.0** v konzolovém programu: **322 cyklů, nula pádů**.
+- **Malformované vstupy.** Mapsui 5.1.0 snese null prvek v seznamu, featuru bez geometrie, NaN,
+  Infinity, prázdný `LineString` i prázdný seznam — ověřeno samostatným testem.
+
+**Co říká IL.** `GetExtent` má 74 bajtů a **jediné nechráněné dereferencování je `ldarg.0`** —
+argument. Prvek i jeho `Extent` mají null-check (`en.Current?.Extent`, `if (e == null) continue`),
+větev `extent == null ? new MRect(e) : extent.Join(e)` taky. Argument přichází z
+`MemoryLayer._localFeatures`, do kterého se zapisuje **jedině** výsledek `ToArray()` a nikdy null
+(proskenovány všechny metody `MemoryLayer`, které do těch polí píší).
+
+**Chování.** Není deterministické: nastane i nenastane na témž místě záznamu a objevilo se i na
+jiných místech. Se schovanou záložkou World nenastalo — ale ani to není průkazné, protože
+s otevřenou taky proběhlo bez chyby.
+
+**Závěr:** vypadá to na **souběh nad toutéž instancí vrstvy** na straně Mapsui, ne na naše data.
+Neuzavřeno, odloženo.
+
+**Zatím platí pojistka:** celá přestavba vrstvy je v `try/catch`; při chybě se vrstva **vypne**,
+do rámečku se napíše `Hranice: VRSTVA VYPNUTA po chybe (…)` a do Debug outputu jde řádek
+s počtem featur, nulových, bez extentu, nekonečných, počtem kamer a pózou. Ladicí vrstva nemá
+právo shodit běh.
+
 ## Otevřené úkoly / poznámky
 
 - **ARM (OrangePI)**: Mapsui renderuje přes SkiaSharp — na ARM64 **ověřit nativní SkiaSharp assety**

@@ -357,6 +357,55 @@ namespace ARBot.Common.Algorithms.ML
             return new Tuple<Line2D, RANSAC<Line2D>>(line, r);
         }
         /// <summary>
+        /// Linearni regrese s prahem inlieru <b>zavislym na bodu</b>.
+        ///
+        /// <para><b>Nacpak to je.</b> Bezna varianta meri vsechny body tymz metrem, coz plati jen
+        /// kdyz maji vsechny stejnou nejistotu. U bodu z kamery to neplati ani zdaleka: hranice
+        /// cesty je 1 m pred robotem presna na centimetry, na 10 m na pul metru (nameřeno 23. 8.
+        /// 2026, viz doc/map-correlation-localization.md). S jednim prahem jsou pak vzdalene body
+        /// bud vsechny outliery (a prijde se o dosah), nebo je prah tak volny, ze projde i nesmysl.
+        /// Prah umerny nejistote bodu tohle resi na spravnem miste - v rozhodovani o inlierech,
+        /// ne orezanim vstupu.</para>
+        /// </summary>
+        /// <param name="points">Prokladane body</param>
+        /// <param name="minCount">Minimalne potrebny pocet bodu</param>
+        /// <param name="treshold">Prah pro dany bod (misto jedne konstanty pro vsechny)</param>
+        /// <param name="probability">Pravdepodobnost, ze zadny z vybranych bodu neni outlier</param>
+        /// <param name="getter">Ze vstupniho pole ziskava Point2D reprezentujici prokladany bod</param>
+        /// <param name="marker">Ve vstupnim poli oznaci inliery</param>
+        public static Line2D LinearRegresion<T>(List<T> points, int minCount,
+                                                Func<Point2D, double> treshold, double probability,
+                                                Func<T, Point2D> getter, Action<T> marker)
+        {
+            if (getter == null) throw new ArgumentNullException(nameof(getter));
+            if (treshold == null) throw new ArgumentNullException(nameof(treshold));
+            if (points.Count < minCount) return null;
+
+            // Nominalni prah se dovnitr predava jen proto, ze ho RANSAC<T> vyzaduje; vlastni
+            // rozhodnuti dela Distances nize a tuhle hodnotu ignoruje.
+            var r = new RANSAC<Line2D>(minCount, 1.0, probability);
+            r.Fitting = (samples) => samples.Select(i => getter(points[i])).ToList().LinearRegesion();
+            r.Distances = (m, _) =>
+            {
+                var idx = new List<int>();
+                for (int i = 0; i < points.Count; i++)
+                {
+                    var p = getter(points[i]);
+                    if (m.Distance(p) < treshold(p)) idx.Add(i);
+                }
+                return idx.ToArray();
+            };
+
+            var line = r.Compute(points.Count, out int[] inliers);
+
+            if (marker != null && inliers != null)
+                foreach (int i in inliers)
+                    marker(points[i]);
+
+            return line;
+        }
+
+        /// <summary>
         /// Linearni regrese
         /// </summary>
         /// <param name="points">Prokladane body</param>
