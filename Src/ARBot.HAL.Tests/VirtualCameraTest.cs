@@ -113,6 +113,78 @@ public class VirtualCameraTest
         Assert.That(Volatile.Read(ref processed), Is.GreaterThan(0));
     }
 
+    [Test]
+    public void StampujeOdhadPozyDoSnimku()
+    {
+        // Poza v ramci snimku je metadatum pro vizualizaci: bez ni by se hranicni body musely
+        // kreslit "posledni znamou" pozou, coz pri kamerach s ruznym casem snimku posouva starsi
+        // sadu o desitky centimetru. Viz CameraFrame.PoseAtCaptureX.
+        using var cam = CreateCamera();
+        cam.EstimatedPoseAt = t => new RobotState { X = 12.5, Y = -3.25, Theta = 1.75, TimeStamp = t };
+
+        var frame = WaitForFrame(cam, TimeSpan.FromSeconds(5));
+
+        Assert.That(frame, Is.Not.Null);
+        Assert.That(frame!.HasPose, Is.True);
+        Assert.That(frame.PoseAtCaptureX, Is.EqualTo(12.5).Within(1e-9));
+        Assert.That(frame.PoseAtCaptureY, Is.EqualTo(-3.25).Within(1e-9));
+        Assert.That(frame.PoseAtCaptureTheta, Is.EqualTo(1.75).Within(1e-9));
+    }
+
+    [Test]
+    public void StampujePoziciKCasuSnimku_neAktualni()
+    {
+        // Argument MUSI byt cas snimku, ne "teď" - jinak by se hranice promitala pozou z jineho
+        // okamziku, presne ta vada, kterou to ma opravit.
+        using var cam = CreateCamera();
+        DateTime? asked = null;
+        cam.EstimatedPoseAt = t => { asked = t; return new RobotState { X = 1, Y = 2, Theta = 3 }; };
+
+        var frame = WaitForFrame(cam, TimeSpan.FromSeconds(5));
+
+        Assert.That(frame, Is.Not.Null);
+        Assert.That(asked, Is.EqualTo(frame!.TimeStamp));
+    }
+
+    [Test]
+    public void BezZdrojePozy_snimekProjdeBezPozy()
+    {
+        // Chybejici poza je metadatum, ne chyba: snimek je porad platne senzoricke mereni a nesmi
+        // se zahodit. Na realnem robotu by to znamenalo vyhazovat obraz kvuli diagnostice.
+        using var cam = CreateCamera();
+        cam.EstimatedPoseAt = null;
+
+        var frame = WaitForFrame(cam, TimeSpan.FromSeconds(5));
+
+        Assert.That(frame, Is.Not.Null, "snimek se nesmi zahodit kvuli chybejici poze");
+        Assert.That(frame!.HasPose, Is.False);
+    }
+
+    [Test]
+    public void ZdrojPozyVratilNull_snimekProjdeBezPozy()
+    {
+        using var cam = CreateCamera();
+        cam.EstimatedPoseAt = _ => null;
+
+        var frame = WaitForFrame(cam, TimeSpan.FromSeconds(5));
+
+        Assert.That(frame, Is.Not.Null);
+        Assert.That(frame!.HasPose, Is.False);
+    }
+
+    [Test]
+    public void ZdrojPozyHodilVyjimku_snimekProjde()
+    {
+        // Diagnosticke metadatum nesmi shodit vlakno kamery.
+        using var cam = CreateCamera();
+        cam.EstimatedPoseAt = _ => throw new InvalidOperationException("test");
+
+        var frame = WaitForFrame(cam, TimeSpan.FromSeconds(5));
+
+        Assert.That(frame, Is.Not.Null);
+        Assert.That(frame!.HasPose, Is.False);
+    }
+
     /// <summary>Procesor, ktery jen pocita zpracovane snimky.</summary>
     private sealed class CountingProcessor : ARBot.Common.Vision.ICameraFrameProcessor
     {

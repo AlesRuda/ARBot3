@@ -7,6 +7,11 @@
   <Folder Name="/Solution Items/">
     <File Path="../doc/devlog.md" />
   </Folder>
+  <Project Path="ARBot.Analyze/ARBot.Analyze.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="*|x86" Project="false" />
+    <Build Solution="*|OrangePI" Project="false" />
+  </Project>
   <Project Path="ARBot.Common.Tests/ARBot.Common.Tests.csproj" Id="3b5b9146-0e80-4caf-bdca-13e9bdf7cd8d">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />

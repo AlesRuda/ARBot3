@@ -44,6 +44,9 @@ namespace ARBot.HAL.Devices.Camera
         public ICameraFrameProcessor FrameProcessor { get; set; }
 
         /// <inheritdoc/>
+        public Func<DateTime, RobotState> EstimatedPoseAt { get; set; }
+
+        /// <inheritdoc/>
         public override string Name => cameraName;
 
         /// <summary>Virtualni kamera nema jak selhat - nema HW.</summary>
@@ -125,6 +128,11 @@ namespace ARBot.HAL.Devices.Camera
             frame.TimeStamp = ts;
             frame.RGBTimeStamp = ts;
             frame.DepthTimeStamp = ts;
+
+            // Odhad pozy jako METADATUM snimku - zamerne z JINE lambdy nez render vyse: ten jde
+            // ve vychozim stavu z ground truth (camerapose=truth), tady musi byt vzdy odhad z fuze,
+            // aby se virtualni a realna vetev chovaly stejne. Viz CameraPoseStamp.
+            CameraPoseStamp.Apply(frame, EstimatedPoseAt);
 
             // Stejny synchronni dopocet jako u realne kamery - pipeline za kamerou se nesmi lisit.
             FrameProcessor?.Process(frame);

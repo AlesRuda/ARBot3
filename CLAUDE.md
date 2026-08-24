@@ -89,6 +89,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   chování. Otevřené vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°,
   **korekce kurzu je ve fúzi bezmocná** (IMU kompas ji přehlasuje ~200:1 a soft gating ji
   u velkých chyb udusí, naměřeno 22. 8. 2026).
+  **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
+  za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
+  „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*
+  šířky, ne proti mapě, a jde o jeho zaostávání na cestě, která se skutečně rozšiřuje; proti mapě
+  kamera souhlasí na centimetry. Další krok je proto **delší rovná testovací mapa**. Stav
+  a pořadí kroků: [doc/devlog.md](doc/devlog.md), záznam 23. 8. 2026, „Rozpracováno / další krok".
+  Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `dump` / `types`), viz
+  [doc/record-replay.md](doc/record-replay.md#offline-analýza-záznamu-arbotanalyze) — a **měř
+  každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI

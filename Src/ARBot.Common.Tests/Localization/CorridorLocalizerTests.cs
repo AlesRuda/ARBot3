@@ -96,6 +96,48 @@ public class CorridorLocalizerTests
     }
 
     [Test]
+    public void PozaSeNesePriVsechVysledcich_iBezDvojice()
+    {
+        // Poza, se kterou se merilo, musi byt ve vysledku i u ZAMITNUTEHO cyklu - vrstva ve World
+        // pohledu z ni promita usecky prolozeni a parovat ji podle razitka nejde (neprezije seek).
+        // Driv se `GetStateAt` na teto cestě vubec nevolalo, takze zprava pozu nemela.
+        var engine = EngineAt(3.5, -1.25, 0);
+        var loc = Localizer(engine);
+        var (left, _) = Frames(4.0, 0, 0, T0);
+
+        loc.Process(left);
+
+        // Srovnava se s TIM, co fuze k casu snimku rika - ne se seedem. Test overuje, ze se poza
+        // vyzvedla a doputovala do vysledku, ne jak rychle EKF konverguje.
+        var expected = engine.GetStateAt(T0);
+        Assert.That(expected, Is.Not.Null);
+        Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.NoPair));
+        Assert.That(loc.LastFix.HasPose, Is.True, "poza musi byt i u zamitnuteho cyklu");
+        Assert.That(loc.LastFix.PoseX, Is.EqualTo(expected.X).Within(1e-9));
+        Assert.That(loc.LastFix.PoseY, Is.EqualTo(expected.Y).Within(1e-9));
+        Assert.That(loc.LastFix.PoseTheta, Is.EqualTo(expected.Theta).Within(1e-9));
+    }
+
+    [Test]
+    public void PozaJdeDoZpravy()
+    {
+        // Az ve zprave je poza k necemu - tam si ji vezme World vrstva.
+        var engine = EngineAt(2.0, 0.5, 0);
+        var loc = Localizer(engine);
+        var (left, right) = Frames(width: 4.0, lateral: 0, dirRad: 0, t: T0);
+
+        loc.Process(left);
+        loc.Process(right);
+        var msg = loc.LastFix.ToLogMessage();
+
+        Assert.That(msg.HasPose, Is.True);
+        Assert.That(msg.PoseX, Is.EqualTo(loc.LastFix.PoseX).Within(1e-9));
+        Assert.That(msg.PoseY, Is.EqualTo(loc.LastFix.PoseY).Within(1e-9));
+        Assert.That(msg.PoseTheta, Is.EqualTo(loc.LastFix.PoseTheta).Within(1e-9));
+        Assert.That(msg.PoseX, Is.EqualTo(2.0).Within(0.2), "poza je z fuze, ne nula");
+    }
+
+    [Test]
     public void PozaNaOse_nemaCoOpravovat()
     {
         // Robot presne na ose cesty (mapa i kamera se shoduji) -> nesouhlas ~0.

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -110,14 +110,44 @@ namespace ARBot.ViewModels
         private OccupancyGridMsg? pendingOccupancy;
         private GroundTruthMsg? pendingTruth;
 
-        /// <summary>Prolozene primky z posledniho cyklu koridoru (v ramci robotu) + jak dopadl.</summary>
-        private (bool HasL, double LFx, double LFy, double LTx, double LTy,
-                 bool HasR, double RFx, double RFy, double RTx, double RTy,
-                 byte FixReason, byte CorridorReason, double ParallelErrorRad)? pendingCorridor;
+        /// <summary>
+        /// Poza, kterou se ma dana sada promitnout do mapy. <see cref="Has"/> = <c>false</c> znamena
+        /// „zprava pozu nenesla" (starsi zaznam, nebo ji fuze neznala) — pak se pouzije posledni
+        /// znama, se stejnou nepresnosti jako driv.
+        /// </summary>
+        private readonly struct FramePose
+        {
+            public readonly bool Has;
+            public readonly double X, Y, Theta;
+            public FramePose(bool has, double x, double y, double theta)
+            {
+                Has = has; X = x; Y = y; Theta = theta;
+            }
+        }
 
-        /// <summary>Hranice cesty per kamera (body v ramci robotu + cas snimku) — nejnovejsi vyhrava.</summary>
-        private readonly Dictionary<string, (List<(double X, double Y, bool Left)> Pts, DateTime Ts)> pendingEdges
-            = new Dictionary<string, (List<(double X, double Y, bool Left)>, DateTime)>();
+        /// <summary>Hranicni body jedne kamery + cas snimku + poza, se kterou vznikly.</summary>
+        private sealed class EdgeSet
+        {
+            public List<(double X, double Y, bool Left)> Pts;
+            public DateTime Ts;
+            public FramePose Pose;
+        }
+
+        /// <summary>Prolozene usecky z posledniho cyklu koridoru (v ramci robotu) + jak dopadl.</summary>
+        private sealed class CorridorLines
+        {
+            public bool HasL, HasR;
+            public double LFx, LFy, LTx, LTy;
+            public double RFx, RFy, RTx, RTy;
+            public byte FixReason, CorridorReason;
+            public double ParallelErrorRad;
+            public FramePose Pose;
+        }
+
+        private CorridorLines pendingCorridor;
+
+        /// <summary>Hranice cesty per kamera — nejnovejsi vyhrava.</summary>
+        private readonly Dictionary<string, EdgeSet> pendingEdges = new Dictionary<string, EdgeSet>();
         private LocalPlanMsg? pendingPlan;
         private GlobalNavMsg? pendingGlobalNav;
         private volatile bool updateQueued;
@@ -130,13 +160,10 @@ namespace ARBot.ViewModels
         private OccupancyGridMsg? lastOccupancy;
         private GroundTruthMsg? lastTruth;
 
-        private (bool HasL, double LFx, double LFy, double LTx, double LTy,
-                 bool HasR, double RFx, double RFy, double RTx, double RTy,
-                 byte FixReason, byte CorridorReason, double ParallelErrorRad)? lastCorridor;
+        private CorridorLines lastCorridor;
 
         /// <summary>Posledni hranice per kamera (uz vyzvednute z fronty).</summary>
-        private readonly Dictionary<string, (List<(double X, double Y, bool Left)> Pts, DateTime Ts)> edgesByCam
-            = new Dictionary<string, (List<(double X, double Y, bool Left)>, DateTime)>();
+        private readonly Dictionary<string, EdgeSet> edgesByCam = new Dictionary<string, EdgeSet>();
         private bool edgesDirty;
         private LocalPlanMsg? lastPlan;
 
@@ -235,6 +262,20 @@ namespace ARBot.ViewModels
         /// <summary>Hranice cesty z kamer. <b>Vychozi vypnuto</b> — je to ladici vrstva a pri
         /// 30 snimcich za sekundu se prekresluje casto.</summary>
         [ObservableProperty] private bool showEdges;
+
+        /// <summary>
+        /// Promitat hranice <b>skutecnou</b> pozou (ground truth) misto odhadu z fuze?
+        /// <b>Vychozi vypnuto</b> a existuje to jen na virtualnim HW.
+        ///
+        /// <para><b>K cemu to je:</b> oddelit chybu detektoru od chyby lokalizace. Kdyz hranice
+        /// promitnute skutecnou pozou na cestu sednou a promitnute odhadem ne, je vedle odhad;
+        /// kdyz nesednou ani tak, je vedle detektor.</para>
+        ///
+        /// <para><b>Proc to NENI vychozi:</b> na realnem robotu ground truth neexistuje, takze
+        /// jako vychozi rezim by se virtualni a realny beh chovaly jinak. A pro srovnani
+        /// s lokalni mapou je spravny odhad z fuze — tou je grid ukotveny.</para>
+        /// </summary>
+        [ObservableProperty] private bool showEdgesFromTruth;
 
         /// <summary>Vrstva: silnicni sit nactena z OsmNav (MapMsg).</summary>
         [ObservableProperty] private bool showMap = true;
@@ -385,15 +426,33 @@ namespace ARBot.ViewModels
                         if (e.LeftPoint.A != 0) pts.Add((e.LeftPoint.X, e.LeftPoint.Y, true));
                         if (e.RightPoint.A != 0) pts.Add((e.RightPoint.X, e.RightPoint.Y, false));
                     }
-                    lock (gate) pendingEdges[cf.Name ?? string.Empty] = (pts, cf.TimeStamp);
+                    lock (gate) pendingEdges[cf.Name ?? string.Empty] = new EdgeSet
+                    {
+                        Pts = pts,
+                        Ts = cf.TimeStamp,
+                        // Poza SNIMKU, ne "posledni znama": kamery nejsou svazane a jejich snimky
+                        // jsou az stovky ms od sebe, takze jedna poza pro obe posouva starsi sadu.
+                        // Cestuje ve zprave schvalne - parovat ji podle razitka nejde, protoze
+                        // rekonstrukce stavu pri SEEKu dodava jen jednu zpravu na klic.
+                        Pose = new FramePose(cf.HasPose, cf.PoseAtCaptureX, cf.PoseAtCaptureY,
+                                             cf.PoseAtCaptureTheta),
+                    };
                     break;
 
                 // Prolozene primky z koridoru. Berou se BEZ OHLEDU na to, jak dopadlo jejich
                 // vzajemne vyhodnoceni — zamitnuty cyklus je pro pochopeni ten nejzajimavejsi.
                 case RoadCorridorMsg rc when ShowEdges:
-                    lock (gate) pendingCorridor = (rc.HasLeftLine, rc.LeftFromX, rc.LeftFromY, rc.LeftToX, rc.LeftToY,
-                                                   rc.HasRightLine, rc.RightFromX, rc.RightFromY, rc.RightToX, rc.RightToY,
-                                                   rc.FixReason, rc.CorridorReason, rc.ParallelErrorRad);
+                    lock (gate) pendingCorridor = new CorridorLines
+                    {
+                        HasL = rc.HasLeftLine,
+                        LFx = rc.LeftFromX, LFy = rc.LeftFromY, LTx = rc.LeftToX, LTy = rc.LeftToY,
+                        HasR = rc.HasRightLine,
+                        RFx = rc.RightFromX, RFy = rc.RightFromY, RTx = rc.RightToX, RTy = rc.RightToY,
+                        FixReason = rc.FixReason,
+                        CorridorReason = rc.CorridorReason,
+                        ParallelErrorRad = rc.ParallelErrorRad,
+                        Pose = new FramePose(rc.HasPose, rc.PoseX, rc.PoseY, rc.PoseTheta),
+                    };
                     break;
 
                 // Ground truth: kdyz je (virtualni HW), hranice se promitaji SKUTECNOU pozou —
@@ -975,16 +1034,51 @@ namespace ARBot.ViewModels
                     || double.IsInfinity(e.MaxX) || double.IsInfinity(e.MaxY)) notFinite++;
             }
 
-            string pose = lastTruth != null
-                ? $"truth ({lastTruth.X:F2}, {lastTruth.Y:F2}, {Conversions.Rad2Deg(lastTruth.Theta):F1} deg)"
-                : lastRobot != null
-                    ? $"fuze ({lastRobot.X:F2}, {lastRobot.Y:F2}, {Conversions.Rad2Deg(lastRobot.Theta):F1} deg)"
-                    : "zadna";
+            var fb = ResolveFallbackPose();
+            string pose = fb == null
+                ? "zadna"
+                : $"{(ShowEdgesFromTruth ? "truth" : "fuze")} zalozni "
+                  + $"({fb.Value.X:F2}, {fb.Value.Y:F2}, {Conversions.Rad2Deg(fb.Value.Theta):F1} deg)";
+
+            int withOwn = 0;
+            foreach (var kv in edgesByCam) if (kv.Value.Pose.Has) withOwn++;
+            pose += $", vlastni pozu ma {withOwn}/{edgesByCam.Count} kamer";
 
             return $"featur={f.Length} null={nulls} bezExtentu={noExtent} nekonecnych={notFinite}"
                    + $"  kamer={edgesByCam.Count} zahozeno={edgesDropped} koridor={(lastCorridor != null ? "ano" : "ne")}"
                    + $"  poza={pose}";
         }
+
+        /// <summary>
+        /// Zalozni poza pro sady bez vlastni pozy — a jedina poza v rezimu
+        /// <see cref="ShowEdgesFromTruth"/>. <c>null</c> = zadna poza neni k dispozici.
+        ///
+        /// <para><b>Vychozi je odhad z fuze</b> (<see cref="RobotStateMsg"/>). Driv vyhravala
+        /// ground truth, kdykoli byla k dispozici — coz znamenalo, ze virtualni a realny beh se
+        /// chovaly jinak uz z principu, a hlavne ze hranice byly kresleny <b>jinou</b> pozou nez
+        /// tou, kterou je ukotvena lokalni mapa (occupancy grid se plni odhadem z fuze). Ty dve
+        /// vrstvy se pak nemohly krýt ani principialne.</para>
+        /// </summary>
+        private FramePose? ResolveFallbackPose()
+        {
+            if (ShowEdgesFromTruth && lastTruth != null)
+                return new FramePose(true, lastTruth.X, lastTruth.Y, lastTruth.Theta);
+            if (lastRobot != null)
+                return new FramePose(true, lastRobot.X, lastRobot.Y, lastRobot.Theta);
+            // Bez odhadu, ale s ground truth (napr. jen zapnuta simulace) je lepsi kreslit z nej
+            // nez nekreslit nic.
+            if (lastTruth != null)
+                return new FramePose(true, lastTruth.X, lastTruth.Y, lastTruth.Theta);
+            return null;
+        }
+
+        /// <summary>
+        /// Poza pro jednu sadu: jeji vlastni (ze zpravy), jinak zalozni. V rezimu
+        /// <see cref="ShowEdgesFromTruth"/> se vlastni poza ignoruje — ground truth se ve zpravach
+        /// nenese a smyslem toho rezimu je promitnout vsechno SKUTECNOU pozou.
+        /// </summary>
+        private FramePose PoseFor(FramePose own, FramePose fallback)
+            => (!ShowEdgesFromTruth && own.Has) ? own : fallback;
 
         private void BuildEdgesFeatures(GeoReference? geoRef)
         {
@@ -994,12 +1088,12 @@ namespace ARBot.ViewModels
                 return;
             }
 
-            double px, py, theta;
-            if (lastTruth != null) { px = lastTruth.X; py = lastTruth.Y; theta = lastTruth.Theta; }
-            else if (lastRobot != null) { px = lastRobot.X; py = lastRobot.Y; theta = lastRobot.Theta; }
-            else { edgesLayer.Features = Array.Empty<IFeature>(); return; }
+            // ZALOZNI poza pro sady, ktere svou vlastni nenesou (starsi zaznam / fuze pozu neznala),
+            // a poza pro rezim „ground truth". Vychozi je odhad z fuze — na realnem robotu ground
+            // truth neexistuje, takze kdyby prebijel, virtualni a realny beh by se chovaly jinak.
+            var fallback = ResolveFallbackPose();
+            if (fallback == null) { edgesLayer.Features = Array.Empty<IFeature>(); return; }
 
-            double c = Math.Cos(theta), sn = Math.Sin(theta);
             var features = new List<IFeature>();
             int dropped = 0;
 
@@ -1013,10 +1107,14 @@ namespace ARBot.ViewModels
             {
                 if (newest - kv.Value.Ts > TimeSpan.FromSeconds(1)) continue;
 
+                // Kazda kamera svou vlastni pozou - v tom je cely rozdil proti puvodni verzi.
+                var p = PoseFor(kv.Value.Pose, fallback.Value);
+                double c = Math.Cos(p.Theta), sn = Math.Sin(p.Theta);
+
                 foreach (var (bx, by, isLeft) in kv.Value.Pts)
                 {
                     // FLU (X vpred, Y vlevo) -> ENU podle kurzu robotu.
-                    var m = Robot2Mercator(geoRef, px, py, c, sn, bx, by);
+                    var m = Robot2Mercator(geoRef, p.X, p.Y, c, sn, bx, by);
                     if (!IsDrawable(m)) { dropped++; continue; }
 
                     var f = new GeometryFeature
@@ -1043,10 +1141,15 @@ namespace ARBot.ViewModels
                 byte alpha = (byte)(accepted ? 255 : 150);
                 double width = accepted ? 4 : 2.5;
 
+                // Usecky uz v JEDNOM ramci lezi (partnerskou kameru do nej prepocital localizer),
+                // takze jim staci jedna poza - ale ta, se kterou se merilo.
+                var lp = PoseFor(lc.Pose, fallback.Value);
+                double lc_c = Math.Cos(lp.Theta), lc_sn = Math.Sin(lp.Theta);
+
                 void AddLine(double fx, double fy, double tx, double ty, Color color)
                 {
-                    var a = Robot2Mercator(geoRef, px, py, c, sn, fx, fy);
-                    var b = Robot2Mercator(geoRef, px, py, c, sn, tx, ty);
+                    var a = Robot2Mercator(geoRef, lp.X, lp.Y, lc_c, lc_sn, fx, fy);
+                    var b = Robot2Mercator(geoRef, lp.X, lp.Y, lc_c, lc_sn, tx, ty);
                     if (!IsDrawable(a) || !IsDrawable(b)) { dropped++; return; }
 
                     var f = new GeometryFeature
@@ -1824,9 +1927,17 @@ namespace ARBot.ViewModels
                     : "NENI (corridor=false)";
                 if (edgesDropped > 0) fit += ", zahozeno " + edgesDropped;
 
+                // Rezim pozy patri do ramecku: pri pohledu na obrazek je to prvni otazka
+                // („kresli se to odhadem, nebo skutecnou pozou?") a bez toho se nedala zodpovedet.
+                int withOwn = 0;
+                foreach (var kv in edgesByCam) if (kv.Value.Pose.Has) withOwn++;
+
                 sb.AppendFormat(CultureInfo.InvariantCulture,
-                                "\nHranice: {0} b. ze {1} kamer, prolozeni: {2}",
-                                edgePts, edgesByCam.Count, fit);
+                                "\nHranice: {0} b. ze {1} kamer, prolozeni: {2}, poza: {3}",
+                                edgePts, edgesByCam.Count, fit,
+                                ShowEdgesFromTruth ? "ground truth"
+                                    : withOwn > 0 && withOwn == edgesByCam.Count ? "z kazdeho snimku"
+                                    : $"z kazdeho snimku ({withOwn}/{edgesByCam.Count}), zbytek posledni znama");
             }
 
             return sb.ToString();
@@ -2000,6 +2111,17 @@ namespace ARBot.ViewModels
             }
             RebuildLayers();
         }
+        /// <summary>
+        /// Prepnuti rezimu pozy musi vrstvu <b>prekreslit z drzenych dat</b> - jinak by zmena byla
+        /// videt az s dalsim snimkem, a v rezimu View uz zadny prijit nemusi.
+        /// </summary>
+        partial void OnShowEdgesFromTruthChanged(bool value)
+        {
+            if (!ShowEdges) return;
+            UpdateEdgesFeature(BuildGeoReference());
+            edgesLayer.DataHasChanged();
+        }
+
         partial void OnShowMapChanged(bool value) => RebuildLayers();
         partial void OnShowVisionMapChanged(bool value) => RebuildLayers();
         partial void OnSelectedBaseMapChanged(BaseMapChoice value) => RebuildLayers();

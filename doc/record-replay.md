@@ -378,6 +378,62 @@ ARBOT_RECORD=logs/beh.rec dotnet test Src/ARBot.Common.Tests -p:Platform=x64 --f
 - **Vize** — `Src/ARBot.Common/Vision/`: `ImageLayer`, `MessageImageLayers`, `BackProjectProcessor`.
 - **App** — `Src/ARBot`: `ARBotRuntime`(nový, `ARBot.Robot`), `ARBotHW`, `ImageDocument`.
 - **Nástroj** — `Src/ARBot.Record` (konzole, není v `ARBot.slnx`).
+- **Offline analýza záznamu** — `Src/ARBot.Analyze` (konzole, v `ARBot.slnx` jen pro `x64`);
+  viz [Offline analýza záznamu](#offline-analýza-záznamu-arbotanalyze) níže.
+
+## Offline analýza záznamu (`ARBot.Analyze`)
+
+Konzolový nástroj pro měření nad hotovým záznamem — `corridor` (hranová lokalizace), `dump`
+(CSV řádek za cyklus), `types` (co záznam obsahuje):
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- corridor Records/20260823-182213.rec
+```
+
+**Proč je v repozitáři** a ne jako jednorázový skript vedle: měřicí čísla se v tomto projektu
+opakovaně stavěla ad hoc a další sezení je nemělo čím zopakovat (viz [devlog](devlog.md),
+23. 8. 2026). U `RANSAC`u, který je nedeterministický, je opakovatelnost měření podmínka, ne
+komfort — rozptyl mezi běhy téže konfigurace byl větší než rozdíl, který se zkoumal.
+
+Příkazy: `corridor` (hranová lokalizace), `dump` (CSV řádek za cyklus), `occupancy` (čím je která
+buňka lokální mapy blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální
+rovinu"), `poses` (póza pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
+
+**Dvě věci na čtení záznamu, které nejsou zřejmé** (obojí je důvod, proč `RecordFile` existuje):
+
+- **Sekvenční čtení nefunguje.** `MessageReader.Read()` vrátí `null` u zprávy, kterou katalog
+  nezná, ale posun ve streamu už proběhl podle délky v hlavičce — v praxi čtení skončí na prvním
+  `CameraFrame`. Číst se musí **přes index** (`*.rec.idx` nese offset i délku každého rámce).
+- **Katalog musí `CameraFrame` doregistrovat.** `MessageCatalog.CommonDefaults()` ho neobsahuje —
+  registruje ho až HAL/aplikace.
+
+Bonus, který index dává zdarma: `IndexEntry` nese `MsgName`, `Name` (jméno kamery) i `CaptureTicks`,
+takže se dá **rekonstruovat párování snímků** bez čtení gigabajtů obrazových dat. Jediný příkaz,
+který se tomu vyhnout nemůže, je `poses` — ten čte celé snímky (proto `--limit`).
+
+## Seek určuje, kde smí póza být (23. 8. 2026)
+
+Netriviální důsledek `SeekTo`, který stojí za zapamatování, protože vylučuje dvě jinak rozumné
+možnosti.
+
+Rekonstrukce stavu sbírá **poslední zprávu ≤ pozice pro každý klíč `(MsgName, Name)`**. Po seeku
+tedy přijde `CameraFrame`/`Left` a `CameraFrame`/`Right` — **s různými časy snímku**, protože
+kamery nejsou svázané — ale jen **jedna** `RoadCorridorMsg` (ta `Name` nemá). A jeden `RobotStateMsg`.
+
+Z toho plyne:
+
+- **Párovat pózu ke snímku podle razítka nejde.** Jedna zpráva se trefí nejvýš s jedním ze dvou
+  snímků; ten druhý by pózu neměl. Není to křehké, je to strukturálně nemožné.
+- **Historie póz ve view taky ne.** Seek dodá jeden `RobotStateMsg`, takže není z čeho
+  interpolovat — skončilo by se u jedné pózy pro všechno, tedy tam, kde se začínalo.
+- **Runtime pole nestačí.** Nalezené rámce se čtou **náhodně z offsetu a emitují přímo na
+  `Stream`**, takže neprojdou zpracováním; co by stampoval pipeline stupeň, by po seeku chybělo.
+
+Proto póza **cestuje ve zprávě a je serializovaná**: `CameraFrame` verze 6
+(`PoseAtCaptureX/Y/Theta`, `HasPose`) pro hraniční body a `RoadCorridorMsg` verze 5
+(`PoseX/Y/Theta`, `HasPose`) pro proložené úsečky. Cena: na replayi s **jinak naladěnou fúzí** se
+`RobotStateMsg` přegeneruje, ale stampovaná póza ne — značka robota se pohne a body zůstanou. To je
+vědomá cena za to, že to přežije seek.
 
 ## Stav implementace
 
@@ -435,7 +491,10 @@ pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při 
   systematickou chybu úhlové rychlosti −18 %; odůvodnění je v komentáři u toho pole.
 - **Serializace `CameraFrame` — HOTOVO** (2026-07-25, rozšířeno 2026-08-01 na **FormatVersion 2**:
   uvnitř rámce se nově serializuje i `Grid`; 2026-08-09 na **FormatVersion 3**: serializují se
-  i hranice cesty `PathEdges`; `FromData` má větve `case 1`–`case 3`).
+  i hranice cesty `PathEdges`; 4: popis projekce; 5: metrické body hranic;
+  2026-08-23 na **FormatVersion 6**: odhad pózy v okamžiku pořízení
+  (`PoseAtCaptureX/Y/Theta` + `HasPose`) — **jen pro vizualizaci**, viz §„Seek určuje, kde smí póza
+  být"; `FromData` má větve `case 1`–`case 6`).
   `CameraFrame` má versioned `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`)
   a je v replay katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
   `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Vrstvy se ukládají přes

@@ -36,6 +36,9 @@ namespace ARBot.HAL.Devices.Camera
         /// <inheritdoc/>
         public ICameraFrameProcessor FrameProcessor { get; set; }
 
+        /// <inheritdoc/>
+        public System.Func<System.DateTime, ARBot.Common.Fusion.RobotState> EstimatedPoseAt { get; set; }
+
         /// <summary>Nastaveni barevneho (RGB) streamu.</summary>
         CameraSettings settingsRGB;
         /// <summary>Nastaveni hloubkoveho streamu.</summary>
@@ -201,6 +204,10 @@ namespace ARBot.HAL.Devices.Camera
                     frame.TimeStamp = ts;
                     frame.RGBTimeStamp = RGBTimeStamp;
                     frame.DepthTimeStamp = DepthTimeStamp;
+
+                    // Odhad pozy jako METADATUM snimku (vyhradne pro vizualizaci - viz
+                    // CameraFrame.PoseAtCaptureX). Chybejici poza snimek NEZAHAZUJE.
+                    ARBot.HAL.Devices.Camera.CameraPoseStamp.Apply(frame, EstimatedPoseAt);
 
                     // Synchronni dopocet odvozenych vlastnosti (probability, polarni grid) na vlakne
                     // kamery - misto asynchronniho fan-outu do pipeline (viz doc/plan-camera-vision-refactor.md).

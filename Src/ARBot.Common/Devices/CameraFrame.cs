@@ -21,7 +21,7 @@ namespace ARBot.Common.Devices
         /// <see cref="ToData"/>/<see cref="FromData"/>) zvys o 1 a v <see cref="FromData"/>
         /// pridej cteci vetev pro predchozi verzi (viz doc/record-replay.md → Verzovani zprav).
         /// </summary>
-        public const int FormatVersion = 5;
+        public const int FormatVersion = 6;
 
         public CameraFrame() : base(FormatVersion)
         {
@@ -72,6 +72,44 @@ namespace ARBot.Common.Devices
         /// </summary>
         public CameraProjectionInfo Projection { get; set; }
 
+        /// <summary>
+        /// <b>Odhad pozy robotu v okamziku porizeni</b> (fuze, world ENU + kurz) — od
+        /// <see cref="FormatVersion"/> 6. <see cref="HasPose"/> rika, jestli je vyplnena.
+        ///
+        /// <para><b>VYHRADNE DIAGNOSTIKA A VIZUALIZACE. Nesmi vstoupit do rizeni ani do fuze.</b>
+        /// Kdyby merenie odvozene ze snimku tuhle pozu pouzilo, opravovala by se poza merenim,
+        /// ktere ji uz v sobe ma — presne ta kruhovost, kvuli ktere je koridor pocitany v ramci
+        /// robotu (viz <see cref="ARBot.Common.Localization.RoadCorridor"/>). Kdo potrebuje pozu
+        /// pro vypocet, sahne si pro ni do fuze sam (<c>GetStateAt</c>).</para>
+        ///
+        /// <para><b>Nacpak to tedy je.</b> Aby se hranicni body (<see cref="PathEdges"/>) daly
+        /// nakreslit do mapy spravnou pozou. Kazda kamera ma vlastni cas snimku a snimky obou
+        /// kamer jsou az stovky ms od sebe; jedna „posledni znama" poza pro vsechno posouva starsi
+        /// sadu o desitky centimetru a chyba kurzu se navic s dalkou nasobi. Poza <b>musi cestovat
+        /// se snimkem</b>, protoze parovani zprav podle razitka <b>neprezije seek</b>: rekonstrukce
+        /// stavu dodava posledni zpravu pro kazdy klic <c>(MsgName, Name)</c>, tedy dva snimky
+        /// s ruznymi casy, ale jen jednu <c>RoadCorridorMsg</c> — ta se trefi nejvys s jednim
+        /// z nich. Ze stejneho duvodu to <b>nesmi byt jen runtime pole</b>: pri seeku se ramec cte
+        /// nahodne z offsetu a emituje priamo na Stream, tedy neprojde zpracovanim.</para>
+        ///
+        /// <para><b>Na replayi je to poza z NAHRAVACIHO behu.</b> Kdyz se zaznam prehraje s jinak
+        /// naladenou fuzi, <see cref="ARBot.Common.Logs.RobotStateMsg"/> se pregeneruje, ale tato
+        /// poza ne — znacka robotu se pohne a body zustanou. Je to cena za to, ze prezije seek.</para>
+        ///
+        /// <para>Plni ji kamera z lambdy <c>estimatedPoseAt</c> (viz <c>ICamera</c>), pro realnou
+        /// i virtualni stejne. Viz doc/record-replay.md a doc/virtual-hw.md.</para>
+        /// </summary>
+        public double PoseAtCaptureX, PoseAtCaptureY, PoseAtCaptureTheta;
+
+        /// <summary>
+        /// Je <see cref="PoseAtCaptureX"/> vyplnena? <c>false</c> = fuze pozu k casu snimku neznala
+        /// (mimo okno historie), nebo je snimek ze zaznamu verze &lt; 6.
+        ///
+        /// <para>Vlastni priznak proto, aby „nevim" neslo splest s pozou v pocatku ENU roviny —
+        /// nula je tam legitimni hodnota.</para>
+        /// </summary>
+        public bool HasPose;
+
         /// <inheritdoc/>
         public override Message Build() => new CameraFrame();
 
@@ -92,6 +130,11 @@ namespace ARBot.Common.Devices
             WriteGrid(bw, Grid);                            // od verze 2 (diagnosticke ComputeMs se NEserializuje)
             WritePathEdges(bw, PathEdges);                  // od verze 3
             CameraProjectionInfo.Write(bw, Projection);     // od verze 4
+
+            bw.Write(HasPose);                              // od verze 6
+            bw.Write(PoseAtCaptureX);
+            bw.Write(PoseAtCaptureY);
+            bw.Write(PoseAtCaptureTheta);
         }
 
         /// <summary>
@@ -289,6 +332,25 @@ namespace ARBot.Common.Devices
                     Grid = ReadGrid(br);
                     PathEdges = ReadPathEdges(br, withPoints: true);
                     Projection = CameraProjectionInfo.Read(br, withColorExtras: true);
+                    HasPose = false;                 // verze 5 pozu porizeni nenesla
+                    break;
+
+                case 6:
+                    // Jako verze 5 + odhad pozy v okamziku porizeni (viz PoseAtCaptureX).
+                    ReadMeta(br);
+                    Name = br.ReadString();
+                    ImageRGB = ImageMsg.ReadImage<BGR32>(br);
+                    ImageProbability = ImageMsg.ReadImage<Gray>(br);
+                    ImageDepth = ImageMsg.ReadImage<Gray16>(br);
+                    RGBTimeStamp = ReadDateTime(br);
+                    DepthTimeStamp = ReadDateTime(br);
+                    Grid = ReadGrid(br);
+                    PathEdges = ReadPathEdges(br, withPoints: true);
+                    Projection = CameraProjectionInfo.Read(br, withColorExtras: true);
+                    HasPose = br.ReadBoolean();
+                    PoseAtCaptureX = br.ReadDouble();
+                    PoseAtCaptureY = br.ReadDouble();
+                    PoseAtCaptureTheta = br.ReadDouble();
                     break;
 
                 default:

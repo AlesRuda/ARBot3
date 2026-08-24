@@ -39,6 +39,112 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-08-23
 
+- **Hranice se kreslily jednou pózou pro obě kamery — a stálo to až 2 m.** Autor se ptal, proč
+  kreslený koridor nesedí s lokální mapou. Odpověď měla tři části a jen jedna z nich byla vada.
+  - **Vada:** vrstva promítala *všechno* „poslední známou" pózou a čas snímku (`Ts`) používala
+    jen k vyřazení zastaralé kamery. Kamery přitom nejsou svázané a jejich snímky jsou až 400 ms
+    od sebe. Naměřeno (pózy dohledané z `RobotStateMsg`, tedy **podhodnoceně**): posun mezi pózami
+    obou kamer p50 0,037 m, ale rozdíl **kurzu** p90 3,2° a max 12,3° — a kurz se s dálkou násobí,
+    takže na dosahu proložení 8 m dělá chyba kreslení **p50 0,15 m, p90 0,61 m, max 2,03 m**.
+  - **Ne vada, ale past:** vrstva promítala **ground truth**, kdykoli byla k dispozici, zatímco
+    occupancy grid se plní **odhadem z fúze**. Ty dvě vrstvy se tedy nemohly krýt ani principiálně,
+    a na reálném robotu by se to chovalo jinak než na virtuálu. Autorův návrh (EKF podle razítka
+    a pózu do zprávy) tohle řeší v obojím — ground truth zůstává jako volitelný přepínač.
+  - **Ne vada, ale mez:** hraniční body jdou zpětnou projekcí přes **měřenou hloubku**, semantický
+    kanál gridu dopředu na **rovinu země**. Dvě různé geometrie; splynou až s `depthnoise=0`.
+  - **Seek rozhodl, kam póza patří.** Autor upozornil, že po seeku může být problém dohledat
+    zprávy, které k sobě patří — a je to horší, než to znělo: rekonstrukce stavu dodá poslední
+    zprávu pro každý klíč `(MsgName, Name)`, tedy dva snímky s **různými časy**, ale jen **jednu**
+    `RoadCorridorMsg` a jeden `RobotStateMsg`. Párování podle razítka je tím strukturálně nemožné
+    a historie póz ve view taky (není z čeho interpolovat). A runtime pole nestačí: nalezené rámce
+    se čtou náhodně z offsetu a emitují přímo na `Stream`, takže neprojdou zpracováním. **Póza tedy
+    musí být serializovaná ve zprávě.**
+  - **Hotovo:** `CameraFrame` verze 6 (`PoseAtCaptureX/Y/Theta` + `HasPose`), `RoadCorridorMsg`
+    verze 5 (táž trojice), lambda `ICamera.EstimatedPoseAt` pro **obě** kamery (autorův návrh —
+    `VirtualCamera` už takovou lambdu měla, jen renderovací), World vrstva promítá per snímek,
+    přepínač „Hranice ze skutečné pózy". Plus CLI `depthnoise=` / `grassrough=` / `grassheight=`
+    a tytéž tři posuvníky v panelu *Virtuální senzory* (platí hned, renderer čte tutéž instanci).
+  - **Dvě lambdy, ne jedna** — a to je podstatné: `camerapose=` je **renderovací** póza (výchozí
+    ground truth), `EstimatedPoseAt` je **metadatum** a vždy odhad z fúze. Kdyby se to slilo,
+    stampovala by se na virtuálu skutečnost a na reálu odhad.
+  - **Odmítnuté kroky, ať se nezkouší znovu:** *vyřadit hloubku z integrátoru* — hranice v mapě je
+    už dnes čistě semantická (z 35 097 blokovaných buněk blokuje geometrie **0**, všech 65 přechodů
+    `Free↔Blocked` je semantických), a navíc `Free` vyžaduje **oba** kanály pod prahem, takže bez
+    geometrie by robot neměl po čem jet (na to přišel autor). *Párování zpráv podle razítka*
+    a *historie póz ve view* — obojí zabíjí seek.
+  - **Ověřeno:** build celého řešení pod `x64`, testy 782 (Common) + 43 (HAL) zelené; nové testy na
+    stampování pózy (5), serializaci (3) a nesení pózy u zamítnutého cyklu (2). **Běh aplikace
+    ověřený není** — plumbing je pokrytý testy, ale nový záznam s verzí 6 jsem nepořídil.
+  - **Odkazy:** [virtual-hw.md](virtual-hw.md#póza-v-metadatech-snímku--jiná-lambda-než-renderovací-23-8-2026),
+    [record-replay.md](record-replay.md#seek-určuje-kde-smí-póza-být-23-8-2026),
+    [world-view.md](world-view.md#vrstva-hranice-cesty-póza-z-každého-snímku-23-8-2026).
+
+- **Šířkový nesouhlas: žádná regrese — měřilo se proti filtru, ne proti mapě.** První bod
+  rozcestníku vyřešen, a vyšel jinak, než jak byl zapsán.
+  - **Kamera proti mapě souhlasí na centimetry.** První přijaté měření na každé cestě je jediné,
+    kde `MapWidth` je opravdu mapová hodnota (dál už je to filtr): way 105 mapa 2,000 / kamera
+    1,971; way 103 1,000 / 0,993; way 104 1,482 / **1,489**. Šířku tedy kamera měří správně.
+  - **Celý nesouhlas je z jedné cesty.** `way 104` dala \|šířka\| p50 **0,266 m** (90 měření),
+    `way 103` 0,043 a `way 105` 0,030. Na way 104 se koridor **skutečně rozšiřuje** (měřená šířka
+    roste monotónně 1,489 → 3,049 m): šířka uzlu je v `GraphBuilder` **maximum** ze šířek okolních
+    cest, takže na styku 1m a 3m cesty se úzká cesta rozevírá. Render i mapová strana to
+    interpolují stejně, proto souhlasí — jenže **filtr** (`α = 0,05`) za rampou trvale zaostává
+    o `Δ/α`, tady 0,35 m, a naposled naměřeno 0,347 m. Zapsáno jako test
+    `NaRozsirujiciSeCeste_filtrTrvaleZaostava`.
+  - **Proč to mezi běhy skočilo:** změnil se jen **podíl** cyklů uvnitř toho rozevření —
+    33/159 (21 %) proti 90/178 (51 %). Oba běhy měly okno 400 ms i kompenzaci pohybu; lišila se
+    rychlost kamer (6,8 vs 10 Hz).
+  - **Dvě slepé uličky vyvráceny**, ať se nezkouší znovu: *cena širšího okna* — trend jde naopak
+    (0–20 ms: 0,213 m, 200–300 ms: 0,014 m) a zlom u 120 ms je ostrý, tedy podpis zavádějící
+    proměnné (fáze kamer se přes běh posouvá, takže pásma rozestupu jsou pásma místa na trase);
+    *chyba `Reproject`* — pak by chyba s rozestupem rostla, a pásmo 0–20 ms se nekompenzuje vůbec
+    a je stejně špatné jako kompenzovaná.
+  - **Menší, než to vypadalo:** šířkový nesouhlas slouží jen jako gate, do fúze nejde — chyba
+    polohy zůstala p50 0,027 m. Zaostání filtru jen ukrajuje z rozpočtu gate.
+  - **Opraveno i pojmenování:** `RoadCorridorMsg.WidthDisagreement` a `CorridorFix` tvrdily
+    „kamera minus mapa"; je to kamera minus **filtr**. Přesně tohle to číslo dva dny mystifikovalo.
+  - **Poučení, které stojí za víc než ten nález:** osm běhů téže konfigurace z téhož dopoledne
+    dalo \|šířka\| p50 v rozsahu **0,028–0,259 m**. Rozptyl mezi běhy byl větší než rozdíl, který
+    se zkoumal — jedno číslo z jednoho běhu tady nerozhoduje o ničem.
+  - **Odkazy:** [map-correlation-localization.md](map-correlation-localization.md#šířkový-nesouhlas-byl-zaostávání-filtru-ne-regrese-23-8-2026).
+
+- **Analyzátory záznamu jsou od teď v repozitáři** (`Src/ARBot.Analyze`, v `ARBot.slnx` pro `x64`).
+  Předchozí sezení je psalo ve scratchpadu a zapsalo do devlogu „recept", jak je postavit znovu —
+  což je přiznání, že to bylo špatně: pravidlo „vše v repozitáři" platí i na měřicí nástroje.
+  U `RANSAC`u, který je nedeterministický, je opakovatelnost měření podmínka, ne komfort.
+  - `corridor` = rozbor hranové lokalizace (důvody, přesnost, rozpad po rychlosti, po čase na
+    trase, po OSM cestě a po párovacím rozestupu), `dump` = CSV řádek za cyklus, `types` = co
+    záznam obsahuje.
+  - `RecordFile` drží to, co na čtení záznamu není zřejmé: **čte se přes index** (sekvenční
+    `Read()` skončí na prvním `CameraFrame`, protože neznámá zpráva vrátí `null`, ale stream se
+    už posunul) a **katalog musí `CameraFrame` doregistrovat** (`CommonDefaults()` ho nemá).
+    Index navíc nese jméno kamery i čas pořízení, takže **párování snímků jde zrekonstruovat**
+    bez čtení gigabajtů obrazu — na tom stojí celý rozpad podle rozestupu.
+  - **Odkazy:** [record-replay.md](record-replay.md#offline-analýza-záznamu-arbotanalyze).
+
+- **Kamery jely 6,8 Hz místo 30, protože 71 % času generovaly šum.** Autor si vyžádal prozkoumat
+  pomalost snímků — a číslo bylo překvapivě jednoznačné.
+  - **Měření jednoho snímku** (hloubka 480×270 + barva 640×480): vše zapnuto **93 ms**, bez
+    barevného šumu 37 ms, **bez veškerého šumu 27 ms**. Šum tedy stál 66 z 93 ms. Největší
+    položkou barevný šum — volá se **třikrát na pixel**, celkem ~1,5 M normálních vzorků na snímek.
+  - **`DeterministicNoise.Gaussian` počítal Box–Mullera ze dvou hashů** (8× `Mix` + `Log` + `Sqrt`
+    + `Cos`) = **38 ns na vzorek**. Nahrazeno **kvantilovou tabulkou** (prvek *i* = inverzní
+    distribuční funkce v (i+0,5)/N, Acklam, staví se jednou při startu): jeden hash + čtení z pole.
+    4096 položek = 16 kB kvůli L1 — s 65536 (256 kB) to bylo 12 ns místo 7 kvůli výpadkům cache.
+  - **Výsledek:** `Gaussian` 38 → **7 ns**, snímek 93 → **51 ms**, kamery **6,8 → 10,0 Hz**.
+    Na hranové lokalizaci (táž 40s trasa): `NoPair` **20 → 1**, přijatých měření **159 → 178**,
+    chyba polohy p50 0,046 → **0,036 m**, chyba kurzu 0,40 → **0,23°**.
+  - **Pozor:** `Gaussian` vrací jiné hodnoty než dřív (jiná realizace téhož rozdělení), takže
+    starší záznamy mají jiný šum. Vlastnost, na které záleží — čistá funkce vstupů — platí dál.
+  - **Slepá ulička, kterou stojí za to zaznamenat:** nejdřív jsem podezíral `RoadScene.IsRoad`
+    (101 ns/volání, 2× na pixel). Zmenšení buňky mřížky ho zlevnilo skoro na polovinu, ale render
+    se **vůbec nezměnil** — extrapolace „2 volání × 101 ns = 88 ms" byla špatně, protože paprsky
+    nad horizontem se dotazu vůbec nedočkají. Mřížka vrácena na 10 m.
+  - **Zbývá:** ani 10 Hz není 30; render bez šumu je pořád 27 ms. Nabízí se paralelizace po řádcích
+    (na OrangePI ale bere výkon řídicí smyčce) a líné počítání drsnosti trávy (~7 ms).
+  - **Odkazy:** [virtual-hw.md](virtual-hw.md#rychlost-renderu-šum-byl-71--práce-23-8-2026).
+
+
 - **`NoPair` vyřešen kompenzací pohybu mezi snímky — a měření se ztrojnásobilo.** Autor zkusil
   léčit 56% `NoPair` oknem 500 ms: *„v cca 50 % případů nepřijdou snímky do 60 ms, to je
   nepoužitelný"*. Měření ukázalo, že příčina je jinde.
@@ -182,6 +288,52 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **Odkazy:** [virtual-hw.md](virtual-hw.md#svislá-stěna-na-rozhraní-cesty-a-trávy-23-8-2026).
   - **Odkazy:** [media/road-edges-image-20260823.png](media/road-edges-image-20260823.png),
     [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md).
+
+- **⚠️ Nedodělek z posledního měření: šířkový nesouhlas vyskočil.** V běhu po zrychlení kamer je
+  `|šířkový nesouhlas| p50 = 0,230 m`, zatímco před rozšířením párovacího okna to bylo **0,046 m**.
+  Ostatní ukazatele se přitom zlepšily (příčný nesouhlas 0,007 m, chyba polohy 0,036 m). **Je to
+  buď reálná cena okna 400 ms, nebo chyba v kompenzaci pohybu** — nezkoumáno, protože došel čas.
+  Zaznamenáno záměrně: je to regrese po mé vlastní změně a nesmí zapadnout.
+  - **Dořešeno téhož dne (viz záznam nahoře): ani jedno.** Měří se proti filtru šířky, ne proti
+    mapě, a to, co vyskočilo, je jeho zaostávání na cestě, která se skutečně rozšiřuje. Obě
+    hypotézy v této odrážce jsou vyvrácené — nechávám je tu, protože ta úvaha byla rozumná
+    a stojí za to vidět, čím se vyvrátila.
+
+- **Rozpracováno / další krok** (pořadí je doporučení, ne dogma):
+  1. ~~**Ověřit ten šířkový nesouhlas**~~ — **hotovo**, nebyla to regrese (viz záznam výše).
+     Vedlejší produkt: analyzátory jsou teď v repozitáři, takže krok 2 se dá měřit hned.
+  2. **Udělat delší rovnou testovací mapu.** `SyntetickyKoridor.osm` je ze ~40 % křižovatka
+     a slepý konec, takže se statistika pořád počítá i nad místy, kde koridor existovat nemá
+     (viz [map-correlation-localization.md](map-correlation-localization.md#jak-ty-proložené-přímky-vypadají-23-8-2026)).
+     Práce na půl hodiny, zpřesní všechno další měření.
+  3. **Tři podmínky, než korekce pustit naostro** (honestní σ, rychlostní limit, strop na nesouhlas
+     s GPS — viz [decisions.md](decisions.md)). Tohle gatuje celou funkci: dokud se nesplní,
+     zůstává `corridor=false` a všechno ostatní je leštění vypnuté věci.
+  4. **Kurz do EKF** — odloženo. Korekce kurzu z koridoru je bezmocná (IMU ji přehlasuje ~200:1),
+     ale příčnou složku fúze bere a poloha se drží na 3,6 cm, takže to nemusí být potřeba.
+  5. **Reálný HW** — nic z hranové lokalizace není ověřené na D435, extrinsiky neměřené.
+
+  Drobnosti kdykoli: **naseedovat `RANSAC`** (dnes `new Random()` → replay není reprodukovatelný
+  a měření potřebuje 12 opakování; **navíc je testovací sada nestabilní** — z pěti plných běhů
+  23. 8. jeden spadl s jedním selháním a čtyři byly zelené 777/777. Který test to byl, se nezjistilo:
+  tichý logger jméno nevypsal a znovu se to neobjevilo. Zaseedování je nejpravděpodobnější léčba),
+  **kamery z 10 na 30 Hz** (render bez šumu je pořád 27 ms/snímek;
+  nabízí se paralelizace po řádcích, na OrangePI ale bere výkon řídicí smyčce) a odložený
+  [pád Mapsui](world-view.md).
+
+- **Jak se to všechno měřilo** (aby to příště nebylo od nuly). Analyzátory záznamů jsou jednorázové
+  ve scratchpadu, mimo repozitář — nová session je nemá. Recept:
+  - čtení záznamu: `MessageIndex.Read(idx, Encoding.UTF8)` → pro každý `IndexEntry` nastavit
+    `stream.Position = e.Offset` a `MessageReader.Read()`. **Sekvenční čtení nefunguje** —
+    `Read()` vrátí `null` u neznámého typu a skončí na prvním `CameraFrame`.
+  - katalog: `MessageCatalog.CommonDefaults()` **plus `c.Register(new CameraFrame())`** (tu
+    registruje jinak až HAL/app).
+  - chyba lokalizace = `GroundTruthMsg − RobotStateMsg` se **shodným razítkem** (obojí z téhož tiku).
+  - `RoadCorridorMsg` verze 4 nese i úsečky proložení, takže jde offline pouštět skutečný
+    `CorridorFinder` nad zaznamenanými body a porovnávat varianty na **týchž datech**.
+  - **RANSAC je nedeterministický** → každou variantu měřit aspoň 12× a porovnávat rozpětí,
+    ne jedno číslo. Rozptyl je ±8 přijatých ze 421 dvojic.
+  - živé A/B mezi běhy je zavádějící: přijaté cykly padnou pokaždé jinam po trase.
 
 ## 2026-08-22
 

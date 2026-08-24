@@ -346,7 +346,9 @@ namespace ARBot.Common.Tests.Devices
             sink.Stop();
 
             Assert.That(r, Is.Not.Null);
-            Assert.That(r.Verze, Is.EqualTo(5));
+            // Zapisuje se VZDY aktualni layout - test se proto vaze na FormatVersion, ne na
+            // konkretni cislo. Cteni starsich verzi maji vlastni testy nize.
+            Assert.That(r.Verze, Is.EqualTo(CameraFrame.FormatVersion));
             Assert.That(r.PathEdges, Has.Count.EqualTo(2));
 
             Assert.That(r.PathEdges[0].LeftPoint.A, Is.EqualTo(1));
@@ -392,6 +394,80 @@ namespace ARBot.Common.Tests.Devices
             Assert.That(read.PathEdges[0].LeftPoint.A, Is.EqualTo(0), "v4 metricke body nenese");
             Assert.That(read.PathEdges[0].RightPoint.A, Is.EqualTo(0));
             Assert.That(read.PathEdges[0].HasMetricPoints, Is.False);
+        }
+
+        [Test]
+        public void CameraFrame_PozaPorizeni_RoundTrips()
+        {
+            // Od verze 6 nese ramec odhad pozy v okamziku porizeni. Je to VYHRADNE metadatum pro
+            // vizualizaci: hranice cesty se musi kreslit pozou toho snimku, ne "posledni znamou" -
+            // snimky obou kamer jsou az stovky ms od sebe. Viz CameraFrame.PoseAtCaptureX.
+            var frame = new CameraFrame
+            {
+                Name = "Right",
+                TimeStamp = T0,
+                HasPose = true,
+                PoseAtCaptureX = -2.25,
+                PoseAtCaptureY = -3.28,
+                PoseAtCaptureTheta = -3.0407,
+            };
+
+            var r = RoundTrip(frame);
+
+            Assert.That(r, Is.Not.Null);
+            Assert.That(r.HasPose, Is.True);
+            Assert.That(r.PoseAtCaptureX, Is.EqualTo(-2.25).Within(1e-9));
+            Assert.That(r.PoseAtCaptureY, Is.EqualTo(-3.28).Within(1e-9));
+            Assert.That(r.PoseAtCaptureTheta, Is.EqualTo(-3.0407).Within(1e-9));
+        }
+
+        [Test]
+        public void CameraFrame_BezPozy_seNepredstira()
+        {
+            // Kdyz fuze pozu k casu snimku neznala, nesmi se z nul stat "robot byl v pocatku ENU
+            // roviny" - proto vlastni priznak HasPose.
+            var r = RoundTrip(new CameraFrame { Name = "Left", TimeStamp = T0, HasPose = false });
+
+            Assert.That(r.HasPose, Is.False);
+        }
+
+        [Test]
+        public void CameraFrame_V5_SePrecteBezPozy()
+        {
+            // Zaznam verze 5 pozu nenese - musi se precist a HasPose zustat false, jinak by starsi
+            // zaznamy tvrdily, ze robot stal v pocatku ENU roviny.
+            var frame = new CameraFrame { Name = "Left", TimeStamp = T0 };
+
+            var read = new CameraFrame { Verze = 5 };
+            read.FromData(TestHelpers.Enc, SerializeV5(frame));
+
+            Assert.That(read.Name, Is.EqualTo("Left"));
+            Assert.That(read.HasPose, Is.False, "v5 pozu nenese");
+            Assert.That(read.PoseAtCaptureX, Is.EqualTo(0));
+        }
+
+        /// <summary>Zapise ramec ve v5 layoutu: jako v6, ale BEZ pozy porizeni.</summary>
+        private static byte[] SerializeV5(CameraFrame f)
+        {
+            using var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, TestHelpers.Enc, leaveOpen: true))
+            {
+                bw.Write(f.FrameNum);
+                bw.Write(f.DropedOutNum);
+                bw.Write(f.FrameReceivePeriod.Ticks);
+                bw.Write(f.FramePickupPeriod.Ticks);
+                bw.Write(f.TimeStamp.Ticks);
+                bw.Write(f.Name ?? string.Empty);
+                ImageMsg.Write(bw, f.ImageRGB, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageProbability, ImageMsg.Compression.None);
+                ImageMsg.Write(bw, f.ImageDepth, ImageMsg.Compression.None);
+                bw.Write(f.RGBTimeStamp.ToBinary());
+                bw.Write(f.DepthTimeStamp.ToBinary());
+                bw.Write(false);                       // grid flag: bez gridu
+                bw.Write(false);                       // hrany: zadne
+                bw.Write(false);                       // projekce: neni
+            }
+            return ms.ToArray();
         }
 
         /// <summary>Zapise ramec ve v4 layoutu: jako v5, ale hranice cesty BEZ metrickych bodu.</summary>

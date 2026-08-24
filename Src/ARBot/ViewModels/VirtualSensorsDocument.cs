@@ -37,6 +37,9 @@ namespace ARBot.ViewModels
         /// <summary>Sdílené nastavení; v design-time vlastní instance, aby návrhář nesahal na runtime.</summary>
         private readonly VirtualSensorOptions options;
 
+        /// <summary>Parametry sceny (sum hloubky, trava) - sdilena instance z <see cref="ARBotHW"/>.</summary>
+        private readonly ARBot.Common.Vision.Synthetic.SyntheticSceneOptions scene;
+
         private IDisposable feed;
 
         // --- Párování skutečnosti s odhadem (vlákno producenta) ---
@@ -71,6 +74,18 @@ namespace ARBot.ViewModels
         /// <summary>Je nastavená nějaká systematická chyba? (Zvýraznění — snadno se zapomene vypnout.)</summary>
         [ObservableProperty] private bool isSystematicErrorActive;
 
+        // --- Scena (sum hloubky, trava) - meni render virtualnich kamer, plati hned ---
+        [ObservableProperty] private decimal depthNoiseM;
+        [ObservableProperty] private decimal grassRoughnessM;
+        [ObservableProperty] private decimal grassHeightM;
+
+        /// <summary>
+        /// Je scena dokonala rovina? Pak je zpetna projekce hranic exaktni a nakreslene hranice
+        /// maji sednout na hranici v lokalni mape (zbyva jen casovani pozy). Ukazuje se v panelu,
+        /// aby bylo poznat, ze bezi ten „mericí" rezim.
+        /// </summary>
+        [ObservableProperty] private bool isIdealPlane;
+
         // --- Naměřeno ---
 
         [ObservableProperty] private string truthText = "-";
@@ -91,6 +106,10 @@ namespace ARBot.ViewModels
             options = Avalonia.Controls.Design.IsDesignMode
                       ? new VirtualSensorOptions()
                       : (ARBotHW.Current?.VirtualSensors ?? new VirtualSensorOptions());
+            scene = Avalonia.Controls.Design.IsDesignMode
+                    ? new ARBot.Common.Vision.Synthetic.SyntheticSceneOptions()
+                    : (ARBotHW.Current?.VirtualScene
+                       ?? new ARBot.Common.Vision.Synthetic.SyntheticSceneOptions());
 
             LoadFromOptions();
 
@@ -118,7 +137,37 @@ namespace ARBot.ViewModels
             RightWheelSlip = (decimal)options.RightWheelSlip;
 
             IsSystematicErrorActive = options.HasSystematicError;
+
+            DepthNoiseM = (decimal)scene.DepthNoiseM;
+            GrassRoughnessM = (decimal)scene.GrassRoughnessM;
+            GrassHeightM = (decimal)scene.GrassHeightM;
+            UpdateIdealPlane();
         }
+
+        /// <summary>Renderer drzi TUTEZ instanci a cte ji pri kazdem pixelu, takze zmena plati hned -
+        /// kamery se nemusi zakladat znovu.</summary>
+        partial void OnDepthNoiseMChanged(decimal value)
+        {
+            if (value < 0m) return;
+            scene.DepthNoiseM = (double)value;
+            UpdateIdealPlane();
+        }
+
+        partial void OnGrassRoughnessMChanged(decimal value)
+        {
+            if (value < 0m) return;
+            scene.GrassRoughnessM = (double)value;
+            UpdateIdealPlane();
+        }
+
+        partial void OnGrassHeightMChanged(decimal value)
+        {
+            if (value < 0m) return;
+            scene.GrassHeightM = (double)value;
+        }
+
+        private void UpdateIdealPlane()
+            => IsIdealPlane = scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0;
 
         // ============================ Vazba UI -> sdílené nastavení ============================
 

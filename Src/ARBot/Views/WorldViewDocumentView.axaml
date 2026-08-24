@@ -68,7 +68,10 @@
                 <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"
                           ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy."/>
                 <CheckBox Content="Hranice cesty" IsChecked="{Binding ShowEdges}" Foreground="White"
-                          ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy — a přes ně PROLOŽENÉ PŘÍMKY z koridoru,&#10;i u zamítnutých cyklů (tenčí a průhlednější).&#10;&#10;Body jsou vidět vždy, ale přímky POUZE s parametrem corridor=true —&#10;bez něj se hranová lokalizace vůbec nezakládá. Stav je v rámečku vpravo dole.&#10;&#10;Při virtuálním HW se promítá skutečnou pózou, jinak fúzovanou.&#10;Ladicí vrstva — výchozí vypnuto."/>
+                          ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy — a přes ně PROLOŽENÉ PŘÍMKY z koridoru,&#10;i u zamítnutých cyklů (tenčí a průhlednější).&#10;&#10;Body jsou vidět vždy, ale přímky POUZE s parametrem corridor=true —&#10;bez něj se hranová lokalizace vůbec nezakládá. Stav je v rámečku vpravo dole.&#10;&#10;Každý snímek se promítá pózou z JEHO času (nese ji zpráva), takže&#10;kamery s různým časem snímku nejsou proti sobě posunuté.&#10;Ladicí vrstva — výchozí vypnuto."/>
+                <CheckBox Content="Hranice ze skutečné pózy" IsChecked="{Binding ShowEdgesFromTruth}"
+                          IsEnabled="{Binding ShowEdges}" Foreground="White" Margin="16,0,0,0"
+                          ToolTip.Tip="Promítat hranice GROUND TRUTH pózou místo odhadu z fúze.&#10;Existuje jen na virtuálním HW (na reálném robotu ground truth není).&#10;&#10;K čemu: oddělí chybu detektoru od chyby lokalizace. Když hranice&#10;sednou na cestu se skutečnou pózou a s odhadem ne, je vedle odhad.&#10;&#10;Pro srovnání s vrstvou „Lokální mapa&quot; nechej VYPNUTÉ — grid je&#10;ukotvený odhadem z fúze, takže se kryjí jen se stejnou pózou."/>
 
                 <Separator Margin="0,4"/>
 

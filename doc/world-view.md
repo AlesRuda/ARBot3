@@ -82,6 +82,7 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 | **Mapa (vize)** | `MapMsg` z `ARBotRuntime.VisionMapMessage` (parametr `visionmap=`) | WGS84 → Mercator | živé v Run; **ne ze Streamu***** |
 | **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | živé v Run |
 | **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | živé v Run |
+| **Hranice cesty** | [`CameraFrame.PathEdges`](../Src/ARBot.Common/Devices/CameraFrame.cs) (body) + [`RoadCorridorMsg`](../Src/ARBot.Common/Logs/RoadCorridorMsg.cs) (úsečky) | rámec robotu → lokální ENU, **póza z každé zprávy** | živé; **výchozí vypnuto**, ladicí |
 
 * Do 2026-08-13 byly tyto vrstvy *dormantní* — kód je uměl vykreslit, ale `GraphNavigationMsg`/`MapMsg`
 se na `Stream` neemitovaly. Dnes je emituje runtime (`GlobalNavigator` trasu, `ARBotRuntime` mapu po
@@ -268,6 +269,40 @@ Spuštění s parametrem `worldshot=true` bezobslužně otevře World, nakrmí h
 polohou (Praha), počká na dlaždice OSM, hluboko přiblíží na robota, uloží `doc/media/world-view.png`
 a ukončí se (obdoba self-testu, ale bez HW/Run). Kód: `MainWindowViewModel.WorldShot.cs`. Slouží
 k pořízení obrázku featury do [devlog.md](devlog.md) bez ruční obsluhy.
+
+## Vrstva „Hranice cesty": póza z každého snímku (23. 8. 2026)
+
+Vrstva promítá **každou sadu bodů pózou z jejího vlastního snímku** a proložené úsečky pózou z jejich
+zprávy. Do 23. 8. 2026 se všechno promítalo **jednou** „poslední známou" pózou, a to bylo špatně
+o měřitelnou hodnotu.
+
+**Proč to vadilo.** Kamery nejsou fázově svázané a jejich snímky jsou až `MaxCameraSkewMs` = 400 ms
+od sebe, takže starší sada byla nakreslená pózou novějšího snímku. Naměřeno na záznamu z 23. 8.
+(pózy dohledané z `RobotStateMsg`, tedy **podhodnoceně**): posun mezi pózami obou kamer p50 0,037 m,
+ale rozdíl **kurzu** p90 3,2° a max 12,3°. A kurz se s dálkou násobí — na dosahu proložení 8 m dělá
+celková chyba kreslení **p50 0,15 m, p90 0,61 m, max 2,03 m**. Přeměřit jde
+`ARBot.Analyze poses <záznam>`.
+
+**Póza cestuje ve zprávě** ([`CameraFrame.PoseAtCaptureX`](../Src/ARBot.Common/Devices/CameraFrame.cs),
+[`RoadCorridorMsg.PoseX`](../Src/ARBot.Common/Logs/RoadCorridorMsg.cs)), ne v historii ve view —
+**kvůli seeku**. Rekonstrukce stavu dodá poslední zprávu pro každý klíč `(MsgName, Name)`: dva snímky
+s různými časy, ale jen jednu `RoadCorridorMsg` a jeden `RobotStateMsg`. Párovat podle razítka ani
+interpolovat v historii tedy po seeku nelze. Detail:
+[record-replay.md](record-replay.md#seek-určuje-kde-smí-póza-být-23-8-2026).
+
+**Výchozí je odhad z fúze, ne ground truth.** Do 23. 8. 2026 ground truth *vyhrávala*, kdykoli byla
+k dispozici. Dvě věci na tom byly špatně: virtuální a reálný běh se chovaly jinak už z principu
+(na reálném robotu ground truth není), a hlavně se hranice kreslily **jinou pózou**, než jakou je
+ukotvená vrstva **Lokální mapa** (occupancy grid se plní odhadem z fúze). Ty dvě vrstvy se pak
+nemohly krýt ani principiálně. Ground truth zůstává jako **volitelný** přepínač „Hranice ze skutečné
+pózy" — odděluje chybu detektoru od chyby lokalizace, ale pro srovnání s lokální mapou má být vypnutý.
+
+> **Zbytkový rozdíl proti lokální mapě není nula.** Hraniční body jdou zpětnou projekcí přes
+> **měřenou hloubku**, semantický kanál gridu dopředu na **rovinu země**. Se `depthnoise=0`
+> a `grassrough=0` obojí splyne — viz [virtual-hw.md](virtual-hw.md).
+
+Rámeček vpravo dole hlásí, který režim běží (`poza: z kazdeho snimku` / `ground truth` / kolik kamer
+vlastní pózu nemá).
 
 ## ⚠️ Vrstva „Hranice cesty" občas shodí Mapsui (23. 8. 2026, neuzavřeno)
 

@@ -119,6 +119,42 @@
                                Increment="0.1" Minimum="0" FormatString="F2"/>
             </Grid>
 
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Scéna (render kamer) ================= -->
+
+            <TextBlock Text="Scéna kamer" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Mění render virtuálních kamer a platí hned. Hraniční body se do metrů přepočítávají zpětnou projekcí přes MĚŘENOU hloubku, zatímco semantický kanál lokální mapy se promítá dopředu na ROVINU země — to jsou dvě různé geometrie. S nulovým šumem hloubky a nulovou drsností trávy splynou."/>
+
+            <Border Background="#332E7D32" BorderBrush="#4CAF50" BorderThickness="1"
+                    CornerRadius="3" Padding="6,4" Margin="0,4"
+                    IsVisible="{Binding IsIdealPlane}">
+                <TextBlock Text="✓ Scéna je dokonalá rovina — zpětná projekce hranic je exaktní."
+                           TextWrapping="Wrap" Foreground="White" FontSize="11"/>
+            </Border>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Šum hloubky σ [m]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"
+                           ToolTip.Tip="0 = přesná geometrie. Právě tenhle šum rozstřikuje vzdálené&#10;hraniční body (na 10 m p10/p90 −0,63/+0,40 m) a bere s sebou&#10;i proložení, protože RANSAC má jeden práh pro celý dosah."/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding DepthNoiseM}"
+                               Increment="0.001" Minimum="0" FormatString="F3" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Drsnost trávy [m]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"
+                           ToolTip.Tip="Rozptyl výšky trávy. 0 = hladká rovina."/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding GrassRoughnessM}"
+                               Increment="0.01" Minimum="0" FormatString="F3" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Výška trávy [m]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,0"
+                           ToolTip.Tip="Výška trávníku nad vozovkou. Nad nulou se na okraji cesty&#10;renderuje svislá stěna, kterou klasifikátor vidí jako překážku —&#10;při 0 je hranice v lokální mapě čistě semantická (z barvy)."/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding GrassHeightM}"
+                               Increment="0.05" Minimum="0" FormatString="F2"/>
+            </Grid>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

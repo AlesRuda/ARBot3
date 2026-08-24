@@ -117,10 +117,16 @@ namespace ARBot.Common.Localization
             string cam = frame.Name ?? string.Empty;
             lastByCamera[cam] = (frame.TimeStamp, left, right);
 
+            // Poza k casu snimku se vyzvedne HNED a jen jednou. Pouziva ji kompenzace pohybu,
+            // mapova polovina i zprava. Driv se `GetStateAt` volalo dvakrat s tymz argumentem,
+            // a u cyklu, ktere padly na NoPair, vubec - takze zprava nemela cim promitnout
+            // usecky prolozeni do mapy. Viz CorridorFix.PoseX.
+            var pose = engine.GetStateAt(frame.TimeStamp);
+
             // Druha kamera: nejblizsi cas z jineho jmena.
             if (!TryPair(cam, frame.TimeStamp, out var other))
             {
-                LastFix = new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPair };
+                LastFix = WithPose(new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPair }, pose);
                 return null;
             }
 
@@ -137,17 +143,16 @@ namespace ARBot.Common.Localization
 
             if (config.CompensateCameraSkew && skewMs > config.NoCompensationSkewMs)
             {
-                var poseNow = engine.GetStateAt(frame.TimeStamp);
                 var poseThen = engine.GetStateAt(other.T);
-                if (poseNow == null || poseThen == null)
+                if (pose == null || poseThen == null)
                 {
                     // Bez pozy nelze prepocitat a bez prepoctu by to lhalo - radsi nic.
-                    LastFix = new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPose };
+                    LastFix = WithPose(new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPose }, pose);
                     return null;
                 }
 
-                otherLeft = Reproject(otherLeft, poseThen, poseNow);
-                otherRight = Reproject(otherRight, poseThen, poseNow);
+                otherLeft = Reproject(otherLeft, poseThen, pose);
+                otherRight = Reproject(otherRight, poseThen, pose);
             }
 
             // Leva hranice od te kamery, ktera ji vidi lip; totez pro pravou.
@@ -155,7 +160,7 @@ namespace ARBot.Common.Localization
             var rightPts = right.Count >= otherRight.Count ? right : otherRight;
 
             var corridor = finder.Find(leftPts, rightPts);
-            var fix = new CorridorFix { Time = frame.TimeStamp, Corridor = corridor };
+            var fix = WithPose(new CorridorFix { Time = frame.TimeStamp, Corridor = corridor }, pose);
             if (!corridor.Ok)
             {
                 fix.Reason = CorridorFixReason.NoCorridor;
@@ -173,7 +178,6 @@ namespace ARBot.Common.Localization
                 return null;
             }
 
-            var pose = engine.GetStateAt(frame.TimeStamp);
             if (pose == null)
             {
                 fix.Reason = CorridorFixReason.NoPose;
@@ -196,7 +200,6 @@ namespace ARBot.Common.Localization
             }
 
             fix.Axis = axis;
-            fix.PoseTheta = pose.Theta;
             fix.MapWidthM = widths.Estimate(axis.WayId, axis.WidthM);
             fix.LateralDisagreement = corridor.Lateral - axis.Lateral;
             fix.HeadingDisagreementRad = corridor.DirectionRad - axis.HeadingRelRad;
@@ -224,6 +227,21 @@ namespace ARBot.Common.Localization
             fix.Reason = CorridorFixReason.Ok;
             if (config.SendCorrections) Send(fix);
             LastFix = fix;
+            return fix;
+        }
+
+        /// <summary>
+        /// Zapise do vysledku pozu, se kterou se merilo (nebo nic, kdyz ji fuze nezna).
+        /// Vola se na VSECH cestach vcetne zamitnutych - vrstva ve World pohledu potrebuje pozu
+        /// i u cyklu, ktery neprosel, aby slo nakreslit, kudy prolozeni vedlo.
+        /// </summary>
+        private static CorridorFix WithPose(CorridorFix fix, Fusion.RobotState pose)
+        {
+            if (pose == null) return fix;
+            fix.PoseX = pose.X;
+            fix.PoseY = pose.Y;
+            fix.PoseTheta = pose.Theta;
+            fix.HasPose = true;
             return fix;
         }
 

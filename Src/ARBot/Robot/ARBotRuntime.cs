@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -219,6 +219,12 @@ namespace ARBot.Robot
             var fusionConfig = new FusionConfig();
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
             fusionEngine = engine;   // drzime kvuli teleportu robotu (viz TeleportSimulatedRobot)
+
+            // Odhad pozy do METADAT snimku (CameraFrame.PoseAtCaptureX) - pro realny i virtualni HW
+            // stejne. Nastavuje se az tady, protoze realny HW se zaklada driv nez engine; setter
+            // lambdu rozda i uz zalozenym kameram. NENI to renderovaci poza virtualnich kamer
+            // (ta jde z camerapose=, viz BuildCameraPose).
+            hw.EstimatedPoseAt = engine.GetStateAt;
             // Mapper dostava TUTEZ instanci konfigurace jako model (zapisuje do ni GeoReference,
             // kdyz ji nezalozila mapa) a engine kvuli fallback inicializaci polohy z prvniho
             // pouzitelneho GPS fixu. Viz doc/global-navigation-runtime.md.
@@ -844,6 +850,7 @@ namespace ARBot.Robot
             }
 
             ApplySensorErrorParams(hw);
+            ApplySceneParams(hw);
 
             try
             {
@@ -887,6 +894,57 @@ namespace ARBot.Robot
         /// <para>Nesmysl se ignoruje s hlaskou - vadny parametr nesmi shodit start aplikace
         /// (stejna zasada jako u <c>map=</c>, <c>start=</c> a <c>poseerror=</c>).</para>
         /// </summary>
+        /// <summary>
+        /// Vzhled a sum simulovane SCENY z prikazove radky — <c>depthnoise=</c> [m] (sum hloubky),
+        /// <c>grassrough=</c> [m] (drsnost travy) a <c>grassheight=</c> [m] (vyska travy nad
+        /// vozovkou). Nula kazdou slozku vypina.
+        ///
+        /// <para><b>Nacpak to je.</b> Hranice cesty se do metru prepocitavaji zpetnou projekci pres
+        /// <b>merenou hloubku</b>, zatimco semanticky kanal occupancy gridu se promita dopredu na
+        /// <b>rovinu zeme</b>. To jsou dve rozdilne geometrie a jejich rozdil je hlavni pricina toho,
+        /// ze se nakreslene hranice s hranici v lokalni mape nekryjí. S <c>depthnoise=0</c>
+        /// a <c>grassrough=0</c> je scena dokonala rovina, oba smery splynou a zbyva jen casovani
+        /// pozy — takze se ta pricina da izolovat a zmerit. Viz doc/virtual-hw.md.</para>
+        ///
+        /// <para><b>Pozor:</b> vypnout hloubku uplne nejde — plánovac by nemel po cem jet. <c>Free</c>
+        /// vyzaduje OBA kanaly pod prahem, takze bez geometrie by zadna bunka nebyla sjizdna. Proto
+        /// se hloubka nevyrazuje, jen se z ni dela ideálni rovina. Viz
+        /// doc/occupancy-and-local-planning.md.</para>
+        ///
+        /// <para>Nesmysl se ignoruje s hlaskou (stejna zasada jako u <c>wheelslip=</c>).</para>
+        /// </summary>
+        private static void ApplySceneParams(ARBotHW hw)
+        {
+            var scene = hw.VirtualScene;
+
+            if (TryReadMeters("depthnoise", out double dn)) scene.DepthNoiseM = dn;
+            if (TryReadMeters("grassrough", out double gr)) scene.GrassRoughnessM = gr;
+            if (TryReadMeters("grassheight", out double gh)) scene.GrassHeightM = gh;
+
+            if (scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0)
+                Trace.WriteLine("Scena je dokonala rovina (depthnoise=0, grassrough=0): zpetna projekce "
+                                + "hranic je exaktni, takze hranice maji sednout na hranici v lokalni mape.");
+        }
+
+        /// <summary>Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.</summary>
+        private static bool TryReadMeters(string name, out double meters)
+        {
+            meters = 0;
+            string raw = Program.GetParam(name);
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            if (!double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out meters)
+                || meters < 0 || double.IsNaN(meters))
+            {
+                Trace.WriteLine($"{name}={raw} neni nezaporne cislo v metrech -> ignoruje se.");
+                return false;
+            }
+
+            Trace.WriteLine($"{name}={meters.ToString(System.Globalization.CultureInfo.InvariantCulture)} m");
+            return true;
+        }
+
         private static void ApplySensorErrorParams(ARBotHW hw)
         {
             var sensors = hw.VirtualSensors;

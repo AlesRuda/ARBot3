@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Diagnostics;
 using ARBot.Common.Configuration;
@@ -83,6 +83,41 @@ namespace ARBot.Robot
         protected IUart UartMotor { get; set; }
         protected IUart UartGPS { get; set; }
         protected IUart UartAHRS { get; set; }
+
+        /// <summary>
+        /// Zdroj <b>odhadu pozy</b> (fuze) pro metadata snimku — kamery z nej plni
+        /// <see cref="ARBot.Common.Devices.CameraFrame.PoseAtCaptureX"/>. Plati pro
+        /// <b>realny i virtualni</b> HW, aby se obe vetve chovaly stejne.
+        ///
+        /// <para><b>Proc property a ne parametr <c>SetRealHW</c>.</b> Realny HW se zaklada
+        /// <b>driv, nez existuje fuzni engine</b> (<c>ARBotRuntime.WireRun</c> vola
+        /// <c>SetRealHW()</c> pred jeho vytvorenim). Setter proto lambdu <b>rozda i uz zalozenym
+        /// kamerám</b> a pamatuje si ji pro ty pristi — poradi zakladani tim prestane hrat roli.</para>
+        ///
+        /// <para><b>Nezamenovat s <c>VirtualHWOptions.PoseAt</c></b>, coz je RENDEROVACI poza
+        /// virtualnich kamer (parametr <c>camerapose=</c>, ve vychozim stavu ground truth).
+        /// Tady musi byt vzdy odhad z fuze. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        public Func<DateTime, ARBot.Common.Fusion.RobotState> EstimatedPoseAt
+        {
+            get => estimatedPoseAt;
+            set
+            {
+                estimatedPoseAt = value;
+                ApplyEstimatedPose();
+            }
+        }
+        private Func<DateTime, ARBot.Common.Fusion.RobotState> estimatedPoseAt;
+
+        /// <summary>Parametry sceny, se kterymi bezi PRAVE ZALOZENY virtualni HW.</summary>
+        private SyntheticSceneOptions activeSceneOptions;
+
+        /// <summary>Rozda <see cref="EstimatedPoseAt"/> aktualne zalozenym kameram.</summary>
+        private void ApplyEstimatedPose()
+        {
+            if (LeftCamera != null) LeftCamera.EstimatedPoseAt = estimatedPoseAt;
+            if (RightCamera != null) RightCamera.EstimatedPoseAt = estimatedPoseAt;
+        }
 
         /// <summary>
         /// Ktery hardware je prave zalozeny. Po startu aplikace <see cref="HwMode.None"/> -
@@ -184,6 +219,21 @@ namespace ARBot.Robot
         /// <summary>Nastaveni, se kterym bezi PRAVE ZALOZENY virtualni HW - obvykle
         /// <see cref="VirtualSensors"/>, ale test si smi predat vlastni instanci.</summary>
         private ARBot.HAL.Devices.VirtualSensorOptions activeSensorOptions;
+
+        /// <summary>
+        /// Vzhled a sum simulovane SCENY (sum hloubky, drsnost a vyska travy, sum barvy). Zije po
+        /// celou dobu behu aplikace, aby na ni nastroj mohl drzet odkaz i pres prepnuti rezimu HW.
+        ///
+        /// <para><b>Zmena plati hned</b> — renderer drzi tuto instanci a cte ji pri kazdem pixelu,
+        /// takze neni potreba kamery zakladat znovu.</para>
+        ///
+        /// <para><b>Nacpak se to da vypinat</b> (23. 8. 2026): hranicni body se do metru prepocitavaji
+        /// zpetnou projekci pres MERENOU hloubku, zatimco semanticky kanal occupancy gridu se promita
+        /// dopredu na ROVINU zeme. S <c>DepthNoiseM = 0</c> a <c>GrassRoughnessM = 0</c> je scena
+        /// dokonala rovina, oba smery se stanou touz geometrii a hranice se ma s hranici v lokalni
+        /// mape krýt — zbytek rozdilu je uz jen casovani pozy. Viz doc/virtual-hw.md.</para>
+        /// </summary>
+        public SyntheticSceneOptions VirtualScene { get; } = new SyntheticSceneOptions();
 
         /// <summary>
         /// Prenese prokluz kol z nastaveni do beziciho <see cref="SimulatedRobot"/>.
@@ -313,6 +363,7 @@ namespace ARBot.Robot
 //            TrackingCamera = new T265TrackingCameraNative(T265Serial);
             sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
             sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
+            ApplyEstimatedPose();   // muze byt jeste null - runtime ji doplni, az bude fuze
 
             Mode = HwMode.Real;
             Debug.WriteLine("ARBotHW: realny HW aktivni.");
@@ -346,12 +397,17 @@ namespace ARBot.Robot
             var sensorOptions = options.Sensors ?? VirtualSensors;
             activeSensorOptions = sensorOptions;
 
+            // Sdilena instance parametru sceny (stejny duvod jako u sensorOptions vyse): jen tak
+            // jde sum hloubky a drsnost travy menit za behu z UI a z prikazove radky.
+            activeSceneOptions = options.Scene ?? VirtualScene;
+
             var scene = new RoadScene(options.Network, options.Origin);
 
             sensors.Add(LeftCamera = new VirtualCamera(
-                "Left", scene, options.Scene, options.LeftCameraTransform, options.PoseAt, options.Camera));
+                "Left", scene, activeSceneOptions, options.LeftCameraTransform, options.PoseAt, options.Camera));
             sensors.Add(RightCamera = new VirtualCamera(
-                "Right", scene, options.Scene, options.RightCameraTransform, options.PoseAt, options.Camera));
+                "Right", scene, activeSceneOptions, options.RightCameraTransform, options.PoseAt, options.Camera));
+            ApplyEstimatedPose();   // POZOR: options.PoseAt je render (camerapose=), tohle je odhad z fuze
 
             // Ground truth: motory ho posouvaji, GPS a IMU ho zasumene meri.
             SimulatedRobot = new SimulatedRobot(options.WheelBase, TimeBase.Now, options.MaxWheelSpeed)

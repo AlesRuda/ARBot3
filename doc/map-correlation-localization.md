@@ -1299,6 +1299,92 @@ nepadl ani jednou. Korekce naopak srovnají odhad se světem, který kamery vid�
 > pološířce 1 m projde; při chybě OSM v řádu metrů by mrkev robota z cesty vyvést mohla a lokální
 > vrstva by se musela postavit proti ní. **Nezměřeno.**
 
+### Šířkový nesouhlas byl zaostávání filtru, ne regrese (23. 8. 2026)
+
+Předchozí sezení zapsalo jako otevřenou vadu, že `|šířkový nesouhlas|` p50 vyskočil z **0,046 m
+na 0,230 m** po rozšíření párovacího okna, a označilo to za regresi po vlastní změně. **Není to
+regrese ani vada** — je to vlastnost filtru šířky a záměna dvou různých čísel.
+
+**Co se skutečně měří.** `WidthDisagreement` = měřená šířka minus `MapWidth`, a `MapWidth` je
+hodnota **filtru** ([`RoadWidthFilter`](../Src/ARBot.Common/Localization/RoadWidthFilter.cs)),
+ne mapy — mapová hodnota se tam dostane jedině u *prvního* přijatého měření na hraně. Pole se
+přitom v `RoadCorridorMsg` jmenovalo „kamera minus mapa"; to je opravené.
+
+**Proti mapě kamera souhlasí na centimetry.** První přijatý cyklus na každé cestě (jediný, kde
+`MapWidth` je opravdu mapa):
+
+| cesta | mapa | kamera | rozdíl |
+|---|---|---|---|
+| way 105 (2 m) | 2,000 | 1,971 | −0,029 |
+| way 103 (1 m) | 1,000 | 0,993 | −0,007 |
+| way 104 (3 m) | 1,482 | 1,489 | **+0,008** |
+
+**Odkud těch 0,23 m je.** Celý nesouhlas je z jedné cesty — `way 104`. Rozpad přijatých měření
+po hranách (záznam `20260823-182213.rec`, 178 měření):
+
+| cesta | n | kamera p50 | „mapa" p50 | \|šířka\| p50 | \|příčně\| p50 |
+|---|---|---|---|---|---|
+| 104 | 90 | 2,269 | 2,009 | **0,266** | 0,004 |
+| 103 | 46 | 0,863 | 0,884 | 0,043 | 0,011 |
+| 105 | 42 | 1,934 | 1,947 | 0,030 | 0,020 |
+
+Na way 104 se koridor **skutečně rozšiřuje**: měřená šířka roste monotónně 1,489 → 3,049 m.
+Není to chyba — šířka uzlu je v [`GraphBuilder`](../Src/ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)
+**maximum** ze šířek cest, které jím vedou, takže uzel 6 (styk `way 103` široké 1 m a `way 104`
+široké 3 m) dostane 3 m a úzká cesta se u křižovatky rozevírá. `RoadScene` (render) i `RoadAxis`
+(mapová strana) tu šířku interpolují mezi uzly **stejně**, proto souhlasí.
+
+Zaostává **filtr**. Exponenciální průměr má na rampě ustálený odstup `Δ/α` (stupeň čte
+`Estimate()` před `Update()`, viz test `NaRozsirujiciSeCeste_filtrTrvaleZaostava`). Zde
+Δ ≈ 0,0175 m/cyklus a α = 0,05, tedy **0,35 m** — a poslední naměřený odstup na way 104 byl
+0,347 m.
+
+**Proč to číslo mezi běhy skočilo.** Změnil se jen **podíl** cyklů uvnitř toho rozevření:
+33 z 159 (21 %) v běhu `20260823-171038` proti 90 z 178 (51 %) v `20260823-182213`. Na way 104
+byl nesouhlas v obou bězích velký (0,480 a 0,266 m) — jen ho v prvním běhu medián většinového
+vzorku přebil. Rozšíření párovacího okna s tím nemá nic společného; **oba běhy měly okno 400 ms
+i kompenzaci pohybu**, lišily se rychlostí kamer (6,8 vs 10 Hz).
+
+**Slepé uličky, které to vypadalo, že jsou vysvětlení** (obojí vyvráceno, ať se nezkouší znovu):
+
+- *„Je to cena širšího okna."* Trend jde naopak: `|šířka|` p50 podle párovacího rozestupu byla
+  0,213 (0–20 ms) / 0,278 (20–60) / 0,254 (60–120) / 0,062 (120–200) / 0,014 (200–300) —
+  **velký rozestup je lepší**. Zlom je navíc ostrý u 120 ms, což je podpis zavádějící proměnné,
+  ne plynulé ceny. Tou proměnnou je čas v běhu: fáze kamer se přes běh posouvá, takže pásma
+  rozestupu jsou ve skutečnosti pásma místa na trase, a rozevření u way 104 padne do jednoho z nich.
+- *„Je to chyba kompenzace pohybu (`Reproject`)."* Kdyby byla, chyba by s rozestupem rostla —
+  roste opačně. Navíc pásmo 0–20 ms se nekompenzuje vůbec (`NoCompensationSkewMs`) a je stejně
+  špatné jako kompenzovaná pásma.
+
+**Co z toho plyne pro měření vůbec.** Osm běhů téže konfigurace z téhož dopoledne dalo
+`|šířka|` p50 v rozsahu **0,028–0,259 m** a nerovnoběžnost p50 2,4–7,7°. Jedno číslo z jednoho
+běhu tady nerozhoduje o ničem — a to je přesně důvod, proč jsou analyzátory teď
+[v repozitáři](../Src/ARBot.Analyze) (`ARBot.Analyze corridor <záznam>`) a ne jednorázově vedle.
+
+**Otevřené, ale menší, než to vypadalo:** nesouhlas šířky slouží *jen jako gate*
+(`MaxWidthDisagreementM = 1,5`), do fúze nejde — takže 0,35 m zaostání filtru neubližuje
+lokalizaci (chyba polohy p50 zůstala 0,027 m), jen ukrajuje z rozpočtu gate. Kdyby se filtr měl
+umět svézt s měnící se šířkou, patří na to buď větší α, nebo zaostání ve gate kompenzovat; **to
+je ale rozhodnutí, ne oprava**, a dokud je `corridor=false`, nikoho to netlačí.
+
+### Póza ve zprávě, aby se hranice daly nakreslit správně (23. 8. 2026)
+
+`RoadCorridorMsg` verze 5 nese **pózu, se kterou se měřilo** (`PoseX/Y/Theta` + `HasPose`), a `CorridorFix`
+ji plní **na všech cestách včetně zamítnutých** — právě u zamítnutého cyklu je nejzajímavější vidět,
+kudy proložení vedlo.
+
+Vedlejší úklid v `CorridorLocalizer.Process`: póza se teď vyzvedne **jednou na začátku** a používá ji
+kompenzace pohybu, mapová polovina i zpráva. Dřív se `GetStateAt` volalo **dvakrát s týmž argumentem**
+a na cestě `NoPair` vůbec — takže zpráva pózu neměla, i když ji potřebovala k nakreslení bodů.
+
+**Póza je z definice před korekcí**, kterou ten cyklus vyrobil: měření se do fúze vkládá s časem
+snímku, takže po jeho zapracování se póza v témže čase změní (`AsyncFusionEngine` je fixed-lag
+smoother — `EnsureValid` přepočítá uzly od nejstaršího zašpiněného). Pro otázku „souhlasila hranice
+s mapou?" je to tak správně: ukazuje, co se v tu chvíli vědělo.
+
+Proč to nejde párovat podle razítka a proč nestačí historie ve view — viz
+[record-replay.md](record-replay.md#seek-určuje-kde-smí-póza-být-23-8-2026).
+
 ### Co zůstává neověřené
 
 Kvalita hranice na **reálných** datech — záznam je z virtuálních kamer, takže žádné stíny, kaluže
@@ -1307,6 +1393,18 @@ podélná složka observabilní), a **jednostranná viditelnost** (v tomto zázn
 vidět z dvojice kamer po celou dobu).
 
 ## Otevřené úkoly
+
+- **⚠️ Šířkový nesouhlas po rozšíření párovacího okna** (naměřeno 2026-08-23, **nezkoumáno**).
+  Po zavedení okna 400 ms + kompenzace pohybu vyskočil `|šířkový nesouhlas|` přijatých koridorů
+  z **0,046 m na 0,230 m**, zatímco ostatní ukazatele se zlepšily (příčný nesouhlas 0,007 m,
+  chyba polohy p50 0,036 m, `NoPair` 20 → 1). Buď je to reálná cena širšího okna, nebo chyba
+  v kompenzaci. **Prověřit dřív, než se na tom bude stavět** — je to regrese po vlastní změně.
+
+  **VYŘEŠENO 2026-08-23: regrese to nebyla.** Ani cena okna, ani chyba kompenzace — šířkový
+  nesouhlas se měří proti **filtru šířky**, ne proti mapě, a to, co vyskočilo, je jeho zaostávání
+  na rozšiřující se cestě. Rozbor:
+  [Šířkový nesouhlas byl zaostávání filtru](#šířkový-nesouhlas-byl-zaostávání-filtru-ne-regrese-23-8-2026).
+
 
 - **⚠️ Za jízdy koridor skoro nic nepošle — hranice se sbíhají** (naměřeno 2026-08-22,
   **neopraveno**). Za 40 s jízdy dalo měření jen **35 ze 411** cyklů (8 %). Za tím číslem se ale

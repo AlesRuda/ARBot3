@@ -70,7 +70,14 @@ namespace ARBot.Common.Logs
         /// <summary>Kamera minus mapa ve sklonu [rad].</summary>
         public double HeadingDisagreementRad;
 
-        /// <summary>Kamera minus mapa v sirce [m].</summary>
+        /// <summary>
+        /// Kamera minus <see cref="MapWidth"/> v sirce [m] — tedy proti <b>filtru</b>, ne proti
+        /// mape (mapova hodnota je tu jen u prvniho merenia na hrane).
+        ///
+        /// <para><b>Past</b> (naměřeno 23. 8. 2026): na rozsirujici se ceste filtr za rampou
+        /// trvale zaostava a jeho zaostani se objevi tady, i kdyz kamera meri spravne. Viz
+        /// doc/map-correlation-localization.md.</para>
+        /// </summary>
         public double WidthDisagreement;
 
         /// <summary>Poslala se pricna korekce?</summary>
@@ -132,10 +139,35 @@ namespace ARBot.Common.Logs
         /// <summary>Je usecka leve/prave hranice vyplnena?</summary>
         public bool HasLeftLine, HasRightLine;
 
+        /// <summary>
+        /// <b>Poza, se kterou se merilo</b> (odhad z fuze v case snimku) — world ENU + kurz [rad].
+        /// Od verze 5; ve starsich zpravach chybi a <see cref="HasPose"/> je <c>false</c>.
+        ///
+        /// <para><b>Nacpak to je:</b> aby se usecky prolozeni daly nakreslit do mapy touz pozou,
+        /// se kterou vznikly. Vrstva ve World pohledu driv promitala vsechno „posledni znamou"
+        /// pozou, coz za jizdy posouvalo hranice o desitky centimetru (a chyba kurzu se navic
+        /// s dalkou nasobi: 1,4 stupne je na 8 m 0,2 m).</para>
+        ///
+        /// <para><b>Proc ne parovat podle razitka.</b> Neprezilo by to <b>seek</b>: rekonstrukce
+        /// stavu dodava posledni zpravu pro kazdy klic <c>(MsgName, Name)</c>, tedy dva snimky
+        /// s ruznymi casy, ale jen JEDNU tuto zpravu — ta se trefi nejvys s jednim z nich.
+        /// Poza proto musi cestovat ve zprave. Totez plati pro hranicni body, viz
+        /// <see cref="ARBot.Common.Devices.CameraFrame.PoseAtCaptureX"/>.</para>
+        ///
+        /// <para><b>Je to poza PRED korekci</b>, kterou tento cyklus vyrobil — merenie se do fuze
+        /// vklada s casem snimku, takze po jeho zapracovani se poza v temze case zmeni
+        /// (<c>AsyncFusionEngine</c> je fixed-lag smoother). Pro otazku „souhlasila hranice
+        /// s mapou?" je to tak spravne: ukazuje, co se v tu chvili vedelo.</para>
+        /// </summary>
+        public double PoseX, PoseY, PoseTheta;
+
+        /// <summary>Je <see cref="PoseX"/> vyplnena? (Nula je legitimni poloha, proto vlastni priznak.)</summary>
+        public bool HasPose;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RoadCorridorMsg() : base("RoadCorridorMsg", 4)
+        public RoadCorridorMsg() : base("RoadCorridorMsg", 5)
         {
         }
 
@@ -173,6 +205,9 @@ namespace ARBot.Common.Logs
             bw.Write(LeftFromX); bw.Write(LeftFromY); bw.Write(LeftToX); bw.Write(LeftToY);
             bw.Write(HasRightLine);
             bw.Write(RightFromX); bw.Write(RightFromY); bw.Write(RightToX); bw.Write(RightToY);
+
+            bw.Write(HasPose);              // verze 5
+            bw.Write(PoseX); bw.Write(PoseY); bw.Write(PoseTheta);
         }
 
         public override void FromData(BinaryReader br)
@@ -220,6 +255,12 @@ namespace ARBot.Common.Logs
                 HasRightLine = br.ReadBoolean();
                 RightFromX = br.ReadDouble(); RightFromY = br.ReadDouble();
                 RightToX = br.ReadDouble(); RightToY = br.ReadDouble();
+            }
+
+            if (Verze >= 5)
+            {
+                HasPose = br.ReadBoolean();
+                PoseX = br.ReadDouble(); PoseY = br.ReadDouble(); PoseTheta = br.ReadDouble();
             }
         }
 

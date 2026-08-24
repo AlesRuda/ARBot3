@@ -102,6 +102,11 @@ namespace ARBot.Common.Devices
             dst.FrameReceivePeriod = src.FrameReceivePeriod;
             dst.FramePickupPeriod = src.FramePickupPeriod;
 
+            dst.HasPose = src.HasPose;                       // od verze 6 - jinak by se poza ztratila
+            dst.PoseAtCaptureX = src.PoseAtCaptureX;
+            dst.PoseAtCaptureY = src.PoseAtCaptureY;
+            dst.PoseAtCaptureTheta = src.PoseAtCaptureTheta;
+
             dst.ImageRGB = CopyImage(src.ImageRGB, dst.ImageRGB);
             dst.ImageDepth = CopyImage(src.ImageDepth, dst.ImageDepth);
             dst.ImageProbability = CopyImage(src.ImageProbability, dst.ImageProbability);
@@ -178,6 +183,7 @@ namespace ARBot.Common.Devices
             f.Grid = null;        // procesor spocte cerstvy grid
             f.PathEdges = null;   // procesor spocte cerstve hrany (jinak by ve slotu zustaly stare)
             f.Projection = null;  // procesor doplni popis projekce (dtto - jinak by zustal stary)
+            f.HasPose = false;    // pozu doplni kamera; jinak by ve slotu zustala poza minuleho snimku
             return f;
         }
     }

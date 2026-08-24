@@ -20,6 +20,24 @@ namespace ARBot.Common.Localization
         /// <summary>Kurz robotu v case snimku [rad] - potreba k prevodu relativniho sklonu na absolutni.</summary>
         public double PoseTheta;
 
+        /// <summary>
+        /// Poloha robotu v case snimku [m, world ENU] — doplnek k <see cref="PoseTheta"/>.
+        ///
+        /// <para><b>Nacpak to je:</b> aby se prolozene usecky
+        /// (<see cref="RoadCorridor.LeftFrom"/> a spol.) daly nakreslit do mapy <b>touz pozou,
+        /// se kterou se merilo</b>. Vrstva ve World pohledu driv promitala vsechno „posledni
+        /// znamou" pozou, coz za jizdy posouvalo hranice o desitky centimetru; a parovat zpravu
+        /// s pozou podle razitka nejde, protoze to neprezije seek v zaznamu (rekonstrukce stavu
+        /// dodava jednu zpravu na klic).</para>
+        /// </summary>
+        public double PoseX, PoseY;
+
+        /// <summary>
+        /// Je poza (<see cref="PoseX"/>, <see cref="PoseY"/>, <see cref="PoseTheta"/>) vyplnena?
+        /// <c>false</c> = fuze pozu k casu snimku neznala (mimo okno historie).
+        /// </summary>
+        public bool HasPose;
+
         /// <summary>Sirka cesty, se kterou se srovnavalo [m] (z filtru, jinak z mapy).</summary>
         public double MapWidthM;
 
@@ -35,7 +53,17 @@ namespace ARBot.Common.Localization
         /// <summary>Rozdil sklonu cesty: kamera minus mapa [rad].</summary>
         public double HeadingDisagreementRad;
 
-        /// <summary>Rozdil sirky: kamera minus mapa (nebo filtr) [m].</summary>
+        /// <summary>
+        /// Rozdil sirky: kamera minus <see cref="MapWidthM"/> [m] — tedy proti <b>filtru</b>,
+        /// jakmile ten uz pro hranu odhad ma; proti mape jen u prvniho merenia na hrane.
+        ///
+        /// <para><b>Necti to jako „nesouhlas s mapou"</b> (naměřeno 23. 8. 2026). Na ceste, ktera
+        /// se skutecne rozsiruje, filtr za rampou trvale zaostava o <c>Δ/α</c> a prave tenhle
+        /// odstup se tu objevi — i kdyz kamera meri spravne. V testovaci mape to delalo p50
+        /// 0,23 m, zatimco proti mape kamera souhlasila na centimetry. Viz
+        /// <c>RoadWidthFilterTests.NaRozsirujiciSeCeste_filtrTrvaleZaostava</c>
+        /// a doc/map-correlation-localization.md.</para>
+        /// </summary>
         public double WidthDisagreement;
 
         /// <summary>Poslala se pricna korekce?</summary>
@@ -78,6 +106,11 @@ namespace ARBot.Common.Localization
                 EmittedHeading = EmittedHeading,
                 FixReason = (byte)Reason,
                 DroppedByFusion = DroppedByFusion,
+
+                HasPose = HasPose,                  // verze 5
+                PoseX = PoseX,
+                PoseY = PoseY,
+                PoseTheta = PoseTheta,
             };
             // Bez koridoru (chybela druha kamera) by vychozi 0 znamenala "Ok" - to by v telemetrii
             // lhalo, proto vlastni hodnota.

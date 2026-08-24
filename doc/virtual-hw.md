@@ -188,6 +188,43 @@ s korekcemi drží chybu na **1 mm (sd 7 mm)**. Detail a druhý test (chyba mapy
 > a chybu odhadu strukturálně skrývá. Měřit se má ve výchozím stavu; kdo potřebuje reprodukovat
 > starší běh, zadá `camerapose=fusion`. Záznamy pořízené do 22. 8. 2026 běžely na `fusion`.
 
+### Póza v metadatech snímku — jiná lambda než renderovací (23. 8. 2026)
+
+Od 23. 8. 2026 nese `CameraFrame` **odhad pózy z fúze v okamžiku pořízení**
+(`PoseAtCaptureX/Y/Theta` + `HasPose`, formát verze 6). Plní ho **obě** kamery — virtuální
+i `D435Camera` — z lambdy `ICamera.EstimatedPoseAt`, kterou drátuje `ARBotHW.EstimatedPoseAt`.
+
+**Nesmí se splést s `camerapose=`.** Ta určuje **renderovací** pózu virtuální kamery a je to ve
+výchozím stavu *ground truth*. Metadatová póza je **vždy odhad z fúze**; jinak by se na virtuálním
+HW stampovala skutečnost, na reálném odhad, a obě větve by se chovaly jinak. Proto dvě lambdy:
+
+| | zdroj | k čemu |
+|---|---|---|
+| `VirtualHWOptions.PoseAt` | `camerapose=` (default ground truth) | z čeho se **renderuje** |
+| `ICamera.EstimatedPoseAt` | vždy `engine.GetStateAt` | **metadatum** snímku pro vizualizaci |
+
+**Výhradně diagnostika — nesmí vstoupit do řízení ani do fúze.** Kdyby měření odvozené ze snímku
+tuhle pózu použilo, opravovala by se póza měřením, které ji už v sobě má — přesně ta kruhovost,
+kvůli které se koridor počítá v rámci robotu.
+
+**Proč to tedy je.** Aby se hraniční body daly nakreslit do mapy pózou **toho** snímku. Kamery
+nejsou svázané a jejich snímky jsou až stovky ms od sebe; jedna „poslední známá" póza pro obě
+posouvá starší sadu. Naměřeno na záznamu z 23. 8. (pózy dohledané z `RobotStateMsg`, tedy
+**podhodnoceně**): rozdíl póz obou kamer p50 0,037 m, ale rozdíl **kurzu** p90 3,2° a max 12,3° —
+a kurz se s dálkou násobí, takže na dosahu 8 m je celková chyba kreslení **p50 0,15 m, p90 0,61 m,
+max 2,03 m**. Spočítá to `ARBot.Analyze poses <záznam>`.
+
+**Póza musí cestovat ve snímku**, párovat ji podle razítka nejde: rekonstrukce stavu při **seeku**
+dodává poslední zprávu pro každý klíč `(MsgName, Name)`, tedy dva snímky s různými časy, ale jen
+jednu `RoadCorridorMsg` — ta se trefí nejvýš s jedním z nich. Ze stejného důvodu to nesmí být jen
+runtime pole: při seeku se rámec čte náhodně z offsetu a emituje přímo na `Stream`, tedy neprojde
+zpracováním. Viz [record-replay.md](record-replay.md).
+
+**Chybějící póza snímek nezahazuje.** U renderu bez pózy skutečně není co renderovat, takže tam se
+snímek přeskočí — ale to je ta *renderovací* póza. Metadatová póza je jen metadatum: když ji fúze
+nezná, snímek projde s `HasPose = false`. Na reálném robotu by opak znamenal vyhazovat obraz kvůli
+diagnostice.
+
 ## Pohyb: `SimulatedRobot` a virtuální motory
 
 Model pohybu je **ideální plus rampa zrychlení** — žádný prokluz ani systematická chyba.
@@ -611,6 +648,51 @@ s hloubkou; každý platný pixel leží na vozovce, na trávě, nebo na stěně
 čára, ne plocha); a žádný pixel nesmí být blíž než rovina trávy ani dál než rovina vozovky —
 analyticky, protože pro vodorovné roviny platí `s(h)/s(0) = (eye.Z − h)/eye.Z`.
 
+### Rychlost renderu: šum byl 71 % práce (23. 8. 2026)
+
+Virtuální kamery dodávaly jen **6,8 Hz**, přestože `VirtualCameraOptions.FrameRateHz` říká 30 —
+což byl kořen problémů s párováním snímků obou kamer (viz
+[map-correlation-localization.md](map-correlation-localization.md)). Měření jednoho snímku
+(hloubka 480×270 + barva 640×480, syntetický koridor):
+
+| co | čas |
+|---|---|
+| celý snímek, vše zapnuto | **93 ms** |
+| bez barevného šumu | 37 ms |
+| bez veškerého šumu | **27 ms** |
+
+**Šum tedy stál 66 ms z 93, tedy 71 % času simulované kamery** — a největší položkou byl barevný
+šum, protože se volá **třikrát na pixel** (640×480×3 = 922 tisíc vzorků na snímek). Celkem si
+kamera řekne o ~1,5 milionu normálních vzorků na snímek.
+
+**Příčina byla v generátoru.** `DeterministicNoise.Gaussian` počítal Box–Mullera **ze dvou hashů**:
+8× `Mix` + `Log` + `Sqrt` + `Cos`, tedy **38 ns na vzorek**.
+
+**Náprava — kvantilová tabulka.** Prvek *i* je inverzní distribuční funkce v bodě (i+0,5)/N
+(Acklamova aproximace, počítá se jednou při startu). Výběr prvku hashem tedy dává přesně normální
+rozdělení a stojí **jeden hash a jedno čtení z pole**. Tabulka má 4096 položek = 16 kB, aby se
+vešla do L1 — větší (65536 = 256 kB) dávala kvůli výpadkům cache 12 ns místo 7.
+
+| | před | po |
+|---|---|---|
+| `Gaussian` | 38 ns | **7 ns** |
+| snímek (render) | 93 ms | **51 ms** |
+| **snímková frekvence kamery** | 6,8 Hz | **10,0 Hz** |
+| rozestup k nejbližšímu snímku druhé kamery | p50 21 ms, max 136 | p50 24 ms, **max 125** |
+
+Dopad na hranovou lokalizaci (táž 40s trasa): `NoPair` **20 → 1**, přijatých měření **159 → 178**,
+chyba polohy p50 0,046 → **0,036 m**, chyba kurzu 0,40 → **0,23°**.
+
+> **`Gaussian` vrací jiné hodnoty než dřív.** Je to jiná realizace téhož rozdělení, takže záznamy
+> pořízené před 23. 8. 2026 mají jiný šum. Vlastnost, na které záleží — čistá funkce
+> `(seed, vzorek, index, kanál)`, tedy reprodukovatelnost a paralelizovatelnost — platí dál.
+
+**Zbývá** (neřešeno): ani 10 Hz není 30. Render bez šumu je pořád 27 ms na snímek, tedy ~70 ns na
+pixel za paprsek, dvě roviny a dotaz do scény. Nabízí se paralelizace po řádcích — na vývojovém
+stroji by pomohla hodně, na OrangePI se čtyřmi jádry by ale brala výkon řídicí smyčce, takže to
+chce rozmyslet. Drsnost trávy se navíc počítá pro **každý** pixel, i když paprsek trávu netrefí
+(~7 ms na snímek).
+
 ### Šum a determinismus
 
 Šum **nejde ze sekvence `Random`**, ale z hashe `(seed, frameIndex, pixelIndex)`. Důsledek:
@@ -633,13 +715,40 @@ pro testy.
 | Rozlišení RGB / hloubky | 640×480 / 480×270 | jako `D435Camera` |
 | HFOV RGB / hloubky | dle D435 | určuje `Fx`/`Fy` |
 | `MaxRange` | 10 m | dál → hloubka 0 |
-| Výška trávy | 0,10 m | 0 = tráva v rovině vozovky; **k detekci viz poznámka níže** |
-| Drsnost trávy | 0,03 m | rozptyl výšky (per pixel, viz omezení níže) |
-| Šum hloubky | 0,003 m | šum senzoru |
+| Výška trávy | **0 m** | tráva leží v rovině vozovky; nad nulou vzniká svislá stěna, viz níže. Parametr `grassheight=` |
+| Drsnost trávy | 0,03 m | rozptyl výšky (per pixel, viz omezení níže). Parametr `grassrough=` |
+| Šum hloubky | 0,003 m | šum senzoru. Parametr `depthnoise=` |
 | Barva vozovky / trávy | šedá / zelená | |
 | Amplituda šumu barvy | malá | 0 = čisté barvy |
 | `Seed` | pevný | reprodukovatelnost |
 | Snímková frekvence | 30 Hz | takt smyčky |
+
+#### Ideální rovina jako měřicí režim (`depthnoise=`, `grassrough=`, `grassheight=`)
+
+Tři parametry příkazové řádky (a stejné tři posuvníky v panelu *Tools → Virtuální senzory*, kde
+platí **hned** — renderer čte tutéž instanci při každém pixelu):
+
+```bash
+ARBot.exe virtualhw=true map=OSM/SyntetickyKoridor.osm depthnoise=0 grassrough=0
+```
+
+**Nač to je.** Hraniční body cesty se do metrů přepočítávají **zpětnou projekcí přes měřenou
+hloubku** (`ColorPixelTo3D`), zatímco semantický kanál occupancy gridu se promítá **dopředu na
+rovinu země** ([OccupancyIntegrator](../Src/ARBot.Common/Occupancy/OccupancyIntegrator.cs)). To
+jsou dvě různé geometrie a jejich rozdíl je hlavní důvod, proč nakreslené hranice nesedí s hranicí
+v lokální mapě. Se `depthnoise=0` a `grassrough=0` je scéna dokonalá rovina, oba směry splynou
+a rozdíl se dá izolovat — zbývá už jen časování pózy.
+
+> **Vyřadit hloubku úplně nejde**, i když by se to nabízelo. `Free` vyžaduje **oba** kanály pod
+> prahem (`Blocked` stačí jeden — viz [OccupancyGrid.StateAt](../Src/ARBot.Common/Occupancy/OccupancyGrid.cs)),
+> takže bez geometrického kanálu by žádná buňka nebyla sjízdná a plánovač by neměl po čem jet.
+> Proto se hloubka nevyřazuje, jen se z ní dělá ideální rovina.
+
+**Změřeno 23. 8. 2026:** hranice v lokální mapě je na téhle mapě **už dnes čistě semantická** —
+z 35 097 blokovaných buněk blokuje geometrie **0** (na jiném záznamu 16 z 43 505, tedy 0,04 %)
+a všech 65 přechodů `Free↔Blocked` má blokovanou stranu ze semantiky. Protože `grassheight=0`,
+scéna nemá žádnou překážku, takže geometrie nemá co blokovat. Simulace „hloubka hlásí hladkou
+rovinu" dá **totožné** počty buněk. Spočítá to `ARBot.Analyze occupancy <záznam>`.
 
 #### Jak vysoká tráva je vidět jako překážka
 
