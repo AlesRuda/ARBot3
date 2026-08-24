@@ -268,6 +268,188 @@ public class CorridorFinderTests
         });
     }
 
+    // ====== Gate rovnobeznosti vs. rozsirujici se cesta (24. 8. 2026, ZADNA oprava) ======
+    //
+    // Testy nize popisuji DNESNI chovani a jeho hranice. Vznikly z otazky, jestli se merenie
+    // nezahazuje na rozsirujicim se useku testovaci mapy — zahazuje, ale reálné cesty jsou
+    // typicky konstantni sirky, takze to neni pripad k ladeni. Nemenit gate bez toho, ze se
+    // najde reálná cesta, ktere vadí. Podrobne doc/map-correlation-localization.md.
+
+    /// <summary>
+    /// Hranice <b>rozsirujici se</b> cesty: sirka roste z <paramref name="widthFrom"/> na
+    /// <paramref name="widthTo"/> na delce <paramref name="lengthM"/>. Presne tvar useku D
+    /// v <c>OSM/SyntetickyKoridor.osm</c> (nalevka 1 m -&gt; 3 m na 10 m).
+    /// </summary>
+    private static (List<Point2D> left, List<Point2D> right) Funnel(
+        double widthFrom, double widthTo, double lengthM, int count = 60)
+    {
+        var left = new List<Point2D>();
+        var right = new List<Point2D>();
+        for (int i = 0; i < count; i++)
+        {
+            double s = 1.0 + i * (lengthM / count);          // podel osy (osa = +X, robot na ose)
+            double half = 0.5 * (widthFrom + (widthTo - widthFrom) * (s / lengthM));
+            left.Add(new Point2D(s, half));
+            right.Add(new Point2D(s, -half));
+        }
+        return (left, right);
+    }
+
+    /// <summary>
+    /// <b>Nalevka v testovaci mape pada na gatu rovnobeznosti — a je to tak v poradku.</b>
+    ///
+    /// <para>Sirka 1 m -&gt; 3 m na 10 m znamena, ze se kazda hranice odklani od osy o
+    /// atan(1/10) = 5,71°, tedy hranice vuci sobe o <b>11,42°</b> — nad prahem
+    /// <see cref="CorridorConfig.MaxParallelErrorRad"/> = 10°. Zamitne se to VZDY, i kdyby bylo
+    /// prolozeni dokonale.</para>
+    ///
+    /// <para><b>Neni to vada k oprave.</b> Reálné cesty jsou typicky konstantni sirky; gradient
+    /// 2 m na 10 m je vlastnost <c>OSM/SyntetickyKoridor.osm</c> (usek D), ne pripad z praxe.
+    /// Realisticke gradienty projdou s rezervou: 0,25 / 0,5 / 1,0 m na 10 m dá 1,4 / 2,9 / 5,7°.
+    /// Na ceste konstantni sirky je nerovnobeznost <b>cisty signal kvality prolozeni</b>, takze
+    /// tam gate dela presne to, co ma.</para>
+    ///
+    /// <para><b>Test tu je jako dokumentace</b> — aby bylo videt, ze <c>NotParallel</c> nad
+    /// zaznamem <c>20260822-100403</c> (87 z 258 cyklu) ma synteticky puvod, a ten zaznam se tedy
+    /// nema pouzivat jako "tezky" benchmark. Viz doc/map-correlation-localization.md.</para>
+    /// </summary>
+    [Test]
+    public void RozsirujiciSeCesta_padneNaGatuRovnobeznosti()
+    {
+        var (l, r) = Funnel(widthFrom: 1.0, widthTo: 3.0, lengthM: 10.0);
+
+        var c = Finder().Find(l, r);
+
+        Assert.That(c.Reason, Is.EqualTo(CorridorReason.NotParallel));
+        Assert.That(c.ParallelErrorRad * 180 / Math.PI, Is.EqualTo(11.42).Within(0.5),
+                    "geometricky vychazi 2*atan(1/10) = 11,42 stupne");
+    }
+
+    /// <summary>
+    /// Geometrie koridoru <b>sama</b> nalevku zvlada — zamitnuti dela vylucne gate, ne vypocet.
+    ///
+    /// <para>Smer koridoru se pocita jako <b>prumer</b> smeru obou hranic, a u symetricke nalevky
+    /// je prumer presne smer osy. Sirka i pricna poloha se odectou z offsetu primek <b>v miste
+    /// robotu</b>, takze rozbihani hranic dal po ceste je nezkresluje.</para>
+    ///
+    /// <para><b>Nacpak to vedet, kdyz se nalevky ladit nemaji.</b> Aby bylo jasne, ze prah
+    /// <see cref="CorridorConfig.MaxParallelErrorRad"/> je <b>volitelna pojistka</b>, ne
+    /// predpoklad, na kterem vypocet stoji. Kdyby se nekdy nasla reálná cesta s prudkym
+    /// rozsirenim, prah se da zvednout bez zasahu do geometrie — a tenhle test rika, ze to
+    /// nic nerozbije.</para>
+    /// </summary>
+    [Test]
+    public void RozsirujiciSeCesta_priZvednutemGatuJsouVysledkySpravne()
+    {
+        var (l, r) = Funnel(widthFrom: 1.0, widthTo: 3.0, lengthM: 10.0);
+
+        // Sirka v miste robotu: osa zacina na s=0, body od s=1 m, takze v miste robotu (s=0)
+        // je sirka 1,0 m; kolmice se ale pocita z offsetu primek, tedy sirka v pocatku.
+        var c = new CorridorFinder(new CorridorConfig { MaxParallelErrorRad = 20 * Math.PI / 180 })
+            .Find(l, r);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(c.Reason, Is.EqualTo(CorridorReason.Ok));
+            Assert.That(c.DirectionRad, Is.EqualTo(0.0).Within(0.01),
+                        "prumer smeru obou hranic je smer osy, i kdyz se rozbihaji");
+            Assert.That(c.Lateral, Is.EqualTo(0.0).Within(0.02),
+                        "robot je na ose a ma to tak vyjit");
+            Assert.That(c.Width, Is.EqualTo(1.0).Within(0.05),
+                        "sirka se cte v miste robotu (s=0), tam je 1,0 m");
+        });
+    }
+
+    /// <summary>
+    /// Kolik rozsireni gate jeste snese: pri prahu 10° projde rozsireni do ~1,75 m na 10 m.
+    /// Cislo je tu proto, aby bylo videt, ze <b>realisticke gradienty maji rezervu</b> — cesta,
+    /// ktera se rozsiri o 1 m na 10 m, projde na 5,7°, tedy s prahem na polovinu.
+    /// </summary>
+    [Test]
+    public void GateRovnobeznosti_snesejenMaleRozsireni()
+    {
+        // 1 m -> 2,7 m na 10 m: 2*atan(0,85/10) = 9,7 stupne, tesne pod prahem.
+        var mild = Funnel(1.0, 2.7, 10.0);
+        // 1 m -> 3,2 m na 10 m: 2*atan(1,1/10) = 12,5 stupne, nad prahem.
+        var steep = Funnel(1.0, 3.2, 10.0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Finder().Find(mild.left, mild.right).Reason,
+                        Is.EqualTo(CorridorReason.Ok), "mirne rozsireni jeste projde");
+            Assert.That(Finder().Find(steep.left, steep.right).Reason,
+                        Is.EqualTo(CorridorReason.NotParallel), "prudsi uz ne");
+        });
+    }
+
+    // ============ Prehradlovani konsenzualni sady (24. 8. 2026) ============
+
+    /// <summary>
+    /// Prehradlovani musi sadu <b>rozsirit</b>, ne zuzit: konsenzualni sada vznikla proti hypoteze
+    /// ze tri bodu (tedy proti primce se sumem), takze cast bodu, ktere na spravne primce lezi,
+    /// zustala venku. Po prolozeni je primka lepsi a pri opakovanem hradlovani je pribere.
+    ///
+    /// <para>Nameřeno nad zaznamy: chyba sirky proti mape klesla v p90 o 8-15 %. Viz
+    /// <see cref="CorridorConfig.RegatePasses"/>.</para>
+    /// </summary>
+    [Test]
+    public void Prehradlovani_nezuziKonsenzualniSadu()
+    {
+        var (left, right) = Corridor(width: 2.0, lateral: 0.2, dirRad: 0.05, count: 80, noise: 0.06);
+
+        var without = new CorridorFinder(new CorridorConfig { RegatePasses = 0 }).Find(left, right);
+        var with = new CorridorFinder(new CorridorConfig { RegatePasses = 2 }).Find(left, right);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(without.Reason, Is.EqualTo(CorridorReason.Ok), "predpoklad testu");
+            Assert.That(with.Reason, Is.EqualTo(CorridorReason.Ok));
+            // RANSAC je nedeterministicky, takze se netvrdi "vic" - tvrdi se "ne vyrazne mene".
+            Assert.That(with.InliersLeft, Is.GreaterThanOrEqualTo(without.InliersLeft - 3));
+            Assert.That(with.InliersRight, Is.GreaterThanOrEqualTo(without.InliersRight - 3));
+            Assert.That(with.Width, Is.EqualTo(2.0).Within(0.1));
+        });
+    }
+
+    /// <summary>
+    /// Nula = puvodni chovani (jeden pruchod bez prehradlovani). Pojistka, aby se dal vychozi
+    /// stav vratit a aby slo merit A/B - vychozi hodnota je 2, ale nula musi zustat funkcni.
+    /// </summary>
+    [Test]
+    public void Prehradlovani_Nula_jePuvodniChovani()
+    {
+        var (left, right) = Corridor(width: 2.0, lateral: 0.0, dirRad: 0.0, noise: 0.02);
+
+        var c = new CorridorFinder(new CorridorConfig { RegatePasses = 0 }).Find(left, right);
+
+        Assert.That(c.Reason, Is.EqualTo(CorridorReason.Ok));
+        Assert.That(c.Width, Is.EqualTo(2.0).Within(0.05));
+    }
+
+    /// <summary>
+    /// Prehradlovani nesmi utect: kdyz se primka pri iteraci rozjede, musi zustat platny
+    /// predchozi stav. Hlida se to na datech, kde je hranice jen kratky useknuty shluk - tam
+    /// je nejvic sance, ze se sada rozpadne.
+    /// </summary>
+    [Test]
+    public void Prehradlovani_naKratkeHranici_neutece()
+    {
+        var (left, right) = Corridor(width: 2.0, lateral: 0.0, dirRad: 0.0, count: 30, noise: 0.15);
+
+        var c = new CorridorFinder(new CorridorConfig { RegatePasses = 5 }).Find(left, right);
+
+        // Bud koridor vznikne a je rozumny, nebo se poctive zamitne - ale nesmi vyjit nesmysl.
+        if (c.Reason == CorridorReason.Ok)
+        {
+            Assert.That(c.Width, Is.EqualTo(2.0).Within(0.4));
+            Assert.That(c.InliersLeft, Is.GreaterThan(0));
+        }
+        else
+        {
+            Assert.That(c.Ok, Is.False);
+        }
+    }
+
     /// <summary>
     /// Nula = puvodni chovani. Pojistka proti tomu, aby se novy parametr tise projevil i tam,
     /// kde ho nikdo nechce.

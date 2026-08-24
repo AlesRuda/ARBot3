@@ -83,6 +83,11 @@ namespace ARBot.ViewModels
         /// Je scena dokonala rovina? Pak je zpetna projekce hranic exaktni a nakreslene hranice
         /// maji sednout na hranici v lokalni mape (zbyva jen casovani pozy). Ukazuje se v panelu,
         /// aby bylo poznat, ze bezi ten „mericí" rezim.
+        ///
+        /// <para><b>Musi zahrnovat i vysku travy</b> — do 24. 8. 2026 se pocitala jen z sumu hloubky
+        /// a drsnosti, takze hlaska tvrdila „dokonala rovina" i pri metr vysoke trave. To neni
+        /// kosmetika: pri vyvysene trave <b>neni</b> zpetna projekce hranic exaktni, protoze hranicni
+        /// pixel muze trefit svislou stenu travy misto okraje vozovky.</para>
         /// </summary>
         [ObservableProperty] private bool isIdealPlane;
 
@@ -164,10 +169,13 @@ namespace ARBot.ViewModels
         {
             if (value < 0m) return;
             scene.GrassHeightM = (double)value;
+            UpdateIdealPlane();   // vyska travy rovinu rusi taky - viz IsIdealPlane
         }
 
         private void UpdateIdealPlane()
-            => IsIdealPlane = scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0;
+            => IsIdealPlane = scene.DepthNoiseM <= 0
+                              && scene.GrassRoughnessM <= 0
+                              && scene.GrassHeightM <= 0;
 
         // ============================ Vazba UI -> sdílené nastavení ============================
 

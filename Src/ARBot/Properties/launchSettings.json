@@ -11,6 +11,14 @@
       "commandName": "Project",
       "commandLineArgs": "virtualhw=true no_uart=true corridor=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
     },
+    "ARBot - rovna mapa + koridor (mereni)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true map=OSM\\SyntetickyRovny.osm goal=50.028999979,14.522232996"
+    },
+    "ARBot - rovna mapa + dve mapy (tuhy posun 0,6/-0,4 m)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true mapcorr=true map=OSM\\SyntetickyRovny.osm visionmap=OSM\\SyntetickyRovnyPosunuty.osm goal=50.028999979,14.522232996"
+    },
     "WSL": {
       "commandName": "WSL2",
       "distributionName": ""

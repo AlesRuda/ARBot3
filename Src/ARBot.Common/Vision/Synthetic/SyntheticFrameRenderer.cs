@@ -77,7 +77,7 @@ namespace ARBot.Common.Vision.Synthetic
 
                     int pixel = y * w + x;
                     var s = Trace(table[y, x], m, eye, pose, cos, sin,
-                                  GrassHeightAt(frameIndex, pixel), out double range);
+                                  GrassHeightAt(frameIndex, pixel), out double range, options.MaxRangeM);
                     if (s == Surface.None) continue;
 
                     if (options.DepthNoiseM > 0)
@@ -105,8 +105,12 @@ namespace ARBot.Common.Vision.Synthetic
         /// <param name="sin">Sinus kurzu robota.</param>
         /// <param name="grassHeight">Vyska roviny travy pro tento pixel (uz vcetne drsnosti) [m].</param>
         /// <param name="range">Hloubka zasahu = souradnice Z v prostoru kamery [m].</param>
+        /// <param name="maxRange">Za timto dosahem se zasah zahodi [m]. Hloubka predava
+        /// <see cref="SyntheticSceneOptions.MaxRangeM"/> (limit senzoru), <b>barva nekonecno</b> —
+        /// barevna kamera vidi az k horizontu.</param>
         private Surface Trace(Point2D ray, in Matrix4x4 m, in Vector3 eye, RobotState pose,
-                              double cos, double sin, double grassHeight, out double range)
+                              double cos, double sin, double grassHeight, out double range,
+                              double maxRange)
         {
             range = 0;
 
@@ -151,7 +155,7 @@ namespace ARBot.Common.Vision.Synthetic
                 }
             }
 
-            if (best == Surface.None || bestRange > options.MaxRangeM) return Surface.None;
+            if (best == Surface.None || bestRange > maxRange) return Surface.None;
 
             range = bestRange;
             return best;
@@ -164,6 +168,9 @@ namespace ARBot.Common.Vision.Synthetic
         /// <remarks>
         /// Na rozdil od hloubky se NEuplatnuje <see cref="SyntheticSceneOptions.MaxRangeM"/>:
         /// barevna kamera vidi az k horizontu, dosah je omezeni hloubkoveho senzoru.
+        /// <para>Geometrie je jinak <b>tataz jako u hloubky</b> (tyz <c>Trace</c>), takze vyvysena
+        /// trava spravne <b>zakryva vozovku za sebou</b>. Do 24. 8. 2026 se tu protinala jen rovina
+        /// vozovky, tedy trava se chovala jako papir bez vysky.</para>
         /// </remarks>
         public void RenderColor(IDepthCameraProjection projection, RobotState pose, int frameIndex,
                                 Image<BGR32> rgb)
@@ -182,19 +189,44 @@ namespace ARBot.Common.Vision.Synthetic
 
             double cos = Math.Cos(pose.Theta), sin = Math.Sin(pose.Theta);
 
+            // Lezi trava v rovine vozovky? Pak nema co zaclonit a staci jedna rovina. Drsnost
+            // travu zvedа i pri nulove vysce, takze se musi brat v potaz taky.
+            bool flatGrass = options.GrassHeightM <= 0 && options.GrassRoughnessM <= 0;
+
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
                     int pixel = y * w + x;
 
+                    // TYZ paprsek jako u hloubky, tedy proti OBEMA rovinam vcetne svisle steny
+                    // travy - jen bez omezeni dosahu, protoze barevna kamera vidi az k horizontu.
+                    //
+                    // Driv se tu protinala jen rovina vozovky z = 0 (nalezeno 24. 8. 2026), takze
+                    // barva se chovala, jako by trava byla papir: vyvysena trava NEZAKRYVALA cestu
+                    // za sebou. Pro vizualni cestu (probability -> PathEdges -> koridor) to
+                    // znamenalo, ze grassheight= nemela zadny efekt a hranice cesty se kreslila
+                    // i tam, kde ji ve skutecnosti neni videt.
+                    // RYCHLA CESTA pro travu v rovine vozovky (vychozi stav): obe roviny splyvaji,
+                    // takze staci jeden prusecik a plati presne to, co delal puvodni kod. Neni to
+                    // jen optimalizace pro pohodli - dvouroviny render je 2,2x pomalejsi (nameřeno
+                    // 24. 8. 2026: 89 -> 40 snimku za 15 s), takze bez teto vetve by zdrazil
+                    // i beh, ktery vyvysenou travu vubec nechce.
                     bool road = false;
                     if (y < tblH && x < tblW)
                     {
-                        var dir = Vector3.TransformNormal(new Vector3(table[y, x].X, table[y, x].Y, 1f), m);
-                        // Zajima nas jen povrch, ne vzdalenost - vozovka je videt i za dosah hloubky.
-                        road = Math.Abs(dir.Z) >= 1e-9f
-                               && HitsPlane(0.0, dir, eye, pose, cos, sin, out _, out bool onRoad)
-                               && onRoad;
+                        if (flatGrass)
+                        {
+                            var dir = Vector3.TransformNormal(new Vector3(table[y, x].X, table[y, x].Y, 1f), m);
+                            road = Math.Abs(dir.Z) >= 1e-9f
+                                   && HitsPlane(0.0, dir, eye, pose, cos, sin, out _, out bool onRoad)
+                                   && onRoad;
+                        }
+                        else
+                        {
+                            road = Trace(table[y, x], m, eye, pose, cos, sin,
+                                         GrassHeightAt(frameIndex, pixel), out _,
+                                         double.PositiveInfinity) == Surface.Road;
+                        }
                     }
 
                     int o = pixel * 4;

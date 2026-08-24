@@ -168,13 +168,48 @@ namespace ARBot.Common.Localization
             var inliers = holders.Where(h => h.Inlier).Select(h => h.P).ToList();
             if (inliers.Count >= 2)
             {
-                // POZOR, nevazene zamerne: vazeni 1/sigma^2 podle vzdalenosti bylo zmereno
+                // POZOR, vazeni 1/sigma^2 PODLE VZDALENOSTI bodu tu zamerne neni: bylo zmereno
                 // (23. 8. 2026) a vysledek ZHORSILO. Vzdalene body jsou sice nejistejsi, ale
                 // zaroven jsou to jedine, co urcuje SMER primky - jejich potlacenim se zkrati
-                // efektivni zakladna a smer zesumi vic, nez kolik se ziska. Viz
-                // doc/map-correlation-localization.md.
-                var refined = Line2D.LinearRegesion(inliers);
+                // efektivni zakladna a smer zesumi vic, nez kolik se ziska. Huberova vaha
+                // (FitMode = OrthogonalHuber) je jina vec - potlaci bod, ktery NESOUHLASI, ne bod,
+                // ktery je daleko. Viz LineFit a doc/map-correlation-localization.md.
+                var refined = LineFit.Fit(inliers, cfg.FitMode, HuberScale, cfg.HuberK);
                 if (refined != null) line = refined;
+
+                // PREHRADLOVANI: sada vznikla proti hypoteze ze ModelSamplePoints bodu, tedy proti
+                // primce se sumem. Prolozena primka je lepsi, takze se s ni vyplati sadu vybrat
+                // znovu - pribere body, ktere hruba hypoteza minula, a tim prodlouzi zakladnu.
+                // Prah sadu shora omezuje, takze to konverguje; zastavi se i pri zadne zmene.
+                //
+                // Nova sada se nejdriv jen spocita a teprve pak potvrdi - kdyz vyjde degenerovana
+                // (prolozeni uteklo), zustane platny predchozi stav, ne trosky posledniho pokusu.
+                for (int pass = 0; pass < cfg.RegatePasses; pass++)
+                {
+                    var again = new List<Point2D>(holders.Count);
+                    foreach (var h in holders)
+                        if (line.Distance(h.P) < ThresholdAt(h.P)) again.Add(h.P);
+
+                    if (again.Count < 2) break;
+                    bool changed = again.Count != inliers.Count;
+
+                    var next = LineFit.Fit(again, cfg.FitMode, HuberScale, cfg.HuberK);
+                    if (next == null) break;
+
+                    inliers = again;
+                    line = next;
+                    if (!changed) break;                   // sada se prestala menit
+                }
+
+                // Hlasena sada musi odpovidat POSLEDNI primce, ne te z RANSACu - z ni se pocitaji
+                // rezidua, dosah usecky a hlavne pocet inlieru, na kterem stoji gate MinInliers.
+                if (cfg.RegatePasses > 0)
+                {
+                    var last = new List<Point2D>(holders.Count);
+                    foreach (var h in holders)
+                        if (line.Distance(h.P) < ThresholdAt(h.P)) last.Add(h.P);
+                    if (last.Count >= 2) inliers = last;
+                }
             }
 
             double sum = 0;
@@ -212,6 +247,17 @@ namespace ARBot.Common.Localization
             }
             return (a, b);
         }
+
+        /// <summary>
+        /// Meritko rezidui pro Huberovu vahu: <see cref="ThresholdAt"/> (tolerance bodu), nebo
+        /// <c>null</c> = meritko si vezme <see cref="LineFit"/> z MAD rezidui.
+        ///
+        /// <para>Prah je zamerne velmi volny (na 5 m 0,85 m), takze v jeho jednotkach jsou rezidua
+        /// radove 0,05 a Huber pri zadnem rozumnem <c>k</c> nezabere. Viz
+        /// <see cref="CorridorConfig.HuberUsesTolerance"/>.</para>
+        /// </summary>
+        private Func<Point2D, double> HuberScale
+            => cfg.HuberUsesTolerance ? ThresholdAt : (Func<Point2D, double>)null;
 
         /// <summary>
         /// Prah inlieru pro dany bod: konstanta z blizkeho pole plus prirustek na metr vzdalenosti

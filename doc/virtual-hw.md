@@ -492,6 +492,24 @@ práce rotaci), zatímco druhý soubor umí **libovolnou deformaci** — právě
 náhodně do 1 m, tabulka posunů je v hlavičce toho souboru). Navíc je vnucená chyba **zapsaná
 v datech**, ne v parametru, takže je reprodukovatelná a dá se z výsledku odečíst.
 
+**Dvě posunuté dvojnice a k čemu je která** (od 24. 8. 2026):
+
+| dvojnice | posun | k čemu |
+|---|---|---|
+| [`SyntetickyKoridorPosunuty.osm`](../OSM/SyntetickyKoridorPosunuty.osm) | **náhodný per uzel** do 1 m | robustnost proti deformaci |
+| [`SyntetickyRovnyPosunuty.osm`](../OSM/SyntetickyRovnyPosunuty.osm) | **tuhá translace** +0,60 / −0,40 m | falsifikovatelná předpověď |
+
+Rozdíl je podstatný a dlouho byl otevřený bod: `MapCorrelator` hledá **jedno** 3-DOF `(dx, dy, φ)`
+na celý grid, takže nad náhodně deformovanou mapou nemá jednu správnou odpověď — dostane vážený
+kompromis podle toho, které úseky má právě v gridu. Nad tuhou translací ji má, a je známá:
+korelace musí najít `(dx, dy) = (−0,60, +0,40) m, φ = 0`. Znaménko je opačné než posun, protože
+mapa vize je posunutá *proti* té, podle které robot jede. Rotace je nulová záměrně — nejjednodušší
+případ, který má vyjít; teprve až sedne, má smysl zkoušet pootočenou mapu.
+
+⚠️ **Posunutou dvojnici nikdy nedávej do `map=`.** Posun mění střed obálky uzlů, tedy i počátek
+lokální ENU roviny (viz odstavec níž) — celý rámec by se posunul spolu s mapou a vnucená chyba by
+zmizela. Jako `visionmap=` je to správně: počátek drží originál z `map=`.
+
 **Počátek lokální ENU roviny určuje dál jen `map=`.** `visionmap=` na něj nesahá — jinak by se lišil
 počátek, ve kterém se počítá, od toho, který se zaznamená, a všechna lokální data by se ve View
 kreslila posunutá. Důsledek: `visionmap=` **bez** `map=` virtuální HW nerozjede (nemá počátek). To je
@@ -715,7 +733,7 @@ pro testy.
 | Rozlišení RGB / hloubky | 640×480 / 480×270 | jako `D435Camera` |
 | HFOV RGB / hloubky | dle D435 | určuje `Fx`/`Fy` |
 | `MaxRange` | 10 m | dál → hloubka 0 |
-| Výška trávy | **0 m** | tráva leží v rovině vozovky; nad nulou vzniká svislá stěna, viz níže. Parametr `grassheight=` |
+| Výška trávy | **0 m** | tráva leží v rovině vozovky; nad nulou vzniká svislá stěna. **Chceš-li trávu jako překážku, nastav 0,20–0,30 m** — 0,15 m ani hodnoty nad 0,52 m nefungují, viz past 1 a 2 níž. Parametr `grassheight=` |
 | Drsnost trávy | 0,03 m | rozptyl výšky (per pixel, viz omezení níže). Parametr `grassrough=` |
 | Šum hloubky | 0,003 m | šum senzoru. Parametr `depthnoise=` |
 | Barva vozovky / trávy | šedá / zelená | |
@@ -723,20 +741,112 @@ pro testy.
 | `Seed` | pevný | reprodukovatelnost |
 | Snímková frekvence | 30 Hz | takt smyčky |
 
+#### ⚠️ Jakou výšku trávy nastavit (naměřeno 24. 8. 2026)
+
+> **🐞 Do 24. 8. 2026 nefungovalo NIC z této sekce** — a stálo to půl dne hledání. `grassheight=`,
+> `grassrough=` ani `depthnoise=` **neměly žádný efekt**, ať se zadaly z příkazové řádky nebo
+> z panelu *Tools → Virtuální senzory*: `VirtualHWOptions.Scene` měla výchozí hodnotu
+> `new SyntheticSceneOptions()`, takže `options.Scene ?? VirtualScene` v `ARBotHW.SetVirtualHW`
+> se **nikdy** nespadl na sdílenou instanci. Kamery renderovaly s výchozí scénou, zatímco parametry
+> se tiše zapisovaly do `ARBotHW.VirtualScene`, ze kterého nikdo nerenderoval. Parser přitom hodnotu
+> přijal a vypsal, takže to vypadalo, že se aplikovala.
+>
+> **Jak se to našlo:** ne úvahou (tři hypotézy padly), ale změřením toho, co v běhu skutečně
+> vzniklo — `ARBot.Analyze grid` čte polární grid **serializovaný ve snímcích**, tedy přesně to, co
+> vidělo UI. Buňky v trávě měly `MeanZ` p50 **−0,001 m** při nastavené trávě 0,25 m, což vylučuje
+> chybu klasifikace a ukazuje výš, do renderu. Po opravě: `MeanZ` **0,247 m** a v trávě
+> **90 163 buněk `Obstacle` proti 456 `Free`** (dřív 547 proti 120 501).
+>
+> `Sensors` stejnou vadu nemá (výchozí hodnotu nemá, takže `??` funguje) — proto prokluz kol
+> a biasy IMU z panelu fungovaly. `SetVirtualHW` teď navíc vypisuje, **s čím se opravdu renderuje**,
+> aby taková regrese byla vidět hned.
+
+Výška trávy **není monotónní** — čísla níž jsou naměřená v testech
+(`SyntetickeSceneTraversabilityTests`) a platí pro knihovnu; nad opravenou aplikací zatím
+přeměřená nejsou.
+
+**Past 1: nízká tráva na úzké cestě se ztrácí.** Naměřeno se skutečnou montáží (levá kamera yaw 29°,
+sklon −20,2°, výška 0,522 m), buňky bezpečně v trávě:
+
+| šířka cesty | výška trávy | buňky v trávě `Free` | `Obstacle` |
+|---|---|---|---|
+| 2,0 m | **0,15 m** | **317** | 136 |
+| 2,0 m | 0,20 m | 62 | 389 |
+| 2,0 m | 0,25 m | 1 | 440 |
+| 4,0 m | 0,15 m | 0 | 175 |
+
+Na 4m cestě 0,15 m funguje bez problému, na 2m ne — efekt je tedy **závislý na šířce cesty**.
+
+> **Mechanismus zatím NEZNÁME.** První výklad („referenční rovina se proloží trávou, protože blízké
+> pole je na úzké cestě převážně tráva") **je vyvrácený měřením**: do fitu jde 591 buněk z cesty
+> (průměrné *z* 0,002 m) proti 162 z trávy (0,141 m), tedy cesta dominuje 78 : 22. Vyvrácené je
+> i podezření na nativní transform (`UseNativeTransform`) — managed i nativní cesta dávají čísla
+> bit za bit stejná. Nehádej dál bez měření; čísla v tabulce platí, výklad chybí.
+
+**Past 2: nad výškou kamery (0,522 m) tráva z hloubky mizí.** Renderer střílí paprsek proti *rovině*
+`z = GrassHeightM`: `s = (height − eye.Z) / dir.Z`. Kamera je sklopená dolů, takže `dir.Z < 0`; když
+je tráva výš než kamera, je čitatel kladný a `s` vyjde **negativní** — zásah se zahodí. Svislá stěna
+na okraji cesty, která by to zachránila, je podmíněná `hitGrass`, tedy taky nesplnitelná. Rovinu pak
+dosáhnou jen paprsky mířící mírně vzhůru, a ty narazí daleko — často za `MaxRange`:
+
+| výška trávy | `Obstacle` buňky v trávě |
+|---|---|
+| 0,25 m | 10 |
+| 0,40 m | 3 |
+| **0,52 m** (= výška kamery) | **0** |
+| 0,80 m | 7 |
+| 1,00 m | 6 |
+| **1,50 m** | **0** (v místě trávy nevznikne ani jedna buňka) |
+
+Obojí hlídají testy `TravaPresneNaLimituFituRoviny_seSchovaDoReferencniRoviny` a
+`TravaVyssiNezKamera_zHloubkyZmizi_neniPrekazkou` — **dokumentují dnešní chování, ne správné**.
+Kdyby se model trávy přepsal na *objem* `z ∈ [0, h]` (svislá stěna vždy, když paprsek horizontálně
+překročí okraj a jeho `z` je pod vrškem trávy), past 2 zmizí a asserty se mají obrátit.
+
+**~~Past 3: barevný obraz výšku trávy ignoruje.~~ Opraveno 24. 8. 2026.** `SyntheticFrameRenderer.RenderColor`
+protínal jen rovinu vozovky `z = 0`, takže se tráva chovala jako **papír bez výšky**: vyvýšená tráva
+nezakrývala cestu za sebou a `grassheight=` neměla na vizuální cestu (probability → `PathEdges` →
+koridor) žádný vliv. Teď používá tentýž `Trace` jako hloubka — tedy obě roviny včetně svislé stěny
+na okraji — jen bez omezení dosahu, protože barevná kamera vidí až k horizontu.
+
+Na křižovatce je to hned vidět: odbočka za pásem trávy je zaclonená.
+
+![Zaclonění cesty vyvýšenou trávou](media/grass-occlusion.png)
+
+A takhle to vypadá na konci řetězu — vyvýšená tráva (0,40 m) je po obou stranách **překážka**,
+koridor cesty zůstává **sjízdný**:
+
+![Sjízdnost s vyvýšenou trávou](media/grass-traversability.png)
+
+> ⚠️ **Vyvýšená tráva zdraží render 2,2×** (naměřeno: 89 → 40 snímků za 15 s), protože barva teď
+> střílí proti dvěma rovinám a na hranici cesty bisektuje. Pro `grassheight=0` **a** `grassrough=0`
+> je proto rychlá cesta s jedním průsečíkem, ekvivalentní původnímu kódu — výchozí stav tedy nestojí
+> nic navíc (136 snímků za 15 s). Kdo trávu zvedne, platí; je to opt-in.
+>
+> Hlídá to test `RenderColor_VyvysenaTrava_zakryvaVozovkuZaSebou`. Pozor při psaní podobného testu:
+> **na rovné cestě zaclonit nelze** — paprsek podél osy trávu nikdy nemine. Geometrie musí trávu
+> položit *mezi* kameru a cestu (test staví robota 4 m vedle 2m cesty) a tráva musí být **pod**
+> úrovní kamery, jinak ji paprsek minie (viz past 2).
+
+**Past 4 (kosmetická, ale zavádějící).** Hlášení „Scéna je dokonalá rovina — zpětná projekce hranic
+je exaktní" se počítá jen z `DepthNoiseM <= 0 && GrassRoughnessM <= 0` — `GrassHeightM` v podmínce
+**není**. Se zvýšenou trávou scéna rovina není a zpětná projekce hranic exaktní není (hraniční pixel
+může trefit stěnu trávy, ne okraj vozovky).
+
 #### Ideální rovina jako měřicí režim (`depthnoise=`, `grassrough=`, `grassheight=`)
 
 Tři parametry příkazové řádky (a stejné tři posuvníky v panelu *Tools → Virtuální senzory*, kde
 platí **hned** — renderer čte tutéž instanci při každém pixelu):
 
 ```bash
-ARBot.exe virtualhw=true map=OSM/SyntetickyKoridor.osm depthnoise=0 grassrough=0
+ARBot.exe virtualhw=true map=OSM/SyntetickyKoridor.osm depthnoise=0 grassrough=0 grassheight=0
 ```
 
 **Nač to je.** Hraniční body cesty se do metrů přepočítávají **zpětnou projekcí přes měřenou
 hloubku** (`ColorPixelTo3D`), zatímco semantický kanál occupancy gridu se promítá **dopředu na
 rovinu země** ([OccupancyIntegrator](../Src/ARBot.Common/Occupancy/OccupancyIntegrator.cs)). To
 jsou dvě různé geometrie a jejich rozdíl je hlavní důvod, proč nakreslené hranice nesedí s hranicí
-v lokální mapě. Se `depthnoise=0` a `grassrough=0` je scéna dokonalá rovina, oba směry splynou
+v lokální mapě. Se `depthnoise=0`, `grassrough=0` **a `grassheight=0`** je scéna dokonalá rovina, oba směry splynou
 a rozdíl se dá izolovat — zbývá už jen časování pózy.
 
 > **Vyřadit hloubku úplně nejde**, i když by se to nabízelo. `Free` vyžaduje **oba** kanály pod

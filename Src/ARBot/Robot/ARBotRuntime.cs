@@ -902,9 +902,10 @@ namespace ARBot.Robot
         /// <para><b>Nacpak to je.</b> Hranice cesty se do metru prepocitavaji zpetnou projekci pres
         /// <b>merenou hloubku</b>, zatimco semanticky kanal occupancy gridu se promita dopredu na
         /// <b>rovinu zeme</b>. To jsou dve rozdilne geometrie a jejich rozdil je hlavni pricina toho,
-        /// ze se nakreslene hranice s hranici v lokalni mape nekryjí. S <c>depthnoise=0</c>
-        /// a <c>grassrough=0</c> je scena dokonala rovina, oba smery splynou a zbyva jen casovani
-        /// pozy — takze se ta pricina da izolovat a zmerit. Viz doc/virtual-hw.md.</para>
+        /// ze se nakreslene hranice s hranici v lokalni mape nekryjí. S <c>depthnoise=0</c>,
+        /// <c>grassrough=0</c> <b>a <c>grassheight=0</c></b> je scena dokonala rovina, oba smery
+        /// splynou a zbyva jen casovani pozy — takze se ta pricina da izolovat a zmerit.
+        /// Viz doc/virtual-hw.md.</para>
         ///
         /// <para><b>Pozor:</b> vypnout hloubku uplne nejde — plánovac by nemel po cem jet. <c>Free</c>
         /// vyzaduje OBA kanaly pod prahem, takze bez geometrie by zadna bunka nebyla sjizdna. Proto
@@ -921,9 +922,19 @@ namespace ARBot.Robot
             if (TryReadMeters("grassrough", out double gr)) scene.GrassRoughnessM = gr;
             if (TryReadMeters("grassheight", out double gh)) scene.GrassHeightM = gh;
 
-            if (scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0)
-                Trace.WriteLine("Scena je dokonala rovina (depthnoise=0, grassrough=0): zpetna projekce "
-                                + "hranic je exaktni, takze hranice maji sednout na hranici v lokalni mape.");
+            // Vyska travy patri do podminky taky: pri vyvysene trave NENI zpetna projekce hranic
+            // exaktni, protoze hranicni pixel muze trefit svislou stenu travy misto okraje vozovky.
+            // Do 24. 8. 2026 se pocitala jen z sumu a drsnosti, takze hlaska tvrdila "dokonala
+            // rovina" i pri metr vysoke trave.
+            if (scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0 && scene.GrassHeightM <= 0)
+                Trace.WriteLine("Scena je dokonala rovina (depthnoise=0, grassrough=0, grassheight=0): "
+                                + "zpetna projekce hranic je exaktni, takze hranice maji sednout "
+                                + "na hranici v lokalni mape.");
+            else if (scene.DepthNoiseM <= 0 && scene.GrassRoughnessM <= 0)
+                Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "Scena ma rovnou vozovku, ale trava je vyvysena (grassheight={0} m): zpetna "
+                    + "projekce hranic NENI exaktni - hranicni pixel muze trefit stenu travy.",
+                    scene.GrassHeightM));
         }
 
         /// <summary>Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.</summary>

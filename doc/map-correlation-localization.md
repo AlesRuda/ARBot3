@@ -1527,6 +1527,382 @@ vidět z dvojice kamer po celou dobu).
   Zvednout práh `MaxParallelErrorRad` je naopak zametení pod koberec: chyba by se promítla do
   měřené šířky a osy.
 
+### Estimátor proložení: ze tří kandidátů obstál jeden (24. 8. 2026)
+
+Podnět z jiné session: *RANSAC by měl méně vážit vzdálené a odlehlé body*. Vážení podle
+vzdálenosti bylo ale změřeno už 23. 8. a propadlo (viz výše). Zbývalo tedy prověřit tři jiné
+hypotézy — všechny v `CorridorFinder.Fit`, tedy v **proložení konsenzuální sady**, ne v RANSACu:
+
+| hypotéza | výsledek |
+|---|---|
+| **Přehradlování** sady po proložení (LO-RANSAC) | **potvrzeno, zapnuto** (`RegatePasses = 2`) |
+| **Ortogonální regrese** (TLS) místo osové | zamítnuto — bez přínosu |
+| **Huberova váha na reziduu** (ne na dálce) | zamítnuto — nad 1,0 principiálně no-op |
+
+**Přístroj: `ARBot.Analyze corridorfit`** (`--synth` proti známé pravdě, nad záznamem proti
+skutečným bodům). Nad záznamem se **nepočítají body znovu z hloubky** — berou se metrické body,
+které v záznamu už jsou (`CameraFrame.PathEdges`, formát ≥ 5), takže se měří přesně ten stupeň,
+který se mění.
+
+**Referencí přesnosti je šířka proti mapě** (`RoadCorridorMsg.MapWidth`), ne rezidua. Rezidua měří
+jen self-konzistenci a jde je „zlepšit“ tím, že se přijmou jen snadné snímky — což se při ladění
+skutečně stalo (viz Huber níž).
+
+#### Přehradlování: −8 až −15 % v chvostu chyby šířky
+
+Konsenzuální sada vzniká proti hypotéze ze tří bodů, tedy proti přímce, která nese jejich šum.
+Po proložení je přímka lepší, ale sada se s ní už nepřehradluje — body, které hrubá hypotéza
+minula, zůstanou venku. Dvě další iterace `přelož → přehradluj` je přiberou.
+
+| záznam | \|šířka−mapa\| p90 | p50 | přijatých |
+|---|---|---|---|
+| `20260822-104759` | 0,0526 → **0,0446** (−15 %) | 0,0377 → 0,0368 | 472 → 472 |
+| `20260822-104827` | 0,0453 → **0,0400** (−12 %) | 0,0321 → 0,0315 | 410 → 410 |
+| `20260822-105031` | 0,0192 → **0,0175** (−9 %) | 0,0076 → 0,0072 | 476 → 476 |
+| `20260822-105003` | 0,0181 → **0,0166** (−8 %) | 0,0077 → 0,0070 | 475 → 475 |
+
+Čtyři záznamy ze čtyř, 6 opakování na variantu. **Bez selekčního efektu** — počet přijatých cyklů
+je u všech variant totožný, takže se neporovnávají jiné snímky. Zlepšuje se hlavně **chvost**, tedy
+snímky, kde proložení sedělo špatně; medián se hýbe málo. Cena 0,072 → 0,087 ms na dvojici.
+
+**Rezidua se přitom mírně zhorší** (0,0713 → 0,0720 m), a přesnost proti mapě se zlepší. Je to
+učebnicová ukázka, že rezidua nejsou přesnost: přímka proložená přes víc bodů jimi prochází o chlup
+dál, ale odpovídá realitě lépe. Kdyby se optimalizovalo na rezidua, tahle změna by se zamítla.
+
+> **⚠️ Otevřená výhrada.** Nad `20260822-100403` (jediný záznam, kde koridor skutečně propadá —
+> 112 z 258 `Ok`, 87 `NotParallel`) přehradlování **zhoršilo nerovnoběžnost** 3,45° → 4,7° při
+> stejném počtu přijatých. Ten záznam ale **nemá mapovou referenci** (`RoadCorridorMsg` v něm
+> není), takže nejde rozhodnout, jestli je to ztráta přesnosti, nebo jen jiná self-konzistence.
+> **Otevřený úkol:** změřit přehradlování na záznamu, který je zároveň těžký **a** má mapu (nebo
+> ground truth). Do té doby je `RegatePasses = 2` podložené jen na lehkých úsecích.
+
+#### Ortogonální regrese: vada je skutečná, ale numericky bezvýznamná
+
+`Line2D.LinearRegesion` minimalizuje rezidua **podél jedné osy** (podle `|dx| > |dy|` vybere x nebo
+y), zatímco hradlování inlierů i výsledná sigma se měří **kolmou** vzdáleností. Estimátor tedy
+neminimalizoval to, co se vyhodnocuje, a ta osová větev je navíc **nespojitá** — u přímky blízko
+±45° se přepíná mezi dvěma různými proloženími.
+
+Obojí platí, a **nezáleží na tom**:
+
+- Chyba šířky proti mapě je s TLS **o chlup horší** ve třech ze čtyř záznamů (0,0080 vs 0,0076;
+  0,0078 vs 0,0077; 0,0325 vs 0,0321 m).
+- Na sweepu 35–55° se nejhorší chyba směru liší **0,021° vs 0,018°** (test
+  `PriUhluKolem45_jeOrtogonalniStabilnejsiNezOsova`).
+
+**Proč:** při základně řádu metrů a šumu řádu centimetrů dají oba estimátory skoro tutéž přímku,
+takže se přepíná mezi dvěma **téměř totožnými** proloženími. Atenuační vychýlení osové regrese je
+ze stejného důvodu pod 2 %. Přepínač (`CorridorConfig.FitMode`) v kódu zůstal, aby to nikdo nemusel
+měřit znovu od nuly; výchozí stav je osový.
+
+#### Huberova váha: nad 1,0 je to no-op, a i pod ní jen výměna výtěžku
+
+Huber na **reziduu** je jiná věc než vážení podle **dálky**: potlačí bod, který *nesouhlasí*, ne bod,
+který je *daleko* — vzdálený bod na přímce si plnou váhu podrží, takže se základna nezkrátí. Rezidua
+se přitom normalizují **vlastní tolerancí bodu** (týž rostoucí prah, jakým se hradlují inliery).
+
+Jenže právě z toho plyne, že to **nemůže zabrat**: hradlování pouští do sady jen body s reziduem pod
+**1,0** násobku tolerance, takže při `k = 1,5` mají uvnitř sady všechny body váhu přesně 1. Měření to
+potvrdilo — výsledek k nerozeznání od neváženého, jen 1,4× dražší. Aby váha zabrala, musí být `k`
+pod 1,0, a to už není robustní odhad, ale potlačování legitimního šumu.
+
+A i pak to není přínos. `k = 0,4` + přehradlování dalo nad `20260822-100403` nerovnoběžnost **1,75°
+místo 3,39°** — ale **za cenu 90 přijatých cyklů místo 112**. To je výměna výtěžku za
+self-konzistenci, ne důkaz přesnosti: na záznamech s mapovou referencí Huber přesnost nezlepšil
+vůbec. Zůstává vypnutý, cena je 0,10–0,19 ms na dvojici proti 0,072 ms.
+
+#### Co z toho platí obecněji
+
+- **Rezidua nejsou přesnost.** Změna, která zlepší přesnost proti mapě, může rezidua zhoršit — a
+  naopak. Ladit na rezidua znamená ladit na self-konzistenci.
+- **Méně přijatých při lepší geometrii není zlepšení**, dokud se neukáže na nezávislé referenci.
+  Přísnější filtr vybere snadné snímky a všechna self-konzistenční čísla se zlepší „samy“.
+- **Rozpětí mezi opakováními je povinné.** Poolované percentily přes všechna opakování původně
+  ukazovaly u přehradlování „−12 % chyby směru“ na syntetice; po rozpadu na opakování se rozpětí
+  překryla a zbylo nic. RANSAC je nedeterministický, jedno číslo na variantu lže.
+- **Syntetika s laskavým prahem nediskriminuje.** Práh 3σ pustí prakticky vše, takže přehradlování
+  nemá co přibrat a všechny varianty vyjdou stejně (300/300 `Ok`). Rozdíly se objevily až nad
+  záznamem, kde je rozložení bodů skutečné.
+
+### Nová testovací mapa: 60 s bez jediného zamítnutého cyklu (24. 8. 2026)
+
+Krok „delší rovná testovací mapa" odložený od 23. 8. **Hotovo:**
+[`OSM/SyntetickyRovny.osm`](../OSM/SyntetickyRovny.osm) — jeden rovný úsek **160 m, konstantní
+šířka 2,0 m**, žádná křižovatka, žádný slepý konec, žádná změna šířky.
+
+Naměřeno nad 70s bezobslužným během (záznam `20260824-113019`, `corridor=true`, jinak výchozí):
+
+| údaj | nová rovná mapa | stará `SyntetickyKoridor.osm` |
+|---|---|---|
+| přijatých koridorů | **921 z 962 (95,7 %)** | 178 za 40 s |
+| **0–60 s** | **100 % Ok (822 cyklů)** | — |
+| chyba šířky proti mapě | p50 **0,002** / p90 0,007 m | p50 0,009 / p90 0,031 m |
+| příčný nesouhlas | p50 **0,001** / p90 0,003 m | p50 0,305 m |
+| nerovnoběžnost hranic | p50 **0,086°** | p50 1,0–2,4° |
+| rezidua proložení | p50 0,027 m | p50 0,027 m |
+| inliery (L / R) | ~267 / ~270 | ~198 / ~156 |
+
+Podstatné není jen „5× víc měření", ale že **prvních 60 s neprojde ani jeden zamítnutý cyklus** —
+statistika tedy není vybíraná a nemusí se dělit po úsecích. Nerovnoběžnost 0,086° zároveň potvrzuje,
+co bylo dřív jen odvozené: na konstantně široké cestě je nerovnoběžnost **čistý signál kvality
+proložení**, a práh 10° je proti němu volná pojistka o dva řády.
+
+Záznam nese `GroundTruthMsg`, takže je vidět i skutečná chyba lokalizace: poloha p50 0,074 m, kurz
+p50 0,119°. Zajímavý detail — příčný nesouhlas koridoru je 1 mm, ale chyba polohy 74 mm. Ta chyba je
+tedy skoro celá **podélná** (drift odometrie ve směru jízdy), a na tu je koridor na rovné cestě
+strukturálně slepý: rovná cesta vypadá stejně o metr dál i o metr blíž.
+
+**Netriviální věc, kterou to odhalilo:** robot startuje ve **středu obálky uzlů** — počátek lokální
+ENU roviny zakládá `ARBotRuntime.BuildOriginFromMap` jako střed bounding boxu sítě. Z mapy dlouhé
+*L* je proto ve směru jízdy k dispozici jen *L/2*. První verze mapy byla 80 m a robot vždy dojel
+přesně na 40 m a otočil se — vypadalo to jako vada navigace, ale byl to korektní příjezd do cíle.
+Pravidlo pro další testovací mapy: na *N* sekund čisté jízdy při rychlosti *v* je potřeba cesta
+dlouhá `2·(N·v + 10 m)`; těch 10 m je dohled kamery za konec.
+
+K mapě patří dvojnice [`SyntetickyRovnyPosunuty.osm`](../OSM/SyntetickyRovnyPosunuty.osm) pro
+`visionmap=` — **tuhá** translace +0,60 / −0,40 m, tedy poprvé falsifikovatelná předpověď pro
+`MapCorrelator` (musí najít `(dx, dy) = (−0,60, +0,40) m, φ = 0`). Podrobně
+[virtual-hw.md](virtual-hw.md#dvě-posunuté-dvojnice-a-k-čemu-je-která).
+
+Obě mapy hlídá test `SyntetickeMapyTests` (7 testů) — geometrie, konstantní šířka **i mezi uzly**
+(přes `RoadScene.IsRoad`, tak jak ji vidí kamera), žádná křižovatka, a u dvojnice že je posun
+u všech uzlů tentýž vektor. Mapa je měřicí přístroj; obě ty vlastnosti se u staré mapy nedodržely
+a stálo to práci.
+
+#### Přeměření estimátorů nad novou mapou: rozdíl je NULOVÝ
+
+Nová mapa navíc umožnila zpřesnit samotnou referenci. Dosud se přesnost šířky měřila proti
+`RoadCorridorMsg.MapWidth` — a to **není šířka z mapy**, ale výstup `RoadWidthFilter.Estimate`,
+tedy filtr, který se z měření **učí**. Měřit přesnost proti něčemu, co měření samo ovlivňuje, je
+mírně kruhové. Nad rovnou mapou to potřeba není: šířka je známá (přesně 2,000 m) a osa je přesně
+`y = 0` v lokálním ENU, takže `corridorfit --truewidth=2.0 --axisy=0` porovnává **proti pravdě**
+(příčnou polohu a kurz proti `GroundTruthMsg`; kamery renderují z ground truth, takže chyba proti
+pravdě je chyba *měření*, ne chyba lokalizace).
+
+Výsledek nad `20260824-113019` (961 dvojic, 12 opakování na variantu):
+
+| varianta | Ok | \|šířka−pravda\| p50 / p90 | \|příčně−pravda\| p50 / p90 | \|kurz−pravda\| p50 | ms |
+|---|---|---|---|---|---|
+| výchozí (osová, bez přehradl.) | 921 | 0,0176 / 0,0238 | 0,0030 / 0,0055 | 0,079° | 0,091 |
+| osová + přehradl. 2× | 921 | 0,0176 / 0,0238 | 0,0030 / 0,0055 | 0,079° | 0,081 |
+| ortogonální | 921 | 0,0176 / 0,0238 | 0,0030 / 0,0055 | 0,079° | 0,090 |
+| ortogonální + přehradl. 2× | 921 | 0,0176 / 0,0238 | 0,0030 / 0,0055 | 0,079° | 0,086 |
+| Huber k=1,5 (± přehradl.) | 921 | 0,0176 / 0,0238 | 0,0030 / 0,0055 | 0,079° | 0,230 |
+
+**Všech šest variant je bit za bit stejných.** Není to vada nástroje — s `--huberk=0.25` se čísla
+pohnou (Ok 922, šířka 0,0172). Mechanismus je jednoduchý a je vidět v tabulce výš: **inlierů je 270
+při 265–270 bodech**, tedy inliery jsou *všechny* body. Konsenzuální krok je pak no-op a každá
+varianta se redukuje na „prolož přímku všemi body". Ze stejného důvodu **zmizel i nedeterminismus
+RANSACu** (`Ok` 921–921 přes 12 opakování) — disciplína „měř každou variantu 12×" je potřeba jen na
+těžkých datech.
+
+> **⚠️ `RegatePasses` je no-op a vrátilo se na 0.** Jeho jediné příznivé měření (−8 až −15 %
+> v chvostu, čtyři záznamy z 22. 8.) bylo proti **filtru šířky**, tedy proti té mírně kruhové
+> referenci. Proti pravdě je efekt přesně nulový — a to i nad **hlučnými** daty
+> (`grassrough=0.12`, rezidua 0,0853 m), tedy přesně tam, kde mělo smysl ho mít: LS vychýlení
+> 0,0544 vs 0,0544, L1 0,0010 vs 0,0010, Tukey 0,0016 vs 0,0016.
+>
+> **A je jasné, proč zabrat nemůže:** práh inlieru je `0,10 + 0,15·r`, tedy na 5 m 0,85 m —
+> **10× volnější než typická rezidua** (0,085 m), na 8 m dokonce 15×. Hradlování nemá co vyloučit,
+> konsenzuální sada je vždy skoro všechny body (266 z ~270) a druhý průchod prokládá tytéž body
+> znovu. Zabralo by to jen při **hrubých outlierech** nebo po utažení prahu. Přepínač v kódu
+> zůstává, výchozí hodnota je 0.
+
+**Nový nález: šířka má systematickou odchylku +18 mm.** Měřená šířka je p50 2,018 m proti skutečným
+2,000 m, tedy `|šířka − pravda|` p50 **0,0176 m**. Proti filtru přitom vycházelo 0,002 m — filtr tu
+odchylku **schoval devítinásobně**, protože se ji naučil. Je to přesně ta kruhovost výše, teď
+vyčíslená. Příčná poloha a kurz jsou naopak v pořádku: **3,0 mm** (p90 5,5 mm) a **0,079°**.
+
+#### Odkud je těch +18 mm: nejmenší kvadráty sledují průměr, medián sedí správně
+
+Nalezeno hned poté (`ARBot.Analyze edgebias`). Rovná mapa má hranice přesně na `y = ±1,0 m`, takže
+každý hranový bod jde přes ground truth pózu převést do ENU a odchylku od okraje přečíst přímo
+(256 302 bodů; pózu **musí** dodat `GroundTruthMsg`, ne `PoseAtCapture` — to je odhad fúze).
+
+| kamera / hranice | n | medián | **průměr** | p90 |
+|---|---|---|---|---|
+| Left / levá (použitá) | 124 073 | −0,0018 | **+0,0024** | +0,0333 |
+| Right / pravá (použitá) | 127 225 | +0,0009 | **+0,0109** | +0,0562 |
+
+(kladné = bod leží *ven* z cesty)
+
+**Surové body chybu nemají** — součet mediánů je −0,9 mm, tedy implikovaná šířka 1,999 m. Ale
+rozdělení je **zešikmené**: p10 je −0,011 a p90 +0,046, tedy dlouhý chvost *ven* z cesty. Součet
+**průměrů** je proto **+13,3 mm** — a metoda nejmenších kvadrátů sleduje průměr, ne medián. Zbytek
+k naměřeným +18 mm dodá hradlování, které ustřihne vnitřní chvost a průměr posune ještě dál ven.
+
+To zároveň vysvětluje, proč se to dřív nenašlo: měřilo se mediánem (*„medián sedí na okraji vozovky
+v každé vzdálenosti"*, 23. 8.) — a to platí. Proložení ale medián nepoužívá.
+
+**Ověřeno opravou.** Robustní proložení má odchylku srazit, a srazí:
+
+| varianta | \|šířka−pravda\| p50 / p90 | \|kurz−pravda\| | nerovnob. | Ok | rezidua | ms |
+|---|---|---|---|---|---|---|
+| výchozí (osová LS) | 0,0176 / 0,0238 | 0,079° | 0,082° | 921 | 0,0271 | 0,087 |
+| **Huber s MAD, k=1,5** | **0,0061 / 0,0098** | **0,072°** | **0,078°** | **925** | 0,0280 | 0,302 |
+
+Chyba šířky **−65 % v mediánu a −59 % v p90**, a přijatých cyklů je o 4 víc (tedy žádný selekční
+efekt). Replikuje se i nad starou mapou, kde je referencí filtr: `20260822-104759` 0,0369 → **0,0231**
+a nerovnoběžnost 2,40° → **1,07°**; `20260822-105031` 0,0072 → **0,0046**. Tři záznamy ze dvou map.
+
+**Proč původní Huber nezabral** (moje chyba v návrhu z rána): normalizoval rezidua **tolerancí**
+inlieru, a ta je záměrně velmi volná — na 5 m je `0,10 + 0,15·5 = 0,85 m`. Centimetrová rezidua
+v jejích jednotkách vyjdou ~0,05, tedy hluboko pod jakýmkoli rozumným `k`, a váha **nikdy nezabere**.
+Odtud nový přepínač `CorridorConfig.HuberUsesTolerance` (`false` = měřítko z MAD reziduí).
+Mechanismus fixuje test `ZesikmenySum_vychyliNejmensiKvadraty_aleNeHuberSMAD` — na čistém příkladu
+LS 11,6 mm, Huber s tolerancí 11,6 mm, Huber s MAD 0,7 mm.
+
+> **A ještě jednou totéž poučení:** rezidua se přitom **zhoršila** (0,0271 → 0,0280) a přesnost
+> se ztrojnásobila. Kdo ladí na rezidua, tuhle opravu zamítne.
+
+#### Ještě lépe: proložení, které cílí medián (L1)
+
+Huberova váha je v chvostu **omezená, ale nenulová** (`k·s/|r|`), takže jednostranný chvost pořád
+tahá konstantní silou — proto u ní zbylo 6 mm místo nuly. Estimátory, které medián skutečně cílí,
+to dorazí. Nad `20260824-113019` (961 dvojic, proti pravdě):
+
+| varianta | \|šířka−pravda\| p50 | **vychýlení** | **rozptyl** | \|příčně\| p50 | \|kurz\| | nerovnob. | Ok | ms |
+|---|---|---|---|---|---|---|---|---|
+| výchozí (osová LS) | 0,0176 | **+0,0176** | 0,0111 | 0,0030 | 0,079° | 0,082° | 921 | 0,14 |
+| Huber s MAD | 0,0061 | +0,0061 | 0,0067 | 0,0030 | 0,072° | 0,078° | 925 | 0,42 |
+| **L1 (medián)** | **0,0014** | **+0,0014** | **0,0029** | **0,0008** | **0,069°** | **0,064°** | **926** | 0,66 |
+| Tukey (utne chvost) | 0,0011 | +0,0009 | 0,0056 | 0,0011 | 0,071° | 0,113° | 926 | 1,12 |
+
+**L1 je jasně nejlepší volba.** Vychýlení šířky **−92 %** (17,6 → 1,4 mm) a — což je proti učebnicové
+intuici — **rozptyl klesl taky** (0,0111 → 0,0029). Není to tedy výměna vychýlení za rozptyl:
+u zešikmeného, těžkochvostého šumu je L1 lepší v obojím. Zlepší se i všechno ostatní: příčná poloha
+3,0 → **0,8 mm**, kurz 0,079 → 0,069°, nerovnoběžnost 0,082 → 0,064°, a přijatých cyklů je o 5 víc.
+
+**Ten zbytek 1,4 mm je předpovězený.** Mediány odchylek hranových bodů jsou −1,8 mm (levá) a
++0,9 mm (pravá), součet −0,9 mm — takže dokonalé mediánové proložení má skončit ~0,9 mm od pravdy.
+L1 dává 1,4 mm. Mechanismus je tím uzavřený kvantitativně, ne jen kvalitativně.
+
+**Tukey (redescendující) není lepší**, i když má vychýlení o chlup nižší (0,9 mm): utne chvost úplně,
+takže proložení stojí na méně bodech a je **nestabilnější** — rozptyl 0,0056 proti 0,0029 a
+nerovnoběžnost 0,113° proti 0,064°. Pro tenhle šum je Huberův kompromis příliš mírný a Tukey příliš
+tvrdý; L1 je mezi nimi správně.
+
+Mechanismus fixuje test `L1_cili_median_ne_prumer` — na sadě, kde je průměr odchylek 14 mm a medián
+0, dá LS 15,5 mm a L1 **0,0 mm**.
+
+> **Nad starými záznamy vypadá L1 „horší"** (`104759` −0,0296 proti −0,0369 u LS, `105031` −0,0160
+> proti +0,0039) — ale tam je referencí **filtr šířky**, který se to +18 mm vychýlení naučil. Opravený
+> estimátor se s ním proto musí rozejít právě o tolik, a to je přesně, co se stalo: L1 sráží šířku
+> o ~16–20 mm na obou. Není to protidůkaz, je to ta kruhovost ještě jednou. Rozptyl je i tam u L1
+> nejmenší z celé sady (0,0092 a 0,0095 proti 0,0179 a 0,0250 u LS).
+
+**Stav: naměřeno, ale nezapnuto** — `FitMode` zůstává `LeastSquares`. Cena je 0,14 → 0,66 ms na
+dvojici (4,7×, absolutně ~0,5 % jádra při 7 Hz), takže o cenu nejde; jde o to, že je to změna
+aktivního estimátoru podložená jedním simulátorem — skutečná hranice trávy se může chovat jinak.
+
+**Otevřené:** aby šlo estimátory rozlišit i nad čistou geometrií, je potřeba záznam s **hlučnějším
+proložením**.
+
+> **⚠️ Oprava dřívějšího závěru (24. 8. 2026 odpoledne).** Původně tu stálo, že simulační parametry
+> na to nestačí, protože běh s `grassrough=0.12 depthnoise=0.012` dal rezidua 0,0273 m proti 0,0271 —
+> a byl k tomu i výklad o šumu hloubky podél zorného paprsku. **Obojí bylo špatně.** Ty parametry se
+> tehdy **vůbec neuplatnily** (`VirtualHWOptions.Scene`, viz [virtual-hw.md](virtual-hw.md)).
+> Po opravě přeměřeno — viz níž.
+
+#### Vliv šumu scény: drsnost trávy je ta příčina +18 mm (24. 8. 2026)
+
+Sweep nad `OSM/SyntetickyRovny.osm`, 30s běhy, proti **pravdě** (`--truewidth=2.0 --axisy=0`),
+tráva v rovině (`grassheight=0`). Sloupec „vychýlení" je znaménkový medián `šířka − 2,000 m`:
+
+| `depthnoise` | `grassrough` | rezidua p50 | **LS vychýlení** | **L1 vychýlení** | LS příčně | L1 příčně | LS nerovnob. | L1 nerovnob. |
+|---|---|---|---|---|---|---|---|---|
+| 0 | 0 | 0,0093 | **−0,0017** | −0,0005 | 0,0007 | 0,0005 | 0,071° | 0,067° |
+| 0,003 | 0,03 *(výchozí)* | 0,0269 | **+0,0170** | +0,0012 | 0,0028 | 0,0004 | 0,074° | 0,062° |
+| 0,02 | 0,03 | 0,0296 | +0,0166 | +0,0098 | 0,0028 | 0,0021 | 0,093° | 0,113° |
+| 0,003 | 0,12 | 0,0856 | **+0,0542** | **+0,0009** | 0,0090 | 0,0005 | 0,427° | 0,068° |
+| 0,02 | 0,12 | 0,0866 | +0,0549 | +0,0143 | 0,0084 | 0,0020 | 0,425° | 0,149° |
+
+**Čtyři věci, a všechny jsou nové:**
+
+1. **Šum scény rezidua řídí** — 0,0093 → 0,0269 → 0,0856 m. Dřívější tvrzení „šum na rezidua nemá
+   vliv" bylo jen ta mrtvá konfigurace.
+2. **Drsnost trávy je dominantní, šum hloubky téměř nic.** Zvýšení `depthnoise` ze 0,003 na 0,02
+   (6,7×) změní rezidua z 0,0269 na 0,0296; zvýšení `grassrough` ze 0,03 na 0,12 (4×) je vyhodí na
+   0,0856. Přesnostní podlaha koridoru je tedy daná **tvarem okraje trávy**, ne hloubkovým senzorem.
+3. **Ta systematická odchylka šířky je způsobená drsností a škáluje s ní:** −1,7 mm bez šumu,
+   **+17,0 mm** při výchozí 0,03 a **+54,2 mm** při 0,12. Šum hloubky na ni nemá vliv (+17,0 vs
+   +16,6). Tím se uzavírá kauzální řetěz z dopoledne: **drsná tráva → zešikmené rozdělení odchylek
+   hranových bodů → nejmenší kvadráty sledují průměr → šířka vyjde větší.** Bez šumu je vychýlení
+   −1,7 mm, tedy v geometrii samotné žádné není.
+4. **L1 to sráží na každé úrovni šumu, a tím víc, čím je horší:** +54,2 → **+0,9 mm** (60×), a
+   nerovnoběžnost 0,427° → 0,068°. Jediné, co L1 neopraví, je **šum hloubky** — ten je symetrický
+   per pixel, takže to není zešikmení, které by šlo zrušit; při `depthnoise=0.02` vychýlení L1
+   stoupne na +9,8 až +14,3 mm.
+
+> **Důsledek pro čísla výš v tomto dokumentu:** ono „+18 mm systematické vychýlení šířky" je
+> **velikost artefaktu simulace** při výchozí drsnosti 0,03 m, ne předpověď pro skutečný HW. Na
+> reálné trávě bude drsnost jiná a s ní i to vychýlení. Co se přenáší, je **mechanismus** (LS sleduje
+> průměr zešikmeného rozdělení) a **léčba** (`FitMode = OrthogonalL1`) — a ta je teď podložená
+> mnohem silněji: rozdíl mezi 54 mm a 1 mm při realistické drsnosti.
+
+### Gate rovnoběžnosti je v pořádku; násypka v testovací mapě není realistická (24. 8. 2026)
+
+Výhrada autora: *řeší se, zda jsou levá a pravá přímka paralelní — ale k čemu? V syntetickém
+koridoru se jedna část cesty rozšiřuje, nezahazuje algoritmus měření právě na ní?* Zahazuje. Ale
+druhá autorova výhrada rozhodla celou věc: **reálné cesty jsou typicky konstantní šířky**, takže
+násypka je vlastnost testovací mapy, ne případ, na který se má algoritmus ladit.
+
+**Zapsáno hlavně proto, aby se to nezkoumalo znovu** — a aby bylo vidět, že `NotParallel` nad
+záznamem `20260822-100403` má syntetický původ.
+
+#### Gate reálným gradientům šířky vyhoví s rezervou
+
+Rozšíření o `Δw` na 10 m dá rozbíhání hranic `2·atan(Δw/2 / 10)`:
+
+| rozšíření na 10 m | hranice vůči sobě | práh 10° |
+|---|---|---|
+| 0,25 m | 1,43° | projde |
+| 0,50 m | 2,86° | projde |
+| 1,00 m | 5,72° | projde |
+| **2,00 m** | **11,42°** | **zamítne** |
+
+Zamítne to až gradient 2 m na 10 m — a to je přesně úsek **D** (way 104) v
+`OSM/SyntetickyKoridor.osm` (šířka 1 m → 3 m na 10 m). Reálná parková cesta se takhle nerozšiřuje;
+gradienty, které se v praxi vyskytnou, projdou s několikanásobnou rezervou. **Gate zůstává na 10°
+a je to správně** — na cestě konstantní šířky je nerovnoběžnost čistý signál kvality proložení,
+takže tam gate dělá právě to, co má.
+
+Pro srovnání, kolik nerovnoběžnosti dávají *konstantní* úseky: `20260822-105031` p50 **1,0°**,
+`20260822-104759` p50 **2,4°**. Práh 10° je tedy 4–10× nad tím, co čistá data produkují — je to
+volná pojistka, ne svazující omezení.
+
+#### Důsledek: `20260822-100403` není dobrý benchmark
+
+Nad tím záznamem padne `NotParallel` u 87 z 258 cyklů a vypadá to jako „těžká scéna". Měření
+(`ARBot.Analyze corridorfit`, gate vypnutý, ať je vidět celá populace) ukazuje, že to tak není:
+
+| pásmo nerovnoběžnosti | n | rezidua p50 | šířka p50 | inliery p50 |
+|---|---|---|---|---|
+| projde gatem (< 10°) | 115 | 0,0778 | 2,011 | 188 |
+| **10–14°** (= násypka) | **51** | **0,0376** | 1,197 | **266** |
+| 14–20° | 10 | 0,0944 | 0,783 | 250 |
+| nad 20° | 19 | 0,1157 | 1,486 | 118 |
+
+Pásmo 10–14° sedí přesně na předpovězených 11,42° a má rezidua **méně než poloviční** proti přijaté
+populaci — nejsou to špatná proložení, je to násypka. Nad 20° je to naopak (nejhorší rezidua,
+nejméně inlierů): křižovatka nebo dvě různé cesty v záběru, tam gate pracuje správně.
+
+**Z toho plyne, co s tím záznamem:** 20 % jeho cyklů je nemeasurovatelných z důvodu, který v realitě
+nenastane, takže **statistiky nad ním jsou vychýlené** a nemá se používat jako „těžký" referenční
+záznam. Otevřená výhrada u [`RegatePasses`](#estimátor-proložení-ze-tří-kandidátů-obstál-jeden)
+(zhoršení nerovnoběžnosti 3,45° → 4,7° právě nad tímto záznamem) tím taky ztrácí váhu: na násypce
+není nerovnoběžnost metrikou kvality. Správný další krok zůstává ten z 23. 8. — **delší rovná
+testovací mapa**.
+
+#### Co se nemá dělat
+
+Gatovat rovnoběžnost proti `RoadAxisMatch.HeadingRelRad` (tedy proti mapovému kurzu) je **kruhové**:
+gate dnes běží v `CorridorFinder`, který mapu nezná, a kurz je právě to, co má koridor opravovat —
+odmítalo by se měření přesně tehdy, když je lokalizace špatná. Tuhle past si projekt jednou vybral
+u `MapCorrelator`: *„korekce kurzu je ve fúzi bezmocná — soft gating ji u velkých chyb udusí."*
+Uvolňovat gate ani zavádět mapový gradient šířky nemá smysl, dokud se neukáže reálná cesta, které
+gate vadí.
+
 ### `NoPair`: kamery nejsou svázané, párování se dívalo jen dozadu (23. 8. 2026)
 
 Největší ztrátou koridoru byl `NoPair` (~56 % cyklů). Autor to zkusil léčit oknem 500 ms a shrnul

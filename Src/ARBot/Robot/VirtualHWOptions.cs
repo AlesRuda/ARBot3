@@ -41,8 +41,21 @@ namespace ARBot.Robot
         /// </summary>
         public Func<DateTime, RobotState> PoseAt;
 
-        /// <summary>Parametry vzhledu a sumu sceny.</summary>
-        public SyntheticSceneOptions Scene = new SyntheticSceneOptions();
+        /// <summary>
+        /// Parametry vzhledu a sumu sceny. <b>null = pouzij sdilenou instanci
+        /// <see cref="ARBotHW.VirtualScene"/></b> — jen tak jde scenu menit za behu z UI
+        /// a z prikazove radky. Test si smi predat vlastni instanci.
+        ///
+        /// <para><b>Nesmi to byt <c>new SyntheticSceneOptions()</c>.</b> Bylo — a tim byla
+        /// scena z prikazove radky i z panelu <b>uplne mrtva</b> (nalezeno 24. 8. 2026):
+        /// <c>ARBotHW.SetVirtualHW</c> dela <c>options.Scene ?? VirtualScene</c>, takze pri
+        /// nenulove vychozi hodnote se <c>??</c> nikdy neuplatnil a kamery vzdy renderovaly
+        /// s vychozi scenou. <c>grassheight=</c>, <c>grassrough=</c> ani <c>depthnoise=</c>
+        /// tedy nedelaly nic — tise, protoze parser hodnotu prijal a zapsal ji do
+        /// <see cref="ARBotHW.VirtualScene"/>, ze ktereho pak nikdo nerenderoval. Porovnej
+        /// <c>Sensors</c>, ktere vychozi hodnotu nema a proto fungovalo.</para>
+        /// </summary>
+        public SyntheticSceneOptions Scene = null;
 
         /// <summary>Rozliseni, zorne pole a takt kamer.</summary>
         public VirtualCameraOptions Camera = new VirtualCameraOptions();

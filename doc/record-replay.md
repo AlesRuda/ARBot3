@@ -395,9 +395,37 @@ opakovaně stavěla ad hoc a další sezení je nemělo čím zopakovat (viz [de
 23. 8. 2026). U `RANSAC`u, který je nedeterministický, je opakovatelnost měření podmínka, ne
 komfort — rozptyl mezi běhy téže konfigurace byl větší než rozdíl, který se zkoumal.
 
-Příkazy: `corridor` (hranová lokalizace), `dump` (CSV řádek za cyklus), `occupancy` (čím je která
-buňka lokální mapy blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální
-rovinu"), `poses` (póza pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
+Příkazy: `corridor` (hranová lokalizace), `corridorfit` (A/B měření estimátoru proložení, viz níž),
+`dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy blokovaná — geometrie vs.
+semantika, včetně simulace „hloubka hlásí ideální rovinu"), `poses` (póza pořízení ve snímcích
+a o kolik se hranice kreslila vedle), `types`.
+
+### `corridorfit`: A/B měření estimátoru proložení
+
+Zatímco `corridor` **čte hotové `RoadCorridorMsg` ze záznamu** (tedy měří to, co běželo tehdy),
+`corridorfit` koridor **počítá znovu** — proto se s ním dá měřit dopad změny v `CorridorFinder`
+bez spouštění aplikace:
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- corridorfit Records/20260822-104759.rec --limit=0 --rep=6
+```
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- corridorfit --synth --gross=0.15
+```
+
+Tři věci, které o něm platí a nejsou zřejmé:
+
+- **Body se nepočítají znovu z hloubky.** Berou se metrické body, které v záznamu už jsou
+  (`CameraFrame.PathEdges`, formát ≥ 5), takže se měří přesně ten stupeň, který se mění, a nic před
+  ním. **Starší záznamy je nenesou** — pak vyjdou nuly a nástroj to řekne (`bodu na dvojici: 0`),
+  což je jinak k nerozeznání od regrese. Např. `20260821-095328` je takový.
+- **Referencí přesnosti je šířka proti mapě** (`RoadCorridorMsg.MapWidth` spárovaná časem), ne
+  rezidua ani nerovnoběžnost — ty měří jen self-konzistenci a jde je „zlepšit" tím, že se přijmou
+  jen snadné snímky. Bez mapové reference se dá měřit výtěžek, ale ne přesnost.
+- **Každá varianta se měří `--rep` krát** a tiskne se rozpětí. RANSAC je nedeterministický;
+  překrývající se rozpětí znamená žádný průkazný rozdíl. Výsledky měření estimátoru:
+  [map-correlation-localization.md](map-correlation-localization.md).
 
 **Dvě věci na čtení záznamu, které nejsou zřejmé** (obojí je důvod, proč `RecordFile` existuje):
 

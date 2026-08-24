@@ -304,6 +304,57 @@ public class SyntheticFrameRendererTests
         Assert.That(colors.TrueForAll(c => c == grass), Is.True);
     }
 
+    /// <summary>
+    /// <b>Vyvysena trava musi v BARVE zakryvat vozovku za sebou.</b>
+    ///
+    /// <para>Do 24. 8. 2026 <c>RenderColor</c> protinal jen rovinu vozovky <c>z = 0</c>, takze se
+    /// trava chovala jako papir bez vysky: vozovka byla videt i skrz ni. Pro vizualni cestu
+    /// (probability -&gt; <c>PathEdges</c> -&gt; koridor) to znamenalo, ze <c>grassheight=</c> nemela
+    /// zadny efekt a hranice cesty se kreslila i tam, kde ji ve skutecnosti videt neni.</para>
+    ///
+    /// <para><b>Geometrie musi byt takova, aby trava LEZELA MEZI kamerou a vozovkou.</b> Na rovne
+    /// ceste, po ktere se robot koukа podel osy, vysoka trava zaclonit nemuze — paprsek podel cesty
+    /// travu nikdy nemine. Proto tu robot stoji <b>4 m vedle</b> 2m cesty a kouka na ni pres pas
+    /// travy. Aby paprsek rovinu travy vubec protnul, musi byt trava POD urovni kamery (jinak
+    /// vychazi zaporny parametr - viz <c>HitsPlane</c> a limit popsany
+    /// v <c>SyntetickeSceneTraversabilityTests</c>).</para>
+    /// </summary>
+    [Test]
+    public void RenderColor_VyvysenaTrava_zakryvaVozovkuZaSebou()
+    {
+        var intr = Pinhole(W, H, 87.0);
+
+        // Kamera 0,5 m nad zemi, sklon -7 stupnu: paprsek stredu obrazu dopadne na rovinu zeme
+        // ~4 m pred robotem, tedy presne na vozovku. Trava 0,3 m je pod kamerou, takze ji paprsek
+        // protne o ~1,6 m driv - a vozovku za ni musi zakryt.
+        var proj = new CameraProjection(intr, intr, Matrix4x4.Identity, Matrix4x4.Identity);
+        proj.SetOrientation(Conversions.CameraToWorldTransform(
+            0, Conversions.Deg2Rad(-7), 0, new Vector3(0, 0, 0.5f)));
+
+        // Robot 4 m JIZNE od osy cesty, kouka na SEVER (cesta vede na vychod, sirka 2 m).
+        var pose = new RobotState { X = 0, Y = -4, Theta = Math.PI / 2 };
+
+        int RoadPixels(double grassHeight)
+        {
+            var options = new SyntheticSceneOptions { ColorNoise = 0, GrassHeightM = grassHeight,
+                                                      GrassRoughnessM = 0 };
+            var renderer = new SyntheticFrameRenderer(WideEastRoad(Origin(), 2.0), options);
+            var rgb = new Image<BGR32>(W, H);
+            renderer.RenderColor(proj, pose, 0, rgb);
+            var road = (options.RoadB, options.RoadG, options.RoadR);
+            return AllColors(rgb).Count(c => c == road);
+        }
+
+        int flat = RoadPixels(0.0);
+        int raised = RoadPixels(0.30);
+
+        TestContext.Out.WriteLine($"pixelu vozovky: trava v rovine {flat}, trava 0,30 m {raised}");
+
+        Assert.That(flat, Is.GreaterThan(0), "s plochou travou ma byt vozovka videt (predpoklad testu)");
+        Assert.That(raised, Is.LessThan(flat),
+                    "vyvysena trava musi cast vozovky zakryt - jinak se chova jako papir bez vysky");
+    }
+
     [Test]
     public void RenderDepth_DifferentSeed_ChangesNoise()
     {

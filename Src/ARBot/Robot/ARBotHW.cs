@@ -229,7 +229,8 @@ namespace ARBot.Robot
         ///
         /// <para><b>Nacpak se to da vypinat</b> (23. 8. 2026): hranicni body se do metru prepocitavaji
         /// zpetnou projekci pres MERENOU hloubku, zatimco semanticky kanal occupancy gridu se promita
-        /// dopredu na ROVINU zeme. S <c>DepthNoiseM = 0</c> a <c>GrassRoughnessM = 0</c> je scena
+        /// dopredu na ROVINU zeme. S <c>DepthNoiseM = 0</c>, <c>GrassRoughnessM = 0</c> a
+        /// <c>GrassHeightM = 0</c> je scena
         /// dokonala rovina, oba smery se stanou touz geometrii a hranice se ma s hranici v lokalni
         /// mape krýt — zbytek rozdilu je uz jen casovani pozy. Viz doc/virtual-hw.md.</para>
         /// </summary>
@@ -400,6 +401,17 @@ namespace ARBot.Robot
             // Sdilena instance parametru sceny (stejny duvod jako u sensorOptions vyse): jen tak
             // jde sum hloubky a drsnost travy menit za behu z UI a z prikazove radky.
             activeSceneOptions = options.Scene ?? VirtualScene;
+
+            // Vypsat, s CIM se opravdu renderuje. Bez teto hlasky byla scena z prikazove radky
+            // i z panelu pul dne mrtva a nikdo si toho nevsiml: VirtualHWOptions.Scene mela
+            // vychozi new SyntheticSceneOptions(), takze se '??' nikdy neuplatnil a kamery jely
+            // s vychozimi hodnotami, zatimco parametry se zapisovaly do VirtualScene, ze ktereho
+            // nikdo nerenderoval. Viz VirtualHWOptions.Scene (24. 8. 2026).
+            Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "virtualhw scena ({0}): grassheight={1} m, grassrough={2} m, depthnoise={3} m",
+                ReferenceEquals(activeSceneOptions, VirtualScene) ? "sdilena, lze menit z UI" : "vlastni instance",
+                activeSceneOptions.GrassHeightM, activeSceneOptions.GrassRoughnessM,
+                activeSceneOptions.DepthNoiseM));
 
             var scene = new RoadScene(options.Network, options.Origin);
 

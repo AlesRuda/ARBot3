@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="ARBot3 - synteticka testovaci mapa (dlouhy rovny usek)">
+
+  <!--
+    SYNTETICKY ROVNY USEK - testovaci mapa, nejde o realne misto.
+
+    Zadani: JEDEN rovny usek, 160 m dlouhy, KONSTANTNI sirka 2,0 m, vedouci na
+    vychod. Zadna krizovatka, zadny slepy konec, zadna zmena sirky.
+
+    NACPAK TO JE (a proc ne SyntetickyKoridor.osm)
+    ==============================================
+    SyntetickyKoridor.osm je merici pristroj se dvema vadami, ktere se pri mereni
+    hranove lokalizace projevily obe (viz doc/devlog.md 23. a 24. 8. 2026):
+
+      1. Je ze ~40 % krizovatka a slepy konec, tedy misto, kde koridor existovat
+         NEMA - a statistika se pres to pocitala.
+      2. Usek D je nalevka (sirka 1 m -> 3 m na 10 m). Hranice se tam vuci sobe
+         rozbihaji o 2*atan(1/10) = 11,42 stupne, coz je nad prahem
+         CorridorConfig.MaxParallelErrorRad = 10 stupnu, takze se koridor na cele
+         nalevce zamitne VZDY. Nad zaznamem 20260822-100403 to bylo 51 z 258 cyklu
+         (20 %), a shodou okolnosti ty NEJLEPE prolozene (rezidua 0,0376 m proti
+         0,0778 u prijatych). Statistiky nad tim zaznamem jsou tim vychylene.
+
+    Realne cesty jsou typicky KONSTANTNI sirky, takze nalevka neni pripad, na ktery
+    se ma algoritmus ladit - je to vlastnost te testovaci mapy. Tato mapa proto
+    zadnou nema: cokoli, co nad ni vyjde jako nerovnobeznost hranic, je chyba
+    prolozeni, ne geometrie cesty. Tim se z nerovnobeznosti stava cisty signal
+    kvality - nameřeno 0,06-0,10 stupne p50 (proti 1,0-2,4 na stare mape).
+
+    Sirka 2,0 m je zvolena zamerne shodne s hlavnim koridorem SyntetickyKoridor.osm
+    a se zaznamy, proti kterym se dosud merilo (sirka z mapy 2,00-2,03 m), aby
+    zustala cisla srovnatelna.
+
+    POZOR: DELKA MAPY JE DVOJNASOBEK POUZITELNE JIZDY
+    =================================================
+    Robot startuje ve STREDU OBALKY UZLU - ARBotRuntime.BuildOriginFromMap zaklada
+    pocatek lokalni ENU roviny jako stred bounding boxu uzlu site a virtualni HW
+    postavi robota do pocatku. Z mapy dlouhe L metru je tedy ve smeru jizdy
+    k dispozici jen L/2.
+
+    Jak se to zjistilo: prvni verze teto mapy byla 80 m dlouha a robot dojel vzdy
+    presne na 40 m a otocil se. Nebyla to chyba mapy ani navigace - robot startoval
+    ve stredu (x=40) a cil na vychodnim konci (x=80) byl proto jen 40 m daleko,
+    takze na 40 m korektne DOJEL. Odtud dnesnich 160 m.
+
+    NAMERENO NAD TOUTO MAPOU (24. 8. 2026, 70s bezobsluzny beh, zaznam
+    20260824-113019, corridor=true, jinak vychozi nastaveni):
+
+      prijatych koridoru        921 z 962 cyklu (95,7 %)
+      0-60 s                    100 % Ok (822 cyklu, ANI JEDEN zamitnuty)
+      60-70 s                   99 Ok / 40 NotParallel  <- robot dojel na konec
+      chyba sirky proti mape    p50 0,002 m   p90 0,007 m
+      pricny nesouhlas          p50 0,001 m   p90 0,003 m
+      nerovnobeznost hranic     p50 0,086 st. p90 0,325 st.
+      rezidua prolozeni         p50 0,027 m
+      inliery                   ~267 vlevo, ~270 vpravo
+      chyba lokalizace (truth)  poloha p50 0,074 m, kurz p50 0,119 st.
+
+    Pro srovnani stara mapa: 178 merenii za 40 s, nerovnobeznost p50 1,0-2,4 st.
+    Tedy 5x vic merenii a nerovnobeznost o rad nize - a hlavne 60 s BEZ jedineho
+    zamitnuteho cyklu, takze statistika neni vybirana.
+
+    Poslednich ~10 s je nepouzitelnych zamerne: tam uz kamera kouka za konec cesty.
+    Prakticky dusledek pro dalsi testovaci mapy: chces-li N sekund CISTE jizdy pri
+    rychlosti v, potrebujes cestu dlouhou 2*(N*v + 10 m).
+
+    Prakticky dusledek pro dalsi testovaci mapy: chces-li N sekund jizdy pri
+    rychlosti v, potrebujes cestu dlouhou 2*(N*v + 10 m).
+
+    JAK SE TU POCITA SIRKA (ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)
+    ====================================================================
+    Sirka neni vlastnosti useku, ale UZLU - uzel dostane maximum ze sirek cest,
+    ktere jim vedou, a mezi dvema uzly se polosirka linearne interpoluje (viz
+    Maps/OsmNav/Graph/RoadScene.cs). Tag 'width' primo na uzlu ma prednost pred
+    cestami. Proto je tu sirka 2 zadana EXPLICITNE na kazdem uzlu: pak je cesta
+    presne konstantni bez ohledu na vychozi sirku, ktera se lisi podle zpusobu
+    nacteni (2,0 m ve World view vs. 3,0 m u parametru map=, resp. roadwidth=).
+
+    GEOMETRIE v lokalnich metrech (x = vychod+, y = sever+); pocatek TETO TABULKY
+    je uzel 1 na lat=50.029 lon=14.52 - tentyz pocatek jako SyntetickyKoridor.osm,
+    aby byly mapy srovnatelne. (Aplikace si vlastni pocatek zaklada jinde, viz
+    vyse - ve stredu obalky, tedy na x=80.) Souradnice jsou spocitane pres
+    GeoReference.ToLLA, tedy presnou inverzi prevodu, ktery aplikace pouziva,
+    a zapsane na 9 desetinnych mist: zpetny prevod zaokrouhlenych hodnot sedi na
+    0,05 mm (pri 8 mistech by to bylo 0,53 mm). Hlida to test SyntetickeMapyTests.
+
+    Uzly jsou po 20 m schvalne, ne jen dva krajni - aby se dala overit i sama
+    interpolace sirky mezi uzly (mezi stejnymi sirkami musi vyjit tataz sirka).
+
+      uzel    x [m]    y [m]   sirka [m]   poznamka
+      1          0.0      0.0        2     zapadni konec
+      2         20.0      0.0        2
+      3         40.0      0.0        2
+      4         60.0      0.0        2
+      5         80.0      0.0        2     STRED obalky = kde robot startuje
+      6        100.0      0.0        2
+      7        120.0      0.0        2
+      8        140.0      0.0        2
+      9        160.0      0.0        2     vychodni konec
+
+    JIZDA PO TETO MAPE (cil je uzel 9, tedy vychodni konec):
+
+      ARBot.exe virtualhw=true corridor=true map=OSM/SyntetickyRovny.osm goal=50.028999979,14.522232996
+
+    Bezobsluzne s zaznamem (60 s):
+
+      ARBot.exe selftest=true st_seconds=60 st_record=true no_uart=true virtualhw=true corridor=true map=OSM/SyntetickyRovny.osm goal=50.028999979,14.522232996
+
+    Cesta je highway=footway, aby ji prijal chodecky profil
+    (TravelProfile.Pedestrian), ktery aplikace pouziva pri obou zpusobech nacteni.
+  -->
+
+  <bounds minlat="50.02899997" minlon="14.52000000" maxlat="50.02900001" maxlon="14.52223300"/>
+
+  <node id="1" visible="true" version="1" lat="50.029000000" lon="14.520000000">
+    <tag k="width" v="2"/>   <!-- x=0 m, zapadni konec -->
+  </node>
+  <node id="2" visible="true" version="1" lat="50.029000000" lon="14.520279124">
+    <tag k="width" v="2"/>   <!-- x=20 m -->
+  </node>
+  <node id="3" visible="true" version="1" lat="50.028999999" lon="14.520558249">
+    <tag k="width" v="2"/>   <!-- x=40 m -->
+  </node>
+  <node id="4" visible="true" version="1" lat="50.028999997" lon="14.520837373">
+    <tag k="width" v="2"/>   <!-- x=60 m -->
+  </node>
+  <node id="5" visible="true" version="1" lat="50.028999995" lon="14.521116498">
+    <tag k="width" v="2"/>   <!-- x=80 m, STRED obalky = kde robot startuje -->
+  </node>
+  <node id="6" visible="true" version="1" lat="50.028999992" lon="14.521395622">
+    <tag k="width" v="2"/>   <!-- x=100 m -->
+  </node>
+  <node id="7" visible="true" version="1" lat="50.028999988" lon="14.521674747">
+    <tag k="width" v="2"/>   <!-- x=120 m -->
+  </node>
+  <node id="8" visible="true" version="1" lat="50.028999984" lon="14.521953871">
+    <tag k="width" v="2"/>   <!-- x=140 m -->
+  </node>
+  <node id="9" visible="true" version="1" lat="50.028999979" lon="14.522232996">
+    <tag k="width" v="2"/>   <!-- x=160 m, vychodni konec (cil) -->
+  </node>
+
+  <way id="201" visible="true" version="1">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <nd ref="5"/>
+    <nd ref="6"/>
+    <nd ref="7"/>
+    <nd ref="8"/>
+    <nd ref="9"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="2"/>
+    <tag k="name" v="R - rovny usek, delka 160 m, sirka 2 m"/>
+  </way>
+
+</osm>

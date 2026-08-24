@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="ARBot3 - synteticka testovaci mapa (rovny usek, TUHA translace)">
+
+  <!--
+    SYNTETICKY ROVNY USEK, POSUNUTY JAKO CELEK - testovaci mapa, nejde o realne misto.
+
+    Kopie SyntetickyRovny.osm posunuta TUHOU TRANSLACI o
+
+        dx = +0,60 m na vychod,  dy = -0,40 m na sever   (velikost 0,721 m)
+
+    Slouzi jako "jina mapa" proti originalu pro parametr visionmap= (kamery
+    renderuji z teto, robot jede podle originalu - viz doc/virtual-hw.md), tedy
+    k mereni s VNUCENOU znamou chybou v datech.
+
+    PROC TUHA TRANSLACE A NE POSUN PER UZEL
+    =======================================
+    Starsi SyntetickyKoridorPosunuty.osm ma kazdy uzel posunuty NAHODNE (do 1 m),
+    a to je pro mereni korelace spatne: MapCorrelator hleda jedno 3-DOF (dx, dy,
+    fi) na cely grid, takze nad nahodne deformovanou mapou nema jednu spravnou
+    odpoved a dostane vazeny kompromis podle toho, ktere useky ma prave v gridu.
+    Nejde z toho udelat falsifikovatelnou predpoved. Tato mapa to opravuje: posun
+    je tuhy, takze SPRAVNA odpoved je znama a jedna -
+
+        korelace ma najit  (dx, dy) = (-0,60, +0,40) m,  fi = 0
+
+    (znamenko: mapa vize je posunuta o +0,60/-0,40 proti mape, podle ktere robot
+    jede, takze korekce, ktera to srovna, ma opacne znamenko). Rotace je nulova
+    zamerne - tuha translace bez rotace je nejjednodussi pripad, ktery ma vyjst;
+    az ten bude sedet, ma smysl zkouset i pootocenou mapu.
+
+    POZOR NA JEDNU VEC: posun MENI STRED OBALKY UZLU, a tim i pocatek lokalni ENU
+    roviny, ktery si aplikace z mapy zaklada (ARBotRuntime.BuildOriginFromMap).
+    Kdyz se tato mapa pouzije jako visionmap=, pocatek urcuje mapa z map= (tedy
+    original) a je to spravne. Kdyby se pouzila jako map=, posunul by se cely
+    lokalni ramec a "vnuceny posun" by zmizel - mereni by pak nemerilo nic.
+
+    Sirky uzlu, topologie i delka useku zustavaji shodne s originalem - posunuta je
+    jen poloha celku, takze cesta je porad presne rovna a presne 2,0 m siroka.
+
+    Souradnice: GeoReference.ToLLA z lokalnich metru (x+0,60, y-0,40), 9 desetinnych
+    mist. Hlida to test SyntetickeMapyTests, ktery kontroluje i to, ze posun proti
+    originalu je u VSECH uzlu tentyz vektor (to je prave ta vlastnost, kterou
+    stara posunuta mapa nemela).
+
+      uzel   orig x   orig y   nove x   nove y
+      1         0.0      0.0      0.6     -0.4
+      2        20.0      0.0     20.6     -0.4
+      3        40.0      0.0     40.6     -0.4
+      4        60.0      0.0     60.6     -0.4
+      5        80.0      0.0     80.6     -0.4
+      6       100.0      0.0    100.6     -0.4
+      7       120.0      0.0    120.6     -0.4
+      8       140.0      0.0    140.6     -0.4
+      9       160.0      0.0    160.6     -0.4
+
+    POUZITI (robot jede podle originalu, kamery vidi tuto):
+
+      ARBot.exe virtualhw=true corridor=true mapcorr=true map=OSM/SyntetickyRovny.osm visionmap=OSM/SyntetickyRovnyPosunuty.osm
+
+    Popis mapy samotne (sirka jako vlastnost uzlu, delka, proc rovny usek, a proc je
+    pouzitelna jizda jen polovina delky) je v hlavicce SyntetickyRovny.osm.
+  -->
+
+  <bounds minlat="50.02899638" minlon="14.52000837" maxlat="50.02899641" maxlon="14.52224137"/>
+
+  <node id="1" visible="true" version="1" lat="50.028996404" lon="14.520008374">
+    <tag k="width" v="2"/>   <!-- x=0,6 m  y=-0,4 m: zapadni konec -->
+  </node>
+  <node id="2" visible="true" version="1" lat="50.028996403" lon="14.520287498">
+    <tag k="width" v="2"/>   <!-- x=20,6 m  y=-0,4 m -->
+  </node>
+  <node id="3" visible="true" version="1" lat="50.028996402" lon="14.520566623">
+    <tag k="width" v="2"/>   <!-- x=40,6 m  y=-0,4 m -->
+  </node>
+  <node id="4" visible="true" version="1" lat="50.028996401" lon="14.520845747">
+    <tag k="width" v="2"/>   <!-- x=60,6 m  y=-0,4 m -->
+  </node>
+  <node id="5" visible="true" version="1" lat="50.028996398" lon="14.521124872">
+    <tag k="width" v="2"/>   <!-- x=80,6 m  y=-0,4 m -->
+  </node>
+  <node id="6" visible="true" version="1" lat="50.028996395" lon="14.521403996">
+    <tag k="width" v="2"/>   <!-- x=100,6 m  y=-0,4 m -->
+  </node>
+  <node id="7" visible="true" version="1" lat="50.028996392" lon="14.521683121">
+    <tag k="width" v="2"/>   <!-- x=120,6 m  y=-0,4 m -->
+  </node>
+  <node id="8" visible="true" version="1" lat="50.028996387" lon="14.521962245">
+    <tag k="width" v="2"/>   <!-- x=140,6 m  y=-0,4 m -->
+  </node>
+  <node id="9" visible="true" version="1" lat="50.028996382" lon="14.522241369">
+    <tag k="width" v="2"/>   <!-- x=160,6 m  y=-0,4 m: vychodni konec -->
+  </node>
+
+  <way id="201" visible="true" version="1">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <nd ref="5"/>
+    <nd ref="6"/>
+    <nd ref="7"/>
+    <nd ref="8"/>
+    <nd ref="9"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="2"/>
+    <tag k="name" v="R - rovny usek, delka 160 m, sirka 2 m (posunuty)"/>
+  </way>
+
+</osm>

@@ -106,6 +106,32 @@ namespace ARBot.Analyze
             var poses = new PoseTrack(rec);
             var t0 = all[0].TimeStamp;
 
+            // KDE robot vlastne byl. Bez toho se "koridor prestal vznikat" pletlo s "dojel na konec
+            // cesty" — nad rovnou mapou dlouhou 80 m to pri 1,2 m/s nemuze byt totez, a rozdil je
+            // videt jen z trajektorie. Kresli se z tiku RobotStateMsg v casech cyklu koridoru.
+            {
+                double minX = double.MaxValue, maxX = double.MinValue;
+                double minY = double.MaxValue, maxY = double.MinValue;
+                double? px = null, py = null; double path = 0;
+                foreach (var m in all)
+                {
+                    var p = poses.Nearest(m.TimeStamp);
+                    if (p == null) continue;
+                    minX = Math.Min(minX, p.X); maxX = Math.Max(maxX, p.X);
+                    minY = Math.Min(minY, p.Y); maxY = Math.Max(maxY, p.Y);
+                    if (px.HasValue)
+                        path += Math.Sqrt((p.X - px.Value) * (p.X - px.Value) + (p.Y - py.Value) * (p.Y - py.Value));
+                    px = p.X; py = p.Y;
+                }
+                if (minX <= maxX)
+                {
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "Trajektorie (lokalni ENU): X {0:F1}..{1:F1} m, Y {2:F1}..{3:F1} m, ujeto {4:F1} m",
+                        minX, maxX, minY, maxY, path));
+                    Console.WriteLine();
+                }
+            }
+
             Console.WriteLine("Prijata merenia podle RYCHLOSTI robotu:");
             Console.WriteLine("  rychlost [m/s]    n   abs sirka p50   abs pricne p50   nerovnobez. p50 [deg]");
             double[] vEdges = { -0.01, 0.05, 0.3, 0.8, 1.1, double.MaxValue };
@@ -118,11 +144,18 @@ namespace ARBot.Analyze
             }
             Console.WriteLine();
 
-            Console.WriteLine("Prijata merenia podle CASU v behu (= misto na trase):");
+            // Rozsah pasem se bere z DELKY ZAZNAMU, ne natvrdo. Bylo tu 40 s (delka tehdejsich
+            // behu), takze nad 70s jizdou po OSM/SyntetickyRovny.osm se poslednich 30 s vubec
+            // netisklo - a prave tam koridor propadal. Pasmo se drzi na ~8 radcich, at je to
+            // citelne i u dlouheho behu.
+            double runSeconds = Math.Ceiling((all[all.Count - 1].TimeStamp - t0).TotalSeconds);
+            double binSeconds = Math.Max(5, Math.Ceiling(runSeconds / 8 / 5) * 5);
+
+            Console.WriteLine($"Prijata merenia podle CASU v behu (= misto na trase, {binSeconds:F0}s pasma):");
             Console.WriteLine("  cas [s]           n   abs sirka p50   abs pricne p50   nerovnobez. p50 [deg]");
-            for (double s = 0; s < 40; s += 5)
+            for (double s = 0; s < runSeconds; s += binSeconds)
             {
-                double a = s, b = s + 5;
+                double a = s, b = s + binSeconds;
                 var bin = ok.Where(m => { double dt = (m.TimeStamp - t0).TotalSeconds;
                                           return dt >= a && dt < b; }).ToList();
                 if (bin.Count == 0) continue;
@@ -132,9 +165,9 @@ namespace ARBot.Analyze
 
             Console.WriteLine("Podil zamitnutych (NotParallel) po casu — kde koridor vubec nevznika:");
             Console.WriteLine("  cas [s]        cyklu    Ok   NotParallel");
-            for (double s = 0; s < 40; s += 5)
+            for (double s = 0; s < runSeconds; s += binSeconds)
             {
-                double a = s, b = s + 5;
+                double a = s, b = s + binSeconds;
                 var bin = all.Where(m => { double dt = (m.TimeStamp - t0).TotalSeconds;
                                            return dt >= a && dt < b; }).ToList();
                 if (bin.Count == 0) continue;

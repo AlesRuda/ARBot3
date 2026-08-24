@@ -93,11 +93,41 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
   „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*
   šířky, ne proti mapě, a jde o jeho zaostávání na cestě, která se skutečně rozšiřuje; proti mapě
-  kamera souhlasí na centimetry. Další krok je proto **delší rovná testovací mapa**. Stav
-  a pořadí kroků: [doc/devlog.md](doc/devlog.md), záznam 23. 8. 2026, „Rozpracováno / další krok".
-  Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `dump` / `types`), viz
+  kamera souhlasí na centimetry. **Delší rovná testovací mapa hotová 24. 8. 2026**
+  (`OSM/SyntetickyRovny.osm`, 160 m konstantní šířky 2 m): 921 měření za 70 s, z toho **prvních
+  60 s 100 % `Ok`**, chyba šířky proti mapě p50 0,002 m, nerovnoběžnost p50 0,086° — proti staré
+  mapě 5× víc dat a **bez selekčního efektu**. Dosavadní čísla (včetně `RegatePasses`) se měřila
+  nad starou mapou, takže je má smysl přeměřit. **Pozor: robot startuje ve středu obálky uzlů**
+  (`BuildOriginFromMap`), takže z mapy dlouhé *L* je ve směru jízdy jen *L/2* — na *N* s jízdy
+  při *v* je potřeba `2·(N·v + 10 m)`. Stav a pořadí kroků:
+  [doc/devlog.md](doc/devlog.md), záznam 24. 8. 2026, „Rozpracováno / další krok".
+  **Estimátor proložení proměřen 24. 8. 2026:** ortogonální regrese a Huberova váha jsou
+  **zamítnuté měřením**, ne názorem — nezkoušej je znovu bez přečtení té sekce. Totéž platí pro
+  **přehradlování konsenzuální sady** (`RegatePasses`, vráceno na 0): je to no-op i nad hlučnými
+  daty, a je znám důvod — práh inlieru `0,10 + 0,15·r` je **10× volnější než rezidua**, takže
+  hradlování nemá co vyloučit (sada je vždy 266 z ~270 bodů). Zabralo by jen při hrubých outlierech
+  nebo po utažení prahu. **Měř proti pravdě, ne proti `MapWidth`** — ten se z měření učí:
+  `corridorfit --truewidth=2.0 --axisy=0`. Takhle se našlo, že **šířka má systematickou odchylku
+  +18 mm**, kterou filtr schovával devítinásobně — a **dohledala se příčina**: odchylky hranových
+  bodů mají zešikmené rozdělení (medián na okraji, dlouhý chvost ven), takže **nejmenší kvadráty
+  sledují průměr**. Léčba je proložení, které cílí **medián**: `FitMode = OrthogonalL1` srazí
+  vychýlení šířky na **1,4 mm** (−92 %) a **klesne i rozptyl** (−74 %), příčná poloha na 0,8 mm.
+  Huber s MAD je slabší varianta téhož (6 mm), Tukey je srovnatelný s L1 ale dražší. **Naměřeno,
+  zatím nezapnuto** — výchozí zůstává `LeastSquares`.
+  **Příčinou toho zešikmení je drsnost trávy** (změřeno sweepem 24. 8.): bez šumu je vychýlení
+  −1,7 mm, při výchozí `grassrough=0,03` +17,0 mm a při 0,12 už **+54,2 mm**; šum hloubky na něj
+  nemá vliv. Ono „+18 mm" je tedy **velikost artefaktu simulace**, ne předpověď pro HW — přenáší se
+  mechanismus a léčba. Argument pro L1 je tím ale silnější: při drsnosti 0,12 dá 0,9 mm proti
+  54,2 mm u LS. Drsnost trávy zároveň řídí rezidua (0,0093 → 0,0269 → 0,0856 m), takže **podlaha
+  přesnosti koridoru je daná tvarem okraje trávy, ne hloubkovým senzorem**.
+  Odchylky hranových bodů proti známému okraji měří `ARBot.Analyze edgebias`, grid ze záznamu
+  (tedy co skutečně vyrobila běžící aplikace) `ARBot.Analyze grid`.
+  Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `corridorfit` / `edgebias` / `grid` /
+  `dump` / `types`), viz
   [doc/record-replay.md](doc/record-replay.md#offline-analýza-záznamu-arbotanalyze) — a **měř
-  každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká.
+  každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká. Pozor,
+  **rezidua nejsou přesnost** a **méně přijatých při lepší geometrii není zlepšení** — obojí se
+  tady už jednou spletlo.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
   automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI

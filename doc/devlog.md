@@ -37,6 +37,258 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-24
+
+- **Podnět „RANSAC má méně vážit vzdálené a odlehlé body“ — z třech kandidátů obstál jeden.**
+  Otázka přišla z jiné session, autor u ní hned správně odhadl, že problém bude spíš v lineární
+  regresi nad inliery ve `CorridorFinder.Fit` než v RANSACu samém. Vážení podle *vzdálenosti* už
+  propadlo 23. 8., takže se prověřovaly tři jiné hypotézy — a ta formulace míchá dvě různá
+  kritéria: „vzdálený“ (dálka od robotu) a „odlehlý“ (velké rezidum) nejsou totéž.
+  - **Přehradlování konsenzuální sady (LO-RANSAC) — potvrzeno, zapnuto.** Sada vznikala proti
+    hypotéze ze tří bodů a po proložení se s lepší přímkou už nepřehradlovala. Dvě iterace
+    `přelož → přehradluj` srazily chybu šířky proti mapě v **p90 o 8–15 %** na **čtyřech záznamech
+    ze čtyř**, bez selekčního efektu (počet přijatých cyklů totožný) a za 0,072 → 0,087 ms na
+    dvojici. Nové výchozí `CorridorConfig.RegatePasses = 2`.
+  - **Ortogonální regrese (TLS) — zamítnuto.** Vada je skutečná (osová regrese minimalizuje rezidua
+    podél osy, hradlování i sigma měří kolmou vzdálenost, a ta osová větev je u ±45° nespojitá), ale
+    **numericky bezvýznamná**: chyba šířky o chlup *horší* ve třech ze čtyř záznamů, na sweepu
+    35–55° rozdíl nejhorší chyby směru 0,021° vs 0,018°. Při základně řádu metrů a šumu řádu
+    centimetrů dají oba estimátory skoro tutéž přímku. Přepínač `FitMode` v kódu zůstal.
+  - **Huberova váha na reziduu — zamítnuto, a našla se u toho vada mého vlastního návrhu.** Rezidua
+    se normalizují vlastní tolerancí bodu (aby se netrestala dálka), ale hradlování pouští do sady
+    jen body pod 1,0 násobku tolerance — takže při `k = 1,5` je Huber **principiálně no-op**. Měření
+    to potvrdilo (k nerozeznání od neváženého, 1,4× dražší). Pod 1,0 už zabere, ale `k = 0,4` dalo
+    nerovnoběžnost 1,75° místo 3,39° **za cenu 90 přijatých cyklů místo 112** — výměna výtěžku za
+    self-konzistenci, na záznamech s mapou žádné zlepšení přesnosti.
+- **Nový přístroj `ARBot.Analyze corridorfit`.** `corridor` čte hotové `RoadCorridorMsg` (měří tedy,
+  co běželo tehdy), takže se s ním změna estimátoru měřit nedá. `corridorfit` koridor **počítá
+  znovu** z metrických bodů, které v záznamu už jsou (`CameraFrame.PathEdges`, formát ≥ 5) — bez
+  spouštění aplikace a bez přepočtu z hloubky. Umí i `--synth` proti známé pravdě.
+- **Tři metodické věci, které stály čas a platí obecně** (podrobně v
+  [map-correlation-localization.md](map-correlation-localization.md)):
+  - **Rezidua nejsou přesnost.** Přehradlování rezidua mírně **zhorší** (0,0713 → 0,0720 m) a
+    přesnost proti mapě zlepší. Kdyby se ladilo na rezidua, tahle změna by se zamítla.
+  - **Méně přijatých při lepší geometrii není zlepšení**, dokud to nepotvrdí nezávislá reference —
+    přísnější filtr vybere snadné snímky a self-konzistenční čísla se zlepší „sama“.
+  - **Poolované percentily lžou.** Přes všechna opakování ukazovaly u přehradlování na syntetice
+    „−12 % chyby směru“; po rozpadu na jednotlivá opakování se rozpětí překryla a zbylo nic.
+    Syntetika navíc vůbec nediskriminovala (práh 3σ pustí prakticky vše, 300/300 `Ok`) — rozdíly
+    se objevily až nad záznamem.
+- **Gate rovnoběžnosti: prošetřeno, zůstává jak je — ale zjistilo se, že `20260822-100403` je
+  vychýlený benchmark.** Autor se ptal, jestli se měření nezahazuje právě na rozšiřujícím se úseku
+  syntetického koridoru. Zahazuje: úsek D je násypka 1 m → 3 m na 10 m, hranice se rozbíhají o
+  `2·atan(1/10)` = **11,42°** proti prahu 10°, takže se zamítne vždy. Nad `20260822-100403` je to
+  pásmo 10–14° celých **51 z 258 cyklů** a má rezidua **0,0376 m proti 0,0778 u přijatých** — nejsou
+  to špatná proložení. **Rozhodla ale druhá autorova výhrada: reálné cesty jsou typicky konstantní
+  šířky**, takže násypka je vlastnost testovací mapy, ne případ k ladění. Ověřeno číselně —
+  rozšíření 0,25 / 0,5 / 1,0 m na 10 m dá 1,4 / 2,9 / 5,7°, tedy projde s rezervou; zamítne to až
+  syntetických 2 m na 10 m. Na cestě konstantní šířky je navíc nerovnoběžnost **čistý signál kvality
+  proložení** (konstantní úseky dávají p50 1,0–2,4°, práh 10° je volná pojistka), takže gate dělá
+  přesně to, co má. **Můj předchozí návrh gate uvolnit beru zpět** — dokumentace opravena, aby
+  příští sezení nešlo po slepé stopě.
+  - **Co z toho zůstává užitečné:** 20 % cyklů toho záznamu je nemeasurovatelných z důvodu, který
+    v realitě nenastane, takže **statistiky nad ním jsou vychýlené** a nemá se používat jako „těžký"
+    referenční záznam. Tím padá i otevřená výhrada u `RegatePasses` (zhoršení nerovnoběžnosti
+    3,45° → 4,7° bylo měřeno právě tam, a na násypce není nerovnoběžnost metrikou kvality).
+  - **Kruhová varianta zapsána jako past:** gatovat proti `RoadAxisMatch.HeadingRelRad` znamená
+    gatovat proti odhadnutému kurzu, tedy proti tomu, co má koridor opravovat.
+- **Nová testovací mapa `OSM/SyntetickyRovny.osm` — 5× víc měření a 60 s bez jediného zamítnutí.**
+  Krok „delší rovná testovací mapa", odložený od 23. 8. Jeden rovný úsek, **160 m, konstantní
+  šířka 2,0 m**, žádná křižovatka, žádný slepý konec, žádná změna šířky — takže cokoli, co nad ní
+  vyjde jako nerovnoběžnost hranic, je chyba proložení, ne geometrie cesty.
+  - **Naměřeno** (70s bezobslužný běh, `selftest=true st_record=true`, záznam `20260824-113019`):
+    **921 přijatých koridorů z 962 cyklů (95,7 %)**, z toho **0–60 s je 100 % Ok** (822 cyklů, ani
+    jeden zamítnutý). Chyba šířky proti mapě p50 **0,002 m** (p90 0,007), příčný nesouhlas p50
+    **0,001 m**, nerovnoběžnost p50 **0,086°**, rezidua 0,027 m, inlierů ~267/270. Proti staré mapě
+    (178 měření za 40 s, nerovnoběžnost p50 1,0–2,4°) je to 5× víc měření, nerovnoběžnost o řád níž
+    a hlavně **statistika, která není vybíraná**. Záznam navíc nese `GroundTruthMsg`, takže je vidět
+    i skutečná chyba lokalizace: poloha p50 0,074 m, kurz p50 0,119°.
+  - **Netriviální věc, kterou to odhalilo:** robot startuje ve **středu obálky uzlů** — počátek
+    lokální ENU roviny zakládá `ARBotRuntime.BuildOriginFromMap` jako střed bounding boxu sítě.
+    Z mapy dlouhé *L* je tedy ve směru jízdy k dispozici jen *L/2*. První verze byla 80 m a robot
+    vždy dojel přesně na 40 m a otočil se — což vypadalo jako vada navigace, ale byl to korektní
+    příjezd do cíle. Pravidlo pro další mapy: na *N* sekund čisté jízdy při rychlosti *v* je potřeba
+    cesta dlouhá `2·(N·v + 10 m)` (těch 10 m je dohled kamery za konec).
+  - **Dvojnice `OSM/SyntetickyRovnyPosunuty.osm` je TUHÁ translace** (+0,60 m východ, −0,40 m sever)
+    pro `visionmap=`. Tím se **zavírá otevřený bod z 20. 8.**: `SyntetickyKoridorPosunuty.osm` má
+    posun náhodný per uzel, takže `MapCorrelator` nad ním nemá jednu správnou odpověď. Tady ji má:
+    korelace musí najít `(dx, dy) = (−0,60, +0,40) m, φ = 0`. To je falsifikovatelná předpověď.
+  - **Mapy jsou hlídané testem** (`SyntetickeMapyTests`, 7 testů): že je cesta přesně rovná,
+    konstantní šířky **i mezi uzly** (přes `RoadScene.IsRoad`, tedy tak, jak ji vidí kamera), že má
+    zadanou délku, žádnou křižovatku, a že posunutá dvojnice je od originálu **tímtéž vektorem
+    u všech uzlů**. Souřadnice se čtou přes `OsmXmlReader` + `GeoReference`, ne ručním přepočtem.
+    Mapa je měřicí přístroj, takže si zaslouží hlídání jako kód — obě vlastnosti se u staré mapy
+    nedodržely a stálo to práci.
+  - Souřadnice spočítány přes `GeoReference.ToLLA` na 9 desetinných míst (zpětný převod
+    zaokrouhlených hodnot sedí na **0,05 mm**; při 8 místech by to bylo 0,53 mm).
+  - Přidány profily v `launchSettings.json` a časová pásma v `ARBot.Analyze corridor` se už berou
+    **z délky záznamu** — bylo tam natvrdo 40 s, takže se u 70s jízdy posledních 30 s netisklo,
+    a právě tam koridor propadal.
+- **Přeměření estimátorů nad novou mapou: rozdíl je NULOVÝ, a odhalilo to +18 mm chybu šířky.**
+  Nová mapa umožnila zpřesnit i referenci: dosud se přesnost šířky měřila proti
+  `RoadCorridorMsg.MapWidth`, což **není šířka z mapy**, ale výstup `RoadWidthFilter.Estimate` —
+  filtr, který se z měření **učí**. Nad rovnou mapou je šířka známá (2,000 m) a osa je `y = 0`, takže
+  `corridorfit --truewidth=2.0 --axisy=0` měří **proti pravdě** (příčně a kurz proti
+  `GroundTruthMsg`; kamery renderují z ground truth, takže chyba proti pravdě je chyba *měření*).
+  - **Všech šest variant estimátoru vyšlo bit za bit stejně** (Ok 921, |šířka−pravda| 0,0176 /
+    0,0238 m, |příčně−pravda| 0,0030 / 0,0055 m, |kurz−pravda| 0,079°). Není to vada nástroje —
+    s `--huberk=0.25` se čísla pohnou. Mechanismus: **inlierů 270 při 265–270 bodech**, takže inliery
+    jsou *všechny* body, konsenzuální krok je no-op a každá varianta se redukuje na „prolož přímku
+    všemi body". Ze stejného důvodu **zmizel nedeterminismus RANSACu** (`Ok` 921–921 přes
+    12 opakování) — disciplína „12 opakování" je potřeba jen na těžkých datech.
+  - **Tím se oslabuje podpora pro `RegatePasses = 2`**, kterou jsem dopoledne zapsal: jeho jediné
+    příznivé měření (−8 až −15 % v chvostu) bylo proti tomu **filtru**, tedy proti mírně kruhové
+    referenci. Necháno zapnuté — koncepčně správnější algoritmus, na čistých datech neškodí a stojí
+    ~0 — ale v `CorridorConfig` i dokumentaci je teď napsané, že podložené to tak není.
+  - **Nový nález: šířka má systematickou odchylku +18 mm** (měřeno 2,018 m proti pravdě 2,000).
+    Proti filtru přitom vycházelo 0,002 m, takže **filtr tu odchylku schoval devítinásobně** —
+    přesně ta kruhovost, teď vyčíslená. Příčná poloha a kurz jsou naopak v pořádku: 3,0 mm a 0,079°.
+  - ~~**Negativní zjištění:** hlučnější proložení se simulačními parametry nevyrobí.~~ **Neplatí** —
+    ty parametry se vůbec neuplatňovaly, viz záznam o `VirtualHWOptions.Scene` níž. Sweep šumu je
+    potřeba zopakovat; o jeho vlivu na rezidua se zatím neví nic.
+- **Těch +18 mm dohledáno: nejmenší kvadráty sledují průměr, medián sedí správně.** Nový analyzátor
+  `ARBot.Analyze edgebias` převede každý hranový bod přes ground truth pózu do ENU a porovná ho se
+  známým okrajem `y = ±1,0 m` (256 302 bodů).
+  - **Surové body chybu nemají**: součet mediánů −0,9 mm, tedy implikovaná šířka 1,999 m. Ale
+    rozdělení je **zešikmené** (p10 −0,011, p90 +0,046, dlouhý chvost *ven* z cesty), takže součet
+    **průměrů** je **+13,3 mm** — a proložení nejmenšími kvadráty sleduje průměr, ne medián. Zbytek
+    k +18 mm dodá hradlování, které ustřihne vnitřní chvost. Proto se to dřív nenašlo: měřilo se
+    mediánem („medián sedí na okraji v každé vzdálenosti", 23. 8.) a to platí — proložení ale medián
+    nepoužívá.
+  - **Ověřeno opravou.** Huber s měřítkem z **MAD** (ne z tolerance): chyba šířky proti pravdě
+    0,0176 → **0,0061 m** (−65 %), p90 0,0238 → **0,0098** (−59 %), kurz 0,079 → 0,072°, a přijatých
+    cyklů o 4 **víc** (žádný selekční efekt). Replikuje se nad starou mapou: `104759` 0,0369 →
+    **0,0231** m a nerovnoběžnost 2,40° → **1,07°**; `105031` 0,0072 → **0,0046** m. Tři záznamy ze
+    dvou map. Cena 0,087 → 0,302 ms na dvojici.
+  - **Proč původní Huber nezabral — moje chyba v návrhu z rána.** Normalizoval rezidua **tolerancí**
+    inlieru, a ta je záměrně volná (na 5 m 0,85 m), takže centimetrová rezidua v jejích jednotkách
+    vyjdou ~0,05 — hluboko pod jakýmkoli `k`, váha nikdy nezabere. Odtud nový přepínač
+    `CorridorConfig.HuberUsesTolerance`. Mechanismus fixuje test
+    `ZesikmenySum_vychyliNejmensiKvadraty_aleNeHuberSMAD` (LS 11,6 mm, Huber s tolerancí 11,6 mm,
+    Huber s MAD 0,7 mm).
+  - **A zase totéž poučení:** rezidua se přitom **zhoršila** (0,0271 → 0,0280), zatímco přesnost se
+    ztrojnásobila. Kdo ladí na rezidua, tuhle opravu zamítne.
+  - **Nezapnuto** — `FitMode` zůstává `LeastSquares`. Není to o ceně (0,3 ms je ~0,2 % jádra při
+    7 Hz), ale o tom, že je to změna aktivního estimátoru na základě tří záznamů z jednoho
+    simulátoru. Čeká na rozhodnutí.
+- **Dotažení: proložení, které cílí medián (L1), je výrazně nejlepší.** Autorova otázka „nebylo by
+  tedy lepší použít proložení, které respektuje medián?" — ano, a měřením o hodně. Huberova váha má
+  v chvostu vliv **omezený, ale nenulový** (`k·s/|r|`), takže jednostranný chvost pořád tahá; proto
+  u ní zbylo 6 mm. Přidány `LineFitMode.OrthogonalL1` (IRLS s vahou `1/|r|`, tedy minimalizace
+  součtu absolutních odchylek) a `OrthogonalTukey` (redescendující, chvost utne úplně).
+  - **Proti pravdě** (`20260824-113019`): vychýlení šířky LS **+17,6 mm** → Huber MAD +6,1 →
+    **L1 +1,4 mm** (−92 %). A proti učebnicové intuici **klesl i rozptyl** (0,0111 → 0,0029), takže
+    to není výměna vychýlení za rozptyl — u zešikmeného těžkochvostého šumu je L1 lepší v obojím.
+    Příčná poloha 3,0 → **0,8 mm**, kurz 0,079 → 0,069°, nerovnoběžnost 0,082 → 0,064°, přijatých
+    o 5 víc. Cena 0,14 → 0,66 ms na dvojici (~0,5 % jádra při 7 Hz).
+  - **Zbytek 1,4 mm je předpovězený:** mediány odchylek bodů jsou −1,8 a +0,9 mm, součet −0,9 mm,
+    takže dokonalé mediánové proložení má skončit ~0,9 mm od pravdy. Mechanismus je tím uzavřený
+    kvantitativně.
+  - **Tukey není lepší** — vychýlení o chlup nižší (0,9 mm), ale utne chvost úplně, takže stojí na
+    méně bodech a je nestabilnější: rozptyl 0,0056 proti 0,0029 a nerovnoběžnost 0,113° proti 0,064°.
+    Pro tenhle šum je Huber příliš mírný a Tukey příliš tvrdý; L1 je mezi nimi správně.
+  - **Nad starými záznamy vypadá L1 „horší"**, ale referencí je tam filtr šířky, který se to
+    vychýlení naučil — opravený estimátor se s ním musí rozejít právě o těch ~18 mm, a přesně to se
+    stalo. Rozptyl je i tam u L1 nejmenší z celé sady.
+  - Test `L1_cili_median_ne_prumer`: na sadě, kde je průměr odchylek 14 mm a medián 0, dá LS 15,5 mm
+    a L1 **0,0 mm**.
+- **🐞 Nalezena a opravena vada: celá scéna simulace byla z UI i z příkazové řádky MRTVÁ.**
+  Autor hlásil, že sjízdnost nevidí trávu — nejdřív při 1 m, pak ani při 0,15 m, ani při 0,25 m.
+  Tři moje hypotézy padly (tráva nad výškou kamery, fit referenční roviny prokládaný trávou,
+  nativní SIMD transform); u druhé mě autor správně zastavil, že si mechanismus domýšlím —
+  měření pak ukázalo, že do fitu jde 591 buněk z cesty proti 162 z trávy, tedy cesta dominuje.
+  - **Skutečná příčina:** `VirtualHWOptions.Scene` měla výchozí `new SyntheticSceneOptions()`, takže
+    `options.Scene ?? VirtualScene` v `ARBotHW.SetVirtualHW` **nikdy** nespadl na sdílenou instanci.
+    Kamery renderovaly s výchozí scénou, zatímco `grassheight=` / `grassrough=` / `depthnoise=` se
+    tiše zapisovaly do `ARBotHW.VirtualScene`, ze kterého nikdo nerenderoval. Parser přitom hodnotu
+    přijal a vypsal, takže to vypadalo funkčně. `Sensors` tu vadu nemá (výchozí hodnotu nemá), proto
+    prokluz kol a biasy IMU z panelu fungovaly.
+  - **Jak se to našlo:** až měřením toho, co v běhu skutečně vzniklo. Nový `ARBot.Analyze grid` čte
+    polární grid **serializovaný ve snímcích**, tedy přesně to, co vidělo UI. Buňky v trávě měly
+    `MeanZ` p50 **−0,001 m** při nastavené trávě 0,25 m — což vyloučilo klasifikaci a ukázalo výš,
+    do renderu. Po opravě `MeanZ` **0,247 m** a v trávě **90 163 `Obstacle` proti 456 `Free`**
+    (dřív 547 proti 120 501).
+  - **Poučení, které stálo nejvíc:** tři hypotézy jsem postavil na úvaze a všechny byly špatné.
+    Rozhodlo teprve měření *výstupu běžící aplikace*, ne knihovny — moje testy celou dobu procházely,
+    protože renderer si options berou přímo a tu vadu v zapojení minou.
+  - `SetVirtualHW` teď vypisuje, **s čím se opravdu renderuje** (sdílená vs. vlastní instance
+    + efektivní hodnoty), aby taková regrese byla vidět hned. Unit test nejde — na `ARBot.csproj`
+    neodkazuje žádný testovací projekt.
+- **Opraveno taky: `RenderColor` se choval, jako by tráva byla papír bez výšky.** Na podnět autora
+  („za vysokou trávou se může schovat sjízdná cesta") — protínal jen rovinu vozovky `z = 0`, takže
+  vyvýšená tráva **nezakrývala cestu za sebou** a `grassheight=` neměla na vizuální cestu
+  (probability → `PathEdges` → koridor) žádný vliv. Teď používá tentýž `Trace` jako hloubka (obě
+  roviny včetně svislé stěny), jen bez omezení dosahu — barevná kamera vidí až k horizontu.
+  Na křižovatce je zaclonění odbočky vidět na snímku [grass-occlusion.png](media/grass-occlusion.png).
+  - **Cena: 2,2× pomalejší render** (89 → 40 snímků za 15 s). Proto je pro `grassheight=0` **a**
+    `grassrough=0` rychlá cesta s jedním průsečíkem, ekvivalentní původnímu kódu — výchozí stav
+    nestojí nic navíc (136 snímků za 15 s), platí jen ten, kdo trávu zvedne.
+  - **Past při psaní testu:** na rovné cestě zaclonit nelze (paprsek podél osy trávu nikdy nemine)
+    a tráva musí být **pod** úrovní kamery. Test proto staví robota 4 m vedle 2m cesty; první verze
+    testu selhala právě na tomhle (128 pixelů vozovky → 0 až po opravě geometrie).
+  - **Opravena i ta hláška** „Scéna je dokonalá rovina" — počítala se jen ze šumu hloubky a drsnosti,
+    takže tvrdila „dokonalá rovina" i při metr vysoké trávě. Není to kosmetika: při vyvýšené trávě
+    **není** zpětná projekce hranic exaktní, protože hraniční pixel může trefit svislou stěnu trávy
+    místo okraje vozovky. Opraveno na obou místech (banner v panelu `IsIdealPlane` i `Trace` z
+    `ApplySceneParams`, kde je nově i druhá varianta hlášky „vozovka rovná, ale tráva vyvýšená"),
+    plus `OnGrassHeightMChanged` teď banner přepočítá — dřív se při změně výšky neaktualizoval.
+    Stejné tvrzení opraveno i v komentářích u `ARBotHW.VirtualScene` a v `virtual-hw.md`.
+  - **Vizuální potvrzení celého řetězu:** [grass-traversability.png](media/grass-traversability.png)
+    — robot-centrický pohled s trávou 0,40 m: tráva po obou stranách červená (překážka), koridor
+    cesty zelený (sjízdný). Přesně to, co autor od `grassheight=` čekal a co půl dne nešlo.
+- **Vliv šumu scény doměřen — a vysvětluje to těch +18 mm.** Sweep nad `SyntetickyRovny.osm` proti
+  pravdě (`--truewidth=2.0 --axisy=0`), 30s běhy, tráva v rovině. Rezidua p50 / znaménkové vychýlení
+  šířky u LS / u L1:
+  - `0 / 0` → 0,0093 m, **−0,0017**, −0,0005
+  - `0,003 / 0,03` (výchozí) → 0,0269 m, **+0,0170**, +0,0012
+  - `0,02 / 0,03` → 0,0296 m, +0,0166, +0,0098
+  - `0,003 / 0,12` → 0,0856 m, **+0,0542**, **+0,0009**
+  - `0,02 / 0,12` → 0,0866 m, +0,0549, +0,0143
+  - **Drsnost trávy je dominantní, šum hloubky téměř nic.** `depthnoise` 6,7× nahoru změní rezidua
+    z 0,0269 na 0,0296; `grassrough` 4× nahoru je vyhodí na 0,0856. Podlaha přesnosti koridoru je
+    tedy daná **tvarem okraje trávy**, ne hloubkovým senzorem.
+  - **Vychýlení šířky je způsobené drsností a škáluje s ní** (−1,7 / +17,0 / +54,2 mm), šum hloubky
+    na něj nemá vliv. Tím se uzavírá kauzální řetěz z dopoledne: drsná tráva → zešikmené rozdělení
+    odchylek → LS sleduje průměr → šířka větší. **Bez šumu je vychýlení −1,7 mm**, takže v geometrii
+    samotné žádné není.
+  - **L1 to sráží tím víc, čím je hůř:** +54,2 → **+0,9 mm** (60×), nerovnoběžnost 0,427° → 0,068°.
+    Jediné, co neopraví, je šum hloubky — ten je symetrický, tedy to není zešikmení; při
+    `depthnoise=0.02` vychýlení L1 stoupne na +9,8 až +14,3 mm.
+  - **Důsledek:** ono „+18 mm" je **velikost artefaktu simulace** při výchozí drsnosti, ne předpověď
+    pro HW. Přenáší se mechanismus a léčba, ne to číslo. Argument pro `OrthogonalL1` je tím ale
+    výrazně silnější — při realistické drsnosti je to rozdíl 54 mm vs 1 mm.
+  - **Vedlejší efekt mé opravy `RenderColor`:** se zapnutou drsností jde barva pomalejší dvourovinnou
+    cestou, takže běh dá ~350–370 dvojic proti 560 při nulovém šumu. Rychlá cesta se uplatní jen při
+    `grassheight=0` **a** `grassrough=0`.
+- **Rozpracováno / další krok:**
+  - **Rozhodnout o `FitMode = OrthogonalL1`** (vychýlení šířky −92 %, rozptyl −74 %, příčně −73 %,
+    a všechno ostatní taky lepší). Nezapnuto — je to změna aktivního estimátoru podložená jedním
+    simulátorem; skutečná hranice trávy se může chovat jinak. `OrthogonalHuber` +
+    `HuberUsesTolerance = false` je slabší varianta téhož.
+  - ~~**Odkud je zešikmení** hranových odchylek~~ — **dohledáno**: z **drsnosti trávy**, vychýlení
+    s ní škáluje a bez šumu je nulové. Zbývá jen to, jestli se skutečná tráva chová stejně.
+  - ~~**Doměřit `RegatePasses`**~~ — **doměřeno a vráceno na 0.** Nad hlučnými daty
+    (`grassrough=0.12`, rezidua 0,0853 m), tedy přesně tam, kde mělo smysl mít, je to **no-op**:
+    LS vychýlení 0,0544 vs 0,0544, L1 0,0010 vs 0,0010, Tukey 0,0016 vs 0,0016. A je jasné proč —
+    práh inlieru `0,10 + 0,15·r` je **10× volnější než rezidua** (na 5 m 0,85 vs 0,085 m), takže
+    hradlování nemá co vyloučit a sada je vždy 266 z ~270 bodů. Zabralo by to jen při hrubých
+    outlierech nebo po utažení prahu. **Moje dopolední zapnutí bylo chybné** — stálo na měření proti
+    filtru šířky, tedy na kruhové referenci. Přepínač v kódu zůstává.
+  - **Přehradlování je podložené na konstantních úsecích** (čtyři záznamy, šířka z mapy 2,00 m).
+    Původní výhrada — zhoršení nerovnoběžnosti nad `20260822-100403` — padá: ten záznam je vychýlený
+    násypkou a na násypce není nerovnoběžnost metrikou kvality. Doměřit to na **konstantním, ale
+    skutečně těžkém** záznamu (dropouty, stín, tráva) s mapovou referencí zůstává otevřené.
+  - Zůstávají priority z 23. 8.: **delší rovná testovací mapa** a tři podmínky, než se korekce
+    pustí naostro. `corridor=` i `mapcorr=` jsou pořád vypnuté.
+- **Ověřeno:** `dotnet build Src/ARBot.slnx -p:Platform=x64` bez chyb, **783 testů prošlo** (nově
+  `LineFitTests`, 9 testů, plus tři testy přehradlování v `CorridorFinderTests`). Vše měřeno nad
+  záznamy, **na HW neověřeno** (a nemá to tam co změnit — koridor je vypnutý).
+- **Odkazy:** `Src/ARBot.Common/Common/LineFit.cs` (nový),
+  `Src/ARBot.Common/Localization/CorridorFinder.cs`, `CorridorConfig.cs`,
+  `Src/ARBot.Analyze/CorridorFitReport.cs` (nový),
+  [map-correlation-localization.md](map-correlation-localization.md),
+  [record-replay.md](record-replay.md).
+
 ## 2026-08-23
 
 - **Hranice se kreslily jednou pózou pro obě kamery — a stálo to až 2 m.** Autor se ptal, proč
