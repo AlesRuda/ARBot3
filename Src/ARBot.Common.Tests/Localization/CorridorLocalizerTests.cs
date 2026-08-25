@@ -382,7 +382,7 @@ public class CorridorLocalizerTests
         // Bod 5 m pred robotem (a 1 m vlevo) v case "then" = svetove (5, 1).
         var p = new Point2D(5, 1);
 
-        var moved = CorridorLocalizer.Reproject(new List<Point2D> { p }, then, now)[0];
+        var moved = CorridorSource.Reproject(new List<Point2D> { p }, then, now)[0];
 
         // Svetovy bod (5,1) videny z pozy (2,0,10 deg): posun (3,1) otoceny o -10 stupnu.
         double c = Math.Cos(-Conversions.Deg2Rad(10)), s = Math.Sin(-Conversions.Deg2Rad(10));
@@ -403,7 +403,7 @@ public class CorridorLocalizerTests
         var pose = new RobotState { X = 7, Y = -3, Theta = 1.1 };
         var pts = new List<Point2D> { new Point2D(1, 2), new Point2D(-4, 0.5) };
 
-        var moved = CorridorLocalizer.Reproject(pts, pose, pose);
+        var moved = CorridorSource.Reproject(pts, pose, pose);
 
         Assert.Multiple(() =>
         {
@@ -426,7 +426,7 @@ public class CorridorLocalizerTests
         var b = new RobotState { X = 3.0, Y = -2.0, Theta = -0.4 };
         var pts = new List<Point2D> { new Point2D(4, 1), new Point2D(8, -1.2) };
 
-        var back = CorridorLocalizer.Reproject(CorridorLocalizer.Reproject(pts, a, b), b, a);
+        var back = CorridorSource.Reproject(CorridorSource.Reproject(pts, a, b), b, a);
 
         Assert.Multiple(() =>
         {

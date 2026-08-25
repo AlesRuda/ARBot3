@@ -269,6 +269,42 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   ze simulačního záznamu a pustí tentýž kód, co poběží na zařízení. Ohlásil střední rozpor **2,78°**
   proti vnucenému **2,99°** (shoda do 0,2°) a potřebu 29 vzorků = 5,8 s. *Jinak by na HW jel kód,
   který nikdo nikdy neproměřil — a to je přesně ten druh věci, kterou se pak hledá den.*
+- **Mise FreeRun hotová.** Autor vybral misi jako další věc (reálné HW zatím nefunguje, takže
+  HW-gatované úkoly jsou zaparkované) a vložil před `RobotourMission` jednodušší misi: držet se
+  v **pravé polovině** koridoru, překážkám se vyhýbat lokální mapou, **bez mapové navigace**; když
+  koridor není, držet kurz. Pro homologaci a přesun mezi stanovišti. Zadání i rozbor:
+  [mission-freerun.md](mission-freerun.md).
+  - **Klíč k tomu, proč je ta mise malá:** je to **producent mrkve** a šev už existoval —
+    `ILocalGoalSink.SetGoal`. Occupancy grid, A\*, odstupy i rychlostní obálka se použily
+    **nezměněné**. Navíc `SetGoal` má parametr `corridorWidthM`, na který dosud nikdo nebyl zdrojem;
+    FreeRun ho má přirozeně.
+  - **Musel se ale vytáhnout `CorridorSource`.** `CorridorLocalizer` mapu **vyžaduje** (výjimka na
+    null `RoadNetwork`), ale párování dvou kamer, kompenzace pohybu mezi snímky a `CorridorFinder`
+    v něm jsou mapově nezávislé — a FreeRun potřebuje právě je. Duplikovat párování by bylo špatně:
+    je to ta nejchytřejší část toho kódu a stála nejvíc měření. Extrakce prošla **bez změny chování**
+    (existující testy koridoru zelené bez úpravy).
+  - **Naměřeno proti pravdě, dva běhy.** Na `SyntetickyRovny.osm` je osa `y = 0` a šířka 2 m, takže
+    pravda říká −0,5 m. Vyšlo **−0,502 / −0,503 m** (poslední čtvrtina běhu −0,503 / −0,505,
+    rozptyl ±2 cm), koridor dostupný u **618 z 619** a **578 z 579** cyklů.
+  - **Konfigurace: selektor `mission=none|freerun|robotour`**, ne booleovský přepínač — mise se
+    vylučují a dvě zapnuté zároveň by si přepisovaly mrkev. Neznámá hodnota **skončí hlášením**, ne
+    tichým ignorováním. Jediná ladicí konstanta je lookahead (`freerunlook=`).
+  - **Rozhodnutí autora, která formovala návrh:** koridor je *preference* (překážka vyhraje, do
+    plánovače se nesahá); odsazení *proporcionální* (`Width/4`, ne pevný odstup od hrany — ten by na
+    1m cestě poslal robota vlevo od osy); bez koridoru *hned* držet kurz (ne podržet poslední
+    koridor — to je zapsané jako známá léčba, kdyby to cukalo); ukončení jen obsluhou.
+  - **`MissionController` se bude jmenovat `RobotourMission`** a dělá se po FreeRunu. Společnou
+    abstrakci misí nezavádíme, dokud existuje jedna — až vznikne druhá, teprve se ukáže, co je
+    opravdu společné.
+  - **Vlastní vada, opravená hned:** můj test šumu kurzu virtuální GPS tvrdil *přesný* poměr 6× při
+    ~40 vzorcích a navíc sbíral vzorky během rozjezdu, kdy je při nízké rychlosti šum obrovský —
+    tedy tatáž chyba „měřit transient", jakou jsem ráno našel u σ. Realizovaný poměr kolísal 2,8–3,3
+    a assert byl flaky. Test teď tvrdí **směr** (rychleji je výrazně přesněji); přesnou σ hlídá
+    mapper, kde na ní záleží.
+- **Odkazy (FreeRun):** `Src/ARBot.Common/Missions/` (nové: `FreeRunMission`, `FreeRunConfig`,
+  `FreeRunResult`), `Src/ARBot.Common/Localization/CorridorSource.cs` (nový),
+  `Src/ARBot.Common/Logs/FreeRunMsg.cs` (nový), `Src/ARBot.Analyze/FreeRunReport.cs` (nový),
+  `CorridorLocalizer.cs`, `ARBotRuntime.cs`, [mission-freerun.md](mission-freerun.md).
 - **Odkazy:** `Src/ARBot.Analyze/HeadingReferencesReport.cs` (nový), `RecordFile.cs`,
   `Src/ARBot.Common/Runtime/DefaultMeasurementMapper.cs`, `Src/ARBot.Common/Fusion/FusionConfig.cs`,
   `Src/ARBot.HAL/Devices/GPS/VirtualGps.cs`, `Src/ARBot.HAL/Devices/VirtualSensorOptions.cs`,

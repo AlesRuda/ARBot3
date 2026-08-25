@@ -486,6 +486,25 @@ Potřebuje `measdiag=true` (jinak nejsou `MeasurementDiagMsg`) a pro poslední b
 > K téhle otázce musí být `visionmap` = `map` a skutečný drift (`wheelslip=`, `imubias=`). Posunutá
 > mapa je naopak to správné prostředí pro `sigma`, kde jde o známou odpověď.
 
+### `freerun`: jela mise v pravé polovině koridoru?
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- freerun Records/<zaznam>.rec --axisy=0 --truewidth=2.0
+```
+
+Tři bloky, a je podstatné je nesplést:
+
+1. **Měla mise co sledovat** — podíl cyklů, kde mrkev vznikla z koridoru, a rozpad důvodů. Bez toho
+   nic dalšího neváží: mise se může „držet vpravo" perfektně na dvou procentech cyklů.
+2. **Drží mise svůj vlastní cíl** — `Lateral` proti požadovanému `−Width/4`. Pozor, měří se **tím
+   samým koridorem**, který mrkev pokládal, takže je to trochu kruhové.
+3. **Proti pravdě** — `--axisy` a `--truewidth` zadají skutečnou osu a šířku, takže se příčná poloha
+   porovná s ground truth. Nekruhové, ale jen v simulaci. Pro `OSM/SyntetickyRovny.osm`:
+   `--axisy=0 --truewidth=2.0`.
+
+⚠️ **Rozjezd je v průměru zahrnutý a kazí ho** — robot startuje na ose, takže první sekundy se teprve
+srovnává. Report proto tiskne i **poslední čtvrtinu běhu** zvlášť; zajímá p50 a konec, ne průměr.
+
 ### `heading`: nesedí absolutní reference kurzu?
 
 Dá tři absolutní kurzy vedle sebe proti **pravdě**: `IMU yaw`, `GPS kurz` (course over ground)

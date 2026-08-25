@@ -68,6 +68,10 @@ namespace ARBot.Analyze
                                         Arg(args, "--skip", 0.0));
                         return 0;
                     case "corrections": CorrectionsReport.Run(rec); return 0;
+                    case "freerun":
+                        FreeRunReport.Run(rec, Arg(args, "--axisy", double.NaN),
+                                          Arg(args, "--truewidth", 0));
+                        return 0;
                     case "heading":
                         HeadingReferencesReport.Run(rec, args.Any(a => a == "--nogt"));
                         return 0;
@@ -132,6 +136,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  corrections co korekce z lokalizace SKUTECNE delaji, kdyz se pusti naostro:");
             Console.WriteLine("             velikost aplikovaneho kroku pozy (PoseJumpDetector), rozdeleni");
             Console.WriteLine("             NIS a gatingu podle zdroje, a chyba pozy proti ground truth");
+            Console.WriteLine("  freerun    jela mise FreeRun v prave polovine koridoru? (--axisy/--truewidth");
+            Console.WriteLine("             = skutecna osa a sirka cesty, pak se meri proti PRAVDE)");
             Console.WriteLine("  heading    absolutni reference kurzu vedle sebe proti pravde (IMU yaw,");
             Console.WriteLine("             GPS kurz, odhad fuze) - je bias kompasu observabilni BEZ mapy?");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");

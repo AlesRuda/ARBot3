@@ -66,12 +66,10 @@ namespace ARBot.Common.Localization
         private readonly RoadNetwork network;
         private readonly GeoReference origin;
         private readonly CorridorLocalizerConfig config;
-        private readonly CorridorFinder finder;
         private readonly RoadWidthFilter widths;
 
-        // Posledni hranicni body z kazde kamery (v ramci robotu) + jejich cas.
-        private readonly Dictionary<string, (DateTime T, List<Point2D> Left, List<Point2D> Right)> lastByCamera
-            = new Dictionary<string, (DateTime, List<Point2D>, List<Point2D>)>();
+        /// <summary>Mapove nezavisly zdroj koridoru — parovani kamer, kompenzace, prolozeni.</summary>
+        private readonly CorridorSource source;
 
         /// <param name="queueCapacity">Vstupni fronta snimku; <c>DropOldest</c> - kdyz stupen
         /// nestiha, je lepsi pracovat s nejnovejsim snimkem nez se zpozdovat.</param>
@@ -83,7 +81,7 @@ namespace ARBot.Common.Localization
             this.network = network ?? throw new ArgumentNullException(nameof(network));
             this.origin = origin ?? throw new ArgumentNullException(nameof(origin));
             this.config = config ?? new CorridorLocalizerConfig();
-            finder = new CorridorFinder(this.config.Corridor);
+            source = new CorridorSource(engine, this.config);
             widths = new RoadWidthFilter(this.config.WidthFilterAlpha);
         }
 
@@ -110,73 +108,25 @@ namespace ARBot.Common.Localization
         /// </summary>
         public CorridorFix Process(CameraFrame frame)
         {
-            if (frame?.PathEdges == null) return null;
-            Frames++;
+            // MAPOVE NEZAVISLA polovina (parovani kamer, kompenzace pohybu, prolozeni hranic) sedi
+            // v CorridorSource - potrebuje ji i FreeRunMission, ktera mapu nema. Viz
+            // doc/mission-freerun.md.
+            var src = source.Process(frame);
+            if (src == null) return null;
+            Frames = source.Frames;
 
-            var (left, right) = MetricPoints(frame.PathEdges);
-            string cam = frame.Name ?? string.Empty;
-            lastByCamera[cam] = (frame.TimeStamp, left, right);
-
-            // Poza k casu snimku se vyzvedne HNED a jen jednou. Pouziva ji kompenzace pohybu,
-            // mapova polovina i zprava. Driv se `GetStateAt` volalo dvakrat s tymz argumentem,
-            // a u cyklu, ktere padly na NoPair, vubec - takze zprava nemela cim promitnout
-            // usecky prolozeni do mapy. Viz CorridorFix.PoseX.
-            var pose = engine.GetStateAt(frame.TimeStamp);
-
-            // Druha kamera: nejblizsi cas z jineho jmena.
-            if (!TryPair(cam, frame.TimeStamp, out var other))
+            var pose = src.Pose;
+            if (!src.Ok)
             {
-                LastFix = WithPose(new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPair }, pose);
-                return null;
-            }
-
-            // KOMPENZACE POHYBU mezi snimky. Body druhe kamery jsou v ramci robotu z JEJIHO casu;
-            // mezitim robot popojel a pootocil se, takze slozit je s aktualnimi bez prepoctu
-            // znamena vyrobit si nerovnobeznost z niceho. Pri 1,2 m/s a 150 ms je to 0,18 m posunu.
-            //
-            // Prevadi se jen RELATIVNI pohyb mezi dvema casy (odometrie na desetiny sekundy),
-            // ne absolutni poza - merenie tedy zustava nezavisle na chybe lokalizace, coz je prave
-            // to, co z nej dela poctivy vstup do fuze. Viz doc/map-correlation-localization.md.
-            var otherLeft = other.Left;
-            var otherRight = other.Right;
-            double skewMs = Math.Abs((other.T - frame.TimeStamp).TotalMilliseconds);
-
-            if (config.CompensateCameraSkew && skewMs > config.NoCompensationSkewMs)
-            {
-                var poseThen = engine.GetStateAt(other.T);
-                if (pose == null || poseThen == null)
+                LastFix = WithPose(new CorridorFix
                 {
-                    // Bez pozy nelze prepocitat a bez prepoctu by to lhalo - radsi nic.
-                    LastFix = WithPose(new CorridorFix { Time = frame.TimeStamp, Reason = CorridorFixReason.NoPose }, pose);
-                    return null;
-                }
-
-                otherLeft = Reproject(otherLeft, poseThen, pose);
-                otherRight = Reproject(otherRight, poseThen, pose);
-            }
-
-            // Leva hranice od te kamery, ktera ji vidi lip; totez pro pravou.
-            var leftPts = left.Count >= otherLeft.Count ? left : otherLeft;
-            var rightPts = right.Count >= otherRight.Count ? right : otherRight;
-
-            var corridor = finder.Find(leftPts, rightPts);
-            var fix = WithPose(new CorridorFix { Time = frame.TimeStamp, Corridor = corridor }, pose);
-            if (!corridor.Ok)
-            {
-                fix.Reason = CorridorFixReason.NoCorridor;
-                LastFix = fix;
+                    Time = src.Time, Corridor = src.Corridor, Reason = src.Reason,
+                }, pose);
                 return null;
             }
 
-            // Robot MUSI byt uvnitr koridoru (s malou rezervou). Bez teto kontroly hlasil stupen
-            // platna merenia i pri pricne poloze 2,1 m od osy koridoru sirokeho 2 m - tedy metr
-            // mimo cestu, coz s tvrzenim "jsem na teto ceste" nejde dohromady.
-            if (Math.Abs(corridor.Lateral) > corridor.Width / 2 + config.MaxOutsideCorridorM)
-            {
-                fix.Reason = CorridorFixReason.OutsideCorridor;
-                LastFix = fix;
-                return null;
-            }
+            var corridor = src.Corridor;
+            var fix = WithPose(new CorridorFix { Time = src.Time, Corridor = corridor }, pose);
 
             if (pose == null)
             {
@@ -300,62 +250,6 @@ namespace ARBot.Common.Localization
                 }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"CorridorLocalizer: {ex}"); }
-        }
-
-        /// <summary>
-        /// Prepocte body z ramce robotu v case <paramref name="then"/> do ramce robotu v case
-        /// <paramref name="now"/>. Cistě rigidni transformace z ROZDILU obou poz - absolutni poloha
-        /// se vykrati, takze chyba lokalizace do vysledku nevstupuje.
-        /// </summary>
-        public static List<Point2D> Reproject(List<Point2D> pts, Fusion.RobotState then, Fusion.RobotState now)
-        {
-            if (pts == null || pts.Count == 0) return pts;
-
-            // p_svet = P_then + R(th_then) * p_then;  p_now = R(-th_now) * (p_svet - P_now)
-            //       => p_now = d + R(th_then - th_now) * p_then
-            double dth = then.Theta - now.Theta;
-            double cd = Math.Cos(dth), sd = Math.Sin(dth);
-
-            double ex = then.X - now.X, ey = then.Y - now.Y;
-            double cn = Math.Cos(now.Theta), sn = Math.Sin(now.Theta);
-            double dx = ex * cn + ey * sn;
-            double dy = -ex * sn + ey * cn;
-
-            var result = new List<Point2D>(pts.Count);
-            foreach (var p in pts)
-                result.Add(new Point2D(dx + p.X * cd - p.Y * sd,
-                                       dy + p.X * sd + p.Y * cd));
-            return result;
-        }
-
-        /// <summary>Metricke hranicni body snimku (uz je nese <see cref="PathEdge"/>).</summary>
-        private static (List<Point2D> left, List<Point2D> right) MetricPoints(List<PathEdge> edges)
-        {
-            var left = new List<Point2D>();
-            var right = new List<Point2D>();
-            foreach (var e in edges)
-            {
-                if (e.LeftPoint.A != 0) left.Add(new Point2D(e.LeftPoint.X, e.LeftPoint.Y));
-                if (e.RightPoint.A != 0) right.Add(new Point2D(e.RightPoint.X, e.RightPoint.Y));
-            }
-            return (left, right);
-        }
-
-        /// <summary>Najde snimek JINE kamery v casovem okne.</summary>
-        private bool TryPair(string camera, DateTime t,
-                             out (DateTime T, List<Point2D> Left, List<Point2D> Right) other)
-        {
-            other = default;
-            double best = double.MaxValue;
-            foreach (var kv in lastByCamera)
-            {
-                if (kv.Key == camera) continue;
-                double dt = Math.Abs((kv.Value.T - t).TotalMilliseconds);
-                if (dt > config.MaxCameraSkewMs || dt >= best) continue;
-                best = dt;
-                other = kv.Value;
-            }
-            return best < double.MaxValue;
         }
     }
 }

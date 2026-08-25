@@ -505,6 +505,63 @@ namespace ARBot.Robot
                 connections.Add(corridor.Output.Connect(stream));
             }
 
+            // MISE. Vylucuji se, takze se nevybiraji booleovskymi prepinaci jako ostatni stupne, ale
+            // jednim selektorem mission=. Dve mise zapnute zaroven by si prepisovaly mrkev a neslo
+            // by poznat, ktera vyhrala. Viz doc/mission-freerun.md.
+            string mission = (Program.GetParam("mission") ?? "none").Trim().ToLowerInvariant();
+            switch (mission)
+            {
+                case "":
+                case "none":
+                    break;
+
+                case "freerun":
+                    if (navigator == null)
+                    {
+                        Trace.WriteLine("mission=freerun, ale neni lokalni navigator -> mise se nezaklada.");
+                        break;
+                    }
+
+                    var freeRunCfg = new ARBot.Common.Missions.FreeRunConfig();
+                    // freerunlook= je JEDINA skutecna ladici konstanta mise (viz FreeRunConfig).
+                    double look = ReadDouble("freerunlook", freeRunCfg.LookaheadM);
+                    if (look != freeRunCfg.LookaheadM)
+                    {
+                        freeRunCfg.LookaheadM = look;
+                        Trace.WriteLine($"freerunlook={look:F2}: lookahead mrkve mise FreeRun.");
+                    }
+
+                    // Mise ma VLASTNI CorridorSource, ne ten z CorridorLocalizeru: jeho stupen
+                    // vubec nemusi byt zalozeny (corridor=false je vychozi) a hlavne vyzaduje mapu,
+                    // kterou FreeRun nema. Parovani snimku je bezstavove vuci mape, takze dva
+                    // zdroje vedle sebe si nevadi.
+                    var freeRun = new ARBot.Common.Missions.FreeRunMission(
+                        engine, navigator,
+                        new ARBot.Common.Localization.CorridorSource(engine),
+                        freeRunCfg);
+
+                    FreeRunMission = freeRun;
+                    stages.Add(freeRun);
+                    // Snimky kamer forwarduje ridici smycka po pullu (tyz zdroj jako LocalNavigator).
+                    connections.Add(loop.Output.Connect(freeRun));
+                    connections.Add(freeRun.Output.Connect(stream));
+                    Trace.WriteLine("mission=freerun: jizda v prave polovine koridoru, bez mapy "
+                                    + $"(lookahead {freeRunCfg.LookaheadM:F2} m).");
+                    break;
+
+                case "robotour":
+                    Trace.WriteLine("mission=robotour: RobotourMission jeste neexistuje "
+                                    + "(doc/robotour-mission.md) -> zadna mise nebezi.");
+                    break;
+
+                default:
+                    // Tise ignorovat neznamou misi by znamenalo "mise nebezi, i kdyz si ji nekdo
+                    // pral" - a to je presne ten druh chyby, ktery se pak hleda na soutezi.
+                    Trace.WriteLine($"mission={mission}: neznama mise (znam none|freerun|robotour) "
+                                    + "-> zadna mise nebezi.");
+                    break;
+            }
+
             // Odvozene vystupy stupnu -> Stream.
             connections.Add(loop.Output.Connect(stream));
 
@@ -639,6 +696,9 @@ namespace ARBot.Robot
         /// Viz doc/map-correlation-localization.md.
         /// </summary>
         public ARBot.Common.Localization.CorridorLocalizer CorridorLocalizer { get; private set; }
+
+        /// <summary>Bezici mise FreeRun, nebo <c>null</c> (viz <c>mission=</c>).</summary>
+        public ARBot.Common.Missions.FreeRunMission FreeRunMission { get; private set; }
 
         /// <summary>
         /// Zapne diagnostiku merenii ve fuzi podle parametru <c>measdiag=</c>, pokud je zadany.

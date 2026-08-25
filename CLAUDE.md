@@ -184,8 +184,17 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká. Pozor,
   **rezidua nejsou přesnost** a **méně přijatých při lepší geometrii není zlepšení** — obojí se
   tady už jednou spletlo.
-- [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`MissionController`): stavový
-  automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery. **Návrh, neimplementováno.**
+- [doc/mission-freerun.md](doc/mission-freerun.md) — **mise FreeRun** (`FreeRunMission`): jízda
+  v **pravé polovině** detekovaného koridoru, překážkám se vyhýbá lokální mapa, **bez mapové
+  navigace**; když koridor není, drží kurz. Pro homologaci a přesun mezi stanovišti. Je to
+  **producent mrkve** — sedí tam, kde jinak `GlobalNavigator`, a lokální vrstva se nemění.
+  **Hotové a ověřené proti pravdě** (usadí se na −0,503 m proti požadovaným −0,500, dva běhy),
+  **na HW neověřeno**. Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
+  takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
+- [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (dosud psaná jako
+  `MissionController`, **jmenovat se bude `RobotourMission`** — sourozenec `FreeRunMission`):
+  stavový automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery.
+  **Návrh, neimplementováno** — dělá se **po** FreeRunu.
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
   (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
 - [doc/virtual-hw.md](doc/virtual-hw.md) — virtuální HW (simulované senzory): `VirtualCamera` jako

@@ -1,5 +1,14 @@
 # Mise Robotour (`MissionController`) + čtení QR kódů
 
+> **Jméno se změní na `RobotourMission`** (rozhodnutí 25. 8. 2026) — sourozenec
+> [`FreeRunMission`](mission-freerun.md), která je hotová a dělala se **dřív**. Tento dokument ještě
+> mluví o `MissionController`; při implementaci se použije nové jméno.
+>
+> **Společnou abstrakci misí nezavádět předem** — až tahle mise vznikne, teprve se ukáže, co je
+> s FreeRunem opravdu společné. Vybírají se selektorem `mission=` (viz
+> [mission-freerun.md](mission-freerun.md#která-mise-běží-mission)), který `robotour` dnes hlásí jako
+> zatím neexistující.
+
 Nejvyšší vrstva řízení: **stavový automat soutěžní jízdy**. Zapamatuje si start/depo, přečte z **pravé
 kamery** QR kód s místem nakládky, dojede tam a zastaví, proběhne nakládka a přečtení dalšího QR kódu
 s místem vykládky, dojede tam, vyloží a **vrátí se do depa**.
