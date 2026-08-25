@@ -65,6 +65,53 @@ namespace ARBot.Common.Localization
             return den > 0.0 ? num / den : 0.0;
         }
 
+        /// <summary>
+        /// Kolik dukaznich bunek je <b>INFORMATIVNICH</b>: zmeni svuj verdikt "je tu cesta" mezi
+        /// kandidaty vzdalenymi <paramref name="h"/> od maxima. Vahovane <c>|w|</c>, aby slabsi
+        /// dukaz vazil min.
+        ///
+        /// <para><b>Nacpak.</b> Skore je normovany PODIL, takze o mnozstvi dukazu za sebou nevi nic
+        /// — a sigma odvozena z jeho zakriveni to nevi taky. Odtud "otevreny ukol c. 1": maly oblak
+        /// hlasi MENSI sigma nez velky (namereno 0,1412 proti 0,2737 m), protoze nema nudne bunky,
+        /// ktere by procento redily. Vsechny jeho bunky jsou u okraje, tedy informativni.</para>
+        ///
+        /// <para>Bunky daleko od okraje cesty souhlasi u KAZDEHO kandidata (travnik na travniku sedi,
+        /// at posunes kam chces), takze nic neurcuji. Rozliseni je prave tohle: <b>zmeni bunka
+        /// verdikt, kdyz kandidatem pohnu?</b> Tento pocet je to, co ma skalovat sigma — ne
+        /// <c>EvidenceCells</c>, kterych muze byt desetkrat vic a stejne nic neurcuji.</para>
+        /// </summary>
+        /// <param name="dx">Poloha maxima - posun na vychod [m].</param>
+        /// <param name="dy">Poloha maxima - posun na sever [m].</param>
+        /// <param name="phi">Poloha maxima - chyba kurzu [rad].</param>
+        /// <param name="h">Krok, na kterem se informativnost zkousi [m] (tyz jako krok derivace).</param>
+        public double InformativeWeight(double dx, double dy, double phi, double h)
+        {
+            double total = 0;
+            double c = Math.Cos(phi), s = Math.Sin(phi);
+
+            for (int i = 0; i < cloud.Count; i++)
+            {
+                double rx = cloud.X[i] - robotX;
+                double ry = cloud.Y[i] - robotY;
+                double qx = dx + robotX + (c * rx - s * ry);
+                double qy = dy + robotY + (s * rx + c * ry);
+
+                // Bunka je informativni, kdyz se jeji verdikt lisi aspon na jedne ose. "Mimo rastr"
+                // se pocita jako zmena jen tehdy, kdyz na druhe strane rastr JE - jinak by okraj
+                // rastru delal informativnost z niceho.
+                if (Flips(qx - h, qy, qx + h, qy) || Flips(qx, qy - h, qx, qy + h))
+                    total += Math.Abs(cloud.W[i]);
+            }
+            return total;
+
+            bool Flips(double ax, double ay, double bx, double by)
+            {
+                bool okA = raster.TryIsRoad(ax, ay, out bool a);
+                bool okB = raster.TryIsRoad(bx, by, out bool b);
+                return okA && okB && a != b;
+            }
+        }
+
         /// <summary>Tolerance rovnosti skore pri hledani maxima - viz remizove pravidlo v
         /// <see cref="Scan"/>.</summary>
         private const double TieEps = 1e-9;

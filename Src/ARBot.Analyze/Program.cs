@@ -62,6 +62,10 @@ namespace ARBot.Analyze
                         GridReport.Run(rec, (int)Arg(args, "--limit", 400),
                                        Arg(args, "--roadwidth", 2.0));
                         return 0;
+                    case "sigma":
+                        SigmaReport.Run(rec, Arg(args, "--truedx", double.NaN),
+                                        Arg(args, "--truedy", double.NaN));
+                        return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
@@ -117,6 +121,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             nad zaznamem pak proti skutecnym bodum");
             Console.WriteLine("  edgebias   odchylka hranicnich bodu od ZNAMEHO okraje vozovky (podle");
             Console.WriteLine("             hranice, kamery a vzdalenosti) - hleda systematickou chybu");
+            Console.WriteLine("  sigma      je sigma korelace s mapou poctiva? hlasena nejistota proti");
+            Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");

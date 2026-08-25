@@ -66,6 +66,29 @@ namespace ARBot.Common.Localization
         public double Alpha = 0.05;
 
         /// <summary>
+        /// Referencni mnozstvi <b>informativniho</b> dukazu, pri kterem plati
+        /// <see cref="Alpha"/> beze zmeny. Nula = skalovani vypnuto (puvodni chovani).
+        ///
+        /// <para><b>Nacpak to je — otevreny ukol c. 1 „honestni sigma".</b> Skore je normovany
+        /// PODIL souhlasicich bunek, takze o velikosti vzorku za sebou nevi nic. Sigma odvozena
+        /// z jeho zakriveni (× konstantni <see cref="Alpha"/>) to nevi taky. Je to jako s anketou:
+        /// tri dotazani se stoprocentni shodou vypadaji lip nez tri tisice s 94 %, ale verit se da
+        /// druhemu cislu.</para>
+        ///
+        /// <para><b>Dusledek byl obraceny, nez by clovek cekal:</b> maly oblak hlasil MENSI sigma
+        /// nez velky (2 214 bunek → 0,1412 m, 18 465 bunek → 0,2737 m), protoze nema nudne bunky
+        /// daleko od okraje, ktere by procento redily. Vetsi jistota tam, kde je podkladu nejmin.</para>
+        ///
+        /// <para><b>Oprava:</b> <c>alphaEff = Alpha · (ReferenceInformativeWeight / w_inf)</c>, kde
+        /// <c>w_inf</c> je vaha bunek, ktere skutecne rozlisuji mezi kandidaty (viz
+        /// <see cref="CorrelationScorer.InformativeWeight"/>). Sigma pak roste jako
+        /// <c>1/sqrt(w_inf)</c> — tedy presne tak, jak se chova smerodatna odchylka podilu.
+        /// Pri <c>w_inf = ReferenceInformativeWeight</c> vyjde tataz sigma jako driv, takze se
+        /// nemeni absolutni skala, jen jeji zavislost na mnozstvi dukazu.</para>
+        /// </summary>
+        public double ReferenceInformativeWeight = 0.0;
+
+        /// <summary>
         /// Krok numericke druhe derivace skore pro posun [m]. Musi byt VYRAZNE VETSI nez rozliseni
         /// rastru: skore je kvuli rastru schodovite, takze na 5 cm by druha derivace merila
         /// kvantizacni sum, ne zakriveni maxima.

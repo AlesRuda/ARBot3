@@ -40,6 +40,15 @@ namespace ARBot.Common.Logs
         public double SigmaPhi;
         /// <summary>Kolik bunek gridu vstoupilo do korelace.</summary>
         public int EvidenceCells;
+
+        /// <summary>
+        /// Vaha dukazu, ktery skutecne ROZLISUJE mezi kandidaty (bunky menici verdikt pri posunu
+        /// o krok derivace). <b>Neni totez co <see cref="EvidenceCells"/></b> — tech muze byt
+        /// desetkrat vic a stejne nic neurcovat, protoze travnik na travniku sedi, at posunes kam
+        /// chces. Prave tahle vaha ma skalovat sigma; viz
+        /// <c>MapCorrelatorConfig.ReferenceInformativeWeight</c>. Od verze 3; starsi zaznamy 0.
+        /// </summary>
+        public double InformativeWeight;
         /// <summary>Kolik kandidatu se vyhodnotilo.</summary>
         public int Candidates;
         /// <summary>Poslala se do fuze aspon jedna korekce? (OR pres tri priznaky niz.)</summary>
@@ -77,8 +86,9 @@ namespace ARBot.Common.Logs
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        /// <summary><b>Verze 2</b> (2026-08-21) pridala <see cref="DroppedByFusion"/>.</summary>
-        public MapCorrelationMsg() : base("MapCorrelationMsg", 2)
+        /// <summary><b>Verze 2</b> (2026-08-21) pridala <see cref="DroppedByFusion"/>,
+        /// <b>verze 3</b> (2026-08-25) <see cref="InformativeWeight"/>.</summary>
+        public MapCorrelationMsg() : base("MapCorrelationMsg", 3)
         {
         }
 
@@ -104,6 +114,7 @@ namespace ARBot.Common.Logs
             bw.Write(ProcessingMs);
             Write(bw, TimeStamp);
             bw.Write(DroppedByFusion);
+            bw.Write(InformativeWeight);
         }
 
         /// <summary>Zapis ve formatu verze 1 - jen pro test cteni starych zaznamu.</summary>
@@ -153,6 +164,8 @@ namespace ARBot.Common.Logs
             TimeStamp = ReadDateTime(br);
             // Verze 1 pocitadlo zahozeni nenesla - zustane 0 (starsi zaznamy se ctou dal).
             DroppedByFusion = Verze < 2 ? 0 : br.ReadInt64();
+            // Verze 3 pridala vahu informativniho dukazu - starsi zaznamy ji nemaji.
+            InformativeWeight = Verze < 3 ? 0.0 : br.ReadDouble();
         }
 
         public override Message Build() => new MapCorrelationMsg();

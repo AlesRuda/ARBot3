@@ -406,7 +406,15 @@ namespace ARBot.Robot
                 var correlator = new ARBot.Common.Localization.MapCorrelator(
                     engine,
                     new RoadScene(RoadNetwork, fusionConfig.GeoReference),
-                    new ARBot.Common.Localization.MapCorrelatorConfig { SendCorrections = sendCorrections },
+                    // mapcorrref= zapina skalovani sigma podle mnozstvi INFORMATIVNIHO dukazu
+                    // (otevreny ukol „honestni sigma"). Nula = puvodni chovani s konstantni Alpha.
+                    // Je to parametr, a ne rovnou vychozi hodnota, protoze se to musi promerit -
+                    // viz ARBot.Analyze sigma.
+                    new ARBot.Common.Localization.MapCorrelatorConfig
+                    {
+                        SendCorrections = sendCorrections,
+                        ReferenceInformativeWeight = ReadDouble("mapcorrref", 0),
+                    },
                     // Fronta musí unést plán z celého jednoho cyklu korelace (na ARM 100–200 ms
                     // proti periodě plánu 33 ms), jinak by DropOldest vytlačil zařazený snapshot.
                     queueCapacity: 16);
@@ -935,6 +943,21 @@ namespace ARBot.Robot
                     "Scena ma rovnou vozovku, ale trava je vyvysena (grassheight={0} m): zpetna "
                     + "projekce hranic NENI exaktni - hranicni pixel muze trefit stenu travy.",
                     scene.GrassHeightM));
+        }
+
+        /// <summary>Precte cislo z parametru prikazove radky; chybejici i nesmysl da <paramref name="fallback"/>.</summary>
+        private static double ReadDouble(string name, double fallback)
+        {
+            string raw = Program.GetParam(name);
+            if (string.IsNullOrWhiteSpace(raw)) return fallback;
+            if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out double v))
+            {
+                Trace.WriteLine($"{name}={v.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                return v;
+            }
+            Trace.WriteLine($"{name}={raw} neni cislo -> ignoruje se.");
+            return fallback;
         }
 
         /// <summary>Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.</summary>

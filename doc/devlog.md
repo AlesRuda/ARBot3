@@ -37,6 +37,55 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-25
+
+- **Otevřený úkol č. 1 „honestní σ" poprvé ZMĚŘEN — a opraven.** Dosud se vědělo *že* je σ korelace
+  s mapou nepoctivá, ne *o kolik*. Autor to vybral jako věc, kterou dotáhnout, protože gatuje celou
+  funkci: dokud σ lže, je ladění zbytku leštění vypnuté věci.
+  - **Přístroj: `ARBot.Analyze sigma`.** Kamery renderují z **tuze posunuté** mapy
+    (`visionmap=SyntetickyRovnyPosunuty.osm`), takže korelátor má **známou odpověď** a jde spočítat
+    skutečný rozptyl jeho chyby. To je test č. 1 z fáze 4, který nikdy nikdo neudělal — a přesně
+    k tomu ta tuhá dvojnice včera vznikla.
+  - **Tři kontroly, bez kterých by čísla nic neznamenala** (poučení z včerejška): robot za běh
+    nikam neujel (příčně 0,027 m), takže vnucený posun byl stálý; těsná osa vyšla přesně **90°**,
+    tedy tam, kam patří; a `Dx` je vždy 0,000 — podélná složka je správně nepozorovatelná.
+  - **Naměřeno:** hlášená σ je **1,43× optimističtější** než skutečný rozptyl. A inverze
+    z 20. 8. se potvrdila: nejmenší oblak (2 000–5 000 buněk) hlásil σ **0,0838 m**, tedy největší
+    jistotu ze všech, zatímco jeho skutečná chyba byla 0,225 m proti 0,100 m u velkého oblaku.
+    **Byl si nejjistější tam, kde se nejvíc mýlil.**
+  - **Oprava — váha informativního důkazu.** Skóre je normovaný podíl, takže o velikosti vzorku neví
+    nic a σ z jeho zakřivení × konstantní `α` taky ne. Doplněn počet buněk, které při posunu o krok
+    derivace **změní verdikt** (`CorrelationScorer.InformativeWeight`); `α` se jím škáluje, takže
+    `σ ~ 1/√w_inf` — přesně jak se chová směrodatná odchylka podílu. Naměřeno, že `w_inf` je jen
+    **33 %** buněk a kolísá **374 až 17 436** (47×), tedy přesně ta veličina, ke které byla σ slepá.
+  - **Výsledek:** inverze **pryč** — slabý důkaz teď hlásí σ 0,1954 m proti 0,1036 u silného, a ty
+    patologicky malé oblaky (3 724 buněk) zahodí strop σ sám, jak 20. 8. předvídáno. Celková
+    optimističnost 1,43× → **1,28×**.
+  - **Není to další ruční práh** (čehož se dokumentace bojí právem): je to přeparametrizování té
+    konstanty, která tam už byla. `α` bylo implicitně považováno za nezávislé na množství důkazu,
+    což je u podílu chyba; součin `α · w_ref` je jedna konstanta stejně jako bylo `α`.
+  - **Co to neřeší:** zbylých 1,28× je **časová korelace mezi cykly** (sousední cyklus koreluje
+    z téhož nahromaděného oblaku) — chyba není jen v hodnotě σ, ale i v počtu měření, kterými se
+    dělí. A odhalilo se **systematické vychýlení +0,10 m** (medián 0,50 proti pravdě 0,40), což je
+    přesnost, ne nejistota — samostatná, dosud nezkoumaná vada.
+  - **Nezapnuto** (`ReferenceInformativeWeight = 0`, zapíná se `mapcorrref=15000`): reference je
+    kalibrovaná na tuhle scénu a rozlišení gridu. `MapCorrelationMsg` verze 3 nese `InformativeWeight`.
+- **Vyřešen otevřený úkol z 22. 8.** — „sbíhající se hranice na rovném úseku, koridor se tam vypne
+  stoprocentně", vedený jako *skutečná vada*. Vadou nebyl: ten úsek rovný není. Počátek ENU je střed
+  obálky uzlů (`mapX = −11,5`), takže `appX −2..−8` je celé uvnitř **nálevky** (úsek D, 1 → 3 m na
+  10 m), která předpovídá 11,42° proti naměřeným 11,3° — shoda na 1 %. Vysvětluje to i to, proč tam
+  bylo *víc* inlierů než u přijatých cyklů.
+- **Ověřeno:** `dotnet build Src/ARBot.slnx -p:Platform=x64` bez chyb, **799 + 43 testů** prochází
+  (nově `HonestniSigma_ReferenceSkalujeSigmuOdmocninou`). Vše nad simulací, **na HW neověřeno**.
+- **Rozpracováno / další krok:**
+  - **Bezrozměrné vyjádření reference**, aby `ReferenceInformativeWeight` nebylo vázané na scénu
+    a rozlišení gridu — teprve pak z toho může být výchozí stav.
+  - **Časová korelace mezi cykly** — zbylých 1,28×; potřeba efektivní počet nezávislých měření.
+  - **Systematické vychýlení +0,10 m** korelátoru — nezkoumáno.
+- **Odkazy:** `Src/ARBot.Analyze/SigmaReport.cs` (nový),
+  `Src/ARBot.Common/Localization/CorrelationScorer.cs`, `CorrelationCovariance.cs`,
+  `MapCorrelatorConfig.cs`, [map-correlation-localization.md](map-correlation-localization.md).
+
 ## 2026-08-24
 
 - **Podnět „RANSAC má méně vážit vzdálené a odlehlé body“ — z třech kandidátů obstál jeden.**

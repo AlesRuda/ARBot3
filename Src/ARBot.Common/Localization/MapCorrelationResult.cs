@@ -78,6 +78,9 @@ namespace ARBot.Common.Localization
         /// <summary>Kolik bunek gridu vstoupilo do korelace.</summary>
         public int EvidenceCells;
 
+        /// <summary>Vaha dukazu, ktery ROZLISUJE mezi kandidaty (diagnostika k „honestni sigme").</summary>
+        public double InformativeWeight;
+
         /// <summary>Kolik kandidatu se vyhodnotilo (diagnostika ceny).</summary>
         public int Candidates;
 
@@ -146,6 +149,7 @@ namespace ARBot.Common.Localization
                 TightAxisAngle = cov.TightAxisAngle,
                 SigmaPhi = cov.SigmaPhi,
                 EvidenceCells = evidenceCells,
+                InformativeWeight = cov.InformativeWeight,
                 Candidates = scan.Candidates,
             };
 
@@ -219,6 +223,7 @@ namespace ARBot.Common.Localization
                 TightAxisAngle = TightAxisAngle,
                 SigmaPhi = SigmaPhi,
                 EvidenceCells = EvidenceCells,
+                InformativeWeight = InformativeWeight,
                 Candidates = Candidates,
                 Emitted = Emitted,
                 EmitTightAxis = EmitTightAxis,

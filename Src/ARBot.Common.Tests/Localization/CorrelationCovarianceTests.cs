@@ -25,6 +25,65 @@ public class CorrelationCovarianceTests
         return CorrelationCovariance.Estimate(scorer, scorer.Scan(cfg), cfg);
     }
 
+    /// <summary>
+    /// <b>Honestni sigma: mene informativniho dukazu = vetsi sigma.</b>
+    ///
+    /// <para>Skore je normovany PODIL souhlasicich bunek, takze o velikosti vzorku za sebou nevi nic
+    /// — a sigma z jeho zakriveni (× konstantni <c>Alpha</c>) to nevi taky. Nameřeno 20. 8. 2026:
+    /// oblak s 2 214 bunkami hlasil sigma 0,1412 m, oblak s 18 465 bunkami 0,2737 m — tedy VETSI
+    /// jistotu tam, kde je podkladu nejmin. Je to jako s anketou: tri dotazani se stoprocentni
+    /// shodou vypadaji lip nez tri tisice s 94 %.</para>
+    ///
+    /// <para><see cref="MapCorrelatorConfig.ReferenceInformativeWeight"/> to opravuje tim, ze
+    /// <c>Alpha</c> skaluje podle vahy dukazu, ktery skutecne ROZLISUJE mezi kandidaty. Test hlida
+    /// smer: pri poloviční referenci (tedy jako by bylo dvakrat MIN dukazu, nez kolik ho je) musi
+    /// sigma klesnout, pri dvojnasobne stoupnout — a to jako odmocnina, protoze
+    /// <c>sigma ~ sqrt(alpha)</c>.</para>
+    /// </summary>
+    [Test]
+    public void HonestniSigma_ReferenceSkalujeSigmuOdmocninou()
+    {
+        var origin = CorrelationTestScenes.Origin();
+        var network = CorrelationTestScenes.StraightEastRoad(origin);
+
+        CorrelationCovariance WithReference(double reference)
+        {
+            var scene = new RoadScene(network, origin);
+            var cfg = CorrelationTestScenes.TestConfig();
+            cfg.ReferenceInformativeWeight = reference;
+
+            var msg = CorrelationTestScenes.GridFromScene(scene, 0, 0, 0, 0, 0);
+            var cloud = EvidenceCloud.FromGrid(msg, cfg.EvidenceThreshold);
+            var raster = CorrelationTestScenes.RasterFor(scene, msg, cfg);
+            var scorer = new CorrelationScorer(cloud, raster, 0, 0);
+            return CorrelationCovariance.Estimate(scorer, scorer.Scan(cfg), cfg);
+        }
+
+        var off = WithReference(0);                 // puvodni chovani, konstantni Alpha
+        Assert.That(off.HasPeak, Is.True, "predpoklad testu");
+        Assert.That(off.InformativeWeight, Is.GreaterThan(0),
+                    "informativni vaha se pocita vzdy, i pri vypnutem skalovani (je to diagnostika)");
+
+        double w = off.InformativeWeight;
+        var atRef = WithReference(w);               // reference = skutecna vaha -> nic se nemeni
+        var half = WithReference(w / 2);            // jako by bylo dukazu 2x vic -> mensi sigma
+        var twice = WithReference(w * 2);           // jako by bylo dukazu 2x min -> vetsi sigma
+
+        TestContext.Out.WriteLine($"informativni vaha {w:F1}; sigma: vypnuto {off.SigmaTight:F4}, "
+                                  + $"ref=w {atRef.SigmaTight:F4}, ref=w/2 {half.SigmaTight:F4}, "
+                                  + $"ref=2w {twice.SigmaTight:F4}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(atRef.SigmaTight, Is.EqualTo(off.SigmaTight).Within(1e-9),
+                        "pri referenci rovne skutecne vaze musi vyjit TATAZ sigma jako bez skalovani");
+            Assert.That(half.SigmaTight, Is.LessThan(off.SigmaTight), "vic dukazu = mensi sigma");
+            Assert.That(twice.SigmaTight, Is.GreaterThan(off.SigmaTight), "min dukazu = vetsi sigma");
+            // sigma ~ sqrt(alpha), takze dvojnasobna reference da sqrt(2)x vetsi sigma.
+            Assert.That(twice.SigmaTight / off.SigmaTight, Is.EqualTo(Math.Sqrt(2)).Within(0.02));
+        });
+    }
+
     [Test]
     public void PrimaCesta_PodelnaSigmaJeVyrazneVetsiNezPricna()
     {

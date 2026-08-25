@@ -47,14 +47,18 @@ namespace ARBot.Common.Localization
         /// </summary>
         public bool HasPeak { get; }
 
+        /// <summary>Vaha dukazu, ktery ROZLISUJE mezi kandidaty - diagnostika k „honestni sigme".</summary>
+        public double InformativeWeight { get; }
+
         private CorrelationCovariance(double sigmaTight, double sigmaLoose, double tightAxisAngle,
-                                      double sigmaPhi, bool hasPeak)
+                                      double sigmaPhi, bool hasPeak, double informativeWeight = 0)
         {
             SigmaTight = sigmaTight;
             SigmaLoose = sigmaLoose;
             TightAxisAngle = tightAxisAngle;
             SigmaPhi = sigmaPhi;
             HasPeak = hasPeak;
+            InformativeWeight = informativeWeight;
         }
 
         /// <summary>Vysledek "zadne pouzitelne maximum" - volajici ma mlcet.</summary>
@@ -87,6 +91,25 @@ namespace ARBot.Common.Localization
             double h = cfg.HessianStepM, hp = cfg.HessianStepHeadingRad;
 
             double S(double dx, double dy, double dphi) => scorer.Score(dx, dy, dphi, 1);
+
+            // HONESTNI SIGMA: skore je normovany podil, takze o mnozstvi dukazu nevi nic a sigma
+            // z jeho zakriveni taky ne. Kompenzuje se to tim, ze se Alpha skaluje podle vahy
+            // INFORMATIVNIHO dukazu - bunek, ktere skutecne rozlisuji mezi kandidaty. Sigma pak
+            // roste jako 1/sqrt(w_inf), tedy jako smerodatna odchylka podilu.
+            // Nula v konfiguraci = skalovani vypnuto (puvodni chovani).
+            // Pocita se VZDY, i kdyz je skalovani vypnute: je to diagnostika, bez ktere nejde
+            // referencni hodnotu vubec zvolit, a stoji jeden pruchod oblakem proti stovkam,
+            // ktere uz udelalo skenovani.
+            double wInf = scorer.InformativeWeight(x, y, p, h);
+
+            double alpha = cfg.Alpha;
+            if (cfg.ReferenceInformativeWeight > 0)
+            {
+                // Podlaha: bez informativniho dukazu neni sigma velka, ale NEDEFINOVANA. Nechat
+                // deleni nulou vybuchnout by bylo horsi nez vratit hodne velkou sigma, kterou
+                // stejne zahodi strop.
+                alpha = cfg.Alpha * (cfg.ReferenceInformativeWeight / Math.Max(1e-6, wInf));
+            }
 
             double s0 = S(x, y, p);
 
@@ -126,17 +149,17 @@ namespace ARBot.Common.Localization
             // IDEALNI CESTA: -H je pozitivne definitni, da se invertovat a sigma kurzu vyjde
             // MARGINALNI (vazba phi <-> translace zohlednena).
             if (positiveDefinite)
-                return FromCovariance(cfg.Alpha * negH.Inverse(), cfg);
+                return FromCovariance(alpha * negH.Inverse(), cfg, wInf);
 
             // DEGRADOVANA CESTA. Na PRIME ceste je singularni -H NORMALNI STAV: posun podel cesty
             // nemeni nic, co robot vidi, takze podelna druha derivace je PRESNE nula. Zahodit kvuli
             // tomu cely vysledek by znamenalo neposlat na prime ceste NIC - a pricna korekce je
             // hlavni vystup cele funkce. Viz doc/map-correlation-localization.md.
-            return FromCurvature(-sxx, -sxy, -syy, -spp, -sxp, -syp, cfg);
+            return FromCurvature(-sxx, -sxy, -syy, -spp, -sxp, -syp, cfg, alpha, wInf);
         }
 
         /// <summary>Idealni pripad: sigma z KOVARIANCE (mensi vlastni cislo = lepe urcena osa).</summary>
-        private static CorrelationCovariance FromCovariance(Matrix<double> c, MapCorrelatorConfig cfg)
+        private static CorrelationCovariance FromCovariance(Matrix<double> c, MapCorrelatorConfig cfg, double wInf)
         {
             var e = Eigen2(c[0, 0], c[0, 1], c[1, 1]);
             // Nemelo by nastat: kdyz Cholesky prosla, je -H (a tedy i C) pozitivne definitni.
@@ -149,7 +172,7 @@ namespace ARBot.Common.Localization
             return new CorrelationCovariance(
                 Math.Max(Math.Sqrt(e.Min), cfg.SigmaFloorM),
                 Math.Max(Math.Sqrt(e.Max), cfg.SigmaFloorM),
-                e.MinAngle, sigmaPhi, hasPeak: true);
+                e.MinAngle, sigmaPhi, hasPeak: true, informativeWeight: wInf);
         }
 
         /// <summary>
@@ -165,12 +188,12 @@ namespace ARBot.Common.Localization
         /// <param name="axx">Prvky -H: translacni blok (axx, axy, ayy), kurz (app), vazba (axp, ayp).</param>
         private static CorrelationCovariance FromCurvature(double axx, double axy, double ayy,
                                                            double app, double axp, double ayp,
-                                                           MapCorrelatorConfig cfg)
+                                                           MapCorrelatorConfig cfg, double alpha, double wInf)
         {
             // Dva prahy "plocho", KAZDY VE SVYCH JEDNOTKACH: translace [skore/m^2], kurz
             // [skore/rad^2]. Michat je nelze - pri vychozich hodnotach se lisi 3283x.
-            double tol = cfg.Alpha / (cfg.SigmaCeilingM * cfg.SigmaCeilingM);
-            double tolPhi = cfg.Alpha / (cfg.SigmaCeilingHeadingRad * cfg.SigmaCeilingHeadingRad);
+            double tol = alpha / (cfg.SigmaCeilingM * cfg.SigmaCeilingM);
+            double tolPhi = alpha / (cfg.SigmaCeilingHeadingRad * cfg.SigmaCeilingHeadingRad);
 
             // TRANSLACE: vymarginalizovat kurz. Kdyz je plochy i kurz, korekce se vynecha - jinak by
             // se delilo skoro nulou.
@@ -200,20 +223,20 @@ namespace ARBot.Common.Localization
             // Zakriveni obracene na spatnou stranu = sedlo nebo minimum, ne maximum.
             if (e.Min < -tol) return NoPeak();
 
-            double sigmaTight = Math.Max(Math.Sqrt(cfg.Alpha / e.Max), cfg.SigmaFloorM);
+            double sigmaTight = Math.Max(Math.Sqrt(alpha / e.Max), cfg.SigmaFloorM);
             double sigmaLoose = e.Min > tol
-                ? Math.Max(Math.Sqrt(cfg.Alpha / e.Min), cfg.SigmaFloorM)
+                ? Math.Max(Math.Sqrt(alpha / e.Min), cfg.SigmaFloorM)
                 : double.PositiveInfinity;
 
             // KURZ: vymarginalizovat translaci. Plochy smer se VYNECHA (pseudoinverze) - je to
             // spravne osetreni "v tom smeru nevim nic", ne deleni nulou.
             double reducedPhi = app - TranslationAbsorbs(axp, ayp, axx, axy, ayy, tol);
             double sigmaPhi = reducedPhi > tolPhi
-                ? Math.Max(Math.Sqrt(cfg.Alpha / reducedPhi), cfg.SigmaFloorHeadingRad)
+                ? Math.Max(Math.Sqrt(alpha / reducedPhi), cfg.SigmaFloorHeadingRad)
                 : double.PositiveInfinity;
 
             return new CorrelationCovariance(sigmaTight, sigmaLoose, e.MaxAngle, sigmaPhi,
-                                             hasPeak: true);
+                                             hasPeak: true, informativeWeight: wInf);
         }
 
         /// <summary>

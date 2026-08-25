@@ -1392,6 +1392,69 @@ ani listí. Dál chování **na křižovatce**, kde koridor zaniká (gate ho zah
 podélná složka observabilní), a **jednostranná viditelnost** (v tomto záznamu byly obě hranice
 vidět z dvojice kamer po celou dobu).
 
+### Honestní σ: první měření a oprava (25. 8. 2026)
+
+Otevřený úkol č. 1 se dosud nikdy **nezměřil** — věděli jsme, *že* je σ nepoctivá, ne *o kolik*.
+
+**Přístroj:** `ARBot.Analyze sigma`. Kamery renderují z **tuze posunuté** mapy
+(`visionmap=OSM/SyntetickyRovnyPosunuty.osm` proti `map=OSM/SyntetickyRovny.osm`), takže korelátor
+má **známou odpověď** a jde spočítat skutečný rozptyl jeho chyby. Zadává se `--truedx/--truedy`.
+
+Kontroly, bez kterých by čísla nic neznamenala: robot za běh **nikam neujel** (příčně 0,027 m), takže
+vnucený posun byl stálý; těsná osa vyšla přesně **90°** (sever), tedy tam, kam na cestě vedoucí na
+východ patří; a `Dx` je vždy **0,000** — podélná složka je správně hlášená jako nepozorovatelná.
+
+#### Naměřeno
+
+| | před | po opravě |
+|---|---|---|
+| přijatých cyklů | 36 | 31 |
+| nejmenší oblak mezi přijatými | 3 724 buněk | 16 367 buněk |
+| σ u **slabého** důkazu | **0,0838 m** (nejmenší ze všech!) | **0,1954 m** (největší) |
+| σ u silného důkazu | 0,1058 m | 0,1036 m |
+| **skutečný rozptyl / hlášená σ** | **1,43×** | **1,28×** |
+
+**Inverze je pryč.** Před opravou hlásil nejmenší oblak (2 000–5 000 buněk) σ **0,0838 m** — tedy
+největší jistotu ze všech — zatímco jeho skutečná chyba byla 0,225 m proti 0,100 m u velkého oblaku.
+Byl si nejjistější tam, kde se nejvíc mýlil. Po opravě jsou tyhle oblaky buď zahozené stropem σ, nebo
+hlásí σ **dvojnásobnou** proti silnému důkazu.
+
+#### Jak
+
+Skóre je **normovaný podíl** souhlasících buněk (`S = Σ wᵢ·sgnᵢ / Σ|wᵢ|`), takže o velikosti vzorku
+za sebou neví nic — a σ odvozená z jeho zakřivení × **konstantní** `α` to neví taky. Oprava zavádí
+**váhu informativního důkazu**: buněk, které při posunu o krok derivace **změní verdikt**. Buňky
+daleko od okraje souhlasí u každého kandidáta (trávník na trávníku sedí, ať posuneš kam chceš), takže
+nic neurčují a jen ředí procento — a právě jich malý oblak nemá.
+
+```
+alphaEff = Alpha · (ReferenceInformativeWeight / w_inf)      σ ~ 1/√w_inf
+```
+
+To je přesně to, jak se chová směrodatná odchylka podílu. Naměřeno, že `w_inf` je jen **33 %** buněk
+a kolísá **374 až 17 436** (47×!) — tedy přesně ta veličina, ke které byla σ slepá.
+
+> **Není to další ruční práh** (čehož se [Testování](#testování) bojí právem). Je to
+> **přeparametrizování té, která tam už byla**: `α` bylo implicitně považováno za nezávislé na
+> množství důkazu, což je u podílu chyba. Součin `α · w_ref` je jedna konstanta, stejně jako bylo
+> `α` — jen teď má správné jednotky. Počet magických čísel se nezvýšil.
+
+Směr fixuje test `HonestniSigma_ReferenceSkalujeSigmuOdmocninou` (dvojnásobná reference → √2× větší
+σ, přesně).
+
+#### Co to NEŘEŠÍ
+
+Zbylých **1,28×** je jiná vada: cykly **nejsou nezávislé** (sousední koreluje z téhož nahromaděného
+oblaku — viz [Časová korelace mezi cykly](#časová-korelace-mezi-cykly-druhá-přiznaná-aproximace)),
+takže chyba není jen v hodnotě σ, ale i v počtu měření, kterými se dělí. Tuhle část oprava nepokrývá.
+
+Odhalilo se navíc **systematické vychýlení +0,10 m** (medián hlášeného posunu 0,50 m proti pravdě
+0,40 m). To je přesnost, ne nejistota — samostatná vada, dosud nezkoumaná.
+
+**Stav: naměřeno, NEZAPNUTO** (`ReferenceInformativeWeight = 0`). Referenční hodnota 15 000 je
+kalibrovaná na tuhle scénu a rozlišení gridu; než z toho bude výchozí stav, chce to buď měření na
+víc scénách, nebo bezrozměrné vyjádření. Zapíná se `mapcorrref=15000`.
+
 ## Otevřené úkoly
 
 - **⚠️ Šířkový nesouhlas po rozšíření párovacího okna** (naměřeno 2026-08-23, **nezkoumáno**).
@@ -1448,6 +1511,18 @@ vidět z dvojice kamer po celou dobu).
 
   Není to tedy křižovatkou — u ní to naopak funguje. Selhává to **na rovném otevřeném úseku**,
   a to stoprocentně.
+
+  **VYŘEŠENO 2026-08-24: nebyla to vada, byla to nálevka v testovací mapě.** Ten „rovný otevřený
+  úsek" rovný není. Počátek lokální ENU roviny je střed obálky uzlů, tedy `mapX = −11,5 m`, takže
+  `appX = mapX + 11,5`. Úsek `appX −2..−8 m` odpovídá `mapX −13,5..−19,5 m` — a to leží **celé
+  uvnitř úseku D** (`mapX −13..−23`), což je nálevka rozšiřující se z 1 m na 3 m na délce 10 m.
+  Ta dává hranicím vůči sobě `2·atan(1/10)` = **11,42°**, zatímco naměřeno bylo **11,3°**. Sedí to
+  na 1 %, a vysvětluje to i „symetrii" (±5,1° / ∓6,2° kolem osy) i to, proč tam bylo **víc** inlierů
+  než u přijatých cyklů — proložení bylo v pořádku, jen geometrie nebyla rovnoběžná.
+
+  Potvrzeno i z druhé strany: nad `OSM/SyntetickyRovny.osm` (skutečně konstantní šířka) dá stejné
+  měření **100 % `Ok` po prvních 60 s** a nerovnoběžnost p50 **0,086°**. Rozbor gate a nálevky:
+  [Gate rovnoběžnosti je v pořádku](#gate-rovnoběžnosti-je-v-pořádku-násypka-v-testovací-mapě-není-realistická-24-8-2026).
 
   **Co ukazují syrová data.** Zaznamenané hraniční body (`PathEdge.LeftPoint/RightPoint`
   v `CameraFrame`) **neleží na přímce**: největší odchylka od proložené přímky má medián 0,45 m
@@ -2181,6 +2256,9 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   > **normalizované**, takže o množství důkazu za sebou neví nic — a σ z jeho zakřivení (× konstantní
   > `α`) to nemůže vědět taky. Proto vyjde pro malý oblak σ **menší** (0,1412 proti 0,23–0,29 m):
   > větší jistota tam, kde je podkladu nejmíň. Není to druhá vada, je to táž vada z druhé strany.
+
+  **ZMĚŘENO A OPRAVENO 25. 8. 2026 — viz [Honestní σ: první měření a oprava](#honestní-σ-první-měření-a-oprava-25-8-2026).**
+  Přesně jak předvídáno: malý oblak dostane velkou σ a strop ho zahodí sám.
 
   **Rozhodnuto neopravovat zvlášť** (20. 8. 2026): až se σ naučí počítat, kolik informativního
   důkazu za ní stojí, tenhle případ zmizí sám — malý oblak dostane velkou σ, strop σ podélnou osu
