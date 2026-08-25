@@ -15,7 +15,10 @@ namespace ARBot.Common.Localization
     /// Tu resi kalibracni <see cref="MapCorrelatorConfig.Alpha"/> (ladi se ve fazi 4). POZOR: skore
     /// je "tent" (<c>S ~ 1 - k*|d|</c>), takze zakriveni je ~ <c>1/h</c> a sigma ~ <c>sqrt(h)</c> -
     /// absolutni skala zavisi i na <see cref="MapCorrelatorConfig.HessianStepM"/>. Obe se proto
-    /// ladi SPOLU a zmena kroku prepocita vsechny sigmy.</para>
+    /// ladi SPOLU a zmena kroku prepocita vsechny sigmy. <b>Se zapnutou honestni sigmou
+    /// (<see cref="MapCorrelatorConfig.ReferenceInformativeEvidence"/>) tato past MIZI</b>:
+    /// informativniho dukazu je take ~<c>h</c>, takze se obe zavislosti vykrati (drzi test
+    /// <c>HonestniSigma_ReferenceNezavisiNaKrokuDerivace</c>).</para>
     ///
     /// <para><b>ZNAMA VADA (otevreny ukol):</b> na ceste POD UHLEM k osam gridu vychazi podelne
     /// zakriveni nenulove, takze se hlasi FALESNA podelna jistota (namereno 0,18 m na sikme prime
@@ -47,18 +50,19 @@ namespace ARBot.Common.Localization
         /// </summary>
         public bool HasPeak { get; }
 
-        /// <summary>Vaha dukazu, ktery ROZLISUJE mezi kandidaty - diagnostika k „honestni sigme".</summary>
-        public double InformativeWeight { get; }
+        /// <summary>Dukaz, ktery ROZLISUJE mezi kandidaty [m² · log-odds] - diagnostika
+        /// k „honestni sigme"; viz <see cref="CorrelationScorer.InformativeEvidence"/>.</summary>
+        public double InformativeEvidence { get; }
 
         private CorrelationCovariance(double sigmaTight, double sigmaLoose, double tightAxisAngle,
-                                      double sigmaPhi, bool hasPeak, double informativeWeight = 0)
+                                      double sigmaPhi, bool hasPeak, double informativeEvidence = 0)
         {
             SigmaTight = sigmaTight;
             SigmaLoose = sigmaLoose;
             TightAxisAngle = tightAxisAngle;
             SigmaPhi = sigmaPhi;
             HasPeak = hasPeak;
-            InformativeWeight = informativeWeight;
+            InformativeEvidence = informativeEvidence;
         }
 
         /// <summary>Vysledek "zadne pouzitelne maximum" - volajici ma mlcet.</summary>
@@ -93,22 +97,23 @@ namespace ARBot.Common.Localization
             double S(double dx, double dy, double dphi) => scorer.Score(dx, dy, dphi, 1);
 
             // HONESTNI SIGMA: skore je normovany podil, takze o mnozstvi dukazu nevi nic a sigma
-            // z jeho zakriveni taky ne. Kompenzuje se to tim, ze se Alpha skaluje podle vahy
-            // INFORMATIVNIHO dukazu - bunek, ktere skutecne rozlisuji mezi kandidaty. Sigma pak
-            // roste jako 1/sqrt(w_inf), tedy jako smerodatna odchylka podilu.
+            // z jeho zakriveni taky ne. Kompenzuje se to tim, ze se Alpha skaluje podle mnozstvi
+            // INFORMATIVNIHO dukazu - bunek, ktere skutecne rozlisuji mezi kandidaty, merenych ve
+            // FYZIKALNICH jednotkach [m² * log-odds]. Sigma pak roste jako 1/sqrt(E_inf), tedy jako
+            // smerodatna odchylka podilu.
             // Nula v konfiguraci = skalovani vypnuto (puvodni chovani).
             // Pocita se VZDY, i kdyz je skalovani vypnute: je to diagnostika, bez ktere nejde
             // referencni hodnotu vubec zvolit, a stoji jeden pruchod oblakem proti stovkam,
             // ktere uz udelalo skenovani.
-            double wInf = scorer.InformativeWeight(x, y, p, h);
+            double eInf = scorer.InformativeEvidence(x, y, p, h);
 
             double alpha = cfg.Alpha;
-            if (cfg.ReferenceInformativeWeight > 0)
+            if (cfg.ReferenceInformativeEvidence > 0)
             {
                 // Podlaha: bez informativniho dukazu neni sigma velka, ale NEDEFINOVANA. Nechat
                 // deleni nulou vybuchnout by bylo horsi nez vratit hodne velkou sigma, kterou
                 // stejne zahodi strop.
-                alpha = cfg.Alpha * (cfg.ReferenceInformativeWeight / Math.Max(1e-6, wInf));
+                alpha = cfg.Alpha * (cfg.ReferenceInformativeEvidence / Math.Max(1e-9, eInf));
             }
 
             double s0 = S(x, y, p);
@@ -149,17 +154,17 @@ namespace ARBot.Common.Localization
             // IDEALNI CESTA: -H je pozitivne definitni, da se invertovat a sigma kurzu vyjde
             // MARGINALNI (vazba phi <-> translace zohlednena).
             if (positiveDefinite)
-                return FromCovariance(alpha * negH.Inverse(), cfg, wInf);
+                return FromCovariance(alpha * negH.Inverse(), cfg, eInf);
 
             // DEGRADOVANA CESTA. Na PRIME ceste je singularni -H NORMALNI STAV: posun podel cesty
             // nemeni nic, co robot vidi, takze podelna druha derivace je PRESNE nula. Zahodit kvuli
             // tomu cely vysledek by znamenalo neposlat na prime ceste NIC - a pricna korekce je
             // hlavni vystup cele funkce. Viz doc/map-correlation-localization.md.
-            return FromCurvature(-sxx, -sxy, -syy, -spp, -sxp, -syp, cfg, alpha, wInf);
+            return FromCurvature(-sxx, -sxy, -syy, -spp, -sxp, -syp, cfg, alpha, eInf);
         }
 
         /// <summary>Idealni pripad: sigma z KOVARIANCE (mensi vlastni cislo = lepe urcena osa).</summary>
-        private static CorrelationCovariance FromCovariance(Matrix<double> c, MapCorrelatorConfig cfg, double wInf)
+        private static CorrelationCovariance FromCovariance(Matrix<double> c, MapCorrelatorConfig cfg, double eInf)
         {
             var e = Eigen2(c[0, 0], c[0, 1], c[1, 1]);
             // Nemelo by nastat: kdyz Cholesky prosla, je -H (a tedy i C) pozitivne definitni.
@@ -172,7 +177,7 @@ namespace ARBot.Common.Localization
             return new CorrelationCovariance(
                 Math.Max(Math.Sqrt(e.Min), cfg.SigmaFloorM),
                 Math.Max(Math.Sqrt(e.Max), cfg.SigmaFloorM),
-                e.MinAngle, sigmaPhi, hasPeak: true, informativeWeight: wInf);
+                e.MinAngle, sigmaPhi, hasPeak: true, informativeEvidence: eInf);
         }
 
         /// <summary>
@@ -188,7 +193,7 @@ namespace ARBot.Common.Localization
         /// <param name="axx">Prvky -H: translacni blok (axx, axy, ayy), kurz (app), vazba (axp, ayp).</param>
         private static CorrelationCovariance FromCurvature(double axx, double axy, double ayy,
                                                            double app, double axp, double ayp,
-                                                           MapCorrelatorConfig cfg, double alpha, double wInf)
+                                                           MapCorrelatorConfig cfg, double alpha, double eInf)
         {
             // Dva prahy "plocho", KAZDY VE SVYCH JEDNOTKACH: translace [skore/m^2], kurz
             // [skore/rad^2]. Michat je nelze - pri vychozich hodnotach se lisi 3283x.
@@ -236,7 +241,7 @@ namespace ARBot.Common.Localization
                 : double.PositiveInfinity;
 
             return new CorrelationCovariance(sigmaTight, sigmaLoose, e.MaxAngle, sigmaPhi,
-                                             hasPeak: true, informativeWeight: wInf);
+                                             hasPeak: true, informativeEvidence: eInf);
         }
 
         /// <summary>

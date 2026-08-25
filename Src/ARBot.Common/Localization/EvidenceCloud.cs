@@ -29,9 +29,21 @@ namespace ARBot.Common.Localization
         /// <summary>LRoad [log-odds] vcetne znamenka.</summary>
         public float[] W { get; }
 
-        private EvidenceCloud(double[] x, double[] y, float[] w, int count)
+        /// <summary>
+        /// Plocha jedne bunky [m²] - z gridu, ze ktereho oblak vznikl.
+        ///
+        /// <para><b>Nacpak:</b> pocet bunek NENI mnozstvi informace. Pri dvojnasobnem rozliseni je
+        /// bunek ctyrikrat vic, i kdyz robot nevidi ani o kousek vic sveta - jsou to tytez hloubkove
+        /// pixely rozkrajene jemneji. Kdykoli se tedy z poctu bunek dela velicina, ktera se ma
+        /// srovnavat mezi konfiguracemi, musi se prenasobit plochou bunky. Viz
+        /// <see cref="CorrelationScorer.InformativeEvidence"/> a honestni sigma
+        /// v doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public double CellArea { get; }
+
+        private EvidenceCloud(double[] x, double[] y, float[] w, int count, double cellArea)
         {
-            X = x; Y = y; W = w; Count = count;
+            X = x; Y = y; W = w; Count = count; CellArea = cellArea;
         }
 
         /// <summary>
@@ -64,7 +76,8 @@ namespace ARBot.Common.Localization
                 }
             }
 
-            return new EvidenceCloud(xs.ToArray(), ys.ToArray(), ws.ToArray(), ws.Count);
+            return new EvidenceCloud(xs.ToArray(), ys.ToArray(), ws.ToArray(), ws.Count,
+                                     msg.Resolution * msg.Resolution);
         }
     }
 }

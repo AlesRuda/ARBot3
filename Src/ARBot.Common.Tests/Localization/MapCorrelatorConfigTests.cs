@@ -73,6 +73,25 @@ public class MapCorrelatorConfigTests
                     Throws.TypeOf<ArgumentException>());
     }
 
+    /// <summary>
+    /// Reference honestni sigmy je od 25. 8. 2026 vecer ve FYZIKALNICH jednotkach (m²·log-odds),
+    /// ne v poctech bunek. Stara hodnota <c>15000</c> se v dokumentaci i v prikazovych radkach
+    /// nosila cely den, takze musi skoncit vyjimkou - v novych jednotkach by znamenala 400x vic
+    /// dukazu, tedy dvacetkrat vetsi sigmu, a vsechna merenia by TISE spadla pod strop.
+    /// </summary>
+    [Test]
+    public void Validate_ReferenceVeStarychJednotkach_Vyhodi()
+    {
+        Assert.That(() => new MapCorrelatorConfig { ReferenceInformativeEvidence = 15000 }.Validate(),
+                    Throws.TypeOf<ArgumentException>(),
+                    "hodnota v poctech bunek nesmi projit jako fyzikalni udaj");
+        Assert.That(() => new MapCorrelatorConfig { ReferenceInformativeEvidence = -1 }.Validate(),
+                    Throws.TypeOf<ArgumentException>());
+        // Prepocet stare hodnoty pri 5cm bunce (15000 x 0,0025) projit MUSI.
+        Assert.That(() => new MapCorrelatorConfig { ReferenceInformativeEvidence = 37.5 }.Validate(),
+                    Throws.Nothing);
+    }
+
     [Test]
     public void Validate_DolniHraniceSigmaNadHorni_Vyhodi()
     {
@@ -120,6 +139,29 @@ public class MapCorrelatorConfigTests
         // Zaporna marze by prah dostala NAD maximum a test nejednoznacnosti by se obratil.
         Assert.That(() => new MapCorrelatorConfig { AmbiguityMargin = -0.01 }.Validate(),
                     Throws.TypeOf<ArgumentException>());
+    }
+
+    /// <summary>
+    /// <b>Odstup korelaci musi byt aspon dekorelacni cas.</b>
+    ///
+    /// <para>Grid drzi ~2,5 s historie, takze dva blizsi cykly koreluji z velke casti TEHOZ oblaku —
+    /// jejich chyby nejsou nezavisle, ale fuze je jako nezavisle bere. Namereno 25. 8. 2026 na trech
+    /// bezech: dekorelacni cas 2,85 / 2,93 / 3,31 s, a to <b>pri periodach 1,17 / 1,56 / 1,66 s</b>,
+    /// tedy nezavisle na vzorkovani — je to fyzikalni konstanta scény.</para>
+    ///
+    /// <para>Test drzi DOLNI hranici, ne presnou hodnotu: kdyby nekdo vratil puvodnich 400 ms
+    /// (kdy byl tento prah v praxi mrtvy, protoze cyklus stoji 1,3 s), fuze by zase scitala
+    /// dvojnasobek informace, nez kolik ji dostava.</para>
+    /// </summary>
+    [Test]
+    public void Vychozi_OdstupKorelaciPokryvaDekorelacniCas()
+    {
+        var cfg = new MapCorrelatorConfig();
+
+        Assert.That(cfg.MinPeriod.TotalSeconds, Is.GreaterThanOrEqualTo(2.5),
+                    "pod pameti gridu (~2,5 s) prestavaji byt merenia nezavisla");
+        Assert.That(cfg.MinPeriod.TotalSeconds, Is.LessThanOrEqualTo(10.0),
+                    "prilis dlouhy odstup uz jen zahazuje pouzitelnou informaci");
     }
 
     [Test]

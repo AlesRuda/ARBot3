@@ -86,9 +86,40 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `mapcorr=true`. Korekce samotné posílat umí (`SendCorrections`, dřív `Enabled`), okno EKF je 3 s.
   **Tři podmínky, než korekce pustit naostro** (honestní σ, rychlostní limit, strop na nesouhlas
   s GPS) — viz [doc/decisions.md](doc/decisions.md); do jejich splnění nemá smysl ladit současné
-  chování. Otevřené vady: σ slepá k množství důkazu, `TightAxisAngle` vychýlená ~6,3°,
-  **korekce kurzu je ve fúzi bezmocná** (IMU kompas ji přehlasuje ~200:1 a soft gating ji
-  u velkých chyb udusí, naměřeno 22. 8. 2026).
+  chování. **Honestní σ (podmínka 1) poprvé změřena a opravena 25. 8. 2026:** hlášená σ byla
+  **1,43× optimističtější** než skutečný rozptyl a nejmenší oblak hlásil **největší** jistotu
+  (0,0838 m při skutečné chybě 0,225 m). Léčba: `α` škálovat **vahou informativního důkazu** (buňky,
+  které při posunu o krok derivace změní verdikt) → `σ ~ 1/√E_inf`; inverze pryč, optimističnost
+  1,43× → 1,28×. **Od 25. 8. večer ZAPNUTO ve výchozím stavu** (`ReferenceInformativeEvidence = 37,5`,
+  `mapcorrref=0` vrátí konstantní `α` pro A/B) — reference je teď **fyzikální veličina**
+  (m²·log-odds, ne počet buněk), takže σ nezávisí ani na rozlišení gridu (surová váha se lišila 4×,
+  σ 2×), ani na kroku derivace (dřív `σ ~ √h`; **tu past to odstranilo mimochodem** — krokem se proto
+  schválně nedělí). Stará hodnota `15000` skončí výjimkou z `Validate()`. `MapCorrelationMsg` je
+  verze 4 a hodnotu z verze 3 zahazuje (jiné jednotky).
+  Měří to `ARBot.Analyze sigma` proti **tuze posunuté** mapě, tedy proti známé odpovědi.
+  **Časová korelace mezi cykly změřena a vyřešena 25. 8. 2026 večer:** dekorelační čas **~3 s**
+  (2,85/2,93/3,31 na třech bězích — a je to fyzikální konstanta, protože tytéž běhy měly periodu
+  odlišnou o 42 %), činitel nadsazení informace 1,88–2,44. Léčba: **`MinPeriod` 400 ms → 3 s**, takže
+  každé měření je nezávislé konstrukcí (po změně ρ(1) **záporná**, činitel 1,00). Druhý důvod pro
+  tentýž odstup: cyklus stojí **1,31 s**, tedy **celé jádro** — starší údaj „~126 ms / čtvrt jádra"
+  byl o řádek mimo; při odstupu 3 s je to ~40 %. Ta 400ms hranice byla v praxi mrtvá.
+  ⚠️ **Přitom se našla past v samotném měřidle, která posunula všechna dosavadní čísla:** korelátor
+  hlásí posun proti **odhadu** pózy, takže správná odpověď je „posun mapy **+ vlastní chyba fúze**".
+  Ta druhá složka v měřidle chyběla (p50 0,105 m!), takže se **chyba fúze účtovala korelátoru**.
+  Po jejím odečtení padají **dvě dosud vedené vady**: „σ optimistická 1,28–1,43×" (zbylo 1,03–1,17×,
+  a přísnější test `sd(z) = 0,78–0,87` říká, že je σ naopak o ~15 % **konzervativní**) a
+  „systematické vychýlení +0,10 m" (bylo to vychýlení **fúze**, hlášené správně; zbytek 0,007–0,023 m
+  je pod krokem skenu 0,05 m). **Poctivost σ měř `sd(z)`, ne poměrem souhrnů** — σ se cyklus od cyklu
+  mění 3× a velké chyby padají právě na cykly s velkou σ. Léčba té pasti: **póza, proti které se
+  korelovalo, cestuje ve zprávě** (`MapCorrelationMsg` verze 5, `PoseX/PoseY/PoseTheta` + `HasPose`,
+  stejná konvence jako `RoadCorridorMsg`) — dohledávat ji podle razítka nepřežije seek. Změřeno, že
+  ta dřívější aproximace lhala jen o **0–4 mm** (max 35 mm), takže závěry platí.
+  **Podmínka č. 1 („honestní σ") je splněná:** σ je přes pět běhů `sd(z) = 0,70–0,87` (~0,80), tedy
+  asi **1,25× konzervativní** — a to se **vědomě neopravuje**, protože zmenšit σ = zvětšit autoritu
+  korelátoru proti GPS, což je přesně to, co zbylé dvě podmínky gatují. Naostro tedy dál gatují
+  podmínky 2 a 3 (rychlostní limit, strop na nesouhlas s GPS).
+  Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°, **korekce kurzu je ve fúzi bezmocná**
+  (IMU kompas ji přehlasuje ~200:1 a soft gating ji u velkých chyb udusí, naměřeno 22. 8. 2026).
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
   „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*

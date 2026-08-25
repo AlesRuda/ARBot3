@@ -171,6 +171,15 @@ namespace ARBot.Common.Localization
             var result = MapCorrelationResult.From(msg.TimeStamp, scan, cov, cloud.Count,
                                                    rivalTight, rivalLoose, config);
 
+            // Poza, PROTI KTERE se korelovalo. Musi cestovat ve vysledku (a dal ve zprave): Dx/Dy je
+            // posun proti NI, takze bez ni nejde poznat, jestli je nenulovy posun chybou korelatoru,
+            // nebo chybou pozy, kterou korelator spravne nasel. Dohledavat ji pozdeji podle razitka
+            // je past - viz MapCorrelationResult.PoseX.
+            result.PoseX = pose.X;
+            result.PoseY = pose.Y;
+            result.PoseTheta = pose.Theta;
+            result.HasPose = true;
+
             sw.Stop();
             result.ProcessingTime = sw.Elapsed;
 

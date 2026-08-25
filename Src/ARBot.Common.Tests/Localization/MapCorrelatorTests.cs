@@ -55,6 +55,40 @@ public class MapCorrelatorTests
         Assert.That(correlator.ProcessedCycles, Is.EqualTo(1));
     }
 
+    /// <summary>
+    /// Vysledek nese POZU, proti ktere se korelovalo — a je to poza Z FUZE, ne nula.
+    ///
+    /// <para>Bez ni je <c>Dx</c>/<c>Dy</c> neinterpretovatelne (je to posun proti TE poze), takze
+    /// se nedá odlisit chyba korelatoru od chyby pozy, kterou korelator spravne nasel. Presne tahle
+    /// zamena zkreslila mereni poctivosti sigma 25. 8. 2026.</para>
+    /// </summary>
+    [Test]
+    public void Process_NeseSPozouProtiKtereKoreloval()
+    {
+        var scene = StraightRoad();
+        var engine = new AsyncFusionEngine(new EKFModel());
+        var seed = T0;
+        // Poloha jasne mimo nulu, aby "nevyplneno" nebylo k nerozeznani od spravne hodnoty.
+        engine.InitializePosition(3.0, -1.5, 0.5, seed);
+        engine.Enqueue(new PositionMeasurement(3.0, -1.5, 0.5, 0.5, seed, "GPS"));
+        engine.Enqueue(new HeadingMeasurement(0, 0.05, seed, "Compass"));
+
+        var correlator = new MapCorrelator(engine, scene, CorrelationTestScenes.TestConfig());
+        var msg = CorrelationTestScenes.GridFromScene(scene, 3.0, -1.5, 0.0, 0.3, 0.0);
+        var result = correlator.Process(msg);
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.HasPose, Is.True);
+        Assert.That(result.PoseX, Is.EqualTo(3.0).Within(0.5), "poza je z fuze, ne nula");
+        Assert.That(result.PoseY, Is.EqualTo(-1.5).Within(0.5));
+        // A musi to prezit i prevod na zpravu - tam se to teprve dostane do zaznamu.
+        var log = result.ToLogMessage();
+        Assert.That(log.HasPose, Is.True);
+        Assert.That(log.PoseX, Is.EqualTo(result.PoseX).Within(1e-9));
+        Assert.That(log.PoseY, Is.EqualTo(result.PoseY).Within(1e-9));
+        Assert.That(log.PoseTheta, Is.EqualTo(result.PoseTheta).Within(1e-9));
+    }
+
     [Test]
     public void Process_BezPozy_ZahodiSnimek()
     {

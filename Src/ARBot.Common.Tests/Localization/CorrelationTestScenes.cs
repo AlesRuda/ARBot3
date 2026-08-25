@@ -119,30 +119,37 @@ internal static class CorrelationTestScenes
     /// na q' = R(phi0)*(q - p) + p + (dx0, dy0). Do gridu se tedy zapise, co mapa rika o q'.
     /// Spravna odpoved korelace je pak presne (dx0, dy0, phi0).</para>
     /// </summary>
+    /// <param name="size">Bunek na stranu; vychozi <see cref="GridSize"/>.</param>
+    /// <param name="resolution">Velikost bunky [m]; vychozi <see cref="Resolution"/>.
+    /// <b>Nacpak parametr:</b> testy nezavislosti na rozliseni potrebuji TENTYZ vyrez sveta
+    /// pokryty jinak hustou mrizi (napr. 96 bunek po 10 cm proti 192 po 5 cm), aby se dalo
+    /// odlisit "vic informace" od "jen vic bunek". Viz honestni sigma
+    /// v doc/map-correlation-localization.md.</param>
     public static OccupancyGridMsg GridFromScene(RoadScene scene, double robotX, double robotY,
-                                                 double dx0, double dy0, double phi0)
+                                                 double dx0, double dy0, double phi0,
+                                                 int size = GridSize, double resolution = Resolution)
     {
-        int originX = (int)Math.Floor(robotX / Resolution) - GridSize / 2;
-        int originY = (int)Math.Floor(robotY / Resolution) - GridSize / 2;
+        int originX = (int)Math.Floor(robotX / resolution) - size / 2;
+        int originY = (int)Math.Floor(robotY / resolution) - size / 2;
 
         var msg = new OccupancyGridMsg
         {
-            Size = GridSize,
-            Resolution = Resolution,
+            Size = size,
+            Resolution = resolution,
             OriginX = originX,
             OriginY = originY,
             Scale = 0.05f,
             BlockedThreshold = 1.0f,
             FreeThreshold = -1.0f,
-            Occ = new sbyte[GridSize * GridSize],
-            Road = new sbyte[GridSize * GridSize],
+            Occ = new sbyte[size * size],
+            Road = new sbyte[size * size],
             TimeStamp = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc),
         };
 
         double c = Math.Cos(phi0), s = Math.Sin(phi0);
-        for (int j = 0; j < GridSize; j++)
+        for (int j = 0; j < size; j++)
         {
-            for (int i = 0; i < GridSize; i++)
+            for (int i = 0; i < size; i++)
             {
                 double qx = msg.CenterX(i), qy = msg.CenterY(j);
                 double rx = qx - robotX, ry = qy - robotY;
@@ -151,7 +158,7 @@ internal static class CorrelationTestScenes
 
                 // -1 = cesta, +1 = mimo cestu (log-odds NEPRUJEZDNOSTI).
                 float logOdds = scene.IsRoad(tx, ty) ? -1.0f : 1.0f;
-                msg.Road[i + j * GridSize] = (sbyte)Math.Round(logOdds / msg.Scale);
+                msg.Road[i + j * size] = (sbyte)Math.Round(logOdds / msg.Scale);
             }
         }
         return msg;
@@ -160,6 +167,14 @@ internal static class CorrelationTestScenes
     /// <summary>
     /// Konfigurace pro testy: dve urovne skenovani misto tri. Nejjemnejsi krok 10 cm odpovida
     /// rozliseni testovaciho gridu - treti uroven by uz merila kvantizaci a testy jen zpomalila.
+    ///
+    /// <para><b>Honestni sigmu NEVYPINA</b>, takze testy jedou s tim, co se skutecne nasazuje
+    /// (<see cref="MapCorrelatorConfig.ReferenceInformativeEvidence"/> = 37,5 od 25. 8. 2026 vecer).
+    /// Dusledek: ABSOLUTNI sigmy uz nejsou tytez jako historicka cisla zapsana
+    /// v doc/map-correlation-localization.md (napr. <c>SigmaLoose</c> 0,1848 m na sikme ceste) —
+    /// ta se merila s konstantni <c>Alpha</c>. Kdo je chce zreprodukovat, nastavi
+    /// <c>ReferenceInformativeEvidence = 0</c>. Testy same o absolutni sigmu neopiraji nic,
+    /// tvrdi jen POMERY a smery — proto tahle zmena zadny z nich nerozbila.</para>
     /// </summary>
     public static MapCorrelatorConfig TestConfig()
         => new MapCorrelatorConfig

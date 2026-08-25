@@ -42,13 +42,18 @@ namespace ARBot.Common.Logs
         public int EvidenceCells;
 
         /// <summary>
-        /// Vaha dukazu, ktery skutecne ROZLISUJE mezi kandidaty (bunky menici verdikt pri posunu
-        /// o krok derivace). <b>Neni totez co <see cref="EvidenceCells"/></b> — tech muze byt
-        /// desetkrat vic a stejne nic neurcovat, protoze travnik na travniku sedi, at posunes kam
-        /// chces. Prave tahle vaha ma skalovat sigma; viz
-        /// <c>MapCorrelatorConfig.ReferenceInformativeWeight</c>. Od verze 3; starsi zaznamy 0.
+        /// Dukaz, ktery skutecne ROZLISUJE mezi kandidaty (bunky menici verdikt pri posunu o krok
+        /// derivace), ve <b>fyzikalnich jednotkach m² · log-odds</b>. <b>Neni totez co
+        /// <see cref="EvidenceCells"/></b> — tech muze byt desetkrat vic a stejne nic neurcovat,
+        /// protoze travnik na travniku sedi, at posunes kam chces. Prave tohle ma skalovat sigma;
+        /// viz <c>MapCorrelatorConfig.ReferenceInformativeEvidence</c>.
+        ///
+        /// <para><b>Od verze 4</b>; starsi zaznamy 0. Verze 3 (jediny den 25. 8. 2026) nesla na tomtez
+        /// miste SUROVY vazeny POCET bunek, tedy hodnotu v jinych jednotkach a zavislou na rozliseni
+        /// gridu — cist ji jako fyzikalni udaj by znamenalo srovnavat necislo, takze se
+        /// <b>zahazuje</b>. Verze 3 se nikdy nedostala do zaznamu, ktery by prezil analyzu.</para>
         /// </summary>
-        public double InformativeWeight;
+        public double InformativeEvidence;
         /// <summary>Kolik kandidatu se vyhodnotilo.</summary>
         public int Candidates;
         /// <summary>Poslala se do fuze aspon jedna korekce? (OR pres tri priznaky niz.)</summary>
@@ -83,12 +88,30 @@ namespace ARBot.Common.Logs
         /// </summary>
         public long DroppedByFusion;
 
+        /// <summary>
+        /// Poza, PROTI KTERE se korelovalo [m, m, rad; world ENU] — verze 5.
+        ///
+        /// <para><b>Bez ni je <see cref="Dx"/>/<see cref="Dy"/> neinterpretovatelne:</b> je to posun
+        /// proti TETO poze („skutecna poloha = poza + d"), takze nenulovy posun muze byt stejne dobre
+        /// chyba pozy, kterou korelator SPRAVNE nasel. Prave na tom se 25. 8. 2026 spletlo meridlo —
+        /// dohledavalo odhad z <see cref="RobotStateMsg"/> podle razitka a chybu FUZE ucetlovalo
+        /// korelatoru. Detail: <c>ARBot.Common.Localization.MapCorrelationResult.PoseX</c>.</para>
+        ///
+        /// <para>Starsi zaznamy maji <see cref="HasPose"/> = <c>false</c>.</para>
+        /// </summary>
+        public double PoseX, PoseY, PoseTheta;
+
+        /// <summary>Je <see cref="PoseX"/> vyplnena? (Nula je legitimni poloha, proto vlastni priznak.)</summary>
+        public bool HasPose;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
         /// <summary><b>Verze 2</b> (2026-08-21) pridala <see cref="DroppedByFusion"/>,
-        /// <b>verze 3</b> (2026-08-25) <see cref="InformativeWeight"/>.</summary>
-        public MapCorrelationMsg() : base("MapCorrelationMsg", 3)
+        /// <b>verze 3</b> (2026-08-25) vazeny pocet informativnich bunek, <b>verze 4</b> (tyz den,
+        /// vecer) tentyz udaj ve fyzikalnich jednotkach jako <see cref="InformativeEvidence"/> a
+        /// <b>verze 5</b> (tyz den) <see cref="PoseX"/> — pozu, proti ktere se korelovalo.</summary>
+        public MapCorrelationMsg() : base("MapCorrelationMsg", 5)
         {
         }
 
@@ -114,7 +137,8 @@ namespace ARBot.Common.Logs
             bw.Write(ProcessingMs);
             Write(bw, TimeStamp);
             bw.Write(DroppedByFusion);
-            bw.Write(InformativeWeight);
+            bw.Write(InformativeEvidence);
+            bw.Write(PoseX); bw.Write(PoseY); bw.Write(PoseTheta); bw.Write(HasPose);
         }
 
         /// <summary>Zapis ve formatu verze 1 - jen pro test cteni starych zaznamu.</summary>
@@ -164,8 +188,27 @@ namespace ARBot.Common.Logs
             TimeStamp = ReadDateTime(br);
             // Verze 1 pocitadlo zahozeni nenesla - zustane 0 (starsi zaznamy se ctou dal).
             DroppedByFusion = Verze < 2 ? 0 : br.ReadInt64();
-            // Verze 3 pridala vahu informativniho dukazu - starsi zaznamy ji nemaji.
-            InformativeWeight = Verze < 3 ? 0.0 : br.ReadDouble();
+            // Verze 3 pridala vazeny POCET informativnich bunek, verze 4 tentyz udaj ve fyzikalnich
+            // jednotkach. Bajty jsou na temze miste, ale verze 3 je v JINYCH jednotkach (a zavisla
+            // na rozliseni gridu), takze se PRECTE a ZAHODI - tise ji vydavat za m²·log-odds by
+            // znamenalo srovnavat necislo. Verze 3 zila jediny den (25. 8. 2026).
+            if (Verze >= 3)
+            {
+                double raw = br.ReadDouble();
+                InformativeEvidence = Verze >= 4 ? raw : 0.0;
+            }
+            else InformativeEvidence = 0.0;
+
+            // Verze 5 pridala pozu, proti ktere se korelovalo. Starsi zaznamy ji nemaji - HasPose
+            // zustane false a volajici si musi odhad dohledat jinak (nebo priznat, ze nemuze).
+            if (Verze >= 5)
+            {
+                PoseX = br.ReadDouble();
+                PoseY = br.ReadDouble();
+                PoseTheta = br.ReadDouble();
+                HasPose = br.ReadBoolean();
+            }
+            else HasPose = false;
         }
 
         public override Message Build() => new MapCorrelationMsg();

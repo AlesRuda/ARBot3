@@ -40,6 +40,7 @@ tam se korelátor právě testuje. Reálný HW i běh bez profilu tím nedotčen
 |---|---|---|
 | `mapcorr=` (příkazová řádka) | zakládá se stupeň korelace **vůbec**? | **`false`** |
 | `mapcorrsend=` (příkazová řádka) | posílají se měření **do fúze**? (= `SendCorrections`) | `true` |
+| `mapcorrref=` (příkazová řádka) | reference **honestní σ** [m²·log-odds] (= `ReferenceInformativeEvidence`); `0` vrátí původní chování s konstantní `Alpha` (A/B) | **`37,5`** = zapnuto |
 | `measdiag=` (příkazová řádka) | publikují se **verdikty jednotlivých měření** (`MeasurementDiagMsg`)? | vypnuto |
 | `corridor=` (příkazová řádka) | zakládá se **hranová** lokalizace (`CorridorLocalizer`)? | **`false`** |
 | `corridorsend=` (příkazová řádka) | posílá hranová lokalizace měření do fúze? | `true` |
@@ -546,6 +547,111 @@ odeznívající zbytek chyby, kterou už jednou opravil, a pošle ho do fúze **
 Dva důsledky: mírný překmit (geometrická řada, konverguje — nejde o divergenci) a kovariance, která
 se zužuje **rychleji, než informace opravňuje**. Filtr si tedy věří o něco víc, než by měl, a to nad
 rámec aproximace popsané výše. Zjištěno finální review 2026-08-19.
+
+#### Změřeno a vyřešeno odstupem (25. 8. 2026)
+
+Přístroj: autokorelace chybové posloupnosti v `ARBot.Analyze sigma`
+([TimeCorrelationReport](../Src/ARBot.Analyze/TimeCorrelationReport.cs)). Měří se **slotovaně** podle
+skutečného časového odstupu — přijaté cykly nejsou vzorkované rovnoměrně, takže naivní „posun
+o index" by míchal lag 1,2 s s lagem 3 s.
+
+| | běh 1 | běh 2 | běh 3 |
+|---|---|---|---|
+| perioda cyklu | 1,17 s | 1,56 s | 1,66 s |
+| ρ(1) | 0,664 | 0,441 | 0,501 |
+| ρ(2) | 0,058 | −0,137 | −0,329 |
+| činitel nadsazení `1+2Σρ` | 2,44 | 1,88 | 2,00 |
+| **dekorelační čas** | **2,85 s** | **2,93 s** | **3,31 s** |
+
+**Že je to fyzikální konstanta, a ne artefakt vzorkování**, ukázaly tytéž tři běhy: periody se lišily
+o 42 % (korelátor je výpočtově vázaný, takže perioda závisí na rychlosti stroje), a dekorelační čas
+přesto vyšel týž. Sedí na paměť gridu ~2,5 s — tedy přesně ten mechanismus, který sekce výše
+předpovídala.
+
+**Léčba: `MinPeriod` 400 ms → 3 s** (rozhodnutí 25. 8. 2026, viz [decisions.md](decisions.md)).
+Každé měření je pak nezávislé **konstrukcí**, ne opravným součinitelem. Ověřeno dvěma běhy:
+
+| | před | po |
+|---|---|---|
+| perioda | 1,17–1,66 s | 3,39 s |
+| ρ(1) | **+0,44 až +0,66** | **−0,23 / −0,29** |
+| činitel nadsazení | 1,88–2,44 | **1,00 / 1,00** |
+| cyklů za 45 s | 28–34 | 12–13 |
+
+> **Druhý, nezávislý důvod pro tentýž odstup.** Jeden cyklus stojí **1,31 s** (medián, oblak 45 000
+> buněk) — tedy **celé jádro**, ne „čtvrt jádra", jak se do té doby věřilo (starší odhad 126 ms je
+> o řádek mimo). Při odstupu 3 s klesne zátěž na ~40 %. A hlavně: bez tohoto odstupu byla **frekvence
+> měření dána rychlostí CPU**, takže na rychlejším stroji by fúze byla *víc* přesvědčená o tomtéž.
+> Ta 400ms hranice byla přitom v praxi **mrtvá** — cyklus trvá 1,3 s, takže se nikdy neuplatnila.
+
+#### Past v samotném měřidle: chyba fúze účtovaná korelátoru
+
+Při tomhle měření se našla **vada přístroje, která posunula všechna dosavadní čísla poctivosti σ.**
+Korelátor hlásí posun proti **odhadu** pózy („skutečná poloha = odhad + `d`"), takže správná odpověď
+proti tuze posunuté mapě **není** konstantní posun mapy, ale
+
+```
+d_očekávané = (−posun mapy) + (pravda − odhad)
+```
+
+Druhý člen v měřidle chyběl, takže **vlastní chyba fúze se účtovala korelátoru**. A není malá:
+podél těsné osy p50 **0,105 m**, max 0,61 m (běh s `mapcorrsend=false`, tedy nekorigovaná fúze).
+Po jejím odečtení, tři běhy:
+
+| | surově | po odečtení chyby fúze |
+|---|---|---|
+| systematický posun | 0,1912 / 0,1917 / 0,1911 m | **0,018 / 0,025 / 0,024 m** |
+| poměr skutečný/hlášený | 1,43× / 1,41× / 1,39× | 1,03× / 1,10× / 1,17× |
+
+Ta reprodukovatelnost na čtyři desetinná místa (0,1911–0,1917) je sama vodítkem: je to **systematický
+jev pipeline, ne šum korelátoru**. Dvě dosud vedené vady tím **padají**:
+
+- **„σ je 1,28–1,43× optimistická"** — z toho zbylo po odečtení chyby fúze ~1,03–1,17×, a přísnější
+  test níž říká, že je σ naopak mírně **konzervativní**.
+- **„systematické vychýlení +0,10 m"** (otevřený úkol č. 3) — bylo to vychýlení **fúze**, které
+  korelátor hlásil **správně**. Zbytek je 0,012–0,025 m, tedy pod krokem nejjemnější úrovně
+  skenování (0,05 m).
+
+> **Přísnější metrika: normovaná chyba `z = chyba / σ TOHO cyklu`.** Porovnávat souhrnný rozptyl
+> s *mediánem* σ míchá hrušky s jabky — σ se cyklus od cyklu mění (0,095 až 0,296 m) a velké chyby
+> padají právě na cykly s velkou σ. U poctivé σ má `z` rozptyl 1. Naměřeno **sd(z) = 0,78–0,87**
+> po zavedení odstupu 3 s (před ním 0,73–0,75, což bylo navíc korelací sražené dolů). Tedy σ je
+> asi o **15 % větší, než by musela být** — konzervativní směr.
+
+#### Póza cestuje ve zprávě (verze 5) — a stará aproximace lhala o milimetry
+
+Dohledávat odhad pózy podle razítka byla ta past. Léčba je stejná jako u
+[RoadCorridorMsg](../Src/ARBot.Common/Logs/RoadCorridorMsg.cs): **póza, proti které se korelovalo,
+cestuje ve zprávě** (`MapCorrelationMsg.PoseX/PoseY/PoseTheta` + `HasPose`, verze 5). Bez ní je
+`Dx`/`Dy` neinterpretovatelné — je to posun proti *té* póze, takže nenulová hodnota může být stejně
+dobře chyba pózy, kterou korelátor **správně našel**.
+
+Kolik ta dřívější aproximace stála, jde teď změřit přímo (report tiskne rozdíl): **p50 0,000–0,004 m,
+max 0,035 m**. Byla tedy v pořádku — závěry výše platí beze změny. Tři běhy s exaktní pózou:
+
+| | běh A | běh B | běh C |
+|---|---|---|---|
+| systematický posun po odečtení | 0,0070 m | 0,0227 m | 0,0067 m |
+| poměr skutečný/hlášený | 1,04× | 1,26× | 1,16× |
+| **sd(z)** | **0,70** | **0,86** | **0,81** |
+| činitel nadsazení informace | 1,00 | 1,00 | 1,00 |
+
+#### σ je asi 1,25× konzervativní — vědomě neopraveno
+
+Přes pět běhů s odstupem 3 s vychází **sd(z) = 0,70–0,87, průměr ~0,80**, tedy σ je asi **1,25×
+větší, než by musela být**. Formálně by se to spravilo vynásobením `Alpha` hodnotou 0,80² ≈ 0,64.
+**Neděláme to**, a to ze tří důvodů:
+
+- Zmenšit σ znamená **zvětšit autoritu** korelátoru proti GPS — a přesně tu autoritu ty tři podmínky
+  gatují. Utahovat ji těsně před „pustit naostro" je opačný směr, než jakým se sem šlo.
+- `|z| > 2` vyšlo u 0–8 % cyklů, tedy kolem očekávaných 5 %. **Chvosty jsou v pořádku**, i když je
+  jádro rozdělení užší — σ tedy není hrubě mimo, jen mírně velkorysá.
+- Je to změřené na **jedné scéně** (syntetická rovná, bez stínů a kaluží) a `n = 12–13` na běh, tedy
+  sd(z) má vzorkovací chybu ~9 % i po sloučení běhů.
+
+**Podmínka č. 1 („honestní σ") je tím splněná** — v konzervativním směru a se správně účtovaným
+slučováním. Co dál gatuje pustit korekce naostro, jsou podmínky 2 a 3 (rychlostní limit, strop na
+nesouhlas s GPS).
 
 ### Chybná kalibrace kamer: bias, který systém integruje
 
@@ -1428,11 +1534,11 @@ daleko od okraje souhlasí u každého kandidáta (trávník na trávníku sedí
 nic neurčují a jen ředí procento — a právě jich malý oblak nemá.
 
 ```
-alphaEff = Alpha · (ReferenceInformativeWeight / w_inf)      σ ~ 1/√w_inf
+alphaEff = Alpha · (ReferenceInformativeEvidence / E_inf)    σ ~ 1/√E_inf
 ```
 
-To je přesně to, jak se chová směrodatná odchylka podílu. Naměřeno, že `w_inf` je jen **33 %** buněk
-a kolísá **374 až 17 436** (47×!) — tedy přesně ta veličina, ke které byla σ slepá.
+To je přesně to, jak se chová směrodatná odchylka podílu. Naměřeno, že informativních buněk je jen
+**33 %** a kolísá **374 až 17 436** (47×!) — tedy přesně ta veličina, ke které byla σ slepá.
 
 > **Není to další ruční práh** (čehož se [Testování](#testování) bojí právem). Je to
 > **přeparametrizování té, která tam už byla**: `α` bylo implicitně považováno za nezávislé na
@@ -1451,9 +1557,49 @@ takže chyba není jen v hodnotě σ, ale i v počtu měření, kterými se děl
 Odhalilo se navíc **systematické vychýlení +0,10 m** (medián hlášeného posunu 0,50 m proti pravdě
 0,40 m). To je přesnost, ne nejistota — samostatná vada, dosud nezkoumaná.
 
-**Stav: naměřeno, NEZAPNUTO** (`ReferenceInformativeWeight = 0`). Referenční hodnota 15 000 je
-kalibrovaná na tuhle scénu a rozlišení gridu; než z toho bude výchozí stav, chce to buď měření na
-víc scénách, nebo bezrozměrné vyjádření. Zapíná se `mapcorrref=15000`.
+> ⚠️ **Obojí se týž den večer ukázalo jinak, než tento odstavec říká.** To „zbylé" optimističnosti
+> ani to vychýlení nebyly vady korelátoru: měřidlo mu účtovalo **vlastní chybu fúze**. Časová
+> korelace je skutečná, ale krátká (dekorelační čas ~3 s) a je vyřešená odstupem `MinPeriod`.
+> Odstavec zůstává jako záznam toho, co se tehdy vědělo — čísla a rozbor jsou
+> v [Past v samotném měřidle](#past-v-samotném-měřidle-chyba-fúze-účtovaná-korelátoru).
+
+#### Reference jako fyzikální veličina — a výchozí stav (25. 8. 2026 večer)
+
+První podoba opravy se **nemohla stát výchozím stavem**, protože reference byla v **počtech buněk**,
+a ten počet je vázaný na rozlišení gridu. Naměřeno na téže scéně (přímá cesta, výřez 9,6 m, jen
+jinak hustá mříž):
+
+| | 10 cm | 5 cm | podíl |
+|---|---|---|---|
+| surová váha informativních buněk | 1 536 | 6 144 | **4,000** |
+| informativní důkaz [m²·log-odds] | 15,36 | 15,36 | **1,000** |
+| σ těsné osy | 0,1768 m | 0,1768 m | **1,000** |
+
+Buněk je čtyřikrát víc, i když robot nevidí ani o kousek víc světa — jsou to **tytéž hloubkové
+pixely rozkrájené jemněji**. Reference naměřená při 5 cm by tedy při 10 cm znamenala čtyřnásobné
+množství informace a σ by vyšla poloviční. Léčba je násobení **plochou buňky**: informativní důkaz
+se měří v **m²·log-odds** (`CorrelationScorer.InformativeEvidence`, dřív `InformativeWeight`).
+Přepočet staré hodnoty: `počet × plocha buňky`, tedy `15000 × 0,0025` = **37,5**.
+
+> **Krokem derivace `h` se schválně NEDĚLÍ**, i když pásmo informativních buněk má šířku `2h`.
+> Právě tahle závislost totiž vykrátí `σ ~ √h`, kterou má „tent" skóre (zakřivení ~ `1/h`) — past,
+> kterou [Testování](#testování) i dokumentace `CorrelationCovariance` dosud přiznávaly slovy
+> „obě se ladí **spolu** a změna kroku přepočítá všechny sigmy". **Naměřeno:** bez škálování
+> σ 0,1342 → 0,1897 m při kroku 0,30 → 0,60 m, tedy přesně √2; se škálováním **0,1768 m v obou
+> případech**, přičemž důkaz vyšel 11,52 → 23,04 m²·log-odds (přesně 2×). Vada zmizela mimochodem.
+
+Obojí drží testy `HonestniSigma_ReferenceNezavisiNaRozliseniGridu` a `…NaKrokuDerivace`; stará
+hodnota `15000` na příkazové řádce skončí výjimkou z `Validate()`, ne tichým nesmyslem.
+
+**Stav: ZAPNUTO ve výchozím stavu** (`ReferenceInformativeEvidence = 37,5`, rozhodnutí 25. 8. 2026 —
+viz [decisions.md](decisions.md)). Součin `Alpha · ReferenceInformativeEvidence` nastavuje jen
+absolutní škálu, přesně jako předtím `Alpha` sama, takže zapnutím nevzniká žádná nová vazba na
+scénu — jen σ začne vědět o množství důkazu. Původní chování s konstantní `Alpha` se vrátí
+`mapcorrref=0` (A/B). **Pozor:** to je *podmínka č. 1 posunutá, ne splněná* — korekce naostro dál
+gatuje zbytek (viz [decisions.md](decisions.md)).
+
+Co zůstává vázané na rozlišení gridu: `MinEvidenceCells` (400 buněk) a `SigmaFloorM` (0,05 m).
+Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
 
 ## Otevřené úkoly
 

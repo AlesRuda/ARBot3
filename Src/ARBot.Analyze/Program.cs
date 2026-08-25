@@ -64,7 +64,8 @@ namespace ARBot.Analyze
                         return 0;
                     case "sigma":
                         SigmaReport.Run(rec, Arg(args, "--truedx", double.NaN),
-                                        Arg(args, "--truedy", double.NaN));
+                                        Arg(args, "--truedy", double.NaN),
+                                        Arg(args, "--skip", 0.0));
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
@@ -122,7 +123,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  edgebias   odchylka hranicnich bodu od ZNAMEHO okraje vozovky (podle");
             Console.WriteLine("             hranice, kamery a vzdalenosti) - hleda systematickou chybu");
             Console.WriteLine("  sigma      je sigma korelace s mapou poctiva? hlasena nejistota proti");
-            Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved)");
+            Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved) +");
+            Console.WriteLine("             casova korelace mezi cykly (kolik merenii je nezavislych)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
@@ -143,6 +145,10 @@ namespace ARBot.Analyze
             Console.WriteLine("  --truewidth=<m>    ZNAMA sirka cesty - presnost se pak meri proti ni, ne proti");
             Console.WriteLine("                     filtru sirky z RoadCorridorMsg (ten se z merenii uci, takze");
             Console.WriteLine("                     je mirne kruhovy). Pro OSM/SyntetickyRovny.osm: 2.0");
+            Console.WriteLine("  --skip=<s>         u sigma: zahodit prvnich <s> sekund. V SUROVE chybe je videt");
+            Console.WriteLine("                     transient rozjezdu (odeznival z 0,50 na 0,05 m po 25 s), ale");
+            Console.WriteLine("                     vetsina z nej je USAZUJICI SE FUZE, ne korelator - po jejim");
+            Console.WriteLine("                     odecteni tam zadny transient neni a --skip obvykle netreba");
             Console.WriteLine("  --axisy=<m>        osa cesty je primka y=<m> podel +X v lokalnim ENU; se");
             Console.WriteLine("                     ground truth v zaznamu se tim overi i pricna poloha a kurz.");
             Console.WriteLine("                     Pro OSM/SyntetickyRovny.osm: 0");

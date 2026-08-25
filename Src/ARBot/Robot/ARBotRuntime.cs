@@ -379,8 +379,15 @@ namespace ARBot.Robot
             // Viz doc/map-correlation-localization.md.
             // Parametr mapcorr rozhoduje, jestli se ten stupen VUBEC zalozi. Vychozi false: korelator
             // dnes nic nerididi (viz decisions.md, navrh na prestavbu na posun mapa<->GPS), takze by
-            // jen spaloval ~126 ms na cyklus (ctvrt jadra na x64, na ARM vic). POZOR na zamenu
-            // s MapCorrelatorConfig.SendCorrections - to je "posilat do fuze", ne "pocitat".
+            // jen spaloval cas.
+            //
+            // KOLIK PRESNE (zmereno 25. 8. 2026, drive se verilo "~126 ms, ctvrt jadra"): jeden cyklus
+            // stoji 1,31 s (median, oblak 45 000 bunek) — tedy CELE jadro, desetkrat vic, nez rikal
+            // starsi odhad. Pri odstupu MapCorrelatorConfig.MinPeriod = 3 s to vychazi na ~40 %
+            // jadra na x64; na ARM vic. Merit to umi ARBot.Analyze sigma (radek "doba vypoctu cyklu").
+            //
+            // POZOR na zamenu s MapCorrelatorConfig.SendCorrections - to je "posilat do fuze",
+            // ne "pocitat".
             bool mapCorr = Program.GetParamBool("mapcorr", false);
             if (!mapCorr)
             {
@@ -406,14 +413,18 @@ namespace ARBot.Robot
                 var correlator = new ARBot.Common.Localization.MapCorrelator(
                     engine,
                     new RoadScene(RoadNetwork, fusionConfig.GeoReference),
-                    // mapcorrref= zapina skalovani sigma podle mnozstvi INFORMATIVNIHO dukazu
-                    // (otevreny ukol „honestni sigma"). Nula = puvodni chovani s konstantni Alpha.
-                    // Je to parametr, a ne rovnou vychozi hodnota, protoze se to musi promerit -
-                    // viz ARBot.Analyze sigma.
+                    // mapcorrref= meni referenci pro skalovani sigma podle mnozstvi INFORMATIVNIHO
+                    // dukazu („honestni sigma"). Od 25. 8. 2026 vecer je to VYCHOZI chovani, takze
+                    // parametr uz slouzi hlavne k A/B: mapcorrref=0 vrati puvodni konstantni Alpha.
+                    // POZOR NA JEDNOTKY: m²·log-odds, ne pocet bunek. Stara hodnota z prikazove
+                    // radky (15000) skonci vyjimkou z Validate, ne tichym nesmyslem.
                     new ARBot.Common.Localization.MapCorrelatorConfig
                     {
                         SendCorrections = sendCorrections,
-                        ReferenceInformativeWeight = ReadDouble("mapcorrref", 0),
+                        ReferenceInformativeEvidence = ReadDouble(
+                            "mapcorrref",
+                            new ARBot.Common.Localization.MapCorrelatorConfig()
+                                .ReferenceInformativeEvidence),
                     },
                     // Fronta musí unést plán z celého jednoho cyklu korelace (na ARM 100–200 ms
                     // proti periodě plánu 33 ms), jinak by DropOldest vytlačil zařazený snapshot.

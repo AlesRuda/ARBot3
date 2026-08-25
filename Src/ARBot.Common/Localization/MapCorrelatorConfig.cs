@@ -66,7 +66,7 @@ namespace ARBot.Common.Localization
         public double Alpha = 0.05;
 
         /// <summary>
-        /// Referencni mnozstvi <b>informativniho</b> dukazu, pri kterem plati
+        /// Referencni mnozstvi <b>informativniho</b> dukazu [<b>m² · log-odds</b>], pri kterem plati
         /// <see cref="Alpha"/> beze zmeny. Nula = skalovani vypnuto (puvodni chovani).
         ///
         /// <para><b>Nacpak to je — otevreny ukol c. 1 „honestni sigma".</b> Skore je normovany
@@ -79,14 +79,43 @@ namespace ARBot.Common.Localization
         /// nez velky (2 214 bunek → 0,1412 m, 18 465 bunek → 0,2737 m), protoze nema nudne bunky
         /// daleko od okraje, ktere by procento redily. Vetsi jistota tam, kde je podkladu nejmin.</para>
         ///
-        /// <para><b>Oprava:</b> <c>alphaEff = Alpha · (ReferenceInformativeWeight / w_inf)</c>, kde
-        /// <c>w_inf</c> je vaha bunek, ktere skutecne rozlisuji mezi kandidaty (viz
-        /// <see cref="CorrelationScorer.InformativeWeight"/>). Sigma pak roste jako
-        /// <c>1/sqrt(w_inf)</c> — tedy presne tak, jak se chova smerodatna odchylka podilu.
-        /// Pri <c>w_inf = ReferenceInformativeWeight</c> vyjde tataz sigma jako driv, takze se
+        /// <para><b>Oprava:</b> <c>alphaEff = Alpha · (ReferenceInformativeEvidence / E_inf)</c>, kde
+        /// <c>E_inf</c> je dukaz bunek, ktere skutecne rozlisuji mezi kandidaty (viz
+        /// <see cref="CorrelationScorer.InformativeEvidence"/>). Sigma pak roste jako
+        /// <c>1/sqrt(E_inf)</c> — tedy presne tak, jak se chova smerodatna odchylka podilu.
+        /// Pri <c>E_inf = ReferenceInformativeEvidence</c> vyjde tataz sigma jako driv, takze se
         /// nemeni absolutni skala, jen jeji zavislost na mnozstvi dukazu.</para>
+        ///
+        /// <para><b>JEDNOTKY: m² · log-odds</b>, ne pocet bunek (prevedeno 25. 8. 2026 vecer).
+        /// Puvodne se skalovalo surovym poctem informativnich bunek, a ten roste jako
+        /// <c>1/plocha bunky</c> — reference namerena pri 5 cm by pri 10 cm znamenala ctyrikrat
+        /// jine mnozstvi informace. Prave tohle branilo tomu, aby oprava mohla byt vychozim stavem.
+        /// Ve fyzikalnich jednotkach je hodnota prenosna mezi rozlisenimi gridu i mezi kroky
+        /// derivace (viz <see cref="CorrelationScorer.InformativeEvidence"/>); drzi to testy
+        /// <c>HonestniSigma_ReferenceNezavisiNaRozliseniGridu</c> a <c>...NaKrokuDerivace</c>.
+        /// <b>Prepocet stare hodnoty:</b> <c>surovy pocet × plocha bunky</c>, tedy namerenych
+        /// 15 000 bunek pri 5 cm = <c>15000 × 0,0025</c> = <b>37,5</b>.</para>
+        ///
+        /// <para><b>VYCHOZI STAV od 25. 8. 2026 vecer: zapnuto</b> (37,5). Rozhodnuti autora, kdyz
+        /// se zmerilo, ze reference je uz prenositelna mezi rozlisenimi gridu i kroky derivace —
+        /// konstanta <c>Alpha · ReferenceInformativeEvidence</c> nastavuje jen absolutni skalu,
+        /// presne jako predtim <c>Alpha</c> sama, takze zapnutim nevznika zadna nova vazba na scenu.
+        /// <b>Nula = puvodni chovani</b> s konstantni <c>Alpha</c>, k A/B srovnani
+        /// (<c>mapcorrref=0</c>). Cena zapnuti: strop sigma zahodi patologicky male oblaky
+        /// (namereno 31 prijatych cyklu z 36).</para>
         /// </summary>
-        public double ReferenceInformativeWeight = 0.0;
+        public double ReferenceInformativeEvidence = 37.5;
+
+        /// <summary>
+        /// Nejvyssi hodnota <see cref="ReferenceInformativeEvidence"/>, ktera se jeste bere jako
+        /// mysleny fyzikalni udaj [m² · log-odds].
+        ///
+        /// <para><b>Nacpak past:</b> do 25. 8. 2026 byla reference v POCTECH BUNEK a v dokumentaci
+        /// i v prikazovych radkach se nosila hodnota <c>15000</c>. Ta same v novych jednotkach by
+        /// znamenala 400x vic dukazu, tedy dvacetkrat vetsi sigmu — a vsechna merenia by tise
+        /// spadla pod strop sigma. Radeji hlasitá chyba nez tichy nesmysl.</para>
+        /// </summary>
+        public const double MaxReferenceInformativeEvidence = 1000.0;
 
         /// <summary>
         /// Krok numericke druhe derivace skore pro posun [m]. Musi byt VYRAZNE VETSI nez rozliseni
@@ -121,8 +150,31 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double MapRasterMarginM = 4.0;
 
-        /// <summary>Min. odstup dvou korelaci - ochrana proti hustsim snapshotum.</summary>
-        public TimeSpan MinPeriod = TimeSpan.FromMilliseconds(400);
+        /// <summary>
+        /// Min. odstup dvou korelaci = <b>DEKORELACNI CAS</b>, ne jen ochrana proti hustsim
+        /// snapshotum.
+        ///
+        /// <para><b>Proc 3 s</b> (zmereno 25. 8. 2026, drive 400 ms). Grid drzi jen ~2,5 s historie,
+        /// takze dva cykly blizsi nez to koreluji z VELKE CASTI TEHOZ nahromadeneho oblaku — jejich
+        /// chyby nejsou nezavisle, ale fuze je jako nezavisle bere a kovarianci zuzuje rychleji, nez
+        /// informace opravnuje. Autokorelace chyby to potvrdila: <c>rho(1) = 0,44..0,66</c>,
+        /// <c>rho(2)</c> uz kolem nuly a dal zaporna. Cinitel nadsazeni informace
+        /// <c>1 + 2·Σρ</c> vysel 1,88–2,44 na trech bezech.</para>
+        ///
+        /// <para><b>Ze je to fyzikalni konstanta, a ne artefakt vzorkovani</b>, ukazaly tytez tri
+        /// behy: mely RUZNOU periodu cyklu (1,17 / 1,56 / 1,66 s — korelator je vypoctove vazany,
+        /// takze perioda zavisi na rychlosti stroje), a presto vysel TYZ dekorelacni cas
+        /// 2,85 / 2,93 / 3,31 s. Perioda 3 s je tedy zaokrouhlena namerena hodnota.</para>
+        ///
+        /// <para><b>Druhy, nezavisly duvod:</b> jeden cyklus stoji <b>1,31 s</b> (median, oblak
+        /// 45 000 bunek) — tedy cele jadro, ne „ctvrt jadra", jak se dosud verilo. Pri odstupu 3 s
+        /// klesne zatez na ~45 %. A hlavne: bez tohoto odstupu je FREKVENCE MERENII dana rychlostí
+        /// CPU, takze na rychlejsim stroji by fuze byla VIC presvedcena o tomtez. To je vlastnost,
+        /// kterou nikdo nechce mit nahodou.</para>
+        ///
+        /// <para>Viz doc/map-correlation-localization.md, „Casova korelace mezi cykly".</para>
+        /// </summary>
+        public TimeSpan MinPeriod = TimeSpan.FromSeconds(3.0);
 
         /// <summary>Zdroj merenia pro fuzi a telemetrii.</summary>
         public string MeasurementSource = "MapCorr";
@@ -193,6 +245,16 @@ namespace ARBot.Common.Localization
                     + $"SearchRangeM ({SearchRangeM}), jinak kandidat saha mimo rastr.");
             if (Alpha <= 0)
                 throw new ArgumentException($"MapCorrelatorConfig.Alpha musi byt > 0, je {Alpha}.");
+            if (ReferenceInformativeEvidence < 0)
+                throw new ArgumentException(
+                    "MapCorrelatorConfig.ReferenceInformativeEvidence nesmi byt zaporna "
+                    + $"(je {ReferenceInformativeEvidence}); nula znamena vypnute skalovani.");
+            if (ReferenceInformativeEvidence > MaxReferenceInformativeEvidence)
+                throw new ArgumentException(
+                    $"MapCorrelatorConfig.ReferenceInformativeEvidence ({ReferenceInformativeEvidence}) "
+                    + $"je nad hranici {MaxReferenceInformativeEvidence} m²·log-odds. Nejde omylem "
+                    + "o starou hodnotu v POCTECH BUNEK? Od 25. 8. 2026 je reference fyzikalni "
+                    + "velicina - prepocet je 'pocet × plocha bunky', tedy 15000 pri 5 cm = 37,5.");
             if (HessianStepM <= 0 || HessianStepHeadingRad <= 0)
                 throw new ArgumentException("MapCorrelatorConfig: kroky Hessianu musi byt > 0.");
             if (EvidenceThreshold <= 0)

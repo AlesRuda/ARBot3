@@ -77,14 +77,113 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   bylo *víc* inlierů než u přijatých cyklů.
 - **Ověřeno:** `dotnet build Src/ARBot.slnx -p:Platform=x64` bez chyb, **799 + 43 testů** prochází
   (nově `HonestniSigma_ReferenceSkalujeSigmuOdmocninou`). Vše nad simulací, **na HW neověřeno**.
-- **Rozpracováno / další krok:**
-  - **Bezrozměrné vyjádření reference**, aby `ReferenceInformativeWeight` nebylo vázané na scénu
-    a rozlišení gridu — teprve pak z toho může být výchozí stav.
-  - **Časová korelace mezi cykly** — zbylých 1,28×; potřeba efektivní počet nezávislých měření.
-  - **Systematické vychýlení +0,10 m** korelátoru — nezkoumáno.
+
+- **Večer, druhé sezení: reference je fyzikální veličina a honestní σ je výchozí.**
+  **Odemčen výchozí stav — a bez jediného nového magického čísla.** Ranní oprava se nemohla zapnout,
+  protože reference byla v **počtech buněk**, a ten počet je vázaný na rozlišení gridu. Měřeno na
+  téže scéně, jen jinak hustou mříží nad **týmž výřezem světa** (to je celý trik toho měření):
+  surová váha **1 536 proti 6 144** (přesně 4×), takže σ by při jiném rozlišení vyšla **poloviční**.
+  Buněk je čtyřikrát víc, ale robot nevidí ani o kousek víc — jsou to tytéž hloubkové pixely
+  rozkrájené jemněji. Léčba: násobit **plochou buňky**, tedy měřit důkaz v **m²·log-odds**
+  (`InformativeEvidence`, dřív `InformativeWeight`). Po opravě 15,36 m²·log-odds a σ 0,1768 m
+  v obou rozlišeních — **shoda na tři desetinná místa**, ne „v toleranci".
+- **Spadla u toho druhá, dávno přiznaná past — sama.** Dokumentace kovariance dosud varovala, že
+  `α` a `HessianStepM` „se ladí spolu a změna kroku přepočítá všechny sigmy" (skóre je „tent", takže
+  `σ ~ √h`). Se škálováním podle informativního důkazu to **mizí**: pásmo informativních buněk má
+  šířku `2h`, takže důkazu je taky ~`h` a obě závislosti se vykrátí. Naměřeno: bez škálování
+  σ 0,1342 → 0,1897 m při kroku 0,30 → 0,60 (přesně √2), se škálováním **0,1768 m v obou**.
+  Proto se důkaz plochou buňky **násobí**, ale krokem derivace se **schválně nenormuje** — to `h`
+  v něm je nosný člen, ne nedodělek.
+- **Rozhodnutí: zapnout naostro** (`ReferenceInformativeEvidence = 37,5`; autorovo rozhodnutí na
+  doporučení). Odůvodnění: součin `Alpha · reference` nastavuje jen absolutní škálu, přesně jako
+  předtím `Alpha` sama, takže zapnutím **nevzniká žádná nová vazba na scénu** — jen σ začne vědět
+  o množství důkazu. Nechat to za přepínačem by znamenalo, že kdo zapne `mapcorr=true` a zapomene
+  `mapcorrref=`, měří **známo rozbitý** estimátor. Detail v
+  [decisions.md](decisions.md#2026-08-25--honestní-σ-korelace-je-výchozí-a-její-reference-je-fyzikální-veličina).
+- **Dvě pasti zavřené naschvál**, protože obě by byly tiché: `Validate()` odmítne referenci nad
+  1 000 m²·log-odds (stará hodnota `15000` z příkazové řádky by jinak dala dvacetkrát větší σ a
+  všechna měření by spadla pod strop), a `MapCorrelationMsg` **verze 4** hodnotu z verze 3 při čtení
+  **zahodí** — bajty jsou tytéž, jednotky ne.
+- **Ověřeno:** build `x64` bez chyb, **803 + 43 testů** prochází (nově
+  `HonestniSigma_ReferenceNezavisiNaRozliseniGridu`, `…NaKrokuDerivace`,
+  `Validate_ReferenceVeStarychJednotkach_Vyhodi`,
+  `InformativniDukaz_PrezijeSerializaci_AVerze3SeZahodi`). **Bez jediného nového záznamu** — změna
+  je při 5 cm exaktní přeparametrizování, takže se dala celá změřit syntetickými scénami. Nad
+  simulací, **na HW neověřeno**.
+- **Rozpracováno / další krok** *(k tomuto bodu viz pokračování níž — časová korelace i to vychýlení
+  se týž den změřily)*:
+  - Volitelně **druhá scéna** pro absolutní škálu: `Alpha · reference` je pořád kalibrované na
+    syntetické rovné scéně.
+  - `MinEvidenceCells` (400) a `SigmaFloorM` (0,05 m) zůstávají vázané na rozlišení gridu — tatáž
+    vada, jen v prahu, kde nic neškáluje.
 - **Odkazy:** `Src/ARBot.Analyze/SigmaReport.cs` (nový),
-  `Src/ARBot.Common/Localization/CorrelationScorer.cs`, `CorrelationCovariance.cs`,
-  `MapCorrelatorConfig.cs`, [map-correlation-localization.md](map-correlation-localization.md).
+  `Src/ARBot.Common/Localization/CorrelationScorer.cs`, `EvidenceCloud.cs`,
+  `CorrelationCovariance.cs`, `MapCorrelatorConfig.cs`, `Src/ARBot.Common/Logs/MapCorrelationMsg.cs`,
+  [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md).
+
+- **Pozdě večer, třetí sezení: časová korelace změřena — a našla se past v samotném měřidle.**
+  Úkol byl „zbylých 1,28× je časová korelace, potřeba efektivní počet nezávislých měření". Skončilo
+  to jinak a lépe: **korelace je krátká a vyřešitelná odstupem, a to „zbylé" optimističnosti vůbec
+  nebylo korelátorovo.**
+- **Past: měřidlo účtovalo korelátoru vlastní chybu fúze.** Korelátor hlásí posun proti **odhadu**
+  pózy („skutečná poloha = odhad + `d`"), takže správná odpověď proti tuze posunuté mapě není
+  konstantní posun mapy, ale `(−posun mapy) + (pravda − odhad)`. Druhý člen v `sigma` chyběl — a není
+  malý: podél těsné osy p50 **0,105 m**, max 0,61 m. Po jeho odečtení (tři běhy): systematický posun
+  **0,191 → 0,018 / 0,025 / 0,024 m**, poměr skutečný/hlášený **1,43× → 1,03 / 1,10 / 1,17×**.
+  Padají tím **dvě dosud vedené vady** — „σ je optimistická" a „systematické vychýlení +0,10 m"
+  (otevřený úkol č. 3). To vychýlení bylo vychýlení **fúze**, které korelátor hlásil **správně**.
+  Vodítkem byla reprodukovatelnost surového čísla na čtyři desetinná místa (0,1911–0,1917 na třech
+  bězích): takhle se chová systematický jev pipeline, ne šum estimátoru.
+- **Lepší metrika poctivosti: `sd(z)`, `z = chyba / σ TOHO cyklu`.** Poměr souhrnného rozptylu
+  k *mediánu* σ míchá hrušky s jabky — σ se cyklus od cyklu mění 3× (0,095–0,296 m) a velké chyby
+  padají právě na cykly s velkou σ. Naměřeno **0,78–0,87**, tedy σ je o ~15 % **konzervativní**.
+  Opačné znaménko, než se celý den věřilo.
+- **Časová korelace: krátká a fyzikální.** ρ(1) = 0,44–0,66, ρ(2) už kolem nuly. Činitel nadsazení
+  informace 1,88–2,44, **dekorelační čas 2,85 / 2,93 / 3,31 s** — a to při periodách cyklu
+  lišících se o 42 % (1,17 / 1,56 / 1,66 s). **Stejný čas při různém vzorkování** je ten důkaz, že
+  je to konstanta scény (paměť gridu ~2,5 s), ne artefakt měření.
+- **Rozhodnutí: `MinPeriod` 400 ms → 3 s** (autorovo rozhodnutí na doporučení). Každé měření je pak
+  nezávislé **konstrukcí**, ne opravným součinitelem — ověřeno dvěma běhy: ρ(1) **záporná**
+  (−0,23 / −0,29), činitel nadsazení **1,00**. Detail v
+  [decisions.md](decisions.md#2026-08-25--odstup-korelací-je-dekorelační-čas-3-s-ne-ochrana-proti-hustým-snapshotům).
+- **Mimochodem se opravil o řádek špatný údaj o ceně:** cyklus korelace stojí **1,31 s** (medián,
+  oblak 45 000 buněk), tedy **celé jádro** — nikoli „~126 ms, čtvrt jádra", jak stálo v CLAUDE.md
+  i v komentáři runtime. Při odstupu 3 s je to ~40 %. A ta 400ms hranice byla v praxi **mrtvá**:
+  cyklus trvá 1,3 s, takže se nikdy neuplatnila.
+- **Dvě pasti v mém vlastním přístroji, opravené hned:** autokorelace se utínala na hranici okna
+  a tvářila se jako hotové číslo (teď hlásí „DOLNÍ HRANICE", když se korelace v okně nerozpadla),
+  a efektivní počet měření při záporné ρ̄ dělil skoro nulou a vypsal 1,3·10¹⁰.
+- **Ověřeno:** build `x64` bez chyb, **806 + 43 testů** prochází (nově
+  `Vychozi_OdstupKorelaciPokryvaDekorelacniCas`,
+  `PozaProtiKtereSeKorelovalo_JdeDoZpravy_AStaryZaznamJiNema`,
+  `Process_NeseSPozouProtiKtereKoreloval`). Osm záznamů po ~1 GB vyrobeno a **po analýze smazáno**
+  (3× před změnou odstupu, 2× po, 3× s pózou ve zprávě). Nad simulací, **na HW neověřeno**.
+- **Póza cestuje ve zprávě (verze 5), a ta aproximace byla v pořádku.** Dohledávat odhad pózy podle
+  razítka byla ta past, tak se odstranila u zdroje: `MapCorrelationMsg` nese `PoseX/PoseY/PoseTheta`
+  + `HasPose` — pózu, **proti které se korelovalo**. Konvence i odůvodnění stejné jako u
+  `RoadCorridorMsg.PoseX` (párování podle razítka nepřežije seek; `GetStateAt` vrací pózu
+  z fixed-lag smootheru). Report teď tiskne rozdíl obou cest, takže se dá říct, o kolik se dřív
+  lhalo: **p50 0,000–0,004 m, max 0,035 m** — tedy skoro nic, závěry platí beze změny. Tři běhy
+  s exaktní pózou: vychýlení 0,007 / 0,023 / 0,007 m, `sd(z)` 0,70 / 0,86 / 0,81, činitel nadsazení
+  1,00. *(Poučení: než se stará aproximace vymění, vyplatí se nechat obě cesty vedle sebe a nechat
+  přístroj vytisknout rozdíl — jinak se nikdy nedozvíš, jestli to za tu práci stálo.)*
+- **σ je 1,25× konzervativní — a vědomě se to neopravuje.** Přes pět běhů `sd(z) = 0,70–0,87`
+  (~0,80), takže by se `Alpha` formálně mělo vynásobit 0,64. Neděláme to: zmenšit σ znamená
+  **zvětšit autoritu** korelátoru proti GPS, a přesně tu ty tři podmínky gatují — utahovat ji těsně
+  před „pustit naostro" je opačný směr. Navíc `|z| > 2` vyšlo u 0–8 % cyklů (čeká se ~5 %), tedy
+  **chvosty jsou v pořádku**, jen jádro je užší. **Podmínka č. 1 „honestní σ" je tím splněná**
+  v konzervativním směru; naostro dál gatují podmínky 2 a 3.
+- **Rozpracováno / další krok:**
+  - **`sd(z)` na víc scénách** (odbočka, šikmá cesta) — dosud jen syntetická rovná. Teprve pak má
+    smysl sahat na absolutní škálu `Alpha`.
+  - **`TightAxisAngle` vychýlená ~6,3°** a **bezmocná korekce kurzu** zůstávají nedotčené.
+  - Podmínky **2 a 3** (rychlostní limit, strop na nesouhlas s GPS) — to je teď jediné, co brání
+    pustit korekce naostro.
+- **Odkazy:** `Src/ARBot.Analyze/TimeCorrelationReport.cs` (nový), `SigmaReport.cs`,
+  `Src/ARBot.Analyze/Program.cs`, `Src/ARBot.Common/Localization/MapCorrelatorConfig.cs`,
+  `Src/ARBot/Robot/ARBotRuntime.cs`,
+  [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md),
+  [record-replay.md](record-replay.md).
 
 ## 2026-08-24
 

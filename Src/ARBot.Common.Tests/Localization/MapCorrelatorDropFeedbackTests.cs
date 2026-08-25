@@ -68,6 +68,77 @@ public class MapCorrelatorDropFeedbackTests
         Assert.That(loaded.DroppedByFusion, Is.EqualTo(0));
     }
 
+    /// <summary>
+    /// Informativni dukaz prezije serializaci - a hodnota z <b>verze 3</b> se ZAHODI.
+    ///
+    /// <para>Verze 3 (25. 8. 2026, jediny den) nesla na temze miste SUROVY vazeny POCET bunek.
+    /// Bajty jsou stejne, jednotky ne: cist starou hodnotu jako m²·log-odds by znamenalo srovnavat
+    /// necislo (rozdil je plocha bunky, tedy 400x pri 5 cm). Radeji nula nez tichy nesmysl.</para>
+    /// </summary>
+    [Test]
+    public void InformativniDukaz_PrezijeSerializaci_AVerze3SeZahodi()
+    {
+        var original = new MapCorrelationMsg { TimeStamp = T0, InformativeEvidence = 37.5 };
+        var buffer = new MemoryStream();
+        using (var bw = new BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            original.ToData(bw);
+
+        buffer.Position = 0;
+        var v4 = new MapCorrelationMsg();
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            v4.FromData(br);
+        Assert.That(v4.InformativeEvidence, Is.EqualTo(37.5).Within(1e-9));
+
+        // Tytez bajty, jen hlaseny jako verze 3 - hodnota musi zmizet, ne se prevzit.
+        buffer.Position = 0;
+        var v3 = new MapCorrelationMsg { Verze = 3 };
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            v3.FromData(br);
+        Assert.That(v3.InformativeEvidence, Is.EqualTo(0.0),
+                    "hodnota verze 3 je v jinych jednotkach - musi se zahodit");
+        Assert.That(v3.TimeStamp, Is.EqualTo(T0), "zbytek zpravy se precte dal");
+    }
+
+    /// <summary>
+    /// <b>Poza, proti ktere se korelovalo, musi cestovat ve zprave</b> (verze 5).
+    ///
+    /// <para><c>Dx</c>/<c>Dy</c> je posun proti TE poze, takze bez ni nejde poznat, jestli je
+    /// nenulovy posun chybou korelatoru, nebo chybou pozy, kterou korelator SPRAVNE nasel. Presne
+    /// na tom se 25. 8. 2026 spletlo meridlo: dohledavalo odhad z <c>RobotStateMsg</c> podle razitka
+    /// a chybu FUZE ucetlovalo korelatoru (vychyleni 0,191 m proti skutecnym 0,018 m).</para>
+    /// </summary>
+    [Test]
+    public void PozaProtiKtereSeKorelovalo_JdeDoZpravy_AStaryZaznamJiNema()
+    {
+        var original = new MapCorrelationMsg
+        {
+            TimeStamp = T0, PoseX = 12.5, PoseY = -3.25, PoseTheta = 0.75, HasPose = true,
+        };
+        var buffer = new MemoryStream();
+        using (var bw = new BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            original.ToData(bw);
+
+        buffer.Position = 0;
+        var loaded = new MapCorrelationMsg();
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            loaded.FromData(br);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded.HasPose, Is.True);
+            Assert.That(loaded.PoseX, Is.EqualTo(12.5).Within(1e-9));
+            Assert.That(loaded.PoseY, Is.EqualTo(-3.25).Within(1e-9));
+            Assert.That(loaded.PoseTheta, Is.EqualTo(0.75).Within(1e-9));
+        });
+
+        // Tytez bajty hlasene jako verze 4: poza tam jeste nebyla, takze se nesmi tvarit, ze je.
+        buffer.Position = 0;
+        var v4 = new MapCorrelationMsg { Verze = 4 };
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            v4.FromData(br);
+        Assert.That(v4.HasPose, Is.False, "stary zaznam pozu nenese - nula neni poza");
+    }
+
     [Test]
     public void SendCorrections_lzeVypnout_prepinacemKonfigurace()
     {

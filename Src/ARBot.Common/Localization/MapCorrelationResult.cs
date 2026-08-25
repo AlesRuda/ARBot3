@@ -78,11 +78,36 @@ namespace ARBot.Common.Localization
         /// <summary>Kolik bunek gridu vstoupilo do korelace.</summary>
         public int EvidenceCells;
 
-        /// <summary>Vaha dukazu, ktery ROZLISUJE mezi kandidaty (diagnostika k „honestni sigme").</summary>
-        public double InformativeWeight;
+        /// <summary>Dukaz, ktery ROZLISUJE mezi kandidaty [m² · log-odds] — diagnostika k „honestni
+        /// sigme"; viz <see cref="CorrelationScorer.InformativeEvidence"/>.</summary>
+        public double InformativeEvidence;
 
         /// <summary>Kolik kandidatu se vyhodnotilo (diagnostika ceny).</summary>
         public int Candidates;
+
+        /// <summary>
+        /// Poza, PROTI KTERE se korelovalo [m, m, rad; world ENU] — tedy to, co vratil
+        /// <c>GetStateAt(cas snapshotu)</c> a co je stredem rotace kandidatu.
+        ///
+        /// <para><b>Nacpak to je.</b> Vysledek <see cref="Dx"/>/<see cref="Dy"/> je posun PROTI
+        /// TETO POZE („skutecna poloha = poza + d"), takze bez ni je hlasene cislo neinterpretovatelne
+        /// — nejde poznat, jestli je nenulovy posun chybou korelatoru, nebo chybou pozy, kterou
+        /// korelator spravne nasel. Prave na tomhle se 25. 8. 2026 spletlo meridlo
+        /// (<c>ARBot.Analyze sigma</c>): dohledavalo odhad z <c>RobotStateMsg</c> podle razitka,
+        /// a chybu FUZE tak ucetlovalo KORELATORU (vychyleni 0,191 m proti skutecnym 0,018 m).</para>
+        ///
+        /// <para><b>Proc ne parovat podle razitka.</b> Tentyz duvod jako u
+        /// <see cref="Logs.RoadCorridorMsg.PoseX"/>: neprezilo by to <b>seek</b> v zaznamu
+        /// (rekonstrukce stavu dodava jednu zpravu na klic) a <c>GetStateAt</c> vraci pozu
+        /// z fixed-lag smootheru, ktera se od publikovaneho <c>RobotStateMsg</c> lisi.</para>
+        ///
+        /// <para><b>Je to poza PRED korekci</b>, kterou tento cyklus vyrobil — merenie se do fuze
+        /// vklada s casem snapshotu, takze po jeho zapracovani se poza v temze case zmeni.</para>
+        /// </summary>
+        public double PoseX, PoseY, PoseTheta;
+
+        /// <summary>Je <see cref="PoseX"/> vyplnena? (Nula je legitimni poloha, proto vlastni priznak.)</summary>
+        public bool HasPose;
 
         /// <summary>Poslat merenie podel lepe urcene osy?</summary>
         public bool EmitTightAxis;
@@ -149,7 +174,7 @@ namespace ARBot.Common.Localization
                 TightAxisAngle = cov.TightAxisAngle,
                 SigmaPhi = cov.SigmaPhi,
                 EvidenceCells = evidenceCells,
-                InformativeWeight = cov.InformativeWeight,
+                InformativeEvidence = cov.InformativeEvidence,
                 Candidates = scan.Candidates,
             };
 
@@ -223,7 +248,7 @@ namespace ARBot.Common.Localization
                 TightAxisAngle = TightAxisAngle,
                 SigmaPhi = SigmaPhi,
                 EvidenceCells = EvidenceCells,
-                InformativeWeight = InformativeWeight,
+                InformativeEvidence = InformativeEvidence,
                 Candidates = Candidates,
                 Emitted = Emitted,
                 EmitTightAxis = EmitTightAxis,
@@ -233,6 +258,10 @@ namespace ARBot.Common.Localization
                 ProcessingMs = ProcessingTime.TotalMilliseconds,
                 TimeStamp = TimeStamp,
                 DroppedByFusion = DroppedByFusion,
+                PoseX = PoseX,
+                PoseY = PoseY,
+                PoseTheta = PoseTheta,
+                HasPose = HasPose,
             };
     }
 }

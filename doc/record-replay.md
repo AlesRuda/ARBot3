@@ -396,9 +396,65 @@ opakovaně stavěla ad hoc a další sezení je nemělo čím zopakovat (viz [de
 komfort — rozptyl mezi běhy téže konfigurace byl větší než rozdíl, který se zkoumal.
 
 Příkazy: `corridor` (hranová lokalizace), `corridorfit` (A/B měření estimátoru proložení, viz níž),
-`dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy blokovaná — geometrie vs.
-semantika, včetně simulace „hloubka hlásí ideální rovinu"), `poses` (póza pořízení ve snímcích
-a o kolik se hranice kreslila vedle), `types`.
+`edgebias` (odchylky hranových bodů od **známého** okraje vozovky — podle hranice, kamery
+a vzdálenosti; tímhle se našlo, že nejmenší kvadráty sledují průměr zešikmeného rozdělení),
+`grid` (polární grid **serializovaný ve snímcích**, tedy co skutečně vyrobila běžící aplikace — ne
+znovu-výpočet; tímhle se našla mrtvá `VirtualHWOptions.Scene`), `sigma` (je σ korelace s mapou
+poctivá? viz níž), `dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy
+blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální rovinu"), `poses` (póza
+pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
+
+### `sigma`: je σ korelace s mapou poctivá?
+
+Porovná **hlášenou** nejistotu se **skutečným rozptylem** chyby proti známé odpovědi — test č. 1
+z fáze 4 a jádro otevřeného úkolu „honestní σ".
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- sigma Records/<zaznam>.rec --truedx=-0.60 --truedy=0.40
+```
+
+Známou odpověď dodá **tuze posunutá** mapa: robot jede podle `map=OSM/SyntetickyRovny.osm`, kamery
+renderují z `visionmap=OSM/SyntetickyRovnyPosunuty.osm` (posun +0,60 E / −0,40 N), takže korelátor
+**musí** ohlásit `(−0,60, +0,40)`. Záznam se vyrobí takhle:
+
+```bash
+ARBot.exe selftest=true st_seconds=45 st_record=true no_uart=true virtualhw=true mapcorr=true mapcorrsend=false map=OSM/SyntetickyRovny.osm visionmap=OSM/SyntetickyRovnyPosunuty.osm goal=50.028999979,14.522232996
+```
+
+Od 25. 8. 2026 večer je **honestní σ výchozí stav**, takže tenhle běh měří opravený estimátor; pro
+A/B proti původnímu chování s konstantní `α` se přidá `mapcorrref=0`. Report tiskne informativní
+důkaz v **m²·log-odds** a podíl informativních buněk dopočítá z rozlišení gridu, které si vezme
+z prvního `OccupancyGridMsg` v témže záznamu.
+
+Report dává **čtyři bloky** a je důležité je nesplést:
+
+1. **Poctivost σ surově** — hlášená σ proti rozptylu chyby proti *posunu mapy*. Historická metrika;
+   obsahuje i vlastní chybu fúze, takže vypadá o dost hůř, než jak si korelátor stojí.
+2. **Poctivost σ po odečtení vlastní chyby fúze** — to je JEHO chyba. Korelátor hlásí posun proti
+   **odhadu** pózy, takže správná odpověď je `(−posun mapy) + (pravda − odhad)`; druhý člen se bere
+   z `GroundTruthMsg` a `RobotStateMsg` interpolovaných v čase cyklu. Bez tohohle bloku se chyba
+   fúze účtuje korelátoru (naměřeno 25. 8. 2026: vychýlení 0,191 → 0,018 m).
+3. **Normovaná chyba `z = chyba / σ TOHO cyklu`** — nejpřísnější test. σ se cyklus od cyklu mění 3×
+   a velké chyby padají právě na cykly s velkou σ, takže poměr souhrnného rozptylu k *mediánu* σ
+   je zavádějící. Poctivá σ dá `sd(z) = 1` a `|z| > 2` u ~5 % cyklů.
+4. **Časová korelace mezi cykly** — slotovaná autokorelace chyby a z ní činitel nadsazení informace
+   `1+2Σρ` a dekorelační čas. Hlásí i to, jestli se korelace v měřeném okně **vůbec rozpadla** —
+   když ne, je to dolní hranice a je potřeba delší úsek.
+
+`--skip=<s>` zahodí prvních `<s>` sekund. Rozjezd je jinak vidět jako transient (chyba odeznívající
+z 0,50 na 0,05 m), ale pozor — **většina toho transientu je usazující se fúze**, ne korelátor, takže
+po odečtení podle bodu 2 tam žádný transient není a `--skip` obvykle netřeba.
+
+⚠️ **Tři kontroly, které report tiskne a bez kterých čísla nic neznamenají** — všechny tři už jednou
+zachránily od špatného závěru:
+
+- **Kde robot skutečně jel** (ground truth). Robot jede podle toho, co *vidí*, takže se může
+  vycentrovat na vizuálně vnímanou cestu a fyzicky ujet — pak posun mezi gridem a mapou roste a není
+  to chyba korelátoru. V měřených bězích ujel příčně 0,027 m, tedy zanedbatelně.
+- **Úhel těsné osy.** Na cestě vedoucí na východ musí být 90°. Je známá vada, že bývá vychýlená.
+- **`Dx`** musí být 0,000 — podélná složka je na rovné cestě nepozorovatelná.
+
+Výsledky a rozbor: [map-correlation-localization.md](map-correlation-localization.md#honestní-σ-první-měření-a-oprava-25-8-2026).
 
 ### `corridorfit`: A/B měření estimátoru proložení
 

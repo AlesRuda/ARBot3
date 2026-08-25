@@ -66,9 +66,10 @@ namespace ARBot.Common.Localization
         }
 
         /// <summary>
-        /// Kolik dukaznich bunek je <b>INFORMATIVNICH</b>: zmeni svuj verdikt "je tu cesta" mezi
-        /// kandidaty vzdalenymi <paramref name="h"/> od maxima. Vahovane <c>|w|</c>, aby slabsi
-        /// dukaz vazil min.
+        /// Kolik je <b>INFORMATIVNIHO</b> dukazu: bunek, ktere zmeni svuj verdikt "je tu cesta" mezi
+        /// kandidaty vzdalenymi <paramref name="h"/> od maxima. Vahovane <c>|w|</c> (slabsi dukaz
+        /// vazi min) a nasobene <b>plochou bunky</b>, takze vysledek je fyzikalni velicina
+        /// v <b>m² · log-odds</b>.
         ///
         /// <para><b>Nacpak.</b> Skore je normovany PODIL, takze o mnozstvi dukazu za sebou nevi nic
         /// — a sigma odvozena z jeho zakriveni to nevi taky. Odtud "otevreny ukol c. 1": maly oblak
@@ -77,14 +78,27 @@ namespace ARBot.Common.Localization
         ///
         /// <para>Bunky daleko od okraje cesty souhlasi u KAZDEHO kandidata (travnik na travniku sedi,
         /// at posunes kam chces), takze nic neurcuji. Rozliseni je prave tohle: <b>zmeni bunka
-        /// verdikt, kdyz kandidatem pohnu?</b> Tento pocet je to, co ma skalovat sigma — ne
+        /// verdikt, kdyz kandidatem pohnu?</b> Tohle je to, co ma skalovat sigma — ne
         /// <c>EvidenceCells</c>, kterych muze byt desetkrat vic a stejne nic neurcuji.</para>
+        ///
+        /// <para><b>Proc se nasobi plochou bunky</b> (<see cref="EvidenceCloud.CellArea"/>): pocet
+        /// bunek roste jako <c>1/plocha</c>, takze pri dvojnasobnem rozliseni jich je ctyrikrat vic
+        /// pri temze mnozstvi skutecne informace — jsou to tytez hloubkove pixely rozkrajene
+        /// jemneji. Bez teho nasobeni by referencni hodnota platila jen pro jedno rozliseni gridu
+        /// (namereno 25. 8. 2026, viz doc/map-correlation-localization.md).</para>
+        ///
+        /// <para><b>Proc se NEDELI krokem <paramref name="h"/></b>, i kdyz sirka pasma informativnich
+        /// bunek je <c>2h</c>: prave ta zavislost vykrati <c>sigma ~ sqrt(h)</c>, kterou ma "tent"
+        /// skore (zakriveni ~ <c>1/h</c>). Skalovanim podle takhle merenho dukazu se sigma stane na
+        /// kroku derivace nezavisla — vada, kterou <see cref="CorrelationCovariance"/> dosud
+        /// priznavala jako past.</para>
         /// </summary>
         /// <param name="dx">Poloha maxima - posun na vychod [m].</param>
         /// <param name="dy">Poloha maxima - posun na sever [m].</param>
         /// <param name="phi">Poloha maxima - chyba kurzu [rad].</param>
         /// <param name="h">Krok, na kterem se informativnost zkousi [m] (tyz jako krok derivace).</param>
-        public double InformativeWeight(double dx, double dy, double phi, double h)
+        /// <returns>Informativni dukaz [m² · log-odds].</returns>
+        public double InformativeEvidence(double dx, double dy, double phi, double h)
         {
             double total = 0;
             double c = Math.Cos(phi), s = Math.Sin(phi);
@@ -102,7 +116,7 @@ namespace ARBot.Common.Localization
                 if (Flips(qx - h, qy, qx + h, qy) || Flips(qx, qy - h, qx, qy + h))
                     total += Math.Abs(cloud.W[i]);
             }
-            return total;
+            return total * cloud.CellArea;
 
             bool Flips(double ax, double ay, double bx, double by)
             {
