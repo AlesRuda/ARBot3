@@ -179,6 +179,37 @@ namespace ARBot.Common.Localization
         /// <summary>Zdroj merenia pro fuzi a telemetrii.</summary>
         public string MeasurementSource = "MapCorr";
 
+        /// <summary>
+        /// Rezim gatingu korekci z korelace. <b>Vychozi <see cref="Fusion.GateMode.Soft"/></b>
+        /// (od 25. 8. 2026); <c>mapcorrgate=reject</c> vrati puvodni tvrdy gate pro A/B.
+        ///
+        /// <para><b>Tvrdy gate byl VADA — namereno.</b> Nad behem se skutecnym driftem
+        /// (<c>wheelslip=1.03,0.97 imubias=3,0.2</c>, mapa videni = mapa jizdy) hlasi korelator chybu
+        /// pozy SPRAVNE (vlastni chyba 0,02-0,06 m, sd(z) 0,74), ale <b>42-46 % korekci zahodil
+        /// tvrdy gate</b> (NIS p50 3,6, p90 az 124) — a vysledna poloha byla HORSI, nez kdyz se
+        /// nekorigovalo vubec. Pricna chyba pozy p50, dva behy na variantu:</para>
+        ///
+        /// <list type="table">
+        ///   <item><term>korekce vypnute</term><description>0,674 / 0,675 m</description></item>
+        ///   <item><term>tvrdy gate (Reject)</term><description>0,847 / 0,816 m — HORSI nez nic</description></item>
+        ///   <item><term>soft gate</term><description>0,589 / 0,636 m — lepsi nez nic</description></item>
+        /// </list>
+        ///
+        /// <para><b>Proc tvrdy gate skodi:</b> zahazuje prave ty VELKE korekce, ktere jsou potreba,
+        /// a co projde, je vybrane podle toho, ze uz souhlasi. Vysledkem je zaujaty podvzorek, tedy
+        /// horsi nez nekorigovat. <see cref="Fusion.GateMode.Soft"/> (<c>R' = R × NIS/prah</c>)
+        /// odlehle merenie jen malo zvazi, nikdy nevypne — presne to, co
+        /// doc/map-correlation-localization.md navrhuje uz od rozvahy o prime korekci: nesouhlas je
+        /// PRECHODNY, takze staci jim projit.</para>
+        ///
+        /// <para>⚠️ <b>Cena:</b> se Soft se nezahodi NIC (0 % zamitnutych), takze gate uz nechrani
+        /// proti korelaci, ktera se skutecne myli (spatna mapa, spatna kalibrace kamer). Tim roste
+        /// vaha <b>podminky 3</b> (strop na nesouhlas s GPS) — a ta je porad otevrena. GPS to
+        /// nezastoupi: ma sigma 1,5 m proti 0,088 m korelace, takze submetrovy odtah v jejim NIS
+        /// vubec nevidi (zmereno).</para>
+        /// </summary>
+        public Fusion.GateMode GateMode = Fusion.GateMode.Soft;
+
         /// <summary>Urovne skenovani od nejhrubsi k nejjemnejsi.</summary>
         public ScanLevel[] Levels =
         {

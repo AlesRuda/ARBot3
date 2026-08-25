@@ -23,7 +23,9 @@ namespace ARBot.Common.Tests.Fusion
 
         private static GPSState Gps(double latDeg, double lonDeg, DateTime t,
                                     GPSState.FixQuality q = GPSState.FixQuality.GpsFix,
-                                    double? speed = null)
+                                    double? speed = null,
+                                    double? course = null,
+                                    double? trueHeading = null)
             => new GPSState
             {
                 Latitude = latDeg,
@@ -32,6 +34,8 @@ namespace ARBot.Common.Tests.Fusion
                 NumberOfSatellites = 9,
                 Hdop = 0.9,
                 Speed = speed,
+                DynamicOrientation = course,
+                Orientation = trueHeading,
                 TimeStamp = t,
             };
 
@@ -434,6 +438,117 @@ namespace ARBot.Common.Tests.Fusion
 
             Assert.That(slow.Any(m => m.Source == "GPS/speed"), Is.False, "pri stani je GPS rychlost sum");
             Assert.That(fast.Any(m => m.Source == "GPS/speed"), Is.True);
+        }
+
+        // ---------------- GPS kurz = DRUHA absolutni reference (25. 8. 2026) ----------------
+        //
+        // Fuze mela do teto zmeny JEDINOU absolutni referenci kurzu (IMU/heading z magnetometru),
+        // takze bias kompasu nemela proti cemu zmerit: namereno, ze pri imubias=3 zustane chyba
+        // kurzu na 3,0 stupne a odhad sedi na IMU na 100 % — kompas kurz DEFINUJE, ne vazi.
+        // GPS kurz pritom zna (NmeaGps z VTG, uBloxGps jako atan2 z vektoru rychlosti) a namereno,
+        // ze je NEVYCHYLENY (+0,20 deg proti pravde pri sumu 5,02 deg). Viz
+        // doc/map-correlation-localization.md a doc/ekf-fusion.md.
+
+        [Test]
+        public void Gps_KurzNadZemi_DavaMereniGpsHeading()
+        {
+            var cfg = new FusionConfig { GeoReference = new GeoReference(LLA.FromDegrees(LatDeg, LonDeg)) };
+            var mapper = new DefaultMeasurementMapper(cfg);
+
+            var m = mapper.ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: 1.2, course: 0.7))
+                          .FirstOrDefault(x => x.Source == "GPS/heading");
+
+            Assert.That(m, Is.Not.Null, "z kurzu nad zemi ma vzniknout merenie kurzu");
+            Assert.That(m!.Value[0], Is.EqualTo(0.7).Within(1e-9));
+        }
+
+        /// <summary>
+        /// <b>Sigma kurzu klesa s rychlosti</b> — to je to podstatne. Kurz nad zemi neni merena
+        /// velicina, je to <c>atan2</c> z vektoru rychlosti, takze <c>sigma ≈ sigma_pricne / v</c>.
+        /// Konstantni sigma by tuhle zavislost zahodila a pri pomale jizde by filtr veril necemu,
+        /// co je skoro nahodne.
+        /// </summary>
+        [Test]
+        public void Gps_KurzNadZemi_SigmaKlesaSRychlosti()
+        {
+            var cfg = new FusionConfig
+            {
+                GeoReference = new GeoReference(LLA.FromDegrees(LatDeg, LonDeg)),
+                GpsCrossTrackStd = 0.3,
+                GpsHeadingStd = 0.005,          // podlaha nizko, aby nezastinila zavislost
+            };
+            var mapper = new DefaultMeasurementMapper(cfg);
+
+            double StdAt(double v) => Math.Sqrt(mapper
+                .ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: v, course: 0.0))
+                .First(x => x.Source == "GPS/heading").NoiseCovariance[0, 0]);
+
+            double slow = StdAt(0.5), fast = StdAt(3.0);
+
+            TestContext.Out.WriteLine($"sigma kurzu: 0,5 m/s -> {slow * 180 / Math.PI:F1} deg, "
+                                      + $"3,0 m/s -> {fast * 180 / Math.PI:F1} deg");
+
+            Assert.That(fast, Is.LessThan(slow), "rychleji = presnejsi kurz");
+            // atan(0,3/0,5) = 31 deg, atan(0,3/3,0) = 5,7 deg
+            Assert.That(slow, Is.EqualTo(Math.Atan2(0.3, 0.5)).Within(1e-9));
+            Assert.That(fast, Is.EqualTo(Math.Atan2(0.3, 3.0)).Within(1e-9));
+        }
+
+        [Test]
+        public void Gps_KurzNadZemi_MaPodlahuSigmy()
+        {
+            var cfg = new FusionConfig
+            {
+                GeoReference = new GeoReference(LLA.FromDegrees(LatDeg, LonDeg)),
+                GpsCrossTrackStd = 0.3,
+                GpsHeadingStd = 0.2,            // podlaha vys nez atan(0,3/10) = 0,03
+            };
+            var mapper = new DefaultMeasurementMapper(cfg);
+
+            var m = mapper.ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: 10.0, course: 0.0))
+                          .First(x => x.Source == "GPS/heading");
+
+            Assert.That(Math.Sqrt(m.NoiseCovariance[0, 0]), Is.EqualTo(0.2).Within(1e-9),
+                        "pri vysoke rychlosti nesmi sigma spadnout pod fyzicky strop prijimace");
+        }
+
+        [Test]
+        public void Gps_PriMaleRychlosti_KurzNepouzije()
+        {
+            var cfg = new FusionConfig { GeoReference = new GeoReference(LLA.FromDegrees(LatDeg, LonDeg)) };
+            var mapper = new DefaultMeasurementMapper(cfg);
+
+            // Pod prahem je atan2 ze sumu rovnomerne rozdeleny uhel, tedy cista dezinformace.
+            var slow = mapper.ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: 0.05, course: 0.7)).ToList();
+            Assert.That(slow.Any(x => x.Source == "GPS/heading"), Is.False);
+
+            // A ZAPORNA rychlost taky ne: kurz nad zemi je pri jizde vzad o 180 stupnu jinde
+            // a NMEA rychlost je bez znamenka, takze to nejde poznat. Radeji nic nez 180 stupnu vedle.
+            var reverse = mapper.ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: -1.2, course: 0.7)).ToList();
+            Assert.That(reverse.Any(x => x.Source == "GPS/heading"), Is.False);
+        }
+
+        /// <summary>
+        /// Dvouantennovy kurz (<c>uBlox HeadVeh</c>) je <b>skutecny kurz vozidla</b>, ne kurz nad
+        /// zemi — plati tedy i pri stani a nezavisi na rychlosti. Ma proto prednost.
+        /// </summary>
+        [Test]
+        public void Gps_DvouantennovyKurz_MaPrednost_APlatiIPriStani()
+        {
+            var cfg = new FusionConfig
+            {
+                GeoReference = new GeoReference(LLA.FromDegrees(LatDeg, LonDeg)),
+                GpsHeadingStd = 0.02,
+            };
+            var mapper = new DefaultMeasurementMapper(cfg);
+
+            var m = mapper.ToMeasurements(Gps(LatDeg, LonDeg, T0, speed: 0.0,
+                                              course: 1.1, trueHeading: 0.4))
+                          .FirstOrDefault(x => x.Source == "GPS/heading");
+
+            Assert.That(m, Is.Not.Null, "kurz vozidla plati i pri stani");
+            Assert.That(m!.Value[0], Is.EqualTo(0.4).Within(1e-9), "prednost ma kurz VOZIDLA");
+            Assert.That(Math.Sqrt(m.NoiseCovariance[0, 0]), Is.EqualTo(0.02).Within(1e-9));
         }
 
         // ---------------- Odometrie -> merenia ----------------

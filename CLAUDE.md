@@ -52,6 +52,18 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   nativní knihovna, RealSense verze, externí (ne-NuGet) reference.
 - [doc/ekf-fusion.md](doc/ekf-fusion.md) — EKF senzorická fúze (`ARBot.Common/Fusion`);
   hloubkově [doc/EKF_fuze_dokumentace.docx](doc/EKF_fuze_dokumentace.docx).
+  **Od 25. 8. 2026 fúze bere i `GPS/heading`** (kurz nad zemí, `σ = max(podlaha, atan2(σ_příčné, v))`,
+  práh na rychlost, jízda vzad vyloučená) — druhá absolutní reference kurzu vedle magnetometru.
+  ⚠️ **Samo to ale nic nezmění a je to změřené:** kompas přehlasuje GPS kurz **~4 000:1** (σ 0,017 rad
+  při 100 Hz proti 0,245 rad při 5 Hz), a i při σ srovnané s naměřeným šumem zbývá ~520:1. Příčina
+  není v GPS: **σ kompasu popisuje jeho krátkodobý šum, ne jeho bias**, takže filtr věří na 1° něčemu,
+  co se trvale mýlí o 3°. **Sčítat víc referencí to neřeší** — musí se změnit, co ta σ znamená.
+  Odtud otevřený úkol **„chyby senzorů jako stavy EKF"** (bias kompasu a gyra), jehož předpokladem
+  `GPS/heading` je — **ale je gatovaný potvrzením na reálném HW**: ten 3° bias vnutil v simulaci
+  člověk, takže se teprve musí ukázat, jestli ho skutečný VN100 vůbec má. Měří to
+  `ARBot.Analyze heading`, které tiskne „odhad sedí na IMU na N %" a **umí i běh bez ground truth**
+  (rozpor `IMU − GPS kurz`), tedy jde pustit na záznam ze zařízení. Pořídit ho je potřeba **se
+  smyčkou**: bias magnetometru se s kurzem otáčí, chyba rámců ne.
 - [doc/imu-and-frames.md](doc/imu-and-frames.md) — IMU, souřadnicové systémy, VN100
   (drivery, montáž, reference frame rotation).
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
@@ -116,8 +128,21 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ta dřívější aproximace lhala jen o **0–4 mm** (max 35 mm), takže závěry platí.
   **Podmínka č. 1 („honestní σ") je splněná:** σ je přes pět běhů `sd(z) = 0,70–0,87` (~0,80), tedy
   asi **1,25× konzervativní** — a to se **vědomě neopravuje**, protože zmenšit σ = zvětšit autoritu
-  korelátoru proti GPS, což je přesně to, co zbylé dvě podmínky gatují. Naostro tedy dál gatují
-  podmínky 2 a 3 (rychlostní limit, strop na nesouhlas s GPS).
+  korelátoru proti GPS, což je přesně to, co zbylé dvě podmínky gatují.
+  **Korekce poprvé pustené naostro a změřené 25. 8. 2026** (`ARBot.Analyze corrections`) — tři nálezy:
+  (a) **⚠️ tvrdý gate byl VADA:** korekce dělaly výsledek **horší, než když se nekorigovalo vůbec**
+  (příčná chyba p50 0,674 → 0,847 m, zamítáno 42–46 %), protože `Reject` zahazuje podle velikosti
+  innovace, tedy **právě ty velké korekce, které jsou potřeba**. Korelátor přitom hlásí správně
+  (vlastní chyba 0,02–0,06 m). `GateMode.Soft` je teď výchozí (0,589 m; `mapcorrgate=reject` vrátí
+  staré chování). (b) **podmínka 2 nemá naměřenou naléhavost** — přetok pózy p90 0,016 m a max 0,780 m
+  je totožný s během bez korekcí (usazování po startu); netestuje to ale velké `P`, tedy běh bez GPS.
+  (c) **podmínka 3 je naměřeně NUTNÁ:** GPS má σ **1,5 m** proti 0,088 m korelace, takže když se póza
+  odtáhla o 0,37 m, GPS NIS se **vůbec nezměnilo** — nezávislá kontrola je slepá právě na škále, kde
+  korelace pracuje. Se soft gatingem (0 % zamítnutých) váha té podmínky ještě vzrostla.
+  **Strop je ale nízký, dokud se neopraví kurz:** zisk soft gatingu je 6–13 % a chyba kurzu zůstává
+  na vnuceném biasu 3,0° — ten drift znovu vyrábí rychleji, než ho příčná korekce stahuje.
+  „Pomohly korekce?" **nelze měřit nad posunutou mapou** (tam je správné odejít od pravdy o posun
+  mapy) — musí být `visionmap` = `map` a skutečný drift.
   Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°, **korekce kurzu je ve fúzi bezmocná**
   (IMU kompas ji přehlasuje ~200:1 a soft gating ji u velkých chyb udusí, naměřeno 22. 8. 2026).
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření

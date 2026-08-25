@@ -35,7 +35,29 @@ namespace ARBot.Common.Fusion
         public double CompassHeadingStd = 0.05; // [rad]
         public double GpsPosStd = 1.5;         // [m]
         public double GpsSpeedStd = 0.3;       // [m/s]
+        /// <summary>
+        /// <b>PODLAHA</b> sigma kurzu z GPS [rad]. Skutecna sigma se pocita z rychlosti (viz
+        /// <see cref="GpsCrossTrackStd"/>) a tohle je jeji fyzicky strop presnosti — pri vysoke
+        /// rychlosti by jinak vysla libovolne mala, coz zadny prijimac neumi (multipath, antena,
+        /// bocni skluz vozidla).
+        /// </summary>
         public double GpsHeadingStd = 0.1;     // [rad]
+
+        /// <summary>
+        /// Smerodatna odchylka <b>pricne</b> slozky rychlosti z GPS [m/s] — z ni vychazi sigma
+        /// kurzu jako <c>atan2(GpsCrossTrackStd, v)</c>.
+        ///
+        /// <para><b>Proc se sigma kurzu pocita, a ne zadava.</b> Kurz nad zemi neni merena velicina,
+        /// je to <c>atan2</c> z vektoru rychlosti (tak ho pocita i <c>uBloxGps</c>; NMEA ho dostane
+        /// z VTG). Jeho nejistota tedy <b>zavisi na rychlosti</b> a konstantni cislo by tu zavislost
+        /// zahodilo: pri 0,5 m/s je to 31 stupnu, pri 3 m/s 5,7. Filtr by pri pomale jizde veril
+        /// necemu skoro nahodnemu. Namereno 25. 8. 2026 nad simulaci: 12,2 stupne pri 0,5 m/s
+        /// a 3,7 pri 3,0 — presne ta zavislost.</para>
+        ///
+        /// <para>Vychozi hodnota je stejna jako <see cref="GpsSpeedStd"/>: u prijimace, ktery resi
+        /// rychlost z Dopplera, neni duvod cekat, ze pricna slozka je jinak presna nez podelna.</para>
+        /// </summary>
+        public double GpsCrossTrackStd = 0.3;  // [m/s]
         public double CameraPosStd = 0.1;      // [m]
         public double CameraHeadingStd = 0.03; // [rad]
         public double CameraSpeedStd = 0.1;    // [m/s]

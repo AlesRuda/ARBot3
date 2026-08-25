@@ -40,6 +40,97 @@ Zdroj R pro orientaci: `IMUState.OrientationUncertainty` z VN100 (viz
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
 
+### GPS kurz je druhá absolutní reference — a sám nestačí (2026-08-25)
+
+**Co se přidalo:** `DefaultMeasurementMapper` dělá z GPS kurzu měření `GPS/heading`. Dva zdroje,
+které nejsou totéž:
+
+- `GPSState.Orientation` = skutečný **kurz vozidla** (dvouantenový přijímač, `uBlox HeadVeh`).
+  Platí i při stání, σ konstantní (`GpsHeadingStd`). Má přednost.
+- `GPSState.DynamicOrientation` = **kurz nad zemí** (course over ground) z vektoru rychlosti
+  (`NmeaGps` z VTG, `uBloxGps` jako `atan2`). Jen nad `GpsMinSpeed`.
+
+**σ se počítá, nezadává:** `σ = max(GpsHeadingStd, atan2(GpsCrossTrackStd, v))`. Kurz nad zemí není
+měřená veličina, je to `atan2` z vektoru rychlosti, takže jeho nejistota **závisí na rychlosti** —
+při 0,5 m/s je to 31°, při 3 m/s 5,7°. Konstantní σ by tu závislost zahodila a při pomalé jízdě by
+filtr věřil něčemu skoro náhodnému. `GpsHeadingStd` je **podlaha** (fyzický strop přijímače).
+
+**Jízda vzad je vyloučený stav:** kurz nad zemí je při ní o 180° jinde a rychlost z NMEA je bez
+znaménka, takže to z fixu nejde poznat. Vyžaduje se kladná rychlost nad prahem — lepší žádné měření
+než měření 180° vedle.
+
+#### Proč to samo nestačí (naměřeno)
+
+Motivace byla, že fúze měla **jedinou** absolutní referenci kurzu, takže bias kompasu neměla proti
+čemu změřit: při `imubias=3` zůstala chyba kurzu na 3,0° a odhad seděl na IMU na **100 %** — kompas
+kurz **definuje**, ne váží. GPS kurz je přitom nevychýlený (**+0,20°** proti pravdě při šumu 5,02°)
+a rozpor `IMU − GPS` je vidět jako **+2,9°**, tedy na 3σ stačí ~30 vzorků = **6 s jízdy**.
+
+Po zapojení ale **`GPS/heading` teče a nic nezmění** — 204 měření za běh, všechna přijatá, chyba
+kurzu 2,98°, odhad na IMU pořád 100 %. Důvod je v poměru vah:
+
+| | σ | kadence |
+|---|---|---|
+| `IMU/heading` | **0,017 rad** (1,0°) | 100 Hz |
+| `GPS/heading` | 0,245 rad (14,0° při 1,2 m/s) | 5 Hz |
+
+To je **208× na vzorek** × **20× v kadenci** ≈ **4 000:1**. A i při σ srovnané s naměřeným šumem
+(5,0°, tedy `atan(0,1/1,2)`) zbývá **~520:1**.
+
+> **Jádro je v tom, co σ kompasu popisuje.** 0,017 rad je jeho **krátkodobý šum**, ne jeho **bias**.
+> Filtr proto věří kompasu na 1°, i když se ten kompas mýlí o 3° **trvale** — a žádné množství
+> nevychýlené, ale hlučnější reference to nepřeváží. Sčítat víc absolutních referencí problém
+> neřeší; musí se změnit, **co ta σ znamená**.
+
+Souvislost s korelací mapy (tamtéž „korekce kurzu je ve fúzi bezmocná"):
+[map-correlation-localization.md](map-correlation-localization.md). Měří to
+`ARBot.Analyze heading`.
+
+### ⚠️ Otevřený úkol: chyby senzorů jako stavy EKF — ale nejdřív potvrdit na HW (2026-08-25)
+
+**Návrh (autorův):** místo aby se kompas a ostatní absolutní referencie přehlasovaly, **odhadovat
+chybu jednotlivých senzorů jako stav** — `x = [X, Y, θ, v, ω, b_kompas, b_gyro, …]`. Kompas pak měří
+`θ + b_c`, gyro `ω + b_g`, oba biasy jako náhodná procházka s malým `Q`. Kompas tím **přestane mít
+právo definovat absolutní kurz**; ten pinuje `GPS/heading`, které už hotové je.
+
+**Proč to není jen ladění σ.** Zvýšit `CompassHeadingStd` na řádově stupně je jednořádkové, ale je to
+fudge: filtr pak kompasu nevěří ani krátkodobě, kde je dobrý. Bias jako stav odděluje „krátkodobý
+šum" od „trvalé odchylky", což jsou dvě různé věci, které dnes popisuje jedno číslo.
+
+**Observabilita je vyřešená a změřená:** `b_gyro` je observabilní z jakékoli absolutní reference
+kurzu (stačí kompas), `b_kompas` z `GPS/heading` — v simulaci na 3σ za 6 s jízdy. Původní námitka
+(že by bias musela pinovat korelace s mapou, která má vlastní vadu, a stav by tak pojedl chybu
+korelátoru) **padla**: GPS kurz je nezávislý na magnetometru i na mapě.
+
+> **⛔ GATE: potvrdit na reálném HW, jestli je to vůbec potřeba.**
+> Všechno výše je změřené v **simulaci**, kde ten 3° bias kompasu **vnutil člověk** parametrem
+> `imubias=3`. Jestli má skutečný VN100 v téhle montáži bias, je empirická otázka o tom železe —
+> a když ne, celý tenhle úkol je zbytečná složitost ve stavovém vektoru, na kterém visí všechno
+> ostatní.
+>
+> **Jak to na zařízení změřit** (potřeba jen jízda, nic nového):
+> ```bash
+> dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- heading Records/<zaznam>.rec
+> ```
+> Report umí i **běh bez ground truth** a tiskne pak `IMU yaw − GPS kurz`: střední hodnotu, šum
+> a kolik vzorků je potřeba na 3σ. Pravdu k tomu nikdo nepotřebuje — stačí, že jsou to dvě
+> nezávislé absolutní referencie.
+>
+> **Podmínky pořízení:** jízda nad prahem rychlosti (kurz nad zemí při stání neexistuje), a nejlépe
+> **smyčka nebo aspoň dva různé kurzy**. Bias magnetometru je vázaný na **tělo** robota, takže se
+> s kurzem **otáčí**; deklinace nebo chyba v převodu rámců je vázaná na **svět**, takže nerotuje.
+> Bez otočení se to nerozliší. *(Tentýž rozlišovací znak už doc/map-correlation-localization.md
+> používá na „bias z montáže kamer vs. posun mapy".)*
+>
+> **Co s výsledkem:** rozpor řádu stupňů, který rotuje s kurzem ⇒ bias kompasu je skutečný a úkol má
+> smysl. Rozpor pod ~0,5° ⇒ zavřít jako nepotřebné a `GPS/heading` nechat jen jako druhou referenci
+> pro případ výpadku magnetometru.
+>
+> **Ten přístroj je ověřený proti známé odpovědi** (`--nogt` nad simulačním záznamem, kde pravda
+> existuje, ale zahodí se): cesta pro HW ohlásila střední rozpor **2,78°** proti vnucenému biasu
+> **2,99°**, tedy shoda do 0,2°, a odhadla potřebu 29 vzorků = 5,8 s jízdy. Bez toho by na zařízení
+> běžel kód, který nikdy nikdo neproměřil.
+
 ### Otevřený úkol: Pitch/Roll patří do stavu EKF (2026-08-11)
 
 `RobotState.Roll`/`Pitch` dnes **nejsou součástí stavu filtru** — doplňuje je

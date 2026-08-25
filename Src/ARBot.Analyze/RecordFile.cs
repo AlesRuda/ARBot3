@@ -47,6 +47,11 @@ namespace ARBot.Analyze
 
             var catalog = MessageCatalog.CommonDefaults();
             catalog.Register(new CameraFrame());   // Common ho sam neregistruje - viz hlavicka tridy
+            // GPSState taky ne — a je to PAST, protoze IMUState v tom katalogu JE. Kdo si toho
+            // nevsimne, cte zaznam, ve kterem GPS „neexistuje": index ji ukazuje (ARBot.Analyze
+            // types hlasi GPSState 225), ale Read vrati null, takze se to tvari jako chybejici
+            // senzor. Stalo to hodinu 25. 8. 2026. Tentyz seznam ma app v ARBotRuntime.BuildCatalog.
+            catalog.Register(new GPSState());
             prototypes = catalog.ToPrototypeMap();
 
             data = new FileStream(recPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,

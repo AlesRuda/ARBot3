@@ -400,7 +400,8 @@ Příkazy: `corridor` (hranová lokalizace), `corridorfit` (A/B měření estim�
 a vzdálenosti; tímhle se našlo, že nejmenší kvadráty sledují průměr zešikmeného rozdělení),
 `grid` (polární grid **serializovaný ve snímcích**, tedy co skutečně vyrobila běžící aplikace — ne
 znovu-výpočet; tímhle se našla mrtvá `VirtualHWOptions.Scene`), `sigma` (je σ korelace s mapou
-poctivá? viz níž), `dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy
+poctivá? viz níž), `corrections` (co korekce **skutečně dělají**, když se pustí naostro — viz níž),
+`dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy
 blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální rovinu"), `poses` (póza
 pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
 
@@ -455,6 +456,57 @@ zachránily od špatného závěru:
 - **`Dx`** musí být 0,000 — podélná složka je na rovné cestě nepozorovatelná.
 
 Výsledky a rozbor: [map-correlation-localization.md](map-correlation-localization.md#honestní-σ-první-měření-a-oprava-25-8-2026).
+
+### `corrections`: co korekce skutečně dělají, když se pustí naostro
+
+Podmínky 2 a 3 (rychlostní limit na aplikovanou korekci, strop na nesouhlas s GPS) jsou poslední dvě
+věci, které gatují pustit korekce naostro — a obě byly jen návrh. Tenhle report má dát číslo, ze
+kterého se dá vyjít; volit velikost limitu odhadem je tady už osvědčená cesta do zdi.
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- corrections Records/<zaznam>.rec
+```
+
+Tři bloky:
+
+- **Aplikovaný krok pózy** — o kolik póza přetekla to, co vysvětlí rychlost. Měří se **provozní
+  logikou** (`PoseJumpDetector`), takže číslo odpovídá tomu, kdy se opravdu zahodí grid. `MaxOffsetM`
+  omezuje *naměřený* posun, ne aplikovaný krok.
+- **Gating a NIS podle zdroje** — počty přijato / zamítnuto / pozdě, rozdělení NIS a **σ z `DiagR`**.
+  Ta σ je tam podstatná: bez ní nejde říct, *proč* je NIS nízké — jestli je měření přesné, nebo jen
+  přiznává velkou nejistotu. Právě tím se ukázalo, že GPS (σ 1,5 m) nemůže sloužit jako nezávislá
+  kontrola proti korelaci (σ 0,088 m).
+- **Chyba pózy proti ground truth** — jediný ukazatel, který říká, jestli to pomohlo.
+
+Potřebuje `measdiag=true` (jinak nejsou `MeasurementDiagMsg`) a pro poslední blok simulaci
+(`GroundTruthMsg`). A/B se dělá přepínačem `mapcorrsend=` / `corridorsend=`.
+
+> ⚠️ **„Pomohly korekce?" nelze měřit nad posunutou mapou.** Se `visionmap=…Posunuty.osm` je správné
+> chování korelátoru *odejít od pravdy* o velikost posunu, takže chyba pózy vzroste — a není to vada.
+> K téhle otázce musí být `visionmap` = `map` a skutečný drift (`wheelslip=`, `imubias=`). Posunutá
+> mapa je naopak to správné prostředí pro `sigma`, kde jde o známou odpověď.
+
+### `heading`: nesedí absolutní reference kurzu?
+
+Dá tři absolutní kurzy vedle sebe proti **pravdě**: `IMU yaw`, `GPS kurz` (course over ground)
+a odhad fúze. Odpovídá na otázku, jestli je bias kompasu observabilní **bez mapy**.
+
+```bash
+dotnet run --project ARBot.Analyze -p:Platform=x64 -- heading Records/<zaznam>.rec
+```
+
+Tiskne i to, **koho odhad následuje** (`odhad sedí na IMU na N %`) — blízko 100 % znamená, že
+kompas kurz *definuje*, ne že ho jen váží. A dopočítá, kolik vzorků je potřeba na rozlišení biasu
+od šumu GPS kurzu na 3σ.
+
+⚠️ **Vzorky pod prahem rychlosti se zahazují** — kurz nad zemí je `atan2` z vektoru rychlosti, takže
+při stání je to rovnoměrně rozdělený úhel. Report proto tiskne i **skutečnou rychlost robota**: bez
+toho by „GPS kurz n=0" šlo splést za vadu senzoru, i když robot jen stál.
+
+> **Past, která stála hodinu:** `GPSState` nebyl v katalogu zpráv analyzátoru, i když `IMUState`
+> tam je. Index GPS ukazoval (`types` hlásilo 225 zpráv), ale `Read` vracel `null` — takže se to
+> tvářilo jako chybějící senzor v simulaci. Opraveno v `ARBot.Analyze/RecordFile.cs`; tentýž seznam
+> má aplikace v `ARBotRuntime.BuildCatalog`.
 
 ### `corridorfit`: A/B měření estimátoru proložení
 

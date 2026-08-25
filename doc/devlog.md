@@ -173,13 +173,107 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   před „pustit naostro" je opačný směr. Navíc `|z| > 2` vyšlo u 0–8 % cyklů (čeká se ~5 %), tedy
   **chvosty jsou v pořádku**, jen jádro je užší. **Podmínka č. 1 „honestní σ" je tím splněná**
   v konzervativním směru; naostro dál gatují podmínky 2 a 3.
+- **Ještě později: korekce poprvé pustit naostro a změřit, co dělají.** Nový přístroj
+  `ARBot.Analyze corrections` (aplikovaný krok pózy provozním `PoseJumpDetector`em, gating a NIS
+  podle zdroje včetně σ z `DiagR`, chyba pózy proti ground truth). Cíl byl dát podmínkám 2 a 3
+  **naměřený základ** místo odhadu. Vyšly z toho tři věci, jedna z nich zásadní.
+- **⚠️ Tvrdý gate byl VADA — korekce dělaly výsledek horší, než když se nekorigovalo vůbec.**
+  Scéna, kde je co opravovat (mapa vidění = mapa jízdy, `wheelslip=1.03,0.97 imubias=3,0.2`), dva
+  běhy na variantu, příčná chyba pózy p50: **bez korekcí 0,674 / 0,675 m → tvrdý gate 0,847 /
+  0,816 m → soft gate 0,589 / 0,636 m.** Tvrdý gate zamítal **42–46 %** korekcí (NIS p50 3,6, p90
+  až 124).
+  **Není to vada korelátoru** — ověřeno zvlášť, že chybu pózy hlásí správně (vlastní chyba
+  0,02–0,06 m, `sd(z)` 0,74). Innovace je velká, protože **chyba pózy je velká**; tvrdý gate ale
+  zamítá podle velikosti innovace, takže vyhodí právě ty velké korekce, které jsou potřeba, a co
+  projde, je vybrané podle toho, že už souhlasí. `GateMode.Soft` je teď výchozí
+  (`mapcorrgate=reject` vrátí staré chování). Dokumentace to navrhovala už od rozvahy o přímé
+  korekci — jen to nikdo nezměřil.
+- **Podmínka 2 (rychlostní limit) nemá naměřenou naléhavost.** Přetok pózy nad to, co vysvětlí
+  rychlost: p50 0,000 m, **p90 0,016 m**, a max 0,780 m i oba „skoky" `PoseJumpDetector`u jsou
+  **totožné s během bez korekcí** — je to usazování po startu, ne korekce. Pozor ale: ten scénář
+  netestuje **velké `P`** (GPS tepe každých 200 ms), tedy právě případ, kterého se návrh bál.
+- **Podmínka 3 je naopak naměřeně NUTNÁ.** Nad tuze posunutou mapou se zapnutými korekcemi se póza
+  odtáhla **o velikost lži v mapě** (příčná chyba 0,098 → 0,367 m) a **GPS si toho vůbec nevšimla**:
+  NIS 1,46 → 1,36 (oboje na mediánu χ²(2) = 1,386, tedy dokonale konzistentní) a nezamítla ani jedno
+  z 210 měření. **Proč být nemohla:** σ z `DiagR` je **GPS 1,500 m proti MapCorr 0,088 m** — 290×
+  ve váze, a submetrový odtah je čtyřikrát menší než šum GPS. „Nezávislá kontrola" je slepá právě
+  na té škále, na které korelace pracuje. Strop musí být na **kumulovaném** nesouhlasu, ne na
+  jednotlivém měření.
+  *(Ten trojnásobek chyby v posunuté mapě NENÍ vada — tam je správné chování odejít od pravdy o
+  posun mapy. Proto se „pomohly korekce?" nedá měřit nad posunutou mapou; to už je druhá past
+  téhož druhu za den.)*
+- **Strop je nízký, dokud se neopraví kurz.** Zisk soft gatingu je jen 6–13 % a zbytková chyba
+  ~0,6 m. Chyba kurzu zůstala **3,0°** ve všech variantách, tedy přesně na vnuceném `imubias=3` —
+  kurzový bias drift znovu vyrábí rychleji, než ho příčná korekce stahuje.
+- **Ověřeno:** build `x64` bez chyb, **807 + 43 testů** prochází (nově `Vychozi_KorekceSeGatujiSoft`).
+  Deset dalších záznamů vyrobeno a po analýze smazáno. Nad simulací, **na HW neověřeno**.
 - **Rozpracováno / další krok:**
-  - **`sd(z)` na víc scénách** (odbočka, šikmá cesta) — dosud jen syntetická rovná. Teprve pak má
-    smysl sahat na absolutní škálu `Alpha`.
-  - **`TightAxisAngle` vychýlená ~6,3°** a **bezmocná korekce kurzu** zůstávají nedotčené.
-  - Podmínky **2 a 3** (rychlostní limit, strop na nesouhlas s GPS) — to je teď jediné, co brání
-    pustit korekce naostro.
-- **Odkazy:** `Src/ARBot.Analyze/TimeCorrelationReport.cs` (nový), `SigmaReport.cs`,
+  - **Bezmocná korekce kurzu** je teď na řadě: je to strop celé funkce, ne detail. Naměřeno, že
+    kurz zůstává na vnuceném biasu i se zapnutými korekcemi.
+  - **Podmínka 3** (strop na kumulovaný nesouhlas s GPS) — se soft gatingem její váha vzrostla.
+  - **Podmínka 2** — proměřit v běhu **bez GPS**, tedy s velkým `P`; jen tam má šanci se ukázat.
+  - **`sd(z)` na víc scénách** (odbočka, šikmá cesta) — dosud jen syntetická rovná.
+  - **`TightAxisAngle` vychýlená ~6,3°** zůstává nedotčená.
+- **Podnět autora: „odhadovat chyby jednotlivých senzorů jako stavy v EKF".** Souvisí s tím, že
+  dnešní strop je bezmocná korekce kurzu. První námitka byla, že bias kompasu potřebuje absolutní
+  referenci kurzu, a tou by byla korelace s mapou — která má vlastní vadu, takže by ten stav mohl
+  pojíst chybu korelátoru. **Autor tu námitku zrušil jednou větou:** „IMU vrací absolutní směr
+  a GPS při dostatečné rychlosti taky, už z toho musí jít detekovat, že ty reference nesedí."
+  Sedělo to, a ukázalo to čtyři věci:
+  - `GPSState.Orientation` / `DynamicOrientation` **existuje** a reálné drivery ho plní (`NmeaGps`
+    z VTG, `uBloxGps` jako `atan2` z vektoru rychlosti).
+  - **Fúze ho nepoužívala vůbec** — mapper z GPS bral jen polohu a rychlost.
+  - **Virtuální GPS ho nehlásila vůbec**, takže v simulaci to nešlo ani detekovat. Chyběl vysílač,
+    ne detektor.
+  - `TelemetryColumns` přitom `theta` / `IMU yaw` / `GPS kurz` už řadí vedle sebe jako jeden typ
+    úhlu. Někdo to zamýšlel.
+- **Doplněno: virtuální GPS hlásí kurz nad zemí.** Šum se přidává do **příčné složky rychlosti**,
+  ne jako konstantní „šum kurzu ve stupních" — kurz je `atan2` z vektoru rychlosti, takže jeho
+  nejistota klesá s rychlostí. Naměřeno **12,2° při 0,5 m/s a 3,7° při 3,0 m/s**. Bere se **pravý**
+  kurz (ground truth), ne odhad — jinak by to byla kruhová reference, tatáž past jako
+  `camerapose=fusion`.
+- **Změřeno, že rozpor JDE poznat bez mapy** (`ARBot.Analyze heading`, nový): IMU yaw je od pravdy
+  **+2,99°**, GPS kurz **+0,20°** (šum 5,02°), rozpor `IMU − GPS` **+2,87°**. Na rozlišení 3σ stačí
+  **~30 vzorků, tedy 6 s jízdy**. A hlavně: **odhad sedí na IMU na 100 %** — kompas kurz
+  *definuje*, ne váží.
+- **Zapojeno `GPS/heading` do fúze** (varianta A: druhá reference, žádné nové stavy).
+  `σ = max(GpsHeadingStd, atan2(GpsCrossTrackStd, v))`, práh na rychlost, přednost má dvouantenový
+  kurz vozidla. Jízda vzad je vyloučená — kurz nad zemí je při ní o 180° jinde a rychlost z NMEA je
+  bez znaménka.
+- **⚠️ A samo NESTAČÍ, a je to změřené.** `GPS/heading` teče (204 měření za běh, všechna přijatá),
+  ale chyba kurzu zůstala **2,98°** a odhad na IMU **100 %**. Poměr vah: σ 0,017 rad při 100 Hz
+  proti 0,245 rad při 5 Hz = **208× na vzorek × 20× v kadenci ≈ 4 000:1**; i při σ srovnané
+  s naměřeným šumem (5,0°) zbývá **~520:1**. **Jádro je v tom, co σ kompasu popisuje** — 0,017 rad
+  je jeho krátkodobý šum, ne jeho bias. Filtr proto věří kompasu na 1°, i když se trvale mýlí o 3°,
+  a žádné množství nevychýlené ale hlučnější reference to nepřeváží. **Sčítat víc referencí problém
+  neřeší; musí se změnit, co ta σ znamená.** Rozbor: [ekf-fusion.md](ekf-fusion.md).
+- **Past, která stála hodinu:** `GPSState` nebyl v katalogu zpráv `ARBot.Analyze`, i když `IMUState`
+  tam je. `types` hlásilo 225 GPS zpráv, ale `Read` vracel `null` — tvářilo se to jako chybějící
+  senzor v simulaci, a málem jsem hledal vadu ve `VirtualGps`, která tam nebyla. Opraveno
+  a okomentováno.
+- **Ověřeno:** build `x64` bez chyb, **812 + 46 testů** prochází (nově pět testů mapperu na
+  `GPS/heading` a tři na kurz virtuální GPS). Nad simulací, **na HW neověřeno**.
+- **Varianta B (bias senzorů jako stavy EKF) zapsána jako otevřený úkol — s gatem „nejdřív potvrdit
+  na HW".** Autorovo rozhodnutí, a je správné: ten 3° bias kompasu **vnutil člověk** parametrem
+  `imubias=3`, takže jestli ho skutečný VN100 v téhle montáži má, je empirická otázka o tom železe.
+  Když ne, je celý úkol zbytečná složitost ve stavovém vektoru, na kterém visí všechno ostatní.
+  Zadání i postup měření: [ekf-fusion.md](ekf-fusion.md).
+- **Kvůli tomu gatu doděláno, aby přístroj fungoval i BEZ ground truth** — tedy na zařízení, kde
+  pravda neexistuje. `heading` pak tiskne rozpor `IMU yaw − GPS kurz`: střední hodnotu, šum a kolik
+  vzorků je potřeba na 3σ. Pravdu k tomu nikdo nepotřebuje, stačí dvě nezávislé absolutní referencie.
+  Bez téhle úpravy by report na HW skončil hned první větou — a to je právě ten běh, pro který má
+  smysl. **Podmínka pořízení: smyčka nebo aspoň dva různé kurzy**, protože bias magnetometru se
+  s kurzem otáčí (je vázaný na tělo), zatímco chyba v převodu rámců ne (je vázaná na svět) — bez
+  otočení se to nerozliší.
+- **A ta HW cesta je ověřená proti známé odpovědi**, ne jen napsaná: přepínač `--nogt` zahodí pravdu
+  ze simulačního záznamu a pustí tentýž kód, co poběží na zařízení. Ohlásil střední rozpor **2,78°**
+  proti vnucenému **2,99°** (shoda do 0,2°) a potřebu 29 vzorků = 5,8 s. *Jinak by na HW jel kód,
+  který nikdo nikdy neproměřil — a to je přesně ten druh věci, kterou se pak hledá den.*
+- **Odkazy:** `Src/ARBot.Analyze/HeadingReferencesReport.cs` (nový), `RecordFile.cs`,
+  `Src/ARBot.Common/Runtime/DefaultMeasurementMapper.cs`, `Src/ARBot.Common/Fusion/FusionConfig.cs`,
+  `Src/ARBot.HAL/Devices/GPS/VirtualGps.cs`, `Src/ARBot.HAL/Devices/VirtualSensorOptions.cs`,
+  [ekf-fusion.md](ekf-fusion.md), [record-replay.md](record-replay.md).
+- **Odkazy (časová korelace):** `Src/ARBot.Analyze/TimeCorrelationReport.cs` (nový), `SigmaReport.cs`,
   `Src/ARBot.Analyze/Program.cs`, `Src/ARBot.Common/Localization/MapCorrelatorConfig.cs`,
   `Src/ARBot/Robot/ARBotRuntime.cs`,
   [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md),

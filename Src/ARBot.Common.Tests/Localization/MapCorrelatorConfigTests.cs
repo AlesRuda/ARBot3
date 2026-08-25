@@ -164,6 +164,21 @@ public class MapCorrelatorConfigTests
                     "prilis dlouhy odstup uz jen zahazuje pouzitelnou informaci");
     }
 
+    /// <summary>
+    /// <b>Korekce z korelace se gatuji SOFT, ne tvrde.</b>
+    ///
+    /// <para>Tvrdy gate zahazoval prave ty VELKE korekce, ktere jsou potreba, a co proslo, bylo
+    /// vybrane podle toho, ze uz souhlasi. Namereno 25. 8. 2026 nad driftem: pricna chyba pozy p50
+    /// 0,674 m bez korekci, <b>0,847 m s tvrdym gatem</b> (tedy horsi nez nic) a 0,589 m se Soft.
+    /// Zamitnutych bylo 42-46 %.</para>
+    /// </summary>
+    [Test]
+    public void Vychozi_KorekceSeGatujiSoft()
+    {
+        Assert.That(new MapCorrelatorConfig().GateMode, Is.EqualTo(ARBot.Common.Fusion.GateMode.Soft),
+                    "tvrdy gate zahazuje prave potrebne korekce - vysledek je horsi nez nekorigovat");
+    }
+
     [Test]
     public void Validate_ZapornaMinPeriod_Vyhodi()
     {

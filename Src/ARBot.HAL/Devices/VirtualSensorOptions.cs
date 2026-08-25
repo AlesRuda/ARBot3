@@ -32,6 +32,32 @@ namespace ARBot.HAL.Devices
         /// <summary>Smerodatna odchylka rychlosti z GPS [m/s].</summary>
         public double GpsSpeedNoiseMps { get; set; } = 0.1;
 
+        /// <summary>
+        /// Smerodatna odchylka PRICNE slozky rychlosti z GPS [m/s] — z ni vychazi sum KURZU
+        /// (course over ground).
+        ///
+        /// <para><b>Proc takhle a ne „sum kurzu ve stupnich".</b> Kurz z GPS neni merena velicina,
+        /// je to <c>atan2</c> z vektoru rychlosti (tak ho pocita i <c>uBloxGps</c>; NMEA ho dostane
+        /// z VTG). Jeho nejistota proto <b>zavisi na rychlosti</b>: <c>sigma_kurz ≈ sigma_v / v</c>.
+        /// Pri stani je nekonecna, pri 1 m/s a sumu 0,1 m/s je to ~5,7 stupne, pri 3 m/s ~1,9.
+        /// Zadat konstantni sum ve stupnich by tuhle zavislost zahodilo — a prave ona rozhoduje,
+        /// jestli je kurz z GPS pouzitelny jako DRUHA absolutni reference (a tedy jestli je bias
+        /// kompasu observabilni bez mapy).</para>
+        ///
+        /// <para>Vychozi hodnota je stejna jako <see cref="GpsSpeedNoiseMps"/>: u prijimace, ktery
+        /// resi rychlost z Dopplera, neni duvod cekat, ze pricna slozka je jinak presna nez podelna.</para>
+        /// </summary>
+        public double GpsCrossTrackNoiseMps { get; set; } = 0.1;
+
+        /// <summary>
+        /// Pod touto rychlosti se kurz z GPS <b>vubec nehlasi</b> [m/s].
+        ///
+        /// <para>Neni to volba komfortu: <c>atan2</c> ze sumu je pri stani rovnomerne rozdeleny uhel,
+        /// tedy cista dezinformace. Skutecny prijimac se chova stejne (NMEA VTG kurz pri stani
+        /// „poskakuje"). Tataz uvaha, jakou uz ma <c>FusionConfig.GpsMinSpeed</c> u rychlosti.</para>
+        /// </summary>
+        public double GpsCourseMinSpeedMps { get; set; } = 0.3;
+
         /// <summary>Frekvence GPS [Hz]. Cte se jen pri zalozeni senzoru.</summary>
         public int GpsRateHz { get; set; } = 5;
 

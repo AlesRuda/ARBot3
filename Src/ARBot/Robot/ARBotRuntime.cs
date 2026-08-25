@@ -418,6 +418,10 @@ namespace ARBot.Robot
                     // parametr uz slouzi hlavne k A/B: mapcorrref=0 vrati puvodni konstantni Alpha.
                     // POZOR NA JEDNOTKY: m²·log-odds, ne pocet bunek. Stara hodnota z prikazove
                     // radky (15000) skonci vyjimkou z Validate, ne tichym nesmyslem.
+                    // mapcorrgate=reject vrati puvodni TVRDY gate. Vychozi je Soft, protoze nad
+                    // driftem se zmerilo, ze tvrdy gate zahazuje 42-46 % korekci a vysledek je
+                    // HORSI nez nekorigovat vubec (pricna chyba 0,674 -> 0,847 m), zatimco se Soft
+                    // je lepsi (0,589 m). Viz MapCorrelatorConfig.GateMode.
                     new ARBot.Common.Localization.MapCorrelatorConfig
                     {
                         SendCorrections = sendCorrections,
@@ -425,6 +429,10 @@ namespace ARBot.Robot
                             "mapcorrref",
                             new ARBot.Common.Localization.MapCorrelatorConfig()
                                 .ReferenceInformativeEvidence),
+                        GateMode = string.Equals(Program.GetParam("mapcorrgate"), "reject",
+                                                 StringComparison.OrdinalIgnoreCase)
+                                   ? ARBot.Common.Fusion.GateMode.Reject
+                                   : ARBot.Common.Fusion.GateMode.Soft,
                     },
                     // Fronta musí unést plán z celého jednoho cyklu korelace (na ARM 100–200 ms
                     // proti periodě plánu 33 ms), jinak by DropOldest vytlačil zařazený snapshot.

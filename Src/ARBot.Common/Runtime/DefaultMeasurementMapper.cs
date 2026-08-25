@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
@@ -123,6 +124,55 @@ namespace ARBot.Common.Runtime
             if (gps.Speed.HasValue && gps.Speed.Value >= cfg.GpsMinSpeed)
                 yield return ScalarStateMeasurement.Velocity(gps.Speed.Value, cfg.GpsSpeedStd,
                                                              gps.TimeStamp, "GPS/speed");
+
+            // KURZ Z GPS - DRUHA ABSOLUTNI REFERENCE (25. 8. 2026).
+            //
+            // Nacpak: do teto zmeny mela fuze JEDINOU absolutni referenci kurzu (IMU/heading
+            // z magnetometru), takze bias kompasu nemela proti cemu zmerit. Namereno, ze pri
+            // imubias=3 zustane chyba kurzu na 3,0 stupne a odhad sedi na IMU na 100 % - kompas
+            // kurz DEFINUJE, ne vazi. GPS kurz pritom zna a je NEVYCHYLENY (+0,20 stupne proti
+            // pravde pri sumu 5,02). Viz doc/ekf-fusion.md a doc/map-correlation-localization.md.
+            foreach (var m in FromGpsHeading(gps)) yield return m;
+        }
+
+        /// <summary>
+        /// Kurz z GPS jako merenie. Dva zdroje, ktere NEJSOU totez:
+        ///
+        /// <list type="bullet">
+        ///   <item><b><see cref="GPSState.Orientation"/></b> = skutecny kurz VOZIDLA (dvouantennovy
+        ///   prijimac, <c>uBlox HeadVeh</c>). Plati i pri stani a nezavisi na rychlosti, takze ma
+        ///   prednost a sigma je konstantni.</item>
+        ///   <item><b><see cref="GPSState.DynamicOrientation"/></b> = kurz NAD ZEMI (course over
+        ///   ground) z vektoru rychlosti. Pouziva se az nad prahem rychlosti a sigma se pocita
+        ///   z rychlosti.</item>
+        /// </list>
+        ///
+        /// <para><b>Jizda vzad je vylouceny stav.</b> Kurz nad zemi je pri jizde vzad o 180 stupnu
+        /// jinde nez kurz vozidla, a rychlost z NMEA je BEZ ZNAMENKA, takze to z fixu nejde poznat.
+        /// Proto se pozaduje kladna rychlost nad prahem: radeji zadne merenie nez merenie 180 stupnu
+        /// vedle. (Kdyby robot jezdil vzad delsi dobu, musel by znamenko dodat stav fuze.)</para>
+        /// </summary>
+        private IEnumerable<IMeasurement> FromGpsHeading(GPSState gps)
+        {
+            // Kurz VOZIDLA - prednost, plati i pri stani.
+            if (gps.Orientation.HasValue)
+            {
+                yield return new HeadingMeasurement(gps.Orientation.Value, cfg.GpsHeadingStd,
+                                                    gps.TimeStamp, "GPS/heading");
+                yield break;
+            }
+
+            if (!gps.DynamicOrientation.HasValue) yield break;
+
+            // Rychlost se bere z fixu; DynamicSpeed je dopoctena z poloh, takze je horsi, ale
+            // lepsi nez nic. Bez rychlosti nejde sigma spocitat, takze se merenie vynecha.
+            double? v = gps.Speed ?? gps.DynamicSpeed;
+            if (!v.HasValue || v.Value < cfg.GpsMinSpeed) yield break;
+
+            // sigma = atan2(pricny sum, rychlost), zdola omezena fyzickym stropem prijimace.
+            double std = Math.Max(cfg.GpsHeadingStd, Math.Atan2(cfg.GpsCrossTrackStd, v.Value));
+            yield return new HeadingMeasurement(gps.DynamicOrientation.Value, std,
+                                                gps.TimeStamp, "GPS/heading");
         }
 
         /// <summary>

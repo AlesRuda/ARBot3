@@ -13,6 +13,37 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-25 — Korekce z korelace se gatují `Soft`; tvrdý gate byl vada
+**Co:** `MapCorrelatorConfig.GateMode` je nový a výchozí je **`GateMode.Soft`** (`R' = R × NIS/práh`)
+místo dosavadního tvrdého `Reject`. `mapcorrgate=reject` vrátí původní chování pro A/B.
+
+**Proč.** První měření korekcí naostro (`ARBot.Analyze corrections`) nad scénou, kde je co opravovat
+— mapa vidění = mapa jízdy, skutečný drift `wheelslip=1.03,0.97 imubias=3,0.2`. Dva běhy na variantu,
+příčná chyba pózy p50: **bez korekcí 0,674 / 0,675 m, s tvrdým gatem 0,847 / 0,816 m, se Soft
+0,589 / 0,636 m**. Tvrdý gate tedy dělal výsledek **horší, než když se nekorigovalo vůbec**, a
+zamítal 41,7 / 45,8 % korekcí (NIS p50 3,6, p90 až 124).
+
+**Není to vada korelátoru** — ověřeno zvlášť: po odečtení vlastní chyby fúze je jeho vlastní chyba
+0,02–0,06 m a `sd(z) = 0,74`. Innovace je velká proto, že **chyba pózy je velká**. Tvrdý gate ale
+zamítá podle velikosti innovace, takže vyhodí **právě ty velké korekce, které jsou potřeba**, a co
+projde, je vybrané podle toho, že už souhlasí — zaujatý podvzorek. Že je Soft správná odpověď, navíc
+říkala dokumentace už od rozvahy o přímé korekci: nesouhlas je *přechodný*, stačí jím projít.
+
+**Důsledky.**
+- Se Soft se nezahodí **nic** (0 % zamítnutých), takže gate už nechrání proti korelaci, která se
+  skutečně mýlí (špatná mapa, špatná kalibrace kamer). **Roste tím váha podmínky 3**, která je pořád
+  otevřená. GPS to nezastoupí — má σ 1,5 m proti 0,088 m korelace, takže submetrový odtah v jejím
+  NIS vůbec nevidí (změřeno: pózu to odtáhlo o 0,37 m a GPS NIS se nezměnilo).
+- Zisk je **malý** (6–13 %) a zbytková chyba ~0,6 m, protože chyba kurzu zůstává 3,0° — přesně na
+  vnuceném `imubias=3`. Kurzový bias drift znovu vyrábí rychleji, než ho příčná korekce stahuje.
+  **Dokud se neopraví bezmocná korekce kurzu, je strop toho, co korelace na driftujícím robotu
+  zachrání, nízký.**
+- Drží to test `Vychozi_KorekceSeGatujiSoft`.
+
+**Odkazy:** `Src/ARBot.Common/Localization/MapCorrelatorConfig.cs`, `MapCorrelator.cs`,
+`Src/ARBot.Analyze/CorrectionsReport.cs` (nový),
+[map-correlation-localization.md](map-correlation-localization.md).
+
 ### 2026-08-25 — Odstup korelací je dekorelační čas (3 s), ne ochrana proti hustým snapshotům
 **Co:** `MapCorrelatorConfig.MinPeriod` **400 ms → 3 s**, a je to teď *definované* jako dekorelační
 čas chybové posloupnosti, ne jako pojistka proti zaplavení.

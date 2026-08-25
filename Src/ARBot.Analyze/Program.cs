@@ -67,6 +67,10 @@ namespace ARBot.Analyze
                                         Arg(args, "--truedy", double.NaN),
                                         Arg(args, "--skip", 0.0));
                         return 0;
+                    case "corrections": CorrectionsReport.Run(rec); return 0;
+                    case "heading":
+                        HeadingReferencesReport.Run(rec, args.Any(a => a == "--nogt"));
+                        return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
@@ -125,6 +129,11 @@ namespace ARBot.Analyze
             Console.WriteLine("  sigma      je sigma korelace s mapou poctiva? hlasena nejistota proti");
             Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved) +");
             Console.WriteLine("             casova korelace mezi cykly (kolik merenii je nezavislych)");
+            Console.WriteLine("  corrections co korekce z lokalizace SKUTECNE delaji, kdyz se pusti naostro:");
+            Console.WriteLine("             velikost aplikovaneho kroku pozy (PoseJumpDetector), rozdeleni");
+            Console.WriteLine("             NIS a gatingu podle zdroje, a chyba pozy proti ground truth");
+            Console.WriteLine("  heading    absolutni reference kurzu vedle sebe proti pravde (IMU yaw,");
+            Console.WriteLine("             GPS kurz, odhad fuze) - je bias kompasu observabilni BEZ mapy?");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
@@ -145,6 +154,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  --truewidth=<m>    ZNAMA sirka cesty - presnost se pak meri proti ni, ne proti");
             Console.WriteLine("                     filtru sirky z RoadCorridorMsg (ten se z merenii uci, takze");
             Console.WriteLine("                     je mirne kruhovy). Pro OSM/SyntetickyRovny.osm: 2.0");
+            Console.WriteLine("  --nogt             u heading: tvarit se, ze zaznam nenese ground truth - tedy");
+            Console.WriteLine("                     jet touz cestou jako na realnem HW (overeni pristroje)");
             Console.WriteLine("  --skip=<s>         u sigma: zahodit prvnich <s> sekund. V SUROVE chybe je videt");
             Console.WriteLine("                     transient rozjezdu (odeznival z 0,50 na 0,05 m po 25 s), ale");
             Console.WriteLine("                     vetsina z nej je USAZUJICI SE FUZE, ne korelator - po jejim");

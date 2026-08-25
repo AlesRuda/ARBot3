@@ -40,6 +40,7 @@ tam se korelátor právě testuje. Reálný HW i běh bez profilu tím nedotčen
 |---|---|---|
 | `mapcorr=` (příkazová řádka) | zakládá se stupeň korelace **vůbec**? | **`false`** |
 | `mapcorrsend=` (příkazová řádka) | posílají se měření **do fúze**? (= `SendCorrections`) | `true` |
+| `mapcorrgate=` (příkazová řádka) | gating korekcí: `soft` / `reject` (= `GateMode`); tvrdý gate dělal výsledek **horší než nekorigovat** | **`soft`** |
 | `mapcorrref=` (příkazová řádka) | reference **honestní σ** [m²·log-odds] (= `ReferenceInformativeEvidence`); `0` vrátí původní chování s konstantní `Alpha` (A/B) | **`37,5`** = zapnuto |
 | `measdiag=` (příkazová řádka) | publikují se **verdikty jednotlivých měření** (`MeasurementDiagMsg`)? | vypnuto |
 | `corridor=` (příkazová řádka) | zakládá se **hranová** lokalizace (`CorridorLocalizer`)? | **`false`** |
@@ -520,9 +521,47 @@ sigmy" jako triku: podélná σ je velká **naměřeně**. Kurz jde přes existu
 
 `Source` = `"MapCorr"`, ať jsou v `Diagnostics()` a v telemetrii korekce rozpoznatelné.
 
+### Tvrdý gate byl vada: zahazoval právě to, co je potřeba (25. 8. 2026)
+
+Nejdůležitější nález z prvního měření korekcí naostro. Scéna: **mapa vidění = mapa jízdy** (žádná lež
+v mapě) a **skutečný drift** (`wheelslip=1.03,0.97 imubias=3,0.2`), tedy je co opravovat. Dva běhy
+na variantu, příčná chyba pózy proti ground truth:
+
+| varianta | p50 | p90 |
+|---|---|---|
+| korekce vypnuté | 0,674 / 0,675 m | 1,179 / 1,180 m |
+| **tvrdý gate (`Reject`)** | **0,847 / 0,816 m** | 1,663 / 1,630 m |
+| **soft gate** | **0,589 / 0,636 m** | 1,366 / 1,443 m |
+
+**Tvrdý gate dělal výsledek horší, než když se nekorigovalo vůbec.** Zamítal **41,7 / 45,8 %** korekcí
+(NIS p50 3,6, p90 až 124, max 200).
+
+**Proč to škodí, a proč to není vada korelátoru.** Ověřeno zvlášť: korelátor tu chybu pózy hlásí
+**správně** — po odečtení vlastní chyby fúze je jeho vlastní chyba 0,02–0,06 m a `sd(z) = 0,74`, tedy
+σ je poctivá. Innovace je velká proto, že **chyba pózy je velká**, ne proto, že by se korelátor mýlil.
+Tvrdý gate ale zahazuje podle velikosti innovace, takže vyhodí **právě ty velké korekce, které jsou
+potřeba**, a co projde, je vybrané podle toho, že už souhlasí. Výsledkem je zaujatý podvzorek — horší
+než nekorigovat.
+
+`GateMode.Soft` (`R' = R × NIS/práh`) odlehlé měření jen málo zváží, nikdy nevypne. To je přesně to,
+co [Napojení na fúzi](#napojení-na-fúzi) navrhovalo už u rozvahy o přímé korekci: nesouhlas je
+**přechodný**, takže stačí jím projít. **Od 25. 8. 2026 je to výchozí stav**; `mapcorrgate=reject`
+vrátí tvrdý gate pro A/B.
+
+> ⚠️ **Cena, kterou je vidět hned:** se Soft se nezahodí **nic** (0 % zamítnutých), takže gate už
+> nechrání proti korelaci, která se skutečně mýlí — proti špatné mapě nebo špatné kalibraci kamer.
+> Tím roste váha **podmínky 3** (strop na nesouhlas s GPS), a ta je pořád otevřená. GPS to
+> nezastoupí, viz [měření níž](#změřeno-gps-jako-nezávislá-kontrola-nefunguje-25-8-2026).
+
+**Zisk je ale malý** (6–13 % proti nekorigování) a zbytková chyba pořád ~0,6 m. Chyba kurzu zůstala
+**3,0°** ve všech variantách, tedy přesně na vnuceném `imubias=3` — korekce kurzu je bezmocná (známá
+vada) a ten kurzový bias drift **znovu vyrábí** rychleji, než ho příčná korekce stahuje. Dokud se
+neopraví kurz, je strop toho, co může korelace na driftujícím robotu zachránit, nízký.
+
 ### Autorita korelátoru
 
-- `GateMode.Reject` + `GateThreshold` — jeden výstřel robota neposune a zahození je vidět jako NIS.
+- `GateMode.Soft` + `GateThreshold` — viz [měření výš](#tvrdý-gate-byl-vada-zahazoval-právě-to-co-je-potřeba-25-8-2026);
+  tvrdý `Reject` dělal výsledek horší než nekorigovat.
 - σ nastavená tak, aby oprava tekla **postupně** (jednotky cm za cyklus), ne skokem.
 - Tvrdý strop `MaxOffsetM`: nad ním se nekoriguje vůbec. Skákat o metry je horší než přiznat, že
   nevíš.
@@ -694,12 +733,64 @@ Je to nejsilnější jednotlivý argument pro to, aby se teď při zapnutých ko
 rozdělení NIS pro `Source = "MapCorr"` — u konzistentního filtru s gatingem na 95 %
 χ²(1) má být zamítnutých kolem 5 %; výrazně víc znamená příliš malou σ.
 
+#### Změřeno: GPS jako nezávislá kontrola NEFUNGUJE (25. 8. 2026)
+
+Tohle už není rozvaha, je to změřené. Běh proti **tuze posunuté** mapě (o 0,40 m na severu) se
+zapnutými korekcemi — korelátor tedy dostal mapu, která lže, a udělal to, co má: **srovnal pózu
+s tím, co vidí**. Dva běhy na variantu:
+
+| | korekce vypnuté | korekce zapnuté |
+|---|---|---|
+| příčná chyba pózy p50 | 0,098 / 0,098 m | **0,364 / 0,370 m** |
+| GPS/position NIS p50 | 1,46 | 1,36 |
+| GPS/position zamítnuto | 0 z 210 | 0 z 210 |
+
+Póza se odtáhla **o velikost lži v mapě** (0,37 ≈ 0,40 m) — a **GPS si toho vůbec nevšimla**: její
+NIS se nezměnilo (p50 1,46 → 1,36, oboje přesně na mediánu χ²(2) = 1,386, tedy dokonale
+konzistentní) a nezamítla ani jedno měření.
+
+**Proč být nemohla:** naměřené σ z `DiagR` je **GPS 1,500 m proti MapCorr 0,088 m**. To je 17× v σ,
+tedy **290× ve váze**, a hlavně: systematický odtah 0,37 m je **čtyřikrát menší než šum GPS**. Nemá
+tedy jak se v NIS projevit. „Nezávislá kontrola" je slepá právě na té škále, na které korelace
+pracuje.
+
+> To je **měřený důkaz nutnosti podmínky 3** (strop na nesouhlas s GPS). Nestačí se opřít o gating:
+> ten porovnává nesouhlas s **vlastní** σ měření, a GPS má σ tak velkou, že projde cokoli
+> submetrového. Strop musí být na **kumulovaném** nesouhlasu, ne na jednotlivém měření.
+
+**Pozor na výklad:** ten trojnásobek příčné chyby **není vada korelátoru**. V téhle scéně je mapa
+vidění schválně posunutá, takže „srovnat pózu s mapou" *znamená* odejít od pravdy. Právě to je ale
+ta pointa: **špatná mapa, špatná kalibrace kamer a špatná póza jsou z jednoho měření
+nerozlišitelné** — a korelace vyhraje vahou počtu. Otázku „pomohly korekce?" proto nelze měřit nad
+posunutou mapou; k tomu je potřeba `visionmap` = `map` a skutečný drift (`wheelslip=`, `imubias=`).
+
 ### „Jednotky cm za cyklus" je naděje, ne vynucený invariant
 
 Výše uvedené „σ nastavená tak, aby oprava tekla postupně" popisuje **záměr**, ne mechanismus.
 `MaxOffsetM` omezuje **naměřený** posun, ne **aplikovaný** krok: při malé σ proti velkému `P` může
 filtr aplikovat téměř celé dva metry v jednom updatu. Tvrdý limit na velikost korekce za cyklus
 v návrhu **není** — viz [Otevřené úkoly](#otevřené-úkoly).
+
+#### Změřeno: v běžném provozu žádné skoky nejsou (25. 8. 2026)
+
+Přístroj `ARBot.Analyze corrections`. Měří **provozní logikou** (`PoseJumpDetector`), takže číslo
+odpovídá tomu, kdy se opravdu zahodí grid. A/B, dva běhy na variantu, `MinPeriod = 3 s`:
+
+| přetok pózy nad to, co vysvětlí rychlost | korekce vypnuté | korekce zapnuté |
+|---|---|---|
+| p50 | 0,000 m | 0,000 m |
+| p90 | 0,016 m | 0,016 m |
+| max | 0,780 m | 0,780 m |
+| skoků podle `PoseJumpDetector` | 2 z 449 | 2 z 449 |
+
+**Korekce nepřidávají nic.** Ten maximální přetok 0,780 m i oba „skoky" jsou v obou variantách
+totožné, tedy to nejsou korekce — je to **usazování po startu** (`InitializePosition` nastavuje jen
+X/Y, kurz jde od nuly). Podmínka 2 tedy **v tomto scénáři nemá naměřenou naléhavost**.
+
+> ⚠️ **Co ten scénář ale netestuje:** velké `P`. GPS tady tepe každých ~200 ms se σ 1,5 m, takže
+> kovariance nikdy nenaroste. Případ, kterého se návrh bál — malá σ korelace proti *velkému* `P`
+> po dlouhém výpadku GPS — se v tomhle běhu vůbec nevyskytne. Podmínka 2 zůstává rozumnou
+> pojistkou, jen **není podložená měřením**, dokud se neproměří běh bez GPS.
 
 ### Cirkularita: proč to není argument v kruhu
 

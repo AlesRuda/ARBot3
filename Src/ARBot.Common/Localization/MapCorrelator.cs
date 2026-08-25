@@ -212,25 +212,27 @@ namespace ARBot.Common.Localization
             double trueX = pose.X + r.Dx;
             double trueY = pose.Y + r.Dy;
 
+            var mode = config.GateMode;
+
             if (r.EmitTightAxis)
             {
                 engine.Enqueue(new AxisOffsetMeasurement(tx, ty, tx * trueX + ty * trueY,
                                                          r.SigmaTight, r.TimeStamp, config.MeasurementSource)
-                { GateThreshold = gate });
+                { GateThreshold = gate, GateMode = mode });
                 EmittedCorrections++;
             }
             if (r.EmitLooseAxis)
             {
                 engine.Enqueue(new AxisOffsetMeasurement(lx, ly, lx * trueX + ly * trueY,
                                                          r.SigmaLoose, r.TimeStamp, config.MeasurementSource)
-                { GateThreshold = gate });
+                { GateThreshold = gate, GateMode = mode });
                 EmittedCorrections++;
             }
             if (r.EmitHeading)
             {
                 engine.Enqueue(new HeadingMeasurement(pose.Theta + r.Phi, r.SigmaPhi,
                                                       r.TimeStamp, config.MeasurementSource)
-                { GateThreshold = gate });
+                { GateThreshold = gate, GateMode = mode });
                 EmittedCorrections++;
             }
         }
