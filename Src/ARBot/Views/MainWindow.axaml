@@ -49,6 +49,7 @@
                 <MenuItem Header="Telemetrie" Command="{Binding OpenTelemetryCommand}"/>
                 <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
                 <MenuItem Header="Virtuální senzory" Command="{Binding OpenVirtualSensorsCommand}"/>
+                <MenuItem Header="Mise Robotour" Command="{Binding OpenRobotourMissionCommand}"/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>
@@ -61,17 +62,17 @@
                 BorderThickness="0,0,0,1"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Content="Snímek" Command="{Binding CaptureShotCommand}"
+                <Button Content="Snímek" Command="{Binding CaptureShotCommand}" Classes="btn compact"
                         ToolTip.Tip="Uloží PNG snímek hlavního okna do doc/media/ (shot-*.png)."/>
 
                 <Border Width="1" Margin="4,2" Background="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
 
-                <Button Content="{Binding Mp4ButtonText}" Command="{Binding ToggleMp4Command}"
+                <Button Content="{Binding Mp4ButtonText}" Command="{Binding ToggleMp4Command}" Classes="btn compact"
                         ToolTip.Tip="Videozáznam okna do mp4 (H.264, 15 fps, max 1280 px, limit 10 min).&#10;Vyžaduje ffmpeg v PATH nebo v ARBOT_FFMPEG."/>
-                <Button Content="{Binding GifButtonText}" Command="{Binding ToggleGifCommand}"
+                <Button Content="{Binding GifButtonText}" Command="{Binding ToggleGifCommand}" Classes="btn compact"
                         ToolTip.Tip="Videozáznam okna do animovaného GIF (8 fps, max 800 px, limit 60 s).&#10;Bez ffmpegu se použije vestavěný zapisovač (kratší limit)."/>
 
-                <Button Command="{Binding OpenCaptureFolderCommand}" Padding="7,4"
+                <Button Command="{Binding OpenCaptureFolderCommand}" Classes="btn compact"
                         AutomationProperties.Name="Otevřít složku"
                         ToolTip.Tip="Otevřít složku doc/media (poslední soubor v ní označit).">
                     <!-- Vektorová ikona složky - nezávislá na dostupnosti emoji fontu (i na Armbianu).

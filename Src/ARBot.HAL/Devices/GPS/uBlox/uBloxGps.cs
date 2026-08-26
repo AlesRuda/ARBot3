@@ -46,8 +46,9 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             return new GPSState()
             {
                 FixTime = new TimeSpan(d, h, m, s, ms),
-                Latitude = pos.Latitude,
-                Longitude = pos.Longitude,
+                // u-blox posila 1e-7 STUPNE; GPSState drzi RADIANY (viz GPSState.Latitude).
+                Latitude = Conversions.Deg2Rad(pos.Latitude),
+                Longitude = Conversions.Deg2Rad(pos.Longitude),
                 Quality = (GPSState.FixQuality)pos.FixType,
                 NumberOfSatellites = pos.NumSV,
                 Hdop = pos.PDOP,

@@ -47,7 +47,7 @@
                                    Increment="0.5" FormatString="F1"/>
                 </Grid>
 
-                <Button Content="Vynulovat" Command="{Binding ResetErrorCommand}"
+                <Button Classes="btn" Content="Vynulovat" Command="{Binding ResetErrorCommand}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
 
                 <Separator Margin="0,4"/>

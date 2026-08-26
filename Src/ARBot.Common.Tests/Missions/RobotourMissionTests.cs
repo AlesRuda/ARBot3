@@ -125,6 +125,13 @@ public class RobotourMissionTests
             => Mission.OnQrCode(new QrCodeMsg { CameraName = "Right", Text = text, TimeStamp = now });
     }
 
+    /// <summary>
+    /// Fix z GPS. <see cref="GPSState.Latitude"/> je od 26. 8. 2026 v <b>RADIANECH</b> (tatáž
+    /// jednotka jako <c>LLA</c>), takze se tu prevadi ze stupnu, ve kterych je citelnejsi zadani.
+    ///
+    /// <para>Pomocnik testu musi drzet kontrakt <b>SENZORU</b>, ne domnenku testovaneho kodu —
+    /// dokud tady prevod nesouhlasil s produkcnim kodem, testy vadu jednotek <i>potvrzovaly</i>.</para>
+    /// </summary>
     private static GPSState Gps(double latDeg, double lonDeg, DateTime at,
                                 int satellites = 9, double hdop = 0.8)
         => new GPSState
@@ -379,6 +386,190 @@ public class RobotourMissionTests
         });
     }
 
+    /// <summary>
+    /// Okno musi projit i pri <b>realistickem sumu GPS</b>. Virtualni GPS ma ve vychozim stavu
+    /// sigma 1,5 m (a skutecna spotrebni GPS ve stoje driftuje podobne), takze kdyby kriterium
+    /// merilo MAXIMALNI odchylku s prahem 1 m, mise se nezarmuje NIKDY — ani v simulaci, ani na
+    /// zarizeni.
+    ///
+    /// <para>Zaroven to hlida spravnou statistiku: kriterium musi byt <b>efektivni</b> odchylka
+    /// (RMS), ktera s rostoucim n konverguje k sigma. Maximum s rostoucim n <b>roste</b>, takze by
+    /// delsi cekani kriterium PRITUZOVALO — presne naopak, nez ma.</para>
+    /// </summary>
+    [Test]
+    public void RealistickySumGps_OknoProjde()
+    {
+        var h = new Harness();
+        h.Mission.StartMission();
+
+        // Sum se u virtualni GPS (i u skutecne) prida do OBOU osi se sigma 1,5 m, takze RADIALNI
+        // odchylka je ~1,5*sqrt(2) = 2,1 m. Merit prah proti sumu jedne osy je podceneni.
+        double[] northM = { 0.4, -1.9, 1.2, -0.7, 2.4, -1.1, 0.9, -2.0, 1.6, -0.8, 1.3 };
+        double[] eastM = { -1.6, 1.1, -2.2, 0.8, -1.0, 2.1, -0.5, 1.7, -1.4, 2.3, -0.9 };
+        for (int i = 0; i < northM.Length; i++)
+            h.Mission.OnGps(Gps(DepotLatDeg + MetersToDegLat(northM[i]),
+                                DepotLonDeg + MetersToDegLon(eastM[i], DepotLatDeg),
+                                T0.AddSeconds(i)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Fusion.Calls, Is.EqualTo(1), "pri normalnim sumu GPS se MUSI zarmovat");
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStop));
+            Assert.That(h.Fusion.Std, Is.EqualTo(2.1).Within(0.5),
+                        "filtru se hlasi skutecne namereny RADIALNI sum, ne podlaha");
+        });
+    }
+
+    /// <summary>
+    /// <b>Zamitnuty kod musi rict PROC.</b> Tri duvody se z pohledu obsluhy chovaji stejne („nic se
+    /// nestalo"), ale znamenaji uplne jine reseni: nesrozumitelny kod = jiny kod, prilis daleko =
+    /// spatne zadany cil, bez trasy = cil mimo sit.
+    ///
+    /// <para>Nalezeno pri praci s panelem 26. 8. 2026: autor zkusil cil 71 km daleko, mise ho
+    /// spravne zamitla — a protoze to nikde nebylo videt, vypadalo to, ze se kod <i>neprecetl</i>.</para>
+    /// </summary>
+    [TestCase("http://example.com/neco", "nesrozumitel", Description = "neparsovatelny")]
+    [TestCase("geo:50.0,17.0", "daleko", Description = "prilis daleko od depa")]
+    public void ZamitnutyKod_ZpravaRekneProc(string code, string expectedFragment)
+    {
+        var (h, now) = StartedAtDepot();
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(code, now.AddSeconds(1));
+
+        var msg = h.Mission.LastMessage;
+        Assert.That(msg, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(msg!.HasPending, Is.False);
+            Assert.That(msg.RejectReason, Does.Contain(expectedFragment).IgnoreCase,
+                        "duvod zamitnuti musi byt ve zprave, jinak to vypada jako nepreceteny kod");
+            Assert.That(msg.RejectedCodeText, Is.EqualTo(code), "a s nim text, ktery se zamitl");
+        });
+    }
+
+    /// <summary>Cil bez trasy v grafu se taky zamitne s duvodem — ne jen tise.</summary>
+    [Test]
+    public void CilBezTrasy_ZpravaRekneProc()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.Reachable = false;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        Assert.That(h.Mission.LastMessage!.RejectReason, Does.Contain("trasa").IgnoreCase);
+    }
+
+    /// <summary>Prijaty kod duvod zamitnuti smaze — jinak by v panelu strasil stary.</summary>
+    [Test]
+    public void PrijatyKod_SmazeDuvodZamitnuti()
+    {
+        var (h, now) = StartedAtDepot();
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode("geo:50.0,17.0", now.AddSeconds(1));       // zamitnuty
+        Assert.That(h.Mission.LastMessage!.RejectReason, Is.Not.Empty);
+
+        h.ReadCode(PickupCode, now.AddSeconds(2));            // prijaty
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.LastMessage!.HasPending, Is.True);
+            Assert.That(h.Mission.LastMessage!.RejectReason, Is.Empty);
+        });
+    }
+
+    /// <summary>Prevod metru na stupne sirky (1° ~ 111,32 km) — jen pro citelnost testu.</summary>
+    private static double MetersToDegLat(double meters) => meters / 111320.0;
+
+    /// <summary>Prevod metru na stupne delky (poledniky se k polum stahuji, odtud cos).</summary>
+    private static double MetersToDegLon(double meters, double atLatDeg)
+        => meters / (111320.0 * Math.Cos(Conversions.Deg2Rad(atLatDeg)));
+
+    /// <summary>
+    /// <b>Fix z GPS se cte jako STUPNE.</b> Zapamatovane depo tedy musi vyjit na zadanych
+    /// souradnicich a inicializovana poloha na pocatku ENU roviny (fixy jsou v depu, ktere je
+    /// pocatkem).
+    ///
+    /// <para><b>Proc samostatny test:</b> zamena stupnu za radiany <b>nic nenahlasi</b> — body
+    /// v okne jsou pak desitky radianu od sebe, rozptyl vyjde astronomicky a okno se zamita VZDY,
+    /// takze mise uvizne v <c>ArmingAtDepot</c> a vypada to jako „necekam se fixu". Presne to se
+    /// stalo 26. 8. 2026 a odhalil to az beh v aplikaci: testy vadu <b>potvrzovaly</b>, protoze si
+    /// jejich pomocnik prevadel na radiany taky. Tenhle test kontroluje jednotky proti
+    /// <b>skutecne hodnote</b>, ne proti domnence testovaneho kodu.</para>
+    /// </summary>
+    [Test]
+    public void FixSeCteJakoStupne_DepoVyjdeNaZadanychSouradnicich()
+    {
+        var h = new Harness();
+        h.Mission.StartMission();
+
+        h.FeedGoodFixes(6.0, T0);
+
+        Assert.That(h.Mission.Depot, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(Conversions.Rad2Deg(h.Mission.Depot.Latitude),
+                        Is.EqualTo(DepotLatDeg).Within(1e-6), "sirka depa ve stupnich");
+            Assert.That(Conversions.Rad2Deg(h.Mission.Depot.Longitude),
+                        Is.EqualTo(DepotLonDeg).Within(1e-6), "delka depa ve stupnich");
+
+            // Pocatek ENU roviny JE depo, takze inicializovana poloha musi byt v jeho okoli.
+            Assert.That(Math.Sqrt(h.Fusion.X * h.Fusion.X + h.Fusion.Y * h.Fusion.Y),
+                        Is.LessThan(1.0), "poloha se inicializuje na pocatek, ne stovky km jinde");
+        });
+    }
+
+    /// <summary>
+    /// <b>Kdyz se mise v depu necekava fixu, musi byt videt PROC.</b> Zprava proto nese kvalitu
+    /// posledniho fixu (druzice, HDOP, rozptyl okna a jeho limit) — jinak je „ceka se na kvalitni
+    /// fix" nediagnostikovatelne a jediny zpusob, jak zjistit duvod, je zeptat se nekoho, kdo zna kod.
+    /// Presne to se stalo 26. 8. 2026.
+    /// </summary>
+    [Test]
+    public void NekvalitniFix_ZpravaRekneProc()
+    {
+        var h = new Harness();
+        h.Mission.StartMission();
+
+        // Fix s malo druzicemi a vysokym HDOP.
+        h.Mission.OnGps(Gps(DepotLatDeg, DepotLonDeg, T0, satellites: 3, hdop: 5.0));
+
+        var msg = h.Mission.LastMessage;
+        Assert.That(msg, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(msg!.HasFixInfo, Is.True, "kvalita fixu musi byt ve zprave");
+            Assert.That(msg.FixSatellites, Is.EqualTo(3));
+            Assert.That(msg.FixHdop, Is.EqualTo(5.0).Within(1e-9));
+            Assert.That(msg.FixQualityOk, Is.False, "tenhle fix kriteria nesplnuje");
+            Assert.That(msg.FixSpreadLimitM, Is.GreaterThan(0), "limit ma byt v zaznamu taky");
+        });
+    }
+
+    /// <summary>Rozptyl okna se hlasi průběžně, ne teprve až je okno plné.</summary>
+    [Test]
+    public void RozptylOkna_SeHlasiPrubezne()
+    {
+        var h = new Harness();
+        h.Mission.StartMission();
+
+        // Tri fixy rozhozene o ~30 m: okno jeste neni plne (DepotFixSec = 5 s), ale rozptyl uz
+        // je znamy - a je to prave ten udaj, ktery vysvetluje, proc se nikam nepokracuje.
+        for (int i = 0; i < 3; i++)
+            h.Mission.OnGps(Gps(DepotLatDeg + MetersToDegLat(i % 2 == 0 ? 30 : -30), DepotLonDeg,
+                                T0.AddSeconds(i)));
+
+        var msg = h.Mission.LastMessage;
+        Assert.Multiple(() =>
+        {
+            Assert.That(msg!.FixSamples, Is.EqualTo(3));
+            Assert.That(msg.FixQualityOk, Is.True, "jednotlive fixy jsou kvalitni");
+            Assert.That(msg.FixSpreadM, Is.GreaterThan(10), "ale rozptyl okna je obrovsky");
+        });
+    }
+
     // ---------------- Zastaveni na stanovisti: dve faze ----------------
 
     /// <summary>
@@ -610,6 +801,118 @@ public class RobotourMissionTests
             Assert.That(loaded.CodesRejected, Is.EqualTo(1));
             Assert.That(loaded.TimeStamp, Is.EqualTo(T0.AddSeconds(421.5)));
         });
+    }
+
+    /// <summary>
+    /// <b>Nabidnuty cil jde do zpravy</b> (verze 2) — vcetne delky trasy, kterou obsluha videla.
+    /// Ta se pocita jen ve zkousce dosazitelnosti a <b>nikde jinde v zaznamu neni</b>, takze bez
+    /// toho by po soutezi neslo dohledat, na zaklade CEHO se cil potvrdil.
+    /// </summary>
+    [Test]
+    public void NabidnutyCil_JdeDoZpravy()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.LengthM = 412.5;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        var msg = h.Mission.LastMessage;
+        Assert.That(msg, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(msg!.HasPending, Is.True);
+            Assert.That(msg.PendingLatDeg, Is.EqualTo(49.2110).Within(1e-9));
+            Assert.That(msg.PendingCodeText, Is.EqualTo(PickupCode));
+            Assert.That(msg.PendingRouteLengthM, Is.EqualTo(412.5).Within(1e-9));
+            Assert.That(msg.PendingDistanceFromDepotM, Is.GreaterThan(50),
+                        "stanoviste je ~78 m od depa");
+        });
+    }
+
+    /// <summary>Po potvrzeni uz nabidnuty cil ve zprave neni — je z nej prijaty cil.</summary>
+    [Test]
+    public void PoPotvrzeni_NabidnutyCilZeZpravyZmizi()
+    {
+        var (h, now) = StartedAtDepot();
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        h.Mission.Confirm();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.LastMessage!.HasPending, Is.False);
+            Assert.That(h.Mission.LastMessage!.PickupCodeText, Is.EqualTo(PickupCode),
+                        "text se presunul do prijateho cile");
+        });
+    }
+
+    /// <summary>
+    /// Zprava verze 1 nabidnuty cil nenese — <c>HasPending</c> zustane <c>false</c> a rozbor musi
+    /// priznat, ze co obsluha pred potvrzenim videla, uz nezjisti (viz doc/record-replay.md).
+    /// </summary>
+    [Test]
+    public void StaraZpravaVerze1_NabidnutyCilNema()
+    {
+        var v1 = new MissionMsg { Verze = 1, Phase = (int)RobotourPhase.Servicing, TimeStamp = T0 };
+        var buffer = new System.IO.MemoryStream();
+
+        // Verze 1 zapsala vse az po CodeNotSeen a TimeStamp; nabidnuty cil za tim jeste nebyl.
+        using (var bw = new System.IO.BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(v1.Phase); bw.Write(0);
+            bw.Write(T0.ToBinary()); bw.Write(0.0);
+            bw.Write(false); bw.Write(0.0); bw.Write(0.0);
+            bw.Write(false); bw.Write(0.0); bw.Write(0.0); bw.Write("");
+            bw.Write(false); bw.Write(0.0); bw.Write(0.0); bw.Write("");
+            bw.Write(""); bw.Write(0); bw.Write(0); bw.Write(0);
+            bw.Write(false); bw.Write(false);
+            bw.Write(T0.ToBinary());
+        }
+
+        buffer.Position = 0;
+        var loaded = new MissionMsg { Verze = 1 };
+        using (var br = new System.IO.BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            loaded.FromData(br);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded.HasPending, Is.False);
+            Assert.That(loaded.Phase, Is.EqualTo((int)RobotourPhase.Servicing), "zbytek se precte dal");
+        });
+    }
+
+    /// <summary>
+    /// <b>Nespustena mise hlasi uplynuly cas 0</b>, ne rozdil proti <c>default(DateTime)</c>.
+    ///
+    /// <para>Bez toho vyjde <c>now − 0001-01-01</c>, tedy ~64 miliard sekund — a nejde jen
+    /// o kosmetiku v UI: ta hodnota tece i do <see cref="MissionMsg"/>, takze by ji mel v sobe
+    /// <b>zaznam</b> (nalezeno v bezicí aplikaci 26. 8. 2026).</para>
+    /// </summary>
+    [Test]
+    public void NespustenaMise_HlasiNulovyCas()
+    {
+        var h = new Harness();
+
+        // Zpravy tecou i v Idle (stupen zije a periodicky hlasi), takze se to projevi hned.
+        h.Mission.Tick(T0);
+
+        Assert.That(h.Mission.LastMessage, Is.Not.Null);
+        Assert.That(h.Mission.LastMessage!.ElapsedSec, Is.Zero,
+                    "mise jeste nezacala - uplynuly cas nema odkud merit");
+    }
+
+    /// <summary>Po startu uz uplynuly cas bezi v hodinach DAT, ne stroje.</summary>
+    [Test]
+    public void PoStartu_UplynulyCasBeziVHodinachDat()
+    {
+        var h = new Harness();
+        h.Mission.StartMission(T0);
+
+        h.Mission.Tick(T0.AddSeconds(42));
+
+        Assert.That(h.Mission.LastMessage!.ElapsedSec, Is.EqualTo(42).Within(1e-6));
     }
 
     [Test]

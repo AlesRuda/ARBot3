@@ -7,7 +7,7 @@
         <vm:SensorStatusTool/>
     </Design.DataContext>
     <Grid RowDefinitions="Auto,Auto,*">
-        <Button Grid.Row="0" Content="Refresh" Command="{Binding RefreshCommand}"
+        <Button Grid.Row="0" Classes="btn compact" Content="Refresh" Command="{Binding RefreshCommand}"
                 HorizontalAlignment="Left" Margin="4"/>
         <TextBlock Grid.Row="1" Text="{Binding Status}" Foreground="Gray"
                    Margin="6,0,6,4" TextWrapping="Wrap"/>
@@ -26,7 +26,7 @@
                                        Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"/>
                             <!-- Stop/Start jednotliveho senzoru. U senzoru bez vlastni smycky
                                  (MD23, fiktivni motory) se tlacitko neukazuje. -->
-                            <Button Grid.Column="3" Margin="8,0,0,0" Padding="8,2" MinWidth="52"
+                            <Button Grid.Column="3" Margin="8,0,0,0" Classes="btn compact" MinWidth="52"
                                     IsVisible="{Binding CanControl}"
                                     Content="{Binding ToggleText}"
                                     Command="{Binding ToggleCommand}"

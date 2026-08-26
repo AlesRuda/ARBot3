@@ -28,8 +28,10 @@ namespace ARBot.Common.Tests.Fusion
                                     double? trueHeading = null)
             => new GPSState
             {
-                Latitude = latDeg,
-                Longitude = lonDeg,
+                // GPSState drzi RADIANY (viz GPSState.Latitude); zadani je ve stupnich, protoze
+                // je citelnejsi.
+                Latitude = ARBot.Common.Common.Conversions.Deg2Rad(latDeg),
+                Longitude = ARBot.Common.Common.Conversions.Deg2Rad(lonDeg),
                 Quality = q,
                 NumberOfSatellites = 9,
                 Hdop = 0.9,

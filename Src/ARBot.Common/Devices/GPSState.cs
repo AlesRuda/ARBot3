@@ -10,8 +10,16 @@ namespace ARBot.Common.Devices
 {
     public class GPSState: SensorStateBase
     {
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        ///
+        /// <para><b>Verze 2</b> (2026-08-26): <see cref="Latitude"/> / <see cref="Longitude"/> jsou
+        /// v <b>RADIANECH</b>, drive ve stupnich. Bajty jsou na temze miste, takze se stary zaznam
+        /// pozna <b>jen podle verze</b> — a bez prevodu by se z nej stala tichá nesmyslna data
+        /// (50 „radianu" je platne cislo, takze by se to projevilo az chovanim fuze o desitky tisic
+        /// kilometru dal).</para>
+        /// </summary>
+        public const int FormatVersion = 2;
 
         public GPSState() : base(FormatVersion)
         {
@@ -52,13 +60,22 @@ namespace ARBot.Common.Devices
         public TimeSpan FixTime { get; set; }
 
         /// <summary>
-        /// Latitude
+        /// Zemepisna sirka v <b>RADIANECH</b> (od 26. 8. 2026; do te doby to byly stupne).
+        ///
+        /// <para><b>Proc radiany:</b> tatáž jednotka, jakou drzi <see cref="Coordinates.LLA"/>,
+        /// <c>GeoReference</c> i cely zbytek systemu. Dokud tady byly stupne, byl <c>GPSState</c>
+        /// jedine misto s jinou konvenci — a protoze <c>new LLA(gps.Latitude, gps.Longitude)</c> je
+        /// ta nejprirozenejsi vec, kterou clovek napise, byla to <b>tichá a fatalni</b> past:
+        /// <c>DefaultMeasurementMapper</c> na ni musel mit varovny komentar a mise Robotour do ni
+        /// stejne spadla (uvizla v armovani, protoze rozptyl fixu vysel astronomicky).
+        /// Rozhodnuti autora: zmenit jednotku tak, aby nejprirozenejsi zapis byl <b>spravny</b>.</para>
+        ///
+        /// <para><b>Prevod je na okrajich:</b> drivery (NMEA, u-blox) parsuji stupne a prevadeji je
+        /// sem, UI a telemetrie prevadeji zpatky na stupne pro zobrazeni.</para>
         /// </summary>
         public double Latitude { get; set; }
 
-        /// <summary>
-        /// Longitude
-        /// </summary>
+        /// <summary>Zemepisna delka v <b>RADIANECH</b>; viz <see cref="Latitude"/>.</summary>
         public double Longitude { get; set; }
 
         /// <summary>
@@ -125,6 +142,14 @@ namespace ARBot.Common.Devices
             FixTime = new TimeSpan(br.ReadInt64());
             Latitude = br.ReadDouble();
             Longitude = br.ReadDouble();
+
+            // Verze 1 drzela STUPNE. Prevod na radiany je jediny zpusob, jak archivni zaznamy
+            // nezmenit v tiche nesmysly - viz FormatVersion.
+            if (Verze < 2)
+            {
+                Latitude = Common.Conversions.Deg2Rad(Latitude);
+                Longitude = Common.Conversions.Deg2Rad(Longitude);
+            }
             Quality = (FixQuality)br.ReadInt32();
             NumberOfSatellites = br.ReadInt32();
             Hdop = br.ReadDouble();

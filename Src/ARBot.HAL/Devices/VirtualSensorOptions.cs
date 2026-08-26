@@ -69,6 +69,21 @@ namespace ARBot.HAL.Devices
         /// odpovidajici dobremu fixu pod otevrenym nebem.</summary>
         public double GpsHdop { get; set; } = 0.9;
 
+        /// <summary>
+        /// <b>Nouzove zastaveni</b> hlasene virtualnimi motory (jako by obsluha drzela tlacitko).
+        /// Meni se za behu z panelu <i>Tools → Virtualni senzory</i>.
+        ///
+        /// <para><b>Nacpak to je:</b> cely handshake mise Robotour stoji na tom, ze obsluha stop
+        /// <b>zmackne</b> a pak <b>uvolni</b> (servisni okno, cteni QR, potvrzeni cile). Bez tohohle
+        /// prepinace se v simulaci servisni okno <b>neda projit vubec</b> — virtualni motory hlasily
+        /// nouzove zastaveni natvrdo jako <c>false</c>. Viz doc/robotour-mission.md.</para>
+        ///
+        /// <para>Kola to nezastavuje samo: o zastaveni se stara <c>ControlLoop</c>, ktery pod stopem
+        /// posila <c>Drive(0, …)</c> — simulovany robot tedy dobrzdi svou rampou, presne jako na
+        /// zeleze. Priznak je jen <i>vstup</i>, ne zkratka.</para>
+        /// </summary>
+        public bool EmergencyStop { get; set; }
+
         /// <summary>Smerodatna odchylka kurzu z IMU [rad] (~1 stupen).</summary>
         public double ImuHeadingNoiseRad { get; set; } = 0.017;
 

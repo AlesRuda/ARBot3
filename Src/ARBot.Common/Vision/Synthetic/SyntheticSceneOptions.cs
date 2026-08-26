@@ -29,5 +29,28 @@ namespace ARBot.Common.Vision.Synthetic
 
         /// <summary>Seed sumu - se stejnym seedem a pozou vyjde bitove tentyz snimek.</summary>
         public int Seed = 1;
+
+        /// <summary>
+        /// <b>Svisle desky s texturou</b> ve scene — typicky QR kod na stojanu
+        /// (<see cref="SyntheticBillboard"/>). Prazdny seznam = zadne.
+        ///
+        /// <para>Meni se <b>za behu</b> (panel mise deska pridava a po precteni kodu je zahazuje),
+        /// takze render nad tim iteruje pod zamkem instance. Je to jediny <i>menitelny</i> prvek
+        /// sceny — zbytek jsou konstanty vzhledu a sumu.</para>
+        /// </summary>
+        public System.Collections.Generic.List<SyntheticBillboard> Billboards { get; }
+            = new System.Collections.Generic.List<SyntheticBillboard>();
+
+        /// <summary>
+        /// Snimek desek pro render. Kopie schvalne: seznam meni UI vlakno, ctou ho vlakna kamer —
+        /// bez kopie by render padal na <c>InvalidOperationException</c> pri zmene za behu.
+        /// </summary>
+        public SyntheticBillboard[] BillboardSnapshot()
+        {
+            lock (Billboards)
+                return Billboards.Count == 0
+                    ? System.Array.Empty<SyntheticBillboard>()
+                    : Billboards.ToArray();
+        }
     }
 }

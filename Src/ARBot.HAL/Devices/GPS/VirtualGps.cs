@@ -68,12 +68,12 @@ namespace ARBot.HAL.Devices.GPSs
 
             var lla = origin.ToLLA(x, y);
 
-            // POZOR NA JEDNOTKY: GPSState drzi STUPNE, LLA radiany (mapper na to ma varovani -
-            // zamena znamena posun o stovky kilometru bez jedineho hlaseni).
+            // GPSState drzi RADIANY, tedy tutez jednotku jako LLA - zadny prevod (od 26. 8. 2026,
+            // viz GPSState.Latitude). Driv tady byl Rad2Deg a byla to past pro kazdeho konzumenta.
             return new GPSState
             {
-                Latitude = Conversions.Rad2Deg(lla.Latitude),
-                Longitude = Conversions.Rad2Deg(lla.Longitude),
+                Latitude = lla.Latitude,
+                Longitude = lla.Longitude,
                 Altitude = lla.Altitude,
                 Quality = GPSState.FixQuality.GpsFix,
                 NumberOfSatellites = options.GpsSatellites,

@@ -61,8 +61,9 @@ namespace ARBot.HAL.Devices.GPSs
             return new GPSState()
             {
                 FixTime = gga.FixTime,
-                Latitude=gga.Latitude,
-                Longitude=gga.Longitude,
+                // NMEA parsuje desetinne STUPNE; GPSState drzi RADIANY (viz GPSState.Latitude).
+                Latitude=Conversions.Deg2Rad(gga.Latitude),
+                Longitude=Conversions.Deg2Rad(gga.Longitude),
                 Quality=(GPSState.FixQuality)gga.Quality,
                 NumberOfSatellites=gga.NumberOfSatellites,
                 Hdop=gga.Hdop,

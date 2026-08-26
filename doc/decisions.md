@@ -13,6 +13,58 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-26 — `GPSState.Latitude/Longitude` jsou v RADIÁNECH (dřív stupně)
+**Co:** [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) drží zeměpisné souřadnice v
+**radiánech**, tedy v téže jednotce jako `LLA`, `GeoReference` a zbytek systému. `FormatVersion`
+1 → 2, starší záznamy se při čtení převádějí. Rozhodnutí autora.
+
+**Proč.** Do té doby byl `GPSState` **jediné místo s jinou konvencí**. A protože
+`new LLA(gps.Latitude, gps.Longitude)` je ta nejpřirozenější věc, kterou člověk napíše, byla to
+**tichá a fatální** past — 50 „radiánů" je platné číslo, takže se záměna nikde neohlásí a projeví se
+až chováním o desítky tisíc kilometrů dál. Že to není teoretické riziko, dokazují dva zásahy:
+`DefaultMeasurementMapper` na to musel mít varovný komentář („záměna znamená posun o stovky
+kilometrů bez jediného hlášení"), a **mise Robotour do ní stejně spadla** — uvízla v `ArmingAtDepot`,
+protože body v okně fixů byly desítky radiánů od sebe a rozptyl vyšel astronomický. Našlo se to až
+spuštěním v aplikaci; **testy vadu potvrzovaly**, protože si jejich pomocník převáděl na radiány taky.
+
+Podstata rozhodnutí tedy není „radiány jsou lepší jednotka", ale: **ať je nejpřirozenější zápis
+správný.** Komentář, který varuje před pastí, je slabší nástroj než past neexistující.
+
+**Cena.** Převod se přesunul na **okraje**: drivery (NMEA, u-blox — oba parsují stupně) převádějí
+dovnitř, UI a telemetrie zpátky na stupně pro zobrazení. Dotčeno 8 souborů; `VirtualGps` se naopak
+zjednodušila (dřív `Rad2Deg`, teď nic). **Archivní záznamy**: layout se nezměnil, takže se stará
+verze pozná jen podle čísla verze — viz [record-replay.md](record-replay.md), sekce o změně jednotky.
+
+**Odkazy:** [`GpsStateUnitsTests`](../Src/ARBot.Common.Tests/Devices/GpsStateUnitsTests.cs)
+(mimo jiné test, že starý záznam ve stupních se převede),
+[`DefaultMeasurementMapper`](../Src/ARBot.Common/Runtime/DefaultMeasurementMapper.cs),
+[robotour-mission.md](robotour-mission.md).
+
+### 2026-08-26 — Kvalita fixu v depu se měří RMS, ne maximem (a prah je 2,5 m)
+**Co:** `RobotourConfig.MaxSpreadM` je **efektivní (RMS) odchylka** fixů od průměru, ne největší,
+a výchozí hodnota je **2,5 m** (návrh měl 1,0 m). Tatáž veličina se pak hlásí filtru jako `std`.
+
+**Proč — dvě samostatné vady.**
+
+**(a) Maximum je špatná statistika.** Největší odchylka s rostoucím `n` **roste** i u dokonale
+gaussovského šumu, takže by delší čekání kritérium **přitvrzovalo** — přesně naopak, než má
+(`DepotFixSec` se zvýší, aby se okno zlepšilo, a ono se tím zamítne). RMS naopak konverguje k σ
+senzoru, takže prah je fyzikálně čitelný údaj („šum fixu musí být pod X") nezávislý na délce okna.
+
+**(b) Prah 1,0 m byl pod nominálním šumem, takže mise by se nezarmovala NIKDY.** Virtuální GPS má
+σ = 1,5 m a spotřební přijímač ve stoje driftuje podobně, takže i normální fix by okno zamítl —
+v simulaci i na zařízení. Zamítat se mají jen **abnormální** fixy (multipath skáče o desítky metrů),
+ne normální šum. Našel to test, který krmí misi šumem odpovídajícím simulaci.
+
+**Důsledek pro `std`, kterou dostane filtr:** hlásí se šum **jednoho vzorku**, ne standardní chyba
+průměru (`σ/√n`). Je to vědomě konzervativní: průměrování stahuje **náhodnou** část šumu, ale ne
+**bias** fixu (multipath, ionosféra), a ten je na téhle škále dominantní. Tvrdit filtru `σ/√n` by
+byla tatáž nepoctivost σ, jaká se řešila u korelace s mapou — jen z druhé strany.
+
+**Odkazy:** [`RobotourConfig`](../Src/ARBot.Common/Missions/RobotourConfig.cs),
+[`RobotourMission.OnGps`](../Src/ARBot.Common/Missions/RobotourMission.cs),
+[robotour-mission.md](robotour-mission.md).
+
 ### 2026-08-26 — `IPixel` má kanály `R`/`G`/`B`; barvu se nesmí čtít z `Values`
 **Co:** [`IPixel`](../Src/ARBot.Common/Common/IPixel.cs) má nové (jen ke čtení) `byte R`, `G`, `B`.
 `BGR`, `BGR32` a `RGB` je měly už předtím, doplnily se do `Gray`, `Gray16`, `Gray32`. Je to **jediná

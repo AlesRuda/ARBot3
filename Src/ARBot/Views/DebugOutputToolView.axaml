@@ -7,7 +7,7 @@
         <vm:DebugOutputTool/>
     </Design.DataContext>
     <Grid RowDefinitions="Auto,*">
-        <Button Grid.Row="0" Content="Clear" Command="{Binding ClearCommand}"
+        <Button Grid.Row="0" Classes="btn compact" Content="Clear" Command="{Binding ClearCommand}"
                 HorizontalAlignment="Left" Margin="4"/>
         <!-- Virtualizovany list radku: vykresluji se jen viditelne polozky (na rozdil od
              jednoho velkeho TextBoxu, ktery se cely znovu skladal pri kazde aktualizaci). -->

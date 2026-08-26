@@ -237,6 +237,20 @@ namespace ARBot.Robot
         public SyntheticSceneOptions VirtualScene { get; } = new SyntheticSceneOptions();
 
         /// <summary>
+        /// Instance parametru sceny, se kterou kamery <b>skutecne renderuji</b>.
+        ///
+        /// <para><b>Nemusi to byt <see cref="VirtualScene"/>:</b> <c>SetVirtualHW</c> bere
+        /// <c>options.Scene ?? VirtualScene</c>, takze volajici muze podstrcit vlastni instanci.
+        /// Kdo chce scenu menit za behu (UI), musi psat do <b>teto</b> — psani do <c>VirtualScene</c>,
+        /// ze ktereho nikdo nerenderuje, je <b>tichá</b> vada, ktera uz jednou stala pul dne
+        /// (24. 8. 2026, viz hlaska „virtualhw scena" v <c>SetVirtualHW</c>).</para>
+        ///
+        /// <para>Pred startem virtualniho HW vraci <see cref="VirtualScene"/> — tam se hodnoty
+        /// nastavene z prikazove radky nebo z UI dockaji zalozeni kamer.</para>
+        /// </summary>
+        public SyntheticSceneOptions ActiveVirtualScene => activeSceneOptions ?? VirtualScene;
+
+        /// <summary>
         /// Prenese prokluz kol z nastaveni do beziciho <see cref="SimulatedRobot"/>.
         /// Bez virtualniho HW nedela nic.
         /// <para>Vola se pri zalozeni virtualniho HW a po kazde zmene z UI nebo prikazove radky.
@@ -431,7 +445,9 @@ namespace ARBot.Robot
             SimulatedRobot.SetAcceleration(options.Acceleration);
             ApplyVirtualSensorOptions();   // prokluz kol ze sdilene instance (options.Sensors)
 
-            sensors.Add((ISensor)(Motor = new VirtualMotors(SimulatedRobot)));
+            // Nastaveni se predava, aby slo za behu prepnout NOUZOVE ZASTAVENI (panel Tools →
+            // Virtualni senzory). Bez nej se handshake mise Robotour v simulaci neda projit.
+            sensors.Add((ISensor)(Motor = new VirtualMotors(SimulatedRobot, options: VirtualSensors)));
             Motor.SetAcceleration(options.Acceleration);
 
             sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, sensorOptions));

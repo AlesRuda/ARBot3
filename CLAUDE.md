@@ -28,6 +28,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   [doc/architecture.md](doc/architecture.md).
 - **Souřadnicové konvence:** world **ENU** + matematická orientace (0 = východ, +CCW),
   body **FLU** (X vpřed, Y vlevo, Z nahoru). Viz [doc/imu-and-frames.md](doc/imu-and-frames.md).
+  **Zeměpisné souřadnice jsou VŠUDE v radiánech** — `LLA`, `GeoReference` i `GPSState` (ten od
+  26. 8. 2026; dřív byl jediná výjimka se stupni a byla to tichá past, viz
+  [doc/decisions.md](doc/decisions.md)). Převod na stupně patří jen na **okraje**: drivery při
+  parsování a UI/telemetrie při zobrazení.
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
   s dopadem na HW napiš, co je odsimulované vs. co je nutné ověřit na zařízení.
 - **Git: pracuje se přímo na `master`.** Commity jdou do masteru — **nezakládat feature branch**
@@ -193,11 +197,18 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
   sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
-  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Jádro hotové 26. 8. 2026** (54 testů):
-  `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení `mission=robotour`.
-  ⚠️ **Z aplikace se ale zatím nedá spustit** — mise čeká na `StartMission()` a **UI panel (fáze 5)
-  neexistuje**, takže `mission=robotour` dnes jen založí stupně a zůstane v `Idle`. Zbývá i přežití
-  restartu (fáze 6) a celé ověření na HW (fáze 7).
+  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Fáze 2–5 hotové 26. 8. 2026**
+  (62 testů): `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení
+  `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). Zbývá přežití restartu (fáze 6)
+  a ověření na HW (fáze 7).
+  **Vyzkoušet v simulaci:** panel mise („Start mise") + *Tools → Virtuální senzory*, kde je nově
+  **přepínač nouzového zastavení** — bez něj se servisní okno projít nedalo (virtuální motory
+  hlásily stop natvrdo `false`), **náhled kamery** pro čtení a **QR kód do virtuální kamery**
+  (svislá deska `SyntheticBillboard`, kreslí se jen do barvy — ne do hloubky, aby se nestala
+  překážkou; viz [doc/virtual-hw.md](doc/virtual-hw.md)). Tím jde průchod misí v simulaci projít celý.
+  ⚠️ **`MaxSpreadM` v návrhu (1,0 m) by misi nikdy nezarmovalo** — je pod nominálním šumem GPS;
+  je to teď **RMS** odchylka s prahem 2,5 m (maximum s rostoucím *n* roste, takže delší okno
+  kritérium přitvrzovalo). Viz [doc/decisions.md](doc/decisions.md).
   **Dekodér je ZXing.Net, ne ZBar** (binding z ARBot2 nebyl k dispozici; ZXing je čistě managed,
   takže **fáze 1 „nativní libzbar na obě platformy" celá padla**) — viz
   [doc/decisions.md](doc/decisions.md), 26. 8. 2026. Úspěšnost čtení **není naměřená**: testy

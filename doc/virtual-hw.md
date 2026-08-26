@@ -314,10 +314,64 @@ přesné rychlosti kol, ale GPS a IMU šum mají, jinak by fúze neměla co opra
 | bias kurzu IMU | 0 (vypnuto) |
 | bias gyra | 0 (vypnuto) |
 | prokluz kol | 1 (ideál) |
+| nouzové zastavení | vypnuto |
 
 Družice a HDOP jsou **jen kosmetika pro UI a logy** — simulace geometrii družic nemodeluje.
 Konstanty tam přesto jsou proto, že prázdná (nulová) hodnota v telemetrii vypadá jako rozbitý
 údaj; HDOP se do virtuálního fixu doplnil až 17. 8. 2026, starší záznamy ze simulace mají nulu.
+
+### QR kód ve scéně: svislé desky (26. 8. 2026)
+
+[`SyntheticBillboard`](../Src/ARBot.Common/Vision/Synthetic/SyntheticBillboard.cs) je **svislá deska
+s texturou** ve scéně; [`QrBillboard.Create`](../Src/ARBot.Common/Vision/Qr/QrBillboard.cs) z textu
+vyrobí QR kód. Desky žijí v `SyntheticSceneOptions.Billboards` a mění se **za běhu**.
+
+**Proč to vzniklo:** simulace QR kód nerenderovala, takže krok mise Robotour, ve kterém robot čte
+kód, se nedal projít ani ručně — vedený otevřený úkol z původního návrhu („dekodér nad reálným
+obrazem potřebuje buď železo, nebo QR ve virtuální kameře"). Podnět autora, 26. 8. 2026.
+
+**Jak se to kreslí.** Renderer je paprskový, takže deska přidává jen průsečík s **svislou rovinou**:
+parametr podél paprsku je tentýž jako u vodorovných rovin, takže se dá **přímo porovnat** se
+vzdáleností vozovky/trávy a rozhodnout, co je blíž. Textura se vzorkuje **nejbližším sousedem** — QR
+je binární vzor s ostrými hranami a rozmazání je právě to, co dekodéru vadí. Barva desky se
+**nešumí**: stojan se v reálu nechová jako tráva a šum by dekodéru jen ubíral úspěšnost.
+
+> **Deska se kreslí JEN do barvy, ne do hloubky** (rozhodnutí). Je to *vizuální značka*, ne fyzický
+> objekt: kdyby psala hloubku, stala by se překážkou v occupancy gridu a mohla by ovlivnit detekci
+> koridoru i plánování — tedy zkreslit právě to, co se v simulaci měří. Cena: nedá se na ní měřit
+> vizuální dojezd. Až to bude potřeba, je to samostatný krok — a bude chtít vlastní rozhodnutí,
+> protože pak už to překážka **je**. Hlídá to test (hloubka se přidáním desky nesmí změnit).
+
+**Jak to pustit.** Panel *Tools → Mise Robotour* má v servisním okně sekci „QR kód do virtuální
+kamery": text kódu (předplní se cílem ~50 m severně od depa, aby na něj vedla cesta), vzdálenost
+vpravo a výška. Deska se postaví **vpravo od robota čelem k němu**, protože se čte z pravé kamery, a
+**zmizí sama, až se kód přečte**. Je to pomůcka v UI, ne součást mise — mise o virtuálních kamerách
+nadále neví nic.
+
+Ověřeno testem, který uzavírá celou cestu: kód se postaví do scény → virtuální kamera vyrenderuje
+barevný obraz → `ZXingQrDecoder` ho z toho obrazu **přečte zpátky**
+([`SyntheticQrRenderTests`](../Src/ARBot.Common.Tests/Vision/Synthetic/SyntheticQrRenderTests.cs)).
+
+> ⚠️ **Past, na kterou se tu dá narazit:** kamery renderují z instance
+> `ARBotHW.ActiveVirtualScene`, která **nemusí** být `VirtualScene` (`SetVirtualHW` bere
+> `options.Scene ?? VirtualScene`). Psaní do té druhé je **tichá** vada — už jednou stála půl dne
+> (24. 8. 2026). Kdo mění scénu za běhu, musí použít `ActiveVirtualScene`.
+
+### Nouzové zastavení v simulaci (26. 8. 2026)
+
+`VirtualSensorOptions.EmergencyStop` — virtuální motory hlásí nouzové zastavení, jako by obsluha
+držela tlačítko. Přepíná se **za běhu** v panelu *Tools → Virtuální senzory*.
+
+**Proč to vzniklo:** celý handshake [mise Robotour](robotour-mission.md) stojí na tom, že obsluha
+stop **zmáčkne** a pak **uvolní** (servisní okno, čtení QR, potvrzení cíle). Do 26. 8. 2026 hlásily
+[`VirtualMotors`](../Src/ARBot.HAL/Devices/MotorDriver/VirtualMotors.cs) příznak **natvrdo jako
+`false`**, takže se servisní okno v simulaci nedalo projít vůbec — mise uvízla na *Čeká na nouzové
+zastavení*.
+
+**Kola to nezastavuje samo.** Příznak je jen *vstup*: o zastavení se stará `ControlLoop`, který pod
+stopem posílá `Drive(0, …)`, takže simulovaný robot dobrzdí svou rampou — přesně jako na železe.
+Díky tomu se v simulaci dá vyzkoušet i **dvoufázové zastavení na stanovišti** (mise zahodí regulátor
+teprve, až kola opravdu stojí).
 
 ### Systematické chyby: prokluz kol a bias IMU (22. 8. 2026)
 

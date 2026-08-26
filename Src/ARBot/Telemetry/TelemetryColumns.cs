@@ -237,9 +237,10 @@ namespace ARBot.Telemetry
                 + "a „zkrátit výpočet“."),
 
             // --- surove GPS (bez fuze) ---
-            Num<GPSState>("GPS lat [°]", m => m.Latitude,
+            // GPSState drzi RADIANY (viz GPSState.Latitude), sloupce se ukazuji ve STUPNICH.
+            Num<GPSState>("GPS lat [°]", m => ARBot.Common.Common.Conversions.Rad2Deg(m.Latitude),
                 "Zeměpisná šířka přímo z GPS přijímače (WGS84), tedy bez fúze.", "F6"),
-            Num<GPSState>("GPS lon [°]", m => m.Longitude,
+            Num<GPSState>("GPS lon [°]", m => ARBot.Common.Common.Conversions.Rad2Deg(m.Longitude),
                 "Zeměpisná délka přímo z GPS přijímače (WGS84), tedy bez fúze.", "F6"),
             Enum<GPSState, GPSState.FixQuality>("GPS fix", m => (int)m.Quality,
                 "Kvalita fixu hlášená přijímačem (žádný fix / GPS / DGPS / RTK…). Určuje, jakou "

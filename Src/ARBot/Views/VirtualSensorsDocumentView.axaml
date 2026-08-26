@@ -39,11 +39,29 @@
                            FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
             </Grid>
 
-            <Button Content="Vynulovat statistiku" Command="{Binding ResetStatsCommand}"
+            <Button Classes="btn" Content="Vynulovat statistiku" Command="{Binding ResetStatsCommand}"
                     HorizontalAlignment="Left"/>
 
             <TextBlock Text="{Binding StatusText}" Foreground="#A0FFFFFF" FontSize="11"
                        TextWrapping="Wrap"/>
+
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Nouzové zastavení ================= -->
+
+            <TextBlock Text="Nouzové zastavení" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Jako by obsluha držela tlačítko. Celý handshake mise Robotour na něm stojí (servisní okno, čtení QR, potvrzení cíle) — bez tohohle přepínače se v simulaci servisní okno nedá projít vůbec. Kola nezastavuje sám: o to se stará řídicí smyčka, takže robot dobrzdí svou rampou jako na železe."/>
+
+            <CheckBox Content="Držet nouzové zastavení" IsChecked="{Binding EmergencyStop}"
+                      Foreground="White"/>
+
+            <Border Background="#5A3A00" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding EmergencyStop}">
+                <TextBlock Text="⚠ Nouzové zastavení je DRŽENO — robot se nerozjede, dokud se neuvolní."
+                           Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
+            </Border>
 
             <Separator Margin="0,6"/>
 
@@ -85,7 +103,7 @@
                                Increment="0.05" FormatString="F3"/>
             </Grid>
 
-            <Button Content="Vynulovat chyby" Command="{Binding ResetSystematicErrorCommand}"
+            <Button Classes="btn" Content="Vynulovat chyby" Command="{Binding ResetSystematicErrorCommand}"
                     HorizontalAlignment="Left"/>
 
             <Separator Margin="0,6"/>

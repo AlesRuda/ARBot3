@@ -21,15 +21,15 @@
                          Value="{Binding Progress}" IsVisible="{Binding IsScanning}"
                          VerticalAlignment="Center" Margin="8,0,0,0"/>
 
-            <Button Grid.Column="2" Content="Sloupce ▾" Margin="8,0,0,0" Padding="8,3"
+            <Button Grid.Column="2" Content="Sloupce ▾" Margin="8,0,0,0" Classes="btn compact"
                     ToolTip.Tip="Které údaje zobrazit. Skrytí sloupce nemění data ani sken.">
                 <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight">
                         <StackPanel Width="260" Spacing="4">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Button Content="Vše" Padding="8,2"
+                                <Button Content="Vše" Classes="btn compact"
                                         Command="{Binding ShowAllColumnsCommand}"/>
-                                <Button Content="Nic" Padding="8,2"
+                                <Button Content="Nic" Classes="btn compact"
                                         Command="{Binding HideAllColumnsCommand}"/>
                             </StackPanel>
                             <ScrollViewer MaxHeight="420">
@@ -58,12 +58,12 @@
                 </Button.Flyout>
             </Button>
 
-            <Button Grid.Column="3" Content="Řádky ▾" Margin="4,0,0,0" Padding="8,3"
+            <Button Grid.Column="3" Content="Řádky ▾" Margin="4,0,0,0" Classes="btn compact"
                     ToolTip.Tip="Které zprávy zakládají řádek. Necháte-li jen DriveCommandMsg, je jeden řádek = jeden takt řídicí smyčky; ostatní hodnoty se drží z minula.">
                 <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight">
                         <StackPanel Width="260" Spacing="4">
-                            <Button Content="Vše" Padding="8,2" HorizontalAlignment="Left"
+                            <Button Content="Vše" Classes="btn compact" HorizontalAlignment="Left"
                                     Command="{Binding ShowAllTypesCommand}"/>
                             <ItemsControl ItemsSource="{Binding TypeToggles}">
                                 <ItemsControl.ItemTemplate>
@@ -81,7 +81,7 @@
 
             <!-- Konvence uhlu: prepina JEN zobrazeni (kurzy i uhlove rychlosti naraz), data
                  zustavaji matematicka. Viz doc/telemetry-view.md. -->
-            <ToggleButton Grid.Column="4" Content="Azimut" Margin="4,0,0,0" Padding="8,3"
+            <ToggleButton Grid.Column="4" Content="Azimut" Margin="4,0,0,0" Classes="btn compact"
                           IsChecked="{Binding WorldAngles, Mode=TwoWay}"
                           ToolTip.Tip="Vypnuto: matematická konvence projektu (kurz 0° = východ, kladně proti hodinovým ručičkám; kladná úhlová rychlost = doleva) — stejná čísla jako ve zprávách. Zapnuto: světová konvence (kurz jako azimut 0° = sever po směru hodinových ručiček; kladná úhlová rychlost = doprava). Mění se jen zobrazení, ne data."/>
         </Grid>
@@ -91,7 +91,7 @@
             <TextBlock Grid.Row="0" Text="{Binding DetailHeader}" TextWrapping="Wrap"
                        FontFamily="Consolas,monospace" FontSize="13" Margin="0,0,0,6"/>
 
-            <Button Grid.Row="1" Content="Skočit sem v přehrávání"
+            <Button Grid.Row="1" Classes="btn" Content="Skočit sem v přehrávání"
                     Command="{Binding SeekToSelectedCommand}"
                     HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
 

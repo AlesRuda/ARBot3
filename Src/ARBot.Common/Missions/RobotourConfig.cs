@@ -24,12 +24,22 @@ namespace ARBot.Common.Missions
         public double MaxHdop = 2.0;
 
         /// <summary>
-        /// Nejvyssi pripustny rozptyl fixu v okne [m] (nejvetsi odchylka od prumeru).
+        /// Nejvyssi pripustny rozptyl fixu v okne [m] — <b>efektivni (RMS) odchylka od prumeru</b>,
+        /// ne maximalni.
         ///
         /// <para>Robot stoji, takze rozptyl je <b>zdarma</b> dostupna kontrola kvality — a soucasne
         /// realisticka <c>std</c> pro filtr. Velky rozptyl znamena „cekej dal".</para>
+        ///
+        /// <para><b>Proc RMS a ne maximum:</b> maximum s rostoucim <c>n</c> roste i u dokonale
+        /// gaussovskeho sumu, takze delsi cekani by kriterium <b>pritvrzovalo</b> — presne naopak,
+        /// nez ma. RMS konverguje k sigma senzoru, takze prah je fyzikalne cteny udaj.</para>
+        ///
+        /// <para><b>2,5 m je nad nominalnim sumem, ne pod nim.</b> Spotrebni GPS ma ve stoje sigma
+        /// radu metru (virtualni GPS simulace 1,5 m), takze prah musi normalni sum <b>propustit</b> —
+        /// zamitat se maji jen abnormalni fixy (multipath skace o desitky metru). Prvni navrh mel
+        /// 1,0 m a mise by se nezarmovala nikdy: ani v simulaci, ani na zarizeni.</para>
         /// </summary>
-        public double MaxSpreadM = 1.0;
+        public double MaxSpreadM = 2.5;
 
         /// <summary>
         /// Podlaha nejistoty, se kterou se inicializuje filtr [m].

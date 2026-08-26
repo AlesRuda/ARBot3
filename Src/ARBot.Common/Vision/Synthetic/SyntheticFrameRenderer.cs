@@ -193,6 +193,15 @@ namespace ARBot.Common.Vision.Synthetic
             // travu zvedа i pri nulove vysce, takze se musi brat v potaz taky.
             bool flatGrass = options.GrassHeightM <= 0 && options.GrassRoughnessM <= 0;
 
+            // Svisle desky (QR kody). Snimek se bere JEDNOU na snimek, ne na pixel: seznam meni UI
+            // vlakno a kopie na pixel by byla necekana rezie i kdyz zadna deska neni.
+            var boards = options.BillboardSnapshot();
+            // Poloha kamery ve SVETE - desky se protinaji ve svetovych souradnicich (pixel po pixelu
+            // se meni jen smer, ne pocatek).
+            double eyeWx = pose.X + eye.X * cos - eye.Y * sin;
+            double eyeWy = pose.Y + eye.X * sin + eye.Y * cos;
+            double eyeWz = eye.Z;
+
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
@@ -212,29 +221,95 @@ namespace ARBot.Common.Vision.Synthetic
                     // 24. 8. 2026: 89 -> 40 snimku za 15 s), takze bez teto vetve by zdrazil
                     // i beh, ktery vyvysenou travu vubec nechce.
                     bool road = false;
+                    // Vzdalenost povrchu pod pixelem - potrebna jen k rozhodnuti, jestli je pred nim
+                    // deska. Nekonecno = obloha nad horizontem (tam deska vyhraje vzdy).
+                    double surfaceRange = double.PositiveInfinity;
                     if (y < tblH && x < tblW)
                     {
                         if (flatGrass)
                         {
                             var dir = Vector3.TransformNormal(new Vector3(table[y, x].X, table[y, x].Y, 1f), m);
                             road = Math.Abs(dir.Z) >= 1e-9f
-                                   && HitsPlane(0.0, dir, eye, pose, cos, sin, out _, out bool onRoad)
+                                   && HitsPlane(0.0, dir, eye, pose, cos, sin, out surfaceRange, out bool onRoad)
                                    && onRoad;
+                            if (!road) surfaceRange = double.PositiveInfinity;
                         }
                         else
                         {
                             road = Trace(table[y, x], m, eye, pose, cos, sin,
-                                         GrassHeightAt(frameIndex, pixel), out _,
+                                         GrassHeightAt(frameIndex, pixel), out surfaceRange,
                                          double.PositiveInfinity) == Surface.Road;
                         }
                     }
 
                     int o = pixel * 4;
+
+                    // Svisle desky (QR kody) PRED povrchem. Kresli se BEZ sumu barvy: kod je binarni
+                    // vzor a sum by dekoderu jen ubiral uspesnost - stojan se v realu nesumi jako
+                    // trava. Vyhrava nejblizsi zasah.
+                    if (boards.Length > 0
+                        && TryBoard(boards, table, y, x, tblH, tblW, m, eyeWx, eyeWy, eyeWz,
+                                    cos, sin, surfaceRange, out byte br, out byte bg, out byte bb))
+                    {
+                        data[o] = bb;
+                        data[o + 1] = bg;
+                        data[o + 2] = br;
+                        data[o + 3] = 255;
+                        continue;
+                    }
+
                     data[o] = Noisy(road ? options.RoadB : options.GrassB, frameIndex, pixel, ChannelColorB);
                     data[o + 1] = Noisy(road ? options.RoadG : options.GrassG, frameIndex, pixel, ChannelColorG);
                     data[o + 2] = Noisy(road ? options.RoadR : options.GrassR, frameIndex, pixel, ChannelColorR);
                     data[o + 3] = 255;
                 }
+        }
+
+        /// <summary>
+        /// Zasahne pixel nejakou svislou desku bliz nez <paramref name="surfaceRange"/>?
+        /// Vraci barvu vzorku z jeji textury.
+        /// </summary>
+        /// <remarks>
+        /// Desky se protinaji ve <b>svetovych</b> souradnicich, protoze tam jsou zadane. Parametr
+        /// podel paprsku je pritom tyz jako v ramci robota (rotace a posun parametrizaci nemeni),
+        /// takze se da <b>primo porovnat</b> se vzdalenosti povrchu.
+        /// </remarks>
+        private static bool TryBoard(SyntheticBillboard[] boards, Point2D[,] table, int y, int x,
+                                     int tblH, int tblW, in Matrix4x4 m,
+                                     double eyeWx, double eyeWy, double eyeWz,
+                                     double cos, double sin, double surfaceRange,
+                                     out byte r, out byte g, out byte b)
+        {
+            r = g = b = 0;
+            if (y >= tblH || x >= tblW) return false;
+
+            var dir = Vector3.TransformNormal(new Vector3(table[y, x].X, table[y, x].Y, 1f), m);
+
+            // Smer paprsku ve svete (rotace o kurz robota; paprsek je vektor, takze bez posunu).
+            double dwx = dir.X * cos - dir.Y * sin;
+            double dwy = dir.X * sin + dir.Y * cos;
+            double dwz = dir.Z;
+
+            double best = surfaceRange;
+            SyntheticBillboard hitBoard = null;
+            double hitU = 0, hitV = 0;
+
+            for (int i = 0; i < boards.Length; i++)
+            {
+                if (!boards[i].TryIntersect(eyeWx, eyeWy, eyeWz, dwx, dwy, dwz,
+                                            out double t, out double u, out double v))
+                    continue;
+                if (t >= best) continue;
+
+                best = t;
+                hitBoard = boards[i];
+                hitU = u; hitV = v;
+            }
+
+            if (hitBoard == null) return false;
+
+            (r, g, b) = hitBoard.Sample(hitU, hitV);
+            return true;
         }
 
         /// <summary>Prida sum k barevne slozce a orizne do rozsahu bajtu.</summary>

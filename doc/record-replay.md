@@ -271,6 +271,19 @@ Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `M
 (pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`
 udělá už v novém formátu).
 
+### Změna JEDNOTKY je zvlášť zrádná — `GPSState` verze 2 (26. 8. 2026)
+
+Většina verzí přidává pole, takže starý záznam se pozná i tím, že mu bajty „chybí". **Změna
+jednotky bajty nemění** — `GPSState.Latitude/Longitude` přešly ze **stupňů** na **radiány** a
+binární layout zůstal totožný. Starý záznam se proto pozná **jen podle verze**, a bez převodu
+v `FromData` by se z archivu staly *tiché* nesmysly: `50` „radiánů" je platné číslo, takže by se to
+neprojevilo výjimkou, ale chováním fúze o desítky tisíc kilometrů dál.
+
+Pravidlo, které z toho plyne: **při změně jednotky nebo významu pole verzi zvyš stejně jako při
+přidání pole** — a v `FromData` starou hodnotu **převeď**, ne přečti a zahoď. (Zahodit ji je správně
+jen tehdy, když se stará hodnota převést *nedá* — tak to má `MapCorrelationMsg` verze 3, jejíž
+`InformativeEvidence` byla v jiných, na rozlišení gridu závislých jednotkách.)
+
 ### Zprávy s víc producenty — `GraphNavigationMsg`
 
 Většina zpráv má jednoho producenta, takže význam polí je jednoznačný.

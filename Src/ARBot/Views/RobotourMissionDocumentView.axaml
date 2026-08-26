@@ -1,0 +1,243 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.RobotourMissionDocumentView"
+             x:DataType="vm:RobotourMissionDocument">
+    <Design.DataContext>
+        <vm:RobotourMissionDocument/>
+    </Design.DataContext>
+
+    <ScrollViewer Background="#252526">
+        <StackPanel Spacing="10" Margin="12" MaxWidth="520" HorizontalAlignment="Left">
+
+            <!-- Mise neběží: vysvětlení patří do UI, ne do Debug outputu -->
+            <Border Background="#3A3A00" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding NoMissionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding NoMissionText}" Foreground="#FFE08A"
+                           TextWrapping="Wrap" FontSize="11"/>
+            </Border>
+
+            <!-- ================= Ovládání (nahoře, aby bylo po ruce) ================= -->
+
+            <!-- Tlacitka jsou zamerne PRVNI a vyrazna: obsluha je macka se stopem v ruce a nema
+                 cas je hledat na konci dlouheho panelu (podnet autora 26. 8. 2026). -->
+            <Border Background="#333337" CornerRadius="4" Padding="10,8">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="btn action accent" Content="Start mise"
+                                Command="{Binding StartMissionCommand}" IsEnabled="{Binding CanStart}"/>
+                        <Button Classes="btn action info" Content="Potvrdit"
+                                Command="{Binding ConfirmCommand}" IsEnabled="{Binding CanConfirm}"/>
+                        <Button Classes="btn action danger" Content="Přerušit"
+                                Command="{Binding AbortCommand}" IsEnabled="{Binding CanAbort}"/>
+                    </StackPanel>
+
+                    <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                               Text="„Potvrdit“ znamená v servisním okně s kódem „tento cíl je správný“, u vykládky „je vyloženo“. Rozjezd ale nezpůsobí — o ten se stará až uvolnění nouzového zastavení."/>
+                </StackPanel>
+            </Border>
+
+            <!-- ================= Stav automatu ================= -->
+
+            <TextBlock Text="Stav mise" FontWeight="Bold" Foreground="White"/>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="fáze" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PhaseText}" Foreground="White"
+                           FontWeight="Bold" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="čeká se" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WaitingForText}" Foreground="#8AD4FF"
+                           TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="zastavení" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding StopText}" Foreground="White"
+                           Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="nouzové zast." Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding EmergencyText}"
+                           FontFamily="Consolas,monospace" FontWeight="Bold" Margin="0,0,0,3">
+                    <TextBlock.Styles>
+                        <Style Selector="TextBlock">
+                            <Setter Property="Foreground" Value="#8AD48A"/>
+                        </Style>
+                    </TextBlock.Styles>
+                </TextBlock>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="čas mise" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ElapsedText}" Foreground="White"
+                           FontFamily="Consolas,monospace"/>
+            </Grid>
+
+            <!-- Kvalita fixu: PROČ armování (ne)pokračuje. Bez toho mise stojí a nikdo neví proč. -->
+            <Border CornerRadius="3" Padding="8,5" IsVisible="{Binding ShowFixQuality}"
+                    Background="#1E3A4A">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Kvalita fixu v depu" Foreground="#8AD4FF" FontSize="11"
+                               FontWeight="Bold"/>
+                    <TextBlock Text="{Binding FixQualityText}" Foreground="White"
+                               TextWrapping="Wrap" FontSize="11"/>
+                    <TextBlock Foreground="#FFC08A" TextWrapping="Wrap" FontSize="11"
+                               IsVisible="{Binding IsFixBlocking}"
+                               Text="Dokud se to nezlepší, mise se nezarmuje — a je to normální stav, ne zásek."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Stop drží: robot je pod ním mrtvý a jen tehdy se skenuje -->
+            <Border Background="#5A3A00" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding IsEmergencyStop}">
+                <TextBlock Text="⚠ Nouzové zastavení je DRŽENO — motory jsou mrtvé. Jen v tomhle stavu robot skenuje QR kódy."
+                           Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
+            </Border>
+
+            <Border Background="#5A2A00" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding IsCodeNotSeen}">
+                <TextBlock Text="⚠ Kód nevidím. Skenuje se dál — posuň kód, přisuň robota, nebo stop uvolni, robota přesměruj a stop zmáčkni znovu. Robot se za kódem sám neotočí (stojí u něj člověk)."
+                           Foreground="#FFC08A" TextWrapping="Wrap" FontSize="11"/>
+            </Border>
+
+            <Border Background="#5A0000" CornerRadius="3" Padding="8,5"
+                    IsVisible="{Binding IsAborted}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="MISE PŘERUŠENA" Foreground="#FF9090" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding AbortReasonText}" Foreground="#FFC0C0"
+                               TextWrapping="Wrap" FontSize="11"/>
+                </StackPanel>
+            </Border>
+
+            <Separator Margin="0,6"/>
+
+            <!-- ===== Náhled kamery, ze které se čte (jen v servisním okně s kódem) ===== -->
+            <StackPanel Spacing="4" IsVisible="{Binding ShowPreview}">
+                <TextBlock Text="Obraz kamery pro čtení kódu" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="{Binding PreviewCameraText}" Foreground="#A0FFFFFF" FontSize="11"
+                           FontFamily="Consolas,monospace"/>
+                <Border BorderBrush="#555559" BorderThickness="1" CornerRadius="3">
+                    <Image Source="{Binding PreviewImage}" Stretch="Uniform" MaxHeight="300"/>
+                </Border>
+                <TextBlock Foreground="#A0FFFFFF" FontSize="11" TextWrapping="Wrap"
+                           Text="Bez obrazu se nedá poznat, jestli je kód vůbec ve výhledu. Míří se s ním na tuhle kameru; robot se za ním sám neotočí."/>
+            </StackPanel>
+
+            <!-- ================= Nabídnutý cíl ================= -->
+
+            <TextBlock Text="Přečtený cíl k potvrzení" FontWeight="Bold" Foreground="White"/>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Stroj kontroluje, člověk potvrzuje. Jedno chybné dekódování může poslat robota o stovky metrů jinam, proto se nepotvrzuje „nějaký kód se přečetl“, ale konkrétní zkontrolovatelný cíl."/>
+
+            <Border Background="#1E3A1E" CornerRadius="3" Padding="8,6"
+                    IsVisible="{Binding HasPendingTarget}">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="text kódu" Foreground="#A0FFFFFF"
+                               FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PendingCodeText}"
+                               Foreground="White" FontFamily="Consolas,monospace"
+                               TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="souřadnice" Foreground="#A0FFFFFF"
+                               FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PendingTargetText}"
+                               Foreground="#8AD48A" FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="vzdálenost" Foreground="#A0FFFFFF"
+                               FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PendingDistanceText}"
+                               Foreground="White" FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="trasa" Foreground="#A0FFFFFF"
+                               FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PendingRouteText}"
+                               Foreground="White" FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Text="Zatím není co potvrzovat." Foreground="#808080" FontSize="11"
+                       IsVisible="{Binding !HasPendingTarget}"/>
+
+            <!-- Zamítnutý kód: BYL přečten, jen se nepřijal. Bez tohohle to vypadá, že se nepřečetl. -->
+            <Border Background="#4A2A2A" CornerRadius="3" Padding="8,6"
+                    IsVisible="{Binding HasRejected}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Kód byl přečten, ale ZAMÍTNUT" Foreground="#FFB0A0"
+                               FontWeight="Bold" FontSize="11"/>
+                    <TextBlock Text="{Binding RejectedText}" Foreground="White"
+                               TextWrapping="Wrap" FontSize="11" FontFamily="Consolas,monospace"/>
+                    <TextBlock Foreground="#A0FFFFFF" FontSize="11" TextWrapping="Wrap"
+                               Text="Strojové kontroly cíl nepustily dál, takže se ani nenabídl k potvrzení. Oprav kód (nebo cíl) a zkus to znovu — mise mezitím skenuje dál."/>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== QR kód v simulaci (testovací pomůcka, jen s virtuálním HW) ===== -->
+            <Border Background="#2A2A2E" CornerRadius="4" Padding="10,8"
+                    IsVisible="{Binding CanPlaceQr}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="QR kód do virtuální kamery" FontWeight="Bold" Foreground="White"
+                               FontSize="12"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                               Text="Postaví svislou desku s kódem před kameru, kterou se čte — v jejím směru pohledu a kolmo na něj (směr se bere z montážní matice, kamera je stočená). Je to pomůcka pro simulaci: do hloubky se deska nekreslí, takže se z ní nestane překážka. Až se kód přečte, deska zmizí sama."/>
+
+                    <TextBox Text="{Binding QrText}" Watermark="geo:50.029000,14.521000"
+                             FontFamily="Consolas,monospace"/>
+
+                    <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto">
+                        <TextBlock Grid.Column="0" Text="vzdálenost [m]" Foreground="#A0FFFFFF"
+                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <NumericUpDown Grid.Column="1" Value="{Binding QrDistanceM}" Increment="0.1"
+                                       Minimum="0.3" Maximum="5" FormatString="F2" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Column="2" Text="výška [m]" Foreground="#A0FFFFFF"
+                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <NumericUpDown Grid.Column="3" Value="{Binding QrHeightM}" Increment="0.05"
+                                       Minimum="0.05" Maximum="2" FormatString="F2"/>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="btn" Content="Postavit QR kód" Command="{Binding PlaceQrCommand}"/>
+                        <Button Classes="btn" Content="Odebrat" Command="{Binding RemoveQrCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding QrPlacedText}" Foreground="#8AD48A" FontSize="11"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding QrPlacedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+            </Border>
+
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Zapamatované cíle ================= -->
+
+            <TextBlock Text="Cíle mise" FontWeight="Bold" Foreground="White"/>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="depo" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DepotText}" Foreground="#8AD4FF"
+                           FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="nakládka" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PickupText}" Foreground="White"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="vykládka" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DropText}" Foreground="White"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap" Margin="0,0,0,3"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="čítače" Foreground="#A0FFFFFF"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CountersText}" Foreground="White"
+                           FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+            </Grid>
+
+            <TextBlock Text="Depo je nejpřesněji zaměřený bod celé jízdy a jediný cíl, který robot nedostane z QR kódu — proto se do něj umí vrátit."
+                       Foreground="#A0FFFFFF" FontSize="11" TextWrapping="Wrap"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

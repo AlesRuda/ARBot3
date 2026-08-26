@@ -74,6 +74,15 @@ namespace ARBot.ViewModels
         /// <summary>Je nastavená nějaká systematická chyba? (Zvýraznění — snadno se zapomene vypnout.)</summary>
         [ObservableProperty] private bool isSystematicErrorActive;
 
+        /// <summary>
+        /// <b>Nouzové zastavení</b> hlášené virtuálními motory — jako by obsluha držela tlačítko.
+        ///
+        /// <para>Celý handshake mise Robotour na něm stojí (servisní okno, čtení QR, potvrzení cíle),
+        /// takže bez tohohle přepínače se v simulaci servisní okno <b>nedá projít vůbec</b>.
+        /// Viz doc/robotour-mission.md.</para>
+        /// </summary>
+        [ObservableProperty] private bool emergencyStop;
+
         // --- Scena (sum hloubky, trava) - meni render virtualnich kamer, plati hned ---
         [ObservableProperty] private decimal depthNoiseM;
         [ObservableProperty] private decimal grassRoughnessM;
@@ -142,6 +151,7 @@ namespace ARBot.ViewModels
             RightWheelSlip = (decimal)options.RightWheelSlip;
 
             IsSystematicErrorActive = options.HasSystematicError;
+            EmergencyStop = options.EmergencyStop;
 
             DepthNoiseM = (decimal)scene.DepthNoiseM;
             GrassRoughnessM = (decimal)scene.GrassRoughnessM;
@@ -178,6 +188,9 @@ namespace ARBot.ViewModels
                               && scene.GrassHeightM <= 0;
 
         // ============================ Vazba UI -> sdílené nastavení ============================
+
+        /// <summary>Motory drzi TUTEZ instanci nastaveni, takze prepnuti plati hned pri dalsim vzorku.</summary>
+        partial void OnEmergencyStopChanged(bool value) => options.EmergencyStop = value;
 
         partial void OnGpsPositionNoiseMChanged(decimal value) => options.GpsPositionNoiseM = (double)value;
         partial void OnGpsSpeedNoiseMpsChanged(decimal value) => options.GpsSpeedNoiseMps = (double)value;

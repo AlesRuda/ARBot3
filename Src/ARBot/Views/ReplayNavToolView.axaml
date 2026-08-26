@@ -30,12 +30,12 @@
             <!-- Vnejsi dvojice = skok na sousedni zpravu TEHOZ proudu (stejny typ i jmeno),
                  vnitrni = krok o jednu zpravu v zaznamu. -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
-                <Button Content="◀◀ Stejná" Command="{Binding PrevSameCommand}"
+                <Button Classes="btn compact" Content="◀◀ Stejná" Command="{Binding PrevSameCommand}"
                         ToolTip.Tip="Předchozí zpráva téhož proudu (stejný typ i jméno)."/>
-                <Button Content="◀ Krok" Command="{Binding StepBackCommand}"/>
-                <Button Content="{Binding PlayPauseText}" Command="{Binding TogglePlayCommand}" MinWidth="86"/>
-                <Button Content="Krok ▶"  Command="{Binding StepForwardCommand}"/>
-                <Button Content="Stejná ▶▶" Command="{Binding NextSameCommand}"
+                <Button Classes="btn compact" Content="◀ Krok" Command="{Binding StepBackCommand}"/>
+                <Button Classes="btn compact" Content="{Binding PlayPauseText}" Command="{Binding TogglePlayCommand}" MinWidth="86"/>
+                <Button Classes="btn compact" Content="Krok ▶"  Command="{Binding StepForwardCommand}"/>
+                <Button Classes="btn compact" Content="Stejná ▶▶" Command="{Binding NextSameCommand}"
                         ToolTip.Tip="Následující zpráva téhož proudu (stejný typ i jméno)."/>
             </StackPanel>
         </Grid>

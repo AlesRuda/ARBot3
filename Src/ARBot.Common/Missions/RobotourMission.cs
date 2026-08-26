@@ -71,6 +71,7 @@ namespace ARBot.Common.Missions
         private LLA pendingTarget;
         private string pendingCodeText = string.Empty;
         private double pendingRouteLengthM;
+        private double pendingDistanceFromDepotM;
 
         private bool emergencyStop, standing = true;
         private bool regulatorCleared;
@@ -81,6 +82,17 @@ namespace ARBot.Common.Missions
         // --- okno fixu v depu ---
         private readonly List<LLA> fixWindow = new List<LLA>();
         private DateTime fixWindowStart;
+
+        // Diagnostika armovani: proc se (ne)pokracuje. Jde do zpravy i do UI - bez toho mise
+        // v ArmingAtDepot stoji a nikdo nevi proc.
+        private bool hasFixInfo, fixQualityOk;
+        private int fixSatellites, fixSamples;
+        private double fixHdop, fixSpreadM;
+
+        // Duvod zamitnuti posledniho kodu. Bez nej se tri uplne jine situace (nesrozumitelny kod /
+        // prilis daleko / bez trasy) tvari jako "nic se nestalo" a vypada to, ze se kod NEPRECETL.
+        private string rejectReason = string.Empty, rejectedCodeText = string.Empty;
+        private double rejectedDistanceM;
 
         /// <param name="goals">Prijemce LLA cilu (globalni navigace).</param>
         /// <param name="fusion">Inicializace polohy filtru (v depu).</param>
@@ -235,6 +247,7 @@ namespace ARBot.Common.Missions
                 pendingTarget = null;
                 pendingCodeText = string.Empty;
                 pendingRouteLengthM = 0;
+                pendingDistanceFromDepotM = 0;
                 SetScanner(false);
                 EnterPhase(RobotourPhase.AwaitingEStopRelease, lastTime);
             }
@@ -292,32 +305,71 @@ namespace ARBot.Common.Missions
                 Advance(gps.TimeStamp);
                 if (phase != RobotourPhase.ArmingAtDepot) return;
 
-                if (!FixQualityOk(gps))
+                // Diagnostika PRVNI, jeste nez se fix pripadne zamitne: „ceka se na kvalitni fix"
+                // musi jit precist s duvodem, jinak mise stoji a nikdo nevi proc (26. 8. 2026).
+                hasFixInfo = true;
+                fixSatellites = gps.NumberOfSatellites;
+                fixHdop = gps.Hdop;
+                fixQualityOk = FixQualityOk(gps);
+
+                if (!fixQualityOk)
                 {
                     // Preruseni serie: „drzeny neprerusene" znamena neprerusene.
                     fixWindow.Clear();
+                    fixSamples = 0;
+                    fixSpreadM = 0;
+                    EmitState(gps.TimeStamp);
                     return;
                 }
 
                 if (fixWindow.Count == 0) fixWindowStart = gps.TimeStamp;
+
+                // GPSState drzi RADIANY, tedy tutez jednotku jako LLA (od 26. 8. 2026). Prave tady
+                // se 26. 8. projevila ta pred-tim platna zamena: mise uvizla v ArmingAtDepot,
+                // protoze body v okne byly desitky radianu od sebe a rozptyl vysel astronomicky.
                 fixWindow.Add(new LLA(gps.Latitude, gps.Longitude));
 
-                if ((gps.TimeStamp - fixWindowStart).TotalSeconds < config.DepotFixSec) return;
+                // Rozptyl se pocita PRUBEZNE, ne teprve u plneho okna: je to ten udaj, ktery
+                // vysvetluje, proc se nikam nepokracuje, a cekat s nim do konce okna znamena
+                // nechat obsluhu 5 s hadat.
+                fixSamples = fixWindow.Count;
+                var running = MeanOf(fixWindow);
+                fixSpreadM = fixWindow.Count > 1 ? RmsDeviationM(fixWindow, running) : 0;
+
+                if ((gps.TimeStamp - fixWindowStart).TotalSeconds < config.DepotFixSec)
+                {
+                    EmitState(gps.TimeStamp);
+                    return;
+                }
 
                 // Robot stoji, takze prumer je poctivejsi nez jediny vzorek — a rozptyl z okna da
                 // zdarma jak kontrolu kvality, tak realistickou std pro filtr.
-                var mean = MeanOf(fixWindow);
-                double spread = MaxDeviationM(fixWindow, mean);
+                //
+                // Kriterium je EFEKTIVNI odchylka (RMS), ne maximalni. Maximum s rostoucim n ROSTE
+                // i u dokonale gaussovskeho sumu, takze by delsi cekani kriterium PRITUZOVALO -
+                // presne naopak, nez ma. RMS naopak konverguje k sigma senzoru, takze prah je
+                // fyzikalne cteny udaj ("sum fixu musi byt pod X"), ne funkce delky okna.
+                //
+                // Je to zaroven TATAZ velicina, kterou se pak hlasi filtru: co projde jako
+                // "dost tichy fix", tim se filtr taky inicializuje.
+                var mean = running;
+                double spread = fixSpreadM;
 
                 if (spread > config.MaxSpreadM)
                 {
                     // Velky rozptyl = cekej dal, i kdyz kazdy jednotlivy fix vypadal kvalitne.
                     fixWindow.Clear();
+                    fixSamples = 0;
+                    EmitState(gps.TimeStamp);
                     return;
                 }
 
                 var local = origin.ToLocal(mean);
-                double std = Math.Max(RmsDeviationM(fixWindow, mean), config.MinInitStdM);
+                // Hlasi se sum JEDNOHO vzorku, ne standardni chyba prumeru (sigma/sqrt(n)).
+                // Zamerne konzervativni: prumerovani stahuje NAHODNOU cast sumu, ale ne BIAS fixu
+                // (multipath, ionosfera), a ten je na teto skale dominantni. Tvrdit filtru
+                // sigma/sqrt(n) by byla tataz nepoctivost sigmy, jaka se resila u korelace s mapou.
+                double std = Math.Max(spread, config.MinInitStdM);
                 fusion.InitializePosition(local.X, local.Y, std, gps.TimeStamp);
 
                 depot = mean;
@@ -396,12 +448,25 @@ namespace ARBot.Common.Missions
                 codesRead++;
 
                 var target = parser.Parse(code.Text);
-                if (target == null) { codesRejected++; return; }
+                if (target == null)
+                {
+                    Reject(code.Text, 0, "kod je nesrozumitelny (necekany format; ceka se geo:sirka,delka)",
+                           code.TimeStamp);
+                    return;
+                }
 
+                double distanceFromDepot = 0;
                 if (depot != null)
                 {
-                    double dist = GreatCircle.Sphere.Distance(depot, target);
-                    if (dist > config.MaxTargetDistanceM) { codesRejected++; return; }
+                    distanceFromDepot = GreatCircle.Sphere.Distance(depot, target);
+                    if (distanceFromDepot > config.MaxTargetDistanceM)
+                    {
+                        Reject(code.Text, distanceFromDepot,
+                               $"cil je prilis daleko: {distanceFromDepot:F0} m od depa, "
+                               + $"limit je {config.MaxTargetDistanceM:F0} m",
+                               code.TimeStamp);
+                        return;
+                    }
                 }
 
                 double routeLength = 0;
@@ -409,13 +474,24 @@ namespace ARBot.Common.Missions
                 {
                     var probe = routes.Probe(target);
                     // Bez teto kontroly by se NoRoute zjistilo az za jizdy.
-                    if (!probe.Reachable) { codesRejected++; return; }
+                    if (!probe.Reachable)
+                    {
+                        Reject(code.Text, distanceFromDepot,
+                               "na cil nevede po siti zadna trasa (je mimo mapu?)", code.TimeStamp);
+                        return;
+                    }
                     routeLength = probe.LengthM;
                 }
+
+                // Prijaty kod maze duvod zamitnuti - jinak by v panelu strasil stary.
+                rejectReason = string.Empty;
+                rejectedCodeText = string.Empty;
+                rejectedDistanceM = 0;
 
                 pendingTarget = target;
                 pendingCodeText = LastCodeText;
                 pendingRouteLengthM = routeLength;
+                pendingDistanceFromDepotM = distanceFromDepot;
                 codeNotSeen = false;
                 EmitState(code.TimeStamp);
             }
@@ -558,6 +634,22 @@ namespace ARBot.Common.Missions
             EnterPhase(next, now);
         }
 
+        /// <summary>
+        /// Zamitne precteny kod <b>s duvodem</b> a hned to ohlasi zpravou.
+        ///
+        /// <para>Duvod je podstatny: tri zamitnuti (nesrozumitelny kod / prilis daleko / bez trasy)
+        /// se z pohledu obsluhy chovaji stejne, ale znamenaji uplne jine reseni. Bez nej to vypada,
+        /// ze se kod vubec neprecetl (nalezeno pri praci s panelem 26. 8. 2026).</para>
+        /// </summary>
+        private void Reject(string text, double distanceM, string reason, DateTime now)
+        {
+            codesRejected++;
+            rejectedCodeText = text ?? string.Empty;
+            rejectedDistanceM = distanceM;
+            rejectReason = reason;
+            EmitState(now);
+        }
+
         /// <summary>Ceka se v tomhle servisnim okne QR kod? U vykladky ne.</summary>
         private static bool CodeExpected(RobotourStop s)
             => s == RobotourStop.Depot || s == RobotourStop.Pickup;
@@ -599,16 +691,11 @@ namespace ARBot.Common.Missions
             return new LLA(lat / window.Count, lon / window.Count);
         }
 
-        /// <summary>Nejvetsi odchylka fixu od prumeru [m] — kontrola kvality okna.</summary>
-        private static double MaxDeviationM(List<LLA> window, LLA mean)
-        {
-            double max = 0;
-            foreach (var p in window)
-                max = Math.Max(max, GreatCircle.Sphere.Distance(mean, p));
-            return max;
-        }
-
-        /// <summary>Efektivni odchylka fixu od prumeru [m] — realisticka <c>std</c> pro filtr.</summary>
+        /// <summary>
+        /// Efektivni (RMS) odchylka fixu od prumeru [m] — <b>zaroven</b> kriterium kvality okna
+        /// a <c>std</c> hlasena filtru. Ze je to tataz velicina, je zamer: co projde jako „dost
+        /// tichy fix", tim se filtr taky inicializuje.
+        /// </summary>
         private static double RmsDeviationM(List<LLA> window, LLA mean)
         {
             double sum = 0;
@@ -628,7 +715,11 @@ namespace ARBot.Common.Missions
                 Phase = phase,
                 Stop = stop,
                 PhaseEnteredAt = phaseEnteredAt,
-                ElapsedSec = Math.Max(0, (now - missionStartedAt).TotalSeconds),
+                // Dokud mise nezacala, neni od CEHO merit - a rozdil proti default(DateTime) dava
+                // ~64 miliard sekund, coz by neslo jen o kosmetiku v UI: ta hodnota tece i do
+                // zaznamu (nalezeno v bezici aplikaci 26. 8. 2026).
+                ElapsedSec = missionStartedAt == default ? 0
+                                                        : Math.Max(0, (now - missionStartedAt).TotalSeconds),
                 HasDepot = depot != null,
                 DepotLatDeg = depot != null ? Conversions.Rad2Deg(depot.Latitude) : 0,
                 DepotLonDeg = depot != null ? Conversions.Rad2Deg(depot.Longitude) : 0,
@@ -641,6 +732,22 @@ namespace ARBot.Common.Missions
                 DropLonDeg = drop != null ? Conversions.Rad2Deg(drop.Longitude) : 0,
                 DropCodeText = dropCodeText,
                 AbortReason = abortReason,
+                HasPending = pendingTarget != null,
+                PendingLatDeg = pendingTarget != null ? Conversions.Rad2Deg(pendingTarget.Latitude) : 0,
+                PendingLonDeg = pendingTarget != null ? Conversions.Rad2Deg(pendingTarget.Longitude) : 0,
+                PendingCodeText = pendingCodeText,
+                PendingDistanceFromDepotM = pendingDistanceFromDepotM,
+                PendingRouteLengthM = pendingRouteLengthM,
+                HasFixInfo = hasFixInfo,
+                FixQualityOk = fixQualityOk,
+                FixSatellites = fixSatellites,
+                FixHdop = fixHdop,
+                FixSamples = fixSamples,
+                FixSpreadM = fixSpreadM,
+                FixSpreadLimitM = config.MaxSpreadM,
+                RejectReason = rejectReason,
+                RejectedCodeText = rejectedCodeText,
+                RejectedDistanceM = rejectedDistanceM,
                 CodesRead = codesRead,
                 CodesRejected = codesRejected,
                 Timeouts = timeouts,

@@ -90,10 +90,9 @@ namespace ARBot.Common.Runtime
             if (!gps.IsFixed)
                 yield break;
 
-            // POZOR NA JEDNOTKY: GPSState.Latitude/Longitude jsou ve STUPNICH (u-blox posila
-            // 1e-7 deg), zatimco LLA drzi RADIANY. Prevod MUSI jit pres LLA.FromDegrees - jinak by
-            // se robot ocitl stovky kilometru jinde a nic by to nenahlasilo.
-            var lla = LLA.FromDegrees(gps.Latitude, gps.Longitude, gps.Altitude);
+            // GPSState.Latitude/Longitude jsou RADIANY, tedy tatáž jednotka jako LLA (od 26. 8. 2026).
+            // Do te doby to byly stupne a tohle misto na to muselo mit varovani - viz GPSState.Latitude.
+            var lla = new LLA(gps.Latitude, gps.Longitude, gps.Altitude);
 
             // Bez referencniho bodu nelze LLA prevest na metry. Fallback: zaloz ho z tohoto fixu
             // (rezim bez mapy a bez mise - viz ctor).

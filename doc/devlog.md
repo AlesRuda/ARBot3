@@ -77,14 +77,121 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     `Gray32.Color` berou **nejvyšší bajt** (škálování), ne saturaci na 255. Kanály se s tím srovnaly
     — jinak by tentýž pixel hlásil jinou barvu přes `R` a jinou přes `Color.R`. `ToGray` je tím
     o větev kratší a **šedý zdroj projde přesně**, protože váhy BT.601 dávají rovných 1000.
-- **Rozpracováno / další krok:** ⚠️ **misi zatím nejde z aplikace spustit** — čeká na
-  `StartMission()` a **UI panel (fáze 5) neexistuje**, takže `mission=robotour` dnes jen založí
-  stupně a zůstane v `Idle` (ověřeno 20s bezobslužným během: 20 × `MissionMsg`, nic nespadlo).
-  Pořadí dál: **fáze 5 UI panel** (automat pro něj má hotové všechno — `Phase`, `CurrentStop`,
-  `PendingTarget`, `PendingRouteLengthM`, `LastCodeText`, `CodeNotSeen`, `AbortReason` a příkazy
-  `StartMission()`/`Confirm()`/`Abort()`), pak fáze 6 (přežití restartu) a fáze 7 (HW). Neuzavřené
-  drobnosti: ROI scanneru vědomě nepostaveno (spekulativní parametr), změření dekódování na
-  OrangePI, a **úspěšnost čtení kódu na skutečném stanovišti není naměřená**.
+- **Fáze 5 — UI panel mise** (*Tools → Mise Robotour*), a tím **je mise poprvé spustitelná**.
+  Panel ukazuje fázi, **na co se čeká**, stav stopu, přečtený kód s odvozeným cílem (souřadnice,
+  vzdálenost od depa, délka trasy), zapamatované cíle, čítače, a má Start / Potvrdit / Přerušit.
+  Stav čte ze `MissionMsg` na Streamu, ne z instance mise — panel tím funguje i **při přehrávání
+  záznamu**; příkazy potřebují živou misi a když neběží, panel to řekne v UI a tlačítka zakáže.
+  - **`MissionMsg` verze 2:** přidán **nabídnutý cíl** včetně délky trasy. Bez toho by se do záznamu
+    nikdy nedostal údaj, na základě kterého obsluha cíl potvrdila — délku počítá zkouška
+    dosažitelnosti a nikde jinde v záznamu není.
+  - **Nouzové zastavení v simulaci** (`VirtualSensorOptions.EmergencyStop`, přepínač v panelu
+    virtuálních senzorů): `VirtualMotors` hlásily příznak **natvrdo `false`**, takže servisní okno —
+    na kterém stojí celý handshake — se v simulaci nedalo projít vůbec. Kola to nezastavuje samo,
+    o to se stará `ControlLoop`, takže robot dobrzdí rampou jako na železe.
+- **Autor panel používal dál a našel, že „kód se nepřečte"** — přečetl se, ale **zamítl**:
+  - **Zamítnutí bylo neviditelné.** Autor zkusil cíl ~71 km daleko, mise ho správně zamítla
+    (`MaxTargetDistanceM` = 2000 m) — a protože to panel nikde neřekl, vypadalo to, že se kód vůbec
+    nepřečetl. **Tatáž vada jako u GPS fixu**, jen o dva stavy dál: `MissionMsg` je verze 4 a nese
+    **důvod zamítnutí** (nesrozumitelný / příliš daleko / bez trasy) i text, který se zamítl. Tři
+    důvody se z pohledu obsluhy chovají stejně, ale znamenají úplně jiné řešení. Přijatý kód důvod
+    maže, aby nestrašil.
+  - **Deska s kódem se mazala hned po postavení** (zelený text probliknul, kód se v obraze mihl).
+    Auto-odebrání se spouštělo, kdykoli *existoval* nějaký nabídnutý cíl — takže s jedním
+    nepotvrzeným cílem každý nový kód zmizel do sekundy (perioda `MissionMsg`). Teď se porovnává
+    **text** té konkrétní desky, a odebírá se i po **zamítnutí** (jinak by ji scanner čtl a zamítal
+    dál a čítač by rostl). „QR skáče v různých vzdálenostech" byl důsledek: každé nové kliknutí
+    stavělo desku podle aktuální (mezitím posunuté) pózy.
+- **Autor panel používal a nahlásil další tři věci** (26. 8. pozdě odpoledne):
+  - **Kód sice byl vidět, ale zkosený.** Stavěl jsem desku „1,5 m vpravo" a normálou ji mířil na
+    **střed robota** — ale pravá kamera je stočená o **29° vpravo** a skloněná o 18,6° dolů, takže
+    deska přesně 90° vpravo byla nejdřív **mimo výhled** a po přiblížení zkosená. Směr se teď bere
+    z **montážní matice kamery** (`QrBillboard.InFrontOfCamera`), takže je deska kolmá na pohled.
+    Test s **reálnou** `Profile.RightCameraTransform` by tu vadu byl chytil — ten původní používal
+    vlastní, dopředu koukající kameru. Deska zůstává svislá: sklon 18,6° zkrátí obraz o 5 %, což je
+    proti 13 % z vodorovného zkosení zanedbatelné.
+  - **Tlačítka nečitelná a obsah nebyl na středu.** Vznikl jeden společný styl
+    (`Src/ARBot/Styles/Buttons.axaml`) a všechna tlačítka v `Views/` na něj přešla — do té doby měla
+    **čtyři různé paddingy** a barvy jen tam, kde si na to někdo vzpomněl. Zvlášť řešený je
+    **zakázaný stav**: výchozí Fluent má u `:disabled` skoro nulový kontrast, a u ovládání mise je
+    to nejčastější stav.
+  - **A hned na to moje přestřelka:** styl mířil na `Selector="Button"`, tedy na **všechna** tlačítka
+    v aplikaci, a přebarvil i **chrom dokovacího systému**. Nahlásil autor. Teď je to **pojmenovaný**
+    styl (`Classes="btn …"`) — globální selektor na typ nemá jak odlišit naše tlačítko od tlačítka
+    uvnitř šablony třetí strany.
+- **Tři úpravy panelu podle autora, který s ním pracoval** (26. 8. večer):
+  - **Tlačítka nahoru a výrazná.** Obsluha je mačká se stopem v ruce; hledat je na konci dlouhého
+    panelu (a ještě šedá na šedé) nešlo.
+  - **Náhled kamery, ze které se čte kód** — jen v servisním okně a jen když je panel vidět
+    (gate na `IsActive`, jinak by skrytý tab choval `WriteableBitmap` na pozadí). Bez obrazu se
+    nedá poznat, jestli je kód vůbec ve výhledu.
+  - **QR kód do virtuální kamery** (autorův návrh: „nějaký příkaz virtuální kameře — zobraz image na
+    tomhle místě, a až se přečte, zruší se"). Vznikl `SyntheticBillboard` = svislá deska s texturou;
+    renderer je paprskový, takže to je jen průsečík se svislou rovinou a parametr podél paprsku jde
+    **přímo porovnat** s vodorovnými rovinami. `QrBillboard.Create` z textu vyrobí kód.
+    **Uzavírá to poslední mezeru v průchodu misí v simulaci** — vedený otevřený úkol z původního
+    návrhu. Test jde celou cestou: scéna → render → dekodér kód **přečte zpátky**.
+    - **Kreslí se jen do barvy, ne do hloubky** (rozhodnutí): je to vizuální značka, ne překážka —
+      jinak by se objevila v occupancy gridu a zkreslila přesně to, co se v simulaci měří. Hlídá to
+      test (hloubka se přidáním desky nesmí změnit).
+    - Při tom jsem vystavil `ARBotHW.ActiveVirtualScene`: kamery renderují z instance, která
+      **nemusí** být `VirtualScene`, a psaní do té druhé je tichá vada — už jednou stála půl dne
+      (24. 8.). Nechtěl jsem na to sázet.
+- **Mise uvízla v armování a odhalilo to záměnu jednotek — `GPSState` je teď v RADIÁNECH.**
+  Autor pustil misi a ohlásil „robot se nedočká GPS fixu". Příčina: `GPSState.Latitude/Longitude`
+  byly ve **stupních**, ale mise z nich stavěla `new LLA(...)`, což čeká **radiány**. Body v okně
+  fixů pak byly desítky radiánů od sebe, rozptyl vyšel astronomický a okno se **vždy** zamítlo.
+  - **Moje testy vadu potvrzovaly**, protože si jejich pomocník `Gps()` převáděl na radiány taky —
+    zakódoval tutéž domněnku jako testovaný kód. Po opravě pomocníka padlo **12 testů** naráz.
+  - **Rozhodnutí autora: změnit jednotku na radiány** místo opravy jednoho volajícího. Podstata
+    není „radiány jsou lepší", ale *ať je nejpřirozenější zápis správný* — `DefaultMeasurementMapper`
+    na tu past musel mít varovný komentář a já do ní stejně spadl. Převod se přesunul na okraje
+    (drivery dovnitř, UI/telemetrie zpátky na stupně), dotčeno 8 souborů, `VirtualGps` se
+    zjednodušila. `GPSState` verze 2, staré záznamy se převádějí. Viz [decisions.md](decisions.md).
+  - **Změna jednotky je zrádnější než přidání pole** (bajty se nemění, takže starý záznam se pozná
+    jen podle verze, a `50` „radiánů" je platné číslo) — zapsáno jako pravidlo do
+    [record-replay.md](record-replay.md).
+- **A z toho vyplynulo, co v panelu opravdu chybělo: PROČ se nepokračuje.** Autor se musel zeptat,
+  protože panel umí jen „čeká se na kvalitní fix". `MissionMsg` verze 3 proto nese kvalitu fixu
+  (družice, HDOP, rozptyl okna, jeho limit i počet vzorků) a panel z toho skládá větu — a rozlišuje
+  tři různé důvody: fix nedorazil / nesplňuje kritéria / fixy jsou rozházené. Rozptyl se počítá
+  **průběžně**, ne teprve u plného okna, aby obsluha 5 s nehádala.
+- **Autor panel pustil a hned našel dvě moje vady** (26. 8. odpoledne) — obojí vidět na první
+  obrazovce, ani jednu by testy nenašly:
+  - **Panel tvrdil „mise neběží“, i když běžela, a tlačítka zůstala mrtvá.** ViewModel si uložil
+    `ARBotRuntime.Current.RobotourMission` **v konstruktoru**, ale runtime je singleton, který
+    existuje už při prvním přístupu, zatímco stupně vznikají teprve v `Build()`, tedy při **Run**.
+    Panel otevřený dřív si uložil `null` natrvalo. Zrádné je, že `Stream` je `readonly` pole
+    singletonu a Run přežije, takže **zprávy chodily a panel se plnil správně** — nefungovalo jen
+    ovládání. Léčba: stupeň se hledá znovu při každém použití. Zapsáno jako past do
+    `Src/ARBot/Views/README.md`.
+  - **„čas mise 63923354561 s“** — `now − default(DateTime)`, protože nespuštěná mise nemá od čeho
+    měřit. **Není to kosmetika:** ta hodnota tekla i do `MissionMsg`, takže by ji měl v sobě záznam.
+    Opraveno u zdroje (0, dokud mise nezačala) a panel v `Idle` ukazuje „—“. Dva nové testy.
+- **A ještě jednou tentýž flaky vzor v mém testu** (jako 25. 8. u šumu kurzu): test virtuálního stopu
+  tvrdil, že přepnutí platí „hned v nejbližším měření". Motory ale běží na vlastním vlákně, takže ve
+  frontě může ležet vzorek vyrobený *před* přepnutím — assert byl závod a napodruhé spadl. Teď tvrdí
+  „do jednoho vzorkovacího období s rezervou", což je to, na čem na tom kódu skutečně záleží.
+- **Vada, kterou našel test: mise by se v depu nezarmovala NIKDY.** `MaxSpreadM` z návrhu (1,0 m) je
+  **pod nominálním šumem GPS** (σ = 1,5 m v simulaci i u spotřebního přijímače ve stoje), takže by
+  i normální fix okno zamítl. A statistika byla špatná sama o sobě: brala **největší** odchylku, a ta
+  s rostoucím *n* **roste** i u dokonalého gaussovského šumu — delší čekání by kritérium
+  *přitvrzovalo*. Teď je to **RMS** (konverguje k σ senzoru) s prahem 2,5 m; tatáž veličina se hlásí
+  filtru jako `std`, a to vědomě jako šum **jednoho vzorku**, ne `σ/√n` — průměrování stahuje
+  náhodnou část šumu, ne bias fixu. Viz [decisions.md](decisions.md).
+- **Rozpracováno / další krok:** ⚠️ **celý průchod misí v UI zatím nikdo neproklikal** — panel je
+  napsaný, aplikace s ním běží (bezobslužný 15s běh, 15× `MissionMsg`, nic nespadlo) a automat má
+  27 testů, ale samotné UI je ověřené jen kompilací (aplikace nemá testovací projekt). A hlavně:
+  **QR kód ve virtuální kameře není**, takže krok se čtením kódu se v simulaci neprojde — vedený
+  otevřený úkol, který zmiňoval už původní návrh. Pořadí dál: **fáze 6** (přežití restartu),
+  **fáze 7** (HW). Neuzavřené drobnosti: ROI scanneru vědomě nepostaveno (spekulativní parametr),
+  změření dekódování na OrangePI, a **úspěšnost čtení kódu na skutečném stanovišti není naměřená**.
+  Mise se vědomě **nedá spustit z příkazové řádky** — robot, který vyrazí bez člověka, je
+  nebezpečný (tatáž úvaha jako u obnovení po restartu).
+- **Odkazy (fáze 5):** `Src/ARBot/ViewModels/RobotourMissionDocument.cs`,
+  `Src/ARBot/Views/RobotourMissionDocumentView.axaml`, `Src/ARBot.HAL/Devices/VirtualSensorOptions.cs`,
+  `Src/ARBot.HAL/Devices/MotorDriver/VirtualMotors.cs`, [virtual-hw.md](virtual-hw.md),
+  `Src/ARBot/Views/README.md`.
 - **Odkazy:** `Src/ARBot.Common/Missions/` (`RobotourMission`, `RobotourConfig`, `RobotourPhase`,
   `MissionState`, `MissionSeams`, `GeoUriTargetParser`, `IMissionTargetParser`),
   `Src/ARBot.Common/Vision/Qr/`, `Src/ARBot.Common/Logs/{MissionMsg,QrCodeMsg}.cs`,

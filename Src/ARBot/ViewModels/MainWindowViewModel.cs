@@ -174,6 +174,36 @@ namespace ARBot.ViewModels
                 _factory.SetFocusedDockable(Layout, doc);
         }
 
+        /// <summary>
+        /// Otevre (nebo aktivuje) panel „Mise Robotour": faze automatu, stav nouzoveho zastaveni,
+        /// precteny kod s odvozenym cilem a tlacitka Start / Potvrdit / Prerusit.
+        ///
+        /// <para><b>Bez tohoto panelu se mise neda spustit</b> — ceka na „Start mise" a sama se
+        /// nerozjede. Stav cte ze Streamu, takze funguje i pri prehravani zaznamu (ovladat se tam
+        /// ale neda, zadna ziva mise neni). Viz doc/robotour-mission.md.</para>
+        /// </summary>
+        [RelayCommand]
+        private void OpenRobotourMission()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "RobotourMission");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new RobotourMissionDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
         [RelayCommand]
         private void OpenRobotCentric()
         {

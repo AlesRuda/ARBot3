@@ -1,0 +1,91 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        SPOLECNY VZHLED TLACITEK aplikace — POJMENOVANY styl, ne obecny.
+
+        POZOR: vsechny selektory zacinaji tridou `.btn`. Prvni verze (26. 8. 2026) mirila na
+        `Selector="Button"`, tedy na VSECHNA tlacitka v aplikaci — a prebarvila i chrom dokovaciho
+        systemu (zaviraci krizky tabu a dalsi tlacitka uvnitr Dock.Avalonia sablon), coz nahlasil
+        autor. Globalni selektor na typ je v aplikaci s cizimi tematy vzdy prestrelka: nema jak
+        odlisit „nase" tlacitko od tlacitka uvnitr sablony tretí strany.
+
+        Pouziti (trida `btn` musi byt VZDY, ostatni jsou modifikatory):
+          <Button Classes="btn" …/>                    … bezne tlacitko
+          <Button Classes="btn compact" …/>            … kompaktni (toolbary, radky tabulek)
+          <Button Classes="btn action" …/>             … hlavni akce panelu (vyssi, tucne)
+          <Button Classes="btn action accent" …/>      … + zelena (spousteci / potvrzujici)
+          <Button Classes="btn action info" …/>        … + modra (druha akce)
+          <Button Classes="btn action danger" …/>      … + cervena (preruseni, zastaveni)
+
+        Obsah je VZDY na stredu vodorovne i svisle (podnet autora) — Fluent to u sirokych tlacitek
+        s MinWidth nedodrzoval a text se lepil k okraji.
+    -->
+
+    <Style Selector="Button.btn">
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Background" Value="#3F3F46"/>
+        <Setter Property="Foreground" Value="#F0F0F0"/>
+        <Setter Property="BorderBrush" Value="#5A5A61"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#4E4E57"/>
+        <Setter Property="TextElement.Foreground" Value="White"/>
+    </Style>
+
+    <Style Selector="Button.btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2E2E34"/>
+        <Setter Property="TextElement.Foreground" Value="White"/>
+    </Style>
+
+    <!-- ZAKAZANY STAV: citelny, ne skoro neviditelny. Je to nejcastejsi stav ovladani mise, takze
+         musi byt poznat, ZE tlacitko existuje a JAK se jmenuje - jen zjevne neaktivni. -->
+    <Style Selector="Button.btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2A2A2E"/>
+        <Setter Property="BorderBrush" Value="#3D3D42"/>
+        <Setter Property="TextElement.Foreground" Value="#8C8C93"/>
+    </Style>
+
+    <!-- Kompaktni: toolbary a radky, kde by plna vyska rozhodila layout. -->
+    <Style Selector="Button.btn.compact">
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+
+    <!-- Hlavni akce panelu: vyssi a tucne, aby se dala zmacknout bez mireni. -->
+    <Style Selector="Button.btn.action">
+        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="MinWidth" Value="110"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <Style Selector="Button.btn.accent">
+        <Setter Property="Background" Value="#2D6A2D"/>
+        <Setter Property="BorderBrush" Value="#3E8B3E"/>
+    </Style>
+    <Style Selector="Button.btn.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#3A8A3A"/>
+    </Style>
+
+    <Style Selector="Button.btn.info">
+        <Setter Property="Background" Value="#1F5C8A"/>
+        <Setter Property="BorderBrush" Value="#2E7CB8"/>
+    </Style>
+    <Style Selector="Button.btn.info:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2A75AF"/>
+    </Style>
+
+    <Style Selector="Button.btn.danger">
+        <Setter Property="Background" Value="#8A2020"/>
+        <Setter Property="BorderBrush" Value="#B33030"/>
+    </Style>
+    <Style Selector="Button.btn.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#A82A2A"/>
+    </Style>
+</Styles>

@@ -1,10 +1,16 @@
 # Mise Robotour (`RobotourMission`) + čtení QR kódů
 
-> **Stav (2026-08-26): jádro implementované, na HW neověřeno, a z aplikace se zatím nedá
-> spustit.** Hotové jsou fáze 2–4 (čtení QR, `geo:` parser, stavový automat) — viz
-> [Plán realizace](#plán-realizace-fáze). **Chybí UI panel (fáze 5)**, a protože mise čeká na
-> „Start mise" od obsluhy a sama se nerozjede, znamená to, že `mission=robotour` dnes stupně založí
-> a mise zůstane v `Idle`. Zbývá i přežití restartu (fáze 6) a celé ověření na zařízení (fáze 7).
+> **Stav (2026-08-26): fáze 2–5 hotové, spustitelné z aplikace, na HW neověřeno.** Čtení QR,
+> `geo:` parser, stavový automat i **UI panel** — viz [Plán realizace](#plán-realizace-fáze).
+> Zbývá přežití restartu (fáze 6) a celé ověření na zařízení (fáze 7).
+>
+> **Jak to vyzkoušet v simulaci:** `mission=robotour` + panel *Tools → Mise Robotour* („Start mise")
+> + panel *Tools → Virtuální senzory*, kde je nově **přepínač nouzového zastavení** — bez něj se
+> servisní okno projít nedalo, protože virtuální motory hlásily stop natvrdo jako `false`.
+>
+> ⚠️ **Celý průchod misí v běžící aplikaci ale zatím nikdo neproklikal** — panel je napsaný a
+> aplikace s ním běží (ověřeno bezobslužným během), logika automatu má 27 testů, ale samotné UI
+> (texty fází, povolování tlačítek) je ověřené jen kompilací. Aplikace nemá testovací projekt.
 >
 > Kód: [`RobotourMission`](../Src/ARBot.Common/Missions/RobotourMission.cs),
 > [`RobotourConfig`](../Src/ARBot.Common/Missions/RobotourConfig.cs),
@@ -399,9 +405,23 @@ výpočetní čas je zdarma — tam je správné zaplatit za úspěšnost čten�
 ## Zprávy a záznam
 
 - **`QrCodeMsg`** (nová) — kamera, text, rohy, čas.
-- **`MissionMsg`** (nová) — fáze, čas vstupu do fáze, uplynulý čas mise, depo (LLA), pickup/drop (LLA
-  + zdrojový text kódu), důvod přerušení, čítače (kolik čtení, kolik timeoutů). Emituje se **při každé
-  změně fáze** a periodicky (`MissionMessagePeriod`, 1 s) → ve View se dá přehrát celá mise.
+- **`MissionMsg`** (nová, **verze 2**) — fáze, čas vstupu do fáze, uplynulý čas mise, depo (LLA),
+  pickup/drop (LLA + zdrojový text kódu), důvod přerušení, čítače (kolik čtení, kolik timeoutů).
+  Emituje se **při každé změně fáze** a periodicky (`MissionMessagePeriod`, 1 s) → ve View se dá
+  přehrát celá mise.
+  **Verze 4 přidala důvod zamítnutí kódu** (a text, který se zamítl). Tři důvody — nesrozumitelný,
+  příliš daleko od depa, bez trasy v grafu — se z pohledu obsluhy chovají stejně („nic se nestalo"),
+  ale znamenají úplně jiné řešení. Bez nich zamítnutí vypadá jako **nepřečtený kód**; přesně to se
+  26. 8. 2026 stalo autorovi u cíle 71 km daleko.
+  **Verze 3 přidala kvalitu fixu v depu** (družice, HDOP, rozptyl okna, jeho limit, počet vzorků).
+  Bez ní je „čeká se na kvalitní fix" **nediagnostikovatelné**: mise stojí, panel neumí říct proč a
+  jediný způsob, jak to zjistit, je přečíst si kód — přesně to se 26. 8. 2026 stalo. Rozptyl se
+  počítá **průběžně**, ne teprve u plného okna, aby obsluha nehádala 5 s.
+  **Verze 2 přidala nabídnutý cíl** (`HasPending`, souřadnice, text kódu, vzdálenost od depa,
+  **délka trasy**) — tedy to, co obsluha vidí *před* potvrzením. Bez toho by se do záznamu nikdy
+  nedostala délka trasy: počítá ji zkouška dosažitelnosti a nikde jinde v záznamu není, takže by
+  pak nešlo dohledat, **na základě čeho** obsluha cíl potvrdila. Starší záznamy ji nemají
+  (`HasPending` zůstane `false`).
 - Konverzi vlastní doména: `MissionState.ToLogMessage()` (viz [CLAUDE.md](../CLAUDE.md)).
 
 ## Přežití restartu
@@ -424,12 +444,26 @@ nesmyslná hodnota skončí výjimkou při startu, ne divným chováním za jíz
 | `Confirmations` | scanner | 1 | shodná dekódování **po sobě**; skutečná pojistka je potvrzení obsluhou |
 | `Downscale` | scanner | 2 | podvzorkování před dekódováním |
 | `DepotFixSec` | mise | 5 s | jak dlouho musí fix nepřerušeně vyhovovat; `depotfix=` |
-| `MinSatellites` / `MaxHdop` / `MaxSpreadM` | mise | 6 / 2,0 / 1,0 m | kvalita fixu v `ArmingAtDepot` |
+| `MinSatellites` / `MaxHdop` / `MaxSpreadM` | mise | 6 / 2,0 / **2,5 m** | kvalita fixu v `ArmingAtDepot`; `MaxSpreadM` je **RMS** odchylka, viz níže |
 | `MinInitStdM` | mise | 0,3 m | **podlaha** nejistoty pro `InitializePosition` (viz níže) |
 | `QrSearchSec` | mise | 10 s | po této době se hlásí „kód nevidím" (skenuje se **dál**) |
 | `MaxTargetDistanceM` | mise | 2000 m | sanity check cíle z QR |
 | `ArmingTimeoutSec` / `DrivingTimeoutSec` | mise | **0 / 0 = neomezovat** | **jen stavy bez člověka v cyklu** (jízda, `ArmingAtDepot`) |
 | `MissionMessagePeriodSec` | mise | 1 s | perioda `MissionMsg` |
+
+> ⚠️ **Past, na kterou mise narazila naostro (26. 8. 2026):** `GPSState.Latitude/Longitude` byly
+> tehdy ve **stupních**, ale mise z nich stavěla `new LLA(...)` (radiány), takže rozptyl okna vyšel
+> astronomický a okno se **vždy zamítlo** — mise uvízla v `ArmingAtDepot` a vypadalo to jako „nedočká
+> se fixu". Léčba byla systémová: **`GPSState` je teď v radiánech** jako všechno ostatní, takže ten
+> zápis je správný. Viz [decisions.md](decisions.md).
+
+**`MaxSpreadM` proti návrhu vzrostl z 1,0 na 2,5 m a měří se jinak** (rozhodnutí 26. 8. 2026, měřeno
+testem). Dvě samostatné vady: (a) návrh mluvil o „rozptylu", ale první implementace brala
+**největší** odchylku — a ta s rostoucím `n` **roste** i u dokonale gaussovského šumu, takže by delší
+okno kritérium *přitvrzovalo*, přesně naopak, než má; (b) prah 1,0 m byl **pod nominálním šumem GPS**
+(σ = 1,5 m v simulaci i u spotřebního přijímače ve stoje), takže by se mise **nezarmovala nikdy**.
+Teď je to **RMS** odchylka a prah je nad normálním šumem — zamítat se mají jen abnormální fixy
+(multipath skáče o desítky metrů). Podrobně: [decisions.md](decisions.md).
 
 **`MinInitStdM` v návrhu nebyl a musel vzniknout** ze dvou důvodů: `InitializePosition` vyhodí
 výjimku na `std <= 0` (a v simulaci může být rozptyl okna přesně nulový), a hlavně — samotný rozptyl
@@ -523,11 +557,21 @@ Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navig
    **Zbývá:** ⬜ vypnutí detektoru záseku globální vrstvy při servisním okně je zajištěné *nepřímo*
    (cíl je zrušen ⇒ detektory bez aktivního cíle vypadnou) — je to otestované na úrovni mise, ne
    proti skutečnému `GlobalNavigatoru`.
-5. ⬜ **UI panel mise** — fáze, stav nouzového zastavení, přečtený kód **s odvozeným cílem,
-   vzdáleností a délkou trasy**, tlačítka Start / Potvrdit / Abort.
-   ⚠️ **Bez něj se mise nedá spustit** — čeká na `StartMission()` a sama se nerozjede. Automat pro
-   ten panel má všechno hotové: `Phase`, `CurrentStop`, `PendingTarget`, `PendingRouteLengthM`,
-   `LastCodeText`, `CodeNotSeen`, `AbortReason` a příkazy `StartMission()` / `Confirm()` / `Abort()`.
+5. ✅ **UI panel mise** —
+   [`RobotourMissionDocument`](../Src/ARBot/ViewModels/RobotourMissionDocument.cs), menu
+   *Tools → Mise Robotour*: fáze, **na co se čeká**, stav nouzového zastavení, přečtený kód
+   s odvozeným cílem, vzdáleností a délkou trasy, zapamatované cíle, čítače a tlačítka
+   Start / Potvrdit / Přerušit.
+   - **Stav se čte ze `MissionMsg` na Streamu**, ne z instance mise, takže panel funguje i při
+     **přehrávání záznamu** (celá jízda se dá přehrát fázi po fázi). Příkazy potřebují živou misi;
+     když neběží, panel to **řekne přímo v UI** místo aby tlačítka tiše nic nedělala.
+   - **„Na co se čeká" je vlastní řádek**, protože nouzové zastavení je signál mise **jen ve stavech,
+     které na něj čekají** — obsluha, která ho zmáčkne za jízdy, by jinak čekala, že tím něco
+     odemkla.
+   - Kvůli tomu vznikl i **přepínač nouzového zastavení v simulaci** (viz níže) a `MissionMsg`
+     povyrostla na **verzi 2**.
+   **Zbývá:** ⬜ proklikat celý průchod misí v běžící aplikaci (UI samo testy nemá — aplikace nemá
+   testovací projekt).
 6. ⬜ **Přežití restartu** (stavový soubor + opt-in obnovení).
 7. ⬜ **Ověření na HW** — čtení kódů z pravé kamery na skutečném stanovišti, celý handshake
    s nouzovým zastavením, celá mise nasucho na krátké trase.
@@ -543,9 +587,25 @@ ARBot.exe virtualhw=true no_uart=true mission=robotour map=OSM/SyntetickyRovny.o
 Parametry z příkazové řádky: `depotfix=` (okno kvalitního fixu v depu),
 `qrcamera=` (kamera pro čtení; **prázdné = všechny**).
 
-> **Mise zůstane v `Idle`**, dokud nebude UI panel (fáze 5) — `mission=robotour` dnes založí stupně
-> a periodicky hlásí `MissionMsg`. Ověřeno, že se to nerozbije: 20s běh dal 20 × `MissionMsg`
-> (perioda 1 s) a nic nespadlo.
+Pak v aplikaci:
+
+1. **Tools → Mise Robotour** → *Start mise*. Mise čeká na kvalitní fix a inicializuje jím fúzi
+   (`ArmingAtDepot`), pak přejde na *Čeká na nouzové zastavení*.
+2. **Tools → Virtuální senzory** → zatrhnout *Držet nouzové zastavení*. Mise vstoupí do servisního
+   okna a **zapne scanner**.
+3. Ukázat pravé kameře QR kód s `geo:` cílem. Panel mise ukáže text, souřadnice, vzdálenost od depa
+   a délku trasy → *Potvrdit*.
+4. Odtrhnout nouzové zastavení → robot vyrazí na nakládku. Totéž na nakládce, u vykládky se kód nečte.
+
+Krok 3 jde v simulaci projít taky: panel má v servisním okně sekci **„QR kód do virtuální kamery"**,
+která postaví desku s kódem vpravo od robota čelem k němu (a ta **zmizí sama, až se kód přečte**).
+Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód ve výhledu. Detail:
+[virtual-hw.md](virtual-hw.md#qr-kód-ve-scéně-svislé-desky-26-8-2026).
+
+> **Mise se sama nerozjede** — čeká na *Start mise*. Bezobslužný běh tedy zůstane v `Idle` a jen
+> periodicky hlásí `MissionMsg` (ověřeno: 15s běh = 15 zpráv, nic nespadlo). Vědomě k tomu **není**
+> přepínač „spusť misi sama": robot, který vyrazí bez člověka, je nebezpečný — tatáž úvaha jako
+> u obnovení po restartu.
 
 ## Otevřené úkoly
 

@@ -92,6 +92,36 @@ Tři věci, které je potřeba vědět:
 > v runtime, detailní okno) a zastavit se nedal vůbec. Redundantní to bylo i tak — **každý senzor
 > se spouští ve svém konstruktoru**.
 
+## Vzhled tlačítek — jeden společný styl (26. 8. 2026)
+
+[`Styles/Buttons.axaml`](../Styles/Buttons.axaml), zapojený v `App.axaml` **za** Fluent tématem
+(aby ho přebil). **Nestyluj tlačítka na místě** — používej třídy. Třída **`btn` musí být vždy**,
+ostatní jsou modifikátory:
+
+| zápis | k čemu |
+|---|---|
+| `Classes="btn"` | běžné tlačítko (padding 12,6; MinHeight 30) |
+| `Classes="btn compact"` | toolbary, transportní lišta, tlačítka v řádcích tabulek |
+| `Classes="btn action"` | hlavní akce panelu (vyšší, tučné, MinWidth 110) |
+| `Classes="btn action accent"` / `info` / `danger` | + zelená / modrá / červená |
+
+> ⚠️ **Styl je POJMENOVANÝ schválně, ne globální na typ.** První verze mířila na
+> `Selector="Button"`, tedy na **všechna** tlačítka v aplikaci — a přebarvila i **chrom dokovacího
+> systému** (zavírací křížky tabů a další tlačítka uvnitř `Dock.Avalonia` šablon); nahlásil to autor
+> tentýž den. Globální selektor na typ je v aplikaci s cizími tématy vždycky přestřelka: nemá jak
+> odlišit „naše" tlačítko od tlačítka uvnitř šablony třetí strany. Nové tlačítko proto musí
+> `btn` dostat výslovně — a když ho zapomene, vypadá jako Fluent default, což je viditelné, ne tiché.
+
+**Proč to vzniklo:** tlačítka se stylovala na místě, takže měla **čtyři různé paddingy**
+(8,3 / 8,2 / 8,0 / 7,4), nahodilé `MinWidth` a barvy jen tam, kde si na to někdo vzpomněl. Autor to
+nahlásil jako **nečitelná tlačítka** (26. 8. 2026) a byly na tom dvě věci:
+
+- **Obsah nebyl na středu.** U tlačítek s `MinWidth` se text lepil k okraji, takže široké tlačítko
+  vypadalo jako prázdná plocha s textem v koutě. Styl to nastavuje explicitně na oba směry.
+- **Zakázaný stav byl skoro neviditelný.** Výchozí Fluent má u `:disabled` velmi nízký kontrast — a
+  u ovládání mise je zakázaný stav **nejčastější** (Start jde zmáčknout jen v `Idle`, Potvrdit jen
+  v servisním okně). Styl mu dává čitelnou, jen zjevně neaktivní barvu.
+
 ## Znovupoužitelné controly (`Views/Controls/`)
 
 Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty` +
@@ -126,10 +156,36 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   Vlastnosti navázané na `NumericUpDown` jsou **`decimal`** (`NumericUpDown.Value` je `decimal?` —
   `double` by selhal až za běhu); stejný vzor jako `WorldViewDocument.DefaultRoadWidthMeters`.
 
+- `RobotourMissionDocument` — panel **Tools → Mise Robotour**: fáze automatu, **na co se čeká**, stav
+  nouzového zastavení, přečtený kód s odvozeným cílem (souřadnice, vzdálenost od depa, délka trasy),
+  zapamatované cíle, čítače a tlačítka Start / Potvrdit / Přerušit. Viz
+  [doc/robotour-mission.md](../../../doc/robotour-mission.md).
+
+  Tři věci, které z něj dělají, co je:
+  - **Stav se čte ze `MissionMsg` na Streamu, ne z instance mise** — panel tím funguje i při
+    přehrávání záznamu (celá soutěžní jízda se dá přehrát fázi po fázi). Příkazy naopak potřebují
+    živou misi (`ARBotRuntime.RobotourMission`); když neběží, panel to **napíše přímo v UI** a
+    tlačítka zakáže. Tlačítko, které tiše nic nedělá, je horší než zakázané — tatáž lekce jako
+    u prázdné vrstvy hranic cesty.
+  - **„Na co se čeká" je vlastní řádek**, ne odvozeninka z názvu fáze: nouzové zastavení je signál
+    mise **jen ve stavech, které na něj čekají**, takže obsluha, která ho zmáčkne za jízdy, by jinak
+    čekala, že tím něco odemkla.
+  - **Bez panelu se mise nedala spustit** (čeká na `StartMission()`), a bez přepínače nouzového
+    zastavení ve `VirtualSensorsDocument` se v simulaci nedalo projít servisní okno.
+
+  > ⚠️ **Past: `ARBotRuntime.Current` existuje dřív než jeho stupně.** Runtime je singleton, který
+  > vzniká už při prvním přístupu (a `Stream` je jeho `readonly` pole, takže **přežije Run/Stop**),
+  > ale stupně jako `RobotourMission` se zakládají teprve v `Build()`, tedy při **Run**. ViewModel,
+  > který si referenci na stupeň uloží **v konstruktoru**, ji při otevření panelu před Runem uloží
+  > jako `null` **natrvalo** — a projeví se to zrádně: zprávy ze `Stream`u chodí a panel se plní
+  > správně, jen ovládání zůstane mrtvé. Nalezeno v běžící aplikaci 26. 8. 2026.
+  > **Stupně proto hledej znovu při každém použití**, ne jednou v konstruktoru; `Stream` naopak
+  > stačí připojit jednou.
+
 - `VirtualSensorsDocument` — panel **Tools → Virtuální senzory** (není to dokument senzoru, nevzniká
-  dvojklikem v Sensors). Nastavení šumu a **systematických chyb** simulovaných senzorů (prokluz kol,
-  bias kurzu a gyra) nad sdílenou instancí `ARBotHW.VirtualSensors` + **živé měření skutečné chyby
-  lokalizace**: páruje `GroundTruthMsg` s `RobotStateMsg` podle shodného časového razítka a počítá
+  dvojklikem v Sensors). Nastavení šumu, **systematických chyb** simulovaných senzorů (prokluz kol,
+  bias kurzu a gyra) a **nouzového zastavení** nad sdílenou instancí `ARBotHW.VirtualSensors`
+  + **živé měření skutečné chyby lokalizace**: páruje `GroundTruthMsg` s `RobotStateMsg` podle shodného časového razítka a počítá
   statistiku (n, průměr, RMS, max). Odběr ze `Stream`, backpressure „latest-wins".
   Viz [doc/virtual-hw.md](../../../doc/virtual-hw.md#systematické-chyby-prokluz-kol-a-bias-imu-22-8-2026).
   Prokluz kol se po změně musí přenést do `SimulatedRobot` (`ARBotHW.ApplyVirtualSensorOptions`) —

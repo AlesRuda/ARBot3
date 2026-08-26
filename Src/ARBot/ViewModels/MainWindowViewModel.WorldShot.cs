@@ -67,8 +67,9 @@ namespace ARBot.ViewModels
                     double lat = lat0 + i * dLat, lon = lon0 + i * dLon;
                     await Dispatcher.UIThread.InvokeAsync(() => doc.Post(new GPSState
                     {
-                        Latitude = lat,
-                        Longitude = lon,
+                        // GPSState drzi RADIANY (viz GPSState.Latitude); lat/lon jsou tu ve stupnich.
+                        Latitude = ARBot.Common.Common.Conversions.Deg2Rad(lat),
+                        Longitude = ARBot.Common.Common.Conversions.Deg2Rad(lon),
                         Quality = GPSState.FixQuality.GpsFix,
                         NumberOfSatellites = 11,
                         Hdop = 0.8,

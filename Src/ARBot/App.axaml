@@ -17,5 +17,8 @@
         <dockThemes:DockFluentTheme />
         <!-- Tema DataGridu (telemetricky pohled). Bez nej se DataGrid vykresli jako prazdne misto. -->
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+        <!-- Spolecny vzhled tlacitek (obsah na stredu, jeden padding, citelny zakazany stav).
+             Musi byt ZA Fluent temou, aby ji prebilo. Viz Styles/Buttons.axaml. -->
+        <StyleInclude Source="avares://ARBot/Styles/Buttons.axaml"/>
     </Application.Styles>
 </Application>

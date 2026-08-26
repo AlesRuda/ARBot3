@@ -105,8 +105,11 @@ namespace ARBot.ViewModels
             if (s == null)
                 return;
 
+            // GPSState drzi RADIANY (viz GPSState.Latitude), zobrazuje se ve STUPNICH.
             PositionText = string.Format(CultureInfo.InvariantCulture,
-                "lat {0,11:F6}°   lon {1,11:F6}°", s.Latitude, s.Longitude);
+                "lat {0,11:F6}°   lon {1,11:F6}°",
+                ARBot.Common.Common.Conversions.Rad2Deg(s.Latitude),
+                ARBot.Common.Common.Conversions.Rad2Deg(s.Longitude));
             AltitudeText = string.Format(CultureInfo.InvariantCulture, "{0:F1} m", s.Altitude);
             QualityText = string.Format(CultureInfo.InvariantCulture,
                 "{0} ({1})   fix {2}", (int)s.Quality, s.Quality, s.IsFixed ? "ano" : "ne");

@@ -6,6 +6,7 @@ using ARBot.Common.Logs;
 using ARBot.Common.Models;
 using ARBot.Common.Runtime;
 using ARBot.Common.Simulation;
+using ARBot.HAL.Devices;
 using ARBot.HAL.Devices.MotorDrivers;
 
 namespace ARBot.HAL.Tests;
@@ -36,6 +37,55 @@ public class VirtualMotorsTest
             Thread.Sleep(5);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Virtualni motory hlasi <b>nouzove zastaveni</b> z nastaveni simulace, a zmena plati
+    /// <b>hned</b> (drzi se tataz instance <see cref="VirtualSensorOptions"/> jako v panelu).
+    ///
+    /// <para>Do 26. 8. 2026 byl priznak natvrdo <c>false</c>, takze handshake mise Robotour — ktery
+    /// cely stoji na tom, ze obsluha stop zmackne a pak uvolni — se v simulaci nedal projit vubec.
+    /// Viz doc/robotour-mission.md.</para>
+    /// </summary>
+    [Test]
+    public void NouzoveZastaveni_SeHlasiZNastaveniAPlatiHned()
+    {
+        var robot = NewRobot();
+        var options = new VirtualSensorOptions();
+        using var motors = new VirtualMotors(robot, options: options);
+
+        var before = NextMeasurement(motors, TimeSpan.FromSeconds(5));
+        Assert.That(before, Is.Not.Null);
+        Assert.That(before!.IsEmergencyStop, Is.False, "vychozi stav je bez stopu");
+
+        options.EmergencyStop = true;
+        Assert.That(ReachesEmergencyStop(motors, true), Is.True,
+                    "zmacknuti musi platit bez zakladani motoru znovu");
+
+        options.EmergencyStop = false;
+        Assert.That(ReachesEmergencyStop(motors, false), Is.True,
+                    "a uvolneni taky");
+    }
+
+    /// <summary>
+    /// Docka se, ze hlaseny priznak dojde na <paramref name="expected"/>.
+    ///
+    /// <para><b>Proc ne „hned ten nejblizsi vzorek":</b> motory bezi na vlastnim vlakne, takze ve
+    /// fronte uz muze lezet vzorek vyrobeny PRED prepnutim priznaku. Tvrdit „prvni dalsi mereni to
+    /// uz ma" je zavod — a taky presne ten druh flaky assertu, na kterem uz projekt jednou vyhorel
+    /// (viz devlog 25. 8. 2026, test sumu kurzu). Tvrdi se tedy „do jednoho vzorkovaciho obdobi
+    /// s rezervou", coz je to, co na tom kodu skutecne zalezi.</para>
+    /// </summary>
+    private static bool ReachesEmergencyStop(VirtualMotors motors, bool expected)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (DateTime.UtcNow < deadline)
+        {
+            var s = motors.GetLastMeasurement();
+            if (s != null && s.IsEmergencyStop == expected) return true;
+            Thread.Sleep(5);
+        }
+        return false;
     }
 
     [Test]

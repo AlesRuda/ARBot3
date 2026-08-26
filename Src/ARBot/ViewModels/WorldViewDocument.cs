@@ -547,7 +547,10 @@ namespace ARBot.ViewModels
             // --- Surove GPS fixy vedle toho (diagnostika kvality fixu) ---
             if (lastGps != null && IsValidFix(lastGps))
             {
-                var (gx, gy) = SphericalMercator.FromLonLat(lastGps.Longitude, lastGps.Latitude);
+                // GPSState drzi RADIANY (viz GPSState.Latitude), Mapsui chce STUPNE.
+                double gpsLatDeg = ARBot.Common.Common.Conversions.Rad2Deg(lastGps.Latitude);
+                double gpsLonDeg = ARBot.Common.Common.Conversions.Rad2Deg(lastGps.Longitude);
+                var (gx, gy) = SphericalMercator.FromLonLat(gpsLonDeg, gpsLatDeg);
                 var gpsMerc = new MPoint(gx, gy);
                 AppendGpsTrack(gpsMerc);
                 UpdateGpsFeature(gpsMerc);
@@ -556,7 +559,7 @@ namespace ARBot.ViewModels
                 // centrovat a at je robot videt aspon priblizne.
                 robotMerc ??= gpsMerc;
                 if (lastRobot == null || geoRef == null)
-                    UpdateRobotFeature(gpsMerc, lastGps.Latitude,
+                    UpdateRobotFeature(gpsMerc, gpsLatDeg,
                                        lastRobot?.Theta ?? lastGps.DynamicOrientation ?? lastGps.Orientation);
             }
 
@@ -1896,7 +1899,9 @@ namespace ARBot.ViewModels
             {
                 sb.AppendFormat(CultureInfo.InvariantCulture,
                     "GPS: {0:F6}, {1:F6}  fix={2}  sat={3}",
-                    lastGps.Latitude, lastGps.Longitude, lastGps.Quality, lastGps.NumberOfSatellites);
+                    ARBot.Common.Common.Conversions.Rad2Deg(lastGps.Latitude),
+                    ARBot.Common.Common.Conversions.Rad2Deg(lastGps.Longitude),
+                    lastGps.Quality, lastGps.NumberOfSatellites);
             }
             else sb.Append("GPS: —");
 
