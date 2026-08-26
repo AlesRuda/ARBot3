@@ -550,8 +550,64 @@ namespace ARBot.Robot
                     break;
 
                 case "robotour":
-                    Trace.WriteLine("mission=robotour: RobotourMission jeste neexistuje "
-                                    + "(doc/robotour-mission.md) -> zadna mise nebezi.");
+                    // Soutezni mise: depo -> nakladka -> vykladka -> depo, cile z QR kodu.
+                    // Ridi GLOBALNI navigaci (LLA cile), takze bez mapy nema co zadavat.
+                    if (GlobalNavigator == null)
+                    {
+                        Trace.WriteLine("mission=robotour, ale neni globalni navigace (chybi mapa "
+                                        + "map= nebo GeoReference) -> mise se nezaklada.");
+                        break;
+                    }
+
+                    var robotourCfg = new ARBot.Common.Missions.RobotourConfig();
+                    // Jediny parametr, ktery se ladi bez prekladu: jak dlouho musi fix v depu
+                    // neprerusene vyhovovat. Zbytek jsou bezpecnostni stropy z dokumentu.
+                    double depotFix = ReadDouble("depotfix", robotourCfg.DepotFixSec);
+                    if (depotFix != robotourCfg.DepotFixSec)
+                    {
+                        robotourCfg.DepotFixSec = depotFix;
+                        Trace.WriteLine($"depotfix={depotFix:F1}: okno kvalitniho fixu v depu.");
+                    }
+
+                    // Scanner QR je SAMOSTATNY stupen vedle mise - mise o kamerach nic nevi, jen
+                    // odebira QrCodeMsg. Vypnuty je do chvile, nez ho mise zapne (a ta ho zapina
+                    // vyhradne pod drzenym nouzovym zastavenim).
+                    var qrCfg = new ARBot.Common.Vision.Qr.QrScannerConfig();
+                    string qrCam = Program.GetParam("qrcamera");
+                    if (qrCam != null)
+                    {
+                        qrCfg.CameraName = qrCam;
+                        Trace.WriteLine(string.IsNullOrWhiteSpace(qrCam)
+                            ? "qrcamera= (prazdne): skenuji se VSECHNY kamery."
+                            : $"qrcamera={qrCam}: kod se cte z teto kamery.");
+                    }
+
+                    var qrScanner = new ARBot.Common.Vision.Qr.QrScanner(
+                        new ARBot.Common.Vision.Qr.ZXingQrDecoder(), qrCfg);
+                    QrScanner = qrScanner;
+                    stages.Add(qrScanner);
+                    // Snimky kamer forwarduje ridici smycka po pullu (tyz zdroj jako LocalNavigator).
+                    connections.Add(loop.Output.Connect(qrScanner));
+                    connections.Add(qrScanner.Output.Connect(stream));
+
+                    var robotour = new ARBot.Common.Missions.RobotourMission(
+                        GlobalNavigator, engine, fusionConfig.GeoReference,
+                        control: loop, scanner: qrScanner,
+                        parser: new ARBot.Common.Missions.GeoUriTargetParser(),
+                        routes: GlobalNavigator, config: robotourCfg);
+
+                    RobotourMission = robotour;
+                    stages.Add(robotour);
+                    // Mise potrebuje GPS (fix v depu) a stav motoru (nouzove zastaveni) primo ze
+                    // zdroju, precteny kod ze scanneru a hlaseni Arrived/NoRoute z globalni vrstvy.
+                    connections.Add(qrScanner.Output.Connect(robotour));
+                    connections.Add(GlobalNavigator.Output.Connect(robotour));
+                    connections.Add(robotour.Output.Connect(stream));
+                    // Primarni merenia (GPSState pro fix v depu, MotorStateBase pro nouzove
+                    // zastaveni) - tentyz sev, jakym je bere ridici smycka.
+                    connections.Add(processing.Connect(robotour));
+                    Trace.WriteLine("mission=robotour: automat depo -> nakladka -> vykladka -> depo. "
+                                    + "Ceka na 'Start mise' z UI; sama se nerozjede.");
                     break;
 
                 default:
@@ -699,6 +755,18 @@ namespace ARBot.Robot
 
         /// <summary>Bezici mise FreeRun, nebo <c>null</c> (viz <c>mission=</c>).</summary>
         public ARBot.Common.Missions.FreeRunMission FreeRunMission { get; private set; }
+
+        /// <summary>
+        /// Bezici mise Robotour, nebo <c>null</c> (viz <c>mission=</c>). Mise <b>ceka na „Start"</b> —
+        /// sama se nerozjede. Viz doc/robotour-mission.md.
+        /// </summary>
+        public ARBot.Common.Missions.RobotourMission RobotourMission { get; private set; }
+
+        /// <summary>
+        /// Scanner QR kodu, nebo <c>null</c>. Zaklada se jen s misi Robotour a je <b>vypnuty</b>,
+        /// dokud ho mise nezapne (a ta ho zapina vyhradne pod drzenym nouzovym zastavenim).
+        /// </summary>
+        public ARBot.Common.Vision.Qr.QrScanner QrScanner { get; private set; }
 
         /// <summary>
         /// Zapne diagnostiku merenii ve fuzi podle parametru <c>measdiag=</c>, pokud je zadany.

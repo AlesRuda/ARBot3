@@ -13,6 +13,67 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-26 — `IPixel` má kanály `R`/`G`/`B`; barvu se nesmí čtít z `Values`
+**Co:** [`IPixel`](../Src/ARBot.Common/Common/IPixel.cs) má nové (jen ke čtení) `byte R`, `G`, `B`.
+`BGR`, `BGR32` a `RGB` je měly už předtím, doplnily se do `Gray`, `Gray16`, `Gray32`. Je to **jediná
+slibená cesta k barvě** nezávisle na pixel typu; `Image<T>.ToGray` ji používá.
+
+**Proč.** `ToGray` původně čtla barvu z `IPixel.Values` jako „`[0]` je R, když je délka ≥ 3".
+Pro dnešní typy to **náhodou vychází** — `Values` se u všech tří barevných typů plní z pojmenovaných
+vlastností, takže je vždy `[R,G,B]` bez ohledu na to, že `BGR` a `RGB` mají obrácené *rozložení
+v paměti*. Ale rozhraní u `Values` **neslibuje ani délku, ani pořadí** (dokumentace říká jen „pole
+int reprezentující pixel"), takže to byla nedokumentovaná domněnka. Pixel typ s jinou reprezentací
+barvy — YUV nebo HSV, na které jsou v `IPixel` zakomentované `XmlInclude`, tedy někdy existovaly —
+by podstrčil `[Y,U,V]`, vzorec pro jas by z toho spočítal nesmysl a **nikde by to nespadlo**.
+Podnět autora.
+
+**Proč ne `Color`:** je to `class`, takže její čtení v cyklu přes obraz alokuje na **každý pixel**
+(u 640×480 tři sta tisíc na snímek). Kanály jsou `byte`, tedy zdarma.
+
+**Důsledky.**
+- `ToGray` je o větev kratší: váhy BT.601 dávají dohromady rovných 1000 a kanály šedého pixelu
+  vracejí tutéž hodnotu, takže **šedý zdroj projde přesně** (`(299+587+114)·V/1000 == V`) bez
+  zvláštního případu, a výsledek se vejde do bajtu bez omezování.
+- **Jedna změna chování:** u `Gray16`/`Gray32` kanály vracejí **nejvyšší bajt** (hodnotu
+  škálovanou), ne saturaci na 255, jak jsem to napsal poprvé. Důvod je konzistence — `Color` na
+  týchž třídách tuhle konvenci **už měla**, a kdyby se kanály rozhodly jinak, tentýž pixel by hlásil
+  jinou barvu přes `R` a jinou přes `Color.R`. Vedlejší přínos: u hloubkového obrazu v milimetrech
+  by saturace udělala bílou placku, škálování zachová průběh.
+
+**Odkazy:** [`Image<T>.ToGray`](../Src/ARBot.Common/Common/Image.cs),
+[`PixelChannelTests`](../Src/ARBot.Common.Tests/Common/PixelChannelTests.cs) (klíčový test: `BGR`
+a `RGB` mají obrácené bajty, ale kanály musí dát totéž),
+[`ImageToGrayTests`](../Src/ARBot.Common.Tests/Common/ImageToGrayTests.cs).
+
+### 2026-08-26 — QR dekodér: ZXing.Net místo ZBaru (a fáze 1 tím celá padá)
+**Co:** dekodér QR kódů je **ZXing.Net** (NuGet `ZXing.Net` 0.16.11) za rozhraním
+[`IQrDecoder`](../Src/ARBot.Common/Vision/Qr/IQrDecoder.cs), ne ZBar, jak počítal návrh
+[robotour-mission.md](robotour-mission.md).
+
+**Proč.** Návrh vybral ZBar podle toho, že se **osvědčil v soutěži** u předchozí generace robotu
+(ARBot2) — to je dobrý důvod a nezmizel. Zmizel ale předpoklad: **ARBot2 na stroji není** (prohledán
+`D:\Work` i profil), takže binding `zbar-sharp`, který se měl podle pravidla „vše v repozitáři"
+zkopírovat do `Src/ThirdParty/ZBar/`, nebyl odkud vzít.
+
+Druhá polovina důvodu je platná i s ARBot2 po ruce: ZBar za sebou táhne **nativní `libzbar` na obou
+platformách** — `libzbar.dll` + `libiconv.dll` pro x64 a `DllImportResolver` pro `libzbar.so.0` na
+Armbianu, protože soubor se tam jmenuje jinak. ZXing.Net je **čistě managed**, takže na ARM64 není co
+řešit; ověřeno buildem `-p:Platform=OrangePI`. **Tím celá fáze 1 návrhu („ZBar do repa a na obě
+platformy", včetně „ověřit na zařízení, že se knihovna nahraje") přestala existovat** — to je hlavní
+důsledek, ne volba knihovny.
+
+**Co se tím kupuje a co platí.** Kupuje se: žádná nativní závislost, žádný rezolver, jedna
+`PackageReference`. Platí se tím, že **úspěšnost čtení je neznámá** — ZBar měl naměřenou soutěžní
+historii, ZXing ji tady nemá. Testy dokazují jen *cestu* (`Image<BGR32>` → Y800 → dekodér, včetně
+podvzorkování na polovinu), protože testovací obraz se **kóduje týmž ZXingem**; úspěšnost na
+skutečném stanovišti je proto vedená jako krok „ověření na HW". Kdyby se ukázala slabá, výměna zpět
+za ZBar je **lokální změna za `IQrDecoder`** — přesně proto to rozhraní v návrhu je.
+
+**Odkazy:** [`ZXingQrDecoder`](../Src/ARBot.Common/Vision/Qr/ZXingQrDecoder.cs),
+[`Image<T>.ToGray`](../Src/ARBot.Common/Common/Image.cs) (převod bez `System.Drawing` — to zůstalo
+z návrhu v platnosti, `System.Drawing.Common` je jen na Windows),
+[robotour-mission.md](robotour-mission.md).
+
 ### 2026-08-25 — Korekce z korelace se gatují `Soft`; tvrdý gate byl vada
 **Co:** `MapCorrelatorConfig.GateMode` je nový a výchozí je **`GateMode.Soft`** (`R' = R × NIS/práh`)
 místo dosavadního tvrdého `Reject`. `mapcorrgate=reject` vrátí původní chování pro A/B.

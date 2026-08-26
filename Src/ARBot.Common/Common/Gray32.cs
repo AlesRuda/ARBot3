@@ -48,6 +48,17 @@ namespace ARBot.Common.Common
             }
         }
 
+        /// <summary>
+        /// Sedy pixel vraci svou hodnotu ve vsech treh kanalech (viz <see cref="IPixel.R"/>).
+        /// <b>Bere nejvyssi bajt</b>, tedy stejnou konvenci jako <see cref="Color"/> — ne saturaci
+        /// na 255.
+        /// </summary>
+        public byte R => data[idx + 3];
+        /// <inheritdoc cref="R"/>
+        public byte G => data[idx + 3];
+        /// <inheritdoc cref="R"/>
+        public byte B => data[idx + 3];
+
         int[] b = new int[1];
         public int[] Values
         {

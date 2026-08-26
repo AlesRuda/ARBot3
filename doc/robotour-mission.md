@@ -1,13 +1,40 @@
-# Mise Robotour (`MissionController`) + čtení QR kódů
+# Mise Robotour (`RobotourMission`) + čtení QR kódů
 
-> **Jméno se změní na `RobotourMission`** (rozhodnutí 25. 8. 2026) — sourozenec
-> [`FreeRunMission`](mission-freerun.md), která je hotová a dělala se **dřív**. Tento dokument ještě
-> mluví o `MissionController`; při implementaci se použije nové jméno.
+> **Stav (2026-08-26): jádro implementované, na HW neověřeno, a z aplikace se zatím nedá
+> spustit.** Hotové jsou fáze 2–4 (čtení QR, `geo:` parser, stavový automat) — viz
+> [Plán realizace](#plán-realizace-fáze). **Chybí UI panel (fáze 5)**, a protože mise čeká na
+> „Start mise" od obsluhy a sama se nerozjede, znamená to, že `mission=robotour` dnes stupně založí
+> a mise zůstane v `Idle`. Zbývá i přežití restartu (fáze 6) a celé ověření na zařízení (fáze 7).
 >
-> **Společnou abstrakci misí nezavádět předem** — až tahle mise vznikne, teprve se ukáže, co je
-> s FreeRunem opravdu společné. Vybírají se selektorem `mission=` (viz
-> [mission-freerun.md](mission-freerun.md#která-mise-běží-mission)), který `robotour` dnes hlásí jako
-> zatím neexistující.
+> Kód: [`RobotourMission`](../Src/ARBot.Common/Missions/RobotourMission.cs),
+> [`RobotourConfig`](../Src/ARBot.Common/Missions/RobotourConfig.cs),
+> [`RobotourPhase`](../Src/ARBot.Common/Missions/RobotourPhase.cs),
+> [`MissionState`](../Src/ARBot.Common/Missions/MissionState.cs),
+> [`GeoUriTargetParser`](../Src/ARBot.Common/Missions/GeoUriTargetParser.cs),
+> [`QrScanner`](../Src/ARBot.Common/Vision/Qr/QrScanner.cs),
+> zprávy [`MissionMsg`](../Src/ARBot.Common/Logs/MissionMsg.cs) /
+> [`QrCodeMsg`](../Src/ARBot.Common/Logs/QrCodeMsg.cs),
+> testy [`RobotourMissionTests`](../Src/ARBot.Common.Tests/Missions/RobotourMissionTests.cs),
+> [`MissionTargetParserTests`](../Src/ARBot.Common.Tests/Missions/MissionTargetParserTests.cs),
+> [`QrScannerTests`](../Src/ARBot.Common.Tests/Vision/QrScannerTests.cs).
+>
+> **Jméno je `RobotourMission`** (rozhodnutí 25. 8. 2026) — sourozenec
+> [`FreeRunMission`](mission-freerun.md), která se dělala **dřív**. Text níže místy ještě mluví
+> o `MissionController`; je to totéž.
+>
+> **Společná abstrakce misí se nezavedla** — a po implementaci je vidět proč: společné mají jen to,
+> že obě produkují cíl, ale na **jinou vrstvu** (FreeRun mrkev pro lokální plánovač, tato mise LLA
+> pro globální navigaci). Vybírají se selektorem `mission=` (viz
+> [mission-freerun.md](mission-freerun.md#která-mise-běží-mission)).
+>
+> ⚠️ **Dvě odchylky od tohoto návrhu, které vznikly při realizaci:**
+> - **Dekodér je ZXing.Net, ne ZBar** — binding z ARBot2 nebyl k dispozici a ZXing nepotřebuje
+>   nativní knihovnu. **Fáze 1 tím celá padá.** Důvody a co se tím platí:
+>   [decisions.md](decisions.md), 26. 8. 2026.
+> - **Metoda se jmenuje `StartMission()`, ne `Start()`** — zděděné `MessageTarget.Start()` spouští
+>   *vlákno* stupně (dělá to runtime), takže by se „start mise" dal splést se „start vlákna".
+>   Kolizi ohlásil kompilátor (CS0114) až po prvním buildu; totéž se stalo u vlastnosti `Stop`,
+>   která je teď `CurrentStop`.
 
 Nejvyšší vrstva řízení: **stavový automat soutěžní jízdy**. Zapamatuje si start/depo, přečte z **pravé
 kamery** QR kód s místem nakládky, dojede tam a zastaví, proběhne nakládka a přečtení dalšího QR kódu
@@ -16,10 +43,8 @@ s místem vykládky, dojede tam, vyloží a **vrátí se do depa**.
 Řídí [`GlobalNavigator`](global-navigation-runtime.md) zadáváním **LLA cílů** — sama nezná ani graf
 cest, ani occupancy grid, ani regulátory. Cesta k cíli, objíždění a detekce záseku jsou vrstvy pod ní.
 
-> **Stav (2026-08-11): NÁVRH, nic z toho není implementované.** Dokument je zadání pro realizaci.
-> Formát QR (`geo:`), dekodér (**ZBar**) i způsob potvrzení (**nouzové zastavení + potvrzení
-> obsluhou**) jsou rozhodnuté podle předchozí generace robotu, která je v soutěži používala
-> ([ARBot2](#dekodér--zbar)).
+> Formát QR (`geo:`) a způsob potvrzení (**nouzové zastavení + potvrzení obsluhou**) jsou rozhodnuté
+> podle předchozí generace robotu, která je v soutěži používala; dekodér se změnil (viz hlavička).
 
 ## Vrstvy
 
@@ -330,42 +355,46 @@ navíc pod nouzovým zastavením. Původní implementace to řešila stejně, je
 s `ReqSpeed = 0; ReqRotationSpeed = 0` a `state.Read(Profile.Ts)`. Tady je to místo toho stav automatu
 nad frontou zpráv, takže to nezablokuje vlákno ani řídicí tik.
 
-### Dekodér — ZBar
+### Dekodér — ZXing.Net (návrh počítal se ZBarem)
 
-Bere se to, co v předchozí generaci **velmi dobře fungovalo**: **ZBar** přes C# binding
-`zbar-sharp` (`ARBot2/Sources/dotnet/zbar-sharp-master/libzbar-cil/`). Zdroj bindingu se podle pravidla
-„vše v repozitáři" **zkopíruje do `Src/ThirdParty/ZBar/`** (stejný vzor jako `Src/ThirdParty/Intel.RealSense`)
-a zapíše do [build-and-platforms.md](build-and-platforms.md) jako externí (ne-NuGet) reference.
+Původní volba byla **ZBar**, protože v předchozí generaci robotu (ARBot2, binding `zbar-sharp`)
+**velmi dobře fungoval v soutěži**. Ten důvod nezmizel, zmizel předpoklad: **ARBot2 na stroji není**,
+takže binding nebyl odkud vzít. Skutečná implementace je proto
+[`ZXingQrDecoder`](../Src/ARBot.Common/Vision/Qr/ZXingQrDecoder.cs) nad NuGetem `ZXing.Net`.
+Odůvodnění a co se tím platí: [decisions.md](decisions.md), 26. 8. 2026.
 
-Dvě věci se proti původnímu kódu **musí** udělat jinak:
+Hlavní důsledek: **ZXing je čistě managed, takže celá starost o nativní knihovnu zmizela** —
+žádná `libzbar.dll`, žádný `DllImportResolver` pro `libzbar.so.0` na Armbianu. Build pro
+`-p:Platform=OrangePI` prochází bez čehokoli navíc.
 
-1. **Nepoužívat `System.Drawing`.** Původní kód volal `i.ToBitmap()` a přetížení
-   `ImageScanner.Scan(System.Drawing.Image)`. `System.Drawing.Common` je na .NET dostupný **jen na
-   Windows**, takže na Armbianu by to spadlo. Binding ale umí surová data:
+Co z návrhu **zůstalo v platnosti**:
 
-   ```csharp
-   using var img = new ZBar.Image {
-       Width = (uint)w, Height = (uint)h,
-       Format = ZBar.Image.FourCC('Y','8','0','0'),   // ZBar čte GREY/Y800
-       Data = grayBytes,                              // z Image<Gray>
-   };
-   var symbols = scanner.Scan(img);                   // přetížení Scan(ZBar.Image)
-   ```
+- **Žádné `System.Drawing`.** Původní kód volal `i.ToBitmap()`; `System.Drawing.Common` je na .NET
+  jen na Windows, takže na Armbianu by to spadlo. Cesta je `Image<BGR32>` → `Image<Gray>` (Y800,
+  1 bajt na pixel) → dekodér, bez bitmapového mezikroku. ZXing dostane ta data přes
+  `RGBLuminanceSource` s `BitmapFormat.Gray8`.
 
-   Tedy `Image<BGR32>` → `Image<Gray>` → `byte[]` → ZBar, bez jakéhokoli bitmapového mezikroku
-   (a bez konverze do RGB3 a zpět, kterou dělalo původní přetížení — je tedy i rychlejší).
-2. **Zajistit nativní `libzbar` na obou platformách.** Binding má `[DllImport("libzbar")]`:
-   - **Windows/x64:** `libzbar.dll` + `libiconv.dll` (jsou v ARBot2 vedle bindingu) se kopírují do
-     výstupu stejně jako `NativeLib.dll`;
-   - **OrangePI/ARM64:** z balíčku Armbianu (`libzbar0`) → soubor je typicky `libzbar.so.0`, takže bude
-     potřeba symlink `libzbar.so` **nebo** `NativeLibrary.SetDllImportResolver`. **Rezolver je lepší** —
-     nezávisí na tom, co je na cílovém stroji nalinkované.
+  > Převod **není součástí čtení QR** — je to obecná operace
+  > [`Image<T>.ToGray(downscale)`](../Src/ARBot.Common/Common/Image.cs). Vznikla tady jako
+  > `QrImage.ToGray`, ale nic na ní není QR-specifické, takže se přesunula na `Image` (podnět
+  > autora, 26. 8. 2026) a testuje ji
+  > [`ImageToGrayTests`](../Src/ARBot.Common.Tests/Common/ImageToGrayTests.cs) — včetně pixel typů,
+  > které scanner nikdy nevidí. Barvu bere z **`IPixel.R/G/B`** — kanály, které kvůli tomu na
+  > [`IPixel`](../Src/ARBot.Common/Common/IPixel.cs) vznikly; proč ne z `Values` ani `Color` je
+  > v [decisions.md](decisions.md), 26. 8. 2026.
+- **Povolený je jen QR** (`PossibleFormats = { QR_CODE }`) — ostatní symbologie jen zdržují a mohou
+  plodit falešné nálezy. Test to hlídá čárovým kódem, který se nesmí ohlásit.
+- **Podvzorkování vybírá pixely, neprůměruje.** QR je binární vzor s ostrými hranami, takže
+  průměrování by rozmazalo právě to, co dekodér potřebuje.
+- **Dekodér je za rozhraním `IQrDecoder { QrResult[] Decode(Image<Gray> img); }`**, takže výměna
+  (i zpět za ZBar) je lokální změna a testy si dodají vlastní implementaci.
 
-   Konfigurace scanneru zůstává z původního kódu: vypnout všechno (`SetConfiguration(0, Config.Enable, 0)`)
-   a povolit jen `SymbolType.QRCODE` — ostatní symbologie jen zdržují a mohou plodit falešné nálezy.
+`TryHarder` je zapnuté: skenuje se **výhradně** pod drženým nouzovým zastavením, kdy robot stojí a
+výpočetní čas je zdarma — tam je správné zaplatit za úspěšnost čtení.
 
-Dekodér je za rozhraním `IQrDecoder { QrResult[] Decode(Image<Gray> img); }`, takže výměna (nebo
-fallback, kdyby `libzbar` na zařízení chyběl) je lokální a testy si dodají vlastní implementaci.
+> ⚠️ **Úspěšnost čtení není naměřená.** Testovací obraz se kóduje **týmž** ZXingem, takže testy
+> dokazují *cestu* (BGR32 → Y800 → dekodér, včetně podvzorkování na polovinu), ne to, jak se kód
+> čte z reálné kamery na stanovišti. To je vedený krok „ověření na HW".
 
 ## Zprávy a záznam
 
@@ -385,24 +414,55 @@ automatická — robot, který po restartu sám vyrazí, je nebezpečný.
 
 ## Parametry
 
-| parametr | default | pozn. |
-|---|---|---|
-| `QrCameraName` | `"Right"` | prázdné = skenovat všechny kamery |
-| `QrConfirmations` | 1 | shodná dekódování; skutečná pojistka je potvrzení obsluhou |
-| `QrDownscale` | 2 | podvzorkování před dekódováním |
-| `QrSearchSec` | 10 s | po této době se v UI hlásí „kód nevidím" (skenuje se dál) |
-| `DepotFixSec` | 5 s | jak dlouho musí fix nepřerušeně vyhovovat, než se průměrem inicializuje fúze |
-| `MinSatellites` / `MaxHdop` / `MaxSpreadM` | 6 / 2,0 / 1,0 m | kvalita fixu v `ArmingAtDepot` |
-| `MaxTargetDistanceM` | 2000 m | sanity check cíle z QR |
-| `StateTimeouts` | per stav | **jen stavy bez člověka v cyklu** (jízda, `ArmingAtDepot`) |
-| `MissionMessagePeriod` | 1 s | perioda `MissionMsg` |
+Skutečné názvy po implementaci — [`QrScannerConfig`](../Src/ARBot.Common/Vision/Qr/QrScannerConfig.cs)
+a [`RobotourConfig`](../Src/ARBot.Common/Missions/RobotourConfig.cs). Obě mají `Validate()`, takže
+nesmyslná hodnota skončí výjimkou při startu, ne divným chováním za jízdy.
 
-Časový a rychlostní limit soutěže patří rovněž do konfigurace — **hodnoty doplnit z aktuálních
-pravidel Robotour** (v tomto dokumentu se záměrně netvrdí, jaké jsou).
+| parametr | kde | default | pozn. |
+|---|---|---|---|
+| `CameraName` | scanner | `"Right"` | prázdné = skenovat všechny kamery; z příkazové řádky `qrcamera=` |
+| `Confirmations` | scanner | 1 | shodná dekódování **po sobě**; skutečná pojistka je potvrzení obsluhou |
+| `Downscale` | scanner | 2 | podvzorkování před dekódováním |
+| `DepotFixSec` | mise | 5 s | jak dlouho musí fix nepřerušeně vyhovovat; `depotfix=` |
+| `MinSatellites` / `MaxHdop` / `MaxSpreadM` | mise | 6 / 2,0 / 1,0 m | kvalita fixu v `ArmingAtDepot` |
+| `MinInitStdM` | mise | 0,3 m | **podlaha** nejistoty pro `InitializePosition` (viz níže) |
+| `QrSearchSec` | mise | 10 s | po této době se hlásí „kód nevidím" (skenuje se **dál**) |
+| `MaxTargetDistanceM` | mise | 2000 m | sanity check cíle z QR |
+| `ArmingTimeoutSec` / `DrivingTimeoutSec` | mise | **0 / 0 = neomezovat** | **jen stavy bez člověka v cyklu** (jízda, `ArmingAtDepot`) |
+| `MissionMessagePeriodSec` | mise | 1 s | perioda `MissionMsg` |
+
+**`MinInitStdM` v návrhu nebyl a musel vzniknout** ze dvou důvodů: `InitializePosition` vyhodí
+výjimku na `std <= 0` (a v simulaci může být rozptyl okna přesně nulový), a hlavně — samotný rozptyl
+okna **nezahrnuje systematickou chybu GPS**, takže by filtru tvrdil víc jistoty, než je pravda. Je to
+tedy tentýž druh nepoctivosti σ, jaký se řešil u korelace s mapou.
+
+**Timeouty jsou ve výchozím stavu vypnuté** (0 = neomezovat, rozhodnutí autora 26. 8. 2026). Mechanismus
+existuje a je otestovaný, ale správné hodnoty nejsou známé — a timeout, který vyprší dřív, než měl,
+misi **přeruší** (zotavovací manévr neexistuje), což je na soutěži horší než čekání. Zapnout se dá
+kdykoli nastavením obou hodnot.
+
+**Časový a rychlostní limit soutěže v konfiguraci nejsou** — hodnoty z pravidel Robotour nejsou
+známé a mrtvý přepínač, který nikdo nevyhodnocuje, je horší než jeho absence. Až budou známé, patří
+sem (včetně toho, *co* se má při jejich překročení stát — to je rozhodnutí o strategii soutěže).
 
 ## Testy
 
-Automat je čistá logika → testovatelný celý, bez HW, bez kamer a bez fúze:
+**Hotovo: 54 testů** (23 automat, 17 parser, 10 scanner, 4 dekodér), celá sada `ARBot.Common.Tests`
+prochází (877 testů). Automat je čistá logika → testovatelný celý, bez HW, bez kamer a bez fúze.
+
+**Dvě skutečné vady, které testy a kompilátor našly** (obojí by se za jízdy hledalo mnohem hůř):
+
+- **Mísení hodin.** `Start()` bral čas ze `DateTime.UtcNow`, ale automat měří v časech **zpráv**.
+  Při přehrávání záznamu (a v testech) se ty dvě hodiny rozcházejí, takže `ArmingAtDepot` vypršel
+  *okamžitě* — mise se ukončila dřív, než přišel první fix. Léčba: čas se **ukotví až prvním
+  údajem, který přijde**, a dokud není ukotvený, žádný timeout neběží („nemám podle čeho měřit"
+  nesmí znamenat „vypršelo"). `StartMission(DateTime)` umí čas zadat explicitně.
+- **Kolize `Start()` / `Stop`** se zděděným `MessageTarget.Start()` / `Stop()`, které spouští a
+  zastavuje **vlákno stupně**. Nahlásil to až kompilátor (CS0114 / CS0108) po prvním buildu
+  aplikace. Splést tyhle dvě věci by dalo buď misi, která se sama rozjede, nebo stupeň, který nikdy
+  nezačne odebírat zprávy. Odtud jména `StartMission()` a `CurrentStop`.
+
+Pokryté případy:
 
 - **průchod celou misí** s falešným `IGlobalGoalSink` a falešnými `QrCodeMsg` + `MotorStateBase` →
   očekávaná posloupnost fází a zadaných cílů (poslední = depo, **shodné se zapamatovaným**);
@@ -423,10 +483,16 @@ Automat je čistá logika → testovatelný celý, bez HW, bez kamer a bez fúze
 - **servisní okno nezpůsobí falešný zásek** — cíl je zrušen, detektory globální vrstvy jsou vypnuté;
 - **`Abort` z každého stavu** zastaví robota (`Cancel()` + `Regulator = null`);
 - **obnovení po restartu** ze stavového souboru je opt-in, ne automatické;
-- `QrScanner`: dekódování nad **checked-in testovacím obrázkem** (deterministické; když `libzbar`
-  na build stroji chybí, test se `Assert.Ignore` — nesmí padat na prostředí), plus test, že
-  vypnutý scanner nedekóduje nic, a test cesty `Image<BGR32>` → Y800 `byte[]` (rozměry, řádkování);
-- roundtrip serializace `QrCodeMsg` / `MissionMsg`.
+- `QrScanner`: **vypnutý scanner nedekóduje nic** (dekodér se ani nezavolá), snímek z jiné kamery se
+  ignoruje, prázdné jméno kamery skenuje všechny, cesta `Image<BGR32>` → Y800 `byte[]` (rozměry,
+  jas, podvzorkování) a to, že dekodér dostane **už podvzorkovaný** obraz;
+- dekodér: kód se **zakóduje a přečte zpátky** (i po podvzorkování na polovinu), obraz bez kódu dá
+  prázdné pole a **ne výjimku**, čárový kód se nehlásí.
+  *Odchylka od návrhu:* obraz se **generuje**, nečte se checked-in soubor — je to deterministické,
+  bez binárky v repozitáři a nezávislé na tom, co je na build stroji (takže není potřeba ani
+  `Assert.Ignore` na chybějící knihovnu). Cena je uvedená výš: testuje se cesta, ne úspěšnost čtení;
+- roundtrip serializace `QrCodeMsg` / `MissionMsg` + **registrace v katalogu zpráv** (bez ní index
+  zprávu ukáže, ale `Read` vrátí `null` a tváří se to jako chybějící stupeň).
 
 ## Plán realizace (fáze)
 
@@ -440,20 +506,46 @@ Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navig
    → nula; bez stavu motorů se nezastavuje; po uvolnění zásahy zas jdou).
    **Zbývá:** ⬜ vypnutí detektoru záseku v globální vrstvě (až ta vznikne),
    ⬜ **ověření na zařízení** (i nahrání upraveného MicroBasic skriptu).
-1. ⬜ **ZBar do repa a na obě platformy** — `Src/ThirdParty/ZBar/` (binding z ARBot2), `libzbar.dll`
-   pro x64, `libzbar.so` + `DllImportResolver` pro OrangePI; zápis do
-   [build-and-platforms.md](build-and-platforms.md). *Ověřit na zařízení, že se knihovna nahraje.*
-2. ⬜ **`QrScanner` + `QrCodeMsg`** (vč. `IQrDecoder`, `Enabled`, Y800 bez `System.Drawing`,
-   ROI/podvzorkování) a **změření dekódování na OrangePI**.
-3. ⬜ **`IMissionTargetParser`** — `geo:` parser portovaný z ARBot2 + sanity checky (vzdálenost,
-   dosažitelnost).
-4. ⬜ **`MissionController`** — automat včetně servisního okna nad `IsEmergencyStop`, `Paused` za
-   jízdy, `MissionMsg`; testy nad falešnými sinky.
+1. ❌ **ZBar do repa a na obě platformy** — **zrušeno**, dekodér je ZXing.Net (čistě managed), takže
+   nativní knihovna ani rezolver nejsou potřeba. Viz [decisions.md](decisions.md), 26. 8. 2026.
+2. ✅ **`QrScanner` + `QrCodeMsg`** — `IQrDecoder`, `Enabled` (výchozí vypnuto), Y800 bez
+   `System.Drawing`, podvzorkování, počítání shodných čtení. 14 testů.
+   **Zbývá:** ⬜ ROI (vědomě nepostaveno — není známo, kde v obraze kód je, takže by to byl
+   spekulativní parametr), ⬜ **změření dekódování na OrangePI**.
+3. ✅ **`IMissionTargetParser`** — [`GeoUriTargetParser`](../Src/ARBot.Common/Missions/GeoUriTargetParser.cs)
+   portovaný podle ARBot2, 17 testů (včetně toho na `cs-CZ`). Sanity checky (vzdálenost od depa,
+   dosažitelnost v grafu) jsou **v misi**, ne v parseru — parser zůstal `string → LLA?`.
+   Dosažitelnost počítá [`GlobalNavigator.Probe`](../Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs)
+   nad **vlastním, zahoditelným** `GoalField`, takže zkouška nesahá na aktivní cíl.
+4. ✅ **`RobotourMission`** — automat včetně servisního okna nad `IsEmergencyStop`, dvoufázové
+   zastavení, timeouty jen u stavů bez člověka, `MissionMsg`; 23 testů nad falešnými sinky.
+   Napojeno na `mission=robotour` (zakládá i `QrScanner`).
+   **Zbývá:** ⬜ vypnutí detektoru záseku globální vrstvy při servisním okně je zajištěné *nepřímo*
+   (cíl je zrušen ⇒ detektory bez aktivního cíle vypadnou) — je to otestované na úrovni mise, ne
+   proti skutečnému `GlobalNavigatoru`.
 5. ⬜ **UI panel mise** — fáze, stav nouzového zastavení, přečtený kód **s odvozeným cílem,
    vzdáleností a délkou trasy**, tlačítka Start / Potvrdit / Abort.
+   ⚠️ **Bez něj se mise nedá spustit** — čeká na `StartMission()` a sama se nerozjede. Automat pro
+   ten panel má všechno hotové: `Phase`, `CurrentStop`, `PendingTarget`, `PendingRouteLengthM`,
+   `LastCodeText`, `CodeNotSeen`, `AbortReason` a příkazy `StartMission()` / `Confirm()` / `Abort()`.
 6. ⬜ **Přežití restartu** (stavový soubor + opt-in obnovení).
 7. ⬜ **Ověření na HW** — čtení kódů z pravé kamery na skutečném stanovišti, celý handshake
    s nouzovým zastavením, celá mise nasucho na krátké trase.
+
+### Jak to pustit
+
+Profil *ARBot - mise Robotour, rovna mapa* v `Src/ARBot/Properties/launchSettings.json`, nebo:
+
+```bash
+ARBot.exe virtualhw=true no_uart=true mission=robotour map=OSM/SyntetickyRovny.osm
+```
+
+Parametry z příkazové řádky: `depotfix=` (okno kvalitního fixu v depu),
+`qrcamera=` (kamera pro čtení; **prázdné = všechny**).
+
+> **Mise zůstane v `Idle`**, dokud nebude UI panel (fáze 5) — `mission=robotour` dnes založí stupně
+> a periodicky hlásí `MissionMsg`. Ověřeno, že se to nerozbije: 20s běh dal 20 × `MissionMsg`
+> (perioda 1 s) a nic nespadlo.
 
 ## Otevřené úkoly
 

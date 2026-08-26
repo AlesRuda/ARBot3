@@ -191,10 +191,19 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **Hotové a ověřené proti pravdě** (usadí se na −0,503 m proti požadovaným −0,500, dva běhy),
   **na HW neověřeno**. Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
-- [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (dosud psaná jako
-  `MissionController`, **jmenovat se bude `RobotourMission`** — sourozenec `FreeRunMission`):
-  stavový automat depo → nakládka → vykládka → depo, čtení QR kódů z pravé kamery.
-  **Návrh, neimplementováno** — dělá se **po** FreeRunu.
+- [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
+  sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
+  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Jádro hotové 26. 8. 2026** (54 testů):
+  `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení `mission=robotour`.
+  ⚠️ **Z aplikace se ale zatím nedá spustit** — mise čeká na `StartMission()` a **UI panel (fáze 5)
+  neexistuje**, takže `mission=robotour` dnes jen založí stupně a zůstane v `Idle`. Zbývá i přežití
+  restartu (fáze 6) a celé ověření na HW (fáze 7).
+  **Dekodér je ZXing.Net, ne ZBar** (binding z ARBot2 nebyl k dispozici; ZXing je čistě managed,
+  takže **fáze 1 „nativní libzbar na obě platformy" celá padla**) — viz
+  [doc/decisions.md](doc/decisions.md), 26. 8. 2026. Úspěšnost čtení **není naměřená**: testy
+  dokazují cestu (BGR32 → Y800 → dekodér), protože testovací obraz kóduje týž ZXing.
+  Pozor na dvě jména: `StartMission()` a `CurrentStop` — `Start()`/`Stop` by kolidovaly se zděděnými
+  metodami `MessageTarget`, které spouští **vlákno stupně**.
 - [Src/ARBot/Views/README.md](Src/ARBot/Views/README.md) — dokovatelné dokumenty a nástroje UI
   (DocumentBase/ToolBase + ViewType, design-time náhled, backpressure vzor aktualizací).
 - [doc/virtual-hw.md](doc/virtual-hw.md) — virtuální HW (simulované senzory): `VirtualCamera` jako

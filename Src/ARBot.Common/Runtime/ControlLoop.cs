@@ -32,7 +32,7 @@ namespace ARBot.Common.Runtime
     /// k pouzitym datum: zaznamena se presne to, co rizeni realne vzorkovalo. Viz
     /// doc/plan-camera-vision-refactor.md.</para>
     /// </summary>
-    public sealed class ControlLoop : MessageProcessor
+    public sealed class ControlLoop : MessageProcessor, Missions.IRegulatorHolder
     {
         private readonly AsyncFusionEngine engine;
         private readonly IMotorControl motor;

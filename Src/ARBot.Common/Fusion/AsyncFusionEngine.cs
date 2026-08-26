@@ -23,7 +23,7 @@ namespace ARBot.Common.Fusion
     ///
     /// Prune: nejstarsi uzly mimo okno se natrvalo zapecou do bazoveho checkpointu (fold-in).
     /// </summary>
-    public class AsyncFusionEngine
+    public class AsyncFusionEngine : Missions.IPositionInitializer
     {
         private sealed class Node
         {

@@ -39,6 +39,13 @@ namespace ARBot.Common.Common
             }
         }
 
+        /// <summary>Sedy pixel vraci svou hodnotu ve vsech treh kanalech (viz <see cref="IPixel.R"/>).</summary>
+        public byte R => Value;
+        /// <inheritdoc cref="R"/>
+        public byte G => Value;
+        /// <inheritdoc cref="R"/>
+        public byte B => Value;
+
         int[] b = new int[1];
         public int[] Values
         {

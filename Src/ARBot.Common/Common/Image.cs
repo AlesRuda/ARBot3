@@ -557,6 +557,63 @@ namespace ARBot.Common.Common
         }
 
 
+        /// <summary>
+        /// Prevod na <b>sedy obraz</b> (Y800, 1 bajt na pixel) s volitelnym podvzorkovanim
+        /// <paramref name="downscale"/> (1 = bez zmenseni).
+        ///
+        /// <para><b>Jas je vazeny</b> (ITU-R BT.601, <c>0,299 R + 0,587 G + 0,114 B</c>) v celych
+        /// cislech. Barvu bere z <see cref="IPixel.R"/>/<see cref="IPixel.G"/>/<see cref="IPixel.B"/>,
+        /// tedy <b>jediné slibené</b> cesty k barve nezavisle na pixel typu — <see cref="IPixel.Values"/>
+        /// se k tomu pouzit neda, protoze u nej rozhrani neslibuje ani delku, ani poradi slozek.</para>
+        ///
+        /// <para>Jednoslozkove (sede) pixely tim projdou <b>presne</b> a bez zvlastni vetve: kanaly
+        /// vraci tutez hodnotu ve vsech treh a vahy BT.601 daji dohromady rovne 1000, takze
+        /// <c>(299 + 587 + 114) · V / 1000 == V</c>.</para>
+        ///
+        /// <para><b>Podvzorkuje se vyberem pixelu, ne prumerovanim.</b> Vzniklo to pro cteni QR
+        /// kodu, ktery je binarni vzor s ostrymi hranami — prumerovani by rozmazalo presne to, co
+        /// dekoder potrebuje. Pro jina uziti muze byt spravnejsi prumer; pak je potreba jina metoda,
+        /// ne zmena teto.</para>
+        ///
+        /// <para><b>Bez <c>System.Drawing</c>.</b> Nabizi se prevest obraz na <c>Bitmap</c> a nechat
+        /// prevod na nem, ale <c>System.Drawing.Common</c> je na .NET dostupny <b>jen na Windows</b>,
+        /// takze na Armbianu by to spadlo. Proto se pocita rovnou nad <see cref="Data"/>.</para>
+        ///
+        /// <para><b>Nealokuje na pixel.</b> Nabizelo by se cist <see cref="IPixel.Color"/>, ale
+        /// <see cref="Color"/> je <c>class</c>, takze by to na kazdy pixel znamenalo alokaci (u
+        /// 640x480 tri sta tisic na snimek). Kanaly R/G/B jsou <c>byte</c>, takze nealokuji nic.</para>
+        /// </summary>
+        public Image<Gray> ToGray(int downscale = 1)
+        {
+            if (downscale < 1)
+                throw new ArgumentOutOfRangeException(nameof(downscale), downscale,
+                                                      "Podvzorkovani musi byt >= 1; 1 = bez zmenseni.");
+
+            // Aspon jeden pixel: podvzorkovani vetsi nez obraz nesmi dat prazdny obraz.
+            int w = Math.Max(1, width / downscale);
+            int h = Math.Max(1, height / downscale);
+
+            var res = new Image<Gray>(w, h);
+            var src = new T { Data = Data };
+            var dst = new Gray { Data = res.Data };
+
+            for (int y = 0; y < h; y++)
+            {
+                int sy = y * downscale;
+                for (int x = 0; x < w; x++)
+                {
+                    src.Index = Index(x * downscale, sy);
+                    dst.Index = y * w + x;
+
+                    // Vahy daji dohromady 1000, a kanaly jsou byte, takze vysledek se do bajtu
+                    // vejde bez omezovani a sedy zdroj projde presne.
+                    dst.Value = (byte)((299 * src.R + 587 * src.G + 114 * src.B) / 1000);
+                }
+            }
+
+            return res;
+        }
+
         public Image<RGB> ToRGBImage()
         {
             return ConvertTo<RGB>((p, rgb) =>

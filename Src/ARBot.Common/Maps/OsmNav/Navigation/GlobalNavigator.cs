@@ -27,7 +27,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
     /// <see cref="ILocalGoalSink"/>. Diky tomu je cela testovatelna bez gridu i bez HW.
     /// </para>
     /// </summary>
-    public sealed class GlobalNavigator : MessageProcessor, IGlobalGoalSink
+    public sealed class GlobalNavigator : MessageProcessor, IGlobalGoalSink, Missions.IRouteProbe
     {
         private readonly RoadNetwork network;
         private readonly GeoReference origin;
@@ -56,6 +56,12 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         private double travelledM;
         private double lastX, lastY;
         private bool hasLastPose;
+
+        // Posledni VIDENA poza - vedena zvlast od lastX/lastY detektoru, protoze ta se plni jen
+        // kdyz je aktivni cil (jinak by se do travelledM zapocital skok pres dobu bez cile).
+        // Zkouska dosazitelnosti (Probe) ale potrebuje vedet, kde robot je, i kdyz cil jeste neni.
+        private double probeX, probeY;
+        private bool hasProbePose;
 
         /// <summary>Pocet po sobe jdoucich neuspechu lokalniho planovani (detektor C).</summary>
         private int planFailureStreak;
@@ -167,6 +173,57 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 Status = GlobalNavStatus.NoGoal;
             }
             localGoal.ClearGoal();
+        }
+
+        /// <summary>
+        /// Zkouska, jestli na cil vede po siti trasa — <b>bez</b> zmeny aktivniho cile navigace.
+        /// Pouziva to mise pri prijeti cile z QR kodu; bez teto kontroly by se <c>NoRoute</c>
+        /// zjistilo az za jizdy. Viz doc/robotour-mission.md.
+        ///
+        /// <para>Pocita se nad <b>vlastnim</b>, zahoditelnym <see cref="GoalField"/>, takze zkouska
+        /// nesahne na pole ani na overlay znacek. Cena je stejna jako u <see cref="SetGoal"/> (jedno
+        /// postaveni pole), coz je pri jednom kodu za stanoviste zanedbatelne.</para>
+        ///
+        /// <para><b>Uzavrene hrany se do zkousky zamerne nepromitaji.</b> Jsou docasne (casti maji
+        /// expiraci), takze zamitnout cil kvuli prave uzavrene hrane by znamenalo zamitnout
+        /// stanoviste, na ktere se za minutu bezne dojede. Zkouska se pta „ma mapa vubec cestu",
+        /// ne „je pruchodna prave nyni".</para>
+        /// </summary>
+        public Missions.RouteProbeResult Probe(LLA target)
+        {
+            if (target == null) return new Missions.RouteProbeResult(false, 0);
+
+            double x, y;
+            bool has;
+            lock (gate) { x = probeX; y = probeY; has = hasProbePose; }
+
+            // Bez pozy neni odkud pocitat. Zamitnuti je spravnejsi nez "asi ano": cil, ktery se
+            // neda overit, nema projit strojovou kontrolou.
+            if (!has) return new Missions.RouteProbeResult(false, 0);
+
+            var here = origin.ToLLA(x, y);
+            try
+            {
+                var probeField = new GoalField(network, target);
+                var node = probeField.NearestNode(here, out _, out _, out _);
+                if (node == null) return new Missions.RouteProbeResult(false, 0);
+
+                probeField.EnsureSettled(node);
+                double cost = probeField.CostToGoal(node);
+                if (double.IsInfinity(cost) || double.IsNaN(cost))
+                    return new Missions.RouteProbeResult(false, 0);
+
+                var route = new Router(probeField).Plan(here);
+                double length = 0;
+                for (int i = 0; i < route.Count; i++) length += route[i].LengthMeters;
+
+                return new Missions.RouteProbeResult(true, length);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GlobalNavigator.Probe: {ex.Message}");
+                return new Missions.RouteProbeResult(false, 0);
+            }
         }
 
         /// <inheritdoc/>
@@ -357,6 +414,10 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 target = goal;
                 nav = navigator;
                 rt = router;
+                // Poza se pamatuje VZDY, i bez cile - jinak by zkouska dosazitelnosti (Probe)
+                // nemela odkud vyjit prave ve chvili, kdy je potreba: mise se rozhoduje o prvnim
+                // cili z QR kodu jeste PREDTIM, nez nejaky cil vubec existuje.
+                probeX = x; probeY = y; hasProbePose = true;
             }
 
             var here = origin.ToLLA(x, y);

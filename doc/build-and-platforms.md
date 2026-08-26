@@ -121,6 +121,13 @@ bez nich se nesestaví:
   z `ARBot.csproj` (jen `x64`).
 - **`NativeLib` / `libNativeLib.so`** — vlastní nativní knihovna (`NativeFuncs`),
   viz výše.
+> **Čtení QR kódů tady vědomě NENÍ.** Návrh mise Robotour původně počítal se ZBarem, tedy
+> s bindingem zkopírovaným do `Src/ThirdParty/ZBar/` a nativní `libzbar` na obou platformách
+> (`libzbar.dll` pro x64, `DllImportResolver` pro `libzbar.so.0` na Armbianu) — a s zápisem do této
+> sekce. Skutečný dekodér je **`ZXing.Net` z NuGetu** (`ARBot.Common.csproj`), který je **čistě
+> managed a žádné nativní assety nemá**, takže pro OrangePI není potřeba nic navíc; ověřeno buildem
+> `-p:Platform=OrangePI`. Viz [decisions.md](decisions.md), 26. 8. 2026.
+
 - **Intel RealSense** — SDK ve složce `RealSense 2.0/` (kamery D435/T265); wrapper verze
   podle platformy (2.47 x64 / 2.53 ARM). **V gitu jsou jen DLL** (`Intel.Realsense.dll`
   + `realsense2.dll`, x64 i x86, ~56 MB) — `.gitignore` je pro tyhle dva podadresáře

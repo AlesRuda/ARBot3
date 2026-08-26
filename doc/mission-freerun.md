@@ -13,13 +13,19 @@ Když koridor není, jede rovně.
 
 Použití: **homologace** a **přesun mezi stanovišti**.
 
-Sourozencem je [`RobotourMission`](robotour-mission.md) (v tom dokumentu ještě pod původním jménem
-`MissionController`) — soutěžní mise s QR kódy a servisními okny. **FreeRun se dělá dřív**, protože
+Sourozencem je [`RobotourMission`](robotour-mission.md) — soutěžní mise s QR kódy a servisními
+okny (jádro hotové 26. 8. 2026). **FreeRun se dělal dřív**, protože
 z ní nepotřebuje nic: žádná servisní okna, žádné QR, žádné potvrzení obsluhou, žádný stavový automat.
 Postavit velký automat jen proto, aby v něm mohl být triviální stav, by bylo obrácené pořadí.
 
 > **Společnou abstrakci misí zavádět nebudeme**, dokud existuje jedna. Až vznikne `RobotourMission`,
 > teprve se ukáže, co je opravdu společné — vymýšlet to předem znamená hádat.
+>
+> **Vyhodnoceno 26. 8. 2026, kdy `RobotourMission` vznikla: abstrakce se nezavedla a je vidět proč.**
+> Společné mají jen to, že obě produkují cíl — ale na **jinou vrstvu** (FreeRun mrkev do
+> `ILocalGoalSink`, Robotour LLA do `IGlobalGoalSink`) a z jiných vstupů. Zbytek se nepotkává:
+> FreeRun je bezstavový přepočet snímku na mrkev, Robotour stavový automat s člověkem v cyklu.
+> Nadřazený typ by nesl jedinou metodu a nic by nezjednodušil.
 
 ## Kam to zapadá
 
@@ -137,7 +143,7 @@ jedním selektorem:
 |---|---|---|
 | **`none`** | žádná mise | **výchozí** — cíl zadává obsluha klikem v mapě, jako dnes |
 | `freerun` | `FreeRunMission` | homologace, přesun mezi stanovišti |
-| `robotour` | *(zatím neexistuje)* | až vznikne `RobotourMission` — hlásí se jako nepodporované |
+| `robotour` | `RobotourMission` | soutěžní mise; jádro hotové 26. 8. 2026, ale **čeká na „Start" z UI, které ještě není** — viz [robotour-mission.md](robotour-mission.md). Bez mapy se nezaloží (zadává LLA cíle globální navigaci). |
 
 Neznámá hodnota **skončí hlášením a `none`**, ne tichým ignorováním: „mise neběží, i když si ji
 někdo přál" je přesně ten druh chyby, který se pak hledá na soutěži.
@@ -184,6 +190,51 @@ takže **pravda říká: robot má skončit na `y = −0,5 m`**.
 **Druhý běh reprodukuje:** 578 z 579 cyklů, skutečná příčná poloha p50 −0,503 m, poslední čtvrtina
 −0,505 m. Robot se tedy usadil **na 2 cm** v pravé polovině a drží to. Kadence mise je ~13 Hz
 (na snímek, ne na dvojici).
+
+### Těžší scéna: `SyntetickyKoridor.osm` (nálevka + křižovatka)
+
+Rovná mapa je nejlepší případ. Na koridoru s nálevkou a křižovatkou vyjde:
+
+| | naměřeno |
+|---|---|
+| cyklů s koridorem | **281 z 534 (53 %)** — zbytek jel rovně |
+| důvody | `Ok` 281, `NoCorridor` 240, `OutsideCorridor` 12, `NoPair` 1 |
+| šířka koridoru | p50 3,02 m, **min 0,78 — max 3,45 m** |
+| odchylka od požadované čáry | p50 −0,057 m, **p90 0,440 m**, max 1,063 m |
+
+**Záložní cesta „drž kurz" tedy běží skoro v polovině cyklů** — na tuhle scénu je ten profil právě
+proto. A přesnost je o řád horší než na rovné mapě (p90 0,44 m proti 0,001 m u p50), což je
+očekávané: šířka se mění čtyřnásobně, takže se s ní hýbe i požadovaná čára, a koridor vypadává.
+
+To je zároveň **jediné místo, kde má smysl ladit lookahead** (`freerunlook=`) — na rovné mapě je
+už teď regulační odchylka pod centimetrem, takže tam není co zlepšovat.
+
+> `OutsideCorridor` 12× (2 %) stojí za pozdější pohled: na 3m cestě by k tomu dojít nemělo. Nejspíš
+> se u křižovatky proložila jiná dvojice hranic. Není to blokující — mise ten cyklus prostě jede
+> rovně.
+
+### Jak to pustit
+
+Profily v `Src/ARBot/Properties/launchSettings.json`:
+
+| profil | k čemu |
+|---|---|
+| *mise FreeRun, rovna mapa* | měření proti pravdě (osa `y = 0`, šířka 2 m) |
+| *mise FreeRun, koridor s nalevkou a krizovatkou* | těžší scéna — protestuje i jízdu bez koridoru |
+
+Bezobslužně se záznamem:
+
+```bash
+ARBot.exe selftest=true st_seconds=45 st_record=true no_uart=true virtualhw=true mission=freerun map=OSM/SyntetickyRovny.osm
+```
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- freerun Records/<zaznam>.rec --axisy=0 --truewidth=2.0
+```
+
+> **`map=` je potřeba i bez mapové navigace** — mise podle mapy nejede, ale **virtuální kamera z ní
+> renderuje cestu**, takže bez mapy není co detekovat. Na reálném HW `map=` pro FreeRun potřeba není.
+> `goal=` se naopak nezadává vůbec: mrkev vyrábí mise.
 
 > **Rozjezd je v průměru zahrnutý a kazí ho:** robot startuje na ose, takže první sekundy se teprve
 > srovnává (odtud `p90 0,138 m` a `max 0,501 m` u odchylky). Zajímá **p50 a konec běhu**, ne průměr —

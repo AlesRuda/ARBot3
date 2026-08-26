@@ -37,6 +37,60 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-26
+
+- **Mise Robotour: naimplementováno jádro** (fáze 2–4 z [robotour-mission.md](robotour-mission.md)).
+  Návrh byl hotový a rozhodnutý od 11. 8., takže se nic nevymýšlelo znovu — jen se realizoval, a
+  na dvou místech se ukázalo, že návrh nešel dodržet doslova.
+  - **Fáze 2 — čtení QR:** `QrScanner` jako samostatný stupeň (`DropOldest`, kapacita 1) vedle mise,
+    **vypnutý dokud ho mise nezapne**, `QrCodeMsg` do záznamu, převod BGR32 → Y800 bez
+    `System.Drawing` s podvzorkováním výběrem pixelů.
+  - **Fáze 3 — `geo:` parser:** `GeoUriTargetParser` podle ARBot2. Sanity checky zůstaly **v misi**,
+    parser je čistě `string → LLA?`. Dosažitelnost cíle počítá nová `GlobalNavigator.Probe` nad
+    **vlastním, zahoditelným** `GoalField`, takže zkouška nesahá na aktivní cíl.
+  - **Fáze 4 — automat:** `RobotourMission` (depo → nakládka → vykládka → depo), servisní okno
+    jako opakovaně použitý podautomat, dvoufázové zastavení na stanovišti, timeouty jen u stavů bez
+    člověka, `MissionMsg` při každé změně fáze i periodicky. Napojeno na `mission=robotour`.
+  - **54 nových testů**, celá sada `ARBot.Common.Tests` zelená (877). Build x64 i **OrangePI** čistý.
+- **Rozhodnutí: dekodér je ZXing.Net, ne ZBar** — jedna věta: binding `zbar-sharp` z ARBot2 nebyl
+  na stroji k dispozici a ZXing je čistě managed, takže **fáze 1 („nativní `libzbar` na obě
+  platformy" + její ověření na zařízení) celá zmizela**. Detail a co se tím platí:
+  [decisions.md](decisions.md), 26. 8. 2026.
+- **Dvě vady, které našly testy a kompilátor** (obojí by se za jízdy hledalo mnohem hůř):
+  - **Mísení hodin:** `Start()` bral `DateTime.UtcNow`, ale automat měří v časech **zpráv** — při
+    přehrávání záznamu i v testech se hodiny rozejdou a `ArmingAtDepot` vypršel *okamžitě*. Léčba:
+    čas se **ukotví až prvním údajem**, a dokud ukotvený není, žádný timeout neběží.
+  - **Kolize `Start()`/`Stop`** se zděděnými `MessageTarget.Start()`/`Stop()`, které spouští
+    **vlákno stupně** (CS0114/CS0108 po prvním buildu aplikace). Splést je = buď mise, která se sama
+    rozjede, nebo stupeň, který nikdy nezačne odebírat zprávy. Odtud `StartMission()` a `CurrentStop`.
+- **Převod na šedou se přesunul z mise na `Image`** (podnět autora). Vznikl jako `QrImage.ToGray`
+  pro čtení QR, ale nic na něm není QR-specifické, takže je to teď `Image<T>.ToGray(downscale)`;
+  `QrImage` zrušeno (byl by to jen průchod). 11 testů v `ImageToGrayTests`, mimo jiné pixel typy,
+  které scanner nikdy nevidí.
+- **A na to navázalo: `IPixel` dostal kanály `R`/`G`/`B`** (druhý podnět autora). Zobecněný `ToGray`
+  nejdřív čtl barvu z `Values` jako „`[0]` je R" — a to pro dnešní typy **náhodou vychází**, protože
+  `Values` se plní z pojmenovaných vlastností, takže `BGR` i `RGB` dávají `[R,G,B]` navzdory
+  obrácenému rozložení v paměti. Rozhraní ale u `Values` neslibuje ani délku, ani pořadí, takže by
+  YUV/HSV pixel podstrčil `[Y,U,V]`, jas by z toho vyšel jako nesmysl a **nikde by to nespadlo**.
+  Detail a proč ne `Color` (alokuje na každý pixel): [decisions.md](decisions.md).
+  - **Přitom se našla existující konvence, kterou jsem měl poprvé špatně:** `Gray16.Color` /
+    `Gray32.Color` berou **nejvyšší bajt** (škálování), ne saturaci na 255. Kanály se s tím srovnaly
+    — jinak by tentýž pixel hlásil jinou barvu přes `R` a jinou přes `Color.R`. `ToGray` je tím
+    o větev kratší a **šedý zdroj projde přesně**, protože váhy BT.601 dávají rovných 1000.
+- **Rozpracováno / další krok:** ⚠️ **misi zatím nejde z aplikace spustit** — čeká na
+  `StartMission()` a **UI panel (fáze 5) neexistuje**, takže `mission=robotour` dnes jen založí
+  stupně a zůstane v `Idle` (ověřeno 20s bezobslužným během: 20 × `MissionMsg`, nic nespadlo).
+  Pořadí dál: **fáze 5 UI panel** (automat pro něj má hotové všechno — `Phase`, `CurrentStop`,
+  `PendingTarget`, `PendingRouteLengthM`, `LastCodeText`, `CodeNotSeen`, `AbortReason` a příkazy
+  `StartMission()`/`Confirm()`/`Abort()`), pak fáze 6 (přežití restartu) a fáze 7 (HW). Neuzavřené
+  drobnosti: ROI scanneru vědomě nepostaveno (spekulativní parametr), změření dekódování na
+  OrangePI, a **úspěšnost čtení kódu na skutečném stanovišti není naměřená**.
+- **Odkazy:** `Src/ARBot.Common/Missions/` (`RobotourMission`, `RobotourConfig`, `RobotourPhase`,
+  `MissionState`, `MissionSeams`, `GeoUriTargetParser`, `IMissionTargetParser`),
+  `Src/ARBot.Common/Vision/Qr/`, `Src/ARBot.Common/Logs/{MissionMsg,QrCodeMsg}.cs`,
+  `Src/ARBot.Common.Tests/Missions/`, `Src/ARBot.Common.Tests/Vision/`,
+  [robotour-mission.md](robotour-mission.md), [decisions.md](decisions.md).
+
 ## 2026-08-25
 
 - **Otevřený úkol č. 1 „honestní σ" poprvé ZMĚŘEN — a opraven.** Dosud se vědělo *že* je σ korelace
@@ -296,6 +350,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **`MissionController` se bude jmenovat `RobotourMission`** a dělá se po FreeRunu. Společnou
     abstrakci misí nezavádíme, dokud existuje jedna — až vznikne druhá, teprve se ukáže, co je
     opravdu společné.
+  - **Dva profily v `launchSettings.json`** (na autorovu žádost): rovná mapa pro měření proti pravdě
+    a `SyntetickyKoridor.osm` jako těžší scéna. Ta druhá je tam schválně — koridor je dostupný jen
+    u **53 % cyklů** (281 z 534), takže se protestuje i záložní cesta „drž kurz", a přesnost je o řád
+    horší (odchylka p90 0,44 m proti 0,001 m p50 na rovné mapě). Šířka se tam mění 0,78–3,45 m, takže
+    se s ní hýbe i požadovaná čára. **Je to jediné místo, kde má smysl ladit lookahead** — na rovné
+    mapě je regulační odchylka pod centimetrem. *(Pozn.: `map=` je potřeba i bez mapové navigace,
+    protože z ní renderuje virtuální kamera; na HW ne.)*
   - **Vlastní vada, opravená hned:** můj test šumu kurzu virtuální GPS tvrdil *přesný* poměr 6× při
     ~40 vzorcích a navíc sbíral vzorky během rozjezdu, kdy je při nízké rychlosti šum obrovský —
     tedy tatáž chyba „měřit transient", jakou jsem ráno našel u σ. Realizovaný poměr kolísal 2,8–3,3
