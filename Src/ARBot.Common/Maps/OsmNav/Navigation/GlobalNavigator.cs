@@ -188,6 +188,16 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// expiraci), takze zamitnout cil kvuli prave uzavrene hrane by znamenalo zamitnout
         /// stanoviste, na ktere se za minutu bezne dojede. Zkouska se pta „ma mapa vubec cestu",
         /// ne „je pruchodna prave nyni".</para>
+        ///
+        /// <para>⚠️ <b>Co zkouska NEOVERUJE: jak daleko je cil od site.</b> Cil se prichyti k
+        /// <b>nejblizsi</b> hrane a <c>NearestEdge</c> zadny limit vzdalenosti nema — cil uprostred
+        /// pole 300 m od silnice se tedy prichyti k te silnici a vyjde jako <b>dosazitelny</b>.
+        /// Odpoved zni „vede v grafu cesta z hrany u robota do hrany u cile", ne „cil lezi na
+        /// ceste". Limit vzdalenosti od site je vedeny otevreny ukol (26. 8. 2026); dnes takovy cil
+        /// zachyti jen hruba kontrola vzdalenosti od depa.</para>
+        ///
+        /// <para><b>Delka trasy</b> je soucet delek hran: u cile presna, na zacatku nadhodnocena az
+        /// o delku jedne hrany (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
         /// </summary>
         public Missions.RouteProbeResult Probe(LLA target)
         {

@@ -33,7 +33,11 @@
 > pro globální navigaci). Vybírají se selektorem `mission=` (viz
 > [mission-freerun.md](mission-freerun.md#která-mise-běží-mission)).
 >
-> ⚠️ **Dvě odchylky od tohoto návrhu, které vznikly při realizaci:**
+> ⚠️ **Tři odchylky od tohoto návrhu:**
+> - **Potvrzení obsluhou zrušeno** (rozhodnutí autora 26. 8. 2026). Mise je **simulace autonomního
+>   doručení**: robot musí úkol vykonat bez zásahu operátora a interagují s ním jen **odesílatel**
+>   a **odběratel**, výhradně **QR kódem a stop tlačítkem**. Detail:
+>   [Přijetí cíle](#přijetí-cíle-rozhoduje-jen-stroj).
 > - **Dekodér je ZXing.Net, ne ZBar** — binding z ARBot2 nebyl k dispozici a ZXing nepotřebuje
 >   nativní knihovnu. **Fáze 1 tím celá padá.** Důvody a co se tím platí:
 >   [decisions.md](decisions.md), 26. 8. 2026.
@@ -49,8 +53,8 @@ s místem vykládky, dojede tam, vyloží a **vrátí se do depa**.
 Řídí [`GlobalNavigator`](global-navigation-runtime.md) zadáváním **LLA cílů** — sama nezná ani graf
 cest, ani occupancy grid, ani regulátory. Cesta k cíli, objíždění a detekce záseku jsou vrstvy pod ní.
 
-> Formát QR (`geo:`) a způsob potvrzení (**nouzové zastavení + potvrzení obsluhou**) jsou rozhodnuté
-> podle předchozí generace robotu, která je v soutěži používala; dekodér se změnil (viz hlavička).
+> Formát QR (`geo:`) je rozhodnutý podle předchozí generace robotu, která ho v soutěži
+> používala; dekodér se změnil a **potvrzení obsluhou zaniklo** (viz hlavička a níže).
 
 ## Vrstvy
 
@@ -81,16 +85,21 @@ Idle ─▶ ArmingAtDepot ─▶ ⟦servisní okno @depo: čtení QR nakládky�
      ─▶ ⟦servisní okno @nakládka: nakládka + čtení QR vykládky⟧   ─▶ DrivingToDrop
      ─▶ ⟦servisní okno @vykládka: vykládka⟧                       ─▶ DrivingToDepot ─▶ Finished
 
-⟦servisní okno⟧ = AwaitingEStop ─▶ Servicing ─▶ AwaitingEStopRelease
+⟦servisní okno, kde se čte kód⟧ = AwaitingEStop ─▶ Servicing ─▶ AwaitingEStopRelease
+⟦servisní okno u vykládky⟧      = AwaitingEStop ─▶ AwaitingEStopRelease      (není co číst)
 ```
+
+> **Jediné dva lidské vstupy jsou QR kód a stop tlačítko** (rozhodnutí autora 26. 8. 2026): stisk
+> otevře okno, uvolnění je „hotovo". Žádné potvrzování v UI — viz
+> [Přijetí cíle](#přijetí-cíle-rozhoduje-jen-stroj).
 
 | stav | co se děje | přechod dál |
 |---|---|---|
 | `Idle` | čeká na „Start mise" z UI | operátor |
 | `ArmingAtDepot` | **čeká na kvalitní fix, inicializuje jím fúzi a zapamatuje depo** (viz [níže](#armingatdepot-kvalitní-fix-a-inicializace-fúze)) | fix OK |
 | `AwaitingEStop` | robot **stojí a je pod napětím**; čeká, až obsluha zmáčkne nouzové zastavení. Scanner **vypnutý** | `IsEmergencyStop == true` |
-| `Servicing` | nouzové zastavení drží → obsluha nakládá/vykládá; pokud se v tomto okně čeká kód, je zapnutý `QrScanner` a přečtený cíl se ukáže v UI k **potvrzení obsluhou** | potvrzení (kód a/nebo „hotovo") |
-| `AwaitingEStopRelease` | vše potvrzeno; čeká na **uvolnění** nouzového zastavení | `IsEmergencyStop == false` |
+| `Servicing` | nouzové zastavení drží → člověk nakládá a ukazuje QR; zapnutý `QrScanner`. **Chodí se sem jen tam, kde se kód čte** — u vykládky se rovnou čeká na uvolnění | kód prošel strojovými kontrolami. Uvolnění stopu **bez kódu** → zpět na `AwaitingEStop` (další pokus) |
+| `AwaitingEStopRelease` | cíl přijat (nebo u vykládky není co číst); čeká na **uvolnění** nouzového zastavení — to je signál „hotovo" | `IsEmergencyStop == false` |
 | `DrivingToPickup` / `DrivingToDrop` / `DrivingToDepot` | `GlobalNavigator.SetGoal(cíl)`, hlídá `GlobalNavMsg` | `Arrived` |
 | `Finished` | stojí, mise hotová, souhrn do logu | — |
 | `Aborted` | okamžité zastavení (`Cancel()` + `Regulator = null`), důvod v `MissionMsg` | operátor |
@@ -304,20 +313,43 @@ Pravidla parsování (převzatá 1:1, včetně důvodů):
 Parser zůstane za rozhraním `IMissionTargetParser` (jedna metoda, `string → LLA?`), aby šel rozšířit,
 kdyby pravidla formát změnila — ale výchozí a jediná implementace je tahle.
 
-### Přijetí cíle: stroj kontroluje, člověk potvrzuje
+### Přijetí cíle: rozhoduje jen stroj
 
-Jedno chybné dekódování může poslat robota o stovky metrů jinam, proto dvě nezávislé pojistky:
+> **Změna 26. 8. 2026 (rozhodnutí autora): potvrzení obsluhou zrušeno.** Mise je **simulace
+> autonomního doručení** — robot musí úkol vykonat **bez zásahu operátora** a jediní, kdo s ním
+> interagují, jsou **odesílatel** v místě nakládky a **odběratel** v místě vykládky, a to výhradně
+> **QR kódem a stop tlačítkem na robotu**. Tlačítko „Potvrdit" v panelu i metoda `Confirm()` jsou
+> pryč; kód, který projde strojovými kontrolami, se přijme **sám** a mise se posune.
+>
+> Co to znamená pro pojistky: **zbývá jen ta strojová**, takže její tři kontroly (formát, vzdálenost,
+> dosažitelnost) nesou celou váhu. Proto taky musí být **vidět, když zamítnou** — jinak zamítnutý
+> kód vypadá jako nepřečtený (viz `RejectReason` v `MissionMsg`).
+>
+> **Uvolnění stopu je nově plnohodnotný signál:** u vykládky znamená „je vyloženo" (nic se nečte),
+> a v okně, kde se kód čeká, znamená uvolnění **bez** přečteného kódu „člověk odešel" → mise se vrátí
+> na `AwaitingEStop` a čeká na další pokus. Nikdy neodjede bez cíle.
 
-**Stroj** (automaticky, ještě než se cíl vůbec nabídne):
+Jedno chybné dekódování může poslat robota o stovky metrů jinam, proto se cíl pouští dál až po
+kontrolách:
+
+**Stroj** (automaticky, jediná pojistka):
 - **sanity check vzdálenosti** — cíl musí být blíž než `MaxTargetDistanceM` (default 2000 m) od depa;
 - **dosažitelnost v grafu** — `GoalField` po `InsertGoal` musí dát konečnou cost-to-goal; jinak by se
-  `NoRoute` zjistilo až za jízdy;
+  `NoRoute` zjistilo až za jízdy. Počítá to
+  [`GlobalNavigator.Probe`](../Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs) nad
+  **vlastním, zahoditelným** `GoalField`, takže zkouška nesahá na aktivní cíl.
+  > ⚠️ **Neověřuje, jak daleko je cíl od sítě.** Cíl se přichytí k *nejbližší* hraně a `NearestEdge`
+  > žádný limit vzdálenosti nemá, takže cíl uprostřed pole 300 m od silnice vyjde jako **dosažitelný**
+  > — robot pak dojede na tu silnici, ne k cíli. Odpověď zní „vede v grafu cesta", ne „cíl leží na
+  > cestě". Limit vzdálenosti od sítě je **otevřený úkol** (26. 8. 2026); dnes takový cíl zachytí jen
+  > hrubá kontrola vzdálenosti od depa. Je to o to důležitější, že po zrušení potvrzování jsou
+  > strojové kontroly jedinou pojistkou.
 - `QrConfirmations` (default **1**, jako v původním kódu) shodných dekódování — víc než jedno je
-  levné, ale skutečnou pojistkou je až potvrzení obsluhou.
+  levné a od zrušení potvrzování je to **jediná** pojistka nad rámec tří kontrol výše.
 
-**Člověk** (ve stavu `Servicing`, pod drženým nouzovým zastavením): UI ukáže **přečtený text, z něj
-odvozené souřadnice ve stupních, vzdálenost od depa a délku nalezené trasy** — a teprve po potvrzení
-se cíl přijme. Obsluha tak nepotvrzuje „nějaký kód se přečetl", ale konkrétní, zkontrolovatelný cíl.
+Panel to všechno ukazuje (**přečtený text, souřadnice ve stupních, vzdálenost od depa a délku nalezené
+trasy**), ale už jen jako **informaci a záznam** — ne jako podklad k rozhodnutí. Člověk do přijetí
+cíle nevstupuje.
 
 Přečtený text jde **doslova** do `QrCodeMsg` i `MissionMsg` → v záznamu je vidět, co robot přečetl,
 i když to zamítl.
@@ -417,10 +449,11 @@ výpočetní čas je zdarma — tam je správné zaplatit za úspěšnost čten�
   Bez ní je „čeká se na kvalitní fix" **nediagnostikovatelné**: mise stojí, panel neumí říct proč a
   jediný způsob, jak to zjistit, je přečíst si kód — přesně to se 26. 8. 2026 stalo. Rozptyl se
   počítá **průběžně**, ne teprve u plného okna, aby obsluha nehádala 5 s.
-  **Verze 2 přidala nabídnutý cíl** (`HasPending`, souřadnice, text kódu, vzdálenost od depa,
-  **délka trasy**) — tedy to, co obsluha vidí *před* potvrzením. Bez toho by se do záznamu nikdy
-  nedostala délka trasy: počítá ji zkouška dosažitelnosti a nikde jinde v záznamu není, takže by
-  pak nešlo dohledat, **na základě čeho** obsluha cíl potvrdila. Starší záznamy ji nemají
+  **Verze 2 přidala cíl z QR kódu** (`HasAcceptedCode`, souřadnice, text kódu, vzdálenost od depa,
+  **délka trasy**). Nese hlavně tu délku trasy: počítá ji zkouška dosažitelnosti a nikde jinde
+  v záznamu není. **Verze 5 změnila význam téhož kola** — dřív to byl cíl *nabídnutý k potvrzení*,
+  dnes **přijatý** (potvrzování zaniklo). Bajty jsou tytéž, takže se stará verze pozná **jen podle
+  čísla**. Starší záznamy ji nemají
   (`HasPending` zůstane `false`).
 - Konverzi vlastní doména: `MissionState.ToLogMessage()` (viz [CLAUDE.md](../CLAUDE.md)).
 
@@ -441,7 +474,7 @@ nesmyslná hodnota skončí výjimkou při startu, ne divným chováním za jíz
 | parametr | kde | default | pozn. |
 |---|---|---|---|
 | `CameraName` | scanner | `"Right"` | prázdné = skenovat všechny kamery; z příkazové řádky `qrcamera=` |
-| `Confirmations` | scanner | 1 | shodná dekódování **po sobě**; skutečná pojistka je potvrzení obsluhou |
+| `Confirmations` | scanner | 1 | shodná dekódování **po sobě**; od zrušení potvrzování je to jediná pojistka nad rámec strojových kontrol |
 | `Downscale` | scanner | 2 | podvzorkování před dekódováním |
 | `DepotFixSec` | mise | 5 s | jak dlouho musí fix nepřerušeně vyhovovat; `depotfix=` |
 | `MinSatellites` / `MaxHdop` / `MaxSpreadM` | mise | 6 / 2,0 / **2,5 m** | kvalita fixu v `ArmingAtDepot`; `MaxSpreadM` je **RMS** odchylka, viz níže |
@@ -501,7 +534,7 @@ Pokryté případy:
 - **průchod celou misí** s falešným `IGlobalGoalSink` a falešnými `QrCodeMsg` + `MotorStateBase` →
   očekávaná posloupnost fází a zadaných cílů (poslední = depo, **shodné se zapamatovaným**);
 - **servisní okno:** bez zmáčknutého nouzového zastavení se **nezapne scanner** ani se nepokročí;
-  bez potvrzení obsluhou se cíl **nepřijme**; bez uvolnění stopu se **nerozjede**;
+  přečtený kód se přijme **sám, bez potvrzování**; bez uvolnění stopu se **nerozjede**;
 - **nouzové zastavení za jízdy automat neposune** (zůstane v `Driving*`, cíl se nezruší);
 - **`ArmingAtDepot`:** nekvalitní fix (málo satelitů / vysoký `Hdop` / velký rozptyl) misi neposune a
   **`InitializePosition` se nezavolá**; při vyhovujícím okně se zavolá **právě jednou** a s polohou
@@ -536,7 +569,10 @@ Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navig
 0. ✅ **Nouzové zastavení v `ControlLoop`** — odběr `IsEmergencyStop` (`volatile` field vedle
    `lastImu`), `Drive(0, stojí ? 0 : rotace)`, příznak `EmergencyStop` v `DriveCommandMsg`
    (**FormatVersion 1 → 2**, starší záznamy se čtou dál), diagnostická property `LastMotorState`.
-   Odometrie se pod stopem do fúze **nepouští**. 4 testy (dotáčí se → rotace zůstává; enkodéry na nule
+   ~~Odometrie se pod stopem do fúze **nepouští**.~~ **Zrušeno 27. 8. 2026** — odometrie se používá
+   normálně; ten výjimkový stav způsoboval, že fúze v servisním okně neměla žádnou vazbu na rychlost
+   a póza se rozešla o metry. Viz [decisions.md](decisions.md).
+   4 testy (dotáčí se → rotace zůstává; enkodéry na nule
    → nula; bez stavu motorů se nezastavuje; po uvolnění zásahy zas jdou).
    **Zbývá:** ⬜ vypnutí detektoru záseku v globální vrstvě (až ta vznikne),
    ⬜ **ověření na zařízení** (i nahrání upraveného MicroBasic skriptu).
@@ -561,7 +597,7 @@ Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navig
    [`RobotourMissionDocument`](../Src/ARBot/ViewModels/RobotourMissionDocument.cs), menu
    *Tools → Mise Robotour*: fáze, **na co se čeká**, stav nouzového zastavení, přečtený kód
    s odvozeným cílem, vzdáleností a délkou trasy, zapamatované cíle, čítače a tlačítka
-   Start / Potvrdit / Přerušit.
+   Start / Přerušit.
    - **Stav se čte ze `MissionMsg` na Streamu**, ne z instance mise, takže panel funguje i při
      **přehrávání záznamu** (celá jízda se dá přehrát fázi po fázi). Příkazy potřebují živou misi;
      když neběží, panel to **řekne přímo v UI** místo aby tlačítka tiše nic nedělala.
@@ -594,7 +630,7 @@ Pak v aplikaci:
 2. **Tools → Virtuální senzory** → zatrhnout *Držet nouzové zastavení*. Mise vstoupí do servisního
    okna a **zapne scanner**.
 3. Ukázat pravé kameře QR kód s `geo:` cílem. Panel mise ukáže text, souřadnice, vzdálenost od depa
-   a délku trasy → *Potvrdit*.
+   a délku trasy a **rovnou ho přijme** — nic se nepotvrzuje.
 4. Odtrhnout nouzové zastavení → robot vyrazí na nakládku. Totéž na nakládce, u vykládky se kód nečte.
 
 Krok 3 jde v simulaci projít taky: panel má v servisním okně sekci **„QR kód do virtuální kamery"**,
@@ -611,8 +647,13 @@ Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód v
 
 - **Vizuální dojezd na QR kód** — rohy kódu v obraze dávají směr i vzdálenost; poslední ~3 m by šly
   řídit vidění místo GPS (viz stejný úkol v [global-navigation-runtime.md](global-navigation-runtime.md)).
-- **Detekce nákladu** (senzor/kamera) jako doplněk k potvrzení obsluhou — dnes je jediným důkazem
-  „náklad je naložen" stisk tlačítka.
+- **Detekce nákladu** (senzor/kamera). Od zrušení potvrzování je jediným důkazem „náklad je naložen"
+  **uvolnění stop tlačítka** — tedy gesto člověka, ne měření. Skutečný senzor by z toho udělal fakt.
+- **Limit vzdálenosti cíle od silniční sítě.** Zkouška dosažitelnosti dnes odpovídá jen na
+  „vede v grafu cesta" — cíl se přichytí k nejbližší hraně **bez omezení vzdálenosti**, takže cíl
+  mimo síť projde. `RoadNetwork.NearestEdge` tu vzdálenost počítá a vrací (`out distance`), jen se
+  zahazuje; stačilo by ji porovnat s novým parametrem. Naléhavost vzrostla tím, že po zrušení
+  potvrzování obsluhou jsou strojové kontroly **jedinou** pojistkou.
 - **Chování při `NoRoute` na cíl z QR** — dnes návrh hlásí a čeká na operátora. Rozumnou automatikou
   by bylo „zkus dojet co nejblíž a pak znovu", ale to je rozhodnutí o strategii soutěže, ne o kódu.
 - **Rozpoznání startovní/cílové čáry nebo jiných značek soutěže**, pokud je pravidla zavedou.

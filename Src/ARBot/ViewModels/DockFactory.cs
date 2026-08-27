@@ -43,8 +43,16 @@ namespace ARBot.ViewModels
         /// plovouci okna - bez <see cref="DefaultHostWindowLocator"/> by se dockable po
         /// vytazeni mimo hlavni okno jen "ztratil" (Dock nema z ceho okno vytvorit).
         /// </summary>
+        /// <summary>
+        /// Korenovy layout, aby se pri zmene aktivniho tabu dal projit CELY strom (dokument muze
+        /// zit ve vlastni dokovaci skupine, ne jen v <see cref="DocumentDock"/>) — viz
+        /// <see cref="OnActiveDockableChanged"/>.
+        /// </summary>
+        private IDockable rootLayout;
+
         public override void InitLayout(IDockable layout)
         {
+            rootLayout = layout;
             DefaultHostWindowLocator = () => new HostWindow();
             // Sleduj zmenu aktivniho tabu -> nastav IsActive nasim dokumentum (viditelny = aktivni tab
             // DocumentDock). Umoznuje dokumentum gatovat drahy render, kdyz nejsou videt (viz ImageDocument).
@@ -52,15 +60,37 @@ namespace ARBot.ViewModels
             base.InitLayout(layout);
         }
 
+        /// <summary>
+        /// Přepočte <see cref="DocumentBase.IsActive"/> <b>všem dokumentům v celém layoutu</b>:
+        /// dokument je aktivní, když je <c>ActiveDockable</c> svého vlastního doku.
+        ///
+        /// <para><b>Prochází se celý strom, ne jen <see cref="DocumentDock"/>.</b> Uživatel si může
+        /// dokument vytáhnout do <b>vlastní dokovací skupiny</b> (nebo plovoucího okna) — a pak už
+        /// v <c>DocumentDock.VisibleDockables</c> není. Původní verze mu proto po přetažení
+        /// přestala <c>IsActive</c> aktualizovat a <b>zamrzl na poslední hodnotě</b>: když byl
+        /// v tu chvíli aktivní jiný tab, zůstalo mu <c>false</c> natrvalo. U dokumentů, které na
+        /// tom gatují render (náhled kamery v misi Robotour, <c>ImageDocument</c>), to znamená
+        /// <b>trvale prázdný panel</b> — a vypadá to jako vada té vizualizace, ne doku.
+        /// Nahlásil autor 27. 8. 2026 („mise Robotour přestala ukazovat kameru").</para>
+        /// </summary>
         private void OnActiveDockableChanged(object sender, ActiveDockableChangedEventArgs e)
         {
-            var dock = DocumentDock;
-            var active = dock?.ActiveDockable;
-            var docs = dock?.VisibleDockables;
-            if (docs == null) return;
-            foreach (var d in docs)
-                if (d is DocumentBase doc)
-                    doc.SetActive(ReferenceEquals(doc, active));
+            var root = rootLayout ?? DocumentDock;
+            if (root != null) RefreshActive(root);
+        }
+
+        /// <summary>Rekurzivně projde dokovací strom a nastaví <c>IsActive</c> nalezeným dokumentům.</summary>
+        private static void RefreshActive(IDockable node)
+        {
+            if (node is not IDock dock || dock.VisibleDockables == null) return;
+
+            foreach (var child in dock.VisibleDockables)
+            {
+                if (child is DocumentBase doc)
+                    doc.SetActive(ReferenceEquals(dock.ActiveDockable, doc));
+
+                RefreshActive(child);
+            }
         }
 
         public override IRootDock CreateLayout()

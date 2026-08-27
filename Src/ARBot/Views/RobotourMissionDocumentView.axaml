@@ -26,14 +26,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="btn action accent" Content="Start mise"
                                 Command="{Binding StartMissionCommand}" IsEnabled="{Binding CanStart}"/>
-                        <Button Classes="btn action info" Content="Potvrdit"
-                                Command="{Binding ConfirmCommand}" IsEnabled="{Binding CanConfirm}"/>
                         <Button Classes="btn action danger" Content="Přerušit"
                                 Command="{Binding AbortCommand}" IsEnabled="{Binding CanAbort}"/>
                     </StackPanel>
 
                     <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
-                               Text="„Potvrdit“ znamená v servisním okně s kódem „tento cíl je správný“, u vykládky „je vyloženo“. Rozjezd ale nezpůsobí — o ten se stará až uvolnění nouzového zastavení."/>
+                               Text="Mise je simulace autonomního doručení: po startu ji nikdo neřídí. Robot se posouvá sám — přečteným QR kódem a stop tlačítkem, které mačká odesílatel v místě nakládky a odběratel v místě vykládky. „Přerušit“ je bezpečnostní zásah, ne krok úlohy."/>
                 </StackPanel>
             </Border>
 
@@ -120,45 +118,47 @@
                 <Border BorderBrush="#555559" BorderThickness="1" CornerRadius="3">
                     <Image Source="{Binding PreviewImage}" Stretch="Uniform" MaxHeight="300"/>
                 </Border>
+                <TextBlock Text="{Binding PreviewHintText}" Foreground="#8AD4FF" FontSize="11"
+                           TextWrapping="Wrap"/>
                 <TextBlock Foreground="#A0FFFFFF" FontSize="11" TextWrapping="Wrap"
                            Text="Bez obrazu se nedá poznat, jestli je kód vůbec ve výhledu. Míří se s ním na tuhle kameru; robot se za ním sám neotočí."/>
             </StackPanel>
 
-            <!-- ================= Nabídnutý cíl ================= -->
+            <!-- ================= Přijatý cíl z QR ================= -->
 
-            <TextBlock Text="Přečtený cíl k potvrzení" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Přijatý cíl z QR kódu" FontWeight="Bold" Foreground="White"/>
 
             <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
-                       Text="Stroj kontroluje, člověk potvrzuje. Jedno chybné dekódování může poslat robota o stovky metrů jinam, proto se nepotvrzuje „nějaký kód se přečetl“, ale konkrétní zkontrolovatelný cíl."/>
+                       Text="Cíl pouštějí dál jen strojové kontroly: formát kódu, vzdálenost od depa a dosažitelnost v mapě. Potvrzení člověkem tu není — mise má běžet bez zásahu operátora."/>
 
             <Border Background="#1E3A1E" CornerRadius="3" Padding="8,6"
-                    IsVisible="{Binding HasPendingTarget}">
+                    IsVisible="{Binding HasAcceptedTarget}">
                 <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="text kódu" Foreground="#A0FFFFFF"
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PendingCodeText}"
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding AcceptedCodeText}"
                                Foreground="White" FontFamily="Consolas,monospace"
                                TextWrapping="Wrap" Margin="0,0,0,3"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="souřadnice" Foreground="#A0FFFFFF"
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PendingTargetText}"
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AcceptedTargetText}"
                                Foreground="#8AD48A" FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="vzdálenost" Foreground="#A0FFFFFF"
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PendingDistanceText}"
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AcceptedDistanceText}"
                                Foreground="White" FontFamily="Consolas,monospace" Margin="0,0,0,3"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0" Text="trasa" Foreground="#A0FFFFFF"
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PendingRouteText}"
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AcceptedRouteText}"
                                Foreground="White" FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
                 </Grid>
             </Border>
 
-            <TextBlock Text="Zatím není co potvrzovat." Foreground="#808080" FontSize="11"
-                       IsVisible="{Binding !HasPendingTarget}"/>
+            <TextBlock Text="Zatím žádný kód přijatý není." Foreground="#808080" FontSize="11"
+                       IsVisible="{Binding !HasAcceptedTarget}"/>
 
             <!-- Zamítnutý kód: BYL přečten, jen se nepřijal. Bez tohohle to vypadá, že se nepřečetl. -->
             <Border Background="#4A2A2A" CornerRadius="3" Padding="8,6"
@@ -169,7 +169,7 @@
                     <TextBlock Text="{Binding RejectedText}" Foreground="White"
                                TextWrapping="Wrap" FontSize="11" FontFamily="Consolas,monospace"/>
                     <TextBlock Foreground="#A0FFFFFF" FontSize="11" TextWrapping="Wrap"
-                               Text="Strojové kontroly cíl nepustily dál, takže se ani nenabídl k potvrzení. Oprav kód (nebo cíl) a zkus to znovu — mise mezitím skenuje dál."/>
+                               Text="Strojové kontroly cíl nepustily dál, takže se nepřijal. Oprav kód (nebo cíl) a ukaž ho znovu — mise mezitím skenuje dál."/>
                 </StackPanel>
             </Border>
 

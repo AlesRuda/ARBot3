@@ -762,7 +762,10 @@ namespace ARBot.ViewModels
             // Je to jen nouzova varianta pro beh bez mapy. Viz doc/global-navigation-runtime.md.
             if (lastGps == null || lastRobot == null || !IsValidFix(lastGps))
                 return null;
-            var gpsLLA = LLA.FromDegrees(lastGps.Latitude, lastGps.Longitude);
+            // GPSState drzi RADIANY (viz GPSState.Latitude), takze ZADNY FromDegrees. Tohle misto se
+            // pri prechodu na radiany 26. 8. 2026 preslo - a projevilo se to presne tim, co popisuje
+            // komentar vys: pocatek skakal, takze s nim poskakovalo vsechno kreslene v lokalnim ENU.
+            var gpsLLA = new LLA(lastGps.Latitude, lastGps.Longitude);
             var originLLA = new GeoReference(gpsLLA).ToLLA(-lastRobot.X, -lastRobot.Y);   // posun o -(X,Y)
             return new GeoReference(originLLA);
         }

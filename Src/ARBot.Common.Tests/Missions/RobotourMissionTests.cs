@@ -144,13 +144,18 @@ public class RobotourMissionTests
             TimeStamp = at,
         };
 
-    /// <summary>Projede jedno servisni okno: stop -> (kod) -> potvrzeni -> uvolneni stopu.</summary>
+    /// <summary>
+    /// Projede jedno servisni okno: <b>stop -> (kod) -> uvolneni stopu</b>.
+    ///
+    /// <para><b>Zadne potvrzeni obsluhou</b> — mise je simulace autonomniho doruceni, takze jediny,
+    /// kdo s robotem interaguje, je odesilatel a odberatel, a to <b>jen QR kodem a stop tlacitkem</b>
+    /// (rozhodnuti autora 26. 8. 2026).</para>
+    /// </summary>
     private static DateTime PassServiceWindow(Harness h, DateTime now, string code)
     {
         h.FeedMotors(emergencyStop: false, standing: true, now);          // dobrzdil
-        h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));   // obsluha zmackla stop
+        h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));   // clovek zmackl stop
         if (code != null) h.ReadCode(code, now = now.AddSeconds(1));
-        h.Mission.Confirm();
         h.FeedMotors(emergencyStop: false, standing: true, now = now.AddSeconds(1));  // stop uvolnen
 
         // Za jizdy nasadi regulator VRSTVA POD misi (LocalNavigator → ControlLoop). Mise ho jen
@@ -243,11 +248,16 @@ public class RobotourMissionTests
     }
 
     /// <summary>
-    /// <b>Bez potvrzeni obsluhou se cil neprijme.</b> Jedno chybne dekodovani muze poslat robota
-    /// o stovky metru jinam — proto je clovek druha, nezavisla pojistka vedle strojovych kontrol.
+    /// <b>Precteny kod se prijme SAM, bez potvrzeni obsluhou.</b> Mise je simulace autonomniho
+    /// doruceni: robot musi ukol vykonat <b>bez zasahu operatora</b> a jediny, kdo s nim
+    /// interaguje, je odesilatel v miste nakladky a odberatel v miste vykladky — a to <b>jen QR
+    /// kodem a stop tlacitkem</b> (rozhodnuti autora 26. 8. 2026).
+    ///
+    /// <para>Pojistkou proti chybnemu dekodovani zustavaji <b>strojove kontroly</b> (format kodu,
+    /// vzdalenost od depa, dosazitelnost v grafu) — clovek uz druhou pojistkou neni.</para>
     /// </summary>
     [Test]
-    public void BezPotvrzeniObsluhou_SeCilNeprijme()
+    public void PrectenyKod_SePrijmeSamBezPotvrzeni()
     {
         var (h, now) = StartedAtDepot();
         h.FeedMotors(emergencyStop: true, standing: true, now);
@@ -256,22 +266,77 @@ public class RobotourMissionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing), "porad se ceka na potvrzeni");
-            Assert.That(h.Mission.PendingTarget, Is.Not.Null, "cil je nabidnuty ke kontrole");
-            Assert.That(h.Goals.Goals, Is.Empty, "ale zadany neni");
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease),
+                        "prijaty kod posune misi sam - ceka se uz jen na uvolneni stopu");
+            Assert.That(h.Mission.LastAcceptedTarget, Is.Not.Null, "cil je PRIJATY, ne nabidnuty");
+            Assert.That(h.Goals.Goals, Is.Empty, "zadava se teprve po uvolneni stopu");
+            Assert.That(h.Scanner.Enabled, Is.False, "po precteni uz nema co skenovat");
         });
     }
 
-    /// <summary>Potvrzeni bez precteneho kodu misi neposune — nema co potvrzovat.</summary>
+    /// <summary>
+    /// <b>Uvolneni stopu BEZ precteneho kodu vrati cekani na stop.</b> Clovek odesel, aniz kod
+    /// ukazal — nesmi to znamenat odjezd bez cile, ani zaseknuti: robot ceka na dalsi pokus.
+    /// </summary>
     [Test]
-    public void PotvrzeniBezKodu_MisiNeposune()
+    public void UvolneniStopuBezKodu_VratiCekaniNaStop()
     {
         var (h, now) = StartedAtDepot();
         h.FeedMotors(emergencyStop: true, standing: true, now);
-
-        h.Mission.Confirm();
-
         Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing));
+
+        h.FeedMotors(emergencyStop: false, standing: true, now.AddSeconds(3));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStop),
+                        "dalsi pokus, ne odjezd bez cile");
+            Assert.That(h.Goals.Goals, Is.Empty);
+            Assert.That(h.Scanner.Enabled, Is.False, "bez drzeneho stopu se NESKENUJE");
+        });
+    }
+
+    /// <summary>
+    /// <b>Skenuje se VYHRADNE pod drzenym stopem.</b> Je to fyzicka garance pro cloveka, ktery
+    /// stoji u robotu s krabici v ruce — a musi platit i v tom mezistavu, kdy uz stop pustil,
+    /// ale kod jeste neukazal.
+    /// </summary>
+    [Test]
+    public void ScannerBeziJenPodDrzenymStopem()
+    {
+        var (h, now) = StartedAtDepot();
+
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+        Assert.That(h.Scanner.Enabled, Is.True, "stop drzi -> skenuje se");
+
+        h.FeedMotors(emergencyStop: false, standing: true, now.AddSeconds(1));
+        Assert.That(h.Scanner.Enabled, Is.False, "stop pusten -> scanner OKAMZITE dolu");
+    }
+
+    /// <summary>
+    /// U <b>vykladky se kod necte</b>, takze po stisknuti stopu se ceka uz jen na jeho uvolneni —
+    /// „vylozeno" je prave to uvolneni, zadne tlacitko v UI.
+    /// </summary>
+    [Test]
+    public void UVykladky_PoStiskuStopuSeCekaJenNaUvolneni()
+    {
+        var (h, now) = StartedAtDepot();
+        now = PassServiceWindow(h, now, PickupCode);
+        h.Arrive(now = now.AddSeconds(30));
+        now = PassServiceWindow(h, now, DropCode);
+        h.Arrive(now = now.AddSeconds(30));
+
+        // Tady jsme u vykladky: stisk stopu nema co cist, takze se rovnou ceka na uvolneni.
+        h.FeedMotors(emergencyStop: false, standing: true, now);
+        h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.CurrentStop, Is.EqualTo(RobotourStop.Drop));
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease),
+                        "u vykladky neni co cist ani potvrzovat");
+            Assert.That(h.Scanner.Enabled, Is.False, "u vykladky se nikdy neskenuje");
+        });
     }
 
     /// <summary><b>Bez uvolneni nouzoveho zastaveni se nerozjede</b> — motory jsou mrtve zamerne.</summary>
@@ -281,7 +346,6 @@ public class RobotourMissionTests
         var (h, now) = StartedAtDepot();
         h.FeedMotors(emergencyStop: true, standing: true, now);
         h.ReadCode(PickupCode, now = now.AddSeconds(1));
-        h.Mission.Confirm();
 
         h.FeedMotors(emergencyStop: true, standing: true, now.AddSeconds(5));   // stop porad drzi
 
@@ -289,7 +353,7 @@ public class RobotourMissionTests
         {
             Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease));
             Assert.That(h.Goals.Goals, Is.Empty, "cil se zada teprve po uvolneni stopu");
-            Assert.That(h.Scanner.Enabled, Is.False, "po potvrzeni uz se neskenuje");
+            Assert.That(h.Scanner.Enabled, Is.False, "po precteni uz se neskenuje");
         });
     }
 
@@ -441,7 +505,7 @@ public class RobotourMissionTests
         Assert.That(msg, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(msg!.HasPending, Is.False);
+            Assert.That(msg!.HasAcceptedCode, Is.False);
             Assert.That(msg.RejectReason, Does.Contain(expectedFragment).IgnoreCase,
                         "duvod zamitnuti musi byt ve zprave, jinak to vypada jako nepreceteny kod");
             Assert.That(msg.RejectedCodeText, Is.EqualTo(code), "a s nim text, ktery se zamitl");
@@ -475,7 +539,7 @@ public class RobotourMissionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.LastMessage!.HasPending, Is.True);
+            Assert.That(h.Mission.LastMessage!.HasAcceptedCode, Is.True);
             Assert.That(h.Mission.LastMessage!.RejectReason, Is.Empty);
         });
     }
@@ -626,12 +690,12 @@ public class RobotourMissionTests
         h.FeedMotors(emergencyStop: true, standing: true, now);
 
         h.ReadCode("geo:50.0,17.0", now.AddSeconds(1));   // stovky km daleko
-        h.Mission.Confirm();
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.PendingTarget, Is.Null, "takovy cil se ani nenabidne");
-            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing));
+            Assert.That(h.Mission.LastAcceptedTarget, Is.Null, "takovy cil se neprijme");
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing),
+                        "mise zustava v servisnim okne a skenuje dal");
             Assert.That(h.Mission.RejectedCodes, Is.GreaterThan(0));
         });
     }
@@ -652,7 +716,7 @@ public class RobotourMissionTests
         Assert.Multiple(() =>
         {
             Assert.That(h.Routes.Probes, Is.GreaterThan(0), "dosazitelnost se opravdu zkousi");
-            Assert.That(h.Mission.PendingTarget, Is.Null);
+            Assert.That(h.Mission.LastAcceptedTarget, Is.Null);
         });
     }
 
@@ -670,7 +734,7 @@ public class RobotourMissionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.PendingTarget, Is.Null);
+            Assert.That(h.Mission.LastAcceptedTarget, Is.Null);
             Assert.That(h.Mission.LastCodeText, Is.EqualTo("http://example.com/neco"),
                         "text jde do zaznamu DOSLOVA i kdyz se zamitne");
             Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing));
@@ -821,35 +885,37 @@ public class RobotourMissionTests
         Assert.That(msg, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(msg!.HasPending, Is.True);
-            Assert.That(msg.PendingLatDeg, Is.EqualTo(49.2110).Within(1e-9));
-            Assert.That(msg.PendingCodeText, Is.EqualTo(PickupCode));
-            Assert.That(msg.PendingRouteLengthM, Is.EqualTo(412.5).Within(1e-9));
-            Assert.That(msg.PendingDistanceFromDepotM, Is.GreaterThan(50),
+            Assert.That(msg!.HasAcceptedCode, Is.True);
+            Assert.That(msg.AcceptedLatDeg, Is.EqualTo(49.2110).Within(1e-9));
+            Assert.That(msg.AcceptedCodeText, Is.EqualTo(PickupCode));
+            Assert.That(msg.AcceptedRouteLengthM, Is.EqualTo(412.5).Within(1e-9));
+            Assert.That(msg.AcceptedDistanceFromDepotM, Is.GreaterThan(50),
                         "stanoviste je ~78 m od depa");
         });
     }
 
-    /// <summary>Po potvrzeni uz nabidnuty cil ve zprave neni — je z nej prijaty cil.</summary>
+    /// <summary>
+    /// Prijaty kod se hned <b>ulozi jako cil zastaveni</b> (u depa je to misto nakladky) — bez
+    /// jakehokoli potvrzovani. Zprava tedy nese oboji: prijaty kod i cil, ktery z nej vznikl.
+    /// </summary>
     [Test]
-    public void PoPotvrzeni_NabidnutyCilZeZpravyZmizi()
+    public void PrijatyKod_SeUloziJakoCilZastaveni()
     {
         var (h, now) = StartedAtDepot();
         h.FeedMotors(emergencyStop: true, standing: true, now);
-        h.ReadCode(PickupCode, now.AddSeconds(1));
 
-        h.Mission.Confirm();
+        h.ReadCode(PickupCode, now.AddSeconds(1));
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.LastMessage!.HasPending, Is.False);
-            Assert.That(h.Mission.LastMessage!.PickupCodeText, Is.EqualTo(PickupCode),
-                        "text se presunul do prijateho cile");
+            Assert.That(h.Mission.LastMessage!.HasAcceptedCode, Is.True);
+            Assert.That(h.Mission.LastMessage!.HasPickup, Is.True, "cil nakladky je ulozeny");
+            Assert.That(h.Mission.LastMessage!.PickupCodeText, Is.EqualTo(PickupCode));
         });
     }
 
     /// <summary>
-    /// Zprava verze 1 nabidnuty cil nenese — <c>HasPending</c> zustane <c>false</c> a rozbor musi
+    /// Zprava verze 1 nabidnuty cil nenese — <c>HasAcceptedCode</c> zustane <c>false</c> a rozbor musi
     /// priznat, ze co obsluha pred potvrzenim videla, uz nezjisti (viz doc/record-replay.md).
     /// </summary>
     [Test]
@@ -878,7 +944,7 @@ public class RobotourMissionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(loaded.HasPending, Is.False);
+            Assert.That(loaded.HasAcceptedCode, Is.False);
             Assert.That(loaded.Phase, Is.EqualTo((int)RobotourPhase.Servicing), "zbytek se precte dal");
         });
     }

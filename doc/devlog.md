@@ -89,6 +89,107 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     virtuálních senzorů): `VirtualMotors` hlásily příznak **natvrdo `false`**, takže servisní okno —
     na kterém stojí celý handshake — se v simulaci nedalo projít vůbec. Kola to nezastavuje samo,
     o to se stará `ControlLoop`, takže robot dobrzdí rampou jako na železe.
+## 2026-08-27
+
+> ### 📌 PŘEDÁNÍ STAVU (konec sezení 27. 8. 2026)
+>
+> **Poslední commit: `af9649a`** (Mise Robotour: UI panel, QR do virtuální kamery, GPSState
+> v radiánech). **Vše z 27. 8. je NEZACOMMITOVANÉ** — 19 změněných souborů + 1 nový
+> (`Src/ARBot.Common.Tests/OsmNav.Tests/Routing/GoalFieldSplitLengthTests.cs`). Autor commity
+> schvaluje sám (viz CLAUDE.md), takže **první věc na začátku dalšího sezení je se ho zeptat, jestli
+> to commitnout** — než se na to začne nabalovat další práce.
+>
+> **Stav ověření (platí pro pracovní kopii, ne pro commit):** `ARBot.Common.Tests` 929 prochází,
+> `ARBot.HAL.Tests` 47, build `Src/ARBot.slnx -p:Platform=x64` i `ARBot.Common -p:Platform=OrangePI`
+> bez chyb, bezobslužný běh `mission=robotour` projde. **Vše nad simulací, na HW NEOVĚŘENO.**
+>
+> **Mise Robotour: fáze 2–5 hotové**, celý průchod se dá v simulaci proklikat (panel *Tools → Mise
+> Robotour* + přepínač stopu ve *Virtuálních senzorech* + „Postavit QR kód"). Zbývá **fáze 6**
+> (přežití restartu: stavový soubor `logs/mission-state.json` + opt-in obnovení depa) a **fáze 7**
+> (ověření na HW). Zadání obojího je v [robotour-mission.md](robotour-mission.md).
+>
+> **Otevřené úkoly, které vznikly během sezení** (v pořadí, jak bych je bral):
+> 1. **Chybová větev driveru se tváří jako měření.** `SDC2160Ex` při selhání parsování vyrábí
+>    `MotorStateBase(true, 0, 0, …)`, takže fúze dostane „stojím", i když se robot může pohybovat.
+>    Rozlišovat se má „měření vs. zástupný rámec po chybě", ne stop → chce příznak v
+>    `MotorStateBase` (a verzi zprávy). Projeví se **jen na reálném železe**.
+> 2. **Zkouška dosažitelnosti neověřuje vzdálenost cíle od sítě.** `NearestEdge` limit nemá, takže
+>    cíl uprostřed pole projde jako dosažitelný. Vzdálenost se už počítá (`out distance`), jen se
+>    zahazuje. Naléhavost vzrostla zrušením potvrzování obsluhou — strojové kontroly jsou teď jediná
+>    pojistka. **Autor to 27. 8. vědomě odložil.**
+> 3. **Délka trasy je na začátku nadhodnocená** o část první hrany (`Router.Plan` vrací celé hrany).
+>    U cíle je od 27. 8. přesná. Popsáno u `GlobalNavMsg.RouteLengthM`.
+> 4. **Úspěšnost čtení QR na skutečném stanovišti není naměřená** — testy dokazují cestu, ne
+>    čitelnost (kód kóduje týž ZXing, který ho čte). Patří do fáze 7.
+> 5. **`MaxSpreadM = 2,5 m` je jediná hodnota v armování volená úsudkem.** Panel naměřený rozptyl
+>    vypisuje, takže stačí odečíst číslo z běhu a nastavit ho z dat.
+> 6. **QR kód se čte v depu, ale podle zadání tam nikdo neinteraguje** — nezodpovězená otázka
+>    autorovi z 26. 8. Možná má být kód s místem nakládky až u odesílatele; to by změnilo
+>    posloupnost zastavení.
+>
+> **Dvě pasti, na které se dá v tomhle kódu narazit znovu** (obojí zapsáno i u kódu):
+> `ARBotRuntime.Current` existuje dřív než jeho stupně (stupeň hledej znovu, ne v konstruktoru), a
+> `GPSState.Latitude/Longitude` jsou **radiány** — `LLA.FromDegrees` na ně je tichá vada, která už
+> dvakrát prošla.
+
+- **„Robot na mapě zběsile poskakuje po přijetí QR kódu" — a nebyla to mise.** Autorova úvaha byla
+  správná: přijetí cíle se pózy nemá dotýkat a nedotýká se. Naměřeno, že fúze je při jízdě zdravá
+  (běh s `goal=`, bez mise: chyba pózy p50 **0,164 m**, 2 skoky ze 399), takže problém byl jen tam,
+  kde se drží stop.
+  - **Příčina:** `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Fúze tak
+    v servisním okně neměla **žádnou vazbu na rychlost** (stav má `v` i `ω`), rychlost driftovala
+    a polohu tahal šum GPS (σ 1,5 m). Za desítky sekund stání se odhad rozešel o metry.
+  - **Autor to zdůvodnění vyvrátil** a měl pravdu: řídicí jednotka má pod stopem příkaz **stát**
+    a motory jsou řízené pozičně ve zpětné vazbě, takže kola nemohou hlásit nic než nulu; a odnesení
+    robota je stejně možné bez stopu, takže se tím ty dva stavy nerozliší. K tomu ještě upřesnil, že
+    **tlačení robota na tom nic nemění** — poziční smyčka se s tlakem pere a polohu dorovnává, takže
+    enkodéry ukážou výchylku a návrat, ne čistý posun (mé první znění tvrdilo, že odometrie posun
+    odhalí, což je nepřesné; opraveno v kódu i v decisions.md). Výjimka **zrušena** —
+    odometrie teče normálně. Ušetřilo to i mnou navrhované zero-velocity update s novou σ k ladění:
+    reálná odometrie nulu hlásí sama a svou σ už má. Viz [decisions.md](decisions.md).
+  - **Zbývající děra, kterou to odhalilo:** chybová větev driveru vyrábí `MotorStateBase(true, 0, …)`,
+    takže po selhání parsování dostane fúze „stojím". Není to regrese (před zavedením té výjimky to
+    platilo taky), ale rozlišovat se má „měření vs. zástupný rámec po chybě", ne stop. Otevřený úkol.
+  - **Mimochodem nalezeno:** `WorldViewDocument` měl jedno přehlédnuté `LLA.FromDegrees(lastGps…)`
+    z přechodu na radiány. Opraveno — ale symptom to nevysvětlovalo (je to záložní počátek pro běh
+    bez mapy, a ten se s načtenou mapou nepoužije).
+
+- **„Mise Robotour přestala ukazovat kameru" — dvě příčiny, jedna z nich obecná** (hlásil autor
+  27. 8.):
+  - **`IsActive` zamrzlo dokumentům mimo `DocumentDock`.** `DockFactory` procházel při změně
+    aktivního tabu jen `DocumentDock.VisibleDockables`, takže dokument vytažený do **vlastní
+    dokovací skupiny** už aktualizaci nedostal a zůstal na poslední hodnotě — když byl tehdy aktivní
+    jiný tab, měl `IsActive == false` **natrvalo** a gate render navždy vypnul. Handler teď prochází
+    **celý dokovací strom**. Týká se každého panelu, který na `IsActive` gatuje (i `ImageDocument`),
+    takže to nebyla vada mise.
+  - **Okno viditelnosti náhledu bylo moc úzké.** Vázal jsem ho na `Servicing`, tedy na držený stop —
+    ale mířit kódem se musí **už předtím** (`AwaitingEStop`), a zrušením potvrzování se `Servicing`
+    zkrátil na okamžik. Náhled teď běží po celou dobu servisního okna tam, kde se čte kód, a řádek
+    pod obrazem říká, co se právě děje. Skenování se nerozšířilo — to řídí mise, výhradně pod stopem.
+- **Opraveny délky hran u cílového splitu** (dotaz autora „jak přesně funguje dosažitelnost v mapě?"
+  — při odpovědi se to našlo). `GoalField.InsertGoal` rozřízne hranu nejbližší cíli a vloží dočasný
+  uzel; obě půlky dostávaly správnou **cenu**, ale `LengthMeters` **nulu**. Délka trasy se přitom
+  počítá jako součet `LengthMeters`, takže **poslední úsek k cíli se nezapočítal vůbec** a chyba
+  rostla s délkou rozříznuté hrany. Test: robot u `n1`, cíl 30 m za `n2` → dřív 100 m, teď 130 m.
+  - **Nebyla to vada mise** — týž součet dělá `GlobalNavMsg.RouteLengthM`, takže „vzdálenost do cíle"
+    byla v záznamu podhodnocená odjakživa. Oprava platí pro všechny.
+  - **Zbývá známá nepřesnost na druhém konci:** `Router.Plan` vrací **celé** hrany, takže první se
+    započítá i tou částí, která je už za robotem. Je to vlastnost toho, že trasa je seznam hran, ne
+    polyline; zapsáno u `RouteLengthM`.
+  - Při čtení se ukázalo i to, že **dosažitelnost neověřuje vzdálenost cíle od sítě** (`NearestEdge`
+    nemá limit), takže cíl uprostřed pole projde. Autor to zatím řešit nechtěl → otevřený úkol.
+- **Zrušeno potvrzování cíle — mise běží bez operátora** (rozhodnutí autora). Úloha je simulace
+  autonomního delivery procesu: jediní, kdo s robotem interagují, jsou odesílatel a odběratel, a to
+  jen **QR kódem a stop tlačítkem**. Potvrzovací tlačítko tedy modelovalo někoho, kdo v úloze není.
+  - Změna se nezastavila u UI: **uvolnění stopu se stalo plnohodnotným signálem**. U vykládky
+    znamená „vyloženo" (do `Servicing` se tam vůbec nechodí), a uvolnění **bez** přečteného kódu
+    znamená „člověk odešel" → zpět na `AwaitingEStop`. **Nikdy neodjede bez cíle.**
+  - Zesílit musel i invariant „skenuje se výhradně pod drženým stopem": dřív se `Servicing` opouštěl
+    potvrzením, teď v něm jde stop pustit, takže se scanner vypíná na tom přechodu. Má vlastní test.
+  - **Váha pojistek se přesunula na strojové kontroly** — proto je dobře, že těsně předtím vznikl
+    `RejectReason`; bez viditelného zamítnutí by teď nebylo jak poznat, že kód neprošel.
+  - `MissionMsg` verze 5: totéž kolo polí dřív znamenalo „nabídnutý cíl", teď „**přijatý**". Bajty
+    tytéž, takže se stará verze pozná jen podle čísla. Detail: [decisions.md](decisions.md).
 - **Autor panel používal dál a našel, že „kód se nepřečte"** — přečetl se, ale **zamítl**:
   - **Zamítnutí bylo neviditelné.** Autor zkusil cíl ~71 km daleko, mise ho správně zamítla
     (`MaxTargetDistanceM` = 2000 m) — a protože to panel nikde neřekl, vypadalo to, že se kód vůbec

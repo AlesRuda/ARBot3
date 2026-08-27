@@ -13,6 +13,74 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-27 — Odometrie se pod nouzovým zastavením používá normálně (výjimka zrušena)
+**Co:** `DefaultMeasurementMapper.FromOdometry` už **nerozlišuje** nouzové zastavení. Do té doby pod
+ním odometrii zahazovala.
+
+**Proč byla ta výjimka špatná** (argument autora, 27. 8. 2026). Původní zdůvodnění znělo „kola stojí,
+ale robot může být tlačen, a hlavně je to stav, kdy do něj člověk zasahuje" — a neobstojí:
+
+- **Řídicí jednotka má pod stopem příkaz STÁT** a motory jsou řízené **pozičně ve zpětné vazbě**,
+  takže kola nemohou vyrobit nic jiného než nulu. Stop odometrii nijak **nezhoršuje** — pokud vůbec,
+  dělá „v = 0" *jistější*.
+- **Tlačení robota na tom nic nemění** (upřesnění autora). Poziční smyčka drží polohu, takže se
+  s tlakem **pere a dorovnává ji** — enkodéry ukážou výchylku a návrat, ne čistý posun. Odometrie
+  tedy pod stopem ani netvrdí „jedu", ani neprozradí, že byl robot posunut; chová se **stejně jako
+  bez stopu**. Není to argument pro ani proti — jen další doklad, že stop v tomhle nic nerozlišuje.
+- **Odnesení robota** (kola se netočí, robot se hýbe) je stejně možné **bez** stisknutého stopu.
+  Stopem se ty dva stavy nerozliší, takže na něm nemá smysl to rozhodnutí věšet. Je to univerzální
+  limit kolové odometrie, ne vlastnost nouzového zastavení.
+
+**Co to způsobovalo.** Pod drženým stopem neměla fúze **žádnou vazbu na rychlost** — stav má `v` i
+`ω`, takže rychlost volně driftovala a polohu tahal šum GPS (σ 1,5 m, 5 Hz). Za desítky sekund
+servisního okna se odhad rozešel o metry. Projevilo se to jako „robot na mapě zběsile poskakuje"
+v misi Robotour, protože ta je **první věc, která stop drží dlouho**. Naměřený kontrast: jízda bez
+mise (`goal=`, odometrie tekla) měla chybu pózy p50 **0,164 m** a 2 skoky ze 399 vzorků.
+
+**Zamítnutá alternativa:** posílat pod stopem umělé „v = 0" s velkou σ (zero-velocity update). Bylo
+by to zbytečné — reálná odometrie *už* nulu hlásí a má svou naměřenou σ, takže nová konstanta k ladění
+by nic nepřinesla.
+
+⚠️ **Otevřený důsledek:** chybová větev driveru
+([`SDC2160Ex`](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs)) při selhání parsování **vyrábí**
+`MotorStateBase(true, 0, 0, …)` — tedy stop a nuly. Takový rámec teď fúze vezme jako „stojím", i když
+se robot může pohybovat. Není to regrese (před zavedením té výjimky to platilo taky), ale je to
+skutečná děra: správné rozlišení je „je to měření, nebo zástupný rámec po chybě", ne „je stisknutý
+stop". Léčba chce příznak v `MotorStateBase` (a tedy verzi zprávy) — vedeno jako otevřený úkol.
+
+**Odkazy:** [`DefaultMeasurementMapper`](../Src/ARBot.Common/Runtime/DefaultMeasurementMapper.cs),
+testy `Odometry_UnderEmergencyStop_IsUsedNormally` a `..._NenulovaRychlostSePrenese`.
+
+### 2026-08-26 — Mise Robotour běží bez operátora; potvrzování cíle zrušeno
+**Co:** `RobotourMission.Confirm()` i tlačítko „Potvrdit" v panelu jsou **pryč**. Kód, který projde
+strojovými kontrolami, se přijme **sám** a mise se posune. Jediné lidské vstupy jsou **QR kód** a
+**stop tlačítko na robotu**. Rozhodnutí autora.
+
+**Proč.** Úloha je **simulace autonomního delivery procesu**: robot má úkol vykonat bez zásahu
+operátora. Jediní, kdo s ním interagují, jsou **odesílatel** v místě nakládky a **odběratel** v místě
+vykládky — a ti u sebe nemají žádné UI, jen kód a tlačítko. Potvrzovací krok v panelu tedy modeloval
+někoho, kdo v té úloze **není**.
+
+**Důsledky, které to mělo v automatu.**
+- **Uvolnění stopu se stalo plnohodnotným signálem.** U vykládky znamená „je vyloženo" (nic se
+  nečte), takže se tam do stavu `Servicing` vůbec nechodí — po stisku se rovnou čeká na uvolnění.
+- **Uvolnění bez přečteného kódu** znamená „člověk odešel": mise se vrátí na `AwaitingEStop` a čeká
+  na další pokus. **Nikdy neodjede bez cíle** — to je jediná nová větev, kterou si změna vynutila.
+- **Invariant „skenuje se výhradně pod drženým stopem" musel zesílit.** Dřív stačilo, že `Servicing`
+  se opouští potvrzením; teď v něm lze stop pustit, takže se scanner vypíná na tom přechodu.
+- **Váha pojistek se přesunula.** Zbyla jen strojová (formát, vzdálenost od depa, dosažitelnost),
+  takže **musí být vidět, když zamítne** — jinak zamítnutý kód vypadá jako nepřečtený. To je taky
+  důvod, proč `MissionMsg` nese `RejectReason`.
+- `MissionMsg` je **verze 5**: totéž kolo polí dřív znamenalo „cíl nabídnutý k potvrzení", teď
+  „**přijatý** cíl". Bajty jsou tytéž, takže se stará verze pozná **jen podle čísla** — viz
+  [record-replay.md](record-replay.md).
+
+**Co zůstalo operátorovi:** „Start mise" (robot se sám nerozjede — tatáž úvaha jako u obnovení po
+restartu) a „Přerušit" jako **bezpečnostní** zásah, ne krok úlohy.
+
+**Odkazy:** [`RobotourMission.AcceptTarget`](../Src/ARBot.Common/Missions/RobotourMission.cs),
+[robotour-mission.md](robotour-mission.md#přijetí-cíle-rozhoduje-jen-stroj).
+
 ### 2026-08-26 — `GPSState.Latitude/Longitude` jsou v RADIÁNECH (dřív stupně)
 **Co:** [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) drží zeměpisné souřadnice v
 **radiánech**, tedy v téže jednotce jako `LLA`, `GeoReference` a zbytek systému. `FormatVersion`

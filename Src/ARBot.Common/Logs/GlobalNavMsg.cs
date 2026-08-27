@@ -37,7 +37,18 @@ namespace ARBot.Common.Logs
         /// <summary>Pocet hran trasy k cili (0 = trasa neexistuje).</summary>
         public int RouteEdgeCount;
 
-        /// <summary>Delka zbyvajici trasy [m].</summary>
+        /// <summary>
+        /// Delka zbyvajici trasy [m] — soucet <c>LengthMeters</c> hran, kterymi trasa vede.
+        ///
+        /// <para><b>U CILE je presna</b> (od 26. 8. 2026): pulky rozriznute cilove hrany nesou
+        /// skutecnou geometrickou delku. Do te doby mely nulu, takze posledni usek k cili se
+        /// nezapocital vubec.</para>
+        ///
+        /// <para><b>Na ZACATKU je nadhodnocena</b> az o delku jedne hrany: <c>Router.Plan</c> vraci
+        /// <b>cele</b> hrany, takze prvni z nich se zapocita i tou casti, ktera je uz za robotem.
+        /// Je to vlastnost toho, ze trasa je seznam HRAN, ne polyline — na rozhodovani to nema vliv
+        /// (gatuje se dosazitelnost), ale jako „vzdalenost do cile" to cislo mirne prestreluje.</para>
+        /// </summary>
         public double RouteLengthM;
 
         /// <summary>

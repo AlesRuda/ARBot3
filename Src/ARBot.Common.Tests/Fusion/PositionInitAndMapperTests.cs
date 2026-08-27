@@ -597,14 +597,57 @@ namespace ARBot.Common.Tests.Fusion
             Assert.That(w.Value[0], Is.LessThan(0), "prepnute znamenko musi otocit smysl otaceni");
         }
 
+        /// <summary>
+        /// <b>Pod nouzovym zastavenim se odometrie pouziva NORMALNE.</b>
+        ///
+        /// <para>Do 27. 8. 2026 se zahazovala s oduvodnenim „kola stoji, ale robot muze byt tlacen, a
+        /// hlavne je to stav, kdy do nej clovek zasahuje". <b>Autor to vyvratil:</b> ridici jednotka
+        /// ma pod stopem prikaz STAT a motory jsou rizene pozicne ve zpetne vazbe, takze kola nemohou
+        /// vyrobit nic jineho nez nulu — stop tedy odometrii <b>nijak nezhorsuje</b>. A ze robota
+        /// muze clovek zvednout a prenest, plati stejne <i>bez</i> stisknuteho stopu, takze tim se ty
+        /// dva stavy nerozlisi.</para>
+        ///
+        /// <para>Cena zahazovani byla vysoka: pod drzenym stopem fuze nemela ZADNOU vazbu na
+        /// rychlost, takze polohu tahal sum GPS a odhad se za servisni okno (desitky sekund) rozesel
+        /// o metry. Projevilo se to jako „robot na mape zbesile poskakuje" v misi Robotour, ktera je
+        /// prvni vec, co stop drzi dlouho.</para>
+        /// </summary>
         [Test]
-        public void Odometry_UnderEmergencyStop_IsIgnored()
+        public void Odometry_UnderEmergencyStop_IsUsedNormally()
         {
             var mapper = new DefaultMeasurementMapper(new FusionConfig());
 
             var res = mapper.ToMeasurements(Odo(0.0, 0.0, T0, estop: true)).ToList();
 
-            Assert.That(res, Is.Empty, "pod nouzovym zastavenim se odometrie nepouziva");
+            Assert.Multiple(() =>
+            {
+                var v = res.SingleOrDefault(m => m.Source == "Odo/speed");
+                var w = res.SingleOrDefault(m => m.Source == "Odo/rate");
+
+                Assert.That(v, Is.Not.Null, "stojici kola jsou plnohodnotne merenie v = 0");
+                Assert.That(w, Is.Not.Null, "a omega = 0");
+                Assert.That(v!.Value[0], Is.Zero);
+                Assert.That(w!.Value[0], Is.Zero);
+            });
+        }
+
+        /// <summary>
+        /// Nenulova rychlost kol se pod stopem <b>prenese</b>, ne spolkne — mapper priznak
+        /// nouzoveho zastaveni nerozlisuje vubec.
+        ///
+        /// <para>Test hlida jen tohle. <b>Nerika</b>, ze pri tlaceni robota odometrie odhali posun:
+        /// pozicni smycka polohu drzi a s tlakem se pere, takze enkodery ukazou vychylku a navrat.
+        /// Chova se tedy stejne jako bez stopu — a to je cely dukaz, ktery je potreba.</para>
+        /// </summary>
+        [Test]
+        public void Odometry_UnderEmergencyStop_NenulovaRychlostSePrenese()
+        {
+            var mapper = new DefaultMeasurementMapper(new FusionConfig { WheelBase = 0.5 });
+
+            var v = mapper.ToMeasurements(Odo(0.3, 0.3, T0, estop: true))
+                          .Single(m => m.Source == "Odo/speed");
+
+            Assert.That(v.Value[0], Is.EqualTo(0.3).Within(1e-9));
         }
 
         [Test]

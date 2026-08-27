@@ -75,16 +75,21 @@ public sealed class GoalField
         var a = e.From; var bNode = e.To;
         var tNode = new Node(_nextTempNodeId--, proj);
 
-        Edge MakeTemp(Node from, Node to, double trav)
+        // Delka pulek je GEOMETRICKA, ne cenova: dela se z ni soucet delky trasy
+        // (GlobalNavMsg.RouteLengthM, zkouska dosazitelnosti mise). Do 26. 8. 2026 se sem davala
+        // NULA, takze hrana s realnou delkou o sobe tvrdila, ze je nulova - a posledni usek k cili
+        // se do delky trasy NEZAPOCITAL vubec (chyba rostla s delkou rozriznute hrany).
+        Edge MakeTemp(Node from, Node to, double trav, double lengthMeters)
         {
-            var edge = new Edge(_p + _tempEdges.Count, from, to, 0, -1);
+            var edge = new Edge(_p + _tempEdges.Count, from, to, lengthMeters, -1);
             _tempEdges.Add(edge); _tempTrav.Add(trav);
             return edge;
         }
 
-        var eAT = MakeTemp(a, tNode, t * _net.BaseTraversalCost(e));
-        var eTB = MakeTemp(tNode, bNode, (1 - t) * _net.BaseTraversalCost(e));
-        var g = MakeTemp(tNode, tNode, 0);
+        var eAT = MakeTemp(a, tNode, t * _net.BaseTraversalCost(e), t * e.LengthMeters);
+        var eTB = MakeTemp(tNode, bNode, (1 - t) * _net.BaseTraversalCost(e), (1 - t) * e.LengthMeters);
+        // Virtualni smycka cile (From == To) zadnou geometrii nema, takze nulova delka je spravne.
+        var g = MakeTemp(tNode, tNode, 0, 0);
 
         _shadow.Add(e.Index);
         var succShadow = new Dictionary<int, Edge> { [e.Index] = eAT };  // succ-kontext: e -> eAT
@@ -94,8 +99,8 @@ public sealed class GoalField
         var rev = _net.FindReverse(e);
         if (rev is not null)
         {
-            eBT = MakeTemp(bNode, tNode, (1 - t) * _net.BaseTraversalCost(rev));
-            eTA = MakeTemp(tNode, a, t * _net.BaseTraversalCost(rev));
+            eBT = MakeTemp(bNode, tNode, (1 - t) * _net.BaseTraversalCost(rev), (1 - t) * rev.LengthMeters);
+            eTA = MakeTemp(tNode, a, t * _net.BaseTraversalCost(rev), t * rev.LengthMeters);
             _tempReverse[eAT.Index] = eTA.Index; _tempReverse[eTA.Index] = eAT.Index;
             _tempReverse[eTB.Index] = eBT.Index; _tempReverse[eBT.Index] = eTB.Index;
 

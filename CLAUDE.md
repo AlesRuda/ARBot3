@@ -197,7 +197,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
   sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
-  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Fáze 2–5 hotové 26. 8. 2026**
+  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Běží bez operátora** — je to
+  simulace autonomního doručení, takže potvrzování cíle bylo zrušeno (26. 8. 2026) a jediné lidské
+  vstupy jsou **QR kód a stop tlačítko**; uvolnění stopu je signál „hotovo". Viz
+  [doc/decisions.md](doc/decisions.md). **Fáze 2–5 hotové 26. 8. 2026**
   (62 testů): `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení
   `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). Zbývá přežití restartu (fáze 6)
   a ověření na HW (fáze 7).
