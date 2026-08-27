@@ -13,6 +13,27 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-27 — Mise Robotour nemusí přežít restart; fáze 6 zrušena
+**Co:** Fáze 6 plánu mise (stavový soubor `logs/mission-state.json` + opt-in obnovení mise po
+restartu) **se dělat nebude**. Rozhodnutí autora. Nic z ní nebylo napsané, takže v kódu po tom
+nezůstává žádná stopa; zůstává jen popis původního návrhu v
+[robotour-mission.md](robotour-mission.md#přežití-restartu-zrušeno), kdyby se to někdy vracelo.
+
+**Co se tím zahazuje** (aby to bylo vidět, až na to někdo narazí): původní argument zněl, že **depo
+je jediná informace, kterou nelze získat znovu** — cíle se dají znovu přečíst z QR kódu, ale depo
+vzniká jednou, v `ArmingAtDepot`, z fixu na místě startu.
+
+**Důsledek, se kterým se od teď počítá:** po pádu nebo restartu aplikace se mise spouští **od
+začátku**, tlačítkem *Start mise* tam, kde robot stojí. `ArmingAtDepot` postaví depo z aktuálního
+fixu, takže **depo se přepíše na současnou polohu** — kdo restartuje uprostřed trasy, dostane jiné
+depo a robot se „vrátí" jinam. Léčba je provozní, ne softwarová: s robotem nejdřív zpátky do depa.
+
+**Co to zjednodušuje:** odpadá zápis stavu při každé změně fáze (I/O v automatu, který jinak sahá
+jen na zprávy), verzování toho souboru vedle už tak verzované `MissionMsg`, a celá otázka, co dělat
+se souborem, který patří k jinému běhu nebo jiné mapě.
+
+**Odkazy:** [robotour-mission.md](robotour-mission.md) — hlavička a Plán realizace, fáze 6.
+
 ### 2026-08-27 — Zkouška dosažitelnosti zkouší obě orientace hrany (byla pesimističtější než jízda)
 **Co:** `GlobalNavigator.Probe` bere cost-to-goal jako **minimum přes mapmatchnutou hranu a její
 reverzní** (`FindReverse`), ne jen přes tu, kterou vrátil `NearestNode`.

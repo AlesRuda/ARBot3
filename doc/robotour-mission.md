@@ -2,7 +2,8 @@
 
 > **Stav (2026-08-26): fáze 2–5 hotové, spustitelné z aplikace, na HW neověřeno.** Čtení QR,
 > `geo:` parser, stavový automat i **UI panel** — viz [Plán realizace](#plán-realizace-fáze).
-> Zbývá přežití restartu (fáze 6) a celé ověření na zařízení (fáze 7).
+> Zbývá **jen celé ověření na zařízení (fáze 7)** — fáze 6 (přežití restartu) byla **zrušena**
+> (rozhodnutí autora 27. 8. 2026, viz [decisions.md](decisions.md)).
 >
 > **Jak to vyzkoušet v simulaci:** `mission=robotour` + panel *Tools → Mise Robotour* („Start mise")
 > + panel *Tools → Virtuální senzory*, kde je **červené tlačítko nouzového zastavení** — bez něj se
@@ -257,8 +258,8 @@ nejdůležitější měření celé jízdy:
    `std` pro filtr.
 3. **`AsyncFusionEngine.InitializePosition(x, y, std, t)`** — teprve tímhle se filtr dozví, kde je.
    Do té doby se nikam nejede (globální vrstva stejně nemá LLA).
-4. **Depo se zapamatuje** (LLA + kurz) do `MissionMsg` i do stavového souboru
-   (viz [Přežití restartu](#přežití-restartu)).
+4. **Depo se zapamatuje** (LLA + kurz) do `MissionMsg` — tedy do záznamu, ne do stavového souboru:
+   mise **nepřežívá restart** (viz [Přežití restartu](#přežití-restartu-zrušeno)).
 
 Že to dělá mise a ne filtr, je záměr: „tomuhle fixu už věřím tak, že podle něj postavím počátek" je
 **rozhodnutí té vrstvy, která ví, že robot stojí v depu** — ne vlastnost měřicí cesty. Filtr k tomu
@@ -500,13 +501,27 @@ výpočetní čas je zdarma — tam je správné zaplatit za úspěšnost čten�
   jak `MaxTargetOffRoadM` nastavit z dat místo z úsudku.
 - Konverzi vlastní doména: `MissionState.ToLogMessage()` (viz [CLAUDE.md](../CLAUDE.md)).
 
-## Přežití restartu
+## Přežití restartu (ZRUŠENO)
+
+❌ **Mise restart přežít nemusí** — rozhodnutí autora 27. 8. 2026. Fáze 6 se nebude dělat, stavový
+soubor `logs/mission-state.json` **nevznikne** a v kódu po tom nezůstala žádná stopa (nic z toho
+nebylo napsané). Zdůvodnění: [decisions.md](decisions.md).
+
+**Co to znamená v provozu:** po pádu nebo restartu aplikace se mise spouští **od začátku** — tedy
+tlačítkem *Start mise* na místě, kde robot stojí. Protože `ArmingAtDepot` postaví depo z aktuálního
+fixu, **depo se přepíše na to, kde robot právě je**; když spadl uprostřed trasy, není to původní
+depo a robot se „vrátí" jinam. Kdo restartuje uprostřed jízdy, musí s robotem nejdřív zpátky do depa.
+
+<details>
+<summary>Původní návrh (pro případ, že by se to někdy vracelo)</summary>
 
 Pád aplikace uprostřed soutěžní jízdy nesmí znamenat ztrátu **depa** (do kterého se má robot vrátit) —
 je to jediná informace, kterou nelze získat znovu. `MissionController` proto po `ArmingAtDepot` (a při
 každé změně fáze) zapíše malý stavový soubor (`logs/mission-state.json`: depo, fáze, cíle, časy) a při
 startu nabídne **obnovení mise** místo nové. Obnovení je **explicitní volba operátora**, nikdy
 automatická — robot, který po restartu sám vyrazí, je nebezpečný.
+
+</details>
 
 ## Parametry
 
@@ -594,7 +609,6 @@ Pokryté případy:
   timeout **nemají**;
 - **servisní okno nezpůsobí falešný zásek** — cíl je zrušen, detektory globální vrstvy jsou vypnuté;
 - **`Abort` z každého stavu** zastaví robota (`Cancel()` + `Regulator = null`);
-- **obnovení po restartu** ze stavového souboru je opt-in, ne automatické;
 - `QrScanner`: **vypnutý scanner nedekóduje nic** (dekodér se ani nezavolá), snímek z jiné kamery se
   ignoruje, prázdné jméno kamery skenuje všechny, cesta `Image<BGR32>` → Y800 `byte[]` (rozměry,
   jas, podvzorkování) a to, že dekodér dostane **už podvzorkovaný** obraz;
@@ -649,11 +663,15 @@ Předpokládá hotové fáze 0–4 z [global-navigation-runtime.md](global-navig
    - **„Na co se čeká" je vlastní řádek**, protože nouzové zastavení je signál mise **jen ve stavech,
      které na něj čekají** — obsluha, která ho zmáčkne za jízdy, by jinak čekala, že tím něco
      odemkla.
-   - Kvůli tomu vznikl i **přepínač nouzového zastavení v simulaci** (viz níže) a `MissionMsg`
-     povyrostla na **verzi 2**.
-   **Zbývá:** ⬜ proklikat celý průchod misí v běžící aplikaci (UI samo testy nemá — aplikace nemá
-   testovací projekt).
-6. ⬜ **Přežití restartu** (stavový soubor + opt-in obnovení).
+   - Kvůli tomu vznikl i **ovládání nouzového zastavení v simulaci** (viz níže; od 27. 8. 2026 je to
+     červené tlačítko s viditelnou aretací, ne zaškrtávátko) a `MissionMsg` povyrostla na **verzi 2**.
+   - ✅ **Průchod proklikán autorem 27. 8. 2026** a funguje. Vyšly z toho tři opravy: QR se staví na
+     **1,0 m** (z 1,2 m se nepřečte), stanoviště mají v panelu **tlačítka s hotovými kódy** a zkouška
+     dosažitelnosti přestala zamítat cíle **za robotem**. UI samo testy nemá — aplikace nemá testovací
+     projekt — takže je ověřené proklikáním a kompilací.
+6. ❌ **Přežití restartu** (stavový soubor + opt-in obnovení) — **zrušeno** 27. 8. 2026, rozhodnutí
+   autora: mise restart přežít nemusí. Viz [decisions.md](decisions.md) a
+   [Přežití restartu](#přežití-restartu-zrušeno).
 7. ⬜ **Ověření na HW** — čtení kódů z pravé kamery na skutečném stanovišti, celý handshake
    s nouzovým zastavením, celá mise nasucho na krátké trase.
 
@@ -672,21 +690,22 @@ Pak v aplikaci:
 
 1. **Tools → Mise Robotour** → *Start mise*. Mise čeká na kvalitní fix a inicializuje jím fúzi
    (`ArmingAtDepot`), pak přejde na *Čeká na nouzové zastavení*.
-2. **Tools → Virtuální senzory** → zatrhnout *Držet nouzové zastavení*. Mise vstoupí do servisního
-   okna a **zapne scanner**.
-3. Ukázat pravé kameře QR kód s `geo:` cílem. Panel mise ukáže text, souřadnice, vzdálenost od depa
-   a délku trasy a **rovnou ho přijme** — nic se nepotvrzuje.
+2. **Tools → Virtuální senzory** → zmáčknout **červené tlačítko nouzového zastavení** (zaaretuje se —
+   hlava se zapustí). Mise vstoupí do servisního okna a **zapne scanner**.
+3. Ukázat pravé kameře QR kód s `geo:` cílem. Panel mise ukáže text, souřadnice, vzdálenost od depa,
+   **odstup od cesty** a délku trasy a **rovnou ho přijme** — nic se nepotvrzuje.
 4. Odtrhnout nouzové zastavení → robot vyrazí na nakládku. Totéž na nakládce, u vykládky se kód nečte.
 
 Krok 3 jde v simulaci projít taky: panel má v servisním okně sekci **„QR kód do virtuální kamery"**,
 která postaví desku s kódem vpravo od robota čelem k němu (a ta **zmizí sama, až se kód přečte**).
+Tlačítka **Nakládka / Vykládka** vyplní hotové kódy stanovišť současné testovací mapy; vzdálenost
+nechat na **1,0 m** — z větší se kód nepřečte.
 Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód ve výhledu. Detail:
 [virtual-hw.md](virtual-hw.md#qr-kód-ve-scéně-svislé-desky-26-8-2026).
 
 > **Mise se sama nerozjede** — čeká na *Start mise*. Bezobslužný běh tedy zůstane v `Idle` a jen
 > periodicky hlásí `MissionMsg` (ověřeno: 15s běh = 15 zpráv, nic nespadlo). Vědomě k tomu **není**
-> přepínač „spusť misi sama": robot, který vyrazí bez člověka, je nebezpečný — tatáž úvaha jako
-> u obnovení po restartu.
+> přepínač „spusť misi sama": robot, který vyrazí bez člověka, je nebezpečný.
 
 ## Otevřené úkoly
 

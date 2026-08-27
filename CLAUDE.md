@@ -202,8 +202,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vstupy jsou **QR kód a stop tlačítko**; uvolnění stopu je signál „hotovo". Viz
   [doc/decisions.md](doc/decisions.md). **Fáze 2–5 hotové 26. 8. 2026**
   (62 testů): `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení
-  `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). Zbývá přežití restartu (fáze 6)
-  a ověření na HW (fáze 7).
+  `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). **Zbývá jen ověření na HW (fáze 7)** —
+  fáze 6 (přežití restartu) je **zrušená** (27. 8. 2026): mise restart přežít nemusí, stavový soubor
+  nevznikne. Důsledek, se kterým se počítá: po restartu se jede od začátku a `ArmingAtDepot` postaví
+  **nové** depo tam, kde robot stojí.
   **Od 27. 8. 2026 se cíl z QR kódu přichycuje na cestu** (`Probe` vrací `SnappedTarget` + `OffRoadM`)
   a cíl dál než `MaxTargetOffRoadM` (15 m) od sítě je **nedosažitelný**. Není to kosmetika: `Navigator`
   měří dojezd proti `GoalField.GoalPoint`, což je **surový** cíl, takže odsazení > 3 m by `Arrived`
