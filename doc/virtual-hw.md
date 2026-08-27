@@ -343,10 +343,20 @@ je binární vzor s ostrými hranami a rozmazání je právě to, co dekodéru v
 > protože pak už to překážka **je**. Hlídá to test (hloubka se přidáním desky nesmí změnit).
 
 **Jak to pustit.** Panel *Tools → Mise Robotour* má v servisním okně sekci „QR kód do virtuální
-kamery": text kódu (předplní se cílem ~50 m severně od depa, aby na něj vedla cesta), vzdálenost
+kamery": text kódu, dvě tlačítka s **hotovými kódy stanovišť** (nakládka / vykládka), vzdálenost
 vpravo a výška. Deska se postaví **vpravo od robota čelem k němu**, protože se čte z pravé kamery, a
 **zmizí sama, až se kód přečte**. Je to pomůcka v UI, ne součást mise — mise o virtuálních kamerách
 nadále neví nic.
+
+> **Vzdálenost 1,0 m je naměřená, ne zvolená** (autor, 27. 8. 2026): z původních 1,2 m se kód
+> **nepřečetl**. Vzdálenost řídí, kolik pixelů na modul zbyde po projekci a podvzorkování scanneru
+> (`Downscale`), takže dál = menší modul = dekodér neuspěje. Když se kód nedaří přečíst, tohle je
+> první věc, kterou zkusit.
+>
+> **Hotové kódy jsou vázané na současnou testovací mapu** (leží na cestě východně od depa, ~50 a
+> ~100 m). Nad jinou mapou dají cíl mimo síť a mise je zamítne — proto zůstává textové pole plně
+> editovatelné. Dřívější předvyplnění „~50 m severně od depa" **skončilo**: na rovné testovací mapě
+> je to 50 m *od cesty*, takže by ho limit `MaxTargetOffRoadM` (15 m) zamítal pokaždé.
 
 Ověřeno testem, který uzavírá celou cestu: kód se postaví do scény → virtuální kamera vyrenderuje
 barevný obraz → `ZXingQrDecoder` ho z toho obrazu **přečte zpátky**
@@ -361,6 +371,17 @@ barevný obraz → `ZXingQrDecoder` ho z toho obrazu **přečte zpátky**
 
 `VirtualSensorOptions.EmergencyStop` — virtuální motory hlásí nouzové zastavení, jako by obsluha
 držela tlačítko. Přepíná se **za běhu** v panelu *Tools → Virtuální senzory*.
+
+Ovládá se **červeným tlačítkem nouzového zastavení** (žlutá podložka, červená houba), ne
+zaškrtávátkem — od 27. 8. 2026, podnět autora. Funkčně je to pořád přepínač (`ToggleButton` nad
+touž vlastností), změnil se jen vzhled: je to jediné ovládání v simulaci, které má protějšek na
+skutečném stroji, takže má vypadat jako on.
+
+> **Aretaci ukazuje TVAR, ne jen text:** uvolněná hlava je vystouplá (větší, světlejší, vrhá stín),
+> zaaretovaná zapuštěná (menší, tmavší, vnitřní stín) — tak, jak vypadá zmáčknuté tlačítko na
+> železe. Text vedle to jen pojmenuje a řekne, jak se odjišťuje (klik; na stroji otočením).
+> Šablona `ToggleButton`u je proto **minimální** (jen `ContentPresenter`) — kdyby z Fluent tlačítka
+> zbyl chrom, kreslil by se zaoblený obdélník kolem houby.
 
 **Proč to vzniklo:** celý handshake [mise Robotour](robotour-mission.md) stojí na tom, že obsluha
 stop **zmáčkne** a pak **uvolní** (servisní okno, čtení QR, potvrzení cíle). Do 26. 8. 2026 hlásily

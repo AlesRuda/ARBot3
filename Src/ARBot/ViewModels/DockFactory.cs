@@ -95,19 +95,20 @@ namespace ARBot.ViewModels
 
         public override IRootDock CreateLayout()
         {
-            var document = new Document { Id = "Document1", Title = "Document" };
-
             // Levy panel: prehled senzoru z ARBotHW.Current (jmeno + chybovy stav).
             var sensorStatus = new SensorStatusTool();
             SensorStatus = sensorStatus;
 
+            // Dok dokumentu zacina PRAZDNY. Drive se do nej stavel zastupny `Document1` s titulkem
+            // "Document" - prazdna zalozka, kterou nesel nicim naplnit a jen prekazela vedle World
+            // / Images / mise. Dok se plni az tim, co obsluha otevre (menu, klik na senzor), a
+            // `AddDockable` s prazdnym seznamem pocita.
             var documentDock = new DocumentDock
             {
                 Id = "Documents",
                 Title = "Documents",
                 IsCollapsable = false,
-                VisibleDockables = CreateList<IDockable>(document),
-                ActiveDockable = document,
+                VisibleDockables = CreateList<IDockable>(),
                 CanCreateDocument = true
             };
             DocumentDock = documentDock;

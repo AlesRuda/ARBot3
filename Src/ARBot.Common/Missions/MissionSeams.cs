@@ -43,10 +43,13 @@ namespace ARBot.Common.Missions
     /// <summary>Vysledek zkousky, jestli na cil vede po siti trasa.</summary>
     public readonly struct RouteProbeResult
     {
-        public RouteProbeResult(bool reachable, double lengthM)
+        public RouteProbeResult(bool reachable, double lengthM,
+                                LLA snappedTarget = null, double offRoadM = 0)
         {
             Reachable = reachable;
             LengthM = lengthM;
+            SnappedTarget = snappedTarget;
+            OffRoadM = offRoadM;
         }
 
         /// <summary>Vede na cil po siti trasa?</summary>
@@ -54,6 +57,29 @@ namespace ARBot.Common.Missions
 
         /// <summary>Delka nalezene trasy [m]; ukazuje se obsluze pred potvrzenim cile.</summary>
         public double LengthM { get; }
+
+        /// <summary>
+        /// Cil <b>prichyceny na sit</b> — kolmy prumet na nejblizsi hranu. <c>null</c>, kdyz se
+        /// prichytit nepodarilo (zadna hrana, nebo zkouska bez site).
+        ///
+        /// <para><b>Proc se cil prichycuje:</b> souradnice z QR kodu je misto, kde stoji <i>clovek
+        /// s krabici</i>, ne bod na ceste. Robot tam nemuze dojet — jede po siti — a
+        /// <c>Navigator</c> pritom meri dojezd proti <c>GoalField.GoalPoint</c>, coz je
+        /// <b>surovy</b> cil. Pri odsazeni vetsim nez <c>ArrivalRadiusMeters</c> (3 m) by tedy
+        /// <c>Arrived</c> nenastalo NIKDY: robot by dojel na cestu, zastavil se u prumetu a cekal
+        /// — a protoze jizda k cili nema timeout, cekal by porad. Mise proto jezdi na
+        /// <b>prichyceny</b> cil.</para>
+        /// </summary>
+        public LLA SnappedTarget { get; }
+
+        /// <summary>
+        /// Jak daleko byl <b>surovy</b> cil od site [m] (vzdalenost k prumetu).
+        ///
+        /// <para>Zkouska sama tenhle udaj <b>neposuzuje</b> — limit je vec mise
+        /// (<c>RobotourConfig.MaxTargetOffRoadM</c>), stejne jako vzdalenost od depa. Sit tu jen
+        /// meri; „co je jeste prijatelne" je pravidlo ulohy, ne vlastnost grafu.</para>
+        /// </summary>
+        public double OffRoadM { get; }
     }
 
     /// <summary>

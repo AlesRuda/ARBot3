@@ -76,6 +76,13 @@ namespace ARBot.Common.Missions
         private double acceptedRouteLengthM;
         private double acceptedDistanceFromDepotM;
 
+        /// <summary>
+        /// Jak daleko od site lezel <b>surovy</b> cil z kodu [m] — tedy o kolik se posunul
+        /// prichycenim. Do zpravy to jde proto, aby slo <c>MaxTargetOffRoadM</c> nastavit
+        /// z namerenych bezu misto usudkem.
+        /// </summary>
+        private double acceptedOffRoadM;
+
         private bool emergencyStop, standing = true;
         private bool regulatorCleared;
         private bool codeNotSeen;
@@ -489,10 +496,27 @@ namespace ARBot.Common.Missions
                     }
                 }
 
-                double routeLength = 0;
+                // Cil z kodu je misto, kde stoji clovek s krabici - ne bod na ceste. Robot jezdi
+                // po siti, takze se cil PRICHYTI na nejblizsi hranu a jede se na ten prumet;
+                // odstup od site je pritom kontrola, jestli to jeste dava smysl.
+                double routeLength = 0, offRoad = 0;
+                var goalTarget = target;
                 if (routes != null)
                 {
                     var probe = routes.Probe(target);
+
+                    // Prichytit jde COKOLIV (NearestEdge limit nema), takze bez teto kontroly by
+                    // cil uprostred pole vysel jako dosazitelny a robot by odjel na cestu uplne
+                    // jinam, nez kde clovek stoji - a ohlasil dojezd.
+                    if (probe.OffRoadM > config.MaxTargetOffRoadM)
+                    {
+                        Reject(code.Text, probe.OffRoadM,
+                               $"cil je prilis daleko od cesty: {probe.OffRoadM:F0} m od nejblizsi "
+                               + $"hrany site, limit je {config.MaxTargetOffRoadM:F0} m",
+                               code.TimeStamp);
+                        return;
+                    }
+
                     // Bez teto kontroly by se NoRoute zjistilo az za jizdy.
                     if (!probe.Reachable)
                     {
@@ -500,7 +524,14 @@ namespace ARBot.Common.Missions
                                "na cil nevede po siti zadna trasa (je mimo mapu?)", code.TimeStamp);
                         return;
                     }
+
                     routeLength = probe.LengthM;
+                    offRoad = probe.OffRoadM;
+
+                    // Prichyceny cil je ten, na ktery se jezdi: Navigator meri dojezd proti
+                    // GoalField.GoalPoint (surovy cil), takze cil odsazeny vic nez o
+                    // ArrivalRadiusMeters by NIKDY neohlasil Arrived a mise by uvizla v jizde.
+                    if (probe.SnappedTarget != null) goalTarget = probe.SnappedTarget;
                 }
 
                 // Prijaty kod maze duvod zamitnuti - jinak by v panelu strasil stary.
@@ -508,14 +539,15 @@ namespace ARBot.Common.Missions
                 rejectedCodeText = string.Empty;
                 rejectedDistanceM = 0;
 
-                acceptedTarget = target;
+                acceptedTarget = goalTarget;
                 acceptedCodeText = LastCodeText;
                 acceptedRouteLengthM = routeLength;
                 acceptedDistanceFromDepotM = distanceFromDepot;
+                acceptedOffRoadM = offRoad;
                 codeNotSeen = false;
 
                 // Kod prosel strojovymi kontrolami -> cil je PRIJATY a mise se posune sama.
-                AcceptTarget(target, code.TimeStamp);
+                AcceptTarget(goalTarget, code.TimeStamp);
             }
         }
 
@@ -760,6 +792,7 @@ namespace ARBot.Common.Missions
                 AcceptedCodeText = acceptedCodeText,
                 AcceptedDistanceFromDepotM = acceptedDistanceFromDepotM,
                 AcceptedRouteLengthM = acceptedRouteLengthM,
+                AcceptedOffRoadM = acceptedOffRoadM,
                 HasFixInfo = hasFixInfo,
                 FixQualityOk = fixQualityOk,
                 FixSatellites = fixSatellites,

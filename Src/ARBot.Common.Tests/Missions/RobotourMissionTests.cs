@@ -80,10 +80,16 @@ public class RobotourMissionTests
         public double LengthM = 123.0;
         public int Probes { get; private set; }
 
+        /// <summary>Prichyceny cil; <c>null</c> = vrat cil beze zmeny (lezel uz na ceste).</summary>
+        public LLA Snapped;
+
+        /// <summary>Jak daleko od site lezel surovy cil [m].</summary>
+        public double OffRoadM;
+
         public RouteProbeResult Probe(LLA target)
         {
             Probes++;
-            return new RouteProbeResult(Reachable, LengthM);
+            return new RouteProbeResult(Reachable, LengthM, Snapped ?? target, OffRoadM);
         }
     }
 
@@ -998,5 +1004,125 @@ public class RobotourMissionTests
 
         Assert.That(h.Mission.LastMessage, Is.Not.Null);
         Assert.That(h.Mission.LastMessage!.Phase, Is.EqualTo((int)RobotourPhase.ArmingAtDepot));
+    }
+
+    // ---------------- Prichyceni cile na cestu ----------------
+
+    /// <summary>
+    /// <b>Jede se na cil PRICHYCENY na cestu, ne na surovy z kodu.</b> Souradnice v QR kodu je
+    /// misto, kde stoji clovek s krabici — u zdi, na chodniku, kdekoliv. Robot jezdi po siti,
+    /// takze cilem musi byt kolmy prumet na nejblizsi hranu.
+    ///
+    /// <para><b>Kdyby se jelo na surovy cil:</b> <c>Navigator</c> meri dojezd proti
+    /// <c>GoalField.GoalPoint</c>, tedy proti bodu mimo cestu. Pri odsazeni vetsim nez
+    /// <c>ArrivalRadiusMeters</c> (3 m) by <c>Arrived</c> nenastalo NIKDY a mise by v
+    /// <c>DrivingToPickup</c> uvizla natrvalo — jizda k cili nema timeout.</para>
+    /// </summary>
+    [Test]
+    public void PrijatyCil_SeJedeNaPrumetNaCestu()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.Snapped = LLA.FromDegrees(49.2110, 16.5995);   // prumet, jinde nez rika kod
+        h.Routes.OffRoadM = 8.0;
+
+        PassServiceWindow(h, now, PickupCode);
+
+        Assert.That(h.Goals.Goals, Has.Count.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(Conversions.Rad2Deg(h.Goals.Goals[0].Longitude), Is.EqualTo(16.5995).Within(1e-9),
+                        "navigaci se zada prumet na cestu, ne souradnice z kodu");
+            Assert.That(Conversions.Rad2Deg(h.Mission.LastAcceptedTarget!.Longitude),
+                        Is.EqualTo(16.5995).Within(1e-9),
+                        "prijaty cil je ten prichyceny — proti nemu se pak meri dojezd");
+        });
+    }
+
+    /// <summary>
+    /// <b>Cil prilis daleko od site je nedosazitelny.</b> Prichyceni samo o sobe nic nezamita:
+    /// <c>NearestEdge</c> limit nema, takze cil uprostred pole 300 m od silnice by se k te silnici
+    /// prichytil a vysel jako dosazitelny. Robot by pak odjel na cestu <b>uplne jinam</b>, nez kde
+    /// clovek s krabici stoji, a tvaril se, ze dojel.
+    ///
+    /// <para>Naleha na to zruseni potvrzovani obsluhou (26. 8. 2026) — strojove kontroly jsou
+    /// jedina pojistka proti chybne prectenemu kodu.</para>
+    /// </summary>
+    [Test]
+    public void CilPrilisDalekoOdCesty_SeZamitne()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.OffRoadM = 40.0;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.LastAcceptedTarget, Is.Null, "cil mimo cestu se neprijme");
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing),
+                        "mise zustava v servisnim okne a skenuje dal");
+            Assert.That(h.Mission.RejectedCodes, Is.GreaterThan(0));
+            Assert.That(h.Goals.Goals, Is.Empty, "a hlavne nikam neodjede");
+        });
+    }
+
+    /// <summary>Zamitnuti kvuli odstupu od cesty musi byt ve zprave rozeznatelne od ostatnich.</summary>
+    [Test]
+    public void CilMimoCestu_ZpravaRekneProc()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.OffRoadM = 40.0;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        Assert.That(h.Mission.LastMessage!.RejectReason, Does.Contain("cest").IgnoreCase);
+    }
+
+    /// <summary>
+    /// Odstup presne na limitu <b>projde</b> — limit je horni mez jeste prijatelneho, ne prvni
+    /// zamitnuta hodnota. (Cil metr vedle cesty je normalni stav, ne chyba.)
+    /// </summary>
+    [Test]
+    public void CilKousekVedleCesty_Projde()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.OffRoadM = new RobotourConfig().MaxTargetOffRoadM;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        Assert.That(h.Mission.LastAcceptedTarget, Is.Not.Null);
+    }
+
+    /// <summary>
+    /// <b>Odstup cile od cesty jde do zpravy</b> (verze 6). Jinde v zaznamu neni — prichyceni ho
+    /// spocita a zahodi — takze bez nej nejde po bezu zjistit, jak daleko od site stanoviste
+    /// skutecne lezela, a <c>MaxTargetOffRoadM</c> by zustalo navzdy hodnotou z usudku.
+    /// </summary>
+    [Test]
+    public void OdstupCileOdCesty_PrezijeZpravu()
+    {
+        var (h, now) = StartedAtDepot();
+        h.Routes.OffRoadM = 4.25;
+        h.FeedMotors(emergencyStop: true, standing: true, now);
+
+        h.ReadCode(PickupCode, now.AddSeconds(1));
+
+        var original = h.Mission.LastMessage!;
+        var buffer = new System.IO.MemoryStream();
+        using (var bw = new System.IO.BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            original.ToData(bw);
+
+        buffer.Position = 0;
+        var loaded = new MissionMsg();
+        using (var br = new System.IO.BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            loaded.FromData(br);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(original.AcceptedOffRoadM, Is.EqualTo(4.25).Within(1e-9));
+            Assert.That(loaded.AcceptedOffRoadM, Is.EqualTo(4.25).Within(1e-9));
+        });
     }
 }

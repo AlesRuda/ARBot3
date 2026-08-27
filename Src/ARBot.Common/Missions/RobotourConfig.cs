@@ -65,6 +65,25 @@ namespace ARBot.Common.Missions
         /// </summary>
         public double MaxTargetDistanceM = 2000.0;
 
+        /// <summary>
+        /// Nejvetsi pripustny <b>odstup cile od site cest</b> [m] — jak daleko smi lezet souradnice
+        /// z QR kodu od nejblizsi hrany, aby se na ni jeste smela prichytit.
+        ///
+        /// <para><b>Proc to nestaci resit prichycenim:</b> <c>NearestEdge</c> zadny limit nema,
+        /// takze prichytit jde <b>cokoliv</b> — cil uprostred pole 300 m od silnice se prichyti
+        /// k te silnici a vyjde jako dosazitelny. Robot by pak odjel na cestu uplne jinam, nez kde
+        /// clovek s krabici stoji, a ohlasil by dojezd. Limit je to, co dela z prichyceni
+        /// kontrolu: co je dal, je <b>nedosazitelne</b>.</para>
+        ///
+        /// <para><b>15 m je volene usudkem, ne z dat</b> (druha takova hodnota vedle
+        /// <see cref="MaxSpreadM"/>). Uvaha: hrana v OSM je <i>osa</i> cesty, takze clovek stojici
+        /// na kraji dvoumetrove pesiny je ~1 m od osy, u vchodu do budovy vedle cesty klidne 5–10 m;
+        /// k tomu chyba souradnice, kterou nekdo do kodu vlozil. 15 m tedy stanoviste u cesty
+        /// propusti a „uprostred pole" zamitne. <b>Az bude z bezu videt skutecny odstup</b>
+        /// (panel i <c>MissionMsg.AcceptedOffRoadM</c> ho vypisuji), nastavit z nej.</para>
+        /// </summary>
+        public double MaxTargetOffRoadM = 15.0;
+
         // ---------------- Timeouty ----------------
 
         /// <summary>
@@ -101,6 +120,10 @@ namespace ARBot.Common.Missions
             if (!(MaxTargetDistanceM > 0))
                 throw new ArgumentException(
                     $"RobotourConfig.MaxTargetDistanceM ({MaxTargetDistanceM}) musi byt > 0.");
+            if (!(MaxTargetOffRoadM > 0))
+                throw new ArgumentException(
+                    $"RobotourConfig.MaxTargetOffRoadM ({MaxTargetOffRoadM}) musi byt > 0 — nula by "
+                    + "znamenala 'cil musi lezet presne na ose cesty', a to neprojde nikdy.");
             if (ArmingTimeoutSec < 0 || DrivingTimeoutSec < 0)
                 throw new ArgumentException("Timeouty nesmi byt zaporne; nula = neomezovat.");
             if (!(MissionMessagePeriodSec > 0))

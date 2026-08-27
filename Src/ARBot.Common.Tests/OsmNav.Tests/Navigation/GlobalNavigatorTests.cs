@@ -365,4 +365,94 @@ public class GlobalNavigatorTests
             Assert.That(sink.ClearCount, Is.GreaterThan(0), "zruseni musi dojit i dolu");
         });
     }
+
+    /// <summary>
+    /// Cil z QR kodu <b>neni na ceste</b> — je to bod, kam clovek postavil krabici. Zkouska ho ma
+    /// prichytit na nejblizsi hranu a rict, jak daleko od site lezel.
+    ///
+    /// <para><b>Proc na tom zalezi:</b> <c>Navigator</c> meri dojezd proti <c>GoalField.GoalPoint</c>,
+    /// a to je <b>surovy</b> cil. Pri odsazeni vetsim nez <c>ArrivalRadiusMeters</c> (3 m) by tedy
+    /// <c>Arrived</c> nenastalo NIKDY — robot by dojel na cestu a stal tam, protoze jizda k cili
+    /// nema timeout.</para>
+    /// </summary>
+    [Test]
+    public void Probe_SnapsGoalOntoNearestRoad_AndReportsDistanceFromNetwork()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+
+        nav.Step(0, 0, DateTime.UtcNow);                  // bez pozy nema zkouska odkud pocitat
+
+        var probe = nav.Probe(origin.ToLLA(100, 30));     // 30 m stranou od cesty
+
+        Assert.That(probe.Reachable, Is.True);
+        Assert.That(probe.SnappedTarget, Is.Not.Null, "zkouska ma vratit prichyceny cil");
+
+        var local = origin.ToLocal(probe.SnappedTarget);
+        Assert.Multiple(() =>
+        {
+            Assert.That(probe.OffRoadM, Is.EqualTo(30).Within(0.5), "vzdalenost cile od site");
+            Assert.That(local.X, Is.EqualTo(100).Within(0.5), "prichyceni ma byt kolme");
+            Assert.That(local.Y, Is.EqualTo(0).Within(0.5), "prichyceny cil ma lezet na ceste");
+        });
+    }
+
+    /// <summary>
+    /// Cil, ktery uz na ceste lezi, se prichycenim nema hnout — jinak by se pri kazdem prijeti
+    /// posunul o zaokrouhlovaci chybu a „dojel jsem" by se merilo proti jinemu bodu, nez ktery
+    /// prosel kontrolou.
+    /// </summary>
+    [Test]
+    public void Probe_GoalAlreadyOnRoad_IsNotMoved()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+
+        nav.Step(0, 0, DateTime.UtcNow);
+
+        var probe = nav.Probe(origin.ToLLA(60, 0));
+
+        var local = origin.ToLocal(probe.SnappedTarget);
+        Assert.Multiple(() =>
+        {
+            Assert.That(probe.OffRoadM, Is.EqualTo(0).Within(0.2));
+            Assert.That(local.X, Is.EqualTo(60).Within(0.2));
+            Assert.That(local.Y, Is.EqualTo(0).Within(0.2));
+        });
+    }
+
+    /// <summary>
+    /// <b>Cíl ZA robotem na téže cestě musí být dosažitelný.</b> Zkouška mapmatchne polohu na
+    /// nejbližší <i>orientovanou</i> hranu, jenže na obousměrné cestě jsou oba směry stejně daleko
+    /// — vyhraje dřív přidaný, bez ohledu na to, kam robot míří. Když ten směr vede od cíle,
+    /// je cena do cíle nekonečná, protože otočka na téže cestě není v grafu přechod
+    /// (<c>GraphBuilder</c> U-turn vynechává).
+    ///
+    /// <para><b>Jenže jet se tam dá:</b> <c>Navigator.Update</c> i <c>Router</c> po mapmatchi zkoušejí
+    /// <b>obě</b> orientace (<c>FindReverse</c>) a berou levnější. Zkouška, která to nedělá, je
+    /// pesimističtější než jízda, kterou má předpovědět — a zamítne dobrý cíl s hláškou
+    /// „nevede trasa (je mimo mapu?)". Naměřeno na cíli 50 m za robotem, 27. 8. 2026.</para>
+    /// </summary>
+    [Test]
+    public void Probe_GoalBehindRobot_IsReachable()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+
+        nav.Step(100, 0, DateTime.UtcNow);              // robot uprostred cesty
+
+        var behind = nav.Probe(origin.ToLLA(50, 0));    // 50 m na ZAPAD, tedy za robotem
+        var ahead = nav.Probe(origin.ToLLA(150, 0));    // kontrola: 50 m na vychod
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(behind.Reachable, Is.True, "cil za robotem se da objet otockou na miste");
+            Assert.That(behind.LengthM, Is.EqualTo(50).Within(25),
+                        "delka trasy je nadhodnocena nejvys o jednu hranu, ne nekonecna");
+            Assert.That(ahead.Reachable, Is.True);
+        });
+    }
 }

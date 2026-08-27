@@ -98,6 +98,12 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string acceptedDistanceText = "-";
         [ObservableProperty] private string acceptedRouteText = "-";
 
+        /// <summary>
+        /// O kolik se cíl posunul přichycením na cestu. Vypisuje se proto, aby šel limit
+        /// <c>MaxTargetOffRoadM</c> (dnes zvolený úsudkem) nastavit z naměřených běhů.
+        /// </summary>
+        [ObservableProperty] private string acceptedOffRoadText = "-";
+
         // --- Zapamatované cíle ---
 
         [ObservableProperty] private string depotText = "-";
@@ -139,9 +145,24 @@ namespace ARBot.ViewModels
         /// Kam kód postavit: jak daleko <b>před kameru</b> (podél jejího směru pohledu) a v jaké
         /// výšce [m]. Není to „vpravo od robota" — kamera je stočená, viz
         /// <see cref="ARBot.Common.Vision.Qr.QrBillboard.InFrontOfCamera"/>.
+        ///
+        /// <para><b>1,0 m je naměřená hodnota, ne odhad</b> (autor, 27. 8. 2026): z původních 1,2 m
+        /// se kód v simulaci <b>nepřečetl</b>. Vzdálenost řídí, kolik pixelů na modul zbyde po
+        /// projekci a podvzorkování scanneru — dál = menší modul = dekodér neuspěje.</para>
         /// </summary>
-        [ObservableProperty] private decimal qrDistanceM = 1.2m;
+        [ObservableProperty] private decimal qrDistanceM = 1.0m;
         [ObservableProperty] private decimal qrHeightM = 0.35m;
+
+        /// <summary>
+        /// Hotové kódy stanovišť pro <b>současnou testovací mapu</b> — tlačítka vedle textu kódu.
+        /// Vypisovat je pokaždé ručně je jediná zdlouhavá část průchodu misí v simulaci.
+        ///
+        /// <para>⚠️ Jsou vázané na tu mapu: leží <b>na cestě</b> východně od depa (nakládka ~50 m,
+        /// vykládka ~100 m). Nad jinou mapou dají cíl mimo síť a mise je zamítne — to je správně,
+        /// jen to znamená napsat si vlastní. Proto zůstává textové pole plně editovatelné.</para>
+        /// </summary>
+        private const string PickupPreset = "geo:50.029,14.5208";
+        private const string DropPreset = "geo:50.029,14.5214";
 
         [ObservableProperty] private string qrPlacedText = string.Empty;
 
@@ -267,6 +288,27 @@ namespace ARBot.ViewModels
             if (scene == null || board == null) return;
 
             lock (scene.Billboards) scene.Billboards.Remove(board);
+            QrPlacedText = string.Empty;
+        }
+
+        /// <summary>
+        /// Předvyplní kód nakládky. Kód se <b>jen zapíše do pole</b>, nestaví se — postavení je
+        /// pořád vědomý krok („Postavit QR kód"), protože jinak by tlačítko dělalo dvě věci naráz
+        /// a překlep by se nedal opravit.
+        /// </summary>
+        [RelayCommand]
+        private void UsePickupPreset() => SetPreset(PickupPreset);
+
+        /// <summary>Předvyplní kód vykládky; jinak totéž co <see cref="UsePickupPreset"/>.</summary>
+        [RelayCommand]
+        private void UseDropPreset() => SetPreset(DropPreset);
+
+        private void SetPreset(string code)
+        {
+            QrText = code;
+            // Preset je vědomá volba obsluhy, takže automatické předvyplnění už nemá co dělat -
+            // jinak by při dalším MissionMsg text přepsalo zpátky.
+            qrTextPrefilled = true;
             QrPlacedText = string.Empty;
         }
 
@@ -472,6 +514,10 @@ namespace ARBot.ViewModels
                 : m.AcceptedRouteLengthM > 0
                     ? string.Format(ci, "trasa {0:F0} m", m.AcceptedRouteLengthM)
                     : "délka trasy neznámá (dosažitelnost se neověřovala)";
+            // Souradnice vyse uz jsou PRICHYCENE na cestu, takze bez tohohle radku nejde poznat,
+            // ze se cil vubec posunul - a o kolik.
+            AcceptedOffRoadText = !m.HasAcceptedCode ? "-"
+                : string.Format(ci, "{0:F1} m od cesty (přichyceno na síť)", m.AcceptedOffRoadM);
 
             DepotText = Position(m.HasDepot, m.DepotLatDeg, m.DepotLonDeg, ci);
             PickupText = Target(m.HasPickup, m.PickupLatDeg, m.PickupLonDeg, m.PickupCodeText, ci);
@@ -484,22 +530,24 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
-        /// Předplní text kódu <b>cílem 50 m severně od depa</b> — tedy místem, na které v mapě
-        /// nejspíš vede cesta.
+        /// Předplní text kódu <b>kódem nakládky</b> (<see cref="PickupPreset"/>) — tedy prvním
+        /// stanovištěm, které obsluha stejně potřebuje.
         ///
         /// <para>Prázdné pole by obsluhu nutilo souřadnice vymýšlet, a špatně zvolený cíl mise
         /// (mimo síť, moc daleko) zamítne — což pak vypadá jako vada čtení, ne jako špatné zadání.
         /// Předplní se <b>jednou</b>, aby se nepřepsalo, co obsluha napsala.</para>
+        ///
+        /// <para><b>Dřív se počítal cíl 50 m severně od depa</b> — bod nezávislý na mapě, ale na té
+        /// rovné testovací mapě leží <b>50 m od cesty</b>, takže by ho od 27. 8. 2026 zamítl limit
+        /// <c>MaxTargetOffRoadM</c> (15 m) pokaždé. Předvyplnění, které vždycky selže, je horší než
+        /// hodnota vázaná na mapu.</para>
         /// </summary>
         private void PrefillQrText(MissionMsg m, CultureInfo ci)
         {
             if (qrTextPrefilled || !m.HasDepot) return;
             if (!string.IsNullOrWhiteSpace(QrText)) { qrTextPrefilled = true; return; }
 
-            // 50 m severně: 1° šířky ≈ 111,32 km.
-            double latDeg = m.DepotLatDeg + 50.0 / 111320.0;
-            QrText = string.Format(CultureInfo.InvariantCulture, "geo:{0:F6},{1:F6}",
-                                   latDeg, m.DepotLonDeg);
+            QrText = PickupPreset;
             qrTextPrefilled = true;
         }
 

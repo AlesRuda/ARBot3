@@ -98,6 +98,8 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 > (`Src/ARBot.Common.Tests/OsmNav.Tests/Routing/GoalFieldSplitLengthTests.cs`). Autor commity
 > schvaluje sám (viz CLAUDE.md), takže **první věc na začátku dalšího sezení je se ho zeptat, jestli
 > to commitnout** — než se na to začne nabalovat další práce.
+> > ✅ **Vyřízeno v navazujícím sezení téhož dne:** autor commit schválil (jedním commitem, dělit
+> > nechtěl) → `898202a`.
 >
 > **Stav ověření (platí pro pracovní kopii, ne pro commit):** `ARBot.Common.Tests` 929 prochází,
 > `ARBot.HAL.Tests` 47, build `Src/ARBot.slnx -p:Platform=x64` i `ARBot.Common -p:Platform=OrangePI`
@@ -113,10 +115,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 >    `MotorStateBase(true, 0, 0, …)`, takže fúze dostane „stojím", i když se robot může pohybovat.
 >    Rozlišovat se má „měření vs. zástupný rámec po chybě", ne stop → chce příznak v
 >    `MotorStateBase` (a verzi zprávy). Projeví se **jen na reálném železe**.
-> 2. **Zkouška dosažitelnosti neověřuje vzdálenost cíle od sítě.** `NearestEdge` limit nemá, takže
->    cíl uprostřed pole projde jako dosažitelný. Vzdálenost se už počítá (`out distance`), jen se
->    zahazuje. Naléhavost vzrostla zrušením potvrzování obsluhou — strojové kontroly jsou teď jediná
->    pojistka. **Autor to 27. 8. vědomě odložil.**
+> 2. ~~**Zkouška dosažitelnosti neověřuje vzdálenost cíle od sítě.**~~ ✅ **Hotovo v navazujícím
+>    sezení téhož dne** (pokyn autora) — cíl se přichycuje na cestu a odstup se porovnává
+>    s `MaxTargetOffRoadM`. Viz záznam níže.
 > 3. **Délka trasy je na začátku nadhodnocená** o část první hrany (`Router.Plan` vrací celé hrany).
 >    U cíle je od 27. 8. přesná. Popsáno u `GlobalNavMsg.RouteLengthM`.
 > 4. **Úspěšnost čtení QR na skutečném stanovišti není naměřená** — testy dokazují cestu, ne
@@ -131,6 +132,69 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 > `ARBotRuntime.Current` existuje dřív než jeho stupně (stupeň hledej znovu, ne v konstruktoru), a
 > `GPSState.Latitude/Longitude` jsou **radiány** — `LLA.FromDegrees` na ně je tichá vada, která už
 > dvakrát prošla.
+
+- **Průchod misí v simulaci proklikán autorem — „vše funguje jak má"** (27. 8. 2026), a z toho tři
+  drobnosti do UI:
+  - **QR kód se staví na 1,0 m místo 1,2 m.** Naměřeno, ne zvoleno: z 1,2 m se kód **nepřečetl**.
+    Vzdálenost řídí, kolik pixelů na modul zbyde po projekci a podvzorkování scanneru, takže dál =
+    menší modul = dekodér neuspěje. Když se kód nedaří přečíst, tohle je první věc, kterou zkusit.
+  - **Tlačítka s hotovými kódy stanovišť** (nakládka `geo:50.029,14.5208`, vykládka
+    `geo:50.029,14.5214`) — vypisovat je pokaždé ručně byla jediná zdlouhavá část průchodu. Kód se
+    jen zapíše do pole, **staví se pořád zvlášť**: jinak by tlačítko dělalo dvě věci naráz a překlep
+    by nešel opravit. Jsou vázané na současnou testovací mapu, proto pole zůstává editovatelné.
+  - **Nouzové zastavení je červené tlačítko, ne zaškrtávátko.** Funkčně beze změny (`ToggleButton`
+    nad touž vlastností) — je to jediné ovládání v simulaci, které má protějšek na skutečném stroji,
+    takže má vypadat jako on. **Aretaci ukazuje tvar, ne jen text:** uvolněná hlava je vystouplá
+    (větší, světlejší, vrhá stín), zaaretovaná zapuštěná (menší, tmavší, vnitřní stín). Šablona je
+    minimální (jen `ContentPresenter`), aby z Fluent tlačítka nezbyl zaoblený obdélník kolem houby.
+  - **Zástupný prázdný dokument z doku pryč** (`Document1` s titulkem „Document"). Byla to prázdná
+    záložka, kterou nešlo ničím naplnit a jen překážela vedle World / Images / mise. Dok teď začíná
+    prázdný a plní se tím, co obsluha otevře; `AddDockable` s prázdným seznamem počítá. Ověřeno
+    bezobslužným během (`selftest=true`, 12 s, 8094 snímků, čistý konec).
+  - **Mimochodem se tím opravilo předvyplnění kódu:** počítalo cíl „50 m severně od depa", což je na
+    rovné testovací mapě 50 m **od cesty** — dnešní limit `MaxTargetOffRoadM` (15 m) by ho zamítal
+    pokaždé. Předvyplňuje se teď kód nakládky. Předvyplnění, které vždycky selže, je horší než
+    hodnota vázaná na mapu.
+
+- **„Cíl 50.029,14.5204 je zamítnutý, ale podle mapy vypadá dosažitelně" — a autor měl pravdu.**
+  Hlášku vyrobila zkouška dosažitelnosti, ne dnešní limit odstupu od cesty.
+  - **Naměřeno:** cíl je **49,5 m západně** a 0,9 m od osy cesty — tedy na cestě, ale **za robotem**
+    (θ = −0,2°, míří na východ).
+  - **Příčina:** `NearestNode` mapmatchne polohu na nejbližší **orientovanou** hranu; na obousměrné
+    cestě jsou oba směry geometricky totožné, takže rozhoduje pořadí hran, **ne kurz robota**. Když
+    padne na směr od cíle, je cost-to-goal nekonečná, protože otočka na téže cestě není v grafu
+    přechod (`GraphBuilder` U-turn vynechává).
+  - **Jenže jet se tam dá** — `Navigator.Update` i `Router` obě orientace zkoušejí a berou levnější.
+    Ověřeno testem: táž pozice a týž cíl daly `Driving` a mrkev správným směrem, zatímco zkouška
+    hlásila „nedosažitelné". **Zkouška byla pesimističtější než jízda, kterou má předpovědět** —
+    nejhorší možný směr chyby, protože zamítne dobrý cíl a obsluha nemá co opravit.
+  - **Léčba:** `Probe` bere minimum cost-to-goal přes hranu **i její reverzní**. Vážené porovnání
+    jako v `Navigator` tu netřeba — to řeší, *kterým* směrem jet, ne jestli to jde.
+  - Vada je z 26. 8., kdy `Probe` vznikla; s přichycováním níže nesouvisí. Regresní test
+    `Probe_GoalBehindRobot_IsReachable`, rozhodnutí v [decisions.md](decisions.md).
+
+- **Cíl mise se přichycuje na cestu; co je daleko od sítě, je nedosažitelné** (pokyn autora,
+  navazující sezení). Uzavírá to otevřený úkol č. 2 z předání výše.
+  - **Nebyla to jen chybějící kontrola — byl to zásek.** `GoalField.InsertGoal` si cíl na hranu
+    přichytil vždycky (rozřízl ji průmětem), ale `GoalField.GoalPoint` zůstával **surový** a právě
+    proti němu měří `Navigator` dojezd. Cíl odsazený od osy cesty víc než o `ArrivalRadiusMeters`
+    (3 m) by tedy **nikdy** neohlásil `Arrived`: robot dojede na cestu, zastaví se u průmětu a čeká
+    — a jízda k cíli nemá timeout, takže napořád. QR kód na stanovišti bude odsazený skoro vždycky.
+  - **Řešení:** `Probe` vrací `SnappedTarget` + `OffRoadM`, mise jezdí na průmět a odstup porovnává
+    s novým `MaxTargetOffRoadM` (15 m). Měří síť, **posuzuje mise** — stejné dělení jako u parseru
+    `geo:`: „co je ještě přijatelné" je pravidlo úlohy, ne vlastnost grafu.
+  - **Proč samotné přichycení nestačí:** `NearestEdge` limit nemá, takže se přichytí i cíl 300 m
+    od silnice a vyjde jako dosažitelný — robot by odjel jinam, než kde člověk stojí, a **ohlásil
+    dojezd**. To je horší než zásek, protože to vypadá jako úspěch.
+  - **15 m je z úsudku, ne z dat** (druhá taková hodnota vedle `MaxSpreadM`) — proto odstup teď jde
+    do záznamu (`MissionMsg` **verze 6**) a vypisuje ho panel; nastavit se má z prvních běhů.
+  - **Verze 6 mění význam** `AcceptedLatDeg/LonDeg`: od ní je to cíl **přichycený**, ve verzích 2–5
+    surový. Bajty tytéž → pozná se to jen podle čísla verze; surová souřadnice zůstává
+    v `AcceptedCodeText`.
+  - **Vědomě neřešeno:** `goal=lat,lon` z příkazové řádky a depo se nepřichycují, takže `goal=` mimo
+    cestu má pořád starý problém s dojezdem. Změnit `GoalPoint` na průmět by změnilo význam dojezdu
+    všem uživatelům `GoalField` naráz.
+  - **7 nových testů** (936 celkem), oba buildy čisté. Rozhodnutí: [decisions.md](decisions.md).
 
 - **„Robot na mapě zběsile poskakuje po přijetí QR kódu" — a nebyla to mise.** Autorova úvaha byla
   správná: přijetí cíle se pózy nemá dotýkat a nedotýká se. Naměřeno, že fúze je při jízdě zdravá

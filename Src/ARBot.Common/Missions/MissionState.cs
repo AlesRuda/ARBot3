@@ -50,6 +50,12 @@ namespace ARBot.Common.Missions
         public double AcceptedRouteLengthM;
 
         /// <summary>
+        /// Odstup <b>suroveho</b> cile z kodu od site cest [m] — o kolik se cil posunul
+        /// prichycenim na nejblizsi hranu. Souradnice vyse uz jsou ty prichycene.
+        /// </summary>
+        public double AcceptedOffRoadM;
+
+        /// <summary>
         /// Kvalita fixu v depu — proc se (ne)pokracuje z <c>ArmingAtDepot</c>. Bez toho je
         /// „ceka se na kvalitni fix" nediagnostikovatelne.
         /// </summary>
@@ -107,6 +113,7 @@ namespace ARBot.Common.Missions
                 AcceptedCodeText = AcceptedCodeText,
                 AcceptedDistanceFromDepotM = AcceptedDistanceFromDepotM,
                 AcceptedRouteLengthM = AcceptedRouteLengthM,
+                AcceptedOffRoadM = AcceptedOffRoadM,
                 HasFixInfo = HasFixInfo,
                 FixQualityOk = FixQualityOk,
                 FixSatellites = FixSatellites,

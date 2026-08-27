@@ -38,8 +38,15 @@ namespace ARBot.Common.Logs
         /// (<see cref="RejectReason"/>). Tri duvody (nesrozumitelny / prilis daleko / bez trasy) se
         /// z pohledu obsluhy chovaji stejne („nic se nestalo"), ale znamenaji uplne jine reseni —
         /// a bez nich to vypada, ze se kod vubec <i>neprecetl</i>.</para>
+        ///
+        /// <para><b>Verze 6</b> (2026-08-27) pridala <b>odstup prijateho cile od site</b>
+        /// (<see cref="AcceptedOffRoadM"/>) a zaroven <b>zmenila vyznam</b> souradnic
+        /// <see cref="AcceptedLatDeg"/>/<see cref="AcceptedLonDeg"/>: od teto verze je to cil
+        /// <b>prichyceny na cestu</b>, ne surova souradnice z kodu. Surova zustava citelna
+        /// v <see cref="AcceptedCodeText"/>, takze se z dvojice da odstup zkontrolovat — ale ve
+        /// verzich 2–5 znamenaji tytez bajty surovy cil, a to se pozna jen podle cisla verze.</para>
         /// </summary>
-        public const int FormatVersion = 5;
+        public const int FormatVersion = 6;
 
         /// <summary>Faze (<c>RobotourPhase</c> jako int, aby zprava prezila doplneni hodnot vyctu).</summary>
         public int Phase;
@@ -77,7 +84,13 @@ namespace ARBot.Common.Logs
         /// strojovymi kontrolami. Prijeti je <b>automaticke</b> — potvrzovani operatorem zaniklo.
         /// </summary>
         public bool HasAcceptedCode;
-        /// <summary>Prijaty cil [stupne]; plati jen kdyz <see cref="HasAcceptedCode"/>.</summary>
+        /// <summary>
+        /// Prijaty cil [stupne]; plati jen kdyz <see cref="HasAcceptedCode"/>.
+        ///
+        /// <para><b>Od verze 6 je to cil PRICHYCENY na cestu</b> (kolmy prumet na nejblizsi hranu),
+        /// tedy bod, na ktery se opravdu jede a proti kteremu se meri dojezd — ne souradnice
+        /// z kodu. Ta zustava v <see cref="AcceptedCodeText"/>.</para>
+        /// </summary>
         public double AcceptedLatDeg, AcceptedLonDeg;
         /// <summary>Zdrojovy text prijateho kodu, doslova.</summary>
         public string AcceptedCodeText;
@@ -88,6 +101,15 @@ namespace ARBot.Common.Logs
         /// (mise nema <c>IRouteProbe</c>). <b>Nikde jinde v zaznamu tenhle udaj neni.</b>
         /// </summary>
         public double AcceptedRouteLengthM;
+        /// <summary>
+        /// Jak daleko lezel <b>surovy</b> cil z kodu od site cest [m] — tedy o kolik se posunul
+        /// prichycenim; proti <c>MaxTargetOffRoadM</c>.
+        ///
+        /// <para>Prichyceni tenhle udaj spocita a zahodilo by ho, takze <b>nikde jinde v zaznamu
+        /// neni</b>. Je to jediny zpusob, jak po bezu zjistit, jak daleko od cesty stanoviste
+        /// skutecne lezela — a tim nastavit limit z dat misto z usudku.</para>
+        /// </summary>
+        public double AcceptedOffRoadM;
 
         /// <summary>Citace: kolik kodu se precetlo, kolik se zamitlo, kolik timeoutu vyprselo.</summary>
         public int CodesRead, CodesRejected, Timeouts;
@@ -184,6 +206,9 @@ namespace ARBot.Common.Logs
             bw.Write(RejectReason ?? string.Empty);
             bw.Write(RejectedCodeText ?? string.Empty);
             bw.Write(RejectedDistanceM);
+
+            // Verze 6: odstup prijateho cile od site cest.
+            bw.Write(AcceptedOffRoadM);
         }
 
         public override void FromData(BinaryReader br)
@@ -259,6 +284,13 @@ namespace ARBot.Common.Logs
                 RejectReason = string.Empty;
                 RejectedCodeText = string.Empty;
             }
+
+            // Verze 6 pridala odstup cile od site. Starsi zaznam ho nema - pak nejde zjistit, jak
+            // daleko od cesty stanoviste lezela, a limit zustane hodnotou z usudku. Nula je tu
+            // spravna nahrada jen potud, ze znamena "nevime"; HasAcceptedCode rika, jestli vubec
+            // nejaky cil prijat byl.
+            if (Verze >= 6) AcceptedOffRoadM = br.ReadDouble();
+            else AcceptedOffRoadM = 0;
         }
 
         public override Message Build() => new MissionMsg();

@@ -204,11 +204,20 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (62 testů): `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení
   `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). Zbývá přežití restartu (fáze 6)
   a ověření na HW (fáze 7).
-  **Vyzkoušet v simulaci:** panel mise („Start mise") + *Tools → Virtuální senzory*, kde je nově
-  **přepínač nouzového zastavení** — bez něj se servisní okno projít nedalo (virtuální motory
+  **Od 27. 8. 2026 se cíl z QR kódu přichycuje na cestu** (`Probe` vrací `SnappedTarget` + `OffRoadM`)
+  a cíl dál než `MaxTargetOffRoadM` (15 m) od sítě je **nedosažitelný**. Není to kosmetika: `Navigator`
+  měří dojezd proti `GoalField.GoalPoint`, což je **surový** cíl, takže odsazení > 3 m by `Arrived`
+  neohlásilo **nikdy** a mise by v jízdě uvízla (jízda nemá timeout). `MissionMsg` je **verze 6** a
+  `AcceptedLatDeg/LonDeg` v ní znamenají **přichycený** cíl (ve verzích 2–5 surový). Depo a `goal=`
+  z příkazové řádky se **nepřichycují**. Těch 15 m je z úsudku — odstup se měří do záznamu, aby šel
+  nastavit z dat.
+  **Vyzkoušet v simulaci:** panel mise („Start mise") + *Tools → Virtuální senzory*, kde je
+  **červené tlačítko nouzového zastavení** — bez něj se servisní okno projít nedalo (virtuální motory
   hlásily stop natvrdo `false`), **náhled kamery** pro čtení a **QR kód do virtuální kamery**
   (svislá deska `SyntheticBillboard`, kreslí se jen do barvy — ne do hloubky, aby se nestala
-  překážkou; viz [doc/virtual-hw.md](doc/virtual-hw.md)). Tím jde průchod misí v simulaci projít celý.
+  překážkou; viz [doc/virtual-hw.md](doc/virtual-hw.md)). **Celý průchod misí autor v simulaci
+  proklikal 27. 8. 2026** a funguje; kód se staví na **1,0 m** (z 1,2 m se nepřečte) a stanoviště
+  mají v panelu tlačítka s hotovými kódy.
   ⚠️ **`MaxSpreadM` v návrhu (1,0 m) by misi nikdy nezarmovalo** — je pod nominálním šumem GPS;
   je to teď **RMS** odchylka s prahem 2,5 m (maximum s rostoucím *n* roste, takže delší okno
   kritérium přitvrzovalo). Viz [doc/decisions.md](doc/decisions.md).

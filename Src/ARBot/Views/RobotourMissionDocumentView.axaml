@@ -129,11 +129,11 @@
             <TextBlock Text="Přijatý cíl z QR kódu" FontWeight="Bold" Foreground="White"/>
 
             <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
-                       Text="Cíl pouštějí dál jen strojové kontroly: formát kódu, vzdálenost od depa a dosažitelnost v mapě. Potvrzení člověkem tu není — mise má běžet bez zásahu operátora."/>
+                       Text="Cíl pouštějí dál jen strojové kontroly: formát kódu, vzdálenost od depa, odstup od nejbližší cesty a dosažitelnost v mapě. Cíl se přichytí na síť — jede se na průmět, ne na souřadnici z kódu. Potvrzení člověkem tu není — mise má běžet bez zásahu operátora."/>
 
             <Border Background="#1E3A1E" CornerRadius="3" Padding="8,6"
                     IsVisible="{Binding HasAcceptedTarget}">
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="text kódu" Foreground="#A0FFFFFF"
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,3"/>
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding AcceptedCodeText}"
@@ -154,6 +154,13 @@
                                FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AcceptedRouteText}"
                                Foreground="White" FontFamily="Consolas,monospace" TextWrapping="Wrap"/>
+
+                    <!-- Souřadnice výš jsou PŘICHYCENÉ na cestu; bez tohoto řádku by nebylo poznat,
+                         že se liší od toho, co je v kódu. -->
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="odstup" Foreground="#A0FFFFFF"
+                               FontSize="11" VerticalAlignment="Center" Margin="0,3,10,0"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding AcceptedOffRoadText}"
+                               Foreground="White" FontFamily="Consolas,monospace" Margin="0,3,0,0"/>
                 </Grid>
             </Border>
 
@@ -184,6 +191,17 @@
 
                     <TextBox Text="{Binding QrText}" Watermark="geo:50.029000,14.521000"
                              FontFamily="Consolas,monospace"/>
+
+                    <!-- Hotová stanoviště současné testovací mapy: kód se jen zapíše do pole,
+                         staví se pořád zvlášť. Pole zůstává editovatelné. -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="hotové kódy" Foreground="#A0FFFFFF" FontSize="11"
+                                   VerticalAlignment="Center"/>
+                        <Button Classes="btn" Content="Nakládka"
+                                Command="{Binding UsePickupPresetCommand}"/>
+                        <Button Classes="btn" Content="Vykládka"
+                                Command="{Binding UseDropPresetCommand}"/>
+                    </StackPanel>
 
                     <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto">
                         <TextBlock Grid.Column="0" Text="vzdálenost [m]" Foreground="#A0FFFFFF"

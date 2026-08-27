@@ -13,6 +13,79 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-27 — Zkouška dosažitelnosti zkouší obě orientace hrany (byla pesimističtější než jízda)
+**Co:** `GlobalNavigator.Probe` bere cost-to-goal jako **minimum přes mapmatchnutou hranu a její
+reverzní** (`FindReverse`), ne jen přes tu, kterou vrátil `NearestNode`.
+
+**Proč.** Nahlásil autor: cíl `geo:50.029,14.5204` byl zamítnut jako „nevede trasa (je mimo mapu?)",
+i když podle mapy leží na cestě. Změřeno: je **49,5 m západně** a 0,9 m od osy cesty — tedy **za
+robotem**, který mířil na východ (θ = −0,2°).
+
+Řetěz příčin:
+- `NearestNode` mapmatchne polohu na nejbližší **orientovanou** hranu. Na obousměrné cestě jsou oba
+  směry **geometricky totožné**, takže rozhoduje tie-break „dřív přidaná hrana vyhrává" — **ne kurz
+  robota**.
+- Otočka na téže cestě **není v grafu přechod** (`GraphBuilder` U-turn u téhož `WayId` vynechává),
+  takže z hrany mířící od cíle je cost-to-goal nekonečná.
+- **Jet se tam ale dá:** `Navigator.Update` (a stejně `Router`) po mapmatchi zkoušejí **obě**
+  orientace a berou levnější. Ověřeno testem — jízda na týž cíl vrátila `Driving` a mrkev správným
+  směrem, zatímco zkouška hlásila „nedosažitelné".
+
+Zkouška tedy byla **pesimističtější než jízda, kterou má předpovědět** — což je nejhorší možný směr
+chyby: zamítne dobrý cíl a obsluha nemá co opravit. Vada je z 26. 8., kdy `Probe` vznikla; s dnešním
+přichycováním na cestu nesouvisí (rozhodnutí níže).
+
+**Pro reachability stačí minimum obou cost-to-goal**, ne vážené porovnání jako v `Navigator`
+(`(1−t)·traversal + cost` vs. `t·traversal_rev + cost_rev`) — to řeší, **kterým** směrem jet, ne
+jestli to jde.
+
+**Odkazy:** `GlobalNavigator.Probe`, test `GlobalNavigatorTests.Probe_GoalBehindRobot_IsReachable`,
+[robotour-mission.md](robotour-mission.md#přijetí-cíle-rozhoduje-jen-stroj).
+
+### 2026-08-27 — Cíl z QR kódu se přichycuje na cestu; co je daleko od sítě, je nedosažitelné
+**Co:** `GlobalNavigator.Probe` vrací kromě dosažitelnosti i **cíl přichycený na síť**
+(`SnappedTarget` = kolmý průmět na nejbližší hranu) a **odstup od ní** (`OffRoadM`). Mise Robotour
+jezdí na ten **průmět**, ne na souřadnici z kódu, a cíl dál než `MaxTargetOffRoadM` (default 15 m)
+**zamítá** jako nedosažitelný. Pokyn autora.
+
+**Proč přichycovat.** Souřadnice v QR kódu je místo, kde **stojí člověk s krabicí** — robot jezdí po
+síti, takže tam dojet nemůže. Dosud se cíl posílal do navigace surový a `GoalField.InsertGoal` si ho
+sice na hranu přichytil sám (rozřízl ji průmětem), ale `GoalField.GoalPoint` zůstával **surový** —
+a právě proti němu měří `Navigator` dojezd. **Odsazení větší než `ArrivalRadiusMeters` (3 m) tedy
+znamenalo, že `Arrived` nenastane nikdy:** robot dojel na cestu, zastavil se u průmětu a čekal.
+A protože jízda k cíli nemá timeout (`DrivingTimeoutSec = 0`), čekal by napořád. Nebyla to teoretická
+vada — QR kód na stanovišti bude od osy cesty odsazený skoro vždycky.
+
+**Proč to nestačí a musí k tomu limit.** `RoadNetwork.NearestEdge` **žádný limit nemá**, takže
+přichytit jde cokoliv: cíl uprostřed pole 300 m od silnice se k té silnici přichytí a vyjde jako
+dosažitelný. Robot by odjel na cestu **úplně jinam**, než kde člověk stojí, a ohlásil dojezd — což je
+horší než zaseknutí, protože to vypadá jako úspěch. Limit je to, co z přichycení dělá **kontrolu**.
+Naléhavost vzrostla zrušením potvrzování obsluhou (26. 8.): strojové kontroly jsou jediná pojistka.
+
+**Kde limit bydlí a proč tam.** Měří síť (`Probe` vrátí vzdálenost), ale **posuzuje mise**
+(`RobotourConfig.MaxTargetOffRoadM`) — stejné dělení jako u parseru `geo:` a sanity checků: „co je
+ještě přijatelné" je pravidlo úlohy, ne vlastnost grafu. `Probe` proto `OffRoadM` **nehodnotí**
+a `Reachable` pořád znamená „vede v grafu cesta", ne „cíl leží na cestě".
+
+**15 m je z úsudku, ne z dat** — druhá taková hodnota vedle `MaxSpreadM`, a je to přiznané. Úvaha:
+hrana v OSM je *osa* cesty, takže člověk na kraji dvoumetrové pěšiny je ~1 m od osy, u vchodu do
+budovy vedle cesty klidně 5–10 m, k tomu chyba souřadnice, kterou někdo do kódu vložil. Proto odstup
+**jde do záznamu** (`MissionMsg.AcceptedOffRoadM`, verze 6) a vypisuje ho panel: po prvních bězích se
+dá nastavit z čísel.
+
+**Důsledky.**
+- `MissionMsg` je **verze 6** a **mění význam** `AcceptedLatDeg/LonDeg`: od ní jsou přichycené, ve
+  verzích 2–5 surové. Bajty jsou tytéž, pozná se to **jen podle čísla verze**. Surová souřadnice
+  zůstává čitelná v `AcceptedCodeText`, takže z dvojice jde odstup zpětně ověřit.
+- **Netýká se to depa** (je to zapamatovaná vlastní póza — robot tam dojel po cestě) ani cíle
+  z příkazové řádky (`goal=lat,lon`). Tam `GoalPoint` zůstává surový, takže `goal=` mimo cestu má
+  **pořád** starý problém s dojezdem. Vědomě neřešeno: změnit `GoalPoint` na průmět by změnilo
+  význam dojezdu všem uživatelům `GoalField` naráz.
+
+**Odkazy:** [robotour-mission.md](robotour-mission.md#přichycení-cíle-na-cestu),
+`GlobalNavigator.Probe`, `RouteProbeResult`, `RobotourConfig.MaxTargetOffRoadM`,
+testy `GlobalNavigatorTests.Probe_*` a `RobotourMissionTests.*Cest*`.
+
 ### 2026-08-27 — Odometrie se pod nouzovým zastavením používá normálně (výjimka zrušena)
 **Co:** `DefaultMeasurementMapper.FromOdometry` už **nerozlišuje** nouzové zastavení. Do té doby pod
 ním odometrii zahazovala.
