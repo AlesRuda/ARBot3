@@ -1706,9 +1706,19 @@ Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
   [Šířkový nesouhlas byl zaostávání filtru](#šířkový-nesouhlas-byl-zaostávání-filtru-ne-regrese-23-8-2026).
 
 
-- **⚠️ Za jízdy koridor skoro nic nepošle — hranice se sbíhají** (naměřeno 2026-08-22,
-  **neopraveno**). Za 40 s jízdy dalo měření jen **35 ze 411** cyklů (8 %). Za tím číslem se ale
-  skrývají **tři různé věci** a jen jedna z nich je vada:
+- ~~**⚠️ Za jízdy koridor skoro nic nepošle — hranice se sbíhají**~~ **VYŘEŠENO, žádná vada v kódu
+  nebyla** (naměřeno 2026-08-22, vysvětleno 2026-08-24). Obě složky mají příčinu mimo detektor:
+  `NoPair` spravilo párování kamer, a „nerovnoběžnost ~11°" byla **nálevka v testovací mapě**
+  (rozšíření 1 → 3 m na 10 m dává přesně 11,42°). Nad mapou s konstantní šířkou je to **100 % `Ok`
+  po prvních 60 s** a nerovnoběžnost p50 **0,086°**. Rozbor je níže v témž bodě.
+
+  > ⚠️ **Tenhle bod už dvakrát někoho spletl** (naposled 27. 8. 2026, mě): hlavička říkala
+  > „neopraveno", ale rozbor pod ní stejný nález ruší. **Když je pod bodem „VYŘEŠENO", platí to,
+  > ne nadpis** — a nadpis se má rovnou přepsat. Totéž se stalo u „regrese šířkového nesouhlasu".
+
+  Původní měření a rozbor (ponecháno, protože čísla i postup platí): za 40 s jízdy dalo měření jen
+  **35 ze 411** cyklů (8 %). Za tím číslem se skrývají **tři různé věci** a žádná z nich nakonec
+  není vada detektoru:
 
   | důvod | podíl | co to je |
   |---|---|---|

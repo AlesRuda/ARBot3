@@ -202,6 +202,14 @@ namespace ARBot.Common.Runtime
         /// </summary>
         private IEnumerable<IMeasurement> FromOdometry(IMotorState odo, Message msg)
         {
+            // Zastupny ramec po chybe driveru NENI merenie: SDC2160 pri nedostupnem portu nebo
+            // neparsovatelne odpovedi vraci nuly a stop=true (fail-safe). Stop z nej plati, cisla
+            // ne - a "v = 0" poslane fuzi prave v okamziku, kdy o robotu nevime nic, je horsi nez
+            // zadne merenie: robot muze jet ze setrvacnosti. Rozliseni musi byt priznakem, ne
+            // stopem - pod stopem je nula plnohodnotne merenie (viz vyse).
+            if (!odo.HasMeasurement)
+                yield break;
+
             // Cas porizeni: MotorStateBase je SensorStateBase, takze ma TimeStamp.
             var t = (msg as SensorStateBase)?.TimeStamp ?? default;
             if (t == default)

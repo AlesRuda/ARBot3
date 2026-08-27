@@ -475,6 +475,8 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 
 - **Recovery manévr** (couvnutí / otočka na místě) v lokální vrstvě — dnes neexistuje; detektor A
   bez něj umí jen čekat a pak uzavřít hranu.
+  > **Priorita: nízká** (autor, 27. 8. 2026). Zůstává na seznamu, ale nepředbíhá jinou práci —
+  > zastavit a ohlásit je zatím přijatelná odpověď.
 - **Vizuální dojezd na cíl.** Poslední ~3 m řídit podle vidění (u QR kódu dává jeho poloha a velikost
   v obraze směr i vzdálenost) — GPS na ±2 m je pro „zastav u kódu" na hraně použitelnosti.
 - **Koridor trasy jako cena v lokálním A\*** — dnes je z trasy jen jediný bod (mrkev). Měkká

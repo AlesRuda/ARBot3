@@ -346,7 +346,11 @@ end while
 
             MotorStateBase s;
             if (fail)
-                s= new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0) { TimeStamp = ts };
+                // Stop = true je FAIL-SAFE (nevime, co se deje -> at robot stoji), ale nuly
+                // v enkoderech a rychlostech nikdo nemeril. Bez hasMeasurement: false by fuze
+                // dostala "stojim" prave v okamziku, kdy o robotu nevime nic - a robot se pritom
+                // muze pohybovat. Viz IMotorState.HasMeasurement.
+                s= new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false) { TimeStamp = ts };
             else
             {
                 // Rychlost z vlastniho vzorkovaciho intervalu; prvni vzorek ji jeste nema.

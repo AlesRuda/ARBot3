@@ -13,6 +13,34 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-27 — Chybový rámec driveru se odlišuje příznakem, ne nouzovým zastavením
+**Co:** `IMotorState` má nově `HasMeasurement` (výchozí `true`, default interface implementation),
+`MotorStateBase` je **verze 3** a oba drivery (`SDC2160`, `SDC2160Ex`) v chybové větvi vrací
+`hasMeasurement: false`. `DefaultMeasurementMapper` z takového rámce **nevyrobí žádné měření**.
+
+**Proč.** Při neparsovatelné odpovědi (nebo nedostupném portu) vracel driver
+`MotorStateBase(estop: true, 0, 0, …)`. Stop je tam **správně** — je to fail-safe „nevím, co se
+děje, ať robot stojí" — ale nuly v enkodérech a rychlostech **nikdo neměřil**. Fúze tedy dostala
+**„stojím" právě v okamžiku, kdy o robotu nevíme nic**, a robot se přitom může pohybovat (dobrzďuje,
+jede ze setrvačnosti).
+
+**Proč to nejde poznat podle stopu** (a proč to je vlastní příznak): pod drženým nouzovým zastavením
+je nulová rychlost **plnohodnotné měření** — řídicí jednotka má příkaz stát a motory jsou řízené
+pozičně ve zpětné vazbě (viz rozhodnutí o odometrii pod stopem níže). Po chybě parsování je táž nula
+**výmysl**. Stop ty dva stavy nerozlišuje, takže na něm to rozhodnutí nesmí viset.
+
+**Starý záznam se čte jako `true`.** Zástupné rámce v něm jsou, ale od měřených **nejdou rozeznat**,
+takže tvrdit o nich cokoli jiného by bylo vymýšlení — a opačná volba by z každého staršího záznamu
+udělala samou nedůvěru.
+
+**Ověřeno na správném místě:** test driveru krmí `SDC2160Ex` neparsovatelnou odpovědí a hlídá obojí
+(rámec merenie nenese, stop platí dál); ověřeno i to, že bez opravy ten test **padá**. Projeví se to
+ale jen na reálném železe — v simulaci `VirtualMotors` chybovou větev nemají.
+
+**Odkazy:** `IMotorState.HasMeasurement`, `MotorStateBase` (FormatVersion 3),
+`DefaultMeasurementMapper.FromOdometry`, testy `MotorDriverErrorFrameTests`,
+`PositionInitAndMapperTests.Odometry_FrameWithoutMeasurement_IsIgnored`.
+
 ### 2026-08-27 — Mise Robotour nemusí přežít restart; fáze 6 zrušena
 **Co:** Fáze 6 plánu mise (stavový soubor `logs/mission-state.json` + opt-in obnovení mise po
 restartu) **se dělat nebude**. Rozhodnutí autora. Nic z ní nebylo napsané, takže v kódu po tom

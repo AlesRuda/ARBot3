@@ -1130,9 +1130,10 @@ nebo musí bias kurzu přibýt do stavu EKF.
   a snímku, takže při pohybu robota „bliká" místo aby byla svázaná se zemí. Pro rozptyl výšky
   v buňce polárního gridu (kvůli čemuž tam je) to stačí; pro časovou konzistenci mezi snímky ne.
   Oprava: hashovat podle kvantované světové polohy zásahu a jednou zpřesnit průsečík.
-- **Koridor za jízdy skoro nic nepošle** — 35 měření ze 411 cyklů. Rozebráno 22. 8. 2026: největší
-  ztráta je `NoPair` (~60 %, druhá kamera nemá snímek v okně 60 ms), pak stání v cíli na konci
-  cesty, a jako skutečná vada **nerovnoběžnost ~11° na rovném úseku** (projekce vyvrácena testem, podezřelý je detektor hran). Detail:
+- ~~**Koridor za jízdy skoro nic nepošle**~~ — **vyřešeno, vada v kódu žádná nebyla.** `NoPair`
+  spravilo párování kamer a „nerovnoběžnost ~11° na rovném úseku" byla **nálevka v testovací mapě**
+  (rozšíření 1 → 3 m na délce 10 m dává přesně 11,42°; naměřeno 11,3°). Nad mapou s konstantní
+  šířkou je to 100 % `Ok` po prvních 60 s. Detail:
   [map-correlation-localization.md → Otevřené úkoly](map-correlation-localization.md#otevřené-úkoly).
 - **A/B za jízdy je zašuměné** — dvě jízdy se stejným zadáním ujedou různou dráhu (17,7 vs 16,6 m),
   takže se nedají porovnat bod po bodu. Na čisté měření by bylo potřeba porovnávat proti ujeté

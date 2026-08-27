@@ -661,5 +661,47 @@ namespace ARBot.Common.Tests.Fusion
             Assert.That(res.Any(m => m.Source == "IMU/heading"), Is.True);
             Assert.That(res.Any(m => m.Source == "IMU/gyro"), Is.True);
         }
+
+        /// <summary>
+        /// <b>Zastupny ramec po chybe driveru neni merenie.</b> <c>SDC2160Ex</c> pri selhani
+        /// parsovani odpovedi vyrabi <c>MotorStateBase(estop: true, 0, 0, …)</c> — tedy stop je
+        /// <i>fail-safe</i> a spravne, ale enkodery, proudy i <b>rychlosti kol</b> jsou nuly, ktere
+        /// nikdo nemeril.
+        ///
+        /// <para>Bez rozliseni „merenie vs. zastupny ramec" dostane fuze <b>„stojim"</b> v okamziku,
+        /// kdy o robotu nevi vubec nic — a robot se pritom muze pohybovat (dobrzduje, jede ze
+        /// setrvacnosti). Rozlisovat se to musi <b>priznakem</b>, ne stopem: pod stopem je nula
+        /// plnohodnotne merenie (viz test vyse), zatimco po chybe parsovani je to vymysl.</para>
+        /// </summary>
+        [Test]
+        public void Odometry_FrameWithoutMeasurement_IsIgnored()
+        {
+            var mapper = new DefaultMeasurementMapper(new FusionConfig());
+
+            var broken = new MotorStateBase(emergencyStop: true, 0, 0, 0, 0, 0, 0, 0,
+                                            hasMeasurement: false) { TimeStamp = T0 };
+
+            var res = mapper.ToMeasurements(broken).ToList();
+
+            Assert.That(res, Is.Empty,
+                        "z ramce, ktery zadne merenie nenese, nesmi do fuze jit nic - ani v = 0");
+        }
+
+        /// <summary>Bezny ramec merenie nese, takze se chova beze zmeny (kontrola k testu vyse).</summary>
+        [Test]
+        public void Odometry_NormalFrame_HasMeasurement()
+        {
+            var mapper = new DefaultMeasurementMapper(new FusionConfig());
+
+            var res = mapper.ToMeasurements(Odo(0.8, 0.8, T0)).ToList();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(new MotorStateBase().HasMeasurement, Is.True,
+                            "vychozi hodnota musi byt 'je to merenie' - jinak by mlcky zmizela"
+                            + " odometrie ze vsech existujicich volani");
+                Assert.That(res.Any(m => m.Source == "Odo/speed"), Is.True);
+            });
+        }
     }
 }

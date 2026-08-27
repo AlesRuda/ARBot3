@@ -173,7 +173,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   sledují průměr**. Léčba je proložení, které cílí **medián**: `FitMode = OrthogonalL1` srazí
   vychýlení šířky na **1,4 mm** (−92 %) a **klesne i rozptyl** (−74 %), příčná poloha na 0,8 mm.
   Huber s MAD je slabší varianta téhož (6 mm), Tukey je srovnatelný s L1 ale dražší. **Naměřeno,
-  zatím nezapnuto** — výchozí zůstává `LeastSquares`.
+  zatím nezapnuto** — výchozí zůstává `LeastSquares`. **Rozhodnutí autora 27. 8. 2026: čeká se na
+  měření na reálném HW**, protože to zešikmení je artefakt drsnosti trávy v simulaci (bez šumu je
+  vychýlení −1,7 mm) a na skutečné kameře se ta chyba může ztratit v šumu. Zapínat léčbu vady,
+  o které se neví, jestli na železe existuje, by znamenalo ladit simulaci.
   **Příčinou toho zešikmení je drsnost trávy** (změřeno sweepem 24. 8.): bez šumu je vychýlení
   −1,7 mm, při výchozí `grassrough=0,03` +17,0 mm a při 0,12 už **+54,2 mm**; šum hloubky na něj
   nemá vliv. Ono „+18 mm" je tedy **velikost artefaktu simulace**, ne předpověď pro HW — přenáší se

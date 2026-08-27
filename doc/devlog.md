@@ -83,6 +83,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 > `GPSState.Latitude/Longitude` jsou **radiány** — `LLA.FromDegrees` na ně je tichá vada, která už
 > dvakrát prošla.
 
+- **Projití seznamu otevřených úkolů bez vazby na HW** (autor si ho vyžádal a rozhodl o položkách):
+  - **Chybový rámec driveru se odlišuje příznakem, ne stopem — opraveno.** `IMotorState` má
+    `HasMeasurement`, `MotorStateBase` je verze 3, oba drivery ho v chybové větvi staví na `false`
+    a mapper z takového rámce nevyrobí měření. Stop z něj platí dál (fail-safe). Ověřeno i tím, že
+    **bez opravy ten test padá**; projeví se to ale jen na železe (virtuální motory chybovou větev
+    nemají). Viz [decisions.md](decisions.md).
+  - **„Koridor trasy jako cena v A\*" byl v seznamu popsaný zavádějícím způsobem** (podnět autora:
+    *„to se mi nezdá, při odbočování jsem viděl, jak se vyhýbá"*). Má pravdu: robot se cesty **drží
+    sám** — hlídá to semantický kanál z vize (mimo cestu = `Blocked`) a cena neznáma (3×), a jsou
+    na to testy už od dřív. Přibyly dva, které to přibíjejí přesněji: zkratka přes neznámo se
+    nebere, i když je kratší — a **bez semantiky z vize plán nemá důvod držet se cesty**, což je
+    ten zbytek úkolu. Otevřené tedy zůstává jen „kde vize okraj cesty nevidí, mapa se ho nezastane".
+  - **„Nerovnoběžnost ~11° za jízdy" žádná vada nebyla** (domněnka autora: *„nebyl to problém
+    trychtýře?"* — a sedí). Je to **nálevka v testovací mapě**: rozšíření 1 → 3 m na délce 10 m dává
+    přesně 11,42°, naměřeno 11,3°. V dokumentu to bylo vyřešené už od 24. 8., jenže **hlavička
+    úkolu pořád tvrdila „neopraveno"** a já ji vzal za bernou minci. Hlavička přepsaná, u bodu je
+    teď varování — je to **potřetí**, co v tomhle souboru nadpis přežil vlastní vyřešení.
+  - **Rozhodnuto k dalším třem:** `NoRoute` na cíl z QR = neplatný cíl → číst znova (dnes `Abort`,
+    **zbývá naimplementovat**); QR v depu ukazuje obsluha, takže současný průběh je v pořádku
+    (uzavřená otázka z 26. 8.); `FitMode = OrthogonalL1` **čeká na měření na HW** — to zešikmení je
+    artefakt drsnosti trávy v simulaci a na skutečné kameře se může ztratit v šumu; recovery manévr
+    zůstává na seznamu s **nízkou** prioritou.
+
 - **Fáze 6 (přežití restartu) zrušena** — autor: „mise nemusí přežít restart". Nic z ní nebylo
   napsané, takže se jen škrtl plán; původní návrh zůstal v dokumentu složený, kdyby se to vracelo.
   **Zbývá tedy jen fáze 7 (HW).** Důsledek, se kterým se počítá: po restartu se jede od začátku a

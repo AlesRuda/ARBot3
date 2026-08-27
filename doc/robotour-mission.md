@@ -716,6 +716,16 @@ Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód v
 - ~~**Limit vzdálenosti cíle od silniční sítě.**~~ **Hotovo 27. 8. 2026** — cíl se přichycuje na
   nejbližší hranu a odstup se porovnává s `MaxTargetOffRoadM`; viz „Přichycení cíle na cestu" výše.
   Zbývá **nastavit limit z dat** (dnes je z úsudku) — odstup se měří a jde do záznamu.
-- **Chování při `NoRoute` na cíl z QR** — dnes návrh hlásí a čeká na operátora. Rozumnou automatikou
-  by bylo „zkus dojet co nejblíž a pak znovu", ale to je rozhodnutí o strategii soutěže, ne o kódu.
+- **Chování při `NoRoute` na cíl z QR — ROZHODNUTO 27. 8. 2026, ZBÝVÁ NAIMPLEMENTOVAT.** Autor:
+  *„je to neplatný cíl, číst znova."* Dnes `NoRoute` za jízdy misi **přeruší** (`Abort`), což ji
+  ukončí natrvalo — má se místo toho cíl zahodit a vrátit se do servisního okna, tedy k dalšímu
+  pokusu o přečtení kódu, stejně jako když kód neprojde strojovými kontrolami.
+  > Pozor při implementaci: `NoRoute` přijde, když už robot **odjel od stanoviště**, takže „číst
+  > znova" znamená čekat na stop a kód **tam, kde robot stojí** — obsluha za ním musí dojít. To je
+  > v souladu s tím, že QR ukazuje člověk (viz níže), ale je to jiná situace než zamítnutí kódu
+  > přímo na stanovišti.
 - **Rozpoznání startovní/cílové čáry nebo jiných značek soutěže**, pokud je pravidla zavedou.
+- ~~**Kdo v depu ukazuje QR kód?**~~ **Zodpovězeno 27. 8. 2026** — kód ukazuje **obsluha**, a tím je
+  současný průběh (kód nakládky se čte už v depu) v pořádku. Byla to otevřená otázka z 26. 8.:
+  podle zadání v depu nikdo neinteraguje, tak nebylo jasné, jestli nemá kód s místem nakládky
+  ukazovat až odesílatel — což by změnilo posloupnost zastavení. Nemění.

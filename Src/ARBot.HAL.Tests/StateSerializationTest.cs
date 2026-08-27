@@ -97,5 +97,38 @@ namespace ARBot.HAL.Tests
             Assert.That(back.Orientation, Is.Null);
             Assert.That(back.Speed, Is.EqualTo(3.45));
         }
+
+        /// <summary>
+        /// <b>Priznak „je to merenie" prezije zaznam</b> (verze 3). Bez nej by z prehravaneho
+        /// zaznamu neslo poznat, ktere ramce driver vyrobil po chybe — a rozbor by je pocital jako
+        /// „robot stal", coz je presne ta zamena, kvuli ktere priznak vznikl.
+        /// </summary>
+        [Test]
+        public void MotorStateBase_HasMeasurementFlag_RoundTrips()
+        {
+            var t = new DateTime(2026, 8, 27, 10, 0, 0, DateTimeKind.Utc);
+            var broken = new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false)
+            {
+                TimeStamp = t
+            };
+
+            var back = RoundTrip(broken) as MotorStateBase;
+
+            Assert.That(back, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(back!.HasMeasurement, Is.False, "zastupny ramec zustane zastupnym");
+                Assert.That(back.IsEmergencyStop, Is.True, "stop z nej plati dal (fail-safe)");
+            });
+        }
+
+        /// <summary>Bezny ramec merenie nese — vychozi hodnota je <c>true</c>.</summary>
+        [Test]
+        public void MotorStateBase_NormalFrame_HasMeasurementIsTrue()
+        {
+            var back = RoundTrip(new MotorStateBase(false, 1, 1, 24, 0, 0, 0.5, 0.5)) as MotorStateBase;
+
+            Assert.That(back!.HasMeasurement, Is.True);
+        }
     }
 }
