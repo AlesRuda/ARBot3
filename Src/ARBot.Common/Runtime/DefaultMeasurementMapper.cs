@@ -182,12 +182,32 @@ namespace ARBot.Common.Runtime
         /// (<c>OdometryRotationSpeed = (RightWheelSpeed - LeftWheelSpeed) / rozchod</c>). Pojistka pro
         /// pripad jine polarity enkoderu je <see cref="FusionConfig.OdoOmegaSign"/>.</para>
         ///
-        /// <para>Pri aktivnim nouzovem zastaveni se odometrie <b>nepouziva</b>: kola stoji, ale robot
-        /// muze byt tlacen, a hlavne je to stav, kdy do nej clovek zasahuje.</para>
+        /// <para><b>Nouzove zastaveni se NEROZLISUJE</b> (od 27. 8. 2026). Do te doby se pod nim
+        /// odometrie zahazovala s oduvodnenim „kola stoji, ale robot muze byt tlacen, a hlavne je to
+        /// stav, kdy do nej clovek zasahuje". <b>Autor to vyvratil:</b> ridici jednotka ma pod stopem
+        /// prikaz STAT a motory jsou rizene pozicne ve zpetne vazbe, takze kola nemohou vyrobit nic
+        /// jineho nez nulu — stop odometrii nijak nezhorsuje. A ze robota muze clovek zvednout a
+        /// prenest, plati stejne BEZ stisknuteho stopu, takze tim se ty dva stavy nerozlisi.</para>
+        ///
+        /// <para><b>Tlaceni robota to nemeni</b> (upresneni autora): pozicni smycka drzi polohu, takze
+        /// se s tlakem <b>pere a dorovnava ji</b> — enkodery ukazou vychylku a navrat, ne cisty posun.
+        /// Odometrie tedy pod stopem ani netvrdi „jedu", ani neprozradi, ze robot byl posunut; chova
+        /// se stejne jako bez stopu. Neni to argument pro ani proti, jen dalsi dukaz, ze <b>stop
+        /// v tomhle nic nemeni</b>.</para>
+        ///
+        /// <para>Cena toho zahazovani byla vysoka: pod drzenym stopem nemela fuze <b>zadnou vazbu na
+        /// rychlost</b>, takze polohu tahal sum GPS a odhad se za desitky sekund rozesel o metry.
+        /// Projevilo se to jako „robot na mape zbesile poskakuje" v misi Robotour — prvni veci, ktera
+        /// stop drzi dlouho (servisni okno). Viz doc/ekf-fusion.md.</para>
         /// </summary>
         private IEnumerable<IMeasurement> FromOdometry(IMotorState odo, Message msg)
         {
-            if (odo.IsEmergencyStop)
+            // Zastupny ramec po chybe driveru NENI merenie: SDC2160 pri nedostupnem portu nebo
+            // neparsovatelne odpovedi vraci nuly a stop=true (fail-safe). Stop z nej plati, cisla
+            // ne - a "v = 0" poslane fuzi prave v okamziku, kdy o robotu nevime nic, je horsi nez
+            // zadne merenie: robot muze jet ze setrvacnosti. Rozliseni musi byt priznakem, ne
+            // stopem - pod stopem je nula plnohodnotne merenie (viz vyse).
+            if (!odo.HasMeasurement)
                 yield break;
 
             // Cas porizeni: MotorStateBase je SensorStateBase, takze ma TimeStamp.

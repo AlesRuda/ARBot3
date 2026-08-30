@@ -627,5 +627,75 @@ namespace ARBot.Common.Tests.Occupancy
                     Assert.That(s.Grid.StateAtWorld(w.X, w.Y), Is.Not.EqualTo(CellState.Blocked),
                                 "bezny plan nesmi vest pres blokovanou bunku ani po zavedeni uniku");
         }
-    }
+
+        // ---------------- Drzi se plan cesty? (podnet autora 27. 8. 2026) ----------------
+
+        /// <summary>
+        /// <b>Zkratka mimo potvrzenou cestu se nebere, i kdyz je geometricky kratsi.</b> Cesta vede
+        /// do „L" (2 m na vychod, pak 2 m na sever), zkratka po uhloprícce meri 2,83 m proti 4 m po
+        /// ceste — ale vede <b>neznamem</b>, ktere stoji <c>UnknownCostFactor</c> (3x) za bunku.
+        ///
+        /// <para>Tohle je to, co autor 27. 8. 2026 videl pri odbocovani: robot se drzi cesty sam,
+        /// bez jakekoliv informace z mapy. Drzi ho <b>semanticky kanal z vize</b> (mimo cestu =
+        /// <see cref="CellState.Blocked"/>) a cena neznama — ne trasa z OSM. Test to pribiji, aby
+        /// se ta vlastnost nedala omylem odladit pryc.</para>
+        /// </summary>
+        [Test]
+        public void ZkratkaPresNeznamo_SeNebere_PlanZustaneNaCeste()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-0.5, -0.5, 2.5, 0.5);        // rameno na vychod
+            s.MarkFree(1.5, -0.5, 2.5, 2.5);         // rameno na sever
+            s.Rebuild();
+
+            var r = s.Plan(2.0, 2.0);                 // cil na konci "L"
+
+            Assert.That(r.HasPath, Is.True);
+            Assert.Multiple(() =>
+            {
+                foreach (var w in r.WayPoints)
+                    Assert.That(s.Grid.StateAtWorld(w.X, w.Y), Is.EqualTo(CellState.Free),
+                                $"waypoint ({w.X:F2}, {w.Y:F2}) opustil potvrzenou cestu");
+
+                Assert.That(r.LengthM, Is.GreaterThan(3.0),
+                            "kdyby se zkratka vzala, vysla by drahu kratsi nez 3 m (uhloprícka 2,83 m)");
+            });
+        }
+
+        /// <summary>
+        /// <b>Bez semantiky z vize plan nema DUVOD drzet se cesty</b> — a to je zbytek otevreneho
+        /// ukolu „koridor trasy jako cena v A*".
+        ///
+        /// <para>Scena: robot stoji na potvrzene ploche, ale vsude kolem je <c>Unknown</c> (kamera
+        /// tam jeste nedohledla). Cil je stranou. Planovac jde <b>rovne</b>, protoze vsechny smery
+        /// stoji stejne — nic mu nerekne, kudy vede cesta z mapy. Vysledek NENI vada: skrz neznamo
+        /// se planovat musi, jinak by robot nikdy nevyjel. Je to hranice toho, co dnesni plan umi —
+        /// dokud vize okraj cesty nevidi, mapa se ho nezastane.</para>
+        ///
+        /// <para>Az koridor z mapy do ceny pribude, tenhle test se zmeni na svuj opak; proto je
+        /// napsany tak, aby popisoval <b>dnesek</b>, ne cil.</para>
+        /// </summary>
+        [Test]
+        public void BezSemantikyZVize_NicPlanKCesteNetahne()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-0.5, -0.5, 0.5, 0.5);        // jen ostruvek pod robotem; okoli je Unknown
+            s.Rebuild();
+
+            var r = s.Plan(2.0, 2.0);                 // cil na severovychod
+
+            Assert.That(r.HasPath, Is.True, "skrz neznamo se planovat MUSI, jinak by robot nevyjel");
+
+            // Drahu vzorkujeme hustě a hledame nejvetsi odchylku od primky robot -> cil.
+            double maxDev = 0;
+            foreach (var w in r.WayPoints)
+            {
+                // Vzdalenost bodu od primky (0,0)-(2,2), tedy od y = x.
+                maxDev = Math.Max(maxDev, Math.Abs(w.X - w.Y) / Math.Sqrt(2.0));
+            }
+
+            Assert.That(maxDev, Is.LessThan(0.25),
+                        "bez semantiky jde plan po primce - zadna preference cesty tam dnes neni");
+        }
+}
 }

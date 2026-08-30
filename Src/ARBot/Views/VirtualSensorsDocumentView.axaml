@@ -54,14 +54,92 @@
             <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
                        Text="Jako by obsluha držela tlačítko. Celý handshake mise Robotour na něm stojí (servisní okno, čtení QR, potvrzení cíle) — bez tohohle přepínače se v simulaci servisní okno nedá projít vůbec. Kola nezastavuje sám: o to se stará řídicí smyčka, takže robot dobrzdí svou rampou jako na železe."/>
 
-            <CheckBox Content="Držet nouzové zastavení" IsChecked="{Binding EmergencyStop}"
-                      Foreground="White"/>
+            <!--
+                Klasické průmyslové nouzové zastavení: žlutá podložka + červená houba.
+                Funkčně je to pořád přepínač (ToggleButton na tomtéž `EmergencyStop`) — změnil se
+                vzhled, ne chování. Důvod: je to jediné ovládání v simulaci, které má protějšek na
+                skutečném stroji, takže má vypadat jako on a ne jako zaškrtávátko v seznamu.
 
-            <Border Background="#5A3A00" CornerRadius="3" Padding="8,5"
-                    IsVisible="{Binding EmergencyStop}">
-                <TextBlock Text="⚠ Nouzové zastavení je DRŽENO — robot se nerozjede, dokud se neuvolní."
-                           Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
-            </Border>
+                ARETACE se ukazuje TVAREM, ne jen textem: uvolněná hlava je vystouplá (větší,
+                světlejší, vrhá stín), zaaretovaná je zapuštěná (menší, tmavší, vnitřní stín) —
+                přesně jak vypadá zmáčknuté tlačítko na železe. Text vedle to jen pojmenuje.
+
+                Šablona je záměrně minimální (jen ContentPresenter): vzhled nese obsah, takže
+                z Fluent tlačítka nesmí zbýt žádný chrom (zaoblený obdélník, hover pozadí).
+            -->
+            <StackPanel Orientation="Horizontal" Spacing="16">
+
+                <ToggleButton Classes="estop" IsChecked="{Binding EmergencyStop}"
+                              Cursor="Hand" Padding="0" VerticalAlignment="Top"
+                              ToolTip.Tip="Klik = zmáčknout (tlačítko se zaaretuje). Další klik = odjistit — na skutečném stroji se odjišťuje otočením hlavy.">
+                    <ToggleButton.Template>
+                        <ControlTemplate>
+                            <ContentPresenter Content="{TemplateBinding Content}"/>
+                        </ControlTemplate>
+                    </ToggleButton.Template>
+
+                    <Grid Width="128" Height="128">
+                        <!-- žlutá podložka -->
+                        <Border Width="128" Height="128" CornerRadius="64"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                BorderBrush="#7A6400" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Offset="0" Color="#F2D22A"/>
+                                    <GradientStop Offset="1" Color="#B29300"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+
+                        <!-- černý límec, ze kterého hlava vystupuje -->
+                        <Border Width="106" Height="106" CornerRadius="53" Background="#1C1C1E"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                        <!-- UVOLNĚNO: hlava vystouplá, vrhá stín -->
+                        <Border Width="94" Height="94" CornerRadius="47"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                IsVisible="{Binding !EmergencyStop}"
+                                BoxShadow="0 6 12 0 #A0000000">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Offset="0" Color="#FF7160"/>
+                                    <GradientStop Offset="0.45" Color="#D81E0E"/>
+                                    <GradientStop Offset="1" Color="#8E1207"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+
+                        <!-- ARETOVÁNO: hlava zapuštěná — menší, tmavší, vnitřní stín -->
+                        <Border Width="84" Height="84" CornerRadius="42"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                IsVisible="{Binding EmergencyStop}"
+                                BoxShadow="inset 0 5 14 0 #C0000000">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Offset="0" Color="#93150A"/>
+                                    <GradientStop Offset="1" Color="#5C0A04"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                </ToggleButton>
+
+                <StackPanel Spacing="4" VerticalAlignment="Center" MaxWidth="300">
+                    <!-- UVOLNĚNO -->
+                    <StackPanel Spacing="3" IsVisible="{Binding !EmergencyStop}">
+                        <TextBlock Text="UVOLNĚNO" FontWeight="Bold" Foreground="#8AD48A"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                                   Text="Robot smí jet. Kliknutím se tlačítko zmáčkne a zaaretuje."/>
+                    </StackPanel>
+
+                    <!-- ARETOVÁNO -->
+                    <StackPanel Spacing="3" IsVisible="{Binding EmergencyStop}">
+                        <TextBlock Text="⚠ ZMÁČKNUTO — ARETOVÁNO" FontWeight="Bold" Foreground="#FF8A7A"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#FFD48A" FontSize="11"
+                                   Text="Tlačítko drží samo — robot se nerozjede, dokud se neodjistí. Odjistíš dalším kliknutím (na skutečném stroji ⟳ otočením hlavy)."/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
 
             <Separator Margin="0,6"/>
 

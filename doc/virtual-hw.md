@@ -343,10 +343,20 @@ je binární vzor s ostrými hranami a rozmazání je právě to, co dekodéru v
 > protože pak už to překážka **je**. Hlídá to test (hloubka se přidáním desky nesmí změnit).
 
 **Jak to pustit.** Panel *Tools → Mise Robotour* má v servisním okně sekci „QR kód do virtuální
-kamery": text kódu (předplní se cílem ~50 m severně od depa, aby na něj vedla cesta), vzdálenost
+kamery": text kódu, dvě tlačítka s **hotovými kódy stanovišť** (nakládka / vykládka), vzdálenost
 vpravo a výška. Deska se postaví **vpravo od robota čelem k němu**, protože se čte z pravé kamery, a
 **zmizí sama, až se kód přečte**. Je to pomůcka v UI, ne součást mise — mise o virtuálních kamerách
 nadále neví nic.
+
+> **Vzdálenost 1,0 m je naměřená, ne zvolená** (autor, 27. 8. 2026): z původních 1,2 m se kód
+> **nepřečetl**. Vzdálenost řídí, kolik pixelů na modul zbyde po projekci a podvzorkování scanneru
+> (`Downscale`), takže dál = menší modul = dekodér neuspěje. Když se kód nedaří přečíst, tohle je
+> první věc, kterou zkusit.
+>
+> **Hotové kódy jsou vázané na současnou testovací mapu** (leží na cestě východně od depa, ~50 a
+> ~100 m). Nad jinou mapou dají cíl mimo síť a mise je zamítne — proto zůstává textové pole plně
+> editovatelné. Dřívější předvyplnění „~50 m severně od depa" **skončilo**: na rovné testovací mapě
+> je to 50 m *od cesty*, takže by ho limit `MaxTargetOffRoadM` (15 m) zamítal pokaždé.
 
 Ověřeno testem, který uzavírá celou cestu: kód se postaví do scény → virtuální kamera vyrenderuje
 barevný obraz → `ZXingQrDecoder` ho z toho obrazu **přečte zpátky**
@@ -361,6 +371,17 @@ barevný obraz → `ZXingQrDecoder` ho z toho obrazu **přečte zpátky**
 
 `VirtualSensorOptions.EmergencyStop` — virtuální motory hlásí nouzové zastavení, jako by obsluha
 držela tlačítko. Přepíná se **za běhu** v panelu *Tools → Virtuální senzory*.
+
+Ovládá se **červeným tlačítkem nouzového zastavení** (žlutá podložka, červená houba), ne
+zaškrtávátkem — od 27. 8. 2026, podnět autora. Funkčně je to pořád přepínač (`ToggleButton` nad
+touž vlastností), změnil se jen vzhled: je to jediné ovládání v simulaci, které má protějšek na
+skutečném stroji, takže má vypadat jako on.
+
+> **Aretaci ukazuje TVAR, ne jen text:** uvolněná hlava je vystouplá (větší, světlejší, vrhá stín),
+> zaaretovaná zapuštěná (menší, tmavší, vnitřní stín) — tak, jak vypadá zmáčknuté tlačítko na
+> železe. Text vedle to jen pojmenuje a řekne, jak se odjišťuje (klik; na stroji otočením).
+> Šablona `ToggleButton`u je proto **minimální** (jen `ContentPresenter`) — kdyby z Fluent tlačítka
+> zbyl chrom, kreslil by se zaoblený obdélník kolem houby.
 
 **Proč to vzniklo:** celý handshake [mise Robotour](robotour-mission.md) stojí na tom, že obsluha
 stop **zmáčkne** a pak **uvolní** (servisní okno, čtení QR, potvrzení cíle). Do 26. 8. 2026 hlásily
@@ -1109,9 +1130,10 @@ nebo musí bias kurzu přibýt do stavu EKF.
   a snímku, takže při pohybu robota „bliká" místo aby byla svázaná se zemí. Pro rozptyl výšky
   v buňce polárního gridu (kvůli čemuž tam je) to stačí; pro časovou konzistenci mezi snímky ne.
   Oprava: hashovat podle kvantované světové polohy zásahu a jednou zpřesnit průsečík.
-- **Koridor za jízdy skoro nic nepošle** — 35 měření ze 411 cyklů. Rozebráno 22. 8. 2026: největší
-  ztráta je `NoPair` (~60 %, druhá kamera nemá snímek v okně 60 ms), pak stání v cíli na konci
-  cesty, a jako skutečná vada **nerovnoběžnost ~11° na rovném úseku** (projekce vyvrácena testem, podezřelý je detektor hran). Detail:
+- ~~**Koridor za jízdy skoro nic nepošle**~~ — **vyřešeno, vada v kódu žádná nebyla.** `NoPair`
+  spravilo párování kamer a „nerovnoběžnost ~11° na rovném úseku" byla **nálevka v testovací mapě**
+  (rozšíření 1 → 3 m na délce 10 m dává přesně 11,42°; naměřeno 11,3°). Nad mapou s konstantní
+  šířkou je to 100 % `Ok` po prvních 60 s. Detail:
   [map-correlation-localization.md → Otevřené úkoly](map-correlation-localization.md#otevřené-úkoly).
 - **A/B za jízdy je zašuměné** — dvě jízdy se stejným zadáním ujedou různou dráhu (17,7 vs 16,6 m),
   takže se nedají porovnat bod po bodu. Na čisté měření by bylo potřeba porovnávat proti ujeté

@@ -40,14 +40,20 @@ namespace ARBot.Common.Missions
         public string AbortReason;
 
         /// <summary>
-        /// Nabidnuty cil, ktery ceka na potvrzeni obsluhou (uz prosel strojovymi kontrolami) —
-        /// vcetne toho, co ma obsluha videt: vzdalenost od depa a delku nalezene trasy.
+        /// Prijaty cil z QR kodu (prosel strojovymi kontrolami) vcetne toho, co se o nem vi:
+        /// vzdalenost od depa a delka nalezene trasy. Prijeti je automaticke, bez potvrzovani.
         /// </summary>
-        public bool HasPending;
-        public double PendingLatDeg, PendingLonDeg;
-        public string PendingCodeText;
-        public double PendingDistanceFromDepotM;
-        public double PendingRouteLengthM;
+        public bool HasAcceptedCode;
+        public double AcceptedLatDeg, AcceptedLonDeg;
+        public string AcceptedCodeText;
+        public double AcceptedDistanceFromDepotM;
+        public double AcceptedRouteLengthM;
+
+        /// <summary>
+        /// Odstup <b>suroveho</b> cile z kodu od site cest [m] — o kolik se cil posunul
+        /// prichycenim na nejblizsi hranu. Souradnice vyse uz jsou ty prichycene.
+        /// </summary>
+        public double AcceptedOffRoadM;
 
         /// <summary>
         /// Kvalita fixu v depu — proc se (ne)pokracuje z <c>ArmingAtDepot</c>. Bez toho je
@@ -101,12 +107,13 @@ namespace ARBot.Common.Missions
                 DropLonDeg = DropLonDeg,
                 DropCodeText = DropCodeText,
                 AbortReason = AbortReason,
-                HasPending = HasPending,
-                PendingLatDeg = PendingLatDeg,
-                PendingLonDeg = PendingLonDeg,
-                PendingCodeText = PendingCodeText,
-                PendingDistanceFromDepotM = PendingDistanceFromDepotM,
-                PendingRouteLengthM = PendingRouteLengthM,
+                HasAcceptedCode = HasAcceptedCode,
+                AcceptedLatDeg = AcceptedLatDeg,
+                AcceptedLonDeg = AcceptedLonDeg,
+                AcceptedCodeText = AcceptedCodeText,
+                AcceptedDistanceFromDepotM = AcceptedDistanceFromDepotM,
+                AcceptedRouteLengthM = AcceptedRouteLengthM,
+                AcceptedOffRoadM = AcceptedOffRoadM,
                 HasFixInfo = HasFixInfo,
                 FixQualityOk = FixQualityOk,
                 FixSatellites = FixSatellites,

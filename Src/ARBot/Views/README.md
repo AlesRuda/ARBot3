@@ -172,6 +172,11 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
     čekala, že tím něco odemkla.
   - **Bez panelu se mise nedala spustit** (čeká na `StartMission()`), a bez přepínače nouzového
     zastavení ve `VirtualSensorsDocument` se v simulaci nedalo projít servisní okno.
+  - **Náhled kamery běží po celou dobu servisního okna** tam, kde se čte kód — ne jen ve stavu
+    `Servicing`. Mířit kódem se musí **už před** stisknutím stopu (tedy v `AwaitingEStop`), a po
+    zrušení potvrzování se `Servicing` opouští hned po přečtení, takže vázat náhled na něj by dalo
+    okno viditelnosti dlouhé jeden okamžik. Skenování to nerozšiřuje: `QrScanner.Enabled` řídí mise
+    a zapíná ho výhradně pod drženým stopem. Řádek pod obrazem říká, co se právě děje.
 
   > ⚠️ **Past: `ARBotRuntime.Current` existuje dřív než jeho stupně.** Runtime je singleton, který
   > vzniká už při prvním přístupu (a `Stream` je jeho `readonly` pole, takže **přežije Run/Stop**),
@@ -333,6 +338,18 @@ zprávu si **vždy pamatuje** (`pending`, poolovaná kopie), ale renderuje **jen
 při zviditelnění (`OnActiveChanged`) hned vyrenderuje zapamatovaný snímek. Bez toho skrytý tab
 chrlí `WriteableBitmap` (GC gen2) na pozadí — viz [devlog 2026-08-01](../../../doc/devlog.md).
 `RobotCentricControl` gate nepotřebuje (renderuje přes `Control.Render`).
+
+> ⚠️ **Past (nalezeno 27. 8. 2026): `IsActive` zamrzlo dokumentům mimo `DocumentDock`.**
+> `DockFactory.OnActiveDockableChanged` procházel **jen** `DocumentDock.VisibleDockables`. Jakmile si
+> uživatel dokument vytáhl do **vlastní dokovací skupiny** (nebo plovoucího okna), přestal v tom
+> seznamu být — a `IsActive` mu zůstalo na **poslední hodnotě před přetažením**. Když byl tehdy
+> aktivní jiný tab, měl natrvalo `false`, takže gate render **navždy vypnul**: panel zůstal prázdný
+> a vypadalo to jako vada té vizualizace, ne doku. Nahlásil autor jako „mise Robotour přestala
+> ukazovat kameru".
+>
+> Handler teď prochází **celý dokovací strom** a dokument je aktivní, když je `ActiveDockable`
+> **svého vlastního** doku. Platí to pro každý panel, který na `IsActive` gatuje (náhled kamery
+> v misi, `ImageDocument`).
 
 Možné další optimalizace obrazových dokumentů (zatím neuděláno): recyklace `WriteableBitmap`
 místo alokace na každý frame **když je dokument viditelný** (skrytý už díky IsActive nerenderuje);

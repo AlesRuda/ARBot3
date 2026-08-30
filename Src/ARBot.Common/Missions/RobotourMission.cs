@@ -28,8 +28,11 @@ namespace ARBot.Common.Missions
     /// <item>Robot <b>nikdy neskenuje, kdyz muze jet</b> — scanner je zapnuty vyhradne ve stavu
     /// <see cref="RobotourPhase.Servicing"/>, tedy pod drzenym nouzovym zastavenim. Obsluha stojici
     /// u robotu s krabici v ruce ma fyzickou garanci, ne jen softwarovou.</item>
-    /// <item><b>Cil potvrzuje clovek</b>, ne jen stroj. Jedno chybne dekodovani muze poslat robota
-    /// o stovky metru jinam.</item>
+    /// <item><b>Cil pousti dal jen strojove kontroly</b> (format kodu, vzdalenost od depa,
+    /// dosazitelnost v grafu). <b>Zadne potvrzeni operatorem</b> — mise je simulace autonomniho
+    /// doruceni, takze robot musi ukol vykonat bez zasahu operatora a jediny, kdo s nim interaguje,
+    /// je <b>odesilatel</b> v miste nakladky a <b>odberatel</b> v miste vykladky, a to vyhradne
+    /// <b>QR kodem a stop tlacitkem na robotu</b> (rozhodnuti autora 26. 8. 2026).</item>
     /// <item><b>Nouzove zastaveni za jizdy tento automat neposune</b> — o zastaveni se stara
     /// <c>ControlLoop</c> a po uvolneni se jede dal k temuz cili. Mise o stopu za jizdy nemusi vedet.</item>
     /// </list>
@@ -68,10 +71,17 @@ namespace ARBot.Common.Missions
         private LLA depot, pickup, drop;
         private string pickupCodeText = string.Empty, dropCodeText = string.Empty;
 
-        private LLA pendingTarget;
-        private string pendingCodeText = string.Empty;
-        private double pendingRouteLengthM;
-        private double pendingDistanceFromDepotM;
+        private LLA acceptedTarget;
+        private string acceptedCodeText = string.Empty;
+        private double acceptedRouteLengthM;
+        private double acceptedDistanceFromDepotM;
+
+        /// <summary>
+        /// Jak daleko od site lezel <b>surovy</b> cil z kodu [m] — tedy o kolik se posunul
+        /// prichycenim. Do zpravy to jde proto, aby slo <c>MaxTargetOffRoadM</c> nastavit
+        /// z namerenych bezu misto usudkem.
+        /// </summary>
+        private double acceptedOffRoadM;
 
         private bool emergencyStop, standing = true;
         private bool regulatorCleared;
@@ -136,13 +146,13 @@ namespace ARBot.Common.Missions
         public LLA Depot { get { lock (gate) return depot; } }
 
         /// <summary>
-        /// Cil precteny z kodu, ktery cek na <see cref="Confirm"/> obsluhy — vcetne toho, ze uz
-        /// prosel strojovymi kontrolami. <c>null</c> = neni co potvrzovat.
+        /// Naposledy <b>prijaty</b> cil z QR kodu (uz prosel strojovymi kontrolami), nebo
+        /// <c>null</c>. Prijeti je automaticke — potvrzeni operatorem neexistuje.
         /// </summary>
-        public LLA PendingTarget { get { lock (gate) return pendingTarget; } }
+        public LLA LastAcceptedTarget { get { lock (gate) return acceptedTarget; } }
 
-        /// <summary>Delka trasy na <see cref="PendingTarget"/> [m]; ukazuje se obsluze.</summary>
-        public double PendingRouteLengthM { get { lock (gate) return pendingRouteLengthM; } }
+        /// <summary>Delka trasy na naposledy prijaty cil [m]; ukazuje se v UI a jde do zaznamu.</summary>
+        public double AcceptedRouteLengthM { get { lock (gate) return acceptedRouteLengthM; } }
 
         /// <summary>
         /// Posledni PRECTENY text kodu, doslova — i kdyz se zamitl. Bez toho by nebylo videt, co
@@ -222,35 +232,31 @@ namespace ARBot.Common.Missions
         /// <para><b>Bez nej se cil neprijme</b> — je to druha, nezavisla pojistka vedle strojovych
         /// kontrol. Kdyz se v tomto okne kod ceka a jeste zadny neprosel, prikaz nic nedela.</para>
         /// </summary>
-        public void Confirm()
+        /// <summary>
+        /// Prijme cil z precteneho kodu a posune misi na cekani, az clovek <b>uvolni stop</b>.
+        ///
+        /// <para><b>Zadne potvrzeni operatorem tu neni a byt nema.</b> Do 26. 8. 2026 to byl krok
+        /// <c>Confirm()</c> s tlacitkem v UI; autor ho zrusil, protoze mise je simulace autonomniho
+        /// doruceni: robot ma ukol vykonat bez zasahu operatora a interaguji s nim jen odesilatel
+        /// a odberatel — <b>QR kodem a stop tlacitkem</b>. Pojistkou proti chybnemu dekodovani
+        /// zustavaji strojove kontroly, ktere kod prosel jeste pred timhle volanim.</para>
+        /// </summary>
+        private void AcceptTarget(LLA target, DateTime now)
         {
-            lock (gate)
+            if (stop == RobotourStop.Depot)
             {
-                if (phase != RobotourPhase.Servicing) return;
-
-                if (CodeExpected(stop))
-                {
-                    if (pendingTarget == null) return;   // neni co potvrzovat
-
-                    if (stop == RobotourStop.Depot)
-                    {
-                        pickup = pendingTarget;
-                        pickupCodeText = pendingCodeText;
-                    }
-                    else
-                    {
-                        drop = pendingTarget;
-                        dropCodeText = pendingCodeText;
-                    }
-                }
-
-                pendingTarget = null;
-                pendingCodeText = string.Empty;
-                pendingRouteLengthM = 0;
-                pendingDistanceFromDepotM = 0;
-                SetScanner(false);
-                EnterPhase(RobotourPhase.AwaitingEStopRelease, lastTime);
+                pickup = target;
+                pickupCodeText = acceptedCodeText;
             }
+            else
+            {
+                drop = target;
+                dropCodeText = acceptedCodeText;
+            }
+
+            // Precteno -> uz neni co skenovat. Zustava to zapnute jen do teto chvile.
+            SetScanner(false);
+            EnterPhase(RobotourPhase.AwaitingEStopRelease, now);
         }
 
         /// <summary>
@@ -416,8 +422,29 @@ namespace ARBot.Common.Missions
                         {
                             servicingSince = now;
                             codeNotSeen = false;
-                            SetScanner(CodeExpected(stop));
+
+                            // Kde se kod NECTE (vykladka), neni v servisnim okne co delat - ceka se
+                            // uz jen na uvolneni stopu. „Vylozeno" JE to uvolneni; zadne potvrzeni
+                            // v UI neexistuje (viz AcceptTarget).
+                            if (!CodeExpected(stop))
+                            {
+                                EnterPhase(RobotourPhase.AwaitingEStopRelease, now);
+                                break;
+                            }
+
+                            SetScanner(true);
                             EnterPhase(RobotourPhase.Servicing, now);
+                        }
+                        break;
+
+                    case RobotourPhase.Servicing:
+                        // Clovek pustil stop, aniz kod ukazal. Nesmi to znamenat odjezd bez cile ani
+                        // zaseknuti - ceka se na dalsi pokus. A hlavne: scanner MUSI jit dolu, aby
+                        // platilo „skenuje se vyhradne pod drzenym stopem".
+                        if (!emergencyStop)
+                        {
+                            SetScanner(false);
+                            EnterPhase(RobotourPhase.AwaitingEStop, now);
                         }
                         break;
 
@@ -469,10 +496,27 @@ namespace ARBot.Common.Missions
                     }
                 }
 
-                double routeLength = 0;
+                // Cil z kodu je misto, kde stoji clovek s krabici - ne bod na ceste. Robot jezdi
+                // po siti, takze se cil PRICHYTI na nejblizsi hranu a jede se na ten prumet;
+                // odstup od site je pritom kontrola, jestli to jeste dava smysl.
+                double routeLength = 0, offRoad = 0;
+                var goalTarget = target;
                 if (routes != null)
                 {
                     var probe = routes.Probe(target);
+
+                    // Prichytit jde COKOLIV (NearestEdge limit nema), takze bez teto kontroly by
+                    // cil uprostred pole vysel jako dosazitelny a robot by odjel na cestu uplne
+                    // jinam, nez kde clovek stoji - a ohlasil dojezd.
+                    if (probe.OffRoadM > config.MaxTargetOffRoadM)
+                    {
+                        Reject(code.Text, probe.OffRoadM,
+                               $"cil je prilis daleko od cesty: {probe.OffRoadM:F0} m od nejblizsi "
+                               + $"hrany site, limit je {config.MaxTargetOffRoadM:F0} m",
+                               code.TimeStamp);
+                        return;
+                    }
+
                     // Bez teto kontroly by se NoRoute zjistilo az za jizdy.
                     if (!probe.Reachable)
                     {
@@ -480,7 +524,14 @@ namespace ARBot.Common.Missions
                                "na cil nevede po siti zadna trasa (je mimo mapu?)", code.TimeStamp);
                         return;
                     }
+
                     routeLength = probe.LengthM;
+                    offRoad = probe.OffRoadM;
+
+                    // Prichyceny cil je ten, na ktery se jezdi: Navigator meri dojezd proti
+                    // GoalField.GoalPoint (surovy cil), takze cil odsazeny vic nez o
+                    // ArrivalRadiusMeters by NIKDY neohlasil Arrived a mise by uvizla v jizde.
+                    if (probe.SnappedTarget != null) goalTarget = probe.SnappedTarget;
                 }
 
                 // Prijaty kod maze duvod zamitnuti - jinak by v panelu strasil stary.
@@ -488,12 +539,15 @@ namespace ARBot.Common.Missions
                 rejectedCodeText = string.Empty;
                 rejectedDistanceM = 0;
 
-                pendingTarget = target;
-                pendingCodeText = LastCodeText;
-                pendingRouteLengthM = routeLength;
-                pendingDistanceFromDepotM = distanceFromDepot;
+                acceptedTarget = goalTarget;
+                acceptedCodeText = LastCodeText;
+                acceptedRouteLengthM = routeLength;
+                acceptedDistanceFromDepotM = distanceFromDepot;
+                acceptedOffRoadM = offRoad;
                 codeNotSeen = false;
-                EmitState(code.TimeStamp);
+
+                // Kod prosel strojovymi kontrolami -> cil je PRIJATY a mise se posune sama.
+                AcceptTarget(goalTarget, code.TimeStamp);
             }
         }
 
@@ -559,7 +613,7 @@ namespace ARBot.Common.Missions
                 case RobotourPhase.Servicing:
                     // Stavy pod nouzovym zastavenim timeout NEMAJI — ceka se na obsluhu, jak dlouho
                     // je potreba. Jen se hlasi, ze kod neni videt, a skenuje se DAL.
-                    if (CodeExpected(stop) && pendingTarget == null
+                    if (CodeExpected(stop) && acceptedTarget == null
                         && (now - servicingSince).TotalSeconds > config.QrSearchSec)
                         codeNotSeen = true;
                     break;
@@ -732,12 +786,13 @@ namespace ARBot.Common.Missions
                 DropLonDeg = drop != null ? Conversions.Rad2Deg(drop.Longitude) : 0,
                 DropCodeText = dropCodeText,
                 AbortReason = abortReason,
-                HasPending = pendingTarget != null,
-                PendingLatDeg = pendingTarget != null ? Conversions.Rad2Deg(pendingTarget.Latitude) : 0,
-                PendingLonDeg = pendingTarget != null ? Conversions.Rad2Deg(pendingTarget.Longitude) : 0,
-                PendingCodeText = pendingCodeText,
-                PendingDistanceFromDepotM = pendingDistanceFromDepotM,
-                PendingRouteLengthM = pendingRouteLengthM,
+                HasAcceptedCode = acceptedTarget != null,
+                AcceptedLatDeg = acceptedTarget != null ? Conversions.Rad2Deg(acceptedTarget.Latitude) : 0,
+                AcceptedLonDeg = acceptedTarget != null ? Conversions.Rad2Deg(acceptedTarget.Longitude) : 0,
+                AcceptedCodeText = acceptedCodeText,
+                AcceptedDistanceFromDepotM = acceptedDistanceFromDepotM,
+                AcceptedRouteLengthM = acceptedRouteLengthM,
+                AcceptedOffRoadM = acceptedOffRoadM,
                 HasFixInfo = hasFixInfo,
                 FixQualityOk = fixQualityOk,
                 FixSatellites = fixSatellites,

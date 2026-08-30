@@ -188,6 +188,29 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// expiraci), takze zamitnout cil kvuli prave uzavrene hrane by znamenalo zamitnout
         /// stanoviste, na ktere se za minutu bezne dojede. Zkouska se pta „ma mapa vubec cestu",
         /// ne „je pruchodna prave nyni".</para>
+        ///
+        /// <para><b>Cil se prichycuje na sit</b> (<see cref="Missions.RouteProbeResult.SnappedTarget"/>)
+        /// a zkouska rekne, jak daleko od ni lezel
+        /// (<see cref="Missions.RouteProbeResult.OffRoadM"/>). Prichyceny cil je ten, na ktery se
+        /// ma jezdit: <c>GoalField.GoalPoint</c> je surovy cil a <c>Navigator</c> proti nemu meri
+        /// dojezd, takze cil odsazeny vic nez o <c>ArrivalRadiusMeters</c> by <b>nikdy</b>
+        /// neohlasil <c>Arrived</c>.</para>
+        ///
+        /// <para><b>Vzdalenost od site zkouska neposuzuje</b> — jen ji zmeri. Limit patri mise
+        /// (<c>RobotourConfig.MaxTargetOffRoadM</c>), protoze „co je jeste prijatelne" je pravidlo
+        /// ulohy, ne vlastnost grafu. Odpoved <c>Reachable</c> tedy porad zni „vede v grafu cesta
+        /// z hrany u robota do hrany u cile", ne „cil lezi na ceste".</para>
+        ///
+        /// <para><b>Zkousi se OBE orientace mapmatchnute hrany</b>, ne jen ta, kterou vratil
+        /// <c>NearestNode</c> — jinak je zkouska pesimistictejsi nez jizda, kterou ma predpovedet.
+        /// Na obousmerne ceste jsou oba smery stejne daleko, takze mapmatch vybira podle poradi
+        /// hran, ne podle kurzu robota; kdyz padne na smer OD cile, je cena nekonecna (otocka na
+        /// teze ceste neni v grafu prechod). <c>Navigator.Update</c> i <c>Router</c> pritom obe
+        /// orientace zkousi a beru levnejsi, takze <b>jet se tam da</b>. Do 27. 8. 2026 to zkouska
+        /// nedelala a zamitala dobre cile hlaskou „nevede trasa".</para>
+        ///
+        /// <para><b>Delka trasy</b> je soucet delek hran: u cile presna, na zacatku nadhodnocena az
+        /// o delku jedne hrany (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
         /// </summary>
         public Missions.RouteProbeResult Probe(LLA target)
         {
@@ -204,20 +227,45 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             var here = origin.ToLLA(x, y);
             try
             {
-                var probeField = new GoalField(network, target);
-                var node = probeField.NearestNode(here, out _, out _, out _);
-                if (node == null) return new Missions.RouteProbeResult(false, 0);
+                // Prichyceni na sit se dela HNED, jeste pred stavbou pole: prichyceny cil se posila
+                // dal (jezdi se na nej) a vzdalenost od site je udaj, podle ktereho mise cil
+                // zamita. Kdyz sit zadnou hranu nema, neni co prichytit ani kam jet.
+                var edge = network.NearestEdge(target, out _, out LLA snapped, out double offRoad);
+                if (edge == null) return new Missions.RouteProbeResult(false, 0);
 
+                // Pole se stavi nad PRICHYCENYM cilem, aby GoalPoint (a tim i mereni dojezdu)
+                // souhlasil s cilem, ktery se vraci volajicimu. Hrana vyjde tataz - InsertGoal
+                // prichycuje tymz NearestEdge.
+                var probeField = new GoalField(network, snapped);
+                var node = probeField.NearestNode(here, out _, out _, out _);
+                if (node == null) return new Missions.RouteProbeResult(false, 0, snapped, offRoad);
+
+                // OBE orientace, ne jen tu, kterou vratil mapmatch. Na obousmerne ceste jsou oba
+                // smery stejne daleko, takze NearestNode vybira podle poradi hran, ne podle toho,
+                // kam robot miri - a kdyz padne na smer OD cile, je cena nekonecna (otocka na teze
+                // ceste neni v grafu prechod, GraphBuilder U-turn vynechava). Jet se tam ale da:
+                // Navigator.Update i Router zkousi obe orientace a berou levnejsi. Bez tohoto
+                // kroku je zkouska pesimistictejsi nez jizda, kterou ma predpovedet, a zamitne
+                // dobry cil hlaskou "nevede trasa" (namereno 27. 8. 2026 na cili 50 m za robotem).
                 probeField.EnsureSettled(node);
                 double cost = probeField.CostToGoal(node);
+
+                var reverse = probeField.FindReverse(node);
+                if (reverse != null)
+                {
+                    probeField.EnsureSettled(reverse);
+                    double costRev = probeField.CostToGoal(reverse);
+                    if (!(costRev > cost)) cost = costRev;   // NaN-safe minimum
+                }
+
                 if (double.IsInfinity(cost) || double.IsNaN(cost))
-                    return new Missions.RouteProbeResult(false, 0);
+                    return new Missions.RouteProbeResult(false, 0, snapped, offRoad);
 
                 var route = new Router(probeField).Plan(here);
                 double length = 0;
                 for (int i = 0; i < route.Count; i++) length += route[i].LengthMeters;
 
-                return new Missions.RouteProbeResult(true, length);
+                return new Missions.RouteProbeResult(true, length, snapped, offRoad);
             }
             catch (Exception ex)
             {

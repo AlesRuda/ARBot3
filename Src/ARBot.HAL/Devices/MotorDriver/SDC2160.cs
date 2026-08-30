@@ -145,8 +145,11 @@ namespace ARBot.HAL.Devices.MotorDrivers
                 // Port nedostupny (ReadLine vraci null hned, ReOpen uz neblokuje): vrat
                 // emergency stav misto bogus nuloveho a kratce pockej, aby smycka Process
                 // nebusy-spinovala (nenulovy stav ji jinak nenechaji backnout).
+                // hasMeasurement: false - stop je fail-safe a plati, cisla jsou nuly, ktere nikdo
+                // nemeril (viz IMotorState.HasMeasurement).
                 System.Threading.Thread.Sleep(10);
-                return new MotorStateBase(isEmergencyStop = true, 0, 0, 0, 0, 0, 0, 0) { TimeStamp = ts };
+                return new MotorStateBase(isEmergencyStop = true, 0, 0, 0, 0, 0, 0, 0,
+                                          hasMeasurement: false) { TimeStamp = ts };
             }
             str = GetValue(str);
             string[] enc = str.Split(new string[] { ":" }, StringSplitOptions.RemoveEmptyEntries);

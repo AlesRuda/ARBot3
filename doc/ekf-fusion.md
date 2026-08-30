@@ -40,6 +40,22 @@ Zdroj R pro orientaci: `IMUState.OrientationUncertainty` z VN100 (viz
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
 
+### Odometrie teče i pod nouzovým zastavením (2026-08-27)
+
+Do 27. 8. 2026 `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Zrušeno
+(argument autora): řídicí jednotka má pod stopem příkaz **stát** a motory jsou řízené pozičně ve
+zpětné vazbě, takže kola nemohou hlásit nic než nulu — stop odometrii nezhoršuje. Odnesení robota je
+navíc stejně možné bez stopu, takže se tím ty dva stavy nerozliší.
+
+**Proč to bylo drahé:** pod drženým stopem neměl filtr **žádnou vazbu na rychlost** (stav má `v` i
+`ω`), takže rychlost driftovala a polohu tahal šum GPS. Za desítky sekund stání se odhad rozešel
+o metry — v misi Robotour, která stop drží celé servisní okno, to bylo vidět jako poskakující robot
+na mapě. Pro srovnání: jízda s tekoucí odometrií má chybu pózy p50 0,164 m.
+
+⚠️ **Zbývající děra:** chybová větev driveru vyrábí `MotorStateBase(true, 0, 0, …)`, takže po selhání
+parsování dostane filtr „stojím", i když se robot může pohybovat. Rozlišovat se má „měření vs. zástupný
+rámec po chybě", ne stop — viz [decisions.md](decisions.md), 27. 8. 2026.
+
 ### GPS kurz je druhá absolutní reference — a sám nestačí (2026-08-25)
 
 **Co se přidalo:** `DefaultMeasurementMapper` dělá z GPS kurzu měření `GPS/heading`. Dva zdroje,

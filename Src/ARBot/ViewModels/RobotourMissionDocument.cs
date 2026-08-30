@@ -92,11 +92,17 @@ namespace ARBot.ViewModels
 
         // --- Nabídnutý cíl (to, co obsluha potvrzuje) ---
 
-        [ObservableProperty] private bool hasPendingTarget;
-        [ObservableProperty] private string pendingCodeText = "-";
-        [ObservableProperty] private string pendingTargetText = "-";
-        [ObservableProperty] private string pendingDistanceText = "-";
-        [ObservableProperty] private string pendingRouteText = "-";
+        [ObservableProperty] private bool hasAcceptedTarget;
+        [ObservableProperty] private string acceptedCodeText = "-";
+        [ObservableProperty] private string acceptedTargetText = "-";
+        [ObservableProperty] private string acceptedDistanceText = "-";
+        [ObservableProperty] private string acceptedRouteText = "-";
+
+        /// <summary>
+        /// O kolik se cíl posunul přichycením na cestu. Vypisuje se proto, aby šel limit
+        /// <c>MaxTargetOffRoadM</c> (dnes zvolený úsudkem) nastavit z naměřených běhů.
+        /// </summary>
+        [ObservableProperty] private string acceptedOffRoadText = "-";
 
         // --- Zapamatované cíle ---
 
@@ -118,6 +124,12 @@ namespace ARBot.ViewModels
 
         [ObservableProperty] private string previewCameraText = "-";
 
+        /// <summary>
+        /// Co se s obrazem právě děje — jestli se z něj skenuje, nebo se jen míří. Bez toho není
+        /// poznat, proč se přečtený kód (ještě) neobjevil.
+        /// </summary>
+        [ObservableProperty] private string previewHintText = string.Empty;
+
         /// <summary>Nejnovější snímek z té správné kamery; renderuje se až ve <c>Flush</c>.</summary>
         private CameraFrame pendingFrame;
 
@@ -133,9 +145,24 @@ namespace ARBot.ViewModels
         /// Kam kód postavit: jak daleko <b>před kameru</b> (podél jejího směru pohledu) a v jaké
         /// výšce [m]. Není to „vpravo od robota" — kamera je stočená, viz
         /// <see cref="ARBot.Common.Vision.Qr.QrBillboard.InFrontOfCamera"/>.
+        ///
+        /// <para><b>1,0 m je naměřená hodnota, ne odhad</b> (autor, 27. 8. 2026): z původních 1,2 m
+        /// se kód v simulaci <b>nepřečetl</b>. Vzdálenost řídí, kolik pixelů na modul zbyde po
+        /// projekci a podvzorkování scanneru — dál = menší modul = dekodér neuspěje.</para>
         /// </summary>
-        [ObservableProperty] private decimal qrDistanceM = 1.2m;
+        [ObservableProperty] private decimal qrDistanceM = 1.0m;
         [ObservableProperty] private decimal qrHeightM = 0.35m;
+
+        /// <summary>
+        /// Hotové kódy stanovišť pro <b>současnou testovací mapu</b> — tlačítka vedle textu kódu.
+        /// Vypisovat je pokaždé ručně je jediná zdlouhavá část průchodu misí v simulaci.
+        ///
+        /// <para>⚠️ Jsou vázané na tu mapu: leží <b>na cestě</b> východně od depa (nakládka ~50 m,
+        /// vykládka ~100 m). Nad jinou mapou dají cíl mimo síť a mise je zamítne — to je správně,
+        /// jen to znamená napsat si vlastní. Proto zůstává textové pole plně editovatelné.</para>
+        /// </summary>
+        private const string PickupPreset = "geo:50.029,14.5208";
+        private const string DropPreset = "geo:50.029,14.5214";
 
         [ObservableProperty] private string qrPlacedText = string.Empty;
 
@@ -168,7 +195,6 @@ namespace ARBot.ViewModels
         // --- Ovládání ---
 
         [ObservableProperty] private bool canStart;
-        [ObservableProperty] private bool canConfirm;
         [ObservableProperty] private bool canAbort;
 
         /// <summary>Vysvětlení, proč nejde ovládat (žádná živá mise). Prázdné = mise běží.</summary>
@@ -200,13 +226,6 @@ namespace ARBot.ViewModels
         /// <summary>„Start mise" — přechod <c>Idle</c> → <c>ArmingAtDepot</c>.</summary>
         [RelayCommand]
         private void StartMission() => Mission?.StartMission();
-
-        /// <summary>
-        /// Potvrzení obsluhou: „tento cíl je správný" / „naložení hotovo". Bez něj se cíl
-        /// <b>nepřijme</b> — je to druhá, nezávislá pojistka vedle strojových kontrol.
-        /// </summary>
-        [RelayCommand]
-        private void Confirm() => Mission?.Confirm();
 
         /// <summary>Přerušení mise — zastavuje tvrdě, z každého stavu.</summary>
         [RelayCommand]
@@ -269,6 +288,27 @@ namespace ARBot.ViewModels
             if (scene == null || board == null) return;
 
             lock (scene.Billboards) scene.Billboards.Remove(board);
+            QrPlacedText = string.Empty;
+        }
+
+        /// <summary>
+        /// Předvyplní kód nakládky. Kód se <b>jen zapíše do pole</b>, nestaví se — postavení je
+        /// pořád vědomý krok („Postavit QR kód"), protože jinak by tlačítko dělalo dvě věci naráz
+        /// a překlep by se nedal opravit.
+        /// </summary>
+        [RelayCommand]
+        private void UsePickupPreset() => SetPreset(PickupPreset);
+
+        /// <summary>Předvyplní kód vykládky; jinak totéž co <see cref="UsePickupPreset"/>.</summary>
+        [RelayCommand]
+        private void UseDropPreset() => SetPreset(DropPreset);
+
+        private void SetPreset(string code)
+        {
+            QrText = code;
+            // Preset je vědomá volba obsluhy, takže automatické předvyplnění už nemá co dělat -
+            // jinak by při dalším MissionMsg text přepsalo zpátky.
+            qrTextPrefilled = true;
             QrPlacedText = string.Empty;
         }
 
@@ -416,14 +456,39 @@ namespace ARBot.ViewModels
             // Porovnává se TEXT, ne jen „existuje nabídnutý cíl": s tou podmínkou se každý nově
             // postavený kód smazal do sekundy, dokud byl nějaký cíl nepotvrzený.
             if (placedBoard != null && placedCodeText.Length > 0
-                && (string.Equals(m.PendingCodeText, placedCodeText, StringComparison.Ordinal)
+                && (string.Equals(m.AcceptedCodeText, placedCodeText, StringComparison.Ordinal)
                     || string.Equals(m.RejectedCodeText, placedCodeText, StringComparison.Ordinal)))
             {
                 RemoveQr();
             }
 
             // Nahled jen tam, kde se cte kod - jinde by to byla jen rezie.
-            ShowPreview = phase == RobotourPhase.Servicing && CodeExpected(stop);
+            // Náhled běží po CELOU dobu servisního okna tam, kde se čte kód — ne jen ve
+            // `Servicing`.
+            //
+            // Původně byl vázaný jen na `Servicing`, tedy na držený stop. To přestalo stačit ve dvou
+            // krocích: (a) mířit kódem se musí UŽ PŘED stisknutím stopu, a přesně tehdy je fáze
+            // `AwaitingEStop`, takže panel neukazoval nic; (b) po zrušení potvrzování se `Servicing`
+            // opouští hned po přečtení kódu, takže se okno viditelnosti zkrátilo na okamžik.
+            // Nahlásil autor 27. 8. 2026.
+            //
+            // Skenování to NEROZŠIŘUJE: `QrScanner.Enabled` řídí mise a zapíná ho výhradně pod
+            // drženým stopem. Ukázat obraz není totéž jako z něj číst.
+            ShowPreview = CodeExpected(stop)
+                          && (phase == RobotourPhase.AwaitingEStop
+                              || phase == RobotourPhase.Servicing
+                              || phase == RobotourPhase.AwaitingEStopRelease);
+
+            // Aby bylo poznat, proč se z obrazu (ještě) nečte.
+            PreviewHintText = phase switch
+            {
+                RobotourPhase.AwaitingEStop =>
+                    "Zaměř kód na tuhle kameru a pak zmáčkni nouzové zastavení — skenuje se až pod ním.",
+                RobotourPhase.Servicing => "Skenuje se. Drž stop, dokud se kód nepřečte.",
+                RobotourPhase.AwaitingEStopRelease =>
+                    "Kód je přečtený a přijatý. Uvolni nouzové zastavení a robot vyrazí.",
+                _ => string.Empty,
+            };
             if (!ShowPreview) PreviewImage = null;
 
             CanPlaceQr = Scene != null;
@@ -437,18 +502,22 @@ namespace ARBot.ViewModels
                                 m.RejectReason)
                 : string.Empty;
 
-            HasPendingTarget = m.HasPending;
-            PendingCodeText = string.IsNullOrEmpty(m.PendingCodeText) ? "-" : m.PendingCodeText;
-            PendingTargetText = m.HasPending
-                ? string.Format(ci, "{0:F6}° , {1:F6}°", m.PendingLatDeg, m.PendingLonDeg) : "-";
-            PendingDistanceText = m.HasPending
-                ? string.Format(ci, "{0:F0} m od depa", m.PendingDistanceFromDepotM) : "-";
+            HasAcceptedTarget = m.HasAcceptedCode;
+            AcceptedCodeText = string.IsNullOrEmpty(m.AcceptedCodeText) ? "-" : m.AcceptedCodeText;
+            AcceptedTargetText = m.HasAcceptedCode
+                ? string.Format(ci, "{0:F6}° , {1:F6}°", m.AcceptedLatDeg, m.AcceptedLonDeg) : "-";
+            AcceptedDistanceText = m.HasAcceptedCode
+                ? string.Format(ci, "{0:F0} m od depa", m.AcceptedDistanceFromDepotM) : "-";
             // Nula znamena "zkouska neprobehla", ne "trasa je nulova" - to je rozdil, ktery obsluha
             // pred potvrzenim potrebuje znat.
-            PendingRouteText = !m.HasPending ? "-"
-                : m.PendingRouteLengthM > 0
-                    ? string.Format(ci, "trasa {0:F0} m", m.PendingRouteLengthM)
+            AcceptedRouteText = !m.HasAcceptedCode ? "-"
+                : m.AcceptedRouteLengthM > 0
+                    ? string.Format(ci, "trasa {0:F0} m", m.AcceptedRouteLengthM)
                     : "délka trasy neznámá (dosažitelnost se neověřovala)";
+            // Souradnice vyse uz jsou PRICHYCENE na cestu, takze bez tohohle radku nejde poznat,
+            // ze se cil vubec posunul - a o kolik.
+            AcceptedOffRoadText = !m.HasAcceptedCode ? "-"
+                : string.Format(ci, "{0:F1} m od cesty (přichyceno na síť)", m.AcceptedOffRoadM);
 
             DepotText = Position(m.HasDepot, m.DepotLatDeg, m.DepotLonDeg, ci);
             PickupText = Target(m.HasPickup, m.PickupLatDeg, m.PickupLonDeg, m.PickupCodeText, ci);
@@ -461,22 +530,24 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
-        /// Předplní text kódu <b>cílem 50 m severně od depa</b> — tedy místem, na které v mapě
-        /// nejspíš vede cesta.
+        /// Předplní text kódu <b>kódem nakládky</b> (<see cref="PickupPreset"/>) — tedy prvním
+        /// stanovištěm, které obsluha stejně potřebuje.
         ///
         /// <para>Prázdné pole by obsluhu nutilo souřadnice vymýšlet, a špatně zvolený cíl mise
         /// (mimo síť, moc daleko) zamítne — což pak vypadá jako vada čtení, ne jako špatné zadání.
         /// Předplní se <b>jednou</b>, aby se nepřepsalo, co obsluha napsala.</para>
+        ///
+        /// <para><b>Dřív se počítal cíl 50 m severně od depa</b> — bod nezávislý na mapě, ale na té
+        /// rovné testovací mapě leží <b>50 m od cesty</b>, takže by ho od 27. 8. 2026 zamítl limit
+        /// <c>MaxTargetOffRoadM</c> (15 m) pokaždé. Předvyplnění, které vždycky selže, je horší než
+        /// hodnota vázaná na mapu.</para>
         /// </summary>
         private void PrefillQrText(MissionMsg m, CultureInfo ci)
         {
             if (qrTextPrefilled || !m.HasDepot) return;
             if (!string.IsNullOrWhiteSpace(QrText)) { qrTextPrefilled = true; return; }
 
-            // 50 m severně: 1° šířky ≈ 111,32 km.
-            double latDeg = m.DepotLatDeg + 50.0 / 111320.0;
-            QrText = string.Format(CultureInfo.InvariantCulture, "geo:{0:F6},{1:F6}",
-                                   latDeg, m.DepotLonDeg);
+            QrText = PickupPreset;
             qrTextPrefilled = true;
         }
 
@@ -522,7 +593,7 @@ namespace ARBot.ViewModels
             // otevreny driv ji na zacatku nema (viz Mission).
             if (Mission == null)
             {
-                CanStart = CanConfirm = CanAbort = false;
+                CanStart = CanAbort = false;
                 NoMissionText =
                     "Misi zatim nejde ovládat. Buď ještě neběží Runtime (spusť Run), nebo ji "
                     + "aplikace nemá založenou (chybí mission=robotour, nebo mapa map=). "
@@ -536,11 +607,10 @@ namespace ARBot.ViewModels
             var phase = m == null ? RobotourPhase.Idle : (RobotourPhase)m.Phase;
             bool finished = phase == RobotourPhase.Finished || phase == RobotourPhase.Aborted;
 
+            // Start je jediny prikaz, ktery misi POSOUVA. Potvrzovani zaniklo — robot ma ukol
+            // vykonat bez zasahu operatora a jedine lidske vstupy jsou QR kod a stop tlacitko
+            // (viz RobotourMission.AcceptTarget). Prerusit zustava jako bezpecnostni zasah.
             CanStart = phase == RobotourPhase.Idle;
-            // Potvrzovat jde jen v servisnim okne - a kdyz se v nem ceka kod, tak az kdyz nejaky
-            // prosel strojovymi kontrolami (jinak neni co potvrzovat).
-            CanConfirm = phase == RobotourPhase.Servicing
-                         && (!CodeExpected((RobotourStop)(m?.Stop ?? 0)) || (m?.HasPending ?? false));
             CanAbort = !finished && phase != RobotourPhase.Idle;
         }
 
@@ -587,7 +657,7 @@ namespace ARBot.ViewModels
             RobotourPhase.AwaitingEStop => "až obsluha ZMÁČKNE nouzové zastavení",
             RobotourPhase.Servicing =>
                 CodeExpected(stop)
-                    ? (m.HasPending ? "na potvrzení přečteného cíle" : "na přečtení QR kódu (skenuje se)")
+                    ? (m.HasAcceptedCode ? "na potvrzení přečteného cíle" : "na přečtení QR kódu (skenuje se)")
                     : "na potvrzení, že je vyloženo",
             RobotourPhase.AwaitingEStopRelease => "až obsluha UVOLNÍ nouzové zastavení",
             RobotourPhase.DrivingToPickup or RobotourPhase.DrivingToDrop or RobotourPhase.DrivingToDepot

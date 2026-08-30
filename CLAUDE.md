@@ -173,7 +173,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   sledují průměr**. Léčba je proložení, které cílí **medián**: `FitMode = OrthogonalL1` srazí
   vychýlení šířky na **1,4 mm** (−92 %) a **klesne i rozptyl** (−74 %), příčná poloha na 0,8 mm.
   Huber s MAD je slabší varianta téhož (6 mm), Tukey je srovnatelný s L1 ale dražší. **Naměřeno,
-  zatím nezapnuto** — výchozí zůstává `LeastSquares`.
+  zatím nezapnuto** — výchozí zůstává `LeastSquares`. **Rozhodnutí autora 27. 8. 2026: čeká se na
+  měření na reálném HW**, protože to zešikmení je artefakt drsnosti trávy v simulaci (bez šumu je
+  vychýlení −1,7 mm) a na skutečné kameře se ta chyba může ztratit v šumu. Zapínat léčbu vady,
+  o které se neví, jestli na železe existuje, by znamenalo ladit simulaci.
   **Příčinou toho zešikmení je drsnost trávy** (změřeno sweepem 24. 8.): bez šumu je vychýlení
   −1,7 mm, při výchozí `grassrough=0,03` +17,0 mm a při 0,12 už **+54,2 mm**; šum hloubky na něj
   nemá vliv. Ono „+18 mm" je tedy **velikost artefaktu simulace**, ne předpověď pro HW — přenáší se
@@ -197,15 +200,29 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
   sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
-  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Fáze 2–5 hotové 26. 8. 2026**
+  z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Běží bez operátora** — je to
+  simulace autonomního doručení, takže potvrzování cíle bylo zrušeno (26. 8. 2026) a jediné lidské
+  vstupy jsou **QR kód a stop tlačítko**; uvolnění stopu je signál „hotovo". Viz
+  [doc/decisions.md](doc/decisions.md). **Fáze 2–5 hotové 26. 8. 2026**
   (62 testů): `QrScanner` + `QrCodeMsg`, `geo:` parser, automat + `MissionMsg`, napojení
-  `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). Zbývá přežití restartu (fáze 6)
-  a ověření na HW (fáze 7).
-  **Vyzkoušet v simulaci:** panel mise („Start mise") + *Tools → Virtuální senzory*, kde je nově
-  **přepínač nouzového zastavení** — bez něj se servisní okno projít nedalo (virtuální motory
+  `mission=robotour` a **UI panel** (*Tools → Mise Robotour*). **Zbývá jen ověření na HW (fáze 7)** —
+  fáze 6 (přežití restartu) je **zrušená** (27. 8. 2026): mise restart přežít nemusí, stavový soubor
+  nevznikne. Důsledek, se kterým se počítá: po restartu se jede od začátku a `ArmingAtDepot` postaví
+  **nové** depo tam, kde robot stojí.
+  **Od 27. 8. 2026 se cíl z QR kódu přichycuje na cestu** (`Probe` vrací `SnappedTarget` + `OffRoadM`)
+  a cíl dál než `MaxTargetOffRoadM` (15 m) od sítě je **nedosažitelný**. Není to kosmetika: `Navigator`
+  měří dojezd proti `GoalField.GoalPoint`, což je **surový** cíl, takže odsazení > 3 m by `Arrived`
+  neohlásilo **nikdy** a mise by v jízdě uvízla (jízda nemá timeout). `MissionMsg` je **verze 6** a
+  `AcceptedLatDeg/LonDeg` v ní znamenají **přichycený** cíl (ve verzích 2–5 surový). Depo a `goal=`
+  z příkazové řádky se **nepřichycují**. Těch 15 m je z úsudku — odstup se měří do záznamu, aby šel
+  nastavit z dat.
+  **Vyzkoušet v simulaci:** panel mise („Start mise") + *Tools → Virtuální senzory*, kde je
+  **červené tlačítko nouzového zastavení** — bez něj se servisní okno projít nedalo (virtuální motory
   hlásily stop natvrdo `false`), **náhled kamery** pro čtení a **QR kód do virtuální kamery**
   (svislá deska `SyntheticBillboard`, kreslí se jen do barvy — ne do hloubky, aby se nestala
-  překážkou; viz [doc/virtual-hw.md](doc/virtual-hw.md)). Tím jde průchod misí v simulaci projít celý.
+  překážkou; viz [doc/virtual-hw.md](doc/virtual-hw.md)). **Celý průchod misí autor v simulaci
+  proklikal 27. 8. 2026** a funguje; kód se staví na **1,0 m** (z 1,2 m se nepřečte) a stanoviště
+  mají v panelu tlačítka s hotovými kódy.
   ⚠️ **`MaxSpreadM` v návrhu (1,0 m) by misi nikdy nezarmovalo** — je pod nominálním šumem GPS;
   je to teď **RMS** odchylka s prahem 2,5 m (maximum s rostoucím *n* roste, takže delší okno
   kritérium přitvrzovalo). Viz [doc/decisions.md](doc/decisions.md).

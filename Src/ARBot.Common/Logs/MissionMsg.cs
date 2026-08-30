@@ -19,11 +19,15 @@ namespace ARBot.Common.Logs
         /// <summary>
         /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
         ///
-        /// <para><b>Verze 2</b> (2026-08-26) pridala <b>nabidnuty cil</b> (<see cref="HasPending"/>
-        /// a spol.) — tedy to, co obsluha vidi PRED potvrzenim. Bez toho by se do zaznamu nikdy
-        /// nedostala <see cref="PendingRouteLengthM"/>: delku trasy pocita zkouska dosazitelnosti
-        /// a nikde jinde v zaznamu neni, takze by pak neslo dohledat, na zaklade CEHO obsluha cil
-        /// potvrdila (nebo nepotvrdila).</para>
+        /// <para><b>Verze 2</b> (2026-08-26) pridala <b>cil z QR kodu</b> (<see cref="HasAcceptedCode"/>
+        /// a spol.). Nese hlavne <see cref="AcceptedRouteLengthM"/>: delku trasy pocita zkouska
+        /// dosazitelnosti a nikde jinde v zaznamu neni.</para>
+        ///
+        /// <para><b>Verze 5</b> (2026-08-26) <b>zmenila vyznam</b> tehoz kola: driv to byl cil
+        /// <i>nabidnuty k potvrzeni operatorem</i>, dnes <b>prijaty</b> cil — potvrzovani zaniklo
+        /// (mise je simulace autonomniho doruceni, viz robotour-mission.md). Bajty jsou tytez, ale
+        /// v starsim zaznamu ta hodnota znamena „ceka na potvrzeni", ne „prijato", takze se stara
+        /// verze pozna jen podle cisla.</para>
         ///
         /// <para><b>Verze 3</b> (2026-08-26) pridala <b>kvalitu fixu</b> v depu
         /// (<see cref="HasFixInfo"/> a spol.). Bez ni je „ceka se na kvalitni fix"
@@ -34,8 +38,15 @@ namespace ARBot.Common.Logs
         /// (<see cref="RejectReason"/>). Tri duvody (nesrozumitelny / prilis daleko / bez trasy) se
         /// z pohledu obsluhy chovaji stejne („nic se nestalo"), ale znamenaji uplne jine reseni —
         /// a bez nich to vypada, ze se kod vubec <i>neprecetl</i>.</para>
+        ///
+        /// <para><b>Verze 6</b> (2026-08-27) pridala <b>odstup prijateho cile od site</b>
+        /// (<see cref="AcceptedOffRoadM"/>) a zaroven <b>zmenila vyznam</b> souradnic
+        /// <see cref="AcceptedLatDeg"/>/<see cref="AcceptedLonDeg"/>: od teto verze je to cil
+        /// <b>prichyceny na cestu</b>, ne surova souradnice z kodu. Surova zustava citelna
+        /// v <see cref="AcceptedCodeText"/>, takze se z dvojice da odstup zkontrolovat — ale ve
+        /// verzich 2–5 znamenaji tytez bajty surovy cil, a to se pozna jen podle cisla verze.</para>
         /// </summary>
-        public const int FormatVersion = 4;
+        public const int FormatVersion = 6;
 
         /// <summary>Faze (<c>RobotourPhase</c> jako int, aby zprava prezila doplneni hodnot vyctu).</summary>
         public int Phase;
@@ -69,22 +80,36 @@ namespace ARBot.Common.Logs
         public string AbortReason;
 
         /// <summary>
-        /// <b>Nabidnuty cil</b> (verze 2): precteny kod, ktery uz prosel strojovymi kontrolami a
-        /// ceka na potvrzeni obsluhou. Presne to, co ma obsluha pred sebou, kdyz se rozhoduje —
-        /// takze v zaznamu je pak videt, na zaklade ceho potvrdila (nebo nepotvrdila).
+        /// <b>Prijaty cil z QR kodu</b> (verze 2, vyznam zmenen ve verzi 5): kod, ktery prosel
+        /// strojovymi kontrolami. Prijeti je <b>automaticke</b> — potvrzovani operatorem zaniklo.
         /// </summary>
-        public bool HasPending;
-        /// <summary>Nabidnuty cil [stupne]; plati jen kdyz <see cref="HasPending"/>.</summary>
-        public double PendingLatDeg, PendingLonDeg;
-        /// <summary>Zdrojovy text nabidnuteho kodu, doslova.</summary>
-        public string PendingCodeText;
-        /// <summary>Vzdalenost nabidnuteho cile od depa [m] — proti <c>MaxTargetDistanceM</c>.</summary>
-        public double PendingDistanceFromDepotM;
+        public bool HasAcceptedCode;
         /// <summary>
-        /// Delka trasy na nabidnuty cil [m] ze zkousky dosazitelnosti; 0 = zkouska neprobehla
+        /// Prijaty cil [stupne]; plati jen kdyz <see cref="HasAcceptedCode"/>.
+        ///
+        /// <para><b>Od verze 6 je to cil PRICHYCENY na cestu</b> (kolmy prumet na nejblizsi hranu),
+        /// tedy bod, na ktery se opravdu jede a proti kteremu se meri dojezd — ne souradnice
+        /// z kodu. Ta zustava v <see cref="AcceptedCodeText"/>.</para>
+        /// </summary>
+        public double AcceptedLatDeg, AcceptedLonDeg;
+        /// <summary>Zdrojovy text prijateho kodu, doslova.</summary>
+        public string AcceptedCodeText;
+        /// <summary>Vzdalenost prijateho cile od depa [m] — proti <c>MaxTargetDistanceM</c>.</summary>
+        public double AcceptedDistanceFromDepotM;
+        /// <summary>
+        /// Delka trasy na prijaty cil [m] ze zkousky dosazitelnosti; 0 = zkouska neprobehla
         /// (mise nema <c>IRouteProbe</c>). <b>Nikde jinde v zaznamu tenhle udaj neni.</b>
         /// </summary>
-        public double PendingRouteLengthM;
+        public double AcceptedRouteLengthM;
+        /// <summary>
+        /// Jak daleko lezel <b>surovy</b> cil z kodu od site cest [m] — tedy o kolik se posunul
+        /// prichycenim; proti <c>MaxTargetOffRoadM</c>.
+        ///
+        /// <para>Prichyceni tenhle udaj spocita a zahodilo by ho, takze <b>nikde jinde v zaznamu
+        /// neni</b>. Je to jediny zpusob, jak po bezu zjistit, jak daleko od cesty stanoviste
+        /// skutecne lezela — a tim nastavit limit z dat misto z usudku.</para>
+        /// </summary>
+        public double AcceptedOffRoadM;
 
         /// <summary>Citace: kolik kodu se precetlo, kolik se zamitlo, kolik timeoutu vyprselo.</summary>
         public int CodesRead, CodesRejected, Timeouts;
@@ -160,13 +185,13 @@ namespace ARBot.Common.Logs
             bw.Write(CodeNotSeen);
             Write(bw, TimeStamp);
 
-            // Verze 2: nabidnuty cil.
-            bw.Write(HasPending);
-            bw.Write(PendingLatDeg);
-            bw.Write(PendingLonDeg);
-            bw.Write(PendingCodeText ?? string.Empty);
-            bw.Write(PendingDistanceFromDepotM);
-            bw.Write(PendingRouteLengthM);
+            // Verze 2: cil z QR kodu (od verze 5 PRIJATY, driv nabidnuty k potvrzeni).
+            bw.Write(HasAcceptedCode);
+            bw.Write(AcceptedLatDeg);
+            bw.Write(AcceptedLonDeg);
+            bw.Write(AcceptedCodeText ?? string.Empty);
+            bw.Write(AcceptedDistanceFromDepotM);
+            bw.Write(AcceptedRouteLengthM);
 
             // Verze 3: kvalita fixu v depu.
             bw.Write(HasFixInfo);
@@ -181,6 +206,9 @@ namespace ARBot.Common.Logs
             bw.Write(RejectReason ?? string.Empty);
             bw.Write(RejectedCodeText ?? string.Empty);
             bw.Write(RejectedDistanceM);
+
+            // Verze 6: odstup prijateho cile od site cest.
+            bw.Write(AcceptedOffRoadM);
         }
 
         public override void FromData(BinaryReader br)
@@ -212,21 +240,21 @@ namespace ARBot.Common.Logs
             CodeNotSeen = br.ReadBoolean();
             TimeStamp = ReadDateTime(br);
 
-            // Verze 2 pridala nabidnuty cil. Starsi zaznamy ho nemaji - HasPending zustane false
+            // Verze 2 pridala cil z QR kodu. Starsi zaznamy ho nemaji - HasAcceptedCode zustane false
             // a UI/rozbor musi priznat, ze co obsluha pred potvrzenim videla, uz nezjisti.
             if (Verze >= 2)
             {
-                HasPending = br.ReadBoolean();
-                PendingLatDeg = br.ReadDouble();
-                PendingLonDeg = br.ReadDouble();
-                PendingCodeText = br.ReadString();
-                PendingDistanceFromDepotM = br.ReadDouble();
-                PendingRouteLengthM = br.ReadDouble();
+                HasAcceptedCode = br.ReadBoolean();
+                AcceptedLatDeg = br.ReadDouble();
+                AcceptedLonDeg = br.ReadDouble();
+                AcceptedCodeText = br.ReadString();
+                AcceptedDistanceFromDepotM = br.ReadDouble();
+                AcceptedRouteLengthM = br.ReadDouble();
             }
             else
             {
-                HasPending = false;
-                PendingCodeText = string.Empty;
+                HasAcceptedCode = false;
+                AcceptedCodeText = string.Empty;
             }
 
             // Verze 3 pridala kvalitu fixu. Starsi zaznamy ji nemaji - pak nejde dohledat, proc
@@ -256,6 +284,13 @@ namespace ARBot.Common.Logs
                 RejectReason = string.Empty;
                 RejectedCodeText = string.Empty;
             }
+
+            // Verze 6 pridala odstup cile od site. Starsi zaznam ho nema - pak nejde zjistit, jak
+            // daleko od cesty stanoviste lezela, a limit zustane hodnotou z usudku. Nula je tu
+            // spravna nahrada jen potud, ze znamena "nevime"; HasAcceptedCode rika, jestli vubec
+            // nejaky cil prijat byl.
+            if (Verze >= 6) AcceptedOffRoadM = br.ReadDouble();
+            else AcceptedOffRoadM = 0;
         }
 
         public override Message Build() => new MissionMsg();
