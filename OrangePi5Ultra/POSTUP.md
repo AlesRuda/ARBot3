@@ -209,6 +209,19 @@ sudo nmcli con delete 'Wired connection 1'
   se sám stane DHCP serverem**. Na soutěži tedy stačí strčit kabel do notebooku,
   ten dostane `192.168.66.x` a robot je na `192.168.66.1`. Nic se nenastavuje ručně.
   **Ověřeno 29. 8. 2026** přepojením kabelu do notebooku.
+- ⚠️ **Sdílené připojení nesmí klientovi vnucovat výchozí bránu ani DNS.** `ipv4.method=shared`
+  posílá v DHCP nabídce i volby 3 (router) a 6 (DNS) — notebook pak dostane **druhou výchozí
+  trasu** přes robota, Windows si ji vybere (drátový adaptér má nižší metriku než WiFi)
+  a **přijde o internet**, protože v režimu `eth-direct` robot žádný uplink nemá.
+  Léčba je `/etc/NetworkManager/dnsmasq-shared.d/no-default-route.conf`:
+  ```
+  dhcp-option=3
+  dhcp-option=6
+  ```
+  Prázdná hodnota znamená „neposílat". NM ten adresář předává sdílenému `dnsmasq`
+  jako `--conf-dir`. Platí pro všechna sdílená připojení NM; AP `arbot` se to netýká
+  (má vlastní `dnsmasq` v `arbot-ap-net.service`, a tam brána smysl dává — přes robota
+  jde mobil na internet, když má robot uplink kabelem).
 - **Jak dlouho ten pád trvá — a proč tak vypadají ty parametry.** Původně (`dhcp-timeout 20`,
   `retries 2`, `ipv6.method auto`) trval **74 s** od startu, než byl ethernet použitelný.
   Zkrácení `dhcp-timeout` samo nestačilo: profil čeká i na **IPv6 RA (~30 s)**, který ten
@@ -323,8 +336,45 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 rs-enumerate-devices -s     # seznam kamer (D435, T265)
 realsense-viewer            # GUI (na desktopu) – depth, RGB, póza T265
 ```
-**Zapojení kamer:** D435 → **USB3** port, T265 → **USB2** port (T265 stačí USB2).
-Po kroku 1 (`dwc3-host`) jsou funkční **oba** USB3-A porty.
+**Zapojení kamer — D435 na USB3, T265 na USB2, a POZOR na huby.** Po kroku 1
+(`dwc3-host`) jsou funkční **oba** USB3-A porty. D435 smí být buď přímo v desce, nebo
+za **jedním napájeným** hubem; co ji rozbije, je **řetěz dvou hubů za sebou**.
+
+> ⚠️ **Řetěz dvou hubů v cestě D435 kamery rozbije, a projeví se to matoucími příznaky.**
+> Změřeno 30. 8. 2026, když obě D435 visely za řetězem dvou USB3 hubů (druhý byl napájený):
+> viewer hlásil u D435 „no frames received" a **T265 nezobrazil vůbec**, což svádělo na
+> chybějící podporu T265. Ve skutečnosti se `rs-enumerate-devices` zaseklo
+> (`futex_wait_queue`) dřív, než se na T265 dostalo. V logu byly
+> `failed to claim usb interface, RS2_USB_STATUS_NO_DEVICE/IO` → `acquire_power failed`,
+> v `dmesg` opakované `USB disconnect` obou kamer plus `reset SuperSpeed` hubu — **bez
+> jediné chybové hlášky kernelu** (žádný nadproud, žádné `-71`/`-110`).
+> Selhávala pokaždé **jiná** kamera, takže to nebyl vadný kus, ale souboj o zdroj při
+> současné inicializaci. Jednotlivá kamera přitom streamovala v pořádku
+> (`rs-hello-realsense` vracel vzdálenost) — to je dobrý test, když se zdá, že „nic nejede".
+>
+> **Měření (`rs-bench`, 5 běhů `rs-enumerate-devices`, počítá se výpis všech tří kamer
+> a návratový kód):**
+>
+> | Zapojení | Úplných běhů |
+> |---|---|
+> | obě D435 za řetězem dvou hubů | **0 / 5** |
+> | jedna přímo, druhá za řetězem | **0 / 5** |
+> | obě přímo na kořenových portech | **10 / 10** |
+> | **obě za jedním napájeným hubem** | **10 / 10** |
+>
+> V obou funkčních zapojeních navíc **nula** událostí odpojení/připojení v `dmesg`
+> a nula chyb kernelu.
+>
+> **Závěr: nevadí hub, vadí dva huby za sebou.** Robot dnes jede na jednom napájeném
+> hubu, protože přímé zapojení do desky se do konstrukce nevešlo.
+> Obraz ve vieweru na tomhle zapojení funguje (potvrzeno 30. 8. 2026). `rs-bench` ale testuje
+> jen otevření kamer, **ne propustnost** souběžného streamu přes sdílenou linku hubu.
+> Diagnostický skript zůstal na desce jako `/usr/local/sbin/rs-bench`.
+>
+> **Slepé uličky, do kterých nechoď znovu:** není to napájení (kernel nehlásil nadproud
+> a smyčka běžela jen za běhu librealsense) ani `uvcvideo` (odpojení jeho rozhraní,
+> a dokonce i celého zařízení od `usb` ovladače, dalo jen 1 úspěšný běh z 5 — náhoda,
+> ne oprava). `uvcvideo` je v tomhle kernelu `builtin`, takže ho stejně nelze odebrat.
 
 ### 10. Managed wrapper Intel.RealSense (2.53) pro .NET aplikaci/testy
 Krok 9 buildí jen **nativní** `librealsense2.so`. Managed C# wrapper

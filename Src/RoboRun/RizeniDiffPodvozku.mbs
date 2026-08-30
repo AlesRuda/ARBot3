@@ -32,6 +32,8 @@ dim mark as integer
 timeout=0
 currentTimer=GetTimerCount(1)
 
+print("Version 2.0\r")
+
 while true
 	lastTimer=currentTimer
 	currentTimer=GetTimerCount(1)

@@ -210,6 +210,16 @@ else
     connection.autoconnect yes connection.autoconnect-priority 50 >/dev/null
   nmcli con delete 'Wired connection 1' 2>/dev/null || true
 
+  # Sdilene pripojeni nesmi klientovi vnucovat vychozi branu ani DNS: eth-direct
+  # se aktivuje prave kdyz v siti neni DHCP, tedy kdyz robot nema uplink - notebook
+  # by pak poslal provoz do internetu na robota (dratovy adapter ma ve Windows nizsi
+  # metriku nez WiFi) a prisel o pripojeni. Prazdna volba = neposilat.
+  mkdir -p /etc/NetworkManager/dnsmasq-shared.d
+  cat > /etc/NetworkManager/dnsmasq-shared.d/no-default-route.conf <<'EOC'
+dhcp-option=3
+dhcp-option=6
+EOC
+
   # Netplan past: system je rizeny netplanem a ten umi pri zapisu zahodit
   # ipv4.method=shared (keyfile se generuje do /run). Zkontrolovat a doplnit.
   for f in /etc/netplan/*.yaml; do

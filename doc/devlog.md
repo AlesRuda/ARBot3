@@ -37,6 +37,58 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-30
+
+- **Sdílené připojení už nebere notebooku internet.** Nález autora: po zapojení robota kabelem
+  přišel počítač o internet. Příčina: `ipv4.method=shared` posílá v DHCP i volby 3 (router)
+  a 6 (DNS), takže notebook dostal **druhou výchozí trasu** přes robota — a Windows si ji vybraly,
+  protože drátový adaptér má nižší metriku (WiFi měla 50). Provoz pak skončil na robotu, který
+  v režimu `eth-direct` žádný uplink nemá. Ta brána tam přitom nemá co dělat **nikdy**:
+  `eth-direct` se aktivuje právě tehdy, když v síti není DHCP.
+  - Léčba: `/etc/NetworkManager/dnsmasq-shared.d/no-default-route.conf` s `dhcp-option=3`
+    a `dhcp-option=6` (prázdná hodnota = neposílat). NM ten adresář předává sdílenému `dnsmasq`
+    jako `--conf-dir` (ověřeno v binárce), `dnsmasq --test` konfiguraci bere.
+    Zapsáno i do `setup-orangepi.sh`.
+  - AP `arbot` se to **netýká** — má vlastní `dnsmasq`, a tam brána smysl dává (mobil jde přes
+    robota na internet, když má robot uplink kabelem).
+  - **Neověřeno:** vlastní účinek. Robot byl v tu chvíli v `eth-dhcp` (zapojený do routeru),
+    takže se to projeví až při dalším přepojení kabelu do notebooku.
+
+- **`RizeniDiffPodvozku.mbs` nahrán do motorové jednotky** — tím padá první půlka staršího úkolu
+  („nahrát a ověřit na zařízení", viz 26. 8.). Skript dostal na začátku `print("Version 2.0\r")`
+  jako značku, podle které jde poznat, co v jednotce běží. Ověřeno, že hostiteli nevadí:
+  zapojený `SDC2160Ex` se resynchronizuje na `DI=`, starší `SDC2160` navíc dělá `ReadAll()`.
+  **Zbývá ověřit chování na robotu** — hlavně nouzové zastavení z 11. 8. (rotace se nuluje až při
+  `curSpeed = 0`, watchdog odlišen od e-stopu). Změna `.mbs` zatím není commitnutá.
+
+- **RealSense: vyřešeno — v cestě D435 nesmí být řetěz dvou hubů.** Příznaky (T265 se nezobrazí vůbec,
+  D435 hlásí „no frames received") vypadaly na softwarovou vadu, ale hardware byl v pořádku.
+  Obě D435 visely za řetězem **dvou** USB3 hubů; `rs-enumerate-devices` se zaseklo
+  (`futex_wait_queue`) dřív, než se dostalo na T265, v logu `failed to claim usb interface,
+  RS2_USB_STATUS_NO_DEVICE/IO` → `acquire_power failed` a v `dmesg` opakované odpojení obou
+  kamer i reset hubu — **bez jediné chyby kernelu**.
+  - **Změřeno** (`rs-bench`, 5 běhů, počítá se výpis všech 3 kamer + návratový kód):
+    obě za řetězem dvou hubů **0/5**, jedna přímo a druhá za řetězem **0/5**, obě přímo
+    na kořenových portech **10/10**, a nakonec **obě za jedním napájeným hubem 10/10**.
+    V obou funkčních zapojeních nula událostí odpojení v `dmesg`. T265 zůstala na USB2.
+    **Vadí tedy až dva huby za sebou, ne hub sám** — což je dobře, protože přímé zapojení
+    do desky se do konstrukce robota nevešlo. Robot jede na jednom napájeném hubu.
+  - **Obraz ve vieweru potvrzen autorem** po přepojení na jeden napájený hub. Souběžný stream
+    tím pádem funguje; propustnost sdílené 5Gb/s linky ale **změřená není** (z příkazové řádky
+    to nesestavíš — `rs-data-collect` neumí vybrat kameru podle sériového čísla a Python
+    bindings jsou v buildu vypnuté). Kdyby propustnost někdy nestačila, řešením je rozdělit
+    D435 na dva různé kořenové porty, ne vracet se k řetězu hubů.
+  - **Klíčové vodítko:** selhávala pokaždé **jiná** D435 (`...021` / `...040`), takže to nebyl
+    vadný kus, ale souboj o zdroj při současné inicializaci. A `rs-hello-realsense` přitom
+    z jedné kamery **snímky dostával** — jednotlivě fungovaly celou dobu.
+  - **Dvě zamítnuté hypotézy, obě moje:** *napájení* (kernel nehlásil nadproud ani chyby linku
+    a smyčka běžela jen za běhu librealsense) a *`uvcvideo`* — odpojení jeho rozhraní, a i
+    celého zařízení od `usb` ovladače, dalo jen **1 úspěšný běh z 5**, což byla náhoda, ne
+    oprava; ohlásil jsem ji předčasně kvůli chybě v měřicím skriptu (`kod=0` četl výsledek
+    `grep`, ne `rs-enumerate-devices`). `uvcvideo` je v tomhle kernelu `builtin`.
+  - Diagnostický skript zůstal na desce jako `/usr/local/sbin/rs-bench`; postup i tabulka
+    měření jsou v [POSTUP.md](../OrangePi5Ultra/POSTUP.md) kroku 9.
+
 ## 2026-08-29
 
 - **Síť robota přestavěna na soutěžní provoz: vlastní AP + ethernet s pádem na přímé spojení.**
