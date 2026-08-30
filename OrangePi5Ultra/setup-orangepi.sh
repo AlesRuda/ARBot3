@@ -3,15 +3,16 @@
 #  setup-orangepi.sh -- obnova konfigurace Orange Pi 5 Ultra (Armbian+KDE)
 #  po reinstalaci. Reprodukuje nastaveni z cervna 2026.
 #
-#  Obsahuje: GPU akcelerace (panthor), USB3 OTG->host, WiFi (iwd) + autostart,
-#            WiFi pripojeni, nvtop, .NET 10 SDK, Samba share, RustDesk direct,
+#  Obsahuje: GPU akcelerace (panthor), USB3 OTG->host, vlastni WiFi AP "arbot"
+#            (hostapd) + ethernet s padem na prime spojeni, nvtop, .NET 10 SDK,
+#            Samba share, RustDesk direct,
 #            SSH klic, Intel RealSense SDK (librealsense 2.53.1, D435+T265).
 #
 #  SPUSTIT JAKO ROOT z KONZOLE nebo pres ETHERNET (NE pres WiFi, kterou
 #  prave nastavujes - skript restartuje NetworkManager!):
 #        sudo bash setup-orangepi.sh
 #
-#  Idempotentni - lze spustit opakovane. Hesla (WiFi, Samba) interaktivne.
+#  Idempotentni - lze spustit opakovane. Hesla (AP, WiFi, Samba) interaktivne.
 #  POZOR: build RealSense (krok 9) trva ~15-20 min (kompilace ze zdrojaku).
 #
 #  POZOR pri kopirovani z Windows: soubor musi mit LF konce radku.
@@ -21,9 +22,24 @@
 
 # ----------------- KONFIGURACE (uprav podle potreby) -----------------
 USERNAME="ales"
-WIFI_SSID="VatNet"
 SHARE_DIR="/home/ales/arbot"
-LAN_SUBNET="192.168.88.0/24"
+
+# WiFi AP, ktere robot vystavuje (heslo se zada interaktivne, neni v repu):
+AP_SSID="arbot"
+AP_ADDR="192.168.7.1"
+AP_CHANNEL=6
+AP_COUNTRY="CZ"
+
+# Ethernet: prime spojeni s notebookem, kdyz v siti neni DHCP
+ETH_DIRECT_ADDR="192.168.66.1"
+
+# WiFi klient - jen zaloha, na desce se VYLUCUJE s AP (viz POSTUP.md krok 3).
+# Skript profil jen pripravi, nezapina ho.
+WIFI_SSID="VatNet"
+
+# Odkud smi Samba (AP, primy kabel, mistni sit):
+LAN_SUBNETS="192.168.7.0/24 192.168.66.0/24 192.168.88.0/24"
+
 # Verejny SSH klic pro prihlaseni z Windows (prazdne = preskocit):
 SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMrOyQDyZ2gYzUPmDzX1iyLKchoOHJBTEwk5AIHIURkT claude-orangepi-diag"
 # ---------------------------------------------------------------------
@@ -60,44 +76,170 @@ else
 fi
 
 # ----- 2) Instalace baliku -----
-log "2) Instalace baliku (iwd, nvtop, samba, .NET 10 SDK)"
+log "2) Instalace baliku (hostapd, iwd, nvtop, samba, .NET 10 SDK)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -o Acquire::ForceIPv4=true
-apt-get install -y iwd nvtop samba dotnet-sdk-10.0
+# hostapd = AP; iwd zustava kvuli zalozni roli klienta (POSTUP.md krok 3);
+# dnsmasq-base pouziva jak NM (sdilene pripojeni), tak arbot-ap-net.service.
+apt-get install -y hostapd iwd dnsmasq-base nvtop samba dotnet-sdk-10.0
 echo "  dotnet: $(dotnet --version 2>/dev/null || echo '?')"
 
-# ----- 3) NetworkManager -> iwd backend + WiFi autostart fix -----
-log "3) WiFi backend iwd + autostart drop-in"
+# ----- 3) WiFi AP "arbot" na hostapd -----
+# POZOR: AP NEJDE postavit pres NetworkManager. Vyzkouseno 29. 8. 2026:
+#   - backend iwd:            nmcli spadne na net.connman.iwd.InvalidArguments
+#   - backend wpa_supplicant: AP vysila, ale klient je odkopnut (DEAUTH reason=17);
+#                             wpa_supplicant sam varuje, ze jeho AP rezim neni
+#                             pro nl80211 urceny ("ap_scan=2 ... connection failures")
+# Funguje jedine hostapd mimo NM. Detaily: POSTUP.md kroky 3 a 4.
+log "3) WiFi AP '$AP_SSID' (hostapd) - wlan0 mimo NetworkManager"
+
+read -rsp "  Zadej heslo pro AP '$AP_SSID' (8-63 znaku, Enter = preskocit AP): " AP_PSK; echo
+if [ -n "$AP_PSK" ]; then
+  install -d -m 755 /etc/hostapd
+  umask 077
+  cat > /etc/hostapd/hostapd.conf <<EOC
+# AP robota ARBot - generovano setup-orangepi.sh, viz POSTUP.md krok 4.
+interface=wlan0
+driver=nl80211
+ssid=$AP_SSID
+hw_mode=g
+channel=$AP_CHANNEL
+ieee80211n=1
+wmm_enabled=1
+auth_algs=1
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+country_code=$AP_COUNTRY
+ieee80211d=1
+wpa_passphrase=$AP_PSK
+EOC
+  chmod 600 /etc/hostapd/hostapd.conf
+  umask 022
+  unset AP_PSK
+  echo "  /etc/hostapd/hostapd.conf zapsan (chmod 600)"
+else
+  echo "  AP preskoceno - hostapd.conf nezmenen"
+fi
+
+# wlan0 patri hostapd, ne NetworkManageru
 mkdir -p /etc/NetworkManager/conf.d
-printf '[device]\nwifi.backend=iwd\n' > /etc/NetworkManager/conf.d/wifi_backend.conf
+cat > /etc/NetworkManager/conf.d/unmanaged-wlan0.conf <<'EOC'
+# wlan0 ridi hostapd (AP), ne NetworkManager - viz POSTUP.md krok 4.
+[keyfile]
+unmanaged-devices=interface-name:wlan0
+EOC
+# backend pro pripad, ze by NM na wifi presto sahnul (iwd zustava pro zalozni klienta)
+printf '[device]\nwifi.backend=wpa_supplicant\n' > /etc/NetworkManager/conf.d/wifi_backend.conf
+systemctl disable --now iwd 2>/dev/null || true
+
+# WiFi (bcmdhd) je na SDIO a registruje se az ~8-12 s po startu -> pockat na zarizeni.
+mkdir -p /etc/systemd/system/hostapd.service.d
+cat > /etc/systemd/system/hostapd.service.d/wait-for-wlan.conf <<'EOC'
+[Unit]
+After=sys-subsystem-net-devices-wlan0.device
+Wants=sys-subsystem-net-devices-wlan0.device
+[Service]
+Restart=on-failure
+RestartSec=5
+EOC
+# tentyz drop-in pro iwd, kdyby se robot vracel do role klienta
 mkdir -p /etc/systemd/system/iwd.service.d
 cat > /etc/systemd/system/iwd.service.d/wait-for-wlan.conf <<'EOC'
 [Unit]
-# WiFi (bcmdhd) je na SDIO a registruje se az ~12s po startu.
-# Pockej na existenci wlan0, nez se iwd spusti (jinak NEW_INTERFACE failed).
 After=sys-subsystem-net-devices-wlan0.device
 Wants=sys-subsystem-net-devices-wlan0.device
 EOC
-systemctl disable --now wpa_supplicant 2>/dev/null || true
-systemctl enable --now iwd 2>/dev/null || true
+
+# hostapd sam nenastavuje IP - adresu, DHCP a NAT dela tahle jednotka.
+# --except-interface=lo tam MUSI byt, jinak si dnsmasq vezme i 127.0.0.1:53.
+AP_NET="${AP_ADDR%.*}.0/24"
+cat > /etc/systemd/system/arbot-ap-net.service <<EOC
+[Unit]
+Description=ARBot AP: adresa, DHCP a NAT pro wlan0 ($AP_NET)
+Requires=hostapd.service
+After=hostapd.service
+[Service]
+Type=simple
+ExecStartPre=/sbin/ip addr replace $AP_ADDR/24 dev wlan0
+ExecStartPre=/sbin/ip link set wlan0 up
+ExecStartPre=/sbin/sysctl -qw net.ipv4.conf.wlan0.forwarding=1
+ExecStartPre=/bin/sh -c '/sbin/iptables -t nat -C POSTROUTING -s $AP_NET ! -d $AP_NET -j MASQUERADE 2>/dev/null || /sbin/iptables -t nat -A POSTROUTING -s $AP_NET ! -d $AP_NET -j MASQUERADE'
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --interface=wlan0 --bind-interfaces --listen-address=$AP_ADDR --dhcp-range=${AP_ADDR%.*}.10,${AP_ADDR%.*}.254,1h --except-interface=lo --no-hosts --dhcp-authoritative --dhcp-leasefile=/var/lib/misc/arbot-ap.leases
+Restart=on-failure
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+EOC
+
 systemctl daemon-reload
 systemctl restart NetworkManager
 sleep 3
+if [ -f /etc/hostapd/hostapd.conf ]; then
+  systemctl unmask hostapd 2>/dev/null || true
+  systemctl enable --now hostapd
+  sleep 3
+  # nektere ovladace odmitnou country_code -> zkusit bez nej, at AP vubec bezi
+  if ! systemctl is-active --quiet hostapd; then
+    echo "  hostapd nenastartoval s country_code=$AP_COUNTRY, zkousim bez nej"
+    sed -i '/^country_code=/d; /^ieee80211d=/d' /etc/hostapd/hostapd.conf
+    systemctl restart hostapd; sleep 3
+  fi
+  systemctl enable --now arbot-ap-net
+  systemctl is-active --quiet hostapd && echo "  hostapd bezi" || echo "  POZOR: hostapd NEBEZI"
+fi
 
-# ----- 4) WiFi pripojeni -----
-log "4) WiFi profil '$WIFI_SSID'"
+# ----- 4) Sitove profily: ethernet (DHCP -> pad na prime spojeni) -----
+log "4) Ethernet: eth-dhcp (DHCP) s padem na eth-direct ($ETH_DIRECT_ADDR)"
+ETH_DEV="$(nmcli -t -f DEVICE,TYPE device status | awk -F: '$2=="ethernet"{print $1; exit}')"
+if [ -z "$ETH_DEV" ]; then
+  echo "  POZOR: zadne ethernetove zarizeni nenalezeno - preskoceno"
+else
+  echo "  zarizeni: $ETH_DEV"
+  ETH_NET="${ETH_DIRECT_ADDR%.*}.0/24"
+  nmcli con delete eth-dhcp 2>/dev/null || true
+  nmcli con delete eth-direct 2>/dev/null || true
+  # ipv6.method ignore NENI kosmetika: s IPv6 ceka aktivace na RA (~30 s) a pad
+  # na eth-direct trva 32 s misto 12 s (zmereno 29. 8. 2026).
+  nmcli con add type ethernet ifname "$ETH_DEV" con-name eth-dhcp \
+    ipv4.method auto ipv4.dhcp-timeout 10 ipv6.method ignore \
+    connection.autoconnect yes connection.autoconnect-priority 100 \
+    connection.autoconnect-retries 1 >/dev/null
+  nmcli con add type ethernet ifname "$ETH_DEV" con-name eth-direct \
+    ipv4.method shared ipv4.addresses "$ETH_DIRECT_ADDR/24" ipv6.method ignore \
+    connection.autoconnect yes connection.autoconnect-priority 50 >/dev/null
+  nmcli con delete 'Wired connection 1' 2>/dev/null || true
+
+  # Netplan past: system je rizeny netplanem a ten umi pri zapisu zahodit
+  # ipv4.method=shared (keyfile se generuje do /run). Zkontrolovat a doplnit.
+  for f in /etc/netplan/*.yaml; do
+    grep -q "$ETH_DIRECT_ADDR/24" "$f" 2>/dev/null || continue
+    if ! grep -q 'ipv4.method: "shared"' "$f"; then
+      echo "  netplan zahodil ipv4.method=shared v $f - doplnuji"
+      sed -i "s|^\(\s*\)ipv4.address1: \"$ETH_DIRECT_ADDR/24\"|\1ipv4.address1: \"$ETH_DIRECT_ADDR/24\"\n\1ipv4.method: \"shared\"|" "$f"
+    fi
+  done
+  netplan generate 2>/dev/null || true
+  nmcli con reload
+  # Restart NM vyse nechal viset stary dnsmasq, ktery drzi adresu sdileneho
+  # pripojeni -> nova instance se tam nedostane a eth-direct cykli.
+  pkill -f 'dnsmasq.*--clear-on-reload' 2>/dev/null || true
+  nmcli device reapply "$ETH_DEV" >/dev/null 2>&1 || true
+fi
+
+# Zalozni profil klienta WiFi. NEZAPINA se - na desce se vylucuje s AP.
 if [ -n "$WIFI_SSID" ]; then
-  read -rsp "  Zadej heslo k WiFi '$WIFI_SSID' (Enter = preskocit): " WPSK; echo
+  read -rsp "  Zadej heslo k WiFi '$WIFI_SSID' pro zalozni klientsky profil (Enter = preskocit): " WPSK; echo
   if [ -n "$WPSK" ]; then
-    nmcli connection delete "$WIFI_SSID" 2>/dev/null || true
-    nmcli connection add type wifi con-name "$WIFI_SSID" ifname wlan0 ssid "$WIFI_SSID" \
-      wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$WPSK" connection.autoconnect yes >/dev/null 2>&1 \
-      && echo "  NM profil vytvoren" || echo "  POZOR: nmcli add selhalo"
-    # iwd vlastni ulozeni (autoconnect bez nutnosti secret agenta)
+    nmcli con delete "$WIFI_SSID" 2>/dev/null || true
+    nmcli con add type wifi con-name "$WIFI_SSID" ifname wlan0 ssid "$WIFI_SSID" \
+      wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$WPSK" connection.autoconnect no >/dev/null 2>&1 \
+      && echo "  profil '$WIFI_SSID' pripraven (autoconnect NE)" || echo "  POZOR: nmcli add selhalo"
     mkdir -p /var/lib/iwd
     printf '[Security]\nPassphrase=%s\n' "$WPSK" > "/var/lib/iwd/${WIFI_SSID}.psk"
     chmod 600 "/var/lib/iwd/${WIFI_SSID}.psk"
     unset WPSK
+    echo "  prepnuti do role klienta: POSTUP.md krok 3"
   else
     echo "  preskoceno"
   fi
@@ -129,8 +271,10 @@ smbpasswd -a "$USERNAME"
 # ----- 6) ufw: Samba v LAN (pokud aktivni) -----
 log "6) Firewall (ufw) - Samba v LAN"
 if systemctl is-active --quiet ufw; then
-  ufw allow from "$LAN_SUBNET" to any app Samba 2>/dev/null || true
-  echo "  povoleno pro $LAN_SUBNET"
+  for net in $LAN_SUBNETS; do
+    ufw allow from "$net" to any app Samba 2>/dev/null || true
+    echo "  povoleno pro $net"
+  done
 else
   echo "  ufw neaktivni - preskoceno"
 fi
@@ -225,7 +369,8 @@ log "HOTOVO - doporucen reboot:  sudo reboot"
 echo "Po rebootu overit:"
 echo "  GPU:       glxinfo -B | grep Renderer   (Mali-G610, ne llvmpipe)  /  nvtop"
 echo "  USB3 OTG:  cat /proc/device-tree/usbdrd3_0/usb@fc000000/dr_mode  (= host)"
-echo "  WiFi:      nmcli device status            (wlan0 connected)"
+echo "  AP:        systemctl is-active hostapd arbot-ap-net   (active active; wlan0 = unmanaged)"
+echo "  Ethernet:  nmcli device status            (eth-dhcp v siti, jinak eth-direct)"
 echo "  Samba:     z Windows  \\\\<ip-pi>\\$SHARE_NAME   (jmeno $USERNAME + samba heslo)"
 echo "  .NET:      dotnet --info"
 echo "  RealSense: rs-enumerate-devices -s        (D435 na USB3, T265 na USB2)"

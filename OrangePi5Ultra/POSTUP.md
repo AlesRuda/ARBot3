@@ -6,7 +6,7 @@ Pi do funkčního stavu po reinstalaci Armbianu.
 - **Deska:** Orange Pi 5 Ultra (RK3588, GPU Mali-G610, WiFi čip AP6275P/SYN43711)
 - **OS:** Armbian (vendor kernel 6.1.x, base Ubuntu 26.04 arm64), KDE Plasma na Waylandu
 - **Uživatel:** `ales`
-- **Síť:** WiFi `VatNet`, podsíť `192.168.88.0/24`
+- **Síť:** vlastní AP `arbot` (`192.168.7.1`) + ethernet; podrobně krok 3 a 4
 - **Periferie:** Intel RealSense **D435** (depth) + **T265** (tracking)
 
 > Automat: vše níže provede skript **`setup-orangepi.sh`** (ve stejné složce).
@@ -26,7 +26,8 @@ Pi do funkčního stavu po reinstalaci Armbianu.
    ```bash
    sudo bash setup-orangepi.sh
    ```
-   Vyžádá si heslo k WiFi a heslo pro Samba účet.
+   Vyžádá si heslo pro AP `arbot`, heslo k WiFi (jen pro záložní klientský profil,
+   viz krok 3) a heslo pro Samba účet.
    ⚠️ Krok 9 (RealSense SDK) kompiluje ze zdrojáků → **~15-20 min**.
 5. Restartuj: `sudo reboot`
 
@@ -84,43 +85,164 @@ sudo apt-get install -y iwd nvtop samba dotnet-sdk-10.0
 - **samba** — sdílení adresáře do Windows (krok 5)
 - **dotnet-sdk-10.0** — .NET 10 LTS (aktuální v Ubuntu 26.04)
 
-### 3. WiFi backend `iwd` + autostart
-**Problém A — handshake:** s výchozím `wpa_supplicant` 2.11 selhává WPA2
-handshake (`wl_set_multi_akm: Failed to set join_pref` → klamavé "WRONG_KEY").
-Je to nekompatibilita wpa_supplicant 2.11 × Rockchip ovladač `bcmdhd` (FullMAC).
-**Řešení A:** přepnout NetworkManager na backend **`iwd`** (dělá handshake softwarově):
+### 3. WiFi: AP jede na `hostapd`, ne přes NetworkManager
+
+Deska umí **buď** klienta, **nebo** AP, a k AP vede jen jedna cesta. Všechny tři
+kombinace byly na desce vyzkoušeny 29. 8. 2026 — tohle není odhad:
+
+| Cesta | Klient (STA) | AP (hotspot) |
+|---|---|---|
+| NM + backend `iwd` | **funguje** | **neumí** — `nmcli con up` skončí na `net.connman.iwd.InvalidArguments: Argument type is wrong` (NM volá `AccessPoint.Start()` s argumenty, které iwd nebere) |
+| NM + backend `wpa_supplicant` 2.11 | **nefunguje** — `wl_set_multi_akm: Failed to set join_pref` → `CTRL-EVENT-ASSOC-REJECT`, navenek klamavé „WRONG_KEY" | **nefunguje** — AP sice vysílá a je vidět, ale klient je odkopnut: `WLC_E_DEAUTH_IND(6) reason=17`. `wpa_supplicant` sám v logu varuje: *„nl80211 driver interface is not designed to be used with ap_scan=2; this can result in connection failures"* |
+| **`hostapd` mimo NM** | — | **funguje** — klient projde 4-way handshake i DHCP |
+
+Příčina u klienta je nekompatibilita `wpa_supplicant` 2.11 s Rockchip ovladačem
+`bcmdhd` (FullMAC); u AP to, že AP režim ve `wpa_supplicant` je náhražka a pro
+nl80211 je určený `hostapd` (což je i to, co s tímhle Broadcom čipem dělá Android).
+**Robot proto jede na `hostapd`** (krok 4) a `wlan0` je z NetworkManageru vyjmuté.
+
+> **Slepá ulička, do které nechoď znovu:** `nmcli con add ... 802-11-wireless.mode ap`
+> vypadá funkčně — profil se založí, `iw dev wlan0 info` hlásí `type AP`, SSID je
+> v seznamu sítí vidět. Teprve klient zjistí, že se nepřipojí. Vypnutí PMF
+> (`wifi-sec.pmf 1`) odstraní z logu chybu `wl_cfg80211_external_auth`, ale
+> `reason=17` zůstává — **nepomůže to**.
+
+Návrat do role klienta (když se robot potřebuje připojit na cizí WiFi): vypnout
+`hostapd` a `arbot-ap-net`, smazat `/etc/NetworkManager/conf.d/unmanaged-wlan0.conf`,
+přepnout backend zpět na `iwd` a zapnout profil `VatNet`:
 ```bash
-sudo mkdir -p /etc/NetworkManager/conf.d
+sudo systemctl disable --now hostapd arbot-ap-net
+sudo rm /etc/NetworkManager/conf.d/unmanaged-wlan0.conf
 printf '[device]\nwifi.backend=iwd\n' | sudo tee /etc/NetworkManager/conf.d/wifi_backend.conf
-sudo systemctl disable --now wpa_supplicant
-sudo systemctl enable --now iwd
+sudo systemctl disable --now wpa_supplicant; sudo systemctl enable --now iwd
 sudo systemctl restart NetworkManager
+sudo nmcli con modify VatNet connection.autoconnect yes && sudo nmcli con up VatNet
 ```
-**Problém B — autostart:** WiFi (SDIO) se registruje až ~12 s po startu, iwd
-naběhne dřív, nenajde `wlan0` (`NEW_INTERFACE failed`) a WiFi nenaskočí.
-**Řešení B:** drop-in, který iwd počká na zařízení:
-```bash
-sudo mkdir -p /etc/systemd/system/iwd.service.d
-sudo tee /etc/systemd/system/iwd.service.d/wait-for-wlan.conf <<'EOF'
+Heslo k VatNet musí být v `/var/lib/iwd/VatNet.psk` (viz krok 4).
+
+**Autostart:** WiFi (SDIO) se registruje až ~8–12 s po startu, takže démon spuštěný
+dřív nenajde `wlan0`. Drop-in, který na zařízení počká, má `hostapd` (krok 4)
+i `iwd` (`/etc/systemd/system/iwd.service.d/wait-for-wlan.conf`).
+
+### 4. Síťové profily (AP `arbot`, ethernet, klient VatNet)
+
+Cílový stav pro soutěž: **robot vystavuje vlastní WiFi** (žádný router není),
+a velká data se stahují kabelem. Každá cesta má vlastní podsíť, takže nikdy nejsou
+dvě adresy v jedné podsíti (viz poznámka o ESET níže).
+
+#### AP `arbot` — `hostapd` + vlastní `dnsmasq`
+
+`/etc/hostapd/hostapd.conf` (**`chmod 600`**, obsahuje heslo — proto není v repu):
+```
+interface=wlan0
+driver=nl80211
+ssid=arbot
+hw_mode=g
+channel=6
+ieee80211n=1
+wmm_enabled=1
+auth_algs=1
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+country_code=CZ
+ieee80211d=1
+wpa_passphrase=HESLO
+```
+`wlan0` pryč z NetworkManageru — `/etc/NetworkManager/conf.d/unmanaged-wlan0.conf`:
+```ini
+[keyfile]
+unmanaged-devices=interface-name:wlan0
+```
+Drop-in `/etc/systemd/system/hostapd.service.d/wait-for-wlan.conf` (počkat na SDIO
+zařízení a restartovat při pádu):
+```ini
 [Unit]
 After=sys-subsystem-net-devices-wlan0.device
 Wants=sys-subsystem-net-devices-wlan0.device
-EOF
-sudo systemctl daemon-reload
+[Service]
+Restart=on-failure
+RestartSec=5
 ```
+Adresu, DHCP a NAT dělá `/etc/systemd/system/arbot-ap-net.service` — `hostapd` sám
+žádné IP nenastavuje:
+```ini
+[Unit]
+Description=ARBot AP: adresa, DHCP a NAT pro wlan0 (192.168.7.0/24)
+Requires=hostapd.service
+After=hostapd.service
+[Service]
+Type=simple
+ExecStartPre=/sbin/ip addr replace 192.168.7.1/24 dev wlan0
+ExecStartPre=/sbin/ip link set wlan0 up
+ExecStartPre=/sbin/sysctl -qw net.ipv4.conf.wlan0.forwarding=1
+ExecStartPre=/bin/sh -c '/sbin/iptables -t nat -C POSTROUTING -s 192.168.7.0/24 ! -d 192.168.7.0/24 -j MASQUERADE 2>/dev/null || /sbin/iptables -t nat -A POSTROUTING -s 192.168.7.0/24 ! -d 192.168.7.0/24 -j MASQUERADE'
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --interface=wlan0 --bind-interfaces \
+  --listen-address=192.168.7.1 --dhcp-range=192.168.7.10,192.168.7.254,1h \
+  --except-interface=lo --no-hosts --dhcp-authoritative --dhcp-leasefile=/var/lib/misc/arbot-ap.leases
+Restart=on-failure
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+sudo systemctl unmask hostapd && sudo systemctl enable --now hostapd
+sudo systemctl enable --now arbot-ap-net
+```
+`--except-interface=lo` tam **musí být** — jinak si dnsmasq vezme i `127.0.0.1:53`.
+`country_code=CZ` ovladač přijal (`iw reg get` → `country CZ: DFS-ETSI`), takže se
+tím zároveň řeší jinak výchozí world doména `country 00`.
 
-### 4. WiFi připojení (VatNet)
+#### Ethernet — dva profily, rozhoduje priorita
 ```bash
-sudo nmcli connection add type wifi con-name VatNet ifname wlan0 ssid VatNet \
-  wifi-sec.key-mgmt wpa-psk wifi-sec.psk 'HESLO' connection.autoconnect yes
+sudo nmcli con add type ethernet ifname enP3p49s0 con-name eth-dhcp \
+  ipv4.method auto ipv4.dhcp-timeout 10 ipv6.method ignore \
+  connection.autoconnect yes connection.autoconnect-priority 100 \
+  connection.autoconnect-retries 1
+sudo nmcli con add type ethernet ifname enP3p49s0 con-name eth-direct \
+  ipv4.method shared ipv4.addresses 192.168.66.1/24 ipv6.method ignore \
+  connection.autoconnect yes connection.autoconnect-priority 50
+sudo nmcli con delete 'Wired connection 1'
 ```
-Pro spolehlivý autoconnect přes iwd lze navíc předvyplnit iwd úložiště:
+- `eth-dhcp` (priorita 100) — v místní síti vezme adresu z DHCP a robot má internet.
+- `eth-direct` (priorita 50) — když DHCP do 20 s nepřijde, NM spadne sem a **robot
+  se sám stane DHCP serverem**. Na soutěži tedy stačí strčit kabel do notebooku,
+  ten dostane `192.168.66.x` a robot je na `192.168.66.1`. Nic se nenastavuje ručně.
+  **Ověřeno 29. 8. 2026** přepojením kabelu do notebooku.
+- **Jak dlouho ten pád trvá — a proč tak vypadají ty parametry.** Původně (`dhcp-timeout 20`,
+  `retries 2`, `ipv6.method auto`) trval **74 s** od startu, než byl ethernet použitelný.
+  Zkrácení `dhcp-timeout` samo nestačilo: profil čeká i na **IPv6 RA (~30 s)**, který ten
+  IPv4 timeout přebije, takže pokus stál 32 s. Teprve `ipv6.method ignore` to srazilo na
+  **12 s** (změřeno 29. 8. 2026). IPv6 tu k ničemu není, SSH i apt jedou po IPv4.
+- **Cena za to zkrácení:** v síti s pomalým DHCP (STP na managed switchi apod.) může robot
+  spadnout na `eth-direct`, i když měl dostat adresu — pak nemá internet a NM se sám zpátky
+  nevrátí. Léčba je `sudo nmcli con up eth-dhcp`.
+
+#### Klient VatNet (jen pro backend `iwd`, viz krok 3)
 ```bash
+sudo nmcli con add type wifi con-name VatNet ifname wlan0 ssid VatNet \
+  wifi-sec.key-mgmt wpa-psk wifi-sec.psk 'HESLO' connection.autoconnect no
 printf '[Security]\nPassphrase=HESLO\n' | sudo tee /var/lib/iwd/VatNet.psk
 sudo chmod 600 /var/lib/iwd/VatNet.psk
 ```
-**Ověření po rebootu:** `nmcli device status` → `wlan0  connected  VatNet`.
 
+> ⚠️ **Past: systém je řízený netplanem, ne čistým NM.** `nmcli con add` zapíše
+> YAML do `/etc/netplan/` a NM keyfile se z něj generuje do `/run` (názvy
+> `netplan-NM-…`). U profilů v režimu AP přitom netplan zahazoval `ipv4.method: shared`
+> při **každém** zápisu (`con add` i `con modify`; u ethernetu ho zachová) — AP pak
+> vysílalo, ale klient nedostal adresu. Od přechodu na `hostapd` se to AP netýká,
+> ale u ethernetových profilů kontroluj po každé změně
+> `sudo grep ipv4.method /etc/netplan/90-NM-*.yaml` a případně doplň do `passthrough:`
+> plus `sudo netplan generate`.
+
+> ⚠️ **Restart NetworkManageru nechá viset jeho `dnsmasq`.** Osiřelý proces drží
+> `192.168.66.1:53`, nová instance se tam nedostane a `eth-direct` pak cyklí
+> („getting IP configuration"). Léčba: `sudo pkill -f 'dnsmasq.*--clear-on-reload'`
+> a `sudo nmcli con up eth-direct`.
+
+**Ověření po rebootu:** `nmcli device status` → `wlan0 unmanaged`
+a `enP3p49s0 connected` (podle prostředí `eth-dhcp` nebo `eth-direct`);
+`systemctl is-active hostapd arbot-ap-net` → `active active`.
 ### 5. Samba sdílení `/home/ales/arbot`
 Pro nahrávání aplikace na Pi a čtení logů z Windows.
 ```bash
@@ -236,12 +358,14 @@ Bez připojené kamery se test gracefully přeskočí (`Assert.Ignore`).
 
 ## ⚠️ Důležité poznámky
 
-- **Dual-homing / ESET:** NIKDY nemít zapojený ethernet (`.25`) a WiFi (`.24`)
-  zároveň na stejné podsíti! Jeden stroj se dvěma IP/MAC na jednom segmentu
-  spustí na PC ESET „Útok ARP Cache Poisoning" a zablokuje komunikaci.
-  → Provozovat **buď** WiFi (kabel vytažený), **nebo** ethernet.
-  → Když musíš mít obojí: `sudo sysctl -w net.ipv4.conf.all.arp_announce=2`
-    a `net.ipv4.conf.all.arp_ignore=1` (a uložit do `/etc/sysctl.d/`).
+- **Dual-homing / ESET (historické, od 29. 8. 2026 neaktuální):** dokud byl robot
+  klientem VatNet, měl ethernet `.25` i WiFi `.24` v jedné podsíti — jeden stroj se
+  dvěma IP/MAC na jednom segmentu spustí na PC ESET „Útok ARP Cache Poisoning" a
+  zablokuje komunikaci. Současné rozdělení podsítí (AP `192.168.7.x`, kabel napřímo
+  `192.168.66.x`, místní síť z DHCP) to vylučuje konstrukcí. Kdyby se robot vracel
+  do role klienta: provozovat **buď** WiFi, **nebo** ethernet, případně
+  `sudo sysctl -w net.ipv4.conf.all.arp_announce=2` a
+  `net.ipv4.conf.all.arp_ignore=1` (a uložit do `/etc/sysctl.d/`).
 - **USB porty:** dva USB3-A porty (host + OTG→host po overlayi), dva USB2-A.
   D435 patří na USB3, T265 stačí USB2. (3. USB3 SoC řadič `fcd00000` je
   natrvalo disabled — sdílí PHY s onboard ethernetem, nech být.)
@@ -249,9 +373,12 @@ Bez připojené kamery se test gracefully přeskočí (`Assert.Ignore`).
   `sed -i 's/\r$//' setup-orangepi.sh`.
 - **Vypnutí:** `sudo poweroff` (vzdáleně už NEZAPneš — jen fyzicky).
   Restart: `sudo reboot`.
-- **IP adresy** jsou z DHCP (mohou se měnit). WiFi `192.168.88.24`,
-  ethernet `192.168.88.25`. Hostname: `orangepi5-ultra`.
-  Pro stálost zvážit rezervaci na routeru.
+- **IP adresy** (od 29. 8. 2026, viz krok 4). Hostname: `orangepi5-ultra`
+  (mDNS `orangepi5-ultra.local`, avahi běží).
+  - **AP `arbot`** — robot `192.168.7.1`, klienti `192.168.7.10–254`. Pevné.
+  - **Ethernet v místní síti** — z DHCP, tedy proměnlivé (naposledy `192.168.88.25`);
+    tady se vyplatí mířit na hostname, ne na adresu. Pro stálost zvážit rezervaci na routeru.
+  - **Ethernet napřímo do notebooku** — robot `192.168.66.1`, notebook `192.168.66.x` z DHCP. Pevné.
 - **`sudo`** — pokud byl zapnut NOPASSWD (`/etc/sudoers.d/010-ales-nopasswd`),
   jde sudo bez hesla; jinak interaktivní příkazy z konzole nebo přes `ssh -t`.
 - **Drobnost:** dhd načítá nvram `ap6611s` místo správného `AP6275P`

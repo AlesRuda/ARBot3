@@ -37,6 +37,73 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-29
+
+- **Síť robota přestavěna na soutěžní provoz: vlastní AP + ethernet s pádem na přímé spojení.**
+  Zadání: na soutěži není router, ale je potřeba se k robotu dostat z notebooku i z mobilu,
+  a zároveň stahovat velké objemy dat (na WiFi pomalé). Přestavba měla proběhnout tak, aby
+  se neztratila všechna spojení najednou.
+  - **Hotovo a ověřeno rebootem:** WiFi `wlan0` je AP **`arbot`** (2,4 GHz kanál 6, WPA2-CCMP,
+    robot `192.168.7.1`, NM `shared` → vlastní `dnsmasq` s rozsahem `.10–254` a MASQUERADE).
+    Ethernet má dva profily podle priority: `eth-dhcp` (100) vezme adresu z místní sítě,
+    a když DHCP do 20 s nepřijde, NM spadne na `eth-direct` (50) — `shared` na `192.168.66.1`,
+    tedy **robot rozdává adresu notebooku**, v terénu se nic nenastavuje ručně.
+    Po rebootu naskočilo obojí správně (AP aktivní v 15,9 s od startu).
+  - **Postup byl vedený přes ethernet**, aby zásah do WiFi nemohl přeříznout spojení; profily
+    se nemazaly, jen přečíslovaly priority, a před každým riskantním krokem běžela
+    `systemd-run --on-active` pojistka na návrat ethernetu. Zálohy v `/root/net-backup/`.
+  - **Rozhodnutí:** AP vylučuje klientský režim — deska umí jen jedno podle backendu NM
+    (`iwd` neumí AP, `wpa_supplicant` 2.11 neumí klienta s `bcmdhd`). Obojí na desce vyzkoušeno,
+    viz [decisions.md](decisions.md). Robot proto bere internet po kabelu.
+  - **Past, která by se projevila až po rebootu:** systém je řízený **netplanem** a ten
+    u AP profilu zahodil `ipv4.method: shared` — AP by vysílalo, ale klient by nedostal adresu.
+    Doplněno ručně do `passthrough:`, ověřeno po restartu.
+  - **Ověřeno dodatečně týž den: `eth-direct` funguje end-to-end** — po přepojení kabelu
+    do notebooku dostal notebook `192.168.66.71` z robotího `dnsmasq`, robot je na `192.168.66.1`.
+  - **AP nakonec běží na `hostapd`, ne přes NetworkManager.** Přes NM to vypadalo hotově
+    (`type AP`, SSID vidět), ale klient se nepřipojil: `WLC_E_DEAUTH_IND(6) reason=17`.
+    V logu se našlo přiznání samotného `wpa_supplicant` — *„nl80211 driver interface is not
+    designed to be used with ap_scan=2; this can result in connection failures"*. Jeho AP režim
+    je náhražka; pro nl80211 (a pro tenhle Broadcom čip i v Androidu) je určený `hostapd`.
+    Po přepnutí prošel mobil handshake i DHCP **na první pokus** (`AP-STA-CONNECTED`,
+    `pairwise key handshake completed (RSN)`, `DHCPACK 192.168.7.240`).
+    **Slepá ulička cestou:** vypnutí PMF (`wifi-sec.pmf 1`) odstraní z logu
+    `wl_cfg80211_external_auth`, ale `reason=17` zůstává — nepomůže.
+    Uspořádání: `wlan0` je z NM vyjmuté (`unmanaged-devices`), `hostapd` má drop-in
+    čekající na SDIO zařízení, a adresu + DHCP + NAT drží `arbot-ap-net.service`.
+    Zaplatila se tím i pojistka z dopoledne — `hostapd` se instaloval, dokud byl internet.
+  - **Regulační doména vyřešena mimochodem:** `hostapd` přijal `country_code=CZ`
+    (`iw reg get` → `country CZ: DFS-ETSI`), takže odpadla výchozí world doména `country 00`.
+  - **Dvě pasti navíc:** dnsmasq v `arbot-ap-net.service` musí mít `--except-interface=lo`,
+    jinak si vezme i `127.0.0.1:53`. A **restart NetworkManageru nechá viset jeho vlastní
+    `dnsmasq`**, který pak drží `192.168.66.1:53` — `eth-direct` se kvůli tomu točil ve smyčce
+    (32 aktivací za minutu) a spravilo to až zabití osiřelého procesu.
+  - **Test rebootem s `hostapd` prošel:** `hostapd` i `arbot-ap-net` naskočily samy
+    (`enabled`/`active`), `wlan0` je `unmanaged` s `192.168.7.1`, ethernet spadl na `eth-direct`.
+    **AP je k dispozici 9,8 s po startu** — to je ta cesta, na které na soutěži záleží.
+  - **Ethernet trval po startu 74 s, zkráceno na 12 s.** Původní `dhcp-timeout 20` + `retries 2`
+    znamenaly dva marné pokusy. Samotné zkrácení timeoutu nestačilo — profil čeká i na
+    **IPv6 RA (~30 s)**, který ten IPv4 timeout přebije, takže pokus stál 32 s. Teprve
+    `ipv6.method ignore` (IPv6 tu k ničemu není) srazilo pád na **12 s**. Výsledná trojice je
+    `dhcp-timeout 10`, `retries 1`, `ipv6.method ignore`. **Cena:** v síti s pomalým DHCP může
+    robot spadnout na `eth-direct`, i když měl dostat adresu — vrací se to `nmcli con up eth-dhcp`.
+    *Pozor na měření:* první pokus vyšel „1 s", ale to byl artefakt — `eth-dhcp` byl po startu
+    už zablokovaný jako selhavší, takže se vůbec nezkusil.
+  - **`setup-orangepi.sh` přepsán podle nové konfigurace.** Krok 3 dělá AP na `hostapd`
+    (config, `unmanaged-wlan0.conf`, drop-in čekající na SDIO, `arbot-ap-net.service`),
+    krok 4 zakládá ethernetové profily s doladěnými parametry a ošetřuje **obě pasti** —
+    kontrolu `ipv4.method: shared` v netplan YAMLu a zabití osiřelého `dnsmasq` po restartu NM.
+    Ethernetové zařízení se detekuje (`nmcli`), ne hardcoduje. `ufw` teď pouští Sambu i z podsítí
+    AP a přímého kabelu — jinak by přes ně sdílení nešlo. Klientský profil VatNet skript jen
+    **připraví a nezapíná**. Heslo k AP se zadává interaktivně, v repu není.
+    **Ověřeno jen staticky** (`bash -n` + vygenerování `arbot-ap-net.service` a `hostapd.conf`
+    ze skriptu a porovnání s tím, co na robotu běží — shoda). Celý běh ověří až reinstalace.
+  - **Rozpracováno / další krok:** ty tři ethernetové parametry jsou ověřené za běhu a v uloženém
+    keyfilu (`[ipv6] method=ignore`), ale **ne rebootem** — těch 12 s je zatím měřeno vynuceným
+    pokusem, ne startem.
+  - **Odkazy:** [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) kroky 3 a 4 (přepsané),
+    [decisions.md](decisions.md).
+
 ## 2026-08-26
 
 - **Mise Robotour: naimplementováno jádro** (fáze 2–4 z [robotour-mission.md](robotour-mission.md)).

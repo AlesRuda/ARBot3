@@ -13,6 +13,42 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-29 — Robot vystavuje vlastní WiFi (AP `arbot`) a AP jede na `hostapd`
+**Co:** WiFi na OrangePi je přepnutá z klienta VatNet na **vlastní AP `arbot`**
+(`192.168.7.1`, WPA2, kanál 6). AP obsluhuje **`hostapd` mimo NetworkManager**
+(`wlan0` je z NM vyjmuté), adresu, DHCP a NAT drží `arbot-ap-net.service`.
+Ethernet dostal dvojici NM profilů **DHCP → pád na přímé spojení** (`192.168.66.1`,
+robot rozdává adresy notebooku).
+
+**Proč:** na soutěži není k dispozici žádný router, ale je potřeba se k robotu dostat
+z notebooku i z mobilu — a k tomu stahovat velké objemy dat, na což je WiFi pomalá.
+AP řeší přístup, kabel objem; profil `eth-direct` s `ipv4.method=shared` znamená, že
+notebook dostane adresu sám a v terénu se nic nenastavuje ručně.
+
+**Proč `hostapd`, a ne AP režim v NM:** vyzkoušeny všechny tři cesty. `iwd` AP neumí
+(`net.connman.iwd.InvalidArguments` z `AccessPoint.Start()`). NM s backendem
+`wpa_supplicant` AP **zdánlivě** postaví — `type AP`, SSID je vidět — ale klient
+neprojde: `WLC_E_DEAUTH_IND(6) reason=17`. Sám `wpa_supplicant` k tomu v logu píše
+*„nl80211 driver interface is not designed to be used with ap_scan=2"*; jeho AP režim
+je náhražka a pro nl80211 je určený `hostapd`. Na `hostapd` klient projde handshake
+i DHCP na první pokus. **Slepá ulička: vypnutí PMF** (`wifi-sec.pmf 1`) odstraní
+z logu `wl_cfg80211_external_auth`, ale `reason=17` zůstane.
+
+**Důsledek:** deska umí **buď** AP, **nebo** klienta. `wpa_supplicant` 2.11 neumí
+klienta s ovladačem `bcmdhd` (`wl_set_multi_akm: Failed to set join_pref` →
+`ASSOC-REJECT`, navenek klamavé „WRONG_KEY" — proto se kdysi přešlo na `iwd`).
+**Robot se tedy na cizí WiFi nepřipojí**, dokud se ručně nepřepne zpátky (postup je
+v POSTUP.md kroku 3); internet bere po kabelu.
+
+**Pasti, které to stálo:**
+- **Netplan** (systém je řízený jím, ne čistým NM) zahazoval u AP profilu
+  `ipv4.method: shared` při každém zápisu. Od přechodu na `hostapd` je to mimo hru,
+  u ethernetových profilů to platí dál.
+- **Restart NetworkManageru nechá viset jeho `dnsmasq`**, ten drží `192.168.66.1:53`
+  a `eth-direct` pak nekonečně cyklí. Léčba je zabít osiřelý proces.
+
+**Odkazy:** [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) kroky 3 a 4.
+
 ### 2026-08-26 — `GPSState.Latitude/Longitude` jsou v RADIÁNECH (dřív stupně)
 **Co:** [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) drží zeměpisné souřadnice v
 **radiánech**, tedy v téže jednotce jako `LLA`, `GeoReference` a zbytek systému. `FormatVersion`
