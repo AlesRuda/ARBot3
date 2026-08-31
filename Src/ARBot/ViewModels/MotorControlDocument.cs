@@ -41,6 +41,13 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string voltageText = "-";
         [ObservableProperty] private string leftCurrentText = "-";
         [ObservableProperty] private string rightCurrentText = "-";
+        // Syrove hodnoty pro SensorFrameInfoControl - formatovani i pevne sloupce resi control
+        // (jednotne s kamerou, IMU a GPS).
+        [ObservableProperty] private long frameNum;
+        [ObservableProperty] private TimeSpan framePeriod;
+        [ObservableProperty] private DateTime frameTime;
+        /// <summary>Poznámka u rámce, který nenese měření (viz <c>IMotorState.HasMeasurement</c>).</summary>
+        [ObservableProperty] private string frameNote = "";
 
         /// <summary>Podkladový senzor pro indikátor stavu (SensorStatusControl).</summary>
         public ISensor? Sensor { get; }
@@ -108,6 +115,17 @@ namespace ARBot.ViewModels
             EmergencyText = s.IsEmergencyStop ? "NOUZOVÉ ZASTAVENÍ" : "v provozu";
             EmergencyBrush = s.IsEmergencyStop ? Brushes.OrangeRed : Brushes.LimeGreen;
 
+            // Rámec bez měření (chyba portu nebo neparsovatelná odpověď) nese podle kontraktu
+            // IMotorState.HasMeasurement platný JEN IsEmergencyStop - všechno ostatní jsou nuly,
+            // které nikdo nenaměřil. Zobrazit je jako hodnoty by znamenalo blikat napětím mezi
+            // 12 V a 0 V (pozorováno na zařízení 31. 8. 2026). Poslední naměřené hodnoty proto
+            // zůstávají a chybějící měření se přizná v řádku "Snímek".
+            if (!s.HasMeasurement)
+            {
+                SetFrame(s, "bez měření");
+                return;
+            }
+
             LeftWheelSpeedText = string.Format(CultureInfo.InvariantCulture, "{0,7:F3} m/s", s.LeftWheelSpeed);
             RightWheelSpeedText = string.Format(CultureInfo.InvariantCulture, "{0,7:F3} m/s", s.RightWheelSpeed);
             LeftEncoderText = string.Format(CultureInfo.InvariantCulture, "{0,10:F3} m", s.LeftEncoder);
@@ -115,6 +133,24 @@ namespace ARBot.ViewModels
             VoltageText = string.Format(CultureInfo.InvariantCulture, "{0:F2} V", s.Voltage);
             LeftCurrentText = string.Format(CultureInfo.InvariantCulture, "{0:F2} A", s.LeftMotorCurrent);
             RightCurrentText = string.Format(CultureInfo.InvariantCulture, "{0:F2} A", s.RightMotorCurrent);
+            SetFrame(s, "");
+        }
+
+        /// <summary>
+        /// Číslo rámce, frekvence a čas - stejný rozpad jako u kamery, IMU a GPS.
+        /// Údaje drží <see cref="SensorStateBase"/> (doplňuje je <c>SensorBase</c>), ne rozhraní
+        /// <see cref="IMotorState"/>, takže se na ně musí přetypovat; u implementace bez nich
+        /// zůstane řádek prázdný místo nesmyslných nul.
+        /// </summary>
+        private void SetFrame(IMotorState s, string note)
+        {
+            FrameNote = note;
+            if (s is not SensorStateBase ss)
+                return;
+
+            FrameNum = ss.FrameNum;
+            FramePeriod = ss.FrameReceivePeriod;
+            FrameTime = ss.TimeStamp;
         }
 
         public override bool OnClose()

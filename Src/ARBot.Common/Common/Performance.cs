@@ -37,12 +37,24 @@ namespace ARBot.Common.Common
             i.Add(ticks);
         }
 
+        /// <summary>
+        /// Prevod surovych tiku <see cref="Stopwatch"/> na milisekundy.
+        ///
+        /// <para><b>Nesmi to byt <c>new TimeSpan(ticks)</c>:</b> <see cref="Stopwatch.ElapsedTicks"/>
+        /// jsou tiky v jednotkach <see cref="Stopwatch.Frequency"/>, ne 100ns tiky
+        /// <see cref="TimeSpan"/>. Na Windows to vychazi nastejno jen shodou okolnosti (QPC 10 MHz),
+        /// na Linux/ARM64 je Frequency 1 GHz a namerene casy by byly <b>100x delsi</b>.
+        /// Stejna zamena zpusobila, ze cely <see cref="TimeBase"/> bezel na OrangePi 100x rychleji
+        /// (nalezeno 31. 8. 2026, viz doc/decisions.md).</para>
+        /// </summary>
+        private static readonly double TickToMs = 1000.0 / Stopwatch.Frequency;
+
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
             foreach(var kv in this)
             {
-                sb.AppendLine(string.Format("{0} - {1}", kv.Key, new TimeSpan((long)kv.Value.Avg).TotalMilliseconds));
+                sb.AppendLine(string.Format("{0} - {1}", kv.Key, kv.Value.Avg * TickToMs));
             }
             return sb.ToString();
         }

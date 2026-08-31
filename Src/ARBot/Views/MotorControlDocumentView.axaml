@@ -20,7 +20,8 @@
         </Border>
 
         <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
-            <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+          <StackPanel>
+            <Grid ColumnDefinitions="Auto,*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                   VerticalAlignment="Top">
                 <!-- záhlaví sloupců -->
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="Levý" Foreground="Gray" HorizontalAlignment="Right" Margin="0,2,12,6"/>
@@ -40,7 +41,16 @@
 
                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Napětí" Foreground="Gray" Margin="0,10,12,2"/>
                 <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding VoltageText}" Foreground="White" FontFamily="Consolas,monospace" HorizontalAlignment="Right" Margin="0,10,0,2"/>
+
             </Grid>
+
+            <!-- Řádek "Snímek" je MIMO tabulku výše - viz komentář v GpsDocumentView. -->
+            <ctl:SensorFrameInfoControl Height="20" Margin="0,10,0,2" HorizontalAlignment="Left"
+                                        FrameNum="{Binding FrameNum}"
+                                        Period="{Binding FramePeriod}"
+                                        Time="{Binding FrameTime}"
+                                        Note="{Binding FrameNote}"/>
+          </StackPanel>
         </Border>
     </Grid>
 </UserControl>

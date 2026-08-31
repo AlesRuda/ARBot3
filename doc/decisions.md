@@ -13,6 +13,74 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-08-31 — `Uart.Read(int)` čte přes vnitřní buffer (GPS ztrácela 92 % měření)
+**Co:** `Uart.Read(int count)` už nesahá na port po jednotlivých bajtech — při probuzení si
+vezme **všechno, co v portu je**, do vnitřního bufferu (8 kB) a další volání se obsluhují
+z něj. Smyčka i `Thread.Sleep(10)` při prázdném portu zůstaly.
+
+**Proč to byla vada:** UBX parser čte po **jednom bajtu** (`UBXMessage.Parse` volá `Read(1)`
+na každý bajt hlavičky a takhle přeskakuje i všechny NMEA věty). Původní `Read(1)` sáhl na
+port a když zrovna nic nebylo, spal 10 ms — takže se **za jedno probuzení zpracoval jeden
+bajt**. u-blox posílá 13,1 kB/s, takže parser stíhal ~1/12 toku.
+
+**Změřeno na zařízení 31. 8. 2026** (aplikace vypnutá, port volný):
+- přijímač skutečně posílá **NAV-PVT 9,90 Hz** (rozestupy medián 100 ms, min 92, max 107)
+  a k tomu **199 NMEA vět/s**, z toho ~170/s jsou GSV/GSA o viditelných družicích, které
+  driver vůbec nepoužívá;
+- staré čtení vytáhlo **0,88 NAV-PVT/s**, s bufferem **10,09/s** (obojí stejný benchmark);
+- **skutečný driver** `uBloxGps` po opravě dodává **9,99 Hz** (před opravou to autor
+  pozoroval v UI jako 0,8 Hz s občasným skokem na 3,2 Hz).
+
+Ten občasný skok na 3,2 Hz se skokem v čísle snímku byl tentýž jev z druhé strany: parser se
+občas trefil do už naplněného bufferu a dodal dvě měření těsně za sebou.
+
+**Proč ne jiné řešení:** nabízelo se vypnout v přijímači NMEA (ušetřilo by 87 % dat) nebo
+snížit jeho rychlost. Obojí je konfigurace **cizího zařízení uloženého v jeho flash** — vada
+byla v našem čtení a měla by se opravit tam. Vypnutí NMEA je stále legitimní optimalizace
+navíc, ne náhrada.
+
+**Důsledky a na co si dát pozor:** co leží ve vnitřním bufferu, **už není v portu**. Ostatní
+čtecí metody (`Read(byte[],off,count)`, `ReadLine()`, `ReadAll()`) proto nejdřív vybírají
+tenhle buffer — jinak by `ReadLine()` přečetl řádek, kterému chybí začátek. Dnes žádný senzor
+styly nemíchá (u-blox `Read(int)`, VN100 `Read(buf,off,len)`, motor `ReadLine()`), ale tiše
+se to rozejít nesmí. **Unit test na to není** — `Uart` je natvrdo nad `SerialPort`; ověřeno
+měřením na zařízení, včetně kontroly, že se nerozbily zbylé dvě cesty (IMU 8022 B/s
+s rozestupem 0xFA po 80 B, motor 386 řádků/s včetně `DI=`).
+
+**Odkazy:** `Uart.cs`, `UBXMessage.cs`, [devlog.md](devlog.md) 31. 8. 2026.
+
+### 2026-08-31 — `TimeBase` musí sčítat `Stopwatch.Elapsed.Ticks`, ne `ElapsedTicks`
+**Co:** `TimeBase.Now` počítalo `start + sw.ElapsedTicks`. Opraveno na
+`start + sw.Elapsed.Ticks` (Src/ARBot.Common/Common/TimeBase.cs). Stejná záměna byla
+i v `Performance.ToString()` (`new TimeSpan(surové_tiky)`), tam se převádí přes
+`Stopwatch.Frequency`.
+
+**Proč to byla vada:** `Stopwatch.ElapsedTicks` (bez tečky) vrací **surové tiky časovače**
+v jednotkách `Stopwatch.Frequency`, kdežto `DateTime`/`TimeSpan` počítají ve 100 ns.
+Na Windows je QPC frekvence shodou okolností **10 MHz = `TimeSpan.TicksPerSecond`**, takže
+záměna nic nedělá a je **neviditelná**. Na Linux/ARM64 (OrangePi) je `Frequency`
+**1 GHz**, tedy 100× jinak — a celý čas aplikace běžel **stonásobnou rychlostí**.
+
+**Jak se to projevilo (a proč to trvalo najít):** příznak vypadal jako vada kamery —
+overlay hlásil **0,3 Hz**, ale čísla snímků přibývala desítkami za sekundu. Obojí je
+tentýž jev: perioda příjmu se počítá z razítek, takže 30 Hz (33 ms) se hlásilo jako
+3,3 s = 0,3 Hz. Druhá stopa byl čas snímku **07:12** proti hodinám 22:46 — po ~5 minutách
+běhu byla razítka o ~8 hodin napřed. Změřeno na zařízení: stará varianta 100,0×, nová 1,0×.
+
+**Důsledky:** razítkuje se z `TimeBase` na 45 místech včetně všech senzorů, takže hodiny
+byly aspoň **konzistentní** — ale `dt` mezi měřeními vycházelo 100× větší, což rozbíjí
+predikci EKF, integraci rychlosti i regulaci, a všechno, co se poměřuje s reálným časem
+(okno historie fúze 3 s = reálných 30 ms, timeouty, Hz v UI). **Záznamy pořízené na Pi
+před touto opravou mají 100× roztažená razítka** a nedají se brát jako měření.
+
+**Pojistka:** `Src/ARBot.Common.Tests/Common/TimeBaseTests.cs` — jeden test porovnává
+postup `TimeBase` s nezávislým `Stopwatch`em (meze ±100 %, chyba je 100×, takže se
+neschová), druhý na platformách s odlišnou frekvencí hlídá, že se obojí tiky nerovnají.
+Pozor: test **nesmí** porovnávat s `DateTime.Now` — `TimeBase` záměrně nesleduje skoky
+systémových hodin.
+
+**Odkazy:** [devlog.md](devlog.md) 31. 8. 2026, `TimeBase.cs`, `Performance.cs`.
+
 ### 2026-08-29 — Robot vystavuje vlastní WiFi (AP `arbot`) a AP jede na `hostapd`
 **Co:** WiFi na OrangePi je přepnutá z klienta VatNet na **vlastní AP `arbot`**
 (`192.168.7.1`, WPA2, kanál 6). AP obsluhuje **`hostapd` mimo NetworkManager**

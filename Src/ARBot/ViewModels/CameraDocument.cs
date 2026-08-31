@@ -44,8 +44,16 @@ namespace ARBot.ViewModels
         /// <summary>false = RGB stream, true = hloubkový stream.</summary>
         [ObservableProperty] private bool showDepth;
 
+        // Rozlišení, režim, číslo snímku, frekvence a čas mají KAŽDÝ vlastní vlastnost a ve view
+        // vlastní buňku pevné šířky. Dřív byly slepené do dvou TextBlocků, takže se údaje
+        // navzájem posouvaly a v overlayi to poskakovalo (hlášeno z běhu 31. 8. 2026).
         [ObservableProperty] private string resolutionText = "-";
-        [ObservableProperty] private string frameText = "-";
+        /// <summary>Který stream se zrovna kreslí ("RGB" / "hloubka"), případně proč chybí.</summary>
+        [ObservableProperty] private string streamText = "";
+        // Syrove hodnoty pro SensorFrameInfoControl - formatovani i pevne sloupce resi control.
+        [ObservableProperty] private long frameNum;
+        [ObservableProperty] private TimeSpan framePeriod;
+        [ObservableProperty] private DateTime frameTime;
 
         /// <summary>Podkladový senzor pro indikátor stavu (SensorStatusControl).</summary>
         public ISensor? Sensor { get; }
@@ -113,12 +121,9 @@ namespace ARBot.ViewModels
             lastFrame = f;
             Render(f);
 
-            // Hz z periody příjmu (doplňuje SensorBase); neplatná perioda = prázdné.
-            string hzText = f.FrameReceivePeriod.TotalSeconds > 0
-                ? (1.0 / f.FrameReceivePeriod.TotalSeconds).ToString("0.0", CultureInfo.InvariantCulture)
-                : "";
-            FrameText = string.Format(CultureInfo.InvariantCulture,
-                "#{0}   {1,5} Hz   {2:HH:mm:ss.fff}", f.FrameNum, hzText, f.TimeStamp);
+            FrameNum = f.FrameNum;
+            FramePeriod = f.FrameReceivePeriod;   // Hz si spočítá control
+            FrameTime = f.TimeStamp;
         }
 
         /// <summary>Přepnutí RGB/hloubka – překreslí poslední snímek do nového režimu.</summary>
@@ -138,12 +143,14 @@ namespace ARBot.ViewModels
                 {
                     UpdateDepthImage(depth);
                     ResolutionText = string.Format(CultureInfo.InvariantCulture,
-                        "{0} × {1}   (hloubka)", depth.Width, depth.Height);
+                        "{0} × {1}", depth.Width, depth.Height);
+                    StreamText = "hloubka";
                 }
                 else
                 {
                     Image = null;
-                    ResolutionText = "hloubka není k dispozici";
+                    ResolutionText = "-";
+                    StreamText = "hloubka není k dispozici";
                 }
             }
             else
@@ -153,12 +160,14 @@ namespace ARBot.ViewModels
                 {
                     UpdateImage(rgb);
                     ResolutionText = string.Format(CultureInfo.InvariantCulture,
-                        "{0} × {1}   (RGB)", rgb.Width, rgb.Height);
+                        "{0} × {1}", rgb.Width, rgb.Height);
+                    StreamText = "RGB";
                 }
                 else
                 {
                     Image = null;
-                    ResolutionText = "RGB není k dispozici";
+                    ResolutionText = "-";
+                    StreamText = "RGB není k dispozici";
                 }
             }
         }

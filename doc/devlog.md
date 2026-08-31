@@ -182,6 +182,147 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Rozpracováno / další krok:** neověřené zůstává jediné ***Uložit a restartovat*** (jen build se
   statickou kontrolou bindingů). Nic z toho neběželo **na zařízení**.
 
+- **Sériové porty periferií na Orange Pi — změřeno na zařízení.** Do dneška byl v `ARBotHW.Init`
+  pro ARM64 jen odhad `PortAHRS = "/dev/ttyS0"` a **motor s GPS neměly port vůbec** (`null`), takže
+  by je `SetRealHW` na Pi nezaložil. Nový skript
+  [`OrangePi5Ultra/find-serial-ports.sh`](../OrangePi5Ultra/find-serial-ports.sh) je najde pasivně
+  (inventura `by-id`/`lsusb`/živých `ttyS*` + posluch bez zápisu do portů) a vypíše hotové
+  `Uart*=` parametry. Výsledek a souvislosti: [hardware.md](hardware.md).
+  - **Všechny tři visí na USB, žádný onboard UART se nepoužívá:** VN100 přes převodník CP2102
+    (`ttyUSB0`, skutečný UART 115200), Roboteq a u-blox mají vlastní USB CDC (`ttyACM0`/`ttyACM1`).
+    **`/dev/ttyS0` na RK3588 vůbec neexistuje** — jediný živý `ttyS*` je `ttyS7` a drží si ho
+    bluetooth. Odhad byl tedy nejen neověřený, ale rovnou špatný.
+  - **Do kódu se zapsala jména z `/dev/serial/by-id`, ne `ttyACM0`.** Čísla uzlů se přidělují
+    podle pořadí enumerace USB, takže prohození GPS a motoru je reálné — a bylo by **tiché**,
+    protože oba jsou `ttyACM*` a oba se otevřou.
+  - **Motor po startu pasivně mlčí** (0 B na všech rychlostech) — Roboteq začne posílat telemetrii
+    `DI= / C= / V= / A=` teprve po prvním přijatém bajtu. Není to závada a reálný driver to
+    nepozná, protože `SDC2160Ex` hned v konstruktoru posílá `^ECHOF 1`. Ověřeno dotazem `?FID`
+    (`Roboteq v1.7 SDC2XXX 10/13/2016`, baterie 12,0 V).
+  - **VN100 potvrzen dekódováním, ne jen přítomností dat:** 177 z 199 rozestupů mezi synchronizačním
+    `0xFA` je přesně **80 B**, což na bajt sedí na konfiguraci driveru (mag+accel+gyro 36 B +
+    ypr+yprU+yprRate 36 B + 8 B hlavička a CRC), při ~100 Hz tedy 8000 B/s — naměřeno 7988 B/s.
+  - **Dvě chyby v prvním běhu skriptu, obě opravené a okomentované:** (a) `stty ... speed 115200`
+    je **dotaz**, ne nastavení, takže celý příkaz padal na „invalid argument" a *všechny* porty se
+    tvářily jako mrtvé — baud se zadává holým číslem; (b) detekce VN100 podle **četnosti** `0xFA`
+    zamítala i platný stream (práh „aspoň 1 z 60" proti skutečnému rozestupu 80). Teď se hledá
+    **periodicita**, ne četnost — četnost je nepoužitelná z obou stran, protože v náhodném šumu
+    je `0xFA` jeden z 256 a v platném streamu se navíc vyskytuje uvnitř floatů.
+  - **Ověřeno:** build x64 i OrangePI zelený, testy 1026/1026. **Na zařízení** je ověřená detekce
+    portů a navíc to, že je `System.IO.Ports` přes `by-id` cestu **skutečně otevře a čte** (stejná
+    cesta jako v `Uart`: 8060 B/s z IMU, 12,4 kB/s z GPS, telemetrie z motoru) — to byla reálná
+    past, protože `SerialStream` na Unixu jméno portu validuje. Neověřené zůstává, že s nimi
+    **nastartuje celá aplikace** a senzory pojedou v běhu; app se schválně nespouštěla, aby
+    nemohla dát povel motorům.
+
+- **Aplikace poprvé běžela na Orange Pi — a rovnou vydala vážnou vadu: čas šel 100× rychleji.**
+  Po nasazení hlásily všechny tři UART senzory OK (VN100, SDC2160Ex, uBloxGps), takže porty výše
+  sedí; kamery `Left`/`Right` taky OK, `T265` CHYBA. Autor si všiml, že levá kamera hlásí **0,3 Hz,
+  ale čísla snímků přibývají desítkami za sekundu**.
+  - **Příčina není v kameře:** `TimeBase.Now` sčítalo `Stopwatch.ElapsedTicks` (surové tiky
+    v jednotkách `Stopwatch.Frequency`) s tiky `DateTime` (100 ns). Na Windows je QPC shodou
+    okolností 10 MHz, takže se to nikdy neprojevilo; na Linux/ARM64 je Frequency **1 GHz**.
+    Změřeno na zařízení: stará varianta postupuje **100,0×**, opravená **1,0×**, a „kamera 30 Hz
+    by se hlásila jako 0,30 Hz". Rozbor a důsledky: [decisions.md](decisions.md).
+  - **Druhá stopa vedla ke stejnému místu:** overlay ukazoval čas snímku **07:12** proti systémovým
+    22:46 — po ~5 minutách běhu byla razítka o ~8 hodin napřed. Sedí to na 100× i časově.
+  - **Opraveno** v `TimeBase` (`sw.Elapsed.Ticks`) a stejná záměna i v `Performance.ToString()`
+    (převod přes `Stopwatch.Frequency` místo `new TimeSpan(surové_tiky)`).
+  - **Dosah:** z `TimeBase` se razítkuje na 45 místech včetně všech senzorů, takže hodiny byly
+    aspoň konzistentní — ale `dt` mezi měřeními bylo 100× větší, což rozbíjí predikci EKF,
+    integraci rychlosti i regulaci. **Záznamy pořízené na Pi před opravou nejsou použitelné
+    jako měření.**
+  - **Ověřeno:** build x64 i OrangePI zelený, testy **1028/1028** (dva nové v
+    `TimeBaseTests.cs`). Oprava je proměřená na zařízení jako izolovaný kód; **v běžící aplikaci
+    na Pi ověřená není** — chce to nasadit znovu a podívat se, jestli kamera hlásí ~30 Hz.
+  - **Rozpracováno / další krok:** znovu nasadit na Pi a ověřit frekvence a časy v běhu; zvlášť
+    zůstává **`T265` v chybě**. Nedořešená je i souvislost s poolem snímků: `CaptureFramePool`
+    recykluje 3 sloty bez evidence vlastnictví, takže UI drží referenci na objekt, který jí
+    vlákno kamery přepisuje — po opravě času je potřeba zkontrolovat, jestli se čísla v overlayi
+    ještě rozcházejí.
+
+- **Tři pozorování autora z běhu na Pi — dvě vady, jedno normální chování.**
+  - **Motor blikal napětím mezi 12 V a 0 V.** Dvě příčiny nad sebou. (a) `SDC2160Ex.GetMeasurement`
+    má na sesbírání čtveřice řádků rozpočet **500 ms měřený přes `TimeBase`** — se stonásobně
+    rychlým časem to bylo **5 ms reálných**, takže skoro každý cyklus skončil jako `fail`. Řeší to
+    oprava `TimeBase` výše. (b) **Nezávisle na tom to špatně zobrazoval panel:** chybový rámec má
+    podle kontraktu `IMotorState.HasMeasurement` platný **jen `IsEmergencyStop`**, všechno ostatní
+    jsou nuly, které nikdo neměřil — `MotorControlDocument` je ale vypisoval jako hodnoty. Teď
+    poslední naměřené hodnoty zůstávají a chybějící měření se přizná v řádku „Snímek". Bez (b)
+    by 0 V problikávalo dál při každém vypadlém řádku.
+  - **Řádek „Snímek" (číslo, Hz, čas) motoru opravdu chyběl** — `MotorControlDocument` tu vlastnost
+    vůbec neměl. Doplněn jednotně s kamerou, IMU a GPS; údaje drží `SensorStateBase`, ne rozhraní
+    `IMotorState`, takže se na něj přetypovává. **GPS ho naopak má** (`GpsDocumentView.axaml`,
+    řádek „Snímek") — jen není ve spodním pruhu jako u kamery, ale jako další řádek tabulky.
+  - **GPS ~1 Hz není závada:** `uBloxGps` rychlost přijímače **vůbec nenastavuje**, takže jede
+    podle svého flashe a u-blox má ve výchozím stavu 1 Hz. Kdyby bylo potřeba víc, musí se poslat
+    `CFG-RATE` (nebo přenastavit přijímač zvlášť) — dnes to kód neumí.
+  - **Ověřeno:** build x64 i OrangePI zelený, testy 1028/1028; binding nového řádku ověřen
+    schválným překlepem (build padne na `AVLN2000`). **Na zařízení neověřeno** — chce to nasadit
+    a podívat se, jestli napětí drží a řádek se plní.
+
+- **Panely senzorů: slepené údaje rozpadnuty do vlastních buněk + sdílený control „Snímek".**
+  Autor hlásil, že údaje na obrazovce **poskakují a špatně se čtou**, protože jich je víc
+  v jednom `TextBlock`u. Příčina není font — je neproporcionální; mění se **počet znaků**
+  (číslo snímku přeteče o řád, frekvence z „0.8" na „30.0"), takže se posune všechno za tím
+  údajem. Léčba: každá hodnota má vlastní buňku **pevné šířky** se zarovnáním doprava.
+  - Rozpadnuto: `IMUDocument` (vektory X/Y/Z a kvaternion byly po třech i čtyřech chlpech
+    v jednom bloku, teď mají sloupce se záhlavím), `GpsDocument` (lat+lon, kvalita+fix,
+    kurz+zdroj, m/s+km/h), `CameraDocument` (rozlišení+režim v overlayi).
+  - **Řádek „Snímek" je nově sdílený control** `SensorFrameInfoControl` (na návrh autora) —
+    kreslí číslo, frekvenci a čas na **pevné souřadnice**, takže se sloupce nemohou posunout
+    z principu, a je na jednom místě místo čtyřikrát opsaného gridu. ViewModel předává
+    **syrové** hodnoty (`FrameNum`/`FramePeriod`/`FrameTime`) a Hz i formátování si dělá
+    control. Používají ho všechny čtyři dokumenty senzorů; `Label=""` skryje popisek pro
+    overlay v kameře, `Note` nese „bez měření" u motoru. Konvence zapsána do
+    [Views/README.md](../Src/ARBot/Views/README.md).
+  - **Ověřeno:** build x64 i OrangePI zelený, testy 1028/1028, bindingy jsou staticky
+    kontrolované (`x:DataType`). **Vzhled na zařízení neproklikán.**
+  - **Oprava po zpětné vazbě z běhu (GPS panel poskakoval dál):** pevné šířky samy nestačily,
+    layout jsem si rozbil dvěma způsoby. (a) `SensorFrameInfoControl` seděl **uvnitř** tabulky
+    přes `Grid.ColumnSpan="4"`, takže se jeho šířka rozpouštěla do `Auto` sloupců a při každé
+    změně textu vpravo se dorovnávala v **prvním** sloupci — tom s popisky — a posunula celý
+    sloupec hodnot. Control teď stojí mimo tabulku, ve `StackPanel`u (v `MotorControlDocument`
+    totéž preventivně). (b) Sloupce s jednotkou a doplňkem byly `Auto` a obsahují proměnlivý
+    text (`(4.4 km/h)` → `(12.3 km/h)`, název kvality fixu) — dostaly pevnou šířku. `Auto`
+    zůstalo jen u popisků, které se nemění. Obě pasti zapsány do
+    [Views/README.md](../Src/ARBot/Views/README.md). **Opět neproklikáno na zařízení.**
+  - **Můj `TimeBase` test byl náhodně červený** (jednou z pěti běhů celé sady) — startoval
+    `Stopwatch` zvlášť od prvního čtení `TimeBase.Now`, takže pauza plánovače mezi nimi se
+    započítala jen jedněm hodinám. Teď se obojí čte těsně za sebou, měří se pětkrát a bere se
+    medián; 3× celá sada po sobě zelená (1028/1028).
+- **GPS ztrácela 92 % měření — nalezeno, změřeno a opraveno.** Autor hlásil většinou 0,8 Hz
+  a občasný skok na 3,2 Hz se skokem v čísle snímku. Autor aplikaci vypnul, takže šlo změřit
+  přijímač i driver proti sobě na volném portu. Rozbor: [decisions.md](decisions.md).
+  - **Přijímač jede na 10 Hz, ne na 1 Hz:** NAV-PVT **9,90 Hz** (rozestupy medián 100 ms,
+    min 92, max 107) plus **199 NMEA vět/s** (13,1 kB/s), z toho ~170/s jsou GSV/GSA
+    o viditelných družicích, které driver vůbec nepoužívá. Předchozí odhad „1 Hz je u-blox
+    default" byl **mimo** — bylo to hádání z počtu `b5 62` v odposlechu, ne měření.
+  - **Příčina:** `Uart.Read(int)` sahal na port po **jednom bajtu** a při prázdném portu spal
+    10 ms — takže se za jedno probuzení zpracoval jeden bajt. UBX parser přitom čte po bajtech
+    i všechny ty nepoužité NMEA věty.
+  - **Změřeno vedle sebe na zařízení:** staré čtení **0,88 NAV-PVT/s**, s bufferem **10,09/s**.
+    To „0,88" sedí na autorem pozorovaných 0,8 Hz na desetinu. Občasný skok na 3,2 Hz byl týž
+    jev z druhé strany — parser se občas trefil do naplněného bufferu a dodal dvě měření hned
+    za sebou.
+  - **Oprava:** `Read(int)` si při probuzení vezme všechno, co v portu je, do vnitřního
+    bufferu (8 kB); smyčka i spánek zůstaly. **Skutečný driver `uBloxGps` po opravě dodává
+    9,99 Hz** (ověřeno na zařízení reálnými DLL, ne replikou).
+  - **Past, která se tím zavedla a je ošetřená:** co leží ve vnitřním bufferu, už není v portu.
+    `Read(buf,off,len)`, `ReadLine()` i `ReadAll()` proto nejdřív vybírají jeho obsah — jinak
+    by `ReadLine()` přečetl řádek bez začátku. Dnes styly nikdo nemíchá (u-blox `Read(int)`,
+    VN100 `Read(buf,off,len)`, motor `ReadLine()`), ale tiše se to rozejít nesmí.
+  - **Ověřeno na zařízení, že se zbylé dvě cesty nerozbily:** IMU 8022 B/s s rozestupem `0xFA`
+    po 80 B, motor 386 řádků/s včetně `DI=`. **Unit test není** — `Uart` je natvrdo nad
+    `SerialPort`; testovatelné by to bylo až po zavedení švu.
+  - **Nabízí se navíc, neuděláno:** vypnout v přijímači NMEA (ušetřilo by 87 % dat). Je to ale
+    konfigurace cizího zařízení v jeho flash, kdežto vada byla v našem čtení.
+- **Kamery:** T265 naběhla a pravá D435 se odmlčela. V `dmesg` je vidět, že `usb 2-1.4`
+  (pravá) po t≈4608 s přestala hlásit cokoli, zatímco `2-1.2` (levá) jede dál; **odpojená
+  není**, obě ale opakovaně dostávají `USBDEVFS_CLEAR_HALT` (zaseknutý stream endpoint).
+  Sedí to na dřív zapsanou příčinu „řetěz dvou USB hubů" ([decisions.md](decisions.md),
+  29. 8.) — jen teď přibyla zátěž od T265. Neřešeno.
+
 ## 2026-08-30
 
 - **Sdílené připojení už nebere notebooku internet.** Nález autora: po zapojení robota kabelem

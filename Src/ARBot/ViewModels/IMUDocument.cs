@@ -36,14 +36,35 @@ namespace ARBot.ViewModels
         /// <summary>Náklon pro umělý horizont [°].</summary>
         [ObservableProperty] private double rollDeg;
 
-        [ObservableProperty] private string orientationText = "-";
-        [ObservableProperty] private string angularVelocityText = "-";
-        [ObservableProperty] private string accelerationText = "-";
-        [ObservableProperty] private string magnetometerText = "-";
-        [ObservableProperty] private string quaternionText = "-";
+        // Každá skalární hodnota má VLASTNÍ vlastnost a ve view vlastní buňku pevné šířky.
+        // Dřív byly slepené po třech i po čtyřech do jednoho TextBlocku ("yaw x pitch y roll z"),
+        // takže změna šířky jednoho čísla posouvala všechna ostatní a údaje na obrazovce
+        // poskakovaly (hlášeno z běhu na zařízení 31. 8. 2026). Monospace font sám nestačí —
+        // mění se počet znaků (znaménko, řád), ne jen jejich šířka.
+        [ObservableProperty] private string yawText = "-";
+        [ObservableProperty] private string pitchText = "-";
+        [ObservableProperty] private string rollText = "-";
+        [ObservableProperty] private string angVelXText = "-";
+        [ObservableProperty] private string angVelYText = "-";
+        [ObservableProperty] private string angVelZText = "-";
+        [ObservableProperty] private string accXText = "-";
+        [ObservableProperty] private string accYText = "-";
+        [ObservableProperty] private string accZText = "-";
+        [ObservableProperty] private string magXText = "-";
+        [ObservableProperty] private string magYText = "-";
+        [ObservableProperty] private string magZText = "-";
+        [ObservableProperty] private string quatXText = "-";
+        [ObservableProperty] private string quatYText = "-";
+        [ObservableProperty] private string quatZText = "-";
+        [ObservableProperty] private string quatWText = "-";
+        [ObservableProperty] private string uncYawText = "-";
+        [ObservableProperty] private string uncPitchText = "-";
+        [ObservableProperty] private string uncRollText = "-";
         [ObservableProperty] private string confidenceText = "-";
-        [ObservableProperty] private string uncertaintyText = "-";
-        [ObservableProperty] private string frameText = "-";
+        // Syrove hodnoty pro SensorFrameInfoControl - formatovani i pevne sloupce resi control.
+        [ObservableProperty] private long frameNum;
+        [ObservableProperty] private TimeSpan framePeriod;
+        [ObservableProperty] private DateTime frameTime;
 
         /// <summary>Podkladový senzor pro indikátor stavu (SensorStatusControl).</summary>
         public ISensor? Sensor { get; }
@@ -115,40 +136,49 @@ namespace ARBot.ViewModels
                 HeadingDeg = ((azimuthDeg % 360) + 360) % 360;
                 PitchDeg = Conversions.Rad2Deg(ypr.Pitch);
                 RollDeg = Conversions.Rad2Deg(ypr.Roll);
-                OrientationText = string.Format(CultureInfo.InvariantCulture,
-                    "yaw {0:F1}°   pitch {1:F1}°   roll {2:F1}°", HeadingDeg, PitchDeg, RollDeg);
+                YawText = Num(HeadingDeg, "F1");
+                PitchText = Num(PitchDeg, "F1");
+                RollText = Num(RollDeg, "F1");
             }
 
             if (s.Rotation is Quaternion q)
-                QuaternionText = string.Format(CultureInfo.InvariantCulture,
-                    "x {0:F4}  y {1:F4}  z {2:F4}  w {3:F4}", q.X, q.Y, q.Z, q.W);
+            {
+                QuatXText = Num(q.X, "F4");
+                QuatYText = Num(q.Y, "F4");
+                QuatZText = Num(q.Z, "F4");
+                QuatWText = Num(q.W, "F4");
+            }
 
-            AngularVelocityText = Vec(s.AngularVelocity, "rad/s");
-            AccelerationText = Vec(s.Acceleration, "m/s²");
-            MagnetometerText = Vec(s.Magnetometer, "");
+            SetVec(s.AngularVelocity, v => { AngVelXText = v.X; AngVelYText = v.Y; AngVelZText = v.Z; });
+            SetVec(s.Acceleration, v => { AccXText = v.X; AccYText = v.Y; AccZText = v.Z; });
+            SetVec(s.Magnetometer, v => { MagXText = v.X; MagYText = v.Y; MagZText = v.Z; });
             ConfidenceText = s.Confidence.ToString("F2", CultureInfo.InvariantCulture);
 
             if (s.OrientationUncertainty is Vector3 u)
-                UncertaintyText = string.Format(CultureInfo.InvariantCulture,
-                    "yaw {0:F2}°   pitch {1:F2}°   roll {2:F2}°   (1σ)",
-                    Conversions.Rad2Deg(u.X), Conversions.Rad2Deg(u.Y), Conversions.Rad2Deg(u.Z));
+            {
+                UncYawText = Num(Conversions.Rad2Deg(u.X), "F2");
+                UncPitchText = Num(Conversions.Rad2Deg(u.Y), "F2");
+                UncRollText = Num(Conversions.Rad2Deg(u.Z), "F2");
+            }
 
-            // Hz: 4 pevná místa před tečkou, doplněná mezerami (ne nulami); neplatná perioda = prázdné.
-            string hzText = s.FrameReceivePeriod.TotalSeconds > 0
-                ? (1.0 / s.FrameReceivePeriod.TotalSeconds).ToString("0.0", CultureInfo.InvariantCulture)
-                : "";
-            FrameText = string.Format(CultureInfo.InvariantCulture,
-                "#{0}   {1,6} Hz   conf {2:F2}   {3:HH:mm:ss.fff}", s.FrameNum, hzText, s.Confidence, s.TimeStamp);
+            FrameNum = s.FrameNum;
+            FramePeriod = s.FrameReceivePeriod;
+            FrameTime = s.TimeStamp;
         }
 
-        private static string Vec(Vector3? v, string unit)
+        /// <summary>Jedno číslo bez jednotky a bez odsazení - zarovnání řeší buňka ve view.</summary>
+        private static string Num(double v, string format)
+            => v.ToString(format, CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// Rozdělí volitelný vektor do tří textů. Chybějící vektor dá pomlčky, aby se ve view
+        /// nemíchaly staré hodnoty s novými.
+        /// </summary>
+        private static void SetVec(Vector3? v, Action<(string X, string Y, string Z)> set)
         {
-            if (v == null)
-                return "-";
-            var val = v.Value;
-            string u = string.IsNullOrEmpty(unit) ? "" : " " + unit;
-            return string.Format(CultureInfo.InvariantCulture,
-                "X {0,8:F3}   Y {1,8:F3}   Z {2,8:F3}{3}", val.X, val.Y, val.Z, u);
+            set(v is Vector3 val
+                ? (Num(val.X, "F3"), Num(val.Y, "F3"), Num(val.Z, "F3"))
+                : ("-", "-", "-"));
         }
 
         public override bool OnClose()

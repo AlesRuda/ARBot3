@@ -15,14 +15,25 @@
         </Grid>
         <Grid Grid.Row="1" Margin="8,0,8,8">
             <Image Source="{Binding Image}" Stretch="Uniform"/>
-            <!-- Info overlay vlevo dole: rozlišení + snímek/Hz/čas -->
+            <!-- Info overlay vlevo dole: rozlišení + snímek/Hz/čas.
+                 Každý údaj má VLASTNÍ buňku pevné šířky - dřív byly slepené do jednoho
+                 TextBlocku, takže delší číslo snímku nebo frekvence posunulo vše za sebou. -->
             <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
                     Background="#80000000" Padding="8,4" CornerRadius="3">
                 <StackPanel>
-                    <TextBlock Text="{Binding ResolutionText}" Foreground="White"
-                               FontFamily="Consolas,monospace"/>
-                    <TextBlock Text="{Binding FrameText}" Foreground="#A0FFFFFF"
-                               FontFamily="Consolas,monospace"/>
+                    <Grid ColumnDefinitions="78,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding ResolutionText}"
+                                   Foreground="White" FontFamily="Consolas,monospace"
+                                   HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="1" Text="{Binding StreamText}"
+                                   Foreground="#A0FFFFFF" Margin="10,0,0,0"/>
+                    </Grid>
+                    <!-- Radek Snimek je sdileny control; bez popisku, aby overlay zustal uzky -->
+                    <ctl:SensorFrameInfoControl Height="18" Label=""
+                                                Foreground="#A0FFFFFF"
+                                                FrameNum="{Binding FrameNum}"
+                                                Period="{Binding FramePeriod}"
+                                                Time="{Binding FrameTime}"/>
                 </StackPanel>
             </Border>
         </Grid>

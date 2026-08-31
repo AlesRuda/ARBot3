@@ -33,15 +33,26 @@ namespace ARBot.ViewModels
         /// <summary>Zda je kurz k dispozici (jinak se kompas zbytečně netočí na 0).</summary>
         [ObservableProperty] private bool hasHeading;
 
-        [ObservableProperty] private string positionText = "-";
+        // Každá hodnota má VLASTNÍ vlastnost a ve view vlastní buňku pevné šířky - dřív byly
+        // slepené do jednoho TextBlocku ("lat X°   lon Y°"), takže změna délky jednoho čísla
+        // posouvala sousední údaje a text na obrazovce poskakoval (hlášeno z běhu 31. 8. 2026).
+        [ObservableProperty] private string latitudeText = "-";
+        [ObservableProperty] private string longitudeText = "-";
         [ObservableProperty] private string altitudeText = "-";
-        [ObservableProperty] private string qualityText = "-";
+        [ObservableProperty] private string qualityCodeText = "-";
+        [ObservableProperty] private string qualityNameText = "-";
+        [ObservableProperty] private string fixText = "-";
         [ObservableProperty] private string satellitesText = "-";
         [ObservableProperty] private string hdopText = "-";
-        [ObservableProperty] private string orientationText = "-";
-        [ObservableProperty] private string speedText = "-";
+        [ObservableProperty] private string headingText = "-";
+        [ObservableProperty] private string headingSourceText = "-";
+        [ObservableProperty] private string speedMsText = "-";
+        [ObservableProperty] private string speedKmhText = "-";
         [ObservableProperty] private string fixTimeText = "-";
-        [ObservableProperty] private string frameText = "-";
+        // Syrove hodnoty pro SensorFrameInfoControl - formatovani i pevne sloupce resi control.
+        [ObservableProperty] private long frameNum;
+        [ObservableProperty] private TimeSpan framePeriod;
+        [ObservableProperty] private DateTime frameTime;
 
         /// <summary>Podkladový senzor pro indikátor stavu (SensorStatusControl).</summary>
         public ISensor? Sensor { get; }
@@ -106,13 +117,14 @@ namespace ARBot.ViewModels
                 return;
 
             // GPSState drzi RADIANY (viz GPSState.Latitude), zobrazuje se ve STUPNICH.
-            PositionText = string.Format(CultureInfo.InvariantCulture,
-                "lat {0,11:F6}°   lon {1,11:F6}°",
-                ARBot.Common.Common.Conversions.Rad2Deg(s.Latitude),
-                ARBot.Common.Common.Conversions.Rad2Deg(s.Longitude));
-            AltitudeText = string.Format(CultureInfo.InvariantCulture, "{0:F1} m", s.Altitude);
-            QualityText = string.Format(CultureInfo.InvariantCulture,
-                "{0} ({1})   fix {2}", (int)s.Quality, s.Quality, s.IsFixed ? "ano" : "ne");
+            LatitudeText = ARBot.Common.Common.Conversions.Rad2Deg(s.Latitude)
+                .ToString("F6", CultureInfo.InvariantCulture);
+            LongitudeText = ARBot.Common.Common.Conversions.Rad2Deg(s.Longitude)
+                .ToString("F6", CultureInfo.InvariantCulture);
+            AltitudeText = s.Altitude.ToString("F1", CultureInfo.InvariantCulture);
+            QualityCodeText = ((int)s.Quality).ToString(CultureInfo.InvariantCulture);
+            QualityNameText = s.Quality.ToString();
+            FixText = s.IsFixed ? "ano" : "ne";
             SatellitesText = s.NumberOfSatellites.ToString(CultureInfo.InvariantCulture);
             HdopText = s.Hdop.ToString("F1", CultureInfo.InvariantCulture);
 
@@ -124,28 +136,25 @@ namespace ARBot.ViewModels
                 double azimuthDeg = Conversions.Rad2Deg(Conversions.Orientation2Azimut(o));
                 HeadingDeg = ((azimuthDeg % 360) + 360) % 360;
                 HasHeading = true;
-                string src = s.Orientation != null ? "2ant" : "dyn";
-                OrientationText = string.Format(CultureInfo.InvariantCulture,
-                    "{0:F1}°   ({1})", HeadingDeg, src);
+                HeadingText = HeadingDeg.ToString("F1", CultureInfo.InvariantCulture);
+                HeadingSourceText = s.Orientation != null ? "2ant" : "dyn";
             }
             else
             {
                 HasHeading = false;
-                OrientationText = "-";
+                HeadingText = "-";
+                HeadingSourceText = "";
             }
 
             double? speed = s.Speed ?? s.DynamicSpeed;
-            SpeedText = speed is double v
-                ? string.Format(CultureInfo.InvariantCulture, "{0:F2} m/s   ({1:F1} km/h)", v, v * 3.6)
-                : "-";
+            SpeedMsText = speed is double v ? v.ToString("F2", CultureInfo.InvariantCulture) : "-";
+            SpeedKmhText = speed is double v2 ? (v2 * 3.6).ToString("F1", CultureInfo.InvariantCulture) : "-";
 
             FixTimeText = s.FixTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
 
-            string hzText = s.FrameReceivePeriod.TotalSeconds > 0
-                ? (1.0 / s.FrameReceivePeriod.TotalSeconds).ToString("0.0", CultureInfo.InvariantCulture)
-                : "";
-            FrameText = string.Format(CultureInfo.InvariantCulture,
-                "#{0}   {1,6} Hz   {2:HH:mm:ss.fff}", s.FrameNum, hzText, s.TimeStamp);
+            FrameNum = s.FrameNum;
+            FramePeriod = s.FrameReceivePeriod;
+            FrameTime = s.TimeStamp;
         }
 
         public override bool OnClose()

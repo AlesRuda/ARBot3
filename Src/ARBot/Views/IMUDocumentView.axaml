@@ -7,6 +7,36 @@
     <Design.DataContext>
         <vm:IMUDocument/>
     </Design.DataContext>
+
+    <!-- Každá číselná hodnota má vlastní buňku PEVNÉ šířky a je v ní zarovnaná doprava.
+         Dřív byly slepené po třech do jednoho TextBlocku, takže změna délky jednoho čísla
+         (znaménko, přechod přes řád) posouvala všechna ostatní a údaje poskakovaly. -->
+    <UserControl.Styles>
+        <!-- popisek řádku -->
+        <Style Selector="TextBlock.lbl">
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="Margin" Value="0,2,12,2"/>
+        </Style>
+        <!-- záhlaví číselného sloupce -->
+        <Style Selector="TextBlock.hdr">
+            <Setter Property="Foreground" Value="#808080"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="8,2,0,2"/>
+        </Style>
+        <!-- číselná hodnota -->
+        <Style Selector="TextBlock.val">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="Consolas,monospace"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="8,2,0,2"/>
+        </Style>
+        <!-- jednotka za posledním číslem -->
+        <Style Selector="TextBlock.unit">
+            <Setter Property="Foreground" Value="#A0A0A0"/>
+            <Setter Property="Margin" Value="8,2,0,2"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
         <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
         <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0">
@@ -23,23 +53,78 @@
             </StackPanel>
         </Grid>
         <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-                  VerticalAlignment="Top">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Orientace" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding OrientationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Úhlová rychlost" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AngularVelocityText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Akcelerace" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AccelerationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Magnetometr" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MagnetometerText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="Kvaternion" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding QuaternionText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="Nejistota orient." Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding UncertaintyText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="6" Grid.Column="0" Text="Snímek" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding FrameText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-            </Grid>
+            <StackPanel>
+
+                <!-- Úhly (yaw/pitch/roll) -->
+                <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="yaw"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="pitch"/>
+                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="roll"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Orientace"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding YawText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding PitchText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding RollText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="°"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Nejistota (1σ)"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding UncYawText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding UncPitchText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding UncRollText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="°"/>
+                </Grid>
+
+                <!-- Vektory (X/Y/Z) -->
+                <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
+                      Margin="0,10,0,0">
+                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="X"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="Y"/>
+                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="Z"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Úhlová rychlost"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding AngVelXText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding AngVelYText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding AngVelZText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="rad/s"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Akcelerace"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding AccXText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding AccYText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding AccZText}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="m/s²"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Classes="lbl" Text="Magnetometr"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Classes="val" Text="{Binding MagXText}"/>
+                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="val" Text="{Binding MagYText}"/>
+                    <TextBlock Grid.Row="3" Grid.Column="3" Classes="val" Text="{Binding MagZText}"/>
+                </Grid>
+
+                <!-- Kvaternion (x/y/z/w) -->
+                <Grid ColumnDefinitions="Auto,78,78,78,78" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="x"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="y"/>
+                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="z"/>
+                    <TextBlock Grid.Row="0" Grid.Column="4" Classes="hdr" Text="w"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Kvaternion"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding QuatXText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding QuatYText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding QuatZText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="val" Text="{Binding QuatWText}"/>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,78" RowDefinitions="Auto" Margin="0,10,0,0">
+                    <TextBlock Grid.Column="0" Classes="lbl" Text="Důvěra"/>
+                    <TextBlock Grid.Column="1" Classes="val" Text="{Binding ConfidenceText}"/>
+                </Grid>
+
+                <!-- Radek Snimek je sdileny control (viz SensorFrameInfoControl) -->
+                <ctl:SensorFrameInfoControl Height="20" Margin="0,6,0,0" HorizontalAlignment="Left"
+                                            FrameNum="{Binding FrameNum}"
+                                            Period="{Binding FramePeriod}"
+                                            Time="{Binding FrameTime}"/>
+
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

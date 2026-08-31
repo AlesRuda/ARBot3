@@ -150,11 +150,26 @@ namespace ARBot.Robot
             PortGPS = "COM8";
 #endif
 #if IsARM64
-            // OrangePI/Armbian: VN100 IMU pres sdilenou tridu Uart (System.IO.Ports) - stejny kod
-            // jako na x64, jen s linuxovym zarizenim /dev/tty... System.IO.Ports (v10) podporuje
-            // i Linux/ARM64. Zarizeni lze zadat argumentem "UartAHRS=/dev/ttyS0"; vychozi hodnotu
-            // nutno overit dle zapojeni. Obaleno try/catch, aby chyba senzoru neshodila cely Init.
-            PortAHRS = "/dev/ttyS0";
+            // OrangePI/Armbian: senzory jedou pres sdilenou tridu Uart (System.IO.Ports) - stejny
+            // kod jako na x64, jen s linuxovym jmenem zarizeni. Zalozeni je obalene try/catch,
+            // aby chyba jednoho senzoru neshodila cely Init.
+            //
+            // Zmereno na robotu 31. 8. 2026 (OrangePi5Ultra/find-serial-ports.sh) - vsechny tri
+            // periferie visi na USB, zadny onboard UART se nepouziva:
+            //   VN100 IMU  -> prevodnik CP2102 (skutecny UART 115200) -> /dev/ttyUSB0
+            //   SDC2160Ex  -> Roboteq ma vlastni USB CDC-ACM          -> /dev/ttyACM0
+            //   u-blox GPS -> vlastni USB CDC-ACM                     -> /dev/ttyACM1
+            //
+            // Zapsana jsou ale jmena z /dev/serial/by-id, ne ttyUSB0/ttyACM0: cisla uzlu se
+            // prideluji podle poradi enumerace USB, takze prohozeni GPS a motoru po restartu
+            // nebo po prepojeni kabelu je realne - a bylo by TICHE (oba jsou ttyACM*, oba se
+            // otevrou). Jmeno v by-id plyne z USB deskriptoru, takze drzi.
+            //
+            // Predchozi hodnota "/dev/ttyS0" byla jen odhad a byla spatne: na RK3588 zadny
+            // /dev/ttyS0 neexistuje. Jediny zivy onboard UART je ttyS7 a drzi si ho bluetooth.
+            PortAHRS = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
+            PortMotor = "/dev/serial/by-id/usb-Roboteq_Motor_Controller_SDC2XXX-if00";
+            PortGPS = "/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00";
 #endif
 
             /*

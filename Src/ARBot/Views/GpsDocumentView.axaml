@@ -7,6 +7,27 @@
     <Design.DataContext>
         <vm:GpsDocument/>
     </Design.DataContext>
+
+    <!-- Každá hodnota má vlastní buňku PEVNÉ šířky a je v ní zarovnaná doprava; jednotka
+         a doplňující text (zdroj kurzu, název kvality) mají buňku vlastní. Dřív byly slepené
+         do jednoho TextBlocku, takže se navzájem posouvaly. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.lbl">
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="Margin" Value="0,2,12,2"/>
+        </Style>
+        <Style Selector="TextBlock.val">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="Consolas,monospace"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,2,0,2"/>
+        </Style>
+        <Style Selector="TextBlock.unit">
+            <Setter Property="Foreground" Value="#A0A0A0"/>
+            <Setter Property="Margin" Value="6,2,0,2"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
         <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
         <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="8,0">
@@ -15,27 +36,63 @@
             <ctl:CompassControl Width="220" Height="220" Heading="{Binding HeadingDeg}"/>
         </StackPanel>
         <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+          <StackPanel>
+            <!-- popisek | hodnota | jednotka | doplněk
+                 Sloupec s jednotkou ani s doplňkem NESMÍ být Auto: mění se v nich text
+                 ("(4.4 km/h)" -> "(12.3 km/h)", název kvality fixu) a Auto by tou změnou
+                 přepočítalo šířky celého gridu. Popisky se nemění, ty Auto být můžou. -->
+            <Grid ColumnDefinitions="Auto,110,44,130"
+                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                   VerticalAlignment="Top">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Poloha" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PositionText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Nadm. výška" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AltitudeText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Kvalita fixu" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding QualityText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Satelity" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SatellitesText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="HDOP" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding HdopText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="Kurz" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding OrientationText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="6" Grid.Column="0" Text="Rychlost" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SpeedText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="7" Grid.Column="0" Text="Čas fixu" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding FixTimeText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
-                <TextBlock Grid.Row="8" Grid.Column="0" Text="Snímek" Foreground="Gray" Margin="0,2,12,2"/>
-                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding FrameText}" Foreground="White" FontFamily="Consolas,monospace" Margin="0,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="lbl" Text="Šířka"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Classes="val" Text="{Binding LatitudeText}"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Classes="unit" Text="°"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Délka"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding LongitudeText}"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Classes="unit" Text="°"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Nadm. výška"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding AltitudeText}"/>
+                <TextBlock Grid.Row="2" Grid.Column="2" Classes="unit" Text="m"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Classes="lbl" Text="Kvalita fixu"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Classes="val" Text="{Binding QualityCodeText}"/>
+                <TextBlock Grid.Row="3" Grid.Column="2" Classes="unit" Text="{Binding QualityNameText}"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Classes="lbl" Text="Fix"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Classes="val" Text="{Binding FixText}"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Classes="lbl" Text="Satelity"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Classes="val" Text="{Binding SatellitesText}"/>
+
+                <TextBlock Grid.Row="6" Grid.Column="0" Classes="lbl" Text="HDOP"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" Classes="val" Text="{Binding HdopText}"/>
+
+                <TextBlock Grid.Row="7" Grid.Column="0" Classes="lbl" Text="Kurz"/>
+                <TextBlock Grid.Row="7" Grid.Column="1" Classes="val" Text="{Binding HeadingText}"/>
+                <TextBlock Grid.Row="7" Grid.Column="2" Classes="unit" Text="°"/>
+                <TextBlock Grid.Row="7" Grid.Column="3" Classes="unit" Text="{Binding HeadingSourceText}"/>
+
+                <TextBlock Grid.Row="8" Grid.Column="0" Classes="lbl" Text="Rychlost"/>
+                <TextBlock Grid.Row="8" Grid.Column="1" Classes="val" Text="{Binding SpeedMsText}"/>
+                <TextBlock Grid.Row="8" Grid.Column="2" Classes="unit" Text="m/s"/>
+                <TextBlock Grid.Row="8" Grid.Column="3" Classes="unit" Text="{Binding SpeedKmhText, StringFormat='({0} km/h)'}"/>
+
+                <TextBlock Grid.Row="9" Grid.Column="0" Classes="lbl" Text="Čas fixu"/>
+                <TextBlock Grid.Row="9" Grid.Column="1" Classes="val" Text="{Binding FixTimeText}"/>
+
             </Grid>
+
+            <!-- Řádek "Snímek" MUSÍ být MIMO tabulku výše. Když seděl uvnitř přes
+                 Grid.ColumnSpan, jeho šířka se rozpouštěla do sloupců s Auto šířkou a při
+                 každé změně textu vpravo se dorovnávala v prvním sloupci s popisky —
+                 takže celý sloupec hodnot poskakoval (hlášeno z běhu 31. 8. 2026). -->
+            <ctl:SensorFrameInfoControl Height="20" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                        FrameNum="{Binding FrameNum}"
+                                        Period="{Binding FramePeriod}"
+                                        Time="{Binding FrameTime}"/>
+          </StackPanel>
         </Border>
     </Grid>
 </UserControl>

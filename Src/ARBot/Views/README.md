@@ -183,6 +183,32 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
   dokumentu senzoru: `<ctl:SensorStatusControl Sensor="{Binding Sensor}"/>`.
 - `CompassControl`, `ArtificialHorizonControl` — kompas a umělý horizont pro IMU
   (kompas využívá i `GpsDocument` pro kurz/azimut).
+- `SensorFrameInfoControl` — řádek **„Snímek": číslo · frekvence · čas** (+ volitelná
+  poznámka). Používají ho **všechny** dokumenty senzorů:
+  `<ctl:SensorFrameInfoControl FrameNum="{Binding FrameNum}" Period="{Binding FramePeriod}"
+  Time="{Binding FrameTime}"/>`. `Label=""` popisek skryje (overlay v kameře).
+  ViewModel předává **syrové** hodnoty (`uint`/`TimeSpan`/`DateTime`), formátování i výpočet
+  Hz z periody dělá control — jinak by se opisovalo ve čtyřech ViewModelech.
+
+> **Nedávej víc údajů do jednoho `TextBlock`u.** Sloučený text („`#8991   0.3 Hz   07:12:17`")
+> na obrazovce **poskakuje**: mění se počet znaků (číslo přeteče o řád, frekvence z „0.8" na
+> „30.0"), takže ani neproporcionální font nepomůže — posune se všechno za tím údajem.
+> Buď vlastní buňka `Grid`u **pevné šířky** se zarovnáním doprava, nebo vykreslovaný control
+> s pevnými souřadnicemi (jako `SensorFrameInfoControl`). Hlášeno z běhu na zařízení
+> 31. 8. 2026; tehdy se kvůli tomu rozpadly i vektory v `IMUDocument` (X/Y/Z byly v jednom
+> bloku) a slepené údaje v `GpsDocument` a `CameraDocument`.
+
+> **Dvě pasti, na které se dá poskakující sloupec vyrobit znovu i s pevnými šířkami**
+> (obě byly v `GpsDocumentView` a hlásil je autor 31. 8. 2026 podruhé):
+>
+> 1. **`Grid.ColumnSpan` přes sloupce s `Auto` šířkou.** Prvek, který přesahuje víc sloupců,
+>    si svou šířku „rozpustí" do `Auto` sloupců ve svém rozsahu. Když se pak vpravo změní
+>    šířka textu, dorovná se rozdíl v **prvním** `Auto` sloupci — tedy v tom s popisky — a celý
+>    sloupec hodnot se posune. `SensorFrameInfoControl` proto patří **mimo** tabulku hodnot
+>    (vlastní řádek ve `StackPanel`u), ne do ní přes `ColumnSpan`.
+> 2. **`Auto` sloupec s proměnlivým obsahem.** `Auto` se přepočítá při každé změně textu.
+>    Sloupec s jednotkou nebo doplňkem (`(4.4 km/h)` → `(12.3 km/h)`, název kvality fixu)
+>    musí mít **pevnou** šířku. `Auto` je v pořádku jen u sloupce s neměnnými popisky.
 
 ## Hotové dokumenty senzorů
 
