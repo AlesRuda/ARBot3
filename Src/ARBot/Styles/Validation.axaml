@@ -1,0 +1,112 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:ARBot.Views">
+    <Styles.Resources>
+        <views:ValidationErrorsConverter x:Key="ChybyNaText"/>
+    </Styles.Resources>
+
+    <!--
+        CHYBY VE VSTUPNICH POLICH — STANDARD APLIKACE (zadal autor 31. 8. 2026).
+
+        Vadne pole se pozna podle CERVENEHO RAMECKU a duvod rekne BUBLINA pri najeti mysi nebo
+        pri zaostreni pole. Chyba se tim drzi U POLE, ktereho se tyka.
+
+        Proc takhle: prvni verze (panel Konfigurace) mela na chybu VLASTNI SLOUPEC v tabulce.
+        Bral misto, ktere je v tabulce vzacne, a hlavne odsunul hlasku daleko od pole, ke kteremu
+        patri — u desitek radku uz nebylo poznat, ceho se tyka.
+
+        CO MUSI UDELAT MODEL: hlasit chyby pres INotifyDataErrorInfo (viz Views/README.md).
+        Nic jineho: Avalonia validacni chyby z bindingu sama propise na pole jako pseudotridu
+        `:error` (DataValidationErrors.HasErrorsChanged dela `classes.Set(":error", …)`) a naplni
+        pripojenou vlastnost DataValidationErrors.Errors. Tenhle styl uz jen meni, JAK se to ukaze.
+
+        VYCHOZI chovani Fluent temy je vypsat hlasku POD polem. To se tu rusi prazdnou
+        ErrorTemplate: v tabulce by kazdy vadny radek zvysil a rozhodil layout. Melo prednost
+        NEsahat kvuli tomu do ControlTemplate poli — pripojena vlastnost ErrorTemplate je k tomu
+        urcena a nezavisi na jmenech casti uvnitr cizich sablon.
+
+        Selektory na typ jsou tu zamerne (na rozdil od Styles/Buttons.axaml, kde globalni selektor
+        prebarvil i chrom dokovaciho systemu): vsechny jsou omezene pseudotridou `:error`, kterou
+        ma jen pole s validacni chybou — do cizich sablon proto nesahaji.
+    -->
+
+    <!--
+        Zadny vypis chyby POD polem; hlaska patri do bubliny (viz nize).
+
+        Vychozi sablona DataValidationErrors je DockPanel se dvema castmi: dole
+        „InlineDataValidationContentControl" (vypise chyby) a `PART_ContentPresenter` (samotne
+        pole). Tady zbyva jen ten druhy, takze text pod polem uz nema kde vzniknout.
+
+        Prazdna `DataValidationErrors.ErrorTemplate` na poli NESTACI (zkouseno 31. 8. 2026):
+        nastavuje se na pole, ale ten vnitrni ContentControl si ji odtud nevezme a hlasku vypisoval
+        dal. Proto se prepisuje cela sablona.
+    -->
+    <Style Selector="DataValidationErrors">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}"
+                                  Background="{TemplateBinding Background}"
+                                  BorderBrush="{TemplateBinding BorderBrush}"
+                                  BorderThickness="{TemplateBinding BorderThickness}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!--
+        Vadne pole se pozna jen ZMENOU BARVY ramecku; jeho TLOUSTKA zustava vychozi.
+
+        ⚠️ NEZVYSOVAT tloustku ramecku. Prvni verze mela `BorderThickness="2"` (aby byl vic videt)
+        a tim pole o 2 px zvysila — v tabulce pak radky pri psani POSKAKOVALY, jak se chyba
+        objevovala a mizela. Nahlasil autor 31. 8. 2026. Cervena barva je sama o sobe dost vyrazna.
+
+        ⚠️ `ToolTip.VerticalOffset` ma vychozi hodnotu **20**, takze bublina visi kus pod polem
+        a prekryva dalsi radek tabulky. Nula ji zarovna hornim okrajem na spodek pole.
+
+        ⚠️ `ToolTip.Placement` MUSI byt u pole, ne u kurzoru. Vychozi hodnota je
+        `PlacementMode.Pointer`, tedy bublina se otevre TAM, KDE PRAVE JE MYS - pri najeti mysi to
+        sedi (kurzor je nad polem), ale pri ZAOSTRENI se otevrela nekde jinde v tabulce nebo uplne
+        mimo okno, takze to vypadalo, ze se neotevrela vubec. Nalezeno 31. 8. 2026 az z diagnostiky,
+        ktera ukazala IsOpen=True a Tip nastaveny - bublina se otevirala spravne, jen jinde.
+    -->
+    <Style Selector="TextBox:error">
+        <Setter Property="BorderBrush" Value="#E05252"/>
+        <Setter Property="ToolTip.Tip"
+                Value="{Binding $self.(DataValidationErrors.Errors), Converter={StaticResource ChybyNaText}}"/>
+        <Setter Property="ToolTip.Placement" Value="BottomEdgeAlignedLeft"/>
+        <Setter Property="ToolTip.VerticalOffset" Value="0"/>
+        <Setter Property="ToolTip.ShowDelay" Value="200"/>
+    </Style>
+    <Style Selector="ComboBox:error">
+        <Setter Property="BorderBrush" Value="#E05252"/>
+        <Setter Property="ToolTip.Tip"
+                Value="{Binding $self.(DataValidationErrors.Errors), Converter={StaticResource ChybyNaText}}"/>
+        <Setter Property="ToolTip.Placement" Value="BottomEdgeAlignedLeft"/>
+        <Setter Property="ToolTip.VerticalOffset" Value="0"/>
+        <Setter Property="ToolTip.ShowDelay" Value="200"/>
+    </Style>
+
+    <!--
+        Bublina je videt, kdyz je pole VADNE a zaroven zaostrene NEBO pod mysi. Kdo do pole prave
+        pise, potrebuje duvod videt, aniz by po nem sahal mysi.
+
+        Rizeni ma na starost ValidationToolTip (Views/ValidationToolTip.cs) - je tam i vysvetleni,
+        proc to nejde setterem ve stylu ani retezem udalosti.
+    -->
+    <Style Selector="TextBox">
+        <Setter Property="views:ValidationToolTip.Enabled" Value="True"/>
+    </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="views:ValidationToolTip.Enabled" Value="True"/>
+    </Style>
+
+    <!-- Bublina s chybou je cervena, at se neplete s beznou napovedou pole. -->
+    <Style Selector="TextBox:error ToolTip, ComboBox:error ToolTip">
+        <Setter Property="Background" Value="#7A1F1F"/>
+        <Setter Property="BorderBrush" Value="#E05252"/>
+        <Setter Property="Foreground" Value="#FFE8E8"/>
+    </Style>
+</Styles>

@@ -73,6 +73,68 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     *Uložit a restartovat* zatím nikdy nenastane; je to obrana do budoucna.
   - **Vedlejší oprava:** nový namespace `ARBot.Common.Tests.Configuration` zastínil zkratku
     `Configuration.Profile` v `SyntheticSceneTraversabilityTests` — tam se plně kvalifikovalo.
+  - **Validace výčtů a složených hodnot** (návrh autora: „lambda `Parse` na `ParamDef`, vracející
+    kromě hodnoty i případnou chybu"). Vzniklo z toho, že profil uložený z panelu obsahoval
+    `start=asd` — typ `String` přijme cokoliv, takže nesmysl prošel až do runtimu, kde se zahodil
+    s hláškou. `ParamDef` teď umí **`AllowedValues`** (výčet: `mission`, `mapcorrgate`,
+    `camerapose` — nese i informaci pro UI, panel z něj může udělat rozbalovací seznam)
+    a **`Parse`** vracející důvod odmítnutí.
+    - **Podmínka, bez které by to nic neřešilo:** lambda musí volat **týž kód, jaký použije
+      runtime**, jinak by jen přesunula dvojí definici formátu jinam. Proto vzniklo
+      `ARBot.Common/Configuration/ParamParsers.cs` a `ARBotRuntime.TryParsePair` i rozbor `start=`
+      na něj **delegují**. Regex (původní úvaha) by tuhle vlastnost mít nemohl a navíc by neuměl
+      meze — `wheelslip` chce dvě **kladná** čísla.
+    - **Změna chování:** hodnota, kterou runtime dosud jen zahodil s hláškou (`wheelslip=0,1`),
+      teď zastaví start. Záměr — tiše ignorovaná hodnota je tatáž past jako překlep v klíči.
+      Ověřeno na běhu: tři vady naráz, každá s tím, co se čekalo. Platné složené hodnoty
+      (`goal=`, `poseerror=`, `imubias=`, `wheelslip=1.0,0.98`) prošly bez regrese.
+    - **Rozbalovací seznamy v panelu** (dokončeno tentýž den): sloupec *Hodnota* je
+      `DataGridTemplateColumn`, který u parametru s výčtem ukáže `ComboBox` a jinak `TextBox`
+      (přepíná se viditelnost dvou prvků, ne dva sloupce — jinak by tabulka měla dva sloupce
+      „Hodnota", z nichž je vždy jeden prázdný).
+      - **Podmínkou byla kanonizace** (`ParamDef.Canonical`), a našla se právě až tady: validace
+        výčtu je case-insensitive, takže `mission=NONE` z profilu projde, ale seznam porovnává
+        **přesně** — nevybral by nic, ukázal prázdno a při uložení by se hodnota **ztratila**.
+        Ověřeno za běhu profilem s `mission=FREERUN` a `camerapose=TRUTH`.
+    - **Směr, který tím vznikl** (autorův): až se bude `Program.GetParam*` upravovat, jde ho
+      opustit a číst přes `ParamStore` — parsování, validace i prezentace by pak byly na jednom
+      místě pro celou aplikaci.
+  - **Chyby ve vstupních polích jako STANDARD APLIKACE** (zadal autor): vadné pole má **červený
+    rámeček** a důvod řekne **bublina** u něj; sloupec „Chyba" z tabulky zrušen (bral místo
+    a odsouval hlášku daleko od pole, kterého se týkala). Vzhled drží nový
+    `Styles/Validation.axaml` zapojený v `App.axaml`; ViewModel jen hlásí chyby přes
+    **`INotifyDataErrorInfo`** — Avalonia zbytek udělá sama. Konvence zapsána do
+    [Views/README.md](../Src/ARBot/Views/README.md).
+    - `INotifyDataErrorInfo`, ne `IDataErrorInfo` (autorův námět): ten druhý neumí oznámit změnu
+      chyby, takže by rámeček zůstal viset i po opravě hodnoty.
+    - Tři věci se musely ověřit ve zdroji, ne odhadnout: pseudotřída **`:error` existuje**
+      a nastavuje se **na pole**, ne na `DataValidationErrors` (dokumentace tvrdila opak);
+      `DataValidationErrors.Errors` je `IEnumerable`, takže `[0]` v XAML **neprojde překladem**
+      (odtud `ValidationErrorsConverter`); a **prázdná `ErrorTemplate` na poli nestačí** k potlačení
+      textu pod polem — nastavuje se na pole, ale vnitřní `InlineDataValidationContentControl` si ji
+      odtud nevezme, takže se přepisuje celá `ControlTemplate` (zbude jen `PART_ContentPresenter`).
+      Nahlásil autor snímkem, když text pod polem zůstal.
+    - Bublina vyskočí i při **zaostření** pole, ne jen při najetí myší (na žádost autora). Stálo to
+      dvě mylné hypotézy a rozhodl až diagnostický výpis:
+      - **Ne setterem ve stylu** (`:error:focus` → `ToolTip.IsOpen`): služba bublin nastavuje
+        `IsOpen` jako **lokální hodnotu** (při odjetí myši zapíše `false`) a ta má vyšší prioritu
+        než setter ze stylu. Proto `Views/ValidationToolTip.cs`, které `IsOpen` nastavuje také
+        lokálně.
+      - **Doladění vzhledu podle autora:** chyba mění jen **barvu** rámečku, ne jeho tloušťku —
+        `BorderThickness="2"` zvyšovalo pole o 2 px a řádky tabulky při psaní **poskakovaly**.
+        A `ToolTip.VerticalOffset` (výchozí **20**) se dal na nulu, aby bublina seděla horní hranou
+        na spodku pole místo aby překrývala další řádek.
+      - **Podmínka zobrazení je jeden výraz nad stavem, ne řetěz událostí** (na námět autora):
+        `HasErrors && (IsFocused || IsPointerOver)`. První verze dělala `GotFocus → ukaž` /
+        `LostFocus → schovej` **vedle** vestavěné služby bublin, která totéž dělala pro myš, a ty
+        dva mechanismy si stav přepisovaly — odjetí myši zavřelo bublinu i u zaostřeného pole.
+        Vestavěná služba je proto na těch polích vypnutá (`ToolTip.ServiceEnabled`).
+      - ⚠️ **Skutečná příčina byla `ToolTip.Placement`.** Výchozí hodnota je `PlacementMode.Pointer`
+        — bublina se otevírá **u kurzoru myši**, ne u prvku. Při hoveru to sedí, při zaostření se
+        otevřela tam, kde zrovna byla myš (jinde v tabulce nebo mimo okno), takže to vypadalo, že
+        se neotevřela vůbec. Diagnostika přitom hlásila `IsFocused=True HasErrors=True Tip=je ->
+        IsOpen:=True` — celý řetěz fungoval. Léčba: `BottomEdgeAlignedLeft`, tedy pod polem;
+        stejně u hoveru i u focusu.
   - **Tlačítka na standardní *Uložit* / *Uložit jako…*** (na žádost autora). *Uložit* zapíše do
     známé cesty bez ptaní a zeptá se jen tehdy, když žádná není; *Uložit jako…* se ptá vždy.
     Zavření dialogu ukládání **zruší** — nespadne na náhradní cestu, jinak by „Zrušit" tiše někam
@@ -94,11 +156,31 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     sloupec nemá. Binding je opět staticky kontrolovaný (`x:DataType` na `Style`) a ověřený
     schválným překlepem; při té příležitosti nahrazen zastaralý `TextBox.Watermark`
     za `PlaceholderText`.
-- **Stav:** 990 testů zelených (bylo 941, přibylo 49), build `ARBot` i `ARBot.Common` pod `x64` bez
+- **Stav:** 1015 testů zelených (bylo 941, přibylo 74), build `ARBot` i `ARBot.Common` pod `x64` bez
   chyb. Aplikace ověřena bezobslužným self-testem s profilem.
-- **Rozpracováno / další krok:** **panel nikdo neproklikal** — ověřený je jen buildem (včetně
-  statické kontroly bindingů) a testy jádra. Neověřeno: editace hodnoty v tabulce, uložení profilu
-  z UI a tlačítko *Uložit a restartovat*. Nic z toho neběželo **na zařízení**.
+- **Panel autor proklikal** týž den: tabulka, rozbalovací seznamy u výčtů, editace hodnot,
+  *Načíst profil…* i *Uložit* — vzniklý profil má komentáře s popisy, nadpisy kategorií a jen
+  hodnoty odlišné od výchozích.
+  - ⚠️ **Nalezena vada, která ZTRÁCELA DATA** (nahlásil autor snímkem: `virtualhw` měl prázdnou
+    hodnotu, přestože *Původ* hlásil „prikazova radka" a aplikace s virtuálním HW běžela).
+    Buňka *Hodnota* měla **dva prvky nad sebou** (`ComboBox` + `TextBox`) přepínané `IsVisible`,
+    oba obousměrně navázané na tutéž `Value`. Když `DataGrid` při **virtualizaci** recykloval
+    kontejner z řádku *s* výčtem na řádek *bez* něj, dostal skrytý `ComboBox` prázdný
+    `ItemsSource`, svou hodnotu v něm nenašel, nastavil `SelectedItem = null` — a binding to
+    **zapsal zpátky do `Value`**. Uložený profil pak tu hodnotu už neobsahoval.
+    - **Léčba:** dva typy řádků (`ChoiceParamRow` / `TextParamRow`) a šablona vybíraná Avalonií
+      podle typu, takže v buňce je vždy **právě jeden** prvek a `ComboBox` nikdy nedostane
+      prázdný seznam.
+    - **Reprodukci našel autor:** *nemaximalizované* okno + scroll na dotčený řádek; v
+      maximalizovaném se recyklace nekoná a vada se neprojeví. Bez toho pozorování by se hledala
+      dlouho — dvě předchozí hypotézy (editační režim bez šablony; poškozená data ve `ParamStore`)
+      **snímky i testem vyvrátil**. Rozhodl až diagnostický výpis v setteru `Value`, který ukázal
+      `:= '<null>'` až po scrollu.
+    - **Ověřit proklikem** — automatický test na to není (UI chování při virtualizaci).
+- **Autor vše proklikal a potvrdil** („super vše funguje k mé spokojenosti") — včetně opravy ztráty
+  hodnoty při scrollu a nového hlášení chyb ve vstupních polích.
+- **Rozpracováno / další krok:** neověřené zůstává jediné ***Uložit a restartovat*** (jen build se
+  statickou kontrolou bindingů). Nic z toho neběželo **na zařízení**.
 
 ## 2026-08-30
 

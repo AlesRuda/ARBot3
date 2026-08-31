@@ -62,8 +62,9 @@ namespace ARBot.Common.Configuration
                     vady.Add($"neznamy parametr '{pair.Key}'");
                     continue;
                 }
-                if (!def.IsValidValue(pair.Value))
-                    vady.Add($"'{pair.Key}={pair.Value}' neni platna hodnota typu {def.Type}");
+                var vysledek = def.Validate(pair.Value);
+                if (!vysledek.Ok)
+                    vady.Add($"'{pair.Key}={pair.Value}': {vysledek.Error}");
             }
             return vady;
         }
@@ -86,6 +87,22 @@ namespace ARBot.Common.Configuration
                                       string category, string description)
             => Add(new ParamDef { Name = name, Type = type, DefaultFromCode = true,
                                   DefaultDescription = defDescription,
+                                  Category = category, Description = description });
+
+        /// <summary>Parametr s uplnym vyctem povolenych hodnot (panel z nej muze udelat seznam).</summary>
+        private static ParamDef Vycet(string name, string def, string[] hodnoty,
+                                      string category, string description)
+            => Add(new ParamDef { Name = name, Type = ParamType.String, Default = def,
+                                  AllowedValues = hodnoty,
+                                  Category = category, Description = description });
+
+        /// <summary>Parametr se slozenou hodnotou; <paramref name="parse"/> je TYZ kod, jaky
+        /// pouzije runtime pri skutecnem cteni (viz <see cref="ParamParsers"/>).</summary>
+        private static ParamDef Slozeny(string name, string def,
+                                        Func<string, ParamParseResult> parse,
+                                        string category, string description)
+            => Add(new ParamDef { Name = name, Type = ParamType.String, Default = def,
+                                  Parse = parse,
                                   Category = category, Description = description });
 
         static ParamRegistry()
@@ -117,10 +134,10 @@ namespace ARBot.Common.Configuration
                   + "vnucena chyba v datech, ne v pozorovateli. Viz doc/virtual-hw.md.");
             Konst("roadwidth", ParamType.Double, "3", K_MAPA,
                   "Vychozi sirka cesty [m] pro useky, ktere ji v mape nemaji.");
-            Konst("start", ParamType.String, null, K_MAPA,
+            Slozeny("start", null, ParamParsers.LatLonOrGps, K_MAPA,
                   "Vychozi poloha: 'lat,lon[,kurzDeg]' ve stupnich, nebo 'gps' (pocka na prvni "
                   + "pouzitelny fix a vypne hadani polohy z mapy).");
-            Konst("goal", ParamType.String, null, K_MAPA,
+            Slozeny("goal", null, s => ParamParsers.LatLon(s), K_MAPA,
                   "Cil jizdy 'lat,lon' ve stupnich - protejsek ke start=. Bez nej robot pri "
                   + "bezobsluznem behu stoji (regulator je null, coz je bezpecny stav).");
 
@@ -131,7 +148,7 @@ namespace ARBot.Common.Configuration
                   + "Viz doc/map-correlation-localization.md.");
             Konst("mapcorrsend", ParamType.Bool, "true", K_FUZE,
                   "Posilat korekce z korelace do fuze, nebo je jen merit.");
-            Konst("mapcorrgate", ParamType.String, "soft", K_FUZE,
+            Vycet("mapcorrgate", "soft", new[] { "soft", "reject" }, K_FUZE,
                   "Hradlovani korekci: 'soft' (vychozi) nebo 'reject'. Tvrde hradlo zahazuje "
                   + "prave ty velke korekce, ktere jsou potreba - zmereno, ze delalo vysledek horsi.");
             Konst("mapcorrref", ParamType.Double, "37.5", K_FUZE,
@@ -141,7 +158,9 @@ namespace ARBot.Common.Configuration
                   "Zapina hranovou lokalizaci (poloha a kurz z okraju koridoru proti mape).");
             Konst("corridorsend", ParamType.Bool, "true", K_FUZE,
                   "Posilat mereni z hranove lokalizace do fuze, nebo je jen merit.");
-            Konst("corridortol", ParamType.String, null, K_FUZE,
+            Slozeny("corridortol", null,
+                  ParamParsers.Pair("konstanta,prirustekNaMetr", minA: 0, minB: 0, aStrict: true),
+                  K_FUZE,
                   "Prah inlieru RANSACu ve tvaru 'konstanta,prirustekNaMetr' [m]. Vzdalena hranice "
                   + "je radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne.");
             Konst("measdiag", ParamType.String, null, K_FUZE,
@@ -149,7 +168,8 @@ namespace ARBot.Common.Configuration
                   + "sekundu), jinak filtr na zdroj mereni.");
 
             // --- Mise ----------------------------------------------------------------------
-            Konst("mission", ParamType.String, "none", K_MISE,
+            // Vycet MUSI odpovidat switchi v ARBotRuntime - kdyz pribude mise, patri i sem.
+            Vycet("mission", "none", new[] { "none", "freerun", "robotour" }, K_MISE,
                   "Vyber mise: none | freerun | robotour. Mise se vylucuji, proto selektor a ne "
                   + "booleovske prepinace - dve zaroven by si prepisovaly mrkev.");
             Konst("freerunlook", ParamType.Double, "3", K_MISE,
@@ -163,21 +183,26 @@ namespace ARBot.Common.Configuration
             // --- Virtualni HW a simulace ---------------------------------------------------
             Konst("virtualhw", ParamType.Bool, "false", K_SIM,
                   "Misto skutecneho HW zalozi simulovane senzory (kamery renderovane z mapy).");
-            Konst("camerapose", ParamType.String, "truth", K_SIM,
+            Vycet("camerapose", "truth", new[] { "truth", "fusion" }, K_SIM,
                   "Z ceho renderuji virtualni kamery: 'truth' (ground truth - chyba odhadu je pak "
                   + "meritelna) nebo 'fusion' (kamera prisroubovana k odhadu chybu strukturalne "
                   + "skryva).");
-            Konst("poseerror", ParamType.String, null, K_SIM,
+            Slozeny("poseerror", null, ParamParsers.PoseError, K_SIM,
                   "Umela chyba pozy 'vpred,vlevo[,stupne]' - vnuti do renderu znamy posun, takze "
                   + "korelace s mapou ma proti cemu merit.");
-            Konst("wheelslip", ParamType.String, null, K_SIM,
-                  "Systematicky prokluz kol (neprumeruje se pryc, na rozdil od bileho sumu).");
-            Konst("imubias", ParamType.String, null, K_SIM,
-                  "Systematicky bias IMU - pomalu rostouci chyba kurzu.");
-            Konst("imunoise", ParamType.String, null, K_SIM,
-                  "Sum simulovaneho IMU.");
-            Konst("gpsnoise", ParamType.String, null, K_SIM,
-                  "Sum simulovane GPS.");
+            Slozeny("wheelslip", null,
+                  ParamParsers.Pair("vlevo,vpravo", minA: 0, minB: 0, aStrict: true, bStrict: true),
+                  K_SIM,
+                  "Systematicky prokluz kol 'vlevo,vpravo' (1 = ideal; neprumeruje se pryc, "
+                  + "na rozdil od bileho sumu).");
+            Slozeny("imubias", null, ParamParsers.Pair("kurzDeg,gyroDegZaS"), K_SIM,
+                  "Systematicky bias IMU 'kurzDeg,gyroDegZaS' - pomalu rostouci chyba kurzu.");
+            Slozeny("imunoise", null, ParamParsers.Pair("kurzDeg,gyroDegZaS", minA: 0, minB: 0),
+                  K_SIM,
+                  "Sum simulovaneho IMU 'kurzDeg,gyroDegZaS' (sigma).");
+            Slozeny("gpsnoise", null, ParamParsers.Pair("polohaM,rychlostMps", minA: 0, minB: 0),
+                  K_SIM,
+                  "Sum simulovane GPS 'polohaM,rychlostMps' (sigma).");
             Konst("depthnoise", ParamType.Double, "0.003", K_SIM,
                   "Sum hloubky syntetickeho obrazu [m]. 0 = exaktni zpetna projekce hranic.");
             Konst("grassrough", ParamType.Double, "0.03", K_SIM,

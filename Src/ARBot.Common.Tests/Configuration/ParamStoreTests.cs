@@ -116,6 +116,20 @@ namespace ARBot.Common.Tests.Configuration
         }
 
         [Test]
+        public void BoolZPrikazoveRadky_MaHodnotuIPuvod()
+        {
+            // Diagnostika k nalezu z 31. 8. 2026: v panelu byla u 'virtualhw' PRAZDNA hodnota,
+            // pritom sloupec Puvod spravne hlasil „prikazova radka". Tenhle test oddeluje data
+            // od zobrazeni - kdyz projde, chyba neni ve ParamStore, ale v UI.
+            var s = ParamStore.Build(new[] { "virtualhw=true" });
+
+            Assert.That(s.OriginOf("virtualhw"), Is.EqualTo(ParamOrigin.CommandLine));
+            Assert.That(s.Get("virtualhw"), Is.EqualTo("true"),
+                        "Get musi vratit surovou hodnotu z prikazove radky");
+            Assert.That(s.GetBool("virtualhw", false), Is.True);
+        }
+
+        [Test]
         public void NesouladDefaultuSeOzve()
         {
             // Volani predava default, ktery se lisi od registru -> ma se to ozvat. V Debug buildu

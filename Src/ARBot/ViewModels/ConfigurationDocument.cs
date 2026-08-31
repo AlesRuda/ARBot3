@@ -4,14 +4,42 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using ARBot.Common.Configuration;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace ARBot.ViewModels
 {
-    /// <summary>Jeden radek tabulky parametru.</summary>
-    public partial class ParamRow : ObservableObject
+    /// <summary>
+    /// Jeden radek tabulky parametru. <b>Neinstanciuje se primo</b> - vzdy vznikne jako
+    /// <see cref="ChoiceParamRow"/> nebo <see cref="TextParamRow"/> pres <see cref="Create"/>.
+    ///
+    /// <para><b>Proc dva typy - a je to oprava VADY, ne uklid.</b> Prvni verze mela v bunce OBA
+    /// prvky nad sebou (ComboBox + TextBox) a prepinala je pres <c>IsVisible</c>. Oba byly
+    /// obousmerne navazane na tutez <c>Value</c>. Kdyz DataGrid pri virtualizaci RECYKLOVAL
+    /// kontejner z radku S vyctem na radek BEZ nej, dostal skryty ComboBox
+    /// <c>ItemsSource = null</c>, v prazdnem seznamu svou hodnotu nenasel, nastavil
+    /// <c>SelectedItem = null</c> - a obousmerny binding to zapsal ZPATKY do <c>Value</c>.
+    /// Hodnota se tim skutecne ztratila (ne jen prestala byt videt): ulozeny profil by ji uz
+    /// neobsahoval.</para>
+    ///
+    /// <para>Rozdelenim na dva typy vybira sablonu Avalonia podle typu dat, takze v bunce je vzdy
+    /// PRAVE JEDEN prvek, ComboBox nikdy nedostane prazdny seznam a neni co prepinat.
+    /// Nalezeno 31. 8. 2026; reprodukce: NEmaximalizovane okno + scroll na dotcenty radek
+    /// (v maximalizovanem se recyklace nekona a vada se neprojevi). Viz doc/configuration.md.</para>
+    /// </summary>
+    public partial class ParamRow : ObservableObject, System.ComponentModel.INotifyDataErrorInfo
     {
+        /// <summary>Vyrobi radek spravneho typu podle toho, jestli ma parametr uplny vycet hodnot.</summary>
+        public static ParamRow Create(ParamDef def, string origin, string value)
+        {
+            bool vycet = def?.AllowedValues != null && def.AllowedValues.Length > 0;
+            ParamRow row = vycet ? new ChoiceParamRow { Def = def } : new TextParamRow { Def = def };
+            row.Origin = origin;
+            row.Value = value;
+            return row;
+        }
+
         /// <summary>Deklarace, ze ktere radek vznikl - drzi se kvuli validaci hodnoty.</summary>
         public ParamDef Def { get; init; }
 
@@ -23,6 +51,9 @@ namespace ARBot.ViewModels
         public string DefaultText => Def == null
             ? null
             : (Def.DefaultFromCode ? Def.DefaultDescription : (Def.Default ?? "(nenastaveno)"));
+
+        /// <summary>Povolene hodnoty pro rozbalovaci seznam; u <see cref="TextParamRow"/> null.</summary>
+        public string[] Choices => Def?.AllowedValues;
 
         /// <summary>
         /// Text bubliny nad celym radkem: popis (sloupec Popis je uzky, takze se do nej dlouhy
@@ -51,18 +82,52 @@ namespace ARBot.ViewModels
 
         [ObservableProperty] private string value;
 
-        /// <summary>Neprazdne, kdyz hodnota neprojde validaci podle typu - chybu ma clovek videt
-        /// hned, ne az pri pristim startu.</summary>
-        [ObservableProperty] private string error = null;
+        /// <summary>Duvod odmitnuti hodnoty, nebo <c>null</c>. Drzi se kvuli
+        /// <see cref="GetErrors"/> a kvuli kontrole pred ulozenim.</summary>
+        private string error;
+
+        /// <summary>Je hodnota vadna? (<see cref="INotifyDataErrorInfo"/>)</summary>
+        public bool HasErrors => error != null;
+
+        public event EventHandler<DataErrorsChangedEventArgs> ErrorsChanged;
+
+        /// <summary>
+        /// Chyby vlastnosti pro <see cref="INotifyDataErrorInfo"/>. Hlasi se jen u
+        /// <see cref="Value"/> - jen ona se edituje.
+        ///
+        /// <para>Odtud si to bere Avalonia: pole dostane pseudotridu <c>:error</c> a
+        /// <c>DataValidationErrors.Errors</c>, a Styles/Validation.axaml z toho udela cerveny
+        /// ramecek s bublinou. Panel uz na chybu nema vlastni sloupec.</para>
+        /// </summary>
+        public System.Collections.IEnumerable GetErrors(string propertyName)
+        {
+            if (error == null) return Array.Empty<string>();
+            if (propertyName != null && propertyName != nameof(Value)) return Array.Empty<string>();
+            return new[] { error };
+        }
 
         partial void OnValueChanged(string value)
         {
             if (Def == null) return;        // Value se muze nastavit driv nez Def
-            Error = string.IsNullOrEmpty(value) || Def.IsValidValue(value)
-                    ? null
-                    : $"neni platna hodnota typu {Def.Type}";
+
+            // Duvod odmitnuti bere z ParamDef.Validate, at bublina rekne, co se cekalo
+            // („cekam dve cisla oddelena carkou (vlevo,vpravo)"), ne jen ze je hodnota spatne.
+            string novaChyba = string.IsNullOrEmpty(value)
+                               ? null
+                               : (Def.Validate(value) is { Ok: false } v ? v.Error : null);
+
+            if (novaChyba == error) return;
+            error = novaChyba;
+            OnPropertyChanged(nameof(HasErrors));
+            ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(nameof(Value)));
         }
     }
+
+    /// <summary>Radek parametru s uplnym vyctem hodnot - v bunce dostane rozbalovaci seznam.</summary>
+    public sealed class ChoiceParamRow : ParamRow { }
+
+    /// <summary>Radek parametru bez vyctu - v bunce dostane textove pole.</summary>
+    public sealed class TextParamRow : ParamRow { }
 
     /// <summary>
     /// Dokument „Konfigurace": vypis VSECH parametru z <see cref="ParamRegistry"/> s popisem,
@@ -101,17 +166,14 @@ namespace ARBot.ViewModels
             // Design-time: navrhar nesmi sahat na runtime store ani na soubory.
             if (Avalonia.Controls.Design.IsDesignMode)
             {
-                allRows.Add(new ParamRow
-                {
-                    Def = new ParamDef
+                allRows.Add(ParamRow.Create(
+                    new ParamDef
                     {
                         Name = "mapcorr", Category = "Fuze a lokalizace", Type = ParamType.Bool,
                         Default = "false",
                         Description = "Zapina korelaci occupancy gridu s mapou.",
                     },
-                    Origin = "vychozi",
-                    Value = "false",
-                });
+                    "vychozi", "false"));
                 ApplyFilter();
                 return;
             }
@@ -121,12 +183,12 @@ namespace ARBot.ViewModels
 
             foreach (var def in ParamRegistry.All)
             {
-                allRows.Add(new ParamRow
-                {
-                    Def = def,
-                    Origin = OriginText(store.OriginOf(def.Name)),
-                    Value = store.Get(def.Name) ?? string.Empty,
-                });
+                allRows.Add(ParamRow.Create(
+                    def,
+                    OriginText(store.OriginOf(def.Name)),
+                    // Canonical: hodnota z profilu smi mit jinou velikost pismen (validace je
+                    // case-insensitive), ale rozbalovaci seznam porovnava presne.
+                    def.Canonical(store.Get(def.Name)) ?? string.Empty));
             }
 
             ApplyFilter();
@@ -236,7 +298,7 @@ namespace ARBot.ViewModels
                 if (r.Def == null) continue;
                 if (zProfilu.TryGetValue(r.Def.Name, out string hodnota))
                 {
-                    r.Value = hodnota;
+                    r.Value = r.Def.Canonical(hodnota);
                     r.Origin = "profil (nacteno)";
                 }
                 else
@@ -366,7 +428,7 @@ namespace ARBot.ViewModels
         /// </summary>
         private bool WriteTo(string path)
         {
-            var vadne = allRows.Where(r => !string.IsNullOrEmpty(r.Error)).Select(r => r.Name).ToList();
+            var vadne = allRows.Where(r => r.HasErrors).Select(r => r.Name).ToList();
             if (vadne.Count > 0)
             {
                 Status = "Neplatne hodnoty: " + string.Join(", ", vadne);

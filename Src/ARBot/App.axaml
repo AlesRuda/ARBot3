@@ -20,5 +20,8 @@
         <!-- Spolecny vzhled tlacitek (obsah na stredu, jeden padding, citelny zakazany stav).
              Musi byt ZA Fluent temou, aby ji prebilo. Viz Styles/Buttons.axaml. -->
         <StyleInclude Source="avares://ARBot/Styles/Buttons.axaml"/>
+        <!-- Chyby ve vstupnich polich: cerveny ramecek + bublina s duvodem, zadny text pod polem.
+             Standard aplikace, viz Styles/Validation.axaml a Views/README.md. -->
+        <StyleInclude Source="avares://ARBot/Styles/Validation.axaml"/>
     </Application.Styles>
 </Application>

@@ -92,6 +92,57 @@ Tři věci, které je potřeba vědět:
 > v runtime, detailní okno) a zastavit se nedal vůbec. Redundantní to bylo i tak — **každý senzor
 > se spouští ve svém konstruktoru**.
 
+## Chyby ve vstupních polích — standard aplikace (31. 8. 2026)
+
+**Vadné pole má červený rámeček a důvod řekne bublina** — jak při najetí myší, tak při **zaostření
+pole** (kdo do pole píše, má důvod vidět bez sahání po myši). Žádný text pod polem, žádný sloupec
+„Chyba" v tabulce. Vzhled drží [`Styles/Validation.axaml`](../Styles/Validation.axaml), zapojený
+v `App.axaml` za Fluent tématem.
+
+> **Text pod polem se ruší přepsáním celé `ControlTemplate` `DataValidationErrors`** (zbude v ní
+> jen `PART_ContentPresenter`). Prázdná `DataValidationErrors.ErrorTemplate` na poli **nestačí** —
+> nastavuje se na pole, ale vnitřní `InlineDataValidationContentControl` si ji odtud nevezme
+> a hlášku vypisuje dál. Ověřeno 31. 8. 2026.
+
+> ⚠️ **Chyba mění jen barvu rámečku, ne jeho tloušťku.** `BorderThickness="2"` (aby byl rámeček
+> výraznější) zvýší pole o 2 px a v tabulce pak **řádky poskakují**, jak se chyba při psaní
+> objevuje a mizí. Totéž platí pro cokoli dalšího, co by měnilo rozměr pole.
+>
+> ⚠️ **`ToolTip.VerticalOffset` má výchozí hodnotu 20** — bublina by visela kus pod polem
+> a překrývala další řádek. Nula ji zarovná horním okrajem na spodek pole.
+
+> ⚠️ **`ToolTip.Placement` musí být u pole, ne u kurzoru.** Výchozí hodnota je
+> `PlacementMode.Pointer`, tedy bublina se otevře **tam, kde právě je myš**. Při najetí myší to
+> sedí, ale při zaostření se otevře jinde v okně (nebo mimo ně) a vypadá to, že se neotevřela
+> vůbec. Proto `BottomEdgeAlignedLeft`. Nalezeno 31. 8. 2026 — a stálo to dvě mylné hypotézy,
+> protože `IsOpen` i `Tip` byly celou dobu správně.
+
+> **Bublinu při zaostření nelze udělat setterem ve stylu.** Nabízí se
+> `<Style Selector="TextBox:error:focus"><Setter Property="ToolTip.IsOpen" Value="True"/>` a
+> nefunguje to: služba bublin nastavuje `ToolTip.IsOpen` jako **lokální hodnotu** (při odjetí myši
+> zapíše `false`), a ta má vyšší prioritu než setter ze stylu — po prvním najetí myší je styl
+> umlčený natrvalo. Řeší to [`ValidationToolTip`](ValidationToolTip.cs), které `IsOpen` nastavuje
+> také lokálně a připojuje se na pole přes styl (`ValidationToolTip.ShowOnFocus`).
+
+**Co musí udělat ViewModel:** hlásit chyby přes **`INotifyDataErrorInfo`** (`HasErrors`,
+`GetErrors`, `ErrorsChanged`). Nic víc — Avalonia validační chyby z bindingu sama propíše na pole
+jako pseudotřídu `:error` a naplní `DataValidationErrors.Errors`, odkud si je styl vezme. Vzor:
+[`ConfigurationDocument.ParamRow`](../ViewModels/ConfigurationDocument.cs).
+
+> **`INotifyDataErrorInfo`, ne `IDataErrorInfo`** — ten druhý neumí oznámit, že se chyba změnila,
+> takže by rámeček zůstal viset i po opravě hodnoty.
+
+**Proč ne vlastní sloupec / text pod polem.** Panel *Konfigurace* měl nejdřív na chybu sloupec
+v tabulce: bral místo, které je v tabulce vzácné, a hlavně odsouval hlášku daleko od pole, kterého
+se týkala — u desítek řádků už nebylo poznat, čeho se to týká. Výchozí chování Fluent tématu
+(text **pod** polem) zase v tabulce zvyšuje řádek a rozhazuje layout; ruší se prázdnou
+`DataValidationErrors.ErrorTemplate`.
+
+> Selektory ve `Validation.axaml` míří na typ (`TextBox`, `ComboBox`), což je jinak v téhle
+> aplikaci past — viz varování u tlačítek níž. Tady je to bezpečné, protože jsou omezené
+> pseudotřídou `:error`, kterou má **jen pole s validační chybou**; do šablon Docku ani jiných
+> knihoven proto nesahají.
+
 ## Vzhled tlačítek — jeden společný styl (26. 8. 2026)
 
 [`Styles/Buttons.axaml`](../Styles/Buttons.axaml), zapojený v `App.axaml` **za** Fluent tématem

@@ -1226,13 +1226,10 @@ namespace ARBot.Robot
         /// prikazovy radek delal totez na ceskem i anglickem stroji.</summary>
         private static bool TryParsePair(string text, out double a, out double b)
         {
-            a = 0; b = 0;
-            if (string.IsNullOrWhiteSpace(text)) return false;
-
-            var parts = text.Split(',');
-            return parts.Length >= 2
-                   && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out a)
-                   && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out b);
+            // Implementaci drzi ARBot.Common.Configuration.ParamParsers, protoze TYZ kod pouziva
+            // registr pri validaci (panel i start aplikace). Kdyby to byla dve mista, mohl by
+            // panel prijmout hodnotu, kterou runtime zahodi. Viz doc/configuration.md.
+            return ARBot.Common.Configuration.ParamParsers.TryPair(text, out a, out b);
         }
 
         /// <summary>
@@ -1375,15 +1372,15 @@ namespace ARBot.Robot
 
             if (!string.IsNullOrWhiteSpace(start))
             {
-                var parts = start.Split(',');
-                if (parts.Length >= 2
-                    && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
-                    && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+                // Rozbor drzi ParamParsers - tentyz kod validuje hodnotu uz pri startu, takze sem
+                // vadny tvar normalne vubec nedojde. Vetev se zachovava pro jistotu (a pro beh
+                // s hodnotou zadanou jinudy nez pres ParamStore). Viz doc/configuration.md.
+                if (ARBot.Common.Configuration.ParamParsers.TryLatLonHeading(
+                        start, out double lat, out double lon, out double? hdgDeg))
                 {
                     where = LLA.FromDegrees(lat, lon);
-                    if (parts.Length >= 3
-                        && double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double hdg))
-                        explicitHeading = Conversions.Deg2Rad(hdg);
+                    if (hdgDeg.HasValue)
+                        explicitHeading = Conversions.Deg2Rad(hdgDeg.Value);
                 }
                 else
                 {

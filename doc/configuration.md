@@ -1,17 +1,21 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-08-31:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **49 testů**, celá sada je zelená (990). Registr obsahuje **51 parametrů**
+> Konfigurace*). Jádro má **74 testů**, celá sada je zelená (1015). Registr obsahuje **51 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
 > proběhl celý; vadný profil aplikaci **zastaví před startem GUI** a vypíše **všechny** vady naráz
-> (`Chyba konfigurace: Profil '…': neznamy parametr 'mapcor'; 'mapcorr=ano' neni platna hodnota
-> typu Bool.`).
+> i s tím, co se u každé čekalo:
+> `'start=asd': cekam 'lat,lon[,kurzDeg]' ve stupnich, nebo 'gps'; 'mission=robotur': cekam jednu
+> z hodnot: none | freerun | robotour; 'wheelslip=0,1': prvni cislo musi byt vetsi nez 0`.
 >
-> **Neověřeno:** panel — tedy editace v tabulce, *Načíst profil…*, *Uložit profil* i *Uložit
-> a restartovat* — je ověřený jen buildem (včetně statické kontroly všech bindingů) a testy jádra;
-> nikdo ho za běhu neproklikal. Nic z toho neběželo na zařízení (Armbian/OrangePI).
+> **Panel autor proklikal a potvrdil** (31. 8. 2026): tabulka, rozbalovací seznamy u výčtů,
+> editace hodnot, *Načíst profil…* i *Uložit* (vzniklý profil má komentáře s popisy, nadpisy
+> kategorií a jen hodnoty odlišné od výchozích), a hlášení chyb ve vstupních polích — červený
+> rámeček a bublina při najetí myší i při zaostření.
+>
+> **Neověřeno:** ***Uložit a restartovat***. Nic z toho neběželo na zařízení (Armbian/OrangePI).
 >
 > Postup implementace: [plan-configuration.md](plan-configuration.md).
 
@@ -58,12 +62,13 @@ přepisování něco tiše rozejde. `Profile` ani runtime se nedotýkáme vůbec
 
 | Soubor | Odpovědnost |
 |---|---|
-| `ARBot.Common/Configuration/ParamDef.cs` | popis jednoho parametru: jméno, typ, default, popis, kategorie |
+| `ARBot.Common/Configuration/ParamDef.cs` | popis jednoho parametru: jméno, typ, default, popis, kategorie, výčet, rozbor |
+| `ARBot.Common/Configuration/ParamParsers.cs` | rozbor složených hodnot — **týž kód používá registr i runtime** |
 | `ARBot.Common/Configuration/ParamRegistry.cs` | statický seznam **všech** parametrů — jediné místo, kde parametr vzniká |
 | `ARBot.Common/Configuration/ParamStore.cs` | účinné hodnoty **a jejich původ**; sestaví se jednou při startu |
 | `ARBot.Common/Configuration/ParamFile.cs` | čtení a zápis souboru `klíč=hodnota` |
 | `ARBot.Common/Configuration/RepoPaths.cs` | hledání kořene repa (přesun z `Program`, viz níž) |
-| `ARBot/ViewModels/ConfigurationDocument.cs` | ViewModel panelu (+ `ParamRow`) |
+| `ARBot/ViewModels/ConfigurationDocument.cs` | ViewModel panelu (+ `ParamRow` a jeho dva typy — viz níž) |
 | `ARBot/Views/ConfigurationDocumentView.axaml` (+ `.cs`) | View panelu |
 | `ARBot.Common.Tests/Configuration/*` | testy parseru, precedence, registru |
 
@@ -92,6 +97,8 @@ public sealed class ParamDef
     public bool DefaultFromCode;   // default určuje kód za běhu (detekce portů) - viz níž
     public string Description;     // věta pro panel i pro komentář v souboru
     public string Category;        // "Fúze", "Mise", "Virtuální HW", "Self-test", ...
+    public string[] AllowedValues; // úplný výčet (mission: none|freerun|robotour) — viz níž
+    public Func<string, ParamParseResult> Parse;   // rozbor složené hodnoty i s důvodem odmítnutí
 }
 ```
 
@@ -132,6 +139,65 @@ Vady profilu se hlásí **všechny naráz**, ne první nalezená — jinak by se
 a mezi každou opravou startovalo. Pravidla platnosti drží `ParamRegistry.Validate()` jako **jediné
 místo**: používá je start i načtení profilu v panelu, takže panel nemůže načíst profil, který by
 aplikace při startu odmítla.
+
+### Výčty a složené hodnoty
+
+Typ (`Bool`/`Double`) odchytí jen část chyb — `start=asd` je pro `String` naprosto platná hodnota,
+kterou runtime teprve zahodí. `ParamDef` proto umí dvě další věci:
+
+- **`AllowedValues`** — úplný výčet (`mission`: none | freerun | robotour, `mapcorrgate`,
+  `camerapose`). Vedle validace nese **informaci pro UI**: panel z něj dělá **rozbalovací seznam**
+  místo textového pole. ⚠️ Výčet musí odpovídat tomu, co kód skutečně zná (u `mission` je to
+  `switch` v `ARBotRuntime`) — automaticky to nikdo nehlídá.
+- **`Parse`** — lambda pro složené hodnoty, která vrací i **důvod** odmítnutí, takže hláška řekne,
+  co se čekalo, ne jen že je hodnota špatně.
+
+**Ta lambda musí volat týž kód, jaký použije runtime při skutečném čtení** — jinak by jen přesunula
+dvojí definici formátu jinam a panel by přijímal hodnoty, které runtime zahodí. Proto vzniklo
+[`ParamParsers`](../Src/ARBot.Common/Configuration/ParamParsers.cs) v `Common` a
+`ARBotRuntime.TryParsePair` i rozbor `start=` na něj **delegují**.
+
+Ukázka toho, co to chytí (všechno naráz, jednou hláškou):
+
+```
+'start=asd': cekam 'lat,lon[,kurzDeg]' ve stupnich, nebo 'gps';
+'mission=robotur': cekam jednu z hodnot: none | freerun | robotour;
+'wheelslip=0,1': prvni cislo musi byt vetsi nez 0 (vlevo,vpravo).
+```
+
+> **Změna chování, se kterou se počítá:** hodnotu, kterou runtime dosud jen zahodil s hláškou
+> (`wheelslip=0,1`), teď **zastaví start**. Je to záměr — tiše ignorovaná hodnota je tatáž past
+> jako překlep v klíči. Runtime si své kontroly ponechal jako druhou obranu; po validaci ve
+> `ParamStore` už selhat nemůžou.
+>
+> **Prázdná hodnota výčet ani rozbor nespouští** — `qrcamera=` znamená „všechny kamery" a je
+> legitimní.
+
+> ⚠️ **V buňce sloupce *Hodnota* musí být právě JEDEN prvek**, vybraný podle typu řádku
+> (`ChoiceParamRow` → `ComboBox`, `TextParamRow` → `TextBox`, přes `UserControl.DataTemplates`).
+> **Nevracet zpět na jednu šablonu se dvěma prvky přepínanými `IsVisible`** — přesně tak to bylo
+> napsané poprvé a byla to vada, která **ztrácela data**: když `DataGrid` při virtualizaci
+> recykloval kontejner z řádku *s* výčtem na řádek *bez* něj, dostal skrytý `ComboBox` prázdný
+> `ItemsSource`, svou hodnotu v něm nenašel, nastavil `SelectedItem = null` — a obousměrný binding
+> to zapsal **zpátky do `Value`**. Uložený profil pak tu hodnotu už neobsahoval.
+>
+> **Reprodukce:** *nemaximalizované* okno + scroll na dotčený řádek. V maximalizovaném okně se
+> recyklace nekoná a vada se neprojeví — to bylo i vodítko, které ji odhalilo. Nalezeno
+> 31. 8. 2026.
+>
+> Sloupec má `CellTemplate` i `CellEditingTemplate` (obě `ContentControl`): prvek uvnitř je sám
+> interaktivní, takže editační režim `DataGrid`u nemá co přidat, ale když do něj přepne, musí mít
+> co vykreslit.
+
+**Kanonizace (`ParamDef.Canonical`) je podmínkou toho seznamu.** Validace výčtu je
+case-insensitive, takže `mission=NONE` z profilu projde — ale rozbalovací seznam porovnává hodnoty
+**přesně**, takže by nevybral žádnou, ukázal prázdno a při uložení by se hodnota **ztratila**.
+Panel proto hodnotu při plnění tabulky převede na tvar zapsaný ve výčtu. Ověřeno i za běhu:
+profil s `mission=FREERUN` a `camerapose=TRUTH` projde celým self-testem.
+
+**Směr, který tím vzniká:** až se bude `Program.GetParam*` upravovat, dá se opustit úplně
+a číst přes `ParamStore` — parsování, validace i prezentace by pak byly na jednom místě pro celou
+aplikaci. Zatím zůstává jako tenká fasáda (viz „Klíčové rozhodnutí" výš).
 
 Rozdíl mezi souborem a příkazovou řádkou u neznámého klíče není nedůslednost: mezi `args` jsou
 i cizí argumenty (cesta k exe, argumenty Avalonie), takže tvrdá chyba by aplikaci znemožnila

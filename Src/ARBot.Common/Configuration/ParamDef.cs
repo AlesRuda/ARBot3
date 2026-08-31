@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 
 namespace ARBot.Common.Configuration
@@ -54,20 +55,89 @@ namespace ARBot.Common.Configuration
         /// <summary>Kategorie pro razeni a nadpisy ("Fuze a lokalizace", "Mise", ...). Povinna.</summary>
         public string Category;
 
-        /// <summary>Projde hodnota validaci pro <see cref="Type"/>?</summary>
-        public bool IsValidValue(string raw)
+        /// <summary>
+        /// Uplny vycet povolenych hodnot (napr. <c>mission</c>: none | freerun | robotour), nebo
+        /// <c>null</c>, kdyz vycet neexistuje. Porovnava se bez ohledu na velikost pismen.
+        ///
+        /// <para>Je to silnejsi nez validace vzorem a hlavne to <b>nese informaci pro UI</b> -
+        /// panel z toho muze udelat rozbalovaci seznam misto psani.</para>
+        ///
+        /// <para>⚠️ <b>Vycet musi odpovidat tomu, co kod skutecne zna</b> (u <c>mission</c> je to
+        /// <c>switch</c> v <c>ARBotRuntime</c>). Automaticky to nikdo nehlida - kdyz pribude mise,
+        /// musi se pridat i sem, jinak ji panel odmitne.</para>
+        /// </summary>
+        public string[] AllowedValues;
+
+        /// <summary>
+        /// Rozbor slozene hodnoty (dvojice cisel, poloha) - vraci i DUVOD odmitnuti, at hlaska
+        /// rekne, co se cekalo. <c>null</c> = zadny rozbor nad ramec <see cref="Type"/>.
+        ///
+        /// <para><b>Musi volat tentyz kod, jaky pouzije runtime pri skutecnem cteni</b> (viz
+        /// <see cref="ParamParsers"/>), jinak by panel prijal hodnotu, kterou runtime zahodi.</para>
+        ///
+        /// <para><b>Dusledek, se kterym se pocita:</b> hodnota, kterou runtime dosud jen zahodil
+        /// s hlaskou (<c>wheelslip=-1,0</c>), ted zastavi start. Je to zamer - tise ignorovana
+        /// hodnota je tataz past jako preklep v klici.</para>
+        /// </summary>
+        public Func<string, ParamParseResult> Parse;
+
+        /// <summary>Projde hodnota validaci? Prazdny retezec projde vzdy (znamena "nezadano").</summary>
+        public bool IsValidValue(string raw) => Validate(raw).Ok;
+
+        /// <summary>
+        /// Prevede hodnotu na tvar zapsany ve <see cref="AllowedValues"/> (jinak ji vrati beze
+        /// zmeny).
+        ///
+        /// <para><b>Proc to je potreba:</b> validace vyctu je case-insensitive, takze
+        /// <c>mission=NONE</c> z profilu projde - ale rozbalovaci seznam v panelu porovnava
+        /// hodnoty PRESNE, takze by zadnou nevybral, ukazal prazdno a pri ulozeni by se hodnota
+        /// ztratila. Kanonizace tu past zaviera.</para>
+        /// </summary>
+        public string Canonical(string raw)
         {
-            if (raw == null) return false;
+            if (AllowedValues == null || string.IsNullOrWhiteSpace(raw)) return raw;
+            string text = raw.Trim();
+            foreach (var v in AllowedValues)
+                if (string.Equals(v, text, StringComparison.OrdinalIgnoreCase))
+                    return v;
+            return raw;
+        }
+
+        /// <summary>Jako <see cref="IsValidValue"/>, ale s duvodem odmitnuti.</summary>
+        public ParamParseResult Validate(string raw)
+        {
+            if (raw == null)
+                return ParamParseResult.Invalid("hodnota chybi");
+
+            string text = raw.Trim();
+
             switch (Type)
             {
                 case ParamType.Bool:
-                    return bool.TryParse(raw.Trim(), out _);
+                    return bool.TryParse(text, out _)
+                           ? ParamParseResult.Valid()
+                           : ParamParseResult.Invalid("cekam true nebo false");
                 case ParamType.Double:
-                    return double.TryParse(raw.Trim(), NumberStyles.Float,
-                                           CultureInfo.InvariantCulture, out _);
-                default:
-                    return true;    // String i Path prijmou cokoliv vcetne prazdneho
+                    if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+                        return ParamParseResult.Invalid("cekam cislo (desetinna TECKA, ne carka)");
+                    break;
             }
+
+            // Prazdna hodnota je u retezcovych parametru legitimni (qrcamera= znamena VSECHNY
+            // kamery), takze se vycet ani rozbor nespousti.
+            if (text.Length == 0)
+                return ParamParseResult.Valid();
+
+            if (AllowedValues != null)
+            {
+                foreach (var v in AllowedValues)
+                    if (string.Equals(v, text, StringComparison.OrdinalIgnoreCase))
+                        return ParamParseResult.Valid();
+                return ParamParseResult.Invalid(
+                    "cekam jednu z hodnot: " + string.Join(" | ", AllowedValues));
+            }
+
+            return Parse != null ? Parse(text) : ParamParseResult.Valid();
         }
     }
 }

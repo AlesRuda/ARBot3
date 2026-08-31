@@ -59,6 +59,81 @@ namespace ARBot.Common.Tests.Configuration
         }
 
         [Test]
+        public void Vycty_MajiVychoziHodnotuMeziPovolenymi()
+        {
+            // Kdyby default nebyl ve vyctu, aplikace by se svou vlastni vychozi hodnotou
+            // nenastartovala - a nikdo by to nezjistil driv nez za behu.
+            foreach (var d in ParamRegistry.All)
+            {
+                if (d.AllowedValues == null || d.Default == null) continue;
+                Assert.That(d.IsValidValue(d.Default), Is.True,
+                            $"{d.Name}: vychozi '{d.Default}' neni mezi povolenymi hodnotami "
+                            + string.Join(" | ", d.AllowedValues));
+            }
+        }
+
+        [Test]
+        public void Vycet_OdmitneNeznamouHodnotu_ADuvodJiVypise()
+        {
+            Assert.That(ParamRegistry.TryGet("mission", out var mission), Is.True);
+            Assert.That(mission.IsValidValue("freerun"), Is.True);
+            Assert.That(mission.IsValidValue("FREERUN"), Is.True);      // bez ohledu na velikost
+
+            var vada = mission.Validate("robotur");                      // preklep
+            Assert.That(vada.Ok, Is.False);
+            Assert.That(vada.Error, Does.Contain("none").And.Contain("robotour"));
+        }
+
+        [Test]
+        public void Canonical_SrovnaVelikostPismenNaTvarZVyctu()
+        {
+            // Validace vyctu je case-insensitive, ale rozbalovaci seznam v panelu porovnava
+            // PRESNE - bez kanonizace by 'mission=NONE' z profilu nevybralo zadnou polozku,
+            // seznam by ukazal prazdno a pri ulozeni by se hodnota ztratila.
+            Assert.That(ParamRegistry.TryGet("mission", out var mission), Is.True);
+            Assert.That(mission.Canonical("NONE"), Is.EqualTo("none"));
+            Assert.That(mission.Canonical("FreeRun"), Is.EqualTo("freerun"));
+            Assert.That(mission.Canonical(" robotour "), Is.EqualTo("robotour"));
+        }
+
+        [Test]
+        public void Canonical_NechavaBezeZmenyCoNepatriDoVyctu()
+        {
+            Assert.That(ParamRegistry.TryGet("mission", out var mission), Is.True);
+            Assert.That(mission.Canonical("necoJineho"), Is.EqualTo("necoJineho"));
+            Assert.That(mission.Canonical(null), Is.Null);
+
+            // Parametr bez vyctu se nekanonizuje vubec.
+            Assert.That(ParamRegistry.TryGet("map", out var map), Is.True);
+            Assert.That(map.Canonical("OSM/Neco.osm"), Is.EqualTo("OSM/Neco.osm"));
+        }
+
+        [Test]
+        public void SlozenaHodnota_SeOveriParserem()
+        {
+            Assert.That(ParamRegistry.TryGet("start", out var start), Is.True);
+            Assert.That(start.IsValidValue("50.1,14.5"), Is.True);
+            Assert.That(start.IsValidValue("gps"), Is.True);
+            Assert.That(start.IsValidValue("asd"), Is.False,
+                        "presne tohle proslo pred zavedenim rozboru");
+
+            Assert.That(ParamRegistry.TryGet("wheelslip", out var slip), Is.True);
+            Assert.That(slip.IsValidValue("1.0,0.98"), Is.True);
+            Assert.That(slip.IsValidValue("0,1"), Is.False, "prokluz musi byt kladny");
+        }
+
+        [Test]
+        public void PrazdnaHodnotaProjde_IUParametruSVyctem()
+        {
+            // qrcamera= (prazdne) znamena VSECHNY kamery; prazdno nesmi spustit vycet ani rozbor.
+            Assert.That(ParamRegistry.TryGet("qrcamera", out var qr), Is.True);
+            Assert.That(qr.IsValidValue(string.Empty), Is.True);
+
+            Assert.That(ParamRegistry.TryGet("mission", out var mission), Is.True);
+            Assert.That(mission.IsValidValue(string.Empty), Is.True);
+        }
+
+        [Test]
         public void Validate_PrazdnySeznamKdyzJeVsePoradku()
         {
             var vady = ParamRegistry.Validate(new[]

@@ -5,6 +5,27 @@
              x:DataType="vm:ConfigurationDocument">
     <Design.DataContext><vm:ConfigurationDocument/></Design.DataContext>
 
+    <!-- Bunka sloupce Hodnota. Sablonu vybira Avalonia PODLE TYPU RADKU, takze v bunce je vzdy
+         prave jeden prvek.
+
+         ⚠️ NEVRACET zpet na jednu sablonu se dvema prvky prepinanymi pres IsVisible. Presne tak to
+         bylo napsane poprve a byla to VADA: kdyz DataGrid pri virtualizaci recykloval kontejner
+         z radku S vyctem na radek BEZ nej, dostal skryty ComboBox prazdny ItemsSource, nenasel
+         v nem svou hodnotu, nastavil SelectedItem = null - a obousmerny binding to zapsal zpatky
+         do Value. Hodnota se tim SKUTECNE ztratila (ulozeny profil uz ji neobsahoval), nejen
+         prestala byt videt. Reprodukce: NEmaximalizovane okno + scroll na dotcenty radek.
+         Nalezeno 31. 8. 2026, viz doc/configuration.md. -->
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="vm:ChoiceParamRow">
+            <ComboBox Margin="4,2" HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding Choices}"
+                      SelectedItem="{Binding Value, Mode=TwoWay}"/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:TextParamRow">
+            <TextBox Margin="4,2" Text="{Binding Value, Mode=TwoWay}"/>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
     <DockPanel Margin="8">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
             <TextBox Width="220" PlaceholderText="Filtr (jméno nebo popis)"
@@ -53,14 +74,25 @@
                                     Binding="{Binding Category}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Klíč" x:DataType="vm:ParamRow"
                                     Binding="{Binding Name}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Hodnota" x:DataType="vm:ParamRow"
-                                    Binding="{Binding Value, Mode=TwoWay}" Width="140"/>
+                <!-- ContentControl si sablonu najde podle typu radku (viz UserControl.DataTemplates).
+                     Zobrazovaci i editacni sablona jsou stejne: prvek uvnitr je sam interaktivni,
+                     takze editacni rezim DataGridu nema co pridat - ale kdyz do nej tabulka
+                     prepne, musi mit co vykreslit. -->
+                <DataGridTemplateColumn Header="Hodnota" Width="170">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><ContentControl Content="{Binding}"/></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate><ContentControl Content="{Binding}"/></DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Výchozí" x:DataType="vm:ParamRow"
                                     Binding="{Binding DefaultText}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Původ" x:DataType="vm:ParamRow"
                                     Binding="{Binding Origin}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Chyba" x:DataType="vm:ParamRow"
-                                    Binding="{Binding Error}" IsReadOnly="True"/>
+                <!-- Sloupec „Chyba" tu BYVAL a je zrusen zamerne: vadne pole se pozna cervenym
+                     ramcem a duvod rekne bublina primo u nej (Styles/Validation.axaml). Sloupec
+                     bral misto a odsouval hlasku daleko od pole, ktereho se tykala. -->
                 <DataGridTextColumn Header="Popis" x:DataType="vm:ParamRow"
                                     Binding="{Binding Description}" IsReadOnly="True" Width="*"/>
             </DataGrid.Columns>
