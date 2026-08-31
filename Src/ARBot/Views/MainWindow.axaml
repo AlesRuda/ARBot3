@@ -50,6 +50,8 @@
                 <MenuItem Header="Debug output" Command="{Binding OpenDebugOutputCommand}"/>
                 <MenuItem Header="Virtuální senzory" Command="{Binding OpenVirtualSensorsCommand}"/>
                 <MenuItem Header="Mise Robotour" Command="{Binding OpenRobotourMissionCommand}"/>
+                <MenuItem Header="Konfigurace" Command="{Binding OpenConfigurationCommand}"
+                          ToolTip.Tip="Všechny parametry s popisem, hodnotou a jejím původem; uložení profilu. Změna platí až po restartu."/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>

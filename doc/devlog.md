@@ -37,6 +37,69 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-08-31
+
+- **Konfigurace aplikace: registr parametrů, profily ze souboru a panel.** Dosud se aplikace
+  konfigurovala **výhradně z příkazové řádky** a klíč nikde neexistoval jako věc — byl to string
+  literál na místě čtení, takže nešlo vypsat, co lze nastavit, a překlep tiše propadl na výchozí
+  hodnotu. Nové `ARBot.Common/Configuration`: `ParamDef` + `ParamRegistry` (51 klíčů s typem,
+  popisem a kategorií), `ParamFile` (profil `klíč=hodnota`), `ParamStore` (precedence
+  **default → profil → příkazová řádka**, evidence **původu** hodnoty). Spec:
+  [configuration.md](configuration.md), postup: [plan-configuration.md](plan-configuration.md).
+  - **Zadání upřesnil autor:** ladění za běhu ani kalibrace (`Profile`) **nejsou cílem** — bolelo
+    „nechci psát dlouhou příkazovou řádku přes SSH" a „nevím, jaké parametry existují". Tím odpadla
+    nejdražší část (živé přepínání) i past s odvozenými statickými poli v `Profile`.
+  - **`Program.GetParam*` si nechalo signaturu** a jen uvnitř přestalo sahat na
+    `Environment.GetCommandLineArgs()`. Důsledek: **žádné z ~50 míst čtení se neměnilo** — migrace
+    je tím levná a nemá kde se tiše rozejít.
+  - **Tvrdé chyby místo tichého defaultu.** Neznámý klíč nebo neplatná hodnota v profilu zastaví
+    aplikaci **před startem GUI** (`Environment.Exit(2)`); na příkazové řádce je neznámý klíč jen
+    varování, protože mezi `args` jsou i cizí argumenty Avalonie. Ověřeno za běhu.
+  - **Strážný test** skenuje `Src/ARBot` a porovnává klíče se seznamem **obousměrně**. Musel umět
+    **šest vzorů, ne čtyři**: `ARBotRuntime` má vlastní `ReadDouble`/`TryReadMeters`, které
+    `GetParam` volají s **proměnnou**. Třetí test hlídá, aby se ta nepřímost nerozšířila jinam.
+    Prošel napoprvé — registr byl úplný.
+  - **Tři výchozí hodnoty se daly snadno uhodnout špatně**, protože nejsou u volání, ale
+    v konfiguračních třídách: `freerunlook` je **3,0** (ne 2), `depotfix` **5,0** (ne 10) a
+    `depthnoise` **0,003** — ne nula, jak název svádí. Kontrola shody defaultu (`CheckDefault`)
+    je proto v Debug buildu **výjimka**; zároveň musí přeskakovat volání, která default nepředávají
+    vůbec (`GetParam("mission")`), jinak by aplikace v Debug vůbec nenastartovala.
+  - **Sloupce `DataGrid`u dostaly `x:DataType`** — bez něj se binding resolvuje až za běhu a překlep
+    ve jménu by byl **tichý**, protože hlášky oblasti `Binding` jsou ve `FilteredTraceLogSink`
+    odfiltrované. Ověřeno schválným překlepem: build padne na `AVLN2000`.
+  - **Nález mimo zadání:** `ARBotHW.cs` slibovala v komentáři parametr `hw=real`, který v kódu
+    **nikdy neexistoval** (režim určuje `virtualhw=`) — opraveno. A **systemd jednotka aplikace
+    neexistuje** (`setup-orangepi.sh` řeší jen síť), takže větev „pod systemd jen skonči" v tlačítku
+    *Uložit a restartovat* zatím nikdy nenastane; je to obrana do budoucna.
+  - **Vedlejší oprava:** nový namespace `ARBot.Common.Tests.Configuration` zastínil zkratku
+    `Configuration.Profile` v `SyntheticSceneTraversabilityTests` — tam se plně kvalifikovalo.
+  - **Tlačítka na standardní *Uložit* / *Uložit jako…*** (na žádost autora). *Uložit* zapíše do
+    známé cesty bez ptaní a zeptá se jen tehdy, když žádná není; *Uložit jako…* se ptá vždy.
+    Zavření dialogu ukládání **zruší** — nespadne na náhradní cestu, jinak by „Zrušit" tiše někam
+    zapsalo. Pole s cestou zůstalo: je to informace, kam *Uložit* půjde, a zároveň jediný způsob,
+    jak profil určit v prostředí bez správce souborů.
+  - **Načtení profilu z panelu** (na žádost autora). Dialogem vybraný `.cfg` naplní tabulku; nic
+    nespouští. Dvě rozhodnutí, která nejsou samozřejmá: co v profilu **není**, se vrací na výchozí
+    (jinak by tabulka ukazovala směs neodpovídající žádné skutečné konfiguraci), a *Původ* se
+    přepíše na **„profil (načteno)"** — běžící aplikace jede pořád se starou konfigurací, takže
+    „profil" by tiše lhal.
+    - Při tom se vytáhla **validace profilu do `ParamRegistry.Validate()`** — panel si ji nejdřív
+      zduplikoval, což je past: kdyby se pravidla rozešla, panel by načetl profil, který start
+      odmítne. Vedlejší zisk: profil teď hlásí **všechny vady naráz**, ne první
+      (`neznamy parametr 'mapcor'; 'mapcorr=ano' neni platna hodnota typu Bool`), takže se
+      neopravuje po jedné se startem mezi tím.
+  - **Bublina s popisem na řádku tabulky** (na žádost autora: sloupec *Popis* je úzký a delší popis
+    v něm není vidět celý). Je na **celém řádku**, ne jen nad tím sloupcem — popis je potřeba
+    zrovna při psaní do sloupce *Hodnota*. Vedle popisu nese i **typ**, který v tabulce vlastní
+    sloupec nemá. Binding je opět staticky kontrolovaný (`x:DataType` na `Style`) a ověřený
+    schválným překlepem; při té příležitosti nahrazen zastaralý `TextBox.Watermark`
+    za `PlaceholderText`.
+- **Stav:** 990 testů zelených (bylo 941, přibylo 49), build `ARBot` i `ARBot.Common` pod `x64` bez
+  chyb. Aplikace ověřena bezobslužným self-testem s profilem.
+- **Rozpracováno / další krok:** **panel nikdo neproklikal** — ověřený je jen buildem (včetně
+  statické kontroly bindingů) a testy jádra. Neověřeno: editace hodnoty v tabulce, uložení profilu
+  z UI a tlačítko *Uložit a restartovat*. Nic z toho neběželo **na zařízení**.
+
 ## 2026-08-30
 
 - **Sdílené připojení už nebere notebooku internet.** Nález autora: po zapojení robota kabelem

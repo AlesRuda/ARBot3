@@ -204,6 +204,36 @@ namespace ARBot.ViewModels
                 _factory.SetFocusedDockable(Layout, doc);
         }
 
+        /// <summary>
+        /// Otevre (nebo aktivuje) panel „Konfigurace": vypis vsech parametru z registru s popisem,
+        /// ucinnou hodnotou a jejim PUVODEM (vychozi / profil / prikazova radka), editace a
+        /// ulozeni profilu.
+        ///
+        /// <para>Zmena plati az po restartu - skoro vsechny parametry se ctou pri konstrukci
+        /// runtimu. Viz doc/configuration.md.</para>
+        /// </summary>
+        [RelayCommand]
+        private void OpenConfiguration()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "Configuration");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new ConfigurationDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
         [RelayCommand]
         private void OpenRobotCentric()
         {

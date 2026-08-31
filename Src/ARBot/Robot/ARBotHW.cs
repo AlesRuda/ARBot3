@@ -340,7 +340,7 @@ namespace ARBot.Robot
         /// Zalozi SKUTECNE senzory: kamery i UART (IMU, GPS, motor). Porty zjistil <see cref="Init"/>;
         /// prazdny port (nebo <c>no_uart=true</c>) prislusny senzor preskoci.
         /// <para>Nevola se automaticky - po startu aplikace bezi <see cref="HwMode.None"/> a rezim
-        /// urcuje parametr <c>hw=real</c> nebo volba v menu. Viz doc/virtual-hw.md.</para>
+        /// urcuje parametr <c>virtualhw=</c> nebo volba v menu. Viz doc/virtual-hw.md.</para>
         /// </summary>
         public void SetRealHW()
         {

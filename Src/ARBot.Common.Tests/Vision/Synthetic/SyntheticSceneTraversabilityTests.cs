@@ -88,7 +88,7 @@ public class SyntheticSceneTraversabilityTests
             Model = Intrinsics.Distortion.None, Coeffs = new float[5],
         };
         var proj = new CameraProjection(intr, intr, Matrix4x4.Identity, Matrix4x4.Identity);
-        proj.SetOrientation(Configuration.Profile.LeftCameraTransform);
+        proj.SetOrientation(ARBot.Common.Configuration.Profile.LeftCameraTransform);
         return proj;
     }
 

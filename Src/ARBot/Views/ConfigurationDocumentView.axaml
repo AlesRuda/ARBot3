@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.ConfigurationDocumentView"
+             x:DataType="vm:ConfigurationDocument">
+    <Design.DataContext><vm:ConfigurationDocument/></Design.DataContext>
+
+    <DockPanel Margin="8">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBox Width="220" PlaceholderText="Filtr (jméno nebo popis)"
+                     Text="{Binding Filter, Mode=TwoWay}"/>
+            <!-- Cesta je hlavne INFORMACE, kam pujde „Ulozit" (bez ni by tlacitko zapisovalo
+                 neznamo kam). Zustava editovatelna zamerne: v prostredi bez spravce souboru je to
+                 jedina cesta, jak profil urcit bez dialogu. -->
+            <TextBox Width="320" PlaceholderText="Profil — kam se uloží (např. config/muj.cfg)"
+                     Text="{Binding ProfilePath, Mode=TwoWay}"
+                     ToolTip.Tip="Soubor, se kterým panel pracuje. Prázdné = „Uložit“ se zeptá."/>
+            <Button Classes="btn action info" Content="Načíst profil…"
+                    Command="{Binding LoadCommand}"
+                    ToolTip.Tip="Načte profil do tabulky. Nic nespustí — hodnoty začnou platit až po restartu. Co v profilu není, se vrátí na výchozí."/>
+            <Button Classes="btn action accent" Content="Uložit"
+                    Command="{Binding SaveCommand}"
+                    ToolTip.Tip="Zapíše do souboru uvedeného v cestě. Když žádný není, zeptá se. Ukládají se jen hodnoty odlišné od výchozích, s popisem v komentáři."/>
+            <Button Classes="btn action" Content="Uložit jako…"
+                    Command="{Binding SaveAsCommand}"
+                    ToolTip.Tip="Vždy se zeptá, kam profil uložit."/>
+            <Button Classes="btn action danger" Content="Uložit a restartovat"
+                    Command="{Binding SaveAndRestartCommand}"
+                    ToolTip.Tip="Uloží profil a spustí aplikaci znovu jen s ním. Běžící Run i mise skončí."/>
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0"
+                   Text="{Binding Status}" TextWrapping="Wrap"/>
+
+        <DataGrid ItemsSource="{Binding Rows}" IsReadOnly="False"
+                  AutoGenerateColumns="False" CanUserSortColumns="True"
+                  GridLinesVisibility="Horizontal">
+            <!-- Bublina s popisem na CELEM radku, ne jen nad sloupcem Popis: ten je uzky a dlouhy
+                 popis se do nej nevejde, a hlavne ho clovek potrebuje videt prave ve chvili, kdy
+                 najede na sloupec Hodnota. Text sklada ParamRow.Tooltip (popis + typ + vychozi). -->
+            <DataGrid.Styles>
+                <Style Selector="DataGridRow" x:DataType="vm:ParamRow">
+                    <Setter Property="ToolTip.Tip" Value="{Binding Tooltip}"/>
+                    <Setter Property="ToolTip.ShowDelay" Value="400"/>
+                </Style>
+            </DataGrid.Styles>
+
+            <!-- x:DataType na KAZDEM sloupci je nutnost, ne ozdoba: bez nej se binding resolvuje
+                 az za behu a preklep ve jmene by byl TICHY - hlasky oblasti Binding jsou ve
+                 FilteredTraceLogSink odfiltrovane (viz Views/README.md). Takhle ho chyti build. -->
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Kategorie" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Category}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Klíč" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Name}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Hodnota" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Value, Mode=TwoWay}" Width="140"/>
+                <DataGridTextColumn Header="Výchozí" x:DataType="vm:ParamRow"
+                                    Binding="{Binding DefaultText}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Původ" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Origin}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Chyba" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Error}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Popis" x:DataType="vm:ParamRow"
+                                    Binding="{Binding Description}" IsReadOnly="True" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

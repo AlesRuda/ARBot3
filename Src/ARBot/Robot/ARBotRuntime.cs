@@ -1092,7 +1092,14 @@ namespace ARBot.Robot
                     scene.GrassHeightM));
         }
 
-        /// <summary>Precte cislo z parametru prikazove radky; chybejici i nesmysl da <paramref name="fallback"/>.</summary>
+        /// <summary>Byl parametr skutecne ZADAN (profil nebo prikazova radka), nebo jen plati jeho
+        /// vychozi hodnota? Od zavedeni registru vraci <c>Program.GetParam</c> i vychozi hodnotu,
+        /// takze "neprazdna hodnota" uz neznamena "nekdo to zadal". Viz doc/configuration.md.</summary>
+        private static bool ParamZadan(string name)
+            => ARBot.Common.Configuration.ParamStore.Current.OriginOf(name)
+               != ARBot.Common.Configuration.ParamOrigin.Default;
+
+        /// <summary>Precte cislo z parametru; chybejici i nesmysl da <paramref name="fallback"/>.</summary>
         private static double ReadDouble(string name, double fallback)
         {
             string raw = Program.GetParam(name);
@@ -1100,17 +1107,26 @@ namespace ARBot.Robot
             if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
                                 System.Globalization.CultureInfo.InvariantCulture, out double v))
             {
-                Trace.WriteLine($"{name}={v.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                if (ParamZadan(name))
+                    Trace.WriteLine($"{name}={v.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
                 return v;
             }
             Trace.WriteLine($"{name}={raw} neni cislo -> ignoruje se.");
             return fallback;
         }
 
-        /// <summary>Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.</summary>
+        /// <summary>
+        /// Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.
+        ///
+        /// <para>Vraci <c>false</c> i tehdy, kdyz parametr nikdo nezadal a plati jen vychozi
+        /// hodnota - volajici pak necha to, co uz v <c>SyntheticSceneOptions</c> je (tedy tutez
+        /// hodnotu). Bez te podminky by se hlasil kazdy beh, jako by ho clovek nastavil.</para>
+        /// </summary>
         private static bool TryReadMeters(string name, out double meters)
         {
             meters = 0;
+            if (!ParamZadan(name)) return false;
+
             string raw = Program.GetParam(name);
             if (string.IsNullOrWhiteSpace(raw)) return false;
 

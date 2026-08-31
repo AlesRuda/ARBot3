@@ -46,6 +46,14 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 
 ## Doménová dokumentace
 
+- [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
+  (`ARBot.Common/Configuration`, 51 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
+  Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
+  přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
+  při startu**, ne tichý pád na default — to je hlavní zisk. `Program.GetParam*` si nechalo
+  signaturu, takže se žádné z ~50 míst čtení neměnilo. Změna platí **až po restartu** (panel ho
+  umí). Hotové 31. 8. 2026, **na HW neověřeno** a panel nikdo neproklikal.
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
   (`Common ← HAL ← app`), kam patří fúze / adaptéry / řídicí smyčka.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
