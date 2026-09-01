@@ -1829,7 +1829,7 @@ V `Src/ARBot/Views/MainWindow.axaml` za položku *Konfigurace*:
 Spusť: `dotnet build Src/ARBot/ARBot.csproj -p:Platform=x64`
 Čekej: build prochází bez chyb.
 
-- [ ] **Krok 6: Ověř panel za běhu** — ČEKÁ NA AUTORA (bez headless Avalonia testů to automat neověří)
+- [x] **Krok 6: Ověř panel za běhu** — proklikal autor 1. 9. 2026, „zdá se to být OK"
 
 Spusť:
 

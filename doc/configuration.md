@@ -15,7 +15,12 @@
 > kategorií a jen hodnoty odlišné od výchozích), a hlášení chyb ve vstupních polích — červený
 > rámeček a bublina při najetí myší i při zaostření.
 >
-> **Neověřeno:** ***Uložit a restartovat***. Nic z toho neběželo na zařízení (Armbian/OrangePI).
+> ***Uložit a restartovat* je funkční** (ověřil autor 1. 9. 2026) — tím je panel proklikaný celý.
+>
+> **Všechno výše je ověřené na Windows.** **Neověřeno:** nic z toho neběželo **na zařízení**
+> (Armbian/OrangePI). U restartu na tom záleží víc než jinde: **systemd jednotka aplikace
+> neexistuje** (`setup-orangepi.sh` řeší jen síť), takže větev „pod systemd jen skonči" tam pořád
+> nemá jak nastat a chování na Pi může být jiné než tady.
 >
 > Postup implementace: [plan-configuration.md](plan-configuration.md).
 

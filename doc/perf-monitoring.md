@@ -10,10 +10,14 @@
 > **Cena měření** (že `perf=true` sama nezhorší obsazenost) je taky neověřená; pozná se až A/B
 > během na zařízení.
 >
-> **Panel *Tools → Výkon* nikdo neproklikal** — projekt nemá headless Avalonia testy, takže maximum,
-> co se dalo ověřit bez člověka, je build se statickou kontrolou bindingů (všechny šablony
-> a sloupce mají `x:DataType`, překlep by chytil `AVLN2000`) a testy jádra. Že se čísla v panelu
-> skutečně obnovují jednou za sekundu, ověřeno **není**.
+> **Panel *Tools → Výkon* autor proklikal 1. 9. 2026** a hlásí „zdá se to být OK". Automatem
+> ověřený není — projekt nemá UI testy, takže bez člověka šel ověřit jen build se statickou
+> kontrolou bindingů (všechny šablony a sloupce mají `x:DataType`, překlep by chytil `AVLN2000`)
+> a testy jádra.
+>
+> ⚠️ **Na Windows je verdikt v panelu červený (`NESTÍHÁ`), a je to správně** — plyne z 3–4
+> zameškaných taktů za sekundu (viz „První měření"). Není to vada panelu ani měření; zelený verdikt
+> tady čekat nelze, dokud se nevysvětlí to zpoždění časovače.
 >
 > **Ověřeno za běhu je toto:** bezobslužný běh (`selftest=true st_seconds=10 st_record=true`)
 > zapsal do záznamu **10 `PerfMsg` za 10 s** a zprávy se ze záznamu načtou zpátky se smysluplnými

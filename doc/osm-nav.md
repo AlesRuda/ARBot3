@@ -44,7 +44,56 @@ Navigace (globální, geo) a Colider (lokální, metrický) jsou **oddělené po
   `OsmWayRaw`, `TurnRestrictionRaw`). Podporuje jen **via-node** turn-restrikce.
 - [`TravelProfile`](../Src/ARBot.Common/Maps/OsmNav/Osm/TravelProfile.cs) — strategie: které `highway`
   akceptovat, které `barrier`/`access` blokují, jak počítat cenu hrany a zda respektovat `oneway`.
-  Hotové profily: `Car()`, `Pedestrian()`, `Bicycle()` (liší se povolenými cestami, `oneway`, rychlostí).
+  Hotové profily: **`Robot()`**, `Car()`, `Pedestrian()`, `Bicycle()`.
+
+### `Robot()` — profil, kterým se mapa načítá (od 1. 9. 2026)
+
+Navigační mapa (`map=`) i náhled ve World pohledu se sestavují profilem **`Robot()`**. Do 1. 9. 2026
+se používal `Pedestrian()` a **lišil se od potřeby robota v obou směrech naráz**:
+
+| | `Pedestrian()` | `Robot()` | Naměřeno |
+|---|---|---|---|
+| `cycleway` | ⛔ zahazuje | ✅ jede | `haje.osm` **9 cest z 387** — jediná systematická ztráta; `HajeRovne.osm` 21, `Piestany.osm` 13, `modrany.osm` 36 |
+| `steps` | ✅ přijímá | ⛔ zahazuje | `haje.osm` 9, `HajeRovne.osm` 37 — kolový robot schody nevyjede, plánovač po nich trasu vést mohl |
+
+Cyklostezky se v OSM kreslí **modře čárkovaně**, takže byly vidět na podkladu a chyběly v síti —
+tak se to našlo.
+
+#### Bariéry: seznam u chodce míří vedle dat
+
+`BlocksNode` se dívá **jen na uzly**, jenže `Pedestrian().BlockingBarriers` obsahuje `wall` a `fence` —
+a ty jsou v obou změřených souborech **výhradně cesty**. Nad těmito daty tedy neblokoval nic; není to
+vlastnost kódu (`fence` na uzlu by zablokoval), ale to, že se seznam s tvarem dat míjí. Bodové
+bariéry, které v datech skutečně jsou, v seznamu nejsou:
+
+| | uzly (blokují průjezd) | cesty (`BlocksNode` je nevidí) |
+|---|---|---|
+| `haje.osm` | gate=11, kerb=2, entrance=2, lift_gate=1, bollard=1 | fence=8 |
+| `HajeRovne.osm` | gate=19, entrance=2, bollard=2, block=2 | fence=10, wall=5, retaining_wall=4 |
+
+`Robot()` proto blokuje **jen to, co je pro kolový robot opravdu nepřekonatelné**:
+`stile`, `turnstile`, `kissing_gate`, `cycle_barrier` (+ `wall`/`fence`/`hedge` pro úplnost).
+
+⚠️ **Závory a sloupky (`gate`, `lift_gate`, `bollard`, `block`) se ZÁMĚRNĚ neblokují** — a chybět
+v grafu **není totéž co nevidět je**. Fyzickou překážku robot vnímá kamerami a řeší ji **lokální
+vyhýbání** (occupancy grid); z grafu plyne jen to, že přes ten uzel plánovač trasu vést *smí*.
+Důvody, proč to tak nechat: rozchod robota je **0,41 m**, takže mezerou u sloupku nebo vedle závory
+projede; `barrier=gate` navíc neznamená „zavřeno" (spousta bran je průchozích, zamčené popisuje
+`access`/`locked`); a blokovat je všechny by v parku plném bran síť rozpojilo, takže by se trasa
+nenašla vůbec.
+
+Cena za to je opačná: plánovač může vést trasu **skrz opravdu zavřenou** bránu a robot tam dojede
+a zastaví. To je úsudek, ne měření — na skutečném místě patří ověřit, jestli se robot brankami
+protáhne, a případně `gate` do seznamu doplnit.
+
+`barrier=entrance` je **otvor**, ne překážka — neblokuje se nikdy.
+
+> **Dopad mimo navigaci:** přibyly hrany, takže se změnilo i to, proti čemu koreluje occupancy grid
+> (`RoadScene.IsRoad`). Čísla naměřená nad těmito mapami v
+> [map-correlation-localization.md](map-correlation-localization.md) se můžou posunout.
+
+`Pedestrian()`, `Car()` a `Bicycle()` zůstávají beze změny — používají je testy a případné jiné
+úlohy.
 - [`GraphBuilder.BuildNetwork(OsmData, TravelProfile)`](../Src/ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)
   → `RoadNetwork`. Filtruje cesty profilem, dělí je na hrany mezi uzly, počítá délky
   (`GreatCircle.Distance`), zakládá odbočení a promítá turn-restrikce.

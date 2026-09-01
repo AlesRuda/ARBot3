@@ -52,4 +52,69 @@ public class TravelProfileTests
         double cost = car.EdgeCost(Way(("highway", "residential")), 139.0);
         Assert.That(cost, Is.InRange(9.5, 10.5)); // ~10 s
     }
+
+    // --- Profil Robot -----------------------------------------------------------------------
+    // Nas robot neni chodec: po cyklostezce jet muze, po schodech ne. Obojí byla nalezena vada
+    // profilu Pedestrian, kterym se mapa nacitala. Viz doc/osm-nav.md.
+
+    private static OsmNodeRaw Node(string barrier) =>
+        new(3, 50, 14, new Dictionary<string, string> { ["barrier"] = barrier });
+
+    [Test]
+    public void Robot_PrijmeCyklostezku_ChodecJiZahazuje()
+    {
+        // Nalezeno 1. 9. 2026 na haje.osm: z 387 cest se zahazovalo 9 cyklostezek, tedy jedina
+        // systematicka ztrata. V OSM se kresli modre carkovane - bylo videt na podkladu a chybelo
+        // v siti.
+        var way = Way(("highway", "cycleway"));
+        Assert.That(TravelProfile.Robot().AcceptsWay(way), "robot na cyklostezku patri");
+        Assert.That(TravelProfile.Pedestrian().AcceptsWay(way), Is.False, "puvodni chovani chodce");
+    }
+
+    [Test]
+    public void Robot_ZahodiSchody_ChodecJePrijima()
+    {
+        // Opacny smer teze vady: kolovy robot schody nevyjede, ale chodec ano - a plansovac by po
+        // nich trasu vedl (9 cest v haje.osm, 37 v HajeRovne.osm).
+        var way = Way(("highway", "steps"));
+        Assert.That(TravelProfile.Robot().AcceptsWay(way), Is.False, "po schodech robot nejede");
+        Assert.That(TravelProfile.Pedestrian().AcceptsWay(way), "puvodni chovani chodce");
+    }
+
+    [Test]
+    public void Robot_PrijmeBezneCestyStejneJakoChodec()
+    {
+        var robot = TravelProfile.Robot();
+        foreach (string hw in new[] { "footway", "path", "track", "pedestrian", "residential",
+                                      "living_street", "service", "unclassified", "tertiary" })
+            Assert.That(robot.AcceptsWay(Way(("highway", hw))), $"{hw} ma zustat prujezdny");
+    }
+
+    [Test]
+    public void Robot_JeBlokovanNeprekonatelnymiBarierami()
+    {
+        var robot = TravelProfile.Robot();
+        foreach (string b in new[] { "stile", "turnstile", "kissing_gate", "cycle_barrier" })
+            Assert.That(robot.BlocksNode(Node(b)), $"{b} robot neprojede");
+    }
+
+    [Test]
+    public void Robot_NENIblokovanZavorouAniSloupkem()
+    {
+        // Rozchod robota je 0,41 m, takze mezerou u sloupku nebo vedle zavory projede; a co
+        // neprojede, zastavi lokalni vyhybani (occupancy grid). Blokovat je globalne by v parku
+        // plnem bran rozpojilo sit. Viz doc/osm-nav.md.
+        var robot = TravelProfile.Robot();
+        Assert.That(robot.BlocksNode(Node("gate")), Is.False);
+        Assert.That(robot.BlocksNode(Node("lift_gate")), Is.False);
+        Assert.That(robot.BlocksNode(Node("bollard")), Is.False);
+        Assert.That(robot.BlocksNode(Node("entrance")), Is.False, "entrance je OTVOR, ne prekazka");
+    }
+
+    [Test]
+    public void Robot_RespektujeSoukromyPristup()
+    {
+        Assert.That(TravelProfile.Robot().AcceptsWay(
+            Way(("highway", "service"), ("access", "private"))), Is.False);
+    }
 }

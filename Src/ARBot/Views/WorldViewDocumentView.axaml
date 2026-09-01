@@ -27,24 +27,37 @@
                               MaxHeight="{Binding $parent[Grid].Bounds.Height, Converter={x:Static conv:SubtractConverter.Instance}, ConverterParameter=70}"
                               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="4" MinWidth="190">
+                <!-- PODKLAD je prvni: je to kulisa, na kterou se vse ostatni kresli.
+                     Vypnuti resi JEN checkbox; v combu zamerne neni polozka "Bez podkladu",
+                     protoze delala presne totez a dva prvky pro jeden stav umeji vyrobit
+                     matouci stav "v combu je OSM, ale nic nevidim". -->
+                <CheckBox Content="Zobrazit podklad" IsChecked="{Binding ShowBaseMap}" Foreground="White"/>
+
                 <TextBlock Text="Podklad" Foreground="White" FontSize="11" Opacity="0.7"/>
                 <ComboBox ItemsSource="{Binding BaseMapChoices}"
                           SelectedItem="{Binding SelectedBaseMap}"
+                          IsEnabled="{Binding ShowBaseMap}"
                           HorizontalAlignment="Stretch"/>
-                <CheckBox Content="Zobrazit podklad" IsChecked="{Binding ShowBaseMap}" Foreground="White"/>
 
-                <TextBlock Text="MBTiles (offline):" Foreground="White" FontSize="11" Opacity="0.7" Margin="0,4,0,0"/>
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="…" Classes="btn compact" Margin="4,0,0,0"
-                            Click="OnBrowseMbTiles"/>
-                    <TextBox Text="{Binding MbTilesPath}" PlaceholderText="cesta k .mbtiles"/>
-                </DockPanel>
+                <!-- Cesta k .mbtiles jen u offline podkladu - jinde nema co ovlivnit. -->
+                <StackPanel Spacing="4" IsVisible="{Binding OfflineBaseMapSelected}">
+                    <TextBlock Text="MBTiles (offline):" Foreground="White" FontSize="11" Opacity="0.7" Margin="0,4,0,0"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="…" Classes="btn compact" Margin="4,0,0,0"
+                                Click="OnBrowseMbTiles"/>
+                        <TextBox Text="{Binding MbTilesPath}" PlaceholderText="cesta k .mbtiles"/>
+                    </DockPanel>
+                </StackPanel>
 
-                <Button Classes="btn" HorizontalAlignment="Stretch" Margin="0,2,0,0"
-                        Content="⬇ Uložit výřez jako MBTiles"
-                        IsEnabled="{Binding !Exporting}"
-                        Click="OnExportMbTiles"
-                        ToolTip.Tip="Stáhne dlaždice OSM aktuálního výřezu (z13–19) do MBTiles pro offline použití"/>
+                <!-- Export jen u online podkladu: dlazdice se VZDY stahuji z OpenStreetMap, takze je
+                     to akce "priprav si offline z online". Po dokonceni nastavi cestu k MBTiles. -->
+                <StackPanel Spacing="4" IsVisible="{Binding OnlineBaseMapSelected}">
+                    <Button Classes="btn" HorizontalAlignment="Stretch" Margin="0,2,0,0"
+                            Content="⬇ Uložit výřez jako MBTiles"
+                            IsEnabled="{Binding !Exporting}"
+                            Click="OnExportMbTiles"
+                            ToolTip.Tip="Stáhne dlaždice OSM aktuálního výřezu (z13–19) do MBTiles pro offline použití.&#10;Po dokončení předvyplní cestu, takže stačí přepnout podklad na Offline."/>
+                </StackPanel>
                 <TextBlock Text="{Binding ExportStatus}" Foreground="#FFD54F" FontSize="11"
                            TextWrapping="Wrap" IsVisible="{Binding ExportStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
@@ -75,21 +88,31 @@
 
                 <Separator Margin="0,4"/>
 
-                <TextBlock Text="Mapa (OsmNav)" Foreground="White" FontSize="11" Opacity="0.7"/>
+                <CheckBox Content="Sledovat robota" IsChecked="{Binding Follow}" Foreground="White"/>
+
+                <Separator Margin="0,4"/>
+
+                <!-- MAPA (OsmNav) je posledni: je to NAHLED souboru, ne nastaveni pohledu.
+                     Nacteni NEPREPISUJE navigacni sit z map= (ta ma vlastni vrstvu "Mapa (síť)"),
+                     takze jde videt vedle sebe, cim se lisi. Smazat maze jen tenhle nahled. -->
+                <TextBlock Text="Mapa (OsmNav) — náhled" Foreground="White" FontSize="11" Opacity="0.7"/>
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Left" Text="Šířka cesty [m]:" Foreground="White"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <NumericUpDown Value="{Binding DefaultRoadWidthMeters}" Minimum="0.1" Maximum="50"
-                                   Increment="0.5" FormatString="0.0"/>
+                                   Increment="0.5" FormatString="0.0"
+                                   ToolTip.Tip="Šířka cest bez tagu width. Výchozí hodnota je z parametru roadwidth=,&#10;tedy stejná, jakou použije robot — náhled tak ukazuje, co dostane.&#10;Když ji přetočíš, náhled už tomu neodpovídá; použitá šířka je ve stavovém řádku."/>
                 </DockPanel>
-                <Button Classes="btn" HorizontalAlignment="Stretch" Content="Načíst OSM mapu…" Click="OnLoadOsmMap"
-                        ToolTip.Tip="Načte .osm soubor, sestaví síť (OsmNav) a zobrazí ji jako vrstvu (výchozí šířka cesty, nebo z tagu width)"/>
-                <TextBlock Text="{Binding MapStatus}" Foreground="#B39DDB" FontSize="11"
+                <Grid ColumnDefinitions="*,Auto">
+                    <Button Grid.Column="0" Classes="btn" HorizontalAlignment="Stretch"
+                            Content="Načíst OSM mapu…" Click="OnLoadOsmMap"
+                            ToolTip.Tip="NÁHLED: načte .osm, sestaví síť (OsmNav) a vykreslí ji ZELENĚ jako samostatnou vrstvu.&#10;&#10;Ukazuje, co robot dostane, až mu ten soubor dáš — běžící běh NEŘÍDÍ.&#10;Robot jede podle mapy z parametru map= (fialová vrstva „Mapa (síť)“),&#10;a tu tohle tlačítko nepřepíše."/>
+                    <Button Grid.Column="1" Classes="btn" Margin="4,0,0,0" Content="Smazat"
+                            Click="OnClearOsmMap"
+                            ToolTip.Tip="Zahodí náhledovou (zelenou) mapu. Navigační sítě z map= se to netýká."/>
+                </Grid>
+                <TextBlock Text="{Binding MapStatus}" Foreground="#69F0AE" FontSize="11"
                            TextWrapping="Wrap" IsVisible="{Binding MapStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-
-                <Separator Margin="0,4"/>
-
-                <CheckBox Content="Sledovat robota" IsChecked="{Binding Follow}" Foreground="White"/>
                 </StackPanel>
                 </ScrollViewer>
             </StackPanel>

@@ -54,8 +54,8 @@ návrháře; ovládací prvky (combobox podkladu, checkboxy vrstev) jsou v XAML 
 
 ## Vrstvy (každá samostatně vypínatelná)
 
-Pořadí zdola nahoru: **podklad → mapa (síť) → mapa (vize) → lokální mapa → surové GPS → trajektorie →
-trasa/graf → lokální plán → značky → poloha**. Přepínače jsou `[ObservableProperty]` na ViewModelu; jejich změna
+Pořadí zdola nahoru: **podklad → mapa (síť) → mapa (vize) → mapa (náhled) → lokální mapa → surové GPS →
+trajektorie → trasa/graf → lokální plán → značky → poloha**. Přepínače jsou `[ObservableProperty]` na ViewModelu; jejich změna
 přestaví `Map.Layers` (`RebuildLayers`, běží na UI vlákně).
 
 **Šířky a pořadí navigačních vrstev spolu souvisí.** Tři úrovně navigace (síť → globální trasa →
@@ -78,8 +78,9 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 | **Poloha + kurz** | [`RobotStateMsg`](../Src/ARBot.Common/Logs/RobotStateMsg.cs) (**fúzovaná póza**) | lokální ENU → LLA | živé v Run/View |
 | **Trajektorie** | `RobotStateMsg` (akumulovaná fúzovaná póza) | lokální ENU → LLA | živé |
 | **Surové GPS** | [`GPSState`](../Src/ARBot.Common/Devices/GPSState.cs) (fixy bez fúze) | WGS84 → Mercator | živé; **výchozí vypnuto** |
-| **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav) | WGS84 → Mercator | živé v Run (emituje runtime); ruční načtení** |
-| **Mapa (vize)** | `MapMsg` z `ARBotRuntime.VisionMapMessage` (parametr `visionmap=`) | WGS84 → Mercator | živé v Run; **ne ze Streamu***** |
+| **Mapa (síť)** | [`MapMsg`](../Src/ARBot.Common/Logs/MapMsg.cs) (síť z OsmNav, parametr `map=`) | WGS84 → Mercator | živé v Run (emituje runtime); fialová** |
+| **Mapa (vize)** | `MapMsg` z `ARBotRuntime.VisionMapMessage` (parametr `visionmap=`) | WGS84 → Mercator | živé v Run; oranžová; **ne ze Streamu***** |
+| **Mapa (náhled)** | `.osm` načtený tlačítkem v panelu (`SetPreviewMap`) | WGS84 → Mercator | zelená; **ne ze Streamu**; viz níž |
 | **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | živé v Run |
 | **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | živé v Run |
 | **Hranice cesty** | [`CameraFrame.PathEdges`](../Src/ARBot.Common/Devices/CameraFrame.cs) (body) + [`RoadCorridorMsg`](../Src/ARBot.Common/Logs/RoadCorridorMsg.cs) (úsečky) | rámec robotu → lokální ENU, **póza z každé zprávy** | živé; **výchozí vypnuto**, ladicí |
@@ -88,7 +89,8 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 se na `Stream` neemitovaly. Dnes je emituje runtime (`GlobalNavigator` trasu, `ARBotRuntime` mapu po
 sestavení sítě), takže vrstvy žijí; ve View se přehrávají ze záznamu.
 
-\*\* Vrstvu **Mapa (síť)** lze naplnit ručně tlačítkem **„Načíst OSM mapu…"** (viz níže) i bez runtime.
+\*\* Vrstva **Mapa (síť)** se plní **jen ze streamu**. Ručně načtený `.osm` jde od 1. 9. 2026 do
+samostatné vrstvy **Mapa (náhled)** a tuhle **nepřepisuje** — viz „Mapa (náhled)" níž.
 
 \*\*\* Vrstva **Mapa (vize)** je mapa, ze které renderují **virtuální kamery** (`visionmap=`) —
 záměrně **nechodí přes `Stream`** (a tedy ani do záznamu): druhá `MapMsg` ve streamu by přepsala tu
@@ -139,22 +141,53 @@ přiřadí uzlu **max šířku z incidentních cest** — buď **default** (pole
 `DefaultRoadWidthMeters`), nebo **z OSM tagu** `width`/`est_width` (parsují se metry); uzel s vlastním
 `width` tagem má přednost.
 
-Naplnění vrstvy:
-- **Ručně**: tlačítko **„Načíst OSM mapu…"** (`WorldViewDocument.LoadOsmMapAsync`) — vybere `.osm`, na pozadí
-  ho zparsuje ([`OsmXmlReader`](../Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs)), sestaví
-  [`RoadNetwork`](../Src/ARBot.Common/Maps/OsmNav/Graph/RoadNetwork.cs) (pěší profil,
-  [`GraphBuilder`](../Src/ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)), zkonvertuje na `MapMsg` a zobrazí.
-  Při prvním načtení (a bez GPS fixu) mapu vycentruje na rozsah sítě.
-- **Ze streamu**: až OsmNav začne `MapMsg` emitovat do runtime, vrstva se naplní automaticky (stejná cesta
-  přes `Post`/`Flush`).
+Naplnění vrstvy **Mapa (síť)**: **ze streamu** — runtime po sestavení sítě z `map=` pošle `MapMsg`
+(cesta přes `Post`/`Flush`). Ve View se přehraje ze záznamu.
+
+### Mapa (náhled) — „co robot dostane, dřív než to dostane"
+
+Tlačítko **„Načíst OSM mapu…"** (`WorldViewDocument.LoadOsmMapAsync`) vybere `.osm`, na pozadí ho
+zparsuje ([`OsmXmlReader`](../Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs)), sestaví
+[`RoadNetwork`](../Src/ARBot.Common/Maps/OsmNav/Graph/RoadNetwork.cs) (pěší profil,
+[`GraphBuilder`](../Src/ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)), zkonvertuje na `MapMsg`
+a vykreslí **zeleným obrysem** jako **samostatnou vrstvu** (`SetPreviewMap`). Tlačítko **„Smazat"**
+ji zahodí (`ClearPreviewMap`).
+
+**Náhled je oddělený od navigační sítě záměrně** (změněno 1. 9. 2026; dřív ji přepisoval). Smysl
+tlačítka je ukázat, co robot dostane, **až** mu ten soubor dáte — to jde jedině tehdy, když je vidět
+**vedle** toho, podle čeho jede teď. Načtení proto vrstvu *Mapa (síť)* nemění a *Smazat* se jí
+netýká. Stejně jako *Mapa (vize)* náhled **nejde na `Stream` ani do záznamu**: záznam má popisovat,
+co robot věděl, ne co si u toho někdo prohlížel.
+
+⚠️ **Šířka cest bez tagu `width` se bere z parametru `roadwidth=`** — z téhož zdroje jako navigační
+mapa (`ARBotRuntime.ReadNetwork`). **Do 1. 9. 2026 tu byly natvrdo 2 m proti 3 m u robota**, takže
+týž soubor měl v náhledu jinak široké pásy než mapa, podle které se jelo — a náhled tím lhal právě
+o tom, kvůli čemu existuje. Pole zůstává editovatelné (experimentovat se šířkou je legitimní),
+a **použitá šířka je proto ve stavovém řádku**: když si ji přetočíte, je vidět, že náhled už
+neodpovídá.
+
+Náhled **nemá vlastní zaškrtávátko viditelnosti** — načtení a *Smazat* tu viditelnost jsou; třetí
+stav „načteno, ale skryto" nemá zjevné použití. Při načtení (a bez GPS fixu) se mapa vycentruje na
+rozsah sítě.
 
 ### Podklad a offline (OrangePI bez internetu)
 
-Zdroj podkladu je přepínatelný: **Bez podkladu / OpenStreetMap (online) / Offline (MBTiles)**.
-Klíčové: když je podklad vypnutý (checkbox „Zobrazit podklad") **nebo** je zdroj `None`, **žádná
-dlaždicová vrstva se nevytvoří** → **žádné pokusy o komunikaci po internetu**. To je záměr pro provoz
-na OrangePI. Proto je **výchozí podklad na ARM (`#if IsARM64`) `None`**, na vývoji (x64) OSM.
+Zdroj podkladu je přepínatelný: **OpenStreetMap (online) / Offline (MBTiles)**; vypíná se
+**checkboxem „Zobrazit podklad"**. Když je podklad vypnutý, **žádná dlaždicová vrstva se nevytvoří**
+→ **žádné pokusy o komunikaci po internetu**. To je záměr pro provoz na OrangePI, kde je proto
+**výchozí stav `ShowBaseMap = false`** (`#if IsARM64`); na vývoji (x64) je zapnutý s OSM.
 OSM vrstva posílá korektní `User-Agent` dle OSM tile usage policy.
+
+> **Do 1. 9. 2026 byla v nabídce i položka „Bez podkladu"** a dělala **přesně totéž** jako odškrtnutý
+> checkbox — dvě ovládání pro jeden stav. Vyrábělo to matoucí stav „v combu je OSM, ale nic nevidím".
+> Zrušila se **položka v nabídce**, ne checkbox: vypnout a zapnout podklad je častější než změnit
+> jeho druh, a přes checkbox to jde jedním klikem **bez ztráty volby**. Hodnota `BaseMap.None`
+> v enumu zůstává jako bezpečná náhrada v `GetBaseLayer`.
+
+**Panel se řídí volbou v nabídce:** cesta k `.mbtiles` je vidět jen u offline podkladu, tlačítko
+*Uložit výřez jako MBTiles* jen u online — dlaždice se totiž **vždycky stahují z OpenStreetMap**,
+takže je to akce „připrav si offline z online" a nad offline podkladem nedává smysl. Po dokončení
+exportu se cesta předvyplní, takže stačí přepnout podklad na *Offline*.
 
 Offline podklad je [MBTiles](https://github.com/mapbox/mbtiles-spec) soubor (SQLite s dlaždicemi);
 cesta se zadá v panelu (tlačítko „…" otevře výběr souboru). Vrstva se staví jen když soubor existuje.

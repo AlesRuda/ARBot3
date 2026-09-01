@@ -174,6 +174,8 @@ namespace ARBot.ViewModels
         /// a <see cref="ResetSessionState"/> ji nezahazuje, jen prekresli.
         /// </summary>
         private MapMsg? visionMap;
+        /// <summary>Nahledova mapa nactena tlacitkem; mimo stream, viz <see cref="SetPreviewMap"/>.</summary>
+        private MapMsg? previewMap;
 
         /// <summary>
         /// Stav globalni navigace jako hotovy text do tooltipu (viz <see cref="BuildGlobalNavTip"/>).
@@ -218,6 +220,10 @@ namespace ARBot.ViewModels
         // Mapa, ze ktere renderuji virtualni kamery (parametr visionmap=). NEJDE ze streamu - viz
         // SetVisionMap; ve streamu zamerne neni, aby zaznam popisoval, co robot vedel, ne kulisu.
         private readonly MemoryLayer visionMapLayer = new MemoryLayer("Mapa (vize)");
+        // Nahled mapy nactene tlacitkem z panelu (SetPreviewMap). ZAMERNE oddeleny od navigacni
+        // site: smysl tlacitka je videt, co robot dostane, DRIV nez to dostane - tedy vedle toho,
+        // podle ceho jede ted. Nacteni proto navigacni mapu neprepisuje a Smazat maze jen tuhle.
+        private readonly MemoryLayer previewMapLayer = new MemoryLayer("Mapa (náhled)");
         // Lokalni mapa je RASTR (PNG v RasterFeature), ne vektor. MemoryLayer ma ale ve vychozim
         // stavu Style = VectorStyle, takze by se feature dostala na VectorStyleRenderer, ktery ji
         // neumi - Mapsui to jen zaloguje ("VectorStyleRenderer can not render feature of type
@@ -290,7 +296,16 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string mapStatus = string.Empty;
 
         /// <summary>Vychozi sirka cesty [m] pri nacitani OSM (pouzije se, kdyz nema tag <c>width</c>).</summary>
-        [ObservableProperty] private decimal defaultRoadWidthMeters = 2m;
+        /// <summary>
+        /// Vychozi sirka cesty [m] pro nahled mapy (cesty bez tagu <c>width</c>). Inicializuje se
+        /// z parametru <c>roadwidth=</c>, tedy z TEHOZ zdroje, ze ktereho ji bere navigacni mapa
+        /// (<c>ARBotRuntime.ReadNetwork</c>).
+        ///
+        /// <para><b>Proc na tom zalezi.</b> Smysl nahledu je ukazat, co robot dostane. Kdyz se sirka
+        /// lisi, nahled lze prave o tom, kvuli cemu existuje - a lze tise, protoze vykresleny pas
+        /// vypada stejne autoritativne. Drive tu bylo natvrdo 2 m proti 3 m u robota.</para>
+        /// </summary>
+        [ObservableProperty] private decimal defaultRoadWidthMeters = 3m;
 
         /// <summary>Sledovat robota (centrovat mapu na jeho polohu pri kazde aktualizaci).</summary>
         [ObservableProperty] private bool follow = true;
@@ -310,6 +325,27 @@ namespace ARBot.ViewModels
         /// <summary>Vybrany podklad.</summary>
         [ObservableProperty] private BaseMapChoice selectedBaseMap;
 
+        /// <summary>
+        /// Je vybrany offline podklad? Panel podle toho ukazuje pole s cestou k <c>.mbtiles</c>.
+        /// Je to vlastnost, ne konvertor v XAML: binding zustane kontrolovany prekladacem
+        /// (<c>x:DataType</c>), takze preklep chytne build - viz Views/README.md.
+        /// </summary>
+        [ObservableProperty] private bool offlineBaseMapSelected;
+
+        /// <summary>
+        /// Je vybrany online podklad? Panel podle toho ukazuje „Ulozit vyrez jako MBTiles" - ten
+        /// dlazdice VZDY stahuje z OpenStreetMap, takze je to akce „priprav si offline z online"
+        /// a nad offline podkladem nedava smysl.
+        /// </summary>
+        [ObservableProperty] private bool onlineBaseMapSelected;
+
+        private void UpdateBaseMapKind()
+        {
+            var v = SelectedBaseMap?.Value ?? BaseMap.None;
+            OfflineBaseMapSelected = v == BaseMap.OfflineMbTiles;
+            OnlineBaseMapSelected = v == BaseMap.OpenStreetMap;
+        }
+
         /// <summary>Cesta k offline MBTiles souboru (pro <see cref="BaseMap.OfflineMbTiles"/>).</summary>
         [ObservableProperty] private string mbTilesPath = string.Empty;
 
@@ -324,20 +360,30 @@ namespace ARBot.ViewModels
 
             designMode = Design.IsDesignMode;
 
+            // "Bez podkladu" v nabidce ZAMERNE neni - delalo presne totez jako odskrtnuty
+            // ShowBaseMap, tedy dva ovladaci prvky pro jeden stav. Vypnuti je checkbox, combo urcuje
+            // JEN ktery podklad. BaseMap.None v enumu zustava jako bezpecna nahrada v GetBaseLayer.
             BaseMapChoices = new List<BaseMapChoice>
             {
-                new BaseMapChoice(BaseMap.None, "Bez podkladu"),
                 new BaseMapChoice(BaseMap.OpenStreetMap, "OpenStreetMap (online)"),
                 new BaseMapChoice(BaseMap.OfflineMbTiles, "Offline (MBTiles)"),
             };
 
-            // Vychozi podklad: na ARM (OrangePI) zadny (offline-first), jinak OSM. V design-time vzdy zadny.
+            // Vychozi podklad: na ARM (OrangePI) se NEZOBRAZUJE (offline-first) - drive to resila
+            // volba "Bez podkladu", ted odskrtnuty checkbox. Volba v combu zustava OSM, aby zaskrtnuti
+            // neco ukazalo; Offline s prazdnou cestou by mlcelo, a tiche nic je horsi nez pokus o sit.
+            selectedBaseMap = FindChoice(BaseMap.OpenStreetMap);
+            UpdateBaseMapKind();
+
+            // Sirka cesty pro nahled ze STEJNEHO zdroje, ze ktereho ji bere navigacni mapa.
+            // V design-time se ParamStore nestaví, ale Current ma vychozi instanci -> vrati fallback.
+            if (!designMode)
+                defaultRoadWidthMeters = (decimal)Program.GetParamDouble("roadwidth", 3.0);
 #if IsARM64
-            var defaultBase = BaseMap.None;
+            showBaseMap = false;
 #else
-            var defaultBase = designMode ? BaseMap.None : BaseMap.OpenStreetMap;
+            showBaseMap = !designMode;
 #endif
-            selectedBaseMap = FindChoice(defaultBase);
 
             // Prazdne datove vrstvy (naplni je Flush). Podklad + poradi resi RebuildLayers.
             RebuildLayers();
@@ -1656,6 +1702,9 @@ namespace ARBot.ViewModels
         /// </summary>
         private static readonly Color VisionMapOutline = new Color(0xE6, 0x5C, 0x00);
 
+        /// <summary>Obrys nahledove mapy - treti barva vedle fialove (navigacni) a oranzove (vize).</summary>
+        private static readonly Color PreviewMapOutline = new Color(0x00, 0xC8, 0x53);
+
         /// <summary>
         /// Postavi featury jedne silnicni site (viz <see cref="UpdateMapFeature"/> - popis geometrie
         /// je tam). Vydeleno z <c>UpdateMapFeature</c>, protoze se timtez kresli dve site: navigacni
@@ -1816,6 +1865,43 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
+        /// Nastavi (nebo zrusi) <b>nahledovou</b> mapu - tu, kterou clovek nacetl tlacitkem z panelu.
+        ///
+        /// <para><b>Proc zvlast a ne pres <see cref="Post"/>:</b> nahled je odpoved na otazku „co
+        /// robot dostane, az mu tenhle soubor dam" - musi tedy byt videt VEDLE navigacni site, ne
+        /// misto ni. Kdyby sel pres <see cref="Post"/>, prepsal by ji, protoze dokument si drzi
+        /// posledni <c>MapMsg</c> podle typu. Ze stejneho duvodu nejde na Stream ani do zaznamu:
+        /// zaznam ma popisovat, co robot vedel, ne co si u toho nekdo prohlizel.</para>
+        /// </summary>
+        public void SetPreviewMap(MapMsg? map)
+        {
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(() => SetPreviewMap(map));
+                return;
+            }
+
+            previewMap = map;
+            previewMapLayer.Features = BuildMapFeatures(map, MapFill, PreviewMapOutline, 2,
+                                                        outlineOnly: true, out _);
+            previewMapLayer.DataHasChanged();
+
+            // Nacetl-li clovek mapu a jeste nic nevycentrovalo, at je na co koukat.
+            if (map != null)
+                CenterOnMapIfNeeded(map);
+        }
+
+        /// <summary>
+        /// Zahodi nahledovou mapu. Navigacni site z <c>map=</c> se to <b>netyka</b> - ta prisla
+        /// streamem a nahled ji neprepsal.
+        /// </summary>
+        public void ClearPreviewMap()
+        {
+            SetPreviewMap(null);
+            MapStatus = string.Empty;
+        }
+
+        /// <summary>
         /// Vyzvedne aktualni <c>visionmap=</c> z runtime. Vola se pri zmene sezeni - pohled muze byt
         /// otevreny drive nez Start, kdy mapa jeste nactena neni.
         /// </summary>
@@ -1867,14 +1953,18 @@ namespace ARBot.ViewModels
                 {
                     using var fs = File.OpenRead(path);
                     var data = OsmXmlReader.Read(fs);
-                    var net = GraphBuilder.BuildNetwork(data, TravelProfile.Pedestrian(), defaultWidth);
+                    // Profil ROBOTA, ne chodce - tentyz, jakym sit sestavuje runtime z map=.
+                    // Nahled musi ukazovat, co robot dostane, takze se nesmi lisit ani profilem.
+                    var net = GraphBuilder.BuildNetwork(data, TravelProfile.Robot(), defaultWidth);
                     return net.ToLogMessage(Path.GetFileName(path));
                 });
 
-                ShowMap = true;    // at je vrstva videt
-                Post(msg);         // projde Flushem -> vykresli + vycentruje (kdyz jeste neni fix)
+                SetPreviewMap(msg);   // NAHLEDOVA vrstva - navigacni sit z map= zustava, jak byla
+                // Sirka je v hlasce zamerne: kdyz si ji clovek pretoci, nahled uz neodpovida tomu,
+                // co robot dostane - a tady je to videt bez dalsiho ovladaciho prvku.
                 MapStatus = string.Format(CultureInfo.InvariantCulture,
-                    "Mapa: {0} uzlů, {1} hran ({2})", msg.Nodes.Count, msg.Edges.Count, Path.GetFileName(path));
+                    "Náhled: {0} uzlů, {1} hran ({2}, šířka {3:0.0} m)",
+                    msg.Nodes.Count, msg.Edges.Count, Path.GetFileName(path), defaultWidth);
             }
             catch (Exception ex)
             {
@@ -2132,7 +2222,11 @@ namespace ARBot.ViewModels
 
         partial void OnShowMapChanged(bool value) => RebuildLayers();
         partial void OnShowVisionMapChanged(bool value) => RebuildLayers();
-        partial void OnSelectedBaseMapChanged(BaseMapChoice value) => RebuildLayers();
+        partial void OnSelectedBaseMapChanged(BaseMapChoice value)
+        {
+            UpdateBaseMapKind();
+            RebuildLayers();
+        }
         partial void OnMbTilesPathChanged(string value) => RebuildLayers();
 
         /// <summary>
@@ -2163,6 +2257,9 @@ namespace ARBot.ViewModels
             // Vizualni mapa hned nad navigacni: ma slabou vypln a silny obrys, takze prekryv obou
             // je citelny a rozestup (= zavedena chyba) je videt.
             if (ShowVisionMap) Map.Layers.Add(visionMapLayer);
+            // Nahled nema vlastni zaskrtavatko: nacteni a Smazat JSOU jeho viditelnost. Kresli se
+            // nad navigacni siti, aby slo porovnat, cim se lisi od toho, podle ceho robot jede.
+            Map.Layers.Add(previewMapLayer);
             if (ShowOccupancy) Map.Layers.Add(occupancyLayer);   // lokalni mapa nad siti, pod vektory
             if (ShowGps) Map.Layers.Add(gpsLayer);   // surove fixy pod fuzovanou stopou
             if (ShowTrajectory) Map.Layers.Add(trajectoryLayer);

@@ -947,9 +947,12 @@ namespace ARBot.Robot
         }
 
         /// <summary>
-        /// Precte <c>.osm</c> a sestavi sit pesim profilem. Vychozi sirka cesty (pro cesty bez tagu
+        /// Precte <c>.osm</c> a sestavi sit profilem ROBOTA. Vychozi sirka cesty (pro cesty bez tagu
         /// <c>width</c>) je z parametru <c>roadwidth=</c> - tatáž pro navigacni i vizualni mapu, aby
         /// se obe mapy lisily jen tim, cim se lisi jejich soubory.
+        ///
+        /// <para>Do 1. 9. 2026 se tu pouzival <c>TravelProfile.Pedestrian()</c>, ktery tise zahazoval
+        /// cyklostezky a naopak pripoustel schody - viz <see cref="TravelProfile.Robot"/>.</para>
         /// </summary>
         private static RoadNetwork ReadNetwork(string path)
         {
@@ -957,7 +960,7 @@ namespace ARBot.Robot
             using (var fs = File.OpenRead(path))
             {
                 var data = OsmXmlReader.Read(fs);
-                return GraphBuilder.BuildNetwork(data, TravelProfile.Pedestrian(), defaultWidth);
+                return GraphBuilder.BuildNetwork(data, TravelProfile.Robot(), defaultWidth);
             }
         }
 

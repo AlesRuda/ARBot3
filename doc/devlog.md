@@ -68,14 +68,113 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   jako měnit ji podle domněnky. **První krok je přeměřit totéž na OrangePi** a teprve podle toho
   nastavit `perfwarn` (dnes odhad 70 %). Pak fáze 3 (teplota, frekvence, CPU stroje — přes HAL)
   a fáze 4 (`ARBot.Analyze perf`).
-- **Neověřeno:** běh na zařízení; **panel *Tools → Výkon* nikdo neproklikal** (projekt nemá
-  headless Avalonia testy — maximum bez člověka byl build se statickou kontrolou bindingů, všechny
-  šablony a sloupce mají `x:DataType`); cena měření (že `perf=true` sama nezhorší obsazenost);
+- **Panel *Tools → Výkon* autor proklikal** (téhož dne, „zdá se to být OK") — tím je plán
+  odškrtaný celý. Automatem ověřený panel není; bez člověka šel ověřit jen build se statickou
+  kontrolou bindingů (všechny šablony a sloupce mají `x:DataType`).
+  - **Verdikt je na Windows červený (`NESTÍHÁ`) a je to správně** — plyne ze zameškaných taktů
+    níž, ne z vady panelu. Zapsáno i do specu, aby to příště nikoho nezmátlo: plán u toho kroku
+    čekal „verdikt je zelený", což na tomhle stroji nastat nemůže.
+- **Neověřeno:** běh na zařízení; cena měření (že `perf=true` sama nezhorší obsazenost);
   rozpad po jádrech (big.LITTLE je vlastnost cílového HW, test pokrývá jen agregaci).
+- ⚠️ **Mapa se načítala profilem CHODCE, a mýlila se v obou směrech naráz.** Našel to autor v
+  náhledu: „parsování OSM vynechá modrou čárkovanou cestu". Modře čárkovaně kreslí OSM
+  `highway=cycleway` — a ten `TravelProfile.Pedestrian()` neměl v `AllowedHighways`, takže ho
+  `AcceptsWay` tiše zahazoval. Netýkalo se to jen náhledu: **týmž profilem se sestavovala
+  navigační mapa z `map=`**, podle které robot jede. Detail: [osm-nav.md](osm-nav.md).
+  - **Změřeno, ne odhadnuto:** `haje.osm` má 387 cest a zahazovalo se z nich **9 cyklostezek**
+    (plus 1 `service` s `access=private`, což je správně) — tedy **jediná systematická ztráta**.
+    Jinde totéž: `HajeRovne.osm` 21, `Piestany.osm` 13, `modrany.osm` 36. Ostatní zahozené
+    (dálnice, přivaděče, nástupiště) jsou vyloučené právem.
+  - **Opačný směr téže vady:** `steps` se naopak **přijímal** (9 cest na `haje.osm`, 37 na
+    `HajeRovne.osm`), takže plánovač mohl vést trasu po schodech, které kolový robot nevyjede.
+    Pro robota nebezpečnější než chybějící cyklostezka.
+  - **Seznam bariér u chodce míří vedle dat** (na dotaz autora, jestli parsování řeší závory
+    a betonové pilíře). `BlocksNode` se dívá **jen na uzly**, ale `Pedestrian().BlockingBarriers`
+    obsahuje `wall` a `fence` — a ty jsou v obou změřených souborech **výhradně cesty**. Nad těmi
+    daty tedy neblokoval nic (není to vlastnost kódu — `fence` na uzlu by zablokoval), zatímco
+    bodové bariéry, které tam skutečně jsou, v seznamu chybí: `gate` (11 na `haje.osm`, 19 na
+    `HajeRovne`), `bollard`, `block`, `lift_gate`.
+    - **Pozor na formulaci, na kterou autor upozornil:** chybět v grafu **není totéž co nevidět je**.
+      Fyzickou překážku robot vnímá kamerami a řeší lokální vyhýbání; z grafu plyne jen to, že přes
+      ten uzel plánovač trasu vést *smí*. A `barrier=gate` neznamená „zavřeno" — spousta bran je
+      průchozích.
+  - **Léčba: nový `TravelProfile.Robot()`** (6 testů), kterým načítají **obě** cesty —
+    `ARBotRuntime.ReadNetwork` i náhled ve World pohledu. Cyklostezky dovnitř, schody ven, bariéry
+    jen ty **opravdu nepřekonatelné** (`stile`, `turnstile`, `kissing_gate`, `cycle_barrier`).
+    `Pedestrian()`/`Car()`/`Bicycle()` zůstávají beze změny.
+  - **Závory a sloupky se ZÁMĚRNĚ neblokují** — rozchod robota je 0,41 m, takže mezerou projede;
+    `gate` navíc neznamená „zavřeno"; a blokovat je všechny by v parku plném bran síť rozpojilo.
+    Cena je opačná: plánovač může vést trasu skrz opravdu zavřenou bránu a robot tam dojede
+    a zastaví. **Je to úsudek, ne měření** — na skutečném místě patří ověřit, že se robot brankami
+    protáhne, a případně `gate` doplnit.
+  - **Dopad, se kterým se počítá:** přibyly hrany, takže se změnilo i to, proti čemu koreluje
+    occupancy grid (`RoadScene.IsRoad`) — čísla v
+    [map-correlation-localization.md](map-correlation-localization.md) se můžou posunout.
+- **World pohled: mapa načtená z panelu je nově NÁHLED, ne přepis navigační sítě.** Vyšlo to
+  z otázky „co znamená ten starý úkol *sjednotit mapu s WorldViewDocument*". Odpověď: mapa se do
+  aplikace dostávala dvěma nezávislými cestami — runtime (`map=` → `RoadNetwork` → `MapMsg` do
+  streamu) a tlačítko *Načíst OSM mapu…*, které si soubor parsovalo samo. Detail:
+  [world-view.md](world-view.md).
+  - ⚠️ **Skutečná vada byla šířka cest:** runtime bere `roadwidth=` (výchozí **3 m**), panel měl
+    natvrdo **2 m**. Týž soubor tedy měl v panelu jinak široké pásy než mapa, podle které robot
+    jede — a komentář u `ARBotRuntime.ReadNetwork` přitom slibuje opak („tatáž pro navigační
+    i vizuální mapu"). Panel teď čte `roadwidth=` a **použitou šířku píše do stavového řádku**,
+    takže je vidět, když si ji člověk přetočí.
+  - **Zadání upřesnil autor:** smyslem tlačítka je **„vizualizovat to, co dostane robot, dřív než
+    to dostane"**. To rozhodlo zbytek — náhled musí být vidět **vedle** navigační sítě, ne místo ní,
+    jinak nejde porovnat. Vznikla proto **čtvrtá mapová vrstva** (zelený obrys, `SetPreviewMap`)
+    souměrná s „Mapa (vize)": mimo stream i mimo záznam. *Načíst* navigační síť nepřepisuje,
+    *Smazat* maže jen náhled.
+  - **Panel přeuspořádán** (zadání autora): *Podklad* nahoru, *Mapa (OsmNav)* dolů, cesta k MBTiles
+    a *Uložit výřez* se ukazují podle volby v nabídce. Z nabídky podkladu zmizelo **„Bez podkladu"** —
+    dělalo přesně totéž jako odškrtnutý checkbox, tedy dvě ovládání pro jeden stav.
+  - **Ověřeno:** build bez `AVLN2000` (nové bindingy `OfflineBaseMapSelected` /
+    `OnlineBaseMapSelected` se přeložily), testy 1046/1046, a **autor panel proklikal** — nové
+    uspořádání i načtení mapy vypadá OK. **Na zařízení to neběželo.**
+  - **Část se ověřila strojově** headless testem přes `Avalonia.Headless.NUnit` (jednorázově,
+    mimo repozitář): že se šířka bere z `roadwidth=`, že v nabídce podkladu není „Bez podkladu",
+    že se podmíněné sekce řídí volbou v combu a že náhled jde načíst i smazat. Bez toho by to
+    všechno musel proklikat člověk — viz „Avalonia umí headless testy" níž.
+- **Konfigurace: *Uložit a restartovat* je funkční** (ověřil autor, na Windows). Byla to poslední neověřená
+  položka panelu z 31. 8., takže **panel Konfigurace je proklikaný celý**.
+  - **Na zařízení to pořád neběželo** a zrovna u restartu na tom záleží: **systemd jednotka
+    aplikace neexistuje**, takže větev „pod systemd jen skonči" nemá na Pi jak nastat a chování
+    tam může být jiné než na Windows. Zůstává otevřené.
 - **Odchylka od plánu:** práh `perfwarn` **nečte `PerfCollector` sám** přes `ParamStore`, jak plán
   navrhoval, ale předává se mu konstruktorem z `ARBotRuntime`. Plánovaná varianta by nechala
   `ParamRegistryGuardTests` trvale červený (strážce skenuje jen `Src/ARBot`) a porušila konvenci,
   že `ARBot.Common` na konfiguraci nesahá.
+- **Avalonia umí headless testy a na našem kódu to funguje — zatím jen ověřeno, nic zavedeno.**
+  Otázka autora zněla, jestli by to zmenšilo nutnost jeho účasti při testování UI. Ověřeno spikem
+  mimo repozitář (`Avalonia.Headless.NUnit` **12.0.3**, přesně na naši Avalonii 12.0.3):
+  - **Vykreslí se skutečný vizuální strom.** Panel *Výkon* nakrmený `PerfMsg` vydal
+    `NESTÍHÁ | Obsazenost periody | 32 % (max 92 %) | …` — tedy přesně to, co jinak ověřuje člověk.
+  - **`DataGrid` se plně materializuje** (řádky, hlavičky, `StringFormat`) a **je dosažitelná
+    i RECYKLACE kontejnerů**: 53 řádků *Konfigurace* v nízkém okně → materializovaných 5–7, po
+    `ScrollIntoView` **5 kontejnerů znovupoužitých**. To je mechanismus vady z 31. 8. (skrytý
+    ComboBox v recyklovaném řádku přepisoval `Value`) — takový test by ji chytil a hlídal.
+  - **Cena:** `Avalonia.Headless.NUnit` chce **NUnit ≥ 4.5.1**, projekt pinuje 4.3.2; a je potřeba
+    nový projekt s referencí na `ARBot`.
+  - ⚠️ **Past, na kterou jsem sám narazil:** první pokus o scroll (`ScrollViewer.Offset`) **neudělal
+    nic** a test přesto prošel, protože porovnával seznamy různé délky. Hlavní riziko celého směru
+    jsou **UI testy, které projdou naprázdno**. Léčba: asertovat i předpoklad („recyklovaných > 0").
+    Kdyby se to zavádělo, patří to jako pravidlo do [Views/README.md](../Src/ARBot/Views/README.md).
+  - **Neumí:** skutečné pixely, chování okenního správce, HW. World pohled s Mapsui se ale headless
+    postavil, což předem jisté nebylo.
+- **Upřesnění stavu ověření na Pi (od autora).** Při rekapitulaci otevřených úkolů jsem dva
+  z nich uvedl jako otevřené neprávem — **oba už byly zavřené a jen o tom nebyla zmínka tam, kde
+  jsem četl**:
+  - **Oprava `TimeBase` (100× rychlý čas) je ověřená v běžící aplikaci na Pi a funguje.**
+  - **`T265` už v chybě není** (naběhla 31. 8.). Otevřený je místo toho jiný jev: **pravá D435 se
+    po ~4600 s odmlčí** (`USBDEVFS_CLEAR_HALT`, sedí na dřív zapsaný řetěz dvou USB hubů).
+  - **Kde jsem se spletl:** obojí stálo v záznamu **31. 8.**, jenže uprostřed — a **pozdější
+    odrážky téhož dne to zavíraly**. Přečetl jsem odrážku „Rozpracováno / další krok" jako
+    aktuální stav, ačkoli byla vyřešená o pár odstavců níž ve stejném dni. (Napoprvé jsem ji
+    dokonce datoval do 28. 8.; celý blok je jeden den, řádky 95–385.)
+  - **Poučení pro příště:** „Rozpracováno / další krok" **není** seznam otevřených úkolů — je to
+    stav k okamžiku zápisu, a přebít ho může i **odrážka o kus níž v témže dni**. Rekapitulace
+    otevřených věcí se musí číst **celá a odshora dolů**, ne grepem na „další krok". Do obou
+    dotčených míst je proto dopsáno, čím se to uzavřelo.
 - **Odkazy:** `Src/ARBot.Common/Diagnostics/*`, `Logs/PerfMsg.cs`, `Runtime/Scheduler.cs`,
   `Communication/MessageTarget.cs`, `Configuration/ParamRegistry.cs` (`perf`, `perfwarn`),
   `Src/ARBot/Robot/ARBotRuntime.cs`, `Src/ARBot/ViewModels/PerformanceDocument.cs`,
@@ -224,7 +323,8 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Autor vše proklikal a potvrdil** („super vše funguje k mé spokojenosti") — včetně opravy ztráty
   hodnoty při scrollu a nového hlášení chyb ve vstupních polích.
 - **Rozpracováno / další krok:** neověřené zůstává jediné ***Uložit a restartovat*** (jen build se
-  statickou kontrolou bindingů). Nic z toho neběželo **na zařízení**.
+  statickou kontrolou bindingů). Nic z toho neběželo **na zařízení**. *(Tlačítko ověřil autor
+  1. 9. 2026 — funguje. Na zařízení to pořád neběželo, viz záznam 1. 9.)*
 
 - **Sériové porty periferií na Orange Pi — změřeno na zařízení.** Do dneška byl v `ARBotHW.Init`
   pro ARM64 jen odhad `PortAHRS = "/dev/ttyS0"` a **motor s GPS neměly port vůbec** (`null`), takže
@@ -279,8 +379,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **Ověřeno:** build x64 i OrangePI zelený, testy **1028/1028** (dva nové v
     `TimeBaseTests.cs`). Oprava je proměřená na zařízení jako izolovaný kód; **v běžící aplikaci
     na Pi ověřená není** — chce to nasadit znovu a podívat se, jestli kamera hlásí ~30 Hz.
+    - ✅ **Doplněno 1. 9. 2026: ověřeno, běží.** Oprava času je potvrzená **v běžící aplikaci
+      na Pi** (autor). Tahle věta zachycuje stav uprostřed dne a **nesmí se číst jako otevřený
+      úkol** — přečetl jsem ji tak 1. 9. a odvodil z ní neexistující vadu.
   - **Rozpracováno / další krok:** znovu nasadit na Pi a ověřit frekvence a časy v běhu; zvlášť
-    zůstává **`T265` v chybě**. Nedořešená je i souvislost s poolem snímků: `CaptureFramePool`
+    zůstává **`T265` v chybě**. *(Obojí vyřešeno ještě **týž den**, viz odrážky níž: aplikace na Pi
+    běžela s reálnými drivery — `uBloxGps` 9,99 Hz, IMU 8022 B/s, motor 386 řádků/s — a `T265`
+    naběhla. Otevřená je místo toho pravá D435, která se po ~4600 s odmlčí.)*
+    Nedořešená je i souvislost s poolem snímků: `CaptureFramePool`
     recykluje 3 sloty bez evidence vlastnictví, takže UI drží referenci na objekt, který jí
     vlákno kamery přepisuje — po opravě času je potřeba zkontrolovat, jestli se čísla v overlayi
     ještě rozcházejí.

@@ -53,13 +53,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
   při startu**, ne tichý pád na default — to je hlavní zisk. `Program.GetParam*` si nechalo
   signaturu, takže se žádné z ~50 míst čtení neměnilo. Změna platí **až po restartu** (panel ho
-  umí). Hotové 31. 8. 2026, **na HW neověřeno** a panel nikdo neproklikal.
+  umí). Hotové 31. 8. 2026; **panel je proklikaný celý** včetně *Uložit a restartovat* (1. 9. 2026),
+  ale **na zařízení nic z toho neběželo** — a systemd jednotka aplikace neexistuje, takže restart
+  se tam může chovat jinak.
 - [doc/perf-monitoring.md](doc/perf-monitoring.md) — **měření výkonu řízení**: stíhá řídicí smyčka
   svou periodu? Obsazenost periody, zpoždění a **zameškané takty** ze `Scheduler`u, fronty
   a **zahozené zprávy** ze stupňů, CPU procesu — jednou za sekundu jako `PerfMsg` do streamu
   (tedy do UI i do záznamu) a panel *Tools → Výkon*. Zapíná `perf=` (výchozí true), práh varování
-  `perfwarn=`. **Fáze 1 a 2 hotové 1. 9. 2026** (23 testů), **na HW neověřeno a panel nikdo
-  neproklikal**. ⚠️ **První měření hned něco našlo:** na Windows v simulaci se **3–4 takty za
+  `perfwarn=`. **Fáze 1 a 2 hotové 1. 9. 2026** (23 testů); panel autor proklikal („zdá se to být
+  OK"), **na HW neověřeno**. Pozor: **na Windows je verdikt v panelu červený a je to správně** —
+  plyne z nálezu níž. ⚠️ **První měření hned něco našlo:** na Windows v simulaci se **3–4 takty za
   sekundu nestihnou vydat včas** (scheduler je dohání) a zpoždění jde až na ~108 ms, **zatímco
   vlastní práce taktu trvá pod 1 ms** — brzdí tedy časovač, ne řídicí kód. Tím padla podmínka,
   kterou si spec kladla pro dva odložené nálezy (dohánění zameškaných taktů, krok rampy dobrzdění

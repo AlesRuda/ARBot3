@@ -148,6 +148,15 @@ namespace ARBot.Views
         }
 
         /// <summary>Vyzada cilovy .mbtiles soubor a spusti export aktualniho vyrezu mapy.</summary>
+        /// <summary>
+        /// Zahodi nahledovou mapu. Navigacni site z <c>map=</c> se to netyka - nahled ji nikdy
+        /// neprepsal, ma vlastni vrstvu.
+        /// </summary>
+        private void OnClearOsmMap(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is WorldViewDocument vm) vm.ClearPreviewMap();
+        }
+
         private async void OnLoadOsmMap(object sender, RoutedEventArgs e)
         {
             if (DataContext is not WorldViewDocument vm) return;
