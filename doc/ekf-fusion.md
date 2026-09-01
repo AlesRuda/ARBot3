@@ -200,3 +200,31 @@ Objem: ~155 měření/s (IMU 100 Hz, odometrie 50 Hz, GPS 5 Hz) ≈ 12 kB/s — 
 průměrný a maximální NIS), ale ten neumožní dohledat konkrétní zahozené měření.
 
 K tomu patří i dokovatelný dokument, který to zobrazí. **Nerozhodnuto, neimplementováno.**
+
+### Zahození „příliš starého" měření: okno historie ≠ základ filtru
+
+`AsyncFusionEngine.Enqueue` zahodí měření podle podmínky **`m.TimeStamp <= tBase`** — tedy podle
+**základu filtru**, ne podle okna historie. Jsou to dvě různé věci a pletou se snadno:
+
+- **Okno historie** (`FusionConfig.HistoryWindow`, 3 s) říká, jak hluboko do minulosti se filtr
+  umí přepočítat. Na jeho konci `Prune` nejstarší uzel zapeče do základu.
+- **`tBase`** je čas toho základu. Před něj se dostat nejde, protože tam žádný stav není —
+  a to **bez ohledu na velikost okna**.
+
+Hned po startu a po `InitializePosition` / `InitializeHeading` (které základ přerovnají na zadaný
+čas a buffer vyprázdní) je historie krátká, takže i měření o pár milisekund starší propadne.
+**Je to správné chování**, ne vada. Typicky se to stane hned po inicializaci u odometrie:
+`SDC2160Ex` bere razítko na začátku čtení a pak čte čtyři řádky, takže jeho měření je o ~7–9 ms
+starší než okamžik zařazení — proto hlášky chodí v párech `Odo/speed` + `Odo/rate`.
+
+⚠️ **Hláška to do 1. 9. 2026 hlásila zavádějícím způsobem:** říkala „zahozeno mereni starsi nez
+okno historie … opozdeno o 7 ms … okno je 3000 ms", takže to vypadalo, že filtr zahazuje měření
+zpožděné o 7 ms při třísekundovém okně. Okno s tím rozhodnutím nemělo co dělat. Nově hláška obě
+situace rozlišuje (`starsi nez okno historie` vs. `starsi nez zaklad filtru … OKNO ZA TO NEMUZE`)
+a uvádí, jak daleko historie zatím sahá. Hlídá to `DroppedTooOldReasonTests`, včetně důkazu, že
+při okně 3 s i 60 s vyjde zahození stejně.
+
+**Kdy je to naopak signál problému:** když hlášky chodí i po prvních sekundách běhu a hlásí
+krátkou historii, něco filtr opakovaně reinicializuje. Pozor při čtení logu: `AsyncFusionEngine`
+se zakládá **při každém Start**, takže panel *Debug output* může držet hlášky z víc běhů s různým
+`tBase` — samo o sobě to reinicializace není.

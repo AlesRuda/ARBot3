@@ -13,6 +13,42 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-01 — Zaseknutý stream kamery se pozná podle počtu timeoutů, ne podle přítomnosti na USB
+**Co:** `D435Camera.GetMeasurement` (oba HAL) počítá **po sobě jdoucí timeouty**. Po třech
+(`StallTimeoutsBeforeRestart`, tj. ~3 s bez snímku při požadovaných 30/s) pipeline zbourá a
+příště ji `EnsureConnected` nastartuje znovu. `DevicePresent()` vrací **`bool?`** — `true` je,
+`false` není, **`null` = nepodařilo se zjistit** — a ptá se **až po překročení prahu**, ne při
+každém timeoutu.
+
+**Proč:** stream se umí zaseknout, **aniž by se kamera odpojila od USB**. Přesně to se stalo
+31. 8. 2026 na OrangePi: pravá D435 přestala dodávat snímky, v `dmesg` **žádné odpojení**
+(jen opakované `USBDEVFS_CLEAR_HALT`), takže `DevicePresent()` vracel true, pipeline se
+nezbourala, `connected` zůstalo true a `IsError` hlásil **OK**. Kamera tedy mlčela navždy a
+panel *Sensors* ji ukazoval jako zdravou.
+
+**Proč se na USB neptáme při každém timeoutu:** `DevicePresent()` volá `ctx.QueryDevices()`
+a to nad běžícími streamy **není zdarma ani neomylné** — při častém volání samo selže na
+`failed to set power state` (změřeno 1. 9. 2026). Původní kód takové selhání vydával za
+odpojení, takže by driver u kamery, která je na místě, hlásil „kamera odpojena" a šlo by se
+hledat kabel. Odtud i to `null`: **selhání dotazu není důkaz, že kamera chybí.**
+
+**Proč prah 3 a ne 1:** čerstvě nastartovaná pipeline dodá první snímek až za **~1–2 s**
+(změřeno na zařízení). Agresivnější restart by se zacyklil a snímky by nedorazily nikdy —
+ověřeno pokusem s prahem 3 timeoutů po 10 ms, kde za 45 s proběhlo 30 restartů a **nula**
+snímků. Vedlejší efekt zvoleného prahu: skutečné odpojení se ohlásí až po ~3 s místo ~1 s;
+to je nepodstatné, protože reconnect se pak zkouší každou sekundu.
+
+**Ověřeno na zařízení** (1. 9. 2026): s uměle zkráceným timeoutem větev proběhne, `StallRestarts`
+roste, `IsError` hlásí CHYBA a pipeline se znovu chytne; s produkčním nastavením obě kamery
+40 s na 30 fps a **nula** zásekových restartů. Diagnostika: nová vlastnost
+`D435Camera.StallRestarts` — rostoucí číslo znamená, že se problém opakuje a drží ho jen tahle
+záchrana.
+
+**Odkazy:** `Src/ARBot.HALArmbian/Devices/Camera/D435Camera.cs`,
+`Src/ARBot.HALWindows/Devices/Camera/D435Camera.cs`, [devlog.md](devlog.md) 1. 9. 2026,
+[OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) (fyzická stránka).
+
+
 ### 2026-08-31 — `Uart.Read(int)` čte přes vnitřní buffer (GPS ztrácela 92 % měření)
 **Co:** `Uart.Read(int count)` už nesahá na port po jednotlivých bajtech — při probuzení si
 vezme **všechno, co v portu je**, do vnitřního bufferu (8 kB) a další volání se obsluhují

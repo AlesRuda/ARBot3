@@ -39,6 +39,82 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-01
 
+- **Hláška fúze „zahozeno mereni starsi nez okno historie" byla zavádějící — opraveno.** Autor si
+  na snímku všiml, že fúze zahazuje odometrii **zpožděnou o 7 ms**, přestože okno je **3000 ms**,
+  a správně pojal podezření na hlášku. Podezření potvrzeno testem, ne úvahou
+  ([DroppedTooOldReasonTests](../Src/ARBot.Common.Tests/Fusion/DroppedTooOldReasonTests.cs)):
+  - **V ustáleném běhu se měření 7 ms za nejnovějším nezahodí** — projde, je hluboko uvnitř okna.
+  - **Po inicializaci se zahodí** — a to **stejně při okně 3 s jako 60 s**. Rozhoduje totiž
+    podmínka `m.TimeStamp <= tBase`, tedy **základ filtru**, ne okno. Před základ se dostat nejde,
+    protože tam není stav; velikost okna na tom nic nezmění.
+  - **Není to vada fúze, chování je správné.** Vadná byla jen hláška: vinila okno, které
+    s rozhodnutím nemělo co dělat. Nově obě situace rozlišuje (`starsi nez okno historie`
+    vs. `starsi nez zaklad filtru … OKNO ZA TO NEMUZE`) a uvádí, jak daleko historie zatím sahá.
+  - **Proč to chodí v párech `Odo/speed` + `Odo/rate`:** `SDC2160Ex` bere razítko na začátku
+    `GetMeasurement` a pak čte čtyři řádky, takže jeho měření je o ~7–9 ms starší než okamžik
+    zařazení. Hned po inicializaci pózy tedy první motorový rámec nutně propadne.
+  - **Dvě různá `tBase` v jednom výpisu nejsou reinicializace:** `AsyncFusionEngine` se zakládá
+    při každém Start a panel *Debug output* se mezi běhy nemaže. Skutečný signál problému by bylo,
+    kdyby hlášky chodily i po prvních sekundách běhu s krátkou historií.
+  - **Ověřeno:** 5 nových testů (včetně dvou na znění hlášky přes `Trace`), celá sada
+    **1062 zelených** 2× po sobě, build x64 i OrangePI čistý. Upraven i
+    `TraceInfoBridgeTest` — opíral se o staré znění, které bylo nesprávné i v jeho vlastním
+    scénáři (2 s před `tBase` při prázdném bufferu). Doména: [ekf-fusion.md](ekf-fusion.md).
+- **Problémová pravá D435 dořešená: vada byla na fyzické vrstvě, plus dvě vady v našem kódu.**
+  Navázáno na hlášení z 31. 8. („T265 naběhla a pravá kamera se odmlčela"). Rozbor:
+  [decisions.md](decisions.md), fyzická stránka [POSTUP.md](../OrangePi5Ultra/POSTUP.md).
+  - **Co je naopak zdravé:** dvě D435 na jednom USB3 hubu jely **120 s i 375 s na 30/30 fps,
+    nula timeoutů**. Hub je tedy neuškrtil. **T265 do toho měřitelně zasahuje**, ale zásek
+    sama nezpůsobí: `CLEAR_HALT` vyskočí z 1 na ~72 a kamery prvních ~100 s kolísají na
+    20–30 fps. Zásek po ~75 minutách pod plnou zátěží aplikace se reprodukovat **nepodařilo**.
+  - **Vada 1 (náš kód): zaseknutá kamera se tvářila zdravě navždy.** Při timeoutu se ptáme
+    `DevicePresent()`; kamera ale z USB nezmizela (v `dmesg` žádné odpojení), takže se pipeline
+    nezbourala, `connected` zůstalo true a `IsError` hlásil **OK**. Nově se počítají po sobě
+    jdoucí timeouty a po třech (~3 s bez snímku při požadovaných 30/s) se pipeline restartuje;
+    `Teardown` shodí `connected`, takže panel poctivě ukáže CHYBA. Přidána diagnostická
+    vlastnost `StallRestarts`.
+  - **Vada 2 (náš kód, našla se až při ověřování): selhání dotazu na USB se vydávalo za
+    odpojení.** `DevicePresent()` volá `ctx.QueryDevices()`, a to nad běžícími streamy umí samo
+    spadnout na `failed to set power state` — což se hlásilo jako „kamera odpojena", takže by se
+    šlo hledat kabel u kamery, která je na místě. `DevicePresent()` je teď **`bool?`**
+    (`null` = nepodařilo se zjistit) a ptá se **až po překročení prahu**, ne při každém timeoutu.
+  - **Vada 3 (fyzická, ta hlavní): port 4 hubu měl vadné spojení.** Pravá D435 nepřežila USB
+    reset — `device not accepting address, error -71` pro adresy 4 až 8, pak `USB disconnect`,
+    a rebind hubu skončil `unable to enumerate USB device`. Softwarově se vrátit nedala.
+    **Autor kamery fyzicky přepojil** (tutéž kameru do jiného portu hubu) a od té chvíle jsou
+    obě na 5 Gbps a 40 s streamu bez jediné chyby. **Vada tedy jde za portem 4 nebo za kabelem,
+    který v něm byl, ne za kamerou.** `-71` je zároveň rozlišovací znak: dřívější problém
+    s řetězem dvou hubů se projevoval *bez* jakékoli chyby kernelu.
+  - **Co jsem cestou rozbil, ať se to neopakuje:** ten USB reset měl jen napodobit zásek
+    (na zdravém zařízení zůstane zařízení vyčtené) — tady vyhodil pravou kameru ze sběrnice
+    natrvalo a následný unbind/rebind hubu dostal do nefunkčního stavu i levou. Bez fyzického
+    přepojení se z toho nešlo dostat. Zapsáno do POSTUP.md jako varování.
+  - **T265 se po nabootování hlásí jiným USB ID** (`03e7:2150` Movidius před bootem →
+    `8087:0b37` po něm). Proto ta střídavá hlášení „Error booting T265" / „T265 naběhla" —
+    není to porucha, je to fáze.
+  - **Ověřeno:** build x64 i OrangePI zelený. Na zařízení: nová větev proběhne (s uměle
+    zkráceným timeoutem `StallRestarts` roste, `IsError` = CHYBA, pipeline se znovu chytne),
+    s produkčním nastavením obě kamery 40 s na 30 fps a nula zásekových restartů.
+    **Neověřeno:** že to zachrání skutečný zásek v běžící aplikaci — ten se nepodařilo vyvolat.
+  - **První stabilní běh všech senzorů na OrangePi** (snímek od autora):
+
+    ![Všech šest senzorů OK na OrangePi](media/orangepi-sensors-first-stable-run.png)
+
+    Panel *Sensors* hlásí **OK u všech šesti** — VN100 IMU, SDC2160Ex, uBloxGps, **T265** i
+    **obě D435**; poprvé tedy jede i T265 zároveň s oběma kamerami. Vpravo dokument *Obrázky*
+    s RGB a překryvem pravděpodobnosti z obou kamer (640×480). Mimochodem je na snímku vidět
+    i **potvrzení opravy času**: razítko snímku `21:17:21.068` sedí na systémové hodiny 21:17 —
+    před opravou `TimeBase` byl čas o hodiny napřed (viz [decisions.md](decisions.md), 31. 8.).
+  - **Potvrzeno autorem týž den: aplikace běží stabilně.** Nasazený build opravu **obsahuje**
+    (ověřeno v DLL), takže to je skutečný test opraveného driveru. V `dmesg` od přepojení
+    **nula** `-71` i odpojení, `CLEAR_HALT` jen 21 při rozjezdu. Nejpravděpodobnější čtení:
+    skutečnou vadu odstranilo **fyzické přepojení**, kód je záchranná síť, která zatím nemusela
+    zasáhnout.
+  - **Zbývající slepé místo:** `StallRestarts` ani hlášky driveru **nejsou nikde vidět** —
+    `Debug.WriteLine` jde do panelu *Debug output*, ne do souboru (dnešní `~/*.log` mají 0 B),
+    takže zpětně nelze zjistit, jestli záchrana někdy zasáhla. Kdyby se zásek vrátil, stálo by
+    za to `StallRestarts` vystavit v panelu senzorů nebo do `PerfMsg`.
+
 - **Hotovo: měření výkonu řízení, fáze 1 a 2** podle
   [plan-perf-monitoring.md](plan-perf-monitoring.md) — 23 nových testů, celkem **1040 zelených**
   (baseline 1017), build x64 i OrangePI čistý. Doména: [perf-monitoring.md](perf-monitoring.md).

@@ -346,13 +346,38 @@ namespace ARBot.Common.Fusion
                 // promazou a zustane jen bazovy checkpoint) - pak je nejnovejsi znalosti tBase.
                 // Bez tohoto osetreni padal prvni opozdeny prispevek po inicializaci na index -1.
                 DateTime newest = nodes.Count > 0 ? nodes[nodes.Count - 1].T : tBase;
-                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                    "[Fusion] zahozeno mereni starsi nez okno historie: {0} '{1}' @ {2:HH:mm:ss.fff}"
-                    + " z=[{3}] - opozdeno o {4:F0} ms za nejnovejsim ({5:HH:mm:ss.fff}),"
-                    + " okno je {6:F0} ms (tBase={7:HH:mm:ss.fff})",
-                    m.GetType().Name, src, m.TimeStamp, Format(m.Value),
-                    (newest - m.TimeStamp).TotalMilliseconds, newest,
-                    window.TotalMilliseconds, tBase));
+
+                // POZOR NA FORMULACI: rozhoduje se podle tBase (zaklad filtru), NE podle okna.
+                // Puvodni hlaska ale rikala "starsi nez okno historie" a uvadela velikost okna
+                // vzdycky - takze u meren zahozenych hned po inicializaci tvrdila, ze je pozde
+                // o 7 ms pri okne 3000 ms. To vypadalo jako vada ve fuzi a stalo to hledani
+                // (1. 9. 2026); ve skutecnosti je okno v tu chvili nepodstatne. Overeno testem
+                // DroppedTooOldReasonTests: zahozeni vyjde STEJNE pri okne 3 s i 60 s.
+                //
+                // Rozlisujeme proto dva RUZNE stavy, ktere spadaji do teze podminky:
+                //  a) buffer uz pokryva cele okno -> merenie opravdu vypadlo z historie
+                //     (na to pomuze vetsi okno nebo rychlejsi dodani merenia),
+                //  b) buffer je kratsi nez okno (typicky hned po inicializaci nebo po
+                //     InitializePosition/-Heading, ktere zaklad prerovnaji na "ted") -> pred
+                //     zaklad se prostym zvetsenim okna dostat NEJDE, protoze tam neni stav.
+                double predZakladem = (tBase - m.TimeStamp).TotalMilliseconds;
+                double pokrytoMs = (newest - tBase).TotalMilliseconds;
+                bool oknoPlne = pokrytoMs >= window.TotalMilliseconds;
+
+                Trace.WriteLine(oknoPlne
+                    ? string.Format(CultureInfo.InvariantCulture,
+                        "[Fusion] zahozeno mereni starsi nez okno historie: {0} '{1}' @ {2:HH:mm:ss.fff}"
+                        + " z=[{3}] - opozdeno o {4:F0} ms za zakladem filtru (tBase={5:HH:mm:ss.fff}),"
+                        + " okno {6:F0} ms je plne (nejnovejsi {7:HH:mm:ss.fff})",
+                        m.GetType().Name, src, m.TimeStamp, Format(m.Value),
+                        predZakladem, tBase, window.TotalMilliseconds, newest)
+                    : string.Format(CultureInfo.InvariantCulture,
+                        "[Fusion] zahozeno mereni starsi nez zaklad filtru: {0} '{1}' @ {2:HH:mm:ss.fff}"
+                        + " z=[{3}] - opozdeno o {4:F0} ms za tBase={5:HH:mm:ss.fff}; historie zatim saha"
+                        + " jen {6:F0} ms a okno je {7:F0} ms, takze OKNO ZA TO NEMUZE"
+                        + " (typicky hned po startu nebo po inicializaci pozy)",
+                        m.GetType().Name, src, m.TimeStamp, Format(m.Value),
+                        predZakladem, tBase, pokrytoMs, window.TotalMilliseconds));
 
                 // Zahozene merenie do bufferu nevstoupi, takze verdikt je konecny uz tady.
                 Report(m, double.NaN, false, MeasurementVerdict.TooOld);

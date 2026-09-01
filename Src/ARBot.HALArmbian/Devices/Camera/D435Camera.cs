@@ -57,6 +57,35 @@ namespace ARBot.HAL.Devices.Camera
         /// na Stop() i na odpojeni kamery.</summary>
         private const uint FrameTimeoutMs = 1000;
 
+        /// <summary>
+        /// Po kolika po sobe jdoucich timeoutech se pipeline povazuje za ZASEKNUTOU a zbourá se
+        /// (priste ji <see cref="EnsureConnected"/> nastartuje znovu).
+        ///
+        /// <para><b>Proc to vubec je:</b> stream se umi zaseknout, aniz by se kamera odpojila od
+        /// USB — librealsense prestane dodavat snimky, ale zarizeni je dal vyctene, takze
+        /// <see cref="DevicePresent"/> vraci true. Bez tohoto citace by se pipeline nezbourala,
+        /// <c>connected</c> by zustalo true, <see cref="IsError"/> by hlasil <b>OK</b> a kamera
+        /// by mlcela navzdy. Presne to se stalo na OrangePi 31. 8. 2026: prava D435 prestala
+        /// dodavat snimky, v dmesg zadne odpojeni (jen opakovane <c>USBDEVFS_CLEAR_HALT</c>),
+        /// panel Sensors ji pritom ukazoval jako OK.</para>
+        ///
+        /// <para><b>Proc zrovna 3:</b> pri <see cref="FrameTimeoutMs"/> = 1 s to znamena ~3 s bez
+        /// snimku, zatimco pozadovanych je 30 za sekundu — takze to nemuze byt jen zpomaleni.
+        /// Nizsi prah by skodil: cerstve nastartovana pipeline dodá prvni snimek az za ~1–2 s
+        /// (zmereno na zarizeni), takze prilis agresivni restart by se zacyklil a snimky by
+        /// nedorazily nikdy.</para>
+        /// </summary>
+        private const int StallTimeoutsBeforeRestart = 3;
+
+        /// <summary>Pocet po sobe jdoucich timeoutu; 0 = posledni cteni snimek doslo.</summary>
+        private int consecutiveTimeouts;
+
+        /// <summary>
+        /// Kolikrat uz se pipeline restartovala kvuli zaseknutemu streamu. Diagnostika —
+        /// rostouci cislo znamena, ze se problem opakuje a resi ho az tahle zachrana.
+        /// </summary>
+        public int StallRestarts { get; private set; }
+
         /// <summary>Kontext pro zjisteni pritomnosti zarizeni (detekce (od|při)pojeni).</summary>
         private readonly Context ctx = new Context();
 
@@ -185,6 +214,8 @@ namespace ARBot.HAL.Devices.Camera
                 if (pipeline.TryWaitForFrames(out var frames, FrameTimeoutMs))
                 using (frames)
                 {
+                    consecutiveTimeouts = 0;
+
                     // Poolovany capture slot (recyklovane buffery, krok 4) misto alokace per grab.
                     var frame = capturePool.Next(
                         settingsRGB != null, settingsRGB?.Width ?? 0, settingsRGB?.Height ?? 0,
@@ -222,10 +253,33 @@ namespace ARBot.HAL.Devices.Camera
                 // Timeout bez snimku: odpojeni se nemusi projevit vyjimkou, jen prestanou chodit
                 // snimky. Overit fyzickou pritomnost - kdyz kamera zmizela, zbourat pipeline (jinak
                 // by connected zustalo true, IsError by hlasil OK a reconnect by se nespustil).
-                if (!DevicePresent())
+                // Jeden timeout jeste nic neznamena - na sbernici se NEPTAME. Duvod je merený:
+                // DevicePresent() vola ctx.QueryDevices(), a to nad bezicimi streamy neni zdarma
+                // ani neomylne - pri castem volani sam selze na "failed to set power state"
+                // (zmereno na OrangePi 1. 9. 2026). Puvodne se ptal pri KAZDEM timeoutu.
+                if (++consecutiveTimeouts < StallTimeoutsBeforeRestart)
+                    return null;
+
+                // Prah prekrocen: pipeline se bourá tak ci tak (Teardown shodi connected, takze
+                // se stav konecne projevi i v IsError - dokud se kamera nechytne, hlasi CHYBA
+                // misto klamneho OK). Na sbernici se ptame jen kvuli SPRAVNEMU HLASENI, at se
+                // nehleda kabel, kdyz je kamera na miste a zasekl se jen stream.
+                bool? present = DevicePresent();
+                Teardown();
+                consecutiveTimeouts = 0;
+
+                if (present == false)
                 {
-                    Debug.WriteLine($"{Name}: kamera odpojena (timeout + zarizeni chybi).");
-                    Teardown();
+                    Debug.WriteLine($"{Name}: kamera odpojena (bez snimku a zarizeni na sbernici chybi).");
+                }
+                else
+                {
+                    // Zarizeni je na sbernici (nebo se to nepodarilo zjistit), ale snimky nechodi.
+                    // Sam se stream nerozjede - priste ho nastartuje EnsureConnected znovu.
+                    StallRestarts++;
+                    Debug.WriteLine($"{Name}: stream zaseknuty ({StallTimeoutsBeforeRestart} timeoutu po sobe" +
+                                    $"{(present == null ? ", pritomnost zarizeni nezjistena" : ", zarizeni je pritomne")})" +
+                                    $" -> restart pipeline (celkem {StallRestarts}x).");
                 }
                 return null;
             }
@@ -242,7 +296,7 @@ namespace ARBot.HAL.Devices.Camera
         /// Zjisti, zda je pozadovana kamera fyzicky pripojena. Pri sn==null hleda libovolnou
         /// hloubkovou kameru radu D4xx (podle nazvu), jinak podle serioveho cisla.
         /// </summary>
-        private bool DevicePresent()
+        private bool? DevicePresent()
         {
             try
             {
@@ -269,9 +323,14 @@ namespace ARBot.HAL.Devices.Camera
             }
             catch (Exception ex)
             {
+                // Dotaz sam selhal - to NENI dukaz, ze kamera chybi. QueryDevices nad bezicimi
+                // streamy umi spadnout na "failed to set power state" (zmereno na OrangePi
+                // 1. 9. 2026), a kdyby se to vydavalo za odpojeni, hlasil by driver "kamera
+                // odpojena" u kamery, ktera je na miste - a slo by se hledat kabel.
                 Debug.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
+                return null;
             }
-            return false;
+            return false;   // dotaz prosel a zarizeni mezi vyctenymi neni = opravdu chybi
         }
 
         /// <summary>
@@ -283,7 +342,9 @@ namespace ARBot.HAL.Devices.Camera
             if (connected)
                 return true;
 
-            if (!DevicePresent())
+            // != true: kdyz se pritomnost nepodarilo zjistit (null), radeji pockame na dalsi
+            // pokus, nez abychom slepe startovali pipeline.
+            if (DevicePresent() != true)
                 return false;
 
             try

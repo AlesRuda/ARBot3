@@ -371,6 +371,35 @@ za **jedním napájeným** hubem; co ji rozbije, je **řetěz dvou hubů za sebo
 > jen otevření kamer, **ne propustnost** souběžného streamu přes sdílenou linku hubu.
 > Diagnostický skript zůstal na desce jako `/usr/local/sbin/rs-bench`.
 >
+> ⚠️ **Nové (1. 9. 2026): jeden port hubu měl vadné spojení — a poznalo se to podle `-71`.**
+> Pravá D435 (USB sériové číslo `828313020236`) na **portu 4** hubu nepřežila USB reset:
+> ```
+> usb 2-1.4: device not accepting address 4, error -71
+> usb 2-1.4: Device not responding to setup address.    (a tak dál pro adresy 5, 6, 7, 8)
+> usb 2-1.4: USB disconnect, device number 4
+> ```
+> `-71` je `EPROTO`. Kamera nedokázala ani přijmout adresu, kernel to zkusil pětkrát a vzdal to;
+> rebind hubu skončil `unable to enumerate USB device`. Softwarově se vrátit **nedala**.
+> Po fyzickém přepojení (**táž kamera do jiného portu hubu**) se vyčetla na plných 5 Gbps a
+> obě kamery pak streamovaly 40 s na 30 fps bez jediné chyby. **Vada tedy jde za portem 4
+> nebo za kabelem, který v něm byl — ne za kamerou.**
+>
+> **Jak to odlišit od dřívějšího problému s huby:** ten se projevoval **bez jediné chybové
+> hlášky kernelu** (viz odstavec výše — žádné `-71`/`-110`). Když v `dmesg` je `-71`, je to
+> **fyzická vrstva** (kabel, konektor, port), a hledat to v librealsense nebo v propustnosti
+> je ztráta času.
+>
+> **Co bylo naopak změřeno jako zdravé** (1. 9. 2026, mimo aplikaci, `rs`-úrovní i skutečným
+> driverem): dvě D435 na jednom hubu **120 s i 375 s na 30/30 fps, nula timeoutů**. Přidání
+> **T265** je měřitelně zhorší, ale nezasekne: `CLEAR_HALT` vyskočí z 1 na ~72 a prvních
+> ~100 s kolísají na 20–30 fps. Zásek pozorovaný v aplikaci po ~75 minutách běhu se **takto
+> reprodukovat nepodařilo** — na jeho přežití je v driveru záchrana, viz
+> [decisions.md](../doc/decisions.md), 1. 9. 2026.
+>
+> **Pozor při diagnostice: USB reset kamery není nevinný.** Na zdravém zařízení je rutina
+> (zůstane vyčtené), tady vyhodil kameru ze sběrnice natrvalo a následný unbind/rebind hubu
+> dostal do nefunkčního stavu i druhou kameru. Z toho se dostane jen fyzickým přepojením.
+>
 > **Slepé uličky, do kterých nechoď znovu:** není to napájení (kernel nehlásil nadproud
 > a smyčka běžela jen za běhu librealsense) ani `uvcvideo` (odpojení jeho rozhraní,
 > a dokonce i celého zařízení od `usb` ovladače, dalo jen 1 úspěšný běh z 5 — náhoda,

@@ -60,7 +60,9 @@ namespace ARBot.Common.Tests.Diagnostics
         }
 
         /// <summary>
-        /// INTEGRACE (20. 8. 2026): zahozeni merenia starsiho nez okno musi byt videt i v zaznamu.
+        /// INTEGRACE (20. 8. 2026): zahozeni opozdeneho merenia musi byt videt i v zaznamu.
+        /// (1. 9. 2026 upresneno znenie: tenhle scenar zahazuje kvuli ZAKLADU filtru, ne kvuli
+        /// oknu - buffer je po InitializePosition prazdny. Drive hlaska vinila okno i tady.)
         /// Do teto zmeny to hlasil <c>Debug.WriteLine</c>, ktery je <c>[Conditional("DEBUG")]</c> -
         /// v Release se vypustil beze stopy, a prave v Release se meri na zarizeni. U korekce
         /// z korelace s mapou (stara o celou dobu vypoctu) je to rozdil mezi "funkce jede"
@@ -82,7 +84,9 @@ namespace ARBot.Common.Tests.Diagnostics
                 string msg = rig.Received[0].Message;
                 Assert.Multiple(() =>
                 {
-                    Assert.That(msg, Does.Contain("starsi nez okno"));
+                    // Buffer je po InitializePosition prazdny, takze duvodem je ZAKLAD filtru,
+                    // ne okno - viz DroppedTooOldReasonTests.
+                    Assert.That(msg, Does.Contain("starsi nez zaklad filtru"));
                     Assert.That(msg, Does.Contain("MapCorr"),
                                 "ze zpravy musi byt poznat ZDROJ, jinak nepozna, co se zahazuje");
                     Assert.That(msg, Does.Contain(nameof(ARBot.Common.Fusion.HeadingMeasurement)),
