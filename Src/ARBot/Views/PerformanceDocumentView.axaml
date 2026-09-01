@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             x:Class="ARBot.Views.PerformanceDocumentView"
+             x:DataType="vm:PerformanceDocument">
+    <Design.DataContext><vm:PerformanceDocument/></Design.DataContext>
+
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
+                Background="{Binding VerdictColor}">
+            <TextBlock Text="{Binding Verdict}" FontWeight="Bold" Foreground="White"/>
+        </Border>
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+              Margin="0,0,0,8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Obsazenost periody" Margin="0,0,12,2"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Occupancy}"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Zpoždění taktu" Margin="0,0,12,2"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Delay}"/>
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Zameškané takty" Margin="0,0,12,2"/>
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Missed}"/>
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Nejhorší takt" Margin="0,0,12,2"/>
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Worst}"/>
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="CPU procesu" Margin="0,0,12,2"/>
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Cpu}"/>
+        </Grid>
+
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Cores}" Margin="0,0,0,8"/>
+
+        <DataGrid ItemsSource="{Binding Stages}" IsReadOnly="True"
+                  AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Stupeň" x:DataType="vm:StageRow"
+                                    Binding="{Binding Name}" Width="*"/>
+                <DataGridTextColumn Header="Fronta" x:DataType="vm:StageRow"
+                                    Binding="{Binding Queue}"/>
+                <DataGridTextColumn Header="Zpracováno" x:DataType="vm:StageRow"
+                                    Binding="{Binding Processed}"/>
+                <DataGridTextColumn Header="Zahozeno" x:DataType="vm:StageRow"
+                                    Binding="{Binding Dropped}"/>
+                <DataGridTextColumn Header="Průměr [ms]" x:DataType="vm:StageRow"
+                                    Binding="{Binding AvgMs, StringFormat=\{0:F1\}}"/>
+                <DataGridTextColumn Header="Max [ms]" x:DataType="vm:StageRow"
+                                    Binding="{Binding MaxMs, StringFormat=\{0:F1\}}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

@@ -214,6 +214,12 @@ namespace ARBot.Common.Configuration
             // --- Diagnostika ---------------------------------------------------------------
             Konst("diag", ParamType.Bool, "true", K_DIAG,
                   "Diagnosticke stupne v pipeline (vetsi objem zprav ve streamu i v zaznamu).");
+            Konst("perf", ParamType.Bool, "true", K_DIAG,
+                  "Meri, jestli ridici smycka stiha svou periodu (zprava PerfMsg 1x za sekundu). "
+                  + "Viz doc/perf-monitoring.md.");
+            Konst("perfwarn", ParamType.Double, "70", K_DIAG,
+                  "Obsazenost periody [%], od ktere se hlasi varovani. Hodnota je zatim odhad - "
+                  + "naostro se nastavi az podle prvniho mereni na zarizeni.");
 
             // --- Self-test a snimky --------------------------------------------------------
             Konst("selftest", ParamType.Bool, "false", K_TEST,

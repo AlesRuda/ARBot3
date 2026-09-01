@@ -234,6 +234,32 @@ namespace ARBot.ViewModels
                 _factory.SetFocusedDockable(Layout, doc);
         }
 
+        /// <summary>
+        /// Otevre (nebo aktivuje) panel „Vykon": stiha ridici smycka svou periodu, ktera cast ji
+        /// brzdi a jak je na tom stroj. Viz doc/perf-monitoring.md.
+        /// </summary>
+        [RelayCommand]
+        private void OpenPerformance()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "Performance");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new PerformanceDocument();
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
         [RelayCommand]
         private void OpenRobotCentric()
         {

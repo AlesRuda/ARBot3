@@ -37,6 +37,50 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-01
+
+- **Hotovo: měření výkonu řízení, fáze 1 a 2** podle
+  [plan-perf-monitoring.md](plan-perf-monitoring.md) — 23 nových testů, celkem **1040 zelených**
+  (baseline 1017), build x64 i OrangePI čistý. Doména: [perf-monitoring.md](perf-monitoring.md).
+- **Měření sedí ve `Scheduler`u, ne v časovači, který ho pumpuje.** Je to jediné místo, které zná
+  *plánovaný* i *skutečný* čas taktu, takže zpoždění spočítá zadarmo; a protože callback samo volá,
+  změří na témže místě i dobu práce a jádro (`Thread.GetCurrentProcessorId`). Časovač o svém
+  zpoždění neví nic. Bez nastaveného odběratele (`Metrics == null`) je cena měření jeden test na
+  null za takt.
+- **Sběrač má vlastní časovač, ne řídicí mřížku.** Kdyby visel na scheduleru, přestal by posílat
+  přesně ve chvíli, kdy se nestíhá — tedy když je nejvíc potřeba; nezávislý časovač navíc zachytí
+  i případ, kdy řízení stojí úplně. Posílá `PerfMsg` 1×/s do streamu, takže totéž jde současně
+  do UI i do záznamu a nic se nemusí párovat.
+- **Zahozené zprávy stupňů se do dneška nepočítaly vůbec** — stupeň s politikou
+  `DropOldest`/`DropNewest` mohl tiše ztrácet data a nikdo to nepoznal. Počítat je přímo nejde:
+  `TryWrite` vrací **`true` i když se něco zahodilo** (kanál zahodí *jinou* zprávu). Odvozuje se
+  proto z bilance `zapsané − vyzvednuté − délka fronty`, v pořadí odečtů, které může jen
+  podhodnotit — měření zahození nikdy nevymyslí.
+- ⚠️ **První měření hned něco našlo, a je to nález, ne uklizený řádek:** 10 s simulace na Windows
+  → **3–4 zameškané takty za sekundu**, zpoždění taktu avg 65–86 ms a max ~108 ms při periodě
+  100 ms, **zatímco vlastní práce taktu trvá pod 1 ms**. Brzdí tedy *časovač*, ne řídicí kód.
+  Tím **padla podmínka, kterou si spec sama položila** pro dva odložené nálezy (dohánění
+  zameškaných taktů; krok rampy dobrzdění počítaný z periody místo ze skutečného odstupu) —
+  „pokud naměříme nulu, je to akademické". Nula to není.
+- **Rozpracováno / další krok:** ani jeden z těch dvou nálezů se **neopravuje**. Číslo je
+  z Windows, kde hrubé rozlišení `System.Threading.Timer` samo stačí jako vysvětlení, a měnit
+  politiku dohánění (tedy brzdné chování robota) podle čísla z vývojového stroje by byla táž chyba
+  jako měnit ji podle domněnky. **První krok je přeměřit totéž na OrangePi** a teprve podle toho
+  nastavit `perfwarn` (dnes odhad 70 %). Pak fáze 3 (teplota, frekvence, CPU stroje — přes HAL)
+  a fáze 4 (`ARBot.Analyze perf`).
+- **Neověřeno:** běh na zařízení; **panel *Tools → Výkon* nikdo neproklikal** (projekt nemá
+  headless Avalonia testy — maximum bez člověka byl build se statickou kontrolou bindingů, všechny
+  šablony a sloupce mají `x:DataType`); cena měření (že `perf=true` sama nezhorší obsazenost);
+  rozpad po jádrech (big.LITTLE je vlastnost cílového HW, test pokrývá jen agregaci).
+- **Odchylka od plánu:** práh `perfwarn` **nečte `PerfCollector` sám** přes `ParamStore`, jak plán
+  navrhoval, ale předává se mu konstruktorem z `ARBotRuntime`. Plánovaná varianta by nechala
+  `ParamRegistryGuardTests` trvale červený (strážce skenuje jen `Src/ARBot`) a porušila konvenci,
+  že `ARBot.Common` na konfiguraci nesahá.
+- **Odkazy:** `Src/ARBot.Common/Diagnostics/*`, `Logs/PerfMsg.cs`, `Runtime/Scheduler.cs`,
+  `Communication/MessageTarget.cs`, `Configuration/ParamRegistry.cs` (`perf`, `perfwarn`),
+  `Src/ARBot/Robot/ARBotRuntime.cs`, `Src/ARBot/ViewModels/PerformanceDocument.cs`,
+  `Src/ARBot/Views/PerformanceDocumentView.axaml`.
+
 ## 2026-08-31
 
 - **Konfigurace aplikace: registr parametrů, profily ze souboru a panel.** Dosud se aplikace

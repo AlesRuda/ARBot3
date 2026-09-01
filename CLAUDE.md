@@ -54,6 +54,18 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   při startu**, ne tichý pád na default — to je hlavní zisk. `Program.GetParam*` si nechalo
   signaturu, takže se žádné z ~50 míst čtení neměnilo. Změna platí **až po restartu** (panel ho
   umí). Hotové 31. 8. 2026, **na HW neověřeno** a panel nikdo neproklikal.
+- [doc/perf-monitoring.md](doc/perf-monitoring.md) — **měření výkonu řízení**: stíhá řídicí smyčka
+  svou periodu? Obsazenost periody, zpoždění a **zameškané takty** ze `Scheduler`u, fronty
+  a **zahozené zprávy** ze stupňů, CPU procesu — jednou za sekundu jako `PerfMsg` do streamu
+  (tedy do UI i do záznamu) a panel *Tools → Výkon*. Zapíná `perf=` (výchozí true), práh varování
+  `perfwarn=`. **Fáze 1 a 2 hotové 1. 9. 2026** (23 testů), **na HW neověřeno a panel nikdo
+  neproklikal**. ⚠️ **První měření hned něco našlo:** na Windows v simulaci se **3–4 takty za
+  sekundu nestihnou vydat včas** (scheduler je dohání) a zpoždění jde až na ~108 ms, **zatímco
+  vlastní práce taktu trvá pod 1 ms** — brzdí tedy časovač, ne řídicí kód. Tím padla podmínka,
+  kterou si spec kladla pro dva odložené nálezy (dohánění zameškaných taktů, krok rampy dobrzdění
+  z periody): **akademické už nejsou.** Opravovat se ale pořád nemají — číslo je z Windows, kde
+  hrubé rozlišení `System.Threading.Timer` samo stačí jako vysvětlení; **další krok je přeměřit
+  to na OrangePi**. Fáze 3 (teplota, frekvence, CPU stroje) a 4 (`ARBot.Analyze perf`) zbývají.
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
   (`Common ← HAL ← app`), kam patří fúze / adaptéry / řídicí smyčka.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří

@@ -52,6 +52,8 @@
                 <MenuItem Header="Mise Robotour" Command="{Binding OpenRobotourMissionCommand}"/>
                 <MenuItem Header="Konfigurace" Command="{Binding OpenConfigurationCommand}"
                           ToolTip.Tip="Všechny parametry s popisem, hodnotou a jejím původem; uložení profilu. Změna platí až po restartu."/>
+                <MenuItem Header="Výkon" Command="{Binding OpenPerformanceCommand}"
+                          ToolTip.Tip="Stíhá řídicí smyčka svou periodu? Obsazenost, zameškané takty, fronty stupňů."/>
             </MenuItem>
             <MenuItem Header="Test">
                 <MenuItem Header="D435 Test" Command="{Binding TestD435Command}"/>

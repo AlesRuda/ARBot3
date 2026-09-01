@@ -78,6 +78,8 @@ namespace ARBot.Robot
         private RecordingTarget recording;
         private TraceInfoBridge traceBridge;
         private FileMessageSource fileSource;
+        /// <summary>Sberac metrik vykonu (parametr perf=); null, kdyz se nemeri.</summary>
+        private ARBot.Common.Diagnostics.PerfCollector perf;
         /// <summary>Fuzni engine aktualniho behu (Run); ve View null. Drzi se kvuli teleportu
         /// simulovaneho robotu - viz <see cref="TeleportSimulatedRobot"/>.</summary>
         private AsyncFusionEngine fusionEngine;
@@ -166,6 +168,12 @@ namespace ARBot.Robot
                 schedTimer?.Dispose();
                 schedTimer = null;
 
+                // Sberac metrik ma vlastni casovac, takze se zastavuje zvlast. Poradi je zamerne:
+                // az PO casovaci scheduleru, ale PRED odpojenim grafu - aby posledni snimek jeste
+                // mohl odejit do streamu.
+                perf?.Dispose();
+                perf = null;
+
                 // 3) Odpoj propojeni grafu.
                 for (int i = connections.Count - 1; i >= 0; i--)
                     try { connections[i].Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
@@ -246,6 +254,20 @@ namespace ARBot.Robot
 
             var clock = new SystemClock();
             var scheduler = new Scheduler();
+
+            // Mereni vykonu rizeni (parametr perf=). Sberac ma VLASTNI casovac, ne ridici mrizku -
+            // jinak by prestal posilat prave kdyz se nestiha. Prah varovani se cte TADY (a ne
+            // uvnitr sberace): ARBot.Common na konfiguraci nesaha. Viz doc/perf-monitoring.md.
+            if (Program.GetParamBool("perf", true))
+            {
+                perf = new ARBot.Common.Diagnostics.PerfCollector(
+                    TimeSpan.FromMilliseconds(Profile.Ts),
+                    TimeSpan.FromSeconds(1),
+                    stream,
+                    () => DateTime.UtcNow,
+                    Program.GetParamDouble("perfwarn", 70));
+                scheduler.Metrics = perf.Metrics;
+            }
 
             // Motory: realny driver z ARBotHW, jinak DummyMotors (dev bez HW).
             IMotorControl motor = hw.Motor ?? (IMotorControl)new DummyMotors();
@@ -671,6 +693,13 @@ namespace ARBot.Robot
                 catch (Exception ex) { Debug.WriteLine(ex); }
                 finally { Volatile.Write(ref pumping, 0); }
             }, null, periodMs, periodMs);
+
+            if (perf != null)
+            {
+                foreach (var s in stages)
+                    perf.AddStage(s);
+                perf.Start();
+            }
 
             foreach (var s in sources) s.Start();
 

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 
 namespace ARBot.Common.Runtime
 {
@@ -22,6 +24,15 @@ namespace ARBot.Common.Runtime
         private readonly object sync = new object();
         private readonly List<Registration> regs = new List<Registration>();
 
+        /// <summary>
+        /// Volitelny odberatel metrik taktu; <c>null</c> = nemeri se. Kdyz neni nastaven, stoji
+        /// mereni jeden test na null za takt - viz doc/perf-monitoring.md, "Rizika".
+        /// </summary>
+        public ARBot.Common.Diagnostics.ISchedulerMetrics Metrics { get; set; }
+
+        /// <summary>Prevod tiku Stopwatch na ms. NESMI to byt new TimeSpan(ticks) - viz Performance.</summary>
+        private static readonly double TickToMs = 1000.0 / Stopwatch.Frequency;
+
         /// <inheritdoc/>
         public IDisposable Register(TimeSpan interval, Action<DateTime> onTick)
         {
@@ -40,6 +51,8 @@ namespace ARBot.Common.Runtime
             // Pod zamkem jen posbirame due takty; callbacky volame az mimo zamek,
             // aby onTick nemohl zpusobit reentrantni deadlock.
             var due = new List<(Action<DateTime> cb, DateTime t)>();
+            // Davky vydanych taktu jedne registrace - hlasi se odberateli metrik az mimo zamek.
+            var davky = new List<(DateTime first, int count)>();
             lock (sync)
             {
                 foreach (var r in regs)
@@ -51,17 +64,38 @@ namespace ARBot.Common.Runtime
                         r.Anchored = true;
                         r.NextTick = now;
                     }
+                    int vydano = 0;
+                    DateTime prvni = r.NextTick;
                     while (now >= r.NextTick)
                     {
                         due.Add((r.OnTick, r.NextTick));
                         r.NextTick = r.NextTick + r.Interval;
+                        vydano++;
                     }
+                    if (vydano > 0)
+                        davky.Add((prvni, vydano));
                 }
                 regs.RemoveAll(x => x.Disposed);
             }
 
+            // Hlaseni az MIMO zamek - odberatel metrik nesmi drzet zamek scheduleru.
+            var m = Metrics;
+            if (m != null)
+                foreach (var d in davky)
+                    m.OnTicksDue(d.first, now, d.count);
+
             foreach (var d in due)
-                d.cb(d.t);
+            {
+                if (m == null) { d.cb(d.t); continue; }
+
+                int cpu = Thread.GetCurrentProcessorId();
+                long t0 = Stopwatch.GetTimestamp();
+                try { d.cb(d.t); }
+                finally
+                {
+                    m.OnTickCompleted(d.t, (Stopwatch.GetTimestamp() - t0) * TickToMs, cpu);
+                }
+            }
         }
 
         private void Remove(Registration r)
