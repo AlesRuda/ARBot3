@@ -132,7 +132,8 @@ namespace ARBot.Robot
 
         /// <summary>
         /// Spusti runtime v danem rezimu. <paramref name="file"/>: ve View cesta k zaznamu
-        /// (povinne), v Run volitelna cesta k vystupnimu zaznamu (null = bez zaznamu).
+        /// (povinne), v Run volitelna cesta k vystupnimu zaznamu (null = vzit z parametru
+        /// <c>record=</c>, a kdyz ani ten neni, jet bez zaznamu).
         /// </summary>
         public void Start(Mode mode, string file = null)
         {
@@ -141,10 +142,54 @@ namespace ARBot.Robot
                 if (running) Stop();
                 Mode = mode;
                 SessionId++;   // odberatele si podle nej zahodi akumulovany obsah (viz SessionId)
-                if (mode == Mode.Run) WireRun(file);
+                // Zaznam z profilu se bere JEN kdyz volajici cestu nepredal - tlacitko
+                // "Run + zaznam" v UI tim profil prebiji. To poradi je zamerne: vyslovna
+                // volba cloveka nad nastavenim, stejne jako prikazova radka nad profilem.
+                if (mode == Mode.Run) WireRun(file ?? RecordPathFromParams());
                 else WireView(file);
                 running = true;
             }
+        }
+
+        /// <summary>
+        /// Cesta k zaznamu podle parametru <c>record=</c>, nebo <c>null</c> (bez zaznamu).
+        ///
+        /// <para><c>true</c> zalozi <c>records/yyyyMMdd-HHmmss.rec</c> v korenu repa - tedy
+        /// tamtez a pod tymz jmenem jako tlacitko <i>Run + zaznam</i> v UI. Jina neprazdna
+        /// hodnota se bere jako cesta (relativni proti korenu repa).</para>
+        ///
+        /// <para><b>Nacpak to je:</b> na zarizeni se aplikace pousti pres SSH profilem a
+        /// k rozboru behu (<c>ARBot.Analyze</c>) je zaznam potreba - bez tohohle parametru
+        /// se dal zapnout jen rucne z UI. Viz doc/configuration.md a doc/record-replay.md.</para>
+        ///
+        /// <para>Nepodari-li se zalozit slozka, zaznam se VYNECHA a jede se dal: chybejici
+        /// zaznam je horsi diagnostika, ale nespusteny robot je horsi vysledek.</para>
+        /// </summary>
+        private static string RecordPathFromParams()
+        {
+            string raw = (Program.GetParam("record") ?? string.Empty).Trim();
+            if (raw.Length == 0 || string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string path = string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)
+                ? Path.Combine(RepoPaths.RootOrBase(), "records",
+                               DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".rec")
+                : RepoPaths.Resolve(raw);
+
+            try
+            {
+                string dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"record={raw}: slozku zaznamu nejde zalozit ({ex.Message}) -> bez zaznamu.");
+                return null;
+            }
+
+            Trace.WriteLine($"record={raw}: beh se zaznamenava do {path}");
+            return path;
         }
 
         /// <summary>Zastavi runtime a uvolni graf (zdroje prvni, pak stupne - drain).</summary>

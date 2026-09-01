@@ -33,6 +33,25 @@
     <Folder Include="Robot\" />
   </ItemGroup>
 
+  <!-- Profily konfigurace (config/*.cfg) cestuji S APLIKACI do build outputu.
+       Nacpak: na zarizeni se nasazuje jen build output BEZ repa (na Pi neni ani .git,
+       ani config/, ani OSM/), takze RepoPaths.RootOrBase() spadne na adresar aplikace.
+       Bez tohoto kopirovani by "config=config/pi-freerun.cfg" na Pi neexistovalo a
+       aplikace by skoncila chybou pri startu - overeno 1. 9. 2026. Viz doc/configuration.md. -->
+  <ItemGroup>
+    <None Include="..\..\config\*.cfg" LinkBase="config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- OSM mapy cestuji s aplikaci ze stejneho duvodu jako profily: bez nich by na zarizeni
+       skoncil kazdy profil s map= chybou pri startu (parametr typu Path se resi proti
+       RepoPaths.RootOrBase(), coz je na Pi adresar aplikace).
+       Je to ~30 MB v 17 souborech. PreserveNewest je kopiruje jen pri zmene, takze build
+       to zdrzi jednou; nasazeni na Pi o tech 30 MB narostlo. Kdyby to vadilo, zuzit vycet
+       na mapy, na ktere se opravdu odkazuji profily v config/. -->
+  <ItemGroup>
+    <None Include="..\..\OSM\*.osm" LinkBase="OSM" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.3" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />

@@ -13,6 +13,15 @@ Když koridor není, jede rovně.
 
 Použití: **homologace** a **přesun mezi stanovišti**.
 
+**Hotové profily:** [`config/pi-freerun.cfg`](../config/pi-freerun.cfg) pro **skutečné HW na
+Orange Pi** (`./ARBot config=config/pi-freerun.cfg` — zapíná misi, **bezobslužný start Run**
+a záznam běhu, takže se v UI neklikne nic; ⚠️ **robot se rozjede sám**, viz
+[configuration.md](configuration.md#bezobslužný-start-autorun)),
+[`config/simulace-freerun.cfg`](../config/simulace-freerun.cfg) pro virtuální HW nad syntetickou
+mapou. Hlavní obsah pi profilu jsou komentáře o tom, co se **záměrně nenastavuje**: `map=`,
+`corridor=` ani `mapcorr=` mise nepotřebuje (`corridor=` je hranová lokalizace **proti mapě**,
+mise má vlastní `CorridorSource`). Viz [configuration.md](configuration.md).
+
 Sourozencem je [`RobotourMission`](robotour-mission.md) — soutěžní mise s QR kódy a servisními
 okny (jádro hotové 26. 8. 2026). **FreeRun se dělal dřív**, protože
 z ní nepotřebuje nic: žádná servisní okna, žádné QR, žádné potvrzení obsluhou, žádný stavový automat.
@@ -132,7 +141,14 @@ hledání, kompenzace pohybu) a stála nejvíc měření — viz
 |---|---|---|
 | `LookaheadM` | jak daleko před robota se klade mrkev | `3,0` m — **jediná skutečná ladicí konstanta**; z příkazové řádky `freerunlook=` |
 | `RightOffsetFraction` | podíl šířky od osy vpravo | `0,25` (= `Width/4`); `Validate()` odmítne ≥ 0,5, protože to už je na hranici koridoru |
-| `MaxSpeedMps` | strop rychlosti **nad** existující obálkou | `0` = neomezovat a nechat to na plánovači |
+
+> **Strop rychlosti mise tu není a nebyl ani dřív, i když to tak vypadalo.** Do 1. 9. 2026 měl
+> `FreeRunConfig` pole `MaxSpeedMps` s popisem „strop nad existující obálkou" — jenže ho **nikdo
+> nečetl** a číst ho ani nešlo: šev do lokální vrstvy je `SetGoal(worldX, worldY, corridorWidthM)`
+> a kanál pro rychlost tam není. Nastavit ho tedy nic nedělalo. Pole je odstraněné; rychlost se
+> omezuje parametrem **`maxspeed=`**, který nastaví `Profile.MaxAllowedSpeed`, takže platí pro
+> celé řízení (motor, rychlostní profil i obálku plánovače) — viz
+> [configuration.md](configuration.md#strop-rychlosti-maxspeed).
 
 ### Která mise běží: `mission=`
 

@@ -39,6 +39,74 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-01
 
+- **Profil pro FreeRun na Orange Pi — a cestou se ukázalo, že profily na zařízení vůbec
+  nefungovaly.** Vzniklo [`config/pi-freerun.cfg`](../config/pi-freerun.cfg); doména:
+  [mission-freerun.md](mission-freerun.md), [configuration.md](configuration.md).
+  - **Vlastní profil je krátký** (`mission=freerun`, `record=true`) a hlavní obsah jsou komentáře
+    o tom, **co se záměrně nenastavuje**: `map=` mise nepotřebuje, `corridor=` je hranová
+    lokalizace **proti mapě** (mise má vlastní `CorridorSource` a na tom stupni nezávisí),
+    `mapcorr=` bez mapy nemá co dělat, `start=` bez mapy není z čeho hádat. Ověřeno v kódu
+    (`ARBotRuntime`, case „freerun"), ne odhadnuto — navigátor se navíc zakládá bezpodmínečně,
+    takže mise opravdu naskočí.
+  - **Nový parametr `record=`** (na žádost autora): `true` založí při startu režimu Run
+    `records/yyyyMMdd-HHmmss.rec`, jinak se hodnota bere jako cesta. Do té doby se záznam dal
+    zapnout **jen ručně z UI**, což na zařízení pouštěném přes SSH nešlo — a bez záznamu nejde
+    běh rozebrat přes `ARBot.Analyze`. Řeší to jedno místo (`ARBotRuntime.Start`), takže platí
+    bez ohledu na to, odkud se Run spustil; cesta předaná volajícím (tlačítko *Run + záznam*)
+    profil přebíjí.
+  - ⚠️ **Profily na zařízení do dneška nefungovaly a doc to tvrdil opačně.** `configuration.md`
+    psal, že fallback na `AppContext.BaseDirectory` znamená „totéž zadání funguje na vývojovém
+    stroji i na zařízení". Na Pi ale v `~/arbot` **není `.git` ani `config/` ani `OSM/`** (ověřeno),
+    takže `config=config/pi-freerun.cfg` ukazovalo na neexistující soubor = **chyba při startu**.
+    Léčba: `ARBot.csproj` kopíruje `config/*.cfg` **a `OSM/*.osm`** (na výzvu autora) do build
+    outputu. OSM je ~30 MB v 17 souborech — poznamenáno, jak to případně zúžit.
+  - **Nový strážný test `ProfilyVRepuTests`:** každý `config/*.cfg` musí projít registrem a každá
+    hodnota typu `Path` musí ukazovat na existující soubor (registr kontroluje jen **tvar** cesty).
+    Že test skutečně chytá, jsem ověřil dočasným vadným profilem — spadl na neznámém klíči,
+    neplatné hodnotě výčtu i na neexistující mapě.
+  - **Ověřeno:** build x64 i OrangePI zelený, testy **1065 zelených**. Profil jsem načetl
+    **v prostředí Pi bez repa** malým programem nad ARM knihovnou: `RootOrBase()` spadl na adresář
+    aplikace, profil se našel a `ParamStore.Build` ho vzal s nulou varování
+    (`mission=freerun`, `record=true` z profilu, ostatní z defaultů).
+  - **Nový parametr `autorun=`** (druhá žádost autora): spustí režim **Run** sám po startu
+    aplikace, po `WaitReady` a ~3 s ustálení — stejným postupem jako self-test, takže se v UI
+    neklikne nic. Skládá se s `record=` (autostart volá `RunMode()`, záznam řeší
+    `ARBotRuntime.Start`), a při `selftest=true` se **ignoruje** a zapíše proč (self-test si Run
+    spouští sám, druhý start by první zastavil).
+    ⚠️ **Se zapnutou misí se robot rozjede sám**, bez dalšího pokynu; zastaví ho jen nouzové
+    zastavení nebo *Stop*. Ta prodleva je na **ustálení, ne bezpečnostní** — a je to tak napsané
+    i v profilu a v dokumentaci, aby si to nikdo nevyložil jako pojistku.
+  - **Nový parametr `maxspeed=` a odstranění mrtvého pole** (třetí žádost autora, který se ptal,
+    jestli jde omezit rychlost).
+    - **Nešlo.** Rychlost drží `Profile.MaxAllowedSpeed = 1,2 m/s`, statické pole v kódu;
+      `Profile` v registru [záměrně není](configuration.md) kvůli odvozeným statickým polím.
+    - ⚠️ **`FreeRunConfig.MaxSpeedMps` byl mrtvý.** Měl popis „strop rychlosti mise" i validaci,
+      ale **nikdo ho nečetl** — a číst ho ani nešlo: šev do lokální vrstvy je
+      `SetGoal(worldX, worldY, corridorWidthM)` a kanál pro rychlost tam není. Vypadalo to jako
+      hotová funkce, přitom nastavit ho nedělalo nic. **Odstraněno** i s řádkem v dokumentaci.
+    - **`maxspeed=` nastavuje `Profile.MaxAllowedSpeed` v `Program.Main`**, tedy před složením
+      runtime. Musí to být tam: hodnotu čtou tři místa **při vzniku objektu** (driver motoru
+      a `TrapezoidMotionProfile` v konstruktoru, `LocalPlannerConfig.MaxSpeed` inicializátorem
+      pole), takže cokoli vzniklé dřív by drželo starou hodnotu a strop by platil jen zčásti —
+      u bezpečnostního omezení nejhorší možný výsledek. Test to drží doložené.
+    - **Past s odvozenými poli se tím neotvírá** — z `MaxAllowedSpeed` nic nederivuje
+      (`MaxTheoreticalSpeed` se počítá z obvodu kola a otáček); i na to je test. Zbytek `Profile`
+      zůstává mimo registr.
+    - **Nekladnou hodnotu odmítne registr** (nový parser `ParamParsers.Kladne`), hodnota nad
+      technicky dosažitelnou rychlost se **ořízne s hláškou** — odmítnout kvůli optimistickému
+      číslu start robota v terénu by bylo horší než ho zpomalit.
+    - **V profilu je `maxspeed=0.1`** (na pokyn autora), tedy ~1/10 kroku chůze: robota jde
+      dohnat a zastavit rukou. V kódu zůstává 1,2.
+    - **Falešný poplach, který se cestou vyloučil:** `LocalPlannerConfig.PrefDist` (odstup, od
+      kterého se rychlost neomezuje) **nepochází** z `MaxSpeed`, ale z `Profile.PrefDist` — nízký
+      strop tedy odstupy od překážek neposouvá. Zbývá jen mírný vedlejší efekt: `MinCostSpeed`
+      (0,05) je pevná a při stropu 0,1 je to polovina maxima místo ~4 %, takže se v ceně plánování
+      smrskne rozdíl mezi „sotva průjezdné" a „volné". Neřešeno, jen zaznamenáno.
+  - **Neověřeno:** že s tím profilem aplikace na Pi skutečně nastartuje a FreeRun pojede —
+    to chce nasadit nový build (**starý build profil odmítne**, protože `record=` a `autorun=`
+    jsou pro něj neznámé klíče, a to je tvrdá chyba při startu; totéž `maxspeed=`). A hlavně: **FreeRun na HW nikdy
+    neběžel**, robot se s ním rozjede. Doporučený první pokus je `autorun=false` na příkazové
+    řádce a Run naklikat ručně, až senzory hlásí OK a kurz se usadil.
 - **Hláška fúze „zahozeno mereni starsi nez okno historie" byla zavádějící — opraveno.** Autor si
   na snímku všiml, že fúze zahazuje odometrii **zpožděnou o 7 ms**, přestože okno je **3000 ms**,
   a správně pojal podezření na hlášku. Podezření potvrzeno testem, ne úvahou

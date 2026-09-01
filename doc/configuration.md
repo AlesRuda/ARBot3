@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
-> **Stav 2026-08-31:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **74 testů**, celá sada je zelená (1015). Registr obsahuje **51 parametrů**
+> **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **56 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -48,7 +48,7 @@ překlep v klíči.
 
 | Co | Proč ne |
 |---|---|
-| `Profile` a kalibrace robota | Jiná třída nastavení (mění se zřídka, patří k železu). Navíc má **odvozená statická pole** (`WheelPerimeter` z `WheelRadius`, `LeftCameraTransform` z `CameraYaw`) — načtení hodnot po statické inicializaci by je nechalo staré. Past, kterou tenhle návrh nemusí otevírat. |
+| `Profile` a kalibrace robota | Jiná třída nastavení (mění se zřídka, patří k železu). Navíc má **odvozená statická pole** (`WheelPerimeter` z `WheelRadius`, `LeftCameraTransform` z `CameraYaw`) — načtení hodnot po statické inicializaci by je nechalo staré. Past, kterou tenhle návrh nemusí otevírat. **Jedna výjimka od 1. 9. 2026:** `maxspeed=` nastavuje `Profile.MaxAllowedSpeed` — jde to bezpečně, protože z toho pole **nic nederivuje** (viz [Strop rychlosti](#strop-rychlosti-maxspeed)). Zbytek `Profile` mimo registr zůstává. |
 | Živé přepínání za běhu | Vyloučené zadáním. Editor ukládá hodnoty **pro příští start**. |
 | Skládání profilů (`include=`) | YAGNI — přepis z příkazové řádky zatím stačí. |
 | Strukturovaný snímek konfigurace do záznamu | `GetParam` už dnes dělá `Debug.WriteLine("klíč=hodnota")`, což jde do záznamu jako [`Info`](../Src/ARBot.Common/Logs/Info.cs). Je to jen text a jen pro klíče, které se skutečně přečetly, ale stopa tam je — zisk ze strukturované zprávy je proto menší, než se na první pohled zdá. |
@@ -236,9 +236,73 @@ mission=robotour
 
 Profily jsou v `config/` v kořeni repa a volají se `config=config/robotour.cfg`. Cesta se rozřeší
 stejným pravidlem, jaké dnes používá `GetParamPath`: relativně proti kořeni repa, s fallbackem na
-`AppContext.BaseDirectory` pro nasazení bez repa — takže totéž zadání funguje na vývojovém stroji
-i na zařízení. Profily jdou do gitu, což sedí na pravidlo „vše v repozitáři"
-z [CLAUDE.md](../CLAUDE.md).
+`AppContext.BaseDirectory` pro nasazení bez repa. Profily jdou do gitu, což sedí na pravidlo
+„vše v repozitáři" z [CLAUDE.md](../CLAUDE.md).
+
+⚠️ **Ten fallback sám ale nestačil a do 1. 9. 2026 profily na zařízení nefungovaly.** Na Pi se
+nasazuje **jen build output**, kde není `.git` ani `config/` ani `OSM/` — `RootOrBase()` tedy
+spadne na adresář aplikace a `config=config/pi-freerun.cfg` tam ukazuje na neexistující soubor,
+což je **chyba při startu**. Ověřeno na zařízení: `~/arbot` žádné `config/` nemělo.
+
+Léčba: `ARBot.csproj` kopíruje **`config/*.cfg` i `OSM/*.osm` do build outputu**
+(`CopyToOutputDirectory="PreserveNewest"`, `LinkBase`), takže obojí cestuje s aplikací a totéž
+zadání funguje na vývojovém stroji i na zařízení. OSM je ~30 MB v 17 souborech — kdyby to
+u nasazení vadilo, zúžit výčet na mapy, na které se profily opravdu odkazují.
+
+**Profily v repu hlídá test** (`ProfilyVRepuTests`): každý `config/*.cfg` musí projít registrem
+(žádný neznámý klíč, žádná neplatná hodnota) a každá hodnota typu `Path` musí ukazovat na
+existující soubor — registr kontroluje jen **tvar** cesty, takže `map=OSM/PreklepVeJmenu.osm`
+by jinak prošlo a spadlo až na zařízení.
+
+## Záznam běhu z profilu (`record=`)
+
+`record=true` založí při startu režimu **Run** záznam `records/yyyyMMdd-HHmmss.rec` — tamtéž a pod
+týmž jménem jako tlačítko *Run + záznam* v UI. Místo `true` jde zadat cestu k `.rec` souboru;
+prázdná hodnota nebo `false` znamená bez záznamu.
+
+**Nač to je:** na zařízení se aplikace pouští přes SSH profilem a k rozboru běhu
+(`ARBot.Analyze`) je záznam potřeba — do té doby se dal zapnout jen ručně z UI.
+
+**Pořadí:** cesta předaná volajícím (tlačítko *Run + záznam*) profil **přebíjí** — výslovná volba
+člověka nad nastavením, stejně jako příkazová řádka nad profilem. Řeší to jedno místo
+(`ARBotRuntime.Start`), takže na tom nezáleží, odkud se Run spustil.
+
+## Strop rychlosti (`maxspeed=`)
+
+`maxspeed=` [m/s] se při startu přenese do `Profile.MaxAllowedSpeed`, takže platí pro **celé
+řízení naráz**: driver motoru (`SDC2160Ex`), rychlostní profil řídicí smyčky
+(`TrapezoidMotionProfile`) i rychlostní obálku lokálního plánovače (`LocalPlannerConfig.MaxSpeed`).
+Bez zadání platí hodnota z kódu (dnes 1,2 m/s).
+
+**Proč se to děje už v `Program.Main`, ne až u čtenáře:** všechna tři místa hodnotu čtou při
+**vzniku objektu** — dvě v konstruktoru, `LocalPlannerConfig.MaxSpeed` inicializátorem pole. Kdo by
+vznikl dřív, než se hodnota nastaví, držel by starou a strop by platil jen zčásti; u bezpečnostního
+omezení je to nejhorší možný výsledek.
+
+**Past s odvozenými statickými poli** — kvůli které `Profile` v registru [záměrně není](#rozsah) —
+se tady **neotevírá**: z `MaxAllowedSpeed` nic nederivuje (`MaxTheoreticalSpeed` se počítá z obvodu
+kola a otáček motoru, ne z něj). Proto jde zpřístupnit tenhle jeden údaj, aniž by se otvíral celý
+`Profile`.
+
+Nekladnou hodnotu odmítne **registr** už při načtení profilu (`cekam cislo vetsi nez 0`). Hodnota
+nad `Profile.MaxTheoreticalSpeed` se **ořízne s hláškou** — záměr „jeď naplno" je jednoznačný
+a odmítnout kvůli tomu start robota v terénu by bylo horší než ho zpomalit.
+
+## Bezobslužný start (`autorun=`)
+
+`autorun=true` spustí režim **Run** sám po startu aplikace — po připravení HW (`WaitReady`)
+a krátkém ustálení, stejným postupem jako self-test. Doplňuje `mission=` a `record=`: profil tak
+popíše celý běh od startu po záznam a v UI se nemusí nic klikat, což je na zařízení pouštěném
+přes SSH podstatné.
+
+> ⚠️ **Se zapnutou misí se robot rozjede sám**, bez dalšího pokynu; zastaví ho jen nouzové
+> zastavení nebo *Stop* v UI. Prodleva před startem (~3 s) je na **ustálení**, ne bezpečnostní —
+> skutečná pojistka je fyzické nouzové zastavení. Výchozí hodnota je `false`.
+
+Při `selftest=true` se `autorun` **ignoruje** (a zapíše se proč): self-test si Run spouští sám
+a druhý start by první zastavil.
+
+Kód: [`MainWindowViewModel.AutoRun.cs`](../Src/ARBot/ViewModels/MainWindowViewModel.AutoRun.cs).
 
 ## Panel *Tools → Konfigurace*
 

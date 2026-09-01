@@ -30,14 +30,12 @@ namespace ARBot.Common.Missions
         /// </summary>
         public double RightOffsetFraction = 0.25;
 
-        /// <summary>
-        /// Strop rychlosti mise [m/s]; <c>0</c> = neomezovat a nechat to na rychlostni obalce
-        /// lokalniho planovace.
-        ///
-        /// <para>Je to strop NAD existujici obalkou, ne jeji nahrada — planovac uz umi zpomalit
-        /// u prekazek a v zatackach. Tohle jen rika „a nikdy ne rychleji nez tolik".</para>
-        /// </summary>
-        public double MaxSpeedMps = 0.0;
+        // POZN.: bývalo tu pole MaxSpeedMps ("strop rychlosti mise"). Bylo to MRTVÉ - nikdo ho
+        // nečetl, a číst ho ani nešlo: šev do lokální vrstvy je
+        // ILocalGoalSink.SetGoal(worldX, worldY, corridorWidthM) a kanál pro rychlost tam není.
+        // Vypadalo to jako hotová funkce, přitom nastavit ho nic nedělalo. Odstraněno 1. 9. 2026.
+        // Strop rychlosti se dnes zadává parametrem maxspeed= (nastaví Profile.MaxAllowedSpeed,
+        // tedy platí pro CELÉ řízení, ne jen pro misi) - viz doc/configuration.md.
 
         /// <summary>Zkontroluje konzistenci; vyhodi <see cref="ArgumentException"/> pri chybe.</summary>
         public void Validate()
@@ -51,9 +49,6 @@ namespace ARBot.Common.Missions
                     $"FreeRunConfig.RightOffsetFraction ({RightOffsetFraction}) musi byt v (0; 0,5). "
                     + "Polovina sirky uz lezi NA prave hranici koridoru, takze to neni "
                     + "'prava polovina', ale 'prave po okraji'; nula je stred cesty.");
-            if (MaxSpeedMps < 0)
-                throw new ArgumentException(
-                    $"FreeRunConfig.MaxSpeedMps ({MaxSpeedMps}) nesmi byt zaporna; nula = neomezovat.");
         }
     }
 }

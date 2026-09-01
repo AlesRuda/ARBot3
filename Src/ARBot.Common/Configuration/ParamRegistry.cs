@@ -89,6 +89,18 @@ namespace ARBot.Common.Configuration
                                   DefaultDescription = defDescription,
                                   Category = category, Description = description });
 
+        /// <summary>
+        /// Parametr, jehoz vychozi hodnotu urcuje kod, a ktery navic omezuje ROZSAH.
+        /// Typ zustava cislo (panel s nim zachazi jako s cislem), <c>Parse</c> se pouzije az
+        /// za kontrolou parsovatelnosti - viz <see cref="ParamDef.Validate"/>.
+        /// </summary>
+        private static ParamDef ZKoduKladne(string name, string defDescription,
+                                            string category, string description)
+            => Add(new ParamDef { Name = name, Type = ParamType.Double, DefaultFromCode = true,
+                                  DefaultDescription = defDescription,
+                                  Parse = ParamParsers.Kladne,
+                                  Category = category, Description = description });
+
         /// <summary>Parametr s uplnym vyctem povolenych hodnot (panel z nej muze udelat seznam).</summary>
         private static ParamDef Vycet(string name, string def, string[] hodnoty,
                                       string category, string description)
@@ -119,6 +131,11 @@ namespace ARBot.Common.Configuration
             Konst("no_uart", ParamType.Bool, "false", K_HW,
                   "Preskoci UART senzory (IMU/GPS/motor). Odpojene drivery hazi vyjimky v tesne "
                   + "smycce, coz zkresluje mereni vykonu vizualni cesty.");
+            ZKoduKladne("maxspeed", "Profile.MaxAllowedSpeed (1,2 m/s)", K_HW,
+                  "Strop rychlosti jizdy [m/s]. Prenese se do Profile.MaxAllowedSpeed pri startu, "
+                  + "takze plati pro CELE rizeni naraz: driver motoru, rychlostni profil i "
+                  + "rychlostni obalku lokalniho planovace. Musi byt > 0; hodnota nad technicky "
+                  + "dosazitelnou rychlost se orizne (s hlaskou). Bez zadani plati hodnota z kodu.");
             ZKodu("UartAHRS", ParamType.String, "podle detekce portu", K_HW,
                   "Seriovy port IMU (VN100). Bez zadani se pouzije port zjisteny pri startu.");
             ZKodu("UartMotor", ParamType.String, "podle detekce portu", K_HW,
@@ -177,6 +194,11 @@ namespace ARBot.Common.Configuration
             Konst("depotfix", ParamType.Double, "5", K_MISE,
                   "Jak dlouho [s] musi fix v depu neprerusene vyhovovat, nez se mise Robotour "
                   + "zarmuje.");
+            Konst("autorun", ParamType.Bool, "false", K_MISE,
+                  "Spustit rezim Run sam po startu aplikace, bez klikani v UI. Na zarizeni se "
+                  + "aplikace pousti pres SSH profilem, kde neni co klikat. POZOR: je-li zapnuta "
+                  + "mise, ROBOT SE ROZJEDE bez dalsiho pokynu - zastavi ho jen nouzove zastaveni "
+                  + "nebo Stop v UI. Ignoruje se pri selftest=true (ten si Run spousti sam).");
             Konst("qrcamera", ParamType.String, null, K_MISE,
                   "Kamera, ze ktere se cte QR kod. Prazdna hodnota znamena VSECHNY kamery.");
 
@@ -217,6 +239,11 @@ namespace ARBot.Common.Configuration
             Konst("perf", ParamType.Bool, "true", K_DIAG,
                   "Meri, jestli ridici smycka stiha svou periodu (zprava PerfMsg 1x za sekundu). "
                   + "Viz doc/perf-monitoring.md.");
+            Konst("record", ParamType.String, null, K_DIAG,
+                  "Zaznam behu pri startu rezimu Run: 'true' zalozi records/yyyyMMdd-HHmmss.rec "
+                  + "v korenu repa, jinak se hodnota bere jako CESTA k .rec souboru (relativni "
+                  + "se resi proti korenu). Prazdne nebo 'false' = bez zaznamu. Tlacitko "
+                  + "'Run + zaznam' v UI ma prednost - vyslovna volba cloveka prebiji profil.");
             Konst("perfwarn", ParamType.Double, "70", K_DIAG,
                   "Obsazenost periody [%], od ktere se hlasi varovani. Hodnota je zatim odhad - "
                   + "naostro se nastavi az podle prvniho mereni na zarizeni.");

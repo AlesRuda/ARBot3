@@ -56,6 +56,10 @@ namespace ARBot.ViewModels
 
             // Totéž pro telemetrickou tabulku a graf (parametr telemetryshot=true).
             StartTelemetryShotIfRequested();
+
+            // Automatický start režimu Run (parametr autorun=true) - bezobslužný běh na zařízení.
+            // AŽ ZA self-testem: ten si Run spouští sám a autorun se v tom případě vynechá.
+            StartAutoRunIfRequested();
         }
 
         /// <summary>

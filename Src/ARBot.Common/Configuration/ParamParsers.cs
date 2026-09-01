@@ -90,6 +90,13 @@ namespace ARBot.Common.Configuration
         }
 
         /// <summary>Poloha <c>lat,lon[,kurzDeg]</c>.</summary>
+        /// <summary>Kladne cislo (nula ani zaporna hodnota neprojde).</summary>
+        public static ParamParseResult Kladne(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v > 0
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam cislo vetsi nez 0");
+
         public static ParamParseResult LatLon(string text)
             => TryLatLonHeading(text, out _, out _, out _)
                ? ParamParseResult.Valid()

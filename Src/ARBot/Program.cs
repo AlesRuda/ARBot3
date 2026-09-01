@@ -103,7 +103,53 @@ namespace ARBot
                 return;
             }
 
+            // Strop rychlosti z parametru maxspeed=. MUSI to byt tady, pred startem UI.
+            ApplyMaxSpeedFromParams();
+
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+
+        /// <summary>
+        /// Prenese <c>maxspeed=</c> do <see cref="ARBot.Common.Configuration.Profile.MaxAllowedSpeed"/>.
+        /// Bez zadaneho parametru nedela nic (plati hodnota z kodu).
+        ///
+        /// <para><b>Proc uz pri startu a ne az u ctenare:</b> tu hodnotu ctou TRI ruzna mista, a to
+        /// pri VZNIKU objektu - driver motoru <c>SDC2160Ex</c> a <c>TrapezoidMotionProfile</c>
+        /// v konstruktoru, <c>LocalPlannerConfig.MaxSpeed</c> inicializatorem pole. Kdo by vznikl
+        /// driv, nez se hodnota nastavi, drzel by tu starou a strop by platil jen zcasti - coz je
+        /// u bezpecnostniho omezeni to nejhorsi, co muze byt.</para>
+        ///
+        /// <para><b>Past s odvozenymi statickymi poli</b> (kvuli ni <c>Profile</c> v registru
+        /// zamerne neni - viz doc/configuration.md) se tady NEOTVIRA: z <c>MaxAllowedSpeed</c>
+        /// nic nederivuje. <c>MaxTheoreticalSpeed</c> se pocita z obvodu kola a otacek motoru,
+        /// ne z nej.</para>
+        /// </summary>
+        private static void ApplyMaxSpeedFromParams()
+        {
+            string raw = ARBot.Common.Configuration.ParamStore.Current.Get("maxspeed");
+            if (string.IsNullOrWhiteSpace(raw))
+                return;
+
+            double v = GetParamDouble("maxspeed", ARBot.Common.Configuration.Profile.MaxAllowedSpeed);
+
+            // Nad technicky dosazitelnou rychlost to nema smysl: motor tam nedojede a rychlostni
+            // profil by planoval s cislem, ktere se nikdy nenaplni. Orezat je lepsi nez odmitnout
+            // start - zamer ("jed naplno") je jednoznacny a robot v terenu ma jet. Nekladnou
+            // hodnotu odmitne uz registr pri nacteni profilu, sem se nedostane.
+            double strop = ARBot.Common.Configuration.Profile.MaxTheoreticalSpeed;
+            if (v > strop)
+            {
+                Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "maxspeed={0:F2} je nad technicky dosazitelnou rychlosti {1:F2} m/s -> orezano.",
+                    v, strop));
+                v = strop;
+            }
+
+            Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "maxspeed: strop rychlosti {0:F2} -> {1:F2} m/s (plati pro motor, rychlostni profil "
+                + "i obalku planovace).",
+                ARBot.Common.Configuration.Profile.MaxAllowedSpeed, v));
+            ARBot.Common.Configuration.Profile.MaxAllowedSpeed = v;
         }
 
         // Avalonia configuration, don't remove; also used by visual designer.
