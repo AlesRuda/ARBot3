@@ -91,9 +91,12 @@ namespace ARBot.Common.Tests.Diagnostics
                                 "ze zpravy musi byt poznat ZDROJ, jinak nepozna, co se zahazuje");
                     Assert.That(msg, Does.Contain(nameof(ARBot.Common.Fusion.HeadingMeasurement)),
                                 "a taky TYP merenia - u korelace jde o tri rozdilna (osa, osa, kurz)");
-                    Assert.That(msg, Does.Contain("opozdeno"),
-                                "nejakcnejsi cislo je, O KOLIK bylo pozde - z toho se pozna, "
-                                + "jestli pomoct zvetsenim okna nebo zrychlenim vypoctu");
+                    // Nejakcnejsi cislo je, O KOLIK je merenie starsi nez zaklad. Slovo
+                    // "opozdeno" tu byt NESMI: v tomhle scenari (prazdny buffer po
+                    // InitializePosition) merenie pozde nedoslo - zaklad se postavil az za nim.
+                    Assert.That(msg, Does.Contain("starsi nez tBase"));
+                    Assert.That(msg, Does.Not.Contain("opozdeno o"),
+                                "merenie tu neni opozdene, jen starsi nez zaklad filtru");
                     Assert.That(msg, Does.Contain("okno"), "a proti cemu se to merilo");
                     Assert.That(engine.DroppedTooOld, Is.EqualTo(1), "a soucasne se to pocita");
                 });

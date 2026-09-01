@@ -217,12 +217,18 @@ Hned po startu a po `InitializePosition` / `InitializeHeading` (které základ p
 `SDC2160Ex` bere razítko na začátku čtení a pak čte čtyři řádky, takže jeho měření je o ~7–9 ms
 starší než okamžik zařazení — proto hlášky chodí v párech `Odo/speed` + `Odo/rate`.
 
-⚠️ **Hláška to do 1. 9. 2026 hlásila zavádějícím způsobem:** říkala „zahozeno mereni starsi nez
-okno historie … opozdeno o 7 ms … okno je 3000 ms", takže to vypadalo, že filtr zahazuje měření
-zpožděné o 7 ms při třísekundovém okně. Okno s tím rozhodnutím nemělo co dělat. Nově hláška obě
-situace rozlišuje (`starsi nez okno historie` vs. `starsi nez zaklad filtru … OKNO ZA TO NEMUZE`)
-a uvádí, jak daleko historie zatím sahá. Hlídá to `DroppedTooOldReasonTests`, včetně důkazu, že
-při okně 3 s i 60 s vyjde zahození stejně.
+⚠️ **Hláška to do 1. 9. 2026 hlásila zavádějícím způsobem, a to hned dvakrát:**
+
+1. Vinila **okno** („okno je 3000 ms"), přestože o zahození rozhoduje `tBase`. Nově obě situace
+   rozlišuje: `starsi nez okno historie … okno je plne, takze merenie doslo POZDE` proti
+   `starsi nez zaklad filtru … OKNO ZA TO NEMUZE`, a uvádí, jak daleko historie zatím sahá.
+2. Říkala **„opozdeno o 7 ms"**, což tvrdí, že měření došlo pozdě. To platí jen v prvním případě.
+   Ve druhém měření opožděné být vůbec nemuselo — **je jen starší než základ, protože základ byl
+   postaven až za ním**. Svalovat to na doručení měření posílá hledat chybu na úplně špatné místo.
+   Nově se píše „je o N ms starsi nez tBase … Merenie NEMUSELO byt opozdene".
+
+Hlídá to `DroppedTooOldReasonTests`, včetně důkazu, že při okně 3 s i 60 s vyjde zahození stejně,
+a včetně kontroly, že se v druhém případě slovo „opozdeno" **nepoužije**.
 
 **Kdy je to naopak signál problému:** když hlášky chodí i po prvních sekundách běhu a hlásí
 krátkou historii, něco filtr opakovaně reinicializuje. Pozor při čtení logu: `AsyncFusionEngine`

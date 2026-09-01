@@ -364,17 +364,23 @@ namespace ARBot.Common.Fusion
                 double pokrytoMs = (newest - tBase).TotalMilliseconds;
                 bool oknoPlne = pokrytoMs >= window.TotalMilliseconds;
 
+                // POZOR NA SLOVO "OPOZDENO": tvrdilo by, ze merenie doslo pozde, a to plati jen
+                // v pripade (a). V pripade (b) merenie opozdene byt vubec nemuselo - je proste
+                // STARSI nez zaklad, protoze zaklad se postavil az za nim (inicializace pozy
+                // prerovna tBase na svuj cas). Svalovat to na doruceni merenia posila hledat
+                // chybu na uplne spatne misto; upresneno 1. 9. 2026 na zaklade zpetne vazby.
                 Trace.WriteLine(oknoPlne
                     ? string.Format(CultureInfo.InvariantCulture,
                         "[Fusion] zahozeno mereni starsi nez okno historie: {0} '{1}' @ {2:HH:mm:ss.fff}"
-                        + " z=[{3}] - opozdeno o {4:F0} ms za zakladem filtru (tBase={5:HH:mm:ss.fff}),"
-                        + " okno {6:F0} ms je plne (nejnovejsi {7:HH:mm:ss.fff})",
+                        + " z=[{3}] - je o {4:F0} ms starsi nez zaklad filtru (tBase={5:HH:mm:ss.fff});"
+                        + " okno {6:F0} ms je plne, takze merenie doslo POZDE (nejnovejsi {7:HH:mm:ss.fff})",
                         m.GetType().Name, src, m.TimeStamp, Format(m.Value),
                         predZakladem, tBase, window.TotalMilliseconds, newest)
                     : string.Format(CultureInfo.InvariantCulture,
                         "[Fusion] zahozeno mereni starsi nez zaklad filtru: {0} '{1}' @ {2:HH:mm:ss.fff}"
-                        + " z=[{3}] - opozdeno o {4:F0} ms za tBase={5:HH:mm:ss.fff}; historie zatim saha"
-                        + " jen {6:F0} ms a okno je {7:F0} ms, takze OKNO ZA TO NEMUZE"
+                        + " z=[{3}] - je o {4:F0} ms starsi nez tBase={5:HH:mm:ss.fff}; historie zatim"
+                        + " saha jen {6:F0} ms a okno je {7:F0} ms, takze OKNO ZA TO NEMUZE."
+                        + " Merenie NEMUSELO byt opozdene - zaklad filtru byl postaven az ZA nim"
                         + " (typicky hned po startu nebo po inicializaci pozy)",
                         m.GetType().Name, src, m.TimeStamp, Format(m.Value),
                         predZakladem, tBase, pokrytoMs, window.TotalMilliseconds));

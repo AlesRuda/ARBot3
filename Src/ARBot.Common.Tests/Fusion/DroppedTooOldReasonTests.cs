@@ -85,6 +85,12 @@ namespace ARBot.Common.Tests.Fusion
             Assert.That(zprava, Does.Contain("OKNO ZA TO NEMUZE"));
             Assert.That(zprava, Does.Not.Contain("starsi nez okno historie"),
                 "Okno v tuhle chvíli o zahození nerozhoduje - hláška ho nesmí uvádět jako důvod.");
+
+            // Měření tu NENÍ opožděné: dorazilo v pořádku, jen základ filtru byl postaven
+            // až za ním. Slovo "opozdeno" by poslalo hledat chybu do doručování měření.
+            Assert.That(zprava, Does.Not.Contain("opozdeno"),
+                "Měření nedošlo pozdě - je jen starší než základ filtru.");
+            Assert.That(zprava, Does.Contain("NEMUSELO byt opozdene"));
         }
 
         /// <summary>

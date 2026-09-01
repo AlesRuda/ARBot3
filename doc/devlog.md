@@ -47,9 +47,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **Po inicializaci se zahodí** — a to **stejně při okně 3 s jako 60 s**. Rozhoduje totiž
     podmínka `m.TimeStamp <= tBase`, tedy **základ filtru**, ne okno. Před základ se dostat nejde,
     protože tam není stav; velikost okna na tom nic nezmění.
-  - **Není to vada fúze, chování je správné.** Vadná byla jen hláška: vinila okno, které
-    s rozhodnutím nemělo co dělat. Nově obě situace rozlišuje (`starsi nez okno historie`
-    vs. `starsi nez zaklad filtru … OKNO ZA TO NEMUZE`) a uvádí, jak daleko historie zatím sahá.
+  - **Není to vada fúze, chování je správné.** Vadná byla jen hláška — a hned ve dvou věcech.
+    (a) Vinila **okno**, které s rozhodnutím nemělo co dělat; nově obě situace rozlišuje
+    (`starsi nez okno historie … merenie doslo POZDE` vs. `starsi nez zaklad filtru …
+    OKNO ZA TO NEMUZE`). (b) **Na druhou vadu upozornil autor:** slovo „opozdeno" tvrdí, že
+    měření došlo pozdě — ve druhém případě ale opožděné být vůbec nemuselo, jen **základ filtru
+    byl postaven až za ním**. Tím se hledání chyby posílalo do doručování měření místo k `tBase`.
+    Teď se píše „je o N ms starsi nez tBase … Merenie NEMUSELO byt opozdene" a test na to slovo
+    přímo hlídá zákaz.
   - **Proč to chodí v párech `Odo/speed` + `Odo/rate`:** `SDC2160Ex` bere razítko na začátku
     `GetMeasurement` a pak čte čtyři řádky, takže jeho měření je o ~7–9 ms starší než okamžik
     zařazení. Hned po inicializaci pózy tedy první motorový rámec nutně propadne.
