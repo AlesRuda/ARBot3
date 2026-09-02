@@ -29,6 +29,15 @@ namespace ARBot.HAL.Devices.Camera
     /// se v intervalu <see cref="ReconnectPeriodMs"/> pokousi o opetovne pripojeni. Dokud
     /// kamera neni pripojena, <see cref="IsError"/> vraci true a smycka nezahlcuje CPU.
     /// </para>
+    /// <para><b>Diagnostika jde do <see cref="System.Diagnostics.Trace"/>, ne do <c>Debug</c>.</b>
+    /// <c>Debug.WriteLine</c> je <c>[Conditional("DEBUG")]</c>, takze v Release buildu - a prave
+    /// ten bezi na zarizeni - nezustane po poruche ZADNA stopa. Stalo se to 2. 9. 2026: kamery
+    /// se neohlasily a v panelu Debug output nebyl o nich ANI RADEK, takze se pricina hledala
+    /// hodinu merenim zvenci, misto aby ji driver rovnou napsal (byla to nesplnitelna kombinace
+    /// hloubky a barvy na USB 2.0). Tataz past uz jednou byla opravena u hlasky o zahozenem
+    /// merenii ve fuzi - viz <c>AsyncFusionEngine.Enqueue</c>. Hlaseni jsou jednorazova
+    /// (pripojeni, odpojeni) nebo throtlovana, takze proud nezaplavi.
+    /// Hlida to <c>DiagnostikaSenzoruTests</c>.</para>
     /// </summary>
     public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
     {
@@ -270,14 +279,14 @@ namespace ARBot.HAL.Devices.Camera
 
                 if (present == false)
                 {
-                    Debug.WriteLine($"{Name}: kamera odpojena (bez snimku a zarizeni na sbernici chybi).");
+                    Trace.WriteLine($"{Name}: kamera odpojena (bez snimku a zarizeni na sbernici chybi).");
                 }
                 else
                 {
                     // Zarizeni je na sbernici (nebo se to nepodarilo zjistit), ale snimky nechodi.
                     // Sam se stream nerozjede - priste ho nastartuje EnsureConnected znovu.
                     StallRestarts++;
-                    Debug.WriteLine($"{Name}: stream zaseknuty ({StallTimeoutsBeforeRestart} timeoutu po sobe" +
+                    Trace.WriteLine($"{Name}: stream zaseknuty ({StallTimeoutsBeforeRestart} timeoutu po sobe" +
                                     $"{(present == null ? ", pritomnost zarizeni nezjistena" : ", zarizeni je pritomne")})" +
                                     $" -> restart pipeline (celkem {StallRestarts}x).");
                 }
@@ -286,7 +295,7 @@ namespace ARBot.HAL.Devices.Camera
             catch (Exception ex)
             {
                 // Tvrdy vypadek za behu (odpojeni kamery) -> zbourat pipeline, priste se zkusi reconnect.
-                Debug.WriteLine($"{Name}: cteni snimku selhalo (odpojeno?): {ex.Message}");
+                Trace.WriteLine($"{Name}: cteni snimku selhalo (odpojeno?): {ex.Message}");
                 Teardown();
                 return null;
             }
@@ -327,7 +336,7 @@ namespace ARBot.HAL.Devices.Camera
                 // streamy umi spadnout na "failed to set power state" (zmereno na OrangePi
                 // 1. 9. 2026), a kdyby se to vydavalo za odpojeni, hlasil by driver "kamera
                 // odpojena" u kamery, ktera je na miste - a slo by se hledat kabel.
-                Debug.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
+                Trace.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
                 return null;
             }
             return false;   // dotaz prosel a zarizeni mezi vyctenymi neni = opravdu chybi
@@ -364,12 +373,12 @@ namespace ARBot.HAL.Devices.Camera
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
-                Debug.WriteLine($"{Name}: pipeline pripojena.");
+                Trace.WriteLine($"{Name}: pipeline pripojena.");
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
+                Trace.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
                 Teardown();
                 return false;
             }
@@ -392,7 +401,7 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"{Name}: Stop pipeline: {ex.Message}");
+                    Trace.WriteLine($"{Name}: Stop pipeline: {ex.Message}");
                 }
                 try
                 {
@@ -400,7 +409,7 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"{Name}: Dispose pipeline: {ex.Message}");
+                    Trace.WriteLine($"{Name}: Dispose pipeline: {ex.Message}");
                 }
                 pipeline = null;
             }

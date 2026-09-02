@@ -32,6 +32,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   26. 8. 2026; dřív byl jediná výjimka se stupni a byla to tichá past, viz
   [doc/decisions.md](doc/decisions.md)). Převod na stupně patří jen na **okraje**: drivery při
   parsování a UI/telemetrie při zobrazení.
+- **Diagnostika poruch jde do `Trace`, ne do `Debug`.** `Debug.WriteLine` je
+  `[Conditional("DEBUG")]`, takže v **Release** buildu — a právě ten běží na zařízení — po poruše
+  nezůstane **žádná stopa**. Platí pro všechno, co vysvětluje, *proč něco nejede*: stav senzorů,
+  selhání připojení, zahozená měření. Vývojářské dumpy (výpis intrinsik apod.) v `Debug` zůstat
+  mohou. Ta past kousla **dvakrát** — hláška o zahozeném měření ve fúzi (20. 8. 2026) a kamery
+  (2. 9. 2026, kdy v panelu *Debug output* nebyl o nefunkčních kamerách ani řádek a příčina se
+  hledala hodinu měřením zvenčí). Hlídá to `DiagnostikaSenzoruTests`.
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
   s dopadem na HW napiš, co je odsimulované vs. co je nutné ověřit na zařízení.
 - **Git: pracuje se přímo na `master`.** Commity jdou do masteru — **nezakládat feature branch**

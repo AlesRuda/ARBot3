@@ -20,6 +20,15 @@ namespace ARBot.HAL.Devices.Camera
     /// se v intervalu <see cref="ReconnectPeriodMs"/> pokousi o opetovne pripojeni. Dokud
     /// kamera neni pripojena, <see cref="IsError"/> vraci true a smycka nezahlcuje CPU.
     /// </para>
+    /// <para><b>Diagnostika jde do <see cref="System.Diagnostics.Trace"/>, ne do <c>Debug</c>.</b>
+    /// <c>Debug.WriteLine</c> je <c>[Conditional("DEBUG")]</c>, takze v Release buildu - a prave
+    /// ten bezi na zarizeni - nezustane po poruche ZADNA stopa. Stalo se to 2. 9. 2026: kamery
+    /// se neohlasily a v panelu Debug output nebyl o nich ANI RADEK, takze se pricina hledala
+    /// hodinu merenim zvenci, misto aby ji driver rovnou napsal (byla to nesplnitelna kombinace
+    /// hloubky a barvy na USB 2.0). Tataz past uz jednou byla opravena u hlasky o zahozenem
+    /// merenii ve fuzi - viz <c>AsyncFusionEngine.Enqueue</c>. Hlaseni jsou jednorazova
+    /// (pripojeni, odpojeni) nebo throtlovana, takze proud nezaplavi.
+    /// Hlida to <c>DiagnostikaSenzoruTests</c>.</para>
     /// </summary>
     public sealed class T265TrackingCamera : SensorBase<IMUState>, IIMU
     {
@@ -138,7 +147,7 @@ namespace ARBot.HAL.Devices.Camera
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
+                Trace.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
             }
             return false;
         }
@@ -169,12 +178,12 @@ namespace ARBot.HAL.Devices.Camera
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
-                Debug.WriteLine($"{Name}: pipeline pripojena.");
+                Trace.WriteLine($"{Name}: pipeline pripojena.");
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
+                Trace.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
                 Teardown();
                 return false;
             }
@@ -197,7 +206,7 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"{Name}: Stop pipeline: {ex.Message}");
+                    Trace.WriteLine($"{Name}: Stop pipeline: {ex.Message}");
                 }
                 try
                 {
@@ -205,7 +214,7 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"{Name}: Dispose pipeline: {ex.Message}");
+                    Trace.WriteLine($"{Name}: Dispose pipeline: {ex.Message}");
                 }
                 pipeline = null;
             }
@@ -257,7 +266,7 @@ namespace ARBot.HAL.Devices.Camera
                 // (jinak by connected zustalo true, IsError by hlasil OK a reconnect by se nespustil).
                 if (!DevicePresent())
                 {
-                    Debug.WriteLine($"{Name}: kamera odpojena (timeout + zarizeni chybi).");
+                    Trace.WriteLine($"{Name}: kamera odpojena (timeout + zarizeni chybi).");
                     Teardown();
                 }
                 return null;
@@ -265,7 +274,7 @@ namespace ARBot.HAL.Devices.Camera
             catch (Exception ex)
             {
                 // Tvrdy vypadek za behu (odpojeni kamery) -> zbourat pipeline, priste se zkusi reconnect.
-                Debug.WriteLine($"{Name}: cteni snimku selhalo (odpojeno?): {ex.Message}");
+                Trace.WriteLine($"{Name}: cteni snimku selhalo (odpojeno?): {ex.Message}");
                 Teardown();
                 return null;
             }

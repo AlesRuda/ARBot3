@@ -39,6 +39,68 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-02
 
+- **Kamery se na Orange Pi neohlásily — příčina je fyzická (USB 2.0 místo 3.0), a cestou se našla
+  slepota v diagnostice.** Doména: [hardware.md](hardware.md),
+  [POSTUP.md](../OrangePi5Ultra/POSTUP.md).
+  - **Obě D435 se vyčetly jen na USB 2.0** (`speed=480`, `Usb Type Descriptor: 2.1`); 1. 9. byly
+    obě na 5000M na témže hubu a týchž portech. Hub sám je na USB3 sběrnici vyčtený na 5000M,
+    takže linka **deska↔hub je v pořádku** — nenaskočily SuperSpeed linky **hub↔kamera**.
+  - **Na USB 2.0 je konfigurace aplikace nesplnitelná** (změřeno jako matice na jedné kameře):
+    hloubka Z16 480×270@30 **+** barva 640×480@30 nejde ani jako RGB8, ani jako YUYV; jen barva
+    jede (23,8 fps), jen hloubka se otevře ale dodá 0 snímků. Robot potřebuje obojí, takže se
+    neohlásila ani jedna — **není to propustnost při dvou kamerách**, selže i jedna samotná.
+  - **Kernel si na SuperSpeed linku ani jednou nestěžoval** — žádné „Cannot enable. Maybe the USB
+    cable is bad?", žádné `-71`, žádný nadproud. Hub tam SuperSpeed zařízení **vůbec nedetekoval**.
+  - ✅ **Vyřešeno týž den: po odpojení a připojení kamer jedou obě na USB 3.0** (`speed=5000`,
+    v dmesg `new SuperSpeed USB device`, **nula** `-71` i „Cannot enable" — těch 83 „USB disconnect"
+    je jen samo přepojování). Změřeno hned potom **skutečným driverem**: obě kamery s konfigurací
+    aplikace usazené na **30/30 fps**, obě OK, nula zásekových restartů.
+  - ⚠️ **POZOR na příčinu — první vysvětlení bylo ŠPATNÉ.** Nabízelo se, že jde o *nedovřený
+    konektor* (SS kontakty v USB3-A zásuvce leží hlouběji než ty USB2, takže nedotlačená zástrčka
+    dá čistě fungující USB2 bez chyby v logu). **Autor to vyvrátil:** s konektory od předchozího
+    dne nemanipuloval, byly zasunuté nadoraz — přepnutí způsobilo teprve odpojení a znovupřipojení.
+    Skutečný jev je tedy **netrénovaná SuperSpeed linka při bootu**, která zůstane dole, dokud ji
+    nepřinutí hotplug. Mechanicky je zapojení v pořádku.
+  - **Otevřené a operačně důležité:** tohle se může **opakovat po každém restartu** — a pak jsou
+    kamery po bootu mrtvé, dokud k nim někdo fyzicky nepřijde, což je u robota v terénu
+    nepoužitelné. **Jak často to nastává, není změřeno** (žurnál historii bootů nedrží, jeden boot
+    dal 5 Gbps a jiný ne, takže je to nejspíš občasné).
+    - ⚠️ **Postřeh autora, který mění návrh měření:** teplý `reboot` nechá hub i kamery
+      **napájené**, takže USB3 PHY se inicializuje jinak než při **zapnutí ze studena**. Jev se
+      může vázat právě na zapnutí — pak série úspěšných teplých restartů **nedokazuje nic**.
+      Měřit obojím způsobem a držet zvlášť.
+    - Léčba, kdyby se potvrdila: porty hubu mají v sysfs `disable`, takže softwarová obdoba
+      přepojení jde **bez instalace čehokoli** (`uhubctl` není potřeba) — ale nejdřív ručně ověřit,
+      že se kamera vždycky vrátí, než se to pověsí na start systému.
+  - **Zavádějící mezistav, na který se dá naletět:** první chyba z librealsense byla
+    `failed to set power state` — a to kvůli USB **autosuspend** (`power/control=auto`, oba
+    senzory `suspended`). Po `power/control=on` zmizela a objevila se ta skutečná (nesplnitelná
+    kombinace formátů). Instalovaná realsense udev pravidla autosuspend **neřeší**. Na systému
+    Pi jsem nic nezměnil natrvalo (hodnota se vrátila na `auto`).
+- **Opravena slepota v diagnostice senzorů (`Debug` → `Trace`).** Ze snímku panelu *Debug output*
+  bylo vidět, že o nefunkčních kamerách tam **není ani řádek** — protože `D435Camera` hlásí své
+  chyby přes `Debug.WriteLine`, což je `[Conditional("DEBUG")]`, a na zařízení běží **Release**.
+  Kdyby driver hlásil přes `Trace`, byla by příčina známá za pár sekund místo hodiny měření zvenčí.
+  - Převedeno 31 hlášení: `D435Camera` a `T265TrackingCamera` v **obou** HAL (8 + 7 na každý)
+    a **obecná chybová cesta všech senzorů** v `SensorBase` (tam je to nejdražší — bez ní se
+    u nefunkčního senzoru nedozvíš vůbec nic). Throttling v `SensorBase` (první chyba a pak každá
+    64.) platí dál, takže proud nezaplaví.
+  - **Vývojářské dumpy zůstaly v `Debug`** — výpis intrinsik kamery (`Debug.WriteLine(name + …)`)
+    je ladicí pomůcka, ne diagnostika poruchy.
+  - **Nový strážný test `DiagnostikaSenzoruTests`** hlídá obě strany: že se v ovladačích
+    nevyskytuje `Debug.WriteLine($"{Name}…` (tedy hlášení o stavu senzoru v Debug) a že ty hlášky
+    v ovladačích kamer **vůbec jsou** — jinak by první test prošel triviálně a slepota byla zpátky.
+    Že chytá, ověřeno dočasnou regresí (spadl a pojmenoval soubor i řádek).
+  - **Zúžení testu, které si vynutil sám test:** `T265TrackingCameraNative.cs` nemá diagnostiku
+    vůbec (0 `WriteLine`) — je to zakomentovaná varianta, `ARBotHW` ji nevytváří, takže se
+    z hlídání vyjmula podle přesného jména, ne `StartsWith`.
+  - **Konvence zapsána do [CLAUDE.md](../CLAUDE.md)**, protože ta past kousla už dvakrát (poprvé
+    u hlášky o zahozeném měření ve fúzi, 20. 8. 2026).
+  - **Ověřeno, včetně zařízení:** build x64 i OrangePI zelený, testy **1089 zelených**. A hlavně
+    **na Pi z RELEASE buildu** — driver tam vypsal `pipeline pripojena.` u obou kamer. V Release
+    je `Debug.WriteLine` vykompilovaný pryč, takže je to přímý důkaz, že oprava funguje právě tam,
+    kde na ní záleží. (Ověřeno malým programem nad Release ARM knihovnami, ne celou aplikací.)
+
 - **O vývoji EKF nebylo vidět nic — a přitom data tekla celou dobu.** Na dotaz „jak by šlo
   pozorovat vývoj EKF" se při průzkumu ukázalo, že `RobotStateMsg.Covariance` (5×5 `P`) jde na
   Stream i do záznamu **od začátku**, ale v [TelemetryColumns.cs](../Src/ARBot/Telemetry/TelemetryColumns.cs)

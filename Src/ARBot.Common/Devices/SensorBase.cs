@@ -153,8 +153,15 @@ namespace ARBot.Common.Devices
                     // alokuje cely stack-trace string (zbytecny GC churn na vlakne senzoru). Logujeme
                     // jen prvni chybu a pak rIdce jen ex.Message; backoff roste exponencialne (mrtvy
                     // senzor pak polluje ~1x/s misto 50x/s).
+                    //
+                    // TRACE, ne Debug (2. 9. 2026): Debug.WriteLine je [Conditional("DEBUG")],
+                    // takze v Release buildu - a prave ten bezi na zarizeni - nezustane po
+                    // poruche senzoru ZADNA stopa. Tady je to obzvlast draze: tohle je
+                    // OBECNA chybova cesta VSECH senzoru, takze bez ni se u nefunkcniho
+                    // senzoru nedozvis vubec nic. Throttling vyse (prvni chyba a pak kazda
+                    // 64.) plati dal, takze proud nezaplavi.
                     if (errStreak == 0 || (errStreak & 63) == 0)
-                        Debug.WriteLine($"{Name}: {ex.Message}");
+                        Trace.WriteLine($"{Name}: {ex.Message}");
                     errStreak++;
                     int backoff = Math.Min(MaxErrorBackoffMs, IdleBackoffMs << Math.Min(6, errStreak));
                     System.Threading.Thread.Sleep(backoff);

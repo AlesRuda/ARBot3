@@ -400,6 +400,47 @@ za **jedním napájeným** hubem; co ji rozbije, je **řetěz dvou hubů za sebo
 > (zůstane vyčtené), tady vyhodil kameru ze sběrnice natrvalo a následný unbind/rebind hubu
 > dostal do nefunkčního stavu i druhou kameru. Z toho se dostane jen fyzickým přepojením.
 >
+> ⚠️ **Nové (2. 9. 2026): kamery mohou po bootu naskočit jen na USB 2.0 — a pak nejedou vůbec.**
+> Po restartu se obě D435 vyčetly jako `new high-speed USB device` (`speed=480`,
+> `Usb Type Descriptor: 2.1`), přestože předchozí den jely na 5 Gbps a **s kabely se nemanipulovalo**.
+> Hub sám byl na USB3 sběrnici vyčtený na 5000M, takže linka deska↔hub byla v pořádku — nenaskočily
+> SuperSpeed linky **hub↔kamera**. Léčba: **fyzické odpojení a připojení kamer** (`new SuperSpeed
+> USB device`, `speed=5000`), pak obě streamují 30/30 fps.
+>
+> **Proč to není vidět jako chyba:** kernel si ani jednou nestěžoval — žádné „Cannot enable. Maybe
+> the USB cable is bad?", žádné `-71`, žádný nadproud. Hub SuperSpeed zařízení **vůbec nedetekoval**.
+> Je to tedy jiná signatura než vada portu z 1. 9. (tam `-71`).
+>
+> **Proč to bolí až takhle:** na USB 2.0 **nejde hloubka a barva zároveň**. Změřeno na jedné kameře:
+> Z16 480×270@30 **+** barva 640×480@30 se nepodaří vyřešit ani jako RGB8, ani jako YUYV; jen barva
+> jede (23,8 fps), jen hloubka se otevře ale dodá 0 snímků. Aplikace proto neohlásí **ani jednu**
+> kameru — vypadá to jako porucha obou, ne jako rychlost linky.
+>
+> **Pozor na dvě mylná vysvětlení, na která se dá naletět:**
+> 1. *„Nedovřený konektor"* — SS kontakty leží v zásuvce hlouběji, takže by to obraz vysvětlovalo.
+>    **Vyvráceno:** konektory byly zasunuté nadoraz a nikdo s nimi nehýbal.
+> 2. *„Nestačí propustnost na dvě kamery"* — **vyvráceno:** selže i jedna kamera samotná.
+>
+> **Ještě jedna zavádějící hláška:** librealsense vrátí `failed to set power state`, když je na
+> zařízení zapnutý USB **autosuspend** (`power/control=auto`, senzor `suspended`). Po
+> `echo on > .../power/control` zmizí a objeví se ta skutečná chyba (nesplnitelná kombinace
+> formátů). Instalovaná realsense udev pravidla autosuspend **neřeší**.
+>
+> **Otevřené:** jak často to nastává, není změřeno (jeden boot dal 5 Gbps, jiný ne; žurnál
+> historii bootů nedrží).
+>
+> ⚠️ **Při měření rozlišuj TEPLÝ RESTART od STUDENÉHO STARTU** (postřeh autora, 2. 9. 2026).
+> Při `reboot` zůstane hub i kamery **napájené** a USB3 PHY se inicializuje jinak než při zapnutí
+> ze studena, kdy se rozbíhá celý napájecí a resetovací sled. Je dost možné, že se jev váže právě
+> na **zapnutí**, ne na reboot — takže série teplých restartů, které projdou, **nedokazuje nic**.
+> Měřit se to musí obojím způsobem a výsledky držet zvlášť.
+>
+> Kdyby se to potvrdilo, léčba je **softwarová obdoba přepojení**: hub hlásí „Per-port power
+> switching" a jeho porty mají v sysfs `disable`
+> (`/sys/bus/usb/devices/1-1:1.0/1-1-port2/disable`), takže port jde odpojit a zapnout **bez
+> instalace čehokoli**, ještě než se spustí aplikace. Vyzkoušet to ale nejdřív ručně — než se to
+> pověsí na start, musí být jisté, že se kamera vždycky vrátí.
+
 > **Slepé uličky, do kterých nechoď znovu:** není to napájení (kernel nehlásil nadproud
 > a smyčka běžela jen za běhu librealsense) ani `uvcvideo` (odpojení jeho rozhraní,
 > a dokonce i celého zařízení od `usb` ovladače, dalo jen 1 úspěšný běh z 5 — náhoda,
