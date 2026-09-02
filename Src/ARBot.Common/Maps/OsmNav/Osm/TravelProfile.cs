@@ -27,12 +27,39 @@ public sealed class TravelProfile
     public bool IsOneway(OsmWayRaw way)
     {
         if (!RespectOneway) return false;
-        string v = way.Tags.GetValueOrDefault("oneway", "no");
-        return v is "yes" or "true" or "1";
+        return IsYes(way.Tags.GetValueOrDefault("oneway", "no"));
     }
 
-    public bool BlocksNode(OsmNodeRaw node) =>
-        node.Tags.TryGetValue("barrier", out string? b) && BlockingBarriers.Contains(b);
+    /// <summary>
+    /// Je uzel neprůjezdný? Blokuje trojí: <b>nepřekonatelná bariéra</b>
+    /// (<see cref="BlockingBarriers"/>), <b>zamčení</b> (<c>locked=yes</c>) a <b>zákaz přístupu</b>
+    /// (<see cref="BlockedAccess"/>, typicky <c>access=private|no</c>).
+    ///
+    /// <para><b>Opraveno 2. 9. 2026.</b> Dřív se testovala jen bariéra, takže <b>zamčená nebo
+    /// soukromá branka byla průjezdná</b> — <see cref="BlockedAccess"/> se uplatňoval jen na CESTY
+    /// v <see cref="AcceptsWay"/>. V datech to není teoretické: <c>haje.osm</c> 1×,
+    /// <c>Piestany.osm</c> 2×, <c>Bratislava.osm</c> 10× brána s <c>access=private</c>.</para>
+    ///
+    /// <para><b>Posuzují se JEN uzly s tagem <c>barrier</c>.</b> Přístup na cestě už řeší
+    /// <see cref="AcceptsWay"/> a blokovat každý uzel s <c>access=</c> by rozpojilo síť tam, kde
+    /// žádná překážka není.</para>
+    ///
+    /// <para><c>locked=yes</c> podle OSM znamená „obvykle zamčeno, bez klíče se neprojde" — robot
+    /// klíč nemá. Naopak <b>brána bez omezení průjezd NEBLOKUJE</b>: na křížení plotu s cestou je
+    /// <c>gate</c> právě tou cestou skrz. Viz doc/osm-nav.md.</para>
+    /// </summary>
+    public bool BlocksNode(OsmNodeRaw node)
+    {
+        if (!node.Tags.TryGetValue("barrier", out string? b))
+            return false;
+        if (BlockingBarriers.Contains(b))
+            return true;
+        if (node.Tags.TryGetValue("locked", out string? locked) && IsYes(locked))
+            return true;
+        return node.Tags.TryGetValue("access", out string? acc) && BlockedAccess.Contains(acc);
+    }
+
+    private static bool IsYes(string v) => v is "yes" or "true" or "1";
 
     public double EdgeCost(OsmWayRaw way, double lengthMeters) => CostFunction(way, lengthMeters);
 

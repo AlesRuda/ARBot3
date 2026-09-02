@@ -37,6 +37,38 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-02
+
+- **Zamčená a soukromá branka byla průjezdná — opraveno.** Vada nalezená mimochodem při včerejším
+  rozboru bariér: `TravelProfile.BlocksNode` testoval **jen** tag `barrier`, kdežto `BlockedAccess`
+  se uplatňoval jen na **cesty** v `AcceptsWay`. Uzel `barrier=gate` + `access=private` tedy
+  plánovač bral jako průchozí. Detail: [osm-nav.md](osm-nav.md).
+  - **Není to teoretické:** `haje.osm` 1×, `Piestany.osm` 2×, `Bratislava.osm` 10× brána
+    s `access=private`. Po opravě přibylo blokovaných uzlů **ležících na průjezdné cestě**:
+    haje 1, Piestany 1, modrany 1, Bratislava 4, HajeRovne 0.
+  - **`BlocksNode` blokuje nově trojí:** nepřekonatelná bariéra (beze změny), `locked=yes`
+    (podle OSM „obvykle zamčeno, bez klíče se neprojde" — robot klíč nemá) a `BlockedAccess`,
+    tedy **týž seznam a táž politika jako u cest**. `access=customers`/`destination` neblokují,
+    stejně jako u cest.
+  - **Dvě omezení záměrně:** posuzují se jen uzly **s tagem `barrier`** (jinak by se síť rozpojila
+    tam, kde překážka není), a **brána bez omezení dál neblokuje** — na křížení plotu s cestou je
+    `gate` právě tou cestou skrz.
+  - **Sémantika `locked` ověřena na wiki OSM**, ne odhadnuta. Platí pro **všechny** profily, ne jen
+    pro robota — zamčená brána není průjezdná pro nikoho.
+  - **Ověřeno:** 5 nových testů, **celá sada zelená (1070)**, build x64 i OrangePI čistý.
+    Mimochodem sjednoceno rozpoznávání „ano" (`yes`/`true`/`1`) do `IsYes`, které dosud existovalo
+    jen v `IsOneway`.
+- **Zkušební profily s úmyslně vadnými hodnotami dělaly sadu červenou.** `ProfilyVRepuTests`
+  skenuje `config/*.cfg` **na disku**, takže viděl i necommitnutý `config/profil.cfg` s `start=asd`
+  (pozůstatek ladění validace z 31. 8.) a hlásil ho jako vadu profilu. Ověřeno odložením změn
+  (`git stash`), že to **nesouviselo** s opravou bariér výš. Autor ty profily smazal, v `config/`
+  zůstaly jen verzované `pi-freerun.cfg` a `simulace-freerun.cfg`.
+  - **Latentně to zůstává:** stačí jeden zapomenutý pokusný profil vedle verzovaných a sada je
+    červená, aniž by v repu bylo cokoli špatně. Kdyby to začalo obtěžovat, řešení je omezit test na
+    **verzované** soubory (`git ls-files`) nebo pokusné profily pojmenovat vzorem, který
+    `.gitignore` i test přeskočí. Teď se s tím nic nedělá — na skutečnou vadu v `config/` ten test
+    upozorní správně a to je jeho účel.
+
 ## 2026-09-01
 
 - **Profil pro FreeRun na Orange Pi — a cestou se ukázalo, že profily na zařízení vůbec

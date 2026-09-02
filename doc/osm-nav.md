@@ -88,6 +88,41 @@ protáhne, a případně `gate` do seznamu doplnit.
 
 `barrier=entrance` je **otvor**, ne překážka — neblokuje se nikdy.
 
+#### `access` a `locked` na uzlu (opraveno 2. 9. 2026)
+
+Věta výš — „zamčené popisuje `access`/`locked`" — **do 2. 9. 2026 v kódu neplatila**.
+`BlocksNode` testoval **jen** tag `barrier`, kdežto `BlockedAccess` se uplatňoval jen na **cesty**
+v `AcceptsWay`. **Zamčená nebo soukromá branka tedy byla průjezdná.**
+
+Není to teoretické: `haje.osm` 1×, `Piestany.osm` 2×, `Bratislava.osm` 10× brána
+s `access=private` (Bratislava navíc 2× `customers`). Na průjezdné cestě jich leží
+
+| mapa | uzlů, které se nově blokují |
+|---|---|
+| `haje.osm` | 1 (`gate` + `access=private`) |
+| `Piestany.osm` | 1 |
+| `modrany.osm` | 1 |
+| `Bratislava.osm` | 4 (3× `gate`, 1× `door`) |
+| `HajeRovne.osm` | 0 |
+
+`BlocksNode` teď blokuje **trojí**:
+
+1. **nepřekonatelná bariéra** — `BlockingBarriers` (beze změny),
+2. **zamčení** — `locked=yes`; podle OSM to znamená „obvykle zamčeno, bez klíče se neprojde",
+   a robot klíč nemá,
+3. **zákaz přístupu** — `BlockedAccess` (`access=private|no`), tedy **týž seznam a táž politika**,
+   jakou už používají cesty. `access=customers` a `destination` proto neblokují — stejně jako u cest.
+
+Dvě omezení jsou záměrná:
+
+- **Posuzují se jen uzly s tagem `barrier`.** Přístup na cestě už řeší `AcceptsWay`; blokovat každý
+  uzel s `access=` by rozpojilo síť tam, kde žádná překážka není.
+- **Brána bez omezení dál neblokuje.** Na křížení plotu s cestou je `gate` právě tou cestou skrz —
+  blokovat ji by zapečetilo vstupy do každého oploceného areálu.
+
+Neřeší se **módově specifické výjimky** (`foot=yes` na uzlu se `access=private`, časová omezení).
+V našich mapách se nevyskytují a doplnit je jde, až budou.
+
 > **Dopad mimo navigaci:** přibyly hrany, takže se změnilo i to, proti čemu koreluje occupancy grid
 > (`RoadScene.IsRoad`). Čísla naměřená nad těmito mapami v
 > [map-correlation-localization.md](map-correlation-localization.md) se můžou posunout.
