@@ -39,6 +39,34 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-02
 
+- **O vývoji EKF nebylo vidět nic — a přitom data tekla celou dobu.** Na dotaz „jak by šlo
+  pozorovat vývoj EKF" se při průzkumu ukázalo, že `RobotStateMsg.Covariance` (5×5 `P`) jde na
+  Stream i do záznamu **od začátku**, ale v [TelemetryColumns.cs](../Src/ARBot/Telemetry/TelemetryColumns.cs)
+  z ní nebyl **ani jeden sloupec**. Nebyla to tedy chybějící data, ale nezobrazená.
+  Doména: [ekf-fusion.md](ekf-fusion.md) → „Jak filtr pozorovat", [telemetry-view.md](telemetry-view.md).
+  - **Šest nových sloupců** do tabulky i grafu: `σ polohy`, `σx`, `σy`, `σ kurzu`, `σv`, `σω`.
+    Protože se neposílá nic navíc, **funguje to zpětně nad staršími záznamy**.
+  - **`σ polohy` = √(Pxx+Pyy)** je jedno číslo do grafu na otázku „roste mi nejistota?"; kterým
+    směrem, řeknou `σx`/`σy`. **Není to poloosa elipsy** — ta by brala v úvahu i korelaci obou os
+    a patří do panelu, ne do tabulky.
+  - **Výpočet je v `ARBot.Common/Fusion/StateSigma.cs`, ne v lambdě sloupce** (6 testů). Dva důvody:
+    je to doménová matematika nad kovariancí, ne formátování; a `TelemetryColumns` žije v projektu
+    `ARBot`, na který `ARBot.Common.Tests` **nevidí**, takže v lambdě by to bylo neotestovatelné.
+  - **Chybějící kovariance = prázdný sloupec, ne nula** — nula by lhala „filtr si je jistý".
+    `StateSigma` vrací `null` i při malé matici a při **záporném rozptylu** (rozpadlá kovariance),
+    protože NaN by se v grafu tvářil jako platná hodnota.
+  - **Přepínač Azimut se na σ neuplatňuje** a je to v kódu i poznámkou u `Mark(...)`: σ je velikost
+    odchylky, ne orientace.
+  - **Ověřeno strojově i to, co by jinak musel proklikat člověk:** jednorázový headless test
+    (mimo repozitář) postavil `RobotStateMsg` se známým `P` a přečetl hodnoty všech šesti sloupců
+    včetně převodu na stupně a včetně prázdna při `Covariance = null`. Testy 1076/1076, build x64
+    i OrangePI čistý. **Panel s tím nikdo neproklikal** a **na zařízení to neběželo.**
+- **Zjištění k dalším krokům (od autora, zapsáno místo domněnky):** `EKFStepMsg` **není** správná
+  cesta k vnitřku filtru. Engine je **asynchronní s okny historie a zpětnými opravami**, takže
+  „jeden krok" v něm nemá odpovídající věc; ta zpráva popisuje synchronní krok klasického EKF
+  (pozůstatek z ARBot2, nikdo ji neposílá). Případné zveřejnění vnitřku je tedy úkol na **nový tvar
+  zprávy**, nejspíš „aktuální koncový stav". Objem není argument proti: měření chodí ~100 Hz (IMU),
+  ale proti obrázkům je to šum.
 - **Zamčená a soukromá branka byla průjezdná — opraveno.** Vada nalezená mimochodem při včerejším
   rozboru bariér: `TravelProfile.BlocksNode` testoval **jen** tag `barrier`, kdežto `BlockedAccess`
   se uplatňoval jen na **cesty** v `AcceptsWay`. Uzel `barrier=gate` + `access=private` tedy

@@ -29,6 +29,36 @@ Stav v **ENU** (X východ, Y sever), orientace **matematicky** (0 = východ, +CC
 Zdroj R pro orientaci: `IMUState.OrientationUncertainty` z VN100 (viz
 [imu-and-frames.md](imu-and-frames.md)). Detaily rámců: tamtéž.
 
+## Jak filtr pozorovat
+
+Co je o EKF vidět a kde:
+
+| Co | Kde | Jak často |
+|---|---|---|
+| fúzovaná póza X, Y, θ, v, ω | `RobotStateMsg` → telemetrie, World pohled | každý řídicí takt |
+| **nejistota σ polohy / x / y / kurzu / v / ω** | `RobotStateMsg.Covariance` → telemetrie a graf, viz [telemetry-view.md](telemetry-view.md) | každý řídicí takt |
+| NIS a verdikt jednotlivého měření | `MeasurementDiagMsg` (zapíná `measdiag=`) → telemetrie | per měření |
+| korekce z mapy včetně pózy, proti které se korelovalo | `MapCorrelationMsg` (verze 5) | per cyklus korelátoru |
+| rozbory po jízdě | `ARBot.Analyze heading` / `sigma` / `corrections` | offline |
+
+**Nejistota je pozorovatelná od 2. 9. 2026.** Kovariance ve `RobotStateMsg` tekla na Stream i do
+záznamu už dávno, ale **nikdo ji nezobrazoval**, takže o vývoji filtru nebylo vidět nic. Převod na
+σ dělá [`Fusion/StateSigma.cs`](../Src/ARBot.Common/Fusion/StateSigma.cs) (odmocniny diagonály `P`
+podle rozvržení `EKFModel`: `IX=0, IY=1, ITh=2, IV=3, IW=4`); vrací `double?` a při chybějící nebo
+rozpadlé kovarianci `null`, protože nula by lhala („filtr si je jistý"). Protože se nic neposílá
+navíc, **σ jde pustit i na starší záznamy**.
+
+`RobotStateMsg` je **vzorek koncového stavu** na řídicím taktu, ne krok filtru. To je dané tím, že
+engine je **asynchronní s okny historie a zpětnými opravami** — „jeden krok" v něm nemá odpovídající
+věc, a měření chodí různě rychle (IMU ~100 Hz).
+
+> **Zpráva `EKFStepMsg` existuje, ale nikdo ji neposílá.** Nese celý krok klasického EKF
+> (`P` před/po, `K`, `M`, `C`, `Q`, `R`, innovace) a `EKFModel3.ToLogMessage()` ji umí sestavit —
+> je to ale **pozůstatek z ARBot2**, registrovaný v katalogu kvůli čitelnosti starých záznamů,
+> stejně jako zpráva `Module`. Na dnešní asynchronní engine její tvar **nesedí**: popisuje jeden
+> synchronní krok. Kdyby se vnitřek filtru měl zveřejňovat (zisk `K` odpovídá na „komu filtr
+> věřil"), je to úkol na **nový tvar zprávy**, ne na oživení téhle.
+
 ## Stav / poznámky
 
 - Testy: `ARBot.Common.Tests/Fusion` (predikce, jakobián, Q, konvergence, fúze v/ω,

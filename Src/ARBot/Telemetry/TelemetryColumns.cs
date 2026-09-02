@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Configuration;
 using ARBot.Common.Devices;
+using ARBot.Common.Fusion;
 using ARBot.Common.Localization;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Navigation;
@@ -45,6 +46,32 @@ namespace ARBot.Telemetry
             Num<RobotStateMsg>("omega [°/s]", m => Conversions.Rad2Deg(m.Omega),
                 "Skutečná úhlová rychlost otáčení z fúze; kladně = doleva (proti hodinovým "
                 + "ručičkám); s přepínačem Azimut je kladně doprava.", "F1"),
+
+            // --- nejistota fuze (odmocniny diagonaly kovariance P) ---
+            // Kovariance tekla v RobotStateMsg na Stream i do zaznamu uz davno, ale nikdo ji
+            // NEZOBRAZOVAL - o vyvoji nejistoty filtru tedy nebylo videt nic. Vypocet je
+            // v ARBot.Common/Fusion/StateSigma.cs (doménova matematika + testovatelnost).
+            // Prazdny sloupec = zprava kovarianci nenese; NENI to nula. Viz doc/ekf-fusion.md.
+            //
+            // POZOR: prepinac Azimut se na sigmu NEUPLATNUJE - je to velikost, ne orientace.
+            Num<RobotStateMsg>("σ polohy [m]", m => StateSigma.Position(m.Covariance),
+                "Souhrnná nejistota polohy z kovariance EKF: √(Pxx+Pyy). JEDNO číslo na otázku "
+                + "„roste mi nejistota?“ — kterým směrem, řeknou σx a σy.\n\n"
+                + "Není to poloosa elipsy (ta by brala v úvahu i korelaci obou os). Prázdno "
+                + "znamená, že zpráva kovarianci nenese — ne že je nejistota nulová.", "F3"),
+            Num<RobotStateMsg>("σx [m]", m => StateSigma.X(m.Covariance),
+                "Nejistota polohy v ose X (world ENU, východ) z kovariance EKF.", "F3"),
+            Num<RobotStateMsg>("σy [m]", m => StateSigma.Y(m.Covariance),
+                "Nejistota polohy v ose Y (world ENU, sever) z kovariance EKF.", "F3"),
+            Num<RobotStateMsg>("σ kurzu [°]", m => Deg(StateSigma.Theta(m.Covariance)),
+                "Nejistota kurzu z kovariance EKF. Roste, když robot stojí (kurz není "
+                + "observabilní z GPS) a klesá s jízdou; trvale velká hodnota při jízdě znamená, "
+                + "že se absolutní reference kurzu nechytá.\n\n"
+                + "Přepínač Azimut se tady NEUPLATŇUJE — je to velikost odchylky, ne orientace.", "F2"),
+            Num<RobotStateMsg>("σv [m/s]", m => StateSigma.V(m.Covariance),
+                "Nejistota dopředné rychlosti z kovariance EKF.", "F3"),
+            Num<RobotStateMsg>("σω [°/s]", m => Deg(StateSigma.Omega(m.Covariance)),
+                "Nejistota úhlové rychlosti z kovariance EKF. Přepínač Azimut se neuplatňuje.", "F2"),
 
             // --- skutecna poza (ground truth, jen virtualni HW) ---
             // Emituje se na temze tiku a se stejnym casem jako RobotStateMsg, takze rozdil proti
@@ -327,6 +354,8 @@ namespace ARBot.Telemetry
             Mark(list, AngleKind.Rate, "omega [°/s]", "cmd omega [°/s]", "gyro z [°/s]",
                  "odo omega [°/s]");
             // POZN.: IMU pitch/roll jsou naklony, ne kurzy - konvence se jich netyka.
+            // POZN.: sloupce sigma (σ kurzu, σω) se tu ZAMERNE neoznacuji - sigma je VELIKOST
+            // odchylky, ne orientace, takze prevod do azimutu by na ni nedaval smysl.
 
             return list;
         }

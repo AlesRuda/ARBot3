@@ -115,6 +115,25 @@ pohled **nahlásí**, aby se nezdálo, že záznam končí dřív. (Kdyby pamě�
 Sloupce se definují **explicitně v UI vrstvě** — jednotky, formát a „co má smysl kreslit" jsou
 prezentační věc, takže se kvůli nim nesahá do `ARBot.Common` a doména nedostane starosti UI.
 
+### Nejistota fúze (od 2. 9. 2026)
+
+Šest sloupců z **kovariance EKF**: `σ polohy`, `σx`, `σy`, `σ kurzu`, `σv`, `σω`. Do té doby
+nebylo o vývoji filtru vidět **nic** — `RobotStateMsg.Covariance` tekla na Stream i do záznamu už
+dávno, ale nikdo ji nezobrazoval. Proto to **funguje i zpětně nad staršími záznamy**: data v nich
+jsou.
+
+- **`σ polohy` = √(Pxx+Pyy)** je jedno číslo na otázku „roste mi nejistota?"; kterým směrem, řeknou
+  `σx` a `σy`. **Není to poloosa elipsy** — ta by brala v úvahu i korelaci obou os a patří do
+  panelu, ne do tabulky.
+- **Výpočet je v `ARBot.Common/Fusion/StateSigma.cs`, ne v lambdě sloupce.** Je to doménová
+  matematika nad kovariancí, ne formátování; a hlavně: `TelemetryColumns` žije v projektu `ARBot`,
+  na který `ARBot.Common.Tests` nevidí, takže v lambdě by to bylo neotestovatelné.
+- **Chybějící kovariance = prázdný sloupec, ne nula.** Nula by lhala („filtr si je jistý").
+  `StateSigma` vrací `null` i při příliš malé matici a při záporném rozptylu (numericky rozpadlá
+  kovariance) — NaN by se v grafu tvářil jako platná hodnota.
+- ⚠️ **Přepínač Azimut se na σ neuplatňuje** (`AngleKind.None`) — σ je velikost odchylky, ne
+  orientace. Sloupce `theta` a `omega` na azimut reagují, jejich σ ne.
+
 ```csharp
 sealed class ColumnSpec
 {
