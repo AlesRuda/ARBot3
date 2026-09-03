@@ -139,7 +139,7 @@ hledání, kompenzace pohybu) a stála nejvíc měření — viz
 
 | parametr | význam | výchozí (návrh) |
 |---|---|---|
-| `LookaheadM` | jak daleko před robota se klade mrkev | `3,0` m — **jediná skutečná ladicí konstanta**; z příkazové řádky `freerunlook=` |
+| `LookaheadM` | jak daleko před robota se klade mrkev | `1,5` m (do 3. 9. 2026 `3,0`; zkráceno na polovinu na pokyn autora, mj. kvůli krátkým úsekům jako `OSM/SyntetickyRovny2m.osm`) — **jediná skutečná ladicí konstanta**; z příkazové řádky `freerunlook=`. Měření níže v tomto dokumentu jsou ještě s 3,0 m |
 | `RightOffsetFraction` | podíl šířky od osy vpravo | `0,25` (= `Width/4`); `Validate()` odmítne ≥ 0,5, protože to už je na hranici koridoru |
 
 > **Strop rychlosti mise tu není a nebyl ani dřív, i když to tak vypadalo.** Do 1. 9. 2026 měl

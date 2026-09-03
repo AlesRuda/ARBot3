@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **56 parametrů**
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **57 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -48,7 +48,7 @@ překlep v klíči.
 
 | Co | Proč ne |
 |---|---|
-| `Profile` a kalibrace robota | Jiná třída nastavení (mění se zřídka, patří k železu). Navíc má **odvozená statická pole** (`WheelPerimeter` z `WheelRadius`, `LeftCameraTransform` z `CameraYaw`) — načtení hodnot po statické inicializaci by je nechalo staré. Past, kterou tenhle návrh nemusí otevírat. **Jedna výjimka od 1. 9. 2026:** `maxspeed=` nastavuje `Profile.MaxAllowedSpeed` — jde to bezpečně, protože z toho pole **nic nederivuje** (viz [Strop rychlosti](#strop-rychlosti-maxspeed)). Zbytek `Profile` mimo registr zůstává. |
+| `Profile` a kalibrace robota | Jiná třída nastavení (mění se zřídka, patří k železu). Navíc má **odvozená statická pole** (`WheelPerimeter` z `WheelRadius`, `LeftCameraTransform` z `CameraYaw`) — načtení hodnot po statické inicializaci by je nechalo staré. Past, kterou tenhle návrh nemusí otevírat. **Dvě výjimky:** `maxspeed=` (1. 9. 2026) nastavuje `Profile.MaxAllowedSpeed` a `safedist=` (3. 9. 2026) `Profile.SafeDist` — jde to bezpečně, protože z těch polí **nic nederivuje** (viz [Strop rychlosti](#strop-rychlosti-maxspeed) a [Bezpečný odstup](#bezpečný-odstup-safedist)). Zbytek `Profile` mimo registr zůstává. |
 | Živé přepínání za běhu | Vyloučené zadáním. Editor ukládá hodnoty **pro příští start**. |
 | Skládání profilů (`include=`) | YAGNI — přepis z příkazové řádky zatím stačí. |
 | Strukturovaný snímek konfigurace do záznamu | `GetParam` už dnes dělá `Debug.WriteLine("klíč=hodnota")`, což jde do záznamu jako [`Info`](../Src/ARBot.Common/Logs/Info.cs). Je to jen text a jen pro klíče, které se skutečně přečetly, ale stopa tam je — zisk ze strukturované zprávy je proto menší, než se na první pohled zdá. |
@@ -287,6 +287,30 @@ kola a otáček motoru, ne z něj). Proto jde zpřístupnit tenhle jeden údaj, 
 Nekladnou hodnotu odmítne **registr** už při načtení profilu (`cekam cislo vetsi nez 0`). Hodnota
 nad `Profile.MaxTheoreticalSpeed` se **ořízne s hláškou** — záměr „jeď naplno" je jednoznačný
 a odmítnout kvůli tomu start robota v terénu by bylo horší než ho zpomalit.
+
+## Bezpečný odstup (`safedist=`)
+
+`safedist=` [m] se při startu přenese do `Profile.SafeDist`, odkud si ho při vzniku bere
+`LocalPlannerConfig.SafeDist` — **tvrdý** minimální odstup od překážek lokálního plánovače (blíže je
+neprůjezdno) a zároveň dolní mez rychlostní obálky `v_clear`. Bez zadání platí hodnota z kódu
+(dnes 0,7 m). Přidáno 3. 9. 2026, když se odstup ladil při rozboru mrkve v nesjízdné oblasti a měnil
+se přepisováním kódu.
+
+Mechanismus je **stejný jako u `maxspeed=`** a platí i tytéž důvody: hodnota se čte při vzniku
+objektu, proto se nastavuje v `Program.Main` před složením runtime; z `SafeDist` nic staticky
+nederivuje, takže se past s odvozenými poli neotvírá.
+
+**Vazba na `PrefDist`.** `LocalPlannerConfig.Validate()` vyžaduje `PrefDist > SafeDist` (mezi nimi se
+lineárně snižuje rychlost). Kdyby `safedist=` skončil na `PrefDist` (0,8 m) nebo nad ním, plánovač by
+při vzniku vyhodil výjimku a runtime by se nesložil. Proto `Program` v takovém případě **posune
+`PrefDist` nad nový odstup se zachovaným rozestupem** (dnes 0,1 m) a zaloguje to do `Trace`. Je to
+druhé pole `Profile`, kterého se parametr dotkne, a děje se to jen v tomto případě.
+
+Nekladnou hodnotu odmítne **registr** už při načtení profilu (`cekam cislo vetsi nez 0`).
+
+> ⚠️ Odstup nezaručí, že robot k překážce nedojede: úniková zóna kolem aktuální buňky
+> (`EscapeRadius`) odstup slevuje a posouvá se s robotem, takže k okraji cesty se dá „doplížit"
+> po buňce s libovolně velkým `safedist` — viz [devlog.md](devlog.md), 3. 9. 2026.
 
 ## Bezobslužný start (`autorun=`)
 

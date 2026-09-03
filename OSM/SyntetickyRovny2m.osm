@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="ARBot3 - synteticka testovaci mapa (kratky rovny usek 2 x 1,5 m)">
+
+  <!--
+    SYNTETICKY KRATKY ROVNY USEK - testovaci mapa, nejde o realne misto.
+
+    Zadani (3. 9. 2026): JEDEN rovny usek, 2,0 m dlouhy, KONSTANTNI sirka 1,5 m,
+    vedouci na vychod. Zadna krizovatka, zadny slepy konec, zadna zmena sirky.
+    Je to zmensena sestra OSM/SyntetickyRovny.osm (160 m x 2 m) - stejny pocatek,
+    stejna osa y = 0, stejny zpusob zadani sirky; lisi se jen rozmery.
+
+    K CEMU JE: rozmery odpovidaji malemu testovacimu useku, tedy tomu, co se da
+    postavit a premerit "na stole" (2 m rovne cesty, 1,5 m siroke). Robot na ni
+    prakticky NEJEDE - viz upozorneni nize - je to kulisa pro staticka mereni
+    (koridor, grid sjizdnosti, render virtualni kamery) v mistech, kde je
+    cesta uzsi nez dosavadni 2 m a jeji konec je hned v dohledu kamery.
+
+    POZOR: ROBOT STARTUJE VE STREDU, TEDY NA x = 1,0 m
+    ==================================================
+    ARBotRuntime.BuildOriginFromMap zaklada pocatek lokalni ENU roviny ve STREDU
+    obalky uzlu a virtualni HW postavi robota do pocatku. Na teto mape tedy robot
+    stoji na x = 1 m a pred sebou ma JEDEN metr cesty; za jejim koncem (x = 2 m) uz
+    je trava. Pro jizdu tato mapa neni - na N sekund jizdy pri rychlosti v je
+    potreba cesta dlouha 2*(N*v + 10 m), viz hlavicka SyntetickyRovny.osm.
+
+    JAK SE TU POCITA SIRKA (ARBot.Common/Maps/OsmNav/Osm/GraphBuilder.cs)
+    ====================================================================
+    Sirka je vlastnosti UZLU (maximum ze sirek cest, ktere jim vedou; tag 'width'
+    primo na uzlu ma prednost) a mezi uzly se polosirka linearne interpoluje
+    (Maps/OsmNav/Graph/RoadScene.cs). Proto je sirka 1.5 zadana EXPLICITNE na
+    kazdem uzlu - cesta je pak presne konstantni bez ohledu na vychozi sirku,
+    ktera se lisi podle zpusobu nacteni (2,0 m ve World view vs. 3,0 m u map=,
+    resp. roadwidth=).
+
+    Uzly jsou po 0,5 m schvalne, ne jen dva krajni: aby stred obalky padl presne
+    na uzel (x = 1,0) a aby se dala overit interpolace sirky i mezi uzly.
+
+    GEOMETRIE v lokalnich metrech (x = vychod+, y = sever+); pocatek TETO TABULKY
+    je uzel 1 na lat=50.029 lon=14.52 - tentyz pocatek jako SyntetickyRovny.osm
+    a SyntetickyKoridor.osm. Souradnice jsou spocitane inverzi GeoReference.ToLLA
+    (WGS84, ECEF -> ENU) a zapsane na 9 desetinnych mist; zpetny prevod sedi pod
+    0,05 mm. Hlida to test SyntetickeMapyTests (parametrizovany pro obe rovne mapy).
+
+      uzel    x [m]    y [m]   sirka [m]   poznamka
+      1          0.0      0.0      1.5     zapadni konec
+      2          0.5      0.0      1.5
+      3          1.0      0.0      1.5     STRED obalky = kde robot startuje
+      4          1.5      0.0      1.5
+      5          2.0      0.0      1.5     vychodni konec (cil)
+
+    SPUSTENI (virtualni HW, hranova lokalizace zapnuta; cil je uzel 5):
+
+      ARBot.exe virtualhw=true corridor=true map=OSM/SyntetickyRovny2m.osm goal=50.029,14.520027912
+
+    Rozbor koridoru nad zaznamem proti pravde (osa y = 0, sirka 1,5 m):
+
+      ARBot.Analyze corridorfit <zaznam> s volbami truewidth=1.5 a axisy=0
+      (obe se pisou s dvojitou pomlckou, ktera v XML komentari byt nesmi)
+
+    Cesta je highway=footway, aby ji prijal chodecky profil
+    (TravelProfile.Pedestrian), ktery aplikace pouziva pri obou zpusobech nacteni.
+  -->
+
+  <bounds minlat="50.02899999" minlon="14.52000000" maxlat="50.02900001" maxlon="14.52002792"/>
+
+  <node id="1" visible="true" version="1" lat="50.029000000" lon="14.520000000">
+    <tag k="width" v="1.5"/>   <!-- x=0.0 m, zapadni konec -->
+  </node>
+  <node id="2" visible="true" version="1" lat="50.029000000" lon="14.520006978">
+    <tag k="width" v="1.5"/>   <!-- x=0.5 m -->
+  </node>
+  <node id="3" visible="true" version="1" lat="50.029000000" lon="14.520013956">
+    <tag k="width" v="1.5"/>   <!-- x=1.0 m, STRED obalky = kde robot startuje -->
+  </node>
+  <node id="4" visible="true" version="1" lat="50.029000000" lon="14.520020934">
+    <tag k="width" v="1.5"/>   <!-- x=1.5 m -->
+  </node>
+  <node id="5" visible="true" version="1" lat="50.029000000" lon="14.520027912">
+    <tag k="width" v="1.5"/>   <!-- x=2.0 m, vychodni konec (cil) -->
+  </node>
+
+  <way id="201" visible="true" version="1">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <nd ref="5"/>
+    <tag k="highway" v="footway"/>
+    <tag k="width" v="1.5"/>
+    <tag k="name" v="R2 - kratky rovny usek, delka 2 m, sirka 1,5 m"/>
+  </way>
+
+</osm>

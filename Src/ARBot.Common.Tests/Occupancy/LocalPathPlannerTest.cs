@@ -88,6 +88,13 @@ namespace ARBot.Common.Tests.Occupancy
 
             public LocalPlanResult Plan(double gx, double gy, double heading = 0)
                 => Planner.Plan(Grid, Field, 0, 0, heading, gx, gy);
+
+            /// <summary>Plan z jine polohy robotu nez z pocatku (grid se NErecentruje - staci, ze robot zustane uvnitr).</summary>
+            public LocalPlanResult PlanFrom(double rx, double ry, double gx, double gy, double heading = 0)
+                => Planner.Plan(Grid, Field, rx, ry, heading, gx, gy);
+
+            /// <summary>Odstup [m] bunky pod danym bodem od nejblizsi neprujezdne bunky.</summary>
+            public double ClearanceAt(double x, double y) => Field.Distance(Grid.CellX(x), Grid.CellY(y));
         }
 
         /// <summary>Nejmensi odstup od neprujezdneho podel cele drahy (hustsi vzorkovani nez planovac).</summary>
@@ -404,16 +411,126 @@ namespace ARBot.Common.Tests.Occupancy
         [Test]
         public void RobotBlizkoPrekazky_MuzePrestoOdjet()
         {
-            // Robot stoji 0,25 m od zdi (mensi odstup nez SafeDist) - eskapovaci zona mu musi
-            // dovolit vyjet, jinak by uvizl navzdy.
+            // Robot stoji 0,25 m od zdi (mensi odstup nez SafeDist). Do 3. 9. 2026 ho pustila
+            // "eskapovaci zona" (vyjimka z odstupu kolem aktualni bunky); dnes je to UNIK - tentyz
+            // rezim jako u blokovane bunky: plan vede k nejblizsi bunce, odkud jde planovat bezne,
+            // a tam zastavi. Zona padla, protoze byla symetricka a posouvala se s robotem, takze
+            // pustila i BLIZ k prekazce (viz CilZaOkrajemCesty_RobotSeNikdyNedopliziPodSafeDist).
             var s = Scene.Create();
             s.MarkFree(-3, -3, 3, 3);
             s.MarkObstacle(-3.0, 0.25, 3.0, 0.45);
             s.Rebuild();
+            Assert.That(s.ClearanceAt(0, 0), Is.LessThan(s.Planner.Config.SafeDist), "predpoklad: start je tesny");
 
             var r = s.Plan(2.0, -1.0);
 
-            Assert.That(r.HasPath, Is.True, "robot blizko prekazky musi mit moznost odjet");
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.HasPath, Is.True, "robot blizko prekazky musi mit moznost odjet");
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.EscapingBlocked), "tesny start = unik");
+                Assert.That(LegalCell(s, r.ReachedGoalX, r.ReachedGoalY), Is.True, "unik konci na bezpecne bunce");
+                Assert.That(r.WayPoints[^1].Speed, Is.EqualTo(0.0), "na konci uniku robot zastavi");
+            });
+        }
+
+        /// <summary>
+        /// REGRESE na plizeni k okraji (3. 9. 2026): mrkev lezi za okrajem cesty (v trave), robot
+        /// stoji na bezpecne bunce. Drivejsi eskapovaci zona pustila kazdy cyklus o bunku bliz
+        /// k trave, protoze se posouvala s robotem - s libovolne velkym SafeDist robot dojel az
+        /// k hranici. Dnes: plan vede k nejblizsi bezpecne bunce, hlasi <c>GoalBlocked</c> (ne
+        /// <c>Partial</c>, ne <c>AlreadyAtGoal</c>), na konci zastavi, a ani po nekolika cyklech
+        /// "dojel jsem, kam plan vedl" se robot nedostane pod SafeDist.
+        /// </summary>
+        [Test]
+        public void CilZaOkrajemCesty_RobotSeNikdyNedopliziPodSafeDist()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkOffRoad(-3.0, 1.0, 3.0, 3.0);     // trava od y = 1,0 dal (semantika = konec cesty)
+            s.Rebuild();
+            double safe = s.Planner.Config.SafeDist;
+            Assert.That(s.ClearanceAt(0, 0), Is.GreaterThanOrEqualTo(safe), "predpoklad: start je bezpecny");
+
+            double rx = 0, ry = 0;
+            LocalPlanResult r = null;
+            for (int cyklus = 0; cyklus < 6; cyklus++)
+            {
+                r = s.PlanFrom(rx, ry, 0.0, 1.5);   // mrkev 1,5 m pred robotem, v trave
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.GoalBlocked), $"cyklus {cyklus}: cil v trave se hlasi poctive");
+                if (!r.HasPath) break;                // stoji na nejblizsi bezpecne bunce, dal to nejde
+                Assert.That(MinClearanceAlongPath(s, r.WayPoints), Is.GreaterThanOrEqualTo(safe - 1e-9),
+                            $"cyklus {cyklus}: draha nesmi pod SafeDist");
+                Assert.That(r.WayPoints[^1].Speed, Is.EqualTo(0.0), $"cyklus {cyklus}: na konci zastavi");
+                rx = r.ReachedGoalX;
+                ry = r.ReachedGoalY;
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.HasPath, Is.False, "nakonec robot stoji: cil je nedosazitelny a blizsi bezpecna bunka neni");
+                Assert.That(s.ClearanceAt(rx, ry), Is.GreaterThanOrEqualTo(safe - 1e-9),
+                            "robot skoncil na bunce s odstupem alespon SafeDist");
+                Assert.That(ry, Is.LessThanOrEqualTo(1.0 - safe + Res + 1e-9), "robot stoji o SafeDist pred travou");
+            });
+        }
+
+        /// <summary>
+        /// Hystereze uniku: spousti se az pod <c>SafeDist - Res/2</c>, konci (IsEscapeExit) na
+        /// plnem <c>SafeDist</c>. Robot s odstupem v tom pasmu planuje bezne a z pasma vyjede
+        /// bez "uniku" - bez hystereze by robot, ktery unikem vyjel na bunku tesne nad SafeDist,
+        /// po sumu gridu priste zase unikal o bunku dal a na hranici kmital.
+        /// </summary>
+        [Test]
+        public void TesnyStart_UnikMaHysterezPulBunky()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacle(-3.0, 0.40, 3.0, 0.60);
+            s.Rebuild();
+            double c = s.ClearanceAt(0, 0);         // odstup startu, kvantovany na bunky
+
+            LocalPlanResult Run(double safeDist)
+            {
+                var cfg = PlannerCfg();
+                cfg.SafeDist = safeDist;
+                return new LocalPathPlanner(N, cfg).Plan(s.Grid, s.Field, 0, 0, 0, 2.0, -1.0);
+            }
+
+            var vPasmu = Run(c + Res / 4);     // start je o ctvrt bunky pod SafeDist -> v hysterezi
+            var pod = Run(c + Res);            // start je o celou bunku pod SafeDist -> unik
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(vPasmu.Status, Is.EqualTo(LocalPlanStatus.Ok), "v pasmu se planuje bezne, zadny unik");
+                Assert.That(pod.Status, Is.EqualTo(LocalPlanStatus.EscapingBlocked), "pod pasmem je to unik");
+            });
+        }
+
+        /// <summary>
+        /// Cil je volna bunka, ale blize k prekazce nez SafeDist: <c>GoalUnsafe</c>. Plan vede
+        /// k nejblizsi bezpecne bunce a tam ZASTAVI - dal to nejde a cekat na dalsi mrkev nema smysl.
+        /// </summary>
+        [Test]
+        public void CilTesneUPrekazky_HlasiGoalUnsafeAZastaviNaBezpecneBunce()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacle(-3.0, 1.0, 3.0, 1.2);
+            s.Rebuild();
+            double safe = s.Planner.Config.SafeDist;
+            Assert.That(s.Grid.StateAtWorld(0, 0.8), Is.Not.EqualTo(CellState.Blocked), "predpoklad: cil je volny");
+            Assert.That(s.ClearanceAt(0, 0.8), Is.LessThan(safe), "predpoklad: cil je blize nez SafeDist");
+
+            var r = s.Plan(0.0, 0.8);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.GoalUnsafe));
+                Assert.That(r.HasPath, Is.True);
+                Assert.That(LegalCell(s, r.ReachedGoalX, r.ReachedGoalY), Is.True, "konci na bezpecne bunce");
+                Assert.That(r.WayPoints[^1].Speed, Is.EqualTo(0.0), "na konci zastavi");
+                Assert.That(MinClearanceAlongPath(s, r.WayPoints), Is.GreaterThanOrEqualTo(safe - 1e-9));
+            });
         }
 
         // ---------------- cena otoceni a determinismus ----------------

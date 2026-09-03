@@ -136,6 +136,12 @@ namespace ARBot.Common.Configuration
                   + "takze plati pro CELE rizeni naraz: driver motoru, rychlostni profil i "
                   + "rychlostni obalku lokalniho planovace. Musi byt > 0; hodnota nad technicky "
                   + "dosazitelnou rychlost se orizne (s hlaskou). Bez zadani plati hodnota z kodu.");
+            ZKoduKladne("safedist", "Profile.SafeDist (0,7 m)", K_HW,
+                  "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
+                  + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "
+                  + "Kdyz je >= Profile.PrefDist, PrefDist se posune nad nej se zachovanym rozestupem "
+                  + "(s hlaskou), jinak by LocalPlannerConfig.Validate() shodil start. "
+                  + "Bez zadani plati hodnota z kodu.");
             ZKodu("UartAHRS", ParamType.String, "podle detekce portu", K_HW,
                   "Seriovy port IMU (VN100). Bez zadani se pouzije port zjisteny pri startu.");
             ZKodu("UartMotor", ParamType.String, "podle detekce portu", K_HW,
@@ -189,7 +195,7 @@ namespace ARBot.Common.Configuration
             Vycet("mission", "none", new[] { "none", "freerun", "robotour" }, K_MISE,
                   "Vyber mise: none | freerun | robotour. Mise se vylucuji, proto selektor a ne "
                   + "booleovske prepinace - dve zaroven by si prepisovaly mrkev.");
-            Konst("freerunlook", ParamType.Double, "3", K_MISE,
+            Konst("freerunlook", ParamType.Double, "1.5", K_MISE,
                   "Lookahead mrkve mise FreeRun [m] - jedina skutecna ladici konstanta te mise.");
             Konst("depotfix", ParamType.Double, "5", K_MISE,
                   "Jak dlouho [s] musi fix v depu neprerusene vyhovovat, nez se mise Robotour "

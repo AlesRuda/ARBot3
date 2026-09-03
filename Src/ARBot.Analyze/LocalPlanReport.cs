@@ -117,10 +117,20 @@ namespace ARBot.Analyze
             Console.WriteLine("  " + vRobot.Line("m/s"));
             Console.WriteLine("  " + minClr.Line("m"));
             int n = Math.Max(1, hasPath.Count);
+            // Do 3. 9. 2026 to byla "eskapovaci zona" (odstup slevovany kolem robota); od te doby se pod
+            // SafeDist dostane jen UNIK (EscapingBlocked), takze nenulovy podil u beznych planu je vada.
             int nTight = hasPath.Count(r => r.Plan.MinClearanceM < ARBot.Common.Configuration.Profile.SafeDist);
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "  draha s odstupem POD SafeDist {0:F2} m (eskapovaci zona): {1,5} z {2} ({3:F0} %)",
+                "  draha s odstupem POD SafeDist {0:F2} m (ma byt jen unik): {1,5} z {2} ({3:F0} %)",
                 ARBot.Common.Configuration.Profile.SafeDist, nTight, hasPath.Count, 100.0 * nTight / n));
+            int nGoalBlocked = rows.Count(r => r.Plan.PlanStatus == LocalPlanStatus.GoalBlocked);
+            int nGoalUnsafe = rows.Count(r => r.Plan.PlanStatus == LocalPlanStatus.GoalUnsafe);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  mrkev v NEPRUJEZDNE bunce (GoalBlocked):          {0,5} z {1} ({2:F0} %)",
+                nGoalBlocked, rows.Count, 100.0 * nGoalBlocked / Math.Max(1, rows.Count)));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  mrkev TESNE u prekazky (GoalUnsafe):             {0,5} z {1} ({2:F0} %)",
+                nGoalUnsafe, rows.Count, 100.0 * nGoalUnsafe / Math.Max(1, rows.Count)));
             int nUnreach = hasPath.Count(r => r.Unreach > unreachM);
             int nCrawl0 = hasPath.Count(r => r.V0 > 0 && r.V0 <= Floor);
             int nEstop = hasPath.Count(r => r.Estop);
@@ -147,7 +157,7 @@ namespace ARBot.Analyze
                 double a = b * binSeconds, z = a + binSeconds;
                 var w = rows.Where(r => r.T >= a && r.T < z).ToList();
                 if (w.Count == 0) continue;
-                int part = w.Count(r => r.Plan.PlanStatus == LocalPlanStatus.Partial || r.Plan.PlanStatus == LocalPlanStatus.Ok);
+                int part = w.Count(HasPath);
                 int noRoute = w.Count(r => r.Plan.PlanStatus == LocalPlanStatus.NoRoute);
                 int abort = w.Count(r => r.Plan.PlanStatus == LocalPlanStatus.AbortedCollision);
                 int esc = w.Count(r => r.Plan.PlanStatus == LocalPlanStatus.EscapingBlocked);
@@ -161,7 +171,7 @@ namespace ARBot.Analyze
                     Med(wp, r => r.GoalDist), Med(wp, r => r.Unreach), Med(wp, r => r.PathLen), Med(wp, r => r.FreeAhead),
                     Med(wp, r => r.V0), Med(w, r => r.VCmd), 100.0 * es / w.Count, Traveled(w)));
             }
-            Console.WriteLine("  Part% = plany s drahou (Ok+Partial), Esc/Blk/NoRt/Abrt = pocty EscapingBlocked/RobotBlocked/");
+            Console.WriteLine("  Part% = plany s drahou (Ok+Partial+GoalBlocked+GoalUnsafe), Esc/Blk/NoRt/Abrt = pocty EscapingBlocked/RobotBlocked/");
             Console.WriteLine("  NoRoute/AbortedCollision, dMrkev = robot->mrkev, nedosaz = |pozadovany-dosazeny|, delka = delka");
             Console.WriteLine("  planu, volno = dosah potvrzene sjizdneho po draze, v0 = rychlost 1. uzlu, vCmd = prikazana");
             Console.WriteLine("  rychlost, estop% = podil casu s nouzovym zastavenim, ujeto = CISTY posun pozy fuze v okne [m]");
@@ -232,8 +242,10 @@ namespace ARBot.Analyze
             public bool FromCorridor;
         }
 
+        /// <summary>Plan s drahou k cili nebo k nejblizsi bezpecne bunce (unik se sem nepocita - ma vlastni sloupec).</summary>
         private static bool HasPath(Row r)
-            => r.Plan.PlanStatus == LocalPlanStatus.Ok || r.Plan.PlanStatus == LocalPlanStatus.Partial;
+            => r.Plan.PlanStatus == LocalPlanStatus.Ok || r.Plan.PlanStatus == LocalPlanStatus.Partial
+            || r.Plan.PlanStatus == LocalPlanStatus.GoalBlocked || r.Plan.PlanStatus == LocalPlanStatus.GoalUnsafe;
 
         /// <summary>Rychlost prvniho uzlu drahy (co robot dostane hned u sebe).</summary>
         private static double FirstSpeed(RegulatorWayPoint[] wps)

@@ -13,6 +13,42 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-03 — Těsný start řeší únik, ne „eskapovací zóna"; cíl v nesjízdné buňce má vlastní stav
+**Co:** `LocalPathPlanner` už nemá `EscapeRadius`. Pravidlo průjezdnosti je tvrdé bez výjimek
+(`není BLOCKED ∧ odstup ≥ SafeDist`), a robot stojící s odstupem pod `SafeDist` se řeší **stejným
+únikovým režimem** jako robot v blokované buňce (`EscapingBlocked`: Dijkstra k nejbližší buňce, odkud
+jde plánovat běžně, tam zastavit). Spouštěč má **hysterezi půl buňky** (únik až pod
+`SafeDist − Resolution/2`, konec na plném `SafeDist`). Cíl v `BLOCKED` buňce se hlásí jako
+**`GoalBlocked`**, cíl volný ale s odstupem pod `SafeDist` jako **`GoalUnsafe`**; plán vede k nejbližší
+bezpečné buňce a na konci zastaví; stav zůstává i tehdy, když robot na té buňce už stojí.
+
+**Proč:** zóna měla pustit uvízlého robota **ven**, ale průjezdnost je symetrická, takže ho pustila
+i **dovnitř** — k překážce blíž, když tam ležela nejlepší dosažitelná buňka. A protože byla vázaná na
+aktuální pózu, opakovalo se to každý cyklus: s mrkví FreeRunu v trávě a `SafeDist` 0,7 m robot
+dojel až k hranici trávy. Únik tu symetrii láme, protože míří k nejbližší bezpečné buňce, ne k cíli,
+tedy vždy pryč od překážky; a běžné plánování do těsné buňky nevstoupí nikdy. Zvažované alternativy:
+*monotónní odstup v zóně* (těsná buňka průjezdná jen při odstupu ≥ odstup startu) — bezstavové, ale
+podél rovného okraje je odstup konstantní, takže robot smí jet souběžně s hranicí v těsném odstupu
+libovolně daleko; *zóna ukotvená v místě uvíznutí* — zavádí do plánovače stav, přitom se plán počítá
+vždy celý znovu. Hystereze proto, že bez ní robot vyjetý na buňku těsně nad `SafeDist` po šumu gridu
+příště znovu „uniká" o buňku a kmitá. Stavy `GoalBlocked`/`GoalUnsafe` proto, že `Partial` je stav
+pro legitimní „cíl za horizontem" a `AlreadyAtGoal` na konci maskoval mrkev v trávě jako „už jsem
+tam".
+
+**Důsledky:** robot se k okraji cesty zastaví o `SafeDist`, ne na hranici. S `SafeDist` 0,7 m je na
+1,5 m široké cestě průjezdný jen prostřední řádek buněk (odstup 0,75 m) — dřív to zóna maskovala.
+`GlobalNavigator.OnLocalPlan` bere nové stavy zatím jako `Partial` (plán platný, ne selhání), aby
+se chování globální navigace nezměnilo potichu; **reakce producenta cíle na `GoalBlocked` je
+otevřené rozhodnutí** (FreeRun: zastavit a hlásit konec koridoru? globální navigace: přehrazená
+cesta?). `ARBot.Analyze localplan` tiskne podíl obou stavů; nenulový podíl dráhy pod `SafeDist`
+mimo únik je od teď vada.
+
+**Odkazy:** `Src/ARBot.Common/Occupancy/LocalPathPlanner.cs` (`Plan`, `Passable`),
+`LocalPlanResult.cs`, `LocalPlannerConfig.cs`, testy `LocalPathPlannerTest`
+(`CilZaOkrajemCesty_RobotSeNikdyNedopliziPodSafeDist`, `TesnyStart_UnikMaHysterezPulBunky`,
+`CilTesneUPrekazky_HlasiGoalUnsafeAZastaviNaBezpecneBunce`),
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
 ### 2026-09-01 — Zaseknutý stream kamery se pozná podle počtu timeoutů, ne podle přítomnosti na USB
 **Co:** `D435Camera.GetMeasurement` (oba HAL) počítá **po sobě jdoucí timeouty**. Po třech
 (`StallTimeoutsBeforeRestart`, tj. ~3 s bez snímku při požadovaných 30/s) pipeline zbourá a

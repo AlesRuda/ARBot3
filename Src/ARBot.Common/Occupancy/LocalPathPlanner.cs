@@ -138,9 +138,25 @@ namespace ARBot.Common.Occupancy
             Snapshot(grid, field);
 
             // Robot UZ STOJI v blokovane bunce (dojel tam, nez se to o ni vedelo, nebo se posunula
-            // mapa). Vracet RobotBlocked znamena stat tam navzdy - misto toho se hleda nejkratsi
-            // cesta VEN. Viz doc/occupancy-and-local-planning.md.
-            if (state[i0 + j0 * size] == (byte)CellState.Blocked)
+            // mapa) NEBO stoji TESNE u prekazky (odstup pod SafeDist: zastavil pozde, prekazka se
+            // objevila, mapa se posunula). V obou pripadech by bezne pravidlo prujezdnosti nemelo
+            // odkud vyjet a vracet RobotBlocked znamena stat tam navzdy - misto toho se hleda nejkratsi
+            // cesta VEN k nejblizsi bunce, odkud jde planovat bezne (UNIK).
+            //
+            // Do 3. 9. 2026 resil tesny start jinak: "eskapovaci zona" - vyjimka z odstupu v okoli
+            // aktualni bunky. Byla ale SYMETRICKA (pustila robota i bliz k prekazce) a posouvala se
+            // s robotem, takze se k okraji cesty dalo doplizit po bunce s libovolne velkym SafeDist
+            // (namereno s mrkvi v trave a SafeDist 0,7 m). Unik miri k nejblizsi bezpecne bunce, ne
+            // k cili, takze vede vzdy PRYC od prekazky. Viz doc/occupancy-and-local-planning.md.
+            //
+            // Hystereze pul bunky: unik se spousti az pod SafeDist - cell/2, konci (IsEscapeExit) az
+            // na plnem SafeDist. Bez ni by robot, ktery unikem vyjel na bunku s odstupem tesne nad
+            // SafeDist, po sumu gridu priste zase "unikal" o bunku dal a na hranici kmital. V pasmu
+            // mezi se planuje bezne - start je prujezdny vzdy (robot na nem stoji) a soused dal od
+            // prekazky ma odstup o bunku vyssi, tedy nad SafeDist.
+            int s0 = i0 + j0 * size;
+            double tightBelow = cfg.SafeDist - cell / 2;
+            if (state[s0] == (byte)CellState.Blocked || clearance[s0] < tightBelow)
                 return PlanEscape(res, grid, robotX, robotY, heading, i0, j0, cell);
 
             // Cil orizneme na grid (o bunku od kraje) - dalsi cil znamena jet k hranici gridu jeho smerem.
@@ -158,6 +174,15 @@ namespace ARBot.Common.Occupancy
             int iG = Clamp(grid.CellX(goalX) - grid.OriginX, 0, size - 1);
             int jG = Clamp(grid.CellY(goalY) - grid.OriginY, 0, size - 1);
 
+            // Cil v neprujezdne nebo tesne bunce: A* se do nej nikdy netrefi a plan povede k nejblizsi
+            // bezpecne bunce. Od Partial (cil legitimne za horizontem) se to rozlisuje schvalne -
+            // sem robot NIKDY nedojede, na konci drahy ma zastavit a producent cile se to ma dozvedet.
+            // Do 3. 9. 2026 to vychazelo jako Partial a na konci jako AlreadyAtGoal, coz u mrkve
+            // polozene do travy vypadalo jako "uz jsem v cili".
+            int goalCell = iG + jG * size;
+            bool goalBlocked = state[goalCell] == (byte)CellState.Blocked;
+            bool goalUnsafe = !goalBlocked && clearance[goalCell] < cfg.SafeDist;
+
             int goalIdx = Search(i0, j0, iG, jG, heading, cell, out int bestIdx, out int expanded);
             res.ExpandedCells = expanded;
 
@@ -168,7 +193,12 @@ namespace ARBot.Common.Occupancy
                 return res;
             }
 
-            res.Status = (goalIdx >= 0 && !goalClipped) ? LocalPlanStatus.Ok : LocalPlanStatus.Partial;
+            if (goalIdx >= 0)
+                res.Status = goalClipped ? LocalPlanStatus.Partial : LocalPlanStatus.Ok;
+            else
+                res.Status = goalBlocked ? LocalPlanStatus.GoalBlocked
+                           : goalUnsafe ? LocalPlanStatus.GoalUnsafe
+                           : LocalPlanStatus.Partial;
             res.CostSeconds = gScore[target];
             res.LengthM = lenFromStart[target];
 
@@ -177,10 +207,16 @@ namespace ARBot.Common.Occupancy
             res.ReachedGoalY = grid.CenterY(grid.OriginY + target / size);
 
             BuildPathCells(target);
-            StringPull(grid, i0, j0);
+            StringPull();
 
+            // Zastavit na konci: v cili (Ok), nebo na nejblizsi bezpecne bunce, kdyz je cil
+            // neprujezdny/tesny - dal se nejede a dalsi mrkev na tom nic nezmeni. U Partial se
+            // nezastavuje: dalsi cyklus dostane dalsi kus drahy.
+            bool stopAtEnd = res.Status == LocalPlanStatus.Ok
+                          || res.Status == LocalPlanStatus.GoalBlocked
+                          || res.Status == LocalPlanStatus.GoalUnsafe;
             res.WayPoints = BuildWayPoints(grid, robotX, robotY,
-                                           finalGoal: res.Status == LocalPlanStatus.Ok,
+                                           finalGoal: stopAtEnd,
                                            minClearance: out double minClear);
             res.MinClearanceM = minClear;
 
@@ -191,7 +227,14 @@ namespace ARBot.Common.Occupancy
             res.MinWayPointSpeed = envMinSpeed;
 
             if (res.WayPoints == null || res.WayPoints.Length < 2)
-                res.Status = LocalPlanStatus.AlreadyAtGoal;   // cil je blize nez jedna pouzitelna hrana
+            {
+                // Cil (nebo nejblizsi dosazitelna bunka) je blize nez jedna pouzitelna hrana - neni co
+                // predat regulatoru. U Ok/Partial je to "uz jsem tam". U GoalBlocked/GoalUnsafe stav
+                // ZUSTAVA: robot stoji na nejblizsi bezpecne bunce, cil nedosahl a nedosahne, a prave
+                // to ma byt videt (HasPath je false, ridit se podle toho neda).
+                if (res.Status == LocalPlanStatus.Ok || res.Status == LocalPlanStatus.Partial)
+                    res.Status = LocalPlanStatus.AlreadyAtGoal;
+            }
 
             return res;
         }
@@ -238,7 +281,7 @@ namespace ARBot.Common.Occupancy
                 res.ReachedGoalY = grid.CenterY(grid.OriginY + exit / size);
 
                 BuildPathCells(exit);
-                StringPull(grid, i0, j0);
+                StringPull();
 
                 // finalGoal: true - na konci uniku robot zastavi a dalsi cyklus uz planuje bezne.
                 res.WayPoints = BuildWayPoints(grid, robotX, robotY,
@@ -298,7 +341,6 @@ namespace ARBot.Common.Occupancy
             open.Clear();
 
             startIdx = i0 + j0 * size;
-            double escapeR2 = cfg.EscapeRadius * cfg.EscapeRadius;
             // Pri uniku neni cil bod, ale "prvni legalni bunka" - heuristika by nemela k cemu merit,
             // takze se hleda uniformni cenou (Dijkstra) a jen do EscapeMaxLength.
             double horizon = escape ? cfg.EscapeMaxLength : cfg.HorizonM;
@@ -344,7 +386,7 @@ namespace ARBot.Common.Occupancy
                     int nidx = ni + nj * size;
                     if (closedStamp[nidx] == generation) continue;
 
-                    if (!Passable(nidx, ni, nj, i0, j0, cell, escapeR2, out double clr)) continue;
+                    if (!Passable(nidx, out double clr)) continue;
 
                     bool diagonal = k >= 4;
                     if (diagonal)
@@ -352,8 +394,8 @@ namespace ARBot.Common.Occupancy
                         // Bez rezani rohu: oba orto sousedi musi byt take prujezdni.
                         int a = ni + cj * size;
                         int b = ci + nj * size;
-                        if (!Passable(a, ni, cj, i0, j0, cell, escapeR2, out _)) continue;
-                        if (!Passable(b, ci, nj, i0, j0, cell, escapeR2, out _)) continue;
+                        if (!Passable(a, out _)) continue;
+                        if (!Passable(b, out _)) continue;
                     }
 
                     double stepLen = diagonal ? diag : cell;
@@ -397,29 +439,22 @@ namespace ARBot.Common.Occupancy
         }
 
         /// <summary>
-        /// Je bunka prujezdna? Tvrde pravidlo je <c>odstup &gt;= SafeDist</c>.
-        /// <para>Vyjimka <b>eskapovaci zona</b>: v okoli <see cref="LocalPlannerConfig.EscapeRadius"/>
-        /// od vychozi bunky se pripousti i mensi odstup (ale NIKDY
-        /// <see cref="CellState.Blocked"/>). Bez ni by robot, ktery zastavil blize u prekazky, nemel
-        /// zadnou vychozi bunku a nemohl by odjet. Dal od robotu se odstup nikdy neslevuje.</para>
+        /// Je bunka prujezdna? Bezne pravidlo je TVRDE a bez vyjimek: bunka neni
+        /// <see cref="CellState.Blocked"/> a odstup je alespon <see cref="LocalPlannerConfig.SafeDist"/>.
+        /// Jedina vyjimka je vychozi bunka - na ni robot stoji, takze z ni odjet musi (a string-pulling
+        /// ji vzorkuje jako zacatek kazde usecky).
+        /// <para>Drivejsi "eskapovaci zona" (odstup slevovany v okoli startu) tu od 3. 9. 2026 neni:
+        /// tesny start resi UNIK, viz <see cref="Plan"/>. Zona byla symetricka a posouvala se
+        /// s robotem, takze ho pustila k prekazce bliz po bunce.</para>
+        /// <para>UNIK ma vlastni pravidlo: rozhoduje KANAL, ne odstup - ven se smi pres semanticky
+        /// blokovane bunky (z travy zpatky na cestu), pres geometricky blokovane nikdy.</para>
         /// </summary>
-        private bool Passable(int idx, int i, int j, int i0, int j0, double cell, double escapeR2,
-                              out double clr)
+        private bool Passable(int idx, out double clr)
         {
             clr = clearance[idx];
-
-            // UNIK z blokovane bunky ma vlastni pravidlo: rozhoduje KANAL, ne odstup.
-            if (escape)
-            {
-                if (idx == startIdx) return true;   // na vychozi bunce robot stoji, odjet z ni musi
-                return (blockReason[idx] & (byte)CellBlockReason.Geometry) == 0;
-            }
-
-            if (state[idx] == (byte)CellState.Blocked) return false;
-            if (clr >= cfg.SafeDist) return true;
-
-            double di = (i - i0) * cell, dj = (j - j0) * cell;
-            return di * di + dj * dj <= escapeR2;
+            if (idx == startIdx) return true;
+            if (escape) return (blockReason[idx] & (byte)CellBlockReason.Geometry) == 0;
+            return state[idx] != (byte)CellState.Blocked && clr >= cfg.SafeDist;
         }
 
         // ---------------- rekonstrukce a zjednoduseni drahy ----------------
@@ -436,13 +471,10 @@ namespace ARBot.Common.Occupancy
         /// String-pulling: slucuje po sobe jdouci bunky do useku, dokud podel cele usecky plati
         /// stejne pravidlo prujezdnosti jako v A*. Vysledkem je kratky seznam vrcholu.
         /// </summary>
-        private void StringPull(OccupancyGrid grid, int i0, int j0)
+        private void StringPull()
         {
             pulled.Clear();
             if (pathCells.Count == 0) return;
-
-            double cell = grid.Resolution;
-            double escapeR2 = cfg.EscapeRadius * cfg.EscapeRadius;
 
             pulled.Add(pathCells[0]);
             int anchor = 0;
@@ -451,7 +483,7 @@ namespace ARBot.Common.Occupancy
                 int next = anchor + 1;
                 for (int probe = pathCells.Count - 1; probe > anchor + 1; probe--)
                 {
-                    if (SegmentPassable(grid, pathCells[anchor], pathCells[probe], i0, j0, cell, escapeR2))
+                    if (SegmentPassable(pathCells[anchor], pathCells[probe]))
                     {
                         next = probe;
                         break;
@@ -463,8 +495,7 @@ namespace ARBot.Common.Occupancy
         }
 
         /// <summary>Je cela usecka mezi stredy dvou bunek prujezdna? Vzorkuje se s krokem 1/2 bunky.</summary>
-        private bool SegmentPassable(OccupancyGrid grid, int fromIdx, int toIdx,
-                                     int i0, int j0, double cell, double escapeR2)
+        private bool SegmentPassable(int fromIdx, int toIdx)
         {
             double x0 = fromIdx % size, y0 = fromIdx / size;
             double x1 = toIdx % size, y1 = toIdx / size;
@@ -478,7 +509,7 @@ namespace ARBot.Common.Occupancy
                 int i = (int)Math.Round(x0 + dx * t);
                 int j = (int)Math.Round(y0 + dy * t);
                 if ((uint)i >= (uint)size || (uint)j >= (uint)size) return false;
-                if (!Passable(i + j * size, i, j, i0, j0, cell, escapeR2, out _)) return false;
+                if (!Passable(i + j * size, out _)) return false;
             }
             return true;
         }

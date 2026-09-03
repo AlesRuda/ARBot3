@@ -105,6 +105,8 @@ namespace ARBot
 
             // Strop rychlosti z parametru maxspeed=. MUSI to byt tady, pred startem UI.
             ApplyMaxSpeedFromParams();
+            // Tvrdy odstup od prekazek z parametru safedist= - tentyz duvod a mechanismus.
+            ApplySafeDistFromParams();
 
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
@@ -150,6 +152,53 @@ namespace ARBot
                 + "i obalku planovace).",
                 ARBot.Common.Configuration.Profile.MaxAllowedSpeed, v));
             ARBot.Common.Configuration.Profile.MaxAllowedSpeed = v;
+        }
+
+        /// <summary>
+        /// Prenese <c>safedist=</c> do <see cref="ARBot.Common.Configuration.Profile.SafeDist"/> -
+        /// tvrdeho minimalniho odstupu od prekazek lokalniho planovace. Bez zadaneho parametru
+        /// nedela nic (plati hodnota z kodu).
+        ///
+        /// <para>Stejny mechanismus a stejne duvody jako <see cref="ApplyMaxSpeedFromParams"/>:
+        /// <c>LocalPlannerConfig.SafeDist</c> se inicializuje z <c>Profile</c> pri VZNIKU instance
+        /// (hlida <c>SafeDistParamTests</c>), takze hodnota musi byt nastavena pred slozenim runtime.
+        /// Z <c>SafeDist</c> nic staticky nederivuje, past s odvozenymi poli se neotvira.</para>
+        ///
+        /// <para><b>Vazba na <c>PrefDist</c>:</b> <c>LocalPlannerConfig.Validate()</c> vyzaduje
+        /// <c>PrefDist &gt; SafeDist</c>. Kdyby odstup skoncil na <c>PrefDist</c> nebo nad nim,
+        /// planovac by pri vzniku vyhodil vyjimku a runtime by se nesložil - kvuli parametru, ktery
+        /// mel robota udelat opatrnejsim. Proto se v tom pripade <c>PrefDist</c> posune nad novy
+        /// odstup se zachovanym puvodnim rozestupem (dnes 0,1 m) a zaloguje se to. Vzniklo 3. 9. 2026
+        /// pri ladeni odstupu z rozboru „mrkev v nesjizdne oblasti" (doc/devlog.md).</para>
+        /// </summary>
+        private static void ApplySafeDistFromParams()
+        {
+            string raw = ARBot.Common.Configuration.ParamStore.Current.Get("safedist");
+            if (string.IsNullOrWhiteSpace(raw))
+                return;
+
+            double puvodni = ARBot.Common.Configuration.Profile.SafeDist;
+            double pref = ARBot.Common.Configuration.Profile.PrefDist;
+            // Nekladnou hodnotu odmitne uz registr pri nacteni profilu, sem se nedostane.
+            double v = GetParamDouble("safedist", puvodni);
+
+            if (v >= pref)
+            {
+                double rozestup = pref - puvodni;
+                if (!(rozestup > 0)) rozestup = 0.1;   // kdyby nekdo v kodu nastavil PrefDist <= SafeDist
+                double novyPref = v + rozestup;
+                Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "safedist={0:F2} je na urovni PrefDist {1:F2} m nebo nad nim -> PrefDist posunut "
+                    + "na {2:F2} m (zachovan rozestup {3:F2} m), jinak by planovac odmitl vzniknout.",
+                    v, pref, novyPref, rozestup));
+                ARBot.Common.Configuration.Profile.PrefDist = novyPref;
+            }
+
+            Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "safedist: tvrdy odstup od prekazek {0:F2} -> {1:F2} m (lokalni planovac: prujezdnost "
+                + "i rychlostni obalka).",
+                puvodni, v));
+            ARBot.Common.Configuration.Profile.SafeDist = v;
         }
 
         // Avalonia configuration, don't remove; also used by visual designer.

@@ -339,10 +339,27 @@ rampa — u *bočního* odstupu nejde o brzdnou dráhu, ta patří výhradně do
 Robot se modeluje **opsanou kružnicí** (pro diferenciál, který se točí na místě, je to poctivý
 model). Zpřesnění na kapsli (`OsmNav.Colider.RobotFootprint`) je možné později.
 
-**Eskapovací zóna.** V okolí `EscapeRadius` (0,5 m) od výchozí buňky se připouští i menší odstup než
-`SafeDist` — nikdy však buňka `BLOCKED`. Bez toho by robot, který zastavil blíž u překážky (zaparkoval
-u zdi, byl zatlačen), neměl žádnou průjezdnou výchozí buňku a **nemohl by odjet**. Dál od robotu se
-odstup nikdy neslevuje.
+**Těsný start = únik, žádná zóna (od 3. 9. 2026).** Do té doby tu byla „eskapovací zóna": v okolí
+`EscapeRadius` (0,5 m) od výchozí buňky se připouštěl i menší odstup než `SafeDist`, aby robot, který
+zastavil blíž u překážky, měl odkud odjet. Zóna ale byla **symetrická** (pustila robota i blíž
+k překážce) a **posouvala se s robotem**, takže když ležel cíl za okrajem cesty, robot se k trávě
+doplížil po buňce s libovolně velkým `SafeDist` — naměřeno s mrkví FreeRunu v trávě a `SafeDist`
+0,7 m. Dnes je pravidlo průjezdnosti **tvrdé a bez výjimek** (`SafeDist` se neslevuje nikde) a robot
+stojící těsně u překážky (odstup pod `SafeDist`) se řeší **stejně jako robot v blokované buňce**:
+únikem (`EscapingBlocked`) k nejbližší buňce, odkud jde plánovat běžně, kde zastaví. Únik míří
+k nejbližší bezpečné buňce, ne k cíli, takže vede vždy **pryč** od překážky. **Hystereze půl buňky:**
+únik se spouští až pod `SafeDist − Resolution/2`, končí na plném `SafeDist`; bez ní by robot, který
+vyjel na buňku těsně nad `SafeDist`, po šumu gridu příště znovu „unikal" a na hranici kmital.
+Rozhodnutí: [decisions.md](decisions.md), 3. 9. 2026.
+
+**Cíl v nesjízdné nebo těsné buňce se hlásí zvlášť (od 3. 9. 2026).** `GoalBlocked` = cílová buňka
+je `BLOCKED` (tráva, překážka), `GoalUnsafe` = volná, ale s odstupem pod `SafeDist`. V obou
+případech plán vede k nejbližší bezpečné buňce a **na konci zastaví** (koncová rychlost 0). Dřív to
+vycházelo jako `Partial` (stav pro legitimní „cíl za horizontem") a na konci dráhy jako
+`AlreadyAtGoal`, takže mrkev položená do trávy vypadala jako „už jsem v cíli". Co s tím udělat,
+rozhoduje **producent cíle** (mise, globální navigace), ne plánovač — ten neví, jestli cesta končí,
+nebo mrkev jen přestřelila zatáčku. `GlobalNavigator.OnLocalPlan` s nimi zatím zachází jako
+s `Partial` (plán platný, ne selhání), aby se chování nezměnilo potichu; reakce je otevřená.
 
 ### Rychlostní obálka — jeden invariant místo zvláštních pravidel
 
@@ -476,7 +493,7 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 | prahy `BlockedThreshold` / `FreeThreshold` | +1,0 / −1,0 | `OccupancyGridConfig` |
 | `RoadFullRangeM` / `RoadMaxRangeM` | 3,0 / 8,0 m | `OccupancyIntegratorConfig` |
 | `UnknownCostFactor` | 3,0 | `LocalPlannerConfig` |
-| `EscapeRadius` | 0,5 m | `LocalPlannerConfig` |
+| hystereze úniku | půl buňky (`Resolution/2`) | `LocalPathPlanner.Plan` (odvozené, ne parametr; `EscapeRadius` zrušen 3. 9. 2026) |
 | `HorizonM` | 6,0 m | `LocalPlannerConfig` |
 | `MinCostSpeed` | 0,05 m/s | `LocalPlannerConfig` |
 | `SafeDist` | 0,40 m | `Profile` (existuje) |

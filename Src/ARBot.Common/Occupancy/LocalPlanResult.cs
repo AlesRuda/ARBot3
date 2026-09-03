@@ -32,12 +32,32 @@ namespace ARBot.Common.Occupancy
         AbortedCollision = 6,
 
         /// <summary>
-        /// UNIK: robot stoji v blokovane bunce a plan vede k nejblizsi bunce, odkud muze pokracovat
-        /// bezne planovani. Neni to selhani - robot jede (pomalu, rychlostni obalka ho zdrzi sama).
+        /// UNIK: robot stoji v blokovane bunce NEBO tesne u prekazky (odstup pod SafeDist, od
+        /// 3. 9. 2026 - drive to resila "eskapovaci zona") a plan vede k nejblizsi bunce, odkud muze
+        /// pokracovat bezne planovani; tam zastavi. Neni to selhani - robot jede (pomalu, rychlostni
+        /// obalka ho zdrzi sama).
         /// <para>Ven se smi jen pres bunky blokovane <b>semantikou</b>; pres geometricky blokovane
         /// nikdy. Viz doc/occupancy-and-local-planning.md.</para>
         /// </summary>
         EscapingBlocked = 7,
+
+        /// <summary>
+        /// Cil lezi v NEPRUJEZDNE bunce (<see cref="CellState.Blocked"/> - trava nebo prekazka).
+        /// Plan vede k nejblizsi bezpecne bunce a tam ZASTAVI (koncova rychlost 0). Robot k cili
+        /// nedojede nikdy - to je rozdil proti <see cref="Partial"/>, kde je cil legitimne jen za
+        /// horizontem. Do 3. 9. 2026 se to hlasilo jako Partial a na konci drahy jako
+        /// <see cref="AlreadyAtGoal"/>, coz maskovalo mrkev polozenou do travy.
+        /// <para>Co s tim, rozhoduje producent cile (mise, globalni navigace), ne planovac -
+        /// ten nevi, jestli cesta konci, nebo mrkev jen prestrelila zatacku.</para>
+        /// </summary>
+        GoalBlocked = 8,
+
+        /// <summary>
+        /// Cil je volna bunka, ale s odstupem pod SafeDist - lezi prilis blizko okraje. Plan vede
+        /// k nejblizsi bezpecne bunce a tam zastavi. Cil je v zasade spravny, jen tesny; lecba je
+        /// u producenta cile jina nez u <see cref="GoalBlocked"/>, proto zvlast.
+        /// </summary>
+        GoalUnsafe = 9,
     }
 
     /// <summary>
@@ -50,9 +70,11 @@ namespace ARBot.Common.Occupancy
         /// <summary>Stav planovani.</summary>
         public LocalPlanStatus Status;
 
-        /// <summary>Lze podle vysledku ridit? (Plan existuje a ma alespon 2 body.)</summary>
+        /// <summary>Lze podle vysledku ridit? (Plan existuje a ma alespon 2 body.) U GoalBlocked/GoalUnsafe
+        /// draha vede k nejblizsi bezpecne bunce, ne k cili - ridit se podle ni ale da.</summary>
         public bool HasPath => (Status == LocalPlanStatus.Ok || Status == LocalPlanStatus.Partial
-                                || Status == LocalPlanStatus.EscapingBlocked)
+                                || Status == LocalPlanStatus.EscapingBlocked
+                                || Status == LocalPlanStatus.GoalBlocked || Status == LocalPlanStatus.GoalUnsafe)
                                && WayPoints != null && WayPoints.Length >= 2;
 
         /// <summary>Waypointy pro <see cref="IPathPlanner.Plan"/> (prvni = aktualni poloha robotu);

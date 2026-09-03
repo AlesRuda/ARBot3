@@ -37,6 +37,54 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-03
+
+- **Nová krátká testovací mapa `OSM/SyntetickyRovny2m.osm` — rovný úsek 2 m × 1,5 m.** Na zadání
+  autora; zmenšená sestra `SyntetickyRovny.osm` (160 m × 2 m): stejný počátek (uzel 1 na
+  50.029 / 14.52), stejná osa `y = 0`, šířka zadaná explicitně na každém z 5 uzlů po 0,5 m, aby
+  mezi uzly nevznikla nálevka. Souřadnice spočítané inverzí `GeoReference.ToLLA` (WGS84 přes
+  ECEF) — kontrolní hodnoty pro 20 m a 160 m vyšly na 9 desetinných míst shodně s 160m mapou,
+  takže je to týž převod, který používá aplikace. Doména: [virtual-hw.md](virtual-hw.md).
+  - **Test `SyntetickeMapyTests` zobecněn na parametrizovaný** (`RovneMapy`: soubor, délka, šířka,
+    rozestup uzlů), takže obě rovné mapy hlídají tytéž testy — geometrie, konstantní šířka na uzlech
+    i mezi nimi (`RoadScene.IsRoad`, vzorek po čtvrtině rozestupu), žádná křižovatka. Přibyl test,
+    že **střed obálky uzlů leží v polovině délky a na uzlu** — tam robot startuje
+    (`BuildOriginFromMap`), u 2m mapy je to x = 1 m. Další rovná mapa = jeden řádek v `RovneMapy`.
+    14 testů, celá sada `ARBot.Common.Tests` 1087 OK.
+  - ⚠️ **Past, která kousla hned:** do hlavičky mapy jsem napsal příkaz s `--truewidth`, a XML
+    komentář **dvojitou pomlčku zakazuje** — `OsmXmlReader` mapu odmítl a všech 6 testů nad ní
+    padlo. Volby `ARBot.Analyze` se proto v hlavičkách map píší slovy.
+  - **Stav ověření:** mapa se čte a staví do sítě stejnou cestou jako v aplikaci (test), ale
+    **běh aplikace nad ní zatím nikdo nepustil** (render virtuální kamery, koridor). Pro jízdu
+    není: robot startuje ve středu, má před sebou 1 m cesty; je to kulisa pro statická měření
+    na užší cestě s koncem v dohledu kamery.
+  - Launch profil „ARBot - kratka rovna mapa 2 x 1,5 m + koridor" v `Src/ARBot/Properties/launchSettings.json`
+    (virtuální HW, `corridor=true`, cíl = východní konec).
+  - **Mrkev mise FreeRun na poloviční vzdálenost:** výchozí `FreeRunConfig.LookaheadM` **3,0 → 1,5 m**
+    (a s ním default `freerunlook` v registru a tabulka v [mission-freerun.md](mission-freerun.md)).
+    Na pokyn autora; dosavadní měření FreeRunu v dokumentaci (−0,503 m proti −0,500) jsou ještě
+    s 3 m a **s 1,5 m se nepřeměřilo** — kratší lookahead znamená ostřejší srovnávání a možné kmitání,
+    viz komentář u `LookaheadM`. `freerunlook=3` vrátí staré chování.
+  - **`safedist=` je nový parametr registru** (kategorie Hardware, hned za `maxspeed`): přenáší se
+    v `Program.Main` do `Profile.SafeDist` stejným mechanismem jako `maxspeed`. Když je nad
+    `PrefDist`, posune se `PrefDist` nad něj se zachovaným rozestupem, jinak by `Validate()` plánovače
+    shodil start. Popis v [configuration.md](configuration.md#bezpečný-odstup-safedist), test
+    `SafeDistParamTests`. Vzniklo z rozboru „mrkev v nesjízdné oblasti": autor ladil odstup
+    přepisováním kódu a **s 0,7 m robot přesto dojel k hranici trávy** — příčinou není odstup, ale
+    **úniková zóna** (`EscapeRadius` 0,5 m kolem aktuální buňky) slevující odstup, která se posouvá
+    s robotem, takže k okraji se dá doplížit po buňce. Nedosažitelný cíl se navíc hlásí jako
+    `Partial` a na konci cesty jako `AlreadyAtGoal`. **Rozhodnutí o léčbě je otevřené**
+    (návrh: stavy `GoalBlocked`/`GoalUnsafe`, v únikové zóně nepovolit zmenšování odstupu, reakce
+    ponechat producentovi mrkve).
+  - **Eskapovací zóna zrušena, těsný start = únik s hysterezí, nové stavy `GoalBlocked`/`GoalUnsafe`.**
+    Rozhodnutí a alternativy v [decisions.md](decisions.md) (3. 9. 2026), mechanismus
+    v [occupancy-and-local-planning.md](occupancy-and-local-planning.md). Regresní test na plížení
+    (`CilZaOkrajemCesty_RobotSeNikdyNedopliziPodSafeDist`) simuluje šest cyklů „dojel jsem, kam plán
+    vedl" a hlídá, že se robot nedostane pod `SafeDist`. `GlobalNavigator` bere nové stavy zatím jako
+    `Partial`; **reakce mise/navigace na nedosažitelnou mrkev zůstává k rozhodnutí.** Ověřeno jen
+    testy, v simulaci ani na HW ne.
+  - Odkazy: `OSM/SyntetickyRovny2m.osm`, `Src/ARBot.Common.Tests/OsmNav.Tests/SyntetickeMapyTests.cs`.
+
 ## 2026-09-02
 
 - **Kamery se na Orange Pi neohlásily — příčina je fyzická (USB 2.0 místo 3.0), a cestou se našla

@@ -325,8 +325,14 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             // do zadne z obou vetvi: serie selhani se vynuluje (uvaznuti nesmi nakonec zavrit hranu,
             // ktera je v poradku) a detektor zaseku zustane odzbrojeny, dokud unik trva.
             // Viz doc/occupancy-and-local-planning.md.
+            // GoalBlocked / GoalUnsafe (od 3. 9. 2026): mrkev lezi v neprujezdne nebo tesne bunce a plan
+            // vede jen k nejblizsi bezpecne bunce. Drive to vychazelo jako Partial, a tak se s tim tady
+            // ZATIM i zachazi (plan platny, ne selhani), aby se chovani globalni navigace nezmenilo
+            // potichu. Spravna reakce (pocitat to jako prehrazenou cestu? zavirat hranu?) je OTEVRENE
+            // rozhodnuti autora - viz doc/devlog.md 3. 9. 2026.
             bool failed = status == LocalPlanStatus.NoRoute || status == LocalPlanStatus.RobotBlocked;
-            localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial;
+            localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial
+                          || status == LocalPlanStatus.GoalBlocked || status == LocalPlanStatus.GoalUnsafe;
 
             planFailureStreak = failed ? planFailureStreak + 1 : 0;
         }

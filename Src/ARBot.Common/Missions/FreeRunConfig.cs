@@ -15,9 +15,11 @@ namespace ARBot.Common.Missions
         ///
         /// <para><b>Tohle je ta konstanta, ktera se bude ladit.</b> Kratky lookahead dava ostre
         /// srovnavani na pozadovanou caru (a s nim kmitani), dlouhy plynulou jizdu, ktera ale
-        /// zatacky „rezne". Vychozi 3 m je odhad k premereni, ne merena pravda.</para>
+        /// zatacky „rezne". Puvodni vychozi 3 m byl odhad k premereni; 3. 9. 2026 na pokyn autora
+        /// zkracen na POLOVINU (1,5 m) - i pro kratke testovaci useky (OSM/SyntetickyRovny2m.osm),
+        /// kde robot ma pred sebou jen 1 m cesty. Porad je to odhad, ne merena pravda.</para>
         /// </summary>
-        public double LookaheadM = 3.0;
+        public double LookaheadM = 1.5;
 
         /// <summary>
         /// Podil sirky koridoru, o ktery je mrkev odsazena vpravo od osy. <c>0,25</c> = stred prave

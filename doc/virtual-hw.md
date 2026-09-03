@@ -167,6 +167,32 @@ Absolutní cesta se nechá, jak je. Díky tomu jsou cesty v `launchSettings.json
 > Hláška při nezapnutí proto říká, **co přesně** chybí (`ARBotRuntime.DescribeMissingMapReason`):
 > nenalezená `map=` vs. `visionmap=` bez `map=` vs. žádná mapa zadaná.
 
+### Syntetické testovací mapy v `OSM/`
+
+Mapy pro `map=` / `visionmap=`, které **nejsou reálné místo**, ale měřicí přístroj se známou
+geometrií. Všechny mají počátek (uzel 1) na 50.029 / 14.52 a osu ve směru východ, takže jsou mezi
+sebou srovnatelné; podrobnosti, geometrie po uzlech a příkazy ke spuštění jsou v hlavičce každého
+souboru. Geometrii rovných map hlídá test `SyntetickeMapyTests` (parametrizovaný — další rovná mapa
+je jeden řádek v `RovneMapy`).
+
+| mapa | geometrie | k čemu |
+|---|---|---|
+| [`SyntetickyKoridor.osm`](../OSM/SyntetickyKoridor.osm) | úseky různé šířky, křižovatka, slepý konec, nálevka 1 → 3 m | první testovací mapa; pro měření rovnoběžnosti **nevhodná** (nálevka zamítá 20 % cyklů) |
+| [`SyntetickyRovny.osm`](../OSM/SyntetickyRovny.osm) | jeden rovný úsek **160 m × 2,0 m**, uzly po 20 m | hlavní mapa pro hranovou lokalizaci a jízdu: 60 s čisté jízdy bez zamítnutí |
+| [`SyntetickyRovny2m.osm`](../OSM/SyntetickyRovny2m.osm) | jeden rovný úsek **2 m × 1,5 m**, uzly po 0,5 m (3. 9. 2026) | krátký úsek „na stole": užší cesta s koncem hned v dohledu kamery. **Pro jízdu není** — robot startuje ve středu a má před sebou 1 m |
+| [`SyntetickyKoridorPosunuty.osm`](../OSM/SyntetickyKoridorPosunuty.osm) | Koridor s **náhodným** posunem uzlů do 1 m | `visionmap=` — robustnost korelace proti deformaci |
+| [`SyntetickyRovnyPosunuty.osm`](../OSM/SyntetickyRovnyPosunuty.osm) | Rovný 160 m s **tuhou translací** +0,60 / −0,40 m | `visionmap=` — falsifikovatelná předpověď pro `MapCorrelator` |
+
+**Pravidla pro další syntetickou mapu**, která vyplynula z těch stávajících:
+- **Šířku zadat na každém uzlu**, ne jen na cestě — `RoadScene` interpoluje pološířku mezi uzly,
+  takže jediný uzel s jinou šířkou udělá nálevku.
+- **Robot startuje ve středu obálky uzlů** (`BuildOriginFromMap`), z délky *L* je ve směru jízdy
+  jen *L/2*; na *N* s jízdy při rychlosti *v* je třeba `2·(N·v + 10 m)`. Střed ať padne na uzel.
+- Souřadnice počítat inverzí `GeoReference.ToLLA` a psát na **9 desetinných míst** (zpětný převod
+  pak sedí pod 0,05 mm; při 8 místech je to 0,5 mm).
+- **V XML komentáři nesmí být `--`** — příkazy `ARBot.Analyze` s dvojitou pomlčkou v hlavičce
+  shodí `OsmXmlReader` a mapa se nenačte (kouslo 3. 9. 2026).
+
 ## Z které pózy kamery renderují (`camerapose=`, 22. 8. 2026)
 
 **Výchozí je `truth`:** kamera renderuje ze **ground truth** (`SimulatedRobot`), tedy tak, jak to

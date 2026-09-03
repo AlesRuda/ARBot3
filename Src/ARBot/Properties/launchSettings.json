@@ -19,6 +19,10 @@
       "commandName": "Project",
       "commandLineArgs": "virtualhw=true no_uart=true corridor=true mapcorr=true map=OSM\\SyntetickyRovny.osm visionmap=OSM\\SyntetickyRovnyPosunuty.osm goal=50.028999979,14.522232996"
     },
+    "ARBot - mise FreeRun, kratka rovna mapa 2 x 1,5 m + koridor (staticke mereni, robot ma pred sebou 1 m)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true mission=freerun map=OSM\\SyntetickyRovny2m.osm goal=50.029,14.520027912"
+    },
     "ARBot - mise FreeRun, rovna mapa (mereni proti pravde: osa y=0, sirka 2 m)": {
       "commandName": "Project",
       "commandLineArgs": "virtualhw=true no_uart=true mission=freerun map=OSM\\SyntetickyRovny.osm"

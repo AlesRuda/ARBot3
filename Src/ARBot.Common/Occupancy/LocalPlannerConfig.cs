@@ -56,18 +56,18 @@ namespace ARBot.Common.Occupancy
         /// </remarks>
         public double HorizonM = 25.0;
 
-        /// <summary>
-        /// Radius "eskapovaci zony" okolo vychozi bunky [m], ve ktere se pripousti i mensi odstup nez
-        /// <see cref="SafeDist"/> (nikdy vsak <see cref="CellState.Blocked"/>). Bez ni by robot, ktery
-        /// zastavil blize u prekazky, nemel zadnou prujezdnou vychozi bunku a nemohl by odjet.
-        /// Dal od robotu se odstup nikdy neslevuje.
-        /// </summary>
-        public double EscapeRadius = 0.5;
+        // POZN.: bývalo tu pole EscapeRadius (0,5 m) - "eskapovací zóna", ve které se kolem
+        // aktuální buňky slevoval odstup pod SafeDist, aby robot, který zastavil těsně u překážky,
+        // měl odkud vyjet. Zrušeno 3. 9. 2026: zóna byla symetrická (pustila robota i BLÍŽ
+        // k překážce) a posouvala se s ním, takže se k okraji cesty dalo doplížit po buňce
+        // s libovolně velkým SafeDist. Těsný start dnes řeší únikový režim (EscapingBlocked), tj.
+        // totéž, co blokovaná buňka; hystereze půl buňky je odvozená z rozlišení gridu v
+        // LocalPathPlanner.Plan, ne parametr. Viz doc/occupancy-and-local-planning.md a decisions.md.
 
         /// <summary>
-        /// Nejdelsi pripustna draha UNIKU z blokovane bunky [m]. Kdyz je nejblizsi legalni bunka
-        /// dal, unik se nezkousi (<see cref="LocalPlanStatus.RobotBlocked"/>) - bloudit metry mimo
-        /// cestu je horsi nez stat a nechat to na vyssi vrstve.
+        /// Nejdelsi pripustna draha UNIKU z blokovane nebo tesne bunky [m]. Kdyz je nejblizsi
+        /// legalni bunka dal, unik se nezkousi (<see cref="LocalPlanStatus.RobotBlocked"/>) - bloudit
+        /// metry mimo cestu je horsi nez stat a nechat to na vyssi vrstve.
         /// </summary>
         public double EscapeMaxLength = 1.5;
 
