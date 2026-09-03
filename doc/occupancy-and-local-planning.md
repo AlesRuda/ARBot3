@@ -329,12 +329,33 @@ O(N)) → pole `d[buňka]` = vzdálenost k nejbližšímu neprůjezdnému místu
 
 ```
 d < SafeDist                → neprůjezdné (tvrdá podmínka, nikdy se neporuší)
-v_clear(d) = v_max · (d − SafeDist) / (PrefDist − SafeDist)     // ořezáno na ⟨0; v_max⟩
+
+SMĚROVÝ model (výchozí od 3. 9. 2026, envelope=directional):
+  closing      = max(0, −t · ∇d)                       // rychlost přibližování k překážce na jednotku v (0..1)
+  v_along(d)   = v_max · (d − SafeDist) / EdgeMarginM   // ořezáno na ⟨0; v_max⟩ — podél překážky
+  v_closing    = √(2 · a · (d − SafeDist)) / closing    // kolmo: ubrzdit před SafeDist (closing = 0 → bez omezení)
+  v_env        = min(v_along, v_closing)
+
+RADIÁLNÍ model (původní, envelope=radial, pro A/B):
+  v_clear(d)   = v_max · (d − SafeDist) / (PrefDist − SafeDist)     // ořezáno na ⟨0; v_max⟩
 ```
 
-`SafeDist = 0,40 m` je **tvrdý** minimální odstup; `PrefDist = 0,80 m` je vzdálenost, od které
-už rychlost neomezujeme (dál je pro průjezd i otáčení bezpečně volno). Mezi nimi **lineární**
-rampa — u *bočního* odstupu nejde o brzdnou dráhu, ta patří výhradně do `v_brake` níže.
+`SafeDist = 0,40 m` je **tvrdý** minimální odstup. **Směrový model** rozlišuje, kam dráha míří:
+`t` je směr dráhy ve vzorku, `∇d` gradient pole odstupů (centrální diference ze snímku; EDT je
+1-lipschitzovský, takže `|∇d| ≤ 1`; na hřebeni pole, tedy uprostřed cesty, je ~0). Riziko u okraje je
+**kolmé** — jak rychle se k němu robot blíží — a to řeší `v_closing` jako brzdnou dráhu k hranici.
+Jízda **podél** okraje robota nepřibližuje, jediné, před čím tam rampa chrání, je příčná chyba
+sledování dráhy; proto je `EdgeMarginM` úzké pásmo (0,15 m, v simulaci je příčná chyba sledování
+p50 0,01–0,05 m, na HW přeměřit). Uzel dostává **minimum obálky přes vzorky svého okna**, ne obálku
+minima odstupu — ve směrovém modelu záleží u každého vzorku i na směru.
+
+*Proč:* radiální rampa trestala **blízkost** okraje bez ohledu na směr. FreeRun v pravé polovině
+2 m cesty jede 0,5 m od trávy, tedy ve čtvrtině rampy `SafeDist..PrefDist`, a robot jel trvale
+0,3 m/s (naměřeno 3. 9. 2026, jakmile obálka začala řídit). Směrově vyjde při 0,5 m podél okraje
+`0,8 · v_max`. Tráva je přitom podle zadání soutěže zeď (vjezd = konec), takže se řešil model, ne
+sémantika. Původní `PrefDist = 0,80 m` („bezpečně volno pro průjezd i otáčení") platí jen
+v radiálním režimu. Tatáž obálka dává i **cenu hran A\*** (`VCost(d, closing)`), takže plánovač
+zdražuje přibližování k překážce, ne jízdu podél ní. Rozhodnutí: [decisions.md](decisions.md), 3. 9. 2026.
 
 Robot se modeluje **opsanou kružnicí** (pro diferenciál, který se točí na místě, je to poctivý
 model). Zpřesnění na kapsli (`OsmNav.Colider.RobotFootprint`) je možné později.
@@ -374,6 +395,16 @@ Tímhle jediným pravidlem se řeší požadavek „skrz neznámo smím plánova
 robot naplánuje cestu skrz `UNKNOWN`, jede k němu, a jak se blíží, kamery místo dosvítí — buď se
 otevře (obálka povolí dřív, než robot vůbec stihne zpomalit), nebo se ukáže jako `BLOCKED` a
 přeplánování ho objede. Žádná zvláštní logika, žádná ručně nastavená „velmi nízká rychlost".
+
+**Půdorys robota je sjízdný (od 3. 9. 2026).** Kamery se sklonem ~20° zem těsně před robotem nevidí
+(slepá zóna ~0,5 m) a `Free` vyžaduje potvrzení oběma kanály, takže buňka pod robotem je po startu
+`Unknown`, `s_free` je 0 a robot leze `MinCostSpeed`, dokud zónu nepřejede — naměřeno **10 s při
+0,05 m/s** na každém startu (a na 2 m dlouhé mapě navždy). Proto se vzorky dráhy blíže než
+`FootprintRadiusM` (0,3 m) od robota berou při výpočtu `s_free` jako sjízdné, **pokud nejsou
+`BLOCKED`**. Je to fakt, ne domněnka: robot na nich stojí. Do gridu se nic nezapisuje, průjezdnost
+ani únik se nemění (robot v trávě se dál plouží). Zamítnuté alternativy: zapsat půdorys do gridu jako
+`Free` + cesta (robot v trávě by si pod sebou vyrobil cestu a únik by ztratil spouštěč), presumovat
+`Free` v celé slepé zóně (domněnka o prostoru bez senzoru), zvýšit podlahu (maskuje příčinu).
 
 Dvě upřesnění, která vyplynula z implementace:
 
@@ -493,11 +524,14 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 | prahy `BlockedThreshold` / `FreeThreshold` | +1,0 / −1,0 | `OccupancyGridConfig` |
 | `RoadFullRangeM` / `RoadMaxRangeM` | 3,0 / 8,0 m | `OccupancyIntegratorConfig` |
 | `UnknownCostFactor` | 3,0 | `LocalPlannerConfig` |
+| `Envelope` / `envelope=` | `Directional` | `LocalPlannerConfig` (model stropu z odstupu; `radial` = původní, 3. 9. 2026) |
+| `EdgeMarginM` | 0,15 m | `LocalPlannerConfig` (šířka podélné rampy nad `SafeDist`, směrový model) |
+| `FootprintRadiusM` | 0,3 m | `LocalPlannerConfig` (půdorys = sjízdné pro `s_free`, 3. 9. 2026) |
 | hystereze úniku | půl buňky (`Resolution/2`) | `LocalPathPlanner.Plan` (odvozené, ne parametr; `EscapeRadius` zrušen 3. 9. 2026) |
 | `HorizonM` | 6,0 m | `LocalPlannerConfig` |
 | `MinCostSpeed` | 0,05 m/s | `LocalPlannerConfig` |
 | `SafeDist` | 0,40 m | `Profile` (existuje) |
-| `PrefDist` | 0,80 m | `Profile` (**nový**) |
+| `PrefDist` | 0,80 m | `Profile` (jen radiální režim) |
 | `MaxDecceleration` | 0,30 m/s² | `Profile` (existuje) |
 | `MaxAllowedRotationSpeed` | π/6 rad/s | `Profile` (existuje) |
 | `HistoryWindow` | 1 s | `FusionConfig` (existuje) |

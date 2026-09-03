@@ -78,7 +78,10 @@ namespace ARBot.Common.Regulators
             {
                 if (i == 0 || i == n - 1)
                 {
-                    // Koncové uzly: bez rohu. Start = v_max (skutečná rychlost je runtime).
+                    // Koncové uzly: bez rohu. Start = v_max nebo vlastní strop waypointu (skutečná
+                    // rychlost je runtime). POZOR: strop startovního uzlu se z VLimit[0] v Control
+                    // nikdy nečte (smyčka jde jen po uzlech před robotem) — podél prvního úseku ho
+                    // od 3. 9. 2026 vynucuje Control přímo z WayPoints[seg].Speed. Viz PathResult.
                     // Poslední uzel = požadovaná koncová rychlost (Speed, default 0 = zastavení).
                     turnAngle[i] = 0;
                     cornerRadius[i] = double.PositiveInfinity;

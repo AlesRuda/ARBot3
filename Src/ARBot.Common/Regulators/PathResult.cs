@@ -115,6 +115,20 @@ namespace ARBot.Common.Regulators
                 if (vk < vCmd) vCmd = vk;
             }
 
+            // 3b) Strop uzlu, ze ktereho se PRAVE ODJIZDI, plati podel celeho useku (od 3. 9. 2026).
+            //     Smycka vyse zna jen uzly PRED robotem, takze strop startovniho uzlu (a obecne uzlu
+            //     za zady) se nikdy neuplatnil. LocalPathPlanner pritom dava uzlu k strop z odstupu na
+            //     OBOU sousednich usecich a spoleha, ze kazdy usek zastropuje aspon jeden z jeho uzlu;
+            //     u dvoubodove drahy (robot -> mrkev, konec = zastaveni) zil odstupovy strop prvniho
+            //     useku JEN v uzlu 0 a robot jel 0,86 m/s pri stropu 0,30 (zaznam 20260903-132131).
+            //     Bere se VLASTNI strop waypointu (Speed > 0), NE VLimit[seg]: VLimit nese i strop
+            //     z geometrie rohu (u otocky nula) a ten je podminka PRI PRUJEZDU uzlem, ne podel
+            //     useku za nim - jinak by robot po otocce uz nikdy nevyjel. Speed = 0 znamena
+            //     "bez stropu" jako vsude jinde, takze producenti bez stropu nic nepoznaji.
+            //     Viz doc/path-following.md a doc/devlog.md (3. 9. 2026).
+            double segCap = WayPoints[seg].Speed;
+            if (segCap > 0 && vCmd > segCap) vCmd = segCap;
+
             // 4) Cíl řízení = nejbližší UZEL DRÁHY před robotem (ne virtuální bod na ideální trase).
             //    Ze stejného bodu se bere směr i vzdálenost, do které se musím stihnout natočit —
             //    jsou to dvě strany téže věci. Přesnost průjezdu se pak řídí hustotou waypointů

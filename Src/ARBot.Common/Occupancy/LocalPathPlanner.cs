@@ -65,6 +65,10 @@ namespace ARBot.Common.Occupancy
         private readonly List<double> sampleS = new List<double>();
         private readonly List<float> sampleClear = new List<float>();
         private readonly List<bool> sampleFree = new List<bool>();
+        private readonly List<double> sampleClosing = new List<double>();   // priblizovani k prekazce 0..1
+
+        /// <summary>Rozliseni gridu z posledniho <see cref="Plan"/> [m] - pro gradient pole odstupu.</summary>
+        private double cellSize = 0.05;
         private double[] frontierAfter = new double[0];
         private double[] nodeS = new double[0];
         private int[] nodeSample = new int[0];
@@ -127,6 +131,7 @@ namespace ARBot.Common.Occupancy
             };
 
             double cell = grid.Resolution;
+            cellSize = cell;
             int i0 = grid.CellX(robotX) - grid.OriginX;
             int j0 = grid.CellY(robotY) - grid.OriginY;
             if ((uint)i0 >= (uint)size || (uint)j0 >= (uint)size)
@@ -308,6 +313,31 @@ namespace ARBot.Common.Occupancy
         private bool IsEscapeExit(int idx)
             => state[idx] != (byte)CellState.Blocked && clearance[idx] >= cfg.SafeDist;
 
+        // ---------------- smer k prekazce ----------------
+
+        /// <summary>
+        /// Rychlost PRIBLIZOVANI k nejblizsi prekazce na jednotku dopredne rychlosti (0..1) pri jizde
+        /// smerem (<paramref name="dirX"/>, <paramref name="dirY"/>) (jednotkovy vektor) pres bunku
+        /// <paramref name="idx"/>: <c>max(0, -dir . grad d)</c>, kde <c>d</c> je pole odstupu.
+        ///
+        /// <para>Gradient se bere centralnimi diferencemi ze snapshotu odstupu (na kraji jednostranne).
+        /// EDT je 1-lipschitzovske, takze |grad d| &lt;= 1 az na diskretizaci - orezava se na 1.
+        /// Na hrebeni pole (stred cesty, stejne daleko od obou okraju) je gradient ~0, tedy "nic se
+        /// nepriblizuje" - presne to, co ma smerovy model rikat. Neni-li v gridu zadna prekazka,
+        /// jsou odstupy nekonecne a rozdil je NaN -> 0.</para>
+        /// </summary>
+        private double Closing(int idx, double dirX, double dirY)
+        {
+            int i = idx % size, j = idx / size;
+            int ip = i + 1 < size ? idx + 1 : idx, im = i > 0 ? idx - 1 : idx;
+            int jp = j + 1 < size ? idx + size : idx, jm = j > 0 ? idx - size : idx;
+            double gx = (clearance[ip] - clearance[im]) / ((ip - im) * cellSize);
+            double gy = (clearance[jp] - clearance[jm]) / (((jp - jm) / size) * cellSize);
+            double c = -(dirX * gx + dirY * gy);
+            if (!(c > 0)) return 0.0;        // vzdaluje se, jede podel, nebo NaN (bez prekazek)
+            return c > 1.0 ? 1.0 : c;
+        }
+
         // ---------------- snapshot gridu ----------------
 
         /// <summary>Prekopiruje stav bunek a odstupy do lokalne indexovanych bufferu (i + j*size),
@@ -399,7 +429,10 @@ namespace ARBot.Common.Occupancy
                     }
 
                     double stepLen = diagonal ? diag : cell;
-                    double stepCost = stepLen / cfg.VCost(clr);
+                    // Cena = jizdni cas podle TEZE obalky, kterou dostanou waypointy: smerovy model
+                    // zdrazuje priblizovani k prekazce, ne jizdu podel ni (radialni obe stejne).
+                    double closing = Closing(nidx, NeighDx[k] * cell / stepLen, NeighDy[k] * cell / stepLen);
+                    double stepCost = stepLen / cfg.VCost(clr, closing);
                     if (state[nidx] == (byte)CellState.Unknown)
                         stepCost *= cfg.UnknownCostFactor;
                     // Pri uniku se pres semanticky blokovane bunky smi, ale drazeji - unik ma
@@ -580,22 +613,37 @@ namespace ARBot.Common.Occupancy
             {
                 // Okno uzlu pro ODSTUP = usek k nemu vedouci + usek z nej vychazejici. Kazdy vzorek je
                 // tak zastropovan alespon jednim uzlem -> po zpetnem pruchodu PathPlanneru konzervativni.
+                // Ten predpoklad plati jen proto, ze PathResult.Control od 3. 9. 2026 vynucuje strop
+                // uzlu, ze ktereho se odjizdi, PODEL celeho useku (WayPoints[seg].Speed). Do te doby
+                // znal jen uzly pred robotem a u dvoubodove drahy (posledni uzel = zastaveni) se
+                // odstupovy strop prvniho useku neuplatnil vubec - viz doc/devlog.md 3. 9. 2026.
+                //
+                // Strop z odstupu je MINIMUM OBALKY pres vzorky okna, ne obalka minima odstupu: ve
+                // smerovem modelu zalezi u kazdeho vzorku i na tom, kam draha miri (priblizovani).
+                // V radialnim rezimu je obalka monotonni v odstupu, takze obe formulace splyvaji.
                 double sFrom = k > 0 ? nodeS[k - 1] : nodeS[0];
                 double sTo = k < n - 1 ? nodeS[k + 1] : nodeS[n - 1];
                 double clr = double.MaxValue;
+                double vClear = double.MaxValue;
                 for (int i = 0; i < m; i++)
                 {
                     if (sampleS[i] < sFrom || sampleS[i] > sTo) continue;
                     if (sampleClear[i] < clr) clr = sampleClear[i];
+                    double ve = cfg.VEnvelope(sampleClear[i], sampleClosing[i]);
+                    if (ve < vClear) vClear = ve;
                 }
-                if (clr == double.MaxValue) clr = sampleClear[nodeSample[k]];
+                if (clr == double.MaxValue)
+                {
+                    clr = sampleClear[nodeSample[k]];
+                    vClear = cfg.VEnvelope(clr, sampleClosing[nodeSample[k]]);
+                }
                 if (clr < minClearance) minClearance = clr;
 
                 // Brzdna obalka: vzdalenost k hranici potvrzeneho, merena OD TOHOTO UZLU dopredu.
                 double freeAhead = frontierAfter[nodeSample[k]] - nodeS[k];
                 if (freeAhead < 0) freeAhead = 0;
 
-                double vClear = cfg.VClear(clr), vBrake = cfg.VBrake(freeAhead);
+                double vBrake = cfg.VBrake(freeAhead);
                 double v = Math.Min(vClear, vBrake);
                 bool last = k == n - 1;
 
@@ -640,31 +688,40 @@ namespace ARBot.Common.Occupancy
             sampleS.Clear();
             sampleClear.Clear();
             sampleFree.Clear();
+            sampleClosing.Clear();
             if (nodeS.Length < n) { nodeS = new double[n * 2]; nodeSample = new int[n * 2]; }
 
             double step = grid.Resolution * 0.5;
             double s = 0;
+            double ux = 1, uy = 0;   // smer aktualniho useku (jednotkovy); posledni uzel dedi smer posledniho useku
             for (int k = 0; k < n; k++)
             {
+                double dx = 0, dy = 0, len = 0;
+                if (k < n - 1)
+                {
+                    dx = xs[k + 1] - xs[k];
+                    dy = ys[k + 1] - ys[k];
+                    len = Math.Sqrt(dx * dx + dy * dy);
+                    if (len > 0) { ux = dx / len; uy = dy / len; }
+                }
+
                 nodeS[k] = s;
                 nodeSample[k] = sampleS.Count;
-                AddSample(grid, xs[k], ys[k], s);
+                AddSample(grid, xs[k], ys[k], s, ux, uy);
 
                 if (k == n - 1) break;
 
-                double dx = xs[k + 1] - xs[k], dy = ys[k + 1] - ys[k];
-                double len = Math.Sqrt(dx * dx + dy * dy);
                 int steps = Math.Max(1, (int)Math.Ceiling(len / step));
                 for (int q = 1; q < steps; q++)   // vnitrni vzorky; koncovy bod je uzel k+1
                 {
                     double t = (double)q / steps;
-                    AddSample(grid, xs[k] + dx * t, ys[k] + dy * t, s + len * t);
+                    AddSample(grid, xs[k] + dx * t, ys[k] + dy * t, s + len * t, ux, uy);
                 }
                 s += len;
             }
         }
 
-        private void AddSample(OccupancyGrid grid, double x, double y, double s)
+        private void AddSample(OccupancyGrid grid, double x, double y, double s, double dirX, double dirY)
         {
             int i = grid.CellX(x) - grid.OriginX;
             int j = grid.CellY(y) - grid.OriginY;
@@ -673,7 +730,17 @@ namespace ARBot.Common.Occupancy
 
             sampleS.Add(s);
             sampleClear.Add(inside ? clearance[idx] : 0f);
-            sampleFree.Add(inside && state[idx] == (byte)CellState.Free);
+            sampleClosing.Add(inside ? Closing(idx, dirX, dirY) : 1.0);   // mimo grid: nejhorsi pripad
+
+            // Sjizdne = potvrzene Free, NEBO lezi pod robotem (pudorys) a neni Blocked. Robot na tech
+            // bunkach stoji, takze sjizdne jsou i kdyz je kamera nevidi (slepa zona ~0,5 m pred
+            // robotem) - bez toho je po startu "volno" 0 a robot leze MinCostSpeed, dokud zonu
+            // neprejede. Blocked se nepromiji: robot v trave unika a ma se plouzit. Grid se nemeni.
+            // Viz LocalPlannerConfig.FootprintRadiusM.
+            double footprint = Math.Min(cfg.FootprintRadiusM, cfg.SafeDist);
+            bool free = inside && (state[idx] == (byte)CellState.Free
+                                   || (s < footprint && state[idx] != (byte)CellState.Blocked));
+            sampleFree.Add(free);
         }
 
         // ---------------- pomocne ----------------

@@ -136,7 +136,11 @@ namespace ARBot.Common.Configuration
                   + "takze plati pro CELE rizeni naraz: driver motoru, rychlostni profil i "
                   + "rychlostni obalku lokalniho planovace. Musi byt > 0; hodnota nad technicky "
                   + "dosazitelnou rychlost se orizne (s hlaskou). Bez zadani plati hodnota z kodu.");
-            ZKoduKladne("safedist", "Profile.SafeDist (0,7 m)", K_HW,
+            Vycet("envelope", "directional", new[] { "directional", "radial" }, K_HW,
+                  "Model rychlostniho stropu z odstupu od prekazek v lokalnim planovaci: 'directional' "
+                  + "(vychozi od 3. 9. 2026: podel prekazky uzka rampa, kolmo na ni brzdna draha) nebo "
+                  + "'radial' (puvodni jedina rampa SafeDist..PrefDist bez ohledu na smer - pro A/B).");
+            ZKoduKladne("safedist", "Profile.SafeDist (0,4 m)", K_HW,
                   "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
                   + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "
                   + "Kdyz je >= Profile.PrefDist, PrefDist se posune nad nej se zachovanym rozestupem "

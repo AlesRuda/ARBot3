@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ARBot.ViewModels"
              xmlns:conv="using:ARBot.Converters"
+             xmlns:ctrl="using:ARBot.Views.Controls"
              x:Class="ARBot.Views.WorldViewDocumentView"
              x:DataType="vm:WorldViewDocument"
              >
@@ -79,7 +80,10 @@
                 <CheckBox Content="Lokální mapa" IsChecked="{Binding ShowOccupancy}" Foreground="White"
                           ToolTip.Tip="Akumulovaná sjízdnost okolo robota (occupancy grid)"/>
                 <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"
-                          ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy."/>
+                          ToolTip.Tip="Naplánovaná dráha a cíl. Cíl zadáš Ctrl + klikem do mapy.&#10;&#10;Úseky jsou obarvené stropem rychlosti, který jim plánovač předepsal:&#10;modrá = plná rychlost, oranžová = brzdí, červená = stojí / plazí se.&#10;Tutéž škálu má graf rychlostního profilu vlevo dole."/>
+                <CheckBox Content="Rychlostní profil plánu" IsChecked="{Binding ShowSpeedProfile}"
+                          Foreground="White" Margin="16,0,0,0"
+                          ToolTip.Tip="Graf vlevo dole: strop rychlosti [m/s] jako funkce vzdálenosti od robota po dráze [m].&#10;Žlutá značka v nule = aktuální rychlost robota z fúze.&#10;Čárkovaná čára = strop řízení (maxspeed). Schová se, když plán není."/>
                 <CheckBox Content="Hranice cesty" IsChecked="{Binding ShowEdges}" Foreground="White"
                           ToolTip.Tip="Detekované hranice cesty z kamer (modrá = levá, oranžová = pravá),&#10;promítnuté do mapy — a přes ně PROLOŽENÉ PŘÍMKY z koridoru,&#10;i u zamítnutých cyklů (tenčí a průhlednější).&#10;&#10;Body jsou vidět vždy, ale přímky POUZE s parametrem corridor=true —&#10;bez něj se hranová lokalizace vůbec nezakládá. Stav je v rámečku vpravo dole.&#10;&#10;Každý snímek se promítá pózou z JEHO času (nese ji zpráva), takže&#10;kamery s různým časem snímku nejsou proti sobě posunuté.&#10;Ladicí vrstva — výchozí vypnuto."/>
                 <CheckBox Content="Hranice ze skutečné pózy" IsChecked="{Binding ShowEdgesFromTruth}"
@@ -118,10 +122,22 @@
             </StackPanel>
         </Border>
 
-        <!-- Info overlay vpravo dole. -->
-        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6"
-                Background="#80000000" Padding="8,4" CornerRadius="3">
-            <TextBlock Text="{Binding Info}" Foreground="White" FontSize="12"/>
-        </Border>
+        <!-- Vpravo dole ve sloupci: rychlostni profil planu NAD informacnim rameckem. Vlevo dole
+             nemuze - tam pri nizkem okne saha panel vrstev (overeno snimkem 3. 9. 2026). -->
+        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6" Spacing="4">
+            <!-- Rychlostni profil planu: strop rychlosti vs. vzdalenost od robota. Prekryv, ne vrstva
+                 mapy - useky planu se pohybuji, takze tooltip nad nimi je neucinny. -->
+            <!-- Pozadi NEPRUHLEDNE: pres poloprůhledné prosvitaly cary podkladu (cervena carkovana
+                 hranice OSM, znacky) a vypadaly jako soucast grafu - zjisteno na prvnim snimku. -->
+            <Border HorizontalAlignment="Right" Background="#F2141414" Padding="4" CornerRadius="3"
+                    IsVisible="{Binding SpeedProfileVisible}">
+                <ctrl:PlanSpeedProfileControl Profile="{Binding PlanProfile}" Width="300" Height="130"/>
+            </Border>
+
+            <!-- Info overlay. -->
+            <Border HorizontalAlignment="Right" Background="#80000000" Padding="8,4" CornerRadius="3">
+                <TextBlock Text="{Binding Info}" Foreground="White" FontSize="12"/>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>

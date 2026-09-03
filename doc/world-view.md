@@ -99,6 +99,35 @@ navigační a ve View by z ní vyšel jiný počátek lokální ENU roviny. Doku
 Mapsui 5.1 výplň polygonu nevypne, viz [virtual-hw.md](virtual-hw.md)); rozestup od fialového pásu
 navigační sítě *je* záměrně zavedená chyba mapy. Bez parametru je vrstva prázdná.
 
+### Lokální plán obarvený rychlostí a rychlostní profil (3. 9. 2026)
+
+Plán už není jedna modrá čára. **Každý úsek je vlastní featura obarvená stropem rychlosti**, který mu
+plánovač předepsal (`RegulatorWayPoint.Speed` uzlu, ze kterého se odjíždí): **modrá** (původní
+0x42A5F5) = plná rychlost, **oranžová** = brzdí, **červená** = stojí nebo se plazí na podlaze
+0,05 m/s. Škála je normalizovaná na strop řízení (`Profile.MaxAllowedSpeed`, tedy `maxspeed=`);
+když ji plán překročí, roztáhne se. Jedno místo pro barvy má
+[`SpeedPalette`](../Src/ARBot/Views/Controls/SpeedPalette.cs). Proč konec škály zůstal modrý a ne
+zelený: zelená je zvýrazněná globální trasa hned pod plánem.
+
+**Rychlostní profil** je překryv **vlevo dole** (checkbox *Rychlostní profil plánu* v panelu vrstev,
+výchozí zapnuto): graf **strop rychlosti [m/s] jako funkce vzdálenosti od robota po dráze [m]**,
+úseky touž barvou jako v mapě, tečky v uzlech, čárkovaná čára stropu řízení a **žlutá značka
+v nule = aktuální rychlost robota z fúze** (rozdíl proti prvnímu uzlu říká, o kolik robot za plánem
+zaostává). Hlavička nese stav plánu, délku a nejmenší odstup. Když plán není, překryv se schová.
+Jak to vypadá: [world-view-speed-profile.png](media/world-view-speed-profile.png) (self-test, FreeRun na
+rovné mapě). Kreslí [`PlanSpeedProfileControl`](../Src/ARBot/Views/Controls/PlanSpeedProfileControl.cs) nad
+modelem [`PlanSpeedProfile`](../Src/ARBot.Common/Occupancy/PlanSpeedProfile.cs) (čistý výpočet
+v `Common`, má testy: kumulativní vzdálenost po dráze, ne přímo od robota).
+
+*Proč vzdálenost a ne čas:* obálka je geometrická vlastnost dráhy (odstup od překážek, hranice
+potvrzeně sjízdného), takže se čte „za kolik metrů mě co přibrzdí". Čas by závisel na tom, jak
+rychle robot skutečně pojede.
+
+*Proč překryv, ne tooltip:* tooltip nad úsekem plánu existuje dál (rychlost, tolerance polohy),
+ale úseky se s každým plánem pohybují, takže se na ně myší míří špatně a obálka jako celek z nich
+vidět není. **Rozpad obálky** (brzdí odstup, nebo hranice potvrzeného?) tu ale pořád **není** —
+plánovač ho počítá (`MinVClear`/`MinVBrake`), jenže do `LocalPlanMsg` nejde; to je další krok.
+
 ### Jeden rámec pro všechna lokální data (2026-08-14)
 
 **Poloha, trajektorie, trasa/graf, značky, lokální mapa i lokální plán se kreslí přes tentýž

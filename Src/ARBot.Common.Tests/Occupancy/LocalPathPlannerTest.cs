@@ -351,6 +351,156 @@ namespace ARBot.Common.Tests.Occupancy
                         "povolena rychlost prevysuje brzdnou drahu k hranici znameho");
         }
 
+        // ---------------- smerova obalka (podelna vs. kolma rychlost) ----------------
+        //
+        // Radialni rampa trestala BLIZKOST okraje bez ohledu na smer: robot jedouci podel travy 0,5 m
+        // od ni jel trvale 0,3 m/s. Riziko u okraje je ale KOLME - rychlost priblizovani. Smerovy
+        // model (3. 9. 2026): podel okraje uzka rampa (EdgeMarginM, rezerva na chybu sledovani),
+        // kolmo brzdna draha k SafeDist delena rychlosti priblizovani. Viz doc/occupancy-and-local-planning.md.
+
+        private static Scene WallScene(SpeedEnvelopeMode mode)
+        {
+            var cfg = PlannerCfg();
+            cfg.Envelope = mode;
+            var s = Scene.Create(cfg);
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkOffRoad(-3.0, 1.2, 3.0, 3.0);      // trava (= zed) od y = 1,2 dal
+            s.Rebuild();
+            return s;
+        }
+
+        [Test]
+        public void Smerova_PodelOkrajeJedeRychlejiNezKolmoNaNej_PriStejnemOdstupu()
+        {
+            // Obe drahy maji nejmensi odstup 0,45 m (0,05 m nad SafeDist): jedna jede PODEL travy
+            // v y = 0,75, druha k ni miri KOLMO a konci v y = 0,75.
+            var podel = WallScene(SpeedEnvelopeMode.Directional);
+            var rPodel = podel.PlanFrom(0, 0.75, 2.0, 0.75);
+            var kolmo = WallScene(SpeedEnvelopeMode.Directional);
+            var rKolmo = kolmo.PlanFrom(0, 0, 0, 0.75);
+            var cfg = podel.Planner.Config;
+
+            double margin = 0.45 - cfg.SafeDist;
+            double expectedPodel = cfg.MaxSpeed * margin / cfg.EdgeMarginM;              // 0,267
+            double expectedKolmo = Math.Sqrt(2 * cfg.MaxDeceleration * margin);           // 0,173
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rPodel.HasPath && rKolmo.HasPath, Is.True);
+                Assert.That(rPodel.MinClearanceM, Is.EqualTo(0.45).Within(0.03), "predpoklad: stejny odstup");
+                Assert.That(rKolmo.MinClearanceM, Is.EqualTo(0.45).Within(0.03), "predpoklad: stejny odstup");
+                Assert.That(rPodel.WayPoints[0].Speed, Is.EqualTo(expectedPodel).Within(0.06), "podel: uzka podelna rampa");
+                Assert.That(rKolmo.WayPoints[0].Speed, Is.EqualTo(expectedKolmo).Within(0.06), "kolmo: brzdna draha k SafeDist");
+                Assert.That(rKolmo.WayPoints[0].Speed, Is.LessThan(rPodel.WayPoints[0].Speed), "kolmo musi byt prisnejsi nez podel");
+            });
+        }
+
+        [Test]
+        public void Smerova_PodelOkrajeVOdstupuMisePlnaRychlost_RadialniCtvrtina()
+        {
+            // Pripad FreeRunu na 2m ceste: robot 0,5 m od travy, jede podel. Radialni rampa dala
+            // ctvrtinu v_max (0,1 / 0,4), smerova dve tretiny (0,1 / 0,15).
+            var smer = WallScene(SpeedEnvelopeMode.Directional);
+            var rad = WallScene(SpeedEnvelopeMode.Radial);
+            var cfg = smer.Planner.Config;
+
+            var rSmer = smer.PlanFrom(0, 0.70, 2.0, 0.70);
+            var rRad = rad.PlanFrom(0, 0.70, 2.0, 0.70);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(rSmer.MinClearanceM, Is.EqualTo(0.5).Within(0.03), "predpoklad: odstup 0,5 m");
+                Assert.That(rSmer.WayPoints[0].Speed, Is.EqualTo(cfg.MaxSpeed * 0.1 / cfg.EdgeMarginM).Within(0.08), "smerova");
+                Assert.That(rRad.WayPoints[0].Speed, Is.EqualTo(cfg.MaxSpeed * 0.1 / 0.4).Within(0.06), "radialni = puvodni chovani");
+                Assert.That(rSmer.WayPoints[0].Speed, Is.GreaterThan(2 * rRad.WayPoints[0].Speed), "smerova podel okraje aspon 2x rychlejsi");
+            });
+        }
+
+        [Test]
+        public void Smerova_UprostredCestyBezPriblizovani_RidiJenPodelnaRampa()
+        {
+            // Stred 1,5 m cesty: odstup 0,75, hreben pole odstupu (gradient ~0). Podelna rampa je
+            // nad EdgeMarginM -> plna rychlost; kolmy clen se neuplatni.
+            var cfg = PlannerCfg();
+            var s = Scene.Create(cfg);
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkOffRoad(-3.0, 0.75, 3.0, 3.0);
+            s.MarkOffRoad(-3.0, -3.0, 3.0, -0.75);
+            s.Rebuild();
+
+            var r = s.Plan(2.0, 0.0);
+
+            Assert.That(r.WayPoints[0].Speed, Is.EqualTo(cfg.MaxSpeed).Within(1e-6));
+        }
+
+        [Test]
+        public void Obalka_KonfiguraceAValidace()
+        {
+            var cfg = PlannerCfg();   // SafeDist 0,4, MaxSpeed 0,8, MaxDeceleration 0,3, EdgeMarginM 0,15
+            Assert.Multiple(() =>
+            {
+                Assert.That(cfg.VAlong(cfg.SafeDist), Is.EqualTo(0.0), "na SafeDist podel nula");
+                Assert.That(cfg.VAlong(cfg.SafeDist + cfg.EdgeMarginM), Is.EqualTo(cfg.MaxSpeed), "na konci pasma plna");
+                Assert.That(cfg.VClosing(1.0, 0.0), Is.EqualTo(cfg.MaxSpeed), "bez priblizovani bez omezeni");
+                Assert.That(cfg.VClosing(cfg.SafeDist + 0.1, 1.0), Is.EqualTo(Math.Sqrt(2 * 0.3 * 0.1)).Within(1e-9), "primo na prekazku = brzdna draha");
+                Assert.That(cfg.VClosing(cfg.SafeDist + 0.1, 0.5), Is.EqualTo(2 * Math.Sqrt(2 * 0.3 * 0.1)).Within(1e-9), "sikmo dvojnasobek");
+                Assert.That(cfg.VClosing(cfg.SafeDist, 1.0), Is.EqualTo(0.0), "na SafeDist kolmo nula");
+                Assert.That(() => { var c = PlannerCfg(); c.EdgeMarginM = 0; c.Validate(); }, Throws.ArgumentException);
+            });
+        }
+
+        // ---------------- pudorys robota (rozjezd) ----------------
+
+        /// <summary>
+        /// Slepa zona kamer: bunky pod robotem a tesne pred nim jsou po startu Unknown, potvrzene
+        /// volno zacina az ~0,5 m pred robotem. Bez pudorysu bylo "volno" 0 a robot lezl
+        /// MinCostSpeed 10 s (3. 9. 2026). Co je pod robotem, je sjizdne - robot tam stoji.
+        /// </summary>
+        [Test]
+        public void SlepaZonaPredRobotem_PudorysDaRozjezdMistoPlouzeni()
+        {
+            var s = Scene.Create();
+            s.MarkFree(0.5, -1.0, 3.0, 1.0);      // potvrzene volno az od 0,5 m; pod robotem Unknown
+            s.Rebuild();
+            var cfg = s.Planner.Config;
+            Assert.That(s.Grid.StateAtWorld(0, 0), Is.EqualTo(CellState.Unknown), "predpoklad: pod robotem neznamo");
+            Assert.That(s.Grid.StateAtWorld(0.4, 0), Is.EqualTo(CellState.Unknown), "predpoklad: slepa zona pred robotem");
+
+            var r = s.Plan(2.0, 0.0);
+
+            // Volno je aspon polomer pudorysu -> brzdna obalka sqrt(2*a*r), ne podlaha 0,05.
+            double minExpected = cfg.VBrake(cfg.FootprintRadiusM - Res);   // rezerva na kvantovani vzorku
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.HasPath, Is.True);
+                Assert.That(r.WayPoints[0].Speed, Is.GreaterThan(cfg.MinCostSpeed + 1e-9), "rozjezd nesmi byt plouzeni");
+                Assert.That(r.WayPoints[0].Speed, Is.GreaterThanOrEqualTo(minExpected - 1e-9),
+                            $"volno ma byt aspon pudorys {cfg.FootprintRadiusM} m");
+            });
+        }
+
+        /// <summary>
+        /// Pudorys promiji jen Unknown, ne Blocked: robot stojici v trave unika a ma se plouzit -
+        /// uvnitr skvrny neni nic sjizdneho a "stoji tam" neznamena "smi tam jet rychle".
+        /// </summary>
+        [Test]
+        public void PudorysVTrave_UnikZustavaPlouzeni()
+        {
+            var s = Scene.Create();
+            s.MarkFree(0.8, -1.5, 3.0, 1.5);
+            s.MarkOffRoad(-1.5, -1.5, 0.7, 1.5);      // robot v trave (semantika)
+            s.Rebuild();
+
+            var r = s.Plan(3.0, 0.0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.EscapingBlocked));
+                Assert.That(r.WayPoints[0].Speed, Is.LessThanOrEqualTo(s.Planner.Config.MinCostSpeed + 1e-9),
+                            "v trave pudorys nepomaha - unik je plouzeni");
+            });
+        }
+
         // ---------------- cil ----------------
 
         [Test]

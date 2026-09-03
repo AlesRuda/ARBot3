@@ -265,6 +265,24 @@ namespace ARBot.ViewModels
         /// <summary>Vrstva: lokalni plan (draha + cil).</summary>
         [ObservableProperty] private bool showPlan = true;
 
+        /// <summary>
+        /// Prekryv v rohu mapy: graf rychlostni obalky planu (strop rychlosti jako funkce vzdalenosti
+        /// od robota). Neni to vrstva mapy, ale samostatny control (<c>PlanSpeedProfileControl</c>),
+        /// takze nejde pres <c>RebuildLayers</c>. Viz doc/world-view.md.
+        /// </summary>
+        [ObservableProperty] private bool showSpeedProfile = true;
+
+        /// <summary>Rychlostni profil POSLEDNIHO planu (null = zadny plan); prepocitava se kazdy tik,
+        /// protoze nese i aktualni rychlost robota.</summary>
+        [ObservableProperty] private ARBot.Common.Occupancy.PlanSpeedProfile? planProfile;
+
+        /// <summary>Prekryv se ukaze, jen kdyz je zapnuty A je co kreslit (jinak by v rohu visel prazdny ramecek).</summary>
+        [ObservableProperty] private bool speedProfileVisible;
+
+        partial void OnShowSpeedProfileChanged(bool value) => UpdateSpeedProfileVisible();
+        partial void OnPlanProfileChanged(ARBot.Common.Occupancy.PlanSpeedProfile? value) => UpdateSpeedProfileVisible();
+        private void UpdateSpeedProfileVisible() => SpeedProfileVisible = ShowSpeedProfile && PlanProfile != null;
+
         /// <summary>Hranice cesty z kamer. <b>Vychozi vypnuto</b> — je to ladici vrstva a pri
         /// 30 snimcich za sekundu se prekresluje casto.</summary>
         [ObservableProperty] private bool showEdges;
@@ -618,6 +636,7 @@ namespace ARBot.ViewModels
             // Prestavuj JEN kdyz prisla nova zprava - occupancy je rastr 256x256 (prekodovani do PNG).
             if (occupancy != null) UpdateOccupancyFeature(occupancy, geoRef);
             if (plan != null || occupancy != null) UpdatePlanFeature(lastPlan, geoRef);
+            UpdateSpeedProfile();   // kazdy tik: nese i aktualni rychlost robota, ne jen plan
 
             if (edgesDirty)
             {
@@ -1268,9 +1287,21 @@ namespace ARBot.ViewModels
                 for (int i = 0; i < plan.WayPoints.Length; i++)
                     coords[i] = ToMerc(plan.WayPoints[i].X, plan.WayPoints[i].Y);
 
-                var line = new GeometryFeature { Geometry = new LineString(coords) };
-                line.Styles.Add(new VectorStyle { Line = new Pen(new Color(0x42, 0xA5, 0xF5), PlanLineWidth) });
-                features.Add(line);
+                // Kazdy usek je vlastni featura obarvena stropem rychlosti, se kterym se z jeho
+                // pocatecniho uzlu odjizdi - tataz skala jako graf v rohu (SpeedPalette: cervena =
+                // stoji, oranzova = brzdi, modra = plna). Jedna modra cara neukazovala, KDE plan
+                // brzdi, a tooltip nad pohybujicim se usekem to neresi (3. 9. 2026). Tloustka
+                // zustava PlanLineWidth - poradi a sirky vrstev viz doc/world-view.md.
+                var profile = ARBot.Common.Occupancy.PlanSpeedProfile.From(
+                    plan, double.NaN, ARBot.Common.Configuration.Profile.MaxAllowedSpeed);
+                for (int k = 0; k < coords.Length - 1; k++)
+                {
+                    double t = profile != null ? profile.Normalized(profile.SegmentV(k)) : 1.0;
+                    var (r, g, b) = ARBot.Views.Controls.SpeedPalette.Rgb(t);
+                    var seg = new GeometryFeature { Geometry = new LineString(new[] { coords[k], coords[k + 1] }) };
+                    seg.Styles.Add(new VectorStyle { Line = new Pen(new Color(r, g, b), PlanLineWidth) });
+                    features.Add(seg);
+                }
 
                 planSegTips = BuildPlanSegmentTips(plan, coords);
             }
@@ -1302,6 +1333,18 @@ namespace ARBot.ViewModels
                  + "V ustáleném stavu je to tentýž bod jako modrá „mrkev“ ve Značkách;\n"
                  + "ta se přepočítává průběžně, takže se od sebe můžou o kus lišit."),
             };
+        }
+
+        /// <summary>
+        /// Rychlostni profil posledniho planu pro prekryv v rohu mapy. Pocita se kazdy tik (levne:
+        /// par desitek uzlu), protoze nese i aktualni rychlost robota z fuze - znacka v s = 0, ktera
+        /// rika, o kolik robot za planem zaostava. Bez planu je null a prekryv se schova.
+        /// </summary>
+        private void UpdateSpeedProfile()
+        {
+            double v = lastRobot?.V ?? double.NaN;
+            PlanProfile = ARBot.Common.Occupancy.PlanSpeedProfile.From(
+                lastPlan, v, ARBot.Common.Configuration.Profile.MaxAllowedSpeed);
         }
 
         /// <summary>

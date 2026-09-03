@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **57 parametrů**
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **58 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním

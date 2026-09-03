@@ -25,6 +25,67 @@ namespace ARBot.Common.Tests.Regulators
         private static RegulatorWayPoint Wp(double x, double y, double speed = 0, double eps = 0.1)
             => new RegulatorWayPoint { X = x, Y = y, Speed = speed, MaxPositionError = eps };
 
+        // ---------------- strop uzlu, ze ktereho se odjizdi ----------------
+        //
+        // NALEZ 3. 9. 2026 (doc/devlog.md): rychlostni obalka lokalniho planovace se v prime jizde
+        // vubec neuplatnovala. LocalPathPlanner dava strop uzlu k z odstupu na OBOU sousednich usecich
+        // a spoleha, ze kazdy usek zastropuje aspon jeden z jeho uzlu. U dvoubodoveho planu (robot ->
+        // mrkev) ma posledni uzel Speed = 0 (zastaveni), takze odstupovy strop prvniho useku zije JEN
+        // v uzlu 0 - a Control iteroval jen uzly PRED robotem, tedy VLimit[0] nikdy necetl. Namereno:
+        // strop 0,30 m/s, robot jel 0,86 m/s (brzdna parabola k mrkvi). Strop uzlu proto plati podel
+        // celeho useku, ktery z nej vychazi - ne jen pri prijezdu do nej.
+
+        private static PathResult Path(PathPlanner planner, params RegulatorWayPoint[] wps)
+            => (PathResult)planner.Plan(wps);
+
+        private static RobotState Moving(double x, double y, double v)
+            => new RobotState { X = x, Y = y, Orientation = 0, V = v };
+
+        [Test]
+        public void StropStartovnihoUzlu_OmezujeRychlostNaPrvnimUseku()
+        {
+            // Dvoubodova draha jako v FreeRunu: uzel 0 = robot se stropem 0,3 (bocni odstup),
+            // uzel 1 = mrkev, zastaveni. Robot uz vyjel a jede 0,85 m/s.
+            var planner = MakePlanner();
+            var path = Path(planner, Wp(0, 0, speed: 0.3), Wp(2.0, 0, speed: 0));
+
+            var r = path.Control(Moving(0.2, 0, 0.85));
+
+            Assert.That(r.Speed, Is.LessThanOrEqualTo(0.3 + 1e-9),
+                        "strop uzlu, ze ktereho se odjizdi, musi platit podel celeho useku");
+        }
+
+        [Test]
+        public void StropUzluPlatiPodelCelehoUseku_NeJenPriPrijezdu()
+        {
+            // Tri uzly: strop 0,3 na uzlu 1 (jeho okno odstupu kryje useky 0-1 i 1-2). Robot
+            // v druhem useku, daleko od uzlu 2 - brzdna obalka k uzlu 2 by sama povolila vic.
+            var planner = MakePlanner();
+            var path = Path(planner, Wp(0, 0, speed: 0.3), Wp(2.0, 0, speed: 0.3), Wp(6.0, 0, speed: 0));
+
+            var vPrvni = path.Control(Moving(1.0, 0, 0.8)).Speed;
+            var vDruhy = path.Control(Moving(2.5, 0, 0.8)).Speed;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(vPrvni, Is.LessThanOrEqualTo(0.3 + 1e-9), "prvni usek: strop uzlu 0");
+                Assert.That(vDruhy, Is.LessThanOrEqualTo(0.3 + 1e-9), "druhy usek: strop uzlu 1, i kdyz je uzel 2 daleko");
+            });
+        }
+
+        [Test]
+        public void BezStropuNaStartu_ChovaniSeNemeni()
+        {
+            // Speed = 0 na startu znamena "bez stropu" (tak to pouzivaji ostatni producenti drah) -
+            // robot smi jet, co brzdna obalka k zastaveni dovoli, tedy vic nez 0,3.
+            var planner = MakePlanner();
+            var path = Path(planner, Wp(0, 0), Wp(2.0, 0));
+
+            var r = path.Control(Moving(0.2, 0, 0.5));
+
+            Assert.That(r.Speed, Is.GreaterThan(0.5), "bez stropu na startu ma robot zrychlovat");
+        }
+
         private sealed class SimResult
         {
             public bool Finished;

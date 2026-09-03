@@ -396,10 +396,21 @@ namespace ARBot.Robot
             // loop.Output (ridici smycka je forwarduje po pullu), pozu si bere z fuze v case
             // PORIZENI snimku, a hotovy regulator atomicky preda zpet do loop.Regulator.
             // Viz doc/occupancy-and-local-planning.md.
+            //
+            // envelope= voli model rychlostniho stropu z odstupu (smerovy vs. radialni) - A/B prepinac,
+            // vychozi smerovy. Config vznika TADY (po Program.Main), takze uz vidi safedist= v Profile.
+            var plannerCfg = new LocalPlannerConfig();
+            string envelope = Program.GetParam("envelope", "directional");
+            plannerCfg.Envelope = string.Equals(envelope, "radial", StringComparison.OrdinalIgnoreCase)
+                ? SpeedEnvelopeMode.Radial : SpeedEnvelopeMode.Directional;
+            if (plannerCfg.Envelope == SpeedEnvelopeMode.Radial)
+                Trace.WriteLine("envelope=radial: puvodni radialni rampa rychlosti z odstupu (A/B).");
+
             var navigator = new LocalNavigator(
                 engine,
                 depthProjections: name => projectionResolver(name) as ICameraProjection,
                 colorProjections: BuildColorProjectionResolver(hw),
+                plannerConfig: plannerCfg,
                 pathPlanner: new PathPlanner(
                     new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
                                                Profile.MaxAcceleration, Profile.Rozchod),

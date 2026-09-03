@@ -83,6 +83,96 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     vedl" a hlídá, že se robot nedostane pod `SafeDist`. `GlobalNavigator` bere nové stavy zatím jako
     `Partial`; **reakce mise/navigace na nedosažitelnou mrkev zůstává k rozhodnutí.** Ověřeno jen
     testy, v simulaci ani na HW ne.
+  - **World pohled: úseky plánu obarvené stropem rychlosti + graf „rychlost vs. vzdálenost" vlevo dole.**
+    Na přání autora — tooltip nad pohybujícími se úseky byl k ničemu. Model `PlanSpeedProfile`
+    v `Common` (testy), kreslení `PlanSpeedProfileControl`, škála `SpeedPalette` společná pro mapu
+    i graf. Popis v [world-view.md](world-view.md#lokální-plán-obarvený-rychlostí-a-rychlostní-profil-3-9-2026).
+    Ověřeno buildem, testy modelu a **snímkem ze self-testu** (`virtualhw` + FreeRun na rovné mapě,
+    `st_world=true st_shot=true`): [world-view-speed-profile.png](media/world-view-speed-profile.png). První
+    umístění vlevo dole se při nízkém okně překrývalo s panelem vrstev, proto je graf vpravo dole nad
+    informačním rámečkem. ⚠️ **Graf hned něco ukázal:** plán FreeRunu je jediný úsek k mrkvi 1,5 m
+    před robotem se stropem **~0,3 m/s** v nule (odstup 0,50 m při `SafeDist` 0,4 / `PrefDist` 0,8 dá
+    `VClear` = 0,3) klesajícím na 0 na konci (mrkev je „cíl", tak se k ní
+    brzdí), ale robot jede **0,85 m/s** — skoro trojnásobek stropu prvního uzlu. Buď nižší smyčka strop prvního
+    uzlu nectí, nebo ho robot nikdy nestihne dojet, protože mrkev každý cyklus popojede. **Neprozkoumáno.**
+    Rozpad obálky
+    (odstup vs. brzdná obálka) do zprávy plánu pořád nejde — další krok.
+  - **⚠️ NÁLEZ: rychlostní obálka lokálního plánovače se v přímé jízdě VŮBEC NEUPLATŇUJE — nižší
+    smyčka ignoruje strop startovního uzlu.** Změřeno záznamem `20260903-132131` (FreeRun, rovná
+    mapa, 385 plánů): strop 1. uzlu **0,30 m/s** (p50 i p90), příkazová rychlost **0,855 m/s**,
+    rychlost fúze 0,855 m/s. Mechanismus, potvrzený kódem: `LocalPathPlanner.BuildWayPoints` dává
+    strop uzlu *k* z odstupu na obou sousedních úsecích a **spoléhá, že každý vzorek zastropuje
+    aspoň jeden uzel**; u dvoubodového plánu (robot → mrkev, což je v FreeRunu 100 % plánů) je
+    poslední uzel `Speed = 0` (zastavení na mrkvi), takže odstupový strop prvního úseku žije **jen
+    v uzlu 0**. Jenže `PathPlanner.Plan` startovní uzel bere jako „start = v_max, skutečná rychlost
+    je runtime" a `PathResult.Control` iteruje **jen uzly před robotem** (`k = seg + 1 …`), takže
+    `VLimit[0]` se nikdy nečte. Rychlost pak řídí jen brzdná parabola k nule na mrkvi
+    (`Compute(1,84 m, ve = 0)` = 0,95 m/s, faktor 0,9 uvnitř) a vazba na dobu rotace → 0,86 m/s.
+    Mrkev každý cyklus popojede, takže robot jede trvale na brzdné parabole a k mrkvi nikdy nedojede.
+    U vícebodových plánů to zachraňuje uzel 1 (jeho okno odstupu kryje i úsek 0), ale i tam platí
+    strop až *při příjezdu* do uzlu, ne podél úseku. **Důsledek pro bezpečnost:** `VClear`
+    (boční odstup) a `VBrake` (hranice potvrzeného terénu) dnes na prvním úseku nic neřídí; „robot
+    leze" z dřívějších rozborů muselo mít jinou příčinu (vazba na rotaci). Návrh léčby: v `Control`
+    stropovat `vCmd` i `VLimit[seg]` (strop uzlu, ze kterého se právě odjíždí) — pro producenty bez
+    stropu (`Speed = 0` → bez stropu) se nic nezmění. **Opraveno týž den:** `PathResult.Control` stropuje i `WayPoints[seg].Speed`, tedy vlastní strop
+    uzlu, ze kterého se právě odjíždí; strop z geometrie rohu (`VLimit`) se schválně nepřenáší, ten
+    platí jen při průjezdu uzlem — u otočky je nula a robot by po ní už nevyjel. Testy
+    `StropStartovnihoUzlu_*`, `StropUzluPlatiPodelCelehoUseku_*` (před opravou 0,738 a 0,648/0,800
+    m/s místo 0,3), `BezStropuNaStartu_*`. **Důsledek: FreeRun na rovné mapě teď pojede ~0,3 m/s
+    místo 0,86 — je to poprvé, co obálka skutečně řídí.** Přeměřeno hned (záznam `20260903-140224`,
+    420 plánů): strop 1. uzlu p50 0,300, **příkazová rychlost p50 0,300**, fúze 0,270 m/s — robot jede
+    přesně na stropu. ⚠️ **Vedlejší efekt:** prvních ~10 s po startu robot **leze 0,05 m/s** (podlaha
+    `MinCostSpeed`), protože „volno" po dráze je 0 — grid ještě nemá před robotem potvrzeně `Free`
+    buňky a brzdná obálka drží podlahu; za 10 s ujel 0,68 m. Dřív to nebylo vidět, protože se obálka
+    ignorovala. Je to chování podle návrhu („ploužení prostor dosvítí"), ale 10 s je dlouho — stojí za
+    pohled, proč se buňky před robotem potvrzují tak pomalu. Zbývá rozhodnout
+    (0,3 m/s při odstupu 0,5 m od trávy je možná zbytečně pomalé — `VClear` bere sémanticky
+    blokovanou trávu jako zeď — **to je ale zadání soutěže**, ne vada: náraz do zdi i vjezd na trávu
+    znamenají konec; pro jiné soutěže případně konfigurace). Autor k tomu navrhuje jiný model rampy:
+    **jiná podélná a jiná kolmá rychlost** (riziko u okraje je kolmá složka, podél okraje je skoro
+    nulová). Rampa se propisuje i do **ceny hran A*** (`VCost`) a do `MaxPositionError`, takže by se
+    měnila na obou místech. Dohodnuté pořadí: nejdřív přeměřit FreeRun s funkční obálkou, pak model. Rozbor: `ARBot.Analyze localplan`.
+  - **Proč robot na 2m mapě leze 0,05 m/s prakticky pořád** (záznam `20260903-144008`, 295 plánů):
+    tři příčiny naskládané na sebe, každá sama stačí na podlahu `MinCostSpeed`.
+    1. **Mrkev je v trávě nebo těsně u ní:** koridor se na 1 m zbývající cesty detekuje jen ve 4 %
+       cyklů, mrkev jde tedy rovně 1,5 m před robota — za konec cesty (`GoalBlocked` 76 %). Když se
+       koridor chytí, leží mrkev ve čtvrtině šířky = 0,375 m od trávy, tj. **pod `SafeDist` 0,4**
+       (`GoalUnsafe` 23 %). Plán proto vždy končí na buňce s odstupem přesně 0,400 (naměřeno p50),
+       kde `VClear` = 0.
+    2. **Strop úseku je minimum přes celý úsek:** dvoubodový plán má jediný úsek a jeho strop bere
+       nejhorší odstup kdekoli na něm — tedy ten koncový. Robot pak leze od začátku, místo aby
+       k okraji dobrzďoval. Návrh: `LocalPathPlanner` dělit dlouhé úseky mezi-uzly (např. po 0,5 m),
+       aby obálka mohla podél dráhy klesat; `PathPlanner` zpětným průchodem drží konzistenci.
+    3. **„Volno" po dráze je 0** (p50 0,000, max 0,399): buňka pod robotem a těsně před ním není
+       `Free`. `Free` vyžaduje potvrzení OBĚMA kanály (hloubka i barva), a kamery se sklonem ~20° dolů
+       zem těsně před robotem nevidí — slepá zóna ~0,5 m, kterou robot musí nejdřív přejet (na dlouhé
+       mapě proto prvních 10 s ploužení: 10 s × 0,05 m/s). Na krátké mapě na ni při 0,6 m zbývající
+       dráhy nikdy nedojde. `Free` buněk je 1,08 % gridu = přesně plocha 1 × 1,5 m cesty.
+    Závěr: 2m mapa je kratší než lookahead + `SafeDist` + slepá zóna, takže se na ní podle návrhu
+    NEDÁ jet — je to kulisa pro statická měření, ne pro jízdu (viz její hlavička). Pro jízdu na
+    úzké cestě je podstatný bod 1: odsazení mise `Width/4` musí respektovat `SafeDist`.
+  - **Rozjezd bez 10 s ploužení: půdorys robota je pro brzdnou obálku sjízdný.** Nový
+    `LocalPlannerConfig.FootprintRadiusM` (0,3 m): vzorky dráhy pod robotem se při výpočtu „volna"
+    berou jako sjízdné, pokud nejsou `Blocked`; grid se nemění, únik z trávy zůstává ploužení. Fakt
+    (robot tam stojí), ne domněnka o slepé zóně. Testy `SlepaZonaPredRobotem_*`, `PudorysVTrave_*`.
+    Popis a zamítnuté alternativy v [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+    **Přeměřeno** (záznam `20260903-151825`, dlouhá mapa, 388 plánů): volno po dráze **min 1,41 m**
+    (dřív p50 0 v prvním okně), první okno 0–10 s jede 0,30 m/s a ujede **3,11 m místo 0,68**;
+    ploužení při rozjezdu zmizelo celé, ne jen zkrátilo — slepá zóna je tedy kratší než půdorys 0,3 m.
+    Celá sada 1110 OK. Na 2m mapě to nepomůže (tam drží podlahu odstup u konce cesty, viz výše).
+  - **Směrový model rychlostního stropu z odstupu** (`envelope=directional`, výchozí; `radial` = původní
+    pro A/B): podél překážky úzká rampa `EdgeMarginM` 0,15 m nad `SafeDist`, kolmo brzdná dráha k `SafeDist`
+    dělená rychlostí přibližování (záporný průmět směru dráhy do gradientu pole odstupů). Uzel dostává
+    minimum obálky přes vzorky okna; tatáž funkce je cena hran A*. Rozhodnutí a rizika (šířka pásma je
+    odhad ze simulace, na HW přeměřit) v [decisions.md](decisions.md); mechanismus
+    v [occupancy-and-local-planning.md](occupancy-and-local-planning.md#vzdálenostní-pole-a-rychlostní-stropy).
+    **A/B na dlouhé mapě** (FreeRun, 25 s): směrový `20260903-153917` — strop 1. uzlu **0,800 m/s**
+    (= 1,2 · 0,1/0,15), příkaz 0,80, fúze 0,80, ujeto 7,15 m za prvních 10 s; radiální `20260903-153947`
+    — 0,30/0,30/0,30, ujeto 3,06 m. Odstup na dráze v obou 0,500 m. **Příčná chyba sledování proti
+    pravdě** při 0,8 m/s: poslední čtvrtina −0,518 m (požadováno −0,500), rozptyl min −0,522 / max
+    −0,508; radiální −0,511 m. Tedy ~2 cm proti pásmu 0,15 m — osminásobná rezerva, na HW přeměřit.
+    Testy `Smerova_*` + `Obalka_KonfiguraceAValidace`. Opraven i zastaralý popis defaultu `safedist`
+    v registru (0,4 m, ne 0,7).
   - Odkazy: `OSM/SyntetickyRovny2m.osm`, `Src/ARBot.Common.Tests/OsmNav.Tests/SyntetickeMapyTests.cs`.
 
 ## 2026-09-02

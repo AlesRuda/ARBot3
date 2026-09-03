@@ -122,6 +122,18 @@ Zásah = dvě nezávisle počítaná čísla: **dopredná rychlost** a **rotačn
    `Dist2Speed` sám zrychluje (je-li místo) i brzdí (blíží-li se pomalejší uzel). Stačí **jen
    nejbližší uzel**, protože `VLimit[další]` už přes zpětný průchod folduje veškerou budoucnost
    (z něj se dá ubrzdit na `VLimit[další+1]` atd.) — indukcí je to bezpečné.
+
+   **Plus strop uzlu, ze kterého se právě odjíždí (od 3. 9. 2026):** `v_zásah ≤ WayPoints[seg].Speed`,
+   je-li zadán (`Speed > 0`). Indukce výše totiž pokrývá jen podmínky *při průjezdu* uzly před robotem;
+   strop **podél úseku** (boční odstup od překážek, který `LocalPathPlanner` ukládá do uzlu, z něhož
+   úsek vychází) se z ní nedostane. Projevilo se to naplno u dvoubodové dráhy robot → mrkev, kde má
+   poslední uzel `Speed = 0` (zastavení): odstupový strop prvního úseku žil jen v uzlu 0, ten smyčka
+   nikdy nečetla, a robot jel **0,86 m/s při stropu 0,30** (záznam `20260903-132131`). Bere se
+   **vlastní strop waypointu, ne `VLimit[seg]`** — `VLimit` nese i strop z geometrie rohu (u otočky
+   nula), a ten je podmínka při průjezdu uzlem, ne podél úseku za ním; jinak by robot po otočce už
+   nevyjel. `Speed = 0` zůstává „bez stropu", takže producenti drah bez stropu nic nepoznají.
+   Testy: `PathControllerTests.StropStartovnihoUzlu_*`, `StropUzluPlatiPodelCelehoUseku_*`,
+   `BezStropuNaStartu_*`. Viz [devlog.md](devlog.md), 3. 9. 2026.
 3. **Rotační rychlost** — z **lookahead bodu** ve vzdálenosti `L_d = τ_look·v` na trase: úhel
    k němu = směrová odchylka → `Rot2RotSpeed` → `ω`. Lookahead slouží **jen k řízení směru**.
 4. **Vazba** — `SpeedLimit` srazí dopřednou rychlost, je-li směrová odchylka velká (robot se

@@ -13,6 +13,34 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-03 — Rychlostní strop z odstupu je směrový: podél překážky úzká rampa, kolmo brzdná dráha
+**Co:** `LocalPlannerConfig.Envelope = Directional` (výchozí; `envelope=radial` vrátí původní model).
+Podélný strop `v_along = v_max · (d − SafeDist) / EdgeMarginM` s `EdgeMarginM = 0,15 m`; kolmý strop
+`v_closing = √(2·a·(d − SafeDist)) / closing`, kde `closing = max(0, −t·∇d)` je rychlost přibližování
+k nejbližší překážce na jednotku dopředné rychlosti (gradient pole odstupů centrálními diferencemi).
+Obálka je minimum obou; uzel dostává minimum přes vzorky svého okna; tatáž funkce dává cenu hran A\*.
+
+**Proč:** původní radiální rampa `SafeDist..PrefDist` (0,4–0,8 m) trestala *blízkost* okraje bez
+ohledu na směr. Jakmile 3. 9. 2026 začala obálka skutečně řídit (oprava `PathResult.Control`), FreeRun
+v pravé polovině 2 m cesty (0,5 m od trávy) jel trvale 0,3 m/s. Fyzikálně je riziko u okraje kolmé:
+jak rychle se robot k hranici blíží. Podél okraje se nic nepřibližuje a jediné, před čím rampa chrání,
+je příčná chyba sledování dráhy — proto úzké pásmo, ne 0,4 m. Autor výslovně odmítl řešit to přes
+sémantiku („tráva není zeď"): podle zadání soutěže vjezd na trávu i náraz do zdi znamenají konec, obě
+jsou tedy zeď; pro jiné soutěže případně konfigurace.
+
+**Důsledky:** při 0,5 m podél okraje vyjde `0,8·v_max` místo `0,25·v_max`. Kolmý člen se uplatní
+při najíždění k okraji blízko něj (např. zatáčka do pravé poloviny), jinak vládne podélná rampa.
+Na hřebeni pole odstupů (střed cesty) je gradient ~0 a kolmý člen mlčí. `EdgeMarginM` je odhad
+z simulace (příčná chyba p50 0,01–0,05 m, trojnásobná rezerva) — **na HW přeměřit**; příliš úzké pásmo
+znamená, že tracking error srazí robota pod `SafeDist` a do úniku. `PrefDist` má význam jen v radiálním
+režimu. Radiální režim zůstává pro A/B (`envelope=radial`), ne jako záloha „kdyby": obě obálky jsou
+pod testy.
+
+**Odkazy:** `Src/ARBot.Common/Occupancy/LocalPlannerConfig.cs` (`VAlong`, `VClosing`, `VEnvelope`),
+`LocalPathPlanner.cs` (`Closing`, `SamplePath`, `BuildWayPoints`, `Search`), testy
+`LocalPathPlannerTest.Smerova_*`, `Obalka_KonfiguraceAValidace`,
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md#vzdálenostní-pole-a-rychlostní-stropy).
+
 ### 2026-09-03 — Těsný start řeší únik, ne „eskapovací zóna"; cíl v nesjízdné buňce má vlastní stav
 **Co:** `LocalPathPlanner` už nemá `EscapeRadius`. Pravidlo průjezdnosti je tvrdé bez výjimek
 (`není BLOCKED ∧ odstup ≥ SafeDist`), a robot stojící s odstupem pod `SafeDist` se řeší **stejným
