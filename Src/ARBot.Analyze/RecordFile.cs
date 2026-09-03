@@ -45,13 +45,11 @@ namespace ARBot.Analyze
             using (var idx = File.OpenRead(idxPath))
                 Index = MessageIndex.Read(idx, Encoding.UTF8);
 
-            var catalog = MessageCatalog.CommonDefaults();
-            catalog.Register(new CameraFrame());   // Common ho sam neregistruje - viz hlavicka tridy
-            // GPSState taky ne — a je to PAST, protoze IMUState v tom katalogu JE. Kdo si toho
-            // nevsimne, cte zaznam, ve kterem GPS „neexistuje": index ji ukazuje (ARBot.Analyze
-            // types hlasi GPSState 225), ale Read vrati null, takze se to tvari jako chybejici
-            // senzor. Stalo to hodinu 25. 8. 2026. Tentyz seznam ma app v ARBotRuntime.BuildCatalog.
-            catalog.Register(new GPSState());
+            // RecordDefaults, ne CommonDefaults: obsahuje i stavy zarizeni (GPS, motor, snimky).
+            // Drive si je tenhle soubor doregistroval sam a seznam se ROZESEL s aplikaci - chybel
+            // MotorStateBase, takze analyzator motorova data nikdy neprecetl a tvaril se, ze v
+            // zaznamu nejsou. Viz MessageCatalog.RecordDefaults.
+            var catalog = MessageCatalog.RecordDefaults();
             prototypes = catalog.ToPrototypeMap();
 
             data = new FileStream(recPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,

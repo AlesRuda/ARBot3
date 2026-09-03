@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ARBot.Common.Devices;
 using ARBot.Common.Logs;
 using ARBot.Common.Models;
 
@@ -73,5 +74,28 @@ namespace ARBot.Common.Communication
             // preskoci (neznamy typ), prehravani se nerozbije.
             return c;
         }
+
+        /// <summary>
+        /// <see cref="CommonDefaults"/> + stavy zarizeni (<see cref="GPSState"/>,
+        /// <see cref="MotorStateBase"/>, <see cref="CameraFrame"/>). <b>Tohle je katalog, kterym se
+        /// cte ZAZNAM</b> - jak v aplikaci (replay, telemetricky sken), tak v offline analyze.
+        ///
+        /// <para><b>Nacpak samostatna metoda:</b> tyhle tri typy si dlouho doregistroval kazdy
+        /// konzument sam a ty seznamy se DVAKRAT rozesly. Dusledek je vzdycky stejny a zakerny:
+        /// index zpravu ukazuje, ale <c>Read</c> vrati <c>null</c>, takze se zaznam tvari, jako by
+        /// v nem ten senzor VUBEC NEBYL. Poprve to stalo hodinu u <see cref="GPSState"/>
+        /// (25. 8. 2026), podruhe u <see cref="MotorStateBase"/> (2. 9. 2026), kde
+        /// <c>ARBot.Analyze</c> hlasil 8381 motorovych zprav v indexu a nulu prectenych - a skoro
+        /// z toho vznikl zaver "motor nedodaval mereni", ktery by byl uplne vymysleny.
+        /// Jeden zdroj pravdy to zavira: kdo cte zaznam, vola tuhle metodu.</para>
+        ///
+        /// <para>Do <see cref="CommonDefaults"/> se to zamerne neslucuje - ten je zaklad pro
+        /// libovolneho konzumenta zprav, kdezto tady jde vyslovne o cteni zaznamu.</para>
+        /// </summary>
+        public static MessageCatalog RecordDefaults()
+            => CommonDefaults()
+                .Register(new GPSState())
+                .Register(new MotorStateBase())
+                .Register(new CameraFrame());
     }
 }

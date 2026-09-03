@@ -69,6 +69,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
       **napájené**, takže USB3 PHY se inicializuje jinak než při **zapnutí ze studena**. Jev se
       může vázat právě na zapnutí — pak série úspěšných teplých restartů **nedokazuje nic**.
       Měřit obojím způsobem a držet zvlášť.
+    - **Změřeno týž večer, na nabíječce: 6× dobře, 0× špatně.** Robotu došla baterie, autor ho
+      připojil na nabíječku a ethernet — čímž vznikl **studený start zadarmo**. Ten dal
+      `5000/5000` (`new SuperSpeed` už 7,3 s po bootu) a **pět teplých restartů po něm taky**.
+      Restarty to tedy **nereprodukují**.
+    - **Nová hypotéza, kterou to otevřelo: napájení.** Selhání nastalo, když robot jel na baterii,
+      která krátce nato došla. Ze záznamů toho odpoledne: napětí **11,7–12,3 V a klesající**
+      (medián 12,20 → 12,10 → 12,00 v pořadí běhů), zatímco 1. 9. při funkčních kamerách hlásil
+      Roboteq 12,3–12,6 V. SuperSpeed je na kvalitu napájení citlivější než USB2 a selhává přesně
+      takhle — tiše, bez chyby v logu. **Není to důkaz** (n=1 na straně selhání, hub se navíc hlásí
+      jako self-powered a motor jel celou dobu bez chybového rámce), ale je to jediná stopa, která
+      sedí na obojí. **Rozhodne až měření na baterii** — tedy nabít, odpojit nabíječku a zopakovat
+      sérii.
     - Léčba, kdyby se potvrdila: porty hubu mají v sysfs `disable`, takže softwarová obdoba
       přepojení jde **bez instalace čehokoli** (`uhubctl` není potřeba) — ale nejdřív ručně ověřit,
       že se kamera vždycky vrátí, než se to pověsí na start systému.
@@ -77,6 +89,28 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     senzory `suspended`). Po `power/control=on` zmizela a objevila se ta skutečná (nesplnitelná
     kombinace formátů). Instalovaná realsense udev pravidla autosuspend **neřeší**. Na systému
     Pi jsem nic nezměnil natrvalo (hodnota se vrátila na `auto`).
+- ⚠️ **`ARBot.Analyze` nikdy nepřečetl motorová data — a málem z toho vznikl vymyšlený závěr.**
+  Při hledání napětí baterie v záznamu hlásil nástroj **0 motorových rámců**, přestože index
+  ukazuje 8381 `MotorStateBase`. První čtení bylo „všechny rámce jsou bez měření", z čehož skoro
+  vznikl závěr, že v tom běhu nefungoval **ani motor**. Ve skutečnosti se **ani jeden rámec
+  nedeserializoval**.
+  - **Příčina:** `RecordFile` v analyzátoru si katalog zpráv skládal sám a **rozešel se**
+    s `ARBotRuntime.BuildCatalog` — chyběl mu `MotorStateBase`. Chybějící typ v katalogu se
+    projeví tak, že index zprávu ukazuje, ale `Read` vrátí `null`, takže se záznam tváří, **jako
+    by ten senzor vůbec neexistoval**. Je to zákeřné: nevypadá to na chybu nástroje, ale na
+    chybějící data. Týž soubor přitom na tuhle past **v komentáři varoval** — kousla už jednou
+    u `GPSState` (25. 8. 2026, stála hodinu).
+  - **Léčba strukturální, ne jednořádková:** nové `MessageCatalog.RecordDefaults()`
+    (= `CommonDefaults` + `GPSState` + `MotorStateBase` + `CameraFrame`) volají **oba** konzumenti,
+    takže se rozejít nemůžou. Do `CommonDefaults` se to záměrně neslučuje — ten je základ pro
+    libovolného konzumenta, kdežto tohle je výslovně „katalog pro čtení záznamu".
+  - **Nový test `RecordCatalogTests`** hlídá dvěma způsoby: jmenovitě stavy zařízení a hlavně
+    **reflexí každou** zprávu z `ARBot.Common`, kterou lze vyrobit bez parametrů. Ta silná verze
+    by oba dosavadní případy chytila sama, aniž by si někdo musel vzpomenout doplnit jméno.
+    Seznam výjimek je **prázdný** a chce ke každé položce důvod. Ověřeno dočasným odregistrováním
+    `MotorStateBase` — test spadl a typ pojmenoval.
+  - **Skutečná data z opraveného nástroje:** ve všech třech dnešních záznamech je **0 rámců bez
+    měření**, motor tedy jel celou dobu v pořádku; napětí 11,7–12,3 V (viz hypotéza o napájení výš).
 - **Opravena slepota v diagnostice senzorů (`Debug` → `Trace`).** Ze snímku panelu *Debug output*
   bylo vidět, že o nefunkčních kamerách tam **není ani řádek** — protože `D435Camera` hlásí své
   chyby přes `Debug.WriteLine`, což je `[Conditional("DEBUG")]`, a na zařízení běží **Release**.

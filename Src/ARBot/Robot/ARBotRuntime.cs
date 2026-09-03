@@ -1761,11 +1761,7 @@ namespace ARBot.Robot
         /// katalog potrebuje i telemetricky sken - kdyby cetl s jinym, nektere typy by neznal
         /// (viz doc/telemetry-view.md).
         /// </summary>
-        internal static MessageCatalog BuildCatalog()
-            => MessageCatalog.CommonDefaults()
-                .Register(new GPSState())
-                .Register(new MotorStateBase())
-                .Register(new CameraFrame());
+        internal static MessageCatalog BuildCatalog() => MessageCatalog.RecordDefaults();
 
         // ---------------- pomocne ----------------
 
