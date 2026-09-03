@@ -77,6 +77,10 @@ namespace ARBot.Analyze
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
+                    case "localplan":
+                        LocalPlanReport.Run(rec, Arg(args, "--bin", 10), Arg(args, "--unreach", 0.3),
+                                            Arg(args, "--from", double.NaN), Arg(args, "--to", double.NaN));
+                        return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
@@ -142,6 +146,10 @@ namespace ARBot.Analyze
             Console.WriteLine("             GPS kurz, odhad fuze) - je bias kompasu observabilni BEZ mapy?");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
+            Console.WriteLine("  localplan  lokalni planovac v case: stavy planu, byla mrkev DOSAZITELNA");
+            Console.WriteLine("             (|pozadovany - dosazeny cil|), rychlost planu vs. skutecna,");
+            Console.WriteLine("             epizody nedosazitelne mrkve (--bin=<s>, --unreach=<m>, detail okna");
+            Console.WriteLine("             --from=<s> --to=<s>; bez nich poslednich 20 s)");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
             Console.WriteLine("             (cte cele snimky - na velkem zaznamu to trva, viz --limit)");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");

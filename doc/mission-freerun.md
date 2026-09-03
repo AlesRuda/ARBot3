@@ -258,6 +258,11 @@ dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- freerun Records/<zazna
 
 ## Co zůstává otevřené
 
+- ⚠️ **První jízda na železe ve stísněných podmínkách (2. 9. 2026) skončila nárazem.** Koridor byl
+  jen ve 2 % cyklů, mrkev „drž kurz" byla v 97 % plánů nedosažitelná a lokální vrstva z toho
+  vyrobila pahýl k čelu překážky s odstupem 0,05 m. Rozbor a **zadání průzkumu** (fallback
+  plánovače, eskapovací zóna, sémantika `Speed` waypointu, vrstva „zastav a rotuj"):
+  [plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md).
 - **Zaseknutí:** robot zastaví a ohlásí, protože **recovery manévr neexistuje** (couvnutí ani otočka
   na místě) — vedený otevřený úkol v [global-navigation-runtime.md](global-navigation-runtime.md).
   Do té doby je zastavení jediná možná odpověď.

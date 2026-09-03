@@ -415,7 +415,12 @@ a vzdálenosti; tímhle se našlo, že nejmenší kvadráty sledují průměr ze
 znovu-výpočet; tímhle se našla mrtvá `VirtualHWOptions.Scene`), `sigma` (je σ korelace s mapou
 poctivá? viz níž), `corrections` (co korekce **skutečně dělají**, když se pustí naostro — viz níž),
 `dump` (CSV řádek za cyklus), `occupancy` (čím je která buňka lokální mapy
-blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální rovinu"), `poses` (póza
+blokovaná — geometrie vs. semantika, včetně simulace „hloubka hlásí ideální rovinu"), `localplan`
+(lokální plánovač v čase: stavy plánu, **byla mrkev dosažitelná** — `|požadovaný − dosažený cíl|`,
+délka plánu proti vzdálenosti mrkve, dosah potvrzeně sjízdného po dráze, rychlost 1. uzlu proti
+příkazované, podíl nouzového zastavení, minimální odstup proti `SafeDist`, resety gridu a skoky pózy;
+`--from/--to` vypíše detail okna. Vznikl nad prvním záznamem FreeRun ze železa, viz
+[devlog 2. 9. 2026](devlog.md)), `poses` (póza
 pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
 
 ### `sigma`: je σ korelace s mapou poctivá?

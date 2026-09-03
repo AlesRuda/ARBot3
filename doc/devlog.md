@@ -158,6 +158,42 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     **verzované** soubory (`git ls-files`) nebo pokusné profily pojmenovat vzorem, který
     `.gitignore` i test přeskočí. Teď se s tím nic nedělá — na skutečnou vadu v `config/` ten test
     upozorní správně a to je jeho účel.
+- **První FreeRun na železe ve stísněných podmínkách (`records/20260902-222601.rec`, 417 s) skončil
+  nárazem — rozbor z dat, žádná změna chování.** Nový příkaz `ARBot.Analyze localplan` (stavy plánu
+  v čase, `|požadovaný − dosažený cíl|`, délka plánu, dosah potvrzeného, rychlost 1. uzlu proti
+  příkazované, podíl nouzového stopu, min. odstup proti `SafeDist`, resety gridu, skoky pózy;
+  `--from/--to` detail okna). Doména: [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
+  [mission-freerun.md](mission-freerun.md), [path-following.md](path-following.md).
+  - **Koridor byl jen ve 2 % cyklů** (180 z 7 672, šířka 0,5–1,0 m), zbytek „drž kurz" — mrkev tedy
+    ležela skoro celou dobu **3 m přímo vpřed bez ohledu na terén**.
+  - **Mrkev nedosažitelná v 97 % plánů** (rozdíl požadovaný − dosažený cíl p50 0,89 m, p90 2,49 m).
+    Fallback „jeď alespoň co nejblíž" z toho dělal dvě věci: (a) **detour 8–24 m skrz `Unknown`**
+    (délka plánu p50 8,3 m, p90 22 m, `HorizonM` 25) pro mrkev 3 m daleko a o 0,3 m nedosažitelnou;
+    (b) když detour nebyl, **pahýl 0,5 m k nejbližší buňce u čela překážky** — a přesně ten robot jel
+    v jediném úseku s uvolněným stopem (233–267 s, příkaz 0,10 m/s, min. odstup **0,05 m**).
+  - **Eskapovací zóna (`EscapeRadius` 0,5 m) byla trvale aktivní:** ve stísněném prostoru je robot
+    pořád do 0,5 m od `Blocked`, takže 52 % plánů vedlo s odstupem **pod `SafeDist`** (min 0,00 m).
+    Relaxace navržená pro „odjet od zdi, u které jsem zaparkoval" tak dovolila plánovat půdorysem
+    robota skrz překážku.
+  - **Potvrzeně sjízdný dosah = 0 m ve 100 % plánů** (1. uzel vždy na podlaze 0,05 m/s). Poslední
+    grid: `Free` 1,2 %, `Blocked` 15,1 % (téměř vše geometrie), `Unknown` 83,7 %; v čase `Free`
+    4–12 %. Nelze z dat oddělit, zda podlahu drží `VBrake` (nic `Free` po dráze) nebo `VClear`
+    (při `maxspeed=0.1` dá rampa 0,4–0,8 m rychlost ≥ 0,05 až od odstupu 0,6 m) — `MinVClear/MinVBrake`
+    do `LocalPlanMsg` nejdou, jen do Debug outputu.
+  - ⚠️ **Podlaha 0,05 m/s NENÍ strop úseku, ale rychlost příjezdu do uzlu.** `PathPlanner` bere
+    `Speed` waypointu jako strop **v uzlu** a `PathResult.Control` mezi uzly jede od `MaxSpeed` a
+    brzdí tak, aby do dalšího uzlu **dojel** na jeho strop. Naměřeno: plán 0,05, příkaz 0,10 (= celý
+    `maxspeed`). Při skutečném stropu 1,2 m/s by „plouživý" úsek skrz neznámo robot projel skoro
+    plnou rychlostí — invariant „nejeď rychleji, než z čeho zastavíš na hranici potvrzeného" tedy
+    mezi uzly **neplatí**. Doc occupancy-and-local-planning.md tvrdí opak; opravit až s léčbou.
+  - Vedlejší: nouzový stop aktivní 92 % času (autor ho držel), `RobotBlocked` souvisle 110–125 s,
+    žádný reset gridu ani skok pózy > 0,3 m (póza při stání jitteruje 9 mm/0,1 s — proto se v rozboru
+    měří čistý posun, ne součet kroků).
+  - **Rozhodnutí zatím žádné — vzniklo zadání průzkumu pro další sezení:**
+    [plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md) (hypotézy A–F, navržené
+    pořadí oprav, kritéria hotovo). Kandidáti: fallback při nedosažitelné mrkvi vracet jako selhání
+    (ne pahýl / detour), eskapovací zónu omezit na skutečný únik, `Speed` waypointu udělat stropem
+    úseku, a nad tím vrstva „před robotem není sjízdno → zastav a rotuj ke sjízdnému".
 
 ## 2026-09-01
 
