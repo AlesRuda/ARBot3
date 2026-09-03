@@ -474,6 +474,85 @@ dotnet test -c Debug --filter Category=Hardware
 ```
 Bez připojené kamery se test gracefully přeskočí (`Assert.Ignore`).
 
+### 11. Čas z RTC — vypnout `fake-hwclock`
+
+**Nález 3. 9. 2026:** robot po bootu běžel **20 hodin pozadu** (systémový čas 2. 9. 23:05, skutečný
+3. 9. 18:58), přitom hardwarové RTC sedělo na sekundy. Záznamy by tak dostávaly včerejší jména
+i razítka. Robot se běžně k internetu nedostane, takže to NTP nespraví.
+
+**Příčina (z journalu):** deska má RTC `hym8563` s baterií a jádro z něj čas při bootu nastaví samo
+(`rtc-hym8563: setting system clock to …`, `hctosys=1`). Hned poté ale běží `fake-hwclock-load.service`
+z balíku `fake-hwclock`, který Armbian instaluje pro stroje **bez** RTC. Jeho `load` ve verzi
+0.14 má podmínku `[ "$FORCE" = false ] || [ NOW -le SAVED ]`, takže s výchozím `FORCE=false`
+obnoví čas z `/etc/fake-hwclock.data` **vždy**, i když je v minulosti — a správný čas z RTC přepíše
+posledním hodinovým zápisem před vypnutím.
+
+**Oprava** (skript to dělá v kroku 2b):
+```bash
+sudo systemctl disable --now fake-hwclock-load.service fake-hwclock-save.timer fake-hwclock-save.service
+sudo systemctl mask fake-hwclock-load.service
+```
+Balík může zůstat (nebo `sudo apt purge fake-hwclock`). `hwclock` z util-linux na Armbianu není
+a není potřeba: čtení RTC → systém dělá jádro, opačný směr dělá chrony (`rtcsync` v
+`/etc/chrony/chrony.conf`), jakmile se někdy k NTP dostane. Bez NTP robot jede na RTC; jeho drift
+jsou sekundy za měsíc, ne hodiny.
+
+**Kontrola po rebootu:** `timedatectl` — *Local time* a *RTC time* (ta je v UTC) si mají odpovídat,
+`systemctl is-active fake-hwclock-load.service` má být `inactive`.
+
+### 12. Když aplikace „zmizí": kde hledat a co to zachytí
+
+**Nález 3. 9. 2026:** aplikace na Pi několikrát chvíli běžela a zmizela — a nedalo se dohledat **nic**.
+Čtyři důvody, každý se svou nápravou:
+
+| proč nezůstala stopa | náprava |
+|---|---|
+| journal `Storage=volatile`, po rebootu prázdný | `/etc/systemd/journald.conf.d/10-arbot-persistent.conf` (`Storage=persistent`, `SystemMaxUse=200M`); `/var/log/journal` je symlink na disk, takže jde mimo RAM log |
+| `/var/log` je v RAM (`armbian-ramlog`) a na disk se sype jen při čistém vypnutí a denně — po vybití baterie chyběl **celý poslední boot** | trvalý journal výše; syslog dál RAM (rozumný kompromis, eMMC) |
+| aplikace spuštěná z terminálu: neodchycená výjimka .NET jde na stderr terminálu a s ním zmizí | **`~/arbot/run-arbot.sh`** (v repu `OrangePi5Ultra/run-arbot.sh`): stdout+stderr do `~/arbot/logs/arbot-<datum>.log`, návratový kód na konci, minidump .NET při nativním pádu (`DOTNET_DbgEnableMiniDump`); položka v menu `ARBot.desktop` ukazuje na něj |
+| jádro o pádu uživatelského procesu mlčí, apport cizí binárky většinou ignoruje | `/etc/sysctl.d/90-arbot-fatal-signals.conf` (`kernel.print-fatal-signals = 1`): SIGSEGV/SIGABRT s PID a jménem v `kern.log` |
+
+K tomu **v aplikaci** `CrashLog` (`Src/ARBot/CrashLog.cs`): neodchycená výjimka → `~/arbot/logs/crash-<datum>.log`
+a pokus dopsat rozjetý záznam (`ARBotRuntime.Stop()` s limitem 5 s), aby `.rec`/`.idx` nezůstaly useknuté.
+
+Skript `setup-orangepi.sh` dělá journald + sysctl v kroku 2c; `run-arbot.sh` se kopíruje do `~/arbot/`
+spolu s aplikací (`chmod +x`, konce řádků LF).
+
+**Po pádu hledat v tomhle pořadí:**
+```bash
+ls -t ~/arbot/logs/ | head                      # crash-*.log (výjimka), arbot-*.log (stderr + exit kód), core-*.dmp
+tail -50 ~/arbot/logs/arbot-*.log | less        # "== konec ... exit=139" = SIGSEGV, 134 = SIGABRT, 137 = SIGKILL (OOM)
+journalctl -b -1 -p warning --no-pager          # minulý boot (teď už přežije reboot i výpadek)
+sudo grep -i -E "fatal signal|segfault|Out of memory" /var/log/kern.log
+ls -la /var/crash/                              # apport (občas dotnet chytí — 1. 9. 2026 ano)
+```
+Minidump `.dmp` se čte `dotnet-dump analyze <soubor>` → `clrstack -all`; nástroj na Pi není (chce
+internet: `dotnet tool install -g dotnet-dump`), dump jde zkopírovat a rozebrat na PC.
+
+**Spuštění ručně přes SSH** (totéž, co dělá menu): `~/arbot/run-arbot.sh config=config/pi-freerun.cfg`
+a vedle `tail -f ~/arbot/logs/arbot-*.log`.
+
+### 13. RustDesk „vytuhne" (černá obrazovka, nejde se přihlásit) = zámek obrazovky KDE
+
+**Nález 3. 9. 2026:** třikrát za sebou RustDesk ukázal černou plochu a nešlo se znovu přihlásit.
+Sezení na Pi běží **headless na Waylandu** (HDMI odpojené, KWin hlásí „There are no outputs -
+creating placeholder screen"). KDE má výchozí **automatický zámek po 5 minutách** nečinnosti
+a `kscreenlocker_greet` se objevil přesně 5 min po přihlášení v obou sledovaných bootech
+(`loginctl show-session <id> -p LockedHint` → `yes`). **RustDesk na Waylandu zamykací ani
+přihlašovací obrazovku neumí zobrazit ani ovládat** (známé omezení) — odtud černo a nemožnost
+přihlášení. Na robotu bez monitoru zámek nic nechrání, jen blokuje vzdálený přístup.
+
+**Oprava** (`~/.config/kscreenlockerrc`, skript to dělá v kroku 2d):
+```bash
+kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock false
+kwriteconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume false
+loginctl unlock-session <id>          # odemknout právě zamčené sezení (id z loginctl list-sessions)
+```
+Vedlejší nález: uživatelské okno RustDesku (`rustdesk --tray`/UI, ne server) spadlo 2. 9. 21:49 na
+SIGSEGV ve flutter pluginu okna (`gtk_window_is_maximized`) — viz
+`~/.local/share/logs/RustDesk/rustdesk_rCURRENT.log`. Logy serveru: `~/.local/share/logs/RustDesk/server/`,
+systémové služby `/root/.local/share/logs/RustDesk/service/`.
+
 ---
 
 ## ⚠️ Důležité poznámky
@@ -493,6 +572,10 @@ Bez připojené kamery se test gracefully přeskočí (`Assert.Ignore`).
   `sed -i 's/\r$//' setup-orangepi.sh`.
 - **Vypnutí:** `sudo poweroff` (vzdáleně už NEZAPneš — jen fyzicky).
   Restart: `sudo reboot`.
+- **Zámek obrazovky je vypnutý** (krok 13) — s ním RustDesk na Waylandu po 5 min nečinnosti
+  ukazoval jen černo. Nezapínat.
+- **Čas:** bere se z RTC (`hym8563`, baterie). `fake-hwclock` musí být vypnutý, jinak po bootu
+  přepíše správný čas starým — viz krok 11. Když robot běží o hodiny pozadu, je to tohle.
 - **IP adresy** (od 29. 8. 2026, viz krok 4). Hostname: `orangepi5-ultra`
   (mDNS `orangepi5-ultra.local`, avahi běží).
   - **AP `arbot`** — robot `192.168.7.1`, klienti `192.168.7.10–254`. Pevné.

@@ -82,6 +82,10 @@ namespace ARBot
         [STAThread]
         public static void Main(string[] args)
         {
+            // Stopa po padu (logs/crash-<datum>.log + dopsani zaznamu) - driv nez cokoliv, co muze
+            // spadnout. Viz CrashLog.
+            CrashLog.Install();
+
             // Konfigurace se sklada JAKO PRVNI - driv, nez cokoliv sahne na GetParam. Vadna
             // konfigurace ma skoncit hlaskou, ne vyjimkou v pulce startu: aplikace by pak bezela
             // s necim jinym, nez co je v profilu napsano, a nikdo by se to nedozvedel.
@@ -108,7 +112,18 @@ namespace ARBot
             // Tvrdy odstup od prekazek z parametru safedist= - tentyz duvod a mechanismus.
             ApplySafeDistFromParams();
 
-            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            try
+            {
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            }
+            catch (Exception ex)
+            {
+                // Vyjimka z UI vlakna vypadne z hlavni smycky sem (AppDomain.UnhandledException
+                // ji zachyti az pri rethrow). Zapsat a nechat proces spadnout - tvarit se, ze nic,
+                // by bylo horsi nez pad.
+                CrashLog.Write("hlavni smycka Avalonie (UI vlakno)", ex, terminating: true);
+                throw;
+            }
         }
 
         /// <summary>

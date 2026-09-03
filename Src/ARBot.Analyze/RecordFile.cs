@@ -35,15 +35,13 @@ namespace ARBot.Analyze
         /// <summary>Cesta k datovemu souboru.</summary>
         public string Path { get; }
 
+        /// <summary>Co se zjistilo pri nacitani indexu (poskozeny zaznam apod.).</summary>
+        public IndexLoadReport IndexReport { get; }
+
         public RecordFile(string recPath)
         {
             Path = recPath;
-            string idxPath = recPath + ".idx";
             if (!File.Exists(recPath)) throw new FileNotFoundException("Zaznam nenalezen", recPath);
-            if (!File.Exists(idxPath)) throw new FileNotFoundException("Index nenalezen", idxPath);
-
-            using (var idx = File.OpenRead(idxPath))
-                Index = MessageIndex.Read(idx, Encoding.UTF8);
 
             // RecordDefaults, ne CommonDefaults: obsahuje i stavy zarizeni (GPS, motor, snimky).
             // Drive si je tenhle soubor doregistroval sam a seznam se ROZESEL s aplikaci - chybel
@@ -51,6 +49,13 @@ namespace ARBot.Analyze
             // zaznamu nejsou. Viz MessageCatalog.RecordDefaults.
             var catalog = MessageCatalog.RecordDefaults();
             prototypes = catalog.ToPrototypeMap();
+
+            // Index se overuje proti datum a pri poskozeni (useknuty / nesmyslny sidecar, chybejici
+            // index) se dopocita skenem dat a opraveny zapise vedle zaznamu. Viz MessageIndex.Load.
+            Index = MessageIndex.LoadFile(recPath, Encoding.UTF8, prototypes, repairSidecar: true, out var report);
+            IndexReport = report;
+            if (report.Damaged)
+                Console.Error.WriteLine("!! " + report);
 
             data = new FileStream(recPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
                                   1 << 16, FileOptions.RandomAccess);

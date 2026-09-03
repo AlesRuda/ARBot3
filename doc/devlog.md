@@ -175,6 +175,118 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     v registru (0,4 m, ne 0,7).
   - Odkazy: `OSM/SyntetickyRovny2m.osm`, `Src/ARBot.Common.Tests/OsmNav.Tests/SyntetickeMapyTests.cs`.
 
+## 2026-09-03
+
+- **Robot běžel po bootu 20 hodin pozadu — příčina `fake-hwclock`, opraveno na zařízení.** Doména:
+  [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), krok 11.
+  - Systémový čas 2. 9. 23:05 při skutečném 3. 9. 18:58; **RTC `hym8563` přitom sedělo na sekundy**
+    a jádro z něj čas při bootu nastavilo správně. Hned poté ho přepsal `fake-hwclock-load`
+    posledním hodinovým zápisem z `/etc/fake-hwclock.data` (21:00 UTC, těsně před vybitím baterie).
+    Ve verzi 0.14 `load` s výchozím `FORCE=false` obnoví uložený čas **vždy**, i když je v minulosti.
+    Balík je pro stroje bez RTC a na téhle desce nemá co dělat; robot navíc k NTP běžně nemá cestu.
+  - **Oprava:** `fake-hwclock-load.service` zamaskovaná, `fake-hwclock-save.timer/.service` vypnuté,
+    čas nastaven z RTC bez čekání na reboot. **Ověřeno rebootem:** `Local time` = `RTC time`, proti
+    PC rozdíl 2 s. Krok přidán do `setup-orangepi.sh` (2b), aby to při reinstalaci nekouslo znovu.
+  - Důsledek pro data: záznamy z dnešního dne před opravou by měly včerejší jméno i razítka;
+    včerejší `20260902-222601.rec` je v pořádku (vznikl před vybitím, kdy čas ještě seděl).
+- **Nový záchyt pádů se vyplatil týž večer: první pád je rozebraný do řádku kódu — a s ním se
+  vysvětlilo, proč T265 nedává pózu.** Doména: [hardware.md](hardware.md), drivery
+  `Src/ARBot.HALArmbian/Devices/Camera/{D435Camera,T265TrackingCamera}.cs`.
+  - **Pád 22:26:46, SIGSEGV** (exit 139, minidump `~/arbot/logs/core-738961-*.dmp`, kern.log
+    „fatal signal 11", jednotka `app-FreeRun@…` status 139). `gdb` nad dumpem: vlákno „.NET Long
+    Running" → `rs2_query_devices_ex` → `rs_backend::query_usb_devices` →
+    **`librealsense::platform::tm_boot` (tm2/tm-boot.h:25)** — `dev->open(0)` na zařízení, které
+    mezi enumerací a otevřením zmizelo. Přesně v tu chvíli (22:26:46.84) se T265 přehlásila
+    z Movidius `03e7:2150` na `8087:0b37`, tj. **dobootovala firmware**. Race v librealsense 2.53.1:
+    `tm_boot` neošetří null z `create_usb_device`.
+  - **Proč k tomu u nás dochází:** každý ze tří driverů (Left, Right, T265) má **vlastní `Context`**
+    a volá `ctx.QueryDevices()` (`DevicePresent`, perioda 1 s / při timeoutu). V RSUSB backendu
+    **každý `query_devices` spouští `tm_boot`**, který nabootovanou-nenabootovanou T265 zkusí
+    nahrát firmwarem. Tři kontexty = tři konkurenční bootery téže T265 + dotazy nad běžícími
+    streamy („failed to set power state", viděno už 1. 9.).
+  - **T265 póza nikdy nepřišla — ani dnes, ani 1. 9.** V záznamech je `IMUState` **100 Hz** (jen
+    VN100; T265 by přidala 200 Hz). Info zprávy dnes: `T265: pipeline pripojena` → za 1 s
+    `kamera odpojena (timeout + zarizeni chybi)` → dokola `QueryDevices selhalo: failed to set
+    power state`. „OK" v panelu Sensors z 31. 8. bylo jen „pipeline se otevřela", ne „chodí
+    snímky". Viewer na Pi ukazuje totéž: gyro/accel jedou, pose „No Frames Received" — T265 je po
+    zpackaném bootu / pádu klienta v zaseknutém stavu (známé chování, chce fyzické odpojení).
+  - **Vedlejší:** `realsense-viewer` s RSUSB backendem při otevřeném okně každou sekundu odvazuje a
+    znovu váže `uvcvideo` na obou D435 (770× za 7 min v dmesg) — polling device watcher. Neškodné,
+    ale mate při čtení dmesg.
+  - **Na pokyn autora opraveno v `ARBot.HALArmbian`** (doména: [hardware.md](hardware.md), sekce
+    „RealSense: jeden kontext"): nový `RealSenseShared` — jeden `Context` pro všechny drivery,
+    všechny `QueryDevices` pod jedním zámkem (`Query`, vrací `bool?`, `null` = dotaz selhal ≠
+    odpojeno), `BootT265` nabootuje T265 synchronně v konstruktoru `T265TrackingCamera` (před
+    D435, strop 10 s). T265 dostala práh timeoutů jako D435 (`StallTimeoutsBeforeRestart` = 5,
+    `StallRestarts`) — dřív se první timeout + selhaný dotaz rovnaly „odpojena". `OnDevicesChanged`
+    se nepoužil (polling zůstal, jen serializovaný) — menší změna, stejný účinek na race.
+    Build HALArmbian i ARBot pro OrangePI projde, `DiagnostikaSenzoruTests` zelené; **na zařízení
+    neověřeno, nenasazeno** (publish dělá autor z VS). Před testem T265 odpojit a zapojit.
+- **T265 nedává pózu ani po opravě driverů — příčina je v kameře/scéně, ne v aplikaci: firmware
+  hlásí `SLAM_ERROR Vision`.** Postup a důkazy (sonda `/tmp/t265probe.cpp` na Pi, C++ přímo nad
+  librealsense 2.53.1 s DEBUG logem; zdroj v scratchpadu sezení, do repa nepatří — je jednorázová):
+  - Nová verze driverů na Pi nasazená (`RealSenseShared` v dll), T265 po replugu nabootovala
+    (Movidius → T265 za 13 s od startu aplikace), `pipeline pripojena`, pak „5 s bez pozy … restart
+    pipeline" — driver se chová, jak má; póza jen nechodí. `IMUState` pořád 100 Hz (jen VN100).
+  - **Intel `rs-pose` bez naší aplikace: 20 s nic.** Sonda: `hardware_reset` funguje (T265 zpět
+    za 5 s, firmware nahraje `tm_boot`), pipeline start OK („Activated 1/5 streams", Pose @ 200 Hz),
+    0,5 s po startu **`SLAM_ERROR Vision`** z firmware a **0 pose snímků za 15 s**. S gyro+accel:
+    **gyro 200 Hz a accel 62 Hz chodí bez chyby**, póza 0 → datová cesta po USB je v pořádku,
+    on-device VIO nerozjede vidění.
+  - **Fisheye přes USB 2 librealsense odmítá** („Streaming T265 video over USB 2.1 is unreliable,
+    please use USB 3 or only stream poses"), takže obraz z rybích ok se na tomhle portu ověřit nedá.
+    Teploty v normě (ASIC 41 °C, IMU 32 °C), auto exposure zapnutá.
+  - Dvě pasti při sondování, zapsané pro příště: (a) **objekt `rs2::device` drží USB interface 0**
+    — pipeline pak dostane `RS2_USB_STATUS_BUSY`/„Unable to open device interface"; pustit ho před
+    `pipeline.start` (náš driver to dělá správně, `using` v `Query`); (b) proces zabitý uprostřed
+    streamu (SIGPIPE z `head`) nechá T265 ve stavu „T265 is running!" a další start selže — léčí
+    `hardware_reset`, který driver dnes **nevolá** (kandidát: při `EscalatingRestart`).
+  - **Rozřešeno autorem: v místnosti byla tma.** VIO bez obrazu nenastartuje, odtud
+    `SLAM_ERROR Vision`. Test pózy za světla je na 4. 9. Kdyby ani za světla nešla, zbývá test na
+    USB 3 (i za cenu dočasného odpojení jedné D435) a pohled na rybí oka ve vieweru.
+  - **Hardware reset doplněn do driveru** (na návrh autora): `RealSenseShared.HardwareResetT265`
+    (reset pod zámkem, pak `BootT265`), v `T265TrackingCamera` se volá při „T265 is running / busy"
+    ze `Start` a po 3 restartech pipeline po sobě bez pózy; nejvýš 1× za 60 s (`HardwareResets`).
+    Build OrangePI projde, `DiagnostikaSenzoruTests` zelené; **na zařízení neověřeno, nenasazeno**.
+- **Pády aplikace na Pi („chvilku běží a zmizí") se nedaly dohledat — teď už půjdou.** Doména:
+  [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), krok 12.
+  - **Proč nezůstala stopa:** journal `volatile`; `/var/log` v RAM a po vybití baterie chyběl celý
+    poslední boot; aplikace spuštěná z terminálu (výjimka .NET jde na jeho stderr); core dumpy
+    nevznikaly a jádro o pádu procesu mlčí. V přeživších logách (22:10–22:50) o aplikaci ani jádru
+    nic — žádný OOM, žádný segfault.
+  - **Na robotovi:** trvalý journal (`journald.conf.d/10-arbot-persistent.conf`, na disk přes symlink
+    `/var/log/journal`), `kernel.print-fatal-signals=1`, spouštěcí skript `~/arbot/run-arbot.sh`
+    (stdout+stderr do `logs/arbot-<datum>.log`, exit kód, minidump .NET) a položka v menu na něj.
+    Totéž v `setup-orangepi.sh` (krok 2c) a skript v repu (`OrangePi5Ultra/run-arbot.sh`).
+  - **V aplikaci:** `CrashLog` (`Src/ARBot/CrashLog.cs`) — `AppDomain.UnhandledException`,
+    `UnobservedTaskException` a výjimka z hlavní smyčky Avalonie → `logs/crash-<datum>.log` a pokus
+    dopsat záznam (`ARBotRuntime.Stop()` s limitem 5 s, nový `ARBotRuntime.HasCurrent`). Build x64
+    projde; **pád v aplikaci vyvolaný nebyl**, chování handleru na zařízení neověřeno.
+  - Mimochodem: apport jeden pád dotnetu zachytil (1. 9. 20:18, SIGSEGV) — ale šlo o pokusný
+    `rec.dll` v `/tmp/rec`, ne o ARBot.
+- **RustDesk 3× „vytuhl" (černá obrazovka, nešlo se přihlásit) — nejpravděpodobnější příčina je
+  zámek obrazovky KDE, ne RustDesk.** Sezení na Pi běží headless na Waylandu (HDMI odpojené,
+  „There are no outputs - creating placeholder screen"). KDE má výchozí `Autolock` po **5 minutách**
+  nečinnosti: v obou dnešních bootech se `kscreenlocker_greet` objevil přesně 5 min po přihlášení
+  (`LockedHint=yes` právě teď) a RustDesk na Waylandu zamykací/přihlašovací obrazovku **neumí
+  zobrazit ani ovládat** (známé omezení). Doba „chvíli běží, pak černo" sedí. Druhotné: uživatelské
+  UI RustDesku spadlo 2. 9. 21:49 na SIGSEGV v `gtk_window_is_maximized` (flutter window manager),
+  to se ale netýká server procesu. Logy RustDesku: `~/.local/share/logs/RustDesk/`, service
+  `/root/.local/share/logs/RustDesk/service/`. **Na pokyn autora zámek vypnut** (`Autolock=false`,
+  `LockOnResume=false` v `kscreenlockerrc`, sezení odemčeno), krok 2d v `setup-orangepi.sh`,
+  POSTUP.md krok 13. Zda tím freezy zmizí, ukáže až další den provozu.
+- **Dva záznamy z večera 2. 9. nešly otevřít ve View (`EndOfStreamException` v `MessageIndex.Read`)
+  — index se teď opraví ze samotných dat.** Doména: [record-replay.md](record-replay.md), sekce
+  „Poškozený záznam". Baterie došla uprostřed záznamu: data přežila až na useknutý poslední snímek,
+  sidecar `.idx` u `225830` obsahoval 4 517 položek ukazujících za konec dat, u `230138` naopak
+  o 1 409 zpráv zaostal. `MessageIndex.Load/LoadFile` čte sidecar tolerantně, ověří ho proti datům
+  a zbytek dopočítá skenem hlaviček rámců; opravený `.idx` zapíše na disk (původní → `.idx.bad`).
+  Napojeno do View (`WireView`, `ARBotRuntime.IndexReport`) i `ARBot.Analyze`. 7 nových testů,
+  celá sada 1 132 zelená. **Oba záznamy jsou opravené a otevřou se** (4 816 a 6 987 zpráv).
+- **Zadání průzkumu FreeRun ve stísněných podmínkách** — viz
+  [plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md) (commit `9d5886a`); katalog
+  pro čtení záznamu sjednocen (commit `19fa2df`).
+
 ## 2026-09-02
 
 - **Kamery se na Orange Pi neohlásily — příčina je fyzická (USB 2.0 místo 3.0), a cestou se našla

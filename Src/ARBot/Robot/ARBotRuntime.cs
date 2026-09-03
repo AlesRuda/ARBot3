@@ -64,6 +64,10 @@ namespace ARBot.Robot
         /// <summary>Singleton instance.</summary>
         public static ARBotRuntime Current => current ??= new ARBotRuntime();
 
+        /// <summary>Existuje uz instance? (Pro handler padu - <c>CrashLog</c> - ktery nesmi runtime
+        /// zakladat jen proto, aby ho zastavil.)</summary>
+        public static bool HasCurrent => current != null;
+
         private readonly object gate = new object();
         private readonly RelaySource stream = new RelaySource();
 
@@ -86,6 +90,11 @@ namespace ARBot.Robot
 
         private Stream fileData;
         private Stream fileIndex;
+
+        /// <summary>Co se zjistilo pri nacitani indexu otevreneho zaznamu (View); null mimo View.
+        /// <see cref="IndexLoadReport.Damaged"/> = zaznam byl poskozeny a otevrela se jen jeho
+        /// konzistentni cast.</summary>
+        public IndexLoadReport IndexReport { get; private set; }
         private bool running;
 
         private ARBotRuntime() { }
@@ -1695,14 +1704,16 @@ namespace ARBot.Robot
             fileData = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
             RecordPath = file;   // telemetricky pohled si nad tymz souborem otevre vlastni stream
 
-            // Volitelny sidecar index (*.idx) - pro navigaci/seek (krok 9).
-            List<IndexEntry> index = null;
-            string idxPath = file + ".idx";
-            if (File.Exists(idxPath))
-            {
-                fileIndex = new FileStream(idxPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                index = MessageIndex.Read(fileIndex, Enc);
-            }
+            // Sidecar index (*.idx) - pro navigaci/seek (krok 9). Overuje se proti datum a pri
+            // poskozeni (useknuty zapis, nuly, polozky za koncem dat - typicky po vypadku napajeni
+            // uprostred zaznamu) se dopocita skenem dat a opraveny zapise vedle zaznamu. Bez indexu
+            // se postavi cely ze skenu. Drive tu useknuty index shodil cele otevreni zaznamu
+            // (EndOfStreamException), pritom data byla v poradku. Viz MessageIndex.Load.
+            List<IndexEntry> index = MessageIndex.LoadFile(file, Enc, catalog.ToPrototypeMap(),
+                                                           repairSidecar: true, out var indexReport);
+            IndexReport = indexReport;
+            if (indexReport.Damaged)
+                Trace.WriteLine("ARBotRuntime.WireView: " + indexReport);
 
             fileSource = new FileMessageSource(fileData, Enc, catalog,
                                                FileMessageSource.ReplayPacing.RealTime, index: index);

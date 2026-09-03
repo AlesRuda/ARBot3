@@ -84,6 +84,59 @@ apt-get update -o Acquire::ForceIPv4=true
 apt-get install -y hostapd iwd dnsmasq-base nvtop samba dotnet-sdk-10.0
 echo "  dotnet: $(dotnet --version 2>/dev/null || echo '?')"
 
+# ----- 2b) Cas z RTC: vypnout fake-hwclock -----
+# Deska ma RTC hym8563 s baterii a jadro z nej cas pri bootu nastavi samo (hctosys).
+# Armbian ale instaluje fake-hwclock (pro stroje BEZ RTC) a jeho "load" ve verzi
+# 0.14 s vychozim FORCE=false obnovi ulozeny cas VZDY - i kdyz je v minulosti -
+# a spravny cas z RTC tim prepise. Nalezeno 3. 9. 2026: robot po bootu bezel
+# 20 h pozadu, RTC pritom sedelo na sekundy. Bez internetu (bezny stav robota)
+# to NTP nespravi. Detaily: POSTUP.md krok 11.
+log "2b) Cas z RTC - vypnuti fake-hwclock"
+systemctl disable --now fake-hwclock-load.service fake-hwclock-save.timer fake-hwclock-save.service 2>/dev/null || true
+systemctl mask fake-hwclock-load.service 2>/dev/null || true
+echo "  RTC: $(cat /sys/class/rtc/rtc0/name 2>/dev/null || echo 'nenalezeno!') hctosys=$(cat /sys/class/rtc/rtc0/hctosys 2>/dev/null)"
+
+# ----- 2c) Logy pro dohledani padu: trvaly journal + fatalni signaly do kern.log -----
+# Armbian drzi /var/log v RAM (armbian-ramlog) a na disk ho sype jen pri cistem vypnuti a
+# jednou denne; journal je 'volatile'. Po vybiti baterie 2. 9. 2026 tak z posledniho bootu
+# nezustalo NIC. /var/log/journal je symlink na disk (/var/log.hdd/journal), takze trvaly
+# journal jde mimo RAM log rovnou na eMMC. print-fatal-signals = SIGSEGV/SIGABRT uzivatelskeho
+# procesu skonci v kern.log s PID a jmenem (jinak jadro o padu aplikace mlci). POSTUP.md krok 12.
+log "2c) Logy pro dohledani padu aplikace (journal persistent, print-fatal-signals)"
+install -d /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/10-arbot-persistent.conf <<'EOF'
+# ARBot: journal na disk (pres symlink /var/log/journal -> /var/log.hdd/journal), at prezije
+# vypadek napajeni i reboot. Strop, aby eMMC nezaplnil.
+[Journal]
+Storage=persistent
+SystemMaxUse=200M
+EOF
+systemctl restart systemd-journald || true
+cat > /etc/sysctl.d/90-arbot-fatal-signals.conf <<'EOF'
+# ARBot: pad uzivatelskeho procesu na SIGSEGV/SIGABRT do kern.log (PID, jmeno, signal).
+kernel.print-fatal-signals = 1
+EOF
+sysctl -q --system || true
+echo "  journal: $(journalctl --disk-usage 2>/dev/null)"
+
+# ----- 2d) Vypnout automaticky zamek obrazovky KDE -----
+# Pi bezi headless na Waylandu a RustDesk na Waylandu zamykaci obrazovku neumi zobrazit ani
+# ovladat: po 5 minutach necinnosti (vychozi Autolock) zbyla cerna plocha a nesel zadny login.
+# Bez monitoru zamek nic nechrani. POSTUP.md krok 13.
+log "2d) Zamek obrazovky KDE vypnout (RustDesk na Waylandu s nim neumi)"
+U=ales; H=$(getent passwd $U | cut -d: -f6)
+if [ -n "$H" ]; then
+  install -d -o $U -g $U "$H/.config"
+  sudo -u $U kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock false 2>/dev/null     || printf "[Daemon]
+Autolock=false
+LockOnResume=false
+" > "$H/.config/kscreenlockerrc"
+  sudo -u $U kwriteconfig6 --file kscreenlockerrc --group Daemon --key LockOnResume false 2>/dev/null || true
+  chown $U:$U "$H/.config/kscreenlockerrc" 2>/dev/null || true
+  echo "  $(cat "$H/.config/kscreenlockerrc" | tr "
+" " ")"
+fi
+
 # ----- 3) WiFi AP "arbot" na hostapd -----
 # POZOR: AP NEJDE postavit pres NetworkManager. Vyzkouseno 29. 8. 2026:
 #   - backend iwd:            nmcli spadne na net.connman.iwd.InvalidArguments

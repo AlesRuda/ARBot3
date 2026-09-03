@@ -95,8 +95,8 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         public int StallRestarts { get; private set; }
 
-        /// <summary>Kontext pro zjisteni pritomnosti zarizeni (detekce (od|při)pojeni).</summary>
-        private readonly Context ctx = new Context();
+        // Kontext je SDILENY pro vsechny RealSense drivery (RealSenseShared): vlastni kontext
+        // per driver znamenal tri device watchery a tri konkurencni bootery T265 - viz tam.
 
         private Pipeline pipeline;
         private PipelineProfile pipelineProfile;
@@ -307,39 +307,13 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         private bool? DevicePresent()
         {
-            try
-            {
-                using (var devices = ctx.QueryDevices())
-                {
-                    foreach (var d in devices)
-                    {
-                        using (d)
-                        {
-                            if (sn != null)
-                            {
-                                if (d.Info[CameraInfo.SerialNumber] == sn)
-                                    return true;
-                            }
-                            else
-                            {
-                                var name = d.Info[CameraInfo.Name];
-                                if (name != null && name.IndexOf("D4", StringComparison.OrdinalIgnoreCase) >= 0)
-                                    return true;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // Dotaz sam selhal - to NENI dukaz, ze kamera chybi. QueryDevices nad bezicimi
-                // streamy umi spadnout na "failed to set power state" (zmereno na OrangePi
-                // 1. 9. 2026), a kdyby se to vydavalo za odpojeni, hlasil by driver "kamera
-                // odpojena" u kamery, ktera je na miste - a slo by se hledat kabel.
-                Trace.WriteLine($"{Name}: QueryDevices selhalo: {ex.Message}");
-                return null;
-            }
-            return false;   // dotaz prosel a zarizeni mezi vyctenymi neni = opravdu chybi
+            // Dotaz jde pres sdileny kontext a pod jednim zamkem (RealSenseShared.Query) - kazdy
+            // QueryDevices v RSUSB backendu spousti i boot T265, a ten nesmi bezet dvakrat naraz.
+            // null = dotaz sam selhal, a to NENI dukaz, ze kamera chybi: QueryDevices nad bezicimi
+            // streamy umi spadnout na "failed to set power state" (zmereno na OrangePi 1. 9. 2026),
+            // a kdyby se to vydavalo za odpojeni, hlasil by driver "kamera odpojena" u kamery,
+            // ktera je na miste - a slo by se hledat kabel.
+            return RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "D4"));
         }
 
         /// <summary>
@@ -369,7 +343,7 @@ namespace ARBot.HAL.Devices.Camera
                 // Po odpojeni je pipeline zbourana (Teardown) - vzdy tvorime cerstvou instanci
                 // ze sdileneho kontextu; znovupouzita pipeline se na nove zarizeni nenavaze.
                 if (pipeline == null)
-                    pipeline = new Pipeline(ctx);
+                    pipeline = new Pipeline(RealSenseShared.Context);
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
@@ -477,8 +451,7 @@ namespace ARBot.HAL.Devices.Camera
             base.Dispose(disposing);   // zastavi a pocka na dokonceni pozadi smycky
             if (disposing)
             {
-                Teardown();   // zastavi a uvolni pipeline
-                ctx?.Dispose();
+                Teardown();   // zastavi a uvolni pipeline (sdileny kontext se nedisposuje)
             }
         }
 

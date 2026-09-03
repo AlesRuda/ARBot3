@@ -117,6 +117,39 @@ připnutý do auto-hide proužku, vytažený do plovoucího okna), panel se nado
 stejnou cestou jako `ReopenTool(..., Alignment.Bottom)`. Panel drží `MainWindowViewModel._replayNav`;
 při otevření dalšího záznamu se starý (navázaný na už zavřený `FileMessageSource`) zahodí a vytvoří nový.
 
+## Poškozený záznam: index se opraví ze samotných dat (3. 9. 2026)
+
+**Nález:** robotu došla baterie uprostřed záznamu (2. 9. 2026, `20260902-225830` a `20260902-230138`).
+Data (`.rec`) přežila celá až na **useknutý poslední snímek**, ale sidecar `.idx` ne: u jednoho
+končil uprostřed položky, u druhého obsahoval **položky ukazující za konec dat** (zápis přes page
+cache při výpadku napájení — index se na disk dostal dál než data). `MessageIndex.Read` na tom
+padal `EndOfStreamException` a **View záznam vůbec neotevřel**, přitom bylo použitelných 99 % dat.
+
+**Princip:** index je jen odvozenina dat. Každý rámec začíná hlavičkou `"Jméno:délka:verze"`
+(`MessageWriter`), takže ho jde ze skenu dat postavit znovu. `MessageIndex.Load`:
+
+1. přečte sidecar **tolerantně** (nekompletní poslední položka se zahodí, ne výjimka),
+2. **ověří ho proti datům** — položky musí navazovat od nuly a ležet v souboru; od první
+   nesouhlasící se zbytek zahodí,
+3. co chybí (ocas indexu, nebo celý index, když sidecar není), **doplní skenem rámců** —
+   deserializuje zprávu kvůli `T_in` a jménu; neznámý typ dostane čas 0, položka se ale založí,
+4. useknutý rámec na konci ohlásí jako ztracené bajty.
+
+Jediné, co sken nezná, je `T_out` (`ArrivalTicks`) — u doplněných položek se nahradí `T_in`
+(resp. posledním známým `T_in` u zpráv bez času pořízení), takže telemetrie ukáže u těch řádků
+nulové zpoždění v pipeline. `IndexLoadReport` říká, co se stalo (`Damaged`, počty, `ToString()`).
+
+**Kde se to používá:** `ARBotRuntime.WireView` (View otevře i poškozený záznam a hlásí to do
+`Trace`; `ARBotRuntime.IndexReport`), `ARBot.Analyze` (`RecordFile`, vypíše `!! POSKOZENY ZAZNAM…`
+na stderr). Obojí přes `MessageIndex.LoadFile`, který **opravený sidecar zapíše na disk** a
+původní přejmenuje na `.idx.bad`, takže se skenuje jen jednou.
+
+Výsledek na těch dvou záznamech: `225830` — 4 816 zpráv zachráněno, 4 517 položek indexu bez dat
+zahozeno (data se na disk už nedostala), 167 kB useknutého snímku; `230138` — 6 987 zpráv, z toho
+1 409 doplněno skenem (index zaostal za daty), 2 kB useknutého snímku. Testy:
+`MessageIndexRepairTests` (useknutý index, index za koncem dat + nuly, bez sidecaru, smetí místo
+hlavičky, oprava na disku).
+
 ## Determinismus
 
 „Teď" jde z `IClock`. V Run porovnání neprobíhá → stačí tolerance / best-effort. `AsyncFusionEngine`
