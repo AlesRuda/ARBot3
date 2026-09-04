@@ -1,3 +1,4 @@
+using ARBot.Common.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -396,7 +397,7 @@ namespace ARBot.ViewModels
             // Sirka cesty pro nahled ze STEJNEHO zdroje, ze ktereho ji bere navigacni mapa.
             // V design-time se ParamStore nestaví, ale Current ma vychozi instanci -> vrati fallback.
             if (!designMode)
-                defaultRoadWidthMeters = (decimal)Program.GetParamDouble("roadwidth", 3.0);
+                defaultRoadWidthMeters = (decimal)ParamRegistry.RoadWidth.Value;
 #if IsARM64
             showBaseMap = false;
 #else

@@ -90,6 +90,13 @@ namespace ARBot.Common.Configuration
         }
 
         /// <summary>Poloha <c>lat,lon[,kurzDeg]</c>.</summary>
+        /// <summary>Nezaporne cislo (nula projde, zaporna hodnota ne).</summary>
+        public static ParamParseResult Nezaporne(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam nezaporne cislo");
+
         /// <summary>Kladne cislo (nula ani zaporna hodnota neprojde).</summary>
         public static ParamParseResult Kladne(string text)
             => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
@@ -115,5 +122,53 @@ namespace ARBot.Common.Configuration
             => ARBot.Common.Simulation.VirtualPoseError.TryParse(text, out _)
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam 'vpred,vlevo[,stupne]' v metrech a stupnich");
+
+        // --- Pohledy UI (parametr open=) ---------------------------------------------------
+
+        /// <summary>
+        /// Jmena pohledu, ktere umi parametr <c>open=</c> otevrit po startu (v poradi menu Tools).
+        /// Mapovani jmen na dokumenty/nastroje je v aplikaci (<c>MainWindowViewModel.OpenViews</c>);
+        /// seznam bydli tady, aby registr umel hodnotu odmitnout uz pri startu a panel Konfigurace
+        /// ji umel napovedet. Pridani pohledu = pridat jmeno sem A vetev do OpenView.
+        /// </summary>
+        public static readonly string[] ViewNames =
+        {
+            "sensors", "images", "robot", "world", "telemetry", "debug", "virtual", "robotour", "config", "perf",
+        };
+
+        /// <summary>
+        /// Seznam pohledu oddelenych carkou (nebo strednikem), napr. <c>"world,telemetry"</c>:
+        /// mezery a velikost pismen se ignoruji, duplicity se slouci (zustane prvni vyskyt), prazdny
+        /// text je prazdny seznam. Vraci false, kdyz je nektere jmeno nezname;
+        /// <paramref name="unknown"/> pak nese to prvni.
+        /// </summary>
+        public static bool TryViews(string text, out string[] views, out string unknown)
+        {
+            unknown = null;
+            var list = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                foreach (var part in text.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string name = part.Trim().ToLowerInvariant();
+                    if (name.Length == 0) continue;
+                    if (Array.IndexOf(ViewNames, name) < 0)
+                    {
+                        unknown = part.Trim();
+                        views = Array.Empty<string>();
+                        return false;
+                    }
+                    if (!list.Contains(name)) list.Add(name);
+                }
+            }
+            views = list.ToArray();
+            return true;
+        }
+
+        /// <summary>Validator pro <c>open=</c>: seznam znamych pohledu.</summary>
+        public static ParamParseResult Views(string text)
+            => TryViews(text, out _, out string unknown)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid($"neznamy pohled '{unknown}'; znam: {string.Join(", ", ViewNames)}");
     }
 }

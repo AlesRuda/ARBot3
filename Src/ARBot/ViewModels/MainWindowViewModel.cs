@@ -48,6 +48,10 @@ namespace ARBot.ViewModels
                 _factory.PinDockable(_factory.SensorStatus);
             }
 
+            // Pohledy vyjmenované v open= (např. open=world,telemetry) - na zařízení se menu z mobilu
+            // neovládá, profil má otevřít, co má obsluha vidět. Nezávislé na self-testu i autorunu.
+            OpenViewsIfRequested();
+
             // Bezobslužný self-test (parametr selftest=1) - reprodukovatelné měření výkonu bez obsluhy.
             StartSelfTestIfRequested();
 

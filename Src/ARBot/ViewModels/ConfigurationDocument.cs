@@ -47,10 +47,9 @@ namespace ARBot.ViewModels
         public string Category => Def?.Category;
         public string Description => Def?.Description;
 
-        /// <summary>Vychozi hodnota k zobrazeni; u DefaultFromCode je to popis, ne hodnota.</summary>
-        public string DefaultText => Def == null
-            ? null
-            : (Def.DefaultFromCode ? Def.DefaultDescription : (Def.Default ?? "(nenastaveno)"));
+        /// <summary>Vychozi hodnota k zobrazeni (default z kodu - Profile, konfiguracni tridy - je od
+        /// 4. 9. 2026 v registru jako skutecna hodnota, takze zvlastni popis neni potreba).</summary>
+        public string DefaultText => Def == null ? null : (Def.Default ?? "(nenastaveno)");
 
         /// <summary>Povolene hodnoty pro rozbalovaci seznam; u <see cref="TextParamRow"/> null.</summary>
         public string[] Choices => Def?.AllowedValues;
@@ -303,7 +302,7 @@ namespace ARBot.ViewModels
                 }
                 else
                 {
-                    r.Value = r.Def.DefaultFromCode ? string.Empty : (r.Def.Default ?? string.Empty);
+                    r.Value = r.Def.Default ?? string.Empty;
                     r.Origin = "vychozi";
                 }
             }
@@ -340,9 +339,8 @@ namespace ARBot.ViewModels
             foreach (var r in allRows)
             {
                 if (r.Def == null || string.IsNullOrEmpty(r.Value)) continue;
-                if (!r.Def.DefaultFromCode
-                    && string.Equals(r.Def.Default ?? string.Empty, r.Value,
-                                     StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(r.Def.Default ?? string.Empty, r.Value,
+                                  StringComparison.OrdinalIgnoreCase))
                     continue;
                 result[r.Name] = r.Value;
             }

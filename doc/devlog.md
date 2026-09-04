@@ -37,6 +37,30 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-04
+
+- **`open=` otevře vyjmenované pohledy hned po startu** (`open=world,telemetry`; poslední je aktivní
+  záložka). Na přání autora: na zařízení se na běžící misi dohlíží přes vzdálenou plochu z mobilu a menu
+  se tam prakticky nedá ovládat; self-test to uměl (`st_world`…), ale jen v rámci měření. Funguje pro
+  všechny pohledy z menu *Tools*, jména drží `ParamParsers.ViewNames` v `Common`, takže **neznámé jméno
+  odmítne registr už při startu**. Kód `MainWindowViewModel.OpenViews.cs` (týmiž metodami jako menu,
+  dedup + aktivace zůstávají), testy `OpenParamTests`, popis
+  v [configuration.md](configuration.md#otevření-pohledů-po-startu-open). Registr má 59 parametrů.
+- **Parametry se čtou typovanými odkazy `ParamRegistry.NoUart.Value`; `Program.GetParam*` zrušeno.**
+  Idea autora („při registraci si uložit referenci a ptát se na její Value"). Jméno pole = klíč
+  v PascalCase (rozhodnutí autora), default jen v `ParamDef` — i ten z kódu se čte, ne opisuje
+  (`Profile`, `FreeRunConfig`, `RobotourConfig`, `SyntheticSceneOptions`, `MapCorrelatorConfig`); porty
+  UART se ukázaly být konstanty podle platformy, ne detekce → `Profile.PortAHRS…`, `no_uart` řeší
+  `SetRealHW` podmínkou (a hlásí do `Trace`, ne `Debug`). Místo výpisu parametru při každém čtení se
+  po složení `ParamStore` vypíše celá účinná konfigurace s původem. Přepsáno 63 míst v 8 souborech,
+  `DefaultFromCode`/`CheckDefault`/`ReadDouble`/`TryReadMeters` pryč. Strážný test hlídá jméno pole
+  reflexí, mrtvé parametry a návrat `GetParam`; `ParamHandleTests` typované čtení. Rozhodnutí
+  v [decisions.md](decisions.md), popis v [configuration.md](configuration.md).
+  Ověřeno snímkem ze self-testu se `st_world=false` a `open=world,telemetry`: obě záložky otevřené,
+  Telemetrie aktivní. Při té příležitosti **hláška o neplatné hodnotě z příkazové řádky nese důvod
+  z parseru** (dřív jen „není platná hodnota typu String", což u `open=world,mapa` nic neřeklo) —
+  profil to uměl už dřív, teď obě cesty stejně.
+
 ## 2026-09-03
 
 - **Nová krátká testovací mapa `OSM/SyntetickyRovny2m.osm` — rovný úsek 2 m × 1,5 m.** Na zadání

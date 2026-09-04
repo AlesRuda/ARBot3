@@ -176,7 +176,7 @@ namespace ARBot.Robot
         /// </summary>
         private static string RecordPathFromParams()
         {
-            string raw = (Program.GetParam("record") ?? string.Empty).Trim();
+            string raw = (ParamRegistry.Record.Value ?? string.Empty).Trim();
             if (raw.Length == 0 || string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
                 return null;
 
@@ -263,7 +263,7 @@ namespace ARBot.Robot
         /// zalozit driv, protoze potrebuje fuzi (zdroj pozy) a mapu. Viz doc/virtual-hw.md.</para>
         /// </summary>
         public HwMode RequestedHwMode { get; set; }
-            = Program.GetParamBool("virtualhw", false) ? HwMode.Virtual : HwMode.Real;
+            = ParamRegistry.VirtualHw.Value ? HwMode.Virtual : HwMode.Real;
 
         private void WireRun(string recordFile)
         {
@@ -298,7 +298,7 @@ namespace ARBot.Robot
 
             // Znama pocatecni poza (parametr start=) jde rovnou do EKF - plati i pro realny HW.
             // Bez zadani se hada jen v simulaci (prichycenim na sit), jinak inicializuje prvni fix.
-            bool virtualHw = Program.GetParamBool("virtualhw", false);
+            bool virtualHw = ParamRegistry.VirtualHw.Value;
             var startPose = InitializeStartPose(engine, fusionConfig.GeoReference,
                                                 allowSnapToRoad: virtualHw);
 
@@ -312,14 +312,14 @@ namespace ARBot.Robot
             // Mereni vykonu rizeni (parametr perf=). Sberac ma VLASTNI casovac, ne ridici mrizku -
             // jinak by prestal posilat prave kdyz se nestiha. Prah varovani se cte TADY (a ne
             // uvnitr sberace): ARBot.Common na konfiguraci nesaha. Viz doc/perf-monitoring.md.
-            if (Program.GetParamBool("perf", true))
+            if (ParamRegistry.Perf.Value)
             {
                 perf = new ARBot.Common.Diagnostics.PerfCollector(
                     TimeSpan.FromMilliseconds(Profile.Ts),
                     TimeSpan.FromSeconds(1),
                     stream,
                     () => DateTime.UtcNow,
-                    Program.GetParamDouble("perfwarn", 70));
+                    ParamRegistry.PerfWarn.Value);
                 scheduler.Metrics = perf.Metrics;
             }
 
@@ -366,7 +366,7 @@ namespace ARBot.Robot
             var colorProjectionResolver = BuildColorProjectionResolver(hw);
             // Diagnostika (traversability-timing CSV + GC merani na vlakne kamery) je volitelna: pro
             // soutezni jizdu ji lze vypnout parametrem diag=false (vypne co neni potreba). Default on.
-            bool diag = Program.GetParamBool("diag", true);
+            bool diag = ParamRegistry.Diag.Value;
             foreach (var s in hw.Sensors)
             {
                 if (s is ICamera cam)
@@ -409,7 +409,7 @@ namespace ARBot.Robot
             // envelope= voli model rychlostniho stropu z odstupu (smerovy vs. radialni) - A/B prepinac,
             // vychozi smerovy. Config vznika TADY (po Program.Main), takze uz vidi safedist= v Profile.
             var plannerCfg = new LocalPlannerConfig();
-            string envelope = Program.GetParam("envelope", "directional");
+            string envelope = ParamRegistry.Envelope.Value;
             plannerCfg.Envelope = string.Equals(envelope, "radial", StringComparison.OrdinalIgnoreCase)
                 ? SpeedEnvelopeMode.Radial : SpeedEnvelopeMode.Directional;
             if (plannerCfg.Envelope == SpeedEnvelopeMode.Radial)
@@ -475,7 +475,7 @@ namespace ARBot.Robot
             //
             // POZOR na zamenu s MapCorrelatorConfig.SendCorrections - to je "posilat do fuze",
             // ne "pocitat".
-            bool mapCorr = Program.GetParamBool("mapcorr", false);
+            bool mapCorr = ParamRegistry.MapCorr.Value;
             if (!mapCorr)
             {
                 Trace.WriteLine("mapcorr=false: korelace s mapou se nezaklada (nepocita se). "
@@ -492,7 +492,7 @@ namespace ARBot.Robot
                 // bezi dal a zprava se emituje). Dva prepinace, dva ucely: mapcorr= "pocitat
                 // vubec", mapcorrsend= "posilat". Bez toho nesla zmerit skutecna autorita korelace
                 // — A/B "stejna zatez, jen bez korekci". Viz doc/map-correlation-localization.md.
-                bool sendCorrections = Program.GetParamBool("mapcorrsend", true);
+                bool sendCorrections = ParamRegistry.MapCorrSend.Value;
                 if (!sendCorrections)
                     Trace.WriteLine("mapcorrsend=false: korelace pocita a hlasi zpravou, "
                                     + "ale do fuze neposila nic.");
@@ -512,11 +512,8 @@ namespace ARBot.Robot
                     new ARBot.Common.Localization.MapCorrelatorConfig
                     {
                         SendCorrections = sendCorrections,
-                        ReferenceInformativeEvidence = ReadDouble(
-                            "mapcorrref",
-                            new ARBot.Common.Localization.MapCorrelatorConfig()
-                                .ReferenceInformativeEvidence),
-                        GateMode = string.Equals(Program.GetParam("mapcorrgate"), "reject",
+                        ReferenceInformativeEvidence = ParamRegistry.MapCorrRef.Value,
+                        GateMode = string.Equals(ParamRegistry.MapCorrGate.Value, "reject",
                                                  StringComparison.OrdinalIgnoreCase)
                                    ? ARBot.Common.Fusion.GateMode.Reject
                                    : ARBot.Common.Fusion.GateMode.Soft,
@@ -539,7 +536,7 @@ namespace ARBot.Robot
             // ose cesty z mapy -> pricna korekce a kurz. Parametr corridor= rozhoduje, jestli se
             // stupen vubec zaklada; corridorsend= jestli posila merenia do fuze (A/B se stejnou
             // zatezi). Viz doc/map-correlation-localization.md.
-            bool corridorOn = Program.GetParamBool("corridor", false);
+            bool corridorOn = ParamRegistry.Corridor.Value;
             if (!corridorOn)
             {
                 Trace.WriteLine("corridor=false: hranova lokalizace se nezaklada. "
@@ -552,7 +549,7 @@ namespace ARBot.Robot
             }
             else
             {
-                bool send = Program.GetParamBool("corridorsend", true);
+                bool send = ParamRegistry.CorridorSend.Value;
                 if (!send)
                     Trace.WriteLine("corridorsend=false: koridor se pocita a hlasi zpravou, "
                                     + "ale do fuze neposila nic.");
@@ -566,7 +563,7 @@ namespace ARBot.Robot
                 // radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne - viz
                 // CorridorConfig.InlierThresholdPerMeter. Parametr je tu proto, aby se ta hodnota
                 // dala ZMERIT bezobsluznym A/B, ne uhodnout.
-                string tol = Program.GetParam("corridortol");
+                string tol = ParamRegistry.CorridorTol.Value;
                 if (!string.IsNullOrWhiteSpace(tol))
                 {
                     if (TryParsePair(tol, out double abs, out double perM) && abs > 0 && perM >= 0)
@@ -595,7 +592,7 @@ namespace ARBot.Robot
             // MISE. Vylucuji se, takze se nevybiraji booleovskymi prepinaci jako ostatni stupne, ale
             // jednim selektorem mission=. Dve mise zapnute zaroven by si prepisovaly mrkev a neslo
             // by poznat, ktera vyhrala. Viz doc/mission-freerun.md.
-            string mission = (Program.GetParam("mission") ?? "none").Trim().ToLowerInvariant();
+            string mission = (ParamRegistry.Mission.Value ?? "none").Trim().ToLowerInvariant();
             switch (mission)
             {
                 case "":
@@ -611,7 +608,7 @@ namespace ARBot.Robot
 
                     var freeRunCfg = new ARBot.Common.Missions.FreeRunConfig();
                     // freerunlook= je JEDINA skutecna ladici konstanta mise (viz FreeRunConfig).
-                    double look = ReadDouble("freerunlook", freeRunCfg.LookaheadM);
+                    double look = ParamRegistry.FreeRunLook.Value;   // default = FreeRunConfig.LookaheadM
                     if (look != freeRunCfg.LookaheadM)
                     {
                         freeRunCfg.LookaheadM = look;
@@ -649,7 +646,7 @@ namespace ARBot.Robot
                     var robotourCfg = new ARBot.Common.Missions.RobotourConfig();
                     // Jediny parametr, ktery se ladi bez prekladu: jak dlouho musi fix v depu
                     // neprerusene vyhovovat. Zbytek jsou bezpecnostni stropy z dokumentu.
-                    double depotFix = ReadDouble("depotfix", robotourCfg.DepotFixSec);
+                    double depotFix = ParamRegistry.DepotFix.Value;   // default = RobotourConfig.DepotFixSec
                     if (depotFix != robotourCfg.DepotFixSec)
                     {
                         robotourCfg.DepotFixSec = depotFix;
@@ -660,7 +657,7 @@ namespace ARBot.Robot
                     // odebira QrCodeMsg. Vypnuty je do chvile, nez ho mise zapne (a ta ho zapina
                     // vyhradne pod drzenym nouzovym zastavenim).
                     var qrCfg = new ARBot.Common.Vision.Qr.QrScannerConfig();
-                    string qrCam = Program.GetParam("qrcamera");
+                    string qrCam = ParamRegistry.QrCamera.Value;
                     if (qrCam != null)
                     {
                         qrCfg.CameraName = qrCam;
@@ -875,7 +872,7 @@ namespace ARBot.Robot
         /// </summary>
         private static void ConfigureMeasurementDiagnostics(FusionProcessor fusion)
         {
-            string spec = Program.GetParam("measdiag");
+            string spec = ParamRegistry.MeasDiag.Value;
             if (string.IsNullOrWhiteSpace(spec)) return;
             if (bool.TryParse(spec, out bool all))
             {
@@ -920,7 +917,7 @@ namespace ARBot.Robot
         /// </summary>
         private void LoadMapIfSpecified(FusionConfig fusionConfig)
         {
-            string mapPath = Program.GetParamPath("map");
+            string mapPath = ParamRegistry.Map.Value;
             if (string.IsNullOrWhiteSpace(mapPath))
             {
                 LoadVisionMapIfSpecified();
@@ -980,7 +977,7 @@ namespace ARBot.Robot
         /// </summary>
         private void LoadVisionMapIfSpecified()
         {
-            string path = Program.GetParamPath("visionmap");
+            string path = ParamRegistry.VisionMap.Value;
             if (string.IsNullOrWhiteSpace(path))
                 return;
             if (!File.Exists(path))
@@ -1021,7 +1018,7 @@ namespace ARBot.Robot
         /// </summary>
         private static RoadNetwork ReadNetwork(string path)
         {
-            double defaultWidth = Program.GetParamDouble("roadwidth", 3.0);
+            double defaultWidth = ParamRegistry.RoadWidth.Value;
             using (var fs = File.OpenRead(path))
             {
                 var data = OsmXmlReader.Read(fs);
@@ -1036,8 +1033,8 @@ namespace ARBot.Robot
         /// </summary>
         private string DescribeMissingMapReason(FusionConfig fusionConfig)
         {
-            string mapPath = Program.GetParamPath("map");
-            string visionPath = Program.GetParamPath("visionmap");
+            string mapPath = ParamRegistry.Map.Value;
+            string visionPath = ParamRegistry.VisionMap.Value;
 
             if (CameraRoadNetwork == null)
             {
@@ -1086,7 +1083,7 @@ namespace ARBot.Robot
             // Umela chyba pozy z prikazove radky (poseerror=vpred,vlevo[,stupne]) - kvuli
             // reprodukovatelnemu bezobsluznemu mereni korelace. V UI ji lze menit za behu
             // nastrojem nad virtualni kamerou. Viz doc/virtual-hw.md.
-            string poseError = Program.GetParam("poseerror");
+            string poseError = ParamRegistry.PoseError.Value;
             if (!string.IsNullOrWhiteSpace(poseError))
             {
                 if (VirtualPoseError.TryParse(poseError, out var parsed))
@@ -1170,9 +1167,11 @@ namespace ARBot.Robot
         {
             var scene = hw.VirtualScene;
 
-            if (TryReadMeters("depthnoise", out double dn)) scene.DepthNoiseM = dn;
-            if (TryReadMeters("grassrough", out double gr)) scene.GrassRoughnessM = gr;
-            if (TryReadMeters("grassheight", out double gh)) scene.GrassHeightM = gh;
+            // Defaulty parametru jsou hodnoty ze SyntheticSceneOptions, takze staci prepsat zadane;
+            // nezapornost hlida registr (ParamParsers.Nezaporne) uz pri startu.
+            if (ParamRegistry.DepthNoise.IsSet) scene.DepthNoiseM = ParamRegistry.DepthNoise.Value;
+            if (ParamRegistry.GrassRough.IsSet) scene.GrassRoughnessM = ParamRegistry.GrassRough.Value;
+            if (ParamRegistry.GrassHeight.IsSet) scene.GrassHeightM = ParamRegistry.GrassHeight.Value;
 
             // Vyska travy patri do podminky taky: pri vyvysene trave NENI zpetna projekce hranic
             // exaktni, protoze hranicni pixel muze trefit svislou stenu travy misto okraje vozovky.
@@ -1189,61 +1188,11 @@ namespace ARBot.Robot
                     scene.GrassHeightM));
         }
 
-        /// <summary>Byl parametr skutecne ZADAN (profil nebo prikazova radka), nebo jen plati jeho
-        /// vychozi hodnota? Od zavedeni registru vraci <c>Program.GetParam</c> i vychozi hodnotu,
-        /// takze "neprazdna hodnota" uz neznamena "nekdo to zadal". Viz doc/configuration.md.</summary>
-        private static bool ParamZadan(string name)
-            => ARBot.Common.Configuration.ParamStore.Current.OriginOf(name)
-               != ARBot.Common.Configuration.ParamOrigin.Default;
-
-        /// <summary>Precte cislo z parametru; chybejici i nesmysl da <paramref name="fallback"/>.</summary>
-        private static double ReadDouble(string name, double fallback)
-        {
-            string raw = Program.GetParam(name);
-            if (string.IsNullOrWhiteSpace(raw)) return fallback;
-            if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture, out double v))
-            {
-                if (ParamZadan(name))
-                    Trace.WriteLine($"{name}={v.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-                return v;
-            }
-            Trace.WriteLine($"{name}={raw} neni cislo -> ignoruje se.");
-            return fallback;
-        }
-
-        /// <summary>
-        /// Precte nezaporny rozmer [m] z parametru; nesmysl ohlasi a ignoruje.
-        ///
-        /// <para>Vraci <c>false</c> i tehdy, kdyz parametr nikdo nezadal a plati jen vychozi
-        /// hodnota - volajici pak necha to, co uz v <c>SyntheticSceneOptions</c> je (tedy tutez
-        /// hodnotu). Bez te podminky by se hlasil kazdy beh, jako by ho clovek nastavil.</para>
-        /// </summary>
-        private static bool TryReadMeters(string name, out double meters)
-        {
-            meters = 0;
-            if (!ParamZadan(name)) return false;
-
-            string raw = Program.GetParam(name);
-            if (string.IsNullOrWhiteSpace(raw)) return false;
-
-            if (!double.TryParse(raw, System.Globalization.NumberStyles.Float,
-                                 System.Globalization.CultureInfo.InvariantCulture, out meters)
-                || meters < 0 || double.IsNaN(meters))
-            {
-                Trace.WriteLine($"{name}={raw} neni nezaporne cislo v metrech -> ignoruje se.");
-                return false;
-            }
-
-            Trace.WriteLine($"{name}={meters.ToString(System.Globalization.CultureInfo.InvariantCulture)} m");
-            return true;
-        }
-
         private static void ApplySensorErrorParams(ARBotHW hw)
         {
             var sensors = hw.VirtualSensors;
 
-            string slip = Program.GetParam("wheelslip");
+            string slip = ParamRegistry.WheelSlip.Value;
             if (!string.IsNullOrWhiteSpace(slip))
             {
                 if (TryParsePair(slip, out double left, out double right) && left > 0 && right > 0)
@@ -1264,7 +1213,7 @@ namespace ARBot.Robot
             // takze bez nej nejde bezobsluzne zmerit, ktere merenie ktere prehlasuje. Konkretne
             // sigma kurzu z IMU rozhoduje o tom, jestli ma korekce kurzu z koridoru vubec sanci -
             // viz doc/virtual-hw.md, „Kurz: proc ho koridor neopravi".
-            string imuNoise = Program.GetParam("imunoise");
+            string imuNoise = ParamRegistry.ImuNoise.Value;
             if (!string.IsNullOrWhiteSpace(imuNoise))
             {
                 if (TryParsePair(imuNoise, out double headDeg, out double gyroDeg)
@@ -1282,7 +1231,7 @@ namespace ARBot.Robot
                 }
             }
 
-            string gpsNoise = Program.GetParam("gpsnoise");
+            string gpsNoise = ParamRegistry.GpsNoise.Value;
             if (!string.IsNullOrWhiteSpace(gpsNoise))
             {
                 if (TryParsePair(gpsNoise, out double posM, out double speedMps)
@@ -1300,7 +1249,7 @@ namespace ARBot.Robot
                 }
             }
 
-            string bias = Program.GetParam("imubias");
+            string bias = ParamRegistry.ImuBias.Value;
             if (!string.IsNullOrWhiteSpace(bias))
             {
                 if (TryParsePair(bias, out double headingDeg, out double gyroDegPerSec))
@@ -1354,7 +1303,7 @@ namespace ARBot.Robot
         private static Func<DateTime, ARBot.Common.Fusion.RobotState> BuildCameraPose(
             ARBotHW hw, ARBot.Common.Fusion.AsyncFusionEngine engine)
         {
-            string mode = Program.GetParam("camerapose", "truth");
+            string mode = ParamRegistry.CameraPose.Value;
             if (string.Equals(mode, "truth", StringComparison.OrdinalIgnoreCase))
             {
                 Trace.WriteLine("camerapose=truth: virtualni kamery renderuji z ground truth "
@@ -1394,7 +1343,7 @@ namespace ARBot.Robot
         /// </summary>
         private void ApplyGoalParam(GeoReference origin)
         {
-            string goal = Program.GetParam("goal");
+            string goal = ParamRegistry.Goal.Value;
             if (string.IsNullOrWhiteSpace(goal)) return;
 
             if (!TryParsePair(goal, out double lat, out double lon))
@@ -1448,7 +1397,7 @@ namespace ARBot.Robot
             LLA where = null;
             double? explicitHeading = null;
 
-            var start = Program.GetParam("start");
+            var start = ParamRegistry.Start.Value;
 
             // start=gps: polohu urci az prvni pouzitelny fix (DefaultMeasurementMapper zavola
             // InitializePosition). Je to vyslovna volba tehoz, co se jinak deje jako fallback -

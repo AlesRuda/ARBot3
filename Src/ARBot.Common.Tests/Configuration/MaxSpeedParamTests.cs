@@ -58,7 +58,8 @@ namespace ARBot.Common.Tests.Configuration
         {
             Assert.That(ParamRegistry.TryGet("maxspeed", out var def), Is.True);
             Assert.That(def.Type, Is.EqualTo(ParamType.Double));
-            Assert.That(def.DefaultFromCode, Is.True, "výchozí hodnota je z kódu (Profile).");
+            Assert.That(def.Default, Is.EqualTo(Profile.MaxAllowedSpeed.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                        "výchozí hodnota je odvozená z Profile, ne opsaná");
         }
 
         /// <summary>

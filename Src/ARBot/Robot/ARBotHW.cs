@@ -140,37 +140,15 @@ namespace ARBot.Robot
 
         protected virtual void Init()
         {
-            string? PortAHRS = null;
-            string? PortMotor = null;
-            string? PortGPS = null;
-
-#if IsX64
-            PortAHRS = "COM5";
-            PortMotor = "COM9";
-            PortGPS = "COM8";
-#endif
-#if IsARM64
-            // OrangePI/Armbian: senzory jedou pres sdilenou tridu Uart (System.IO.Ports) - stejny
-            // kod jako na x64, jen s linuxovym jmenem zarizeni. Zalozeni je obalene try/catch,
-            // aby chyba jednoho senzoru neshodila cely Init.
-            //
-            // Zmereno na robotu 31. 8. 2026 (OrangePi5Ultra/find-serial-ports.sh) - vsechny tri
-            // periferie visi na USB, zadny onboard UART se nepouziva:
-            //   VN100 IMU  -> prevodnik CP2102 (skutecny UART 115200) -> /dev/ttyUSB0
-            //   SDC2160Ex  -> Roboteq ma vlastni USB CDC-ACM          -> /dev/ttyACM0
-            //   u-blox GPS -> vlastni USB CDC-ACM                     -> /dev/ttyACM1
-            //
-            // Zapsana jsou ale jmena z /dev/serial/by-id, ne ttyUSB0/ttyACM0: cisla uzlu se
-            // prideluji podle poradi enumerace USB, takze prohozeni GPS a motoru po restartu
-            // nebo po prepojeni kabelu je realne - a bylo by TICHE (oba jsou ttyACM*, oba se
-            // otevrou). Jmeno v by-id plyne z USB deskriptoru, takze drzi.
-            //
-            // Predchozi hodnota "/dev/ttyS0" byla jen odhad a byla spatne: na RK3588 zadny
-            // /dev/ttyS0 neexistuje. Jediny zivy onboard UART je ttyS7 a drzi si ho bluetooth.
-            PortAHRS = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
-            PortMotor = "/dev/serial/by-id/usb-Roboteq_Motor_Controller_SDC2XXX-if00";
-            PortGPS = "/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00";
-#endif
+            // Porty UART senzoru: parametry UartAHRS= / UartMotor= / UartGPS= s defaultem podle
+            // platformy (Profile.PortAHRS…, kam se konstanty 4. 9. 2026 presunuly odsud). Jen se
+            // zapamatuji - senzory z nich zaklada az SetRealHW, ktery take resi no_uart=. Po startu
+            // aplikace zadny HW nebezi (HwMode.None); co se zalozi, urcuje parametr virtualhw= nebo menu.
+            // OrangePI/Armbian: senzory jedou pres sdilenou tridu Uart (System.IO.Ports) - stejny kod
+            // jako na x64, jen s linuxovym jmenem zarizeni.
+            portAHRS = ParamRegistry.UartAHRS.Value;
+            portMotor = ParamRegistry.UartMotor.Value;
+            portGPS = ParamRegistry.UartGPS.Value;
 
             /*
             var f = new FTD2XX_NET.FTDI();
@@ -179,22 +157,6 @@ namespace ARBot.Robot
             if (n != null)
                 NeoPixel = new NeoPixelProcessor(new FTD2xxNeoPixelDriver(f, n));
             */
-
-            // Diagnostický přepínač: no_uart=true přeskočí UART senzory (IMU/GPS/motor). Odpojené UART
-            // drivery házejí výjimky v těsné smyčce (GC churn + CPU) - toto umožní je při měření výkonu
-            // vizuální cesty vypnout bez fyzického odpojení (viz devlog 2026-08-01, self-test no_uart).
-            bool noUart = Program.GetParamBool("no_uart", false);
-            if (noUart)
-            {
-                PortAHRS = null; PortMotor = null; PortGPS = null;
-                Debug.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor) přeskočeny.");
-            }
-
-            // Porty se jen zapamatuji - senzory z nich zaklada az SetRealHW. Po startu aplikace
-            // zadny HW nebezi (HwMode.None); co se zalozi, urcuje parametr hw= nebo menu.
-            portAHRS = PortAHRS;
-            portMotor = PortMotor;
-            portGPS = PortGPS;
 
 #if IsX64
             Joystick = new HAL.Devices.Joystick.Joystick();
@@ -361,17 +323,25 @@ namespace ARBot.Robot
         {
             SetNoHW();   // ciste vychozi stav (i kdyz predtim bezel virtualni HW)
 
-            if (!string.IsNullOrEmpty(portAHRS))
+            // Diagnosticky prepinac: no_uart=true preskoci UART senzory (IMU/GPS/motor). Odpojene UART
+            // drivery hazeji vyjimky v tesne smycce (GC churn + CPU) - takhle jdou pri mereni vykonu
+            // vizualni cesty vypnout bez fyzickeho odpojeni (viz devlog 2026-08-01, self-test no_uart).
+            // Do Trace, ne Debug: je to duvod, proc senzory nejedou, a v Release by po nem nezbyla stopa.
+            bool noUart = ParamRegistry.NoUart.Value;
+            if (noUart)
+                Trace.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor) preskoceny.");
+
+            if (!noUart && !string.IsNullOrEmpty(portAHRS))
             {
-                UartAHRS = new Uart("UartAHRS", Program.GetParam("UartAHRS", portAHRS), 115200);
+                UartAHRS = new Uart("UartAHRS", portAHRS, 115200);
                 //                AHRS = new VN100(UartAHRS);
                 IMU = new VN100IMUBinary(UartAHRS);
                 sensors.Add(IMU);
             }
 
-            if (!string.IsNullOrEmpty(portMotor))
+            if (!noUart && !string.IsNullOrEmpty(portMotor))
             {
-                UartMotor = new Uart("UartMotor", Program.GetParam("UartMotor", portMotor), 115200, "\r");
+                UartMotor = new Uart("UartMotor", portMotor, 115200, "\r");
                 Debug.WriteLine($"MaxTheoreticalSpeed={Profile.MaxTheoreticalSpeed}");
                 Debug.WriteLine($"MaxAllowedSpeed={Profile.MaxAllowedSpeed}");
                 Debug.WriteLine($"WheelPerimeter={Profile.WheelPerimeter}");
@@ -382,9 +352,9 @@ namespace ARBot.Robot
                 sensors.Add(Motor);
             }
 
-            if (!string.IsNullOrEmpty(portGPS))
+            if (!noUart && !string.IsNullOrEmpty(portGPS))
             {
-                UartGPS = new Uart("UartGPS", Program.GetParam("UartGPS", portGPS), 921600);
+                UartGPS = new Uart("UartGPS", portGPS, 921600);
                 GPS = new uBloxGps(UartGPS);
                 sensors.Add(GPS);
             }

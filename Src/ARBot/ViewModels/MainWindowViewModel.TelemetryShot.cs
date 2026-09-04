@@ -1,3 +1,4 @@
+using ARBot.Common.Configuration;
 using System;
 using System.IO;
 using System.Linq;
@@ -28,7 +29,7 @@ namespace ARBot.ViewModels
         /// <summary>Spusti porizeni screenshotu telemetrie, je-li vyzadano parametrem <c>telemetryshot=true</c>.</summary>
         private void StartTelemetryShotIfRequested()
         {
-            if (!Program.GetParamBool("telemetryshot", false)) return;
+            if (!ParamRegistry.TelemetryShot.Value) return;
             _ = RunTelemetryShotAsync();   // fire-and-forget; sam se ukonci
         }
 
@@ -38,7 +39,7 @@ namespace ARBot.ViewModels
             {
                 await Task.Delay(1500);   // nech UI ustalit
 
-                string record = Program.GetParam("ts_rec") ?? FindNewestIndexedRecord();
+                string record = ParamRegistry.TsRec.Value ?? FindNewestIndexedRecord();
                 if (record == null)
                 {
                     System.Diagnostics.Debug.WriteLine("TelemetryShot: zadny zaznam se sidecar indexem");

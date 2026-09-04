@@ -37,17 +37,11 @@ namespace ARBot.Common.Configuration
         /// </summary>
         public string Default;
 
-        /// <summary>
-        /// Vychozi hodnotu urcuje az kod za behu, takze ji registr nezna. Priklad:
-        /// <c>UartAHRS</c> ma default z detekce portu. U takovych parametru se v panelu misto
-        /// hodnoty ukaze <see cref="DefaultDescription"/>, do profilu se nezapisuji, dokud je
-        /// nekdo vyslovne nenastavi, a kontrola shody defaultu se preskoci.
-        /// </summary>
-        public bool DefaultFromCode;
-
-        /// <summary>Cim je default urcen, kdyz <see cref="DefaultFromCode"/> - napr.
-        /// "podle detekce portu". Jen pro zobrazeni.</summary>
-        public string DefaultDescription;
+        // POZN.: bývalo tu DefaultFromCode + DefaultDescription ("default určuje až kód za běhu,
+        // registr ho nezná"). Zrušeno 4. 9. 2026: žádný takový parametr ve skutečnosti nebyl -
+        // maxspeed/safedist mají pravdu v Profile a porty UART jsou konstanty podle platformy
+        // (teď Profile.PortAHRS…), takže si registr default z kódu PŘEČTE (ParamRegistry.Fmt) a
+        // Default je vyplněný u každého parametru, kde nějaký existuje. Viz doc/configuration.md.
 
         /// <summary>Veta do panelu i do komentare v profilu. Povinna.</summary>
         public string Description;

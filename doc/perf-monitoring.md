@@ -176,7 +176,7 @@ v panelu nejde vidět, protože ten ukazuje jen aktuální sekundu.
 | [`ViewModels/PerformanceDocument.cs`](../Src/ARBot/ViewModels/PerformanceDocument.cs) | panel *Tools → Výkon* |
 
 **Práh `perfwarn` se čte v `ARBotRuntime` a předává sběrači konstruktorem**, ne uvnitř
-`ARBot.Common`. Je to konvence projektu (konfigurace se čte výhradně přes `Program.GetParam*`) a
+`ARBot.Common`. Je to konvence projektu (konfigurace se čte výhradně přes odkazy `ParamRegistry.X`, dřív `Program.GetParam*`) a
 zároveň nutnost: strážný test `ParamRegistryGuardTests` skenuje jen `Src/ARBot`, takže klíč čtený
 z `Common` by hlásil jako mrtvý. Viz [configuration.md](configuration.md).
 

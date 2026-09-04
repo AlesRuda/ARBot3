@@ -128,30 +128,5 @@ namespace ARBot.Common.Tests.Configuration
                         "Get musi vratit surovou hodnotu z prikazove radky");
             Assert.That(s.GetBool("virtualhw", false), Is.True);
         }
-
-        [Test]
-        public void NesouladDefaultuSeOzve()
-        {
-            // Volani predava default, ktery se lisi od registru -> ma se to ozvat. V Debug buildu
-            // vyjimkou (at si toho nekdo vsimne hned), v Release varovanim.
-            var s = ParamStore.Build(new string[0]);
-#if DEBUG
-            Assert.Throws<ParamFileException>(() => s.GetBool("mapcorr", true));
-#else
-            s.GetBool("mapcorr", true);          // v registru je false
-            Assert.That(s.Warnings, Has.Some.Contains("mapcorr"));
-#endif
-        }
-
-        [Test]
-        public void VolaniBezDefaultuNesouladNehlasi()
-        {
-            // Program.GetParam("mission") default nepredava vubec (null), takze registrovanou
-            // vychozi hodnotu "none" nema s cim porovnavat. Kdyby se to hlasilo, neslo by
-            // aplikaci v Debug buildu vubec spustit.
-            var s = ParamStore.Build(new string[0]);
-            Assert.DoesNotThrow(() => s.GetString("mission", null));
-            Assert.That(s.Warnings, Has.None.Contains("mission"));
-        }
     }
 }

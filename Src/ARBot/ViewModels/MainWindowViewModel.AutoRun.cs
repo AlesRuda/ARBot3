@@ -1,3 +1,4 @@
+using ARBot.Common.Configuration;
 using System.Threading.Tasks;
 using ARBot.Diagnostics;
 using ARBot.Robot;
@@ -33,7 +34,7 @@ namespace ARBot.ViewModels
         /// <summary>Spustí Run po startu, je-li vyžádán parametrem <c>autorun=true</c>.</summary>
         private void StartAutoRunIfRequested()
         {
-            if (!Program.GetParamBool("autorun", false))
+            if (!ParamRegistry.AutoRun.Value)
                 return;
 
             // Self-test si Run spousti sam a pak aplikaci ukonci - dva autostarty by se praly

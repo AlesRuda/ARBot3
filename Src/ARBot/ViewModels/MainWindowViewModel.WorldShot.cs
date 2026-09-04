@@ -1,3 +1,4 @@
+using ARBot.Common.Configuration;
 using System;
 using System.IO;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace ARBot.ViewModels
         /// <summary>Spusti porizeni screenshotu World pohledu, je-li vyzadano parametrem <c>worldshot=true</c>.</summary>
         private void StartWorldShotIfRequested()
         {
-            if (!Program.GetParamBool("worldshot", false)) return;
+            if (!ParamRegistry.WorldShot.Value) return;
             _ = RunWorldShotAsync();   // fire-and-forget; sam se ukonci
         }
 

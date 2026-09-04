@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **58 parametrů**
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **59 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -54,14 +54,32 @@ překlep v klíči.
 | Strukturovaný snímek konfigurace do záznamu | `GetParam` už dnes dělá `Debug.WriteLine("klíč=hodnota")`, což jde do záznamu jako [`Info`](../Src/ARBot.Common/Logs/Info.cs). Je to jen text a jen pro klíče, které se skutečně přečetly, ale stopa tam je — zisk ze strukturované zprávy je proto menší, než se na první pohled zdá. |
 | Per-komponentní configy (`FusionConfig`, `MapCorrelatorConfig`, `CorridorConfig`, `VirtualHWOptions`) | Zůstávají, jak jsou. Runtime je plní z parametrů; ten kód se nemění. |
 
-## Klíčové rozhodnutí: `GetParam*` si nechá signaturu
+## Klíčové rozhodnutí: typované odkazy místo `Program.GetParam*` (4. 9. 2026)
 
-`Program.GetParam`, `GetParamDouble`, `GetParamBool` a `GetParamPath` **zůstanou beze změny
-zvenčí**. Uvnitř jen přestanou sahat přímo na `Environment.GetCommandLineArgs()` a začnou se ptát
-nové vrstvy.
+Parametry se čtou **typovanými odkazy z registru**: každý parametr je veřejné statické pole
+`ParamRegistry` (`ParamRegistry.NoUart.Value`, `ParamRegistry.RoadWidth.Value`,
+`ParamRegistry.Mission.Is("freerun")`, `ParamRegistry.Map.Value` → cesta proti kořeni repa). Třídy
+odkazů jsou v [`Param.cs`](../Src/ARBot.Common/Configuration/Param.cs): `BoolParam`, `DoubleParam`,
+`StringParam` (i výčty a složené hodnoty), `PathParam`; každý má `Def`, `Raw`, `Origin` a `IsSet`.
 
-Důsledek: **žádné z těch ~50 míst čtení se nemění.** Migrace je tím levná a nehrozí, že se při
-přepisování něco tiše rozejde. `Profile` ani runtime se nedotýkáme vůbec.
+Co to dává proti řetězcovému `Program.GetParam("no_uart", false)`, které do 4. 9. 2026 existovalo:
+
+- **Špatný klíč neprojde překladačem.** Strážný test, který regexem skenoval literály ve zdrojácích
+  a porovnával je s registrem, přestal být potřeba.
+- **Dohledatelnost.** Kde se parametr čte, řekne *Find references*, ne grep na řetězec.
+- **Default je definovaný přesně jednou**, v `ParamDef`. Žádný fallback u volání, žádný dvojí zápis
+  ani běhová kontrola jeho shody (`CheckDefault`), která ho hlídala.
+
+**Jméno pole = klíč v PascalCase** (`no_uart` → `NoUart`, `st_images_active` → `StImagesActive`);
+shodu hlídá reflexní test. Rozhodnutí autora: konvence C# má přednost před doslovným klíčem.
+
+**Konvence:** parametry se čtou jen v místech skládání (`Program`, `ARBotRuntime`, `ARBotHW`,
+view modely). Doménové třídy dál dostávají hodnoty přes konfigurační objekty — odkazy jsou v `Common`,
+aby je viděl registr a testy, ne aby si je doména četla sama.
+
+*Historie:* první krok (31. 8. 2026) signaturu `GetParam*` schválně zachoval, aby se ~50 míst čtení
+neměnilo a migrace na registr byla levná. Druhý krok ta místa přepsal (63 volání v 8 souborech,
+mechanicky), takže dnes už `Program.GetParam*` neexistuje a hlídá to test.
 
 ## Rozvržení souborů
 
@@ -99,7 +117,7 @@ public sealed class ParamDef
     public string Name;            // "mapcorr" - porovnává se case-insensitive, jako dnes
     public ParamType Type;         // Bool | Double | String | Path
     public string Default;         // v textové podobě, jak by stálo v souboru
-    public bool DefaultFromCode;   // default určuje kód za běhu (detekce portů) - viz níž
+    // (DefaultFromCode zrušeno 4. 9. 2026 - default z kódu se do Default ČTE, viz níž)
     public string Description;     // věta pro panel i pro komentář v souboru
     public string Category;        // "Fúze", "Mise", "Virtuální HW", "Self-test", ...
     public string[] AllowedValues; // úplný výčet (mission: none|freerun|robotour) — viz níž
@@ -110,12 +128,20 @@ public sealed class ParamDef
 Default je v registru uložený **textově** — je to táž hodnota, jaká by stála v souboru, takže
 zápis profilu i výpis v panelu používají jednu cestu a nemůžou se rozejít o formátování čísla.
 
-### Dvojí zápis defaultu
+### Default je vždy v registru — i ten „z kódu"
 
-Default bude nově na dvou místech: v registru a dál i v samotném volání
-(`GetParamBool("mapcorr", false)`). Neshodu **ověří `ParamStore` za běhu**: v Debug buildu vyhodí
-výjimku, v Release zaloguje varování. Defaulty z volání se dají později odstranit, ale ne v prvním
-kroku — bylo by to ~50 změn a přesně to, čemu se zachováním signatury vyhýbáme.
+Default se zapisuje **jen v `ParamDef`**. Kde má pravdu kód, registr si ji při statické inicializaci
+**přečte**, ne opíše (`ParamRegistry.Fmt`): `maxspeed` a `safedist` z `Profile`, porty UART
+z `Profile.PortAHRS`/`PortMotor`/`PortGPS` (konstanty podle platformy `#if IsX64`/`IsARM64`, do 4. 9.
+2026 schované v `ARBotHW.Init`), `freerunlook` z `FreeRunConfig`, `depotfix` z `RobotourConfig`,
+`depthnoise`/`grassrough`/`grassheight` ze `SyntheticSceneOptions`, `mapcorrref` z `MapCorrelatorConfig`.
+Panel tak ukazuje skutečnou hodnotu pro danou platformu (na OrangePI `maxspeed` 0,8, ne 1,2 z popisu),
+profil ji zapíše jen při změně, a změna v kódu se do registru dostane sama — přesně to, co se 3. 9. 2026
+u `freerunlook` dělalo ručně na dvou místech.
+
+*Historie:* do 4. 9. 2026 byl default na dvou místech (registr + fallback u `GetParam`) s běhovou
+kontrolou shody, a pět parametrů mělo `DefaultFromCode` s textovým popisem místo hodnoty. Popis
+„Profile.MaxAllowedSpeed (1,2 m/s)" byl na OrangePI nepravdivý. Obojí je pryč.
 
 ## Precedence
 
@@ -200,9 +226,9 @@ case-insensitive, takže `mission=NONE` z profilu projde — ale rozbalovací se
 Panel proto hodnotu při plnění tabulky převede na tvar zapsaný ve výčtu. Ověřeno i za běhu:
 profil s `mission=FREERUN` a `camerapose=TRUTH` projde celým self-testem.
 
-**Směr, který tím vzniká:** až se bude `Program.GetParam*` upravovat, dá se opustit úplně
-a číst přes `ParamStore` — parsování, validace i prezentace by pak byly na jednom místě pro celou
-aplikaci. Zatím zůstává jako tenká fasáda (viz „Klíčové rozhodnutí" výš).
+**Směr, který tím vznikl — a 4. 9. 2026 se dokončil:** `Program.GetParam*` bylo opuštěno úplně,
+čte se typovanými odkazy `ParamRegistry.X.Value` (viz „Klíčové rozhodnutí" výš); parsování, validace
+i prezentace jsou na jednom místě pro celou aplikaci.
 
 Rozdíl mezi souborem a příkazovou řádkou u neznámého klíče není nedůslednost: mezi `args` jsou
 i cizí argumenty (cesta k exe, argumenty Avalonie), takže tvrdá chyba by aplikaci znemožnila
@@ -328,6 +354,29 @@ a druhý start by první zastavil.
 
 Kód: [`MainWindowViewModel.AutoRun.cs`](../Src/ARBot/ViewModels/MainWindowViewModel.AutoRun.cs).
 
+## Otevření pohledů po startu (`open=`)
+
+`open=world,telemetry` otevře vyjmenované pohledy hned po startu aplikace, v uvedeném pořadí;
+**poslední je aktivní záložka**. Známá jména (tatáž jako menu *Tools*): `sensors`, `images`, `robot`,
+`world`, `telemetry`, `debug`, `virtual`, `robotour`, `config`, `perf`. Mezery a velikost písmen se
+ignorují, duplicity se sloučí. **Neznámé jméno je chyba při startu** (registr, parser
+`ParamParsers.Views`), ne tiché „nic se neotevřelo".
+
+**Nač to je:** na zařízení se aplikace pouští přes SSH profilem a dohlíží se na ni přes vzdálenou
+plochu z mobilu, kde je menu prakticky neovladatelné. Self-test umí okna otevřít (`st_world`,
+`st_robot`, `st_images`), ale jen jako součást měření, které aplikaci po čase ukončí. `open=` je totéž
+pro běžný běh a pro všechny pohledy; doplňuje `autorun=` — profil tak popíše i to, co má obsluha vidět:
+
+```
+./ARBot config=config/pi-freerun.cfg open=world,telemetry
+```
+
+Otevírá se přes tytéž metody jako menu, takže platí jejich deduplikace (už otevřený pohled se jen
+aktivuje) a napojení na runtime; se self-testem se to skládá. Seznam jmen bydlí v `Common`
+(`ParamParsers.ViewNames`), mapování na dokumenty v aplikaci
+([`MainWindowViewModel.OpenViews.cs`](../Src/ARBot/ViewModels/MainWindowViewModel.OpenViews.cs)) —
+přidání pohledu = jméno tam a větev v `OpenView`.
+
 ## Panel *Tools → Konfigurace*
 
 `ToolBase` + `ViewType` podle konvence v [Views/README.md](../Src/ARBot/Views/README.md), tlačítka
@@ -391,35 +440,22 @@ vědomý dluh: dialog by chtěl vlastní okno a restart je akce, kterou člověk
 
 ## Strážný test
 
-Test v `ARBot.Common.Tests` proskenuje `.cs` soubory pod `Src/ARBot` regulárním výrazem na volání
-s literálem v prvním argumentu a porovná **obousměrně** s registrem:
+Od typovaných odkazů hlídá překladač to hlavní (neexistující klíč se nepřeloží). Test
+`ParamRegistryGuardTests` v `ARBot.Common.Tests` hlídá zbytek, co překladač neumí:
 
-- klíč čtený v kódu, který není v registru → test padne (někdo přidal parametr a zapomněl ho
-  deklarovat);
-- klíč v registru, který nikdo nečte → test padne (mrtvá deklarace).
+- **jméno pole odpovídá klíči** (PascalCase bez podtržítek, reflexí) a každý popis v `All` má své pole
+  a naopak;
+- **každý parametr se v aplikaci někde čte** — sken `Src/ARBot/**/*.cs` na `ParamRegistry.<Jméno>`
+  (mrtvá deklarace);
+- **`Program.GetParam*` se nevrátilo** (sken zdrojáků).
 
-Test čte zdrojáky jako soubory, takže nepotřebuje referenci na projekt `ARBot`. Kořen repa hledá
-přes `RepoPaths`; když repo není (běh na zařízení), test se přeskočí.
+Zdrojáky čte jako soubory, takže nepotřebuje referenci na projekt `ARBot`; kořen repa hledá přes
+`RepoPaths`, bez repa (na zařízení) se sken přeskočí. Typované čtení samotné testuje
+`ParamHandleTests` (defaulty odvozené z kódu, zadání přebíjí default, výpis konfigurace).
 
-**Skenuje se šest vzorů, ne jen `GetParam*`.** `ARBotRuntime` má dva vlastní pomocníky —
-`ReadDouble(name, fallback)` a `TryReadMeters(name, out)`
-([ARBotRuntime.cs:1096](../Src/ARBot/Robot/ARBotRuntime.cs:1096)) — které `Program.GetParam` volají
-s **proměnnou**. Literál je až na místě volání toho pomocníka (`ReadDouble("mapcorrref", …)`,
-`freerunlook`, `depotfix`, `depthnoise`, `grassrough`, `grassheight`). Test proto hledá
-`GetParam(`, `GetParamBool(`, `GetParamDouble(`, `GetParamPath(`, `ReadDouble(` a `TryReadMeters(`.
-
-Aby se nepřímost nerozšířila nepozorovaně, test navíc ověří, že mimo tělo těch dvou pomocníků
-**neexistuje volání `Program.GetParam*` s ne-literálním prvním argumentem**. Kdyby vzniklo, test
-padne a řešením je pomocníka přidat mezi skenované vzory — ne test vypnout.
-
-### Dynamické defaulty
-
-Ne každý default je konstanta. `Program.GetParam("UartAHRS", portAHRS)`
-([ARBotHW.cs:351](../Src/ARBot/Robot/ARBotHW.cs:351)) má default z **detekce portů za běhu**, tedy
-z proměnné. `ParamDef` proto rozlišuje default konstantní od defaultu určeného kódem
-(`DefaultFromCode`): u těch druhých se v panelu místo hodnoty zobrazí popis („podle detekce portů"),
-do profilu se nezapisují, dokud je někdo výslovně nenastaví, a kontrola shody defaultu se u nich
-přeskočí.
+*Historie:* do 4. 9. 2026 test skenoval šest vzorů volání s literálem (`GetParam(`, `GetParamBool(`,
+`GetParamDouble(`, `GetParamPath(`, `ReadDouble(`, `TryReadMeters(`) a hlídal, že mimo dva pomocníky
+v `ARBotRuntime` nikdo nevolá `GetParam` s proměnnou. Oba pomocníci i vzory zmizely s literály.
 
 ## Testy
 
@@ -436,8 +472,8 @@ Build i testy vždy pod konkrétní platformou (`-p:Platform=x64`), nikdy `AnyCP
 
 ## Co se rozhodne až podle zkušenosti
 
-- **Zda defaulty z volání `GetParam*` nakonec odstranit** a nechat je jen v registru. Zjednodušilo
-  by to model, ale je to ~50 změn a nic to nerozbije, když se to udělá později.
+- ~~Zda defaulty z volání `GetParam*` nakonec odstranit~~ — **hotovo 4. 9. 2026**: defaulty jsou jen
+  v registru, volání s literálem neexistují (typované odkazy).
 - **Zda přidat skládání profilů** (`include=`). Až se ukáže, že se profily opisují.
 - **Zda posílat strukturovaný snímek konfigurace do záznamu.** Až se ukáže, že textové `Info`
   hlášky na dohledání „s čím to běželo" nestačí.

@@ -153,14 +153,14 @@ Zapnutí je **best-effort**: chybějící nebo vadná mapa simulaci jen nezapne 
 nikdy neshodí start aplikace.
 
 **Relativní cesta se řeší proti kořenu repa** (složka s `.git`), ne proti pracovnímu adresáři —
-o to se stará `Program.GetParamPath`, kterou `map=` i `visionmap=` používají místo `GetParam`.
+o to se stará `PathParam.Value` (`RepoPaths.Resolve`), přes který se `map=` i `visionmap=` čtou (`ParamRegistry.Map`, `VisionMap`).
 Absolutní cesta se nechá, jak je. Díky tomu jsou cesty v `launchSettings.json` relativní
 (`map=OSM\SyntetickyKoridor.osm`), a tedy přenositelné mezi pracovními kopiemi. Mimo repo
 (nasazení na zařízení) je základem `AppContext.BaseDirectory` — tam se používají absolutní cesty.
 
 > **Past u cest k mapám** (stála čas 21. 8. 2026, projevila se jako
 > `virtualni HW: ... -> zadny HW`):
-> - **Zdvojený parametr = platí první.** `Program.GetParam` bere `args.FirstOrDefault(...)`, takže
+> - **Zdvojený parametr = platí první.** (Platilo do 31. 8. 2026, kdy `Program.GetParam` bralo `args.FirstOrDefault(...)`. Dnes `ParamStore.Build` zapisuje dvojice z příkazové řádky v pořadí a přepisuje, takže vyhraje **POSLEDNÍ**; past je tedy obrácená, ale pořád tichá.) Tehdy:
 >   když se v příkazovém řádku octne `map=` dvakrát (typicky slepením dvou příkazů), tiše vyhraje ten
 >   první a druhý se ignoruje. Bez varování.
 >

@@ -7,7 +7,7 @@ namespace ARBot.Common.Configuration
     /// <summary>Odkud pochazi ucinna hodnota parametru.</summary>
     public enum ParamOrigin
     {
-        /// <summary>Vychozi hodnota z registru (nebo z kodu u DefaultFromCode).</summary>
+        /// <summary>Vychozi hodnota z registru.</summary>
         Default,
         /// <summary>Z profilu zadaneho pres <c>config=</c>.</summary>
         File,
@@ -105,10 +105,14 @@ namespace ARBot.Common.Configuration
                         $"Prikazova radka: '{pair.Key}' neni znamy parametr -> ignoruje se.");
                     continue;
                 }
-                if (!def.IsValidValue(pair.Value))
+                // Stejne jako u profilu s DUVODEM z parseru (u vyctu a slozenych hodnot je to jedina
+                // cesta, jak se clovek dozvi, ktera jmena/tvar registr zna) - do 4. 9. 2026 se
+                // vypisoval jen typ ("neni platna hodnota typu String"), coz u open=world,mapa nic nerekne.
+                var overeni = def.Validate(pair.Value);
+                if (!overeni.Ok)
                     throw new ParamFileException(
                         $"Prikazova radka: '{pair.Key}={pair.Value}' neni platna hodnota "
-                        + $"typu {def.Type}.");
+                        + $"({overeni.Error}).");
                 store.Set(def.Name, pair.Value, ParamOrigin.CommandLine);
             }
 
@@ -127,9 +131,31 @@ namespace ARBot.Common.Configuration
         {
             if (values.TryGetValue(name ?? string.Empty, out string v))
                 return v;
-            if (ParamRegistry.TryGet(name, out var def) && !def.DefaultFromCode)
+            if (ParamRegistry.TryGet(name, out var def))
                 return def.Default;
             return null;
+        }
+
+        /// <summary>
+        /// Ucinna konfigurace radek po radku - hlavicka a pak <c>klic=hodnota  (puvod)</c> pro KAZDY
+        /// parametr registru v poradi deklarace. Vypisuje se jednou pri startu do Debug (a tedy do
+        /// zaznamu pres Info zpravu). Od 4. 9. 2026 nahrazuje vypis pri kazdem cteni: zaznam tak nese
+        /// celou konfiguraci vcetne defaultu, ne jen to, co se nahodou precetlo.
+        /// </summary>
+        public IEnumerable<string> DescribeAll()
+        {
+            yield return "Konfigurace (ucinne hodnoty; poradi default -> profil -> prikazova radka):";
+            foreach (var def in ParamRegistry.All)
+            {
+                string value = Get(def.Name) ?? "(nenastaveno)";
+                string origin = OriginOf(def.Name) switch
+                {
+                    ParamOrigin.CommandLine => "prikazova radka",
+                    ParamOrigin.File => "profil",
+                    _ => "default",
+                };
+                yield return $"  {def.Name}={value}  ({origin})";
+            }
         }
 
         /// <summary>Odkud pochazi ucinna hodnota.</summary>
@@ -138,16 +164,18 @@ namespace ARBot.Common.Configuration
             return origins.TryGetValue(name ?? string.Empty, out var o) ? o : ParamOrigin.Default;
         }
 
+        // Typovane cteni podle klice s fallbackem. Aplikace uz je necte (od 4. 9. 2026 jdou typovane
+        // odkazy ParamRegistry.X.Value pres Get), zustavaji pro testy a pro cteni mimo registr.
+        // Kontrola shody fallbacku s registrem (CheckDefault) odesla s dvojim zapisem defaultu.
+
         public bool GetBool(string name, bool fallback)
         {
-            CheckDefault(name, fallback ? "true" : "false");
             string raw = Get(name);
             return bool.TryParse((raw ?? string.Empty).Trim(), out bool v) ? v : fallback;
         }
 
         public double GetDouble(string name, double fallback)
         {
-            CheckDefault(name, fallback.ToString(CultureInfo.InvariantCulture));
             string raw = Get(name);
             return double.TryParse((raw ?? string.Empty).Trim(), NumberStyles.Float,
                                    CultureInfo.InvariantCulture, out double v) ? v : fallback;
@@ -155,7 +183,6 @@ namespace ARBot.Common.Configuration
 
         public string GetString(string name, string fallback)
         {
-            CheckDefault(name, fallback);
             return Get(name) ?? fallback;
         }
 
@@ -164,32 +191,5 @@ namespace ARBot.Common.Configuration
             return RepoPaths.Resolve(GetString(name, fallback));
         }
 
-        /// <summary>
-        /// Default je zapsany dvakrat - v registru a dal i ve volani (GetParamBool("mapcorr",
-        /// false)). Neshodu je potreba slyset, jinak by panel ukazoval jinou vychozi hodnotu, nez
-        /// jaka realne plati.
-        ///
-        /// <para><b>Dve vyjimky, bez kterych by to bylo k nepouziti.</b> (1) Volani, ktere default
-        /// nepredava vubec - <c>Program.GetParam("mission")</c> posle null a registrovanou hodnotu
-        /// "none" nema s cim porovnavat; hlasit to by v Debug buildu znemoznilo start.
-        /// (2) <see cref="ParamDef.DefaultFromCode"/> - tam registr default zamerne nezna.</para>
-        /// </summary>
-        private void CheckDefault(string name, string callerDefault)
-        {
-            if (callerDefault == null) return;
-            if (!ParamRegistry.TryGet(name, out var def)) return;
-            if (def.DefaultFromCode) return;
-            if (string.Equals(def.Default ?? string.Empty, callerDefault,
-                              StringComparison.OrdinalIgnoreCase))
-                return;
-
-            string hlaska = $"Parametr '{name}': volani predava vychozi hodnotu "
-                            + $"'{callerDefault}', ale registr ma '{def.Default}'.";
-            if (!warnings.Contains(hlaska))
-                warnings.Add(hlaska);
-#if DEBUG
-            throw new ParamFileException(hlaska);
-#endif
-        }
     }
 }

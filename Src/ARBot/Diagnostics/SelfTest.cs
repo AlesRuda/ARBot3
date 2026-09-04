@@ -1,3 +1,4 @@
+using ARBot.Common.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -13,7 +14,7 @@ namespace ARBot.Diagnostics
     /// po zadaný čas nechá běžet, zastaví, spočte souhrn z diagnostického CSV a ukončí se. Slouží
     /// k reprodukovatelnému A/B měření variant (záznam on/off, otevřená okna, ...) bez ruční obsluhy.
     ///
-    /// <para>Parametry (přes <see cref="Program.GetParam"/>, tvar <c>klíč=hodnota</c>):
+    /// <para>Parametry (typované odkazy <c>ParamRegistry.St*</c>, tvar <c>klíč=hodnota</c>):
     /// <list type="bullet">
     /// <item><c>selftest=true</c> — zapne self-test (jinak se nespustí).</item>
     /// <item><c>st_seconds=30</c> — jak dlouho nechat Run běžet.</item>
@@ -56,25 +57,25 @@ namespace ARBot.Diagnostics
         /// <summary>Sestaví konfiguraci z parametrů příkazové řádky.</summary>
         public static SelfTestConfig FromArgs()
         {
-            var enabled = Program.GetParamBool("selftest", false);
+            var enabled = ParamRegistry.SelfTest.Value;
             var cfg = new SelfTestConfig
             {
                 Enabled = enabled,
-                Name = Program.GetParam("st_name", "baseline"),
-                Seconds = (int)Program.GetParamDouble("st_seconds", 30),
-                Record = Program.GetParamBool("st_record", false),
-                OpenImages = Program.GetParamBool("st_images", false),
-                ImagesActive = Program.GetParamBool("st_images_active", false),
-                OpenRobotCentric = Program.GetParamBool("st_robot", true),
-                OpenWorld = Program.GetParamBool("st_world", false),
-                OutPath = Program.GetParam("st_out", null),
-                Shot = Program.GetParamBool("st_shot", false),
-                Video = Program.GetParamBool("st_video", false),
-                VideoSeconds = Program.GetParamDouble("st_video_seconds", 5),
-                VideoFps = Program.GetParamDouble("st_video_fps", 8),
-                VideoScale = (int)Program.GetParamDouble("st_video_scale", 3),
-                VideoFormat = Program.GetParam("st_video_format", null),
-                FfmpegPath = Program.GetParam("ffmpeg", null),
+                Name = ParamRegistry.StName.Value,
+                Seconds = (int)ParamRegistry.StSeconds.Value,
+                Record = ParamRegistry.StRecord.Value,
+                OpenImages = ParamRegistry.StImages.Value,
+                ImagesActive = ParamRegistry.StImagesActive.Value,
+                OpenRobotCentric = ParamRegistry.StRobot.Value,
+                OpenWorld = ParamRegistry.StWorld.Value,
+                OutPath = ParamRegistry.StOut.Value,
+                Shot = ParamRegistry.StShot.Value,
+                Video = ParamRegistry.StVideo.Value,
+                VideoSeconds = ParamRegistry.StVideoSeconds.Value,
+                VideoFps = ParamRegistry.StVideoFps.Value,
+                VideoScale = (int)ParamRegistry.StVideoScale.Value,
+                VideoFormat = ParamRegistry.StVideoFormat.Value,
+                FfmpegPath = ParamRegistry.Ffmpeg.Value,
             };
             if (cfg.Seconds < 1) cfg.Seconds = 1;
             return cfg;

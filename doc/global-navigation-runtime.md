@@ -136,7 +136,7 @@ Dokud fáze 0 není hotová, `GlobalNavigator` se dá vyvíjet a testovat jen na
   Runtime síť sestaví, emituje z ní `MapMsg` na `Stream` a UI kreslí **přesně tu síť, po které se
   naviguje** — pohled a navigace se nemohou rozejít. Načtení má dva vstupy, oba končí v téže property:
   - **parametr příkazové řádky `osm=<cesta>`** — hlavní cesta pro soutěž: robot musí nastartovat
-    s mapou bez jakéhokoli klikání v UI (stejný vzor jako ostatní parametry, `Program.GetParam`);
+    s mapou bez jakéhokoli klikání v UI (stejný vzor jako ostatní parametry, `ParamRegistry.Goal`);
   - **načtení z UI** (výběr souboru ve world pohledu) — UI o stavbu **požádá runtime** a jen odebírá
     výsledný `MapMsg`; sama si síť nestaví.
 

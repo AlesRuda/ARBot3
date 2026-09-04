@@ -13,6 +13,37 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-04 — Parametry se čtou typovanými odkazy z registru; `Program.GetParam*` zrušeno
+**Co:** každý parametr je veřejné statické pole `ParamRegistry` typu `BoolParam` / `DoubleParam` /
+`StringParam` / `PathParam` (`ParamRegistry.NoUart.Value`), jméno pole = klíč v PascalCase. Default je
+jen v `ParamDef`; kde má pravdu kód (`Profile`, `FreeRunConfig`, `RobotourConfig`,
+`SyntheticSceneOptions`, `MapCorrelatorConfig`), registr si ji při inicializaci přečte. Porty UART
+se přesunuly z `ARBotHW.Init` do `Profile.PortAHRS`/`PortMotor`/`PortGPS`; `no_uart` řeší `SetRealHW`
+podmínkou, ne nulováním portů. `DefaultFromCode`, `CheckDefault`, pomocníci `ReadDouble`/`TryReadMeters`
+a výpis parametru při každém čtení jsou pryč; celá účinná konfigurace s původem se vypíše jednou po
+složení `ParamStore` (`DescribeAll`).
+
+**Proč:** autor chce mít věci dohledatelné — `Find references` místo grepu na řetězec — a default
+definovaný jednou. Řetězcové čtení s fallbackem u volání znamenalo 63 míst s duplicitou defaultu
+hlídanou jen běhovou kontrolou a regexovým skenem zdrojáků; překlep v klíči chytil až test, ne
+překladač. „Default z kódu" se při rozboru rozpadl na tři věci, z nichž žádná nebyla dynamická:
+konstanty z `Profile` (a popis „1,2 m/s" byl na OrangePI nepravdivý), kopie defaultů konfiguračních
+tříd (3. 9. 2026 ručně měněno na dvou místech) a porty UART, které jsou konstanty podle platformy,
+ne detekce. PascalCase místo doslovného klíče: rozhodnutí autora, konvence C# má přednost;
+shodu se klíčem hlídá reflexní test. Výpis celé konfigurace místo výpisu při čtení: záznam má nést
+celou konfiguraci, ne jen to, co se náhodou přečetlo.
+
+**Důsledky:** `Program.GetParam*` nelze použít (hlídá test), nový parametr = jedno pole v registru
+a čtení přes něj. Strážný test ztratil regexový sken literálů a hlídá jméno pole, mrtvé parametry
+a návrat `GetParam`. Panel Konfigurace ukazuje skutečnou hodnotu defaultu pro platformu.
+`ParamStore.GetBool/GetDouble/GetString/GetPath` zůstávají jako nízkoúrovňové čtení (testy), bez
+kontroly shody defaultu. Konvence: parametry se čtou jen v místech skládání, doménové třídy
+dostávají hodnoty přes konfigurační objekty.
+
+**Odkazy:** `Src/ARBot.Common/Configuration/Param.cs`, `ParamRegistry.cs`, `ParamStore.DescribeAll`,
+`Profile.PortAHRS…`, `ARBotHW.SetRealHW`, testy `ParamRegistryGuardTests`, `ParamHandleTests`,
+[configuration.md](configuration.md#klíčové-rozhodnutí-typované-odkazy-místo-programgetparam-4-9-2026).
+
 ### 2026-09-03 — Rychlostní strop z odstupu je směrový: podél překážky úzká rampa, kolmo brzdná dráha
 **Co:** `LocalPlannerConfig.Envelope = Directional` (výchozí; `envelope=radial` vrátí původní model).
 Podélný strop `v_along = v_max · (d − SafeDist) / EdgeMarginM` s `EdgeMarginM = 0,15 m`; kolmý strop

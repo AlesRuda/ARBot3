@@ -41,20 +41,9 @@ namespace ARBot.Common.Tests.Configuration
         {
             foreach (var d in ParamRegistry.All)
             {
-                if (d.DefaultFromCode || d.Default == null) continue;
+                if (d.Default == null) continue;
                 Assert.That(d.IsValidValue(d.Default), Is.True,
                             $"{d.Name}: vychozi hodnota '{d.Default}' neprojde vlastni validaci");
-            }
-        }
-
-        [Test]
-        public void DefaultFromCode_MaPopisVychoziHodnoty()
-        {
-            foreach (var d in ParamRegistry.All)
-            {
-                if (!d.DefaultFromCode) continue;
-                Assert.That(d.DefaultDescription, Is.Not.Null.And.Not.Empty,
-                            $"{d.Name}: DefaultFromCode bez popisu, panel by nemel co ukazat");
             }
         }
 

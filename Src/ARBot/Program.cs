@@ -8,58 +8,12 @@ namespace ARBot
 {
     internal sealed class Program
     {
-        /// <summary>
-        /// Vraci ucinnou hodnotu parametru. Pokud parametr neni zadany, vraci defaultni hodnotu.
-        ///
-        /// <para><b>Uz to necte prikazovou radku primo</b> - hodnotu drzi
-        /// <see cref="ARBot.Common.Configuration.ParamStore"/>, ktery ji sklada v poradi
-        /// <c>default z registru</c> -&gt; <c>profil (config=)</c> -&gt; <c>prikazova radka</c>.
-        /// Signatura zustala schvalne stejna, aby se zadne z ~50 mist cteni nemuselo menit.
-        /// Viz doc/configuration.md.</para>
-        ///
-        /// <para><c>Debug.WriteLine</c> tu zustava: je to jedina stopa konfigurace v zaznamu
-        /// (pres <c>Info</c> zpravu), a tu si vzit nechceme.</para>
-        /// </summary>
-        public static string GetParam(string param, string def = null)
-        {
-            string val = ARBot.Common.Configuration.ParamStore.Current.GetString(param, def);
-            Debug.WriteLine(string.Format("{0}={1}", param, val));
-            return val;
-        }
-        /// <summary>
-        /// Vraci ucinnou hodnotu parametru jako cislo (vzdy <c>InvariantCulture</c>). Pokud
-        /// parametr neni zadany, vraci defaultni hodnotu. Viz <see cref="GetParam"/>.
-        /// </summary>
-        public static double GetParamDouble(string param, double def)
-        {
-            double val = ARBot.Common.Configuration.ParamStore.Current.GetDouble(param, def);
-            Debug.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                                          "{0}={1}", param, val));
-            return val;
-        }
-        /// <summary>
-        /// Vraci ucinnou hodnotu parametru jako <c>bool</c>. Pokud parametr neni zadany, vraci
-        /// defaultni hodnotu. Viz <see cref="GetParam"/>.
-        /// </summary>
-        public static bool GetParamBool(string param, bool def)
-        {
-            bool val = ARBot.Common.Configuration.ParamStore.Current.GetBool(param, def);
-            Debug.WriteLine(string.Format("{0}={1}", param, val));
-            return val;
-        }
-
-        /// <summary>
-        /// Vraci hodnotu parametru jako **cestu k souboru/slozce**: relativni cesta se resi proti
-        /// <b>korenu repa</b> (slozka s <c>.git</c>), ne proti pracovnimu adresari procesu.
-        /// Absolutni cesta se necha, jak je.
-        ///
-        /// <para>Logiku (i duvod, proc ne proti pracovnimu adresari) drzi
-        /// <see cref="ARBot.Common.Configuration.RepoPaths"/>.</para>
-        /// </summary>
-        public static string GetParamPath(string param, string def = null)
-        {
-            return ARBot.Common.Configuration.RepoPaths.Resolve(GetParam(param, def));
-        }
+        // POZN.: bývaly tu Program.GetParam / GetParamDouble / GetParamBool / GetParamPath - čtení
+        // parametru řetězcovým klíčem s defaultem u volání. Zrušeno 4. 9. 2026: parametry se čtou
+        // typovanými odkazy z registru (ParamRegistry.NoUart.Value), takže špatný klíč neprojde
+        // překladačem a default je definovaný přesně jednou, v ParamDef. Debug.WriteLine při každém
+        // čtení (jediná stopa konfigurace v záznamu) nahradil výpis CELÉ účinné konfigurace po
+        // složení ParamStore níže v Main. Viz doc/configuration.md a doc/decisions.md.
 
         /// <summary>
         /// Koren git repa (slozka obsahujici <c>.git</c>); fallback na
@@ -98,6 +52,12 @@ namespace ARBot
                     Debug.WriteLine("Konfigurace: profil " + store.ConfigPath);
                 foreach (var w in store.Warnings)
                     Debug.WriteLine("Konfigurace: " + w);
+
+                // Cela ucinna konfigurace s puvodem, jednou - to je stopa konfigurace v zaznamu
+                // (Debug output jde do Info zpravy). Do 4. 9. 2026 se misto toho psal kazdy
+                // parametr az pri cteni, takze zaznam nesl jen to, co se nahodou precetlo.
+                foreach (var line in store.DescribeAll())
+                    Debug.WriteLine(line);
             }
             catch (ARBot.Common.Configuration.ParamFileException ex)
             {
@@ -143,11 +103,11 @@ namespace ARBot
         /// </summary>
         private static void ApplyMaxSpeedFromParams()
         {
-            string raw = ARBot.Common.Configuration.ParamStore.Current.Get("maxspeed");
-            if (string.IsNullOrWhiteSpace(raw))
+            // Default parametru JE hodnota z Profile, takze bez zadani neni co prenaset.
+            if (!ARBot.Common.Configuration.ParamRegistry.MaxSpeed.IsSet)
                 return;
 
-            double v = GetParamDouble("maxspeed", ARBot.Common.Configuration.Profile.MaxAllowedSpeed);
+            double v = ARBot.Common.Configuration.ParamRegistry.MaxSpeed.Value;
 
             // Nad technicky dosazitelnou rychlost to nema smysl: motor tam nedojede a rychlostni
             // profil by planoval s cislem, ktere se nikdy nenaplni. Orezat je lepsi nez odmitnout
@@ -188,14 +148,13 @@ namespace ARBot
         /// </summary>
         private static void ApplySafeDistFromParams()
         {
-            string raw = ARBot.Common.Configuration.ParamStore.Current.Get("safedist");
-            if (string.IsNullOrWhiteSpace(raw))
+            if (!ARBot.Common.Configuration.ParamRegistry.SafeDist.IsSet)
                 return;
 
             double puvodni = ARBot.Common.Configuration.Profile.SafeDist;
             double pref = ARBot.Common.Configuration.Profile.PrefDist;
             // Nekladnou hodnotu odmitne uz registr pri nacteni profilu, sem se nedostane.
-            double v = GetParamDouble("safedist", puvodni);
+            double v = ARBot.Common.Configuration.ParamRegistry.SafeDist.Value;
 
             if (v >= pref)
             {

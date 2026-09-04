@@ -126,6 +126,36 @@ namespace ARBot.Common.Configuration
         public static double PrefDist = 0.8;
 
         /// <summary>
+        /// Seriove porty UART senzoru podle platformy (default parametru UartAHRS= / UartMotor= /
+        /// UartGPS=; prazdny = senzor se nezaklada). Do 4. 9. 2026 bydlely v ARBotHW.Init a registr
+        /// je vedl jako "default z kodu podle detekce" - zadna detekce ale neni, jsou to konstanty
+        /// podle platformy, tedy vlastnost zeleza jako ostatni pole Profile.
+        ///
+        /// <para>OrangePI/Armbian: zmereno na robotu 31. 8. 2026 (OrangePi5Ultra/find-serial-ports.sh) -
+        /// vsechny tri periferie visi na USB, zadny onboard UART se nepouziva: VN100 IMU pres prevodnik
+        /// CP2102 (/dev/ttyUSB0), SDC2160Ex ma vlastni USB CDC-ACM (/dev/ttyACM0), u-blox GPS take
+        /// (/dev/ttyACM1). Zapsana jsou jmena z /dev/serial/by-id, ne ttyUSB0/ttyACM0: cisla uzlu se
+        /// prideluji podle poradi enumerace USB, takze prohozeni GPS a motoru po restartu nebo po
+        /// prepojeni kabelu je realne - a bylo by TICHE (oba jsou ttyACM*, oba se otevrou). Jmeno
+        /// v by-id plyne z USB deskriptoru, takze drzi. Predchozi "/dev/ttyS0" byl jen odhad a byl
+        /// spatne: na RK3588 zadny /dev/ttyS0 neexistuje, jediny zivy onboard UART je ttyS7 a drzi
+        /// si ho bluetooth.</para>
+        /// </summary>
+#if IsX64
+        public static string PortAHRS = "COM5";
+        public static string PortMotor = "COM9";
+        public static string PortGPS = "COM8";
+#elif IsARM64
+        public static string PortAHRS = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
+        public static string PortMotor = "/dev/serial/by-id/usb-Roboteq_Motor_Controller_SDC2XXX-if00";
+        public static string PortGPS = "/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00";
+#else
+        public static string PortAHRS = null;
+        public static string PortMotor = null;
+        public static string PortGPS = null;
+#endif
+
+        /// <summary>
         /// Posunuti lidaru vuci referencnimu bodu robotu (prusecik osy rotace a zeme).
         /// </summary>
         public static Vector3 LidarOffset = new Vector3(0, 0.08f, 0);

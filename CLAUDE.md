@@ -54,11 +54,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 58 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 59 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
-  při startu**, ne tichý pád na default — to je hlavní zisk. `Program.GetParam*` si nechalo
+  při startu**, ne tichý pád na default — to je hlavní zisk. Od 4. 9. 2026 se parametry čtou **typovanými
+  odkazy** `ParamRegistry.NoUart.Value` (špatný klíč se nepřeloží, default jen v registru, i ten
+  z `Profile`/konfiguračních tříd se čte, ne opisuje); `Program.GetParam*` neexistuje. Předtím si nechalo
   signaturu, takže se žádné z ~50 míst čtení neměnilo. Změna platí **až po restartu** (panel ho
   umí). Hotové 31. 8. 2026; **panel je proklikaný celý** včetně *Uložit a restartovat* (1. 9. 2026),
   ale **na zařízení nic z toho neběželo** — a systemd jednotka aplikace neexistuje, takže restart
