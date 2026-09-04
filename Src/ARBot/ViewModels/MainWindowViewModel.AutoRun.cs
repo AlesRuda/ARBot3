@@ -25,11 +25,8 @@ namespace ARBot.ViewModels
     /// </summary>
     public partial class MainWindowViewModel
     {
-        /// <summary>
-        /// Jak dlouho [ms] po připravení HW se čeká, než se spustí Run. Je to na <b>ustálení</b>
-        /// UI a senzorů, ne bezpečnostní prodleva.
-        /// </summary>
-        private const int AutoRunSettleMs = 3000;
+        // Prodleva na ustálení po připravení HW je ARBotRuntime.HwSettleMs - jedna konstanta pro
+        // autorun i ARBot.Headless, aby oba bezobslužné starty čekaly stejně (doc/headless.md).
 
         /// <summary>Spustí Run po startu, je-li vyžádán parametrem <c>autorun=true</c>.</summary>
         private void StartAutoRunIfRequested()
@@ -59,7 +56,7 @@ namespace ARBot.ViewModels
 
                 // Kamery a porty se otviraji lene - bez tohohle by Run startoval nad polovicnim HW.
                 await Task.Run(() => ARBotHW.Current.WaitReady());
-                await Task.Delay(AutoRunSettleMs);
+                await Task.Delay(ARBotRuntime.HwSettleMs);
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {

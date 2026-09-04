@@ -13,6 +13,34 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-04 — Řídicí runtime do vlastního projektu `ARBot.Runtime`, ne do `Common` ani do UI
+**Co:** `ARBotRuntime`, `ARBotHW`, `NeoPixelProcessor`, `VirtualHWOptions` a `CrashLog` se přesunuly
+(`git mv`, historie zachovaná) z `Src/ARBot/Robot` do nové knihovny `ARBot.Runtime` mezi HAL
+a aplikacemi; bootstrap parametrů z `Program.Main` je tam jako `RuntimeBootstrap.TryConfigure`.
+Namespace `ARBot.Robot` se nemění. `ARBot` (UI) i nový `ARBot.Headless` referencují jen runtime.
+**Proč:** UI bez displeje na zařízení nenastartuje, takže Run přes ssh potřeboval runtime bez
+Avalonie. Do `ARBot.Common` runtime jít nemůže — závisí na `ARBot.HAL` a směr je `Common ← HAL`;
+přesun by vrstvu obrátil. Zůstat v UI aplikaci nemohl — headless by musel referencovat Avalonii.
+Jádro běhu (4 soubory, 2 736 řádků) přitom na UI nikde nesahalo, jediná zmínka byl komentář; šev
+byl už hotový (`ARBotRuntime.Current`, `Stream.Connect`), takže UI se nemuselo měnit.
+**Důsledky:** pravidlo v [architecture.md](architecture.md) „řídicí smyčka patří do aplikace"
+přepsáno na `ARBot.Runtime` s testem „žádný `using Avalonia`". `CrashLog` a `ARBotRuntime.BuildCatalog`
+jsou `public` (volají je z jiné assembly). Strážní test mrtvých parametrů skenuje `ARBot`,
+`ARBot.Runtime` i `ARBot.Headless`. `config/` a `OSM/` do výstupu kopíruje knihovna (přenáší se).
+Odkazy: [headless.md](headless.md), [plan-runtime-headless.md](plan-runtime-headless.md).
+
+### 2026-09-04 — Headless bez systemd: uživatelský příkaz, žádný automatický restart
+**Co:** `ARBot.Headless` se spouští výhradně příkazem (ssh + `dotnet ARBot.Headless.dll …`) a končí
+Ctrl+C / `SIGTERM` / `SIGHUP`. Žádná systemd jednotka, žádná služba, žádný `Restart=`. Umí jen Run.
+**Proč:** restart po pádu není žádoucí — robot, který se sám znovu rozjede, je horší než robot, který
+stojí; po pádu má člověk nejdřív číst `logs/crash-*.log` a záznam. Prohlížení záznamů (`View`) je
+práce pro Windows a `ARBot.Analyze`, na zařízení k ničemu. `autorun=` se v headless ignoruje
+s hláškou: Run je jediný důvod existence procesu.
+**Důsledky:** návratové kódy 0 (řádný konec signálem) / 2 (vadná konfigurace, sdílený s UI přes
+`RuntimeBootstrap.ExitCodeBadConfig`) / pád. Prodleva na ustálení HW je jedna konstanta
+`ARBotRuntime.HwSettleMs` pro autorun v UI i headless. Fáze 3 (webový náhled přes `HttpListener`)
+se navrhne až po změření CPU headless na zařízení. Odkazy: [headless.md](headless.md).
+
 ### 2026-09-04 — Parametry se čtou typovanými odkazy z registru; `Program.GetParam*` zrušeno
 **Co:** každý parametr je veřejné statické pole `ParamRegistry` typu `BoolParam` / `DoubleParam` /
 `StringParam` / `PathParam` (`ParamRegistry.NoUart.Value`), jméno pole = klíč v PascalCase. Default je

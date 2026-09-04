@@ -3,8 +3,8 @@
 Zdroj je v `Src/`. Hlavní projekty a **směr závislostí** (šipka = „referencuje"):
 
 ```
-ARBot (Avalonia app)  ──►  ARBot.HALWindows / ARBot.HALArmbian  ──►  ARBot.HAL  ──►  ARBot.Common
-                      └────────────────────────────────────────────────────────►  (tranzitivně Common)
+ARBot (Avalonia UI)     ──►  ARBot.Runtime  ──►  ARBot.HALWindows / ARBot.HALArmbian  ──►  ARBot.HAL  ──►  ARBot.Common
+ARBot.Headless (konzole) ──►  (týž ARBot.Runtime)                                      (tranzitivně Common)
 ```
 
 - **`ARBot.Common`** — doménové modely, algoritmy, EKF fúze (`Fusion/`), souřadnice,
@@ -13,16 +13,29 @@ ARBot (Avalonia app)  ──►  ARBot.HALWindows / ARBot.HALArmbian  ──► 
   `IMotorControl`, `ISensor`, `IUart`, …). Referencuje `Common`.
 - **`ARBot.HALWindows` / `ARBot.HALArmbian`** — platformové implementace (RealSense
   kamery apod.), viz [build-and-platforms.md](build-and-platforms.md).
-- **`ARBot`** — Avalonia UI (Dock, MVVM) + kompozice HW (`Robot/ARBotHW.cs`).
-  Referencuje platformový HAL (a tranzitivně Common).
-- Testy: `ARBot.Common.Tests`, `ARBot.HAL.Tests` (NUnit).
+- **`ARBot.Runtime`** (od 4. 9. 2026) — **řídicí runtime bez UI**: `ARBotRuntime` (graf zpracování,
+  fúze, řízení, mise, záznam), kompozice HW `ARBotHW`, `CrashLog`, `RuntimeBootstrap` (bootstrap
+  parametrů). Namespace zůstal `ARBot.Robot`. Sám si vybírá platformový HAL podle `Platform`
+  a nese do výstupu `config/*.cfg` a `OSM/*.osm`. **Nesmí znát UI** — žádný `PackageReference`
+  na Avalonia/Dock/Mapsui; test pravidla je `grep "using Avalonia" Src/ARBot.Runtime` prázdný.
+- **`ARBot`** — Avalonia UI (Dock, MVVM); s runtime mluví přes `ARBotRuntime.Current`
+  (`Stream.Connect(sink)` a pár vlastností). Referencuje jen `ARBot.Runtime`.
+- **`ARBot.Headless`** — konzolová aplikace pro ssh na OrangePi: bootstrap → čekání na HW → Run →
+  Ctrl+C/SIGTERM → Stop. Jen Run, žádná služba. Viz [headless.md](headless.md).
+- Testy: `ARBot.Common.Tests`, `ARBot.HAL.Tests`, `ARBot.Runtime.Tests` (NUnit).
 
 ## Kam co patří
 
 - **Fúzní jádro** (EKF) je čistě doménové → `ARBot.Common/Fusion` (bez HAL, bez UI).
-- **`SensorAdapters` (napojení reálných senzorů na fúzi) a řídicí smyčka robota patří
-  do aplikace `ARBot`** — protože potřebují jak `ARBot.Common` (Fusion), tak `ARBot.HAL`
-  (`IIMU`/`IGPS`/`GPSState`). Do `Common` ani `HAL` je dávat nelze (směr závislostí).
+- **`SensorAdapters` (napojení reálných senzorů na fúzi), kompozice HW a řídicí smyčka robota
+  patří do `ARBot.Runtime`** — protože potřebují jak `ARBot.Common` (Fusion), tak `ARBot.HAL`
+  (`IIMU`/`IGPS`/`GPSState`), a **nesmí znát UI**, aby šly spustit bez displeje. Do `Common`
+  ani `HAL` je dávat nelze (směr závislostí: přesun by vrstvu obrátil). Do 4. 9. 2026 to bylo
+  v aplikaci `ARBot` (`Robot/`), viz [decisions.md](decisions.md).
+- **UI aplikace `ARBot`** — Views, ViewModels, `Diagnostics/` (self-test, snímky obrazovky:
+  měří UI čítače a potřebují Avalonii), `Telemetry/`, `FilteredTraceLogSink`, tenký `Program.cs`.
+- **`ARBot.Headless`** — jen `Program.cs` nad `ARBot.Runtime`; co potřebují obě aplikace,
+  patří do runtime, ne sem.
 - **UI dokovatelné dokumenty/nástroje**: viz
   [Src/ARBot/ARBot/Views/README.md](../Src/ARBot/ARBot/Views/README.md).
 

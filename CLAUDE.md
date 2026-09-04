@@ -79,7 +79,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   hrubé rozlišení `System.Threading.Timer` samo stačí jako vysvětlení; **další krok je přeměřit
   to na OrangePi**. Fáze 3 (teplota, frekvence, CPU stroje) a 4 (`ARBot.Analyze perf`) zbývají.
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
-  (`Common ← HAL ← app`), kam patří fúze / adaptéry / řídicí smyčka.
+  (`Common ← HAL ← Runtime ← app`), kam patří fúze / adaptéry / řídicí smyčka.
+- [doc/headless.md](doc/headless.md) — **runtime bez UI**: od 4. 9. 2026 je řídicí runtime
+  (`ARBotRuntime`, `ARBotHW`, `CrashLog`, `RuntimeBootstrap`) ve vlastním projektu **`ARBot.Runtime`**
+  (mezi HAL a aplikacemi, namespace `ARBot.Robot` beze změny, do `Common` nemůže kvůli směru
+  závislostí) a konzolový **`ARBot.Headless`** ho spouští přes ssh bez Avalonie: bootstrap → čekání
+  na HW → Run → Ctrl+C/SIGTERM/SIGHUP → `Stop()`. **Jen Run, žádný systemd, žádný restart po pádu**
+  (robot, který se sám rozjede, je horší než robot, který stojí). Návratové kódy 0 / 2 (vadná
+  konfigurace, jako UI) / pád. **Ověřeno na Windows** (UI i headless v simulaci, záznam z headless
+  čitelný, `Stop()` 4 ms), **na OrangePi neběželo** — seznam, co ověřit, je v dokumentu. Fáze 3
+  (webový náhled) se navrhne až po tom ověření.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
   netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
 - [doc/devlog.md](doc/devlog.md) — **DevLog / deníček vývoje** (co se dělo den po dni);

@@ -21,7 +21,8 @@ namespace ARBot
     ///
     /// <para><b>Co zachytí:</b> <see cref="AppDomain.UnhandledException"/> (výjimka z libovolného
     /// vlákna, proces končí), <see cref="TaskScheduler.UnobservedTaskException"/> (proces pokračuje,
-    /// ale je to stopa) a výjimku, která vypadne z hlavní smyčky Avalonie (<c>Program.Main</c>).
+    /// ale je to stopa) a výjimku, která vypadne z hlavní smyčky aplikace (<c>Program.Main</c> UI
+    /// i headless). Třída je veřejná, protože ji volají obě aplikace nad <c>ARBot.Runtime</c>.
     /// <b>Nezachytí</b> nativní pád (SIGSEGV v librealsense apod.) — na ten je minidump .NET
     /// zapnutý ve spouštěcím skriptu a <c>kernel.print-fatal-signals</c>.</para>
     ///
@@ -31,7 +32,7 @@ namespace ARBot
     /// procesu donekonečna. Zároveň Stop zastaví zdroje včetně motorů, což je při pádu řídicí
     /// aplikace to jediné správné.</para>
     /// </summary>
-    internal static class CrashLog
+    public static class CrashLog
     {
         /// <summary>Kolik sekund nejvýš čekat na dopsání záznamu při terminálním pádu.</summary>
         private const int FlushTimeoutSeconds = 5;

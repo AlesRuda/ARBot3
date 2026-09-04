@@ -47,6 +47,21 @@
     <Platform Solution="*|x86" Project="x86" />
     <Build Solution="*|OrangePI" Project="false" />
   </Project>
+  <Project Path="ARBot.Headless/ARBot.Headless.csproj">
+    <Platform Solution="*|OrangePI" Project="OrangePI" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="*|x86" Project="false" />
+  </Project>
+  <Project Path="ARBot.Runtime.Tests/ARBot.Runtime.Tests.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="*|x86" Project="false" />
+    <Build Solution="*|OrangePI" Project="false" />
+  </Project>
+  <Project Path="ARBot.Runtime/ARBot.Runtime.csproj">
+    <Platform Solution="*|OrangePI" Project="OrangePI" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
   <Project Path="ARBot/ARBot.csproj">
     <Platform Solution="*|OrangePI" Project="OrangePI" />
     <Platform Solution="Debug|x64" Project="x64" />

@@ -23,10 +23,22 @@ namespace ARBot.Common.Tests.Configuration
         private static string AppDir()
             => Path.Combine(RepoPaths.RootOrBase(), "Src", "ARBot");
 
+        /// <summary>
+        /// Projekty, ve kterych se parametry ctou: UI aplikace, ridici runtime (od 4. 9. 2026 vlastni
+        /// projekt <c>ARBot.Runtime</c>, kam se z <c>Src/ARBot/Robot</c> presunul <c>ARBotRuntime</c>
+        /// i <c>ARBotHW</c> - vetsina cteni je prave tam) a konzolovy <c>ARBot.Headless</c>.
+        /// Viz doc/architecture.md a doc/headless.md.
+        /// </summary>
+        private static IEnumerable<string> AppDirs()
+            => new[] { "ARBot", "ARBot.Runtime", "ARBot.Headless" }
+               .Select(d => Path.Combine(RepoPaths.RootOrBase(), "Src", d))
+               .Where(Directory.Exists);
+
         private static IEnumerable<string> Zdrojaky()
-            => Directory.EnumerateFiles(AppDir(), "*.cs", SearchOption.AllDirectories)
-                        .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
-                                 && !p.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar));
+            => AppDirs()
+               .SelectMany(dir => Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+               .Where(p => !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
+                        && !p.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar));
 
         /// <summary>Verejna staticka pole registru typu <see cref="Param"/> (odkazy na parametry).</summary>
         private static List<(string FieldName, Param Param)> Odkazy()

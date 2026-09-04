@@ -422,7 +422,10 @@ ARBOT_RECORD=logs/beh.rec dotnet test Src/ARBot.Common.Tests -p:Platform=x64 --f
 - **Runtime** — `Src/ARBot.Common/Runtime/`: `IClock`/`SystemClock`/`VirtualClock`, `IScheduler`(nový),
   `IMeasurementMapper`/`DefaultMeasurementMapper`, `FusionProcessor`, řídicí smyčka(nová), `ComparisonTarget`(pro Simulate).
 - **Vize** — `Src/ARBot.Common/Vision/`: `ImageLayer`, `MessageImageLayers`, `BackProjectProcessor`.
-- **App** — `Src/ARBot`: `ARBotRuntime`(nový, `ARBot.Robot`), `ARBotHW`, `ImageDocument`.
+- **Runtime bez UI** — `Src/ARBot.Runtime` (namespace `ARBot.Robot`): `ARBotRuntime`, `ARBotHW`,
+  `CrashLog`, `RuntimeBootstrap`. Do 4. 9. 2026 leželo v `Src/ARBot/Robot`; přesun kvůli
+  konzolovému `ARBot.Headless`, viz [headless.md](headless.md) a [architecture.md](architecture.md).
+- **App (UI)** — `Src/ARBot`: `ImageDocument` a ostatní odběratele `ARBotRuntime.Current.Stream`.
 - **Nástroj** — `Src/ARBot.Record` (konzole, není v `ARBot.slnx`).
 - **Offline analýza záznamu** — `Src/ARBot.Analyze` (konzole, v `ARBot.slnx` jen pro `x64`);
   viz [Offline analýza záznamu](#offline-analýza-záznamu-arbotanalyze) níže.

@@ -19,13 +19,36 @@ symboly **`IsX64` / `IsX86` / `IsARM64`** (pro platform-specific `#if`).
 
 ## Platformově dedikovaný HAL
 
-Aplikace `ARBot` referencuje HAL podle platformy (viz `ARBot/ARBot/ARBot.csproj`):
+HAL podle platformy referencuje **`ARBot.Runtime`** (od 4. 9. 2026; dřív přímo `ARBot.csproj`),
+aplikace `ARBot` i `ARBot.Headless` referencují jen `ARBot.Runtime` (viz `Src/ARBot.Runtime/ARBot.Runtime.csproj`):
 
 - `OrangePI` → **`ARBot.HALArmbian`** (Intel.RealSense wrapper **2.53**).
-- ostatní (x64/x86/AnyCPU) → **`ARBot.HALWindows`** (Intel.RealSense wrapper **2.47**).
+- ostatní (x64/x86) → **`ARBot.HALWindows`** (Intel.RealSense wrapper **2.47**).
 
 Platformově specifické třídy (např. `D435Camera`) žijí v obou HAL vrstvách ve stejném
 namespace (`ARBot.HAL.Devices.Camera`), takže aplikační kód je nevidí rozdílně.
+
+Tamtéž jsou i `None` položky, které do výstupu exe kopírují `config/*.cfg` a `OSM/*.osm` —
+z referencované knihovny se do výstupu aplikace přenášejí (`GetCopyToOutputDirectoryItems`),
+ověřeno 4. 9. 2026 smazáním složek v `bin/` a rebuildem. Nativní `realsense2.dll` (z HALWindows)
+a `NativeLib.dll` (z Common) se šíří stejnou cestou.
+
+## Projekty a jejich platformy
+
+| projekt | typ | `Platforms` | v `.slnx` |
+|---|---|---|---|
+| `ARBot.Common`, `ARBot.HAL`, `ARBot.HALArmbian`, `Intel.RealSense` | knihovny | `AnyCPU;x64;(x86;)OrangePI` | všechny |
+| `ARBot.HALWindows`, `ARBot.HALZBoard` | knihovny | `AnyCPU;x64;x86` | bez OrangePI |
+| `ARBot.Runtime` | knihovna (runtime bez UI) | `x64;x86;OrangePI` | všechny |
+| `ARBot` | WinExe (Avalonia) | `AnyCPU;x64;OrangePI` | x64, OrangePI |
+| `ARBot.Headless` | Exe (konzole) | `x64;OrangePI` | x64, OrangePI |
+| `ARBot.Analyze` | Exe (konzole) | `AnyCPU;x64;OrangePI` | jen x64 |
+| `ARBot.Common.Tests`, `ARBot.HAL.Tests`, `ARBot.Runtime.Tests` | NUnit | x64 (HAL.Tests i OrangePI) | bez OrangePI (HAL.Tests i s ním) |
+| `ARBot.Record` | Exe (konzole) | `AnyCPU;x64` | není |
+
+Publish headless pro zařízení: `dotnet publish Src/ARBot.Headless/ARBot.Headless.csproj
+-p:Platform=OrangePI -r linux-arm64 --self-contained false -o <cíl>` (~45 MB, ověřeno 4. 9. 2026,
+že se složí; nasazení a běh na zařízení viz [headless.md](headless.md)).
 
 ## Nativní knihovna (NativeFuncs)
 
@@ -99,10 +122,10 @@ Platformově dedikovaný HAL (viz výše): `D435Camera` i `T265TrackingCamera` e
 ## Solution `.slnx` a platforma OrangePI
 
 Řešení je `Src/ARBot/ARBot.slnx` (**ne `.sln`**). Platforma **`OrangePI`** (Armbian/ARM64,
-`DefineConstants += IsARM64`) je definovaná v `ARBot`, `ARBot.HAL`, `ARBot.HALArmbian`,
-`ARBot.Common`, `Intel.RealSense` (HALWindows platformu OrangePI NEMÁ). V `.slnx` je řetězec
-`*|OrangePI → OrangePI` a `HALWindows`/`HALZBoard`/`ARBot.Common.Tests` jsou z OrangePI buildu
-vyloučené. `Platform=ARM64` je Windows-on-ARM, `RID linux-arm64` je RID-specific — proto vlastní
+`DefineConstants += IsARM64`) je definovaná v `ARBot`, `ARBot.Headless`, `ARBot.Runtime`, `ARBot.HAL`,
+`ARBot.HALArmbian`, `ARBot.Common`, `Intel.RealSense` (HALWindows platformu OrangePI NEMÁ). V `.slnx`
+je řetězec `*|OrangePI → OrangePI` a `HALWindows`/`HALZBoard`/`ARBot.Common.Tests`/`ARBot.Runtime.Tests`/
+`ARBot.Analyze` jsou z OrangePI buildu vyloučené. `Platform=ARM64` je Windows-on-ARM, `RID linux-arm64` je RID-specific — proto vlastní
 `OrangePI`. App se na Pi deployuje framework-dependent (managed výstup zůstává portable IL).
 
 Pozn.: `VectorNav.dll` (VN100) je MSIL/AnyCPU managed (.NET FW 4.0), NE x64/Windows binárka →
@@ -118,7 +141,7 @@ bez nich se nesestaví:
   z `ARBot.HAL.csproj` (HintPath `..\..\vndotnetlib-0.4\VectorNav.dll`). SDK i
   `vectornav-sdk-1-2-0/` jsou v rootu repa.
 - **`FTD2XX_NET.dll`** (FTDI USB-UART) — `ARBot.HALWindows/FTD2XX_NET.dll`, referováno
-  z `ARBot.csproj` (jen `x64`).
+  z `ARBot.Runtime.csproj` (jen `x64`; do 4. 9. 2026 z `ARBot.csproj`, používá ho `ARBotHW`).
 - **`NativeLib` / `libNativeLib.so`** — vlastní nativní knihovna (`NativeFuncs`),
   viz výše.
 > **Čtení QR kódů tady vědomě NENÍ.** Návrh mise Robotour původně počítal se ZBarem, tedy

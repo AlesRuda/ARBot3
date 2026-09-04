@@ -39,6 +39,31 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-04
 
+- **Runtime bez UI — fáze 1 a 2 hotové** podle [plan-runtime-headless.md](plan-runtime-headless.md),
+  doména v [headless.md](headless.md), dvě rozhodnutí v [decisions.md](decisions.md).
+  - **Fáze 1:** nový projekt **`ARBot.Runtime`** (knihovna mezi HAL a aplikacemi, `x64;x86;OrangePI`);
+    `git mv` `Robot/ARBotRuntime.cs`, `ARBotHW.cs`, `NeoPixelProcessor.cs`, `VirtualHWOptions.cs`
+    a `CrashLog.cs` z `Src/ARBot`, namespace beze změny. Podmíněné reference HAL, `FTD2XX_NET` a `None`
+    položky `config/`, `OSM/` přešly do knihovny; `ARBot.csproj` referencuje jen runtime. Bootstrap
+    z `Program.Main` je **`RuntimeBootstrap.TryConfigure`** (těla `ApplyMaxSpeed/SafeDist` doslova).
+    Dvě věci, se kterými plán nepočítal: `CrashLog` a `ARBotRuntime.BuildCatalog` musely být `public`
+    (jiná assembly) a `Debug.WriteLine`/`Trace.WriteLine` **nejdou předat jako delegát** (`[Conditional]`),
+    předávají se lambdou. Strážní test `KazdyParametrSeVAplikaciNekdeCte` po přesunu padl (skenoval jen
+    `Src/ARBot`) → skenuje `ARBot`, `ARBot.Runtime`, `ARBot.Headless`. Nový `ARBot.Runtime.Tests` (4 testy,
+    jen x64). Past 3 (kopírování `config/`/`OSM/` z knihovny do výstupu exe) **ověřena smazáním a rebuildem**.
+  - **Fáze 2:** konzolový **`ARBot.Headless`** (`x64;OrangePI`, žádný NuGet): `ConsoleTraceListener` →
+    `CrashLog.Install` → `TryConfigure` (chyba = stderr + kód 2) → úvodní řádek s výstrahou u mise →
+    `WaitReady` + `ARBotRuntime.HwSettleMs` (konstanta přesunutá z autorunu, jedna pro oba) →
+    `Start(Run)` → Ctrl+C / `SIGTERM` / `SIGHUP` → `Stop()` → 0. `autorun=` se ignoruje s hláškou.
+  - **Ověření (Windows):** build `x64` i `OrangePI` bez chyb, `ARBot.Common.Tests` 1131 = baseline,
+    UI self-test s virtuálním HW + `mission=robotour` + `open=robotour` Run→Stop exit 0. Headless
+    `virtualhw=true mission=freerun record=…` 25 s: mise jela 0,80 m/s, Ctrl+C → **`Stop()` 4 ms**, kód 0,
+    záznam 476 MB čitelný `ARBot.Analyze types` (5 034 zpráv, `RobotStateMsg`, `FreeRunMsg`, `PerfMsg`).
+    `config=neexistuje.cfg` → kód 2. Publish `-r linux-arm64` projde (45 MB; `libNativeLib.so` v něm
+    z tohoto stroje není — stav před změnou, `.so` se staví ve WSL).
+  - **Na OrangePi nic neběželo** — první spuštění je na autorovi (seznam v [headless.md](headless.md):
+    start přes ssh, `config/`+`OSM/` u aplikace, Ctrl+C uzavře záznam, CPU z `PerfMsg` proti UI).
+    Fáze 3 (webový náhled) se navrhne až po tom.
 - **`open=` otevře vyjmenované pohledy hned po startu** (`open=world,telemetry`; poslední je aktivní
   záložka). Na přání autora: na zařízení se na běžící misi dohlíží přes vzdálenou plochu z mobilu a menu
   se tam prakticky nedá ovládat; self-test to uměl (`st_world`…), ale jen v rámci měření. Funguje pro

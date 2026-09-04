@@ -300,7 +300,8 @@ prázdná hodnota nebo `false` znamená bez záznamu.
 (`TrapezoidMotionProfile`) i rychlostní obálku lokálního plánovače (`LocalPlannerConfig.MaxSpeed`).
 Bez zadání platí hodnota z kódu (dnes 1,2 m/s).
 
-**Proč se to děje už v `Program.Main`, ne až u čtenáře:** všechna tři místa hodnotu čtou při
+**Proč se to děje už při startu (`RuntimeBootstrap.TryConfigure` v `ARBot.Runtime`, do 4. 9. 2026
+`Program.Main`), ne až u čtenáře:** všechna tři místa hodnotu čtou při
 **vzniku objektu** — dvě v konstruktoru, `LocalPlannerConfig.MaxSpeed` inicializátorem pole. Kdo by
 vznikl dřív, než se hodnota nastaví, držel by starou a strop by platil jen zčásti; u bezpečnostního
 omezení je to nejhorší možný výsledek.
@@ -323,7 +324,8 @@ neprůjezdno) a zároveň dolní mez rychlostní obálky `v_clear`. Bez zadání
 se přepisováním kódu.
 
 Mechanismus je **stejný jako u `maxspeed=`** a platí i tytéž důvody: hodnota se čte při vzniku
-objektu, proto se nastavuje v `Program.Main` před složením runtime; z `SafeDist` nic staticky
+objektu, proto se nastavuje v `RuntimeBootstrap.TryConfigure` (společný bootstrap UI i headless)
+před složením runtime; z `SafeDist` nic staticky
 nederivuje, takže se past s odvozenými poli neotvírá.
 
 **Vazba na `PrefDist`.** `LocalPlannerConfig.Validate()` vyžaduje `PrefDist > SafeDist` (mezi nimi se

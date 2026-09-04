@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ARBot.Headless: ridici runtime robota BEZ UI - konzolova aplikace pro spusteni pres ssh na
+       OrangePi (Avalonia bez displeje nenastartuje). Umi JEN Run; prohlizeni zaznamu (View) zustava
+       v UI na Windows a v ARBot.Analyze. Zadny systemd, zadna sluzba: spousti se uzivatelskym
+       prikazem a konci Ctrl+C / SIGTERM. Zadny NuGet - vsechno je v ARBot.Runtime. Viz doc/headless.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>ARBot.Headless</RootNamespace>
+    <AssemblyName>ARBot.Headless</AssemblyName>
+    <Platforms>x64;OrangePI</Platforms>
+  </PropertyGroup>
+
+  <!-- Stejne symboly jako ostatni projekty (IsX64 / IsARM64), i kdyz je Program.cs zatim nepouziva. -->
+  <PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
+    <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'x64'">
+    <DefineConstants>$(DefineConstants);IsX64</DefineConstants>
+    <!-- GC stejne jako UI aplikace: Workstation + Concurrent (Server GC latenci zhorsil, viz ARBot.csproj). -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <!-- Runtime si sam vybira platformni HAL a nese config/*.cfg + OSM/*.osm do vystupu. -->
+  <ItemGroup>
+    <ProjectReference Include="..\ARBot.Runtime\ARBot.Runtime.csproj" />
+  </ItemGroup>
+</Project>

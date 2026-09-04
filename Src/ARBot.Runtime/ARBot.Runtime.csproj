@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ARBot.Runtime: ridici runtime robota BEZ UI (ARBotRuntime, ARBotHW, mise, zaznam, CrashLog,
+       RuntimeBootstrap). Sedi mezi HAL a aplikacemi: pouziva ho Avalonia UI (ARBot) i konzolovy
+       ARBot.Headless. Do ARBot.Common jit nemuze - zavisi na ARBot.HAL a smer je Common <- HAL.
+       Pravidlo: zadny PackageReference na Avalonia/Dock/Mapsui, zadne "using Avalonia" - test je
+       grep. Viz doc/architecture.md a doc/headless.md. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ARBot</RootNamespace>
+    <AssemblyName>ARBot.Runtime</AssemblyName>
+    <Platforms>x64;x86;OrangePI</Platforms>
+  </PropertyGroup>
+
+  <!-- Platforma OrangePI (Armbian/ARM64) -> IsARM64 (stejny styl jako IsX64/IsX86).
+       Rozhoduje o vyberu HAL a o platform-specific #if v C# (ARBotHW: joystick jen na x64). -->
+  <PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
+    <DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'x64'">
+    <DefineConstants>$(DefineConstants);IsX64</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)' == 'x86'">
+    <DefineConstants>$(DefineConstants);IsX86</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Profily konfigurace (config/*.cfg) cestuji S APLIKACI do build outputu.
+       Nacpak: na zarizeni se nasazuje jen build output BEZ repa (na Pi neni ani .git,
+       ani config/, ani OSM/), takze RepoPaths.RootOrBase() spadne na adresar aplikace.
+       Bez tohoto kopirovani by "config=config/pi-freerun.cfg" na Pi neexistovalo a
+       aplikace by skoncila chybou pri startu - overeno 1. 9. 2026. Viz doc/configuration.md.
+       Polozky jsou TADY (v knihovne), ne v exe projektech: None s CopyToOutputDirectory se
+       z referencovane knihovny do vystupu aplikace prenasi (GetCopyToOutputDirectoryItems),
+       takze UI i headless je dostanou z jednoho mista. Overeno pohledem do bin/ 4. 9. 2026. -->
+  <ItemGroup>
+    <None Include="..\..\config\*.cfg" LinkBase="config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- OSM mapy cestuji s aplikaci ze stejneho duvodu jako profily: bez nich by na zarizeni
+       skoncil kazdy profil s map= chybou pri startu (parametr typu Path se resi proti
+       RepoPaths.RootOrBase(), coz je na Pi adresar aplikace).
+       Je to ~30 MB v 17 souborech. PreserveNewest je kopiruje jen pri zmene, takze build
+       to zdrzi jednou; nasazeni na Pi o tech 30 MB narostlo. Kdyby to vadilo, zuzit vycet
+       na mapy, na ktere se opravdu odkazuji profily v config/. -->
+  <ItemGroup>
+    <None Include="..\..\OSM\*.osm" LinkBase="OSM" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- FTDI USB-UART (NeoPixel pres FT4232H) - pouziva ARBotHW (dnes zakomentovane), jen x64. -->
+  <ItemGroup>
+    <Reference Include="FTD2XX_NET" Condition="'$(Platform)' == 'x64'">
+      <HintPath>..\ARBot.HALWindows\FTD2XX_NET.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Platform-dedikovany HAL: OrangePI -> HALArmbian (RealSense 2.53),
+       jinak (x64/x86) -> HALWindows (RealSense 2.47). -->
+  <ItemGroup Condition="'$(Platform)' == 'OrangePI'">
+    <ProjectReference Include="..\ARBot.HALArmbian\ARBot.HALArmbian.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Platform)' != 'OrangePI'">
+    <ProjectReference Include="..\ARBot.HALWindows\ARBot.HALWindows.csproj" />
+  </ItemGroup>
+</Project>

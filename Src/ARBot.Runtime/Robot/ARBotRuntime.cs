@@ -68,6 +68,15 @@ namespace ARBot.Robot
         /// zakladat jen proto, aby ho zastavil.)</summary>
         public static bool HasCurrent => current != null;
 
+        /// <summary>
+        /// Jak dlouho [ms] po pripraveni HW (<see cref="ARBotHW.WaitReady"/>) ceka bezobsluzny start
+        /// Run (autorun v UI, <c>ARBot.Headless</c>), nez zavola <see cref="Start"/>. Je to na
+        /// <b>ustaleni</b> senzoru (kamery a porty se otviraji lene, prvni snimky prichazeji az po
+        /// chvili), ne bezpecnostni prodleva - skutecna pojistka je fyzicke nouzove zastaveni.
+        /// Jedna konstanta pro oba spoustece, aby se chovaly stejne (doc/headless.md).
+        /// </summary>
+        public const int HwSettleMs = 3000;
+
         private readonly object gate = new object();
         private readonly RelaySource stream = new RelaySource();
 
@@ -1335,8 +1344,8 @@ namespace ARBot.Robot
         /// kurzu: vsechny dosavadni A/B behy mely ujetou drahu 0,00 m, takze prokluz kol nemel jak
         /// se projevit. Viz doc/virtual-hw.md.</para>
         ///
-        /// <para><b>Kam cil jde.</b> Stejnou cestou jako klik v mape (viz
-        /// <c>MainWindowViewModel.OpenWorldView</c>): kdyz bezi globalni navigace, dostane ji ona
+        /// <para><b>Kam cil jde.</b> Stejnou cestou jako klik v mape (odberatel v UI, ktery
+        /// otevira world pohled): kdyz bezi globalni navigace, dostane ji ona
         /// jako LLA a krmi lokalni vrstvu mrkvi po trase; bez mapy se preda primo lokalnimu
         /// planovaci v lokalni ENU rovine. Nesmysl se ignoruje s hlaskou - vadny parametr nesmi
         /// shodit start aplikace (stejna zasada jako u <c>map=</c> a <c>start=</c>).</para>
@@ -1732,7 +1741,7 @@ namespace ARBot.Robot
         /// katalog potrebuje i telemetricky sken - kdyby cetl s jinym, nektere typy by neznal
         /// (viz doc/telemetry-view.md).
         /// </summary>
-        internal static MessageCatalog BuildCatalog() => MessageCatalog.RecordDefaults();
+        public static MessageCatalog BuildCatalog() => MessageCatalog.RecordDefaults();
 
         // ---------------- pomocne ----------------
 
