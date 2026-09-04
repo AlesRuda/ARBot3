@@ -104,6 +104,26 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam cislo vetsi nez 0");
 
+        /// <summary>
+        /// Port weboveho nahledu: 0 (vypnuto) nebo cele cislo 1024-65535.
+        ///
+        /// <para>Privilegovane porty (pod 1024) odmitame zamerne: proces bezi jako bezny uzivatel,
+        /// takze by bind selhal az za behu - a to je presne ten druh chyby, ktery se pak hleda na
+        /// souteze. Radeji chyba pri startu. Viz doc/headless.md.</para>
+        /// </summary>
+        public static ParamParseResult WebPort(string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                return ParamParseResult.Invalid("cekam cislo");
+            if (double.IsNaN(v) || v != Math.Floor(v))
+                return ParamParseResult.Invalid("cekam cele cislo");
+            if (v == 0)
+                return ParamParseResult.Valid();
+            if (v < 1024 || v > 65535)
+                return ParamParseResult.Invalid("cekam 0 (vypnuto) nebo port 1024-65535");
+            return ParamParseResult.Valid();
+        }
+
         public static ParamParseResult LatLon(string text)
             => TryLatLonHeading(text, out _, out _, out _)
                ? ParamParseResult.Valid()

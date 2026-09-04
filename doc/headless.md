@@ -96,6 +96,28 @@ Na Windows pro zkoušku v simulaci:
 dotnet Src/ARBot.Headless/bin/x64/Debug/net10.0/ARBot.Headless.dll virtualhw=true mission=freerun map=OSM/SyntetickyRovny.osm record=records/headless-test.rec
 ```
 
+### Launch profily (Visual Studio, `dotnet run`)
+
+`Src/ARBot.Headless/Properties/launchSettings.json` má **devět profilů** jako obdobu těch v UI
+aplikaci: virtuální HW s náhledem, mise FreeRun (rovná mapa i koridor s nálevkou), FreeRun se
+záznamem, Robotour, koridor s cílem, dvě mapy s korelací, a **profil bez náhledu** jako baseline
+pro srovnání CPU. První profil je bez parametrů, tedy skutečný hardware.
+
+Profily s náhledem mají **`webopen=true`**, což po nastartování serveru otevře stránku ve výchozím
+prohlížeči. Parametr je **výchozí vypnutý**: na zařízení bez displeje nemá prohlížeč kde vyskočit.
+Selhání se jen ohlásí do `Trace` a běh pokračuje.
+
+⚠️ **`launchBrowser` v `launchSettings.json` tohle neumí** — naměřeno 4. 9. 2026: `dotnet run`
+u konzolové aplikace tu vlastnost **ignoruje** (počet procesů prohlížeče se nezměnil, zatímco
+`commandLineArgs` z profilu se použily). Je to vlastnost web projektů. I kdyby ji Visual Studio
+u konzolového projektu respektovalo, otevřelo by prohlížeč **hned při startu procesu**, tedy dřív,
+než server naslouchá — headless nejdřív čeká na HW a tři sekundy na ustálení. `webopen=true`
+otevírá stránku **až po úspěšném bindu**, což je ten správný okamžik.
+
+**Pozor při `dotnet run`:** když se profil nenačte (třeba kvůli chybě v JSON), `dotnet run`
+aplikaci spustí **bez argumentů**, tedy se **skutečným hardwarem**. Hláška o vadném profilu proletí
+mezi ostatními řádky; poznat to jde na úvodním řádku podle `HW: skutecny`.
+
 **Ukončení:** Ctrl+C v ssh, nebo `kill <pid>` z druhé session. Zavření ssh session pošle `SIGHUP`,
 který se chová stejně (řádný `Stop()`); kdo chce běh přežívající odpojení, pustí ho pod `tmux`/`nohup`
 — ale pak nemá jak robota zastavit jinak než `kill` z druhé session nebo nouzovým tlačítkem.
@@ -125,6 +147,26 @@ jiný = pád (viz `logs/crash-*.log`).
 - `config=neexistuje.cfg` → kód 2, stderr „Chyba konfigurace: Konfiguracni soubor '…' neexistuje."
 - Publish `-p:Platform=OrangePI -r linux-arm64` projde.
 
+**Windows, 4. 9. 2026 (fáze 3, webový náhled):**
+
+- `ARBot.Common.Tests` 1 155 zelených, `ARBot.Runtime.Tests` 36 (13 `HttpMini`, 10 server přes
+  `HttpClient`, 9 `WebStatus`, 4 bootstrap); build `x64` i `OrangePI` bez chyb.
+- Běh s `virtualhw=true mission=freerun map=OSM/SyntetickyRovny.osm web=8080` a otevřenou stránkou
+  v prohlížeči: půdorys kreslí síť cesty, occupancy grid, trajektorii, mrkev i robota; snímek kamery
+  přijde a **přepínač na „cesta z RGB" ukáže čistě oddělenou vozovku** (bílá) od trávy (černá).
+  Mise jela správně — odchylka −0,491 m proti požadovaným −0,500, šířka koridoru 2,017 m proti 2,0 m
+  v mapě.
+- Všechna tři **měřítka** proklikaná: 2 m ukáže volný pruh mezi překážkami, 50 m celou trasu;
+  u kamery se skupina měřítek skryje. **Senzory** hlásily pět zdrojů (Left, Right, VirtualMotors,
+  VirtualGPS, VirtualIMU) bez chyby a věk měření pod 0,2 s. Barvení chyby a ticha ověřeno
+  podstrčenými daty: `IsError` je červeně, měření starší 3 s oranžově.
+- CPU procesu **13,9 % bez publika, 14,3 % s obnovovanou stránkou**.
+- 404 na neznámou cestu, 405 na `GET /stop`, JPEG na obě obrazové vrstvy, PNG 7 kB na půdorys.
+- **Tlačítko Zastavit robota** na stránce ukončilo proces: `web: prislo POST /stop`,
+  `Stop()` trval 4 ms, kód 0.
+- Neplatný port (`web=80`, `web=99999`) → kód 2 s hláškou. **Obsazený port** (druhá instance na
+  témž portu) → hláška „bez nahledu" a `Run bezi`, tedy robot jede dál.
+
 **Na OrangePi nic z toho neběželo** — první spuštění je na autorovi a bude to zároveň první běh
 runtime mimo UI. Co ověřit:
 
@@ -132,15 +174,108 @@ runtime mimo UI. Co ověřit:
 2. Že `WaitReady()` + 3 s stačí i pro skutečné kamery a porty (v UI to stačilo pro autorun).
 3. Ctrl+C a `kill <pid>`: záznam se uzavře (`.rec` + `.rec.idx` čitelné v `ARBot.Analyze`),
    motory se zastaví, kód 0. Zavření ssh session (`SIGHUP`) totéž.
-4. Odečíst z `PerfMsg` CPU procesu proti běhu s UI — to je číslo, které rozhodne o fázi 3.
+4. Odečíst z `PerfMsg` CPU procesu proti běhu s UI. Ty 0,4 procentního bodu za náhled jsou
+   z Windows; na ARM může kreslení a kódování stát víc.
 5. Zda na zařízení `PosixSignalRegistration` pro `SIGTERM`/`SIGHUP` funguje (na Windows ano,
    mapované na konzolové události).
+6. **Náhled na zařízení:** že se stránka otevře z mobilu na `http://<ip>:<port>/`, že SkiaSharp
+   na Armbianu nakreslí i **text měřítka** (fonty na ARM jsou nejnejistější místo celého náhledu)
+   a jak se to chová přes WiFi s několika prohlížeči naráz.
 
-## Fáze 3 — webový náhled (jen rámec)
+## Webový náhled (`web=<port>`)
 
-`HttpListener` v headless procesu, port z parametru `web=` (0 = vypnuto): `/` HTML stránka
-obnovující dva obrázky a text stavu mise, `/camera.jpg` poslední snímek kamery mise (`ImageMsg`
-kodek přes SkiaSharp už v Common), `/world.png` půdorys ze SkiaSharpu z `RoadNetwork`,
-`RobotStateMsg`, trajektorie a mrkve. Server jako odběratel streamu (`IMessageSink`, latest-wins).
-Mapsui ani dlaždice ne. **Návrh až po ověření fáze 2 na zařízení**, kdy bude známo, kolik CPU
-headless bez náhledu stojí.
+Stránka na mobilu nebo notebooku ukáže, **co robot právě dělá**, a nabídne jediný zásah:
+zastavit. Hotové 4. 9. 2026 (fáze 3) podle [plan-headless-web.md](plan-headless-web.md).
+**Ve výchozím stavu je vypnutý** (`web=0`).
+
+```bash
+dotnet ARBot.Headless.dll config=config/orangepi.cfg mission=robotour web=8080
+```
+
+Pak se z mobilu otevře `http://<ip Pi>:8080/`.
+
+Stránka má **jeden obrázek** a nad ním lištu: vlevo přepínače, vpravo červené **Zastavit robota**.
+Přepínače jsou dvě skupiny — co se ukazuje (**půdorys | kamera | cesta**) a u půdorysu ještě
+měřítko (**2 m | 10 m | 50 m**, u kamery se skryje). Pod obrázkem jsou **senzory** a tabulka stavu;
+obnovuje se každou sekundu.
+
+![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
+
+*Snímek z běhu v simulaci (`virtualhw=true mission=freerun`, rovná mapa): zelená je potvrzeně
+sjízdné, červená blokované, šedá síť cest z mapy, modrá ujetá dráha, žlutá mrkev.*
+
+| cesta | co vrací |
+|---|---|
+| `GET /` | stránka (jeden obrázek, přepínače, senzory, stav, Zastavit) |
+| `GET /camera.jpg` | poslední snímek; `?cam=<jméno>` vybere kameru, `?layer=prob` pošle **pravděpodobnost cesty z RGB** místo barvy |
+| `GET /world.png` | půdorys: occupancy grid pod sítí cest, póza, mrkev, ujetá dráha, měřítko; `?scale=2\|10\|50` volí přiblížení |
+
+Síť cest se kreslí **věrně mapové geometrii**: každý úsek je kapsle s lineárně interpolovanou
+polosirkou mezi uzly (jako `RoadScene`), takže rozšiřující se cesta je trychtýř a v křižovatce se
+hrany hladce napojí. Uzel s neurčenou šířkou (0) se kreslí na 0,5 m, aby nebyl nevidět.
+| `GET /status.json` | týž stav jako tabulka a senzory, pro obnovení bez reloadu i pro skriptovaný dohled |
+| `POST /stop` | zastaví runtime a ukončí proces, jako Ctrl+C |
+
+**Vrstva „cesta z RGB"** je ten kanál, který jde do occupancy gridu (`CameraFrame.ImageProbability`,
+plní `CameraFrameProcessor`, čte `OccupancyIntegrator`) — tedy co robot považuje za cestu ještě
+před fúzí do mapy. Je to nejrychlejší odpověď na otázku „vidí vůbec cestu?".
+
+**Měřítko** je délka úsečky vlevo dole na půdorysu a **výřez je její čtyřnásobek**: 2 m je detail na
+manévrování (výřez 8 m), 10 m běžný pohled (40 m, výchozí), 50 m přehled po trase (200 m). Přepočet
+drží `PlanViewRenderer.SpanForScaleBar`, takže popisek tlačítka vždy odpovídá tomu, co je nakreslené.
+
+**Senzory** jsou jeden údaj na senzor ve tvaru **`Left: OK/75ms`** — jméno, stav z hardwaru
+(`ISensor.IsError`) a **věk jeho poslední zprávy**. Obojí je potřeba, protože každé odpovídá na
+jinou otázku: `IsError` řekne, že senzor hlásí poruchu, zatímco věk odhalí **senzor, který hlásí OK
+a přitom už nic neposílá** — a to je ta horší porucha. Chyba je červeně, měření starší **3 s**
+oranžově; ten prah je volný záměrně, protože GPS jde 5 Hz a kamery pod 30 Hz.
+
+Věk se páruje se senzorem podle **jeho rozhraní**, ne podle jména: `ICamera` → `CameraFrame:<jméno>`,
+`IIMU` → `IMUState:<jméno>`, `IGPS` → `GPSState`, `IMotorControl` → `MotorStateBase`. Jména senzorů
+a druhy zpráv se totiž neshodují (`VirtualIMU` posílá `IMUState`). U kamer i IMU se rozlišuje ještě
+jménem, protože jich může být víc — kvůli tomu `IMUState` dostal 4. 9. 2026 pole `Name` (verze zprávy
+2, viz [record-replay.md](record-replay.md#verzování-zpráv-serializace--povinný-princip)). Měření,
+ke kterému se žádný senzor nenašel, se ukáže zvlášť jako `IMUState: —/12s`.
+
+Věk je „jak dávno zpráva vyšla do streamu" a měří se **proti `TimeBase.Now`**, tedy touž základnou,
+jakou používá zbytek aplikace (pravidlo v [CLAUDE.md](../CLAUDE.md)). Není to čas pořízení — ten je
+o dobu zpracování v pipeline starší.
+
+Na `ARBotHW.Current` se sahá jen přes `ARBotHW.HasCurrent` — čtení té vlastnosti instanci jinak
+**založí a spustí init hardwaru**, což by náhled dělat neměl.
+
+⚠️ **Pool kopií snímků musí mít kapacitu aspoň „počet kamer + 1".** `CameraFrame` nese poolované
+buffery, takže si náhled pořizuje kopii z `CameraFramePool`; drží se poslední snímek z **každé**
+kamery a na novou kopii je potřeba volný slot. S kapacitou 2 a dvěma kamerami se po prvním snímku
+z každé **všechny další tiše zahazovaly a obraz na stránce zamrzl** (nalezeno 4. 9. 2026). Dnes je
+kapacita 4 a vyčerpání se hlásí do `Trace`; hlídá to `DveKamery_SeObeAktualizuji`.
+
+**Zastavení je jen přes `POST`**, aby ho nevyvolal prefetch prohlížeče nebo náhled odkazu.
+
+⚠️ **Bez hesla, na všech rozhraních.** Kdokoli v té síti může robota **zastavit**; rozjet ho z webu
+nejde a nikdy nesmí jít. Je to vědomé rozhodnutí (robot je na uzavřené síti, zastavení je ta
+bezpečnější strana) — viz [decisions.md](decisions.md).
+
+### Proč to nekrade výkon řízení
+
+Server je odběratel streamu, který v `Post` jen uloží referenci na poslední zprávu daného druhu.
+**Kreslí se teprve v obsluze požadavku**, takže když se nikdo nekouká, náhled nekreslí ani nekóduje.
+Snímek kamery se navíc **nekopíruje vůbec**, dokud si o něj někdo nepožádá (`CameraFrame` nese
+poolované buffery, takže kopie být musí — ale jen při zájmu, deset sekund od posledního požadavku).
+Vlákno serveru je `IsBackground` s prioritou `BelowNormal`, spojení se obsluhují po jednom.
+
+Naměřeno na Windows v simulaci: **13,9 % CPU procesu bez publika, 14,3 % s otevřenou stránkou**,
+tedy náhled při sledování stojí asi **0,4 procentního bodu**.
+
+Kód je ve dvou vrstvách: kreslení v `ARBot.Common/Rendering` (`PlanViewRenderer`, `OccupancyPng` —
+funkce zpráv, takže na to vidí i `ARBot.Analyze`), HTTP v `ARBot.Runtime/Web` (`HttpMini`,
+`WebStatus`, `WebPreviewServer`).
+
+**`HttpListener` se schválně nepoužil.** Na Windows bez administrátorských práv nepřijme jiný prefix
+než `localhost` (`http://+:port/` skončí „Přístup byl odepřen", naměřeno), takže by se ladil jiný
+stav, než jaký běží na Pi. Místo něj je vlastní GET/POST server nad `TcpListener`, který se chová
+na obou platformách stejně a nepotřebuje URL ACL.
+
+**Když se port nepovede obsadit**, jde hláška do `Trace` a **robot jede dál bez náhledu** — stejná
+zásada jako u záznamu. Neplatný port (`web=80`, `web=99999`) je naopak **chyba při startu** s kódem 2:
+proces běží jako běžný uživatel, takže privilegovaný port by selhal až za běhu.

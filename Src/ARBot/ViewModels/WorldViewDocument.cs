@@ -26,7 +26,6 @@ using Mapsui.Tiling;
 using ARBot.Common.Occupancy;
 using NetTopologySuite.Geometries;
 using BruTile.MbTiles;
-using SkiaSharp;
 using Color = Mapsui.Styles.Color;   // rozlisit od ARBot.Common.Common.Color
 
 namespace ARBot.ViewModels
@@ -941,7 +940,7 @@ namespace ARBot.ViewModels
             var rect = new MRect(Math.Min(min.X, max.X), Math.Min(min.Y, max.Y),
                                  Math.Max(min.X, max.X), Math.Max(min.Y, max.Y));
 
-            var png = EncodeOccupancyPng(og);
+            var png = ARBot.Common.Rendering.OccupancyPng.Encode(og);
             if (png == null)
             {
                 occupancyLayer.Features = Array.Empty<IFeature>();
@@ -951,65 +950,6 @@ namespace ARBot.ViewModels
             occupancyLayer.Features = new IFeature[] { new RasterFeature(new MRaster(png, rect)) };
         }
 
-        /// <summary>
-        /// Zakoduje occupancy grid do PNG (BGRA, premultiplied): neprujezdne cervene, potvrzene volne
-        /// zelene, nezname pruhledne. Radek 0 obrazu je SEVER (nejvyssi j) - rastr se kresli shora dolu.
-        ///
-        /// <para><b>Pozn. k ladeni:</b> <see cref="CellState.Unknown"/> je pruhledne, takze v mape
-        /// nejde odlisit od plochy, o ktere grid nic nevi. Pri otazce „proc robot leze" to muze svest
-        /// - brzdna obalka (<c>VBrake</c>) jede jen pres bunky <see cref="CellState.Free"/>, takze
-        /// souvisle vypadajici plocha jeste neznamena potvrzenou. Cisla jsou v Debug outputu
-        /// (<c>LocalNavigator</c>: <c>koridor: free=… unknown=…</c>).</para>
-        /// </summary>
-        private static byte[]? EncodeOccupancyPng(OccupancyGridMsg og)
-        {
-            int n = og.Size;
-            try
-            {
-                using var bmp = new SKBitmap(new SKImageInfo(n, n, SKColorType.Bgra8888, SKAlphaType.Premul));
-                var pixels = new uint[n * n];
-                for (int j = 0; j < n; j++)
-                {
-                    int row = (n - 1 - j) * n;   // otoceni: sever nahoru
-                    for (int i = 0; i < n; i++)
-                    {
-                        pixels[row + i] = og.State(i, j) switch
-                        {
-                            CellState.Blocked => OccBlockedBgra,
-                            CellState.Free => OccFreeBgra,
-                            _ => 0u,             // Unknown = pruhledne
-                        };
-                    }
-                }
-
-                var handle = System.Runtime.InteropServices.GCHandle.Alloc(
-                    pixels, System.Runtime.InteropServices.GCHandleType.Pinned);
-                try { bmp.InstallPixels(bmp.Info, handle.AddrOfPinnedObject(), bmp.Info.RowBytes); }
-                finally { /* pixely se hned zakoduji, pak uz je nikdo nedrzi */ }
-
-                using var image = SKImage.FromBitmap(bmp);
-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                handle.Free();
-                return data.ToArray();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"WorldView: kodovani occupancy selhalo: {ex.Message}");
-                return null;
-            }
-        }
-
-        // Barvy occupancy rastru (BGRA premultiplied, jako u SKColorType.Bgra8888).
-        private static readonly uint OccBlockedBgra = PremulBgra(0xE5, 0x39, 0x35, 0xB0);
-        // Free ma vyssi alfu nez puvodnich 0x50: pri prekryvu se zelenym podkladem OSM se slaba
-        // zelena od nej nedala rozeznat. Takto je potvrzena plocha citelna i bez zvyrazneni Unknown.
-        private static readonly uint OccFreeBgra = PremulBgra(0x4C, 0xAF, 0x50, 0x80);
-
-        private static uint PremulBgra(byte r, byte g, byte b, byte a)
-        {
-            uint rr = (uint)(r * a / 255), gg = (uint)(g * a / 255), bb = (uint)(b * a / 255);
-            return ((uint)a << 24) | (rr << 16) | (gg << 8) | bb;
-        }
 
         // --- Sirky car navigacnich vrstev [px] ---
         //

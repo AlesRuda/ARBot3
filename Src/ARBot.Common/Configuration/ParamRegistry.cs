@@ -187,6 +187,15 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam PerfWarn = Num("perfwarn", "70", K_DIAG,
               "Obsazenost periody [%], od ktere se hlasi varovani. Hodnota je zatim odhad - "
               + "naostro se nastavi az podle prvniho mereni na zarizeni.");
+        public static readonly BoolParam WebOpen = Bool("webopen", "false", K_DIAG,
+              "Po nastartovani nahledu otevrit stranku ve vychozim prohlizeci. Pro vyvoj na Windows "
+              + "(launch profil); na zarizeni bez displeje nechat vypnute - prohlizec tam nema kde "
+              + "vyskocit. Bez web= se ignoruje. Viz doc/headless.md.");
+        public static readonly DoubleParam Web = Num("web", "0", K_DIAG,
+              "Port weboveho nahledu v ARBot.Headless (0 = vypnuto). Stranka ukaze snimek kamery, "
+              + "pravdepodobnost cesty z RGB, pudorys s lokalni mapou a stav mise a nabidne zastaveni "
+              + "robota. Posloucha na VSECH rozhranich BEZ HESLA - kdokoli v siti muze robota zastavit "
+              + "(rozjet ne). V UI aplikaci se ignoruje. Viz doc/headless.md.", ParamParsers.WebPort);
 
         // --- Self-test a snimky --------------------------------------------------------
         public static readonly BoolParam SelfTest = Bool("selftest", "false", K_TEST,

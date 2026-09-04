@@ -151,6 +151,7 @@ namespace ARBot.HAL.Devices.AHRS
             if (state == null)
                 return null;
             state.TimeStamp = TimeBase.Now;
+            state.Name = Name;
 
             if (double.IsNaN(state.Rotation.Value.Z))
             {

@@ -181,7 +181,16 @@ dotnet ARBot.Headless.dll config=config/orangepi.cfg mission=robotour record=Rec
 
 Ukončení: Ctrl+C v ssh, nebo `kill <pid>` z druhé session.
 
-### Fáze 3 — webový náhled (jen rámec, vlastní návrh později)
+### Fáze 3 — webový náhled
+
+> **HOTOVO 4. 9. 2026** — vlastní dokument [plan-headless-web.md](plan-headless-web.md) (návrh
+> i tasky), doména v [headless.md](headless.md). Gate „až po ověření fáze 2 na zařízení" autor
+> **vědomě přeskočil** — na HW se to nedalo vyzkoušet. Návrh je proto postavený tak, aby náhled bez
+> publika nestál nic a šel vypnout (`web=0`); naměřeno 13,9 % → 14,3 % CPU procesu.
+> Rámec níž zůstává jako záznam původního zadání; od něj se návrh odchýlil ve třech věcech —
+> **vlastní HTTP nad `TcpListener`** místo `HttpListener` (ten na Windows bez admin práv neumí jiný
+> prefix než localhost), **occupancy grid na půdorysu** (to, co robot vidí, ne jen mapa) a
+> **`POST /stop`** jako jediný zásah. Zdůvodnění je v tom dokumentu a v [decisions.md](decisions.md).
 
 `HttpListener` v headless procesu, port z parametru `web=` (0 = vypnuto). Tři cesty: `/` s HTML
 stránkou, která si každou sekundu obnovuje dva obrázky a text stavu mise; `/camera.jpg` s posledním

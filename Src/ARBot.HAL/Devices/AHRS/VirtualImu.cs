@@ -68,6 +68,7 @@ namespace ARBot.HAL.Devices.AHRS
 
             return new IMUState
             {
+                Name = Name,   // puvodce mereni - v robotovi muze byt IMU vic (viz IMUState.Name)
                 Rotation = ypr.ToQuaternion(YawPitchRoll.Euler.zxy),
                 // Gyro je v BODY framu; u planarniho robotu je yaw rate slozka Z.
                 AngularVelocity = new Vector3(0f, 0f, (float)omega),
@@ -82,7 +83,7 @@ namespace ARBot.HAL.Devices.AHRS
         /// <summary>Pocka do casu dalsiho vzorku (drzi zadanou frekvenci).</summary>
         private void WaitForNextTick()
         {
-            var now = DateTime.UtcNow;
+            var now = TimeBase.Now;
             if (nextSampleAt == DateTime.MinValue)
             {
                 nextSampleAt = now;

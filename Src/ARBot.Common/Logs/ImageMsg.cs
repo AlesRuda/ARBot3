@@ -200,6 +200,30 @@ namespace ARBot.Common.Logs
             return outBuf;
         }
 
+        // ---------- Veřejné kódování obrazu (bez zprávy) ----------
+
+        /// <summary>
+        /// Zakóduje obraz do JPEG (kvalita <see cref="JpegQuality"/>). Podporuje jen 8bit pixely
+        /// (step 1 = Gray8, step 4 = BGRA/BGR32); jinak vyhodí <see cref="NotSupportedException"/>.
+        ///
+        /// <para><b>Nač to je:</b> webový náhled headless runtime (viz doc/headless.md) posílá
+        /// snímek kamery do prohlížeče. Kóduje se tím <b>týmž</b> kodérem, jaký používá záznam —
+        /// druhý kodek by se rozešel. Obraz se sem předává samostatně, protože náhled žádnou
+        /// <see cref="ImageMsg"/> nevyrábí (bere <c>CameraFrame.ImageRGB</c>).</para>
+        /// </summary>
+        public static byte[] EncodeJpeg(Common.Image img)
+        {
+            if (img == null) throw new ArgumentNullException(nameof(img));
+            return EncodeSkia(img.Step, img.Width, img.Height, img.Data, SKEncodedImageFormat.Jpeg);
+        }
+
+        /// <summary>Zakóduje obraz do PNG (bezeztrátově). Omezení jako u <see cref="EncodeJpeg"/>.</summary>
+        public static byte[] EncodePng(Common.Image img)
+        {
+            if (img == null) throw new ArgumentNullException(nameof(img));
+            return EncodeSkia(img.Step, img.Width, img.Height, img.Data, SKEncodedImageFormat.Png);
+        }
+
         // ---------- SkiaSharp pomocné metody ----------
 
         /// <summary>Pixel step -> SkiaSharp color type pro Jpeg/Png (jen 8bit).</summary>

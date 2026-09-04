@@ -57,11 +57,14 @@ namespace ARBot.Common.Logs
         public int MaxPerSecond { get; set; } = 200;
 
         /// <param name="capacity">Kapacita fronty; pri zaplneni se zahazuje nejstarsi.</param>
-        /// <param name="clock">Zdroj casu; null = <see cref="DateTime.Now"/> (testy si ho podvrhnou).</param>
+        /// <param name="clock">Zdroj casu; null = <see cref="ARBot.Common.Common.TimeBase.Now"/>
+        /// (testy si ho podvrhnou). <b>TimeBase, ne <c>DateTime.Now</c>:</b> zpravy Info lezi
+        /// v zaznamu vedle mereni, ktera jsou razitkovana z TimeBase, a seek podle casu i telemetrie
+        /// je porovnavaji. Viz CLAUDE.md.</param>
         public TraceInfoBridge(int capacity = 512, Func<DateTime> clock = null)
             : base(OverflowPolicy.DropOldest, capacity)
         {
-            now = clock ?? (() => DateTime.Now);
+            now = clock ?? (() => ARBot.Common.Common.TimeBase.Now);
             listener = new Listener(this);
         }
 

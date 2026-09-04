@@ -133,7 +133,7 @@ namespace ARBot.HAL.Devices.GPSs
         /// <summary>Pocka do casu dalsiho vzorku (drzi zadanou frekvenci).</summary>
         private void WaitForNextTick()
         {
-            var now = DateTime.UtcNow;
+            var now = TimeBase.Now;
             if (nextSampleAt == DateTime.MinValue)
             {
                 nextSampleAt = now;

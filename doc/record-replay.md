@@ -299,6 +299,12 @@ i po změně obsahu zprávy.
 4. **Při jakékoli změně obsahu zprávy zvýš verzní konstantu o 1** a v `FromData` přidej větev pro
    předchozí verzi. Bez toho se starší záznamy rozbijí (posun v binárním streamu).
 
+**Příklad (4. 9. 2026):** `IMUState` dostal `Name` (jméno zdroje měření) a tím **verzi 2**. Proč:
+IMU může být v robotovi víc (VN100 i T265 jsou `IIMU`) a ze zprávy nebylo poznat, ze kterého je,
+takže diagnostika „který senzor mlčí" mluvila jen o „IMUState" bez původce. `FromData` čte jméno
+jen při `Verze >= 2`, u starších záznamů zůstane prázdné. Jméno plní **driver** (`state.Name = Name;`),
+stejně jako to dělá `CameraFrame`, a `Clone()` ho přenáší. Hlídá `IMUStateNameTests`.
+
 Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `MessageReader` ji před
 `FromData` přepíše uloženou verzí — po deserializaci proto objekt nese verzi, ze které byl načten
 (pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`

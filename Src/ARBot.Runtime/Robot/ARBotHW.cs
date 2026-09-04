@@ -40,6 +40,15 @@ namespace ARBot.Robot
         private List<ISensor> sensors= new List<ISensor>();
 
         private static ARBotHW current;
+
+        /// <summary>
+        /// Existuje uz instance? <b>Cteni <see cref="Current"/> ji zaklada a spousti
+        /// <see cref="Init"/></b> (tedy dotazovani portu a kamer), takze kdo se jen chce podivat na
+        /// stav - webovy nahled, diagnostika - musi se zeptat nejdriv tady. Stejny duvod jako
+        /// u <c>ARBotRuntime.HasCurrent</c>.
+        /// </summary>
+        public static bool HasCurrent => current != null;
+
         public static ARBotHW Current
         {
             get

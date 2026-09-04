@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **59 parametrů**
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **61 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -378,6 +378,26 @@ aktivuje) a napojení na runtime; se self-testem se to skládá. Seznam jmen byd
 (`ParamParsers.ViewNames`), mapování na dokumenty v aplikaci
 ([`MainWindowViewModel.OpenViews.cs`](../Src/ARBot/ViewModels/MainWindowViewModel.OpenViews.cs)) —
 přidání pohledu = jméno tam a větev v `OpenView`.
+
+## Webový náhled headless (`web=`)
+
+`web=8080` zapne v `ARBot.Headless` webový náhled na daném portu; **0 (výchozí) znamená vypnuto**.
+V UI aplikaci se parametr ignoruje. Co stránka ukazuje a proč nekrade výkon řízení, je
+v [headless.md](headless.md#webový-náhled-webport).
+
+Hodnotu ověřuje `ParamParsers.WebPort`: projde jen **0 nebo celé číslo 1024–65535**. Privilegované
+porty pod 1024 se odmítají **při startu**, ne až při bindu — proces běží jako běžný uživatel, takže
+`web=80` by selhalo za běhu, a to je přesně ten druh chyby, který se pak hledá na soutěži. Naopak
+**obsazený port běh nezastaví**: náhled se vypne s hláškou do `Trace` a robot jede dál, stejně jako
+u nezaložitelného záznamu.
+
+⚠️ Náhled poslouchá na **všech rozhraních bez hesla** a jeho `POST /stop` robota zastaví. Zapínat
+tam, kde je síť uzavřená; rozjet robota z webu nejde.
+
+**`webopen=true`** k tomu po nastartování serveru otevře stránku ve výchozím prohlížeči — pro vývoj
+na Windows, kde to launch profilu ušetří kopírování adresy. Výchozí je vypnuto, protože na zařízení
+bez displeje nemá prohlížeč kde vyskočit; bez `web=` se parametr ignoruje. Proč to nejde nechat na
+`launchBrowser` v `launchSettings.json`, je v [headless.md](headless.md#launch-profily-visual-studio-dotnet-run).
 
 ## Panel *Tools → Konfigurace*
 

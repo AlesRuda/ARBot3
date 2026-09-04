@@ -170,11 +170,13 @@ namespace ARBot.Common.Vision
             if (frame == null) return;
 
             // Diagnostika je-li zapnuta (diag != null). Pri vypnute diagnostice (soutez) NEmerime nic
-            // navic - zadne GC dotazy ani DateTime.Now na vlakne kamery.
+            // navic - zadne GC dotazy ani cteni hodin na vlakne kamery.
             bool diagOn = diag != null;
 
             // wait = od porizeni snimku (T_in) po start dopoctu = kamera grab + kopie do bufferu.
-            double waitMs = diagOn ? (DateTime.Now - frame.TimeStamp).TotalMilliseconds : 0;
+            // TimeBase, ne DateTime.Now: razitko frame.TimeStamp je z TEZE zakladny, jinak by se
+            // latence po synchronizaci hodin (NTP) skokove rozjela. Viz TimeBase a CLAUDE.md.
+            double waitMs = diagOn ? (TimeBase.Now - frame.TimeStamp).TotalMilliseconds : 0;
 
             // DIAGNOSTIKA GC: alokace vlakna kamery behem Process (izoluje procesor) a gen2 pocitadlo
             // pred/po (potvrdi, zda spicka v compute = blokujici gen2 pauza).

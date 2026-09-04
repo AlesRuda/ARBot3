@@ -249,6 +249,7 @@ namespace ARBot.HAL.Devices.Camera
                         DateTime ts = D435Camera.CalcTimeStamp(pf.Timestamp);
                         return new IMUState()
                         {
+                            Name = Name,   // puvodce mereni - v robotovi muze byt IMU vic (viz IMUState.Name)
                             Translation = Translation2Vector3D(f.translation),
                             Velocity = Translation2Vector3D(f.velocity),
                             Acceleration = Translation2Vector3D(f.acceleration),

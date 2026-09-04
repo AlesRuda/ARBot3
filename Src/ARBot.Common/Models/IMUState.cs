@@ -29,7 +29,7 @@ namespace ARBot.Common.Models
     /// Fuze proto z T265 bere pitch/roll absolutne, ale yaw a polohu jen jako relativni (delta),
     /// resp. az po zarovnani na ENU.
     /// </remarks>
-    public class IMUState: SensorStateBase, ICloneable, IHistoryItem<IMUState>
+    public class IMUState: SensorStateBase, ICloneable, IHistoryItem<IMUState>, INamedMessage
     {
         /// <summary>
         /// Udaje z magnetometru [BODY frame]. Surove pole senzoru.
@@ -76,8 +76,22 @@ namespace ARBot.Common.Models
         /// </summary>
         public double Confidence { get; set; }
 
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// <b>Jmeno zdroje mereni</b> (napr. „VN100 IMU", „T265 925122110155", „VirtualIMU") -
+        /// tatáž hodnota jako <see cref="ARBot.Common.Devices.ISensor.Name"/> toho senzoru.
+        ///
+        /// <para><b>Nacpak to je:</b> IMU muze byt v robotovi <b>vic</b> (VN100 i T265 jsou
+        /// <c>IIMU</c>) a ze zpravy nebylo poznat, ze ktereho je - diagnostika „ktery senzor mlci"
+        /// pak mluvila jen o „IMUState" bez puvodce. Pridano 4. 9. 2026 na zadani autora; kvuli tomu
+        /// je verze formatu 2.</para>
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        /// <b>2</b> = pribylo <see cref="Name"/>; verze 1 (starsi zaznamy) ho nenese a cte se dal.
+        /// </summary>
+        public const int FormatVersion = 2;
 
         /// <summary>
         /// Konstruktor
@@ -120,6 +134,7 @@ namespace ARBot.Common.Models
             v.Velocity = Velocity;
             v.Magnetometer = Magnetometer;
             v.OrientationUncertainty = OrientationUncertainty;
+            v.Name = Name;              // puvodce mereni se klonovanim nesmi ztratit
 
             return v;
         }
@@ -289,6 +304,7 @@ namespace ARBot.Common.Models
         public override void ToData(BinaryWriter bw)
         {
             WriteMeta(bw);
+            bw.Write(Name ?? string.Empty);   // verze 2
             bw.Write(Confidence);
             Write(bw, Magnetometer);
             Write(bw, Acceleration);
@@ -303,7 +319,12 @@ namespace ARBot.Common.Models
         /// <inheritdoc/>
         public override void FromData(BinaryReader br)
         {
+            // Verzi nastavil MessageReader podle zaznamu - vetvime podle ni (viz doc/record-replay.md).
             ReadMeta(br);
+
+            // Verze 1 jmeno zdroje nenese; zustane prazdne, aby se starsi zaznamy daly prehrat.
+            Name = Verze >= 2 ? br.ReadString() : string.Empty;
+
             Confidence = br.ReadDouble();
             Magnetometer = ReadNullableVector3(br);
             Acceleration = ReadNullableVector3(br);

@@ -32,6 +32,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   26. 8. 2026; dřív byl jediná výjimka se stupni a byla to tichá past, viz
   [doc/decisions.md](doc/decisions.md)). Převod na stupně patří jen na **okraje**: drivery při
   parsování a UI/telemetrie při zobrazení.
+- **Čas měř přes `TimeBase.Now`, ne `DateTime.Now`/`UtcNow`.** `TimeBase` (`ARBot.Common/Common`) je
+  čas startu aplikace plus monotonní `Stopwatch` a **záměrně nesleduje skoky systémových hodin (NTP)**,
+  takže razítka jdou monotonně za sebou. Platí pro **razítka zpráv, měření dob, latencí a timeoutů** —
+  jinak se míchají dvě základny: `DateTime.Now − TimeStamp` se po synchronizaci hodin skokově rozjede
+  a proti `UtcNow` je navíc posunuté o offset zóny (u nás 1–2 h). Systémový čas zůstává jen tam, kde
+  je opravdu potřeba **kalendářní datum pro člověka**: jména souborů (`records/yyyyMMdd-HHmmss.rec`,
+  `logs/crash-*.log`), hlavička crash logu a seed generátoru. Sjednoceno 4. 9. 2026 na pokyn autora;
+  našly se přitom čtyři případy míchání (latence v `CameraFrameProcessor`, `PerfMsg` z `PerfCollector`,
+  `Info` z `TraceInfoBridge`, start mise v `RobotourMission`) — všechny šly do záznamu nebo do
+  diagnostiky, takže tam posun o dvě hodiny nebyl vidět jako chyba, jen jako nesmyslné číslo.
 - **Diagnostika poruch jde do `Trace`, ne do `Debug`.** `Debug.WriteLine` je
   `[Conditional("DEBUG")]`, takže v **Release** buildu — a právě ten běží na zařízení — po poruše
   nezůstane **žádná stopa**. Platí pro všechno, co vysvětluje, *proč něco nejede*: stav senzorů,
@@ -54,7 +64,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 59 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 61 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -87,8 +97,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   na HW → Run → Ctrl+C/SIGTERM/SIGHUP → `Stop()`. **Jen Run, žádný systemd, žádný restart po pádu**
   (robot, který se sám rozjede, je horší než robot, který stojí). Návratové kódy 0 / 2 (vadná
   konfigurace, jako UI) / pád. **Ověřeno na Windows** (UI i headless v simulaci, záznam z headless
-  čitelný, `Stop()` 4 ms), **na OrangePi neběželo** — seznam, co ověřit, je v dokumentu. Fáze 3
-  (webový náhled) se navrhne až po tom ověření.
+  čitelný, `Stop()` 4 ms), **na OrangePi neběželo** — seznam, co ověřit, je v dokumentu.
+  **Od 4. 9. 2026 má i webový náhled** (`web=<port>`, výchozí 0 = vypnuto): stránka s půdorysem
+  (occupancy grid pod sítí cest, póza, mrkev, dráha), snímkem kamery včetně **vrstvy „cesta z RGB"**
+  (`?layer=prob`, tedy kanál, který jde do gridu), tabulkou stavu a tlačítkem **Zastavit**.
+  Kreslení je v `ARBot.Common/Rendering` (vidí na to i `ARBot.Analyze`), HTTP v `ARBot.Runtime/Web`.
+  Klíčové vlastnosti: **líný render** (bez publika se nekreslí ani nekopíruje snímek, měřeno
+  13,9 % → 14,3 % CPU), **vlastní server nad `TcpListener`** (`HttpListener` na Windows bez admin
+  práv neumí jiný prefix než localhost) a **bez hesla na všech rozhraních** — kdokoli v síti může
+  robota zastavit, rozjet ne. Ověřeno na Windows v simulaci včetně prohlížeče; **na zařízení ne**
+  (pozor na fonty SkiaSharpu na ARM). Plán: [doc/plan-headless-web.md](doc/plan-headless-web.md).
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
   netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
 - [doc/devlog.md](doc/devlog.md) — **DevLog / deníček vývoje** (co se dělo den po dni);

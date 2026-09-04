@@ -39,6 +39,85 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-04
 
+- **Webový náhled headless — fáze 3 hotová** podle [plan-headless-web.md](plan-headless-web.md)
+  (návrh i tasky vznikly týž den), doména v [headless.md](headless.md), dvě rozhodnutí
+  v [decisions.md](decisions.md). Autor gate „až po ověření fáze 2 na zařízení" **vědomě přeskočil** —
+  na HW to teď nešlo vyzkoušet, takže je návrh postavený tak, aby náhled bez publika nestál nic.
+  - **Kreslení do `ARBot.Common/Rendering`:** `PlanViewRenderer` (půdorys: occupancy grid pod sítí
+    cest, póza, mrkev, ujetá dráha, měřítko) a `OccupancyPng` **přesunutý** z `WorldViewDocument`
+    (UI ho teď volá odtud — jedno místo, testy, a vidí na to i `ARBot.Analyze`). Při přesunu se
+    opravila vada: `handle.Free()` nebyl ve `finally`, takže při výjimce v kódování unikal připnutý
+    `GCHandle`. `ImageMsg.EncodeJpeg/EncodePng` jsou nově veřejné obálky nad existujícím kodérem.
+  - **HTTP do `ARBot.Runtime/Web`:** `HttpMini` (GET/POST parser oddělený od socketu), `WebStatus`
+    (latez-wins odběratel streamu + stránka a JSON), `WebPreviewServer` (`TcpListener`, jedno vlákno
+    s prioritou `BelowNormal`). Cesty `/`, `/world.png`, `/camera.jpg`, `/status.json`, `POST /stop`.
+    Zapíná parametr `web=<port>` (0 = vypnuto, výchozí), validátor odmítne privilegovaný port
+    **při startu**.
+  - **Dva nálezy, které změnily návrh.** `BackProjectProcessor` se v runtime vůbec nekonstruuje
+    (potvrdil autor), takže **`ImageMsg` do streamu nechodí** a náhled bere `CameraFrame.ImageRGB`;
+    jeho práci dnes dělá `CameraFrameProcessor` a výsledek nese `CameraFrame.ImageProbability` —
+    z čehož vznikla vrstva **„cesta z RGB"** (`?layer=prob`), tedy přímo ten kanál, který jde do
+    occupancy gridu. A `HttpListener` na Windows bez admin práv **neumí jiný prefix než localhost**
+    (naměřeno), proto vlastní server.
+  - **Líný render** je jádro věci: `Post` jen uloží referenci, kreslí se teprve na požadavek a snímek
+    kamery se **bez zájmu ani nekopíruje** (`CameraFrame` nese poolované buffery, kopie jde přes
+    `CameraFramePool`). Naměřeno **13,9 % CPU bez publika proti 14,3 % s obnovovanou stránkou**.
+  - **Ověřeno na Windows** (1 155 testů Common, 29 Runtime, build `x64` i `OrangePI`): stránka
+    proklikaná v prohlížeči včetně přepínače vrstvy a **tlačítka Zastavit** (proces skončil kódem 0,
+    `Stop()` 4 ms); mise FreeRun jela správně (odchylka −0,491 m proti −0,500, koridor 2,017 m).
+    404, 405 na `GET /stop`, kód 2 na neplatný port, obsazený port robota nezastaví.
+  - **Úpravy stránky na přání autora** (týž den, po prvním proklikání): **jeden obrázek** místo dvou
+    s přepínačem **půdorys | kamera | cesta** vlevo nad ním a tlačítkem **Zastavit vpravo**;
+    **volba měřítka 2 / 10 / 50 m** (délka úsečky, výřez je její čtyřnásobek — `?scale=`, u kamery
+    se skupina skryje); a **stav senzorů**, který si autor vyžádal jako „zda nejsou v chybě".
+    Senzor, jeho stav a věk jeho poslední zprávy jsou na **jednom údaji** (`Left: OK/75ms`) —
+    spárované podle **rozhraní** senzoru (`ICamera` / `IIMU` / `IGPS` / `IMotorControl`), protože
+    jméno senzoru a druh zprávy se neshodují (`VirtualIMU` posílá `IMUState`); u kamer se rozlišuje
+    ještě jménem. Chyba je červeně, měření starší 3 s oranžově. Kvůli tomu přibylo
+    `ARBotHW.HasCurrent`: čtení `Current` jinak instanci **založí a spustí init hardwaru**, což
+    náhled dělat nesmí (a v testech by sahal na skutečný HW).
+
+    ![Webový náhled headless — půdorys, senzory, stav](media/headless-web-nahled.png)
+
+  - ⚠️ **Nalezena a opravena vada: obraz na stránce zamrzl na prvním snímku.** Pool kopií snímků
+    (`CameraFramePool`) měl kapacitu **2**, ale kamery jsou **dvě** — po prvním snímku z každé už
+    nebyl volný slot, `Acquire` vracel `null` a všechny další snímky se **tiše zahazovaly**. Testy
+    to nechytily, protože posílaly jen jeden snímek z jedné kamery. Léčba: kapacita **4** (počet
+    kamer + rezerva na výměnu) a **hláška do `Trace` při vyčerpání** — právě ta tichost byla to
+    nejhorší. Hlídá `DveKamery_SeObeAktualizuji`, který nejdřív padal (40 místo 200).
+  - **Launch profily pro headless** (`Src/ARBot.Headless/Properties/launchSettings.json`, devět
+    profilů jako obdoba UI: virtuální HW, FreeRun na rovné mapě i v koridoru, se záznamem, Robotour,
+    dvě mapy s korelací, a jeden **bez náhledu** jako baseline CPU). Profily s náhledem mají
+    **`webopen=true`**, nový parametr, který po nastartování serveru otevře stránku v prohlížeči;
+    výchozí je vypnuto, protože na zařízení bez displeje nemá kde vyskočit.
+    ⚠️ **`launchBrowser` v launchSettings to neumí** — naměřeno: `dotnet run` u konzolové aplikace
+    tu vlastnost ignoruje (počet procesů prohlížeče se nezměnil, `commandLineArgs` z profilu se
+    použily). Je to vlastnost web projektů; i kdyby ji VS respektovalo, otevřelo by prohlížeč hned
+    při startu, tedy dřív než server naslouchá (headless čeká na HW plus 3 s). Zapsáno
+    v [headless.md](headless.md) i s pastí, že **nenačtený profil spustí `dotnet run` s reálným HW**.
+  - ⚠️ **Opravena geometrie sítě cest na půdorysu** (nalezl autor pohledem na náhled): kreslila se
+    jednou čarou o šířce `max` z obou uzlů, ale skutečná mapová „pravda" (`RoadScene`) je **kapsle
+    s lineárně interpolovanou polosirkou** (`From.Width * 0,5` → `To.Width * 0,5`), takže rozšiřující
+    se cesta má být **trychtýř**. Na mapě s nálevkou to neodpovídalo. Teď se kreslí trapéz mezi uzly
+    plus kruh v každém uzlu o poloměru jeho polosirky — dohromady kapsle, a v křižovatce se hrany
+    hladce napojí, protože uzel sdílejí. Hlídají `RozsirujiciSeCestaJeTRYCHTYR_NeKonstantniPruh`
+    a `SirkaPasuOdpovidaSirceCestyVMetrech`. **Nebyla to výkonová optimalizace, jen zjednodušení**;
+    cena je zanedbatelná (CPU 14,2 % v klidu, 15,8 % při deseti překreslení půdorysu za sekundu).
+  - **`IMUState` dostal `Name`** (jméno zdroje měření, verze zprávy **2**) na zadání autora: IMU může
+    být v robotovi víc (VN100 i T265 jsou `IIMU`) a ze zprávy nebylo poznat, ze kterého je, takže
+    diagnostika mluvila o „IMUState" bez původce. Jméno plní driver (`state.Name = Name;`, šest míst:
+    VN100 textový i binární, virtuální IMU, tři T265), `Clone()` ho přenáší a `FromData` čte jen při
+    `Verze >= 2`, takže starší záznamy se dál přehrají. Testy `IMUStateNameTests` (6).
+  - ⚠️ **Sjednocení času na `TimeBase.Now`** (pokyn autora „ať celá aplikace měří stejně") našlo
+    **čtyři místa, která míchala dvě časové základny**: latence `wait` v `CameraFrameProcessor`
+    (`DateTime.Now` proti razítku z `TimeBase`), hodiny `PerfCollector`u (`PerfMsg` do záznamu),
+    výchozí hodiny `TraceInfoBridge` (zprávy `Info` v záznamu) a start mise v `RobotourMission`
+    (a tím `ElapsedSec`). `TimeBase` schválně nesleduje skoky NTP, takže rozdíl se po synchronizaci
+    hodin rozjede a proti `UtcNow` je posunutý o offset zóny. Razítka senzorů byla z `TimeBase`
+    správně už dřív, včetně virtuálních. Pravidlo je teď v [CLAUDE.md](../CLAUDE.md), rozhodnutí
+    v [decisions.md](decisions.md).
+  - **Na OrangePi neběželo.** Nejnejistější místo je, jestli SkiaSharp na Armbianu nakreslí text
+    měřítka (fonty) — seznam v [headless.md](headless.md).
 - **Runtime bez UI — fáze 1 a 2 hotové** podle [plan-runtime-headless.md](plan-runtime-headless.md),
   doména v [headless.md](headless.md), dvě rozhodnutí v [decisions.md](decisions.md).
   - **Fáze 1:** nový projekt **`ARBot.Runtime`** (knihovna mezi HAL a aplikacemi, `x64;x86;OrangePI`);

@@ -1,0 +1,39 @@
+{
+  "profiles": {
+    "ARBot.Headless": {
+      "commandName": "Project"
+    },
+    "ARBot.Headless - virtualni HW + nahled (http://localhost:8080)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true web=8080 webopen=true map=OSM\\SyntetickyKoridor.osm"
+    },
+    "ARBot.Headless - mise FreeRun, rovna mapa + nahled": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true mission=freerun web=8080 webopen=true map=OSM\\SyntetickyRovny.osm"
+    },
+    "ARBot.Headless - mise FreeRun, rovna mapa + nahled + zaznam": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true mission=freerun web=8080 webopen=true record=true map=OSM\\SyntetickyRovny.osm"
+    },
+    "ARBot.Headless - mise FreeRun, koridor s nalevkou a krizovatkou": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true mission=freerun web=8080 webopen=true map=OSM\\SyntetickyKoridor.osm"
+    },
+    "ARBot.Headless - mise Robotour, rovna mapa (bez UI se QR kod necte, ceka v depu)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true mission=robotour web=8080 webopen=true map=OSM\\SyntetickyRovny.osm"
+    },
+    "ARBot.Headless - rovna mapa + koridor + nahled": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true web=8080 webopen=true map=OSM\\SyntetickyRovny.osm goal=50.028999979,14.522232996"
+    },
+    "ARBot.Headless - dve mapy (visionmap) + korelace + nahled": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true mapcorr=true web=8080 webopen=true map=OSM\\SyntetickyRovny.osm visionmap=OSM\\SyntetickyRovnyPosunuty.osm goal=50.028999979,14.522232996"
+    },
+    "ARBot.Headless - BEZ nahledu (baseline CPU pro srovnani s web=8080)": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true mission=freerun map=OSM\\SyntetickyRovny.osm"
+    }
+  }
+}

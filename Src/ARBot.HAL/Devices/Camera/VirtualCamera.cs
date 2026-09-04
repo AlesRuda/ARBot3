@@ -144,7 +144,7 @@ namespace ARBot.HAL.Devices.Camera
         private void WaitForNextTick()
         {
             int periodMs = Math.Max(1, 1000 / Math.Max(1, options.FrameRateHz));
-            var now = DateTime.UtcNow;
+            var now = TimeBase.Now;
 
             if (nextFrameAt == DateTime.MinValue)
             {

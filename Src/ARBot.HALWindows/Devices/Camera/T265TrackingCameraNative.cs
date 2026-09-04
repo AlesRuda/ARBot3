@@ -134,6 +134,7 @@ namespace ARBot.HAL.Devices.Camera
                 {
                     return new IMUState()
                     {
+                        Name = Name,   // puvodce mereni - v robotovi muze byt IMU vic (viz IMUState.Name)
                         Rotation = ToQuaternion(f.RotationX, f.RotationY, f.RotationZ, f.RotationW),
                         AngularVelocity = Angular2Vector3D(f.AngularVelocityX, f.AngularVelocityY, f.AngularVelocityZ),
                         AngularAcceleration = Angular2Vector3D(f.AngularAccelerationX, f.AngularAccelerationY, f.AngularAccelerationZ),

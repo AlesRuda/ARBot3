@@ -107,6 +107,7 @@ namespace ARBot.HAL.Devices.AHRS
                             state = new IMUState(q);
                             state.Confidence = 1;
                             state.TimeStamp = TimeBase.Now;
+                            state.Name = Name;
                         }
                         if (ls[0] == "VNQTR")
                         {
@@ -132,6 +133,7 @@ namespace ARBot.HAL.Devices.AHRS
                                 );
                             state.Confidence = 1;
                             state.TimeStamp = TimeBase.Now;
+                            state.Name = Name;
                         }
                         if (ls[0] == "VNQMA")
                         {
@@ -155,6 +157,7 @@ namespace ARBot.HAL.Devices.AHRS
 
                             state.Confidence = 1;
                             state.TimeStamp = TimeBase.Now;
+                            state.Name = Name;
                         }
                         if (ls.Count > 2 && ls[0] == "VNRRG" && ls[1] == "9")
                         {
@@ -169,6 +172,7 @@ namespace ARBot.HAL.Devices.AHRS
                             state = new IMUState(q);
                             state.Confidence = 1;
                             state.TimeStamp = TimeBase.Now;
+                            state.Name = Name;
                         }
                     }
                     else

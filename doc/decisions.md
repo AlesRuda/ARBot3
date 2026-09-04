@@ -13,6 +13,52 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-04 — Čas se všude měří přes `TimeBase.Now`, ne `DateTime.Now`/`UtcNow`
+**Co:** razítka zpráv, měření dob, latencí a timeoutů berou čas z `TimeBase.Now` (čas startu aplikace
+plus monotonní `Stopwatch`). Systémový čas zůstal jen tam, kde je potřeba kalendářní datum pro
+člověka: jména souborů (`records/*.rec`, `logs/crash-*.log`), hlavička crash logu a seed generátoru.
+Pravidlo je v [CLAUDE.md](../CLAUDE.md).
+**Proč (pokyn autora):** aby celá aplikace měřila stejně. Razítka senzorů z `TimeBase` už tak byla
+(včetně virtuálních), ale **čtyři místa je porovnávala se systémovými hodinami**, což míchá dvě
+základny: `TimeBase` schválně nesleduje skoky NTP, takže se rozdíl po synchronizaci hodin skokově
+rozjede, a proti `UtcNow` je navíc posunutý o offset zóny (u nás 1–2 h).
+**Nalezená míchání:** latence `wait` v `CameraFrameProcessor` (`DateTime.Now − frame.TimeStamp`),
+hodiny `PerfCollector`u (`PerfMsg.From/To` jde do záznamu vedle měření z `TimeBase`), výchozí hodiny
+`TraceInfoBridge` (zprávy `Info` v záznamu) a start mise v `RobotourMission` (fallback `UtcNow` proti
+`lastTime` z razítek, tedy i `ElapsedSec`). Všechno šlo do záznamu nebo do diagnostiky, kde se posun
+o dvě hodiny neprojeví jako chyba, jen jako nesmyslné číslo — proto to nikdo nenahlásil.
+**Důsledky:** interní časovače, které se porovnávaly samy se sebou (perioda virtuálních senzorů,
+backoff v `Uart.ReOpen`), se sjednotily taky, i když tam vada nebyla. Odkazy: `TimeBase`,
+[headless.md](headless.md).
+
+### 2026-09-04 — Náhled headless je vlastní HTTP nad `TcpListener`, ne `HttpListener`
+**Co:** webový náhled v `ARBot.Headless` stojí na `TcpListener` s vlastním GET/POST parserem
+(`ARBot.Runtime/Web/HttpMini.cs`, ~130 řádků), ne na `System.Net.HttpListener` ani na Kestrelu.
+**Proč:** naměřeno, že `HttpListener` na Windows **bez administrátorských práv nepřijme jiný prefix
+než `localhost`** — `http://+:port/` i `http://*:port/` skončí „Přístup byl odepřen", zatímco na
+Linuxu by fungovaly. Ladil by se tedy jiný stav, než jaký běží na Pi, a to je přesně ten druh
+rozdílu, který se pak hledá na soutěži. `HttpListener` je navíc v .NET vedený jako nedoporučovaný
+pro nový kód a na Linuxu je to stejně managed server nad socketem, takže se tou volbou nic neušetří.
+Kestrel padl na YAGNI: framework reference a vlastní thread pool v procesu, který řídí robota, kvůli
+pěti GET cestám.
+**Důsledky:** chování je na Windows i na Pi totožné a nepotřebuje URL ACL. Parser je oddělený od
+socketu, takže se testuje nad `MemoryStream` (13 testů). Zaplatilo se tím, že HTTP píšeme sami —
+proto žádný keep-alive, žádný chunked a strop 8 kB na hlavičku.
+Odkazy: [headless.md](headless.md), [plan-headless-web.md](plan-headless-web.md).
+
+### 2026-09-04 — Webový náhled umí jen čtení a zastavení, bez hesla
+**Co:** stránka ukazuje stav a nabízí jediný zásah — `POST /stop`, který zastaví runtime a ukončí
+proces. Zadávání cíle ani start mise z webu **není**. Server poslouchá na všech rozhraních **bez
+autentizace**; vypnuto je výchozí stav (`web=0`).
+**Proč:** robot je na uzavřené síti a dohlíží se na něj z mobilu, kde otevírat ssh nikdo nechce.
+Zastavení je **bezpečnější strana**: nejhorší, co udělá cizí v síti, je že robota zastaví. Rozjezd
+by tu asymetrii obrátil, a proto na webu nebude nikdy — pak by heslo bylo nutné. `GET /stop` vrací
+405 schválně, aby zastavení nevyvolal prefetch prohlížeče nebo náhled odkazu.
+**Důsledky:** kdokoli v té síti může robota zastavit; je to vědomé. Náhled nesmí ohrozit řízení,
+takže se **kreslí až na požadavek** a snímek kamery se bez zájmu ani nekopíruje (13,9 % → 14,3 %
+CPU procesu, měřeno na Windows). Selhání bindu náhled vypne, ale běh nezastaví — stejná zásada
+jako u nezaložitelného záznamu. Odkazy: [headless.md](headless.md).
+
 ### 2026-09-04 — Řídicí runtime do vlastního projektu `ARBot.Runtime`, ne do `Common` ani do UI
 **Co:** `ARBotRuntime`, `ARBotHW`, `NeoPixelProcessor`, `VirtualHWOptions` a `CrashLog` se přesunuly
 (`git mv`, historie zachovaná) z `Src/ARBot/Robot` do nové knihovny `ARBot.Runtime` mezi HAL

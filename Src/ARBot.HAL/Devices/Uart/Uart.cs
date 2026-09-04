@@ -189,7 +189,7 @@ namespace ARBot.HAL.Devices.Uart
             // Neblokujici backoff: mezi neuspesnymi pokusy o otevreni nedelame nic (hned
             // vracime false), misto abychom spali na volajicim vlakne. Throtlovani cteci
             // smycky resi volajici (Read/Process idle-sleep).
-            DateTime now = DateTime.UtcNow;
+            DateTime now = ARBot.Common.Common.TimeBase.Now;
             if ((now - lastOpenAttempt).TotalMilliseconds < ReopenBackoffMs)
                 return false;
             lastOpenAttempt = now;

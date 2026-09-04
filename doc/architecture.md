@@ -8,14 +8,16 @@ ARBot.Headless (konzole) ──►  (týž ARBot.Runtime)                       
 ```
 
 - **`ARBot.Common`** — doménové modely, algoritmy, EKF fúze (`Fusion/`), souřadnice,
-  navigace. **Nesmí referencovat HAL** (je „dole").
+  navigace. **Nesmí referencovat HAL** (je „dole"). Od 4. 9. 2026 obsahuje i `Rendering/`
+  (kreslení **ze zpráv** do PNG přes SkiaSharp: `PlanViewRenderer`, `OccupancyPng`).
 - **`ARBot.HAL`** — rozhraní a společné ovladače senzorů (`IIMU`, `IGPS`,
   `IMotorControl`, `ISensor`, `IUart`, …). Referencuje `Common`.
 - **`ARBot.HALWindows` / `ARBot.HALArmbian`** — platformové implementace (RealSense
   kamery apod.), viz [build-and-platforms.md](build-and-platforms.md).
 - **`ARBot.Runtime`** (od 4. 9. 2026) — **řídicí runtime bez UI**: `ARBotRuntime` (graf zpracování,
   fúze, řízení, mise, záznam), kompozice HW `ARBotHW`, `CrashLog`, `RuntimeBootstrap` (bootstrap
-  parametrů). Namespace zůstal `ARBot.Robot`. Sám si vybírá platformový HAL podle `Platform`
+  parametrů) a `Web/` (webový náhled: `HttpMini`, `WebStatus`, `WebPreviewServer`).
+  Namespace zůstal `ARBot.Robot`. Sám si vybírá platformový HAL podle `Platform`
   a nese do výstupu `config/*.cfg` a `OSM/*.osm`. **Nesmí znát UI** — žádný `PackageReference`
   na Avalonia/Dock/Mapsui; test pravidla je `grep "using Avalonia" Src/ARBot.Runtime` prázdný.
 - **`ARBot`** — Avalonia UI (Dock, MVVM); s runtime mluví přes `ARBotRuntime.Current`
@@ -36,6 +38,10 @@ ARBot.Headless (konzole) ──►  (týž ARBot.Runtime)                       
   měří UI čítače a potřebují Avalonii), `Telemetry/`, `FilteredTraceLogSink`, tenký `Program.cs`.
 - **`ARBot.Headless`** — jen `Program.cs` nad `ARBot.Runtime`; co potřebují obě aplikace,
   patří do runtime, ne sem.
+- **Kreslení obrázku ze zpráv patří do `ARBot.Common/Rendering`**, ne do aplikace: je to funkce
+  zprávy (grid, mapa, póza → PNG), nepotřebuje UI ani HAL, a z Common na to vidí i `ARBot.Analyze`,
+  takže se týž půdorys dá nakreslit ze záznamu. **HTTP a skládání stránky patří do `ARBot.Runtime/Web`**,
+  protože potřebují `ARBotRuntime.Stream`. Viz [headless.md](headless.md).
 - **UI dokovatelné dokumenty/nástroje**: viz
   [Src/ARBot/ARBot/Views/README.md](../Src/ARBot/ARBot/Views/README.md).
 

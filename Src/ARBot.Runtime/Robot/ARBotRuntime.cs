@@ -327,7 +327,10 @@ namespace ARBot.Robot
                     TimeSpan.FromMilliseconds(Profile.Ts),
                     TimeSpan.FromSeconds(1),
                     stream,
-                    () => DateTime.UtcNow,
+                    // TimeBase, ne DateTime.UtcNow: PerfMsg nese From/To do zaznamu vedle mereni
+                    // razitkovanych z TimeBase, takze telemetrie by je jinak ukazala posunute
+                    // o offset zony. Viz CLAUDE.md.
+                    () => TimeBase.Now,
                     ParamRegistry.PerfWarn.Value);
                 scheduler.Metrics = perf.Metrics;
             }

@@ -199,8 +199,11 @@ namespace ARBot.Common.Missions
             {
                 if (phase != RobotourPhase.Idle) return;
 
-                // Razitko pro zpravu: cas poslednich dat, a dokud zadna nejsou, hodiny stroje.
-                var stamp = lastTime == default ? DateTime.UtcNow : lastTime;
+                // Razitko pro zpravu: cas poslednich dat, a dokud zadna nejsou, hodiny aplikace.
+                // MUSI to byt TimeBase (ne DateTime.UtcNow): lastTime pochazi z razitek zprav, ktera
+                // jsou z TimeBase, a michanim zakladen by missionStartedAt (a tim ElapsedSec) vyslo
+                // o offset zony mimo. Viz TimeBase a CLAUDE.md.
+                var stamp = lastTime == default ? ARBot.Common.Common.TimeBase.Now : lastTime;
                 anchored = false;
                 missionStartedAt = stamp;
                 fixWindow.Clear();

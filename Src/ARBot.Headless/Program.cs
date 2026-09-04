@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using ARBot.Common.Configuration;
 using ARBot.Robot;
+using ARBot.Robot.Web;
 
 namespace ARBot.Headless
 {
@@ -47,10 +48,12 @@ namespace ARBot.Headless
             //    registr je zna, takze start neshodi; autorun= s hlaskou, protoze tady je Run vzdy.
             string mise = ParamRegistry.Mission.Value ?? "none";
             bool miseZapnuta = !ParamRegistry.Mission.Is("none");
+            int webPort = (int)ParamRegistry.Web.Value;
             Trace.WriteLine("ARBot.Headless: rezim Run bez UI."
                 + $" HW: {(ParamRegistry.VirtualHw.Value ? "virtualni (virtualhw=true)" : "skutecny")};"
                 + $" mise: {mise};"
-                + $" zaznam: {PopisZaznamu()}.");
+                + $" zaznam: {PopisZaznamu()};"
+                + $" nahled: {(webPort > 0 ? "http://<ip>:" + webPort + "/" : "vypnuty (web=0)")}.");
             if (miseZapnuta)
                 Trace.WriteLine("POZOR: mise je zapnuta - robot se rozjede bez dalsiho pokynu, "
                     + "jakmile bude HW pripravene. Zastavi ho jen nouzove zastaveni nebo ukonceni procesu.");
@@ -71,6 +74,35 @@ namespace ARBot.Headless
             };
             using var sigterm = RegistrujSignal(PosixSignal.SIGTERM, "SIGTERM", () => { duvod ??= "SIGTERM"; konec.Set(); });
             using var sighup = RegistrujSignal(PosixSignal.SIGHUP, "SIGHUP", () => { duvod ??= "SIGHUP"; konec.Set(); });
+
+            // 4b) Webovy nahled (web=<port>, 0 = vypnuto). Startuje PRED Run schvalne: kdyby se HW
+            //     nerozjelo, je stranka jedine, co o tom rekne. Selhani bindu nahled vypne, ale beh
+            //     NEZASTAVI - stejna zasada jako u zaznamu. Viz doc/headless.md.
+            WebStatus? webStatus = null;
+            WebPreviewServer? web = null;
+            IDisposable? webConnection = null;
+            if (webPort > 0)
+            {
+                webStatus = new WebStatus();
+                web = new WebPreviewServer(webStatus, () =>
+                {
+                    duvod ??= "web /stop";
+                    konec.Set();
+                });
+                if (web.Start(webPort))
+                {
+                    // Pripojeni na Stream prezije Stop() runtime (neni v jeho connections), takze
+                    // stranka drzi posledni stav i po zastaveni - a odpoji se az na konci procesu.
+                    webConnection = ARBotRuntime.Current.Stream.Connect(webStatus);
+                    if (ParamRegistry.WebOpen.Value) OtevriNahled(web.Port);
+                }
+                else
+                {
+                    web.Dispose();
+                    web = null;
+                    webStatus = null;
+                }
+            }
 
             try
             {
@@ -106,7 +138,42 @@ namespace ARBot.Headless
             ARBotRuntime.Current.Stop();
             sw.Stop();
             Trace.WriteLine($"Runtime zastaven za {sw.ElapsedMilliseconds} ms. Konec.");
+
+            // 9) Nahled drzel posledni stav i po Stop(), ale proces uz konci - odpojit a zavrit.
+            try { webConnection?.Dispose(); } catch (Exception ex) { Trace.WriteLine("web: odpojeni selhalo: " + ex.Message); }
+            try { web?.Dispose(); } catch (Exception ex) { Trace.WriteLine("web: zavreni selhalo: " + ex.Message); }
             return 0;
+        }
+
+        /// <summary>
+        /// Otevre stranku nahledu ve vychozim prohlizeci (<c>webopen=true</c>). Slouzi vyvoji na
+        /// Windows - launch profil tim usetri kopirovani adresy. <b>Na zarizeni bez displeje to
+        /// nema kde vyskocit</b>, proto je parametr vychozi vypnuty a selhani se jen ohlasi.
+        ///
+        /// <para><c>localhost</c> zamerne: prohlizec bezi na temze stroji jako proces. Adresu pro
+        /// pristup ze site vypisuje uvodni radek.</para>
+        /// </summary>
+        private static void OtevriNahled(int port)
+        {
+            string url = "http://localhost:" + port + "/";
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    // UseShellExecute = predat URL registrovanemu prohlizeci.
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                }
+                else
+                {
+                    Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = false });
+                }
+                Trace.WriteLine("webopen=true: otevrena stranka " + url);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"webopen=true: prohlizec se nepodarilo otevrit ({ex.Message}) "
+                                + $"-> otevri {url} rucne. Beh to nijak neovlivnuje.");
+            }
         }
 
         /// <summary>Lidsky popis parametru <c>record=</c> pro uvodni radek.</summary>
