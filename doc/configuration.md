@@ -27,8 +27,8 @@
 **Výchozí stav (do 31. 8. 2026):** aplikace se konfigurovala **výhradně z příkazové řádky** přes
 `Program.GetParam*` ([Program.cs](../Src/ARBot/Program.cs)) a klíč nikde neexistoval jako věc — byl
 to string literál na místě čtení (`Program.GetParamBool("mapcorr", false)`), a těch míst je ~50,
-hlavně v [ARBotRuntime.cs](../Src/ARBot/Robot/ARBotRuntime.cs),
-[ARBotHW.cs](../Src/ARBot/Robot/ARBotHW.cs) a [SelfTest.cs](../Src/ARBot/Diagnostics/SelfTest.cs).
+hlavně v [ARBotRuntime.cs](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs),
+[ARBotHW.cs](../Src/ARBot.Runtime/Robot/ARBotHW.cs) a [SelfTest.cs](../Src/ARBot/Diagnostics/SelfTest.cs).
 
 Z toho plynuly dvě bolesti, které tenhle návrh řeší:
 
@@ -146,14 +146,31 @@ kontrolou shody, a pět parametrů mělo `DefaultFromCode` s textovým popisem m
 ## Precedence
 
 ```
-default z registru  →  soubor (config=…)  →  příkazová řádka
+default z registru  →  soubor (config=…)  →  příkazová řádka  →  zvoleno za běhu
 ```
 
 Příkazová řádka přebíjí soubor **záměrně**: jinak by přestalo platit existující skriptované A/B
 měření a vzniklá past („proč mi `mapcorr=true` nic nedělá") by byla tichá.
 
-`ParamStore` si u každého klíče pamatuje **původ** (default / soubor / příkazová řádka). Panel ho
-zobrazí — „proč to má tuhle hodnotu" je stejně častá otázka jako „co to vůbec je".
+`ParamStore` si u každého klíče pamatuje **původ** (default / soubor / příkazová řádka / zvoleno za
+běhu). Panel ho zobrazí — „proč to má tuhle hodnotu" je stejně častá otázka jako „co to vůbec je".
+
+### `ParamOrigin.Runtime` — hodnota zvolená za běhu (5. 9. 2026)
+
+`ParamStore.SetRuntimeOverride(klíč, hodnota)` přepíše parametr **za běhu** a označí ho původem
+`Runtime`. Dnes to má jediného uživatele: **výběr mise z webového náhledu** headless aplikace
+([headless.md](headless.md#výběr-mise-dvoufázový-běh)) — robot bez displeje musí umět dostat úkol
+od člověka, který u něj stojí.
+
+**Bílá listina klíčů je záměrná** (dnes jen `mission`): konfigurace se skládá jednou při startu
+a mutovatelné globální nastavení je přesně to, čemu se registr vyhýbá. Hodnota se před zápisem
+ověřuje registrem a kanonizuje, takže neplatná mise skončí chybou, ne tichým přepisem.
+
+**Proč vůbec přes store, a ne parametrem do `ARBotRuntime.Start`:** misi čte `Start` z registru
+a účinná konfigurace teče do záznamu. Kdyby se hodnota předala bokem, `.rec` by tvrdil
+`mission=none`, i když se jelo. ⚠️ Přesně tahle past sklapla při první zkoušce: `DescribeAll` měla
+ve `switch`i `_ => "default"`, takže nový původ propadl a výpis hlásil `mission=freerun  (default)`.
+Opraveno i v panelu *Konfigurace*.
 
 ## Chování při chybě
 
@@ -292,6 +309,22 @@ prázdná hodnota nebo `false` znamená bez záznamu.
 **Pořadí:** cesta předaná volajícím (tlačítko *Run + záznam*) profil **přebíjí** — výslovná volba
 člověka nad nastavením, stejně jako příkazová řádka nad profilem. Řeší to jedno místo
 (`ARBotRuntime.Start`), takže na tom nezáleží, odkud se Run spustil.
+
+## Datový adresář (`dataroot=`)
+
+`dataroot=<cesta>` určuje, **proti čemu se řeší relativní cesty** — záznamy, `logs/`, profily,
+mapy — místo kořene repa (resp. adresáře aplikace při nasazení). Prázdná hodnota = dosavadní
+chování, takže na Windows se nemění nic.
+
+**Nač to je:** na zařízení se nasazuje **stínovou kopií** — binárky běží z kopie bokem, protože
+běžící .NET binárku nejde přepsat — a data musí zůstat v původním adresáři, jinak by se s každou
+novou kopií ztrácela. Viz [headless.md](headless.md#datový-adresář-dataroot) a
+[deploy/README.md](../deploy/README.md).
+
+⚠️ **Čte se jen z příkazové řádky a dřív než `config=`.** Proti datovému adresáři se hledá i profil,
+takže v profilu by hodnota přišla pozdě — `dataroot` v profilu je proto **chyba při startu**
+s vysvětlením, ne tiché ignorování. Je to stejný druh výjimky jako `config=`, jen na rozdíl od něj
+je `dataroot` v registru (aby se objevil ve výpisu konfigurace a v panelu).
 
 ## Strop rychlosti (`maxspeed=`)
 

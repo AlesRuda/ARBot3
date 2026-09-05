@@ -179,6 +179,11 @@ namespace ARBot.Common.Configuration
         public static readonly BoolParam Perf = Bool("perf", "true", K_DIAG,
               "Meri, jestli ridici smycka stiha svou periodu (zprava PerfMsg 1x za sekundu). "
               + "Viz doc/perf-monitoring.md.");
+        public static readonly StringParam DataRoot = Text("dataroot", null, K_DIAG,
+              "Datovy adresar: proti nemu se resi VSECHNY relativni cesty (zaznamy, logy, profily, "
+              + "mapy) misto korene repa / adresare aplikace. Pro nasazeni stinovou kopii - binarky "
+              + "bezi z kopie bokem, data zustavaji v puvodnim adresari. Jen z PRIKAZOVE RADKY: "
+              + "profil se hleda az podle nej. Prazdne = dosavadni chovani.");
         public static readonly StringParam Record = Text("record", null, K_DIAG,
               "Zaznam behu pri startu rezimu Run: 'true' zalozi records/yyyyMMdd-HHmmss.rec "
               + "v korenu repa, jinak se hodnota bere jako CESTA k .rec souboru (relativni "

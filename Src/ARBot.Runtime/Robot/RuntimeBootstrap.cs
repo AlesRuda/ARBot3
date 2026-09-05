@@ -42,6 +42,12 @@ namespace ARBot.Robot
         {
             if (log == null) throw new ArgumentNullException(nameof(log));
 
+            // Verze bezici binarky JAKO PRVNI radek - jde toutez cestou jako konfigurace, tedy
+            // i do zaznamu. Bez ni neslo u zaznamu ani u hlaseni z terenu poznat, ktera binarka
+            // ho porizovala; na zarizeni se nasazuje casto a z rozpracovane kopie. Je to jedno
+            // misto pro obe aplikace - proto tady, a ne dvakrat v Program.Main. Viz BuildInfo.
+            log("ARBot verze: " + BuildInfo.Current.Popis());
+
             try
             {
                 var store = ParamStore.Build(commandLine);
@@ -60,6 +66,14 @@ namespace ARBot.Robot
             {
                 return "Chyba konfigurace: " + ex.Message;
             }
+
+            // Datovy adresar uz nastavil ParamStore.Build (musi platit driv, nez se resi config=).
+            // Crash log se sem prepne AZ TED: Install() bezi driv nez konfigurace, takze pad pred
+            // jejim nactenim skonci vedle aplikace - vedomy ustupek, viz CrashLog.LogDirectory.
+            CrashLog.LogDirectory = RepoPaths.DataRoot;
+            if (ParamRegistry.DataRoot.IsSet)
+                log($"Datovy adresar: dataroot={ParamRegistry.DataRoot.Value} -> {RepoPaths.DataRoot}"
+                    + " (sem jdou zaznamy, logy a odsud se ctou profily a mapy).");
 
             // Strop rychlosti z parametru maxspeed=. MUSI to byt tady, pred startem UI / Run.
             ApplyMaxSpeedFromParams();

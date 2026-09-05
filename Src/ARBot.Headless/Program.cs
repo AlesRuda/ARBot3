@@ -27,6 +27,13 @@ namespace ARBot.Headless
         {
             // 1) Konzole je jediny displej. Trace je zamerne (Debug.WriteLine v Release mlci, viz
             //    CLAUDE.md); vypis jde zaroven pres TraceInfoBridge do zaznamu, kdyz bezi.
+            //
+            //    Clear() PRED pridanim naseho listeneru: vychozi DefaultTraceListener pise na
+            //    Linuxu do SYSLOGU, takze pod systemd (kde journal sbira stdout i syslog) byl
+            //    KAZDY RADEK V JOURNALU DVAKRAT - jednou _TRANSPORT=stdout, jednou =syslog
+            //    (nalezeno na Orange Pi 5. 9. 2026). Na Windows to videt neni: tam tentyz listener
+            //    pise do debuggeru, kam se v konzolove aplikaci nikdo nediva.
+            Trace.Listeners.Clear();
             Trace.Listeners.Add(new ConsoleTraceListener());
             Trace.AutoFlush = true;
 
@@ -43,6 +50,19 @@ namespace ARBot.Headless
                 return RuntimeBootstrap.ExitCodeBadConfig;
             }
 
+            // 3b) Zamek jedne instance - HNED po konfiguraci (potrebuje dataroot=) a PRED
+            //     jakymkoli sahnutim na hardware. Druha instance vedle bezici jednotky systemd by
+            //     sahla na tytez UARTy a kamery; port nahledu se ostetri sam, takze by to zvenci
+            //     vypadalo, ze vse bezi - jen by stranka ukazovala tu prvni. Viz SingleInstanceLock.
+            using var zamek = SingleInstanceLock.TryAcquire(
+                ARBot.Common.Configuration.RepoPaths.DataRootOrBase(), out string? zamekChyba);
+            if (zamek == null)
+            {
+                Console.Error.WriteLine(zamekChyba);
+                Trace.WriteLine(zamekChyba);
+                return SingleInstanceLock.ExitCodeAlreadyRunning;
+            }
+
             // 4) Co se chysta - at je v konzoli (a v zaznamu) videt, s cim se startovalo.
             //    UI parametry (selftest=, open=, worldshot=, telemetryshot=) se ignoruji tise -
             //    registr je zna, takze start neshodi; autorun= s hlaskou, protoze tady je Run vzdy.
@@ -55,8 +75,15 @@ namespace ARBot.Headless
                 + $" zaznam: {PopisZaznamu()};"
                 + $" nahled: {(webPort > 0 ? "http://<ip>:" + webPort + "/" : "vypnuty (web=0)")}.");
             if (miseZapnuta)
-                Trace.WriteLine("POZOR: mise je zapnuta - robot se rozjede bez dalsiho pokynu, "
-                    + "jakmile bude HW pripravene. Zastavi ho jen nouzove zastaveni nebo ukonceni procesu.");
+                Trace.WriteLine("POZOR: mise je zapnuta - jakmile bude HW pripravene, mise zacne bez dalsiho "
+                    + "pokynu. FreeRun se rovnou rozjede; Robotour se sam nastartuje, ale prvni pohyb ceka "
+                    + "na stisk a uvolneni nouzoveho zastaveni. Zastavi ho stop nebo ukonceni procesu.");
+            else if (webPort > 0)
+                Trace.WriteLine("Mise nezadana - po startu se ceka, az ji nekdo vybere na strance nahledu "
+                    + "(jen pri drzenem nouzovem zastaveni). Do te doby robot stoji a NENAHRAVA se.");
+            else
+                Trace.WriteLine("POZOR: mise nezadana a nahled vypnuty (web=0) - neni cim misi vybrat, "
+                    + "robot bude jen stat. Zadej mission= nebo web=<port>.");
             if (ParamRegistry.AutoRun.Value)
                 Trace.WriteLine("autorun=true se v headless ignoruje: Run startuje vzdy, je to jediny duvod existence procesu.");
 
@@ -66,6 +93,7 @@ namespace ARBot.Headless
             //    startu nepropadl vychozimu chovani (okamzity konec bez Stop).
             using var konec = new ManualResetEventSlim(false);
             string? duvod = null;
+            string? zvolenaMise = null;
             Console.CancelKeyPress += (s, e) =>
             {
                 e.Cancel = true;
@@ -81,19 +109,34 @@ namespace ARBot.Headless
             WebStatus? webStatus = null;
             WebPreviewServer? web = null;
             IDisposable? webConnection = null;
+            ManualResetEventSlim? cekaniNaMisi = null;
             if (webPort > 0)
             {
                 webStatus = new WebStatus();
-                web = new WebPreviewServer(webStatus, () =>
-                {
-                    duvod ??= "web /stop";
-                    konec.Set();
-                });
+                var vybranaMise = new ManualResetEventSlim(false);
+                web = new WebPreviewServer(webStatus,
+                    onStop: () =>
+                    {
+                        duvod ??= "web /stop";
+                        konec.Set();
+                    },
+                    // Vyber mise ze stranky: jen kdyz zadna zadana nebyla (jinak by web prebijel
+                    // to, s cim clovek proces spustil). Hodnota jde do ParamStore, ne bokem - aby
+                    // ji Start precetl z registru a ucinna konfigurace v zaznamu nelhala.
+                    onMission: miseZapnuta ? null : (string m) =>
+                    {
+                        ParamStore.Current.SetRuntimeOverride("mission", m);
+                        zvolenaMise = m;
+                        vybranaMise.Set();
+                    });
                 if (web.Start(webPort))
                 {
                     // Pripojeni na Stream prezije Stop() runtime (neni v jeho connections), takze
                     // stranka drzi posledni stav i po zastaveni - a odpoji se az na konci procesu.
                     webConnection = ARBotRuntime.Current.Stream.Connect(webStatus);
+                    // Na misi se ceka JEN kdyz stranka opravdu bezi - jinak by neexistoval nikdo,
+                    // kdo misi vybere, a proces by cekal navzdy.
+                    if (!miseZapnuta) cekaniNaMisi = vybranaMise;
                     if (ParamRegistry.WebOpen.Value) OtevriNahled(web.Port);
                 }
                 else
@@ -101,6 +144,8 @@ namespace ARBot.Headless
                     web.Dispose();
                     web = null;
                     webStatus = null;
+                    vybranaMise.Dispose();
+                    Trace.WriteLine("Nahled nebezi, takze neni cim vybrat misi -> robot bude jen stat.");
                 }
             }
 
@@ -117,12 +162,42 @@ namespace ARBot.Headless
                 }
 
                 // 6) Run. Zaznam resi parametr record= uvnitr Start (stejne jako autorun) - jedna
-                //    logika, zadne dublovani. Start se vola presne jednou: druhy Start by nejdriv
-                //    zavolal Stop toho prvniho.
-                ARBotRuntime.Current.Start(Mode.Run);
-                Trace.WriteLine("Run bezi. Ukonceni: Ctrl+C, nebo kill <pid> z druhe session.");
+                //    logika, zadne dublovani.
+                //
+                //    BEZ ZADANE MISE se jede NADVAKRAT (doc/plan-headless-provoz.md, navrh A):
+                //    nejdriv Run bez mise a BEZ ZAZNAMU, aby stranka ukazala senzory, kameru
+                //    a hlavne stav nouzoveho zastaveni - bez bezicich zdroju totiz o stopu nevime
+                //    vubec nic, a prave na nem stoji pojistka vyberu mise. Az kdyz clovek misi
+                //    vybere, runtime se prestavi s ni (Start si sam zavola Stop) a od TE CHVILE
+                //    se nahrava: jeden .rec = jedna mise, a cekani nezaplni disk (~19 MB/s).
+                if (cekaniNaMisi != null)
+                {
+                    ARBotRuntime.Current.Start(Mode.Run, ARBotRuntime.NoRecord);
+                    webStatus!.AwaitingMission = true;
+                    Trace.WriteLine("Ceka se na vyber mise na strance. Robot stoji, zaznam nebezi.");
 
-                konec.Wait();
+                    // Cekat na volbu NEBO na ukonceni - obojim se ceka jen tady, aby Ctrl+C
+                    // fungovalo i pred vyberem mise.
+                    int co = WaitHandle.WaitAny(new[] { cekaniNaMisi.WaitHandle, konec.WaitHandle });
+                    if (co == 1)
+                    {
+                        Trace.WriteLine($"Ukonceni ({duvod}) jeste pred vyberem mise.");
+                    }
+                    else
+                    {
+                        webStatus.AwaitingMission = false;
+                        Trace.WriteLine($"Mise zvolena z webu: {zvolenaMise}. Prestavuji runtime a zacinam zaznam.");
+                        ARBotRuntime.Current.Start(Mode.Run);
+                        Trace.WriteLine("Run s misi bezi. Ukonceni: Ctrl+C, tlacitko na strance, nebo kill <pid>.");
+                        konec.Wait();
+                    }
+                }
+                else
+                {
+                    ARBotRuntime.Current.Start(Mode.Run);
+                    Trace.WriteLine("Run bezi. Ukonceni: Ctrl+C, nebo kill <pid> z druhe session.");
+                    konec.Wait();
+                }
                 Trace.WriteLine($"Ukonceni ({duvod}): zastavuji runtime...");
             }
             catch (Exception ex)
@@ -140,6 +215,7 @@ namespace ARBot.Headless
             Trace.WriteLine($"Runtime zastaven za {sw.ElapsedMilliseconds} ms. Konec.");
 
             // 9) Nahled drzel posledni stav i po Stop(), ale proces uz konci - odpojit a zavrit.
+            try { cekaniNaMisi?.Dispose(); } catch (Exception ex) { Trace.WriteLine("web: uklid cekani selhal: " + ex.Message); }
             try { webConnection?.Dispose(); } catch (Exception ex) { Trace.WriteLine("web: odpojeni selhalo: " + ex.Message); }
             try { web?.Dispose(); } catch (Exception ex) { Trace.WriteLine("web: zavreni selhalo: " + ex.Message); }
             return 0;

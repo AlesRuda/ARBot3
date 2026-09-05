@@ -179,6 +179,86 @@ public class RobotourMissionTests
         return (h, T0.AddSeconds(7));
     }
 
+    // ---------------- Hlaseni stavu (IMissionStatus) ----------------
+
+    /// <summary>
+    /// <b>„Na co se ceka" sleduje automat.</b> Je to jediny udaj, ktery na strance webu odpovi
+    /// obsluze stojici u robota, proc se nic nedeje — takze se hlida cely prubeh, ne jen jedna faze.
+    /// </summary>
+    [Test]
+    public void HlaseniStavu_SledujeAutomatCelouMisi()
+    {
+        var h = new Harness();
+
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.MissionStart), "pred startem");
+
+        h.Mission.StartMission();
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.GpsFix), "armovani v depu");
+
+        h.FeedGoodFixes(6.0, T0);
+        var now = T0.AddSeconds(7);
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopPressed), "stoji na stanovisti");
+
+        h.FeedMotors(emergencyStop: false, standing: true, now);
+        h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.QrCode), "servisni okno pod stopem");
+
+        h.ReadCode(PickupCode, now = now.AddSeconds(1));
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopReleased), "cil prijat");
+
+        h.FeedMotors(emergencyStop: false, standing: true, now = now.AddSeconds(1));
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.Arrival), "jede k cili");
+        Assert.That(h.Mission.PhaseText, Is.EqualTo("jede na nakladku"));
+    }
+
+    /// <summary>
+    /// U <b>vykladky</b> se kod necte, takze se na nej ani nesmi cekat — automat jde ze stisknuteho
+    /// stopu rovnou na jeho uvolneni. Kdyby tu stalo „ceka se na QR kod", obsluha by marne hledala,
+    /// co robotovi ukazat.
+    /// </summary>
+    [Test]
+    public void UVykladky_SeNecekaNaKod()
+    {
+        var (h, now) = StartedAtDepot();
+        now = PassServiceWindow(h, now, PickupCode);
+        h.Arrive(now = now.AddSeconds(30));
+        now = PassServiceWindow(h, now, DropCode);
+        h.Arrive(now = now.AddSeconds(30));
+
+        h.FeedMotors(emergencyStop: false, standing: true, now);
+        h.FeedMotors(emergencyStop: true, standing: true, now.AddSeconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease));
+            Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopReleased));
+        });
+    }
+
+    /// <summary>
+    /// Doba behu mise se meri v hodinach DAT (razitka zprav), ne stroje — jinak by pri prehravani
+    /// zaznamu ukazovala rozdil dvou nesouvisejicich hodin. Pred startem musi byt nula: rozdil proti
+    /// <c>default(DateTime)</c> dava ~64 miliard sekund (tatáz past jako u <c>ElapsedSec</c>).
+    /// </summary>
+    [Test]
+    public void DobaBehu_JdeZHodinDat_APredStartemJeNula()
+    {
+        var h = new Harness();
+        Assert.That(h.Mission.Elapsed, Is.EqualTo(TimeSpan.Zero), "pred startem");
+
+        h.Mission.StartMission();
+        h.FeedGoodFixes(6.0, T0);
+
+        Assert.That(h.Mission.Elapsed.TotalSeconds, Is.EqualTo(6.0).Within(0.001));
+    }
+
+    /// <summary>Mise se hlasi jmenem, kterym se zapina — stranka podle nej pozna, co bezi.</summary>
+    [Test]
+    public void MiseSeHlasiJmenemParametru()
+    {
+        Assert.That(new Harness().Mission.MissionName, Is.EqualTo("robotour"));
+    }
+
     // ---------------- Prubeh celou misi ----------------
 
     /// <summary>

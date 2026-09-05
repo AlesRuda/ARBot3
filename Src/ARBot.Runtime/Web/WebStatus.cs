@@ -73,6 +73,46 @@ namespace ARBot.Robot.Web
         private PerfMsg perf;
         private DateTime cameraInterest = DateTime.MinValue;
 
+        /// <summary>
+        /// Posledni stav motoru a kdy prisel. <b>Kvuli nouzovemu zastaveni:</b> vyber mise ze
+        /// stranky je povoleny jen pri DRZENEM stopu, takze se ta hodnota musi cist - a musi se
+        /// vedet, jak je stara. Motor, ktery uz nehlasi, neni „stop neni stisknuty".
+        /// </summary>
+        private MotorStateBase motors;
+        private DateTime motorsAt = DateTime.MinValue;
+
+        /// <summary>
+        /// Ceka proces na to, az mu nekdo vybere misi? Nastavuje aplikace (headless ve fazi A),
+        /// stranka podle toho ukaze vyber misi.
+        /// </summary>
+        public bool AwaitingMission { get; set; }
+
+        /// <summary>
+        /// Jak stara smi byt zprava od motoru, aby se z ni jeste cetl stav nouzoveho zastaveni [s].
+        /// Tyz prah jako „ticho senzoru" na strance; motory hlasi radove desetkrat za sekundu,
+        /// takze 3 s je velmi volne.
+        /// </summary>
+        public const double MotorFreshSec = 3;
+
+        /// <summary>
+        /// <c>null</c> = misi lze vybrat; jinak <b>duvod</b>, proc ne. Duvod je podstatny: obsluze
+        /// u robota se nesmi jen zesednout tlacitko, musi vedet, co ma udelat.
+        ///
+        /// <para><b>Vyhodnocuje se i na serveru</b>, ne jen v JavaScriptu — klientska kontrola je
+        /// pohodli, tahle je pojistka.</para>
+        /// </summary>
+        public string MissionBlockedReason()
+        {
+            lock (gate)
+            {
+                if (!AwaitingMission) return "mise uz bezi (zmena vyzaduje zastaveni)";
+                if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
+                    return "motory nehlasi stav - misi nelze vybrat";
+                if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
+                return null;
+            }
+        }
+
         /// <summary>Jmena kamer, ze kterych uz snimek prisel (diagnostika a vyber vrstvy).</summary>
         public string[] CameraNames
         {
@@ -117,6 +157,7 @@ namespace ARBot.Robot.Web
                 case FreeRunMsg fr: lock (gate) { freeRun = fr; } return;
                 case LocalPlanMsg lp: lock (gate) { plan = lp; } return;
                 case PerfMsg pm: lock (gate) { perf = pm; } return;
+                case MotorStateBase ms: lock (gate) { motors = ms; motorsAt = TimeBase.Now; } return;
             }
         }
 
@@ -255,6 +296,7 @@ namespace ARBot.Robot.Web
             {
                 sb.Append('{');
                 sb.Append("\"running\":").Append(running ? "true" : "false");
+                AppendHead(sb);
                 Num(sb, "x", state?.X); Num(sb, "y", state?.Y); Num(sb, "theta", state?.Theta);
                 Num(sb, "v", state?.V); Num(sb, "omega", state?.Omega);
                 Num(sb, "planLength", plan?.LengthM); Num(sb, "clearance", plan?.MinClearanceM);
@@ -263,8 +305,8 @@ namespace ARBot.Robot.Web
                 if (perf != null) sb.Append(",\"missedTicks\":").Append(perf.MissedTicks);
                 if (mission != null)
                 {
-                    sb.Append(",\"missionPhase\":").Append(mission.Phase);
-                    sb.Append(",\"missionElapsed\":").Append(Fmt(mission.ElapsedSec));
+                    // Faze a uplynuly cas jsou v hlavicce (a to i pro FreeRun, ktery MissionMsg
+                    // neposila) - tady zustava jen to, co jinde neni.
                     Str(sb, "missionCode", mission.AcceptedCodeText);
                     Str(sb, "missionAbort", mission.AbortReason);
                 }
@@ -297,6 +339,111 @@ namespace ARBot.Robot.Web
                     b.Append(",\"").Append(name).Append("\":\"")
                      .Append(v.Replace("\\", "\\\\").Replace("\"", "\\\"")).Append('"');
             }
+        }
+
+        /// <summary>
+        /// <b>Hlavicka stranky</b> do JSON (klic <c>head</c>): verze binarky, datum buildu, mise,
+        /// jeji faze a na co ceka, doba behu aplikace a systemovy cas.
+        ///
+        /// <para><b>Nacpak to je:</b> ze stranky musi jit poznat, <b>ktera binarka</b> na robotu bezi
+        /// (nasazuje se casto a z rozpracovane kopie), jestli se proces mezitim nerestartoval
+        /// (doba behu) a proc se nic nedeje (na co mise ceka). Viz doc/plan-headless-provoz.md.</para>
+        ///
+        /// <para>Mise se cte ze <b>ziveho</b> objektu (<see cref="ARBotRuntime.CurrentMission"/>),
+        /// ne ze zpravy: stav je videt hned, jeste nez prijde prvni <c>MissionMsg</c>, a plati
+        /// stejne pro obe mise. Na <c>ARBotRuntime.Current</c> se saha jen pres <c>HasCurrent</c> -
+        /// cteni te vlastnosti by runtime jinak zalozilo.</para>
+        ///
+        /// <para><b>Casy:</b> doba behu je z <see cref="TimeBase.Uptime"/> (monotonni, bez skoku
+        /// NTP), zatimco <c>now</c> je <b>systemovy</b> cas - jediny udaj, kde je spravne
+        /// <c>DateTime.Now</c>, protoze je to kalendarni cas pro cloveka (viz CLAUDE.md).</para>
+        /// </summary>
+        private void AppendHead(StringBuilder sb)
+        {
+            var b = BuildInfo.Current;
+            sb.Append(",\"head\":{");
+            sb.Append("\"version\":\"").Append(Escape(b.IsDev ? b.Version + "-dev" : b.Version)).Append('"');
+            if (b.GitHash.Length > 0)
+                sb.Append(",\"git\":\"").Append(Escape(b.GitHash + (b.IsDirty ? "-dirty" : string.Empty))).Append('"');
+            if (b.BuildTimeUtc.HasValue)
+                sb.Append(",\"build\":\"")
+                  .Append(b.BuildTimeUtc.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))
+                  .Append(" UTC\"");
+
+            sb.Append(",\"uptime\":").Append(Fmt(TimeBase.Uptime.TotalSeconds));
+            sb.Append(",\"now\":\"").Append(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)).Append('"');
+
+            ARBot.Common.Missions.IMissionStatus mise = null;
+            try { if (ARBotRuntime.HasCurrent) mise = ARBotRuntime.Current.CurrentMission; }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine("WebStatus: cteni mise selhalo: " + ex.Message); }
+
+            if (mise == null)
+            {
+                sb.Append(",\"mission\":\"\"");
+            }
+            else
+            {
+                sb.Append(",\"mission\":\"").Append(Escape(mise.MissionName ?? string.Empty)).Append('"');
+                sb.Append(",\"phase\":\"").Append(Escape(mise.PhaseText ?? string.Empty)).Append('"');
+                sb.Append(",\"missionElapsed\":").Append(Fmt(mise.Elapsed.TotalSeconds));
+
+                // Prazdny retezec u "neceka se na nic" je zamer: stranka pak radek vubec neukaze,
+                // misto aby psala "ceka se na: nic".
+                string ceka = ARBot.Common.Missions.MissionStatusText.WaitText(mise.WaitingFor);
+                if (ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(ceka)).Append('"');
+            }
+
+            AppendMissionPick(sb);
+            sb.Append('}');
+        }
+
+        /// <summary>
+        /// Do hlavicky to, co potrebuje <b>vyber mise</b>: jestli se ceka na volbu, ktere mise jsou
+        /// na vyber, stav nouzoveho zastaveni a pripadny duvod, proc vybirat nejde.
+        ///
+        /// <para>Seznam misi se bere z <b>registru parametru</b>
+        /// (<c>ParamRegistry.Mission.Def.AllowedValues</c>), takze nova mise se objevi na strance
+        /// tim, ze se prida do registru — zadny druhy seznam, ktery by se rozesel.</para>
+        ///
+        /// <para><c>virtualhw</c> rika strance, jestli ma ukazat prepinac <b>virtualniho</b>
+        /// nouzoveho zastaveni. Se skutecnym hardwarem se neukazuje a server ho odmita: dalkove
+        /// ovladani stopu na skutecnem robotu je presne to, co tu nikdy nesmi byt.</para>
+        /// </summary>
+        private void AppendMissionPick(StringBuilder sb)
+        {
+            bool estop;
+            lock (gate) estop = motors != null && motors.IsEmergencyStop
+                                && (TimeBase.Now - motorsAt).TotalSeconds <= MotorFreshSec;
+
+            sb.Append(",\"estop\":").Append(estop ? "true" : "false");
+
+            // virtualhw se hlasi VZDY, ne jen pri vyberu mise: tlacitko virtualniho nouzoveho
+            // zastaveni je v liste a musi byt po celou dobu behu. Robotour potrebuje stisk
+            // a uvolneni stopu na KAZDEM stanovisti, takze kdyby zmizelo s panelem vyberu mise,
+            // neslo by v simulaci projit ani prvni servisni okno (nalezeno 5. 9. 2026).
+            if (ARBot.Common.Configuration.ParamRegistry.VirtualHw.Value) sb.Append(",\"virtualhw\":true");
+
+            if (!AwaitingMission) return;
+
+            sb.Append(",\"pick\":[");
+            var hodnoty = ARBot.Common.Configuration.ParamRegistry.Mission.Def.AllowedValues;
+            bool prvni = true;
+            if (hodnoty != null)
+            {
+                foreach (var h in hodnoty)
+                {
+                    // "none" na vyber neni: bez mise se nejezdi (rozhodnuti autora 5. 9. 2026).
+                    if (string.IsNullOrEmpty(h) || string.Equals(h, "none", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (!prvni) sb.Append(',');
+                    prvni = false;
+                    sb.Append('"').Append(Escape(h)).Append('"');
+                }
+            }
+            sb.Append(']');
+
+            string duvod = MissionBlockedReason();
+            if (duvod != null) sb.Append(",\"pickBlocked\":\"").Append(Escape(duvod)).Append('"');
         }
 
         /// <summary>
@@ -398,20 +545,52 @@ namespace ARBot.Robot.Web
 <title>ARBot - náhled</title>
 <style>
  body{background:#14181c;color:#e6e9ec;font:14px system-ui,sans-serif;margin:0;padding:12px}
- h1{font-size:16px;margin:0 0 10px}
+ h1{font-size:16px;margin:0;white-space:nowrap}
+ /* Hlavicka na JEDEN radek: vlevo nazev, vpravo identita behu (verze, build, doba, cas).
+    space-between drzi udaje u praveho okraje; na uzkem displeji se skupina zalomi pod nazev
+    misto vodorovneho scrollu. */
+ .hlava{color:#9aa0a6;font-size:12px;display:flex;flex-wrap:wrap;justify-content:space-between;
+        align-items:baseline;gap:2px 12px;margin-bottom:6px;max-width:520px;
+        padding:3px 6px;border-radius:4px}
+ .hlava .info{display:flex;flex-wrap:wrap;gap:2px 10px;justify-content:flex-end}
+ .hlava b{color:#c9cdd2;font-weight:600}
+ /* Nedostupny server: cervena hlavicka a zmeneny nazev. Drive to byla veta na POSLEDNIM radku
+    stranky, kam clovek u robota nedohledne - hlaska o tom, ze nic nefunguje, patri nahoru. */
+ .hlava.chyba{background:#4a1d1d}
+ .hlava.chyba h1{color:#ff6b6b}
+ /* Stav mise: to je naopak to hlavni, co clovek u robota cte. */
+ .mise{font-size:14px;margin-bottom:10px;max-width:520px}
+ .mise .ceka{color:#ffb74d;font-weight:600}
+ /* Vyber mise: ukazuje se JEN dokud se na volbu ceka. Ramecek proto, aby bylo na prvni pohled
+    videt, ze tohle je jediny ukon, ktery se od cloveka ceka. */
+ .volba{max-width:520px;border:1px solid #2a2f35;border-radius:6px;padding:10px;margin-bottom:10px;
+        background:#1a2026}
+ .volba h2{margin:0 0 8px}
+ .volba button{background:#2e7d32;padding:8px 14px;font-size:14px;font-weight:600;margin:0 6px 6px 0}
+ .volba button[disabled]{background:#37474f;color:#7c848c}
+ .volba .duvod{color:#ffb74d;font-size:13px;margin-top:4px}
+ /* Virtualni nouzove zastaveni (jen pri virtualhw=true) je v LISTE vedle Terminate, ne v panelu
+    vyberu mise: panel po volbe mise zmizi, ale Robotour potrebuje stisk a uvolneni stopu na KAZDEM
+    stanovisti - jinak by se v simulaci nedalo projit ani prvni servisni okno. */
+ button.estop{background:#37474f;padding:6px 9px;font-size:12px;font-weight:600}
+ /* Drzeny stop je oranzovy, ne cerveny: cervena patri destruktivnimu Terminate a dve cervena
+    tlacitka vedle sebe by se pletla. Oranzova je tatáz barva jako u radku ceka-se-na a u ticha
+    senzoru. */
+ button.estop.drzi{background:#e65100}
+ .akce{display:flex;gap:5px;flex-shrink:0}
  /* Lista nad obrázkem: přepínače vlevo, zastavení vpravo. Šířka jako obrázek, aby to
     lícovalo; na mobilu se zlomí jen skupina přepínačů (lista sama nowrap), takže Stop
     zůstane vpravo. */
  .lista{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;
         flex-wrap:nowrap;max-width:520px;margin-bottom:8px}
- .prepinace{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
- .mezera{width:6px}
+ .prepinace{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+ .mezera{width:2px}
  button{border:0;border-radius:4px;color:#fff;font:inherit;white-space:nowrap}
- button.prep{background:#37474f;padding:5px 10px;font-size:13px}
+ button.prep{background:#37474f;padding:5px 8px;font-size:13px}
  button.prep.akt{background:#1565c0}
  /* Meritko ma smysl jen u pudorysu - u kamery se skryva. */
  button.mer.skryto{display:none}
- button.stop{background:#c62828;padding:6px 12px;font-size:13px;font-weight:600;flex-shrink:0}
+ button.stop{background:#c62828;padding:6px 10px;font-size:12px;font-weight:600;flex-shrink:0}
  img{width:100%;max-width:520px;display:block;background:#0b0e11;border:1px solid #2a2f35;
      margin-bottom:10px}
  table{border-collapse:collapse;font-variant-numeric:tabular-nums}
@@ -427,7 +606,9 @@ namespace ARBot.Robot.Web
  .sen.err{background:#4a1d1d;color:#ff6b6b}
  .sen.ticho{background:#4a3a1d;color:#ffb74d}
 </style></head><body>
-<h1>ARBot - náhled</h1>
+<div class=""hlava"" id=""hlava""><h1 id=""nazev"">ARBot - náhled</h1><div class=""info"" id=""info""></div></div>
+<div class=""mise"" id=""mise""></div>
+<div class=""volba"" id=""volba"" style=""display:none""></div>
 <div class=""lista"">
  <div class=""prepinace"">
   <button class=""prep akt"" id=""b-world"" onclick=""vrstva('world')"">půdorys</button>
@@ -438,7 +619,10 @@ namespace ARBot.Robot.Web
   <button class=""prep mer akt"" id=""m-10"" onclick=""meritko(10)"">10 m</button>
   <button class=""prep mer"" id=""m-50"" onclick=""meritko(50)"">50 m</button>
  </div>
- <button class=""stop"" onclick=""zastavit()"">Zastavit robota</button>
+ <div class=""akce"">
+  <button class=""estop"" id=""vstop"" style=""display:none"" onclick=""virtStopPrepni()"">Emergency stop</button>
+  <button class=""stop"" onclick=""zastavit()"">Terminate</button>
+ </div>
 </div>
 <img id=""obraz"" alt=""náhled"">
 <h2>senzory</h2>
@@ -449,7 +633,7 @@ namespace ARBot.Robot.Web
 <script>
 var popisky={running:'běží',x:'X [m]',y:'Y [m]',theta:'kurz [rad]',v:'rychlost [m/s]',omega:'omega [rad/s]',
  planLength:'plán [m]',clearance:'odstup [m]',offRoute:'mimo trasu [m]',routeLength:'trasa [m]',
- cpu:'CPU procesu [%]',missedTicks:'zameškané takty',missionPhase:'fáze mise',missionElapsed:'mise [s]',
+ cpu:'CPU procesu [%]',missedTicks:'zameškané takty',
  missionCode:'kód',missionAbort:'přerušeno',corridor:'koridor',corridorWidth:'šířka koridoru [m]',
  lateral:'odchylka [m]',cameras:'kamery'};
 // Jeden obrazek, tri vrstvy: pudorys | kamera (RGB) | cesta z RGB (ImageProbability).
@@ -484,13 +668,101 @@ function tik(){
  fetch('/status.json').then(function(r){return r.json()}).then(function(d){
   var h='';
   for(var k in d){
-   if(k==='sensors'||k==='measurements')continue;   // vykresluji se zvlast, nize
+   if(k==='sensors'||k==='measurements'||k==='head')continue;   // vykresluji se zvlast
    h+='<tr><td>'+(popisky[k]||k)+'</td><td>'+d[k]+'</td></tr>';
   }
   document.getElementById('tab').innerHTML=h;
   document.getElementById('senzory').innerHTML=senzoryHtml(d);
+  hlavicka(d.head||{});
+  vyberMise(d.head||{});
+  akce(d.head||{});
   document.getElementById('stav').textContent=d.running?'runtime běží':'runtime zastaven';
- }).catch(function(){ document.getElementById('stav').textContent='server neodpovídá'; });
+ }).catch(nedostupny);
+}
+// Server neodpovida. Hlasi se to HLAVICKOU (cervena, zmeneny nazev), ne vetou na konci stranky:
+// tam ji clovek u robota nevidi, a zbytek stranky mezitim ukazuje posledni znama - tedy uz
+// neplatna - cisla. Verze a build v hlavicce zustavaji (ty nezestarnou), zivé udaje mizi.
+function nedostupny(){
+ document.getElementById('hlava').className='hlava chyba';
+ document.getElementById('nazev').textContent='ARBot - neodpovídá';
+ var zive=document.getElementById('zive');
+ if(zive) zive.textContent='';
+ document.getElementById('stav').textContent='';
+}
+// Doba behu jako h:mm:ss - vterinami se to necte a dny na robotu nehrozi.
+function doba(s){
+ if(s===null||s===undefined) return '—';
+ s=Math.floor(s);
+ var h=Math.floor(s/3600), m=Math.floor(s%3600/60), v=s%60;
+ return h+':'+('0'+m).slice(-2)+':'+('0'+v).slice(-2);
+}
+// Hlavicka odpovida na otazku, co tu vlastne bezi: verze binarky (a z ceho se stavela), jak dlouho
+// proces bezi (poznam restart) a kolik je hodin. Pod tim stav mise - to je to, co clovek stojici
+// u robota cte jako prvni: jaka mise, v jake fazi a NA CO SE CEKA.
+function hlavicka(h){
+ // Zive udaje (doba behu, cas) jsou ve vlastnim spanu, aby sly pri vypadku smazat a nezustaly
+ // na strance jako neplatna cisla; verze a build tam mohou zustat, ty nezestarnou.
+ var t='<span><b>verze</b> '+(h.version||'?')+(h.git?' ('+h.git+')':'')+'</span>';
+ if(h.build) t+='<span><b>build</b> '+h.build+'</span>';
+ t+='<span id=""zive""><b>běží</b> '+doba(h.uptime)+(h.now?' &nbsp;<b>čas</b> '+h.now:'')+'</span>';
+ document.getElementById('hlava').className='hlava';
+ document.getElementById('nazev').textContent='ARBot - náhled';
+ document.getElementById('info').innerHTML=t;
+
+ var m='';
+ if(!h.mission){
+  m='<b>mise:</b> žádná';
+ }else{
+  m='<b>mise:</b> '+h.mission+(h.phase?' — '+h.phase:'')
+   +(h.missionElapsed!==undefined?' ('+doba(h.missionElapsed)+')':'');
+  if(h.waiting) m+='<br><span class=""ceka"">čeká se na: '+h.waiting+'</span>';
+ }
+ document.getElementById('mise').innerHTML=m;
+}
+// Vyber mise. Ukazuje se JEN kdyz proces na volbu ceka (head.pick); jinak je panel pryc, aby
+// nesvadel k prekliknuti za jizdy. Tlacitka jsou zesedla, dokud neni drzene nouzove zastaveni -
+// a VZDY je videt DUVOD: obsluze u robota nestaci, ze tlacitko nejde zmacknout.
+function vyberMise(h){
+ var el=document.getElementById('volba');
+ if(!h.pick){ el.style.display='none'; return; }
+ el.style.display='';
+
+ var blok=h.pickBlocked;
+ var t='<h2>vyber misi</h2>';
+ // Jmeno mise jde do data-atributu a obsluha se navesi az potom. Skladat onclick do retezce
+ // by znamenalo apostrofy v apostrofech uvnitr C# verbatim retezce - presne tam se 5. 9. 2026
+ // ztratil escape a CELY skript pak spadl na SyntaxError (stranka zustala na ""spojuji se...
+ // "" a nefungovalo uz vubec nic, ani obrazek).
+ h.pick.forEach(function(m){
+  t+='<button data-mise=""'+m+'""'+(blok?' disabled':'')+'>'+m+'</button>';
+ });
+ if(blok) t+='<div class=""duvod"">'+blok+'</div>';
+ el.innerHTML=t;
+
+ Array.prototype.forEach.call(el.querySelectorAll('button[data-mise]'),function(b){
+  b.onclick=function(){ zvolMisi(b.getAttribute('data-mise')); };
+ });
+}
+// Virtualni nouzove zastaveni v liste: viditelne po CELOU dobu behu v simulaci (ne jen pri vyberu
+// mise) a barvou hlasi, jestli je drzene. Stav se cte z posledniho /status.json, takze tlacitko
+// prepina proti tomu, co robot skutecne hlasi - ne proti tomu, co si stranka pamatuje.
+var estopDrzen=false;
+function akce(h){
+ var b=document.getElementById('vstop');
+ b.style.display = h.virtualhw ? '' : 'none';
+ if(!h.virtualhw) return;
+ estopDrzen = !!h.estop;
+ b.className = 'estop' + (estopDrzen ? ' drzi' : '');
+}
+function virtStopPrepni(){ virtStop(!estopDrzen); }
+function zvolMisi(m){
+ if(!confirm('Spustit misi '+m+'? Robot se rozjede po uvolnění nouzového zastavení.'))return;
+ fetch('/mission?m='+encodeURIComponent(m),{method:'POST'}).then(function(r){
+  return r.text().then(function(txt){ if(!r.ok) alert('Misi nelze spustit: '+txt); tik(); });
+ });
+}
+function virtStop(on){
+ fetch('/virtualestop?on='+on,{method:'POST'}).then(function(){ tik(); });
 }
 // Senzory: jeden udaj = jmeno, stav z HW (ISensor.IsError) a vek posledni jeho zpravy,
 // tedy ve tvaru Left: OK/432ms. Chyba je cervene, ticho oranzove; prah 3 s je volny
@@ -513,7 +785,7 @@ function senzoryHtml(d){
  return h||'žádné senzory ani měření';
 }
 function zastavit(){
- if(!confirm('Zastavit robota a ukončit proces?'))return;
+ if(!confirm('Zastavit robota a ukončit proces? Pod systemd se za pár sekund vrátí a bude čekat na misi.'))return;
  fetch('/stop',{method:'POST'}).then(function(){
   document.getElementById('stav').textContent='zastaveno';
  });

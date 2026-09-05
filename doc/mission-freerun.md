@@ -175,6 +175,25 @@ koridoru, jestli se drží kurz). **Bez zprávy je mise v záznamu neviditelná*
 jela — a tenhle projekt měří všechno nad záznamem (viz
 [record-replay.md](record-replay.md#offline-analýza-záznamu-arbotanalyze)).
 
+### Hlášení stavu (`IMissionStatus`)
+
+Mise implementuje [`IMissionStatus`](../Src/ARBot.Common/Missions/IMissionStatus.cs), aby webový
+náhled headless a UI uměly říct „jaká mise, v jaké fázi a na co čeká" bez znalosti konkrétní mise.
+
+**`WaitingFor` je tu vždy `None`** a je to úmysl: FreeRun nemá stanoviště, kód ani operátora — jede
+z toho, co zrovna vidí, takže **nečeká na nic zvenčí**. Kdyby se sem vecpal umělý „čeká na koridor",
+přestal by řádek *čeká se na* na stránce znamenat „bez zásahu člověka se nic nestane", což je
+u [Robotour](robotour-mission.md#hlášení-stavu-imissionstatus) jeho jediný smysl.
+
+Stav proto nese `PhaseText`: **„jede v koridoru" × „bez koridoru, drží kurz"** (a „čeká na první
+snímek" / „čeká na pózu z fúze"). Ten rozdíl je jediný stav FreeRunu, který se zvenčí pozná jako
+jiná jízda, a je to první otázka při diagnostice — vidí vůbec cestu? Text vyrábí veřejná statická
+`PhaseTextFor(FreeRunResult)`, takže se dá ověřit bez vlákna, kamery a fúze (týž důvod jako
+u `CarrotBody`).
+
+Doba běhu se měří **od prvního zpracovaného snímku** v hodinách dat, ne od vzniku objektu: stupeň
+vzniká při skládání grafu, tedy dřív, než začnou chodit data.
+
 ## Testování a co je naměřeno
 
 Bez HW, celé v simulaci a jednotkových testech. Testy:

@@ -30,6 +30,7 @@ namespace ARBot.Robot.Web
 
         private readonly WebStatus status;
         private readonly Action onStop;
+        private readonly Action<string>? onMission;
         private TcpListener? listener;
         private Thread? thread;
         private volatile bool running;
@@ -38,10 +39,13 @@ namespace ARBot.Robot.Web
         /// <param name="status">Odberatel streamu, ze ktereho se cte stav a kresli obrazky.</param>
         /// <param name="onStop">Co udelat na <c>POST /stop</c> - v headless nastavi udalost ukonceni.
         /// Server sam <c>ARBotRuntime.Stop()</c> nevola: o ukonceni procesu rozhoduje aplikace.</param>
-        public WebPreviewServer(WebStatus status, Action onStop)
+        /// <param name="onMission">Co udelat na <c>POST /mission?m=…</c> - v headless spusti Run
+        /// s vybranou misi. <c>null</c> = vyber mise se neposkytuje (odpoved 404).</param>
+        public WebPreviewServer(WebStatus status, Action onStop, Action<string>? onMission = null)
         {
             this.status = status ?? throw new ArgumentNullException(nameof(status));
             this.onStop = onStop;
+            this.onMission = onMission;
         }
 
         /// <summary>Skutecny port, na kterem server posloucha (u portu 0 ten pridelený OS).</summary>
@@ -155,6 +159,14 @@ namespace ARBot.Robot.Web
                     return;
                 }
 
+                case "/mission":
+                    HandleMission(s, req);
+                    return;
+
+                case "/virtualestop":
+                    HandleVirtualEStop(s, req);
+                    return;
+
                 case "/stop":
                     if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
                     {
@@ -171,6 +183,87 @@ namespace ARBot.Robot.Web
                 default:
                     HttpMini.WriteText(s, 404, "nenalezeno");
                     return;
+            }
+        }
+
+        /// <summary>
+        /// <b>Vyber mise</b> (<c>POST /mission?m=freerun</c>). Mise se jmenem <c>none</c> ani
+        /// neznama neprojde (400), a hlavne: <b>gate na nouzove zastaveni se vyhodnocuje TADY</b>
+        /// (409), ne jen v prohlizeci. Klientska kontrola je pohodli, tahle je pojistka - vyber
+        /// mise robota nakonec rozjede, takze to musi projit jen clovek stojici u nej.
+        ///
+        /// <para>Hodnota jde <b>query stringem</b>, ne telem: <see cref="HttpMini"/> cte jen
+        /// hlavicku a kvuli jednomu retezci nema smysl do nej pridavat cteni tela.</para>
+        /// </summary>
+        private void HandleMission(System.IO.Stream s, HttpRequestLine req)
+        {
+            if (onMission == null) { HttpMini.WriteText(s, 404, "vyber mise tahle aplikace nenabizi"); return; }
+            if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                HttpMini.WriteText(s, 405, "misi lze vybrat jen pres POST");
+                return;
+            }
+
+            string mise = QueryValue(req.Query, "m");
+            if (string.IsNullOrWhiteSpace(mise)) { HttpMini.WriteText(s, 400, "chybi parametr m"); return; }
+            if (string.Equals(mise, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                // Bez mise se nejezdi - "none" neni volba, je to stav pred volbou.
+                HttpMini.WriteText(s, 400, "'none' neni mise");
+                return;
+            }
+
+            string duvod = status.MissionBlockedReason();
+            if (duvod != null) { HttpMini.WriteText(s, 409, duvod); return; }
+
+            try
+            {
+                Trace.WriteLine($"web: prisel POST /mission?m={mise}");
+                onMission(mise);
+                HttpMini.WriteText(s, 200, "mise " + mise + " spustena");
+            }
+            catch (Exception ex)
+            {
+                // Neplatnou hodnotu odmitne az ParamStore (jeden zdroj pravdy o tom, co je platna
+                // mise), takze se sem dostane jako vyjimka - a je to chyba VSTUPU, tedy 400.
+                Trace.WriteLine("web: vyber mise selhal: " + ex.Message);
+                HttpMini.WriteText(s, 400, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// <b>Virtualni nouzove zastaveni</b> (<c>POST /virtualestop?on=true</c>) - jen pri
+        /// <c>virtualhw=true</c>.
+        ///
+        /// <para>Bez nej by se cely handshake (stisk stopu -> vyber mise -> uvolneni stopu) nedal
+        /// na Windows vubec vyzkouset: panel <i>Tools → Virtualni senzory</i> je v UI aplikaci,
+        /// kterou headless nema. <b>Se skutecnym hardwarem se to odmita</b> - dalkove ovladani
+        /// nouzoveho zastaveni na skutecnem robotu tu nikdy nesmi byt.</para>
+        /// </summary>
+        private void HandleVirtualEStop(System.IO.Stream s, HttpRequestLine req)
+        {
+            if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                HttpMini.WriteText(s, 405, "jen POST");
+                return;
+            }
+            if (!ARBot.Common.Configuration.ParamRegistry.VirtualHw.Value || !ARBotHW.HasCurrent)
+            {
+                HttpMini.WriteText(s, 404, "virtualni nouzove zastaveni je jen pri virtualhw=true");
+                return;
+            }
+
+            bool on = !string.Equals(QueryValue(req.Query, "on"), "false", StringComparison.OrdinalIgnoreCase);
+            try
+            {
+                ARBotHW.Current.VirtualSensors.EmergencyStop = on;
+                Trace.WriteLine($"web: virtualni nouzove zastaveni -> {(on ? "STISKNUTO" : "uvolneno")}");
+                HttpMini.WriteText(s, 200, on ? "stisknuto" : "uvolneno");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("web: virtualni stop selhal: " + ex.Message);
+                HttpMini.WriteText(s, 500, ex.Message);
             }
         }
 

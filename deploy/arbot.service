@@ -1,0 +1,58 @@
+# Jednotka systemd pro ridici runtime robota (ARBot.Headless).
+#
+# Instalace na Pi:
+#     sudo cp ~/arbot-headless/arbot.service /etc/systemd/system/
+#     sudo systemctl daemon-reload && sudo systemctl enable --now arbot
+#
+# CO TO DELA PO ZAPNUTI ROBOTA: aplikace nastartuje, rozjede senzory a STOJI. Ceka,
+# az jí clovek vybere misi na strance http://<ip>:8080/ - a to jde jen pri DRZENEM
+# nouzovem zastaveni. Robot se tedy sam nikdy nerozjede, ani po restartu sluzby.
+# Prave na tom stoji povoleny Restart= niz. Viz doc/plan-headless-provoz.md.
+
+[Unit]
+Description=ARBot - ridici runtime robota (headless)
+Documentation=file:/home/ales/arbot-headless/README.md
+# Sit neni k jizde potreba, ale bez ni neni nahled - a ten je jediny zpusob, jak
+# robotovi zadat ukol. Proto se na ni ceka, ale start se na ni neváže tvrde.
+After=network-online.target
+Wants=network-online.target
+# Pojistka proti smycce padu: pet startu za pet minut a pak se to vzda (stav
+# "failed" je videt v systemctl status). Bez toho by pad pri startu zaplavil journal.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ales
+Group=ales
+# Pracovni adresar je datovy adresar; relativni cesty ale resi dataroot=, ne tohle.
+WorkingDirectory=/home/ales/arbot
+
+# Stinova kopie binarek pred kazdym startem - proto je restart sluzby zaroven
+# nasazenim nove verze. Viz stin.sh.
+ExecStartPre=/home/ales/arbot-headless/stin.sh
+
+# dataroot= MUSI byt na prikazove radce (profil se hleda az podle nej).
+ExecStart=/usr/bin/dotnet /home/ales/arbot-headless-run/ARBot.Headless.dll \
+          dataroot=/home/ales/arbot \
+          config=config/pi-provoz.cfg
+
+# Restart je bezpecny JEN diky tomu, ze restartovany proces ceka na vyber mise.
+# Kdyby nekdy prestalo platit, ze se robot bez volby nerozjede, musi zmizet i tohle.
+Restart=always
+RestartSec=5
+# Vadna konfigurace (2) ani druha instance (3) se restartem nespravi - opakovat to
+# do nekonecna by jen zaplavilo journal a zakrylo pricinu.
+RestartPreventExitStatus=2 3
+
+# SIGTERM aplikace zpracuje jako radne ukonceni: dojede fronty, uzavre zaznam,
+# zastavi motory. Merene to trva jednotky milisekund, 30 s je velka rezerva.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Konzole jde do journalu: journalctl -u arbot -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

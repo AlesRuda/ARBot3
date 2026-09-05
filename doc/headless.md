@@ -12,9 +12,12 @@ takže srovnání UI proti headless bude přímo v záznamu ([perf-monitoring.md
 ## Co to je a co ne
 
 - **Jen Run.** Prohlížení záznamů (`Mode.View`) zůstává v UI na Windows a v `ARBot.Analyze`.
-- **Žádný systemd, žádná služba, žádný restart po pádu.** Spouští se vždy uživatelským příkazem
-  (ssh + příkaz). Robot, který se sám znovu rozjede, je horší než robot, který stojí. Viz
-  [decisions.md](decisions.md), 4. 9. 2026.
+- **Na zařízení běží jako služba systemd** (`arbot`), zapnutá po bootu, s `Restart=always`.
+  Do 4. 9. 2026 tu stálo pravé opak („žádný systemd, žádná služba") a důvod byl, že robot, který
+  se sám znovu rozjede, je horší než robot, který stojí. **Ten důvod platí dál** — jen ho nově drží
+  něco jiného: bez zadané mise runtime nastartuje, rozjede senzory a **stojí**, dokud mu člověk
+  misi nevybere. Restartovaný proces se tedy nerozjede. Viz [decisions.md](decisions.md),
+  5. 9. 2026, a [deploy/README.md](../deploy/README.md).
 - **Konzole je jediný displej.** `Trace` má `ConsoleTraceListener`, takže vše, co runtime hlásí
   do `Trace` (stav senzorů, mise, plánovač, `record=`), jde na stdout a zároveň přes
   `TraceInfoBridge` do záznamu. `Debug.WriteLine` v Release mlčí (pravidlo v CLAUDE.md).
@@ -49,25 +52,61 @@ a [configuration.md](configuration.md).
 
 ### Co dělá `ARBot.Headless/Program.cs`
 
-1. `Trace.Listeners.Add(new ConsoleTraceListener())`.
+1. `Trace.Listeners.Clear()` a pak `ConsoleTraceListener`. ⚠️ **To `Clear()` je podstatné:** výchozí
+   `DefaultTraceListener` píše na Linuxu do **syslogu**, takže pod systemd (journal sbírá stdout
+   i syslog) byl **každý řádek v journalu dvakrát**. Na Windows to vidět není — tam týž listener
+   píše do debuggeru. Nalezeno na Orange Pi 5. 9. 2026.
 2. `CrashLog.Install()`.
 3. `RuntimeBootstrap.TryConfigure(...)`; při chybě hláška na stderr a **návrat 2**.
-4. Úvodní řádek: režim HW (`virtualhw=`), mise (`mission=`), záznam (`record=`); se zapnutou misí
-   výstraha **„robot se rozjede bez dalšího pokynu"** (stejná jako u autorunu v UI).
-5. `ARBotHW.Current.WaitReady()` a pak `ARBotRuntime.HwSettleMs` (3 s) na ustálení — **jedna
+4. **Zámek jedné instance** (`<dataroot>/arbot.lock`); když ho drží někdo jiný, hláška a **návrat 3**.
+   Bere se hned po konfiguraci (potřebuje `dataroot=`) a **před hardwarem** — viz `SingleInstanceLock`.
+5. Úvodní řádek: režim HW (`virtualhw=`), mise (`mission=`), záznam (`record=`), náhled (`web=`).
+   Se zapnutou misí výstraha, že mise začne bez dalšího pokynu; bez mise naopak informace, že se
+   čeká na výběr na stránce (a varování, když je náhled vypnutý, protože pak není čím vybrat).
+6. `ARBotHW.Current.WaitReady()` a pak `ARBotRuntime.HwSettleMs` (3 s) na ustálení — **jedna
    konstanta pro autorun v UI i headless**. Kamery a porty se otevírají líně, bez čekání by Run
    startoval nad polovičním HW.
-6. `ARBotRuntime.Current.Start(Mode.Run)` — přesně jednou. Cestu záznamu řeší `record=` uvnitř `Start`.
-7. Čeká na `Console.CancelKeyPress` (Ctrl+C), `SIGTERM` (`kill <pid>`) nebo `SIGHUP` (zavřená ssh
-   session). První signál spustí řádné ukončení; proces si nechá `Cancel = true`, aby ho .NET
-   nezabil dřív, než doběhne `Stop()`. Signál během čekání na HW ukončí proces bez Run.
-8. `ARBotRuntime.Current.Stop()` — dojede fronty, uzavře záznam, zastaví motory. **Návrat 0.**
-9. Neošetřená výjimka projde `CrashLog` (zapíše `logs/crash-*.log` vedle aplikace, dopíše záznam,
-   zastaví zdroje) a proces spadne s nenulovým kódem — jako UI.
+7. **Run — nadvakrát, nebo najednou** (viz [Výběr mise](#výběr-mise-dvoufázový-běh) níž):
+   se zadanou `mission=` jeden `Start(Mode.Run)` jako dosud; bez ní nejdřív `Start(Mode.Run,
+   ARBotRuntime.NoRecord)` (robot stojí, **nenahrává se**) a po volbě mise `Start(Mode.Run)` znovu.
+8. Čeká na `Console.CancelKeyPress` (Ctrl+C), `SIGTERM` (`kill <pid>`, `systemctl stop`) nebo
+   `SIGHUP` (zavřená ssh session). První signál spustí řádné ukončení; proces si nechá
+   `Cancel = true`, aby ho .NET nezabil dřív, než doběhne `Stop()`. Signál během čekání na HW nebo
+   na volbu mise ukončí proces bez Run.
+9. `ARBotRuntime.Current.Stop()` — dojede fronty, uzavře záznam, zastaví motory. **Návrat 0.**
+10. Neošetřená výjimka projde `CrashLog` (zapíše `logs/crash-*.log` **v datovém adresáři**, dopíše
+    záznam, zastaví zdroje) a proces spadne s nenulovým kódem — jako UI. **Nativní pád (SIGSEGV)
+    `CrashLog` nezachytí** — zůstane po něm jen záznam v journalu a core dump.
 
 **Parametry:** vše z registru ([configuration.md](configuration.md)). `autorun=true` se **ignoruje
 s hláškou** (Run startuje vždy). UI parametry `selftest=`, `open=`, `worldshot=`, `telemetryshot=`
 a `st_*` se ignorují tiše — registr je zná, start neshodí.
+
+### Datový adresář (`dataroot=`)
+
+Proti `dataroot=` se řeší **všechny relativní cesty** — záznamy, `logs/`, profily, mapy — místo
+kořene repa / adresáře aplikace. Je to kvůli **nasazení stínovou kopií**: binárky běží z kopie
+bokem (běžící .NET binárku nejde přepsat, assembly jsou memory-mapped), ale data musí zůstat
+v původním adresáři, jinak by se s každou novou kopií ztrácela.
+
+⚠️ **Bere se jen z příkazové řádky** a **dřív než `config=`** — proti datovému adresáři se hledá
+i profil. `dataroot` **v profilu je chyba při startu** s vysvětlením; tiše ignorovat by znamenalo,
+že cesty míří jinam, než člověk napsal.
+
+Jedna vědomá mezera: `CrashLog.Install()` běží **před** načtením konfigurace, takže pád *před* ní
+skončí vedle aplikace (ve stínové kopii, která se při příštím startu přepíše). Prohodit pořadí by
+znamenalo, že pád při čtení konfigurace nezanechá stopu vůbec žádnou.
+
+### Zámek jedné instance
+
+`<dataroot>/arbot.lock`, držený otevřený s `FileShare.None` po celý běh; druhá instance skončí
+**kódem 3**. Bez něj byla zákeřná past: vedle běžící služby pustí člověk aplikaci ručně přes ssh,
+**port náhledu se ošetří sám** („bez nahledu" a jede se dál) — takže zvenčí to vypadá, že vše běží,
+jen stránka ukazuje první proces, zatímco druhý už sáhl na tytéž UARTy a kamery.
+
+Zámek souboru, ne pidfile: .NET to na Unixu mapuje na `flock`, takže **padá s procesem** a po
+tvrdém zabití nezůstane viset. Do souboru se píše PID a čas — je to forenzní údaj, za běhu ho
+`FileShare.None` nepustí přečíst.
 
 ## Spuštění
 
@@ -81,13 +120,19 @@ dotnet publish Src/ARBot.Headless/ARBot.Headless.csproj -p:Platform=OrangePI -r 
 Publish pro `linux-arm64` má ~45 MB a obsahuje `config/`, `OSM/`, `ARBot.HALArmbian`,
 `libSkiaSharp.so`, `libSystem.IO.Ports.Native.so`. ⚠️ **`libNativeLib.so` v něm z tohoto stroje
 není** — `ARBot.Common.csproj` ji kopíruje jen `Exists`, a `.so` se cross-kompiluje ve WSL
-([build-and-platforms.md](build-and-platforms.md)). Stejně to má i UI aplikace; na zařízení ji
-autor dosud dodával vedle.
+([build-and-platforms.md](build-and-platforms.md)). **Bez ní Run spadne hned při startu**
+(`DllNotFoundException` v `NativeComputeUnit`) — naběhlo se na to na Pi 5. 9. 2026; nasazovací
+skript ji proto doplní z datového adresáře.
 
-Na zařízení (ssh), v adresáři s aplikací:
+**Nasazení na zařízení dělá [`deploy/nasad.ps1`](../deploy/nasad.ps1)** (publish s razítkem verze →
+`scp` → restart služby); postup a rozvržení adresářů je v [deploy/README.md](../deploy/README.md).
+Ruční spuštění vedle běžící služby skončí kódem 3 (zámek).
+
+Na zařízení ručně (ssh), se zastavenou službou:
 
 ```bash
-dotnet ARBot.Headless.dll config=config/orangepi.cfg mission=robotour record=Records/jizda.rec
+sudo systemctl stop arbot
+dotnet ~/arbot-headless-run/ARBot.Headless.dll dataroot=/home/ales/arbot config=config/pi-provoz.cfg
 ```
 
 Na Windows pro zkoušku v simulaci:
@@ -129,6 +174,56 @@ jiný = pád (viz `logs/crash-*.log`).
 (relativně proti `RepoPaths.RootOrBase()`, což je na zařízení adresář aplikace), stdout ssh session
 (rozumné je ho přesměrovat: `… 2>&1 | tee logs/beh.log`).
 
+## Výběr mise (dvoufázový běh)
+
+Bez zadané `mission=` běží headless **nadvakrát**:
+
+```
+FÁZE A   Start(Run) s mission=none, BEZ ZÁZNAMU
+         robot stojí (žádný producent mrkve → žádná mrkev)
+         stránka ukazuje senzory, kameru, půdorys — a nabízí VÝBĚR MISE
+   ↓     POST /mission?m=… (jen při drženém nouzovém zastavení)
+FÁZE B   Start(Run) znovu, už s misí a SE ZÁZNAMEM
+         robot se rozjede, až člověk nouzové zastavení uvolní
+```
+
+Se zadanou `mission=` se nic nemění — jeden `Start`, hned se záznamem. Dokumentované spuštění
+z příkazové řádky tedy zůstává, jaké bylo.
+
+**Proč fáze A vůbec běží, a nečeká se jen tak:** stav nouzového zastavení chodí jako
+`MotorStateBase.IsEmergencyStop`, tedy **zprávou ze stupně, který před Runem neběží** (skutečné
+senzory zakládá `ARBotHW.SetRealHW` až z `ARBotRuntime.Start`). Bez běžícího Runu by nebylo na čem
+pojistku postavit. Navíc je to funkce, ne cena: před vypuštěním robota je stránka se senzory
+a snímkem kamery přesně to, co člověk chce vidět.
+
+**Proč se fáze A nenahrává:** záznam roste ~19 MB/s, takže deset minut čekání na úkol by znamenalo
+~11 GB. Jeden `.rec` = jedna mise. Slouží k tomu `ARBotRuntime.NoRecord` (prázdný řetězec jako cesta
+záznamu = „nenahrávej ani podle `record=`"; `null` dál znamená „vezmi `record=`").
+
+**Pojistka: misi lze vybrat jen při DRŽENÉM nouzovém zastavení.** Web tedy misi *nastaví*, ale
+rozjede ji vždy až člověk stojící u robota tím, že stop uvolní. Gate se vyhodnocuje **i na serveru**
+(odpověď 409), ne jen v JavaScriptu — klientská kontrola je pohodlí, tahle je pojistka. Mlčící
+motor **není** „stop není stisknutý": bez čerstvé zprávy (do 3 s) se vybírat nedá.
+
+| stav | co stránka řekne |
+|---|---|
+| stop stisknutý, zpráva čerstvá | výběr mise povolen |
+| stop uvolněný | „nejdřív stiskni nouzové zastavení" |
+| motory nehlásí stav | „motory nehlásí stav - misi nelze vybrat" |
+
+Seznam misí bere stránka z **registru parametrů** (`ParamRegistry.Mission.Def.AllowedValues` bez
+`none`), takže nová mise se objeví tím, že se přidá do registru — žádný druhý seznam, který by se
+rozešel. Volba jde do `ParamStore` jako `ParamOrigin.Runtime`, takže se objeví v účinné konfiguraci
+(a tím i v záznamu) jako `mission=freerun  (zvoleno za behu)` — kdyby se předala Startu bokem,
+záznam by tvrdil `mission=none`, i když se jelo. Druhá volba se odmítne (409).
+
+**Robotour se rozjíždí sám** (pokyn autora 5. 9. 2026): `StartMission()` volá `ARBotRuntime` hned
+po založení mise, takže to platí pro UI, příkazovou řádku i výběr z webu. Do té doby ji spouštělo
+**jediné místo v repu** — tlačítko *Start mise* v UI panelu — takže v headless zůstala navždy v `Idle`
+a robot stál, zatímco úvodní řádek hlásil, že se rozjede. Bezpečné to je proto, že auto-start robota
+**nerozjede**: automat jde `Idle → ArmingAtDepot` (čeká na kvalitní fix) → `AwaitingEStop` (čeká, až
+člověk stop **stiskne**).
+
 ## Stav ověření
 
 **Windows, 4. 9. 2026 (fáze 1 a 2):**
@@ -167,26 +262,48 @@ jiný = pád (viz `logs/crash-*.log`).
 - Neplatný port (`web=80`, `web=99999`) → kód 2 s hláškou. **Obsazený port** (druhá instance na
   témž portu) → hláška „bez nahledu" a `Run bezi`, tedy robot jede dál.
 
-**Na OrangePi nic z toho neběželo** — první spuštění je na autorovi a bude to zároveň první běh
-runtime mimo UI. Co ověřit:
+**Orange Pi, 5. 9. 2026 — první běh runtime na zařízení mimo UI.** Ověřeno (Armbian, .NET 10.0.9,
+aarch64, verze `1.0.247.19186`):
 
-1. Start přes ssh podle příkazu výše; že `config/` a `OSM/` leží u aplikace a profil se načte.
-2. Že `WaitReady()` + 3 s stačí i pro skutečné kamery a porty (v UI to stačilo pro autorun).
-3. Ctrl+C a `kill <pid>`: záznam se uzavře (`.rec` + `.rec.idx` čitelné v `ARBot.Analyze`),
-   motory se zastaví, kód 0. Zavření ssh session (`SIGHUP`) totéž.
-4. Odečíst z `PerfMsg` CPU procesu proti běhu s UI. Ty 0,4 procentního bodu za náhled jsou
-   z Windows; na ARM může kreslení a kódování stát víc.
-5. Zda na zařízení `PosixSignalRegistration` pro `SIGTERM`/`SIGHUP` funguje (na Windows ano,
-   mapované na konzolové události).
-6. **Náhled na zařízení:** že se stránka otevře z mobilu na `http://<ip>:<port>/`, že SkiaSharp
-   na Armbianu nakreslí i **text měřítka** (fonty na ARM jsou nejnejistější místo celého náhledu)
-   a jak se to chová přes WiFi s několika prohlížeči naráz.
+- **Služba systemd** `arbot` běží, je `enabled`, `ExecStartPre` (stínová kopie, 17 MB) prošel.
+  `systemctl stop` → **SIGTERM → řádné ukončení za 7 ms** a „Deactivated successfully" — tím padla
+  otevřená otázka, jestli `PosixSignalRegistration` na ARM funguje.
+- **Skutečné senzory** hlásí čerstvá data: VN100 IMU, SDC2160Ex, uBloxGps a obě D435 se stářím pod
+  0,05 s. `WaitReady()` + 3 s stačilo; kamery se připojují ~15 s po startu a do té doby jsou
+  poctivě `IsError`. **T265 je v chybě** („5 s bez pózy, restart pipeline") — stav HW, ne runtime.
+- **Náhled celý:** `world.png` se nakreslil **včetně textu měřítka** (fonty SkiaSharpu na ARM byly
+  označené za nejnejistější místo), `camera.jpg` vrátil živý snímek z D435 (640×480, 17 kB).
+  První požadavek na snímek může vrátit 204 — zájem se hlásí až on a kopíruje se **příští** snímek.
+- **Verze** v hlavičce stránky i v `logs/crash-*.log`; **crash log v datovém adresáři**.
+- **Zámek instance**: ruční běh vedle služby → kód 3.
+- **Fáze A**: robot stojí, nenahrává, stránka nabízí výběr mise s drženým stopem. **CPU 6,2 %**
+  s otevřenou stránkou (proti 13,9 % na Windows v simulaci — jiný stroj i jiná zátěž, nesrovnávat).
+
+**Čtyři vady, které se daly najít jen na zařízení:** chybějící `libNativeLib.so` (pád při startu),
+zdvojený journal (`DefaultTraceListener` → syslog), architektura „x64" v crash logu na ARM64
+a rozbitý `tar | ssh` v PowerShellu. Všechny opravené, detail v
+[plan-headless-provoz.md](plan-headless-provoz.md), Task 6.
+
+**Co zbývá ověřit:**
+
+1. **Celý průchod misí na zařízení** — stisk stopu → výběr mise → uvolnění → jízda. Zkoušel se jen
+   v simulaci; na robotu se zatím jelo pouze do fáze A.
+2. **Start po skutečném rebootu** (jednotka je `enabled`, reboot se nezkoušel).
+3. **Nativní pád při souběhu s RealSense Viewrem.** 5. 9. 2026 proces spadl na **SIGSEGV**
+   (`code=dumped, status=11/SEGV`) ve chvíli, kdy byl na Pi otevřený *RealSense Viewer* — ten si
+   bere D435 i T265 na USB. `CrashLog` nativní pád nezachytí, takže po něm zůstal jen záznam
+   v journalu a core dump. Souvislost není prokázaná, jen časově sedí; **zkusit znovu bez Viewru**.
+   Služba se po opakovaných pádech sama vzdala (`StartLimitBurst=5`) a zůstala ve stavu `failed` —
+   to je správně.
+4. Odečíst z `PerfMsg` CPU procesu proti běhu s UI na témž stroji.
+5. Chování přes WiFi s několika prohlížeči naráz.
 
 ## Webový náhled (`web=<port>`)
 
-Stránka na mobilu nebo notebooku ukáže, **co robot právě dělá**, a nabídne jediný zásah:
-zastavit. Hotové 4. 9. 2026 (fáze 3) podle [plan-headless-web.md](plan-headless-web.md).
-**Ve výchozím stavu je vypnutý** (`web=0`).
+Stránka na mobilu nebo notebooku ukáže, **co robot právě dělá**, a nabídne dva zásahy: **vybrat
+misi** (jen při drženém nouzovém zastavení) a **ukončit proces**. Hotové 4. 9. 2026 (fáze 3) podle
+[plan-headless-web.md](plan-headless-web.md), rozšířené 5. 9. 2026 (fáze 4) podle
+[plan-headless-provoz.md](plan-headless-provoz.md). **Ve výchozím stavu je vypnutý** (`web=0`).
 
 ```bash
 dotnet ARBot.Headless.dll config=config/orangepi.cfg mission=robotour web=8080
@@ -194,10 +311,30 @@ dotnet ARBot.Headless.dll config=config/orangepi.cfg mission=robotour web=8080
 
 Pak se z mobilu otevře `http://<ip Pi>:8080/`.
 
-Stránka má **jeden obrázek** a nad ním lištu: vlevo přepínače, vpravo červené **Zastavit robota**.
-Přepínače jsou dvě skupiny — co se ukazuje (**půdorys | kamera | cesta**) a u půdorysu ještě
-měřítko (**2 m | 10 m | 50 m**, u kamery se skryje). Pod obrázkem jsou **senzory** a tabulka stavu;
-obnovuje se každou sekundu.
+Shora dolů: **hlavička** na jeden řádek (vlevo název, vpravo verze, build, doba běhu a systémový
+čas), **stav mise**, případný **výběr mise**, **lišta**, **obrázek**, **senzory** a tabulka stavu.
+Obnovuje se každou sekundu.
+
+- **Hlavička** odpovídá na „co tu vlastně běží": verze binárky s git hashem a příznakem `dirty`
+  (na zařízení se nasazuje často a z rozpracované kopie), datum buildu, doba běhu procesu — podle
+  které se pozná restart — a čas. **Když server neodpovídá, hlavička zčervená a název se změní na
+  „ARBot - neodpovídá"**; živé údaje (doba běhu, čas) zmizí, verze a build zůstanou. Zbytek stránky
+  zůstává stát: po pádu je to jediné, z čeho jde poznat, co robot dělal, když skončil.
+- **Stav mise**: jaká mise, v jaké fázi a oranžově **„čeká se na: …"** (kvalitní fix GPS, stisknutí
+  nouzového zastavení, QR kód, uvolnění stopu, dojezd k cíli). Bez mise „mise: žádná".
+- **Lišta**: vlevo přepínače — co se ukazuje (**půdorys | kamera | cesta**) a u půdorysu ještě
+  měřítko (**2 m | 10 m | 50 m**, u kamery se skryje); vpravo **Emergency stop** (jen při
+  `virtualhw=true`) a červený **Terminate**.
+- **Emergency stop** je virtuální nouzové zastavení pro simulaci — panel *Tools → Virtuální senzory*
+  je v UI aplikaci, kterou headless nemá, a bez něj by se ta pojistka nedala vyzkoušet. Drží se
+  **po celou dobu běhu**, ne jen při výběru mise: Robotour potřebuje stisk a uvolnění na **každém**
+  stanovišti, takže kdyby zmizel s panelem výběru, nešlo by projít ani první servisní okno. Držený
+  stop je **oranžový** (červená patří destruktivnímu *Terminate*). Se skutečným HW se tlačítko
+  nekreslí a server požadavek odmítá — dálkové ovládání nouzového zastavení na skutečném robotu
+  nesmí existovat.
+- **Terminate** ukončí proces. Pod systemd se za ~5 s vrátí (a mezitím se obnoví stínová kopie),
+  takže je to zároveň nejrychlejší cesta k nasazení nové verze; kdo chce robota nechat stát, dá
+  `systemctl stop arbot`.
 
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 
@@ -206,15 +343,21 @@ sjízdné, červená blokované, šedá síť cest z mapy, modrá ujetá dráha,
 
 | cesta | co vrací |
 |---|---|
-| `GET /` | stránka (jeden obrázek, přepínače, senzory, stav, Zastavit) |
+| `GET /` | stránka (hlavička, stav mise, výběr mise, lišta, obrázek, senzory, stav) |
 | `GET /camera.jpg` | poslední snímek; `?cam=<jméno>` vybere kameru, `?layer=prob` pošle **pravděpodobnost cesty z RGB** místo barvy |
 | `GET /world.png` | půdorys: occupancy grid pod sítí cest, póza, mrkev, ujetá dráha, měřítko; `?scale=2\|10\|50` volí přiblížení |
+| `GET /status.json` | týž stav jako hlavička, tabulka a senzory — pro obnovení bez reloadu i pro skriptovaný dohled |
+| `POST /mission?m=<mise>` | vybere misi; **409** bez drženého stopu nebo když už mise běží, **400** u neznámé mise a u `none` |
+| `POST /virtualestop?on=true\|false` | virtuální nouzové zastavení; **404** se skutečným HW |
+| `POST /stop` | zastaví runtime a ukončí proces, jako Ctrl+C |
 
 Síť cest se kreslí **věrně mapové geometrii**: každý úsek je kapsle s lineárně interpolovanou
 polosirkou mezi uzly (jako `RoadScene`), takže rozšiřující se cesta je trychtýř a v křižovatce se
 hrany hladce napojí. Uzel s neurčenou šířkou (0) se kreslí na 0,5 m, aby nebyl nevidět.
-| `GET /status.json` | týž stav jako tabulka a senzory, pro obnovení bez reloadu i pro skriptovaný dohled |
-| `POST /stop` | zastaví runtime a ukončí proces, jako Ctrl+C |
+
+**Zásahy jdou jen přes `POST`** — `GET` na `/stop` i `/mission` vrací 405, aby je nevyvolal prefetch
+prohlížeče nebo náhled odkazu. Hodnota jde **query stringem**, ne tělem: `HttpMini` čte jen
+hlavičku a kvůli jednomu řetězci nemá smysl do něj přidávat čtení těla.
 
 **Vrstva „cesta z RGB"** je ten kanál, který jde do occupancy gridu (`CameraFrame.ImageProbability`,
 plní `CameraFrameProcessor`, čte `OccupancyIntegrator`) — tedy co robot považuje za cestu ještě
@@ -250,11 +393,11 @@ kamery a na novou kopii je potřeba volný slot. S kapacitou 2 a dvěma kamerami
 z každé **všechny další tiše zahazovaly a obraz na stránce zamrzl** (nalezeno 4. 9. 2026). Dnes je
 kapacita 4 a vyčerpání se hlásí do `Trace`; hlídá to `DveKamery_SeObeAktualizuji`.
 
-**Zastavení je jen přes `POST`**, aby ho nevyvolal prefetch prohlížeče nebo náhled odkazu.
-
-⚠️ **Bez hesla, na všech rozhraních.** Kdokoli v té síti může robota **zastavit**; rozjet ho z webu
-nejde a nikdy nesmí jít. Je to vědomé rozhodnutí (robot je na uzavřené síti, zastavení je ta
-bezpečnější strana) — viz [decisions.md](decisions.md).
+⚠️ **Bez hesla, na všech rozhraních.** Přístup chrání **heslo k WiFi**. Kdokoli v té síti může
+robota zastavit a **od 5. 9. 2026 mu i vybrat misi** — to druhé ale jen ve chvíli, kdy někdo drží
+nouzové zastavení, a rozjede se robot až jeho uvolněním. Web tedy misi *nastaví*, nespustí. Do té
+doby tu stálo „rozjet robota z webu nikdy nepůjde"; změnu i její odůvodnění drží
+[decisions.md](decisions.md), 5. 9. 2026.
 
 ### Proč to nekrade výkon řízení
 

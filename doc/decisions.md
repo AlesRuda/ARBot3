@@ -13,6 +13,85 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-05 — Na zařízení běží systemd jednotka; restart je bezpečný, protože robot čeká na misi
+**Co:** `ARBot.Headless` běží na Orange Pi jako služba `arbot` (`enabled`, start po bootu,
+`Restart=always`, `RestartSec=5`). Jednotka, skript stínové kopie a nasazovací skript jsou v repu
+(`deploy/`). **Mění to rozhodnutí ze 4. 9. 2026** („žádný systemd, žádná služba, žádný `Restart=`").
+**Proč:** pokyn autora — „zapnu robota a na webu mu můžu dát příkaz, bez dalšího". Původní důvod
+zákazu (robot, který se sám znovu rozjede, je horší než robot, který stojí) **nezanikl, jen ho drží
+něco jiného**: bez zadané mise runtime nastartuje, rozjede senzory a **stojí**, dokud mu člověk misi
+nevybere. Restartovaný proces se tedy nerozjede — a přesně proto je `Restart=always` přípustný.
+Kdyby někdy přestalo platit, že se robot bez volby nerozjede, musí zmizet i ten restart.
+**Důsledky:** `RestartPreventExitStatus=2 3` (vadná konfigurace ani druhá instance se restartem
+nespraví) a `StartLimitBurst=5` za 5 minut, po kterých to systemd vzdá — **ověřeno v praxi**
+5. 9. 2026, kdy po nativním pádu zůstala služba ve stavu `failed` místo smyčky. Milý vedlejší efekt:
+`ExecStartPre` obnovuje stínovou kopii, takže **restart služby = nasazení nové verze**.
+Odkazy: [headless.md](headless.md), [deploy/README.md](../deploy/README.md),
+[plan-headless-provoz.md](plan-headless-provoz.md).
+
+### 2026-09-05 — Misi lze vybrat z webu, ale jen při drženém nouzovém zastavení
+**Co:** stránka náhledu nabízí výběr mise (`POST /mission`), když proces žádnou nemá. Projde jen
+při **drženém nouzovém zastavení** a gate se vyhodnocuje **na serveru** (409), ne jen v prohlížeči.
+Mlčící motor se počítá jako zákaz — bez čerstvé zprávy (do 3 s) se vybírat nedá. **Mění to
+rozhodnutí ze 4. 9. 2026** („rozjet robota z webu nejde a nikdy nesmí jít; pak by heslo bylo nutné").
+**Proč:** robot bez displeje musí umět dostat úkol od člověka, který u něj stojí. Přístup chrání
+heslo k WiFi (rozhodnutí autora), a hlavně **web misi jen nastaví — nespustí**: robot se rozjede až
+tím, že člověk stop uvolní. Ta asymetrie („nejhorší, co udělá cizí v síti, je že robota zastaví")
+tedy zůstává, protože rozjezd pořád vyžaduje fyzický úkon u robota.
+**Důsledky:** volba jde do `ParamStore` s novým původem `ParamOrigin.Runtime`, aby ji nesla účinná
+konfigurace a tím i záznam (jinak by `.rec` tvrdil `mission=none`, i když se jelo). Seznam misí
+bere stránka z registru, takže nevzniká druhý seznam. Bez mise se **nejezdí** — `none` není volba.
+Odkazy: [headless.md](headless.md#výběr-mise-dvoufázový-běh), [configuration.md](configuration.md).
+
+### 2026-09-05 — Bez zadané mise běží headless nadvakrát a fáze čekání se nenahrává
+**Co:** bez `mission=` se volá `Start(Run)` dvakrát: nejdřív bez mise a **bez záznamu** (robot
+stojí), po volbě mise znovu už s misí a se záznamem. Se zadanou `mission=` se nemění nic.
+**Proč:** stav nouzového zastavení chodí jako `MotorStateBase`, tedy **zprávou ze stupně, který před
+Runem neběží** — bez běžícího Runu by nebylo na čem postavit pojistku výše. Nenahrávat fázi čekání
+je nutnost: záznam roste ~19 MB/s, takže deset minut čekání na úkol = ~11 GB. Vedlejší zisk je, že
+jeden `.rec` odpovídá jedné misi.
+**Důsledky:** `ARBotRuntime.NoRecord` (prázdný řetězec = „nenahrávej ani podle `record=`"; `null`
+dál znamená „vezmi `record=`"). `Start` musel začít mise **nulovat**, jinak by po druhém startu
+s jinou misí zůstala viset ta předchozí. Odkazy: [headless.md](headless.md#výběr-mise-dvoufázový-běh).
+
+### 2026-09-05 — Robotour se rozjíždí sám
+**Co:** `RobotourMission.StartMission()` volá `ARBotRuntime` hned po založení mise — pro UI,
+příkazovou řádku i výběr z webu.
+**Proč:** pokyn autora. Do té doby ji spouštělo **jediné místo v celém repu** — tlačítko *Start mise*
+v UI panelu — takže v headless zůstala navždy v `Idle`, robot stál a úvodní řádek přitom hlásil, že
+se rozjede bez dalšího pokynu. Našlo se to 5. 9. 2026 díky novému řádku „čeká se na" na stránce.
+**Bezpečné je to proto, že auto-start robota nerozjede:** automat jde `Idle → ArmingAtDepot` (čeká
+na kvalitní fix) → `AwaitingEStop` (čeká, až člověk stop **stiskne**). První pohyb tedy pořád
+vyžaduje člověka u robota. Tlačítko v UI zůstává; mimo `Idle` nic nedělá.
+Odkazy: [robotour-mission.md](robotour-mission.md), [headless.md](headless.md).
+
+### 2026-09-05 — Verze se razítkuje jen na pokyn, `AssemblyVersion` se nemění
+**Co:** `Src/Directory.Build.props` skládá verzi `1.0.<dní od 2026-01-01>.<půlsekund od půlnoci UTC>`
+plus informational version s git hashem, příznakem `dirty` a časem buildu — ale **jen s
+`-p:ArbotStamp=true`**; jinak je verze `0.0.0.0-dev`. `AssemblyVersion` zůstává `1.0.0.0`.
+**Proč:** na zařízení nešlo poznat, která binárka běží (repo nemá tagy). Razítkovat při každém buildu
+by přepisovalo generovaný `AssemblyInfo.cs`, tedy překládalo celé řešení pořád dokola a zdrželo
+testovací smyčku; nasazení jde vždy přes publish, takže razítko dostane právě ono, a vývojový build
+se poctivě hlásí jako `-dev`. `AssemblyVersion` je identita typů a vazeb, ne „co jsem nasadil" —
+měnit ji per-build je zbytečné riziko. Příznak `dirty` je podstatný, protože se běžně nasazuje
+z rozpracované kopie a číslo commitu by samo lhalo.
+**Důsledky:** verze je v hlavičce crash logu, v úvodním výpisu obou aplikací, v záznamu a v hlavičce
+webové stránky. Odkazy: `Src/Directory.Build.props`, `BuildInfo`, [headless.md](headless.md).
+
+### 2026-09-05 — Data mimo binárky: `dataroot=` a stínová kopie
+**Co:** nasazuje se do `~/arbot-headless`, běží se z `~/arbot-headless-run` (kopii obnovuje
+`ExecStartPre` při každém startu) a **`dataroot=/home/ales/arbot`** říká, kam patří záznamy, logy
+a odkud se čtou profily a mapy.
+**Proč:** běžící .NET binárku nejde přepsat (assembly jsou memory-mapped → `ETXTBSY` u `scp`, nebo
+si proces drží starý inode u `rsync`), takže aplikace musí běžet z kopie a nasazovat se do
+adresáře, který je zapisovatelný i za běhu (návrh autora). Data ale nesmí být v kopii, která se
+každým startem přepisuje.
+**Důsledky:** `dataroot=` se bere **jen z příkazové řádky a dřív než `config=`** (profil se hledá
+až podle něj), takže v profilu je to chyba při startu. Zámek jedné instance leží tamtéž. Pád
+**před** načtením konfigurace skončí vedle aplikace — vědomý ústupek, jinak by pád při čtení
+konfigurace nezanechal stopu žádnou. Odkazy: [headless.md](headless.md#datový-adresář-dataroot),
+[deploy/README.md](../deploy/README.md).
+
 ### 2026-09-04 — Čas se všude měří přes `TimeBase.Now`, ne `DateTime.Now`/`UtcNow`
 **Co:** razítka zpráv, měření dob, latencí a timeoutů berou čas z `TimeBase.Now` (čas startu aplikace
 plus monotonní `Stopwatch`). Systémový čas zůstal jen tam, kde je potřeba kalendářní datum pro

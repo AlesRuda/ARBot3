@@ -197,6 +197,7 @@ namespace ARBot.ViewModels
         {
             ParamOrigin.File => "profil",
             ParamOrigin.CommandLine => "prikazova radka",
+            ParamOrigin.Runtime => "zvoleno za behu",
             _ => "vychozi",
         };
 

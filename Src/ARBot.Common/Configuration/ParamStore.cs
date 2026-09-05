@@ -13,6 +13,12 @@ namespace ARBot.Common.Configuration
         File,
         /// <summary>Z prikazove radky - prebiji vse.</summary>
         CommandLine,
+        /// <summary>
+        /// Zvoleno az za behu (dnes jedine <c>mission=</c> z weboveho nahledu, viz
+        /// <see cref="ParamStore.SetRuntimeOverride"/>). Prebiji i prikazovou radku - je to
+        /// nejpozdejsi a nejvyslovnejsi projev vule cloveka.
+        /// </summary>
+        Runtime,
     }
 
     /// <summary>
@@ -64,6 +70,18 @@ namespace ARBot.Common.Configuration
                     arg.Substring(0, eq).Trim(), arg.Substring(eq + 1).Trim()));
             }
 
+            // 1b) dataroot= JESTE DRIV nez config=: proti nemu se resi relativni cesty, tedy
+            //     i cesta k profilu. Proto se bere vyhradne z prikazove radky - profil se hleda
+            //     az podle nej, takze v profilu by prisel pozde (a to je tise spatne).
+            RepoPaths.SetDataRoot(null);
+            foreach (var pair in cmdline)
+            {
+                if (!string.Equals(pair.Key, "dataroot", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                RepoPaths.SetDataRoot(pair.Value);
+                break;
+            }
+
             // 2) config= se cte z prikazove radky driv nez cokoliv jineho.
             foreach (var pair in cmdline)
             {
@@ -89,6 +107,15 @@ namespace ARBot.Common.Configuration
                 foreach (var pair in dvojice)
                 {
                     ParamRegistry.TryGet(pair.Key, out var def);
+
+                    // dataroot v profilu je CHYBA, ne tiche ignorovani: profil se nacita az podle
+                    // nej, takze by hodnota prisla pozde a cesty by se resily jinam, nez clovek
+                    // napsal. Radeji hlaska pri startu nez zaznam v jinem adresari.
+                    if (string.Equals(def.Name, "dataroot", StringComparison.OrdinalIgnoreCase))
+                        throw new ParamFileException(
+                            $"Profil '{store.ConfigPath}': 'dataroot' patri na prikazovou radku, "
+                            + "ne do profilu - profil se hleda az podle nej.");
+
                     store.Set(def.Name, pair.Value, ParamOrigin.File);
                 }
             }
@@ -120,6 +147,43 @@ namespace ARBot.Common.Configuration
             return store;
         }
 
+        /// <summary>
+        /// Klice, ktere smi zmenit <see cref="SetRuntimeOverride"/>. <b>Bila listina schvalne:</b>
+        /// konfigurace se sklada jednou pri startu a mutovatelna globalni nastaveni jsou presne to,
+        /// cemu se registr vyhyba. Vyjimka je <c>mission</c>, protoze robot bez displeje musi umet
+        /// dostat ukol az od cloveka u nej (doc/plan-headless-provoz.md, navrh C).
+        /// </summary>
+        private static readonly string[] RuntimeOverridable = { "mission" };
+
+        /// <summary>
+        /// Prepise hodnotu parametru <b>za behu</b> a oznaci ji puvodem <see cref="ParamOrigin.Runtime"/>.
+        /// Urceno pro vyber mise z weboveho nahledu.
+        ///
+        /// <para>Proc pres store a ne parametrem do <c>ARBotRuntime.Start</c>: hodnotu cte Start
+        /// z registru a <b>ucinna konfigurace tece do zaznamu</b>. Kdyby se mise predala bokem,
+        /// zaznam by tvrdil <c>mission=none</c>, i kdyz se jelo.</para>
+        /// </summary>
+        /// <exception cref="ParamFileException">Klic neni v bile listine, neni v registru, nebo
+        /// hodnota neni platna. Volajici (webovy server) z toho udela odpoved 400.</exception>
+        public void SetRuntimeOverride(string name, string value)
+        {
+            if (!ParamRegistry.TryGet(name, out var def))
+                throw new ParamFileException($"'{name}' neni znamy parametr.");
+
+            bool povoleny = false;
+            foreach (var k in RuntimeOverridable)
+                if (string.Equals(k, def.Name, StringComparison.OrdinalIgnoreCase)) { povoleny = true; break; }
+            if (!povoleny)
+                throw new ParamFileException($"'{def.Name}' nejde menit za behu.");
+
+            var overeni = def.Validate(value);
+            if (!overeni.Ok)
+                throw new ParamFileException($"'{def.Name}={value}' neni platna hodnota ({overeni.Error}).");
+
+            // Kanonizace: vycet se overuje case-insensitive, ale cteni porovnava presne.
+            Set(def.Name, def.Canonical(value), ParamOrigin.Runtime);
+        }
+
         private void Set(string name, string value, ParamOrigin origin)
         {
             values[name] = value;
@@ -144,7 +208,7 @@ namespace ARBot.Common.Configuration
         /// </summary>
         public IEnumerable<string> DescribeAll()
         {
-            yield return "Konfigurace (ucinne hodnoty; poradi default -> profil -> prikazova radka):";
+            yield return "Konfigurace (ucinne hodnoty; poradi default -> profil -> prikazova radka -> beh):";
             foreach (var def in ParamRegistry.All)
             {
                 string value = Get(def.Name) ?? "(nenastaveno)";
@@ -152,6 +216,10 @@ namespace ARBot.Common.Configuration
                 {
                     ParamOrigin.CommandLine => "prikazova radka",
                     ParamOrigin.File => "profil",
+                    // Bez teto vetve se mise zvolena z webu hlasila jako "(default)" - tedy prave
+                    // v zaznamu, ktery ma o konfiguraci rikat pravdu (nalezeno 5. 9. 2026 pri
+                    // zkousce vyberu mise).
+                    ParamOrigin.Runtime => "zvoleno za behu",
                     _ => "default",
                 };
                 yield return $"  {def.Name}={value}  ({origin})";

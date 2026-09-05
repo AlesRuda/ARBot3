@@ -360,6 +360,23 @@ program hlásil, i u běhu, kde nikdo neseděl u okna Debug output (typicky běh
 Zapojuje ho `ARBotRuntime` při Startu a odpojuje hned na začátku `Stop()` (zbytek vypínání sám loguje
 a nemá smysl to cpát do pipeline, která se právě rozebírá).
 
+### Verze binárky a konfigurace v záznamu (od 5. 9. 2026)
+
+Hned po `traceBridge.Attach()` runtime vypíše **verzi běžící binárky** (`BuildInfo`) a **celou
+účinnou konfiguraci** (`ParamStore.Current.DescribeAll()`, ~60 řádků). Bez toho nešlo u nahrávky ze
+zařízení zjistit, jaká binárka a jaké parametry ji pořizovaly — a na zařízení se nasazuje často
+a z rozpracované kopie, takže samotný hash commitu by lhal.
+
+**Do 5. 9. 2026 v záznamu konfigurace nebyla vůbec**, přestože to tvrdila
+[CLAUDE.md](../CLAUDE.md) i komentáře u výpisu: `RuntimeBootstrap.TryConfigure` ji vypisuje **před**
+startem runtime, kdy most ještě nestojí a nikdo ji nesbírá — a `TraceInfoBridge` **nic nebufferuje**.
+Proto se ten výpis po připojení mostu **zopakuje**. Řádky se vejdou pod strop
+`TraceInfoBridge.MaxPerSecond` (200).
+
+Praktický důsledek: v `.rec` se dá najít řádek `ARBot verze: 1.0.247.19186 (2316de12-dirty, build
+2026-09-05 10:39 UTC)` a pod ním `mission=freerun  (zvoleno za behu)` — tedy i to, že misi vybral
+člověk ze stránky, ne profil.
+
 ### `Trace.WriteLine` vs. `Debug.WriteLine` — na tom záleží
 
 | kdy | čím | proč |

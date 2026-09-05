@@ -71,7 +71,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   při startu**, ne tichý pád na default — to je hlavní zisk. Od 4. 9. 2026 se parametry čtou **typovanými
   odkazy** `ParamRegistry.NoUart.Value` (špatný klíč se nepřeloží, default jen v registru, i ten
   z `Profile`/konfiguračních tříd se čte, ne opisuje); `Program.GetParam*` neexistuje. Předtím si nechalo
-  signaturu, takže se žádné z ~50 míst čtení neměnilo. Změna platí **až po restartu** (panel ho
+  signaturu, takže se žádné z ~50 míst čtení neměnilo. ⚠️ **Do 5. 9. 2026 se přitom účinná
+  konfigurace do záznamu nedostávala vůbec**, ačkoli se to tvrdilo tady i v komentářích: vypisuje se
+  **před** startem runtime, kdy `TraceInfoBridge` ještě nestojí a nic nebufferuje. Dnes se po
+  připojení mostu zopakuje spolu s verzí binárky (viz
+  [record-replay.md](doc/record-replay.md#verze-binárky-a-konfigurace-v-záznamu-od-5-9-2026)). Změna platí **až po restartu** (panel ho
   umí). Hotové 31. 8. 2026; **panel je proklikaný celý** včetně *Uložit a restartovat* (1. 9. 2026),
   ale **na zařízení nic z toho neběželo** — a systemd jednotka aplikace neexistuje, takže restart
   se tam může chovat jinak.
@@ -93,20 +97,30 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/headless.md](doc/headless.md) — **runtime bez UI**: od 4. 9. 2026 je řídicí runtime
   (`ARBotRuntime`, `ARBotHW`, `CrashLog`, `RuntimeBootstrap`) ve vlastním projektu **`ARBot.Runtime`**
   (mezi HAL a aplikacemi, namespace `ARBot.Robot` beze změny, do `Common` nemůže kvůli směru
-  závislostí) a konzolový **`ARBot.Headless`** ho spouští přes ssh bez Avalonie: bootstrap → čekání
-  na HW → Run → Ctrl+C/SIGTERM/SIGHUP → `Stop()`. **Jen Run, žádný systemd, žádný restart po pádu**
-  (robot, který se sám rozjede, je horší než robot, který stojí). Návratové kódy 0 / 2 (vadná
-  konfigurace, jako UI) / pád. **Ověřeno na Windows** (UI i headless v simulaci, záznam z headless
-  čitelný, `Stop()` 4 ms), **na OrangePi neběželo** — seznam, co ověřit, je v dokumentu.
-  **Od 4. 9. 2026 má i webový náhled** (`web=<port>`, výchozí 0 = vypnuto): stránka s půdorysem
-  (occupancy grid pod sítí cest, póza, mrkev, dráha), snímkem kamery včetně **vrstvy „cesta z RGB"**
-  (`?layer=prob`, tedy kanál, který jde do gridu), tabulkou stavu a tlačítkem **Zastavit**.
-  Kreslení je v `ARBot.Common/Rendering` (vidí na to i `ARBot.Analyze`), HTTP v `ARBot.Runtime/Web`.
-  Klíčové vlastnosti: **líný render** (bez publika se nekreslí ani nekopíruje snímek, měřeno
-  13,9 % → 14,3 % CPU), **vlastní server nad `TcpListener`** (`HttpListener` na Windows bez admin
-  práv neumí jiný prefix než localhost) a **bez hesla na všech rozhraních** — kdokoli v síti může
-  robota zastavit, rozjet ne. Ověřeno na Windows v simulaci včetně prohlížeče; **na zařízení ne**
-  (pozor na fonty SkiaSharpu na ARM). Plán: [doc/plan-headless-web.md](doc/plan-headless-web.md).
+  závislostí) a konzolový **`ARBot.Headless`** ho spouští bez Avalonie. **Jen Run.** Návratové kódy
+  0 / 2 (vadná konfigurace) / **3 (už běží jiná instance)** / pád.
+  **Webový náhled** (`web=<port>`, výchozí 0 = vypnuto): půdorys, snímek kamery včetně **vrstvy
+  „cesta z RGB"** (`?layer=prob`), senzory, stav, hlavička s verzí. Kreslení je
+  v `ARBot.Common/Rendering` (vidí na to i `ARBot.Analyze`), HTTP v `ARBot.Runtime/Web`; **líný
+  render** (bez publika se nekreslí ani nekopíruje snímek) a **vlastní server nad `TcpListener`**
+  (`HttpListener` na Windows bez admin práv neumí jiný prefix než localhost).
+  **Od 5. 9. 2026 (fáze 4) se to provozuje jako služba** — plán
+  [doc/plan-headless-provoz.md](doc/plan-headless-provoz.md), nasazení
+  [deploy/README.md](deploy/README.md):
+  - **systemd jednotka `arbot`**, `enabled`, `Restart=always`. Původní zákaz („robot, který se sám
+    rozjede, je horší než robot, který stojí") **platí dál**, jen ho drží dvoufázový běh: bez
+    zadané mise runtime nastartuje, rozjede senzory a **stojí**, dokud mu člověk nevybere misi.
+  - **Misi vybírá stránka**, ale jen při **drženém nouzovém zastavení** (gate i na serveru, 409) —
+    web misi *nastaví*, rozjede ji až uvolnění stopu. Fáze čekání se **nenahrává** (~19 MB/s).
+  - **`dataroot=`** (datový adresář) a **zámek jedné instance** kvůli nasazení **stínovou kopií**:
+    binárky běží z kopie bokem, data zůstávají v původním adresáři, **restart služby = nasazení**.
+  - **Verze** z `Src/Directory.Build.props` (razítkuje se jen s `-p:ArbotStamp=true`) je v hlavičce
+    stránky, v crash logu i v záznamu.
+  - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
+    měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: celý průchod misí na
+    zařízení a start po skutečném rebootu.** ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň
+    otevřený *RealSense Viewer* (souvislost není prokázaná, jen časově sedí) — `CrashLog` nativní
+    pád nezachytí.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
   netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
 - [doc/devlog.md](doc/devlog.md) — **DevLog / deníček vývoje** (co se dělo den po dni);

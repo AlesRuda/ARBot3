@@ -19,9 +19,15 @@ namespace ARBot.Common.Missions
     ///
     /// <para>Ridi <see cref="GlobalNavigator"/> zadavanim <b>LLA cilu</b> — sama nezna ani graf cest,
     /// ani occupancy grid, ani regulatory. Cesta k cili, objizdeni a detekce zaseku jsou vrstvy pod
-    /// ni. Sourozencem je <see cref="FreeRunMission"/>; <b>spolecna abstrakce misi se zamerne
+    /// ni. Sourozencem je <see cref="FreeRunMission"/>; <b>spolecny ridici predek misi se zamerne
     /// nezavadi</b>, protoze spolecneho je mezi nimi jen to, ze obe produkuji cil — a to na jinou
     /// vrstvu (FreeRun mrkev pro lokalni planovac, tato mise LLA pro globalni navigaci).</para>
+    ///
+    /// <para><b>Pozor, tohle NENI zakaz jakekoli spolecne abstrakce</b> (upresneno 5. 9. 2026):
+    /// tyka se ridici osy. Na ose <b>hlaseni stavu</b> spolecne rozhrani existuje —
+    /// <see cref="IMissionStatus"/>, aby webovy nahled i UI umely rict „jaka mise, v jake fazi a na
+    /// co ceka" bez znalosti konkretni mise. Rozhrani, ne bazova trida: obe mise uz dedi
+    /// z <c>MessageProcessor</c>.</para>
     ///
     /// <para><b>Tri pojistky servisniho okna</b>, na kterych cely navrh stoji:</para>
     /// <list type="number">
@@ -40,7 +46,7 @@ namespace ARBot.Common.Missions
     /// <para><b>Zadny prechod neni implicitni</b> — vzdy z konkretni podminky, aby se ve zaznamu dalo
     /// dohledat, proc se mise posunula.</para>
     /// </summary>
-    public sealed class RobotourMission : MessageProcessor
+    public sealed class RobotourMission : MessageProcessor, IMissionStatus
     {
         private readonly object gate = new object();
 
@@ -135,6 +141,34 @@ namespace ARBot.Common.Missions
 
         /// <summary>Nastaveni, se kterym mise pracuje.</summary>
         public RobotourConfig Config => config;
+
+        // --- IMissionStatus: jednotne hlaseni stavu pro webovy nahled a UI ---
+
+        /// <inheritdoc/>
+        public string MissionName => MissionStatusText.Robotour;
+
+        /// <inheritdoc/>
+        public string PhaseText { get { lock (gate) return MissionStatusText.PhaseText(phase); } }
+
+        /// <inheritdoc/>
+        public MissionWait WaitingFor { get { lock (gate) return MissionStatusText.WaitFor(phase); } }
+
+        /// <summary>
+        /// Jak dlouho mise bezi — z hodin DAT (razitka zprav), tedy tentyz cas, jaky jde do
+        /// <c>MissionMsg.ElapsedSec</c>. Dokud mise nezacala, je to nula: rozdil proti
+        /// <c>default(DateTime)</c> by dal ~64 miliard sekund (nalezeno 26. 8. 2026).
+        /// </summary>
+        public TimeSpan Elapsed
+        {
+            get
+            {
+                lock (gate)
+                {
+                    if (missionStartedAt == default || lastTime <= missionStartedAt) return TimeSpan.Zero;
+                    return lastTime - missionStartedAt;
+                }
+            }
+        }
 
         /// <summary>Faze automatu.</summary>
         public RobotourPhase Phase { get { lock (gate) return phase; } }

@@ -37,6 +37,51 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-05
+
+- **Headless v provozu — fáze 4 hotová a poprvé ověřená na robotu** podle
+  [plan-headless-provoz.md](plan-headless-provoz.md) (návrh i tasky vznikly týž den). Doména je
+  v [headless.md](headless.md) a [deploy/README.md](../deploy/README.md), **šest rozhodnutí**
+  v [decisions.md](decisions.md). Cíl: robot se zapne, sám nastartuje aplikaci, **stojí** a čeká,
+  až mu člověk z mobilu vybere misi.
+  - **Verze binárky** (`Src/Directory.Build.props`, `BuildInfo`): `1.0.<dní od 2026-01-01>.<půlsekund
+    od půlnoci>` + git hash a příznak `dirty`. Razítkuje se **jen s `-p:ArbotStamp=true`**, jinak by
+    se při každém buildu překládalo celé řešení. Jde do crash logu, úvodního výpisu, záznamu i na
+    stránku.
+  - **Hlášení stavu misí** — `IMissionStatus` + `MissionWait` („čeká se na: kvalitní fix GPS / QR
+    kód / stisknutí stopu…"). Do zprávy to **nešlo**: u Robotour je to čistá funkce fáze, kterou
+    `MissionMsg` už nese, takže se to dopočítá i pro **starší** záznamy a formát se neměnil.
+  - **Dvoufázový běh a výběr mise z webu** — bez `mission=` se Run spustí bez mise a **bez záznamu**
+    (~19 MB/s by čekání zaplnilo disk), stránka nabídne misi a projde jen při **drženém nouzovém
+    zastavení** (gate i na serveru). Volba jde do `ParamStore` s novým původem `Runtime`, aby ji
+    nesl záznam.
+  - **`dataroot=`, zámek jedné instance, systemd a nasazení** stínovou kopií (`deploy/`): binárky
+    běží z kopie bokem, data zůstávají v původním adresáři, **restart služby = nasazení nové verze**.
+  - **Ověřeno na Orange Pi** (Armbian, aarch64, .NET 10.0.9): služba `arbot` `enabled`,
+    `systemctl stop` → SIGTERM → `Stop()` za **7 ms** (padla otevřená otázka z fáze 2, jestli
+    `PosixSignalRegistration` na ARM funguje), zámek (ruční běh vedle služby → kód 3), náhled
+    **včetně textu měřítka** (fonty SkiaSharpu na ARM) a živého snímku z D435, verze v hlavičce
+    i v crash logu, CPU **6,2 %** ve fázi čekání. Na Windows 1 200 testů Common a 72 Runtime.
+  - **Sedm vad nalezených při ověřování**, z toho čtyři jen na zařízení: chybějící `libNativeLib.so`
+    (pád při startu), **zdvojený journal** (`DefaultTraceListener` píše na Linuxu do syslogu),
+    architektura „x64" v crash logu na ARM64, rozbitý `tar | ssh` v PowerShellu — a dál
+    **konfigurace se do záznamu nikdy nedostávala** (most se připojuje až po jejím výpisu),
+    `record=true` psal do repa i s `dataroot=`, a `Start` nenuloval mise, takže by po druhém startu
+    hlásil obě.
+  - **⚠️ Robot spadl na SIGSEGV**, když byl na Pi zároveň otevřený *RealSense Viewer* (bere si D435
+    i T265). Souvislost není prokázaná, jen časově sedí. `CrashLog` nativní pád nezachytí — zůstal
+    jen záznam v journalu a core dump. Služba se po opakovaných pádech sama vzdala
+    (`StartLimitBurst=5`), což je správně.
+  - **Úpravy stránky na přání autora** (týž den): název a identita běhu **na jeden řádek** (verze
+    a čas vpravo); při výpadku se místo hlášky na konci stránky **zčervená hlavička** a název se
+    změní na „ARBot - neodpovídá"; tlačítka **Emergency stop** a **Terminate** v liště, přičemž
+    virtuální stop je nově vidět **po celou dobu běhu** — dřív mizel s panelem výběru mise, takže
+    Robotour by v simulaci neprošel ani prvním servisním oknem.
+  - **Rozpracováno / další krok:** projít celou misi na zařízení (stisk stopu → výběr → uvolnění →
+    jízda), ověřit start po skutečném rebootu a zkusit, jestli se pád opakuje bez RealSense Viewru.
+  - **Odkazy:** `Src/Directory.Build.props`, `BuildInfo`, `SingleInstanceLock`, `IMissionStatus`,
+    `MissionStatusText`, `ARBot.Runtime/Web/*`, `deploy/*`, `config/pi-provoz.cfg`.
+
 ## 2026-09-04
 
 - **Webový náhled headless — fáze 3 hotová** podle [plan-headless-web.md](plan-headless-web.md)

@@ -46,7 +46,10 @@ namespace ARBot.Runtime.Tests
             {
                 Assert.That(chyba, Does.StartWith("Chyba konfigurace:"));
                 Assert.That(chyba, Does.Contain("tenhle-profil-neexistuje.cfg"));
-                Assert.That(log, Is.Empty, "pri chybe se konfigurace nevypisuje - nic platneho neni");
+                // Konfigurace se pri chybe nevypisuje - nic platneho neni. Verze ANO: je na profilu
+                // nezavisla a pri hlaseni "nenastartovalo to" je to prvni, co clovek potrebuje.
+                Assert.That(log, Has.Exactly(1).Items);
+                Assert.That(log[0], Does.StartWith("ARBot verze:"));
             });
         }
 
@@ -81,7 +84,7 @@ namespace ARBot.Runtime.Tests
                 Assert.That(Profile.MaxAllowedSpeed, Is.EqualTo(maxSpeed));
                 Assert.That(Profile.SafeDist, Is.EqualTo(safeDist));
                 Assert.That(Profile.PrefDist, Is.EqualTo(prefDist));
-                Assert.That(log.Count, Is.EqualTo(ParamRegistry.All.Count + 1), "hlavicka + radek na parametr");
+                Assert.That(log.Count, Is.EqualTo(ParamRegistry.All.Count + 2), "verze, hlavicka a radek na parametr");
             });
         }
 

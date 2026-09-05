@@ -29,6 +29,63 @@ public class FreeRunMissionTests
     private static RobotState Pose(double x, double y, double theta)
         => new RobotState { X = x, Y = y, Theta = theta, TimeStamp = T0 };
 
+    // ---------------- Hlaseni stavu (IMissionStatus) ----------------
+
+    private sealed class FakeGoal : ARBot.Common.Runtime.ILocalGoalSink
+    {
+        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0) { }
+        public void ClearGoal() { }
+    }
+
+    private static FreeRunMission NovaMise()
+    {
+        var engine = new AsyncFusionEngine(new EKFModel());
+        return new FreeRunMission(engine, new FakeGoal(), new CorridorSource(engine));
+    }
+
+    /// <summary>
+    /// FreeRun <b>neceka na nic zvenci</b> — nema stanoviste, kod ani operatora. Kdyby se sem
+    /// vloudil umely duvod cekani, prestal by radek „ceka se na" na strance znamenat „bez zasahu
+    /// cloveka se nic nestane" (a u Robotour prave to znamena).
+    /// </summary>
+    [Test]
+    public void FreeRun_NecekaNaNic()
+    {
+        Assert.That(NovaMise().WaitingFor, Is.EqualTo(MissionWait.None));
+    }
+
+    [Test]
+    public void NovaMise_HlasiJmenoCekaniNaSnimekANulovyCas()
+    {
+        var mise = NovaMise();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mise.MissionName, Is.EqualTo("freerun"));
+            Assert.That(mise.PhaseText, Is.EqualTo("ceka na prvni snimek"));
+            Assert.That(mise.Elapsed, Is.EqualTo(TimeSpan.Zero));
+        });
+    }
+
+    /// <summary>
+    /// Rozdil „v koridoru" x „drzi kurz" je jediny stav FreeRunu, ktery se zvenci pozna jako jina
+    /// jizda — a je to prvni otazka pri diagnostice („vidi vubec cestu?").
+    /// </summary>
+    [Test]
+    public void TextStavu_RozlisujeKoridorOdDrzeniKurzu()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(FreeRunMission.PhaseTextFor(null), Is.EqualTo("ceka na prvni snimek"));
+            Assert.That(FreeRunMission.PhaseTextFor(new FreeRunResult { HasPose = false }),
+                        Is.EqualTo("ceka na pozu z fuze"));
+            Assert.That(FreeRunMission.PhaseTextFor(new FreeRunResult { HasPose = true, FromCorridor = true }),
+                        Is.EqualTo("jede v koridoru"));
+            Assert.That(FreeRunMission.PhaseTextFor(new FreeRunResult { HasPose = true, FromCorridor = false }),
+                        Is.EqualTo("bez koridoru, drzi kurz"));
+        });
+    }
+
     // ---------------- Geometrie mrkve: kontroly znamenka ----------------
 
     /// <summary>

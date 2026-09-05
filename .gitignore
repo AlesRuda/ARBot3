@@ -378,3 +378,6 @@ Src/crash.txt
 # Zaznamy behu (Run and log) - velke binarni logy, negitovat
 /records/
 /MBTiles/Haje-central-park.mbtiles
+
+# Zamek jedne instance (ARBot.Headless) - vznika pri kazdem behu v korenu (nebo v dataroot).
+arbot.lock

@@ -79,6 +79,14 @@ o kamerách nic neví, jen odebírá `QrCodeMsg`.
 
 ## Stavový automat
 
+**Mise se rozjíždí sama** (5. 9. 2026, pokyn autora): `StartMission()` volá `ARBotRuntime` hned po
+založení mise, takže to platí pro UI, příkazovou řádku i výběr mise z webu. Do té doby ji spouštělo
+**jediné místo v celém repu** — tlačítko *Start mise* v UI panelu — a v headless proto zůstala navždy
+v `Idle`; robot stál, zatímco úvodní řádek hlásil, že se rozjede bez dalšího pokynu. Bezpečné je to
+proto, že auto-start robota **nerozjede**: z `Idle` se jde do `ArmingAtDepot` (čeká na kvalitní fix)
+a pak do `AwaitingEStop` (čeká, až člověk stop **stiskne**). Tlačítko v UI zůstává — mimo `Idle`
+nedělá nic. Viz [decisions.md](decisions.md).
+
 Všechna tři zastavení (depo, nakládka, vykládka) mají **totožný průběh** — obsluha zmáčkne nouzové
 zastavení, teprve pak se něco děje, a jízda pokračuje až po jeho uvolnění. Je to proto jeden
 **opakovaně použitý podautomat „servisní okno"**:
@@ -472,6 +480,25 @@ výpočetní čas je zdarma — tam je správné zaplatit za úspěšnost čten�
 > ⚠️ **Úspěšnost čtení není naměřená.** Testovací obraz se kóduje **týmž** ZXingem, takže testy
 > dokazují *cestu* (BGR32 → Y800 → dekodér, včetně podvzorkování na polovinu), ne to, jak se kód
 > čte z reálné kamery na stanovišti. To je vedený krok „ověření na HW".
+
+## Hlášení stavu (`IMissionStatus`)
+
+Mise implementuje [`IMissionStatus`](../Src/ARBot.Common/Missions/IMissionStatus.cs) — jednotné
+„jaká mise, v jaké fázi, **na co čeká** a jak dlouho už jede" pro webový náhled headless i pro UI.
+Fáze se mapuje na výčet `MissionWait`: `ArmingAtDepot` → `GpsFix`, `AwaitingEStop` →
+`EmergencyStopPressed`, `Servicing` → `QrCode`, `AwaitingEStopRelease` → `EmergencyStopReleased`,
+jízda → `Arrival`, konec → `None`. **Žádná fáze nesmí zůstat bez odpovědi** — hlídá to test nad
+všemi hodnotami výčtu; „na nic se nečeká" je taky odpověď.
+
+⚠️ **Do zprávy to nejde a je to záměr.** „Na co se čeká" je u téhle mise **čistá funkce fáze**, a tu
+`MissionMsg.Phase` už nese — ukládat vedle ní odvozenou hodnotu by znamenalo dva zdroje pravdy
+v záznamu a platilo by to jen pro nové nahrávky. Převod dělá `MissionStatusText` **u čtenáře**
+a bere `int`, takže se stejně volá nad živou misí i nad přečtenou zprávou — a „na co se čekalo" jde
+dopočítat i pro **starší** záznamy. Formát zpráv se proto neměnil.
+
+**Rozhraní, ne bázová třída:** obě mise už dědí z `MessageProcessor`. Netýká se to
+[řídicí osy](#vrstvy) — společný *řídicí* předek misí se dál záměrně nezavádí, protože FreeRun
+produkuje mrkev pro lokální plánovač a tahle mise LLA cíl pro globální navigaci.
 
 ## Zprávy a záznam
 

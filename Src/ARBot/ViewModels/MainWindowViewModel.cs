@@ -522,21 +522,15 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
-        /// Koren git repa (slozka obsahujici <c>.git</c>) hledany smerem nahoru od build outputu;
-        /// fallback na <see cref="AppContext.BaseDirectory"/> (nasazeni bez repa, napr. na Pi).
+        /// Zaklad pro relativni cesty: datovy adresar (<c>dataroot=</c>), jinak koren git repa,
+        /// jinak adresar aplikace.
+        ///
+        /// <para>Do 5. 9. 2026 tady byla <b>vlastni kopie</b> hledani korene repa, takze tlacitka
+        /// <i>Run + zaznam</i> a snimek telemetrie o datovem adresari nevedela a psala jinam nez
+        /// zbytek aplikace. Dnes deleguje na <see cref="RepoPaths"/> - jedno misto pro obe cesty.</para>
         /// </summary>
         private static string RepoRootOrBase()
-        {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null)
-            {
-                string git = System.IO.Path.Combine(dir.FullName, ".git");
-                if (System.IO.Directory.Exists(git) || System.IO.File.Exists(git))
-                    return dir.FullName;
-                dir = dir.Parent;
-            }
-            return AppContext.BaseDirectory;
-        }
+            => ARBot.Common.Configuration.RepoPaths.DataRootOrBase();
 
         /// <summary>Zastavi runtime (Run i View).</summary>
         [RelayCommand(CanExecute = nameof(CanStop))]

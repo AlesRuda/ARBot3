@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ARBot.Robot;
@@ -39,6 +38,19 @@ namespace ARBot
 
         private static bool installed;
 
+        /// <summary>
+        /// Kam psat crash logy. <c>null</c> = <c>logs/</c> vedle aplikace (dosavadni chovani).
+        /// Nastavuje <c>RuntimeBootstrap</c> podle <c>dataroot=</c>, a to <b>az po precteni
+        /// konfigurace</b>.
+        ///
+        /// <para><b>Proc az potom:</b> <see cref="Install"/> se schvalne vola driv nez cokoliv, co
+        /// muze spadnout - tedy driv, nez jsou znamé parametry. Pad PRED nactenim konfigurace tedy
+        /// skonci vedle aplikace, coz je pri nasazeni stinovou kopii adresar, ktery se pri pristim
+        /// startu prepise. Je to vedomy ustupek: prehodit poradi by znamenalo, ze pad pri cteni
+        /// konfigurace nezanecha stopu vubec zadnou.</para>
+        /// </summary>
+        public static string LogDirectory { get; set; }
+
         /// <summary>Zaregistruje handlery. Volat jako první věc v <c>Main</c>; idempotentní.</summary>
         public static void Install()
         {
@@ -69,7 +81,7 @@ namespace ARBot
             string path = null;
             try
             {
-                string dir = Path.Combine(AppContext.BaseDirectory, "logs");
+                string dir = Path.Combine(LogDirectory ?? AppContext.BaseDirectory, "logs");
                 Directory.CreateDirectory(dir);
                 path = Path.Combine(dir, $"crash-{DateTime.Now:yyyyMMdd-HHmmss}.log");
 
@@ -78,7 +90,11 @@ namespace ARBot
                 sb.AppendLine($"zdroj:     {source}");
                 sb.AppendLine($"verze:     {Version()}");
                 sb.AppendLine($"argumenty: {string.Join(" ", Environment.GetCommandLineArgs())}");
-                sb.AppendLine($"systém:    {Environment.OSVersion} / .NET {Environment.Version} / {(Environment.Is64BitProcess ? "x64" : "x86")}");
+                // Architektura z RuntimeInformation, ne z Is64BitProcess: ten na ARM64 hlasil "x64"
+                // (videno v crash logu z Orange Pi 5. 9. 2026), takze podle hlavicky neslo poznat,
+                // jestli pad prisel ze zarizeni, nebo z vyvojoveho stroje.
+                sb.AppendLine($"systém:    {Environment.OSVersion} / .NET {Environment.Version} / "
+                              + System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture);
                 sb.AppendLine($"běh:       {Process.GetCurrentProcess().StartTime:HH:mm:ss} start, pracovní paměť {Environment.WorkingSet / (1024 * 1024)} MB");
                 sb.AppendLine();
                 sb.AppendLine(ex?.ToString() ?? "(bez výjimky)");
@@ -121,12 +137,9 @@ namespace ARBot
 
         private static string Version()
         {
-            try
-            {
-                var asm = Assembly.GetExecutingAssembly();
-                return asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                       ?? asm.GetName().Version?.ToString() ?? "?";
-            }
+            // Verze VSTUPNÍ assembly (ARBot.exe / ARBot.Headless.dll), ne téhle knihovny — po pádu
+            // se hledá „co jsem nasadil". Rozbor nikdy nevyhazuje, viz BuildInfo.
+            try { return BuildInfo.Current.Popis(); }
             catch { return "?"; }
         }
     }

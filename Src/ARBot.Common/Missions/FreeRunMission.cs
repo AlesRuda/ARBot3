@@ -27,11 +27,17 @@ namespace ARBot.Common.Missions
     /// autora: jednodussi a predvidatelnejsi nez podrzeni posledniho koridoru. Kdyby to v praxi
     /// cukalo, znama lecba je to podrzeni — viz doc/mission-freerun.md.</para>
     ///
+    /// <para><b>Hlaseni stavu</b> (<see cref="IMissionStatus"/>): FreeRun <b>neceka na nic zvenci</b>
+    /// — nema stanoviste, kod ani operatora, jede z toho, co zrovna vidi. Proto ma vzdy
+    /// <see cref="MissionWait.None"/> a odpoved na „co robot dela" nese <see cref="PhaseText"/>
+    /// (jede v koridoru / drzi kurz / ceka na pozu). Kdyby se sem cpal umely „ceka na koridor",
+    /// prestal by ten radek na strance znamenat „bez zasahu cloveka se nic nestane".</para>
+    ///
     /// <para><b>Vlakno:</b> <see cref="MessageProcessor"/> nad <see cref="CameraFrame"/>, fronta
     /// <see cref="OverflowPolicy.DropOldest"/> — kdyz mise nestiha, je spravne pracovat
     /// s NEJNOVEJSIM snimkem.</para>
     /// </summary>
-    public sealed class FreeRunMission : MessageProcessor
+    public sealed class FreeRunMission : MessageProcessor, IMissionStatus
     {
         private readonly ILocalGoalSink localGoal;
         private readonly AsyncFusionEngine engine;
@@ -70,6 +76,46 @@ namespace ARBot.Common.Missions
         /// <summary>Posledni vysledek (diagnostika pro UI a telemetrii).</summary>
         public FreeRunResult LastResult { get; private set; }
 
+        // --- IMissionStatus: jednotne hlaseni stavu pro webovy nahled a UI ---
+
+        // Cas prvniho a posledniho zpracovaneho snimku - hodiny DAT, ne stroje, aby Elapsed
+        // znamenal totez pri prehravani zaznamu i v testech (tataz zasada jako u RobotourMission).
+        private DateTime firstFrameAt, lastFrameAt;
+
+        /// <inheritdoc/>
+        public string MissionName => MissionStatusText.FreeRun;
+
+        /// <summary>
+        /// Co mise prave dela. <b>Klicovy je rozdil „v koridoru" x „drzi kurz"</b> — to je jediny
+        /// stav, ktery se z venku pozna jako jina jizda a je to prvni otazka pri diagnostice.
+        /// </summary>
+        public string PhaseText => PhaseTextFor(LastResult);
+
+        /// <summary>
+        /// Text stavu z vysledku cyklu; <c>null</c> = jeste zadny nebyl.
+        ///
+        /// <para>Verejne staticke ze stejneho duvodu jako <see cref="CarrotBody"/>: jde to overit
+        /// bez vlakna, bez kamery a bez fuze.</para>
+        /// </summary>
+        public static string PhaseTextFor(FreeRunResult result)
+        {
+            if (result == null) return "ceka na prvni snimek";
+            if (!result.HasPose) return "ceka na pozu z fuze";
+            return result.FromCorridor ? "jede v koridoru" : "bez koridoru, drzi kurz";
+        }
+
+        /// <summary>
+        /// Vzdy <see cref="MissionWait.None"/> — FreeRun nema na co zvenci cekat, viz komentar
+        /// u tridy.
+        /// </summary>
+        public MissionWait WaitingFor => MissionWait.None;
+
+        /// <summary>Jak dlouho mise bezi, mereno razitky zpracovanych snimku.</summary>
+        public TimeSpan Elapsed
+            => firstFrameAt == default || lastFrameAt <= firstFrameAt
+               ? TimeSpan.Zero
+               : lastFrameAt - firstFrameAt;
+
         /// <inheritdoc/>
         protected override void Consume(Message msg)
         {
@@ -93,6 +139,11 @@ namespace ARBot.Common.Missions
             var src = corridors.Process(frame);
             if (src == null) return null;
             Frames++;
+
+            // Doba behu mise se meri od PRVNIHO zpracovaneho snimku (hodiny dat), ne od vzniku
+            // objektu: stupen vznika pri skladani grafu, tedy driv, nez zacnou chodit data.
+            if (firstFrameAt == default) firstFrameAt = frame.TimeStamp;
+            if (frame.TimeStamp > lastFrameAt) lastFrameAt = frame.TimeStamp;
 
             // Poza: z koridoru, kdyz ji ma (je to poza POŘÍZENÍ snimku); jinak aktualni.
             var pose = src.Pose ?? engine.GetStateAt(frame.TimeStamp);

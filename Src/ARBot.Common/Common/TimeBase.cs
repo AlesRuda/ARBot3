@@ -34,5 +34,15 @@ namespace ARBot.Common.Common
         /// Nalezeno na zarizeni 31. 8. 2026, viz doc/decisions.md.</para>
         /// </summary>
         public static DateTime Now => new DateTime(start + sw.Elapsed.Ticks);
+
+        /// <summary>Cas startu aplikace (systemove hodiny v okamziku startu procesu).</summary>
+        public static DateTime Started => new DateTime(start);
+
+        /// <summary>
+        /// Jak dlouho aplikace bezi. Monotonni, tedy <b>bez skoku pri synchronizaci hodin</b> —
+        /// stejny duvod, proc se tady bere cas vubec. Ukazuje se v hlavicce weboveho nahledu
+        /// („bezi 01:23:45"), aby slo poznat, jestli se proces mezitim nerestartoval.
+        /// </summary>
+        public static TimeSpan Uptime => sw.Elapsed;
     }
 }

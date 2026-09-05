@@ -1,0 +1,86 @@
+<Project>
+
+  <!--
+    VERZE APLIKACE (fáze 4 headless, viz doc/plan-headless-provoz.md, návrh E).
+
+    Proč to tu je: na zařízení se z běžící aplikace nedalo poznat, KTERÁ binárka běží - repo nemá
+    tagy a AssemblyVersion byla natvrdo 1.0.0.0. Verze teď jde do hlavičky crash logu, do úvodního
+    řádku aplikace (a tím i do záznamu) a do webového náhledu.
+
+    KLÍČOVÉ ROZHODNUTÍ - razítkuje se JEN na pokyn (-p:ArbotStamp=true), ne při každém buildu.
+    Verze odvozená z času by při každém buildu přepsala generovaný AssemblyInfo.cs, a tím by se
+    pokaždé překládalo celé řešení znovu (i testovací smyčka). Nasazení jde vždy přes publish
+    v nasazovacím skriptu, takže razítko dostane právě ono; vývojový build se hlásí jako
+    "0.0.0.0-dev", což je pravda, ne chybějící údaj.
+
+    AssemblyVersion se ZÁMĚRNĚ NEMĚNÍ (zůstává 1.0.0.0). Mění se jen FileVersion
+    a AssemblyInformationalVersion - to je doporučený postup .NETu: AssemblyVersion je identita
+    typů a vazeb, ne "co jsem nasadil". Verze, kterou aplikace ukazuje, je informational version
+    vstupní assembly (ARBot.exe / ARBot.Headless.dll); knihovny si drží svou.
+
+    Tvar: 1.0.<dní od 2026-01-01>.<sekund od půlnoci UTC / 2> - standardní čtyřdílná .NET verze,
+    která monotónně roste s každým buildem a obě proměnné složky se vejdou pod 65535 (dní ~250,
+    půlsekund max 43200). Je to totéž, co kdysi dělalo AssemblyVersion "1.0.*".
+    Informational version navíc nese git hash, příznak "dirty" a čas buildu - nasazuje se běžně
+    z rozpracované kopie, takže samotné číslo commitu by lhalo.
+  -->
+
+  <PropertyGroup>
+    <VersionPrefix>1.0</VersionPrefix>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <!-- Ať SDK nepřilepuje za informational version vlastní +SourceRevisionId; formát si držíme sami. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <!-- Nerazítkovaný (vývojový) build: poctivé "nevím, odkud to je". -->
+  <PropertyGroup Condition="'$(ArbotStamp)' != 'true'">
+    <Version>0.0.0.0</Version>
+    <FileVersion>0.0.0.0</FileVersion>
+    <InformationalVersion>0.0.0.0-dev</InformationalVersion>
+  </PropertyGroup>
+
+  <!-- Razítkovaný build (nasazení). Čas se bere jednou při vyhodnocení projektu. -->
+  <PropertyGroup Condition="'$(ArbotStamp)' == 'true'">
+    <ArbotDny>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse('2026-01-01'))).Days)</ArbotDny>
+    <ArbotPulsekundy>$([System.Convert]::ToInt32($([MSBuild]::Divide($([System.DateTime]::UtcNow.TimeOfDay.TotalSeconds), 2))))</ArbotPulsekundy>
+    <ArbotCasBuildu>$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm'))</ArbotCasBuildu>
+    <Version>$(VersionPrefix).$(ArbotDny).$(ArbotPulsekundy)</Version>
+    <FileVersion>$(Version)</FileVersion>
+    <!-- Bez gitu (nasazený strom, archiv) zůstane jen verze a čas - viz cíl ArbotRazitko níž. -->
+    <InformationalVersion>$(Version) ($(ArbotCasBuildu) UTC)</InformationalVersion>
+  </PropertyGroup>
+
+  <!--
+    Git hash a příznak "dirty". Musí to být cíl (volá se git), ne vyhodnocení vlastností.
+    "Dirty" znamená JAKÝKOLI rozdíl proti HEAD včetně nesledovaných souborů: i ty se překládají,
+    takže samotný hash commitu by o té binárce lhal. Build output do toho nespadá, je v .gitignore.
+    IgnoreExitCode: nenulový kód gitu je tu odpověď, ne chyba - jinak by build hlásil varování. ContinueOnError kryje, že git vůbec není
+    (na zařízení, v archivu bez .git) - build musí projít, jen bez hashe.
+    Projekty se starým, ručně psaným AssemblyInfo.cs (GenerateAssemblyInfo=false) se přeskočí:
+    tam by se vlastnost stejně nikam nepromítla.
+  -->
+  <Target Name="ArbotRazitko"
+          BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo"
+          Condition="'$(ArbotStamp)' == 'true' and '$(GenerateAssemblyInfo)' != 'false'">
+
+    <Exec Command="git rev-parse --short=8 HEAD"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          EchoOff="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="ArbotHash" />
+      <Output TaskParameter="ExitCode" PropertyName="ArbotHashKod" />
+    </Exec>
+
+    <Exec Command="git status --porcelain"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          EchoOff="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="ArbotZmeny" />
+    </Exec>
+
+    <PropertyGroup Condition="'$(ArbotHashKod)' == '0' and '$(ArbotHash)' != ''">
+      <ArbotDirty Condition="'$(ArbotZmeny)' != ''">-dirty</ArbotDirty>
+      <InformationalVersion>$(Version)+$(ArbotHash.Trim())$(ArbotDirty) ($(ArbotCasBuildu) UTC)</InformationalVersion>
+    </PropertyGroup>
+
+  </Target>
+
+</Project>

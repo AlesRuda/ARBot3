@@ -206,6 +206,181 @@ namespace ARBot.Runtime.Tests.Web
     }
 
     /// <summary>
+    /// <b>Vyber mise ze stranky</b> (<c>POST /mission</c>) — jediny zasah, ktery robota nakonec
+    /// rozjede, takze se hlida hlavne to, co ho <b>nesmi</b> pustit: bez drzeneho nouzoveho
+    /// zastaveni, s neznamou misi, s <c>none</c>, podruhe, nebo jinak nez POSTem.
+    ///
+    /// <para>Gate se testuje <b>na serveru</b>, ne v prohlizeci: klientska kontrola je pohodli,
+    /// tahle je pojistka.</para>
+    /// </summary>
+    [NonParallelizable]
+    public class WebMissionPickTests
+    {
+        private WebStatus status;
+        private WebPreviewServer server;
+        private HttpClient klient;
+        private readonly List<string> zvolene = new List<string>();
+
+        [SetUp]
+        public void Start()
+        {
+            zvolene.Clear();
+            status = new WebStatus { AwaitingMission = true };
+            // Callback dela TOTEZ co v aplikaci: hodnota jde do ParamStore, ktery ji taky overi.
+            // Kdyby tady byl jen sberac, test by tvrdil, ze neznama mise projde - a v aplikaci by
+            // ji odmitl az store. Odmitnuti neplatne hodnoty je soucast tehle cesty, ne detail.
+            server = new WebPreviewServer(status, onStop: () => { }, onMission: m =>
+            {
+                ARBot.Common.Configuration.ParamStore.Current.SetRuntimeOverride("mission", m);
+                zvolene.Add(m);
+            });
+            Assert.That(server.Start(0), Is.True);
+            klient = new HttpClient { BaseAddress = new System.Uri($"http://127.0.0.1:{server.Port}/") };
+        }
+
+        [TearDown]
+        public void Konec()
+        {
+            klient?.Dispose();
+            server?.Dispose();
+            // ParamStore je staticky - vratit ho, at si testy nelezou do zeli.
+            ARBot.Common.Configuration.ParamStore.Build(new string[0]);
+        }
+
+        /// <summary>Stav motoru s nouzovym zastavenim - to je ta fyzicka pojistka.</summary>
+        private void Stop(bool drzi)
+            => status.Post(new ARBot.Common.Devices.MotorStateBase(drzi, 0, 0, 24, 0, 0, 0, 0));
+
+        [Test]
+        public async Task BezDrzenehoStopu_SeMiseNespusti()
+        {
+            Stop(drzi: false);
+
+            var r = await klient.PostAsync("/mission?m=freerun", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(409));
+                Assert.That(zvolene, Is.Empty, "mise se NESMI spustit");
+            });
+            Assert.That(await r.Content.ReadAsStringAsync(), Does.Contain("nouzove zastaveni"),
+                        "obsluha musi vedet, co ma udelat - ne jen ze to nejde");
+        }
+
+        [Test]
+        public async Task BezStavuMotoru_SeMiseNespusti()
+        {
+            // Motor, ktery nic nehlasi, NENI "stop neni stisknuty" - to je nejnebezpecnejsi zamena.
+            var r = await klient.PostAsync("/mission?m=freerun", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(409));
+                Assert.That(zvolene, Is.Empty);
+            });
+        }
+
+        [Test]
+        public async Task PriDrzenemStopu_SeMiseSpustiAZapiseDoKonfigurace()
+        {
+            Stop(drzi: true);
+
+            var r = await klient.PostAsync("/mission?m=freerun", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.IsSuccessStatusCode, Is.True);
+                Assert.That(zvolene, Is.EqualTo(new[] { "freerun" }));
+                // Volba MUSI byt v ucinne konfiguraci: tu cte ARBotRuntime.Start a tece do zaznamu.
+                // Kdyby se mise predala bokem, zaznam by tvrdil mission=none, i kdyz se jelo.
+                Assert.That(ARBot.Common.Configuration.ParamRegistry.Mission.Value, Is.EqualTo("freerun"));
+                Assert.That(ARBot.Common.Configuration.ParamRegistry.Mission.Origin,
+                            Is.EqualTo(ARBot.Common.Configuration.ParamOrigin.Runtime));
+            });
+        }
+
+        [TestCase("none", 400, TestName = "None_NeniMise")]
+        [TestCase("neexistuje", 400, TestName = "NeznamaMise_SeOdmitne")]
+        [TestCase("", 400, TestName = "PrazdnaHodnota_SeOdmitne")]
+        public async Task NeplatnaVolba_SeOdmitne(string mise, int kod)
+        {
+            Stop(drzi: true);
+
+            var r = await klient.PostAsync("/mission?m=" + mise, null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(kod));
+                Assert.That(zvolene, Is.Empty);
+            });
+        }
+
+        [Test]
+        public async Task Podruhe_SeMiseNezmeni()
+        {
+            Stop(drzi: true);
+            await klient.PostAsync("/mission?m=freerun", null);
+            status.AwaitingMission = false;   // aplikace uz Run s misi rozjela
+
+            var r = await klient.PostAsync("/mission?m=robotour", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(409));
+                Assert.That(zvolene, Is.EqualTo(new[] { "freerun" }), "druha volba se ignoruje");
+            });
+        }
+
+        [Test]
+        public async Task GetMiseNespusti()
+        {
+            // Prefetch prohlizece ani nahled odkazu nesmi robota rozjet - tyz duvod jako u /stop.
+            Stop(drzi: true);
+
+            var r = await klient.GetAsync("/mission?m=freerun");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(405));
+                Assert.That(zvolene, Is.Empty);
+            });
+        }
+
+        [Test]
+        public async Task VirtualniStop_SeSkutecnymHwNeexistuje()
+        {
+            // Dalkove ovladani nouzoveho zastaveni na skutecnem robotu tu nikdy nesmi byt.
+            var r = await klient.PostAsync("/virtualestop?on=true", null);
+
+            Assert.That((int)r.StatusCode, Is.EqualTo(404));
+        }
+
+        [Test]
+        public async Task NabidkaMisi_JeVeStavuAJdeZRegistru()
+        {
+            string json = await klient.GetStringAsync("/status.json");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"pick\":[\"freerun\",\"robotour\"]"),
+                            "seznam misi se bere z registru parametru, ne z druheho seznamu");
+                Assert.That(json, Does.Contain("\"estop\":false"));
+                Assert.That(json, Does.Contain("\"pickBlocked\""));
+            });
+        }
+
+        [Test]
+        public async Task KdyzSeNaMisiNeceka_NabidkaNeni()
+        {
+            status.AwaitingMission = false;
+
+            string json = await klient.GetStringAsync("/status.json");
+
+            Assert.That(json, Does.Not.Contain("\"pick\""), "panel se nesmi ukazat za jizdy");
+        }
+    }
+
+    /// <summary>
     /// Sam <see cref="WebStatus"/> bez serveru - hlavne <b>lizny render</b>: bez zajmu se snimek
     /// kamery vubec nekopiruje, takze nahled bez publika nestoji ani memcpy. To je jadro navrhu,
     /// protoze rozpocet CPU na Pi neni znamy - viz doc/plan-headless-web.md.
@@ -383,6 +558,87 @@ namespace ARBot.Runtime.Tests.Web
                             "nesmyslna hodnota spadne na 10 m");
                 Assert.That(ARBot.Common.Rendering.PlanViewRenderer.SpanForScaleBar(-5), Is.EqualTo(40));
             });
+        }
+
+        // ---------------- Hlavicka stranky ----------------
+
+        /// <summary>
+        /// Hlavicka musi rict, <b>ktera binarka bezi</b> a jak dlouho — na zarizeni se nasazuje casto
+        /// a bez toho nejde poznat, jestli na Pi bezi to, co jsem pred chvili nahral, nebo predchozi
+        /// verze (a jestli se proces mezitim nerestartoval).
+        /// </summary>
+        [Test]
+        public void Hlavicka_NeseVerziDobuBehuASystemovyCas()
+        {
+            string json = new WebStatus().ToJson(running: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"head\":{"));
+                Assert.That(json, Does.Contain("\"version\":"));
+                Assert.That(json, Does.Contain("\"uptime\":"));
+                Assert.That(json, Does.Contain("\"now\":"));
+            });
+        }
+
+        /// <summary>
+        /// Bez bezici mise se hlasi prazdne jmeno (stranka pak napise „mise: žádná") — a hlavne to
+        /// nesmi spadnout: <c>ARBotRuntime</c> v testech vubec neexistuje a cteni jeho
+        /// <c>Current</c> by ho zalozilo i s inicializaci hardwaru.
+        /// </summary>
+        [Test]
+        public void BezMise_JeJmenoPrazdneANesahaSeNaRuntime()
+        {
+            string json = new WebStatus().ToJson(running: false);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"mission\":\"\""));
+                Assert.That(json, Does.Not.Contain("\"waiting\""), "neni mise, neni na co cekat");
+                Assert.That(ARBot.Robot.ARBotRuntime.HasCurrent, Is.False, "hlavicka nesmi runtime zalozit");
+            });
+        }
+
+        /// <summary>
+        /// Doba behu roste a jde z <see cref="ARBot.Common.Common.TimeBase"/> — tedy z monotonni
+        /// zakladny, kterou meri cela aplikace, ne ze systemovych hodin.
+        /// </summary>
+        [Test]
+        public void DobaBehu_Roste()
+        {
+            var status = new WebStatus();
+            double prvni = Uptime(status.ToJson(true));
+
+            System.Threading.Thread.Sleep(30);
+
+            Assert.That(Uptime(status.ToJson(true)), Is.GreaterThan(prvni));
+        }
+
+        /// <summary>Vytahne <c>uptime</c> z JSON bez parseru - staci na jedno cislo.</summary>
+        private static double Uptime(string json)
+        {
+            const string klic = "\"uptime\":";
+            int i = json.IndexOf(klic, StringComparison.Ordinal);
+            Assert.That(i, Is.GreaterThanOrEqualTo(0), "hlavicka nema uptime");
+            int od = i + klic.Length;
+            int po = od;
+            while (po < json.Length && (char.IsDigit(json[po]) || json[po] == '.' || json[po] == '-')) po++;
+            return double.Parse(json.Substring(od, po - od), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Faze mise uz v tabulce NENI jako cislo — presla do hlavicky jako text. Cislo fáze
+        /// obsluze nic nerika a dve mista se stejnym udajem se rozejdou.
+        /// </summary>
+        [Test]
+        public void FazeMise_NeniVTabulceJakoCislo()
+        {
+            var status = new WebStatus();
+            status.Post(new ARBot.Common.Logs.MissionMsg { Phase = 3, ElapsedSec = 12 });
+
+            string json = status.ToJson(running: true);
+
+            Assert.That(json, Does.Not.Contain("\"missionPhase\""));
         }
 
         [Test]

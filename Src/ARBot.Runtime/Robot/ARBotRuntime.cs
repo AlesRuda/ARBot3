@@ -149,9 +149,17 @@ namespace ARBot.Robot
         public LocalNavigator Navigator { get; private set; }
 
         /// <summary>
+        /// Cesta zaznamu pro <see cref="Start"/>, ktera znamena <b>„nenahravat, ani podle
+        /// <c>record=</c>"</b>. Pouziva to headless ve fazi cekani na volbu mise: zaznam by tam
+        /// rostl ~19 MB/s a nesl by jen stojiciho robota. Viz doc/plan-headless-provoz.md.
+        /// </summary>
+        public const string NoRecord = "";
+
+        /// <summary>
         /// Spusti runtime v danem rezimu. <paramref name="file"/>: ve View cesta k zaznamu
         /// (povinne), v Run volitelna cesta k vystupnimu zaznamu (null = vzit z parametru
-        /// <c>record=</c>, a kdyz ani ten neni, jet bez zaznamu).
+        /// <c>record=</c>, a kdyz ani ten neni, jet bez zaznamu; <see cref="NoRecord"/> =
+        /// nenahravat bez ohledu na parametr).
         /// </summary>
         public void Start(Mode mode, string file = null)
         {
@@ -163,7 +171,9 @@ namespace ARBot.Robot
                 // Zaznam z profilu se bere JEN kdyz volajici cestu nepredal - tlacitko
                 // "Run + zaznam" v UI tim profil prebiji. To poradi je zamerne: vyslovna
                 // volba cloveka nad nastavenim, stejne jako prikazova radka nad profilem.
-                if (mode == Mode.Run) WireRun(file ?? RecordPathFromParams());
+                // NoRecord (prazdny retezec) je treti moznost: "zadny zaznam, ani z parametru".
+                if (mode == Mode.Run) WireRun(file == null ? RecordPathFromParams()
+                                                           : file.Length == 0 ? null : file);
                 else WireView(file);
                 running = true;
             }
@@ -189,8 +199,12 @@ namespace ARBot.Robot
             if (raw.Length == 0 || string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
                 return null;
 
+            // DataRootOrBase, ne RootOrBase: pri nasazeni stinovou kopii (dataroot=) musi zaznam
+            // skoncit v puvodnim adresari, ne u binarek, ktere se pri pristim startu prepisou.
+            // Vetev s cestou jde pres Resolve, ktery uz datovy adresar respektuje - tahle si ho
+            // skladala sama, a proto 5. 9. 2026 jako jedina psala jinam (nalezeno zkouskou).
             string path = string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)
-                ? Path.Combine(RepoPaths.RootOrBase(), "records",
+                ? Path.Combine(RepoPaths.DataRootOrBase(), "records",
                                DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".rec")
                 : RepoPaths.Resolve(raw);
 
@@ -274,7 +288,7 @@ namespace ARBot.Robot
         public HwMode RequestedHwMode { get; set; }
             = ParamRegistry.VirtualHw.Value ? HwMode.Virtual : HwMode.Real;
 
-        private void WireRun(string recordFile)
+        private void WireRun(string? recordFile)
         {
             // Pockej na dokonceni asynchronniho initu ARBotHW pred dratovanim grafu.
             var hw = ARBotHW.Current;
@@ -605,6 +619,13 @@ namespace ARBot.Robot
             // jednim selektorem mission=. Dve mise zapnute zaroven by si prepisovaly mrkev a neslo
             // by poznat, ktera vyhrala. Viz doc/mission-freerun.md.
             string mission = (ParamRegistry.Mission.Value ?? "none").Trim().ToLowerInvariant();
+
+            // Novy graf = nove mise. Bez tohoto by po Stop + Start s JINOU misi zustala viset ta
+            // predchozi a CurrentMission by hlasila obe (typ dohledany 5. 9. 2026; do te doby
+            // se druhy Start s jinou misi nikde nedelal, s vyberem mise z webu uz ano).
+            FreeRunMission = null;
+            RobotourMission = null;
+
             switch (mission)
             {
                 case "":
@@ -702,8 +723,19 @@ namespace ARBot.Robot
                     // Primarni merenia (GPSState pro fix v depu, MotorStateBase pro nouzove
                     // zastaveni) - tentyz sev, jakym je bere ridici smycka.
                     connections.Add(processing.Connect(robotour));
+                    // Mise se rozjizdi SAMA (5. 9. 2026, pokyn autora). Do te doby ji spoustelo
+                    // JEDINE tlacitko "Start mise" v UI panelu, takze v headless (kde panel neni)
+                    // zustala navzdy v Idle a robot stal - pritom uvodni radek hlasil "robot se
+                    // rozjede bez dalsiho pokynu". Nalezeno 5. 9. 2026 diky radku stavu na strance.
+                    //
+                    // Bezpecne to je proto, ze auto-start robota NEROZJEDE: automat jde
+                    // Idle -> ArmingAtDepot (ceka na kvalitni fix) -> AwaitingEStop (ceka, az clovek
+                    // ZMACKNE nouzove zastaveni). Prvni pohyb tedy porad vyzaduje cloveka u robota,
+                    // ktery stop stiskne a zase uvolni. Tlacitko v UI zustava - StartMission() mimo
+                    // Idle nic nedela, takze uz jen restartuje misi, ktera skoncila.
+                    robotour.StartMission();
                     Trace.WriteLine("mission=robotour: automat depo -> nakladka -> vykladka -> depo. "
-                                    + "Ceka na 'Start mise' z UI; sama se nerozjede.");
+                                    + "Mise nastartovana; ceka na kvalitni fix a pak na stisk nouzoveho zastaveni.");
                     break;
 
                 default:
@@ -751,6 +783,16 @@ namespace ARBot.Robot
 
             // Az po startu stupnu - drive by zpravy padaly do fronty bez konzumenta.
             traceBridge.Attach();
+
+            // Verze binarky a ucinna konfigurace DO ZAZNAMU. Musi to byt az TADY, po Attach:
+            // RuntimeBootstrap.TryConfigure je vypisuje pred startem runtime, kdy most jeste
+            // nestoji a nikdo je nesbira, takze zaznam je do 5. 9. 2026 NEOBSAHOVAL - navzdory
+            // tomu, co o nem tvrdila dokumentace i komentare u vypisu. Bez toho nejde u nahravky
+            // ze zarizeni zjistit, jaka binarka a jake parametry ji porizovaly. Radku je ~60,
+            // tedy pod stropem TraceInfoBridge.MaxPerSecond (200).
+            Trace.WriteLine("ARBot verze: " + BuildInfo.Current.Popis());
+            foreach (var line in ParamStore.Current.DescribeAll())
+                Trace.WriteLine(line);
 
             // Casovac scheduleru: pravidelne pumpuje ridici smycku (~Profile.Ts).
             // Reentrancni pojistka: System.Threading.Timer callbacky se pri pomalem Pump()
@@ -864,6 +906,18 @@ namespace ARBot.Robot
         /// sama se nerozjede. Viz doc/robotour-mission.md.
         /// </summary>
         public ARBot.Common.Missions.RobotourMission RobotourMission { get; private set; }
+
+        /// <summary>
+        /// <b>Bezici mise jako hlaseni stavu</b>, nebo <c>null</c> (zadna mise). Odpovi „jaka mise,
+        /// v jake fazi a na co ceka" bez znalosti konkretni mise — pouziva to webovy nahled
+        /// (doc/plan-headless-provoz.md).
+        ///
+        /// <para>Je to <b>pocitana</b> vlastnost nad <see cref="FreeRunMission"/> a
+        /// <see cref="RobotourMission"/>, ne dalsi pole: mise se vylucuji, takze nemuze byt co
+        /// nastavit navic ani co zapomenout vynulovat.</para>
+        /// </summary>
+        public ARBot.Common.Missions.IMissionStatus CurrentMission
+            => (ARBot.Common.Missions.IMissionStatus)FreeRunMission ?? RobotourMission;
 
         /// <summary>
         /// Scanner QR kodu, nebo <c>null</c>. Zaklada se jen s misi Robotour a je <b>vypnuty</b>,
