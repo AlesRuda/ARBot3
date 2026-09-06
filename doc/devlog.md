@@ -39,6 +39,34 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-06
 
+- **⚠️ „V náhledu chybí tlačítko Power off" — dvě různé příčiny a jedna ošklivá past.**
+  Z hlášení autora. Tlačítko přitom bylo hotové i nasazené.
+  - **Na Windows se neukazuje záměrně:** `poweroffcmd` má na Windows default `null`, takže
+    `onPowerOff` je `null`, `PowerOffAvailable=false` a skript tlačítko skryje. Stránka běží bez
+    hesla a nemá umět vypnout vývojový stroj. Vyzkoušet to lokálně jde přes
+    `poweroffcmd=cmd /c echo test`.
+  - **⚠️ Na robotu dostupné BYLO** (`status.json` hlásil `"poweroff":true`) — autor jen měl
+    **otevřenou záložku z doby před nasazením**. Náhled je jednostránková aplikace: načte se
+    jednou a dál už jen dotazuje stav. Po nasazení tedy v otevřené záložce běží **stará stránka
+    a starý skript**, zatímco **hlavička ukazuje novou verzi** — ta se totiž čte ze stavu, ne ze
+    stránky. Chybějící tlačítko pak vypadá jako nenasazená funkce a hlavička u toho lže.
+    `Cache-Control: no-store` s tím nic nenadělá, protože se nic znovu nenačítá.
+  - **Jak se to ověřilo bez robota** (došla mu baterie): stránka se vytáhla z konstanty
+    `WebStatus.Html`, podstrčil se jí přesně ten JSON, který robot v 15:42:59 hlásil, a načetla
+    se v prohlížeči — tlačítko se ukázalo. Tím padly hypotézy „chybí v HTML" i „cache".
+  - **Léčba:** do stránky se otiskne **verze binárky, která ji poslala** (`@VERZE_STRANKY@`
+    v `ToHtml`), skript ji porovnává s verzí ze stavu a při neshodě ukáže oranžové varování
+    a **jednou** se sám přenačte. Pojistka je v `sessionStorage`, aby se to nemohlo zacyklit,
+    kdyby server dál posílal starou verzi. Ověřeno v prohlížeči na obou případech.
+  - **Dva strukturální testy nad vygenerovanou stránkou**, protože ten řetěz (HTML tlačítko →
+    `id` → obsluha ve skriptu → příznak v JSONu) nedržel pohromadě nic než pozornost: každé
+    `getElementById('x')` musí mít `id="x"` a každé `onclick="f()"` musí mít `function f(`.
+    Jedno chybějící `id` shodí obsluhu odpovědi výjimkou a stránka pak **tiše ukazuje stará
+    čísla** — táž třída poruchy jako ztracený escape z 5. 9. Runtime 81 testů (+5).
+  - **Rozhodnutí autora:** na Windows nechat tlačítko **mizet**, nezešedlovat s důvodem.
+  - **Odkazy:** `Src/ARBot.Runtime/Web/WebStatus.cs`,
+    `Src/ARBot.Runtime.Tests/Web/WebStatusHtmlTests.cs`, [headless.md](headless.md).
+
 - **⚠️ Kurz z VN100 je o −59° vedle — a před čtyřmi dny byl správně.** Z pozorování autora
   „kurz robotu nesouhlasí s jeho reálným kurzem podle mapy“, měřeno nad
   `records/test/20260906-082403.rec`. Celý rozbor v

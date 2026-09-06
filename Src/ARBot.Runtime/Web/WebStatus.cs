@@ -600,8 +600,26 @@ namespace ARBot.Robot.Web
         private static string Fmt(double v)
             => double.IsFinite(v) ? v.ToString("0.###", CultureInfo.InvariantCulture) : "null";
 
-        /// <summary>Stranka nahledu. Zadne externi zdroje - Pi je offline.</summary>
-        public string ToHtml() => Html;
+        /// <summary>
+        /// Stranka nahledu. Zadne externi zdroje - Pi je offline.
+        ///
+        /// <para><b>Do stranky se otiskne VERZE BINARKY, ktera ji poslala</b>, a skript ji pak
+        /// porovnava s verzi ze <c>/status.json</c>. Nac to je: nahled je jednostrankova
+        /// aplikace - nacte se jednou a dal uz jen dotazuje stav. Po nasazeni nove verze tedy
+        /// v otevrene zalozce bezi <b>PORAD STARA STRANKA A STARY SKRIPT</b>, zatimco hlavicka
+        /// ukazuje novou verzi (ta se cte ze stavu). Vysledek: chybejici tlacitka vypadaji jako
+        /// nenasazena funkce.</para>
+        ///
+        /// <para>Naslapnuto 6. 9. 2026: autor hlasil, ze v nahledu neni tlacitko <i>Power off</i>,
+        /// ackoli bylo nasazene a <c>/status.json</c> hlasil <c>poweroff:true</c> - jen mel
+        /// zalozku otevrenou z doby pred nasazenim. <c>Cache-Control: no-store</c> tomu nezabrani,
+        /// protoze se nic znovu nenacita.</para>
+        /// </summary>
+        public string ToHtml()
+        {
+            var b = BuildInfo.Current;
+            return Html.Replace("@VERZE_STRANKY@", Escape(b.IsDev ? b.Version + "-dev" : b.Version));
+        }
 
         private const string Html = @"<!doctype html>
 <html lang=""cs""><head><meta charset=""utf-8"">
@@ -645,6 +663,9 @@ namespace ARBot.Robot.Web
  /* Vypnuti CELE desky - tmavsi nez Terminate, aby se ta dve tlacitka nepletla: Terminate ukonci
     proces (systemd ho vrati), tohle vypne zarizeni a robot uz sam nenabehne. */
  button.vyp{background:#4a148c;padding:6px 10px;font-size:12px;font-weight:600}
+ /* Stara stranka v otevrene zalozce - musi byt videt na prvni pohled, protoze se projevuje
+    jen tim, ze neco CHYBI, a to clovek sam od sebe nehleda. */
+ .stara{background:#ff6f00;color:#000;padding:8px;margin:8px 0;border-radius:4px;font-weight:600}
  /* Lista nad obrázkem: přepínače vlevo, zastavení vpravo. Šířka jako obrázek, aby to
     lícovalo; na mobilu se zlomí jen skupina přepínačů (lista sama nowrap), takže Stop
     zůstane vpravo. */
@@ -692,6 +713,7 @@ namespace ARBot.Robot.Web
   <button class=""vyp"" id=""vypnout"" style=""display:none"" onclick=""vypnout()"">Power off</button>
  </div>
 </div>
+<div class=""stara"" id=""stara"" style=""display:none""></div>
 <img id=""obraz"" alt=""náhled"">
 <h2>senzory</h2>
 <div id=""senzory"">—</div>
@@ -744,6 +766,7 @@ function tik(){
   document.getElementById('tab').innerHTML=h;
   document.getElementById('senzory').innerHTML=senzoryHtml(d);
   hlavicka(d.head||{});
+  verzeStranky(d.head||{});
   vyberMise(d.head||{});
   akce(d.head||{});
   document.getElementById('stav').textContent=d.running?'runtime běží':'runtime zastaven';
@@ -769,6 +792,28 @@ function doba(s){
 // Hlavicka odpovida na otazku, co tu vlastne bezi: verze binarky (a z ceho se stavela), jak dlouho
 // proces bezi (poznam restart) a kolik je hodin. Pod tim stav mise - to je to, co clovek stojici
 // u robota cte jako prvni: jaka mise, v jake fazi a NA CO SE CEKA.
+// Verze binarky, ktera POSLALA tuhle stranku. Porovnava se s verzi ze stavu - viz ToHtml.
+var VERZE_STRANKY='@VERZE_STRANKY@';
+// Bezi v otevrene zalozce stara stranka? Pak v ni chybi tlacitka, ktera nova verze pridala,
+// a clovek u robota to nema jak poznat - hlavicka totiz ukazuje verzi ze STAVU, tedy tu novou.
+// Jednou se stranka prenacte sama; kdyby to nepomohlo, zustane aspon viditelne varovani.
+function verzeStranky(h){
+ var v=h.version;
+ if(!v || !VERZE_STRANKY || v===VERZE_STRANKY) return;
+ var el=document.getElementById('stara');
+ if(el){
+  el.style.display='';
+  el.textContent='Tahle stránka je ze starší verze ('+VERZE_STRANKY+'), robot běží '+v
+                +'. Načti ji znovu (F5) — jinak v ní chybí novější ovládání.';
+ }
+ // Prenacist SMI JEN JEDNOU na danou verzi. Priznak musi prezit reload (proto sessionStorage),
+ // jinak by se stranka pri jakemkoli selhani - treba kdyby server dal poslal starou verzi -
+ // zacyklila v nekonecnem prenacitani a robot by zustal bez ovladani.
+ var klic='arbot-reload-'+v;
+ try{
+  if(!sessionStorage.getItem(klic)){ sessionStorage.setItem(klic,'1'); location.reload(); }
+ }catch(e){ /* soukrome okno apod. - zustane aspon varovani vyse */ }
+}
 function hlavicka(h){
  // Zive udaje (doba behu, cas) jsou ve vlastnim spanu, aby sly pri vypadku smazat a nezustaly
  // na strance jako neplatna cisla; verze a build tam mohou zustat, ty nezestarnou.
