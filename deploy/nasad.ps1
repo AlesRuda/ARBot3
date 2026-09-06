@@ -1,12 +1,22 @@
-# Nasazeni ARBot.Headless na Orange Pi (z Windows).
+﻿# Nasazeni ARBot.Headless na Orange Pi (z Windows).
 #
 #   .\deploy\nasad.ps1                      # publish + kopie + restart sluzby
 #   .\deploy\nasad.ps1 -RobotHost 192.168.7.1   # jina adresa (AP misto kabelu)
 #   .\deploy\nasad.ps1 -NoRestart           # jen nahrat, nerestartovat
+#   .\deploy\nasad.ps1 -NoData              # nenasazovat config/ a OSM/
 #
 # Nasazuje se do ~/arbot-headless; aplikace bezi ze stinove kopie ~/arbot-headless-run
 # (obnovuje ji stin.sh pri kazdem startu sluzby), takze cil jde prepsat i za behu.
-# Data (records/, logs/, config/, OSM/) zustavaji v ~/arbot - viz dataroot= v jednotce.
+# Zaznamy a logy zustavaji v ~/arbot a NESAHA se na ne.
+#
+# PROFILY A MAPY (config/, OSM/) se nasazuji taky, ale do DATOVEHO ADRESARE ~/arbot -
+# tedy tam, odkud je aplikace cte (dataroot=). Vedle binarek zamerne nejsou: dve kopie
+# tychz map by matly, ktera se vlastne pouziva. Do 6. 9. 2026 se nenasazovaly vubec
+# a musely se kopirovat rucne - a poznalo se to az tim, ze se zmena v profilu na robotu
+# neprojevila, ackoli skript hlasil uspech.
+#
+# ⚠️ REPO VYHRAVA: soubor rucne upraveny na robotu se prepise. Skript proto pred kopii
+# vypise, ktere soubory se LISI - aby rucni uprava nezmizela potichu.
 #
 # Verze se razitkuje (-p:ArbotStamp=true), takze kazde nasazeni ma vyssi cislo a je
 # videt v hlavicce stranky i v crash logu. Viz doc/headless.md.
@@ -15,7 +25,9 @@ param(
     [string]$RobotHost = "192.168.66.1",
     [string]$User      = "ales",
     [string]$Dir       = "/home/ales/arbot-headless",
-    [switch]$NoRestart
+    [string]$DataDir   = "/home/ales/arbot",
+    [switch]$NoRestart,
+    [switch]$NoData
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,8 +42,9 @@ dotnet publish (Join-Path $repo "Src\ARBot.Headless\ARBot.Headless.csproj") `
     -o $pub -v:q --nologo
 if ($LASTEXITCODE -ne 0) { throw "publish selhal" }
 
-# config/ a OSM/ se NEKOPIRUJI: aplikace je cte z datoveho adresare (~/arbot), kde uz
-# jsou. Dve kopie tychz map by jen matly, ktera se vlastne pouziva.
+# Z PUBLISHE se config/ a OSM/ vyhazuji: aplikace je cte z datoveho adresare, takze
+# dve kopie tychz map by jen matly, ktera se vlastne pouziva. Nasazuji se nize, ale
+# rovnou do ~/arbot - viz sekce "profily a mapy".
 Remove-Item (Join-Path $pub "config") -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $pub "OSM")    -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -58,6 +71,48 @@ if ($LASTEXITCODE -ne 0) { throw "kopie na Pi selhala" }
 & ssh $cil "mkdir -p $Dir && tar -xzf /tmp/arbot-headless.tgz -C $Dir && rm -f /tmp/arbot-headless.tgz && chmod +x $Dir/stin.sh"
 if ($LASTEXITCODE -ne 0) { throw "rozbaleni na Pi selhalo" }
 Remove-Item $tgz -Force -ErrorAction SilentlyContinue
+
+# --------------------------------------------------------------------------------
+# Profily a mapy do datoveho adresare
+# --------------------------------------------------------------------------------
+if (-not $NoData) {
+    Write-Host "== profily a mapy do $cil`:$DataDir" -ForegroundColor Cyan
+
+    # Nejdriv rict, co se prepise. Rucni uprava na robotu je legitimni vec (nekdo tam
+    # neco doladil za tmy u robota) a nema zmizet bez varovani - jen se o ni ma vedet.
+    $mistni = @{}
+    foreach ($f in (Get-ChildItem -Path (Join-Path $repo "config"), (Join-Path $repo "OSM") -File -Recurse)) {
+        $rel = $f.FullName.Substring($repo.Length + 1) -replace '\\', '/'
+        $mistni[$rel] = (Get-FileHash $f.FullName -Algorithm MD5).Hash.ToLower()
+    }
+    $vzdalene = @{}
+    $vystup = & ssh $cil "cd $DataDir 2>/dev/null && find config OSM -type f -exec md5sum {} + 2>/dev/null"
+    foreach ($r in $vystup) {
+        if ($r -match '^([0-9a-f]{32})\s+(.+)$') { $vzdalene[$Matches[2]] = $Matches[1] }
+    }
+    $lisi = @($mistni.Keys | Where-Object { $vzdalene.ContainsKey($_) -and $vzdalene[$_] -ne $mistni[$_] })
+    $nove  = @($mistni.Keys | Where-Object { -not $vzdalene.ContainsKey($_) })
+    if ($lisi.Count -gt 0) {
+        Write-Warning "prepisuji soubory, ktere se na robotu LISI od repa (rucni upravy zmizi):"
+        $lisi | Sort-Object | ForEach-Object { Write-Host "     $_" -ForegroundColor Yellow }
+    }
+    if ($nove.Count -gt 0) { Write-Host "   nove: $($nove.Count) souboru" -ForegroundColor DarkGray }
+    if ($lisi.Count -eq 0 -and $nove.Count -eq 0) { Write-Host "   beze zmeny" -ForegroundColor DarkGray }
+
+    # Baleni a prenos stejnou cestou jako binarky (scp, ne tar rourou - viz poznamka vyse).
+    $dtgz = Join-Path $env:TEMP "arbot-data.tgz"
+    & tar -czf $dtgz -C $repo config OSM
+    if ($LASTEXITCODE -ne 0) { throw "zabaleni config/OSM selhalo" }
+    & scp -q $dtgz "${cil}:/tmp/arbot-data.tgz"
+    if ($LASTEXITCODE -ne 0) { throw "kopie config/OSM na Pi selhala" }
+    # Rozbaluje se JEN do config/ a OSM/; records/ a logs/ v datovem adresari se netykaji.
+    & ssh $cil "mkdir -p $DataDir && tar -xzf /tmp/arbot-data.tgz -C $DataDir && rm -f /tmp/arbot-data.tgz"
+    if ($LASTEXITCODE -ne 0) { throw "rozbaleni config/OSM na Pi selhalo" }
+    Remove-Item $dtgz -Force -ErrorAction SilentlyContinue
+}
+else {
+    Write-Host "== -NoData: config/ a OSM/ se nenasazuji" -ForegroundColor DarkGray
+}
 
 # libNativeLib.so se cross-kompiluje ve WSL a publish ji NENESE. Bez ni Run spadne hned
 # pri startu (DllNotFoundException v NativeComputeUnit) - overeno na Pi 5. 9. 2026. Bere se

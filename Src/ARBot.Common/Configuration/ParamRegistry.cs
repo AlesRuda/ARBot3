@@ -106,6 +106,14 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam GpsMaxDop = Num("gpsmaxdop", Fmt(new FusionConfig().GpsMaxDop), K_FUZE,
               "Nejvyssi pripustny DOP fixu; 0 = nekontrolovat. NMEA plni HDOP (vodorovny), u-blox "
               + "PDOP (prostorovy, vzdy vetsi), takze proti u-bloxu je prah prisnejsi.");
+        public static readonly DoubleParam GpsPosStd = Num("gpsposstd", Fmt(new FusionConfig().GpsPosStd), K_FUZE,
+              "Sigma polohy z GPS na JEDEN fix [m] (dal se nasobi DOP, viz gpsdopsigma). "
+              + "⚠️ Neni to presnost fixu, ale kolik informace se z nej smi vzit: chyba GPS je "
+              + "casove KORELOVANA (zmereno 6. 9. 2026 na stojicim robotu - dekorelacni cas ~40 s, "
+              + "prumer ze 100 fixu je stejne presny jako jeden), takze filtr, ktery bere 10 fixu "
+              + "za sekundu jako nezavisle, nadsazuje informaci ~400x a stojicimu robotu ujizdi "
+              + "poloha 5,5 m/min. Poctiva hodnota je proto sigma jednoho fixu nasobena "
+              + "odmocninou z poctu korelovanych vzorku. Viz doc/ekf-fusion.md.");
         public static readonly BoolParam GpsDopSigma = Bool("gpsdopsigma", new FusionConfig().GpsScaleStdByDop ? "true" : "false", K_FUZE,
               "Nasobit sigma polohy z GPS hodnotou DOP (sigma = gpsposstd * max(1, DOP))? "
               + "Kvalita fixu je spojita velicina, takze slaby fix dostane malou vahu sam od sebe "

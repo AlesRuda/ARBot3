@@ -31,8 +31,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now arbot
 ```
 
-Profil `config/pi-provoz.cfg` musí být v datovém adresáři (`~/arbot/config/`) — nasazuje se
-s ostatními profily z repa, ne skriptem.
+Profil `config/pi-provoz.cfg` musí být v datovém adresáři (`~/arbot/config/`). **Od 6. 9. 2026
+ho tam dostane `nasad.ps1` sám** — viz níž.
 
 ## Běžné nasazení
 
@@ -40,8 +40,32 @@ s ostatními profily z repa, ne skriptem.
 .\deploy\nasad.ps1
 ```
 
-Publikuje s razítkem verze, nahraje přes `tar | ssh` (na Pi není rsync) a restartuje službu.
+Publikuje s razítkem verze, nahraje přes `tar` + `scp` (na Pi není rsync) a restartuje službu.
 Verze je pak vidět v hlavičce stránky a v `logs/crash-*.log`, takže jde poznat, která binárka běží.
+
+### Profily a mapy (od 6. 9. 2026)
+
+Skript nasazuje i **`config/` a `OSM/`**, ale **do datového adresáře `~/arbot`** — tedy tam,
+odkud je aplikace čte (`dataroot=`). Vedle binárek záměrně nejsou: dvě kopie týchž map by jen
+matly, která se vlastně používá.
+
+Do té doby se nenasazovaly vůbec a musely se kopírovat ručně — a poznalo se to až tím, že se
+změna v profilu na robotu neprojevila, ačkoli skript hlásil úspěch. Přesně to se stalo
+s `gpsposstd=30`.
+
+⚠️ **Repo vyhrává:** soubor ručně upravený na robotu se přepíše. Skript proto před kopií
+**vypíše, které soubory se liší**, aby ruční úprava nezmizela potichu:
+
+```
+prepisuji soubory, ktere se na robotu LISI od repa (rucni upravy zmizi):
+     config/pi-provoz.cfg
+```
+
+Vypnout to jde `-NoData`; jiný cíl `-DataDir`. **Záznamy a logy v `~/arbot` se netýkají** —
+rozbaluje se jen `config/` a `OSM/`.
+
+Kontrola, že se profil opravdu projevil: v účinné konfiguraci (v záznamu, `ARBot.Analyze log`)
+musí být u klíče původ `(profil)`.
 
 ## Provoz
 

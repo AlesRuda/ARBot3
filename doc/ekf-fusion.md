@@ -414,6 +414,48 @@ ne měření jednoho z nich. Oddělit je by chtěl delší úsek a nezávislou r
 3. **Utažení brány je nejhrubší nástroj** — v tomhle záznamu byl DOP 3–9, tedy pořád pod prahem,
    a přesto chyba p50 4,4 m. Brána tenhle případ nechytí.
 
+### Prozatímní řešení: nafouknutá `gpsposstd` (2026-09-06)
+
+Na návrh autora („není to ideální, ale rychlé"). Sigma polohy z GPS **je teď parametr**
+`gpsposstd=` — do té doby to bylo natvrdo pole ve `FusionConfig`, ačkoli na ten klíč odkazoval
+popis `gpsdopsigma`.
+
+**Kolik nafouknout, není odhad.** Pro polohu s procesním šumem `Q` a měřením s rozptylem
+`R = σ²` je ustálené Kalmanovo zesílení `K ≈ √(Q/R) ∝ 1/σ`, takže časová konstanta
+`τ = 1/(K·f) ∝ σ`. Nafouknutí σ o `m` tedy **prodlouží `τ` m-krát** a stejným dílem zmenší drift.
+A aby `N` korelovaných vzorků neslo informaci jednoho, má být `σ_eff = σ·√N`:
+
+| | |
+|---|---|
+| korelovaných vzorků `N = f·T_d` | 10 Hz × 40 s = **400** |
+| násobek `√N` | **20×** |
+| `gpsposstd` 1,5 m → | **30 m** (dál se násobí DOP) |
+| předpokládané `τ` 57 s → | **~19 min** |
+| předpokládaný drift 5,5 m/min → | **~0,28 m/min** |
+
+Nastaveno **jen v `config/pi-provoz.cfg`**, ne jako výchozí hodnota: virtuální GPS v simulaci má
+šum bílý, takže tam by nafouknutí sigmy odhad jen zhoršilo.
+
+**Vedlejší efekt, který je vlastně žádoucí:** ustálená `P` vzroste z 0,074 m na řádově metr, tedy
+k hlášené nejistotě, která odpovídá skutečnosti.
+
+⚠️ **Čtyři výhrady, se kterými se to musí brát:**
+
+1. **Ten násobek je změřený jen pro STÁNÍ.** Za jízdy se `T_d` změřit nepodařilo, takže za jízdy
+   může být 20× moc a GPS zbytečně slabá. Příznak, podle kterého to poznáš: globální navigace se
+   začne citelně opožďovat za skutečnou polohou.
+2. **Neřeší to příčinu**, jen sílu následku. Správně je buď decimovat fixy na `T_d`, nebo dát
+   offset GPS do stavu EKF — teprve to umí využít, že GPS zná **posun** mnohem líp než polohu.
+3. **`GpsPosStd` slouží dvěma věcem**: je to σ měření *a zároveň* počáteční nejistota polohy
+   v `InitializePosition`. Nafouknutí zvětší i tu — což je ale spíš dobře (na startu robot
+   opravdu neví, kde je) a velké `P` znamená velké zesílení, takže se první fixy prosadí rychle.
+4. **Ověřit měřením, ne pocitem:** `ARBot.Analyze gps` nad novým záznamem ze stání. Drift a `τ`
+   se mají posunout **právě o ten násobek**. Když ne, model neplatí a příčina je jinde.
+
+> **Pro tenhle konkrétní problém je nafouknutí σ možná lepší než decimace.** Drží korekce
+> **plynulé a drobné**, kdežto decimace by je aplikovala v periodických větších krocích — a
+> world-kotvený occupancy grid snáší plíživý posun líp než skoky.
+
 ### Co se změřit nepodařilo a proč
 
 **A/B „fix přijat vs. odmítnut" nevzniklo** — v tomhle záznamu prošla brána v každém okně stání

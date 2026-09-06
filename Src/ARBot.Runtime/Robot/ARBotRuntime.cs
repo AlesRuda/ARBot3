@@ -1443,6 +1443,14 @@ namespace ARBot.Robot
                     cfg.GpsMaxDop, cfg.GpsMaxDop <= 0 ? " (0 = kontrola vypnuta)." : "."));
             }
 
+            if (ParamRegistry.GpsPosStd.IsSet)
+            {
+                cfg.GpsPosStd = ParamRegistry.GpsPosStd.Value;
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "gpsposstd={0:F1} m: sigma polohy z GPS na jeden fix (dal se nasobi DOP).",
+                    cfg.GpsPosStd));
+            }
+
             if (ParamRegistry.GpsDopSigma.IsSet)
             {
                 cfg.GpsScaleStdByDop = ParamRegistry.GpsDopSigma.Value;

@@ -39,6 +39,43 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-06
 
+- **`nasad.ps1` nasazuje i `config/` a `OSM/`** (na přání autora). Do té doby se profily a mapy
+  nenasazovaly vůbec a musely se kopírovat ručně — a poznalo se to až tím, že se změna
+  v profilu na robotu neprojevila, ačkoli skript hlásil úspěch. Přesně to hrozilo
+  s `gpsposstd=30`.
+  - **Kopírují se do datového adresáře `~/arbot`**, ne vedle binárek — tedy tam, odkud je
+    aplikace čte. Původní námitka v komentáři („dvě kopie týchž map by matly, která se
+    používá") tím platí dál, jen se řeší nasazením na to jediné správné místo.
+  - ⚠️ **Repo vyhrává**, takže ruční úprava na robotu se přepíše. Aby nezmizela potichu,
+    skript před kopií porovná MD5 a **vypíše soubory, které se liší**. Vypnout `-NoData`,
+    jiný cíl `-DataDir`. Záznamy a logy se netýkají — rozbaluje se jen `config/` a `OSM/`.
+  - **Ověřeno lokálně**: PowerShell parser bez chyb, sběr hashů dá 21 souborů se stejnými
+    relativními cestami, jaké vrací `md5sum` na Pi, a `tar` zabalí `config/` + `OSM/` do
+    2,8 MB. **Na robotu nespuštěno** — došla mu baterie.
+  - CRLF v profilech nevadí, `ParamFile` dělá `TrimEnd('\r')` (ověřeno, byla to obava).
+
+- **Prozatímní léčba ujíždějící polohy: `gpsposstd` jako parametr a nafouknutí na 30 m.**
+  Na návrh autora („není to ideální, ale rychlé"). Sigma polohy z GPS byla natvrdo pole ve
+  `FusionConfig`, ačkoli na klíč `gpsposstd` odkazoval popis `gpsdopsigma` — teď je to skutečný
+  parametr, takže jde do účinné konfigurace, a tedy i do záznamu, a dá se A/B měřit z příkazové
+  řádky.
+  - **Násobek není odhad:** `K ∝ 1/σ`, takže `τ = 1/(K·f) ∝ σ` — nafouknutí σ o `m` prodlouží
+    časovou konstantu m-krát. Aby `N` korelovaných vzorků neslo informaci jednoho, je
+    `σ_eff = σ·√N`; při `N = 10 Hz × 40 s = 400` vychází **20×**, tedy `gpsposstd` 1,5 → **30 m**.
+    Předpoklad: `τ` 57 s → ~19 min, drift 5,5 → ~0,28 m/min, hlášená `P` z 0,074 m na řádově metr.
+  - **Jen v `config/pi-provoz.cfg`, ne jako default** — virtuální GPS v simulaci má šum bílý,
+    takže tam by nafouknutí odhad zhoršilo.
+  - ⚠️ **Násobek je změřený jen pro stání**; za jízdy `T_d` neznáme, takže tam může být moc.
+    Příznak: globální navigace se začne opožďovat. A **neřeší to příčinu** — správně je decimace
+    nebo offset GPS jako stav EKF.
+  - **Pro tenhle problém je to možná lepší než decimace:** drží korekce plynulé a drobné, kdežto
+    decimace by je dávala v periodických větších krocích a world-kotvený grid snáší plíživý posun
+    líp než skoky.
+  - **Neověřeno na datech** — je to predikce z modelu. Ověřit `ARBot.Analyze gps` nad novým
+    záznamem ze stání: drift a `τ` se mají posunout právě o ten násobek.
+  - **Odkazy:** [ekf-fusion.md](ekf-fusion.md#prozatímní-řešení-nafouknutá-gpsposstd-2026-09-06),
+    [configuration.md](configuration.md), `GpsPosStdTests` (4 testy).
+
 - **⚠️ „V náhledu chybí tlačítko Power off" — dvě různé příčiny a jedna ošklivá past.**
   Z hlášení autora. Tlačítko přitom bylo hotové i nasazené.
   - **Na Windows se neukazuje záměrně:** `poweroffcmd` má na Windows default `null`, takže

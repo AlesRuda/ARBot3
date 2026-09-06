@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **61 parametrů**
+> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **62 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -318,6 +318,7 @@ Fúze posuzuje, **jak dobrý fix dostala**, místo aby brala každý stejně:
 |---|---|---|
 | `gpsminsat=` | 4 | nejmenší počet družic; 0 = nekontrolovat |
 | `gpsmaxdop=` | 10 | nejvyšší přípustný DOP; 0 = nekontrolovat |
+| `gpsposstd=` | 1,5 | σ polohy z GPS na **jeden fix** [m]; dál se násobí DOP |
 | `gpsdopsigma=` | true | násobit sigmu polohy hodnotou DOP (`sigma = gpsposstd · max(1, DOP)`) |
 
 Podstatné je **škálování sigmy** — kvalita fixu je spojitá veličina, takže slabý fix dostane malou
