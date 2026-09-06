@@ -116,6 +116,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     binárky běží z kopie bokem, data zůstávají v původním adresáři, **restart služby = nasazení**.
   - **Verze** z `Src/Directory.Build.props` (razítkuje se jen s `-p:ArbotStamp=true`) je v hlavičce
     stránky, v crash logu i v záznamu.
+  - **Od 6. 9. 2026** stránka ukazuje i **kvalitu GPS** (fix, družice, DOP, sigma, nebo důvod, proč
+    se poloha nepoužívá) a nabízí **Power off** (`poweroffcmd=`) — vypnutí celé desky se zastavením
+    runtime, aby šlo robotovi bezpečně odpojit napájení.
   - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
     měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: celý průchod misí na
     zařízení a start po skutečném rebootu.** ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň
@@ -129,6 +132,22 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   nativní knihovna, RealSense verze, externí (ne-NuGet) reference.
 - [doc/ekf-fusion.md](doc/ekf-fusion.md) — EKF senzorická fúze (`ARBot.Common/Fusion`);
   hloubkově [doc/EKF_fuze_dokumentace.docx](doc/EKF_fuze_dokumentace.docx).
+  ⚠️ **Od 6. 9. 2026 fúze posuzuje kvalitu GPS fixu** (`gpsminsat=`, `gpsmaxdop=`, `gpsdopsigma=`):
+  do té doby brala **každý** fix s `IsFixed` a vždy s toutéž sigmou, ačkoli počet družic a DOP
+  zpráva nese. Našlo se to tak, že na robotu **ujel odhad polohy ~570 m jedním směrem, zatímco robot
+  stál** (rychlost ve stavu nula, takže polohu netáhla predikce, ale měření). Podstatné je
+  **škálování sigmy podle DOP** (kvalita je spojitá veličina), brána má odstranit jen nesmysl —
+  a **neznámá hodnota není špatná**: přijímač, který DOP nehlásí, projde. Zároveň se opravilo
+  mapování u-bloxu, které bránu obcházelo: `fixType` se jen **přetypovával** na `FixQuality`, takže
+  **samotný mrtvý odhad** (bez družic) se tvářil jako platný fix — a přesně takové řešení ujíždí,
+  když robot stojí. **Příčina těch 570 m ale potvrzená není** (robot byl vypnutý), proto ta kvalita
+  přibyla i do webového náhledu.
+  ⚠️ **Od 6. 9. 2026 je napojená i T265** — do té doby `BuildSensorSources` drátoval jen IMU, GPS
+  a motory, takže kamera běžela a **její data neměla kam téct** (v záznamu po ní není ani stopa;
+  padá tím i dřívější domněnka „T265 by přidala 200 Hz"). Protože nemá magnetometr, jde její yaw do
+  fúze **jen jako úhlová rychlost z rozdílu** (na nepřekrývajícím se okně 0,5 s) — jako kurz by
+  vnutil filtru libovolně otočený svět. Rozlišuje to `IMUState.HasAbsoluteHeading` (verze zprávy 3).
+  **Absolutní kurz z ní nevznikne**, dokud nebude offset yaw stavem EKF.
   **Od 25. 8. 2026 fúze bere i `GPS/heading`** (kurz nad zemí, `σ = max(podlaha, atan2(σ_příčné, v))`,
   práh na rychlost, jízda vzad vyloučená) — druhá absolutní reference kurzu vedle magnetometru.
   ⚠️ **Samo to ale nic nezmění a je to změřené:** kompas přehlasuje GPS kurz **~4 000:1** (σ 0,017 rad
@@ -259,7 +278,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   Odchylky hranových bodů proti známému okraji měří `ARBot.Analyze edgebias`, grid ze záznamu
   (tedy co skutečně vyrobila běžící aplikace) `ARBot.Analyze grid`.
   Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `corridorfit` / `edgebias` / `grid` /
-  `dump` / `types`), viz
+  `dump` / `cameras` / `log` / `types`), viz
   [doc/record-replay.md](doc/record-replay.md#offline-analýza-záznamu-arbotanalyze) — a **měř
   každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká. Pozor,
   **rezidua nejsou přesnost** a **méně přijatých při lepší geometrii není zlepšení** — obojí se

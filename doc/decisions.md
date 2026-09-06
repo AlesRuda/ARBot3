@@ -13,6 +13,57 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-06 — Fúze posuzuje kvalitu GPS fixu; sigma se násobí DOP
+**Co:** `DefaultMeasurementMapper` propustí polohu z GPS jen přes bránu na **počet družic**
+(`gpsminsat=`, výchozí 4) a **DOP** (`gpsmaxdop=`, výchozí 10), a sigmu polohy **násobí DOP**
+(`gpsdopsigma=`, výchozí zapnuto). Neznámá hodnota (nula) branou **projde**.
+**Proč:** do té změny brala fúze každý fix, u kterého `GPSState.IsFixed` řekl „ano", a vždy s toutéž
+sigmou 1,5 m — počet družic a DOP zpráva nese, ale nikdo se na ně nedíval. Na robotu 6. 9. 2026 ujel
+odhad polohy **~570 m jedním směrem** (~0,7 m/s), zatímco robot **stál**; že to netáhla predikce,
+bylo poznat z nulové rychlosti ve stavu (`PredictState` posouvá polohu jen o `v·dt`). Mise Robotour
+kritéria kvality dávno má (armování depa), takže fúze byla jediné místo bez nich.
+**Proč zrovna takhle:** škálování sigmy je ta podstatná část — kvalita fixu je **spojitá** veličina
+a DOP je přímo ten násobek, o který geometrie družic zhoršuje přesnost, takže slabý fix dostane
+malou váhu sám od sebe. Brána má odstranit **nesmysl**, ne vybírat dobré fixy: zahodit GPS docela je
+horší než jí dát malou váhu. Proto jsou prahy volné (4 družice = fyzikální minimum, DOP 10 = běžná
+hranice „slabé/špatné"), ne přísné jako u armování mise.
+**Důsledky:** verdikt počítá `PositionRejectReason` / `PositionStd` — **veřejné statické**, protože
+totéž ukazuje webový náhled; dva výpočty téhož by se rozešly. Zahození jde do `Trace` (a tím do
+záznamu) s limitem jedna hláška za 10 s. **Neověřeno na zařízení** — robot byl vypnutý, takže se
+neví, co přijímač u těch 570 m hlásil; je možné, že fix vypadal dobře a příčina je jinde.
+Odkazy: [ekf-fusion.md](ekf-fusion.md#kvalita-gps-fixu-brána-a-sigma-podle-dop-2026-09-06),
+[configuration.md](configuration.md).
+
+### 2026-09-06 — u-blox: `fixType` se převádí výslovně, ne přetypováním
+**Co:** `uBloxGps.FixQualityFrom` mapuje u-bloxí `fixType` (UBX-NAV-PVT) na `GPSState.FixQuality`
+tabulkou; do té doby se jen **přetypovávalo**.
+**Proč:** ty dva výčty spolu nesouvisejí — `fixType` říká *způsob řešení*, `FixQuality` pochází
+z NMEA GGA a říká *druh korekce*. Přetypování dopadalo přesně naopak, než mělo: **samotný mrtvý
+odhad** (`fixType = 1`, bez družic) se tvářil jako platný `GpsFix` a fúze ho brala — a takové řešení
+**ujíždí jedním směrem, i když robot stojí**; naopak **GNSS + mrtvý odhad** (`fixType = 4`, dobré
+řešení) se mapovalo na `Rtk`, které `IsFixed` nepouští. A 2D fix se hlásil jako `DgpsFix`, co zní líp
+než `GpsFix`.
+**Důsledky:** 2D fix je `GpsFix`, 3D i kombinovaný s DR jsou `DgpsFix`, mrtvý odhad `Estimated`
+(tedy neplatná poloha), neznámá hodnota `Invalid`. Hlídá `UBloxFixQualityTests`. Pozor: u-blox plní
+`Hdop` hodnotou **PDOP** (prostorový, vždy ≥ HDOP), takže práh `gpsmaxdop=` je proti němu přísnější.
+Odkazy: `Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs`, [ekf-fusion.md](ekf-fusion.md).
+
+### 2026-09-06 — Vypnutí zařízení ze stránky náhledu (`Power off`)
+**Co:** `POST /poweroff` zastaví runtime a pak spustí příkaz z parametru `poweroffcmd=`
+(výchozí `sudo /sbin/poweroff` na Linuxu, **prázdný na Windows**). Prázdná hodnota funkci vypíná
+a tlačítko se na stránce vůbec neukáže.
+**Proč (pokyn autora):** robot nemá klávesnici ani displej a vytáhnout mu napájení za běhu znamená
+useknutý záznam a nedopsaný souborový systém. Pořadí je proto pevné: **nejdřív `Stop()`** (dojede
+fronty, uzavře záznam, zastaví motory), teprve pak pokyn systému.
+**Proč parametr, a ne konstanta:** liší se stroj od stroje (bezheslové sudo × polkit × zákaz), a jako
+parametr je vidět ve výpisu účinné konfigurace. Platformní výchozí hodnota je precedens z `Profile`
+(porty UART).
+**Důsledky:** na rozdíl od `/stop` se odpověď posílá **až po pokusu**, aby se selhání (chybějící
+sudo, zakázaný polkit) dozvěděla obsluha — robot, který na „vypnout" mlčky nic neudělá, je horší než
+ten, který řekne proč. Tlačítko je fialové, ne červené: `Terminate` ukončí proces a systemd ho vrátí,
+tohle vypne desku a robot sám nenaběhne. **Neověřeno na zařízení.**
+Odkazy: [headless.md](headless.md#webový-náhled-webport), `SystemPower`.
+
 ### 2026-09-05 — Na zařízení běží systemd jednotka; restart je bezpečný, protože robot čeká na misi
 **Co:** `ARBot.Headless` běží na Orange Pi jako služba `arbot` (`enabled`, start po bootu,
 `Restart=always`, `RestartSec=5`). Jednotka, skript stínové kopie a nasazovací skript jsou v repu

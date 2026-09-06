@@ -480,7 +480,48 @@ délka plánu proti vzdálenosti mrkve, dosah potvrzeně sjízdného po dráze, 
 příkazované, podíl nouzového zastavení, minimální odstup proti `SafeDist`, resety gridu a skoky pózy;
 `--from/--to` vypíše detail okna. Vznikl nad prvním záznamem FreeRun ze železa, viz
 [devlog 2. 9. 2026](devlog.md)), `poses` (póza
-pořízení ve snímcích a o kolik se hranice kreslila vedle), `types`.
+pořízení ve snímcích a o kolik se hranice kreslila vedle), `cameras` (chodí z kamer **opravdu nové
+snímky**? viz níž), `types`.
+
+### `log`: co aplikace při běhu hlásila
+
+Vypíše zprávy `Info` ze záznamu, tedy textový log, který tam posílá `TraceInfoBridge`. Že je
+debugovací výstup součástí nahrávky, tenhle dokument tvrdí od začátku — ale **nebylo ho čím
+přečíst**; kdo chtěl vědět, co aplikace na zařízení hlásila, musel do journalu, který po reinstalaci
+nebo přetečení nemusí existovat, zatímco `.rec` leží na disku.
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- log records/<zaznam>.rec --filter=T265
+```
+
+⚠️ **Log v záznamu začíná až Runem** — most se připojuje v `ARBotRuntime.Start`, takže všechno, co
+hardware hlásí při startu (připojování kamer, hledání portů), do `.rec` nedojde. Právě to je přitom
+zajímavé, když senzor chybí. Konfigurace a verze se proto po připojení mostu **zopakují** (5. 9.
+2026); u hardwaru to zatím vyřešené není.
+
+### `cameras`: chodí z kamer opravdu nové snímky?
+
+Pro každou kameru: kolik snímků, jak rychle za sebou, **kolik z nich je různých obrazů** (otisk
+pixelů zvlášť pro barvu, hloubku a „cestu z RGB"), nejdelší série totožných — a **kolik různých
+razítek** jednotlivé streamy nesou.
+
+**Nač to je:** kamera, která hlásí `OK` a přitom posílá pořád tentýž obraz, je ta nejhorší porucha —
+zvenčí je všechno v pořádku (snímky chodí, stáří nízké, panel zelený), ale robot se řídí podle
+nehybné fotky. Ani počet snímků, ani jejich stáří to neodhalí; musí se porovnat **obsah**.
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- cameras records/<zaznam>.rec --limit=60
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- cameras records/<zaznam>.rec --skip=6300 --limit=60 --png=/tmp/konec
+```
+
+`--skip` pustí rozbor na **konec** dlouhého záznamu („zamrzlo to hned, nebo až za půl hodiny?"),
+`--png=<prefix>` uloží první snímek každé kamery — zamrzlý obraz je potřeba **vidět**, jinak nejde
+rozlišit „stream se nikdy nerozjel" (černo, šum) od „jeden skutečný snímek a pak už nic".
+
+**Razítka streamů rozhodují, KDE je vada.** Když stojí razítko barvy, nedodává snímky librealsense
+(nebo senzor) a naše kopie je v pořádku; kdyby se razítko hýbalo a pixely ne, byla by chyba
+v kopírování v driveru. Přesně takhle se 6. 9. 2026 diagnostikovala **zamrzlá barva pravé D435**
+(viz [hardware.md](hardware.md)).
 
 ### `sigma`: je σ korelace s mapou poctivá?
 

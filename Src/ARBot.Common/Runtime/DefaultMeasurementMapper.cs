@@ -48,6 +48,13 @@ namespace ARBot.Common.Runtime
         {
             switch (msg)
             {
+                case IMUState imu when !imu.HasAbsoluteHeading:
+                    // RELATIVNI zdroj kurzu (T265: nema magnetometr, yaw je o neznamou konstantu
+                    // vedle). Zpracovava se jinak - viz FromRelativeImu.
+                    foreach (var m in FromRelativeImu(imu))
+                        yield return m;
+                    break;
+
                 case IMUState imu:
                     // Kurz z absolutni atitude (ENU): yaw = matematicka orientace.
                     if (imu.Rotation.HasValue)
@@ -82,13 +89,145 @@ namespace ARBot.Common.Runtime
         }
 
         /// <summary>
+        /// Merenia z IMU, ktere <b>nema absolutni kurz</b> (dnes T265 / VIO): jeho yaw je
+        /// o <b>neznamou konstantu</b> vedle severu, takze jako kurz se poslat NESMI — fuze by si
+        /// tim vnutila libovolne otoceny svet.
+        ///
+        /// <para><b>Co se z nej tedy vezme:</b> jeho ZMENA. V rozdilu dvou odectu yaw se ta neznama
+        /// konstanta <b>odecte</b>, takze <c>(yaw₂ − yaw₁)/Δt</c> je poctiva uhlova rychlost — a je
+        /// to rychlost z VIO, tedy dorovnana obrazem, ne surovy integrujici gyroskop.</para>
+        ///
+        /// <para><b>Proc na okne, a ne vzorek po vzorku:</b> T265 dava pozu 200 Hz. Derivovat vzorek
+        /// po vzorku znamena delit sum yaw casem 5 ms, tedy ho <b>zesilit dvestekrat</b>; na okne
+        /// <see cref="FusionConfig.RelYawWindowSec"/> je z tehoz sumu o dva rady mensi cislo.
+        /// <b>Okna se neprekryvaji</b> — kotva se po kazdem mereni posune na soucasny vzorek —
+        /// protoze prekryvajici se okna davaji korelovana merenia a filtr by si nadsadil informaci
+        /// (tatáž past jako u korelace s mapou, viz doc/map-correlation-localization.md).</para>
+        ///
+        /// <para><b>Surovy gyroskop z tehoz zdroje se ZAMERNE nepridava:</b> byl by to tyz fyzikalni
+        /// pohyb podruhe, takze by si filtr tu informaci spocital dvakrat. Bere se to lepsi z obou —
+        /// rozdil yaw z VIO.</para>
+        ///
+        /// <para><b>Absolutni kurz z tohohle zdroje nikdy nevznikne.</b> Kdyby byl potreba (a je to
+        /// ten pravy zpusob, jak nizky drift T265 vyuzit), musi se do stavu EKF pridat <b>offset
+        /// yaw</b> - to je otevreny ukol „chyby senzoru jako stavy EKF" (viz doc/ekf-fusion.md)
+        /// a je gatovany merenim na zarizeni, ne domnenkou.</para>
+        /// </summary>
+        private IEnumerable<IMeasurement> FromRelativeImu(IMUState imu)
+        {
+            // Kvalita sledovani 0 = VIO ztraceno; taková poza nerika nic (a po znovunalezeni muze
+            // yaw skocit, takze i rozdil je nesmysl).
+            if (imu.Confidence <= 0) { relYaw.Remove(KlicZdroje(imu)); yield break; }
+
+            var ypr = imu.Rotation.HasValue ? imu.YPR() : null;
+            if (ypr == null) yield break;
+
+            string klic = KlicZdroje(imu);
+            if (!relYaw.TryGetValue(klic, out var kotva))
+            {
+                relYaw[klic] = (ypr.Yaw, imu.TimeStamp);
+                yield break;                       // prvni vzorek jen ukotvi okno
+            }
+
+            double dt = (imu.TimeStamp - kotva.Cas).TotalSeconds;
+            if (dt < cfg.RelYawWindowSec)
+                yield break;                       // okno jeste neuplynulo
+
+            // Nova kotva = soucasny vzorek: okna se tim neprekryvaji.
+            relYaw[klic] = (ypr.Yaw, imu.TimeStamp);
+
+            // Cas smi jen tect dopredu; skok zpet (nova pipeline, prehravani) okno zahodi.
+            if (dt <= 0) yield break;
+
+            double rate = ARBot.Common.Common.Conversions.NormalizeOrientation(ypr.Yaw - kotva.Yaw) / dt;
+
+            // Dva nezavisle odecty yaw na koncich okna -> sigma rozdilu je √2·sigma_yaw.
+            double std = Math.Sqrt(2.0) * cfg.RelYawStd / dt;
+            yield return ScalarStateMeasurement.AngularRate(rate, std, imu.TimeStamp,
+                                                            "VIO/yawrate");
+        }
+
+        /// <summary>Klic zdroje pro kotvu okna — v robotovi muze byt relativnich IMU vic.</summary>
+        private static string KlicZdroje(IMUState imu) => imu.Name ?? string.Empty;
+
+        /// <summary>Kotvy oken relativniho yaw: jmeno zdroje -> (yaw, cas) posledniho odectu.</summary>
+        private readonly Dictionary<string, (double Yaw, DateTime Cas)> relYaw =
+            new Dictionary<string, (double, DateTime)>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// <b>Proc se poloha z tohohle fixu nepouzije</b>, nebo <c>null</c>, kdyz je v poradku.
+        ///
+        /// <para>Verejne staticke schvalne: totez vyhodnoceni potrebuje <b>webovy nahled</b>
+        /// (aby obsluha u robota videla, ze GPS neni brana a proc) a testy. Dva ruzne kusy kodu,
+        /// ktere by si na tuhle otazku odpovidaly samy, se driv nebo pozdeji rozejdou.</para>
+        ///
+        /// <para>Prahy jsou v <see cref="FusionConfig"/> a <b>neznama hodnota nikdy neznamena
+        /// spatna</b>: prijimac, ktery pocet druzic nebo DOP nehlasi (nula), branou projde.</para>
+        /// </summary>
+        public static string PositionRejectReason(GPSState gps, FusionConfig cfg)
+        {
+            if (gps == null) return "neni fix";
+            cfg ??= new FusionConfig();
+
+            if (!gps.IsFixed)
+                return $"neplatny fix ({gps.Quality})";
+
+            if (cfg.GpsMinSatellites > 0 && gps.NumberOfSatellites > 0
+                && gps.NumberOfSatellites < cfg.GpsMinSatellites)
+                return $"malo druzic ({gps.NumberOfSatellites} < {cfg.GpsMinSatellites})";
+
+            if (cfg.GpsMaxDop > 0 && gps.Hdop > 0 && gps.Hdop > cfg.GpsMaxDop)
+                return $"vysoky DOP ({gps.Hdop:F1} > {cfg.GpsMaxDop:F1})";
+
+            return null;
+        }
+
+        /// <summary>
+        /// Sigma polohy z GPS [m]: <see cref="FusionConfig.GpsPosStd"/> vynasobena DOP, kdyz ho
+        /// prijimac hlasi a je to zapnute. Verejna ze stejneho duvodu jako
+        /// <see cref="PositionRejectReason"/> — nahled ukazuje, s jakou vahou se fix bere.
+        /// </summary>
+        public static double PositionStd(GPSState gps, FusionConfig cfg)
+        {
+            cfg ??= new FusionConfig();
+            if (gps == null || !cfg.GpsScaleStdByDop || gps.Hdop <= 0)
+                return cfg.GpsPosStd;
+
+            return cfg.GpsPosStd * Math.Max(1.0, gps.Hdop);
+        }
+
+        // Posledni hlaseny duvod a kdy - aby serie zahozenych fixu nezaplavila log, ale zmena
+        // duvodu se ohlasila hned (jina porucha = jina informace).
+        private string posledniDuvod;
+        private DateTime posledniHlaseni = DateTime.MinValue;
+
+        private void HlasZahozenyFix(string duvod, GPSState gps)
+        {
+            var ted = ARBot.Common.Common.TimeBase.Now;
+            bool zmena = !string.Equals(duvod, posledniDuvod, StringComparison.Ordinal);
+            if (!zmena && (ted - posledniHlaseni).TotalSeconds < 10) return;
+
+            posledniDuvod = duvod;
+            posledniHlaseni = ted;
+            System.Diagnostics.Trace.WriteLine(
+                $"GPS: poloha se nepouziva - {duvod} (druzic {gps?.NumberOfSatellites}, DOP {gps?.Hdop:F1}).");
+        }
+
+        /// <summary>
         /// GPS -&gt; poloha v lokalni ENU rovine (+ volitelne rychlost). Bez platneho fixu nebo bez
         /// <see cref="FusionConfig.GeoReference"/> nevznikne nic.
         /// </summary>
         private IEnumerable<IMeasurement> FromGps(GPSState gps)
         {
-            if (!gps.IsFixed)
+            string duvod = PositionRejectReason(gps, cfg);
+            if (duvod != null)
+            {
+                // Do Trace, ne do Debug: v Release na zarizeni by po tomhle jinak nezustala stopa
+                // (pravidlo v CLAUDE.md). Rate limit proto, ze GPS chodi 5x za sekundu a zahozene
+                // fixy chodi v serii - zajima nas, ZE se zahazuje a proc, ne kazdy jednotlivy.
+                HlasZahozenyFix(duvod, gps);
                 yield break;
+            }
 
             // GPSState.Latitude/Longitude jsou RADIANY, tedy tatáž jednotka jako LLA (od 26. 8. 2026).
             // Do te doby to byly stupne a tohle misto na to muselo mit varovani - viz GPSState.Latitude.
@@ -115,8 +254,9 @@ namespace ARBot.Common.Runtime
                 yield break;                           // stav uz polohu ma, korekce by byla nadbytecna
             }
 
+            double posStd = PositionStd(gps, cfg);
             yield return new PositionMeasurement(local.X, local.Y,
-                                                 cfg.GpsPosStd, cfg.GpsPosStd,
+                                                 posStd, posStd,
                                                  gps.TimeStamp, "GPS/position");
 
             // Rychlost z GPS ma smysl az nad prahem - pri stani je to sum.

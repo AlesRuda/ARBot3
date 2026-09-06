@@ -310,6 +310,36 @@ prázdná hodnota nebo `false` znamená bez záznamu.
 člověka nad nastavením, stejně jako příkazová řádka nad profilem. Řeší to jedno místo
 (`ARBotRuntime.Start`), takže na tom nezáleží, odkud se Run spustil.
 
+## Kvalita GPS fixu (`gpsminsat=`, `gpsmaxdop=`, `gpsdopsigma=`)
+
+Fúze posuzuje, **jak dobrý fix dostala**, místo aby brala každý stejně:
+
+| parametr | výchozí | co dělá |
+|---|---|---|
+| `gpsminsat=` | 4 | nejmenší počet družic; 0 = nekontrolovat |
+| `gpsmaxdop=` | 10 | nejvyšší přípustný DOP; 0 = nekontrolovat |
+| `gpsdopsigma=` | true | násobit sigmu polohy hodnotou DOP (`sigma = gpsposstd · max(1, DOP)`) |
+
+Podstatné je **škálování sigmy** — kvalita fixu je spojitá veličina, takže slabý fix dostane malou
+váhu sám od sebe. Brána má odstranit nesmysl, ne vybírat dobré fixy; **zahodit GPS docela je horší
+než jí dát malou váhu**, proto jsou prahy volné. ⚠️ **Neznámá hodnota není špatná hodnota:**
+přijímač, který počet družic nebo DOP nehlásí (nula), branou projde.
+
+Pozor na to, co v „DOP" je: NMEA plní **HDOP** (vodorovný), u-blox **PDOP** (prostorový, vždy ≥
+HDOP), takže proti u-bloxu je týž práh přísnější. Proč to vzniklo a co to řeší:
+[ekf-fusion.md](ekf-fusion.md#kvalita-gps-fixu-brána-a-sigma-podle-dop-2026-09-06).
+
+## Vypnutí zařízení ze stránky (`poweroffcmd=`)
+
+Příkaz, kterým webový náhled **vypne celé zařízení** (ne jen aplikaci). Výchozí je
+`sudo /sbin/poweroff` na Linuxu a **prázdný na Windows** — platformní výchozí hodnota jako u portů
+UART v `Profile`. Prázdná hodnota funkci vypíná a tlačítko se na stránce vůbec neukáže.
+
+Robot nemá klávesnici ani displej a vytažení napájení za běhu znamená useknutý záznam; aplikace
+proto nejdřív zastaví runtime a teprve pak dá systému pokyn. Že je to parametr, a ne konstanta v kódu,
+má důvod: liší se stroj od stroje (bezheslové sudo × polkit × zákaz) a takhle je vidět ve výpisu
+účinné konfigurace. Viz [headless.md](headless.md#webový-náhled-webport).
+
 ## Datový adresář (`dataroot=`)
 
 `dataroot=<cesta>` určuje, **proti čemu se řeší relativní cesty** — záznamy, `logs/`, profily,

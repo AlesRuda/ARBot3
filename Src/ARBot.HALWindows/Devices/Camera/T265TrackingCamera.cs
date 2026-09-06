@@ -250,6 +250,10 @@ namespace ARBot.HAL.Devices.Camera
                         return new IMUState()
                         {
                             Name = Name,   // puvodce mereni - v robotovi muze byt IMU vic (viz IMUState.Name)
+                            // T265 nema magnetometr: yaw je relativni k orientaci pri startu
+                            // pipeline, tedy o neznamou konstantu vedle. Bez tohohle priznaku by ho
+                            // fuze vzala jako KURZ a vnutila si libovolne otoceny svet.
+                            HasAbsoluteHeading = false,
                             Translation = Translation2Vector3D(f.translation),
                             Velocity = Translation2Vector3D(f.velocity),
                             Acceleration = Translation2Vector3D(f.acceleration),

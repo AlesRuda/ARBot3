@@ -128,6 +128,17 @@ namespace ARBot.Headless
                         ParamStore.Current.SetRuntimeOverride("mission", m);
                         zvolenaMise = m;
                         vybranaMise.Set();
+                    },
+                    // Vypnuti CELE desky. Poradi je podstatne: nejdriv Stop() (dojede fronty,
+                    // uzavre zaznam, zastavi motory) a teprve pak pokyn systemu - jinak by se
+                    // vypinalo pres rozjety zaznam. Proces se sam neukoncuje: az prijde SIGTERM
+                    // z vypinani, projde stejnou cestou jako Ctrl+C.
+                    onPowerOff: string.IsNullOrWhiteSpace(ParamRegistry.PowerOffCmd.Value) ? null : () =>
+                    {
+                        Trace.WriteLine("Vypnuti zarizeni ze stranky: zastavuji runtime...");
+                        try { ARBotRuntime.Current.Stop(); }
+                        catch (Exception ex) { Trace.WriteLine("Stop pred vypnutim selhal: " + ex.Message); }
+                        return SystemPower.TryPowerOff(ParamRegistry.PowerOffCmd.Value);
                     });
                 if (web.Start(webPort))
                 {
@@ -137,6 +148,7 @@ namespace ARBot.Headless
                     // Na misi se ceka JEN kdyz stranka opravdu bezi - jinak by neexistoval nikdo,
                     // kdo misi vybere, a proces by cekal navzdy.
                     if (!miseZapnuta) cekaniNaMisi = vybranaMise;
+                    webStatus.PowerOffAvailable = web.PowerOffAvailable;
                     if (ParamRegistry.WebOpen.Value) OtevriNahled(web.Port);
                 }
                 else

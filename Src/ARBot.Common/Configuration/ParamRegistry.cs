@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using ARBot.Common.Missions;
 using ARBot.Common.Vision.Synthetic;
+using ARBot.Common.Fusion;
 
 namespace ARBot.Common.Configuration
 {
@@ -94,6 +95,22 @@ namespace ARBot.Common.Configuration
               "Zapina korelaci occupancy gridu s mapou (odhad chyby polohy a kurzu). Ve "
               + "vychozim stavu vypnuta - stoji cele jadro. "
               + "Viz doc/map-correlation-localization.md.");
+        // --- kvalita GPS fixu (6. 9. 2026) -----------------------------------------------
+        // Do teto zmeny brala fuze kazdy fix, u ktereho GPSState.IsFixed rekl "ano", a vzdy
+        // s tutez sigmou; pocet druzic a DOP se ignorovaly, i kdyz je zprava nese. Defaulty jsou
+        // v FusionConfig, tady jen prebijeni z profilu / prikazove radky.
+        public static readonly DoubleParam GpsMinSat = Num("gpsminsat", Fmt(new FusionConfig().GpsMinSatellites), K_FUZE,
+              "Nejmensi pocet druzic, pri kterem se poloha z GPS jeste pouzije; 0 = nekontrolovat. "
+              + "Je to fyzikalni minimum pro reseni, ne kriterium kvality - to dela gpsmaxdop= "
+              + "a hlavne skalovani sigmy. Prijimac, ktery pocet druzic nehlasi, branou projde.");
+        public static readonly DoubleParam GpsMaxDop = Num("gpsmaxdop", Fmt(new FusionConfig().GpsMaxDop), K_FUZE,
+              "Nejvyssi pripustny DOP fixu; 0 = nekontrolovat. NMEA plni HDOP (vodorovny), u-blox "
+              + "PDOP (prostorovy, vzdy vetsi), takze proti u-bloxu je prah prisnejsi.");
+        public static readonly BoolParam GpsDopSigma = Bool("gpsdopsigma", new FusionConfig().GpsScaleStdByDop ? "true" : "false", K_FUZE,
+              "Nasobit sigma polohy z GPS hodnotou DOP (sigma = gpsposstd * max(1, DOP))? "
+              + "Kvalita fixu je spojita velicina, takze slaby fix dostane malou vahu sam od sebe "
+              + "misto rozhodovani prahem ano/ne.");
+
         public static readonly BoolParam MapCorrSend = Bool("mapcorrsend", "true", K_FUZE,
               "Posilat korekce z korelace do fuze, nebo je jen merit.");
         public static readonly StringParam MapCorrGate = Vycet("mapcorrgate", "soft", new[] { "soft", "reject" }, K_FUZE,
@@ -192,6 +209,15 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam PerfWarn = Num("perfwarn", "70", K_DIAG,
               "Obsazenost periody [%], od ktere se hlasi varovani. Hodnota je zatim odhad - "
               + "naostro se nastavi az podle prvniho mereni na zarizeni.");
+        // Vychozi prikaz je PLATFORMNI: na Windows je vypinani desky nesmysl (tam se simuluje),
+        // takze je funkce vypnuta a stranka tlacitko vubec neukaze. Tataz zasada jako u portu
+        // UART v Profile - default podle platformy, ne jedna hodnota pro obe.
+        public static readonly StringParam PowerOffCmd = Text("poweroffcmd",
+              OperatingSystem.IsWindows() ? null : "sudo /sbin/poweroff", K_DIAG,
+              "Prikaz, kterym stranka nahledu VYPNE CELE ZARIZENI (ne jen aplikaci). Prazdna "
+              + "hodnota funkci vypina a tlacitko se neukaze. Robot na souteži nema klavesnici ani "
+              + "displej a vytazeni napajeni za behu znamena useknuty zaznam; aplikace proto nejdriv "
+              + "zastavi runtime a teprve pak da systemu pokyn k vypnuti.");
         public static readonly BoolParam WebOpen = Bool("webopen", "false", K_DIAG,
               "Po nastartovani nahledu otevrit stranku ve vychozim prohlizeci. Pro vyvoj na Windows "
               + "(launch profil); na zarizeni bez displeje nechat vypnute - prohlizec tam nema kde "

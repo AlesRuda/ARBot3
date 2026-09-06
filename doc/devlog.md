@@ -37,6 +37,95 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-06
+
+- **Kvalita GPS ve fúzi a vypínání robota ze stránky.** Vzniklo z pozorování autora, že „robot
+  hrozně moc cestuje s GPS": na náhledu ujela poloha na −570 m, **zatímco robot stál**.
+  - **Diagnóza:** drift ~0,7 m/s soustavně jedním směrem, ale `v` ve stavu **nula** — a protože
+    `EKFModel.PredictState` posouvá polohu jen o `v·dt`, nemohla ji hýbat predikce. Zbývala měření,
+    tedy GPS. V kódu se pak ukázalo, že `DefaultMeasurementMapper` bral **každý** fix s `IsFixed`
+    a dával mu **vždy** sigmu 1,5 m; počet družic a DOP `GPSState` nese, ale nikdo se na ně nedíval.
+    Mise Robotour přitom kritéria kvality dávno má (armování depa) — fúze byla jediné místo bez nich.
+  - **⚠️ Druhý nález v cestě GPS:** `uBloxGps` jen **přetypovával** `fixType` (UBX-NAV-PVT) na
+    `FixQuality` (z NMEA GGA), ačkoli ty výčty spolu nesouvisejí. **Samotný mrtvý odhad** (bez
+    družic) se tak tvářil jako platný `GpsFix` — a přesně takové řešení ujíždí jedním směrem, když
+    robot stojí; naopak **GNSS + mrtvý odhad** (dobré řešení) se zahazovalo. Převod je teď výslovný.
+  - **Léčba ve fúzi:** sigma se násobí DOP (`gpsdopsigma=`, to je ta podstatná část — kvalita je
+    spojitá veličina) plus volná brána na družice a DOP (`gpsminsat=` 4, `gpsmaxdop=` 10). **Neznámá
+    hodnota není špatná hodnota** — přijímač, který je nehlásí, projde. Verdikt je veřejná statická
+    funkce, aby ji sdílela fúze i stránka.
+  - **GPS na stránce:** fix, družice, DOP, sigma — nebo „GPS se NEPOUŽÍVÁ" s důvodem. Přibylo proto,
+    že ze stránky **nešlo poznat ani to, jestli robot má fix**; muselo se to hledat čtením kódu.
+  - **Power off** (pokyn autora): `POST /poweroff` zastaví runtime a pak vypne desku příkazem
+    z `poweroffcmd=` (na Windows prázdný, tlačítko se neukáže). Odpověď se posílá **až po pokusu**,
+    aby se selhání dozvěděla obsluha.
+  - **Ověřeno na Windows** v simulaci (1 211 testů Common, 76 Runtime, 58 HAL + 1 pád
+    `D435_GrabsFrame`, který chce fyzickou kameru; build `x64` i `OrangePI`): stránka ukazuje GPS
+    fix/družice/DOP/sigmu, s `gpsmaxdop=0.5` se fix odmítne a je to vidět na stránce i v logu
+    (rate limit funguje — z 5 fixů/s zbyly 2 hlášky za 20 s).
+  - **⚠️ Neověřeno na zařízení a příčina těch 570 m NENÍ potvrzená.** Robot byl v době opravy
+    vypnutý, takže se neví, co přijímač tehdy hlásil — je možné, že fix vypadal dobře a příčina je
+    jinde. Právě proto ta kvalita přibyla do náhledu. Vypínání taky nezkoušeno na skutečné desce.
+  - **Odkazy:** [ekf-fusion.md](ekf-fusion.md#kvalita-gps-fixu-brána-a-sigma-podle-dop-2026-09-06),
+    [decisions.md](decisions.md) (tři záznamy), `SystemPower`, `UBloxFixQualityTests`,
+    `GpsKvalitaTests`.
+
+- **⚠️ Zamrzlý barevný stream pravé D435** — z pozorování autora „z pravé kamery chodí pořád stejný
+  snímek". Kvůli tomu vznikl nový rozbor **`ARBot.Analyze cameras`** (kolik různých obrazů, nejdelší
+  série totožných, razítka streamů, `--skip` na konec záznamu, `--png` na uložení snímku).
+  - **Nález nad `20260906-082403.rec`** (11 min): `Right 740112071021` má **1 různý barevný obraz ze
+    100**, zatímco hloubka jede (100 různých) — a je to **týž obraz od začátku do konce** (otisk
+    `9843eac7a2c6d82f`). `Left` je v pořádku ve všech třech vrstvách. Zamrzlý snímek je **skutečná
+    fotka**, ne černo — stream se rozjel a pak se zastavil.
+  - **Kde vada je:** stojí i **razítko** barevného snímku, zatímco hloubkové běží. Driver kopíruje
+    obojí každý grab z téhož framesetu, takže librealsense vrací pořád tentýž barevný snímek —
+    **naše kopie je v pořádku**, vada je v librealsense / na USB / v senzoru.
+  - **Není to trvalé:** táž kamera 2. 9. 2026 (`20260902-225743.rec`) dodávala 60 různých ze 60.
+  - **⚠️ Aplikace to nepozná** — snímky chodí 10 Hz, `IsError` hlásí OK, na stránce svítí kamera
+    zeleně se stářím 12 ms, a přitom „cesta z RGB", occupancy grid i mise FreeRun běží nad nehybnou
+    fotkou. Signál k detekci v datech **je** (stojící `RGBTimeStamp`), jen ho nikdo nečte.
+  - **Léčba (pokyn autora: „ať se to snaží probrat"):** `StreamFreezeWatch` v `ARBot.HAL` hlídá
+    razítka streamů a při stání delším než **5 s** driver **zboří pipeline** — příště ji nastartuje
+    znovu, stejnou cestou jako u zaseknutého streamu bez snímků. Během reconnectu kamera **hlásí
+    chybu**, což je žádoucí: porucha je konečně vidět místo klamného OK. Práh je volný schválně
+    (pomalá expozice v šeru dělá opakované snímky, ale razítko se hýbe). Logika je společná pro
+    obě platformy a má **7 testů** na podvrženém čase; `FrozenStreamRestarts` se vede zvlášť od
+    `StallRestarts`, protože „snímky nechodí" a „snímky chodí, ale jsou stejné" jsou jiné poruchy.
+    **Neověřeno na zařízení** — jestli se kamera restartem probere, ukáže až běh na robotu.
+  - **Odkazy:** [hardware.md](hardware.md), [record-replay.md](record-replay.md#cameras-chodí-z-kamer-opravdu-nové-snímky),
+    `Src/ARBot.Analyze/CameraFramesReport.cs`.
+
+- **⚠️ T265 nebyla vůbec napojená do pipeline — a po napojení se řeší relativní yaw.** Z pozorování
+  autora „také se nehlásila T265": v záznamu o ní **není ani zmínka**.
+  - **Příčina není v kameře:** `ARBotHW` ji zakládá bezpodmínečně, ale `BuildSensorSources` drátoval
+    jen `hw.IMU`, `hw.GPS` a `hw.Motor` — **`hw.TrackingCamera` nikde**. Kamera běžela, otáčela
+    pipeline, soupeřila na USB s oběma D435 a její `MeasurementArived` **nikdo neodebíral**: data
+    neměla kam téct. Na stránce se přitom ukazovala jako senzor se stářím „—", tedy jako porucha.
+    **Tím padá domněnka z 3. 9. „T265 by přidala 200 Hz"** — nepřidala by nic ani při plné funkčnosti.
+  - **Napojeno** (pokyn autora „měla by se používat, pokud naběhne"). Není to ale jednořádková
+    oprava: T265 nemá magnetometr, takže její yaw je o **neznámou konstantu** vedle severu a naivní
+    napojení by ho poslalo do fúze jako kurz — tedy **vnutilo filtru libovolně otočený svět**.
+  - **Řešení:** `IMUState.HasAbsoluteHeading` (verze formátu **3**; starší záznamy se čtou jako
+    `true`, přesně tak se tehdy chovaly). Z relativního zdroje se **kurz neposílá vůbec** a místo
+    něj jde do fúze **úhlová rychlost z rozdílu yaw** — v rozdílu se neznámá konstanta odečte.
+    Počítá se na **nepřekrývajícím se okně** 0,5 s: derivovat pózu 200 Hz vzorek po vzorku znamená
+    zesílit šum dvěstěkrát, a překrývající se okna by dala korelovaná měření (tatáž past jako
+    u `MapCorrelator.MinPeriod`). Vlastní surový gyroskop z téhož zdroje se **nepřidává** — byl by
+    to týž pohyb podruhé.
+  - **Absolutní kurz z T265 takhle nevznikne, a je to záměr:** využít její nízký drift znamená
+    přidat do stavu EKF **offset yaw**, což je otevřený úkol gatovaný měřením na železe. Do té doby
+    se celá `IMUState` z T265 ukládá do záznamu, aby se ten offset dal změřit offline.
+  - **Vedlejší nález:** log v záznamu **začíná až Runem** (most se připojuje v `Start`), takže
+    diagnostika hardwaru ze startu do `.rec` nikdy nedojde — stejná třída mezery jako u konfigurace
+    5. 9. Kvůli tomu vznikl příkaz **`ARBot.Analyze log`** (textový log ze záznamu); dokumentace
+    tvrdila od začátku, že je log součástí nahrávky, ale **nebylo ho čím přečíst**.
+  - **Ověřeno:** 1 225 testů Common (+14), 76 Runtime, 65 HAL; build `x64` i `OrangePI`; běh
+    v simulaci beze změny chování. **Neověřeno na zařízení** — v simulaci T265 není, takže celá ta
+    cesta zatím běžela jen v testech. `RelYawStd` je odhad, ne měření. Rychlost z T265 (`Velocity`)
+    se zatím nepoužívá.
+  - **Odkazy:** [ekf-fusion.md](ekf-fusion.md#t265-vio-relativní-yaw-se-používá-jako-úhlová-rychlost-2026-09-06),
+    [hardware.md](hardware.md), `RelativniYawTests`, `Src/ARBot.Analyze/LogReport.cs`.
+
 ## 2026-09-05
 
 - **Headless v provozu — fáze 4 hotová a poprvé ověřená na robotu** podle

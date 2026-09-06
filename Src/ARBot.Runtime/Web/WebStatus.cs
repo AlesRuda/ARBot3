@@ -67,6 +67,14 @@ namespace ARBot.Robot.Web
         private OccupancyGridMsg grid;
         private RobotStateMsg state;
         private GlobalNavMsg nav;
+
+        /// <summary>
+        /// Posledni fix z GPS. <b>Kvuli kvalite signalu:</b> fuze poslouchá jen fix, ktery projde
+        /// branou (druzice, DOP) - a bez tohohle udaje se ze stranky nedalo poznat, jestli robot
+        /// vubec ma fix a proc se pripadne nepouziva. Nalezeno 6. 9. 2026, kdy odhad polohy ujel
+        /// ~570 m, zatimco robot stal.
+        /// </summary>
+        private GPSState gps;
         private MissionMsg mission;
         private FreeRunMsg freeRun;
         private LocalPlanMsg plan;
@@ -86,6 +94,9 @@ namespace ARBot.Robot.Web
         /// stranka podle toho ukaze vyber misi.
         /// </summary>
         public bool AwaitingMission { get; set; }
+
+        /// <summary>Nabizi aplikace vypnuti zarizeni? Stranka podle toho ukaze tlacitko Power off.</summary>
+        public bool PowerOffAvailable { get; set; }
 
         /// <summary>
         /// Jak stara smi byt zprava od motoru, aby se z ni jeste cetl stav nouzoveho zastaveni [s].
@@ -153,6 +164,7 @@ namespace ARBot.Robot.Web
                 case OccupancyGridMsg og: lock (gate) { grid = og; } return;
                 case RobotStateMsg rs: PostState(rs); return;
                 case GlobalNavMsg gn: lock (gate) { nav = gn; } return;
+                case GPSState gs: lock (gate) { gps = gs; } return;
                 case MissionMsg mm: lock (gate) { mission = mm; } return;
                 case FreeRunMsg fr: lock (gate) { freeRun = fr; } return;
                 case LocalPlanMsg lp: lock (gate) { plan = lp; } return;
@@ -302,6 +314,7 @@ namespace ARBot.Robot.Web
                 Num(sb, "planLength", plan?.LengthM); Num(sb, "clearance", plan?.MinClearanceM);
                 Num(sb, "offRoute", nav?.OffRouteDist); Num(sb, "routeLength", nav?.RouteLengthM);
                 Num(sb, "cpu", perf?.ProcessCpuPct);
+                AppendGps(sb);
                 if (perf != null) sb.Append(",\"missedTicks\":").Append(perf.MissedTicks);
                 if (mission != null)
                 {
@@ -422,6 +435,7 @@ namespace ARBot.Robot.Web
             // a uvolneni stopu na KAZDEM stanovisti, takze kdyby zmizelo s panelem vyberu mise,
             // neslo by v simulaci projit ani prvni servisni okno (nalezeno 5. 9. 2026).
             if (ARBot.Common.Configuration.ParamRegistry.VirtualHw.Value) sb.Append(",\"virtualhw\":true");
+            if (PowerOffAvailable) sb.Append(",\"poweroff\":true");
 
             if (!AwaitingMission) return;
 
@@ -444,6 +458,56 @@ namespace ARBot.Robot.Web
 
             string duvod = MissionBlockedReason();
             if (duvod != null) sb.Append(",\"pickBlocked\":\"").Append(Escape(duvod)).Append('"');
+        }
+
+        /// <summary>
+        /// <b>Kvalita GPS fixu</b> do JSON. Bez toho se ze stranky nedalo poznat, jestli robot vubec
+        /// ma fix — a kdyz odhad polohy 6. 9. 2026 ujel ~570 m, zatimco robot stal, muselo se to
+        /// hledat ctenim kodu. Ted je videt druh fixu, pocet druzic, DOP, sigma, se kterou fuze
+        /// polohu bere, a <b>duvod</b>, kdyz ji nebere vubec.
+        ///
+        /// <para>Verdikt „bere / nebere" pocita <see cref="DefaultMeasurementMapper"/> — tatáz
+        /// funkce, kterou se ridi fuze. Druhy vypocet na strance by se driv nebo pozdeji rozesel
+        /// s tim, co se deje uvnitr.</para>
+        /// </summary>
+        private void AppendGps(StringBuilder sb)
+        {
+            GPSState g;
+            lock (gate) g = gps;
+            if (g == null) return;
+
+            var cfg = FuzeKonfigurace();
+            sb.Append(",\"gpsFix\":\"").Append(Escape(g.Quality.ToString())).Append('"');
+            sb.Append(",\"gpsSat\":").Append(g.NumberOfSatellites);
+            Num(sb, "gpsDop", g.Hdop > 0 ? g.Hdop : (double?)null);
+
+            string duvod = ARBot.Common.Runtime.DefaultMeasurementMapper.PositionRejectReason(g, cfg);
+            if (duvod != null)
+                sb.Append(",\"gpsOdmitnuto\":\"").Append(Escape(duvod)).Append('"');
+            else
+                Num(sb, "gpsStd", ARBot.Common.Runtime.DefaultMeasurementMapper.PositionStd(g, cfg));
+
+            void Num(StringBuilder b, string name, double? v)
+            {
+                if (v.HasValue && double.IsFinite(v.Value))
+                    b.Append(",\"").Append(name).Append("\":")
+                     .Append(v.Value.ToString("0.###", CultureInfo.InvariantCulture));
+            }
+        }
+
+        /// <summary>
+        /// Konfigurace fuze z beziciho runtime, nebo vychozi. Na <c>ARBotRuntime.Current</c> se saha
+        /// jen pres <c>HasCurrent</c> — cteni te vlastnosti by runtime jinak zalozilo.
+        /// </summary>
+        private static ARBot.Common.Fusion.FusionConfig FuzeKonfigurace()
+        {
+            try
+            {
+                if (ARBotRuntime.HasCurrent && ARBotRuntime.Current.FusionConfig != null)
+                    return ARBotRuntime.Current.FusionConfig;
+            }
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine("WebStatus: cteni konfigurace fuze selhalo: " + ex.Message); }
+            return new ARBot.Common.Fusion.FusionConfig();
         }
 
         /// <summary>
@@ -578,6 +642,9 @@ namespace ARBot.Robot.Web
     senzoru. */
  button.estop.drzi{background:#e65100}
  .akce{display:flex;gap:5px;flex-shrink:0}
+ /* Vypnuti CELE desky - tmavsi nez Terminate, aby se ta dve tlacitka nepletla: Terminate ukonci
+    proces (systemd ho vrati), tohle vypne zarizeni a robot uz sam nenabehne. */
+ button.vyp{background:#4a148c;padding:6px 10px;font-size:12px;font-weight:600}
  /* Lista nad obrázkem: přepínače vlevo, zastavení vpravo. Šířka jako obrázek, aby to
     lícovalo; na mobilu se zlomí jen skupina přepínačů (lista sama nowrap), takže Stop
     zůstane vpravo. */
@@ -622,6 +689,7 @@ namespace ARBot.Robot.Web
  <div class=""akce"">
   <button class=""estop"" id=""vstop"" style=""display:none"" onclick=""virtStopPrepni()"">Emergency stop</button>
   <button class=""stop"" onclick=""zastavit()"">Terminate</button>
+  <button class=""vyp"" id=""vypnout"" style=""display:none"" onclick=""vypnout()"">Power off</button>
  </div>
 </div>
 <img id=""obraz"" alt=""náhled"">
@@ -634,6 +702,8 @@ namespace ARBot.Robot.Web
 var popisky={running:'běží',x:'X [m]',y:'Y [m]',theta:'kurz [rad]',v:'rychlost [m/s]',omega:'omega [rad/s]',
  planLength:'plán [m]',clearance:'odstup [m]',offRoute:'mimo trasu [m]',routeLength:'trasa [m]',
  cpu:'CPU procesu [%]',missedTicks:'zameškané takty',
+ gpsFix:'GPS fix',gpsSat:'GPS družic',gpsDop:'GPS DOP',gpsStd:'GPS sigma polohy [m]',
+ gpsOdmitnuto:'GPS se NEPOUŽÍVÁ',
  missionCode:'kód',missionAbort:'přerušeno',corridor:'koridor',corridorWidth:'šířka koridoru [m]',
  lateral:'odchylka [m]',cameras:'kamery'};
 // Jeden obrazek, tri vrstvy: pudorys | kamera (RGB) | cesta z RGB (ImageProbability).
@@ -748,6 +818,7 @@ function vyberMise(h){
 // prepina proti tomu, co robot skutecne hlasi - ne proti tomu, co si stranka pamatuje.
 var estopDrzen=false;
 function akce(h){
+ document.getElementById('vypnout').style.display = h.poweroff ? '' : 'none';
  var b=document.getElementById('vstop');
  b.style.display = h.virtualhw ? '' : 'none';
  if(!h.virtualhw) return;
@@ -755,6 +826,17 @@ function akce(h){
  b.className = 'estop' + (estopDrzen ? ' drzi' : '');
 }
 function virtStopPrepni(){ virtStop(!estopDrzen); }
+// Vypnuti zarizeni. Dva rozdilne ukony vedle sebe, takze potvrzeni MUSI rict, ktery z nich to je:
+// Terminate proces vrati systemd, po Power off robot sam nenabehne a musi se zapnout rukou.
+function vypnout(){
+ if(!confirm('VYPNOUT CELÉ ZAŘÍZENÍ? Robot se sám nezapne — bude ho potřeba zapnout ručně.'))return;
+ fetch('/poweroff',{method:'POST'}).then(function(r){
+  return r.text().then(function(txt){
+   if(r.ok){ document.getElementById('nazev').textContent='ARBot - vypíná se'; }
+   else alert('Vypnout se nepodařilo: '+txt);
+  });
+ }).catch(function(){ document.getElementById('nazev').textContent='ARBot - vypíná se'; });
+}
 function zvolMisi(m){
  if(!confirm('Spustit misi '+m+'? Robot se rozjede po uvolnění nouzového zastavení.'))return;
  fetch('/mission?m='+encodeURIComponent(m),{method:'POST'}).then(function(r){

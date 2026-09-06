@@ -31,6 +31,7 @@ namespace ARBot.Robot.Web
         private readonly WebStatus status;
         private readonly Action onStop;
         private readonly Action<string>? onMission;
+        private readonly Func<string>? onPowerOff;
         private TcpListener? listener;
         private Thread? thread;
         private volatile bool running;
@@ -41,12 +42,20 @@ namespace ARBot.Robot.Web
         /// Server sam <c>ARBotRuntime.Stop()</c> nevola: o ukonceni procesu rozhoduje aplikace.</param>
         /// <param name="onMission">Co udelat na <c>POST /mission?m=…</c> - v headless spusti Run
         /// s vybranou misi. <c>null</c> = vyber mise se neposkytuje (odpoved 404).</param>
-        public WebPreviewServer(WebStatus status, Action onStop, Action<string>? onMission = null)
+        /// <param name="onPowerOff">Co udelat na <c>POST /poweroff</c> - zastavit runtime a dat
+        /// systemu pokyn k vypnuti. Vraci <c>null</c> pri uspechu, jinak duvod selhani (ten se
+        /// ukaze na strance). <c>null</c> callback = vypinani se nenabizi (odpoved 404).</param>
+        public WebPreviewServer(WebStatus status, Action onStop, Action<string>? onMission = null,
+                                Func<string>? onPowerOff = null)
         {
             this.status = status ?? throw new ArgumentNullException(nameof(status));
             this.onStop = onStop;
             this.onMission = onMission;
+            this.onPowerOff = onPowerOff;
         }
+
+        /// <summary>Nabizi tenhle server vypnuti zarizeni? Stranka podle toho ukaze tlacitko.</summary>
+        public bool PowerOffAvailable => onPowerOff != null;
 
         /// <summary>Skutecny port, na kterem server posloucha (u portu 0 ten pridelený OS).</summary>
         public int Port { get; private set; }
@@ -163,6 +172,10 @@ namespace ARBot.Robot.Web
                     HandleMission(s, req);
                     return;
 
+                case "/poweroff":
+                    HandlePowerOff(s, req);
+                    return;
+
                 case "/virtualestop":
                     HandleVirtualEStop(s, req);
                     return;
@@ -228,6 +241,46 @@ namespace ARBot.Robot.Web
                 // mise), takze se sem dostane jako vyjimka - a je to chyba VSTUPU, tedy 400.
                 Trace.WriteLine("web: vyber mise selhal: " + ex.Message);
                 HttpMini.WriteText(s, 400, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// <b>Vypnuti cele desky</b> (<c>POST /poweroff</c>) — zastavi runtime a da systemu pokyn
+        /// k vypnuti.
+        ///
+        /// <para>Neni to totez co <c>/stop</c>: ten ukonci proces a systemd ho za par sekund vrati.
+        /// Tohle vypina zarizeni, aby slo robotovi bezpecne odpojit napajeni bez useknuteho zaznamu
+        /// a nedopsaneho souboroveho systemu.</para>
+        ///
+        /// <para><b>Odpoved se posila az po pokusu</b>, ne pred nim (na rozdil od <c>/stop</c>):
+        /// selhani vypinani je presne to, co obsluha potrebuje vedet — robot, ktery na „vypnout"
+        /// mlcky nic neudela, je horsi nez ten, ktery rekne proc. Kdyz se vypnuti podari, spojeni
+        /// bud jeste stihne odpoved, nebo umre se systemem; obojim je odpoved bezcenna.</para>
+        /// </summary>
+        private void HandlePowerOff(System.IO.Stream s, HttpRequestLine req)
+        {
+            if (onPowerOff == null) { HttpMini.WriteText(s, 404, "vypinani tahle aplikace nenabizi"); return; }
+            if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                HttpMini.WriteText(s, 405, "vypnout jde jen pres POST");
+                return;
+            }
+
+            Trace.WriteLine("web: prislo POST /poweroff -> zastavuji runtime a vypinam zarizeni.");
+            try
+            {
+                string chyba = onPowerOff();
+                if (chyba == null) HttpMini.WriteText(s, 200, "zarizeni se vypina");
+                else
+                {
+                    Trace.WriteLine("web: vypnuti selhalo: " + chyba);
+                    HttpMini.WriteText(s, 500, chyba);
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("web: vypnuti selhalo: " + ex.Message);
+                HttpMini.WriteText(s, 500, ex.Message);
             }
         }
 

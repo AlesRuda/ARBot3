@@ -82,6 +82,10 @@ namespace ARBot.Analyze
                                             Arg(args, "--from", double.NaN), Arg(args, "--to", double.NaN));
                         return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
+                    case "log": LogReport.Run(rec, Text(args, "--filter"), (int)Arg(args, "--limit", 0)); return 0;
+                    case "cameras": CameraFramesReport.Run(rec, (int)Arg(args, "--limit", 400),
+                                                            (int)Arg(args, "--skip", 0),
+                                                            Text(args, "--png")); return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -98,6 +102,13 @@ namespace ARBot.Analyze
                 Console.WriteLine($"  {g.Key,-28} {g.Count(),7}" +
                                   (names.Count > 0 ? "  [" + string.Join(", ", names) + "]" : ""));
             }
+        }
+
+        /// <summary>Retezcovy prepinac <c>--jmeno=hodnota</c>; <c>null</c> = nezadan.</summary>
+        private static string Text(string[] args, string name)
+        {
+            var a = args.FirstOrDefault(x => x.StartsWith(name + "="));
+            return a?.Substring(name.Length + 1);
         }
 
         private static double Arg(string[] args, string name, double fallback)
@@ -152,6 +163,11 @@ namespace ARBot.Analyze
             Console.WriteLine("             --from=<s> --to=<s>; bez nich poslednich 20 s)");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
             Console.WriteLine("             (cte cele snimky - na velkem zaznamu to trva, viz --limit)");
+            Console.WriteLine("  log        textovy log aplikace ZE ZAZNAMU (zpravy Info z Trace);");
+            Console.WriteLine("             --filter=<text> jen radky s podretezcem");
+            Console.WriteLine("  cameras    chodi z kamer opravdu NOVE snimky? pocet ruznych obrazu a nejdelsi");
+            Console.WriteLine("             serie totoznych (cte cele snimky - viz --limit, --skip);");
+            Console.WriteLine("             --png=<prefix> ulozi prvni snimek kazde kamery jako PNG");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");

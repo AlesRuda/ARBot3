@@ -86,6 +86,20 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         private const int StallTimeoutsBeforeRestart = 3;
 
+        /// <summary>
+        /// Hlidka zamrzlych streamu: snimky chodi, ale razitko jednoho streamu stoji. Logika je
+        /// spolecna pro obe platformy a otestovana - viz <see cref="StreamFreezeWatch"/>.
+        /// </summary>
+        private readonly ARBot.HAL.Devices.Camera.StreamFreezeWatch freezeWatch =
+            new ARBot.HAL.Devices.Camera.StreamFreezeWatch();
+
+        /// <summary>
+        /// Kolikrat se pipeline restartovala kvuli ZAMRZLEMU streamu (razitko stalo, snimky chodily).
+        /// Vede se zvlast od <see cref="StallRestarts"/>: „snimky nechodi" a „snimky chodi, ale jsou
+        /// porad stejne" jsou jine poruchy a pri diagnostice je potreba je rozlisit.
+        /// </summary>
+        public int FrozenStreamRestarts { get; private set; }
+
         /// <summary>Pocet po sobe jdoucich timeoutu; 0 = posledni cteni snimek doslo.</summary>
         private int consecutiveTimeouts;
 
@@ -248,6 +262,20 @@ namespace ARBot.HAL.Devices.Camera
                     frame.RGBTimeStamp = RGBTimeStamp;
                     frame.DepthTimeStamp = DepthTimeStamp;
 
+                    // Zamrzly stream: razitko stoji, prestoze framesety chodi. Kdyz se to potvrdi,
+                    // zbourat pipeline - stejnou cestou jako u timeoutu, tedy vcetne toho, ze
+                    // kamera do prvniho uspesneho pripojeni poctive hlasi CHYBU.
+                    string zamrzlo = freezeWatch.Check(settingsRGB != null ? colorFrame.Timestamp : (double?)null,
+                                                       settingsDepth != null ? depthFrame.Timestamp : (double?)null);
+                    if (zamrzlo != null)
+                    {
+                        FrozenStreamRestarts++;
+                        Trace.WriteLine($"{Name}: {zamrzlo} -> restart pipeline (celkem {FrozenStreamRestarts}x). "
+                                        + "Snimky chodily dal, jen porad tytez - bez tohohle by kamera hlasila OK.");
+                        Teardown();
+                        return null;
+                    }
+
                     // Odhad pozy jako METADATUM snimku (vyhradne pro vizualizaci - viz
                     // CameraFrame.PoseAtCaptureX). Chybejici poza snimek NEZAHAZUJE.
                     ARBot.HAL.Devices.Camera.CameraPoseStamp.Apply(frame, EstimatedPoseAt);
@@ -363,10 +391,16 @@ namespace ARBot.HAL.Devices.Camera
         /// protoze po odpojeni USB se stara instance na znovupripojene zarizeni nenavaze -
         /// pri reconnectu se v EnsureConnected vytvori cerstva.
         /// </summary>
+
+
         private void Teardown()
         {
             connected = false;
             pipelineProfile = null;
+
+            // Sledovani zamrzlych streamu zacina znovu: nova pipeline ma nova razitka a bez
+            // vynulovani by prah sepnul hned pri prvnim snimku po pripojeni.
+            freezeWatch.Reset();
             if (pipeline != null)
             {
                 try

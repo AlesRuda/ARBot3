@@ -1,7 +1,7 @@
 # Nasazeni ARBot.Headless na Orange Pi (z Windows).
 #
 #   .\deploy\nasad.ps1                      # publish + kopie + restart sluzby
-#   .\deploy\nasad.ps1 -Host 192.168.7.1    # jina adresa (AP misto kabelu)
+#   .\deploy\nasad.ps1 -RobotHost 192.168.7.1   # jina adresa (AP misto kabelu)
 #   .\deploy\nasad.ps1 -NoRestart           # jen nahrat, nerestartovat
 #
 # Nasazuje se do ~/arbot-headless; aplikace bezi ze stinove kopie ~/arbot-headless-run

@@ -32,9 +32,44 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
-        public void VerzeFormatuJe2()
-            => Assert.That(IMUState.FormatVersion, Is.EqualTo(2),
+        public void VerzeFormatuJe3()
+            => Assert.That(IMUState.FormatVersion, Is.EqualTo(3),
                            "pridani pole = zvednuta verze, jinak by se stare zaznamy cetly spatne");
+
+        [Test]
+        public void RoundTrip_ZachovaPriznakAbsolutnihoKurzu()
+        {
+            // Verze 3 (6. 9. 2026): bez tohohle priznaku by se relativni yaw z T265 dostal do fuze
+            // jako ABSOLUTNI kurz a vnutil by filtru libovolne otoceny svet.
+            var vzorek = Vzorek();
+            vzorek.HasAbsoluteHeading = false;
+
+            var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                vzorek.ToData(bw);
+
+            ms.Position = 0;
+            var zpet = new IMUState();
+            using (var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                zpet.FromData(br);
+
+            Assert.That(zpet.HasAbsoluteHeading, Is.False);
+        }
+
+        [Test]
+        public void VychoziJeAbsolutniKurz()
+            => Assert.That(new IMUState().HasAbsoluteHeading, Is.True,
+                           "tak se chovaly vsechny zdroje do 6. 9. 2026; kdo ma yaw relativni, musi to rict");
+
+        [Test]
+        public void Clone_PreneseAbsolutnostKurzu()
+        {
+            var vzorek = Vzorek();
+            vzorek.HasAbsoluteHeading = false;
+
+            Assert.That(vzorek.Clone().HasAbsoluteHeading, Is.False,
+                        "fuze a historie klonuji stavy - klonovanim by se z relativniho yaw stal absolutni");
+        }
 
         [Test]
         public void RoundTrip_ZachovaJmenoIZbytek()

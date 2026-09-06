@@ -48,6 +48,64 @@ důvodu: firmware hlásil `SLAM_ERROR Vision` — **v místnosti byla tma** a VI
 Přes USB 2 librealsense odmítá streamovat fisheye („use USB 3 or only stream poses"), takže obraz
 z rybích ok jde zkontrolovat jen na USB 3.
 
+### T265 nebyla napojená do pipeline (6. 9. 2026)
+
+Při rozboru záznamu `20260906-082403.rec` se ukázalo, že o T265 v něm **není ani zmínka** — žádná
+zpráva, žádný řádek logu. Příčina není v kameře: `ARBotHW` ji zakládá bezpodmínečně, ale
+`ARBotRuntime.BuildSensorSources` drátoval do pipeline jen `hw.IMU`, `hw.GPS` a `hw.Motor` —
+**`hw.TrackingCamera` nikde**. Kamera tedy běžela, otáčela pipeline, soupeřila na USB s oběma D435
+a její `MeasurementArived` **nikdo neodebíral**.
+
+Na stránce se přitom ukazovala jako senzor se stářím „—", což vypadalo jako porucha kamery. Tím
+padá i domněnka z [devlogu](devlog.md) 3. 9. („T265 by přidala 200 Hz") — nepřidala by nic ani při
+plné funkčnosti.
+
+**Napojeno 6. 9. 2026** na pokyn autora („měla by se používat, pokud naběhne"). Protože T265 nemá
+magnetometr, její yaw je relativní a **jako kurz se poslat nesmí** — používá se jeho změna. Návrh
+a důvody: [ekf-fusion.md](ekf-fusion.md#t265-vio-relativní-yaw-se-používá-jako-úhlová-rychlost-2026-09-06).
+
+### ⚠️ Pravá D435: zamrzlý barevný stream (6. 9. 2026, neuzavřeno)
+
+**Pozorování autora:** „z pravé kamery chodí pořád stejný snímek". Ověřeno nad záznamem
+`20260906-082403.rec` (11 minut, `ARBot.Analyze cameras`):
+
+| kamera | barva | hloubka | razítko barvy |
+|---|---|---|---|
+| `Left 740112071040` | 100 různých ze 100 | 100 různých | 100 různých |
+| `Right 740112071021` | **1 různý ze 100** | 100 různých | **1 různé** |
+
+Platí to **od začátku do konce záznamu** a je to **týž obraz** (otisk `9843eac7a2c6d82f` na začátku
+i na konci). Zamrzlý snímek je přitom **skutečná, dobře exponovaná fotka** ulice, ne černo ani šum —
+stream tedy nejmíň jeden platný snímek dodal a pak se zastavil.
+
+**Kde vada je:** razítko barevného snímku (`CameraFrame.RGBTimeStamp`, z `colorFrame.Timestamp`)
+**stojí**, zatímco hloubkové běží. Driver přitom kopíruje obojí při každém grabu ze
+`frames.ColorFrame` / `frames.DepthFrame` — takže librealsense vrací v každém framesetu **tentýž
+barevný snímek** a naše kopírování je v pořádku. Vada je v librealsense, na USB, nebo v senzoru.
+
+**Není to trvalá vlastnost té kamery:** táž jednotka (sériové číslo `740112071021`) 2. 9. 2026
+v záznamu `20260902-225743.rec` dodávala 60 různých barevných snímků ze 60.
+
+⚠️ **Aplikace to do 6. 9. 2026 nepoznala.** Snímky chodily 10 Hz, `ISensor.IsError` hlásil OK, na
+stránce náhledu svítila kamera zeleně se stářím 12 ms — a přitom „cesta z RGB" (a tím occupancy grid
+a celá mise FreeRun) běžela nad nehybnou fotkou.
+
+**Léčba (6. 9. 2026):** `StreamFreezeWatch` v `ARBot.HAL` sleduje razítka jednotlivých streamů
+a když některé stojí **přes 5 s**, driver **zboří pipeline** a příště ji nastartuje znovu — stejnou
+cestou jako u zaseknutého streamu bez snímků. Během té doby kamera poctivě **hlásí chybu**
+(`connected = false` → `IsError`), takže je porucha konečně vidět na stránce i v panelu místo
+klamného OK. Počítadlo `FrozenStreamRestarts` se vede zvlášť od `StallRestarts`: „snímky nechodí"
+a „snímky chodí, ale jsou pořád stejné" jsou jiné poruchy.
+
+Práh 5 s je volný schválně — pomalá barva je legitimní (automatická expozice v šeru srazí snímkovou
+frekvenci pod periodu čtení, takže se opakované snímky běžně objevují), ale **razítko se při tom
+pořád hýbe**. Pět sekund je ~50 čtení; to už žádná expozice nevysvětlí. Tatáž konstanta jako
+u T265 („5 s bez pózy → restart pipeline").
+
+**Neověřeno na zařízení** — jestli se pravá D435 restartem pipeline probere, ukáže až běh na robotu;
+je možné, že se zasekne znovu a bude to vidět jako rostoucí `FrozenStreamRestarts`. Viz
+[devlog.md](devlog.md), 6. 9. 2026.
+
 ### Sériové porty na Orange Pi
 
 Na Pi **nejede žádný onboard UART** — všechny tři sériové periferie visí na USB.

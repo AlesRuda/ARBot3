@@ -70,6 +70,96 @@ věc, a měření chodí různě rychle (IMU ~100 Hz).
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
 
+### T265 (VIO): relativní yaw se používá jako ÚHLOVÁ RYCHLOST (2026-09-06)
+
+**Dva nálezy naráz.** Za prvé: `hw.TrackingCamera` **nebyla vůbec napojená do pipeline** —
+`BuildSensorSources` drátoval jen `hw.IMU`, `hw.GPS` a `hw.Motor`. T265 se přitom v `ARBotHW`
+bezpodmínečně zakládala, běžela, otáčela librealsense pipeline a **její `MeasurementArived` nikdo
+neodebíral**, takže její data neměla kam téct: ani do fúze, ani do streamu, ani do záznamu. Na
+stránce se ukazovala jako senzor se stářím „—", což vypadalo jako porucha kamery. (Tím padá i
+domněnka z DevLogu 3. 9. „T265 by přidala 200 Hz" — nepřidala by nic ani při plné funkčnosti.)
+
+Za druhé, a proto to není jednořádková oprava: **T265 nemá magnetometr.** Její yaw je gravitačně
+zarovnaný, ale otočený o **neznámou konstantu** proti severu (počátek = orientace při startu
+pipeline). Naivní napojení by ho poslalo do fúze jako `HeadingMeasurement` a **vnutilo filtru
+libovolně otočený svět** — tichá, těžko dohledatelná chyba.
+
+**Jak se to řeší.** Zpráva teď nese `IMUState.HasAbsoluteHeading` (verze formátu **3**; starší
+záznamy ho nemají a čtou se jako `true`, protože přesně tak se ta data tehdy chovala). VN100 ho má
+`true`, T265 `false`. Pro relativní zdroj mapper:
+
+- **neposílá kurz vůbec** (hlídá test),
+- posílá **úhlovou rychlost z rozdílu yaw**: `(yaw₂ − yaw₁)/Δt`, protože v rozdílu se ta neznámá
+  konstanta **odečte**. Je to rychlost z VIO, tedy dorovnaná obrazem, ne surový integrující gyroskop.
+- **neposílá vlastní surový gyroskop** — byl by to týž fyzikální pohyb podruhé a filtr by si tu
+  informaci započítal dvakrát.
+
+**Okno místo derivace vzorek po vzorku.** T265 dává pózu 200 Hz; dělit šum yaw časem 5 ms znamená
+zesílit ho dvěstěkrát. Na okně `RelYawWindowSec` (0,5 s) je z téhož šumu σ `√2·RelYawStd/okno`,
+tedy o dva řády menší číslo. **Okna se nepřekrývají** (kotva se po každém měření posune na současný
+vzorek) — překrývající se okna dávají korelovaná měření a filtr by si nadsadil informaci; tatáž past
+a tatáž léčba jako u `MapCorrelator.MinPeriod`, viz
+[map-correlation-localization.md](map-correlation-localization.md).
+
+Při `Confidence = 0` (VIO ztraceno) se okno **zahodí a ukotví znovu** — po znovunalezení může yaw
+skočit, takže rozdíl přes tu dobu je nesmysl.
+
+⚠️ **Absolutní kurz z T265 takhle nevznikne, a to je záměr.** Její skutečná přednost je **nízký
+drift** na minutách, a využít ji znamená přidat do stavu EKF **offset yaw** (`T265_yaw + offset =
+ENU_yaw`) — což je přesně otevřený úkol „chyby senzorů jako stavy EKF" níž a je gatovaný měřením na
+železe. Do té doby se do záznamu ukládají celá `IMUState` z T265, aby se ten offset dal změřit
+offline.
+
+⚠️ **`RelYawStd = 0,002 rad` je odhad, ne měření** — T265 hlásí kvalitu sledování, ne σ yaw.
+Nastavit se to musí z dat ze zařízení. **Rychlost z T265 (`Velocity`) se zatím nepoužívá**: byl by
+to slibný druhý zdroj dopředné rychlosti (lepší než odometrie na kluzku), ale bez měření proti
+pravdě by to bylo ladění naslepo.
+
+**Neověřeno na zařízení** — v simulaci T265 není, takže celá tahle cesta zatím běžela jen v testech.
+
+### Kvalita GPS fixu: brána a sigma podle DOP (2026-09-06)
+
+Do 6. 9. 2026 brala fúze **každý** fix, u kterého `GPSState.IsFixed` řekl „ano", a dala mu **vždy
+tutéž** σ (`GpsPosStd`, 1,5 m). Počet družic a DOP přitom `GPSState` nese — jen se na ně nikdo
+nedíval. Mise Robotour kritéria kvality má (`MinSatellites`, `MaxHdop` při armování depa), takže
+fúze byla jediné místo, kde se fix bral bez otázek.
+
+**Jak se to projevilo:** na robotu ujel odhad polohy **~570 m jedním směrem** rychlostí ~0,7 m/s,
+zatímco robot **stál**. Že to netáhla predikce, bylo poznat z toho, že rychlost ve stavu byla nula —
+`PredictState` posouvá polohu jen o `v·dt`, takže při `v = 0` ji hýbat nemůže. Zbývalo jediné:
+poloha se táhla za měřeními, tedy za GPS.
+
+**Léčba, dvě části:**
+
+1. **σ se násobí DOP** (`sigma = GpsPosStd · max(1, DOP)`, parametr `gpsdopsigma=`). Tohle je ta
+   podstatná: kvalita fixu je **spojitá** veličina a DOP je přesně ten násobek, o který geometrie
+   družic zhoršuje přesnost — slabý fix tedy dostane malou váhu sám od sebe, místo aby se o něm
+   rozhodovalo prahem ano/ne. `max(1, …)` proto, že DOP pod 1 by σ zmenšoval pod deklarovanou
+   přesnost přijímače.
+2. **Brána** na počet družic (`gpsminsat=`, výchozí 4) a DOP (`gpsmaxdop=`, výchozí 10). Má
+   odstranit **nesmysl**, ne vybírat dobré fixy — zahodit GPS úplně je horší než jí dát malou váhu.
+
+⚠️ **Neznámá hodnota není špatná hodnota:** přijímač, který počet družic nebo DOP nehlásí (nula),
+branou **projde**. Jinak by stačil jeden nemluvný driver a robot by přišel o GPS docela.
+
+Rozhodnutí dělá `DefaultMeasurementMapper.PositionRejectReason` / `PositionStd` — **veřejné
+statické**, protože totéž potřebuje webový náhled, aby obsluha u robota viděla, že se GPS nebere
+a proč. Dva kusy kódu, které si na tuhle otázku odpovídají samy, se dřív nebo později rozejdou.
+Zahození se hlásí do `Trace` (tedy i do záznamu) s omezením na jednu hlášku za 10 s a hned při
+změně důvodu — GPS chodí 5× za sekundu a zahozené fixy chodí v sériích.
+
+⚠️ **Zároveň se opravilo mapování u-bloxu**, které tu bránu obcházelo úplně: `uBloxGps` jen
+**přetypovával** `fixType` (UBX-NAV-PVT) na `FixQuality` (z NMEA GGA), ačkoli ty dva výčty spolu
+nesouvisejí. Důsledek: **samotný mrtvý odhad** (`fixType = 1`, bez družic) se tvářil jako platný
+`GpsFix` a fúze ho brala — a přesně takové řešení **ujíždí jedním směrem, i když robot stojí**.
+Naopak **GNSS + mrtvý odhad** (`fixType = 4`, dobré řešení) se mapovalo na `Rtk`, které `IsFixed`
+nepouští. Převod je teď výslovný, hlídá ho `UBloxFixQualityTests`. Pozor i na to, že u-blox plní
+`Hdop` hodnotou **PDOP** (prostorový, vždy ≥ HDOP), takže proti němu je práh přísnější.
+
+**Neověřeno na zařízení:** robot byl v době opravy vypnutý, takže se **neví, co ten přijímač
+u těch 570 m vlastně hlásil**. Právě proto přibyla kvalita GPS do náhledu — příště to bude vidět
+na stránce místo čtení kódu. Je možné, že fix hlásil dobré hodnoty a příčina je jinde.
+
 ### Odometrie teče i pod nouzovým zastavením (2026-08-27)
 
 Do 27. 8. 2026 `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Zrušeno

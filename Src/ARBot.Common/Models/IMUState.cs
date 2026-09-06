@@ -88,10 +88,31 @@ namespace ARBot.Common.Models
         public string Name { get; set; }
 
         /// <summary>
+        /// Je <see cref="Rotation"/> <b>absolutni v ENU</b> (yaw proti severu), nebo je yaw jen
+        /// RELATIVNI k neznamemu pocatku?
+        ///
+        /// <para><b>Nacpak to je (6. 9. 2026):</b> VN100 ma magnetometr, takze jeho yaw je absolutni
+        /// a smi se do fuze poslat jako <b>kurz</b>. T265 magnetometr NEMA — jeji yaw je relativni
+        /// k orientaci pri startu pipeline, tedy o neznamou konstantu vedle. Poslat ho jako kurz by
+        /// znamenalo <b>vnutit fuzi libovolne otoceny svet</b>; ze zpravy samotne to ale nebylo jak
+        /// poznat, takze to musel vedet kazdy ctenar predem. Ted to rika zprava.</para>
+        ///
+        /// <para><b>Vychozi je <c>true</c></b> (absolutni) zamerne: tak se chovaly vsechny zdroje
+        /// do teto zmeny a starsi zaznamy priznak nenesou. Kdo ho ma jinak, musi to rict — dnes
+        /// jedine <c>T265TrackingCamera</c>.</para>
+        ///
+        /// <para><b>Pitch/roll je absolutni vzdy</b> (gravitace), i u T265 — priznak mluvi jen
+        /// o yaw.</para>
+        /// </summary>
+        public bool HasAbsoluteHeading { get; set; } = true;
+
+        /// <summary>
         /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
         /// <b>2</b> = pribylo <see cref="Name"/>; verze 1 (starsi zaznamy) ho nenese a cte se dal.
+        /// <b>3</b> = pribyl <see cref="HasAbsoluteHeading"/>; verze 1 a 2 ho nenesou a ctou se
+        /// jako <c>true</c> — presne to totiz o svych zdrojich predpokladal kod do 6. 9. 2026.
         /// </summary>
-        public const int FormatVersion = 2;
+        public const int FormatVersion = 3;
 
         /// <summary>
         /// Konstruktor
@@ -135,6 +156,7 @@ namespace ARBot.Common.Models
             v.Magnetometer = Magnetometer;
             v.OrientationUncertainty = OrientationUncertainty;
             v.Name = Name;              // puvodce mereni se klonovanim nesmi ztratit
+            v.HasAbsoluteHeading = HasAbsoluteHeading;   // jinak by se relativni yaw stal absolutnim
 
             return v;
         }
@@ -305,6 +327,7 @@ namespace ARBot.Common.Models
         {
             WriteMeta(bw);
             bw.Write(Name ?? string.Empty);   // verze 2
+            bw.Write(HasAbsoluteHeading);     // verze 3
             bw.Write(Confidence);
             Write(bw, Magnetometer);
             Write(bw, Acceleration);
@@ -324,6 +347,10 @@ namespace ARBot.Common.Models
 
             // Verze 1 jmeno zdroje nenese; zustane prazdne, aby se starsi zaznamy daly prehrat.
             Name = Verze >= 2 ? br.ReadString() : string.Empty;
+
+            // Verze 1 a 2 priznak nenesou. true je spravna nahrada: do 6. 9. 2026 se yaw ze VSECH
+            // zdroju bral jako absolutni, takze presne tak se ta data tehdy chovala.
+            HasAbsoluteHeading = Verze < 3 || br.ReadBoolean();
 
             Confidence = br.ReadDouble();
             Magnetometer = ReadNullableVector3(br);

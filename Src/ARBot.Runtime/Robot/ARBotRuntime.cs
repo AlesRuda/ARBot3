@@ -302,6 +302,8 @@ namespace ARBot.Robot
 
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
+            ApplyGpsQualityParams(fusionConfig);
+            FusionConfig = fusionConfig;
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
             fusionEngine = engine;   // drzime kvuli teleportu robotu (viz TeleportSimulatedRobot)
 
@@ -908,6 +910,13 @@ namespace ARBot.Robot
         public ARBot.Common.Missions.RobotourMission RobotourMission { get; private set; }
 
         /// <summary>
+        /// Konfigurace fuze slozeneho behu, nebo <c>null</c> (runtime jeste nebezel). Cte ji webovy
+        /// nahled, aby mohl ukazat, s jakymi prahy kvality se GPS posuzuje - a hlavne aby to byly
+        /// TYTEZ prahy, jake pouziva fuze.
+        /// </summary>
+        public FusionConfig FusionConfig { get; private set; }
+
+        /// <summary>
         /// <b>Bezici mise jako hlaseni stavu</b>, nebo <c>null</c> (zadna mise). Odpovi „jaka mise,
         /// v jake fazi a na co ceka" bez znalosti konkretni mise — pouziva to webovy nahled
         /// (doc/plan-headless-provoz.md).
@@ -1407,6 +1416,41 @@ namespace ARBot.Robot
         /// planovaci v lokalni ENU rovine. Nesmysl se ignoruje s hlaskou - vadny parametr nesmi
         /// shodit start aplikace (stejna zasada jako u <c>map=</c> a <c>start=</c>).</para>
         /// </summary>
+        /// <summary>
+        /// Prenese parametry kvality GPS (<c>gpsminsat=</c>, <c>gpsmaxdop=</c>, <c>gpsdopsigma=</c>)
+        /// do <see cref="FusionConfig"/>. Bez zadani plati hodnoty z kodu.
+        ///
+        /// <para><b>Nacpak to je:</b> do 6. 9. 2026 brala fuze kazdy fix, u ktereho
+        /// <c>GPSState.IsFixed</c> rekl "ano", a vzdy s tutez sigmou - pocet druzic a DOP
+        /// <c>GPSState</c> nese, ale nikdo se na ne nedival. Na robotu se to projevilo tak, ze
+        /// odhad polohy ujel ~570 m jednim smerem, zatimco robot stal.
+        /// Viz doc/ekf-fusion.md a doc/configuration.md.</para>
+        /// </summary>
+        private static void ApplyGpsQualityParams(FusionConfig cfg)
+        {
+            if (ParamRegistry.GpsMinSat.IsSet)
+            {
+                cfg.GpsMinSatellites = (int)Math.Round(ParamRegistry.GpsMinSat.Value);
+                Trace.WriteLine($"gpsminsat={cfg.GpsMinSatellites}: fix s mensim poctem druzic se do fuze nepustí"
+                                + (cfg.GpsMinSatellites <= 0 ? " (0 = kontrola vypnuta)." : "."));
+            }
+
+            if (ParamRegistry.GpsMaxDop.IsSet)
+            {
+                cfg.GpsMaxDop = ParamRegistry.GpsMaxDop.Value;
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "gpsmaxdop={0:F1}: fix s vyssim DOP se do fuze nepustí{1}",
+                    cfg.GpsMaxDop, cfg.GpsMaxDop <= 0 ? " (0 = kontrola vypnuta)." : "."));
+            }
+
+            if (ParamRegistry.GpsDopSigma.IsSet)
+            {
+                cfg.GpsScaleStdByDop = ParamRegistry.GpsDopSigma.Value;
+                Trace.WriteLine($"gpsdopsigma={cfg.GpsScaleStdByDop}: sigma polohy z GPS "
+                                + (cfg.GpsScaleStdByDop ? "se nasobi DOP." : "je konstantni bez ohledu na DOP."));
+            }
+        }
+
         private void ApplyGoalParam(GeoReference origin)
         {
             string goal = ParamRegistry.Goal.Value;
@@ -1679,6 +1723,23 @@ namespace ARBot.Robot
                 var imu = hw.IMU;
                 var src = new SensorMessageSource<IMUState>(
                     h => imu.MeasurementArived += h, h => imu.MeasurementArived -= h);
+                connections.Add(src.Connect(router));
+                sources.Add(src);
+            }
+
+            // T265 (IMUState z VIO). ⚠️ Do 6. 9. 2026 tady NEBYLA - kamera se v ARBotHW zakladala,
+            // bezela, otacela pipeline, ale jeji MeasurementArived nikdo neodebiral, takze jeji data
+            // NEMELA KAM TECT: ani do fuze, ani do streamu, ani do zaznamu. Na strance se pritom
+            // ukazovala jako senzor (s vekem „—"), takze to vypadalo jako porucha kamery.
+            // Nalezeno pri rozboru zaznamu 20260906-082403.rec, kde o T265 neni ani zminka.
+            //
+            // Jeji yaw je RELATIVNI (nema magnetometr) - o tom, ze se nesmi pouzit jako kurz, uz
+            // rozhoduje priznak IMUState.HasAbsoluteHeading a DefaultMeasurementMapper.
+            if (hw.TrackingCamera != null)
+            {
+                var vio = hw.TrackingCamera;
+                var src = new SensorMessageSource<IMUState>(
+                    h => vio.MeasurementArived += h, h => vio.MeasurementArived -= h);
                 connections.Add(src.Connect(router));
                 sources.Add(src);
             }

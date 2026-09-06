@@ -335,6 +335,17 @@ Obnovuje se každou sekundu.
 - **Terminate** ukončí proces. Pod systemd se za ~5 s vrátí (a mezitím se obnoví stínová kopie),
   takže je to zároveň nejrychlejší cesta k nasazení nové verze; kdo chce robota nechat stát, dá
   `systemctl stop arbot`.
+- **Power off** (fialové, jen když to `poweroffcmd=` povoluje) **vypne celé zařízení**. Robot nemá
+  klávesnici ani displej a vytažení napájení za běhu znamená useknutý záznam a nedopsaný souborový
+  systém; aplikace proto **nejdřív zastaví runtime** (dojede fronty, uzavře záznam, zastaví motory)
+  a teprve pak dá systému pokyn. Barva je jiná než u *Terminate* schválně — po *Terminate* se robot
+  vrátí, po *Power off* se sám nezapne. Selhání (chybějící sudo, zakázaný polkit) se ukáže na
+  stránce; robot, který na „vypnout" mlčky nic neudělá, je horší než ten, který řekne proč.
+- **GPS v tabulce stavu**: druh fixu, počet družic, DOP a sigma, se kterou fúze polohu bere —
+  nebo **„GPS se NEPOUŽÍVÁ"** s důvodem, když neprojde branou kvality
+  ([ekf-fusion.md](ekf-fusion.md#kvalita-gps-fixu-brána-a-sigma-podle-dop-2026-09-06)). Přibylo
+  6. 9. 2026, kdy odhad polohy ujel ~570 m se stojícím robotem a ze stránky **nešlo poznat, jestli
+  robot vůbec má fix** — muselo se to hledat čtením kódu.
 
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 
@@ -350,6 +361,7 @@ sjízdné, červená blokované, šedá síť cest z mapy, modrá ujetá dráha,
 | `POST /mission?m=<mise>` | vybere misi; **409** bez drženého stopu nebo když už mise běží, **400** u neznámé mise a u `none` |
 | `POST /virtualestop?on=true\|false` | virtuální nouzové zastavení; **404** se skutečným HW |
 | `POST /stop` | zastaví runtime a ukončí proces, jako Ctrl+C |
+| `POST /poweroff` | zastaví runtime a **vypne celé zařízení**; **404** když to `poweroffcmd=` nepovoluje, **500** s důvodem, když příkaz selže |
 
 Síť cest se kreslí **věrně mapové geometrii**: každý úsek je kapsle s lineárně interpolovanou
 polosirkou mezi uzly (jako `RoadScene`), takže rozšiřující se cesta je trychtýř a v křižovatce se

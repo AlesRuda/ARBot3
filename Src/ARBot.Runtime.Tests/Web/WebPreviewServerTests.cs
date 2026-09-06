@@ -346,6 +346,71 @@ namespace ARBot.Runtime.Tests.Web
             });
         }
 
+        // ---------------- Vypnuti zarizeni ----------------
+
+        /// <summary>
+        /// Vypnuti se <b>nenabizi</b>, kdyz ho aplikace nepredala (poweroffcmd= prazdny). Robot,
+        /// ktery ma na strance tlacitko a po stisku nic neudela, je horsi nez ten bez tlacitka.
+        /// </summary>
+        [Test]
+        public async Task BezCallbacku_SeVypnutiNenabizi()
+        {
+            var r = await klient.PostAsync("/poweroff", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(404));
+                Assert.That(server.PowerOffAvailable, Is.False);
+            });
+        }
+
+        [Test]
+        public async Task GetNevypina()
+        {
+            // Tyz duvod jako u /stop: prefetch prohlizece nebo nahled odkazu nesmi vypnout robota.
+            var r = await klient.GetAsync("/poweroff");
+
+            Assert.That((int)r.StatusCode, Is.EqualTo(405).Or.EqualTo(404));
+        }
+
+        [Test]
+        public async Task SelhaniVypnuti_SeDozviObsluha()
+        {
+            // Kdyz prikaz selze (chybejici sudo, zakazany polkit), musi to byt videt na strance -
+            // jinak clovek odejde v domneni, ze se robot vypina.
+            using var srv = new WebPreviewServer(new WebStatus(), onStop: () => { },
+                                                 onPowerOff: () => "sudo: prikaz nenalezen");
+            Assert.That(srv.Start(0), Is.True);
+            using var kl = new HttpClient { BaseAddress = new System.Uri($"http://127.0.0.1:{srv.Port}/") };
+
+            var r = await kl.PostAsync("/poweroff", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(500));
+                Assert.That(srv.PowerOffAvailable, Is.True);
+            });
+            Assert.That(await r.Content.ReadAsStringAsync(), Does.Contain("sudo"));
+        }
+
+        [Test]
+        public async Task UspesneVypnuti_VratiPotvrzeni()
+        {
+            int volani = 0;
+            using var srv = new WebPreviewServer(new WebStatus(), onStop: () => { },
+                                                 onPowerOff: () => { volani++; return null; });
+            Assert.That(srv.Start(0), Is.True);
+            using var kl = new HttpClient { BaseAddress = new System.Uri($"http://127.0.0.1:{srv.Port}/") };
+
+            var r = await kl.PostAsync("/poweroff", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.IsSuccessStatusCode, Is.True);
+                Assert.That(volani, Is.EqualTo(1));
+            });
+        }
+
         [Test]
         public async Task VirtualniStop_SeSkutecnymHwNeexistuje()
         {

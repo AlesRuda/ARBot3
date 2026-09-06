@@ -35,6 +35,77 @@ namespace ARBot.Common.Fusion
         public double CompassHeadingStd = 0.05; // [rad]
         public double GpsPosStd = 1.5;         // [m]
         public double GpsSpeedStd = 0.3;       // [m/s]
+
+        // --- relativni yaw (T265 / VIO, 6. 9. 2026) ---
+        //
+        // T265 nema magnetometr: jeji yaw je o NEZNAMOU KONSTANTU vedle absolutniho kurzu, takze
+        // jako kurz se poslat NESMI. Co pouzitelne je, je jeho ZMENA - tim se ta konstanta odecte.
+        // Fuze proto z relativniho zdroje bere uhlovou rychlost spocitanou z rozdilu yaw.
+
+        /// <summary>
+        /// Delka okna, ze ktereho se pocita uhlova rychlost z rozdilu relativniho yaw [s].
+        ///
+        /// <para><b>Proc okno, a ne kazdy vzorek:</b> T265 dava pozu 200 Hz, takze derivovat vzorek
+        /// po vzorku znamena delit sum yaw casem 5 ms — tedy ho zesilit dvestekrat. Na okne 0,5 s
+        /// je z tehoz sumu <c>√2·sigma/0,5</c>, tedy o dva rady mensi cislo.</para>
+        ///
+        /// <para><b>Okna se NEPREKRYVAJI</b> (kotva se po kazdem mereni posune na soucasny vzorek):
+        /// prekryvajici se okna by dala korelovana merenia a filtr by si nadsadil informaci. Tatáž
+        /// past a tatáž lecba jako u korelace s mapou (<c>MinPeriod</c>), viz
+        /// doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public double RelYawWindowSec = 0.5;
+
+        /// <summary>
+        /// Sigma relativniho yaw z VIO [rad] — z ni vychazi sigma odvozene uhlove rychlosti jako
+        /// <c>√2·RelYawStd / okno</c> (dva nezavisle odecty yaw na koncich okna).
+        ///
+        /// <para>Vychozich 0,002 rad (~0,1 stupne) je <b>odhad</b>, ne mereni: T265 hlasi kvalitu
+        /// sledovani, ne sigmu yaw. Naostro se to musi nastavit z dat ze zarizeni — proto je to
+        /// parametr a proto se do zaznamu ukladaji cela IMUState z T265.</para>
+        /// </summary>
+        public double RelYawStd = 0.002;
+
+        // --- kvalita GPS fixu (6. 9. 2026) ---
+        //
+        // NACPAK: do teto zmeny brala fuze KAZDY fix, u ktereho GPSState.IsFixed rekl "ano",
+        // a dala mu VZDY tutez sigmu GpsPosStd. Pocet druzic a DOP pritom GPSState nese - jen se
+        // na ne nikdo nedival. Namereno na robotu 6. 9. 2026: odhad polohy ujel ~570 m jednim
+        // smerem (~0,7 m/s), zatimco robot STAL a rychlost ve stavu byla nula - tedy polohu
+        // netahla predikce, ale prave ta bezvyhradne prijimana mereni.
+        //
+        // Mise Robotour uz kriteria kvality ma (RobotourConfig.MinSatellites/MaxHdop pri armovani
+        // depa), takze fuze byla jedine misto, kde se fix bral bez otazek.
+
+        /// <summary>
+        /// Nejmensi pocet druzic, pri kterem se poloha z GPS jeste pouzije; <c>0</c> = nekontrolovat.
+        ///
+        /// <para>Vychozi <b>4</b> je fyzikalni minimum pro 3D reseni, ne kriterium kvality — to dela
+        /// <see cref="GpsMaxDop"/> a hlavne skalovani sigmy. Brana ma odstranit NESMYSL, ne vybirat
+        /// dobre fixy: zahodit GPS uplne je horsi nez ji dat malou vahu. Prijimac, ktery pocet
+        /// druzic nehlasi (0), branou projde — neznama hodnota neni spatna hodnota.</para>
+        /// </summary>
+        public int GpsMinSatellites = 4;
+
+        /// <summary>
+        /// Nejvyssi pripustny DOP; <c>0</c> = nekontrolovat. Nad touhle hodnotou se poloha zahodi.
+        ///
+        /// <para>Vychozich <b>10</b> je bezna hranice mezi „slabym" a „spatnym" resenim. Pozor, co
+        /// v tom cisle je: NMEA plni HDOP (vodorovny), u-blox PDOP (prostorovy, vzdy >= HDOP),
+        /// takze prah je proti u-bloxu prisnejsi. Hodnota 0 znamena „prijimac DOP nehlasi" a branou
+        /// projde.</para>
+        /// </summary>
+        public double GpsMaxDop = 10.0;
+
+        /// <summary>
+        /// Skalovat sigma polohy z GPS podle DOP (<c>sigma = GpsPosStd * max(1, DOP)</c>)?
+        ///
+        /// <para>Tohle je ta <b>podstatna</b> cast: kvalita fixu je spojita velicina a DOP je presne
+        /// ten nasobek, o ktery geometrie druzic zhorsuje presnost — takze slaby fix dostane malou
+        /// vahu sam od sebe, misto aby se o nem rozhodovalo prahem ano/ne. <c>max(1, …)</c> proto,
+        /// ze DOP pod 1 by sigmu zmensoval pod deklarovanou presnost prijimace.</para>
+        /// </summary>
+        public bool GpsScaleStdByDop = true;
         /// <summary>
         /// <b>PODLAHA</b> sigma kurzu z GPS [rad]. Skutecna sigma se pocita z rychlosti (viz
         /// <see cref="GpsCrossTrackStd"/>) a tohle je jeji fyzicky strop presnosti — pri vysoke
