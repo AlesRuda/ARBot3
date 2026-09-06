@@ -1,0 +1,1 @@
+powershell.exe .\nasad.ps1 
