@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
 using ARBot.Common.Common;
+using ARBot.Common.Coordinates;
 using ARBot.Common.Models;
 using VectorNav.Devices;
 
@@ -27,7 +28,7 @@ namespace ARBot.HAL.Devices.AHRS
     /// výstup je robotem zarovnaný FRD (X vpřed, Y vpravo, Z dolů) / NED. Surové vektory se pak
     /// převádějí na projektové FLU (negace Y, Z). Pokud se montáž/nastavení VN změní, uprav zde.
     /// </summary>
-    public class VN100IMUBinary : UartSensorBase<IMUState>, IIMU
+    public class VN100IMUBinary : UartSensorBase<IMUState>, IIMU, IMagneticModel
     {
         private const byte Sync = 0xFA;
 
@@ -69,20 +70,23 @@ namespace ARBot.HAL.Devices.AHRS
             WriteCommand("VNWRG,75," + cfg.ConvertToCommand());    // binární výstup 1
         }
 
-        private void WriteCommand(string body)
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>Tady to dosud <b>vubec nebylo</b> — metoda existovala jen v ASCII verzi
+        /// driveru, zatimco na robotu bezi tahle. Sestaveni prikazu je proto ve spolecnem
+        /// <see cref="VnCommands"/>; duvody a opravene chyby viz tam.</para>
+        ///
+        /// <para><b>Konstruktor to nevola zamerne.</b> Model pole potrebuje POLOHU, a tu driver
+        /// pri startu nezna — smysl to ma az po prvnim kvalitnim fixu GPS. Volani si tedy musi
+        /// zaridit runtime; driver jen umi prikaz poslat.</para>
+        /// </remarks>
+        public void SetModelParams(LLA lla)
         {
-            string s = "$" + body;
-            s = s + "*" + Compute8BitChecksum(s).ToString("X2", CultureInfo.InvariantCulture);
-            uart.WriteLine(s);
+            WriteCommand(VnCommands.ReferenceVectorConfig(lla, TimeBase.Now));
         }
 
-        private static byte Compute8BitChecksum(string packet)
-        {
-            byte num = 0;
-            for (int i = packet[0] == '$' ? 1 : 0; i < packet.Length && packet[i] != '*'; i++)
-                num ^= (byte)packet[i];
-            return num;
-        }
+        /// <summary>Poste prikaz oramovany do <c>$telo*XX</c> (spolecne s ASCII driverem).</summary>
+        private void WriteCommand(string body) => uart.WriteLine(VnCommands.Frame(body));
 
         protected override IMUState GetMeasurement()
         {

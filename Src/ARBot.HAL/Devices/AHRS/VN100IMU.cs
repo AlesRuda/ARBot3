@@ -1,4 +1,4 @@
-using ARBot.Common.Common;
+﻿using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.Models;
@@ -19,7 +19,7 @@ namespace ARBot.HAL.Devices.AHRS
     /// Driver pro IMU VectorNav VN100. Komunikuje po UARTu a pouziva ASCII protokol. Vysledkem je IMUState s rotaci a uhlovou rychlosti.
     /// !!! Pozor nepodporuje OrientationUncertainty, bude vzdy null !!!
     /// </summary>
-    public class VN100IMU : UartSensorBase<IMUState>, IIMU
+    public class VN100IMU : UartSensorBase<IMUState>, IIMU, IMagneticModel
     {
         VnAsciiPacket vn;
         DateTime lastReset;
@@ -33,15 +33,23 @@ namespace ARBot.HAL.Devices.AHRS
 
         public override string Name => "VN100 IMU";
 
-        /// <summary>
-        /// Povoluje pouziti modelu magnetickeho a gravitacniho pole zeme v danem miste.
-        /// </summary>
-        /// <param name="lla"></param>
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>Sestaveni prikazu je v <see cref="VnCommands.ReferenceVectorConfig"/>, aby
+        /// bylo spolecne s binarni verzi driveru a slo otestovat bez hardwaru.</para>
+        ///
+        /// <para><b>Puvodni podoba teto metody NEFUNGOVALA</b> a nikdy nemohla (nalezeno
+        /// 6. 9. 2026): posilala <c>$VNRRG,83,...</c>, tedy <b>cteci</b> prikaz misto
+        /// <c>VNWRG</c>; formatovala cisla pres <c>{0:N3}</c>, coz vklada oddelovac tisicu
+        /// (carku!) doprostred carkami oddeleneho prikazu; a posilala zemepisne souradnice
+        /// v <b>radianech</b>, ackoli VN je ceka ve stupnich. Navic ji nikdo nevolal.</para>
+        ///
+        /// <para><see cref="TimeBase"/> je tu spravne i pro kalendarni datum: je to cas startu
+        /// aplikace ze systemovych hodin plus monotonni beh, takze datum sedi.</para>
+        /// </remarks>
         public void SetModelParams(LLA lla)
         {
-            string s = string.Format(CultureInfo.InvariantCulture, "$VNRRG,83,1,1,0,0,1000,{0:N3},{1:N3},{2:N3},{3:N3}", ((double)TimeBase.Now.Year)+((double)TimeBase.Now.DayOfYear/365), lla.Latitude, lla.Longitude, lla.Altitude);
-            s = s + "*" + Compute8BitChecksum(s).ToString("X2");
-            uart.WriteLine(s);
+            uart.WriteLine(VnCommands.Frame(VnCommands.ReferenceVectorConfig(lla, TimeBase.Now)));
         }
 
         protected static double ParseAsVnDouble(string s)
@@ -61,13 +69,8 @@ namespace ARBot.HAL.Devices.AHRS
             return v;
         }
 
-        private byte Compute8BitChecksum(string packet)
-        {
-            byte num = (byte)0;
-            for (int index = (int)packet[0] == 36 ? 1 : 0; index < packet.Length && (int)packet[index] != 42; ++index)
-                num ^= (byte)packet[index];
-            return num;
-        }
+        /// <summary>Kontrolni soucet VN — jedna implementace pro oba drivery.</summary>
+        private byte Compute8BitChecksum(string packet) => VnCommands.Checksum(packet);
 
         private ushort Compute16BitCrc(string packet)
         {

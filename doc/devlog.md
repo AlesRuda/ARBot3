@@ -39,6 +39,161 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-06
 
+- **⚠️ Kurz z VN100 je o −59° vedle — a před čtyřmi dny byl správně.** Z pozorování autora
+  „kurz robotu nesouhlasí s jeho reálným kurzem podle mapy“, měřeno nad
+  `records/test/20260906-082403.rec`. Celý rozbor v
+  [imu-and-frames.md](imu-and-frames.md) (sekce *Kurz z VN100 byl 6. 9. 2026 o −59° vedle*).
+  - **Změřeno:** `IMU yaw − GPS kurz` = **−59,2°** (688 vzorků nad 0,3 m/s). Je to
+    **konstantní posun**, ne otočené znaménko: robot jel tam a zpět a rozpor byl před otáčkou
+    −60,3°, po ní −58,3°. **Chyba není v GPS** (Doppler sedí na směr posunu polohy na +2,9°,
+    tedy dvě nezávislé větve přijímače), **není v našem kódu** (v cestě VN100 se od 2. 9.
+    změnilo jen přidání `Name`) a **není v gyru** (rozpor se otáčkou o 180° nezměnil).
+  - **Klíčové srovnání:** týž senzor měl 2. 9. (`20260902-230138.rec`) rozpor **−0,25° ± 4,3°**.
+    Není to tedy vlastnost montáže ani převodu rámců — mezi 2. a 6. 9. se změnilo něco
+    **na senzoru nebo na robotu**.
+  - **Kde vada není:** samotné magnetické pole je v obou záznamech téměř stejné (`|B|` p50
+    0,446 → 0,436 G, sklon 59,6° → 61,6°) a **kurz přepočtený z pole** je proti GPS +12,7°
+    resp. −5,6°, tedy řádově deklinace. Rozdíl *kurz z pole − yaw ze senzoru* přitom vyskočil
+    z +18,8° na +58,4°. → **Magnetometr měří skoro totéž, ale atitudové řešení VN100 se od
+    něj odtáhlo.** Přepočet je ověřený proti **zdravému** senzoru: v `records/20260902-222601.rec`
+    (41 916 vzorků) je `kurz z pole − yaw` **+4,25° ± 8,2°**, tedy řádově deklinace.
+  - **Dopad:** fúze kurz **neváží, přebírá** — `odhad − IMU yaw` = **−0,01° ± 0,21°**.
+    Chyba kompasu jde 1:1 do `RobotState.Theta`, tedy do mapy, mrkve i korelace s mapou.
+  - **Neprokázáno:** proč se řešení VN odtáhlo. Kandidáti k **read-only** ověření přes `VNRRG`:
+    registr 35 (VPE heading mode — Relative by dal přesně takový konstantní offset od zapnutí),
+    44 (HSI mode), 23, 26. A **měkké železo není vyloučené**: záznam má jen dva směry o 180°,
+    kde je od konstantního posunu nerozlišitelné (dvě periody na otáčku). **Další krok: projet
+    smyčku** přes všech osm oktantů a report pustit znovu. Software se zatím neopravuje —
+    offset v kódu by zabetonoval hodnotu, která se sama změnila.
+  - **Vedlejší nález:** medián `|a|` je **10,51 m/s²** v obou záznamech, tedy **7,2 % nad *g***;
+    sklon pole 61–62° proti tabulkovým ~66°. Na kurz to přímo nemá vliv, ale kalibrace senzoru
+    to nezlepšuje.
+  - **Nástroj:** `ARBot.Analyze heading` dostal čtyři bloky pro záznam **bez ground truth** (tedy
+    ze zařízení) — závislost rozporu na kurzu (tři modely + harmonický rozklad, který se
+    **odmítá počítat** pod 5 z 8 oktantů), koho odhad fúze následuje, kontrola GPS kurzu
+    směrem posunu polohy a rozbor syrového pole (`|B|`, sklon, kurz z pole) — plus `--csv=`.
+    Report také **přestal číst snímky kamer**: průchod 12GB záznamem trvá **1,3 s místo minut**.
+  - **Prověření senzoru ze záznamu** (nový příkaz **`ARBot.Analyze vn100`**, na dotaz autora
+    „jsi schopen tu VN100 nějak prověřit?“ — senzor není připojený k vývojovému stroji, ale
+    záznam nese všechno, co poslal):
+    - **Senzor si je jistý — a to je sám o sobě nález.** `YprU` (jeho vlastní 1σ pro yaw) je
+      **0,233°** (p50, max 0,671°), zatímco skutečná chyba je 59°. Na 2. 9. to bylo 0,053–0,139°,
+      takže zhoršení **zaznamenal**, jen řádově jinak. A protože `DefaultMeasurementMapper` bere
+      `OrientationUncertainty.X` **přímo jako σ měření `IMU/heading`**, je to i vysvětlení, proč
+      fúze kurz přebírá 1:1 — senzor si řekl o důvěru 0,23° a dostal ji.
+    - **Zpětná vazba od magnetometru je slabá i tam, kde je.** Zesílení `K` z regrese
+      `(Δyaw/Δt − ω_z)` na `(kurz z pole − yaw)`: `20260902-225743` **+0,0021 ± 0,00044 1/s
+      (4,8σ)**, tedy časová konstanta **~480 s**; `20260906-082403` **+0,00018 ± 0,00035
+      (0,5σ)**. ⚠️ **Neříká se „vazba se vypnula“** — liší se to jen na ~2σ a regresní útlum
+      tlačí `K` k nule. Pevně platí: časová konstanta je **řádu minut**, takže **kurz při
+      náběhu ovládá celý běh** — a `heading` to vidí model-free (rozpor po minutách
+      −54/−61/−61/−49/−59, tedy **neklesal**).
+    - **Klidový bias gyra** je −35 až +25 °/h, tedy na 59° za 5 minut ani zdaleka nestačí:
+      **chyba není nabraná za běhu, ale už při náběhu.**
+    - **Dvě pasti při psaní reportu**, obě z toho, že kurz z pole je sám vadný: proklad driftu
+      přes celou dobu vydal **812 °/h** (ačkoli rozpor proti GPS 5 minut stál) — po otáčce
+      o 180° skočí chyba pole, ne yaw; a `K` je kvůli šumu ve vysvětlující proměnné jen
+      **horní odhad**. Obojí je v kódu i v dokumentaci pojmenované.
+    - **Na registry to nestačí** (35 VPE heading mode, 44 HSI, 23, 26) — v záznamu nejsou,
+      chce to připojený senzor a read-only `VNRRG`. Na vývojovém stroji je COM5 vidět jako
+      *Unknown* (odpojený), takže živě to teď nejde.
+  - **✅ PŘÍČINA NALEZENA na živém senzoru** (autor připojil robota kabelem a dal souhlas
+    zastavit headless). Nový read-only skript **`deploy/vnprobe.sh`** přečte registry přes
+    `VNRRG` a dá je vedle referenčního exportu `vn100-2026-7-8-nastavei z arbot2.sencfg`
+    v kořeni repa. **Ze čtrnácti registrů se liší právě dva — a oba jsou kurzově kritické:**
+    - **35 (VPE Basic Control): `1,1,1,1` místo `1,0,1,1`**, tedy heading mode **`Relative`
+      místo `Absolute`** (SDK v repu: `Absolute=0, Relative=1, Indoor=2`). V *Relative* není
+      yaw kurz k severu, ale k tomu, kde senzor naběhl — což vysvětluje úplně všechno
+      naměřené: konstantní posun nezávislý na kurzu, stálý během jízdy, jiný mezi sezeními,
+      a nulová zpětná vazba od magnetometru.
+    - **23 (Magnetometer Compensation): jednotková matice a nulový bias** místo matice
+      s diagonálou 1,08–1,22 a biasu **−0,274 G** (což je víc než polovina zemského pole).
+      Potvrzuje to sám senzor: registr 27 (kompenzované pole) a 54 (syrové) hlásí **totéž**,
+      takže se nekompenzuje nic, a onboard HSI je vypnuté (reg 44 `Off`). Odtud i `|B| =
+      0,400 G` proti referenci 0,482 G v registru 21.
+    - **Rámce jsou v pořádku** (reg 26 `diag(−1,1,−1)` sedí s exportem), stejně jako VPE
+      tuning a referenční vektory. Vypadá to na **částečný factory reset** mezi 2. a 6. 9.;
+      čím a kdy, se určit nedá.
+    - ⚠️ **Poctivě:** *v tu chvíli* yaw na pole seděl (reg 27 dal `−51,86°`, z jeho pole
+      a zrychlení vychází `−51,9°`). Není to protidůkaz — v *Relative* se kurz při náběhu
+      z magnetometru inicializuje a robot od zapnutí **stál**, takže neměl kde nabrat rozdíl.
+      Rozejde se to až otáčením.
+    - ⚠️ **Neopraveno.** Oprava je zápis `VNWRG,35` + `VNWRG,23` a `VNWNV` do flash — to je
+      záměrně mimo diagnostiku a čeká na pokyn. Navíc hodnoty z exportu jsou **rok staré**
+      (z ARBot2), takže obnovit je je jen první krok; kalibraci je správně **změřit znovu**
+      otáčením robotu — touž smyčkou, kterou stejně chce `heading`.
+    - **Dvě pasti při psaní skriptu:** `stty ... min 0 time 0` udělá čtení neblokující, takže
+      `cat` skončí hned na EOF (první běh zachytil **jeden bajt** a vypadalo to, že senzor
+      mlčí) — správně je `min 1 time 0`. A po zastavení služby zůstává senzor v **binárním**
+      režimu, takže ASCII odpovědi jsou utopené v ~9 kB/s dat a musí se tahat `grep -ao` přes
+      celý vzorek; řádkový grep čtyři z nich minul.
+  - **✅ OPRAVENO A ZAPSÁNO DO FLASH** (na pokyn autora; ten doplnil, že kalibraci
+    magnetometru **vymazal záměrně** — VN100 mimo robota hlásila špatný směr, což sedí,
+    protože kalibrace popisuje železo *kolem senzoru na robotu*. Na heading mode si
+    nevzpomněl.) Nový skript **`deploy/vnrestore.sh`** (na rozdíl od `vnprobe.sh`
+    **zapisuje**): reg 35 → `1,0,1,1`, reg 23 → kalibrace z exportu, `VNWNV` do flash.
+    - **Že to opravdu zabralo, je vidět na chování, ne jen na zpětném čtení:** kurz se po
+      zápisu **rozjel** z azimutu −51° přes −76 / −96 / −117 a **za ~100 s se usadil na
+      −128,5°**. V *Relative* by se nehnul. Praktický důsledek: **po zapnutí potřebuje kurz
+      řádově dvě minuty, než se srovná** — sedí to s časovou konstantou „řádu minut"
+      naměřenou ze záznamu.
+    - ⚠️ **Že je ta kalibrace správná, prokázané NENÍ.** Kurz se jejím zapnutím otočil
+      o ~78° a stojící robot nemá proti čemu to rozhodnout. Po kompenzaci `|B| = 0,549 G`
+      proti referenci 0,482 G (+14 %) a sklon 55,6° proti 60,9°; bez ní 0,400 G (−17 %)
+      a 63,3°. Ani jedno nesedí — jenže **měřeno uvnitř budovy**, kde pole deformuje stavba.
+      **Rozhodne až jízda venku** (autor ji plánuje) a `ARBot.Analyze heading` / `vn100`.
+    - ⚠️ Trvalost je ověřená jen zpětným čtením (registr se čte z RAM); skutečný test je
+      vypnout a zapnout robota. A `VNWNV` uložil i to, co do RAM zapsal driver při startu
+      (ADOR=0, binární výstup 1) — neškodné, ale flash se tím s exportem rozešla.
+  - **Odkazy:** [imu-and-frames.md](imu-and-frames.md),
+    [record-replay.md](record-replay.md#heading-nesedí-absolutní-reference-kurzu),
+    [record-replay.md](record-replay.md#vn100-prověření-samotného-senzoru-ze-záznamu),
+    [deploy/README.md](../deploy/README.md), `deploy/vnprobe.sh`, `deploy/vnrestore.sh`,
+    `Src/ARBot.Analyze/HeadingReferencesReport.cs`, `Src/ARBot.Analyze/Vn100Report.cs`.
+
+- **⚠️ Regrese z téhož dne: hlídka zamrzlého streamu shodila KAŽDÝ grab z obou D435.**
+  Našlo se to náhodou při kontrole robota po zápisu do VN100 — v journalu se obě kamery
+  dokola odpojovaly a připojovaly.
+  - **Změřeno:** na buildu `b41bd45` **0 reconnectů za 26 minut**, na `2b7bf5f` (nasazeném
+    o dvě minuty později) **85 za 10 minut** na obou kamerách — a ani jeden snímek.
+  - **Příčina:** `GetDataRGB`/`GetDataGray` frame **uvolní** (`using (f)`, je to i v jejich
+    dokumentačním komentáři), ale `freezeWatch.Check(...)` četl `colorFrame.Timestamp`
+    **až za nimi** → `ObjectDisposedException('VideoFrame')` při každém snímku.
+  - **Proč to bylo těžké přiřadit:** výjimku chytá společný handler a hlásí ji jako
+    „cteni snimku selhalo (**odpojeno?**)", takže to vypadá na USB nebo kabel. A v journalu
+    **není ani jedna hláška „zamrzla"** — hlídka sama nikdy nespustila, jen ji shodilo
+    čtení, které si k ní přidalo.
+  - **Léčba:** razítka se čtou **dokud frame žije** (`rawColorStamp` / `rawDepthStamp`) a do
+    hlídky jdou ta. Obě platformy (`HALArmbian` i `HALWindows`), build `x64` i `OrangePI`
+    zelený, HAL testy 65/66 (padá jen `D435_GrabsFrame`, který chce fyzickou kameru).
+    **Na zařízení neověřeno** — chce to nasadit `deploy\nasad.ps1`.
+  - **Poučení, které stojí za zapamatování:** hlídka poruchy si přidala **nové čtení
+    zdroje, o kterém nevěděla, že už je uvolněný** — a udělala tím horší poruchu, než
+    kterou měla hlídat. Diagnostika nesmí sahat na data, jejichž životnost neřídí.
+  - **✅ Ověřeno na zařízení** (autor nasadil a jel venku), po bězích v journalu:
+
+    | běh | `disposed` | reconnectů | `power state` | špička paměti |
+    |---|---|---|---|---|
+    | starý build `2b7bf5f` bez opravy | **102** | 103 | 3 | 132 MB |
+    | s opravou (běh, který umřel) | **0** | 3 | **93** | **1,8 GB** |
+    | s opravou (běh po restartu) | **0** | 3 | 0 | ~140 MB |
+
+- **⚠️ Druhý nález z téhož venkovního testu: když se D435 nedá znovu vyčíst, proces sežere
+  paměť a umře.** Levá kamera po nasazení nenaběhla a `RealSenseShared.Query` hlásil
+  **`QueryDevices selhalo: failed to set power state`** ~0,7×/s.
+  - **Změřeno:** běh s **93** takovými selháními vyšplhal na **1,8 GB**, zatímco běhy bez
+    nich stojí na **130–140 MB**. To je zhruba **25 MB na jeden neúspěšný dotaz**.
+  - ⚠️ **Korekce původního závěru:** ten běh **nespadl** — restart si vyvolal autor
+    (tlačítko *Terminate*), takže `Scheduled restart job` v journalu je následek, ne pád.
+    Tvrzení „runtime umře do ~2 minut" tedy **naměřené není**; naměřený je jen ten růst
+    paměti. Jestli by to skončilo pádem, se neví.
+  - **Kde vada NENÍ:** managed strana `Query` je v pořádku — `DeviceList` i každý `Device`
+    jsou v `using`. Když ale `QueryDevices()` **hodí výjimku**, roste to na nativní straně,
+    takže léčba nebude „něco dozavírat", ale **přestat se ptát každou sekundu** (backoff).
+  - **Po restartu služby levá kamera naběhla** a od té chvíle je 0 chyb všech tří druhů —
+    zásek je tedy přechodný.
+  - **Neopraveno** — nález z běhu, ne úkol tohohle sezení.
+
 - **Kvalita GPS ve fúzi a vypínání robota ze stránky.** Vzniklo z pozorování autora, že „robot
   hrozně moc cestuje s GPS": na náhledu ujela poloha na −570 m, **zatímco robot stál**.
   - **Diagnóza:** drift ~0,7 m/s soustavně jedním směrem, ale `v` ve stavu **nula** — a protože
@@ -125,6 +280,167 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     se zatím nepoužívá.
   - **Odkazy:** [ekf-fusion.md](ekf-fusion.md#t265-vio-relativní-yaw-se-používá-jako-úhlová-rychlost-2026-09-06),
     [hardware.md](hardware.md), `RelativniYawTests`, `Src/ARBot.Analyze/LogReport.cs`.
+
+- **⚠️ Ta obnovená kalibrace magnetometru je HORŠÍ NEŽ ŽÁDNÁ — a je to změřené.** Autor
+  s ní vyjel ven, kurz nesouhlasil („robot směřuje na západ, reálně spíš na sever"), a záznam
+  z té jízdy (`20260906-153657.rec`, freerun) to potvrdil čísly.
+  - **Srovnání dvou záznamů z téhož dne, `IMU yaw − GPS kurz`:**
+
+    | | konfigurace | střední rozpor | **sd jednoho vzorku** |
+    |---|---|---|---|
+    | `20260906-082403` | bez kalibrace, heading `Relative` | −59,2° | **9,7°** |
+    | `20260906-153657` | s kalibrací, heading `Absolute` | −12,6° | **118,3°** |
+
+    Bez kalibrace kompas **otáčení sledoval** (sd 9,7°) a měl jen konstantní posun z toho
+    `Relative`. S kalibrací **nesleduje vůbec** — a v modelech vyhrává `yaw = konst`
+    (zbytek 61,5° proti 97,3° u konstantního posunu), tedy **„zamrzlý kompas"**.
+  - **Proč: ten hard-iron bias je větší než signál.** Export nese `B = (−0,274; −0,058; 0,076) G`,
+    tedy vodorovně **0,280 G**, zatímco vodorovná složka zemského pole je jen **~0,20 G**
+    (0,48 G při sklonu ~65°). Když to železo na dnešním robotu není, vnese kompenzace do měření
+    **body-fixed vektor silnější než samotné pole** — výsledný vektor pak míří pořád skoro
+    stejným směrem vůči tělu robota, takže hlášený kurz na otáčení přestane reagovat.
+    Přesně to ten model `yaw = konst` říká.
+  - **Potvrzuje to i pole samo:** s kalibrací `|B|` p50 **0,553 G** (0,460–0,608) proti
+    referenci 0,482 G a sklon p50 **55,7°** v rozsahu 46–87°. Obojí má být konstanta.
+  - **Autor měl tedy pravdu, když ji mazal** — jen to nesouviselo s tím, že byla VN100 mimo
+    robota; ta kalibrace prostě neplatí pro dnešní železo. **Správná konfigurace je
+    `Absolute` + VYMAZANÁ kompenzace** (v `deploy/vnrestore.sh` přibylo `--clearmag`),
+    a novou kalibraci změřit otáčením robotu.
+  - **✅ Provedeno na pokyn autora** (`vnrestore.sh --clearmag` + `VNWNV`): reg 23 zpět na
+    jednotkovou matici a nulový bias, reg 35 zůstal `Absolute`. A **potvrdilo se to hned
+    třemi nezávislými způsoby**:
+    1. Ze **syrového pole** hned po zápisu (reg 27) vychází magnetický azimut **−2,2°**,
+       tedy prakticky **sever**.
+    2. Kurz ze senzoru se na to za **~170 s dotáhl** — z −108° přes −94 / −58 / −16 až na
+       **−2 až −3°**, kde se usadil.
+    3. Sedí to s tím, co autor viděl fyzicky („reálně spíš na sever").
+    Pole bez kompenzace: `|B| = 0,427 G` proti referenci 0,482 (−11 %), sklon 55,0°.
+  - ⚠️ **Absolutní přesnost tím prokázaná není** — souhlas kurzu s *vlastním* polem říká jen,
+    že VPE počítá, co má. Kolik ten kompas skutečně chybuje, ukáže až **projetá smyčka**
+    a `ARBot.Analyze heading` (rozpor proti GPS kurzu). Ranní záznam bez kompenzace dával
+    sd 9,7°, což je hrubý odhad, co čekat.
+  - **Co z toho platí i tak:** oprava heading mode byla správná a je prokázaná nezávisle —
+    `odhad − IMU yaw = −0,02° ± 0,09°` a yaw sleduje pole (`kurz z pole − yaw` −11° ± 42°),
+    takže VPE absolutní kurz opravdu dělá. Chybný je vstup, ne režim.
+
+- **⚠️ Vada v `ARBot.Analyze` samotném: reporty míchaly DVĚ IMU.** Od napojení T265 (téhož dne)
+  nese záznam `IMUState` ze **dvou zdrojů** a `heading` i `vn100` braly oba, ačkoli T265 hlásí
+  yaw jen **relativní**. Nad prvním takovým záznamem to vydalo `sd 88,9°` a hlavně
+  `odhad − IMU yaw = −148°`, což vypadalo jako porucha fúze — a nebyla. Po filtru podle
+  **`IMUState.HasAbsoluteHeading`** (ne podle jména) je `odhad − IMU yaw` zase
+  **−0,02° ± 0,09°**. Reporty teď zdroje **vypisují** včetně toho, který se vynechal.
+  *Poučení: záznam přestal být jednozdrojový a nikdo to analyzátoru neřekl.*
+
+- **Deklinace: zjištěno, že se nezapočítává nikde — a opraven nástroj, kterým to půjde zapnout.**
+  Z dotazu autora („umí VN100 kompenzovat deklinaci, je v těch −2° započtená?").
+  - **Odpověď je ne**, a je přečtená ze senzoru: registr **21** (referenční pole) má
+    **východní složku 0**, registr **83** má **model pole vypnutý**. Hlášený yaw je tedy azimut
+    k **magnetickému** severu. Náš kód ji nepřidává taky — `DefaultMeasurementMapper` bere
+    `ypr.Yaw` tak, jak je, a `Profile.DeklinaceDeg` je nula, která **se v ostrém kódu
+    nepoužívá nikde**. U nás jde řádově o **+5° na východ**.
+  - **⚠️ `SetModelParams` (jediné místo, které by model zapnulo) nikdy nemohl fungovat** — a
+    nikdo si toho nevšiml, protože ho nikdo nevolal. Tři nezávislé chyby: posílal `VNRRG`
+    (**čtecí** příkaz) místo `VNWRG`; formátoval přes `{0:N3}`, což vkládá **oddělovač tisíců**
+    (výška 1234,5 m → `1,234.500`, tedy čárka doprostřed čárkami odděleného příkazu); a posílal
+    souřadnice v **radiánech**, ačkoli VN čeká **stupně**.
+  - **Opraveno a připraveno na obě verze driveru** (pokyn autora „až na to dojde, tuhle metodu
+    použijeme"): sestavení příkazu je ve společném **`VnCommands`** — dva drivery se tím
+    nerozejdou, tak jako se rozešel `SetModelParams`, který byl jen v ASCII verzi, zatímco na
+    robotu běží ta binární. Volá se přes nové rozhraní **`IMagneticModel`** (ne přes `IIMU` —
+    to implementuje i T265, která magnetometr nemá).
+  - **9 testů** (`VnCommandsTest`) porovnává výsledný řetězec znak po znaku bez UARTu; každá
+    z těch tří pastí má vlastní test, včetně kontroly nezávislosti na kultuře vlákna.
+  - **Nevolá to zatím nikdo, a je to záměr** — model potřebuje polohu, takže smysl to má až po
+    prvním kvalitním fixu GPS. A zápis je nestálý; trvale až `VNWNV`, což je ruční krok.
+  - **Doporučení do zápisu: nenastavovat naslepo.** Deklinace je vázaná na svět, zbytkové tvrdé
+    železo na tělo robota — konstantní člen, který `ARBot.Analyze heading` nad projetou smyčkou
+    vytiskne, je **obojí dohromady**. Nejdřív změřit, pak nastavit.
+  - **Ověřeno:** HAL testy 74/75 (padá jen `D435_GrabsFrame`, který chce fyzickou kameru),
+    build `x64` i `OrangePI` zelený. **Na senzoru nespuštěno.**
+  - **Odkazy:** [imu-and-frames.md](imu-and-frames.md), `Src/ARBot.HAL/Devices/AHRS/VnCommands.cs`,
+    `Src/ARBot.HAL/IMagneticModel.cs`, `Src/ARBot.HAL.Tests/VnCommandsTest.cs`.
+
+- **Změřeno, proč se stojícímu robotu hýbe poloha — nový `ARBot.Analyze gps`.** Na pokyn autora
+  („rozhodnutí by mělo být podložené měřením"). Celý rozbor v
+  [ekf-fusion.md](ekf-fusion.md#gps-táhne-stojícího-robota-změřeno-2026-09-06), popis nástroje
+  v [record-replay.md](record-replay.md#gps-proč-se-stojícímu-robotu-hýbe-poloha).
+  - **Trik, na kterém to celé stojí:** stojící robot dává **pravdu zadarmo** — skutečná poloha
+    je konstanta, takže odchylka fixu od průměru segmentu je čistá chyba GPS, bez ground truth.
+    Stání se přitom pozná **z enkodérů**, ne z `V` fúze; jinak by bylo měření kruhové.
+  - **Data:** `records/20260902-222601.rec`, **390 s stání**. Oba záznamy z 6. 9. mají stání
+    nula (robot celou dobu jel) — report to řekne sám rozdělením posunu kol.
+  - **Potvrzeno, že GPS táhne:** při nehybných kolech se odhad pohybuje **5,5 m/min**, efektivní
+    Kalmanovo zesílení 0,0023/0,0013 (R² 0,81/0,75) při **10 Hz** opravách, tedy časová
+    konstanta **τ = 57 s** proti 240 s stání. A `P` je nepoctivá o řády: filtr hlásí σ polohy
+    **0,074 m**, zatímco odhad ujede 5,5 m za minutu.
+  - **⚠️ Můj předregistrovaný práh „K ≥ 0,05" byl špatně škálovaný** a musel se opravit: `K` je
+    zesílení na **jednu opravu**, takže závisí na kadenci. Naměřené `K ≈ 0,002` by podle něj
+    znamenalo „GPS netáhne", ačkoli odhad ujíždí. Rozhoduje **τ**, ne `K`.
+  - **Hlavní nález je v časové korelaci:** chyba fixu má p50 **4,4 m**, ρ = 0,77 při 10 s,
+    0,38 při 25 s a 0,12 při 40 s ⇒ **dekorelační čas `T_d` ≈ 40 s**. A **průměrovací křivka je
+    plochá** — sd průměru ze 100 fixů je 3,448 m proti 3,461 m z jednoho, tedy **průměrování
+    nepomůže vůbec** (činitel nadsazení 10,0× a rostoucí). Filtr přitom bere 10 takových vzorků
+    za sekundu jako nezávislé. **Táž past, jakou má projekt zaplacenou u `MapCorrelator`**, jen
+    s desetkrát delší konstantou. ⇒ **Decimace je nejsilnější páka** (faktor ~400), `Q ∝ v` je
+    opodstatněné, ale samo nestačí; utažení brány tenhle případ nechytí (DOP byl 3–9, pod prahem).
+  - **⚠️ Tři vady v samotném měřidle**, které se našly až při čtení výstupu (dotaz autora „jak
+    jsi spočítal sd na jednom vzorku?"): řádek `N = 1` **není měření**, ale normalizační bod
+    (činitel 1,00 vyjde z definice) — teď je tak popsaný; bloky a lagy se počítaly přes **slitý**
+    seznam obou segmentů, takže překračovaly 32s mezeru mezi nimi (po opravě ρ@10 s 0,78 → 0,77,
+    činitel 9,92 → 9,96×); a **sweep lagů končil na 25 s**, kde je ρ těsně nad 1/e, takže report
+    hlásil „delší než měřené okno" a odpověď ležela hned za koncem tabulky. Po prodloužení na
+    80 s vyšlo `T_d ≈ 40 s`. Report teď navíc sám tiskne, že je to **spodní odhad** (odečtením
+    průměru segmentu se odečte i stejnosměrná složka — odtud záporná ρ na 60 s) a že stojí jen
+    na **~10 nezávislých vzorcích**.
+  - **Póza se plíží, neskáče:** `PoseJumpDetector` nehlásí **ani jeden** skok při žádném prahu
+    až po 0,05 m — při 10 Hz je krok jen ~8 mm. Grid se tedy nikdy nezahazuje, **jen rozmazává**,
+    a nápad „posouvat origin místo `Clear()`" na tenhle problém nemá vliv.
+  - **⚠️ Co se změřit NEPODAŘILO:** A/B „fix přijat vs. odmítnut" nevzniklo — brána v tomhle
+    záznamu prošla vždy. **Není tedy potvrzené, že za artefakty v gridu může opravdu GPS**; je
+    potvrzené jen to, že GPS hýbe pózou. Na uzavření řetězu je potřeba **cílený záznam ze stání
+    tam, kde DOP kolísá kolem prahu**. Report to sám hlásí jako důvod pro nový záznam, ne jako
+    vadu nástroje.
+  - **Blok A2b (dekorelační čas ZA JÍZDY) — výsledek je „na tohle nejsou data", a je to
+    doložené.** Na dotaz autora, jestli ta perioda platí i za jízdy (bál se, že dat bude málo —
+    měl pravdu). Metoda: mrtvý odhad z enkodérů (kurz z **rozdílu kol**, ne z fúze), tuhé
+    zarovnání na dráhu z GPS (2D Procrustes), autokorelace zbytku.
+    - **Nejdelší souvislý úsek jízdy napříč všemi záznamy je 45 s / 17,5 m**; ostatní 34 s /
+      2,8 m a 32 s / 3,1 m. Robot jezdí popojeď‑stůj, takže se úseky rozpadají.
+    - **Kontrola ukázala, že by to číslo stejně nic neznamenalo:** táž data ze stání dají
+      na celých segmentech `T_d ≈ 40 s`, ale **nakrájená na 34s okna jen ≈ 10 s** — okno zkrátí
+      zdánlivý dekorelační čas **4×**. Jízda vydala 10 s (45s okna) a 5 s (34s okno), tedy
+      **k nerozeznání od artefaktu**.
+    - **⚠️ První verze verdiktu z toho vyvodila opak** („zkrácené stání drží déle než jízda ⇒
+      rozdíl je skutečný"), protože porovnávala jízdu proti zkrácenému stání. Správně se musí
+      porovnávat **zkrácené stání proti CELÝM segmentům téhož stání**. Opraveno.
+    - **Potřeba: souvislá jízda 5–10 minut bez zastavení.**
+    - **Vedlejší, ale použitelný výsledek:** po zarovnání zbyde na 25 m jízdy odchylka **p50
+      0,52 m**, zatímco absolutní chyba polohy je 4,4 m. Tedy **GPS zná na desítkách sekund tvar
+      trajektorie na půl metru, i když je o metry vedle** — což je právě informace, kterou
+      decimace zahazuje a kterou by uměl využít offset GPS jako stav EKF.
+    - **Dvě chyby v samotném A2b, obě nalezené tím, že nic nenašel:** test „jede" jsem postavil
+      na průměru kol `(L+R)/2`, jenže **otočení na místě má ΔL = −ΔR**, takže se průměr nehne
+      a manévrující robot vypadal jako stojící — v 11minutovém záznamu z jízdy nenašel ani jeden
+      úsek. A hlášku „nelze měřit" nedoprovázel žádný důvod, takže byla k nerozeznání od vady
+      nástroje; teď tiskne tabulku úseků s dobou, dráhou, počtem fixů a verdiktem.
+  - **Neměřeno:** kvalita krátkodobého dead reckoningu (rozhodovala by o odom rámci pro grid) —
+    A2b sice mrtvý odhad staví, ale jeho zbytek míchá chybu GPS s driftem odometrie, takže je to
+    horní mez obojího, ne měření driftu.
+  - **Odkazy:** `Src/ARBot.Analyze/GpsReport.cs`, [ekf-fusion.md](ekf-fusion.md),
+    [record-replay.md](record-replay.md).
+
+- **Poloha ujíždí, když robot stojí — je to GPS a gate to zastaví.** Z pozorování autora.
+  Změřeno na stojícím robotu (`v = 0`) po 10 s:
+  - dokud fix **projde** (5–6 družic, DOP 8,8–9,2), odhad ujede **~1 m za 30 s**;
+  - jakmile ho gate **odmítne** (DOP 19,9 → 82,5), poloha **zamrzne na centimetr**
+    (−5,74; 2,77 třikrát po sobě).
+  - **Mechanismus:** `PositionStd` je `1,5 m × DOP` ≈ 13 m, jenže při 5 Hz se měření
+    průměrují a odhad se k (bloudícímu) fixu stáhne během desítek sekund. Nulová rychlost
+    polohu **nepřipne** — ZUPT omezuje rychlost, ne polohu.
+  - **Není to vada gate, ale jeho nastavení:** `gpsmaxdop=10` je na tohle místo volné
+    (4–6 družic, DOP 9–80). Utáhnout `gpsmaxdop` / `gpsminsat` v `config/pi-provoz.cfg` je
+    jednořádková změna — za cenu toho, že se tam GPS nepoužije vůbec. **Neměněno**, je to
+    rozhodnutí o provozu, ne oprava.
 
 ## 2026-09-05
 

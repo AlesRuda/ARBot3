@@ -55,6 +55,36 @@ sudo systemctl start arbot        # znovu (a nasadit, co leží v ~/arbot-headle
 Stránka: `http://<ip>:8080/` — stav, snímek kamery, půdorys, výběr mise, zastavení.
 Adresy robota: AP `arbot` → `192.168.7.1`, kabel napřímo → `192.168.66.1`.
 
+## Diagnostika VN100 (`vnprobe.sh`)
+
+Read-only výpis registrů IMU z živého senzoru — pro porovnání s referenčním exportem
+`vn100-2026-7-8-nastavei z arbot2.sencfg` v kořeni repa. Vzniklo 6. 9. 2026, když se ukázalo,
+že kurz robota je o 59° vedle a ze záznamu už nešlo zjistit proč (registry v něm nejsou).
+
+```bash
+scp deploy/vnprobe.sh ales@192.168.66.1:/tmp/ && ssh ales@192.168.66.1 'chmod +x /tmp/vnprobe.sh'
+ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnprobe.sh /dev/ttyUSB0; sudo systemctl start arbot'
+```
+
+⚠️ **Službu je nutné zastavit** — jinak port drží ona (skript to pozná přes `fuser` a odmítne
+běžet). ⚠️ Skript posílá **jen `VNRRG` (čtení)**; žádný zápis (`VNWRG`) ani uložení do flash
+(`VNWNV`) v něm záměrně není — konfigurace železa se mění vědomě a ručně.
+
+Co našel: [doc/imu-and-frames.md](../doc/imu-and-frames.md) — heading mode `Relative` místo
+`Absolute` a vymazaná kalibrace magnetometru.
+
+Obnovu dělá **`vnrestore.sh`** — ten na rozdíl od `vnprobe.sh` **zapisuje** a ukládá do flash
+(`VNWNV`), takže změna přežije vypnutí. Dělící čára mezi těmi dvěma skripty je záměrná:
+konfigurace železa se mění vědomě, ne vedlejším účinkem diagnostiky.
+
+```bash
+ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --mag; sudo systemctl start arbot'
+```
+
+Bez `--mag` obnoví jen heading mode (reg 35 → `Absolute`); s `--mag` i kalibraci magnetometru
+(reg 23) z exportu. ⚠️ Ta kalibrace je **z ARBot2 a rok stará** — ber ji jako provizorium,
+dokud se nezměří nová otáčením robotu.
+
 ## Na co narazit
 
 - **`libNativeLib.so` není v publishi** (kříží se ve WSL). Skript ji doplní z datového adresáře;

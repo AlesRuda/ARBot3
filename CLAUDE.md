@@ -162,6 +162,36 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   smyčkou**: bias magnetometru se s kurzem otáčí, chyba rámců ne.
 - [doc/imu-and-frames.md](doc/imu-and-frames.md) — IMU, souřadnicové systémy, VN100
   (drivery, montáž, reference frame rotation).
+  ⚠️ **Kurz z VN100 byl 6. 9. 2026 o −59° vedle** (`20260906-082403.rec`), ačkoli 2. 9. seděl na
+  −0,25° — změřeno proti GPS kurzu a proti směru posunu polohy. Chyba **není v GPS, v našem
+  kódu ani v gyru**; magnetické pole je v obou záznamech stejné a kurz přepočtený **z pole** je
+  proti GPS řádově deklinace, takže se od něj odtáhlo **atitudové řešení senzoru**. Fúze kurz
+  **neváží, přebírá** (`odhad − IMU yaw` = −0,01° ± 0,21°), takže to jde 1:1 do mapy i mrkve.
+  **Neopravovat softwarově** — nejdřív read-only `VNRRG` (registry 35 / 44 / 23 / 26) a **projet
+  smyčku**: při dvou směrech o 180° je měkké železo od konstantního posunu nerozlišitelné.
+  Senzor sám si přitom hlásí `YprU` (yaw 1σ) **0,23°** — a `DefaultMeasurementMapper` to bere
+  **přímo jako σ měření `IMU/heading`**, takže si o tu slepou důvěru řekl sám. Prověření
+  senzoru ze záznamu dělá **`ARBot.Analyze vn100`**.
+  ✅ **Příčina nalezena na živém senzoru** (`deploy/vnprobe.sh`, read-only `VNRRG`): proti
+  referenčnímu exportu `vn100-2026-7-8-nastavei z arbot2.sencfg` se liší **právě dva registry** —
+  **35** má heading mode **`Relative` místo `Absolute`** (yaw tedy NENÍ kurz k severu, ale
+  k tomu, kde senzor naběhl) a **23** má **vymazanou kalibraci magnetometru** (jednotková matice
+  místo biasu −0,274 G). Rámce jsou v pořádku. **Zatím neopraveno** — zápis do senzoru a do jeho
+  flash je vědomý ruční krok, ne vedlejší účinek diagnostiky. **Obojí opraveno a zapsáno do flash
+  týž den** (`deploy/vnrestore.sh`); že Absolute zabral, je vidět na tom, že se kurz po zápisu
+  za ~100 s sám přetočil na magnetické pole — **po zapnutí proto počítej s ~2 minutami, než se
+  kurz srovná**. ⚠️ **Ta kalibrace je ale HORŠÍ NEŽ ŽÁDNÁ** — změřeno venku nad
+  `20260906-153657.rec`: `IMU yaw − GPS kurz` má **sd 9,7°** bez ní (ranní záznam) proti
+  **118,3°** s ní, a v modelech vyhrává „zamrzlý kompas". Důvod: její hard-iron bias je
+  vodorovně **0,280 G**, tedy **větší než vodorovná složka zemského pole (~0,20 G)** — vnese
+  do měření body-fixed vektor silnější než signál a kompas přestane reagovat na otáčení.
+  **Správná konfigurace je `Absolute` + VYMAZANÁ kompenzace** (`deploy/vnrestore.sh
+  --clearmag`); novou kalibraci změřit otáčením robotu. Oprava heading mode je tím
+  nedotčená a prokázaná (`odhad − IMU yaw` = −0,02° ± 0,09°).
+  ✅ **Vymazáno a uloženo do flash týž den**: z pole vychází azimut −2,2° (sever), kurz se na to
+  za ~170 s dotáhl a usadil na −2 až −3° — souhlasí i s tím, kam robot fyzicky mířil. **Absolutní
+  přesnost ale prokázaná není** (souhlas s vlastním polem říká jen, že VPE počítá, co má) —
+  na to je potřeba **projetá smyčka** a `ARBot.Analyze heading`.
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.

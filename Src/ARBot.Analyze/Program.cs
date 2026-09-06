@@ -73,7 +73,8 @@ namespace ARBot.Analyze
                                           Arg(args, "--truewidth", 0));
                         return 0;
                     case "heading":
-                        HeadingReferencesReport.Run(rec, args.Any(a => a == "--nogt"));
+                        HeadingReferencesReport.Run(rec, args.Any(a => a == "--nogt"),
+                                                    Text(args, "--csv"));
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
@@ -86,6 +87,13 @@ namespace ARBot.Analyze
                     case "cameras": CameraFramesReport.Run(rec, (int)Arg(args, "--limit", 400),
                                                             (int)Arg(args, "--skip", 0),
                                                             Text(args, "--png")); return 0;
+                    case "gps":
+                        GpsReport.Run(rec, Arg(args, "--minstand", 0),
+                                      Arg(args, "--maxdop", 0), (int)Arg(args, "--minsat", 0),
+                                      Arg(args, "--standtol", 0), Arg(args, "--minjizda", 0),
+                                      Arg(args, "--mindraha", 0));
+                        return 0;
+                    case "vn100": Vn100Report.Run(rec); return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -153,8 +161,11 @@ namespace ARBot.Analyze
             Console.WriteLine("             NIS a gatingu podle zdroje, a chyba pozy proti ground truth");
             Console.WriteLine("  freerun    jela mise FreeRun v prave polovine koridoru? (--axisy/--truewidth");
             Console.WriteLine("             = skutecna osa a sirka cesty, pak se meri proti PRAVDE)");
-            Console.WriteLine("  heading    absolutni reference kurzu vedle sebe proti pravde (IMU yaw,");
-            Console.WriteLine("             GPS kurz, odhad fuze) - je bias kompasu observabilni BEZ mapy?");
+            Console.WriteLine("  heading    absolutni reference kurzu vedle sebe (IMU yaw, GPS kurz, odhad");
+            Console.WriteLine("             fuze). Nad zaznamem ZE ZARIZENI (bez ground truth) navic: zavislost");
+            Console.WriteLine("             rozporu na kurzu (konstantni posun / otocene znamenko / zelezo),");
+            Console.WriteLine("             koho odhad fuze nasleduje, kontrola GPS kurzu smerem posunu polohy");
+            Console.WriteLine("             a rozbor SYROVEHO magnetickeho pole (|B|, sklon, kurz z pole)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
             Console.WriteLine("  localplan  lokalni planovac v case: stavy planu, byla mrkev DOSAZITELNA");
@@ -168,6 +179,13 @@ namespace ARBot.Analyze
             Console.WriteLine("  cameras    chodi z kamer opravdu NOVE snimky? pocet ruznych obrazu a nejdelsi");
             Console.WriteLine("             serie totoznych (cte cele snimky - viz --limit, --skip);");
             Console.WriteLine("             --png=<prefix> ulozi prvni snimek kazde kamery jako PNG");
+            Console.WriteLine("  gps        proc se stojicimu robotu hybe poloha: tahne ho GPS (efektivni");
+            Console.WriteLine("             Kalmanovo zesileni), je chyba GPS casove korelovana, skace poza");
+            Console.WriteLine("             nebo se plizi, a A/B useku, kde brana fix pustila proti odmitnutym");
+            Console.WriteLine("             (--minstand=<s>, --maxdop=, --minsat= prepisou branu)");
+            Console.WriteLine("  vn100      provereni samotneho VN100 ZE ZAZNAMU: co senzor tvrdi o sobe");
+            Console.WriteLine("             (YprU), reaguje yaw na rozpor s vlastnim magnetometrem (zesileni");
+            Console.WriteLine("             zpetne vazby), drift yaw proti poli a klidovy bias gyra");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
@@ -186,6 +204,8 @@ namespace ARBot.Analyze
             Console.WriteLine("                     je mirne kruhovy). Pro OSM/SyntetickyRovny.osm: 2.0");
             Console.WriteLine("  --nogt             u heading: tvarit se, ze zaznam nenese ground truth - tedy");
             Console.WriteLine("                     jet touz cestou jako na realnem HW (overeni pristroje)");
+            Console.WriteLine("  --csv=<cesta>      u heading: parovane vzorky (cas, IMU yaw, GPS kurz, rychlost,");
+            Console.WriteLine("                     rozpor) do CSV - aby slo cislo overit i mimo tento nastroj");
             Console.WriteLine("  --skip=<s>         u sigma: zahodit prvnich <s> sekund. V SUROVE chybe je videt");
             Console.WriteLine("                     transient rozjezdu (odeznival z 0,50 na 0,05 m po 25 s), ale");
             Console.WriteLine("                     vetsina z nej je USAZUJICI SE FUZE, ne korelator - po jejim");

@@ -645,6 +645,126 @@ toho by „GPS kurz n=0" šlo splést za vadu senzoru, i když robot jen stál.
 > tvářilo jako chybějící senzor v simulaci. Opraveno v `ARBot.Analyze/RecordFile.cs`; tentýž seznam
 > má aplikace v `ARBotRuntime.BuildCatalog`.
 
+#### Nad záznamem ze zařízení (bez ground truth) — čtyři další bloky (6. 9. 2026)
+
+Když záznam pravdu nenese, není to důvod tisknout jen „rozpor dvou referencí je *X* stupňů“.
+Střední rozpor totiž říká jen **že** něco nesedí — ne **co** a **kde**. Přibylo proto:
+
+1. **Závislost rozporu na kurzu.** Tabulka po oktantech kurzu a tři modely vedle sebe:
+   `yaw = +kurz + a` (konstantní posun — deklinace, rámce, montáž), `yaw = -kurz + a` (**otočené
+   znaménko** — záměna azimut × matematická orientace) a `yaw = konst` (zamrzlý kompas). Vyhrává
+   ten s menším zbytkovým rozptylem.
+   ⚠️ **Harmonický rozklad (tvrdé/měkké železo) se počítá až při 5 z 8 obsazených oktantech** — na
+   dvou shlucích kurzu by pětiparametrický proklad vydal číslo, které není měřením. **Rozlišit
+   železo jde jen na projeté smyčce.** Pozor i na to, že při dvou směrech jízdy o 180° je
+   **měkké železo od konstantního posunu nerozlišitelné** (2 periody na otáčku → v obou směrech
+   stejná hodnota); tvrdé železo se naopak pozná — v protisměru má opačné znaménko.
+2. **Koho odhad fúze následuje** — `odhad - IMU yaw` a `odhad - GPS kurz`. Bez pravdy to jde právě
+   proto, že se reference rozcházejí: odhad může sedět jen na jedné. To je kurz, který je vidět
+   v mapovém pohledu a podle kterého se řežou mrkve.
+3. **Kontrola GPS kurzu třetí cestou** — směrem, kterým se posunula **poloha**. Poloha a rychlost
+   jsou v přijímači jiná větev řešení, takže když Dopplerův kurz sedí na směr posunu, je GPS jako
+   reference potvrzená a zbývá IMU. Okno se skládá na **vzdálenost** (1,5 m), ne na čas — při stání
+   je směr posunu šum.
+4. **Syrové magnetické pole** — `|B|`, **sklon (inklinace)** a kurz přepočtený z pole znovu, mimo
+   atitudový filtr VN. Velikost i sklon jsou v daném místě **konstanty** (v ČR ~0,49 G a ~66° dolů),
+   které se s otočením robotu nemění — když kolísají, je porušené **pole** a yaw nemá z čeho vyjít
+   správně; když jsou v pořádku a přesto nesedí kurz, je vada až **za** magnetometrem.
+   **Svislice se bere z akcelerometru**, ne z atitudy senzoru — jinak by se do „nezávislého“
+   přepočtu vrátil právě ten yaw, který se má ověřit. Zrychlení se klouzavě průměruje přes ±0,5 s
+   (gravitace je jeho nízkofrekvenční část; jednotlivý vzorek je na trávě nepoužitelný) a práh se
+   bere kolem **mediánu** `|a|`, ne kolem tabulkového *g* — jinak by chyba měřítka akcelerometru
+   utnula celý záznam a report by mlčel místo toho, aby to řekl.
+   Pozn.: v binárním výstupu VN je to pole `Mag`, tedy hodnota **po** palubní kompenzaci HSI —
+   vada palubní kalibrace se v těch číslech projeví.
+
+`--csv=<cesta>` vysype párované vzorky (čas, IMU yaw, GPS kurz, rychlost, rozpor), aby šlo číslo
+ověřit i mimo nástroj.
+
+Report **čte jen zprávy, které potřebuje** (`IMUState`, `GPSState`, `RobotStateMsg`,
+`GroundTruthMsg`) — snímky kamer tvoří 99,9 % objemu záznamu, takže bez toho trval jeden průchod
+12GB záznamu **minuty místo 1,3 s**.
+
+### `gps`: proč se stojícímu robotu hýbe poloha
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- gps records/<zaznam>.rec
+```
+
+Měření, které má **rozhodnout mezi několika léčbami**, ne je ilustrovat — ke každému kandidátovi
+vydá číslo a k němu prahovou hodnotu.
+
+**Klíčový trik: stojící robot dává pravdu zadarmo.** Skutečná poloha je po dobu stání
+**konstanta** (neznámá, ale konstantní), takže odchylka fixu od průměru segmentu je čistá chyba
+GPS — bez jakékoli ground truth. Totéž platí pro odhad fúze: cokoli, co se v něm za tu dobu
+pohne, je chyba.
+
+⚠️ **Stání se poznává z ENKODÉRŮ** (`MotorStateBase` nese kumulativní ujetou dráhu kol v metrech),
+ne z `V` ve stavu fúze — to je odhad, tedy právě ta veličina, která se měří. Jinak by bylo celé
+měření kruhové.
+
+Čtyři bloky:
+
+- **A1 — táhne GPS stojícího robota?** Ujetá dráha odhadu, hlášená σ z `Covariance`, a hlavně
+  **efektivní Kalmanovo zesílení** z regrese kroku odhadu na innovaci (`ΔX = K·(fix − X) + K·c`;
+  úsek pohltí neznámý posun mezi naší a runtimovou ENU, takže se nemusí znát `GeoReference`).
+  ⚠️ **Prahovat se nesmí na syrovém `K`** — je to zesílení na **jednu opravu**, takže jeho význam
+  závisí na kadenci. Rozhoduje `τ = 1/(K·f)` proti době stání.
+- **A2 — je chyba GPS časově korelovaná?** Autokorelace odchylky od průměru segmentu
+  (dekorelační čas) a **průměrovací křivka**: sd průměru z N po sobě jdoucích fixů proti
+  `sd/√N`. Činitel nadsazení nad 1 znamená, že filtr považuje za nezávislá měření, která
+  nezávislá nejsou — táž past jako `MinPeriod` u `MapCorrelator`.
+- **A2b — platí ten dekorační čas i za jízdy?** Mrtvý odhad z enkodérů (kurz z **rozdílu
+  kol**, ne z fúze — ta obsahuje kompas i GPS), tuhé zarovnání na dráhu z GPS (2D Procrustes)
+  a autokorelace zbytku. ⚠️ Součástí je **kontrola délkou okna**: totéž měřidlo se pustí na data
+  ze stání nakrájená na stejně dlouhá okna a porovná se s výsledkem z celých segmentů. Když okno
+  zkrátí zdánlivý `T_d`, je číslo z A2b artefakt a report to řekne.
+- **A5 — skáče póza, nebo se plíží?** Sweep prahu `PoseJumpDetector` (0,05–1,0 m).
+- **A4 — přirozené A/B**: úseky stání, kde brána fix pustila, proti těm, kde ho odmítla.
+  Stejné místo, stejné kamery. Report **řekne, když A/B nevzniklo** (jedna třída prázdná) — to
+  je důvod pro cílený záznam, ne vada nástroje.
+
+Přepínače: `--minstand=<s>` (výchozí 20), `--standtol=<m>` (výchozí 0,005),
+`--minjizda=<s>` / `--mindraha=<m>` (výchozí 60 s / 20 m, pro A2b), `--maxdop=` /
+`--minsat=` přebijí bránu použitou při rozboru. Když žádný segment stání nevznikne, report
+vypíše **rozdělení posunu kol** — pár milimetrů znamená šum enkodérů, metry znamenají, že robot
+opravdu jel.
+
+Výsledky prvního měření: [ekf-fusion.md](ekf-fusion.md#gps-tahne-stojiciho-robota).
+
+### `vn100`: prověření samotného senzoru ze záznamu
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- vn100 records/test/<zaznam>.rec
+```
+
+`heading` řekne, **že** je kurz vedle. `vn100` zužuje **proč** — a pořád jen ze záznamu, protože
+ten nese všechno, co senzor poslal: yaw, jeho vlastní odhad nejistoty (`YprU`), gyroskop i pole.
+
+1. **Co senzor tvrdí o sobě** — `YprU`, tedy jeho 1σ pro yaw/pitch/roll. Není to jen údaj
+   o senzoru: `DefaultMeasurementMapper` si ho bere **jako σ měření `IMU/heading`**, takže říká,
+   jak moc mu fúze věří.
+2. **Reaguje yaw na rozpor s vlastním magnetometrem?** Kdyby VN kurz z pole používal, byl by ve
+   výstupu vidět **zpětnovazební člen**: přírůstek yaw by byl o kousek jiný, než říká gyroskop,
+   a ten rozdíl by mířil k poli. Měří se regresí `(Δyaw/Δt − ω_z)` na `(kurz z pole − yaw)`
+   na oknech po 1 s; směrnice **K** je zesílení [1/s] a `1/K` časová konstanta.
+3. **Drift yaw proti poli a klidový bias gyra.**
+
+⚠️ **Dvě pasti, do kterých ten report při psaní spadl** — obě mají společnou příčinu, že **kurz
+přepočtený z pole je sám vadný a zašuměný**:
+
+- **Drift se nesmí prokládat přes celou dobu.** První verze vydala **812 °/h**, ačkoli rozpor
+  proti GPS zůstal celých 5 minut na −59°. Kurz z pole má vlastní chybu **závislou na kurzu**
+  (zbytkové železo), takže po otáčce o 180° skočí — a proklad časem to přečte jako drift.
+  Dnes se prokládá jen po **úsecích s téměř konstantním kurzem** (±15°, min. 10 s).
+- **Zesílení K je jen horní odhad.** Šum ve *vysvětlující* proměnné tlačí směrnici
+  **systematicky k nule** (regresní útlum), takže malé K neznamená jistotu, že zpětná vazba
+  neexistuje. Model-free kontrola: kdyby filtr pole používal, musel by rozpor proti **GPS kurzu**
+  v čase **klesat** — a to ukáže `heading` po minutách.
+
+**Co to nedokáže:** přečíst konfigurační registry (35 VPE heading mode, 44 HSI mode, 23, 26).
+Ty v záznamu nejsou a je na ně potřeba **připojený senzor** a read-only `VNRRG`.
+
 ### `corridorfit`: A/B měření estimátoru proložení
 
 Zatímco `corridor` **čte hotové `RoadCorridorMsg` ze záznamu** (tedy měří to, co běželo tehdy),

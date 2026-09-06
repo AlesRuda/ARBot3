@@ -267,6 +267,165 @@ korelátoru) **padla**: GPS kurz je nezávislý na magnetometru i na mapě.
 > **2,99°**, tedy shoda do 0,2°, a odhadla potřebu 29 vzorků = 5,8 s jízdy. Bez toho by na zařízení
 > běžel kód, který nikdy nikdo neproměřil.
 
+#### První měření na zařízení (6. 9. 2026): gate **není** tímto otevřený
+
+Nad `records/test/20260906-082403.rec` vyšlo `IMU yaw − GPS kurz` = **−59,2°** a `odhad − IMU yaw`
+= **−0,01° ± 0,21°** — tedy **na skutečném železe platí totéž co v simulaci: kompas kurz
+definuje.** Ten poměr 4 000:1 je tím potvrzený na HW.
+
+**Neplatí z toho ale, že je „bias kompasu skutečný“ ve smyslu, který tenhle úkol řeší.**
+59° není bias, který má pojmout stav — je to **porucha**: týž senzor měl 2. 9. rozpor
+−0,25° ± 4,3° a magnetické pole se mezitím nezměnilo (rozbor v
+[imu-and-frames.md](imu-and-frames.md)). Stav v EKF by takovou chybu **schoval**, ne opravil,
+a `GPS/heading` s σ 14° ji stejně nepřetáhne. **Gate zůstává otevřený** — potřeba je záznam
+**se smyčkou** a se **zdravým** kompasem; teprve na něm se ukazuje, jestli má VN100 bias
+řádu stupňů, kvůli kterému by se stav vyplácel.
+
+## GPS táhne stojícího robota (změřeno 2026-09-06)
+
+Z pozorování autora: robot **stojí**, klesne DOP, začne se aktualizovat poloha — a protože je
+occupancy grid kotvený ve světě, posouvá se pod robotem lokální mapa a vznikají v ní artefakty.
+Měří to `ARBot.Analyze gps` (viz
+[record-replay.md](record-replay.md#gps-proč-se-stojícímu-robotu-hýbe-poloha)).
+
+**Data:** `records/20260902-222601.rec` — **390 s stání** (240 s + 150 s), rozpoznaného
+z enkodérů.
+
+> **Tři vady v samotném měřidle, které se našly až při čtení výstupu** (na dotaz autora „jak jsi
+> spočítal sd na jednom vzorku?"): řádek `N = 1` v průměrovací křivce **není měření**, ale
+> normalizační bod (blok o jednom vzorku je ten vzorek sám, takže činitel 1,00 vyjde z definice) —
+> teď je tak i popsaný. Bloky a lagy se počítaly přes **slitý** seznam obou segmentů, takže
+> překračovaly 32s mezeru mezi nimi; po opravě na počítání uvnitř segmentů se čísla pohnula
+> málo (ρ@10 s 0,78 → 0,77, činitel 9,92 → 9,96×), ale správně to nebylo. A **sweep lagů končil
+> na 25 s**, kde je ρ = 0,38 — těsně nad 1/e, takže report hlásil „dekorelační čas je delší než
+> měřené okno" a odpověď ležela hned za koncem tabulky; po prodloužení na 80 s vyšlo `T_d ≈ 40 s`. *(Oba záznamy z 6. 9. mají stání nula — robot celou dobu jel; report to řekne sám
+rozdělením posunu kol, nejtišší okno 0,65 m za 20 s.)*
+
+### Co se potvrdilo
+
+| | naměřeno |
+|---|---|
+| pohyb odhadu při **nehybných kolech** | **5,5 m/min** |
+| hlášená σ polohy z fúze (`√P_xx`) | **0,074 m** |
+| σ GPS, se kterou fúze počítala | 5,6 m |
+| efektivní Kalmanovo zesílení `K` (regrese) | 0,0023 / 0,0013 (R² 0,81 / 0,75) |
+| kadence oprav | **10 Hz** |
+| **časová konstanta následování GPS `τ`** | **57 s** |
+
+`τ = 57 s` je hluboko pod dobou stání (240 s), takže se odhad na bloudící fix **stihne
+dotáhnout** — GPS má nad stojícím robotem autoritu. A `P` je přitom **nepoctivá o řády**: filtr
+hlásí, že zná polohu na 7 cm, zatímco se odhad hýbe o 5,5 m za minutu.
+
+⚠️ **Opravené kritérium.** Původně jsem si předregistroval práh „K ≥ 0,05". To bylo **špatně
+škálované**: `K` je zesílení na **jednu opravu**, takže jeho význam závisí na kadenci. Naměřené
+`K ≈ 0,002` by podle něj znamenalo „GPS netáhne", ačkoli odhad ujede metry. Rozhoduje `τ`, ne `K`.
+
+### Proč: 10 Hz měření, z nichž je nezávislé zhruba jedno za 25 s
+
+Nejsilnější nález je v časové korelaci. Odchylka fixu od průměru segmentu (tedy čistá chyba,
+protože robot stál) má **p50 4,4 m** a max 10,2 m, a je **silně korelovaná v čase**:
+
+| τ | 1 s | 5 s | 10 s | 15 s | 25 s | 40 s | 60 s |
+|---|---|---|---|---|---|---|---|
+| ρ | 0,99 | 0,91 | 0,77 | 0,63 | 0,38 | **0,12** | −0,12 |
+
+**Dekorelační čas `T_d` ≈ 40 s.** Průměrovací křivka to říká ještě názorněji — **průměrování
+nepomáhá vůbec**:
+
+| N (doba) | sd průměru | kdyby byly nezávislé | činitel nadsazení |
+|---|---|---|---|
+| 1 (0,1 s) | 3,461 m | 3,461 m | 1,00× *(normalizace, ne měření)* |
+| 10 (1 s) | 3,463 m | 1,095 m | 3,2× |
+| 100 (10 s) | **3,448 m** | 0,346 m | **10,0×** |
+
+Průměr ze sta fixů je stejně přesný jako jeden. Filtr přitom bere každý z nich jako nezávislé
+měření se σ 5,6 m — tedy si za jeden dekorelační čas „nasčítá" informaci ze **~400 vzorků**,
+které nesou informaci jednoho. Odtud ta σ 7 cm.
+
+⚠️ **Dvě meze přesnosti, které to číslo nesmí přežít bez uvedení.** Odchylky se berou od
+**průměru segmentu**, čímž se odečte stejnosměrná složka — autokorelace na dlouhých lagách se tím
+uměle srazí, takže `T_d ≈ 40 s` je **spodní odhad** (a záporná ρ na 60–80 s je právě stopa po tom
+odečtení, ne fyzika). A stojí to jen na **~10 nezávislých vzorcích** (390 s / 40 s). Pro závěr
+„průměrování nepomáhá" to hraje ve prospěch opatrnosti, takže ho to nezeslabuje — ale přesnou
+hodnotu `T_d` je potřeba potvrdit na delším záznamu ze stání.
+
+**Je to táž past, jakou má projekt už jednou zaplacenou u `MapCorrelator`** (dekorelační čas
+~3 s → `MinPeriod` 400 ms → 3 s, aby bylo každé měření nezávislé konstrukcí), jen s desetkrát
+delší konstantou. Viz [map-correlation-localization.md](map-correlation-localization.md).
+
+### Platí ten dekorelační čas i za jízdy? Z těchto dat se to změřit NEDÁ
+
+Otázka autora: decimace na 40 s dává smysl při stání, ale co za jízdy? Multipath závisí na tom,
+co je kolem antény, takže při pohybu se chyba nejspíš dekoreluje **rychleji** — a decimovat pak
+na periodu naměřenou při stání by zahazovalo skutečnou informaci.
+
+Měří to blok **A2b**: z enkodérů se sestaví mrtvý odhad (kurz z **rozdílu kol**, ne z fúze — ta
+obsahuje kompas i GPS, tedy právě to, co se měří), **tuze se zarovná na dráhu z GPS** (2D
+Procrustes) a autokorelace zbytku dá dekorelační čas.
+
+**Výsledek: na tohle v záznamech nejsou data.** Nejdelší souvislý úsek jízdy napříč všemi
+záznamy je **45 s / 17,5 m**; ostatní 34 s / 2,8 m a 32 s / 3,1 m. Robot jezdí stylem
+popojeď‑stůj (FreeRun manévruje), takže se souvislé úseky rozpadají.
+
+A hlavně — **kontrola ukázala, že by to číslo stejně nic neznamenalo.** Táž data ze stání,
+prohnaná týmž měřidlem:
+
+| stání, celé segmenty (240 s) | stání, nakrájené na 34s okna |
+|---|---|
+| `T_d ≈ 40 s` | **`T_d ≈ 10 s`** |
+
+Krátké okno tedy zkrátí zdánlivý dekorelační čas **4×**, protože odečtení střední hodnoty
+(u A2b navíc celkového natočení) smaže všechno pomalejší než okno samo. Jízda vydala 10 s
+(45s okna) resp. 5 s (34s okno) — tedy **k nerozeznání od artefaktu**.
+
+> **Poučení pro nástroj:** první verze verdiktu z toho vyvodila „zkrácené stání drží déle než
+> jízda ⇒ rozdíl je skutečný", protože porovnávala 10 s proti 5 s. To bylo špatně — správně se
+> musí porovnávat **zkrácené stání proti CELÝM segmentům téhož stání**, což teprve ukáže, jestli
+> okno vůbec dovolí něco vidět. Opraveno.
+
+**Co by bylo potřeba:** souvislá jízda **výrazně delší než očekávaný `T_d`**, tedy řádově
+**5–10 minut bez zastavení**. Do té doby je perioda decimace za jízdy neznámá a nastavovat ji
+podle hodnoty ze stání je střelba naslepo.
+
+### Vedlejší, ale použitelný výsledek: GPS zná POSUN mnohem líp než POLOHU
+
+Po tuhém zarovnání mrtvého odhadu na dráhu z GPS zbyde na 25 m jízdy odchylka **p50 0,52 m**
+(max 2,4 m) — zatímco absolutní chyba polohy je p50 **4,4 m**. Rozdíl je právě ta společná
+(pomalu bloudící) složka, kterou zarovnání pohltilo.
+
+Prakticky: **na desítkách sekund zná GPS tvar trajektorie na půl metru, i když je o metry vedle.**
+To je přesně ta informace, kterou **decimace zahazuje** a kterou by uměl využít **offset GPS jako
+stav EKF** (Gauss–Markov s konstantou ~`T_d`): filtr by pak mohl brát všech 10 Hz, protože by
+věděl, že se chyby opakují, a rozdíly by mu nesly pohyb. Je to táž třída úlohy jako otevřený
+úkol „chyby senzorů jako stavy EKF" — jen místo biasu kompasu jde o offset polohy.
+
+⚠️ Ten zbytek ale **míchá chybu GPS s driftem odometrie**, takže 0,52 m je horní mez obojího,
+ne měření jednoho z nich. Oddělit je by chtěl delší úsek a nezávislou referenci.
+
+### Co z toho plyne pro léčbu
+
+1. **Decimace GPS polohy na dekorelační čas je nejsilnější páka** — je to faktor ~400
+   v předpokládané informaci (10 Hz proti jednomu nezávislému vzorku za 40 s). Nebo ekvivalentně
+   nafouknout σ o `√(T_d·f)`. ⚠️ **Perioda je ale změřená jen pro STÁNÍ**; za jízdy ji zatím
+   nikdo nezná (viz výše), takže při jízdě může decimace zahazovat užitečnou informaci.
+2. **`Q` úměrné rychlosti** (dnes je `ProcessNoise` na `v` nezávislé, viz `EKFModel`) je
+   opodstatněné, ale samo o sobě to nestačí: i s malým `P` by 10 Hz korelovaných měření odhad
+   přetáhlo.
+3. **Utažení brány je nejhrubší nástroj** — v tomhle záznamu byl DOP 3–9, tedy pořád pod prahem,
+   a přesto chyba p50 4,4 m. Brána tenhle případ nechytí.
+
+### Co se změřit nepodařilo a proč
+
+**A/B „fix přijat vs. odmítnut" nevzniklo** — v tomhle záznamu prošla brána v každém okně stání
+(DOP nikdy nepřelezl 10). Tím pádem **není potvrzené, že za artefakty v gridu může opravdu GPS**;
+je potvrzené jen to, že GPS hýbe pózou. Na uzavření řetězu je potřeba **cílený záznam ze stání
+v místě, kde DOP kolísá kolem prahu** (u budovy) — přesně to, co autor pozoroval 6. 9.
+
+**Rychlost driftu je ale zdola omezená i bez toho:** póza se plíží, ne skáče — `PoseJumpDetector`
+nehlásí **ani jeden** skok při žádném prahu až po 0,05 m, protože při 10 Hz je krok jen ~8 mm.
+Grid se tedy **nikdy nezahazuje, jen rozmazává**, a nápad „posouvat origin místo `Clear()`" na
+tenhle problém nemá vliv.
+
 ### Otevřený úkol: Pitch/Roll patří do stavu EKF (2026-08-11)
 
 `RobotState.Roll`/`Pitch` dnes **nejsou součástí stavu filtru** — doplňuje je

@@ -1,4 +1,4 @@
-using ARBot.Common.Algorithms.ComputeUnit;
+﻿using ARBot.Common.Algorithms.ComputeUnit;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
@@ -250,8 +250,19 @@ namespace ARBot.HAL.Devices.Camera
                     var colorFrame = frames.ColorFrame;
                     var depthFrame = frames.DepthFrame;
 
-                    var RGBTimeStamp = CalcTimeStamp(colorFrame.Timestamp);
-                    var DepthTimeStamp = CalcTimeStamp(depthFrame.Timestamp);
+                    // ⚠️ Razitka se ctou TED, dokud frame zije. GetDataRGB/GetDataGray ho
+                    // UVOLNI (`using (f)`), takze kazde pozdejsi cteni `.Timestamp` hodi
+                    // ObjectDisposedException('VideoFrame'). Naslapnuto 6. 9. 2026: hlidka
+                    // zamrzleho streamu cetla `.Timestamp` az za kopii dat, cimz shodila
+                    // KAZDY grab - na zarizeni 85 reconnectu za 10 minut na obou kamerach
+                    // a ani jeden snimek, zatimco predchozi build mel reconnectu nula.
+                    // Vada se pritom tvarila jako odpojena kamera ("cteni snimku selhalo
+                    // (odpojeno?)"), takze hledat ji slo snadno na USB misto v kodu.
+                    double rawColorStamp = colorFrame.Timestamp;
+                    double rawDepthStamp = depthFrame.Timestamp;
+
+                    var RGBTimeStamp = CalcTimeStamp(rawColorStamp);
+                    var DepthTimeStamp = CalcTimeStamp(rawDepthStamp);
                     if (imageDepth != null)
                         GetDataGray(depthFrame, imageDepth.Data);
                     if (imageRGB != null)
@@ -265,8 +276,8 @@ namespace ARBot.HAL.Devices.Camera
                     // Zamrzly stream: razitko stoji, prestoze framesety chodi. Kdyz se to potvrdi,
                     // zbourat pipeline - stejnou cestou jako u timeoutu, tedy vcetne toho, ze
                     // kamera do prvniho uspesneho pripojeni poctive hlasi CHYBU.
-                    string zamrzlo = freezeWatch.Check(settingsRGB != null ? colorFrame.Timestamp : (double?)null,
-                                                       settingsDepth != null ? depthFrame.Timestamp : (double?)null);
+                    string zamrzlo = freezeWatch.Check(settingsRGB != null ? rawColorStamp : (double?)null,
+                                                       settingsDepth != null ? rawDepthStamp : (double?)null);
                     if (zamrzlo != null)
                     {
                         FrozenStreamRestarts++;

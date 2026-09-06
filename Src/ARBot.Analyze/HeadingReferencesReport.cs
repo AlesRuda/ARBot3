@@ -39,18 +39,32 @@ namespace ARBot.Analyze
         /// nad SIMULACNIM zaznamem, kde znama odpoved existuje — takze se da rict, jestli hlasi
         /// totez. Tentyz vzor, jakym se tady overuje vsechno ostatni: nejdriv proti znamé odpovedi.</para>
         /// </param>
-        public static void Run(RecordFile rec, bool ignoreGroundTruth = false)
+        public static void Run(RecordFile rec, bool ignoreGroundTruth = false, string csvPath = null)
         {
             var truth = new List<(double T, double Th, double V)>();
             var imu = new List<(double T, double Yaw)>();
+            // Syrove pole a zrychleni: umoznuji spocitat kurz z magnetometru ZNOVU, nezavisle
+            // na atitudovem filtru VN — a hlavne zmerit VELIKOST a SKLON pole, tedy jestli je
+            // vada v magnetickem prostredi, nebo az v tom, co s nim senzor dela. Viz Magnetometer().
+            var mag = new List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)>();
             var gps = new List<(double T, double Course, double Speed)>();
             var est = new List<(double T, double Th)>();
 
             DateTime t0 = DateTime.MinValue;
             int gpsTotal = 0;
+            // Jmeno zdroje -> ma absolutni kurz? Tiskne se, aby bylo videt, co se pouzilo.
+            var zdroje = new SortedDictionary<string, bool>(StringComparer.Ordinal);
+            int relativnich = 0;
             var gpsSample = new List<string>();
+            // Sledovat GPS stopu: kurz z POLOHY je treti, na Doppleru nezavisla reference —
+            // viz TrackCourseCheck. Drzi se cely zaznam, protoze okno se sklada az potom.
+            var track = new List<(double T, double Lat, double Lon)>();
             foreach (var e in rec.Index)
             {
+                // Snimky kamer tvori 99,9 % objemu zaznamu (12 GB) a tenhle report je nepotrebuje.
+                // Bez tehle radky trva jeden pruchod minuty misto sekund.
+                if (e.MsgName != "IMUState" && e.MsgName != "GPSState"
+                    && e.MsgName != "RobotStateMsg" && e.MsgName != "GroundTruthMsg") continue;
                 var msg = rec.Read(e);
                 if (msg == null) continue;
                 if (t0 == DateTime.MinValue && msg is GroundTruthMsg g0) t0 = g0.TimeStamp;
@@ -64,11 +78,24 @@ namespace ARBot.Analyze
                         est.Add((Sec(s.TimeStamp, ref t0), s.Theta));
                         break;
                     case IMUState i when i.Rotation.HasValue:
+                        // ⚠️ V robotu je IMU VIC (VN100 + T265, napojena 6. 9. 2026) a obe posilaji
+                        // IMUState. Do ABSOLUTNICH referenci kurzu smi jen zdroj, ktery absolutni
+                        // kurz opravdu ma: T265 nema magnetometr, takze jeji yaw je posunuty
+                        // o neznamou konstantu. Michat je znamena vyrobit nesmysl - naslapnuto
+                        // 6. 9. 2026, kdy prvni beh nad takovym zaznamem vydal sd rozporu 89 stupnu
+                        // a "odhad - IMU yaw" -148 stupnu, coz vypadalo jako porucha fuze.
+                        // Rozlisuje se podle HasAbsoluteHeading (verze zpravy 3), ne podle jmena.
+                        zdroje[i.Name ?? "(bez jmena)"] = i.HasAbsoluteHeading;
+                        if (!i.HasAbsoluteHeading) { relativnich++; break; }
+
                         var ypr = i.YPR();
                         if (ypr != null) imu.Add((Sec(i.TimeStamp, ref t0), ypr.Yaw));
+                        if (i.Magnetometer.HasValue && i.Acceleration.HasValue)
+                            mag.Add((Sec(i.TimeStamp, ref t0), i.Magnetometer.Value, i.Acceleration.Value));
                         break;
                     case GPSState p:
                         gpsTotal++;
+                        track.Add((Sec(p.TimeStamp, ref t0), p.Latitude, p.Longitude));
                         if (gpsSample.Count < 5)
                             gpsSample.Add(string.Format(CultureInfo.InvariantCulture,
                                 "    Speed={0}  DynamicSpeed={1}  DynamicOrientation={2}  Orientation={3}",
@@ -80,6 +107,14 @@ namespace ARBot.Analyze
                         break;
                 }
             }
+
+            Console.WriteLine("IMUState podle zdroje:");
+            foreach (var z in zdroje)
+                Console.WriteLine($"  {z.Key,-28} {(z.Value ? "absolutni kurz - POUZITO" : "RELATIVNI yaw - VYNECHANO")}");
+            if (relativnich > 0)
+                Console.WriteLine($"  (vynechano {relativnich} vzorku z relativnich zdroju - jejich yaw "
+                                  + "je posunuty o neznamou konstantu)");
+            Console.WriteLine();
 
             Console.WriteLine($"GroundTruthMsg {truth.Count}, IMUState {imu.Count} (s atitudou), "
                               + $"GPSState {gpsTotal} (z toho s kurzem {gps.Count}), "
@@ -100,7 +135,7 @@ namespace ARBot.Analyze
                 if (ignoreGroundTruth && truth.Count > 0)
                     Console.WriteLine($"--nogt: {truth.Count} vzorku pravdy se ZAHAZUJE — jede se "
                                       + "cestou pro realne HW.");
-                ReportWithoutTruth(imu, gps);
+                ReportWithoutTruth(imu, gps, track, mag, est, csvPath);
                 return;
             }
             if (gps.Count == 0)
@@ -206,7 +241,11 @@ namespace ARBot.Analyze
         /// zasumena, takze u prahu rozhoduje nahoda — proto se prah bere s rezervou.</para>
         /// </summary>
         private static void ReportWithoutTruth(List<(double T, double Yaw)> imu,
-                                               List<(double T, double Course, double Speed)> gps)
+                                               List<(double T, double Course, double Speed)> gps,
+                                               List<(double T, double Lat, double Lon)> track,
+                                               List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)> mag,
+                                               List<(double T, double Th)> est,
+                                               string csvPath = null)
         {
             Console.WriteLine("Zaznam nenese GroundTruthMsg — jde tedy o REALNE ZARIZENI (nebo beh");
             Console.WriteLine("bez simulace). Pravda neexistuje, ale to podstatne se zmerit da:");
@@ -222,6 +261,10 @@ namespace ARBot.Analyze
 
             var diff = new Stats("IMU yaw - GPS kurz [deg]");
             var used = new Stats("rychlost pri pouzitych vzorcich [m/s]");
+            // Parovane vzorky si drzime cele: stredni rozpor sam o sobe NEROZLISI konstantni
+            // posun (deklinace / ramce) od otoceneho znamenka nebo tvrdeho zeleza - k tomu je
+            // potreba videt, jak rozpor ZAVISI NA KURZU. Viz HeadingDependence nize.
+            var pair = new List<(double T, double Yaw, double Course, double Speed)>();
             int slow = 0;
             foreach (var (t, course, speed) in gps)
             {
@@ -229,6 +272,7 @@ namespace ARBot.Analyze
                 if (!TryNearest(imu, t, 0.2, out double yaw)) continue;
                 diff.Add(Deg(Wrap(yaw - course)));
                 used.Add(speed);
+                pair.Add((t, yaw, course, speed));
             }
 
             Console.WriteLine($"ROZPOR DVOU ABSOLUTNICH REFERENCI (vzorku pod prahem zahozeno: {slow}):");
@@ -256,14 +300,424 @@ namespace ARBot.Analyze
                     "  => na 3 sigma je potreba {0:F0} vzorku; pri 5 Hz je to {1:F1} s jizdy",
                     Math.Ceiling(need), Math.Ceiling(need) / 5.0));
             Console.WriteLine();
-            Console.WriteLine("  ⚠️ Rozpor sam NERIKA, KTERA reference se myli. Kurz nad zemi z Dopplera");
-            Console.WriteLine("  ale bias mit nema (v simulaci +0,20 deg), takze podezreny je magnetometr.");
-            Console.WriteLine("  Rozlisit to jde jinak: bias magnetometru je vazany na TELO robota, takze");
-            Console.WriteLine("  se s kurzem OTACI. Projet smycku a sledovat, jestli rozpor na kurzu zavisi.");
+            Console.WriteLine("  ⚠️ Rozpor sam NERIKA, KTERA reference se myli - na to jsou bloky nize:");
+            Console.WriteLine("  zavislost na kurzu (konstantni posun / znamenko / zelezo), kontrola GPS");
+            Console.WriteLine("  kurzu smerem posunu polohy a rozbor syroveho magnetickeho pole.");
             Console.WriteLine();
             Console.WriteLine("  K cemu to je: potvrdit, jestli ma smysl davat bias kompasu do stavu EKF.");
             Console.WriteLine("  V simulaci to gatuje vnuceny imubias=, ktery si zada clovek - na zarizeni");
             Console.WriteLine("  se teprve ukaze, jestli tam vubec nejaky bias je. Viz doc/ekf-fusion.md.");
+            Console.WriteLine();
+
+            HeadingDependence(pair);
+            WhoDoesFusionFollow(est, imu, gps);
+            TrackCourseCheck(track, gps, imu);
+            Magnetometer(mag, imu, gps);
+            if (csvPath != null) WriteCsv(csvPath, pair);
+        }
+
+        /// <summary>
+        /// <b>Co z toho vyleze na mape?</b> Kurz robotu, ktery clovek vidi v pohledu a podle
+        /// ktereho se rezou mrkve, je <see cref="RobotStateMsg.Theta"/> z fuze. Kdyz nesedi
+        /// absolutni reference, je podstatne, KTEROU z nich odhad nasleduje — a tady se to
+        /// pozna i bez pravdy, protoze reference se rozchazeji: odhad muze sedet jen na jedne.
+        /// </summary>
+        private static void WhoDoesFusionFollow(List<(double T, double Th)> est,
+                                                List<(double T, double Yaw)> imu,
+                                                List<(double T, double Course, double Speed)> gps)
+        {
+            Console.WriteLine();
+            Console.WriteLine("KOHO ODHAD FUZE NASLEDUJE (to je kurz, ktery je videt na mape):");
+            if (est.Count == 0) { Console.WriteLine("  Zaznam nenese RobotStateMsg."); return; }
+
+            var vsImu = new List<double>();
+            var vsGps = new List<double>();
+            var fast = gps.Where(g => g.Speed >= MinSpeedMps).Select(g => (g.T, g.Course)).ToList();
+            foreach (var (t, th) in est)
+            {
+                if (TryNearest(imu, t, 0.1, out double yaw)) vsImu.Add(Wrap(th - yaw));
+                if (TryNearest(fast, t, 0.2, out double course)) vsGps.Add(Wrap(th - course));
+            }
+            if (vsImu.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  odhad - IMU yaw:  {0,7:F2} deg +- {1:F2}   (n={2})",
+                    Deg(CircMean(vsImu)), Deg(CircSd(vsImu)), vsImu.Count));
+            if (vsGps.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  odhad - GPS kurz: {0,7:F2} deg +- {1:F2}   (n={2})",
+                    Deg(CircMean(vsGps)), Deg(CircSd(vsGps)), vsGps.Count));
+            Console.WriteLine("  Blizko nuly u IMU a daleko u GPS znamena, ze kompas kurz DEFINUJE.");
+        }
+
+        /// <summary>
+        /// <b>Neni spatne rovnou ten kurz z GPS?</b> Rozpor dvou referenci sam o sobe neukazuje
+        /// na vinika. Kurz nad zemi z Dopplera (<c>atan2</c> z vektoru rychlosti) je ale mozne
+        /// overit <b>treti</b>, na nem nezavislou cestou: smerem, kterym se posunula <b>poloha</b>.
+        ///
+        /// <para>Poloha a rychlost jsou v prijimaci jina vetev reseni, takze kdyz oba kurzy sedi,
+        /// je GPS jako reference potvrzena a zbyva IMU. Okno se sklada na <b>vzdalenost</b>
+        /// (ne na cas): pri stani je smer posunu sum.</para>
+        /// </summary>
+        private static void TrackCourseCheck(List<(double T, double Lat, double Lon)> track,
+                                             List<(double T, double Course, double Speed)> gps,
+                                             List<(double T, double Yaw)> imu)
+        {
+            const double MinStepM = 1.5;    // kratsi posun je pod sumem polohy
+            const double MaxGapS = 5.0;     // delsi okno uz muze obsahovat zatacku
+            const double EarthR = 6378137.0;
+
+            Console.WriteLine();
+            Console.WriteLine("KONTROLA GPS KURZU TRETI CESTOU (smer posunu POLOHY):");
+            if (track.Count < 3)
+            {
+                Console.WriteLine("  Malo vzorku polohy.");
+                return;
+            }
+
+            var vsDoppler = new List<double>();
+            var vsImu = new List<double>();
+            int i = 0;
+            while (i < track.Count - 1)
+            {
+                int j = i + 1;
+                double dE = 0, dN = 0;
+                while (j < track.Count)
+                {
+                    double lat0 = track[i].Lat, lat1 = track[j].Lat;
+                    dE = EarthR * Math.Cos(0.5 * (lat0 + lat1)) * (track[j].Lon - track[i].Lon);
+                    dN = EarthR * (lat1 - lat0);
+                    if (Math.Sqrt(dE * dE + dN * dN) >= MinStepM) break;
+                    j++;
+                }
+                if (j >= track.Count) break;
+                if (track[j].T - track[i].T > MaxGapS) { i = j; continue; }
+
+                double course = Math.Atan2(dN, dE);          // ENU math: 0 = vychod, +CCW
+                double tm = 0.5 * (track[i].T + track[j].T);
+                if (TryNearest(gps.Select(g => (g.T, g.Course)).ToList(), tm, 0.3, out double dop))
+                    vsDoppler.Add(Wrap(dop - course));
+                if (TryNearest(imu, tm, 0.3, out double yaw))
+                    vsImu.Add(Wrap(yaw - course));
+                i = j;
+            }
+
+            if (vsDoppler.Count < 5 && vsImu.Count < 5)
+            {
+                Console.WriteLine($"  Prilis kratka ujeta draha (oken: {Math.Max(vsDoppler.Count, vsImu.Count)}).");
+                return;
+            }
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  oken po {0:F1} m: {1}", MinStepM, Math.Max(vsDoppler.Count, vsImu.Count)));
+            if (vsDoppler.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  Doppler - smer posunu: {0,7:F2} deg  +- {1:F2}   (ma byt ~0)",
+                    Deg(CircMean(vsDoppler)), Deg(CircSd(vsDoppler))));
+            if (vsImu.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  IMU yaw - smer posunu: {0,7:F2} deg  +- {1:F2}",
+                    Deg(CircMean(vsImu)), Deg(CircSd(vsImu))));
+            Console.WriteLine("  Kdyz Doppler sedi na nulu a IMU ne, je vadna reference IMU.");
+        }
+
+        /// <summary>
+        /// <b>Ktera vada to je?</b> Stredni rozpor IMU vs. GPS rekne jen ZE nesedi. Rozlisit
+        /// mezi kandidaty jde podle toho, jak rozpor <b>zavisi na kurzu</b>:
+        /// <list type="bullet">
+        /// <item><b>konstantni posun</b> (magneticka deklinace, spatny reference frame na VN,
+        ///   pootocena montaz) - rozpor je na kurzu <b>nezavisly</b>;</item>
+        /// <item><b>otocene znamenko / zamenena konvence</b> (azimut vs. matematicka orientace) -
+        ///   rozpor jde s kurzem <b>dvojnasobnou rychlosti</b>, takze model <c>yaw = -kurz + a</c>
+        ///   sedi lip nez <c>yaw = +kurz + a</c>;</item>
+        /// <item><b>tvrde zelezo</b> (magnet/kov na robotu) - rozpor je <b>sinusova</b> funkce
+        ///   kurzu s jednou periodou na otacku; <b>mekke zelezo</b> ma dve.</item>
+        /// </list>
+        /// <para><b>Predpoklad mereni:</b> kurz se v zaznamu musi dost menit. Kdyz robot jel
+        /// rovne, jsou vsechny tri modely nerozlisitelne a report to rekne misto toho, aby
+        /// vydal cislo, ktere nic neznamena.</para>
+        /// </summary>
+        private static void HeadingDependence(List<(double T, double Yaw, double Course, double Speed)> pair)
+        {
+            if (pair.Count < 20)
+            {
+                Console.WriteLine("ZAVISLOST NA KURZU: malo vzorku.");
+                return;
+            }
+
+            // Jak moc se kurz vubec menil. Kruhova sd 0 = porad tentyz smer.
+            double spread = Deg(CircSd(pair.Select(x => x.Course)));
+            Console.WriteLine("ZAVISLOST ROZPORU NA KURZU (co je to za vadu?):");
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  rozptyl kurzu v zaznamu: {0:F1} deg (kruhova sd) - pod ~20 deg nejdou modely rozlisit",
+                spread));
+
+            // Tabulka po oktantech: syrovy pohled, ktery neni schovany za zadnym modelem.
+            Console.WriteLine();
+            Console.WriteLine("  kurz z GPS [deg]     n   rozpor IMU-GPS [deg]");
+            for (int k = 0; k < 8; k++)
+            {
+                double lo = -180 + k * 45, hi = lo + 45;
+                var inBin = pair.Where(x => { double c = Deg(Wrap(x.Course)); return c >= lo && c < hi; }).ToList();
+                if (inBin.Count == 0) continue;
+                double m = Deg(CircMean(inBin.Select(x => Wrap(x.Yaw - x.Course))));
+                double sdb = Deg(CircSd(inBin.Select(x => Wrap(x.Yaw - x.Course))));
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  <{0,4:F0},{1,4:F0})  {2,6}   {3,8:F2}  +- {4:F2}", lo, hi, inBin.Count, m, sdb));
+            }
+            Console.WriteLine();
+
+            // Model A: yaw = +kurz + a   (konstantni posun)
+            // Model B: yaw = -kurz + a   (otocene znamenko / zamenena konvence)
+            // Model C: yaw = a          (IMU stoji - zamrzly kompas)
+            double sdA = Deg(CircSd(pair.Select(x => Wrap(x.Yaw - x.Course))));
+            double sdB = Deg(CircSd(pair.Select(x => Wrap(x.Yaw + x.Course))));
+            double sdC = Deg(CircSd(pair.Select(x => x.Yaw)));
+            double aA = Deg(CircMean(pair.Select(x => Wrap(x.Yaw - x.Course))));
+            double aB = Deg(CircMean(pair.Select(x => Wrap(x.Yaw + x.Course))));
+            Console.WriteLine("  KTERY MODEL SEDI (mensi zbytkovy rozptyl = lepsi):");
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "    A) yaw = +kurz + {0,7:F2} deg   zbytek sd = {1,6:F2} deg   (konstantni posun)", aA, sdA));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "    B) yaw = -kurz + {0,7:F2} deg   zbytek sd = {1,6:F2} deg   (OTOCENE ZNAMENKO)", aB, sdB));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "    C) yaw = konst              zbytek sd = {0,6:F2} deg   (zamrzly kompas)", sdC));
+
+            // Tvrde/mekke zelezo: harmonicky rozklad zbytku modelu A podle kurzu.
+            // rozpor(psi) = a0 + a1*cos(psi) + b1*sin(psi) + a2*cos(2psi) + b2*sin(2psi)
+            int occupied = Enumerable.Range(0, 8).Count(k =>
+            {
+                double lo = -180 + k * 45, hi = lo + 45;
+                return pair.Any(x => { double c = Deg(Wrap(x.Course)); return c >= lo && c < hi; });
+            });
+            if (occupied < 5)
+            {
+                Console.WriteLine();
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  HARMONICKY ROZKLAD (tvrde/mekke zelezo) se NEPOCITA: obsazeno jen {0} z 8 oktantu.",
+                    occupied));
+                Console.WriteLine("  Petiparametricky proklad by na dvou shlucich kurzu vydal cislo,");
+                Console.WriteLine("  ktere neni merenim - k odliseni zeleza je potreba projeta SMYCKA.");
+                return;
+            }
+            var psi = pair.Select(x => Wrap(x.Course)).ToArray();
+            double c0 = CircMean(pair.Select(x => Wrap(x.Yaw - x.Course)));
+            var r = pair.Select(x => Wrap(Wrap(x.Yaw - x.Course) - c0)).ToArray();
+            double[] coef = FitHarmonic(psi, r);
+            if (coef != null)
+            {
+                double amp1 = Deg(Math.Sqrt(coef[1] * coef[1] + coef[2] * coef[2]));
+                double amp2 = Deg(Math.Sqrt(coef[3] * coef[3] + coef[4] * coef[4]));
+                Console.WriteLine();
+                Console.WriteLine("  HARMONICKY ROZKLAD zbytku podle kurzu:");
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "    1. harmonicka (tvrde zelezo): amplituda {0,6:F2} deg", amp1));
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "    2. harmonicka (mekke zelezo): amplituda {0,6:F2} deg", amp2));
+            }
+        }
+
+        /// <summary>
+        /// <b>Je vada v poli, nebo az v tom, co s nim senzor dela?</b> Kurz z kompasu ma dva
+        /// clanky: (1) zmerene magneticke pole a (2) atitudovy filtr, ktery z nej dela yaw.
+        /// Rozlisit je jde tim, ze se pole posoudi samo o sobe — <b>velikost</b> a <b>sklon</b>
+        /// (inklinace) jsou v danem miste konstanty, ktere se s otocenim robotu NEMENI:
+        /// v CR je pole ~0,49 G a sklon ~66 stupnu dolu.
+        ///
+        /// <para>Kdyz velikost nebo sklon kolisaji s kurzem, je porusene POLE (tvrde/mekke
+        /// zelezo na robotu nebo spatna kalibrace HSI v senzoru) a yaw nema z ceho vyjit spravne.
+        /// Kdyz jsou v poradku a presto nesedi kurz, je vada az za magnetometrem.</para>
+        ///
+        /// <para><b>Svislice se bere z akcelerometru</b>, ne z atitudy senzoru — jinak by se
+        /// do „nezavisleho" prepoctu vratil prave ten yaw, ktery se ma overit. Pri jizde 0,7 m/s
+        /// je vlastni zrychleni proti g zanedbatelne; vzorky, kde |a| utece od g, se zahazuji.</para>
+        ///
+        /// <para><b>Pozor na jednotky a na to, co Mag je:</b> binarni vystup VN posila pole
+        /// v <b>Gaussech</b> a v konfiguraci driveru je to pole <c>Mag</c>, tedy hodnota
+        /// <b>PO</b> palubni kompenzaci HSI (ne <c>UncompMag</c>). Vada palubni kalibrace se tedy
+        /// v techto cislech projevi.</para>
+        /// </summary>
+        private static void Magnetometer(List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)> mag,
+                                         List<(double T, double Yaw)> imu,
+                                         List<(double T, double Course, double Speed)> gps)
+        {
+            Console.WriteLine();
+            Console.WriteLine("SYROVE MAGNETICKE POLE (je vada v poli, nebo az za nim?):");
+            if (mag.Count == 0)
+            {
+                Console.WriteLine("  Zaznam nenese magnetometr ani zrychleni.");
+                return;
+            }
+
+            var normStat = new Stats("velikost pole |B|");
+            var accStat = new Stats("velikost zrychleni |a|");
+            var dipStat = new Stats("sklon pole (inklinace)");
+            var headStat = new List<double>();   // kurz z pole - yaw ze senzoru
+            var courseStat = new List<double>(); // kurz z pole - kurz z GPS
+            var headByTime = new List<(double T, double D)>();
+            int tilted = 0;
+
+            // Svislice z JEDNOHO vzorku zrychleni je pri jizde po trave nepouzitelna - otresy
+            // maji stejny rad jako g a chyba svislice jde primo do kurzu. Gravitace je ta
+            // NIZKOFREKVENCNI cast, takze se zrychleni klouzave prumeruje pres +-0,5 s.
+            var aAvg = MovingAverage(mag, 0.5);
+
+            // Prah se bere kolem MEDIANU |a|, ne kolem tabulkoveho g: kdyby mel akcelerometr
+            // meritko nebo bias, utnul by pevny prah cely zaznam a report by mlcel misto toho,
+            // aby to rekl. Median se proto i vypisuje.
+            foreach (var v in aAvg) accStat.Add(Math.Sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z));
+            double aRef = accStat.Percentile(50);
+
+            for (int k = 0; k < mag.Count; k++)
+            {
+                var (t, m, _) = mag[k];
+                var a = aAvg[k];
+                double an = Math.Sqrt(a.X * a.X + a.Y * a.Y + a.Z * a.Z);
+                // Vzorek s vlastnim zrychlenim nebo narazem svislici pokazi.
+                if (an < 0.98 * aRef || an > 1.02 * aRef) { tilted++; continue; }
+                double mn = Math.Sqrt(m.X * m.X + m.Y * m.Y + m.Z * m.Z);
+                if (mn < 1e-6) continue;
+
+                // Svislice (nahoru) z akcelerometru; body FLU, takze v klidu miri a nahoru.
+                double ux = a.X / an, uy = a.Y / an, uz = a.Z / an;
+                normStat.Add(mn);
+                double mu = m.X * ux + m.Y * uy + m.Z * uz;
+                dipStat.Add(Deg(Math.Asin(Math.Max(-1, Math.Min(1, -mu / mn)))));
+
+                // Vodorovna slozka pole a vodorovny prumet osy "vpred" (X) a "vlevo".
+                double hx = m.X - mu * ux, hy = m.Y - mu * uy, hz = m.Z - mu * uz;
+                double fx = 1 - ux * ux, fy = -ux * uy, fz = -ux * uz;
+                double fn = Math.Sqrt(fx * fx + fy * fy + fz * fz);
+                if (fn < 1e-6) continue;
+                fx /= fn; fy /= fn; fz /= fn;
+                double lx = uy * fz - uz * fy, ly = uz * fx - ux * fz, lz = ux * fy - uy * fx;
+
+                // Uhel od osy "vpred" k magnetickemu severu, proti smeru hod. rucicek = azimut.
+                double azimut = Math.Atan2(hx * lx + hy * ly + hz * lz, hx * fx + hy * fy + hz * fz);
+                double orientation = Math.PI / 2 - azimut;   // ENU math (bez deklinace, ta je ~5 deg)
+
+                if (TryNearest(imu, t, 0.05, out double yaw))
+                {
+                    headStat.Add(Wrap(orientation - yaw));
+                    headByTime.Add((t, Wrap(orientation - yaw)));
+                }
+                if (TryNearest(gps.Where(g => g.Speed >= MinSpeedMps).Select(g => (g.T, g.Course)).ToList(),
+                               t, 0.2, out double course)) courseStat.Add(Wrap(orientation - course));
+            }
+
+            if (normStat.Count == 0)
+            {
+                Console.WriteLine($"  Zadny pouzitelny vzorek (zahozeno kvuli zrychleni: {tilted}).");
+                return;
+            }
+            Console.WriteLine($"  vzorku: {normStat.Count} (zahozeno kvuli vlastnimu zrychleni: {tilted})");
+            Console.WriteLine("  " + accStat.Line("m/s2") + "   (median je referenci svislice; g = 9,807)");
+            Console.WriteLine("  " + normStat.Line("G") + "   (v CR ma byt ~0,49 G a hlavne KONSTANTNI)");
+            Console.WriteLine("  " + dipStat.Line("deg") + "   (v CR ma byt ~66 deg dolu a taky konstantni)");
+            if (headStat.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  kurz z pole - yaw ze senzoru: {0,7:F2} deg +- {1:F2}   (~0 = filtr VN pole jen prepocitava)",
+                    Deg(CircMean(headStat)), Deg(CircSd(headStat))));
+            if (courseStat.Count > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  kurz z pole - kurz z GPS:     {0,7:F2} deg +- {1:F2}   (ma byt ~ +5 deg deklinace)",
+                    Deg(CircMean(courseStat)), Deg(CircSd(courseStat))));
+
+            // Vyvoj v case: konstantni rozdil = jiny referencni smer filtru, rostouci = drift gyra.
+            if (headByTime.Count > 50)
+            {
+                Console.WriteLine("  vyvoj rozdilu 'kurz z pole - yaw' po minutach:");
+                double tEnd = headByTime[headByTime.Count - 1].T;
+                for (double b = 0; b < tEnd; b += 60)
+                {
+                    double lo = b, hi = b + 60;
+                    var inBin = headByTime.Where(x => x.T >= lo && x.T < hi).Select(x => x.D).ToList();
+                    if (inBin.Count < 20) continue;
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "    {0,5:F0}-{1,5:F0} s  n={2,6}  {3,7:F2} deg +- {4:F2}",
+                        lo, hi, inBin.Count, Deg(CircMean(inBin)), Deg(CircSd(inBin))));
+                }
+            }
+        }
+
+        /// <summary>Klouzavy prumer zrychleni v okne +-<paramref name="halfWindowS"/> sekund.</summary>
+        private static System.Numerics.Vector3[] MovingAverage(
+            List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)> mag, double halfWindowS)
+        {
+            var outv = new System.Numerics.Vector3[mag.Count];
+            int lo = 0, hi = 0;
+            double sx = 0, sy = 0, sz = 0;
+            for (int k = 0; k < mag.Count; k++)
+            {
+                while (hi < mag.Count && mag[hi].T <= mag[k].T + halfWindowS)
+                { sx += mag[hi].A.X; sy += mag[hi].A.Y; sz += mag[hi].A.Z; hi++; }
+                while (lo < hi && mag[lo].T < mag[k].T - halfWindowS)
+                { sx -= mag[lo].A.X; sy -= mag[lo].A.Y; sz -= mag[lo].A.Z; lo++; }
+                int n = Math.Max(1, hi - lo);
+                outv[k] = new System.Numerics.Vector3((float)(sx / n), (float)(sy / n), (float)(sz / n));
+            }
+            return outv;
+        }
+
+        /// <summary>Parovane vzorky do CSV - aby slo cislo overit i mimo tenhle nastroj.</summary>
+        private static void WriteCsv(string path, List<(double T, double Yaw, double Course, double Speed)> pair)
+        {
+            using (var w = new System.IO.StreamWriter(path, false))
+            {
+                w.WriteLine("t_s;imu_yaw_deg;gps_course_deg;speed_mps;diff_deg");
+                foreach (var x in pair)
+                    w.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0:F3};{1:F3};{2:F3};{3:F3};{4:F3}",
+                        x.T, Deg(Wrap(x.Yaw)), Deg(Wrap(x.Course)), x.Speed, Deg(Wrap(x.Yaw - x.Course))));
+            }
+            Console.WriteLine($"  CSV zapsano: {path} ({pair.Count} vzorku)");
+        }
+
+        /// <summary>Kruhovy prumer uhlu [rad].</summary>
+        private static double CircMean(IEnumerable<double> a)
+        {
+            double sx = 0, sy = 0; int n = 0;
+            foreach (var v in a) { sx += Math.Cos(v); sy += Math.Sin(v); n++; }
+            return n == 0 ? 0 : Math.Atan2(sy / n, sx / n);
+        }
+
+        /// <summary>Kruhova smerodatna odchylka [rad] (sqrt(-2 ln R)).</summary>
+        private static double CircSd(IEnumerable<double> a)
+        {
+            double sx = 0, sy = 0; int n = 0;
+            foreach (var v in a) { sx += Math.Cos(v); sy += Math.Sin(v); n++; }
+            if (n == 0) return 0;
+            double R = Math.Sqrt(sx * sx + sy * sy) / n;
+            return R <= 0 ? Math.PI : Math.Sqrt(-2.0 * Math.Log(Math.Min(1.0, R)));
+        }
+
+        /// <summary>Nejmensi ctverce pro [1, cos, sin, cos2, sin2]; null pri singularite.</summary>
+        private static double[] FitHarmonic(double[] psi, double[] y)
+        {
+            const int m = 5;
+            var A = new double[m, m + 1];
+            for (int i = 0; i < psi.Length; i++)
+            {
+                double[] b = { 1, Math.Cos(psi[i]), Math.Sin(psi[i]), Math.Cos(2 * psi[i]), Math.Sin(2 * psi[i]) };
+                for (int r0 = 0; r0 < m; r0++)
+                {
+                    for (int c = 0; c < m; c++) A[r0, c] += b[r0] * b[c];
+                    A[r0, m] += b[r0] * y[i];
+                }
+            }
+            for (int col = 0; col < m; col++)
+            {
+                int piv = col;
+                for (int r0 = col + 1; r0 < m; r0++) if (Math.Abs(A[r0, col]) > Math.Abs(A[piv, col])) piv = r0;
+                if (Math.Abs(A[piv, col]) < 1e-12) return null;
+                if (piv != col) for (int c = col; c <= m; c++) { var t = A[col, c]; A[col, c] = A[piv, c]; A[piv, c] = t; }
+                for (int r0 = 0; r0 < m; r0++)
+                {
+                    if (r0 == col) continue;
+                    double f = A[r0, col] / A[col, col];
+                    for (int c = col; c <= m; c++) A[r0, c] -= f * A[col, c];
+                }
+            }
+            var x = new double[m];
+            for (int i = 0; i < m; i++) x[i] = A[i, m] / A[i, i];
+            return x;
         }
 
         private static double Sec(DateTime t, ref DateTime t0)
