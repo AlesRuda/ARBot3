@@ -10,7 +10,8 @@ namespace ARBot.HAL.Tests
     /// <summary>
     /// Integracni HW test D435 kamery na ARM/Armbian (Orange Pi).
     /// Vyzaduje fyzicky pripojenou kameru D435 (USB3) a native librealsense2.so.
-    /// Bez kamery se test gracefully preskoci (Assert.Ignore).
+    /// Bez kamery se test **preskoci** (Assert.Ignore) - a to ve dvou mistech: kdyz selze
+    /// konstruktor, i kdyz se pipeline sice rozjede, ale zadny snimek nedorazi.
     /// Spusteni: dotnet test --filter Category=Hardware   (na Pi pres SSH)
     /// </summary>
     [Category("Hardware")]
@@ -52,7 +53,16 @@ namespace ARBot.HAL.Tests
                     Thread.Sleep(50);
                 }
 
-                Assert.That(frame, Is.Not.Null, "Do 5 s neprisel zadny snimek z D435.");
+                // Zadny snimek do 5 s = kamera nepripojena. Na Windows totiz konstruktor
+                // NEVYHODI vyjimku ani bez kamery (pipeline se rozjizdi na pozadi a selze az
+                // pak), takze samotny try/catch vys na preskoceni nestaci - test pak selhaval
+                // na kazdem stroji bez D435 a hlasil "porucha" tam, kde zadna neni.
+                if (frame == null)
+                {
+                    Assert.Ignore("D435 nedodala do 5 s zadny snimek - kamera zjevne neni pripojena. "
+                                  + "Test je integracni (Category=Hardware), pusti se na zarizeni.");
+                    return;
+                }
                 Assert.Multiple(() =>
                 {
                     Assert.That(frame!.ImageRGB, Is.Not.Null, "ImageRGB");

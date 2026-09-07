@@ -85,6 +85,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <!-- Inference neuronove site (semanticka segmentace sjizdnosti, OnnxBackProject).
+         Nativni assety: win-x64 (vyvoj/simulace) i linux-arm64 (OrangePI) v jednom balicku,
+         takze na obou platformach bezi TYZ kod. Viz doc/semantic-segmentation.md. -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <!-- Cross-platform JPEG kodek (Blob komprese). Native assets: Win32 (dev/x64) + Linux (OrangePI/arm64). -->
     <PackageReference Include="SkiaSharp" Version="3.119.4-preview.1.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4-preview.1.1" />

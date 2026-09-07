@@ -94,6 +94,14 @@ namespace ARBot.Analyze
                                       Arg(args, "--mindraha", 0));
                         return 0;
                     case "vn100": Vn100Report.Run(rec); return 0;
+                    case "backproject":
+                        BackProjectReport.Run(rec,
+                                              Text(args, "--model") ?? DefaultModel(),
+                                              (int)Arg(args, "--limit", 100),
+                                              (int)Arg(args, "--skip", 0),
+                                              args.Any(a => a == "--bgr"),
+                                              Text(args, "--png"));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -126,6 +134,14 @@ namespace ARBot.Analyze
                                                 NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
                    ? v : fallback;
         }
+
+        /// <summary>
+        /// Vychozi model pro <c>backproject</c> — tentyz, jaky ma v defaultu <c>nnmodel=</c>.
+        /// Resi se pres <see cref="ARBot.Common.Configuration.RepoPaths"/>, tedy proti koreni repa,
+        /// ne proti pracovnimu adresari (nastroj se spousti z vlastniho <c>bin</c>).
+        /// </summary>
+        private static string DefaultModel()
+            => ARBot.Common.Configuration.ParamRegistry.NnModel.Value;
 
         /// <summary>Nejnovejsi zaznam v <c>Records/</c> (hleda se i o par urovni vys — nastroj se
         /// spousti z vlastniho bin adresare).</summary>
@@ -186,6 +202,10 @@ namespace ARBot.Analyze
             Console.WriteLine("  vn100      provereni samotneho VN100 ZE ZAZNAMU: co senzor tvrdi o sobe");
             Console.WriteLine("             (YprU), reaguje yaw na rozpor s vlastnim magnetometrem (zesileni");
             Console.WriteLine("             zpetne vazby), drift yaw proti poli a klidovy bias gyra");
+            Console.WriteLine("  backproject vyplati se neuronova sit misto histogramu? cas obou prevodu");
+            Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
+            Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");
+            Console.WriteLine("             --png=<prefix>). Cas je z TOHOTO stroje, ne z robota");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");

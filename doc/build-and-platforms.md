@@ -144,6 +144,12 @@ bez nich se nesestaví:
   z `ARBot.Runtime.csproj` (jen `x64`; do 4. 9. 2026 z `ARBot.csproj`, používá ho `ARBotHW`).
 - **`NativeLib` / `libNativeLib.so`** — vlastní nativní knihovna (`NativeFuncs`),
   viz výše.
+> **ONNX Runtime je z NuGetu a nativní assety si nese sám.** `Microsoft.ML.OnnxRuntime`
+> (`ARBot.Common.csproj`, inference sémantické segmentace) má v jednom balíčku `win-x64`
+> i `linux-arm64`, takže do této sekce nepatří — SDK se nikam nekopíruje a `-p:Platform=OrangePI
+> -r linux-arm64` vybere správnou knihovnu sám (ověřeno publishem: ve výstupu je
+> `libonnxruntime.so`, žádná windowsová DLL). **Publish tím naroste ze 45 MB na ~70 MB.**
+> Viz [semantic-segmentation.md](semantic-segmentation.md).
 > **Čtení QR kódů tady vědomě NENÍ.** Návrh mise Robotour původně počítal se ZBarem, tedy
 > s bindingem zkopírovaným do `Src/ThirdParty/ZBar/` a nativní `libzbar` na obou platformách
 > (`libzbar.dll` pro x64, `DllImportResolver` pro `libzbar.so.0` na Armbianu) — a s zápisem do této

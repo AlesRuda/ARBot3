@@ -22,6 +22,7 @@ using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
 using ARBot.Common.Runtime;
 using ARBot.Common.Vision;
+using ARBot.Common.Vision.Nn;
 using ARBot.HAL;
 
 namespace ARBot.Robot
@@ -404,9 +405,12 @@ namespace ARBot.Robot
                     // vlastni instance: procesor bezi na vlakne sve kamery.
                     var cu = new ARBot.Common.Algorithms.ComputeUnit.NativeComputeUnit(
                         1, 1, 1, 0, 0, 0.1f, null);
+                    // Prevod barvy na pravdepodobnost: histogram, nebo neuronova sit (backproject=).
+                    // Vlastni instance pro KAZDOU kameru - viz BuildBackProject.
+                    var bp = BuildBackProject();
                     var fp = new CameraFrameProcessor(
                         projectionResolver, gridCfg,
-                        backProject: new BackProject(BackProject.RoadProbability),
+                        backProject: bp,
                         computeUnit: cu,
                         diagnosticsCsvPath: diag ? DiagCsvPath($"traversability-timing-{FileToken(cam.Name)}.csv") : null,
                         // Barevna projekce jen kvuli intrinsice pro prepocet hranic cesty do metru
@@ -415,7 +419,12 @@ namespace ARBot.Robot
                     cam.FrameProcessor = fp;
                     // Pri Stop: odpoj procesor od kamery (prestane pocitat) a zavri jeho diagnostiku.
                     var c = cam;
-                    connections.Add(new ActionDisposable(() => { c.FrameProcessor = null; fp.Dispose(); }));
+                    connections.Add(new ActionDisposable(() =>
+                    {
+                        c.FrameProcessor = null;
+                        fp.Dispose();
+                        (bp as IDisposable)?.Dispose();   // sit drzi nativni session ONNX Runtime
+                    }));
                 }
             }
 
@@ -1643,6 +1652,37 @@ namespace ARBot.Robot
             if (!any) return null;
 
             return new GeoReference(new LLA((minLat + maxLat) / 2, (minLon + maxLon) / 2, 0));
+        }
+
+        /// <summary>
+        /// Sestavi prevod barvy na pravdepodobnost sjizdnosti podle parametru <c>backproject=</c>:
+        /// <c>hist</c> = zpetna projekce z histogramu barev (<see cref="BackProject"/>, vychozi),
+        /// <c>nn</c> = semanticka segmentace neuronovou siti (<see cref="OnnxBackProject"/>).
+        ///
+        /// <para><b>Kazda kamera dostava vlastni instanci.</b> <c>Process</c> bezi synchronne na
+        /// vlakne sve kamery a obe implementace drzi predalokovane buffery, takze jedna sdilena
+        /// instance by si mezi kamerami prepisovala data.</para>
+        ///
+        /// <para><b>Chybejici nebo vadny model je chyba pri startu, ne tichy navrat k histogramu.</b>
+        /// Stejny duvod jako u neznameho klice v profilu (viz doc/configuration.md): tichy fallback
+        /// by znamenal, ze A/B mereni site by nenapozorovane merilo histogram.</para>
+        /// </summary>
+        private static IBackProject BuildBackProject()
+        {
+            if (!ParamRegistry.BackProject.Is("nn"))
+                return new BackProject(BackProject.RoadProbability);
+
+            string path = ParamRegistry.NnModel.Value;
+            var opts = new OnnxBackProjectOptions
+            {
+                ChannelOrder = ParamRegistry.NnChannels.Is("bgr") ? NnChannelOrder.Bgr : NnChannelOrder.Rgb,
+            };
+            var nn = new OnnxBackProject(path, opts);
+            Trace.WriteLine($"backproject=nn: {System.IO.Path.GetFileName(path)}, vstup "
+                            + $"{nn.InputWidth}x{nn.InputHeight}, vystup {nn.OutputWidth}x{nn.OutputHeight}"
+                            + $"x{nn.OutputChannels}, kanaly {opts.ChannelOrder}. Pravdepodobnostni obraz "
+                            + "je tim v jinem rozliseni nez pri backproject=hist (plny snimek).");
+            return nn;
         }
 
         /// <summary>

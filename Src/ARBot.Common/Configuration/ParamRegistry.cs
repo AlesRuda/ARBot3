@@ -42,6 +42,7 @@ namespace ARBot.Common.Configuration
         private const string K_HW = "Hardware";
         private const string K_MAPA = "Mapy a svet";
         private const string K_FUZE = "Fuze a lokalizace";
+        private const string K_VIZE = "Vize";
         private const string K_MISE = "Mise";
         private const string K_SIM = "Virtualni HW a simulace";
         private const string K_DIAG = "Diagnostika";
@@ -139,6 +140,22 @@ namespace ARBot.Common.Configuration
         public static readonly StringParam MeasDiag = Text("measdiag", null, K_FUZE,
               "Diagnostika mereni ve fuzi: 'true' nebo '*' pro vsechna mereni (stovky za "
               + "sekundu), jinak filtr na zdroj mereni.");
+
+        // --- Vize ----------------------------------------------------------------------
+        // Vycet MUSI odpovidat switchi v ARBotRuntime.BuildBackProject.
+        public static readonly StringParam BackProject = Vycet("backproject", "hist", new[] { "hist", "nn" }, K_VIZE,
+              "Prevod barvy na pravdepodobnost sjizdnosti: 'hist' (vychozi, zpetna projekce "
+              + "z histogramu barev - bezi vzdy a nic nepotrebuje) nebo 'nn' (semanticka "
+              + "segmentace neuronovou siti pres ONNX Runtime, model zada nnmodel=). "
+              + "Sit pocita v mensim rozliseni nez histogram, takze meni i hustotu dat pro "
+              + "occupancy grid a hranice cesty. Viz doc/semantic-segmentation.md.");
+        public static readonly PathParam NnModel = Cesta("nnmodel", "models/Model61.1_int8.onnx", K_VIZE,
+              "Model semanticke segmentace (.onnx) pro backproject=nn. Vstup [1,H,W,3] float 0..1, "
+              + "vystup [1,H,W,C] float - prevod z TFLite dela models/tflite2onnx.py.");
+        public static readonly StringParam NnChannels = Vycet("nnchannels", "rgb", new[] { "rgb", "bgr" }, K_VIZE,
+              "Poradi barevnych kanalu na vstupu site. 'rgb' (vychozi) je poradi z ARBot2 "
+              + "(EdgeTPUDll/EdgeTPU.cpp). Prepinac je tu na A/B: na sedivé ceste a zelene trave "
+              + "se obe poradi lisi jen o jednotky procent, takze omyl by nebyl videt jako chyba.");
 
         // --- Mise ----------------------------------------------------------------------
         // Vycet MUSI odpovidat switchi v ARBotRuntime - kdyz pribude mise, patri i sem.

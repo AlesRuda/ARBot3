@@ -64,7 +64,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 61 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 70 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -197,6 +197,32 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
   kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
+- [doc/semantic-segmentation.md](doc/semantic-segmentation.md) — **sjízdnost z RGB neuronovou sítí**
+  (`backproject=hist|nn`): druhá implementace `IBackProject` vedle histogramu barev, model
+  **Model61.1** z ARBot2 (U-Net + MobileNetV2, 128×128, 112,5 MMAC) přes **ONNX Runtime**.
+  Ten je zvolený proto, že jeden NuGet nese nativní knihovnu pro win-x64 **i** linux-arm64, takže
+  v simulaci i na robotu běží **týž kód** (cena: publish 45 → 70 MB); TFLite runtime by znamenal
+  vlastní nativní knihovnu na obě platformy. Model se převádí `models/tflite2onnx.py`, který
+  **schová kvantizaci dovnitř modelu** (float na hranici, int8 uvnitř) — jinak by kvantizační
+  konstanty musela znát C# strana a špatná hodnota by se projevila jako *tiše horší segmentace*,
+  ne jako chyba. Předzpracování (RGB, `v/255`) je převzaté z ARBot2 `EdgeTPUDll/EdgeTPU.cpp`, což
+  je jediná reference, jak byl model **skutečně používán**; výstup se **normalizuje součtem
+  kanálů**, aby práh 128 dal totéž rozhodnutí jako původní `out[0] < out[1]` (model končí sigmoidou,
+  součet není 1). Měřidlo: `ARBot.Analyze backproject` — statistika **zvlášť za každou kameru**
+  (míchat je je past: zamrzlá pravá D435 dělá průměr podezřele stabilním, proto report počítá
+  i počet různých obrazů). Naměřeno na Windows (Release): v **simulaci** síť **11,3 ms** (int8) /
+  **6,9 ms** (rozbalený do float — je to táž kvantovaná síť, jen s int8 vahami rozbalenými zpět, ne původní float model) proti **2,4 ms** histogramu, shoda 97,4 %; **venku ze zařízení**
+  (`records/test/20260906-082403.rec`, levá kamera) shoda **89,6 %**, síť hlásí 70–75 % sjízdné
+  plochy proti 80–85 % histogramu. **Rozdíl je vidět až na reálném asfaltu**
+  ([obrázek](doc/media/backproject-nn-vs-hist-20260907.png)): histogram rozhoduje per-pixel podle
+  barvy, takže **zrní** a hranice trávy je roztřepená; síť dá souvislou plochu. ⚠️ **Není to ale
+  verdikt** — ground truth k záznamu není a na zarostlé ploše bez cesty je síť nerozhodná,
+  zatímco histogram tvrdí 80 % sjízdné. ⚠️ **Na zařízení to neběželo** — a to je jediné číslo,
+  které rozhoduje: při dvou kamerách po 30 fps stojí síť 63–90 % jednoho jádra vývojového PC.
+  ⚠️ Síť počítá ve **128×128** proti plnému snímku histogramu, takže mění hustotu dat pro
+  occupancy grid i hranice cesty (dopad naměřený není). Kvalita modelu na dnešních datech je
+  **neznámá** (je z 2021, trénovací data k němu nejsou). Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
+  postup je v dokumentu, ale první je změřit CPU cestu na Pi.
 - [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze
   streamu (poloha+kurz, trajektorie, trasa/graf, značky) + vrstva „Mapa (vize)" mimo stream

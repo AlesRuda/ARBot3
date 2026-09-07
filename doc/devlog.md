@@ -37,7 +37,76 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-07
+
+- **Segmentace změřena na venkovním záznamu** (`records/test/20260906-082403.rec`) — na pokyn
+  autora, protože včerejší čísla byla ze simulace a z nočního záznamu.
+  - **Levá (funkční) kamera: shoda s histogramem 89,6 %** (p50), síť hlásí 70–75 % sjízdné plochy
+    proti 80–85 % histogramu. **Rozdíl je vidět až na skutečném asfaltu**
+    ([obrázek](media/backproject-nn-vs-hist-20260907.png)): histogram rozhoduje per-pixel podle
+    barvy, takže uprostřed cesty **zrní** a hranice trávy je roztřepená; síť dá souvislou plochu
+    s měkkým přechodem. V simulaci tenhle rozdíl vidět není (jednolitě šedá cesta).
+  - ⚠️ **Není to verdikt „síť je lepší"** — ground truth k záznamu není. Na zarostlé ploše bez
+    zjevné cesty (`--skip=2000`) je síť **nerozhodná** (výstup kolem 0,5), zatímco histogram tvrdí
+    80 % sjízdné; která odpověď je správná, se z těch dat nepozná.
+  - **Report rozdělen podle kamer** a počítá **kolik různých obrazů** kamera dodala. Vzniklo to
+    tak, že první čísla vypadala podezřele stabilně (p50 ≈ p90 ≈ max) — v tom záznamu má pravá
+    D435 zamrzlý barevný stream (1 různý obraz ze 60, viz [hardware.md](hardware.md), 6. 9.),
+    takže **průměr přes obě kamery mísil živá data s jedinou fotkou**. Report na to teď upozorní.
+  - `--png` ukládá **jeden složený obrázek** (vstup | histogram | síť) místo tří souborů.
+- **`models/` je v gitu** (rozhodnutí autora). Bez modelů by `backproject=nn` na čerstvé pracovní
+  kopii nešlo ani spustit, ani přeměřit. `.gitattributes` dostal `*.tflite`/`*.onnx` jako
+  `binary` a `*.py` jako `eol=lf` — `tflite2onnx.py` se pouští ve WSL a se shebangem a CRLF by
+  hlásil „bad interpreter", stejně jako už dřív `*.sh`.
+- **`D435_GrabsFrame_WithExpectedResolution` se bez kamery přeskočí** (na pokyn autora). Test už
+  `Assert.Ignore` měl, ale jen pro selhání konstruktoru — a ten na Windows **nevyhodí výjimku ani
+  bez kamery** (pipeline se rozjíždí na pozadí a selže až pak), takže test padal na každém stroji
+  bez D435 a hlásil poruchu tam, kde žádná není. Teď se přeskočí i když do 5 s nedorazí snímek.
+
 ## 2026-09-06
+
+- **Sémantická segmentace sjízdnosti neuronovou sítí (`backproject=nn`)** — druhá implementace
+  `IBackProject` vedle histogramu barev. Vzniklo z dotazu autora, jak dělat inferenci modelu
+  z `models/` efektivně na Orange Pi 5 Ultra. Podrobně:
+  [semantic-segmentation.md](semantic-segmentation.md).
+  - **Nejdřív se muselo zjistit, co ten model vlastně je** — rozparsováním TFLite flatbufferu:
+    U-Net s MobileNetV2 bloky, vstup `[1,128,128,3]`, výstup `[1,128,128,2]`, **112,5 MMAC**.
+    Klíčový nález: **float varianta má dynamické tvary** (deklarovaný výstup `[1,1,1,2]` je
+    placeholder), takže se převést nedá — použitelná je jen `Model61.1_int8.tflite`.
+  - **Zvolen ONNX Runtime**, ne TFLite runtime: jeden NuGet nese nativku pro win-x64 i linux-arm64,
+    takže v simulaci i na robotu běží **týž kód**. Ověřeno publishem pro OrangePI — v `-r linux-arm64`
+    je správné `libonnxruntime.so` (24,5 MB), publish naroste 45 → **70 MB**.
+  - **Předzpracování se našlo v ARBot2** (`EdgeTPUDll/EdgeTPU.cpp`) — pořadí kanálů **RGB**
+    a `v/255`. Bez toho zdroje by to byl odhad: model má vstupní kvantizaci
+    `scale=0,00452 zp=9`, tedy posílat syrové bajty 0..255 by byl systematický posun, který by
+    se projevil jen jako trochu horší segmentace.
+  - **Kvantizace se schovala dovnitř modelu** (`models/tflite2onnx.py` zahodí úvodní
+    `DequantizeLinear` a závěrečný `QuantizeLinear`): float na hranici, int8 uvnitř. C# strana pak
+    nemá žádné magické konstanty a `OnnxBackProject` kvantované I/O **odmítá** — jinak by
+    špatná konstanta byla tichá vada, ne chyba.
+  - **Výstup se normalizuje součtem kanálů**, aby práh 128 dal totéž rozhodnutí jako původní
+    `out[0] < out[1]`. Model končí sigmoidou, takže součet kanálů není 1 (naměřeno 0,85–1,18) —
+    bez normalizace by se rozhodnutí lišila. Hlídá to test.
+  - **Hotovo a ověřeno na Windows:** 14 testů (integrační se přeskočí, když model chybí), build
+    x64 i publish OrangePI, běh `ARBot.Headless virtualhw=true backproject=nn` (síť se založí
+    dvakrát — po jedné na kameru), chybějící model **shodí start** s hláškou v crash logu místo
+    tichého návratu k histogramu.
+  - **Měřidlo `ARBot.Analyze backproject`** — čas obou převodů nad snímky ze záznamu a shoda
+    jejich verdiktu. Nad `records/20260823-182213.rec` (Release, 80 snímků): síť **11,3 ms**
+    (int8) / **6,9 ms** (float) proti **2,4 ms** histogramu, **shoda rozhodnutí 97,4 %**.
+    Uložené PNG potvrzuje, že síť kopíruje hranici cesty správně.
+  - ⚠️ **Shoda 97,4 % je kontrola implementace, ne důkaz kvality** — na simulované scéně se šedou
+    cestou a zelenou trávou má histogram snadnou úlohu. První pokus o měření nad záznamem ze
+    zařízení (`20260902-222601.rec`) skončil shodou 41 %, než se ukázalo, že je natočený **za tmy**
+    (histogram tam označí 92 % plochy za sjízdnou) — pro porovnání kvality je nepoužitelný.
+  - **Rozpracováno / další krok:** (1) **změřit na Orange Pi** — jediné číslo, které rozhoduje;
+    na vývojovém PC stojí síť při dvou kamerách po 30 fps 68 % jednoho jádra. (2) Zjistit, jestli
+    je na ARM rychlejší int8 nebo float varianta (na x86 vyhrává float). (3) Změřit dopad menšího
+    rozlišení (128×128 proti plnému snímku) na hranice cesty a occupancy grid. (4) Teprve pak
+    případně NPU (RK3588) — postup je v dokumentu.
+  - ⚠️ **Z `models/` během dne zmizel `Model61.1_int8_edgetpu.tflite`**, který tam ráno byl.
+    Pro ONNX cestu je bez užitku (kompilát pro Coral se nekonvertuje) a originál je v ARBot2,
+    odkud se modely kopírovaly.
 
 - **`nasad.ps1` nasazuje i `config/` a `OSM/`** (na přání autora). Do té doby se profily a mapy
   nenasazovaly vůbec a musely se kopírovat ručně — a poznalo se to až tím, že se změna

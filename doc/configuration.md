@@ -310,6 +310,24 @@ prázdná hodnota nebo `false` znamená bez záznamu.
 člověka nad nastavením, stejně jako příkazová řádka nad profilem. Řeší to jedno místo
 (`ARBotRuntime.Start`), takže na tom nezáleží, odkud se Run spustil.
 
+## Sémantická segmentace (`backproject=`, `nnmodel=`, `nnchannels=`)
+
+Převod barva → pravděpodobnost sjízdnosti má dvě implementace a vybírá se **selektorem**, ne
+booleovským přepínačem (stejně jako `mission=`):
+
+| parametr | výchozí | co dělá |
+|---|---|---|
+| `backproject=` | `hist` | `hist` = zpětná projekce z histogramu barev, `nn` = neuronová síť (ONNX Runtime) |
+| `nnmodel=` | `models/Model61.1_int8.onnx` | model pro `backproject=nn` |
+| `nnchannels=` | `rgb` | pořadí kanálů na vstupu sítě (`rgb` je pořadí z ARBot2); je tu na A/B |
+
+**Chybějící nebo vadný model shodí start**, nevrátí se tiše k histogramu — stejný důvod jako
+u neznámého klíče v profilu: tichý fallback by znamenal, že měření sítě by nepozorovaně měřilo
+histogram. ⚠️ Síť počítá ve **128×128**, kdežto histogram v plném rozlišení snímku, takže
+přepnutí mění i hustotu dat pro occupancy grid a hranice cesty.
+
+Podrobnosti, naměřená čísla a otevřené otázky: [semantic-segmentation.md](semantic-segmentation.md).
+
 ## Kvalita GPS fixu (`gpsminsat=`, `gpsmaxdop=`, `gpsdopsigma=`)
 
 Fúze posuzuje, **jak dobrý fix dostala**, místo aby brala každý stejně:
