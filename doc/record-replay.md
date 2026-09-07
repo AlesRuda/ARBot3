@@ -482,8 +482,10 @@ příkazované, podíl nouzového zastavení, minimální odstup proti `SafeDist
 [devlog 2. 9. 2026](devlog.md)), `poses` (póza
 pořízení ve snímcích a o kolik se hranice kreslila vedle), `cameras` (chodí z kamer **opravdu nové
 snímky**? viz níž), `backproject` (vyplatí se neuronová síť místo histogramu? čas obou převodů
-barva → pravděpodobnost nad snímky ze záznamu a jak moc se liší jejich verdikt; `--png=<prefix>`
-uloží vstup i oba výstupy vedle sebe — viz [semantic-segmentation.md](semantic-segmentation.md)),
+barva → pravděpodobnost nad snímky ze záznamu a jak moc se liší jejich verdikt; `--truth=` měří
+obě metody **proti ručně označené pravdě**, `--compare=<modely>` místo měření udělá **srovnávací
+obrázek** (řádek = snímek, sloupce = vstup, histogram a každý model) — viz
+[semantic-segmentation.md](semantic-segmentation.md)),
 `types`.
 
 ### `log`: co aplikace při běhu hlásila

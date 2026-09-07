@@ -62,10 +62,38 @@ prepisuji soubory, ktere se na robotu LISI od repa (rucni upravy zmizi):
 ```
 
 Vypnout to jde `-NoData`; jiný cíl `-DataDir`. **Záznamy a logy v `~/arbot` se netýkají** —
-rozbaluje se jen `config/` a `OSM/`.
+rozbaluje se jen `config/`, `OSM/` a `models/`.
 
 Kontrola, že se profil opravdu projevil: v účinné konfiguraci (v záznamu, `ARBot.Analyze log`)
 musí být u klíče původ `(profil)`.
+
+### Modely segmentace a runtime NPU (od 7. 9. 2026)
+
+Aby šlo na robotu zapnout `backproject=nn` (síť na CPU) nebo `backproject=npu` (NPU), musí tam
+být dvě věci navíc. Obojí nasazuje `nasad.ps1` sám:
+
+| co | kam | proč tam |
+|---|---|---|
+| `models/*.onnx`, `models/*.rknn` | `~/arbot/models/` (datový adresář) | `nnmodel=` / `npumodel=` se řeší proti `dataroot=`, takže výchozí `models/Model61.1.rknn` sedí bez zadávání cesty |
+| `librknnrt.so` | `~/arbot-headless/` (vedle binárek) | `DllImport` ji hledá u aplikace; do stínové kopie ji dostane `stin.sh` |
+
+**Z `models/` se posílá jen to, co robot čte** — zdrojové `.tflite`, `.h5`, 50snímková testovací
+sada a převodní skripty zůstávají v repu. **Všechny `.onnx`/`.rknn` varianty se posílají schválně**:
+dá se pak A/B měřit přímo na robotu bez dalšího nasazování. Runtime knihovna NPU je binárka třetí
+strany a v gitu **je** (`Src/ThirdParty/RKNN`), ze stejného důvodu jako RealSense DLL: bez ní
+nejde nasadit funkční celek. Podrobnosti a verze:
+[Src/ThirdParty/RKNN/README.md](../Src/ThirdParty/RKNN/README.md).
+
+⚠️ **Verze `librknnrt.so` musí odpovídat toolkitu, kterým se `.rknn` model převedl** (obojí
+2.3.2). Mění se proto naráz.
+
+Ověřeno 7. 9. 2026 celým řetězem: po `nasad.ps1` a restartu služby najde runtime model na výchozí
+cestě a obě kamery nastartují na NPU (v logu `jadro NPU maska 1` / `2`).
+
+⚠️ **Po `-NoRestart` je ve stínové kopii ještě STARÁ binárka.** `stin.sh` ji obnovuje až při
+**startu služby**, takže kdo po nasazení spustí runtime ručně z `~/arbot-headless-run`, měří něco
+jiného, než co právě nasadil. Naběhnuto 7. 9. 2026 při testu `camerafps=` — parametr se „neprojevil",
+ačkoli kód byl správně. Buď restartuj službu, nebo pusť `~/arbot-headless/stin.sh` ručně.
 
 ## Provoz
 

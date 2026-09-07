@@ -59,16 +59,14 @@ namespace ARBot.Analyze
                               + (entries.Count < celkem ? $" (cte se {entries.Count} od poradi {skip})" : ""));
             if (entries.Count == 0) return;
 
-            var opts = new OnnxBackProjectOptions
-            {
-                ChannelOrder = bgr ? NnChannelOrder.Bgr : NnChannelOrder.Rgb,
-            };
-            using var nn = new OnnxBackProject(modelPath, opts);
+            var channels = bgr ? NnChannelOrder.Bgr : NnChannelOrder.Rgb;
+            // Podle pripony: .rknn jde na NPU, jinak ONNX Runtime na CPU.
+            using var nn = NnBackProject.Open(modelPath, channels);
             var hist = new BackProject(BackProject.RoadProbability);
 
             Console.WriteLine($"model: {Path.GetFileName(modelPath)}, vstup {nn.InputWidth}x{nn.InputHeight}, "
                               + $"vystup {nn.OutputWidth}x{nn.OutputHeight}x{nn.OutputChannels}, "
-                              + $"kanaly {opts.ChannelOrder}");
+                              + $"kanaly {channels}");
             Console.WriteLine();
 
             // Statistika ZVLAST za kazdou kameru. Michat je dohromady je past: 6. 9. 2026 mela

@@ -60,7 +60,7 @@ namespace ARBot.Common.Vision.Nn
     ///
     /// <para>Podrobnosti a mereni: doc/semantic-segmentation.md.</para>
     /// </summary>
-    public sealed class OnnxBackProject : IBackProject, IDisposable
+    public sealed class OnnxBackProject : INnBackProject
     {
         private const float Inv255 = 1f / 255f;
 

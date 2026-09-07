@@ -185,14 +185,26 @@ def check(tflite_path, onnx_path, image):
     ifloat = "float" in s.get_inputs()[0].type    # vstup uz je v realnych jednotkach (0..1)
     ofloat = "float" in s.get_outputs()[0].type   # vystup uz je pravdepodobnost
 
-    for label, x in cases:
-        # TFLite: kvantizace vstupu presne jako ARBot2 (v/255 -> q)
-        q = np.clip(np.round((x / 255.0) / isc) + izp, 0, 255).astype(np.uint8)
-        it.set_tensor(di["index"], q)
-        it.invoke()
-        ref = (it.get_tensor(do["index"]).astype(np.float32) - ozp) * osc
+    # Model muze mit vstup kvantovany (uint8) i float - u float uz zadna kvantizace neni
+    # a posila se rovnou v/255. Kdyz se to splete, TFLite to rovnou odmitne
+    # ("Got value of type UINT8 but expected type FLOAT32"), takze tichá chyba nehrozi.
+    tfl_float_in = di["dtype"] in (np.float32, np.float64)
+    tfl_float_out = do["dtype"] in (np.float32, np.float64)
 
-        y = s.run(None, {iname: (x / 255.0).astype(np.float32) if ifloat else q})[0].astype(np.float32)
+    for label, x in cases:
+        norm = (x / 255.0).astype(np.float32)
+        if tfl_float_in:
+            vstup = norm
+        else:
+            # kvantizace vstupu presne jako ARBot2 (v/255 -> q)
+            vstup = np.clip(np.round(norm / isc) + izp, 0, 255).astype(np.uint8)
+        it.set_tensor(di["index"], vstup)
+        it.invoke()
+        ref = it.get_tensor(do["index"]).astype(np.float32)
+        if not tfl_float_out:
+            ref = (ref - ozp) * osc
+
+        y = s.run(None, {iname: norm if ifloat else vstup})[0].astype(np.float32)
         if not ofloat:
             y = (y - ozp) * osc
 

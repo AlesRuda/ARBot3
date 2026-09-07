@@ -320,6 +320,15 @@ booleovským přepínačem (stejně jako `mission=`):
 | `backproject=` | `hist` | `hist` = zpětná projekce z histogramu barev, `nn` = neuronová síť (ONNX Runtime) |
 | `nnmodel=` | `models/Model61.1_int8.onnx` | model pro `backproject=nn` |
 | `nnchannels=` | `rgb` | pořadí kanálů na vstupu sítě (`rgb` je pořadí z ARBot2); je tu na A/B |
+| `npumodel=` | `models/Model61.1.rknn` | model pro `backproject=npu` (vlastní parametr, aby nešel `.onnx` podstrčit do NPU a naopak) |
+| `camerafps=` | 30 | snímková frekvence kamer D435 [sn/s] — **jen 6, 15, 30, 60** |
+
+`camerafps=` se hodí, když segmentace nestíhá: dražší model (Model96.2 na NPU ~44 ms/snímek)
+sráží skutečnou frekvenci na ~16 sn/s a zbytek snímků se zahodí. Snížením se kamera rovnou ptá
+na tolik, kolik se stihne. ⚠️ **Propustnost to nezvýší** (naopak, o ~2 sn/s nižší) — ušetří jen
+USB, dekódování a zápis práce, která by se stejně zahodila. Povolené hodnoty hlídá registr při
+startu, protože na jinou frekvenci RealSense pipeline **nenastartuje** a vypadalo by to jako
+porucha kamery.
 
 **Chybějící nebo vadný model shodí start**, nevrátí se tiše k histogramu — stejný důvod jako
 u neznámého klíče v profilu: tichý fallback by znamenal, že měření sítě by nepozorovaně měřilo

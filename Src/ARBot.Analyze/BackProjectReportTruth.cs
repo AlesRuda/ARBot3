@@ -75,13 +75,13 @@ namespace ARBot.Analyze
                 return;
             }
 
-            var opts = new OnnxBackProjectOptions { ChannelOrder = bgr ? NnChannelOrder.Bgr : NnChannelOrder.Rgb };
-            using var nn = new OnnxBackProject(modelPath, opts);
+            // Podle pripony: .rknn jde na NPU, jinak ONNX Runtime na CPU.
+            using var nn = NnBackProject.Open(modelPath, bgr ? NnChannelOrder.Bgr : NnChannelOrder.Rgb);
             var hist = new BackProject(BackProject.RoadProbability);
 
             Console.WriteLine($"sada: {dir} ({pary.Count} snimku)");
             Console.WriteLine($"model: {Path.GetFileName(modelPath)}, vystup {nn.OutputWidth}x{nn.OutputHeight}, "
-                              + $"kanaly {opts.ChannelOrder}");
+                              + $"kanaly {(bgr ? NnChannelOrder.Bgr : NnChannelOrder.Rgb)}");
             Console.WriteLine($"histogram: BackProject.RoadProbability (tatataz tabulka, kterou pouziva runtime)");
             Console.WriteLine($"prah pravdy: {truthThreshold} (maska je sjizdna od teto hodnoty)");
             Console.WriteLine();
@@ -204,7 +204,7 @@ namespace ARBot.Analyze
         /// cislo neukaze, <i>jak</i> se metoda myli — a jak se myli je to, co se opravuje.
         /// </summary>
         private static void UlozNejhorsi(string prefix, string dir, string jmeno,
-                                         OnnxBackProject nn, BackProject hist)
+                                         INnBackProject nn, BackProject hist)
         {
             try
             {

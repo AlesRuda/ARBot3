@@ -1,4 +1,4 @@
-using ARBot.Common;
+﻿using ARBot.Common;
 using ARBot.Common.Common;
 using System;
 using System.Collections.Generic;
@@ -110,6 +110,13 @@ namespace ARBot.Common.Configuration
         /// Robot se bude snazit zastavit dle udaju z lidaru LidarSafetyZone mru pred prekazkou.
         /// </summary>
         public static double LidarSafetyZone = 0.6;
+
+        /// <summary>
+        /// Vychozi snimkova frekvence kamer [sn/s]. Bydli tu (a ne v <c>CameraSettings</c>),
+        /// aby ji videl registr parametru - <c>Common</c> na <c>HAL</c> nereferencuje a default
+        /// se ma psat jen jednou. Povolene hodnoty hlida <c>ParamParsers.CameraFps</c>.
+        /// </summary>
+        public static int CameraFps = 30;
 
         /// <summary>
         /// Bezpecna vzdalenost prekazek od robota, aby projel.

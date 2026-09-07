@@ -9,7 +9,22 @@ Modely pro sémantickou segmentaci sjízdnosti (`backproject=nn`). Podrobnosti, 
 | `Model61.1_int8.tflite` | plně kvantovaná varianta téhož, statické tvary — **zdroj pro převod** |
 | `Model61.1_int8.onnx` | převedený pro ONNX Runtime, int8 vnitřek (840 kB) — výchozí `nnmodel=` |
 | `Model61.1_int8_deq.onnx` | **taky z `_int8.tflite`**, jen s `--dequantize`: kvantované váhy rozbalené do float (2,6 MB) — pro A/B měření. **Není** to původní float model, přesnost zůstává jako u int8. |
+| `Model61.1.rknn` | pro **NPU** RK3588 (`backproject=npu`) — z float ONNX přes `onnx2rknn.py` |
 | `tflite2onnx.py` | převodní nástroj (TFLite → ONNX + ověření proti TFLite) |
+| `onnx2rknn.py` | převodní nástroj (float ONNX → RKNN pro NPU) |
+| `keras2onnx.py` | převodní nástroj (Keras `.h5` → float ONNX s pevnými tvary) |
+
+### Model96.2 — přesnější, ale 34× dražší
+
+| soubor | co to je |
+|---|---|
+| `Model96.2_0.9643115401268005.h5` | Keras checkpoint — **jediný skutečně float zdroj** |
+| `Model96.2.tflite` | dynamic-range kvantizovaný (váhy int8), float I/O, statické tvary |
+| `Model96.2_int16.tflite` | int16 kvantizace — dodaná autorem; ⚠️ je to indicie, že model int8 nesnese, a měření to potvrdilo |
+| `Model96.2.onnx` | z `.tflite` pro CPU cestu (na Pi 637 ms — **nepoužitelné**) |
+| `Model96.2_float.onnx` | z `.h5` přes `keras2onnx.py` — zdroj pro RKNN |
+| `Model96.2.rknn` | **fp16 na NPU: 44 ms, 96,66 %** — tahle varianta se používá |
+| `Model96.2_int8.rknn` | ⚠️ 22 ms, ale přesnost spadne na **37,8 %** — nepoužitelné, drženo jako důkaz |
 
 Model je U-Net s MobileNetV2 bloky: vstup `[1,128,128,3]`, výstup `[1,128,128,2]`,
 **kanál 1 = sjízdno**, 112,5 MMAC na snímek.

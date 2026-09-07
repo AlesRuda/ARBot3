@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 
 namespace ARBot.Common.Configuration
@@ -103,6 +103,24 @@ namespace ARBot.Common.Configuration
                && v > 0
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam cislo vetsi nez 0");
+
+        /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
+        public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
+
+        /// <summary>
+        /// Snimkova frekvence kamer: jen hodnota, kterou D435 umi.
+        ///
+        /// <para>Volny rozsah by tu byl past: RealSense pipeline na neznamou frekvenci
+        /// <b>nenastartuje</b> a projevi se to jako "kamera se nepripojila" - tedy zdanliva
+        /// porucha hardwaru misto preklepu v profilu. Radeji chyba pri startu, stejne jako
+        /// u portu nahledu.</para>
+        /// </summary>
+        public static ParamParseResult CameraFps(string text)
+            => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)
+               && Array.IndexOf(CameraFpsHodnoty, v) >= 0
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam snimkovou frekvenci, kterou D435 zna: "
+                                          + string.Join(", ", CameraFpsHodnoty));
 
         /// <summary>
         /// Port weboveho nahledu: 0 (vypnuto) nebo cele cislo 1024-65535.

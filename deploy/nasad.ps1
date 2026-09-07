@@ -3,11 +3,20 @@
 #   .\deploy\nasad.ps1                      # publish + kopie + restart sluzby
 #   .\deploy\nasad.ps1 -RobotHost 192.168.7.1   # jina adresa (AP misto kabelu)
 #   .\deploy\nasad.ps1 -NoRestart           # jen nahrat, nerestartovat
-#   .\deploy\nasad.ps1 -NoData              # nenasazovat config/ a OSM/
+#   .\deploy\nasad.ps1 -NoData              # nenasazovat config/, OSM/ ani modely
 #
 # Nasazuje se do ~/arbot-headless; aplikace bezi ze stinove kopie ~/arbot-headless-run
 # (obnovuje ji stin.sh pri kazdem startu sluzby), takze cil jde prepsat i za behu.
 # Zaznamy a logy zustavaji v ~/arbot a NESAHA se na ne.
+#
+# MODELY SEGMENTACE (models/*.onnx, *.rknn) jdou taky do datoveho adresare, protoze se
+# nnmodel=/npumodel= resi proti nemu. Zdrojove .tflite, testovaci sada a prevodni skripty
+# na robotu nemaji co delat, takze se vynechavaji. Vsechny varianty modelu se posilaji
+# schvalne: da se pak A/B merit primo na robotu bez dalsiho nasazovani.
+#
+# librknnrt.so (runtime NPU, Src/ThirdParty/RKNN) se kopiruje VEDLE BINAREK, odkud si ji
+# vezme i stinova kopie (stin.sh bere vsechny soubory z korene). Bez ni spadne
+# backproject=npu hned pri startu na DllNotFoundException.
 #
 # PROFILY A MAPY (config/, OSM/) se nasazuji taky, ale do DATOVEHO ADRESARE ~/arbot -
 # tedy tam, odkud je aplikace cte (dataroot=). Vedle binarek zamerne nejsou: dve kopie
@@ -73,20 +82,26 @@ if ($LASTEXITCODE -ne 0) { throw "rozbaleni na Pi selhalo" }
 Remove-Item $tgz -Force -ErrorAction SilentlyContinue
 
 # --------------------------------------------------------------------------------
-# Profily a mapy do datoveho adresare
+# Profily, mapy a modely do datoveho adresare
 # --------------------------------------------------------------------------------
 if (-not $NoData) {
-    Write-Host "== profily a mapy do $cil`:$DataDir" -ForegroundColor Cyan
+    Write-Host "== profily, mapy a modely do $cil`:$DataDir" -ForegroundColor Cyan
+
+    # Z models/ jen to, co robot skutecne CTE - ne zdrojove .tflite, 50snimkovou testovaci
+    # sadu ani prevodni skripty. Bez filtru by se posilalo 3x vic bajtu nez je potreba
+    # a na robotu by lezela data, ktera tam nemaji co delat.
+    $modely = @(Get-ChildItem -Path (Join-Path $repo "models") -File |
+                Where-Object { $_.Extension -in @(".onnx", ".rknn") })
 
     # Nejdriv rict, co se prepise. Rucni uprava na robotu je legitimni vec (nekdo tam
     # neco doladil za tmy u robota) a nema zmizet bez varovani - jen se o ni ma vedet.
     $mistni = @{}
-    foreach ($f in (Get-ChildItem -Path (Join-Path $repo "config"), (Join-Path $repo "OSM") -File -Recurse)) {
+    foreach ($f in ((Get-ChildItem -Path (Join-Path $repo "config"), (Join-Path $repo "OSM") -File -Recurse) + $modely)) {
         $rel = $f.FullName.Substring($repo.Length + 1) -replace '\\', '/'
         $mistni[$rel] = (Get-FileHash $f.FullName -Algorithm MD5).Hash.ToLower()
     }
     $vzdalene = @{}
-    $vystup = & ssh $cil "cd $DataDir 2>/dev/null && find config OSM -type f -exec md5sum {} + 2>/dev/null"
+    $vystup = & ssh $cil "cd $DataDir 2>/dev/null && find config OSM models -type f -exec md5sum {} + 2>/dev/null"
     foreach ($r in $vystup) {
         if ($r -match '^([0-9a-f]{32})\s+(.+)$') { $vzdalene[$Matches[2]] = $Matches[1] }
     }
@@ -100,18 +115,22 @@ if (-not $NoData) {
     if ($lisi.Count -eq 0 -and $nove.Count -eq 0) { Write-Host "   beze zmeny" -ForegroundColor DarkGray }
 
     # Baleni a prenos stejnou cestou jako binarky (scp, ne tar rourou - viz poznamka vyse).
+    # Modely se davaji VYCTEM SOUBORU, ne celym adresarem - viz filtr vyse.
     $dtgz = Join-Path $env:TEMP "arbot-data.tgz"
-    & tar -czf $dtgz -C $repo config OSM
-    if ($LASTEXITCODE -ne 0) { throw "zabaleni config/OSM selhalo" }
+    $modelyRel = @($modely | ForEach-Object { "models/" + $_.Name })
+    & tar -czf $dtgz -C $repo config OSM @modelyRel
+    if ($LASTEXITCODE -ne 0) { throw "zabaleni config/OSM/modelu selhalo" }
     & scp -q $dtgz "${cil}:/tmp/arbot-data.tgz"
     if ($LASTEXITCODE -ne 0) { throw "kopie config/OSM na Pi selhala" }
-    # Rozbaluje se JEN do config/ a OSM/; records/ a logs/ v datovem adresari se netykaji.
+    # Rozbaluje se JEN do config/, OSM/ a models/; records/ a logs/ se netykaji.
     & ssh $cil "mkdir -p $DataDir && tar -xzf /tmp/arbot-data.tgz -C $DataDir && rm -f /tmp/arbot-data.tgz"
     if ($LASTEXITCODE -ne 0) { throw "rozbaleni config/OSM na Pi selhalo" }
     Remove-Item $dtgz -Force -ErrorAction SilentlyContinue
+    $mb = [math]::Round((($modely | Measure-Object Length -Sum).Sum) / 1MB, 1)
+    Write-Host "   modely: $($modely.Count) souboru ($mb MB)" -ForegroundColor DarkGray
 }
 else {
-    Write-Host "== -NoData: config/ a OSM/ se nenasazuji" -ForegroundColor DarkGray
+    Write-Host "== -NoData: config/, OSM/ ani modely se nenasazuji" -ForegroundColor DarkGray
 }
 
 # libNativeLib.so se cross-kompiluje ve WSL a publish ji NENESE. Bez ni Run spadne hned
@@ -122,6 +141,19 @@ if ($so -eq "chybi") {
     Write-Warning "libNativeLib.so neni ani v $Dir, ani v /home/ales/arbot - Run spadne na DllNotFoundException. Viz doc/build-and-platforms.md."
 } else {
     Write-Host "   libNativeLib.so: $so" -ForegroundColor DarkGray
+}
+
+# librknnrt.so (runtime NPU) je binarka tretich stran a v gitu JE (Src/ThirdParty/RKNN),
+# protoze bez ni nejde nasadit funkcni celek - stejny duvod jako u RealSense DLL. Bez ni
+# spadne backproject=npu hned pri startu; ostatnim cestam nechybi nic.
+# Kopiruje se vedle binarek, odkud si ji vezme i stinova kopie (stin.sh).
+$rknnLib = Join-Path $repo "Src\ThirdParty\RKNN\librknnrt.so"
+if (Test-Path $rknnLib) {
+    & scp -q $rknnLib "${cil}:$Dir/librknnrt.so"
+    if ($LASTEXITCODE -ne 0) { throw "kopie librknnrt.so na Pi selhala" }
+    Write-Host "   librknnrt.so: nasazena (NPU)" -ForegroundColor DarkGray
+} else {
+    Write-Warning "librknnrt.so chybi v $rknnLib - backproject=npu na robotu spadne. Viz Src/ThirdParty/RKNN/README.md."
 }
 
 if ($NoRestart) {

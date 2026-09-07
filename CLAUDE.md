@@ -227,8 +227,32 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ([obrázek](doc/media/backproject-nn-vs-hist-20260907.png)): histogram rozhoduje per-pixel podle
   barvy, takže **zrní** a hranice trávy je roztřepená; síť dá souvislou plochu. ⚠️ **Není to ale
   verdikt** — ground truth k záznamu není a na zarostlé ploše bez cesty je síť nerozhodná,
-  zatímco histogram tvrdí 80 % sjízdné. ⚠️ **Na zařízení to neběželo** — a to je jediné číslo,
-  které rozhoduje: při dvou kamerách po 30 fps stojí síť 63–90 % jednoho jádra vývojového PC.
+  zatímco histogram tvrdí 80 % sjízdné. ✅ **Změřeno na Orange Pi 7. 9. 2026 a je to únosné:**
+  síť tam stojí **10,2 ms**, tedy prakticky totéž co na vývojovém PC — při dvou kamerách po 30 fps
+  ~61 % **jednoho** jádra z osmi, asi 7,6 % celkového CPU. ⚠️ **Na ARM je pořadí variant OBRÁCENÉ
+  než na x86**: int8 10,2 ms proti 15,0 (rozbalený) a 16,1 (float), kdežto na x86 int8 prohrával
+  (11,3 : 6,9 : 8,0). Výchozí `int8` je tedy správně — ale kdyby se vybíralo podle čísel z PC,
+  vybralo by se špatně. Přesnost je u všech tří variant stejná (88,16–88,23 %) a mezi Pi a Windows
+  vychází na setinu procenta shodně. ✅ **A/B za skutečného běhu runtime na Pi** (7. 9. 2026,
+  90 s na variantu, stojící robot): `compute_ms` celého zpracování snímku **8,7 → 15,7 ms**, tedy
+  **+6,2 až +7,0 ms** — a to je **míň, než stojí samotná inference (10,2 ms)**, protože se ušetří
+  histogram přes plný snímek a `PathEdges` běží nad **24× menším** obrazem. **Snímky se
+  neztrácejí** (30 sn/s drží obě varianty), řídicí smyčka si nestěžovala, alokace dokonce klesly
+  (70 proti 105 kB/snímek). Obě kamery stojí ~12 % CPU proti ~7 % u histogramu.
+  ⚠️ **Nikdy to ale nejelo ani neřídilo** — všechna měření jsou ze stojícího robota.
+  ✅ **NPU cesta hotová a změřená (7. 9. 2026): `backproject=npu`, `RknnBackProject` přes P/Invoke
+  na `librknnrt.so`, převod `models/onnx2rknn.py`.** **3,3 ms proti 10,2 ms na CPU** (3,1×), za běhu
+  runtime **jen +1,2 až +1,5 ms proti histogramu** (`compute_ms` 8,1 → 9,3), přesnost prakticky
+  stejná (87,71 % / IoU 0,838). Každá kamera dostane vlastní jádro NPU. **Padlo tím dřívější
+  doporučení psát C++ shim** — z `rknn_api` stačí pět volání a dvě malé struktury. Tři pasti, které
+  z dokumentace RKNN nejsou vidět: (a) zdrojem **musí být float model** (u kvantovaného RKNN ignoruje
+  mean/std a chce vstup už kvantovaný), (b) **u ONNX umí jen NCHW** a NHWC hlásí matoucím
+  „len of mean_values … expect 128!", (c) **normalizaci dělá NPU**, takže se posílají syrové bajty
+  0..255, ne 0..1 jako u ONNX. Driver je v jádře (`CONFIG_ROCKCHIP_RKNPU=y`, `/dev/dri/renderD129`) —
+  **nehledej `/dev/rknpu*`**, to je DRM node, a `lsmod` nic nenajde. ✅ **Nasazení to řeší** (7. 9. 2026):
+  `librknnrt.so` je v repu (`Src/ThirdParty/RKNN`) a `nasad.ps1` ji dá vedle binárek, modely
+  (`*.onnx`/`*.rknn`, ne zdroje ani testset) do datového adresáře — výchozí cesty tedy sedí
+  bez zadávání. Ověřeno celým řetězem včetně stínové kopie.
   ⚠️ Síť počítá ve **128×128** proti plnému snímku histogramu, takže mění hustotu dat pro
   occupancy grid i hranice cesty (dopad naměřený není) — a **zvětšit rozlišení není konfigurace,
   ale přetrénování**: squash 4:3 → 1:1 i nearest resize jsou **replika tréninku**, ne nedbalost,
@@ -240,15 +264,28 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   triviální „všechno je cesta" **68,7 %**. Rozhoduje ta správná chyba — histogram **vymýšlí cestu,
   kde není, 2,6× častěji** (FP 20,3 % proti 7,9 %) — ⚠️ ale **není to napříč sadou stejné**: na
   starších snímcích (`ck*`) síť 87,4 % proti 71,2 %, na novějších (`cl4*`, 2022) je **histogram
-  nepatrně lepší**. ⚠️ **Síť je o 7,3 p. b. horší, než tvrdí notebook** (88,2 proti 95,5 %)
-  a **není známo proč**; **nesmí se tvrdit, že model dává 95 %**. **Šest hypotéz je zamítnutých
+  nepatrně lepší**. ✅ **Mezera 88,2 vs 95,5 % je uzavřená (7. 9. 2026): trénovací sada se v čase
+  měnila**, takže Model61.1 (únor 2021) byl trénován i testován na jiných datech než dnešní
+  `models/testset` — čísla se neporovnávají. Sedí to s tím, že `fnTest` v notebooku obsahuje id
+  z června 2022, a hlavně s tím, že **Model96.2 mezeru nemá** (0,9680 proti 0,9682) při průchodu
+  toutéž cestou. Je to **vysvětlení, ne důkaz** (dohledatelné jen z časů v LabelBoxu, autor
+  rozhodl nedohledávat); praktický důsledek platí dál: **u Model61.1 se nesmí tvrdit, že dává
+  95 %** — na dnešní sadě dává 88,2 %. **Šest hypotéz je zamítnutých
   měřením** — kvantizace (float 88,16 = int8 88,23), jiný checkpoint, naše rekonstrukce sady
   (originál `ds_train` 88,15), pořadí kanálů (BGR 77,2), vzorkování při zmenšení (0,06 p. b.),
   „novější snímky jsou těžší". **Nezkoušej je znovu**, tabulka je v dokumentu. **Přesnost per-pixel sama nestačí**: „všechno je cesta"
   dá na téhle sadě 68,7 %, proto se tiskne i IoU a rozpad na cestu přidanou/zamlčenou.
-  ⚠️ **Model61.1 navíc nebyl nejlepší** — Model61.3 má 0,9599 při **stejné ceně**, Model96.2
-  0,9682, ale ~20–30× dražší (kandidát až pro NPU); ten slabší se vybral proto, že po kvantizaci
-  musel běžet na **Google Coralu**, což dnes neplatí. Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
+  ⚠️ **Model61.1 nebyl nejlepší** — Model61.3 má 0,9599 při **stejné ceně**, Model96.2 0,9682,
+  ale 34× dražší; ten slabší se vybral proto, že po kvantizaci musel běžet na **Google Coralu**,
+  což dnes neplatí. ✅ **Model96.2 změřen na NPU 7. 9. 2026:** na CPU **637 ms (nepoužitelné)**,
+  na NPU **44 ms** a **96,66 % / IoU 0,953** (proti 87,71 / 0,838 u 61.1), falešně přidaná cesta
+  **7,9 % → 2,0 %**. ⚠️ Cena: za běhu runtime **půlí snímkovou frekvenci** (16,5 proti 29 sn/s) —
+  a jestli to řízení vadí, se neví, nikdy s tím nejelo. ⚠️ **int8 ho ROZBIJE** (37,8 %, recall
+  0,209; `optimization_level=2` nepomůže), takže **musí běžet fp16** — autorova varianta
+  `_int16.tflite` to naznačovala předem. Zdrojem pro NPU musí být **Keras `.h5`**
+  (`models/keras2onnx.py`), protože `.tflite` je dynamic-range kvantovaný a RKNN ho odmítne
+  kvantizovat. **U Model96.2 mizí mezera „naměřeno vs. notebook"** (0,9680 proti 0,9682), kdežto
+  u 61.1 zbývá 7,3 p. b. nevysvětlených. Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
   postup je v dokumentu, ale první je změřit CPU cestu na Pi.
 - [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze

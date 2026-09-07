@@ -396,6 +396,7 @@ namespace ARBot.Robot
             // Diagnostika (traversability-timing CSV + GC merani na vlakne kamery) je volitelna: pro
             // soutezni jizdu ji lze vypnout parametrem diag=false (vypne co neni potreba). Default on.
             bool diag = ParamRegistry.Diag.Value;
+            int cameraIndex = 0;
             foreach (var s in hw.Sensors)
             {
                 if (s is ICamera cam)
@@ -407,7 +408,7 @@ namespace ARBot.Robot
                         1, 1, 1, 0, 0, 0.1f, null);
                     // Prevod barvy na pravdepodobnost: histogram, nebo neuronova sit (backproject=).
                     // Vlastni instance pro KAZDOU kameru - viz BuildBackProject.
-                    var bp = BuildBackProject();
+                    var bp = BuildBackProject(cameraIndex++);
                     var fp = new CameraFrameProcessor(
                         projectionResolver, gridCfg,
                         backProject: bp,
@@ -1667,21 +1668,28 @@ namespace ARBot.Robot
         /// Stejny duvod jako u neznameho klice v profilu (viz doc/configuration.md): tichy fallback
         /// by znamenal, ze A/B mereni site by nenapozorovane merilo histogram.</para>
         /// </summary>
-        private static IBackProject BuildBackProject()
+        /// <param name="cameraIndex">
+        /// Poradi kamery. U NPU z nej plyne, ktere jadro dostane: RK3588 ma tri a kdyz by obe
+        /// kamery jely na jednom, stoji si frontu. U ostatnich cest se nepouziva.
+        /// </param>
+        private static IBackProject BuildBackProject(int cameraIndex)
         {
-            if (!ParamRegistry.BackProject.Is("nn"))
+            bool npu = ParamRegistry.BackProject.Is("npu");
+            if (!npu && !ParamRegistry.BackProject.Is("nn"))
                 return new BackProject(BackProject.RoadProbability);
 
-            string path = ParamRegistry.NnModel.Value;
-            var opts = new OnnxBackProjectOptions
-            {
-                ChannelOrder = ParamRegistry.NnChannels.Is("bgr") ? NnChannelOrder.Bgr : NnChannelOrder.Rgb,
-            };
-            var nn = new OnnxBackProject(path, opts);
-            Trace.WriteLine($"backproject=nn: {System.IO.Path.GetFileName(path)}, vstup "
+            string path = npu ? ParamRegistry.NpuModel.Value : ParamRegistry.NnModel.Value;
+            var channels = ParamRegistry.NnChannels.Is("bgr") ? NnChannelOrder.Bgr : NnChannelOrder.Rgb;
+            // Jadra NPU jsou bitova maska 1/2/4; kamera 0 dostane prvni, kamera 1 druhe.
+            int coreMask = npu ? 1 << (cameraIndex % 3) : 0;
+
+            var nn = NnBackProject.Open(path, channels, coreMask: coreMask);
+            Trace.WriteLine($"backproject={(npu ? "npu" : "nn")}: {System.IO.Path.GetFileName(path)}, vstup "
                             + $"{nn.InputWidth}x{nn.InputHeight}, vystup {nn.OutputWidth}x{nn.OutputHeight}"
-                            + $"x{nn.OutputChannels}, kanaly {opts.ChannelOrder}. Pravdepodobnostni obraz "
-                            + "je tim v jinem rozliseni nez pri backproject=hist (plny snimek).");
+                            + $"x{nn.OutputChannels}, kanaly {channels}"
+                            + (npu ? $", jadro NPU maska {coreMask}" : string.Empty)
+                            + ". Pravdepodobnostni obraz je tim v jinem rozliseni nez pri "
+                            + "backproject=hist (plny snimek).");
             return nn;
         }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using ARBot.Common.Missions;
@@ -143,15 +143,27 @@ namespace ARBot.Common.Configuration
 
         // --- Vize ----------------------------------------------------------------------
         // Vycet MUSI odpovidat switchi v ARBotRuntime.BuildBackProject.
-        public static readonly StringParam BackProject = Vycet("backproject", "hist", new[] { "hist", "nn" }, K_VIZE,
+        public static readonly StringParam BackProject = Vycet("backproject", "hist", new[] { "hist", "nn", "npu" }, K_VIZE,
               "Prevod barvy na pravdepodobnost sjizdnosti: 'hist' (vychozi, zpetna projekce "
-              + "z histogramu barev - bezi vzdy a nic nepotrebuje) nebo 'nn' (semanticka "
-              + "segmentace neuronovou siti pres ONNX Runtime, model zada nnmodel=). "
+              + "z histogramu barev - bezi vzdy a nic nepotrebuje), 'nn' (semanticka segmentace "
+              + "neuronovou siti pres ONNX Runtime na CPU, model zada nnmodel=) nebo 'npu' (tataz "
+              + "sit na NPU RK3588 pres librknnrt.so, model zada npumodel= - JEN na Orange Pi). "
               + "Sit pocita v mensim rozliseni nez histogram, takze meni i hustotu dat pro "
               + "occupancy grid a hranice cesty. Viz doc/semantic-segmentation.md.");
         public static readonly PathParam NnModel = Cesta("nnmodel", "models/Model61.1_int8.onnx", K_VIZE,
               "Model semanticke segmentace (.onnx) pro backproject=nn. Vstup [1,H,W,3] float 0..1, "
               + "vystup [1,H,W,C] float - prevod z TFLite dela models/tflite2onnx.py.");
+        public static readonly PathParam NpuModel = Cesta("npumodel", "models/Model61.1.rknn", K_VIZE,
+              "Model pro backproject=npu (.rknn). Vlastni parametr, ne sdileny s nnmodel=, aby "
+              + "nesel omylem podstrcit .onnx do NPU cesty a naopak. Prevod dela models/onnx2rknn.py; "
+              + "vstup je uint8 0..255, normalizaci si dela NPU podle mean/std z prevodu.");
+        public static readonly DoubleParam CameraFps = Num("camerafps", Fmt(Profile.CameraFps), K_VIZE,
+              "Snimkova frekvence kamer D435 [sn/s]. Povolene jsou jen hodnoty, ktere kamera zna "
+              + "(6, 15, 30, 60) - na jinou pipeline nenastartuje a vypadalo by to jako porucha. "
+              + "Snizit se hodi, kdyz segmentace nestiha: Model96.2 na NPU stoji ~44 ms na snimek, "
+              + "takze pri 30 sn/s klesne skutecna frekvence na ~16. Vypnuti vysoke frekvence uz "
+              + "NA KAMERE je lepsi nez zahazovat hotove snimky - usetri to USB, dekodovani "
+              + "i zaznam. Viz doc/semantic-segmentation.md.", ParamParsers.CameraFps);
         public static readonly StringParam NnChannels = Vycet("nnchannels", "rgb", new[] { "rgb", "bgr" }, K_VIZE,
               "Poradi barevnych kanalu na vstupu site. 'rgb' (vychozi) je poradi z ARBot2 "
               + "(EdgeTPUDll/EdgeTPU.cpp). Prepinac je tu na A/B: na sedivé ceste a zelene trave "

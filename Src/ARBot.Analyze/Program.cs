@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -106,6 +106,14 @@ namespace ARBot.Analyze
                                       Arg(args, "--mindraha", 0));
                         return 0;
                     case "vn100": Vn100Report.Run(rec); return 0;
+                    case "backproject" when Text(args, "--compare") != null:
+                        // Srovnavaci mrizka (vstup | histogram | modely) misto mereni.
+                        BackProjectCompare.Run(rec, Text(args, "--compare"),
+                                               (int)Arg(args, "--pocet", 4),
+                                               Text(args, "--kamera"),
+                                               Text(args, "--png"),
+                                               args.Any(a => a == "--bgr"));
+                        return 0;
                     case "backproject":
                         BackProjectReport.Run(rec,
                                               Text(args, "--model") ?? DefaultModel(),
@@ -218,6 +226,11 @@ namespace ARBot.Analyze
             Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
             Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");
             Console.WriteLine("             --png=<prefix>). Cas je z TOHOTO stroje, ne z robota.");
+            Console.WriteLine("             --truth=<adresar> meri obe metody proti RUCNE OZNACENE PRAVDE");
+            Console.WriteLine("             (presnost, IoU, cesta pridana/zamlcena) misto vzajemne shody");
+            Console.WriteLine("             --compare=<m1.onnx,m2.rknn> misto mereni udela SROVNAVACI OBRAZEK:");
+            Console.WriteLine("             radek = snimek, sloupce = vstup, histogram a kazdy model");
+            Console.WriteLine("             (--pocet=<n>, --kamera=<nazev>, --png=<soubor>)");
             Console.WriteLine("             S --truth=<adresar> meri obe metody proti RUCNE OZNACENE PRAVDE");
             Console.WriteLine("             (presnost, IoU, precision/recall) a zaznam nepotrebuje — sadu");
             Console.WriteLine("             vytahne Src/Colab/ExportTestSet.ipynb do models/testset/");

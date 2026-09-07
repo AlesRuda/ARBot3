@@ -39,6 +39,146 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-07
 
+- **✅ ONNX inference změřena přímo na Orange Pi** — poslední velká neznámá u `backproject=nn`.
+  Nástroj se dá publikovat pro ARM zvlášť (`dotnet publish Src/ARBot.Analyze -p:Platform=OrangePI
+  -r linux-arm64`), i když je ze solution pro OrangePI vyloučený, takže se měřilo `ARBot.Analyze
+  backproject` přímo na zařízení — nad záznamem z Pi i proti sadě s pravdou.
+  - **Síť stojí 10,2 ms, tedy prakticky totéž co na vývojovém PC** (11,3 ms). Při dvou kamerách
+    po 30 snímcích/s je to ~61 % **jednoho** jádra z osmi, asi **7,6 % celkového CPU** — únosné.
+    Měřeno za běžící služby `arbot` (robot stál), tři běhy každé varianty, rozptyl pod 1 %.
+  - ⚠️ **Na ARM je pořadí variant OBRÁCENÉ než na x86.** int8 **10,2** ms proti 15,0 (rozbalený
+    do float) a 16,1 (float); na x86 int8 prohrával 11,3 : 6,9 : 8,0. Výchozí `int8` je tedy
+    správně — ale **kdyby se vybíralo podle čísel z vývojového PC, vybralo by se špatně.**
+    Tohle je přesně ten případ, kdy měření na cílové platformě není formalita.
+  - **Přesnost je u všech tří variant stejná** (88,16–88,23 %), takže kvantizace nestojí prakticky
+    nic — a mezi Pi a Windows vychází **na setinu procenta shodně**, tedy ORT dává na obou
+    platformách tytéž výsledky. To je vedlejší, ale příjemné: ladit se dá doma.
+  - **✅ A/B za skutečného běhu runtime** (na pokyn autora): služba `arbot` na dobu měření
+    zastavena, `ARBot.Headless` puštěn ručně s provozním profilem (**bez mise** — robot stál),
+    90 s na variantu, obě D435. Skript má pojistku, která službu vrátí i při chybě; po měření
+    služba běží dál a žádný záznam nevznikl (fáze čekání se nenahrává — potvrzeno).
+    - `compute_ms` celého zpracování snímku: **8,7 → 15,7 ms**, tedy **+6,2 až +7,0 ms**.
+    - ⚠️ **Přírůstek je MENŠÍ než cena inference (10,2 ms)** — se sítí se ušetří jinde: odpadne
+      histogram přes plný snímek (2,5 ms) a `PathEdges` běží nad 128×128 místo 640×480, tedy nad
+      **24× méně body**. Přechod na síť je proto levnější, než by se z ceny inference čekalo.
+    - **Snímky se neztrácejí**: 30 sn/s drží obě varianty (se sítí 29,8 proti 28,5 u histogramu).
+      Řídicí smyčka si nestěžovala (`perfwarn=70` nepřekročen), alokace klesly (70 proti
+      105 kB/snímek — menší pravděpodobnostní obraz). Obě kamery ~12 % CPU proti ~7 %.
+  - ⚠️ **Nikdy s tím ale nejelo a nikdy to neřídilo** — všechna měření jsou ze stojícího robota.
+    Že segmentace vypadá líp, ještě neznamená, že podle ní robot pojede líp.
+- **Srovnávací obrázek: co která metoda vidí** (na přání autora). Nový režim
+  `ARBot.Analyze backproject --compare=<modely>` udělá mřížku — řádek = snímek ze záznamu,
+  sloupce = vstup, histogram a libovolný počet modelů. Snímky se berou **rozprostřené po celém
+  záznamu**, ne první za sebou (ty jsou při 30 sn/s prakticky totožné). Panely jsou v rozlišení
+  **sítě** (128×128 i s deformací poměru stran), protože přesně tohle model vidí; zvětšují se
+  nejbližším sousedem, aby nevznikl dojem hladkosti, který v datech není.
+
+  ![Pět snímků z levé D435 (venkovní záznam), pro každý čtyři panely: vstup, sjízdnost z histogramu barev, z Model61.1 a z Model96.2](media/segmentace-srovnani-20260907.png)
+
+  *Levá D435, `records/test/20260906-082403.rec`. Bílá = sjízdné.* Čísla řeknou, **o kolik** se
+  metody liší; tenhle obrázek říká **čím**:
+  - **Histogram zrní.** Na asfaltu jsou roztroušené černé pixely (kamínky, listí, stíny) a hranice
+    trávy je roztřepená — rozhoduje se totiž per-pixel podle barvy, bez ohledu na okolí.
+  - **Obě sítě dávají souvislou plochu** s měkkým přechodem na hranici.
+  - **⚠️ Třetí řádek je ten důležitý: člověk na cestě.** Histogram jeho nohy prakticky nevidí
+    (jsou skoro bílé, tedy „sjízdné"), Model61.1 je naznačí a Model96.2 je označí zřetelně.
+    Přesně tenhle typ chyby čísla o přesnosti schovají — v celkovém IoU je pár set pixelů nohou
+    nepodstatných, pro robota je to překážka, do které pojede.
+  - **Čtvrtý řádek (šero, listí, keře)** je naopak scéna, kde jsou nejisté všechny tři.
+
+- **Provozní profil `pi-provoz.cfg` zapnul NPU a přibyl `camerafps=`** (na pokyn autora).
+  - Profil má nově **`backproject=npu` + `npumodel=models/Model61.1.rknn`**. Ověřeno na Pi:
+    runtime si model najde sám z profilu, obě kamery nastartují na NPU a frekvence zůstane
+    27,2 sn/s — tedy zapnutí sítě nic nestojí. V profilu je i **připravený zakomentovaný blok**
+    pro Model96.2 s `camerafps=15`.
+  - **`camerafps=`** (6 / 15 / 30 / 60) nastavuje frekvenci **přímo na kameře** (`EnableStream`),
+    ne zahazováním hotových snímků. Povolené hodnoty hlídá registr při startu: na jinou hodnotu
+    RealSense pipeline **nenastartuje** a vypadalo by to jako porucha kamery, ne jako překlep
+    v profilu. Výchozí hodnota bydlí v `Profile.CameraFps`, protože `Common` na `HAL`
+    nereferencuje a default se má psát jen jednou.
+  - Naměřeno: `camerafps=15` dá 14,3 / 12,9 sn/s proti 27,2 při 30. S Model96.2 pak 14,8 sn/s
+    proti 16,8 při 30. ⚠️ **Parametr propustnost NEZVYŠUJE** — při 30 se skoro polovina snímků
+    zahodí, při 15 se zpracuje skoro všechno, ale výsledek je *o dva snímky nižší*. Zisk je
+    v tom, že se nevytěžuje USB, dekódování a zápis prací, která se zahodí.
+  - ⚠️ **Past, na kterou jsem naletěl:** po `nasad.ps1 -NoRestart` je ve stínové kopii ještě
+    **stará binárka** (`stin.sh` ji obnovuje až při startu služby), takže ruční spuštění
+    z `~/arbot-headless-run` měří něco jiného, než se právě nasadilo — `camerafps` se „neprojevil",
+    ačkoli kód byl správně. Zapsáno do [deploy/README.md](../deploy/README.md).
+
+- **✅ Model96.2 otestován na NPU: 96,66 % za 44 ms — ale za polovinu snímkové frekvence.**
+  Autor dodal podklady (`.tflite`, `_int16.tflite`, Keras `.h5`). Model je **34× dražší** než
+  Model61.1 (3 837 proti 112,5 MMAC).
+  - **Na CPU 637 ms — nepoužitelné. Na NPU 44 ms, tedy 14,5× rychleji.** Tohle je ten dřív jen
+    tušený argument pro NPU, teď podložený: bez něj by se Model96.2 nedal ani uvažovat.
+  - **Přesnost 96,66 % / IoU 0,953** proti 87,71 % / 0,838 u Model61.1 — a hlavně **falešně
+    přidaná cesta klesla ze 7,9 % na 2,0 %**, což je pro robota to podstatné číslo.
+  - ⚠️ **Za běhu runtime to ale půlí snímkovou frekvenci**: `compute_ms` 65,6 / 54,4 ms a
+    **16,5 sn/s proti 29**. Jestli to řízení vadí, se z těch dat říct nedá — nikdy s tím nejelo.
+  - ⚠️ **int8 kvantizace tenhle model ROZBIJE**: 22,4 ms (2× rychleji), ale přesnost spadne na
+    **37,83 % / IoU 0,187** (recall 0,209 — přestane poznávat cestu). `optimization_level=2`,
+    které RKNN samo doporučuje, na tom nic nezmění. Není to chyba naší cesty — týž postup dá
+    u Model61.1 87,71 %. Autorova varianta `_int16.tflite` to naznačovala předem: int16 aktivace
+    se dělají právě tehdy, když int8 nestačí. **Na NPU musí běžet fp16.**
+  - **Mezera „naměřeno vs. notebook" u tohohle modelu mizí**: notebook 0,9682, checkpoint v názvu
+    0,9643, naše měření **0,9680** — při průchodu toutéž cestou jako 61.1.
+- **✅ Tím se uzavřela mezera 88,2 vs 95,5 % u Model61.1: jiná trénovací sada.** Vysvětlení podal
+  autor — sada se v čase měnila, takže Model61.1 (únor 2021) byl trénován i testován na jiných
+  datech než dnešní `models/testset`. Sedí to se dvěma věcmi: `fnTest` v notebooku obsahuje id
+  z **června 2022** (model je z února 2021) a **Model96.2 mezeru nemá**, ačkoli šel toutéž cestou —
+  kdyby chyba byla v ní, projevila by se u obou. ⚠️ **Je to vysvětlení, ne důkaz**; dohledat by to
+  šlo jen z časů modelu a datasetu v LabelBoxu a **rozhodnutí autora je nedohledávat to**.
+  Praktický důsledek zůstává: u Model61.1 se nesmí tvrdit „dává 95 %".
+  - **`models/keras2onnx.py`** (nový): `Model96.2.tflite` totiž **není float** (35× `DequantizeLinear`
+    v ONNX = dynamic-range kvantizace, stejně jako u 61.1) a RKNN takový model odmítne kvantizovat.
+    Skutečné float váhy jsou jen v `.h5`, odtud export s pevným tvarem `(1,128,128,3)`.
+  - Do `onnx2rknn.py` přibyl `--optlevel` a ošetření **dynamické dávky** (`?` → 1; bez toho by
+    vznikl model s dávkou 0). `tflite2onnx.py --check` uměl jen kvantovaný vstup a na float modelu
+    padal — opraveno.
+
+- **✅ NPU cesta hotová a změřená: `backproject=npu`, 3,3 ms proti 10,2 ms na CPU.** Na pokyn
+  autora. Implementace [`RknnBackProject`](../Src/ARBot.Common/Vision/Nn/RknnBackProject.cs) přes
+  P/Invoke na `librknnrt.so`, převod modelu [`models/onnx2rknn.py`](../models/onnx2rknn.py).
+  - **Za běhu runtime stojí NPU proti histogramu jen +1,2 až +1,5 ms** (`compute_ms` 8,1 → 9,3 ms),
+    kdežto CPU síť +8,3 ms. Obě kamery dohromady ~0,57 jádra proti 0,99 (CPU síť) a 0,49 (histogram).
+    Každá kamera dostane **vlastní jádro NPU** (`rknn_set_core_mask`, maska 1 a 2).
+  - **Přesnost se prakticky nezměnila**: 87,71 % / IoU 0,838 proti 88,23 % / 0,846 u CPU int8.
+    ⚠️ Kalibrační sada byla tatáž, na které se pak měřilo — RKNN model měl mít výhodu, a přesto je
+    o půl procenta horší; jinou označkovanou sadu nemáme.
+  - **Tři věci, které nejsou z dokumentace RKNN zjevné** a stály nejvíc času:
+    (a) zdrojem **musí být float model** — u kvantovaného TFLite RKNN hlásí `std_values are ignored`
+    a odmítne kvantizaci, vstup pak chce už kvantovaný (tedy magické konstanty v C#, přesně to,
+    čemu se celá vrstva vyhýbá); (b) **RKNN umí u ONNX jen NCHW** a náš NHWC model hlásí matoucí
+    hláškou *„len of mean_values … expect 128!"* (bere výšku za počet kanálů) — skript proto vloží
+    `Transpose` a přepíše vstup grafu; (c) **normalizaci dělá NPU**, takže `FillInput` posílá syrové
+    bajty 0..255, ne 0..1 jako u ONNX — záměna by byla tichá vada, hlídá to test.
+  - ⚠️ **Padlo dřívější doporučení psát C++ shim** do `libNativeLib.so`. Z celého `rknn_api` stačí
+    pět volání a dvě malé struktury; shim by znamenal cross-compile navíc a nic by nezjednodušil.
+  - **✅ Nasazování doplněno** (na pokyn autora): `nasad.ps1` teď posílá **modely** (`*.onnx`,
+    `*.rknn`) do datového adresáře — tedy tam, proti čemu se `nnmodel=`/`npumodel=` řeší, takže
+    výchozí cesty sedí bez zadávání — a **`librknnrt.so`** vedle binárek, odkud si ji vezme
+    stínová kopie. Knihovna je nově v repu (`Src/ThirdParty/RKNN`, 7,7 MB) ze stejného důvodu jako
+    RealSense DLL: bez ní nejde nasadit funkční celek. **Z `models/` se posílá jen to, co robot
+    čte** — zdrojové `.tflite`, testovací sada a převodní skripty zůstávají doma (7,2 MB místo 16).
+    Ověřeno celým řetězem: smazal jsem ručně nakopírované soubory, pustil `nasad.ps1`, restartoval
+    službu a runtime našel model na výchozí cestě a obě kamery nastartovaly na NPU.
+    ⚠️ **Verze `librknnrt.so` a toolkitu se musí měnit naráz** (obojí 2.3.2) — jinak `rknn_init`
+    selže, nebo hůř projde a počítá nesmysly.
+  - ⚠️ U NPU je **vyšší rozptyl** (p90 24,4 ms proti 18,6 u CPU), medián ale drží; příčina
+    nedohledaná.
+  - Tím se posunul argument pro NPU: není to léčba současné sítě (10,2 ms na CPU bylo únosných),
+    ale **prostor pro dražší model** — `Model96.2` z notebooku je ~20–30× dražší, na CPU tedy
+    nepoužitelný, na NPU to vyjít může. Změřené to není.
+
+- **✅ NPU driver na Pi JE — a dosavadní návod, jak to ověřit, byl špatný.** V dokumentu stálo
+  „ověřit `ls /dev/rknpu*`", jenže RKNPU se vystavuje jako **DRM render node**
+  (`/dev/dri/renderD129`, `DRIVER=RKNPU`), takže tahle kontrola by hlásila „driver chybí", ačkoli
+  je v jádře natvrdo (`CONFIG_ROCKCHIP_RKNPU=y` — proto ho nenajde ani `lsmod`). NPU běží na
+  1 GHz (`/sys/class/devfreq/fdab0000.npu`). Chybí jediné: userspace `librknnrt.so`.
+  Opraveno v [semantic-segmentation.md](semantic-segmentation.md#další-krok-npu).
+  - Tím se posunul i **argument pro NPU**: není to už čas téhle sítě (10,2 ms na CPU je únosných),
+    ale **strop** — `Model96.2` je ~20–30× dražší, tedy na CPU nepoužitelný. NPU je podmínka pro
+    lepší model, ne léčba současného.
+
 - **Segmentace změřena na venkovním záznamu** (`records/test/20260906-082403.rec`) — na pokyn
   autora, protože včerejší čísla byla ze simulace a z nočního záznamu.
   - **Levá (funkční) kamera: shoda s histogramem 89,6 %** (p50), síť hlásí 70–75 % sjízdné plochy

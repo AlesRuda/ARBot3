@@ -73,3 +73,6 @@
 # Modely neuronovych siti jsou binarni - zadna normalizace konců radku.
 *.tflite binary
 *.onnx binary
+*.rknn binary
+# Nativni knihovny (librknnrt.so pro NPU) - totez.
+*.so binary

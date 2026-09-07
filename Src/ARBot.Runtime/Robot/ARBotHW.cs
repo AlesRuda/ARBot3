@@ -370,8 +370,15 @@ namespace ARBot.Robot
 
             sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
 //            TrackingCamera = new T265TrackingCameraNative(T265Serial);
-            sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left") { Swap = true });
-            sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right") { Swap = false });
+            // Snimkova frekvence kamer: snizit ji jde kvuli drazsi segmentaci (viz camerafps=
+            // a doc/semantic-segmentation.md). Povolene hodnoty hlida uz registr, takze sem
+            // prijde jen to, co D435 umi.
+            int fps = (int)ParamRegistry.CameraFps.Value;
+            if (fps != CameraSettings.DefaultFps)
+                Trace.WriteLine($"camerafps={fps}: kamery pojedou {fps} sn/s misto "
+                                + $"{CameraSettings.DefaultFps} - mene snimku pro segmentaci i do zaznamu.");
+            sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left", fps) { Swap = true });
+            sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right", fps) { Swap = false });
             ApplyEstimatedPose();   // muze byt jeste null - runtime ji doplni, az bude fuze
 
             Mode = HwMode.Real;

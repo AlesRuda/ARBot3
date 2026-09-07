@@ -161,15 +161,41 @@ namespace ARBot.HAL.Devices.Camera
         }
 
         /// <summary>
+        /// Kamera dle serioveho cisla s nazvem a <b>snimkovou frekvenci</b> (RGB 640x480,
+        /// depth 480x270). Nizsi frekvence se hodi, kdyz segmentace nestiha 30 sn/s
+        /// (viz doc/semantic-segmentation.md); D435 zna jen 6, 15, 30 a 60.
+        /// </summary>
+        /// <param name="sn">Seriove cislo zarizeni.</param>
+        /// <param name="nazev">Nazev kamery (soucast <see cref="Name"/>).</param>
+        /// <param name="fps">Snimkova frekvence obou streamu [sn/s].</param>
+        public D435Camera(string sn, string nazev, int fps)
+            : this(sn, new CameraSettings(640, 480, fps), fps)
+        {
+            this.nazev = nazev;
+        }
+
+        /// <summary>
         /// Hlavni konstruktor. Nakonfiguruje a spusti kameru pres Init (depth je fixne 480x270).
         /// </summary>
         /// <param name="sn">Seriove cislo zarizeni; null = prvni dostupne.</param>
         /// <param name="rgb">Nastaveni barevneho streamu.</param>
         public D435Camera(string sn, CameraSettings rgb)
+            : this(sn, rgb, rgb != null ? rgb.Fps : CameraSettings.DefaultFps)
+        {
+        }
+
+        /// <summary>
+        /// Hlavni konstruktor. Nakonfiguruje a spusti kameru pres Init (depth je fixne 480x270,
+        /// jen snimkova frekvence se dedi z <paramref name="depthFps"/>).
+        /// </summary>
+        /// <param name="sn">Seriove cislo zarizeni; null = prvni dostupne.</param>
+        /// <param name="rgb">Nastaveni barevneho streamu.</param>
+        /// <param name="depthFps">Snimkova frekvence hloubkoveho streamu [sn/s].</param>
+        public D435Camera(string sn, CameraSettings rgb, int depthFps)
         {
             this.sn = sn;
 
-            Init(rgb, new CameraSettings(480, 270));
+            Init(rgb, new CameraSettings(480, 270, depthFps));
         }
 
         /// <summary>Aktualni nastaveni hloubkoveho streamu.</summary>
@@ -398,9 +424,9 @@ namespace ARBot.HAL.Devices.Camera
                 if (sn != null)
                     cfg.EnableDevice(sn);
                 if (settingsDepth != null)
-                    cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, 30);
+                    cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, settingsDepth.Fps);
                 if (settingsRGB != null)
-                    cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, 30);
+                    cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, settingsRGB.Fps);
 
                 // Po odpojeni je pipeline zbourana (Teardown) - vzdy tvorime cerstvou instanci
                 // ze sdileneho kontextu; znovupouzita pipeline se na nove zarizeni nenavaze.
@@ -494,9 +520,9 @@ namespace ARBot.HAL.Devices.Camera
             if (sn != null)
                 cfg.EnableDevice(sn);
             if (settingsDepth != null)
-                cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, 30);
+                cfg.EnableStream(Stream.Depth, settingsDepth.Width, settingsDepth.Height, Format.Z16, settingsDepth.Fps);
             if (settingsRGB != null)
-                cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, 30);
+                cfg.EnableStream(Stream.Color, settingsRGB.Width, settingsRGB.Height, Format.Rgb8, settingsRGB.Fps);
 
             if (pipeline == null)
                 pipeline = new Pipeline();
