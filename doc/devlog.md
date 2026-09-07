@@ -42,10 +42,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Segmentace změřena na venkovním záznamu** (`records/test/20260906-082403.rec`) — na pokyn
   autora, protože včerejší čísla byla ze simulace a z nočního záznamu.
   - **Levá (funkční) kamera: shoda s histogramem 89,6 %** (p50), síť hlásí 70–75 % sjízdné plochy
-    proti 80–85 % histogramu. **Rozdíl je vidět až na skutečném asfaltu**
-    ([obrázek](media/backproject-nn-vs-hist-20260907.png)): histogram rozhoduje per-pixel podle
-    barvy, takže uprostřed cesty **zrní** a hranice trávy je roztřepená; síť dá souvislou plochu
-    s měkkým přechodem. V simulaci tenhle rozdíl vidět není (jednolitě šedá cesta).
+    proti 80–85 % histogramu. **Rozdíl je vidět až na skutečném asfaltu**: histogram rozhoduje
+    per-pixel podle barvy, takže uprostřed cesty **zrní** a hranice trávy je roztřepená; síť dá
+    souvislou plochu s měkkým přechodem. V simulaci tenhle rozdíl vidět není (jednolitě šedá cesta).
+
+    ![Vlevo vstup z levé D435, uprostřed sjízdnost z histogramu barev (zrní uprostřed cesty, roztřepená hranice trávy), vpravo síť Model61.1 (souvislá plocha, měkký přechod)](media/backproject-nn-vs-hist-20260907.png)
+
+    *Vlevo vstup, uprostřed histogram, vpravo síť* — složený snímek z
+    `ARBot.Analyze backproject --png` nad `records/test/20260906-082403.rec`; rozbor
+    v [semantic-segmentation.md](semantic-segmentation.md#jak-měřit).
   - ⚠️ **Není to verdikt „síť je lepší"** — ground truth k záznamu není. Na zarostlé ploše bez
     zjevné cesty (`--skip=2000`) je síť **nerozhodná** (výstup kolem 0,5), zatímco histogram tvrdí
     80 % sjízdné; která odpověď je správná, se z těch dat nepozná.
@@ -62,6 +67,133 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `Assert.Ignore` měl, ale jen pro selhání konstruktoru — a ten na Windows **nevyhodí výjimku ani
   bez kamery** (pipeline se rozjíždí na pozadí a selže až pak), takže test padal na každém stroji
   bez D435 a hlásil poruchu tam, kde žádná není. Teď se přeskočí i když do 5 s nedorazí snímek.
+- **Do repa přidán trénovací notebook** `Src/Colab/SemanticSegmentation.ipynb` (autor) — tím se
+  poprvé dá dohledat, *jak* Model61.1 vznikl. Rozbor se zapisuje do
+  [semantic-segmentation.md](semantic-segmentation.md); nejdůležitější je, že **zkreslení poměru
+  stran a `v/255` v RGB nejsou naše volba, ale replika tréninku**, takže se nesmí „opravovat", a že
+  **Model61.1 nebyl nejlepší model** (0,9546 proti 0,9682 u Model96.2) — vybral ho tehdejší
+  omezení, že po kvantizaci musel běžet na Google Coralu.
+- **Kvalita segmentace se poprvé dá měřit proti pravdě** — dosud šla měřit jen *shoda* sítě
+  s histogramem, což neřekne, která se mýlí (na venkovním záznamu je shoda 89,6 % stejně dobře
+  vysvětlitelná chybou jedné jako druhé).
+  - **`ARBot.Analyze backproject --truth=<adresar>`** (záznam nepotřebuje): přesnost per-pixel,
+    **IoU**, precision/recall pro síť i histogram, souhrnně i per snímek, `--png` uloží srovnání
+    **nejhoršího** snímku (vstup | pravda | histogram | síť) — průměr neřekne, *jak* se metoda mýlí.
+  - **Jádro měření je `SegmentationMetrics` v `Common`, ne v nástroji** (9 testů), protože špatně
+    počítaná metrika se neprojeví jako chyba, ale jako výsledek, který vypadá rozumně — tuhle past
+    projekt zaplatil u korelace s mapou, kde měřidlo připisovalo korelátoru chybu fúze.
+    Proto se tiskne i IoU a rozpad na *cestu přidanou, kde není* / *cestu zamlčenou*: **přesnost
+    per-pixel sama je zrádná** — při 80 % sjízdné plochy má „všechno je cesta" přesnost 0,80.
+  - **Měří se na rozměru výstupu sítě** s pravdou zmenšenou nejbližším sousedem, jak to dělal
+    notebook — jinak by čísla nebyla srovnatelná s jeho 0,9546. Histogram se měří i v plném
+    rozlišení, protože to je jeho skutečný provozní bod.
+  - **`Src/Colab/ExportTestSet.ipynb`** vytáhne z LabelBoxu tu pevnou 50snímkovou sadu do
+    `models/testset/` (formát a proč 0/255 místo 0/1: `models/testset/README.md`). Vlastní
+    notebook schválně **bez TensorFlow** — velký notebook je z roku 2022 a dnešní Colab má
+    Keras 3, kde se staré `.h5` váhy nenačtou; export dat se toho nemá týkat. Verze
+    `labelbox[data]==3.*` je připnutá, protože `label_generator()` ve verzi 4+ neexistuje.
+  - ✅ **Sada je v repu (50/50) a poprvé víme, KDO se mýlí** — ne jen jak moc se metody
+    rozcházejí. Na rozměru sítě: **síť přesnost 88,2 % / IoU 0,846** proti **histogramu
+    78,0 % / 0,752**, při triviální hranici „všechno je cesta" **68,7 %**. Rozhoduje ta
+    správná chyba: histogram **vymýšlí cestu, kde není, 2,6× častěji** (FP 20,3 % proti
+    7,9 % plochy), což je u robota ta nebezpečná strana. Jeho lepší recall (0,975 proti
+    0,943) je jen důsledek toho, že říká „cesta" skoro všude.
+  - ⚠️ **Síť ale vyšla o 7,3 p. b. horší, než tvrdí notebook** (88,2 proti 95,5 %) — a to
+    zůstává **nevysvětlené**. **Do vyřešení se nesmí tvrdit, že model dává 95 %.** Histogram
+    naopak vyšel 78,0 % proti ~80 % z notebooku, což potvrzuje celý měřicí řetěz.
+    - Hypotéza „95,5 % je z trénovací sady" **ověřena a vyvrácena**: `Trainer.Train` ukládá do
+      jména vah `val_sparse_categorical_accuracy` a `validation_data` je `test_dataset`, tedy
+      **právě těch 50 snímků**. Je to ale **maximum přes epochy**, takže ta sada slouží i jako
+      validační — číslo je vychýlené výběrem nejlepší epochy (desetiny bodu, ne sedm).
+    - **Nový hlavní podezřelý:** není známo, **z kterého checkpointu `Model61.1_int8.tflite`
+      vznikl** — `SaveTFLite` exportuje právě načtený model a poslední stav notebooku načítá
+      váhy **Model96.2**. Ten `.tflite` tedy nemusí být checkpoint s 0,9546 vůbec.
+    - ⚠️ **Referenční float model v repu není žádný:** `Model61.1.tflite` má nejen dynamické
+      tvary, ale i **int8 váhy** — `SaveTFLite` ho vyrábí s `optimizations=[Optimize.DEFAULT]`
+      bez `representative_dataset`, což je dynamic-range kvantizace. Dokumentace o něm psala
+      „float"; opraveno.
+    - ✅ **Float model změřen — kvantizace to NENÍ.** `Model61.1_float.onnx` (z `.h5`, jehož
+      jméno to číslo nese) dá **88,16 %** proti int8 **88,23 %**; rozdíl 0,07 p. b. a float je
+      o vlásek *horší*. **Pět hypotéz je tím zamítnutých měřením** (kvantizace, jiný checkpoint,
+      naše rekonstrukce sady, pořadí kanálů, vzorkování při zmenšení, „novější snímky jsou
+      těžší") — tabulka je v [semantic-segmentation.md](semantic-segmentation.md). Mezera stojí.
+      Zbývá změřit to **jejich kódem** (`ModelAccuracy` v Colabu); pokud dá taky 88 %, pak to
+      číslo **nepatří k téhle sadě** — `fnTest` obsahuje id z **června 2022**, ačkoli model je
+      z **února 2021**, takže tehdejší testovací sada byla nutně jiná a nelze ji zrekonstruovat.
+    - ✅ **Náš export sady je věrný:** na **originálním `ds_train`** z Drive vyjde 88,15 %, na našem
+      exportu 88,16 %. Přidán `--truththreshold=` — originál má masky **0/1**, náš export 0/255,
+      a při prahu 128 by originál vyšel celý nesjízdný, tedy nesmyslná čísla.
+    - ✅ **RGB potvrzeno měřením, ne jen odvozením:** RGB 88,2 % proti BGR **77,2 %**.
+    - ⚠️ **„Síť vyhrává" neplatí napříč sadou:** na `ck*` (32 snímků, 2019–21) má síť
+      87,4 % / IoU 0,812 proti histogramu 71,2 % / 0,659, ale na `cl4*` (18 snímků, 2022) je
+      **histogram nepatrně lepší** (90,3 / 0,899 proti 89,6 / 0,886). Celkovou výhru táhne
+      starší, rozmanitější část sady.
+    - **Léčba dynamických tvarů:** vznikají tím, že `TFLiteConverter.from_keras_model` neznal
+      vstupní tvar, takže cílovou velikost každého z pěti `UpSampling2D` počítá za běhu
+      (`Shape → StridedSlice → Mul → ResizeNN`). V hotovém souboru to opravit nejde — musí se
+      **exportovat z Kerasu s pevným `tf.TensorSpec((1,128,128,3))`**. Hotové to má nový
+      [`Src/Colab/ExportFloatModel.ipynb`](../Src/Colab/ExportFloatModel.ipynb), který vezme
+      `.h5` s **tím správným checkpointem** a **ověří, že tvary jsou statické** (počet zbylých
+      `Shape`/`Slice` uzlů + běh na šumu), místo aby to tvrdil. Změří se pak **týmž měřidlem**
+      jako int8, takže obě čísla budou srovnatelná nejen sadou, ale i kódem.
+  - **Nejhorší snímek vysvětluje mechanismus** ([obrázek](media/truth-ckhfbvg54001g3r63mnib1vhv.png)):
+    listnatý lesní podklad, pravda „nic není sjízdné", histogram tvrdí 93 % — suché listí mu
+    padá do barev cesty. Zároveň je to důkaz, že ta nulová maska je správná, ne rozbitá.
+  - **Histogram v plném rozlišení dá 78,2 %**, tedy proti 128×128 rozdíl v šumu — zmenšení na
+    rozměr sítě ho na téhle metrice nestojí nic (o přesnosti hranic to nevypovídá).
+  - Ověřeno předtím i na **syntetickém páru se známou odpovědí** (šedá cesta / zelená tráva,
+    pravda 50 %): síť IoU 0,999, histogram 0,984.
+  - ⚠️ **`--truth=` se rozvinulo proti pracovnímu adresáři**, takže z `bin\...\net10.0` se
+    `models/testset` nenašlo, ačkoli výchozí model se už proti kořeni repa řeší
+    (`RepoPaths`). Jeden přepínač tedy byl relativní k jinému místu než druhý. Opraveno
+    přes `RepoPaths.Resolve`; hláška o neexistujícím adresáři teď říká i to, proti čemu
+    se cesta řešila.
+  - ⚠️ **Sám jsem do toho helperu na klíč napsal tichý fallback a hned to stálo hledání.**
+    `except Exception: pass` kolem `userdata.get` plus fallback na `getpass` znamenalo, že když
+    tajemství nebylo dostupné, `getpass` v Colabu vrátil **`dict`**, ten se poslal LabelBoxu jako
+    `api_key` a přišlo **„Invalid API key"** — tedy hláška o špatném klíči v situaci, kdy žádný
+    klíč nebyl. Hodinu by se ověřoval klíč, který je v pořádku. Léčba: helper **nepolyká výjimky**
+    (vypíše, co `userdata` řeklo), **přijme jen neprázdný `str`** a **interaktivní dotaz nemá
+    vůbec** — v „Run all" je prompt horší než jasná chyba. Opraveno v obou notebooících.
+    Připomínka, že pravidlo o tichém fallbacku z [CLAUDE.md](../CLAUDE.md) není o cizím kódu.
+  - ⚠️ **Legacy LabelBox API je vypnuté, takže velký notebook si data stáhnout neumí.** Když
+    se klíč konečně dostal na server, `lb.get_project()` **prošel** (klíč je v pořádku
+    a oprávnění *Project lead* stačí) a spadlo až `project.label_generator()` na
+    `GraphQL validation error` — ten dotaz na serveru **neexistuje**. Připnutí SDK na 3.x proto
+    nepomáhá; změnila se serverová strana, ne klient. Export je přepsaný na dnešní
+    `project.export()` → `ExportTask` → `get_buffered_stream()` (API dohledané v dokumentaci,
+    ne z hlavy) a masky se tahají s `client.headers`. Cela 9 velkého notebooku je označená
+    jako nefunkční — důsledek: **trénink se dnes nedá zopakovat jedním kliknutím**.
+  - ⚠️ **Dnešní LabelBox klíče nejsou JWT** (47 znaků, neprůhledný token), kdežto ten z roku
+    2022 JWT byl. Moje diagnostika z toho udělala „!! tohle není klíč", což byl **planý poplach
+    z mého předpokladu**. Teď oba formáty rozlišuje a u neprůhledného říká rovnou, že se
+    z hodnoty nepozná nic a rozhodne až přihlášení.
+  - ✅ **Těch 50 jmen jsou id LABELŮ**, ne data rows — zjištěno tím, že export proto zkouší
+    `data_row.id`, `data_row.external_id` i `label.id` a **počítá, které pole zabralo**
+    (bez toho by neúspěšný filtr vypadal jako prázdný projekt). Potvrdil to i chybový stream,
+    kde se naše jména objevila jako `label_id`.
+  - ⚠️ **Autorizační hlavička nepatří na podepsané URL.** Masky sedí na `api.labelbox.com`
+    a `client.headers` potřebují; **snímky** jsou na podepsané URL do cloud storage, kde ta
+    hlavička způsobí chybovou odpověď — a ta spadne až v PIL jako „cannot identify image file",
+    tedy **o dva kroky dál, než je příčina**. Stahování teď volí hlavičky podle hostu a při
+    neobrázku vypíše prvních 200 B odpovědi.
+  - ⚠️ **Část našich testovacích labelů se z LabelBoxu nevyexportuje** —
+    `SchemaInconsistencyException`: mají anotaci nástrojem, který dnes **není v ontologii**
+    projektu (ontologie má 4 schema id, chybí nejméně 5 dalších). Opravit to jde jen
+    v LabelBoxu (připojit nástroj k ontologii), jinak bude sada menší — a pak už **není přesně
+    ta**, na které vznikla čísla 0,9546 / ~0,80, což se musí u srovnání říct. Kolika snímků se
+    to týká, teď notebook vypíše číslem.
+  - ⚠️ **Přitom se opravila chyba v čerstvé dokumentaci:** psal jsem, že runtime jede na
+    `RoadProbabilityNew`. Nejede — `ARBotRuntime.BuildBackProject()` i všechna měřidla berou
+    `RoadProbability` a ta „New" tabulka je **nepoužitá**. Jméno „New" neznamená „aktuální".
+- ⚠️ **V tom notebooku byl natvrdo LabelBox API klíč s platností do roku 2042** a pravidlo „vše
+  v repozitáři" v [CLAUDE.md](../CLAUDE.md) přihlašovací údaje nevyjímalo — teď je tam výjimka
+  a klíč se čte z **Colab Secrets** / proměnné prostředí (`LABELBOX_API_KEY`, helper
+  `LabelBoxApiKey()` v cele 9, padá hláškou místo tichého `None`). Zachránilo to jen to, že soubor
+  ještě **nebyl commitnutý**, takže se obešlo přepisování historie; klíč autor přesto zneplatnil
+  a vydal nový — **4 týdny platnosti, oprávnění Project lead, ne Admin** (notebook z LabelBoxu
+  jen exportuje jeden projekt, na to Admin nepotřebuje). Zkrácena i podepsaná URL exportu
+  v zakomentovaném řádku (expirovala 2020, tedy neškodná, ale mate).
 
 ## 2026-09-06
 

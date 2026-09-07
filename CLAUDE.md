@@ -16,6 +16,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     **nepatří do agentní paměti** (`~/.claude/.../memory/`) ani jinam mimo git — patří sem do
     `CLAUDE.md` (pravidla práce), do příslušného `doc/*.md` (doména) nebo do komentáře v kódu.
     Toto pravidlo **přebíjí** výchozí chování asistenta ukládat si poznámky do vlastní paměti.
+  - ⚠️ **Výjimka: přihlašovací údaje do repozitáře NEPATŘÍ.** Klíče, tokeny a hesla se čtou
+    z prostředí (Colab Secrets, proměnná prostředí, soubor mimo repo); do gitu jde jen **jméno**
+    té proměnné a poznámka, kde ji nastavit. Bez téhle výjimky pravidlo „vše v repozitáři"
+    doslovně vzato říká, že klíč do repa patří — a přesně tak se to 7. 9. 2026 stalo: v
+    `Src/Colab/SemanticSegmentation.ipynb` byl natvrdo **LabelBox API klíč s platností do roku
+    2042**. Zachránilo to jen to, že soubor ještě nebyl commitnutý, takže se obešlo přepisování
+    historie; klíč se přesto musel zneplatnit a vydat nový (kratší platnost, oprávnění
+    *Project lead*, ne Admin). Poučení k datům: klíč, který nikdy nepropadne, je horší než ten,
+    jehož obnovu si musíš občas vynutit.
 - **Jazyk: čeština** — komunikace, komentáře v kódu i dokumentace jsou česky.
 - **Build vždy pro konkrétní platformu — NE `AnyCPU`.** Windows/vývoj/testy = `x64`,
   cílové zařízení (Armbian/ARM64) = `OrangePI`. Např.
@@ -205,8 +214,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vlastní nativní knihovnu na obě platformy. Model se převádí `models/tflite2onnx.py`, který
   **schová kvantizaci dovnitř modelu** (float na hranici, int8 uvnitř) — jinak by kvantizační
   konstanty musela znát C# strana a špatná hodnota by se projevila jako *tiše horší segmentace*,
-  ne jako chyba. Předzpracování (RGB, `v/255`) je převzaté z ARBot2 `EdgeTPUDll/EdgeTPU.cpp`, což
-  je jediná reference, jak byl model **skutečně používán**; výstup se **normalizuje součtem
+  ne jako chyba. Předzpracování (RGB, `v/255`) je převzaté z ARBot2 `EdgeTPUDll/EdgeTPU.cpp`
+  a **od 7. 9. 2026 potvrzené proti tréninku** (`Src/Colab/SemanticSegmentation.ipynb`);
+  výstup se **normalizuje součtem
   kanálů**, aby práh 128 dal totéž rozhodnutí jako původní `out[0] < out[1]` (model končí sigmoidou,
   součet není 1). Měřidlo: `ARBot.Analyze backproject` — statistika **zvlášť za každou kameru**
   (míchat je je past: zamrzlá pravá D435 dělá průměr podezřele stabilním, proto report počítá
@@ -220,8 +230,25 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   zatímco histogram tvrdí 80 % sjízdné. ⚠️ **Na zařízení to neběželo** — a to je jediné číslo,
   které rozhoduje: při dvou kamerách po 30 fps stojí síť 63–90 % jednoho jádra vývojového PC.
   ⚠️ Síť počítá ve **128×128** proti plnému snímku histogramu, takže mění hustotu dat pro
-  occupancy grid i hranice cesty (dopad naměřený není). Kvalita modelu na dnešních datech je
-  **neznámá** (je z 2021, trénovací data k němu nejsou). Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
+  occupancy grid i hranice cesty (dopad naměřený není) — a **zvětšit rozlišení není konfigurace,
+  ale přetrénování**: squash 4:3 → 1:1 i nearest resize jsou **replika tréninku**, ne nedbalost,
+  takže se **neopravují**. Kvalita modelu na dnešních datech je **neznámá**, ale úžeji, než se
+  dřív psalo: model **měl** naměřeno 0,9546 per-pixel proti ~0,80 histogramu na pevné 50snímkové
+  sadě — neznámé je, jak si to stojí na **D435 v roce 2026**. ✅ **Změřeno proti pravdě 7. 9. 2026**
+  (`ARBot.Analyze backproject --truth=models/testset`, sada 50 snímků je v repu, vytáhl ji
+  `Src/Colab/ExportTestSet.ipynb`): **síť 88,2 % / IoU 0,846** proti **histogramu 78,0 % / 0,752**,
+  triviální „všechno je cesta" **68,7 %**. Rozhoduje ta správná chyba — histogram **vymýšlí cestu,
+  kde není, 2,6× častěji** (FP 20,3 % proti 7,9 %) — ⚠️ ale **není to napříč sadou stejné**: na
+  starších snímcích (`ck*`) síť 87,4 % proti 71,2 %, na novějších (`cl4*`, 2022) je **histogram
+  nepatrně lepší**. ⚠️ **Síť je o 7,3 p. b. horší, než tvrdí notebook** (88,2 proti 95,5 %)
+  a **není známo proč**; **nesmí se tvrdit, že model dává 95 %**. **Šest hypotéz je zamítnutých
+  měřením** — kvantizace (float 88,16 = int8 88,23), jiný checkpoint, naše rekonstrukce sady
+  (originál `ds_train` 88,15), pořadí kanálů (BGR 77,2), vzorkování při zmenšení (0,06 p. b.),
+  „novější snímky jsou těžší". **Nezkoušej je znovu**, tabulka je v dokumentu. **Přesnost per-pixel sama nestačí**: „všechno je cesta"
+  dá na téhle sadě 68,7 %, proto se tiskne i IoU a rozpad na cestu přidanou/zamlčenou.
+  ⚠️ **Model61.1 navíc nebyl nejlepší** — Model61.3 má 0,9599 při **stejné ceně**, Model96.2
+  0,9682, ale ~20–30× dražší (kandidát až pro NPU); ten slabší se vybral proto, že po kvantizaci
+  musel běžet na **Google Coralu**, což dnes neplatí. Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
   postup je v dokumentu, ale první je změřit CPU cestu na Pi.
 - [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze

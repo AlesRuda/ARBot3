@@ -30,7 +30,7 @@ namespace ARBot.Analyze
     ///
     /// <para>Čte celé snímky, takže na velkém záznamu to trvá — proto <c>--limit</c> (výchozí 100).</para>
     /// </summary>
-    public static class BackProjectReport
+    public static partial class BackProjectReport
     {
         /// <param name="rec">Otevřený záznam.</param>
         /// <param name="modelPath">Cesta k <c>.onnx</c> modelu.</param>

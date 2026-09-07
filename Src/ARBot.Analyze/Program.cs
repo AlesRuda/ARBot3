@@ -25,6 +25,18 @@ namespace ARBot.Analyze
             string path = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--")) ?? Newest();
             double oldWindow = Arg(args, "--old-window", 60);
 
+            // Mereni proti pravde zaznam nepotrebuje — cte adresar s testovaci sadou.
+            if (cmd == "backproject" && Text(args, "--truth") != null)
+            {
+                BackProjectReport.Truth(Text(args, "--truth"),
+                                        Text(args, "--model") ?? DefaultModel(),
+                                        args.Any(a => a == "--bgr"),
+                                        Text(args, "--png"),
+                                        (byte)Arg(args, "--truththreshold", 128),
+                                        args.Any(a => a == "--resizecenter"));
+                return 0;
+            }
+
             // Syntetika zaznam nepotrebuje — pravdu si generuje sama.
             if (cmd == "corridorfit" && args.Any(a => a == "--synth"))
             {
@@ -205,7 +217,12 @@ namespace ARBot.Analyze
             Console.WriteLine("  backproject vyplati se neuronova sit misto histogramu? cas obou prevodu");
             Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
             Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");
-            Console.WriteLine("             --png=<prefix>). Cas je z TOHOTO stroje, ne z robota");
+            Console.WriteLine("             --png=<prefix>). Cas je z TOHOTO stroje, ne z robota.");
+            Console.WriteLine("             S --truth=<adresar> meri obe metody proti RUCNE OZNACENE PRAVDE");
+            Console.WriteLine("             (presnost, IoU, precision/recall) a zaznam nepotrebuje — sadu");
+            Console.WriteLine("             vytahne Src/Colab/ExportTestSet.ipynb do models/testset/");
+            Console.WriteLine("             (--truththreshold=N pro masky 0/1, vychozi 128 pro 0/255;");
+            Console.WriteLine("             --resizecenter vzorkuje pri zmenseni stred bloku jako trenink)");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
