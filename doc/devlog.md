@@ -39,6 +39,63 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-08
 
+- **Kalibrace magnetometru VN100 misí `magcal` — fáze 1 hotová v kódu, na HW neověřená.**
+  *Na dotaz autora* („jak prověřit a opravit tu VN100? … VN100 má zabudovaný autokalibrační
+  mechanismus, možná ten by šel použít, a nebo udělat HSI kalibraci — ta je dostupná v SW pro
+  VN100, ale ten je jen pro win"). Spec a rozhodnutí:
+  [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), kroky
+  [plan-vn100-kalibrace-kroky.md](plan-vn100-kalibrace-kroky.md).
+  - **Hotovo (tasky 1–9 z 10):** `MagCalFit` (proložení elipsoidy, symetrický rozklad, měřítko
+    na registr 21), `MagCalCoverage` (koše azimutů a náklonů), `MagCalCollector` + `MagCalMsg`,
+    `MagCalMission` (`mission=magcal`), čtení a zápis registrů 21/23/44/47 v driveru,
+    `ARBot.Analyze magcal`, blok a tlačítko „zapsat do senzoru" na stránce náhledu.
+    **39 nových testů, 1475 celkem, build čistý.**
+  - **Proč mise a ne přepínač:** `magcal=true` vedle selektoru `mission=` byl přesně ten boolean,
+    proti kterému je pravidlo v CLAUDE.md. Jako mise to navíc **ubralo** práci —
+    `IMissionStatus.PhaseText` **je** ten živý ukazatel pokrytí (stránka stav mise už kreslí),
+    záznam se rozjede volbou mise, a `IRegulatorHolder.Regulator = null` dá konstrukční záruku,
+    že se robot nerozjede. Padl tím i chystaný parametr a změna headlessu.
+  - **⚠️ Ohnula se vědomě nakreslená čára** „konfigurace senzoru se mění vědomě a ručně, ne
+    vedlejším účinkem měření". Záměr té čáry (žádný zápis bez rozhodnutí člověka) platí dál —
+    zápis jde jen na ťuknutí **pod drženým nouzovým zastavením**, gate je na serveru (409).
+    Důvod: skriptová varianta znamenala notebook v poli, a to je věc, kvůli které se měření
+    neudělá. Pojistka proti erozi: šev `IMagCalControl` umí **jen** registry 23 a 44, volá ho
+    **jen** ta mise, obecné „zapiš jakýkoli registr" **záměrně neexistuje**.
+  - **✅ Práh podmíněnosti byl odhadnut na 30 a bylo to o pět řádů mimo** — odmítal i dokonalá
+    data. Změřeno: určená data **187–434**, neurčená **10⁷–10⁸**; nastaveno 10⁴ a tabulka je
+    v kódu, aby to nikdo nehádal znovu.
+  - **✅ Vypadlo z toho kritérium, které v návrhu nebylo: náklony musí být na OBĚ strany.** Dva
+    náklony na tutéž stranu mají podmíněnost 4,7 × 10⁷, tedy skoro jako rovina (2,0 × 10⁸);
+    teprve pár +/− ji srazí na 434. Koše se proto klíčují velikostí odklonu **i jeho směrem**
+    a pokyn na stránce zní „podlož robota na DRUHOU stranu".
+  - **✅ Sklon se počítal špatně** — z pole v **tělesovém** rámci, ale sklon je veličina
+    **světová**: při náklonech vycházel rozptyl 11,2° i u perfektní kalibrace. Teď se sklápí
+    gravitací a bez akcelerometru vrací `NaN`, ne tiše nesmyslné číslo. Táž past se pak
+    zopakovala v testu (18,7°), proto syntetická data vznikají z **jedné** rotace pro pole
+    i gravitaci.
+  - **✅ Neurčenost není výjimka, je to normální stav sběru.** Fit vyhazoval výjimku místo aby
+    vrátil podmíněnost, takže by stránka řekla „proložení selhalo" místo „podmíněnost 8e7,
+    otáčej dál". Rozděleno na `TryFit` (podmíněnost vrací vždy) a `Fit` (vyhodí).
+  - **✅ `UncompMag` v `vndotnetlib-0.4/VectorNav.dll` JE** (ověřeno překladem), takže surové
+    pole jde do `IMUState.MagnetometerRaw` (**formát 4**) a předpoklad „registr 23 = identita"
+    **padl konstrukčně** — offline proložení jde udělat z kteréhokoli budoucího záznamu.
+    `UncompMag` je přitom **bit 1**, tedy v payloadu **před** `Mag`; záměna by tiše prohodila
+    surové pole s kompenzovaným, proto na to je test.
+  - **⚠️ Nezměřené, protože záznam nebyl:** „jaká je podmíněnost nad běžnými jízdními daty"
+    nejde zjistit — **žádný z osmi lokálních záznamů magnetometr nenese** (všechny jsou ze
+    simulace s virtuálním IMU). Potřebuje záznam z Pi; Pi nebylo k dispozici.
+  - **Rozpracováno / další krok:** **task 10 = celé terénní měření** (odjet runbook, přeměřit
+    smyčkou, vypnout a zapnout robota, nastavit prahy naostro podle naměřeného). Do
+    `deploy/vnprobe.sh` ještě přidat registry **37 a 38** kvůli fázi 2. **Nic z fáze 1 neběželo
+    na skutečném senzoru** — na Windows mise správně odmítne začít, protože registr 21
+    neodpoví.
+  - **Pro fázi 2 nález navíc:** `VnCommands.ReferenceVectorConfig` (registr 83, model pole
+    → deklinace) je **hotový, s pořadím polí ověřeným proti odpovědi senzoru — a nikdo ho
+    nevolá**. Kandidát (a) fáze 2 je z velké části napsaný. A registr 21 znamená sklon 60,9°,
+    ačkoli pro ČR je ~65,7°, takže **reference je sama o ~5° vedle** a VPE proti ní měřený
+    sklon porovnává.
+  - **Necommitováno** (pravidlo „commit jen na výslovný pokyn").
+
 - **✅ Dovysvětlen včerejší nález „robot se plazí, váže `VAlong`": může za to VYHLAZOVÁNÍ dráhy.**
   *Na dotaz autora* („plánování na gridu má přece počítat nejrychlejší cestu — možná za to může
   vyhlazování"). Odpověď je ano a je změřená, ne odhadnutá.

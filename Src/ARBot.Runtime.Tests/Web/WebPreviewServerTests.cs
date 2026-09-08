@@ -427,7 +427,10 @@ namespace ARBot.Runtime.Tests.Web
 
             Assert.Multiple(() =>
             {
-                Assert.That(json, Does.Contain("\"pick\":[\"freerun\",\"robotour\"]"),
+                // Seznam se bere z registru parametru, ne z druheho seznamu — proto se tady
+                // objevil `magcal`, jakmile pribyl do `mission=`. Prave o to jde: kdyby to byl
+                // druhy seznam, nova mise by na strance chybela a nikdo by nevedel proc.
+                Assert.That(json, Does.Contain("\"pick\":[\"freerun\",\"robotour\",\"magcal\"]"),
                             "seznam misi se bere z registru parametru, ne z druheho seznamu");
                 Assert.That(json, Does.Contain("\"estop\":false"));
                 Assert.That(json, Does.Contain("\"pickBlocked\""));

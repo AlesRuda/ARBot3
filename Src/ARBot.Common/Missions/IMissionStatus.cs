@@ -35,6 +35,12 @@ namespace ARBot.Common.Missions
 
         /// <summary>Jede k cili a ceka na dojezd.</summary>
         Arrival = 6,
+
+        /// <summary>
+        /// Ceka, az obsluha <b>otacenim robotu</b> pokryje azimuty a naklony (mise
+        /// <c>magcal</c>). Viz doc/plan-vn100-kalibrace.md.
+        /// </summary>
+        MagCoverage = 7,
     }
 
     /// <summary>

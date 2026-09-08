@@ -77,6 +77,77 @@ namespace ARBot.HAL.Tests
             Assert.That(u.Z, Is.EqualTo(Conversions.Deg2Rad(30)).Within(1e-6));
         }
 
+        // --- Nekompenzovane pole (UncompMag) pro kalibraci magnetometru --------------------
+        // Viz doc/plan-vn100-kalibrace.md.
+
+        /// <summary>
+        /// Masky vcetne <c>UncompMag</c>. ⚠️ <c>UncompMag</c> je <b>bit 1 (hodnota 2)</b>, tedy
+        /// v payloadu lezi PRED <c>Mag</c> (256), <c>Accel</c> (512) a <c>Gyro</c> (1024) —
+        /// pole se radi podle bitu, ne podle poradi, v jakem je clovek napsal do konfigurace.
+        /// </summary>
+        private static ushort[] MasksSUncompMag()
+        {
+            var m = new ushort[6];
+            m[2] = 2 | 256 | 512 | 1024;   // Imu: UncompMag | Mag | Accel | Gyro
+            m[4] = 2 | 256 | 512;          // Attitude: Ypr | YprU | YprRate
+            return m;
+        }
+
+        [Test]
+        public void PayloadLength_SUncompMag_JeODvanactVetsi()
+        {
+            Assert.That(VN100IMUBinary.PayloadLength(Groups, MasksSUncompMag()),
+                        Is.EqualTo(4 * 12 + 3 * 12),
+                        "kdyby FieldSize UncompMag neznal, vratilo by -1 a paket by se zahazoval");
+        }
+
+        [Test]
+        public void DecodePacket_SUncompMag_NEPROHODI_SuroveAKompenzovanePole()
+        {
+            // ⚠️ TOHLE je ten podstatny test. UncompMag lezi v payloadu PRED Mag, takze zamena
+            // by tise prohodila surove pole s kompenzovanym — a prolozeni kalibrace by pak
+            // pracovalo nad uz zkompenzovanymi daty, tedy delalo "korekci korekce". Vypadalo by
+            // to verohodne a bylo by to spatne.
+            var magRaw = new Vector3(0.12f, 0.05f, -0.22f);
+            var mag = new Vector3(1, 2, 3);
+            var acc = new Vector3(4, 5, 6);
+            var gyro = new Vector3(7, 8, 9);
+
+            var b = new List<byte>();
+            void F(float f) => b.AddRange(BitConverter.GetBytes(f));
+            void V(Vector3 v) { F(v.X); F(v.Y); F(v.Z); }
+            // Poradi podle BITU: UncompMag(2), Mag(256), Accel(512), Gyro(1024), pak Attitude.
+            V(magRaw); V(mag); V(acc); V(gyro);
+            V(new Vector3(0, 5, -3)); V(new Vector3(10, 20, 30)); V(Vector3.Zero);
+
+            var s = VN100IMUBinary.DecodePacket(Groups, MasksSUncompMag(), b.ToArray());
+
+            Assert.That(s, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                // Oboji prochazi TYMZ prevodem FRD -> FLU: reference frame rotation (reg 26)
+                // plati na kompenzovane i nekompenzovane pole.
+                Assert.That(s.MagnetometerRaw,
+                            Is.EqualTo(new Vector3(magRaw.X, -magRaw.Y, -magRaw.Z)));
+                Assert.That(s.Magnetometer, Is.EqualTo(new Vector3(mag.X, -mag.Y, -mag.Z)));
+                Assert.That(s.Acceleration, Is.EqualTo(new Vector3(acc.X, -acc.Y, -acc.Z)));
+                Assert.That(s.AngularVelocity, Is.EqualTo(new Vector3(gyro.X, -gyro.Y, -gyro.Z)));
+            });
+        }
+
+        [Test]
+        public void DecodePacket_BezUncompMag_ZustaneSurovePoleNull()
+        {
+            // Starsi konfigurace (a T265 nebo virtualni IMU) surove pole neposilaji.
+            var payload = Payload(new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9),
+                                  new Vector3(0, 5, -3), new Vector3(10, 20, 30), Vector3.Zero);
+
+            var s = VN100IMUBinary.DecodePacket(Groups, Masks(), payload);
+
+            Assert.That(s.MagnetometerRaw, Is.Null);
+            Assert.That(s.Magnetometer, Is.Not.Null, "kompenzovane pole tam ale byt musi");
+        }
+
         [Test]
         public void DecodePacket_NoOrientation_ReturnsNull()
         {

@@ -32,9 +32,58 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
-        public void VerzeFormatuJe3()
-            => Assert.That(IMUState.FormatVersion, Is.EqualTo(3),
+        public void VerzeFormatuJe4()
+            => Assert.That(IMUState.FormatVersion, Is.EqualTo(4),
                            "pridani pole = zvednuta verze, jinak by se stare zaznamy cetly spatne");
+
+        [Test]
+        public void RoundTrip_ZachovaSuroveIKompenzovanePole()
+        {
+            // Verze 4 (8. 9. 2026): bez suroveho pole by prolozeni kalibrace magnetometru dalo
+            // korekci korekce - a ze zaznamu se to NEPOZNA. Viz doc/plan-vn100-kalibrace.md.
+            var vzorek = Vzorek();
+            vzorek.MagnetometerRaw = new System.Numerics.Vector3(0.12f, 0.05f, -0.22f);
+
+            var zpet = Kolecko(vzorek);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(zpet.MagnetometerRaw, Is.EqualTo(vzorek.MagnetometerRaw));
+                Assert.That(zpet.Magnetometer, Is.EqualTo(vzorek.Magnetometer),
+                            "kompenzovane pole musi zustat vedle suroveho, ne byt prepsane");
+            });
+        }
+
+        [Test]
+        public void BezSurovehoPole_ZustaneNull()
+        {
+            // T265 a virtualni IMU nekompenzovane pole neposilaji; null je pravdiva odpoved.
+            Assert.That(Kolecko(Vzorek()).MagnetometerRaw, Is.Null);
+        }
+
+        [Test]
+        public void Clone_PreneseSurovePole()
+        {
+            var vzorek = Vzorek();
+            vzorek.MagnetometerRaw = new System.Numerics.Vector3(0.12f, 0.05f, -0.22f);
+
+            Assert.That(vzorek.Clone().MagnetometerRaw, Is.EqualTo(vzorek.MagnetometerRaw),
+                        "fuze a historie klonuji stavy - bez tohohle by se pole cestou ztratilo");
+        }
+
+        /// <summary>Serializace a zpet - jedno misto pro vsechny round-trip testy.</summary>
+        private static IMUState Kolecko(IMUState vzorek)
+        {
+            var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                vzorek.ToData(bw);
+
+            ms.Position = 0;
+            var zpet = new IMUState();
+            using (var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                zpet.FromData(br);
+            return zpet;
+        }
 
         [Test]
         public void RoundTrip_ZachovaPriznakAbsolutnihoKurzu()

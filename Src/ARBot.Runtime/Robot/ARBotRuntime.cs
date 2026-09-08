@@ -651,6 +651,9 @@ namespace ARBot.Robot
             // se druhy Start s jinou misi nikde nedelal, s vyberem mise z webu uz ano).
             FreeRunMission = null;
             RobotourMission = null;
+            // Bez tohohle by po zastaveni zustala mrtva reference a stranka by nabizela
+            // „Zapsat do senzoru" proti misi, ktera uz nebezi.
+            MagCalMission = null;
 
             switch (mission)
             {
@@ -764,11 +767,46 @@ namespace ARBot.Robot
                                     + "Mise nastartovana; ceka na kvalitni fix a pak na stisk nouzoveho zastaveni.");
                     break;
 
+                case "magcal":
+                    // Kalibraci umi JEN binarni driver: cteni a zapis registru je v nem.
+                    // V simulaci a s jinym IMU nema co merit, takze se mise nezaklada.
+                    var vn = ARBotHW.Current.IMU as ARBot.HAL.Devices.AHRS.VN100IMUBinary;
+                    if (vn == null)
+                    {
+                        Trace.WriteLine("mission=magcal, ale neni binarni VN100 (IMU je "
+                                        + (ARBotHW.Current.IMU?.Name ?? "null")
+                                        + ") -> mise se nezaklada.");
+                        break;
+                    }
+
+                    var magcal = new ARBot.Common.Missions.MagCalMission(
+                        new ARBot.HAL.Devices.AHRS.VnMagCalControl(vn), loop);
+
+                    MagCalMission = magcal;
+                    stages.Add(magcal);
+                    // Mise potrebuje IMUState, ne snimky kamer -> pripojuje se na fan-out
+                    // PRIMARNICH zprav, ne na vystup ridici smycky.
+                    connections.Add(processing.Connect(magcal));
+                    connections.Add(magcal.Output.Connect(stream));
+
+                    // Startuje sama (jako Robotour). Bezpecne to je proto, ze mise regulator
+                    // ZAHODI a nikdy ho nenastavi - robot se nemuze rozjet konstrukcne.
+                    magcal.StartMission();
+
+                    // Hlasit "meri", kdyz mise nezacala, by byla nepravda - a prave takove
+                    // hlaseni se pak hleda hodinu (viz nalez z 2. 9. 2026 o kamerach).
+                    Trace.WriteLine(magcal.Phase == ARBot.Common.Missions.MagCalPhase.Collecting
+                        ? "mission=magcal: robot STOJI a meri kalibraci magnetometru. Otacej s nim "
+                          + "rukou podle pokynu na strance; zapis do senzoru je tlacitko pod "
+                          + "drzenym nouzovym zastavenim."
+                        : $"mission=magcal: mise NEZACALA ({magcal.Phase}) - " + magcal.PhaseText);
+                    break;
+
                 default:
                     // Tise ignorovat neznamou misi by znamenalo "mise nebezi, i kdyz si ji nekdo
                     // pral" - a to je presne ten druh chyby, ktery se pak hleda na soutezi.
-                    Trace.WriteLine($"mission={mission}: neznama mise (znam none|freerun|robotour) "
-                                    + "-> zadna mise nebezi.");
+                    Trace.WriteLine($"mission={mission}: neznama mise "
+                                    + "(znam none|freerun|robotour|magcal) -> zadna mise nebezi.");
                     break;
             }
 
@@ -934,6 +972,15 @@ namespace ARBot.Robot
         public ARBot.Common.Missions.RobotourMission RobotourMission { get; private set; }
 
         /// <summary>
+        /// Bezici mise <c>magcal</c> (kalibrace magnetometru), nebo <c>null</c> (viz
+        /// <c>mission=</c>). Vystavena webu kvuli tlacitku „Zapsat do senzoru".
+        ///
+        /// <para>Zaklada se <b>jen s binarnim VN100</b> — v simulaci a s jinym IMU nema co merit.
+        /// Viz doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public ARBot.Common.Missions.MagCalMission MagCalMission { get; private set; }
+
+        /// <summary>
         /// Konfigurace fuze slozeneho behu, nebo <c>null</c> (runtime jeste nebezel). Cte ji webovy
         /// nahled, aby mohl ukazat, s jakymi prahy kvality se GPS posuzuje - a hlavne aby to byly
         /// TYTEZ prahy, jake pouziva fuze.
@@ -945,12 +992,18 @@ namespace ARBot.Robot
         /// v jake fazi a na co ceka" bez znalosti konkretni mise — pouziva to webovy nahled
         /// (doc/plan-headless-provoz.md).
         ///
-        /// <para>Je to <b>pocitana</b> vlastnost nad <see cref="FreeRunMission"/> a
-        /// <see cref="RobotourMission"/>, ne dalsi pole: mise se vylucuji, takze nemuze byt co
-        /// nastavit navic ani co zapomenout vynulovat.</para>
+        /// <para>Je to <b>pocitana</b> vlastnost nad <see cref="FreeRunMission"/>,
+        /// <see cref="RobotourMission"/> a <see cref="MagCalMission"/>, ne dalsi pole: mise se
+        /// vylucuji, takze nemuze byt co nastavit navic ani co zapomenout vynulovat.</para>
+        ///
+        /// <para>⚠️ <b>Pribude-li mise, patri i sem</b> — jinak by o ni stranka ani UI nevedely.
+        /// U <c>magcal</c> je to podstatne: jeji <c>PhaseText</c> JE ten zivy ukazatel pokryti,
+        /// podle ktereho obsluha u robota otaci (viz doc/plan-vn100-kalibrace.md).</para>
         /// </summary>
         public ARBot.Common.Missions.IMissionStatus CurrentMission
-            => (ARBot.Common.Missions.IMissionStatus)FreeRunMission ?? RobotourMission;
+            => (ARBot.Common.Missions.IMissionStatus)FreeRunMission
+               ?? (ARBot.Common.Missions.IMissionStatus)RobotourMission
+               ?? MagCalMission;
 
         /// <summary>
         /// Scanner QR kodu, nebo <c>null</c>. Zaklada se jen s misi Robotour a je <b>vypnuty</b>,

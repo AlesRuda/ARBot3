@@ -172,6 +172,10 @@ namespace ARBot.Robot.Web
                     HandleMission(s, req);
                     return;
 
+                case "/magcal/write":
+                    HandleMagCalWrite(s, req);
+                    return;
+
                 case "/poweroff":
                     HandlePowerOff(s, req);
                     return;
@@ -208,6 +212,59 @@ namespace ARBot.Robot.Web
         /// <para>Hodnota jde <b>query stringem</b>, ne telem: <see cref="HttpMini"/> cte jen
         /// hlavicku a kvuli jednomu retezci nema smysl do nej pridavat cteni tela.</para>
         /// </summary>
+        /// <summary>
+        /// <b>Zapis namerene kalibrace do senzoru</b> — <c>POST /magcal/write</c>.
+        ///
+        /// <para>⚠️ Gate je <b>tady na serveru</b>, ne jen skrytim tlacitka: skryte tlacitko neni
+        /// pojistka. Zapis projde jen pri hotovem pokryti a <b>drzenem nouzovem zastaveni</b> —
+        /// tataz zasada jako u volby mise, a je to zaroven to, co drzi vedome nakreslenou caru
+        /// „zadny zapis do senzoru bez rozhodnuti cloveka" (viz doc/decisions.md).</para>
+        ///
+        /// <para>Pri odmitnuti se vraci <b>409 a duvod</b>, ne 200 s tichym nic — obsluha u robota
+        /// musi vedet, co ma udelat.</para>
+        /// </summary>
+        private void HandleMagCalWrite(System.IO.Stream s, HttpRequestLine req)
+        {
+            if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                // GET by mohl vyvolat prefetch prohlizece nebo nahled odkazu - a zapsal by
+                // kalibraci do senzoru bez toho, aby na to nekdo kliknul.
+                HttpMini.WriteText(s, 405, "zapis kalibrace jde jen pres POST");
+                return;
+            }
+
+            string duvod = status.MagCalWriteBlockedReason();
+            if (duvod != null) { HttpMini.WriteText(s, 409, duvod); return; }
+
+            try
+            {
+                var mise = ARBotRuntime.HasCurrent ? ARBotRuntime.Current.MagCalMission : null;
+                if (mise == null)
+                {
+                    HttpMini.WriteText(s, 409, "mise magcal nebezi");
+                    return;
+                }
+
+                Trace.WriteLine("web: prisel POST /magcal/write");
+                if (!mise.WriteToSensor())
+                {
+                    // Duvod uz je v Trace (rika ho mise); stranka dostane jeji vlastni stav.
+                    HttpMini.WriteText(s, 500, "zapis do senzoru SELHAL: " + mise.PhaseText);
+                    return;
+                }
+
+                HttpMini.WriteText(s, 200,
+                    "kalibrace zapsana a ulozena do flash: " + mise.LastResult.ToVnwrg23()
+                    + "\nPockej ~2 minuty, nez se kurz srovna."
+                    + "\nTrvalost overi az vypnuti a zapnuti robota.");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("web: zapis kalibrace selhal: " + ex);
+                HttpMini.WriteText(s, 500, "zapis kalibrace selhal: " + ex.Message);
+            }
+        }
+
         private void HandleMission(System.IO.Stream s, HttpRequestLine req)
         {
             if (onMission == null) { HttpMini.WriteText(s, 404, "vyber mise tahle aplikace nenabizi"); return; }

@@ -136,5 +136,110 @@ namespace ARBot.HAL.Tests
         {
             Assert.Throws<ArgumentNullException>(() => VnCommands.ReferenceVectorConfig(null, Datum));
         }
+
+        // --- Kalibrace magnetometru (registry 23 / 44 / 47) ---------------------------------
+        // Viz doc/plan-vn100-kalibrace.md.
+
+        /// <summary>Dvanáct čísel v podobě, jakou vyrábí <c>MagCalResult.ToVnwrg23</c>.</summary>
+        private const string Dvanact =
+            "1.222000,0.005000,0.010000,0.002000,1.175000,-0.012000,"
+            + "-0.004000,-0.017000,1.081000,-0.274000,-0.058000,0.076000";
+
+        [Test]
+        public void KompenzaceMagnetometru_JeZAPIS_ADvanactCisel()
+        {
+            string s = VnCommands.MagnetometerCompensation(Dvanact);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(s, Does.StartWith("VNWRG,23,"), "musi to byt ZAPIS, ne VNRRG");
+                Assert.That(s.Split(',').Length, Is.EqualTo(14), "VNWRG + 23 + 12 cisel");
+                Assert.That(s, Does.Not.Contain(" "));
+            });
+        }
+
+        [Test]
+        public void KompenzaceMagnetometru_SpatnyPocetCisel_JeChyba()
+        {
+            // Tise poslat kratsi prikaz by znamenalo zapsat do senzoru necoho jineho.
+            Assert.Throws<ArgumentException>(() => VnCommands.MagnetometerCompensation("1,0,0"));
+            Assert.Throws<ArgumentNullException>(() => VnCommands.MagnetometerCompensation(null));
+        }
+
+        [Test]
+        public void MagCalControl_ZapneRun_ALE_NEAPLIKUJE()
+        {
+            // HSIOutput zustava 1 (NoOnboard): senzor pocita do registru 47, ale neaplikuje.
+            // Je to NEZAVISLA KONTROLA naseho prolozeni, ne druha kalibrace.
+            Assert.That(VnCommands.MagCalControl(true), Is.EqualTo("VNWRG,44,1,1,5"));
+            Assert.That(VnCommands.MagCalControl(false), Is.EqualTo("VNWRG,44,0,1,5"));
+        }
+
+        [Test]
+        public void UlozeniDoFlash_JeVNWNV()
+            => Assert.That(VnCommands.SaveToFlash(), Is.EqualTo("VNWNV"));
+
+        [Test]
+        public void OdpovedUTOPENA_V_BINARNIM_TOKU_SePrecte()
+        {
+            // ⚠️ TOHLE je ten podstatny test. Driver jede binarne, takze ASCII odpovedi prichazeji
+            // utopene v binarnich datech; radkovy grep je mine (0x0A se v binarnich datech bezne
+            // vyskytuje). deploy/vnprobe.sh na tuhle past naslapl a ma ji v hlavicce.
+            string telo = "VNRRG,23,1.000,0.000,0.000,0.000,1.000,0.000,"
+                          + "0.000,0.000,1.000,0.000,0.000,0.000";
+            var ascii = System.Text.Encoding.ASCII.GetBytes(VnCommands.Frame(telo));
+            var smeti = new byte[] { 0xFA, 0x01, 0x28, 0x00, 0x0A, 0x7F, 0xE3, 0xFA, 0x01, 0x0A };
+            var buf = new byte[smeti.Length + ascii.Length + smeti.Length];
+            Buffer.BlockCopy(smeti, 0, buf, 0, smeti.Length);
+            Buffer.BlockCopy(ascii, 0, buf, smeti.Length, ascii.Length);
+            Buffer.BlockCopy(smeti, 0, buf, smeti.Length + ascii.Length, smeti.Length);
+
+            Assert.That(VnCommands.TryParseResponse(buf, 23, out var v), Is.True);
+            Assert.That(v.Length, Is.EqualTo(12));
+            Assert.That(v[0], Is.EqualTo(1.0).Within(1e-9));
+            Assert.That(v[9], Is.EqualTo(0.0).Within(1e-9));
+        }
+
+        [Test]
+        public void OdpovedNaJinyRegistr_SeNevezme()
+        {
+            var ascii = System.Text.Encoding.ASCII.GetBytes(VnCommands.Frame("VNRRG,35,1,0,1,1"));
+
+            Assert.That(VnCommands.TryParseResponse(ascii, 23, out _), Is.False,
+                        "cekame na 23; vzit odpoved na 35 by znamenalo vyhodnotit jina data");
+        }
+
+        [Test]
+        public void OdpovedSVadnymKontrolnimSouctem_SeZAHODI()
+        {
+            // V binarnim toku se posloupnost $...*XX muze vyskytnout i nahodou.
+            string ramec = VnCommands.Frame("VNRRG,21,0.234,0.000,0.4212,0.000,0.000,-9.79375");
+            var bytes = System.Text.Encoding.ASCII.GetBytes(ramec);
+            bytes[bytes.Length - 1] = (byte)(bytes[bytes.Length - 1] == (byte)'0' ? '1' : '0');
+
+            Assert.That(VnCommands.TryParseResponse(bytes, 21, out _), Is.False);
+        }
+
+        [Test]
+        public void OdpovedNaRegistr21_DaSestSlozek_PoleAGravitace()
+        {
+            // Prvni tri slozky jsou referencni vektor pole; z nich se pocita |B| pro normalizaci.
+            string ramec = VnCommands.Frame("VNRRG,21,0.234,0.000,0.4212,0.000,0.000,-9.79375");
+
+            Assert.That(VnCommands.TryParseResponse(
+                System.Text.Encoding.ASCII.GetBytes(ramec), 21, out var v), Is.True);
+            Assert.That(v.Length, Is.EqualTo(6));
+            double bref = Math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            Assert.That(bref, Is.EqualTo(0.4818).Within(0.0002),
+                        "dnesni senzor: (0,234; 0; 0,4212) -> 0,4818 G");
+        }
+
+        [Test]
+        public void PrazdnyNeboKratkyVzorek_NespadneAVratiFalse()
+        {
+            Assert.That(VnCommands.TryParseResponse(null, 23, out _), Is.False);
+            Assert.That(VnCommands.TryParseResponse(new byte[0], 23, out _), Is.False);
+            Assert.That(VnCommands.TryParseResponse(new byte[] { 0x24, 0x56 }, 23, out _), Is.False);
+        }
     }
 }

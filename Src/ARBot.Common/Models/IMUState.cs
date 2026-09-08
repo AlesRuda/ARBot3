@@ -36,6 +36,19 @@ namespace ARBot.Common.Models
         /// </summary>
         public Vector3? Magnetometer;
         /// <summary>
+        /// <b>NEKOMPENZOVANE</b> magneticke pole [G, BODY frame] — tak, jak ho cidlo meri,
+        /// <b>PRED</b> kompenzaci registrem 23. <c>null</c> u zdroju, ktere ho neposilaji
+        /// (T265, virtualni IMU, zaznamy starsi nez format 4).
+        ///
+        /// <para><b>Nacpak.</b> <see cref="Magnetometer"/> je pole PO palubni kompenzaci, takze
+        /// prolozeni kalibrace nad nim by dalo <b>korekci korekce</b> — a ze zaznamu se to
+        /// NEPOZNA (elipsoida uz kompenzovanych dat je priblizne vycentrovana, coz je od dobreho
+        /// zeleza nerozeznatelne). Se surovym polem je ten predpoklad odstranen konstrukcne
+        /// a offline prolozeni jde udelat z KTERÉHOKOLI zaznamu, i kdyz je v senzoru kalibrace
+        /// aktivni. Viz doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public Vector3? MagnetometerRaw;
+        /// <summary>
         /// Akcelerace v m/s^2 [BODY frame]. Surove mereni akcelerometru (vc. gravitace).
         /// </summary>
         public Vector3? Acceleration ;
@@ -111,8 +124,10 @@ namespace ARBot.Common.Models
         /// <b>2</b> = pribylo <see cref="Name"/>; verze 1 (starsi zaznamy) ho nenese a cte se dal.
         /// <b>3</b> = pribyl <see cref="HasAbsoluteHeading"/>; verze 1 a 2 ho nenesou a ctou se
         /// jako <c>true</c> — presne to totiz o svych zdrojich predpokladal kod do 6. 9. 2026.
+        /// <b>4</b> = pribyl <see cref="MagnetometerRaw"/>; verze 1-3 ho nenesou a ctou se jako
+        /// <c>null</c> (starsi zaznamy nekompenzovane pole opravdu neobsahuji).
         /// </summary>
-        public const int FormatVersion = 3;
+        public const int FormatVersion = 4;
 
         /// <summary>
         /// Konstruktor
@@ -154,6 +169,7 @@ namespace ARBot.Common.Models
             v.Translation = Translation;
             v.Velocity = Velocity;
             v.Magnetometer = Magnetometer;
+            v.MagnetometerRaw = MagnetometerRaw;   // bez nej by se kalibrace prokladala z niceho
             v.OrientationUncertainty = OrientationUncertainty;
             v.Name = Name;              // puvodce mereni se klonovanim nesmi ztratit
             v.HasAbsoluteHeading = HasAbsoluteHeading;   // jinak by se relativni yaw stal absolutnim
@@ -337,6 +353,9 @@ namespace ARBot.Common.Models
             Write(bw, Velocity);
             Write(bw, Rotation);
             Write(bw, OrientationUncertainty);
+            // Verze 4 se pripisuje na KONEC zamerne: pridani doprostred by posunulo vsechna
+            // nasledujici pole a starsi zaznamy uz by se necetly.
+            Write(bw, MagnetometerRaw);       // verze 4
         }
 
         /// <inheritdoc/>
@@ -361,6 +380,11 @@ namespace ARBot.Common.Models
             Velocity = ReadNullableVector3(br);
             Rotation = ReadNullableQuaternion(br);
             OrientationUncertainty = ReadNullableVector3(br);
+
+            // Verze 1-3 nekompenzovane pole nenesou - a to je pravdive null, ne chybejici udaj:
+            // driver ho tehdy ze senzoru vubec nevycital. Offline prolozeni kalibrace nad takovym
+            // zaznamem tedy musi spadnout na kompenzovane pole a rict to (viz MagCalReport).
+            MagnetometerRaw = Verze >= 4 ? ReadNullableVector3(br) : null;
         }
     }
 }

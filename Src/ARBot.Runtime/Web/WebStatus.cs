@@ -79,6 +79,7 @@ namespace ARBot.Robot.Web
         private FreeRunMsg freeRun;
         private LocalPlanMsg plan;
         private PerfMsg perf;
+        private MagCalMsg magCal;
         private DateTime cameraInterest = DateTime.MinValue;
 
         /// <summary>
@@ -119,6 +120,39 @@ namespace ARBot.Robot.Web
                 if (!AwaitingMission) return "mise uz bezi (zmena vyzaduje zastaveni)";
                 if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
                     return "motory nehlasi stav - misi nelze vybrat";
+                if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
+                return null;
+            }
+        }
+
+        /// <summary>Posledni stav kalibrace magnetometru; <c>null</c> pri jine misi.</summary>
+        public MagCalMsg MagCal { get { lock (gate) return magCal; } }
+
+        /// <summary>
+        /// <c>null</c> = kalibraci lze zapsat do senzoru; jinak <b>duvod</b>, proc ne.
+        ///
+        /// <para>Dve podminky: <b>hotove pokryti a pouzitelne prolozeni</b> (jinak by se zapsala
+        /// nehotova kalibrace) a <b>drzene nouzove zastaveni</b> (do senzoru se nezapisuje, kdyz
+        /// robot muze jet). Tataz zasada i tyz mechanismus jako
+        /// <see cref="MissionBlockedReason"/>.</para>
+        ///
+        /// <para>⚠️ Duvod je podstatny, ne kosmeticky: obsluze u robota se nesmi jen zesednout
+        /// tlacitko, musi vedet, co ma udelat. A ⚠️ <b>vyhodnocuje se na serveru</b> — skryte
+        /// tlacitko neni pojistka.</para>
+        ///
+        /// <para>Viz doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public string MagCalWriteBlockedReason()
+        {
+            lock (gate)
+            {
+                if (magCal == null) return "mise magcal nebezi";
+                if (magCal.Phase != (int)ARBot.Common.Missions.MagCalPhase.Ready)
+                    return string.IsNullOrEmpty(magCal.Verdict)
+                        ? "kalibrace jeste neni hotova"
+                        : magCal.Verdict;
+                if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
+                    return "motory nehlasi stav - zapis nelze povolit";
                 if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
                 return null;
             }
@@ -169,6 +203,7 @@ namespace ARBot.Robot.Web
                 case FreeRunMsg fr: lock (gate) { freeRun = fr; } return;
                 case LocalPlanMsg lp: lock (gate) { plan = lp; } return;
                 case PerfMsg pm: lock (gate) { perf = pm; } return;
+                case MagCalMsg mc: lock (gate) { magCal = mc; } return;
                 case MotorStateBase ms: lock (gate) { motors = ms; motorsAt = TimeBase.Now; } return;
             }
         }
@@ -407,6 +442,7 @@ namespace ARBot.Robot.Web
             }
 
             AppendMissionPick(sb);
+            AppendMagCal(sb);
             sb.Append('}');
         }
 
@@ -422,6 +458,41 @@ namespace ARBot.Robot.Web
         /// nouzoveho zastaveni. Se skutecnym hardwarem se neukazuje a server ho odmita: dalkove
         /// ovladani stopu na skutecnem robotu je presne to, co tu nikdy nesmi byt.</para>
         /// </summary>
+        /// <summary>
+        /// Blok kalibrace magnetometru. Poradi udaju je zamerne: <b>nejdriv pokyn</b>
+        /// (<c>magcalVerdict</c>, co udelat dal), pak cisla. Obsluha stoji u robota a potrebuje
+        /// vedet, co ma delat, ne diagnozu. Viz doc/plan-vn100-kalibrace.md.
+        /// </summary>
+        private void AppendMagCal(StringBuilder sb)
+        {
+            MagCalMsg m;
+            lock (gate) m = magCal;
+            if (m == null) return;
+
+            sb.Append(",\"magcal\":{");
+            sb.Append("\"verdict\":\"").Append(Escape(m.Verdict ?? string.Empty)).Append('"');
+            sb.Append(",\"missing\":\"").Append(Escape(m.MissingText ?? string.Empty)).Append('"');
+            sb.Append(",\"azimuths\":").Append(m.FilledAzimuthBins);
+            sb.Append(",\"azimuthBins\":")
+              .Append(ARBot.Common.Calibration.MagCalThresholds.AzimuthBins);
+            sb.Append(",\"tilts\":").Append(m.TiltGroups);
+            sb.Append(",\"tilted\":").Append(m.TiltedGroups);
+            sb.Append(",\"opposite\":").Append(m.HasOppositeTilts ? "true" : "false");
+            sb.Append(",\"samples\":").Append(m.Samples);
+            sb.Append(",\"condition\":").Append(Fmt(m.Condition));
+            sb.Append(",\"sdMag\":").Append(Fmt(m.SdMagnitudeG));
+            sb.Append(",\"sdIncl\":").Append(Fmt(m.SdInclinationDeg));
+            sb.Append(",\"brefG\":").Append(Fmt(m.BRefG));
+            sb.Append(",\"vnwrg23\":\"").Append(Escape(m.Vnwrg23 ?? string.Empty)).Append('"');
+
+            // Duvod, PROC nelze zapsat - bez nej by obsluha videla jen sede tlacitko.
+            string duvod = MagCalWriteBlockedReason();
+            sb.Append(",\"canWrite\":").Append(duvod == null ? "true" : "false");
+            if (duvod != null)
+                sb.Append(",\"writeBlocked\":\"").Append(Escape(duvod)).Append('"');
+            sb.Append('}');
+        }
+
         private void AppendMissionPick(StringBuilder sb)
         {
             bool estop;
@@ -697,6 +768,7 @@ namespace ARBot.Robot.Web
 <div class=""hlava"" id=""hlava""><h1 id=""nazev"">ARBot - náhled</h1><div class=""info"" id=""info""></div></div>
 <div class=""mise"" id=""mise""></div>
 <div class=""volba"" id=""volba"" style=""display:none""></div>
+<div class=""volba"" id=""magcal"" style=""display:none""></div>
 <div class=""lista"">
  <div class=""prepinace"">
   <button class=""prep akt"" id=""b-world"" onclick=""vrstva('world')"">půdorys</button>
@@ -768,6 +840,7 @@ function tik(){
   hlavicka(d.head||{});
   verzeStranky(d.head||{});
   vyberMise(d.head||{});
+  kalibrace(d.head||{});
   akce(d.head||{});
   document.getElementById('stav').textContent=d.running?'runtime běží':'runtime zastaven';
  }).catch(nedostupny);
@@ -881,6 +954,58 @@ function vypnout(){
    else alert('Vypnout se nepodařilo: '+txt);
   });
  }).catch(function(){ document.getElementById('nazev').textContent='ARBot - vypíná se'; });
+}
+// Kalibrace magnetometru (mise magcal). Panel se ukazuje JEN kdyz mise bezi.
+//
+// Poradi udaju je zamerne: NEJDRIV POKYN (co udelat dal), pak cisla. Obsluha stoji venku
+// u robota, otaci s nim rukou a potrebuje vedet, co ma delat - ne diagnozu. A u tlacitka je
+// VZDY videt DUVOD, proc nejde zmacknout; sede tlacitko bez vysvetleni cloveka zastavi.
+// Viz doc/plan-vn100-kalibrace.md.
+function kalibrace(h){
+ var el=document.getElementById('magcal');
+ var k=h.magcal;
+ if(!k){ el.style.display='none'; return; }
+ el.style.display='';
+
+ var t='<h2>kalibrace magnetometru</h2>';
+ t+='<div class=""ceka"">'+(k.verdict||'')+'</div>';
+ t+='<div>azimuty <b>'+k.azimuths+'/'+k.azimuthBins+'</b>'
+   +' &nbsp;náklony <b>'+k.tilts+'</b> (odkloněné '+k.tilted+', na obě strany '
+   +(k.opposite?'ano':'<b>NE</b>')+')'
+   +' &nbsp;vzorků '+k.samples+'</div>';
+ t+='<div>podmíněnost <b>'+cislo(k.condition)+'</b>'
+   +' &nbsp;sd|B| '+cislo(k.sdMag)+' G'
+   +' &nbsp;sd sklonu '+cislo(k.sdIncl)+'&deg;'
+   +' &nbsp;|B|ref '+cislo(k.brefG)+' G</div>';
+ if(k.vnwrg23) t+='<div class=""duvod"">'+k.vnwrg23+'</div>';
+
+ t+='<button id=""zapsat""'+(k.canWrite?'':' disabled')+'>zapsat do senzoru</button>';
+ if(k.writeBlocked) t+='<div class=""duvod"">'+k.writeBlocked+'</div>';
+ el.innerHTML=t;
+
+ // Obsluha se navesuje az po vlozeni HTML - skladat onclick do retezce znamena apostrofy
+ // v apostrofech uvnitr C# verbatim retezce, a presne tam se 5. 9. 2026 ztratil escape
+ // a CELY skript spadl na SyntaxError.
+ var b=document.getElementById('zapsat');
+ if(b) b.onclick=zapsatKalibraci;
+}
+// Nekonecno a NaN se na strance nesmi ukazat jako ""Infinity""/""NaN"" - podminenost je pred
+// prvnim uspesnym prolozenim nekonecna a sd sklonu je NaN bez akcelerometru.
+function cislo(v){
+ if(v===null||v===undefined||!isFinite(v)) return '—';
+ var a=Math.abs(v);
+ if(a!==0&&(a<0.001||a>=100000)) return v.toExponential(2);
+ return a>=100 ? v.toFixed(0) : (a>=1 ? v.toFixed(2) : v.toFixed(4));
+}
+function zapsatKalibraci(){
+ if(!confirm('Zapsat naměřenou kalibraci do senzoru a uložit do flash?\n'
+   +'Kurz se pak ~2 minuty dorovnává.'))return;
+ fetch('/magcal/write',{method:'POST'}).then(function(r){
+  return r.text().then(function(txt){
+   alert(r.ok?txt:'Zapsat nelze: '+txt);
+   tik();
+  });
+ });
 }
 function zvolMisi(m){
  if(!confirm('Spustit misi '+m+'? Robot se rozjede po uvolnění nouzového zastavení.'))return;

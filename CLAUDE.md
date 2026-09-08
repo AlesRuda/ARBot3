@@ -214,6 +214,17 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vlastním polem 206 s** (`K = 0,00485 ± 0,00074 1/s`) — `kurz z pole − yaw` jde po minutách
   +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po zatáčce je yaw desítky stupňů vedle
   i proti svému vlastnímu magnetometru. To kalibrace neopraví.
+  ✅ **Kalibraci si od 8. 9. 2026 robot změří sám: `mission=magcal`** — stojí, obsluha s ním otáčí
+  rukou, stránka náhledu říká **co ještě chybí**, a po ťuknutí (jen pod **drženým** nouzovým
+  zastavením) si kalibraci zapíše do registru 23 a do flash. Celé z telefonu, bez notebooku
+  v poli. Plán a rozhodnutí: [doc/plan-vn100-kalibrace.md](doc/plan-vn100-kalibrace.md), kroky
+  [doc/plan-vn100-kalibrace-kroky.md](doc/plan-vn100-kalibrace-kroky.md); offline rozbor
+  `ARBot.Analyze magcal`. **Fáze 1 je hotová v kódu (1475 testů), ale NEBĚŽELA na skutečném
+  senzoru** — chybí celé terénní měření. ⚠️ **Rotace na rovině NESTAČÍ a nestačí ani dva náklony
+  na jednu stranu** (podmíněnost 2,0 × 10⁸ resp. 4,7 × 10⁷ proti 434 u páru +/−) — složka `z` je
+  jinak nezměřená a promítne se náklonem přímo do kurzu. ⚠️ **Měřítko se váže na registr 21**
+  (čte se ze senzoru), protože VPE proti němu porovnává `|B|` a sklon; je tedy možné, že tím
+  zmizí i vada 206 s — přeměří se to a **je-li tak, fáze 2 se ruší**.
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.

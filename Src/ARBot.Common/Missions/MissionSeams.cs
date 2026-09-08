@@ -93,4 +93,59 @@ namespace ARBot.Common.Missions
         /// <summary>Zkusi najit trasu na cil.</summary>
         RouteProbeResult Probe(LLA target);
     }
+
+    /// <summary>
+    /// <b>Uzky sev pro cteni a zapis kalibrace VN100</b> (v aplikaci nad driverem).
+    ///
+    /// <para>⚠️ <b>Je uzky ZAMERNE.</b> Projekt ma vedome nakreslenou caru — „konfigurace senzoru
+    /// se meni vedome a rucne, ne vedlejsim ucinkem nejakeho mereni" (hlavicky
+    /// <c>deploy/vnprobe.sh</c> a <c>vnrestore.sh</c>). <b>Zamer te cary byl „zadny zapis bez
+    /// rozhodnuti cloveka" a ten plati dal:</b> zapis se deje jen na tuknuti na tlacitko pod
+    /// DRZENYM nouzovym zastavenim, coz je silnejsi gate nez ssh session. Meni se mechanismus,
+    /// ne pravidlo.</para>
+    ///
+    /// <para>Pojistka proti erozi: sev umi <b>jen</b> registry 23 a 44 a cteni 21/23/44/47,
+    /// a vola ho <b>jen</b> <see cref="MagCalMission"/>. Obecne „zapis jakykoli registr" by tu
+    /// caru smazalo — <b>nezakladej ho.</b></para>
+    ///
+    /// <para><b>Proc jsou cisla registru tady a ne ve <c>VnCommands</c>:</b> mise zije
+    /// v <c>ARBot.Common</c> a smer zavislosti je <c>Common ← HAL</c>, takze na <c>VnCommands</c>
+    /// nevidi. Znalost protokolu zustava v HAL; sem patri jen ta cisla, ktera mise potrebuje
+    /// pojmenovat.</para>
+    ///
+    /// <para>Viz doc/plan-vn100-kalibrace.md a doc/decisions.md.</para>
+    /// </summary>
+    public interface IMagCalControl
+    {
+        /// <summary>Registr 21: referencni vektory pole a gravitace (odtud se bere <c>|B|</c>).</summary>
+        public const int RegReference = 21;
+
+        /// <summary>Registr 23: kompenzace magnetometru.</summary>
+        public const int RegCompensation = 23;
+
+        /// <summary>Registr 44: rizeni palubni HSI kalibrace.</summary>
+        public const int RegCalControl = 44;
+
+        /// <summary>Registr 47: kalibrace, kterou spocital SAM senzor (nezavisla kontrola).</summary>
+        public const int RegCalculatedHsi = 47;
+
+        /// <summary>Precte registr; <c>null</c> = nepodarilo se.</summary>
+        double[] ReadRegister(int reg);
+
+        /// <summary>Zapise kompenzaci do registru 23 (dvanact cisel s desetinnou teckou).</summary>
+        bool WriteMagCompensation(string dvanactCisel);
+
+        /// <summary>
+        /// Zapne/vypne palubni HSI (registr 44) — <b>bez</b> aplikace, jen do registru 47.
+        /// Je to nezavisla kontrola naseho prolozeni, ne druha kalibrace.
+        /// </summary>
+        bool SetOnboardHsi(bool run);
+
+        /// <summary>
+        /// Ulozi sadu registru do flash.
+        /// <para>⚠️ Uspech NENI overitelny zpetnym ctenim (to cte z RAM) — skutecny test je az
+        /// vypnuti a zapnuti robota.</para>
+        /// </summary>
+        bool SaveToFlash();
+    }
 }

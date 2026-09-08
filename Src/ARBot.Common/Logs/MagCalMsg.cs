@@ -1,0 +1,128 @@
+using System;
+using System.IO;
+
+namespace ARBot.Common.Logs
+{
+    /// <summary>
+    /// <b>Stav kalibrace magnetometru</b> za jeden interval sberu (~1 s).
+    ///
+    /// <para><b>Proc zprava a ne jen text na strance.</b> Ve streamu jde soucasne do webu (zivy
+    /// ukazatel pro obsluhu, ktera stoji u robota) i do <b>zaznamu</b> — takze verdikt z pole je
+    /// pozdeji dohledatelny a <c>ARBot.Analyze magcal</c> ho umi postavit vedle vlastniho
+    /// prepoctu ze surovych <c>IMUState</c>. Kdyz se ta dve cisla rozejdou, je chyba v KODU,
+    /// ne v senzoru — a pozna se to.</para>
+    ///
+    /// <para><see cref="Reg23Before"/> a <see cref="BRefG"/> se nesou proto, ze bez nich se
+    /// vysledek nedá vylozit: <c>BRefG</c> je meritko, na ktere se normovalo (cte se ze
+    /// senzoru, neni to konstanta), a <c>Reg23Before</c> rika, co v senzoru bylo pred merenim.</para>
+    ///
+    /// <para>Viz doc/plan-vn100-kalibrace.md.</para>
+    /// </summary>
+    [Serializable()]
+    public class MagCalMsg : Message, IHasCaptureTime
+    {
+        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
+        public const int FormatVersion = 1;
+
+        /// <summary>Faze mise (<c>MagCalPhase</c> jako int, aby zprava prezila doplneni hodnot).</summary>
+        public int Phase;
+
+        /// <summary>Podminenost navrhove matice — <b>urcenost</b> soustavy, nutna podminka.</summary>
+        public double Condition;
+
+        /// <summary>Rozptyl <c>|B|</c> po korekci [G] — kvalita, ne urcenost.</summary>
+        public double SdMagnitudeG;
+
+        /// <summary>Rozptyl sklonu po korekci [deg]; <see cref="double.NaN"/> bez akcelerometru.</summary>
+        public double SdInclinationDeg;
+
+        /// <summary>
+        /// Dvanact cisel ke zkopirovani za <c>VNWRG,23,</c>; prazdne, dokud se neprolozilo.
+        /// </summary>
+        public string Vnwrg23;
+
+        /// <summary>Verdikt pro cloveka: co udelat dal, nebo ze je hotovo.</summary>
+        public string Verdict;
+
+        /// <summary>Co jeste chybi v pokryti; prazdne = nic.</summary>
+        public string MissingText;
+
+        /// <summary>Kolik azimutovych kosu ma dost vzorku.</summary>
+        public int FilledAzimuthBins;
+
+        /// <summary>Naklonove skupiny s dostatecnym azimutovym pokrytim.</summary>
+        public int TiltGroups;
+
+        /// <summary>Z nich odklonene aspon o prah.</summary>
+        public int TiltedGroups;
+
+        /// <summary>
+        /// Je robot naklonen na dve RUZNE strany? Bez toho je soustava skoro tak degenerovana
+        /// jako pri rotaci na rovine — zmereno, viz <c>MagCalThresholds.MaxCondition</c>.
+        /// </summary>
+        public bool HasOppositeTilts;
+
+        /// <summary>Kolik vzorku se nasbiralo.</summary>
+        public int Samples;
+
+        /// <summary>
+        /// Referencni <c>|B|</c> [G] z registru 21 — <b>ctene ze senzoru</b>, ne konstanta.
+        /// Na tuhle hodnotu se normuje, takze bez ni se vysledek neda porovnat.
+        /// </summary>
+        public double BRefG;
+
+        /// <summary>Registr 23 pri zacatku mise (dvanact cisel), nebo prazdne.</summary>
+        public string Reg23Before;
+
+        /// <summary>Cas posledniho zpracovaneho vzorku (hodiny DAT, ne stroje).</summary>
+        public DateTime TimeStamp;
+
+        /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
+        DateTime IHasCaptureTime.CaptureTime => TimeStamp;
+
+        public MagCalMsg() : base("MagCalMsg", FormatVersion) { }
+
+        /// <inheritdoc/>
+        public override Message Build() => new MagCalMsg();
+
+        /// <inheritdoc/>
+        public override void ToData(BinaryWriter bw)
+        {
+            bw.Write(Phase);
+            bw.Write(Condition);
+            bw.Write(SdMagnitudeG);
+            bw.Write(SdInclinationDeg);
+            bw.Write(Vnwrg23 ?? string.Empty);
+            bw.Write(Verdict ?? string.Empty);
+            bw.Write(MissingText ?? string.Empty);
+            bw.Write(FilledAzimuthBins);
+            bw.Write(TiltGroups);
+            bw.Write(TiltedGroups);
+            bw.Write(HasOppositeTilts);
+            bw.Write(Samples);
+            bw.Write(BRefG);
+            bw.Write(Reg23Before ?? string.Empty);
+            Write(bw, TimeStamp);
+        }
+
+        /// <inheritdoc/>
+        public override void FromData(BinaryReader br)
+        {
+            Phase = br.ReadInt32();
+            Condition = br.ReadDouble();
+            SdMagnitudeG = br.ReadDouble();
+            SdInclinationDeg = br.ReadDouble();
+            Vnwrg23 = br.ReadString();
+            Verdict = br.ReadString();
+            MissingText = br.ReadString();
+            FilledAzimuthBins = br.ReadInt32();
+            TiltGroups = br.ReadInt32();
+            TiltedGroups = br.ReadInt32();
+            HasOppositeTilts = br.ReadBoolean();
+            Samples = br.ReadInt32();
+            BRefG = br.ReadDouble();
+            Reg23Before = br.ReadString();
+            TimeStamp = ReadDateTime(br);
+        }
+    }
+}

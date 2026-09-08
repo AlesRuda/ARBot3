@@ -111,6 +111,11 @@ namespace ARBot.Analyze
                                       Arg(args, "--mindraha", 0));
                         return 0;
                     case "vn100": Vn100Report.Run(rec); return 0;
+                    case "magcal":
+                        // --bref = referencni |B| [G] z registru 21; default je dnesni hodnota
+                        // senzoru (0,234; 0; 0,4212) -> 0,4818 G. Viz doc/plan-vn100-kalibrace.md.
+                        MagCalReport.Run(rec, Arg(args, "--bref", 0.4818), Text(args, "--reg47"));
+                        return 0;
                     case "backproject" when Text(args, "--compare") != null:
                         // Srovnavaci mrizka (vstup | histogram | modely) misto mereni.
                         BackProjectCompare.Run(rec, Text(args, "--compare"),

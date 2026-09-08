@@ -177,9 +177,11 @@ namespace ARBot.Common.Configuration
 
         // --- Mise ----------------------------------------------------------------------
         // Vycet MUSI odpovidat switchi v ARBotRuntime - kdyz pribude mise, patri i sem.
-        public static readonly StringParam Mission = Vycet("mission", "none", new[] { "none", "freerun", "robotour" }, K_MISE,
-              "Vyber mise: none | freerun | robotour. Mise se vylucuji, proto selektor a ne "
-              + "booleovske prepinace - dve zaroven by si prepisovaly mrkev.");
+        public static readonly StringParam Mission = Vycet("mission", "none", new[] { "none", "freerun", "robotour", "magcal" }, K_MISE,
+              "Vyber mise: none | freerun | robotour | magcal. Mise se vylucuji, proto selektor "
+              + "a ne booleovske prepinace - dve zaroven by si prepisovaly mrkev. magcal NEJEZDI: "
+              + "robot stoji a meri si kalibraci magnetometru, kdyz s nim clovek otaci rukou "
+              + "(viz doc/plan-vn100-kalibrace.md).");
         public static readonly DoubleParam FreeRunLook = Num("freerunlook", Fmt(new FreeRunConfig().LookaheadM), K_MISE,
               "Lookahead mrkve mise FreeRun [m] - jedina skutecna ladici konstanta te mise. "
               + "Default = FreeRunConfig.LookaheadM.");

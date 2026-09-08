@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 
@@ -81,6 +83,136 @@ namespace ARBot.HAL.Devices.AHRS
                 Conversions.Rad2Deg(lla.Latitude),
                 Conversions.Rad2Deg(lla.Longitude),
                 lla.Altitude);
+        }
+
+        /// <summary>Registr 21: referenční vektory pole a gravitace (odtud se bere `|B|`).</summary>
+        public const int RegMagGravityReference = 21;
+
+        /// <summary>Registr 23: kompenzace magnetometru — <c>m_comp = C · (m_raw − B)</c>.</summary>
+        public const int RegMagCompensation = 23;
+
+        /// <summary>Registr 44: řízení palubní HSI kalibrace.</summary>
+        public const int RegMagCalControl = 44;
+
+        /// <summary>Registr 47: kalibrace, kterou spočítal <b>sám senzor</b> (nezávislá kontrola).</summary>
+        public const int RegCalculatedHsi = 47;
+
+        /// <summary>
+        /// Tělo příkazu pro <b>registr 23 (Magnetometer Compensation)</b>.
+        ///
+        /// <para>Čísla se předávají už zformátovaná
+        /// (<c>ARBot.Common.Calibration.MagCalResult.ToVnwrg23</c>), protože právě tam je
+        /// zaručeno, že mají desetinnou <b>tečku</b>. ⚠️ Čárka by rozbila příkaz oddělený
+        /// čárkami — tatáž past, na kterou naběhl registr 83 (viz hlavička této třídy).</para>
+        ///
+        /// <para>⚠️ Zápis je <b>nestálý</b>; pro trvalé uložení je potřeba <see cref="SaveToFlash"/>.</para>
+        /// </summary>
+        public static string MagnetometerCompensation(string dvanactCisel)
+        {
+            if (string.IsNullOrWhiteSpace(dvanactCisel))
+                throw new ArgumentNullException(nameof(dvanactCisel));
+            int n = dvanactCisel.Split(',').Length;
+            if (n != 12)
+                throw new ArgumentException($"Ceka se 12 cisel, prislo {n}.", nameof(dvanactCisel));
+            if (dvanactCisel.Contains(' '))
+                throw new ArgumentException("Prikaz nesmi obsahovat mezery.", nameof(dvanactCisel));
+            return $"VNWRG,{RegMagCompensation},{dvanactCisel}";
+        }
+
+        /// <summary>
+        /// Tělo příkazu pro <b>registr 44 (Magnetometer Calibration Control)</b>:
+        /// <c>HSIMode, HSIOutput, ConvergeRate</c>.
+        ///
+        /// <para><c>HSIOutput</c> zůstává <b>1 = NoOnboard</b> i při zapnutém <c>Run</c>: senzor
+        /// výsledek spočítá do registru 47, ale <b>neaplikuje</b>. Je to <b>nezávislá kontrola</b>
+        /// našeho proložení, ne druhá kalibrace, která by se s naší míchala. Viz
+        /// doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public static string MagCalControl(bool run)
+            => $"VNWRG,{RegMagCalControl},{(run ? 1 : 0)},1,5";
+
+        /// <summary>Tělo čtecího příkazu.</summary>
+        public static string ReadRegister(int reg)
+        {
+            if (reg < 0 || reg > 255) throw new ArgumentOutOfRangeException(nameof(reg));
+            return $"VNRRG,{reg}";
+        }
+
+        /// <summary>
+        /// Uložení celé sady registrů do flash.
+        ///
+        /// <para>⚠️ Ukládá <b>všechno, jak to je právě v RAM</b> — tedy i to, co tam zapsal driver
+        /// při startu (ADOR a binární výstup). Je to neškodné (driver si je píše při každém
+        /// startu), ale flash se v těch položkách rozejde s referenčním exportem.</para>
+        ///
+        /// <para>⚠️ Zápis do flash jde ověřit jen zpětným čtením, a to čte z <b>RAM</b>.
+        /// <b>Skutečný test je až vypnutí a zapnutí robota.</b></para>
+        /// </summary>
+        public static string SaveToFlash() => "VNWNV";
+
+        /// <summary>
+        /// <b>Vytáhne odpověď na <c>VNRRG,&lt;reg&gt;</c> z BAJTOVÉHO PROUDU.</b>
+        ///
+        /// <para>⚠️ <b>Proč ne po řádcích.</b> Driver přepne senzor do binárního režimu, takže po
+        /// lince teče ~9 kB/s binárních dat a ASCII odpovědi jsou v nich <b>utopené</b> — bajt
+        /// <c>0x0A</c> se v binárních datech vyskytuje běžně, takže dělení na řádky rozseká
+        /// odpověď uprostřed. Hledá se proto rámec <c>$VN…*XX</c> v celém vzorku.
+        /// <c>deploy/vnprobe.sh</c> na tuhle past naběhl a má ji v hlavičce.</para>
+        ///
+        /// <para>Kontrolní součet se <b>ověřuje</b>: v binárním toku se posloupnost
+        /// <c>$…*XX</c> může vyskytnout i náhodou.</para>
+        /// </summary>
+        /// <param name="buffer">Vzorek bajtů z linky (může obsahovat binární data i smetí).</param>
+        /// <param name="reg">Číslo registru, na který se čeká odpověď.</param>
+        /// <param name="values">Hodnoty z odpovědi; <c>null</c> při nenalezení.</param>
+        public static bool TryParseResponse(byte[] buffer, int reg, out double[] values)
+        {
+            values = null;
+            if (buffer == null || buffer.Length < 8) return false;
+            string ocekavano = $"VNRRG,{reg},";
+
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                if (buffer[i] != (byte)'$') continue;
+
+                int hvezda = -1;
+                for (int j = i + 1; j < buffer.Length && j - i < 512; j++)
+                {
+                    if (buffer[j] == (byte)'*') { hvezda = j; break; }
+                    // Bajt mimo tisknutelne ASCII => tohle nebyl zacatek ramce.
+                    if (buffer[j] < 0x20 || buffer[j] > 0x7E) break;
+                }
+                if (hvezda < 0 || hvezda + 2 >= buffer.Length) continue;
+
+                string telo = Encoding.ASCII.GetString(buffer, i + 1, hvezda - i - 1);
+                if (!telo.StartsWith(ocekavano, StringComparison.Ordinal)) continue;
+
+                string souctem = Encoding.ASCII.GetString(buffer, hvezda + 1, 2);
+                if (!byte.TryParse(souctem, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                   out byte prislo)
+                    || Checksum(telo) != prislo)
+                {
+                    // Diagnostika do Trace, ne Debug: v Release na zarizeni by po poruse
+                    // nezustala zadna stopa (pravidlo projektu).
+                    Trace.WriteLine($"VN100: odpoved na registr {reg} ma vadny kontrolni soucet"
+                                    + " - zahozeno.");
+                    continue;
+                }
+
+                var casti = telo.Substring(ocekavano.Length).Split(',');
+                var v = new double[casti.Length];
+                for (int k = 0; k < casti.Length; k++)
+                    if (!double.TryParse(casti[k], NumberStyles.Float, CultureInfo.InvariantCulture,
+                                         out v[k]))
+                    {
+                        Trace.WriteLine($"VN100: registr {reg} - necitelna hodnota '{casti[k]}'.");
+                        return false;
+                    }
+
+                values = v;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>Orámuje tělo příkazu do tvaru <c>$telo*XX</c> (XX = 8bitový XOR součet).</summary>

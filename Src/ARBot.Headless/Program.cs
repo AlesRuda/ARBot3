@@ -74,7 +74,13 @@ namespace ARBot.Headless
                 + $" mise: {mise};"
                 + $" zaznam: {PopisZaznamu()};"
                 + $" nahled: {(webPort > 0 ? "http://<ip>:" + webPort + "/" : "vypnuty (web=0)")}.");
-            if (miseZapnuta)
+            if (ParamRegistry.Mission.Is("magcal"))
+                // magcal NEJEZDI - varovat "robot se rozjede" by bylo zbytecne strasit a hlavne
+                // nepravda: mise regulator zahodi a nikdy ho nenastavi.
+                Trace.WriteLine("mission=magcal: robot se NEROZJEDE - mise zahodi regulator a jen"
+                    + " meri kalibraci magnetometru, kdyz s robotem otacis rukou. Pokyny a zapis"
+                    + " do senzoru jsou na strance nahledu (web=<port>).");
+            else if (miseZapnuta)
                 Trace.WriteLine("POZOR: mise je zapnuta - jakmile bude HW pripravene, mise zacne bez dalsiho "
                     + "pokynu. FreeRun se rovnou rozjede; Robotour se sam nastartuje, ale prvni pohyb ceka "
                     + "na stisk a uvolneni nouzoveho zastaveni. Zastavi ho stop nebo ukonceni procesu.");
