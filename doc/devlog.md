@@ -39,6 +39,61 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-08
 
+- **Virtuální magnetometr s vnuceným železem — kalibraci jde celou projít v simulaci.**
+  *Na pokyn autora* („udělej 1 i 2" k návrhu). Do té změny `VirtualImu` neposílalo **ani pole,
+  ani zrychlení**, takže `mission=magcal` v simulaci zahodila každý vzorek a řetěz mise →
+  `MagCalMsg` → záznam → `ARBot.Analyze magcal` **nikdy neproběhl od začátku do konce**.
+  Podrobně [virtual-hw.md](virtual-hw.md).
+  - **Hotovo:** pole a gravitace z pózy (**z jedné rotace**), vnucené tvrdé i **plné symetrické**
+    měkké železo (`MagSoftIron` bere 3 čísla = diagonálu i 6 = plnou matici — nadmnožina, aby se
+    nemuselo rozhodovat), šum, náklon; `VirtualMagCalControl` s registry 21/23/44/47 v paměti;
+    `SimulatedRobot.HandSpinRadPerSec`; ovládání v panelu *Tools → Virtuální senzory*.
+    **12 nových testů, 1487 celkem.**
+  - **Nejcennější kus je test od začátku do konce:** do simulace se vloží **známé** tvrdé
+    (−0,274; −0,058; 0,076 G) a měkké (1,222/1,175/1,081 + nediagonální) železo, robotem se
+    „otočí rukou" a mise musí vrátit **právě ta čísla**. To je jediná kontrola, která chytí záměnu
+    rámců, obrácenou inverzi nebo špatné pořadí polí — chyby, které v jednotkových testech
+    projdou, protože si obě strany platí tutéž konvenci.
+  - **Ověřeno i za běhu** (`mission=magcal virtualhw=true map=OSM/HajeRovne.osm`): mise se
+    založí, stránka ukazuje živý verdikt „chybí azimuty 15–345°; chybí náklon", `MagCalMsg` teče
+    do záznamu (84 zpráv / 90 s) a offline report je přečte a postaví vedle svého přepočtu.
+  - ⚠️ **Návrh dvakrát podcenil, co je nutné.** (a) Mise vyžadovala `VN100IMUBinary`, takže by se
+    ve virtuálním HW **nezaložila vůbec** — proto to úložiště registrů. (b) **Rotaci nelze vyvolat
+    motory:** mise zahodí regulátor a `ControlLoop` posílá `Drive(0,0)` **každý takt**; a posunout
+    `Theta` napřímo nepomůže, protože kolektor počítá pokrytí z **integrovaného gyra**. Odtud
+    „otáčení rukou" v `SimulatedRobot` — což je věcně správnější, při kalibraci opravdu motory
+    stojí a robotem otáčí člověk.
+  - **Náklon se zadává, nesimuluje** — `SimulatedRobot` je rovinný. Pro měření pokrytí to stačí;
+    simulovat robota nakloněného na kopci je jiná úloha.
+  - ⚠️ **Neověřuje to železo skutečného robota**, jen že náš řetěz najde, co do něj vložíme.
+    **Terénní měření to nenahrazuje** — zvyšuje šanci, že první výjezd uspěje, protože se cestou
+    nenajde chyba v kódu nebo v pokynech na stránce.
+  - Past pro příště: `virtualhw=true` **bez `map=`** nevytvoří žádný HW („neni zadana zadna mapa
+    → zadny HW") a stránka pak nemá ani jeden senzor. Stálo to jeden běh.
+- **VN100: `vnprobe.sh` čte registry 37/38 a model pole se nastavuje sám (`magmodel=`).**
+  Dvě věci, které šly udělat i bez robota — *na pokyn autora* po otázce „už není nic, co by se
+  dalo dělat bez něj".
+  - **`deploy/vnprobe.sh` + registry 37 a 38** (VPE mag advanced tuning). Jedna položka ve
+    smyčce; ubírá to jednu věc, na kterou se venku musí myslet, a fáze 2 tím bude podložená daty.
+  - **`MagModelInit`** (`ARBot.Runtime`) zavolá `SetModelParams` (registr 83, model pole →
+    deklinace) **jednorázově po prvním fixu, který projde branou kvality** — a to tímtéž
+    verdiktem `DefaultMeasurementMapper.PositionRejectReason`, jaký používá fúze a náhled;
+    druhá brána by se s tou první rozešla. **Bez `VNWNV`** záměrně: zápis je nestálý, takže se
+    nastaví při každém běhu podle aktuální polohy a data a pravidlo „uložení do flash je vědomý
+    ruční krok" zůstává nedotčené. 7 testů.
+  - ⚠️ **Otáčí to zapsané rozhodnutí** „nenastavovat model, dokud se nezměří smyčka"
+    ([imu-and-frames.md](imu-and-frames.md), 6. 9. 2026). Vědomě, ze tří důvodů: smyčka **je**
+    projetá a rozebraná (chyba je 27,2°/25,2° z železa na těle, tedy o řád víc než deklinace);
+    model si deklinaci **dopočítá z WMM**, nezabetonovává se neproměřené číslo; a přibyl důvod,
+    který ten odstavec neznal — registr 21 znamená sklon **60,9°** proti ~**65,7°** pro ČR
+    a **VPE porovnává měřený sklon proti té referenci**, takže i perfektní kalibrace může
+    zůstat částečně udušená. Kandidát (a) fáze 2 se tím přesunul **před** terénní měření.
+  - ⚠️ **Ten třetí důvod je hypotéza, ne zjištění** — jak silně VPE reaguje na *konstantní*
+    odchylku sklonu, z dokumentace vyčíst nejde. **Na HW to neběželo**; `magmodel=false` vrací
+    chování do 8. 9. 2026, takže A/B je jeden přepínač. **Co změřit:** `IMU yaw − GPS kurz` se
+    má zlepšit **přesně o deklinaci** (~+5°); jiné číslo znamená, že se dvě chyby smíchaly —
+    a přesně to ten původní odstavec hlídal.
+  - 1482 testů, build čistý (x64).
 - **Kalibrace magnetometru VN100 misí `magcal` — fáze 1 hotová v kódu, na HW neověřená.**
   *Na dotaz autora* („jak prověřit a opravit tu VN100? … VN100 má zabudovaný autokalibrační
   mechanismus, možná ten by šel použít, a nebo udělat HSI kalibraci — ta je dostupná v SW pro

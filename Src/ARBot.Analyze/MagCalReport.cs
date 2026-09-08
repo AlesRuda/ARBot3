@@ -104,6 +104,7 @@ namespace ARBot.Analyze
                 Console.WriteLine();
                 Console.WriteLine($"  Malo vzorku ({cov.Mag.Count} < {MagCalFit.MinSamples})"
                                   + " - neprokladam.");
+                VerdiktZPole(rec, bRefG, null);
                 return;
             }
 
@@ -118,6 +119,7 @@ namespace ARBot.Analyze
                 Console.WriteLine("  Soustava NENI URCENA - neprokladam.");
                 Console.WriteLine("  Neni to chyba: bezna jizda azimuty ani naklony nepokryje."
                                   + " Presne proto je potreba rotacni test.");
+                VerdiktZPole(rec, bRefG, null);
                 return;
             }
 
@@ -178,7 +180,7 @@ namespace ARBot.Analyze
         /// prepoctu. Je to ta kontrola, kvuli ktere zprava vubec tece do zaznamu: verdikt v poli
         /// a verdikt u stolu musi byt <b>totez cislo</b>.
         /// </summary>
-        private static void VerdiktZPole(RecordFile rec, double bRefG, MagCalResult nas)
+        private static void VerdiktZPole(RecordFile rec, double bRefG, MagCalResult nas)   // nas = null pri neurcenem prolozeni
         {
             MagCalMsg posledni = null;
             foreach (var m in rec.ReadAll<MagCalMsg>(nameof(MagCalMsg))) posledni = m;
@@ -194,6 +196,14 @@ namespace ARBot.Analyze
             Console.WriteLine($"  registr 23 pred merenim: "
                               + (posledni.Reg23Before.Length == 0 ? "(neprecteno)" : posledni.Reg23Before));
             Console.WriteLine("  " + (posledni.Vnwrg23.Length == 0 ? "(neprolozeno)" : posledni.Vnwrg23));
+
+            if (nas == null)
+            {
+                // Bez vlastniho prolozeni neni s cim porovnavat - ale co robot v poli tvrdil, je
+                // uzitecne videt PRAVE TADY, kdyz se u stolu prolozit nedalo.
+                Console.WriteLine("  (vlastni prolozeni se nepodarilo, takze neni s cim porovnat)");
+                return;
+            }
 
             // ⚠️ Robot normoval na |B| PRECTENE ZE SENZORU, report na --bref. Kdyz se ta dve
             // cisla lisi, lisi se i vysledky OPRAVNENE - proto se to tiskne, ne zamlcuje.

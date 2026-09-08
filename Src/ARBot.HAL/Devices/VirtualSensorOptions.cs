@@ -1,3 +1,4 @@
+using System.Numerics;
 namespace ARBot.HAL.Devices
 {
     /// <summary>
@@ -115,6 +116,63 @@ namespace ARBot.HAL.Devices
 
         /// <summary>Prokluz PRAVEHO kola [-] - viz <see cref="LeftWheelSlip"/>.</summary>
         public double RightWheelSlip { get; set; } = 1.0;
+
+        // --- Magnetometr a vnucene zelezo (8. 9. 2026) -------------------------------------
+        //
+        // Nacpak: VirtualImu do teto zmeny neposilalo ANI POLE, ANI ZRYCHLENI, takze
+        // `mission=magcal` v simulaci zahodila kazdy vzorek a cely retez mise -> MagCalMsg ->
+        // zaznam -> ARBot.Analyze magcal nikdy neprobehl od zacatku do konce. Se vnucenym
+        // zelezem jde overit, ze mise vrati PRAVE TO, co se do ni vlozilo.
+        // Viz doc/plan-vn100-kalibrace.md a doc/virtual-hw.md.
+
+        /// <summary>Velikost simulovaneho pole [G]; vychozi = referencni vektor VN100 (registr 21).</summary>
+        public double MagFieldG { get; set; } = 0.4818;
+
+        /// <summary>
+        /// Sklon simulovaneho pole [rad]; vychozich 1,1467 = <b>65,7°</b>, tedy skutecny sklon
+        /// pro CR — ne 60,9° z registru 21, ktere je pro nasi polohu vedle.
+        /// </summary>
+        public double MagInclinationRad { get; set; } = 1.1467;
+
+        /// <summary>
+        /// VNUCENE TVRDE ZELEZO [G] — konstantni posun pole v ramci telesa. To je ta vada, kterou
+        /// ma kalibrace najit; na robotu bylo naměřeno vodorovne ~0,28 G.
+        /// </summary>
+        public Vector3 MagHardIronG { get; set; }
+
+        /// <summary>
+        /// VNUCENE MEKKE ZELEZO — <b>symetricka</b> matice 3×3 v poradi
+        /// <c>xx, yy, zz, xy, xz, yz</c>; <c>null</c> nebo prazdne = jednotkova (bez deformace).
+        ///
+        /// <para>Symetricka zamerne: mekke zelezo <i>je</i> symetricka deformace a prolozeni
+        /// vraci symetricke reseni (viz <c>MagCalFit</c>), takze nesymetricky vstup by se nedal
+        /// porovnat s vystupem.</para>
+        /// </summary>
+        public double[] MagSoftIron { get; set; }
+
+        /// <summary>
+        /// <b>Otaceni robotem RUKOU</b> [rad/s] — mimo motory, poloha se nemeni.
+        ///
+        /// <para>Pri kalibraci magnetometru motory stoji a robotem otaci clovek. Pres motory to
+        /// v simulaci vyvolat NELZE: mise zahodi regulator a <c>ControlLoop</c> pak posila
+        /// <c>Drive(0, 0)</c> pri kazdem taktu. Prenasi se do
+        /// <c>SimulatedRobot.HandSpinRadPerSec</c>. Viz doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public double HandSpinRadPerSec { get; set; }
+
+        /// <summary>Sum magnetometru [G] (1σ). Nula = bez sumu.</summary>
+        public double MagNoiseG { get; set; }
+
+        /// <summary>
+        /// Naklon robotu [rad] — <b>zadany, ne simulovany</b>: <c>SimulatedRobot</c> je rovinny
+        /// (X, Y, Theta) a pitch/roll nema. Pri kalibraci je potreba robot podlozit, takze naklon
+        /// staci umet <b>nastavit</b>; simulovat, ze robot na kopci opravdu stoji naklonený, je
+        /// jina uloha a tady k nicemu.
+        /// </summary>
+        public double TiltRad { get; set; }
+
+        /// <summary>Smer naklonu [rad] — kolem ktere vodorovne osy je robot podlozeny.</summary>
+        public double TiltDirRad { get; set; }
 
         /// <summary>Seed sumu - se stejnym seedem vyjde stejna posloupnost vzorku.</summary>
         public int Seed { get; set; } = 1;

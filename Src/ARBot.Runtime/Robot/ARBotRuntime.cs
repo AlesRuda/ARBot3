@@ -438,6 +438,25 @@ namespace ARBot.Robot
             // vystup trvale prazdny. Drat sem ale patri vzdy, at neni "zapnuto a nic nechodi".
             connections.Add(fusion.Output.Connect(stream));
 
+            // Model magnetickeho pole v senzoru (registr 83) - jednorazove po prvnim kvalitnim
+            // fixu. Odebira PRIMARNI zpravy, protoze potrebuje GPSState; do streamu nic neposila,
+            // je to jen jednorazovy zapis do senzoru. Viz MagModelInit.
+            if (ParamRegistry.MagModel.Value)
+            {
+                var magModel = ARBotHW.Current.IMU as ARBot.HAL.IMagneticModel;
+                if (magModel == null)
+                    Trace.WriteLine("magmodel=true, ale IMU model pole neumi ("
+                                    + (ARBotHW.Current.IMU?.Name ?? "null")
+                                    + ") -> kurz zustava magneticky.");
+                else
+                    connections.Add(processing.Connect(new MagModelInit(magModel, fusionConfig)));
+            }
+            else
+            {
+                Trace.WriteLine("magmodel=false: model pole se nenastavuje, kurz z VN100 zustava "
+                                + "MAGNETICKY (u nas o ~5 stupnu proti pravemu severu).");
+            }
+
             // Vyssi ridici smycka: occupancy grid + lokalni planovani. Bezi na VLASTNIM vlakne
             // (MessageProcessor), takze tik ControlLoop zustava deterministicky. Odebira snimky z
             // loop.Output (ridici smycka je forwarduje po pullu), pozu si bere z fuze v case
@@ -768,19 +787,31 @@ namespace ARBot.Robot
                     break;
 
                 case "magcal":
-                    // Kalibraci umi JEN binarni driver: cteni a zapis registru je v nem.
-                    // V simulaci a s jinym IMU nema co merit, takze se mise nezaklada.
-                    var vn = ARBotHW.Current.IMU as ARBot.HAL.Devices.AHRS.VN100IMUBinary;
-                    if (vn == null)
+                    // Sev pro cteni a zapis registru: na zeleze binarni VN100, v simulaci
+                    // uloziste v pameti. Bez toho druheho by se mise ve virtualnim HW vubec
+                    // nezalozila a proceduru by neslo proklikat ani otestovat od zacatku do
+                    // konce - viz doc/plan-vn100-kalibrace.md.
+                    ARBot.Common.Missions.IMagCalControl magCtl = null;
+                    if (ARBotHW.Current.IMU is ARBot.HAL.Devices.AHRS.VN100IMUBinary vn)
+                        magCtl = new ARBot.HAL.Devices.AHRS.VnMagCalControl(vn);
+                    else if (ParamRegistry.VirtualHw.Value)
+                    {
+                        magCtl = new ARBot.HAL.Devices.AHRS.VirtualMagCalControl(
+                            ARBotHW.Current.VirtualSensors);
+                        Trace.WriteLine("mission=magcal ve VIRTUALNIM HW: registry jsou v pameti, "
+                                        + "do zadneho senzoru se nezapisuje. Overuje se tim NAS "
+                                        + "retez, ne chovani VN100.");
+                    }
+
+                    if (magCtl == null)
                     {
                         Trace.WriteLine("mission=magcal, ale neni binarni VN100 (IMU je "
                                         + (ARBotHW.Current.IMU?.Name ?? "null")
-                                        + ") -> mise se nezaklada.");
+                                        + ") ani virtualni HW -> mise se nezaklada.");
                         break;
                     }
 
-                    var magcal = new ARBot.Common.Missions.MagCalMission(
-                        new ARBot.HAL.Devices.AHRS.VnMagCalControl(vn), loop);
+                    var magcal = new ARBot.Common.Missions.MagCalMission(magCtl, loop);
 
                     MagCalMission = magcal;
                     stages.Add(magcal);

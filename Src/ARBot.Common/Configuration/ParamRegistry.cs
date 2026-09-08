@@ -102,6 +102,16 @@ namespace ARBot.Common.Configuration
               "Zapina korelaci occupancy gridu s mapou (odhad chyby polohy a kurzu). Ve "
               + "vychozim stavu vypnuta - stoji cele jadro. "
               + "Viz doc/map-correlation-localization.md.");
+        // --- model magnetickeho pole v senzoru (8. 9. 2026) ------------------------------
+        public static readonly BoolParam MagModel = Bool("magmodel", "true", K_HW,
+              "Nastavit VN100 model magnetickeho pole podle polohy robota (registr 83), jednorazove "
+              + "po prvnim kvalitnim fixu GPS. Bez nej drzi VN referenci natvrdo v registru 21 a ta "
+              + "je pro nas MIMO: bez deklinace (kurz je magneticky, ne k pravemu severu, u nas o ~5 "
+              + "stupnu) a se sklonem 60,9 misto ~65,7 stupne, proti kteremu VPE porovnava mereny "
+              + "sklon. ⚠️ NEOVERENO NA HW; magmodel=false vrati chovani do 8. 9. 2026 (kvuli A/B). "
+              + "Po nastaveni se kurz skokem zmeni o deklinaci a VPE se dotahuje ~100-170 s. "
+              + "Viz doc/imu-and-frames.md.");
+
         // --- kvalita GPS fixu (6. 9. 2026) -----------------------------------------------
         // Do teto zmeny brala fuze kazdy fix, u ktereho GPSState.IsFixed rekl "ano", a vzdy
         // s tutez sigmou; pocet druzic a DOP se ignorovaly, i kdyz je zprava nese. Defaulty jsou

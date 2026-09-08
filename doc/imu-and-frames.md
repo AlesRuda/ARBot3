@@ -336,6 +336,39 @@ A zápis do registru je **nestálý**; trvalé uložení (`VNWNV`) je vědomý r
 který vytiskne, **je deklinace plus zbytková chyba dohromady**; nastavovat model naslepo znamená
 zabetonovat do senzoru číslo, které nikdo neproměřil.
 
+#### ✅ Model pole se od 8. 9. 2026 nastavuje sám (`magmodel=`, výchozí `true`)
+
+`MagModelInit` (`ARBot.Runtime`) zavolá `SetModelParams` **jednorázově po prvním fixu, který
+projde branou kvality** — a to tímtéž verdiktem `DefaultMeasurementMapper.PositionRejectReason`,
+jaký používá fúze a webový náhled (druhá brána by se s tou první rozešla).
+
+⚠️ **Tím se otáčí rozhodnutí odstavce výše** („nenastavovat, dokud se nezměří smyčka").
+Důvody, proč to je vědomé a ne přehlédnutí:
+
+1. **Smyčka je projetá** (7. 9. 2026, `20260907-170728.rec`) a rozebraná: chyba kurzu je
+   **27,2° / 25,2° harmonické z železa na těle**, tedy o řád víc než deklinace. Předpoklad toho
+   odstavce je tedy splněný a jeho závěr byl „deklinace je malá ryba" — ne „nikdy ji nezapínat".
+2. **Nezabetonovává se nic neproměřeného.** Model si deklinaci **dopočítá z WMM** podle polohy
+   a data; není to číslo, které bychom vymysleli. A `VNWNV` se **záměrně neposílá**, takže zápis
+   je nestálý a nastaví se při každém běhu podle aktuální polohy a data — pravidlo „uložení do
+   flash je vědomý ruční krok" zůstává nedotčené.
+3. **Přibyl druhý, nezávislý důvod, který ten odstavec neznal:** registr 21 znamená sklon
+   **60,9°**, ačkoli pro ČR je ~**65,7°**, a **VPE porovnává měřený sklon proti té referenci**.
+   Kalibrace magnetometru udělá `|B|` a sklon *konstantní*, ale nezmění, že ta konstanta je o 5°
+   mimo — takže i po perfektní kalibraci může VPE magnetometr dál částečně dusit. To je
+   podezření na vadu „VPE se táhne za vlastním polem 206 s" a je to důvod zapnout model
+   **před** terénní kalibrací, ne po ní.
+
+⚠️ **Bod 3 je hypotéza, ne zjištění.** Jak silně VPE reaguje na *konstantní* odchylku sklonu,
+z dokumentace vyčíst nejde a změřit se to dá jedině na senzoru. **Celé to na HW neběželo**;
+`magmodel=false` vrací chování do 8. 9. 2026, takže A/B je jeden přepínač.
+
+⚠️ Po nastavení se kurz **skokem změní o deklinaci** a VPE se na novou referenci dotahuje
+~100–170 s. Proto se to dělá při prvním dobrém fixu, ne až za jízdy.
+
+**Co změřit na zařízení:** `IMU yaw − GPS kurz` se má zlepšit **přesně o deklinaci** (~+5°).
+Když se zlepší o jiné číslo, byly ty dvě chyby smíchané — a právě to ten odstavec výše hlídal.
+
 ### ⚠️ Projetá smyčka venku (7. 9. 2026): kurz je pořád vedle — zbývá **železo na robotu**
 
 Tohle je to měření, na které čekaly dva otevřené závěry z 6. 9.: „absolutní přesnost prokázaná

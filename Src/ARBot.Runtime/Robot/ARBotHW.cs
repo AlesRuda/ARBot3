@@ -252,6 +252,9 @@ namespace ARBot.Robot
 
             sim.LeftWheelSlip = opt.LeftWheelSlip;
             sim.RightWheelSlip = opt.RightWheelSlip;
+            // Otaceni rukou drzi taky SimulatedRobot, ne nastaveni - bez prenosu by panel
+            // nastavil hodnotu, kterou nikdo nectе.
+            sim.HandSpinRadPerSec = opt.HandSpinRadPerSec;
         }
 
         /// <summary>

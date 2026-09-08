@@ -1245,3 +1245,69 @@ podstatné a zvláštní mazání by bylo další cesta ke stejnému cíli.
 
 **Trajektorie v mapě** se při skoku pózy delším než 2 m začne kreslit znovu (stopa je záznam
 *spojitého* pohybu, čára přes půl mapy by ji jen znečitelnila).
+
+## Magnetometr a vnucené železo (od 8. 9. 2026)
+
+`VirtualImu` do té změny neposílalo **ani pole, ani zrychlení**, takže `mission=magcal` v simulaci
+zahodila každý vzorek a celý řetěz mise → `MagCalMsg` → záznam → `ARBot.Analyze magcal`
+**nikdy neproběhl od začátku do konce**. Teď jde vnutit **známé** železo a ověřit, že se vrátí
+právě ono.
+
+| Volba | Význam |
+|---|---|
+| `MagFieldG`, `MagInclinationRad` | simulované pole; výchozí 0,4818 G a **65,7°** (skutečný sklon pro ČR, ne 60,9° z registru 21) |
+| `MagHardIronG` | vnucené **tvrdé** železo [G] — konstantní posun v rámci tělesa |
+| `MagSoftIron` | vnucené **měkké** železo: `xx, yy, zz, xy, xz, yz`; **3 čísla = jen diagonála** |
+| `MagNoiseG` | šum magnetometru (1σ) |
+| `TiltRad`, `TiltDirRad` | **náklon robotu** |
+| `HandSpinRadPerSec` | **otáčení robotem rukou** |
+
+**Pole i gravitace vznikají z JEDNÉ rotace.** Není to styl, je to naměřená past: ze dvou
+nezávislých vzorců se rozešly a proložení pak správně hlásilo rozptyl sklonu **18,7°** i u
+perfektní kalibrace — chyba byla v generátoru dat.
+
+**Měkké železo je symetrické** záměrně: měkké železo *je* symetrická deformace a `MagCalFit`
+vrací symetrické řešení, takže nesymetrický vstup by se s výstupem nedal porovnat.
+
+### ⚠️ Otáčení rukou, ne motory
+
+Rotaci **nelze vyvolat motory**: mise `magcal` zahodí regulátor a `ControlLoop` pak posílá
+`Drive(0, 0)` při **každém taktu**, takže by příkaz přepsal. A posunout `SimulatedRobot.Theta`
+napřímo taky nestačí — kolektor počítá pokrytí z **integrovaného gyra** a to se bere
+z `AngularSpeed`.
+
+Proto `SimulatedRobot.HandSpinRadPerSec`: přičítá se k rotaci z kol, **polohu nemění** a je
+součástí `AngularSpeed`, takže ho gyro vidí. Věcně je to správně — při kalibraci motory stojí
+a robotem otáčí člověk.
+
+### ⚠️ Náklon se zadává, nesimuluje
+
+`SimulatedRobot` je rovinný (X, Y, Theta) a pitch/roll nemá. Pro kalibraci stačí náklon umět
+**nastavit**; simulovat, že robot na kopci opravdu stojí naklonený, je jiná úloha. Náklon **musí
+být na obě strany** — na jednu stranu je soustava skoro tak degenerovaná jako na rovině
+(4,7 × 10⁷ proti 2,0 × 10⁸; pár +/− dá 434).
+
+### Registry v simulaci (`VirtualMagCalControl`)
+
+Mise `magcal` vyžadovala `VN100IMUBinary`, takže se ve virtuálním HW **nezaložila vůbec**.
+`VirtualMagCalControl` drží registry 21/23/44/47 v paměti: **registr 21 hlásí simulované pole**
+(jinak by mise normovala na jiné `|B|`, než jaké simulace vyrábí), registr 23 je výchozí
+jednotkový a **registr 47 poctivě hlásí `null`** — simulace vlastní HSI algoritmus nemá
+a vymyslet číslo by znamenalo předstírat nezávislou kontrolu, která neexistuje.
+
+⚠️ **Není to model senzoru.** Zápis se jen zapamatuje; ověřuje se tím **náš řetěz**, ne chování
+VN100 — to jde změřit jedině na železe.
+
+### Jak to projít v simulaci
+
+```bash
+dotnet run --project Src/ARBot.Headless -p:Platform=x64 -- mission=magcal virtualhw=true map=OSM/HajeRovne.osm web=8080 record=records/magcal.rec
+```
+
+⚠️ **`map=` je povinné** — bez mapy virtuální HW vůbec nevznikne („neni zadana zadna mapa →
+zadny HW") a na stránce nejsou žádné senzory. Otáčení a náklon se ovládají v panelu
+*Tools → Virtuální senzory* → **Kalibrace magnetometru**.
+
+Ověřeno 8. 9. 2026: mise se založí, stránka ukazuje živý verdikt („chybí azimuty 15–345°;
+chybí náklon"), `MagCalMsg` teče do záznamu (84 zpráv za 90 s) a `ARBot.Analyze magcal` je
+přečte a postaví vedle vlastního přepočtu.

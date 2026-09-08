@@ -185,6 +185,37 @@
                     HorizontalAlignment="Left"/>
 
             <Separator Margin="0,6"/>
+            <Separator Margin="0,6"/>
+
+            <!-- ================= Kalibrace magnetometru (mission=magcal) ================= -->
+
+            <TextBlock Text="Kalibrace magnetometru" FontWeight="Bold" Foreground="White"/>
+            <TextBlock TextWrapping="Wrap" Foreground="#A0FFFFFF" FontSize="11"
+                       Text="Otáčení RUKOU a náklon — přesně to při rotačním testu dělá obsluha. Přes motory to nejde: mise magcal zahodí regulátor a řídicí smyčka posílá Drive(0,0) při každém taktu. Náklon se nesimuluje, jen zadává (simulovaný robot je rovinný) — a musí být na OBĚ strany, jinak zůstane složka z neurčená."/>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="otáčení rukou [°/s]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding HandSpinDegPerSec}"
+                               Increment="5" Minimum="-180" Maximum="180"
+                               FormatString="F0" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="náklon [°]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding TiltDeg}"
+                               Increment="5" Minimum="0" Maximum="60"
+                               FormatString="F0" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="směr náklonu [°]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding TiltDirDeg}"
+                               Increment="90" Minimum="0" Maximum="270"
+                               FormatString="F0" Margin="0,0,0,4"/>
+            </Grid>
+
+            <Button Classes="btn" Content="Zastavit otáčení" Command="{Binding StopHandSpinCommand}"
+                    HorizontalAlignment="Left"/>
+
 
             <!-- ================= Šum ================= -->
 

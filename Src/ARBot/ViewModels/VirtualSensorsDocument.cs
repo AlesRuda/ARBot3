@@ -83,6 +83,14 @@ namespace ARBot.ViewModels
         /// </summary>
         [ObservableProperty] private bool emergencyStop;
 
+        // --- Kalibrace magnetometru (mission=magcal, 8. 9. 2026) ------------------------
+        // Otaceni RUKOU a naklon: presne to dela obsluha pri rotacnim testu. Pres motory to
+        // nejde - mise zahodi regulator a ControlLoop posila Drive(0,0) kazdy takt.
+        // Viz doc/plan-vn100-kalibrace.md.
+        [ObservableProperty] private decimal handSpinDegPerSec;
+        [ObservableProperty] private decimal tiltDeg;
+        [ObservableProperty] private decimal tiltDirDeg;
+
         // --- Scena (sum hloubky, trava) - meni render virtualnich kamer, plati hned ---
         [ObservableProperty] private decimal depthNoiseM;
         [ObservableProperty] private decimal grassRoughnessM;
@@ -192,6 +200,15 @@ namespace ARBot.ViewModels
         /// <summary>Motory drzi TUTEZ instanci nastaveni, takze prepnuti plati hned pri dalsim vzorku.</summary>
         partial void OnEmergencyStopChanged(bool value) => options.EmergencyStop = value;
 
+        partial void OnHandSpinDegPerSecChanged(decimal value)
+        {
+            options.HandSpinRadPerSec = Deg2Rad((double)value);
+            AfterSystematicChanged();   // otaceni rukou drzi SimulatedRobot -> musi se prenest
+        }
+
+        partial void OnTiltDegChanged(decimal value) => options.TiltRad = Deg2Rad((double)value);
+        partial void OnTiltDirDegChanged(decimal value) => options.TiltDirRad = Deg2Rad((double)value);
+
         partial void OnGpsPositionNoiseMChanged(decimal value) => options.GpsPositionNoiseM = (double)value;
         partial void OnGpsSpeedNoiseMpsChanged(decimal value) => options.GpsSpeedNoiseMps = (double)value;
         partial void OnImuHeadingNoiseDegChanged(decimal value) => options.ImuHeadingNoiseRad = Deg2Rad((double)value);
@@ -242,6 +259,12 @@ namespace ARBot.ViewModels
             LeftWheelSlip = 1m;
             RightWheelSlip = 1m;
         }
+
+        /// <summary>
+        /// Zastavi otaceni rukou — snadno se zapomene zapnute a robot by se tocil porad.
+        /// </summary>
+        [RelayCommand]
+        private void StopHandSpin() => HandSpinDegPerSec = 0m;
 
         /// <summary>Vynuluje statistiku chyby — po zásahu do nastavení nemají stará čísla smysl.</summary>
         [RelayCommand]

@@ -2807,7 +2807,7 @@ git commit -m "Blok kalibrace magnetometru na strance a tlacitko zapisu pod drze
 Převážně ruční task. Runbook a akceptační kritéria jsou ve specifikaci
 ([plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) → „Runbook v terénu", „Akceptační kritéria").
 
-- [ ] **Krok 1: Doplnit `deploy/vnprobe.sh`** o registry **37 a 38** (VPE mag advanced tuning),
+- [x] **Krok 1: Doplněno 8. 9. 2026** — `deploy/vnprobe.sh` čte i registry **37 a 38** (VPE mag advanced tuning),
       ať je fáze 2 podložená daty — dnes čte 36 a 44. Je to jedna položka ve smyčce `for r in …`.
       Skript zůstává **read-only** (`VNRRG`); zápis do něj nepatří.
 
@@ -2836,6 +2836,10 @@ dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- vn100 records/<novy>.r
 dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- heading records/<novy>.rec
 ```
 
+- [ ] **Krok 6b: Zkontrolovat v logu, že se nastavil model pole** (`MagModel: registr 83 nastaven`).
+      Když tam místo toho je „cekam na kvalitni fix", kalibrace se normovala na **starou**
+      referenci z registru 21 a je potřeba ji přeměřit. `IMU yaw − GPS kurz` se má proti
+      7. 9. zlepšit **přesně o deklinaci** (~+5°) — jiné číslo znamená, že se dvě chyby smíchaly.
 - [ ] **Krok 7: Porovnat s akceptačními kritérii** a zapsat **naměřené hodnoty** (ne „zlepšilo
       se") do [imu-and-frames.md](imu-and-frames.md) a [devlog.md](devlog.md). Když kritéria
       nejsou splněná, **napiš to tak** — polovičatý výsledek zapsaný jako úspěch je horší než

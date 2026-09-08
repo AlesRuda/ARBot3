@@ -214,6 +214,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vlastním polem 206 s** (`K = 0,00485 ± 0,00074 1/s`) — `kurz z pole − yaw` jde po minutách
   +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po zatáčce je yaw desítky stupňů vedle
   i proti svému vlastnímu magnetometru. To kalibrace neopraví.
+  ✅ **Od 8. 9. 2026 se model pole nastavuje sám** (`magmodel=`, výchozí `true`): registr 83 se
+  zapíše jednorázově po prvním kvalitním fixu, takže kurz je k **pravému** severu (deklinace
+  z WMM) a referenční sklon sedí na naši polohu — registr 21 měl 60,9° proti ~65,7° pro ČR, a VPE
+  proti té referenci porovnává měřený sklon. ⚠️ **Otáčí to dřívější rozhodnutí „nenastavovat,
+  dokud se nezměří smyčka"** (vědomě, důvody v `imu-and-frames.md`) a **na HW to neběželo**;
+  `magmodel=false` vrací staré chování. `IMU yaw − GPS kurz` se má zlepšit **přesně o deklinaci**.
   ✅ **Kalibraci si od 8. 9. 2026 robot změří sám: `mission=magcal`** — stojí, obsluha s ním otáčí
   rukou, stránka náhledu říká **co ještě chybí**, a po ťuknutí (jen pod **drženým** nouzovým
   zastavením) si kalibraci zapíše do registru 23 a do flash. Celé z telefonu, bez notebooku
@@ -526,6 +532,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   i za jízdy — dřív vždy jen stály. Od 21. 8. 2026 i **dvě mapy** (`visionmap=`):
   kamery renderují z jiného `.osm` než podle kterého robot jede — vnucená chyba je v datech, ne
   v pozorovateli. Ve World pohledu je vidět jako vrstva „Mapa (vize)"; do streamu ani do záznamu nejde.
+  ✅ **Od 8. 9. 2026 i MAGNETOMETR s vnuceným železem** (`MagHardIronG`, `MagSoftIron` — 3 čísla
+  = diagonála, 6 = plná symetrická matice), náklon a **otáčení robotem rukou**
+  (`SimulatedRobot.HandSpinRadPerSec`). Do té doby `VirtualImu` neposílalo ani pole, ani
+  zrychlení, takže `mission=magcal` v simulaci **nedělala vůbec nic**. Teď jde celá kalibrace
+  proklikat a hlavně **automaticky ověřit, že mise vrátí právě to železo, které se do ní
+  vložilo** — jediná kontrola, která chytí záměnu rámců nebo obrácenou inverzi. ⚠️ Rotaci
+  **nelze vyvolat motory** (mise zahodí regulátor a smyčka posílá `Drive(0,0)` každý takt) a
+  ⚠️ `virtualhw=true` **bez `map=`** nevytvoří žádný HW. Registry v simulaci drží
+  `VirtualMagCalControl` v paměti; **neověřuje to železo skutečného robota**, jen náš řetěz.
 - [doc/telemetry-view.md](doc/telemetry-view.md) — **telemetrický pohled** (tabulka údajů v čase):
   stav robota, řídicí zásahy a údaje z dalších zpráv srovnané v čase (řádek = zpráva, sloupec = údaj,
   tučně = hodnota právě přišla), detail řádku, tooltipy s významem údajů, výběr sloupců a filtr

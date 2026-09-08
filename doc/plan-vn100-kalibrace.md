@@ -324,7 +324,13 @@ Začíná **přeměřením** bloku 3 v `ARBot.Analyze vn100`:
   zamítnutá vada (i s číslem, aby to nikdo nezkoušel znovu).
 - **`K` nevyskočilo** → tři kandidáti, **každý jako jeden zápis + přeměření**, ne balík — jinak
   se nedozvíme, co zabralo:
-  1. **Registr 83 `UseMagModel=true`** + rok + naše souřadnice. Spraví referenci pro naši polohu
+  1. ✅ **HOTOVO 8. 9. 2026 a přesunuto PŘED terénní měření** (`magmodel=`, výchozí `true`,
+     `MagModelInit`). Registr 83 se nastaví jednorázově po prvním kvalitním fixu, bez `VNWNV`.
+     Důvod přesunu: registr 21 znamená sklon 60,9° proti ~65,7° pro ČR a **VPE porovnává měřený
+     sklon proti té referenci**, takže i perfektní kalibrace může zůstat částečně udušená.
+     ⚠️ Je to **hypotéza** a na HW to neběželo; `magmodel=false` vrací staré chování.
+     Podrobně [imu-and-frames.md](imu-and-frames.md).
+  1. ~~**Registr 83 `UseMagModel=true`** + rok + naše souřadnice.~~ Spraví referenci pro naši polohu
      **a přinese deklinaci**. ✅ **`VnCommands.ReferenceVectorConfig` je už napsaný, tvar příkazu
      ověřený proti odpovědi senzoru — a nikdo ho nevolá.** Chybí mu zavolání a `VNWNV`. Motivace
      navíc: registr 21 `(0,234; 0; 0,4212)` znamená sklon **60,9°** a `|B|` 0,482 G, ale pro ČR

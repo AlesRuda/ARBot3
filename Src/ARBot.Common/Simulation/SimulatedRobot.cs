@@ -43,6 +43,9 @@ namespace ARBot.Common.Simulation
         // posune. 1.0 = ideal. Viz LeftWheelSlip.
         private double slipLeft = 1.0, slipRight = 1.0;
 
+        /// <summary>Otaceni rukou [rad/s] — vnejsi vliv mimo motory, viz <see cref="HandSpinRadPerSec"/>.</summary>
+        private double handSpin;
+
         /// <param name="wheelBase">Rozchod kol [m].</param>
         /// <param name="startTime">Cas, ke kteremu plati pocatecni stav.</param>
         /// <param name="maxWheelSpeed">Nejvyssi mozna rychlost jednoho kola [m/s]; pri jejim
@@ -204,6 +207,10 @@ namespace ARBot.Common.Simulation
                 omega = (rightAvg - leftAvg) / wheelBase;
             }
 
+            // Otaceni RUKOU: pricita se k rotaci z kol, protoze je to nezavisly vnejsi vliv.
+            // Poloha se pritom nemeni - clovek robotem otaci na miste.
+            omega += handSpin;
+
             // Poloha se posouva ve smeru uprostred kroku (presnejsi pri soucasnem otaceni).
             double thetaMid = theta + 0.5 * omega * dt;
 
@@ -248,10 +255,32 @@ namespace ARBot.Common.Simulation
             {
                 lock (gate)
                 {
-                    if (slipLeft == 1.0 && slipRight == 1.0) return 2 * speedDif / wheelBase;
-                    return ((speedForward + speedDif) * slipRight - (speedForward - speedDif) * slipLeft) / wheelBase;
+                    // Otaceni rukou je soucasti SKUTECNE uhlove rychlosti telesa, takze ho gyro
+                    // vidi - a prave o to jde: pri kalibraci magnetometru motory stoji a robotem
+                    // otaci clovek. Bez tohohle by VirtualImu hlasilo omega = 0 a kolektor, ktery
+                    // pokryti pocita z INTEGROVANEHO GYRA, by se nikdy neposunul.
+                    if (slipLeft == 1.0 && slipRight == 1.0) return 2 * speedDif / wheelBase + handSpin;
+                    return ((speedForward + speedDif) * slipRight - (speedForward - speedDif) * slipLeft) / wheelBase
+                           + handSpin;
                 }
             }
+        }
+
+        /// <summary>
+        /// <b>Otaceni robotem RUKOU</b> [rad/s] — vnejsi vliv mimo motory; poloha se nemeni.
+        ///
+        /// <para><b>Nacpak.</b> Pri kalibraci magnetometru (<c>mission=magcal</c>) motory stoji
+        /// a robotem otaci clovek. Přes motory to v simulaci vyvolat NELZE: mise zahodi regulator
+        /// a <c>ControlLoop</c> pak posila <c>Drive(0, 0)</c> pri KAZDEM taktu, takze by prikaz
+        /// prepsal. A posunout <see cref="Theta"/> naprimo taky nestaci — kolektor pokryti pocita
+        /// z integrovaneho gyra a to se bere z <see cref="AngularSpeed"/>.</para>
+        ///
+        /// <para>Viz doc/virtual-hw.md a doc/plan-vn100-kalibrace.md.</para>
+        /// </summary>
+        public double HandSpinRadPerSec
+        {
+            get { lock (gate) return handSpin; }
+            set { lock (gate) handSpin = value; }
         }
 
         /// <summary>Ujeta draha leveho kola [m] (integral, jako enkoder).</summary>
