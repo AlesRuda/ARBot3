@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -105,7 +105,9 @@ namespace ARBot.Analyze
             {
                 goalDist.Add(r.GoalDist); unreach.Add(r.Unreach); pathLen.Add(r.PathLen);
                 freeAhead.Add(r.FreeAhead); v0.Add(r.V0); vCmd.Add(r.VCmd); vRobot.Add(r.V);
-                minClr.Add(r.Plan.MinClearanceM);
+                // Plan, kde planovac dráhu nepostavil, nese MinClearanceM = double.MaxValue
+                // (inicialni hodnota) - do statistiky nepatri, jinak z ni udela Infinity.
+                if (r.Plan.MinClearanceM < 1e6) minClr.Add(r.Plan.MinClearanceM);
             }
             Console.WriteLine("PLANY S DRAHOU (Ok + Partial):");
             Console.WriteLine("  " + goalDist.Line("m"));
@@ -120,6 +122,7 @@ namespace ARBot.Analyze
             // Do 3. 9. 2026 to byla "eskapovaci zona" (odstup slevovany kolem robota); od te doby se pod
             // SafeDist dostane jen UNIK (EscapingBlocked), takze nenulovy podil u beznych planu je vada.
             int nTight = hasPath.Count(r => r.Plan.MinClearanceM < ARBot.Common.Configuration.Profile.SafeDist);
+            // Pozn.: plany bez postavene drahy maji MinClearanceM = MaxValue, takze do nTight nepadnou.
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "  draha s odstupem POD SafeDist {0:F2} m (ma byt jen unik): {1,5} z {2} ({3:F0} %)",
                 ARBot.Common.Configuration.Profile.SafeDist, nTight, hasPath.Count, 100.0 * nTight / n));

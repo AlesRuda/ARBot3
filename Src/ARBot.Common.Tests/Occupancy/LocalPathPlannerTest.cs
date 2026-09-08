@@ -1,4 +1,4 @@
-using ARBot.Common.Occupancy;
+﻿using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
 using NUnit.Framework;
 using System;
@@ -963,6 +963,52 @@ namespace ARBot.Common.Tests.Occupancy
 
             Assert.That(maxDev, Is.LessThan(0.25),
                         "bez semantiky jde plan po primce - zadna preference cesty tam dnes neni");
+        }
+
+        // ---------------- rozpad rychlostni obalky ----------------
+
+        /// <summary>
+        /// Rozpad obalky je PO UZLECH a index i patri i-temu waypointu: v uzku u prekazky ma prvni
+        /// uzel odstup na SafeDist (podelny strop 0), na volnem konci uz ne. Bez toho se ze zaznamu
+        /// neda rict, KDE na draze rychlost padla - a to rozlisuje "leze uz od sebe" od "za dva
+        /// metry se cesta zuzuje".
+        /// </summary>
+        [Test]
+        public void RozpadObalky_JePoUzlech_A_ZnaOdstupKazdehoUzlu()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-1, -2, 6, 2);
+            s.MarkObstacle(0.5, 0.45, 1.5, 2.0);     // stena teste nad drahou v useku x = 0,5..1,5
+            s.Rebuild();
+
+            var r = s.Plan(4.0, 0.0);
+            Assert.That(r.HasPath, Is.True);
+            Assert.That(r.HasEnvelope, Is.True, "planovac musi rozpad naplnit");
+
+            Assert.That(r.EnvClearanceM.Length, Is.EqualTo(r.WayPoints.Length), "odstup na uzel");
+            Assert.That(r.EnvClosing.Length, Is.EqualTo(r.WayPoints.Length));
+            Assert.That(r.EnvFreeAheadM.Length, Is.EqualTo(r.WayPoints.Length));
+            Assert.That(r.EnvVClearance.Length, Is.EqualTo(r.WayPoints.Length));
+            Assert.That(r.EnvVBrake.Length, Is.EqualTo(r.WayPoints.Length));
+
+            // Odstup u uzlu musi souhlasit s polem odstupu v jeho okoli (uzel bere minimum pres
+            // usek pred + za, takze nikdy vic, nez kolik ma bunka pod nim).
+            for (int k = 0; k < r.WayPoints.Length; k++)
+                Assert.That(r.EnvClearanceM[k],
+                            Is.LessThanOrEqualTo(s.ClearanceAt(r.WayPoints[k].X, r.WayPoints[k].Y) + 1e-6),
+                            $"odstup uzlu {k}");
+
+            // Rychlost uzlu = max(podlaha, min(oba stropy)) - to je cely predpis obalky.
+            var cfg = PlannerCfg();
+            for (int k = 0; k < r.WayPoints.Length - 1; k++)
+                Assert.That(r.WayPoints[k].Speed,
+                            Is.EqualTo(Math.Max(cfg.MinCostSpeed,
+                                                Math.Min(r.EnvVClearance[k], r.EnvVBrake[k]))).Within(1e-6),
+                            $"rychlost uzlu {k} = rozpad");
+
+            // Nekde na draze musi byt uzel, ktery stena skutecne srazí - jinak scena nic netestuje.
+            Assert.That(r.EnvVClearance.Take(r.WayPoints.Length - 1).Min(),
+                        Is.LessThan(cfg.MaxSpeed), "stena musi nekde srazit strop z odstupu");
         }
 }
 }

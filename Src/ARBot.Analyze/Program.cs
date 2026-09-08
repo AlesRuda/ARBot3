@@ -94,6 +94,11 @@ namespace ARBot.Analyze
                         LocalPlanReport.Run(rec, Arg(args, "--bin", 10), Arg(args, "--unreach", 0.3),
                                             Arg(args, "--from", double.NaN), Arg(args, "--to", double.NaN));
                         return 0;
+                    case "envelope":
+                        EnvelopeReport.Run(rec, Arg(args, "--bin", 20), Arg(args, "--maxlag", 0.6),
+                                           Arg(args, "--safedist", double.NaN),
+                                           Arg(args, "--maxspeed", double.NaN));
+                        return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
                     case "log": LogReport.Run(rec, Text(args, "--filter"), (int)Arg(args, "--limit", 0)); return 0;
                     case "cameras": CameraFramesReport.Run(rec, (int)Arg(args, "--limit", 400),
@@ -208,6 +213,13 @@ namespace ARBot.Analyze
             Console.WriteLine("             (|pozadovany - dosazeny cil|), rychlost planu vs. skutecna,");
             Console.WriteLine("             epizody nedosazitelne mrkve (--bin=<s>, --unreach=<m>, detail okna");
             Console.WriteLine("             --from=<s> --to=<s>; bez nich poslednich 20 s)");
+            Console.WriteLine("  envelope   PROC plan predepsal takovou rychlost: rozpad rychlostni obalky");
+            Console.WriteLine("             na cleny (odstup od prekazky / priblizovani k ni / hranice");
+            Console.WriteLine("             potvrzene sjizdneho) a kolik casu robot lezl na podlaze.");
+            Console.WriteLine("             Od LocalPlanMsg verze 2 cte rozpad ze zpravy, u starsich");
+            Console.WriteLine("             zaznamu ho REKONSTRUUJE z gridu (--maxlag=, kontrola proti");
+            Console.WriteLine("             MinClearanceM je ve vypisu). --safedist=/--maxspeed= prepisou");
+            Console.WriteLine("             konfiguraci ze zaznamu (A/B \"co by bylo, kdyby\")");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
             Console.WriteLine("             (cte cele snimky - na velkem zaznamu to trva, viz --limit)");
             Console.WriteLine("  log        textovy log aplikace ZE ZAZNAMU (zpravy Info z Trace);");

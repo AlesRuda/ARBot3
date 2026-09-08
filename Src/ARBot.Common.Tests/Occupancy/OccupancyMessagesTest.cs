@@ -1,4 +1,4 @@
-using ARBot.Common.Communication;
+﻿using ARBot.Common.Communication;
 using ARBot.Common.Logs;
 using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
@@ -155,6 +155,50 @@ namespace ARBot.Common.Tests.Occupancy
                 Assert.That(r.WayPoints[i].Orientation,
                             Is.EqualTo(plan.WayPoints[i].Orientation), $"Orientation[{i}]");
             }
+        }
+
+        /// <summary>
+        /// Rozpad rychlostni obalky (verze 2) prezije zaznam a je PO UZLECH: index i patri i-temu
+        /// waypointu. Bez toho se ze zaznamu neda rict, PROC plan predepsal takovou rychlost — slo
+        /// to jen rekonstruovat z gridu (ARBot.Analyze envelope).
+        /// </summary>
+        [Test]
+        public void LocalPlanMsg_RozpadObalky_JePoUzlech_RoundTrip()
+        {
+            var plan = new LocalPlanResult
+            {
+                Status = LocalPlanStatus.Ok,
+                TimeStamp = T0,
+                WayPoints = new[]
+                {
+                    new RegulatorWayPoint { X = 0, Y = 0, Speed = 0.05 },
+                    new RegulatorWayPoint { X = 1, Y = 0, Speed = 0.60 },
+                    new RegulatorWayPoint { X = 2, Y = 0, Speed = 0.00 },
+                },
+            };
+            // Prvni uzel je tesne u prekazky (odstup na SafeDist -> podelny strop 0), druhy volny.
+            plan.SetEnvelope(clearance: new[] { 0.40f, 0.85f, 1.20f },
+                             closing: new[] { 0.0f, 0.5f, 0.0f },
+                             freeAhead: new[] { 1.50f, 0.72f, 0.0f },
+                             vClearance: new[] { 0.0f, 1.0f, 1.0f },
+                             vBrake: new[] { 1.0f, 0.85f, 0.0f });
+
+            var r = RoundTrip(plan.ToLogMessage());
+
+            Assert.That(r.HasEnvelope, Is.True, "verze 2 rozpad nese");
+            Assert.That(r.EnvClearanceM, Is.EqualTo(new[] { 0.40f, 0.85f, 1.20f }));
+            Assert.That(r.EnvClosing, Is.EqualTo(new[] { 0.0f, 0.5f, 0.0f }));
+            Assert.That(r.EnvFreeAheadM, Is.EqualTo(new[] { 1.50f, 0.72f, 0.0f }));
+            Assert.That(r.EnvVClearance, Is.EqualTo(new[] { 0.0f, 1.0f, 1.0f }));
+            Assert.That(r.EnvVBrake, Is.EqualTo(new[] { 1.0f, 0.85f, 0.0f }));
+
+            // Souhrny se pocitaji pres MEZILEHLE uzly - posledni je konec drahy (freeAhead 0),
+            // takze by minimum vzdycky vyslo tam a nic by nereklo.
+            Assert.That(r.MinVClear, Is.EqualTo(0.0).Within(1e-6));
+            Assert.That(r.MinVBrake, Is.EqualTo(0.85).Within(1e-6));
+            Assert.That(r.MinFreeAheadM, Is.EqualTo(0.72).Within(1e-6));
+            Assert.That(r.MinWayPointSpeed, Is.EqualTo(0.05).Within(1e-9));
+            Assert.That(r.SpeedLimitedBy, Does.StartWith("VClear"));
         }
 
         [Test]

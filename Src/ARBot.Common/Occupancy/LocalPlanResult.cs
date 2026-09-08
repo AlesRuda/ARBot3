@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ARBot.Common.Regulators;
 
 namespace ARBot.Common.Occupancy
@@ -104,27 +104,87 @@ namespace ARBot.Common.Occupancy
         public double MinClearanceM;
 
         // --- Diagnostika rychlostni obalky: PROC plan predepisuje zrovna takovou rychlost ---
-        // Rychlost uzlu = max(MinCostSpeed, min(VClear(odstup), VBrake(freeAhead))). Kdyz robot
-        // leze, je potreba vedet, ktery z obou clenu ji srazi - odstup od prekazek (bocni), nebo
-        // hranice potvrzene sjizdne plochy (brzdna obalka). Viz doc/occupancy-and-local-planning.md.
+        // Rychlost uzlu = max(MinCostSpeed, min(VClear(odstup, priblizovani), VBrake(freeAhead))).
+        // Kdyz robot leze, je potreba vedet, ktery z clenu ji srazi - odstup od prekazek, mireni
+        // NA prekazku, nebo hranice potvrzene sjizdne plochy - a hlavne KDE NA DRAZE se to stane.
+        // Proto je rozpad PO UZLECH, ne jen minimum pres plan: "leze uz u sebe" a "za dva metry se
+        // cesta zuzuje" jsou uplne jine situace, ktere jedno cislo splacne dohromady.
+        // Viz doc/occupancy-and-local-planning.md.
+        //
+        // Vsechna pole maji delku jako WayPoints a index i patri i-temu waypointu; kdyz draha
+        // nevznikla, jsou null.
 
-        /// <summary>Nejmensi <c>freeAhead</c> podel drahy [m] - vzdalenost k prvni bunce, ktera neni
-        /// <see cref="CellState.Free"/>. Male cislo = brzdna obalka drzi rychlost dole.</summary>
-        public double MinFreeAheadM;
+        /// <summary>Odstup od nejblizsi neprujezdne bunky u uzlu [m] (minimum pres okno uzlu).</summary>
+        public float[] EnvClearanceM { get; private set; }
 
-        /// <summary>Nejnizsi strop z BOCNIHO odstupu podel drahy [m/s] (<c>VClear</c>).</summary>
-        public double MinVClear;
+        /// <summary>Priblizovani k prekazce 0..1 ve vzorku, ktery u uzlu urcil strop z odstupu:
+        /// zaporny prumet smeru drahy do gradientu pole odstupu. 0 = jede podel, 1 = primo na ni.</summary>
+        public float[] EnvClosing { get; private set; }
 
-        /// <summary>Nejnizsi strop z BRZDNE OBALKY podel drahy [m/s] (<c>VBrake</c>).</summary>
-        public double MinVBrake;
+        /// <summary>Vzdalenost k prvni bunce, ktera neni <see cref="CellState.Free"/>, merena od
+        /// uzlu DOPREDU [m]. Male cislo = brzdna obalka drzi rychlost dole.</summary>
+        public float[] EnvFreeAheadM { get; private set; }
+
+        /// <summary>Strop z ODSTUPU u uzlu [m/s] (<c>VEnvelope</c>, tedy uz zkombinovany podelny
+        /// a kolmy clen; ktery z nich to byl, jde dopocitat z odstupu a priblizovani).</summary>
+        public float[] EnvVClearance { get; private set; }
+
+        /// <summary>Strop z BRZDNE OBALKY u uzlu [m/s] (<c>VBrake</c>).</summary>
+        public float[] EnvVBrake { get; private set; }
+
+        /// <summary>Naplni rozpad obalky (vola <c>LocalPathPlanner</c>).</summary>
+        public void SetEnvelope(float[] clearance, float[] closing, float[] freeAhead,
+                                float[] vClearance, float[] vBrake)
+        {
+            EnvClearanceM = clearance;
+            EnvClosing = closing;
+            EnvFreeAheadM = freeAhead;
+            EnvVClearance = vClearance;
+            EnvVBrake = vBrake;
+        }
+
+        /// <summary>Nese vysledek rozpad obalky?</summary>
+        public bool HasEnvelope => EnvVClearance != null && EnvVClearance.Length > 0;
+
+        /// <summary>Nejmensi <c>freeAhead</c> podel drahy [m].</summary>
+        public double MinFreeAheadM => MinOverInner(EnvFreeAheadM);
+
+        /// <summary>Nejnizsi strop z ODSTUPU podel drahy [m/s].</summary>
+        public double MinVClear => MinOverInner(EnvVClearance);
+
+        /// <summary>Nejnizsi strop z BRZDNE OBALKY podel drahy [m/s].</summary>
+        public double MinVBrake => MinOverInner(EnvVBrake);
 
         /// <summary>Nejnizsi predepsana rychlost mezilehleho uzlu [m/s] (uz vcetne podlahy
         /// <c>MinCostSpeed</c>). Rovna-li se podlaze, robot jede nejpomaleji, jak plan dovoluje.</summary>
-        public double MinWayPointSpeed;
+        public double MinWayPointSpeed
+        {
+            get
+            {
+                if (WayPoints == null || WayPoints.Length < 2) return double.NaN;
+                double min = double.MaxValue;
+                for (int i = 0; i < WayPoints.Length - 1; i++)
+                    if (WayPoints[i].Speed < min) min = WayPoints[i].Speed;
+                return min;
+            }
+        }
 
         /// <summary>Ktery clen rychlostni obalky vazal (diagnosticky popis pro log).</summary>
         public string SpeedLimitedBy
-            => MinVBrake <= MinVClear ? "VBrake (hranice potvrzeneho)" : "VClear (odstup od prekazek)";
+            => !HasEnvelope ? "(bez rozpadu)"
+             : MinVBrake <= MinVClear ? "VBrake (hranice potvrzeneho)" : "VClear (odstup od prekazek)";
+
+        /// <summary>
+        /// Minimum pres MEZILEHLE uzly (bez posledniho). Posledni uzel je z definice konec drahy -
+        /// ma tam freeAhead 0 a Speed 0, takze by minimum vzdycky vyslo tam a nic by nereklo.
+        /// </summary>
+        private static double MinOverInner(float[] v)
+        {
+            if (v == null || v.Length < 2) return double.NaN;
+            double min = double.MaxValue;
+            for (int i = 0; i < v.Length - 1; i++) if (v[i] < min) min = v[i];
+            return min;
+        }
 
         /// <summary>Doba vypoctu [ms] (integrace snimku + EDT + A*), plni <c>LocalNavigator</c>.</summary>
         public double ComputeMs;
@@ -149,6 +209,13 @@ namespace ARBot.Common.Occupancy
             ComputeMs = ComputeMs,
             WayPoints = WayPoints,
             TimeStamp = TimeStamp,
+            // Rozpad obalky PO UZLECH (zprava verze 2) - bez nej se ze zaznamu nedalo rict, PROC
+            // plan predepsal takovou rychlost; slo to jen rekonstruovat z gridu. Viz LocalPlanMsg.
+            EnvClearanceM = EnvClearanceM,
+            EnvClosing = EnvClosing,
+            EnvFreeAheadM = EnvFreeAheadM,
+            EnvVClearance = EnvVClearance,
+            EnvVBrake = EnvVBrake,
         };
     }
 }

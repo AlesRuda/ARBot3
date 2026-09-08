@@ -198,9 +198,22 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   --clearmag`); novou kalibraci změřit otáčením robotu. Oprava heading mode je tím
   nedotčená a prokázaná (`odhad − IMU yaw` = −0,02° ± 0,09°).
   ✅ **Vymazáno a uloženo do flash týž den**: z pole vychází azimut −2,2° (sever), kurz se na to
-  za ~170 s dotáhl a usadil na −2 až −3° — souhlasí i s tím, kam robot fyzicky mířil. **Absolutní
-  přesnost ale prokázaná není** (souhlas s vlastním polem říká jen, že VPE počítá, co má) —
-  na to je potřeba **projetá smyčka** a `ARBot.Analyze heading`.
+  za ~170 s dotáhl a usadil na −2 až −3° — souhlasí i s tím, kam robot fyzicky mířil.
+  ⚠️ **Smyčka projetá 7. 9. 2026 (`20260907-170728.rec`) a kurz je POŘÁD vedle:**
+  `IMU yaw − GPS kurz` p50 **−24,0°**, sd **18,6°**, rozsah −58 … +29° — a chybuje **IMU**, ne GPS,
+  protože `Doppler − směr posunu polohy` = **0,31° ± 6,19°** (třetí nezávislá cesta). Fúze kurz
+  **nevažuje, přebírá** (`odhad − IMU yaw` = −0,01° ± 0,06°), takže to jde 1:1 do mapy i do mrkve,
+  a senzor si přitom hlásí `YprU` **0,151°**, tedy je **~120× přesvědčenější** než jaká je jeho
+  chyba. Vada je v **poli, vázaném na tělo robota**: 1. harmonická (tvrdé železo) **27,2°**,
+  2. harmonická (měkké) **25,2°**, `|B|` 0,363–0,511 G a sklon 46–83°, ačkoli obojí má být
+  konstanta; gyro je čisté (klidový bias −4,6 °/h). ✅ **Kalibrace to spravit může, protože motory
+  to skoro nejsou** — `ARBot.Analyze vn100` blok 4 páruje pole s proudem z `MotorStateBase`:
+  **−0,00258 ± 0,00010 G/A** a `|B|` jízda − stání **−0,015 G**, tedy desetina rozpětí 0,148 G
+  (na proudu závislé rušení by se otáčením změřit nedalo, statické jde odečíst). **Další krok je
+  změřit novou kalibraci otáčením robotu**, ne stínění. ⚠️ **Druhá, oddělená vada: VPE se táhne za
+  vlastním polem 206 s** (`K = 0,00485 ± 0,00074 1/s`) — `kurz z pole − yaw` jde po minutách
+  +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po zatáčce je yaw desítky stupňů vedle
+  i proti svému vlastnímu magnetometru. To kalibrace neopraví.
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
@@ -295,6 +308,22 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (fúze sjízdnosti z hloubky + z RGB, log-odds, kruhový buffer) a lokální plánování cesty nad ním
   (odstupy od překážek, rychlostní obálka, A\* → `RegulatorWayPoint[]`) + `LocalNavigator` jako vyšší
   řídicí smyčka. Hotové a napojené (`ARBot.Common/Occupancy`), **neověřeno na HW**.
+  ⚠️ **Rozbor rychlostní obálky dotažen 7. 9. 2026 a hned něco našel** (`ARBot.Analyze envelope`
+  nad `20260907-170728.rec`, FreeRun venku): robot se nezastavoval, **plazil se** — medián
+  příkazované rychlosti **0,05 m/s** (podlaha `MinCostSpeed`) a v **53 %** plánů je na podlaze
+  **už první uzel**. Vázal skoro vždy **`VAlong`** (odstup od překážky; 77 % plánů, 99,8 % těch na
+  podlaze) při odstupu **0,403 m** = `SafeDist`, kdežto `VBrake` (hranice potvrzeného) nevázal
+  téměř nikdy (p50 1,00 m/s) — **padla tím dosavadní hypotéza „plazí se skrz neověřený prostor"**,
+  půdorys robota z 3. 9. svou práci dělá. Rozpad je **po uzlech**, ne minimum přes plán, a rozhodl
+  to sloupec „vzdálenost vázajícího uzlu od robota" (p50 i p90 **0,00 m**): jedno číslo splácne
+  „leze už od sebe" a „za dva metry se cesta zužuje". Nese ho **`LocalPlanMsg` verze 2**
+  (`EnvClearanceM`, `EnvClosing`, `EnvFreeAheadM`, `EnvVClearance`, `EnvVBrake` na waypoint);
+  starší záznamy si ho `envelope` **rekonstruuje** z gridu a kontroluje proti `MinClearanceM`
+  (sedí do jedné buňky v 96,9 %, takže to není domněnka). Cesta je přitom **široká** (volný kanál
+  p50 3,80 m, kamerový koridor 3,60 m) — robot jen jede 0,4 m od něčeho blokovaného, a ve **41,5 %**
+  je to skvrna **do 4 buněk**, tedy šum v mapě. ⚠️ **Proč jede tak blízko, změřené není a nic se
+  neopravuje**: nejdřív **kurz** (viz `imu-and-frames.md`), který rotuje mrkev i zápis do gridu,
+  pak přeměřit.
 - [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
   `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +
   brzdná obálka, exekuce = feedforward + lookahead; analýza odchylky vs. vzdálenost cílového bodu.
@@ -398,7 +427,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   Odchylky hranových bodů proti známému okraji měří `ARBot.Analyze edgebias`, grid ze záznamu
   (tedy co skutečně vyrobila běžící aplikace) `ARBot.Analyze grid`.
   Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `corridorfit` / `edgebias` / `grid` /
-  `dump` / `cameras` / `log` / `types`), viz
+  `envelope` / `dump` / `cameras` / `log` / `types`), viz
   [doc/record-replay.md](doc/record-replay.md#offline-analýza-záznamu-arbotanalyze) — a **měř
   každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká. Pozor,
   **rezidua nejsou přesnost** a **méně přijatých při lepší geometrii není zlepšení** — obojí se

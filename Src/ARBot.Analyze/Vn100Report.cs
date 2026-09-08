@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -48,13 +48,15 @@ namespace ARBot.Analyze
         {
             var s = new List<Sample>();
             var speed = new List<(double T, double V)>();
+            var motor = new List<(double T, double Amp)>();
             DateTime t0 = DateTime.MinValue;
             var zdroje = new SortedDictionary<string, bool>(StringComparer.Ordinal);
             int relativnich = 0;
 
             foreach (var e in rec.Index)
             {
-                if (e.MsgName != "IMUState" && e.MsgName != "GPSState") continue;
+                if (e.MsgName != "IMUState" && e.MsgName != "GPSState"
+                    && e.MsgName != "MotorStateBase") continue;
                 var msg = rec.Read(e);
                 switch (msg)
                 {
@@ -81,6 +83,10 @@ namespace ARBot.Analyze
                     case GPSState p:
                         speed.Add((Sec(p.TimeStamp, ref t0), p.Speed ?? p.DynamicSpeed ?? double.NaN));
                         break;
+                    case MotorStateBase mo:
+                        motor.Add((Sec(mo.TimeStamp, ref t0),
+                                   Math.Abs(mo.LeftMotorCurrent) + Math.Abs(mo.RightMotorCurrent)));
+                        break;
                 }
             }
 
@@ -101,6 +107,7 @@ namespace ARBot.Analyze
             var field = FieldHeading(s);
             MagFeedback(s, field);
             StandingDrift(s, field, speed);
+            MotorInterference(s, motor);
         }
 
         /// <summary>Blok 1 — co senzor tvrdi o vlastni presnosti (YprU).</summary>
@@ -126,6 +133,86 @@ namespace ARBot.Analyze
             Console.WriteLine("  " + rollU.Line("deg"));
             Console.WriteLine("  Tohle cislo si bere DefaultMeasurementMapper jako sigma mereni IMU/heading,");
             Console.WriteLine("  takze rika, jak moc fuze kompasu veri. Porovnej se skutecnou chybou z 'heading'.");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Blok 4 — <b>je pole rusene vlastnim robotem?</b> Rozhoduje to o tom, jestli ma vubec
+        /// smysl magnetometr kalibrovat: kalibrace (hard/soft iron) umi odecist jen pole, ktere je
+        /// v telesovem ramci <b>konstantni</b>. Pole od motoru se meni s proudem, takze otocenim
+        /// robotu se nezmeri a odecist nejde — a kdo ho kalibraci "odecte", zafixuje stav pri jednom
+        /// proudu a pri jinem si pohorsi.
+        ///
+        /// <para>Meri se dve veci: (a) zavislost <c>|B|</c> na celkovem proudu motoru (regrese,
+        /// G/A), (b) rozdil <c>|B|</c> mezi STANIM a JIZDOU. Zemske pole je konstantni, takze
+        /// jakakoli zavislost je rusení. Rozdil mezi stanim a jizdou nemusi byt jen od motoru
+        /// (robot se pri jizde taky presouva jinam), ale nulovy rozdil to vylucuje.</para>
+        /// </summary>
+        private static void MotorInterference(List<Sample> s, List<(double T, double Amp)> motor)
+        {
+            Console.WriteLine();
+            Console.WriteLine("4) JE POLE RUSENE VLASTNIM ROBOTEM? (rozhoduje, jestli lze kalibrovat)");
+            if (motor.Count < 50)
+            {
+                Console.WriteLine("  Zaznam nenese stav motoru - nelze rict.");
+                Console.WriteLine();
+                return;
+            }
+
+            motor.Sort((a, b) => a.T.CompareTo(b.T));
+            var amp = new List<double>();
+            var bmag = new List<double>();
+            var stand = new Stats("|B| pri STANI (proud pod 0,5 A)");
+            var drive = new Stats("|B| pri JIZDE (proud nad 2 A)");
+            var ampStat = new Stats("celkovy proud motoru");
+            int mi = 0;
+            foreach (var x in s)
+            {
+                if (!(x.Mag is Vector3 m)) continue;
+                while (mi + 1 < motor.Count && motor[mi + 1].T <= x.T) mi++;
+                if (Math.Abs(motor[mi].T - x.T) > 0.5) continue;      // bez soucasneho stavu motoru
+                double b = Math.Sqrt(m.X * m.X + m.Y * m.Y + m.Z * m.Z);
+                double a = motor[mi].Amp;
+                amp.Add(a); bmag.Add(b); ampStat.Add(a);
+                if (a < 0.5) stand.Add(b);
+                else if (a > 2.0) drive.Add(b);
+            }
+
+            if (amp.Count < 100)
+            {
+                Console.WriteLine("  Prilis malo sparovanych vzorku.");
+                Console.WriteLine();
+                return;
+            }
+
+            Console.WriteLine("  " + ampStat.Line("A"));
+            Console.WriteLine("  " + stand.Line("G"));
+            Console.WriteLine("  " + drive.Line("G"));
+
+            double ma = amp.Average(), mb = bmag.Average(), sxx = 0, sxy = 0;
+            for (int k = 0; k < amp.Count; k++)
+            { sxx += (amp[k] - ma) * (amp[k] - ma); sxy += (amp[k] - ma) * (bmag[k] - mb); }
+            if (sxx < 1e-9)
+            {
+                Console.WriteLine("  Proud se v zaznamu skoro nemeni - zavislost nejde odhadnout.");
+                Console.WriteLine();
+                return;
+            }
+            double slope = sxy / sxx, c = mb - slope * ma, ss = 0;
+            for (int k = 0; k < amp.Count; k++) { double d = bmag[k] - (slope * amp[k] + c); ss += d * d; }
+            double sd = Math.Sqrt(ss / Math.Max(1, amp.Count - 2));
+            double se = sd / Math.Sqrt(sxx);
+
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  |B| na proudu: {0:F5} +- {1:F5} G/A   ({2:F1} sigma od nuly), rozsah proudu {3:F1} A",
+                slope, se, se > 0 ? Math.Abs(slope) / se : 0, ampStat.Max - ampStat.Min));
+            if (stand.Count > 20 && drive.Count > 20)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  |B| jizda - stani: {0:+0.000;-0.000} G (mediany {1:F3} vs {2:F3})",
+                    drive.Median - stand.Median, drive.Median, stand.Median));
+            Console.WriteLine("  Zemske pole je KONSTANTNI, takze kazda zavislost je RUSENI od robotu.");
+            Console.WriteLine("  Ruseni zavisle na proudu kalibrace neodstrani (neni v telesovem ramci");
+            Console.WriteLine("  konstantni) - to se resi az stinenim nebo presunem senzoru.");
             Console.WriteLine();
         }
 

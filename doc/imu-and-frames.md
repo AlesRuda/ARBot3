@@ -336,6 +336,67 @@ A zápis do registru je **nestálý**; trvalé uložení (`VNWNV`) je vědomý r
 který vytiskne, **je deklinace plus zbytková chyba dohromady**; nastavovat model naslepo znamená
 zabetonovat do senzoru číslo, které nikdo neproměřil.
 
+### ⚠️ Projetá smyčka venku (7. 9. 2026): kurz je pořád vedle — zbývá **železo na robotu**
+
+Tohle je to měření, na které čekaly dva otevřené závěry z 6. 9.: „absolutní přesnost prokázaná
+není" a „novou kalibraci změřit otáčením robotu". Záznam `records/test/20260907-170728.rec`
+(452 s FreeRunu venku, `Absolute` + **vymazaná** kompenzace magnetometru, ujeto ~105 m se zatáčkami,
+rozptyl kurzu 146° kruhové sd), nástroje `ARBot.Analyze heading --nogt` a `vn100`.
+
+**Kurz je vedle, a GPS to není.** `IMU yaw − GPS kurz` má p50 **−24,0°**, střed −18,1°,
+**sd 18,6°** a rozsah −57,7 … +28,6°. Že chybuje IMU a ne GPS, rozhoduje **třetí, nezávislá
+cesta** — směr, kterým se skutečně posunula poloha:
+
+| dvojice | rozdíl |
+|---|---|
+| GPS Doppler − směr posunu polohy | **0,31° ± 6,19°** ✅ |
+| IMU yaw − směr posunu polohy | −13,53° ± 20,42° |
+| odhad fúze − IMU yaw | **−0,01° ± 0,06°** |
+
+Poslední řádek je ten podstatný pro chování robota: fúze kurz z kompasu **nevažuje, přebírá**,
+takže ta chyba jde 1:1 do mapy i do mrkve. Senzor si přitom hlásí `YprU` (yaw 1σ) p50 **0,151°** —
+tedy je **~120× přesvědčenější, než jaká je jeho skutečná chyba**, a `DefaultMeasurementMapper`
+si to bere jako σ měření `IMU/heading`. O tu slepou důvěru si senzor řekl sám.
+
+**Vada je v POLI, a je vázaná na tělo robota.** Rozpor závisí na kurzu, což je podpis železa:
+
+| model / veličina | hodnota | mělo by být |
+|---|---|---|
+| 1. harmonická (**tvrdé železo**) | **27,2°** | 0 |
+| 2. harmonická (**měkké železo**) | **25,2°** | 0 |
+| `|B|` (p50 / rozsah) | 0,455 G / **0,363–0,511** | ~0,49 G a **konstantní** |
+| sklon pole (p50 / rozsah) | 57,2° / **46–83°** | ~66° a konstantní |
+| kurz z pole − kurz z GPS | −3,5° ± **29,6°** | ~+5° (deklinace) |
+
+Gyro je v pořádku: klidový bias **−4,6 °/h**, tedy v katalogové in-run stabilitě. Takže je to
+magnetometr, ne inerciálka.
+
+✅ **A kalibrace to spravit může — protože motory to skoro nejsou.** To byla reálná obava:
+rušení, které se mění s proudem, není v tělesovém rámci konstantní, takže ho otáčením robotu
+nezměříš ani neodečteš. Změřeno (`ARBot.Analyze vn100`, blok 4) proti proudu motorů ze
+`MotorStateBase`:
+
+```
+|B| na proudu:      −0,00258 ± 0,00010 G/A   (25,7 σ od nuly, rozsah proudu 13,1 A)
+|B| jízda − stání:  −0,015 G                 (mediány 0,445 vs 0,460)
+```
+
+Závislost **je statisticky jistá, ale malá**: 0,015 G z celkového rozpětí `|B|` 0,148 G, tedy
+řádově desetina. Zbytek je **statické** železo — a to je přesně to, co hard/soft-iron kalibrace
+umí odečíst. **Další krok je tedy změřit novou kalibraci otáčením robotu**, ne stínění ani
+přesun senzoru.
+
+⚠️ **Druhá, oddělená vada: VPE se táhne za vlastním polem řádově minuty.** Zesílení zpětné vazby
+`K = 0,00485 ± 0,00074 1/s`, tedy **časová konstanta 206 s**. Ve výsledku `kurz z pole − yaw`
+kolísá po minutách +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po každé zatáčce nebo
+magnetické změně je yaw desítky stupňů vedle **i proti svému vlastnímu magnetometru**. To
+kalibrace neopraví; sedí to s poznámkou „po zapnutí počítej s ~2 minutami" z 6. 9., jen to zjevně
+platí i **za jízdy**. Dokud je konstanta takhle dlouhá, je krátkodobá σ 0,15° nesmysl dvakrát.
+
+**Praktický důsledek pro řízení**: dokud je kurz vedle, nemá smysl ladit rychlostní obálku
+lokálního plánovače — grid i mrkev se kreslí tímhle kurzem. Viz nález ze stejného záznamu
+v [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
 ### Konfigurace senzoru
 
 Konfigurace VN100 (včetně reference frame rotation a binárního výstupu) je uložena

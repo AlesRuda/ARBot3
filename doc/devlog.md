@@ -39,6 +39,81 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-07
 
+- **Rozbor záznamu z venkovního testu FreeRun `20260907-170728.rec`** (452 s, ~105 m, `maxspeed=1`,
+  `envelope=directional`, `backproject=hist`, `mapcorr=false`, `corridor=false`). Autor hlásil, že
+  se robot **často zastavoval**, a měl podezření, že **kecá VN100**. Obojí se potvrdilo — a jsou to
+  dvě různé věci, které spolu možná souvisí.
+
+- **✅ Rozbor rychlostní obálky dotažen — a je teď PO UZLECH, ne jako minimum přes plán.**
+  - **Nález (`ARBot.Analyze envelope`):** robot se nezastavoval, **plazil se**. Medián příkazované
+    rychlosti **0,05 m/s** = podlaha `MinCostSpeed` (průměr 0,24 při stropu 1,0), a v **53,1 %**
+    plánů je na podlaze **už první uzel**. Vázal skoro vždycky **`VAlong`** — odstup od překážky
+    (77,2 % plánů, a **99,8 %** těch na podlaze); medián nejmenšího odstupu je **0,403 m**, tedy
+    přesně `SafeDist`.
+  - **Padla tím dosavadní hypotéza „plazí se skrz neověřený prostor"**, kvůli které vznikl
+    `localplan` a 3. 9. půdorys robota: `VBrake` má p50 **1,00 m/s** a volno před robotem p50
+    1,40 m — brzdná obálka nevázala (0,3 % případů na podlaze). Půdorys svou práci udělal.
+  - **Proč po uzlech:** rozhodl to sloupec „vzdálenost vázajícího uzlu od robota" — p50 i **p90 je
+    0,00 m**. Minimum přes plán by nerozlišilo „leze už od sebe" (zdrží) od „za dva metry se cesta
+    zužuje" (nezdrží, dojede tam za půl sekundy a plán je jiný). *Na dotaz autora* se proto rozpad
+    přesunul z plánových skalárů na **pole u každého waypointu**.
+  - **Zpráva `LocalPlanMsg` verze 2** nese `EnvClearanceM`, `EnvClosing`, `EnvFreeAheadM`,
+    `EnvVClearance`, `EnvVBrake` (pět `float` na uzel, zapisují se **uvnitř smyčky přes waypointy**,
+    takže se délka nemůže rozejít s počtem uzlů). Minima přes plán (`MinVClear`, `SpeedLimitedBy`, …)
+    jsou dnes **dopočítané vlastnosti** — jeden zdroj pravdy. Do verze 1 rozpad zůstával jen
+    v `LocalPlanResult`, tedy v paměti běžící aplikace.
+  - **Tenhle záznam je verze 1**, takže si ho `envelope` **rekonstruuje** z `OccupancyGridMsg`
+    a waypointů (grid se ze zprávy postaví zpátky, EDT přepočítá, dráha navzorkuje stejně jako
+    v `BuildWayPoints`). Aby to nebyla domněnka, **kontroluje se proti `MinClearanceM`**, které
+    zpráva nese od verze 1 — sedí **do jedné buňky v 96,9 %**. Obálka se počítá s konfigurací
+    **ze záznamu** (`safedist=`, `maxspeed=`, `envelope=` z `Info`).
+  - **Co dává ten odstup:** 58,9 % geometrie (hloubka), 40,6 % semantika (barva). Souvislá skvrna
+    p50 **29 buněk**, ale **41,5 % má ≤ 4 buňky** — izolovaný šum v mapě, který srazí rychlost
+    stejně jako zeď. Volný kanál napříč dráhou u robota je přitom p50 **3,80 m** a kamerový koridor
+    3,60 m (souhlasí), užší než potřebných 1,10 m je jen **0,8 %**. **Cesta je tedy široká; robot
+    jen jede 0,4 m od něčeho blokovaného.**
+  - ⚠️ **Proč jede tak blízko, změřené NENÍ** — a proto se nic neopravuje. Nejsilnější kandidát je
+    chyba kurzu ze stejného záznamu (níž): rotuje jak mrkev FreeRunu, tak zápis do gridu, a při
+    paměti gridu ~2,5 s se buňky zapsané při jiné chybě kurzu rozmazávají. **Nejdřív kurz, pak
+    přeměřit** — ladit obálku nad mapou kreslenou špatným kurzem je ladění šumu. Tři odložené věci
+    (filtr izolovaných buněk, nulový bod rampy pod `SafeDist`, vyšší podlaha při `closing = 0`) jsou
+    v otevřených úkolech.
+  - **Hotovo:** `EnvelopeReport`, `LocalPlanMsg` v2, rozpad po uzlech v `LocalPathPlanner`
+    + `LocalPlanResult`, 2 nové testy. Build `x64` + **1265 testů `ARBot.Common` a 81
+    `ARBot.Runtime` zelených**. Na HW nic nového nejelo — je to rozbor záznamu.
+    (Pozn.: `ARBot.HALZBoard` má 12 chyb `CS0227` i před touhle změnou, ověřeno přes `git stash`.)
+  - **Odkazy:** [occupancy-and-local-planning.md](occupancy-and-local-planning.md) (nález 7. 9.
+    + verze 2 zprávy), [record-replay.md](record-replay.md) (příkaz `envelope`, verzování „pole na
+    prvek"), `Src/ARBot.Analyze/EnvelopeReport.cs`.
+
+- **⚠️ VN100 opravdu kecá — a po opravě registrů z 6. 9. je vada v ŽELEZE na robotu.**
+  Autor měl pravdu; tenhle záznam je zároveň ta **projetá smyčka venku**, na kterou čekaly dva
+  otevřené závěry z 6. 9. (146° kruhové sd kurzu, ~105 m jízdy).
+  - `IMU yaw − GPS kurz`: p50 **−24,0°**, sd **18,6°**, rozsah −57,7 … +28,6°. Že chybuje IMU
+    a ne GPS, rozhoduje **třetí nezávislá cesta**: `Doppler − směr posunu polohy` =
+    **0,31° ± 6,19°**, zatímco `IMU yaw − směr posunu` = −13,5° ± 20,4°.
+  - Fúze kurz **nevažuje, přebírá** (`odhad − IMU yaw` = −0,01° ± 0,06°), takže to jde 1:1 do mapy
+    i do mrkve. Senzor si přitom hlásí `YprU` **0,151°**, tedy je **~120× přesvědčenější** než
+    jaká je jeho skutečná chyba — a `DefaultMeasurementMapper` si to bere jako σ měření.
+  - **Podpis železa:** 1. harmonická (tvrdé) **27,2°**, 2. harmonická (měkké) **25,2°**;
+    `|B|` 0,363–0,511 G a sklon 46–83°, ačkoli obojí má být konstanta. Gyro je čisté
+    (klidový bias **−4,6 °/h**).
+  - ✅ **A kalibrace to spravit může, protože motory to skoro nejsou** — to byla reálná obava
+    (rušení závislé na proudu není v tělesovém rámci konstantní, takže se otáčením nezměří).
+    Do `vn100` proto přibyl **blok 4**, který páruje pole s proudem z `MotorStateBase`:
+    **−0,00258 ± 0,00010 G/A** (25,7 σ, rozsah proudu 13,1 A) a `|B|` jízda − stání **−0,015 G**.
+    Statisticky jisté, ale **desetina** celkového rozpětí 0,148 G — zbytek je **statické** železo,
+    tedy přesně to, co hard/soft-iron kalibrace odečte.
+  - ⚠️ **Druhá, oddělená vada: VPE se táhne za vlastním polem 206 s** (`K = 0,00485 ± 0,00074 1/s`).
+    `kurz z pole − yaw` jde po minutách +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po
+    zatáčce je yaw desítky stupňů vedle i proti **svému vlastnímu** magnetometru. Kalibrace tohle
+    neopraví. Poznámka „po zapnutí ~2 minuty" z 6. 9. tedy platí i **za jízdy**.
+  - **Rozpracováno / další krok:** změřit **novou kalibraci magnetometru otáčením robotu** (ne
+    stínění, ne přesun senzoru) a pak smyčku zopakovat. Do té doby je σ 0,15° u `IMU/heading`
+    nesmysl dvakrát — jednou kvůli železu, jednou kvůli té časové konstantě.
+  - **Odkazy:** [imu-and-frames.md](imu-and-frames.md) (sekce „Projetá smyčka venku"),
+    `Src/ARBot.Analyze/Vn100Report.cs` (blok 4), `ARBot.Analyze heading --nogt --csv=`.
+
 - **✅ ONNX inference změřena přímo na Orange Pi** — poslední velká neznámá u `backproject=nn`.
   Nástroj se dá publikovat pro ARM zvlášť (`dotnet publish Src/ARBot.Analyze -p:Platform=OrangePI
   -r linux-arm64`), i když je ze solution pro OrangePI vyloučený, takže se měřilo `ARBot.Analyze

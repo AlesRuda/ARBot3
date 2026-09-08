@@ -305,6 +305,15 @@ takže diagnostika „který senzor mlčí" mluvila jen o „IMUState" bez půvo
 jen při `Verze >= 2`, u starších záznamů zůstane prázdné. Jméno plní **driver** (`state.Name = Name;`),
 stejně jako to dělá `CameraFrame`, a `Clone()` ho přenáší. Hlídá `IMUStateNameTests`.
 
+**Příklad „pole na prvek" (7. 9. 2026):** `LocalPlanMsg` verze 2 přidala rozpad rychlostní obálky
+**u každého waypointu** (pět `float`). Zajímavý je tam *kde* se to zapisuje: ne jako pět polí za
+sebou, ale **uvnitř smyčky přes waypointy**, hned za daným uzlem. Tím se délka polí nemůže rozejít
+s počtem uzlů — nejde zapsat plán se čtyřmi uzly a třemi odstupy. `FromData` alokuje pole na `n`
+a čte hodnoty v téže smyčce, jen pod `if (Verze >= 2)`; u verze 1 zůstanou pole `null`, tedy
+„nevím" (ne nula — nula by tvrdila, že strop byl nulový). Souhrny přes plán (`MinVClear`, …) jsou
+proto **dopočítané vlastnosti**, ne uložená data: dvě čísla o téže věci v jednom rámci by se mohla
+rozejít.
+
 Pozn.: `Build()` vytvoří instanci s *aktuální* verzí z konstruktoru, ale `MessageReader` ji před
 `FromData` přepíše uloženou verzí — po deserializaci proto objekt nese verzi, ze které byl načten
 (pro čtení to stačí; případné „povýšení" na aktuální verzi je věc dalšího zápisu, který `ToData`
@@ -486,6 +495,19 @@ barva → pravděpodobnost nad snímky ze záznamu a jak moc se liší jejich ve
 obě metody **proti ručně označené pravdě**, `--compare=<modely>` místo měření udělá **srovnávací
 obrázek** (řádek = snímek, sloupce = vstup, histogram a každý model) — viz
 [semantic-segmentation.md](semantic-segmentation.md)),
+**`envelope`** (od 7. 9. 2026) — **proč plán předepsal zrovna takovou rychlost**: rozpad rychlostní
+obálky na členy (odstup od překážky / přibližování k ní / hranice potvrzeně sjízdného), **uzel po
+uzlu**, včetně vzdálenosti vázajícího uzlu od robota. `localplan` ukáže, *že* se robot plazí;
+`envelope` ukáže *čím*. Od `LocalPlanMsg` verze 2 čte rozpad **ze zprávy** (tedy co spočítal běžící
+plánovač), u starších záznamů ho **rekonstruuje** z `OccupancyGridMsg` a waypointů — grid se ze
+zprávy postaví zpátky, přepočítá se pole odstupů a dráha navzorkuje stejně jako v
+`LocalPathPlanner.BuildWayPoints`. Rekonstrukce se **kontroluje proti `MinClearanceM`**, které
+zpráva nese od verze 1; když ta kontrola nesedí, výpis to napíše a zbytek čísel nemá smysl číst
+(na `20260907-170728.rec` sedí do jedné buňky v 96,9 %). Obálka se počítá s **konfigurací ze
+záznamu** (`safedist=`, `maxspeed=`, `envelope=` z výpisu `Info`), aby rozpad neodpovídal jinému
+robotu; `--safedist=`/`--maxspeed=` to přepíšou pro A/B „co by bylo, kdyby". Nález, kvůli kterému
+vznikl: [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
 `types`.
 
 ### `log`: co aplikace při běhu hlásila

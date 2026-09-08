@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Regulators;
@@ -73,8 +73,17 @@ namespace ARBot.Common.Occupancy
         private double[] nodeS = new double[0];
         private int[] nodeSample = new int[0];
 
-        // Rozpad rychlostni obalky posledniho planu (naplni BuildWayPoints, prectе Plan do vysledku).
-        private double envMinFreeAhead, envMinVClear, envMinVBrake, envMinSpeed;
+        // Rozpad rychlostni obalky posledniho planu PO UZLECH (naplni BuildWayPoints, prectе Plan
+        // do vysledku). Zamerne po uzlech, ne jen minimum pres plan: minimum rekne, ze se robot
+        // plazi, ale ne KDE na draze se to stane - a prave to rozlisuje "jsem tesne u okraje hned
+        // u sebe" od "za dva metry se cesta zuzuje". Buffery se znovupouzivaji; platny je prvnich
+        // envNodes prvku. Viz LocalPlanResult a doc/occupancy-and-local-planning.md.
+        private float[] envClearance = new float[0];
+        private float[] envClosing = new float[0];
+        private float[] envFreeAhead = new float[0];
+        private float[] envVClearance = new float[0];
+        private float[] envVBrake = new float[0];
+        private int envNodes;
 
         /// <summary>Konfigurace planovace.</summary>
         public LocalPlannerConfig Config => cfg;
@@ -225,11 +234,8 @@ namespace ARBot.Common.Occupancy
                                            minClearance: out double minClear);
             res.MinClearanceM = minClear;
 
-            // Rozpad rychlostni obalky (diagnostika "proc robot leze") - viz LocalPlanResult.
-            res.MinFreeAheadM = envMinFreeAhead;
-            res.MinVClear = envMinVClear;
-            res.MinVBrake = envMinVBrake;
-            res.MinWayPointSpeed = envMinSpeed;
+            // Rozpad rychlostni obalky po uzlech (diagnostika "proc robot leze") - viz LocalPlanResult.
+            StoreEnvelope(res);
 
             if (res.WayPoints == null || res.WayPoints.Length < 2)
             {
@@ -242,6 +248,25 @@ namespace ARBot.Common.Occupancy
             }
 
             return res;
+        }
+
+        /// <summary>
+        /// Prekopiruje rozpad obalky POSLEDNIHO <see cref="BuildWayPoints"/> do vysledku. Kopie je
+        /// vzdy cerstva - vysledek jde do zpravy asynchronnim odberatelum, kdezto buffery se
+        /// znovupouzivaji. Kdyz draha nevznikla, zustanou v poli <c>null</c>.
+        /// </summary>
+        private void StoreEnvelope(LocalPlanResult res)
+        {
+            if (envNodes <= 0) { res.SetEnvelope(null, null, null, null, null); return; }
+            res.SetEnvelope(Copy(envClearance), Copy(envClosing), Copy(envFreeAhead),
+                            Copy(envVClearance), Copy(envVBrake));
+        }
+
+        private float[] Copy(float[] src)
+        {
+            var dst = new float[envNodes];
+            Array.Copy(src, dst, envNodes);
+            return dst;
         }
 
         // ---------------- unik z blokovane bunky ----------------
@@ -292,10 +317,7 @@ namespace ARBot.Common.Occupancy
                 res.WayPoints = BuildWayPoints(grid, robotX, robotY,
                                                finalGoal: true, minClearance: out double minClear);
                 res.MinClearanceM = minClear;
-                res.MinFreeAheadM = envMinFreeAhead;
-                res.MinVClear = envMinVClear;
-                res.MinVBrake = envMinVBrake;
-                res.MinWayPointSpeed = envMinSpeed;
+                StoreEnvelope(res);
 
                 // Vylez blize nez jedna pouzitelna hrana - neni co predat regulatoru.
                 if (res.WayPoints == null || res.WayPoints.Length < 2)
@@ -565,10 +587,7 @@ namespace ARBot.Common.Occupancy
                                                    bool finalGoal, out double minClearance)
         {
             minClearance = double.MaxValue;
-            envMinFreeAhead = double.MaxValue;
-            envMinVClear = double.MaxValue;
-            envMinVBrake = double.MaxValue;
-            envMinSpeed = double.MaxValue;
+            envNodes = 0;
             if (pulled.Count < 1) return null;
 
             // Vrcholy ve svetovych souradnicich; prvni bod je SKUTECNA poloha robotu (ne stred bunky).
@@ -588,6 +607,16 @@ namespace ARBot.Common.Occupancy
             }
             int n = xs.Count;
             if (n < 2) return null;
+
+            if (envClearance.Length < n)
+            {
+                envClearance = new float[n * 2];
+                envClosing = new float[n * 2];
+                envFreeAhead = new float[n * 2];
+                envVClearance = new float[n * 2];
+                envVBrake = new float[n * 2];
+            }
+            envNodes = n;
 
             // Jeden vzorkovaci pruchod CELOU lomenou carou (arc-length s). Uzly jsou take vzorky.
             SamplePath(grid, xs, ys, n);
@@ -625,17 +654,19 @@ namespace ARBot.Common.Occupancy
                 double sTo = k < n - 1 ? nodeS[k + 1] : nodeS[n - 1];
                 double clr = double.MaxValue;
                 double vClear = double.MaxValue;
+                double closingAtMin = 0;      // priblizovani ve vzorku, ktery strop urcil
                 for (int i = 0; i < m; i++)
                 {
                     if (sampleS[i] < sFrom || sampleS[i] > sTo) continue;
                     if (sampleClear[i] < clr) clr = sampleClear[i];
                     double ve = cfg.VEnvelope(sampleClear[i], sampleClosing[i]);
-                    if (ve < vClear) vClear = ve;
+                    if (ve < vClear) { vClear = ve; closingAtMin = sampleClosing[i]; }
                 }
                 if (clr == double.MaxValue)
                 {
                     clr = sampleClear[nodeSample[k]];
-                    vClear = cfg.VEnvelope(clr, sampleClosing[nodeSample[k]]);
+                    closingAtMin = sampleClosing[nodeSample[k]];
+                    vClear = cfg.VEnvelope(clr, closingAtMin);
                 }
                 if (clr < minClearance) minClearance = clr;
 
@@ -647,16 +678,13 @@ namespace ARBot.Common.Occupancy
                 double v = Math.Min(vClear, vBrake);
                 bool last = k == n - 1;
 
-                // Diagnostika obalky - jen mezilehle uzly: v poslednim je Speed = 0 z definice
-                // (konec drahy), takze by minimum vzdycky vyslo tam a nic by nereklo.
-                if (!last)
-                {
-                    if (freeAhead < envMinFreeAhead) envMinFreeAhead = freeAhead;
-                    if (vClear < envMinVClear) envMinVClear = vClear;
-                    if (vBrake < envMinVBrake) envMinVBrake = vBrake;
-                    double speed = Math.Max(cfg.MinCostSpeed, v);
-                    if (speed < envMinSpeed) envMinSpeed = speed;
-                }
+                // Diagnostika obalky - za KAZDY uzel. Minimum pres plan si dopocita
+                // LocalPlanResult (a vynecha pritom posledni uzel, kde je Speed = 0 z definice).
+                envClearance[k] = (float)clr;
+                envClosing[k] = (float)closingAtMin;
+                envFreeAhead[k] = (float)freeAhead;
+                envVClearance[k] = (float)vClear;
+                envVBrake[k] = (float)vBrake;
 
                 wps[k] = new RegulatorWayPoint
                 {

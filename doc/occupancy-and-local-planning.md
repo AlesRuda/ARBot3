@@ -406,6 +406,52 @@ ani únik se nemění (robot v trávě se dál plouží). Zamítnuté alternativ
 `Free` + cesta (robot v trávě by si pod sebou vyrobil cestu a únik by ztratil spouštěč), presumovat
 `Free` v celé slepé zóně (domněnka o prostoru bez senzoru), zvýšit podlahu (maskuje příčinu).
 
+### ⚠️ Nález 7. 9. 2026: v terénu drží rychlost dole `VAlong`, a to hned u robota
+
+Změřeno nad `records/test/20260907-170728.rec` (452 s FreeRunu venku, `maxspeed=1`,
+`envelope=directional`, `safedist=0.4`, `backproject=hist`) nástrojem
+**`ARBot.Analyze envelope`**. Rekonstrukce z gridu sedí na hlášený `MinClearanceM`
+**do jedné buňky v 96,9 %**, takže čísla nejsou domněnka:
+
+| co | kolik |
+|---|---|
+| **`VAlong`** (odstup od překážky) vázal | **77,2 %** plánů |
+| nic (plná rychlost) | 12,7 % |
+| `VBrake` (hranice potvrzeného) | 5,9 % |
+| `VClosing` (přibližování) | 4,2 % |
+| plán na podlaze 0,05 m/s **už v prvním uzlu** | **53,1 %** |
+| z plánů na podlaze vázal `VAlong` | **99,8 %** |
+| medián nejmenšího odstupu na dráze | **0,403 m** (= `SafeDist`) |
+| vázající uzel od robota (p50 / p90) | **0,00 / 0,00 m** |
+| medián příkazované rychlosti | **0,05 m/s** (průměr 0,24) |
+
+Tři věci, které z toho plynou a bez rozpadu po uzlech je vidět nebylo:
+
+1. **Není to „nevidím".** `VBrake` má p50 1,00 m/s a volno před robotem p50 1,40 m — půdorys
+   robota (`FootprintRadiusM`, 3. 9.) svou práci dělá. Hypotéza „robot se plouží skrz neověřený
+   prostor", kvůli které vznikl `LocalPlanReport`, na tomhle záznamu **neplatí** (0,3 % případů
+   na podlaze). Hranice potvrzeného je přitom vždy `Unknown`, nikdy `Blocked` — jen leží dost daleko.
+2. **Váže uzel u robota, ne konec dráhy.** Medián i p90 vzdálenosti vázajícího uzlu je 0,00 m,
+   takže to robota skutečně zdržuje (kdyby vázal konec dráhy, dojede tam za půl sekundy a plán je
+   jiný). Minimum přes plán by tyhle dva případy nerozlišilo.
+3. **`SafeDist` je zároveň tvrdá hranice A\* i nulový bod rampy.** A\* blíž než `SafeDist` nejde,
+   takže v těsném místě je **nejlepší legální dráha zároveň ta, které obálka dá nulu** — 14,1 %
+   plánů má odstup *právě* 0,40 m. Plná rychlost podél překážky vyžaduje odstup ≥ 0,55 m
+   (`SafeDist + EdgeMarginM`), tedy volný kanál ≥ 1,10 m na obě strany.
+
+**Čím je ta překážka.** Buňka, která odstup dává, je v 58,9 % blokovaná geometrií (hloubka)
+a ve 40,6 % semantikou (barva). Souvislá skvrna má p50 **29 buněk** a 52,1 % případů má ≥ 20 buněk
+(tedy skutečná hrana), ale **41,5 % má skvrnu do 4 buněk** — izolovaný šum v mapě, který srazí
+rychlost na podlahu úplně stejně jako zeď. Volný kanál napříč dráhou u robota je přitom p50
+**3,80 m** a kamerový koridor p50 3,60 m (souhlasí), a užší než 1,10 m je jen v 0,8 % —
+**cesta je široká, robot jen jede 0,4 m od něčeho blokovaného**.
+
+⚠️ **Příčina, proč jede tak blízko, změřená není.** Kandidáti: chyba kurzu z VN100 (v tomtéž
+záznamu p50 −24° proti GPS kurzu, viz [imu-and-frames.md](imu-and-frames.md)) rotuje jak mrkev
+FreeRunu, tak zápis do gridu, a při paměti gridu ~2,5 s se buňky zapsané při jiné chybě kurzu
+rozmazávají; k tomu 41,5 % skvrn ≤ 4 buňky. **Nejdřív opravit kurz, pak přeměřit** — ladit obálku
+nad mapou kreslenou špatným kurzem nemá smysl.
+
 Dvě upřesnění, která vyplynula z implementace:
 
 - **Za hranicí potvrzeného je strop `MinCostSpeed` (~5 cm/s), ne přesná nula.** Důvody jsou dva:
@@ -485,7 +531,15 @@ počet překlopení plánu. Nic dalšího se nepřidává, dokud se neprokáže,
   jako `sbyte` pole + origin + rozlišení + prahy. Kanály se posílají v **lokálním** pořadí
   (`i + j*Size`), takže příjemce neřeší kruhový buffer. Proti ~1,8 GB/min obrazů zanedbatelné.
 - **`LocalPlanMsg`** — cíl (požadovaný i skutečně dosažený), `RegulatorWayPoint[]`, stav plánování
-  (i důvod selhání), min. odstup a doba výpočtu.
+  (i důvod selhání), min. odstup a doba výpočtu. **Od verze 2 (7. 9. 2026) navíc rozpad rychlostní
+  obálky u každého waypointu** — `EnvClearanceM`, `EnvClosing`, `EnvFreeAheadM`, `EnvVClearance`,
+  `EnvVBrake` (pět `float` na uzel, ~1,5 MB za 8 minut záznamu). Waypoint nese *výslednou* `Speed`;
+  tohle je její **rozpad**, tedy proč je zrovna taková. **Po uzlech, ne jako minimum přes plán:**
+  „leze už od sebe" a „za dva metry se cesta zužuje" jsou pro léčbu úplně jiné situace a jedno
+  číslo je splácne — a právě tenhle rozdíl rozhodl nález z 7. 9. (níž). Minima přes mezilehlé uzly
+  (`MinVClear`, `MinVBrake`, `MinFreeAheadM`, `MinWayPointSpeed`, `SpeedLimitedBy`) jsou dnes
+  **dopočítané vlastnosti**, ne uložená data — jeden zdroj pravdy. Do verze 1 rozpad zůstával
+  jen v `LocalPlanResult`, tedy v paměti běžící aplikace, a ze záznamu se dal pouze rekonstruovat.
 - Obojí se **zaznamenává**, takže ve View jde zpětně vidět, co robot věděl a kudy chtěl jet.
   Navigace ve View **neběží** (jen se přehrává).
 - Vrstvy jsou ve **[world pohledu](world-view.md)** ([`WorldViewDocument`](../Src/ARBot/ViewModels/WorldViewDocument.cs)),
@@ -511,7 +565,10 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 - každý waypoint: `MaxPositionError ≤` skutečná volná rezerva;
 - `UNKNOWN` před robotem → rychlost klesá k nule na hranici potvrzeného, robot do něj nevjede;
 - stabilita: počet překlopení plánu na syntetické scéně se symetrickou překážkou;
-- A/B nad reálným `.rec`, až bude záznam z namontovaných kamer.
+- A/B nad reálným `.rec`, až bude záznam z namontovaných kamer;
+- **rozpad obálky je po uzlech** a `Speed` uzlu se rovná `max(podlaha, min(VClearance, VBrake))`
+  (`LocalPathPlannerTest.RozpadObalky_JePoUzlech_A_ZnaOdstupKazdehoUzlu`), a přežije záznam
+  (`OccupancyMessagesTest.LocalPlanMsg_RozpadObalky_JePoUzlech_RoundTrip`).
 
 ## Parametry
 
@@ -576,3 +633,17 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 - **Simulate** — až vznikne, `LocalNavigator` poběží nad záznamem beze změny (proto projekce
   v rámci).
 - **Výkon na ARM** — změřit celý řetěz (integrace + EDT + A\*) na OrangePI.
+- **Přeměřit obálku po opravě kurzu** (viz nález 7. 9. 2026 výš). Až bude kurz z VN100 v pořádku,
+  pustit `ARBot.Analyze envelope` na nový záznam — tentokrát už bude rozpad **ve zprávě**
+  (`LocalPlanMsg` verze 2), takže se nic nerekonstruuje. Otázka je, kolik z odstupu 0,40 m byl
+  špatný kurz a kolik zůstane.
+- **Filtr izolovaných `Blocked` buněk?** Ve 41,5 % plánů dává odstup skvrna do 4 buněk
+  (0,01 m²), která srazí rychlost stejně jako zeď. **Neopravovat naslepo** — dokud je kurz vedle,
+  není jasné, jestli je to šum klasifikace, nebo rozmazání gridu chybou pózy; morfologický filtr
+  by ve druhém případě jen zamaskoval příčinu. Rozhodne přeměření výš.
+- **Má být `SafeDist` zároveň nulovým bodem rampy?** Dnes v těsném místě dostane nejlepší legální
+  dráha nulový podélný strop, takže robot leze 0,05 m/s (14,1 % plánů má odstup *právě* `SafeDist`).
+  Rozumné alternativy: nulový bod rampy o půl buňky pod `SafeDist`, nebo podlaha `MinCostSpeed`
+  vyšší v místě, kde je odstup přesně na hranici a `closing` je nulové (jízda **podél**). Obojí ale
+  slevuje z bezpečnosti, takže **až po přeměření** — může se ukázat, že po opravě kurzu robot
+  u okraje vůbec nejezdí.
