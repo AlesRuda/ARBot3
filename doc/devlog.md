@@ -39,6 +39,62 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-08
 
+- **Dvě měření, na která čekal záznam venkovní jízdy — a obojí vyšlo jinak, než plán čekal.**
+  Na pokyn autora, který přinesl `records/test/20260907-170728.rec` na tenhle stroj (dosud
+  lokálně nebyl). Odblokovalo to Task 3 krok 5 a levné ověření hypotézy o VPE; **Task 10 ani
+  fáze 2 se nedotkly** — obojí potřebuje skutečný senzor.
+  - **✅ Podmíněnost nad běžnou jízdou: 352,2** (`ARBot.Analyze magcal`, 45 185 vzorků VN100
+    při 100 Hz, 452 s). Plné pokrytí azimutů — **24 z 24 košů, otočení gyrem 556°** — ale
+    **žádný náklon** (0 z 2 odkloněných skupin, náklony jen na jednu stranu).
+  - ⚠️ **Hlavní nález: podmíněnost jako brána nad reálnými daty NEFUNGUJE.** Syntetická rovinná
+    rotace má 2,0 × 10⁸, skutečná jízda **352**, tedy **pět řádů níž a hluboko pod prahem 10⁴** —
+    a přitom je výsledek nesmysl: `C[2,2] = 38,0` místo ~1,1, `sd(|B|)` po korekci **27×** nad
+    prahem, `sd(sklonu)` **70×**, rozpůlení dat 47,8° proti prahu 2°. Jízda po nerovném terénu
+    degenerovaný směr vyplní, ale **šumem**. Varování ve specifikaci („na reálných datech se
+    mezera zúží") se naplnilo v plné síle.
+  - ✅ **Brána přesto drží — jen ji nedrží podmíněnost:** verdikt `NEPOUZITELNE` vyšel z **košů
+    pokrytí** a ze **zbytků**. Práh se proto **nemění** (naostro až podle rotačního testu, Task 10
+    krok 10); zapsáno jako změřený fakt do `MagCalThresholds`, aby to nikdo nehádal znovu.
+  - **Odpověď na „jak moc je rotační test potřeba":** velmi — ale ta lepší polovina je hotová
+    samovolně. Obsluha bude v poli muset dodat hlavně **podložení na obě strany**, protože
+    azimuty naplní i normální jízda.
+  - ⚠️ **Vyšla přitom vada výkonu v jádře fáze 1, a byla by to vada MISE, ne reportu.** Report
+    nad tím záznamem **vůbec nedoběhl**: `MagCalFit` počítal `Svd` nad maticí *m*×10 a MathNet
+    k tomu tvoří **plnou `U` (*m*×*m*)** — 16 GB a čas v hodinách. Změřeno 1 200 vzorků 69 ms,
+    3 000 462 ms, 6 000 1 929 ms, 12 000 **7 729 ms**. A `MagCalCollector` prokládá **1× za
+    sekundu nad vším, co nasbíral**, při 100–200 Hz — takže by se `mission=magcal` **po minutě
+    otáčení zadusila vlastním proložením**, na Orange Pi ještě dřív. Našlo by se to až v poli.
+  - **Léčba: `MagCalFit.MaxFitSamples = 1500` s rovnoměrným ředěním** uvnitř `TryFit`. Smí se to
+    proto, že **podmíněnost je na počtu vzorků invariantní** — změřeno **434,4 pro 60, 300,
+    1 200, 3 000, 6 000 i 12 000 vzorků** téhož vstupu (rozdíl pod desetinu). **Zbytky a měřítko
+    se dál počítají ze VŠECH** vzorků; ředí se jen soustava. Dva nové testy (invariance
+    a shoda výsledku nad stropem).
+  - **✅ Blok 2b v `ARBot.Analyze vn100`: rozpad zesílení `K` po koších odchylky od registru 21.**
+    Levné ověření hypotézy „VPE dusí magnetometr při nesouhlasu s referencí", na které stojí
+    třetí důvod pro `magmodel=true`. **Hypotéza oporu NEDOSTALA:** předpovídala monotónní
+    **pokles** `K`, naměřený `K` s odchylkou `|B|` monotónně **roste** (−0,0012 → −0,0020 →
+    +0,0027 → +0,0062 1/s) a u odchylky sklonu není monotónní vůbec.
+  - ⚠️ **Vyvrácení to ale není, a je změřené proč:** podíl rozptylu odchylky `|B|`, který vysvětlí
+    **kurz**, je **η² = 0,910** — odchylka je z 91 % funkcí kurzu (dělá ji tvrdé železo), takže
+    „`K` klesá s odchylkou" a „`K` závisí na kurzu" jsou skoro **totéž měření**. Kontrolní rozpad
+    podle kurzu dá `K` v rozpětí −0,0054 … +0,0219 1/s, tedy **širším** než rozpad podle odchylky.
+    Report to takhle i tiskne (η², rozpad podle kurzu jako kontrola, sd chyby u každého koše kvůli
+    regresnímu útlumu) — souhlasný výsledek by hypotézu nedokazoval taky.
+  - **Pro `magmodel=` to nic nekácí:** ten třetí důvod byl od začátku označený jako hypotéza,
+    zbývající dva (deklinace z WMM, nic neproměřeného se nebetonuje) platí dál a `magmodel=false`
+    je pořád jeden přepínač A/B. **Přeměřit po kalibraci** má smysl: až tvrdé železo zmizí, spadne
+    i η² a rozpad začne rozlišovat.
+  - ⚠️ **Předpoklad, který ze dat ověřit nejde:** záznam je **formátu 3**, tedy surové pole nenese
+    (`MagnetometerRaw` přibylo dnes), takže se prokládalo pole **kompenzované**. Platí to jen při
+    jednotkovém registru 23 — podle [imu-and-frames.md](imu-and-frames.md) byl 7. 9. jednotkový,
+    ale je to **z dokumentace, ne z dat**. Potvrdit `deploy/vnprobe.sh` (registr 23), až bude
+    robot. Na `20260906-153657.rec` se prokládat **nesmí** (aktivní stará kalibrace z ARBot2 →
+    korekce korekce).
+  - **Odkazy:** [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) (tabulky obou měření),
+    [plan-vn100-kalibrace-kroky.md](plan-vn100-kalibrace-kroky.md) (Task 3 kroky 5 a 5b),
+    [imu-and-frames.md](imu-and-frames.md). Build čistý, testy zeleně (`ARBot.Common.Tests` 1318 = 1314 prošlo + 4 přeskočeno,
+    `ARBot.HAL.Tests` 92, `ARBot.Runtime.Tests` 95), **necommitováno**.
+
 - **Virtuální magnetometr s vnuceným železem — kalibraci jde celou projít v simulaci.**
   *Na pokyn autora* („udělej 1 i 2" k návrhu). Do té změny `VirtualImu` neposílalo **ani pole,
   ani zrychlení**, takže `mission=magcal` v simulaci zahodila každý vzorek a řetěz mise →

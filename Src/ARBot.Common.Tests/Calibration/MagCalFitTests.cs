@@ -208,5 +208,48 @@ namespace ARBot.Common.Tests.Calibration
 
             Assert.That(MagCalFit.HeadingDiffDeg(a, d), Is.LessThan(1e-6));
         }
+
+        [Test]
+        public void Podminenost_JeInvariantni_NaPoctuVzorku()
+        {
+            // TOHLE JE OPRAVNENI REDENI (MagCalFit.MaxFitSamples). Cena Svd roste s poctem
+            // vzorku kvadraticky (12 000 vzorku = 7,7 s, 45 000 uz nedobehne), takze se nad
+            // stropem redi — a smi se to jen proto, ze podminenost na poctu radku NEZAVISI.
+            // Kdyby zavisela, redenim by se menil verdikt „urceno / neurceno".
+            var C = Mat(1.222, 1.175, 1.081, 0.005, 0.010, -0.012);
+            var b = Vec(-0.274, -0.058, 0.076);
+
+            MagCalFit.TryFit(Vzorky(C, b, new[] { 0.0, 0.35, -0.35 }, 100), Bref,
+                             out _, out double condMalo);
+            MagCalFit.TryFit(Vzorky(C, b, new[] { 0.0, 0.35, -0.35 }, 4000), Bref,
+                             out _, out double condMnoho);
+
+            Assert.That(condMalo, Is.EqualTo(condMnoho).Within(1.0),
+                "podminenost se s poctem vzorku nesmi hnout - jinak redit nelze");
+        }
+
+        [Test]
+        public void NadStropem_SeRedi_AVysledekZustane()
+        {
+            // Redenim se nesmi zmenit ANI parametry, ne jen verdikt. Vzorku je 12x nad stropem.
+            var C = Mat(1.222, 1.175, 1.081, 0.005, 0.010, -0.012);
+            var b = Vec(-0.274, -0.058, 0.076);
+            var naklony = new[] { 0.0, 0.35, -0.35 };
+            int naAzimut = 6 * MagCalFit.MaxFitSamples / naklony.Length;
+            var vz = Vzorky(C, b, naklony, naAzimut);
+            Assert.That(vz.Count, Is.GreaterThanOrEqualTo(6 * MagCalFit.MaxFitSamples),
+                        "predpoklad testu");
+
+            var r = MagCalFit.Fit(vz, Bref, Gravitace(naklony, naAzimut));
+
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.That(r.B[i], Is.EqualTo(b[i]).Within(0.002), $"bias slozka {i}");
+                for (int j = 0; j < 3; j++)
+                    Assert.That(r.C[i, j], Is.EqualTo(C[i, j]).Within(0.01), $"C[{i},{j}]");
+            }
+            Assert.That(r.Samples, Is.EqualTo(vz.Count),
+                "Samples hlasi, kolik vzorku do vysledku vstoupilo - zbytky se pocitaji ze VSECH");
+        }
     }
 }

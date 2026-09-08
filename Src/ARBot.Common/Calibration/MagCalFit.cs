@@ -38,6 +38,30 @@ namespace ARBot.Common.Calibration
         public const int MinSamples = 50;
 
         /// <summary>
+        /// <b>Kolik vzorku smi vstoupit do samotneho prolozeni</b>; nad tim se rovnomerne redi
+        /// (kazdy k-ty).
+        ///
+        /// <para><b>Nacpak.</b> Cena <c>Svd</c> nad matici <i>m</i>×10 roste v MathNetu
+        /// <b>kvadraticke</b>, protoze se pocita plna matice <c>U</c> (<i>m</i>×<i>m</i>) —
+        /// zmereno 8. 9. 2026: 1 200 vzorku 69 ms, 3 000 462 ms, 6 000 1 929 ms,
+        /// 12 000 <b>7 729 ms</b>. A <see cref="MagCalCollector"/> proklada <b>1× za sekundu nad
+        /// vsim, co dosud nasbiral</b>, pri 100–200 Hz z VN100 — takze by se mise po minute
+        /// otaceni zadusila vlastnim prolozenim. Nad zaznamem venkovni jizdy (45 185 vzorku)
+        /// prolozeni <b>nedobehlo vubec</b> (16 GB na <c>U</c>).</para>
+        ///
+        /// <para><b>Proc to nic nezkresli:</b> podminenost navrhove matice je na poctu vzorku
+        /// <b>invariantni</b> — zmereno na tychz syntetickych datech 434,4 pro 60, 300, 1 200,
+        /// 3 000, 6 000 i 12 000 vzorku (rozdil pod desetinu). Redi se tedy vec, ktera na poctu
+        /// radku nezavisi. <b>Zbytky</b> (<see cref="MagCalResult.SdMagnitudeG"/>,
+        /// <see cref="MagCalResult.SdInclinationDeg"/>) i <b>meritko</b> se pritom pocitaji dal
+        /// nad <b>vsemi</b> vzorky — kvalita se ma posuzovat na vsech datech, redi se jen soustava.</para>
+        ///
+        /// <para>⚠️ Redit se musi <b>rovnomerne</b>, ne „prvnich N": pozdeji namerene naklony
+        /// jsou prave ta cast dat, ktera soustavu urcuje.</para>
+        /// </summary>
+        public const int MaxFitSamples = 1500;
+
+        /// <summary>
         /// Prolozi elipsoidu a vrati kompenzaci registru 23; <b>vyhodi vyjimku</b>, kdyz je
         /// soustava neurcena. Pro sber za behu pouzij <see cref="TryFit"/> — tam je neurcenost
         /// normalni stav, ne vyjimka.
@@ -91,14 +115,21 @@ namespace ARBot.Common.Calibration
             double s = mag.Average(v => v.Length());
             if (!(s > 0)) throw new ArgumentException("Nulove pole.", nameof(mag));
 
-            var d = Matrix<double>.Build.Dense(mag.Count, 10);
-            for (int i = 0; i < mag.Count; i++)
+            // Rovnomerne redeni: krok tak, aby radku bylo nejvys MaxFitSamples. Viz jeho
+            // dokumentace — cena Svd roste kvadraticky, kdezto podminenost je na poctu vzorku
+            // invariantni, takze se redi vec, na ktere pocet radku nezalezi.
+            int krok = mag.Count > MaxFitSamples ? (mag.Count + MaxFitSamples - 1) / MaxFitSamples : 1;
+            int radku = (mag.Count + krok - 1) / krok;
+
+            var d = Matrix<double>.Build.Dense(radku, 10);
+            for (int r = 0; r < radku; r++)
             {
+                int i = r * krok;
                 double x = mag[i].X / s, y = mag[i].Y / s, z = mag[i].Z / s;
-                d[i, 0] = x * x;      d[i, 1] = y * y;      d[i, 2] = z * z;
-                d[i, 3] = 2 * x * y;  d[i, 4] = 2 * x * z;  d[i, 5] = 2 * y * z;
-                d[i, 6] = 2 * x;      d[i, 7] = 2 * y;      d[i, 8] = 2 * z;
-                d[i, 9] = 1;
+                d[r, 0] = x * x;      d[r, 1] = y * y;      d[r, 2] = z * z;
+                d[r, 3] = 2 * x * y;  d[r, 4] = 2 * x * z;  d[r, 5] = 2 * y * z;
+                d[r, 6] = 2 * x;      d[r, 7] = 2 * y;      d[r, 8] = 2 * z;
+                d[r, 9] = 1;
             }
 
             // Homogenni soustava D·u = 0 → nejmensi singularni vektor.

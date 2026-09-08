@@ -32,10 +32,20 @@ namespace ARBot.Common.Calibration
         /// <para>⚠️ <b>Puvodni odhad 30 byl o pet radu mimo</b> a odmital i dokonala data. Proto
         /// je tu tabulka — aby to nikdo nehadal znovu.</para>
         ///
-        /// <para>⚠️ <b>Na realnych datech se mezera ZUZI:</b> sum vyplni degenerovany smer, takze
-        /// rovinna rotace bude mit podminenost mensi nez 10⁸. Tohle cislo se proto musi preverit
-        /// pri prvnim mereni na zarizeni. Primarni pokyn pro obsluhu jsou ale <b>kose pokryti</b> —
-        /// to je kriterium geometricke, tedy na sumu nezavisle.</para>
+        /// <para>⚠️ <b>NAD REALNYMI DATY JE TENHLE PRAH NEUCINNY — zmereno 8. 9. 2026.</b>
+        /// Nad 452 s venkovni jizdy (<c>records/test/20260907-170728.rec</c>, 45 185 vzorku VN100)
+        /// vysla podminenost <b>352,2</b>, tedy hluboko POD prahem — ackoli naklony v datech
+        /// nejsou vubec (0 z 2 odklonenych skupin) a vysledek je nesmysl: <c>C[2,2] = 38,0</c>
+        /// misto ~1,1, <c>sd(|B|)</c> po korekci 27× nad prahem, <c>sd(sklonu)</c> 70×. Jizda po
+        /// nerovnem terenu degenerovany smer vyplni, ale <b>sumem</b>: soustava je numericky
+        /// resitelna a statisticky porad podurcena. Mezera proti syntetice (2,0 × 10⁸) se tedy
+        /// zuzila o <b>pet radu</b>.</para>
+        ///
+        /// <para>✅ <b>Brana pritom drzela — jen ji nedrzela podminenost:</b> verdikt
+        /// NEPOUZITELNE vysel z <b>kosu pokryti</b> a ze <b>zbytku</b>. Primarni kriterium jsou
+        /// proto kose (geometricke, na sumu nezavisle) a zbytky, ne tohle cislo. Naostro se
+        /// nastavi az podle rotacniho testu na zarizeni (Task 10); snizovat ho podle jednoho
+        /// jizdniho zaznamu by bylo hadani.</para>
         ///
         /// <para>⚠️ <b>Dva naklony nestaci, kdyz jsou na tutéz stranu.</b> Teprve par +/− zlomi
         /// symetrii; hlida to <see cref="MinTiltedGroups"/> spolu s <see cref="MinTiltGroups"/>.</para>

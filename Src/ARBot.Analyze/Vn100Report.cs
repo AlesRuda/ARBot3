@@ -44,7 +44,7 @@ namespace ARBot.Analyze
         /// <summary>Délka okna, na kterém se porovnává přírůstek yaw s integrálem gyra [s].</summary>
         private const double WindowS = 1.0;
 
-        public static void Run(RecordFile rec)
+        public static void Run(RecordFile rec, double bRefG, double refInclinationDeg)
         {
             var s = new List<Sample>();
             var speed = new List<(double T, double V)>();
@@ -104,8 +104,12 @@ namespace ARBot.Analyze
             Console.WriteLine();
 
             SelfReportedUncertainty(s);
-            var field = FieldHeading(s);
-            MagFeedback(s, field);
+            // Vyhlazene zrychleni potrebuji DVA bloky (kurz z pole i sklon pole), takze se
+            // pocita jednou tady - dve kopie by se mohly rozejit v sirce okna.
+            var acc = MovingAverageAcc(s, 0.5);
+            var field = FieldHeading(s, acc);
+            var okna = MagFeedback(s, field, acc);
+            MagFeedbackByDeviation(okna, bRefG, refInclinationDeg);
             StandingDrift(s, field, speed);
             MotorInterference(s, motor);
         }
@@ -221,7 +225,7 @@ namespace ARBot.Analyze
         /// <c>NaN</c>, kde to nejde. Tataz metoda jako v <see cref="HeadingReferencesReport"/> —
         /// tady se ale nepotrebuje statistika, nybrz casova rada.
         /// </summary>
-        private static double[] FieldHeading(List<Sample> s)
+        private static double[] FieldHeading(List<Sample> s, Vector3?[] acc)
         {
             var outv = new double[s.Count];
             for (int i = 0; i < s.Count; i++) outv[i] = double.NaN;
@@ -229,7 +233,6 @@ namespace ARBot.Analyze
             // Gravitace je nizkofrekvencni cast zrychleni; jednotlivy vzorek je na trave
             // nepouzitelny. Prah kolem MEDIANU |a|, ne kolem tabulkoveho g - viz komentar
             // v HeadingReferencesReport.Magnetometer.
-            var acc = MovingAverageAcc(s, 0.5);
             var norm = new Stats("|a|");
             for (int i = 0; i < s.Count; i++)
                 if (acc[i] is Vector3 a) norm.Add(Math.Sqrt(a.X * a.X + a.Y * a.Y + a.Z * a.Z));
@@ -263,14 +266,15 @@ namespace ARBot.Analyze
         /// <see cref="WindowS"/> se porovna PRIRUSTEK yaw s integralem gyra; co zbyde, je
         /// oprava, kterou filtr senzoru pridal. Ta se regresuje na chybu proti poli.
         /// </summary>
-        private static void MagFeedback(List<Sample> s, double[] field)
+        private static List<Window> MagFeedback(List<Sample> s, double[] field, Vector3?[] acc)
         {
             Console.WriteLine("2) REAGUJE YAW NA ROZPOR S VLASTNIM MAGNETOMETREM?");
+            var okna = new List<Window>();
             if (s.All(x => x.GyroZ == null))
             {
                 Console.WriteLine("  Zaznam nenese uhlovou rychlost - nelze oddelit integraci gyra od opravy.");
                 Console.WriteLine();
-                return;
+                return okna;
             }
 
             var e = new List<double>();      // chyba proti poli [rad]
@@ -288,6 +292,8 @@ namespace ARBot.Analyze
                 // Integral gyra pres okno (lichobezniky) a chyba proti poli (kruhovy prumer).
                 double integ = 0; bool ok = true;
                 double sx = 0, sy = 0; int n = 0;
+                // |B| a sklon na okne - vstup pro rozpad zesileni po kosich odchylky (blok 2b).
+                double sumB = 0, sumSkl = 0; int nB = 0, nSkl = 0;
                 for (int k = i0; k < i1; k++)
                 {
                     if (s[k].GyroZ == null || s[k + 1].GyroZ == null) { ok = false; break; }
@@ -297,12 +303,38 @@ namespace ARBot.Analyze
                         double d = Wrap(field[k] - s[k].Yaw);
                         sx += Math.Cos(d); sy += Math.Sin(d); n++;
                     }
+                    if (!(s[k].Mag is Vector3 m)) continue;
+                    double mn = m.Length();
+                    if (mn < 1e-6) continue;
+                    sumB += mn; nB++;
+                    if (!(acc[k] is Vector3 g)) continue;
+                    double gn = g.Length();
+                    if (gn < 1e-6) continue;
+
+                    // ⚠️ Sklon je velicina SVETOVA, takze se sklapi gravitaci:
+                    // sin(sklon) = m̂ · ĝ_dolu, kde ĝ_dolu = −acc/|acc| (akcelerometr v klidu
+                    // meri −g). TATAZ konvence jako v MagCalFit; z telesoveho pole by pri
+                    // naklonech vysel rozptyl v desitkach stupnu i u perfektniho senzoru.
+                    double dot = -(m.X * g.X + m.Y * g.Y + m.Z * g.Z) / (mn * gn);
+                    sumSkl += Math.Asin(Math.Clamp(dot, -1.0, 1.0)); nSkl++;
                 }
                 if (ok)
                 {
                     double corr = (Wrap(s[i1].Yaw - s[i0].Yaw) - integ) / T;
                     rStat.Add(Deg(corr));
-                    if (n > 0) { e.Add(Math.Atan2(sy / n, sx / n)); r.Add(corr); }
+                    if (n > 0)
+                    {
+                        double chyba = Math.Atan2(sy / n, sx / n);
+                        e.Add(chyba); r.Add(corr);
+                        okna.Add(new Window
+                        {
+                            E = chyba,
+                            R = corr,
+                            Yaw = s[i0].Yaw,
+                            MagG = nB > 0 ? sumB / nB : double.NaN,
+                            InclDeg = nSkl > 0 ? Deg(sumSkl / nSkl) : double.NaN,
+                        });
+                    }
                 }
                 i0 = i1;
             }
@@ -313,7 +345,7 @@ namespace ARBot.Analyze
             {
                 Console.WriteLine("  Prilis malo oken s polem - regrese by nic nerekla.");
                 Console.WriteLine();
-                return;
+                return okna;
             }
 
             // r = K*e + c; K je zesileni zpetne vazby [1/s], 1/K casova konstanta.
@@ -324,7 +356,7 @@ namespace ARBot.Analyze
             {
                 Console.WriteLine("  Chyba proti poli se v zaznamu skoro nemeni - zesileni nejde odhadnout.");
                 Console.WriteLine();
-                return;
+                return okna;
             }
             double K = sxy / sxx, c = mr - K * me;
             double ss = 0;
@@ -350,6 +382,140 @@ namespace ARBot.Analyze
             Console.WriteLine("  kontrola: kdyby filtr pole pouzival, musel by rozpor proti GPS kurzu v case");
             Console.WriteLine("  KLESAT - to ukaze 'heading' po minutach.");
             Console.WriteLine();
+            return okna;
+        }
+
+        /// <summary>
+        /// <b>Blok 2b — dusi VPE magnetometr, kdyz se pole rozejde s referencnim vektorem?</b>
+        ///
+        /// <para><b>Nacpak.</b> Registr 36 zapina adaptivni ladeni VPE, ktere ma magnetometr
+        /// <i>zamerne</i> utlumit, kdyz se merene <c>|B|</c> a sklon rozejdou s referenci
+        /// z registru 21. Na tom stoji rozhodnuti zapnout model pole (<c>magmodel=</c>): registr
+        /// 21 dnes znamena sklon 60,9°, ackoli pro CR je ~65,7°, takze i perfektni kalibrace
+        /// muze zustat castecne udusena. Z dokumentace VN se to vycist neda; ze zaznamu se to
+        /// da <b>podporit nebo vyvratit</b>. Hypoteza predpovida <b>monotonni pokles K</b>
+        /// s rostouci odchylkou. Viz doc/plan-vn100-kalibrace.md, „Levne overeni hypotezy".</para>
+        ///
+        /// <para>⚠️ <b>Je to NUTNA PODMINKA, NE DUKAZ</b> — a to ze dvou nezavislych duvodu:</para>
+        /// <list type="number">
+        /// <item><b>Odchylka <c>|B|</c> je sama funkci kurzu</b> (dela ji tvrde zelezo), takze
+        ///   „K klesa s odchylkou" muze byt zastrene „K zavisi na kurzu". Proto se tiskne i rozpad
+        ///   po kosich KURZU a podil rozptylu odchylky, ktery kurz vysvetli (η²): kdyz je η²
+        ///   blizko 1, ty dva rozpady se od sebe <b>nedaji odlisit</b>.</item>
+        /// <item><b>Regresni utlum se v kosich lisi.</b> K se tlaci k nule tim vic, cim mensi
+        ///   je rozptyl chyby proti poli v tom kosi — takze kos s uzsim rozsahem chyby ukaze
+        ///   mensi K, i kdyby VPE dusilo stejne. Proto je u kazdeho kosi vypsana i sd chyby.</item>
+        /// </list>
+        ///
+        /// <para><b>Kose jsou kvantily, ne pevne hranice</b> — pri pevnych by kos zustal skoro
+        /// prazdny a jeho K by byl sum.</para>
+        /// </summary>
+        private static void MagFeedbackByDeviation(List<Window> okna, double bRefG,
+                                                   double refInclinationDeg)
+        {
+            Console.WriteLine("2b) DUSI VPE MAGNETOMETR PRI NESOUHLASU S REGISTREM 21?");
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  reference (registr 21): |B| = {0:F4} G, sklon = {1:F1} deg"
+                + "   (--bref=/--incl= je prepisou)", bRefG, refInclinationDeg));
+
+            var sB = okna.Where(w => !double.IsNaN(w.MagG)).ToList();
+            var sI = okna.Where(w => !double.IsNaN(w.InclDeg)).ToList();
+            if (sB.Count < 4 * MinBinWindows)
+            {
+                Console.WriteLine($"  Oken s polem je malo ({sB.Count}) - rozpad by nic nerekl.");
+                Console.WriteLine();
+                return;
+            }
+
+            Rozpad("odchylka |B| [G]", sB, w => Math.Abs(w.MagG - bRefG), "F4");
+            if (sI.Count >= 4 * MinBinWindows)
+                Rozpad("odchylka sklonu [deg]", sI, w => Math.Abs(w.InclDeg - refInclinationDeg), "F1");
+            else
+                Console.WriteLine("  Sklon: malo oken se zrychlenim - rozpad podle sklonu nelze.");
+
+            // KONTROLA KONFUNDANTU: tentyz rozpad podle kurzu. Kdyz K kolisa i tady, neni
+            // z ceho rozhodnout, ktera z tech dvou promennych ho hybe.
+            Rozpad("kurz [deg]  (KONTROLA)", sB, w => Deg(w.Yaw), "F0");
+
+            // Jak moc je odchylka |B| funkci kurzu: podil rozptylu vysvetleny azimutovymi kosi
+            // (η²). Blizko 1 znamena, ze se oba rozpady od sebe nedaji odlisit.
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  podil rozptylu odchylky |B|, ktery vysvetli KURZ (η², 24 kosu po 15 deg):"
+                + " {0:F3}", Eta2ByHeading(sB, bRefG)));
+            Console.WriteLine("  η² blizko 1 = odchylka |B| je skoro funkci kurzu, takze"
+                              + " „K klesa s odchylkou\" a „K zavisi na kurzu\" JSOU TOTEZ MERENI.");
+            Console.WriteLine("  ⚠️ Souhlasny vysledek hypotezu NEDOKAZUJE - viz dokumentace metody.");
+            Console.WriteLine();
+        }
+
+        /// <summary>Kolik oken musi byt v kosi, aby mela regrese smysl.</summary>
+        private const int MinBinWindows = 25;
+
+        /// <summary>
+        /// Vytiskne zesileni <c>K</c> ve ctyrech kvantilovych kosich podle
+        /// <paramref name="podle"/>. Krome <c>K</c> i sd chyby proti poli — bez ni se rozdil
+        /// mezi kosi nemuze vylozit (regresni utlum, viz
+        /// <see cref="MagFeedbackByDeviation"/>).
+        /// </summary>
+        private static void Rozpad(string nazev, List<Window> okna, Func<Window, double> podle,
+                                   string format)
+        {
+            var setrid = okna.OrderBy(podle).ToList();
+            int kosu = 4, n = setrid.Count;
+            Console.WriteLine($"  po kosich: {nazev}");
+            Console.WriteLine("    kos  rozsah                 n     K [1/s]        sd(chyby) [deg]");
+            for (int q = 0; q < kosu; q++)
+            {
+                int od = q * n / kosu, doIdx = (q + 1) * n / kosu;
+                var kos = setrid.GetRange(od, doIdx - od);
+                if (kos.Count < MinBinWindows)
+                {
+                    Console.WriteLine($"    {q + 1}    (jen {kos.Count} oken - vynechano)");
+                    continue;
+                }
+                var (K, seK, sdE) = Regrese(kos);
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "    {0}    {1,8:" + format + "} .. {2,8:" + format + "}  {3,5}   "
+                    + "{4,8:F5} +- {5:F5}   {6,6:F1}",
+                    q + 1, podle(kos[0]), podle(kos[kos.Count - 1]), kos.Count, K, seK, sdE));
+            }
+        }
+
+        /// <summary>Regrese <c>r = K·e + c</c> na jedne skupine oken; vraci i sd chyby.</summary>
+        private static (double K, double SeK, double SdEdeg) Regrese(List<Window> okna)
+        {
+            double me = okna.Average(w => w.E), mr = okna.Average(w => w.R);
+            double sxx = 0, sxy = 0;
+            foreach (var w in okna) { sxx += (w.E - me) * (w.E - me); sxy += (w.E - me) * (w.R - mr); }
+            if (sxx < 1e-12) return (double.NaN, double.NaN, 0);
+            double K = sxy / sxx, c = mr - K * me, ss = 0;
+            foreach (var w in okna) { double d = w.R - (K * w.E + c); ss += d * d; }
+            double sd = Math.Sqrt(ss / Math.Max(1, okna.Count - 2));
+            return (K, sd / Math.Sqrt(sxx), Deg(Math.Sqrt(sxx / okna.Count)));
+        }
+
+        /// <summary>
+        /// Podil rozptylu odchylky <c>|B|</c>, ktery vysvetli kurz (η² pres azimutove kose).
+        /// Cim blize 1, tim mene se rozpad podle odchylky da odlisit od rozpadu podle kurzu.
+        /// </summary>
+        private static double Eta2ByHeading(List<Window> okna, double bRefG)
+        {
+            const int Kosu = 24;
+            var kose = new List<double>[Kosu];
+            for (int i = 0; i < Kosu; i++) kose[i] = new List<double>();
+            foreach (var w in okna)
+            {
+                double a = w.Yaw % (2 * Math.PI);
+                if (a < 0) a += 2 * Math.PI;
+                int i = Math.Min(Kosu - 1, (int)(a / (2 * Math.PI / Kosu)));
+                kose[i].Add(Math.Abs(w.MagG - bRefG));
+            }
+            double vse = okna.Average(w => Math.Abs(w.MagG - bRefG));
+            double ssTot = okna.Sum(w => Math.Pow(Math.Abs(w.MagG - bRefG) - vse, 2));
+            if (!(ssTot > 0)) return double.NaN;
+            double ssMezi = kose.Where(k => k.Count > 0)
+                                .Sum(k => k.Count * Math.Pow(k.Average() - vse, 2));
+            return ssMezi / ssTot;
         }
 
         /// <summary>
@@ -440,6 +606,28 @@ namespace ARBot.Analyze
         }
 
         // --- pomucky ---
+
+        /// <summary>
+        /// Jedno okno bloku 2: chyba proti poli a oprava nad ramec gyra, a k tomu <c>|B|</c>,
+        /// sklon a kurz — vstup pro rozpad zesileni po kosich (blok 2b).
+        /// </summary>
+        private struct Window
+        {
+            /// <summary>Chyba proti poli (kurz z pole − yaw) na okne [rad].</summary>
+            public double E;
+
+            /// <summary>Oprava nad ramec integrace gyra [rad/s].</summary>
+            public double R;
+
+            /// <summary>Yaw na zacatku okna [rad] — kvuli kontrole konfundantu kurzu.</summary>
+            public double Yaw;
+
+            /// <summary>Velikost pole na okne [G]; <c>NaN</c>, kdyz pole chybi.</summary>
+            public double MagG;
+
+            /// <summary>Sklon pole na okne, SKLOPENY gravitaci [deg]; <c>NaN</c> bez zrychleni.</summary>
+            public double InclDeg;
+        }
 
         private struct Sample
         {

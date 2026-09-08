@@ -1019,12 +1019,68 @@ na `20260814-132817` (13 475 vzorků IMU), `20260818-084247`, `20260819-225917`,
 Výstup nad `20260903-153947.rec`: 2501 vzorků IMU, z toho 0 použitelných, 0 z 24 azimutových
 košů, otočení gyrem 0°. Tedy report se chová správně (ohlásí, co chybí, a neproloží).
 
-- [ ] **Krok 5: Změřit podmíněnost nad SKUTEČNÝMI jízdními daty a zapsat do DevLogu**
+- [x] **Krok 5: Změřeno nad skutečnými jízdními daty 8. 9. 2026** (`records/test/20260907-170728.rec`,
+      452 s FreeRunu venku, 45 185 vzorků VN100 při 100 Hz)
 
-Předpoklad: **stáhnout záznam z Pi** (`20260906-082403`, `20260906-153657` nebo
-`20260907-170728`) — lokálně nejsou. Pak zapsat do [devlog.md](devlog.md): podmíněnost nad
-běžnou jízdou, počet naplněných azimutových košů a otočení gyrem. Tím je odpověď na „jak moc
-je rotace potřeba" v repozitáři, ne v hlavě.
+```
+azimutove kose:      24 z 24              otoceni gyrem celkem: 556 stupnu
+naklonove skupiny:   2 (z toho odklonenych 0)   naklony na obe strany: NE
+podminenost:         352.2   (prah 1e4)
+sd(|B|) po korekci:  0.13436 G  (prah 0.005)   -> 27x nad
+sd(sklonu):          35.156 deg (prah 0.5)     -> 70x nad
+rozpuleni dat:       47.76 deg rozdilu v oprave kurzu (prah 2)
+verdikt: NEPOUZITELNE
+```
+
+⚠️ **Odpověď je jiná, než jakou plán čekal — a je to nález, ne detail: na reálných datech je
+podmíněnost jako brána NEÚČINNÁ.** Syntetická rovinná rotace má 2,0 × 10⁸, ale skutečná jízda
+**352**, tedy **pět řádů níž a hluboko pod prahem** 10⁴ — soustava se „určila" a vyšel z ní
+nesmysl: `C[2,2] = 38,0` místo ~1,1 (podpis nezměřené osy `z`, kterou fit natáhne) a pole po
+korekci **není ani zdaleka konstantní**. Varování ve specifikaci („na reálných datech se mezera
+zúží, šum vyplní degenerovaný směr") se tedy naplnilo **v plné síle**: jízda po nerovném terénu
+dá náklony do ~15°, které degenerovaný směr vyplní — ale **šumem**, takže je soustava numericky
+řešitelná a statisticky pořád podurčená.
+
+✅ **Brána přitom drží — jen ji nedrží podmíněnost.** Verdikt `NEPOUZITELNE` vyšel z **pokrytí**
+(0 z 2 odkloněných skupin, náklony jen na jednu stranu) a ze **zbytků** (27× a 70× nad prahem).
+Praktický důsledek: primární kritérium pro obsluhu jsou **koše a zbytky**, ne podmíněnost —
+což specifikace tušila („kritérium geometrické, tedy na šumu nezávislé"), ale teď je to změřené.
+Prahy podmíněnosti proto **naostro nastaví až rotační test** (Task 10 krok 10); snižovat ji
+naslepo podle jednoho jízdního záznamu by znamenalo hádat.
+
+**Odpověď na „jak moc je rotační test potřeba":** velmi. Běžná jízda naplní **všechny azimuty**
+(24/24, otočení 556°), takže vodorovná složka pokrytá je — ale **náklony nedá vůbec** a jen ta
+druhá polovina rozhoduje. Dobrá zpráva pro terénní výjezd je ta azimutová část: obsluha bude
+muset dodat hlavně **podložení na obě strany**, ne otáčení dokola.
+
+⚠️ **Platí to jen tehdy, když byl registr 23 při nahrávání jednotkový.** Záznam je **formátu 3**,
+tedy surové pole nenese (`MagnetometerRaw` přibylo 8. 9. 2026), takže se prokládalo pole
+**kompenzované**. Podle [imu-and-frames.md](imu-and-frames.md) byla kalibrace 6. 9. 2026 vymazána
+a uložena do flash, takže 7. 9. jednotkový **byl** — je to ale doložené z dokumentace, **ze dat
+se to zjistit nedá**. Potvrdit `deploy/vnprobe.sh` (registr 23), až bude robot.
+⚠️ **Na `20260906-153657.rec` se to dělat nesmí** — tam byla aktivní stará kalibrace z ARBot2,
+takže by proložení dělalo *korekci korekce* a vyšla by věrohodně vypadající hloupost.
+Použitelné jsou jen `20260907-170728` a `20260906-082403`.
+
+- [x] **Krok 5b: Vyšla přitom vada výkonu v jádře — proložení bylo O(m²)** (opraveno 8. 9. 2026)
+
+Report nad tím záznamem **vůbec nedoběhl**: `MagCalFit` počítal `Svd` nad maticí *m*×10 a MathNet
+k tomu tvoří **plnou matici `U` (*m*×*m*)**, tedy pro 45 185 vzorků 16 GB a čas v hodinách.
+Změřeno na syntetice: 1 200 vzorků 69 ms, 3 000 462 ms, 6 000 1 929 ms, 12 000 **7 729 ms**.
+
+⚠️ **Není to problém reportu, je to vada mise.** `MagCalCollector` prokládá **1× za sekundu nad
+vším, co dosud nasbíral**, a VN100 posílá 100–200 Hz — takže **po minutě otáčení by se
+`mission=magcal` zadusila vlastním proložením**, a to na Orange Pi ještě dřív než na PC. Na HW
+by se to našlo až v poli.
+
+**Léčba: `MagCalFit.MaxFitSamples = 1500` a rovnoměrné ředění** (každý k-tý) uvnitř `TryFit`.
+Smí se to proto, že **podmíněnost je na počtu vzorků invariantní** — změřeno na tomtéž
+syntetickém vstupu **434,4 pro 60, 300, 1 200, 3 000, 6 000 i 12 000 vzorků** (rozdíl pod
+desetinu), takže se ředí veličina, na které počet řádků nezávisí. Hlídá to test
+`Podminenost_JeInvariantni_NaPoctuVzorku`, výsledek pak `NadStropem_SeRedi_AVysledekZustane`.
+**Zbytky a měřítko se dál počítají ze VŠECH vzorků** — ředí se jen soustava; kvalita se má
+posuzovat na všech datech. Ředit se musí **rovnoměrně**, ne „prvních N": později naměřené
+náklony jsou právě ta část dat, která soustavu určuje.
 
 - [ ] **Krok 6: Commit** (jen na pokyn autora)
 

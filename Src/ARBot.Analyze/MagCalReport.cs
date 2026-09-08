@@ -112,6 +112,11 @@ namespace ARBot.Analyze
 
             Console.WriteLine();
             Console.WriteLine("2) PROLOZENI");
+            if (cov.Mag.Count > MagCalFit.MaxFitSamples)
+                Console.WriteLine($"  do soustavy vstoupil kazdy"
+                                  + $" {(cov.Mag.Count + MagCalFit.MaxFitSamples - 1) / MagCalFit.MaxFitSamples}."
+                                  + $" vzorek (strop {MagCalFit.MaxFitSamples});"
+                                  + " podminenost je na poctu vzorku invariantni, zbytky se pocitaji ze VSECH.");
             Console.WriteLine($"  podminenost:         {cond:G4}"
                               + $"  (prah {MagCalThresholds.MaxCondition:G4})");
             if (!ok)

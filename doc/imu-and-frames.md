@@ -363,6 +363,17 @@ Důvody, proč to je vědomé a ne přehlédnutí:
 z dokumentace vyčíst nejde a změřit se to dá jedině na senzoru. **Celé to na HW neběželo**;
 `magmodel=false` vrací chování do 8. 9. 2026, takže A/B je jeden přepínač.
 
+⚠️ **A ten bod 3 se ze záznamu ověřit zkusil — oporu NEDOSTAL** (8. 9. 2026, nový blok **2b**
+v `ARBot.Analyze vn100`, který rozpadá zesílení `K` po koších odchylky od registru 21). Hypotéza
+předpovídala monotónní **pokles** `K` s rostoucí odchylkou; `K` s odchylkou `|B|` monotónně
+**roste** (−0,0012 → −0,0020 → +0,0027 → +0,0062 1/s) a u odchylky sklonu není monotónní vůbec.
+⚠️ **Vyvrácení to ale není a je změřené, proč:** podíl rozptylu odchylky `|B|`, který vysvětlí
+kurz, je **η² = 0,910** — odchylka je z 91 % funkcí kurzu (dělá ji tvrdé železo), takže „`K`
+klesá s odchylkou" a „`K` závisí na kurzu" jsou skoro totéž měření. Kontrolní rozpad podle kurzu
+dá `K` v rozpětí −0,0054 … +0,0219 1/s, tedy **širším** než rozpad podle odchylky. Zbývající dva
+důvody pro `magmodel=true` platí dál; **přeměřit po kalibraci** má smysl, protože až tvrdé železo
+zmizí, spadne i η² a rozpad začne rozlišovat. Čísla: [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md).
+
 ⚠️ Po nastavení se kurz **skokem změní o deklinaci** a VPE se na novou referenci dotahuje
 ~100–170 s. Proto se to dělá při prvním dobrém fixu, ne až za jízdy.
 

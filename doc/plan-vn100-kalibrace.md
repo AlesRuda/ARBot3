@@ -136,7 +136,7 @@ naměřená v poli).
 
 | Co | Role | Práh |
 |---|---|---|
-| podmíněnost návrhové matice | **určenost** — nutná podmínka | ≤ 10⁴ *(změřeno, viz níž)* |
+| podmíněnost návrhové matice | **určenost** — nutná podmínka, ⚠️ ale nad reálnými daty **neúčinná** (viz níž) | ≤ 10⁴ *(změřeno, viz níž)* |
 | koše: 24× 15° azimutu, ≥ 3 náklonové skupiny (≥ 2 odklonem ≥ 15°), **náklony na obě strany** | co má člověk udělat **dál** | každý azimut ≥ 20 vzorků |
 | `sd(|B|)`, `sd(sklonu)` po korekci | **kvalita**, ne určenost | ≤ 5 mG, ≤ 0,5° |
 | shoda proložení z první a druhé poloviny dat | doplněk | ≤ 2° rozdílu v opravě kurzu |
@@ -157,9 +157,17 @@ náklony na tutéž stranu jsou skoro tak degenerované jako rovina — teprve p
 která drží složku `z` neurčenou. Hlídá to `MagCalCoverage.HasOppositeTilts` (koše se proto klíčují
 velikostí odklonu **i jeho směrem**) a pokyn na stránce zní *„podlož robota na DRUHOU stranu"*.
 
-⚠️ **Na reálných datech se ta mezera zúží** — šum vyplní degenerovaný směr, takže rovinná rotace
-bude mít podmíněnost menší než 10⁸. Číslo se musí přeměřit na zařízení. Primární pokyn pro obsluhu
-jsou proto **koše pokrytí**: to je kritérium geometrické, tedy na šumu nezávislé.
+⚠️ ~~**Na reálných datech se ta mezera zúží** — šum vyplní degenerovaný směr, takže rovinná rotace
+bude mít podmíněnost menší než 10⁸.~~ ✅ **Změřeno 8. 9. 2026 a zúžila se o PĚT ŘÁDŮ, takže
+podmíněnost jako brána nad reálnými daty NEFUNGUJE.** Nad 452 s venkovní jízdy
+(`20260907-170728.rec`, 45 185 vzorků) je podmíněnost **352,2** — tedy hluboko pod prahem 10⁴,
+ačkoli náklony v datech nejsou vůbec (0 z 2 odkloněných skupin) a výsledek je nesmysl:
+`C[2,2] = 38,0` místo ~1,1, `sd(|B|)` po korekci **27× nad prahem**, `sd(sklonu)` **70×**.
+Jízda po nerovném terénu tedy degenerovaný směr vyplní, ale **šumem** — soustava je numericky
+řešitelná a statisticky pořád podurčená. **Verdikt zachránily koše pokrytí a zbytky**, ne
+podmíněnost; primární pokyn pro obsluhu jsou proto **koše** (kritérium geometrické, na šumu
+nezávislé) a **zbytky**. Práh se naostro nastaví až podle rotačního testu (Task 10) — snižovat
+ho podle jednoho jízdního záznamu by bylo hádání.
 
 ⚠️ **Sklon se počítá SKLOPENÝ GRAVITACÍ, ne z pole v tělese.** Sklon je veličina **světová**;
 z tělesového pole by při náklonech vyšel rozptyl v desítkách stupňů i u perfektní kalibrace
@@ -342,12 +350,46 @@ Začíná **přeměřením** bloku 3 v `ARBot.Analyze vn100`:
 - [ ] Doplnit do `deploy/vnprobe.sh` čtení registrů **37 a 38**, ať je fáze 2 podložená daty
       (dnes čte 36 a 44).
 
-**Levné ověření hypotézy „VPE utlumí magnetometr při nesouhlasu s registrem 21"**, ještě před
-kalibrací: blok 3 dnes dá jedno `K` přes celý záznam. Rozdělit vzorky do košů podle
-`| |B| − 0,4818 |` a `|sklon − 60,9°|` a spočítat `K` v každém koši; hypotéza předpovídá
-monotónní pokles. ⚠️ **Nutná podmínka, ne důkaz** — odchylka `|B|` je sama funkcí kurzu (dělá ji
-tvrdé železo), takže „K klesá s odchylkou" může být zastřené „K závisí na kurzu". Předpoklad:
-stáhnout záznam z 6.–7. 9. z Pi (lokálně nejsou; nejnovější je `20260903-153947.rec`).
+### ⚠️ Levné ověření hypotézy „VPE utlumí magnetometr při nesouhlasu s registrem 21" — ZMĚŘENO 8. 9. 2026, hypotéza NEPODPOŘENA
+
+Blok 2 v `ARBot.Analyze vn100` dával jedno `K` přes celý záznam (0,00485 ± 0,00074 1/s, tedy
+206 s). Nový **blok 2b** ho rozpadá do kvantilových košů podle `| |B| − 0,4818 |`
+a `|sklon − 60,9°|` (reference se bere z `--bref=` / `--incl=`, protože po zapnutí `magmodel=`
+se registr 21 změní). Hypotéza předpovídala **monotónní pokles `K`** s rostoucí odchylkou.
+Naměřeno nad `20260907-170728.rec` (449 oken po 1 s):
+
+| koš | odchylka \|B\| [G] | `K` [1/s] | sd(chyby) [°] |
+|---|---|---|---|
+| 1 | 0,0001–0,0128 | −0,00115 ± 0,00234 | 16,8 |
+| 2 | 0,0128–0,0262 | −0,00201 ± 0,00159 | 18,5 |
+| 3 | 0,0262–0,0589 | +0,00270 ± 0,00086 | 23,8 |
+| 4 | 0,0590–0,1115 | +0,00617 ± 0,00213 | 17,4 |
+
+| koš | odchylka sklonu [°] | `K` [1/s] | sd(chyby) [°] |
+|---|---|---|---|
+| 1 | 0,0–2,6 | +0,00377 ± 0,00108 | 23,2 |
+| 2 | 2,6–5,4 | +0,00684 ± 0,00142 | 27,3 |
+| 3 | 5,4–8,2 | +0,00177 ± 0,00167 | 25,9 |
+| 4 | 8,2–18,2 | −0,00248 ± 0,00217 | 12,7 |
+
+**Výsledek: `K` s odchylkou `|B|` monotónně ROSTE, tedy přesně naopak, než hypotéza čekala**
+(−0,0012 → −0,0020 → +0,0027 → +0,0062), a u odchylky sklonu **není monotónní vůbec** (roste,
+pak padá; jen poslední koš by hypotézu podpořil). Rozptyl chyby proti poli je přitom v koších
+`|B|` vyrovnaný (16,8–23,8°), takže rozdíl mezi nimi **nevysvětlí sám regresní útlum**.
+
+⚠️ **Nedělá to z toho ale vyvrácení — měření nemá rozlišovací schopnost, a je to teď změřené:**
+podíl rozptylu odchylky `|B|`, který vysvětlí kurz, je **η² = 0,910**. Odchylka `|B|` je tedy
+z 91 % funkcí kurzu (dělá ji tvrdé železo na těle) a „`K` klesá s odchylkou" a „`K` závisí na
+kurzu" **jsou skoro totéž měření**. Kontrolní rozpad podle kurzu to potvrzuje: `K` tam kolísá
+−0,0054 … +0,0219 1/s, tedy **v širším rozpětí než po odchylce**, a sd chyby se mezi koši
+kurzu mění 5,0–31,9°, takže se u něj regresní útlum liší silně.
+
+**Co z toho platí pro `magmodel=`:** třetí důvod pro zapnutí modelu pole („registr 21 udává
+sklon 60,9° místo ~65,7°, takže VPE dusí magnetometr") **tuhle oporu nedostal** — a byl označen
+jako hypotéza, takže se tím nic nekácí. Zůstává v platnosti první a druhý důvod (deklinace se
+dopočítá z WMM, nic neproměřeného se nebetonuje) a `magmodel=false` je pořád jeden přepínač
+A/B. **Přeměřit tenhle blok po kalibraci** (fáze 2) má smysl dál: až tvrdé železo zmizí, spadne
+i η² a rozpad začne rozlišovat.
 
 ## Co se sem vědomě nedělá
 

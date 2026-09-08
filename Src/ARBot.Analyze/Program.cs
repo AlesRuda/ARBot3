@@ -110,7 +110,13 @@ namespace ARBot.Analyze
                                       Arg(args, "--standtol", 0), Arg(args, "--minjizda", 0),
                                       Arg(args, "--mindraha", 0));
                         return 0;
-                    case "vn100": Vn100Report.Run(rec); return 0;
+                    case "vn100":
+                        // --bref / --incl = referencni vektor pole z registru 21 (|B| a sklon).
+                        // Cte se ZE SENZORU, tady je jen dnesni hodnota jako default: registr 21
+                        // (0,234; 0; 0,4212) -> 0,4818 G a 60,9 deg. Po zapnuti modelu pole
+                        // (magmodel=) se reference ZMENI a tyhle prepinace jsou pak potreba.
+                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4818), Arg(args, "--incl", 60.9));
+                        return 0;
                     case "magcal":
                         // --bref = referencni |B| [G] z registru 21; default je dnesni hodnota
                         // senzoru (0,234; 0; 0,4212) -> 0,4818 G. Viz doc/plan-vn100-kalibrace.md.
@@ -238,7 +244,10 @@ namespace ARBot.Analyze
             Console.WriteLine("             (--minstand=<s>, --maxdop=, --minsat= prepisou branu)");
             Console.WriteLine("  vn100      provereni samotneho VN100 ZE ZAZNAMU: co senzor tvrdi o sobe");
             Console.WriteLine("             (YprU), reaguje yaw na rozpor s vlastnim magnetometrem (zesileni");
-            Console.WriteLine("             zpetne vazby), drift yaw proti poli a klidovy bias gyra");
+            Console.WriteLine("             zpetne vazby), drift yaw proti poli a klidovy bias gyra.");
+            Console.WriteLine("             Navic rozpad toho zesileni po kosich odchylky |B| a sklonu");
+            Console.WriteLine("             od referencniho vektoru (--bref=/--incl= z registru 21) -");
+            Console.WriteLine("             dusi VPE magnetometr pri nesouhlasu? NUTNA PODMINKA, NE DUKAZ");
             Console.WriteLine("  backproject vyplati se neuronova sit misto histogramu? cas obou prevodu");
             Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
             Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");
