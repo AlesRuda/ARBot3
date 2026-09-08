@@ -446,7 +446,9 @@ rychlost na podlahu úplně stejně jako zeď. Volný kanál napříč dráhou u
 **3,80 m** a kamerový koridor p50 3,60 m (souhlasí), a užší než 1,10 m je jen v 0,8 % —
 **cesta je široká, robot jen jede 0,4 m od něčeho blokovaného**.
 
-⚠️ **Příčina, proč jede tak blízko, změřená není.** Kandidáti: chyba kurzu z VN100 (v tomtéž
+⚠️ **Příčina, proč jede tak blízko, změřená není.** *(Stav k 7. 9. Hlavní mechanismus nalezen
+8. 9. 2026 — je to vyhlazování dráhy, viz sekci níž; tenhle odstavec zůstává, protože podíl
+obou příčin v tom záznamu změřený pořád není.)* Kandidáti: chyba kurzu z VN100 (v tomtéž
 záznamu p50 −24° proti GPS kurzu, viz [imu-and-frames.md](imu-and-frames.md)) rotuje jak mrkev
 FreeRunu, tak zápis do gridu, a při paměti gridu ~2,5 s se buňky zapsané při jiné chybě kurzu
 rozmazávají; k tomu 41,5 % skvrn ≤ 4 buňky. **Nejdřív opravit kurz, pak přeměřit** — ladit obálku
@@ -469,6 +471,139 @@ Prakticky: při 10 Hz přeplánování a dohledu 5 m je hranice potvrzeného obv
 brzdná dráha (`0,8² / (2·0,3) ≈ 1,07 m`), takže robot jede naplno a invariant se neprojeví.
 Zabere přesně tam, kde má — zatáčka za roh, hrana kopce, oslněná kamera.
 
+### ✅ Příčina nalezena 8. 9. 2026: **vyhlazování zahodí odstup, který cena A\* koupila**
+
+Otázka z nálezu výše zněla *„proč robot nejede středem široké cesty, když je cena = jízdní čas?"*.
+Odpověď je v postprocessingu: **A\* skutečně naplánuje časově optimální dráhu, ale
+string-pulling ji pak nahradí nejkratší legální lomenou čarou** — a legalita je jen tvrdé
+`d ≥ SafeDist`, nikoli cena. `LocalPathPlanner.SegmentPassable` volá `Passable()`, tedy **totéž
+pravidlo, které rozhoduje o průjezdnosti, ne `VCost()`**. Vyhlazení tak dráhu **přitiskne zpátky
+na hranici tvrdého odstupu** přesně tam, kde se jí A\* vyhýbal.
+
+**Změřeno na syntetické scéně** (rovný volný kanál 3,80 m jako v záznamu, robot v počátku, cíl
+2,8 m přímo vpřed, jediná překážka **2×2 buňky** = 10×10 cm, 0,45 m stranou od spojnice;
+`SafeDist` 0,40, `EdgeMarginM` 0,15, `MaxSpeed` 1,0):
+
+| scéna | délka dráhy **A\*** | dráha po vyhlazení | `MinClearance` | `Speed` uzlu 0 |
+|---|---|---|---|---|
+| bez překážky | 2,80 m | přímka | 9,05 m | **1,00 m/s** |
+| skvrna 0,45 m od spojnice | 2,92 m | **přímka** (2 uzly) | **0,450 m** | **0,33 m/s** |
+| **táž scéna, `EdgeMarginM` = 2,0** | **4,59 m** | **táž přímka** (2 uzly) | **0,450 m** | **0,05 m/s** |
+| skvrna 1,2 m od spojnice | 2,80 m | přímka | 1,200 m | 1,00 m/s |
+
+Rozhoduje **třetí řádek**: s dvoumetrovou rampou cena A\* blízkost trestá tak, že plánovač jde
+**objížďkou o 1,79 m delší** (4,59 proti 2,80 m) — a **výstup je pořád ta samá přímka
+s odstupem 0,450 m**. Vyhlazení tedy celou objížďku zahodí; **na geometrii výsledné dráhy nemá
+cenová funkce vliv**, rozhoduje o ní jen tvrdý odstup. To vysvětluje i to, proč je v záznamu
+medián nejmenšího odstupu **0,403 m**: `√65 · 0,05 m` je **první kvantum vzdálenostního pole nad
+`SafeDist`** — dráha leží přesně na mezi toho, co je ještě legální.
+
+**Druhý násobič je okno uzlu.** Rychlost uzlu *k* je minimum obálky přes **oba** sousední úseky
+a `PathResult.Control` strop uzlu vynucuje **podél celého úseku** (viz komentář 3b tamtéž). Po
+vyhlazení jsou úseky dlouhé metry, takže **jeden vzorek, který se otře o skvrnu velikosti dlaně,
+zastropuje několik metrů jízdy** — v tabulce výše srazila skvrna 10×10 cm celý 2,8m úsek z 1,00
+na 0,33 m/s. Sedí to s tím, že v záznamu je vázající uzel v p50 i p90 **0,00 m** od robota
+(uzel 0 = celý první, nejdelší vyhlazený úsek) a že **41,5 % skvrn má ≤ 4 buňky**.
+
+**Třetí věc: rampa `VAlong` je útes, ne rampa.** Ve směrovém modelu je cena nad
+`SafeDist + EdgeMarginM` = **0,55 m plochá**, takže A\* nemá důvod jít dál než 0,55 m — a pod ní
+spadne z plné rychlosti na nulu na **0,15 m**. Vyhlazení dráhu zaparkuje přesně do toho pásma
+0,40–0,55 m, kde 15 cm příčné chyby (nebo posun mapy o tři buňky) znamená plazení. V radiálním
+modelu (`envelope=radial`) je rampa 0,40–0,80 m, ale ta byla nahrazena právě proto, že trestala
+i jízdu **podél** okraje.
+
+### ✅ Léčba (8. 9. 2026): vyhlazování posuzuje ČAS a ověřuje RAMPU (`smooth=`)
+
+`StringPull` přijme zkratku, jen když platí **obojí** (`PathSmoothingMode.TimeAware`, výchozí;
+`smooth=passable` vrátí původní pravidlo pro A/B):
+
+1. **Předpovězená rampa se vejde pod obálku** v každém vzorku úseku. Rampou se rozumí to, co
+   regulátor skutečně odjede: drží strop vjezdového uzlu (`PathResult.Control` bod 3b) a včas
+   dobrzdí na strop výjezdového (`PathPlanner` → `VLimit` → `Dist2Speed`), tedy
+   `v(s) = min(v_vjezd, √(v_výjezd² + 2a·(L−s)))`.
+2. **Nezhorší to jízdní čas** proti jemnému dělení — tedy proti tomu, co by robot dostal, kdyby
+   každá buňka byla vlastní uzel (to je dosažitelný krajní případ, ne teorie).
+
+Rychlosti krajních uzlů se berou ze **zpětné brzdné obálky** podél buněčné dráhy, ne z holé
+obálky: robot v tom místě stejně pojede jen tak rychle, jak se stihne zbrzdit na to, co je dál.
+Bez toho by reference tvrdila, že se smí jet naplno až do buňky před skvrnou a tam skokem
+zpomalit — fyzikálně nemožné, takže by se zamítala i sloučení, která nic nestojí.
+
+**Brzdný zákon si drží profil: `IMotionProfile.Dist2MaxSpeed(dist, endSpeed)`** (přibylo do rozhraní
+8. 9. 2026) — *„nejvyšší rychlost, kterou smím mít ve vzdálenosti `dist` před bodem, kde mám být na
+`endSpeed`"*. Plánovač si ho neopisuje; volá ho na třech místech (zpětná brzdná obálka v referenci,
+strop `vCruise` a předpověď `v(s)` v každém vzorku) a je to **tatáž instance profilu, kterou dostane
+`PathPlanner`** (`ARBotRuntime` ji vyrobí jednou a předá do obou; jinak by se ověřovala jiná rampa,
+než která se pojede). Čas se pak integruje **přes tytéž vzorky**, ne uzavřeným vzorcem — ten by
+předpokládal konstantní deceleraci, kterou třeba `SqrtMotionProfile` nemá.
+
+⚠️ **`Dist2Speed` na to NENÍ.** Není to průběh rychlosti po dráze, ale **jeden krok regulátoru** —
+diskrétní lichoběžník s periodou 0,1 s, činitelem 0,9 a `startSpeed` = okamžitá rychlost robotu, ne
+strop úseku. V nule vrací nulu, takže použitý jako `v(s)` rozpadne i volnou plochu (naměřeno
+**41 uzlů**), a `RegulatorResult` je třída, takže by to alokovalo na každý vzorek. Vztah obou metod
+hlídá `MotionProfileParityTests.Dist2MaxSpeed_JeHorniMeziPrikazuDist2Speed_KdyzSeDoMistaVjizdiPodStropem`:
+**dokud robot do místa vjíždí pod stropem, příkaz ho nepřekročí.** Ten předpoklad není formalita —
+když už robot jede rychleji, než obálka dovoluje, regulátor vrací nejlepší možné brzdění, ne
+nesplnitelný strop (`Dist2Speed(0,05, v=0,4, v_e=0)` = **0,252** proti stropu 0,141; z 0,4 m/s se na
+pěti centimetrech zastavit nedá). Že robot vjíždí pod stropem, drží zpětný průchod plus strop úseku.
+
+⚠️ **Obálka a profil brzdí každý podle své konstanty** (`LocalPlannerConfig.MaxDeceleration` proti
+`IMotionProfile.Acceleration`, dnes obě 0,50 z `Profile`). Kdyby profil brzdil **pomaleji**, poruší
+se obálka i **bez jakéhokoli slučování** — proto na to `LocalPathPlanner` v konstruktoru upozorní
+do `Trace`. Tuhle vazbu mezi dvěma konfiguracemi jinak nikdo nehlídá; `VBrake`/`VClosing` zůstávají
+na `cfg.MaxDeceleration`, protože `LocalPlannerConfig` profil nezná.
+do `Trace`. Tuhle vazbu mezi dvěma konfiguracemi jinak nikdo nehlídá.
+
+**Strop uzlu se tím zároveň mění na obálku V UZLU** (dřív minimum přes obě sousední úsečky).
+To je ta druhá polovina věci a bez ní by první nefungovala: kdyby uzel dál nesl minimum, sloučený
+úsek by se **celý** jel rychlostí svého nejhoršího místa a rampa by se nikdy neodjela. Bezpečnostní
+argument se tím vymění, ne oslabí:
+
+| | do 8. 9. 2026 | od 8. 9. 2026 |
+|---|---|---|
+| strop uzlu | minimum obálky přes okno | obálka v uzlu |
+| co chrání vnitřek úseku | „každý vzorek zastropuje aspoň jeden uzel" (platí konstrukcí) | „plánovač ověřil, že se rampa vejde pod obálku" (bod 1 výše) |
+| předpoklad | žádný | plánovač brzdí konzervativněji než regulátor (`MaxDecceleration` 0,5 proti 1,0 v profilu) |
+
+Obě poloviny jsou **pár**: u `smooth=passable` a u **úniku** (`EscapingBlocked`) se rampa neověřuje,
+takže tam zůstává i původní minimum přes okno.
+
+**Cena kroku v referenci** je táž funkce jako v A\* (`VCost`), ale **bez** `UnknownCostFactor`
+a bez ceny otočení: obojí je složka *plánovací* ceny (preference), ne čas. `gScore` by referenci
+dalo zadarmo, ale nese je — a nafouknutá reference by zkratky přes neznámo přijímala příliš
+ochotně. Cena otočení se místo toho přičítá **zvlášť na obou stranách** (zkratka z prvního uzlu
+mívá jiný směr než první krok A\*; kvantování do 8 směrů je až 22,5°, což při `ω = π/6` dělá
+0,75 s). Do rampy samotné se otáčení neplete — to je věc geometrie rohů ve vrstvě pod tím.
+
+⚠️ **Past, která to málem shodila: zbývající dráhu měř od STŘEDU BUŇKY, ne ze spojitého `t`.**
+Obálka je funkce odstupu *buňky*, kdežto rampa je spojitá funkce dráhy; při vzorkování po půl
+buňce se obě strany rozešly o **1–2 %** — a protože tam, kde obálka *je* brzdná křivka, mají
+vyjít úplně stejně, stačilo to, aby se rovnoměrné zpomalování nesloučilo vůbec (14 uzlů na dráze
+0,75 m). Po srovnání obou stran na tytéž diskrétní pozice vychází rampa == obálka a slučuje se
+bez jakéhokoli prahu; zbyla jen numerická rezerva 1e-6. **Nezaváděj místo toho toleranci** —
+jedna verze téhle změny ji měla (5 %) a byla to jen zakrytá nekonzistence.
+
+**Naměřeno** (Release, x64), `smooth=passable` → `time`:
+
+| scéna | uzlů | `MinClearance` | `Speed` uzlu 0 | čas plánu |
+|---|---|---|---|---|
+| volný kanál, jedna skvrna 2×2 buňky 0,45 m stranou | 2 → **5** | 0,450 → **0,600 m** | 0,333 → **1,000** | 0,35 → 0,21 ms |
+| **grid 256, koridor 3,8 m, 8 skvrn 10×10 cm** | 5 → **19** | **0,403** → **0,492 m** | **0,050** → **0,488** | 1,84 → **1,52** ms |
+| jízda **kolmo** ke zdi (0,75 m, `VClosing` klesá s každou buňkou) | 2 → **4** | — | 0,173 → **0,706** | — |
+
+Prostřední řádek reprodukuje terén: bez léčby vyjde `MinClearance` **0,403 m** a rychlost
+**0,050 m/s**, tedy **přesně mediány ze záznamu** `20260907-170728.rec` — a to jen z osmi skvrn
+velikosti dlaně v jinak volném koridoru. Poslední řádek je ta rampa: robot u sebe dostane
+**0,706 m/s** místo 0,173 a na strop u trávy dobrzdí, místo aby se plazil od začátku.
+
+**Plánování se nezpomalilo, naopak** (1,84 → 1,52 ms): rampa se ověřuje na týchž vzorcích, po
+kterých se stejně kontroluje průjezdnost, a z průchodu se vyskočí na první porušení.
+
+⚠️ **Co to NEOPRAVÍ.** Cena je nad `SafeDist + EdgeMarginM` = 0,55 m **plochá**, takže ani dokonale
+poctivé vyhlazování nepovede robota středem 3,8m kanálu — skončí na 0,55 m od trávy. „Jet středem"
+je jiná páka (tvar obálky / `EdgeMarginM`) a míchat ji sem by znamenalo dvě rozhodnutí v jednom.
+A pořadí pořád platí: **kolik z toho v terénu dělá vyhlazování a kolik rozmazání gridu chybou
+kurzu, změřené není** — zisk se má měřit až nad záznamem se správným kurzem. Na HW to neběželo.
 ---
 
 ## Plánovač cesty
@@ -496,9 +631,14 @@ nejbližší dosažitelná buňka, respektive zastavení a hlášení; odstup se
 
 ### Postprocessing → `RegulatorWayPoint[]`
 
-1. Řetěz buněk → **string-pulling**: slučuj do úsečky, dokud podél ní platí `d ≥ SafeDist`.
+1. Řetěz buněk → **string-pulling**: slučuj do úsečky, dokud podél ní platí `d ≥ SafeDist`,
+   **dokud se pod obálku vejde předpovězená rampa a dokud sloučení nezhorší jízdní čas**
+   (od 8. 9. 2026, `smooth=`; viz [léčbu výš](#-léčba-8-9-2026-vyhlazování-posuzuje-čas-a-ověřuje-rampu-smooth)).
+   Samotné `d ≥ SafeDist` optimalizuje **délku**, kdežto A\* optimalizoval **čas** — a ten rozdíl
+   zahazoval objížďku, kterou cena koupila.
 2. Pro každý waypoint:
-   - `Speed` = `min v` (viz obálka výše) na následujícím úseku,
+   - `Speed` = obálka **v tom uzlu** (do 8. 9. 2026 minimum přes obě sousední úsečky — viz léčbu
+     výš; `smooth=passable` a únik si původní minimum drží),
    - `MaxPositionError` = `clamp(d_min − SafeDist, ε_min, ε_max)` — **tolerance ε předaná
      plánovači je přesně volná rezerva**, takže zaoblení rohu obloukem (které z ε ukusuje)
      nikdy nezasáhne do bezpečnostního odstupu. `IPathPlanner` už dnes ε konzumuje; teď mu ho
@@ -569,6 +709,12 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 - **rozpad obálky je po uzlech** a `Speed` uzlu se rovná `max(podlaha, min(VClearance, VBrake))`
   (`LocalPathPlannerTest.RozpadObalky_JePoUzlech_A_ZnaOdstupKazdehoUzlu`), a přežije záznam
   (`OccupancyMessagesTest.LocalPlanMsg_RozpadObalky_JePoUzlech_RoundTrip`).
+- **vyhlazování je cenově poctivé** (8. 9. 2026): skvrna 2×2 buňky stranou od spojnice nesmí
+  srazit rychlost u robota, objížďka, kterou cena A\* koupila, musí ve výsledku zůstat, pomalé
+  místo na konci dráhy nesmí zdržet její začátek (`TestCase` proti `smooth=passable`), jízda kolmo
+  k překážce se složí do rampy o pár uzlech, a hlavně **předpovězená rampa nikde nepřekročí
+  obálku** (`Vyhlazovani_PredpovezenaRampa_NikdeNeprekrociObalku` — počítá odstup i přibližování
+  nezávisle z pole vzdáleností; bez kontroly rampy v plánovači padá).
 
 ## Parametry
 
@@ -647,3 +793,12 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
   vyšší v místě, kde je odstup přesně na hranici a `closing` je nulové (jízda **podél**). Obojí ale
   slevuje z bezpečnosti, takže **až po přeměření** — může se ukázat, že po opravě kurzu robot
   u okraje vůbec nejezdí.
+- **Doladit vyhlazování na datech ze zařízení** (léčba z 8. 9. 2026 je hotová, viz výš). Otevřené
+  je (a) **počet uzlů** — na realistické scéně 5 → 19; víc uzlů zdraží `PathPlanner` a nafoukne
+  `LocalPlanMsg`, změřit na Pi; (b) předpoklad „plánovač brzdí konzervativněji než regulátor"
+  (`MaxDecceleration` 0,5 proti 1,0 v profilu) — drží, ale je to vazba mezi dvěma konfiguracemi,
+  která nikde nekontroluje; (c) jestli po opravě kurzu vůbec zbude co léčit; (d) dvě alternativy,
+  které se **nedělaly**, protože by se míchaly do jednoho rozhodnutí: dráhu po vyhlazení
+  **odtlačit** gradientem vzdálenostního pole a rozšířit plochou část obálky (`EdgeMarginM`),
+  aby A\* mělo vůbec důvod jet středem. Pořadí zůstává **nejdřív kurz**: zisk se má měřit nad
+  záznamem se správným kurzem.

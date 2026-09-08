@@ -38,15 +38,35 @@ namespace ARBot.Common.Regulators
             this.tSam = tSam;
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Konstantní zrychlení: <c>t = |v_s − v_e|/a</c>, <c>s = (v_s + v_e)/2 · t = |v_s² − v_e²|/(2a)</c>.
+        /// <para><b>Opraveno 8. 9. 2026</b> — do té doby to počítalo <c>(v_s − v_e)²/(2a)</c>, tedy
+        /// dráhu rozjezdu z nuly na ROZDÍL rychlostí. Sedělo to jen pro <c>v_e = 0</c>; při
+        /// <c>v_s = 0,8, v_e = 0,3, a = 0,5</c> vyšlo 0,25 místo 0,55. Produkční volání nemělo,
+        /// pinnul ho jen charakterizační test. Že je správný tenhle tvar, potvrzuje i simulace
+        /// diskrétní rampy (sedí na setiny milimetru) a inverze <see cref="Dist2MaxSpeed"/>.</para>
+        /// </remarks>
         public double Speed2Dist(double startSpeed, double endSpeed)
         {
-            double s = Math.Abs(startSpeed - endSpeed);
-            return s * s / (2 * acceleration);
+            return Math.Abs(startSpeed * startSpeed - endSpeed * endSpeed) / (2 * acceleration);
         }
 
         public RegulatorResult Dist2Speed(double dist, double startSpeed, double endSpeed)
         {
             return Compute(dist, startSpeed, endSpeed, maxSpeed, acceleration, tSam);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Konstantní decelerace: <c>√(v_e² + 2a·d)</c>, oříznuto na <see cref="MaxSpeed"/>. Diskrétní
+        /// <see cref="Dist2Speed"/> je pod touhle křivkou (perioda vzorkování + rezerva 0,9), takže
+        /// je to poctivá horní mez — hlídá <c>MotionProfileParityTests</c>.
+        /// </remarks>
+        public double Dist2MaxSpeed(double dist, double endSpeed)
+        {
+            if (dist <= 0) return Math.Min(maxSpeed, endSpeed);
+            return Math.Min(maxSpeed, Math.Sqrt(endSpeed * endSpeed + 2.0 * acceleration * dist));
         }
 
         public RegulatorResult Rot2RotSpeed(double beta, double startRotSpeed, double endRotSpeed)

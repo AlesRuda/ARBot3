@@ -358,10 +358,12 @@ namespace ARBot.Common.Tests.Occupancy
         // model (3. 9. 2026): podel okraje uzka rampa (EdgeMarginM, rezerva na chybu sledovani),
         // kolmo brzdna draha k SafeDist delena rychlosti priblizovani. Viz doc/occupancy-and-local-planning.md.
 
-        private static Scene WallScene(SpeedEnvelopeMode mode)
+        private static Scene WallScene(SpeedEnvelopeMode mode,
+                                      PathSmoothingMode smoothing = PathSmoothingMode.TimeAware)
         {
             var cfg = PlannerCfg();
             cfg.Envelope = mode;
+            cfg.Smoothing = smoothing;
             var s = Scene.Create(cfg);
             s.MarkFree(-3, -3, 3, 3);
             s.MarkOffRoad(-3.0, 1.2, 3.0, 3.0);      // trava (= zed) od y = 1,2 dal
@@ -374,9 +376,15 @@ namespace ARBot.Common.Tests.Occupancy
         {
             // Obe drahy maji nejmensi odstup 0,45 m (0,05 m nad SafeDist): jedna jede PODEL travy
             // v y = 0,75, druha k ni miri KOLMO a konci v y = 0,75.
-            var podel = WallScene(SpeedEnvelopeMode.Directional);
+            //
+            // Vyhlazovani je zamerne pinnute na PUVODNI pravidlo (Passable): tenhle test zkousi MODEL
+            // OBALKY, tedy co dela rychlost pri danem odstupu a smeru, a chce mit obe drahy jako jedinou
+            // usecku, aby se rychlost cetla v uzlu 0. Od 8. 9. 2026 cenove poctive vyhlazovani drahu
+            // rozdeli (u kolme jizdy da uzlu 0 rychlost podle JEHO odstupu 1,2 m a strop 0,173 m/s
+            // az na konci) - to je zamer a testuji to Vyhlazovani_* nize.
+            var podel = WallScene(SpeedEnvelopeMode.Directional, PathSmoothingMode.Passable);
             var rPodel = podel.PlanFrom(0, 0.75, 2.0, 0.75);
-            var kolmo = WallScene(SpeedEnvelopeMode.Directional);
+            var kolmo = WallScene(SpeedEnvelopeMode.Directional, PathSmoothingMode.Passable);
             var rKolmo = kolmo.PlanFrom(0, 0, 0, 0.75);
             var cfg = podel.Planner.Config;
 
@@ -1009,6 +1017,204 @@ namespace ARBot.Common.Tests.Occupancy
             // Nekde na draze musi byt uzel, ktery stena skutecne srazí - jinak scena nic netestuje.
             Assert.That(r.EnvVClearance.Take(r.WayPoints.Length - 1).Min(),
                         Is.LessThan(cfg.MaxSpeed), "stena musi nekde srazit strop z odstupu");
+        }
+
+        // ---------------- vyhlazovani drahy (string-pulling) ----------------
+
+        /// <summary>
+        /// Konfigurace pro testy vyhlazovani: tataz jako v nalezu 8. 9. 2026 (SafeDist 0,40,
+        /// EdgeMargin 0,15, MaxSpeed 1,0), aby cisla sla srovnat s dokumentaci.
+        /// </summary>
+        private static LocalPlannerConfig SmoothCfg(double edgeMargin = 0.15) => new LocalPlannerConfig
+        {
+            SafeDist = 0.4,
+            PrefDist = 0.8,
+            MaxSpeed = 1.0,
+            MaxDeceleration = 0.5,
+            MaxRotationSpeed = Math.PI / 6,
+            EdgeMarginM = edgeMargin,
+            HorizonM = 25.0,
+        };
+
+        /// <summary>Siroky volny kanal (3,8 m) s jedinou skvrnou 2x2 bunky stranou od spojnice.</summary>
+        private static Scene SkvrnaStranou(double blobY, double edgeMargin = 0.15)
+        {
+            var s = Scene.Create(SmoothCfg(edgeMargin));
+            s.MarkFree(-0.6, -1.9, 3.1, 1.9);
+            s.MarkObstacle(1.5, blobY, 1.55, blobY + 0.05);
+            s.Rebuild();
+            return s;
+        }
+
+        /// <summary>
+        /// Skvrna velikosti dlane STRANOU od spojnice nesmi srazit rychlost u robotu: cesta je siroka,
+        /// takze existuje objizdka, ktera je v souctu rychlejsi nez plazeni po primce kolem skvrny.
+        /// Vyhlazovani ji musi nechat byt - do 8. 9. 2026 ji zahazovalo, protoze zkratku posuzovalo
+        /// jen podle tvrdeho odstupu.
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_SkvrnaStranouOdSpojnice_NesraziRychlostUzluURobotu()
+        {
+            var s = SkvrnaStranou(0.45);
+
+            var r = s.Plan(2.8, 0.0);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.Ok));
+            Assert.That(r.WayPoints[0].Speed, Is.GreaterThan(0.9), "rychlost u robotu");
+        }
+
+        /// <summary>
+        /// Zkratka se nesmi prijmout, kdyz zhorsi jizdni cas. Rozhodne to scena s SIROKOU rampou
+        /// (EdgeMargin 2,0): cena A* pak blizkost tresta tak, ze plánovač jde objizdkou skoro
+        /// dvakrat delsi - a prave ta objizdka musi ve vysledku zustat.
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_ZachovaObjizdku_KterouCenaAstarKoupila()
+        {
+            var s = SkvrnaStranou(0.45, edgeMargin: 2.0);
+
+            var r = s.Plan(2.8, 0.0);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.Ok));
+            Assert.That(r.WayPoints.Length, Is.GreaterThan(2), "draha nesmi byt jedina usecka");
+            Assert.That(r.MinClearanceM, Is.GreaterThan(0.45 + 1e-6), "odstup vetsi nez u primky");
+        }
+
+        /// <summary>
+        /// Pomale misto DAL po draze uz nesmi srazit rychlost u robotu. Scena: robot miri KOLMO
+        /// k trave a konci 0,45 m pred ni, takze strop z brzdne drahy patri az konci drahy - u sebe
+        /// ma robot odstup 1,2 m. Puvodni pravidlo (<c>passable</c>) slouci drahu do jedine usecky
+        /// a <c>PathResult</c> pak drzi strop jejiho uzlu podel CELEHO useku, takze se robot plazi
+        /// uz od zacatku; dobrzdit ho ma rychlostni profil, ne strop.
+        /// </summary>
+        [TestCase(PathSmoothingMode.Passable)]
+        [TestCase(PathSmoothingMode.TimeAware)]
+        public void Vyhlazovani_PomaleMistoNaKonciDrahy_NesraziRychlostUzluURobotu(
+            PathSmoothingMode smoothing)
+        {
+            var s = WallScene(SpeedEnvelopeMode.Directional, smoothing);
+            var cfg = s.Planner.Config;
+            // Kolmo k prekazce vaze VClosing, tedy brzdna draha k SafeDist - u konce drahy z odstupu
+            // 0,45 m, u robotu z jeho vlastniho odstupu.
+            double vKonec = Math.Sqrt(2 * cfg.MaxDeceleration * (0.45 - cfg.SafeDist));
+            double vURobotu = Math.Sqrt(2 * cfg.MaxDeceleration * (s.ClearanceAt(0, 0) - cfg.SafeDist));
+            double expectedV0 = smoothing == PathSmoothingMode.Passable ? vKonec : vURobotu;
+
+            var r = s.PlanFrom(0, 0, 0, 0.75);
+
+            Assert.That(r.MinClearanceM, Is.EqualTo(0.45).Within(0.03), "predpoklad sceny");
+            Assert.That(vURobotu, Is.GreaterThan(3 * vKonec), "predpoklad sceny: u robotu je mnohem vic mista");
+            Assert.That(r.WayPoints[0].Speed, Is.EqualTo(expectedV0).Within(4).Percent,
+                        "rychlost u robotu (rezerva: draha neni presne kolma, takze closing < 1)");
+            Assert.That(r.EnvVClearance.Take(r.WayPoints.Length).Min(), Is.EqualTo(vKonec).Within(6).Percent,
+                        "strop u travy plati porad, jen az tam, kde trava je");
+        }
+
+        /// <summary>
+        /// A/B prepinac <c>smooth=passable</c> vrati puvodni chovani: zkratka se posuzuje jen podle
+        /// tvrdeho odstupu, takze se draha slouci do jedine usecky tesne kolem skvrny.
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_SmoothPassable_VratiPuvodniChovani()
+        {
+            var cfg = SmoothCfg();
+            cfg.Smoothing = PathSmoothingMode.Passable;
+            var s = Scene.Create(cfg);
+            s.MarkFree(-0.6, -1.9, 3.1, 1.9);
+            s.MarkObstacle(1.5, 0.45, 1.55, 0.50);
+            s.Rebuild();
+
+            var r = s.Plan(2.8, 0.0);
+
+            Assert.That(r.WayPoints.Length, Is.EqualTo(2));
+            Assert.That(r.MinClearanceM, Is.EqualTo(0.45).Within(1e-6));
+            Assert.That(r.WayPoints[0].Speed, Is.EqualTo(0.333).Within(0.01));
+        }
+
+        /// <summary>
+        /// Jizda KOLMO k prekazce je jedina plynula rampa (<c>VClosing</c> klesa s kazdou bunkou),
+        /// takze ji vyhlazovani musi slozit do mala useku - regulator ji odjede jako brzdnou rampu
+        /// mezi stropy krajnich uzlu. Kriterium, ktere umi jen konstantni rychlost pres usek, tady
+        /// nesloucí ani dve sousedni bunky a vrati schody z A* (nameřeno 17 uzlu na 0,75 m).
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_JizdaKolmoKPrekazce_SeSlouciDoRampy()
+        {
+            var s = WallScene(SpeedEnvelopeMode.Directional);
+
+            var r = s.PlanFrom(0, 0, 0, 0.75);
+
+            Assert.That(r.WayPoints.Length, Is.LessThanOrEqualTo(4), "rampa nema byt po bunkach");
+        }
+
+        /// <summary>Uzka brana uprostred rovinky: obalka se PROPADNE v brane, ale pred ni i za ni je
+        /// volno - tedy scena, kde by slouceni cele drahy do jedne usecky bylo casove vyhodne
+        /// (reference je zpomalena branou), ale rampa by branou prosvistela.</summary>
+        private static Scene BranaScene()
+        {
+            var s = Scene.Create(SmoothCfg());
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacle(1.0, 0.5, 1.2, 3.2);
+            s.MarkObstacle(1.0, -3.2, 1.2, -0.5);
+            s.Rebuild();
+            return s;
+        }
+
+        /// <summary>Priblizovani k prekazce ve smeru (ux,uy) - nezavisly prepocet toho, co dela planovac.</summary>
+        private static double ClosingAt(Scene s, double x, double y, double ux, double uy)
+        {
+            double gx = (s.ClearanceAt(x + Res, y) - s.ClearanceAt(x - Res, y)) / (2 * Res);
+            double gy = (s.ClearanceAt(x, y + Res) - s.ClearanceAt(x, y - Res)) / (2 * Res);
+            double c = -(ux * gx + uy * gy);
+            return c <= 0 || double.IsNaN(c) ? 0.0 : Math.Min(1.0, c);
+        }
+
+        /// <summary>
+        /// <b>Bezpecnostni invariant cenove poctiveho vyhlazovani.</b> Od 8. 9. 2026 nese uzel strop
+        /// z obalky V UZLU, ne minimum pres okno - vnitrek useku uz tedy nehlida zadny uzel a jedinou
+        /// zarukou je, ze RAMPA, kterou regulator odjede (drz strop vjezdoveho uzlu, dobrzdi na strop
+        /// vyjezdoveho), se pod obalku vejde v kazdem bode. Presne to se tu meri, a nezavisle na
+        /// planovaci: odstup i priblizovani se pocitaji z pole vzdalenosti.
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_PredpovezenaRampa_NikdeNeprekrociObalku()
+        {
+            var sceny = new[]
+            {
+                (jmeno: "skvrna stranou", scena: SkvrnaStranou(0.45), gx: 2.8, gy: 0.0),
+                (jmeno: "uzka brana",     scena: BranaScene(),        gx: 2.5, gy: 0.0),
+                (jmeno: "kolmo ke zdi",   scena: WallScene(SpeedEnvelopeMode.Directional), gx: 0.0, gy: 0.75),
+            };
+            foreach (var (jmeno, s, gx, gy) in sceny)
+            {
+                var cfg = s.Planner.Config;
+                var r = s.Plan(gx, gy);
+                Assert.That(r.HasPath, Is.True, "predpoklad sceny: " + jmeno);
+
+                for (int k = 0; k < r.WayPoints.Length - 1; k++)
+                {
+                    double x0 = r.WayPoints[k].X, y0 = r.WayPoints[k].Y;
+                    double dx = r.WayPoints[k + 1].X - x0, dy = r.WayPoints[k + 1].Y - y0;
+                    double len = Math.Sqrt(dx * dx + dy * dy);
+                    double ux = dx / len, uy = dy / len;
+                    double vEnter = r.WayPoints[k].Speed;
+                    double vExit = r.WayPoints[k + 1].Speed;
+
+                    int steps = Math.Max(1, (int)Math.Ceiling(len / (Res * 0.5)));
+                    for (int i = 0; i <= steps; i++)
+                    {
+                        double t = (double)i / steps;
+                        double x = x0 + dx * t, y = y0 + dy * t;
+                        double vPred = Math.Min(vEnter,
+                            Math.Sqrt(vExit * vExit + 2 * cfg.MaxDeceleration * len * (1 - t)));
+                        double vAllowed = Math.Max(cfg.MinCostSpeed,
+                            cfg.VEnvelope(s.ClearanceAt(x, y), ClosingAt(s, x, y, ux, uy)));
+                        // 5 % rezerva: obalka je kvantovana na bunky, rampa je spojita (rozpor ~1-2 %).
+                        Assert.That(vPred, Is.LessThanOrEqualTo(vAllowed * 1.05),
+                                    $"{jmeno}, usek {k}, t={t:F2}: rampa nad obalkou");
+                    }
+                }
+            }
         }
 }
 }

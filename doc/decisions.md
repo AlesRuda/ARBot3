@@ -13,6 +13,101 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+
+### 2026-09-08 — Vyhlazování dráhy posuzuje ČAS a ověřuje RAMPU (`smooth=`)
+
+**Co:** `LocalPathPlanner.StringPull` přijme zkratku, jen když (a) se pod rychlostní obálku vejde
+**rampa, kterou regulátor odjede** (drží strop vjezdového uzlu, dobrzdí na strop výjezdového)
+a (b) to **nezhorší jízdní čas** proti jemnému dělení. Zároveň se strop uzlu mění z „minimum obálky
+přes obě sousední úsečky" na „obálka **v tom uzlu**". `smooth=passable` vrátí původní pravidlo
+i původní stropy (pro A/B); **únik** (`EscapingBlocked`) je na původním pravidle vždy.
+
+**Proč:** A\* optimalizuje čas, ale vyhlazování posuzovalo zkratku jen podle tvrdého
+`d ≥ SafeDist` (`SegmentPassable` → `Passable()`), tedy optimalizovalo **délku**. Zahodilo tím
+odstup, který cena koupila. Změřeno: se širokou rampou šel A\* objížďkou 4,59 m místo 2,80
+a **výstupem byla stejně přímka** s odstupem na mezi průjezdnosti — na geometrii výsledné dráhy
+cenová funkce vůbec nepůsobila.
+
+**Proč porovnání času (a ne „slučuj jen stejné rychlosti", jak zněl původní návrh):** nezavádí to
+práh, který by se musel ladit, je to táž veličina, kterou počítá A\*, a připouští to zkratku, která
+je kousek pomalejší, ale výrazně kratší — což *je* rychlejší cesta. Kritérium se ale musí testovat
+**na zkratce**, ne na nahrazovaných buňkách: na objížďce mají všechny buňky plnou rychlost, takže
+pravidlo „stejná rychlost" by ji sloučilo do té samé přímky kolem skvrny.
+
+**Proč rampa, a ne konstantní rychlost přes úsek:** první verze počítala čas zkratky pesimisticky
+jako `délka / min(v)` — což bylo *přesné* pro tehdejší stropy (uzel nesl minimum přes okno, takže
+se úsek celý jel nejhorší rychlostí), ale znamenalo to, že se rychlost po úseku nesmí měnit vůbec.
+Jízda **kolmo** k překážce (kde `VClosing` klesá s každou buňkou) pak dala **17 uzlů na 0,75 m**,
+tedy návrat ke schodům z A\*. Musela se proto zavést tolerance 5 % — magická konstanta. Rampa ji
+odstranila úplně: tam, kde obálka *je* brzdná křivka, vyjde rampa přesně jako jemné dělení
+a slučuje se bez jakéhokoli prahu (0,75 m dá **4 uzly**).
+
+**Cena té změny je jiný bezpečnostní argument.** Do 8. 9. platilo „každý vzorek zastropuje aspoň
+jeden uzel" (konstrukcí). Nově platí „plánovač ověřil, že se rampa vejde pod obálku", což navíc
+předpokládá, že plánovač brzdí konzervativněji než regulátor (`MaxDecceleration` 0,5 proti
+akceleraci profilu 1,0). Obě poloviny jsou **pár** — proto `smooth=passable` a únik drží obojí
+staré. Hlídá to `Vyhlazovani_PredpovezenaRampa_NikdeNeprekrociObalku`, který počítá odstup
+i přibližování nezávisle z pole vzdáleností a bez té kontroly padá. **`PathResult` se přitom měnit
+nemusel** — rampa vzniká z už existující mechaniky (`Speed` → `VLimit` → `Dist2Speed`).
+
+**Brzdný zákon patří do `IMotionProfile` — přibyla metoda `Dist2MaxSpeed(dist, endSpeed)`**
+(*na dotaz autora*). Vrací nejvyšší rychlost ve vzdálenosti `dist` před bodem, kde má být
+`endSpeed`. Týž vzorec se do té doby opisoval na třech místech (zpětný průchod v `PathPlanner`u,
+rychlostní obálka lokálního plánovače, předpověď rampy) a plánovač si kvůli tomu modeloval brzdění
+sám. Profil je navíc **tatáž instance** jako v `PathPlanner`u (`ARBotRuntime` ji vyrobí jednou).
+Čas rampy se integruje **přes vzorky**, ne uzavřeným vzorcem — ten by předpokládal konstantní
+deceleraci, kterou `SqrtMotionProfile` nemá.
+
+⚠️ **`Dist2Speed` na to není a je to past.** Není to průběh rychlosti po dráze, ale *jeden krok
+regulátoru* (diskrétní lichoběžník, perioda 0,1 s, činitel 0,9, `startSpeed` = okamžitá rychlost
+robotu), v nule vrací nulu; použitý jako `v(s)` rozpadl i volnou plochu na **41 uzlů** a
+`RegulatorResult` je třída, takže alokoval na každý vzorek. Vztah obou metod je teď invariant
+v `MotionProfileParityTests`: **dokud robot do místa vjíždí pod stropem, příkaz ho nepřekročí.**
+Ten předpoklad není formalita — `Dist2Speed(0,05, v=0,4, v_e=0)` vrací **0,252** proti stropu 0,141,
+protože z 0,4 m/s se na pěti centimetrech zastavit nedá a příkaz to nepředstírá.
+
+✅ **`Speed2Dist` opraven na přesnou inverzi `Dist2MaxSpeed`** — *na dotaz autora* („ani jeden ze
+vzorců mi nesedí", s odkazem na popis metody *„vzdálenost, na které robot zrychlí/zpomalí z v_s na
+v_e při `Acceleration`"*). Počítal `(v_s − v_e)²/(2a)`, tedy dráhu rozjezdu z nuly na *rozdíl*
+rychlostí; správně je `|v_s² − v_e²|/(2a)` pro lichoběžník a `|v_s² − v_e²|/a` pro
+`SqrtMotionProfile` (jeho zákon `v = √(a·d)`). Stará hodnota seděla jen pro `v_e = 0`, u `Sqrt`
+ani to. Metoda neměla produkční volání, pinnul ji jen charakterizační test — ten se změnil vědomě.
+Přitom se opravila i **čerstvě přidaná `SqrtMotionProfile.Dist2MaxSpeed`**: `max(v_e, √(a·d))`
+podráželo `v_e` jen podlahou místo posunutí křivky, správně je `√(v_e² + a·d)`. Obojí drží invariant
+`Dist2MaxSpeed(Speed2Dist(v_s, v_e), v_e) == v_s`.
+
+⚠️ **Obálka a profil mají každý svou konstantu decelerace** (`LocalPlannerConfig.MaxDeceleration`
+proti `IMotionProfile.Acceleration`; dnes obě 0,50 z `Profile`, takže se nerozcházejí). Kdyby profil
+brzdil pomaleji, obálka se poruší **i bez slučování** — `LocalPathPlanner` na to upozorní do `Trace`.
+`VBrake`/`VClosing` zůstávají na konfiguraci, protože `LocalPlannerConfig` profil nezná.
+
+**Past, která to málem shodila:** zbývající dráha v kontrole rampy se musí měřit **od středu
+buňky**, ne ze spojitého parametru úsečky. Obálka je funkce odstupu *buňky*, rampa je spojitá;
+při vzorkování po půl buňce se obě strany rozešly o 1–2 % a rovnoměrné zpomalování se nesloučilo
+(14 uzlů na 0,75 m). **Nezavádět na to toleranci** — je to nekonzistence, ne šum.
+
+**Proč bez `UnknownCostFactor` a bez otočení v referenci:** obojí je složka *plánovací* ceny
+(preference), ne čas. `gScore` by referenci dalo zadarmo, ale nese je — a nafouknutá reference by
+zkratky přes neznámo přijímala příliš ochotně. Cena otočení se místo toho přičítá zvlášť na obou
+stranách, protože zkratka z prvního uzlu mívá jiný směr než první krok A\*.
+
+**Proč zpětná brzdná obálka v referenci:** bez ní by reference tvrdila, že se smí jet naplno až do
+buňky před skvrnou a tam skokem zpomalit — fyzikálně nemožné, takže by se zamítala i sloučení,
+která nic nestojí.
+
+**Důsledky (Release, x64):** na realistické scéně (koridor 3,8 m, osm skvrn 10×10 cm) `MinClearance`
+0,403 → 0,492 m a rychlost u robota **0,050 → 0,488 m/s**, plánování 1,84 → **1,52 ms**; uzlů ale
+5 → **19**. Test `Smerova_PodelOkrajeJedeRychlejiNezKolmo…` je pinnutý na `smooth=passable`, protože
+zkouší model obálky, ne vyhlazování.
+
+**⚠️ Co to neopravuje:** cena je nad `SafeDist + EdgeMarginM` = 0,55 m plochá, takže robot nepojede
+středem širokého kanálu — to je jiná páka. A kolik z chování v terénu dělá vyhlazování a kolik
+rozmazání gridu chybou kurzu, změřené pořád není. Na HW to neběželo.
+
+**Odkazy:** [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
+[path-following.md](path-following.md), `Src/ARBot.Common/Occupancy/LocalPathPlanner.cs`,
+`LocalPlannerConfig.cs`.
+
 ### 2026-09-06 — Fúze posuzuje kvalitu GPS fixu; sigma se násobí DOP
 **Co:** `DefaultMeasurementMapper` propustí polohu z GPS jen přes bránu na **počet družic**
 (`gpsminsat=`, výchozí 4) a **DOP** (`gpsmaxdop=`, výchozí 10), a sigmu polohy **násobí DOP**

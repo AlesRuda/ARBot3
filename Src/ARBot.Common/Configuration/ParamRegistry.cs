@@ -62,6 +62,12 @@ namespace ARBot.Common.Configuration
               "Model rychlostniho stropu z odstupu od prekazek v lokalnim planovaci: 'directional' "
               + "(vychozi od 3. 9. 2026: podel prekazky uzka rampa, kolmo na ni brzdna draha) nebo "
               + "'radial' (puvodni jedina rampa SafeDist..PrefDist bez ohledu na smer - pro A/B).");
+        public static readonly StringParam Smooth = Vycet("smooth", "time", new[] { "time", "passable" }, K_HW,
+              "Pravidlo, podle ktereho vyhlazovani drahy (string-pulling) prijima zkratky: 'time' "
+              + "(vychozi od 8. 9. 2026: zkratka se prijme, jen kdyz nezhorsi jizdni cas) nebo "
+              + "'passable' (puvodni: staci tvrdy odstup SafeDist podel usecky - pro A/B). "
+              + "Puvodni pravidlo optimalizovalo DELKU, kdezto A* CAS, takze zahazovalo objizdku, "
+              + "kterou cena koupila, a drahu pritisklo na mez prujezdnosti.");
         public static readonly DoubleParam SafeDist = Num("safedist", Fmt(Profile.SafeDist), K_HW,
               "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
               + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "

@@ -40,15 +40,35 @@ namespace ARBot.Common.Regulators
             this.stability = stability;
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Z VLASTNÍHO zákona profilu <c>v = √(a·d)</c> plyne <c>d = |v_s² − v_e²| / a</c> — tedy
+        /// DVOJNÁSOBEK dráhy konstantní decelerace, protože tenhle profil brzdí dřív a měkčeji.
+        /// <para><b>Opraveno 8. 9. 2026</b> — do té doby to počítalo <c>(v_s − v_e)²/(2a)</c>, což
+        /// neodpovídalo ani pro <c>v_e = 0</c> (při <c>v_s = 0,8, a = 0,5</c> vyšlo 0,64 místo 1,28).
+        /// Produkční volání nemělo, pinnul ho jen charakterizační test.</para>
+        /// </remarks>
         public double Speed2Dist(double startSpeed, double endSpeed)
         {
-            double s = Math.Abs(startSpeed - endSpeed);
-            return s * s / (2 * acceleration);
+            return Math.Abs(startSpeed * startSpeed - endSpeed * endSpeed) / acceleration;
         }
 
         public RegulatorResult Dist2Speed(double dist, double startSpeed, double endSpeed)
         {
             return SqrtLaw(dist, maxSpeed, acceleration);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Strop plyne z VLASTNIHO zákona profilu (<c>v = √(a·d)</c>), ne z konstantní decelerace —
+        /// jinak by nebyl horní mezí jeho zásahu. Nenulové <paramref name="endSpeed"/> křivku
+        /// POSUNE (<c>√(v_e² + a·d)</c>), aby v cílovém bodě dala právě <c>v_e</c>; podrazit ji jen
+        /// podlahou <c>max(v_e, √(a·d))</c> by rozbilo inverzi vůči <see cref="Speed2Dist"/>.
+        /// </remarks>
+        public double Dist2MaxSpeed(double dist, double endSpeed)
+        {
+            double d = Math.Abs(dist);
+            return Math.Min(maxSpeed, Math.Sqrt(endSpeed * endSpeed + acceleration * d));
         }
 
         public RegulatorResult Rot2RotSpeed(double beta, double startRotSpeed, double endRotSpeed)

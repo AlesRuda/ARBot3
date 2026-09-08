@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 70 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 71 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -321,8 +321,36 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   starší záznamy si ho `envelope` **rekonstruuje** z gridu a kontroluje proti `MinClearanceM`
   (sedí do jedné buňky v 96,9 %, takže to není domněnka). Cesta je přitom **široká** (volný kanál
   p50 3,80 m, kamerový koridor 3,60 m) — robot jen jede 0,4 m od něčeho blokovaného, a ve **41,5 %**
-  je to skvrna **do 4 buněk**, tedy šum v mapě. ⚠️ **Proč jede tak blízko, změřené není a nic se
-  neopravuje**: nejdřív **kurz** (viz `imu-and-frames.md`), který rotuje mrkev i zápis do gridu,
+  je to skvrna **do 4 buněk**, tedy šum v mapě. ✅ **Proč jede tak blízko, nalezeno 8. 9. 2026:
+  může za to VYHLAZOVÁNÍ dráhy.** `StringPull` přijme zkratku podle **tvrdého** `d ≥ SafeDist`
+  (`SegmentPassable` → `Passable()`, ne `VCost()`), takže zahodí odstup, který cena A\* koupila —
+  změřeno na syntetické scéně: s dvoumetrovou rampou jde A\* **objížďkou 4,59 m** místo 2,80,
+  a **výstupem je pořád táž přímka** s odstupem 0,450 m; na geometrii výsledné dráhy nemá cena
+  vliv. Násobí to okno uzlu (strop uzlu platí podél celého, po vyhlazení mnohametrového úseku:
+  skvrna 10×10 cm srazila celý 2,8m úsek z 1,00 na 0,33 m/s) a útes `VAlong` (nad 0,55 m plocho,
+  pod ní spad na 15 cm). ✅ **Opraveno týž den (`smooth=`, výchozí `time`):** zkratka se přijme, jen
+  když se pod obálku vejde **rampa, kterou regulátor odjede** (drží strop vjezdového uzlu, dobrzdí
+  na strop výjezdového) **a** nezhorší to jízdní čas proti jemnému dělení. Druhá polovina té změny:
+  **strop uzlu = obálka v uzlu**, ne minimum přes okno — bez ní by se sloučený úsek celý jel
+  rychlostí nejhoršího místa. `PathResult` se měnit nemusel, rampa vzniká z `Speed` → `VLimit` →
+  `Dist2Speed`; **vyměnil se ale bezpečnostní argument** („každý vzorek zastropuje aspoň jeden uzel"
+  → „plánovač ověřil, že se rampa vejde pod obálku"), takže `smooth=passable` a únik drží obojí
+  staré. Na realistické scéně (koridor 3,8 m, osm skvrn 10×10 cm) `MinClearance` **0,403 → 0,492 m**
+  a rychlost **0,050 → 0,488 m/s**, plánování **1,84 → 1,52 ms**, uzlů ale **5 → 19**.
+  ⚠️ **Tři pasti, které stály čas:** (a) čas zkratky jako `délka / min(v)` zakazuje jakoukoli změnu
+  rychlosti po úseku (17 uzlů na 0,75 m, vede to na magickou toleranci — rampa ji odstraní);
+  (b) zbývající dráhu v kontrole rampy měř **od středu buňky**, ne ze spojitého `t` (jinak se obálka
+  a rampa rozejdou o 1–2 % a nesloučí se nic); (c) **`IMotionProfile.Dist2Speed` NENÍ průběh `v(s)`**,
+  je to jeden krok regulátoru (perioda 0,1 s, činitel 0,9, v nule vrací nulu) a jako `v(s)` rozpadne
+  i volnou plochu na 41 uzlů — na tohle je od 8. 9. 2026 v profilu **`Dist2MaxSpeed(dist, endSpeed)`**
+  („nejvyšší rychlost `dist` před bodem, kde mám být na `endSpeed`"), kterou používá i zpětný průchod
+  v `PathPlanner`u. Její invariant „příkaz nepřekročí strop" platí **jen když robot do místa vjíždí
+  pod stropem** — jinak regulátor vrací nejlepší možné brzdění (0,252 proti stropu 0,141). Profil je
+  **tatáž instance** jako v `PathPlanner`. ✅ Při tom se opravil i `Speed2Dist` — počítal
+  `(v_s − v_e)²/(2a)` (dráhu rozjezdu z nuly na ROZDÍL rychlostí), správně je `|v_s² − v_e²|/(2a)`,
+  resp. `|v_s² − v_e²|/a` u `SqrtMotionProfile`; je to teď přesná inverze `Dist2MaxSpeed`.
+  ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
+  gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),
   pak přeměřit.
 - [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
   `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +

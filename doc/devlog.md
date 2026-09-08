@@ -37,6 +37,118 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-08
+
+- **✅ Dovysvětlen včerejší nález „robot se plazí, váže `VAlong`": může za to VYHLAZOVÁNÍ dráhy.**
+  *Na dotaz autora* („plánování na gridu má přece počítat nejrychlejší cestu — možná za to může
+  vyhlazování"). Odpověď je ano a je změřená, ne odhadnutá.
+  - **Mechanismus:** A\* dráhu opravdu plánuje na jízdní čas, ale `StringPull` ji potom nahradí
+    nejkratší legální lomenou čarou — `SegmentPassable` totiž volá `Passable()`, tedy **tvrdé
+    `d ≥ SafeDist`, ne `VCost()`**. Odstup, který cena koupila, se tím zahodí a dráha se přitiskne
+    zpátky na mez toho, co je ještě legální.
+  - **Rozhodující experiment** (syntetická scéna, volný kanál 3,80 m jako v záznamu, jediná skvrna
+    2×2 buňky 0,45 m stranou od spojnice): při `EdgeMarginM` = 2,0 jde A\* **objížďkou 4,59 m**
+    místo 2,80 m, a **výstupem je pořád táž přímka** se dvěma uzly a odstupem 0,450 m. Na geometrii
+    výsledné dráhy tedy cenová funkce **nemá vliv**. Sedí to i s tím, že v záznamu je medián
+    nejmenšího odstupu 0,403 m = `√65·0,05`, tedy **první kvantum vzdálenostního pole nad
+    `SafeDist`**.
+  - **Násobič:** rychlost uzlu je minimum obálky přes oba sousední úseky a `PathResult.Control` ji
+    drží **podél celého úseku**; po vyhlazení jsou úseky dlouhé metry, takže skvrna 10×10 cm srazí
+    v experimentu celý 2,8m úsek z 1,00 na 0,33 m/s. Odtud i „vázající uzel je v p50 i p90 0,00 m
+    od robota" — je to uzel 0, tedy celý první vyhlazený úsek.
+  - **Třetí věc:** `VAlong` je útes — nad 0,55 m plocho (A\* nemá důvod jít dál), pod ní spad na
+    nulu na 15 cm. Vyhlazení dráhu zaparkuje přesně do toho pásma.
+  - **⚠️ Pořadí zůstává „nejdřív kurz" i po opravě níž.** Mechanismus je na kurzu nezávislý
+    (změřen v simulaci nad přesnou mapou), ale **kolik z těch 0,403 m v terénu dělá on a kolik
+    rozmazání gridu chybou kurzu, změřené není** — a rozdíl mezi „skvrna je tam právem" a „skvrna
+    je duch" mění léčbu. Kandidáti (vyhlazovat proti ceně / odtlačit dráhu gradientem / filtr
+    skvrn / širší rampa) jsou v otevřených úkolech.
+  - **✅ Léčba naimplementována týž den na pokyn autora** (`smooth=`, výchozí `time`): `StringPull`
+    přijme zkratku, jen když (a) se pod obálku vejde **rampa, kterou regulátor odjede** — drží strop
+    vjezdového uzlu, dobrzdí na strop výjezdového — a (b) to **nezhorší jízdní čas** proti jemnému
+    dělení po buňkách. Cena kroku v referenci je táž funkce jako v A\* (`VCost`), ale **bez**
+    `UnknownCostFactor` a bez otočení (obojí je preference, ne čas); otočení se přičítá zvlášť na
+    obou stranách. Reference navíc prochází **zpětnou brzdnou obálkou**, jinak by tvrdila, že se smí
+    jet naplno až do buňky před skvrnou a tam skokem zpomalit.
+  - **Druhá polovina té změny: strop uzlu = obálka V UZLU**, ne minimum přes obě sousední úsečky.
+    Bez ní by první nefungovala — sloučený úsek by se celý jel rychlostí nejhoršího místa
+    (`PathResult` bod 3b) a rampa by se nikdy neodjela. **`PathResult` se měnit nemusel**, rampa
+    vzniká z už existující mechaniky `Speed` → `VLimit` → `Dist2Speed`. Vyměnil se tím ale
+    bezpečnostní argument: dřív „každý vzorek zastropuje aspoň jeden uzel" (platí konstrukcí), teď
+    „plánovač ověřil, že se rampa vejde pod obálku". Obě poloviny jsou pár, takže
+    **`smooth=passable` a únik drží obojí staré**.
+  - **Cesta k tomu byla přes slepou uličku, kterou stojí za to znát.** První verze počítala čas
+    zkratky jako `délka / min(v)`. Bylo to *přesné* pro tehdejší stropy, ale znamenalo to, že se
+    rychlost po úseku nesmí měnit vůbec: jízda **kolmo** k překážce (kde `VClosing` klesá s každou
+    buňkou) dala **17 uzlů na 0,75 m**, tedy návrat ke schodům z A\*. Musela se zavést tolerance 5 %
+    — magická konstanta. *Na návrh autora* ji nahradila rampa a tolerance šla pryč úplně: tam, kde
+    obálka **je** brzdná křivka, vyjde rampa přesně jako jemné dělení. Táž dráha dá **4 uzly**.
+  - ⚠️ **Past, která to málem shodila:** zbývající dráha v kontrole rampy se musí měřit **od středu
+    buňky**, ne ze spojitého parametru úsečky. Obálka je funkce odstupu *buňky*, rampa je spojitá;
+    při vzorkování po půl buňce se obě strany rozešly o **1–2 %** a rovnoměrné zpomalování se
+    nesloučilo (14 uzlů). Vypadalo to na potřebu tolerance — byla to nekonzistence.
+  - **Brzdný zákon se přestěhoval do `IMotionProfile`** (*na dotaz autora*, „doufám, že se to počítá
+    přes `IMotionProfile`" → „měla by tam přibýt nová metoda"). Nová
+    **`Dist2MaxSpeed(dist, endSpeed)`** = *„nejvyšší rychlost ve vzdálenosti `dist` před bodem, kde
+    mám být na `endSpeed`"*. Týž vzorec se do té doby opisoval na **třech** místech — zpětný průchod
+    v `PathPlanner`u, rychlostní obálka lokálního plánovače a moje předpověď rampy. Implementace
+    v obou profilech (`SqrtMotionProfile` má vlastní zákon `√(a·d)`, ne konstantní deceleraci),
+    volání z `PathPlanner`u i z `LocalPathPlanner`u, a **profil je tatáž instance** — `ARBotRuntime`
+    ji vyrobí jednou a předá do `PathPlanner`u i (novým parametrem `motionProfile`) do
+    `LocalNavigator`u. Čas rampy se integruje **přes vzorky**, ne uzavřeným vzorcem: ten by
+    předpokládal konstantní deceleraci.
+  - ⚠️ **Slepá ulička, kterou to nahradilo:** nejdřív jsem zkusil počítat `v(s)` voláním
+    `Dist2Speed` po vzorcích. To je ale *jeden krok regulátoru* (diskrétní lichoběžník, perioda
+    0,1 s, činitel 0,9, `startSpeed` = okamžitá rychlost robotu), v nule vrací nulu — **rozpadlo to
+    i volnou plochu na 41 uzlů** a `RegulatorResult` je třída, takže to alokovalo (367 kB proti
+    limitu 50 kB v testu).
+  - ⚠️ **Invariant mezi oběma metodami má podmínku, a ta se našla až testem:** „příkaz nikdy
+    nepřekročí strop" platí **jen dokud robot do místa vjíždí pod stropem**. Když už jede rychleji,
+    regulátor vrací nejlepší možné brzdění, ne nesplnitelný strop — `Dist2Speed(0,05, v=0,4, v_e=0)`
+    = **0,252** proti stropu 0,141, protože z 0,4 m/s se na pěti centimetrech zastavit nedá.
+    Hlídá to `MotionProfileParityTests` (4 nové testy).
+  - ✅ **`Speed2Dist` byl vadný a je opravený** (*autor: „ani jeden ze vzorců mi nesedí"*, s odkazem
+    na popis metody — *„vzdálenost, na které robot zrychlí/zpomalí z v_s na v_e při `Acceleration`"*).
+    Počítal `(v_s − v_e)²/(2a)`, tedy dráhu rozjezdu z nuly na **rozdíl** rychlostí. Seděl jen pro
+    `v_e = 0`; při `v_s = 0,8, v_e = 0,3, a = 0,5` vracel **0,25 místo 0,55**. U `SqrtMotionProfile`
+    neseděl ani pro `v_e = 0` (0,64 místo 1,28), protože jeho zákon `v = √(a·d)` dává `d = v²/a`.
+    Správně: `|v_s² − v_e²|/(2a)` pro lichoběžník, `|v_s² − v_e²|/a` pro `Sqrt`. **Diskrétní simulace
+    rampy sedí na fyzikální vzorec na setiny milimetru**, takže vzorkování v tom nehraje roli.
+    Produkční volání metoda neměla, pinnul ji jen charakterizační test — ten se změnil vědomě.
+  - ⚠️ **Přitom se ukázala vada v mé čerstvé `SqrtMotionProfile.Dist2MaxSpeed`:** napsal jsem
+    `max(v_e, √(a·d))`, což `v_e` jen podráží podlahou místo posunutí křivky; správně `√(v_e² + a·d)`.
+    Obojí teď drží invariant `Dist2MaxSpeed(Speed2Dist(v_s, v_e), v_e) == v_s`
+    (`Speed2Dist_JePresnouInverziDist2MaxSpeed`). Produkce se to nedotklo — `SqrtMotionProfile` se
+    nikde mimo testy neinstancuje.
+  - ⚠️ **Vyplavalo přitom, že obálka a profil brzdí každý podle své konstanty** (`MaxDeceleration`
+    v `LocalPlannerConfig` proti `IMotionProfile.Acceleration`). Dnes se shodují (obě 0,50), ale
+    kdyby profil brzdil pomaleji, obálka se poruší **i bez slučování úseků** — `LocalPathPlanner`
+    na to nově upozorní do `Trace`. Čísla se přestěhováním nezměnila.
+  - **Naměřeno** (Release, x64), `passable` → `time`: skvrna 0,45 m stranou od spojnice
+    `MinClearance` 0,450 → **0,600 m** a rychlost u robota 0,333 → **1,000**; realistická scéna
+    (grid 256, koridor 3,8 m, osm skvrn 10×10 cm) 0,403 → **0,492 m** a **0,050 → 0,488 m/s**;
+    jízda kolmo ke zdi 0,173 → **0,706 m/s**. Ta čísla před léčbou jsou **přesně mediány ze záznamu**
+    `20260907-170728.rec`, takže scéna terén reprodukuje. **Plánování se zrychlilo** (1,84 →
+    1,52 ms). ⚠️ **Uzlů je ale víc: 5 → 19** — zdraží to `PathPlanner` a nafoukne `LocalPlanMsg`,
+    změřit na Pi.
+  - **Jeden existující test bylo nutné upravit:** `Smerova_PodelOkrajeJedeRychlejiNezKolmoNaNej…`
+    četl rychlost v uzlu 0 u dráhy mířící kolmo ke trávě. Nové vyhlazování tam dá **správně**
+    0,706 m/s (odstup u robota 1,2 m) a strop 0,173 až u trávy, takže test je pinnutý na
+    `smooth=passable` — zkouší **model obálky**, ne pravidlo vyhlazování.
+  - **Hotovo:** `IMotionProfile.Dist2MaxSpeed` + obě implementace, `PathSmoothingMode`
+    v `LocalPlannerConfig`, `BuildPathTimes` (+ zpětná brzdná obálka) / `ShortcutKeepsTime` /
+    `RotationTime` a stropy po uzlech v `LocalPathPlanner`, `PathPlanner` zpětný průchod přes profil,
+    parametr `smooth=`, sdílená instance profilu v `ARBotRuntime`, oprava `Speed2Dist` v obou
+    profilech, **9 nových testů** (dva `TestCase` v obou režimech, kontrola invariantu rampy — bez té
+    kontroly v plánovači padá — a čtyři na `Dist2MaxSpeed` včetně inverze). Build `x64`,
+    **1265 testů `ARBot.Common` a 81 `ARBot.Runtime` zelených**. Na HW nic z toho neběželo.
+  - **Změněné soubory:** `IMotionProfile`, `TrapezoidMotionProfile`, `SqrtMotionProfile`,
+    `PathPlanner`, `LocalPathPlanner`, `LocalPlannerConfig`, `LocalNavigator`, `ParamRegistry`,
+    `ARBotRuntime`, `LocalPathPlannerTest`, `MotionProfileParityTests` +
+    [occupancy-and-local-planning.md](occupancy-and-local-planning.md) (nález, léčba, parametry,
+    testy, otevřené úkoly), [path-following.md](path-following.md) (nová role bodu 3b + nová metoda
+    profilu), [decisions.md](decisions.md), `CLAUDE.md`. **Necommitnuto.**
+
 ## 2026-09-07
 
 - **Rozbor záznamu z venkovního testu FreeRun `20260907-170728.rec`** (452 s, ~105 m, `maxspeed=1`,

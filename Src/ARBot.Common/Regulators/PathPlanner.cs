@@ -126,10 +126,11 @@ namespace ARBot.Common.Regulators
             }
 
             // 3) Zpětný průchod — brzdná obálka. Z každého uzlu musí jít ubrzdit na strop dalšího uzlu.
-            double a = profile.Acceleration;
+            //    Brzdný zákon patří profilu (Dist2MaxSpeed), ne sem: opsaný vzorec by se rozešel
+            //    s profilem, který brzdí jinak než konstantní decelerací (SqrtMotionProfile).
             for (int i = n - 2; i >= 0; i--)
             {
-                double brakeable = Math.Sqrt(vNode[i + 1] * vNode[i + 1] + 2.0 * a * segments[i].Length);
+                double brakeable = profile.Dist2MaxSpeed(segments[i].Length, vNode[i + 1]);
                 if (vNode[i] > brakeable)
                     vNode[i] = brakeable;
             }

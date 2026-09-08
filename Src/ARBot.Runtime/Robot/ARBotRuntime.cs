@@ -453,15 +453,29 @@ namespace ARBot.Robot
             if (plannerCfg.Envelope == SpeedEnvelopeMode.Radial)
                 Trace.WriteLine("envelope=radial: puvodni radialni rampa rychlosti z odstupu (A/B).");
 
+            // smooth= voli pravidlo pro prijeti zkratky pri vyhlazovani drahy - A/B prepinac,
+            // vychozi cenove poctive (zkratka smi zkratit, ne zpomalit).
+            string smooth = ParamRegistry.Smooth.Value;
+            plannerCfg.Smoothing = string.Equals(smooth, "passable", StringComparison.OrdinalIgnoreCase)
+                ? PathSmoothingMode.Passable : PathSmoothingMode.TimeAware;
+            if (plannerCfg.Smoothing == PathSmoothingMode.Passable)
+                Trace.WriteLine("smooth=passable: puvodni vyhlazovani jen podle tvrdeho odstupu (A/B).");
+
+            var motionProfile = new TrapezoidMotionProfile(
+                Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                Profile.MaxAcceleration, Profile.Rozchod);
+
             var navigator = new LocalNavigator(
                 engine,
                 depthProjections: name => projectionResolver(name) as ICameraProjection,
                 colorProjections: BuildColorProjectionResolver(hw),
                 plannerConfig: plannerCfg,
-                pathPlanner: new PathPlanner(
-                    new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                                               Profile.MaxAcceleration, Profile.Rozchod),
-                    Profile.PathEpsilonMargin, Profile.LookaheadTime, Profile.LookaheadMin))
+                // TYZ profil jde do PathPlanneru i do vyhlazovani drahy: planovac pri slucovani useku
+                // predpovida rampu, kterou regulator odjede, takze dve ruzne instance by znamenaly,
+                // ze se overuje jina rampa, nez ktera se pojede.
+                pathPlanner: new PathPlanner(motionProfile,
+                    Profile.PathEpsilonMargin, Profile.LookaheadTime, Profile.LookaheadMin),
+                motionProfile: motionProfile)
             {
                 ControlLoop = loop,
             };

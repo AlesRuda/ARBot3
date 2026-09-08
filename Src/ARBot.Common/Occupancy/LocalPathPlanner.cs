@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ARBot.Common.Configuration;
 using ARBot.Common.Common;
 using ARBot.Common.Regulators;
 
@@ -41,6 +42,9 @@ namespace ARBot.Common.Occupancy
         private readonly int size;
         private readonly LocalPlannerConfig cfg;
 
+        /// <summary>Kinematicky profil regulatoru - z nej se pocita predpovezena rampa pri vyhlazovani.</summary>
+        private readonly IMotionProfile motion;
+
         // Znovupouzite buffery (velikost size*size, lokalni indexovani i + j*size).
         private readonly byte[] state;        // CellState po bunkach (snapshot gridu)
         private readonly byte[] blockReason;  // CellBlockReason po bunkach (cim je blokovana)
@@ -69,6 +73,15 @@ namespace ARBot.Common.Occupancy
 
         /// <summary>Rozliseni gridu z posledniho <see cref="Plan"/> [m] - pro gradient pole odstupu.</summary>
         private double cellSize = 0.05;
+
+        /// <summary>Kurz robotu z posledniho <see cref="Plan"/> [rad] - pro cenu otoceni ve vyhlazovani.</summary>
+        private double planHeading;
+
+        /// <summary>Kumulativni jizdni cas podel <see cref="pathCells"/> [s] (znovupouzity buffer).</summary>
+        private double[] pathTime = new double[0];
+
+        /// <summary>Zpetne brzdna obalka podel <see cref="pathCells"/> [m/s] (znovupouzity buffer).</summary>
+        private double[] pathVLim = new double[0];
         private double[] frontierAfter = new double[0];
         private double[] nodeS = new double[0];
         private int[] nodeSample = new int[0];
@@ -90,12 +103,32 @@ namespace ARBot.Common.Occupancy
 
         /// <param name="size">Pocet bunek na stranu gridu, se kterym se bude planovat.</param>
         /// <param name="config">Konfigurace; null = vychozi (hodnoty z <c>Profile</c>).</param>
-        public LocalPathPlanner(int size, LocalPlannerConfig config = null)
+        /// <param name="motionProfile">
+        /// Kinematicky profil, podle ktereho se pri vyhlazovani predpovida rampa mezi uzly
+        /// (<see cref="ShortcutKeepsTime"/>). <b>Musi to byt tentyz profil, ktery dostal
+        /// <c>PathPlanner</c></b> - planovac tady predpovida presne to, co regulator odjede, takze
+        /// dva ruzne profily znamenaji, ze overena rampa neni ta skutecna. null = lichobeznikovy
+        /// profil z <paramref name="config"/> (tytez limity, jake pouziva rychlostni obalka).
+        /// </param>
+        public LocalPathPlanner(int size, LocalPlannerConfig config = null,
+                                IMotionProfile motionProfile = null)
         {
             if (size <= 0) throw new ArgumentException($"LocalPathPlanner: size musi byt > 0, je {size}.");
             this.size = size;
             cfg = config ?? new LocalPlannerConfig();
             cfg.Validate();
+            motion = motionProfile ?? new TrapezoidMotionProfile(
+                cfg.MaxSpeed, cfg.MaxRotationSpeed, cfg.MaxDeceleration, Profile.Rozchod);
+
+            // Rychlostni obalka (VBrake/VClosing) pocita s cfg.MaxDeceleration, predpovezena rampa
+            // s decelaraci profilu. Kdyz regulator brzdi POMALEJI, nez obalka predpoklada, poruse ji
+            // i bez jakehokoli slucovani - a tuhle vazbu mezi dvema konfiguracemi jinak nikdo nehlida.
+            // Do Trace, ne do Debug: v Release na zarizeni po poruse musi zustat stopa.
+            if (motion.Acceleration < cfg.MaxDeceleration * (1 - 1e-9))
+                System.Diagnostics.Trace.WriteLine(
+                    $"LocalPathPlanner: profil brzdi {motion.Acceleration:F2} m/s^2, ale rychlostni "
+                    + $"obalka pocita s {cfg.MaxDeceleration:F2} m/s^2 - obalka se muze porusit "
+                    + "i bez slucovani useku. Srovnat Profile.MaxAcceleration a MaxDecceleration.");
 
             int n = size * size;
             state = new byte[n];
@@ -141,6 +174,7 @@ namespace ARBot.Common.Occupancy
 
             double cell = grid.Resolution;
             cellSize = cell;
+            planHeading = heading;
             int i0 = grid.CellX(robotX) - grid.OriginX;
             int j0 = grid.CellY(robotY) - grid.OriginY;
             if ((uint)i0 >= (uint)size || (uint)j0 >= (uint)size)
@@ -525,11 +559,26 @@ namespace ARBot.Common.Occupancy
         /// <summary>
         /// String-pulling: slucuje po sobe jdouci bunky do useku, dokud podel cele usecky plati
         /// stejne pravidlo prujezdnosti jako v A*. Vysledkem je kratky seznam vrcholu.
+        ///
+        /// <para><b>Od 8. 9. 2026 rozhoduje i CAS</b> (<see cref="PathSmoothingMode.TimeAware"/>,
+        /// vychozi): zkratka se prijme, jen kdyz nezhorsi jizdni cas proti useku, ktery nahrazuje.
+        /// Bez toho vyhlazovani optimalizovalo DELKU (jedinou podminkou bylo tvrde
+        /// <c>d &gt;= SafeDist</c>), kdezto A* optimalizoval CAS - a rozdil obou kriterii zahodil
+        /// objizdku, kterou cena koupila. Zmereno: na scene se skvrnou 2x2 bunky stranou od spojnice
+        /// slo A* objizdkou 4,59 m misto 2,80 m a <b>vystupem byla stejne primka</b> s odstupem na
+        /// mezi prujezdnosti. Viz doc/occupancy-and-local-planning.md.</para>
+        ///
+        /// <para><b>Unik</b> (<see cref="escape"/>) zustava na puvodnim pravidle: tam jde o to dostat
+        /// se ven z tesne bunky, ne jet rychle, a cena uniku ma jinou stupnici
+        /// (<see cref="LocalPlannerConfig.EscapeBlockedCostFactor"/>).</para>
         /// </summary>
         private void StringPull()
         {
             pulled.Clear();
             if (pathCells.Count == 0) return;
+
+            bool timeAware = cfg.Smoothing == PathSmoothingMode.TimeAware && !escape;
+            if (timeAware) BuildPathTimes();
 
             pulled.Add(pathCells[0]);
             int anchor = 0;
@@ -538,16 +587,151 @@ namespace ARBot.Common.Occupancy
                 int next = anchor + 1;
                 for (int probe = pathCells.Count - 1; probe > anchor + 1; probe--)
                 {
-                    if (SegmentPassable(pathCells[anchor], pathCells[probe]))
-                    {
-                        next = probe;
-                        break;
-                    }
+                    if (!SegmentPassable(pathCells[anchor], pathCells[probe])) continue;
+                    if (timeAware && !ShortcutKeepsTime(anchor, probe)) continue;
+                    next = probe;
+                    break;
                 }
                 pulled.Add(pathCells[next]);
                 anchor = next;
             }
         }
+
+        /// <summary>
+        /// Kumulativni jizdni cas podel drahy A* po bunkach (<see cref="pathTime"/>): cena kroku je
+        /// <c>delka / VCost(odstup, priblizovani)</c>, tedy TATAZ funkce jako v <see cref="Search"/>.
+        ///
+        /// <para>Zamerne BEZ <see cref="LocalPlannerConfig.UnknownCostFactor"/> a bez ceny pocatecniho
+        /// otoceni: obojí je slozka <b>planovaci</b> ceny (preference), ne cas. <c>gScore</c> by bylo
+        /// zadarmo, ale nese je - a nafouknuty referencni cas by zkratky pres neznamo prijimal
+        /// prilis ochotne. Cena otoceni se pricita zvlast na OBOU stranach porovnani, protoze zkratka
+        /// z prvniho uzlu mivá jiny smer nez prvni krok A* (kvantovani do 8 smeru je az 22,5°, coz
+        /// pri omega = pi/6 dela 0,75 s).</para>
+        /// </summary>
+        private void BuildPathTimes()
+        {
+            int n = pathCells.Count;
+            if (pathTime.Length < n) { pathTime = new double[n * 2]; pathVLim = new double[n * 2]; }
+            double diag = Math.Sqrt(2.0) * cellSize;
+
+            // 1) Obalka po bunkach (rychlost kroku DO bunky - stejne jako cena hrany v A*).
+            for (int k = 0; k < n; k++)
+            {
+                int cur = pathCells[k];
+                int dx, dy;
+                if (k > 0) { int p = pathCells[k - 1]; dx = cur % size - p % size; dy = cur / size - p / size; }
+                else if (n > 1) { int q = pathCells[1]; dx = q % size - cur % size; dy = q / size - cur / size; }
+                else { dx = 1; dy = 0; }
+                double inv = 1.0 / Math.Sqrt(dx * dx + dy * dy);
+                pathVLim[k] = cfg.VCost(clearance[cur], Closing(cur, dx * inv, dy * inv));
+            }
+
+            // 2) Zpetna brzdna obalka: rychlost, ze ktere se jeste stihnu zbrzdit na vsechno, co je
+            //    dal po draze. Bez ni by reference tvrdila, ze robot smi jet plnou rychlost az do
+            //    bunky pred skvrnou a tam skokem zpomalit - fyzikalne nemozne, takze by se zamitala
+            //    i slouceni, ktera nic nestoji. Je to tataz uvaha jako zpetny pruchod v PathPlanneru.
+            // Brzdny zakon si drzi profil (Dist2MaxSpeed) - tady se nesmi opisovat.
+            for (int k = n - 2; k >= 0; k--)
+            {
+                int cur = pathCells[k], nxt = pathCells[k + 1];
+                bool diagStep = cur % size != nxt % size && cur / size != nxt / size;
+                double stepLen = diagStep ? diag : cellSize;
+                double cap = motion.Dist2MaxSpeed(stepLen, pathVLim[k + 1]);
+                if (cap < pathVLim[k]) pathVLim[k] = cap;
+            }
+
+            // 3) Kumulativni cas po bunkach.
+            pathTime[0] = 0;
+            for (int k = 1; k < n; k++)
+            {
+                int prev = pathCells[k - 1], cur = pathCells[k];
+                bool diagStep = cur % size != prev % size && cur / size != prev / size;
+                pathTime[k] = pathTime[k - 1] + (diagStep ? diag : cellSize) / pathVLim[k];
+            }
+        }
+
+
+        /// <summary>
+        /// Smi se usek <paramref name="anchor"/> -&gt; <paramref name="probe"/> slouncit do jedine
+        /// usecky? Musi platit OBOJI:
+        /// <list type="number">
+        /// <item><description><b>Rampa se vejde pod obalku</b> - predpovezena rychlost regulatoru
+        /// (drzi strop vjezdoveho uzlu a dobrzduje na strop vyjezdoveho) nesmi v zadnem vzorku
+        /// prekrocit obalku. Tohle nahrazuje drivejsi "kazdy vzorek zastropuje aspon jeden uzel":
+        /// misto minima pres usek se overuje prubeh, ktery se opravdu pojede.</description></item>
+        /// <item><description><b>Nezhorsi to jizdni cas</b> proti jemnemu deleni
+        /// (<see cref="BuildPathTimes"/>). Rampa sama o sobe pomale misto na konci useku rozlije
+        /// dopredu, takze bez tohohle by se slucovalo i tam, kde to stoji cas.</description></item>
+        /// </list>
+        ///
+        /// <para>Rychlosti krajnich uzlu se berou ze <b>zpetne brzdne obalky</b>
+        /// (<see cref="pathVLim"/>), tedy z toho, co robot v tom miste opravdu pojede - ne z holé
+        /// obalky, kterou by stejne nestihl.</para>
+        ///
+        /// <para>Cena pocatecniho otoceni se pricita na OBOU stranach (A* ji ma v prvni hrane,
+        /// zkratka ma svou vlastni) - do rampy samotne se otaceni neplete.</para>
+        /// </summary>
+        private bool ShortcutKeepsTime(int anchor, int probe)
+        {
+            int fromIdx = pathCells[anchor], toIdx = pathCells[probe];
+            double x0 = fromIdx % size, y0 = fromIdx / size;
+            double dx = toIdx % size - x0, dy = toIdx / size - y0;
+            double lenCells = Math.Sqrt(dx * dx + dy * dy);
+            if (!(lenCells > 0)) return true;
+            double ux = dx / lenCells, uy = dy / lenCells;
+            double len = lenCells * cellSize;
+
+            double budget = pathTime[probe] - pathTime[anchor];
+            if (anchor == 0 && pathCells.Count > 1)
+            {
+                int first = pathCells[1], start = pathCells[0];
+                budget += RotationTime(first % size - start % size, first / size - start / size);
+                budget -= RotationTime(ux, uy);
+            }
+            if (!(budget > 0)) return false;
+
+            // Rampa: drzi strop vjezdoveho uzlu (PathResult.Control bod 3b) a vcas dobrzdi na strop
+            // vyjezdoveho - tvar brzdeni si drzi PROFIL (Dist2MaxSpeed), planovac ho neopisuje.
+            double vEnter = pathVLim[anchor], vExit = pathVLim[probe];
+            double vCruise = Math.Min(vEnter, motion.Dist2MaxSpeed(len, vExit));
+            if (!(vCruise > 0)) return false;
+
+            // Jeden pruchod vzorky: rampa pod obalkou + cas. Cas se integruje pres tytez vzorky
+            // (lichobeznikove), ne uzavrenym vzorcem - ten by predpokladal konstantni deceleraci,
+            // coz treba SqrtMotionProfile nema.
+            int steps = (int)Math.Ceiling(lenCells * 2.0) + 1;
+            double ramp = 0, vPrev = 0;
+            for (int st = 0; st <= steps; st++)
+            {
+                double t = (double)st / steps;
+                int i = (int)Math.Round(x0 + dx * t);
+                int j = (int)Math.Round(y0 + dy * t);
+                if ((uint)i >= (uint)size || (uint)j >= (uint)size) return false;
+                int idx = i + j * size;
+
+                // Zbyvajici draha se meri od STREDU TE BUNKY, ne ze spojiteho t. Obalka je funkce
+                // odstupu te bunky, takze kdyby se rampa brala spojite, lisily by se obe strany
+                // o pul bunky - a u brzdne krivky to dela az jednotky procent, takze by se
+                // rovnomerne zpomalovani neslouncilo a schody z A* by zustaly. Takhle si obe strany
+                // odpovidaji presne: tam, kde obalka JE brzdna krivka, vyjde rampa == obalka.
+                double remaining = ((x0 + dx - i) * ux + (y0 + dy - j) * uy) * cellSize;
+                if (remaining < 0) remaining = 0;
+
+                double vPred = Math.Min(vCruise, motion.Dist2MaxSpeed(remaining, vExit));
+                double vAllowed = cfg.VCost(clearance[idx], Closing(idx, ux, uy));
+                if (vPred > vAllowed * (1 + 1e-6)) return false;
+
+                if (st > 0) ramp += (len / steps) * 0.5 * (1.0 / vPred + 1.0 / vPrev);
+                vPrev = vPred;
+                if (ramp > budget * (1 + 1e-6)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Cas otoceni z aktualniho kurzu do smeru <paramref name="dirX"/>,<paramref name="dirY"/> [s].</summary>
+        private double RotationTime(double dirX, double dirY)
+            => Math.Abs(Conversions.NormalizeOrientation(Math.Atan2(dirY, dirX) - planHeading))
+               / cfg.MaxRotationSpeed;
 
         /// <summary>Je cela usecka mezi stredy dvou bunek prujezdna? Vzorkuje se s krokem 1/2 bunky.</summary>
         private bool SegmentPassable(int fromIdx, int toIdx)
@@ -637,38 +821,65 @@ namespace ARBot.Common.Occupancy
                 frontierAfter[i] = frontier;
             }
 
+            // Nejmensi odstup PRES CELOU DRAHU (diagnostika a MaxPositionError uzlu se resi zvlast).
+            for (int i = 0; i < m; i++)
+                if (sampleClear[i] < minClearance) minClearance = sampleClear[i];
+
+            bool timeAwareNodes = cfg.Smoothing == PathSmoothingMode.TimeAware && !escape;
+
             var wps = new RegulatorWayPoint[n];
             for (int k = 0; k < n; k++)
             {
-                // Okno uzlu pro ODSTUP = usek k nemu vedouci + usek z nej vychazejici. Kazdy vzorek je
-                // tak zastropovan alespon jednim uzlem -> po zpetnem pruchodu PathPlanneru konzervativni.
-                // Ten predpoklad plati jen proto, ze PathResult.Control od 3. 9. 2026 vynucuje strop
-                // uzlu, ze ktereho se odjizdi, PODEL celeho useku (WayPoints[seg].Speed). Do te doby
-                // znal jen uzly pred robotem a u dvoubodove drahy (posledni uzel = zastaveni) se
-                // odstupovy strop prvniho useku neuplatnil vubec - viz doc/devlog.md 3. 9. 2026.
+                // Strop uzlu = obalka V UZLU (od 8. 9. 2026), ne minimum pres okno sousednich useku.
                 //
-                // Strop z odstupu je MINIMUM OBALKY pres vzorky okna, ne obalka minima odstupu: ve
-                // smerovem modelu zalezi u kazdeho vzorku i na tom, kam draha miri (priblizovani).
-                // V radialnim rezimu je obalka monotonni v odstupu, takze obe formulace splyvaji.
-                double sFrom = k > 0 ? nodeS[k - 1] : nodeS[0];
-                double sTo = k < n - 1 ? nodeS[k + 1] : nodeS[n - 1];
-                double clr = double.MaxValue;
-                double vClear = double.MaxValue;
-                double closingAtMin = 0;      // priblizovani ve vzorku, ktery strop urcil
-                for (int i = 0; i < m; i++)
+                // Do te doby to minimum bylo: kazdy vzorek tak byl zastropovan aspon jednim uzlem,
+                // coz je bezpecne konstrukci, ale usek se pak CELY jede rychlosti sveho nejhorsiho
+                // mista (PathResult.Control drzi WayPoints[seg].Speed podel celeho useku). Rampa se
+                // tim splacla na konstantu: jizda kolmo k prekazce se plazila uz od zacatku, ackoli
+                // u sebe mel robot odstup 1,2 m.
+                //
+                // Bezpecnostni argument je ted jiny, ne slabsi: vyhlazovani usek prijme jen tehdy,
+                // kdyz PREDPOVEZENA rampa (z ceho se vjizdi, kam se dobrzdi) nikde na nem obalku
+                // neprekroci - viz ShortcutKeepsTime. Zbytek uz umi vrstva pod tim: PathPlanner z
+                // Speed udela VLimit uzlu a PathResult k nemu dobrzduje, takze mezi dvema uzly
+                // vznikne prave ta rampa. Predpoklad: planovac brzdi konzervativneji nez regulator
+                // (cfg.MaxDeceleration <= decelerace profilu) - jinak by rampa byla plossi nez
+                // overena. Viz doc/occupancy-and-local-planning.md a decisions.md 8. 9. 2026.
+                //
+                // Puvodni pravidlo (minimum pres okno) proto ZUSTAVA u smooth=passable a u uniku:
+                // tam se rampa neoveruje, takze jedina zaruka je to minimum. Obe poloviny jsou pár.
+                int si = nodeSample[k];
+                double clr, closingAtMin, vClear;
+                if (timeAwareNodes)
                 {
-                    if (sampleS[i] < sFrom || sampleS[i] > sTo) continue;
-                    if (sampleClear[i] < clr) clr = sampleClear[i];
-                    double ve = cfg.VEnvelope(sampleClear[i], sampleClosing[i]);
-                    if (ve < vClear) { vClear = ve; closingAtMin = sampleClosing[i]; }
-                }
-                if (clr == double.MaxValue)
-                {
-                    clr = sampleClear[nodeSample[k]];
-                    closingAtMin = sampleClosing[nodeSample[k]];
+                    clr = sampleClear[si];
+                    closingAtMin = sampleClosing[si];
                     vClear = cfg.VEnvelope(clr, closingAtMin);
                 }
-                if (clr < minClearance) minClearance = clr;
+                else
+                {
+                    // Okno uzlu = usek k nemu vedouci + usek z nej vychazejici; strop z odstupu je
+                    // MINIMUM OBALKY pres vzorky okna, ne obalka minima odstupu (ve smerovem modelu
+                    // zalezi u kazdeho vzorku i na tom, kam draha miri).
+                    double sFrom = k > 0 ? nodeS[k - 1] : nodeS[0];
+                    double sTo = k < n - 1 ? nodeS[k + 1] : nodeS[n - 1];
+                    clr = double.MaxValue;
+                    vClear = double.MaxValue;
+                    closingAtMin = 0;
+                    for (int i = 0; i < m; i++)
+                    {
+                        if (sampleS[i] < sFrom || sampleS[i] > sTo) continue;
+                        if (sampleClear[i] < clr) clr = sampleClear[i];
+                        double ve = cfg.VEnvelope(sampleClear[i], sampleClosing[i]);
+                        if (ve < vClear) { vClear = ve; closingAtMin = sampleClosing[i]; }
+                    }
+                    if (clr == double.MaxValue)
+                    {
+                        clr = sampleClear[si];
+                        closingAtMin = sampleClosing[si];
+                        vClear = cfg.VEnvelope(clr, closingAtMin);
+                    }
+                }
 
                 // Brzdna obalka: vzdalenost k hranici potvrzeneho, merena OD TOHOTO UZLU dopredu.
                 double freeAhead = frontierAfter[nodeSample[k]] - nodeS[k];

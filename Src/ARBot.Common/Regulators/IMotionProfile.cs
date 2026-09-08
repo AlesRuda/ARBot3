@@ -31,7 +31,28 @@ namespace ARBot.Common.Regulators
         /// na vzdálenosti <paramref name="dist"/> dosáhl <paramref name="endSpeed"/>. Zrychluje
         /// (<c>start &lt; end</c>) i brzdí (<c>start &gt; end</c>).
         /// </summary>
+        /// <remarks>
+        /// ⚠️ Je to <b>jeden krok regulátoru</b>, ne průběh rychlosti po dráze: <paramref name="startSpeed"/>
+        /// je okamžitá rychlost robotu a implementace smí být diskrétní (perioda vzorkování, rezerva).
+        /// Kdo potřebuje „jak rychle smím jet v místě <c>s</c>", chce <see cref="Dist2MaxSpeed"/>.
+        /// </remarks>
         RegulatorResult Dist2Speed(double dist, double startSpeed, double endSpeed);
+
+        /// <summary>
+        /// <b>Brzdná obálka</b>: nejvyšší rychlost, kterou robot smí mít ve vzdálenosti
+        /// <paramref name="dist"/> <b>před</b> bodem, kde má být na <paramref name="endSpeed"/>.
+        /// Nezávisí na aktuální rychlosti — je to čistě kinematický strop daný profilem.
+        /// </summary>
+        /// <remarks>
+        /// <para>Vlastnosti, na které se smí spoléhat (hlídá <c>MotionProfileParityTests</c>):
+        /// <c>Dist2MaxSpeed(0, v_e) == v_e</c>, roste s <paramref name="dist"/>, nikdy nepřesáhne
+        /// <see cref="MaxSpeed"/>, a je <b>horní mezí</b> zásahu <see cref="Dist2Speed"/>.</para>
+        /// <para>Pro tuhle metodu vzniklo místo tím, že se týž vzorec opisoval na třech místech
+        /// (zpětný průchod v <c>PathPlanner</c>, rychlostní obálka lokálního plánovače a předpověď
+        /// rampy při vyhlazování dráhy) — a plánovač si ho kvůli tomu musel modelovat sám.
+        /// Viz doc/path-following.md a doc/occupancy-and-local-planning.md.</para>
+        /// </remarks>
+        double Dist2MaxSpeed(double dist, double endSpeed);
 
         /// <summary>
         /// Rotační rychlost (akční zásah), kterou má robot otáčet, aby z <paramref name="startRotSpeed"/>

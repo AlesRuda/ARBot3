@@ -104,6 +104,23 @@ které ještě stihnu splnit vše budoucí (rohy, koncové zastavení)"*. Přík
 následovaný úsekem 10 cm s koncem v 0 — do druhého úseku nelze vletět naplno, vstupní rychlost
 `≤ √(2·d·0,10)`, a strop se propaguje zpět na první úsek.
 
+**Od 8. 9. 2026 ten vzorec vlastní profil**, ne `PathPlanner`: je to
+`IMotionProfile.Dist2MaxSpeed(L, v_výstup)` — *„nejvyšší rychlost ve vzdálenosti `L` před bodem, kde
+mám být na `v_výstup`"*. Opsaný vzorec by se rozešel s profilem, který nebrzdí konstantní decelerací
+(`SqrtMotionProfile` má zákon `√(a·d)`), a týž vzorec si vedle toho opisoval i lokální plánovač.
+Vlastnosti, na které se smí spoléhat, hlídá `MotionProfileParityTests`: `Dist2MaxSpeed(0, v_e) = v_e`,
+roste se vzdáleností, nepřesáhne `MaxSpeed` a je **horní mezí zásahu `Dist2Speed`** — ⚠️ ovšem jen
+**dokud robot do místa vjíždí pod stropem**. Když už jede rychleji, regulátor vrací nejlepší možné
+brzdění, ne nesplnitelný strop (`Dist2Speed(0,05, v=0,4, v_e=0)` = 0,252 proti stropu 0,141).
+✅ **`Speed2Dist` je jeho přesná inverze** — od 8. 9. 2026. Do té doby počítal `(v_s − v_e)²/(2a)`,
+tedy dráhu rozjezdu z nuly na *rozdíl* rychlostí: sedělo to jen pro `v_e = 0` (při `v_s = 0,8`,
+`v_e = 0,3`, `a = 0,5` vyšlo 0,25 místo 0,55) a u `SqrtMotionProfile` ani to, protože jeho zákon
+`v = √(a·d)` dává `d = |v_s² − v_e²|/a`, tedy **dvojnásobek** dráhy konstantní decelerace. Že je
+správný fyzikální tvar, potvrzuje i simulace diskrétní rampy (sedí na setiny milimetru). Metoda
+neměla produkční volání, pinnul ji jen charakterizační test; nově to hlídá
+`Speed2Dist_JePresnouInverziDist2MaxSpeed` proti oběma profilům.
+nemá produkční volání a je pinnutý charakterizačním testem, tak zůstal, jak byl.
+
 ---
 
 ## Exekuce — `Control(IModelState)` každý tik
@@ -134,6 +151,16 @@ Zásah = dvě nezávisle počítaná čísla: **dopredná rychlost** a **rotačn
    nevyjel. `Speed = 0` zůstává „bez stropu", takže producenti drah bez stropu nic nepoznají.
    Testy: `PathControllerTests.StropStartovnihoUzlu_*`, `StropUzluPlatiPodelCelehoUseku_*`,
    `BezStropuNaStartu_*`. Viz [devlog.md](devlog.md), 3. 9. 2026.
+   **Od 8. 9. 2026 to nese ještě jednu roli.** `LocalPathPlanner` dává uzlu strop z obálky **v tom
+   uzlu** (dřív minimum přes obě sousední úsečky), takže mezi dvěma uzly vzniká právě **rampa**:
+   strop vjezdového uzlu drží bod 3b, dobrzdění na strop výjezdového obstará `Dist2Speed` z bodu 3.
+   Vnitřek úseku už tedy nehlídá žádný uzel — místo toho **plánovač při vyhlazování ověřil**, že se
+   ta rampa vejde pod rychlostní obálku v každém bodě úseku — a počítá ji **z tohoto profilu**
+   (`ARBotRuntime` předá tutéž instanci do `PathPlanner`u i do `LocalNavigator`u). Průběh `v(s)`
+   (`ARBotRuntime` předá tutéž instanci do `PathPlanner`u i do `LocalNavigator`u). Průběh `v(s)`
+   ale **nevzniká voláním `Dist2Speed`** — na to je od 8. 9. 2026 v rozhraní
+   **`Dist2MaxSpeed(dist, endSpeed)`** (viz níž).
+   Viz [occupancy-and-local-planning.md](occupancy-and-local-planning.md), léčba 8. 9. 2026.
 3. **Rotační rychlost** — z **lookahead bodu** ve vzdálenosti `L_d = τ_look·v` na trase: úhel
    k němu = směrová odchylka → `Rot2RotSpeed` → `ω`. Lookahead slouží **jen k řízení směru**.
 4. **Vazba** — `SpeedLimit` srazí dopřednou rychlost, je-li směrová odchylka velká (robot se

@@ -135,6 +135,9 @@ namespace ARBot.Common.Occupancy
         /// <param name="gridMessagePeriod">Jak casto emitovat <see cref="OccupancyGridMsg"/>
         /// (snapshot 128 KB); default 500 ms. <see cref="TimeSpan.Zero"/> = kazdy cyklus.</param>
         /// <param name="queueCapacity">Kapacita vstupni fronty snimku (DropOldest); default 4.</param>
+        /// <param name="motionProfile">Kinematicky profil pro vyhlazovani drahy - MUSI byt tentyz, ktery
+        /// dostal <paramref name="pathPlanner"/>, jinak planovac predpovida jinou rampu, nez regulator
+        /// odjede. null = vychozi lichobeznikovy profil z <paramref name="plannerConfig"/>.</param>
         public LocalNavigator(AsyncFusionEngine engine,
                               Func<string, ICameraProjection> depthProjections,
                               Func<string, ICameraProjection> colorProjections = null,
@@ -143,7 +146,8 @@ namespace ARBot.Common.Occupancy
                               LocalPlannerConfig plannerConfig = null,
                               OccupancyIntegratorConfig integratorConfig = null,
                               TimeSpan? gridMessagePeriod = null,
-                              int queueCapacity = 4)
+                              int queueCapacity = 4,
+                              IMotionProfile motionProfile = null)
             : base(OverflowPolicy.DropOldest, queueCapacity)
         {
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -154,7 +158,7 @@ namespace ARBot.Common.Occupancy
             grid = new OccupancyGrid(gridConfig);
             integrator = new OccupancyIntegrator(grid, integratorConfig);
             field = new ClearanceField(grid);
-            planner = new LocalPathPlanner(grid.Size, plannerConfig);
+            planner = new LocalPathPlanner(grid.Size, plannerConfig, motionProfile);
             gridMsgPeriod = gridMessagePeriod ?? TimeSpan.FromMilliseconds(500);
         }
 

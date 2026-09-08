@@ -25,6 +25,30 @@ namespace ARBot.Common.Occupancy
     }
 
     /// <summary>
+    /// Pravidlo, podle ktereho vyhlazovani drahy (string-pulling) prijima zkratky.
+    /// </summary>
+    public enum PathSmoothingMode
+    {
+        /// <summary>
+        /// Puvodni pravidlo (do 8. 9. 2026): zkratka se prijme, kdykoli podel ni plati tvrde
+        /// <c>d &gt;= SafeDist</c>. Vyhlazovani tim optimalizuje DELKU, kdezto A* optimalizoval CAS,
+        /// takze zahodi objizdku, kterou cena koupila, a drahu pritiskne na mez prujezdnosti.
+        /// Ponechano pro A/B (<c>smooth=passable</c>). Viz doc/occupancy-and-local-planning.md.
+        /// </summary>
+        Passable = 0,
+
+        /// <summary>
+        /// Zkratka se prijme, jen kdyz (a) PREDPOVEZENA RAMPA regulatoru se vejde pod obalku v kazdem
+        /// vzorku useku a (b) nezhorsi to jizdni cas proti jemnemu deleni (vychozi od 8. 9. 2026).
+        /// Rampa = drz strop vjezdoveho uzlu a vcas dobrzdi na strop vyjezdoveho, tedy presne to, co
+        /// vznikne z <c>WayPoints[k].Speed</c> pres <c>PathPlanner.VLimit</c> a <c>PathResult</c>.
+        /// Diky tomu se rovnomerne zpomalovani slouci do jednoho useku bez ztraty casu, kdezto
+        /// PROPAD obalky uprostred (skvrna) se slucit neda - dostane vlastni kratky usek.
+        /// </summary>
+        TimeAware = 1,
+    }
+
+    /// <summary>
     /// Konfigurace lokalniho planovace (<see cref="LocalPathPlanner"/>) - odstupy, rychlostni stropy
     /// a ceny. Vychozi hodnoty se berou z <see cref="Profile"/>.
     /// Viz doc/occupancy-and-local-planning.md.
@@ -40,6 +64,18 @@ namespace ARBot.Common.Occupancy
         /// <summary>Model rychlostniho stropu z odstupu. Vychozi smerovy; <c>envelope=radial</c> vrati puvodni.</summary>
         public SpeedEnvelopeMode Envelope = SpeedEnvelopeMode.Directional;
 
+        /// <summary>
+        /// Pravidlo pro prijeti zkratky pri vyhlazovani drahy. Vychozi <see cref="PathSmoothingMode.TimeAware"/>;
+        /// <c>smooth=passable</c> vrati puvodni chovani (jen tvrdy odstup) pro A/B.
+        /// </summary>
+        public PathSmoothingMode Smoothing = PathSmoothingMode.TimeAware;
+
+        // POZN.: bývalo tu pole SmoothMaxTimeLoss (5 %) - relativní tolerance, o kolik smí zkratka
+        // zdržet. Bylo potřeba, dokud se čas zkratky počítal jako "délka / min(v)": rychlost se pak
+        // po úseku nesměla měnit vůbec, takže jízda KOLMO k překážce (kde VClosing klesá s každou
+        // buňkou) dala 17 uzlů na dráhu 0,75 m. Od 8. 9. 2026 se čas počítá RAMPOU, kterou regulátor
+        // opravdu odjede, takže rovnoměrné zpomalování vyjde stejně jako jemné dělení a slučuje se
+        // bez jakéhokoli prahu; zbyla jen numerická rezerva 1e-6. Viz decisions.md 8. 9. 2026.
         /// <summary>
         /// Sirka PODELNE rampy nad <see cref="SafeDist"/> [m] (smerovy model): pri odstupu
         /// SafeDist + EdgeMarginM uz se podel prekazky jede plnou rychlosti. Je to rezerva na pricnou
