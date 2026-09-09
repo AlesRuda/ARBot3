@@ -317,6 +317,38 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   kvantizovat. **U Model96.2 mizí mezera „naměřeno vs. notebook"** (0,9680 proti 0,9682), kdežto
   u 61.1 zbývá 7,3 p. b. nevysvětlených. Další krok je **NPU** (RK3588, 3× ~2 TOPS) —
   postup je v dokumentu, ale první je změřit CPU cestu na Pi.
+  ✅ **Rozbor modelu 9. 9. 2026 — polovina výpočtu je zbytečná:** `112,5 → 57,2 MMAC` u Model61.1
+  a `3 837 → 2 125` u Model96.2 **při nezměněném rozhodnutí na všech 819 200 pixelech** sady
+  (`models/onnxopt.py`, čas na Windows/ORT 3,29 → 2,09 ms resp. 62,7 → 38,0 ms). Dvě exaktní
+  úpravy: Conv 1×1 **komutuje s nearest-`Resize`** (spočítá se před zvětšením) a dvě sousední
+  Conv 1×1 bez nelinearity mezi nimi se slučují — vzniklo to tím, že `GenericModel20` staví
+  MobileNetV2 blok **bez residuálu** a s `expansion=1`, takže lineární bottleneck spojí se
+  `expand` dalšího bloku. **Měřidlem v repu prošlo** (`backproject --truth`): celý report je
+  proti zdroji **shodný znak po znaku** včetně všech 50 snímků, čas −33 % resp. −39 %.
+  ✅ **Od 9. 9. 2026 je to ve výchozí konfiguraci:** `nnmodel=models/Model61.1_int8_deq_opt.onnx`
+  (**−54 % času** proti dřívějšímu `_int8`, 3,81 → 1,74 ms, přesnost 88,22 proti 88,23 %, tedy
+  v šumu). Kryjí to dva testy — že výchozí model **existuje** (jinak by se zapomenutý soubor
+  poznal teprve na robotu a vypadal jako porucha kamery) a že optimalizace **nemění rozhodnutí**
+  proti zdrojovému modelu. ⚠️ **Na ARM to přeměřené NENÍ a tam bylo pořadí obrácené** (int8
+  10,2 ms proti 16,1 u floatu), takže na Orange Pi to může být pomalejší; staré chování vrátí
+  `nnmodel=models/Model61.1_int8.onnx`. 🔧 **`npumodel=` optimalizovaný NENÍ a je to vedené jako
+  nedodělek** (`semantic-segmentation.md`, Otevřené otázky — konkrétní kroky i příkazy): převést
+  `Model61.1_float_opt.onnx` a `Model96.2_float_opt.onnx` do `.rknn` (rknn-toolkit2, Linux),
+  **změřit na Pi** (⚠️ přesnost přeměřit, ne předpokládat — kvantizace se sloučenými vahami se
+  může chovat jinak; a **kolik z −49 % NPU využije, se neví**, RKNN plánuje sám) a **teprve pak**
+  případně nastavit `npumodel=`. Nejvíc je v tom pro Model96.2 (44 ms, půlí snímkovou frekvenci).
+  ⚠️ **V runtime to nejelo a na Pi nebylo.** ⚠️ Proč je
+  `_int8_deq_opt` o 27 % rychlejší než `_float_opt`, když mají **týž graf i týž počet násobení**,
+  není vysvětlené (denormály vyvrácené měřením). ⚠️ Přitom se našlo, že
+  `Model96.2.onnx` (z `.tflite`, **96,80 %**) a `Model96.2_float.onnx` (z `.h5`, **95,35 %**)
+  jsou **jiné váhy** — lepší checkpoint v repu jako `.h5` není, a NPU varianta má naměřeno
+  96,66 %, tedy **víc než její údajný zdroj**. **Mrtvé neurony ověřeny:**
+  jen 0,70 % ReLU kanálů (28 ze 4 016), prořezání by dalo 1,7 % — zajímavé je, že v nejužších
+  blocích dekodéru je mrtvých **3 z 16**, a že z 16 vstupů `final_conv` **stačí jeden** (kopie
+  téhož signálu, 97,2 % rozptylu v 1. komponentě). **Flip-TTA i softmax jsou zamítnuté měřením**
+  (+0,07 resp. +0,02 p. b.); práh 0,40 dá +0,45 p. b. přesnosti, ale **zhorší** falešně přidanou
+  cestu ze 7,45 na 10,38 %. Chyby v notebooku (sigmoid + SCC, **validace = testovací sada**,
+  dropout v každém bloku, `GenericModel25` definovaný dvakrát) jsou sepsané v dokumentu.
 - [doc/world-view.md](doc/world-view.md) — world (geo) pohled: mapa (Mapsui) s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze
   streamu (poloha+kurz, trajektorie, trasa/graf, značky) + vrstva „Mapa (vize)" mimo stream

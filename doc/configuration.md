@@ -318,7 +318,7 @@ booleovským přepínačem (stejně jako `mission=`):
 | parametr | výchozí | co dělá |
 |---|---|---|
 | `backproject=` | `hist` | `hist` = zpětná projekce z histogramu barev, `nn` = neuronová síť (ONNX Runtime) |
-| `nnmodel=` | `models/Model61.1_int8.onnx` | model pro `backproject=nn` |
+| `nnmodel=` | `models/Model61.1_int8_deq_opt.onnx` | model pro `backproject=nn` — od 9. 9. 2026 **optimalizovaný graf** (viz níž) |
 | `nnchannels=` | `rgb` | pořadí kanálů na vstupu sítě (`rgb` je pořadí z ARBot2); je tu na A/B |
 | `npumodel=` | `models/Model61.1.rknn` | model pro `backproject=npu` (vlastní parametr, aby nešel `.onnx` podstrčit do NPU a naopak) |
 | `camerafps=` | 30 | snímková frekvence kamer D435 [sn/s] — **jen 6, 15, 30, 60** |
@@ -334,6 +334,17 @@ porucha kamery.
 u neznámého klíče v profilu: tichý fallback by znamenal, že měření sítě by nepozorovaně měřilo
 histogram. ⚠️ Síť počítá ve **128×128**, kdežto histogram v plném rozlišení snímku, takže
 přepnutí mění i hustotu dat pro occupancy grid a hranice cesty.
+
+**Výchozí `nnmodel=` je od 9. 9. 2026 optimalizovaný graf** (`models/onnxopt.py`): tentýž model
+s odstraněným výpočtem, který na výsledku nic nemění — **112,5 → 57,2 MMAC**, na Windows
+**3,81 → 1,74 ms**, přesnost 88,22 % proti 88,23 %, tedy v šumu. Že se **rozhodnutí nemění**,
+hlídá test `OptimalizovanyModelRozhodujeStejneJakoZdrojovy`; že výchozí soubor vůbec **existuje**
+(zapomenutý v repu nebo v nasazení by se jinak poznal teprve na robotu, a vypadal by jako porucha
+kamery), hlídá `VychoziModelZRegistruExistujeAJdeNacist`.
+⚠️ **Na ARM to přeměřené není a tam bylo pořadí variant obrácené** — před optimalizací int8
+10,2 ms proti 16,1 u floatu, kdežto na x86 int8 prohrával. Staré chování vrátí
+`nnmodel=models/Model61.1_int8.onnx`. ⚠️ **`npumodel=` optimalizovaný není** — `.rknn` se musí
+převést znovu a to chce rknn-toolkit2 na Linuxu.
 
 Podrobnosti, naměřená čísla a otevřené otázky: [semantic-segmentation.md](semantic-segmentation.md).
 

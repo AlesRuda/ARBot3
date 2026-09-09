@@ -166,13 +166,31 @@ namespace ARBot.Common.Configuration
               + "sit na NPU RK3588 pres librknnrt.so, model zada npumodel= - JEN na Orange Pi). "
               + "Sit pocita v mensim rozliseni nez histogram, takze meni i hustotu dat pro "
               + "occupancy grid a hranice cesty. Viz doc/semantic-segmentation.md.");
-        public static readonly PathParam NnModel = Cesta("nnmodel", "models/Model61.1_int8.onnx", K_VIZE,
+        // Vychozi je OPTIMALIZOVANY graf (models/onnxopt.py, 9. 9. 2026): tentyz model s
+        // odstranenym vypoctem, ktery na vysledku nic nemeni - 112,5 -> 57,2 MMAC pri
+        // NEZMENENEM ROZHODNUTI na vsech 819 200 pixelech models/testset. Varianta "_int8_deq"
+        // je zvolena proto, ze je z obou opt variant rychlejsi I presnejsi (1,74 proti 2,47 ms
+        // a 88,22 proti 88,16 %); "int8" v nazvu znamena, ze pochazi z kvantovaneho .tflite,
+        // ale pocita se ve floatu. ⚠️ Cas je z WINDOWS x64 - na ARM bylo pred optimalizaci
+        // poradi OBRACENE (int8 10,2 ms proti 15,0 u deq), takze na Orange Pi to PREMERENE
+        // NENI; stare chovani vrati nnmodel=models/Model61.1_int8.onnx.
+        // Viz doc/semantic-segmentation.md a models/README.md.
+        public static readonly PathParam NnModel = Cesta("nnmodel", "models/Model61.1_int8_deq_opt.onnx", K_VIZE,
               "Model semanticke segmentace (.onnx) pro backproject=nn. Vstup [1,H,W,3] float 0..1, "
-              + "vystup [1,H,W,C] float - prevod z TFLite dela models/tflite2onnx.py.");
+              + "vystup [1,H,W,C] float - prevod z TFLite dela models/tflite2onnx.py, exaktni "
+              + "optimalizaci grafu models/onnxopt.py. Vychozi je optimalizovana varianta: pulka "
+              + "vypoctu puvodniho modelu je zbytecna (dve 1x1 konvoluce za sebou bez nelinearity, "
+              + "a 1x1 konvoluce za nearest-Resize, ktera s nim komutuje), takze 112,5 -> 57,2 MMAC "
+              + "a na Windows 3,8 -> 1,74 ms PRI STEJNEM ROZHODNUTI. Na ARM to premerene neni - "
+              + "tam int8 vitezil; stare chovani vrati models/Model61.1_int8.onnx.");
         public static readonly PathParam NpuModel = Cesta("npumodel", "models/Model61.1.rknn", K_VIZE,
               "Model pro backproject=npu (.rknn). Vlastni parametr, ne sdileny s nnmodel=, aby "
               + "nesel omylem podstrcit .onnx do NPU cesty a naopak. Prevod dela models/onnx2rknn.py; "
-              + "vstup je uint8 0..255, normalizaci si dela NPU podle mean/std z prevodu.");
+              + "vstup je uint8 0..255, normalizaci si dela NPU podle mean/std z prevodu. "
+              + "⚠️ Tenhle soubor OPTIMALIZOVANY NENI: onnxopt.py pracuje nad .onnx, takze .rknn "
+              + "se musi prevest znovu z models/Model61.1_float_opt.onnx - a to chce rknn-toolkit2 "
+              + "na Linuxu. Kolik z tech -49 % nasobeni NPU skutecne vyuzije, se navic nevi "
+              + "(RKNN si planuje sam), takze je to krok, ktery se musi zmerit na Pi.");
         public static readonly DoubleParam CameraFps = Num("camerafps", Fmt(Profile.CameraFps), K_VIZE,
               "Snimkova frekvence kamer D435 [sn/s]. Povolene jsou jen hodnoty, ktere kamera zna "
               + "(6, 15, 30, 60) - na jinou pipeline nenastartuje a vypadalo by to jako porucha. "

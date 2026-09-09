@@ -221,5 +221,98 @@ namespace ARBot.Common.Tests.Vision
             Assert.That(() => new OnnxBackProject(Path.Combine(Path.GetTempPath(), "neexistuje-arbot.onnx")),
                         Throws.TypeOf<FileNotFoundException>());
         }
+
+        // --- Vychozi model z registru ----------------------------------------------------
+
+        /// <summary>
+        /// VYCHOZI <c>nnmodel=</c> musi existovat a jit nacist. Bez tohohle testu by se
+        /// prepsani defaultu na soubor, ktery nekdo zapomene pridat do repa nebo do nasazeni,
+        /// poznalo teprve za behu na robotu - a vypadalo by to jako porucha kamery.
+        ///
+        /// <para>Preskoci se JEN kdyz v <c>models/</c> nejsou zadne modely (tedy nebezime nad
+        /// pracovni kopii repa). Kdyz tam modely jsou a chybi zrovna ten vychozi, je to CHYBA,
+        /// ne duvod k preskoceni.</para>
+        /// </summary>
+        [Test]
+        public void VychoziModelZRegistruExistujeAJdeNacist()
+        {
+            string dir = Path.Combine(RepoPaths.RootOrBase(), "models");
+            if (!Directory.Exists(dir) || Directory.GetFiles(dir, "*.onnx").Length == 0)
+                Assert.Ignore("V models/ nejsou zadne .onnx modely (viz models/README.md).");
+
+            string p = RepoPaths.Resolve(ParamRegistry.NnModel.Def.Default);
+            Assert.That(File.Exists(p), Is.True,
+                        $"Vychozi nnmodel='{ParamRegistry.NnModel.Def.Default}' neexistuje ({p}). "
+                        + "Bud se soubor zapomnel pridat do repa, nebo je spatne default v ParamRegistry.");
+
+            using var bp = new OnnxBackProject(p);
+            Assert.That(bp.OutputChannels, Is.GreaterThanOrEqualTo(2), "Model ma mit aspon dva kanaly vystupu.");
+            Assert.That(bp.InputWidth, Is.GreaterThan(0));
+        }
+
+        /// <summary>
+        /// Vychozi model je OPTIMALIZOVANY graf (<c>models/onnxopt.py</c>) a ta optimalizace ma
+        /// byt EXAKTNI - odstranuje jen vypocet, ktery na vysledku nic nemeni (dve 1x1 konvoluce
+        /// za sebou bez nelinearity mezi nimi, a 1x1 konvoluce za nearest-Resize, ktera s nim
+        /// komutuje). Test to hlida proti ZDROJOVEMU modelu, aby se pripadna regrese v tom
+        /// skriptu projevila jako selhany test, ne jako *tise horsi segmentace*.
+        ///
+        /// <para>Meri se <b>shoda rozhodnuti</b>, ne shoda cisel: preskladana aritmetika ma jiny
+        /// zaokrouhlovaci sum, takze hodnoty se lisit MUSI (namereno 1,2e-6 pred kvantizaci na
+        /// bajt). Rozhodnuti se lisit nesmi - vyjimka je jen pixel, ktery lezi na prahu, kde
+        /// o preklopeni rozhoduje uz samo zaokrouhleni na bajt.</para>
+        /// </summary>
+        [Test]
+        public void OptimalizovanyModelRozhodujeStejneJakoZdrojovy()
+        {
+            string opt = RepoPaths.Resolve(ParamRegistry.NnModel.Def.Default);
+            // "_opt" je konvence onnxopt.py; zdrojovy model se jmenuje stejne bez ni.
+            string src = opt.Replace("_opt.onnx", ".onnx", StringComparison.Ordinal);
+            if (src == opt) Assert.Ignore($"Vychozi model '{Path.GetFileName(opt)}' neni varianta '_opt'.");
+            if (!File.Exists(opt) || !File.Exists(src))
+                Assert.Ignore("Vychozi nebo zdrojovy model neni k dispozici (viz models/README.md).");
+
+            using var a = new OnnxBackProject(src);
+            using var b = new OnnxBackProject(opt);
+            Assert.That(b.InputWidth, Is.EqualTo(a.InputWidth), "Optimalizace nesmi zmenit rozmer vstupu.");
+            Assert.That(b.OutputWidth, Is.EqualTo(a.OutputWidth), "Optimalizace nesmi zmenit rozmer vystupu.");
+
+            // Deterministicky vstup s plochami i hranami - na cistem sumu model nikde nerozhoduje
+            // jasne, takze by test nemeril to, co se v provozu deje.
+            var img = new Image<BGR32>(a.InputWidth, a.InputHeight);
+            var rnd = new Random(20260909);
+            for (int y = 0; y < a.InputHeight; y++)
+                for (int x = 0; x < a.InputWidth; x++)
+                {
+                    int i = (y * a.InputWidth + x) * 4;
+                    bool blok = ((x / 16) + (y / 16)) % 2 == 0;
+                    int zaklad = blok ? 40 + y / 2 : 150 - x / 3;
+                    img.Data[i + 0] = (byte)Math.Clamp(zaklad + rnd.Next(-8, 9), 0, 255);
+                    img.Data[i + 1] = (byte)Math.Clamp(zaklad + 20 + rnd.Next(-8, 9), 0, 255);
+                    img.Data[i + 2] = (byte)Math.Clamp(zaklad + 10 + rnd.Next(-8, 9), 0, 255);
+                    img.Data[i + 3] = 255;
+                }
+
+            var da = new Image<Gray>(a.OutputWidth, a.OutputHeight);
+            var db = new Image<Gray>(b.OutputWidth, b.OutputHeight);
+            a.Process(img, da);
+            b.Process(img, db);
+
+            int jineRozhodnuti = 0, naPrahu = 0, maxRozdil = 0;
+            for (int i = 0; i < da.DataLength; i++)
+            {
+                int va = da.Data[i], vb = db.Data[i];
+                maxRozdil = Math.Max(maxRozdil, Math.Abs(va - vb));
+                if ((va >= 128) == (vb >= 128)) continue;
+                jineRozhodnuti++;
+                if (Math.Abs(va - 128) <= 1 && Math.Abs(vb - 128) <= 1) naPrahu++;
+            }
+
+            Assert.That(maxRozdil, Is.LessThanOrEqualTo(2),
+                        $"Optimalizace zmenila pravdepodobnost o {maxRozdil}/255 - to uz neni zaokrouhlovaci sum.");
+            Assert.That(jineRozhodnuti - naPrahu, Is.Zero,
+                        $"Optimalizovany model rozhodl jinak na {jineRozhodnuti - naPrahu} pixelech "
+                        + $"(z {da.DataLength}), mimo prah. Optimalizace ma byt exaktni.");
+        }
     }
 }

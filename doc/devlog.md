@@ -37,6 +37,115 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-09
+
+- **Rozbor Model61.1 a trénovacího notebooku** (zadání: co by šlo vylepšit, jaké jsou známé chyby,
+  ověřit mrtvé neurony). Nic se nepřetrénovávalo — všechno je měření nad `Model61.1_float.onnx`
+  a `models/testset`. Detaily: [semantic-segmentation.md](semantic-segmentation.md).
+- **Hotovo — hlavní nález: polovina výpočtu modelu je zbytečná.** `112,5 → 57,2 MMAC (−49 %)`
+  u Model61.1 a `3 837 → 2 125 (−45 %)` u Model96.2, při **nezměněném rozhodnutí na všech
+  819 200 pixelech** sady (max rozdíl pravděpodobnosti 1,2 × 10⁻⁶ = šum float32). Dvě exaktní
+  úpravy grafu: Conv 1×1 komutuje s nearest-`Resize` (spočítá se před zvětšením, 4× menší obraz)
+  a dvě sousední Conv 1×1 bez nelinearity mezi nimi se slučují. Příčina je v architektuře —
+  `GenericModel20` staví MobileNetV2 blok **bez residuálu** a s `expansion=1`, takže lineární
+  bottleneck už nemá s čím sousedit a spojí se s `expand` dalšího bloku. Čas na Windows/ORT
+  `3,29 → 2,09 ms` (Model96.2 `62,7 → 38,0 ms`). Nástroj: nový
+  [`models/onnxopt.py`](../models/onnxopt.py) s `--check`, který ověřuje **shodu rozhodnutí**,
+  ne shodu čísel.
+- **Hotovo — mrtvé neurony ověřeny:** 28 ze 4 016 ReLU kanálů (0,70 %) je vždy nulových;
+  prořezáním by se ušetřilo 1,7 % MMAC, tedy nic. Rozložení je ale výmluvné — v encoderu nula,
+  v nejužších blocích dekodéru **3 z 16 (19 %)**. Silnější je redundance živých kanálů: z 16
+  vstupů `final_conv` **stačí jeden** (ablace: 88,20 → 88,18 %), protože jsou to kopie téhož
+  signálu (|r| p50 0,98, 97,2 % rozptylu v 1. hlavní komponentě). Bloky samotné odstranit
+  **nelze** — zkusilo se, model se rozpadne na 13,6 %.
+- **Hotovo — postprocessing přeměřen:** softmax místo normalizace součtem nedá nic (+0,02 p. b.),
+  **flip-TTA je zamítnutá** (+0,07 p. b. za dvojnásobek ceny), práh 0,40 dá +0,45 p. b. přesnosti,
+  **ale zhorší** falešně přidanou cestu ze 7,45 na 10,38 % — je to volba provozního bodu, ne
+  oprava. Navíc změřeno, že hodnota, kterou occupancy fúze bere jako důvěru, **není kalibrovaná**
+  (v pásmu 0,20–0,30 model tvrdí 26 %, cesta tam je v 1,6 % případů).
+- **Hotovo — chyby v notebooku sepsané** (přečteno všech 76 cel): `sigmoid` + SCC (Keras to tiše
+  srovná logaritmem), **validační sada = testovací sada** (0,9546 je výběrové maximum přes ~1000
+  epoch, ne nezávislý odhad), dropout 0,2 uvnitř každého MobileNet bloku, `random_contrast`
+  jen do 1,0, nearest resize obrázků. Plus latentní pasti: **`GenericModel25` je definovaný
+  dvakrát s různými signaturami** (záleží na pořadí spuštění cel), QAT cela má `from_logits=True`
+  nad sigmoidou, `SaveDataSet` prohání data `array_to_img`, který normalizuje rozsah — maska
+  „všechno je cesta" z toho vyjde jako „nic není cesta".
+- **Hotovo — optimalizovaný graf změřen měřidlem v repu** (`ARBot.Analyze backproject --truth`,
+  x64 Release): **celý report je proti zdrojovému modelu shodný znak po znaku** — souhrn,
+  všech 50 řádků per snímek i rozptylové percentily (Model61.1 88,16 % / IoU 0,844;
+  Model96.2 95,35 % / IoU 0,935). Totéž nad **záznamem**, tedy nad jinými daty než testset.
+  Čas celého převodu barva → pravděpodobnost: Model61.1 `3,614 → 2,423 ms` (−33 %),
+  Model96.2 `62,4 → 37,8 ms` (−39 %); pro kontext int8 3,620 ms a histogram ~2,9 ms.
+  ⚠️ Absolutně to **nejde srovnávat** s dřívějšími 11,3 / 6,9 / 8,0 ms ze 7. 9. (jiný stroj
+  a záznam, dnes 3× nižší), relativní pořadí ale drží.
+- **Mimochodem se našla nesrovnalost u Model96.2:** `Model96.2.onnx` (z `.tflite`) dává
+  **96,80 %**, kdežto `Model96.2_float.onnx` (z `.h5`) jen **95,35 %** — a **jsou to jiné váhy,
+  ne jiný převod** (dvě vrstvy, které jsou ve float v obou, se liší o 4,2 %). `.h5` v repu nese
+  v názvu 0,9643, notebook u Model96.2 uvádí 0,9682, takže **lepší checkpoint v repu jako `.h5`
+  není**. ⚠️ Tím vzniká otevřená otázka k NPU: dokumentace vede `_float.onnx` jako zdroj
+  `Model96.2.rknn`, ale ta RKNN varianta má naměřeno 96,66 %, což je **víc než její údajný
+  zdroj** — fp16 kvantizace model zlepšit nemůže. Bez Pi se to odsud nerozhodne.
+- **Hotovo — nálezy promítnuté do notebooku** (`Src/Colab/SemanticSegmentation.ipynb`), každá
+  změna s komentářem, proč to byla chyba; výstupy změněných cel smazané, u ostatních zachované.
+  Opraveno: `random_contrast` do 1,2, obraz se zmenšuje `area` místo `nearest` (label zůstává
+  `nearest`), **validace oddělená od testovací sady** (nová `fnVal` vyčleněná z tréninku
+  s pevným seedem; `fnTest` se **nemění**, visí na něm `models/testset`), `SaveTFLite` float
+  větev bez `Optimize.DEFAULT` a s pevným vstupním tvarem, `SaveDataSet` bez `array_to_img`,
+  dvojí `GenericModel25` → pozdější přejmenovaná na `GenericModel25b`, QAT `from_logits=False`,
+  mrtvá větev v `display()`, cely 68–70.
+- **`GenericModel20` zůstala nedotčená** (je to definice Model61.1, změnou by se přestal dát
+  postavit) — opravy architektury jsou v nové **`GenericModel27`**: residuální `Add` kde to jde,
+  `project` se vynechá tam, kde je redundantní, **`expand` v dekodéru před `UpSampling2D`**
+  (komutuje s ním), softmax místo sigmoidy, dropout výchozí 0.
+- **Ověřeno bez TensorFlow** (na Pythonu 3.13 nejde) mockem Kerasu, který sleduje tvary a sčítá
+  násobení: na konfiguraci Model61.1 vrátí u `GenericModel20` **přesně 112,5 MMAC**, tedy
+  skutečnou cenu modelu → jeho číslům lze věřit. `GenericModel27` s **toutéž** konfigurací dá
+  **60,1 MMAC (−47 %)**, tedy těsně nad 57,2, na které jde srazit hotový model přes `onnxopt.py`.
+  ⚠️ **Mock vyvrátil dvě věci, které jsem předtím napsal do dokumentace**: dropout vrstev je
+  **77**, ne ~36, a **při dvou blocích na stupeň nevznikne v encoderu ani jeden residuál**
+  (poslední blok má stride 2, první mění šířku) — všech 7 je v dekodéru; encoderové začnou
+  vznikat teprve při třech blocích, což stojí +70 %. Obě místa v dokumentaci opravena.
+  ⚠️ **Z `GenericModel27` nebyl natrénován žádný model** — `Model105.1` je zakomentované volání.
+- **Hotovo — optimalizované modely jsou v `models/` a ve výchozí konfiguraci** (na pokyn autora):
+  `nnmodel=` má nově default **`models/Model61.1_int8_deq_opt.onnx`** místo `Model61.1_int8.onnx`.
+  Vybraný podle měření všech pěti variant, protože vychází nejlépe na obou osách: **1,73 / 1,90 /
+  1,72 ms** (tři běhy) proti **3,61 / 3,76 / 3,88** u dřívějšího defaultu, tedy **−54 % času**,
+  a přesnost **88,22 %** proti 88,23 %, což je v šumu. Varianta z `_int8_deq` je z obou
+  optimalizovaných rychlejší **i** přesnější než ta z `_float` (88,16 %, 2,39 ms).
+  Do `models/` přidané `Model61.1_int8_deq_opt.onnx`, `Model61.1_float_opt.onnx`
+  a `Model96.2_float_opt.onnx` (poslední dva jako zdroj pro budoucí `.rknn`).
+- **Kryté dvěma novými testy** (ne jen python skriptem): `VychoziModelZRegistruExistujeAJdeNacist`
+  — chytí model zapomenutý v repu nebo v nasazení, což by se jinak poznalo teprve na robotu
+  a vypadalo jako porucha kamery; přeskočí se jen když v `models/` nejsou modely vůbec, ale
+  **chybějící default při existujících modelech je chyba**. A
+  `OptimalizovanyModelRozhodujeStejneJakoZdrojovy` — porovná výchozí model se zdrojovým, takže
+  regrese v `onnxopt.py` selže v testech, ne jako *tiše horší segmentace*; měří **shodu
+  rozhodnutí**, ne shodu čísel (přeskládaná aritmetika má jiný zaokrouhlovací šum). Testy
+  zelené: **1347** (Common) + 91 (HAL) + 95 (Runtime), build x64 všech projektů čistý.
+- ⚠️ **Nález bez vysvětlení:** `_int8_deq_opt` je o **27 % rychlejší** než `_float_opt`, ačkoli
+  mají po optimalizaci **týž graf** (122 uzlů, stejné typy, 57,2 MMAC) a liší se jen ve třech
+  bias tenzorech (224 hodnot ze 436 tisíc). Reprodukovatelné přes tři běhy, takže to není šum;
+  hypotéza na **denormalizovaná čísla je vyvrácená měřením** (nula denormálů v obou). Nechává se
+  jako naměřený fakt, ne jako vysvětlené chování.
+- **Rozpracováno / další krok — zapsané jako nedodělek** do
+  [semantic-segmentation.md](semantic-segmentation.md#otevřené-otázky) (na pokyn autora, včetně
+  konkrétních příkazů): **optimalizované modely přeložit do RKNN, změřit výkon na Pi a případně
+  nastavit `npumodel=`** — dnešní `.rknn` je z neoptimalizovaného modelu, protože `onnxopt.py`
+  pracuje nad `.onnx`. Tři kroky: převod `_float_opt` → `.rknn` (rknn-toolkit2, Linux; ⚠️ zdrojem
+  **musí** být `_float_opt`, ne `_int8_deq_opt`), měření přesnosti **i** času na Pi (⚠️ přesnost
+  **přeměřit, ne předpokládat** — sloučení vah zvětšuje jejich rozsah a ubírá zaokrouhlení, takže
+  kvantizace se může chovat jinak oběma směry; a ⚠️ **kolik z −49 % NPU využije, se neví**, plánuje
+  si sám), a **teprve při lepším výsledku** zápis do konfigurace. Nejvíc je v tom pro **Model96.2**
+  (44 ms, půlí snímkovou frekvenci) — tam se ale musí nejdřív vyjasnit, ze kterého checkpointu
+  dnešní `.rknn` vlastně vznikl, jinak by se srovnávaly dva různé modely.
+- **Druhý otevřený bod:** ⚠️ **na ARM je nový `nnmodel=` nezměřený a tam bylo pořadí variant
+  OBRÁCENÉ** (int8 10,2 ms proti 16,1 u floatu, kdežto na x86 int8 prohrával) — extrapolace říká
+  ~7,7 ms, ale je to extrapolace. Riziko je malé (výchozí `backproject=` je `hist`, na zařízení
+  se jede `npu`), přesto přeměřit.
+- **Odkazy:** [`models/onnxopt.py`](../models/onnxopt.py), [`models/README.md`](../models/README.md),
+  [semantic-segmentation.md](semantic-segmentation.md) (sekce „Polovina toho výpočtu je zbytečná",
+  „Mrtvé neurony", „Změřeno, co se z postprocessingu dá vytěžit", „Co v tom notebooku nesedí").
+
 ## 2026-09-08
 
 - **Nová mise Track: objezd míst ze souboru `*.track`.** *Na zadání autora* („bude se jmenovat
