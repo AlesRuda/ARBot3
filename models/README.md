@@ -10,8 +10,10 @@ Modely pro sémantickou segmentaci sjízdnosti (`backproject=nn`). Podrobnosti, 
 | `Model61.1_int8.onnx` | převedený pro ONNX Runtime, int8 vnitřek (840 kB) — **do 9. 9. 2026 výchozí** `nnmodel=` |
 | `Model61.1_int8_deq.onnx` | **taky z `_int8.tflite`**, jen s `--dequantize`: kvantované váhy rozbalené do float (2,6 MB) — pro A/B měření. **Není** to původní float model, přesnost zůstává jako u int8. |
 | **`Model61.1_int8_deq_opt.onnx`** | **dnešní výchozí `nnmodel=`** — `_int8_deq` prohnaný `onnxopt.py`: 57,2 MMAC (z 112,5), **1,74 ms** proti 3,81 u `_int8`, přesnost **88,22 %** (nezměněná). Rozhodnutí je shodné se zdrojem na všech 819 200 pixelech sady. |
-| `Model61.1_float_opt.onnx` | totéž nad skutečným float modelem: 57,2 MMAC, 2,47 ms, 88,16 % — **zdroj pro nový `.rknn`** 🔧 [nedodělek](../doc/semantic-segmentation.md#otevřené-otázky) |
-| `Model61.1.rknn` | pro **NPU** RK3588 (`backproject=npu`) — z float ONNX přes `onnx2rknn.py` |
+| `Model61.1_float_opt.onnx` | totéž nad skutečným float modelem: 57,2 MMAC, 2,47 ms, 88,16 % — **zdroj pro `.rknn`** |
+| `Model61.1.rknn` | pro **NPU** RK3588 z neoptimalizovaného float ONNX — **do 9. 9. 2026 výchozí** `npumodel=`; na Pi 3,27 ms / 87,71 % |
+| **`Model61.1_opt.rknn`** | **dnešní výchozí `npumodel=`** — z `_float_opt`, int8: na Pi **2,72 ms** (−17 %) při **nezměněné** přesnosti 87,70 % / IoU 0,838 |
+| `Model61.1_opt_fp16.rknn` | z `_float_opt` bez kvantizace: na Pi **3,33 ms** (cena starého modelu) a **88,19 %** / IoU 0,845 — přesnost CPU modelu za cenu NPU. Volba provozního bodu, drženo pro A/B. |
 | `tflite2onnx.py` | převodní nástroj (TFLite → ONNX + ověření proti TFLite) |
 | `onnx2rknn.py` | převodní nástroj (float ONNX → RKNN pro NPU) |
 | `keras2onnx.py` | převodní nástroj (Keras `.h5` → float ONNX s pevnými tvary) |
@@ -28,15 +30,27 @@ Modely pro sémantickou segmentaci sjízdnosti (`backproject=nn`). Podrobnosti, 
 | `Model96.2_float.onnx` | z `.h5` přes `keras2onnx.py` — zdroj pro RKNN |
 | `Model96.2.rknn` | **fp16 na NPU: 44 ms, 96,66 %** — tahle varianta se používá |
 | `Model96.2_int8.rknn` | ⚠️ 22 ms, ale přesnost spadne na **37,8 %** — nepoužitelné, drženo jako důkaz |
-| **`Model96.2_float_opt.onnx`** | `_float` prohnaný `onnxopt.py`: **2 125 MMAC z 3 837**, na Windows 62,4 → 37,8 ms, přesnost i rozhodnutí nezměněné — **zdroj pro nový `.rknn`** (tam je to nejzajímavější, dnešní 44 ms půlí snímkovou frekvenci) 🔧 [nedodělek](../doc/semantic-segmentation.md#otevřené-otázky) |
+| **`Model96.2_float_opt.onnx`** | `_float` prohnaný `onnxopt.py`: **2 125 MMAC z 3 837**, na Windows 62,4 → 37,8 ms, přesnost i rozhodnutí nezměněné |
+| `Model96.2_opt_fp16.rknn` | z `_float_opt`: na Pi **38,2 ms** (−12 %) a **95,35 %** / IoU 0,935. ⚠️ Přesnost je ta **horší** větve `.h5` — proti dnešnímu `Model96.2.rknn` je to −1,31 p. b. za −5 ms, takže se **nepoužívá**. |
 
 ⚠️ **`Model96.2.onnx` a `Model96.2_float.onnx` NEJSOU tentýž model** — změřeno 9. 9. 2026 týmž
 měřidlem: ten z `.tflite` dává **96,80 %**, ten z `.h5` jen **95,35 %**, a dvě vrstvy, které jsou
 ve float v obou souborech, se liší o 4,2 %. Jsou to tedy **jiné váhy, ne jiný převod**: `.h5`
 v repu nese v názvu 0,9643, kdežto notebook u Model96.2 uvádí 0,9682, takže **lepší checkpoint
-tu jako `.h5` není**. Z toho plyne otevřená otázka k `Model96.2.rknn`: vede se jako převod
-z `_float.onnx`, ale má naměřeno 96,66 %, tedy **víc než jeho údajný zdroj** — a fp16 model
-zlepšit nemůže. Rozhodne to jen běh na Pi.
+tu jako `.h5` není**.
+
+✅ **Odtud plynulá otázka „z čeho vznikl `Model96.2.rknn`" je 9. 9. 2026 zodpovězená: z `Model96.2.onnx`
+(tedy z `.tflite`), ne z `_float.onnx`, jak se tu dřív vedlo.** Ukázalo to přímé měření na Pi —
+`Model96.2.onnx` převedený na fp16 `.rknn` dá **96,66 %**, přesně to, co má `Model96.2.rknn`
+(a soubor má na bajt tutéž velikost, 2 326 752 B), kdežto větev z `_float.onnx` dá 95,35 %.
+Těch −0,14 p. b. proti 96,80 % je cena fp16.
+
+⚠️ **Praktický důsledek: `onnxopt.py` na tom lepším checkpointu NIC nenajde** (`presunuto 0,
+slouceno 0, uspora 0,0 %`). `Model96.2.onnx` pochází z **dynamic-range kvantovaného** `.tflite`,
+takže váhy konvolucí sedí za `DequantizeLinear` a vzor „Conv 1×1 s vahami v inicializátoru" se
+na ně nechytí. Optimalizovat jde jen horší (`.h5`) větev — a tam se za −12 % času platí
+−1,31 p. b. přesnosti. Těch −45 % násobení je tedy u Model96.2 **nevyužitelných**, dokud se
+nesežene float checkpoint těch lepších vah.
 
 Model je U-Net s MobileNetV2 bloky: vstup `[1,128,128,3]`, výstup `[1,128,128,2]`,
 **kanál 1 = sjízdno**, 112,5 MMAC na snímek.

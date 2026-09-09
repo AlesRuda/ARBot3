@@ -776,6 +776,117 @@ z hloubky + převod barvy + hranice cesty)
 
 Celková cena obou kamer: ~0,95 jádra z osmi (**~12 % CPU**) proti ~0,55 jádra (~7 %) u histogramu.
 
+### ✅ Optimalizovaný graf na NPU (změřeno 9. 9. 2026)
+
+Optimalizace grafu ([viz výše](#polovina-toho-výpočtu-je-zbytečná)) se dělá nad `.onnx`, takže NPU
+z ní zprvu neměla nic. Převod `_float_opt.onnx → .rknn` (rknn-toolkit2 2.3.2 ve WSL) a měření
+**na Orange Pi 5 Ultra** (RK3588, 8 jader, .NET 10) za běžící služby `arbot`, robot stál.
+
+Čas je **p50 ze tří běhů** `ARBot.Analyze backproject` nad `20260906-153657.rec` (60 snímků,
+rozptyl mezi běhy pod 1 %), přesnost proti `models/testset` (50 ručně označených snímků).
+Histogram je pro měřítko. ✅ = výchozí, ❌ = změřeně nepoužitelné.
+
+| model | kde běží | čas na Pi | přesnost | IoU | precision | recall | přidaná cesta (FP) | zamlčená (FN) |
+|---|---|---|---|---|---|---|---|---|
+| ✅ **`Model61.1_opt.rknn`** | NPU | **2,72 ms** | 87,70 % | 0,838 | 0,895 | 0,929 | 7,47 % | 4,83 % |
+| `Model61.1.rknn` (do 9. 9. výchozí) | NPU | 3,27 ms | 87,71 % | 0,838 | 0,895 | 0,930 | 7,49 % | 4,80 % |
+| `Model61.1_opt_fp16.rknn` | NPU | 3,33 ms | 88,19 % | 0,845 | 0,894 | 0,939 | 7,62 % | **4,19 %** |
+| ✅ `Model61.1_int8_deq_opt.onnx` | CPU | 9,35 ms | 88,22 % | 0,845 | 0,895 | 0,938 | 7,56 % | 4,22 % |
+| `Model61.1_float_opt.onnx` | CPU | 9,88 ms | 88,16 % | 0,844 | 0,894 | 0,938 | 7,61 % | 4,23 % |
+| `Model61.1_int8.onnx` (do 9. 9. výchozí) | CPU | 10,18 ms | 88,23 % | 0,846 | 0,891 | 0,943 | 7,89 % | 3,87 % |
+| `Model96.2_opt.rknn` (int8) | NPU | 19,5 ms | ❌ 67,50 % | 0,673 | 0,684 | 0,977 | ❌ 30,94 % | 1,56 % |
+| `Model96.2_opt_fp16.rknn` | NPU | 38,2 ms | 95,35 % | 0,935 | 0,953 | 0,981 | 3,32 % | 1,33 % |
+| `Model96.2.rknn` | NPU | 43,2 ms | **96,66 %** | **0,953** | 0,969 | 0,983 | **2,18 %** | **1,16 %** |
+| `Model96.2_float_opt.onnx` | CPU | ❌ 467 ms | 95,35 % | 0,935 | 0,953 | 0,981 | 3,32 % | 1,33 % |
+| `Model96.2.onnx` | CPU | ❌ 637 ms | 96,80 % | 0,955 | 0,971 | 0,983 | 2,04 % | 1,16 % |
+| histogram (`backproject=hist`) | CPU | 2,5 ms | 78,04 % | 0,752 | 0,767 | 0,975 | 20,25 % | 1,71 % |
+
+**Jak se to čte.** Sloupec, na kterém záleží nejvíc, je **falešně přidaná cesta (FP)** — vymyšlená
+cesta je pro robota horší než přehlédnutá. Tam je celý rozdíl mezi rodinami: histogram 20,25 %,
+Model61.1 ~7,5 %, Model96.2 **2,18 %**. Přesnost per-pixel to schovává (triviální „všechno je
+cesta" dá na téhle sadě 68,7 %), proto se tisknou obě čísla i rozpad.
+
+**Uvnitř Model61.1 se rozhoduje jen mezi 2,72 a 3,33 ms**, protože přesnost je napříč všemi
+variantami v pásmu 87,7–88,2 % — kvantizace tam nestojí prakticky nic. **Uvnitř Model96.2 je to
+naopak:** int8 ho **rozbije** (67,5 %, precision 0,684 = „skoro všechno je cesta"), takže musí
+běžet fp16 a stojí 38–43 ms.
+
+**Mezi rodinami je to volba, ne žebříček.** Model96.2 dá o 8,96 p. b. lepší přesnost a **3,4×
+méně vymyšlené cesty**, ale stojí **16× víc času** a při 30 sn/s **půlí snímkovou frekvenci**
+(16,5 proti 29 sn/s) — proto je v `pi-provoz.cfg` připravený zakomentovaný `camerafps=15`.
+⚠️ **Jestli robotovi ta výměna prospěje, změřené NENÍ** — nikdy s žádnou z těch variant nejel.
+
+**Hlavní číslo: −17 % času při nezměněné přesnosti.** Rozdíl 0,01 p. b. je na hranici rozlišení
+sady (819 200 pixelů), takže optimalizace je i po kvantizaci exaktní — což **předpokládat nešlo**:
+sloučení vah zvětšuje jejich rozsah a ubírá jedno mezistupňové zaokrouhlení, takže kvantizace se
+mohla pohnout oběma směry. Proto se to měřilo, ne odvozovalo.
+
+⚠️ **NPU z ubraných násobení využilo jen třetinu** — na CPU je úspora −49 %, tady −17 %. Sedí to
+s tím, co se čekalo (RKNN si plánuje sám a úzkým hrdlem nemusí být násobička), ale je dobré to mít
+změřené: zisk z optimalizace **nelze přenášet mezi platformami**.
+
+**Druhá varianta je nabídka, ne oprava.** `_opt_fp16` stojí přesně tolik, co stál starý model
+(3,33 vs 3,27 ms), a dá přesnost CPU modelu — 88,19 % a hlavně **zamlčenou cestu 4,19 místo
+4,80 %**. Zaplatí se to o 0,13 p. b. horší falešně přidanou cestou, což je pro robota **ta horší
+chyba** ([viz výše](#-naměřeno-proti-pravdě-7-9-2026-50-snímků-na-rozměru-sítě)). Rozhodnutí autora
+9. 9. 2026: výchozí zůstává rychlost, `_opt_fp16` je v repu pro A/B.
+
+**Tatáž optimalizace na CPU cestě (ARM)** — proti Windows, kde se vybíral výchozí `nnmodel=`:
+
+| model (ONNX, `backproject=nn`) | Orange Pi | Windows x64 |
+|---|---|---|
+| `Model61.1_int8.onnx` (do 9. 9. výchozí) | 10,18 ms | 3,81 ms |
+| **`Model61.1_int8_deq_opt.onnx`** (výchozí) | **9,35 ms** | 1,74 ms |
+| `Model61.1_float_opt.onnx` | 9,88 ms | 2,47 ms |
+
+⚠️ **Nový `nnmodel=` je na ARM lepší, ale mnohem těsněji** — −8 % proti −54 % na x86. Extrapolace
+z počtu násobení čekala ~7,7 ms a **byla mimo**; potvrzuje to zdejší pravidlo, že se čísla mezi
+x86 a ARM nepřenášejí. Přesnost vyšla na Pi **na setinu procenta stejně jako na Windows**, takže
+ORT dává na obou platformách tytéž výsledky i po optimalizaci.
+
+#### A za běhu runtime to vidět není (a je to poctivější závěr)
+
+Doměřeno stejnou cestou jako 7. 9. (služba zastavena, `ARBot.Headless` s `pi-provoz.cfg`, 90 s na
+variantu, obě D435, `compute_ms` z `logs/traversability-timing-*.csv`, prvních 20 snímků zahozeno),
+**dva běhy každé varianty**:
+
+| | `Model61.1.rknn` | `Model61.1_opt.rknn` |
+|---|---|---|
+| `compute_ms` p50 (L / P, běh 1) | 8,80 / 8,20 | 8,40 / 9,60 |
+| `compute_ms` p50 (L / P, běh 2) | 8,90 / 8,70 | 8,30 / 6,80 |
+
+**Rozptyl mezi běhy (±1,5 ms) je větší než celý očekávaný zisk (0,55 ms)**, takže tohle měření
+**rozdíl neprokáže ani nevyvrátí** — dokazuje jen to, že model v runtime naběhne, obě kamery na něm
+jedou a nic neregreduje. Číslo o inferenci dává to řízené offline měření výše (tři běhy, rozptyl
+pod 1 %). Uvádět odsud „−0,5 ms i v runtime" by bylo přečtení šumu.
+
+⚠️ **Snímková frekvence vyšla 21–22 sn/s proti 29 ze 7. 9.** — u **všech** variant včetně staré,
+takže to není modelem; `compute_ms` je 8,5 ms, tedy zpracování by stíhalo 100 sn/s. Kamera dodala
+míň snímků (měřeno večer, delší expozice). Binárka je táž jako 7. 9. (`1.0.249.37155`).
+
+### ✅ Z čeho vznikl `Model96.2.rknn` (zodpovězeno 9. 9. 2026)
+
+Vedlo se to jako převod z `Model96.2_float.onnx` (95,35 %), ale `.rknn` měl naměřeno **96,66 %** —
+tedy víc než jeho údajný zdroj, což fp16 nedokáže. **Rozhodlo přímé měření**: `Model96.2.onnx`
+(větev z `.tflite`, 96,80 %) převedený na fp16 `.rknn` dá **96,66 %** a soubor má **na bajt tutéž
+velikost** (2 326 752 B) jako `Model96.2.rknn`. Zdrojem je tedy `.tflite` větev; těch −0,14 p. b.
+je cena fp16. Dokumentace vedla špatný zdroj, měření sedělo.
+
+Čísla jsou v [souhrnné tabulce výše](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026).
+
+⚠️ **Optimalizace je u Model96.2 nevyužitelná, a je to zákonité.** `onnxopt.py` nad
+`Model96.2.onnx` najde **nulu** (`presunuto 0, slouceno 0, uspora 0,0 %`), protože ten ONNX pochází
+z **dynamic-range kvantovaného** `.tflite`: váhy konvolucí sedí za `DequantizeLinear`, takže vzor
+„Conv 1×1 s vahami v inicializátoru" se na ně nechytí (a čítač MMAC je z téhož důvodu nevidí —
+hlásí 10,5 místo 3 837). Optimalizovat jde jen `.h5` větev, kde se za **−12 % času platí
+−1,31 p. b. přesnosti** — to není výhodná výměna, takže **`Model96.2` zůstává beze změny**.
+Těch −45 % násobení se dá vytěžit teprve tehdy, až bude float checkpoint těch **lepších** vah.
+
+⚠️ **int8 ho pořád rozbíjí**, jen míň nápadně: 67,5 % proti dřívějším 37,8 % (větší rozsah vah po
+sloučení kvantizaci zjevně svědčí), ale precision 0,684 při recall 0,977 znamená „skoro všechno je
+cesta". Použitelné to není a `camerafps=15` u Model96.2 zůstává jediná cesta, jak se vejít do
+snímkové frekvence.
+
 ## Otevřené otázky
 - ~~**Pořadí kanálů** je převzaté z ARBot2, ne ověřené měřením.~~ **Zavřeno 7. 9. 2026** — trénink
   čte `decode_jpeg`, tedy RGB. Viz [Předzpracování](#předzpracování-a-postprocessing).
@@ -801,36 +912,17 @@ Celková cena obou kamer: ~0,95 jádra z osmi (**~12 % CPU**) proti ~0,55 jádra
 - ~~**Optimalizovaný graf není v `models/` ani v konfiguraci.**~~ **Zavřeno 9. 9. 2026** — soubory
   jsou v `models/` a `nnmodel=` má nový default (−54 % času proti dřívějšímu, přesnost v šumu),
   krytý dvěma testy.
-- 🔧 **NEDODĚLEK: optimalizované modely přeložit do RKNN, změřit na Pi a případně nastavit
-  `npumodel=`.** Dnešní `npumodel=models/Model61.1.rknn` je převod **neoptimalizovaného** modelu;
-  optimalizace se dělá nad `.onnx`, takže NPU z ní zatím nemá nic. Postup:
-  1. **Převést** (Linux/WSL, rknn-toolkit2 — na Windows to nejde, viz
-     [Převod modelu](#převod-modelu)):
-     ```bash
-     .venv/bin/python models/onnx2rknn.py models/Model61.1_float_opt.onnx models/Model61.1_opt.rknn --dataset testset/img
-     .venv/bin/python models/onnx2rknn.py models/Model96.2_float_opt.onnx models/Model96.2_opt.rknn --dataset testset/img
-     ```
-     Zdroj **musí** být `_float_opt`, ne `_int8_deq_opt` — RKNN chce float model a kvantizuje si sám.
-  2. **Změřit přesnost i čas na Pi** proti dnešním `.rknn`:
-     `ARBot.Analyze backproject --truth=models/testset --model=models/Model61.1_opt.rknn`
-     a čas nad záznamem. ⚠️ **Přesnost se musí přeměřit, ne předpokládat**: sloučení vah zvětšuje
-     jejich rozsah a ubírá jedno mezistupňové zaokrouhlení, takže kvantizace se může chovat
-     jinak oběma směry. A ⚠️ **kolik z těch −49 % násobení NPU vůbec využije, se neví** — RKNN si
-     plánuje sám, takže zrychlení nemusí být v témž podílu jako na CPU.
-  3. **Nastavit v konfiguraci** (`npumodel=`) — **jen když měření na Pi vyjde lépe**, stejným
-     způsobem, jakým se 9. 9. 2026 přepnul `nnmodel=`.
-
-  **Nejvíc je v tom pro Model96.2**: na NPU stojí 44 ms a **půlí snímkovou frekvenci** (16,5 proti
-  29 sn/s), takže −45 % násobení je přesně tam, kde by se to vyplatilo. ⚠️ Tam se ale musí nejdřív
-  vyjasnit, **z kterého checkpointu dnešní `.rknn` vlastně vznikl** — vede se jako převod
-  z `Model96.2_float.onnx` (95,35 %), ale má naměřeno 96,66 %, tedy víc než jeho údajný zdroj
-  (viz [výše](#-mezera-882-vs-955--u-model611-jiná-trénovací-sada-uzavřeno-7-9-2026)); jinak by se
-  srovnávaly dva různé modely a vyšlo by, že „optimalizace zhoršila přesnost".
-- **CPU cesta s novým defaultem nejela v runtime ani na zařízení.** ⚠️ **Na ARM je to nezměřené
-  a tam bylo pořadí variant obrácené** (int8 10,2 ms proti 16,1 u floatu, kdežto na x86 int8
-  prohrával) — takže nový `nnmodel=` může být na Orange Pi pomalejší, než se čeká. Extrapolace
-  z −49 % násobení říká ~7,7 ms, tedy pod int8, ale je to extrapolace. Staré chování vrátí
-  `nnmodel=models/Model61.1_int8.onnx`.
+- ~~🔧 **NEDODĚLEK: optimalizované modely přeložit do RKNN, změřit na Pi a případně nastavit
+  `npumodel=`.**~~ **Zavřeno 9. 9. 2026** — převedeno, změřeno na Orange Pi a `npumodel=` přepnuto
+  na `models/Model61.1_opt.rknn` ([viz níž](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)).
+  Z −49 % ubraných násobení NPU využilo **jen třetinu** (−17 % času), takže ta obava byla na místě.
+  U **Model96.2 to nešlo vůbec** — lepší checkpoint je dynamic-range kvantovaný, takže `onnxopt.py`
+  na něm nic nenajde ([viz níž](#-z-čeho-vznikl-model962rknn-zodpovězeno-9-9-2026)).
+- ~~**Nový `nnmodel=` je na ARM nezměřený.**~~ **Zavřeno 9. 9. 2026** — na Orange Pi dává
+  **9,35 ms** proti 10,18 u starého `_int8` ([viz níž](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)),
+  takže nový default je na ARM správně, jen mnohem těsněji než na x86 (−8 % proti −54 %).
+  ⚠️ **Extrapolace z počtu násobení byla mimo** — čekalo se ~7,7 ms. **V runtime to pořád
+  neběželo**: na zařízení se jede `backproject=npu`, CPU cesta se měřila jen offline.
 - **Proč je `_int8_deq_opt` o 27 % rychlejší než `_float_opt`, když mají týž graf i týž počet
   násobení**, není vysvětlené — reprodukovatelné přes tři běhy, ale hypotéza na denormalizovaná
   čísla je vyvrácená měřením.
@@ -878,11 +970,19 @@ python -m venv .venv && .venv/bin/pip install rknn-toolkit2 "setuptools<81" "onn
 .venv/bin/python models/onnx2rknn.py models/Model61.1_float.onnx models/Model61.1.rknn --dataset testset/img
 ```
 
-🔧 **Tenhle `.rknn` je z NEOPTIMALIZOVANÉHO modelu** — převod optimalizovaných variant
-(`Model61.1_float_opt.onnx`, `Model96.2_float_opt.onnx`), jejich měření na Pi a případné nastavení
-`npumodel=` je vedené jako [nedodělek](#otevřené-otázky). Optimalizace se dělá nad `.onnx`, takže
-NPU z ní zatím nemá nic; zdrojem pro převod **musí** zůstat `_float_opt`, ne `_int8_deq_opt`
-(důvod je hned v bodě 1 níž).
+✅ **Od 9. 9. 2026 je výchozí `npumodel=` OPTIMALIZOVANÝ** (`models/Model61.1_opt.rknn`,
+2,72 místo 3,27 ms při nezměněné přesnosti — [měření](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)).
+Vyrobí se takhle:
+
+```bash
+.venv/bin/python models/onnx2rknn.py models/Model61.1_float_opt.onnx models/Model61.1_opt.rknn                  --dataset models/testset/img
+.venv/bin/python models/onnx2rknn.py models/Model61.1_float_opt.onnx models/Model61.1_opt_fp16.rknn                  --dataset models/testset/img --no-quant
+```
+
+⚠️ Zdrojem **musí** být `_float_opt`, ne `_int8_deq_opt` (důvod je hned v bodě 1 níž). Převod
+**není bitově reprodukovatelný** — dvakrát převedený týž model má jiný MD5, ale **na bajt tutéž
+velikost a shodné naměřené chování** (ověřeno 9. 9. 2026 na `Model61.1_opt.rknn`: 87,70 % v obou
+případech). Kontrolovat převod tedy měřidlem, ne hashem.
 
 Tři věci, o které se cesta „ponaučila“ a které nejsou z dokumentace zjevné:
 

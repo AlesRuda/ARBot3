@@ -329,15 +329,25 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (**−54 % času** proti dřívějšímu `_int8`, 3,81 → 1,74 ms, přesnost 88,22 proti 88,23 %, tedy
   v šumu). Kryjí to dva testy — že výchozí model **existuje** (jinak by se zapomenutý soubor
   poznal teprve na robotu a vypadal jako porucha kamery) a že optimalizace **nemění rozhodnutí**
-  proti zdrojovému modelu. ⚠️ **Na ARM to přeměřené NENÍ a tam bylo pořadí obrácené** (int8
-  10,2 ms proti 16,1 u floatu), takže na Orange Pi to může být pomalejší; staré chování vrátí
-  `nnmodel=models/Model61.1_int8.onnx`. 🔧 **`npumodel=` optimalizovaný NENÍ a je to vedené jako
-  nedodělek** (`semantic-segmentation.md`, Otevřené otázky — konkrétní kroky i příkazy): převést
-  `Model61.1_float_opt.onnx` a `Model96.2_float_opt.onnx` do `.rknn` (rknn-toolkit2, Linux),
-  **změřit na Pi** (⚠️ přesnost přeměřit, ne předpokládat — kvantizace se sloučenými vahami se
-  může chovat jinak; a **kolik z −49 % NPU využije, se neví**, RKNN plánuje sám) a **teprve pak**
-  případně nastavit `npumodel=`. Nejvíc je v tom pro Model96.2 (44 ms, půlí snímkovou frekvenci).
-  ⚠️ **V runtime to nejelo a na Pi nebylo.** ⚠️ Proč je
+  proti zdrojovému modelu. ✅ **Na ARM přeměřeno 9. 9. 2026** — vyhrává taky, ale mnohem
+  těsněji: **9,35 proti 10,18 ms** (−8 %, na x86 −54 %); extrapolace čekala ~7,7 ms a **byla
+  mimo**. Staré chování vrátí `nnmodel=models/Model61.1_int8.onnx`.
+  ✅ **Optimalizovaný model je od 9. 9. 2026 výchozí i pro NPU** (`npumodel=models/Model61.1_opt.rknn`,
+  i v `config/pi-provoz.cfg`): na Orange Pi **3,27 → 2,72 ms (−17 %) při nezměněné přesnosti**
+  (87,70 proti 87,71 % / IoU 0,838), kryto testem na existenci výchozího `.rknn`.
+  ⚠️ **NPU využilo z −49 % ubraných násobení jen třetinu** — zisk z optimalizace se mezi CPU a NPU
+  nepřenáší, proto se musel změřit. Alternativa `Model61.1_opt_fp16.rknn` stojí přesně tolik co
+  starý model (3,33 ms) a dá přesnost CPU modelu (**88,19 %**, zamlčená cesta 4,19 místo 4,80 %),
+  zaplatí se to o 0,13 p. b. horší falešně přidanou cestou — volba provozního bodu, autor 9. 9.
+  zvolil rychlost. ⚠️ **A/B za běhu runtime rozdíl neukáže**: rozptyl `compute_ms` mezi běhy
+  (±1,5 ms) je větší než celý zisk (0,55 ms), takže dokazuje jen, že model naběhne a nic
+  neregreduje. ⚠️ **U Model96.2 je optimalizace NEVYUŽITELNÁ**, a je to zákonité: lepší checkpoint
+  (`Model96.2.onnx`, 96,80 %) je **dynamic-range kvantovaný**, takže `onnxopt.py` na něm najde
+  nulu; optimalizovat jde jen horší `.h5` větev, kde se za −12 % času (43,2 → 38,2 ms) platí
+  **−1,31 p. b. přesnosti** — zůstává tedy beze změny. ✅ Při tom se zodpovědělo, **z čeho dnešní
+  `Model96.2.rknn` vznikl**: z `.tflite` větve, ne z `_float.onnx`, jak se vedlo (fp16 převod
+  `Model96.2.onnx` dá přesně jeho 96,66 % a soubor má na bajt tutéž velikost). ⚠️ **Nikdy s tím
+  ale nejel** — všechna měření jsou ze stojícího robota. ⚠️ Proč je
   `_int8_deq_opt` o 27 % rychlejší než `_float_opt`, když mají **týž graf i týž počet násobení**,
   není vysvětlené (denormály vyvrácené měřením). ⚠️ Přitom se našlo, že
   `Model96.2.onnx` (z `.tflite`, **96,80 %**) a `Model96.2_float.onnx` (z `.h5`, **95,35 %**)

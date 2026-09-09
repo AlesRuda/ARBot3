@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using ARBot.Common.Vision.Nn;
 using NUnit.Framework;
@@ -74,6 +74,36 @@ namespace ARBot.Common.Tests.Vision
         public void IsRknn_PoznaModelProNpu(string path, bool ocekavano)
         {
             Assert.That(NnBackProject.IsRknn(path), Is.EqualTo(ocekavano));
+        }
+
+        // --- vychozi model z registru ----------------------------------------------------
+
+        /// <summary>
+        /// VYCHOZI <c>npumodel=</c> musi v repu existovat a byt to <c>.rknn</c>. Nacist ho tady
+        /// nejde (chce NPU a <c>librknnrt.so</c>), ale prave proto ma smysl aspon tohle: soubor
+        /// zapomenuty v repu nebo v nasazeni by se poznal teprve na robotu — a vypadal by jako
+        /// porucha kamery, ne jako chybejici model. Tentyz duvod jako u <c>nnmodel=</c>
+        /// (viz <c>OnnxBackProjectTest.VychoziModelZRegistruExistujeAJdeNacist</c>).
+        ///
+        /// <para>Preskoci se JEN kdyz v <c>models/</c> nejsou zadne <c>.rknn</c> vubec (tedy
+        /// nebezime nad pracovni kopii repa). Kdyz tam jsou a chybi zrovna ten vychozi, je to
+        /// CHYBA, ne duvod k preskoceni.</para>
+        /// </summary>
+        [Test]
+        public void VychoziNpuModelZRegistruExistuje()
+        {
+            string dir = Path.Combine(ARBot.Common.Configuration.RepoPaths.RootOrBase(), "models");
+            if (!Directory.Exists(dir) || Directory.GetFiles(dir, "*.rknn").Length == 0)
+                Assert.Ignore("V models/ nejsou zadne .rknn modely (viz models/README.md).");
+
+            string def = ARBot.Common.Configuration.ParamRegistry.NpuModel.Def.Default;
+            Assert.That(NnBackProject.IsRknn(def), Is.True,
+                        $"Vychozi npumodel='{def}' neni .rknn - do NPU cesty by se dostal ONNX.");
+
+            string p = ARBot.Common.Configuration.RepoPaths.Resolve(def);
+            Assert.That(File.Exists(p), Is.True,
+                        $"Vychozi npumodel='{def}' neexistuje ({p}). Bud se soubor zapomnel pridat "
+                        + "do repa, nebo je spatne default v ParamRegistry. Prevod: models/onnx2rknn.py.");
         }
 
         [Test]

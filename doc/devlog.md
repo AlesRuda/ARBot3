@@ -145,6 +145,62 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Odkazy:** [`models/onnxopt.py`](../models/onnxopt.py), [`models/README.md`](../models/README.md),
   [semantic-segmentation.md](semantic-segmentation.md) (sekce „Polovina toho výpočtu je zbytečná",
   „Mrtvé neurony", „Změřeno, co se z postprocessingu dá vytěžit", „Co v tom notebooku nesedí").
+- **Optimalizované modely ověřené na Orange Pi a přeložené do RKNN** (zadání: „ověřit optimalizované
+  ONNX na Pi a přeložit RKNN a taky je ověřit"). Tím se **zavírá nedodělek z dnešního rána**.
+  Souhrnná tabulka všech variant (čas na Pi, přesnost, IoU, precision/recall, FP/FN) je
+  v [semantic-segmentation.md](semantic-segmentation.md#-optimalizovaný-graf-na-npu-změřeno-9-9-2026).
+- **Hotovo — NPU: −17 % času při nezměněné přesnosti.** `Model61.1_opt.rknn` (převod
+  `_float_opt.onnx` přes `onnx2rknn.py`) dá na Pi **2,72 proti 3,27 ms** a **87,70 proti 87,71 %**
+  (IoU 0,838 v obou). Přesnost se **musela přeměřit, ne předpokládat** — sloučení vah zvětšuje
+  jejich rozsah, takže kvantizace se mohla pohnout oběma směry; nepohnula se.
+  ⚠️ **Z −49 % ubraných násobení NPU využilo jen třetinu.** Zisk z optimalizace se tedy mezi CPU
+  a NPU nepřenáší — RKNN si plánuje sám a úzkým hrdlem nemusí být násobička.
+- **Rozhodnutí autora: výchozí je rychlost.** `npumodel=` je nově `models/Model61.1_opt.rknn`
+  (i v `config/pi-provoz.cfg`). Druhý kandidát `Model61.1_opt_fp16.rknn` stojí přesně tolik, co
+  stál starý model (3,33 ms), ale dá přesnost CPU modelu (**88,19 %**, zamlčená cesta 4,19 místo
+  4,80 %) — zaplatí se to o 0,13 p. b. horší falešně přidanou cestou, což je pro robota ta horší
+  chyba. Zůstává v repu pro A/B.
+- **Hotovo — CPU cesta na ARM přeměřena** (druhý dnešní otevřený bod): nový `nnmodel=` vyhrává
+  i tam, ale **mnohem těsněji: 9,35 proti 10,18 ms (−8 %)**, kdežto na x86 to bylo −54 %.
+  ⚠️ **Extrapolace z počtu násobení (~7,7 ms) byla mimo.** Přesnost vyšla na Pi na setinu procenta
+  stejně jako na Windows.
+- **Hotovo — záhada „z čeho vznikl `Model96.2.rknn`" vyřešená.** Vedl se jako převod
+  z `Model96.2_float.onnx` (95,35 %), ale měl naměřeno 96,66 %, tedy **víc než jeho údajný zdroj**.
+  Rozhodlo přímé měření: `Model96.2.onnx` (větev z `.tflite`, 96,80 %) převedený na fp16 `.rknn`
+  dá **96,66 %** a soubor má **na bajt tutéž velikost** (2 326 752 B). Zdrojem je tedy `.tflite`
+  větev; −0,14 p. b. je cena fp16. **Dokumentace vedla špatný zdroj, měření sedělo.**
+- ⚠️ **A ten důsledek je nepříjemný: u Model96.2 je optimalizace NEVYUŽITELNÁ.** `onnxopt.py` nad
+  `Model96.2.onnx` najde **nulu** — ten ONNX je z **dynamic-range kvantovaného** `.tflite`, takže
+  váhy konvolucí sedí za `DequantizeLinear` a vzor „Conv 1×1 s vahami v inicializátoru" se na ně
+  nechytí (z téhož důvodu čítač hlásí 10,5 místo 3 837 MMAC). Optimalizovat jde jen horší `.h5`
+  větev, kde se za **−12 % času (43,2 → 38,2 ms) platí −1,31 p. b. přesnosti** — nevýhodná výměna,
+  takže **Model96.2 zůstává beze změny**. Těch −45 % půjde vytěžit teprve s float checkpointem
+  těch lepších vah. ⚠️ **int8 ho pořád rozbíjí**, jen míň nápadně: 67,5 % místo dřívějších 37,8 %,
+  ale precision 0,684 při recall 0,977 znamená „skoro všechno je cesta".
+- **A/B za běhu runtime: dvakrát po 90 s, a rozdíl v něm vidět NENÍ.** Rozptyl `compute_ms` mezi
+  běhy (±1,5 ms) je větší než celý očekávaný zisk (0,55 ms), takže tohle měření rozdíl neprokáže
+  ani nevyvrátí — dokazuje jen, že model v runtime naběhne, obě D435 na něm jedou a nic
+  neregreduje. Číslo o inferenci dává řízené offline měření. **Uvádět odsud „−0,5 ms i v runtime"
+  by bylo přečtení šumu.** ⚠️ Vedlejší pozorování: snímková frekvence vyšla **21–22 sn/s proti 29
+  ze 7. 9.** u **všech** variant včetně staré, při `compute_ms` 8,5 ms — kamera tedy dodala míň
+  snímků (měřeno večer, delší expozice), zpracování by stíhalo 100 sn/s. Binárka je táž.
+- **Úklid modelů:** `.rknn` z předchozího sezení byly netrackované a nedokumentované, takže se
+  **převedly znovu** s doloženým zdrojem (a `Model61.1_opt.rknn` dal znovu 87,70 % — převod
+  **není bitově reprodukovatelný** (jiný MD5), ale je reprodukovatelný **chováním**; kontrolovat
+  se má měřidlem, ne hashem). Smazané: `Model96.2_opt.rknn` (int8, 67,5 % — na robota patřit
+  nemá, `nasad.ps1` posílá všechny `.rknn`) a `Model96.2_tflite_opt.onnx` (onnxopt na něm nic
+  nenajde, je to jen pomalejší kopie `Model96.2.onnx`).
+- **Kryto testem** `VychoziNpuModelZRegistruExistuje` — výchozí `npumodel=` musí v repu existovat
+  a být `.rknn`. Načíst se tady nedá (chce NPU a `librknnrt.so`), a **právě proto** má ta kontrola
+  smysl: zapomenutý soubor by se poznal teprve na robotu a vypadal by jako porucha kamery.
+  Testy zelené: **1359** (Common), build x64 čistý.
+- **Rozpracováno / další krok:** ⚠️ **nikdy s tím nejelo** — všechna měření jsou ze stojícího
+  robota, takže *jestli robotovi lepší segmentace prospěje*, změřené pořád není. U Model96.2
+  zbývá sehnat float checkpoint těch lepších vah (jinak je −45 % nedosažitelných).
+- **Odkazy:** [`config/pi-provoz.cfg`](../config/pi-provoz.cfg),
+  [`Src/ARBot.Common/Configuration/ParamRegistry.cs`](../Src/ARBot.Common/Configuration/ParamRegistry.cs),
+  [`Src/ARBot.Common.Tests/Vision/RknnBackProjectTest.cs`](../Src/ARBot.Common.Tests/Vision/RknnBackProjectTest.cs),
+  [semantic-segmentation.md](semantic-segmentation.md), [`models/README.md`](../models/README.md).
 
 ## 2026-09-08
 

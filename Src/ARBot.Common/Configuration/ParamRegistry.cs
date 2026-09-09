@@ -171,9 +171,10 @@ namespace ARBot.Common.Configuration
         // NEZMENENEM ROZHODNUTI na vsech 819 200 pixelech models/testset. Varianta "_int8_deq"
         // je zvolena proto, ze je z obou opt variant rychlejsi I presnejsi (1,74 proti 2,47 ms
         // a 88,22 proti 88,16 %); "int8" v nazvu znamena, ze pochazi z kvantovaneho .tflite,
-        // ale pocita se ve floatu. ⚠️ Cas je z WINDOWS x64 - na ARM bylo pred optimalizaci
-        // poradi OBRACENE (int8 10,2 ms proti 15,0 u deq), takze na Orange Pi to PREMERENE
-        // NENI; stare chovani vrati nnmodel=models/Model61.1_int8.onnx.
+        // ale pocita se ve floatu. ⚠️ Ta cisla jsou z WINDOWS x64. Na Orange Pi PREMERENO
+        // 9. 9. 2026 a vyhrava taky, ale mnohem tesneji: 9,35 proti 10,18 ms (-8 %, na x86
+        // -54 %). Extrapolace z poctu nasobeni cekala ~7,7 ms a byla MIMO - zisk z optimalizace
+        // se mezi x86 a ARM neprenasi. Stare chovani vrati nnmodel=models/Model61.1_int8.onnx.
         // Viz doc/semantic-segmentation.md a models/README.md.
         public static readonly PathParam NnModel = Cesta("nnmodel", "models/Model61.1_int8_deq_opt.onnx", K_VIZE,
               "Model semanticke segmentace (.onnx) pro backproject=nn. Vstup [1,H,W,3] float 0..1, "
@@ -181,16 +182,23 @@ namespace ARBot.Common.Configuration
               + "optimalizaci grafu models/onnxopt.py. Vychozi je optimalizovana varianta: pulka "
               + "vypoctu puvodniho modelu je zbytecna (dve 1x1 konvoluce za sebou bez nelinearity, "
               + "a 1x1 konvoluce za nearest-Resize, ktera s nim komutuje), takze 112,5 -> 57,2 MMAC "
-              + "a na Windows 3,8 -> 1,74 ms PRI STEJNEM ROZHODNUTI. Na ARM to premerene neni - "
-              + "tam int8 vitezil; stare chovani vrati models/Model61.1_int8.onnx.");
-        public static readonly PathParam NpuModel = Cesta("npumodel", "models/Model61.1.rknn", K_VIZE,
+              + "a na Windows 3,8 -> 1,74 ms PRI STEJNEM ROZHODNUTI. Na Orange Pi je zisk mensi "
+              + "(10,18 -> 9,35 ms); stare chovani vrati models/Model61.1_int8.onnx.");
+        // Vychozi je OPTIMALIZOVANY graf (models/onnxopt.py -> models/onnx2rknn.py), ZMERENO
+        // na Orange Pi 9. 9. 2026: 3,27 -> 2,72 ms (-17 %) pri NEZMENENE presnosti
+        // (87,70 proti 87,71 % na models/testset). Z -49 % nasobeni tedy NPU vyuzije jen
+        // tretinu - planuje si sam, takze se to muselo zmerit, ne odhadnout.
+        // Alternativa models/Model61.1_opt_fp16.rknn stoji tolik, co stal STARY default
+        // (3,33 ms), ale ma presnost CPU modelu (88,19 %, IoU 0,845, zamlcena cesta 4,19
+        // proti 4,80 %) - je to volba provozniho bodu, ne oprava, proto neni vychozi.
+        // Stare chovani vrati npumodel=models/Model61.1.rknn.
+        public static readonly PathParam NpuModel = Cesta("npumodel", "models/Model61.1_opt.rknn", K_VIZE,
               "Model pro backproject=npu (.rknn). Vlastni parametr, ne sdileny s nnmodel=, aby "
-              + "nesel omylem podstrcit .onnx do NPU cesty a naopak. Prevod dela models/onnx2rknn.py; "
-              + "vstup je uint8 0..255, normalizaci si dela NPU podle mean/std z prevodu. "
-              + "⚠️ Tenhle soubor OPTIMALIZOVANY NENI: onnxopt.py pracuje nad .onnx, takze .rknn "
-              + "se musi prevest znovu z models/Model61.1_float_opt.onnx - a to chce rknn-toolkit2 "
-              + "na Linuxu. Kolik z tech -49 % nasobeni NPU skutecne vyuzije, se navic nevi "
-              + "(RKNN si planuje sam), takze je to krok, ktery se musi zmerit na Pi.");
+              + "nesel omylem podstrcit .onnx do NPU cesty a naopak. Prevod dela models/onnx2rknn.py "
+              + "z FLOAT .onnx (nikdy z kvantovaneho); vstup je uint8 0..255, normalizaci si dela "
+              + "NPU podle mean/std z prevodu. Vychozi je optimalizovana varianta (onnxopt.py): "
+              + "na Orange Pi 2,72 proti 3,27 ms pri stejne presnosti. Presnejsi, ale za cenu "
+              + "puvodniho casu je models/Model61.1_opt_fp16.rknn (88,19 proti 87,70 %).");
         public static readonly DoubleParam CameraFps = Num("camerafps", Fmt(Profile.CameraFps), K_VIZE,
               "Snimkova frekvence kamer D435 [sn/s]. Povolene jsou jen hodnoty, ktere kamera zna "
               + "(6, 15, 30, 60) - na jinou pipeline nenastartuje a vypadalo by to jako porucha. "
