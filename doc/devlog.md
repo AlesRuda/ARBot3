@@ -39,6 +39,53 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-08
 
+- **Nová mise Track: objezd míst ze souboru `*.track`.** *Na zadání autora* („bude se jmenovat
+  Track, jejím vstupem bude soubor abc.track… robot postupně objede po mapě místa ze souboru,
+  slovo repeat spustí soubor od začátku, pro jednotlivá místa najde nejbližší místo na mapě").
+  Dokumentace: [track-mission.md](track-mission.md).
+  - **Hotovo:** `TrackPlan` (čtení souboru), `TrackMission` (automat), `TrackPhase`,
+    `TrackConfig`, `TrackMsg` do streamu i záznamu, napojení `mission=track` + `track=<cesta>`
+    + `trackoffroad=`, ukázka `config/haje.track`. **36 nových testů, 1360 v `ARBot.Common.Tests`,
+    build čistý (x64).**
+  - **Zadání „najde nejbližší místo na mapě" je zároveň oprava vady**, ne kosmetika:
+    `Navigator` měří dojezd proti **surovému** cíli, takže při odsazení větším než dojezdový
+    radius by `Arrived` nenastalo **nikdy** a mise by u prvního bodu uvízla navždy (jízda k cíli
+    timeout nemá). Past je dohledaná u Robotouru z 27. 8. 2026, takže se rovnou použil týž šev
+    `IRouteProbe.Probe` → `SnappedTarget`.
+  - **Přichycuje se u KAŽDÉHO bodu znovu**, ne jednou dopředu — trasa se počítá z aktuální polohy
+    robota, a ta je u druhého bodu jiná.
+  - **Rozhodnutí, která zadání nechalo otevřená** (a proč tak):
+    **(a)** bod dál od sítě než `trackoffroad=` (50 m) misi **přeruší**, nepřeskočí se —
+    přichycení samo žádný limit nemá, takže bod uprostřed pole 300 m od silnice se přichytí a
+    robot by odjel jinam a **ohlásil dojezd**; tiché přeskočení by znamenalo jinou trasu, než
+    člověk zadal, a poznalo by se to jen tím, co v ní **není**.
+    **(b)** nesrozumitelný řádek je **chyba** (mise se nezaloží), stejná zásada jako u profilů.
+    **(c)** `repeat` musí být **poslední** řádek — jinak by řádky za ním byly nedosažitelné.
+    **(d)** souřadnice v souboru jsou ve **stupních** (soubor je okraj systému, dál se nese
+    radián). **(e)** mezi body se **nezastavuje**, jen se přepne cíl.
+  - **Bezpečnost: volba mise robota nerozjede.** Automat jde `Idle → AwaitingEStop` (čeká, až
+    člověk nouzové zastavení **zmáčkne**) → `AwaitingEStopRelease` (a jeho **uvolnění** je pokyn
+    „jed"). Drží to tedy sám automat, takže to platí i při zadání z příkazové řádky, ne jen při
+    volbě ze stránky. Hlídají to tři testy.
+  - **Samostatná mise, ne „Robotour bez QR":** Robotour kotví depo, čte kódy a otevírá servisní
+    okno; Track nekotví, nikdo s ním v průběhu nemluví a nezastavuje. Ze dvou automatů by vznikl
+    jeden s prázdnými větvemi. Společné je jen hlášení stavu — a to už rozhraní má
+    (`IMissionStatus`), takže stránka i UI misi ukazují bez jediné změny; seznam misí na stránce
+    se navíc bere z `ParamRegistry`, takže se `track` objevil sám.
+  - ⚠️ **Příklad ze zadání neleží v žádné mapě v repu** — body (Praha, 50.0337/14.5257) jsou
+    **367–389 m** od nejbližšího uzlu sítě `OSM/HajeRovne.osm`, tedy nad výchozím limitem; mise
+    by je odmítla. Proto ukázka `config/haje.track` s body **na síti** (~90–130 m od startu).
+  - ✅ **Projeto v simulaci** (`mission=track track=config/haje.track virtualhw=true
+    map=OSM/HajeRovne.osm web=8099`, headless): mise stála 22 s a čekala na člověka, po uvolnění
+    virtuálního stopu se rozjela, objela **všechna tři místa** (170–240 s na místo, trasy
+    170–260 m) a po `repeat` začala **druhé kolo** — bez jediné výjimky v logu. Ověřilo se tím
+    i to, že se mezi body **nezastavuje** (rychlost drží 1,2 m/s přes hranici bodu).
+    ⚠️ Odstup od sítě vyšel u všech bodů 0,0 m, protože ukázka je záměrně z **uzlů cest** —
+    limit `trackoffroad=` tedy prověřený není, jen jeho testy.
+  - ⚠️ **Na zařízení to neběželo.** A pozor: kurz z VN100 je dnes desítky stupňů vedle
+    ([imu-and-frames.md](imu-and-frames.md)), takže jízdu po mapě to na HW ovlivní.
+  - **Necommitováno** (pravidlo „commit jen na výslovný pokyn").
+
 - **Dvě měření, na která čekal záznam venkovní jízdy — a obojí vyšlo jinak, než plán čekal.**
   Na pokyn autora, který přinesl `records/test/20260907-170728.rec` na tenhle stroj (dosud
   lokálně nebyl). Odblokovalo to Task 3 krok 5 a levné ověření hypotézy o VPE; **Task 10 ani

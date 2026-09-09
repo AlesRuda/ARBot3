@@ -833,11 +833,75 @@ namespace ARBot.Robot
                         : $"mission=magcal: mise NEZACALA ({magcal.Phase}) - " + magcal.PhaseText);
                     break;
 
+                case "track":
+                    // Objezd mist ze souboru .track. Ridi GLOBALNI navigaci (LLA cile), takze
+                    // bez mapy nema co zadavat - stejne jako Robotour.
+                    if (GlobalNavigator == null)
+                    {
+                        Trace.WriteLine("mission=track, ale neni globalni navigace (chybi mapa "
+                                        + "map= nebo GeoReference) -> mise se nezaklada.");
+                        break;
+                    }
+
+                    string trackRaw = ParamRegistry.Track.Value;
+                    if (string.IsNullOrWhiteSpace(trackRaw))
+                    {
+                        Trace.WriteLine("mission=track, ale track= (soubor se seznamem mist) neni "
+                                        + "zadany -> mise se nezaklada.");
+                        break;
+                    }
+
+                    ARBot.Common.Missions.TrackPlan trackPlan;
+                    try
+                    {
+                        trackPlan = ARBot.Common.Missions.TrackPlan.Load(RepoPaths.Resolve(trackRaw));
+                    }
+                    catch (Exception ex)
+                    {
+                        // ⚠️ Vadny seznam je duvod misi NEZALOZIT, ne jezdit podle jeho citelne
+                        // casti: robot by objel jinou trasu, nez clovek zadal, a poznalo by se to
+                        // jen tim, co v ni NENI. Trace (ne Debug) - na zarizeni bezi Release.
+                        Trace.WriteLine($"mission=track: soubor '{trackRaw}' nejde pouzit -> mise "
+                                        + "se nezaklada. " + ex.Message);
+                        break;
+                    }
+
+                    var trackCfg = new ARBot.Common.Missions.TrackConfig();
+                    double trackOffRoad = ParamRegistry.TrackOffRoad.Value;
+                    if (trackOffRoad != trackCfg.MaxPointOffRoadM)
+                    {
+                        trackCfg.MaxPointOffRoadM = trackOffRoad;
+                        Trace.WriteLine($"trackoffroad={trackOffRoad:F0}: limit odstupu mista "
+                                        + "od site cest.");
+                    }
+
+                    var track = new ARBot.Common.Missions.TrackMission(
+                        GlobalNavigator, trackPlan, control: loop,
+                        routes: GlobalNavigator, config: trackCfg);
+
+                    TrackMission = track;
+                    stages.Add(track);
+                    // Mise potrebuje stav motoru (nouzove zastaveni) primo ze zdroju a hlaseni
+                    // Arrived/NoRoute z globalni vrstvy.
+                    connections.Add(GlobalNavigator.Output.Connect(track));
+                    connections.Add(processing.Connect(track));
+                    connections.Add(track.Output.Connect(stream));
+
+                    // Startuje sama (jako Robotour). Bezpecne to je proto, ze auto-start robota
+                    // NEROZJEDE: automat jde Idle -> AwaitingEStop (ceka, az clovek ZMACKNE
+                    // nouzove zastaveni) -> AwaitingEStopRelease (a jeho uvolneni je pokyn "jed").
+                    // Prvni pohyb tedy porad vyzaduje cloveka u robota.
+                    track.StartMission();
+                    Trace.WriteLine($"mission=track: {trackPlan} ze souboru '{trackRaw}'. "
+                                    + "Mise nastartovana; ceka na STISK a pak UVOLNENI nouzoveho "
+                                    + "zastaveni.");
+                    break;
+
                 default:
                     // Tise ignorovat neznamou misi by znamenalo "mise nebezi, i kdyz si ji nekdo
                     // pral" - a to je presne ten druh chyby, ktery se pak hleda na soutezi.
                     Trace.WriteLine($"mission={mission}: neznama mise "
-                                    + "(znam none|freerun|robotour|magcal) -> zadna mise nebezi.");
+                                    + "(znam none|freerun|robotour|magcal|track) -> zadna mise nebezi.");
                     break;
             }
 
@@ -1012,6 +1076,12 @@ namespace ARBot.Robot
         public ARBot.Common.Missions.MagCalMission MagCalMission { get; private set; }
 
         /// <summary>
+        /// Bezici mise <c>track</c> (objezd mist ze souboru), nebo <c>null</c> (viz
+        /// <c>mission=</c> a <c>track=</c>). Viz doc/track-mission.md.
+        /// </summary>
+        public ARBot.Common.Missions.TrackMission TrackMission { get; private set; }
+
+        /// <summary>
         /// Konfigurace fuze slozeneho behu, nebo <c>null</c> (runtime jeste nebezel). Cte ji webovy
         /// nahled, aby mohl ukazat, s jakymi prahy kvality se GPS posuzuje - a hlavne aby to byly
         /// TYTEZ prahy, jake pouziva fuze.
@@ -1024,17 +1094,20 @@ namespace ARBot.Robot
         /// (doc/plan-headless-provoz.md).
         ///
         /// <para>Je to <b>pocitana</b> vlastnost nad <see cref="FreeRunMission"/>,
-        /// <see cref="RobotourMission"/> a <see cref="MagCalMission"/>, ne dalsi pole: mise se
-        /// vylucuji, takze nemuze byt co nastavit navic ani co zapomenout vynulovat.</para>
+        /// <see cref="RobotourMission"/>, <see cref="MagCalMission"/> a
+        /// <see cref="TrackMission"/>, ne dalsi pole: mise se vylucuji, takze nemuze byt co
+        /// nastavit navic ani co zapomenout vynulovat.</para>
         ///
         /// <para>⚠️ <b>Pribude-li mise, patri i sem</b> — jinak by o ni stranka ani UI nevedely.
         /// U <c>magcal</c> je to podstatne: jeji <c>PhaseText</c> JE ten zivy ukazatel pokryti,
-        /// podle ktereho obsluha u robota otaci (viz doc/plan-vn100-kalibrace.md).</para>
+        /// podle ktereho obsluha u robota otaci (viz doc/plan-vn100-kalibrace.md); u
+        /// <c>track</c> nese cislo mista a kolo (doc/track-mission.md).</para>
         /// </summary>
         public ARBot.Common.Missions.IMissionStatus CurrentMission
             => (ARBot.Common.Missions.IMissionStatus)FreeRunMission
                ?? (ARBot.Common.Missions.IMissionStatus)RobotourMission
-               ?? MagCalMission;
+               ?? (ARBot.Common.Missions.IMissionStatus)MagCalMission
+               ?? TrackMission;
 
         /// <summary>
         /// Scanner QR kodu, nebo <c>null</c>. Zaklada se jen s misi Robotour a je <b>vypnuty</b>,

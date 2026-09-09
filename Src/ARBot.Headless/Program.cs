@@ -82,8 +82,9 @@ namespace ARBot.Headless
                     + " do senzoru jsou na strance nahledu (web=<port>).");
             else if (miseZapnuta)
                 Trace.WriteLine("POZOR: mise je zapnuta - jakmile bude HW pripravene, mise zacne bez dalsiho "
-                    + "pokynu. FreeRun se rovnou rozjede; Robotour se sam nastartuje, ale prvni pohyb ceka "
-                    + "na stisk a uvolneni nouzoveho zastaveni. Zastavi ho stop nebo ukonceni procesu.");
+                    + "pokynu. FreeRun se rovnou rozjede; Robotour a Track se samy nastartuji, ale prvni "
+                    + "pohyb ceka na stisk a uvolneni nouzoveho zastaveni. Zastavi ho stop nebo ukonceni "
+                    + "procesu.");
             else if (webPort > 0)
                 Trace.WriteLine("Mise nezadana - po startu se ceka, az ji nekdo vybere na strance nahledu "
                     + "(jen pri drzenem nouzovem zastaveni). Do te doby robot stoji a NENAHRAVA se.");

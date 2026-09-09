@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 71 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 60 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -484,6 +484,18 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **Hotové a ověřené proti pravdě** (usadí se na −0,503 m proti požadovaným −0,500, dva běhy),
   **na HW neověřeno**. Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
+- [doc/track-mission.md](doc/track-mission.md) — **mise Track** (`TrackMission`): objezd míst ze
+  souboru `*.track` (`mission=track track=<cesta>`). Řádek = `sirka,delka` ve **stupních** (soubor
+  je okraj systému, dál se nese radián), poslední řádek `repeat` = jezdit dokola. Ke každému místu
+  najde **nejbližší bod na síti cest** a jede na něj — a to není kosmetika, ale oprava vady:
+  `Navigator` měří dojezd proti **surovému** cíli, takže při větším odsazení by `Arrived` nenastalo
+  **nikdy** a mise by uvízla (past dohledaná u Robotouru). **Mezi body nezastavuje**, jen přepíná
+  cíl. Bod dál od sítě než `trackoffroad=` (50 m) misi **přeruší** — tiché přeskočení by znamenalo,
+  že robot objel jinou trasu, než člověk zadal. **Nesrozumitelný řádek je chyba, ne přeskočení**
+  (mise se nezaloží). Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
+  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na HW neběželo.** ⚠️ Příklad
+  ze zadání (Praha, 50.0337/14.5257) **neleží v žádné mapě v repu** — 367–389 m od sítě
+  `OSM/HajeRovne.osm`; funkční ukázka je `config/haje.track`.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
   sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
   z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Běží bez operátora** — je to

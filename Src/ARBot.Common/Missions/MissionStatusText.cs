@@ -19,6 +19,9 @@ namespace ARBot.Common.Missions
         /// <summary>Jmeno mise FreeRun ve tvaru parametru <c>mission=</c>.</summary>
         public const string FreeRun = "freerun";
 
+        /// <summary>Jmeno mise Track ve tvaru parametru <c>mission=</c>.</summary>
+        public const string Track = "track";
+
         /// <summary>
         /// Na co ceka mise Robotour v dane fazi. <b>Kazda faze ma odpoved</b> — „na nic"
         /// (<see cref="MissionWait.None"/>) je taky odpoved, ale zadna faze nesmi propadnout
@@ -65,6 +68,38 @@ namespace ARBot.Common.Missions
 
         /// <summary>Jako <see cref="PhaseText(RobotourPhase)"/>, ale z cisla ve zprave.</summary>
         public static string PhaseText(int phase) => PhaseText((RobotourPhase)phase);
+
+        /// <summary>
+        /// Na co ceka mise Track v dane fazi. <b>Kazda faze ma odpoved</b> — „na nic"
+        /// (<see cref="MissionWait.None"/>) je taky odpoved, ale zadna faze nesmi propadnout
+        /// nedopatrenim (hlida test nad vsemi hodnotami vyctu).
+        /// </summary>
+        public static MissionWait WaitFor(TrackPhase phase) => phase switch
+        {
+            TrackPhase.Idle => MissionWait.MissionStart,
+            TrackPhase.AwaitingEStop => MissionWait.EmergencyStopPressed,
+            TrackPhase.AwaitingEStopRelease => MissionWait.EmergencyStopReleased,
+            TrackPhase.Driving => MissionWait.Arrival,
+            TrackPhase.Finished => MissionWait.None,
+            TrackPhase.Aborted => MissionWait.None,
+            _ => MissionWait.None,
+        };
+
+        /// <summary>
+        /// Co mise Track v dane fazi dela. <b>Bez cisla mista</b> — to k textu pripoji sama mise
+        /// (<c>TrackMission.PhaseText</c>), protoze tady se poradi bodu nezna.
+        /// Neznama hodnota se prizna cislem, netvari se jako zname.
+        /// </summary>
+        public static string PhaseText(TrackPhase phase) => phase switch
+        {
+            TrackPhase.Idle => "necinna",
+            TrackPhase.AwaitingEStop => "ceka na stisk nouzoveho zastaveni",
+            TrackPhase.AwaitingEStopRelease => "pripravena k odjezdu",
+            TrackPhase.Driving => "jede k mistu",
+            TrackPhase.Finished => "hotovo",
+            TrackPhase.Aborted => "preruseno",
+            _ => "faze " + (int)phase,
+        };
 
         /// <summary>
         /// Text „na co se ceka" pro obsluhu. Prazdny retezec u <see cref="MissionWait.None"/> —

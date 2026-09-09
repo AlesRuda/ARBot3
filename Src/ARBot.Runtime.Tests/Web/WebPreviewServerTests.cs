@@ -1,3 +1,5 @@
+﻿using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using ARBot.Common.Logs;
@@ -425,13 +427,23 @@ namespace ARBot.Runtime.Tests.Web
         {
             string json = await klient.GetStringAsync("/status.json");
 
+            // Ocekavany seznam se SKLADA Z REGISTRU, ne z pevneho retezce: presne to je totiz
+            // vlastnost, kterou test hlida — kdyby stranka mela vlastni druhy seznam, nova mise
+            // by na ni chybela a nikdo by nevedel proc. Pevny retezec by naopak nutil test menit
+            // s kazdou novou misi, a to uz jednou nastalo (magcal, pak track).
+            string ocekavane = "\"pick\":["
+                + string.Join(",", ARBot.Common.Configuration.ParamRegistry.Mission.Def.AllowedValues
+                    .Where(m => !string.Equals(m, "none", StringComparison.OrdinalIgnoreCase))
+                    .Select(m => "\"" + m + "\""))
+                + "]";
+
             Assert.Multiple(() =>
             {
-                // Seznam se bere z registru parametru, ne z druheho seznamu — proto se tady
-                // objevil `magcal`, jakmile pribyl do `mission=`. Prave o to jde: kdyby to byl
-                // druhy seznam, nova mise by na strance chybela a nikdo by nevedel proc.
-                Assert.That(json, Does.Contain("\"pick\":[\"freerun\",\"robotour\",\"magcal\"]"),
+                Assert.That(json, Does.Contain(ocekavane),
                             "seznam misi se bere z registru parametru, ne z druheho seznamu");
+                // "none" na vyber neni: bez mise se nejezdi (rozhodnuti autora 5. 9. 2026).
+                Assert.That(json, Does.Not.Contain("\"none\""));
+                Assert.That(json, Does.Contain("\"track\""), "nova mise se ma objevit sama");
                 Assert.That(json, Does.Contain("\"estop\":false"));
                 Assert.That(json, Does.Contain("\"pickBlocked\""));
             });

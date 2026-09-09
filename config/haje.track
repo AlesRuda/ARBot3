@@ -1,0 +1,17 @@
+# Ukazkovy seznam mist pro misi Track (mission=track track=config/haje.track).
+#
+# Body lezi NA SITI CEST v OSM/HajeRovne.osm, ~90-130 m od startu robota (ten je ve stredu
+# obalky uzlu mapy - viz BuildOriginFromMap), rozestupy 70-130 m. Trojuhelnik, takze se
+# `repeat` pozna: robot jezdi dokola.
+#
+# Format: jeden bod na radek jako `sirka,delka` ve STUPNICH; posledni radek `repeat` znamena
+# "po poslednim bode zacni znovu od prvniho". Viz doc/track-mission.md.
+#
+# Vyzkouseni v simulaci:
+#   mission=track track=config/haje.track virtualhw=true map=OSM/HajeRovne.osm web=8080
+# Pak na strance nahledu stisknout a uvolnit virtualni nouzove zastaveni - to je pokyn "jed".
+
+50.0242211,14.5220884
+50.0230604,14.5219038
+50.0238890,14.5229165
+repeat

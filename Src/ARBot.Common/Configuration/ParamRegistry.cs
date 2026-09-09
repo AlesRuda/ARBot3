@@ -187,11 +187,23 @@ namespace ARBot.Common.Configuration
 
         // --- Mise ----------------------------------------------------------------------
         // Vycet MUSI odpovidat switchi v ARBotRuntime - kdyz pribude mise, patri i sem.
-        public static readonly StringParam Mission = Vycet("mission", "none", new[] { "none", "freerun", "robotour", "magcal" }, K_MISE,
-              "Vyber mise: none | freerun | robotour | magcal. Mise se vylucuji, proto selektor "
-              + "a ne booleovske prepinace - dve zaroven by si prepisovaly mrkev. magcal NEJEZDI: "
-              + "robot stoji a meri si kalibraci magnetometru, kdyz s nim clovek otaci rukou "
-              + "(viz doc/plan-vn100-kalibrace.md).");
+        public static readonly StringParam Mission = Vycet("mission", "none", new[] { "none", "freerun", "robotour", "magcal", "track" }, K_MISE,
+              "Vyber mise: none | freerun | robotour | magcal | track. Mise se vylucuji, proto "
+              + "selektor a ne booleovske prepinace - dve zaroven by si prepisovaly mrkev. "
+              + "magcal NEJEZDI: robot stoji a meri si kalibraci magnetometru, kdyz s nim clovek "
+              + "otaci rukou (viz doc/plan-vn100-kalibrace.md). track objizdi mista ze souboru "
+              + "zadaneho v track= (viz doc/track-mission.md).");
+        public static readonly StringParam Track = Text("track", null, K_MISE,
+              "Soubor se seznamem mist pro misi track (napr. abc.track): jeden bod na radek jako "
+              + "'sirka,delka' ve STUPNICH, volitelne posledni radek 'repeat' = jezdit dokola. "
+              + "Relativni cesta se resi proti datovemu adresari (dataroot=). Nesrozumitelny "
+              + "radek je CHYBA, ne tiche preskoceni - jinak by robot objel jinou trasu, nez je "
+              + "v souboru. Viz doc/track-mission.md.");
+        public static readonly DoubleParam TrackOffRoad = Num("trackoffroad", Fmt(new TrackConfig().MaxPointOffRoadM), K_MISE,
+              "Nejvetsi pripustny odstup mista ze souboru .track od site cest [m]. Bod, ktery je "
+              + "dal, misi PRERUSI (nepreskoci se) - prichyceni samo zadny limit nema, takze bez "
+              + "nej by robot odjel nekam jinam a ohlasil dojezd. Default = "
+              + "TrackConfig.MaxPointOffRoadM.");
         public static readonly DoubleParam FreeRunLook = Num("freerunlook", Fmt(new FreeRunConfig().LookaheadM), K_MISE,
               "Lookahead mrkve mise FreeRun [m] - jedina skutecna ladici konstanta te mise. "
               + "Default = FreeRunConfig.LookaheadM.");

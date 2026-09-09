@@ -32,6 +32,36 @@ namespace ARBot.Common.Tests.Missions
             }
         }
 
+        [Test]
+        public void KazdaFazeTrack_MaOdpoved()
+        {
+            // Tentyz test pro misi Track: nova faze nesmi projit bez rozhodnuti, na co v ni
+            // robot ceka. Viz doc/track-mission.md.
+            foreach (TrackPhase faze in Enum.GetValues(typeof(TrackPhase)))
+            {
+                var wait = MissionStatusText.WaitFor(faze);
+                string text = MissionStatusText.PhaseText(faze);
+
+                Assert.That(text, Is.Not.Empty, $"faze {faze} nema nazev");
+                Assert.That(Enum.IsDefined(typeof(MissionWait), wait), Is.True,
+                            $"faze {faze} se mapuje na neznamou hodnotu {wait}");
+                if (wait != MissionWait.None)
+                    Assert.That(MissionStatusText.WaitText(wait), Is.Not.Empty,
+                                $"ceka se na {wait}, ale nema to text");
+            }
+        }
+
+        [TestCase(TrackPhase.Idle, MissionWait.MissionStart)]
+        [TestCase(TrackPhase.AwaitingEStop, MissionWait.EmergencyStopPressed)]
+        [TestCase(TrackPhase.AwaitingEStopRelease, MissionWait.EmergencyStopReleased)]
+        [TestCase(TrackPhase.Driving, MissionWait.Arrival)]
+        [TestCase(TrackPhase.Finished, MissionWait.None)]
+        [TestCase(TrackPhase.Aborted, MissionWait.None)]
+        public void FazeTrack_MapujeNaOcekavaneCekani(TrackPhase faze, MissionWait ocekavane)
+        {
+            Assert.That(MissionStatusText.WaitFor(faze), Is.EqualTo(ocekavane));
+        }
+
         [TestCase(RobotourPhase.Idle, MissionWait.MissionStart)]
         [TestCase(RobotourPhase.ArmingAtDepot, MissionWait.GpsFix)]
         [TestCase(RobotourPhase.AwaitingEStop, MissionWait.EmergencyStopPressed)]
