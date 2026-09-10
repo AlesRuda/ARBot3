@@ -102,18 +102,7 @@ namespace ARBot.Common.Calibration
             result = null;
             condition = double.PositiveInfinity;
 
-            if (mag == null) throw new ArgumentNullException(nameof(mag));
-            if (mag.Count < MinSamples)
-                throw new ArgumentException($"Malo vzorku ({mag.Count} < {MinSamples}).", nameof(mag));
-            if (!(bRefG > 0)) throw new ArgumentOutOfRangeException(nameof(bRefG));
-            if (acc != null && acc.Count != mag.Count)
-                throw new ArgumentException("acc musi mit stejny pocet prvku jako mag.", nameof(acc));
-
-            // ⚠️ Normalizace vstupu je NUTNA. Bez ni jsou sloupce navrhove matice v jednotkach
-            // G², G a 1, tedy o rady jinde — a podminenost by pak merila volbu jednotek, ne
-            // geometrii dat, tedy presne to, co ma merit.
-            double s = mag.Average(v => v.Length());
-            if (!(s > 0)) throw new ArgumentException("Nulove pole.", nameof(mag));
+            double s = Priprava(mag, bRefG, acc);
 
             // Rovnomerne redeni: krok tak, aby radku bylo nejvys MaxFitSamples. Viz jeho
             // dokumentace — cena Svd roste kvadraticky, kdezto podminenost je na poctu vzorku
@@ -190,7 +179,131 @@ namespace ARBot.Common.Calibration
             var C = C0.Multiply(bRefG / k / s);
             var b = bn.Multiply(s);
 
-            // Zbytky se pocitaji uz zkalibrovanym vysledkem, takze staci pomocna instance.
+            result = SeZbytky(C, b, condition, mag, acc);
+            return true;
+        }
+
+        /// <summary>
+        /// <b>Prolozeni samotne KOULE</b> — jen tvrde zelezo (posun stredu), mekke se
+        /// nehleda. Ctyri nezname misto deseti.
+        ///
+        /// <para><b>Nacpak.</b> Odpovida na otazku, kterou <see cref="TryFit"/> polozit neumi:
+        /// <i>lezi ta data vubec na NEJAKE kouli?</i> Kdyz koule sedi a elipsoida ne, je pole
+        /// konzistentni a chybi jen naklon — pokyn zni „podloz robota vys". Kdyz nesedi ani
+        /// koule, <b>menilo se behem mereni pole</b> a zadne otaceni to nespravi; obsluha musi
+        /// robota postavit na jedno misto dal od kovu. Bez tehle rozlisovaci schopnosti posilal
+        /// verdikt cloveka otacet i v pripade, kdy mu to nemohlo pomoct.</para>
+        ///
+        /// <para>Vysledek je <b>pouzitelny</b>, ne jen diagnosticky: <c>C</c> vyjde jako
+        /// jednotkova matice krat meritko, takze jde zapsat do registru 23 jako kalibrace
+        /// <b>jen tvrdeho zeleza</b>. Odstrani prvni harmonickou chyby kurzu, druhou (mekke
+        /// zelezo) ne — u nasich dat ze 7. 9. 2026 tedy zhruba 27° z 52°.</para>
+        ///
+        /// <para>⚠️ <b>Ani koule se z rovinne rotace neurci</b> — na kruhu lezi nekonecne mnoho
+        /// kouli a sloupec <c>x²+y²+z²</c> zdegeneruje na konstantu. Nejaky naklon je porad
+        /// potreba, jen podstatne mensi nez u elipsoidy.</para>
+        /// </summary>
+        /// <param name="mag">Surova mereni pole [G].</param>
+        /// <param name="bRefG">Referencni velikost pole [G] z registru 21.</param>
+        /// <param name="result">Vysledek; <c>null</c>, kdyz je soustava neurcena.</param>
+        /// <param name="condition">Podminenost navrhove matice — <b>vzdy vyplnena</b>.</param>
+        /// <param name="acc">Gravitace ke kazdemu vzorku, kvuli rozptylu sklonu.</param>
+        /// <param name="maxCondition">Nad touhle podminenosti je soustava neurcena.</param>
+        public static bool TryFitSphere(IReadOnlyList<Vector3> mag, double bRefG,
+                                        out MagCalResult result, out double condition,
+                                        IReadOnlyList<Vector3> acc = null,
+                                        double maxCondition = MagCalThresholds.MaxCondition)
+        {
+            result = null;
+            condition = double.PositiveInfinity;
+
+            double s = Priprava(mag, bRefG, acc);
+
+            // Radky [ |m|², 2x, 2y, 2z, 1 ] — tataz normalizace i redeni jako u elipsoidy,
+            // ze stejnych duvodu (jednotky a kvadraticka cena Svd).
+            int krok = mag.Count > MaxFitSamples ? (mag.Count + MaxFitSamples - 1) / MaxFitSamples : 1;
+            int radku = (mag.Count + krok - 1) / krok;
+
+            var d = Matrix<double>.Build.Dense(radku, 5);
+            for (int r = 0; r < radku; r++)
+            {
+                int i = r * krok;
+                double x = mag[i].X / s, y = mag[i].Y / s, z = mag[i].Z / s;
+                d[r, 0] = x * x + y * y + z * z;
+                d[r, 1] = 2 * x;  d[r, 2] = 2 * y;  d[r, 3] = 2 * z;
+                d[r, 4] = 1;
+            }
+
+            Svd<double> svd = d.Svd(true);
+            var u = svd.VT.Row(4);
+
+            // Jako u elipsoidy: podminenost pres NENULOVE smery (0..3); S[4] je ta, ktera MA
+            // byt nulova.
+            condition = svd.S[3] > 0 ? svd.S[0] / svd.S[3] : double.PositiveInfinity;
+            if (!(condition <= maxCondition)) return false;
+
+            // u[0] ≈ 0 znamena, ze prolozena kvadrika je ROVINA, ne koule — sloupec |m|² se
+            // nepouzil. Deleni jim by dalo stred v nekonecnu.
+            if (Math.Abs(u[0]) < 1e-12) return false;
+
+            // Stred a polomer (v normalizovanych jednotkach) z |m − c|² = r².
+            var cn = Vector<double>.Build.DenseOfArray(
+                new[] { -u[1] / u[0], -u[2] / u[0], -u[3] / u[0] });
+            double r2 = cn[0] * cn[0] + cn[1] * cn[1] + cn[2] * cn[2] - u[4] / u[0];
+            if (!(r2 > 0)) return false;
+
+            // Zpet do G: prolozeni bezelo na m/s, takze stred i polomer se nasobi s.
+            double polomer = Math.Sqrt(r2) * s;
+            if (!(polomer > 0)) return false;
+
+            // Meritko na referenci z registru 21, ne na namereny polomer — stejny duvod jako
+            // u elipsoidy: VPE porovnava |B| proti registru 21.
+            double k = bRefG / polomer;
+
+            // ⚠️ TRETI BRANA, bez ktere projde rovinna rotace. Podminenost ani zbytek ji
+            // nechyti (zmereno: 538 a 0,0000 pri biasu vedle o 476 787 G) — prolozenim rovinne
+            // elipsy je koule o poloměru v radu 10⁶, tedy skoro rovina, a normalizace tim
+            // poloměrem srovna zbytek k nule. Viz MagCalThresholds.MaxSphereScale.
+            if (!(k <= MagCalThresholds.MaxSphereScale) || !(k >= 1.0 / MagCalThresholds.MaxSphereScale))
+                return false;
+
+            var C = Matrix<double>.Build.DenseIdentity(3).Multiply(k);
+            result = SeZbytky(C, cn.Multiply(s), condition, mag, acc);
+            return true;
+        }
+
+        /// <summary>
+        /// Spolecna kontrola vstupu obou prolozeni; vraci meritko normalizace.
+        ///
+        /// <para>⚠️ Normalizace je NUTNA. Bez ni jsou sloupce navrhove matice v jednotkach
+        /// G², G a 1, tedy o rady jinde — a podminenost by pak merila volbu jednotek, ne
+        /// geometrii dat, tedy presne to, co ma merit.</para>
+        /// </summary>
+        private static double Priprava(IReadOnlyList<Vector3> mag, double bRefG,
+                                       IReadOnlyList<Vector3> acc)
+        {
+            if (mag == null) throw new ArgumentNullException(nameof(mag));
+            if (mag.Count < MinSamples)
+                throw new ArgumentException($"Malo vzorku ({mag.Count} < {MinSamples}).", nameof(mag));
+            if (!(bRefG > 0)) throw new ArgumentOutOfRangeException(nameof(bRefG));
+            if (acc != null && acc.Count != mag.Count)
+                throw new ArgumentException("acc musi mit stejny pocet prvku jako mag.", nameof(acc));
+
+            double s = mag.Average(v => v.Length());
+            if (!(s > 0)) throw new ArgumentException("Nulove pole.", nameof(mag));
+            return s;
+        }
+
+        /// <summary>
+        /// Dopocita zbytky nad <b>vsemi</b> vzorky a slozi vysledek.
+        ///
+        /// <para>Zbytky se pocitaji uz zkalibrovanym vysledkem, takze staci pomocna instance.
+        /// Nad <b>vsemi</b> vzorky zamerne, i kdyz se soustava redila: kvalita se ma posuzovat
+        /// na vsech datech.</para>
+        /// </summary>
+        private static MagCalResult SeZbytky(Matrix<double> C, Vector<double> b, double condition,
+                                             IReadOnlyList<Vector3> mag, IReadOnlyList<Vector3> acc)
+        {
             var pomocna = new MagCalResult(C, b, condition, 0, double.NaN, mag.Count);
             var velikosti = new List<double>(mag.Count);
             var sklony = acc == null ? null : new List<double>(mag.Count);
@@ -212,8 +325,7 @@ namespace ARBot.Common.Calibration
 
             double sdSklon = sklony == null ? double.NaN
                                             : Sd(sklony.Where(x => !double.IsNaN(x)).ToList());
-            result = new MagCalResult(C, b, condition, Sd(velikosti), sdSklon, mag.Count);
-            return true;
+            return new MagCalResult(C, b, condition, Sd(velikosti), sdSklon, mag.Count);
         }
 
         /// <summary>

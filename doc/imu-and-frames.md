@@ -430,12 +430,33 @@ Závislost **je statisticky jistá, ale malá**: 0,015 G z celkového rozpětí 
 umí odečíst. **Další krok je tedy změřit novou kalibraci otáčením robotu**, ne stínění ani
 přesun senzoru.
 
-⚠️ **Druhá, oddělená vada: VPE se táhne za vlastním polem řádově minuty.** Zesílení zpětné vazby
+⚠️ **Druhá vada: VPE se táhne za vlastním polem řádově minuty.** Zesílení zpětné vazby
 `K = 0,00485 ± 0,00074 1/s`, tedy **časová konstanta 206 s**. Ve výsledku `kurz z pole − yaw`
 kolísá po minutách +10 / +2 / −10 / +1,5 / **+30 / +46 / +37** / +5°, takže po každé zatáčce nebo
-magnetické změně je yaw desítky stupňů vedle **i proti svému vlastnímu magnetometru**. To
-kalibrace neopraví; sedí to s poznámkou „po zapnutí počítej s ~2 minutami" z 6. 9., jen to zjevně
-platí i **za jízdy**. Dokud je konstanta takhle dlouhá, je krátkodobá σ 0,15° nesmysl dvakrát.
+magnetické změně je yaw desítky stupňů vedle **i proti svému vlastnímu magnetometru**. Sedí to
+s poznámkou „po zapnutí počítej s ~2 minutami" z 6. 9., jen to zjevně platí i **za jízdy**.
+Dokud je konstanta takhle dlouhá, je krátkodobá σ 0,15° nesmysl dvakrát.
+
+⚠️ ~~To kalibrace neopraví.~~ ✅ **Opraveno 10. 9. 2026 po přečtení dokumentace VN
+(`doc/Vectornav/`): to tvrzení bylo NEPODLOŽENÉ a nazývat tu vadu „oddělenou" bylo předčasné.**
+Manuál (kap. 3.3.5) říká o Absolute Mode přesný opak: při **dlouhodobé** magnetické poruše
+*„causing the magnetic-based yaw to **slew over** to an erroneous heading estimate"* — a
+nezkalibrované tvrdé železo 0,28 G je z pohledu filtru přesně taková dlouhodobá porucha. Navíc:
+*„If a valid HSI calibration is not performed prior to use, the behavior of these heading modes
+can be impacted and **may not operate as expected**."* K tomu jsou v registru 35 **dvě zapnuté
+adaptivní vrstvy** (`vnrestore.sh` píše `35,1,0,1,1`, tedy Absolute + `FilteringMode`
+AdaptivelyFiltered + `TuningMode` Adaptive), o kterých manuál píše:
+- **adaptivní filtrování** *„will inherently add some delay to the input measurement"* — přímo
+  zpoždění, a je to **nastavitelné**;
+- **adaptivní ladění** *„monitors both the magnetic and acceleration measurements over an
+  extended period of time to estimate the time-varying level of uncertainty"* — tedy při
+  „rušeném" poli utlumí magnetometr, což se navenek projeví právě jako dlouhá časová konstanta.
+
+Jsou to tedy **tři kandidáti na příčinu a dva z nich kalibrace odstraní**. Pořadí kroků se tím
+nemění (nejdřív kalibrace, pak přeměřit `K`), ale závěr „je to samostatná vada" **neplatí,
+dokud se `K` nepřeměří po kalibraci**. Levný rozhodovací pokus, když by `K` zůstalo: zapsat
+`$VNWRG,35,1,0,0,0` (Absolute + Unfiltered + Static) a přeměřit — tím se obě adaptivní vrstvy
+vyloučí naráz.
 
 **Praktický důsledek pro řízení**: dokud je kurz vedle, nemá smysl ladit rychlostní obálku
 lokálního plánovače — grid i mrkev se kreslí tímhle kurzem. Viz nález ze stejného záznamu

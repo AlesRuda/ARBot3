@@ -2912,3 +2912,46 @@ dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- heading records/<novy>
       proč mise a ne parametr, proč se ohnula čára o ručním zápisu do senzoru).
 - [ ] **Krok 12: DevLog** — záznam dne podle pravidel v hlavičce [devlog.md](devlog.md).
 
+
+---
+
+## Fáze 1b — po prvním výjezdu (10. 9. 2026)
+
+První pokus v poli skončil bez výsledku (podrobně
+[plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#fáze-1b--co-našel-první-výjezd-10-9-2026)).
+Tohle je hotové **v kódu**; na skutečném senzoru neběželo nic z toho.
+
+- [x] **Proložení koule** (`MagCalFit.TryFitSphere`) — jen tvrdé železo, 4 neznámé. Tři brány:
+      podmíněnost, zbytek, a **měřítko** (`MaxSphereScale`) — bez té třetí projde rovinná rotace
+      a vrátí bias vedle o 476 787 G.
+- [x] **Verdikt rozlišuje „chybí náklon" od „měnilo se pole"** a každá větev končí pokynem.
+- [x] **Zápis jen tvrdého železa** — `MagCalMission.WriteHardIronOnly`, `POST /magcal/writehardiron`,
+      druhé tlačítko na stránce. Bezpečnostní brána (držený stop) je **sdílená** s plným zápisem.
+- [x] **Mřížka pokrytí 24 × 5** místo půdorysu, s modrým rámečkem na aktuální buňce.
+- [x] **Velikost odklonu pryč z klíče skupin** + posunuté sektory + pokyn pojmenuje stranu.
+- [x] **`MagCalMsg` verze 2** (mřížka, aktuální buňka, čísla z koule); verze 1 se čte dál.
+- [x] **`ARBot.Analyze magcal`** má blok „2) PROLOZENI KOULE" před elipsoidou.
+
+### Co zbývá
+
+- [ ] **Pustit `ARBot.Analyze magcal` na záznam z výjezdu 10. 9.**, až bude z robota k dispozici,
+      a ověřit, že verdikt spadl opravdu na nekladném vlastním čísle (dnes je to odvozeno
+      z kódu a z podmíněnosti ~80, ne změřeno).
+- [ ] **Zvážit vázané proložení elipsoidy** (Li–Griffiths), které z principu nemůže vyjít jako
+      hyperboloid — tím by stav „proložení selhalo přes dobré pokrytí" zmizel úplně. Rozhodnout
+      **až podle toho záznamu**; dokud nevíme, že to je náš případ, je to práce naslepo.
+- [ ] **Terénní měření celé fáze 1b** — hlavně že mřížka obsluhu opravdu navede a že částečný
+      zápis do flash projde.
+
+### Z dokumentace VN (10. 9. 2026)
+
+- [x] **`Reset` registru 44 před `Run`** (TN002 kap. 4.1, krok 1) — bez něj nese registr 47
+      řešení z minulé mise a není to nezávislá kontrola.
+- [x] **Vypnout registr 44 i při NEDOKONČENÉ misi** (TN002 kap. 5.2: Mode = Run je uvedený mezi
+      příčinami ujíždějícího kurzu).
+- [ ] **Přeměřit `K` po kalibraci** — tvrzení „VPE 206 s je samostatná vada, kterou kalibrace
+      neopraví" je **nepodložené**, viz [imu-and-frames.md](imu-and-frames.md). Když `K`
+      zůstane, zkusit `$VNWRG,35,1,0,0,0` (Absolute + Unfiltered + Static) a přeměřit znovu —
+      tím se obě adaptivní vrstvy vyloučí naráz.
+- [ ] **Rozhodnout o 2D kalibraci** (TN002 kap. 3.2) — z pouhé rotace na rovině, ale platí jen
+      do 5–10° náklonu. Náš 3D fit to neumí; byla by to samostatná úloha.

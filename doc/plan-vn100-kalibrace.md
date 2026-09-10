@@ -193,6 +193,179 @@ jako u `perfwarn=70`.
   od konstantního posunu nerozlišitelné.
 - **Osu `z`**, pokud se robot nenaklání.
 
+## Fáze 1b — co našel první výjezd (10. 9. 2026)
+
+První pokus obsluhy zkalibrovat robota v poli **skončil bez výsledku** a stránka u toho radila
+věc, která pomoct nemohla. Z toho vyšly tři opravy; všechny jsou v kódu a **na skutečném senzoru
+neběžela ani jedna**.
+
+### Vada 1: verdikt byl diagnóza, ne pokyn
+
+Obsluha pokryla azimuty i náklony (hlášky o obojím zmizely), podmíněnost byla **~80** při prahu
+10⁴ — a stránka přesto pořád psala *„otáčej dál a přidej náklon"*. Ta věta je v kódu na jediném
+místě a vezme se, jen když je pokrytí kompletní **a** proložení přesto `null`. Se změřenou
+podmíněností pod prahem to znamená, že `TryFit` spadl na **nekladném vlastním čísle** — proložená
+kvadrika není elipsoid. Text si tedy protiřečil („80, práh 10 000") a radil jedinou věc, která
+nepomůže.
+
+⚠️ **Ověřit na záznamu z robota se to zatím nedalo** — záznam zůstal v robotu. Až bude, řekne to
+`ARBot.Analyze magcal`.
+
+### Léčba: proložit vedle elipsoidy i samotnou KOULI
+
+Koule má 4 neznámé místo 10 a odpovídá na otázku, kterou elipsoida položit neumí: **leží ta data
+vůbec na nějaké kouli?** Z toho plyne pokyn:
+
+| koule | elipsoida | co se stalo | co má obsluha udělat |
+|---|---|---|---|
+| sedí | nejde | pole je konzistentní, chybí náklon | podložit výš / na další stranu |
+| **nesedí** | — | **měnilo se pole** | postavit robota na jedno místo dál od kovu, začít znovu |
+| sedí | sedí | — | dosavadní kontroly zbytků |
+
+Naměřeno na syntetice (`MagCalFitTests`, 10. 9. 2026) — koule je o **řád až dva** lépe podmíněná:
+
+| náklon | podmíněnost elipsoidy | podmíněnost koule |
+|---|---|---|
+| jen rovina | 2,04 × 10⁸ | 538 |
+| 1,1° | 1,18 × 10⁵ | 353 |
+| 2,9° | 1,89 × 10⁴ | 144 |
+| 5,7° | 4 759 | 71,8 |
+| 20,1° | 434 | 19,9 |
+
+⚠️ **Past, kterou návrh neměl a měření našlo: rovinná rotace s měkkým železem projde
+podmíněností (538) I zbytkem (`sd|B|` = 0,0000) — a bias vyjde vedle o 476 787 G.** Proložením
+rovinné elipsy je totiž koule o poloměru v řádu 10⁶, tedy skoro rovina, a protože se měřítko
+normuje právě tím poloměrem, zbytek se srovná k nule. Chytí to teprve **třetí brána na velikost
+měřítka** (`MagCalThresholds.MaxSphereScale = 3`). Hlídá to
+`Koule_NaRovine_JeNeurcena_IKdyzPodminenostAZbytekMlci`.
+
+Práh „koule nesedí" (`MaxSphereSdMagnitudeG = 0,030 G`) musí být řádově volnější než u elipsoidy,
+protože koule neopravuje měkké železo:
+
+| situace | `sd(\|B\|)` po korekci koulí |
+|---|---|
+| měkké železo 1,222/1,175/1,081 (referenční export), pole konstantní | 0,0022 G |
+| měkké železo 1,5/1,0/0,8 (patologické), pole konstantní | 0,0179 G |
+| posun pole o 0,02 G uprostřed měření | 0,0101 G |
+| posun pole o 0,05 G | 0,0263 G |
+| posun pole o 0,10 G | 0,0589 G |
+
+⚠️ Z překryvu plyne **skutečná mez, ne volba ladění**: posun pole menší než ~0,05 G se pod měkkým
+železem schová a takhle ho rozpoznat nelze.
+
+### Vedlejší zisk: zapsat se dá i jen tvrdé železo
+
+Výsledek koule je **použitelný**, ne jen diagnostický — `C` vyjde jako jednotková matice krát
+měřítko, takže jde do registru 23. Na stránce je jako druhé tlačítko, které se ukazuje **jen když
+plná kalibrace nejde** (jinak by nabízelo horší výsledek vedle lepšího).
+
+⚠️ **Odhad tvrdého železa je sám vychýlený neopraveným měkkým** — koule proložená povrchem
+elipsoidu má posunutý střed. Změřeno, kolik tvrdého železa se odstraní:
+
+| měkké železo (diagonála) | odstraněno |
+|---|---|
+| žádné (1,0/1,0/1,0) | 100 % |
+| 1,05/1,00/0,97 | 92 % |
+| 1,222/1,175/1,081 (referenční export) | **80 %** |
+| 1,5/1,0/0,8 (patologické) | **38 %** |
+
+Na náklonu to skoro nezávisí (0,0545 / 0,0590 / 0,0562 G pro 2,9° / 9,7° / 20,1°). Text na stránce
+i v potvrzovacím dialogu proto říká, že se chyba **zmenší, ne odstraní**.
+
+### Vada 2: koše se klíčovaly VELIKOSTÍ odklonu
+
+Skupiny se klíčovaly velikostí odklonu **po 10°** a směrem po 90°. Ruční náklon ale velikost
+neudrží — 22° a 34° spadly do různých skupin, každá pokrytá z půlky, a žádná nedosáhla poloviny
+azimutů. Obsluze zmizela hláška o náklonech a přesto se nic nehnulo.
+
+**Velikost odklonu se z klíče odstranila.** Mřížka má teď pevných **5 řádků**: rovina a čtyři
+směry podložení. Brána tím **neslábne, naopak** — dřív daly dvě velikosti na tutéž stranu tři
+skupiny a `Complete` blokoval až `HasOppositeTilts`; dnes se na tři skupiny jednostranným
+nakláněním nedostane vůbec. Velikost hlídá práh `MinTiltDeg` a ukazuje se zvlášť jako
+`CurrentTiltDeg`.
+
+Při tom se opravily dvě další věci:
+
+- **Sektory jsou posunuté o půl šířky**, aby osy robota ležely v jejich *středu*. S hranicí na 0°
+  by se podložení přesně zepředu rozpadlo mezi dva sektory — tatáž třída chyby, jen o osu jinde.
+- **Pokyn při jednom náklonu pojmenuje stranu.** Dřív by řekl *„podlož robota aspoň o 15°"*
+  člověku, který ho drží nakloněný o 34°; teď říká *„máš jen jednu stranu (zvednutý předek) —
+  podlož na DRUHOU stranu (zvednutá záď)"*.
+
+### Vada 3: obsluha neviděla, KAM robota natočit
+
+Místo půdorysu (robot stojí, takže nic neříká) se v misi `magcal` kreslí **mapa pokrytí**:
+řádek = poloha robota, sloupec = azimutový koš po 15°, barva = červená / žlutá / zelená podle
+počtu vzorků, **modrý rámeček** = kde robot právě je. Kreslí se jako HTML tabulka, ne obrázek.
+
+⚠️ **Proč ne Mercator přes celý směr pole**, jak zněl původní nápad: při náklonech do 30° je
+fyzicky dosažitelná jen asi **pětina koule** (pole má sklon ~66°, takže rovinná rotace objede
+jedinou rovnoběžku a náklon ji rozvlní o ±θ). Mapa by byla trvale ze čtyř pětin červená a hnala
+obsluhu za pokrytím, které získat nejde — a kritérium ho ani nechce. Druhá osa proto **není
+dalších 24 košů**, ale pět poloh robota.
+
+Mřížka je **tatáž datová struktura, ze které se počítá kritérium** (`MagCalCoverage.Grid()`),
+takže se stránka a verdikt nemohou rozejít; hlídá to test
+`Mrizka_MaPevnePetRadku_ASouhlasiSKriteriem`.
+
+## Co říká dokumentace VectorNavu (přečteno 10. 9. 2026)
+
+⚠️ **Ta PDF v repozitáři NEJSOU a nebudou** (TN002 kalibrace, TN004 rámce, ICD, manuál,
+datasheet). Nesou patičku *„Proprietary & Confidential… may not be reproduced, disseminated, or
+disclosed to any third party"* a tenhle repozitář je **veřejný**, takže by je commit rozšířil —
+a z historie se to čistí stejně špatně jako klíč (viz CLAUDE.md, 7. 9. 2026). Leží lokálně
+v `doc/Vectornav/`; stáhnout se dají z vectornav.com. **Proto jsou závěry níž ocitované
+i s číslem kapitoly** — aby se daly ověřit i bez těch souborů.
+
+Potvrdila část návrhu a **našla dvě vady v našem zacházení s registrem 44**.
+
+### Potvrzeno
+
+- **Konvence registru 23 sedí přesně**: ICD rovnice 3.1 je `[X;Y;Z] = C · ([MX;MY;MZ] − B)`,
+  tedy totéž co `MagCalResult.Apply`. Pořadí dvanácti čísel (řádky `C`, pak `B`) taky.
+- **Figures of merit mají tentýž tvar jako náš verdikt** — TN002 kap. 3.1: pokrytí („dost dat?")
+  *a zvlášť* zbytky proložení, které *„indicate how magnetically clean the surrounding
+  environment is"*. To je přesně role, kterou u nás dostal zbytek koule.
+- **„Pole se měnilo" je jejich diagnóza taky** — TN002 kap. 5.1 uvádí mezi příčinami špatných
+  zbytků *„system has time-varying magnetic fields affecting the calibration"*.
+- **`ApplyCompensation = 1` je správně**, ačkoli to vypadá jako `true`: ICD tab. 3.57 má
+  `Disable = 1`, `Enable = 3`. Chceme Disable — řešení registru 47 se totiž podle ICD přičítá
+  **k** registru 23, takže zapnuté by nám běželo navrch naší kalibrace.
+
+### Vada A: nedělal se `Reset` před `Run` — opraveno
+
+TN002 kap. 4.1 má jako **krok 1** *„Clear any previous real-time calibration solutions by setting
+Mode to Reset"*. ICD registru 44 říká proč: *„When the Real-Time Estimator's mode switches from
+Run to Off, the solution does not clear… will only clear the solution when the mode is set to
+Reset."* Registr 47 přitom používáme jako **nezávislou kontrolu** našeho proložení — bez resetu
+by v něm bylo řešení z minulé mise, tedy žádná kontrola.
+
+### Vada B: nedokončená mise nechala senzor v `Run` — opraveno
+
+TN002 kap. 5.2 uvádí *„The Mode field in Register 44 is set to Run"* mezi **příčinami ujíždějícího
+kurzu** a končí: *„if a calibration procedure is not being run, then the Mode field in Register 44
+must be turned off to ensure proper function of the sensor."* Do 10. 9. 2026 se vypínalo **jen na
+cestě po úspěšném zápisu** — takže mise ukončená bez zápisu (přesně to, co se v poli stalo)
+nechala senzor v Run. Dnes to řeší `MagCalMission.Stop()`.
+
+### Otevřené možnosti, které z dokumentace vyplynuly (nic z toho není uděláno)
+
+- ⚠️ **Existuje „2D kalibrace", kterou neumíme.** TN002 kap. 3.2: *„a 2D calibration is
+  sufficient if the platform will stay between 5° to 10° of level"* a vyžaduje **jen rotaci na
+  rovině**, žádné podkládání. Pro robota, který jezdí po rovině, by to byla podstatně snazší
+  procedura. **Náš 3D fit to nedokáže** — z rovinné rotace je podurčený, a proto ho brána na
+  měřítko zamítne. Byla by to samostatná úloha (proložení s pevnou složkou `z`). Proti tomu
+  stojí, že venkovní robot 10° náklonu běžně překročí a pak VN *„strongly recommends"* plnou 3D.
+- ⚠️ **Náš požadavek na pokrytí je slabší proxy než jejich profil.** VN chce pro 3D srovnat
+  postupně osu *x*, *y* i *z* se severojižním a pak východozápadním směrem a pokaždé otočit o
+  360° (šest otáček kolem různých os). To je psané pro senzor **v ruce**, ne pro robota na zemi —
+  a je to zároveň důvod, proč se u nás plná 3D kalibrace udělat nedá a proč je „rovina + dva
+  protilehlé náklony" jen náhražka. **Nezakrývat to.**
+- **`Known Magnetic Disturbance` command** (manuál kap. 3.3.5): senzoru jde říct, že *teď* běží
+  známá porucha, například motory — a Absolute mode si kurz udrží. Máme naměřenou závislost pole
+  na proudu motorů (−0,00258 G/A), takže je to použitelné; je to ale desetina rozpětí, tedy
+  malá ryba proti statickému železu.
+
 ## Zprávy a švy
 
 - **`MagCalMission`** (`ARBot.Common/Missions`) — sourozenec `FreeRunMission`, ale nejjednodušší:
@@ -207,6 +380,9 @@ jako u `perfwarn=70`.
   `ToLogMessage()`. Nese, co `PhaseText` nést nemůže: 12 parametrů, podmíněnost, koše pokrytí,
   zbytky, verdikt, a **stav registrů přečtený na začátku mise** (21, 23, 44). Tím je stav „před"
   v záznamu, ne v hlavě obsluhy.
+  **Od 10. 9. 2026 verze 2**: navíc **mřížka pokrytí** s aktuální buňkou a čísla z proložení
+  koule. Verze 1 se čte dál (mřížka zůstane prázdná — poctivější než ji dopočítat a tvářit se,
+  že víme, kde ty vzorky byly).
 - **`MissionMsg` se nemění** — je robotourovská (depo, QR, nakládka); FreeRun ji taky nepoužívá.
 - **`IMagCalControl`** (`ARBot.Common/Missions/MissionSeams.cs`) — úzký šev: přečti registr
   21/23/44/47, zapiš 23/44, ulož do flash. Implementace v HAL nad driverem.

@@ -252,5 +252,163 @@ namespace ARBot.Common.Tests.Calibration
             Assert.That(katalog.Contains(nameof(MagCalMsg)), Is.True,
                         "bez zapisu v katalogu by MagCalMsg v zaznamu byla necitelna");
         }
+
+        /// <summary>Obrat, pri kterem je pole posunute o zadany vektor — „popojel jsem s robotem".</summary>
+        private static void ObratSPosunemPole(MagCalCollector c, double naklon, double smerRad,
+                                              Vector3 posun, ref double t)
+        {
+            const double omega = 0.5, dt = 0.01;
+            int n = (int)(2 * Math.PI / omega / dt);
+            for (int i = 0; i < n; i++)
+            {
+                var p = Poza(omega * dt * i, naklon, smerRad);
+                c.Add(Vzorek(t, omega, p.Mag + posun, p.Acc));
+                t += dt;
+            }
+        }
+
+        [Test]
+        public void KdyzSeBehemMereniZmeniloPole_VerdiktNeposilaObsluhuOtacet()
+        {
+            // Obsluha s robotem popojela a meri pokazde v jinem poli. ZADNE otaceni to
+            // nespravi - a presne to musi verdikt rict, jinak posila cloveka delat neco,
+            // co mu pomoct nemuze.
+            var c = new MagCalCollector(Bref);
+            double t = 0;
+            Obrat(c, 0.0, 0, ref t);
+            ObratSPosunemPole(c, 0.30, 0, new Vector3(0.10f, 0.10f, 0.10f), ref t);
+            ObratSPosunemPole(c, 0.30, Math.PI, new Vector3(0.10f, 0.10f, 0.10f), ref t);
+
+            Assert.That(c.Usable, Is.False, "z nekonzistentniho pole se zapisovat nesmi");
+            Assert.That(c.Verdict, Does.Contain("pole"),
+                "verdikt ma pojmenovat PRICINU - menici se pole");
+            Assert.That(c.Verdict.ToLowerInvariant(), Does.Not.Contain("otacej"),
+                "a hlavne NESMI radit otaceni, ktere tady nepomuze");
+        }
+
+        [Test]
+        public void PriMalemNaklonu_JeTvrdeZelezoUzZmerene_IKdyzElipsoidaNe()
+        {
+            // Obsluha otocila robota dokola a trochu ho naklonila. Na elipsoidu to nestaci,
+            // ale tvrde zelezo uz zmerene je - a to je to, co si ma moct odvezt z pole.
+            var c = new MagCalCollector(Bref);
+            double t = 0;
+            Obrat(c, 0.0, 0, ref t);
+            Obrat(c, 0.05, 0, ref t);
+            Obrat(c, 0.05, Math.PI, ref t);
+
+            Assert.That(c.LastResult, Is.Null, "predpoklad testu: elipsoida jeste ne");
+            Assert.That(c.HardIronOnly, Is.Not.Null, "ale tvrde zelezo ano");
+            Assert.That(c.CanWriteHardIron, Is.True);
+            Assert.That(c.Usable, Is.False, "plna kalibrace porad ne");
+
+            // ⚠️ Odhad tvrdeho zeleza je SAM VYCHYLENY neopravenym mekkym zelezem, a nejde
+            // o nepresnost implementace, ale o vlastnost metody: koule prolozena povrchem
+            // elipsoidy ma stred posunuty. Zmereno 10. 9. 2026, kolik tvrdeho zeleza se
+            // odstrani podle sily mekkeho: bez nej 100 %, pri 1,05/1,00/0,97 92 %, pri
+            // referencnim 1,222/1,175/1,081 kolem 80 %, pri patologickem 1,5/1,0/0,8 uz jen
+            // 38 %. Tolerance je odtud, ne z pohodli.
+            double chyba = 0;
+            for (int i = 0; i < 3; i++)
+                chyba += Math.Pow(c.HardIronOnly.B[i] - Bias[i], 2);
+            Assert.That(Math.Sqrt(chyba), Is.LessThan(Bias.L2Norm() / 3),
+                "castecna kalibrace ma odstranit aspon dve tretiny tvrdeho zeleza");
+        }
+
+        [Test]
+        public void NaRovine_NeniCoZapsat_AniJakoTvrdeZelezo()
+        {
+            // Bez naklonu neni urcena ani koule (a rovinna elipsa dava nesmyslny stred, ktery
+            // chyti az brana na meritko). Nesmi se tedy nabizet ani castecny zapis.
+            var c = new MagCalCollector(Bref);
+            double t = 0;
+            Obrat(c, 0.0, 0, ref t);
+            Obrat(c, 0.0, 0, ref t);
+
+            Assert.That(c.HardIronOnly, Is.Null);
+            Assert.That(c.CanWriteHardIron, Is.False);
+        }
+
+        [Test]
+        public void MagCalMsg_NeseMrizkuPokryti_AProjdeSerializaci()
+        {
+            // Mrizka musi projit i do ZAZNAMU, ne jen na stranku - jinak by se pozdeji nedalo
+            // dohledat, co obsluha v poli videla, a ARBot.Analyze by to nemel z ceho postavit.
+            var a = new MagCalMsg
+            {
+                Verdict = "POKRACUJ", MissingText = "chybi naklon", Vnwrg23 = string.Empty,
+                Reg23Before = string.Empty,
+                Grid = new[] { new[] { 20, 21, 22 }, new[] { 0, 5, 0 } },
+                CurrentRow = 1, CurrentAzimuthBin = 2, CurrentTiltDeg = 23.5,
+                SphereSdMagnitudeG = 0.0021, SphereVnwrg23 = "1,0,0,0,1,0,0,0,1,-0.27,0,0",
+                CanWriteHardIron = true,
+            };
+
+            var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                a.ToData(bw);
+            ms.Position = 0;
+            var b = new MagCalMsg();
+            using (var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                b.FromData(br);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(b.Grid.Length, Is.EqualTo(2));
+                Assert.That(b.Grid[0], Is.EqualTo(new[] { 20, 21, 22 }));
+                Assert.That(b.Grid[1], Is.EqualTo(new[] { 0, 5, 0 }));
+                Assert.That(b.CurrentRow, Is.EqualTo(1));
+                Assert.That(b.CurrentAzimuthBin, Is.EqualTo(2));
+                Assert.That(b.CurrentTiltDeg, Is.EqualTo(23.5).Within(1e-9));
+                Assert.That(b.SphereSdMagnitudeG, Is.EqualTo(0.0021).Within(1e-9));
+                Assert.That(b.SphereVnwrg23, Is.EqualTo(a.SphereVnwrg23));
+                Assert.That(b.CanWriteHardIron, Is.True);
+            });
+        }
+
+        [Test]
+        public void MagCalMsg_VerzeJedna_SeJesteDaPrecist()
+        {
+            // Zaznamy z 8.-10. 9. 2026 maji verzi 1. Bez vetve ve FromData by se cely .rec
+            // rozsypal - binarni stream by se posunul o nove polozky.
+            var v1 = new MagCalMsg
+            {
+                Phase = 1, Condition = 80.0, SdMagnitudeG = 0.002, SdInclinationDeg = 0.3,
+                Vnwrg23 = string.Empty, Verdict = "POKRACUJ", MissingText = string.Empty,
+                FilledAzimuthBins = 24, TiltGroups = 3, TiltedGroups = 2, HasOppositeTilts = true,
+                Samples = 1000, BRefG = 0.4818, Reg23Before = string.Empty,
+                TimeStamp = new DateTime(2026, 9, 10, 8, 0, 0, DateTimeKind.Utc),
+            };
+
+            var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                ZapisVerzi1(v1, bw);
+            ms.Position = 0;
+            var b = new MagCalMsg();
+            b.Verze = 1;                       // presne to dela MessageReader podle hlavicky ramce
+            using (var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+                b.FromData(br);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(b.Condition, Is.EqualTo(80.0).Within(1e-9));
+                Assert.That(b.Samples, Is.EqualTo(1000));
+                Assert.That(b.TimeStamp, Is.EqualTo(v1.TimeStamp));
+                Assert.That(b.Grid, Is.Empty, "verze 1 mrizku nenesla - prazdna, ne vymyslena");
+                Assert.That(b.CurrentRow, Is.EqualTo(-1), "a aktualni bunka se nezna");
+                Assert.That(b.CanWriteHardIron, Is.False);
+            });
+        }
+
+        /// <summary>Presne ten layout, ktery zapisovala verze 1 — kopie, at se test neveze na kod.</summary>
+        private static void ZapisVerzi1(MagCalMsg m, BinaryWriter bw)
+        {
+            bw.Write(m.Phase); bw.Write(m.Condition); bw.Write(m.SdMagnitudeG);
+            bw.Write(m.SdInclinationDeg); bw.Write(m.Vnwrg23); bw.Write(m.Verdict);
+            bw.Write(m.MissingText); bw.Write(m.FilledAzimuthBins); bw.Write(m.TiltGroups);
+            bw.Write(m.TiltedGroups); bw.Write(m.HasOppositeTilts); bw.Write(m.Samples);
+            bw.Write(m.BRefG); bw.Write(m.Reg23Before);
+            bw.Write(m.TimeStamp.ToBinary());
+        }
     }
 }

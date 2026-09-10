@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ARBot.Common.Calibration;
 using ARBot.Common.Missions;
 using ARBot.Common.Regulators;
@@ -49,7 +50,21 @@ namespace ARBot.Common.Tests.Missions
                 return true;
             }
 
-            public bool SetOnboardHsi(bool run) { Hsi = run; return true; }
+            /// <summary>Posloupnost zasahu do registru 44 — na PORADI tady zalezi.</summary>
+            public readonly List<string> HsiPrikazy = new();
+
+            public bool SetOnboardHsi(bool run)
+            {
+                Hsi = run;
+                HsiPrikazy.Add(run ? "run" : "off");
+                return true;
+            }
+
+            public bool ResetOnboardHsi()
+            {
+                HsiPrikazy.Add("reset");
+                return true;
+            }
 
             public bool SaveToFlash()
             {
@@ -163,6 +178,83 @@ namespace ARBot.Common.Tests.Missions
         {
             // Cislo je soucasti formatu zpravy - precislovani by rozbilo starsi zaznamy.
             Assert.That((int)MissionWait.MagCoverage, Is.EqualTo(7));
+        }
+
+        [Test]
+        public void ZapisTvrdehoZeleza_BezUrceneKoule_SeNEPROVEDE()
+        {
+            // Slabsi brana nez u plne kalibrace porad JE brana - na rovine se koule neurci
+            // (a rovinna elipsa dava nesmyslny stred), takze nesmi jit zapsat nic.
+            var s = new Senzor();
+            using var m = Mise(s, new Drzitel());
+            m.StartMission();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(m.WriteHardIronOnly(), Is.False);
+                Assert.That(s.Zapsano, Is.Null);
+                Assert.That(s.Flash, Is.False);
+            });
+        }
+
+        [Test]
+        public void ZapisTvrdehoZeleza_BezStartuMise_SeNEPROVEDE()
+        {
+            var s = new Senzor();
+            using var m = Mise(s, new Drzitel());
+
+            Assert.That(m.WriteHardIronOnly(), Is.False);
+            Assert.That(s.Zapsano, Is.Null);
+        }
+
+        [Test]
+        public void PriStartu_SeNejdrivRESETUJEPalubniHsi_TeprvePakRUN()
+        {
+            // TN002 (VectorNav), kap. 4.1, krok 1: "Clear any previous real-time calibration
+            // solutions by setting Mode to Reset". ICD registru 44 rika proc: prechod Run->Off
+            // reseni NEMAZE a pri dalsim Run se pokracuje ze stareho. Bez resetu by tedy
+            // registr 47 nesl reseni z MINULE mise - a prave ten pouzivame jako NEZAVISLOU
+            // kontrolu naseho prolozeni.
+            var s = new Senzor();
+            using var m = Mise(s, new Drzitel());
+
+            m.StartMission();
+
+            Assert.That(s.HsiPrikazy, Is.EqualTo(new[] { "reset", "run" }),
+                "poradi je podstatne: reset MUSI predchazet run");
+        }
+
+        [Test]
+        public void PriUkonceniMise_SeVypnePalubniHsi_IKdyzSeNICNEZAPSALO()
+        {
+            // TN002, kap. 5.2: "if a calibration procedure is not being run, then the Mode field
+            // in Register 44 must be turned off to ensure proper function of the sensor" - a Run
+            // je tam primo vyjmenovany jako pricina UJIZDEJICIHO KURZU.
+            //
+            // ⚠️ Presne tohle se stalo 10. 9. 2026: obsluha misi nedokoncila, takze se cesta
+            // s vypnutim (ta po uspesnem zapisu) nikdy neprovedla a senzor zustal v Run.
+            var s = new Senzor();
+            var m = Mise(s, new Drzitel());
+            m.StartMission();
+
+            m.Dispose();
+
+            Assert.That(s.HsiPrikazy, Does.Contain("off"),
+                "nedokoncena mise nesmi nechat senzor v rezimu Run");
+            Assert.That(s.HsiPrikazy[s.HsiPrikazy.Count - 1], Is.EqualTo("off"));
+        }
+
+        [Test]
+        public void MiseKteraNezacala_PalubniHsiNESAHA()
+        {
+            // Kdyz mise nezacala (napr. nesla precist reference), nesmi se pri uklidu vypinat
+            // neco, co jsme nezapnuli - prepsalo by to nastaveni, ktere si nekdo udelal jinak.
+            var s = new Senzor();
+            var m = Mise(s, new Drzitel());
+
+            m.Dispose();
+
+            Assert.That(s.HsiPrikazy, Is.Empty);
         }
     }
 }

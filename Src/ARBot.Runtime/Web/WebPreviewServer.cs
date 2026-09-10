@@ -172,6 +172,9 @@ namespace ARBot.Robot.Web
                     HandleMission(s, req);
                     return;
 
+                case "/magcal/writehardiron":
+                    HandleMagCalWrite(s, req, hardIronOnly: true);
+                    return;
                 case "/magcal/write":
                     HandleMagCalWrite(s, req);
                     return;
@@ -223,7 +226,13 @@ namespace ARBot.Robot.Web
         /// <para>Pri odmitnuti se vraci <b>409 a duvod</b>, ne 200 s tichym nic — obsluha u robota
         /// musi vedet, co ma udelat.</para>
         /// </summary>
-        private void HandleMagCalWrite(System.IO.Stream s, HttpRequestLine req)
+        /// <param name="hardIronOnly">
+        /// <c>true</c> = zapsat jen tvrde zelezo z prolozeni koule. Slabsi brana na KVALITU dat,
+        /// ale <b>tataz brana na bezpecnost</b> (drzeny stop) — obe cesty ji ctou ze spolecne
+        /// metody ve <c>WebStatus</c>, aby se nemohly rozejit.
+        /// </param>
+        private void HandleMagCalWrite(System.IO.Stream s, HttpRequestLine req,
+                                       bool hardIronOnly = false)
         {
             if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
             {
@@ -233,7 +242,9 @@ namespace ARBot.Robot.Web
                 return;
             }
 
-            string duvod = status.MagCalWriteBlockedReason();
+            string duvod = hardIronOnly
+                ? status.MagCalHardIronWriteBlockedReason()
+                : status.MagCalWriteBlockedReason();
             if (duvod != null) { HttpMini.WriteText(s, 409, duvod); return; }
 
             try
@@ -245,18 +256,22 @@ namespace ARBot.Robot.Web
                     return;
                 }
 
-                Trace.WriteLine("web: prisel POST /magcal/write");
-                if (!mise.WriteToSensor())
+                Trace.WriteLine("web: prisel POST /magcal/write"
+                                + (hardIronOnly ? " (jen tvrde zelezo)" : string.Empty));
+                if (!(hardIronOnly ? mise.WriteHardIronOnly() : mise.WriteToSensor()))
                 {
                     // Duvod uz je v Trace (rika ho mise); stranka dostane jeji vlastni stav.
                     HttpMini.WriteText(s, 500, "zapis do senzoru SELHAL: " + mise.PhaseText);
                     return;
                 }
 
-                HttpMini.WriteText(s, 200,
-                    "kalibrace zapsana a ulozena do flash: " + mise.LastResult.ToVnwrg23()
-                    + "\nPockej ~2 minuty, nez se kurz srovna."
-                    + "\nTrvalost overi az vypnuti a zapnuti robota.");
+                HttpMini.WriteText(s, 200, hardIronOnly
+                    ? "zapsano JEN TVRDE ZELEZO a ulozeno do flash."
+                      + "\n⚠️ Mekke zelezo zustava neopravene - chyba kurzu se zmensi, ale nezmizi."
+                      + "\nPockej ~2 minuty, nez se kurz srovna."
+                    : "kalibrace zapsana a ulozena do flash: " + mise.LastResult.ToVnwrg23()
+                      + "\nPockej ~2 minuty, nez se kurz srovna."
+                      + "\nTrvalost overi az vypnuti a zapnuti robota.");
             }
             catch (Exception ex)
             {

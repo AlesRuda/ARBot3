@@ -10,6 +10,33 @@ using Vector3 = System.Numerics.Vector3;
 namespace ARBot.Common.Calibration
 {
     /// <summary>
+    /// Jeden radek mrizky pokryti — <b>jedna poloha robota</b> a jak jsou v ni pokryte azimuty.
+    /// </summary>
+    public readonly struct MagCalCoverageRow
+    {
+        public MagCalCoverageRow(int index, string label, int[] counts, bool sufficient, bool tilted)
+        {
+            Index = index; Label = label; Counts = counts;
+            Sufficient = sufficient; Tilted = tilted;
+        }
+
+        /// <summary>Poradi radku; <c>0</c> = na rovine.</summary>
+        public int Index { get; }
+
+        /// <summary>Popis pro cloveka (napr. „zvednuty predek").</summary>
+        public string Label { get; }
+
+        /// <summary>Pocty vzorku po azimutovych kosich.</summary>
+        public int[] Counts { get; }
+
+        /// <summary>Ma radek dost azimutu, aby se pocital jako naklonova skupina?</summary>
+        public bool Sufficient { get; }
+
+        /// <summary>Je to radek s odklonem nad <see cref="MagCalThresholds.MinTiltDeg"/>?</summary>
+        public bool Tilted { get; }
+    }
+
+    /// <summary>
     /// <b>Pokryti mericich smeru</b> — kolik azimutu a naklonu uz robot pri otaceni prosel.
     ///
     /// <para><b>Nacpak.</b> Podminenost prolozeni (<see cref="MagCalFit"/>) rekne, ze soustava
@@ -18,17 +45,21 @@ namespace ARBot.Common.Calibration
     /// A na rozdil od podminenosti je pokryti kriterium <b>geometricke</b>, tedy nezavisle na
     /// sumu v datech.</para>
     ///
-    /// <para>⚠️ <b><paramref name="yawRad"/> je INTEGROVANE GYRO</b>, ne yaw ze senzoru — yaw je
-    /// prave ta vada, kterou merime. Gyro je ciste (klidovy bias −4,6 °/h, tedy ~0,15° za dve
-    /// minuty otaceni) a na pokryti staci relativni uhel: nepotrebujeme vedet, kde je sever,
-    /// jen ze jsme se otocili dokola.</para>
+    /// <para>⚠️ <b>Yaw je INTEGROVANE GYRO</b>, ne yaw ze senzoru — yaw je prave ta vada, kterou
+    /// merime. Gyro je ciste (klidovy bias −4,6 °/h, tedy ~0,15° za dve minuty otaceni) a na
+    /// pokryti staci relativni uhel: nepotrebujeme vedet, kde je sever, jen ze jsme se otocili
+    /// dokola.</para>
+    ///
+    /// <para><b>Struktura je MRIZKA s pevnym poctem radku</b> (<see cref="TiltRows"/>): rovina
+    /// a ctyri smery podlozeni. Presne tuhle mrizku kresli stranka, takze kriterium a to, co
+    /// vidi obsluha, je <b>jedna a tataz vec</b> — druhy seznam by se casem rozesel.</para>
     ///
     /// <para>Viz doc/plan-vn100-kalibrace.md.</para>
     /// </summary>
     public sealed class MagCalCoverage
     {
-        /// <summary>Sirka naklonoveho kose podle velikosti odklonu [deg].</summary>
-        private const double TiltBinDeg = 10.0;
+        /// <summary>Pocet radku mrizky: rovina + ctyri smery podlozeni.</summary>
+        public const int TiltRows = 5;
 
         /// <summary>Sirka sektoru podle SMERU naklonu [deg].</summary>
         private const double TiltDirSectorDeg = 90.0;
@@ -38,25 +69,25 @@ namespace ARBot.Common.Calibration
         /// </summary>
         private const double OppositeTiltMinDeg = 90.0;
 
-        /// <summary>Klic naklonove skupiny: velikost odklonu a jeho SMER.</summary>
-        private readonly struct TiltKey : IEquatable<TiltKey>
-        {
-            public TiltKey(int magBin, int dirSector) { MagBin = magBin; DirSector = dirSector; }
+        /// <summary>
+        /// Popisy radku pro cloveka; poradi odpovida sektorum, viz <see cref="Radek"/>.
+        ///
+        /// <para>Verejne proto, aby je <b>stranka nemusela opisovat</b> — druhy seznam popisu
+        /// by se pri zmene sektoru tise rozesel s tim, co se opravdu meri.</para>
+        ///
+        /// <para>⚠️ <b>Bez diakritiky zamerne</b>: tytez popisy se skladaji do
+        /// <see cref="MissingText"/>, tedy do verdiktu, a ten jde krome stranky i do
+        /// <c>Trace</c> a do zaznamu — kde je zbytek textu taky bez diakritiky. Michat obojí
+        /// v jedne vete („mas jen jednu stranu (zvednutý předek)") vypada jako chyba.</para>
+        /// </summary>
+        public static readonly string[] RowLabels =
+            { "na rovine", "zvednuty predek", "zvednuta leva", "zvednuta zad", "zvednuta prava" };
 
-            /// <summary>Kos podle velikosti odklonu (nasobek <see cref="TiltBinDeg"/>).</summary>
-            public int MagBin { get; }
-
-            /// <summary>Sektor podle smeru naklonu; <c>-1</c> = na rovine (smer nema vyznam).</summary>
-            public int DirSector { get; }
-
-            public bool Equals(TiltKey o) => MagBin == o.MagBin && DirSector == o.DirSector;
-            public override bool Equals(object o) => o is TiltKey k && Equals(k);
-            public override int GetHashCode() => MagBin * 397 ^ DirSector;
-        }
+        private static string[] Popisy => RowLabels;
 
         private readonly int[] azimuth = new int[MagCalThresholds.AzimuthBins];
-        // Klic = naklonova skupina, hodnota = pocty po azimutech v te skupine.
-        private readonly Dictionary<TiltKey, int[]> tilt = new();
+        private readonly int[][] rows = Enumerable.Range(0, TiltRows)
+            .Select(_ => new int[MagCalThresholds.AzimuthBins]).ToArray();
         private readonly List<Vector3> mag = new();
         private readonly List<Vector3> acc = new();
 
@@ -69,15 +100,31 @@ namespace ARBot.Common.Calibration
         /// <summary>Pocty vzorku po azimutovych kosich.</summary>
         public int[] AzimuthCounts => (int[])azimuth.Clone();
 
+        /// <summary>Radek mrizky, ve kterem robot prave je; <c>-1</c>, dokud neprisel vzorek.</summary>
+        public int CurrentRow { get; private set; } = -1;
+
+        /// <summary>Azimutovy kos, ve kterem robot prave je; <c>-1</c>, dokud neprisel vzorek.</summary>
+        public int CurrentAzimuthBin { get; private set; } = -1;
+
+        /// <summary>
+        /// Aktualni odklon od svislice [deg]; <see cref="double.NaN"/> pred prvnim vzorkem.
+        ///
+        /// <para>Nese se zvlast proto, ze <b>slouceni velikosti odklonu do jednoho radku ji
+        /// z mrizky odstranilo</b> — a obsluha potrebuje videt, ze podklada dost.</para>
+        /// </summary>
+        public double CurrentTiltDeg { get; private set; } = double.NaN;
+
         public void Add(double yawRad, Vector3 magSample, Vector3 accSample)
         {
             int ai = AzimuthBin(yawRad);
             azimuth[ai]++;
 
-            var key = Key(accSample);
-            if (!tilt.TryGetValue(key, out var po))
-                tilt[key] = po = new int[MagCalThresholds.AzimuthBins];
-            po[ai]++;
+            int r = Radek(accSample, out double odklon);
+            rows[r][ai]++;
+
+            CurrentRow = r;
+            CurrentAzimuthBin = ai;
+            CurrentTiltDeg = odklon;
 
             mag.Add(magSample);
             acc.Add(accSample);
@@ -87,10 +134,22 @@ namespace ARBot.Common.Calibration
         public int FilledAzimuthBins => azimuth.Count(c => c >= MagCalThresholds.MinPerAzimuthBin);
 
         /// <summary>Naklonove skupiny s dostatecnym azimutovym pokrytim.</summary>
-        public int TiltGroups => tilt.Count(kv => Dostatecna(kv.Value));
+        public int TiltGroups => rows.Count(Dostatecna);
 
         /// <summary>Z nich ty odklonene aspon <see cref="MagCalThresholds.MinTiltDeg"/>.</summary>
         public int TiltedGroups => Naklonene().Count;
+
+        /// <summary>
+        /// <b>Mrizka pro stranku</b> — pevny pocet radku, kazdy s pocty po azimutech.
+        ///
+        /// <para>Kresli se z ni to, co obsluha vidi: cervena = zadny vzorek, zluta = malo,
+        /// zelena = dost. Rika <b>totez, co kriterium</b>, protoze z nej pochazi.</para>
+        /// </summary>
+        public IReadOnlyList<MagCalCoverageRow> Grid()
+            => Enumerable.Range(0, TiltRows)
+                .Select(i => new MagCalCoverageRow(i, Popisy[i], (int[])rows[i].Clone(),
+                                                   Dostatecna(rows[i]), i > 0))
+                .ToList();
 
         /// <summary>
         /// <b>Je robot naklonen na dve RUZNE strany?</b>
@@ -107,7 +166,7 @@ namespace ARBot.Common.Calibration
                 var n = Naklonene();
                 for (int i = 0; i < n.Count; i++)
                     for (int j = i + 1; j < n.Count; j++)
-                        if (RozdilSmeru(n[i].DirSector, n[j].DirSector) >= OppositeTiltMinDeg)
+                        if (RozdilSmeru(n[i], n[j]) >= OppositeTiltMinDeg)
                             return true;
                 return false;
             }
@@ -130,34 +189,41 @@ namespace ARBot.Common.Calibration
             var chybi = ChybejiciAzimuty();
             if (chybi.Count > 0) s.Add("chybi azimuty " + PopisRozsahu(chybi));
 
-            int naklonene = TiltedGroups;
-            if (naklonene < MagCalThresholds.MinTiltedGroups)
+            // ⚠️ Poradi vetvi je zamerne a jedna z nich je oprava vady z pole: kdyz uz obsluha
+            // JEDEN naklon ma, nesmi ji pokyn poslat „podloz aspon o 15 stupnu" — clovek,
+            // ktery robota drzi naklonený o 34°, z toho nepozna, co ma zmenit. Musi se
+            // pojmenovat STRANA.
+            var naklonene = Naklonene();
+            if (naklonene.Count == 0)
                 s.Add(string.Format(CultureInfo.InvariantCulture,
-                    "chybi naklon (mam {0} z {1}, podloz robota aspon o {2:F0} stupnu)",
-                    naklonene, MagCalThresholds.MinTiltedGroups, MagCalThresholds.MinTiltDeg));
+                    "chybi naklon - podloz robota aspon o {0:F0} stupnu a otoc ho dokola",
+                    MagCalThresholds.MinTiltDeg));
             else if (!HasOppositeTilts)
-                s.Add("naklony jsou jen na jednu stranu - podloz robota na DRUHOU stranu");
+                s.Add($"mas jen jednu stranu ({Popisy[naklonene[0]]}) - podloz robota"
+                      + $" na DRUHOU stranu ({Popisy[Protejsi(naklonene[0])]}) a otoc ho dokola");
             else if (TiltGroups < MagCalThresholds.MinTiltGroups)
-                s.Add($"chybi naklonova skupina ({TiltGroups} z {MagCalThresholds.MinTiltGroups})");
+                s.Add($"chybi naklonova skupina ({TiltGroups} z {MagCalThresholds.MinTiltGroups})"
+                      + " - dotoc chybejici azimuty na rovine");
 
             return string.Join("; ", s);
         }
 
-        /// <summary>Naklonene skupiny s dostatecnym azimutovym pokrytim.</summary>
-        private List<TiltKey> Naklonene()
-            => tilt.Where(kv => Dostatecna(kv.Value)
-                                && kv.Key.MagBin * TiltBinDeg >= MagCalThresholds.MinTiltDeg)
-                   .Select(kv => kv.Key)
-                   .ToList();
+        /// <summary>Radek na protejsi strane (predek↔zad, leva↔prava).</summary>
+        private static int Protejsi(int radek) => (radek - 1 + 2) % 4 + 1;
+
+        /// <summary>Indexy naklonenych radku s dostatecnym azimutovym pokrytim.</summary>
+        private List<int> Naklonene()
+            => Enumerable.Range(1, TiltRows - 1).Where(i => Dostatecna(rows[i])).ToList();
 
         /// <summary>
-        /// Ma skupina dost azimutu? Pulka kosu staci — pri naklonu se robotem otaci rukou
+        /// Ma radek dost azimutu? Pulka kosu staci — pri naklonu se robotem otaci rukou
         /// a cekat plny obrat v kazdem naklonu je nad lidske sily.
         /// </summary>
         private static bool Dostatecna(int[] po)
             => po.Count(c => c >= MagCalThresholds.MinPerAzimuthBin)
                >= MagCalThresholds.AzimuthBins / 2;
 
+        /// <summary>Rozdil smeru dvou naklonovych radku [deg]; radky 1..4 jsou sektory po 90°.</summary>
         private static double RozdilSmeru(int a, int b)
         {
             double d = Math.Abs(a - b) * TiltDirSectorDeg;
@@ -199,29 +265,37 @@ namespace ARBot.Common.Calibration
         }
 
         /// <summary>
-        /// Klic skupiny z gravitace: velikost odklonu od svislice a jeho smer.
+        /// Radek mrizky z gravitace: <c>0</c> na rovine, jinak sektor podle toho, ktera strana
+        /// robota je <b>zvednuta</b>.
         ///
-        /// <para>⚠️ <b>Smer je podstatny, ne detail</b> — bez nej by +20° a −20° spadly do tehoz
-        /// kose a jednostranne naklonení by proslo jako hotove, ackoli je skoro tak degenerovane
-        /// jako rovina.</para>
+        /// <para>⚠️ <b>Velikost odklonu v klici NENI</b>, a je to oprava vady z pole
+        /// (10. 9. 2026). Kdyz se klicovalo i velikosti po 10°, rozpadl se rucni naklon —
+        /// ktery prirozene kolisa — do tri poloprazdnych skupin a zadna nedosahla poloviny
+        /// azimutu; obsluze zmizela hlaska o naklonech a presto se nic nehnulo. Velikost se
+        /// misto toho hlida prahem <see cref="MagCalThresholds.MinTiltDeg"/> a ukazuje se
+        /// zvlast jako <see cref="CurrentTiltDeg"/>.</para>
+        ///
+        /// <para>⚠️ <b>Sektory jsou POSUNUTE o pul sirky</b>, aby osy robota lezely v jejich
+        /// STREDU. S hranici na 0° by se podlozeni presne zepredu rozpadlo mezi dva sektory —
+        /// tataz trida chyby jako vys, jen o osu jinde.</para>
+        ///
+        /// <para>Vodorovna slozka akcelerometru miri k <b>zvednute</b> strane: pri klopeni
+        /// predku dolu ma gravitace v telese slozku +X, takze <c>acc = −g</c> ma −X, tedy
+        /// smer dozadu — a zvednuta je opravdu zad.</para>
         /// </summary>
-        private static TiltKey Key(Vector3 acc)
+        private static int Radek(Vector3 acc, out double odklonDeg)
         {
             double vodorovne = Math.Sqrt(acc.X * acc.X + acc.Y * acc.Y);
-            double odklon = Math.Atan2(vodorovne, Math.Abs(acc.Z)) * 180.0 / Math.PI;
+            odklonDeg = Math.Atan2(vodorovne, Math.Abs(acc.Z)) * 180.0 / Math.PI;
 
-            // Floor, ne Round: kos k pak znamena odklon v [k·10°, (k+1)·10°), takze
-            // `magBin·TiltBinDeg >= MinTiltDeg` nikdy netvrdi vic, nez jaky je SKUTECNY odklon.
-            // Se zaokrouhlovanim by se 15,5° tvarilo jako 20° a kriterium by se samo zmirnilo.
-            int magBin = (int)Math.Floor(odklon / TiltBinDeg);
-
-            // Na rovine nema smer vyznam (delil by sum na ctyri skupiny) -> jedna skupina.
-            if (odklon < MagCalThresholds.MinTiltDeg) return new TiltKey(magBin, -1);
+            // Na rovine nema smer vyznam (delil by sum na ctyri skupiny) -> jeden radek.
+            if (odklonDeg < MagCalThresholds.MinTiltDeg) return 0;
 
             double smer = Math.Atan2(acc.Y, acc.X) * 180.0 / Math.PI;
+            smer += TiltDirSectorDeg / 2;                    // posun, aby osy byly ve stredu
             if (smer < 0) smer += 360.0;
             int sektor = (int)(smer / TiltDirSectorDeg) % (int)(360.0 / TiltDirSectorDeg);
-            return new TiltKey(magBin, sektor);
+            return 1 + sektor;
         }
     }
 }

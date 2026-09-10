@@ -73,6 +73,53 @@ namespace ARBot.Common.Calibration
         /// <summary>Rozptyl sklonu po korekci [deg].</summary>
         public const double MaxSdInclinationDeg = 0.5;
 
+        /// <summary>
+        /// Rozptyl <c>|B|</c> po korekci <b>samotnou koulí</b> [G] — nad tím se pokládá za
+        /// prokázané, že se <b>měnilo pole</b>, ne že chybí náklon.
+        ///
+        /// <para><b>Musí být řádově volnější než <see cref="MaxSdMagnitudeG"/>, a není to
+        /// změkčení kritéria</b>: koule neopravuje měkké železo, takže i nad dokonalými daty
+        /// nechá zbytek úměrný jeho velikosti. S maticí z referenčního exportu senzoru
+        /// (diagonála 1,222 / 1,175 / 1,081, tedy rozptyl ~13 %) je ten zbytek v desítkách mG.
+        /// Kdyby se sem dal práh elipsoidy, hlásila by mise „pole se měnilo" pokaždé — tedy
+        /// právě tam, kde je kalibrace nejvíc potřeba.</para>
+        ///
+        /// <para><b>Změřeno na syntetice 10. 9. 2026</b> (<c>MagCalFitTests</c>) — mezi tím, co
+        /// nechá stát měkké železo, a tím, co udělá posun pole, je překryv:</para>
+        /// <list type="table">
+        /// <item><term>měkké železo 1,222/1,175/1,081 (referenční export), pole konstantní</term><description>0,0022 G</description></item>
+        /// <item><term>měkké železo 1,5/1,0/0,8 (patologické), pole konstantní</term><description>0,0179 G</description></item>
+        /// <item><term>posun pole o 0,02 G uprostřed měření</term><description>0,0101 G</description></item>
+        /// <item><term>posun pole o 0,05 G</term><description>0,0263 G</description></item>
+        /// <item><term>posun pole o 0,10 G</term><description>0,0589 G</description></item>
+        /// </list>
+        ///
+        /// <para>⚠️ Z toho plyne <b>skutečná mez, ne volba ladění</b>: posun pole menší než
+        /// zhruba <b>0,05 G</b> se pod měkkým železem schová a rozpoznat ho takhle nelze.
+        /// Práh je nad patologickým měkkým železem, aby mise nehlásila „pole se měnilo" tam,
+        /// kde je kalibrace nejvíc potřeba.</para>
+        ///
+        /// <para>⚠️ Naostro se nastaví podle prvního běhu v poli, stejně jako ostatní prahy
+        /// v téhle třídě.</para>
+        /// </summary>
+        public const double MaxSphereSdMagnitudeG = 0.030;
+
+        /// <summary>
+        /// Kolikrát nejvýš se smí lišit poloměr proložené koule od referenčního <c>|B|</c>,
+        /// než se výsledek zahodí.
+        ///
+        /// <para>⚠️ <b>Bez téhle brány projde rovinná rotace a vrátí nesmysl</b> — změřeno
+        /// 10. 9. 2026: rotace na rovině s měkkým železem dá podmíněnost <b>538</b> (pod prahem)
+        /// a <c>sd(|B|)</c> <b>0,0000</b> (taky pod prahem), ale bias vedle o <b>476 787 G</b>.
+        /// Proložením rovinné elipsy je totiž koule o poloměru v řádu 10⁶ — tedy skoro rovina —
+        /// a protože se měřítko normuje právě tím poloměrem, zbytek se srovná k nule.
+        /// <b>Podmíněnost ani zbytek to tedy nechytí, jen velikost poloměru.</b></para>
+        ///
+        /// <para>Trojka je s rezervou: realistické měkké železo dá měřítko ~1,24, patologické
+        /// nanejvýš ~1,6. Odchylka nad trojnásobek už není kalibrace, ale vadný senzor.</para>
+        /// </summary>
+        public const double MaxSphereScale = 3.0;
+
         /// <summary>Rozdil v oprave kurzu mezi prvni a druhou polovinou dat [deg].</summary>
         public const double MaxHalfSplitDeg = 2.0;
     }

@@ -151,11 +151,41 @@ namespace ARBot.Robot.Web
                     return string.IsNullOrEmpty(magCal.Verdict)
                         ? "kalibrace jeste neni hotova"
                         : magCal.Verdict;
-                if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
-                    return "motory nehlasi stav - zapis nelze povolit";
-                if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
-                return null;
+                return BezpecnostniBrana();
             }
+        }
+
+        /// <summary>
+        /// Duvod, proc nelze zapsat <b>jen tvrde zelezo</b>; <c>null</c> = lze.
+        ///
+        /// <para>Proti <see cref="MagCalWriteBlockedReason"/> je slabsi jen v tom, co zada od
+        /// <b>dat</b> (staci urcena koule, nezada se pokryti naklonu ani elipsoida).
+        /// <b>Bezpecnostni cast je TATAZ</b> a je to zamer — proto se cte ze spolecne
+        /// <see cref="BezpecnostniBrana"/>, aby se ty dve vetve nemohly rozejit.</para>
+        /// </summary>
+        public string MagCalHardIronWriteBlockedReason()
+        {
+            lock (gate)
+            {
+                if (magCal == null) return "mise magcal nebezi";
+                if (!magCal.CanWriteHardIron)
+                    return string.IsNullOrEmpty(magCal.Verdict)
+                        ? "tvrde zelezo jeste neni zmerene"
+                        : magCal.Verdict;
+                return BezpecnostniBrana();
+            }
+        }
+
+        /// <summary>
+        /// Spolecna cast obou bran: <b>drzene nouzove zastaveni</b> a cerstvy stav motoru.
+        /// Vola se pod <c>gate</c>.
+        /// </summary>
+        private string BezpecnostniBrana()
+        {
+            if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
+                return "motory nehlasi stav - zapis nelze povolit";
+            if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
+            return null;
         }
 
         /// <summary>Jmena kamer, ze kterych uz snimek prisel (diagnostika a vyber vrstvy).</summary>
@@ -484,12 +514,52 @@ namespace ARBot.Robot.Web
             sb.Append(",\"sdIncl\":").Append(Fmt(m.SdInclinationDeg));
             sb.Append(",\"brefG\":").Append(Fmt(m.BRefG));
             sb.Append(",\"vnwrg23\":\"").Append(Escape(m.Vnwrg23 ?? string.Empty)).Append('"');
+            sb.Append(",\"sphereSd\":").Append(Fmt(m.SphereSdMagnitudeG));
+            sb.Append(",\"sphereVnwrg23\":\"")
+              .Append(Escape(m.SphereVnwrg23 ?? string.Empty)).Append('"');
+
+            // Mrizka pokryti - to hlavni, co obsluha na strance potrebuje: kde uz byla
+            // a kam jeste musi robota natocit.
+            sb.Append(",\"grid\":[");
+            var g = m.Grid ?? System.Array.Empty<int[]>();
+            for (int i = 0; i < g.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append('[');
+                var r = g[i] ?? System.Array.Empty<int>();
+                for (int j = 0; j < r.Length; j++)
+                {
+                    if (j > 0) sb.Append(',');
+                    sb.Append(r[j].ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+                sb.Append(']');
+            }
+            sb.Append(']');
+            sb.Append(",\"rowLabels\":[");
+            for (int i = 0; i < ARBot.Common.Calibration.MagCalCoverage.RowLabels.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append('"').Append(Escape(ARBot.Common.Calibration.MagCalCoverage.RowLabels[i])).Append('"');
+            }
+            sb.Append(']');
+            sb.Append(",\"row\":").Append(m.CurrentRow);
+            sb.Append(",\"bin\":").Append(m.CurrentAzimuthBin);
+            sb.Append(",\"tiltDeg\":").Append(Fmt(m.CurrentTiltDeg));
+            sb.Append(",\"minPerBin\":").Append(ARBot.Common.Calibration.MagCalThresholds.MinPerAzimuthBin);
+            sb.Append(",\"minTiltDeg\":")
+              .Append(Fmt(ARBot.Common.Calibration.MagCalThresholds.MinTiltDeg));
 
             // Duvod, PROC nelze zapsat - bez nej by obsluha videla jen sede tlacitko.
             string duvod = MagCalWriteBlockedReason();
             sb.Append(",\"canWrite\":").Append(duvod == null ? "true" : "false");
             if (duvod != null)
                 sb.Append(",\"writeBlocked\":\"").Append(Escape(duvod)).Append('"');
+
+            // ... a totez pro castecny zapis (jen tvrde zelezo).
+            string duvodHi = MagCalHardIronWriteBlockedReason();
+            sb.Append(",\"canWriteHardIron\":").Append(duvodHi == null ? "true" : "false");
+            if (duvodHi != null)
+                sb.Append(",\"hardIronBlocked\":\"").Append(Escape(duvodHi)).Append('"');
             sb.Append('}');
         }
 
@@ -722,6 +792,22 @@ namespace ARBot.Robot.Web
  .volba button{background:#2e7d32;padding:8px 14px;font-size:14px;font-weight:600;margin:0 6px 6px 0}
  .volba button[disabled]{background:#37474f;color:#7c848c}
  .volba .duvod{color:#ffb74d;font-size:13px;margin-top:4px}
+ /* MAPA POKRYTI kalibrace. Radek = poloha robota, sloupec = azimut. Kresli se jako tabulka,
+    ne obrazek: na telefonu je ostra, nestoji nic za rendering a nemusi se prenaset. */
+ table.pokryti{border-collapse:collapse;margin:8px 0}
+ table.pokryti td,table.pokryti th{padding:0;font-size:11px;font-weight:400}
+ table.pokryti th{text-align:right;padding-right:6px;color:#9aa4ad;white-space:nowrap}
+ table.pokryti td.b{width:13px;height:13px;border:1px solid #12171c}
+ /* Tri stavy kose. Cervena = zadny vzorek, zluta = neco, zelena = dost.
+    ⚠️ Rozliseni NESMI stat jen na barve - bunka, kde robot prave je, ma navic RAMECEK, takze
+    se pozna i pri slunci na displeji nebo s poruchou barvocitu. Zamerne ramecek a ne krouzek
+    uvnitr: bunka ma 13 px, do kterych se nic mensiho citelne nevejde. */
+ td.b0{background:#5a1f1f}
+ td.b1{background:#7a6320}
+ td.b2{background:#2e7d32}
+ td.tady{outline:2px solid #64b5f6;outline-offset:-1px}
+ tr.hotovy th{color:#81c784}
+ .pokryti-popis{font-size:12px;color:#9aa4ad;margin-top:2px}
  /* Virtualni nouzove zastaveni (jen pri virtualhw=true) je v LISTE vedle Terminate, ne v panelu
     vyberu mise: panel po volbe mise zmizi, ale Robotour potrebuje stisk a uvolneni stopu na KAZDEM
     stanovisti - jinak by se v simulaci nedalo projit ani prvni servisni okno. */
@@ -770,7 +856,7 @@ namespace ARBot.Robot.Web
 <div class=""volba"" id=""volba"" style=""display:none""></div>
 <div class=""volba"" id=""magcal"" style=""display:none""></div>
 <div class=""lista"">
- <div class=""prepinace"">
+ <div class=""prepinace"" id=""prepinace"">
   <button class=""prep akt"" id=""b-world"" onclick=""vrstva('world')"">půdorys</button>
   <button class=""prep"" id=""b-rgb"" onclick=""vrstva('rgb')"">kamera</button>
   <button class=""prep"" id=""b-prob"" onclick=""vrstva('prob')"">cesta</button>
@@ -964,11 +1050,17 @@ function vypnout(){
 function kalibrace(h){
  var el=document.getElementById('magcal');
  var k=h.magcal;
+ // Behem kalibrace se pudorys SKRYVA a na jeho misto nastupuje mapa pokryti. Robot stoji,
+ // takze pudorys nerika nic, a na telefonu by mapu pokryti odsunul pod okraj obrazovky -
+ // presne to, kvuli cemu obsluha v poli nevedela, kam robota natocit.
+ zobraz('obraz',!k);
+ zobraz('prepinace',!k);
  if(!k){ el.style.display='none'; return; }
  el.style.display='';
 
  var t='<h2>kalibrace magnetometru</h2>';
  t+='<div class=""ceka"">'+(k.verdict||'')+'</div>';
+ t+=mapaPokryti(k);
  t+='<div>azimuty <b>'+k.azimuths+'/'+k.azimuthBins+'</b>'
    +' &nbsp;náklony <b>'+k.tilts+'</b> (odkloněné '+k.tilted+', na obě strany '
    +(k.opposite?'ano':'<b>NE</b>')+')'
@@ -981,6 +1073,16 @@ function kalibrace(h){
 
  t+='<button id=""zapsat""'+(k.canWrite?'':' disabled')+'>zapsat do senzoru</button>';
  if(k.writeBlocked) t+='<div class=""duvod"">'+k.writeBlocked+'</div>';
+
+ // Druhe tlacitko se ukazuje, JEN kdyz plna kalibrace jeste nejde - jinak by nabizelo
+ // horsi vysledek vedle lepsiho a nekdo by na nej omylem sahl.
+ if(!k.canWrite){
+  t+='<button id=""zapsatHi""'+(k.canWriteHardIron?'':' disabled')+'>zapsat jen tvrdé železo</button>';
+  t+='<div class=""duvod"">'+(k.hardIronBlocked
+    ? k.hardIronBlocked
+    : 'Odstraní posun magnetů v robotu, ne zkreslení tvaru pole. Chyba kurzu se zmenší, '
+      +'ale nezmizí — plná kalibrace je pořád lepší.')+'</div>';
+ }
  el.innerHTML=t;
 
  // Obsluha se navesuje az po vlozeni HTML - skladat onclick do retezce znamena apostrofy
@@ -988,6 +1090,47 @@ function kalibrace(h){
  // a CELY skript spadl na SyntaxError.
  var b=document.getElementById('zapsat');
  if(b) b.onclick=zapsatKalibraci;
+ var bh=document.getElementById('zapsatHi');
+ if(bh) bh.onclick=zapsatTvrdeZelezo;
+}
+function zobraz(id,ano){
+ var e=document.getElementById(id);
+ if(e) e.style.display=ano?'':'none';
+}
+// MAPA POKRYTI - to hlavni, co obsluha u robota potrebuje: KAM ho jeste natocit.
+//
+// Radek = poloha robota (rovina a ctyri smery podlozeni), sloupec = azimut po 15 stupnich.
+// Cervena = zadny vzorek, zluta = neco, zelena = dost. Modry krouzek = kde robot prave je.
+//
+// Proc ne koule / Mercator pres cely smer pole: pri naklonech do 30 stupnu je fyzicky
+// dosazitelna jen asi petina koule, takze by mapa byla trvale ze ctyr petin cervena a hnala
+// obsluhu za pokrytim, ktere ziskat nejde - a kriterium ho ani nechce.
+// Viz doc/plan-vn100-kalibrace.md.
+function mapaPokryti(k){
+ if(!k.grid||!k.grid.length) return '';
+ var t='<table class=""pokryti""><tr><th></th>';
+ for(var j=0;j<k.grid[0].length;j++)
+  t+='<th style=""text-align:center;padding:0"">'+((j%6===0)?(j*15+'&deg;'):'')+'</th>';
+ t+='</tr>';
+ for(var i=0;i<k.grid.length;i++){
+  var r=k.grid[i], dost=0;
+  for(var j2=0;j2<r.length;j2++) if(r[j2]>=k.minPerBin) dost++;
+  var hotovy=dost>=r.length/2;
+  t+='<tr class=""'+(hotovy?'hotovy':'')+'""><th>'+(k.rowLabels[i]||('řádek '+i))+'</th>';
+  for(var j3=0;j3<r.length;j3++){
+   var stav=r[j3]>=k.minPerBin?2:(r[j3]>0?1:0);
+   var tady=(i===k.row&&j3===k.bin)?' tady':'';
+   t+='<td class=""b b'+stav+tady+'"" title=""'+r[j3]+' vzorků""></td>';
+  }
+  t+='</tr>';
+ }
+ t+='</table>';
+ t+='<div class=""pokryti-popis"">modrý rámeček = kde robot právě je'
+   +(isFinite(k.tiltDeg)?(', náklon <b>'+k.tiltDeg.toFixed(0)+'&deg;</b>'
+     +(k.tiltDeg<k.minTiltDeg?' (na řádek podložení je potřeba aspoň '
+        +k.minTiltDeg.toFixed(0)+'&deg;)':'')):'')
+   +'</div>';
+ return t;
 }
 // Nekonecno a NaN se na strance nesmi ukazat jako ""Infinity""/""NaN"" - podminenost je pred
 // prvnim uspesnym prolozenim nekonecna a sd sklonu je NaN bez akcelerometru.
@@ -1000,7 +1143,18 @@ function cislo(v){
 function zapsatKalibraci(){
  if(!confirm('Zapsat naměřenou kalibraci do senzoru a uložit do flash?\n'
    +'Kurz se pak ~2 minuty dorovnává.'))return;
- fetch('/magcal/write',{method:'POST'}).then(function(r){
+ posliZapis('/magcal/write');
+}
+// ⚠️ Potvrzeni MUSI rict, ze je to jen pulka prace - jinak si obsluha odveze z pole pocit,
+// ze je zkalibrovano, a chyba kurzu zustane.
+function zapsatTvrdeZelezo(){
+ if(!confirm('Zapsat JEN TVRDÉ ŽELEZO?\n\n'
+   +'Měkké železo se nezměřilo, takže se chyba kurzu jen zmenší, nezmizí.\n'
+   +'Přepíše se tím kalibrace v senzoru včetně flash.'))return;
+ posliZapis('/magcal/writehardiron');
+}
+function posliZapis(cesta){
+ fetch(cesta,{method:'POST'}).then(function(r){
   return r.text().then(function(txt){
    alert(r.ok?txt:'Zapsat nelze: '+txt);
    tik();

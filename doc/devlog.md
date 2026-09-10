@@ -37,6 +37,88 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-10
+
+**Kalibrace magnetometru: co našel první výjezd do terénu.** Autor zkusil `mission=magcal` na
+robotu a **nedovedl ji do konce** — hlášky o azimutech i o náklonech zmizely, podmíněnost byla
+~80 při prahu 10⁴, a stránka přesto pořád radila „otáčej dál". Z toho vyšly tři vady a jejich
+opravy. Podrobně
+[plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#fáze-1b--co-našel-první-výjezd-10-9-2026).
+
+- **Přečtena dokumentace VN100** (autor ji dal lokálně do `doc/Vectornav/`: TN002 kalibrace,
+  TN004 rámce, ICD, manuál, datasheet). ⚠️ **Do repozitáře se NEcommitovala** — nese patičku
+  *Proprietary & Confidential* a repozitář je veřejný; závěry jsou proto citované s číslem
+  kapitoly, aby šly ověřit i bez těch souborů. Potvrdila konvenci registru 23 (ICD rov. 3.1 = náš
+  `MagCalResult.Apply`), tvar verdiktu (pokrytí zvlášť, zbytky zvlášť) i to, že `ApplyCompensation
+  = 1` znamená **Disable**, ne „true" (ICD tab. 3.57: Disable = 1, Enable = 3). **Našla ale dvě
+  vady v našem zacházení s registrem 44** — obě opraveny:
+  - **Nedělal se `Reset` před `Run`.** TN002 kap. 4.1 to má jako krok 1 a ICD říká proč: přechod
+    Run → Off řešení **nemaže**. Registr 47 přitom bereme jako *nezávislou* kontrolu našeho
+    proložení — bez resetu by v něm bylo řešení z minulé mise.
+  - ⚠️ **Nedokončená mise nechala senzor v `Run`.** TN002 kap. 5.2 uvádí Mode = Run přímo mezi
+    **příčinami ujíždějícího kurzu**. Vypínalo se jen po úspěšném zápisu — takže mise ukončená
+    bez zápisu, tedy **přesně to, co se dnes v poli stalo**, senzor v Run nechala. Teď to řeší
+    `MagCalMission.Stop()`.
+- ⚠️ **Opraveno tvrzení v [imu-and-frames.md](imu-and-frames.md): „VPE se táhne za vlastním polem
+  206 s, to kalibrace neopraví" bylo NEPODLOŽENÉ.** Manuál kap. 3.3.5 říká o Absolute Mode opak
+  („causing the magnetic-based yaw to **slew over** to an erroneous heading estimate" při
+  dlouhodobé poruše — a nezkalibrované tvrdé železo 0,28 G taková porucha je) a výslovně varuje,
+  že bez platné HSI kalibrace *„the behavior of these heading modes… may not operate as
+  expected"*. K tomu má registr 35 dvě **zapnuté** adaptivní vrstvy (`vnrestore.sh` píše
+  `35,1,0,1,1`), o kterých manuál píše, že filtrování *„will inherently add some delay"* a ladění
+  odhaduje nejistotu *„over an extended period of time"*. Kandidáti jsou tedy tři a dva z nich
+  kalibrace odstraní. Pořadí kroků se nemění, ale „samostatná vada" neplatí, dokud se `K`
+  nepřeměří. Levný rozhodovací pokus: `$VNWRG,35,1,0,0,0`.
+- **Nálezy, které se NEimplementovaly** (jsou v plánu jako možnosti): VN umí **2D kalibraci**
+  z pouhé rotace na rovině, pokud platforma zůstane do 5–10° od vodorovné — náš 3D fit to
+  neumí a byla by to samostatná úloha; jejich profil pro 3D je **šest otáček kolem různých os**,
+  psaný pro senzor v ruce, takže naše „rovina + dva protilehlé náklony" je vědomě jen náhražka;
+  a existuje příkaz **Known Magnetic Disturbance** pro známé rušení od motorů.
+
+- **Hotovo — proložení samotné KOULE** (`MagCalFit.TryFitSphere`, jen tvrdé železo). Odpovídá na
+  otázku, kterou elipsoida položit neumí: *leží ta data vůbec na nějaké kouli?* Když ano a
+  elipsoida přesto nejde, chybí **jen náklon**; když ne, **měnilo se během měření pole** a žádné
+  otáčení to nespraví. Verdikt tím přestal být diagnóza a každá větev končí pokynem.
+- ⚠️ **Měření hned našlo past, kterou návrh neměl:** rovinná rotace s měkkým železem projde
+  podmíněností (538) **i** zbytkem (`sd|B|` = 0,0000) a vrátí bias vedle o **476 787 G** —
+  proložením rovinné elipsy je koule o poloměru v řádu 10⁶ a normalizace tím poloměrem srovná
+  zbytek k nule. Musela přibýt **třetí brána na velikost měřítka**.
+- **Hotovo — zápis jen tvrdého železa** (`WriteHardIronOnly`, `POST /magcal/writehardiron`), aby
+  se obsluha nevracela z pole s prázdnou. ⚠️ **Je to půlka práce a čísla to říkají:** odstraní se
+  100 % tvrdého železa bez měkkého, 92 % při mírném, **80 %** při tom z referenčního exportu, ale
+  jen **38 %** při patologickém. Viz [decisions.md](decisions.md).
+- **Hotovo — mřížka pokrytí 24 × 5 místo půdorysu.** Řádek = poloha robota, sloupec = azimut,
+  modrý rámeček = kde robot právě je. ⚠️ **Původní nápad (Mercator přes celý směr pole, 24 × 24)
+  neprošel fyzikou:** při náklonech do 30° je dosažitelná jen ~pětina koule, takže by mapa byla
+  trvale ze čtyř pětin červená. Druhá osa je proto **pět poloh robota**.
+- **Hotovo — velikost odklonu pryč z klíče skupin.** Ruční náklon velikost neudrží (22° a 34°
+  padly do různých skupin, každá poloprázdná) — přesně to obsluha v poli viděla jako „hláška
+  zmizela a nic se nehnulo". Brána tím **neslábne**. Při tom se posunuly sektory o půl šířky
+  (aby osy robota ležely v jejich středu) a pokyn teď **pojmenuje stranu** místo „podlož aspoň
+  o 15°" člověku, který robota drží nakloněný o 34°.
+- **Hotovo — `MagCalMsg` verze 2** (mřížka, aktuální buňka, čísla z koule); verze 1 se čte dál
+  s prázdnou mřížkou. `ARBot.Analyze magcal` má nový blok „2) PROLOZENI KOULE".
+- **Ověřeno:** 1552 testů (Common 1362, Runtime 99, HAL 91), z toho 12 nových na tuhle změnu.
+  Stránka **proklikaná v prohlížeči** proti kanovanému stavu (rozdělané pokrytí i `HOTOVO`) —
+  mapa se kreslí, půdorys se skrývá, částečné tlačítko se ukazuje jen když plná kalibrace nejde,
+  v konzoli žádná chyba JS.
+- ⚠️ **Na skutečném senzoru neběželo NIC z toho** — ani mapa, ani částečný zápis do flash.
+  V simulaci to nešlo projít celé: otáčení rukou (`HandSpinRadPerSec`) jde nastavit jen z panelu
+  Avalonie, ne z příkazové řádky, takže headless běh mřížku nenaplní.
+- **Rozpracováno / další krok:** ⚠️ **Záznam z výjezdu 10. 9. zůstal v robotu.** Až bude,
+  pustit na něj `ARBot.Analyze magcal` a ověřit, že proložení spadlo opravdu na nekladném
+  vlastním čísle — dnes je to **odvozeno z kódu a z podmíněnosti ~80, ne změřeno**. Teprve podle
+  toho rozhodnout o **vázaném proložení elipsoidy** (Li–Griffiths), které by ten stav odstranilo
+  z principu.
+- **Rozhodnutí:** tři, viz [decisions.md](decisions.md) — částečný zápis, klíčování pokrytí
+  směrem místo velikostí, a mapa jako 24 × 5 poloh místo Mercatoru koule.
+- **Odkazy:** `MagCalFit`, `MagCalCoverage`, `MagCalCollector`, `MagCalMission`, `MagCalMsg`,
+  `WebStatus`, `WebPreviewServer`, `MagCalReport`,
+  [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md),
+  [plan-vn100-kalibrace-kroky.md](plan-vn100-kalibrace-kroky.md).
+
+---
+
 ## 2026-09-09
 
 - **Rozbor Model61.1 a trénovacího notebooku** (zadání: co by šlo vylepšit, jaké jsou známé chyby,

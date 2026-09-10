@@ -110,8 +110,10 @@ namespace ARBot.Analyze
 
             bool ok = MagCalFit.TryFit(cov.Mag, bRefG, out var r, out double cond, cov.Acc);
 
+            KouleBlok(cov, bRefG);
+
             Console.WriteLine();
-            Console.WriteLine("2) PROLOZENI");
+            Console.WriteLine("3) PROLOZENI ELIPSOIDY");
             if (cov.Mag.Count > MagCalFit.MaxFitSamples)
                 Console.WriteLine($"  do soustavy vstoupil kazdy"
                                   + $" {(cov.Mag.Count + MagCalFit.MaxFitSamples - 1) / MagCalFit.MaxFitSamples}."
@@ -157,7 +159,7 @@ namespace ARBot.Analyze
             }
 
             Console.WriteLine();
-            Console.WriteLine("3) VYSLEDEK — ke zkopirovani za VNWRG,23,");
+            Console.WriteLine("4) VYSLEDEK — ke zkopirovani za VNWRG,23,");
             Console.WriteLine("  " + r.ToVnwrg23());
 
             bool pouzitelne = cov.Complete
@@ -170,7 +172,7 @@ namespace ARBot.Analyze
             if (reg47 != null)
             {
                 Console.WriteLine();
-                Console.WriteLine("4) POROVNANI S REGISTREM 47 (co spocital sam senzor)");
+                Console.WriteLine("5) POROVNANI S REGISTREM 47 (co spocital sam senzor)");
                 Console.WriteLine("  senzor: " + reg47);
                 Console.WriteLine("  my:     " + r.ToVnwrg23());
                 Console.WriteLine("  ⚠️ Dve nezavisle metody, ktere se shodnou, jsou dukaz."
@@ -185,6 +187,50 @@ namespace ARBot.Analyze
         /// prepoctu. Je to ta kontrola, kvuli ktere zprava vubec tece do zaznamu: verdikt v poli
         /// a verdikt u stolu musi byt <b>totez cislo</b>.
         /// </summary>
+        /// <summary>
+        /// <b>Prolozeni samotne koule</b> — jen tvrde zelezo. Tiskne se PRED elipsoidou, protoze
+        /// odpovida na otazku, ktera je polozena driv: <i>lezi ta data vubec na nejake kouli?</i>
+        ///
+        /// <para>Kdyz koule nesedi, menilo se behem mereni pole a <b>elipsoida uz nema co
+        /// zachranit</b> — a hlavne to znamena, ze otaceni nepomuze. Presne tohle chybelo
+        /// pri vyjezdu 10. 9. 2026, kdy stranka porad radila „otacej dal".</para>
+        /// </summary>
+        private static void KouleBlok(MagCalCoverage cov, double bRefG)
+        {
+            Console.WriteLine();
+            Console.WriteLine("2) PROLOZENI KOULE (jen tvrde zelezo)");
+            bool ok = MagCalFit.TryFitSphere(cov.Mag, bRefG, out var k, out double cond, cov.Acc);
+            Console.WriteLine($"  podminenost:         {cond:G4}"
+                              + $"  (prah {MagCalThresholds.MaxCondition:G4})");
+            if (!ok)
+            {
+                Console.WriteLine("  Koule NENI URCENA - data lezi v rovine nebo je jich malo.");
+                Console.WriteLine("  ⚠️ Pozor: samotna podminenost tenhle stav NECHYTI"
+                                  + " (rovinna rotace s mekkym zelezem da ~538) - rozhodla brana"
+                                  + " na meritko, viz MagCalThresholds.MaxSphereScale.");
+                return;
+            }
+
+            Console.WriteLine($"  sd(|B|) po korekci:  {k.SdMagnitudeG:F5} G"
+                              + $"  (prah {MagCalThresholds.MaxSphereSdMagnitudeG:F3})");
+            Console.WriteLine($"  tvrde zelezo:        [{k.B[0]:F4}, {k.B[1]:F4}, {k.B[2]:F4}] G"
+                              + $"  (|b| = {k.B.L2Norm():F4})");
+            if (k.SdMagnitudeG > MagCalThresholds.MaxSphereSdMagnitudeG)
+            {
+                Console.WriteLine("  ⚠️ POLE SE BEHEM MERENI MENILO - data nelezi na zadne kouli.");
+                Console.WriteLine("     Otaceni to nespravi; robot musi stat na JEDNOM miste"
+                                  + " dal od kovu. Vysledek elipsoidy niz je proto neduveryhodny.");
+            }
+            else
+            {
+                Console.WriteLine("  pole je konzistentni - kdyz elipsoida niz nevyjde,"
+                                  + " chybi POUZE naklon.");
+            }
+            Console.WriteLine("  ⚠️ Sam o sobe je tenhle vysledek jen CASTECNA kalibrace:"
+                              + " odstrani 100 % tvrdeho zeleza bez mekkeho, ~80 % pri tom"
+                              + " z referencniho exportu, ale jen ~38 % pri patologickem.");
+        }
+
         private static void VerdiktZPole(RecordFile rec, double bRefG, MagCalResult nas)   // nas = null pri neurcenem prolozeni
         {
             MagCalMsg posledni = null;
@@ -192,7 +238,7 @@ namespace ARBot.Analyze
             if (posledni == null) return;
 
             Console.WriteLine();
-            Console.WriteLine("5) CO SPOCITAL ROBOT V POLI (MagCalMsg ze zaznamu)");
+            Console.WriteLine("6) CO SPOCITAL ROBOT V POLI (MagCalMsg ze zaznamu)");
             Console.WriteLine($"  podminenost {posledni.Condition:G4}, verdikt: {posledni.Verdict}");
             Console.WriteLine($"  pokryti: azimuty {posledni.FilledAzimuthBins}/24,"
                               + $" naklony {posledni.TiltGroups} (odklonene {posledni.TiltedGroups},"

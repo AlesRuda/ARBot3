@@ -31,6 +31,10 @@ namespace ARBot.HAL.Devices.AHRS
             => imu.WriteRegister(VnCommands.MagCalControl(run), VnCommands.RegMagCalControl);
 
         /// <inheritdoc/>
+        public bool ResetOnboardHsi()
+            => imu.WriteRegister(VnCommands.MagCalReset(), VnCommands.RegMagCalControl);
+
+        /// <inheritdoc/>
         public bool SaveToFlash()
         {
             // VNWNV nema co zpetne cist (uklada RAM do flash), takze se jen posle a ceka.

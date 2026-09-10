@@ -129,7 +129,32 @@ namespace ARBot.HAL.Devices.AHRS
         /// doc/plan-vn100-kalibrace.md.</para>
         /// </summary>
         public static string MagCalControl(bool run)
-            => $"VNWRG,{RegMagCalControl},{(run ? 1 : 0)},1,5";
+            => $"VNWRG,{RegMagCalControl},{(run ? ModeRun : ModeOff)},{ApplyDisable},5";
+
+        /// <summary>
+        /// Registr 44 s <c>Mode = Reset</c> — <b>smaze</b> dosavadní řešení palubní HSI.
+        ///
+        /// <para>⚠️ Podle ICD registru 44 se řešení při přechodu <c>Run → Off</c> <b>nemaže</b>
+        /// a další <c>Run</c> pokračuje ze starého; smaže ho <b>jedině</b> <c>Reset</c>. Bez toho
+        /// by registr 47 nesl výsledek z minulé mise — a ten se přitom používá jako *nezávislá*
+        /// kontrola našeho proložení. TN002 kap. 4.1 to má jako krok 1.</para>
+        /// </summary>
+        public static string MagCalReset()
+            => $"VNWRG,{RegMagCalControl},{ModeReset},{ApplyDisable},5";
+
+        /// <summary>Registr 44, pole <c>Mode</c>: 0 = Off, 1 = Run, 2 = Reset (ICD tab. 3.56).</summary>
+        private const int ModeOff = 0, ModeRun = 1, ModeReset = 2;
+
+        /// <summary>
+        /// Registr 44, pole <c>ApplyCompensation</c>: <b>1 = Disable</b>, 3 = Enable
+        /// (ICD tab. 3.57).
+        ///
+        /// <para>⚠️ <b>Ta jednička NENÍ „true".</b> Vypadá tak a čte se tak, ale znamená
+        /// *nepoužívat*. Právě to chceme: senzor si výsledek spočítá do registru 47, ale
+        /// <b>neaplikuje</b> ho — jinak by běžela druhá kalibrace navrch té naší (podle ICD se
+        /// řešení registru 47 přičítá <i>k</i> registru 23, nenahrazuje ho).</para>
+        /// </summary>
+        private const int ApplyDisable = 1;
 
         /// <summary>Tělo čtecího příkazu.</summary>
         public static string ReadRegister(int reg)

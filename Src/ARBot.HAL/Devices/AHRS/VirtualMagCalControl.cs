@@ -96,6 +96,15 @@ namespace ARBot.HAL.Devices.AHRS
         }
 
         /// <inheritdoc/>
+        public bool ResetOnboardHsi()
+        {
+            // Mode = 2 (Reset). V simulaci se palubni HSI nepocita, takze staci zaznamenat stav
+            // registru - smysl toho kroku je, ze ho mise VOLA, a to overuje test.
+            lock (gate) reg44 = new double[] { 2, 1, 5 };
+            return true;
+        }
+
+        /// <inheritdoc/>
         public bool SaveToFlash()
         {
             lock (gate) FlashSaves++;

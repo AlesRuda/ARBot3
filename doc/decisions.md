@@ -13,6 +13,73 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-10 — Kalibrace magnetometru: nabízí se i zápis SAMOTNÉHO tvrdého železa
+
+**Co:** Vedle plné kalibrace umí mise `magcal` zapsat do registru 23 i výsledek proložení
+**samotné koule**, tedy jen tvrdé železo (`WriteHardIronOnly`, `POST /magcal/writehardiron`).
+Tlačítko se na stránce ukazuje **jen když plná kalibrace nejde**.
+
+**Proč:** První výjezd (10. 9. 2026) skončil tak, že obsluha po dlouhém otáčení neodvezla
+z pole **nic** — a stránka jí u toho radila „otáčej dál", což byla jediná věc, která pomoct
+nemohla. Koule se určí z podstatně užšího pásma dat než elipsoida (při náklonu 2,9° je
+podmíněnost 144 proti 1,89 × 10⁴), takže obvykle vyjde i tam, kde plná kalibrace ne.
+
+**Důsledky:**
+- ⚠️ **Je to půlka práce a musí to tak i vypadat.** Změřeno, kolik tvrdého železa se odstraní:
+  100 % bez měkkého, 92 % při mírném, **80 %** při tom z referenčního exportu, ale jen **38 %**
+  při patologickém (1,5/1,0/0,8) — odhad středu je sám vychýlený neopraveným měkkým železem.
+  Text tlačítka i potvrzovací dialog proto říkají „chyba kurzu se zmenší, ale nezmizí".
+- **Bezpečnostní brána se NEZESLABILA** — držené nouzové zastavení platí pro obě cesty a čte se
+  ze společné metody, aby se nemohly rozejít. Zeslabila se jen brána na *kvalitu dat*.
+- Vzniká tím druhá cesta, jak si přepsat kalibraci v senzoru včetně flash. Vědomě: alternativa
+  je vracet se z pole s prázdnou.
+
+**Odkazy:** [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#fáze-1b--co-našel-první-výjezd-10-9-2026),
+`MagCalFit.TryFitSphere`, `MagCalMission.WriteHardIronOnly`.
+
+
+### 2026-09-10 — Pokrytí kalibrace se klíčuje SMĚREM náklonu, ne jeho velikostí
+
+**Co:** `MagCalCoverage` má nově pevných **5 řádků** (rovina + čtyři směry podložení). Velikost
+odklonu z klíče skupiny **zmizela**; hlídá ji jen práh `MinTiltDeg` a ukazuje se zvlášť jako
+`CurrentTiltDeg`.
+
+**Proč:** Klíčování velikostí po 10° předpokládá, že obsluha náklon udrží. Nedrží — robot se
+naklání **rukou**, takže 22° a 34° spadly do různých skupin, každá pokrytá z půlky, a žádná
+nedosáhla poloviny azimutů. V poli se to projevilo tak, že hláška o náklonech zmizela a přesto
+se nic nehnulo.
+
+**Důsledky:**
+- Brána **neslábne, naopak**: dřív daly dvě velikosti na tutéž stranu tři skupiny a `Complete`
+  blokoval až `HasOppositeTilts`; dnes se na tři skupiny jednostranným nakláněním nedostane.
+- Pevný počet řádků je zároveň to, co jde nakreslit — mřížka na stránce je **tatáž struktura**,
+  ze které se počítá kritérium, ne druhý seznam.
+- Sektory jsou posunuté o půl šířky, aby osy robota ležely v jejich středu (s hranicí na 0° by
+  se podložení přesně zepředu rozpadlo mezi dva sektory).
+
+**Odkazy:** [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#vada-2-koše-se-klíčovaly-velikostí-odklonu),
+`MagCalCoverage.Radek`.
+
+
+### 2026-09-10 — Mapa pokrytí je 24 × 5 poloh robota, ne Mercator koule
+
+**Co:** V misi `magcal` se místo půdorysu kreslí mřížka: řádek = poloha robota, sloupec =
+azimutový koš po 15°, barva podle počtu vzorků, modrý rámeček = kde robot právě je.
+
+**Proč:** Původní nápad byl Mercator mapa směru pole (24 × N košů) s bodem aktuální orientace.
+Neprošel fyzikou: pole má u nás sklon ~66°, takže rovinná rotace objede **jedinou rovnoběžku**
+a náklon ji rozvlní o ±θ. Při náklonech do 30° je dosažitelná jen asi **pětina koule** — mapa by
+byla trvale ze čtyř pětin červená a hnala obsluhu za pokrytím, které získat nejde a které
+kritérium ani nechce (rovina + ±20° dá podmíněnost 434).
+
+**Důsledky:**
+- Druhá osa je **pět poloh robota**, ne dalších 24 košů. Odpovídá tomu, co obsluha fyzicky dělá.
+- Půdorys a přepínač vrstev se během mise skrývají — robot stojí, takže půdorys neříká nic a na
+  telefonu by mapu pokrytí odsunul pod okraj obrazovky.
+
+**Odkazy:** [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#vada-3-obsluha-neviděla-kam-robota-natočit).
+
+
 
 ### 2026-09-08 — Vyhlazování dráhy posuzuje ČAS a ověřuje RAMPU (`smooth=`)
 

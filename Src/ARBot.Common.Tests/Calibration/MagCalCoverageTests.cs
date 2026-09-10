@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using ARBot.Common.Calibration;
 using NUnit.Framework;
 
@@ -75,11 +76,16 @@ namespace ARBot.Common.Tests.Calibration
             // jinak by obsluha "dokoncila" mereni, ze ktereho se poctive prolozit neda.
             var c = new MagCalCoverage();
             Obrat(c, 0.0);
-            Obrat(c, 0.35);              // ~20°, tedy kos 2 -> pocita se jako naklon
-            Obrat(c, 0.60);              // ~34°, kos 3 -> taky, ale TENTYZ smer
+            Obrat(c, 0.35);              // ~20°
+            Obrat(c, 0.60);              // ~34°, jina velikost, ale TENTYZ smer
 
-            Assert.That(c.TiltedGroups, Is.GreaterThanOrEqualTo(2), "dva naklonene kose tam jsou");
-            Assert.That(c.HasOppositeTilts, Is.False, "ale oba na tutéz stranu");
+            // ⚠️ Od 10. 9. 2026 padnou obe velikosti do JEDNOHO radku - velikost uz neni
+            // soucasti klice (viz MagCalCoverage.Radek). Brana tim NESLABNE, naopak:
+            // driv daly dve velikosti na tutez stranu tri skupiny a Complete blokoval az
+            // HasOppositeTilts, dnes se na tri skupiny jednostrannym naklanenim nedostane.
+            Assert.That(c.TiltedGroups, Is.EqualTo(1), "tataz strana je jeden radek, ne dva");
+            Assert.That(c.TiltGroups, Is.EqualTo(2), "rovina + jedna strana");
+            Assert.That(c.HasOppositeTilts, Is.False, "oba naklony jsou na tutéz stranu");
             Assert.That(c.Complete, Is.False);
             Assert.That(c.MissingText(), Does.Contain("DRUHOU stranu"),
                 "pokyn musi rict, co udelat, ne jen ze to nestaci");
@@ -120,6 +126,80 @@ namespace ARBot.Common.Tests.Calibration
 
             Assert.That(c.Mag.Count, Is.EqualTo(30));
             Assert.That(c.Acc.Count, Is.EqualTo(c.Mag.Count));
+        }
+
+        /// <summary>
+        /// Obrat, pri kterem VELIKOST naklonu kolisa — tak, jak to vyjde, kdyz obsluha drzi
+        /// robota v rukou. Smer naklonu zustava, protoze ten drzi podlozka nebo ruka.
+        /// </summary>
+        private static void ObratRukou(MagCalCoverage c, double stred, double rozkyv,
+                                       double smerRad = 0, int n = 600)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                double f = 2 * Math.PI * i / n;
+                c.Add(f, new Vector3(0.4f, 0.1f, -0.3f),
+                      Acc(stred + rozkyv * Math.Sin(3 * f), smerRad));
+            }
+        }
+
+        [Test]
+        public void NaklonRukou_SKolisajiciVelikosti_SePOCITA()
+        {
+            // ⚠️ Tohle je vada z pole 10. 9. 2026: obsluha robota naklonila a otacela, hlaska
+            // o naklonech zmizela, a presto to nikam nevedlo. Kdyz se kose klicuji VELIKOSTI
+            // odklonu po 10°, rozpadne se rucni naklon do vic skupin a zadna nedosahne poloviny
+            // azimutu. Velikost proto v klici NENI - jen smer a to, jestli je odklon nad prahem.
+            var c = new MagCalCoverage();
+            Obrat(c, 0.0);
+            ObratRukou(c, 0.44, 0.17);              // ~25° ± 10°, tedy pres tri desetistupnove kose
+            ObratRukou(c, 0.44, 0.17, Math.PI);
+
+            Assert.That(c.TiltedGroups, Is.EqualTo(2),
+                "kolisajici rucni naklon musi dat JEDNU skupinu na stranu, ne tri poloprazdne");
+            Assert.That(c.HasOppositeTilts, Is.True);
+            Assert.That(c.Complete, Is.True, "a cele pokryti ma byt hotove");
+        }
+
+        [Test]
+        public void Mrizka_MaPevnePetRadku_ASouhlasiSKriteriem()
+        {
+            // Mrizka je to, co vidi obsluha na strance. Musi tedy rikat TOTEZ co kriterium,
+            // jinak by vznikly dva seznamy, ktere se rozejdou.
+            var c = new MagCalCoverage();
+            Obrat(c, 0.0);
+            Obrat(c, 0.40);
+            Obrat(c, 0.40, Math.PI);
+
+            var m = c.Grid();
+
+            Assert.That(m.Count, Is.EqualTo(MagCalCoverage.TiltRows),
+                "radku je pevny pocet - rovina a ctyri smery podlozeni");
+            foreach (var r in m)
+                Assert.That(r.Counts.Length, Is.EqualTo(MagCalThresholds.AzimuthBins));
+
+            Assert.That(m.Count(r => r.Sufficient), Is.EqualTo(c.TiltGroups),
+                "pocet dostatecnych radku MUSI souhlasit s TiltGroups");
+            Assert.That(m.Count(r => r.Sufficient && r.Tilted), Is.EqualTo(c.TiltedGroups),
+                "a odklonene radky s TiltedGroups");
+            Assert.That(m.Sum(r => r.Counts.Sum()), Is.EqualTo(c.Mag.Count),
+                "kazdy vzorek lezi prave v jedne bunce");
+        }
+
+        [Test]
+        public void Mrizka_UkazujeAktualniBunku()
+        {
+            // Bez toho obsluha nevi, KAM robota natocit - a presne to byl duvod cele zmeny.
+            var c = new MagCalCoverage();
+            c.Add(0.0, new Vector3(0.4f, 0.1f, -0.3f), Acc(0.0));
+            Assert.That(c.CurrentRow, Is.EqualTo(0), "na rovine je to prvni radek");
+            Assert.That(c.CurrentAzimuthBin, Is.EqualTo(0));
+
+            c.Add(Math.PI, new Vector3(0.4f, 0.1f, -0.3f), Acc(0.40, Math.PI / 2));
+            Assert.That(c.CurrentRow, Is.Not.EqualTo(0), "po naklonu uz to rovina neni");
+            Assert.That(c.CurrentAzimuthBin, Is.EqualTo(MagCalThresholds.AzimuthBins / 2));
+            Assert.That(c.CurrentTiltDeg, Is.EqualTo(0.40 * 180 / Math.PI).Within(0.5),
+                "a odklon ve stupnich, protoze slouceni velikosti ho z radku odstranilo");
         }
     }
 }

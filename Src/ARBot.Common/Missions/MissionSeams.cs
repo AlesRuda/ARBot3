@@ -138,8 +138,22 @@ namespace ARBot.Common.Missions
         /// <summary>
         /// Zapne/vypne palubni HSI (registr 44) — <b>bez</b> aplikace, jen do registru 47.
         /// Je to nezavisla kontrola naseho prolozeni, ne druha kalibrace.
+        ///
+        /// <para>⚠️ <b>Vypnout se MUSI i pri nedokoncene misi.</b> TN002 kap. 5.2 uvadi
+        /// „Mode = Run" primo mezi pricinami ujizdejiciho kurzu a rika, ze mimo kalibraci ma
+        /// byt registr 44 vzdy vypnuty.</para>
         /// </summary>
         bool SetOnboardHsi(bool run);
+
+        /// <summary>
+        /// <b>Smaze</b> reseni palubni HSI (registr 44, Mode = Reset).
+        ///
+        /// <para>⚠️ Bez tohohle kroku nese registr 47 reseni z MINULE mise: podle ICD registru 44
+        /// se pri prechodu Run → Off reseni <b>nemaze</b> a dalsi Run pokracuje ze stareho.
+        /// Registr 47 pritom pouzivame jako <b>nezavislou kontrolu</b> naseho prolozeni — takze
+        /// bez resetu by to nezavisla kontrola nebyla. TN002 kap. 4.1 to ma jako krok 1.</para>
+        /// </summary>
+        bool ResetOnboardHsi();
 
         /// <summary>
         /// Ulozi sadu registru do flash.

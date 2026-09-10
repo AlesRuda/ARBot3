@@ -21,8 +21,13 @@ namespace ARBot.Common.Logs
     [Serializable()]
     public class MagCalMsg : Message, IHasCaptureTime
     {
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        ///
+        /// <para><b>2</b> (10. 9. 2026): pribyla <see cref="Grid"/> s aktualni bunkou a cisla
+        /// z prolozeni koule. Verze 1 se cte dal, jen s prazdnou mrizkou.</para>
+        /// </summary>
+        public const int FormatVersion = 2;
 
         /// <summary>Faze mise (<c>MagCalPhase</c> jako int, aby zprava prezila doplneni hodnot).</summary>
         public int Phase;
@@ -74,6 +79,41 @@ namespace ARBot.Common.Logs
         /// <summary>Registr 23 pri zacatku mise (dvanact cisel), nebo prazdne.</summary>
         public string Reg23Before;
 
+        /// <summary>
+        /// <b>Mrizka pokryti</b> — radek = poloha robota (rovina a ctyri smery podlozeni),
+        /// sloupec = azimutovy kos, hodnota = pocet vzorku. Prazdne u verze 1.
+        ///
+        /// <para>Nese se do zaznamu, ne jen na stranku: bez toho by pozdeji neslo dohledat,
+        /// co obsluha v poli videla, a <c>ARBot.Analyze magcal</c> by to nemel z ceho postavit.</para>
+        /// </summary>
+        public int[][] Grid = Array.Empty<int[]>();
+
+        /// <summary>Radek mrizky, ve kterem robot prave je; <c>-1</c> = nezname.</summary>
+        public int CurrentRow = -1;
+
+        /// <summary>Azimutovy kos, ve kterem robot prave je; <c>-1</c> = nezname.</summary>
+        public int CurrentAzimuthBin = -1;
+
+        /// <summary>
+        /// Aktualni odklon od svislice [deg]. Nese se proto, ze <b>v mrizce videt neni</b> —
+        /// radky se klicuji jen smerem, ne velikosti.
+        /// </summary>
+        public double CurrentTiltDeg = double.NaN;
+
+        /// <summary>
+        /// Rozptyl <c>|B|</c> po korekci <b>samotnou kouli</b> [G] — podle nej se pozna, jestli
+        /// se behem mereni menilo pole. Viz <c>MagCalThresholds.MaxSphereSdMagnitudeG</c>.
+        /// </summary>
+        public double SphereSdMagnitudeG = double.NaN;
+
+        /// <summary>
+        /// Dvanact cisel kalibrace <b>jen tvrdeho zeleza</b>; prazdne, dokud se koule neurci.
+        /// </summary>
+        public string SphereVnwrg23;
+
+        /// <summary>Da se zapsat aspon tvrde zelezo? Slabsi brana nez plna pouzitelnost.</summary>
+        public bool CanWriteHardIron;
+
         /// <summary>Cas posledniho zpracovaneho vzorku (hodiny DAT, ne stroje).</summary>
         public DateTime TimeStamp;
 
@@ -103,6 +143,22 @@ namespace ARBot.Common.Logs
             bw.Write(BRefG);
             bw.Write(Reg23Before ?? string.Empty);
             Write(bw, TimeStamp);
+
+            // --- od verze 2 ---
+            var g = Grid ?? Array.Empty<int[]>();
+            bw.Write(g.Length);
+            foreach (var radek in g)
+            {
+                var r = radek ?? Array.Empty<int>();
+                bw.Write(r.Length);
+                foreach (int v in r) bw.Write(v);
+            }
+            bw.Write(CurrentRow);
+            bw.Write(CurrentAzimuthBin);
+            bw.Write(CurrentTiltDeg);
+            bw.Write(SphereSdMagnitudeG);
+            bw.Write(SphereVnwrg23 ?? string.Empty);
+            bw.Write(CanWriteHardIron);
         }
 
         /// <inheritdoc/>
@@ -123,6 +179,26 @@ namespace ARBot.Common.Logs
             BRefG = br.ReadDouble();
             Reg23Before = br.ReadString();
             TimeStamp = ReadDateTime(br);
+
+            // Verze 1 (zaznamy z 8.-10. 9. 2026) mrizku nenesla. Necha se PRAZDNA - stranka
+            // pak mrizku nekresli, coz je poctivejsi nez ji dopocitat z FilledAzimuthBins
+            // a tvarit se, ze vime, kde ty vzorky byly.
+            if (Verze < 2) return;
+
+            int radku = br.ReadInt32();
+            Grid = new int[radku][];
+            for (int i = 0; i < radku; i++)
+            {
+                int sloupcu = br.ReadInt32();
+                Grid[i] = new int[sloupcu];
+                for (int j = 0; j < sloupcu; j++) Grid[i][j] = br.ReadInt32();
+            }
+            CurrentRow = br.ReadInt32();
+            CurrentAzimuthBin = br.ReadInt32();
+            CurrentTiltDeg = br.ReadDouble();
+            SphereSdMagnitudeG = br.ReadDouble();
+            SphereVnwrg23 = br.ReadString();
+            CanWriteHardIron = br.ReadBoolean();
         }
     }
 }

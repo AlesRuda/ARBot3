@@ -226,7 +226,40 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   v poli. Plán a rozhodnutí: [doc/plan-vn100-kalibrace.md](doc/plan-vn100-kalibrace.md), kroky
   [doc/plan-vn100-kalibrace-kroky.md](doc/plan-vn100-kalibrace-kroky.md); offline rozbor
   `ARBot.Analyze magcal`. **Fáze 1 je hotová v kódu (1475 testů), ale NEBĚŽELA na skutečném
-  senzoru** — chybí celé terénní měření. ⚠️ **Rotace na rovině NESTAČÍ a nestačí ani dva náklony
+  senzoru** — chybí celé terénní měření.
+  ⚠️ **První výjezd 10. 9. 2026 skončil bez výsledku a našel tři vady** (fáze 1b, opraveno
+  v kódu, **na senzoru zase neběželo nic**): (a) **verdikt byl diagnóza, ne pokyn** — při
+  kompletním pokrytí a podmíněnosti ~80 (práh 10⁴) stránka pořád radila „otáčej dál", tedy
+  jedinou věc, která pomoct nemohla; (b) **koše se klíčovaly VELIKOSTÍ odklonu** po 10°, jenže
+  ruční náklon ji neudrží, takže 22° a 34° daly dvě poloprázdné skupiny a hláška zmizela, aniž
+  by se cokoli hnulo; (c) **obsluha neviděla, kam robota natočit**. Léčba: vedle elipsoidy se
+  proloží i **samotná koule** (jen tvrdé železo), která rozliší „chybí náklon" od „**měnilo se
+  pole**" — druhé neopraví žádné otáčení. Koule je o řád až dva lépe podmíněná (při náklonu
+  2,9° 144 proti 1,89 × 10⁴), takže z ní jde **zapsat aspoň tvrdé železo** — ⚠️ ale je to půlka
+  práce: odstraní 100 % bez měkkého železa, **80 %** při tom z referenčního exportu a jen
+  **38 %** při patologickém. ⚠️ **Rovinná rotace přitom projde podmíněností (538) i zbytkem
+  (0,0000) a vrátí bias vedle o 476 787 G** — chytí to teprve třetí brána na velikost měřítka.
+  Místo půdorysu se kreslí **mapa pokrytí 24 × 5** (řádek = poloha robota, modrý rámeček = kde
+  robot je); ⚠️ **Mercator přes celý směr pole by byl špatně** — při náklonech do 30° je
+  dosažitelná jen ~pětina koule, takže druhá osa **není dalších 24 košů**. `MagCalMsg` je
+  **verze 2**. ⚠️ **Záznam z toho výjezdu zůstal v robotu**, takže že proložení spadlo na
+  nekladném vlastním čísle je zatím **odvozeno, ne změřeno** — podle něj se teprve rozhodne
+  o vázaném proložení (Li–Griffiths).
+  ✅ **Dokumentace VN** (TN002, TN004, ICD, manuál, datasheet) 10. 9. 2026 potvrdila konvenci
+  registru 23 i tvar verdiktu — **našla ale dvě vady v zacházení
+  s registrem 44**, obě opravené: (a) nedělal se **`Reset` před `Run`**, takže registr 47 nesl
+  řešení z minulé mise a nebyl to nezávislý údaj; (b) **nedokončená mise nechala senzor v `Run`**,
+  což TN002 kap. 5.2 uvádí přímo mezi příčinami ujíždějícího kurzu. Pozor: `ApplyCompensation = 1`
+  **není „true", je to Disable** (ICD tab. 3.57: Disable = 1, Enable = 3). ⚠️ **Padlo tím i
+  tvrzení „VPE 206 s je samostatná vada, kterou kalibrace neopraví"** — manuál kap. 3.3.5 říká
+  opak (Absolute mode při dlouhodobé poruše kurz *slew*uje, a bez platné HSI kalibrace se režimy
+  chovat nemusí) a registr 35 má **zapnuté** adaptivní filtrování i ladění, které samy zpožďují;
+  přeměřit `K` až po kalibraci, viz [doc/imu-and-frames.md](doc/imu-and-frames.md). ⚠️ VN umí
+  i **2D kalibraci** z pouhé rotace na rovině (platí do 5–10° náklonu) — **náš 3D fit to neumí**
+  a jejich profil pro plnou 3D je šest otáček kolem různých os, psaný pro senzor v ruce; naše
+  „rovina + dva protilehlé náklony" je tedy vědomě náhražka. ⚠️ **Ta PDF do repozitáře NEPATŘÍ**
+  (jsou označená *Proprietary & Confidential* a tenhle repozitář je veřejný) — leží jen lokálně
+  v `doc/Vectornav/`, proto jsou všechny závěry citované **s číslem kapitoly**. ⚠️ **Rotace na rovině NESTAČÍ a nestačí ani dva náklony
   na jednu stranu** (podmíněnost 2,0 × 10⁸ resp. 4,7 × 10⁷ proti 434 u páru +/−) — složka `z` je
   jinak nezměřená a promítne se náklonem přímo do kurzu. ⚠️ **Měřítko se váže na registr 21**
   (čte se ze senzoru), protože VPE proti němu porovnává `|B|` a sklon; je tedy možné, že tím

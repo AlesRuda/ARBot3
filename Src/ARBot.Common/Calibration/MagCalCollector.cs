@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using ARBot.Common.Logs;
 using ARBot.Common.Models;
 
@@ -53,6 +54,16 @@ namespace ARBot.Common.Calibration
         public MagCalResult LastResult { get; private set; }
 
         /// <summary>
+        /// Prolozeni <b>samotne koule</b> — jen tvrde zelezo; <c>null</c>, dokud se neurci.
+        ///
+        /// <para>Ma dvoji ulohu. Za prve <b>diagnostickou</b>: kdyz koule sedi a elipsoida ne,
+        /// je pole konzistentni a chybi jen naklon; kdyz nesedi ani koule, menilo se behem
+        /// mereni pole a otaceni nepomuze. Za druhe je to <b>pouzitelny vysledek</b>, ktery si
+        /// obsluha muze odvezt z pole, kdyz na plnou kalibraci nedoslo.</para>
+        /// </summary>
+        public MagCalResult HardIronOnly { get; private set; }
+
+        /// <summary>
         /// Podminenost z posledniho pokusu o prolozeni — <b>vyplnena i kdyz se neprolozilo</b>,
         /// protoze prave to je cislo, kterym se obsluze rika, jak daleko od hotova je.
         /// </summary>
@@ -75,26 +86,68 @@ namespace ARBot.Common.Calibration
                && LastResult.SdMagnitudeG <= MagCalThresholds.MaxSdMagnitudeG
                // NaN (bez akcelerometru) se nepocita jako prekroceni prahu, ale bez gravitace
                // se sem stejne nedostaneme - kose ji vyzaduji.
-               && !(LastResult.SdInclinationDeg > MagCalThresholds.MaxSdInclinationDeg);
+               && !(LastResult.SdInclinationDeg > MagCalThresholds.MaxSdInclinationDeg)
+               && !FieldChanged;
+
+        /// <summary>
+        /// <b>Menilo se behem mereni pole?</b> Pozna se na tom, ze data nelezi ani na kouli.
+        ///
+        /// <para>Je to jedina vada, kterou <b>nespravi zadne otaceni</b> — robot musi stat na
+        /// jednom miste dal od kovu. Proto ma ve verdiktu prednost pred pokynem k otaceni.</para>
+        ///
+        /// <para>⚠️ Nerozhoduje se, dokud koule neni urcena: na zacatku sberu (rovina, malo
+        /// vzorku) by to bylo tvrzeni z niceho.</para>
+        /// </summary>
+        public bool FieldChanged
+            => HardIronOnly != null
+               && HardIronOnly.SdMagnitudeG > MagCalThresholds.MaxSphereSdMagnitudeG;
+
+        /// <summary>
+        /// Da se zapsat aspon kalibrace tvrdeho zeleza? <b>Slabsi brana nez</b>
+        /// <see cref="Usable"/> — nezada pokryti naklonu ani urcenost elipsoidy, ale porad
+        /// zada, aby data lezela na kouli.
+        /// </summary>
+        public bool CanWriteHardIron => HardIronOnly != null && !FieldChanged;
 
         /// <summary>
         /// <b>Verdikt pro cloveka</b>: co udelat dal, nebo ze je hotovo.
         ///
         /// <para>Poradi je zamerne — nejdriv <b>pokyn</b> (co chybi v pokryti), pak diagnoza
         /// (podminenost, zbytky). Obsluha stoji u robota a potrebuje vedet, co ma delat.</para>
+        ///
+        /// <para>⚠️ <b>Kazda vetev musi koncit tim, co ma clovek UDELAT.</b> Puvodne tu byla
+        /// veta „podminenost 80 (prah 10000) — otacej dal a pridej naklon", ktera si protirecila
+        /// (80 je hluboko pod prahem) a radila jedinou vec, ktera pomoct nemohla. Stalo to
+        /// obsluze cely vyjezd 10. 9. 2026: pokryti bylo kompletni, prolozeni presto selhalo
+        /// a stranka porad rikala „otacej". Rozliseni prinesla teprve <b>koule</b>
+        /// (<see cref="HardIronOnly"/>) — viz doc/plan-vn100-kalibrace.md.</para>
         /// </summary>
         public string Verdict
         {
             get
             {
+                if (coverage.Mag.Count < MagCalFit.MinSamples) return "POKRACUJ: jeste malo vzorku";
+
+                // PRVNI, jeste pred pokrytim: tuhle vadu neopravi zadne otaceni, takze poslat
+                // cloveka otacet by byla ztrata casu.
+                if (FieldChanged)
+                    return string.Format(CultureInfo.InvariantCulture,
+                        "ZNOVU: pole se behem mereni menilo (rozptyl {0:F3} G, prah {1:F3})."
+                        + " Postav robota na JEDNO misto dal od kovu (auto, plot, armatura)"
+                        + " a zacni znovu.",
+                        HardIronOnly.SdMagnitudeG, MagCalThresholds.MaxSphereSdMagnitudeG);
+
                 string chybi = coverage.MissingText();
                 if (chybi.Length > 0) return "POKRACUJ: " + chybi;
+
                 if (LastResult == null)
-                    return coverage.Mag.Count < MagCalFit.MinSamples
-                        ? "POKRACUJ: jeste malo vzorku"
-                        : string.Format(CultureInfo.InvariantCulture,
-                            "POKRACUJ: podminenost {0:G4} (prah {1:G4}) - otacej dal a pridej naklon",
-                            LastCondition, MagCalThresholds.MaxCondition);
+                    // Pokryti je kompletni a prolozeni presto neni. Zbyva jedina vec, kterou
+                    // ma smysl radit: VIC naklonu - a rict, ze tvrde zelezo uz zmerene je.
+                    return HardIronOnly != null
+                        ? "POKRACUJ: tvrde zelezo zmereno, mekke jeste ne."
+                          + " Podloz robota VYS (25-30 stupnu) nebo na dalsi stranu."
+                          + " Muzes taky zapsat jen tvrde zelezo."
+                        : "POKRACUJ: data zatim nelezi na kouli - otacej dal a nakloň robota.";
                 if (LastResult.SdMagnitudeG > MagCalThresholds.MaxSdMagnitudeG)
                     return string.Format(CultureInfo.InvariantCulture,
                         "NEPOUZITELNE: sd(|B|) {0:F4} G nad prahem {1:F3} - pole je porad nekonzistentni",
@@ -143,6 +196,12 @@ namespace ARBot.Common.Calibration
                                            coverage.Acc);
                 LastCondition = cond;
                 LastResult = ok ? r : null;
+
+                // Koule se proklada VZDY, ne jen kdyz elipsoida selze: jeji zbytek je to,
+                // cim se pozna menici se pole, a to je vada i tehdy, kdyz elipsoida vyjde.
+                HardIronOnly = MagCalFit.TryFitSphere(coverage.Mag, BRefG, out var koule, out _,
+                                                      coverage.Acc)
+                    ? koule : null;
                 return true;
             }
             catch (ArgumentException ex)
@@ -168,6 +227,13 @@ namespace ARBot.Common.Calibration
             TiltedGroups = coverage.TiltedGroups,
             HasOppositeTilts = coverage.HasOppositeTilts,
             Samples = coverage.Mag.Count,
+            Grid = coverage.Grid().Select(r => r.Counts).ToArray(),
+            CurrentRow = coverage.CurrentRow,
+            CurrentAzimuthBin = coverage.CurrentAzimuthBin,
+            CurrentTiltDeg = coverage.CurrentTiltDeg,
+            SphereSdMagnitudeG = HardIronOnly?.SdMagnitudeG ?? double.NaN,
+            SphereVnwrg23 = HardIronOnly?.ToVnwrg23() ?? string.Empty,
+            CanWriteHardIron = CanWriteHardIron,
             BRefG = BRefG,
             Reg23Before = Reg23Before ?? string.Empty,
             TimeStamp = tPrev ?? default,

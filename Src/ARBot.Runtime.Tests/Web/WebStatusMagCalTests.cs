@@ -109,5 +109,68 @@ namespace ARBot.Runtime.Tests.Web
             // Prazdny blok by stranka musela umet odlisit od "mise bezi, ale nic nenamerila".
             Assert.That(new WebStatus().ToJson(running: true), Does.Not.Contain("\"magcal\""));
         }
+
+        [Test]
+        public void ZapisTvrdehoZeleza_BezDrzenehoStopu_JeZablokovany()
+        {
+            // Slabsi brana na KVALITU dat nesmi zeslabit branu na BEZPECNOST - do senzoru se
+            // nezapisuje, kdyz robot muze jet, at uz je to kalibrace plna nebo castecna.
+            var s = new WebStatus();
+            Stop(s, drzi: false);
+            var m = Zprava(MagCalPhase.Collecting, "POKRACUJ: tvrde zelezo zmereno");
+            m.CanWriteHardIron = true;
+            s.Post(m);
+
+            var duvod = s.MagCalHardIronWriteBlockedReason();
+
+            Assert.That(duvod, Is.Not.Null);
+            Assert.That(duvod, Does.Contain("nouzove zastaveni"));
+        }
+
+        [Test]
+        public void ZapisTvrdehoZeleza_KdyzKouleNeni_JeZablokovany()
+        {
+            var s = new WebStatus();
+            Stop(s, drzi: true);
+            var m = Zprava(MagCalPhase.Collecting, "POKRACUJ: chybi naklon");
+            m.CanWriteHardIron = false;
+            s.Post(m);
+
+            Assert.That(s.MagCalHardIronWriteBlockedReason(), Is.Not.Null.And.Not.Empty);
+        }
+
+        [Test]
+        public void ZapisTvrdehoZeleza_SDrzenymStopemAUrcenouKouli_Projde()
+        {
+            // ⚠️ Podstatne: pokryti hotove NENI a presto to ma projit - o tom ta cela vetev je.
+            var s = new WebStatus();
+            Stop(s, drzi: true);
+            var m = Zprava(MagCalPhase.Collecting, "POKRACUJ: tvrde zelezo zmereno");
+            m.CanWriteHardIron = true;
+            s.Post(m);
+
+            Assert.That(s.MagCalHardIronWriteBlockedReason(), Is.Null);
+        }
+
+        [Test]
+        public void Json_NeseMrizkuPokrytiIAktualniBunku()
+        {
+            // Bez mrizky v JSONu nema stranka co kreslit - a prave kvuli ni to cele vzniklo.
+            var s = new WebStatus();
+            Stop(s, drzi: true);
+            var m = Zprava(MagCalPhase.Collecting, "POKRACUJ");
+            m.Grid = new[] { new[] { 20, 0 }, new[] { 0, 7 } };
+            m.CurrentRow = 1; m.CurrentAzimuthBin = 1; m.CurrentTiltDeg = 23.5;
+            m.CanWriteHardIron = true;
+            s.Post(m);
+
+            string json = s.ToJson(running: true);
+
+            Assert.That(json, Does.Contain("\"grid\":[[20,0],[0,7]]"));
+            Assert.That(json, Does.Contain("\"row\":1"));
+            Assert.That(json, Does.Contain("\"bin\":1"));
+            Assert.That(json, Does.Contain("\"tiltDeg\":23.5"));
+            Assert.That(json, Does.Contain("\"canWriteHardIron\":true"));
+        }
     }
 }

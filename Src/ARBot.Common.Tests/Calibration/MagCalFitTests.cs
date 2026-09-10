@@ -251,5 +251,89 @@ namespace ARBot.Common.Tests.Calibration
             Assert.That(r.Samples, Is.EqualTo(vz.Count),
                 "Samples hlasi, kolik vzorku do vysledku vstoupilo - zbytky se pocitaji ze VSECH");
         }
+
+        [Test]
+        public void Koule_ZUzkehoPasma_DaTvrdeZelezo_KdyzElipsoidaJesteNe()
+        {
+            // JADRO cele te zmeny: kdyz obsluha nenaklonila robota dost, elipsoida se urcit
+            // neda - ale TVRDE ZELEZO ano. Bez toho konci mise hlaskou "otacej dal" a obsluha
+            // si z pole neveze nic.
+            var C = Mat(1.222, 1.175, 1.081, 0.005, 0.010, -0.012);
+            var b = Vec(-0.274, -0.058, 0.076);
+            var uzke = new[] { 0.0, 0.05, -0.05 };     // ~2,9 stupne, hluboko pod MinTiltDeg
+            var vz = Vzorky(C, b, uzke, 200);
+
+            bool elipsoida = MagCalFit.TryFit(vz, Bref, out _, out double ce);
+            bool koule = MagCalFit.TryFitSphere(vz, Bref, out var r, out double ck);
+
+            Assert.That(elipsoida, Is.False,
+                $"predpoklad testu: elipsoida z uzkeho pasma nejde (cond {ce:G4})");
+            Assert.That(koule, Is.True, $"koule ma z tehoz pasma vyjit (cond {ck:G4})");
+            Assert.That(ck, Is.LessThan(ce / 100),
+                "koule ma byt o rady lepe podminena - to je cely duvod, proc tu je");
+
+            // ⚠️ Odhad tvrdeho zeleza je SAM VYCHYLENY neopravenym mekkym zelezem - zmereno
+            // 0,055-0,059 G proti skutecnym 0,274 G, tedy odstrani se ~80 %, ne vsechno.
+            // Tolerance je proto 0,07 G a NENI to nedbalost: je to naměřená mez metody.
+            double chyba = Math.Sqrt(Math.Pow(r.B[0] - b[0], 2) + Math.Pow(r.B[1] - b[1], 2)
+                                   + Math.Pow(r.B[2] - b[2], 2));
+            Assert.That(chyba, Is.LessThan(0.07), "tvrde zelezo ma vyjit radove spravne");
+            Assert.That(chyba, Is.LessThan(b.L2Norm() / 3),
+                "a hlavne podstatne min, nez kdyz se nekoriguje vubec");
+        }
+
+        [Test]
+        public void Koule_NaRovine_JeNeurcena_IKdyzPodminenostAZbytekMlci()
+        {
+            // ⚠️ NEJDULEZITEJSI test tehle sady. Rovinna rotace s mekkym zelezem projde
+            // podminenosti (538) I zbytkem (0,0000) - a pritom je bias vedle o 476 787 G,
+            // protoze prolozenim rovinne elipsy je koule o poloměru v radu 10⁶. Chyti to
+            // teprve brana na meritko. Bez tohohle testu by mise nabidla zapsat nesmysl.
+            var C = Mat(1.222, 1.175, 1.081, 0.005, 0.010, -0.012);
+            var vz = Vzorky(C, Vec(-0.274, -0.058, 0.076), new[] { 0.0 }, 200);
+
+            bool ok = MagCalFit.TryFitSphere(vz, Bref, out var r, out double cond);
+
+            Assert.That(ok, Is.False, "rotace na rovine NEURCUJE ani kouli");
+            Assert.That(r, Is.Null);
+            Assert.That(cond, Is.LessThan(MagCalThresholds.MaxCondition),
+                "a podminenost to opravdu NECHYTI - proto ta brana na meritko existuje");
+        }
+
+        [Test]
+        public void Koule_KdyzSeVPulceMereniZmeniloPole_MaVelkyZbytek()
+        {
+            // Tohle je ten stav, ktery dnes nikdo nevidi: obsluha s robotem popojela a meri
+            // pokazde v jinem poli. Zadne otaceni to nespravi - a prave to ma verdikt poznat.
+            var naklony = new[] { 0.0, 0.35, -0.35 };
+            var prvni = Vzorky(Mat(1, 1, 1, 0, 0, 0), Vec(-0.274, -0.058, 0.076), naklony);
+            var druha = Vzorky(Mat(1, 1, 1, 0, 0, 0), Vec(-0.174, 0.042, 0.176), naklony);
+            var smes = new List<Vector3>(prvni); smes.AddRange(druha);
+
+            MagCalFit.TryFitSphere(prvni, Bref, out var cista, out _);
+            bool ok = MagCalFit.TryFitSphere(smes, Bref, out var spatna, out _);
+
+            Assert.That(cista.SdMagnitudeG, Is.LessThan(MagCalThresholds.MaxSphereSdMagnitudeG),
+                "predpoklad testu: nad konzistentnim polem je zbytek maly");
+            Assert.That(ok, Is.True, "soustava je porad resitelna - vada je ve zbytku, ne v urcenosti");
+            Assert.That(spatna.SdMagnitudeG, Is.GreaterThan(MagCalThresholds.MaxSphereSdMagnitudeG),
+                "posun pole uprostred mereni musi byt videt na zbytku koule");
+        }
+
+        [Test]
+        public void Koule_PriKonzistentnimPoli_NehlasiZmenuPole_AniPriPatologickemMekkemZeleze()
+        {
+            // Druha strana teze mince: prah "pole se menilo" nesmi vyskocit tam, kde je
+            // kalibrace nejvic potreba, tedy u silneho mekkeho zeleza.
+            foreach (var C in new[] { Mat(1.222, 1.175, 1.081, 0.005, 0.010, -0.012),
+                                      Mat(1.5, 1.0, 0.8, 0.05, 0.05, -0.05) })
+            {
+                var vz = Vzorky(C, Vec(-0.274, -0.058, 0.076), new[] { 0.0, 0.35, -0.35 });
+                MagCalFit.TryFitSphere(vz, Bref, out var r, out _);
+                Assert.That(r.SdMagnitudeG, Is.LessThan(MagCalThresholds.MaxSphereSdMagnitudeG),
+                    $"mekke zelezo {C[0, 0]:F2} nesmi vypadat jako menici se pole");
+            }
+        }
+
     }
 }
