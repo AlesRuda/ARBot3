@@ -137,6 +137,22 @@ Bez `--mag` obnoví jen heading mode (reg 35 → `Absolute`); s `--mag` i kalibr
 (reg 23) z exportu. ⚠️ Ta kalibrace je **z ARBot2 a rok stará** — ber ji jako provizorium,
 dokud se nezměří nová otáčením robotu.
 
+**Kalibrace spočítaná ze záznamu (`--magcal`).** Když mise `magcal` v poli výsledek nezapsala,
+ale záznam s otáčením existuje, dá `ARBot.Analyze magcal` tatáž čísla a zapíšou se takto
+(služba zastavená, jinak port drží ona):
+
+```bash
+# na PC: 12 čísel za VNWRG,23 — normovat na |B| z registru 21 senzoru (po magmodel= je to WMM)
+Src/ARBot.Analyze/bin/x64/Release/net10.0/ARBot.Analyze.exe magcal records/test/20260910-170809.rec --bref=0.4897
+# na robotu: zapsat a uložit do flash
+ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --magcal 1.121575,0.007452,0.007101,0.007452,1.103300,0.021040,0.007101,0.021040,1.022071,0.110929,-0.014435,0.049725; sudo systemctl start arbot'
+```
+
+Čísla výše jsou výsledek z **10. 9. 2026** (`20260910-170809.rec`, verdikt POUZITELNE, viz
+[doc/plan-vn100-kalibrace.md](../doc/plan-vn100-kalibrace.md), fáze 1c). ⚠️ Skript kontroluje
+jen tvar (12 čísel, desetinná tečka), o smyslu rozhodl report. Po zápisu počítej s ~2–3 minutami,
+než se kurz na novou kompenzaci dotáhne, a ověř smyčkou (`ARBot.Analyze vn100`).
+
 ## Na co narazit
 
 - **`libNativeLib.so` není v publishi** (kříží se ve WSL). Skript ji doplní z datového adresáře;

@@ -138,7 +138,8 @@ naměřená v poli).
 |---|---|---|
 | podmíněnost návrhové matice | **určenost** — nutná podmínka, ⚠️ ale nad reálnými daty **neúčinná** (viz níž) | ≤ 10⁴ *(změřeno, viz níž)* |
 | koše: 24× 15° azimutu, ≥ 3 náklonové skupiny (≥ 2 odklonem ≥ 15°), **náklony na obě strany** | co má člověk udělat **dál** | každý azimut ≥ 20 vzorků |
-| `sd(|B|)`, `sd(sklonu)` po korekci | **kvalita**, ne určenost | ≤ 5 mG, ≤ 0,5° |
+| `sd(|B|)` po korekci | **kvalita**, ne určenost | ≤ 5 mG |
+| `sd(sklonu)` po korekci | ~~kvalita~~ **jen diagnostika** (od 10. 9. 2026 — měří akcelerometr, viz fáze 1c) | orientačně 0,5° |
 | shoda proložení z první a druhé poloviny dat | doplněk | ≤ 2° rozdílu v opravě kurzu |
 
 ⚠️ **Práh podmíněnosti byl původně odhadnut na 30 a bylo to o pět řádů mimo** — odmítal
@@ -208,8 +209,15 @@ podmíněností pod prahem to znamená, že `TryFit` spadl na **nekladném vlast
 kvadrika není elipsoid. Text si tedy protiřečil („80, práh 10 000") a radil jedinou věc, která
 nepomůže.
 
-⚠️ **Ověřit na záznamu z robota se to zatím nedalo** — záznam zůstal v robotu. Až bude, řekne to
-`ARBot.Analyze magcal`.
+✅ **Změřeno 10. 9. 2026 večer nad ranním záznamem `records/test/20260910-063617.rec`** (index
+useknutý, `RecordFile` ho doplnil skenem): podmíněnost **79,9**, koule sedí (sd 0,021 G, těsně pod
+prahem 0,030), a `TryFit` spadl přesně tam, kde se odvozovalo — **vlastní čísla `A` jsou
+[−0,634; 0,046; 0,178]**, proložená kvadrika je hyperboloid, ne elipsoida. `TryFit` má od té doby
+přetížení s `out string duvod`, které řekne, **která** ze tří bran za podmíněností spadla, a
+report ho tiskne; do té doby bylo `false` a hádání. Vedlejší nález, nevysvětlený: tvrdé železo
+z koule vyšlo ráno [0,144; 0,002; **−0,111**] G, odpoledne (`20260910-170809.rec`, viz fáze 1c)
+[0,115; 0,000; **−0,005**] G — ve složce `z` o 106 mG jinak, a `z` je v obou případech ten slabě
+určený směr (koule ráno podmíněnost 18, jen tři náklonové řádky).
 
 ### Léčba: proložit vedle elipsoidy i samotnou KOULI
 
@@ -307,6 +315,102 @@ dalších 24 košů**, ale pět poloh robota.
 Mřížka je **tatáž datová struktura, ze které se počítá kritérium** (`MagCalCoverage.Grid()`),
 takže se stránka a verdikt nemohou rozejít; hlídá to test
 `Mrizka_MaPevnePetRadku_ASouhlasiSKriteriem`.
+
+## Fáze 1c — co našel DRUHÝ výjezd (10. 9. 2026 odpoledne, `20260910-170809.rec`)
+
+Kód z commitu `5b6c9d2` (všechny opravy fáze 1b). Obsluha **prošla celou mřížku** a hlásila:
+*„podmíněnost byla jen 170, aplikace nabízela pouze jednodušší kalibraci, plná byla nedostupná."*
+Rozbor `ARBot.Analyze magcal` (191 zpráv `MagCalMsg`, 17 112 vzorků v misi, offline 19 275):
+
+**Co se stalo.** Pokrytí bylo kompletní ve 112. s (24/24 azimutů, 5 řádků, 4 odkloněné, obě
+strany). Elipsoida **se proložila** — podmíněnost v poli **134,6** (offline 134,2), během měření
+šla 280 → 113 → 135; těch „170" je hodnota v **91. s**, hned po vzniku třetí náklonové skupiny,
+kdy se verdikt přepnul. `sd(|B|)` **0,0020 G** (práh 0,005) ✓, rozpůlení **0,63°** v opravě kurzu
+(práh 2°) ✓, koule sd **0,0029 G** (práh 0,030) → pole bylo konzistentní ✓. **Verdikt padl na
+jediné věci: `sd(sklonu)` 2,09° proti prahu 0,5°**, takže `Usable = false` a stránka nabídla
+jen tvrdé železo. ⚠️ A verdikt je **znovu diagnóza bez pokynu** (*„NEPOUZITELNE: sd(sklonu) 2.09°
+nad prahem 0.5"*) — stejná třída vady jako Vada 1, jen o jednu bránu dál: obsluha nemá co udělat,
+a jediné, co stránka dovolí, je zapsat **horší** výsledek (koule), než ten, který odmítla.
+
+**Z čeho se ten rozptyl skládá** (nový blok „7) ROZBOR SKLONU" v reportu). Sklon se sklápí
+**surovým akcelerometrem** a ten při otáčení robotem rukou neměří jen gravitaci:
+
+| výběr vzorků | `sd(sklonu)` po elipsoidě |
+|---|---|
+| všechny (17 112 v poli / 19 275 offline) | **2,08°** |
+| podle odchylky `|acc|` od klidové hodnoty: do 0,5 % / 0,5–1 % / 2–5 % / 5–10 % | 1,13° / 2,05° / 2,69° / **4,21°** |
+| klidné (`|acc|` ±1 %, `|ω|` < 20 °/s; 8 562 vzorků) | 0,96° |
+| totéž, akcelerometr hlazený klouzavým průměrem 1 s | 0,73° |
+| **na rovině v úplném klidu** (jeden azimutový koš, 4 680 vzorků = 47 s stání) | **0,42°** (druhý koš s 985 vzorky: 0,46°) |
+
+Rozptyl tedy **roste s dynamikou akcelerometru**, a **podlaha metriky v úplném klidu je na tomto
+HW ~0,45°** — práh 0,5° nenechává místo ani pro náklon, ani pro pohyb, tedy pro nic z toho, co
+kalibrace vyžaduje. Šum magnetometru sám (sd `|B|` 2 mG na 0,49 G) odpovídá ~0,23°; zbytek do 0,45°
+je akcelerometr a to, co při stání robota vyrábějí motory a okolí.
+
+**Systematika po řádcích náklonu** — průměr sklonu se mezi řádky liší −0,70 … +0,60°
+(předek +0,60, levá +0,55, záď +0,14, pravá −0,70) — má jiného původce než magnetometr:
+**akcelerometr proložený jako koule** (9 583 klidných vzorků, reference *g*) má střed
+**[−0,03; 0,00; +0,27] m/s²** a poloměr 10,23 m/s² (+4,3 %), sd po korekci 0,054 m/s².
+Známý nález „`|a|` = +7 %" ([imu-and-frames.md](imu-and-frames.md)) tedy **není izotropní**: je to
+měřítko +4,3 % **plus bias 0,27 m/s² v ose Z**, a ten při náklonu 30–40° natočí svislici
+z akcelerometru o **0,8–1,0°** — přesně velikost rozdílů mezi řádky. Kritérium sklonu tuhle vadu
+akcelerometru **přičítá kalibraci magnetometru**. Naproti tomu 1. a 2. harmonická sklonu po
+azimutu na rovině jsou jen 0,16° a 0,33° — **žádná systematická vlna** (nesouosost mag/acc,
+antisymetrická část měkkého železa) nad ~0,3°.
+
+**Průměrný sklon na rovině:** surové 62,2°, koule 62,0°, elipsoida 62,8°; WMM pro místo ~66°.
+Rozdíl ~3° je **už v surových datech**, kalibrace ho nevyrábí; místní anomálie od chyby složky `z`
+se ze záznamu nerozliší.
+
+⚠️ **Slabé místo výsledku je složka `z`.** Půlky dat se v opravě kurzu shodnou na 0,63°, ale v `z`
+ne: `C[2,2]` **0,979 vs 1,076**, `b_z` **0,063 vs 0,018 G** (koule dává −0,005). Náklony 20–40° na
+kolech `z` pevně neurčí; dopad na kurz při náklonu 10°: Δ`b_z` 45 mG · sin 10° ≈ 8 mG proti
+`B_h` ≈ 0,2 G, tedy **~2°**. Kontrola kurzu z půlek to **nevidí** — testuje jen vodorovné složky.
+
+**Výsledek z pole** (normováno na `|B|` = 0,4897 G čtené ze senzoru, tj. WMM po `magmodel=`):
+`1.125035,0.008298,0.007695,0.008298,1.104424,0.019324,0.007695,0.019324,1.027345,0.110216,-0.013270,0.047315`
+— měkké železo ~10 % v X/Y a ~0 v Z, tvrdé (0,110; −0,013; 0,047) G. Proti referenčnímu exportu
+z ARBot2 (1,222/1,175/1,081, bias −0,274 G) je to **jiné železo**, což sedí: export je z jiného
+robota. Offline report normuje na `--bref=0.4818` a dá proto úměrně jiná čísla (report to hlásí).
+
+**Rozhodnutí autora (10. 9. 2026 večer): sklon z brány VYŘAZEN** — viz
+[decisions.md](decisions.md). `Usable` i verdikt už `sd(sklonu)` neznají, číslo zůstává jako
+diagnostika; jediná zbývající větev „NEPOUZITELNE" (`sd(|B|)`) končí pokynem. Kalibrace z tohoto
+záznamu je podle nových pravidel **POUZITELNÁ**. Kryje to test
+`HlucnyAkcelerometr_NeshodiKalibraci_SklonNeniBrana` (perfektní pole + šum akcelerometru
+±0,5 m/s² → `sd(sklonu)` nad 0,5°, `Usable` přesto `true`).
+
+**Zápis bez dalšího výjezdu.** Surové pole v záznamu je, takže report dá tatáž čísla, která by
+zapsala mise — normovaná na `|B|` **z registru 21 senzoru** (`--bref=0.4897`, WMM po `magmodel=`;
+default reportu 0,4818 je starý registr 21 a dal by úměrně jiná čísla):
+
+```
+VNWRG,23,1.121575,0.007452,0.007101,0.007452,1.103300,0.021040,0.007101,0.021040,1.022071,0.110929,-0.014435,0.049725
+```
+
+Zapíše je `deploy/vnrestore.sh /dev/ttyUSB0 --magcal <12 čísel>` (nová volba; skript kontroluje
+jen tvar) včetně uložení do flash — postup v [deploy/README.md](../deploy/README.md). Proti
+tomu, co robot spočítal v poli na 17 112 vzorcích
+(`1.125035,0.008298,…,0.047315`), se liší v řádu tisícin: offline vstoupilo 19 275 vzorků (i po
+konci mise). ⚠️ **Zatím nezapsáno** — zápis je ruční krok autora; po něm ~2–3 minuty dotažení
+kurzu a ověření smyčkou.
+
+Co z původního návrhu **zůstává otevřené**:
+
+1. **Do verdiktu přidat shodu půlek v `z`** (`b_z`, `C[2,2]`) — jediná veličina, která o slabém
+   směru něco říká; kurz z půlek ho nevidí. Zatím jen v reportu.
+2. **Kalibrace akcelerometru** (registr 25) — samostatný úkol, viz
+   [imu-and-frames.md](imu-and-frames.md). ⚠️ Prahem 0,5° by kalibrace magnetometru **neprošla
+   ani s dokonalým akcelerometrem**: bias dělá jen systematiku po řádcích (~1°), zbytek je
+   dynamika otáčení rukou a podlaha 0,45° v úplném klidu.
+
+**Co tím padá / co se potvrdilo:** hypotéza „proložení selhalo na nekladném vlastním čísle" platila
+pro **ranní** výjezd (změřeno, viz Vada 1) a **odpolední** ji už nepotřeboval — s kompletním
+pokrytím se elipsoida proložila. Rozhodnutí o **vázaném proložení (Li–Griffiths)** tím má vstup:
+ranní selhání bylo skutečná degenerace dat (tři řádky, koule na hraně 21 mG), ne numerická
+nehoda; vázané proložení by z takových dat *nějakou* elipsoidu vrátilo, ale důvod selhání
+neodstraní.
 
 ## Co říká dokumentace VectorNavu (přečteno 10. 9. 2026)
 
@@ -591,7 +695,10 @@ i η² a rozpad začne rozlišovat.
   i `UncompAccel`/`UncompGyro`). Surové pole je proto v `IMUState.MagnetometerRaw`, formát 4,
   a předpoklad „registr 23 = identita" **padl konstrukčně** — mise registr 23 mazat nesmí.
 - **Sémantika polí registrů 37/38** — potvrdit z ICD, dnes se zná jen tvar z exportu.
-- **Stačí 2–3 náklony?** Řekne až podmíněnost naměřená v poli, ne návrh.
+- **Stačí 2–3 náklony?** ✅ Změřeno 10. 9. 2026 (`20260910-170809.rec`): se 4 odkloněnými řádky
+  o 20–40° je podmíněnost **113–170**, elipsoida se proloží a kurz z půlek souhlasí na 0,63° —
+  ale složka `z` ne (`b_z` 0,063 vs 0,018 G, `C[2,2]` 0,979 vs 1,076). Pro kurz na rovině stačí,
+  pro `z` ne; viz fáze 1c.
 - **Přežije kalibrace vypnutí a zapnutí?** Jediný skutečný test flash (Task 8).
 - **Celá fáze 2** do přeměření.
 - **`IMUState` FormatVersion 4 se dotkne všech záznamů** — starší se musí dál čítat

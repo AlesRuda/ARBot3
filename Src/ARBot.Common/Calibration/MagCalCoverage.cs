@@ -284,6 +284,14 @@ namespace ARBot.Common.Calibration
         /// smer dozadu — a zvednuta je opravdu zad.</para>
         /// </summary>
         private static int Radek(Vector3 acc, out double odklonDeg)
+            => RowOf(acc, out odklonDeg);
+
+        /// <summary>
+        /// <b>Radek mrizky pro dane zrychleni</b> — verejna podoba <see cref="Radek"/>, aby
+        /// offline rozbor (<c>ARBot.Analyze magcal</c>) mohl vzorky rozdelit do TYCHZ radku,
+        /// jake vidi obsluha; druhy vypocet by se casem rozesel.
+        /// </summary>
+        public static int RowOf(Vector3 acc, out double odklonDeg)
         {
             double vodorovne = Math.Sqrt(acc.X * acc.X + acc.Y * acc.Y);
             odklonDeg = Math.Atan2(vodorovne, Math.Abs(acc.Z)) * 180.0 / Math.PI;

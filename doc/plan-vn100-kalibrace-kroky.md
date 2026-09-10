@@ -1082,6 +1082,18 @@ desetinu), takže se ředí veličina, na které počet řádků nezávisí. Hl�
 posuzovat na všech datech. Ředit se musí **rovnoměrně**, ne „prvních N": později naměřené
 náklony jsou právě ta část dat, která soustavu určuje.
 
+- [x] **Krok 5c: Rozbor sklonu a průběh v poli** (10. 9. 2026, nad `20260910-170809.rec`)
+
+Verdikt v poli padl na `sd(sklonu)` a z jednoho čísla se nedalo poznat, jestli je to kalibrace,
+nebo akcelerometr. Report má proto blok **7) ROZBOR SKLONU** — `sd(sklonu)` nad klidnými vzorky
+(`|acc|` do ±1 % **klidové hodnoty z dat**, `|ω|` < 20 °/s), nad akcelerometrem hlazeným 1 s,
+po řádcích mřížky (`MagCalCoverage.RowOf`, kvůli tomu zveřejněný), po azimutech na rovině
+(1./2. harmonická), podle odchylky `|acc|` od klidu, a **akcelerometr proložený jako koule**
+(bias a měřítko) — a blok **8) PRŮBĚH V POLI** (řádek `MagCalMsg` při každé změně verdiktu,
+min/max podmíněnosti), aby šlo číslo, které si obsluha pamatuje, přiřadit k okamžiku.
+`MagCalFit.TryFit` dostal přetížení s `out string duvod`, které při neurčeném proložení řekne,
+která ze tří bran za podmíněností spadla (vlastní čísla `A`). Výsledky: plán, fáze 1c.
+
 - [ ] **Krok 6: Commit** (jen na pokyn autora)
 
 ```bash

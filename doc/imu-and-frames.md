@@ -235,6 +235,23 @@ factory reset**, ale **čím a kdy, se z toho určit nedá**; jen že mezi 2. a 
 `−9,79375` z registru 21, tedy **+7,4 %**. Kompenzace zrychlení (reg 25) je jednotková
 **i v exportu**, takže to není ztracená kalibrace, ale stav, který tu byl už předtím. Na kurz
 přímo vliv nemá (svislice je směr, ne velikost), ale pitch/roll a detekce klidu na tom stojí.
+✅ **Rozloženo 10. 9. 2026** (`ARBot.Analyze magcal` nad `20260910-170809.rec`, akcelerometr
+proložený koulí přes 9 583 klidných vzorků při otáčení a naklánění robota): **NENÍ to izotropní
+měřítko** — střed [−0,03; 0,00; **+0,27**] m/s² a poloměr 10,23 m/s² (+4,3 %), sd po korekci
+0,054 m/s². Bias 0,27 m/s² v ose Z natočí svislici z akcelerometru při náklonu 30–40° o
+**0,8–1,0°** — a to už na směr vliv má: shodilo to kritérium sklonu kalibrace magnetometru
+(viz [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), fáze 1c). Elipsoida akcelerometru se
+z náklonů do 40° neurčí, takže zisky jednotlivých os známé nejsou. Kompenzace (registr 25) se
+**nezapisuje** — stejná zásada jako u registru 23: vědomý ruční krok, ne vedlejší účinek rozboru.
+
+**Otevřený úkol — zkalibrovat akcelerometr** (přání autora, 10. 9. 2026): registr 25 má tentýž
+tvar jako 23 (matice 3×3 + bias, `C·(a − b)`), takže `MagCalFit` jde použít i na něj — koule dá
+bias a společné měřítko už z dnešních dat (`ARBot.Analyze magcal`, blok 7), ale plná elipsoida
+potřebuje robota **obrátit na bok a na záda**, tedy senzor v ruce nebo demontovaný. Co se tím
+spraví: pitch/roll z VPE, detekce klidu, řádky mřížky kalibrace magnetometru a systematika sklonu
+po řádcích (~1°). ⚠️ Co se tím **nespraví**: rozptyl sklonu při otáčení rukou (dynamika) ani jeho
+podlaha 0,45° v klidu — proto byl sklon z brány kalibrace vyřazen, viz
+[decisions.md](decisions.md). Zápis do registru 25 a do flash je zase vědomý ruční krok.
 
 #### Co s tím — a proč to diagnostika sama neopravila
 

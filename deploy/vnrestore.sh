@@ -15,7 +15,16 @@
 #   ./vnrestore.sh /dev/ttyUSB0            # jen heading mode -> Absolute
 #   ./vnrestore.sh /dev/ttyUSB0 --mag      # navic obnovi kalibraci magnetometru z exportu
 #   ./vnrestore.sh /dev/ttyUSB0 --clearmag # navic VYMAZE kalibraci magnetometru (jednotkova)
+#   ./vnrestore.sh /dev/ttyUSB0 --magcal 1.12,0.007,...  # navic zapise ZADANOU kalibraci
+#                                          # (12 cisel za VNWRG,23, presne jak je tiskne
+#                                          #  `ARBot.Analyze magcal --bref=<|B| z registru 21>`)
 #   sudo systemctl start arbot
+#
+# --magcal je cesta, jak zapsat kalibraci SPOCITANOU ZE ZAZNAMU bez dalsiho vyjezdu:
+# mise magcal ji v poli odmitla (10. 9. 2026, rozptyl sklonu - brana pozdeji zrusena),
+# ale surove pole v zaznamu je, takze report da tahz 12 cisel, ktera by zapsala mise.
+# ⚠️ Normuj na |B| z registru 21 SENZORU (po magmodel= je to WMM, 10. 9. 2026 = 0,4897 G),
+# ne na default reportu 0,4818 - jinak VPE porovnava |B| proti jine referenci.
 #
 # ⚠️ --mag ZAPISUJE ROK STAROU KALIBRACI z ARBot2 (export 8. 7. 2026). Plati pro
 # tehdejsi zelezo kolem senzoru; na dnesnim robotu muze byt jina. Spravne se ma
@@ -40,7 +49,17 @@
 set -u
 DEV=${1:-/dev/ttyUSB0}
 MAG=${2:-}
+MAGCAL=${3:-}
 OUT=/tmp/vnrestore.raw
+
+if [ "$MAG" = "--magcal" ]; then
+    # 12 cisel oddelenych carkou, desetinna TECKA (VN cte jen tu). Kontrola tvaru, ne hodnot:
+    # o smyslu cisel rozhodl report (verdikt POUZITELNE), ne tenhle skript.
+    if ! [[ "$MAGCAL" =~ ^-?[0-9]+(\.[0-9]+)?(,-?[0-9]+(\.[0-9]+)?){11}$ ]]; then
+        echo "--magcal chce 12 cisel oddelenych carkou (desetinna tecka), dostal: '$MAGCAL'"
+        exit 3
+    fi
+fi
 
 if [ ! -e "$DEV" ]; then echo "NENI $DEV"; exit 1; fi
 if fuser "$DEV" >/dev/null 2>&1; then
@@ -79,6 +98,10 @@ elif [ "$MAG" = "--clearmag" ]; then
     # Zadna kompenzace: jednotkova matice, nulovy bias. Tovarni stav - a podle mereni
     # z 6. 9. 2026 na tomhle robotu lepsi nez stara kalibrace z ARBot2 (viz hlavicka).
     send "VNWRG,23,1,0,0,0,1,0,0,0,1,0,0,0"
+elif [ "$MAG" = "--magcal" ]; then
+    # Kalibrace spocitana ze zaznamu (ARBot.Analyze magcal), stejny tvar jako pise mise:
+    # radky C, pak bias; VN aplikuje C*(m - b). Viz doc/plan-vn100-kalibrace.md.
+    send "VNWRG,23,$MAGCAL"
 fi
 
 # Ulozeni do flash. Trva ~1 s a senzor pritom neodpovida.

@@ -118,6 +118,41 @@ namespace ARBot.Common.Tests.Calibration
         }
 
         [Test]
+        public void HlucnyAkcelerometr_NeshodiKalibraci_SklonNeniBrana()
+        {
+            // Rozhodnuti autora 10. 9. 2026 nad 20260910-170809.rec: rozptyl sklonu shodil
+            // bezvadnou kalibraci (2,09° proti 0,5°), protoze meri dynamiku akcelerometru pri
+            // otaceni rukou, ne magnetometr. Tady se ta dynamika napodobi: perfektni pole,
+            // ale zrychleni s nahodnou pricnou slozkou ~0,5 m/s² (sd |acc| v zaznamu 0,48).
+            var c = new MagCalCollector(Bref);
+            var rnd = new Random(12345);
+            double t = 0;
+            foreach (var (naklon, smer) in new[] { (0.0, 0.0), (0.40, 0.0), (0.40, Math.PI) })
+            {
+                const double omega = 0.5, dt = 0.01;
+                int n = (int)(2 * Math.PI / omega / dt);
+                for (int i = 0; i < n; i++)
+                {
+                    var p = Poza(omega * dt * i, naklon, smer);
+                    var acc = p.Acc + new Vector3((float)(rnd.NextDouble() - 0.5),
+                                                  (float)(rnd.NextDouble() - 0.5),
+                                                  (float)(rnd.NextDouble() - 0.5));
+                    c.Add(Vzorek(t, omega, p.Mag, acc));
+                    t += dt;
+                }
+            }
+
+            Assert.That(c.Coverage.Complete, Is.True, "pokryti: " + c.Coverage.MissingText());
+            Assert.That(c.LastResult, Is.Not.Null);
+            Assert.That(c.LastResult.SdInclinationDeg, Is.GreaterThan(MagCalThresholds.MaxSdInclinationDeg),
+                        "test ma smysl, jen kdyz sum akcelerometru sklon opravdu rozhazi");
+            Assert.That(c.LastResult.SdMagnitudeG, Is.LessThan(MagCalThresholds.MaxSdMagnitudeG),
+                        "pole je perfektni, |B| to nesmi ovlivnit");
+            Assert.That(c.Usable, Is.True, c.Verdict);
+            Assert.That(c.Verdict, Is.EqualTo("HOTOVO"));
+        }
+
+        [Test]
         public void IMUBezAbsolutnihoKurzu_SeIgnoruje()
         {
             // V robotu je IMU vic a T265 posila RELATIVNI yaw. Michat dve ruzne nuly by dalo

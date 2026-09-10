@@ -98,9 +98,26 @@ namespace ARBot.Common.Calibration
                                   out MagCalResult result, out double condition,
                                   IReadOnlyList<Vector3> acc = null,
                                   double maxCondition = MagCalThresholds.MaxCondition)
+            => TryFit(mag, bRefG, out result, out condition, out _, acc, maxCondition);
+
+        /// <summary>
+        /// <see cref="TryFit(IReadOnlyList{Vector3}, double, out MagCalResult, out double, IReadOnlyList{Vector3}, double)"/>
+        /// s <b>duvodem</b>, proc se neprolozilo — pro offline rozbor.
+        ///
+        /// <para>⚠️ Za podminenosti jsou jeste tri brany (nekladne vlastni cislo, tedy prolozena
+        /// kvadrika neni elipsoida; nulove meritko) a z pouheho <c>false</c> se nepozna, ktera
+        /// spadla. Presne to chybelo u ranniho vyjezdu 10. 9. 2026: podminenost 80 pod prahem,
+        /// prolozeni pres to neurcene, a ze to bylo nekladne vlastni cislo, se jen odvozovalo.</para>
+        /// </summary>
+        /// <param name="duvod">Prazdny retezec pri uspechu, jinak ktera brana a s jakymi cisly.</param>
+        public static bool TryFit(IReadOnlyList<Vector3> mag, double bRefG,
+                                  out MagCalResult result, out double condition, out string duvod,
+                                  IReadOnlyList<Vector3> acc = null,
+                                  double maxCondition = MagCalThresholds.MaxCondition)
         {
             result = null;
             condition = double.PositiveInfinity;
+            duvod = string.Empty;
 
             double s = Priprava(mag, bRefG, acc);
 
@@ -134,7 +151,11 @@ namespace ARBot.Common.Calibration
             // podminenost pocitala a nepouzila, takze rovinna rotace spadla az na nekladnem
             // vlastnim cisle — tedy vyjimkou misto cislem, a obsluha by na strance videla
             // "prolozeni selhalo" misto "podminenost 84, otacej dal".
-            if (!(condition <= maxCondition)) return false;
+            if (!(condition <= maxCondition))
+            {
+                duvod = $"podminenost {condition:G4} nad prahem {maxCondition:G4}";
+                return false;
+            }
 
             var A = Matrix<double>.Build.DenseOfArray(new[,] {
                 { u[0], u[3], u[4] },
@@ -161,7 +182,12 @@ namespace ARBot.Common.Calibration
             // Zaloha za podminenosti: prolozena kvadrika neni elipsoida (nekladna vlastni cisla),
             // tedy data nejsou rotace pole. Po kontrole podminenosti by se to stat nemelo, ale
             // odmocnina z nekladneho cisla je horsi nez "neurceno".
-            if (lam.Minimum() <= 0) return false;
+            if (lam.Minimum() <= 0)
+            {
+                duvod = $"kvadrika neni elipsoida: vlastni cisla A [{lam[0]:G4}, {lam[1]:G4}, {lam[2]:G4}]"
+                        + " (jedno nekladne -> paraboloid/hyperboloid; data v jednom smeru nezakrivuji)";
+                return false;
+            }
 
             var sqrtL = Matrix<double>.Build.DenseDiagonal(3, 3, i => Math.Sqrt(lam[i]));
             var C0 = eigenVectors * sqrtL * eigenVectors.Transpose();
@@ -173,7 +199,7 @@ namespace ARBot.Common.Calibration
                     new double[] { m.X / s - bn[0], m.Y / s - bn[1], m.Z / s - bn[2] });
                 return (C0 * x).L2Norm();
             });
-            if (!(k > 0)) return false;
+            if (!(k > 0)) { duvod = $"nulove meritko k = {k}"; return false; }
 
             // Zpet do G: prolozeni bezelo na m/s, takze C se deli s a bias nasobi s.
             var C = C0.Multiply(bRefG / k / s);

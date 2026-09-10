@@ -105,11 +105,42 @@ opravy. Podrobně
 - ⚠️ **Na skutečném senzoru neběželo NIC z toho** — ani mapa, ani částečný zápis do flash.
   V simulaci to nešlo projít celé: otáčení rukou (`HandSpinRadPerSec`) jde nastavit jen z panelu
   Avalonie, ne z příkazové řádky, takže headless běh mřížku nenaplní.
-- **Rozpracováno / další krok:** ⚠️ **Záznam z výjezdu 10. 9. zůstal v robotu.** Až bude,
-  pustit na něj `ARBot.Analyze magcal` a ověřit, že proložení spadlo opravdu na nekladném
-  vlastním čísle — dnes je to **odvozeno z kódu a z podmíněnosti ~80, ne změřeno**. Teprve podle
-  toho rozhodnout o **vázaném proložení elipsoidy** (Li–Griffiths), které by ten stav odstranilo
-  z principu.
+- ✅ **Ranní záznam (`20260910-063617.rec`) je na disku a potvrdil hypotézu:** podmíněnost 79,9,
+  vlastní čísla `A` **[−0,634; 0,046; 0,178]** — hyperboloid, ne elipsoida. `MagCalFit.TryFit`
+  má nové přetížení s `out string duvod` (která ze tří bran za podmíněností spadla) a report ho
+  tiskne; do té doby bylo jen `false`.
+- **Druhý výjezd týž den odpoledne (`20260910-170809.rec`) — rozbor na pokyn autora** („prošel
+  jsem všechna pole, podmíněnost jen 170, plná kalibrace nedostupná"). ⚠️ **Elipsoida se
+  proložila** (podmíněnost 134,6; `sd|B|` 2 mG; půlky 0,63°; koule 2,9 mG = pole konzistentní),
+  **verdikt shodil jediný práh: `sd(sklonu)` 2,09° proti 0,5°** — a ten neměří magnetometr, ale
+  **akcelerometr**: rozptyl roste s dynamikou otáčení rukou (1,1° u klidných vzorků → 4,2° při
+  `|acc|` 5–10 % mimo klid), **podlaha v úplném klidu je 0,42–0,46°**, a akcelerometr má
+  **bias +0,27 m/s² v Z** (koule přes 9 583 klidných vzorků; známé „+7 %" je tedy měřítko +4,3 %
+  plus bias, NE izotropní), který sám natočí svislici při náklonu 30–40° o ~1° — velikost
+  rozdílů sklonu mezi řádky náklonu. Verdikt byl přitom znovu diagnóza bez pokynu a stránka
+  nabídla jen horší výsledek (koule), než který odmítla. „170" = podmíněnost v 91. s, když vznikla
+  třetí náklonová skupina. Slabé místo výsledku je `z` (půlky: `b_z` 0,063 vs 0,018 G).
+  `ARBot.Analyze magcal` má nové bloky **7) ROZBOR SKLONU** (klidné vzorky, po řádcích,
+  po azimutech, akcelerometr jako koule) a **8) PRŮBĚH V POLI** (řádek při každé změně verdiktu).
+  Detail a **návrh úprav (neimplementováno, čeká na autora)**:
+  [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#fáze-1c--co-našel-druhý-výjezd-10-9-2026-odpoledne-20260910-170809rec).
+- **Ověřeno:** build `ARBot.Analyze` (Release x64), 38 testů `Calibration` v Common prošlo.
+  Změny v `Common` jsou jen přidané přetížení a zveřejněný `MagCalCoverage.RowOf`.
+- **Rozhodnutí (večer): rozptyl sklonu z brány VYŘAZEN**, jen diagnostika — viz
+  [decisions.md](decisions.md). `Usable` a verdikt v `MagCalCollector` i offline verdikt
+  v reportu už ho neznají; zbývající větev `sd(|B|)` končí pokynem. Nový test
+  `HlucnyAkcelerometr_NeshodiKalibraci_SklonNeniBrana` (39 testů `Calibration` prošlo).
+  Kalibrace z odpoledního záznamu je podle nových pravidel **POUZITELNÁ** — report to říká,
+  v záznamu zůstává historický verdikt z pole. ⚠️ Na robotu s novým kódem zatím neběželo.
+- **Kalibrace se zapíše ze záznamu, bez dalšího výjezdu** (připomněl autor): report s
+  `--bref=0.4897` (registr 21 senzoru po `magmodel=`) dá 12 čísel za `VNWRG,23` a nová volba
+  `deploy/vnrestore.sh --magcal <čísla>` je zapíše i do flash. Čísla i postup jsou v plánu
+  (fáze 1c) a v [deploy/README.md](../deploy/README.md). ⚠️ **Nezapsáno** — ruční krok autora;
+  skript na senzoru s touhle volbou neběžel (jen `bash -n` a kontrola tvaru argumentu).
+- **Rozpracováno / další krok:** zapsat kalibraci (`--magcal`), počkat ~2–3 minuty na dotažení
+  kurzu, projet smyčku a změřit `ARBot.Analyze vn100` proti akceptačním kritériím fáze 1.
+  Otevřené: shoda půlek v `z` do verdiktu; **kalibrace akcelerometru** (bias 0,27 m/s² v Z,
+  registr 25) jako samostatný úkol, viz [imu-and-frames.md](imu-and-frames.md).
 - **Rozhodnutí:** tři, viz [decisions.md](decisions.md) — částečný zápis, klíčování pokrytí
   směrem místo velikostí, a mapa jako 24 × 5 poloh místo Mercatoru koule.
 - **Odkazy:** `MagCalFit`, `MagCalCoverage`, `MagCalCollector`, `MagCalMission`, `MagCalMsg`,

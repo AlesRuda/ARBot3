@@ -13,6 +13,40 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-10 — Kalibrace magnetometru: rozptyl sklonu NENÍ brána, jen diagnostika
+
+**Co:** `MagCalCollector.Usable` a verdikt už **nezahrnují** `sd(sklonu)` (práh 0,5°). Číslo se
+dál počítá, nese ve `MagCalMsg` a ukazuje na stránce i v reportu, ale kalibraci neshodí. Stejné
+pravidlo drží offline verdikt v `ARBot.Analyze magcal`. Konstanta `MaxSdInclinationDeg` zůstává
+pro syntetické testy a jako měřítko.
+
+**Proč:** Druhý výjezd 10. 9. 2026 (`records/test/20260910-170809.rec`) dovezl kalibraci, která
+prošla **všemi** ostatními bránami — pokrytí kompletní, podmíněnost 135, `sd(|B|)` 2 mG, shoda
+půlek v kurzu 0,63°, koule 2,9 mG (pole konzistentní) — a shodil ji **jen** rozptyl sklonu 2,09°.
+Rozbor ukázal, že to číslo **měří akcelerometr, ne magnetometr**: sklon se sklápí surovým
+zrychlením, které při otáčení robotem rukou nese dynamiku (rozptyl 1,1° u klidných vzorků,
+4,2° při `|acc|` 5–10 % mimo klid), **podlaha v úplném klidu je 0,42–0,46°** (šum magnetometru
+sám dává ~0,23°), a akcelerometr má **bias 0,27 m/s² v ose Z**, který při náklonu 30–40° natočí
+svislici o ~1°. Práh 0,5° tedy nenechával místo ani pro náklon, ani pro pohyb — tedy pro nic
+z toho, co kalibrace vyžaduje. Alternativy: (a) počítat sklon jen z klidných vzorků a zvednout
+práh na ~1,5° — dál by to stálo na vadném akcelerometru; (b) nechat — plná kalibrace by na tomto
+robotu neprošla nikdy. Autor zvolil vyřazení.
+
+**Důsledky:**
+- Kvalitu drží `sd(|B|)` (5 mG), koule (pole se během měření neměnilo) a v reportu shoda půlek.
+  Kalibrace z 10. 9. odpoledne je podle nových pravidel **POUZITELNÁ** (report to říká; v záznamu
+  zůstává historický verdikt z pole „NEPOUZITELNE").
+- ⚠️ **Slabé místo, které sklon částečně hlídal, zůstává nehlídané: složka `z`.** Půlky dat se
+  v kurzu shodnou, ale v `z` ne (`b_z` 0,063 vs 0,018 G, `C[2,2]` 0,979 vs 1,076). Návrh je
+  přidat do verdiktu shodu půlek v `z`; zatím jen v reportu.
+- ⚠️ Kalibrace **akcelerometru** (registr 25) by prahem 0,5° stejně neprošla — odstraní bias,
+  ne dynamiku otáčení rukou ani podlahu 0,45°. Je to samostatný úkol, viz
+  [imu-and-frames.md](imu-and-frames.md).
+
+**Odkazy:** [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md#fáze-1c--co-našel-druhý-výjezd-10-9-2026-odpoledne-20260910-170809rec),
+`MagCalCollector.Usable`, `MagCalThresholds.MaxSdInclinationDeg`, test
+`HlucnyAkcelerometr_NeshodiKalibraci_SklonNeniBrana`.
+
 ### 2026-09-10 — Kalibrace magnetometru: nabízí se i zápis SAMOTNÉHO tvrdého železa
 
 **Co:** Vedle plné kalibrace umí mise `magcal` zapsat do registru 23 i výsledek proložení

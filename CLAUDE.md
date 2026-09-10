@@ -242,9 +242,22 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   Místo půdorysu se kreslí **mapa pokrytí 24 × 5** (řádek = poloha robota, modrý rámeček = kde
   robot je); ⚠️ **Mercator přes celý směr pole by byl špatně** — při náklonech do 30° je
   dosažitelná jen ~pětina koule, takže druhá osa **není dalších 24 košů**. `MagCalMsg` je
-  **verze 2**. ⚠️ **Záznam z toho výjezdu zůstal v robotu**, takže že proložení spadlo na
-  nekladném vlastním čísle je zatím **odvozeno, ne změřeno** — podle něj se teprve rozhodne
-  o vázaném proložení (Li–Griffiths).
+  **verze 2**. ✅ Ranní záznam (`20260910-063617.rec`) hypotézu **potvrdil měřením**: vlastní čísla
+  `A` [−0,634; 0,046; 0,178] při podmíněnosti 80; `TryFit` od té doby umí říct **důvod**
+  (`out string duvod`). ⚠️ **Druhý výjezd týž den (`20260910-170809.rec`) doběhl s kompletním
+  pokrytím a elipsoida se PROLOŽILA** (podmíněnost 135, `sd|B|` 2 mG, půlky 0,63°), ale verdikt
+  shodil **rozptyl sklonu 2,09° proti prahu 0,5° — a ten měří akcelerometr, ne magnetometr**:
+  roste s dynamikou otáčení rukou (1,1° v klidu → 4,2° při `|acc|` 5–10 % mimo klid), podlaha
+  v úplném klidu je **0,42–0,46°**, a akcelerometr má **bias +0,27 m/s² v Z**, který sám natočí
+  svislici o ~1° při náklonu 30–40°. Stránka tak nabídla jen tvrdé železo, tedy **horší** výsledek,
+  než který odmítla. ✅ **Autor týž den rozhodl: sklon z brány VYŘAZEN, jen diagnostika**
+  (`Usable` i verdikt bez něj, viz [doc/decisions.md](doc/decisions.md)); kalibrace z toho
+  záznamu je podle nových pravidel POUZITELNÁ a **zapíše se ze záznamu bez dalšího výjezdu**
+  (`ARBot.Analyze magcal --bref=0.4897` → `deploy/vnrestore.sh --magcal <12 čísel>`, zatím
+  **nezapsáno**; na robotu s novým kódem neběželo). Slabým místem
+  výsledku zůstává složka `z` (půlky: `b_z` 0,063 vs 0,018 G). Kalibrace **akcelerometru**
+  (bias 0,27 m/s² v Z, registr 25) je otevřený samostatný úkol — prahem sklonu by ale kalibrace
+  neprošla ani s ní.
   ✅ **Dokumentace VN** (TN002, TN004, ICD, manuál, datasheet) 10. 9. 2026 potvrdila konvenci
   registru 23 i tvar verdiktu — **našla ale dvě vady v zacházení
   s registrem 44**, obě opravené: (a) nedělal se **`Reset` před `Run`**, takže registr 47 nesl

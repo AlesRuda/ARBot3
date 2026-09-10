@@ -74,7 +74,16 @@ namespace ARBot.Common.Calibration
 
         /// <summary>
         /// Je vysledek pouzitelny k zapisu do senzoru? <b>Vsechny</b> podminky zaroven: pokryti
-        /// uplne (vcetne naklonu na obe strany), prolozeni urcene, zbytky pod prahy.
+        /// uplne (vcetne naklonu na obe strany), prolozeni urcene, <c>sd(|B|)</c> pod prahem,
+        /// pole se behem mereni nemenilo.
+        ///
+        /// <para>⚠️ <b>Rozptyl sklonu od 10. 9. 2026 branou NENI</b> — rozhodnuti autora nad
+        /// zaznamem <c>20260910-170809.rec</c>, kde shodil jinak bezvadnou kalibraci (2,09°
+        /// proti prahu 0,5°). Sklon se sklapi surovym akcelerometrem, a ten pri otaceni robotem
+        /// rukou meri dynamiku, ne jen gravitaci: rozptyl rostl s odchylkou <c>|acc|</c> od
+        /// klidu (1,1° → 4,2°), podlaha v uplnem klidu byla 0,42–0,46° a akcelerometr ma bias
+        /// 0,27 m/s² v ose Z. Merilo se tim tedy neco jineho nez magnetometr. Cislo se dal
+        /// pocita a nese do zpravy jako <b>diagnostika</b>. Viz doc/decisions.md.</para>
         ///
         /// <para>Shodu prvni a druhe poloviny dat kontroluje <b>offline</b> report — za behu by
         /// to znamenalo tri SVD misto jednoho a je to jen doplnkove kriterium.</para>
@@ -84,9 +93,6 @@ namespace ARBot.Common.Calibration
                && coverage.Complete
                && LastResult.Condition <= MagCalThresholds.MaxCondition
                && LastResult.SdMagnitudeG <= MagCalThresholds.MaxSdMagnitudeG
-               // NaN (bez akcelerometru) se nepocita jako prekroceni prahu, ale bez gravitace
-               // se sem stejne nedostaneme - kose ji vyzaduji.
-               && !(LastResult.SdInclinationDeg > MagCalThresholds.MaxSdInclinationDeg)
                && !FieldChanged;
 
         /// <summary>
@@ -150,12 +156,10 @@ namespace ARBot.Common.Calibration
                         : "POKRACUJ: data zatim nelezi na kouli - otacej dal a nakloň robota.";
                 if (LastResult.SdMagnitudeG > MagCalThresholds.MaxSdMagnitudeG)
                     return string.Format(CultureInfo.InvariantCulture,
-                        "NEPOUZITELNE: sd(|B|) {0:F4} G nad prahem {1:F3} - pole je porad nekonzistentni",
+                        "NEPOUZITELNE: sd(|B|) {0:F4} G nad prahem {1:F3} - pole je porad nekonzistentni."
+                        + " Postav robota na JEDNO misto dal od kovu a zacni znovu.",
                         LastResult.SdMagnitudeG, MagCalThresholds.MaxSdMagnitudeG);
-                if (LastResult.SdInclinationDeg > MagCalThresholds.MaxSdInclinationDeg)
-                    return string.Format(CultureInfo.InvariantCulture,
-                        "NEPOUZITELNE: sd(sklonu) {0:F2}° nad prahem {1:F1}",
-                        LastResult.SdInclinationDeg, MagCalThresholds.MaxSdInclinationDeg);
+                // Rozptyl sklonu tu vetev NEMA - od 10. 9. 2026 je jen diagnostika (viz Usable).
                 return "HOTOVO";
             }
         }

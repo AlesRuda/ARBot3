@@ -70,7 +70,21 @@ namespace ARBot.Common.Calibration
         /// <summary>Rozptyl <c>|B|</c> po korekci [G].</summary>
         public const double MaxSdMagnitudeG = 0.005;
 
-        /// <summary>Rozptyl sklonu po korekci [deg].</summary>
+        /// <summary>
+        /// Rozptyl sklonu po korekci [deg] — <b>od 10. 9. 2026 JEN ORIENTACNI, neni to brana.</b>
+        ///
+        /// <para>Nad prvnim uplnym merenim v poli (<c>20260910-170809.rec</c>) shodil jinak
+        /// bezvadnou kalibraci: 2,09° pri <c>sd(|B|)</c> 2 mG, shode pulek 0,63° a konzistentnim
+        /// poli. Rozbor (<c>ARBot.Analyze magcal</c>, blok 7) ukazal, ze cislo meri
+        /// <b>akcelerometr</b>, ne magnetometr: sklon se sklapi surovym zrychlenim, ktere pri
+        /// otaceni rukou nese dynamiku (rozptyl 1,1° u klidnych vzorku → 4,2° pri <c>|acc|</c>
+        /// 5–10 % mimo klid), podlaha v <b>uplnem klidu</b> je 0,42–0,46°, a akcelerometr ma bias
+        /// 0,27 m/s² v ose Z, ktery pri naklonu 30–40° natoci svislici o ~1°. Prah 0,5° tedy
+        /// nenechaval misto pro nic z toho, co kalibrace vyzaduje. Kvalitu drzi
+        /// <see cref="MaxSdMagnitudeG"/>, koule (<see cref="MaxSphereSdMagnitudeG"/>) a shoda
+        /// pulek v reportu. Konstanta zustava pro synteticke testy (perfektni data ji plni)
+        /// a jako meritko v reportu. Viz doc/decisions.md, 10. 9. 2026.</para>
+        /// </summary>
         public const double MaxSdInclinationDeg = 0.5;
 
         /// <summary>
