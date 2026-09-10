@@ -28,13 +28,26 @@
 
         <!-- Dva panely: levy a pravy snimek, kazdy s polopruhlednym overlayem -->
         <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0,8,8">
-            <!-- Overlay ma IsHitTestVisible=False, takze ukazovani mysi obsluhuje podkladovy Image.
+            <!-- Viewbox drzi POMER STRAN SCENY (LeftSceneWidth/Height z ImageDocument), vnitrni
+                 Grid ma jeji rozmery v pixelech a oba obrazky se do nej kresli Stretch="Fill".
+                 ⚠️ Tim overlay lezi PRESNE na podkladu i kdyz ma jine rozliseni - pravdepodobnost
+                 ze site je 128×128, ale pokryva cely snimek 640×480. S Uniform na obou prvcich
+                 si kazdy zachoval vlastni pomer, takze probability skoncila jako ctverec pres
+                 prostrednich 75 % sirky obrazu (nalez 10. 9. 2026, doc/devlog.md).
+                 Popiska je ZAMERNE mimo Viewbox - jinak by se skalovala i ona.
+                 Kurzor obsluhuje vnitrni Grid (Background="Transparent" kvuli hit-testu), takze
+                 poloha z e.GetPosition JSOU scenove pixely; overlay ma IsHitTestVisible=False.
                  Tag rozlisuje panel (L/P) v obsluze v code-behind. -->
             <Grid Grid.Column="0" Margin="0,0,4,0">
-                <Image Source="{Binding LeftImage}" Stretch="Uniform" Tag="L"
-                       PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited"/>
-                <Image Source="{Binding LeftOverlayImage}" Stretch="Uniform"
-                       Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                <Viewbox Stretch="Uniform">
+                    <Grid Width="{Binding LeftSceneWidth}" Height="{Binding LeftSceneHeight}"
+                          Background="Transparent" Tag="L"
+                          PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited">
+                        <Image Source="{Binding LeftImage}" Stretch="Fill"/>
+                        <Image Source="{Binding LeftOverlayImage}" Stretch="Fill"
+                               Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                    </Grid>
+                </Viewbox>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
                         Background="#80000000" Padding="8,4" CornerRadius="3">
                     <StackPanel>
@@ -46,10 +59,15 @@
                 </Border>
             </Grid>
             <Grid Grid.Column="1" Margin="4,0,0,0">
-                <Image Source="{Binding RightImage}" Stretch="Uniform" Tag="R"
-                       PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited"/>
-                <Image Source="{Binding RightOverlayImage}" Stretch="Uniform"
-                       Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                <Viewbox Stretch="Uniform">
+                    <Grid Width="{Binding RightSceneWidth}" Height="{Binding RightSceneHeight}"
+                          Background="Transparent" Tag="R"
+                          PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited">
+                        <Image Source="{Binding RightImage}" Stretch="Fill"/>
+                        <Image Source="{Binding RightOverlayImage}" Stretch="Fill"
+                               Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
+                    </Grid>
+                </Viewbox>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
                         Background="#80000000" Padding="8,4" CornerRadius="3">
                     <StackPanel>

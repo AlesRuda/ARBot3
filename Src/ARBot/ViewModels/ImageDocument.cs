@@ -86,6 +86,33 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string leftCursorInfo = "";
         [ObservableProperty] private string rightCursorInfo = "";
 
+        /// <summary>
+        /// <b>Rozliseni SCENY panelu</b> [px] — plocha, do ktere se podklad i overlay natahuji.
+        ///
+        /// <para>Bere se z <see cref="ImageLayer.EffectiveSceneWidth"/> podkladu (a kdyz podklad
+        /// neni, z overlaye), protoze vrstva nemusi mit rozliseni sceny: pravdepodobnost ze site
+        /// je 128×128, ale pokryva cely snimek 640×480. Stranka XAML z toho drzi POMER STRAN
+        /// panelu a oba obrazky do nej kresli <c>Stretch="Fill"</c>, takze overlay lezi presne na
+        /// podkladu. S <c>Uniform</c> na obou to tak NEBYLO — kazdy si zachoval vlastni pomer,
+        /// takze probability skoncila jako ctverec pres prostrednich 75 % sirky obrazu
+        /// (nalez 10. 9. 2026, doc/devlog.md).</para>
+        ///
+        /// <para>Ve SCENOVYCH pixelech pracuje i kurzor: code-behind cte polohu primo z prvku
+        /// o teto velikosti, takze zadne prepocty pres <c>Uniform</c> nejsou potreba, a
+        /// <see cref="DescribePixel"/> si pixel vrstvy dopocita pres
+        /// <see cref="ImageLayer.TryPixel"/>.</para>
+        /// </summary>
+        [ObservableProperty] private double leftSceneWidth = 1;
+        /// <inheritdoc cref="LeftSceneWidth"/>
+        [ObservableProperty] private double leftSceneHeight = 1;
+        /// <inheritdoc cref="LeftSceneWidth"/>
+        [ObservableProperty] private double rightSceneWidth = 1;
+        /// <inheritdoc cref="LeftSceneWidth"/>
+        [ObservableProperty] private double rightSceneHeight = 1;
+
+        // Scéna kazdeho slotu zvlast; panel si z nich vybere (podklad ma prednost).
+        private (int w, int h) leftBaseScene, rightBaseScene, leftOverlayScene, rightOverlayScene;
+
         /// <summary>Konstruktor pro design-time / navrhar.</summary>
         public ImageDocument()
         {
@@ -488,7 +515,9 @@ namespace ARBot.ViewModels
         public void UpdateCursor(bool right, int x, int y)
         {
             string info = BuildCursorInfo(right ? RightLayer : LeftLayer,
-                                          right ? RightOverlayLayer : LeftOverlayLayer, x, y);
+                                          right ? RightOverlayLayer : LeftOverlayLayer, x, y,
+                                          (int)(right ? RightSceneWidth : LeftSceneWidth),
+                                          (int)(right ? RightSceneHeight : LeftSceneHeight));
             if (right) RightCursorInfo = info;
             else LeftCursorInfo = info;
         }
@@ -500,12 +529,17 @@ namespace ARBot.ViewModels
             else LeftCursorInfo = "";
         }
 
-        private string BuildCursorInfo(string baseName, string overlayName, int x, int y)
+        /// <param name="x">Bod ve SCENOVYCH souradnicich panelu [px].</param>
+        /// <param name="y">Bod ve SCENOVYCH souradnicich panelu [px].</param>
+        /// <param name="sceneW">Sirka scény panelu [px].</param>
+        /// <param name="sceneH">Vyska scény panelu [px].</param>
+        private string BuildCursorInfo(string baseName, string overlayName, int x, int y,
+                                       int sceneW, int sceneH)
         {
-            string b = DescribePixel(baseName, x, y);
+            string b = DescribePixel(baseName, x, y, sceneW, sceneH);
             if (b == null) return "";   // mimo obraz nebo vrstva neni k dispozici
 
-            string o = DescribePixel(overlayName, x, y);
+            string o = DescribePixel(overlayName, x, y, sceneW, sceneH);
             return o == null ? $"[{x},{y}]  {b}" : $"[{x},{y}]  {b}   |   {o}";
         }
 
@@ -515,25 +549,31 @@ namespace ARBot.ViewModels
         /// vykresluje (stejne jako <see cref="RenderFromRegistry"/> pri prepnuti comba). Grid
         /// sjizdnosti se rasterizuje zvlast a v registry neni - u nej se hodnota nehlasi.</para>
         /// </summary>
-        private string DescribePixel(string layerName, int x, int y)
+        /// <param name="x">Bod ve SCENOVYCH souradnicich [px], ne v pixelech vrstvy.</param>
+        /// <param name="y">Bod ve SCENOVYCH souradnicich [px], ne v pixelech vrstvy.</param>
+        /// <param name="sceneW">Sirka scény, ve ktere <paramref name="x"/> plati [px].</param>
+        /// <param name="sceneH">Vyska scény [px].</param>
+        private string DescribePixel(string layerName, int x, int y, int sceneW, int sceneH)
         {
             if (string.IsNullOrEmpty(layerName)) return null;
             if (!registry.TryGetValue(layerName, out var layer) || layer == null) return null;
-            if (x < 0 || y < 0 || x >= layer.Width || y >= layer.Height) return null;
+            // ⚠️ Prepocet na pixel VRSTVY. Bez nej se hodnota pravdepodobnosti (128×128) hlasila
+            // jen v levem hornim rohu snimku 640×480 - a jeste pro jiny bod scény.
+            if (!layer.TryPixel(x, y, sceneW, sceneH, out int lx, out int ly)) return null;
 
             try
             {
                 switch (layer.Kind)
                 {
                     case LayerKind.Color when layer.Color != null:
-                        var c = layer.Color[x, y];
+                        var c = layer.Color[lx, ly];
                         return $"RGB {c.R},{c.G},{c.B}";
 
                     case LayerKind.Probability when layer.Gray != null:
-                        return $"p {layer.Gray[x, y].Value}";
+                        return $"p {layer.Gray[lx, ly].Value}";
 
                     case LayerKind.Depth when layer.Depth != null:
-                        int mm = layer.Depth[x, y].Value;
+                        int mm = layer.Depth[lx, ly].Value;
                         return mm > 0 ? $"{mm} mm" : "bez hloubky";
                 }
             }
@@ -571,20 +611,49 @@ namespace ARBot.ViewModels
         private void RenderSlot(Slot slot, ImageLayer layer)
         {
             var bmp = Render(layer);
-            string info = string.Format(CultureInfo.InvariantCulture, "{0}  {1}×{2}  {3:HH:mm:ss.fff}",
-                layer.Name, layer.Width, layer.Height, layer.TimeStamp);
-            SetSlotImage(slot, bmp, info);
+            int sw = layer.EffectiveSceneWidth, sh = layer.EffectiveSceneHeight;
+            // Kdyz se rozliseni vrstvy a scény lisi, je to v popisce VIDET - jinak si clovek
+            // mysli, ze pravdepodobnost je snimek 128×128, a ne 640×480 spocitanych nahrubo.
+            string info = sw != layer.Width || sh != layer.Height
+                ? string.Format(CultureInfo.InvariantCulture, "{0}  {1}×{2} → {3}×{4}  {5:HH:mm:ss.fff}",
+                                layer.Name, layer.Width, layer.Height, sw, sh, layer.TimeStamp)
+                : string.Format(CultureInfo.InvariantCulture, "{0}  {1}×{2}  {3:HH:mm:ss.fff}",
+                                layer.Name, layer.Width, layer.Height, layer.TimeStamp);
+            SetSlotImage(slot, bmp, info, sw, sh);
         }
 
-        private void SetSlotImage(Slot slot, WriteableBitmap bmp, string info)
+        /// <param name="sceneW">Scéna, kterou obraz pokryva [px]; ≤ 0 = rozmer bitmapy.</param>
+        /// <param name="sceneH">Scéna, kterou obraz pokryva [px]; ≤ 0 = rozmer bitmapy.</param>
+        private void SetSlotImage(Slot slot, WriteableBitmap bmp, string info,
+                                  int sceneW = 0, int sceneH = 0)
         {
+            // Predrendrovane overlaye (hranice cesty, grid sjizdnosti) uz vznikaji v rozliseni
+            // snimku, ze ktereho pochazi, takze u nich scéna = rozmer bitmapy.
+            if (sceneW <= 0 && bmp != null) { sceneW = bmp.PixelSize.Width; sceneH = bmp.PixelSize.Height; }
+
             switch (slot)
             {
-                case Slot.Left: LeftImage = bmp; LeftInfo = info; break;
-                case Slot.Right: RightImage = bmp; RightInfo = info; break;
-                case Slot.LeftOverlay: LeftOverlayImage = bmp; LeftOverlayInfo = info; break;
-                case Slot.RightOverlay: RightOverlayImage = bmp; RightOverlayInfo = info; break;
+                case Slot.Left: LeftImage = bmp; LeftInfo = info; leftBaseScene = (sceneW, sceneH); break;
+                case Slot.Right: RightImage = bmp; RightInfo = info; rightBaseScene = (sceneW, sceneH); break;
+                case Slot.LeftOverlay: LeftOverlayImage = bmp; LeftOverlayInfo = info; leftOverlayScene = (sceneW, sceneH); break;
+                case Slot.RightOverlay: RightOverlayImage = bmp; RightOverlayInfo = info; rightOverlayScene = (sceneW, sceneH); break;
             }
+            UpdateScene(slot == Slot.Right || slot == Slot.RightOverlay);
+        }
+
+        /// <summary>
+        /// Scéna panelu: z PODKLADU, a kdyz podklad neni, z overlaye.
+        /// <para>Podklad ma prednost zamerne — overlay se na nej ma zarovnat, ne naopak.
+        /// Nahradni <c>1×1</c> je pro prazdny panel, aby <c>Viewbox</c> nemel nulovy rozmer.</para>
+        /// </summary>
+        private void UpdateScene(bool right)
+        {
+            var s = right ? rightBaseScene : leftBaseScene;
+            if (s.w <= 0 || s.h <= 0) s = right ? rightOverlayScene : leftOverlayScene;
+            if (s.w <= 0 || s.h <= 0) s = (1, 1);
+
+            if (right) { RightSceneWidth = s.w; RightSceneHeight = s.h; }
+            else { LeftSceneWidth = s.w; LeftSceneHeight = s.h; }
         }
 
         // --- render Image<T> -> WriteableBitmap (Bgra8888) ---

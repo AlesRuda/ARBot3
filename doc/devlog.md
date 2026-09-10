@@ -39,6 +39,44 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-10
 
+**Zobrazení pravděpodobnosti cesty: 128×128 nesedělo na snímek.** Nahlásil autor při prohlížení
+okna *Obrázky* („probability jsou čtvercové, ale reálně pokrývají celý barevný obrázek"). Síť počítá
+ve 128×128 a pokrývá celých 640×480 — to je záměr a replika tréninku, jen se podle toho nekreslilo.
+
+- **Vada 1 — overlay nesedí na podkladu.** Oba `Image` měly `Stretch="Uniform"`, které drží poměr
+  stran **každého zvlášť**, takže podklad 4:3 a probability 1:1 dostaly různé měřítko i vycentrování:
+  overlay kryl jen **prostřední 75 % šířky** obrazu. ⚠️ Samotné přepnutí na `Fill` to neopraví —
+  natáhlo by overlay i na prázdno, které si podklad nechal po letterboxu. Léčba je **`Viewbox`
+  s poměrem stran SCÉNY** a vnitřní `Grid` o jejích rozměrech, do kterého se oba obrázky kreslí
+  `Fill`.
+- **Vada 2 — odečet pod kurzorem, samostatná a stretchem neopravitelná.** Souřadnice se počítaly
+  v pixelech **podkladu** (0–639, 0–479) a beze změny šly i overlayi 128×128, kde test
+  `x >= layer.Width` vrátil null. Hodnota `p` se proto hlásila **jen v levém horním rohu 128×128 px**
+  a i tam pro jiný bod scény (vodorovně 5×, svisle 3,75× vedle).
+- **Léčba je jedna věc na dvou místech:** `ImageLayer` nese vedle vlastního rozlišení i
+  **`SceneWidth`/`SceneHeight`** (co vrstva pokrývá; `0` = vlastní rozměr, tedy samostatný blob bez
+  známého zdroje) a **`TryPixel`** škáluje **každou osu zvlášť** — táž konvence, jakou už měly
+  `OccupancyIntegrator` (`probScaleX`/`probScaleY`) a `PathEdgeFinderItem`. **Řídicí cesta byla
+  v pořádku**, zkreslení bylo jen v zobrazení. Kurzor teď obsluhuje vnitřní `Grid`, takže poloha
+  z `e.GetPosition` **jsou** scénové pixely a code-behind nepřepočítává nic.
+- **Vedlejší nález — webový náhled** (`?layer=prob`) měl tutéž třídu vady: JPEG šel v nativních
+  128×128 a stránka s `img{width:100%}` vzala výšku z poměru souboru, takže byla scéna svisle
+  natažená o třetinu. Pravděpodobnost se teď do rozměru barevného snímku **natáhne v obsluze
+  požadavku** — pro řízení se dál čte nativní.
+- **Popiska panelu hlásí `128×128 → 640×480`**, když se rozlišení a scéna liší. Bez toho si člověk
+  myslí, že pravděpodobnost je snímek 128×128.
+- **Ověřeno:** build celého řešení, testy 1384 (Common, z toho 7 nových) + 102 (Runtime, 3 nové)
+  + 91 (HAL). **A za běhu**, ne jen unit testy: `selftest=true st_shot=true open=images virtualhw=true
+  backproject=nn` — overlay leží na celém snímku ve správném poměru a popiska hlásí natažení
+  ([obrázek](media/images-prob-overlay-20260910.png)). ⚠️ Kurzor za běhu proklikaný **není** (snímek
+  myš neukáže), krytý je unit testy `TryPixel`. ⚠️ Webový náhled ověřen jen testem rozměru JPEG,
+  na zařízení neběžel.
+- ⚠️ **Změna chování u overlaye s jinou scénou než podklad** (grid sjízdnosti nad barevným
+  podkladem, když má hloubka jiné rozlišení): natáhne se do scény podkladu, dřív se vycentroval
+  s vlastním poměrem.
+- **Odkazy:** `ImageLayer`, `MessageImageLayers`, `ImageDocument`, `ImageDocumentView`,
+  `WebStatus.RenderCameraJpeg`, [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md).
+
 **Kalibrace magnetometru: co našel první výjezd do terénu.** Autor zkusil `mission=magcal` na
 robotu a **nedovedl ji do konce** — hlášky o azimutech i o náklonech zmizely, podmíněnost byla
 ~80 při prahu 10⁴, a stránka přesto pořád radila „otáčej dál". Z toho vyšly tři vady a jejich

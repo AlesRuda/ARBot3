@@ -342,6 +342,15 @@ namespace ARBot.Robot.Web
         /// co robot povazuje za cestu jeste pred fuzi do mapy (plni <c>CameraFrameProcessor</c>, cte
         /// <c>OccupancyIntegrator</c>). Je to <c>Image&lt;Gray&gt;</c> (step 1), takze do JPEG jde
         /// tymz kodekem bez prevodu. Cokoliv jineho = RGB.</para>
+        ///
+        /// <para>⚠️ <b>Pravdepodobnost se natahne na rozmer barevneho snimku.</b> Sit pocita ve
+        /// <b>128×128</b>, ale pokryva cely snimek <b>640×480</b> (squash 4:3 → 1:1 je replika
+        /// treninku, viz doc/semantic-segmentation.md). Bez natazeni ji stranka - kde ma
+        /// <c>img{width:100%}</c>, tedy vysku z pomeru souboru - ukazuje jako ctverec, takze je
+        /// scéna svisle natazena o tretinu a nesedi na to, co je videt v RGB vrstve
+        /// (nalez 10. 9. 2026). Deje se to az tady, v obsluze pozadavku: <c>ImageProbability</c>
+        /// se pro RIZENI cte v nativnim rozliseni a prevzorkovat ho do streamu by bylo horsi
+        /// nez jen jinak nakreslit nahled.</para>
         /// </summary>
         public byte[] RenderCameraJpeg(string cam, string layer)
         {
@@ -357,7 +366,17 @@ namespace ARBot.Robot.Web
             ARBot.Common.Common.Image img = prob ? frame.ImageProbability : frame.ImageRGB;
             if (img == null) return null;
 
-            try { return ImageMsg.EncodeJpeg(img); }
+            try
+            {
+                if (prob && frame.ImageRGB != null
+                    && (img.Width != frame.ImageRGB.Width || img.Height != frame.ImageRGB.Height))
+                {
+                    var full = new Image<Gray>(frame.ImageRGB.Width, frame.ImageRGB.Height);
+                    full.Resize(frame.ImageProbability);
+                    img = full;
+                }
+                return ImageMsg.EncodeJpeg(img);
+            }
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.WriteLine($"WebStatus: kodovani snimku selhalo: {ex.Message}");

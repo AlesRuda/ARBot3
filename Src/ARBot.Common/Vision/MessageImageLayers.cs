@@ -27,7 +27,11 @@ namespace ARBot.Common.Vision
                     if (f.ImageRGB != null)
                         yield return new ImageLayer { Name = src + "/RGB", Kind = LayerKind.Color, Color = f.ImageRGB, TimeStamp = f.TimeStamp };
                     if (f.ImageProbability != null)
-                        yield return new ImageLayer { Name = src + "/Probability", Kind = LayerKind.Probability, Gray = f.ImageProbability, TimeStamp = f.TimeStamp };
+                        // ⚠️ Scéna z BAREVNEHO snimku: sit pocita ve 128×128, ale pokryva cely
+                        // snimek 640×480 (viz ImageLayer.SceneWidth). Bez toho se vrstva kresli
+                        // jako ctverec vedle podkladu a odecet pod kurzorem mine.
+                        yield return new ImageLayer { Name = src + "/Probability", Kind = LayerKind.Probability, Gray = f.ImageProbability, TimeStamp = f.TimeStamp,
+                                                      SceneWidth = f.ImageRGB?.Width ?? 0, SceneHeight = f.ImageRGB?.Height ?? 0 };
                     if (f.ImageDepth != null)
                         yield return new ImageLayer { Name = src + "/Depth", Kind = LayerKind.Depth, Depth = f.ImageDepth, TimeStamp = f.TimeStamp };
                     break;

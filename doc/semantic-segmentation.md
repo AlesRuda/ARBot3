@@ -1,5 +1,10 @@
 # Sémantická segmentace sjízdnosti (`backproject=nn`)
 
+> ⚠️ **Zobrazení: 128×128 pokrývá celý snímek 640×480.** Kdo tu mapu kreslí nebo z ní čte hodnotu,
+> musí to vědět — `ImageLayer.SceneWidth`/`TryPixel`. V okně *Obrázky* i ve webovém náhledu se to
+> 10. 9. 2026 nedělo a vrstva se zobrazovala jako čtverec vedle podkladu; podrobně
+> [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md), sekce „Vrstva a scéna".
+
 Převod **barva → pravděpodobnost sjízdnosti** je v ARBot3 za rozhraním
 [`IBackProject`](../Src/ARBot.Common/Common/IBackProject.cs) a existují k němu tři implementace,
 které se přepínají parametrem `backproject=`:

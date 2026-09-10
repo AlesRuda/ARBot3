@@ -339,6 +339,41 @@ Na vizuální kontrolu to stačí, na měření ne.
 
 ![Hranice cesty ve World pohledu](../../../doc/media/road-edges-fitlines-20260823.png)
 
+## Vrstva a scéna: obraz nemusí mít rozlišení toho, co pokrývá (10. 9. 2026)
+
+Pravděpodobnost cesty ze sítě je **128×128**, ale pokrývá **celý barevný snímek 640×480** — squash
+4:3 → 1:1 je replika tréninku, ne chyba (viz [semantic-segmentation.md](../../../doc/semantic-segmentation.md)).
+Zobrazovač o tom musí vědět, jinak nakreslí vrstvu jako **čtverec vedle podkladu**.
+
+`ImageLayer` proto nese vedle `Width`/`Height` i **`SceneWidth`/`SceneHeight`** (rozlišení obrazu,
+který vrstva pokrývá; `0` = totéž jako vlastní rozměr, tj. dnešní chování u samostatně přišlého
+blobu, kde se zdroj nedá zjistit). Plní to `MessageImageLayers` z `CameraFrame.ImageRGB`. Pixel
+vrstvy pro bod ve scéně dá **`ImageLayer.TryPixel`**, které škáluje **každou osu zvlášť** — táž
+konvence jako `probScaleX`/`probScaleY` v `OccupancyIntegrator` a `PathEdgeFinderItem.Scale*`.
+
+V `ImageDocumentView` z toho plyne layout: **`Viewbox` drží poměr stran scény**, jeho vnitřní `Grid`
+má rozměry scény v pixelech a oba obrázky se do něj kreslí **`Stretch="Fill"`**. Popiska zůstává
+**mimo** `Viewbox`, jinak by se škálovala i ona. Kurzor obsluhuje ten vnitřní `Grid`, takže poloha
+z `e.GetPosition` **jsou** scénové pixely a code-behind nic nepřepočítává.
+
+⚠️ **Co bylo špatně, než se to našlo:** oba `Image` měly `Stretch="Uniform"`, které zachovává poměr
+stran **každého zvlášť**. Podklad 4:3 a probability 1:1 tedy dostaly různé měřítko i vycentrování,
+takže overlay překrýval jen **prostřední 75 % šířky** obrazu (u vysokého panelu naopak přetékal
+svisle). Druhá, samostatná vada byla v odečtu pod kurzorem: souřadnice se počítaly v pixelech
+**podkladu** a beze změny se předávaly i overlayi, takže hodnota `p` se hlásila jen v **levém horním
+rohu 128×128 px** a ještě pro jiný bod scény. Nahlásil autor 10. 9. 2026.
+
+Popiska panelu proto říká `128×128 → 640×480`, když se rozlišení a scéna liší — bez toho si člověk
+myslí, že pravděpodobnost je snímek 128×128.
+
+![Overlay pravděpodobnosti přes celý snímek](../../../doc/media/images-prob-overlay-20260910.png)
+
+Předrendrované overlaye (hranice cesty, grid sjízdnosti) vznikají už v rozlišení snímku, ze kterého
+pocházejí, takže u nich scéna = rozměr bitmapy. ⚠️ Overlay s **jinou** scénou než podklad se teď
+do scény podkladu **natáhne** (dřív se vycentroval s vlastním poměrem) — u gridu sjízdnosti nad
+barevným podkladem, kde má hloubka jiné rozlišení, je to změna chování. Natažení je ale správnější
+odpověď na nesouhlas dat než vycentrovaný obraz jinde, než kam ukazuje kurzor.
+
 ## Dokumenty nad `Stream` (ne senzory)
 
 - `ImageDocument` — obrazové vrstvy (ImageMsg/CameraFrame), odběr `ARBotRuntime.Stream`. Umí i overlay
