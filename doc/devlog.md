@@ -37,6 +37,44 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-11
+
+**Výpadky kamer za provozu: rešerše místo kódu.** Autor přinesl otázku, jestli je odmlčení D435/T265
+za provozu někde zdokumentované a jestli na to existuje řešení. **Žádná změna kódu** — celý den je
+rozbor a jeho zápis.
+
+- **Hotovo — rešerše:** je to cizí, dobře zdokumentovaný a **Intelem nevyřešený** problém
+  ([#9191](https://github.com/IntelRealSense/librealsense/issues/9191) je otevřená, bez root cause).
+  Naše léčba (detekce + zbourání pipeline + reconnect) je přesně to, k čemu ve vláknech všichni
+  dojdou. Zápis: [hardware.md](hardware.md#výpadky-kamer-za-provozu--rozbor-11-9-2026-neověřeno-na-hw).
+- **Hotovo — nejsilnější stopa je naše vlastní a ležela nevyužitá:** 1. 9. 2026 se změřilo, že po
+  přidání T265 vyskočí `CLEAR_HALT` **z 1 na ~72**. Tehdy se to zapsalo jako „zhorší, ale nezasekne"
+  a dál se s tím nic nedělalo — `USBDEVFS_CLEAR_HALT` je přitom **dmesg podpis** poruchy z #9191/#5412
+  a ta samá hláška je u nás v dmesg z 31. 8. u zaseknuté pravé D435. Souběh s T265 tedy tutéž třídu
+  chyby zmnožuje 72×.
+- **Hotovo — dva podezřelí vyloučeni výpočtem:** propustnost (640×480 RGB + 480×270 hloubka @30 fps
+  = ~420–570 Mbps pro obě kamery, tj. 13–18 % USB3 — Intelí varování o sdíleném řadiči na naše
+  rozlišení nedosáhne) a **VN100 + GPS na témž hubu** (USB2 zařízení jdou na USB3 hubu přes
+  transaction translator, po jiných vodičích než SuperSpeed; a je to ~9 kB/s).
+- **Hotovo — opraven fakt, na kterém stálo rozhodování o verzi.**
+  `build-and-platforms.md` tvrdil „T265 odebrán ve 2.50+" s otevřenou otázkou, jestli ho 2.53
+  obslouží. Obojí špatně: `v2.53.1` má `src/tm2`, `BUILD_WITH_TM2` default `ON`, odebráno až
+  ve **2.54.1** — a na zařízení T265 3. 9. nabootovala. Pravda o 2.50 je jiná: poslední
+  **validovaná** verze. Sedíme tedy na stropu, nahoru ani dolů nemá smysl.
+- **Hotovo — padl omyl „z RSUSB nemůžeme kvůli T265".** T265 není UVC zařízení, jde přes `src/tm2`
+  nad libusb v **obou** backendech; `FORCE_RSUSB_BACKEND` řídí jen UVC cestu, tedy D435. Přechod na
+  kernel backend by tedy T265 nevzal. ⚠️ Ověřeno ze struktury zdrojáků, **ne buildem**.
+- **Rozhodnutí:** do vyjasnění dvou měření u robota se nesahá ani na backend, ani na verzi SDK —
+  viz [decisions.md](decisions.md), 11. 9. 2026.
+- **Rozpracováno / další krok — u robota, jako první:** (1) `lsusb -t`, jestli T265 sdílí řadič
+  s hubem („samostatný port" ≠ samostatný řadič, každý USB3 port RK3588 má USB2 companion);
+  (2) běh bez T265 se sledováním `CLEAR_HALT` proti referenci 1 / ~72. Teprve pak cokoli dalšího.
+- **Rozpracováno — neimplementováno:** `D435Camera` nečte `CameraInfo.UsbTypeDescriptor`, takže
+  kamera naběhlá na 480 Mbps vypadá jako porucha streamu místo špatné linky (2. 9. to stálo hodinu
+  hledání). Jeden řádek do `Trace` při připojení pipeline.
+- **Odkazy:** [hardware.md](hardware.md), [build-and-platforms.md](build-and-platforms.md),
+  [decisions.md](decisions.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md).
+
 ## 2026-09-10
 
 **Zobrazení pravděpodobnosti cesty: 128×128 nesedělo na snímek.** Nahlásil autor při prohlížení

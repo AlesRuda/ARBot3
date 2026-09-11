@@ -13,6 +13,40 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-11 — Výpadky kamer: nejdřív změřit, teprve pak sahat na backend nebo verzi
+
+**Co:** Do vyjasnění dvou měření u robota (`lsusb -t`; běh bez T265 se sledováním `CLEAR_HALT`)
+se **nemění ani librealsense backend (RSUSB → kernel V4L2), ani verze SDK**. Obojí zůstává tak,
+jak je: 2.53.1, RSUSB.
+
+**Proč:** Rešerše 11. 9. 2026 našla, že oba ty zásahy mají špatný poměr cena/informace, dokud
+se neví, co poruchu spouští.
+- **Verze nevyřeší nic** — táž porucha se v librealsense táhne napříč 2.35–2.50 a reportér
+  [#9191](https://github.com/IntelRealSense/librealsense/issues/9191) prošel 2.38.1 → 2.45.0 bez
+  efektu. Nahoru navíc nelze (2.54.1 T265 vyhazuje), dolů na 2.50 by znamenalo obětovat tři roky
+  oprav D435 za razítko „validováno" na EOL kameře.
+- **Backend stojí kernel patching**, které je na 5.x/6.x notoricky rozbité, a na Armbianu
+  s Rockchip kernelem to bude horší. Intel sice kernel driver pro multi-cam doporučuje
+  ([#9157](https://github.com/IntelRealSense/librealsense/issues/9157)), ale **není to doložená
+  léčba téhle poruchy** — je to obecné doporučení.
+- Proti tomu stojí měření, které **už máme** a dosud se nevyužilo: `CLEAR_HALT` vyskočí
+  **z 1 na ~72** po přidání T265 (1. 9. 2026, POSTUP.md), a `USBDEVFS_CLEAR_HALT` je právě dmesg
+  podpis poruchy z #9191/#5412. Dva testy, které to potvrdí nebo vyvrátí, stojí jeden běh a jeden
+  příkaz — a jsou o tři řády levnější než přestavba backendu.
+
+**Důsledky:**
+- U robota se tyhle dva testy dělají **jako první**, před vším ostatním.
+- Padl přitom omyl, na kterém rozhodování dosud stálo: **T265 na volbě backendu nevisí** (není
+  UVC zařízení, jde přes `src/tm2` nad libusb v obou backendech), takže přechod na kernel backend
+  ji nebere. Kdyby se pro něj někdy rozhodlo, tohle už není překážka.
+- ⚠️ Když se potvrdí, že za to může souběh s T265, posouvá se otázka jinam: co nám ta kamera dává
+  (relativní yaw jako úhlovou rychlost) proti tomu, že je EOL, ve 2.53.1 nevalidovaná a je třetím
+  zařízením na sběrnici. Do 6. 9. 2026 přitom nebyla vůbec napojená a nikdo to nepoznal.
+
+**Odkazy:** [hardware.md](hardware.md#výpadky-kamer-za-provozu--rozbor-11-9-2026-neověřeno-na-hw),
+[build-and-platforms.md](build-and-platforms.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md),
+[devlog.md](devlog.md) 11. 9. 2026.
+
 ### 2026-09-10 — Kalibrace magnetometru: rozptyl sklonu NENÍ brána, jen diagnostika
 
 **Co:** `MagCalCollector.Usable` a verdikt už **nezahrnují** `sd(sklonu)` (práh 0,5°). Číslo se

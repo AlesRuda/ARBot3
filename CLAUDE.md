@@ -278,6 +278,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (čte se ze senzoru), protože VPE proti němu porovnává `|B|` a sklon; je tedy možné, že tím
   zmizí i vada 206 s — přeměří se to a **je-li tak, fáze 2 se ruší**.
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
+  ⚠️ **Výpadky D435 za provozu jsou cizí, Intelem NEVYŘEŠENÝ problém** (rešerše 11. 9. 2026) —
+  naše léčba (detekce + zbourání pipeline + reconnect) je to, k čemu ve vláknech všichni dojdou.
+  Nejsilnější stopa ležela rok nevyužitá v našich vlastních datech: po přidání **T265** vyskočí
+  `CLEAR_HALT` **z 1 na ~72**, a `USBDEVFS_CLEAR_HALT` je právě dmesg podpis té poruchy.
+  Propustnost (13–18 % USB3) ani VN100/GPS na témž hubu to **nejsou** — spočítáno.
+  **U robota se jako PRVNÍ dělá `lsusb -t` a běh bez T265**; do té doby se nesahá na backend ani
+  na verzi SDK ([decisions.md](doc/decisions.md)). Padly přitom dva omyly: „T265 odebrán ve 2.50+"
+  (je až ve **2.54.1**, 2.50 je poslední *validovaná*) a „z RSUSB nemůžeme kvůli T265" (**není UVC
+  zařízení**, jde přes `src/tm2` nad libusb v obou backendech). **Nic z toho neběželo na HW.**
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové

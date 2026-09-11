@@ -106,6 +106,100 @@ u T265 („5 s bez pózy → restart pipeline").
 je možné, že se zasekne znovu a bude to vidět jako rostoucí `FrozenStreamRestarts`. Viz
 [devlog.md](devlog.md), 6. 9. 2026.
 
+### Výpadky kamer za provozu — rozbor (11. 9. 2026, NEOVĚŘENO NA HW)
+
+Rešerše k opakovaným výpadkům D435 za provozu („kamera se odmlčí a bez zásahu se neprobere").
+**Nic z toho není změřené na robotu** — je to rozbor existujících měření, zdrojáků librealsense
+a cizích hlášení. Plán testu je na konci sekce; **při nejbližší práci u robota se dělá jako první.**
+
+**Je to cizí, dobře zdokumentovaný problém, ne vada našeho kódu.** Táž porucha se táhne
+librealsense napříč verzemi 2.35–2.50 ([#9191](https://github.com/IntelRealSense/librealsense/issues/9191),
+[#5412](https://github.com/IntelRealSense/librealsense/issues/5412)) a Intel ji **nemá vyřešenou** —
+#9191 je otevřená, bez root cause, s jediným doporučením „restart aplikace". Naše léčba
+(detekce + zbourání pipeline + reconnect) je přesně to, k čemu ve vláknech všichni dojdou.
+
+#### Nejsilnější stopa je naše vlastní měření: `CLEAR_HALT` 1 → ~72 po přidání T265
+
+V [POSTUP.md](../OrangePi5Ultra/POSTUP.md) je z 1. 9. 2026 změřeno, že dvě D435 na jednom hubu
+jedou **375 s na 30/30 fps bez timeoutu**, ale po přidání T265 vyskočí `CLEAR_HALT` **z 1 na ~72**
+a prvních ~100 s kolísá snímková frekvence na 20–30 fps.
+
+**To číslo tehdy nikdo nespojil s ničím dalším — a přitom `USBDEVFS_CLEAR_HALT for active endpoint`
+je přesně dmesg podpis poruchy z #9191/#5412** (chodí ve trojici s `EP not empty, refuse reset`
+a `Can't enqueue URB while manually clearing toggle`; u nás v dmesg 31. 8. 2026 u zaseknuté pravé
+D435). Souběh s T265 tedy **stejnou třídu chyby zmnožuje 72×**. Je to zatím nejsilnější vodítko
+k [zamrzlému barevnému streamu](#-pravá-d435-zamrzlý-barevný-stream-6-9-2026-neuzavřeno) výš.
+
+#### Propustnost to není — spočítáno
+
+Jedeme RGB 640×480 a hloubku 480×270, obojí 30 fps (`D435Camera.Init`):
+
+| | na kameru | dvě kamery |
+|---|---|---|
+| RGB 640×480@30 | ~147–221 Mbps (dle formátu) | |
+| hloubka 480×270@30 | ~62 Mbps | |
+| **celkem** | **~210–283 Mbps** | **~420–570 Mbps** |
+
+Proti USB3 (5 Gbps hrubě, reálně ~3,2) je to **13–18 %**. Intelí pravidlo „nepoužívej jeden USB3
+řadič pro víc RealSense zařízení" míří na sestavy 1280×720+ a na naše rozlišení nedosáhne;
+souhlasí s tím i to naměřené 375 s bez timeoutu. **Hub a sdílená linka jsou tedy z podezřelých
+venku** — zbývá souběh s T265 a hostitelský řadič.
+
+⚠️ **Obrácená strana té tabulky: na USB 2.0 se dvě kamery NEVEJDOU** (480 Mbps hrubě, reálně
+~280–320 proti potřebným 420–570). Přesně proto 2. 9. 2026 „nejely vůbec", když po bootu naskočily
+jako `speed=480` — viz POSTUP.md, kde je i léčba (fyzický replug).
+
+#### RSUSB vs. kernel backend — a proč na té volbě T265 nevisí
+
+Na Pi jedeme **RSUSB backend** (volba při bring-upu, důvod v devlogu zapsaný není). Intel ho pro
+produkci nedoporučuje a explicitně u něj uvádí **limitaci pro multi-cam**
+([#9157](https://github.com/IntelRealSense/librealsense/issues/9157)); my na něm máme tři zařízení.
+
+**Dosud se mělo za to, že RSUSB opustit nelze kvůli T265. To je omyl.** T265 **není UVC zařízení**
+(hlásí se jako Movidius `03e7:2150` → `8087:0b37`), takže ji V4L2 obsloužit ani nemůže — jde přes
+`src/tm2` nad libusb, a to **v obou backendech stejně**. `FORCE_RSUSB_BACKEND` řídí jen UVC/HID
+cestu, tedy D435. Přechod na kernel backend by tedy T265 **nevzal**.
+⚠️ Ověřeno jen ze struktury zdrojáků `v2.53.1` (`rsusb-backend` a `linux` jsou UVC backendy, `tm2`
+stojí vedle nich), **ne buildem**. Nepřímo to podporuje i to, že cizí hlášení „s RSUSB T265 nejede"
+u nás neplatí — univerzální pravidlo tam žádné není.
+
+Cena přechodu je **kernel patching**, které je na 5.x/6.x notoricky rozbité (řada otevřených issues:
+„Exec format error", selhání na 5.15) a na Armbianu s Rockchip kernelem to bude horší než na Ubuntu.
+
+#### Co od změny verze čekat: nic
+
+**Žádné hlášení neukazuje, že by ten výpadek vyřešila jakákoli verze.** Reportér #9191 prošel
+2.38.1 → 2.45.0 bez efektu. Zkusit jinou verzi je levné, ale očekávaný přínos je blízký nule —
+a nahoru stejně nelze, viz [build-and-platforms.md](build-and-platforms.md).
+
+#### Podezřelý, který zbyl: hostitelský řadič (RK3588 / DWC3)
+
+Na RK3588 je zdokumentované, že USB3 UVC kamera streamuje **10–276 s a pak umře**
+([rockchip-linux/kernel#349](https://github.com/rockchip-linux/kernel/issues/349),
+[Arducam forum](https://forum.arducam.com/t/b0495-usb3-2-3mp-ar0234-complete-stream-failure-on-orange-pi-5-max-rk3588-xhci-extensive-testing-fx3-firmware-fix-request/9185));
+jediné, co tam zabralo, byl vynucený pád na USB 2.0. ⚠️ Je to **jiná kamera** (Arducam AR0234), tedy
+důkaz o řadiči, ne o RealSense. Pro nás je podstatné, že jeden z našich USB3-A portů je **OTG řadič
+`fc000000` přepnutý overlayem `dwc3-host`** (viz POSTUP.md krok 1) — a ten nález míří přesně na DWC3.
+
+#### Plán testu u robota (v tomhle pořadí, první dva jsou zadarmo)
+
+1. **`lsusb -t`** — sdílí T265 řadič s hubem? Na RK3588 má každý USB3 port USB2 companion, takže
+   „samostatný port" ještě neznamená samostatný řadič. Když T265 vyjde na jiném čísle sběrnice než
+   hub, je oddělená doopravdy; když na témž, máme vysvětlení té sedmdesátky.
+2. **Běh bez T265** (stačí odpojit), sledovat `CLEAR_HALT` v `dmesg`. Reference je změřená:
+   **1 bez ní, ~72 s ní**. Když výpadky zmizí, je rozhodnutí o T265, ne o backendu ani verzi.
+3. Teprve pak backend nebo verze — a **do vyjasnění bodů 1–2 se do nich nesmí jít**, viz
+   [decisions.md](decisions.md), 11. 9. 2026.
+
+**Co při té příležitosti zapsat do driveru:** `D435Camera` **nečte `CameraInfo.UsbTypeDescriptor`**
+(v `ARBot.HALArmbian` se čte jen `SerialNumber` a `Name`). Kamera, která naběhne na 480 Mbps, se
+proto dnes tváří jako porucha streamu, ne jako špatná linka — a přesně to 2. 9. 2026 stálo hodinu
+hledání zvenčí. Jeden řádek do `Trace` při připojení pipeline; **zatím neimplementováno.**
+
+**Co je naopak z podezřelých venku:** **VN100 a GPS na témž hubu.** Na USB3 hubu jdou USB2 zařízení
+přes transaction translator, tedy po fyzicky oddělených vodičích než SuperSpeed lanes — o šířku
+pásma kamerám nekonkurují. A objemem to není nic: VN100 ~9 kB/s, GPS míň.
+
 ### Sériové porty na Orange Pi
 
 Na Pi **nejede žádný onboard UART** — všechny tři sériové periferie visí na USB.

@@ -112,8 +112,14 @@ Platformově dedikovaný HAL (viz výše): `D435Camera` i `T265TrackingCamera` e
 - Managed wrapper **musí verzí odpovídat** native lib (interface-kompatibilní jen na patch-level).
   Wrapper 2.53 je zkompilovaný ze zdrojů `librealsense/wrappers/csharp` do projektu
   `Src/ThirdParty/Intel.RealSense` (cmake C# bindings jsou VS-only — nepoužívat).
-- **T265 byl v librealsense odebrán ve 2.50+** — jestli ho 2.53 native lib na Pi reálně obslouží,
-  je nutné ověřit na zařízení (managed typy `Pose`/`PoseFrame` existují, kód se přeloží).
+- **T265 v 2.53.1 JE a funguje; odebrán byl až ve 2.54.1.** ⚠️ Dřív tu stálo „odebrán ve 2.50+"
+  s otevřenou otázkou, jestli ho 2.53 na Pi obslouží — obojí bylo špatně a otázka je zodpovězená
+  (11. 9. 2026): v `v2.53.1` je `src/tm2` a `BUILD_WITH_TM2` má default `ON`, a na zařízení T265
+  3. 9. 2026 nabootovala a dodávala gyro 200 Hz. Na 2.50 je pravda něco jiného: je to poslední
+  **validovaná** verze pro T265 (EOL produkt) — rozdíl „odebráno" vs. „nevalidováno" je při
+  rozhodování o verzi podstatný. **Sedíme tedy na stropu:** nahoru nelze (2.54.1 T265 vyhazuje),
+  dolů na 2.50 znamená obětovat tři roky oprav D435 za razítko „validováno". Viz
+  [hardware.md](hardware.md#výpadky-kamer-za-provozu--rozbor-11-9-2026-neověřeno-na-hw).
 - `D435CameraProjection.TransformBack` na ARM vyhazuje `NotSupported` (nativní `ColorPixel23D`
   není v žádné `libNativeLib`). Grab RGB+Depth funguje (ověřeno 2026-07-03, RGB 640×480 + Depth).
 - Resolvery native lib: `RealSenseNativeResolver` (`realsense2` → `librealsense2.so`),
