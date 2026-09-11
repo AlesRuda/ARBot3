@@ -69,9 +69,13 @@ rozbor a jeho zápis.
 - **Rozpracováno / další krok — u robota, jako první:** (1) `lsusb -t`, jestli T265 sdílí řadič
   s hubem („samostatný port" ≠ samostatný řadič, každý USB3 port RK3588 má USB2 companion);
   (2) běh bez T265 se sledováním `CLEAR_HALT` proti referenci 1 / ~72. Teprve pak cokoli dalšího.
-- **Rozpracováno — neimplementováno:** `D435Camera` nečte `CameraInfo.UsbTypeDescriptor`, takže
-  kamera naběhlá na 480 Mbps vypadá jako porucha streamu místo špatné linky (2. 9. to stálo hodinu
-  hledání). Jeden řádek do `Trace` při připojení pipeline.
+- **Hotovo — driver hlásí typ USB linky** (na pokyn autora, jediná změna kódu za den).
+  `UsbLinkCheck` v `ARBot.HAL` (sdílené a otestované, jako `StreamFreezeWatch`), napojeno v obou
+  kopiích `D435Camera`. Za „pipeline pripojena" přibude `USB 3.2`; na USB 2.0 **varování i s léčbou**
+  (fyzický replug) — protože se tam hloubka a barva pro dvě kamery nevejdou. Neznámá hodnota
+  **není poplach** (librealsense ji u některých zařízení nehlásí). Čtení je v `try`, aby
+  diagnostika nemohla shodit připojení — poučení z 6. 9., kdy hlídka zamrzlého streamu shodila
+  každý grab. **14 testů, celá sada HAL 105 zelených, staví x64 i OrangePI; na HW neběželo.**
 - **Odkazy:** [hardware.md](hardware.md), [build-and-platforms.md](build-and-platforms.md),
   [decisions.md](decisions.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md).
 

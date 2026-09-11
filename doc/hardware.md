@@ -191,10 +191,15 @@ důkaz o řadiči, ne o RealSense. Pro nás je podstatné, že jeden z našich U
 3. Teprve pak backend nebo verze — a **do vyjasnění bodů 1–2 se do nich nesmí jít**, viz
    [decisions.md](decisions.md), 11. 9. 2026.
 
-**Co při té příležitosti zapsat do driveru:** `D435Camera` **nečte `CameraInfo.UsbTypeDescriptor`**
-(v `ARBot.HALArmbian` se čte jen `SerialNumber` a `Name`). Kamera, která naběhne na 480 Mbps, se
-proto dnes tváří jako porucha streamu, ne jako špatná linka — a přesně to 2. 9. 2026 stálo hodinu
-hledání zvenčí. Jeden řádek do `Trace` při připojení pipeline; **zatím neimplementováno.**
+✅ **Driver od 11. 9. 2026 hlásí typ USB linky** (`UsbLinkCheck` v `ARBot.HAL`, obě platformy,
+14 testů). Do té doby se z `Device.Info` četlo jen `SerialNumber` a `Name`, takže kamera naběhlá na
+480 Mbps vypadala jako porucha streamu, ne jako špatná linka — a přesně to 2. 9. 2026 stálo hodinu
+hledání zvenčí. Nově je za hláškou „pipeline pripojena" i `USB 3.2`, a při USB 2.0 **varování
+i s léčbou** (fyzický replug), protože hloubka a barva se tam pro dvě kamery nevejdou — viz výpočet
+výš. **Neznámá hodnota není poplach** (librealsense ten údaj u některých zařízení nehlásí), stejná
+konvence jako u brány kvality GPS. Čtení je v `try`, takže diagnostika nemůže shodit připojení —
+precedens z 6. 9. 2026, kdy hlídka zamrzlého streamu shodila každý grab. **Na HW neověřeno**
+(na Windows bez kamery se to neprojeví; smysl to dá až na Pi).
 
 **Co je naopak z podezřelých venku:** **VN100 a GPS na témž hubu.** Na USB3 hubu jdou USB2 zařízení
 přes transaction translator, tedy po fyzicky oddělených vodičích než SuperSpeed lanes — o šířku

@@ -435,7 +435,7 @@ namespace ARBot.HAL.Devices.Camera
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
-                Trace.WriteLine($"{Name}: pipeline pripojena.");
+                Trace.WriteLine($"{Name}: pipeline pripojena. {PopisLinky()}");
                 return true;
             }
             catch (Exception ex)
@@ -443,6 +443,26 @@ namespace ARBot.HAL.Devices.Camera
                 Trace.WriteLine($"{Name}: pripojeni pipeline selhalo: {ex.Message}");
                 Teardown();
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Popis USB linky pro log pripojeni (SuperSpeed vs. spadnuti na USB 2.0). Logika a duvod
+        /// jsou v <see cref="UsbLinkCheck"/> - spolecne pro obe platformy a otestovane.
+        ///
+        /// <para><b>Nikdy nesmi shodit pripojeni.</b> Je to diagnostika, takze vlastni chyba pri
+        /// cteni deskriptoru se jen zapise a pipeline bezi dal - viz tyz komentar v HALArmbian
+        /// variante (precedens z 6. 9. 2026, kdy diagnostika shodila kazdy grab).</para>
+        /// </summary>
+        private string PopisLinky()
+        {
+            try
+            {
+                return UsbLinkCheck.Popis(pipelineProfile?.Device?.Info[CameraInfo.UsbTypeDescriptor]);
+            }
+            catch (Exception ex)
+            {
+                return $"USB: typ linky se nepodarilo precist ({ex.Message})";
             }
         }
 
