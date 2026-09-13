@@ -28,8 +28,16 @@ namespace ARBot.Common.Logs
         /// obsluhuje. Bez nej nesel na pudorys nakreslit objezd jako celek — a prave ten je pri
         /// dohledu nad zavodem potreba videt dopredu, ne az po bodech. Ve verzi 1 se cte prazdny
         /// seznam a kresli se jen aktualni misto.</para>
+        ///
+        /// <para><b>Verze 3</b> (2026-09-13) pridala <see cref="SnappedLatitudes"/> /
+        /// <see cref="SnappedLongitudes"/>, tedy mista <b>PRICHYCENA na sit</b>. Ve verzi 2 se do
+        /// nahledu kreslily surove body a na pudorysu to <b>vypadalo neprichycene</b> — zony
+        /// lezely vedle cesty, ackoli robot jede na jejich prumet. Duvod, proc se tehdy nesly
+        /// poslat, mezitim padl: mise od 13. 9. prichycuje vsechna mista predem
+        /// (<c>TrackMission.SnapAllPoints</c>), takze prichyceni uz existuje i pro zbytek
+        /// seznamu.</para>
         /// </summary>
-        public const int FormatVersion = 2;
+        public const int FormatVersion = 3;
 
         /// <summary>Faze mise (<c>TrackPhase</c> jako int, aby zprava prezila doplneni hodnot).</summary>
         public int Phase;
@@ -84,6 +92,24 @@ namespace ARBot.Common.Logs
         /// <summary>Delky vsech mist ze souboru [rad]; stejna delka jako <see cref="AllLatitudes"/>.</summary>
         public double[] AllLongitudes;
 
+        /// <summary>
+        /// <b>Mista PRICHYCENA na sit cest</b> [rad] — sirky (verze 3). Prazdne pole = stara verze
+        /// zpravy, nebo se prichytit nepodarilo (bez site, bez pozy).
+        ///
+        /// <para>Tohle je to, kam robot <b>opravdu jede</b> a proti cemu se meri dojezd; surova
+        /// mista (<see cref="AllLatitudes"/>) jsou to, co clovek zadal. Nese se oboji, protoze
+        /// jinak nejde poznat, o kolik se cil posunul — a zaroven je to jediny zpusob, jak
+        /// na pudorysu nakreslit zonu tam, kde skutecne je.</para>
+        ///
+        /// <para>⚠️ Jednotlive misto muze byt <b>nulove</b>, i kdyz pole neni prazdne: prichytit se
+        /// nemuselo podarit prave u nej. Nula je v tomhle pripade platna souradnice jen teoreticky
+        /// (Guinejsky zaliv), takze se bere jako „neprichyceno".</para>
+        /// </summary>
+        public double[] SnappedLatitudes;
+
+        /// <summary>Delky prichycenych mist [rad]; stejna delka jako <see cref="SnappedLatitudes"/>.</summary>
+        public double[] SnappedLongitudes;
+
         /// <summary>Duvod preruseni; prazdny, kdyz mise prerusena nebyla.</summary>
         public string AbortReason;
 
@@ -129,6 +155,16 @@ namespace ARBot.Common.Logs
                 bw.Write(AllLatitudes[i]);
                 bw.Write(AllLongitudes[i]);
             }
+
+            // Verze 3: tataz mista PRICHYCENA na sit.
+            int prichycenych = SnappedLatitudes == null || SnappedLongitudes == null
+                               ? 0 : Math.Min(SnappedLatitudes.Length, SnappedLongitudes.Length);
+            bw.Write(prichycenych);
+            for (int i = 0; i < prichycenych; i++)
+            {
+                bw.Write(SnappedLatitudes[i]);
+                bw.Write(SnappedLongitudes[i]);
+            }
         }
 
         /// <inheritdoc/>
@@ -156,6 +192,8 @@ namespace ARBot.Common.Logs
             {
                 AllLatitudes = new double[0];
                 AllLongitudes = new double[0];
+                SnappedLatitudes = new double[0];
+                SnappedLongitudes = new double[0];
                 return;
             }
 
@@ -166,6 +204,22 @@ namespace ARBot.Common.Logs
             {
                 AllLatitudes[i] = br.ReadDouble();
                 AllLongitudes[i] = br.ReadDouble();
+            }
+
+            if (Verze < 3)
+            {
+                SnappedLatitudes = new double[0];
+                SnappedLongitudes = new double[0];
+                return;
+            }
+
+            int prichycenych = br.ReadInt32();
+            SnappedLatitudes = new double[prichycenych];
+            SnappedLongitudes = new double[prichycenych];
+            for (int i = 0; i < prichycenych; i++)
+            {
+                SnappedLatitudes[i] = br.ReadDouble();
+                SnappedLongitudes[i] = br.ReadDouble();
             }
         }
     }

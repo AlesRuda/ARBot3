@@ -53,6 +53,8 @@ namespace ARBot.Common.Tests.Missions
                 TimeStamp = t,
                 AllLatitudes = new[] { 0.8733012, 0.8734000, 0.8735000 },
                 AllLongitudes = new[] { 0.2536208, 0.2537000, 0.2538000 },
+                SnappedLatitudes = new[] { 0.8733100, 0.8734100, 0.0 },
+                SnappedLongitudes = new[] { 0.2536300, 0.2537100, 0.0 },
             };
 
             var back = RoundTrip(src);
@@ -79,6 +81,11 @@ namespace ARBot.Common.Tests.Missions
                                                  .Within(1e-12));
                 Assert.That(back.AllLongitudes, Is.EqualTo(new[] { 0.2536208, 0.2537000, 0.2538000 })
                                                   .Within(1e-12));
+                Assert.That(back.SnappedLatitudes, Is.EqualTo(new[] { 0.8733100, 0.8734100, 0.0 })
+                                                     .Within(1e-12));
+                Assert.That(back.SnappedLongitudes, Is.EqualTo(new[] { 0.2536300, 0.2537100, 0.0 })
+                                                      .Within(1e-12),
+                                                      "nula = to misto se prichytit nepodarilo");
             });
         }
 
@@ -97,6 +104,8 @@ namespace ARBot.Common.Tests.Missions
             {
                 Assert.That(back.AllLatitudes, Is.Not.Null.And.Empty);
                 Assert.That(back.AllLongitudes, Is.Not.Null.And.Empty);
+                Assert.That(back.SnappedLatitudes, Is.Not.Null.And.Empty);
+                Assert.That(back.SnappedLongitudes, Is.Not.Null.And.Empty);
             });
         }
 

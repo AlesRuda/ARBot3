@@ -130,6 +130,34 @@ nezaložit, ne jezdit podle jeho čitelné části.
 Nouzové zastavení **za jízdy** tímto automatem nehýbe — o zastavení se stará `ControlLoop` a po
 uvolnění se jede dál k témuž cíli. Mise o stopu za jízdy vědět nemusí (stejně jako Robotour).
 
+## Přichycení všech míst PŘEDEM (13. 9. 2026)
+
+Bod ze souboru je místo, které si člověk klikl na mapě, takže může ležet kdekoli — na střeše,
+uprostřed pole, v rybníce. Robot jede po síti a `Navigator` měří dojezd proti cíli, takže bod mimo
+síť je **nedosažitelný**. Proto se každé místo **přichycuje** (kolmý průmět na nejbližší hranu) a
+bod dál než `trackoffroad=` (50 m) misi přeruší.
+
+**Nově se to dělá pro všechna místa najednou, při odjezdu** — dřív až v okamžiku, kdy na bod
+přišla řada. Rozdíl je praktický: se seznamem, jehož páté místo leží mimo síť, robot objel čtyři
+místa a teprve pak misi přerušil, někde daleko od člověka, který ho poslal. Dnes to řekne dřív,
+než se pohne:
+
+```
+Track: mise PRERUSENA - misto 2/3 (50.0337431,14.5257403) lezi 372 m od site cest,
+       limit je 50 m. Je ten bod na ceste?
+```
+
+Dvě věci, na kterých to stojí:
+
+- **Přichycení je čistá geometrie** (nejbližší hrana), takže na poloze robota nezávisí a spočítat
+  předem ho jde. **Dosažitelnost ano** — jestli na cíl vede trasa, závisí na tom, kde robot právě
+  je — takže ta se zkouší dál až při odjezdu na konkrétní bod.
+- ⚠️ **Nedělá se to už při volbě mise, ale až při odjezdu**, protože `IRouteProbe.Probe` počítá
+  i dosažitelnost, a tedy **potřebuje pózu**. Bez ní vrací nuly — takže kontrola při startu tiše
+  prošla a do logu se vypsalo „nejvetsi odstup 0,0 m" i pro bod 370 m od cesty. Ta past se chytila
+  při ověřování v simulaci; dnes se navíc rozlišuje „přichyceno s odstupem 0" od „**nepodařilo se
+  přichytit**" a to druhé se hlásí.
+
 ## Zpráva `TrackMsg`
 
 Jde do streamu, tedy současně **do webového náhledu i do záznamu**: fáze, index místa, počet míst,
@@ -138,6 +166,14 @@ a doba běhu. Verze formátu **2**, registrovaná v `MessageCatalog`.
 
 Surový i přichycený cíl se nesou oba, protože bez obou se nedá vyložit, kam robot vlastně jel.
 
+**Verze 3 (13. 9. 2026) přidala místa PŘICHYCENÁ na síť** (`SnappedLatitudes` /
+`SnappedLongitudes`). Nesou se vedle surových, protože každé odpovídá na jinou otázku: surové je
+to, **co člověk zadal**, přichycené to, **kam robot opravdu jede** a proti čemu se měří dojezd.
+Z nich se kreslí zóny na půdorysu — do verze 2 se kreslily surové, takže zóna ležela vedle cesty
+a na obrázku to vypadalo, že se nepřichycuje vůbec. Důvod, proč se tehdy poslat nedaly, mezitím
+padl: mise přichycuje všechna místa předem. ⚠️ Jednotlivé místo může být **nulové**, i když pole
+prázdné není — přichytit se nemuselo podařit právě u něj.
+
 **Verze 2 (12. 9. 2026) přidala celý seznam míst** (`AllLatitudes` / `AllLongitudes`, v radiánech),
 ne jen to, které se právě obsluhuje. Kreslí se z něj **zóny na půdorysu** webového náhledu
 (viz [headless.md](headless.md)) — a právě objezd jako celek je při dohledu nad závodem potřeba
@@ -145,9 +181,9 @@ vidět dopředu, ne až po bodech. Ve verzi 1 se čte prázdný seznam a nakresl
 
 Dvě věci, které z toho plynou:
 
-- Nesou se **surová** místa ze souboru, ne přichycená: přichycení se dělá až při jízdě na ten bod
-  (z aktuální polohy robota), takže pro zbytek seznamu žádné neexistuje. Rozdíl je jednotky metrů
-  a měrný údaj `OffRoadM` zpráva nese zvlášť.
+- `AllLatitudes` / `AllLongitudes` jsou **surová** místa ze souboru; přichycená přibyla ve
+  verzi 3 jako samostatná dvojice polí. Rozdíl mezi nimi je měřítko toho, o kolik se cíl posunul —
+  a proto se nesou obě.
 - Seznam je v **každé** zprávě, ne jen v první. Odběratel „latest-wins" (náhled) drží poslední
   zprávu, takže seznam poslaný jednou by při první periodické zprávě zmizel. Pole se ale počítají
   jednou v konstruktoru mise a pak už jen předávají — seznam se za běhu nemění.

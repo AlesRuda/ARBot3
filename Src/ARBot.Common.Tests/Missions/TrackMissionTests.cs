@@ -68,10 +68,23 @@ public class TrackMissionTests
 
         public int Probes { get; private set; }
 
+        /// <summary>
+        /// Odstup od site pro KONKRETNI misto (klic = sirka v radianech zaokrouhlena na 7 mist).
+        /// Skutecna sit vraci odstup podle geometrie bodu, ne podle toho, kdy se ptame — bez toho
+        /// by testy „vadny je druhy bod" musely menit <see cref="OffRoadM"/> v case, a to uz
+        /// realitu nemodeluje (odstup bodu od site je konstanta).
+        /// </summary>
+        public readonly Dictionary<double, double> OffRoadPodleBodu = new Dictionary<double, double>();
+
+        /// <summary>Klic do <see cref="OffRoadPodleBodu"/> ze zemepisne sirky.</summary>
+        public static double Klic(double latRad) => Math.Round(latRad, 7);
+
         public RouteProbeResult Probe(LLA target)
         {
             Probes++;
-            return new RouteProbeResult(Reachable, LengthM, Snapped ?? target, OffRoadM);
+            double off = OffRoadPodleBodu.TryGetValue(Klic(target.Latitude), out double zvlast)
+                         ? zvlast : OffRoadM;
+            return new RouteProbeResult(Reachable, LengthM, Snapped ?? target, off);
         }
     }
 
@@ -277,26 +290,65 @@ public class TrackMissionTests
         Assert.That(h.Control.Regulator, Is.Null, "preruseni zastavuje tvrde");
     }
 
+    /// <summary>
+    /// ⚠️ <b>Vadny bod se pozna UZ PRI STARTU, ne az kdyz na nej prijde rada.</b> Dokud se
+    /// prichycovalo az za jizdy, robot objel prvni ctyri mista a u pateho misi prerusil — nekde
+    /// daleko od cloveka, ktery ho poslal. Prichyceni je pritom ciste geometrie a na poloze
+    /// robota nezavisi, takze ho jde udelat predem (pozadavek autora, 13. 9. 2026).
+    /// </summary>
+    [Test]
+    public void VadnyBod_SePoznaUzPriStartu()
+    {
+        // Vadny je DRUHY bod; prvni a treti jsou v poradku.
+        var h = new Harness(config: new TrackConfig { MaxPointOffRoadM = 10.0 });
+        h.Routes.OffRoadPodleBodu[FakeRoutes.Klic(h.Mission.Plan.Points[1].Latitude)] = 500.0;
+
+        h.Mission.StartMission(T0);
+
+        Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.Aborted),
+                    "mise nesmi vubec cekat na stop - vadny bod je znamy hned");
+        Assert.That(h.Goals.Goals, Is.Empty, "a uz vubec se nesmi nikam vyrazit");
+    }
+
     [Test]
     public void DuvodPreruseni_RikaKTERYBod()
     {
         // Bez cisla bodu by clovek hledal vadny radek v celem souboru.
         var h = new Harness(config: new TrackConfig { MaxPointOffRoadM = 10.0 });
-        var now = h.Rozjed(T0);
-        Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.Driving), "prvni bod je v poradku");
+        h.Routes.OffRoadPodleBodu[FakeRoutes.Klic(h.Mission.Plan.Points[1].Latitude)] = 500.0;
 
-        h.Routes.OffRoadM = 500.0;
-        h.Arrive(now.AddSeconds(10));
+        h.Mission.StartMission(T0);
 
         Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.Aborted));
         Assert.That(h.Mission.AbortReason, Does.Contain("misto 2/3"));
         Assert.That(h.Mission.AbortReason, Does.Contain("50.033671"), "i souradnice, ne jen cislo");
+        Assert.That(h.Mission.AbortReason, Does.Contain("od site cest"));
+    }
+
+    /// <summary>
+    /// Jede se na <b>prichyceny</b> bod, ne na surovy — a prichyceni pochazi ze startu mise.
+    /// Bez toho by <c>Navigator</c> meril dojezd proti bodu, kam robot po siti nemuze dojet.
+    /// </summary>
+    [Test]
+    public void JedeSeNaPrichycenyBod()
+    {
+        var h = new Harness();
+        var prichyceny = new LLA(0.8733, 0.2536);
+        h.Routes.Snapped = prichyceny;
+
+        h.Rozjed(T0);
+
+        Assert.That(h.Goals.Goals, Is.Not.Empty);
+        Assert.That(h.Goals.Goals[0].Latitude, Is.EqualTo(prichyceny.Latitude).Within(1e-12));
+        Assert.That(h.Goals.Goals[0].Longitude, Is.EqualTo(prichyceny.Longitude).Within(1e-12));
     }
 
     [Test]
-    public void KazdyBod_SePrichycujeZNOVU()
+    public void KazdyBod_ZnovuZKOUSIDOSAZITELNOST()
     {
-        // Trasa se pocita z AKTUALNI polohy robota, ktera uz je pri druhem bodu jina.
+        // ⚠️ Prichyceni uz se neopakuje (dela se pri startu pro vsechna mista najednou), ale
+        // DOSAZITELNOST ano: trasa se pocita z AKTUALNI polohy robota, ktera uz je pri druhem
+        // bodu jina. Proto na kazde misto pripada prave jedna zkouska.
         var h = new Harness();
         var now = h.Rozjed(T0);
         int poPrvnim = h.Routes.Probes;
@@ -442,6 +494,31 @@ public class TrackMissionTests
         Zkontroluj(h.Mission.LastMessage, "prvni zprava");
         h.Arrive(now.AddSeconds(10));
         Zkontroluj(h.Mission.LastMessage, "po dojezdu na prvni misto");
+    }
+
+    /// <summary>
+    /// ⚠️ Zprava nese i mista <b>PRICHYCENA na sit</b> (verze 3). Bez nich kreslil webovy nahled
+    /// zony na surovych souradnicich, takze na pudorysu to <b>vypadalo neprichycene</b> — zona
+    /// lezela vedle cesty, ackoli robot jede na jeji prumet (nalez autora 13. 9. 2026).
+    /// </summary>
+    [Test]
+    public void Zprava_NesePrichycenaMista()
+    {
+        var h = new Harness();
+        var prichyceny = new LLA(0.8733, 0.2536);
+        h.Routes.Snapped = prichyceny;
+
+        h.Rozjed(T0);
+
+        var m = h.Mission.LastMessage;
+        Assert.That(m.SnappedLatitudes, Has.Length.EqualTo(3), "prichycena jsou VSECHNA mista");
+        for (int i = 0; i < 3; i++)
+        {
+            Assert.That(m.SnappedLatitudes[i], Is.EqualTo(prichyceny.Latitude).Within(1e-12));
+            Assert.That(m.SnappedLongitudes[i], Is.EqualTo(prichyceny.Longitude).Within(1e-12));
+        }
+        Assert.That(m.AllLatitudes[0], Is.EqualTo(h.Mission.Plan.Points[0].Latitude).Within(1e-12),
+                    "surova mista se nesou dal - jinak by nebylo poznat, o kolik se cil posunul");
     }
 
     [Test]

@@ -126,7 +126,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   - **Verze** z `Src/Directory.Build.props` (razítkuje se jen s `-p:ArbotStamp=true`) je v hlavičce
     stránky, v crash logu i v záznamu.
   - **Od 12. 9. 2026** půdorys kreslí **zóny, které mají být dosaženy** — místa mise (seznam
-    z `TrackMsg`, depo/nakládka/vykládka z `MissionMsg`, jinak cíl navigace) jako kružnice
+    z `TrackMsg` — od 13. 9. 2026 **na PŘICHYCENÝCH místech**, protože na surových zóna ležela
+    vedle cesty a vypadalo to, že se nepřichycuje (`TrackMsg` verze 3); depo/nakládka/vykládka
+    z `MissionMsg`, jinak cíl navigace) jako kružnice
     o **dojezdovém poloměru**, aktivní plnou čarou a zbytek čárkovaně; kvůli tomu je
     **`GlobalNavMsg` verze 2** (`GoalRadiusM` — bez něj byl poloměr jen v konfiguraci, tedy mimo
     data) a **`TrackMsg` verze 2** (celý seznam míst). Legenda zároveň přestala vynechávat
@@ -694,7 +696,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **nikdy** a mise by uvízla (past dohledaná u Robotouru). **Mezi body nezastavuje**, jen přepíná
   cíl. Bod dál od sítě než `trackoffroad=` (50 m) misi **přeruší** — tiché přeskočení by znamenalo,
   že robot objel jinou trasu, než člověk zadal. **Nesrozumitelný řádek je chyba, ne přeskočení**
-  (mise se nezaloží). Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
+  (mise se nezaloží). **Od 13. 9. 2026 se všechna místa přichycují PŘEDEM, při odjezdu** — dřív až
+  když na bod přišla řada, takže robot se seznamem, jehož páté místo leží mimo síť, objel čtyři
+  a teprve pak misi přerušil daleko od člověka. Přichycení je čistá geometrie (na póze nezávisí),
+  kdežto dosažitelnost se dál zkouší až u konkrétního bodu. ⚠️ **Nejde to udělat už při volbě
+  mise:** `IRouteProbe.Probe` počítá i dosažitelnost, takže bez pózy vrací nuly a kontrola tiše
+  projde („nejvetsi odstup 0,0 m" i pro bod 370 m od cesty) — chyceno při ověřování v simulaci.
+  Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
   zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na HW neběželo.**
   **Seznamy `*.track` leží od 12. 9. 2026 u map v `OSM/`, ne v `config/`** — seznam patří
   **ke konkrétní mapě** (jeho body musí ležet na její síti), kdežto v `config/` vypadal jako

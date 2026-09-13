@@ -848,6 +848,56 @@ namespace ARBot.Runtime.Tests.Web
         }
 
         /// <summary>
+        /// ⚠️ <b>Zona se kresli na PRICHYCENEM miste, ne na surove souradnici ze souboru.</b>
+        /// Robot jede na prumet na sit a proti nemu se meri dojezd, takze zona u surove
+        /// souradnice ukazuje jinam, nez kam se jede — na pudorysu to vypadalo, ze se
+        /// neprichycuje vubec (nalez autora 13. 9. 2026, snimek nahledu).
+        /// </summary>
+        [Test]
+        public void ZonaSeKresliNaPrichycenemMiste()
+        {
+            var status = new WebStatus();
+            status.Post(new TrackMsg
+            {
+                PointIndex = 0, PointCount = 1,
+                AllLatitudes = new[] { Rad(50.0000) },        // co zadal clovek
+                AllLongitudes = new[] { Rad(14.5) },
+                SnappedLatitudes = new[] { Rad(50.0005) },    // kam robot opravdu jede
+                SnappedLongitudes = new[] { Rad(14.5) },
+            });
+
+            var zony = status.Zones(Pocatek());
+
+            Assert.That(zony, Is.Not.Null.And.Length.EqualTo(1));
+            // Prichycene misto je ~55 m severne od surove souradnice.
+            Assert.That(zony[0].Y, Is.EqualTo(55.6).Within(2.0),
+                        "zona ma byt na prichycenem miste, ne na surovem bode ze souboru");
+        }
+
+        /// <summary>
+        /// Starsi zaznam (<c>TrackMsg</c> verze 2) prichycena mista nenese — zona se pak kresli
+        /// ze surovych, protoze poloha je porad pravdiva. Zmizet nesmi.
+        /// </summary>
+        [Test]
+        public void BezPrichycenychMist_SeKresliSurova()
+        {
+            var status = new WebStatus();
+            status.Post(new TrackMsg
+            {
+                PointIndex = 0, PointCount = 1,
+                AllLatitudes = new[] { Rad(50.0005) },
+                AllLongitudes = new[] { Rad(14.5) },
+                SnappedLatitudes = new double[0],
+                SnappedLongitudes = new double[0],
+            });
+
+            var zony = status.Zones(Pocatek());
+
+            Assert.That(zony, Is.Not.Null.And.Length.EqualTo(1));
+            Assert.That(zony[0].Y, Is.EqualTo(55.6).Within(2.0));
+        }
+
+        /// <summary>
         /// Polomer zony je <b>dojezdovy radius navigace</b> ze zpravy; dokud nedosla, bere se
         /// vychozi nastaveni navigatoru (opsana konstanta by se tise rozesla se skutecnosti).
         /// </summary>

@@ -410,9 +410,23 @@ namespace ARBot.Robot.Web
             {
                 int n = Math.Min(track.AllLatitudes.Length, track.AllLongitudes.Length);
                 for (int i = 0; i < n; i++)
-                    zony.Add(Zone(origin, track.AllLatitudes[i], track.AllLongitudes[i], r,
+                {
+                    // ⚠️ Kresli se misto PRICHYCENE na sit, ne surovy bod ze souboru: robot jede
+                    // na prumet a proti nemu se meri dojezd, takze zona u surove souradnice by
+                    // ukazovala jinam, nez kam se jede - a na pudorysu to vypadalo, ze se
+                    // neprichycuje vubec (nalez autora 13. 9. 2026). Surove misto zustava ve
+                    // zprave, takze posun cile je ze zaznamu porad dohledatelny.
+                    bool mamPrichycene = track.SnappedLatitudes != null
+                                         && track.SnappedLongitudes != null
+                                         && i < track.SnappedLatitudes.Length
+                                         && i < track.SnappedLongitudes.Length
+                                         && track.SnappedLatitudes[i] != 0;
+                    double lat = mamPrichycene ? track.SnappedLatitudes[i] : track.AllLatitudes[i];
+                    double lon = mamPrichycene ? track.SnappedLongitudes[i] : track.AllLongitudes[i];
+                    zony.Add(Zone(origin, lat, lon, r,
                                   (i + 1).ToString(CultureInfo.InvariantCulture),
                                   active: i == track.PointIndex));
+                }
             }
             else if (mission != null)
             {

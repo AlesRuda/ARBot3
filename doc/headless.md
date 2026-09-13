@@ -449,6 +449,36 @@ Síť cest se kreslí **věrně mapové geometrii**: každý úsek je kapsle s l
 polosirkou mezi uzly (jako `RoadScene`), takže rozšiřující se cesta je trychtýř a v křižovatce se
 hrany hladce napojí. Uzel s neurčenou šířkou (0) se kreslí na 0,5 m, aby nebyl nevidět.
 
+### Když se stránka „zasekne" (přestane se aktualizovat čas)
+
+⚠️ **Nejčastěji to není zásek, ale vyčerpané CPU.** Server běží na
+<see cref="ThreadPriority.BelowNormal"/> a spojení serializuje, takže když procesu dojde procesor,
+stránka přestane dostávat data jako první — a vypadá to jako zamrznutí, ačkoli robot jede dál.
+
+Změřeno 13. 9. 2026 v simulaci na vývojovém PC:
+
+| co běží | CPU procesu |
+|---|---|
+| `virtualhw` + malá mapa (`Hviezdoslavova.osm`, 96 uzlů cest) + záznam + náhled | **~2,4 jádra** |
+| totéž nad `HajeRovne.osm` (3771 uzlů cest) | **CPU na doraz, stránka neodpovídá vůbec** |
+
+U té velké mapy se to podařilo reprodukovat spolehlivě a příčina je v zásobnících vidět:
+`SyntheticFrameRenderer.Trace` — **render virtuální kamery**, který pro každý paprsek prochází
+scénu. Rostoucí mapa ho prodražuje, kdežto na skutečném robotu (kde snímky dává D435) tahle cena
+neexistuje. **Simulace nad velkou mapou tedy není měřítko výkonu robota.**
+
+**Jak to příště chytit** — proces žije, takže stačí vypsat zásobníky:
+
+```bash
+dotnet tool install -g dotnet-stack
+dotnet-stack report -p <pid>
+```
+
+Když v nich je `SyntheticFrameRenderer` nebo `CameraFrameProcessor`, je to CPU (viz výše). Když
+`Monitor.Enter`, je to zámek a patří to nahlásit. Druhý zdroj je `PerfMsg` v záznamu
+(`perf=`, výchozí zapnuto): nese CPU procesu a zameškané takty za každou sekundu, takže po záseku
+jde zpětně poznat, kdy se to začalo sypat.
+
 **Zásahy jdou jen přes `POST`** — `GET` na `/stop` i `/mission` vrací 405, aby je nevyvolal prefetch
 prohlížeče nebo náhled odkazu. Hodnota jde **query stringem**, ne tělem: `HttpMini` čte jen
 hlavičku a kvůli jednomu řetězci nemá smysl do něj přidávat čtení těla.

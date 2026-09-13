@@ -39,6 +39,54 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-13
 
+**Mise Track přichycuje všechna místa předem** — na pokyn autora („body v track misi přichyť na
+mapu, jinak se může stát, že leží daleko a nejsou dosažitelné").
+
+- **Přichycení v misi už bylo**, ale dělalo se **až když na bod přišla řada**. Praktický důsledek:
+  se seznamem, jehož druhé místo leží mimo síť, robot odjel na první a misi přerušil teprve tam —
+  daleko od člověka, který ho poslal. Teď se všechna místa přichytí a zkontrolují **při odjezdu**,
+  ještě než se robot pohne.
+- **Dělitelnost, na které to stojí:** přichycení je čistá geometrie (nejbližší hrana), takže na
+  poloze robota nezávisí; **dosažitelnost** ano, a ta se proto dál zkouší až u konkrétního bodu.
+- ⚠️ **Vlastní vada, chycená až ověřením v simulaci:** nejdřív jsem přichycení dal do
+  `StartMission` — jenže `IRouteProbe.Probe` počítá i dosažitelnost, takže **potřebuje pózu**,
+  a při volbě mise žádná není. Vracel nuly, kontrola tiše prošla a do logu se vypsalo
+  „3 mist prichyceno na sit, nejvetsi odstup **0,0 m**" i pro bod 372 m od cesty. Přesunuto do
+  `Depart` a navíc se teď rozlišuje „odstup 0" od „**nepodařilo se přichytit**".
+- **Ověřeno v simulaci** (`OSM/HajeRovne.osm` + seznam s bodem z Hviezdoslavovy): mise se
+  **vůbec nerozjela** a rovnou napsala `misto 2/3 (50.0337431,14.5257403) lezi 372 m od site
+  cest, limit je 50 m`. Testy 24 (tři nové: vadný bod se pozná při startu, jede se na přichycený
+  bod, každé místo znovu zkouší dosažitelnost).
+- ⚠️ **Atrapa v testech měnila odstup v čase**, což skutečná síť nedělá (odstup bodu od sítě je
+  konstanta) — `FakeRoutes` teď umí odstup **podle konkrétního bodu**, takže test „vadný je druhý
+  bod" měří to, co tvrdí.
+- **Navazujici nalez autora ze snimku nahledu: „tohle nevypada prichycene."** Mel pravdu a byla to
+  moje volba z predchoziho sezeni — pudorys kreslil zony na **surovych** souradnicich ze souboru,
+  takze lezely vedle cesty, ackoli robot jede na jejich prumet. Duvod, proc to tehdy jinak neslo
+  (prichyceni pro zbytek seznamu neexistovalo), padl prave dnesni zmenou. **`TrackMsg` je verze 3**
+  a nese `SnappedLatitudes`/`SnappedLongitudes`; zony se kresli z nich, surova mista zustavaji ve
+  zprave jako meritko toho, o kolik se cil posunul.
+- **Hlaseni autora: „pri track uvolnim emergency stop a cele se to zasekne, prestane se
+  aktualizovat cas."** ⚠️ **Nereprodukovano na jeho konfiguraci** (`config/track_hv.cfg`,
+  `Hviezdoslavova.osm`): dvakrat, jednou i s poll kamery jako z prohlizece, bezelo pres dve minuty
+  bez zadrhnuti, prichyceni vsech mist trvalo pod 200 ms.
+- ⚠️ **Reprodukoval se ale JINY zasek, a ten ma prokazanou pricinu:** nad `HajeRovne.osm`
+  (3771 uzlu cest) prestane stranka odpovidat uplne. V zasobnicich (`dotnet-stack report`) je
+  `SyntheticFrameRenderer.Trace`, tedy **render virtualni kamery** — CPU je na doraz a web, ktery
+  bezi na `BelowNormal` a serializuje spojeni, vypadne jako prvni. **Neni to zasek, je to
+  vycerpane CPU**, a robot pritom jede dal.
+- **Zmereno i na male mape:** simulace s virtualnim HW, zaznamem a nahledem stoji **~2,4 jadra**
+  (294 s CPU za 124 s behu), zatimco `PerfMsg` hlasi 29,8 % — ten meri jinou veci nez celkovou
+  zatez procesu. Simulace nad velkou mapou tedy **neni meritko vykonu robota**: na zelezu snimky
+  dava D435 a render neexistuje.
+- **Zapsan postup, jak to priste chytit** (dotnet-stack + `PerfMsg`) do
+  [headless.md](headless.md); v misi zustava mereni doby prichyceni, ktere se do `Trace` ozve
+  pri > 200 ms.
+- **Odkazy:** `TrackMission.cs` (`SnapAllPoints`), `TrackMsg.cs` (verze 3), `WebStatus.cs`,
+  `TrackMissionTests.cs`, `WebPreviewServerTests.cs`, [track-mission.md](track-mission.md).
+
+---
+
 **Klín mezi zornými poli barevných kamer: změřen, doplněn — a měřením se ukázalo, že rychlost
 sráží něco jiného.** Podnět autora z terénu: „zorná pole RGB kamer se nepřekrývají, při jízdě rovně
 vzniká úzký klín s hodnocením unknown a snižuje to dopřednou rychlost; navrhuji ho uměle nahrazovat

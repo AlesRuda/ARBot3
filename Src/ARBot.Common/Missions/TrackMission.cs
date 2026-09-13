@@ -220,8 +220,90 @@ namespace ARBot.Common.Missions
                 anchored = true;
                 missionStartedAt = now;
                 lastTime = now;
+                if (!SnapAllPoints(now)) return;   // testy davaji pozu hned; v aplikaci viz Depart
                 EnterPhase(TrackPhase.AwaitingEStop, now);
             }
+        }
+
+        /// <summary>
+        /// <b>Prichyti VSECHNA mista na sit cest</b> a zkontroluje jejich odstup. Vraci
+        /// <c>false</c>, kdyz nektere misto lezi dal nez <see cref="TrackConfig.MaxPointOffRoadM"/>
+        /// — mise je pak uz <see cref="TrackPhase.Aborted"/> a nikam se nejede.
+        ///
+        /// <para><b>Proc uz pri startu, a ne az za jizdy</b> (pozadavek autora): bod ze souboru je
+        /// misto, ktere si clovek klikl na mape, takze muze lezet kdekoliv — na strese, uprostred
+        /// pole, v rybniku. Robot jede po siti a <c>Navigator</c> meri dojezd proti cili, takze
+        /// bod mimo sit je <b>nedosazitelny</b>. Dokud se prichycovalo az v okamziku, kdy na bod
+        /// prisla rada, poznal se takovy bod teprve tehdy: robot objel prvni ctyri mista a u
+        /// pateho misi prerusil, nekde daleko od cloveka. Ted se to rekne hned.</para>
+        ///
+        /// <para><b>Dosazitelnost se tim NEresi</b> a resit nejde: jestli na cil vede trasa, zavisi
+        /// na tom, kde robot prave je, takze se to musi zkouset az pri odjezdu na ten bod
+        /// (<see cref="SetTarget"/>). Prichyceni je proti tomu ciste geometrie — kolmy prumet na
+        /// nejblizsi hranu — a na poloze robota nezavisi.</para>
+        ///
+        /// <para>Bez <see cref="routes"/> (testy) se nedela nic a jede se na surove body; chovani
+        /// je pak stejne jako pred touhle zmenou a je to <b>videt</b>, protoze odstupy vyjdou nula.</para>
+        /// </summary>
+        private bool SnapAllPoints(DateTime now)
+        {
+            if (snappedPoints != null) return true;   // uz hotovo (dalsi kolo pri `repeat`)
+
+            var body = new LLA[plan.Count];
+            var odstupy = new double[plan.Count];
+            if (routes == null)
+            {
+                snappedPoints = body;
+                snappedOffRoadM = odstupy;
+                return true;
+            }
+
+            int neprichyceno = 0;
+            double nejdal = 0;
+            // Kolik to stoji: Probe stavi pro KAZDY bod cele GoalField, takze u velke site to
+            // muze byt drahe - a bezi to na vlakne mise pod jejim zamkem. Do Trace, ne Debug:
+            // v Release buildu (a ten bezi na zarizeni) by po zaseku nezustala zadna stopa.
+            var hodiny = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < plan.Count; i++)
+            {
+                var probe = routes.Probe(plan.Points[i]);
+                odstupy[i] = probe.OffRoadM;
+                body[i] = probe.SnappedTarget;
+                if (probe.SnappedTarget == null) neprichyceno++;
+                if (probe.OffRoadM > nejdal) nejdal = probe.OffRoadM;
+
+                if (probe.OffRoadM > config.MaxPointOffRoadM)
+                {
+                    // ⚠️ PRERUSIT, ne preskocit - viz hlavicka tridy, pojistka 2. Hlaska musi rict
+                    // KTERY bod a KOLIK metru, aby slo opravit soubor, ne hadat.
+                    lastTime = lastTime == default ? now : lastTime;
+                    Abort($"misto {i + 1}/{plan.Count} ({plan.PointText(i)}) lezi "
+                          + $"{probe.OffRoadM:F0} m od site cest, limit je "
+                          + $"{config.MaxPointOffRoadM:F0} m. Je ten bod na ceste?");
+                    return false;
+                }
+            }
+
+            snappedPoints = body;
+            snappedOffRoadM = odstupy;
+
+            // ⚠️ „Neprichytilo se" se NESMI tvarit jako „odstup 0 m". Probe vraci nuly i kdyz
+            // nema pozu nebo sit nema hrany, a tichy prechod na surove body je presne ten pad na
+            // default, po kterem se vada pozna az v terenu.
+            hodiny.Stop();
+            if (hodiny.ElapsedMilliseconds >= 200)
+                Trace.WriteLine($"Track: ⚠️ prichyceni {plan.Count} mist trvalo "
+                                + $"{hodiny.ElapsedMilliseconds} ms - po tu dobu mise nezpracovava "
+                                + "zpravy (Probe stavi GoalField pro kazdy bod).");
+
+            if (neprichyceno > 0)
+                Trace.WriteLine($"Track: ⚠️ {neprichyceno} z {plan.Count} mist se NEPODARILO "
+                                + "prichytit na sit (neni poza, nebo sit nema hrany) - jede se na "
+                                + "SUROVE souradnice a dojezd nemusi nastat.");
+            else
+                Trace.WriteLine($"Track: {plan.Count} mist prichyceno na sit, nejvetsi odstup "
+                                + $"{nejdal:F1} m (limit {config.MaxPointOffRoadM:F0} m).");
+            return true;
         }
 
         /// <summary>
@@ -367,6 +449,11 @@ namespace ARBot.Common.Missions
         {
             pointIndex = 0;
             lap = 1;
+            // ⚠️ Prichyceni AZ TADY, ne uz pri StartMission: IRouteProbe.Probe potrebuje POZU
+            // robotu (pocita i dosazitelnost) a v okamziku volby mise jeste zadna byt nemusi -
+            // vratil by pak nuly a kontrola by tise prosla, tedy presne ten tichy pad na default,
+            // kteremu se projekt vyhyba. Pri odjezdu uz runtime bezi a pozu ma.
+            if (!SnapAllPoints(now)) return;
             if (!SetTarget(now)) return;
             EnterPhase(TrackPhase.Driving, now);
         }
@@ -460,8 +547,15 @@ namespace ARBot.Common.Missions
 
             if (routes == null) return raw;
 
-            var probe = routes.Probe(raw);
-            offRoadM = probe.OffRoadM;
+            // Prichyceni uz je hotove ze startu mise (SnapAllPoints) - tady se resi jen
+            // DOSAZITELNOST, ktera zavisi na aktualni poloze robota. Zkousi se na PRICHYCENY
+            // bod: na surovy by trasa vest nemusela, i kdyz je cesta o dva metry vedle.
+            var cil = snappedPoints != null && pointIndex >= 0 && pointIndex < snappedPoints.Length
+                      ? snappedPoints[pointIndex] : null;
+            offRoadM = snappedOffRoadM != null && pointIndex >= 0 && pointIndex < snappedOffRoadM.Length
+                       ? snappedOffRoadM[pointIndex] : 0;
+
+            var probe = routes.Probe(cil ?? raw);
             routeLengthM = probe.LengthM;
 
             if (!probe.Reachable)
@@ -469,16 +563,10 @@ namespace ARBot.Common.Missions
                 reject = "na sit se nepodarilo najit trasu (Reachable = false)";
                 return null;
             }
-            if (probe.OffRoadM > config.MaxPointOffRoadM)
-            {
-                // ⚠️ Prerusit, ne preskocit. Viz hlavicka tridy, pojistka 2.
-                reject = $"lezi {probe.OffRoadM:F0} m od site cest, limit je "
-                         + $"{config.MaxPointOffRoadM:F0} m. Je ten bod na ceste?";
-                return null;
-            }
 
-            // SnappedTarget muze byt null (zkouska bez site) - pak se jede na surovy bod.
-            return probe.SnappedTarget ?? raw;
+            // Prichyceny bod ze startu; kdyz se prichytit nepodarilo (zadna hrana), jede se
+            // na surovy - chovani je pak stejne jako pred zavedenim prichyceni.
+            return cil ?? probe.SnappedTarget ?? raw;
         }
 
         /// <summary>Prechod do faze; razitko je vzdy v hodinach dat.</summary>
@@ -505,6 +593,43 @@ namespace ARBot.Common.Missions
         /// </summary>
         private readonly double[] allLatitudes, allLongitudes;
 
+        /// <summary>
+        /// <b>Mista PRICHYCENA na sit cest</b> — spocitana jednou pri startu mise, ne az kdyz na
+        /// bod prijde rada. <c>null</c> na dane pozici = neprichycovalo se (mise bez
+        /// <see cref="routes"/>, tedy v testech), pak se jede na surovy bod.
+        ///
+        /// <para><b>Proc predem:</b> prichyceni je ciste geometrie (kolmy prumet na nejblizsi
+        /// hranu) a na poloze robota <b>nezavisi</b>, kdezto dosazitelnost ano. Kdyz se delalo
+        /// az za jizdy, bod, ktery lezi mimo sit, se poznal teprve v okamziku, kdy k nemu robot
+        /// mel vyrazit — takze robot klidne objel ctyri mista a u pateho misi prerusil. Ted to
+        /// rekne pri startu, dokud u nej clovek jeste stoji.</para>
+        /// </summary>
+        private LLA[] snappedPoints;
+
+        /// <summary>Jak daleko lezel kazdy bod od site [m]; plati spolu se <see cref="snappedPoints"/>.</summary>
+        private double[] snappedOffRoadM;
+
+        /// <summary>
+        /// Prichycena mista do zpravy [rad]; prazdne pole, dokud se neprichytilo (mise jeste
+        /// nevyrazila, nebo bezi bez site). Misto, ktere se prichytit nepodarilo, je nula.
+        /// </summary>
+        private double[] SnappedLat()
+        {
+            if (snappedPoints == null) return System.Array.Empty<double>();
+            var pole = new double[snappedPoints.Length];
+            for (int i = 0; i < pole.Length; i++) pole[i] = snappedPoints[i]?.Latitude ?? 0;
+            return pole;
+        }
+
+        /// <inheritdoc cref="SnappedLat"/>
+        private double[] SnappedLon()
+        {
+            if (snappedPoints == null) return System.Array.Empty<double>();
+            var pole = new double[snappedPoints.Length];
+            for (int i = 0; i < pole.Length; i++) pole[i] = snappedPoints[i]?.Longitude ?? 0;
+            return pole;
+        }
+
         /// <summary>Vyrobi a posle <see cref="TrackMsg"/>.</summary>
         private void EmitState(DateTime now)
         {
@@ -527,6 +652,8 @@ namespace ARBot.Common.Missions
                 RouteLengthM = activeRouteLengthM,
                 AllLatitudes = allLatitudes,
                 AllLongitudes = allLongitudes,
+                SnappedLatitudes = SnappedLat(),
+                SnappedLongitudes = SnappedLon(),
                 AbortReason = abortReason,
                 ElapsedSec = missionStartedAt == default || lastTime <= missionStartedAt
                              ? 0 : (lastTime - missionStartedAt).TotalSeconds,
