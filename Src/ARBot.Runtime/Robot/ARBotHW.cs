@@ -258,6 +258,142 @@ namespace ARBot.Robot
         }
 
         /// <summary>
+        /// Kamery, ktere umi ohlasit zaseknuty reconnect a uvolnit handle
+        /// (<see cref="ARBot.HAL.Devices.Camera.IRecoverableCamera"/>).
+        /// </summary>
+        private IEnumerable<ARBot.HAL.Devices.Camera.IRecoverableCamera> RecoverableCameras()
+        {
+            foreach (var c in new object[] { LeftCamera, RightCamera, TrackingCamera })
+                if (c is ARBot.HAL.Devices.Camera.IRecoverableCamera r)
+                    yield return r;
+        }
+
+        /// <summary>
+        /// Hlasi nektera kamera, ze se ze sveho vypadku sama nedostane? Ctе to supervizor zotaveni.
+        /// </summary>
+        public bool CameraRecoveryNeeded()
+        {
+            foreach (var r in RecoverableCameras())
+                if (r.RecoveryNeeded) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// <b>Jmena kamer</b>, ktere o zotaveni zadaji. Supervizor je potrebuje proto, aby
+        /// (a) rekl v logu, KDO si o zotaveni rika — hadat to z textu hlasky je past, a
+        /// (b) uměl to <b>vzdat u konkretni kamery</b>, ktere zotaveni opakovane nepomaha,
+        /// aniz by tim prisel o zotaveni ostatnich. Viz doc/plan-drive-hold.md.
+        /// </summary>
+        /// <summary>Jmena vsech kamer, ktere umi zotaveni (bez ohledu na to, jestli o nej zadaji).</summary>
+        public List<string> CameraNames()
+        {
+            var jmena = new List<string>();
+            foreach (var c in new object[] { LeftCamera, RightCamera, TrackingCamera })
+                if (c is ARBot.HAL.Devices.Camera.IRecoverableCamera)
+                    jmena.Add((c as ISensor)?.Name ?? c.GetType().Name);
+            return jmena;
+        }
+
+        public List<string> CamerasNeedingRecovery()
+        {
+            var jmena = new List<string>();
+            foreach (var c in new object[] { LeftCamera, RightCamera, TrackingCamera })
+            {
+                if (c is ARBot.HAL.Devices.Camera.IRecoverableCamera r && r.RecoveryNeeded)
+                    jmena.Add((c as ISensor)?.Name ?? c.GetType().Name);
+            }
+            return jmena;
+        }
+
+        /// <summary>
+        /// <b>Tvrde zotaveni kamer:</b> uvolni handle VSECH kamer a zahodi sdileny RealSense
+        /// kontext. Smycky driveru bezi dal a pripoji se samy — uz z noveho kontextu.
+        ///
+        /// <para><b>Proc tak tvrde.</b> Zmereno 12.–13. 9. 2026 na zaseknute kamere: reset USB
+        /// portu ani odpojeni <c>uvcvideo</c> nepomuze, zatimco jiny proces si zarizeni zabere
+        /// bez problemu — zaseknuty je vnitrni stav librealsense v nasem procesu a spravi ho jen
+        /// restart sluzby. Tohle je tyz restart, jen uvnitr procesu. Viz doc/hardware.md.</para>
+        ///
+        /// <para>⚠️ <b>Kontext sdileji VSECHNY kamery</b> (zamer z 3. 9. kvuli <c>tm_boot</c>),
+        /// takze zotaveni jedne kamery vyradi na par sekund i druhou a T265. Proto se spousti az
+        /// pri <see cref="CameraRecoveryNeeded"/>, a volajici ma pritom drzet robota
+        /// (<c>StopHold</c>) — jinak by robot par sekund jel naslepo.</para>
+        ///
+        /// <para>⚠️ <b>Na jine platforme nez OrangePI to zotaveni NEUMI</b> a vrati <c>false</c>:
+        /// sdileny kontext je jen v HALArmbian a porucha se jinde nepozorovala.</para>
+        /// </summary>
+        /// <returns><c>true</c> = zotaveni probehlo.</returns>
+        /// <summary>
+        /// Jak dlouho se ceka, az kamery potvrdi uvolneni handle. Smycka driveru ceka na snimek
+        /// nejvys <c>FrameTimeoutMs</c> (1 s), takze 5 s je volne i pro tri kamery.
+        /// </summary>
+        private static readonly TimeSpan ReleaseTimeout = TimeSpan.FromSeconds(5);
+
+        public bool RecoverCameras(string caller)
+        {
+            var kamery = new List<ARBot.HAL.Devices.Camera.IRecoverableCamera>(RecoverableCameras());
+            if (kamery.Count == 0)
+            {
+                Trace.WriteLine($"{caller}: zotaveni kamer - zadna kamera to neumi, nedela se nic.");
+                return false;
+            }
+
+            // 1) POZADAT o uvolneni. Kazda kamera si pipeline zbourá na SVEM vlakne - primy
+            //    Stop z ciziho vlakna zatuhne (zmereno 13. 9. 2026, zustal drzeny StopHold
+            //    a spravil to az restart sluzby). Viz IRecoverableCamera.RequestRelease.
+            foreach (var r in kamery)
+            {
+                try { r.RequestRelease(); }
+                catch (Exception ex) { Trace.WriteLine($"{caller}: zadost o uvolneni selhala: {ex.Message}"); }
+            }
+
+            // 2) POCKAT na potvrzeni od vsech. Bez toho by se kontext menil pod bezici pipeline,
+            //    a to je nativni pad, ktery CrashLog nezachyti.
+            var doKdy = TimeBase.Now + ReleaseTimeout;
+            bool vsechny = false;
+            while (TimeBase.Now < doKdy)
+            {
+                vsechny = true;
+                foreach (var r in kamery) if (!r.Released) { vsechny = false; break; }
+                if (vsechny) break;
+                System.Threading.Thread.Sleep(100);
+            }
+
+            if (!vsechny)
+            {
+                // RADEJI NEDELAT NIC: zotaveni je uzitecne, nativni pad je horsi nez mrtva kamera.
+                Trace.WriteLine($"{caller}: kamery se do {ReleaseTimeout.TotalSeconds:F0} s neuvolnily "
+                                + "-> kontext se NEMENI (menit ho pod bezici pipeline je nativni pad). "
+                                + "Kamery se pustí zpátky k pripojovani.");
+                foreach (var r in kamery)
+                    try { r.ResumeAfterRecovery(); } catch (Exception ex) { Trace.WriteLine(ex.Message); }
+                return false;
+            }
+
+#if IsARM64
+            // 3) AZ TED, kdyz uz zadna D435 pipeline nezije.
+            try
+            {
+                D435Camera.RecycleSharedContext(caller);
+            }
+            finally
+            {
+                // Smycky musi jit zpatky do hry i kdyz recyklace vyhodi - jinak by kamery zustaly
+                // zaparkovane navzdy a porucha by byla horsi nez ta puvodni.
+                foreach (var r in kamery)
+                    try { r.ResumeAfterRecovery(); } catch (Exception ex) { Trace.WriteLine(ex.Message); }
+            }
+            return true;
+#else
+            foreach (var r in kamery)
+                try { r.ResumeAfterRecovery(); } catch (Exception ex) { Trace.WriteLine(ex.Message); }
+            Trace.WriteLine($"{caller}: zotaveni kamer - sdileny kontext je jen na OrangePI, "
+                            + "na teto platforme se nedela nic.");
+            return false;
+#endif
+        }
+
+        /// <summary>
         /// Uvolni motory, GPS a IMU (obdoba <see cref="CameraStop"/> pro zbytek senzoru) -
         /// pouziva se pri prepnuti na virtualni HW.
         /// </summary>

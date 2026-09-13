@@ -36,7 +36,7 @@ namespace ARBot.HAL.Devices.Camera
     /// (pripojeni, odpojeni) nebo throtlovana, takze proud nezaplavi.
     /// Hlida to <c>DiagnostikaSenzoruTests</c>.</para>
     /// </summary>
-    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
+    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera, IRecoverableCamera
     {
         /// <summary>Seriove cislo zarizeni; null = prvni dostupna kamera.</summary>
         string sn;
@@ -105,6 +105,28 @@ namespace ARBot.HAL.Devices.Camera
         /// rostouci cislo znamena, ze se problem opakuje a resi ho az tahle zachrana.
         /// </summary>
         public int StallRestarts { get; private set; }
+
+        /// <summary>
+        /// <inheritdoc cref="IRecoverableCamera.RecoveryNeeded"/>
+        ///
+        /// <para><b>Na Windows vzdy <c>false</c>.</b> Zaseknuty reconnect („failed to set power
+        /// state" donekonecna) je porucha zmerena na Orange Pi s RSUSB backendem a sdilenym
+        /// kontextem; tenhle driver ma kontext vlastni a porucha se tu nepozorovala. Az se
+        /// projevi, patri sem tataz logika jako v HALArmbian. Viz doc/hardware.md.</para>
+        /// </summary>
+        public bool RecoveryNeeded => false;
+
+        /// <inheritdoc/>
+        public int FailedQueries => 0;
+
+        /// <inheritdoc/>
+        public void RequestRelease() { }
+
+        /// <inheritdoc/>
+        public bool Released => true;
+
+        /// <inheritdoc/>
+        public void ResumeAfterRecovery() { }
 
         /// <summary>Kontext pro zjisteni pritomnosti zarizeni (detekce (od|při)pojeni).</summary>
         private readonly Context ctx = new Context();

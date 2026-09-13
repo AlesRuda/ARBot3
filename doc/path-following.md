@@ -168,6 +168,36 @@ Zásah = dvě nezávisle počítaná čísla: **dopredná rychlost** a **rotačn
 
 ---
 
+## Držené zastavení (`StopHold`, od 13. 9. 2026)
+
+Smyčka má kromě regulátoru druhý, **nezávislý** vstup: *smí se vůbec jet?* Získá se
+`controlLoop.StopRequest("důvod")`, drží se, dokud se token neuvolní (`Dispose`), a **robot stojí,
+dokud drží kdokoli** — držitelů může být víc a každý mluví jen za sebe.
+
+```csharp
+using (var hold = controlLoop.StopRequest("restart kamer"))
+{
+    while (!hold.IsStopped) { /* čekat, s VLASTNÍM timeoutem */ }
+    // ... riskantní operace ...
+}   // robot se rozjede, až pustí všichni
+```
+
+**Proč to není `Regulator = null`:** ta vlastnost nese „kam jet" i „smím jet" najednou, takže
+kdokoli další, kdo chce robota dočasně podržet, se o ni pere s vyšší smyčkou. Hold to rozděluje —
+vyšší smyčky nastavují regulátor dál a o holdu nevědí.
+
+Chování ve smyčce: dopředná rychlost jde **rampou** `−MaxDecceleration·dt` (tedy stejně jako
+u zastaralé dráhy — brzdit v zatáčce po poslední trase je lepší než pustit řízení), rotace se
+nuluje teprve, až robot **skutečně stojí**. Nouzové zastavení zůstává vedle a je tvrdé.
+
+⚠️ **`IsStopped` je měřené stání, a neznámý stav motorů je `false`, ne `true`.** Kdo čeká, aby směl
+udělat něco riskantního, nesmí dostat „stojí" od senzoru, který mlčí — proto si volající **musí
+nést vlastní timeout** (bez připojených motorů by čekal navždy).
+
+Do záznamu jde příznak `DriveCommandMsg.Held` (**verze 3**), důvody do `Trace` při prvním držení
+a posledním uvolnění — bez obojího by v záznamu byly nuly bez vysvětlení. Rozhodnutí a další kroky:
+[plan-drive-hold.md](plan-drive-hold.md).
+
 ## Analýza odchylky od trasy vs. vzdálenost cílového bodu `L_d`
 
 `L_d` (vzdálenost cílového bodu = „lookahead") je jediný ladicí parametr sledování. Táhnou ho

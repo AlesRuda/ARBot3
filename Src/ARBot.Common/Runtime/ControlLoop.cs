@@ -32,8 +32,14 @@ namespace ARBot.Common.Runtime
     /// k pouzitym datum: zaznamena se presne to, co rizeni realne vzorkovalo. Viz
     /// doc/plan-camera-vision-refactor.md.</para>
     /// </summary>
-    public sealed class ControlLoop : MessageProcessor, Missions.IRegulatorHolder
+    public sealed class ControlLoop : MessageProcessor, Missions.IRegulatorHolder, IDriveHold
     {
+        /// <summary>
+        /// Drzena zastaveni (<see cref="StopHold"/>). Oddeluje „kam jet" (regulator) od „smim jet":
+        /// vyssi smycky nastavuji regulator dal a o holdu nevedi. Viz doc/plan-drive-hold.md.
+        /// </summary>
+        private readonly DriveHoldRegistry holds = new DriveHoldRegistry();
+
         private readonly AsyncFusionEngine engine;
         private readonly IMotorControl motor;
         private readonly IClock clock;
@@ -70,6 +76,15 @@ namespace ARBot.Common.Runtime
             get => regulator;
             set { regulator = value; regulatorFresh = true; }
         }
+
+        /// <inheritdoc/>
+        public StopHold StopRequest(string duvod) => holds.StopRequest(duvod);
+
+        /// <inheritdoc/>
+        public bool IsHeld => holds.IsHeld;
+
+        /// <inheritdoc/>
+        public System.Collections.Generic.IReadOnlyList<string> HoldReasons => holds.HoldReasons;
 
         /// <summary>
         /// DIAGNOSTIKA: posledni stav motoru, ktery smycka prevzala (podle nej se uplatnuje nouzove
@@ -198,6 +213,20 @@ namespace ARBot.Common.Runtime
                     forvard = r.Speed;
                 }
             }
+            // Drzene zastaveni (StopHold): dopredna rychlost rampou k nule, smer z regulatoru se
+            // drzi dal - stejne jako u zastarale drahy a ze stejneho duvodu (brzdit v zatacce po
+            // posledni trase je lepsi nez pustit rizeni). Je to mechanismus pro PLANOVANE udalosti
+            // (restart kamer, servisni okno), takze brzdi rampou; nouzove zastaveni nize zustava
+            // tvrde a nedotcene. Viz doc/plan-drive-hold.md.
+            holds.NoteMotorState(lastMotor);
+            bool held = holds.IsHeld;
+            if (held)
+            {
+                double decelHold = Profile.MaxDecceleration * period.TotalSeconds;
+                forvard = Math.Max(0, lastForward - decelHold);
+                if (holds.Standing == true) rotationSpeed = 0;
+            }
+
             // Nouzove zastaveni: dopredna rychlost na nulu, rotace az kdyz robot SKUTECNE stoji.
             // Dokud se kola jeste toci, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi
             // v zatacce); jak robot stoji, rotaci nulujeme, aby se netocil na miste - a posledni
@@ -262,6 +291,7 @@ namespace ARBot.Common.Runtime
                 Forvard = forvard,
                 Dif = dif,
                 EmergencyStop = emergencyStop,
+                Held = held,
                 TimeStamp = tk
             });
 

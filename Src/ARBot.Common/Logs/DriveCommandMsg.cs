@@ -10,14 +10,15 @@ namespace ARBot.Common.Logs
     /// prikazala (tedy vystup regulatoru PO upravach smycky - dobrzdeni zastarale drahy,
     /// nouzove zastaveni), <see cref="Forvard"/>/<see cref="Dif"/> jsou primo argumenty
     /// <c>IMotorControl.Drive(forvard, dif)</c> (dif = RotationSpeed * Rozchod).
-    /// <see cref="EmergencyStop"/> rika, ze zasah zkratilo nouzove zastaveni - bez nej by v
-    /// zaznamu byly nuly bez vysvetleni.
+    /// <see cref="EmergencyStop"/> rika, ze zasah zkratilo nouzove zastaveni, <see cref="Held"/>
+    /// ze ho zkratilo DRZENE zastaveni (<c>StopHold</c>) - bez obou by v zaznamu byly nuly bez
+    /// vysvetleni.
     /// </summary>
     [Serializable()]
     public class DriveCommandMsg : Message, IHasCaptureTime
     {
-        /// <summary>Format verze 2: pridan <see cref="EmergencyStop"/>.</summary>
-        public const int FormatVersion = 2;
+        /// <summary>Format verze 3: pridan <see cref="Held"/> (verze 2: <see cref="EmergencyStop"/>).</summary>
+        public const int FormatVersion = 3;
 
         /// <summary>Prikazana dopredna rychlost [m/s].</summary>
         public double Speed;
@@ -32,6 +33,15 @@ namespace ARBot.Common.Logs
         /// Pak je dopredna rychlost nulovana smyckou - viz doc/robotour-mission.md.
         /// </summary>
         public bool EmergencyStop;
+        /// <summary>
+        /// Drzel v case taktu nekdo <b>zastaveni</b> (<see cref="Runtime.StopHold"/>)? Pak smycka
+        /// dopradnou rychlost srazila rampou k nule, i kdyz regulator chtel jet.
+        ///
+        /// <para>Duvod drzeni v teto zprave NENI - chodi 10x za sekundu, takze by se retezec
+        /// opakoval zbytecne. Duvody jsou v <c>Trace</c> (a tim v zaznamu jako <c>Info</c>) pri
+        /// prvnim drzeni a poslednim uvolneni. Viz doc/plan-drive-hold.md.</para>
+        /// </summary>
+        public bool Held;
         /// <summary>Cas, ke kteremu prikaz plati (cas taktu ridici smycky).</summary>
         public DateTime TimeStamp;
 
@@ -51,6 +61,8 @@ namespace ARBot.Common.Logs
             Write(bw, TimeStamp);
             if (Verze >= 2)
                 bw.Write(EmergencyStop);
+            if (Verze >= 3)
+                bw.Write(Held);
         }
 
         public override void FromData(BinaryReader br)
@@ -62,12 +74,16 @@ namespace ARBot.Common.Logs
             TimeStamp = ReadDateTime(br);
             // Starsi zaznamy (v1) priznak nemaji - zustava false.
             EmergencyStop = Verze >= 2 && br.ReadBoolean();
+            // Totez pro drzene zastaveni (do v2 vcetne neexistovalo).
+            Held = Verze >= 3 && br.ReadBoolean();
         }
 
         public override Message Build() => new DriveCommandMsg();
 
         public override string ToString()
-            => string.Format("DriveCommandMsg fwd={0:F2} dif={1:F2} (v={2:F2} w={3:F3}){4}",
-                             Forvard, Dif, Speed, RotationSpeed, EmergencyStop ? " ESTOP" : string.Empty);
+            => string.Format("DriveCommandMsg fwd={0:F2} dif={1:F2} (v={2:F2} w={3:F3}){4}{5}",
+                             Forvard, Dif, Speed, RotationSpeed,
+                             EmergencyStop ? " ESTOP" : string.Empty,
+                             Held ? " HOLD" : string.Empty);
     }
 }

@@ -756,6 +756,33 @@ namespace ARBot.Robot.Web
             sb.Append('}');
         }
 
+        /// <summary>
+        /// Zdroj duvodu <b>drzenych zastaveni</b> (<c>StopHold</c>). Vychozi cte z bezici ridici
+        /// smycky; test si podstrci vlastni (stejny sev jako <see cref="PowerOffAvailable"/>).
+        ///
+        /// <para>Cte se ze ZIVEHO objektu, ne ze zprav: <c>DriveCommandMsg</c> nese jen priznak,
+        /// protoze texty by se v ni opakovaly 10x za sekundu.</para>
+        /// </summary>
+        public Func<System.Collections.Generic.IReadOnlyList<string>> HoldReasonsSource { get; set; }
+            = HoldReasonsZRuntime;
+
+        private static System.Collections.Generic.IReadOnlyList<string> HoldReasonsZRuntime()
+            => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Navigator?.ControlLoop?.HoldReasons : null;
+
+        /// <summary>Duvody drzeni, nebo <c>null</c>. Nesmi shodit stranku - proto <c>try</c>.</summary>
+        private System.Collections.Generic.IReadOnlyList<string> HoldReasons()
+        {
+            try
+            {
+                return HoldReasonsSource?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("web: cteni drzenych zastaveni selhalo: " + ex.Message);
+                return null;
+            }
+        }
+
         private void AppendMissionPick(StringBuilder sb)
         {
             bool estop;
@@ -770,6 +797,21 @@ namespace ARBot.Robot.Web
             // neslo by v simulaci projit ani prvni servisni okno (nalezeno 5. 9. 2026).
             if (ARBot.Common.Configuration.ParamRegistry.VirtualHw.Value) sb.Append(",\"virtualhw\":true");
             if (PowerOffAvailable) sb.Append(",\"poweroff\":true");
+
+            // DRZENA ZASTAVENI (StopHold): robot muze stat i bez nouzoveho zastaveni a bez konce
+            // mise - treba po dobu restartu kamer. Bez teto radky by to na strance vypadalo jako
+            // zasek a clovek by hledal poruchu. Viz doc/plan-drive-hold.md.
+            var duvody = HoldReasons();
+            if (duvody != null && duvody.Count > 0)
+            {
+                sb.Append(",\"holds\":[");
+                for (int i = 0; i < duvody.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append('"').Append(Escape(duvody[i])).Append('"');
+                }
+                sb.Append(']');
+            }
 
             if (!AwaitingMission) return;
 
@@ -1060,6 +1102,7 @@ namespace ARBot.Robot.Web
  </div>
  <div class=""akce"">
   <button class=""estop"" id=""vstop"" style=""display:none"" onclick=""virtStopPrepni()"">Emergency stop</button>
+  <button class=""estop"" id=""kamery"" onclick=""zotavKamery()"">Zotavit kamery</button>
   <button class=""stop"" onclick=""zastavit()"">Terminate</button>
   <button class=""vyp"" id=""vypnout"" style=""display:none"" onclick=""vypnout()"">Power off</button>
  </div>
@@ -1184,6 +1227,10 @@ function hlavicka(h){
    +(h.missionElapsed!==undefined?' ('+doba(h.missionElapsed)+')':'');
   if(h.waiting) m+='<br><span class=""ceka"">čeká se na: '+h.waiting+'</span>';
  }
+ // Drzene zastaveni je vlastni radek, ne soucast stavu mise: robot muze stat i bez mise
+ // (treba pri restartu kamer) a clovek musi videt DUVOD, ne jen ze se nehybe.
+ if(h.holds&&h.holds.length)
+  m+=(m?'<br>':'')+'<span class=""ceka"">zastaveno: '+h.holds.join(', ')+'</span>';
  document.getElementById('mise').innerHTML=m;
 }
 // Vyber mise. Ukazuje se JEN kdyz proces na volbu ceka (head.pick); jinak je panel pryc, aby
@@ -1223,6 +1270,14 @@ function akce(h){
  b.className = 'estop' + (estopDrzen ? ' drzi' : '');
 }
 function virtStopPrepni(){ virtStop(!estopDrzen); }
+// Zotaveni kamer: robot se pritom NA PAR SEKUND zastavi a OSLEPNE (kontext sdileji vsechny
+// kamery), takze potvrzeni - je to zasah do jizdy, ne prepnuti zobrazeni.
+function zotavKamery(){
+ if(!confirm('Zotavit kamery? Robot se zastaví a na pár sekund oslepne.'))return;
+ fetch('/camerarecover',{method:'POST'}).then(function(r){
+  return r.text().then(function(txt){ alert(txt); tik(); });
+ });
+}
 // Vypnuti zarizeni. Dva rozdilne ukony vedle sebe, takze potvrzeni MUSI rict, ktery z nich to je:
 // Terminate proces vrati systemd, po Power off robot sam nenabehne a musi se zapnout rukou.
 function vypnout(){

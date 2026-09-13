@@ -39,7 +39,7 @@ namespace ARBot.HAL.Devices.Camera
     /// (pripojeni, odpojeni) nebo throtlovana, takze proud nezaplavi.
     /// Hlida to <c>DiagnostikaSenzoruTests</c>.</para>
     /// </summary>
-    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera
+    public sealed class D435Camera : SensorBase<CameraFrame>, ICamera, IRecoverableCamera
     {
         /// <summary>Seriove cislo zarizeni; null = prvni dostupna kamera.</summary>
         string sn;
@@ -102,6 +102,42 @@ namespace ARBot.HAL.Devices.Camera
 
         /// <summary>Pocet po sobe jdoucich timeoutu; 0 = posledni cteni snimek doslo.</summary>
         private int consecutiveTimeouts;
+
+        /// <summary>
+        /// Kolikrat po sobe se NEPODARILO pripojit — ať už dotaz na sbernici selhal
+        /// („failed to set power state"), nebo prosel a kameru <b>nenasel</b>. Nuluje se prvnim
+        /// uspesnym pripojenim.
+        ///
+        /// <para>⚠️ <b>Obe varianty se pocitaji dohromady, a je to oprava vady z 13. 9. 2026.</b>
+        /// Puvodne se pocitala jen selhani dotazu, protoze „kamera na sbernici neni" vypada jako
+        /// bezna situace s odpojenym kabelem. Jenze po teardownu si zarizeni vezme zpatky
+        /// <c>uvcvideo</c> a librealsense ho pak ve vyctu prestane videt — dotaz tedy nehazi nic,
+        /// jen vrati „neni tu". Zasek se timhle zpusobem <b>nikdy nespustil zotaveni</b> a kamera
+        /// zustala mrtva. Odlisit to od skutecne odpojeneho kabelu umi <see cref="everConnected"/>.</para>
+        /// </summary>
+        private int consecutiveConnectFailures;
+
+        /// <summary>
+        /// Po kolika po sobe neuspesnych pokusech o pripojeni se to bere jako ZASEKNUTY
+        /// RECONNECT. Pri <see cref="ReconnectPeriodMs"/> = 1 s je to ~15 s marnych pokusu;
+        /// kratsi prah by reagoval na prechodne selhani dotazu nad bezicimi streamy
+        /// (vidano uz 1. 9. 2026) i na normalni prodlevu po zbourani pipeline.
+        /// </summary>
+        private const int ConnectFailuresBeforeRecovery = 15;
+
+        /// <inheritdoc/>
+        public bool RecoveryNeeded => everConnected
+                                     && consecutiveConnectFailures >= ConnectFailuresBeforeRecovery;
+
+        /// <summary>
+        /// Byla kamera uz nekdy pripojena? <b>Bez teto podminky by se zotaveni spoustelo i na
+        /// kamere, ktera proste neni zapojena</b> - a protoze zotaveni oslepi VSECHNY kamery naraz,
+        /// byl by to u chybejiciho kabelu lek horsi nez nemoc.
+        /// </summary>
+        private bool everConnected;
+
+        /// <inheritdoc/>
+        public int FailedQueries => consecutiveConnectFailures;
 
         /// <summary>
         /// Kolikrat uz se pipeline restartovala kvuli zaseknutemu streamu. Diagnostika —
@@ -251,6 +287,22 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         protected override CameraFrame GetMeasurement()
         {
+            // ZADOST O UVOLNENI (zotaveni kamer): pipeline se bourá TADY, na vlastnim vlakne.
+            // Cizi vlakno to delat nesmi - soubezny Stop a TryWaitForFrames librealsense zatuhne
+            // (zmereno na zarizeni 13. 9. 2026). Smycka zaroven PARKUJE, takze behem vymeny
+            // sdileneho kontextu nikdo nevola QueryDevices.
+            if (releaseRequested)
+            {
+                if (!released)
+                {
+                    Teardown();
+                    released = true;
+                    Trace.WriteLine($"{Name}: handle uvolneny pro zotaveni, cekam na novy kontext.");
+                }
+                Thread.Sleep(ReconnectPeriodMs);
+                return null;
+            }
+
             // (Re)pripojeni: kdyz kamera chybi, nezahlcovat CPU a vratit null (bez udalosti).
             if (!EnsureConnected())
             {
@@ -392,8 +444,21 @@ namespace ARBot.HAL.Devices.Camera
 
             // != true: kdyz se pritomnost nepodarilo zjistit (null), radeji pockame na dalsi
             // pokus, nez abychom slepe startovali pipeline.
-            if (DevicePresent() != true)
+            //
+            // SELHANI DOTAZU (null) se pocita zvlast: opakuje-li se, je zaseknuty cely kontext
+            // a ceka se marne — viz RecoveryNeeded a doc/plan-drive-hold.md, faze 3.
+            bool? present = DevicePresent();
+            if (present != true)
+            {
+                // ⚠️ Pocita se KAZDY neuspech, ne jen selhany dotaz (null). Zmereno 13. 9. 2026:
+                // po teardownu si zarizeni vezme zpatky uvcvideo a librealsense ho pak ve vyctu
+                // NEVIDI - dotaz tedy nehazi vyjimku, jen vrati "neni tu" (false). Driv se
+                // pocitalo jen null, takze prave tahle varianta zaseku zotaveni NIKDY nespustila
+                // a kamera zustala mrtva. Je to tataz porucha, jen jinak oblecena.
+                consecutiveConnectFailures++;
                 return false;
+            }
+            consecutiveConnectFailures = 0;
 
             try
             {
@@ -412,6 +477,7 @@ namespace ARBot.HAL.Devices.Camera
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
+                everConnected = true;
                 Trace.WriteLine($"{Name}: pipeline pripojena. {PopisLinky()}");
                 return true;
             }
@@ -481,6 +547,45 @@ namespace ARBot.HAL.Devices.Camera
                 pipeline = null;
             }
         }
+
+        /// <summary>
+        /// Zahodi SDILENY RealSense kontext a zalozi novy — jedina znama lecba na zaseknuty
+        /// reconnect (viz <c>RealSenseShared.RecycleContext</c> a doc/hardware.md).
+        ///
+        /// <para>Je to <b>pruchozi metoda</b>: <c>RealSenseShared</c> je zamerne <c>internal</c>
+        /// (nikdo zvenci HAL nema sahat na kontext primo), ale runtime tu operaci musi umet
+        /// spustit, protoze jen on ji dokaze zkoordinovat se zastavenim robota.</para>
+        ///
+        /// <para>⚠️ <b>Volajici musi mit pred tim zbourane vsechny pipeline</b>
+        /// (<see cref="ReleaseForRecovery"/> na kazde kamere) — jinak je to nativni pad.</para>
+        /// </summary>
+        public static void RecycleSharedContext(string caller)
+            => RealSenseShared.RecycleContext(caller);
+
+        /// <summary>
+        /// <b>Uvolni vsechny handle na zarizeni</b>, aby sel sdileny kontext recyklovat. Smycka
+        /// bezi dal a pri dalsim pruchodu se pokusi pripojit — uz z noveho kontextu.
+        ///
+        /// <para>Cita selhanych dotazu se nuluje: po recyklaci se zacina od zacatku, jinak by
+        /// <see cref="RecoveryNeeded"/> zustalo hned znovu true a zotaveni by se spustilo dokola.</para>
+        /// </summary>
+        public void RequestRelease() => releaseRequested = true;
+
+        /// <inheritdoc/>
+        public bool Released => released;
+
+        /// <inheritdoc/>
+        public void ResumeAfterRecovery()
+        {
+            consecutiveConnectFailures = 0;
+            consecutiveTimeouts = 0;
+            released = false;
+            releaseRequested = false;
+        }
+
+        /// <summary>Zadost o uvolneni handle (z ciziho vlakna) a jeji potvrzeni (z vlakna kamery).</summary>
+        private volatile bool releaseRequested;
+        private volatile bool released;
 
         /// <summary>
         /// (Re)konfiguruje kameru dle zadanych rozliseni a (znovu)spusti pozadi task.

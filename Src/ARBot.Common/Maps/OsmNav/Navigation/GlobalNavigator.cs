@@ -67,7 +67,11 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         private int planFailureStreak;
 
         /// <summary>Posledni znamy stav nouzoveho zastaveni (z <c>DriveCommandMsg</c>).</summary>
-        private volatile bool emergencyStop;
+        /// <summary>
+        /// Robot stoji LEGITIMNE - drzi nekdo nouzove zastaveni, nebo je drzeny stop
+        /// (<c>StopHold</c>). V obou pripadech se detektor A musi vypnout.
+        /// </summary>
+        private volatile bool legitimniStani;
 
         /// <summary>Hlasi lokalni vrstva platny plan? Bez nej detektor A nema co resit.</summary>
         private bool localPlanValid;
@@ -280,12 +284,14 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <inheritdoc/>
         protected override void Consume(Message msg)
         {
-            // Nouzove zastaveni: pod nim robot legitimne stoji, i kdyz ma cil i platny plan -
-            // bez teto podminky by kazde zmacknuti stopu za jizdy po 10 s vyrobilo falesny zasek
-            // a robot by zacal zavirat hrany kvuli tomu, ze u nej nekdo stal.
+            // Nouzove zastaveni a DRZENY STOP: pod obojim robot legitimne stoji, i kdyz ma cil
+            // i platny plan - bez teto podminky by kazde zmacknuti stopu za jizdy po 10 s vyrobilo
+            // falesny zasek a robot by zacal zavirat hrany kvuli tomu, ze u nej nekdo stal.
+            // Totez plati pro planovane zastaveni (restart kamer, servisni okno) - viz
+            // doc/plan-drive-hold.md.
             if (msg is DriveCommandMsg drive)
             {
-                OnDriveCommand(drive.EmergencyStop);
+                OnDriveCommand(drive.EmergencyStop, drive.Held);
                 return;
             }
 
@@ -313,10 +319,16 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         }
 
         /// <summary>
-        /// Stav nouzoveho zastaveni z ridici smycky. Pod stopem robot legitimne stoji, i kdyz ma
-        /// cil i platny plan - detektor A se proto musi vypnout.
+        /// Stav zastaveni z ridici smycky. Pod nouzovym stopem i pod <b>drzenym</b> stopem
+        /// (<c>StopHold</c>) robot legitimne stoji, i kdyz ma cil i platny plan - detektor A se
+        /// proto musi vypnout. <b>Bez drzeneho stopu by planovane zastaveni (restart kamer)
+        /// vypadalo po 10 s jako zasek</b> a robot by zacal zavirat hrany kvuli tomu, ze cekal,
+        /// az se mu spravi kamera. Viz doc/plan-drive-hold.md.
         /// </summary>
-        public void OnDriveCommand(bool emergencyStopActive) => emergencyStop = emergencyStopActive;
+        /// <param name="held">Drzi nekdo <c>StopHold</c>? Volitelne kvuli starsim zaznamum
+        /// (<c>DriveCommandMsg</c> do verze 2 priznak nenese, takze zustava false).</param>
+        public void OnDriveCommand(bool emergencyStopActive, bool held = false)
+            => legitimniStani = emergencyStopActive || held;
 
         /// <summary>
         /// Zpetna vazba od lokalni vrstvy. Volatelne primo z testu.
@@ -607,13 +619,13 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
         /// <summary>
         /// Detektor A - nehybu se. Vypnuty, kdyz robot legitimne stoji: bez aktivniho cile,
-        /// bez platneho planu, nebo pod nouzovym zastavenim.
+        /// bez platneho planu, pod nouzovym zastavenim, nebo pod drzenym stopem (<c>StopHold</c>).
         /// <para><b>Zotaveni (couvnuti/otocka) dnes neexistuje</b> - detektor proto umi jen pockat
         /// a po vycerpani pokusu s hranou zachazet jako u prehrazeni. Viz otevrene ukoly.</para>
         /// </summary>
         private void DetectNoMotion(Edge edge, DateTime now)
         {
-            if (emergencyStop || !localPlanValid)
+            if (legitimniStani || !localPlanValid)
             {
                 noMotionSince = DateTime.MinValue;
                 return;

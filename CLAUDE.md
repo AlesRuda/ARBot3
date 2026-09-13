@@ -576,6 +576,24 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
   `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +
   brzdná obálka, exekuce = feedforward + lookahead; analýza odchylky vs. vzdálenost cílového bodu.
+  ✅ **Od 13. 9. 2026 má smyčka DRŽENÉ ZASTAVENÍ** (`StopHold`, `controlLoop.StopRequest("důvod")`):
+  druhý, nezávislý vstup „smím jet" vedle regulátoru „kam jet". Držitelů může být víc a robot stojí,
+  dokud drží kdokoli — tím zmizí přetahování o `Regulator = null`, které dnes nese obojí najednou
+  a vyhrává ten, kdo psal poslední. Brzdí **rampou** (ne tvrdou nulou), nouzové zastavení zůstává
+  vedle; do záznamu jde `DriveCommandMsg.Held` (**verze 3**), důvody do `Trace`. ⚠️ **`IsStopped` je
+  měřené stání a neznámý stav motorů je `false`** — volající si musí nést vlastní timeout, jinak by
+  bez připojených motorů čekal navždy. Fáze 1–3 hotové (mechanismus, odzbrojení detektoru záseku
+  v `GlobalNavigator`, řádek „zastaveno: …" na stránce náhledu, **supervizor zotavení kamer**;
+  15 testů). ✅ **Zotavení kamer ověřeno na robotu 13. 9. 2026 i na SKUTEČNÉ poruše**: zamrzla barva →
+  15× `failed to set power state` → supervizor vzal hold a vyměnil RealSense kontext → **obě D435
+  zpátky, od zamrznutí do obnovy 29 s** (dřív táž porucha znamenala mrtvou kameru 343 s a 22 min,
+  než přišel restart služby). ⚠️ **Jedna epizoda a robot u toho STÁL** — koordinace s bržděním
+  za jízdy je zatím jen z testů.
+  ⚠️ **Past, kterou našlo až zařízení:** bourat pipeline z cizího vlákna **zatuhne**
+  (`pipeline.Stop()` proti běžícímu `TryWaitForFrames`), `StopHold` pak zůstal držený a robot
+  stál do restartu služby — proto je `IRecoverableCamera` **žádost a potvrzení**. ⚠️ **Bez odzbrojení detektoru by plánované stání
+  po 10 s vypadalo jako zásek** a robot by začal zavírat hranu kvůli tomu, že čekal na opravu
+  kamery. Plán a rozhodnutí: [doc/plan-drive-hold.md](doc/plan-drive-hold.md).
 - [doc/osm-nav.md](doc/osm-nav.md) — OSM navigace (`Maps/OsmNav`): globální navigace nad OpenStreetMap
   (edge-based graf, goal-rooted pole cost-to-goal / LPA\*, dopravní profily, runtime značky) + lokální
   predikce trajektorie a detekce kolizí (`Colider`). Mapa kódu + odkaz na návrhové PDF.

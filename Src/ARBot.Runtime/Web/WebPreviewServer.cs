@@ -187,6 +187,10 @@ namespace ARBot.Robot.Web
                     HandleVirtualEStop(s, req);
                     return;
 
+                case "/camerarecover":
+                    HandleCameraRecover(s, req);
+                    return;
+
                 case "/stop":
                     if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
                     {
@@ -401,6 +405,45 @@ namespace ARBot.Robot.Web
             catch (Exception ex)
             {
                 Trace.WriteLine("web: virtualni stop selhal: " + ex.Message);
+                HttpMini.WriteText(s, 500, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// <b>Rucni zotaveni kamer</b> (<c>POST /camerarecover</c>): zahodi sdileny RealSense
+        /// kontext a necha kamery pripojit znovu — pod drzenym zastavenim, takze robot pritom
+        /// stoji.
+        ///
+        /// <para><b>Proc tlacitko, kdyz to dela supervizor sam:</b> clovek u robota vidi vic nez
+        /// citac selhanych dotazu (treba zamrzly obraz na strance), a hlavne — <b>ze zotaveni
+        /// vubec zabere, zmerene NENI</b>. Bez rucniho spousteni by se to dalo overit jedine
+        /// cekanim, az porucha prijde sama. Viz doc/plan-drive-hold.md, faze 3.</para>
+        /// </summary>
+        private void HandleCameraRecover(System.IO.Stream s, HttpRequestLine req)
+        {
+            if (!string.Equals(req.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                HttpMini.WriteText(s, 405, "jen POST");
+                return;
+            }
+
+            var supervizor = ARBotRuntime.HasCurrent ? ARBotRuntime.Current.CameraRecovery : null;
+            if (supervizor == null)
+            {
+                HttpMini.WriteText(s, 409, "runtime nebezi, neni co zotavovat");
+                return;
+            }
+
+            try
+            {
+                supervizor.RequestRecovery();
+                Trace.WriteLine("web: zadost o zotaveni kamer.");
+                HttpMini.WriteText(s, 200, "zotaveni kamer vyzadano - robot se zastavi a kamery "
+                                           + "se pripoji znovu (pár sekund)");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("web: zotaveni kamer selhalo: " + ex.Message);
                 HttpMini.WriteText(s, 500, ex.Message);
             }
         }

@@ -31,6 +31,24 @@ namespace ARBot.Runtime.Tests.Web
             Assert.That(h, Does.Contain("/poweroff"), "obsluha tlacitka nikam neposila");
         }
 
+        /// <summary>
+        /// Tlačítko <b>Zotavit kamery</b> — ruční spuštění recyklace RealSense kontextu. Celý
+        /// řetěz (tlačítko → id → obsluha → endpoint) nedrží pohromadě nic než pozornost, proto
+        /// ten test. Viz doc/plan-drive-hold.md, fáze 3.
+        /// </summary>
+        [Test]
+        public void Stranka_MaTlacitkoZotaveniKamer()
+        {
+            string h = Html();
+            Assert.Multiple(() =>
+            {
+                Assert.That(h, Does.Contain("id=\"kamery\""), "tlacitko zotaveni kamer zmizelo");
+                Assert.That(h, Does.Contain("Zotavit kamery"));
+                Assert.That(h, Does.Contain("/camerarecover"), "obsluha tlacitka nikam neposila");
+                Assert.That(h, Does.Contain("oslepne"), "clovek musi vedet, ze robot na par sekund oslepne");
+            });
+        }
+
         [Test]
         public void Stranka_MaTlacitkoTerminateAVirtualniStop()
         {

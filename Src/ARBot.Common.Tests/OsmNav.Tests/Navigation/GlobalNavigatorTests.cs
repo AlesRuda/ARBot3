@@ -348,6 +348,66 @@ public class GlobalNavigatorTests
         Assert.That(nav.Closures, Is.Empty, "pod stopem se zasek hlasit nesmi");
     }
 
+    /// <summary>
+    /// Totéž pro <b>držený stop</b> (<c>StopHold</c>): plánované zastavení — třeba na dobu
+    /// restartu kamer — je legitimní stání, ne zásek. Bez toho by robot po 10 s začal zavírat
+    /// hranu kvůli tomu, že čekal, až se mu spraví kamera. Viz doc/plan-drive-hold.md.
+    /// </summary>
+    [Test]
+    public void NoMotionUnderStopHold_DoesNotCloseAnything()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);                            // plan je platny
+        nav.OnDriveCommand(emergencyStopActive: false, held: true);     // stop NENI, drzi se hold
+
+        for (int i = 0; i < 10; i++)
+            nav.Step(10, 0, t.AddSeconds(i));                           // robot stoji
+
+        Assert.That(nav.Closures, Is.Empty, "pod drzenym stopem se zasek hlasit nesmi");
+    }
+
+    /// <summary>
+    /// A po uvolnění držení se detektor zase ozbrojí — jinak by jedno plánované zastavení
+    /// odzbrojilo zásek nadobro.
+    /// </summary>
+    [Test]
+    public void PoUvolneniHolduSeDetektorZaseOzbroji()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);
+        nav.OnDriveCommand(emergencyStopActive: false, held: true);
+        for (int i = 0; i < 5; i++)
+            nav.Step(10, 0, t.AddSeconds(i));
+
+        nav.OnDriveCommand(emergencyStopActive: false, held: false);    // hold uvolnen
+        for (int i = 5; i < 20; i++)
+            nav.Step(10, 0, t.AddSeconds(i));                           // a robot se porad nehybe
+
+        Assert.That(nav.Closures, Is.Not.Empty, "po uvolneni drzeni uz stani zasek je");
+    }
+
     [Test]
     public void Cancel_ClearsLocalGoal()
     {

@@ -39,6 +39,134 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-13
 
+**Řídicí smyčka umí DRŽENÉ ZASTAVENÍ (`StopHold`)** — návrh autora, fáze 1 hotová.
+
+- **Proč:** robota šlo dosud zastavit jedině `Regulator = null`, jenže ta vlastnost nese „kam jet"
+  i „smím jet" najednou a vyhrává ten, kdo psal poslední. Jakmile bude chtít robota dočasně
+  podržet někdo jiný než mise (restart kamer po zaseknutí, servisní okno, recovery manévr), začne
+  se o ni přetahovat. `StopHold` to rozděluje a je **počítaný** — robot stojí, dokud drží kdokoli.
+- **Hotovo:** `IDriveHold` / `StopHold` / `DriveHoldRegistry` v `ARBot.Common/Runtime`, napojení
+  v `ControlLoop`, `DriveCommandMsg` **verze 3** (`Held`). Brzdí se **rampou** `−MaxDecceleration·dt`
+  jako u zastaralé dráhy, ne tvrdou nulou; nouzové zastavení zůstalo vedle a nedotčené.
+- **Čtyři rozhodnutí, která stojí za zapsání** (detail v [plan-drive-hold.md](plan-drive-hold.md)):
+  důvod je **povinný** a jde do logu i do zprávy (jinak „robot stojí a nikdo neví proč");
+  **žádný finalizér** (uvolnění jen vědomé — kdyby token pouštěl GC, robot by se rozjel proto, že
+  někomu vypadla reference); **neznámý stav motorů není stání**; mise se **nemigrují**, protože
+  `Regulator = null` na konci mise znamená „už nikam nejedu", ne „chvíli počkej".
+- ⚠️ **Test mě chytil při chybném odhadu, ne kód:** dobrzdění z 1,2 m/s při `MaxDecceleration`
+  0,5 m/s² trvá **2,4 s = 120 taktů**, a já testu dal 30 — vypadalo to jako vada rampy, byla to
+  aritmetika v testu.
+- **Testy:** 15 nových (dva zdroje a pořadí uvolnění, idempotentní `Dispose`, stání bez motorů,
+  rampa místo skoku, příznak ve zprávě, serializace v3, odzbrojení i opětovné ozbrojení detektoru
+  záseku, držení v JSONu stránky i s pádem zdroje, tlačítko zotavení a jeho endpoint). Celkem
+  `ARBot.Common.Tests` **1468**, `ARBot.Runtime.Tests` **115**, buildy `ARBot` (x64)
+  i `ARBot.Headless` (OrangePI) čisté.
+- **Fáze 2 hotová týž den:** detektor záseku v `GlobalNavigator` se odzbrojí i pod **drženým**
+  stopem (`OnDriveCommand(emergencyStop, held)`; pole se přejmenovalo na `legitimniStani`, protože
+  obojí znamená totéž — „robot stojí právem"). Bez toho by plánované zastavení po 10 s vypadalo
+  jako zásek a robot by začal **zavírat hranu** kvůli tomu, že čekal na opravu kamery. Druhý test
+  hlídá i opak: **po uvolnění se detektor zase ozbrojí**, jinak by jedno zastavení odzbrojilo
+  zásek nadobro.
+- **Stránka náhledu** má řádek **„zastaveno: …"** s důvody. Čte se ze **živé** smyčky
+  (`WebStatus.HoldReasonsSource` jako šev kvůli testům), protože v `DriveCommandMsg` je jen
+  příznak — texty by se ve zprávě opakovaly 10× za sekundu. Zdroj je v `try`: diagnostika nesmí
+  shodit náhled (precedens z 6. 9.), a test to ověřuje vyhazující lambdou.
+- ✅ **Fáze 3 hotová a POPRVÉ OVĚŘENÁ NA ROBOTU** (autor zapnul robota): `CameraRecoverySupervisor`
+  po 15 selhaných dotazech vezme hold, počká na stání a recykluje sdílený RealSense `Context`.
+  Ruční spuštění je tlačítkem **Zotavit kamery** (`POST /camerarecover`) — bez něj by se hypotéza
+  dala ověřit jedině čekáním, až porucha přijde sama.
+  Průběh na robotu (16:12): žádost → hold → „robot stojí" → obě D435 uvolnily handle za 2 s →
+  kontext vyměněn → hold uvolněn → **obě kamery zpátky za 10 s**. Proces nespadl.
+- ⚠️⚠️ **První verze na zařízení ZATUHLA a byla to moje chyba v návrhu.** Bourala pipeline přímo
+  z vlákna supervizora; vlákno kamery přitom sedělo v `TryWaitForFrames` a souběžný
+  `pipeline.Stop()` se **nevrátil**. `RecoverCameras` nedoběhla → **neuvolnil se `StopHold`** →
+  robot stál, dokud jsem nerestartoval službu. Pipeline librealsense není bezpečná pro souběžný
+  `Stop` a `Wait`. Léčba: `IRecoverableCamera` je teď **žádost a potvrzení**, kamera si pipeline
+  zbourá sama ve své smyčce a zaparkuje se; supervizor čeká na potvrzení od všech (5 s), a když
+  se nedočká, **kontextem nehne** — nativní pád je horší než mrtvá kamera.
+- ✅ **Dvě věci na tom selhání jsou dobrá zpráva.** Chování bylo **bezpečné** (robot stál) a
+  **vysvětlené** — stránka u toho psala „zastaveno: zotavení kamer", takže bylo hned vidět proč;
+  přesně kvůli tomu je důvod u holdu povinný. A hlavně: v tom pokusu se **zdravá kamera po
+  teardownu okamžitě zasekla** do známého „failed to set power state", kdežto s recyklací kontextu
+  se obě vrátily za 10 s. Je to nepřímé, ale zatím nejsilnější doklad, že recyklace tu poruchu léčí.
+- ✅✅ **A PAK TO PŘIŠLO SAMO — zotavení funguje na skutečné poruše.** V 16:49:55 zamrzla barva
+  levé kamery, teardown, 15× `failed to set power state` (týž zásek, který dřív trval 343 s
+  a 22 min), v 16:50:14 supervizor vzal hold, v 16:50:16 vyměnil kontext a **v 16:50:24 byly obě
+  kamery zpátky**. Od zamrznutí do obnovy **29 s**; hold držel 2 s. Tím je hypotéza z 12. 9.
+  („zaseknutý je náš proces, pomůže jen obdoba restartu služby") **změřená, ne odvozená**.
+- ✅ **Zotavení vyšlo 5× z 5** (16:50, 17:05, 17:06, 17:15, 17:51), pokaždé za 28–29 s. Za 95 minut
+  sledování 9 zamrznutí streamu.
+- ⚠️ **Rozpad podle kamer je ale nápadný: levá 5 zamrznutí = 5 zaseknutí, pravá 4 zamrznutí = 4×
+  samovolné zotavení za 2–4 s.** Na vzorku devíti už to není náhoda k odmávnutí (p ≈ 0,008) a ukazuje
+  to na něco **fyzického** — port, kabel, větev hubu. Další krok: **prohodit kamery mezi porty**
+  a vidět, jestli se porucha stěhuje s portem, nebo s kamerou.
+- ⚠️ **Supervizor je obvaz, ne léčba příčiny.** Levá kamera v 17:05:35 naběhla po zotavení a **za
+  13 s zamrzla znovu** → další zaseknutí → další zotavení. Za jízdy by to znamenalo zastavení
+  na ~28 s každých pár minut. Pořád nesrovnatelně lepší než mrtvá kamera do konce běhu, ale
+  vyřešené to není.
+- ⚠️ **Robot u toho STÁL** (bez mise), takže hold neměl co brzdit —
+  koordinace s bržděním je pořád jen z testů. A **mechanismus zásek to nevysvětluje, jen léčí**:
+  proč teardown vede k zaseknutí jen asi ve 4 % případů (3 zaseknutí na 82 zamrznutí streamu),
+  se neví.
+- ⚠️ **Padl tím i můj vlastní návrh vstřikovat poruchu uměle** — autor se zeptal, jestli je umělá
+  porucha prokazatelně totéž co skutečná, a při rozboru vyšlo najevo, že **není**: ta z 16:08
+  běžela ve světě, kde uvnitř librealsense visel deadlock, a zasekla se napoprvé, kdežto skutečná
+  se zasekne ve 4 % teardownů. Dobře, že se to neudělalo — měřilo by se něco jiného.
+- **Autor večer prohodil kamery mezi USB porty** (ověřeno na sériových číslech). Hned nato se
+  zasekla **„Right"**, tedy ta, která je teď na portu po zaseknuté — **porucha zůstala u portu,
+  ne u kamery**. Po druhé epizodě (19:10, zase „Right") je bilance **8 tvrdých záseků z 8 na portu
+  `2-1.3`**, ať na něm visí kterákoli kamera — podezřelý je tedy port/kabel/větev hubu, ne kamera.
+  ⚠️ Pět z těch osmi je ale z doby, kdy se detekovala jen podoba A, takže poměr může být nadsazený.
+  Zotavení zabralo ve všech třech epizodách po prohození (obnova 29–36 s) a brzda proti opakování
+  se správně NEspustila — předchozí zotavení drželo 39 min, tedy úspěch.
+- ⚠️ **T265 se při tom rozbila jinak a software ji nespraví:** připojí se, ale **nedává pózu**,
+  vlastní hardware reset selže na `failed to set power state` a **nepomůže ani restart služby**.
+  Je to dokumentovaný stav po zpackaném bootu — **chce to fyzicky odpojit a zapojit kameru**.
+- **Hotovo:** T265 zapojena do zotavení (`IRecoverableCamera`), takže se před výměnou kontextu
+  uvolní. Bez toho jí zůstaly zaseknuté handle a zotavení jí nepomohlo — ověřeno na robotu.
+- ⚠️⚠️ **A hned z toho vznikla regrese, kterou jsem musel opravit.** Protože poruchu T265 recyklace
+  **nelecí**, hlásila si o zotavení dokola a supervizor kvůli jedné vadné kameře **bral každých
+  60 s dolů i obě zdravé D435** a pokaždé zastavil robota. Léčba: **odstup se po neúspěchu
+  zdvojnásobuje** (60 s → 2 → 4 … max 15 min) plus hláška, co s tím. Ověřeno na robotu
+  (*„predchozi zotaveni NEPOMOHLO (1x po sobe) - dalsi odstup 2 min"*).
+  **Obecné poučení: lék, který oslepí všechny kamery naraz, se nesmí opakovat donekonečna** —
+  a pojistka „aspoň 60 s", napsaná přesně proti tomuhle, na to nestačila.
+- ⚠️⚠️ **A našla se DRUHÁ PODOBA téhož záseku, kterou zotavení nikdy nespustilo.** Levá kamera
+  po zamrznutí zmlkla, ale v logu **nebyl ani jeden selhaný dotaz** — dotaz totiž projde a kameru
+  jen *nenajde* (`uvcvideo` si ji vzal zpět, ověřeno přes `/sys/…/driver`). `RecoveryNeeded`
+  přitom počítalo jen *selhané* dotazy, takže kamera zůstala mrtvá a **nebylo to nikde vidět**.
+  Opraveno: počítá se **každý neúspěšný pokus o připojení**, a skutečně odpojený kabel od toho
+  odliší `everConnected` (kamera, která nikdy nenaběhla, zotavení nespouští).
+  **Poučení: „v logu nic" není totéž co „nic se neděje".**
+- ✅ **T265 fyzicky přepojena (19:04) a je zdravá:** na sběrnici jako `8087:0b37` (tedy
+  nabootovaná, ne Movidius), stáří zpráv 0,01 s a **žádné `5 s bez pozy`** — hlídka by při
+  chybějící póze sepnula do 5 s, takže kamera dává i pózu, ne jen gyro. Potvrzuje to diagnózu:
+  ten stav se softwarem spravit nedal, replug ano.
+- ⚠️ **T265 se po replugu za 1,5 h zasekla znovu** a zotavení jí nepomáhá — takže i s backoffem
+  by kvůli ní šly každých 15 min dolů i obě zdravé D435. Doplněno: po **třech marných zotaveních
+  se to u dané kamery VZDÁ** (per kamera, samo se to zruší, až se chytne), robot jede dál bez ní
+  a do logu jde pokyn k fyzickému přepojení. **Hláška nově jmenuje kameru**, která si o zotavení
+  říká — do té doby v ní bylo natvrdo „typicky T265", tedy hádání zabudované do diagnostiky.
+- ⚠️⚠️ **Brzda proti nekonečnému opakování mě stála TŘI pokusy a první dva jsem prohlásil za
+  funkční po jediném pozorování.** (a) „další žádost do 3 minut" — **backoff si ten odstup sám
+  natáhl** nad práh, takže se počítadlo pokaždé vynulovalo: 24 zotavení za hodinu, vzdání nikdy.
+  (b) „chytla se mezitím aspoň na chvíli" — T265 se po každém zotavení na ~7 s **skutečně
+  připojí** a teprve pak zjistí, že nedává pózu, takže zase reset. ✅ (c) Teď se neměří
+  „pomohlo/nepomohlo", ale **přímo ta škoda**: 3 zotavení kvůli jedné kameře za 15 min → vzdát.
+  **Kritérium, které popisuje škodu, nejde obejít tím, jak se porucha chová.** Ověřeno na robotu
+  21:29:22 (vzdalo to T265 a od té doby klid).
+- ✅ **Rozhodnutí autora: T265 se odpojí natrvalo** — dělá víc potíží než užitku, viz
+  [decisions.md](decisions.md). Vedlejší přínos: je to zároveň dávno plánovaný test „běh bez T265"
+  k hypotéze `CLEAR_HALT`.
+- **Robot na noc vypnut** (`POST /poweroff`).
+- **Rozpracováno / další krok:** nasbírat víc epizod po prohození portů
+  a hlavně **zotavení za jízdy** (mise + přirozený výpadek).
+- **Odkazy:** `Src/ARBot.Common/Runtime/StopHold.cs`, `Src/ARBot.Common/Runtime/ControlLoop.cs`,
+  `Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs`, `Src/ARBot.Runtime/Web/WebStatus.cs`,
+  `Src/ARBot.Runtime/Robot/CameraRecoverySupervisor.cs`, `Src/ARBot.HAL/Devices/Camera/IRecoverableCamera.cs`,
+  [plan-drive-hold.md](plan-drive-hold.md), [path-following.md](path-following.md),
+  [headless.md](headless.md).
+
 **Mise Track přichycuje všechna místa předem** — na pokyn autora („body v track misi přichyť na
 mapu, jinak se může stát, že leží daleko a nejsou dosažitelné").
 
@@ -79,6 +207,10 @@ mapu, jinak se může stát, že leží daleko a nejsou dosažitelné").
   (294 s CPU za 124 s behu), zatimco `PerfMsg` hlasi 29,8 % — ten meri jinou veci nez celkovou
   zatez procesu. Simulace nad velkou mapou tedy **neni meritko vykonu robota**: na zelezu snimky
   dava D435 a render neexistuje.
+- ⚠️ **Autor pozdeji hlasil, ze se to uz neprojevuje — coz NENI totez co vyresene.** Pricina se
+  nenasla, mezitim se menil kod (prichyceni se presunulo do `Depart`, `TrackMsg` sel na verzi 3),
+  takze to mohl byt soubeh i nechtena oprava. Kdyby se to vratilo, rozhodne to, **jaka mapa** to
+  byla a jestli robot mezitim **jel dal** (pak je to vycerpane CPU, viz vyse) nebo stal.
 - **Zapsan postup, jak to priste chytit** (dotnet-stack + `PerfMsg`) do
   [headless.md](headless.md); v misi zustava mereni doby prichyceni, ktere se do `Trace` ozve
   pri > 200 ms.
@@ -147,6 +279,35 @@ za sjízdné."
   [record-replay.md](record-replay.md).
 
 ---
+
+**Popularizační stránka o softwaru robota** (`doc/prezentace.html`) — na pokyn autora, pro
+prezentaci práce na webu.
+
+- **Pro koho:** laik / středoškolák, spíš marketing než technický popis; pohled hodně shora.
+  Celý řídicí řetězec jako **čtyři otázky, které si robot 10×/s odpovídá** (co je kolem mě →
+  kde jsem → kudy → jak jet), k tomu mise, ovládání z telefonu, simulace a záznam.
+- **Forma:** jeden samostatný HTML soubor bez závislostí (fonty z Google Fonts, jinak nic),
+  světlé i tmavé téma, **čtyři ručně kreslené SVG schémata** (řídicí smyčka, obraz → mapa okolí,
+  sloučení senzorů, šev skutečný vs. virtuální HW) a šest snímků z `doc/media/` — obrázky se
+  **nepřidávaly ani nepřepisovaly**, použily se existující.
+- **Čísla v textu jsou z měření vedených v repu** (88,2 % vs. 78,0 % u rozpoznání cesty, 2,7 ms
+  na NPU, kurz 24° → 3° po kalibraci, plazení 0,05 → 0,49 m/s, zotavení kamery za 29 s,
+  1 600+ testů). Sekce „Kde to dnes je“ přiznává, co je ověřené jen v simulaci.
+- **Jak si ji pustit:** otevřít soubor v prohlížeči, nebo `doc/` servírovat staticky
+  (obrázky se odkazují relativně jako `media/*`). Ověřeno v prohlížeči (kódování, obě témata,
+  vykreslení všech čtyř SVG).
+- **Podklad pro Google Sites** (`doc/prezentace-google-sites.md`) — doména **arbot.cz** míří na
+  Google Sites a autor chce **nativní bloky Sites**, ne vložení stránky rámečkem. Soubor je přepis
+  prezentace blok po bloku (13 sekcí, text k nakopírování, u každého obrázku jméno souboru
+  a popisek). **Sites neumí tabulky ani SVG**, takže obě tabulky jsou přepsané na odrážky a čtyři
+  schémata jsou vyexportovaná do PNG (`doc/media/prezentace-schema-*.png`, 1600 px, světlá paleta).
+  Export dělá **headless Chrome** ze stejného SVG, ne snímek obrazovky — postup je na konci toho
+  souboru. ⚠️ `--virtual-time-budget` je tam nutný, jinak se schéma vysází náhradním písmem,
+  protože Chrome vyfotí stránku dřív, než dorazí font z Google Fonts.
+- **Zjištěno k případnému opuštění Sites:** pro statickou stránku na vlastní doméně je zdarma
+  **Azure Static Web Apps** (2 vlastní domény + TLS), kdežto **App Service F1 vlastní doménu ani
+  vlastní certifikát neumí** — je to častá záměna. Nejlevnější na údržbu by byl GitHub Pages,
+  protože repo na GitHubu už je. Nic z toho se zatím neudělalo, jen zjistilo.
 
 ## 2026-09-12
 

@@ -13,6 +13,35 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-13 — T265 se odpojí NATRVALO: dělá víc potíží než užitku
+
+**Co:** Autor rozhodl 13. 9. 2026 večer, že se **T265 z robota odpojí natrvalo**.
+
+**Proč:** Za jediné odpoledne se ukázalo, že je to nejporuchovější kus vizuální sestavy:
+
+- Po prohození USB portů se dostala do stavu „připojí se, ale **nedává pózu**" (zpackaný boot),
+  z něhož se nedostala ani restartem služby. Její vlastní hardware reset selhal na
+  `failed to set power state`.
+- **Fyzický replug ji spravil jen na ~1,5 hodiny**, pak totéž znovu.
+- Recyklace sdíleného kontextu (léčba, která na D435 zabírá 8× z 8) jí **nepomáhá**, a protože
+  kontext sdílejí všechny kamery, **stahovala s sebou i obě zdravé D435** — než se doplnilo
+  vzdávání, bylo to 24 zotavení za hodinu, tedy robot dolů každé dvě minuty.
+- Historicky k ní patří i SIGSEGV v `tm_boot` (3. 9. 2026) a skok `CLEAR_HALT` z 1 na ~72 po
+  jejím přidání — je tedy hlavním podezřelým i u výpadků D435.
+
+**Co se tím ztrácí:** druhá reference úhlové rychlosti ve fúzi (napojená 6. 9. 2026). Není to
+absolutní kurz — ten z ní nikdy nevznikl —, takže hlavní referencí zůstává VN100 + gyro a
+`GPS/heading`. Ztráta je tedy menší, než jak dlouho se na napojení pracovalo.
+
+**Důsledky / co ověřit po odpojení:** jestli klesnou výpadky D435 (hypotéza `CLEAR_HALT` z
+[hardware.md](hardware.md)) — to je vlastně dávno plánovaný test „běh bez T265", který se
+tímhle udělá sám. Kód zůstává: `T265TrackingCamera` i její zapojení do zotavení se nemažou,
+jen tam kamera nebude.
+
+**Odkazy:** [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md),
+[devlog.md](devlog.md) 13. 9. 2026.
+
+
 ### 2026-09-12 — Mise `magcal` registr 23 před měřením VYMAŽE (a po nedokončení vrátí), neskládá
 
 **Co:** `MagCalMission` si na začátku zapíše do registru 23 jednotkovou kompenzaci — **jen do

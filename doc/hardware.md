@@ -274,19 +274,121 @@ naprostá většina se **sama zotaví za 2–13 s**. Slepá ulička je vzácněj
 ⚠️ **Hlídka zahodila i funkční barvu.** Zamrzla hloubka, barva chodila — a `Teardown` bourá pipeline
 celou. Při `backproject=npu` je přitom barva to, z čeho se počítá pravděpodobnost cesty.
 
-#### Jak ji oživit za jízdy — žebříček (NEIMPLEMENTOVÁNO, NEOVĚŘENO)
+#### ✅ Léčba nalezena, naimplementována a ZMĚŘENA NA SKUTEČNÉ PORUŠE (13. 9. 2026)
 
-1. **Recyklovat sdílený `Context`** — po *N* selhaných dotazech ho zahodit a založit znovu, tedy
-   udělat uvnitř procesu to, co dnes dělá restart služby. **Po měření výš je to jediný kandidát,
-   který dává smysl:** vada je v procesu a mimo proces na ni nedosáhneme. Cena: kontext sdílejí
-   *všechny* kamery (to je záměr z 3. 9., aby `tm_boot` neběžel dvakrát), takže je to „měkký restart
-   celé vizuální cesty" — pár sekund bez obrazu, ale s běžící misí.
-2. **Neopírat reconnect o `QueryDevices`.** Po *N* selháních zkusit `pipeline.Start(cfg)` naslepo —
-   je to jiná cesta kódem a dnešní stav je prokazatelně beznadějný, takže to nemůže uškodit. Levné,
-   ale samo o sobě nejspíš nestačí (`Start` si zařízení taky vyhledává).
-3. ~~Reset USB portu~~ — **vyzkoušeno 12. 9. 2026, NEFUNGUJE** (viz tabulka výš). Nezkoušej znovu.
-4. ~~Odpojit `uvcvideo`~~ — **vyzkoušeno 12. 9. 2026, NEFUNGUJE.** Totéž.
-5. **Jet dál po jedné kameře** (dnešní chování) — s tím, že stránka to hlásí (`e: true`, rostoucí stáří).
+**Recyklace sdíleného `Context`u zaseknutou kameru probere.** Dělá to
+`CameraRecoverySupervisor` (viz [plan-drive-hold.md](plan-drive-hold.md)) — po 15 selhaných
+dotazech vezme `StopHold`, počká, až robot skutečně stojí, vymění kontext a pustí.
+
+**Změřeno na spontánní poruše** (13. 9. 2026, 16:49:55–16:50:24, robot stál bez mise):
+
+| čas | co |
+|---|---|
+| 16:49:55 | `Left: BARVA zamrzla (5,0 s stejné razítko)` → teardown |
+| 16:49:57–16:50:13 | `QueryDevices selhalo: failed to set power state` **15×** — týž zásek jako dřív |
+| 16:50:14 | supervizor vzal hold, potvrzeno stání |
+| 16:50:14–16 | obě D435 uvolnily handle **na svém vlákně** |
+| 16:50:16 | kontext vyměněn, hold uvolněn (držel 2 s) |
+| 16:50:24 | **obě kamery připojené zpátky** |
+
+**Od zamrznutí do obou kamer zpátky 29 s** proti 343 s a 22 minutám v předchozích epizodách,
+kde to skončilo až restartem služby. Druhá, zdravá kamera projde recyklací s sebou (kontext je
+sdílený) a vrátí se také.
+
+**Druhá epizoda týž den potvrdila první** (17:05:07 zamrzla barva → 17:05:25 supervizor →
+17:05:35 obě kamery zpátky, **28 s** proti 29 s u první). Doba je daná hlavně prahem detekce:
+~18 s čekání na 15 selhaných dotazů, pak ~10 s na výměnu kontextu a připojení. Kdyby bylo potřeba
+rychleji, škrtá se na `QueryFailuresBeforeRecovery` — ten práh ale chrání před ojedinělým
+selháním dotazu nad běžícími streamy (vidáno 1. 9. 2026).
+
+#### ⚠️ Statistika sezení: léčba funguje, ale LEVÁ kamera je něčím jiná
+
+Sezení 13. 9. 2026, 16:17–17:52 (95 min), robot **stál bez mise**:
+
+| kamera | zamrznutí streamu | z toho se sama zotavila | z toho skončila zaseknutím |
+|---|---|---|---|
+| **Left** | 5 | **0** | **5** — všechna vyléčil supervizor |
+| **Right** | 4 | **4** (za 2–4 s) | 0 |
+
+**Zotavení vyšlo 5× z 5**, pokaždé za 28–29 s. Ale ten rozpad podle kamer je nápadný a na vzorku
+devíti už není náhoda k odmávnutí (Fisherův test p ≈ 0,008): **levá kamera se po zamrznutí zasekne
+pokaždé, pravá nikdy**. To ukazuje na něco fyzického — port, kabel, větev hubu — ne na obecnou
+vlastnost driveru. **Další diagnostický krok je prohodit kamery mezi porty**: jestli se zaseknutí
+přestěhuje s portem, je to železo; jestli s kamerou, je to ta kamera.
+
+⚠️ **A hlavně: supervizor je obvaz, ne léčba příčiny.** Levá kamera v 17:05:35 naběhla po zotavení
+a **za 13 s zamrzla znovu** (17:05:48) → další zaseknutí → další zotavení v 17:06:27. Za jízdy
+by to znamenalo, že robot každých pár minut na ~28 s zastaví. Pořád je to nesrovnatelně lepší než
+mrtvá kamera do konce běhu, ale **není to vyřešené**.
+
+⚠️ Podíl zaseknutí je tu **5 z 9**, tedy mnohem víc než dřívější odhad 4 % (3 z 82 přes celý
+journal) — ten starší je nejspíš vedle, epizody se v něm hledaly zpětně a část mohla skončit
+restartem služby, aniž se to poznalo.
+
+⚠️ **Mechanismus to pořád nevysvětluje, jen léčí.**
+Co bylo vyzkoušené a **nefunguje** (nezkoušej znovu): ~~reset USB portu~~ a ~~odpojení
+`uvcvideo`~~ — obojí změřeno 12. 9. 2026, viz tabulka výš.
+
+#### Prohození kamer mezi porty (13. 9. 2026 večer) — předběžně to vypadá na PORT
+
+Autor prohodil kamery mezi USB porty (ověřeno na sériových číslech: `2-1.2` a `2-1.3` si je
+vyměnily). Předtím se zasekávala vždy **Left** (SN 740112071040), 5× z 5; pravá nikdy.
+
+**Tvrdý zásek (podoba A) zůstal na portu `2-1.3`, ne u kamery.** Sedm epizod dohromady:
+
+| kdy | port `2-1.3` | port `2-1.2` |
+|---|---|---|
+| před prohozením | **Left**: 5 zamrznutí → **5× tvrdý zásek** | **Right**: 4 zamrznutí → 4× samo za 2–4 s |
+| po prohození | **Right**: **3× tvrdý zásek** (18:42, 19:10, 19:49) | **Left**: 1× podoba B (18:56) |
+
+Zásek podoby A tedy **osmkrát z osmi padl na port `2-1.3`**, ať na něm visela kterákoli
+kamera. Podezřelý je tedy **port / kabel / větev hubu**, ne kamerová jednotka.
+
+⚠️ **Co to NEDOKAZUJE:** pět epizod před prohozením se měřilo v době, kdy se detekovala jen
+podoba A — podoba B (kamera se ztratí z výčtu, v logu nic) mohla u pravé kamery projít bez
+povšimnutí, takže poměr 5:0 může být nadsazený. Po opravě detekce už jsou obě podoby vidět
+a další data budou srovnatelná.
+
+Rozhodovací pravidlo pro ně platí dál: **zásek na „Right" = port/kabel, zásek na „Left" = ta
+kamera.** (Jména driveru se váží na sériové číslo, takže se prohozením nezměnila.)
+
+#### ⚠️ Zásek má DVĚ podoby a ta druhá se dlouho schovávala
+
+Po prohození portů se ukázalo, že tentýž zásek umí vypadat dvojím způsobem:
+
+| podoba | co dělá dotaz na sběrnici | jak se pozná |
+|---|---|---|
+| **A** | hodí `failed to set power state` | v logu každou vteřinu `QueryDevices selhalo` |
+| **B** | **projde a kameru nenajde** | v logu **nic** — driver mlčky zkouší dál |
+
+Obojí má tutéž příčinu: po teardownu si zařízení vezme zpátky `uvcvideo` a librealsense se
+k němu už nedostane (ověřeno `readlink` na `/sys/bus/usb/devices/2-1.*/…:1.0/driver`).
+
+⚠️ **Podoba B nespouštěla zotavení vůbec**, protože `RecoveryNeeded` počítalo jen *selhané* dotazy.
+Kamera tak zůstala mrtvá a **v logu po ní nebyla ani stopa** — z venku se to pozná jen podle
+rostoucího stáří senzoru na stránce. Opraveno 13. 9. 2026: počítá se **každý neúspěšný pokus
+o připojení**. Skutečně odpojený kabel od toho odliší příznak `everConnected` (kamera, která nikdy
+nenaběhla, zotavení nespouští — jinak by u chybějícího kabelu bral lék dolů i zdravé kamery).
+
+#### ⚠️ T265 se při tom rozbila jinak — a tuhle poruchu recyklace kontextu NEVYLÉČÍ
+
+Po prohození začala T265 dělat něco jiného než D435: **připojí se, ale nedává pózu**
+(`5 s bez pozy` → restart pipeline → dokola), její vlastní hardware reset selže na
+`failed to set power state` a **nepomůže ani restart služby**. To je dokumentovaný stav po
+zpackaném bootu (viz sekce o `tm_boot` výš) — chce to **fyzicky odpojit a zapojit kameru**,
+softwarem se to spravit nedá. ✅ **Potvrzeno týž den:** po replugu (19:04) je T265 hned zdravá —
+hlásí se jako `8087:0b37`, stáří zpráv 0,01 s a hlídka `5 s bez pozy` mlčí.
+
+⚠️ **A z toho vzešla regrese, kterou bylo nutné hned opravit.** T265 byla do zotavení zapojena
+týž den (implementuje `IRecoverableCamera`, takže se před výměnou kontextu uvolní — to je správně
+a funguje). Jenže protože její poruchu recyklace **nelecí**, hlásila si o zotavení pořád dokola
+a supervizor kvůli ní **bral každých 60 s dolů i obě zdravé D435** a pokaždé zastavil robota.
+Léčba: **odstup se po neúspěšném zotavení zdvojnásobuje** (60 s → 2 → 4 … nejvýš 15 min) a do logu
+jde hláška, která rovnou říká, co s tím (fyzický replug). Ověřeno na robotu.
+
+**Poučení, které platí obecně:** lék, který oslepí všechny kamery naraz, se **nesmí opakovat
+donekonečna**. Šedesátisekundový odstup, se kterým to bylo napsané, na to nestačil — u poruchy,
+kterou lék neřeší, byl pořád horší než porucha sama.
 
 ### Sériové porty na Orange Pi
 

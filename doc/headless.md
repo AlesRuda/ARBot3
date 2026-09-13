@@ -322,6 +322,11 @@ Obnovuje se každou sekundu.
   zůstává stát: po pádu je to jediné, z čeho jde poznat, co robot dělal, když skončil.
 - **Stav mise**: jaká mise, v jaké fázi a oranžově **„čeká se na: …"** (kvalitní fix GPS, stisknutí
   nouzového zastavení, QR kód, uvolnění stopu, dojezd k cíli). Bez mise „mise: žádná".
+- **„zastaveno: …"** (od 13. 9. 2026) — **držená zastavení** (`StopHold`, viz
+  [path-following.md](path-following.md)) i s důvodem. Robot může stát bez nouzového zastavení
+  a bez konce mise — třeba po dobu restartu kamer — a bez téhle řádky to vypadá jako zásek,
+  který se začne hledat na špatném místě. Vlastní řádek, ne součást stavu mise: držet stop jde
+  i bez mise.
 - **Lišta**: vlevo přepínače — co se ukazuje (**půdorys | kamera | cesta**) a u půdorysu ještě
   měřítko (**2 m | 10 m | 50 m**, u kamery se skryje); vpravo **Emergency stop** (jen při
   `virtualhw=true`) a červený **Terminate**.

@@ -255,6 +255,20 @@ namespace ARBot.Runtime.Tests.Web
                         "trasa globalni navigace ma byt na pudorysu fialove videt");
         }
 
+        /// <summary>
+        /// Zotaveni kamer jde jen POSTem (GET by mohl vyvolat prefetch prohlizece) a bez beziciho
+        /// runtime vraci 409 - neni co zotavovat.
+        /// </summary>
+        [Test]
+        public async Task ZotaveniKamer_JenPostem_ABezRuntimu409()
+        {
+            var get = await klient.GetAsync("/camerarecover");
+            Assert.That((int)get.StatusCode, Is.EqualTo(405), "GET nesmi nic spustit");
+
+            var post = await klient.PostAsync("/camerarecover", null);
+            Assert.That((int)post.StatusCode, Is.EqualTo(409), "bez runtime neni co zotavovat");
+        }
+
         private static bool NajdiPixel(SkiaSharp.SKBitmap bmp, System.Func<SkiaSharp.SKColor, bool> podminka)
         {
             for (int y = 0; y < bmp.Height; y++)
@@ -698,6 +712,32 @@ namespace ARBot.Runtime.Tests.Web
         }
 
         // ---------------- Hlavicka stranky ----------------
+
+        /// <summary>
+        /// <b>Držená zastavení musí být na stránce vidět i s důvodem.</b> Robot může stát bez
+        /// nouzového zastavení a bez konce mise — třeba po dobu restartu kamer — a bez téhle
+        /// informace to vypadá jako zásek, který se začne hledat na špatném místě.
+        /// Viz doc/plan-drive-hold.md.
+        /// </summary>
+        [Test]
+        public void Hlavicka_UkazeDrzenaZastaveniISDuvodem()
+        {
+            var st = new WebStatus { HoldReasonsSource = () => new[] { "restart kamer", "servisni okno" } };
+            string json = st.ToJson(running: true);
+
+            Assert.That(json, Does.Contain("\"holds\":[\"restart kamer\",\"servisni okno\"]"));
+        }
+
+        [Test]
+        public void Hlavicka_BezDrzeniZadneHoldsNepise()
+        {
+            var prazdno = new WebStatus { HoldReasonsSource = () => new string[0] };
+            Assert.That(prazdno.ToJson(running: true), Does.Not.Contain("\"holds\""));
+
+            // A kdyz zdroj spadne, stranka musi prezit - diagnostika nesmi shodit nahled.
+            var vadny = new WebStatus { HoldReasonsSource = () => throw new InvalidOperationException("test") };
+            Assert.That(vadny.ToJson(running: true), Does.Not.Contain("\"holds\""));
+        }
 
         /// <summary>
         /// Hlavicka musi rict, <b>ktera binarka bezi</b> a jak dlouho — na zarizeni se nasazuje casto

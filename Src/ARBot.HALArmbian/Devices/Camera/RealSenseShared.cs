@@ -48,6 +48,41 @@ namespace ARBot.HAL.Devices.Camera
         }
 
         /// <summary>
+        /// <b>Zahodí sdílený kontext a založí nový.</b> Je to jediná známá léčba na zaseknutý
+        /// reconnect — viz níž.
+        ///
+        /// <para><b>Proč to existuje (12.–13. 9. 2026, ZMĚŘENO NA ZAŘÍZENÍ).</b> Po zbourání
+        /// pipeline se stane, že každý další <c>QueryDevices</c> hodí „failed to set power state"
+        /// a kamera se do konce běhu nevzpamatuje (jednou 343 s, jindy 22 min). Na živé zaseknuté
+        /// kameře se vyzkoušelo, že <b>reset USB portu ani odpojení <c>uvcvideo</c> nepomůže</b>,
+        /// zatímco <b>jiný proces si zařízení zabere bez problémů</b> — zaseknutý je tedy vnitřní
+        /// stav librealsense/libusb v NAŠEM procesu a spraví ho jedině restart služby. Tohle je
+        /// týž restart, jen uvnitř procesu. Viz doc/hardware.md.</para>
+        ///
+        /// <para>⚠️ <b>Volající MUSÍ mít zbourané všechny pipeline</b> (všech D435 i T265), které
+        /// z kontextu vznikly. Zahodit kontext pod běžící pipeline znamená nativní pád — a ten
+        /// <c>CrashLog</c> nezachytí. Koordinaci dělá <c>ARBotHW.RecoverCameras</c>.</para>
+        ///
+        /// <para>⚠️ <b>Starý kontext se ZÁMĚRNĚ nedisposuje.</b> Právě on je v podezření, že drží
+        /// zaseknuté handle, takže volat na něj <c>Dispose</c> znamená sáhnout do rozbitého
+        /// nativního stavu. Necháme ho GC a jdeme dál s novým — pár kilobajtů za běh, kde se to
+        /// stane jednou za desítky minut, je levnější než riziko pádu.</para>
+        /// </summary>
+        public static void RecycleContext(string caller)
+        {
+            lock (gate)
+            {
+                context = null;
+                Trace.WriteLine($"{caller}: sdileny RealSense kontext zahozen, zaklada se novy "
+                                + "(obdoba restartu sluzby uvnitr procesu).");
+            }
+
+            // Zalozeni je mimo zamek cteni vyse jen kvuli citelnosti; Context getter si zamek vezme.
+            var novy = Context;
+            Trace.WriteLine($"{caller}: novy kontext zalozen ({(novy != null ? "ok" : "SELHALO")}).");
+        }
+
+        /// <summary>
         /// Zjistí, zda je mezi vyčtenými zařízeními takové, které splní <paramref name="match"/>.
         /// <b>Jediné místo, kudy se smí volat <c>QueryDevices</c>.</b>
         /// </summary>

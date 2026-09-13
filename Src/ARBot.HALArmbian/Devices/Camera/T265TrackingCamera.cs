@@ -39,7 +39,7 @@ namespace ARBot.HAL.Devices.Camera
     /// <c>tm_boot</c> i kamery bez pozy. Detaily a rozbor minidumpu: RealSenseShared,
     /// doc/devlog.md 3. 9. 2026.</para>
     /// </summary>
-    public sealed class T265TrackingCamera : SensorBase<IMUState>, IIMU
+    public sealed class T265TrackingCamera : SensorBase<IMUState>, IIMU, IRecoverableCamera
     {
         /// <summary>Seriove cislo zarizeni; null = prvni dostupna T265.</summary>
         string sn;
@@ -174,6 +174,54 @@ namespace ARBot.HAL.Devices.Camera
         /// </summary>
         /// <returns>true = je; false = dotaz prosel a T265 mezi zarizenimi neni; null = dotaz sam
         /// selhal (to neni dukaz odpojeni - viz <see cref="RealSenseShared.Query"/>).</returns>
+        /// <summary>
+        /// Kolikrat po sobe se NEPODARILO pripojit — ať už dotaz na sbernici selhal
+        /// („failed to set power state"), nebo prosel a kameru <b>nenasel</b>. Nuluje se prvnim
+        /// uspesnym pripojenim.
+        ///
+        /// <para>⚠️ <b>Obe varianty se pocitaji dohromady, a je to oprava vady z 13. 9. 2026.</b>
+        /// Puvodne se pocitala jen selhani dotazu, protoze „kamera na sbernici neni" vypada jako
+        /// bezna situace s odpojenym kabelem. Jenze po teardownu si zarizeni vezme zpatky
+        /// <c>uvcvideo</c> a librealsense ho pak ve vyctu prestane videt — dotaz tedy nehazi nic,
+        /// jen vrati „neni tu". Zasek se timhle zpusobem <b>nikdy nespustil zotaveni</b> a kamera
+        /// zustala mrtva. Odlisit to od skutecne odpojeneho kabelu umi <see cref="everConnected"/>.</para>
+        /// </summary>
+        private int consecutiveConnectFailures;
+
+        private const int ConnectFailuresBeforeRecovery = 15;
+
+        /// <inheritdoc/>
+        public bool RecoveryNeeded => everConnected
+                                     && consecutiveConnectFailures >= ConnectFailuresBeforeRecovery;
+
+        /// <summary>
+        /// Byla kamera uz nekdy pripojena? <b>Bez teto podminky by se zotaveni spoustelo i na
+        /// kamere, ktera proste neni zapojena</b> - a protoze zotaveni oslepi VSECHNY kamery naraz,
+        /// byl by to u chybejiciho kabelu lek horsi nez nemoc.
+        /// </summary>
+        private bool everConnected;
+
+        /// <inheritdoc/>
+        public int FailedQueries => consecutiveConnectFailures;
+
+        /// <inheritdoc/>
+        public void RequestRelease() => releaseRequested = true;
+
+        /// <inheritdoc/>
+        public bool Released => released;
+
+        /// <inheritdoc/>
+        public void ResumeAfterRecovery()
+        {
+            consecutiveConnectFailures = 0;
+            released = false;
+            releaseRequested = false;
+        }
+
+        /// <summary>Zadost o uvolneni handle (z ciziho vlakna) a jeji potvrzeni (z vlakna kamery).</summary>
+        private volatile bool releaseRequested;
+        private volatile bool released;
+
         private bool? DevicePresent()
             => RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "T265"));
 
@@ -188,8 +236,22 @@ namespace ARBot.HAL.Devices.Camera
 
             // != true: kdyz se pritomnost nepodarilo zjistit (null), radeji pockame na dalsi
             // pokus, nez abychom slepe startovali pipeline.
-            if (DevicePresent() != true)
+            //
+            // SELHANI DOTAZU (null) se pocita zvlast: opakuje-li se, je zaseknuty cely kontext
+            // a ceka se marne - viz RecoveryNeeded. Tataz porucha jako u D435, jen tady trvala
+            // 11. 9. 2026 pres pul hodiny. Viz doc/hardware.md.
+            bool? present = DevicePresent();
+            if (present != true)
+            {
+                // ⚠️ Pocita se KAZDY neuspech, ne jen selhany dotaz (null). Zmereno 13. 9. 2026:
+                // po teardownu si zarizeni vezme zpatky uvcvideo a librealsense ho pak ve vyctu
+                // NEVIDI - dotaz tedy nehazi vyjimku, jen vrati "neni tu" (false). Driv se
+                // pocitalo jen null, takze prave tahle varianta zaseku zotaveni NIKDY nespustila
+                // a kamera zustala mrtva. Je to tataz porucha, jen jinak oblecena.
+                consecutiveConnectFailures++;
                 return false;
+            }
+            consecutiveConnectFailures = 0;
 
             try
             {
@@ -205,6 +267,7 @@ namespace ARBot.HAL.Devices.Camera
 
                 pipelineProfile = pipeline.Start(cfg);
                 connected = true;
+                everConnected = true;
                 Trace.WriteLine($"{Name}: pipeline pripojena.");
                 return true;
             }
@@ -287,6 +350,22 @@ namespace ARBot.HAL.Devices.Camera
         /// </remarks>
         protected override IMUState GetMeasurement()
         {
+            // ZADOST O UVOLNENI (zotaveni kamer): pipeline se bourá TADY, na vlastnim vlakne -
+            // cizi vlakno to delat nesmi (soubezny Stop a Wait librealsense zatuhne). Smycka
+            // zaroven PARKUJE, takze behem vymeny sdileneho kontextu nikdo nevola QueryDevices.
+            // Viz IRecoverableCamera a doc/plan-drive-hold.md.
+            if (releaseRequested)
+            {
+                if (!released)
+                {
+                    Teardown();
+                    released = true;
+                    Trace.WriteLine($"{Name}: handle uvolneny pro zotaveni, cekam na novy kontext.");
+                }
+                Thread.Sleep(ReconnectPeriodMs);
+                return null;
+            }
+
             // (Re)pripojeni: kdyz kamera chybi, nezahlcovat CPU a vratit null (bez udalosti).
             if (!EnsureConnected())
             {

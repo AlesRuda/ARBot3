@@ -246,6 +246,11 @@ namespace ARBot.Robot
                 schedTimer?.Dispose();
                 schedTimer = null;
 
+                // Supervizor zotaveni kamer ma vlastni vlakno - zastavit driv, nez se rozebere
+                // graf, at nesahne na kamery uprostred boureni.
+                try { CameraRecovery?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                CameraRecovery = null;
+
                 // Sberac metrik ma vlastni casovac, takze se zastavuje zvlast. Poradi je zamerne:
                 // az PO casovaci scheduleru, ale PRED odpojenim grafu - aby posledni snimek jeste
                 // mohl odejit do streamu.
@@ -511,6 +516,10 @@ namespace ARBot.Robot
             };
             Navigator = navigator;
             stages.Add(navigator);
+
+            // Supervizor zotaveni kamer. Hold si bere ze ZIVE smycky pres funkci: smycka se pri
+            // vyberu mise prestavuje, takze drzet si referenci by znamenalo drzet tu starou.
+            CameraRecovery = new CameraRecoverySupervisor(ARBotHW.Current, () => Navigator?.ControlLoop);
             connections.Add(loop.Output.Connect(navigator));
             connections.Add(navigator.Output.Connect(stream));
 
@@ -1054,6 +1063,12 @@ namespace ARBot.Robot
         /// Vystavena UI pro zadani cile. Viz doc/global-navigation-runtime.md.
         /// </summary>
         public GlobalNavigator GlobalNavigator { get; private set; }
+
+        /// <summary>
+        /// Supervizor zotaveni kamer (zaseknuty reconnect -> recyklace RealSense kontextu, pod
+        /// drzenym zastavenim). <c>null</c>, dokud runtime nebezi. Viz doc/plan-drive-hold.md.
+        /// </summary>
+        public CameraRecoverySupervisor CameraRecovery { get; private set; }
 
         /// <summary>
         /// Korelace occupancy gridu s mapou (odhad chyby polohy). Bez mapy nevznikne.
