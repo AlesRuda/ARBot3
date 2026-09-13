@@ -352,6 +352,16 @@ mapě, mrkev = cíl), `Arrived`, `OffRoute`, `NoRoute`, `StuckNoMotion`, `StuckN
   φ [s], zbývající vzdálenost [m], off-route vzdálenost, mrkev (ENU), `GlobalNavStatus`, stavy
   detektorů (A/B/C + jejich čítače) a počet uzavření. Do záznamu → ve View je zpětně vidět **celý
   příběh globální navigace**, včetně toho, proč se která hrana zavřela.
+- **`GlobalNavMsg` je od 12. 9. 2026 verze 2** — přibyl `GoalRadiusM`, tedy **dojezdový poloměr**
+  (`NavigatorOptions.ArrivalRadiusMeters`). Do zprávy patří proto, že **cíl bez něj nedává smysl**:
+  „dojel jsem" je tvrzení o dvojici (bod, poloměr) a ten druhý člen je nastavitelný — dokud byl jen
+  v konfiguraci navigátoru, nešla ze záznamu nakreslit **zóna dojezdu**
+  (viz [headless.md](headless.md)). Posílá se **i bez cíle**: je to nastavení navigace, ne vlastnost
+  cíle, a odběratel z něj kreslí zóny i pro místa, která ještě aktivním cílem nejsou. Ve verzi 1 se
+  čte nula. ⚠️ Při tom se opravila past: `navigatorOptions = null` (výchozí hodnota parametru
+  konstruktoru) se dosud ukládal jako `null` a default si doplňoval až `Navigator` — čtení
+  `navOptions` v `BuildMessage` by tedy padalo **v každém cyklu**. Default se doplňuje už
+  v konstruktoru.
 - Konverzi vlastní doména: `RouteProgress.ToLogMessage()` / stavový objekt → `GlobalNavMsg`
   (nikoli `GlobalNavMsg.FromDomain`, viz [CLAUDE.md](../CLAUDE.md)).
 - **Zobrazení obou zpráv ve world pohledu:** `GraphNavigationMsg` se kreslí jako vrstva „Trasa+graf"

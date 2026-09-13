@@ -38,6 +38,32 @@ namespace ARBot.Common.Occupancy
         /// </summary>
         public double MaxRangeM = 0;
 
+        /// <summary>
+        /// <b>Sirka klinu mezi zornymi poli barevnych streamu [stupne]</b>, ve kterem se dopisuje
+        /// semantika interpolovana z okoli (<see cref="WedgeFiller"/>); <b>0 = vypnuto</b>.
+        ///
+        /// <para>Zmereno 12. 9. 2026 z intrinsik v zaznamu: barva ma pri 640x480 HFOV 55,0 stupnu
+        /// a kamery jsou pootocene o +-29,3 stupne, takze mezi nimi zbyva <b>3,7 stupne</b>.
+        /// Vychozich 6 je ta mezera s rezervou na nepresnost montaze; sirsi nastaveni uz doplnuje
+        /// tam, kde kamera opravdu vidi, takze by jen prekryvalo skutecna mereni (ta se ale
+        /// neprepisuji, viz pojistka 2 v <see cref="WedgeFiller"/>).</para>
+        /// </summary>
+        public double WedgeFillDeg = 6.0;
+
+        /// <summary>Do jake vzdalenosti se klin doplnuje [m].</summary>
+        public double WedgeFillRangeM = 6.0;
+
+        /// <summary>Nejdelsi pricna mezera, pres kterou se interpoluje [m].</summary>
+        public double WedgeFillMaxGapM = 0.6;
+
+        /// <summary>
+        /// Duvera doplneneho vzorku proti skutecnemu pozorovani (0..1). ⚠️ <b>Vychozi 1,0 je
+        /// zmerena volba</b>, ne nedbalost: pri 0,5 se 13,3 % doplnenych bunek k prahu nedostalo,
+        /// protoze sousede u klinu jsou sami tesne pod prahem (p50 -0,95 az -1,10 proti prahu
+        /// -1,00). Pulena interpolace tedy bunku nerozhodne skoro nikdy.
+        /// </summary>
+        public double WedgeFillConfidence = 1.0;
+
         /// <summary>Duvera barevneho vzorku podle vzdalenosti (linearni pokles za
         /// <see cref="RoadFullRangeM"/> na 0 v <see cref="RoadMaxRangeM"/>).</summary>
         public float RoadConfidence(double range)
@@ -66,6 +92,14 @@ namespace ARBot.Common.Occupancy
             if (RoadMaxRangeM <= RoadFullRangeM)
                 throw new ArgumentException(
                     $"OccupancyIntegratorConfig: RoadMaxRangeM ({RoadMaxRangeM}) musi byt > RoadFullRangeM ({RoadFullRangeM}).");
+            if (WedgeFillDeg < 0 || WedgeFillDeg > 30)
+                throw new ArgumentException(
+                    $"OccupancyIntegratorConfig.WedgeFillDeg ({WedgeFillDeg}) musi byt 0..30 stupnu "
+                    + "(0 = vypnuto). Sirsi klin uz neni mezera mezi kamerami, ale plocha, kterou "
+                    + "kamera vidi - doplnovat ji by znamenalo hadat misto mereni.");
+            if (WedgeFillConfidence < 0 || WedgeFillConfidence > 1)
+                throw new ArgumentException(
+                    $"OccupancyIntegratorConfig.WedgeFillConfidence ({WedgeFillConfidence}) musi byt 0..1.");
         }
     }
 }

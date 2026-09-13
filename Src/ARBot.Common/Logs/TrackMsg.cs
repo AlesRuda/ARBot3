@@ -20,8 +20,16 @@ namespace ARBot.Common.Logs
     [Serializable()]
     public class TrackMsg : Message, IHasCaptureTime
     {
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        ///
+        /// <para><b>Verze 2</b> (2026-09-12) pridala <see cref="AllLatitudes"/> /
+        /// <see cref="AllLongitudes"/>, tedy <b>CELY seznam mist</b>, ne jen to, ktere se prave
+        /// obsluhuje. Bez nej nesel na pudorys nakreslit objezd jako celek — a prave ten je pri
+        /// dohledu nad zavodem potreba videt dopredu, ne az po bodech. Ve verzi 1 se cte prazdny
+        /// seznam a kresli se jen aktualni misto.</para>
+        /// </summary>
+        public const int FormatVersion = 2;
 
         /// <summary>Faze mise (<c>TrackPhase</c> jako int, aby zprava prezila doplneni hodnot).</summary>
         public int Phase;
@@ -59,6 +67,23 @@ namespace ARBot.Common.Logs
         /// <summary>Delka nalezene trasy na aktualni cil [m]; nula, kdyz se nezkousela.</summary>
         public double RouteLengthM;
 
+        /// <summary>
+        /// <b>Vsechna mista ze souboru</b> [rad], v poradi objezdu — sirky (verze 2).
+        /// Prazdne pole = zprava je stara verze nebo seznam neni.
+        ///
+        /// <para><b>Surova</b> mista, ne prichycena: prichyceni se dela az pri jizde na ten bod
+        /// (z aktualni polohy robota), takze pro zbytek seznamu zadne neexistuje. Rozdil je
+        /// jednotky metru a merny udaj <see cref="OffRoadM"/> zprava nese zvlast.</para>
+        ///
+        /// <para>Nese se v KAZDE zprave, ne jen v prvni: odberatel „latest-wins" (webovy nahled)
+        /// drzi posledni zpravu, takze seznam poslany jen jednou by pri prvni periodicke zprave
+        /// zmizel.</para>
+        /// </summary>
+        public double[] AllLatitudes;
+
+        /// <summary>Delky vsech mist ze souboru [rad]; stejna delka jako <see cref="AllLatitudes"/>.</summary>
+        public double[] AllLongitudes;
+
         /// <summary>Duvod preruseni; prazdny, kdyz mise prerusena nebyla.</summary>
         public string AbortReason;
 
@@ -94,6 +119,16 @@ namespace ARBot.Common.Logs
             bw.Write(AbortReason ?? string.Empty);
             bw.Write(ElapsedSec);
             Write(bw, TimeStamp);
+
+            // Verze 2: cely seznam mist. Delka se pise vzdy (i nula), aby cteni nemuselo hadat.
+            int pocet = AllLatitudes == null || AllLongitudes == null
+                        ? 0 : Math.Min(AllLatitudes.Length, AllLongitudes.Length);
+            bw.Write(pocet);
+            for (int i = 0; i < pocet; i++)
+            {
+                bw.Write(AllLatitudes[i]);
+                bw.Write(AllLongitudes[i]);
+            }
         }
 
         /// <inheritdoc/>
@@ -114,6 +149,24 @@ namespace ARBot.Common.Logs
             AbortReason = br.ReadString();
             ElapsedSec = br.ReadDouble();
             TimeStamp = ReadDateTime(br);
+
+            // Verze 1 (zaznamy do 12. 9. 2026) seznam nenesla - zustava prazdny, ne null,
+            // aby ho volajici nemusel testovat na null i na delku.
+            if (Verze < 2)
+            {
+                AllLatitudes = new double[0];
+                AllLongitudes = new double[0];
+                return;
+            }
+
+            int pocet = br.ReadInt32();
+            AllLatitudes = new double[pocet];
+            AllLongitudes = new double[pocet];
+            for (int i = 0; i < pocet; i++)
+            {
+                AllLatitudes[i] = br.ReadDouble();
+                AllLongitudes[i] = br.ReadDouble();
+            }
         }
     }
 }

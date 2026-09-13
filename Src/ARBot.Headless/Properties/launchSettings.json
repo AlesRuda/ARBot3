@@ -7,6 +7,10 @@
       "commandName": "Project",
       "commandLineArgs": "virtualhw=true no_uart=true web=8080 webopen=true map=OSM\\SyntetickyKoridor.osm"
     },
+    "ARBot.Headless - virtualni HW, profil track_hv.cfg": {
+      "commandName": "Project",
+      "commandLineArgs": "virtualhw=true no_uart=true web=8080 webopen=true config=config/track_hv.cfg"
+    },
     "ARBot.Headless - mise FreeRun, rovna mapa + nahled": {
       "commandName": "Project",
       "commandLineArgs": "virtualhw=true no_uart=true mission=freerun web=8080 webopen=true map=OSM\\SyntetickyRovny.osm"

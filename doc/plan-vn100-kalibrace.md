@@ -94,6 +94,19 @@ udělat z **kteréhokoli** budoucího záznamu bez znalosti stavu registru 23 p�
 Záložní plán, kdyby `UncompMag` v `vndotnetlib-0.4` nebyl: mise si registr 23 před měřením sama
 vynuluje (funkčně ekvivalentní, jen bez toho trvalého zisku pro offline).
 
+⚠️ **12. 9. 2026: platí ta ZÁLOŽNÍ větev — `UncompMag` je taky kompenzovaný.** `UncompMag`
+v `vndotnetlib-0.4` sice je a driver ho čte, ale změřeno na záznamu
+(`records/test/20260912-131024.rec`, 22 445 vzorků): `MagnetometerRaw` a `Magnetometer` jsou
+**bit po bitu shodné** (`max |raw − comp| = 0` G, model `comp = C·raw + d` dá `C = I`, `d = 0`).
+Že registr 23 přitom funguje, je jisté z druhé strany — zapsaná kalibrace nese `|b| = 0,123 G`
+a proložení koule dnes najde 0,0023 G. Ta věta „předpoklad je odstraněn konstrukčně" tedy
+**neplatila**, a nebyla to kosmetika: mise sbírala kompenzované pole a `WriteToSensor()` by
+reziduum zapsala zpátky, tedy dobrou kalibraci **smazala**. Od 12. 9. 2026 si proto mise registr
+23 před sběrem **sama vymaže** (jen do RAM) a při ukončení bez zápisu ho **vrátí** — podrobnosti
+a podmínky v [imu-and-frames.md](imu-and-frames.md). Trvalý zisk pro offline tím padá: re-fit ze
+záznamu je absolutní kalibrace **jen** u záznamu z mise magcal (nebo když se ví, že registr 23 byl
+jednotkový).
+
 **Model.** Senzor kompenzuje jako `m_comp = C · (m_raw − b)`; hledá se `C` (3×3) a `b` (3×1),
 tedy 12 parametrů registru 23. ⚠️ **Směr modelu potvrdit z ICD VN-100** — opačně vzatý dá
 výsledek, který vypadá věrohodně a je špatný. Referenční export tomu odpovídá
@@ -383,10 +396,17 @@ záznamu je podle nových pravidel **POUZITELNÁ**. Kryje to test
 
 **Zápis bez dalšího výjezdu.** Surové pole v záznamu je, takže report dá tatáž čísla, která by
 zapsala mise — normovaná na `|B|` **z registru 21 senzoru** (`--bref=0.4897`, WMM po `magmodel=`;
-default reportu 0,4818 je starý registr 21 a dal by úměrně jiná čísla):
+default reportu 0,4818 je starý registr 21 a dal by úměrně jiná čísla).
+
+✅ **Vzorec registru 23 je změřený na senzoru** (11. 9. 2026): VN aplikuje `C·(m − b)`, tedy
+**tentýž vzorec** jako náš `Apply`, a `B` se zapisuje přímo. ⚠️ **Měřit se to musí přes víc os
+a s nejednotkovou maticí** — v ose X vyjde posun `+0,199 G`, v ose Y `−0,202 G` (mezi kompenzací
+a výstupem leží registr 26, `diag(−1, 1, −1)`), a při `C = I` nejde odlišit `C·m − b` od
+`C·(m − b)`. Z jedné osy se dá usoudit pravý opak. Tabulka měření je v
+[decisions.md](decisions.md). Kalibrace **nasazená na robota 11. 9. 2026** včetně flash:
 
 ```
-VNWRG,23,1.121575,0.007452,0.007101,0.007452,1.103300,0.021040,0.007101,0.021040,1.022071,0.110929,-0.014435,0.049725
+VNWRG,23,1.121575,0.007452,-0.007101,0.007452,1.103300,-0.021040,-0.007101,-0.021040,1.022071,-0.110929,0.014435,0.049725
 ```
 
 Zapíše je `deploy/vnrestore.sh /dev/ttyUSB0 --magcal <12 čísel>` (nová volba; skript kontroluje
@@ -524,8 +544,9 @@ tasky v plánu jsou jemnější (proložení a pokrytí zvlášť, mise a runtim
       (odpoví překladač, minuta práce).
 - [ ] Když ano: přidat do `BinaryOutputConfig` v `VN100IMUBinary`, `IMUState.MagnetometerRaw`,
       `FormatVersion` 4, serializační test.
-- [ ] Když ne: záložní plán — mise vynuluje registr 23 před měřením; zapsat do dokumentu, že
+- [x] Když ne: záložní plán — mise vynuluje registr 23 před měřením; zapsat do dokumentu, že
       offline re-fit pak vyžaduje znalost registru 23 z doby nahrávání.
+      ⚠️ **Platí tahle větev** (12. 9. 2026): `UncompMag` v DLL je, ale je **kompenzovaný**.
 
 ### Task 4 — příkazy a čtecí cesta v driveru
 - [ ] `VnCommands`: buildery pro registr 23 (`MagnetometerCompensation`), registr 44
@@ -546,9 +567,10 @@ tasky v plánu jsou jemnější (proložení a pokrytí zvlášť, mise a runtim
 - [ ] Na začátku mise: přečíst registry 21/23/44 → do `MagCalMsg`; nastavit registr 44 na
       `Run`/`NoOnboard` (nezávislá kontrola). **Referenční `|B|` pro normalizaci se bere
       z přečteného registru 21**, ne z konstanty.
-- [ ] **Jen v záložní variantě Tasku 3** (když `UncompMag` v DLL není): mise navíc **vynuluje
-      registr 23** před sběrem a ohlásí to na stránce. S surovým polem tenhle krok **nesmí být** —
-      mazal by aktivní kalibraci bez důvodu.
+- [x] **Jen v záložní variantě Tasku 3** — a ta od 12. 9. 2026 platí: mise **vynuluje registr 23**
+      před sběrem (jen do RAM) a při ukončení bez zápisu ho **vrátí**. Když ho nejde přečíst ani
+      vymazat, mise **NEZAČNE** (`MagCalPhase.NotCleared`) — měřila by ze zkompenzovaného pole.
+      Kryje to sedm testů v `MagCalMissionTests` a `VirtualMagCalEndToEndTest`.
 - [ ] `MagCalMissionTests`: automat, koše, a **`Regulator == null` po celou dobu mise** — to je
       **bezpečnostní test**, ne kosmetika.
 - [ ] Serializační test `MagCalMsg` (vzor `PerfMsgSerializationTests`).

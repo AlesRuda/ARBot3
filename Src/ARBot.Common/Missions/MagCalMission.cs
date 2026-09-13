@@ -38,6 +38,15 @@ namespace ARBot.Common.Missions
         private DateTime firstSampleAt, lastSampleAt;
         private bool hsiBezi;
 
+        /// <summary>
+        /// Co bylo v registru 23 pred vymazanim — <c>null</c>, kdyz neni co vracet (mise
+        /// nezacala, nebo uz se zapsala nova kalibrace).
+        /// </summary>
+        private string reg23KVraceni;
+
+        /// <summary>Jednotkova kompenzace: <c>C = I</c>, <c>b = 0</c>, tedy nic se neaplikuje.</summary>
+        private const string Reg23Jednotkova = "1,0,0,0,1,0,0,0,1,0,0,0";
+
         public MagCalMission(IMagCalControl control, IRegulatorHolder holder,
                              TimeSpan? fitPeriod = null, int queueCapacity = 4)
             : base(OverflowPolicy.DropOldest, queueCapacity)
@@ -86,6 +95,10 @@ namespace ARBot.Common.Missions
             MagCalPhase.Idle => "Necinna",
             MagCalPhase.NoReference => "NEZACALA: registr 21 (referencni pole) se nepodarilo"
                                        + " precist. Bez nej by se prokladalo proti dohadu.",
+            MagCalPhase.NotCleared => "NEZACALA: registr 23 (kompenzace) se nepodarilo precist"
+                                      + " nebo vymazat. Merilo by se ze zkompenzovaneho pole,"
+                                      + " takze by vysledek nebyl kalibrace, ale zbytek - a jeho"
+                                      + " zapis by stavajici kalibraci SMAZAL.",
             MagCalPhase.Written when WrittenHardIronOnly
                 => "Zapsano JEN TVRDE ZELEZO - mekke zustava neopravene, takze se chyba kurzu"
                    + " zmensi, ale nezmizi. Pockej ~2 minuty, nez se kurz srovna.",
@@ -107,8 +120,16 @@ namespace ARBot.Common.Missions
                : lastSampleAt - firstSampleAt;
 
         /// <summary>
-        /// Zacatek mise: <b>zahodi regulator</b>, precte registry a zapne palubni HSI jako
-        /// nezavislou kontrolu.
+        /// Zacatek mise: <b>zahodi regulator</b>, precte registry, <b>vymaze registr 23</b>
+        /// a zapne palubni HSI jako nezavislou kontrolu.
+        ///
+        /// <para>⚠️ <b>Vymazani registru 23 neni opatrnost navic, je to podminka spravnosti.</b>
+        /// <c>UncompMag</c> v binarnim vystupu je kompenzovany (zmereno 12. 9. 2026), takze pri
+        /// nenulovem registru 23 by mise sbirala uz zkompenzovane pole a prolozeni z nej by
+        /// nebylo kalibrace, ale <b>reziduum</b> — a jeho zapis zpatky by dosavadni kalibraci
+        /// prepsal matici blizkou jednotkove. Kdyz registr 23 nejde precist ani vymazat, mise
+        /// <b>NEZACNE</b> (<see cref="MagCalPhase.NotCleared"/>) — stejny duvod jako u registru 21.
+        /// Viz doc/imu-and-frames.md.</para>
         /// </summary>
         public void StartMission()
         {
@@ -136,14 +157,36 @@ namespace ARBot.Common.Missions
             }
             Trace.WriteLine($"MagCal: referencni |B| z registru 21 = {BRefG:F4} G.");
 
+            // ⚠️ Registr 23 MUSI byt po dobu mereni jednotkovy - jinak se sbira uz zkompenzovane
+            // pole (UncompMag v binarnim vystupu je kompenzovany, zmereno 12. 9. 2026) a
+            // prolozeni z nej neni kalibrace, ale REZIDUUM. Zapsat reziduum zpatky do registru 23
+            // by dosavadni kalibraci prepsalo matici blizkou jednotkove, tedy smazalo.
             var reg23 = control.ReadRegister(IMagCalControl.RegCompensation);
-            Reg23Before = reg23 == null
-                ? string.Empty
-                : string.Join(",", Array.ConvertAll(reg23,
-                    v => v.ToString("F6", CultureInfo.InvariantCulture)));
             if (reg23 == null)
-                Trace.WriteLine("MagCal: registr 23 se nepodarilo precist - stav 'pred' nebude"
-                                + " v zaznamu. Mereni to ale neblokuje (jede se ze suroveho pole).");
+            {
+                // Necist a presto mazat nejde: nebylo by co vratit, kdyz mise nedobehne.
+                Phase = MagCalPhase.NotCleared;
+                Trace.WriteLine("MagCal: registr 23 se nepodarilo precist -> mise NEZACINA."
+                                + " Nevime, jestli je jednotkovy, a vymazat ho nejde bezpecne"
+                                + " (nebylo by co vratit). Merilo by se ze zkompenzovaneho pole.");
+                return;
+            }
+            Reg23Before = string.Join(",", Array.ConvertAll(reg23,
+                v => v.ToString("F6", CultureInfo.InvariantCulture)));
+
+            // Zapisuje se jen do RAM (BEZ SaveToFlash) - vypadek napajeni tim sam vrati puvodni
+            // kalibraci z flash. Pojistka zadarmo pro pripad, ze mise nedobehne.
+            if (!control.WriteMagCompensation(Reg23Jednotkova))
+            {
+                Phase = MagCalPhase.NotCleared;
+                Trace.WriteLine("MagCal: registr 23 se nepodarilo VYMAZAT -> mise NEZACINA."
+                                + " Merilo by se ze zkompenzovaneho pole a vysledek by nebyl"
+                                + " kalibrace, ale zbytek.");
+                return;
+            }
+            reg23KVraceni = Reg23Before;
+            Trace.WriteLine("MagCal: registr 23 vymazan na dobu mereni (jen v RAM, do flash se"
+                            + " neuklada). Stav pred misi: " + Reg23Before);
 
             // ⚠️ RESET PRVNI, teprve pak Run (TN002 kap. 4.1, krok 1). Podle ICD registru 44 se
             // pri prechodu Run -> Off reseni NEMAZE a dalsi Run pokracuje ze stareho - takze bez
@@ -173,13 +216,46 @@ namespace ARBot.Common.Missions
         /// zapisu, takze <b>nedokoncena mise nechala senzor v Run</b> — a nedokoncena mise je
         /// prave to, co se v poli stalo.</para>
         ///
-        /// <para>Vypina se PRED zastavenim stupne: kdyby <c>base.Stop()</c> vyhodilo vyjimku,
-        /// senzor uz je v poradku.</para>
+        /// <para>⚠️ A <b>vraci registr 23</b>, kdyz se zadna nova kalibrace nezapsala. Bez toho
+        /// by nedokoncena mise — a nedokoncena mise je presne to, co se v poli 10. 9. 2026
+        /// dvakrat stalo — nechala robota jezdit <b>bez kalibrace</b> az do restartu senzoru,
+        /// tedy ve stavu, ktery 6. 9. 2026 delal chybu kurzu +-25 stupnu.</para>
+        ///
+        /// <para>Oboji se dela PRED zastavenim stupne: kdyby <c>base.Stop()</c> vyhodilo vyjimku,
+        /// senzor uz je v poradku. Poradi je registr 23, pak HSI — kalibrace je ta, ktera
+        /// ovlivnuje kurz hned.</para>
         /// </summary>
         public override void Stop()
         {
+            ObnovReg23();
             VypniHsi();
             base.Stop();
+        }
+
+        /// <summary>
+        /// Vrati registr 23 do stavu pred misi — jen kdyz jsme ho sami vymazali a <b>nic noveho
+        /// se nezapsalo</b>. Idempotentni.
+        ///
+        /// <para>Zapisuje se zase jen do RAM: ve flash puvodni kalibrace porad je, tohle jen
+        /// vraci bezici senzor do stavu, ve kterem byl.</para>
+        /// </summary>
+        private void ObnovReg23()
+        {
+            if (reg23KVraceni == null) return;
+            if (control.WriteMagCompensation(reg23KVraceni))
+            {
+                Trace.WriteLine("MagCal: nic se nezapsalo -> registr 23 vracen do stavu pred"
+                                + " misi: " + reg23KVraceni);
+                reg23KVraceni = null;
+                return;
+            }
+
+            // Nenulovat - dalsi pokus (druhy Stop/Dispose) muze projit. A rict to nahlas:
+            // robot v tomhle stavu jezdi BEZ kalibrace.
+            Trace.WriteLine("MagCal: registr 23 se nepodarilo VRATIT - robot jede BEZ magneticke"
+                            + " kalibrace a kurz muze byt desitky stupnu vedle. Puvodni hodnota je"
+                            + " ve flash, takze staci RESTART SENZORU (nebo rucne $VNWRG,23,"
+                            + reg23KVraceni + ").");
         }
 
         /// <summary>Vypne palubni HSI, jen kdyz jsme ho sami zapnuli. Idempotentni.</summary>
@@ -278,9 +354,15 @@ namespace ARBot.Common.Missions
         {
             if (!control.WriteMagCompensation(cisla))
             {
-                Trace.WriteLine("MagCal: zapis registru 23 SELHAL - do flash se neuklada.");
+                Trace.WriteLine("MagCal: zapis registru 23 SELHAL - do flash se neuklada."
+                                + " Registr zustava vymazany a pri ukonceni mise se vrati.");
                 return false;
             }
+
+            // Od tohohle okamziku uz NENI co vracet: v registru je to, co si obsluha vyzadala.
+            // Plati i kdyz nize selze flash - zahodit novou kalibraci kvuli tomu by bylo horsi.
+            reg23KVraceni = null;
+
             if (!control.SaveToFlash())
             {
                 Trace.WriteLine("MagCal: registr 23 zapsan, ale ULOZENI DO FLASH SELHALO -"

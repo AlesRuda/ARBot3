@@ -36,6 +36,30 @@ namespace ARBot.Common.Tests.Configuration
             }
         }
 
+        /// <summary>
+        /// Kazda kategorie musi byt v <see cref="ParamRegistry.All"/> SOUVISLA.
+        ///
+        /// <para><b>Nac to je:</b> <c>ParamFile.Format</c> pise nadpis kategorie pokazde, kdyz se
+        /// pri prochazeni <c>All</c> kategorie zmeni. Rozdeleny blok se proto v profilu objevi
+        /// jako DVA stejne nadpisy - a v panelu jako dve skupiny tehoz jmena. Nalezeno 12. 9. 2026:
+        /// <c>magmodel</c> mel kategorii Hardware, ale deklaraci uprostred bloku Fuze.</para>
+        /// </summary>
+        [Test]
+        public void KazdaKategorieJeSouvisla()
+        {
+            var uzavrene = new HashSet<string>(StringComparer.Ordinal);
+            string predchozi = null;
+
+            foreach (var d in ParamRegistry.All)
+            {
+                if (d.Category == predchozi) continue;
+                Assert.That(uzavrene.Add(d.Category), Is.True,
+                    $"{d.Name}: kategorie '{d.Category}' uz jednou skoncila a zacina znovu - "
+                    + "presun deklaraci k ostatnim z te kategorie");
+                predchozi = d.Category;
+            }
+        }
+
         [Test]
         public void KonstantniDefault_JeSamPlatnouHodnotou()
         {

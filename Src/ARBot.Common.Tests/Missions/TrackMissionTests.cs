@@ -416,6 +416,34 @@ public class TrackMissionTests
         Assert.That(m.RouteLengthM, Is.EqualTo(120.0).Within(1e-9));
     }
 
+    /// <summary>
+    /// Zprava nese <b>cely seznam mist</b>, ne jen to aktualni — z nej se na pudorysu kresli
+    /// objezd jako celek (zony, ktere maji byt dosazeny). A nese ho <b>kazda</b> zprava: odberatel
+    /// „latest-wins" drzi jen posledni, takze seznam poslany jednou by hned zmizel.
+    /// </summary>
+    [Test]
+    public void Zprava_NeseCelySeznamMist_AVKazdeZprave()
+    {
+        var h = new Harness();
+        var now = h.Rozjed(T0);
+
+        void Zkontroluj(TrackMsg m, string kdy)
+        {
+            Assert.That(m.AllLatitudes, Has.Length.EqualTo(3), kdy);
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.That(m.AllLatitudes[i],
+                            Is.EqualTo(h.Mission.Plan.Points[i].Latitude).Within(1e-12), kdy);
+                Assert.That(m.AllLongitudes[i],
+                            Is.EqualTo(h.Mission.Plan.Points[i].Longitude).Within(1e-12), kdy);
+            }
+        }
+
+        Zkontroluj(h.Mission.LastMessage, "prvni zprava");
+        h.Arrive(now.AddSeconds(10));
+        Zkontroluj(h.Mission.LastMessage, "po dojezdu na prvni misto");
+    }
+
     [Test]
     public void Elapsed_JeNulaDokudMiseNezacala()
     {

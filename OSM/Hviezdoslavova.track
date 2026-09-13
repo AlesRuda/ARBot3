@@ -1,0 +1,11 @@
+# Format: jeden bod na radek jako `sirka,delka` ve STUPNICH; posledni radek `repeat` znamena
+# "po poslednim bode zacni znovu od prvniho". Viz doc/track-mission.md.
+#
+# Vyzkouseni v simulaci:
+#   mission=track track=osm/Hviezdoslavova.track virtualhw=true map=OSM/Hviezdoslavova.osm web=8080
+# Pak na strance nahledu stisknout a uvolnit virtualni nouzove zastaveni - to je pokyn "jed".
+
+50.0337431,14.5257403
+50.0336719,14.5253072
+50.0338847,14.5261453
+repeat

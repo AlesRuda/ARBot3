@@ -51,6 +51,8 @@ namespace ARBot.Common.Tests.Missions
                 AbortReason = "nic",
                 ElapsedSec = 61.5,
                 TimeStamp = t,
+                AllLatitudes = new[] { 0.8733012, 0.8734000, 0.8735000 },
+                AllLongitudes = new[] { 0.2536208, 0.2537000, 0.2538000 },
             };
 
             var back = RoundTrip(src);
@@ -73,6 +75,28 @@ namespace ARBot.Common.Tests.Missions
                 Assert.That(back.AbortReason, Is.EqualTo("nic"));
                 Assert.That(back.ElapsedSec, Is.EqualTo(61.5).Within(1e-9));
                 Assert.That(back.TimeStamp, Is.EqualTo(t));
+                Assert.That(back.AllLatitudes, Is.EqualTo(new[] { 0.8733012, 0.8734000, 0.8735000 })
+                                                 .Within(1e-12));
+                Assert.That(back.AllLongitudes, Is.EqualTo(new[] { 0.2536208, 0.2537000, 0.2538000 })
+                                                  .Within(1e-12));
+            });
+        }
+
+        /// <summary>
+        /// Bez seznamu mist se zprava porad zapise i precte — cely seznam je volitelny (verze 2)
+        /// a <c>null</c> nesmi shodit zapis. Pri cteni vyjde PRAZDNE pole, ne <c>null</c>, takze
+        /// odberatel nemusi testovat oboji.
+        /// </summary>
+        [Test]
+        public void BezSeznamuMist_SePreneseJakoPrazdnePole()
+        {
+            var back = RoundTrip(new TrackMsg { AllLatitudes = null, AllLongitudes = null });
+
+            Assert.That(back, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(back.AllLatitudes, Is.Not.Null.And.Empty);
+                Assert.That(back.AllLongitudes, Is.Not.Null.And.Empty);
             });
         }
 

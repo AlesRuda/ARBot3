@@ -43,6 +43,13 @@ namespace ARBot.ViewModels
         /// <summary>Deklarace, ze ktere radek vznikl - drzi se kvuli validaci hodnoty.</summary>
         public ParamDef Def { get; init; }
 
+        /// <summary>
+        /// Byl klic VYSLOVNE zadany (profil nebo prikazova radka), a ne jen prevzaty z defaultu?
+        /// Rozhoduje o tom, jestli se zapise i tehdy, kdyz se hodnotou od defaultu nelisi -
+        /// viz <c>ConfigurationDocument.ValuesToWrite</c>.
+        /// </summary>
+        public bool Explicitni { get; set; }
+
         public string Name => Def?.Name;
         public string Category => Def?.Category;
         public string Description => Def?.Description;
@@ -182,12 +189,14 @@ namespace ARBot.ViewModels
 
             foreach (var def in ParamRegistry.All)
             {
-                allRows.Add(ParamRow.Create(
+                var row = ParamRow.Create(
                     def,
                     OriginText(store.OriginOf(def.Name)),
                     // Canonical: hodnota z profilu smi mit jinou velikost pismen (validace je
                     // case-insensitive), ale rozbalovaci seznam porovnava presne.
-                    def.Canonical(store.Get(def.Name)) ?? string.Empty));
+                    def.Canonical(store.Get(def.Name)) ?? string.Empty);
+                row.Explicitni = store.OriginOf(def.Name) != ParamOrigin.Default;
+                allRows.Add(row);
             }
 
             ApplyFilter();
@@ -300,11 +309,13 @@ namespace ARBot.ViewModels
                 {
                     r.Value = r.Def.Canonical(hodnota);
                     r.Origin = "profil (nacteno)";
+                    r.Explicitni = true;
                 }
                 else
                 {
                     r.Value = r.Def.Default ?? string.Empty;
                     r.Origin = "vychozi";
+                    r.Explicitni = false;
                 }
             }
 
@@ -331,8 +342,21 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
-        /// Hodnoty, ktere se maji zapsat: jen ty odlisne od vychoziho stavu. Kratky soubor, ze
-        /// ktereho je videt, co se na tomhle behu meni; uplny vycet je uloha panelu, ne profilu.
+        /// Hodnoty, ktere se maji zapsat: hodnoty odlisne od vychoziho stavu <b>a k tomu klice,
+        /// ktere uz v konfiguraci VYSLOVNE byly</b> (<see cref="ParamRow.Explicitni"/>). Soubor
+        /// tim zustane kratky - uplny vycet je uloha panelu, ne profilu - a zaroven z nej
+        /// ulozeni nevyhodi radek, ktery tam clovek napsal.
+        ///
+        /// <para><b>Proc se zapise i klic shodny s defaultem (oprava vady, 12. 9. 2026).</b> Do
+        /// te doby se psaly JEN odlisne hodnoty, takze nacteni <c>config/pi-provoz.cfg</c> a
+        /// ulozeni z panelu ze souboru <b>tise vyhodilo</b> <c>npumodel=models/Model61.1_opt.rknn</c>
+        /// - hodnota byla shodou okolnosti tataz jako default v registru. Pripnuti hodnoty je ale
+        /// vedomy cin: profil rika "tenhle model", ne "co je zrovna vychozi", takze po pristi
+        /// zmene defaultu by provozni profil na Pi tise zacal delat neco jineho. Presne tomu ma
+        /// registr branit.</para>
+        ///
+        /// <para><b>Jak klic z profilu naopak odstranit:</b> vymazat hodnotu v tabulce - prazdna
+        /// se nezapisuje. U parametru s vyctem (rozbalovaci seznam) to nejde, tam zbyva editor.</para>
         /// </summary>
         private Dictionary<string, string> ValuesToWrite()
         {
@@ -340,8 +364,9 @@ namespace ARBot.ViewModels
             foreach (var r in allRows)
             {
                 if (r.Def == null || string.IsNullOrEmpty(r.Value)) continue;
-                if (string.Equals(r.Def.Default ?? string.Empty, r.Value,
-                                  StringComparison.OrdinalIgnoreCase))
+                if (!r.Explicitni
+                    && string.Equals(r.Def.Default ?? string.Empty, r.Value,
+                                     StringComparison.OrdinalIgnoreCase))
                     continue;
                 result[r.Name] = r.Value;
             }

@@ -304,6 +304,7 @@ namespace ARBot.Robot
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
             ApplyGpsQualityParams(fusionConfig);
+            ApplyImuHeadingParams(fusionConfig);
             FusionConfig = fusionConfig;
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
             fusionEngine = engine;   // drzime kvuli teleportu robotu (viz TeleportSimulatedRobot)
@@ -480,6 +481,15 @@ namespace ARBot.Robot
             if (plannerCfg.Smoothing == PathSmoothingMode.Passable)
                 Trace.WriteLine("smooth=passable: puvodni vyhlazovani jen podle tvrdeho odstupu (A/B).");
 
+            // wedgefill= sirka klinu mezi zornymi poli barvy, ve kterem se dopisuje semantika
+            // interpolaci z okoli (0 = vypnuto, puvodni chovani). Viz WedgeFiller.
+            var integratorCfg = new OccupancyIntegratorConfig
+            {
+                WedgeFillDeg = ParamRegistry.WedgeFill.Value,
+            };
+            if (integratorCfg.WedgeFillDeg <= 0)
+                Trace.WriteLine("wedgefill=0: klin mezi zornymi poli barvy se nedoplnuje (A/B).");
+
             var motionProfile = new TrapezoidMotionProfile(
                 Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
                 Profile.MaxAcceleration, Profile.Rozchod);
@@ -489,6 +499,7 @@ namespace ARBot.Robot
                 depthProjections: name => projectionResolver(name) as ICameraProjection,
                 colorProjections: BuildColorProjectionResolver(hw),
                 plannerConfig: plannerCfg,
+                integratorConfig: integratorCfg,
                 // TYZ profil jde do PathPlanneru i do vyhlazovani drahy: planovac pri slucovani useku
                 // predpovida rampu, kterou regulator odjede, takze dve ruzne instance by znamenaly,
                 // ze se overuje jina rampa, nez ktera se pojede.
@@ -1637,6 +1648,49 @@ namespace ARBot.Robot
                 cfg.GpsScaleStdByDop = ParamRegistry.GpsDopSigma.Value;
                 Trace.WriteLine($"gpsdopsigma={cfg.GpsScaleStdByDop}: sigma polohy z GPS "
                                 + (cfg.GpsScaleStdByDop ? "se nasobi DOP." : "je konstantni bez ohledu na DOP."));
+            }
+        }
+
+        /// <summary>
+        /// Prenese parametry kurzu z kompasu: <c>imuheadingstd=</c> (podlaha sigmy, ve STUPNICH)
+        /// do <see cref="FusionConfig.CompassHeadingStdFloor"/> (v RADIANECH) a
+        /// <c>imuheadinghz=</c> (kadence) do
+        /// <see cref="FusionConfig.CompassHeadingMinPeriodSec"/> (v SEKUNDACH).
+        ///
+        /// <para><b>Nacpak to je:</b> do 12. 9. 2026 brala fuze jako sigmu mereni
+        /// <c>IMU/heading</c> primo <c>YprU</c> ze senzoru, tedy <b>0,06 stupne</b> — zatimco
+        /// skutecna chyba kurzu proti GPS je <b>3-5 stupnu</b>. Filtr proto kurz z kompasu
+        /// nevazil, ale prebiral, a jeho chyba sla 1:1 do mapy i do mrkve.
+        /// Viz doc/ekf-fusion.md, doc/imu-and-frames.md a doc/configuration.md.</para>
+        ///
+        /// <para>⚠️ Prevod stupne -&gt; radiany je <b>tady</b>, na okraji: konfigurace fuze je
+        /// uvnitr cela v radianech (pravidlo projektu). Rozsah hlida
+        /// <c>ParamParsers.ImuHeadingStd</c>.</para>
+        /// </summary>
+        private static void ApplyImuHeadingParams(FusionConfig cfg)
+        {
+            if (ParamRegistry.ImuHeadingStd.IsSet)
+            {
+                cfg.CompassHeadingStdFloor = Conversions.Deg2Rad(ParamRegistry.ImuHeadingStd.Value);
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "imuheadingstd={0:F1} deg: podlaha sigmy kurzu z kompasu{1}",
+                    ParamRegistry.ImuHeadingStd.Value,
+                    cfg.CompassHeadingStdFloor > 0
+                        ? " (sklada se kvadraticky s YprU ze senzoru)."
+                        : " VYPNUTA - bere se holy YprU, tedy ~0,06 deg proti skutecne chybe 3-5 deg."));
+            }
+
+            if (ParamRegistry.ImuHeadingHz.IsSet)
+            {
+                double hz = ParamRegistry.ImuHeadingHz.Value;
+                cfg.CompassHeadingMinPeriodSec = hz > 0 ? 1.0 / hz : 0.0;
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    hz > 0
+                        ? "imuheadinghz={0:F2}: absolutni kurz z kompasu jde do fuze nejvys jednou"
+                          + " za {1:F2} s (gyro se NESKRTI a bezi dal v plne kadenci)."
+                        : "imuheadinghz=0: skrceni kurzu z kompasu VYPNUTE - kazdy vzorek, tedy"
+                          + " stare chovani, pri kterem si filtr informaci z biasu nascita stokrat.",
+                    hz, cfg.CompassHeadingMinPeriodSec));
             }
         }
 

@@ -132,7 +132,14 @@ namespace ARBot.Common.Missions
         /// <summary>Precte registr; <c>null</c> = nepodarilo se.</summary>
         double[] ReadRegister(int reg);
 
-        /// <summary>Zapise kompenzaci do registru 23 (dvanact cisel s desetinnou teckou).</summary>
+        /// <summary>
+        /// Zapise kompenzaci do registru 23 (dvanact cisel s desetinnou teckou) — <b>jen do RAM</b>;
+        /// trvale ji ulozi az <see cref="SaveToFlash"/>.
+        ///
+        /// <para>To rozdeleni mise vyuziva: na zacatku sem zapise jednotkovou matici (aby merila
+        /// ze syroveho pole) <b>bez</b> ulozeni do flash, takze vypadek napajeni sam vrati
+        /// puvodni kalibraci.</para>
+        /// </summary>
         bool WriteMagCompensation(string dvanactCisel);
 
         /// <summary>

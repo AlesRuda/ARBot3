@@ -381,3 +381,8 @@ Src/crash.txt
 
 # Zamek jedne instance (ARBot.Headless) - vznika pri kazdem behu v korenu (nebo v dataroot).
 arbot.lock
+
+# Dokumentace VectorNav (TN002, TN004, ICD, manual, datasheet) - je oznacena
+# Proprietary & Confidential a tenhle repozitar je VEREJNY, takze sem NEPATRI.
+# Lezi jen lokalne; vsechny zavery z ni se citují s cislem kapitoly. Viz CLAUDE.md.
+/doc/Vectornav/

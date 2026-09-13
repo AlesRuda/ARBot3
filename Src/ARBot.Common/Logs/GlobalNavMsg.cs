@@ -10,8 +10,15 @@ namespace ARBot.Common.Logs
     /// </summary>
     public class GlobalNavMsg : Message, IHasCaptureTime
     {
-        /// <summary>Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).</summary>
-        public const int FormatVersion = 1;
+        /// <summary>
+        /// Verze formatu serializace (viz doc/record-replay.md → Verzovani zprav).
+        ///
+        /// <para><b>Verze 2</b> (2026-09-12) pridala <see cref="GoalRadiusM"/>. Dokud tam nebyl,
+        /// nesla se ze zaznamu nakreslit <b>zona, ktera ma byt dosazena</b>: souradnice cile
+        /// zprava nesla, ale „jak blizko staci dojet" bylo jen v konfiguraci navigatoru, tedy
+        /// mimo data. Ve verzi 1 se cte nula a zona se kresli jen jako znacka stredu.</para>
+        /// </summary>
+        public const int FormatVersion = 2;
 
         /// <summary>Stav navigace (hodnota <c>GlobalNavStatus</c>).</summary>
         public int Status;
@@ -21,6 +28,17 @@ namespace ARBot.Common.Logs
 
         /// <summary>Cil ve stupnich.</summary>
         public double GoalLatDeg, GoalLonDeg;
+
+        /// <summary>
+        /// <b>Dojezdovy polomer</b> [m] — jak blizko k cili se robot musi dostat, aby navigace
+        /// ohlasila <c>Arrived</c> (<c>NavigatorOptions.ArrivalRadiusMeters</c>). Verze 2; ve
+        /// starsich zaznamech nula.
+        ///
+        /// <para>Do zpravy patri proto, ze <b>cil bez nej nedava smysl</b>: „dojel jsem" je
+        /// tvrzeni o dvojici (bod, polomer) a ten druhy clen je nastavitelny. Kresli se z nej
+        /// zona na pudorysu weboveho nahledu (doc/headless.md).</para>
+        /// </summary>
+        public double GoalRadiusM;
 
         /// <summary>Poloha robota ve stupnich (poza z fuze prevedena pres GeoReference).</summary>
         public double LatDeg, LonDeg;
@@ -91,6 +109,7 @@ namespace ARBot.Common.Logs
             bw.Write(Phi);
             bw.Write(ClosureCount);
             bw.Write(TimeStamp.Ticks);
+            bw.Write(GoalRadiusM);            // verze 2
         }
 
         /// <inheritdoc/>
@@ -111,6 +130,9 @@ namespace ARBot.Common.Logs
             Phi = br.ReadDouble();
             ClosureCount = br.ReadInt32();
             TimeStamp = new DateTime(br.ReadInt64());
+            // Verze 1 (zaznamy do 12. 9. 2026) polomer nenesla - nula znamena „neznamy",
+            // takze se zona nakresli jen jako znacka stredu, ne jako kruh o nahodne velikosti.
+            GoalRadiusM = Verze >= 2 ? br.ReadDouble() : 0;
         }
 
         public override string ToString()

@@ -205,6 +205,63 @@ namespace ARBot.Runtime.Tests.Web
 
             Assert.That(nasel, Is.True, "neprujezdna bunka ma byt na pudorysu cervene videt");
         }
+
+        /// <summary>
+        /// Draha z <b>lokalniho planovace</b> se na pudorysu objevi azurove. Je to cela cesta
+        /// <c>LocalPlanMsg</c> -&gt; <c>WebStatus</c> -&gt; <c>PlanViewRenderer</c>; samo kresleni
+        /// testuje <c>PlanViewRendererTests</c>.
+        /// </summary>
+        [Test]
+        public async Task PudorysUkazeDrahuLokalnihoPlanovace()
+        {
+            status.Post(new RobotStateMsg { X = 0, Y = 0, Theta = 0 });
+            status.Post(new LocalPlanMsg
+            {
+                WayPoints = new[]
+                {
+                    new ARBot.Common.Regulators.RegulatorWayPoint { X = 0, Y = 0, Speed = 0.5 },
+                    new ARBot.Common.Regulators.RegulatorWayPoint { X = 0, Y = 3, Speed = 0.5 },
+                },
+            });
+
+            using var bmp = SkiaSharp.SKBitmap.Decode(await klient.GetByteArrayAsync("/world.png"));
+            Assert.That(NajdiPixel(bmp, c => c.Blue > 150 && c.Green > 150 && c.Red < 100), Is.True,
+                        "draha lokalniho planovace ma byt na pudorysu azurove videt");
+        }
+
+        /// <summary>
+        /// <b>Trasa globalni navigace</b> se objevi fialove - a berou se JEN hrany trasy
+        /// (<c>Path</c>), ne uzavrene hrany, ktere tataz zprava nese taky.
+        /// </summary>
+        [Test]
+        public async Task PudorysUkazeTrasuGlobalniNavigace()
+        {
+            // Bezparametrovy konstruktor je jen prototyp pro katalog zprav a seznamy necha null -
+            // produkcni zprava se sklada timhle konstruktorem, stejne jako v GlobalNavigatoru.
+            var vrcholy = new System.Collections.Generic.List<GraphNavigationMsg.Vertex>
+            {
+                new GraphNavigationMsg.Vertex { X = -3, Y = 0 },
+                new GraphNavigationMsg.Vertex { X = 3, Y = 0 },
+            };
+            var hrany = new System.Collections.Generic.List<GraphNavigationMsg.Edge>();
+            var g = new GraphNavigationMsg(0, 0, 3, 0, null, null, vrcholy, hrany);
+            hrany.Add(new GraphNavigationMsg.Edge(g) { From = 0, To = 1, Path = true, HightLight = true });
+
+            status.Post(new RobotStateMsg { X = 0, Y = 0, Theta = 0 });
+            status.Post(g);
+
+            using var bmp = SkiaSharp.SKBitmap.Decode(await klient.GetByteArrayAsync("/world.png"));
+            Assert.That(NajdiPixel(bmp, c => c.Blue > 150 && c.Red > 120 && c.Green < 110), Is.True,
+                        "trasa globalni navigace ma byt na pudorysu fialove videt");
+        }
+
+        private static bool NajdiPixel(SkiaSharp.SKBitmap bmp, System.Func<SkiaSharp.SKColor, bool> podminka)
+        {
+            for (int y = 0; y < bmp.Height; y++)
+                for (int x = 0; x < bmp.Width; x++)
+                    if (podminka(bmp.GetPixel(x, y))) return true;
+            return false;
+        }
     }
 
     /// <summary>
@@ -731,6 +788,146 @@ namespace ARBot.Runtime.Tests.Web
                 status.Post(null);
                 status.Post(new Info("cokoliv"));
             });
+        }
+
+        // ---------------- Zony, ktere maji byt dosazeny ----------------
+        // Pri dohledu nad zavodem je z pudorysu potreba poznat, kam robot MUSI dojet. Kresleni
+        // testuje PlanViewRendererTests; tady se hlida VYBER zon a prevod LLA -> lokalni ENU.
+
+        /// <summary>Pocatek lokalni roviny pro prevody v testech (Praha).</summary>
+        private static ARBot.Common.Coordinates.GeoReference Pocatek()
+            => new ARBot.Common.Coordinates.GeoReference(
+                   new ARBot.Common.Coordinates.LLA(Rad(50.0), Rad(14.5)));
+
+        private static double Rad(double deg) => deg * System.Math.PI / 180.0;
+
+        /// <summary>
+        /// Bez pocatku lokalni roviny (beh bez mapy) zony nevzniknou — mista mise jsou v LLA
+        /// a nebylo by je kam prevest. Tise, ne vyjimkou: beh bez mapy je legalni.
+        /// </summary>
+        [Test]
+        public void BezPocatkuRoviny_ZadneZony()
+        {
+            var status = new WebStatus();
+            status.Post(new TrackMsg
+            {
+                PointIndex = 0, PointCount = 1,
+                AllLatitudes = new[] { Rad(50.0) }, AllLongitudes = new[] { Rad(14.5) },
+            });
+
+            Assert.That(status.Zones(null), Is.Null);
+        }
+
+        /// <summary>
+        /// Mise Track dodá <b>cely seznam</b> mist a prave jedno z nich je aktivni — to, na ktere
+        /// se jede. Bez toho by se z obrazku nepoznalo, ktery bod robot resi ted.
+        /// </summary>
+        [Test]
+        public void MiseTrack_DaVsechnaMistaAJednoAktivni()
+        {
+            var status = new WebStatus();
+            status.Post(new TrackMsg
+            {
+                PointIndex = 1, PointCount = 3,
+                AllLatitudes = new[] { Rad(50.0000), Rad(50.0005), Rad(50.0010) },
+                AllLongitudes = new[] { Rad(14.5), Rad(14.5), Rad(14.5) },
+            });
+
+            var zony = status.Zones(Pocatek());
+
+            Assert.That(zony, Is.Not.Null.And.Length.EqualTo(3));
+            Assert.Multiple(() =>
+            {
+                Assert.That(zony[0].Active, Is.False);
+                Assert.That(zony[1].Active, Is.True, "aktivni je misto s indexem PointIndex");
+                Assert.That(zony[2].Active, Is.False);
+                // Prvni misto je presne v pocatku roviny, druhe ~55 m severne (0,0005 stupne sirky).
+                Assert.That(zony[0].Y, Is.EqualTo(0).Within(0.5));
+                Assert.That(zony[1].Y, Is.EqualTo(55.6).Within(2.0));
+            });
+        }
+
+        /// <summary>
+        /// Polomer zony je <b>dojezdovy radius navigace</b> ze zpravy; dokud nedosla, bere se
+        /// vychozi nastaveni navigatoru (opsana konstanta by se tise rozesla se skutecnosti).
+        /// </summary>
+        [Test]
+        public void PolomerZony_JdeZeZpravyGlobalniNavigace()
+        {
+            var status = new WebStatus();
+            status.Post(new TrackMsg
+            {
+                PointIndex = 0, PointCount = 1,
+                AllLatitudes = new[] { Rad(50.0) }, AllLongitudes = new[] { Rad(14.5) },
+            });
+
+            Assert.That(status.Zones(Pocatek())[0].RadiusM,
+                        Is.EqualTo(ARBot.Common.Maps.OsmNav.Navigation.NavigatorOptions
+                                       .DefaultArrivalRadiusMeters).Within(1e-9),
+                        "bez zpravy navigace se bere vychozi radius");
+
+            status.Post(new GlobalNavMsg { HasGoal = true, GoalRadiusM = 7.5 });
+
+            Assert.That(status.Zones(Pocatek())[0].RadiusM, Is.EqualTo(7.5).Within(1e-9),
+                        "jakmile navigace radius hlasi, plati ten");
+        }
+
+        /// <summary>
+        /// Mise Robotour dá tri mista; aktivni je to, kam se prave jede (podle faze automatu).
+        /// </summary>
+        [Test]
+        public void MiseRobotour_DaDepoNakladkuAVykladku()
+        {
+            var status = new WebStatus();
+            status.Post(new MissionMsg
+            {
+                Phase = (int)ARBot.Common.Missions.RobotourPhase.DrivingToDrop,
+                HasDepot = true, DepotLatDeg = 50.0, DepotLonDeg = 14.5,
+                HasPickup = true, PickupLatDeg = 50.0005, PickupLonDeg = 14.5,
+                HasDrop = true, DropLatDeg = 50.0010, DropLonDeg = 14.5,
+            });
+
+            var zony = status.Zones(Pocatek());
+
+            Assert.That(zony, Is.Not.Null.And.Length.EqualTo(3));
+            Assert.Multiple(() =>
+            {
+                Assert.That(zony[0].Label, Is.EqualTo("depo"));
+                Assert.That(zony[1].Label, Is.EqualTo("nakladka"));
+                Assert.That(zony[2].Label, Is.EqualTo("vykladka"));
+                Assert.That(zony[2].Active, Is.True, "jede se na vykladku");
+                Assert.That(zony[0].Active, Is.False);
+            });
+        }
+
+        /// <summary>
+        /// Bez mise se kresli <b>cil globalni navigace</b> (<c>goal=</c> z prikazove radky, FreeRun).
+        /// A naopak: kdyz mise mista ma, cil navigace uz se NEPRIDAVA — je to totiz tyz bod
+        /// <b>prichyceny na sit</b>, takze by vedle sebe vysly dve kruznice par metru od sebe.
+        /// </summary>
+        [Test]
+        public void BezMise_SeKresliCilGlobalniNavigace()
+        {
+            var status = new WebStatus();
+            status.Post(new GlobalNavMsg
+            {
+                HasGoal = true, GoalLatDeg = 50.0005, GoalLonDeg = 14.5, GoalRadiusM = 3,
+            });
+
+            var zony = status.Zones(Pocatek());
+            Assert.That(zony, Is.Not.Null.And.Length.EqualTo(1));
+            Assert.That(zony[0].Label, Is.EqualTo("cil"));
+
+            status.Post(new TrackMsg
+            {
+                PointIndex = 0, PointCount = 1,
+                AllLatitudes = new[] { Rad(50.0006) }, AllLongitudes = new[] { Rad(14.5) },
+            });
+
+            Assert.That(status.Zones(Pocatek()), Has.Length.EqualTo(1),
+                        "mista mise a cil navigace se nescitaji");
+            Assert.That(status.Zones(Pocatek())[0].Label, Is.EqualTo("1"),
+                        "prednost ma to, co zadal clovek, ne prichyceny prumet na sit");
         }
     }
 }

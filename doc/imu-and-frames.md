@@ -211,10 +211,17 @@ jízdy**, ale **liší se mezi sezeními**, a nulová zpětná vazba od magnetom
 
 **2. Kalibrace magnetometru (tvrdé/měkké železo) je pryč.** Export nesl matici s diagonálou
 1,08–1,22 a bias `−0,274 G` — to není kosmetika, ten bias je **víc než polovina zemského pole**.
-Teď je tam jednotková matice a nula. Potvrzuje to i sám senzor: registr **27** (kompenzované pole)
-a **54** (syrové) hlásí **téměř totéž** — `(0,1263; 0,1425; 0,3520)` proti
-`(0,1263; 0,1455; 0,3507)`, takže se **nekompenzuje nic**. A onboard HSI je vypnuté
-(reg 44 `Off`), takže to nemá co nahradit. Odtud i to, že změřené `|B| = 0,400 G` je **17 %
+Teď je tam jednotková matice a nula — přečtená **přímo z registru 23**, což je ten důkaz.
+A onboard HSI je vypnuté (reg 44 `Off`), takže to nemá co nahradit.
+
+⚠️ **Doplněk z 11. 9. 2026: druhý argument, který se tu původně uváděl, NEPLATÍ.** Psalo se, že
+to potvrzuje i shoda registru **27** (kompenzované pole) s **54** (údajně syrové) —
+`(0,1263; 0,1425; 0,3520)` proti `(0,1263; 0,1455; 0,3507)`, „takže se nekompenzuje nic".
+Změřeno při nasazování kalibrace: **registr 54 se mění podle registru 23 stejně jako 27**, tedy
+oba nesou pole **po** kompenzaci. Jejich shoda proto platí **vždy** a o obsahu registru 23
+neříká nic. Surové pole se ze senzoru dostane jedině tak, že se do registru 23 dočasně zapíše
+identita. Závěr z 6. 9. tím nepadá (registr 23 se čte přímo), padá jen ta jeho druhá opora.
+Viz [decisions.md](decisions.md), 11. 9. 2026. Odtud i to, že změřené `|B| = 0,400 G` je **17 %
 pod** referencí, kterou má senzor v registru 21 (`0,482 G`), a odtud i nález ze záznamu, že
 kurz přepočtený z pole má vlastní chybu závislou na kurzu (±~27°).
 
@@ -478,6 +485,304 @@ vyloučí naráz.
 **Praktický důsledek pro řízení**: dokud je kurz vedle, nemá smysl ladit rychlostní obálku
 lokálního plánovače — grid i mrkev se kreslí tímhle kurzem. Viz nález ze stejného záznamu
 v [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
+### ✅ Po kalibraci (12. 9. 2026): železo je pryč, zbývá **konstantní posun −3,7°**
+
+První měření po zápisu kalibrace z 11. 9. Tři záznamy z téhož odpoledne, binárka
+`1.0.254.18962`, `magmodel=true` (registr 83 se nastavil hned po prvním fixu, kurz je tedy
+k **pravému** severu):
+
+| záznam | co to je |
+|---|---|
+| `records/test/20260912-124738.rec` | 660 s, mise FreeRun, jízda venku |
+| `records/test/20260912-125851.rec` | 660 s, mise Track, jízda venku |
+| `records/test/20260912-131024.rec` | 224 s, **statické otáčení robotem rukou** (motory stojí) |
+
+#### 1. Kvalita kalibrace: zbytkové železo ≤ 0,6 %
+
+Statické otáčení je jediný ze tří záznamů, který pokrývá azimuty, takže se nad ním dá spustit
+`ARBot.Analyze magcal` a **proložit zbytek** — kolik železa v poli ZŮSTALO poté, co senzor
+aplikoval registr 23. Pokrytí vyšlo úplné (24/24 azimutových košů, 5 náklonových skupin, z toho
+4 odkloněné, náklony na obě strany, otočeno −769°):
+
+| veličina | naměřeno | práh / cíl |
+|---|---|---|
+| koule — podmíněnost | **8,0** | < 10⁴ |
+| koule — zbytkové **tvrdé železo** | **0,0023 G** (0,46 % `|B|`) | 0 |
+| elipsoida — podmíněnost | **91,4** | < 10⁴ |
+| elipsoida — `sd(|B|)` po korekci | **0,0019 G** | < 0,005 |
+| elipsoida — zbytková matice `C` (při `--bref=0.4981`) | **I ± 0,004**, mimodiagonální ≤ 0,0061 | I |
+| `|B|` přes celé otočení | 0,490–0,509 G, rozpětí **0,019 G** | konstantní |
+
+Rozpětí `|B|` bylo 7. 9. **0,148 G** — kalibrace ho srazila **7,8×**. Zbytkové železo v tělesovém
+rámci je tedy ≤ 0,6 %, což dává do kurzu **nanejvýš ~0,4°**. Kalibrace je dobrá.
+
+⚠️ Dvě výhrady k tomu měření: `--bref` se musí zadat (výchozí 0,4818 je stará hodnota registru 21
+před `magmodel`; pro tohle místo vyšlo `|B|` 0,4981 G) a kontrola **rozpůlením dat dala 2,16°
+proti prahu 2** — první polovina záznamu má podmíněnost 402,7, tedy obsluha zjevně nejdřív otáčela
+na rovině a teprve pak nakláněla. Druhá polovina sama o sobě dá `C ≈ I` (podmíněnost 94).
+
+**Motory rušení prakticky nedělají** (`vn100`, blok 4): `|B|` na proudu je **−0,00029 ± 0,00002**
+resp. **+0,00018 ± 0,00004 G/A** proti −0,00258 ± 0,00010 G/A ze 7. 9., `|B|` jízda − stání
+**−0,001 G** (bylo −0,015). Znaménko se mezi oběma záznamy **otáčí**, takže po odečtení statického
+železa už tam žádná skutečná vazba na proud nezbyla.
+
+#### 2. Výsledný kurz: z −24° na −3,7°, ale bias zůstal
+
+| veličina | 7. 9. (před kalibrací) | 12. 9. FreeRun | 12. 9. Track |
+|---|---|---|---|
+| `IMU yaw − GPS kurz` p50 | −24,0° | **−3,60°** | **−3,05°** |
+| … střed / sd | −18,1° / 18,6° | −4,90° / 10,67° | −2,79° / 5,14° |
+| 1. harmonická (tvrdé železo) | 27,2° | **3,57°** | **2,95°** |
+| 2. harmonická (měkké železo) | 25,2° | **2,92°** | 11,55° ⚠️ |
+| `IMU yaw − směr posunu polohy` | −13,53° ± 20,42° | −4,34° ± 7,28° | −2,95° ± 5,62° |
+| `Doppler − směr posunu polohy` | 0,31° ± 6,19° | 0,12° ± 9,52° | −0,07° ± 9,34° |
+| `odhad fúze − IMU yaw` | −0,01° ± 0,06° | 0,00° ± 0,06° | 0,01° ± 0,07° |
+| `YprU` (yaw 1σ) p50 | 0,151° | 0,059° | 0,061° |
+
+Třetí, nezávislá cesta (směr, kterým se posunula poloha) dál říká, že **chybuje IMU, ne GPS**.
+A poslední dva řádky drží dohromady starou vadu: fúze kurz **nevažuje, přebírá**, takže ten bias
+jde 1:1 do mapy i do mrkve — a senzor si přitom hlásí σ 0,06°, tedy je proti své skutečné chybě
+**~60× přesvědčenější**. Po kalibraci je ta slepá důvěra ještě víc mimo než před ní.
+
+⚠️ Ta 2. harmonická 11,55° u mise Track je **artefakt pokrytí**, ne měkké železo: jízda byla tam
+a zpět, takže z osmi košů kurzu mají data jen dva (n = 2381 a 2373) a harmonický rozklad nemá
+z čeho počítat. U FreeRunu, kde jsou obsazené všechny, vyšlo 2,92°.
+
+#### 3. Zbytek **není** železo — je to konstanta plus místo
+
+Kdyby zbývalo tvrdé železo, musel by rozpor při dvou opačných směrech jízdy vyjít **souměrně
+kolem nuly**. Rozpad podle směru (dva koše s daty, ~180° od sebe) a podle **místa** (koše 5 × 5 m):
+
+| | FreeRun | Track |
+|---|---|---|
+| střed ze dvou opačných směrů | **−4,0°** | **−2,8°** |
+| půlrozdíl mezi nimi (podpis tvrdého železa) | −1,0° | **+0,9°** |
+| η² — podíl rozptylu vysvětlený **místem** | 0,191 | 0,170 |
+| sd mezi buňkami 5 × 5 m | 4,97° | 2,88° |
+| sd uvnitř buňky | 10,25° | 6,37° |
+
+Půlrozdíl **mění mezi běhy znaménko**, a je desetkrát menší než střed — tvrdé železo to tedy
+není. Zbývá **konstantní posun −3,7° ± 1°** (běh od běhu se liší o 2,1°), na který se přikládá
+**místní porucha pole** v řádu jednotek stupňů (necelá pětina rozptylu) a šum 6–10° na vzorek.
+
+Konstantu tímhle měřením **nejde rozložit** na její tři možné příčiny, protože všechny tři
+vypadají stejně: (a) pootočení senzoru proti podélné ose podvozku, (b) zbytek kalibrace, (c)
+systematické šikmé jetí robotu (kurz těla ≠ směr pohybu). Rozliší je až jízda **s otočením
+robotu na místě o 180°** mezi dvěma průjezdy téhož úseku — (c) se tím otočí, (a) a (b) ne.
+
+#### 4. VPE už se netáhne minuty (206 s → 53 s)
+
+Zesílení zpětné vazby yaw k vlastnímu magnetometru (`vn100`, blok 2) vyšlo na obou jízdních
+záznamech shodně **K = 0,0186 ± 0,0022** a **0,0188 ± 0,0021 1/s**, tedy časová konstanta
+**53 s** proti dřívějším **206 s**. Na výstupu je to vidět líp než na samotném K: `kurz z pole
+− yaw` se po minutách drží na **3,2–5,9°** (FreeRun) a **3,2–4,8°** (Track), kdežto 7. 9.
+kolísal +10 / +2 / −10 / +1,5 / +30 / +46 / +37 / +5°.
+
+Platí tedy to, co 10. 9. napovídala dokumentace VN (manuál kap. 3.3.5): dlouhá konstanta byla
+**z velké části důsledek nezkalibrovaného železa**, ne samostatná vada. Zbylých 53 s je pořád
+hodně a zbývají na ně dvě adaptivní vrstvy v registru 35 — levný pokus je `$VNWRG,35,1,0,0,0`
+(Absolute + Unfiltered + Static) a přeměřit.
+
+#### 4b. Deklinace zbytek NEVYSVĚTLÍ — korekce jde na opačnou stranu
+
+Nabízí se, že těch −3,7° je nezapočtená deklinace (v Praze ~**+5,4° východně**, WMM 2026). Není:
+v konvenci projektu (ENU, matematická orientace) se magnetický kurz převádí na pravý **odečtením**
+deklinace, protože magneticky vztažený kurz čte o `D` **výš** než pravý.
+
+| | FreeRun | Track |
+|---|---|---|
+| `IMU yaw − GPS kurz` (naměřeno) | −4,90° | −2,79° |
+| po **odečtení** deklinace (mag → pravý) | **−10,3°** | **−8,2°** |
+| po přičtení deklinace (pravý → mag) | +0,50° | +2,61° |
+
+Třetí řádek vypadá lákavě, ale je to směr **pravý → magnetický** — dával by smysl jen kdyby byl
+GPS kurz magnetický. Není, a je to i v datech: `Doppler − směr posunu polohy` = **0,12° / −0,07°**,
+a směr posunu se počítá ze zeměpisných souřadnic, tedy je k pravému severu **z konstrukce**. Ta
+kontrola proto testuje i severní referenci, nejen vnitřní konzistenci GPS.
+
+⚠️ **Naopak se tím opravuje dřívější tvrzení**, že `kurz z pole − yaw` = +3,7° ≈ deklinace
+*dokazuje*, že senzor deklinaci započítává (`ARBot.Analyze heading` počítá kurz z pole jako
+**magnetický**). Jako důkaz to neobstojí: ty tři rozdíly (`pole − yaw`, `pole − GPS`, `yaw − GPS`)
+jsou **algebraicky závislé** — jejich součet je z definice nula — takže nesou jen **dvě** nezávislá
+čísla a nerozliší dvě možnosti:
+
+- **deklinace se aplikuje** → zbytková chyba v tělesovém rámci je −4,9° / −2,8°;
+- **neaplikuje se** → tatáž chyba je −10,3° / −8,2°.
+
+Na odpověď „pomohla by deklinace?" to nemá vliv (odečíst 5,4° je špatný směr tak jako tak), ale
+mění to, jak velký zbytek zbývá vysvětlit.
+
+✅ **Změřeno na živém senzoru 12. 9. 2026 večer** (`deploy/vnprobe.sh`, read-only `VNRRG`).
+Deklinace se **aplikuje** — ale je **špatná**:
+
+```
+$VNRRG,21,0.199158,0.0119037,0.447158,7.1384E-05,9.1246E-05,-9.81002
+$VNRRG,83,1,1,0,0,1000,2026.693,+50.03377850,+014.52639480,+00306.653
+```
+
+| | naměřeno | poznámka |
+|---|---|---|
+| registr 83, `UseMagModel` | **1** | model pole je zapnutý |
+| registr 21, východní složka | **0,0119 G** (nenulová) | deklinace **v referenci JE** |
+| → deklinace z referenčního vektoru | **3,42°** | WMM pro Prahu 2026 dává ~5,3° |
+| → `\|B\|` | **0,4896 G** | starý default `--bref=0.4818` je tedy neaktuální |
+| → sklon | **65,95°** | stará hodnota byla 60,9° |
+
+⚠️ **Vestavěný model pole VN je zastaralý o ~1,9°.** Senzor dostal rok 2026,693 a přesto
+počítá deklinaci **3,42°**; ~5,3° odpovídá WMM2025 pro dnešek a rozdíl 1,9° je při sekulární
+změně ~0,17°/rok zhruba **11 let**, tedy epocha ~2015. (Hodnota ~5,3° je z paměti — pro závěr
+„je to zastaralé" ji **ověř kalkulátorem NOAA**; to, že senzor používá 3,42°, změřené je.)
+
+**Na odpověď to nic nemění, naopak ji utahuje.** Dopočítání chybějící deklinace rozpor
+**zhorší**: −4,90° → **−6,78°** (FreeRun) a −2,79° → **−4,67°** (Track). Zbytková chyba
+v tělesovém rámci je tedy o 1,9° **větší**, než se zdálo.
+
+⚠️ **Znaménko je tady past a vypadá obráceně, než je** (naslapl na to autor 12. 9. a stálo to
+jedno kolo dohadování). V **azimutové** soustavě je intuice správná: senzor použije malé `D_s`,
+takže azimut **podhodnotí** a chybějících 1,9° se k němu **přičítá**. Jenže do záznamu jdou obě
+veličiny v **matematické** orientaci (ENU, 0 = východ, +CCW) — VN přes
+`Conversions.Azimut2Orientation` (`π/2 − azimut`) a u-blox jako `Math.Atan2(VelocityN, VelocityE)` —
+a převod `90° − A` to **překlopí**. Robot mířící na pravý sever, `D_true` = 5,3°, `D_s` = 3,42°:
+
+| krok | hodnota |
+|---|---|
+| magnetický azimut robotu | `A_m` = 0 − 5,3 = **−5,30°** |
+| co senzor vydá (`A_m + D_s`) | `A_out` = **−1,88°** → azimut **podhodnotil** o 1,88° |
+| po převodu v driveru (`90 − A_out`) | yaw = **+91,88°** |
+| GPS (`atan2(V_N, V_E)`, jízda na sever) | **+90,00°** |
+| **yaw − GPS** | **+1,88°** |
+
+✅ **A nemusí se to brát na víru — rozhodnou to data.** Report tiskne `kurz z pole − yaw`, kde
+„kurz z pole" je **magnetický** kurz z téhož magnetometru v té samé konvenci, takže ten rozdíl
+**musí** být přesně ta deklinace, kterou senzor použil:
+
+| | předpověď | naměřeno |
+|---|---|---|
+| deklinace se v math konvenci **odečítá** | **+3,42°** (= `D_s` z registru 21) | **+3,74°** / **+3,91°** |
+| deklinace se **přičítá** | −3,42° | — |
+
+Shoda na **0,3–0,5°** proti druhé možnosti 7,2° vedle. ✅ Tím se zároveň uklidila dřívější
+poznámka, že „+3,7 proti očekávaným +5,4 je mezera 1,7°, kterou dělá naše svislice
+z akcelerometru": **žádná mezera 1,7° nebyla**, očekávaná hodnota nikdy nebyla 5,4° ale `D_s` = 3,42°.
+Že to sedne takhle těsně, je samo o sobě potvrzení, že celý řetěz (registr 21 → senzor → driver
+→ report) čteme správně.
+
+✅ **A padá tím i výhrada u bodu 5:** registr 21 hlásí sklon **65,95°**, ne starých 60,9° —
+neshoda proti naměřeným 62,3–63,2° je tedy **skutečná**.
+
+⚠️ **Registr 83 je ve FLASH, ačkoli podle návrhu být neměl.** `MagModelInit` ho záměrně
+zapisuje bez `VNWNV` („nastaví se při každém běhu podle aktuální polohy a data"), jenže
+`deploy/vnrestore.sh --magcal` z 11. 9. udělal `VNWNV` a **perzistoval i registr 83**. Pozná se to
+na roku: 2026,693 = den 254 = **11. 9.**, a přesto to přežilo reboot Pi. Prakticky to nevadí
+(`MagModelInit` ho při prvním dobrém fixu stejně přepíše čerstvými hodnotami a místo je totéž),
+ale **před prvním fixem teď každý běh jede na poloze a datu z 11. 9.** místo na tovarním
+`(0,234; 0; 0,4212)`. Dobrá zpráva z toho je, že odpolední záznamy měly model zapnutý
+**od prvního vzorku**, ne až od prvního fixu.
+
+⚠️ Ze **starších** záznamů z téhož dne by se to ověřit nedalo: `records/20260912-120110.rec`
+i `-122932.rec` mají `no_uart=true` a COM porty, tedy je to simulace na Windows, ne robot.
+
+#### 5. ⚠️ Sklon pole nesedí na model o 3° — a `magmodel` to zhoršil
+
+| veličina | naměřeno | WMM pro místo |
+|---|---|---|
+| sklon na rovině v klidu (statické otáčení) | **62,3°** | ~65,9° |
+| sklon p50 za jízdy | 62,85° / 63,25° | ~65,9° |
+| `|B|` p50 | 0,498 G (statika) / 0,488–0,490 G (jízda) | ~0,489 G |
+
+`|B|` sedí, sklon je o **3–3,6° menší**. Před `magmodel` držel registr 21 sklon **60,9°**, tedy
+byl naměřené hodnotě **blíž** než nová WMM reference — nastavením modelu pole se tahle konkrétní
+neshoda **zvětšila** (přestože se tím opravila deklinace, což byl ten důležitější zisk).
+✅ **Ověřeno čtením registru 21** (12. 9. 2026 večer, viz bod 4b): reference hlásí sklon
+**65,95°** a `\|B\|` **0,4896 G**, takže neshoda ~3° je **skutečná** a tenhle odstavec platí.
+⚠️ **Akcelerometr to potvrdil naprosto nezávisle** — registr 27 na stojícím robotu dává
+`\|acc\|` = **10,524 m/s²**, tedy **+7,3 %** proti `g`, a registr 25 (kompenzace akcelerometru) je
+**jednotkový s nulovým biasem**, tedy se nic neopravuje. Ze záznamů vyšlo +6,9 %; dvě nezávislé
+cesty na destinu procenta. VPE
+měřený sklon proti registru 21 porovnává, takže je to kandidát na zbytek té 53s konstanty.
+
+Proložení elipsoidy přitom říká, že pole je v tělesovém rámci **koule** na 1,9 mG, takže to není
+anizotropie magnetometru. Zbývají dvě vysvětlení a obě jsou pravděpodobně ve hře:
+
+- **svislice z akcelerometru je nakloněná** — v klidu je mezi `−acc` a „dolů" z atitudy **1,89°**,
+  a akcelerometr má `|a|` v klidu **10,487 m/s² proti g = 9,807**, tedy **+6,9 %**; proložení
+  koule dá střed `[0,015; −0,006; 0,264] m/s²` a měřítko 0,9593 (osy čtou o 4,2 % víc);
+- **místní porucha pole** — mezi statickým stanovištěm a jízdou se `|B|` liší o 2 % a sklon o 1°,
+  což sedí s η² z bodu 3.
+
+Kalibrace **akcelerometru** (registr 25) je tím pádem další otevřený úkol, a není kosmetický:
+sklon do kurzu propadá tím víc, čím je robot nakloněnější.
+
+#### 6. ⚠️ NÁLEZ: `UncompMag` v binárním výstupu je **taky kompenzovaný** — druhá kalibrace by tu první smazala
+
+Tím se zavírá otevřená otázka z 10. 9. („zůstává otevřené, jestli je `UncompMag` v binárním
+výstupu taky kompenzovaný — na tom stojí příští kalibrace"). Odpověď: **je**.
+
+`IMUState.Magnetometer` (registr 20, kompenzovaný) a `IMUState.MagnetometerRaw` (binární pole
+`UncompMag`) jsou v záznamu **bit po bitu shodné** — přes 22 445 vzorků statického otáčení je
+`max |raw − comp| = 0,000000 G` a nejmenší čtverce pro model `comp = C·raw + d` vrátí `C = I`,
+`d = 0` se zbytkem 0. Že registr 23 přitom **funguje**, je jisté z druhé strany: zapsaná
+kalibrace nese `|b| = 0,123 G`, a kdyby se neaplikovala, proložení koule by to železo dnes zase
+našlo — najde 0,0023 G, a rozpětí `|B|` spadlo 0,148 → 0,019 G.
+
+✅ **Potvrzeno i na živém senzoru 12. 9. 2026** (`vnprobe.sh`), a to třetí, nezávislou cestou:
+registr 54 („surová měření" podle ICD) dává `(0,0349; −0,1658; 0,4712)`, registr 27
+(„kompenzovaná") `(0,0361; −0,1680; 0,4712)` — liší se o **0,0025 G**, což je šum mezi dvěma
+okamžiky. Kdyby registr 23 ležel mezi nimi, musely by se lišit řádově víc: aplikace zapsané
+kalibrace na registr 54 dá `(0,159; −0,207; 0,434)`, tedy v X **4× jinou hodnotu**. Registr 54
+je tedy kompenzovaný stejně jako `UncompMag`.
+
+**Důsledek je vážný.** `MagCalCollector.Add` sbírá `MagnetometerRaw ?? Magnetometer`, tedy
+**kompenzované** pole, a `MagCalMission.WriteToSensor()` zapisuje `LastResult.ToVnwrg23()`
+**přímo** do registru 23 — `Reg23Before` se jen nese do zprávy, neskládá se. Druhé spuštění
+`mission=magcal` by tedy dobrou kalibraci **přepsalo maticí blízkou jednotkové** (přesně tu
+vyrábí proložení už zkompenzovaného pole) a kurz by se vrátil k chybě ±25°.
+
+✅ **Léčba hotová 12. 9. 2026** — vybralo se mazání (autor), tedy první z obou cest:
+
+- registr 23 se na **začátku mise vymaže** (zapíše se jednotka) a měří se opravdu ze syrového
+  pole — odpovídá to tomu, jak se postupovalo ručně 10./11. 9.;
+- ~~nebo výsledek **skládat**: `C_nová = C₁·C₀`, `b_nová = b₀ + C₀⁻¹·b₁`.~~ **Zamítnuto:**
+  skládání potřebuje znát přesně konvenci registru 23 **a** rámcovou transformaci `T` mezi fitem
+  a registrem — a **právě ten rámec už jednou kousl** (bias v X a Y měl obrácené znaménko, takže
+  se offset *přičítal*). Mazání tuhle past nemá;
+- opravit i text v `MagCalReport`: „pole: SUROVE (MagnetometerRaw) — výsledek je ABSOLUTNÍ
+  kalibrace, nezávisle na tom, co bylo v registru 23" **neplatí**; nad záznamem s nenulovým
+  registrem 23 je to **reziduum**. (Jako měřidlo zbytkového železa je to naopak přesně to, co
+  bylo potřeba — viz bod 1.) Totéž pravidlo platí pro **offline rozbor**: `ARBot.Analyze magcal`
+  je absolutní kalibrace jen nad záznamem, kde byl registr 23 **jednotkový** — záznamy z 10. 9.
+  takové byly (vymazáno 6. 9.), proto z nich zapsaná kalibrace sedí.
+
+⚠️ **Samotné vymazání registru 23 ale nestačí** — bez těchhle tří věcí je léčba horší než nemoc.
+Všechny tři jsou od 12. 9. 2026 v `MagCalMission`:
+
+1. **Zapisuje se jen do RAM, ne do flash** (`WriteMagCompensation` bez `SaveToFlash()`). Výpadek
+   napájení pak sám vrátí starou kalibraci z flash — pojistka zadarmo. Totéž platí pro návrat.
+2. **Registr 23 se vrací, když se nová kalibrace nezapíše** (`ObnovReg23()` ze `Stop()`).
+   Bez návratu by **nedokončená mise** — a to je přesně to, co se v poli 10. 9. dvakrát
+   stalo — nechala robota jezdit **bez kalibrace** až do restartu senzoru, tedy ve stavu, který
+   6. 9. dělal chybu kurzu ±25°. Po **úspěšném** zápisu se nevrací nic (v registru je to, co si
+   obsluha vyžádala) — a platí to i když pak selže uložení do flash, protože zahodit novou
+   kalibraci kvůli tomu by bylo horší.
+3. **Nemaže se, když registr 23 nejde přečíst** — nebylo by co vracet. Mise pak **NEZAČNE**
+   (`MagCalPhase.NotCleared`), stejně jako u nečitelného registru 21; stránka i log řeknou proč.
+   Totéž, když samo mazání selže — a pořadí v `StartMission` je proto takové, že se registr 23
+   řeší **před** zapnutím palubní HSI, takže po neúspěchu není co uklízet.
+
+Kryje to sedm testů v `MagCalMissionTests` (vymazání jen do RAM, obě větve „mise nezačne",
+návrat, jeho idempotence, „po úspěšném zápisu se nevrací", „po neúspěšném zápisu se vrací")
+a upravený `VirtualMagCalEndToEndTest`. Generátor syntetické otáčky se kvůli tomu vytáhl do
+sdíleného `MagCalSamples` — mise potřebuje stav `Usable`, aby šlo ověřit chování po zápisu, a ten
+se jinak než přes zprávy navodit nedá.
+
+✅ **Registr 44 je při tom čistý a řešit se nemusí:** `VnCommands` mu posílá
+`ApplyCompensation = ApplyDisable`, takže palubní HSI počítá jen do registru 47 a do výstupního
+pole **nezasahuje**. Druhá cesta kontaminace tedy neexistuje.
+
+✅ **Sběr dat vymazání nerozbije:** mapa pokrytí se klíčuje yawem **integrovaným z gyra**
+a náklonem z akcelerometru (`MagCalCoverage.RowOf`), ne atitudou senzoru — i když se po vymazání
+kurz rozjede o desítky stupňů, pokrytí i verdikt platí dál. `BRefG` z registru 21 je nedotčený.
 
 ### Konfigurace senzoru
 

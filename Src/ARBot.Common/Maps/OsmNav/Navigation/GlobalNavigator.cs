@@ -119,7 +119,10 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             this.origin = origin ?? throw new ArgumentNullException(nameof(origin));
             this.localGoal = localGoal ?? throw new ArgumentNullException(nameof(localGoal));
             cfg = config ?? new GlobalNavigatorConfig();
-            navOptions = navigatorOptions;
+            // Vychozi nastaveni se doplni UZ TADY, ne az v Navigatoru: dojezdovy radius z nej cte
+            // i BuildMessage (jde do zpravy, a z ni se kresli zona dojezdu), takze by null znamenal
+            // pad v kazdem cyklu - ne jen "nekdo si to nenastavil".
+            navOptions = navigatorOptions ?? new NavigatorOptions();
 
             progress = new ProgressWindow(cfg.ProgressWindowM);
 
@@ -763,6 +766,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 HasGoal = target != null,
                 GoalLatDeg = target != null ? Conversions.Rad2Deg(target.Latitude) : 0,
                 GoalLonDeg = target != null ? Conversions.Rad2Deg(target.Longitude) : 0,
+                // Polomer jde do zpravy i bez cile: je to nastaveni navigatoru, ne vlastnost cile,
+                // a odberatel z nej kresli zonu i pro mista, ktera jeste nejsou aktivnim cilem.
+                GoalRadiusM = navOptions.ArrivalRadiusMeters,
                 LatDeg = Conversions.Rad2Deg(here.Latitude),
                 LonDeg = Conversions.Rad2Deg(here.Longitude),
                 HasCarrot = carrot.HasValue,

@@ -205,6 +205,89 @@ precedens z 6. 9. 2026, kdy hlídka zamrzlého streamu shodila každý grab. **N
 přes transaction translator, tedy po fyzicky oddělených vodičích než SuperSpeed lanes — o šířku
 pásma kamerám nekonkurují. A objemem to není nic: VN100 ~9 kB/s, GPS míň.
 
+### ✅ Proč se kamera po restartu pipeline někdy už nevzpamatuje: **zasekne se NÁŠ PROCES** (12. 9. 2026, ZMĚŘENO NA HW)
+
+Záznam `records/test/20260912-125851.rec` (mise Track) + `dmesg` a `journalctl` z Orange Pi. Poprvé
+je celý řetěz změřený, ne odvozený — a **zaseknutou kameru se podařilo zastihnout živou**.
+
+**Co se stalo (časy z Pi):**
+
+| čas | co |
+|---|---|
+| 13:03:34 | `USBDEVFS_CLEAR_HALT` na endpointu **0x82 = hloubka** kamery `2-1.3` (Left) |
+| 13:03:36 | hlídka: `Left: HLOUBKA zamrzla (5,0 s stejné razítko, barva 0,0 s) -> restart pipeline` |
+| 13:03:39 | **jádro: `uvcvideo 2-1.3:1.1 … Found UVC 1.50 device`** — kernelový ovladač si kameru vzal zpátky |
+| 13:03:36–13:09:19 | `QueryDevices selhalo: failed to set power state`, **300 pokusů / 343 s**, do restartu služby |
+| 13:09:32 | restart služby → obě kamery se vyčetly a jedou |
+
+**Zařízení bylo celou dobu zdravé.** V `dmesg` není o `2-1.3` mezi 13:03:39 a 13:09:32 **ani řádka** —
+žádné odpojení, žádný reset portu, žádná chyba. Druhá D435 (`2-1.2`) i T265 jely bez přerušení
+(změřeno z indexu záznamu: Right 9,4 Hz před i po, T265 199,7 Hz před i po). **Vada je tedy v našem
+procesu, ne v kameře ani na sběrnici.**
+
+#### Zaseknutá kamera se podařilo zastihnout živou a **vyzkoušet léčbu** — dvě hypotézy padly
+
+Táž porucha nastala znovu (13:37, jiný běh), takže šlo experimentovat na zaseknuté kameře, zatímco
+služba běžela. První pohled sváděl na `uvcvideo`:
+
+```
+2-1.3:1.0 … 1.4  driver=uvcvideo     <- zaseknutá Left
+2-1.2:1.0 … 1.4  driver=usbfs        <- fungující Right (drží ji librealsense)
+```
+
+Po zbourání pipeline libusb pustí rozhraní a jádro na ně znovu naváže `uvcvideo` (vzniknou
+i `/dev/video*` uzly, časem přesně v okamžiku zbourání). Vypadalo to tedy, že RSUSB backend nemůže
+rozhraní zabrat zpět. **Měření to ale vyvrátilo — obě přímé léčby selhaly:**
+
+| co se zkusilo | výsledek |
+|---|---|
+| **reset USB portu** (`ioctl USBDEVFS_RESET`, jako `ales` bez rootu — udev dává uzlům `crw-rw-rw-`) | zařízení se v `dmesg` znovu vyčetlo, `QueryDevices` **selhává dál** |
+| **odpojit `uvcvideo`** ze všech pěti rozhraní (`/sys/bus/usb/drivers/uvcvideo/unbind`) | žádné rozhraní nemá ovladač, `QueryDevices` **selhává dál** |
+| **zabrat rozhraní JINÝM procesem** (`USBDEVFS_CLAIMINTERFACE` z pythonu) | **všech pět rozhraní zabráno bez problému** |
+
+**Zařízení je tedy zcela volné a zdravé — zaseknutý je náš proces.** `uvcvideo` je následek
+(uvolněná rozhraní jádro prostě zase obsadí), ne příčina. Poisonovaná je vnitřní stav
+librealsense/libusb v tom **jednom** procesu, a **nic na úrovni OS to nespraví** — proto pomůže
+jedině restart služby. `lsof` k tomu ukazuje, že proces má na uzlu zaseknuté kamery pořád jeden
+otevřený deskriptor.
+
+⚠️ **Co se NEZKOUŠELO a proč:** `rs-enumerate-devices` (je na Pi v `/usr/local/bin`) by dal přímý
+důkaz na úrovni librealsense, ale **druhý kontext v jiném procesu je přesně to, co 3. 9. 2026
+vyrobilo SIGSEGV v `tm_boot`** — nad běžící službou se to dělat nemá. Až s zastavenou službou.
+
+A protože `D435Camera.EnsureConnected` se bez `DevicePresent() == true` o `pipeline.Start` ani
+nepokusí, je to **slepá ulička až do konce běhu**.
+
+**Jak často to je** (z journalu, všechny běhy): **82 zamrznutí streamu** (57 barva, 25 hloubka) —
+naprostá většina se **sama zotaví za 2–13 s**. Slepá ulička je vzácnější, ale drahá:
+
+| kdy | kamera | trvání | konec |
+|---|---|---|---|
+| 11. 9. 22:06 | T265 | **1845 s** (1601 pokusů) | sama |
+| 12. 9. 13:03 | Left | 343 s (300 pokusů) | restart služby |
+| 12. 9. 13:13 | Left | 8 s | sama |
+| 12. 9. 13:37 | Left | 89 s+ | (zastiženo živé) |
+
+**Dopad na řízení:** robot jel dál po jedné kameře — `LocalPlanMsg` spadlo z **17,7 na 9,4 Hz**
+(plánuje se na snímek), mise doběhla. Není to tedy fatální porucha, ale polovina zorného pole.
+
+⚠️ **Hlídka zahodila i funkční barvu.** Zamrzla hloubka, barva chodila — a `Teardown` bourá pipeline
+celou. Při `backproject=npu` je přitom barva to, z čeho se počítá pravděpodobnost cesty.
+
+#### Jak ji oživit za jízdy — žebříček (NEIMPLEMENTOVÁNO, NEOVĚŘENO)
+
+1. **Recyklovat sdílený `Context`** — po *N* selhaných dotazech ho zahodit a založit znovu, tedy
+   udělat uvnitř procesu to, co dnes dělá restart služby. **Po měření výš je to jediný kandidát,
+   který dává smysl:** vada je v procesu a mimo proces na ni nedosáhneme. Cena: kontext sdílejí
+   *všechny* kamery (to je záměr z 3. 9., aby `tm_boot` neběžel dvakrát), takže je to „měkký restart
+   celé vizuální cesty" — pár sekund bez obrazu, ale s běžící misí.
+2. **Neopírat reconnect o `QueryDevices`.** Po *N* selháních zkusit `pipeline.Start(cfg)` naslepo —
+   je to jiná cesta kódem a dnešní stav je prokazatelně beznadějný, takže to nemůže uškodit. Levné,
+   ale samo o sobě nejspíš nestačí (`Start` si zařízení taky vyhledává).
+3. ~~Reset USB portu~~ — **vyzkoušeno 12. 9. 2026, NEFUNGUJE** (viz tabulka výš). Nezkoušej znovu.
+4. ~~Odpojit `uvcvideo`~~ — **vyzkoušeno 12. 9. 2026, NEFUNGUJE.** Totéž.
+5. **Jet dál po jedné kameře** (dnešní chování) — s tím, že stránka to hlásí (`e: true`, rostoucí stáří).
+
 ### Sériové porty na Orange Pi
 
 Na Pi **nejede žádný onboard UART** — všechny tři sériové periferie visí na USB.

@@ -97,6 +97,14 @@ namespace ARBot.Common.Missions
             this.routes = routes;
             this.config = config ?? new TrackConfig();
             this.config.Validate();
+
+            allLatitudes = new double[this.plan.Count];
+            allLongitudes = new double[this.plan.Count];
+            for (int i = 0; i < this.plan.Count; i++)
+            {
+                allLatitudes[i] = this.plan.Points[i].Latitude;
+                allLongitudes[i] = this.plan.Points[i].Longitude;
+            }
         }
 
         // ---------------- Diagnostika pro UI a testy ----------------
@@ -487,6 +495,16 @@ namespace ARBot.Common.Missions
             if (control != null) control.Regulator = null;
         }
 
+        /// <summary>
+        /// Vsechna mista seznamu [rad] do kazde zpravy. <b>Pole se spocitaji jednou</b> a pak uz se
+        /// jen predavaji: seznam se za behu mise nemeni, kdezto zprava chodi kazdou sekundu - a
+        /// alokovat pri tom dve pole je zbytecne, byt by to bylo maly.
+        ///
+        /// <para>⚠️ Pole se <b>nesmi zvenku menit</b>: jde do zpravy referenci, tedy do zaznamu
+        /// i do weboveho nahledu. Mise ho po naplneni uz nesaha (seznam je jen ke cteni).</para>
+        /// </summary>
+        private readonly double[] allLatitudes, allLongitudes;
+
         /// <summary>Vyrobi a posle <see cref="TrackMsg"/>.</summary>
         private void EmitState(DateTime now)
         {
@@ -507,6 +525,8 @@ namespace ARBot.Common.Missions
                 TargetLongitude = activeTarget?.Longitude ?? 0,
                 OffRoadM = activeOffRoadM,
                 RouteLengthM = activeRouteLengthM,
+                AllLatitudes = allLatitudes,
+                AllLongitudes = allLongitudes,
                 AbortReason = abortReason,
                 ElapsedSec = missionStartedAt == default || lastTime <= missionStartedAt
                              ? 0 : (lastTime - missionStartedAt).TotalSeconds,

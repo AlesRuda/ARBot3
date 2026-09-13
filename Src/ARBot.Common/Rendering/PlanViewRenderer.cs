@@ -15,6 +15,15 @@ namespace ARBot.Common.Rendering
         public PlanViewPoint(double x, double y) { X = x; Y = y; }
     }
 
+    /// <summary>Usecka v lokalni ENU rovine [m] - jeden usek trasy globalni navigace.</summary>
+    public readonly struct PlanViewSegment
+    {
+        public readonly PlanViewPoint A, B;
+        public PlanViewSegment(PlanViewPoint a, PlanViewPoint b) { A = a; B = b; }
+        public PlanViewSegment(double ax, double ay, double bx, double by)
+            : this(new PlanViewPoint(ax, ay), new PlanViewPoint(bx, by)) { }
+    }
+
     /// <summary>
     /// Co se ma na pudorys nakreslit. Vsechno v lokalni ENU rovine - krome uzlu mapy, ktere jsou
     /// v LLA a prevadi je <see cref="Origin"/>.
@@ -36,6 +45,51 @@ namespace ARBot.Common.Rendering
 
         /// <summary>Ujeta draha (nejstarsi prvni). Null nebo prazdne = nekresli se.</summary>
         public IReadOnlyList<PlanViewPoint> Trail;
+
+        /// <summary>
+        /// <b>Trasa globalni navigace</b> po siti cest (useky mezi uzly). Null nebo prazdne =
+        /// nekresli se. Je to „kudy chce robot jet k cili", tedy plan na desitky az stovky metru.
+        /// </summary>
+        public IReadOnlyList<PlanViewSegment> Route;
+
+        /// <summary>
+        /// <b>Draha z lokalniho planovace</b> (waypointy A*, prvni je u robota). Null nebo kratsi
+        /// nez dva body = nekresli se. Je to „co robot udela ted", tedy plan na jednotky metru -
+        /// a prave proto se kresli navrch nade vsim krome robota.
+        /// </summary>
+        public IReadOnlyList<PlanViewPoint> LocalPlan;
+
+        /// <summary>
+        /// <b>Zony, ktere maji byt dosazeny</b> (mista mise i s dojezdovym polomerem). Null nebo
+        /// prazdne = nekresli se.
+        /// </summary>
+        public IReadOnlyList<PlanViewZone> Zones;
+    }
+
+    /// <summary>
+    /// <b>Zona, ktera ma byt dosazena</b> - misto mise (depo, nakladka, vykladka, bod ze seznamu
+    /// <c>*.track</c>, cil globalni navigace) i s <b>dojezdovym polomerem</b>, tedy s tim, jak
+    /// blizko se robot musi dostat, aby se dojezd ohlasil (<c>NavigatorOptions.ArrivalRadiusMeters</c>).
+    ///
+    /// <para><b>Nac to je:</b> pri dohledu nad zavodem v terenu je z pudorysu potreba poznat, kam
+    /// robot MUSI dojet - ne jen kam prave mine. Polomer se kresli doslova, takze je z obrazku
+    /// videt i to, jestli uz je robot uvnitr zony.</para>
+    /// </summary>
+    public readonly struct PlanViewZone
+    {
+        /// <summary>Stred zony v lokalni ENU rovine [m].</summary>
+        public readonly double X, Y;
+        /// <summary>Dojezdovy polomer [m]; nekladny = nakresli se jen znacka stredu.</summary>
+        public readonly double RadiusM;
+        /// <summary>Kratky popis (bez diakritiky - viz <see cref="PlanViewRenderer"/>); muze byt prazdny.</summary>
+        public readonly string Label;
+        /// <summary>Je to zona, na kterou se PRAVE jede? Ta se kresli plnou carou, ostatni carkovane.</summary>
+        public readonly bool Active;
+
+        public PlanViewZone(double x, double y, double radiusM, string label, bool active = false)
+        {
+            X = x; Y = y; RadiusM = radiusM; Label = label; Active = active;
+        }
     }
 
     /// <summary>Rozmery vykresu.</summary>
@@ -84,12 +138,26 @@ namespace ARBot.Common.Rendering
                 var c = surface.Canvas;
                 c.Clear(new SKColor(0x14, 0x18, 0x1C));
 
+                // Poradi je odzadu dopredu podle toho, jak DALEKO dopredu ten udaj mluvi:
+                // sit (staticka mapa) -> co robot vidi ted (grid) -> kam chce k cili (trasa) ->
+                // kudy uz jel (draha) -> co udela v pristich metrech (lokalni plan) -> mrkev ->
+                // robot. Lokalni plan je tedy nade vsim krome robota: je to odpoved na otazku
+                // „co se robot chysta udelat", kvuli ktere nahled vznikl.
+                //
+                // Zony (kam robot MUSI dojet) mluvi dopredu ze vseho nejdal, patrily by tedy uplne
+                // dozadu - kresli se ale az NAD gridem, protoze grid je poloprubledny a plne pole
+                // cervenych bunek by z kruzku udelalo necitelnou skvrnu. Cely jejich smysl je
+                // orientace cloveka pri dohledu, takze citelnost vyhrava nad konvenci poradi.
                 DrawNetwork(c, input, PX, PY, pxPerM);
                 DrawGrid(c, input.Grid, PX, PY, pxPerM, n);
+                DrawZones(c, input.Zones, PX, PY, pxPerM);
+                DrawRoute(c, input.Route, PX, PY);
                 DrawTrail(c, input.Trail, PX, PY);
+                DrawLocalPlan(c, input.LocalPlan, PX, PY, pxPerM);
                 DrawCarrot(c, input, PX, PY, pxPerM);
                 DrawRobot(c, input, PX, PY, pxPerM);
                 DrawScale(c, n, span);
+                DrawLegend(c, input, n);
 
                 using var image = surface.Snapshot();
                 using var data = image.Encode(SKEncodedImageFormat.Png, 100);
@@ -202,6 +270,132 @@ namespace ARBot.Common.Rendering
             }
         }
 
+        /// <summary>Barva ujete drahy (modra) - drzi konvenci mapy v UI.</summary>
+        private static readonly SKColor TrailColor = new SKColor(0x42, 0xA5, 0xF5);
+
+        /// <summary>Barva mrkve (zluta).</summary>
+        private static readonly SKColor CarrotColor = new SKColor(0xFF, 0xC1, 0x07);
+
+        /// <summary>
+        /// Barva zon, ktere maji byt dosazeny (svetle zelena). Vlastni odstin - zelena gridu je
+        /// poloprubledna vypln bunek, kdezto tohle je vzdycky <b>kruznice s popisem</b>, takze se
+        /// to neplete; s mrkvi (zluta) uz vubec ne, a to je podstatne: mrkev je bod, kam robot
+        /// miri <i>ted</i>, zona je misto, kam <i>musi</i> dojet.
+        /// </summary>
+        private static readonly SKColor ZoneColor = new SKColor(0x9C, 0xCC, 0x65);
+
+        /// <summary>
+        /// <b>Zony, ktere maji byt dosazeny</b>: kruznice o dojezdovem polomeru plus krizek ve
+        /// stredu a kratky popis.
+        ///
+        /// <para><b>Aktivni zona</b> (ta, na kterou se prave jede) je plnou carou, ostatni
+        /// <b>carkovane</b> - jinak by se z obrazku nepoznalo, ktere misto robot resi ted a ktera
+        /// jsou zbytek seznamu. Popis se pise nad kruznici, aby ho neprekryla trasa.</para>
+        ///
+        /// <para>Zona mensi nez par pixelu (velky vyrez) by byla tecka, takze se kruznice kresli
+        /// nejmene o polomeru <see cref="MinZoneRadiusPx"/> - poloha zustava pravdiva, jen jeji
+        /// velikost uz pri tom meritku nic nerika. Krizek ve stredu je tam prave proto, aby
+        /// <b>stred</b> byl jednoznacny i tehdy.</para>
+        /// </summary>
+        private static void DrawZones(SKCanvas c, IReadOnlyList<PlanViewZone> zones,
+                                      Func<double, float> PX, Func<double, float> PY, double pxPerM)
+        {
+            if (zones == null || zones.Count == 0) return;
+
+            using var kruznice = new SKPaint
+            {
+                Color = ZoneColor, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2,
+            };
+            using var carkovane = new SKPaint
+            {
+                Color = ZoneColor, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f,
+                PathEffect = SKPathEffect.CreateDash(new[] { 5f, 4f }, 0),
+            };
+            using var krizek = new SKPaint
+            {
+                Color = ZoneColor, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f,
+            };
+            using var font = new SKFont { Size = 11 };
+            using var text = new SKPaint { Color = ZoneColor, IsAntialias = true };
+
+            foreach (var z in zones)
+            {
+                float x = PX(z.X), y = PY(z.Y);
+                float r = (float)Math.Max(MinZoneRadiusPx, z.RadiusM * pxPerM);
+                c.DrawCircle(x, y, r, z.Active ? kruznice : carkovane);
+
+                const float k = 3;
+                c.DrawLine(x - k, y, x + k, y, krizek);
+                c.DrawLine(x, y - k, x, y + k, krizek);
+
+                if (!string.IsNullOrEmpty(z.Label))
+                    c.DrawText(z.Label, x, y - r - 4, SKTextAlign.Center, font, text);
+            }
+        }
+
+        /// <summary>Nejmensi kreslena kruznice zony [px] - pri velkem vyrezu by z ni byla tecka.</summary>
+        private const float MinZoneRadiusPx = 4;
+
+        /// <summary>Barva trasy globalni navigace (fialova) - vlastni odstin, aby si ji nikdo
+        /// nespletl s ujetou drahou (modra) ani s mrkvi (zluta).</summary>
+        private static readonly SKColor RouteColor = new SKColor(0xAB, 0x47, 0xBC);
+
+        /// <summary>Barva drahy z lokalniho planovace (azurova).</summary>
+        private static readonly SKColor PlanColor = new SKColor(0x00, 0xE5, 0xFF);
+
+        /// <summary>
+        /// <b>Trasa globalni navigace</b> po siti cest - lomena cara pres uzly trasy.
+        ///
+        /// <para>Kresli se az NAD occupancy gridem: grid rika, co robot vidi ted, trasa kam chce
+        /// dojet, a kdyz se prekryvaji, je podstatnejsi, aby byla videt trasa. Useky jsou samostatne
+        /// (ne jedna <c>SKPath</c>), protoze zprava nese hrany, ne serazenou lomenou caru - poradi
+        /// hran neni zarucene a spojovat je do jedne cary by vyrobilo prelety pres pul mapy.</para>
+        /// </summary>
+        private static void DrawRoute(SKCanvas c, IReadOnlyList<PlanViewSegment> route,
+                                      Func<double, float> PX, Func<double, float> PY)
+        {
+            if (route == null || route.Count == 0) return;
+
+            using var paint = new SKPaint
+            {
+                Color = RouteColor, IsAntialias = true, Style = SKPaintStyle.Stroke,
+                StrokeWidth = 4, StrokeCap = SKStrokeCap.Round,
+            };
+            foreach (var seg in route)
+                c.DrawLine(PX(seg.A.X), PY(seg.A.Y), PX(seg.B.X), PY(seg.B.Y), paint);
+        }
+
+        /// <summary>
+        /// <b>Draha z lokalniho planovace</b>: lomena cara pres waypointy a kolecko v kazdem z nich.
+        ///
+        /// <para>Uzly se kresli schvalne - jejich ROZESTUP je vysledek vyhlazovani drahy
+        /// (<c>smooth=</c>, viz doc/occupancy-and-local-planning.md) a z obrazku je tak videt
+        /// i to, jestli planovac drahu slucuje, nebo ji seka na centimetry. Prvni uzel lezi
+        /// u robota, posledni v dosazenem cili.</para>
+        /// </summary>
+        private static void DrawLocalPlan(SKCanvas c, IReadOnlyList<PlanViewPoint> plan,
+                                          Func<double, float> PX, Func<double, float> PY, double pxPerM)
+        {
+            if (plan == null || plan.Count < 2) return;
+
+            using var cara = new SKPaint
+            {
+                Color = PlanColor, IsAntialias = true, Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2.5f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round,
+            };
+            using var uzel = new SKPaint { Color = PlanColor, IsAntialias = true };
+
+            using var path = new SKPath();
+            path.MoveTo(PX(plan[0].X), PY(plan[0].Y));
+            for (int k = 1; k < plan.Count; k++) path.LineTo(PX(plan[k].X), PY(plan[k].Y));
+            c.DrawPath(path, cara);
+
+            // Kolecka jen kdyz je vyrez dost velky - pri 50m meritku by z nich byla soucista cara.
+            float r = (float)Math.Min(3.0, Math.Max(1.5, 0.08 * pxPerM));
+            foreach (var wp in plan)
+                c.DrawCircle(PX(wp.X), PY(wp.Y), r, uzel);
+        }
+
         private static void DrawTrail(SKCanvas c, IReadOnlyList<PlanViewPoint> trail,
                                       Func<double, float> PX, Func<double, float> PY)
         {
@@ -209,7 +403,7 @@ namespace ARBot.Common.Rendering
 
             using var paint = new SKPaint
             {
-                Color = new SKColor(0x42, 0xA5, 0xF5), IsAntialias = true,
+                Color = TrailColor, IsAntialias = true,
                 Style = SKPaintStyle.Stroke, StrokeWidth = 2,
             };
             using var path = new SKPath();
@@ -226,7 +420,7 @@ namespace ARBot.Common.Rendering
 
             using var paint = new SKPaint
             {
-                Color = new SKColor(0xFF, 0xC1, 0x07), IsAntialias = true,
+                Color = CarrotColor, IsAntialias = true,
                 Style = SKPaintStyle.Stroke, StrokeWidth = 2,
             };
             float x = PX(input.CarrotX), y = PY(input.CarrotY);
@@ -277,6 +471,51 @@ namespace ARBot.Common.Rendering
             float y = n - 14, x0 = 12;
             c.DrawLine(x0, y, x0 + len, y, linka);
             c.DrawText(metry < 1 ? $"{metry:0.#} m" : $"{metry:0} m", x0, y - 6, SKTextAlign.Left, font, text);
+        }
+
+        /// <summary>
+        /// <b>Legenda</b> v pravem dolnim rohu - jen k tomu, co se na obrazku doopravdy kresli.
+        ///
+        /// <para><b>Nac to je:</b> po pridani trasy a lokalniho planu (12. 9. 2026) je na pudorysu
+        /// pet barevnych car a bez legendy se z nich da jen hadat. Kresli se do PNG, ne do stranky,
+        /// aby platila i tam, kde se obrazek jen ulozi (<c>ARBot.Analyze</c>, snimek z terenu).</para>
+        ///
+        /// <para>Bez diakritiky zamerne: pismo bere Skia ze systemu a na zarizeni neni jiste, ze
+        /// nektery font 'a' s carkou ma - misto textu by byly obdelnicky.</para>
+        ///
+        /// <para>⚠️ <b>Polozka musi byt ke KAZDE kreslene care.</b> Prvni verze legendy vynechala
+        /// ujetou drahu, takze modra cara za robotem zustala jedina nepopsana - a prave ta se
+        /// odstinem plete s azurovym lokalnim planem.</para>
+        /// </summary>
+        private static void DrawLegend(SKCanvas c, PlanViewInput input, int n)
+        {
+            var polozky = new List<(SKColor Color, string Text)>();
+            if (input.Zones != null && input.Zones.Count > 0) polozky.Add((ZoneColor, "zona"));
+            if (input.Route != null && input.Route.Count > 0) polozky.Add((RouteColor, "trasa"));
+            if (input.Trail != null && input.Trail.Count >= 2) polozky.Add((TrailColor, "draha"));
+            if (input.LocalPlan != null && input.LocalPlan.Count >= 2) polozky.Add((PlanColor, "plan"));
+            if (input.HasCarrot) polozky.Add((CarrotColor, "mrkev"));
+            if (polozky.Count == 0) return;
+
+            using var font = new SKFont { Size = 11 };
+            using var text = new SKPaint { Color = new SKColor(0xB0, 0xB6, 0xBC), IsAntialias = true };
+            using var vzorek = new SKPaint
+            {
+                IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3,
+                StrokeCap = SKStrokeCap.Round,
+            };
+
+            const float radek = 14, delkaVzorku = 14, mezera = 5;
+            float y = n - 8 - (polozky.Count - 1) * radek;
+            foreach (var (color, popis) in polozky)
+            {
+                float sirka = font.MeasureText(popis);
+                float x1 = n - 8 - sirka;
+                vzorek.Color = color;
+                c.DrawLine(x1 - mezera - delkaVzorku, y - 4, x1 - mezera, y - 4, vzorek);
+                c.DrawText(popis, x1, y, SKTextAlign.Left, font, text);
+                y += radek;
+            }
         }
 
         /// <summary>

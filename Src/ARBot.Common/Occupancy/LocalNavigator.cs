@@ -42,6 +42,9 @@ namespace ARBot.Common.Occupancy
         private readonly IPathPlanner pathPlanner;
         private readonly OccupancyGrid grid;
         private readonly OccupancyIntegrator integrator;
+
+        /// <summary>Doplneni semantiky v klinu mezi zornymi poli barvy (<see cref="WedgeFiller"/>).</summary>
+        private readonly WedgeFiller wedge;
         private readonly ClearanceField field;
         private readonly LocalPathPlanner planner;
         private readonly TimeSpan gridMsgPeriod;
@@ -157,6 +160,12 @@ namespace ARBot.Common.Occupancy
 
             grid = new OccupancyGrid(gridConfig);
             integrator = new OccupancyIntegrator(grid, integratorConfig);
+            var icfg = integrator.Config;
+            wedge = new WedgeFiller(grid,
+                        halfWidthRad: icfg.WedgeFillDeg * Math.PI / 180.0 / 2.0,
+                        rangeM: icfg.WedgeFillRangeM,
+                        maxGapM: icfg.WedgeFillMaxGapM,
+                        confidence: icfg.WedgeFillConfidence);
             field = new ClearanceField(grid);
             planner = new LocalPathPlanner(grid.Size, plannerConfig, motionProfile);
             gridMsgPeriod = gridMessagePeriod ?? TimeSpan.FromMilliseconds(500);
@@ -270,6 +279,12 @@ namespace ARBot.Common.Occupancy
             var depthProj = depthProjectionResolver(frame.Name ?? string.Empty);
             var colorProj = colorProjectionResolver?.Invoke(frame.Name ?? string.Empty);
             integrator.Integrate(frame, depthProj, colorProj, pose.X, pose.Y, pose.Theta);
+
+            // (2b) Klin mezi zornymi poli barvy - doplneni semantiky interpolaci z okoli.
+            // ⚠️ Musi byt AZ ZA zapisem snimku a PRED stavbou pole vzdalenosti: doplnuje se z toho,
+            // co uz v gridu je, a plan se pak pocita z doplneneho gridu. Viz WedgeFiller.
+            wedge.Fill(pose.X, pose.Y, pose.Theta);
+
             lastFrameTime = frame.TimeStamp;
 
             // (3) Bez cile a bez rozjete drahy neni co resit - mapa se ale akumuluje dal.
@@ -457,7 +472,8 @@ namespace ARBot.Common.Occupancy
             lastStatsLog = frame.TimeStamp;
 
             Debug.WriteLine($"Occupancy[{frame.Name}] {integrator.LastStats} "
-                            + $"origin=({grid.OriginX},{grid.OriginY}) frames={ProcessedFrames} drop={DroppedFrames}");
+                            + $"origin=({grid.OriginX},{grid.OriginY}) frames={ProcessedFrames} drop={DroppedFrames} "
+                            + $"klin={wedge.LastFilled}");
             Debug.WriteLine("  " + CorridorStates(pose) + "  " + PlanEnvelope());
             Debug.WriteLine("  " + lastPathDiag + $"  poza: v={pose.V:F2} m/s");
             Debug.WriteLine("  " + lastControlDiag);

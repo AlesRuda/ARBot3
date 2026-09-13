@@ -10,4 +10,13 @@ namespace ARBot.Common.Maps.OsmNav.Navigation;
 /// viz doc/global-navigation-runtime.md.</para>
 /// </param>
 public sealed record NavigatorOptions(
-    double ArrivalRadiusMeters = 3.0);
+    double ArrivalRadiusMeters = NavigatorOptions.DefaultArrivalRadiusMeters)
+{
+    /// <summary>
+    /// Vychozi dojezdovy radius [m]. Verejne proto, aby se na nej mohl odvolat ten, kdo ho
+    /// jeste nezna z dat — webovy nahled kresli <b>zonu dojezdu</b> uz pred prvnim cyklem
+    /// navigace, kdy <c>GlobalNavMsg.GoalRadiusM</c> jeste nedosel. Opsat tam trojku by
+    /// znamenalo, ze se zmena tady tise nepropise do obrazku.
+    /// </summary>
+    public const double DefaultArrivalRadiusMeters = 3.0;
+}

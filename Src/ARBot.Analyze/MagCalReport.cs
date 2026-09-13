@@ -75,19 +75,23 @@ namespace ARBot.Analyze
 
             Console.WriteLine("=== KALIBRACE MAGNETOMETRU ZE ZAZNAMU ===");
             Console.WriteLine($"  vzorku: {cov.Mag.Count}, referencni |B| = {bRefG:F4} G");
-            if (surove)
-            {
-                Console.WriteLine("  pole: SUROVE (MagnetometerRaw) - vysledek je ABSOLUTNI"
-                                  + " kalibrace, nezavisle na tom, co bylo v registru 23.");
-            }
-            else
-            {
-                Console.WriteLine("  ⚠️ pole: KOMPENZOVANE (Magnetometer) - vysledek plati JEN kdyz"
-                                  + " byl registr 23 pri nahravani JEDNOTKOVY.");
-                Console.WriteLine("     Ze zaznamu se to NEPOZNA: elipsoida uz kompenzovanych dat"
-                                  + " je priblizne vycentrovana, coz je od dobreho zeleza"
-                                  + " nerozeznatelne. Zaznamy formatu < 4 surove pole nenesou.");
-            }
+            // ⚠️ 12. 9. 2026 se zmerilo, ze MagnetometerRaw (binarni UncompMag) je s
+            // Magnetometer (registr 20) BIT PO BITU shodne - tedy taky kompenzovane. Driv se tady
+            // tvrdilo, ze pri MagnetometerRaw je vysledek "absolutni kalibrace nezavisle na
+            // registru 23"; to NEPLATI a byla to nebezpecna hlaska: nad zaznamem s nenulovym
+            // registrem 23 je vysledek REZIDUUM a jeho zapis by kalibraci v senzoru smazal.
+            Console.WriteLine("  pole: " + (surove ? "MagnetometerRaw (UncompMag)"
+                                                   : "Magnetometer (registr 20)"));
+            Console.WriteLine("  ⚠️ Vysledek je ABSOLUTNI kalibrace jen tehdy, kdyz byl registr 23"
+                              + " pri nahravani JEDNOTKOVY; jinak je to REZIDUUM.");
+            Console.WriteLine("     UncompMag ani registr 54 syrove pole nenesou (zmereno"
+                              + " 12. 9. 2026: UncompMag == registr 20 bit po bitu), takze z pole"
+                              + " samotneho se to nepozna - elipsoida uz zkompenzovanych dat je"
+                              + " vycentrovana a od dobreho zeleza nerozeznatelna.");
+            Console.WriteLine("     Jak se to pozna: zaznam z mise magcal nese MagCalMsg"
+                              + " s Reg23Before (blok 6 niz) a mise si od 12. 9. 2026 registr 23"
+                              + " na dobu mereni sama vymaze. U ostatnich zaznamu to vis jen"
+                              + " z toho, cos do senzoru zapsal.");
             foreach (var z in zdroje) Console.WriteLine($"  zdroj: {z.Key} ({z.Value} vzorku)");
             if (relativnich > 0)
                 Console.WriteLine($"  vynechano {relativnich} vzorku z IMU bez absolutniho kurzu (T265).");

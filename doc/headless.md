@@ -332,6 +332,14 @@ Obnovuje se každou sekundu.
   stop je **oranžový** (červená patří destruktivnímu *Terminate*). Se skutečným HW se tlačítko
   nekreslí a server požadavek odmítá — dálkové ovládání nouzového zastavení na skutečném robotu
   nesmí existovat.
+  - ⚠️ **Stop drž, dokud stránka nenapíše „připravena k odjezdu".** Výběr mise runtime **přestaví**
+    (nový záznam, nová mise) a mise si stisk hlídá až od svého startu — když se tlačítko uvolní
+    hned po výběru, nová mise zastihne stop už uvolněný a zůstane čekat na *stisknutí*. S fyzickým
+    tlačítkem to nehrozí (drží se rukou), s tlačítkem na stránce ano. Poznat to jde z fáze:
+    *čeká na stisknutí* × *připravena k odjezdu*.
+  - ⚠️ **Bez virtuálního HW tlačítko nic nezastaví** a do 12. 9. 2026 přesto odpovídalo
+    „stisknuto": stav estop se čte z **motorů**, a ty bez mapy vůbec nevzniknou. Server teď
+    odpoví **409** a řekne, že chybí `map=`.
 - **Terminate** ukončí proces. Pod systemd se za ~5 s vrátí (a mezitím se obnoví stínová kopie),
   takže je to zároveň nejrychlejší cesta k nasazení nové verze; kdo chce robota nechat stát, dá
   `systemctl stop arbot`.
@@ -356,12 +364,86 @@ sjízdné, červená blokované, šedá síť cest z mapy, modrá ujetá dráha,
 |---|---|
 | `GET /` | stránka (hlavička, stav mise, výběr mise, lišta, obrázek, senzory, stav) |
 | `GET /camera.jpg` | poslední snímek; `?cam=<jméno>` vybere kameru, `?layer=prob` pošle **pravděpodobnost cesty z RGB** místo barvy |
-| `GET /world.png` | půdorys: occupancy grid pod sítí cest, póza, mrkev, ujetá dráha, měřítko; `?scale=2\|10\|50` volí přiblížení |
+| `GET /world.png` | půdorys: occupancy grid pod sítí cest, **trasa navigace**, **dráha z lokálního plánovače**, **zóny mise**, póza, mrkev, ujetá dráha, měřítko a legenda; `?scale=2\|10\|50` volí přiblížení |
 | `GET /status.json` | týž stav jako hlavička, tabulka a senzory — pro obnovení bez reloadu i pro skriptovaný dohled |
 | `POST /mission?m=<mise>` | vybere misi; **409** bez drženého stopu nebo když už mise běží, **400** u neznámé mise a u `none` |
-| `POST /virtualestop?on=true\|false` | virtuální nouzové zastavení; **404** se skutečným HW |
+| `POST /virtualestop?on=true\|false` | virtuální nouzové zastavení; **404** se skutečným HW, **409** když virtuální HW neběží (nejsou motory — typicky chybí `map=`) |
 | `POST /stop` | zastaví runtime a ukončí proces, jako Ctrl+C |
 | `POST /poweroff` | zastaví runtime a **vypne celé zařízení**; **404** když to `poweroffcmd=` nepovoluje, **500** s důvodem, když příkaz selže |
+
+### Co se na půdorysu kreslí a proč zrovna v tomhle pořadí
+
+Od 12. 9. 2026 je na obrázku vidět i to, **co se robot chystá udělat** — na dvou různých měřítkách:
+
+| Barva | Co to je | Jak daleko dopředu mluví |
+|---|---|---|
+| šedé pruhy | síť cest z mapy | statická mapa |
+| červená / zelená | occupancy grid: neprůjezdné / potvrzeně volné | co robot vidí teď |
+| **fialová** | **trasa globální navigace** po síti cest (`GraphNavigationMsg`, hrany `Path`) | desítky až stovky metrů |
+| modrá | ujetá dráha | kudy už jel |
+| **azurová** | **dráha z lokálního plánovače** (`LocalPlanMsg.WayPoints`) + kolečko v každém uzlu | jednotky metrů |
+| **světle zelená** | **zóny, které mají být dosaženy** — kružnice o dojezdovém poloměru s popiskem | celá mise |
+| žlutá | mrkev (cíl lokální vrstvy) a spojnice k ní | okamžitý cíl |
+| bílá | robot (trojúhelník ve směru kurzu) | — |
+
+![Půdorys v náhledu: fialová trasa navigace, azurový plán lokálního plánovače, žlutá mrkev](media/headless-plan-view-20260912.png)
+
+*Výřez 40 m (měřítko 10 m) za jízdy mise Track v simulaci. Vlevo dole měřítko, vpravo dole legenda.
+Přehled po trase je na [stejném obrázku v měřítku 50 m](media/headless-plan-view-prehled-20260912.png),
+kde je vidět celá trasa včetně odbočky.*
+
+**Kreslí se v tomhle pořadí odzadu dopředu**, takže lokální plán je nade vším kromě robota — je to
+odpověď na otázku, kvůli které náhled vznikl. Trasa je až **nad** gridem: když se překrývají, je
+podstatnější vidět, kam robot míří, než jednu buňku mapy.
+
+**Uzly lokálního plánu se kreslí schválně.** Jejich rozestup je výsledek vyhlazování dráhy
+(`smooth=`, viz [occupancy-and-local-planning.md](occupancy-and-local-planning.md)), takže z obrázku
+je vidět i to, jestli plánovač dráhu slučuje, nebo ji seká na centimetry.
+
+⚠️ **Obojí má práh stáří a po jeho uplynutí z obrázku zmizí** — plán 2 s, trasa 10 s
+(`WebStatus.PlanFreshSec` / `RouteFreshSec`; trasa chodí jen jednou za 2 s, proto delší práh).
+Bez toho by po konci mise na půdorysu zůstal viset úmysl, který už neplatí, a to je horší než
+prázdný obrázek.
+
+**Legenda** vpravo dole vypisuje jen to, co se doopravdy kreslí. Je v PNG, ne ve stránce, aby platila
+i tam, kde se obrázek jen uloží. Bez diakritiky záměrně: písmo bere Skia ze systému a na zařízení
+není jisté, že nějaký font „á" má.
+
+⚠️ **Položka musí být ke každé kreslené čáře.** První verze legendy vynechala právě **ujetou dráhu**,
+takže modrá čára za robotem zůstala jediná nepopsaná — a přitom je to ta, která se odstínem plete
+s azurovým lokálním plánem. Doplněno 12. 9. 2026; hlídá to `UjetaDrahaMaPolozkuVLegende`.
+
+### Zóny, které mají být dosaženy (od 12. 9. 2026)
+
+Při dohledu nad závodem v terénu je z půdorysu potřeba poznat, **kam robot musí dojet** — mrkev
+říká jen, kam míří v příštích metrech. Místa mise se proto kreslí jako **kružnice o dojezdovém
+poloměru** (`NavigatorOptions.ArrivalRadiusMeters`, tedy o tom, jak blízko stačí dojet, aby
+navigace ohlásila `Arrived`) s krátkým popiskem nad ní.
+
+![Půdorys se zónami: tři místa mise Track, aktivní plnou čarou](media/headless-plan-view-zony-20260912.png)
+
+*Mise Track se třemi místy, výřez 200 m (měřítko 50 m). Místo „1" je aktivní (plná čára), zbytek
+seznamu čárkovaně. Poloměr 3 m je při tomhle měřítku 8 px, proto má každá zóna i křížek ve středu.*
+
+- **Aktivní zóna je plnou čarou, ostatní čárkovaně.** Bez toho by z obrázku nebylo poznat, které
+  místo robot řeší teď a která jsou zbytek seznamu.
+- **Zdroj je mise, když nějakou hlásí:** `TrackMsg` nese **celý seznam** míst (od verze 2),
+  `MissionMsg` depo / nakládku / vykládku (aktivní podle fáze automatu). Teprve když mise žádná
+  místa nemá (FreeRun, `goal=` z příkazové řádky, běh bez mise), kreslí se **cíl globální
+  navigace**.
+- ⚠️ **Ty dva zdroje se záměrně nesčítají.** Cíl navigace je totiž místo mise **přichycené na síť
+  cest**, takže by vedle sebe vyšly dvě kružnice pár metrů od sebe a nikdo by nevěděl, která je ta,
+  na které záleží. Přednost má to, co zadal člověk.
+- **Poloměr jde ze zprávy** (`GlobalNavMsg.GoalRadiusM`, verze 2). Dokud první zpráva navigace
+  nedojde, bere se `NavigatorOptions.DefaultArrivalRadiusMeters` — opsaná trojka by se tiše
+  rozešla s nastavením. Ve **starším záznamu** (verze 1) je poloměr nula a nakreslí se jen značka
+  středu; poloha je pravdivá pořád.
+- **Kreslí se nad gridem**, ačkoli podle pořadí „jak daleko dopředu údaj mluví" by patřily úplně
+  dozadu: grid je poloprůhledný a plné pole červených buněk by z kroužku udělalo nečitelnou
+  skvrnu. Čitelnost pro člověka tady vyhrává nad konvencí pořadí.
+
+⚠️ **Na zařízení to neběželo** — ověřeno buildem, testy a během v simulaci (`mission=track` nad
+`OSM/SyntetickyRovny.osm`).
 
 Síť cest se kreslí **věrně mapové geometrii**: každý úsek je kapsle s lineárně interpolovanou
 polosirkou mezi uzly (jako `RoadScene`), takže rozšiřující se cesta je trychtýř a v křižovatce se

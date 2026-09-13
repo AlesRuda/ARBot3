@@ -29,6 +29,15 @@ namespace ARBot.Common.Runtime
         /// </summary>
         private readonly AsyncFusionEngine engine;
 
+        /// <summary>
+        /// Razitko posledniho vydaneho <c>IMU/heading</c> (skrceni podle
+        /// <see cref="FusionConfig.CompassHeadingMinPeriodSec"/>); <c>default</c> = jeste zadne.
+        ///
+        /// <para>Stav bez zamku je v poradku: <see cref="ToMeasurements"/> vola
+        /// <c>FusionProcessor.Consume</c>, a to je <b>jedno konzumni vlakno</b> stupne.</para>
+        /// </summary>
+        private DateTime posledniKurz;
+
         /// <param name="config">Konfigurace fuze (sigma merenia, <see cref="FusionConfig.GeoReference"/>).</param>
         /// <param name="engine">
         /// Volitelne fuzni jadro. Je-li zadane, mapper zaridi <b>fallback inicializaci polohy</b>
@@ -60,10 +69,10 @@ namespace ARBot.Common.Runtime
                     if (imu.Rotation.HasValue)
                     {
                         var ypr = imu.YPR();
-                        if (ypr != null)
+                        if (ypr != null && VydatKurz(imu.TimeStamp))
                         {
-                            double std = imu.OrientationUncertainty?.X ?? cfg.CompassHeadingStd;
-                            yield return new HeadingMeasurement(ypr.Yaw, std, imu.TimeStamp, "IMU/heading");
+                            yield return new HeadingMeasurement(ypr.Yaw, HeadingStd(imu),
+                                                               imu.TimeStamp, "IMU/heading");
                         }
                     }
                     // Uhlova rychlost (yaw rate) z gyroskopu (slozka Z v BODY framu).
@@ -86,6 +95,61 @@ namespace ARBot.Common.Runtime
                         yield return m;
                     break;
             }
+        }
+
+        /// <summary>
+        /// <b>Ma se z tohohle vzorku vydat absolutni kurz?</b> Skrceni na
+        /// <see cref="FusionConfig.CompassHeadingMinPeriodSec"/>; 0 = kazdy vzorek.
+        ///
+        /// <para><b>Proc se skrti.</b> Filtr bere merenia jako nezavisla, ale chyba kompasu je
+        /// <b>bias</b> — pres cely beh temer konstantni. Sto odectu teze konstanty za sekundu nese
+        /// informaci JEDNOHO, takze filtr si ji nascital stokrat a kompas tim prehlasil vsechno
+        /// ostatni. Tataz past a tataz lecba jako <c>MinPeriod</c> u korelace s mapou.</para>
+        ///
+        /// <para><b>Bere se POSLEDNI vzorek, ne prumer intervalu.</b> Prumerovani by srazilo bily
+        /// sum (0,059 stupne), ale bias ne — a ten je o dva rady vetsi, takze by to byla prace
+        /// zadarmo.</para>
+        ///
+        /// <para>⚠️ <b>Gyro se NESKRTI.</b> <c>IMU/gyro</c> jde dal v plne kadenci; jeho chyba je
+        /// prevazne bila, takze u nej predpoklad nezavislosti zhruba plati. Kurz mezi odecty
+        /// kompasu proto drzi gyro, ne odometrie.</para>
+        ///
+        /// <para><b>Skok casu vzad</b> (seek pri prehravani, novy zaznam) skrceni RESETUJE — jinak
+        /// by se po skoku dozadu prestal kurz vydavat, dokud se cas nedotahne zpatky.</para>
+        /// </summary>
+        private bool VydatKurz(DateTime t)
+        {
+            double perioda = cfg.CompassHeadingMinPeriodSec;
+            if (!(perioda > 0)) return true;
+            if (posledniKurz == default || t < posledniKurz)
+            {
+                posledniKurz = t;
+                return true;
+            }
+            if ((t - posledniKurz).TotalSeconds + 1e-9 < perioda) return false;
+            posledniKurz = t;
+            return true;
+        }
+
+        /// <summary>
+        /// Sigma mereni <c>IMU/heading</c> [rad]: co hlasi senzor, <b>slozene kvadraticky
+        /// s podlahou</b> <see cref="FusionConfig.CompassHeadingStdFloor"/>.
+        ///
+        /// <para>⚠️ <b>Tohle je to misto, kde si fuze rikala o slepou duveru.</b> Brala
+        /// <c>YprU</c> primo, a VN100 hlasi 0,06 stupne, zatimco jeho skutecna chyba proti GPS je
+        /// 3-5 stupnu (zmereno 12. 9. 2026) — tedy ~60-90x vic. Duvod neni vada senzoru: YprU
+        /// popisuje jeho kratkodoby sum, ne bias vuci severu, a o tom senzor vedet nemuze.</para>
+        ///
+        /// <para><b>Kvadraticky, ne maximem:</b> kdyz <c>YprU</c> vyskoci, sigma ma rust dal.
+        /// Podlaha 0 vraci stare chovani (pro A/B). Viz doc/ekf-fusion.md
+        /// a doc/imu-and-frames.md.</para>
+        /// </summary>
+        private double HeadingStd(IMUState imu)
+        {
+            double vlastni = imu.OrientationUncertainty?.X ?? cfg.CompassHeadingStd;
+            double podlaha = cfg.CompassHeadingStdFloor;
+            if (!(podlaha > 0)) return vlastni;
+            return Math.Sqrt(vlastni * vlastni + podlaha * podlaha);
         }
 
         /// <summary>

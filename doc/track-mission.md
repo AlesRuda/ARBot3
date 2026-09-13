@@ -12,12 +12,19 @@ a záznamu). Napojení v `ARBot.Runtime/Robot/ARBotRuntime.cs`, `case "track"`.
 (viz [CLAUDE.md](../CLAUDE.md)):
 
 ```bash
-mission=track track=config/haje.track map=OSM/HajeRovne.osm
+mission=track track=OSM/Hviezdoslavova.track map=OSM/Hviezdoslavova.osm
 ```
 
 ✅ **Stav: hotové a projeté v simulaci** (8. 9. 2026, 36 testů) — robot objel všechna tři místa
-`config/haje.track` a po `repeat` začal druhé kolo, bez jediné výjimky v logu. ⚠️ **Na zařízení to
+seznamu a po `repeat` začal druhé kolo, bez jediné výjimky v logu. ⚠️ **Na zařízení to
 neběželo.**
+
+**Soubory `*.track` leží u map v `OSM/`, ne v `config/`** (přesunuto 12. 9. 2026). Je to tak
+správně: seznam míst **patří ke konkrétní mapě** — jeho body musí ležet na její síti cest, jinak
+je mise odmítne (`trackoffroad=`, 50 m). Když ležel v `config/`, vypadal jako nastavení běhu, které
+jde libovolně kombinovat s libovolnou mapou — a přesně tak se to taky jednou stalo: soubor
+pojmenovaný po jedné mapě obsahoval body z druhé a mise se přerušila hláškou
+„*lezi 272 m od site cest*", což vypadá jako porucha navigace, ne jako záměna souboru.
 
 ## Formát souboru
 
@@ -127,9 +134,23 @@ uvolnění se jede dál k témuž cíli. Mise o stopu za jízdy vědět nemusí 
 
 Jde do streamu, tedy současně **do webového náhledu i do záznamu**: fáze, index místa, počet míst,
 kolo, kolik se už objelo, **surový i přichycený cíl**, odstup od sítě, délka trasy, důvod přerušení
-a doba běhu. Verze formátu 1, registrovaná v `MessageCatalog`.
+a doba běhu. Verze formátu **2**, registrovaná v `MessageCatalog`.
 
 Surový i přichycený cíl se nesou oba, protože bez obou se nedá vyložit, kam robot vlastně jel.
+
+**Verze 2 (12. 9. 2026) přidala celý seznam míst** (`AllLatitudes` / `AllLongitudes`, v radiánech),
+ne jen to, které se právě obsluhuje. Kreslí se z něj **zóny na půdorysu** webového náhledu
+(viz [headless.md](headless.md)) — a právě objezd jako celek je při dohledu nad závodem potřeba
+vidět dopředu, ne až po bodech. Ve verzi 1 se čte prázdný seznam a nakreslí se jen aktuální místo.
+
+Dvě věci, které z toho plynou:
+
+- Nesou se **surová** místa ze souboru, ne přichycená: přichycení se dělá až při jízdě na ten bod
+  (z aktuální polohy robota), takže pro zbytek seznamu žádné neexistuje. Rozdíl je jednotky metrů
+  a měrný údaj `OffRoadM` zpráva nese zvlášť.
+- Seznam je v **každé** zprávě, ne jen v první. Odběratel „latest-wins" (náhled) drží poslední
+  zprávu, takže seznam poslaný jednou by při první periodické zprávě zmizel. Pole se ale počítají
+  jednou v konstruktoru mise a pak už jen předávají — seznam se za běhu nemění.
 
 **Proč vlastní zpráva a ne `MissionMsg`:** ta je robotourovská (depo, QR kód, nakládka)
 a rozšiřovat ji o cizí pole by znamenalo, že polovina zprávy je vždy prázdná a nikdo neví, která.
@@ -151,24 +172,35 @@ lokální plánovač, Robotour i Track LLA cíl pro globální navigaci.
 ## Vyzkoušení v simulaci
 
 ```bash
-mission=track track=config/haje.track virtualhw=true map=OSM/HajeRovne.osm web=8080
+mission=track track=OSM/Hviezdoslavova.track virtualhw=true map=OSM/Hviezdoslavova.osm web=8080
 ```
 
 Na stránce náhledu stisknout a uvolnit **virtuální nouzové zastavení** (je v liště, protože
 `virtualhw=true`) — to je pokyn „jed". Panel stavu mise pak ukazuje `jede k mistu 2/3, kolo 1`.
 
-`config/haje.track` je ukázka s body **na síti** `OSM/HajeRovne.osm`, ~90–130 m od startu robota.
+`OSM/Hviezdoslavova.track` je ukázka s body **na síti** `OSM/Hviezdoslavova.osm`: změřeno
+**3,7 / 7,0 / 5,8 m** od nejbližšího uzlu sítě (mise hlásí přichycení o 2,1 a 0,4 m) a 91–155 m od
+startu robota, který stojí ve středu obálky uzlů mapy (`BuildOriginFromMap`).
 
-⚠️ **Příklad ze zadání mise** (`50.0337431,14.5257403` a další) je z Prahy, ale **neleží v žádné
-mapě v repozitáři**: od nejbližšího uzlu sítě `OSM/HajeRovne.osm` je **367–389 m**, tedy nad
-výchozím limitem `trackoffroad=50` — mise by ho odmítla. Pro vyzkoušení je potřeba buď `.osm`
-pokrývající to místo, nebo body z mapy, která v repu je.
+![Půdorys za jízdy mise Track: tři zóny, trasa navigace a ujetá dráha](media/track-mission-zony-20260912.png)
+
+*Půdorys z webového náhledu (výřez 200 m) po dosažení prvního místa: zelené kružnice jsou **zóny,
+které mají být dosaženy** (aktivní plnou čarou), fialová trasa globální navigace vede k místu 2,
+modrá je ujetá dráha. Viz [headless.md](headless.md).*
+
+⚠️ **Soubor se musí párovat s tou správnou mapou.** Tytéž body jsou od sítě `OSM/HajeRovne.osm`
+**367–389 m** (a od `OSM/haje.osm` 272 m), tedy hluboko nad limitem `trackoffroad=50` — mise by se
+po uvolnění stopu přerušila. Ten limit dělá svou práci, ale hláška („*lezi 272 m od site cest*")
+se snadno přečte jako porucha, proto ta místa **leží vedle sebe v `OSM/`**.
 
 ## Projeto v simulaci (8. 9. 2026)
 
 ```bash
 mission=track track=config/haje.track virtualhw=true map=OSM/HajeRovne.osm web=8099
 ```
+
+*(Tehdejší cesta a mapa — seznam se od té doby přesunul do `OSM/`. Log níž je ze záznamu toho běhu,
+proto jsou v něm body Hájů, ne ty z dnešní ukázky.)*
 
 Stisk a uvolnění virtuálního nouzového zastavení (`POST /virtualestop?on=true` / `on=false`), pak
 už jen sledování stránky. Log mise:

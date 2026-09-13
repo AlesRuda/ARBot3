@@ -13,6 +13,152 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-12 — Mise `magcal` registr 23 před měřením VYMAŽE (a po nedokončení vrátí), neskládá
+
+**Co:** `MagCalMission` si na začátku zapíše do registru 23 jednotkovou kompenzaci — **jen do
+RAM**, bez `SaveToFlash()` — a při ukončení bez zápisu ji zase **vrátí**. Když registr 23 nejde
+přečíst ani vymazat, mise **nezačne** (`MagCalPhase.NotCleared`). Alternativa „nechat registr být
+a výsledek s ním **složit**" (`C_nová = C₁·C₀`, `b_nová = b₀ + C₀⁻¹·b₁`) se **zamítla**.
+
+**Proč vůbec:** 12. 9. 2026 se změřilo, že `UncompMag` v binárním výstupu VN100 je **taky
+kompenzovaný** — `MagnetometerRaw` a `Magnetometer` jsou v záznamu bit po bitu shodné
+(22 445 vzorků, `max |raw − comp| = 0` G). Mise tedy sbírala **už zkompenzované** pole a její
+proložení nebylo kalibrace, ale **reziduum**; zapsat ho zpátky do registru 23 by tam dosavadní
+dobrou kalibraci přepsalo maticí blízkou jednotkové, tedy **smazalo**. Návrh s tím počítal jako
+se záložní větví (`plan-vn100-kalibrace.md`, Task 3) pro případ, že by `UncompMag` v DLL nebyl —
+je v DLL, ale nedělá to, co ICD slibuje, takže platí ta záložní větev.
+
+**Proč mazání a ne skládání:** skládání potřebuje znát přesně konvenci registru 23 **a** rámcovou
+transformaci `T` mezi fitem a registrem (fit běží až za registrem 26 a za převodem FRD→FLU).
+**Ten rámec už jednou kousl** — bias v X a Y měl obrácené znaménko, takže se offset *přičítal*
+(0,22 G vodorovně, víc než vodorovná složka pole). Mazání tuhle třídu chyby nemá vůbec a navíc
+odpovídá tomu, jak se postupovalo ručně 10./11. 9. 2026.
+
+**Důsledky:**
+
+- **Jen do RAM.** Ve flash původní kalibrace zůstává, takže výpadek napájení ji sám vrátí —
+  pojistka zadarmo pro případ, že mise nedoběhne. Totéž platí pro návrat.
+- **Návrat při nedokončení.** Bez něj by nedokončená mise — a **přesně to se v poli 10. 9. stalo
+  dvakrát** — nechala robota jezdit bez kalibrace až do restartu senzoru, tedy ve stavu, který
+  6. 9. dělal chybu kurzu ±25°. Po úspěšném zápisu se nevrací nic, a to i když pak selže flash:
+  zahodit novou kalibraci kvůli neúspěšnému uložení by bylo horší než ji mít jen do vypnutí.
+- **Raději stát než měřit naslepo.** Nečitelný nebo nevymazatelný registr 23 misi zastaví stejně
+  jako nečitelný registr 21. Pořadí v `StartMission` je proto takové, že se registr 23 řeší
+  **před** zapnutím palubní HSI — po neúspěchu není co uklízet.
+- **Trvalý zisk pro offline padá.** Re-fit ze záznamu (`ARBot.Analyze magcal`) je absolutní
+  kalibrace **jen** u záznamu z mise `magcal`, ne z kteréhokoli běhu. Hláška v reportu, která
+  tvrdila opak, je opravená.
+- ⚠️ **Na senzoru to neběželo** — odsimulované přes `VirtualMagCalControl`.
+
+**Odkazy:** `Src/ARBot.Common/Missions/MagCalMission.cs`, `MagCalPhase.cs`, `MissionSeams.cs`,
+`Src/ARBot.Analyze/MagCalReport.cs`, [imu-and-frames.md](imu-and-frames.md) (sekce
+„Po kalibraci (12. 9. 2026)", bod 6), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md).
+
+### 2026-09-11 — Vzorec registru 23 je ZMĚŘENÝ i DOLOŽENÝ ICD: `C·(m − b)`, `B` se zapisuje přímo
+
+**Co:** Konvence registru 23 se přestala brát z výkladu a **změřila se na senzoru**. VN aplikuje
+`C·(m − b)`, tedy **tentýž vzorec** jako náš `MagCalResult.Apply`, a `B` se zapisuje **přímo**.
+Kód se tím nezměnil — přibyly testy (`MagCalVnBiasTests`), které tu konvenci drží, a dokumentace,
+která říká, čím je podložená.
+
+✅ **Nezávisle potvrzeno z ICD** (autor, VN100 ICD v3.1.0.0 / ICD10005-R1, lokálně
+v `doc/Vectornav/`): `CalibratedMag = C * (MeasuredMag − B)`, kde `C` je násobící matice 3×3
+a `B` bias. **Měření a dokument se shodují** — což je ta nejlepší možná kombinace, protože každý
+z nich sám se dal vyložit špatně.
+
+**Proč se to vůbec měřilo:** při nasazování kalibrace na robota hlásil registr 27 po zápisu
+`|B|` = 0,59 G místo očekávaných 0,40 G. To vypadalo na obrácené znaménko biasu.
+
+**Jak se měřilo:** do registru 23 se posílají známé hodnoty a sleduje se posun `VNRRG,54`;
+každé měření **tři opakování proložená identitou**, aby se vyrušil drift prostředí.
+
+| zapsáno | naměřený posun | odpovídá |
+|---|---|---|
+| `C = I`, `b = (0,2; 0; 0)` | **+0,199 G** v X | `−R·C·b` |
+| `C = I`, `b = (0; 0,2; 0)` | **−0,202 G** v Y | `−R·C·b` |
+| `C[1,1] = 1,5`, `b = 0` | Y × **1,518** | `C` |
+| `C[1,1] = 1,5`, `b = (0; 0,2; 0)` | **−0,304 G** v Y | `−C·b` (−0,30), ne `−b` (−0,20) |
+
+**⚠️ Dvě pasti, obě zažité — a obojí stálo zbytečný zápis do senzoru:**
+1. **Jedna osa nestačí.** Znaménko posunu se liší podle osy, protože mezi kompenzací a výstupem
+   leží **reference frame rotation (registr 26)**, u nás `diag(−1, 1, −1)`. Z osy X samotné vyjde
+   „VN bias přičítá", což je opak pravdy — a vede to k „opravě" správného kódu na `−C·B`.
+   **Přesně to se stalo**, než přišlo měření v ose Y.
+2. **Jednotková matice nerozliší `C·m − b` od `C·(m − b)`**, protože při `C = I` jsou to tytéž
+   vzorce. Rozhodlo teprve měření s `C[1,1] = 1,5`.
+
+**Další nálezy z toho měření:**
+- ⚠️⚠️ **Registr 54 nedává surové pole — a je to v ROZPORU s ICD.** ICD ho uvádí jako
+  *nekompenzovaná* měření (proti registru **20 — Compensated IMU**, který je kompenzovaný).
+  **Na našem senzoru se ale mění podle registru 23 stejně jako registr 20** — změřeno **dvakrát
+  nezávisle**, naposledy přímým srovnáním obou registrů v jednom běhu:
+
+  | registr 23 | registr 20 (X) | registr 54 (X) |
+  |---|---|---|
+  | identita | 0,1735 / 0,1630 | 0,1641 / 0,1651 |
+  | bias `(0,3; 0; 0)` | 0,4630 / 0,4640 | 0,4630 / 0,4630 |
+
+  Posun je u obou **+0,30 G**, tedy oba kompenzaci aplikují. **Surové pole se ze senzoru dostane
+  jedině tak, že se do registru 23 dočasně zapíše identita.** Rozpor není vysvětlený; může jít
+  o firmware, nebo o to, že „uncompensated" v ICD znamená *bez tovární/teplotní* kompenzace, ne
+  bez registru 23. **Do vysvětlení se drž měření.** SDK v repu si v tom mimochodem protiřečí samo:
+  `Registers.hpp` pojmenovává pole `uncompMagX/Y/Z`, ale souhrn registru 54 nad nimi říká
+  *„Provides the **calibrated** IMU measurements including barometric pressure"*.
+- ⚠️ **Dvě čtení magnetometru se smí porovnávat jen z téhož okamžiku.** První (chybný) výklad
+  vznikl porovnáním registrů 27 a 54 s odstupem minut; uvnitř budovy se pole mění o desetiny
+  gaussu (`|B|` surové 0,465 → 0,587 G za pár minut na stojícím robotu).
+- ⚠️ **Kalibraci nelze ověřit uvnitř budovy** — z téhož důvodu. Jediný test je kurz proti GPS
+  venku po projeté smyčce.
+- ⚠️ **End-to-end test v simulaci tuhle třídu vady chytit NEMŮŽE**, ačkoli se o něm psalo jako
+  o „jediné kontrole, která chytí obrácenou inverzi": kontroluje `r.B` proti vloženému železu,
+  tedy náš fit, ale `VirtualMagCalControl` registr 23 jen **uloží do paměti a nikdy ho neaplikuje**
+  na vyráběné pole. Smyčka fit → registr → senzor → pole tam uzavřená není.
+
+✅ **RÁMEC ZMĚŘEN A OPRAVEN (téhož dne, po dotazu „jak ověřit kalibraci").** Byla to skutečná
+vada, ne teoretická: **bias se do registru zapisoval ve špatném rámci**. Registr 23 se aplikuje
+**před** registrem 26, kdežto fit běží nad `MagnetometerRaw`, tedy **po** něm i po převodu FRD→FLU
+v driveru. Mezi oběma rámci leží `diag(−1, −1, +1)`.
+
+Změřeno čistým biasem `+0,25` v jednotlivých osách registru 23 (posun výstupu v registru 20, tři
+opakování proložená identitou):
+
+| bias v registru 23 | posun výstupu | křížové členy |
+|---|---|---|
+| X `+0,25` | X **+0,251** | < 0,002 G |
+| Y `+0,25` | Y **−0,250** | < 0,002 G |
+| Z `+0,25` | Z **+0,249** | < 0,002 G |
+
+Odvození z kódu (registr 26 `diag(−1, 1, −1)` × `FrdToFlu` `diag(1, −1, −1)`) dá **tutéž**
+diagonálu. `ToVnwrg23()` proto nově počítá `C_s = T·C·T` a `b_s = T·B`; ověřeno numericky, že
+kompenzace v čidle pak dá **na 0,0** totéž co `Apply`.
+
+⚠️ **Dopad byl vážný:** bez toho má bias v X a Y **obrácené znaménko**, tedy hard-iron offset se
+**přičítá místo odečítání** — u této kalibrace o **0,22 G vodorovně**, víc než vodorovná složka
+zemského pole (~0,20 G). Kompas by přestal reagovat na otáčení. **V tomto stavu byla kalibrace
+několik hodin nasazená na robotu**, než se rámec změřil; opravená je zapsaná včetně flash.
+Hlídá to `MagCalVnBiasTests`.
+
+⚠️ **Platí to pro NÁŠ registr 26.** Jiná montáž čidla = jiná transformace.
+
+**⚠️ Otevřené a NALÉHAVÉ — je `UncompMag` v BINÁRNÍM výstupu taky kompenzovaný?** Na tom stojí
+celá offline kalibrace: `IMUState.MagnetometerRaw` se plní z `UncompMag` binárního paketu a fit
+nad ním předpokládá **surová** data (jinak by to byla korekce korekce — přesně ta past, kvůli
+které se surové pole do `IMUState` zavádělo). Do 11. 9. 2026 to nevadilo, protože registr 23 byl
+**prázdný**; od teď v něm kalibrace je, takže **příští `mission=magcal` může běžet nad už
+kompenzovanými daty**. Měří se to levně: krátký záznam a porovnání `Magnetometer` proti
+`MagnetometerRaw` — liší-li se o naši kalibraci, je `UncompMag` surový a je to v pořádku; jsou-li
+shodné, musí se před kalibrací registr 23 vymazat.
+
+**Otevřené a NEZMĚŘENÉ — v jakém rámci je `B`:** registr 23 se aplikuje v rámci senzoru, tedy
+**před** registrem 26, kdežto náš fit běží nad `IMUState.MagnetometerRaw`, které už prošlo
+registrem 26 i převodem FRD→FLU v driveru. Kdyby `UncompMag` bylo rotované, musel by se bias
+(a mimodiagonální členy `C`) do senzorového rámce převést — u našeho `diag(−1, 1, −1)` to znamená
+negaci dvou os. **Pozná se to jedině měřením kurzu proti GPS venku.** Do té doby se zapisuje `B`
+přímo, tedy tak, jak se to dělalo dosud.
+
+**Odkazy:** `MagCalResult.ToVnwrg23`, `MagCalVnBiasTests`,
+[plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [devlog.md](devlog.md) 11. 9. 2026.
+
 ### 2026-09-11 — Výpadky kamer: nejdřív změřit, teprve pak sahat na backend nebo verzi
 
 **Co:** Do vyjasnění dvou měření u robota (`lsusb -t`; běh bez T265 se sledováním `CLEAR_HALT`)

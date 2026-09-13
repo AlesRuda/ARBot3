@@ -158,7 +158,19 @@ namespace ARBot.HAL.Tests
             });
 
             // A projde to celou cestou az do "senzoru"?
-            Assert.That(ctl.LastWritten, Is.Null, "pred pokynem se zapisovat nesmi");
+            //
+            // Pozor na to, co se tu porovnava: od 12. 9. 2026 mise na zacatku registr 23 SAMA
+            // VYMAZE (jinak by merila ze zkompenzovaneho pole - UncompMag je kompenzovany).
+            // Jediny zapis pred pokynem obsluhy tedy smi byt prave to vymazani, a NESMI se
+            // ukladat do flash.
+            Assert.Multiple(() =>
+            {
+                Assert.That(ctl.LastWritten, Is.EqualTo("1,0,0,0,1,0,0,0,1,0,0,0"),
+                            "pred pokynem se smi zapsat jen vymazani registru 23");
+                Assert.That(ctl.FlashSaves, Is.EqualTo(0),
+                            "vymazani do flash NEPATRI - vypadek napajeni ma sam vratit"
+                            + " puvodni kalibraci");
+            });
         }
 
         [Test]

@@ -145,12 +145,23 @@ ale záznam s otáčením existuje, dá `ARBot.Analyze magcal` tatáž čísla a
 # na PC: 12 čísel za VNWRG,23 — normovat na |B| z registru 21 senzoru (po magmodel= je to WMM)
 Src/ARBot.Analyze/bin/x64/Release/net10.0/ARBot.Analyze.exe magcal records/test/20260910-170809.rec --bref=0.4897
 # na robotu: zapsat a uložit do flash
-ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --magcal 1.121575,0.007452,0.007101,0.007452,1.103300,0.021040,0.007101,0.021040,1.022071,0.110929,-0.014435,0.049725; sudo systemctl start arbot'
+ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --magcal 1.121575,0.007452,-0.007101,0.007452,1.103300,-0.021040,-0.007101,-0.021040,1.022071,-0.110929,0.014435,0.049725; sudo systemctl start arbot'
 ```
 
 Čísla výše jsou výsledek z **10. 9. 2026** (`20260910-170809.rec`, verdikt POUZITELNE, viz
-[doc/plan-vn100-kalibrace.md](../doc/plan-vn100-kalibrace.md), fáze 1c). ⚠️ Skript kontroluje
-jen tvar (12 čísel, desetinná tečka), o smyslu rozhodl report. Po zápisu počítej s ~2–3 minutami,
+[doc/plan-vn100-kalibrace.md](../doc/plan-vn100-kalibrace.md), fáze 1c) a **nasadila se na robota
+11. 9. 2026** včetně uložení do flash. ⚠️ Skript kontroluje jen tvar (12 čísel, desetinná tečka),
+o smyslu rozhodl report. Po zápisu počítej s ~2–3 minutami, než se kurz dotáhne, a ověř smyčkou
+(`ARBot.Analyze vn100`).
+
+⚠️ **Registr 21 měl při nasazení tovární `|B|` = 0,4818 G a registr 83 samé nuly**, protože robot
+byl uvnitř bez GPS fixu, takže `magmodel=` neměl podle čeho model pole zapsat. Čísla jsou
+normovaná na **0,4897 G** (WMM pro naši polohu), tedy na stav **venku po prvním kvalitním fixu**.
+Dokud robot fix nedostane, je reference o 1,6 % jinde.
+
+⚠️ **Kalibraci NEOVĚŘUJ uvnitř budovy.** Pole se tam mění o desetiny gaussu během minut
+(naměřeno: `|B|` surové 0,465 → 0,587 G za pár minut na stojícím robotu), takže se z něj nedá
+usoudit vůbec nic. Jediný test je **kurz proti GPS venku po projeté smyčce**. Po zápisu počítej s ~2–3 minutami,
 než se kurz na novou kompenzaci dotáhne, a ověř smyčkou (`ARBot.Analyze vn100`).
 
 ## Na co narazit

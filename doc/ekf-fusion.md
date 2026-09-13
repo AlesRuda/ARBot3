@@ -555,3 +555,185 @@ a včetně kontroly, že se v druhém případě slovo „opozdeno" **nepoužije
 krátkou historii, něco filtr opakovaně reinicializuje. Pozor při čtení logu: `AsyncFusionEngine`
 se zakládá **při každém Start**, takže panel *Debug output* může držet hlášky z víc běhů s různým
 `tBase` — samo o sobě to reinicializace není.
+
+## ✅ Podlaha σ kurzu z kompasu (`imuheadingstd=`, od 12. 9. 2026)
+
+`DefaultMeasurementMapper` bral jako σ měření `IMU/heading` **přímo** `YprU` ze senzoru. To je
+číslo, o které si senzor řekl sám — a je řádově vedle:
+
+| | hodnota | zdroj |
+|---|---|---|
+| co senzor hlásí (`YprU`, p50) | **0,057–0,061°** | `ARBot.Analyze vn100`, tři záznamy 12. 9. 2026 |
+| jaká je skutečná chyba (`IMU yaw − GPS kurz`) | **−4,90° / −2,79°** | `ARBot.Analyze heading`, dva jízdní záznamy |
+| poměr | **~60–90× přesvědčenější, než jaký je** | |
+
+**Proč to `YprU` nemůže vědět:** popisuje **krátkodobý šum** atitudového řešení, ne jeho **bias
+vůči severu**. Ten je v **tělesovém rámci** (pootočení senzoru proti podvozku, zbytek magnetické
+kalibrace, šikmé jetí robotu) a ani otáčením, ani časem nezmizí — změřeno, že půlrozdíl mezi dvěma
+opačnými směry jízdy je jen ±1°, takže to není tvrdé železo. Viz [imu-and-frames.md](imu-and-frames.md).
+
+**Řešení:** `FusionConfig.CompassHeadingStdFloor` (výchozí **5°**, kanonická hodnota je konstanta
+`CompassHeadingStdFloorDeg`) se sklada s `YprU` **kvadraticky**:
+
+```
+σ = √(YprU² + podlaha²)
+```
+
+**Kvadraticky, ne maximem** — když `YprU` vyskočí (magnetická porucha, rozjetá VPE), σ má růst
+dál; podlaha má tu informaci **doplnit, ne přebit**.
+
+**Odkud 5°:** RMS změřeného biasu ze dvou běhů je **3,99°**, mezi běhy kolísá o ~2° a místní
+porucha pole přidává jednotky stupňů (η² = 0,17–0,19 rozptylu vysvětlí **místo**). Zaokrouhleno
+nahoru. Strážný test hlídá, aby default nikdo nesrazil **pod** změřený bias.
+
+**Co to změní:**
+
+| | před | po |
+|---|---|---|
+| σ měření `IMU/heading` | 0,059° | **5,0°** |
+| informace kompas : GPS kurz | ~3,2 × 10⁶ : 1 | **~440 : 1** |
+
+⚠️ **Kompas pořád vyhrává** — není to „skončilo přebírání", jen už ostatní reference něco váží.
+
+⚠⚠ **A počtivý filtr z toho NEBUDE, jen méně nepočtivý.** Chyba kompasu je **časově korelovaná**
+(je to bias), ale filtr ji bere jako **bílý šum**, takže si ji ze 100 vzorků za sekundu
+„vyprůměruje". Ustálená σ kurzu ve filtru proto vyroste jen z ~0,06° na **~0,58°**, zatímco
+skutečná chyba je 3–5° — tedy pořád **~8× přehnaně sebejistý**. Je to **táž past jako
+u `gpsposstd`** (časově korelovaná chyba brana jako nezávislá) a jediná skutečná léčba je
+**bias kompasu jako stav EKF** — otevřený úkol, pro který je tohle mezikrok, ne náhrada.
+
+⚠️ **Parametr je ve STUPNÍCH** (`imuheadingstd=5`), převod na radiány je na okraji
+(`ARBotRuntime.ApplyImuHeadingParams`). **0 = vypnuto**, tedy přesně staré chování pro A/B nad
+záznamy. Parser **odmítá hodnoty v intervalu (0; 0,1)**: `imuheadingstd=0.087` (myšleno radiány)
+by tiše nastavilo 0,087 **stupně**, což je méně než samo `YprU` — podlaha by se fakticky vypla
+a nikdo by si toho nevšiml.
+
+⚠️ **Na HW to neběželo** a dopad na jízdu změřený není. Další krok: záznam s `imuheadingstd=5`
+a `imuheadingstd=0` nad týmž úsekem a porovnat `odhad − IMU yaw` a `odhad − GPS kurz`
+(`ARBot.Analyze heading`). Kryje to 16 testů v `KompasSigmaTests`.
+
+## ⚠️ Odkud se bere σ kurzu z GPS — a proč je správná ze špatného důvodu (12. 9. 2026)
+
+Otazka autora: *„Proč je poměr kompas : GPS 440 : 1, kde se bere taková nejistota u kurzu GPS?"*
+
+**Rozklad toho poměru.** Informace skalárního měření za sekundu je `f / σ²`:
+
+| | σ | frekvence | informace/s |
+|---|---|---|---|
+| kompas (po podlaze 5°) | 0,0873 rad | 100 Hz | 13 123 |
+| GPS kurz při 0,7 m/s | 0,410 rad (23,5°) | **9,9 Hz** | 58,9 |
+
+Poměr **223 : 1** je tedy součin **22× z σ²** a **10× z frekvence**.
+
+⚠️ **Frekvence fixu se MĚŘÍ, nepředpokládá.** Původně tu stalo 5 Hz — přijímač na robotu jede **9,9 Hz** (změřeno ze záznamů na pokyn autora), takže všechny přepočty byly **dvakrát vedle** a vypadaly přitom rozumně. `ARBot.Analyze heading` si ji teď počítá z mediánu rozestupů mezi fixy (`FixRateHz`) na všech třech místech, kde dřív byla natéčno.
+
+**Odkud 23,5°.** `DefaultMeasurementMapper.FromGpsHeading` počítá
+`σ = max(GpsHeadingStd, atan2(GpsCrossTrackStd, v))`, tedy při 0,7 m/s `atan2(0,3; 0,7)`.
+To `0,3 m/s` je **předpoklad** — dokumentace u něj říká „stejné jako `GpsSpeedStd`, u přijímače
+řešícího rychlost z Dopplera není důvod čekat, že příčná složka je jinak přesná" — a ověřený byl
+jen **v simulaci**.
+
+**Změřeno na skutečném přijímači** (`ARBot.Analyze heading`, blok *SUM KURZU Z GPS A JEHO
+KORELACE*, oba jízdní záznamy 12. 9. 2026). Měří se změna kurzu z GPS proti změně kurzu
+z **gyra** — nezávislého zdroje — za okno délky `lag`:
+
+| lag [s] | σ FreeRun [°] | σ Track [°] |
+|---|---|---|
+| 0,2 | 1,09 | 0,86 |
+| 1,0 | 3,46 | 2,05 |
+| 2,0 | 5,29 | 3,02 |
+| 5,0 | 7,73 | **4,11** |
+| 10,0 | **8,32** | 3,87 |
+| 20,0 | 7,72 | 4,09 |
+| 40,0 | 9,07 | 4,25 |
+
+⚠️ **Chyba NENI bílý šum** — kdyby byla, σ by na lagu nezávisela. Místo toho **roste a usadí
+se** na `σ = 8,4° / 4,1°` při dekoračním čase **10 s / 5 s**.
+
+**Proč nestačí měřit sample-to-sample:** rozdíl dvou sousedních fixů odečtením vyruší všechno,
+co se mění pomalu — tedy právě tu korelovanou část. Krátkodobý šum vyšel **0,86–1,09°**, z čehož
+by `GpsCrossTrackStd` vyšlo **0,007 m/s**, tedy **45× méně** než předpokládaných 0,3. Vzít tohle
+číslo by znamenalo σ dramaticky **podstřelit**.
+
+**Počtivá σ pro filtr**, který bere 5 Hz fixy jako nezávislé, je `σ_celková · √(τ·f)` — týž vzorec,
+jímž se odvodilo [`gpsposstd`](configuration.md):
+
+| | σ celková | τ | počtivá σ | model `atan2(0,3; v)` |
+|---|---|---|---|---|
+| FreeRun | 8,37° | 10 s | **83,1°** | 23,8° |
+| Track | 4,08° | 5 s | **28,6°** | 22,9° |
+
+✅ **Takže to číslo je ve správném pásmu (při 10 Hz je 1,3–3,5× optimistické) — ale ze špatného důvodu.** Není to příčný šum rychlosti
+(ten je o řád menší); je to náhodou hodnota blízká informačně uškrcené σ. ⚠️ **A je to křehké:**
+`atan2(0,3; v)` škáluje s rychlostí, což platí pro bílou složku, ale korelovaná část tu závislost
+mít nemusí — při vyšší rychlosti by model σ srazil, aniž by k tomu byl důvod.
+
+### ⚠️ Důsledek pro podlahu σ kompasu: 5° je pořád řádově málo
+
+Táž úprava aplikovaná na kompas dopadá mnohem hůř:
+
+- Chyba kompasu je **bias, který je přes celý běh prakticky konstantní** — `kurz z pole − yaw`
+  drží po minutách 3,2–4,8° a půlrozdíl mezi dvěma opačnými směry jízdy je jen ∓1°. Tedy
+  `τ ≳ délka záznamu` (600 s), zatímco vzorky chodí **100 Hz** — tedy **desetkrát častěji než GPS a s dekoračním časem o dva řády delším**.
+- Počtivá σ by tedy byla `5° · √(600·100)` ≈ **1 200°** — což je jen jiný způsob, jak říct, že
+  **konstantní bias nenese žádnou opakovatelnou absolutní informaci**.
+
+⚠️ **Poměr 223 : 1 ve prospěch kompasu je proto artefakt** toho, že se kompasu časová korelace
+ignoruje **mnohem víc** než GPS. Kdyby se uškrtily obě počtivě, **GPS kurz by kompas přebil**.
+
+Tři cesty (na rozhodnutí autora, **žádná zatím neprovedena**):
+
+1. **Zvednout podlahu na desítky stupňů** — hrubé, ale hned to obrátí pořadí a je to konzistentní
+   s tím, co se udělalo u `gpsposstd` (30 m místo 1,5).
+2. **Snížit frekvenci měření** `IMU/heading` (např. 1 Hz místo 100 Hz) — přesnější vyjádření téhož,
+   a je to táž léčba jako `MinPeriod` u korelace s mapou.
+3. **Bias kompasu jako stav EKF** — jediné správné řešení; kompas pak nese vynikající
+   *relativní* informaci (změnu kurzu) a jeho absolutní část si filtr odhadne sám.
+
+✅ **Autor rozhodl 12. 9. 2026: (3) je cíl, teď se dělá (2); hotovo** — `imuheadinghz=`,
+výchozí **1 Hz** (`CompassHeadingMinPeriodSec = 1,0`), **0 = neomezeno** (staré chování pro A/B).
+
+### Co se škrtí a co ne — mezi odečty kompasu nese kurz GYRO, ne odometrie
+
+⚠️ `IMU/heading` a `IMU/gyro` jsou **dvě samostatná měření** ze též větve mapperu. Škrtí se
+**jen to první**; úhlová rychlost jde dál v plné kadenci:
+
+| zdroj úhlové rychlosti | σ | frekvence | informace/s | podíl |
+|---|---|---|---|---|
+| VN100 gyro | 0,02 rad/s | 100 Hz | 250 000 | **78 %** |
+| T265 (rozdíl yaw na okně 0,5 s) | 0,0057 rad/s | 2 Hz | 62 500 | 19 % |
+| odometrie | 0,10 rad/s | 91 Hz | 9 100 | **2,8 %** |
+
+⚠️ U T265 ber ten podíl s rezervou — `RelYawStd = 0,002` je v konfiguraci výslovně označené jako
+*„odhad, ne měření"*. Bez ní je to gyro 96,5 % / odometrie 3,5 %.
+
+**Ta asymetrie je fyzikálně obhajitelná, ne libovolná:** chyba gyra je převážně **bílá** (angular
+random walk), takže u něj je předpoklad nezávislosti zhruba počtivý — na rozdíl od kompasu, jehož
+chyba je bias. **Drift mezi odečty je zanedbatelný:** naměřený klidový bias gyra 0,1–62,6 °/h dělá
+za sekundu nanejvýš **0,017°** a za 10 s **0,17°**. Za 600 s už ale **10,4°** — a to je důvod, proč
+kompas **nejde zahodit úplne**: bez absolutní kotvy kurz ujede.
+
+**Bere se poslední vzorek, ne průměr intervalu.** Průměrování by srazilo bílý šum (0,059°), ale
+bias ne — a ten je o dva řády větší.
+
+**Kolik to udělá:**
+
+| kadence | informace kompasu/s | kompas : GPS kurz |
+|---|---|---|
+| 100 Hz (dnes) | 13 123 | 223 : 1 |
+| **1 Hz (nový default)** | 131 | **2,2 : 1** |
+| 0,1 Hz | 13 | 0,22 : 1 (GPS vyhrává) |
+
+Data argumentují spíš pro tu nižší — místně závislá část chyby kompasu se při 0,7 m/s obmění
+za ~7 s — ale 1 Hz je konzervativní začátek, kde kompas zůstává kotvou. ⚠️ **Na HW to neběželo.**
+
+⚠️ **Škrcení udělalo z mapperu STAVOVÝ objekt** (pamatuje si razítko posledního vydaného kurzu),
+a to je přesně ta vlastnost, která umí rozbít přehrávání záznamu. Záruka, na které record/replay
+stojí, je užší než dřív: stav je **čistou funkcí posloupnosti razítek**, takže dvě **čerstvé**
+instance nad toutéž posloupností vydají totéž — sdílet **jednu** instanci mezi dvěma běhy už záruka
+není. Produkce to nedělá (mapper vzniká jednou na `ARBotRuntime`, přehrávání zakládá nový), ale
+`GoldenReplay_ReproducesControlLoopOutput` to dělal — a **spadl**, což bylo správně. Test má teď
+mapper na každý průchod zvlášť a záruku hlídá `DvaMapperyNadToutezPosloupnosti_DajiTOTEZ`.
+
+⚠️ **Škrcení se RESETUJE při skoku času vzad** (seek při přehrávání) — bez toho by se po skoku
+dozadu přestal kurz vydávat, dokud by se čas nedotáhl zpátky, a to může být celá minuta ticha.

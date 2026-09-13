@@ -84,13 +84,28 @@ namespace ARBot.Common.Tests.Configuration
         }
 
         [Test]
-        public void NeznamyKlicNaPrikazoveRadceJeJenVarovani()
+        public void CiziArgumentNaPrikazoveRadceJeJenVarovani()
         {
             // Mezi args jsou i cizi argumenty Avalonie a cesta k exe - tvrda chyba by aplikaci
-            // znemoznila spustit.
-            var s = ParamStore.Build(new[] { "C:\\app\\ARBot.exe", "--prepinac", "mapcor=true" });
-            Assert.That(s.Warnings, Has.Some.Contains("mapcor"));
-            Assert.That(s.GetBool("mapcorr", false), Is.False);
+            // znemoznila spustit. Klic, ktery se nepodoba nicemu z registru, tedy jen varuje.
+            var s = ParamStore.Build(new[] { "C:\\app\\ARBot.exe", "--prepinac", "--prepinac=1" });
+            Assert.That(s.Warnings, Has.Some.Contains("--prepinac"));
+        }
+
+        /// <summary>
+        /// Klic, ktery se PODOBA znamemu parametru, start zastavi - a hlaska rekne, co se myslelo.
+        ///
+        /// <para>Nalezeno 12. 9. 2026: <c>cfg=track_hv.cfg</c> misto <c>config=</c> se tise
+        /// zahodilo, takze se nenacetl profil, nebyla mapa, nezalozil se virtualni HW a stranka
+        /// nahledu hlasila, ze motory nemaji nouzove zastaveni - pricina pet kroku daleko.</para>
+        /// </summary>
+        [TestCase("mapcor=true", "mapcorr")]          // preklep: jedna uprava
+        [TestCase("cfg=profil.cfg", "config")]        // zkratka: podposloupnost (vzdalenost je 3)
+        [TestCase("missin=freerun", "mission")]
+        public void PodobnyKlicNaPrikazoveRadceJeChyba(string argument, string ocekavanyNavrh)
+        {
+            var ex = Assert.Throws<ParamFileException>(() => ParamStore.Build(new[] { argument }));
+            Assert.That(ex.Message, Does.Contain(ocekavanyNavrh));
         }
 
         [Test]

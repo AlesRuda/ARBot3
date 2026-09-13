@@ -5,6 +5,8 @@ using ARBot.Common.Missions;
 using ARBot.Common.Regulators;
 using NUnit.Framework;
 
+using static ARBot.Common.Tests.Calibration.MagCalSamples;
+
 namespace ARBot.Common.Tests.Missions
 {
     /// <summary>
@@ -28,9 +30,38 @@ namespace ARBot.Common.Tests.Missions
 
         private sealed class Senzor : IMagCalControl
         {
-            public string Zapsano;
+            /// <summary>Jednotkova kompenzace — tu mise zapisuje na dobu mereni.</summary>
+            public const string Jednotka = "1,0,0,0,1,0,0,0,1,0,0,0";
+
+            /// <summary>
+            /// Kompenzace „v senzoru" pri startu mise — <b>zamerne NEjednotkova</b>: je to ta
+            /// skutecna, zapsana 11. 9. 2026. Kdyby tu byla jednotka, testy na vymazani a vraceni
+            /// registru 23 by prosly i s rozbitou implementaci.
+            /// </summary>
+            public double[] Reg23 =
+            {
+                1.121575, 0.007452, -0.007101,
+                0.007452, 1.103300, -0.021040,
+                -0.007101, -0.021040, 1.022071,
+                -0.110929, 0.014435, 0.049725,
+            };
+
+            /// <summary>Vsechny zapisy do registru 23 v poradi — na poradi tady zalezi.</summary>
+            public readonly List<string> Zapisy = new();
+
             public bool Flash, Hsi;
-            public bool ZapisSelze, FlashSelze, Reg21Mlci;
+            public bool ZapisSelze, FlashSelze, Reg21Mlci, Reg23Mlci, VymazaniSelze;
+
+            /// <summary>Posledni zapis do registru 23, nebo <c>null</c>.</summary>
+            public string Zapsano => Zapisy.Count == 0 ? null : Zapisy[Zapisy.Count - 1];
+
+            /// <summary>Zapisy KALIBRACE, tedy vsechno krome vymazani a vraceni.</summary>
+            public List<string> ZapisyKalibrace
+                => Zapisy.FindAll(z => z != Jednotka && z != Reg23Text);
+
+            /// <summary>Puvodni obsah registru 23 v tom tvaru, v jakem ho mise zapisuje zpet.</summary>
+            public string Reg23Text => string.Join(",", Array.ConvertAll(Reg23,
+                v => v.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)));
 
             public double[] ReadRegister(int reg)
             {
@@ -38,15 +69,18 @@ namespace ARBot.Common.Tests.Missions
                     // (0,234; 0; 0,4212) pole a (0; 0; -9,79375) gravitace -> |B| = 0,4818 G.
                     return Reg21Mlci ? null : new double[] { 0.234, 0, 0.4212, 0, 0, -9.79375 };
                 if (reg == IMagCalControl.RegCompensation)
-                    return new double[] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
+                    return Reg23Mlci ? null : (double[])Reg23.Clone();
                 if (reg == IMagCalControl.RegCalControl) return new double[] { 0, 1, 5 };
                 return null;
             }
 
             public bool WriteMagCompensation(string s)
             {
-                if (ZapisSelze) return false;
-                Zapsano = s;
+                // Rozlisuje se, CO se zapisuje: vymazani (jednotka) a zapis kalibrace se daji
+                // shodit nezavisle, jinak by nesly otestovat obe vetve zvlast.
+                if (VymazaniSelze && s == Jednotka) return false;
+                if (ZapisSelze && s != Jednotka && s != Reg23Text) return false;
+                Zapisy.Add(s);
                 return true;
             }
 
@@ -75,6 +109,10 @@ namespace ARBot.Common.Tests.Missions
         }
 
         private static MagCalMission Mise(Senzor s, Drzitel d) => new MagCalMission(s, d);
+
+        /// <summary>Mise s velkou frontou — testy, ktere ji krmi tisici vzorku, nesmi nic ztratit.</summary>
+        private static MagCalMission MiseSFrontou(Senzor s, Drzitel d)
+            => new MagCalMission(s, d, queueCapacity: 100000);
 
         [Test]
         public void PriStartu_JeRegulatorZahozeny()
@@ -145,7 +183,10 @@ namespace ARBot.Common.Tests.Missions
             Assert.Multiple(() =>
             {
                 Assert.That(m.WriteToSensor(), Is.False);
-                Assert.That(s.Zapsano, Is.Null, "nehotova kalibrace se do senzoru zapsat NESMI");
+                Assert.That(s.ZapisyKalibrace, Is.Empty,
+                            "nehotova kalibrace se do senzoru zapsat NESMI");
+                Assert.That(s.Zapsano, Is.EqualTo(Senzor.Jednotka),
+                            "v registru zustava jen vymazani, ktere mise dela na zacatku");
                 Assert.That(s.Flash, Is.False);
                 Assert.That(m.Phase, Is.EqualTo(MagCalPhase.Collecting));
             });
@@ -158,7 +199,7 @@ namespace ARBot.Common.Tests.Missions
             using var m = Mise(s, new Drzitel());
 
             Assert.That(m.WriteToSensor(), Is.False);
-            Assert.That(s.Zapsano, Is.Null);
+            Assert.That(s.Zapisy, Is.Empty, "mise nezacala - do senzoru se nesmi sahnout vubec");
         }
 
         [Test]
@@ -192,7 +233,7 @@ namespace ARBot.Common.Tests.Missions
             Assert.Multiple(() =>
             {
                 Assert.That(m.WriteHardIronOnly(), Is.False);
-                Assert.That(s.Zapsano, Is.Null);
+                Assert.That(s.ZapisyKalibrace, Is.Empty);
                 Assert.That(s.Flash, Is.False);
             });
         }
@@ -204,7 +245,7 @@ namespace ARBot.Common.Tests.Missions
             using var m = Mise(s, new Drzitel());
 
             Assert.That(m.WriteHardIronOnly(), Is.False);
-            Assert.That(s.Zapsano, Is.Null);
+            Assert.That(s.Zapisy, Is.Empty);
         }
 
         [Test]
@@ -242,6 +283,182 @@ namespace ARBot.Common.Tests.Missions
             Assert.That(s.HsiPrikazy, Does.Contain("off"),
                 "nedokoncena mise nesmi nechat senzor v rezimu Run");
             Assert.That(s.HsiPrikazy[s.HsiPrikazy.Count - 1], Is.EqualTo("off"));
+        }
+
+        // ------------------------------------------------------------------
+        // Registr 23 (kompenzace) na dobu mereni
+        //
+        // ⚠️ Duvod, proc tahle skupina existuje: UncompMag v binarnim vystupu VN100 je
+        // KOMPENZOVANY (zmereno 12. 9. 2026 - je bit po bitu shodny s registrem 20). Kdyby
+        // mise merila s nenulovym registrem 23, prokladala by uz zkompenzovane pole a vysledek
+        // by nebyl kalibrace, ale REZIDUUM - a jeho zapis zpatky do registru 23 by tam
+        // stavajici dobrou kalibraci PREPSAL matici blizkou jednotkove, tedy smazal.
+        // Viz doc/imu-and-frames.md.
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void PriStartu_VymazeRegistr23_ALEJENDoRAM()
+        {
+            var s = new Senzor();
+            using var m = Mise(s, new Drzitel());
+
+            m.StartMission();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(s.Zapisy, Is.EqualTo(new[] { Senzor.Jednotka }),
+                    "bez vymazani by se merilo ze zkompenzovaneho pole a vysledek by byl zbytek");
+                Assert.That(s.Flash, Is.False,
+                    "vymazani se do flash ukladat NESMI - vypadek napajeni ma sam vratit"
+                    + " puvodni kalibraci");
+                Assert.That(m.Reg23Before, Is.EqualTo(s.Reg23Text),
+                    "stav pred misi musi zustat znamy, jinak neni co vratit");
+                Assert.That(m.Phase, Is.EqualTo(MagCalPhase.Collecting));
+            });
+        }
+
+        [Test]
+        public void KdyzRegistr23NejdePrecist_MiseNEZACNE()
+        {
+            // Mazat bez precteni nejde: nebylo by co vratit. A merit bez vymazani taky ne.
+            var s = new Senzor { Reg23Mlci = true };
+            var d = new Drzitel();
+            using var m = Mise(s, d);
+
+            m.StartMission();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(m.Phase, Is.EqualTo(MagCalPhase.NotCleared));
+                Assert.That(m.PhaseText, Does.Contain("NEZACALA"));
+                Assert.That(m.Coverage, Is.Null, "mise, ktera nezacala, nesmi sbirat");
+                Assert.That(s.Zapisy, Is.Empty);
+                Assert.That(d.Regulator, Is.Null, "bezpecnostni invariant plati i tady");
+            });
+        }
+
+        [Test]
+        public void KdyzRegistr23NejdeVymazat_MiseNEZACNE_APalubniHsiZUSTANEVYPNUTE()
+        {
+            // Poradi v StartMission je podstatne: registr 23 se resi PRED zapnutim HSI, takze
+            // kdyz vymazani selze, neni po cem uklizet.
+            var s = new Senzor { VymazaniSelze = true };
+            using var m = Mise(s, new Drzitel());
+
+            m.StartMission();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(m.Phase, Is.EqualTo(MagCalPhase.NotCleared));
+                Assert.That(m.Coverage, Is.Null);
+                Assert.That(s.HsiPrikazy, Is.Empty,
+                    "kdyz mise nezacala, nesmi zustat zapnuta palubni HSI");
+            });
+        }
+
+        [Test]
+        public void NedokoncenaMise_VRATIRegistr23()
+        {
+            // ⚠️ Presne tenhle scenar se v poli 10. 9. 2026 stal DVAKRAT: obsluha misi
+            // nedokoncila. Bez vraceni by robot jezdil BEZ kalibrace az do restartu senzoru -
+            // tedy ve stavu, ktery 6. 9. 2026 delal chybu kurzu +-25 stupnu.
+            var s = new Senzor();
+            var m = Mise(s, new Drzitel());
+            m.StartMission();
+
+            m.Dispose();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(s.Zapsano, Is.EqualTo(s.Reg23Text),
+                    "nedokoncena mise musi vratit registr 23 do stavu pred misi");
+                Assert.That(s.Flash, Is.False, "vraceni je taky jen do RAM");
+                Assert.That(s.ZapisyKalibrace, Is.Empty);
+            });
+        }
+
+        [Test]
+        public void VraceniRegistru23_JeIdempotentni()
+        {
+            // Stop() chodi i vickrat (explicitne + z Dispose) a druhy zapis do senzoru je
+            // zbytecny provoz na lince.
+            var s = new Senzor();
+            var m = Mise(s, new Drzitel());
+            m.StartMission();
+
+            m.Stop();
+            m.Dispose();
+
+            Assert.That(s.Zapisy, Is.EqualTo(new[] { Senzor.Jednotka, s.Reg23Text }));
+        }
+
+        [Test]
+        public void MiseKteraNezacala_Registr23NESAHA()
+        {
+            var s = new Senzor { Reg21Mlci = true };
+            var m = Mise(s, new Drzitel());
+            m.StartMission();
+
+            m.Dispose();
+
+            Assert.That(s.Zapisy, Is.Empty,
+                "co jsme nevymazali, to nesmime ani vracet - prepsalo by to cizi nastaveni");
+        }
+
+        [Test]
+        public void PoUSPESNEMZapisu_SeRegistr23UzNEVRACI()
+        {
+            // V registru je to, co si obsluha vyzadala - vratit pres to starou kalibraci by
+            // znamenalo zahodit vysledek cele mise.
+            var s = new Senzor();
+            var m = MiseSFrontou(s, new Drzitel());
+            m.StartMission();
+            NakrmOtackami(m);
+
+            Assert.That(m.WriteToSensor(), Is.True, m.PhaseText);
+            string zapsanaKalibrace = s.Zapsano;
+            m.Dispose();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(zapsanaKalibrace, Is.Not.EqualTo(Senzor.Jednotka));
+                Assert.That(s.Flash, Is.True, "kalibrace se uklada i do flash");
+                Assert.That(s.Zapsano, Is.EqualTo(zapsanaKalibrace),
+                    "po uspesnem zapisu uz se registr 23 vracet NESMI");
+            });
+        }
+
+        [Test]
+        public void KdyzZapisKalibraceSELZE_RegistrSeStejneVRATI()
+        {
+            var s = new Senzor { ZapisSelze = true };
+            var m = MiseSFrontou(s, new Drzitel());
+            m.StartMission();
+            NakrmOtackami(m);
+
+            Assert.That(m.WriteToSensor(), Is.False, "zapis mel selhat");
+            m.Dispose();
+
+            Assert.That(s.Zapsano, Is.EqualTo(s.Reg23Text),
+                "kdyz se nova kalibrace nezapsala, musi se vratit ta puvodni");
+        }
+
+        /// <summary>
+        /// Nakrmi misi trema otackami (rovina + dva protilehle naklony) a pocka, az prolozeni
+        /// dobehne. Mise ma sberac uvnitr a zpravy zpracovava na vlastnim vlakne, takze se
+        /// na vysledek musi pockat — cekani je na CPU, takze v praxi desetiny sekundy.
+        /// </summary>
+        private static void NakrmOtackami(MagCalMission m)
+        {
+            m.Start();
+            double t = 0;
+            Obrat(m.Post, 0.0, 0, ref t);
+            Obrat(m.Post, 0.40, 0, ref t);
+            Obrat(m.Post, 0.40, Math.PI, ref t);
+
+            var konec = DateTime.UtcNow.AddSeconds(30);
+            while (!m.Usable && DateTime.UtcNow < konec) System.Threading.Thread.Sleep(10);
+            Assert.That(m.Usable, Is.True, "syntetickych otacek melo byt dost: " + m.PhaseText);
         }
 
         [Test]

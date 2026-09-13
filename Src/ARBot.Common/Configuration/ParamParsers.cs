@@ -104,6 +104,46 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam cislo vetsi nez 0");
 
+        /// <summary>
+        /// Podlaha sigmy kurzu z kompasu ve <b>STUPNICH</b>: bud presne 0 (vypnuto), nebo
+        /// 0,1 az 45.
+        ///
+        /// <para><b>Ta dira mezi 0 a 0,1 je pojistka proti zadani v RADIANECH.</b> Konfigurace
+        /// fuze je uvnitr cela v radianech a tohle je jedno z mala mist, kde se na okraji prevadi;
+        /// rozumna podlaha je v radianech 0,02-0,8, tedy <c>imuheadingstd=0.087</c> (mysleno
+        /// radiany) by tise nastavilo 0,087 <b>stupne</b> — a to je jeste min nez <c>YprU</c>
+        /// samotne (0,06), takze by se podlaha fakticky vypla a nikdo by si toho nevsiml.
+        /// Radeji chyba pri startu, stejne jako u portu nahledu.</para>
+        ///
+        /// <para>Horni mez 45 stupnu je zdravy rozum: takova sigma uz znamena, ze kompas nenese
+        /// informaci, a chtit ji je spis preklep.</para>
+        /// </summary>
+        public static ParamParseResult ImuHeadingStd(string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                return ParamParseResult.Invalid("cekam cislo");
+            if (v == 0) return ParamParseResult.Valid();
+            if (v > 0 && v < 0.1)
+                return ParamParseResult.Invalid(
+                    "sigma kurzu se zadava ve STUPNICH a " + text + " je min nez samotne YprU "
+                    + "senzoru (0,06 deg) - nezadavas to omylem v radianech? Pouzij 0 pro vypnuti.");
+            return v >= 0.1 && v <= 45
+                ? ParamParseResult.Valid()
+                : ParamParseResult.Invalid("cekam sigmu kurzu ve STUPNICH: 0 (vypnuto), nebo 0,1 az 45");
+        }
+
+        /// <summary>
+        /// Kadence absolutniho kurzu z kompasu [Hz]: 0 (neomezeno) az 200.
+        ///
+        /// <para>Horni mez je kadence samotneho VN100 (100 Hz) s rezervou — zadat vic nedava smysl,
+        /// vic vzorku nez senzor posila stejne nevznikne. Zaporna hodnota ani NaN neprojdou.</para>
+        /// </summary>
+        public static ParamParseResult ImuHeadingHz(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 200 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam kadenci v Hz: 0 (neomezeno) az 200");
+
         /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
         public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
 

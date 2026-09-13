@@ -200,5 +200,204 @@ namespace ARBot.Common.Tests.Rendering
             var pozadi = bmp.GetPixel(4, 64);
             Assert.That(naSpojnici, Is.Not.EqualTo(pozadi), "mrkev a spojnice k ni maji byt videt");
         }
+
+        // --- Trasa globalni navigace a draha z lokalniho planovace (12. 9. 2026) ---------------
+        // Obojí odpovida na otazku „co se robot chysta udelat", jen v jinem meritku: trasa na
+        // desitky az stovky metru, lokalni plan na jednotky. Barvy se nesmi splest s ujetou
+        // drahou (modra) ani s mrkvi (zluta), proto se testuje odstin, ne jen „neni pozadi".
+
+        [Test]
+        public void TrasaGlobalniNavigaceJeFialova()
+        {
+            var input = new PlanViewInput
+            {
+                HasPose = true, PoseX = 0, PoseY = 0, PoseTheta = 0,
+                Route = new[] { new PlanViewSegment(-3, 0, 3, 0) },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+
+            // 2 m vychodne od robota - na usecce, ale mimo trojuhelnik robota.
+            var c = bmp.GetPixel((int)(64 + 2 * 6.4), 64);
+            Assert.Multiple(() =>
+            {
+                Assert.That(c.Blue, Is.GreaterThan(c.Green), "trasa ma byt fialova");
+                Assert.That(c.Red, Is.GreaterThan(c.Green), "trasa ma byt fialova, ne modra");
+            });
+        }
+
+        [Test]
+        public void DrahaLokalnihoPlanovaceJeAzurova()
+        {
+            var input = new PlanViewInput
+            {
+                HasPose = true, PoseX = 0, PoseY = 0, PoseTheta = 0,
+                LocalPlan = new[]
+                {
+                    new PlanViewPoint(0, 0), new PlanViewPoint(0, 2), new PlanViewPoint(0, 4),
+                },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+
+            var c = bmp.GetPixel(64, (int)(64 - 3 * 6.4));
+            Assert.Multiple(() =>
+            {
+                Assert.That(c.Blue, Is.GreaterThan(100), "plan ma byt azurovy");
+                Assert.That(c.Green, Is.GreaterThan(100), "plan ma byt azurovy");
+                Assert.That(c.Red, Is.LessThan(c.Green), "plan ma byt azurovy, ne bily");
+            });
+        }
+
+        [Test]
+        public void PlanZJednohoBoduSeNekresli()
+        {
+            // Planovac, ktery nic nenasel, muze poslat jediny uzel - cara z nej nevznikne
+            // a kolecko uprostred robota by jen matlo.
+            var input = new PlanViewInput
+            {
+                HasPose = true, PoseX = 0, PoseY = 0, PoseTheta = 0,
+                LocalPlan = new[] { new PlanViewPoint(0, 3) },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+
+            var c = bmp.GetPixel(64, (int)(64 - 3 * 6.4));
+            var pozadi = bmp.GetPixel(4, 64);
+            Assert.That(c, Is.EqualTo(pozadi), "z jednoho uzlu se nekresli nic");
+        }
+
+        [Test]
+        public void LegendaJeJenKTomu_CoSeKresli()
+        {
+            // Pravy dolni roh: bez trasy i planu tam nesmi byt nic, s nimi ano. Legenda vznikla
+            // proto, ze pet barevnych car bez popisu se da jen hadat.
+            var prazdny = new PlanViewInput { HasPose = true };
+            var sPlanem = new PlanViewInput
+            {
+                HasPose = true,
+                LocalPlan = new[] { new PlanViewPoint(0, 0), new PlanViewPoint(0, 4) },
+            };
+
+            using var bezLegendy = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(prazdny, Opt()));
+            using var sLegendou = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(sPlanem, Opt()));
+
+            Assert.That(RozdilnychVRohu(bezLegendy), Is.Zero, "bez dat se legenda nekresli");
+            Assert.That(RozdilnychVRohu(sLegendou), Is.GreaterThan(0), "s planem ma legenda byt");
+        }
+
+        /// <summary>
+        /// Kazda kreslena cara musi mit polozku v legende. Prvni verze legendy vynechala prave
+        /// <b>ujetou drahu</b> — modrou caru za robotem, ktera se navic odstinem plete s azurovym
+        /// lokalnim planem, takze byla ze vsech car nejpotrebnejsi popsat.
+        /// </summary>
+        [Test]
+        public void UjetaDrahaMaPolozkuVLegende()
+        {
+            var sDrahou = new PlanViewInput
+            {
+                HasPose = true,
+                Trail = new[] { new PlanViewPoint(0, -4), new PlanViewPoint(0, 0) },
+            };
+            var bezDrahy = new PlanViewInput { HasPose = true };
+
+            using var a = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(sDrahou, Opt()));
+            using var b = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(bezDrahy, Opt()));
+
+            Assert.That(RozdilnychVRohu(a), Is.GreaterThan(0),
+                        "ujeta draha ma mit v legende svuj radek");
+            Assert.That(RozdilnychVRohu(b), Is.Zero, "bez drahy tam nema byt nic");
+        }
+
+        /// <summary>Kolik pixelu v pravem dolnim rohu (legenda) se lisi od pozadi.</summary>
+        private static int RozdilnychVRohu(SkiaSharp.SKBitmap bmp)
+        {
+            var pozadi = bmp.GetPixel(4, 64);
+            int n = 0;
+            for (int y = 110; y < 128; y++)
+                for (int x = 90; x < 128; x++)
+                    if (bmp.GetPixel(x, y) != pozadi) n++;
+            return n;
+        }
+
+        // --- Zony, ktere maji byt dosazeny (12. 9. 2026) --------------------------------------
+        // Pri dohledu nad zavodem v terenu je z pudorysu potreba poznat, kam robot MUSI dojet;
+        // mrkev rika jen, kam miri v pristich metrech.
+
+        [Test]
+        public void ZonaSeKresliVeSvemDojezdovemPolomeru()
+        {
+            // Zona 5 m severne od robota s polomerem 2 m: kruznice ma protnout osu y 3 m a 7 m
+            // severne, a mezi tim (ve stredu zony) ma byt pozadi.
+            var input = new PlanViewInput
+            {
+                HasPose = true, PoseX = 0, PoseY = 0, PoseTheta = 0,
+                Zones = new[] { new PlanViewZone(0, 5, 2, "cil", active: true) },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+            var pozadi = bmp.GetPixel(4, 64);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(bmp.GetPixel(64, (int)(64 - 3 * 6.4)), Is.Not.EqualTo(pozadi),
+                            "blizsi okraj zony (3 m severne) ma byt nakresleny");
+                Assert.That(bmp.GetPixel(64, (int)(64 - 7 * 6.4)), Is.Not.EqualTo(pozadi),
+                            "vzdalenejsi okraj zony (7 m severne) ma byt nakresleny");
+                Assert.That(bmp.GetPixel(64 + 10, (int)(64 - 5 * 6.4)), Is.EqualTo(pozadi),
+                            "vnitrek zony se nevyplnuje - prekryl by grid");
+            });
+        }
+
+        [Test]
+        public void ZonaMaPolozkuVLegende()
+        {
+            var input = new PlanViewInput
+            {
+                HasPose = true,
+                Zones = new[] { new PlanViewZone(0, 5, 2, "cil", active: true) },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+
+            Assert.That(RozdilnychVRohu(bmp), Is.GreaterThan(0), "zona ma mit v legende svuj radek");
+        }
+
+        [Test]
+        public void AktivniZonaJeVyraznejsiNezNeaktivni()
+        {
+            // Aktivni se kresli plnou carou, ostatni carkovane - jinak by z obrazku nebylo poznat,
+            // ktere misto robot resi ted. Merí se poctem nakreslenych pixelu na kruznici.
+            int Pixelu(bool aktivni)
+            {
+                var input = new PlanViewInput
+                {
+                    HasPose = true,
+                    Zones = new[] { new PlanViewZone(0, 0, 4, null, aktivni) },
+                };
+                using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+                var pozadi = bmp.GetPixel(4, 4);
+                int n = 0;
+                for (int y = 0; y < 128; y++)
+                    for (int x = 0; x < 128; x++)
+                        if (bmp.GetPixel(x, y) != pozadi) n++;
+                return n;
+            }
+
+            Assert.That(Pixelu(true), Is.GreaterThan(Pixelu(false)),
+                        "plna cara ma mit vic pixelu nez carkovana");
+        }
+
+        [Test]
+        public void ZonaBezPolomeruSePoradNakresli()
+        {
+            // Stary zaznam (GlobalNavMsg verze 1) polomer nenese. Poloha je porad pravdiva,
+            // takze se kresli aspon znacka stredu - zmizet nesmi.
+            var input = new PlanViewInput
+            {
+                HasPose = true,
+                Zones = new[] { new PlanViewZone(0, 3, 0, "cil", active: true) },
+            };
+            using var bmp = SkiaSharp.SKBitmap.Decode(PlanViewRenderer.Render(input, Opt()));
+
+            var pozadi = bmp.GetPixel(4, 64);
+            Assert.That(bmp.GetPixel(64, (int)(64 - 3 * 6.4)), Is.Not.EqualTo(pozadi),
+                        "stred zony ma byt oznaceny i bez polomeru");
+        }
     }
 }

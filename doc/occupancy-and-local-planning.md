@@ -223,6 +223,95 @@ API na gridu: `AzimuthBinFromColumn(column, edgeColumnTrim)` a `RadialBin(range)
   dohlédne dál než použitelná hloubka a je to jediný zdroj informace o cestě před robotem. Důvěra
   vzorku lineárně klesá mezi `RoadFullRangeM` (3 m) a `RoadMaxRangeM` (8 m).
 
+### Klín mezi zornými poli barvy (`wedgefill=`, 12. 9. 2026)
+
+**Praktické pozorování z terénu** (autor): zorná pole RGB obou kamer se ve směru jízdy
+nepřekrývají, takže při jízdě rovně vzniká úzký klín buněk `Unknown`, a ten sráží dopřednou
+rychlost.
+
+**Změřeno a potvrzeno** (`ARBot.Analyze wedge` nad `records/test/20260907-170728.rec`):
+
+| údaj | hodnota | odkud |
+|---|---|---|
+| HFOV barvy | **55,0°** (640×480) | intrinsiky v záznamu |
+| HFOV hloubky | 89,6° (480×270) | intrinsiky v záznamu |
+| montážní yaw kamer | ±29,3° | `CameraFrame.Projection.Transformation` |
+| pokrytí barvou | −56,9…−1,8° a +1,8…+56,8° | dopočet |
+| **mezera mezi nimi** | **3,7°** = 0,19 m ve 3 m, 0,38 m v 6 m | dopočet |
+| „chybí jen semantika" ve směru jízdy | **4,1 %** buněk (po stranách 1,4 %) | occupancy grid |
+| totéž podle vzdálenosti | 3,5 % v 1 m → **7,3 % ve 4 m** | occupancy grid |
+| příčná šířka díry, na které se zastaví paprsek vpřed | **0,10 m** (p50 i p90), ve 2,3 m | occupancy grid |
+
+⚠️ **Katalogových 69° platí pro 16:9**; při 640×480 má barva 55°, a právě ten rozdíl mezeru dělá.
+Hloubka klín pokrývá (89,6°), ale `Free` vyžaduje **oba** kanály, takže buňka zůstane `Unknown`.
+
+**Léčba: `WedgeFiller`** — buňce v klínu dopíše semantiku **interpolovanou z nejbližších buněk
+příčně vlevo a vpravo**. ⚠️ **Není to „prohlásit neznámo za sjízdné":** konstanta „sjízdné" by do
+mapy zapsala cestu i tam, kde je tráva nebo díra, a ta lež by se šířila dál (grid čte i korelace
+s mapou). Interpolace přes 19 cm mezeru mezi dvěma pozorováními **téhož** povrchu nové tvrzení
+nevyrábí — když je vlevo i vpravo tráva, vyjde tráva.
+
+Čtyři pojistky (každou hlídá test v `WedgeFillerTest`):
+
+1. **Geometrie se nedoplňuje nikdy** — jen semantický kanál. Překážku vidí hloubka a ta v klínu
+   funguje; vymýšlet „volno" tam, kde může být překážka, by bylo nebezpečné.
+2. **Doplní se jen buňka, která je `Unknown` právě kvůli semantice** — geometrii má potvrzenou
+   jako volnou a semantika je mezi prahy. Buňka, kterou barva rozhodla, se nedotkne, a vzorek se
+   **přičítá** jako další důkaz, nepřepisuje.
+3. **Musí být podpora z obou stran** do `WedgeFillMaxGapM` (0,6 m). Jinak je to extrapolace.
+4. **Doplněním nemůže vzniknout překážka** — zápis se ořízne pod práh `BlockedThreshold`.
+   Doplnění smí rychlost jen povolit, nikdy ji samo zakázat.
+
+#### ⚠️ Kolik to stojí: záleží na záznamu, a hodně
+
+První měření proběhlo nad `20260907-170728.rec` a vyšlo z něj, že klín je okrajový (20,0 %
+zastavení, zisk +0,8 %). **Autor na to namítl, že to neodpovídá tomu, co vidí v terénu**, a ukázal
+na `20260912-125851.rec` — a měl pravdu. Tentýž nástroj nad tím záznamem (1155 gridů, celý běh):
+
+| na čem se zastaví paprsek vpřed | 7. 9. | **12. 9.** |
+|---|---|---|
+| **chybí SEMANTIKA** (geometrie je) ← klín | 20,0 % | **72,6 %** |
+| chybí geometrie (semantika je) | 40,7 % | 18,1 % |
+| překážka (geometrie + semantika) | 32,7 % | 2,9 % |
+| chybí obojí | 5,3 % | 5,5 % |
+
+Na záznamu z 12. 9. je `freeAhead` p50 jen **1,52 m** proti **4,58 m**, které by dala samotná
+geometrie — semantika tedy ukrajuje **tři metry**. A převedeno na to, co je v terénu vidět:
+**robot je pod 0,6 m/s ve 40,5 % vzorků, zatímco bez semantiky by to bylo 3,3 %.**
+
+⚠️ **Poučení o měřidle:** průměr `VBrake` přes celý běh je na tuhle otázku **špatná veličina** —
+většinu času je `VBrake` na stropu, takže se v něm rozdíl rozpustí (proto vycházelo „+0,8 %").
+Správně se ptát „**jak často** robot leze", a měřit to na **víc záznamech**: jeden běh není
+vzorek, dva běhy z téhož robota se liší čtyřnásobně.
+
+#### Co léčba udělá (a co ne)
+
+Nad `20260912-125851.rec`: `freeAhead` p50 **1,52 → 2,22 m**, čas pod 0,6 m/s **40,5 → 33,9 %**,
+průměr `VBrake` **0,908 → 0,952 m/s**. Tedy asi **pětina ztráty**, ne celá — zbytek je řetěz
+dalších děr, ne jedna. Širší klín to nespraví (12° dá 34,1 %, 20° už jen 33,3 % — nasycuje se).
+
+⚠️ **Cesta k těm číslům byla řada oprav, každá nalezená měřením, ne úvahou** — každou hlídá test,
+protože každá vypadala jako „rozumná opatrnost" a přitom léčbu vypínala:
+
+| co bylo špatně | proč to nefungovalo | oprava |
+|---|---|---|
+| doplňovaly se jen buňky s `LRoad == 0` | buňky v klínu mají **slabý** vzorek z okraje zorného pole, ne žádný | doplní se každá, která je `Unknown` kvůli semantice |
+| soused musel být **rozhodnutý** | rozhodnutý z obou stran je jen **17,3 %** případů, slabý aspoň jeden **78,6 %** | stačí jakýkoli vzorek |
+| důvěra 0,5 | sousedé jsou sami těsně pod prahem (−0,95 / −1,10 proti −1,00), půlka na rozhodnutí nestačí (13,3 % zápisů) | výchozí **1,0** |
+| doplňovalo se až od 0,5 m | **16–20 %** zastavení je blíž, a krátká vzdálenost bolí nejvíc | `MinRangeM` = **0,3 m** (navazuje na `FootprintRadiusM`) |
+| klín jen úhlový | ve 0,35 m je 3,7° široké **1,8 cm**, tedy méně než buňka → neprošla žádná | minimální šířka **jedné buňky** |
+
+⚠️ **A jedna chyba byla v měřidle, ne v léčbě:** nemodelovalo `FootprintRadiusM` (plánovač bere
+buňky pod robotem jako sjízdné), takže tvrdilo, že robot leze pod 0,2 m/s ve 39,7 % času. Po
+opravě je ten podíl **nulový** — robot pod 0,2 m/s nejede nikdy, protože půdorys dá vždy aspoň
+0,3 m volna.
+
+Zapíná se `wedgefill=<stupně>` (výchozí **6**, tedy naměřených 3,7° s rezervou na nepřesnost
+montáže); **`wedgefill=0` vrací přesně původní chování** pro A/B. Měřidlo je
+`ARBot.Analyze wedge` (`--wedgefill=`, `--wedgeconf=`, `--limit=`).
+
+⚠️ **Na zařízení to neběželo** — ověřeno buildem, testy a měřením nad záznamem ze zařízení.
+
 ### Rozšíření `CameraFrame` (FormatVersion 3 → 4)
 
 - **`CameraFrame.Projection`** — neutrální DTO (bez závislosti na RealSense): `Intrinsics`,
@@ -726,6 +815,8 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 | `Scale` (krok fixed-pointu) | 0,05 | `OccupancyGridConfig` |
 | prahy `BlockedThreshold` / `FreeThreshold` | +1,0 / −1,0 | `OccupancyGridConfig` |
 | `RoadFullRangeM` / `RoadMaxRangeM` | 3,0 / 8,0 m | `OccupancyIntegratorConfig` |
+| `WedgeFillDeg` / `wedgefill=` | 6,0° (0 = vypnuto) | `OccupancyIntegratorConfig` (klín mezi zornými poli barvy, 12. 9. 2026) |
+| `WedgeFillRangeM` / `WedgeFillMaxGapM` / `WedgeFillConfidence` | 6,0 m / 0,6 m / 0,5 | `OccupancyIntegratorConfig` |
 | `UnknownCostFactor` | 3,0 | `LocalPlannerConfig` |
 | `Envelope` / `envelope=` | `Directional` | `LocalPlannerConfig` (model stropu z odstupu; `radial` = původní, 3. 9. 2026) |
 | `EdgeMarginM` | 0,15 m | `LocalPlannerConfig` (šířka podélné rampy nad `SafeDist`, směrový model) |

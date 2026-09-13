@@ -77,8 +77,65 @@ namespace ARBot.Common.Calibration
         }
 
         /// <summary>
-        /// Dvanact cisel v poradi, v jakem je cte registr 23 (radky <see cref="C"/>, pak
-        /// <see cref="B"/>) — ke zkopirovani za <c>VNWRG,23,</c>.
+        /// <b>Prevod z naseho FLU ramce do ramce REGISTRU 23</b> — diagonala
+        /// <c>diag(−1, −1, +1)</c>; je to involuce, takze plati i opacnym smerem.
+        ///
+        /// <para><b>Odkud:</b> registr 23 se aplikuje v ramci, ve kterem cidlo meri, tedy
+        /// <b>pred</b> reference frame rotation (registr 26, u nas <c>diag(−1, 1, −1)</c>),
+        /// kdezto nas fit bezi nad <c>IMUState.MagnetometerRaw</c>, ktere uz proslo registrem 26
+        /// <b>i</b> prevodem FRD→FLU v driveru (<c>diag(1, −1, −1)</c>, viz
+        /// <c>VN100IMUBinary.FrdToFlu</c>). Slozeni obou je <c>diag(−1, −1, +1)</c>.</para>
+        ///
+        /// <para>✅ <b>Zmereno na senzoru 11. 9. 2026</b>, ne jen odvozeno: cisty bias <c>+0,25</c>
+        /// v jedne ose registru 23 posunul vystup o <b>+0,251 (X)</b>, <b>−0,250 (Y)</b>,
+        /// <b>+0,249 (Z)</b>, krizove cleny pod 0,002 G. Mereni a odvozeni z kodu daly tutez
+        /// diagonalu.</para>
+        ///
+        /// <para>⚠️ <b>Bez tehle transformace ma kalibrace obracene znamenko biasu v X a Y</b> —
+        /// tedy hard-iron offset <b>pricita misto odecitani</b>, u prvni skutecne kalibrace
+        /// o <b>0,22 G vodorovne</b>, coz je vic nez vodorovna slozka zemskeho pole (~0,20 G).
+        /// Presne v tomhle stavu byla kalibrace nekolik hodin nasazena na robotu, nez se ramec
+        /// zmeril. Viz doc/decisions.md, 11. 9. 2026.</para>
+        ///
+        /// <para>⚠️ <b>Plati pro NAS registr 26.</b> Kdyby se zmenila montaz cidla a s ni
+        /// registr 26, musi se zmenit i tohle — proto to hlida <c>MagCalVnBiasTests</c> a proto
+        /// to <b>neni skryte</b> uvnitr formatovani.</para>
+        /// </summary>
+        private static readonly double[] FluToSensor = { -1.0, -1.0, 1.0 };
+
+        /// <summary>
+        /// Dvanact cisel v poradi, v jakem je cte registr 23 (radky matice, pak bias) —
+        /// ke zkopirovani za <c>VNWRG,23,</c>. <b>Prevedene do ramce cidla</b> pres
+        /// <see cref="FluToSensor"/>: <c>C_s = T·C·T</c>, <c>b_s = T·B</c>.
+        ///
+        /// <para>✅ <b>Vzorec je ZMERENY na senzoru</b> (11. 9. 2026) <b>a zaroven dolozeny ICD</b>
+        /// (VN100 ICD v3.1.0.0: <c>CalibratedMag = C · (MeasuredMag − B)</c>): VN aplikuje
+        /// <c>C·(m − b)</c>, tedy <b>tentyz vzorec</b> jako <see cref="Apply"/>. Proto se
+        /// <see cref="B"/> zapisuje <b>primo</b>. Mereni a dokument se shoduji.</para>
+        ///
+        /// <para>⚠️ <b>Merit se to musi pres VIC OS A s NEJEDNOTKOVOU matici</b>, jinak vyjde
+        /// opak. Dve pasti, obe zazite tyz den:</para>
+        /// <list type="number">
+        /// <item><b>Jedna osa nestaci.</b> Cisty bias <c>(0,2; 0; 0)</c> posune vystup o
+        ///   <b>+0,199 G</b>, ale <c>(0; 0,2; 0)</c> o <b>−0,202 G</b> — znamenko se lisi podle
+        ///   osy, protoze mezi kompenzaci a vystupem lezi <b>reference frame rotation
+        ///   (registr 26)</b>, u nas <c>diag(−1, 1, −1)</c>. Merena zmena je <c>−R·C·b</c>.
+        ///   Z osy X samotne vyjde „VN bias pricita", coz je opak pravdy.</item>
+        /// <item><b>Jednotkova matice nerozlisi <c>C·m − b</c> od <c>C·(m − b)</c></b> — pri
+        ///   <c>C = I</c> jsou to tytez vzorce. Rozhodlo teprve <c>C[1,1] = 1,5</c> s
+        ///   <c>b = (0; 0,2; 0)</c>: posun <b>−0,304 G</b> sedi na <c>−C·b</c> (−0,30), ne na
+        ///   <c>−b</c> (−0,20).</item>
+        /// </list>
+        /// <para>Kazde mereni tri opakovani prolozena identitou, aby se vyrusil drift prostredi
+        /// (~0,013 G za sekundy uvnitr budovy).</para>
+        ///
+        /// <para>⚠️ <b>Otevrene a NEZMERENE: v jakem RAMCI je <see cref="B"/>.</b> Registr 23 se
+        /// aplikuje v ramci senzoru, tedy <b>pred</b> registrem 26, kdezto nas fit bezi nad
+        /// <c>IMUState.MagnetometerRaw</c>, ktere uz proslo registrem 26 i prevodem FRD→FLU
+        /// v driveru. Kdyby <c>UncompMag</c> bylo rotovane, musel by se bias (a mimodiagonalni
+        /// cleny <c>C</c>) do senzoroveho ramce prevest. Pozna se to <b>jedine merenim kurzu
+        /// proti GPS venku</b>; uvnitr budovy ne, tam se pole meni. Viz doc/decisions.md,
+        /// 11. 9. 2026.</para>
         ///
         /// <para>⚠️ <b>Invariantni kultura je tu nutna, ne kosmeticka:</b> v ceskem prostredi by
         /// se desetinna CARKA dostala doprostred prikazu oddeleneho carkami a senzor by dostal
@@ -87,8 +144,15 @@ namespace ARBot.Common.Calibration
         /// </summary>
         public string ToVnwrg23()
         {
-            var c = new[] { C[0, 0], C[0, 1], C[0, 2], C[1, 0], C[1, 1], C[1, 2],
-                            C[2, 0], C[2, 1], C[2, 2], B[0], B[1], B[2] };
+            var t = FluToSensor;
+            var c = new double[12];
+            for (int i = 0; i < 3; i++)
+            {
+                // C_s = T·C·T: u diagonalni T staci soucin znamenek, tedy meni se prave ty cleny,
+                // kde se indexy lisi ve znamenku (u nas sloupec/radek Z).
+                for (int j = 0; j < 3; j++) c[i * 3 + j] = t[i] * C[i, j] * t[j];
+                c[9 + i] = t[i] * B[i];
+            }
             return string.Join(",", c.Select(v => v.ToString("F6", CultureInfo.InvariantCulture)));
         }
 

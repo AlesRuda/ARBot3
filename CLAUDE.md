@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 60 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 78 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -125,6 +125,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     binárky běží z kopie bokem, data zůstávají v původním adresáři, **restart služby = nasazení**.
   - **Verze** z `Src/Directory.Build.props` (razítkuje se jen s `-p:ArbotStamp=true`) je v hlavičce
     stránky, v crash logu i v záznamu.
+  - **Od 12. 9. 2026** půdorys kreslí **zóny, které mají být dosaženy** — místa mise (seznam
+    z `TrackMsg`, depo/nakládka/vykládka z `MissionMsg`, jinak cíl navigace) jako kružnice
+    o **dojezdovém poloměru**, aktivní plnou čarou a zbytek čárkovaně; kvůli tomu je
+    **`GlobalNavMsg` verze 2** (`GoalRadiusM` — bez něj byl poloměr jen v konfiguraci, tedy mimo
+    data) a **`TrackMsg` verze 2** (celý seznam míst). Legenda zároveň přestala vynechávat
+    **ujetou dráhu**. ⚠️ **Na zařízení neběželo**; ověřeno testy a simulací.
   - **Od 6. 9. 2026** stránka ukazuje i **kvalitu GPS** (fix, družice, DOP, sigma, nebo důvod, proč
     se poloha nepoužívá) a nabízí **Power off** (`poweroffcmd=`) — vypnutí celé desky se zastavením
     runtime, aby šlo robotovi bezpečně odpojit napájení.
@@ -163,6 +169,28 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   při 100 Hz proti 0,245 rad při 5 Hz), a i při σ srovnané s naměřeným šumem zbývá ~520:1. Příčina
   není v GPS: **σ kompasu popisuje jeho krátkodobý šum, ne jeho bias**, takže filtr věří na 1° něčemu,
   co se trvale mýlí o 3°. **Sčítat víc referencí to neřeší** — musí se změnit, co ta σ znamená.
+  ✅ **Od 12. 9. 2026 má σ kurzu z kompasu PODLAHU** (`imuheadingstd=`, výchozí **5°**,
+  `CompassHeadingStdFloor`): sklada se **kvadraticky** s `YprU` ze senzoru, protože VN100 hlásí
+  `YprU` **0,059°**, ale jeho změřená chyba proti GPS je **−4,90° / −2,79°** — tedy je
+  ~60–90× přesvědčenější, než jaký je. Těch 5° je RMS změřeného biasu (3,99°) zaokrouhlené
+  nahoru; `imuheadingstd=0` vrací přesně staré chování pro A/B. Poměr informace kompas : GPS kurz
+  tím spadl z **~3,2 × 10⁶ : 1** na **~440 : 1**. ⚠️ **Počtivý filtr z toho ale není, jen méně
+  nepočtivý:** bias je časově korelovaný a filtr ho bere jako bílý šum, takže ustálená σ kurzu
+  ve filtru vyroste jen z ~0,06° na **~0,58°** proti skutečné chybě 3–5° (pořád ~8× přehnaně
+  sebejistý) — táž past jako u `gpsposstd`. ⚠️ **Na HW to neběželo**; další krok je záznam
+  s `imuheadingstd=5` a `=0` nad týmž úsekem. ⚠️ **A těch 5° je nejspíš pořád řádově málo:**
+  změřeno (`ARBot.Analyze heading`, blok o šumu GPS kurzu), že chyba kurzu z GPS je časově
+  **korelovaná** (σ 8,4° / 4,1° při τ 10 s / 5 s), takže počtivá σ pro filtr je `σ·√(τ·f)`
+  = **83° / 29°** — a model `atan2(0,3; v)` = 23° to trefuje **náhodou, ne konstrukcí** (příčný
+  šum rychlosti je ve skutečnosti 0,007 m/s, ne 0,3). ⚠️ **GPS je 10 Hz, ne 5** — to bylo
+  v reportu natéčno a všechny přepočty tak byly dvakrát vedle; teď se frekvence **měří**
+  (`FixRateHz`). U kompasu je `τ ≳ 600 s` při 100 Hz, tedy počtivá σ ≈ 1 200°.
+  ✅ **Od 12. 9. 2026 se proto kurz z kompasu ŠKRTÍ na `imuheadinghz=` (výchozí 1 Hz,
+  0 = neomezeno)** — poměr kompas : GPS spadl z 223 : 1 na **2,2 : 1**. ⚠️ **Škrtí se jen
+  absolutní kurz, ne gyro:** `IMU/gyro` jde dál v plné kadenci a mezi odečty kompasu nese kurz
+  právě ono (78 % informace o úhlové rychlosti, odometrie jen 2,8 %). ⚠️ **Mapper je tím
+  STAVOVÝ** — záruka record/replay platí pro dvě **čerstvé** instance, ne pro jednu sdílenou
+  (zlomil se na tom golden replay test, opraven). Cílem zůstává bias jako stav EKF.
   Odtud otevřený úkol **„chyby senzorů jako stavy EKF"** (bias kompasu a gyra), jehož předpokladem
   `GPS/heading` je — **ale je gatovaný potvrzením na reálném HW**: ten 3° bias vnutil v simulaci
   člověk, takže se teprve musí ukázat, jestli ho skutečný VN100 vůbec má. Měří to
@@ -252,9 +280,66 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   svislici o ~1° při náklonu 30–40°. Stránka tak nabídla jen tvrdé železo, tedy **horší** výsledek,
   než který odmítla. ✅ **Autor týž den rozhodl: sklon z brány VYŘAZEN, jen diagnostika**
   (`Usable` i verdikt bez něj, viz [doc/decisions.md](doc/decisions.md)); kalibrace z toho
-  záznamu je podle nových pravidel POUZITELNÁ a **zapíše se ze záznamu bez dalšího výjezdu**
-  (`ARBot.Analyze magcal --bref=0.4897` → `deploy/vnrestore.sh --magcal <12 čísel>`, zatím
-  **nezapsáno**; na robotu s novým kódem neběželo). Slabým místem
+  záznamu je podle nových pravidel POUZITELNÁ a **11. 9. 2026 se zapsala do senzoru i do flash**
+  (`ARBot.Analyze magcal --bref=0.4897` → `deploy/vnrestore.sh --magcal <12 čísel>`).
+  ⚠️ ~~Zapsaná, ale NEOVĚŘENÁ.~~ ✅ **Ověřena venku 12. 9. 2026 a SEDÍ** (tři záznamy
+  `records/test/20260912-*`, z toho jeden statické otáčení robotem): zbytkové tvrdé železo
+  **0,0023 G** (0,46 % `|B|`), zbytková matice **I ± 0,004**, rozpětí `|B|` přes otočku
+  **0,148 → 0,019 G**; rušení od motorů je v šumu (−0,0003 proti −0,0026 G/A). Kurz `IMU − GPS`
+  **p50 −24,0° → −3,6 / −3,1°**, harmonické 27,2/25,2° → **3,6/2,9°**, a **VPE se přestala táhnout
+  minuty** (`K` 0,00485 → **0,0186 1/s**, tedy 206 → **53 s**) — potvrzuje to domněnku z 10. 9.,
+  že dlouhá konstanta byla z velké části důsledek nezkalibrovaného železa.
+  ⚠️ **Zbylých −3,7° je KONSTANTA, ne železo** (půlrozdíl mezi opačnými směry jen ∓1° a mezi běhy
+  mění znaménko; místo vysvětlí η² 0,17–0,19) — a tímhle měřením **nejde rozložit** na pootočení
+  senzoru / zbytek kalibrace / šikmé jetí; na to je potřeba průjezd téhož úseku s robotem otočeným
+  o 180°. ⚠️ **Deklinace ten zbytek NEVYSVĚTLÍ** — v konvenci projektu se magnetický kurz na pravý
+  převádí **odečtením** `D`, takže −4,9° jde na **−10,3°**, ne k nule (že je GPS kurz k pravému
+  severu, plyne z `Doppler − směr posunu polohy` = 0,12°, kde se směr posunu počítá ze souřadnic).
+  ✅ **Změřeno na živém senzoru týž den** (`deploy/vnprobe.sh`, read-only `VNRRG`): registr 83 má
+  `UseMagModel=1` a registr 21 je `(0,199158; **0,0119037**; 0,447158)`, tedy `|B|` **0,4896 G**,
+  sklon **65,95°** a deklinace **3,42°** — deklinace se **aplikuje**. ⚠️ **Ale vestavěný model VN
+  je zastaralý o ~1,9°** (WMM pro Prahu 2026 dává ~5,3°; rozdíl odpovídá epoše ~2015), ačkoli
+  senzor dostal rok 2026,693. Yaw tedy čte o 1,9° výš než pravda a dopočítání zbytku deklinace
+  rozpor **zhorší** (−4,90 → −6,78°), takže zbytek v tělesovém rámci je o 1,9° **větší**,
+  než se zdálo. ⚠️ **Znaménko té korekce vypadá obráceně, než je**: v azimutu se chybějící 1,9°
+  přičítá, ale do záznamu jdou obě veličiny v **matematické** orientaci (`90 − A`), což to překlopí.
+  Rozhodčí jsou data, ne úvaha: `kurz z pole − yaw` = **+3,74 / +3,91°** proti předpovědi
+  **+3,42°** (= `D_s`), kdežto opačné znaménko dává −3,42°. ⚠️ **Registr 83 je přitom ve FLASH, ačkoli ho `MagModelInit` záměrně zapisuje bez
+  `VNWNV`** — perzistoval ho `vnrestore.sh --magcal` z 11. 9. (rok v registru je 2026,693 = 11. 9.
+  a přežil reboot). ✅ **A padá tím výhrada u sklonu:** reference je 65,95°, ne starých 60,9°,
+  takže neshoda je skutečná — a **akcelerometr ji potvrdil nezávisle** (registr 27 dá `|acc|`
+  10,524 m/s² = **+7,3 %**, registr 25 je jednotkový s nulovým biasem). ✅ Registr 54 „surové"
+  pole **taky není** — liší se od registru 27 jen o 0,0025 G, kdežto registrem 23 by se lišil
+  v X 4×; třetí nezávislé potvrzení nálezu o `UncompMag`. ⚠️ **Sklon pole je 62,3–63,2° proti WMM ~65,9°** (`|B|` sedí), podezřelý je
+  **akcelerometr**: `|a|` v klidu 10,487 m/s² proti g = 9,807 (**+6,9 %**), střed koule `z`
+  +0,264 m/s², mezi `−acc` a „dolů" z atitudy 1,89° — `magmodel` tuhle neshodu **zvětšil**
+  (registr 21 měl dřív 60,9°). Čísla a tabulky: [doc/imu-and-frames.md](doc/imu-and-frames.md),
+  sekce „Po kalibraci (12. 9. 2026)". ✅ Při nasazení se **změřila
+  konvence registru 23**: VN aplikuje `C·(m − b)`, tedy tentýž vzorec jako náš `Apply`, a `B` se
+  zapisuje přímo (kód se nezměnil, drží to `MagCalVnBiasTests`). ⚠️ **Měřit se to musí přes víc os
+  a s nejednotkovou maticí** — z osy X samotné vyjde pravý opak, protože mezi kompenzací a výstupem
+  leží registr 26; a `C = I` nerozliší `C·m − b` od `C·(m − b)`. ✅ **Změřen i RÁMEC — a byla to
+  vada:** registr 23 se aplikuje **před** registrem 26, fit běží až za ním a za převodem FRD→FLU,
+  mezi nimi je `diag(−1, −1, +1)`. Bez převodu měl bias v X a Y **obrácené znaménko**, tedy offset
+  se **přičítal** (0,22 G vodorovně, víc než vodorovná složka pole); `ToVnwrg23()` teď počítá
+  `C_s = T·C·T`, `b_s = T·B`. ⚠️ **Dvanáctka v dokumentaci se tím změnila** — starší zápisy mají
+  obrácená znaménka. ⚠️ **Registr 54 není surové pole** (ačkoli ho tak ICD uvádí — změřeno, že se
+  mění podle registru 23 stejně jako registr **20 „Compensated IMU"**).
+  ✅ **12. 9. 2026 se zavřela i otázka `UncompMag`: v binárním výstupu je taky KOMPENZOVANÝ** —
+  `MagnetometerRaw` a `Magnetometer` jsou v záznamu **bit po bitu shodné** (22 445 vzorků,
+  `max |raw − comp| = 0` G). ⚠️ **A je to past, na které příští kalibrace stojí:**
+  `MagCalCollector` sbírá právě tohle pole a `MagCalMission.WriteToSensor()` zapisuje výsledek
+  do registru 23 **přímo**, bez složení s `Reg23Before` — druhé spuštění `mission=magcal` by tedy
+  dobrou kalibraci **přepsalo maticí blízkou jednotkové**. ✅ **Opraveno týž den:** mise si registr
+  23 před sběrem **sama vymaže** (jen do RAM, takže výpadek napájení vrátí kalibraci z flash)
+  a při ukončení **bez zápisu ho vrátí**; když ho nejde přečíst ani vymazat, mise **NEZAČNE**
+  (`MagCalPhase.NotCleared`) — měřila by ze zkompenzovaného pole. Skládání `C₁·C₀` se zamítlo:
+  potřebuje znát rámcovou transformaci mezi fitem a registrem, a **ta už jednou kousla**.
+  Opravená je i hláška `MagCalReport` „výsledek je ABSOLUTNÍ kalibrace" — nad záznamem s nenulovým
+  registrem 23 je to **reziduum** (a jako měřidlo zbytkového železa je to přesně to, co bylo
+  potřeba). ⚠️ **Na senzoru to neběželo** — ověřeno buildem, testy (1406 / 105 / 104) a simulací.
+  Viz [doc/decisions.md](doc/decisions.md).
+  Slabým místem
   výsledku zůstává složka `z` (půlky: `b_z` 0,063 vs 0,018 G). Kalibrace **akcelerometru**
   (bias 0,27 m/s² v Z, registr 25) je otevřený samostatný úkol — prahem sklonu by ale kalibrace
   neprošla ani s ní.
@@ -276,7 +361,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   na jednu stranu** (podmíněnost 2,0 × 10⁸ resp. 4,7 × 10⁷ proti 434 u páru +/−) — složka `z` je
   jinak nezměřená a promítne se náklonem přímo do kurzu. ⚠️ **Měřítko se váže na registr 21**
   (čte se ze senzoru), protože VPE proti němu porovnává `|B|` a sklon; je tedy možné, že tím
-  zmizí i vada 206 s — přeměří se to a **je-li tak, fáze 2 se ruší**.
+  zmizí i vada 206 s — ✅ **přeměřeno 12. 9. 2026: 206 s → 53 s**, tedy zmizela ze čtyř pětin,
+  ne úplně.
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
   ⚠️ **Výpadky D435 za provozu jsou cizí, Intelem NEVYŘEŠENÝ problém** (rešerše 11. 9. 2026) —
   naše léčba (detekce + zbourání pipeline + reconnect) je to, k čemu ve vláknech všichni dojdou.
@@ -463,6 +549,25 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **tatáž instance** jako v `PathPlanner`. ✅ Při tom se opravil i `Speed2Dist` — počítal
   `(v_s − v_e)²/(2a)` (dráhu rozjezdu z nuly na ROZDÍL rychlostí), správně je `|v_s² − v_e²|/(2a)`,
   resp. `|v_s² − v_e²|/a` u `SqrtMotionProfile`; je to teď přesná inverze `Dist2MaxSpeed`.
+  ⚠️ **Od 12. 9. 2026 se doplňuje KLÍN mezi zornými poli barvy** (`wedgefill=`, výchozí 6°):
+  barva D435 má při 640×480 jen **55°** (katalogových 69 platí pro 16:9) a kamery jsou pootočené
+  o ±29,3°, takže přímo před robotem zbývá **mezera 3,7°** (0,19 m ve 3 m), kde hloubka vidí, ale
+  barva ne — buňka tam zůstává `Unknown`, protože `Free` žádá **oba** kanály. Doplňuje se
+  **interpolací z buněk příčně vlevo a vpravo**, ne konstantou „sjízdné": ta by do mapy zapsala
+  cestu i tam, kde je tráva. Čtyři pojistky (geometrie se nedoplňuje nikdy, měření se nepřepisuje,
+  nutná podpora z obou stran, doplněním nevznikne překážka) hlídají testy.
+  ⚠️ **Kolik to stojí, se mezi záznamy liší ČTYŘNÁSOBNĚ a první měření bylo vedle** (změřeno
+  `ARBot.Analyze wedge`): nad `20260907-170728.rec` byl klín příčinou 20,0 % zastavení paprsku,
+  ale nad `20260912-125851.rec` **72,6 %** — a tam je `freeAhead` p50 jen **1,52 m** proti 4,58 m
+  ze samotné geometrie, takže **robot je pod 0,6 m/s ve 40,5 % vzorků proti 3,3 % bez semantiky**.
+  Léčba z toho vrátí asi **pětinu** (40,5 → 33,9 %, `freeAhead` p50 1,52 → 2,22 m).
+  ⚠️ **Průměr `VBrake` je na tuhle otázku ŠPATNÁ veličina** — většinu času je na stropu, takže
+  rozdíl se v něm rozpustí (vycházelo „+0,8 %"); ptát se musí „jak často robot leze", a měřit
+  na **víc záznamech**.
+  ⚠️ **Léčba se přitom pětkrát vypnula vlastní opatrností a pokaždé to našlo až měření**: doplňovat
+  jen buňky bez vzorku (mají slabý, ne žádný), žádat rozhodnutého souseda (je jen v 17,3 %),
+  poloviční důvěra (sousedé jsou sami těsně pod prahem), práh 0,5 m (16–20 % zastavení je blíž)
+  a čistě úhlový klín (ve 0,35 m je užší než buňka). Každou opravu hlídá test.
   ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
   gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),
   pak přeměřit.
@@ -590,9 +695,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   cíl. Bod dál od sítě než `trackoffroad=` (50 m) misi **přeruší** — tiché přeskočení by znamenalo,
   že robot objel jinou trasu, než člověk zadal. **Nesrozumitelný řádek je chyba, ne přeskočení**
   (mise se nezaloží). Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
-  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na HW neběželo.** ⚠️ Příklad
-  ze zadání (Praha, 50.0337/14.5257) **neleží v žádné mapě v repu** — 367–389 m od sítě
-  `OSM/HajeRovne.osm`; funkční ukázka je `config/haje.track`.
+  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na HW neběželo.**
+  **Seznamy `*.track` leží od 12. 9. 2026 u map v `OSM/`, ne v `config/`** — seznam patří
+  **ke konkrétní mapě** (jeho body musí ležet na její síti), kdežto v `config/` vypadal jako
+  nastavení běhu, které jde libovolně kombinovat s jakoukoli mapou. ⚠️ **A právě tak se to jednou stalo:**
+  soubor pojmenovaný po jedné mapě nesl body z druhé a mise se přerušila hláškou
+  „*lezi 272 m od site cest*", což se čte jako porucha navigace, ne jako záměna souboru.
+  Funkční ukázka je `OSM/Hviezdoslavova.track` + `OSM/Hviezdoslavova.osm` (body **3,7–7,0 m**
+  od sítě, ověřeno jízdou v simulaci 12. 9. 2026); tytéž body jsou od `OSM/HajeRovne.osm`
+  367–389 m, tedy nad limitem `trackoffroad=50`.
 - [doc/robotour-mission.md](doc/robotour-mission.md) — **mise Robotour** (`RobotourMission`,
   sourozenec `FreeRunMission`): stavový automat depo → nakládka → vykládka → depo, čtení QR kódů
   z pravé kamery, cíle zadává **globální** navigaci jako LLA. **Běží bez operátora** — je to

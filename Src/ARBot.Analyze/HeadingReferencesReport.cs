@@ -59,6 +59,7 @@ namespace ARBot.Analyze
             // Sledovat GPS stopu: kurz z POLOHY je treti, na Doppleru nezavisla reference —
             // viz TrackCourseCheck. Drzi se cely zaznam, protoze okno se sklada az potom.
             var track = new List<(double T, double Lat, double Lon)>();
+            var gyro = new List<(double T, double W)>();
             foreach (var e in rec.Index)
             {
                 // Snimky kamer tvori 99,9 % objemu zaznamu (12 GB) a tenhle report je nepotrebuje.
@@ -90,6 +91,10 @@ namespace ARBot.Analyze
 
                         var ypr = i.YPR();
                         if (ypr != null) imu.Add((Sec(i.TimeStamp, ref t0), ypr.Yaw));
+                        // Gyro se bere ZVLAST od yaw: pro mereni sumu GPS kurzu je potreba
+                        // reference zmeny kurzu, ktera na GPS ani na magnetometru NEZAVISI.
+                        if (i.AngularVelocity.HasValue)
+                            gyro.Add((Sec(i.TimeStamp, ref t0), i.AngularVelocity.Value.Z));
                         if (i.Magnetometer.HasValue && i.Acceleration.HasValue)
                             mag.Add((Sec(i.TimeStamp, ref t0), i.Magnetometer.Value, i.Acceleration.Value));
                         break;
@@ -135,7 +140,7 @@ namespace ARBot.Analyze
                 if (ignoreGroundTruth && truth.Count > 0)
                     Console.WriteLine($"--nogt: {truth.Count} vzorku pravdy se ZAHAZUJE — jede se "
                                       + "cestou pro realne HW.");
-                ReportWithoutTruth(imu, gps, track, mag, est, csvPath);
+                ReportWithoutTruth(imu, gps, track, mag, est, gyro, csvPath);
                 return;
             }
             if (gps.Count == 0)
@@ -159,6 +164,10 @@ namespace ARBot.Analyze
                 "  nad prahem {0:F1} m/s: {1} z {2} vzorku ({3:F0} %)",
                 MinSpeedMps, moving, truth.Count, 100.0 * moving / Math.Max(1, truth.Count)));
             Console.WriteLine();
+
+            // Frekvence fixu se MERI ze zaznamu, nepredpoklada - viz FixRateHz.
+            double hz = FixRateHz(gps);
+            if (double.IsNaN(hz)) hz = 10.0;
 
             var imuErr = new Stats("IMU yaw - pravda [deg]");
             var gpsErr = new Stats("GPS kurz - pravda [deg]");
@@ -209,8 +218,8 @@ namespace ARBot.Analyze
                     "  sum GPS kurzu:  {0,7:F2} deg   (sd jednoho vzorku)", gpsSd));
                 if (!double.IsNaN(need))
                     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                        "  => na rozliseni 3 sigma staci {0:F0} vzorku; pri 5 Hz je to {1:F1} s jizdy",
-                        Math.Ceiling(need), Math.Ceiling(need) / 5.0));
+                        "  => na rozliseni 3 sigma staci {0:F0} vzorku; pri {1:F1} Hz je to {2:F1} s jizdy",
+                        Math.Ceiling(need), hz, Math.Ceiling(need) / hz));
                 Console.WriteLine();
                 Console.WriteLine("  Kdyz vychyleni IMU sedi na vnucenem biasu a GPS na nule, je bias kompasu");
                 Console.WriteLine("  observabilni BEZ mapy - a padá hlavni namitka proti stavu v EKF (ze by");
@@ -245,6 +254,7 @@ namespace ARBot.Analyze
                                                List<(double T, double Lat, double Lon)> track,
                                                List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)> mag,
                                                List<(double T, double Th)> est,
+                                               List<(double T, double W)> gyro,
                                                string csvPath = null)
         {
             Console.WriteLine("Zaznam nenese GroundTruthMsg — jde tedy o REALNE ZARIZENI (nebo beh");
@@ -286,6 +296,8 @@ namespace ARBot.Analyze
                 return;
             }
 
+            double hzFix = FixRateHz(gps);
+            if (double.IsNaN(hzFix)) hzFix = 10.0;
             double mean = diff.Mean;
             double sd = Sd(diff);
             // Kolik vzorku je potreba, aby se stredni hodnota odlisila od nuly na 3 sigma.
@@ -297,8 +309,8 @@ namespace ARBot.Analyze
                 "  sum rozporu:    {0,7:F2} deg   (sd jednoho vzorku)", sd));
             if (!double.IsNaN(need))
                 Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                    "  => na 3 sigma je potreba {0:F0} vzorku; pri 5 Hz je to {1:F1} s jizdy",
-                    Math.Ceiling(need), Math.Ceiling(need) / 5.0));
+                    "  => na 3 sigma je potreba {0:F0} vzorku; pri {1:F1} Hz je to {2:F1} s jizdy",
+                    Math.Ceiling(need), hzFix, Math.Ceiling(need) / hzFix));
             Console.WriteLine();
             Console.WriteLine("  ⚠️ Rozpor sam NERIKA, KTERA reference se myli - na to jsou bloky nize:");
             Console.WriteLine("  zavislost na kurzu (konstantni posun / znamenko / zelezo), kontrola GPS");
@@ -312,8 +324,166 @@ namespace ARBot.Analyze
             HeadingDependence(pair);
             WhoDoesFusionFollow(est, imu, gps);
             TrackCourseCheck(track, gps, imu);
+            GpsCourseNoise(gps, gyro);
             Magnetometer(mag, imu, gps);
             if (csvPath != null) WriteCsv(csvPath, pair);
+        }
+
+        /// <summary>
+        /// <b>Jak zasumeny je kurz z GPS — a jak dlouho je jeho chyba KORELOVANA?</b>
+        ///
+        /// <para><b>Nacpak.</b> Fuze si sigmu kurzu z GPS <b>pocita</b> jako
+        /// <c>atan2(GpsCrossTrackStd, v)</c> s <c>GpsCrossTrackStd = 0,3 m/s</c> — jenze to cislo
+        /// je <b>predpoklad</b> ("stejne jako GpsSpeedStd"), overeny jen v simulaci. Pri 0,7 m/s
+        /// z nej vychazi <b>23,5 stupne</b>, a na tom stoji cela vaha GPS kurzu proti kompasu.</para>
+        ///
+        /// <para><b>Metoda.</b> Za okno delky <c>lag</c> se porovna zmena kurzu z GPS se zmenou
+        /// kurzu z <b>GYRA</b> — nezavislym zdrojem, ktery na GPS ani na magnetometru nezavisi.
+        /// Rozdil <c>(Δ GPS − Δ gyro)</c> je chyba, ktera za tu dobu pribyla:</para>
+        /// <list type="bullet">
+        /// <item><b>bily sum</b> → sd na lagu <b>nezavisi</b>;</item>
+        /// <item><b>korelovana chyba</b> → sd s lagem <b>roste</b> a pak se ustali; misto ustaleni
+        ///   je celkova sigma a cas, za ktery ho dosahne, je <b>dekorelacni cas</b>.</item>
+        /// </list>
+        ///
+        /// <para>⚠️ <b>Proc to sample-to-sample mereni nestaci:</b> rozdil dvou sousednich fixu
+        /// odectenim vyrusi vsechno, co se meni pomalu — tedy prave tu korelovanou cast. Merit jen
+        /// ji znamena sigmu <b>drasticky podstrelit</b>. Tatáž past a tytéz merilo jako
+        /// u <c>gpsposstd</c> (dekorelacni cas polohy ~40 s), viz doc/ekf-fusion.md.</para>
+        ///
+        /// <para><b>Jak se z toho dela sigma pro filtr:</b> filtr bere fixy jako nezavisle, takze
+        /// pri dekorelacnim case <c>tau</c> a frekvenci <c>f</c> si nadsazuje informaci
+        /// <c>tau·f</c>-krat. Poctiva sigma je proto <c>sigma_celkova · sqrt(tau·f)</c> — tentyz
+        /// vzorec, jakym se odvodilo <c>gpsposstd</c>.</para>
+        /// </summary>
+        private static void GpsCourseNoise(List<(double T, double Course, double V)> gps,
+                                           List<(double T, double W)> gyro)
+        {
+            Console.WriteLine();
+            Console.WriteLine("SUM KURZU Z GPS A JEHO KORELACE (proti gyru):");
+            var g = gps.Where(x => x.V >= MinSpeedMps).OrderBy(x => x.T).ToList();
+            if (g.Count < 200 || gyro.Count < 200)
+            {
+                Console.WriteLine($"  Malo dat (GPS {g.Count}, gyro {gyro.Count}) - rozpad by nic nerekl.");
+                return;
+            }
+
+            var kum = new List<(double T, double Yaw)>(gyro.Count);
+            double yaw = 0;
+            var gs = gyro.OrderBy(x => x.T).ToList();
+            for (int i = 0; i < gs.Count; i++)
+            {
+                if (i > 0)
+                {
+                    double dt = gs[i].T - gs[i - 1].T;
+                    if (dt > 0 && dt < 0.5) yaw += gs[i].W * dt;
+                }
+                kum.Add((gs[i].T, yaw));
+            }
+
+            Console.WriteLine($"  vzorku nad prahem rychlosti {MinSpeedMps:F1} m/s: {g.Count}");
+            Console.WriteLine("    lag [s]      n   sd(dGPS - dGyro) [deg]   sigma jednoho odectu [deg]");
+            var krivka = new List<(double Lag, double Sigma)>();
+            foreach (double lag in new[] { 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0 })
+            {
+                var chyby = new List<double>();
+                int j = 0;
+                for (int k = 0; k < g.Count; k++)
+                {
+                    double cil = g[k].T + lag;
+                    while (j < g.Count && g[j].T < cil - 0.11) j++;
+                    if (j >= g.Count || Math.Abs(g[j].T - cil) > 0.11) continue;
+                    // Mezera ve fixech by do rozdilu pustila otoceni, ktere gyro zna a GPS ne.
+                    bool spojite = true;
+                    for (int i = k + 1; i <= j && spojite; i++)
+                        if (g[i].T - g[i - 1].T > 0.35) spojite = false;
+                    if (!spojite) continue;
+
+                    double dGps = Wrap(g[j].Course - g[k].Course);
+                    if (!YawZGyra(kum, g[k].T, out double y0)) continue;
+                    if (!YawZGyra(kum, g[j].T, out double y1)) continue;
+                    chyby.Add(Wrap(dGps - (y1 - y0)));
+                }
+                if (chyby.Count < 40) continue;
+                double sd = RobustSd(chyby);
+                double sigma = sd / Math.Sqrt(2);
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "    {0,6:F1} {1,7}            {2,8:F2}                 {3,8:F2}",
+                    lag, chyby.Count, Deg(sd), Deg(sigma)));
+                krivka.Add((lag, sigma));
+            }
+
+            if (krivka.Count < 3) return;
+
+            // ⚠️ Dekorelacni cas NEBRAT jako "lag s nejvetsi sigmou" - konec krivky ma nejmin
+            // dvojic a tim nejvic sumu, takze maximum tam padne skoro vzdy a tau vyjde nadsazene
+            // (na obou zaznamech 12. 9. 2026 to davalo 40 s misto 5-10). Usazeni se pozna tak, ze
+            // krivka poprve dosahne 90 % sveho maxima; celkova sigma je pak prumer toho ocasu.
+            double max = krivka.Max(x => x.Sigma);
+            double lagUstaleni = krivka.First(x => x.Sigma >= 0.9 * max).Lag;
+            double sigmaUstalena = krivka.Where(x => x.Lag >= lagUstaleni).Average(x => x.Sigma);
+            if (sigmaUstalena <= 0) return;
+            double vStred = g.Select(x => x.V).OrderBy(x => x).ElementAt(g.Count / 2);
+            double modelRad = Math.Max(0.1, Math.Atan2(0.3, vStred));
+            double hz = FixRateHz(g);
+            if (double.IsNaN(hz)) hz = 10.0;
+            double poctivaRad = sigmaUstalena * Math.Sqrt(lagUstaleni * hz);
+            Console.WriteLine();
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  celkova sigma kurzu: {0:F2} deg (prumer ocasu), krivka se usadi na lagu {1:F1} s"
+                + " (= dekorelacni cas)", Deg(sigmaUstalena), lagUstaleni));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  poctiva sigma pro filtr ({0:F1} Hz bere za nezavisle): {1:F2} * sqrt({2:F0}*{0:F1})"
+                + " = {3:F1} deg", hz, Deg(sigmaUstalena), lagUstaleni, Deg(poctivaRad)));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  model fuze pri v = {0:F2} m/s: atan2(0,3; v) = {1:F1} deg",
+                vStred, Deg(modelRad)));
+            Console.WriteLine("  ⚠️ Kdyz model sedi na POCTIVOU sigmu a ne na celkovou, je to spravne");
+            Console.WriteLine("  cislo ze spatneho duvodu: jeho dokumentace mluvi o pricnem sumu rychlosti,");
+            Console.WriteLine("  ktery je ve skutecnosti o rad mensi. Drzi to nahodou, ne konstrukci.");
+        }
+
+        /// <summary>Integrovany yaw z gyra v case <paramref name="t"/>; false = neni vzorek dost blizko.</summary>
+        private static bool YawZGyra(List<(double T, double Yaw)> kum, double t, out double yawOut)
+        {
+            yawOut = 0;
+            int i = kum.BinarySearch((t, 0.0), Comparer<(double T, double Yaw)>.Create(
+                (x, y) => x.T.CompareTo(y.T)));
+            if (i < 0) i = ~i;
+            if (i <= 0 || i >= kum.Count) return false;
+            if (Math.Abs(kum[i].T - t) > 0.05) return false;
+            yawOut = kum[i].Yaw;
+            return true;
+        }
+
+        /// <summary>
+        /// <b>Frekvence fixu GPS [Hz] ZE ZAZNAMU.</b>
+        ///
+        /// <para>⚠️ Do 12. 9. 2026 si tenhle report psal <b>5 Hz natvrdo</b> na tri mistech
+        /// („pri 5 Hz je to N s jizdy", a hlavne v prepoctu poctive sigmy). Prijimac na robotu
+        /// jede <b>10 Hz</b> — takze vsechny ty prepocty byly <b>dvakrat vedle</b> a nikdo si toho
+        /// nevsiml, protoze vysledek porad vypadal rozumne. Frekvence se proto MERI: median
+        /// rozestupu mezi fixy, mezery nad 0,35 s se vynechavaji (vypadek fixu neni perioda).</para>
+        /// </summary>
+        private static double FixRateHz(List<(double T, double Course, double Speed)> gps)
+        {
+            var dt = new List<double>();
+            for (int i = 1; i < gps.Count; i++)
+            {
+                double d = gps[i].T - gps[i - 1].T;
+                if (d > 0.01 && d < 0.35) dt.Add(d);
+            }
+            if (dt.Count < 10) return double.NaN;
+            dt.Sort();
+            return 1.0 / dt[dt.Count / 2];
+        }
+
+        /// <summary>Robustni sd z mezikvartiloveho rozpeti - chrani pred vyskoky pri vypadku fixu.</summary>
+        private static double RobustSd(List<double> a)
+        {
+            var x = a.OrderBy(v => v).ToList();
+            double q1 = x[(int)(0.25 * (x.Count - 1))], q3 = x[(int)(0.75 * (x.Count - 1))];
+            return (q3 - q1) / 1.349;
         }
 
         /// <summary>

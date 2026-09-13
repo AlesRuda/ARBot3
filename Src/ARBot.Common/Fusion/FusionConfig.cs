@@ -33,6 +33,73 @@ namespace ARBot.Common.Fusion
         public double OdoRateStd = 0.10;       // [rad/s]
         public double GyroRateStd = 0.02;      // [rad/s]
         public double CompassHeadingStd = 0.05; // [rad]
+
+        /// <summary>
+        /// <b>Podlaha sigmy kurzu z kompasu [rad]</b> — sklada se KVADRATICKY s tim, co hlasi sam
+        /// senzor (<c>YprU</c>). Nula = vypnuto (stare chovani).
+        ///
+        /// <para><b>Nacpak.</b> VN100 hlasi <c>YprU</c> (yaw 1 sigma) p50 <b>0,057-0,061 stupne</b>
+        /// a <see cref="Runtime.DefaultMeasurementMapper"/> si to bere primo jako sigmu mereni
+        /// <c>IMU/heading</c>. Jenze zmerena chyba proti GPS kurzu je <b>-4,90 / -2,79 stupne</b>
+        /// (dva zaznamy 12. 9. 2026), tedy senzor je proti sve skutecne chybe <b>~60-90x
+        /// presvedcenejsi</b>. Fuze proto kurz z kompasu <b>nevaži, prebira</b>
+        /// (<c>odhad - IMU yaw</c> = 0,00 +- 0,06 stupne) a chyba jde 1:1 do mapy i do mrkve.</para>
+        ///
+        /// <para><b>Proc to YprU nemuze vedet.</b> Popisuje <b>kratkodoby sum</b> atitudoveho
+        /// reseni, ne jeho <b>bias vuci severu</b>. Ten bias je v <b>telesovem ramci</b> (pootoceni
+        /// senzoru proti podvozku, zbytek magneticke kalibrace, sikme jeti robotu) a ani otacenim,
+        /// ani casem nezmizi — zmereno, ze pulrozdil mezi dvema opacnymi smery jizdy je jen
+        /// +-1 stupen, takže to neni tvrde zelezo. Viz doc/imu-and-frames.md.</para>
+        ///
+        /// <para><b>Odkud vychozich 0,087 rad (5 stupnu):</b> RMS namereneho biasu ze dvou behu je
+        /// 4,0 stupne, mezi behy kolisa o ~2 stupne a mistni porucha pole pridava jednotky stupnu
+        /// (eta^2 0,17-0,19 rozptylu vysvetli MISTO). Zaokrouhleno nahoru na 5.</para>
+        ///
+        /// <para><b>Proc kvadraticky a ne maximem:</b> kdyz <c>YprU</c> vyskoci (magneticka
+        /// porucha, rozjete VPE), sigma ma rust dal — podlaha ma tu informaci doplnit, ne prebit.</para>
+        ///
+        /// <para>⚠️ <b>Poctivy filtr z toho nebude, jen min nepoctivy.</b> Chyba kompasu je casove
+        /// KORELOVANA (je to bias), a filtr ji bere jako bily sum, takže si ji ze 100 vzorku za
+        /// sekundu "vyprumeruje" a hlasena nejistota kurzu spadne rad pod skutecnou chybu. Je to
+        /// <b>tataz past jako u <see cref="GpsPosStd"/></b> a jedina skutecna lecba je <b>bias
+        /// kompasu jako stav EKF</b> (otevreny ukol, viz doc/ekf-fusion.md). Tohle je mezikrok,
+        /// ktery srovnava VAHY proti ostatnim referencim.</para>
+        /// </summary>
+        public double CompassHeadingStdFloor = Common.Conversions.Deg2Rad(CompassHeadingStdFloorDeg);
+
+        /// <summary>
+        /// Vychozi podlaha sigmy kurzu ve <b>stupnich</b> — kanonicka hodnota, ze ktere se odvozuje
+        /// jak <see cref="CompassHeadingStdFloor"/> (v radianech), tak default parametru
+        /// <c>imuheadingstd=</c>. Psat ji dvakrat by znamenalo, ze se ty dve hodnoty jednou
+        /// rozejdou a nikdo si toho nevsimne.
+        /// </summary>
+        public const double CompassHeadingStdFloorDeg = 5.0;
+
+        /// <summary>
+        /// <b>Nejmensi odstup mezi merenimi <c>IMU/heading</c> [s]</b>; 0 = neomezeno (kazdy vzorek).
+        ///
+        /// <para><b>Nacpak.</b> Podlaha <see cref="CompassHeadingStdFloor"/> srovnava, jak moc se
+        /// veri JEDNOMU vzorku. Neresi ale to druhe: filtr bere vzorky jako <b>nezavisle</b>, takze
+        /// ze 100 odectu za sekundu si informaci nascita stokrat — jenze chyba kompasu je
+        /// <b>bias</b>, tedy pres cely beh temer konstantni, a sto odectu teze konstanty nese
+        /// informaci <b>jednoho</b>.</para>
+        ///
+        /// <para><b>Zmereno 12. 9. 2026:</b> mistne zavisla cast chyby kompasu se pri 0,7 m/s obmeni
+        /// za ~7 s (sd mezi bunkami 5 x 5 m byla 2,9-5,0 stupne), montazni a kalibracni cast se
+        /// nedekoreluje nikdy. Vychozi <b>1 s</b> je proto konzervativni zacatek: pomer informace
+        /// kompas : GPS kurz spadne z ~220 : 1 na ~2,2 : 1, ale kompas zustava kotvou. Data
+        /// argumentuji spis pro 0,1 Hz; to je ale vetsi zmena chovani, takze az po zmereni.</para>
+        ///
+        /// <para>⚠️ <b>Skrti se JEN absolutni kurz, ne gyro.</b> <c>IMU/gyro</c> (uhlova rychlost)
+        /// jde dal v plne kadenci a mezi odecty kompasu nese kurz prave ono — jeho chyba je
+        /// prevazne BILA (angular random walk), takze u nej je predpoklad nezavislosti zhruba
+        /// poctivy. Namereny klidovy bias gyra 0,1-62,6 stupne/h dela za sekundu nanejvys
+        /// 0,017 stupne, tedy proti 5 stupnum biasu kompasu nic.</para>
+        ///
+        /// <para>Tataz lecba a tyz duvod jako <c>MapCorrelatorConfig.MinPeriod</c> (3 s) u korelace
+        /// s mapou. Viz doc/ekf-fusion.md.</para>
+        /// </summary>
+        public double CompassHeadingMinPeriodSec = 1.0;
         public double GpsPosStd = 1.5;         // [m]
         public double GpsSpeedStd = 0.3;       // [m/s]
 

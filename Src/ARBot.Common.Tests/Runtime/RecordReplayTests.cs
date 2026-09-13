@@ -145,7 +145,19 @@ namespace ARBot.Common.Tests.Runtime
             var catalog = MessageCatalog.CommonDefaults();
             var imus = SyntheticImu(50);
             var ts = TimeSpan.FromMilliseconds(20);
+
+            // ⚠️ KAZDY pruchod dostane VLASTNI mapper — presne jako produkce, kde mapper vznika
+            // jednou na ARBotRuntime a prehravani zaklada novy runtime. Do 12. 9. 2026 tu stacila
+            // jedna sdilena instance, protoze mapper byl BEZESTAVOVY; od zavedeni skrceni kurzu
+            // z kompasu (FusionConfig.CompassHeadingMinPeriodSec) si pamatuje razitko posledniho
+            // vydaneho IMU/heading, takze sdileni mezi dvema behy prenese stav z prvniho do
+            // druheho — a test pak spadne na neco, co se v provozu stat nemuze.
+            //
+            // Co se timhle NEOSLABUJE: determinismus prehravani porad meri, protoze obe instance
+            // vidi TOUTEZ posloupnost razitek a skrceni je jeji ciste funkci. Ze to plati, hlida
+            // DvaMapperyNadToutezPosloupnosti_DajiTOTEZ v KompasSigmaTests.
             var mapper = new DefaultMeasurementMapper();
+            var mapperReplay = new DefaultMeasurementMapper();
 
             // --- LIVE (record): surova IMU + odvozene RobotStateMsg/DriveCommandMsg do zaznamu ---
             byte[] dataBytes;
@@ -193,7 +205,7 @@ namespace ARBot.Common.Tests.Runtime
             comparison.Start();
             using (loop2.Output.Connect(comparison))
             {
-                DriveScenario(engine2, scheduler2, mapper, replayImus, null);
+                DriveScenario(engine2, scheduler2, mapperReplay, replayImus, null);
             }
             loop2.Stop();
             comparison.Stop();

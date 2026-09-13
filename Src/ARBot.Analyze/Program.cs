@@ -90,6 +90,13 @@ namespace ARBot.Analyze
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
+                    case "wedge":
+                        WedgeReport.Run(rec, (int)Arg(args, "--limit", 300),
+                                        Arg(args, "--wedgefill",
+                                            new ARBot.Common.Occupancy.OccupancyIntegratorConfig().WedgeFillDeg),
+                                        Arg(args, "--wedgeconf",
+                                            new ARBot.Common.Occupancy.OccupancyIntegratorConfig().WedgeFillConfidence));
+                        return 0;
                     case "localplan":
                         LocalPlanReport.Run(rec, Arg(args, "--bin", 10), Arg(args, "--unreach", 0.3),
                                             Arg(args, "--from", double.NaN), Arg(args, "--to", double.NaN));
@@ -217,9 +224,17 @@ namespace ARBot.Analyze
             Console.WriteLine("             fuze). Nad zaznamem ZE ZARIZENI (bez ground truth) navic: zavislost");
             Console.WriteLine("             rozporu na kurzu (konstantni posun / otocene znamenko / zelezo),");
             Console.WriteLine("             koho odhad fuze nasleduje, kontrola GPS kurzu smerem posunu polohy");
-            Console.WriteLine("             a rozbor SYROVEHO magnetickeho pole (|B|, sklon, kurz z pole)");
+            Console.WriteLine("             SUM GPS kurzu a jeho casova korelace proti gyru (rika, jaka");
+            Console.WriteLine("             sigma kurzu je poctiva - viz gpsposstd), a rozbor SYROVEHO");
+            Console.WriteLine("             magnetickeho pole (|B|, sklon, kurz z pole)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
+            Console.WriteLine("  wedge      je pred robotem KLIN bez semantiky? (zorna pole barvy se ve smeru");
+            Console.WriteLine("             jizdy nemusi prekryvat) - rozpad Unknown podle priciny a podle");
+            Console.WriteLine("             azimutu v telesovem ramci + o kolik by kvuli tomu klinu prisla");
+            Console.WriteLine("             dopredna rychlost (VBrake dnes vs. \"staci potvrzena geometrie\");");
+            Console.WriteLine("             --limit=<n> kolik gridu vzorkovat, --wedgefill=<st.> a");
+            Console.WriteLine("             --wedgeconf=<0..1> pro A/B simulaci lecby (WedgeFiller)");
             Console.WriteLine("  localplan  lokalni planovac v case: stavy planu, byla mrkev DOSAZITELNA");
             Console.WriteLine("             (|pozadovany - dosazeny cil|), rychlost planu vs. skutecna,");
             Console.WriteLine("             epizody nedosazitelne mrkve (--bin=<s>, --unreach=<m>, detail okna");

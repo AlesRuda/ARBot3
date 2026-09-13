@@ -508,6 +508,18 @@ záznamu** (`safedist=`, `maxspeed=`, `envelope=` z výpisu `Info`), aby rozpad 
 robotu; `--safedist=`/`--maxspeed=` to přepíšou pro A/B „co by bylo, kdyby". Nález, kvůli kterému
 vznikl: [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
 
+**`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
+barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy
+nedosáhne; buňka je pak `Unknown`, ačkoli hloubka o ní ví. Tiskne tři věci: **zorná pole
+z intrinsik v záznamu** (tedy z toho, co kamera opravdu hlásila — takhle se našlo, že barva má při
+640×480 jen **55°**, ne katalogových 69, a že mezi kamerami zbývá **3,7°**), **rozpad buněk podle
+příčiny a podle azimutu** v tělesovém rámci (klín se pozná tím, že „chybí jen semantika" má
+maximum u nuly a **roste se vzdáleností**) a **dopad na rychlost** — na čem se paprsek vpřed
+skutečně zastaví a co by udělala léčba (`WedgeFiller` se pustí nad týmž gridem, takže se neměří
+replika, ale ten kód, který poběží na robotu). Tímhle se ukázalo, že mechanismus sedí, ale zisk je
+**+0,8 %** a hlavní brzdou je **chybějící geometrie (40,7 % zastavení)**, ne semantika
+(20,0 %). `--wedgefill=<stupně>` a `--wedgeconf=` pro A/B, `--limit=<n>` kolik gridů vzorkovat.
+
 `types`.
 
 ### `log`: co aplikace při běhu hlásila

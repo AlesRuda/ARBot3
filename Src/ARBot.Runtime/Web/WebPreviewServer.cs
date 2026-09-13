@@ -378,6 +378,19 @@ namespace ARBot.Robot.Web
                 return;
             }
 
+            // Zapnout stop, ktery nema koho zastavit, je HORSI nez chyba: tlacitko odpovi
+            // "stisknuto", stranka dal hlasi estop=false (stav se cte z MOTORU, ne z volby)
+            // a clovek hleda vadu v nouzovem zastaveni. Pritom se jen nezalozil virtualni HW -
+            // typicky proto, ze chybi map=. Nalezeno 12. 9. 2026. Viz doc/virtual-hw.md.
+            if (ARBotHW.Current.Motor == null)
+            {
+                HttpMini.WriteText(s, 409,
+                    "virtualni HW nebezi, takze nejsou zadne motory - stop nema koho zastavit. "
+                    + "Typicky chybi map= (bez mapy se simulovane senzory zamerne nezakladaji). "
+                    + "V konzoli hledej radek 'virtualni HW: ...'.");
+                return;
+            }
+
             bool on = !string.Equals(QueryValue(req.Query, "on"), "false", StringComparison.OrdinalIgnoreCase);
             try
             {

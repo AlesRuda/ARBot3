@@ -5,7 +5,10 @@ using System.Text;
 using ARBot.Common.Common;
 using ARBot.Common.Communication;
 using ARBot.Common.Devices;
+using ARBot.Common.Coordinates;
 using ARBot.Common.Logs;
+using ARBot.Common.Maps.OsmNav.Navigation;
+using ARBot.Common.Missions;
 using ARBot.Common.Rendering;
 
 namespace ARBot.Robot.Web
@@ -76,8 +79,26 @@ namespace ARBot.Robot.Web
         /// </summary>
         private GPSState gps;
         private MissionMsg mission;
+
+        /// <summary>
+        /// Posledni stav mise Track. Drzi se kvuli <b>zonam na pudorysu</b>: zprava nese cely
+        /// seznam mist (od verze 2), takze se z ni nakresli objezd jako celek, ne jen bod, na
+        /// ktery se prave jede.
+        /// </summary>
+        private TrackMsg track;
+
         private FreeRunMsg freeRun;
         private LocalPlanMsg plan;
+        private DateTime planAt;
+
+        /// <summary>
+        /// Posledni geometrie trasy globalni navigace a kdy prisla. Chodi ridceji nez ostatni
+        /// (<c>GlobalNavigatorConfig.RouteMessagePeriod</c> = 2 s, nebo hned pri zmene trasy),
+        /// proto se drzi dele - viz <see cref="RouteFreshSec"/>.
+        /// </summary>
+        private GraphNavigationMsg route;
+        private DateTime routeAt;
+
         private PerfMsg perf;
         private MagCalMsg magCal;
         private DateTime cameraInterest = DateTime.MinValue;
@@ -105,6 +126,18 @@ namespace ARBot.Robot.Web
         /// takze 3 s je velmi volne.
         /// </summary>
         public const double MotorFreshSec = 3;
+
+        /// <summary>
+        /// Jak stary smi byt lokalni plan, aby se jeste kreslil [s]. Planuje se nekolikrat za
+        /// sekundu, takze 2 s je volne - a zaroven to znamena, ze po konci mise plan z obrazku
+        /// ZMIZI. Zustat by nesmel: „co se robot chysta udelat" musi byt pravda, jinak by nahled
+        /// ukazoval umysl, ktery uz neplati.
+        /// </summary>
+        public const double PlanFreshSec = 2;
+
+        /// <summary>Totez pro trasu globalni navigace [s] - ta chodi jednou za 2 s, takze prah
+        /// musi byt radove delsi nez u planu.</summary>
+        public const double RouteFreshSec = 10;
 
         /// <summary>
         /// <c>null</c> = misi lze vybrat; jinak <b>duvod</b>, proc ne. Duvod je podstatny: obsluze
@@ -230,8 +263,10 @@ namespace ARBot.Robot.Web
                 case GlobalNavMsg gn: lock (gate) { nav = gn; } return;
                 case GPSState gs: lock (gate) { gps = gs; } return;
                 case MissionMsg mm: lock (gate) { mission = mm; } return;
+                case TrackMsg tm: lock (gate) { track = tm; } return;
                 case FreeRunMsg fr: lock (gate) { freeRun = fr; } return;
-                case LocalPlanMsg lp: lock (gate) { plan = lp; } return;
+                case LocalPlanMsg lp: lock (gate) { plan = lp; planAt = TimeBase.Now; } return;
+                case GraphNavigationMsg gr: lock (gate) { route = gr; routeAt = TimeBase.Now; } return;
                 case PerfMsg pm: lock (gate) { perf = pm; } return;
                 case MagCalMsg mc: lock (gate) { magCal = mc; } return;
                 case MotorStateBase ms: lock (gate) { motors = ms; motorsAt = TimeBase.Now; } return;
@@ -315,6 +350,9 @@ namespace ARBot.Robot.Web
                     PoseY = state?.Y ?? 0,
                     PoseTheta = state?.Theta ?? 0,
                     Trail = trail.ToArray(),
+                    LocalPlan = LocalPlanPoints(),
+                    Route = RouteSegments(),
+                    Zones = ZonesLocked(ARBotRuntime.HasCurrent ? ARBotRuntime.Current.MapOrigin : null),
                 };
 
                 // Mrkev: globalni navigace ji ma jako CarrotX/Y, mise FreeRun jako GoalX/Y.
@@ -331,6 +369,128 @@ namespace ARBot.Robot.Web
             {
                 SpanM = PlanViewRenderer.SpanForScaleBar(scaleBarM),
             });
+        }
+
+        /// <summary>
+        /// <b>Zony, ktere ma robot dosahnout</b> [m, lokalni ENU] — mista mise i s dojezdovym
+        /// polomerem; <c>null</c>, kdyz zadne nejsou nebo neni pocatek lokalni roviny.
+        ///
+        /// <para><b>Nac to je:</b> pri dohledu nad zavodem v terenu je z pudorysu potreba poznat,
+        /// kam robot MUSI dojet — mrkev rika jen, kam miri v pristich metrech.</para>
+        ///
+        /// <para>Zdroj je <b>mise</b>, kdyz nejakou hlasi: <c>TrackMsg</c> nese cely seznam mist,
+        /// <c>MissionMsg</c> depo / nakladku / vykladku. Teprve kdyz mise zadna mista nema
+        /// (FreeRun, <c>goal=</c> z prikazove radky, bezni bez mise), kresli se <b>cil globalni
+        /// navigace</b>. Ty dva zdroje se schvalne NEMICHAJI: cil navigace je totiz misto mise
+        /// <b>prichycene na sit cest</b>, takze by vedle sebe vysly dve kruznice par metru od sebe
+        /// a nikdo by nevedel, ktera je ta, na ktere zalezi.</para>
+        ///
+        /// <param name="origin">Pocatek lokalni ENU roviny (<c>ARBotRuntime.MapOrigin</c>);
+        /// <c>null</c> = zony se nakreslit nedaji, protoze mista mise jsou v LLA.</param>
+        /// </summary>
+        public PlanViewZone[]? Zones(GeoReference origin)
+        {
+            lock (gate) return ZonesLocked(origin);
+        }
+
+        /// <summary>Telo <see cref="Zones"/>; volat jen pod <c>gate</c>.</summary>
+        private PlanViewZone[]? ZonesLocked(GeoReference origin)
+        {
+            if (origin == null) return null;
+
+            // Polomer z dat, dokud nedosel, vychozi nastaveni navigatoru (aby se neopisovalo cislo).
+            double r = nav != null && nav.GoalRadiusM > 0
+                       ? nav.GoalRadiusM
+                       : NavigatorOptions.DefaultArrivalRadiusMeters;
+
+            var zony = new List<PlanViewZone>();
+
+            if (track?.AllLatitudes != null && track.AllLongitudes != null
+                && track.AllLatitudes.Length > 0)
+            {
+                int n = Math.Min(track.AllLatitudes.Length, track.AllLongitudes.Length);
+                for (int i = 0; i < n; i++)
+                    zony.Add(Zone(origin, track.AllLatitudes[i], track.AllLongitudes[i], r,
+                                  (i + 1).ToString(CultureInfo.InvariantCulture),
+                                  active: i == track.PointIndex));
+            }
+            else if (mission != null)
+            {
+                int faze = mission.Phase;
+                if (mission.HasDepot)
+                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.DepotLatDeg),
+                                  Conversions.Deg2Rad(mission.DepotLonDeg), r, "depo",
+                                  faze == (int)RobotourPhase.DrivingToDepot));
+                if (mission.HasPickup)
+                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.PickupLatDeg),
+                                  Conversions.Deg2Rad(mission.PickupLonDeg), r, "nakladka",
+                                  faze == (int)RobotourPhase.DrivingToPickup));
+                if (mission.HasDrop)
+                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.DropLatDeg),
+                                  Conversions.Deg2Rad(mission.DropLonDeg), r, "vykladka",
+                                  faze == (int)RobotourPhase.DrivingToDrop));
+            }
+
+            if (zony.Count == 0 && nav != null && nav.HasGoal)
+                zony.Add(Zone(origin, Conversions.Deg2Rad(nav.GoalLatDeg),
+                              Conversions.Deg2Rad(nav.GoalLonDeg), r, "cil", active: true));
+
+            return zony.Count > 0 ? zony.ToArray() : null;
+        }
+
+        /// <summary>Jedna zona: LLA [rad] → lokalni ENU [m].</summary>
+        private static PlanViewZone Zone(GeoReference origin, double latRad, double lonRad,
+                                         double radiusM, string label, bool active)
+        {
+            var p = origin.ToLocal(latRad, lonRad);
+            return new PlanViewZone(p.X, p.Y, radiusM, label, active);
+        }
+
+        /// <summary>
+        /// Waypointy posledniho lokalniho planu jako lomena cara [m, world ENU]; <c>null</c>, kdyz
+        /// plan neni, je stary (<see cref="PlanFreshSec"/>) nebo planovani neuspelo (bez uzlu).
+        ///
+        /// <para>Volat jen pod <c>gate</c>.</para>
+        /// </summary>
+        private PlanViewPoint[]? LocalPlanPoints()
+        {
+            var wp = plan?.WayPoints;
+            if (wp == null || wp.Length < 2) return null;
+            if ((TimeBase.Now - planAt).TotalSeconds > PlanFreshSec) return null;
+
+            var body = new PlanViewPoint[wp.Length];
+            for (int i = 0; i < wp.Length; i++) body[i] = new PlanViewPoint(wp[i].X, wp[i].Y);
+            return body;
+        }
+
+        /// <summary>
+        /// Useky trasy globalni navigace [m, lokalni ENU]; <c>null</c>, kdyz trasa neni nebo je
+        /// stara (<see cref="RouteFreshSec"/>).
+        ///
+        /// <para>Berou se jen hrany <b>trasy</b> (<c>Path</c>) - zprava nese i uzavrene a
+        /// penalizovane hrany (<c>Collision</c> + <c>Graph</c>), a ty na pudorysu znamenaji neco
+        /// jineho nez „tudy pojedu". Souradnice uz jsou v lokalnim ENU, prevod tedy zadny:
+        /// plni je <c>GlobalNavigator.BuildRouteMessage</c>.</para>
+        ///
+        /// <para>Volat jen pod <c>gate</c>.</para>
+        /// </summary>
+        private PlanViewSegment[]? RouteSegments()
+        {
+            var g = route;
+            if (g?.Edges == null || g.Vertexes == null || g.Edges.Count == 0) return null;
+            if ((TimeBase.Now - routeAt).TotalSeconds > RouteFreshSec) return null;
+
+            var useky = new List<PlanViewSegment>(g.Edges.Count);
+            foreach (var e in g.Edges)
+            {
+                if (!e.Path) continue;
+                if (e.From < 0 || e.To < 0 || e.From >= g.Vertexes.Count || e.To >= g.Vertexes.Count)
+                    continue;
+                var a = g.Vertexes[e.From];
+                var b = g.Vertexes[e.To];
+                useky.Add(new PlanViewSegment(a.X, a.Y, b.X, b.Y));
+            }
+            return useky.Count > 0 ? useky.ToArray() : null;
         }
 
         /// <summary>

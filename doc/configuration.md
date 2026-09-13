@@ -179,9 +179,22 @@ Tohle je změna proti dnešku a je vědomá: konfigurace bude **upovídanější
 | Situace | Dnes | Nově |
 |---|---|---|
 | Neznámý klíč v **souboru** | — | **Chyba při startu**, hláška a konec |
-| Neznámý klíč na **příkazové řádce** | tiše ignorován | Hlasité varování, běh pokračuje |
+| Neznámý klíč na **příkazové řádce** | tiše ignorován | **Podobá-li se známému** (`cfg=`): chyba při startu s návrhem. Jinak hlasité varování, běh pokračuje |
 | Neplatná hodnota (`mapcorr=ano`) | tiše default | **Chyba při startu** |
 | Chybějící soubor z `config=` | — | **Chyba při startu** |
+
+⚠️ **Podobný klíč na příkazové řádce je od 12. 9. 2026 chyba, ne varování.** Cizí argumenty
+(cesta k exe, přepínače Avalonie) se ignorovat musí, ale `cfg=track_hv.cfg` místo `config=` není
+cizí argument — je to překlep, a tiše ignorovaný překlep znamená, že aplikace běží s něčím jiným,
+než člověk napsal. V tom konkrétním případě se nenačetl profil → nebyla `map=` → nezaložil se
+virtuální HW → stránka náhledu hlásila, že **motory nemají nouzové zastavení**; příčina pět kroků
+daleko a jediná stopa byl **jeden řádek varování** uprostřed výpisu celé konfigurace.
+
+Podobnost měří `ParamStore.NejblizsiKlic` dvěma způsoby: **překlep** (Levenshtein ≤ 2, tedy
+`mapcor` → `mapcorr`) a **zkratka** (klíč je podposloupností známého jména, tedy `cfg` → `config`).
+Samotná vzdálenost nestačí — `cfg` je od `config` vzdálené **tři** úpravy. `config` je v seznamu
+kandidátů zvlášť: v registru není (řeší ho `ParamStore.Build` dřív než cokoliv jiného), ale je to
+nejčastější klíč vůbec.
 
 Vady profilu se hlásí **všechny naráz**, ne první nalezená — jinak by se profil opravoval po jedné
 a mezi každou opravou startovalo. Pravidla platnosti drží `ParamRegistry.Validate()` jako **jediné
@@ -259,6 +272,16 @@ překlep v klíči — obojí registr odstraňuje.
 Řádek na klíč, `klíč=hodnota`, `#` uvozuje komentář, prázdné řádky se ignorují. Tedy **přesně to,
 co by se jinak napsalo na příkazovou řádku**, jen po řádcích. Jedna sémantika, žádné mapování,
 edituje se v `nano` přes SSH a diff v gitu je čitelný.
+
+**Kategorie musí být v `All` souvislá** — nadpis se píše pokaždé, když se při průchodu registrem
+kategorie změní, takže rozdělený blok se v profilu objeví jako **dva stejné nadpisy** a v panelu
+jako dvě skupiny téhož jména. Hlídá to `ParamRegistryTests.KazdaKategorieJeSouvisla` (nalezeno
+12. 9. 2026: `magmodel` měl kategorii *Hardware*, ale deklaraci uprostřed bloku *Fúze*).
+
+Kategorie *Řízení a plánování* (`K_RIZENI`) vznikla **12. 9. 2026** pro `envelope`, `smooth`
+a `safedist`. Do té doby byly pod *Hardware*, kam nepatří: neříkají, **čím je robot osazený**, ale
+**jak se rozhoduje, kudy a jak rychle jet**. `maxspeed` zůstal v *Hardware* — je to mez stroje,
+která jde i do driveru motorů, ne volba plánovače.
 
 Zápis z panelu bere pořadí a kategorie z registru a **ke každému klíči píše popis jako komentář**.
 Profil je tím sám o sobě dokumentací parametrů — půlka objevitelnosti funguje i bez panelu:
@@ -358,6 +381,16 @@ Fúze posuzuje, **jak dobrý fix dostala**, místo aby brala každý stejně:
 | `gpsmaxdop=` | 10 | nejvyšší přípustný DOP; 0 = nekontrolovat |
 | `gpsposstd=` | 1,5 | σ polohy z GPS na **jeden fix** [m]; dál se násobí DOP |
 | `gpsdopsigma=` | true | násobit sigmu polohy hodnotou DOP (`sigma = gpsposstd · max(1, DOP)`) |
+| `imuheadingstd=` | 5 | **podlaha σ kurzu z kompasu ve STUPNÍCH**; 0 = vypnuto |
+| `imuheadinghz=` | 1 | **kadence absolutního kurzu z kompasu** [Hz]; 0 = neomezeno |
+
+⚠️ **`imuheadingstd=` je týž druh vady na druhém senzoru.** VN100 hlásí `YprU` (yaw 1σ)
+**0,059°**, ale jeho změřená chyba proti GPS je **3–5°** — do 12. 9. 2026 si to fúze brala jako
+σ měření přímo, takže kurz z kompasu **nevážila, přebírala**. Podlaha se sklada s `YprU`
+**kvadraticky** (ne maximem — když `YprU` vyskočí, σ má růst dál). Parser **odmítne hodnotu
+v intervalu (0; 0,1)**, protože `imuheadingstd=0.087` myšlené v radiánech by tiše nastavilo
+0,087 **stupně** a podlahu tím fakticky vyplo. `imuheadinghz=` je druhá polovina téhož: podlaha řeší, jak moc se věří **jednomu** vzorku, kadence to, že jich filtr bere **100 za sekundu jako nezávislé** — jenže sto odečtů téže konstanty nese informaci jednoho. ⚠️ **Škrtí se jen absolutní kurz, ne gyro:** `IMU/gyro` jde dál v plné kadenci a mezi odečty kompasu nese kurz právě ono (78 % informace o úhlové rychlosti; odometrie jen 2,8 %). Detaily a naměřená čísla:
+[ekf-fusion.md](ekf-fusion.md).
 
 Podstatné je **škálování sigmy** — kvalita fixu je spojitá veličina, takže slabý fix dostane malou
 váhu sám od sebe. Brána má odstranit nesmysl, ne vybírat dobré fixy; **zahodit GPS docela je horší
@@ -534,10 +567,32 @@ kam. Zůstává editovatelné záměrně: v prostředí bez správce souborů je
 určit bez dialogu. Zavření dialogu ukládání **zruší**, nespadne na náhradní cestu — jinak by
 „Zrušit" tiše někam zapsalo.
 
-Do profilu se zapisují **jen hodnoty odlišné od defaultu** (s popisem v komentáři). Soubor tím
-zůstane krátký a je z něj vidět, co se na tomhle běhu vlastně mění; úplný výčet je úlohou panelu,
-ne profilu. Ukládají se přitom **účinné** hodnoty, tedy včetně těch, které přišly z příkazové
+Do profilu se zapisují **hodnoty odlišné od defaultu a k tomu klíče, které už v konfiguraci
+výslovně byly** (z profilu nebo z příkazové řádky) — s popisem v komentáři. Soubor tím zůstane
+krátký a je z něj vidět, co se na tomhle běhu vlastně mění; úplný výčet je úlohou panelu, ne
+profilu. Ukládají se přitom **účinné** hodnoty, tedy včetně těch, které přišly z příkazové
 řádky — jinak by se právě to, kvůli čemu se profil zakládá, do souboru nedostalo.
+
+⚠️ **Ta druhá polovina pravidla je oprava vady z 12. 9. 2026.** Do té doby se psaly *jen* hodnoty
+odlišné od defaultu, takže načtení `config/pi-provoz.cfg` do panelu a uložení ze souboru **tiše
+vyhodilo** `npumodel=models/Model61.1_opt.rknn` — hodnota byla shodou okolností táž jako default
+v registru. Připnutí hodnoty je ale **vědomý čin**: provozní profil říká „tenhle model", ne „co je
+zrovna výchozí", takže po příští změně defaultu by robot na Pi tiše počítal jiným modelem.
+Rozlišuje to `ParamRow.Explicitni` (původ ≠ `Default`, resp. klíč byl v načteném profilu).
+**Klíč z profilu se odstraní vymazáním hodnoty** v tabulce (prázdná se nezapisuje); u parametrů
+s výčtem to rozbalovací seznam neumí, tam zbývá editor.
+
+⚠️ **Cesty v profilech piš pro Linux: lomítko dopředu a velikost písmen jako na disku.** Profily
+z `config/` se nasazují na Orange Pi (`deploy/nasad.ps1`), ale píšou se na Windows — a tam projde
+i `map=osm\haje.osm`. Na Linuxu je zpětné lomítko **obyčejný znak ve jménu souboru**, takže se
+hledá soubor „osm\haje.osm" v kořeni a nenajde; totéž udělá malé `osm` proti adresáři `OSM`.
+Hlídá to `ProfilyVRepuTests.RelativniCestyVProfilechJsouPsaneProLinux` — starší test na existenci
+souboru to na Windows chytit nemohl, tam obojí existuje.
+
+⚠️ **Uložení z panelu přepíše soubor celý, tedy i ručně psané komentáře.** Komentáře se skládají
+znovu z popisů v registru (`ParamFile.Format`), takže z `pi-provoz.cfg` zmizelo i to, *proč* je
+`gpsposstd=30` a co je připravené na řádcích za `#`. Kdo profil komentuje ručně, musí ho editovat
+ručně — nebo si po uložení z panelu komentáře vrátit z gitu.
 
 Panel zobrazuje **celý registr**, ne jen klíče, které se v tomhle běhu přečetly — proto je registr
 centrální deklarace, ne samoregistrace při čtení. Při `mission=robotour` musí být vidět i parametry
@@ -590,6 +645,9 @@ v `ARBotRuntime` nikdo nevolá `GetParam` s proměnnou. Oba pomocníci i vzory z
 | chybové stavy: neznámý klíč, neplatná hodnota, chybějící soubor | `ParamStoreTests` |
 | round-trip: zapsat profil → přečíst → stejné hodnoty | `ParamFileTests` |
 | shoda registru se zdrojovým kódem | `ParamRegistryGuardTests` |
+| profily v repu: platné klíče a hodnoty, cesty existují, **cesty psané pro Linux** | `ProfilyVRepuTests` |
+| každá kategorie je v `All` souvislá (jinak dvojí nadpis v profilu) | `ParamRegistryTests` |
+| cizí argument jen varuje, **podobný klíč** (`cfg=`, `mapcor=`) je chyba s návrhem | `ParamStoreTests` |
 | kontrola shody defaultu v registru a ve volání | `ParamStoreTests` |
 
 Build i testy vždy pod konkrétní platformou (`-p:Platform=x64`), nikdy `AnyCPU`.

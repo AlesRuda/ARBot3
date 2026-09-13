@@ -128,6 +128,19 @@ namespace ARBot.Common.Configuration
                     continue;
                 if (!ParamRegistry.TryGet(pair.Key, out var def))
                 {
+                    // Klic, ktery se PODOBA znamemu parametru, je CHYBA, ne varovani: je to
+                    // skoro jiste preklep a tise ignorovany preklep znamena, ze aplikace bezi
+                    // s necim jinym, nez clovek napsal. Nalezeno 12. 9. 2026 - 'cfg=track_hv.cfg'
+                    // misto 'config=' se zahodilo, takze nebyla mapa, nezalozil se virtualni HW
+                    // a stranka nahledu hlasila, ze motory nemaji nouzove zastaveni. Jedina
+                    // stopa byl JEDEN radek varovani uprostred vypisu cele konfigurace.
+                    string blizky = NejblizsiKlic(pair.Key);
+                    if (blizky != null)
+                        throw new ParamFileException(
+                            $"Prikazova radka: '{pair.Key}={pair.Value}' neni znamy parametr - "
+                            + $"myslel jsi '{blizky}'? (uplne cizi argument se ignoruje, ale tenhle "
+                            + "vypada jako preklep, takze radeji nenastartuju)");
+
                     store.warnings.Add(
                         $"Prikazova radka: '{pair.Key}' neni znamy parametr -> ignoruje se.");
                     continue;
@@ -182,6 +195,84 @@ namespace ARBot.Common.Configuration
 
             // Kanonizace: vycet se overuje case-insensitive, ale cteni porovnava presne.
             Set(def.Name, def.Canonical(value), ParamOrigin.Runtime);
+        }
+
+        /// <summary>
+        /// Jmeno parametru, kteremu se neznamy klic <b>podoba</b> - nebo <c>null</c>, kdyz to
+        /// vypada na uplne cizi argument (ten se smi ignorovat).
+        ///
+        /// <para>Podoba se dvema zpusoby: <b>preklep</b> (nejvys dve upravy, takze 'mapcor' ->
+        /// 'mapcorr') a <b>zkratka</b> (klic je podposloupnost znameho jmena, takze 'cfg' ->
+        /// 'config'). Samotna vzdalenost nestaci - 'cfg' je od 'config' vzdalene tri upravy,
+        /// a prave tenhle preklep to cele spustil.</para>
+        ///
+        /// <para><c>config</c> je v seznamu zvlast: neni v registru (resi ho
+        /// <see cref="Build"/> driv nez cokoliv jineho), ale je to nejcastejsi klic vubec.</para>
+        /// </summary>
+        private static string NejblizsiKlic(string klic)
+        {
+            if (string.IsNullOrEmpty(klic)) return null;
+
+            string nejlepsi = null;
+            int nejlepsiVzdalenost = int.MaxValue;
+
+            foreach (var jmeno in Kandidati())
+            {
+                int d = Vzdalenost(klic, jmeno);
+                if (d <= 2 && d < nejlepsiVzdalenost)
+                {
+                    nejlepsi = jmeno;
+                    nejlepsiVzdalenost = d;
+                }
+                // Zkratka: jen kdyz je co zkracovat (kratke cizi argumenty jako 'x' by jinak
+                // sedly skoro na vsechno).
+                else if (nejlepsi == null && klic.Length >= 3 && JePodposloupnosti(klic, jmeno))
+                    nejlepsi = jmeno;
+            }
+
+            return nejlepsi;
+        }
+
+        private static IEnumerable<string> Kandidati()
+        {
+            yield return "config";
+            foreach (var def in ParamRegistry.All)
+                yield return def.Name;
+        }
+
+        /// <summary>Levenshteinova vzdalenost, case-insensitive (klice se tak porovnavaji vsude).</summary>
+        private static int Vzdalenost(string a, string b)
+        {
+            a = a.ToLowerInvariant();
+            b = b.ToLowerInvariant();
+
+            var predchozi = new int[b.Length + 1];
+            var aktualni = new int[b.Length + 1];
+            for (int j = 0; j <= b.Length; j++) predchozi[j] = j;
+
+            for (int i = 1; i <= a.Length; i++)
+            {
+                aktualni[0] = i;
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cena = a[i - 1] == b[j - 1] ? 0 : 1;
+                    aktualni[j] = Math.Min(Math.Min(aktualni[j - 1] + 1, predchozi[j] + 1),
+                                           predchozi[j - 1] + cena);
+                }
+                (predchozi, aktualni) = (aktualni, predchozi);
+            }
+
+            return predchozi[b.Length];
+        }
+
+        /// <summary>Je <paramref name="kratky"/> podposloupnosti <paramref name="dlouhy"/>? (zkratka)</summary>
+        private static bool JePodposloupnosti(string kratky, string dlouhy)
+        {
+            if (kratky.Length >= dlouhy.Length) return false;
+            int i = 0;
+            foreach (char c in dlouhy.ToLowerInvariant())
+                if (i < kratky.Length && char.ToLowerInvariant(kratky[i]) == c) i++;
+            return i == kratky.Length;
         }
 
         private void Set(string name, string value, ParamOrigin origin)

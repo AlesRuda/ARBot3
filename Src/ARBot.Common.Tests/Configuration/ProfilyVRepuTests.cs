@@ -95,5 +95,74 @@ namespace ARBot.Common.Tests.Configuration
 
             Assert.That(chybi, Is.Empty, string.Join("; ", chybi));
         }
+
+        /// <summary>
+        /// Relativní cesty v profilech musí být psané tak, jak je uvidí <b>Linux</b>: lomítko
+        /// dopředu a velikost písmen přesně jako na disku.
+        ///
+        /// <para><b>Nač to je:</b> profily z <c>config/</c> se nasazují na Orange Pi
+        /// (<c>deploy/nasad.ps1</c>), ale píšou se na Windows — a tam obojí projde. Zpětné lomítko
+        /// je na Linuxu <b>obyčejný znak ve jménu souboru</b>, takže <c>map=osm\haje.osm</c>
+        /// se hledá jako soubor „osm\haje.osm" v kořeni a nenajde; totéž udělá malé <c>osm</c>
+        /// proti adresáři <c>OSM</c>. Test výš (existence souboru) to na Windows nechytí, protože
+        /// tam obojí existuje. Nalezeno 12. 9. 2026, když panel Konfigurace uložil do
+        /// <c>pi-provoz.cfg</c> cestu ve windowsovém tvaru.</para>
+        /// </summary>
+        [Test]
+        public void RelativniCestyVProfilechJsouPsaneProLinux()
+        {
+            if (!Directory.Exists(ConfigDir()))
+                Assert.Ignore("Bezi bez repa (nasazeni na zarizeni) - neni co skenovat.");
+
+            var vady = new List<string>();
+            foreach (string profil in Profily())
+                foreach (var dvojice in ParamFile.Read(profil))
+                {
+                    if (!ParamRegistry.TryGet(dvojice.Key, out var def) || def.Type != ParamType.Path)
+                        continue;
+                    string hodnota = (dvojice.Value ?? string.Empty).Trim();
+                    if (hodnota.Length == 0 || Path.IsPathRooted(hodnota))
+                        continue;
+
+                    string jmenoProfilu = Path.GetFileName(profil);
+                    if (hodnota.Contains('\\'))
+                    {
+                        vady.Add($"{jmenoProfilu}: {dvojice.Key}={hodnota} -> zpetne lomitko; "
+                                 + "na Linuxu je to znak ve jmene souboru, piš '/'");
+                        continue;
+                    }
+
+                    string naDisku = SkutecnyTvar(hodnota);
+                    if (naDisku != null && naDisku != hodnota)
+                        vady.Add($"{jmenoProfilu}: {dvojice.Key}={hodnota} -> na disku je "
+                                 + $"'{naDisku}'; na Linuxu zalezi na velikosti pismen");
+                }
+
+            Assert.That(vady, Is.Empty, string.Join("; ", vady));
+        }
+
+        /// <summary>
+        /// Přepíše relativní cestu velikostí písmen, jakou má skutečně na disku; <c>null</c>,
+        /// když některý článek neexistuje (to hlásí jiný test).
+        /// </summary>
+        private static string SkutecnyTvar(string relativni)
+        {
+            var dir = new DirectoryInfo(RepoPaths.RootOrBase());
+            var clanky = relativni.Split('/');
+            var vysledek = new List<string>();
+
+            for (int i = 0; i < clanky.Length; i++)
+            {
+                if (dir == null || !dir.Exists) return null;
+                var nalezeno = dir.EnumerateFileSystemInfos()
+                                  .FirstOrDefault(x => string.Equals(
+                                      x.Name, clanky[i], System.StringComparison.OrdinalIgnoreCase));
+                if (nalezeno == null) return null;
+                vysledek.Add(nalezeno.Name);
+                dir = nalezeno as DirectoryInfo;
+            }
+
+            return string.Join("/", vysledek);
+        }
     }
 }

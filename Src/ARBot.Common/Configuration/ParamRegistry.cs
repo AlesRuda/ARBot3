@@ -4,6 +4,7 @@ using System.Globalization;
 using ARBot.Common.Missions;
 using ARBot.Common.Vision.Synthetic;
 using ARBot.Common.Fusion;
+using ARBot.Common.Occupancy;
 
 namespace ARBot.Common.Configuration
 {
@@ -40,6 +41,7 @@ namespace ARBot.Common.Configuration
         public static IReadOnlyList<ParamDef> All => all;
 
         private const string K_HW = "Hardware";
+        private const string K_RIZENI = "Rizeni a planovani";
         private const string K_MAPA = "Mapy a svet";
         private const string K_FUZE = "Fuze a lokalizace";
         private const string K_VIZE = "Vize";
@@ -58,22 +60,6 @@ namespace ARBot.Common.Configuration
               + "rychlostni obalku lokalniho planovace. Musi byt > 0; hodnota nad technicky "
               + "dosazitelnou rychlost se orizne (s hlaskou). Default je hodnota z Profile pro "
               + "tuto platformu.", ParamParsers.Kladne);
-        public static readonly StringParam Envelope = Vycet("envelope", "directional", new[] { "directional", "radial" }, K_HW,
-              "Model rychlostniho stropu z odstupu od prekazek v lokalnim planovaci: 'directional' "
-              + "(vychozi od 3. 9. 2026: podel prekazky uzka rampa, kolmo na ni brzdna draha) nebo "
-              + "'radial' (puvodni jedina rampa SafeDist..PrefDist bez ohledu na smer - pro A/B).");
-        public static readonly StringParam Smooth = Vycet("smooth", "time", new[] { "time", "passable" }, K_HW,
-              "Pravidlo, podle ktereho vyhlazovani drahy (string-pulling) prijima zkratky: 'time' "
-              + "(vychozi od 8. 9. 2026: zkratka se prijme, jen kdyz nezhorsi jizdni cas) nebo "
-              + "'passable' (puvodni: staci tvrdy odstup SafeDist podel usecky - pro A/B). "
-              + "Puvodni pravidlo optimalizovalo DELKU, kdezto A* CAS, takze zahazovalo objizdku, "
-              + "kterou cena koupila, a drahu pritisklo na mez prujezdnosti.");
-        public static readonly DoubleParam SafeDist = Num("safedist", Fmt(Profile.SafeDist), K_HW,
-              "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
-              + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "
-              + "Kdyz je >= Profile.PrefDist, PrefDist se posune nad nej se zachovanym rozestupem "
-              + "(s hlaskou), jinak by LocalPlannerConfig.Validate() shodil start. "
-              + "Default je hodnota z Profile.", ParamParsers.Kladne);
         public static readonly StringParam UartAHRS = Text("UartAHRS", Profile.PortAHRS, K_HW,
               "Seriovy port IMU (VN100). Default podle platformy (Profile.PortAHRS: Windows COM5, "
               + "OrangePI /dev/serial/by-id/...). Prazdny = senzor se nezaklada.");
@@ -81,6 +67,48 @@ namespace ARBot.Common.Configuration
               "Seriovy port ridici jednotky motoru (SDC2160). Default podle platformy (Profile.PortMotor).");
         public static readonly StringParam UartGPS = Text("UartGPS", Profile.PortGPS, K_HW,
               "Seriovy port GPS (uBlox). Default podle platformy (Profile.PortGPS).");
+        // Model magnetickeho pole v senzoru (8. 9. 2026). Je to NASTAVENI SENZORU (zapis do
+        // registru 83 VN100), proto Hardware, ne Fuze - ta si jen odnasi dusledek v kurzu.
+        public static readonly BoolParam MagModel = Bool("magmodel", "true", K_HW,
+              "Nastavit VN100 model magnetickeho pole podle polohy robota (registr 83), jednorazove "
+              + "po prvnim kvalitnim fixu GPS. Bez nej drzi VN referenci natvrdo v registru 21 a ta "
+              + "je pro nas MIMO: bez deklinace (kurz je magneticky, ne k pravemu severu, u nas o ~5 "
+              + "stupnu) a se sklonem 60,9 misto ~65,7 stupne, proti kteremu VPE porovnava mereny "
+              + "sklon. ⚠️ NEOVERENO NA HW; magmodel=false vrati chovani do 8. 9. 2026 (kvuli A/B). "
+              + "Po nastaveni se kurz skokem zmeni o deklinaci a VPE se dotahuje ~100-170 s. "
+              + "Viz doc/imu-and-frames.md.");
+
+        // --- Rizeni a planovani -------------------------------------------------------
+        // Jak se robot ROZHODUJE, kudy a jak rychle jet - ne cim je osazeny. Do 12. 9. 2026 to
+        // bylo pod Hardware, kde to nikdo nehledal (a 'smooth' tam vyslovene drhlo).
+        // Pozor: kategorie musi zustat v All SOUVISLA, jinak ParamFile.Format vypise jeji
+        // nadpis v profilu dvakrat. Hlida to ParamRegistryTests.
+        public static readonly StringParam Envelope = Vycet("envelope", "directional", new[] { "directional", "radial" }, K_RIZENI,
+              "Model rychlostniho stropu z odstupu od prekazek v lokalnim planovaci: 'directional' "
+              + "(vychozi od 3. 9. 2026: podel prekazky uzka rampa, kolmo na ni brzdna draha) nebo "
+              + "'radial' (puvodni jedina rampa SafeDist..PrefDist bez ohledu na smer - pro A/B).");
+        public static readonly StringParam Smooth = Vycet("smooth", "time", new[] { "time", "passable" }, K_RIZENI,
+              "Pravidlo, podle ktereho vyhlazovani drahy (string-pulling) prijima zkratky: 'time' "
+              + "(vychozi od 8. 9. 2026: zkratka se prijme, jen kdyz nezhorsi jizdni cas) nebo "
+              + "'passable' (puvodni: staci tvrdy odstup SafeDist podel usecky - pro A/B). "
+              + "Puvodni pravidlo optimalizovalo DELKU, kdezto A* CAS, takze zahazovalo objizdku, "
+              + "kterou cena koupila, a drahu pritisklo na mez prujezdnosti.");
+        public static readonly DoubleParam WedgeFill = Num("wedgefill",
+              Fmt(new OccupancyIntegratorConfig().WedgeFillDeg), K_RIZENI,
+              "Sirka KLINU mezi zornymi poli barevnych kamer [stupne], ve kterem se dopisuje "
+              + "semantika interpolovana z okoli; 0 = vypnuto (puvodni chovani pro A/B). "
+              + "Barva D435 ma pri 640x480 HFOV jen 55 stupnu a kamery jsou pootocene o +-29,3, "
+              + "takze primo pred robotem zbyva mezera 3,7 stupne (0,19 m ve 3 m, 0,38 m v 6 m), "
+              + "kde hloubka vidi, ale barva ne - bunka tam zustava Unknown a srazi to doprednou "
+              + "rychlost. NEDOPLNUJE se konstanta 'sjizdne': interpoluje se z nejblizsich bunek "
+              + "pricne vlevo a vpravo, geometrie se nedoplnuje nikdy a doplnenim nemuze vzniknout "
+              + "prekazka. Viz doc/occupancy-and-local-planning.md.", ParamParsers.Nezaporne);
+        public static readonly DoubleParam SafeDist = Num("safedist", Fmt(Profile.SafeDist), K_RIZENI,
+              "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
+              + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "
+              + "Kdyz je >= Profile.PrefDist, PrefDist se posune nad nej se zachovanym rozestupem "
+              + "(s hlaskou), jinak by LocalPlannerConfig.Validate() shodil start. "
+              + "Default je hodnota z Profile.", ParamParsers.Kladne);
 
         // --- Mapy a svet --------------------------------------------------------------
         public static readonly PathParam Map = Cesta("map", null, K_MAPA,
@@ -102,16 +130,6 @@ namespace ARBot.Common.Configuration
               "Zapina korelaci occupancy gridu s mapou (odhad chyby polohy a kurzu). Ve "
               + "vychozim stavu vypnuta - stoji cele jadro. "
               + "Viz doc/map-correlation-localization.md.");
-        // --- model magnetickeho pole v senzoru (8. 9. 2026) ------------------------------
-        public static readonly BoolParam MagModel = Bool("magmodel", "true", K_HW,
-              "Nastavit VN100 model magnetickeho pole podle polohy robota (registr 83), jednorazove "
-              + "po prvnim kvalitnim fixu GPS. Bez nej drzi VN referenci natvrdo v registru 21 a ta "
-              + "je pro nas MIMO: bez deklinace (kurz je magneticky, ne k pravemu severu, u nas o ~5 "
-              + "stupnu) a se sklonem 60,9 misto ~65,7 stupne, proti kteremu VPE porovnava mereny "
-              + "sklon. ⚠️ NEOVERENO NA HW; magmodel=false vrati chovani do 8. 9. 2026 (kvuli A/B). "
-              + "Po nastaveni se kurz skokem zmeni o deklinaci a VPE se dotahuje ~100-170 s. "
-              + "Viz doc/imu-and-frames.md.");
-
         // --- kvalita GPS fixu (6. 9. 2026) -----------------------------------------------
         // Do teto zmeny brala fuze kazdy fix, u ktereho GPSState.IsFixed rekl "ano", a vzdy
         // s tutez sigmou; pocet druzic a DOP se ignorovaly, i kdyz je zprava nese. Defaulty jsou
@@ -135,6 +153,31 @@ namespace ARBot.Common.Configuration
               "Nasobit sigma polohy z GPS hodnotou DOP (sigma = gpsposstd * max(1, DOP))? "
               + "Kvalita fixu je spojita velicina, takze slaby fix dostane malou vahu sam od sebe "
               + "misto rozhodovani prahem ano/ne.");
+
+        public static readonly DoubleParam ImuHeadingStd = Num("imuheadingstd",
+              Fmt(FusionConfig.CompassHeadingStdFloorDeg), K_FUZE,
+              "Podlaha sigmy kurzu z kompasu ve STUPNICH; 0 = vypnuto (stare chovani). "
+              + "Sklada se KVADRATICKY s tim, co hlasi sam senzor (YprU). "
+              + "⚠️ VN100 hlasi YprU 0,06 stupne, ale jeho skutecna chyba proti GPS je 3-5 stupnu "
+              + "(zmereno 12. 9. 2026, dva zaznamy) - tedy je ~60-90x presvedcenejsi, nez jaky je, "
+              + "a fuze proto kurz NEVAZI, PREBIRA. YprU o tom vedet nemuze: popisuje kratkodoby "
+              + "sum, ne bias vuci severu. ⚠️ Poctivy filtr z toho nebude, jen min nepoctivy - "
+              + "bias je casove korelovany a filtr ho bere jako bily sum (tataz past jako "
+              + "u gpsposstd). Skutecna lecba je bias kompasu jako stav EKF. "
+              + "Viz doc/ekf-fusion.md a doc/imu-and-frames.md.",
+              ParamParsers.ImuHeadingStd);
+
+        public static readonly DoubleParam ImuHeadingHz = Num("imuheadinghz",
+              Fmt(1.0 / new FusionConfig().CompassHeadingMinPeriodSec), K_FUZE,
+              "Kadence absolutniho kurzu z kompasu do fuze [Hz]; 0 = neomezeno (kazdy vzorek, "
+              + "tedy 100 Hz a stare chovani). ⚠️ Filtr bere merenia jako NEZAVISLA, ale chyba "
+              + "kompasu je BIAS - pres cely beh temer konstantni (zmereno 12. 9. 2026: pulrozdil "
+              + "mezi opacnymi smery jizdy jen -1 stupen). Sto odectu teze konstanty nese "
+              + "informaci jednoho, takze filtr si ji nascital stokrat a kompas prehlasil vsechno "
+              + "ostatni (pomer proti GPS kurzu ~220:1). ⚠️ Skrti se JEN absolutni kurz - gyro "
+              + "(IMU/gyro) jde dal v plne kadenci a mezi odecty kompasu nese kurz prave ono, "
+              + "protoze jeho chyba je prevazne bila. Tataz lecba jako MinPeriod u korelace "
+              + "s mapou. Viz doc/ekf-fusion.md.", ParamParsers.ImuHeadingHz);
 
         public static readonly BoolParam MapCorrSend = Bool("mapcorrsend", "true", K_FUZE,
               "Posilat korekce z korelace do fuze, nebo je jen merit.");
