@@ -534,7 +534,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 : (IsGoalInMap(target, robot) ? GlobalNavStatus.GoalInMap : GlobalNavStatus.Driving);
 
             Carrot = carrot;
-            localGoal.SetGoal(carrot.Value.X, carrot.Value.Y);
+            localGoal.SetGoal(carrot.Value.X, carrot.Value.Y, 0, CarrotRadius(carrot.Value, target));
 
             TrackProgressAndDetect(here, fix, x, y, now);
 
@@ -736,6 +736,34 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         }
 
         /// <summary>Lezi cil uz uvnitr lokalni mapy? Pak je mrkev primo cil a zadny zvlastni dojezd netreba.</summary>
+        /// <summary>
+        /// Polomer cilove zony pro mrkev, kterou prave posilame lokalni vrstve [m].
+        ///
+        /// <para><b>Prujezdni mrkev</b> dostane <see cref="GlobalNavigatorConfig.CarrotRadiusM"/>
+        /// (vychozi 0 = bod): neni to cil, ale smer. <b>Pri dojezdu do cile</b> se pouzije
+        /// <b>dojezdovy polomer</b> — <see cref="Navigator"/> hlasi <c>Arrived</c>, jakmile je
+        /// robot do <c>ArrivalRadiusMeters</c> od cile, takze dojet kamkoli do te zony staci
+        /// a trvat na presnem stredu stalo jizdu (14. 9. 2026).</para>
+        ///
+        /// <para>⚠️ <b>Polomer se zmensuje o dve veci.</b> O <b>odstup mrkve od cile</b>, protoze
+        /// mrkev pri dojezdu sice na cili prakticky lezi (lomena cara tam konci), ale spolehat se
+        /// na to nesmime: z trojuhelnikove nerovnosti je pak kazdy bod zony mrkve zarucene i uvnitr
+        /// zony dojezdu. A o <see cref="GlobalNavigatorConfig.ArrivalZoneMarginM"/>, aby robot
+        /// nezastavoval presne na hranici, kde o dosazeni cile rozhoduje sum EKF/GPS. Bez toho
+        /// odectu by robot mohl zastavit uvnitr zony mrkve, ale VNE zony dojezdu — a <c>Arrived</c>
+        /// by nenastalo nikdy. Je to tataz past, na kterou uz narazil Track i Robotour
+        /// u neprichycenych bodu.</para>
+        /// </summary>
+        private double CarrotRadius(Point2D carrot, LLA target)
+        {
+            var g = origin.ToLocal(target);
+            double dx = carrot.X - g.X, dy = carrot.Y - g.Y;
+            double toGoal = Math.Sqrt(dx * dx + dy * dy);
+
+            double arrival = navOptions.ArrivalRadiusMeters - cfg.ArrivalZoneMarginM - toGoal;
+            return arrival > cfg.CarrotRadiusM ? arrival : cfg.CarrotRadiusM;
+        }
+
         private bool IsGoalInMap(LLA target, Point2D robot)
         {
             var g = origin.ToLocal(target);

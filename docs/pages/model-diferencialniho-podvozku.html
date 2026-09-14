@@ -1,0 +1,317 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARBot – Model diferenciálního podvozku</title>
+<link rel="icon" href="../assets/img/arbot-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['$$','$$']],tags:'none'},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre']},
+  chtml:{scale:0.95}};</script>
+<script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+
+<header class="sitehead">
+  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
+  <nav>
+      <a href="../index.html">Úvod</a>
+      <a href="../pages/prezentace.html">Jak to funguje</a>
+      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
+      <a href="../pages/verze.html">Verze</a>
+      <a href="../pages/model-diferencialniho-podvozku.html" class="on">Model podvozku</a>
+      <a href="../pages/detekce-kraje-vozovky.html">Detekce kraje vozovky</a>
+      <a href="../pages/kontakt.html">Kontakt</a>
+  </nav>
+</header>
+<main>
+  <div class="pagehead">
+    <p class="eyebrow">Odometrie</p>
+    <h1>Model diferenciálního podvozku</h1>
+    <p class="lead">Jak z otáček dvou kol spočítat, kam se robot posunul a jak se otočil.</p>
+  </div>
+
+<section class="first">
+  <p>Diferenciální podvozek je popsán vztahy (1) a (2).</p>
+</section>
+
+<figure>
+  <div class="diagram uzky">
+  <svg viewBox="0 0 300 470" role="img" aria-label="Robot v kroku k a k+1: mezi nimi ujeta vzdalenost d a uhel otoceni omega, dole rozchod kol b.">
+    <defs>
+      <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"></polygon>
+      </marker>
+      <marker id="p1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--accent)"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+
+      <!-- svisla reference a oblouk uhlu omega -->
+      <path d="M170 120 V30" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 4" fill="none"></path>
+      <path d="M170 50 A 70 70 0 0 1 196 55" stroke="var(--accent)" stroke-width="1.8" fill="none" marker-end="url(#p1a)"></path>
+      <text x="206" y="44" font-size="16" fill="var(--accent)" font-style="italic">&#969;</text>
+
+      <!-- robot v kroku k+1 -->
+      <g transform="rotate(22 170 120)">
+        <rect x="128" y="78" width="84" height="84" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".8"></rect>
+        <rect x="116" y="92" width="9" height="56" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="215" y="92" width="9" height="56" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M163 120 h14 M170 113 v14" stroke="currentColor" stroke-opacity=".8"></path>
+        <path d="M170 120 V58" stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#p1)"></path>
+        <text x="134" y="155" font-size="15" font-style="italic">k+1</text>
+      </g>
+
+      <!-- robot v kroku k -->
+      <g>
+        <rect x="43" y="298" width="84" height="84" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".8"></rect>
+        <rect x="31" y="312" width="9" height="56" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="130" y="312" width="9" height="56" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M78 340 h14 M85 333 v14" stroke="currentColor" stroke-opacity=".8"></path>
+        <path d="M85 340 V278" stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#p1)"></path>
+        <text x="50" y="375" font-size="15" font-style="italic">k</text>
+      </g>
+
+      <!-- ujeta vzdalenost d -->
+      <path d="M85 340 L170 120" stroke="currentColor" stroke-opacity=".5" stroke-dasharray="5 4" fill="none"></path>
+      <path d="M85 340 L173 374 M170 120 L258 154" stroke="currentColor" stroke-opacity=".28" fill="none"></path>
+      <path d="M173 374 L258 154" stroke="currentColor" stroke-width="1.4" fill="none"
+            marker-start="url(#p1)" marker-end="url(#p1)"></path>
+      <text x="233" y="268" font-size="16" font-style="italic">d</text>
+
+      <!-- rozchod kol b -->
+      <path d="M35 382 V442 M134 382 V442" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="4 4" fill="none"></path>
+      <path d="M35 430 H134" stroke="currentColor" stroke-width="1.4" fill="none"
+            marker-start="url(#p1)" marker-end="url(#p1)"></path>
+      <text x="85" y="422" font-size="16" font-style="italic" text-anchor="middle">b</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Poloha robotu v krocích <i>k</i> a <i>k</i>+1. Z rozdílu ujetých drah obou stran
+    vyjde úhel otočení \(\omega\), z jejich průměru ujetá vzdálenost \(d\).</figcaption>
+</figure>
+
+<section>
+  <div class="mathblock">
+  $$\begin{align}
+  \omega &= \frac{\Delta L - \Delta R}{b} \tag{1}\\
+  d &= \frac{\Delta L + \Delta R}{2} \tag{2}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(\omega\)</b><span>úhel otočení</span></div>
+    <div><b>\(d\)</b><span>ujetá vzdálenost</span></div>
+    <div><b>\(\Delta L\)</b><span>ujetá vzdálenost levou stranou</span></div>
+    <div><b>\(\Delta R\)</b><span>ujetá vzdálenost pravou stranou</span></div>
+    <div><b>\(b\)</b><span>rozchod kol</span></div>
+  </div>
+
+  <p>Dále musíme určit polohu a orientaci robotu. Podkladem nám bude ujetá vzdálenost a otočení
+     robotu. Pohyb robotu popisují rovnice (3), (4) a (5).</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \alpha(t) &= \int \omega(t)\,dt \tag{3}\\
+  x(t) &= \int v(t)\cos\alpha(t)\,dt \tag{4}\\
+  y(t) &= \int v(t)\sin\alpha(t)\,dt \tag{5}
+  \end{align}$$
+  </div>
+
+  <p>Problém jejich řešení spočívá ve faktu, že neznáme funkce pro úhlovou a dopřednou rychlost.
+     Jediné co známe je změna orientace robotu v okamžicích vzorkování a ujetá vzdálenost mezi
+     těmito okamžiky. Možných variant pohybu robotu je mnoho. Viz následující obrázek.</p>
+</section>
+
+<figure>
+  <div class="diagram stredni">
+  <svg viewBox="0 0 430 430" role="img" aria-label="Tri varianty pohybu mezi dvema vzorky pri otoceni o 90 stupnu: nejdriv rovne pak otoceni, ctvrtkruh, a nejdriv otoceni pak rovne - kazda konci jinde.">
+    <defs>
+      <marker id="p2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+      <path d="M62 330 V62" stroke="currentColor" stroke-opacity=".45" stroke-width="1.4" fill="none"></path>
+      <path d="M62 330 H330" stroke="currentColor" stroke-opacity=".45" stroke-width="1.4" fill="none"></path>
+      <path d="M62 330 A 170.6 170.6 0 0 1 232.6 159.4" stroke="var(--accent)" stroke-width="2.4" fill="none"></path>
+      <g>
+        <rect x="28" y="296" width="68" height="68" fill="var(--surface-2)" stroke="currentColor" stroke-width="1" stroke-opacity=".85"></rect>
+        <rect x="18" y="308" width="7" height="45" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="99" y="308" width="7" height="45" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M56 330 h12 M62 324 v12" stroke="currentColor" stroke-opacity=".7"></path>
+        <path d="M62 330 V270" stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#p2)"></path>
+        <text x="35" y="313" font-size="13" font-style="italic">k</text>
+        <text x="80" y="356" font-size="14" font-weight="600" fill="currentColor"></text>
+      </g>
+      <g>
+        <rect x="28" y="28" width="68" height="68" fill="var(--surface-2)" stroke="currentColor" stroke-width="1" stroke-opacity=".85"></rect>
+        <rect x="40" y="18" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="40" y="99" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M56 62 h12 M62 56 v12" stroke="currentColor" stroke-opacity=".7"></path>
+        <path d="M62 62 H122" stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#p2)"></path>
+        <text x="35" y="45" font-size="13" font-style="italic">k+1</text>
+        <text x="80" y="88" font-size="14" font-weight="600" fill="currentColor">a</text>
+      </g>
+      <g>
+        <rect x="199" y="125" width="68" height="68" fill="var(--surface-2)" stroke="var(--accent)" stroke-width="1.8" stroke-opacity=".85"></rect>
+        <rect x="211" y="115" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="211" y="196" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M227 159 h12 M233 153 v12" stroke="currentColor" stroke-opacity=".7"></path>
+        <path d="M233 159 H293" stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#p2)"></path>
+        <text x="206" y="142" font-size="13" font-style="italic">k+1</text>
+        <text x="251" y="185" font-size="14" font-weight="600" fill="var(--accent)">b</text>
+      </g>
+      <g>
+        <rect x="296" y="296" width="68" height="68" fill="var(--surface-2)" stroke="currentColor" stroke-width="1" stroke-opacity=".85"></rect>
+        <rect x="308" y="286" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <rect x="308" y="367" width="45" height="7" rx="2" fill="currentColor" fill-opacity=".5"></rect>
+        <path d="M324 330 h12 M330 324 v12" stroke="currentColor" stroke-opacity=".7"></path>
+        <path d="M330 330 H390" stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#p2)"></path>
+        <text x="303" y="313" font-size="13" font-style="italic">k+1</text>
+        <text x="348" y="356" font-size="14" font-weight="600" fill="currentColor">c</text>
+      </g>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Mezi dvěma vzorky se robot mohl pohybovat mnoha způsoby a každý končí jinde &mdash;
+    přestože ujel tutéž vzdálenost a otočil se o týž úhel (tady pro názornost o 90&nbsp;°).
+    Zvýrazněná varianta <b>b</b> &mdash; čtvrtkruh o konstantní dopředné i úhlové rychlosti &mdash;
+    je ta, se kterou se dál počítá.</figcaption>
+</figure>
+
+<section>
+  <p>Otázkou je kterou si vybrat? Jednoduchá varianta rozumně aproximující skutečnost je varianta
+     konstantní dopředné a úhlové rychlosti, kdy se bude robot pohybovat po kruhových obloucích.
+     V našem obrázku je tento případ vyobrazen pod písmenem b a popisují ho vztahy (6) a (7).
+     Dosazením (6) do vztahu (3) pro úhlové natočení získáme časový průběh orientace robotu.
+     Dalším dosazením a integrací rovnice (4) na intervalu \(T_s\) postupně získáme (9), který
+     popisuje změnu souřadnice <i>x</i> po jedné vzorkovací periodě. Tento vztah je nepraktický
+     kvůli dělení \(\omega\).</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \omega(t) &= \frac{\omega}{T_{s}} \tag{6}\\
+  v(t) &= \frac{d}{T_{s}} \tag{7}\\
+  \alpha(t) &= \frac{\omega}{T_{s}}t + \alpha_{c} \tag{8}\\
+  \Delta x_{k} &= \int_{0}^{T_{s}}{v(t)\cos \alpha(t)dt}
+    = \int_{0}^{T_{s}}{\frac{d}{T_{s}}\cos\left( \frac{\omega}{T_{s}}t+\alpha_{c}\right)dt}
+    = \frac{d}{T_{s}}\frac{T_{s}}{\omega}\sin\left( \frac{\omega}{T_{s}}T_{s}+\alpha_{c}\right)
+      -\frac{d}{T_{s}}\frac{T_{s}}{\omega}\sin\left( \frac{\omega}{T_{s}}0+\alpha_{c}\right) = \\
+  &= \frac{d}{\omega}\left(\sin\left(\omega+\alpha_{c}\right)-\sin\left(\alpha_{c}\right)\right) \tag{9}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(\alpha_{c}\)</b><span>počáteční úhel natočení</span></div>
+    <div><b>\(T_{s}\)</b><span>vzorkovací perioda</span></div>
+    <div><b>\(\Delta x_{k}\)</b><span>změna polohy v ose x</span></div>
+  </div>
+
+  <p>Protože pootočení je malé lze diferenci nahradit derivací v mezilehlém době, jak je naznačeno
+     na následujícím obrázku. Výsledné vztahy pro polohu robotu v diskrétním čase pak popisují
+     rovnice (10), (11) a (12).</p>
+</section>
+
+<figure>
+  <div class="diagram stredni">
+  <svg viewBox="0 0 520 400" role="img" aria-label="Sinusovka: secna mezi body alfa a alfa+omega je rovnobezna s tecnou, ktera se krivky dotyka v mezilehlem bode alfa+omega/2. Rovnobeznost je vyznacena dvojicemi sikmych carek.">
+    <defs>
+      <marker id="p3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--plan)"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+      <path d="M50 386 V44" stroke="var(--plan)" stroke-width="1.4" fill="none" marker-end="url(#p3)"></path>
+      <path d="M50 250 H508" stroke="var(--plan)" stroke-width="1.4" fill="none" marker-end="url(#p3)"></path>
+      <text x="30" y="150" font-size="13" fill="var(--plan)" transform="rotate(-90 30 150)" text-anchor="middle">sin x</text>
+      <text x="494" y="272" font-size="13" fill="var(--plan)" font-style="italic">x</text>
+
+      <polyline points="50.0,250.0 53.5,243.3 56.9,236.6 60.4,229.9 63.8,223.3 67.3,216.7 70.8,210.3 74.2,203.9 77.7,197.7 81.2,191.6 84.6,185.6 88.1,179.9 91.5,174.3 95.0,168.9 98.5,163.8 101.9,158.9 105.4,154.2 108.8,149.8 112.3,145.6 115.8,141.8 119.2,138.2 122.7,134.9 126.2,131.9 129.6,129.3 133.1,126.9 136.5,124.9 140.0,123.3 143.5,121.9 146.9,120.9 150.4,120.3 153.8,120.0 157.3,120.1 160.8,120.5 164.2,121.2 167.7,122.3 171.2,123.8 174.6,125.6 178.1,127.7 181.5,130.1 185.0,132.9 188.5,136.0 191.9,139.3 195.4,143.0 198.8,147.0 202.3,151.2 205.8,155.7 209.2,160.5 212.7,165.5 216.2,170.7 219.6,176.2 223.1,181.8 226.5,187.6 230.0,193.6 233.5,199.7 236.9,206.0 240.4,212.4 243.8,218.9 247.3,225.5 250.8,232.1 254.2,238.8 257.7,245.5 261.2,252.2 264.6,259.0 268.1,265.7 271.5,272.3 275.0,278.9 278.5,285.4 281.9,291.9 285.4,298.2 288.8,304.4 292.3,310.4 295.8,316.3 299.2,322.0 302.7,327.5 306.2,332.8 309.6,337.9 313.1,342.7 316.5,347.3 320.0,351.6 323.5,355.7 326.9,359.5 330.4,363.0 333.8,366.1 337.3,369.0 340.8,371.6 344.2,373.8 347.7,375.7 351.2,377.2 354.6,378.4 358.1,379.3 361.5,379.8 365.0,380.0 368.5,379.8 371.9,379.3 375.4,378.4 378.8,377.2 382.3,375.7 385.8,373.8 389.2,371.6 392.7,369.0 396.2,366.1 399.6,363.0 403.1,359.5 406.5,355.7 410.0,351.6 413.5,347.3 416.9,342.7 420.4,337.9 423.8,332.8 427.3,327.5 430.8,322.0 434.2,316.3 437.7,310.4 441.2,304.4 444.6,298.2 448.1,291.9 451.5,285.4 455.0,278.9 458.5,272.3 461.9,265.7 465.4,259.0 468.8,252.2 472.3,245.5 475.8,238.8 479.2,232.1 482.7,225.5 486.2,218.9 489.6,212.4 493.1,206.0 496.5,199.7 500.0,193.6" fill="none" stroke="currentColor" stroke-width="2"></polyline>
+
+      <path d="M105.0 154.7 V250 M135.0 125.8 V250 M165.0 121.5 V250"
+            stroke="currentColor" stroke-opacity=".45" fill="none"></path>
+
+      <path d="M62.0,178.5 L198.0,103.2" stroke="var(--accent)" stroke-width="1.8" stroke-dasharray="8 5" fill="none"></path>
+      <path d="M62.0,166.2 L198.0,90.9" stroke="var(--accent)" stroke-width="1.8" stroke-dasharray="8 5" fill="none"></path>
+      <path d="M184.0,106.9 V114.9 M193.0,101.9 V109.9" stroke="var(--accent)" stroke-width="1.8" fill="none"></path>
+      <path d="M166.0,104.6 V112.6 M175.0,99.6 V107.6" stroke="var(--accent)" stroke-width="1.8" fill="none"></path>
+
+      <circle cx="105.0" cy="154.7" r="3.4" fill="var(--accent)"></circle>
+      <circle cx="135.0" cy="125.8" r="3.4" fill="var(--accent)"></circle>
+      <circle cx="165.0" cy="121.5" r="3.4" fill="var(--accent)"></circle>
+
+      <path d="M105.0 250 v10 M135.0 250 v28 M165.0 250 v46"
+            stroke="currentColor" stroke-opacity=".35" fill="none"></path>
+      <text x="105.0" y="274" font-size="13" text-anchor="middle" font-style="italic">&#945;</text>
+      <text x="135.0" y="292" font-size="13" text-anchor="middle" font-style="italic">&#945;+&#969;/2</text>
+      <text x="165.0" y="310" font-size="13" text-anchor="middle" font-style="italic">&#945;+&#969;</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Náhrada diference derivací v mezilehlém bodě. Sečna mezi \(\alpha\) a
+    \(\alpha+\omega\) je rovnoběžná s tečnou v \(\alpha+\omega/2\) &mdash; přesně vzato se
+    jejich sklon liší o činitel \(\sin(\omega/2)\,/\,(\omega/2)\), pro malá \(\omega\)
+    zanedbatelný.</figcaption>
+</figure>
+
+<section>
+  <div class="mathblock">
+  $$\begin{align}
+  \alpha_{k+1} &= \alpha_{k} + T_{s}\omega_{k} \tag{10}\\
+  x_{k+1} &= x_{k} + \Delta x_{k} = T_{s}v_{k}\cos\left(\frac{T_{s}\omega_{k}}{2}+\alpha_{k}\right) \tag{11}\\
+  y_{k+1} &= y_{k} + \Delta y_{k} = T_{s}v_{k}\sin\left(\frac{T_{s}\omega_{k}}{2}+\alpha_{k}\right) \tag{12}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(\omega_{k}\)</b><span>úhlová rychlost robotu v kroku k</span></div>
+    <div><b>\(\alpha_{k}\)</b><span>orientace robotu v kroku k</span></div>
+    <div><b>\(v_{k}\)</b><span>dopředná rychlost v kroku k</span></div>
+    <div><b>\(T_{s}\)</b><span>vzorkovací perioda</span></div>
+  </div>
+
+  <p>Jak lze interpretovat získané řešení? V první řadě je nutné poznamenat, že robot se už
+     nepohybuje po kruhovém oblouku, jak jsme na počátku předpokládali, ale po přímce jejíž délka
+     je shodná s délkou oblouku a orientace přímky půlí \(\omega\). Tento výpočet proti původnímu
+     předpokladu negeneruje úhlovou chybu a chyba vzdálenosti pro v praxi maximální
+     \(\omega = 8^\circ\) je do 0,1 %.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \text{relativní chyba } d &= \frac{\text{délka oblouku} - \text{délka tětivy}}{\text{délka oblouku}}
+    = \frac{d-2\frac{d}{\omega}\sin{\frac{\omega}{2}}}{d}
+    = 1-\frac{2}{\omega}\sin{\frac{\omega}{2}} \tag{13}
+  \end{align}$$
+  </div>
+  <h3>Směr je přesný, chybuje jen délka</h3>
+  <p>Stojí za to říct to natvrdo, protože je to nejsilnější věta celého odvození. Obě věci, které
+     jsme cestou potkali &mdash; že sečna je rovnoběžná s tečnou v mezilehlém bodě a že tětiva je
+     kratší než oblouk &mdash; jsou <b>jedna a tatáž aproximace</b>. Plynou z jediného integrálu:
+     z průměru jednotkového vektoru směru přes lineárně se otáčející úhel.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \frac{1}{\omega}\int_{\alpha}^{\alpha+\omega}\bigl(\cos u,\ \sin u\bigr)\,du
+    = \frac{\sin(\omega/2)}{\omega/2}\,
+      \Bigl(\cos\bigl(\alpha+\tfrac{\omega}{2}\bigr),\ \sin\bigl(\alpha+\tfrac{\omega}{2}\bigr)\Bigr)
+  \tag{14}
+  \end{align}$$
+  </div>
+  <p><b>Směr</b> toho vektoru je <b>přesně</b> \(\alpha+\omega/2\) &mdash; bez jakékoli chyby, ať je
+     \(\omega\) jakkoli velké. Odtud plyne, že výpočet <i>negeneruje úhlovou chybu</i>.
+     <b>Velikost</b> je přesně činitel \(\sin(\omega/2)/(\omega/2)\), o který je tětiva kratší než
+     oblouk. Ten se ve vztazích (11) a (12) zanedbává &mdash; místo délky tětivy se dosadí délka
+     oblouku \(T_s v_k\) &mdash; a měří ho vztah (13). Tentýž činitel proto vychází i jako poměr
+     sklonu sečny ke sklonu tečny na obrázku výš; je to pokaždé týž vektor, jednou čtený přes
+     velikost a jednou přes svou složku.</p>
+  <div class="note"><b>Pozor na jednu záměnu.</b> Ten činitel je poměr <b>sklonů</b>, ne úhel mezi
+    přímkami. Poměr sklonů je \(\sin(\omega/2)/(\omega/2)\) přesně a <b>nezávisle na</b> \(\alpha\);
+    úhel mezi sečnou a tečnou je oproti tomu \(\arctan m-\arctan\!\bigl(m\cdot\sin(\omega/2)/(\omega/2)\bigr)\)
+    pro \(m=\cos(\alpha+\omega/2)\), tedy závisí i na tom, kde v periodě se nacházíme, a pro malá
+    \(\omega\) vychází zhruba \(\tfrac{m}{1+m^{2}}\cdot\tfrac{\omega^{2}}{24}\), nejvýš
+    \(\omega^{2}/48\). Pro \(\omega = 8^\circ\) je to nejvýš 0,023&nbsp;°.</div>
+
+</section>
+
+<footer>
+  <div class="foot-in">
+    <span class="mono">ARBOT &middot; AUTONOMNÍ MOBILNÍ ROBOT</span>
+    <span>Zdrojový kód, vývojová dokumentace a měření:
+      <a href="https://github.com/AlesRuda/ARBot3">github.com/AlesRuda/ARBot3</a></span>
+  </div>
+</footer>
+</main>

@@ -718,6 +718,69 @@ Duplikovat ji v plánovači je zbytečné. 65 k buněk je pro A\* v C# jednotky 
 mimo grid → promítne se na hranici gridu ve směru k němu. Cíl v neprůjezdném / bez cesty →
 nejbližší dosažitelná buňka, respektive zastavení a hlášení; odstup se neporušuje ani nouzově.
 
+### ✅ Cílová zóna místo bodu („poloměr mrkve", 14. 9. 2026)
+
+**Nález.** Cílem A\* byla **jediná buňka**, takže mrkev položená do trávy nebo těsně k překážce
+byla nedosažitelná **jako celek**: plán skončil na nejbližší bezpečné buňce, stav `GoalBlocked`
+a `stopAtEnd` — robot tam **zastavil a čekal**, ačkoli jiná část cílové zóny dosažitelná byla.
+Naměřeno `ARBot.Analyze localplan` nad `records/test/20260914-170945.rec` (jízda na Hviezdoslavově,
+14 827 plánů):
+
+| stav plánu | podíl |
+|---|---|
+| `Ok` | 42,9 % |
+| `GoalBlocked` (mrkev v neprůjezdné buňce) | 24,2 % |
+| `GoalUnsafe` (mrkev těsně u překážky) | 19,0 % |
+| `Partial` | 13,9 % |
+
+**Mrkev nedosažitelná (rozdíl > 0,30 m) v 52 % plánů**, `|požadovaný − dosažený cíl|` p50 0,366 m,
+**p90 2,52 m**, max 7,74 m. Na časové ose to jde ruku v ruce s plazením: kde rozdíl skočil na
+1,4–2,6 m, tam je příkazovaná rychlost 0,00–0,15 m/s a robot ujel **0,1–0,6 m za 10 s**; kde je
+rozdíl 0,02 m, jede 1,0 m/s a ujede 8–9 m. K prvnímu bodu trasy tak robot jel 44 m **9,5 minuty**.
+
+**Léčba.** Cíl je **zóna o poloměru `R`**, ne bod. Test cíle v `Search()` je
+`Dist2Cells(...) ≤ R²` a A\* vrátí **první vytaženou** buňku zóny, tedy tu **nejlevnější na
+dojetí podle svého vlastního kritéria (času)** — ne geometricky nejbližší. Ten rozdíl je podstatný:
+geometricky nejbližší bod zóny může ležet **za** tou překážkou, kvůli které je střed nedosažitelný.
+Při `R = 0` se test degeneruje přesně na původní `ci == iG && cj == jG`.
+
+⚠️ **Past, která k tomu patří: heuristika se musí měřit k OKRAJI zóny**, tedy `max(0, d − R)`.
+Kdyby se dál měřila ke *středu*, byla by `h > 0` i na cílových buňkách, pořadí vytahování z fronty
+by přestalo odpovídat ceně a A\* by vracel dražší dosažitelný bod. Projevilo by se to jako *tiše
+horší dráha*, ne jako chyba. Hlídá to `VraciNejlevnejsiBodZony_NeGeometrickyNejblizsi` — porovnává
+cenu plánu do zóny proti nejlevnějšímu z plánů do jednotlivých bodů té zóny braných jako bod.
+
+**Poloměr je vlastnost CÍLE, ne plánovače** (`Plan(..., goalRadiusM)`, `ILocalGoalSink.SetGoal(...)`):
+
+- **průjezdní mrkev** — `carrotradius=` (výchozí **0 = bod**). Není to cíl, ale směr; zvětšit její
+  zónu znamená pustit robota dál od trasy, což je jiná změna chování a **nemá změřenou potřebu**.
+- **dojezd do cíle** — použije se **dojezdový poloměr** (`NavigatorOptions.ArrivalRadiusMeters`),
+  protože dojet kamkoli do něj už znamená, že cíl byl dosažen. Platí to vždy a `carrotradius`
+  to nevypíná.
+
+⚠️ **Zóna mrkve je při dojezdu menší než zóna dojezdu, a to o dvě věci**: o `ArrivalZoneMarginM`
+(výchozí 0,5 m — rezerva, aby robot nezastavoval přesně na hranici, kde o dosažení rozhoduje šum
+EKF/GPS) a o **odstup mrkve od cíle** (z trojúhelníkové nerovnosti je pak každý přijatý bod zaručeně
+i uvnitř zóny dojezdu). Bez toho by robot mohl zastavit uvnitř zóny mrkve, ale **vně** zóny dojezdu,
+a `Arrived` by nenastalo **nikdy** — je to táž past, na kterou už narazil
+[Track](track-mission.md) i [Robotour](robotour-mission.md) u nepřichycených bodů.
+
+⚠️ **Zóna nesmí spolknout skutečnou poruchu:** když je neprůjezdná celá, zůstává `GoalBlocked`
+(klasifikace se proto dělá přes **celou zónu**, ne podle středu). Jinak by mrkev ve zdi začala
+vypadat jako dojezd.
+
+⚠️ **Není to lék na špatnou mapu.** Když je mrkev nedosažitelná proto, že grid hlásí překážku, která
+tam není (rozmazání chybou kurzu), zóna to **zakryje** místo opraví. V témže záznamu byl podíl
+`Blocked` buněk p50 **27,7 %** (max 51,0 %) a kurz byl rozbitý, takže to není teoretická výhrada —
+ukazatelem je právě to p90 = 2,52 m: kdyby šlo jen o mrkev na kraji cesty, minulo by se to
+o decimetry. Stojí za to se na grid v těch okamžicích podívat (`ARBot.Analyze grid`).
+
+⚠️ **Na HW to neběželo**; ověřeno buildem a testy (`LocalPlannerGoalZoneTests`, 10 testů,
++ 2 v `GlobalNavigatorTests`).
+
+⚠️ Pozor, **oba dnešní běhy selhaly každý jinak**: běh z 17:06 skončil `NoRoute`, tedy globální
+vrstva nenašla trasu po síti — na to zóna nesahá vůbec.
+
 ### Postprocessing → `RegulatorWayPoint[]`
 
 1. Řetěz buněk → **string-pulling**: slučuj do úsečky, dokud podél ní platí `d ≥ SafeDist`,
@@ -823,6 +886,9 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 | `FootprintRadiusM` | 0,3 m | `LocalPlannerConfig` (půdorys = sjízdné pro `s_free`, 3. 9. 2026) |
 | hystereze úniku | půl buňky (`Resolution/2`) | `LocalPathPlanner.Plan` (odvozené, ne parametr; `EscapeRadius` zrušen 3. 9. 2026) |
 | `HorizonM` | 6,0 m | `LocalPlannerConfig` |
+| `GoalRadiusM` | 0 (cíl je bod) | `LocalPlannerConfig` — **výchozí** poloměr cílové zóny; per-cíl ho přebíjí `Plan(..., goalRadiusM)` (14. 9. 2026) |
+| `CarrotRadiusM` / `carrotradius=` | 0 (bod) | `GlobalNavigatorConfig` — zóna **průjezdní** mrkve |
+| `ArrivalZoneMarginM` | 0,5 m | `GlobalNavigatorConfig` — o kolik je zóna mrkve při dojezdu menší než zóna dojezdu |
 | `MinCostSpeed` | 0,05 m/s | `LocalPlannerConfig` |
 | `SafeDist` | 0,40 m | `Profile` (existuje) |
 | `PrefDist` | 0,80 m | `Profile` (jen radiální režim) |

@@ -77,6 +77,10 @@ namespace ARBot.Common.Occupancy
         /// <summary>Sirka koridoru cesty v miste cile [m]; zatim jen ulozena (faze 4b).</summary>
         private double goalCorridorWidth;
 
+        /// <summary>Polomer cilove zony pro AKTUALNI cil [m]; <c>NaN</c> = vzit vychozi
+        /// z konfigurace planovace. Viz <see cref="SetGoal"/>.</summary>
+        private double goalRadius = double.NaN;
+
         /// <summary>Occupancy grid, ktery smycka akumuluje (jen ke cteni zvenci - vlastni ho toto vlakno).</summary>
         public OccupancyGrid Grid => grid;
 
@@ -179,13 +183,15 @@ namespace ARBot.Common.Occupancy
         /// Sirka koridoru cesty v miste cile [m]; zatim se jen prijima (test prurezu koridorem
         /// je faze 4b v doc/global-navigation-runtime.md). 0 = neresit.
         /// </param>
-        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0)
+        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
+                            double goalRadiusM = double.NaN)
         {
             lock (goalLock)
             {
                 goalX = worldX;
                 goalY = worldY;
                 goalCorridorWidth = corridorWidthM;
+                goalRadius = goalRadiusM;
                 hasGoal = true;
             }
         }
@@ -290,7 +296,8 @@ namespace ARBot.Common.Occupancy
             // (3) Bez cile a bez rozjete drahy neni co resit - mapa se ale akumuluje dal.
             double gx, gy;
             bool goal;
-            lock (goalLock) { goal = hasGoal; gx = goalX; gy = goalY; }
+            double gr;
+            lock (goalLock) { goal = hasGoal; gx = goalX; gy = goalY; gr = goalRadius; }
             if (!goal && activePath == null)
             {
                 LogIntegrateStats(frame, pose);
@@ -306,7 +313,7 @@ namespace ARBot.Common.Occupancy
 
             if (goal)
             {
-                plan = planner.Plan(grid, field, pose.X, pose.Y, pose.Theta, gx, gy);
+                plan = planner.Plan(grid, field, pose.X, pose.Y, pose.Theta, gx, gy, gr);
                 plan.TimeStamp = frame.TimeStamp;
 
                 // (5) Predani nizsi smycce.

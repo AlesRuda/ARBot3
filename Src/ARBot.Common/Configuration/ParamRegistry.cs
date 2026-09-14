@@ -109,6 +109,14 @@ namespace ARBot.Common.Configuration
               + "Kdyz je >= Profile.PrefDist, PrefDist se posune nad nej se zachovanym rozestupem "
               + "(s hlaskou), jinak by LocalPlannerConfig.Validate() shodil start. "
               + "Default je hodnota z Profile.", ParamParsers.Kladne);
+        public static readonly DoubleParam CarrotRadius = Num("carrotradius", "0", K_RIZENI,
+              "Polomer cilove zony BEZNE (prujezdni) mrkve [m]; 0 = mrkev je bod. Lokalni planovac "
+              + "pak nemiri na presny stred, ale do zony - a A* vrati tu jeji bunku, ktera je "
+              + "NEJLEVNEJSI NA DOJETI (geometricky nejblizsi bod zony muze lezet za prekazkou). "
+              + "PRI DOJEZDU DO CILE se misto teto hodnoty pouzije dojezdovy polomer, protoze dojet "
+              + "kamkoli do nej uz znamena dosazeny cil - to plati vzdy a timhle parametrem se "
+              + "nevypina. Zmereno 14. 9. 2026: mrkev byla nedosazitelna v 52 % planu a robot u ni "
+              + "zastavoval. Viz doc/occupancy-and-local-planning.md.", ParamParsers.Nezaporne);
 
         // --- Mapy a svet --------------------------------------------------------------
         public static readonly PathParam Map = Cesta("map", null, K_MAPA,
@@ -345,6 +353,16 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam PerfWarn = Num("perfwarn", "70", K_DIAG,
               "Obsazenost periody [%], od ktere se hlasi varovani. Hodnota je zatim odhad - "
               + "naostro se nastavi az podle prvniho mereni na zarizeni.");
+        // 20 s je zamerne O RADY vic nez namerena skutecnost (Start(Run) trva desitky ms): hlidac
+        // ma chytat ZATUHNUTI, ne pomalost. Falesny poplach by stal minidump a radek v journalu,
+        // ktery by pristi patrani svedl ze stopy.
+        public static readonly DoubleParam HangWatch = Num("hangwatch", "20", K_DIAG,
+              "Kolik sekund nejvyse smi trvat start rezimu Run (ARBotRuntime.Start), nez se to "
+              + "povazuje za zatuhnuti: do journalu jde hlaseni a vedle nej minidump procesu "
+              + "(logs/hang-*.dmp) se zasobniky vsech vlaken. Je to jedina stopa, kterou robot "
+              + "v terenu porizuje SAM - pri zatuhnuti prestane odpovidat stranka, tedy to jedine, "
+              + "co ma obsluha u robota po ruce. 0 = vypnuto. Viz doc/headless.md.",
+              ParamParsers.Nezaporne);
         // Vychozi prikaz je PLATFORMNI: na Windows je vypinani desky nesmysl (tam se simuluje),
         // takze je funkce vypnuta a stranka tlacitko vubec neukaze. Tataz zasada jako u portu
         // UART v Profile - default podle platformy, ne jedna hodnota pro obe.

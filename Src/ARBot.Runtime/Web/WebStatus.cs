@@ -393,71 +393,29 @@ namespace ARBot.Robot.Web
             lock (gate) return ZonesLocked(origin);
         }
 
-        /// <summary>Telo <see cref="Zones"/>; volat jen pod <c>gate</c>.</summary>
+        /// <summary>
+        /// Telo <see cref="Zones"/>; volat jen pod <c>gate</c>.
+        ///
+        /// <para><b>Vyber zon delá <see cref="GoalZones"/></b> (od 14. 9. 2026), tady uz zbyva jen
+        /// prevod LLA → lokalni ENU. Pravidla „kresli se PRICHYCENE misto" a „zdroje se nemichaji"
+        /// si na sebe uz jednou dosahla, takze je nesmi mit dva pohledy kazdy po svem — World pohled
+        /// v Avalonii kresli zony z tehoz vyberu.</para>
+        /// </summary>
         private PlanViewZone[]? ZonesLocked(GeoReference origin)
         {
             if (origin == null) return null;
 
-            // Polomer z dat, dokud nedosel, vychozi nastaveni navigatoru (aby se neopisovalo cislo).
-            double r = nav != null && nav.GoalRadiusM > 0
-                       ? nav.GoalRadiusM
-                       : NavigatorOptions.DefaultArrivalRadiusMeters;
+            var zony = GoalZones.Select(track, mission, nav);
+            if (zony.Count == 0) return null;
 
-            var zony = new List<PlanViewZone>();
-
-            if (track?.AllLatitudes != null && track.AllLongitudes != null
-                && track.AllLatitudes.Length > 0)
+            var vysledek = new PlanViewZone[zony.Count];
+            for (int i = 0; i < zony.Count; i++)
             {
-                int n = Math.Min(track.AllLatitudes.Length, track.AllLongitudes.Length);
-                for (int i = 0; i < n; i++)
-                {
-                    // ⚠️ Kresli se misto PRICHYCENE na sit, ne surovy bod ze souboru: robot jede
-                    // na prumet a proti nemu se meri dojezd, takze zona u surove souradnice by
-                    // ukazovala jinam, nez kam se jede - a na pudorysu to vypadalo, ze se
-                    // neprichycuje vubec (nalez autora 13. 9. 2026). Surove misto zustava ve
-                    // zprave, takze posun cile je ze zaznamu porad dohledatelny.
-                    bool mamPrichycene = track.SnappedLatitudes != null
-                                         && track.SnappedLongitudes != null
-                                         && i < track.SnappedLatitudes.Length
-                                         && i < track.SnappedLongitudes.Length
-                                         && track.SnappedLatitudes[i] != 0;
-                    double lat = mamPrichycene ? track.SnappedLatitudes[i] : track.AllLatitudes[i];
-                    double lon = mamPrichycene ? track.SnappedLongitudes[i] : track.AllLongitudes[i];
-                    zony.Add(Zone(origin, lat, lon, r,
-                                  (i + 1).ToString(CultureInfo.InvariantCulture),
-                                  active: i == track.PointIndex));
-                }
+                var z = zony[i];
+                var p = origin.ToLocal(z.LatRad, z.LonRad);
+                vysledek[i] = new PlanViewZone(p.X, p.Y, z.RadiusM, z.Label, z.Active);
             }
-            else if (mission != null)
-            {
-                int faze = mission.Phase;
-                if (mission.HasDepot)
-                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.DepotLatDeg),
-                                  Conversions.Deg2Rad(mission.DepotLonDeg), r, "depo",
-                                  faze == (int)RobotourPhase.DrivingToDepot));
-                if (mission.HasPickup)
-                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.PickupLatDeg),
-                                  Conversions.Deg2Rad(mission.PickupLonDeg), r, "nakladka",
-                                  faze == (int)RobotourPhase.DrivingToPickup));
-                if (mission.HasDrop)
-                    zony.Add(Zone(origin, Conversions.Deg2Rad(mission.DropLatDeg),
-                                  Conversions.Deg2Rad(mission.DropLonDeg), r, "vykladka",
-                                  faze == (int)RobotourPhase.DrivingToDrop));
-            }
-
-            if (zony.Count == 0 && nav != null && nav.HasGoal)
-                zony.Add(Zone(origin, Conversions.Deg2Rad(nav.GoalLatDeg),
-                              Conversions.Deg2Rad(nav.GoalLonDeg), r, "cil", active: true));
-
-            return zony.Count > 0 ? zony.ToArray() : null;
-        }
-
-        /// <summary>Jedna zona: LLA [rad] → lokalni ENU [m].</summary>
-        private static PlanViewZone Zone(GeoReference origin, double latRad, double lonRad,
-                                         double radiusM, string label, bool active)
-        {
-            var p = origin.ToLocal(latRad, lonRad);
-            return new PlanViewZone(p.X, p.Y, radiusM, label, active);
+            return vysledek;
         }
 
         /// <summary>

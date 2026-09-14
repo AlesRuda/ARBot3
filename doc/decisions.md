@@ -27,16 +27,23 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
   kontext sdílejí všechny kamery, **stahovala s sebou i obě zdravé D435** — než se doplnilo
   vzdávání, bylo to 24 zotavení za hodinu, tedy robot dolů každé dvě minuty.
 - Historicky k ní patří i SIGSEGV v `tm_boot` (3. 9. 2026) a skok `CLEAR_HALT` z 1 na ~72 po
-  jejím přidání — je tedy hlavním podezřelým i u výpadků D435.
+  jejím přidání — byla tedy hlavním podezřelým i u výpadků D435.
+  ❌ **To poslední se 14. 9. 2026 měřením VYVRÁTILO** a rozhodnutí na tom nestojí: bez T265 je
+  `CLEAR_HALT` **stejný** (7,39 → 7,10–7,85 za minutu) a zamrzání streamu D435 taky
+  (3,4 → 3,6–4,2 za hodinu). Důvody výš (nedává pózu, replug vydrží 1,5 h, stahuje s sebou
+  zdravé D435) platí dál — odpojit ji byla správná volba, jen **výpadky D435 to nevyléčilo**.
 
 **Co se tím ztrácí:** druhá reference úhlové rychlosti ve fúzi (napojená 6. 9. 2026). Není to
 absolutní kurz — ten z ní nikdy nevznikl —, takže hlavní referencí zůstává VN100 + gyro a
 `GPS/heading`. Ztráta je tedy menší, než jak dlouho se na napojení pracovalo.
 
-**Důsledky / co ověřit po odpojení:** jestli klesnou výpadky D435 (hypotéza `CLEAR_HALT` z
-[hardware.md](hardware.md)) — to je vlastně dávno plánovaný test „běh bez T265", který se
-tímhle udělá sám. Kód zůstává: `T265TrackingCamera` i její zapojení do zotavení se nemažou,
-jen tam kamera nebude.
+**Důsledky / ✅ ověřeno 14. 9. 2026:** výpadky D435 **neklesly** — hypotéza `CLEAR_HALT`
+z [hardware.md](hardware.md) padla a podezření se přesunulo na **fyzický port `2-1.3`**
+(12 tvrdých záseků z 12, ať na něm visí kterákoli kamera). Kód zůstal: `T265TrackingCamera`
+i její zapojení do zotavení se nemazaly, jen tam kamera není.
+⚠️ **Vedlejší účinek, se kterým se nepočítalo:** runtime ji proto hledá dál ~1×/s a zapisuje
+7 829 chybových řádků za 168 minut, přes sdílený zámek `RealSenseShared.Query`. Zotavení to
+nespouští, ale za úklid to stojí.
 
 **Odkazy:** [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md),
 [devlog.md](devlog.md) 13. 9. 2026.

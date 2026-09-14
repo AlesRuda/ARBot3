@@ -33,7 +33,8 @@ public class FreeRunMissionTests
 
     private sealed class FakeGoal : ARBot.Common.Runtime.ILocalGoalSink
     {
-        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0) { }
+        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
+                            double goalRadiusM = double.NaN) { }
         public void ClearGoal() { }
     }
 

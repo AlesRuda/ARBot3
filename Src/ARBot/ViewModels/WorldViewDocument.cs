@@ -150,6 +150,8 @@ namespace ARBot.ViewModels
         private readonly Dictionary<string, EdgeSet> pendingEdges = new Dictionary<string, EdgeSet>();
         private LocalPlanMsg? pendingPlan;
         private GlobalNavMsg? pendingGlobalNav;
+        private TrackMsg? pendingTrack;
+        private MissionMsg? pendingMission;
         private volatile bool updateQueued;
 
         // Aktualni (posledni zpracovane) zpravy pouzite napric flushi.
@@ -159,6 +161,15 @@ namespace ARBot.ViewModels
         private MapMsg? lastMap;
         private OccupancyGridMsg? lastOccupancy;
         private GroundTruthMsg? lastTruth;
+
+        // Zdroje ZON, ktere maji byt dosazeny. Drzi se cele zpravy, protoze vyber zon
+        // (GoalZones.Select) potrebuje vsechny tri najednou - a ktera vyhraje, rozhoduje on.
+        private TrackMsg? lastTrack;
+        private MissionMsg? lastMission;
+        private GlobalNavMsg? lastGlobalNav;
+
+        /// <summary>Prisel novy zdroj zon — prekreslit vrstvu. Bez toho by se stavela kazdy flush.</summary>
+        private bool zonesDirty;
 
         private CorridorLines lastCorridor;
 
@@ -216,6 +227,10 @@ namespace ARBot.ViewModels
         private readonly MemoryLayer gpsLayer = new MemoryLayer("GPS");   // surove fixy (diagnostika)
         private readonly MemoryLayer routeLayer = new MemoryLayer("Trasa");
         private readonly MemoryLayer markerLayer = new MemoryLayer("Znacky");
+        // Zony, ktere maji byt dosazeny (mista mise / cil navigace) i s dojezdovym polomerem.
+        // Style = null: kazda featura si nese vlastni styl (aktivni plnou carou, ostatni carkovane),
+        // takze vychozi symbol MemoryLayeru by pod ne jen pridal punktik navic.
+        private readonly MemoryLayer zoneLayer = new MemoryLayer("Zóny") { Style = null };
         private readonly MemoryLayer mapLayer = new MemoryLayer("Mapa");   // sit z OsmNav (MapMsg)
         // Mapa, ze ktere renderuji virtualni kamery (parametr visionmap=). NEJDE ze streamu - viz
         // SetVisionMap; ve streamu zamerne neni, aby zaznam popisoval, co robot vedel, ne kulisu.
@@ -258,6 +273,16 @@ namespace ARBot.ViewModels
 
         [ObservableProperty] private bool showRoute = true;
         [ObservableProperty] private bool showMarkers = true;
+
+        /// <summary>
+        /// Vrstva: <b>zony, ktere maji byt dosazeny</b> — mista mise (<c>TrackMsg</c>,
+        /// <c>MissionMsg</c>), jinak cil globalni navigace, jako kruznice o <b>dojezdovem
+        /// polomeru</b>. Aktivni zona plnou carou, zbytek carkovane.
+        ///
+        /// <para>Do World pohledu to pribylo 14. 9. 2026 — pudorys stranky nahledu je kreslil uz
+        /// od 12. 9., ale v Avalonii videt nebyly.</para>
+        /// </summary>
+        [ObservableProperty] private bool showZones = true;
 
         /// <summary>Vrstva: lokalni mapa (occupancy grid) - akumulovana sjizdnost okolo robotu.</summary>
         [ObservableProperty] private bool showOccupancy = true;
@@ -480,6 +505,9 @@ namespace ARBot.ViewModels
                 case OccupancyGridMsg og: lock (gate) pendingOccupancy = og; break;
                 case LocalPlanMsg lp: lock (gate) pendingPlan = lp; break;
                 case GlobalNavMsg gnv: lock (gate) pendingGlobalNav = gnv; break;
+                // Zdroje zon, ktere maji byt dosazeny (viz GoalZones a vrstva Zóny).
+                case TrackMsg tr: lock (gate) pendingTrack = tr; break;
+                case MissionMsg ms: lock (gate) pendingMission = ms; break;
 
                 // Hranice cesty: body se kopiruji HNED. Snimky jsou poolovane, takze drzet
                 // referenci na CameraFrame po navratu z Post je cesta k prepsanym datum.
@@ -556,6 +584,8 @@ namespace ARBot.ViewModels
                 occupancy = pendingOccupancy; pendingOccupancy = null;
                 plan = pendingPlan; pendingPlan = null;
                 globalNav = pendingGlobalNav; pendingGlobalNav = null;
+                if (pendingTrack != null) { lastTrack = pendingTrack; pendingTrack = null; zonesDirty = true; }
+                if (pendingMission != null) { lastMission = pendingMission; pendingMission = null; zonesDirty = true; }
                 if (pendingTruth != null) { lastTruth = pendingTruth; pendingTruth = null; }
                 if (pendingCorridor != null) { lastCorridor = pendingCorridor; pendingCorridor = null; edgesDirty = true; }
                 if (pendingEdges.Count > 0)
@@ -579,7 +609,18 @@ namespace ARBot.ViewModels
 
             // Zadna vlastni vrstva - jen text do tooltipu znacek a hran trasy.
             if (globalNav != null)
+            {
                 globalNavTip = BuildGlobalNavTip(globalNav);
+                // Nese dojezdovy polomer (GoalRadiusM) i nahradni cil, kdyz mise zadna mista nema.
+                lastGlobalNav = globalNav;
+                zonesDirty = true;
+            }
+
+            if (zonesDirty)
+            {
+                zonesDirty = false;
+                UpdateZones();
+            }
 
             // Mapa (sit) je staticka a muze byt velka - featury prestavuj JEN kdyz prisla nova mapa.
             if (map != null)
@@ -651,6 +692,7 @@ namespace ARBot.ViewModels
             gpsLayer.DataHasChanged();
             routeLayer.DataHasChanged();
             markerLayer.DataHasChanged();
+            zoneLayer.DataHasChanged();
             occupancyLayer.DataHasChanged();
             planLayer.DataHasChanged();
 
@@ -882,6 +924,10 @@ namespace ARBot.ViewModels
             lastOccupancy = null;
             lastPlan = null;
             globalNavTip = null;
+            lastTrack = null;
+            lastMission = null;
+            lastGlobalNav = null;
+            zonesDirty = false;
             edgesByCam.Clear();
             lastCorridor = null;
             initialCentered = false;
@@ -891,10 +937,12 @@ namespace ARBot.ViewModels
             gpsLayer.Features = Array.Empty<IFeature>();
             routeLayer.Features = Array.Empty<IFeature>();
             markerLayer.Features = Array.Empty<IFeature>();
+            zoneLayer.Features = Array.Empty<IFeature>();
             mapLayer.Features = Array.Empty<IFeature>();
             occupancyLayer.Features = Array.Empty<IFeature>();
             planLayer.Features = Array.Empty<IFeature>();
             markerTips = Array.Empty<(double, double, string)>();
+            zoneTips = Array.Empty<(double, double, string)>();
             planTips = Array.Empty<(double, double, string)>();
             planSegTips = Array.Empty<(double, double, double, double, string)>();
             routeSegTips = Array.Empty<(double, double, double, double, string)>();
@@ -1494,6 +1542,13 @@ namespace ARBot.ViewModels
         private IReadOnlyList<(double X, double Y, string Text)> markerTips
             = Array.Empty<(double, double, string)>();
 
+        /// <summary>
+        /// Popisy vrstvy Zóny (stred zony v Web Mercatoru + text). Hit-test je na STRED, ne na
+        /// kruznici: zona je misto, ne obrazec, a stred je to, k cemu se meri dojezd.
+        /// </summary>
+        private IReadOnlyList<(double X, double Y, string Text)> zoneTips
+            = Array.Empty<(double, double, string)>();
+
         /// <summary>Popisy HRAN vrstvy Trasa+graf (usecka v Web Mercatoru + text; viz
         /// <see cref="BuildEdgeTip"/>). Stejny hit-test na usecku jako u useku planu.</summary>
         private IReadOnlyList<(double AX, double AY, double BX, double BY, string Text)> routeSegTips
@@ -1617,6 +1672,7 @@ namespace ARBot.ViewModels
             // Poradi odpovida vykresleni: plan je POD znackami, takze pri prekryvu (mrkev a cil
             // lokalniho planu jsou tyz bod) vyhraje popis te znacky, kterou uzivatel opravdu vidi.
             if (ShowPlan) Search(planTips, false);
+            if (ShowZones) Search(zoneTips, false);
             if (ShowMarkers) Search(markerTips, true);
 
             // Cary az nakonec: bodove znacky lezi NA carach, takze by je popis useku jinak prebil
@@ -1786,6 +1842,98 @@ namespace ARBot.ViewModels
             });
             return new IFeature[] { gf };
         }
+
+        /// <summary>
+        /// Vrstva <b>Zóny</b> — místa, která mají být dosažena, jako kružnice o <b>dojezdovém
+        /// poloměru</b>. Aktivní (ta, ke které se právě jede) plnou čarou, zbytek čárkovaně, aby
+        /// šlo na první pohled poznat, o kterou právě jde.
+        ///
+        /// <para><b>Co se kreslí, rozhoduje <see cref="GoalZones"/></b> — tentýž výběr jako na
+        /// stránce náhledu, včetně pravidel „kreslí se místo PŘICHYCENÉ na síť" a „zdroje se
+        /// nemíchají". Do World pohledu to přibylo 14. 9. 2026; půdorys stránky to uměl už
+        /// od 12. 9., ale v Avalonii zóny vidět nebyly.</para>
+        ///
+        /// <para>⚠️ <b>Poloměr se přepočítává na Web Mercator.</b> Ten je v metrech jen přibližně —
+        /// měřítko roste s <c>1/cos(lat)</c>, u nás o 55 %. Kružnice o „3 metrech" nakreslená
+        /// přímo v Mercatoru by tedy byla skoro o polovinu menší, než jaká zóna doopravdy je,
+        /// a to je přesně ten druh chyby, který nikdo nepozná — jen by se pak divil, proč robot
+        /// hlásí dojezd dřív, než je v kroužku. Stejná korekce jako u půdorysu robota a šířky cest.</para>
+        /// </summary>
+        private void UpdateZones()
+        {
+            var zony = ARBot.Common.Rendering.GoalZones.Select(lastTrack, lastMission, lastGlobalNav);
+            if (zony.Count == 0)
+            {
+                zoneLayer.Features = Array.Empty<IFeature>();
+                zoneTips = Array.Empty<(double, double, string)>();
+                return;
+            }
+
+            var features = new List<IFeature>(zony.Count);
+            var tips = new List<(double X, double Y, string Text)>(zony.Count);
+
+            foreach (var z in zony)
+            {
+                double latDeg = Conversions.Rad2Deg(z.LatRad);
+                double lonDeg = Conversions.Rad2Deg(z.LonRad);
+                var (mx, my) = SphericalMercator.FromLonLat(lonDeg, latDeg);
+
+                double r = z.RadiusM / Math.Cos(latDeg * Math.PI / 180.0);
+                if (r > 0)
+                {
+                    const int n = 48;   // dost na to, aby kruznice nebyla videt jako mnohouhelnik
+                    var ring = new Coordinate[n + 1];
+                    for (int i = 0; i < n; i++)
+                    {
+                        double a = 2.0 * Math.PI * i / n;
+                        ring[i] = new Coordinate(mx + r * Math.Cos(a), my + r * Math.Sin(a));
+                    }
+                    ring[n] = ring[0];
+
+                    // LineString, ne Polygon: vypln by prekryla podklad i sit pod sebou a zona je
+                    // kontext, ne plocha, na ktere zalezi.
+                    var gf = new GeometryFeature { Geometry = new LineString(ring) };
+                    gf.Styles.Add(new VectorStyle
+                    {
+                        Line = new Pen(ZoneColor, z.Active ? 3 : 2)
+                        {
+                            PenStyle = z.Active ? PenStyle.Solid : PenStyle.Dash,
+                        },
+                        Fill = null,
+                        Outline = null,
+                    });
+                    features.Add(gf);
+                }
+
+                // ⚠️ Ke kruznici patri jeste ZNACKA ve stredu, a neni to ozdoba: kruznice je
+                // v METRECH, takze pri beznem mapovem zoomu (1,5 m/px) ma dojezdovy polomer 3 m
+                // polomer 3 PIXELY a na podkladu se ztrati - zmereno, prvni pokus vypadal jako by
+                // se zony nekreslily vubec. Znacka je SymbolStyle, tedy velka v pixelech bez
+                // ohledu na zoom, takze misto je videt vzdy a po priblizeni k nemu pribyde
+                // pravdiva velikost zony. Stejnou past resi pudorys stranky prahem MinZoneRadiusPx.
+                var stred = new PointFeature(new MPoint(mx, my));
+                stred.Styles.Add(new SymbolStyle
+                {
+                    SymbolType = SymbolType.Ellipse,
+                    SymbolScale = z.Active ? 0.5 : 0.35,
+                    Fill = null,                               // jen obrys - stred zony neni bod zajmu
+                    Outline = new Pen(ZoneColor, z.Active ? 3 : 2),
+                });
+                features.Add(stred);
+
+                // Bez popisku jsou to jen stejne kruznice - u seznamu mist by neslo poznat poradi.
+                string popis = string.IsNullOrEmpty(z.Label) ? "Zóna" : "Zóna " + z.Label;
+                tips.Add((mx, my, popis + (z.Active ? " – sem se právě jede" : string.Empty)
+                                + Environment.NewLine
+                                + $"dojezdový poloměr {z.RadiusM:F1} m"));
+            }
+
+            zoneLayer.Features = features;
+            zoneTips = tips;
+        }
+
+        /// <summary>Barva zon - tataz jako na pudorysu stranky (PlanViewRenderer.ZoneColor).</summary>
+        private static readonly Color ZoneColor = new Color(0x9C, 0xCC, 0x65);
 
         // Kotouc (n-uhelnik) jako Polygon - pro zaobleni uzlu/konce cesty.
         private static void AddDisc(List<Polygon> polys, double cx, double cy, double r)
@@ -1990,6 +2138,15 @@ namespace ARBot.ViewModels
             if (track.Count >= 2)
                 sb.AppendFormat(CultureInfo.InvariantCulture, "\nStopa: {0} b.", track.Count);
 
+            // ⚠️ Bez mapy se pocatek lokalni ENU roviny dopocitava z GPS fixu a POSOUVA SE s kazdym
+            // z nich, takze vsechno kreslene v lokalnim ENU - trasa, occupancy, plan, znacky -
+            // plave. Dokud se to neriklo nahlas, hlasilo se to jako tri ruzne vady ("nevidim mapu",
+            // "trasa se hybe", "cil nesedi na zonu") a hledalo se to trikrat. Vrstva Zony plave
+            // NEPLAVE (kresli se ze zemepisnych souradnic), takze rozestup zony od znacky cile je
+            // prave ta chyba pocatku.
+            if (lastMap == null && ARBot.Robot.ARBotRuntime.Current?.MapOrigin == null)
+                sb.Append("\n⚠ BEZ MAPY: počátek z GPS, lokální vrstvy plavou");
+
             // Stav ladici vrstvy hranic. Bez tohohle radku nema jeji prazdnota vysvetleni:
             // prolozeni kresli jen stupen hranove lokalizace, a ten se pri corridor=false
             // (vychozi) vubec nezaklada - body z kamer pritom tecou dal, takze to vypada jako
@@ -2179,6 +2336,7 @@ namespace ARBot.ViewModels
         partial void OnShowGpsChanged(bool value) => RebuildLayers();
         partial void OnShowRouteChanged(bool value) => RebuildLayers();
         partial void OnShowMarkersChanged(bool value) => RebuildLayers();
+        partial void OnShowZonesChanged(bool value) => RebuildLayers();
         partial void OnShowOccupancyChanged(bool value) => RebuildLayers();
         partial void OnShowPlanChanged(bool value) => RebuildLayers();
 
@@ -2250,6 +2408,9 @@ namespace ARBot.ViewModels
             if (ShowRoute) Map.Layers.Add(routeLayer);
             if (ShowPlan) Map.Layers.Add(planLayer);
             if (ShowEdges) Map.Layers.Add(edgesLayer);
+            // Zony pod znackami: znacka je bod, zona kontext kolem nej - pri prekryvu ma zustat
+            // videt bod.
+            if (ShowZones) Map.Layers.Add(zoneLayer);
             if (ShowMarkers) Map.Layers.Add(markerLayer);
             if (ShowRobot) Map.Layers.Add(robotLayer);   // robot navrchu
 

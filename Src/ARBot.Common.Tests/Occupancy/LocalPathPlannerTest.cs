@@ -86,12 +86,14 @@ namespace ARBot.Common.Tests.Occupancy
 
             public void Rebuild() => Field.Build(Grid);
 
-            public LocalPlanResult Plan(double gx, double gy, double heading = 0)
-                => Planner.Plan(Grid, Field, 0, 0, heading, gx, gy);
+            public LocalPlanResult Plan(double gx, double gy, double heading = 0,
+                                       double goalRadiusM = double.NaN)
+                => Planner.Plan(Grid, Field, 0, 0, heading, gx, gy, goalRadiusM);
 
             /// <summary>Plan z jine polohy robotu nez z pocatku (grid se NErecentruje - staci, ze robot zustane uvnitr).</summary>
-            public LocalPlanResult PlanFrom(double rx, double ry, double gx, double gy, double heading = 0)
-                => Planner.Plan(Grid, Field, rx, ry, heading, gx, gy);
+            public LocalPlanResult PlanFrom(double rx, double ry, double gx, double gy, double heading = 0,
+                                           double goalRadiusM = double.NaN)
+                => Planner.Plan(Grid, Field, rx, ry, heading, gx, gy, goalRadiusM);
 
             /// <summary>Odstup [m] bunky pod danym bodem od nejblizsi neprujezdne bunky.</summary>
             public double ClearanceAt(double x, double y) => Field.Distance(Grid.CellX(x), Grid.CellY(y));

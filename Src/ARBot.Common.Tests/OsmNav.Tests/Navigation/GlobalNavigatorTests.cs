@@ -21,10 +21,14 @@ public class GlobalNavigatorTests
     {
         public (double X, double Y)? Goal;
         public int SetCount, ClearCount;
+        /// <summary>Polomer cilove zony posledni mrkve — u dojezdu do cile to ma byt dojezdovy.</summary>
+        public double GoalRadius = double.NaN;
 
-        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0)
+        public void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
+                            double goalRadiusM = double.NaN)
         {
             Goal = (worldX, worldY);
+            GoalRadius = goalRadiusM;
             SetCount++;
         }
 
@@ -127,6 +131,68 @@ public class GlobalNavigatorTests
         {
             Assert.That(nav.Status, Is.EqualTo(GlobalNavStatus.GoalInMap));
             Assert.That(sink.Goal!.Value.X, Is.EqualTo(4).Within(0.3), "mrkev = primo cil");
+        });
+    }
+
+    /// <summary>
+    /// <b>Prujezdni mrkev je bod</b> (vychozi <c>CarrotRadiusM</c> = 0): neni to cil, ale smer,
+    /// takze zvetsovat jeji zonu by znamenalo pustit robota dal od trasy — jina zmena chovani,
+    /// nez ktera se 14. 9. 2026 resila, a bez zmerene potreby.
+    /// </summary>
+    [Test]
+    public void PrujezdniMrkev_MaPolomerZKonfigurace()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig();
+        var nav = Create(origin, sink, cfg);
+
+        nav.SetGoal(origin.ToLLA(200, 0));          // cil daleko -> mrkev je prujezdni bod
+        nav.Step(0, 0, DateTime.UtcNow);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cfg.CarrotRadiusM, Is.EqualTo(0.0), "vychozi: prujezdni mrkev je bod");
+            Assert.That(sink.GoalRadius, Is.EqualTo(0.0).Within(1e-9));
+        });
+    }
+
+    /// <summary>
+    /// <b>Pri dojezdu do cile se pouzije DOJEZDOVY polomer</b> — dojet kamkoli do nej uz znamena,
+    /// ze cil byl dosazen, takze trvat na presnem stredu je zbytecne prisne. Presne tohle stalo
+    /// 14. 9. 2026 jizdu k prvnimu bodu trasy.
+    ///
+    /// <para>⚠️ Polomer je zmenseny o dve veci: o <b>odstup mrkve od cile</b> (z trojuhelnikove
+    /// nerovnosti je pak kazdy prijaty bod zarucene i uvnitr zony dojezdu) a o <b>rezervu</b>
+    /// <c>ArrivalZoneMarginM</c>, aby robot nezastavoval presne na hranici, kde o dosazeni cile
+    /// rozhoduje sum EKF/GPS. Bez toho by robot mohl zastavit uvnitr zony mrkve, ale VNE zony
+    /// dojezdu, a <c>Arrived</c> by nenastalo nikdy.</para>
+    /// </summary>
+    [Test]
+    public void DojezdDoCile_PouzijeDojezdovyPolomer()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var opts = new NavigatorOptions(ArrivalRadiusMeters: 3.0);
+        var cfg = new GlobalNavigatorConfig { ArrivalZoneMarginM = 0.5 };
+        var nav = new GlobalNavigator(StraightEastRoad(origin), origin, sink, cfg, opts);
+
+        nav.SetGoal(origin.ToLLA(4, 0));            // cil uvnitr lokalni mapy -> mrkev = cil
+        nav.Step(0, 0, DateTime.UtcNow);
+
+        Assert.That(sink.Goal, Is.Not.Null);
+        double odstupMrkveOdCile = Math.Abs(sink.Goal!.Value.X - 4.0);
+        Assert.Multiple(() =>
+        {
+            Assert.That(nav.Status, Is.EqualTo(GlobalNavStatus.GoalInMap));
+            Assert.That(sink.GoalRadius, Is.GreaterThan(0.0),
+                        "u dojezdu uz mrkev neni bod");
+            // Tolerance 1 mm, ne 1 um: odstup si tu pocitam jen v ose X, kdezto kod bere plnou
+            // 2D vzdalenost, a prevod LLA -> lokalni ENU a zpet nevrati presnou nulu v Y.
+            Assert.That(sink.GoalRadius, Is.EqualTo(3.0 - 0.5 - odstupMrkveOdCile).Within(1e-3),
+                        "dojezdovy polomer zmenseny o rezervu a o odstup mrkve od cile");
+            Assert.That(sink.GoalRadius + odstupMrkveOdCile, Is.LessThanOrEqualTo(3.0 - 0.5 + 1e-9),
+                        "kazdy bod zony mrkve lezi v zone dojezdu, a jeste o rezervu uvnitr");
         });
     }
 

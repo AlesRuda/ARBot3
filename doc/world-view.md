@@ -83,6 +83,7 @@ zvýrazněnou trasou (2026-08-17). Při změně šířky jedné vrstvy je proto 
 | **Mapa (náhled)** | `.osm` načtený tlačítkem v panelu (`SetPreviewMap`) | WGS84 → Mercator | zelená; **ne ze Streamu**; viz níž |
 | **Trasa / graf** | [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) (hrany) | lokální ENU → LLA | živé v Run |
 | **Značky** | `GraphNavigationMsg` (start/cíl/výsledek) | lokální ENU → LLA | živé v Run |
+| **Zóny** | [`TrackMsg`](../Src/ARBot.Common/Logs/TrackMsg.cs) / [`MissionMsg`](../Src/ARBot.Common/Logs/MissionMsg.cs), jinak [`GlobalNavMsg`](../Src/ARBot.Common/Logs/GlobalNavMsg.cs) | LLA → Mercator | živé v Run/View; viz níž |
 | **Hranice cesty** | [`CameraFrame.PathEdges`](../Src/ARBot.Common/Devices/CameraFrame.cs) (body) + [`RoadCorridorMsg`](../Src/ARBot.Common/Logs/RoadCorridorMsg.cs) (úsečky) | rámec robotu → lokální ENU, **póza z každé zprávy** | živé; **výchozí vypnuto**, ladicí |
 
 * Do 2026-08-13 byly tyto vrstvy *dormantní* — kód je uměl vykreslit, ale `GraphNavigationMsg`/`MapMsg`
@@ -148,6 +149,61 @@ diagnostika kvality fixu a fúze.
 *Fallback:* bez načtené mapy nemá `BuildGeoReference()` pevný `MapOrigin` a odvozuje počátek z posledního
 fixu a pózy — pak se lokální ENU rovina posouvá s každým fixem a všechno kreslené v ní poskakuje.
 Bez pózy nebo bez rámce se značka robota vykreslí aspoň na surovém fixu, ať je robot vidět.
+
+### Zóny, které mají být dosaženy (14. 9. 2026)
+
+Místa mise (`mission=track` / `robotour`), a teprve když mise žádná nemá, cíl globální navigace —
+jako kružnice o **dojezdovém poloměru**, tedy jak blízko se robot musí dostat, aby se ohlásil
+dojezd. Aktivní zóna plnou čarou, ostatní čárkovaně.
+
+**Co se kreslí, rozhoduje [`GoalZones`](../Src/ARBot.Common/Rendering/GoalZones.cs)** — tentýž výběr
+jako na půdorysu stránky náhledu. Logika vznikla 12. 9. uvnitř `WebStatus`, takže ji World pohled
+neměl a zóny v Avalonii **vidět nebyly**; 14. 9. se vytáhla do `ARBot.Common/Rendering`, aby ji měly
+oba pohledy z jednoho místa. Opsat ji podruhé by znamenalo opsat i dvě pravidla, která si na sebe už
+došlápla: kreslí se místo **přichycené** na síť (u Tracku) a **dva zdroje se nemíchají** (cíl
+navigace je totéž místo přichycené, takže by vedle sebe vyšly dvě kružnice pár metrů od sebe).
+Výstup je v **LLA**, ne v metrech: půdorys má počátek lokální roviny, mapa ne.
+
+⚠️ **Poloměr se přepočítává na Web Mercator** (`1/cos(lat)`, u nás +55 %) — stejně jako půdorys
+robota a šířky cest. Bez toho by kružnice „3 m" byla o třetinu menší než skutečná zóna, a to je
+druh chyby, který nikdo nepozná; jen by se pak divil, proč robot hlásí dojezd dřív, než je
+v kroužku.
+
+⚠️ **Ke kružnici patří ještě značka ve středu, a není to ozdoba.** Kružnice je v **metrech**, takže
+při běžném mapovém zoomu (naměřeno 1,5 m/px) má dojezdový poloměr 3 m poloměr **3 pixely** a na
+podkladu se ztratí — první pokus vypadal, jako by se zóny nekreslily vůbec, a hledalo se to
+diagnostikou, ne okem. Značka je `SymbolStyle`, tedy velká v pixelech bez ohledu na zoom: místo je
+vidět vždy a po přiblížení k němu přibude pravdivá velikost zóny. Půdorys stránky řeší tutéž past
+prahem `MinZoneRadiusPx`.
+
+Ověřeno v běžící aplikaci (simulace, `mission=track` nad `OSM/Hviezdoslavova.osm`):
+
+![Zóny ve World pohledu](media/world-view-zony-20260914.png)
+
+### ⚠️ Ve View: mapa je v záznamu JEN JEDNOU (14. 9. 2026)
+
+`MapMsg` se na Stream publikuje **jednou při startu běhu**, takže je v záznamu jediná. Pohled
+otevřený až potom ji ze streamu nedostane (`MessageSource.Connect` historii nepřehrává) — proto si
+ji World pohled vyzvedává z `ARBotRuntime.MapMessage`. Ta vlastnost pro to vznikla a má to i
+v komentáři, jenže **plnila se jen v Run** z načtené mapy; ve View ji nikdo nenastavil, takže
+tam ta záruka tiše neplatila. Od 14. 9. 2026 ji `WireView` plní odchytem z přehrávaného streamu.
+
+**Jak se to projevilo — jako TŘI vady, a byla to jedna.** `OpenRecord` otevírá Replay, Obrázky
+a Robot-centric, ale **ne World**; kdo si ho otevřel ručně, byl už za tou jedinou `MapMsg`:
+
+1. *„nezobrazila se mapa ze záznamu"* — vrstva Mapa (síť) zůstala prázdná;
+2. *„naplánovaná trasa se pohybuje, vždyť je to cesta po mapě"* — bez mapy spadne
+   `BuildGeoReference()` na nouzový počátek dopočtený z GPS fixu, a ten se **posouvá s každým
+   fixem**, takže všechno kreslené v lokálním ENU (trasa, occupancy, plán, značky) plave;
+3. *„červený cíl nesedí na zónu track pointu"* — a tohle je zároveň **ukazatel**: vrstva Zóny se
+   kreslí ze **zeměpisných** souřadnic, takže neplave, kdežto značka cíle jde přes lokální ENU.
+   **Rozestup zóny od značky je přímo ta chyba počátku.**
+
+Ověření bez přestavby: v postižené verzi stačilo **seeknout** (`SeekTo` rekonstruuje poslední
+zprávu na klíč, tedy i mapu) a všechno se srovnalo — krokování `Krok` ne, to stav nerekonstruuje.
+
+Aby to příště nevypadalo jako tři vady, říká to teď pohled nahlas: v informačním rámečku je
+`⚠ BEZ MAPY: počátek z GPS, lokální vrstvy plavou`.
 
 ### Mapa (síť) z OsmNav
 

@@ -81,5 +81,34 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
         /// <summary>Polomer lokalni mapy zmenseny o okraj - v nem se hleda mrkev.</summary>
         public double CarrotHalfExtentM => Math.Max(0.1, LocalMapHalfExtentM - CarrotMarginM);
+
+        /// <summary>
+        /// <b>Polomer BEZNE mrkve [m]</b> (prujezdni bod na trase). <c>0</c> = mrkev je bod, tedy
+        /// dosavadni chovani.
+        ///
+        /// <para>Pri <b>dojezdu do cile</b> se misto teto hodnoty pouzije <b>dojezdovy polomer</b>
+        /// (<c>NavigatorOptions.ArrivalRadiusMeters</c>) — dojet kamkoli do nej uz znamena, ze cil
+        /// byl dosazen, takze trvat na presnem stredu je zbytecne prisne a stalo to jizdu
+        /// (viz doc/occupancy-and-local-planning.md, 14. 9. 2026).</para>
+        ///
+        /// <para><b>Proc u prujezdni mrkve vychozi 0:</b> ta neni cil, ale smer — zvetsit jeji zonu
+        /// znamena pustit robota dal od trasy, coz je jina zmena chovani, nez ktera se resila,
+        /// a nema zmerenou potrebu. Parametr je tu proto, aby sla zmerit, ne aby se odhadla.</para>
+        /// </summary>
+        public double CarrotRadiusM = 0.0;
+
+        /// <summary>
+        /// <b>O kolik je zona mrkve pri dojezdu MENSI nez zona dojezdu [m]</b> (rezerva).
+        ///
+        /// <para>Bez ni by robot smel zastavit presne na hranici dojezdove zony — tedy v miste,
+        /// kde o dosazeni cile rozhoduje sum EKF/GPS. Pri vychozim dojezdovem polomeru 3 m zbyde
+        /// s touhle rezervou 2,5 m, coz je porad o rad vic nez pulmetr, kvuli kteremu se zona
+        /// zavadela.</para>
+        ///
+        /// <para>Je to hodnota z <b>uvahy</b>, ne z mereni: zmensit zonu je vzdy bezpecny smer
+        /// (v nejhorsim se vrati dosavadni chovani „mir presne na stred"), kdezto zvetsit ji nad
+        /// dojezdovy polomer by znamenalo, ze <c>Arrived</c> nenastane nikdy.</para>
+        /// </summary>
+        public double ArrivalZoneMarginM = 0.5;
     }
 }

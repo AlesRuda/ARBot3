@@ -132,6 +132,43 @@ namespace ARBot.Common.Occupancy
         /// <summary>Maximalni tolerance pruchodu waypointem (epsilon) [m].</summary>
         public double EpsMax = 0.15;
 
+        /// <summary>
+        /// <b>VYCHOZI polomer cilove zony („velikost mrkve") [m]</b>. <c>0</c> = cil je BOD, tedy
+        /// presne dosavadni chovani. Pouzije se, kdyz volajici u konkretniho cile polomer neurci
+        /// (<c>LocalPathPlanner.Plan(..., goalRadiusM)</c>).
+        ///
+        /// <para><b>Polomer je vlastnost CILE, ne planovace.</b> Bezna mrkev je bod (nebo tahle
+        /// nastavena velikost), ale pri <b>dojezdu do cile mise</b> se misto ni pouzije
+        /// <b>dojezdovy polomer</b> — dojet kamkoli do nej uz znamena, ze mise misto dosahla,
+        /// takze trvat na presnem stredu je zbytecne prisne. Rozhoduje o tom producent mrkve
+        /// (<c>GlobalNavigator</c>), protoze jen on vi, ktery cil je ten posledni.</para>
+        ///
+        /// <para><b>Nac to je (14. 9. 2026):</b> cilem A* byla jedina bunka, takze mrkev polozena
+        /// do travy nebo tesne k prekazce byla nedosazitelna jako celek — plan skoncil na nejblizsi
+        /// bezpecne bunce, stav <see cref="LocalPlanStatus.GoalBlocked"/> a robot tam <b>zastavil
+        /// a cekal</b>. Pritom casto byla dosazitelna jina cast cilove zony a dojezdem do ni by se
+        /// misto povazovalo za dosazene. Zmereno nad <c>20260914-170945.rec</c>: <c>GoalBlocked</c>
+        /// 24 % a <c>GoalUnsafe</c> 19 % planu, mrkev nedosazitelna (rozdil &gt; 0,30 m) v <b>52 %</b>
+        /// planu s p90 rozdilu <b>2,52 m</b> — a v oknech, kde rozdil vyskocil, robot ujel
+        /// 0,1–0,6 m za 10 s misto 8–9 m.</para>
+        ///
+        /// <para><b>Cil je tim ZONA, ne bod</b>, a A* vrati tu jeji bunku, ktera je <b>nejlevnejsi
+        /// na dojeti</b> (tedy podle jeho vlastniho kriteria — casu), ne geometricky nejblizsi.
+        /// Ten rozdil je podstatny: geometricky nejblizsi bod kruznice muze lezet <b>za</b> tou
+        /// prekazkou, kvuli ktere je stred nedosazitelny.</para>
+        ///
+        /// <para>⚠️ <b>Musi byt nejvyse roven dojezdovemu polomeru cile</b> (<c>GoalRadiusM</c>
+        /// v <c>GlobalNavMsg</c>). Kdyby byl vetsi, robot by zastavil uvnitr zony mrkve, ale VNE
+        /// zony dojezdu — a <c>Arrived</c> by nenastalo nikdy. Je to tataz past, na kterou uz
+        /// jednou narazil Track i Robotour u neprichycenych bodu.</para>
+        ///
+        /// <para>⚠️ <b>Neni to lek na spatnou mapu.</b> Kdyz je mrkev nedosazitelna proto, ze grid
+        /// hlasi prekazku, ktera tam neni (rozmazani chybou kurzu), zona to <b>zakryje</b> misto
+        /// opravi. Podil <c>Blocked</c> bunek byl v temze zaznamu p50 27,7 % (max 51,0 %), takze
+        /// to neni teoreticka vyhrada — viz doc/occupancy-and-local-planning.md.</para>
+        /// </summary>
+        public double GoalRadiusM = 0.0;
+
         /// <summary>Maximalni delka planovane drahy [m] (horizont lokalniho planu).</summary>
         /// <remarks>
         /// NENI to radius, ale <b>maximalni delka planovane drahy</b> - planovac preruší expanzi,

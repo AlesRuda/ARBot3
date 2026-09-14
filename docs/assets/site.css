@@ -1,0 +1,270 @@
+:root{
+  color-scheme:dark;
+
+  /* Web je zamerne JEDNOTEMATICKY - tmavy, at ho divak otevre s jakymkoli nastavenim
+     systemu (rozhodnuti autora 14. 9. 2026). Proto tu NENI @media (prefers-color-scheme)
+     ani [data-theme]: kdyz se prida svetla varianta, musi se s ni prekreslit i obrazky
+     (viz docs/README.md, sekce "Tmavy podklad"). */
+  --ground:#0E1210; --surface:#161B18; --surface-2:#1E2420;
+  --ink:#E6EAE4; --muted:#96A197; --line:#2A322C;
+  --accent:#E8B04A; --accent-soft:#2E2716;
+  --free:#5FBE7F; --block:#E8705A; --plan:#5BBCD6; --route:#C287E2;
+  --hero-bg:#12160F; --hero-ink:#F2F3EC; --hero-muted:#9AA394; --hero-line:#2E362A;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Newsreader",Georgia,"Times New Roman",serif;
+  font-size:20px; line-height:1.68;
+}
+h1,h2,h3,.eyebrow,.stat-n,.chip,.mono,figcaption,th,.btn{
+  font-family:"Archivo","Helvetica Neue",Arial,sans-serif;
+}
+.mono,.eyebrow,.stat-n,.tag,.legend,.kv td:first-child{
+  font-family:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+
+/* ---------- layout spine ---------- */
+/* Jedna sirka pro text i obrazky (sjednoceno 14. 9. 2026 na pokyn autora).
+   Trida .wide zustava kvuli existujicimu znaceni, ale miri do teze drahy. */
+main{
+  display:grid;
+  grid-template-columns:
+    [full-start] minmax(20px,1fr)
+    [wide-start text-start] minmax(0,1040px) [text-end wide-end]
+    minmax(20px,1fr) [full-end];
+  row-gap:0;
+}
+main > *{grid-column:text}
+.wide{grid-column:wide}
+.full{grid-column:full}
+
+section{padding:clamp(38px,6vw,72px) 0 0}
+section.first{padding-top:clamp(30px,5vw,56px)}
+
+/* ---------- hero ---------- */
+.hero{
+  grid-column:full; background:var(--hero-bg); color:var(--hero-ink);
+  padding:clamp(44px,7vw,96px) 20px clamp(36px,5vw,64px);
+  border-bottom:1px solid var(--hero-line);
+}
+.hero-in{max-width:1040px;margin:0 auto}
+.hero .eyebrow{color:var(--accent)}
+.hero h1{
+  font-size:clamp(38px,7.4vw,74px); line-height:1.02; font-weight:700;
+  letter-spacing:-.028em; margin:.28em 0 0; max-width:15ch; text-wrap:balance;
+}
+.hero p{color:var(--hero-ink); font-size:clamp(19px,2.1vw,23px); margin:1.1em 0 0}
+.hero p.sub{color:var(--hero-muted); font-size:17px}
+
+.eyebrow{
+  font-size:11.5px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--muted); margin:0;
+}
+
+.stats{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px; background:var(--hero-line); border:1px solid var(--hero-line);
+  margin-top:clamp(30px,4vw,48px);
+}
+.stat{background:var(--hero-bg); padding:16px 18px 18px}
+.stat-n{
+  display:block; font-size:clamp(26px,3.4vw,34px); font-weight:600; letter-spacing:-.02em;
+  color:var(--accent); font-variant-numeric:tabular-nums;
+}
+.stat-l{display:block; font-size:14px; line-height:1.4; color:var(--hero-muted); margin-top:6px;
+  font-family:"Archivo",Arial,sans-serif;}
+
+/* ---------- type ---------- */
+h2{
+  font-size:clamp(27px,3.6vw,38px); line-height:1.14; font-weight:700; letter-spacing:-.022em;
+  margin:.35em 0 .4em; text-wrap:balance;
+}
+h3{font-size:20px; font-weight:600; letter-spacing:-.01em; margin:2em 0 .35em}
+p{margin:0 0 1.05em}
+.lead{font-size:22px; color:var(--ink)}
+a{color:var(--accent)}
+a:focus-visible,.btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+strong{font-weight:600}
+.mark{background:var(--accent-soft); padding:0 .18em; border-radius:2px}
+
+ul{margin:0 0 1.1em; padding-left:1.15em}
+li{margin:.3em 0}
+li::marker{color:var(--accent)}
+
+/* ---------- figures ---------- */
+figure{margin:2.2em 0 2.4em}
+figure img{
+  /* obrazek vyplni sloupec, uzsi (se stropem max-width primo na <img>) se vystredi */
+  display:block; width:100%; height:auto; margin-left:auto; margin-right:auto; border:1px solid var(--line); border-radius:3px;
+  background:var(--surface-2);
+}
+figcaption{
+  font-size:13.5px; line-height:1.5; color:var(--muted); margin-top:10px; max-width:70ch;
+}
+figcaption b{color:var(--ink); font-weight:600}
+.diagram{
+  background:var(--surface); border:1px solid var(--line); border-radius:3px;
+  padding:18px 16px 10px; overflow-x:auto;
+}
+.diagram svg{display:block; width:100%; min-width:620px; height:auto; color:var(--ink)}
+
+/* ---------- side note ---------- */
+.note{
+  border-left:3px solid var(--accent); padding:2px 0 2px 18px; margin:2em 0;
+  font-size:17px; color:var(--muted);
+}
+.note b{color:var(--ink)}
+
+/* ---------- cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:18px; margin:2em 0 1em}
+.card{background:var(--surface); border:1px solid var(--line); padding:20px 20px 22px}
+.card h3{margin:.5em 0 .4em; font-size:19px}
+.card p{font-size:16px; line-height:1.55; color:var(--muted); margin:0}
+.card .eyebrow{color:var(--accent)}
+
+/* ---------- key/value ---------- */
+.kv{width:100%; border-collapse:collapse; font-size:16px; margin:1.4em 0 1em}
+.kv td{border-top:1px solid var(--line); padding:10px 0; vertical-align:top}
+.kv td:first-child{width:38%; font-size:13px; color:var(--muted); padding-right:18px;
+  text-transform:uppercase; letter-spacing:.06em}
+.kv tr:last-child td{border-bottom:1px solid var(--line)}
+
+/* ---------- footer ---------- */
+footer{
+  grid-column:full; margin-top:clamp(48px,7vw,90px); border-top:1px solid var(--line);
+  background:var(--surface); padding:36px 20px 44px;
+}
+.foot-in{max-width:1040px; margin:0 auto; display:flex; flex-wrap:wrap; gap:18px 40px;
+  align-items:baseline; font-size:14.5px; color:var(--muted)}
+.foot-in .mono{font-size:12.5px; letter-spacing:.04em}
+
+@media (prefers-reduced-motion:no-preference){
+  a{transition:opacity .15s ease}
+}
+@media (max-width:760px){
+  body{font-size:19px}
+  .lead{font-size:19.5px}
+}
+
+/* ---------- hlavička a navigace webu (sdílené všemi stránkami) ---------- */
+.sitehead{
+  background:var(--hero-bg); color:var(--hero-ink);
+  border-bottom:1px solid var(--hero-line);
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px 28px;
+  padding:12px 20px;
+}
+.sitehead .brand{
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--hero-ink);
+  font-family:"Archivo",Arial,sans-serif; font-weight:700; letter-spacing:-.01em; font-size:19px;
+}
+.sitehead .brand img{width:26px; height:26px; display:block}
+.sitehead nav{display:flex; flex-wrap:wrap; gap:4px 20px}
+.sitehead nav a{
+  font-family:"Archivo",Arial,sans-serif; font-size:14px; text-decoration:none;
+  color:var(--hero-muted); padding:4px 0; border-bottom:2px solid transparent;
+}
+.sitehead nav a:hover{color:var(--hero-ink)}
+.sitehead nav a.on{color:var(--accent); border-bottom-color:var(--accent)}
+
+/* ---------- jednoduchá stránka (bez hero) ---------- */
+.pagehead{grid-column:text; padding:clamp(34px,5vw,60px) 0 0}
+.pagehead h1{
+  font-family:"Archivo",Arial,sans-serif; font-weight:700; letter-spacing:-.024em;
+  font-size:clamp(30px,4.6vw,46px); line-height:1.08; margin:.2em 0 .3em; text-wrap:balance;
+}
+
+/* ---------- prázdná stránka, která čeká na obsah ---------- */
+.stub{
+  border:1px dashed var(--line); background:var(--surface); border-radius:3px;
+  padding:22px 24px; color:var(--muted); font-size:17px; margin:1.4em 0 0;
+}
+.stub b{color:var(--ink); font-weight:600}
+
+/* ---------- rozcestník na úvodní stránce ---------- */
+.linkcards{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; margin:2.2em 0 1em}
+.linkcards a{
+  display:block; text-decoration:none; color:inherit;
+  background:var(--surface); border:1px solid var(--line); padding:20px 20px 22px;
+}
+.linkcards a:hover{border-color:var(--accent)}
+.linkcards h3{margin:.4em 0 .35em; font-size:19px; color:var(--accent)}
+.linkcards p{font-size:16px; line-height:1.55; color:var(--muted); margin:0}
+
+/* ---------- obrázek modelu na úvodu ---------- */
+.model{margin:0}
+.model img{background:transparent; border:0}
+
+/* ---------- číslované vzorce (sází MathJax) ---------- */
+.eqs{margin:1.8em 0; display:grid; gap:.35em}
+.eq{display:grid; grid-template-columns:1fr auto; align-items:center; gap:18px}
+.eq > div:first-child{overflow-x:auto; overflow-y:hidden; min-width:0}
+.eq .num{
+  font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:13px;
+  color:var(--muted); font-variant-numeric:tabular-nums;
+}
+.legend{font-family:"Newsreader",Georgia,serif; margin:1.2em 0 1.6em; display:grid; gap:.25em; font-size:16px; color:var(--muted)}
+.legend div{display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:baseline}
+.legend b{color:var(--ink); font-weight:500; text-align:right; white-space:nowrap}
+
+/* ---------- chybějící zdroj (dočasné) ---------- */
+.missing{
+  border-left:3px solid var(--block); background:var(--surface); padding:14px 18px;
+  margin:1.8em 0; font-size:16px; color:var(--muted);
+}
+.missing b{color:var(--ink); font-weight:600}
+
+/* ---------- tabulka výsledků ---------- */
+.results-wrap{overflow-x:auto; margin:1.8em 0}
+table.results{border-collapse:collapse; font-size:16px; min-width:420px}
+table.results th, table.results td{
+  border:1px solid var(--line); padding:7px 14px; text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+table.results th{
+  background:var(--surface-2); font-family:"Archivo",Arial,sans-serif; font-size:13px;
+  letter-spacing:.05em; text-transform:uppercase; font-weight:600;
+}
+table.results td.robot{
+  font-family:"Archivo",Arial,sans-serif; font-weight:700; background:var(--surface);
+  letter-spacing:-.01em;
+}
+table.results td.y{text-align:right; color:var(--muted)}
+table.results td.win{color:var(--accent); font-weight:600}
+
+/* ---------- kontaktní údaje ---------- */
+.contact{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:26px; margin:2em 0}
+.contact h3{margin:0 0 .5em; font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+.contact p{margin:0; line-height:1.7}
+
+/* ---------- blok matematiky (MathJax si čísluje sám přes 	ag) ---------- */
+.mathblock{overflow-x:auto; overflow-y:hidden; margin:1.9em 0; padding-bottom:4px}
+.mathblock mjx-container{margin:0 !important}
+
+/* ---------- pás fotek (náhrada karuselu z Google Sites) ---------- */
+.strip{margin:2.2em 0 2.4em}
+.strip-scroll{
+  display:flex; gap:10px; overflow-x:auto; overflow-y:hidden;
+  padding-bottom:10px; scroll-snap-type:x proximity;
+  scrollbar-width:thin;
+}
+.strip-scroll a{
+  flex:0 0 auto; scroll-snap-align:start; display:block; line-height:0;
+  border:1px solid var(--line); background:var(--surface-2);
+}
+.strip-scroll a:hover{border-color:var(--accent)}
+.strip-scroll img{height:230px; width:auto; display:block}
+.strip figcaption{margin-top:2px}
+.strip .hint{
+  font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:11.5px;
+  letter-spacing:.04em; color:var(--muted); text-transform:uppercase;
+}
+@media (max-width:760px){ .strip-scroll img{height:170px} }
+
+/* ---------- uzsi schema (nema smysl tahnout pres cely sloupec) ---------- */
+.diagram.uzky{max-width:560px; margin-left:auto; margin-right:auto}
+.diagram.uzky svg{min-width:0}
+.diagram.stredni{max-width:760px; margin-left:auto; margin-right:auto}
+.diagram.stredni svg{min-width:0}

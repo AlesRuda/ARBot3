@@ -17,7 +17,18 @@ namespace ARBot.Common.Runtime
         /// Volitelna sirka koridoru cesty [m] v miste cile. Slouzi k testu "je cesta pres celou
         /// sirku prehrazena?" - ten musi probehnout na vlakne, ktere vlastni grid. 0 = neresit.
         /// </param>
-        void SetGoal(double worldX, double worldY, double corridorWidthM = 0);
+        /// <param name="goalRadiusM">
+        /// Polomer cilove zony [m]: dojet kamkoli do ni znamena, ze je cil dosazen.
+        /// <c>NaN</c> (vychozi) = nechat na lokalni vrstve, co povazuje za beznou velikost mrkve.
+        ///
+        /// <para>Je to udaj o CILI, ne nastaveni planovani, a proto ho posila globalni vrstva:
+        /// bezna mrkev je bod, ale <b>pri dojezdu do cile</b> se pouzije dojezdovy polomer. Bez
+        /// nej byl cilem A* jediny bod, takze mrkev v trave nebo tesne u prekazky byla nedosazitelna
+        /// jako celek — robot dojel k nejblizsi bezpecne bunce a tam ZASTAVIL, ackoli jina cast
+        /// cilove zony dosazitelna byla. Viz doc/occupancy-and-local-planning.md.</para>
+        /// </param>
+        void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
+                     double goalRadiusM = double.NaN);
 
         /// <summary>Zrusi cil.</summary>
         void ClearGoal();

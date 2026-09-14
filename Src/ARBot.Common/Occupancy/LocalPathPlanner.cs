@@ -58,6 +58,16 @@ namespace ARBot.Common.Occupancy
         /// <summary>Rezim UNIKU z blokovane bunky - meni pravidlo prujezdnosti i cil hledani.</summary>
         private bool escape;
 
+        /// <summary>
+        /// Polomer cilove zony v BUNKACH (<see cref="LocalPlannerConfig.GoalRadiusM"/> / velikost
+        /// bunky), platny pro prave planovany cyklus. <c>0</c> = cil je jedina bunka.
+        ///
+        /// <para>Drzi se v poli, protoze ho potrebuje <see cref="Search"/> i
+        /// <see cref="Heuristic"/> a protahovat ho parametrem skrz obe by jen zasumilo signaturu.
+        /// Pri uniku se nepouziva — tam cil neni bod ani zona, ale „prvni legalni bunka".</para>
+        /// </summary>
+        private double goalRadiusCells;
+
         /// <summary>Index vychozi bunky (pri uniku je vzdy prujezdna - robot na ni stoji).</summary>
         private int startIdx;
         private readonly OpenQueue open = new OpenQueue();
@@ -152,9 +162,18 @@ namespace ARBot.Common.Occupancy
         /// <param name="heading">Kurz robotu [rad] (0 = vychod, +CCW) - pro cenu pocatecniho otoceni.</param>
         /// <param name="goalX">Cil [m, world ENU].</param>
         /// <param name="goalY">Cil [m, world ENU].</param>
+        /// <param name="goalRadiusM">
+        /// Polomer cilove zony [m] pro TENHLE cil. <c>NaN</c> (vychozi) = vzit
+        /// <see cref="LocalPlannerConfig.GoalRadiusM"/>, tedy nastavenou velikost bezne mrkve.
+        ///
+        /// <para>Je to parametr CILE, ne konfigurace, protoze kazdy cil ma jiny: bezna mrkev je bod
+        /// (nebo nastavena velikost), kdezto pri dojezdu do cile mise se pouzije <b>dojezdovy
+        /// polomer</b> — dojet kamkoli do nej znamena, ze mise misto dosahla.</para>
+        /// </param>
         public LocalPlanResult Plan(OccupancyGrid grid, ClearanceField field,
                                     double robotX, double robotY, double heading,
-                                    double goalX, double goalY)
+                                    double goalX, double goalY,
+                                    double goalRadiusM = double.NaN)
         {
             if (grid == null) throw new ArgumentNullException(nameof(grid));
             if (field == null) throw new ArgumentNullException(nameof(field));
@@ -175,6 +194,12 @@ namespace ARBot.Common.Occupancy
             double cell = grid.Resolution;
             cellSize = cell;
             planHeading = heading;
+            // Cilova zona. Polomer z volajiciho (parametr cile) prebiji konfiguraci; NaN = neurcil.
+            // Zaporna hodnota se bere jako 0 (cil je bod) - vadny parametr nema zpusobit, ze plan
+            // bude jinak nesmyslny, jen ze nebude pomahat.
+            double goalRadius = double.IsNaN(goalRadiusM) ? cfg.GoalRadiusM : goalRadiusM;
+            if (!(goalRadius > 0)) goalRadius = 0;   // chyta i NaN z volajiciho
+            goalRadiusCells = goalRadius / cell;
             int i0 = grid.CellX(robotX) - grid.OriginX;
             int j0 = grid.CellY(robotY) - grid.OriginY;
             if ((uint)i0 >= (uint)size || (uint)j0 >= (uint)size)
@@ -212,8 +237,12 @@ namespace ARBot.Common.Occupancy
             res.ReachedGoalX = goalX;
             res.ReachedGoalY = goalY;
 
+            // "Uz jsem tam" plati i tehdy, kdyz robot stoji UVNITR cilove zony - zona je cil, takze
+            // dojet do jejiho stredu uz neni co resit. Bez toho by se planovala draha ke stredu,
+            // ktery muze byt neprujezdny, a robot by se k nemu marne tlacil, ackoli je v cili.
             double dxGoal = goalX - robotX, dyGoal = goalY - robotY;
-            if (Math.Sqrt(dxGoal * dxGoal + dyGoal * dyGoal) <= cfg.EpsMax)
+            double distGoal = Math.Sqrt(dxGoal * dxGoal + dyGoal * dyGoal);
+            if (distGoal <= Math.Max(cfg.EpsMax, goalRadius))
             {
                 res.Status = LocalPlanStatus.AlreadyAtGoal;
                 return res;
@@ -227,9 +256,10 @@ namespace ARBot.Common.Occupancy
             // sem robot NIKDY nedojede, na konci drahy ma zastavit a producent cile se to ma dozvedet.
             // Do 3. 9. 2026 to vychazelo jako Partial a na konci jako AlreadyAtGoal, coz u mrkve
             // polozene do travy vypadalo jako "uz jsem v cili".
-            int goalCell = iG + jG * size;
-            bool goalBlocked = state[goalCell] == (byte)CellState.Blocked;
-            bool goalUnsafe = !goalBlocked && clearance[goalCell] < cfg.SafeDist;
+            // Se zonou se stav neposuzuje podle jedne bunky, ale podle CELE zony: "neprujezdny cil"
+            // ma znamenat "nikde v zone se nedá stat", ne "stred je v trave". Pri polomeru 0 je
+            // zona ta jedina bunka, takze vysledek je presne tentyz jako pred 14. 9. 2026.
+            ClassifyGoalZone(iG, jG, out bool goalBlocked, out bool goalUnsafe);
 
             int goalIdx = Search(i0, j0, iG, jG, heading, cell, out int bestIdx, out int expanded);
             res.ExpandedCells = expanded;
@@ -451,7 +481,17 @@ namespace ARBot.Common.Occupancy
 
                 int ci = cur % size, cj = cur / size;
                 // Pri uniku je cilem prvni bunka prujezdna BEZNYM pravidlem, ne konkretni bod.
-                if (escape ? IsEscapeExit(cur) : (ci == iG && cj == jG))
+                //
+                // Jinak je cilem ZONA o polomeru goalRadiusCells kolem (iG,jG) - viz
+                // LocalPlannerConfig.GoalRadiusM. Pri polomeru 0 se test degeneruje presne na
+                // puvodni "ci == iG && cj == jG" (Dist2Cells je pak 0 jen v te jedine bunce).
+                //
+                // Vraci se PRVNI vytazena bunka zony, tedy ta NEJLEVNEJSI NA DOJETI podle kriteria
+                // A* (casu) - ne geometricky nejblizsi. To je zamer: geometricky nejblizsi bod zony
+                // muze lezet ZA prekazkou, kvuli ktere je stred nedosazitelny. Ze je opravdu
+                // nejlevnejsi, drzi az oprava heuristiky v Heuristic() - bez ni by h > 0 i na
+                // cilovych bunkach a poradi vytahovani by neodpovidalo cene.
+                if (escape ? IsEscapeExit(cur) : InGoalZone(ci, cj, iG, jG))
                     return cur;
                 double d2 = Dist2Cells(ci, cj, iG, jG);
                 if (d2 < bestGoalDist2)
@@ -518,8 +558,62 @@ namespace ARBot.Common.Occupancy
             return -1;
         }
 
+        /// <summary>
+        /// Odhad zbyvajiciho casu do cile. Se zonou (<see cref="LocalPlannerConfig.GoalRadiusM"/>)
+        /// se meri vzdalenost k <b>okraji zony</b>, ne k jejimu stredu.
+        ///
+        /// <para>⚠️ <b>Ta korekce NENI kosmetika.</b> Kdyby se meril stred, byla by heuristika na
+        /// cilovych bunkach nenulova (az polomer), takze prvni vytazena bunka zony by nemusela byt
+        /// ta nejlevnejsi — A* by vracel dratsi dosazitelny bod. Projevilo by se to jako tise horsi
+        /// draha, ne jako chyba. S <c>max(0, d − R)</c> je <c>h = 0</c> na cele zone a poradi
+        /// vytahovani zase odpovida cene.</para>
+        /// </summary>
         private double Heuristic(int i, int j, int iG, int jG, double cell, double invMaxSpeed)
-            => Math.Sqrt(Dist2Cells(i, j, iG, jG)) * cell * invMaxSpeed;
+        {
+            double d = Math.Sqrt(Dist2Cells(i, j, iG, jG)) - goalRadiusCells;
+            return d <= 0 ? 0 : d * cell * invMaxSpeed;
+        }
+
+        /// <summary>Lezi bunka v cilove zone? Pri polomeru 0 je to presne „je to cilova bunka".</summary>
+        private bool InGoalZone(int i, int j, int iG, int jG)
+            => Dist2Cells(i, j, iG, jG) <= goalRadiusCells * goalRadiusCells;
+
+        /// <summary>
+        /// Proc se do cile nedalo dojet — posuzuje se <b>cela zona</b>, ne jen jeji stred.
+        /// „Neprujezdny cil" ma znamenat „nikde v zone se neda stat", ne „stred je v trave":
+        /// prave ten rozdil je duvod, proc zona vznikla.
+        ///
+        /// <para>Pri polomeru 0 je zona ta jedina cilova bunka, takze vysledek je presne tentyz
+        /// jako pred 14. 9. 2026 (drzi to <c>CilJeBodDavaStejnyVysledekJakoDriv</c>).</para>
+        /// </summary>
+        /// <param name="allBlocked">Vsechny bunky zony jsou <see cref="CellState.Blocked"/>.</param>
+        /// <param name="allUnsafe">Neni <paramref name="allBlocked"/>, ale zadna bunka zony nema
+        /// odstup aspon <see cref="LocalPlannerConfig.SafeDist"/> — stat se tam neda.</param>
+        private void ClassifyGoalZone(int iG, int jG, out bool allBlocked, out bool allUnsafe)
+        {
+            int r = (int)Math.Ceiling(goalRadiusCells);
+            bool anyPassable = false, anyNotBlocked = false;
+
+            for (int dj = -r; dj <= r; dj++)
+            {
+                int j = jG + dj;
+                if ((uint)j >= (uint)size) continue;
+                for (int di = -r; di <= r; di++)
+                {
+                    int i = iG + di;
+                    if ((uint)i >= (uint)size) continue;
+                    if (!InGoalZone(i, j, iG, jG)) continue;
+
+                    int idx = i + j * size;
+                    if (state[idx] == (byte)CellState.Blocked) continue;
+                    anyNotBlocked = true;
+                    if (clearance[idx] >= cfg.SafeDist) anyPassable = true;
+                }
+            }
+
+            allBlocked = !anyNotBlocked;
+            allUnsafe = !allBlocked && !anyPassable;
+        }
 
         private static double Dist2Cells(int i, int j, int iG, int jG)
         {

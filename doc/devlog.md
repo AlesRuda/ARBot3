@@ -37,6 +37,335 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-14
+
+**Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí (`HangWatchdog`).** Rozbor dvou záznamů
+z jízdy na Hviezdoslavově + journalu ze zařízení.
+
+- **Co se stalo:** ve 14 hodin běžela služba třikrát. Třetí proces se v 17:23:13 při volbě mise ze
+  stránky **zasekl uvnitř `ARBotRuntime.Start(Mode.Run)`** — v journalu doběhlo `corridor=false`
+  a `mission=track` už **nikdy**, ačkoli o dvě kola dřív bylo mezi nimi **5 ms**. Proces žil dál
+  (vlákno T265 logovalo ještě dvě minuty), ale stránka umlkla; v 17:25:29 autor robota vypnul.
+  Zásek je tedy mezi `TrackPlan.Load` a `track.StartMission()` v `ARBotRuntime.cs`.
+- **Dva omyly po cestě, oba opravené měřením:** (a) „konec `.rec` = pád" — záznam zavírá `Stop()`,
+  takže konec souboru o zatuhnutí neříká nic; (b) „deska spadla" — tvrdý konec journalu způsobilo
+  vypnutí člověkem. Přisoudit si taky nešlo, že stránka umlkla kvůli zámku v `Start()`:
+  `HandleMission` odpovídá hned a stránka se kreslí z `WebStatus`, ne zpod `gate` — **mechanismus
+  zůstává neprokázaný**.
+- **Hotovo:** `HangWatchdog` (`ARBot.Runtime/HangWatchdog.cs`) — sourozenec `CrashLog`: ten chytá
+  pád, tenhle operaci, která neskončila vůbec. `Start(Mode.Run)` je obalený, po `hangwatch=`
+  sekundách (výchozí 20) jde do `Trace` hlášení a vedle něj **minidump** (`createdump -n`) do
+  `logs/hang-*.dmp`. Arm **před zámkem** (zatuhnout jde i na čekání na `gate`), **jen `Run`**
+  (`WireView` staví index nad gigabajty), a když práce nakonec doběhne, hlídač to **dopíše**.
+  Build čistý, **10 testů** (`HangWatchdogTests`) + sady 125 / 1468 / 105 zelené.
+  ⚠️ **Na zařízení hlídač neběžel** — nasazení zbývá.
+- **Proč zrovna hlídač, a ne odkaz na stránce:** v terénu je u robota jen mobil a při zatuhnutí je
+  stránka právě to, co chybí. Důkaz si musí pořídit robot sám.
+- **Nález, který našel až test:** jednotka má systemd výchozí `StartLimitBurst=5` /
+  `StartLimitIntervalUSec=5min` — šestý start v tom okně skončí `start-limit-hit`, jednotka zůstane
+  **`failed`** a `Restart=always` ji už **nevrátí**. Crash loop tedy robota v terénu odstaví
+  natrvalo; dvě dnešní SIGSEGV při `Stop()` (16:44 a 17:09) říkají, že to není hypotéza.
+  Viz [headless.md](headless.md).
+- **Reprodukce od stolu: NEGATIVNÍ.** 32 kol volba mise → stop → restart (17 rychlých + 15 po 90 s,
+  ~1,9 GB záznamu na kolo, obě D435 streamují) zásek nevyvolalo. Robot u toho stál pod drženým
+  nouzovým zastavením — automat jde `AwaitingEStop` → `AwaitingEStopRelease` a `Depart()` se volá
+  až při **uvolnění** stopu, takže se rozjet nemohl. První varianta měla vadu v sobě: kola po 5 s
+  dala záznamy po **180 kB**, protože kamery naskočí až ~4 s po startu mise — netestovala tedy tu
+  cestu, která selhala.
+- **Rozpracováno / další krok:** nasadit hlídač (`deploy\nasad.ps1`) a nechat zásek chytit v běžném
+  provozu. Nereprodukovaný zůstává rozdíl, který od stolu napodobit nejde: tehdy robot **jel**
+  (mise odjela, 13 min jízdy, záznam 23,5 GB), kdežto v testu jen stál. Zvážit `StartLimitBurst=0`.
+- **Odkazy:** `Src/ARBot.Runtime/HangWatchdog.cs`, `Src/ARBot.Runtime/Robot/ARBotRuntime.cs`,
+  `Src/ARBot.Runtime.Tests/HangWatchdogTests.cs`, `ParamRegistry.HangWatch`,
+  [headless.md](headless.md) (sekce „Hlídač zatuhnutí" a „Služba se po pěti restartech vzdá").
+
+**Cíl A\* je ZÓNA, ne bod** („poloměr mrkve") — návrh autora po rozboru téhož dne.
+
+- **Proč:** robot nedokázal dojet k prvnímu bodu trasy. Mrkev ležela v nedosažitelné oblasti,
+  ačkoli **část cílové zóny dosažitelná byla** — a dojezdem do ní by se bod považoval za dosažený.
+  Měřením (`ARBot.Analyze localplan` nad `records/test/20260914-170945.rec`, 14 827 plánů) to sedí:
+  `Ok` jen **42,9 %**, `GoalBlocked` **24,2 %**, `GoalUnsafe` **19,0 %**; mrkev nedosažitelná
+  (rozdíl > 0,30 m) v **52 %** plánů, p90 rozdílu **2,52 m**. Kde rozdíl vyskočil na 1,4–2,6 m, tam
+  robot ujel **0,1–0,6 m za 10 s** místo 8–9 m — k prvnímu bodu jel 44 m **9,5 minuty**.
+- **Co to dělalo:** cíl A\* byla jediná buňka (`ci == iG && cj == jG`). Když byla neprůjezdná,
+  plán vedl na nejbližší bezpečnou buňku, stav `GoalBlocked` a `stopAtEnd` — robot tam **řízeně
+  zastavil a čekal**, protože „další mrkev na tom nic nezmění". Globální vrstva přitom v zónách
+  myslí už od 12. 9. (`GoalRadiusM`), jen se to do lokální nikdy nedostalo.
+- **Hotovo:** test cíle je `Dist2Cells(...) ≤ R²` a A\* vrací **první vytaženou** buňku zóny, tedy
+  **nejlevnější na dojetí podle svého kritéria (času)** — ne geometricky nejbližší (ta může ležet
+  *za* překážkou, kvůli které je střed nedosažitelný). **Poloměr je vlastnost cíle**
+  (`Plan(..., goalRadiusM)`, `ILocalGoalSink.SetGoal(...)`): průjezdní mrkev je bod
+  (`carrotradius=`, výchozí 0), **při dojezdu** se použije dojezdový poloměr. Při `R = 0` se vše
+  degeneruje přesně na dosavadní chování (drží to zvláštní test).
+- **Tři pasti, které k tomu patří:** (a) **heuristika se musí měřit k okraji zóny** (`max(0, d − R)`),
+  jinak je `h > 0` i na cílových buňkách a A\* vrátí dražší bod — *tiše horší dráha*, ne chyba;
+  (b) zóna mrkve při dojezdu je menší než zóna dojezdu o rezervu `ArrivalZoneMarginM` (0,5 m,
+  na pokyn autora) **a** o odstup mrkve od cíle, jinak by robot zastavil uvnitř zóny mrkve, ale
+  vně zóny dojezdu a `Arrived` by nenastalo nikdy; (c) neprůjezdná **celá** zóna zůstává
+  `GoalBlocked`, aby mrkev ve zdi nevypadala jako dojezd.
+- **Ověřeno:** build (x64 i OrangePI), **12 nových testů** (10 × `LocalPlannerGoalZoneTests`,
+  2 × `GlobalNavigatorTests`), sady **1480 / 125 / 105** zelené. ⚠️ **Na HW neběželo.**
+- **Rozpracováno / další krok:** ⚠️ **není to lék na špatnou mapu** — `Blocked` buněk bylo v témže
+  záznamu p50 27,7 % (max 51,0 %) při rozbitém kurzu, takže část „nedosažitelnosti" může být chyba
+  gridu, kterou zóna **zakryje**. Ukazatelem je to p90 = 2,52 m: kdyby šlo jen o mrkev na kraji
+  cesty, minulo by se to o decimetry. Podívat se na grid v těch okamžicích (`ARBot.Analyze grid`)
+  a přeměřit `localplan` po nasazení. ⚠️ Pozor, **oba dnešní běhy selhaly jinak**: běh z 17:06
+  skončil `NoRoute` (globální vrstva nenašla trasu po síti) — na to zóna nesahá.
+- **Odkazy:** `LocalPathPlanner.cs`, `LocalPlannerConfig.cs`, `LocalNavigator.cs`,
+  `ILocalGoalSink.cs`, `GlobalNavigator.cs`, `GlobalNavigatorConfig.cs`,
+  `ParamRegistry.CarrotRadius`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md)
+  (sekce „Cílová zóna místo bodu").
+
+**Dojezdové zóny jsou vidět i ve World pohledu** (pokyn autora).
+
+- **Proč:** půdorys stránky náhledu je kreslil od 12. 9., ale v Avalonii vidět nebyly — ta logika
+  seděla uvnitř `WebStatus`, tedy jen u webu.
+- **Hotovo:** výběr zón vytažen do `ARBot.Common/Rendering/GoalZones.cs` (výstup v **LLA**, ať si
+  převod udělá každý pohled sám: půdorys do lokální ENU, mapa do Mercatoru); `WebStatus` na něj
+  přepojen, World pohled dostal vrstvu **Zóny** (`TrackMsg` / `MissionMsg`, jinak `GlobalNavMsg`)
+  se zaškrtávátkem a tooltipem. Kopírovat logiku podruhé nešlo: nese dvě pravidla, která si na sebe
+  už došlápla — kreslí se místo **přichycené** na síť a **zdroje se nemíchají**.
+- **Dvě věci, které našlo až spuštění, ne čtení kódu:** (a) chybělo `zoneLayer.DataHasChanged()`,
+  takže Mapsui vrstvu nepřekresloval; (b) **kružnice byla 3 pixely** — dojezdový poloměr 3 m při
+  běžném zoomu 1,5 m/px, na podkladu neviditelný, a vypadalo to, jako by se zóny nekreslily vůbec.
+  Diagnostika do souboru ukázala `zon=3 featur=3`, tedy že se kreslí správně a vada je jinde.
+  Léčba: ke kružnici **značka ve středu** jako `SymbolStyle` (velká v pixelech bez ohledu na zoom) —
+  tutéž past řeší půdorys prahem `MinZoneRadiusPx`.
+- **Ověřeno:** build, **8 testů** `GoalZonesTests` + beze změny prošly dosavadní testy `WebStatus`
+  (to je ta pojistka, že extrakce nic neposunula); sady **1488 / 125**. A hlavně **v běžící
+  aplikaci** — simulace `mission=track` nad `OSM/Hviezdoslavova.osm`, snímek
+  [world-view-zony-20260914.png](media/world-view-zony-20260914.png).
+- **Odkazy:** `Src/ARBot.Common/Rendering/GoalZones.cs`, `Src/ARBot.Runtime/Web/WebStatus.cs`,
+  `Src/ARBot/ViewModels/WorldViewDocument.cs`, `Src/ARBot/Views/WorldViewDocumentView.axaml`,
+  [world-view.md](world-view.md) (sekce „Zóny, které mají být dosaženy").
+
+**Ve View se ztrácela mapa ze záznamu — a vypadalo to jako tři vady.** Nahlásil autor při
+přehrávání `20260914-170945.rec`.
+
+- **Příznaky:** (1) nezobrazila se mapa ze záznamu, (2) naplánovaná trasa se pohybovala, ačkoli
+  je to cesta po mapě, (3) červená značka globálního cíle neseděla na zónu track pointu 1.
+- **Příčina je jedna.** `MapMsg` se publikuje **jednou při startu běhu**, takže je v záznamu
+  jediná (ověřeno `ARBot.Analyze types`: `Map 1`), a `MessageSource.Connect` historii nepřehrává.
+  `OpenRecord` přitom otevírá Replay, Obrázky a Robot-centric, **ale ne World** — kdo si ho otevřel
+  ručně, byl už za tou jedinou zprávou. Bez mapy spadne `BuildGeoReference()` na nouzový počátek
+  dopočtený z GPS fixu, a **ten se posouvá s každým fixem**, takže všechno kreslené v lokálním ENU
+  plave. Přesně to slibuje komentář u toho fallbacku; jen to nikdo nespojil s příznakem.
+- **Proč to bylo vidět až teď:** vrstva Zóny (přidaná týž den) se kreslí ze **zeměpisných**
+  souřadnic, takže jako jediná v tom pohledu neplave — a rozestup zóny od značky cíle je přímo ta
+  chyba počátku. Nová vrstva vadu nezpůsobila, **zviditelnila** ji.
+- **Hotovo:** `ARBotRuntime.MapMessage` se plní i ve View (odchyt z přehrávaného streamu ve
+  `WireView`). Ta vlastnost pro tohle vznikla a má to v komentáři — *„pohled otevřený až za běhu by
+  ji jinak neuviděl"* — jenže se plnila jen v Run, takže ve View ta záruka tiše neplatila; World
+  pohled si ji přitom už dřív vyzvedával. Navíc pohled **říká nahlas**, když jede na nouzovém
+  počátku: `⚠ BEZ MAPY: počátek z GPS, lokální vrstvy plavou`.
+- **Ověřeno:** build (x64 i OrangePI), sady 1488 / 125. ⚠️ **Scénář sám neověřen** — otevřít záznam
+  a k němu World pohled je klikání, které odsud nezautomatizuju. Test by musel zakládat singleton
+  runtime, což jiný test výslovně zakazuje (`HasCurrent is False`).
+- **Kontrola diagnózy bez přestavby:** ve staré verzi stačilo **seeknout** (`SeekTo` rekonstruuje
+  poslední zprávu na klíč, tedy i mapu) a všechno se srovnalo; krokování `Krok` ne, to stav
+  nerekonstruuje.
+- **Odkazy:** `Src/ARBot.Runtime/Robot/ARBotRuntime.cs` (`MapCapture`, `WireView`),
+  `Src/ARBot/ViewModels/WorldViewDocument.cs` (`BuildInfo`),
+  [world-view.md](world-view.md) (sekce „Ve View: mapa je v záznamu JEN JEDNOU").
+
+**Ověřeno na robotu: odpojení T265 výpadky D435 nespravilo — a hypotéza `CLEAR_HALT` padla.**
+Na dotaz autora, jestli se to odpojením zlepšilo. Žádná změna kódu, jen měření na zařízení.
+
+- **Zadání bylo dávno v plánu** ([hardware.md](hardware.md), krok 2 „běh bez T265"). T265 je
+  od 13. 9. večer fyzicky pryč (na sběrnici ani stopa), takže srovnání jde udělat přes hranici
+  dvou dnů na témž runtime a týchž dvou D435. Vše na stojícím robotu bez mise; normalizováno
+  na **dobu běhu služby**, ne na hodiny na hodinách.
+- ❌ **`CLEAR_HALT` se nezměnil: 7,39/min s T265 → 7,10 a 7,85/min bez ní.** Čekalo se 72× dolů.
+  Přepočteno na referenční okno 375 s to dá **~44** proti referenční **1** — ta dvojice čísel
+  tedy nepochází z naší zátěže a neporovnává se s ní.
+- ⚠️ **A hlavně: `CLEAR_HALT` u nás vůbec není podpis poruchy.** Teče **plynule 3–15 za minutu
+  v každé minutě** obou kamer, kdežto zamrznutí streamu přijde jednou za ~17 minut — událost
+  ~120× častější než porucha o poruše nic neříká. Jako měřidlo je **mrtvý**. Sedí k tomu, že
+  zbylá trojice z #9191 (`EP not empty`, `refuse reset`, `enqueue URB`) má za 2,9 h běhu **nula**
+  výskytů. **Poučení: než se podle čísla začne rozhodovat, změř ho i ve zdravém stavu** — tohle
+  se rok vedlo jako nejsilnější stopa, aniž kdo ověřil jeho klidovou hodnotu.
+- ❌ **Zamrzání streamu se nezměnilo:** 3,4/hod s T265 (19×) proti 3,6–4,2/hod bez ní (13×).
+  Přesně ta porucha, kvůli které se T265 podezřívala, tedy trvá dál.
+- ⚠️ **Tvrdé záseky klesly 2,3 → 1,4/hod, ale není to důkaz o USB:** 13. 9. si o zotavení říkala
+  35× **sama T265** a každé strhlo kontextem i obě zdravé D435 — ubylo tedy nejspíš vynucených
+  teardownů, ne rušení na sběrnici. Kód zotavení se navíc ten den několikrát měnil.
+- ✅ **Co se naopak potvrdilo, je PORT.** Všechny 4 dnešní záseky jsou `Right`, a ta sedí na
+  **`2-1.3`** — tedy na portu, kde bylo 13. 9. po prohození kamer 8 záseků z 8. **Bilance 12 z 12
+  na `2-1.3`.** Přiřazení portu ke kameře je změřené: během 3,5minutového výpadku `Left` chodil
+  `CLEAR_HALT` jen z `2-1.3` (kontrolní okno s oběma streamy 15 : 15).
+- ⚠️ **Nález mimo zadání: runtime pořád hledá odpojenou T265 ~1×/s** a na každý pokus zapíše
+  `QueryDevices selhalo: failed to set power state` — **7 829 řádků za 168 minut**. Zotavení to
+  naštěstí nespouští (`everConnected` je false), ale dotaz jde přes **sdílený zámek**
+  `RealSenseShared.Query`, tedy si každou sekundu sahá do cesty s oběma D435. Do journalu to
+  zároveň zahltí všechno ostatní.
+- ⚠️ **Druhý nález mimo zadání: SIGSEGV při `Stop()` je častý.** V reprodukčním testu (32 kol
+  volba mise → stop → restart) **12 pádů**, a v 21:36–21:39 se `restart counter` dostal na **4**
+  při systemd limitu **5** — tedy o jeden krok od `start-limit-hit`, po kterém `Restart=always`
+  službu už nevrátí (viz [headless.md](headless.md)).
+- **Rozpracováno / další krok:** už ne T265 ani backend/verze SDK, ale **fyzická větev `2-1.3`**
+  (kabel, port mimo hub, jiná větev hubu). Vedle toho zvážit `StartLimitBurst=0` a nezakládat
+  T265, když není na sběrnici.
+- ▶️ **Večer autor robota vypnul a kameru z `2-1.3` přepnul na volný port téhož hubu** — tedy
+  přesně ten další krok. Vyhodnotí se 15. 9. ⚠️ **Testuje to větev hubu, ne hub ani řadič**:
+  když zásek zůstane, je podezřelý celý hub `2-1` (nebo řadič `xhci-hcd.7.auto`, tedy OTG
+  `fc000000` přepnuté na host), ne jeden port.
+- **Připraveno pro zítřek, aby se nedohledávalo znovu** ([hardware.md](hardware.md)):
+  (a) **párování kamera ↔ USB sériové číslo** — v `/sys/…/serial` je jiné číslo než v logu
+  (`Left 740112071040` = `828313020627`, `Right 740112071021` = `828313020236`), takže po
+  přesazení jde port určit jedním příkazem místo oklikou přes výpadek pipeline;
+  (b) **prahy, kdy „zlepšilo se to" něco znamená** — při výchozích 1,4 záseku/hod je nula za
+  hodinu **bezcenná** (vyjde i beze změny ve čtvrtině případů), za 3 h už signál (p ≈ 1,5 %).
+  Měřit **čistý běh služby**, ne hodiny na hodinách.
+- **Odkazy:** [hardware.md](hardware.md) (sekce o `CLEAR_HALT` a test u robota),
+  [decisions.md](decisions.md) 13. 9. 2026 (rozhodnutí o odpojení).
+
+**Web arbot.cz na GitHub Pages: vzorce doplněné, přenos kompletní.**
+
+- **Autor dodal zdrojový LaTeX** vzorců, které se ze Sites přečíst nedaly (byly v cizím rámečku
+  a vodorovně oříznuté). Doplněno: podvozek **(9)–(13)** včetně dvou legend, detekce kraje
+  **(4), (5)**. Obě stránky jsou tím přenesené celé; poznámky „chybí vzorec" jsou pryč.
+- **Celá matematika je teď v jednom stylu** — `$$\begin{align}…\end{align}$$` s `\tag{n}`,
+  tedy **čísluje MathJax podle značek**, ne CSS. Čísla proto sedí na původní web a zdroj
+  v souboru zůstává čitelný LaTeX, který jde opravit textovým editorem.
+- ⚠️ **Dvě pasti, obě zaznamenané v `docs/README.md`, protože obě kously:**
+  (a) v konfiguraci MathJaxu musí být `inlineMath:[['\(','\)']]` se **dvěma** lomítky —
+  s jedním JavaScript escape sekvenci spolkne, delimiterem se stane `(` a **vzorce v textu se
+  vypíšou jako zdroj, zatímco blokové se sázejí**, což vypadá jako chyba v obsahu, ne v konfiguraci;
+  (b) zalomení řádku uvnitř `align` je `\` a při generování přes skript se snadno ztratí jedno
+  lomítko — řádky se pak slijí a `\tag` se rozhodí. Obojí chytne kontrola
+  `document.querySelectorAll('mjx-merror').length` v prohlížeči.
+- **Ověřeno v prohlížeči:** 24 vysázených výrazů na stránce o podvozku a 8 na detekci kraje,
+  **0 chyb MathJaxu**. Široké vzorce ((9) a (13)) se posouvají uvnitř svého bloku, stránka
+  se vodorovně neroluje.
+- ⚠️ **Druhá věc, kterou našel autor, ne já: na stránce *Verze* byly čtyři KARUSELY** a v přenosu
+  chyběly celé (30 fotek). Proč se přehlédly: v DOM je `<img>` jen šest, karuselové snímky jsou
+  `background-image` na **skrytých divech** (0 × 0), takže je nenajde ani dotaz na `img`, ani
+  doscrollování kvůli lazy-loadu. Najde je teprve průchod všech elementů přes
+  `getComputedStyle(el).backgroundImage`. *(Poučení: u Sites nestačí hledat `img` — obrázek tam
+  bývá pozadí.)*
+- ⚠️ **Velikost jde vzít jen tu, kterou Sites vygenerovalo**: URL je podepsaná i s parametrem,
+  takže `=w1600` nebo `=w1280` vrátí HTML chybovou stránku, kdežto `=w16383` z původního `srcset`
+  projde. Originály jsou 2048 × 1536.
+- **Na webu jsou z nich vodorovné pásy** (`<figure class="strip">`) — žádný JavaScript, jen
+  `overflow-x:auto` a `scroll-snap`; klik otevře plnou velikost. Náhledy (výška 460 px, JPEG q82,
+  Pillow) srazily 10,9 MB na **1,4 MB**; plné soubory se stahují až po kliknutí.
+- ⚠️ **Náhledy musí mít v HTML `width`/`height`** — bez nich `loading="lazy"` obrázky do načtení
+  nezaberou místo a pás se složí: naměřeno `scrollWidth` 615 px místo 1124, tedy tři čtvrtiny
+  fotek mimo. Po doplnění rozměrů drží všechny čtyři pásy šířku ještě před načtením.
+- **Vrátil se i odstavec „A jak to celé vypadá?"** — minule jsem ho vypustil právě proto, že za ním
+  žádný obrázek nebyl; byl to uvozující text k prvnímu karuselu.
+- ⚠️ **Na fotkách ze soutěže jsou lidé, včetně dítěte.** Jsou to autorovy vlastní snímky z jeho
+  vlastního veřejného webu, takže se přenesly beze změny — ale při přechodu na novou doménu
+  stojí za vědomé rozhodnutí, jestli tam mají být.
+- **Sjednocena šířka obsahu na 1040 px** (pokyn autora: text byl v užším sloupci než obrázky a pásy,
+  sjednotit na tu širší variantu). Mřížka v `site.css` má teď jedinou dráhu, `.wide` míří do téže
+  a `.full` zůstává výjimkou pro hlavičku a patičku. Ověřeno měřením přes `getBoundingClientRect`
+  na všech typech bloků (nadpis, odstavec, seznam, obrázek, pás, tabulka, karty, schéma,
+  hero, patička): všechny **173–1213 px**, stránka se vodorovně neroluje.
+- ⚠️ **Cena je délka řádku: ~104 znaků** proti typograficky pohodlným 55–65. Kompenzováno o stupeň
+  větším písmem (19 → 20 px) a prokladem 1,62 → 1,68; regulátory (šířka, velikost písma) jsou
+  popsané v `docs/README.md`, kdyby to bylo na čtení moc.
+- ✅ **Vedlejší zisk: vzorce (9) a (13) se přestaly rolovat** — v užším sloupci přetékaly a musely
+  se posouvat do stran, teď se všech pět bloků vejde.
+- **Obrázky menší než sloupec se nenatahují přes 2× nativního rozlišení** (jinak změknou); strop je
+  u obrázku jako `style="max-width:…"`. Zvláštní případ je snímek telefonu (600 × 1120) — přes celý
+  sloupec by byl 1,9 m vysoký, drží tedy nativních 600 px. Tabulka stropů je v `docs/README.md`.
+- **Web je natrvalo TMAVÝ na všech stránkách** (pokyn autora — chtěl černý podklad, jaký měla
+  stránka *Jak to funguje*). Ze `site.css` zmizel `@media (prefers-color-scheme)` i `[data-theme]`,
+  paleta je v jediném `:root` a `color-scheme:dark` přepne i posuvníky. Ověřeno s **emulací
+  světlého systému**: pozadí zůstane `rgb(14,18,16)`, text `rgb(230,234,228)`.
+- **Čtyři obrázky se kvůli tomu musely překreslit**, originály zůstávají v repu:
+  - tři čárové kresby k podvozku — převod do HSL a **obrácení jen světlosti** (odstín a sytost
+    zůstávají; prosté invertování RGB by převrátilo i barvy a světle modré tělo robota by zhnědlo).
+    Skript: `docs/nastroje/prekresli-na-tmave.py`.
+  - ⚠️ **První verze toho převodu byla vadná a našel to autor: „šikmé čáry mají špatný
+    antialiasing“.** Příčina: pozadí jsem na barvu stránky přemapoval **prahem** (`<6`), což useklo
+    přechodové pixely — u `podvozek-schema` zbylo z **16 865 pixelů měkkého okraje jen 256** (98 %
+    pryč) a část pixelů vyšla tmavší než pozadí, takže kolem čar seděl ještě tmavý lem. Léčba je
+    **spojité mapování světlosti** na rozsah `--ground` … `--ink`, bez jakéhokoli prahu; po opravě
+    je přechodových pixelů 16 883, tedy **100 % původních**, a nejtmavší pixel sedí na pozadí.
+    *(Poučení: u přebarvování obrázků je měřítkem počet přechodových pixelů, ne to, že pozadí
+    „sedí“.)* Kontrola je popsaná v `docs/README.md`.
+  - animovaný GIF s modelem robota **nešel invertovat** (žlutý robot by zmodral), takže se jen
+    přepsala paleta: krémové pozadí `(255,255,229)` na barvu stránky, robot beze změny.
+- ⚠️ **Tři pasti u toho GIFu:** (a) `int16` v numpy **přeteče** při počítání vzdálenosti barev
+  (255² = 65 025) a výběr položek palety tiše vyjde jako NaN; (b) **nestačí globální paleta** —
+  soubor má **72 lokálních palet**, jednu na snímek, takže po opravě jen globální byl první snímek
+  správně a zbytek krémový; (c) **PIL vykreslí i nedotčený originál jako barevnou změť**, protože
+  neskládá dílčí snímky — vypadá to jako by převod rozbil obrázek, a přitom je vadný jen ten náhled.
+  Rozhodčí je prohlížeč a invariant „v celém souboru nezbyla jediná krémová položka“ (0 z 12 288).
+  Paleta se proto přepisuje **přímo v bajtech souboru**; přeuložení přes PIL nafouklo 1,28 → 2,46 MB.
+- **Obrázky užší než sloupec se vystředí** (další pokyn autora). ⚠️ **Strop `max-width` musí být
+  na `<img>`, ne na `<figure>`:** s `margin:auto` na rámu se z něj stane shrink-to-fit blok a
+  obrázek se scvrkne na vlastní šířku místo na strop (naměřeno 193 px místo 420).
+- ✅ **A při tom se našla obecnější vada: `<img>` na webu neměly `width`/`height`.** Bez nich
+  `loading="lazy"` obrázek do načtení nezabere místo — u pásů se to projevilo už dřív, tady se
+  scvrkávaly i běžné rámy. Doplněno **všem 22 obrázkům** ze skutečných rozměrů souborů; layout je
+  teď správný ještě před načtením a stránka nepodskakuje.
+- ⚠️ **Přebarvování rastrů se ukázalo jako slepá ulička a autor to zastavil**: „furt to nevypadá
+  dobře“. Tři schémata na stránce o podvozku jsou teď **ručně psané inline SVG** (stejná technika
+  jako schémata na *Jak to funguje*) — barvy berou z palety, jsou ostrá v každém zvětšení a opraví
+  se textovým editorem. Světlé originály ze Sites zůstávají jako předloha, `-dark` varianty
+  a skript na přebarvování jsou smazané; přebarvuje se už jen animovaný GIF, kde kresba nepomůže.
+  Robot má ve všech schématech **tutéž značku** (čtverec + dvě čáry jako kola, kolmé na směr jízdy)
+  — na pokyn autora, ve druhém schématu kola nejdřív chyběla.
+- ⚠️ **Druhé schéma bylo geometricky nesmyslné a autor to zachytil dvakrát**: oblouk měl
+  představovat **otočení o 90°** a robot v kroku *k* měl mířit **nahoru**, ne doprava. Já měl
+  všechny čtyři roboty natočené stejně, takže oblouk vycházel z *k* kolmo na jeho vlastní směr
+  jízdy — tedy pohyb, který diferenciální podvozek neumí. Předloha to přitom ukazuje správně:
+  robot *k* má kola po **stranách** (míří nahoru), zbylé tři nad a pod (míří doprava).
+  Přepsáno s **počítanou** geometrií: `r = d/(π/2)`, takže délka oblouku přesně odpovídá ujeté
+  vzdálenosti `d` (kontrola v generátoru vyšla 268,0 proti zadaným 268), *a* leží `d` nad *k*,
+  *c* `d` vpravo a *b* v `(r, −r)`. *(Poučení: u schématu pohybu se dá orientace robotu odvodit
+  z toho, kam vychází dráha — tečna k dráze JE směr jízdy.)*
+  *(Poučení: u čárové kresby je levnější ji překreslit než převádět, a vyjde to líp.)*
+- ⚠️ **V prvním schématu jsem otočil robota na špatnou stranu a našel to autor.** Robot v kroku
+  *k+1* se točil **proti** směru hodinových ručiček, ačkoli jede doprava nahoru — tedy zatáčí
+  doprava. Ověřeno měřením přímo v původním obrázku (`podvozek-schema.png`): nejvyšší roh čtverce
+  leží **vlevo** od jeho středu a sklon levé hrany dá **23° po směru** hodinových ručiček; obě
+  zkoušky souhlasí a souhlasí i s fyzikou. Opraveno na `rotate(22)`, oblouk \(\omega\) i jeho
+  popisek přesunuty na druhou stranu. *(Poučení: u překreslovaného schématu se smysl otáčení dá
+  z předlohy ZMĚŘIT, není to věc dojmu — a ověřit se má i tím, že kresba dává fyzikálně smysl.)*
+- ✅ **Sečna vs. tečna je teď nakreslená POCTIVĚ.** Obrázek tvrdí, že mají skoro stejný sklon, tak
+  se ω volilo tak, aby to platilo i v nakreslené geometrii: rozdíl je **1,5 %** a to číslo je
+  v schématu napsané. První pokus měl ω větší, rozdíl 6,5 %, a čáry se viditelně rozbíhaly —
+  obrázek by mluvil proti vlastnímu popisku.
+- ✅ **Na stránku o podvozku přibyl závěr, který v původním odvození chyběl: „Směr je přesný,
+  chybuje jen délka.“** Autor si při kontrole obrázku všiml, že činitel `sin(ω/2)/(ω/2)` vychází
+  jak u rozdílu sklonů sečny a tečny, tak u chyby délky ve vztahu (13), a ptal se, jestli je to
+  totéž. Je — a vysvětluje to **jeden integrál**, dopsaný jako nový vztah **(14)**: průměr
+  jednotkového vektoru směru přes lineárně se otáčející úhel je
+  `sinc(ω/2)·(cos(α+ω/2), sin(α+ω/2))`.
+  - jeho **směr** je **přesně** α+ω/2 (ověřeno numericky na šest míst) — odtud „výpočet negeneruje
+    úhlovou chybu“ ve větách (10)–(12);
+  - jeho **velikost** je `sinc(ω/2)`, tedy o kolik je tětiva kratší než oblouk → vztah (13).
+  Obrázek se sečnou a tečnou a vztah (13) proto **nepopisují dvě chyby, ale tutéž**, jednou čtenou
+  přes složku vektoru a jednou přes jeho velikost. Jediná aproximace v (11) a (12) je, že se místo
+  délky tětivy dosadí délka oblouku `T_s·v_k`.
+- ⚠️ **Past v pojmech: ten činitel je poměr SKLONŮ, ne úhel mezi přímkami.** Poměr sklonů je
+  `sinc(ω/2)` přesně a **nezávisle na α** (ověřeno pro α = 0/20/40/60° na devět desetinných míst);
+  úhel je `arctan(m) − arctan(m·sinc)` pro `m = cos(α+ω/2)`, takže na α závisí, pro malá ω je
+  zhruba `m/(1+m²)·ω²/24`, nejvýš `ω²/48` — a za vrcholem dokonce mění znaménko. Pro ω = 8° je
+  nejvýš 0,023°. Na stránce je to jako orámovaná poznámka pod (14).
+- **Třetí schéma dotaženo podle připomínek autora** (sečna vs. tečna): popisek osy *x* pod osu,
+  svislice od bodů k ose **plnou** čarou, body α a α+ω dál od sebe a celé okno **posunuté doprava**
+  — tím se sklon zmenšil ze 46,6° na 29,0° a **kolmá** vzdálenost obou přímek vzrostla ze 7,3
+  na **10,8 px**, tedy o polovinu. Texty u přímek nahradila **značka rovnoběžnosti**: dvě svislé
+  čárky na každé přímce, na sečně posunuté podél ní doprava, aby bylo vidět, která dvojice patří
+  ke které přímce.
+- ⚠️ **Přímky jsou nakreslené PŘESNĚ rovnoběžně, ačkoli matematicky nejsou.** Sečna a tečna se liší
+  o činitel sin(ω/2)/(ω/2), při nakresleném ω tedy o 3,3 %. Druhá přímka se proto kreslí **sklonem
+  sečny skrz bod křivky v α+ω/2** — je tak rovnoběžná z konstrukce, dotýká se křivky v označeném
+  bodě, a od skutečné tečny se odchýlí o **0,57 px na 30 px délky**, což je pod rozlišením kresby.
+  Popisek ten činitel přiznává, takže obrázek nelže ani ve zjednodušení.
+- ⚠️ **Past, která zmršila popisky: `\alpha` v needitovaném Pythonu.** Generátor psal popisky do
+  běžného `u'''...'''`, takže `\a` Python spolkl jako řídicí znak BEL a do stránky šlo `\(lpha\)`
+  — MathJax hlásil „Math input error“. `\omega` přežilo jen náhodou (`\o` řídicí znak není), takže
+  to vypadalo, že je chyba jen u alfy. **Používej `r'''...'''`**; kontrola je
+  `document.querySelectorAll('mjx-merror').length` (po opravě 0 z 28 výrazů).
+- ⚠️ **GitHub Pages pořád nejsou zapnuté** a `CNAME` schválně nevzniklo — postup je
+  v `docs/README.md`. Do přepnutí domény **nerušit publikaci Google Sites**.
+
 ## 2026-09-13
 
 **Řídicí smyčka umí DRŽENÉ ZASTAVENÍ (`StopHold`)** — návrh autora, fáze 1 hotová.
@@ -308,6 +637,28 @@ prezentaci práce na webu.
   **Azure Static Web Apps** (2 vlastní domény + TLS), kdežto **App Service F1 vlastní doménu ani
   vlastní certifikát neumí** — je to častá záměna. Nejlevnější na údržbu by byl GitHub Pages,
   protože repo na GitHubu už je. Nic z toho se zatím neudělalo, jen zjistilo.
+- **Web arbot.cz převeden na GitHub Pages** (`docs/`) — autor zvolil GitHub Pages, doména se
+  přepne později. `docs/index.html` + `docs/pages/*.html` + `docs/assets/` (sdílené `site.css`,
+  obrázky); statické HTML bez frameworku a **s relativními odkazy**, takže web funguje jak na
+  `alesruda.github.io/ARBot3/`, tak na doméně. Zapnutí a DNS: `docs/README.md`.
+  **Soubor `CNAME` se schválně nezakládá** — jakmile vznikne, GitHub přesměruje adresu github.io
+  na vlastní doménu, a dokud není hotové DNS, není web dostupný nikde.
+- ⚠️ **Chyba v průzkumu, kterou našel autor:** pět ze sedmi stránek jsem ohlásil jako prázdné.
+  Nebyly — **Google Sites dolévá obsah až po načtení**, a já četl DOM hned po `navigate`, takže
+  se změnil jen titulek. Navíc obsah **není v `[role=main]`**. Správný postup: počkat,
+  doscrollovat (kvůli lazy-loadu obrázků) a číst `document.body`. Skutečný obsah: popisy čtyř
+  soutěží + tabulka výsledků 2009–2023, historie tří generací robota se 4 fotkami, dvě technické
+  stránky se vzorci a 3 obrázky, kontaktní údaje.
+- ⚠️ **Vzorce se přenést nedaly celé.** Jsou v blocích „vložený kód“, které Sites servíruje
+  v **cizím rámečku** (`googleusercontent.com`): zdroj se zvenčí přečíst nedá (všech pět embedů
+  na stránce sdílí jednu URL, obsah chodí přes `postMessage`) a v rámečku je navíc **vodorovně
+  oříznutý i na původním webu**. Přepsané do MathJaxu je to, co šlo přečíst celé: podvozek
+  **(1)–(8)**, detekce kraje **(1)–(3)**; na místě zbytku je v HTML červeně orámovaná poznámka.
+  Zdroj musí autor vytáhnout z editoru Sites — **do té doby nerušit publikaci Sites**, je to
+  jediný zdroj těch vzorců.
+- **Prezentace se přestěhovala** z `doc/prezentace.html` do `docs/pages/prezentace.html` (sdílí
+  sazbu se zbytkem webu). Obrázky webu jsou **kopie** z `doc/media/` v `docs/assets/img/`,
+  protože GitHub Pages servíruje jen to, co leží uvnitř `docs/`.
 
 ## 2026-09-12
 

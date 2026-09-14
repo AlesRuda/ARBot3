@@ -164,6 +164,19 @@ namespace ARBot.Robot
         /// </summary>
         public void Start(Mode mode, string file = null)
         {
+            // Hlidac zatuhnuti (14. 9. 2026). Arm je ZAMERNE pred zamkem: 14. 9. se runtime pri
+            // volbe mise ze stranky zasekl nekde uvnitr teto metody (v journalu dobehlo
+            // "corridor=false" a "mission=track" uz neprislo, pri beznych 5 ms mezi nimi) a stejne
+            // dobre se da zatuhnout uz na cekani na `gate`, kdyz ho drzi predchozi Start. Obojim
+            // pripadem zmlkne stranka, tedy jedine, co ma obsluha v terenu po ruce - proto si
+            // dukaz musi porídit robot sam. Viz HangWatchdog.
+            //
+            // Jen Run: WireView nad gigabajtovym zaznamem stavi index, takze tam je dlouhy start
+            // legitimni a hlidac by jen vyrabel falesne poplachy.
+            using var hlidac = mode == Mode.Run
+                ? HangWatchdog.Guard("Start(Run)", ParamRegistry.HangWatch.Value)
+                : null;
+
             lock (gate)
             {
                 if (running) Stop();
@@ -528,14 +541,24 @@ namespace ARBot.Robot
             // s ~1 MB obrazu). Viz doc/global-navigation-runtime.md.
             if (RoadNetwork != null && fusionConfig.GeoReference != null)
             {
+                var globalNavCfg = new GlobalNavigatorConfig
+                {
+                    // Polovina hrany occupancy gridu - aby globalni vrstva nemusela znat occupancy.
+                    LocalMapHalfExtentM = new OccupancyGridConfig().Size
+                                          * new OccupancyGridConfig().Resolution / 2.0,
+                    // Zona BEZNE mrkve. Dojezd do cile si polomer bere z dojezdoveho vzdy,
+                    // bez ohledu na tenhle parametr - viz GlobalNavigator.CarrotRadius().
+                    CarrotRadiusM = ParamRegistry.CarrotRadius.Value,
+                };
                 var globalNav = new GlobalNavigator(
-                    RoadNetwork, fusionConfig.GeoReference, navigator,
-                    new GlobalNavigatorConfig
-                    {
-                        // Polovina hrany occupancy gridu - aby globalni vrstva nemusela znat occupancy.
-                        LocalMapHalfExtentM = new OccupancyGridConfig().Size
-                                              * new OccupancyGridConfig().Resolution / 2.0,
-                    });
+                    RoadNetwork, fusionConfig.GeoReference, navigator, globalNavCfg);
+
+                // Do zaznamu, protoze to meni GEOMETRII jizdy: pri dojezdu se od 14. 9. 2026 miri
+                // do cilove zony, ne na presny stred. Bez tehle radky by se pri rozboru starsiho
+                // a novejsiho zaznamu nedalo poznat, ktera pravidla ktery beh mel.
+                Trace.WriteLine($"carrotradius={globalNavCfg.CarrotRadiusM:F2}: polomer bezne "
+                                + "(prujezdni) mrkve. Pri DOJEZDU do cile se misto nej pouzije "
+                                + $"dojezdovy polomer zmenseny o rezervu {globalNavCfg.ArrivalZoneMarginM:F2} m.");
 
                 GlobalNavigator = globalNav;
                 stages.Add(globalNav);
@@ -1023,6 +1046,25 @@ namespace ARBot.Robot
         /// null = bez mapy.
         /// </summary>
         public MapMsg MapMessage { get; private set; }
+
+        /// <summary>
+        /// Zachyti <see cref="MapMsg"/> z prehravaneho zaznamu do <see cref="MapMessage"/> — aby
+        /// ve View platila tataz zaruka jako v Run: „pohled otevreny az za behu mapu dostane".
+        ///
+        /// <para>Je to jen odchyt, nic se tu nekresli ani neprepocitava; <see cref="Post"/> chodi
+        /// z vlakna prehravace, takze se jen priradi reference (MapMsg se po vzniku nemeni).</para>
+        /// </summary>
+        private sealed class MapCapture : IMessageSink
+        {
+            private readonly ARBotRuntime rt;
+
+            public MapCapture(ARBotRuntime runtime) => rt = runtime;
+
+            public void Post(Message msg)
+            {
+                if (msg is MapMsg m) rt.MapMessage = m;
+            }
+        }
 
         /// <summary>
         /// Silnicni sit pro RENDER virtualnich kamer (parametr <c>visionmap=</c>). null = neni zadana,
@@ -2093,6 +2135,19 @@ namespace ARBot.Robot
 
             // Koren -> Stream (bez zpracovani).
             connections.Add(fileSource.Connect(stream));
+
+            // Mapa ze ZAZNAMU do MapMessage (14. 9. 2026). Ta vlastnost existuje presne proto, aby
+            // ji dostal i pohled otevreny AZ ZA BEHU (Stream zpravy neprehrava) - jenze plnila se
+            // jen v Run z nactene mapy, takze ve View ta zaruka tise neplatila.
+            //
+            // ⚠️ A stalo to presne to, co slibuje komentar u BuildGeoReference: v zaznamu je
+            // MapMsg JEDINA (na zacatku), OpenRecord World pohled neotevira, takze kdo si ho
+            // otevrel rucne, mapu uz nikdy nedostal. Bez mapy spadne pocatek lokalni ENU roviny na
+            // nouzovou variantu dopoctenou z GPS fixu - a ta se posouva s KAZDYM fixem, takze
+            // trasa, occupancy, plan i znacky ve World pohledu PLAVOU. Hlasilo se to jako tri
+            // ruzne vady ("nevidim mapu", "trasa se hybe", "cil nesedi na zonu"), a byla to jedna.
+            MapMessage = null;   // novy zaznam muze mit jinou mapu, nebo zadnou
+            connections.Add(stream.Connect(new MapCapture(this)));
 
             // Ve View se prehrava rovnou; navigacni nastroj muze prepnout na Paused + Seek.
             fileSource.Start();

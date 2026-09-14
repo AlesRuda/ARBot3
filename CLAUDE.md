@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 78 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 81 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -141,6 +141,21 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     zařízení a start po skutečném rebootu.** ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň
     otevřený *RealSense Viewer* (souvislost není prokázaná, jen časově sedí) — `CrashLog` nativní
     pád nezachytí.
+  - **Od 14. 9. 2026 hlídač zatuhnutí** (`hangwatch=`, výchozí 20 s): `HangWatchdog` je sourozenec
+    `CrashLog` — ten chytá pád, tenhle operaci, která **neskončila vůbec**. `Start(Mode.Run)` je jím
+    obalený a po vypršení jde do `Trace` hlášení a vedle něj **minidump** do `logs/hang-*.dmp` se
+    zásobníky všech vláken. Vzniklo z toho, že 14. 9. runtime při volbě mise ze stránky **zatuhl
+    uvnitř `Start()`** (v journalu doběhlo `corridor=false`, `mission=track` už ne, při běžných 5 ms
+    mezi nimi), proces žil dál, ale stránka umlkla — a **dohledávat to odkazem na stránce nejde**,
+    protože ta je právě to, co chybí; v terénu je u robota jen mobil, takže si důkaz musí pořídit
+    robot sám. Arm je **před zámkem** (zatuhnout jde i na čekání na `gate`) a **jen pro `Run`**
+    (`WireView` staví index nad gigabajty, tam je dlouhý start legitimní). ⚠️ **Neléčí to nic**, jen
+    zapisuje důkaz; ⚠️ **na zařízení neběželo**. `hangwatch=0` vrací staré chování.
+  - ⚠️ **Služba se po PĚTI restartech v pěti minutách vzdá** (systemd `StartLimitBurst=5` /
+    `StartLimitIntervalUSec=5min`): šestý start skončí `start-limit-hit`, jednotka zůstane `failed`
+    a **`Restart=always` ji už nevrátí** — robot je mrtvý do ručního `systemctl reset-failed`. Našlo
+    se to 14. 9. 2026 na reprodukčním testu, ale v provozu je to horší: crash loop (a dvě SIGSEGV
+    při `Stop()` téhož dne říkají, že to není hypotéza) odstaví robota v terénu **trvale**.
 - [doc/decisions.md](doc/decisions.md) — **deník rozhodnutí** (proč jsme co udělali); sem patří
   netriviální rozhodnutí, která se nedají vyčíst z kódu. Přidávej nová nahoru.
 - [doc/devlog.md](doc/devlog.md) — **DevLog / deníček vývoje** (co se dělo den po dni);
@@ -368,13 +383,21 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
   ⚠️ **Výpadky D435 za provozu jsou cizí, Intelem NEVYŘEŠENÝ problém** (rešerše 11. 9. 2026) —
   naše léčba (detekce + zbourání pipeline + reconnect) je to, k čemu ve vláknech všichni dojdou.
-  Nejsilnější stopa ležela rok nevyužitá v našich vlastních datech: po přidání **T265** vyskočí
-  `CLEAR_HALT` **z 1 na ~72**, a `USBDEVFS_CLEAR_HALT` je právě dmesg podpis té poruchy.
-  Propustnost (13–18 % USB3) ani VN100/GPS na témž hubu to **nejsou** — spočítáno.
-  **U robota se jako PRVNÍ dělá `lsusb -t` a běh bez T265**; do té doby se nesahá na backend ani
-  na verzi SDK ([decisions.md](doc/decisions.md)). Padly přitom dva omyly: „T265 odebrán ve 2.50+"
-  (je až ve **2.54.1**, 2.50 je poslední *validovaná*) a „z RSUSB nemůžeme kvůli T265" (**není UVC
-  zařízení**, jde přes `src/tm2` nad libusb v obou backendech). **Nic z toho neběželo na HW.**
+  Propustnost (13–18 % USB3) ani VN100/GPS na témž hubu to **nejsou** — spočítáno. Padly přitom
+  dva omyly: „T265 odebrán ve 2.50+" (je až ve **2.54.1**, 2.50 je poslední *validovaná*) a
+  „z RSUSB nemůžeme kvůli T265" (**není UVC zařízení**, jde přes `src/tm2` nad libusb v obou
+  backendech).
+  ❌ **Hypotéza „`CLEAR_HALT` 1 → ~72 kvůli T265" je 14. 9. 2026 VYVRÁCENÁ na zařízení**, a s ní
+  padl i plán sahat kvůli ní na backend nebo verzi SDK: bez T265 je `CLEAR_HALT` **stejný**
+  (7,39 → 7,10–7,85 za minutu) a **zamrzání streamu D435 taky** (3,4 → 3,6–4,2 za hodinu).
+  ⚠️ **`CLEAR_HALT` navíc není podpis poruchy, ale šum** — teče 3–15 za minutu v *každé* minutě,
+  kdežto porucha přijde jednou za ~17 minut; jako měřidlo je mrtvý. *(Poučení: klidovou hodnotu
+  měř dřív, než podle čísla začneš rozhodovat.)*
+  ✅ **Podezřelým je teď fyzická větev `2-1.3`** — **12 tvrdých záseků z 12** na tom portu, ať na
+  něm visí kterákoli kamera (kamery se 13. 9. schválně prohodily). Další krok je kabel/port, ne
+  software. ⚠️ Runtime přitom odpojenou T265 **hledá dál ~1×/s** (7 829 chybových řádků za
+  168 min, přes sdílený zámek RealSense) — neškodí, ale zahlcuje journal.
+  Podrobnosti a tabulky: [hardware.md](doc/hardware.md), [decisions.md](doc/decisions.md).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
@@ -506,6 +529,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (OSM online / MBTiles offline / žádný — offline-first na OrangePI) a vypínatelnými vrstvami dat ze
   streamu (poloha+kurz, trajektorie, trasa/graf, značky) + vrstva „Mapa (vize)" mimo stream
   (`visionmap=`, viz [doc/virtual-hw.md](doc/virtual-hw.md)).
+  ✅ **Od 14. 9. 2026 i vrstva „Zóny"** — místa mise (jinak cíl navigace) jako kružnice o **dojezdovém
+  poloměru**. Půdorys stránky náhledu je kreslil od 12. 9., ale v Avalonii vidět nebyly, protože ta
+  logika seděla uvnitř `WebStatus`; teď je v `ARBot.Common/Rendering/GoalZones.cs` a oba pohledy ji
+  berou odtud (opsat ji podruhé by znamenalo opsat i pravidla „kreslí se PŘICHYCENÉ místo" a „zdroje
+  se nemíchají", která si na sebe už došlápla). ⚠️ **Poloměr se přepočítává na Web Mercator**
+  (`1/cos(lat)`, +55 %), jinak by kružnice byla o třetinu menší než zóna. ⚠️ **Ke kružnici patří
+  značka ve středu**: kružnice je v metrech, takže při běžném zoomu (1,5 m/px) má poloměr 3 m
+  **3 pixely** a ztratí se — první pokus vypadal, jako by se zóny nekreslily vůbec. Ověřeno
+  v běžící aplikaci v simulaci.
 - [doc/occupancy-and-local-planning.md](doc/occupancy-and-local-planning.md) — kartézský occupancy grid
   (fúze sjízdnosti z hloubky + z RGB, log-odds, kruhový buffer) a lokální plánování cesty nad ním
   (odstupy od překážek, rychlostní obálka, A\* → `RegulatorWayPoint[]`) + `LocalNavigator` jako vyšší
@@ -570,6 +602,24 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   jen buňky bez vzorku (mají slabý, ne žádný), žádat rozhodnutého souseda (je jen v 17,3 %),
   poloviční důvěra (sousedé jsou sami těsně pod prahem), práh 0,5 m (16–20 % zastavení je blíž)
   a čistě úhlový klín (ve 0,35 m je užší než buňka). Každou opravu hlídá test.
+  ✅ **Od 14. 9. 2026 je cíl A\* ZÓNA, ne bod** (`carrotradius=`, výchozí 0 = průjezdní mrkev je
+  bod). Cílem byla jediná buňka, takže mrkev v trávě nebo těsně u překážky byla nedosažitelná
+  **jako celek**: plán skončil na nejbližší bezpečné buňce, stav `GoalBlocked` a robot tam
+  **zastavil a čekal**, ačkoli jiná část cílové zóny dosažitelná byla. Naměřeno nad
+  `20260914-170945.rec`: `GoalBlocked` **24 %** a `GoalUnsafe` **19 %** plánů, mrkev nedosažitelná
+  v **52 %** plánů (p90 rozdílu **2,52 m**) — a kde rozdíl vyskočil, robot ujel **0,1–0,6 m za 10 s**
+  místo 8–9 m; k prvnímu bodu trasy tak jel 44 m **9,5 minuty**. A\* vrací **první vytaženou** buňku
+  zóny, tedy tu **nejlevnější na dojetí** (podle svého kritéria — času), ne geometricky nejbližší:
+  ta může ležet **za** překážkou, kvůli které je střed nedosažitelný. ⚠️ **Heuristika se proto musí
+  měřit k OKRAJI zóny** (`max(0, d − R)`) — jinak je `h > 0` i na cílových buňkách, pořadí vytahování
+  přestane odpovídat ceně a vrátí se dražší bod, což vypadá jako *tiše horší dráha*, ne jako chyba.
+  **Poloměr je vlastnost CÍLE, ne plánovače**: průjezdní mrkev je bod, ale **při dojezdu** se použije
+  **dojezdový poloměr** zmenšený o rezervu `ArrivalZoneMarginM` (0,5 m) a o odstup mrkve od cíle —
+  jinak by robot zastavil uvnitř zóny mrkve, ale **vně** zóny dojezdu a `Arrived` by nenastalo nikdy
+  (táž past jako u nepřichycených bodů Tracku). ⚠️ Neprůjezdná **celá** zóna zůstává `GoalBlocked`,
+  aby mrkev ve zdi nevypadala jako dojezd. ⚠️ **Není to lék na špatnou mapu** — `Blocked` buněk bylo
+  v témže záznamu p50 27,7 % (max 51,0 %) při rozbitém kurzu, takže část „nedosažitelnosti" může být
+  chyba gridu, kterou zóna zakryje. ⚠️ **Na HW neběželo** (12 testů).
   ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
   gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),
   pak přeměřit.

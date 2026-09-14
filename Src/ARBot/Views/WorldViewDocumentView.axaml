@@ -77,6 +77,8 @@
                           ToolTip.Tip="Mapa z parametru visionmap=, ze které renderují virtuální kamery (oranžově).&#10;Rozestup od fialové navigační sítě = záměrně zavedená chyba mapy.&#10;Bez parametru je vrstva prázdná."/>
                 <CheckBox Content="Trasa / graf" IsChecked="{Binding ShowRoute}" Foreground="White"/>
                 <CheckBox Content="Značky" IsChecked="{Binding ShowMarkers}" Foreground="White"/>
+                <CheckBox Content="Zóny" IsChecked="{Binding ShowZones}" Foreground="White"
+                          ToolTip.Tip="Místa, která mají být dosažena, jako kružnice o DOJEZDOVÉM POLOMĚRU —&#10;tedy jak blízko se robot musí dostat, aby se dojezd ohlásil.&#10;Aktivní zóna plnou čarou, ostatní čárkovaně.&#10;&#10;Zdrojem jsou místa mise (mission=track / robotour), a teprve když mise&#10;žádná nemá, cíl globální navigace. Oba zdroje najednou se nekreslí:&#10;cíl navigace je totéž místo PŘICHYCENÉ na síť cest, takže by vedle sebe&#10;vyšly dvě kružnice pár metrů od sebe.&#10;&#10;U mise Track se kreslí místo přichycené na síť — to je to, kam robot&#10;opravdu jede a proti čemu se měří dojezd."/>
                 <CheckBox Content="Lokální mapa" IsChecked="{Binding ShowOccupancy}" Foreground="White"
                           ToolTip.Tip="Akumulovaná sjízdnost okolo robota (occupancy grid)"/>
                 <CheckBox Content="Lokální plán" IsChecked="{Binding ShowPlan}" Foreground="White"

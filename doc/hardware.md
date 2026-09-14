@@ -118,7 +118,32 @@ librealsense napříč verzemi 2.35–2.50 ([#9191](https://github.com/IntelReal
 #9191 je otevřená, bez root cause, s jediným doporučením „restart aplikace". Naše léčba
 (detekce + zbourání pipeline + reconnect) je přesně to, k čemu ve vláknech všichni dojdou.
 
-#### Nejsilnější stopa je naše vlastní měření: `CLEAR_HALT` 1 → ~72 po přidání T265
+#### ❌ Hypotéza `CLEAR_HALT` 1 → ~72 je VYVRÁCENÁ měřením (14. 9. 2026)
+
+**Odpojení T265 na `CLEAR_HALT` nesáhlo.** Přímé srovnání na zařízení, týž runtime, tytéž dvě
+D435, normalizované na dobu běhu služby:
+
+| boot | T265 | běh služby | `CLEAR_HALT` | **za minutu** |
+|---|---|---|---|---|
+| 13. 9. 15:56–21:32 | **ano** | 335,4 min | 2477 | **7,39** |
+| 14. 9. 16:42–17:25 | ne | 42,4 min | 333 | **7,85** |
+| 14. 9. 19:20–22:14 | ne | 168,2 min | 1195 | **7,10** |
+
+Čekalo se 72× dolů; naměřeno **7,4 → 7,1**, tedy nic. Přepočteno na referenční okno 375 s vychází
+bez T265 **~44 událostí**, kdežto referenční hodnota je **1**. Ta sedmdesátka nebyla způsobená
+T265 — obě čísla (1 i 72) pocházejí z jiné zátěže než z našeho runtime, takže se s ním
+neporovnávají.
+
+⚠️ **A hlavně: `CLEAR_HALT` u nás NENÍ podpis poruchy, je to šum.** Teče **plynule 3–15 za minutu
+v každé minutě** (obě kamery, endpointy 0x82 i 0x84), zatímco zamrznutí streamu přijde jednou za
+~17 minut. Událost, která nastane ~120× častěji než porucha, o poruše nic neříká — jako měřidlo
+je tedy `CLEAR_HALT` **mrtvý** a nemá smysl podle něj nic dalšího rozhodovat. Sedí k tomu i to, že
+**chybí celá zbylá trojice z #9191** (`EP not empty`, `refuse reset`, `Can't enqueue URB`):
+za 2,9 hodiny běhu **nula výskytů**.
+
+<details>
+<summary>Původní znění hypotézy (ponecháno kvůli dohledatelnosti)</summary>
+
 
 V [POSTUP.md](../OrangePi5Ultra/POSTUP.md) je z 1. 9. 2026 změřeno, že dvě D435 na jednom hubu
 jedou **375 s na 30/30 fps bez timeoutu**, ale po přidání T265 vyskočí `CLEAR_HALT` **z 1 na ~72**
@@ -129,6 +154,8 @@ je přesně dmesg podpis poruchy z #9191/#5412** (chodí ve trojici s `EP not em
 a `Can't enqueue URB while manually clearing toggle`; u nás v dmesg 31. 8. 2026 u zaseknuté pravé
 D435). Souběh s T265 tedy **stejnou třídu chyby zmnožuje 72×**. Je to zatím nejsilnější vodítko
 k [zamrzlému barevnému streamu](#-pravá-d435-zamrzlý-barevný-stream-6-9-2026-neuzavřeno) výš.
+
+</details>
 
 #### Propustnost to není — spočítáno
 
@@ -181,15 +208,73 @@ jediné, co tam zabralo, byl vynucený pád na USB 2.0. ⚠️ Je to **jiná kam
 důkaz o řadiči, ne o RealSense. Pro nás je podstatné, že jeden z našich USB3-A portů je **OTG řadič
 `fc000000` přepnutý overlayem `dwc3-host`** (viz POSTUP.md krok 1) — a ten nález míří přesně na DWC3.
 
-#### Plán testu u robota (v tomhle pořadí, první dva jsou zadarmo)
+#### ✅ Test u robota PROVEDEN (14. 9. 2026) — T265 výpadky D435 nezpůsobovala
 
-1. **`lsusb -t`** — sdílí T265 řadič s hubem? Na RK3588 má každý USB3 port USB2 companion, takže
-   „samostatný port" ještě neznamená samostatný řadič. Když T265 vyjde na jiném čísle sběrnice než
-   hub, je oddělená doopravdy; když na témž, máme vysvětlení té sedmdesátky.
-2. **Běh bez T265** (stačí odpojit), sledovat `CLEAR_HALT` v `dmesg`. Reference je změřená:
-   **1 bez ní, ~72 s ní**. Když výpadky zmizí, je rozhodnutí o T265, ne o backendu ani verzi.
-3. Teprve pak backend nebo verze — a **do vyjasnění bodů 1–2 se do nich nesmí jít**, viz
-   [decisions.md](decisions.md), 11. 9. 2026.
+Kroky 1 a 2 plánu jsou odbyté. `lsusb -t`: obě D435 visí na hubu `2-1` pod jedním řadičem
+(`xhci-hcd.7.auto`, tedy OTG `fc000000` přepnutý na host), VN100 a GPS jdou po **jiné sběrnici**
+(`bus 001`, USB2 root hub) — sdílenou linku s kamerami tedy nemají.
+
+Změřeno přes hranici odpojení T265 (13. 9. večer), vše na stojícím robotu bez mise,
+normalizované na dobu běhu služby:
+
+| | s T265 (13. 9.) | bez T265 (14. 9.) |
+|---|---|---|
+| běh služby | 335,4 min | 210,6 min (dva boty) |
+| `CLEAR_HALT` / min | 7,39 | 7,10–7,85 |
+| **zamrznutí streamu / hod** | **3,4** (19×) | **3,6–4,2** (13×) |
+| tvrdé záseky / hod | 2,3 (13×: Left 8, Right 5) | 1,4 (4×: **jen Right**) |
+
+- **Zamrzání streamu se nezměnilo vůbec** (3,4 → 3,6–4,2 za hodinu). To je ta porucha, kvůli které
+  se T265 podezřívala, a ta odpojením nezmizela.
+- **Tvrdé záseky** (`failed to set power state` → recyklace kontextu) klesly z 2,3 na 1,4 za hodinu.
+  ⚠️ **Není to důkaz o USB:** 13. 9. si o zotavení říkala **sama T265** 35×, a protože kontext
+  sdílejí všechny kamery, každé takové zotavení strhlo obě D435 dolů — teardown navíc je právě to,
+  z čeho zásek vzniká. Ubylo tedy nejspíš **vynucených teardownů**, ne rušení na sběrnici.
+  Navíc se ten den několikrát měnil kód zotavení, takže se čísla srovnávají jen orientačně.
+- ✅ **Podezření na PORT se naopak potvrdilo.** Všechny 4 dnešní záseky jsou na `Right`, a ta sedí
+  na portu **`2-1.3`** — tedy na tom, na kterém bylo 13. 9. po prohození kamer 8 záseků z 8.
+  Bilance je teď **12 z 12 na `2-1.3`**, ať na něm visí kterákoli kamera. Přiřazení portu ke kameře
+  je změřené, ne odvozené: během 3,5minutového výpadku `Left` chodil `CLEAR_HALT` **jen z `2-1.3`**
+  (kontrolní okno se streamem obou kamer má 15 : 15).
+- **Další krok:** už ne T265 ani backend/verze SDK, ale **fyzická větev `2-1.3`** — vyměnit kabel,
+  přesadit kameru na port mimo hub, případně jinou větev hubu.
+  ▶️ **Uděláno 14. 9. 2026 večer:** autor robota vypnul a kameru z `2-1.3` přepnul na **volný port
+  téhož hubu**. Vyhodnotit 15. 9.
+
+#### Párování kamera ↔ USB sériové číslo (kvůli přesazování na jiné porty)
+
+Čísla portů se přepnutím kabelu mění, takže bilance záseků „na portu X" se po každém přesazení
+musí navázat znovu. Kamera se pozná z `/sys/bus/usb/devices/<port>/serial` — ⚠️ **jenže tam je
+JINÉ číslo, než jakým se kamera hlásí v logu** (USB deskriptor proti sériovému číslu z
+librealsense). Dvojice jsou změřené 14. 9. 2026:
+
+| v logu (librealsense) | `/sys/…/serial` (USB) | port 14. 9. |
+|---|---|---|
+| `Left 740112071040` | `828313020627` | `2-1.2` |
+| `Right 740112071021` | `828313020236` | `2-1.3` ← přesazena |
+
+Sloupec s portem platí jen k tomu datu; první dva jsou trvalé. Zjištění portu pak je:
+
+```bash
+for d in /sys/bus/usb/devices/2-1.*; do echo -n "$d: "; cat $d/serial 2>/dev/null; done
+```
+
+*(Přiřazení se poprvé muselo dobývat oklikou — během výpadku jedné pipeline chodil `CLEAR_HALT`
+jen z jednoho portu. Díky téhle tabulce už to podruhé potřeba není.)*
+
+#### Kolik běhu je potřeba, aby „zlepšilo se to" něco znamenalo
+
+Výchozí míry bez T265 (14. 9.): **tvrdý zásek 1,4/hod**, **zamrznutí streamu 3,6–4,2/hod**.
+Z toho plyne, co je a co není důkaz — při 1,4/hod:
+
+| čistý běh | čekaný počet záseků | „nula" znamená |
+|---|---|---|
+| 1 h | 1,4 | **nic** (i beze změny vyjde nula ve čtvrtině případů) |
+| 3 h | 4,2 | slušný signál (p ≈ 1,5 %) |
+| 5 h | 7 | přesvědčivé (p ≈ 0,1 %) |
+
+⚠️ **Měř čistý běh služby, ne hodiny na hodinách** — restarty a reprodukční testy dobu běhu
+krátí a bez normalizace vyjde zlepšení tam, kde jen kratší dobu běželo.
 
 ✅ **Driver od 11. 9. 2026 hlásí typ USB linky** (`UsbLinkCheck` v `ARBot.HAL`, obě platformy,
 14 testů). Do té doby se z `Device.Info` četlo jen `SerialNumber` a `Name`, takže kamera naběhlá na

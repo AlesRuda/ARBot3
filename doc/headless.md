@@ -108,6 +108,57 @@ Zámek souboru, ne pidfile: .NET to na Unixu mapuje na `flock`, takže **padá s
 tvrdém zabití nezůstane viset. Do souboru se píše PID a čas — je to forenzní údaj, za běhu ho
 `FileShare.None` nepustí přečíst.
 
+### Hlídač zatuhnutí (`hangwatch=`, od 14. 9. 2026)
+
+`HangWatchdog` je **sourozenec `CrashLog`**: ten zachytí pád (operaci, která skončila špatně),
+tohle ten opak — operaci, která **neskončila vůbec**. `ARBotRuntime.Start(Mode.Run)` je obalený
+`HangWatchdog.Guard("Start(Run)", hangwatch)`; když se do `hangwatch` sekund nevrátí, jde do
+`Trace` (tedy do journalu i do záznamu) hlášení a vedle něj **minidump procesu** do
+`<dataroot>/logs/hang-*.dmp`, ve kterém jsou zásobníky všech vláken.
+
+⚠️ **Nic to neléčí ani neodblokuje** — jen zapíše důkaz. Zatuhlá operace zůstane zatuhlá.
+
+**Proč zrovna takhle.** 14. 9. 2026 se runtime při volbě mise ze stránky zasekl uvnitř `Start()`:
+v journalu doběhlo `corridor=false` a `mission=track` **už nikdy nepřišlo**, ačkoli mezi nimi je
+běžně 5 ms (naměřeno na témž záznamu o dvě kola dřív). Proces žil dál — vlákno kamery logovalo
+ještě dvě minuty — ale **stránka přestala odpovídat**, takže obsluha neměla jak zjistit cokoli víc
+a robota vypnula; tím zmizel i stav, ze kterého by to šlo přečíst. Dohledávat to **odkazem na
+stránce nejde**: stránka je přesně to, co při zatuhnutí chybí. V terénu je u robota často jen
+mobil, takže jediné, co pomůže, je aby si důkaz **pořídil robot sám**.
+
+Tři rozhodnutí, která z toho plynou:
+
+- **Arm je před zámkem**, ne uvnitř: zatuhnout se dá i na čekání na `gate`, když ho drží předchozí
+  `Start`, a navenek to vypadá úplně stejně.
+- **Jen `Run`**, ne `View`: `WireView` staví index nad gigabajtovým záznamem, takže tam je dlouhý
+  start legitimní a hlídač by vyráběl falešné poplachy.
+- **Výchozích 20 s je o řády víc než měřená skutečnost** (desítky ms). Hlídač má chytat zatuhnutí,
+  ne pomalost — falešný poplach stojí minidump a řádek v journalu, který příští pátrání svede ze
+  stopy. Když operace nakonec doběhne, hlídač to **dopíše** („nakonec dobehlo po N s"), aby po ní
+  nezůstalo viset obvinění. `hangwatch=0` vrací přesně dosavadní chování.
+
+Dump je **minidump** (`createdump -n`), ne plný core: zásobníky a moduly jsou to, kvůli čemu se
+sbírá, a plný core procesu s běžně 5+ GB (page cache záznamu) by se sbíral minuty a vozil špatně.
+`createdump` se bere z `RuntimeEnvironment.GetRuntimeDirectory()`, takže o něj nasazení nemusí
+pečovat. ⚠️ **Na systémech s `yama`** (`/proc/sys/kernel/yama/ptrace_scope ≥ 1`) si potomek nesmí
+vzít `ptrace` na rodiče a dump nevznikne — Orange Pi yama nemá (ověřeno 14. 9. 2026), jinde by to
+chtělo `prctl(PR_SET_PTRACER)`, který odsud nezavoláme. Selhání se hlásí, netiší.
+
+⚠️ **Na zařízení hlídač zatím neběžel** — ověřeno buildem a 10 testy (`HangWatchdogTests`).
+
+### ⚠️ Služba se po pěti restartech v pěti minutách vzdá
+
+Jednotka má systemd výchozí `StartLimitBurst=5` / `StartLimitIntervalUSec=5min` (`RestartUSec=5s`).
+Šestý start v tom okně skončí `Start request repeated too quickly` → `start-limit-hit` a služba
+zůstane ve stavu **`failed`** — tedy **`Restart=always` ji už nevrátí** a robot je mrtvý až do
+ručního `systemctl reset-failed arbot && systemctl start arbot` (nebo rebootu).
+
+Našlo se to 14. 9. 2026 tím, že to zabilo reprodukční test, ne v provozu — ale **v provozu je to
+horší**: crash loop (a dvě SIGSEGV při `Stop()` téhož dne ukazují, že to není hypotéza) robota
+v terénu **trvale odstaví**, a jediné, co obsluha uvidí, je mrtvá stránka. Zvážit `StartLimitBurst=0`
+(bez limitu) nebo delší `RestartSec`; limit má smysl proti nekonečné smyčce, ale u robota, který se
+bez služby neumí ani ohlásit, je léčba horší než nemoc.
+
 ## Spuštění
 
 Build / publish (z Windows):
