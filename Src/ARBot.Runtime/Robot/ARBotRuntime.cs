@@ -668,9 +668,17 @@ namespace ARBot.Robot
                     Trace.WriteLine("corridorsend=false: koridor se pocita a hlasi zpravou, "
                                     + "ale do fuze neposila nic.");
 
+                // Odtlumeni (corridorstd= / corridorheadingstd= / corridorhz=): vychozi 0 = dnesni
+                // chovani. Sigmy se skladaji KVADRATICKY s tou z prolozeni, skrceni omezuje jen
+                // POSILANI do fuze (zprava chodi dal v plne kadenci, at jde prahy proladit ze
+                // zaznamu). Viz doc/map-correlation-localization.md.
+                double corridorHz = ParamRegistry.CorridorHz.Value;
                 var corridorCfg = new ARBot.Common.Localization.CorridorLocalizerConfig
                 {
                     SendCorrections = send,
+                    SigmaLateralExtraM = ParamRegistry.CorridorStd.Value,
+                    SigmaHeadingExtraRad = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingStd.Value),
+                    MinSendPeriodSec = corridorHz > 0 ? 1.0 / corridorHz : 0,
                 };
 
                 // Prah inlieru RANSACu: corridortol=konstanta,prirustekNaMetr. Vzdalena hranice je

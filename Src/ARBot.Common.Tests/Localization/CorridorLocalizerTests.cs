@@ -74,11 +74,21 @@ public class CorridorLocalizerTests
                 new CameraFrame { Name = "Right", TimeStamp = t.AddMilliseconds(20), PathEdges = r });
     }
 
+    /// <summary>
+    /// Stupen nad rovnou cestou sirky <paramref name="mapWidth"/>.
+    ///
+    /// <para><b>Odhad sirky se tu usadi hned prvnim merenim</b> (<c>MinSamples = 1</c>): testy
+    /// v tomhle souboru zkoumaji ostatni brany a retez do fuze, ne rozjezd odhadu sirky.
+    /// Ten ma vlastni soubor <c>CorridorWidthTrustTests</c> - a prave proto, aby se ta dve
+    /// nemichala, se tady vypina.</para>
+    /// </summary>
     private static CorridorLocalizer Localizer(AsyncFusionEngine engine, double mapWidth = 4.0,
                                                CorridorLocalizerConfig cfg = null)
     {
         var origin = CorrelationTestScenes.Origin();
         var net = CorrelationTestScenes.StraightEastRoad(origin, mapWidth);
+        cfg ??= new CorridorLocalizerConfig();
+        cfg.WidthEstimator.MinSamples = 1;
         return new CorridorLocalizer(engine, net, origin, cfg);
     }
 
@@ -237,20 +247,9 @@ public class CorridorLocalizerTests
         Assert.That(loc.EmittedCorrections, Is.Zero);
     }
 
-    [Test]
-    public void NesouhlasSirky_seNepusti()
-    {
-        // Mapa rika 4 m, kamera vidi 2 m -> prolozila se jina dvojice hranic, ne ta cesta.
-        var loc = Localizer(EngineAt(0, 0, 0), mapWidth: 4.0,
-                            cfg: new CorridorLocalizerConfig { MaxWidthDisagreementM = 0.5 });
-        var (left, right) = Frames(width: 2.0, lateral: 0, dirRad: 0, t: T0);
-
-        loc.Process(left);
-        var fix = loc.Process(right);
-
-        Assert.That(fix, Is.Null);
-        Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.WidthDisagreement));
-    }
+    // Sirkovou branu (drive "NesouhlasSirky_seNepusti") drzi od 15. 9. 2026 CorridorWidthTrustTests:
+    // plati az od chvile, kdy ma odhad sirky KVALITU, takze se neda ukazat na jedinem cyklu -
+    // dva nesouhlasne vzorky totiz spravne davaji "nevim" (WidthNotTrusted), ne "nesouhlasi".
 
     [Test]
     public void SirkaSeUciZMereni()
@@ -266,7 +265,8 @@ public class CorridorLocalizerTests
         }
 
         Assert.That(loc.Widths.Count, Is.EqualTo(1));
-        double w = loc.Widths.Estimate(1, 4.0);
+        Assert.That(loc.Widths.TryGetWidth(1, out double w), Is.True,
+                    "po dvaceti konzistentnich merenich uz odhad kvalitu mit MA");
         Assert.That(w, Is.LessThan(4.0), "odhad se musi hnout k merene sirce");
         Assert.That(w, Is.EqualTo(3.6).Within(0.3));
     }

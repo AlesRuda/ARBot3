@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 81 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 84 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -705,10 +705,34 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   na vnuceném biasu 3,0° — ten drift znovu vyrábí rychleji, než ho příčná korekce stahuje.
   „Pomohly korekce?" **nelze měřit nad posunutou mapou** (tam je správné odejít od pravdy o posun
   mapy) — musí být `visionmap` = `map` a skutečný drift.
-  Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°, **korekce kurzu je ve fúzi bezmocná**
-  (IMU kompas ji přehlasuje ~200:1 a soft gating ji u velkých chyb udusí, naměřeno 22. 8. 2026).
+  Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°.
+  ⚠️ ~~**korekce kurzu je ve fúzi bezmocná** (IMU kompas ji přehlasuje ~200:1)~~ — **to už
+  NEPLATÍ** (15. 9. 2026). Bylo to naměřené 22. 8. 2026, tedy **před** `imuheadingstd=5`
+  a `imuheadinghz=1` z 12. 9.; poměr informace se tím překlopil z **kompas 220 : 1 nad koridorem**
+  na **koridor ~150–1000 : 1 nad kompasem**, tedy o pět řádů. Koridor je jediná reference kurzu
+  **bez magnetického biasu**, ale zamyká kurz na **azimut OSM hrany** — chyba mapy jde 1:1 do kurzu
+  robotu. *(Je to výpočet z dokumentovaných σ a kadencí, ne měření; reprodukuje ale obě dřívější
+  publikovaná čísla.)*
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
+  ✅ **Od 15. 9. 2026 jde odtlumit jako GPS a kompas** (`corridorstd=` [m], `corridorheadingstd=`
+  [°], `corridorhz=` [Hz]; sigmy **kvadraticky**, škrtí se **jen posílání**, ne výpočet — zpráva
+  chodí dál, aby šly prahy proladit offline). **Výchozí 0 = dnešní chování schválně:** u
+  `imuheadingstd` je default 5°, protože ten bias byl změřený, kdežto **dekorelační čas koridoru
+  změřený není**.
+  ✅ **A odemkl se rozjezd odhadu šířky.** Šířková brána se ptala na **mapovou** šířku dřív, než se
+  filtr měl z čeho naučit — na cestě širší než `roadwidth ± 1,5 m` se první měření nepřijalo
+  **nikdy** a hrana zůstala **němá navždy**. `OSM/Hviezdoslavova.osm` přitom nemá **ani jeden** tag
+  `width`, takže celá síť má 3 m: na vozovce by koridor nezměřil nic a v reportu by to vypadalo
+  jako porucha detektoru. Léčba: `RoadWidthEstimator` (okno + **medián** + verdikt kvality z **MAD**)
+  běží **bez brány** a sám řekne „nevím"; brána i posílání platí **až od kvality**
+  (`CorridorFixReason.WidthNotTrusted`). ⚠️ Padlo tím i zdůvodnění u `WidthUpdateMaxDisagreementM`:
+  **šířka na póze nezávisí vůbec** (`Width = cL − cR` v rámci robotu), takže kvalitu měř **shodou
+  měření mezi sebou**, ne shodou s mapou — a podmiňovat učení pózou by vyrobilo týž zámek.
+  `RoadWidthFilter` zůstává, dokud se nová cesta neprověří na datech. ⚠️ **Na HW neběželo nic.**
+  **Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridor=true`,
+  `corridorsend=false`, `measdiag=Corridor`): plná zátěž, nulový vliv na řízení. Důvod je
+  spočítaný — s `gpsposstd=30` by příčná autorita koridoru byla řádu **10⁵–10⁶ : 1**.
   „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*
   šířky, ne proti mapě, a jde o jeho zaostávání na cestě, která se skutečně rozšiřuje; proti mapě
   kamera souhlasí na centimetry. **Delší rovná testovací mapa hotová 24. 8. 2026**

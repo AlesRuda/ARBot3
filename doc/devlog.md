@@ -37,6 +37,76 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-15
+
+- **Zadání (teoretická otázka autora):** *co se stane, když se v současném nastavení zapnou korekce
+  podle koridoru?* Rozbor z dokumentovaných σ a kadencí našel tři věci, které se do kódu propsaly.
+
+- **Nález 1 — tvrzení „korekce kurzu je ve fúzi bezmocná" už NEPLATÍ.** Bylo naměřené 22. 8. 2026,
+  tedy **před** `imuheadingstd=5` a `imuheadinghz=1` z 12. 9. Poměr informace `f/σ²` se překlopil
+  z **kompas 220 : 1 nad koridorem** na **koridor ~150–1000 : 1 nad kompasem** — o pět řádů.
+  Metoda reprodukuje obě dřívější publikovaná čísla (35 : 1 u korelace, ~200 : 1 u kurzu), takže
+  sedí; samotný závěr je ale **výpočet, ne měření**. Opraveno v `CLAUDE.md`
+  i [map-correlation-localization.md](map-correlation-localization.md).
+
+- **Nález 2 — šířková brána koridoru se ptala dřív, než se bylo z čeho učit.** Porovnání
+  s `widths.Estimate(...)` běželo **před** `widths.Update(...)`, a `Estimate` vrací při prvním
+  kontaktu s hranou **mapovou** šířku — tedy u cest bez tagu `width` jen default `roadwidth=` (3 m).
+  Na cestě širší než 4,5 m se první měření nepřijalo **nikdy**, filtr se nezaložil a hrana zůstala
+  **němá navždy**. `OSM/Hviezdoslavova.osm` nemá **ani jeden** tag `width` (412 way), takže na
+  vozovce by koridor nezměřil nic — a v `ARBot.Analyze corridor` by to vypadalo jako porucha
+  detektoru (`WidthDisagreement`), ne jako zámek v pořadí bran.
+
+- **Hotovo — `RoadWidthEstimator` (odhad šířky s verdiktem kvality).** Na podnět autora
+  („neměl by ten odhad běžet bez filtru šířky a řešit kvalitu odhadu?") — a jeho rozdělení bylo
+  lepší než původně navržené *medián z prvních N*, protože to je pořád **lepkavé**. Estimátor běží
+  **bez brány**, drží okno posledních měření, polohu bere **mediánem** a kvalitu z **MAD**; dokud
+  si měření nesednou, řekne „nevím" (`CorridorFixReason.WidthNotTrusted`) a do fúze se neposílá nic.
+  Ze špatného začátku se sám opraví — to starý `RoadWidthFilter` neumí.
+  ⚠️ **Padlo tím zdůvodnění u `WidthUpdateMaxDisagreementM`:** šířka je `Width = cL − cR` v rámci
+  robotu, takže **na póze nezávisí vůbec** a chyba pózy se do ní dostat nemůže. Kvalitu proto měř
+  **shodou měření mezi sebou**, ne shodou s mapou — a podmiňovat učení pózou na 0,3 m by vyrobilo
+  **týž zámek**, který se odstraňoval. `RoadWidthFilter` i jeho testy zůstávají (pravidlo
+  o migracích), jen je `CorridorLocalizer` nepoužívá.
+
+- **Hotovo — odtlumení koridoru: `corridorstd=` / `corridorheadingstd=` / `corridorhz=`.** Táž
+  léčba a týž důvod jako `gpsposstd` u GPS a `imuheadingstd` + `imuheadinghz` u kompasu: koridor
+  měří snímek co snímek **týž fyzický okraj cesty**, takže jeho chyba je časově korelovaná.
+  Sigmy se skládají **kvadraticky**, škrtí se **jen posílání** (ne výpočet — `RoadCorridorMsg`
+  chodí dál v plné kadenci, aby šly prahy proladit offline ze záznamu), kvótu spotřebuje **jen
+  úspěšné odeslání** a skok času vzad škrcení resetuje. **Výchozí 0 = dnešní chování schválně**:
+  u `imuheadingstd` je default 5°, protože ten bias byl změřený, kdežto **dekorelační čas koridoru
+  změřený není** — nenulový default by byl odhad vydávaný za znalost.
+
+- **Hotovo — `config/pi-provoz.cfg` v měřicím režimu:** `corridor=true`, `corridorsend=false`,
+  `measdiag=Corridor`. Plná zátěž, plná diagnostika do záznamu, **nulový vliv na řízení**; důvod je
+  spočítaný — s `gpsposstd=30` (GPS má 400× méně informace) by příčná autorita koridoru byla řádu
+  **10⁵–10⁶ : 1**. Odtlumovací parametry jsou v profilu **zakomentované**: nastaví se z prvního
+  záznamu, ne odhadem.
+
+- **Ověření:** `dotnet build` celého řešení a testy pod `x64` — **1499 / 105 / 125** zelených
+  (24 nových: 9 estimátor, 7 důvěra v šířku, 7 odtlumení, plus úpravy stávajících).
+  ⚠️ **Na zařízení neběželo nic.** Dva stávající testy se musely přepsat, protože popisovaly
+  právě to chování, které se opravuje; `NesouhlasSirky_seNepusti` se přesunul do
+  `CorridorWidthTrustTests` — na jediném cyklu se už vyjádřit nedá, protože dva nesouhlasné vzorky
+  správně dávají „nevím", ne „nesouhlasí".
+
+- **Rozpracováno / další krok:** pořídit **měřicí jízdu** a nad záznamem pustit
+  `ARBot.Analyze corridor` — rozpad `FixReason` (platí předpověď, že převládne `WidthNotTrusted`
+  nebo `WidthDisagreement`?), skutečná kadence a σ na reálném asfaltu, a z posloupnosti `Width`
+  **doladit prahy kvality i škrcení offline**. Teprve potom `corridorsend=true`. Otevřené zůstává
+  i to, co se vědomě odložilo: **zápis naučené šířky zpátky do mapy** (dnes ji vidí jen vlastní
+  brány koridoru — ne `RoadScene`, ne kreslení, nepřežije restart) — vlastní spec, mimo jiné kvůli
+  tomu, že `RoadScene` se staví i pro **virtuální kameru**, takže by se simulace začala dívat na
+  vlastní odhad.
+
+- **Odkazy:** `Src/ARBot.Common/Localization/{RoadWidthEstimator,RoadWidthEstimatorConfig,
+  CorridorLocalizer,CorridorLocalizerConfig}.cs`, `Src/ARBot.Common/Configuration/{ParamRegistry,
+  ParamParsers}.cs`, `Src/ARBot.Runtime/Robot/ARBotRuntime.cs`, `config/pi-provoz.cfg`,
+  `Src/ARBot.Common.Tests/Localization/{RoadWidthEstimatorTests,CorridorWidthTrustTests,
+  CorridorDeweightTests}.cs`; [map-correlation-localization.md](map-correlation-localization.md),
+  sekce „Šířka cesty: odhad s verdiktem kvality" a „Odtlumení koridoru".
+
 ## 2026-09-14
 
 **Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí (`HangWatchdog`).** Rozbor dvou záznamů

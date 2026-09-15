@@ -42,6 +42,16 @@ namespace ARBot.Common.Localization
         /// nema co opravovat.
         /// </summary>
         OutsideCorridor = 8,
+
+        /// <summary>
+        /// <b>Odhad sirky teto hrany jeste nema kvalitu</b> — merení je zatim malo, nebo si
+        /// navzajem nesednou (viz <see cref="RoadWidthEstimator"/>).
+        ///
+        /// <para>Merenie se proto <b>neposila</b>: bez duveryhodne sirky nechyti „prolozila se
+        /// jina dvojice hranic" <b>nic</b>. Koridor se pritom pocita dal a do odhadu prispiva —
+        /// je to rozjezd, ne porucha, a vyresi se sam za jednotky sekund.</para>
+        /// </summary>
+        WidthNotTrusted = 9,
     }
 
     /// <summary>
@@ -66,7 +76,7 @@ namespace ARBot.Common.Localization
         private readonly RoadNetwork network;
         private readonly GeoReference origin;
         private readonly CorridorLocalizerConfig config;
-        private readonly RoadWidthFilter widths;
+        private readonly RoadWidthEstimator widths;
 
         /// <summary>Mapove nezavisly zdroj koridoru — parovani kamer, kompenzace, prolozeni.</summary>
         private readonly CorridorSource source;
@@ -82,20 +92,30 @@ namespace ARBot.Common.Localization
             this.origin = origin ?? throw new ArgumentNullException(nameof(origin));
             this.config = config ?? new CorridorLocalizerConfig();
             source = new CorridorSource(engine, this.config);
-            widths = new RoadWidthFilter(this.config.WidthFilterAlpha);
+            widths = new RoadWidthEstimator(this.config.WidthEstimator);
         }
 
         /// <summary>Nastaveni, se kterym stupen pracuje.</summary>
         public CorridorLocalizerConfig Config => config;
 
         /// <summary>Odhady sirky cest - vedlejsi produkt merení.</summary>
-        public RoadWidthFilter Widths => widths;
+        public RoadWidthEstimator Widths => widths;
 
         /// <summary>Kolik snimku vstoupilo.</summary>
         public long Frames { get; private set; }
 
         /// <summary>Kolik merenii se poslalo do fuze.</summary>
         public long EmittedCorrections { get; private set; }
+
+        /// <summary>
+        /// DIAGNOSTIKA: kolik hotovych merenii se zahodilo kvuli
+        /// <see cref="CorridorLocalizerConfig.MinSendPeriodSec"/>. Bez tohohle cisla by skrceni
+        /// vypadalo jako porucha detektoru.
+        /// </summary>
+        public long ThrottledSends { get; private set; }
+
+        /// <summary>Cas posledniho ODESLANI do fuze (skrceni kadence).</summary>
+        private DateTime posledniOdeslani;
 
         /// <summary>Posledni vysledek (i neuspesny) - pro telemetrii.</summary>
         public CorridorFix LastFix { get; private set; }
@@ -150,17 +170,12 @@ namespace ARBot.Common.Localization
             }
 
             fix.Axis = axis;
-            fix.MapWidthM = widths.Estimate(axis.WayId, axis.WidthM);
             fix.LateralDisagreement = corridor.Lateral - axis.Lateral;
             fix.HeadingDisagreementRad = corridor.DirectionRad - axis.HeadingRelRad;
-            fix.WidthDisagreement = corridor.Width - fix.MapWidthM;
 
-            if (Math.Abs(fix.WidthDisagreement) > config.MaxWidthDisagreementM)
-            {
-                fix.Reason = CorridorFixReason.WidthDisagreement;
-                LastFix = fix;
-                return null;
-            }
+            // PRICNY nesouhlas se posuzuje PRVNI a je na sirce nezavisly - rika „jsem vubec na
+            // teto ceste?". Nad stropem uz neni jiste ani to, ke KTERE hrane merenie patri,
+            // takze se z nej nesmi ucit ani sirka (spatne prirazeni, ne spatna sirka).
             if (Math.Abs(fix.LateralDisagreement) > config.MaxLateralDisagreementM)
             {
                 fix.Reason = CorridorFixReason.LateralDisagreement;
@@ -168,11 +183,39 @@ namespace ARBot.Common.Localization
                 return null;
             }
 
-            // Sirka se uci jen z cyklu, kde poza sedi (jinak by se do ni zapsala chyba pozy).
-            if (Math.Abs(fix.LateralDisagreement) <= config.WidthUpdateMaxDisagreementM)
-                fix.FilteredWidthM = widths.Update(axis.WayId, corridor.Width);
-            else
-                fix.FilteredWidthM = fix.MapWidthM;
+            // Odhad sirky bezi BEZ sirkove brany - jinak by se nemel z ceho naucit (viz nize).
+            //
+            // ⚠️ Zamerne to NENI podmineno WidthUpdateMaxDisagreementM: sirka je rozdil offsetu
+            // dvou primek v RAMCI ROBOTU (CorridorFinder: Width = cL − cR), takze na poze nezavisi
+            // a chyba pozy se do ni dostat nemuze. Podminovat ji shodou s pozou na 0,3 m by
+            // vyrobilo TYZ zamek, ktery se tu prave odstranuje: pri chybe pozy 0,6 m by se odhad
+            // nezalozil nikdy. Viz RoadWidthEstimator a doc/map-correlation-localization.md.
+            widths.Add(axis.WayId, corridor.Width);
+
+            // Sirkova brana plati AZ od chvile, kdy ma odhad kvalitu.
+            //
+            // ⚠️ Do 15. 9. 2026 se brana ptala na MAPOVOU sirku uz v prvnim cyklu, tedy DRIV, nez
+            // se filtr mel z ceho naucit - na ceste sirsi nez roadwidth ± MaxWidthDisagreementM
+            // se proto prvni merenie neprijalo NIKDY, filtr se nezalozil a hrana zustala nema
+            // navzdy. Mapova sirka uz proto referenci brany neni; dokud odhad nema kvalitu,
+            // brana NEPLATI (neni s cim nesouhlasit) a merenie se neposila.
+            bool trusted = widths.TryGetWidth(axis.WayId, out double estimate);
+            fix.MapWidthM = trusted ? estimate : axis.WidthM;
+            fix.FilteredWidthM = widths.RawEstimate(axis.WayId, axis.WidthM);
+            fix.WidthDisagreement = corridor.Width - fix.MapWidthM;
+
+            if (!trusted)
+            {
+                fix.Reason = CorridorFixReason.WidthNotTrusted;
+                LastFix = fix;
+                return null;
+            }
+            if (Math.Abs(fix.WidthDisagreement) > config.MaxWidthDisagreementM)
+            {
+                fix.Reason = CorridorFixReason.WidthDisagreement;
+                LastFix = fix;
+                return null;
+            }
 
             fix.Reason = CorridorFixReason.Ok;
             if (config.SendCorrections) Send(fix);
@@ -205,13 +248,16 @@ namespace ARBot.Common.Localization
         /// </summary>
         private void Send(CorridorFix fix)
         {
+            if (!VydatMerenie(fix.Time)) { ThrottledSends++; return; }
+
             double gate = Gating.ChiSquareThreshold(1);
             var a = fix.Axis;
             var c = fix.Corridor;
 
             double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + c.Lateral;
             engine.Enqueue(new AxisOffsetMeasurement(a.NormalX, a.NormalY, value,
-                                                     c.SigmaLateral, fix.Time, config.MeasurementSource)
+                                                     Nafoukni(c.SigmaLateral, config.SigmaLateralExtraM),
+                                                     fix.Time, config.MeasurementSource)
             { GateThreshold = gate, GateMode = config.GateMode });
             EmittedCorrections++;
             fix.EmittedLateral = true;
@@ -220,12 +266,47 @@ namespace ARBot.Common.Localization
             {
                 // θ_edge = kurz robotu + relativni sklon hrany; θ_true = θ_edge − smer koridoru.
                 double edgeDir = fix.PoseTheta + a.HeadingRelRad;
-                engine.Enqueue(new HeadingMeasurement(edgeDir - c.DirectionRad, c.SigmaDirectionRad,
+                engine.Enqueue(new HeadingMeasurement(edgeDir - c.DirectionRad,
+                                                      Nafoukni(c.SigmaDirectionRad, config.SigmaHeadingExtraRad),
                                                       fix.Time, config.MeasurementSource)
                 { GateThreshold = gate, GateMode = config.GateMode });
                 EmittedCorrections++;
                 fix.EmittedHeading = true;
             }
+        }
+
+        /// <summary>
+        /// Sigma do fuze: co rika prolozeni, <b>slozene kvadraticky</b> s prirazkem z konfigurace.
+        /// Prirazek 0 vraci presne starou hodnotu (A/B).
+        ///
+        /// <para>⚠️ <b>Ve zprave zustava sigma z PROLOZENI</b>, nafouknuta jde jen do fuze.
+        /// <c>RoadCorridorMsg</c> je meritko estimatoru; kdyby v ni byla nafouknuta hodnota,
+        /// <c>ARBot.Analyze corridor</c> by prestal merit estimator a zacal merit konfiguraci.
+        /// Odeslana sigma je ze zaznamu dopocitatelna - ucinna konfigurace je v nem od 5. 9. 2026.</para>
+        /// </summary>
+        private static double Nafoukni(double sigma, double prirazek)
+            => prirazek > 0 ? Math.Sqrt(sigma * sigma + prirazek * prirazek) : sigma;
+
+        /// <summary>
+        /// <b>Ma se z tohohle cyklu vydat merenie?</b> Skrceni na
+        /// <see cref="CorridorLocalizerConfig.MinSendPeriodSec"/>; 0 = kazdy cyklus.
+        ///
+        /// <para><b>Skok casu vzad</b> (seek pri prehravani, novy zaznam) skrceni RESETUJE - jinak
+        /// by se po skoku dozadu neposlalo uz nic. Tataz past je okomentovana
+        /// u <c>MapCorrelator.Process</c>.</para>
+        /// </summary>
+        private bool VydatMerenie(DateTime t)
+        {
+            double perioda = config.MinSendPeriodSec;
+            if (!(perioda > 0)) return true;
+            if (posledniOdeslani == default || t < posledniOdeslani)
+            {
+                posledniOdeslani = t;
+                return true;
+            }
+            if ((t - posledniOdeslani).TotalSeconds + 1e-9 < perioda) return false;
+            posledniOdeslani = t;
+            return true;
         }
 
         /// <inheritdoc/>

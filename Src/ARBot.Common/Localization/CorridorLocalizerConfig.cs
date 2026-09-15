@@ -69,10 +69,20 @@ namespace ARBot.Common.Localization
         public double MaxLateralDisagreementM = 1.5;
 
         /// <summary>
-        /// Strop na nesouhlas sirky proti mape (nebo odhadu filtru) [m]. Vetsi rozdil znamena, ze
-        /// se prolozila jina dvojice hranic, ne ta cesta.
+        /// Strop na nesouhlas sirky proti <b>odhadu</b> [m]. Vetsi rozdil znamena, ze se prolozila
+        /// jina dvojice hranic, ne ta cesta.
+        ///
+        /// <para>⚠️ <b>Plati az od chvile, kdy ma odhad KVALITU</b> (<see cref="RoadWidthEstimator"/>).
+        /// Do 15. 9. 2026 se brana ptala na <b>mapovou</b> sirku uz v prvnim cyklu, tedy drív, nez
+        /// se filtr mel z ceho naucit - a protoze mapova sirka je u cest bez tagu <c>width</c>
+        /// jen default <c>roadwidth=</c> (3 m), na ceste sirsi nez 4,5 m se prvni merenie neprijalo
+        /// NIKDY, filtr se nezalozil a hrana zustala <b>nema navzdy</b>. Mapova sirka uz proto
+        /// referenci brany neni.</para>
         /// </summary>
         public double MaxWidthDisagreementM = 1.5;
+
+        /// <summary>Nastaveni odhadu sirky cest (okno, minimum vzorku, strop rozptylu).</summary>
+        public RoadWidthEstimatorConfig WidthEstimator = new RoadWidthEstimatorConfig();
 
         /// <summary>Nad timto odstupem pozy od hrany se hrana nebere za „tu, po ktere jedeme" [m].</summary>
         public double MaxEdgeDistanceM = 8.0;
@@ -89,17 +99,74 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double MaxOutsideCorridorM = 0.5;
 
-        /// <summary>Vaha noveho merenia ve filtru sirky (viz <see cref="RoadWidthFilter"/>).</summary>
+        /// <summary>
+        /// Vaha noveho merenia ve filtru sirky (viz <see cref="RoadWidthFilter"/>).
+        /// <para>⚠️ <b>Od 15. 9. 2026 se nepouziva</b> — sirku odhaduje <see cref="RoadWidthEstimator"/>
+        /// (okno + median), ne exponencialni prumer. Pole i <c>RoadWidthFilter</c> zustavaji,
+        /// dokud se nova cesta neproveri na datech ze zarizeni.</para>
+        /// </summary>
         public double WidthFilterAlpha = 0.05;
 
         /// <summary>
-        /// Aktualizovat sirku jen kdyz je nesouhlas pricne polohy pod timto prahem [m] — jinak by
-        /// se do sirky zapisovala chyba pozy a ta by se sama utvrzovala.
+        /// Aktualizovat sirku jen kdyz je nesouhlas pricne polohy pod timto prahem [m].
+        ///
+        /// <para>⚠️ <b>Od 15. 9. 2026 se nepouziva.</b> Puvodni zduvodneni („jinak by se do sirky
+        /// zapisovala chyba pozy a ta by se sama utvrzovala") je <b>nepresne</b>: sirka je rozdil
+        /// offsetu dvou primek v ramci robotu (<c>CorridorFinder</c>: <c>Width = cL − cR</c>),
+        /// takze pozu nepouziva vubec a chyba pozy se do ni dostat nemuze. Co velky pricny
+        /// nesouhlas signalizuje, je <b>spatne prolozeni</b> nebo spatne prirazeni k hrane — a na
+        /// to staci <see cref="MaxLateralDisagreementM"/>, pod kterym se odhad uci. Podminovat
+        /// uceni na 0,3 m by navic vyrobilo tyz zamek, ktery se odstranoval: pri chybe pozy 0,6 m
+        /// by se odhad nezalozil nikdy. Drzi to <c>CorridorWidthTrustTests</c>.</para>
         /// </summary>
         public double WidthUpdateMaxDisagreementM = 0.3;
 
         /// <summary>Jmeno zdroje merenii ve fuzi a v diagnostice.</summary>
         public string MeasurementSource = "Corridor";
+
+        // --- Odtlumeni: nafouknuti sigmy a skrceni kadence -----------------------------------
+        //
+        // Tataz lecba a tyz duvod jako gpsposstd u GPS a imuheadingstd + imuheadinghz u kompasu:
+        // filtr bere merenia za NEZAVISLA, jenze koridor meri snimek co snimek TYZ fyzicky okraj
+        // cesty (tyz stin, tyz obrubnik, tataz trava), takze jeho chyba je casove korelovana
+        // a sto odectu nese informaci mnohem mensiho poctu.
+        //
+        // ⚠️ Dekorelacni cas koridoru ZMERENY NENI. U plosne korelace vysel ~3 s (odtud
+        // MapCorrelatorConfig.MinPeriod) a u kompasu τ ≳ 600 s (odtud imuheadinghz). Tyhle tri
+        // hodnoty existuji proto, aby to slo z dat NASTAVIT, az bude zaznam - ne aby se hadalo.
+        //
+        // Vychozi je vsude 0 = dnesni chovani. U imuheadingstd je default 5°, protoze ten bias byl
+        // zmereny; tady zmereneho neni nic, takze nenulovy default by byl prave to, co si projekt
+        // jinde vycita. Viz doc/map-correlation-localization.md.
+
+        /// <summary>
+        /// Prirazek k sigme <b>pricne polohy</b> [m]; sklada se <b>kvadraticky</b> s tou
+        /// z prolozeni. 0 = zadne nafouknuti (stare chovani pro A/B).
+        ///
+        /// <para><b>Kvadraticky, ne maximem:</b> kdyz vyskoci sigma z reziduí, ma vysledna sigma
+        /// rust dal - stejne jako u <c>CompassHeadingStdFloor</c>.</para>
+        /// </summary>
+        public double SigmaLateralExtraM = 0;
+
+        /// <summary>
+        /// Prirazek k sigme <b>kurzu</b> [rad]; sklada se kvadraticky s tou z prolozeni.
+        /// 0 = zadne nafouknuti.
+        /// </summary>
+        public double SigmaHeadingExtraRad = 0;
+
+        /// <summary>
+        /// Nejmensi odstup mezi <b>odeslanimi</b> do fuze [s]; 0 = neomezeno (kazdy cyklus).
+        ///
+        /// <para>⚠️ <b>Skrti se jen POSILANI, ne vypocet</b> — na rozdil od
+        /// <c>MapCorrelatorConfig.MinPeriod</c>, ktery skrti cely cyklus, protoze stoji cele jadro.
+        /// Koridor stoji zlomek milisekundy a <c>RoadCorridorMsg</c> je to cenne: chodi dal v plne
+        /// kadenci, takze <c>ARBot.Analyze corridor</c> ani A/B pres <c>corridorsend=</c> nic
+        /// neztrati - a hlavne jde odhad kvality i prahy skrceni proladit offline ze zaznamu.</para>
+        ///
+        /// <para>⚠️ <b>Kvotu spotrebuje jen USPESNE odeslani.</b> Kdyby ji sebral i cyklus shozeny
+        /// na jine brane, koridor by mlcel tim vic, cim hur mu to jde.</para>
+        /// </summary>
+        public double MinSendPeriodSec = 0;
 
         /// <summary>Posilat i korekci kurzu?</summary>
         public bool SendHeading = true;
