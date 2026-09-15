@@ -44,7 +44,8 @@ namespace ARBot.Analyze
         /// <summary>Délka okna, na kterém se porovnává přírůstek yaw s integrálem gyra [s].</summary>
         private const double WindowS = 1.0;
 
-        public static void Run(RecordFile rec, double bRefG, double refInclinationDeg)
+        public static void Run(RecordFile rec, double bRefG, double refInclinationDeg,
+                               double camWinSec = 3.0, double camDeadSec = 0.5)
         {
             var s = new List<Sample>();
             var speed = new List<(double T, double V)>();
@@ -112,6 +113,7 @@ namespace ARBot.Analyze
             MagFeedbackByDeviation(okna, bRefG, refInclinationDeg);
             StandingDrift(s, field, speed);
             MotorInterference(s, motor);
+            CameraInterference(rec, s, t0, camWinSec, camDeadSec);
         }
 
         /// <summary>Blok 1 — co senzor tvrdi o vlastni presnosti (YprU).</summary>
@@ -627,6 +629,130 @@ namespace ARBot.Analyze
 
             /// <summary>Sklon pole na okne, SKLOPENY gravitaci [deg]; <c>NaN</c> bez zrychleni.</summary>
             public double InclDeg;
+        }
+
+        /// <summary>
+        /// <b>Blok 5 — je pole vázané na kamery, resp. na jejich kabely?</b>
+        ///
+        /// <para><b>Nač to je.</b> Když se mezi dvěma dny změní kurz o desítky stupňů a jediné, co se
+        /// na robotu hnulo, jsou <b>kabely ke kamerám</b>, je to hypotéza, kterou záznam umí rozhodnout:
+        /// kabel vede <b>proud</b>, a ten teče teprve, když kamera běží. Nahrávání začíná dřív, než
+        /// se D435 připojí (řádově jednotky sekund), takže v každém záznamu je kousek pole <b>bez
+        /// proudu v kabelech</b> — a při výpadku kamery a jejím zotavení další.</para>
+        ///
+        /// <para><b>Měří se vektor v tělese, ne <c>|B|</c>.</b> Magnetometr hlásí pole v rámci robotu,
+        /// takže při nehybném robotu je zemská složka konstantní a rozdíl středních vektorů před a po
+        /// přechodu je <b>přímo příspěvek kabelu</b>. <c>|B|</c> by na to bylo slepé tam, kde je ten
+        /// příspěvek kolmý na pole, a hlavně se plete s kurzem (blok 2b: η² = 0,93).</para>
+        ///
+        /// <para>⚠️ <b>Záměna s otáčením je tady ta hlavní past</b>, proto se ke každému přechodu tiskne
+        /// i změna atitudy. Když se robot mezi okny otočil, číslo neplatí — a řádek je proto označený.
+        /// Nejdůvěryhodnější je <b>první přechod po startu</b>: robot tehdy stojí a čeká na uvolnění
+        /// nouzového zastavení.</para>
+        ///
+        /// <para><b>Čte se jen index</b> (čas a jméno kamery), ne obrazy — jinak by to na
+        /// dvacetigigabajtovém záznamu trvalo desítky minut. Viz doc/imu-and-frames.md.</para>
+        /// </summary>
+        private static void CameraInterference(RecordFile rec, List<Sample> s, DateTime t0,
+                                               double winSec, double deadSec)
+        {
+            const double GapSec = 1.5;      // delsi mezera = kamera nestreamuje
+            if (winSec <= 0) winSec = 3.0;  // okno prumerovani pole na kazde strane prechodu
+            // Mrtve pasmo kolem prechodu. ⚠️ Hrana je ROZMAZANA: USB zarizeni se napaji a
+            // enumeruje driv, nez dorazi prvni snimek (v logu "pipeline pripojena" ~0,5-1 s pred
+            // nim), takze okno tesne pred prvnim snimkem uz muze mit kameru pod proudem. Proto
+            // je sirka okna i mrtve pasmo prepinatelne (--camwin=, --camdead=) - cislo, ktere se
+            // pri jejich zmene nehne, je dukaz; cislo, ktere se hne, byla kontaminace.
+            if (deadSec < 0) deadSec = 0.5;
+
+            Console.WriteLine();
+            Console.WriteLine("5) JE POLE VAZANE NA KAMERY (JEJICH KABELY)?");
+            if (t0 == DateTime.MinValue) { Console.WriteLine("  Zaznam nenese casovou zakladnu."); return; }
+
+            // Casy snimku po kamerach - jen z indexu, obrazy se nectou.
+            var podleKamer = new SortedDictionary<string, List<double>>(StringComparer.Ordinal);
+            foreach (var e in rec.Index)
+            {
+                if (e.MsgName != "CameraFrame" || e.CaptureTicks == 0) continue;
+                string jm = string.IsNullOrEmpty(e.Name) ? "(bez jmena)" : e.Name;
+                if (!podleKamer.TryGetValue(jm, out var l)) podleKamer[jm] = l = new List<double>();
+                l.Add((e.CaptureTime - t0).TotalSeconds);
+            }
+            if (podleKamer.Count == 0) { Console.WriteLine("  Zaznam nenese CameraFrame."); return; }
+
+            // Prechody: kazda kamera se "rozsviti" prvnim snimkem a "zhasne" mezerou > GapSec.
+            var prechody = new List<(double T, string Kdo, bool Zap)>();
+            foreach (var kv in podleKamer)
+            {
+                var l = kv.Value; l.Sort();
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,-16} {1,6} snimku, prvni v {2:F1} s, posledni v {3:F1} s",
+                    kv.Key, l.Count, l[0], l[l.Count - 1]));
+                prechody.Add((l[0], kv.Key, true));
+                for (int k = 1; k < l.Count; k++)
+                    if (l[k] - l[k - 1] > GapSec)
+                    {
+                        prechody.Add((l[k - 1], kv.Key, false));
+                        prechody.Add((l[k], kv.Key, true));
+                    }
+            }
+            prechody.Sort((a, b) => a.T.CompareTo(b.T));
+
+            Console.WriteLine();
+            Console.WriteLine("  prechod (kamera zap/vyp) a zmena STREDNIHO VEKTORU POLE v telese:");
+            Console.WriteLine("    cas [s]  kamera           z/v  n_pred  n_po   dMag [mG]                |dMag|   zmena atitudy");
+            int tisknuto = 0, vynechano = 0;
+            foreach (var (t, kdo, zap) in prechody)
+            {
+                if (!Prumer(s, t - deadSec - winSec, t - deadSec, out var mPred, out var yPred,
+                            out var aPred, out int nPred)) { vynechano++; continue; }
+                if (!Prumer(s, t + deadSec, t + deadSec + winSec, out var mPo, out var yPo,
+                            out var aPo, out int nPo)) { vynechano++; continue; }
+
+                var d = mPo - mPred;
+                double dYaw = Math.Abs(Deg(Wrap(yPo - yPred)));
+                // Zmena smeru tize = naklon; oboji dohromady rekne, jestli robot stal.
+                double dTilt = Deg(Math.Acos(Math.Clamp(
+                    Vector3.Dot(Vector3.Normalize(aPo), Vector3.Normalize(aPred)), -1f, 1f)));
+                bool klid = dYaw < 2.0 && dTilt < 2.0;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,8:F1}  {1,-16} {2,-3} {3,6} {4,5}   [{5,7:F1},{6,7:F1},{7,7:F1}]  {8,7:F1}   yaw {9,5:F1} dg, naklon {10,4:F1} dg{11}",
+                    t, kdo, zap ? "ZAP" : "VYP", nPred, nPo,
+                    d.X * 1000, d.Y * 1000, d.Z * 1000, d.Length() * 1000, dYaw, dTilt,
+                    klid ? string.Empty : "   << ROBOT SE HYBAL, NEPLATI"));
+                if (++tisknuto >= 40) { Console.WriteLine("  (dalsi prechody vynechany)"); break; }
+            }
+            if (tisknuto == 0)
+                Console.WriteLine("  Zadny prechod nema pole na obou stranach - neda se rozhodnout.");
+            if (vynechano > 0)
+                Console.WriteLine($"  (prechodu bez pole na obou stranach: {vynechano})");
+
+            Console.WriteLine();
+            Console.WriteLine("  Jak to cist: kdyz se pole pri ROZSVICENI kamery skokem posune vzdy stejnym");
+            Console.WriteLine("  smerem a pri zhasnuti zpet, je zdrojem PROUD V KABELU. Kdyz se nehne, je");
+            Console.WriteLine("  zelezo STATICKE (samotny kabel, konektor, srouby) - to kalibrace odstrani,");
+            Console.WriteLine("  ale jen dokud se kabel zase nepohne.");
+            Console.WriteLine("  !! Rozlisovat ma smysl jen u radku BEZ oznaceni - pri otoceni robotu se meni");
+            Console.WriteLine("  i zemska slozka a ta je o rad vetsi nez cokoli, co hleda tenhle blok.");
+        }
+
+        /// <summary>Stredni vektor pole, yaw a smer tize v casovem okne; false = malo vzorku.</summary>
+        private static bool Prumer(List<Sample> s, double od, double doT, out Vector3 mag,
+                                   out double yaw, out Vector3 acc, out int n)
+        {
+            mag = default; acc = default; yaw = 0; n = 0;
+            double sy = 0, cy = 0;
+            foreach (var x in s)
+            {
+                if (x.T < od || x.T > doT) continue;
+                if (x.Mag == null || x.Acc == null) continue;
+                mag += x.Mag.Value; acc += x.Acc.Value;
+                sy += Math.Sin(x.Yaw); cy += Math.Cos(x.Yaw);
+                n++;
+            }
+            if (n < 20) return false;
+            mag /= n; acc /= n; yaw = Math.Atan2(sy, cy);
+            return true;
         }
 
         private struct Sample

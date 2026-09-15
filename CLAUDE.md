@@ -380,6 +380,34 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (čte se ze senzoru), protože VPE proti němu porovnává `|B|` a sklon; je tedy možné, že tím
   zmizí i vada 206 s — ✅ **přeměřeno 12. 9. 2026: 206 s → 53 s**, tedy zmizela ze čtyř pětin,
   ne úplně.
+  ⚠️ **Ta kalibrace ale 14. 9. 2026 UŽ NEÚČINKUJE** (nalezeno 15. 9. v `20260914-170945.rec`
+  a `20260914-170611.rec`): `∣B∣` při stání **0,614 G** proti referenčním 0,4897 a proti 0,498 G
+  z 12. 9., rozpětí přes záznam **0,177 G** (12. 9. 0,019 G; **před** kalibrací 0,148 G), zbytkové
+  tvrdé železo **0,481 G** proti 0,0023 G, harmonické 3,6/2,9° → **12,8/8,1°**,
+  `IMU yaw − GPS kurz` p50 **−15,6°** (sd 13,0°). Mezi 12. 9. 13:14 a 14. 9. 17:06 tedy na robotu
+  **přibylo železo**. ✅ **Zdroj je zužený měřením: KABELY ke kamerám** (13. 9. se prohodily
+  ony, ne kamery) — a **není to jejich proud**: nahrávání začíná dřív než D435, a při rozsvícení
+  obou kamer v 6,5 s se pole posune jen o **6,4 mG** při stojícím robotu (yaw 0,3°, náklon 0,0°),
+  tedy **4 %** vodorovného offsetu ~160 mG. **Je to jejich železo** (stínění, konektory, feritové
+  jádro): rušení je **konstantní vektor v tělese** (`sd(|B|)` po odečtení 0,0040 / 0,0203 G)
+  a jeho vodorovná složka je v obou bězích téhož dne shodná — `(0,059; −0,157)` a
+  `(0,036; −0,154) G`, tedy ~0,16 G proti zemským 0,199 G (chyba kurzu až ±53°). Měří to
+  **blok 5 `ARBot.Analyze vn100`** (`--camwin=`, `--camdead=`). ⚠️ **Širsi okno číslo NEZPŘESNÍ,
+  ale zkazí** (při `camwin=5,5` vyjde 22,7 mG, protože se do něj dostane 6° otočení robotu — blok
+  takový řádek sám označí). ⚠️ **Stínit ani stěhovat senzor netreba** — to je léčba na rušení
+  závislé na proudu, a to jsou změřeně 4 % problému; cena za kalibraci je, že její platnost je
+  od teď vázaná na **polohu kabelů**. ✅ **Odtud i „směr se pomalu ustaloval":**
+  VPE v senzoru se táhne za polem s `K` = 0,0029 1/s, tedy **τ = 345 s** proti řádově 0,2 1/s
+  12. 9. — je to **v senzoru**, `imuheadingstd=` / `imuheadinghz=` na to nesahají a fúze kurz
+  pořád **přebírá** (`odhad − IMU yaw` 2,15° ± 8,60°). ⚠️ **Dvanáctka z té jízdy je ale
+  NEPOUŽITELNÁ** — běžná jízda neměří složku `z` a podmíněnost 117 sama nestačí; a ⚠️
+  **závislost `∣B∣` na proudu je záměna s kurzem** (+0,0054 G/A v jednom běhu, **−0,0152 v druhém**
+  týž den; η² = 0,927 vysvětlí kurz) — tedy těleso, ne motory, a kalibrovatelné. Další krok je
+  **dát kabely do polohy, ve které mají zůstat, ověřit to minutovým záznamem s jednou otočkou
+  na místě** (rozpětí `|B|` přes otočku: 12. 9. **0,019 G**, teď **0,177 G**) **a teprve pak
+  `mission=magcal`, s náklony na obě strany**. Měří to nový blok
+  `ARBot.Analyze heading --bin=` (*VYVOJ ROZPORU V CASE*). ⚠️ **Platí to zpětně i pro ostatní
+  měření nad tím záznamem** (`localplan` ze 14. 9. je měřený při rozbitém kurzu).
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
   ⚠️ **Výpadky D435 za provozu jsou cizí, Intelem NEVYŘEŠENÝ problém** (rešerše 11. 9. 2026) —
   naše léčba (detekce + zbourání pipeline + reconnect) je to, k čemu ve vláknech všichni dojdou.
