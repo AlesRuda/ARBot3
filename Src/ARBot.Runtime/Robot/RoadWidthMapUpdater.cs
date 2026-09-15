@@ -63,6 +63,17 @@ namespace ARBot.Robot
 
         /// <summary>Sirky per cesta, se kterymi se stavelo naposled.</summary>
         private readonly Dictionary<long, double> zapecene = new Dictionary<long, double>();
+
+        /// <summary>
+        /// Mapova sirka per cesta — <b>vychozi stav, proti kteremu se meri prvni zmena</b>.
+        ///
+        /// <para>⚠️ Bez toho byla prvni prestavba BEZPODMINECNA: <see cref="zapecene"/> je na
+        /// zacatku prazdne, takze prah se nemel proti cemu porovnat a spustila ji jakakoli
+        /// duveryhodna sirka — nad rigem, kde se obe mapy shoduji, tedy klidne rozdil 16 mm.
+        /// Proti MAPE se neporovnavalo nikdy. (Naslo se 15. 9. 2026.)</para>
+        /// </summary>
+        private readonly Dictionary<long, double> mapove = new Dictionary<long, double>();
+
         private DateTime posledniPrestavba = DateTime.MinValue;
 
         /// <param name="network">Sit; <b>nemeni se</b> (prekryv se predava konzumentum).</param>
@@ -88,10 +99,26 @@ namespace ARBot.Robot
             this.naMapu = naMapu ?? throw new ArgumentNullException(nameof(naMapu));
             this.config = config ?? new RoadWidthMapUpdaterConfig();
             this.mapName = mapName ?? string.Empty;
+
+            // Mapova sirka cesty = maximum pres jeji uzly (tyz slucovaci vzorec jako v prekryvu).
+            foreach (var e in this.network.Edges)
+            {
+                double w = Math.Max(e.From.Width, e.To.Width);
+                if (!mapove.TryGetValue(e.WayId, out double cur) || w > cur) mapove[e.WayId] = w;
+            }
         }
 
         /// <summary>DIAGNOSTIKA: kolikrat se mapa prestavela.</summary>
         public long Rebuilds { get; private set; }
+
+        /// <summary>
+        /// DIAGNOSTIKA: <b>o kolik metru</b> se pri posledni prestavbe zmenila sirka nejvic
+        /// zmenene cesty. 0 = jeste se neprestavovalo.
+        ///
+        /// <para><b>Nacpak:</b> pocet uzlu nerozlisi 16 mm od 1 m — a prave to jednou poslalo
+        /// hledat vadu tam, kde nebyla. Hlaska proto tohle cislo nese.</para>
+        /// </summary>
+        public double LastChangeM { get; private set; }
 
         /// <summary>
         /// Prestav, kdyz je to potreba. Vraci <c>true</c>, kdyz k prestavbe doslo.
@@ -101,7 +128,7 @@ namespace ARBot.Robot
         /// </summary>
         public bool Zkus(DateTime t)
         {
-            if (!JeCoPrestavet()) return false;
+            if (!NejvetsiZmena(out double zmena, out double zStare, out double zNove)) return false;
 
             // Skok casu VZAD (seek v zaznamu, novy beh) odstup RESETUJE - bez toho by byl rozdil
             // zaporny, tedy vzdy mensi nez perioda, a uz by se neprestavelo nikdy. Tataz past je
@@ -117,8 +144,10 @@ namespace ARBot.Robot
             ZapecUzite();
             posledniPrestavba = t;
             Rebuilds++;
-            Trace.WriteLine($"Naucena sirka cesty: mapa prestavena ({prekryv.Count} uzlu, "
-                            + $"prestaveb celkem {Rebuilds}).");
+            LastChangeM = zmena;
+            Trace.WriteLine($"Naucena sirka cesty: mapa prestavena - nejvetsi zmena "
+                            + $"{zStare:F2} -> {zNove:F2} m (o {zmena:F2} m), {prekryv.Count} uzlu, "
+                            + $"prestaveb celkem {Rebuilds}.");
             return true;
         }
 
@@ -126,17 +155,30 @@ namespace ARBot.Robot
         private double? NaucenaSirka(long wayId)
             => odhady.TryGetWidth(wayId, out double w) ? w : (double?)null;
 
-        /// <summary>Lisi se nektera duveryhodna sirka od te, se kterou se stavelo naposled?</summary>
-        private bool JeCoPrestavet()
+        /// <summary>
+        /// Najde cestu, jejiz duveryhodna sirka se nejvic lisi od te, ktera je <b>ted v ucinnosti</b>
+        /// — tedy od naposledy pouzite, a kdyz se jeste neprestavovalo, od <b>MAPOVE</b>.
+        /// Vraci <c>true</c>, kdyz je ten rozdil nad <see cref="RoadWidthMapUpdaterConfig.RebuildThresholdM"/>.
+        /// </summary>
+        private bool NejvetsiZmena(out double zmena, out double stara, out double nova)
         {
+            zmena = 0; stara = 0; nova = 0;
+
             foreach (var e in network.Edges)
             {
                 if (!odhady.TryGetWidth(e.WayId, out double w)) continue;
-                if (!zapecene.TryGetValue(e.WayId, out double stara)
-                    || Math.Abs(w - stara) > config.RebuildThresholdM)
-                    return true;
+
+                // Ucinna sirka: naposledy pouzita, jinak mapova. NIKDY ne "nic" - prave to delalo
+                // prvni prestavbu bezpodminecnou.
+                double ucinna = zapecene.TryGetValue(e.WayId, out double z)
+                                ? z
+                                : (mapove.TryGetValue(e.WayId, out double m) ? m : w);
+
+                double d = Math.Abs(w - ucinna);
+                if (d > zmena) { zmena = d; stara = ucinna; nova = w; }
             }
-            return false;
+
+            return zmena > config.RebuildThresholdM;
         }
 
         private void ZapecUzite()

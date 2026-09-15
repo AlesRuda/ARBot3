@@ -169,11 +169,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
   ⚠️ **A vedlejší nález:** nad `SyntetickyRovny` rigem (obě mapy `width=2`) se přestavba spustí
   taky, ale rozdíl je **16 mm** (koridor měří 2,016 m proti mapovým 2,000) — tedy **pod pixelem**.
-  Hláška přitom hlásí „9 uzlu", což zní jako událost. **Dvě věci k opravě zůstávají otevřené:**
-  (a) první přestavba je **bezpodmínečná**, protože práh se porovnává proti naposledy použité
-  hodnotě a ta na začátku chybí — proti **mapě** se neporovnává nikdy; (b) hláška počítá uzly,
-  ne **velikost** změny, takže z ní 16 mm od 16 m nerozliší. Táž past jako u `CLEAR_HALT`
-  (14. 9.) a u zón se třemi pixely.
+  Hláška přitom hlásí „9 uzlu", což zní jako událost. ✅ **Obojí opraveno týž den na pokyn autora:**
+  (a) práh se teď porovnává proti **účinné** šířce — naposledy použité, a když se ještě
+  nepřestavovalo, proti **mapové**; dřív se proti mapě neporovnávalo nikdy, takže první přestavbu
+  spustila jakákoli důvěryhodná šířka. (b) Hláška nese **velikost** změny
+  (`nejvetsi zmena 3,00 -> 2,00 m (o 1,00 m), 7 uzlu`), ne jen počet uzlů — z počtu nešlo poznat
+  16 mm od 16 m, a přesně to autora poslalo hledat vadu tam, kde nebyla. Táž past jako u
+  `CLEAR_HALT` (14. 9.) a u zón se třemi pixely.
+  **Změřeno po opravě:** rig se **shodnými** šířkami obou map dá **0 přestaveb** (16 mm je pod
+  prahem), rig s rozdílem 1 m přestavuje dál.
 
 - **Rozpracováno / další krok:** prahy `RebuildThresholdM` 0,25 m a `MinRebuildPeriodSec` 10 s jsou
   **odhad**. Doladit je z prvního záznamu — jde to **offline**, protože celý mechanismus je čistá

@@ -42,6 +42,35 @@ public class RoadWidthMapUpdaterTests
     }
 
     [Test]
+    public void MalaZmenaProtiMape_neprestaviAniPOPRVE()
+    {
+        // ⚠️ Do 15. 9. 2026 spustila prvni duveryhodna sirka prestavbu VZDY - prah se porovnaval
+        // proti naposledy pouzite hodnote a ta pri prvnim behu neexistovala, takze proti MAPE se
+        // neporovnavalo nikdy. Nad rigem se stejnou sirkou obou map se tak prestavovalo kvuli
+        // 16 mm a hlaska "9 uzlu" znela jako udalost.
+        var o = TestRoadNetwork.Origin();
+        var net = TestRoadNetwork.StraightEastRoad(o, 3.0);   // mapa 3 m
+        var u = new RoadWidthMapUpdater(net, o, Odhad(3.05), _ => { }, _ => { },
+                                        new RoadWidthMapUpdaterConfig());   // rozdil 50 mm
+
+        Assert.That(u.Zkus(T0), Is.False, "50 mm je pod prahem 0,25 m - nema se prestavovat");
+        Assert.That(u.Rebuilds, Is.Zero);
+    }
+
+    [Test]
+    public void LastChangeM_rikaOKolikSeSirkaZmenila()
+    {
+        // Pocet uzlu nerozlisi 16 mm od 1 m. Velikost zmeny ano - a prave ta chybela v hlasce.
+        var o = TestRoadNetwork.Origin();
+        var net = TestRoadNetwork.StraightEastRoad(o, 3.0);
+        var u = new RoadWidthMapUpdater(net, o, Odhad(2.0), _ => { }, _ => { },
+                                        new RoadWidthMapUpdaterConfig());
+
+        Assert.That(u.Zkus(T0), Is.True);
+        Assert.That(u.LastChangeM, Is.EqualTo(1.0).Within(1e-9), "z mapovych 3 m na namerene 2 m");
+    }
+
+    [Test]
     public void PodPrahem_neprestavi()
     {
         var o = TestRoadNetwork.Origin();
