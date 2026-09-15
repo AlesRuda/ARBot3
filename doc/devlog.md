@@ -419,6 +419,26 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `Src/ARBot.Common.Tests/Localization/MapCorrelatorSceneSwapTests.cs`,
   `Src/ARBot.Runtime.Tests/{TestRoadNetwork,RoadWidthMapUpdaterTests,RoadWidthVirtualCameraIsolationTests}.cs`.
 
+- **Web — doplněny ročníky 2024 a 2025 do tabulky umístění v soutěžích.** Tabulka na
+  `docs/pages/umisteni-v-soutezich.html` končila rokem 2023. Doplněno (oba roky robot U2):
+  **2025** Robotem rovně 7., Robotour 4–5.; **2024** Robotem rovně 2.
+  Řádek **2026** nevznikl — na Robotem rovně 2026 robot nejel a jiný výsledek za ten rok není.
+  ⚠️ **Prázdné pole u Robotouru 2024 neznamená neúčast** — ten ročník se nekonal, byl zrušený
+  kvůli povodním; legenda tabulky říká „prázdné = nezúčastnil se", takže to pod tabulkou
+  musí být řečeno, jinak by číslo chybělo ze špatného důvodu.
+  ⚠️ **Čísla i zdroje dodal autor; z prostředí, kde úprava vznikla, je ověřit nešlo** —
+  `robotika.cz` i `ok1kpi.cz` tam blokovala síťová politika (`EGRESS_BLOCKED`), takže odkazy
+  nejsou proklikané.
+- **Umístění 2024 a 2025 jsou rovnou odkazy na výsledkové listiny** (pokyn autora) — místo
+  odstavce s odkazy pod tabulkou. ⚠️ **Odkaz v buňce se NESMÍ obarvit jako odkaz:** `site.css`
+  má `a{color:var(--accent)}` a týž accent už v téhle tabulce znamená **vítězství**
+  (`td.win`), takže prolinkovaná sedmička by vypadala jako výhra. Řeší to
+  `table.results td a{color:inherit}` + tečkované podtržení; v buňce s vítězstvím se accent
+  přes `inherit` zdědí správně. Ověřeno v prohlížeči nad `docs/` (win zůstává accent, odkaz v buňce
+  má barvu textu a tečkované podtržení).
+- **Odkazy:** `docs/pages/umisteni-v-soutezich.html`, `docs/assets/site.css`,
+  `docs/README.md` (rozsah v přehledu převzatých stránek 2009–2023 → 2009–2025).
+
 ## 2026-09-14
 
 **Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí (`HangWatchdog`).** Rozbor dvou záznamů

@@ -233,6 +233,17 @@ table.results td.robot{
 }
 table.results td.y{text-align:right; color:var(--muted)}
 table.results td.win{color:var(--accent); font-weight:600}
+/* Odkaz na vysledkovou listinu primo v bunce. Barvu NEDEDI z a{color:var(--accent)}:
+   accent tu uz znamena "vitezstvi" (td.win), takze prolinkovana sedmicka by vypadala
+   jako vyhra. Odkaz proto nese barvu textu bunky a poznat je po tecknovanem podtrzeni;
+   v bunce s vitezstvim se accent zdedi spravne prave pres color:inherit. */
+table.results td a{
+  color:inherit; text-decoration:underline; text-decoration-style:dotted;
+  text-decoration-color:var(--muted); text-underline-offset:4px;
+}
+table.results td a:hover, table.results td a:focus-visible{
+  text-decoration-style:solid; text-decoration-color:currentColor;
+}
 
 /* ---------- kontaktní údaje ---------- */
 .contact{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:26px; margin:2em 0}
