@@ -121,7 +121,7 @@ mění frekvenci i na tomtéž jádru podle zátěže a teploty. **Doba taktu pr
 příčiny** a kdo to neví, hledá vinu v kódu.
 
 Vlákno navíc nemá afinitu a **řídicí smyčka běží při každém taktu na jiném vlákně ThreadPoolu**
-(`System.Threading.Timer`, viz [ARBotRuntime.cs:665](../Src/ARBot/Robot/ARBotRuntime.cs:665)) —
+(`System.Threading.Timer`, viz [ARBotRuntime.cs:665](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs:665)) —
 takže se stěhuje mezi jádry volně.
 
 ⚠️ **Porovnání wall-clock a CPU času samo o sobě nestačí.** Nabízí se pravidlo „wall 90 ms,
@@ -172,7 +172,7 @@ v panelu nejde vidět, protože ten ukazuje jen aktuální sekundu.
 | [`Runtime/Scheduler.cs`](../Src/ARBot.Common/Runtime/Scheduler.cs) | měření taktů (`Metrics`; `null` = neměří se) |
 | [`Communication/MessageTarget.cs`](../Src/ARBot.Common/Communication/MessageTarget.cs) | počítadla fronty (`TakeStageSnapshot`) |
 | [`Logs/PerfMsg.cs`](../Src/ARBot.Common/Logs/PerfMsg.cs) | zpráva (verze 1) |
-| [`Robot/ARBotRuntime.cs`](../Src/ARBot/Robot/ARBotRuntime.cs) | napojení sběrače (parametr `perf=`) |
+| [`Robot/ARBotRuntime.cs`](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs) | napojení sběrače (parametr `perf=`) |
 | [`ViewModels/PerformanceDocument.cs`](../Src/ARBot/ViewModels/PerformanceDocument.cs) | panel *Tools → Výkon* |
 
 **Práh `perfwarn` se čte v `ARBotRuntime` a předává sběrači konstruktorem**, ne uvnitř
@@ -244,7 +244,7 @@ by znamenalo měnit brzdné chování robota na základě domněnky.**
 ### 1. Zameškané takty se dohánějí
 
 > **Není to nedopatření, je to vědomá kompenzace** — a to je při čtení kódu potřeba vědět.
-> Časovač v [ARBotRuntime.cs:660](../Src/ARBot/Robot/ARBotRuntime.cs:660) má **reentranční guard**:
+> Časovač v [ARBotRuntime.cs:660](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs:660) má **reentranční guard**:
 > když předchozí `Pump()` ještě běží, další callback se **zahodí** (jinak by se překrývaly a zahltily
 > ThreadPool). Dohánění ve scheduleru je odpověď právě na to — komentář u guardu říká „zameškané
 > takty dožene Scheduler při příštím tiku". Otázka tedy nezní „proč to tam je", ale **jestli je
@@ -270,7 +270,7 @@ dává smysl jen tam, kde čas řídí data, ne hodiny.
 
 > **Souvislost s replay a simulací, na kterou se nabízí myslet, dnes NEEXISTUJE:**
 > ve View se řídicí smyčka **vůbec nezakládá** (kořen je `FileMessageSource` → `Stream`,
-> viz [ARBotRuntime.cs:125](../Src/ARBot/Robot/ARBotRuntime.cs:125)) a **simulace je normální Run**
+> viz [ARBotRuntime.cs:125](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs:125)) a **simulace je normální Run**
 > — jen s virtuálními senzory, pořád na `SystemClock` a v reálném čase.
 > [`VirtualClock`](../Src/ARBot.Common/Runtime/VirtualClock.cs) používají **jen testy**;
 > `FusionProcessor` ho umí posouvat časy zpráv, což vypadá jako příprava na rychlý přepočet

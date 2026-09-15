@@ -160,6 +160,11 @@ namespace ARBot.Common.Tests.Vision
         [Test]
         public void BuildGrid_NativeTransform_MatchesManaged()
         {
+            // ⚠️ Chybejici nativni knihovna neni regrese, jen chybejici zavislost (stavi se
+            // z Src/NativeFuncs a v gitu NENI) - test se preskoci, nepada.
+            if (!ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.JeDostupna)
+                Assert.Ignore(ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.Duvod);
+
             // Stejny vstup (rovna zem + zvednuty sektor) pres managed i nativni transform -> stejny grid.
             const float ho = 0.3f;
             Image<Gray16> Scene() => Depth((x, y) => (ushort)((x < 16 ? (Hc - ho) : Hc) * 1000));

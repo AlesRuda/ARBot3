@@ -21,6 +21,10 @@ namespace ARBot.Common.Vision.Qr
     /// </summary>
     public sealed class ZXingQrDecoder : IQrDecoder
     {
+        // Skrceni hlaseni: dekoduje se pri kazdem snimku (~30/s), takze trvala vada by bez toho
+        // zaplavila Trace i zaznam. Viz Diagnostics.PoruchaHlasic.
+        private readonly Diagnostics.PoruchaHlasic hlasic = new Diagnostics.PoruchaHlasic();
+
         private readonly ZXing.BarcodeReaderGeneric reader;
 
         /// <param name="tryHarder">
@@ -55,7 +59,9 @@ namespace ARBot.Common.Vision.Qr
             try { results = reader.DecodeMultiple(source); }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ZXingQrDecoder: {ex.Message}");
+                // Trace, ne Debug: bez toho se v Release nepozna rozdil mezi "kod tam nebyl"
+                // a "dekoder spadl" - obojí navenek vypadá jako prazdny vysledek. Viz CLAUDE.md.
+                hlasic.Hlas("ZXingQrDecoder", ex);
                 return Array.Empty<QrResult>();
             }
 

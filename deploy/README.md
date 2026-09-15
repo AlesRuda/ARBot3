@@ -102,6 +102,22 @@ systemctl status arbot            # běží?
 journalctl -u arbot -f            # co říká
 sudo systemctl stop arbot         # zastavit a nechat stát
 sudo systemctl start arbot        # znovu (a nasadit, co leží v ~/arbot-headless)
+sudo systemctl reset-failed arbot # po stavu "failed" (viz níž) vrátit do hry
+```
+
+⚠️ **Když `status` hlásí `failed`, `Restart=always` už službu nevrátí** — jednotku musí vrátit
+do hry `reset-failed`. Do 15. 9. 2026 se do toho stavu dalo spadnout **snadno**: unit měl
+`StartLimitBurst=5` / `StartLimitIntervalSec=300`, takže šestý start během pěti minut skončil
+`start-limit-hit` a robot byl v terénu mrtvý natrvalo. Limit je od té doby **vypnutý**
+(`StartLimitIntervalSec=0`) — opakovaný start nic neřídí, protože se robot bez výběru mise
+sám nerozjede. `failed` teď zbude jen po návratovém kódu 2 (vadná konfigurace) nebo 3 (už běží
+jiná instance), a ty se restartem opravdu nespraví.
+
+⚠️ **Starší nainstalovaný unit tuhle změnu nemá.** Po `nasad.ps1` se kopíruje jen do
+`~/arbot-headless/`; do `/etc/systemd/system/` ho musí člověk přenést ručně:
+
+```bash
+sudo cp ~/arbot-headless/arbot.service /etc/systemd/system/ && sudo systemctl daemon-reload
 ```
 
 Stránka: `http://<ip>:8080/` — stav, snímek kamery, půdorys, výběr mise, zastavení.
@@ -129,8 +145,13 @@ Obnovu dělá **`vnrestore.sh`** — ten na rozdíl od `vnprobe.sh` **zapisuje**
 (`VNWNV`), takže změna přežije vypnutí. Dělící čára mezi těmi dvěma skripty je záměrná:
 konfigurace železa se mění vědomě, ne vedlejším účinkem diagnostiky.
 
+⚠️ **Od 15. 9. 2026 se zápis potvrzuje** (skript vypíše, co zapíše, a čeká na `ANO`) — proto je
+v příkazech níž **`ssh -t`**: bez TTY se skript zeptat nemůže a zápis **odmítne**. Kdo to opravdu
+potřebuje bez ptaní (skript, dávka), přidá `VNRESTORE_ASSUME_YES=1`. Do té změny se zapisovalo
+rovnou a bez `set -e`, takže po selhání dřívějšího příkazu se do flash uložil **polovičatý stav**.
+
 ```bash
-ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --mag; sudo systemctl start arbot'
+ssh -t ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --mag; sudo systemctl start arbot'
 ```
 
 Bez `--mag` obnoví jen heading mode (reg 35 → `Absolute`); s `--mag` i kalibraci magnetometru
@@ -145,7 +166,7 @@ ale záznam s otáčením existuje, dá `ARBot.Analyze magcal` tatáž čísla a
 # na PC: 12 čísel za VNWRG,23 — normovat na |B| z registru 21 senzoru (po magmodel= je to WMM)
 Src/ARBot.Analyze/bin/x64/Release/net10.0/ARBot.Analyze.exe magcal records/test/20260910-170809.rec --bref=0.4897
 # na robotu: zapsat a uložit do flash
-ssh ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --magcal 1.121575,0.007452,-0.007101,0.007452,1.103300,-0.021040,-0.007101,-0.021040,1.022071,-0.110929,0.014435,0.049725; sudo systemctl start arbot'
+ssh -t ales@192.168.66.1 'sudo systemctl stop arbot; /tmp/vnrestore.sh /dev/ttyUSB0 --magcal 1.121575,0.007452,-0.007101,0.007452,1.103300,-0.021040,-0.007101,-0.021040,1.022071,-0.110929,0.014435,0.049725; sudo systemctl start arbot'
 ```
 
 Čísla výše jsou výsledek z **10. 9. 2026** (`20260910-170809.rec`, verdikt POUZITELNE, viz

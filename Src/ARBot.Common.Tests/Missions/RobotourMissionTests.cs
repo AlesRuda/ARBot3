@@ -1205,4 +1205,49 @@ public class RobotourMissionTests
             Assert.That(loaded.AcceptedOffRoadM, Is.EqualTo(4.25).Within(1e-9));
         });
     }
+
+    // ---------------- Bezpecnost: fail-ramec motoroveho driveru ----------------
+
+    /// <summary>Fail-ramec driveru: stop je v nem fail-safe konstanta, nic z nej nebylo zmereno.</summary>
+    private static MotorStateBase FailRamec()
+        => new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false);
+
+    /// <summary>
+    /// Odpojeny motorovy UART nesmi otevrit servisni okno ani misi rozjet.
+    ///
+    /// <para><b>Nac to je:</b> <c>SDC2160Ex</c> po chybe vyrabi kazdych 500 ms fail-ramec
+    /// s <c>IsEmergencyStop = true</c> — fail-safe pro ridici smycku, ne mereni tlacitka.
+    /// Kdyby ho automat bral jako stisk, otevrel by se skener QR („skenuje se vyhradne pod
+    /// drzenym stopem" by prestalo platit) a obnoveni linky s NESTISKNUTYM tlacitkem by
+    /// znamenalo <c>Depart()</c> bez lidskeho zameru.</para>
+    /// </summary>
+    [Test]
+    public void FailRamecMotoruNeotevreServisniOkno()
+    {
+        var (h, now) = StartedAtDepot();
+
+        for (int i = 0; i < 5; i++)
+            h.Mission.OnMotors(FailRamec(), now = now.AddSeconds(0.5));
+
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopPressed),
+                    "fail-ramec (HasMeasurement=false) neni stisk tlacitka");
+    }
+
+    /// <summary>
+    /// Obnoveni motorove linky bez lidskeho stisku robota nerozjede (druha pulka teze pasti).
+    /// </summary>
+    [Test]
+    public void ObnoveniLinkyBezStiskuMisiNerozjede()
+    {
+        var (h, now) = StartedAtDepot();
+
+        for (int i = 0; i < 5; i++)
+            h.Mission.OnMotors(FailRamec(), now = now.AddSeconds(0.5));
+
+        // Linka se obnovila, tlacitko NIKDO nestiskl.
+        h.FeedMotors(emergencyStop: false, standing: true, now = now.AddSeconds(1));
+
+        Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopPressed),
+                    "mise se posunula bez lidskeho zameru");
+    }
 }

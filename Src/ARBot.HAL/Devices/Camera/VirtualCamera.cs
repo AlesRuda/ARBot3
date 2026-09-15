@@ -135,7 +135,10 @@ namespace ARBot.HAL.Devices.Camera
             CameraPoseStamp.Apply(frame, EstimatedPoseAt);
 
             // Stejny synchronni dopocet jako u realne kamery - pipeline za kamerou se nesmi lisit.
-            FrameProcessor?.Process(frame);
+            // ⚠️ NE primo: vyjimka odsud by spadla do catch snimaci smycky, ktery hlasi
+            // „odpojeno" a bouri pipeline - softwarova vada vize by se tak pricitala
+            // k realnym vypadkum D435. Viz CameraVisionStep.
+            ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
 
             return frame;
         }

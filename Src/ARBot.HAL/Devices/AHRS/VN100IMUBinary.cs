@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Threading;
 using ARBot.Common.Common;
+using ARBot.Common.Diagnostics;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Models;
 using VectorNav.Devices;
@@ -32,6 +33,10 @@ namespace ARBot.HAL.Devices.AHRS
     public class VN100IMUBinary : UartSensorBase<IMUState>, IIMU, IMagneticModel
     {
         private const byte Sync = 0xFA;
+
+        // Skrceni hlaseni o zahozenych paketech: ramce chodi 100x/s, takze trvala vada (spatny
+        // baud, rusena linka) by bez toho zaplavila Trace i zaznam. Viz PoruchaHlasic.
+        private readonly PoruchaHlasic hlasic = new PoruchaHlasic();
 
         // Pořadí skupin podle bitů v "groups" byte (bit0..bit5).
         private static readonly Type[] GroupEnums =
@@ -250,7 +255,7 @@ namespace ARBot.HAL.Devices.AHRS
             byte groups = groupsB[0];
             if (groups >> GroupEnums.Length != 0)
             {
-                Debug.WriteLine("VN100IMUBinary: neznámá skupina v paketu, přeskočeno.");
+                hlasic.Hlas("VN100/neznámá skupina v paketu, přeskočeno", "VN100IMUBinary: neznámá skupina v paketu, přeskočeno.");
                 return null;
             }
 
@@ -273,7 +278,7 @@ namespace ARBot.HAL.Devices.AHRS
             int payloadLen = PayloadLength(groups, masks);
             if (payloadLen < 0)
             {
-                Debug.WriteLine("VN100IMUBinary: neznámé pole, paket zahozen.");
+                hlasic.Hlas("VN100/neznámé pole, paket zahozen", "VN100IMUBinary: neznámé pole, paket zahozen.");
                 return null;
             }
 
@@ -290,7 +295,7 @@ namespace ARBot.HAL.Devices.AHRS
             ushort crcRecv = (ushort)((crcB[0] << 8) | crcB[1]);
             if (crcCalc != crcRecv)
             {
-                Debug.WriteLine("VN100IMUBinary: chybné CRC, paket zahozen.");
+                hlasic.Hlas("VN100/chybné CRC, paket zahozen", "VN100IMUBinary: chybné CRC, paket zahozen.");
                 return null;
             }
 
@@ -303,7 +308,7 @@ namespace ARBot.HAL.Devices.AHRS
 
             if (double.IsNaN(state.Rotation.Value.Z))
             {
-                Debug.WriteLine("VN100IMUBinary: NaN v orientaci, paket zahozen.");
+                hlasic.Hlas("VN100/NaN v orientaci, paket zahozen", "VN100IMUBinary: NaN v orientaci, paket zahozen.");
                 return null;
             }
             return state;

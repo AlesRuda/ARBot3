@@ -247,12 +247,12 @@ namespace ARBot.Robot
 
                 // 0) Odpoj sber logu HNED - zbytek Stop() sam loguje a nema smysl to cpat
                 //    do pipeline, ktera se prave rozebira. (Stop() mostu Detach zopakuje, je idempotentni.)
-                try { traceBridge?.Detach(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                try { traceBridge?.Detach(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime.Stop: {ex}"); }
                 traceBridge = null;
 
                 // 1) Zastav zdroje (prestanou prichazet nove zpravy).
                 foreach (var s in sources)
-                    try { s.Stop(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                    try { s.Stop(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime.Stop: {ex}"); }
                 sources.Clear();
 
                 // 2) Zastav casovac scheduleru.
@@ -261,7 +261,7 @@ namespace ARBot.Robot
 
                 // Supervizor zotaveni kamer ma vlastni vlakno - zastavit driv, nez se rozebere
                 // graf, at nesahne na kamery uprostred boureni.
-                try { CameraRecovery?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                try { CameraRecovery?.Dispose(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime.Stop: {ex}"); }
                 CameraRecovery = null;
 
                 // Sberac metrik ma vlastni casovac, takze se zastavuje zvlast. Poradi je zamerne:
@@ -272,12 +272,12 @@ namespace ARBot.Robot
 
                 // 3) Odpoj propojeni grafu.
                 for (int i = connections.Count - 1; i >= 0; i--)
-                    try { connections[i].Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                    try { connections[i].Dispose(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime.Stop: {ex}"); }
                 connections.Clear();
 
                 // 4) Zastav stupne zpracovani (dojedou frontu - drain).
                 for (int i = stages.Count - 1; i >= 0; i--)
-                    try { stages[i].Stop(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                    try { stages[i].Stop(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime.Stop: {ex}"); }
                 stages.Clear();
 
                 // 5) Zastav zaznam (flush).
@@ -1045,8 +1045,12 @@ namespace ARBot.Robot
             {
                 if (Interlocked.Exchange(ref pumping, 1) == 1)
                     return; // predchozi tik jeste bezi
+                // Trace, ne Debug: tohle je POSLEDNI zachytka pod ridici smyckou. Debug.WriteLine je
+                // [Conditional("DEBUG")], takze v Release (a ten bezi na zarizeni) by po poruche
+                // rizeni nezustala zadna stopa. Samotne zastaveni robota resi ControlLoop.OnTick,
+                // ktery si vyjimku osetruje sam; sem uz se dostane jen to, co je mimo nej.
                 try { loop.Pump(); }
-                catch (Exception ex) { Debug.WriteLine(ex); }
+                catch (Exception ex) { Trace.WriteLine($"ARBotRuntime: takt ridici smycky selhal: {ex}"); }
                 finally { Volatile.Write(ref pumping, 0); }
             }, null, periodMs, periodMs);
 
@@ -2027,6 +2031,8 @@ namespace ARBot.Robot
             if (hw.RightCamera != null) xforms.Add((hw.RightCamera, Profile.RightCameraTransform));
 
             var cache = new Dictionary<string, IDepthCameraProjection>();
+            // Skrceni: dokud kamera neni pripojena, hazi to pri KAZDEM snimku (~30/s).
+            var hlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
             return name =>
             {
                 if (cache.TryGetValue(name, out var p)) return p;
@@ -2042,7 +2048,10 @@ namespace ARBot.Robot
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"DepthProjector '{name}' zatim nedostupny: {ex.Message}");
+                        // Trace, ne Debug: bez toho v Release nezustane stopa po tom, proc kamera
+                        // nedodava hloubkovy grid. Skrceno - hazi to pri kazdem snimku.
+                        hlasic.Hlas("DepthProjector|" + name + "|" + ex.GetType().FullName,
+                                    $"DepthProjector '{name}' zatim nedostupny: {ex.Message}");
                         return null;   // zkusi se znovu pri pristim snimku
                     }
                 }
@@ -2063,6 +2072,8 @@ namespace ARBot.Robot
             if (hw.RightCamera != null) xforms.Add((hw.RightCamera, Profile.RightCameraTransform));
 
             var cache = new Dictionary<string, ICameraProjection>();
+            // Skrceni: dokud kamera neni pripojena, hazi to pri KAZDEM snimku (~30/s).
+            var hlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
             return name =>
             {
                 if (cache.TryGetValue(name, out var p)) return p;
@@ -2078,7 +2089,10 @@ namespace ARBot.Robot
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"ColorProjector '{name}' zatim nedostupny: {ex.Message}");
+                        // Trace, ne Debug: bez toho v Release nezustane stopa po tom, proc kamera
+                        // nedodava barvu. Skrceno - hazi to pri kazdem snimku.
+                        hlasic.Hlas("ColorProjector|" + name + "|" + ex.GetType().FullName,
+                                    $"ColorProjector '{name}' zatim nedostupny: {ex.Message}");
                         return null;   // zkusi se znovu pri pristim snimku
                     }
                 }
@@ -2150,7 +2164,7 @@ namespace ARBot.Robot
             // Run -> View zustaly viset kamery z predchoziho behu (u virtualnich i renderovani
             // na pozadi), coz matlo panel Sensors i zralo vykon.
             try { ARBotHW.Current.SetNoHW(); }
-            catch (Exception ex) { Debug.WriteLine(ex); }
+            catch (Exception ex) { Trace.WriteLine($"ARBotRuntime: uvolneni HW pred View selhalo: {ex}"); }
 
             var catalog = BuildCatalog();
             fileData = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -2296,14 +2310,14 @@ namespace ARBot.Robot
             {
                 var a = action;
                 action = null;
-                try { a?.Invoke(); } catch (Exception ex) { Debug.WriteLine(ex); }
+                try { a?.Invoke(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime: odpojeni ze streamu selhalo: {ex}"); }
             }
         }
 
         private void CloseFiles()
         {
-            try { fileData?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
-            try { fileIndex?.Dispose(); } catch (Exception ex) { Debug.WriteLine(ex); }
+            try { fileData?.Dispose(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime: zavreni souboru zaznamu selhalo: {ex}"); }
+            try { fileIndex?.Dispose(); } catch (Exception ex) { Trace.WriteLine($"ARBotRuntime: zavreni indexu zaznamu selhalo: {ex}"); }
             fileData = null;
             fileIndex = null;
         }
@@ -2320,6 +2334,8 @@ namespace ARBot.Robot
         private sealed class HwCameraPullSource : ICameraPullSource
         {
             private readonly ARBotHW hw;
+            // Skrceni: pullne se na KAZDEM taktu (~10x/s) a vadna kamera hazi pokazde.
+            private readonly ARBot.Common.Diagnostics.PoruchaHlasic hlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
             public HwCameraPullSource(ARBotHW hw) => this.hw = hw ?? throw new ArgumentNullException(nameof(hw));
 
             public IReadOnlyList<CameraFrame> PullLatest()
@@ -2332,8 +2348,10 @@ namespace ARBot.Robot
                     if (s is ICamera cam)
                     {
                         CameraFrame f = null;
+                        // Trace, ne Debug: bez toho v Release nezustane stopa po tom, ze kamera
+                        // hazi - navenek to vypada jako "nedodava snimky". Viz CLAUDE.md.
                         try { f = cam.GetLastMeasurement(); }
-                        catch (Exception ex) { Debug.WriteLine(ex); }
+                        catch (Exception ex) { hlasic.Hlas($"HwCameraPullSource: {cam.Name}", ex); }
                         if (f != null) (frames ??= new List<CameraFrame>(2)).Add(f);
                     }
                 }

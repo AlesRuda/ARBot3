@@ -59,6 +59,16 @@ namespace ARBot.HAL.Tests
                        wheelCircumference: 1.0, enc2Rotation: 1000) { }
 
             public IMotorState ReadOneFrame() => GetMeasurement();
+
+            /// <summary>
+            /// Zruší příznak zastavení, aby si test mohl vyzvednout rámec ručně.
+            ///
+            /// <para><c>GetMeasurement</c> od 15. 9. 2026 při <c>stopRequired</c> vrací <c>null</c>
+            /// (aby se při vypínání nečekalo celé 500ms okno a hlavně aby nevznikl <b>falešný
+            /// fail-rámec</b> — ten dnes brány mise čtou jako „neznámo"). <c>Stop()</c> se tu ale
+            /// volá jen kvůli zastavení <b>vlákna</b>, ne proto, že by se vypínal robot.</para>
+            /// </summary>
+            public void ObnovCteni() => stopRequired = false;
         }
 
         private static TestDriver StoppedDriver(ScriptedUart uart)
@@ -66,6 +76,7 @@ namespace ARBot.HAL.Tests
             var driver = new TestDriver(uart);
             driver.Stop();               // ceka na dobehnuti ctecího vlakna
             while (uart.ReadLine() != null) { }   // zahod, co vlakno nestihlo precist
+            driver.ObnovCteni();         // ...a ted uz smi test cist sam
             return driver;
         }
 

@@ -38,6 +38,232 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 ---
 
 ## 2026-09-15
+- **Virtuální magnetometr s vnuceným železem — kalibraci jde celou projít v simulaci.**
+  *Na pokyn autora* („udělej 1 i 2" k návrhu). Do té změny `VirtualImu` neposílalo **ani pole,
+  ani zrychlení**, takže `mission=magcal` v simulaci zahodila každý vzorek a řetěz mise →
+  `MagCalMsg` → záznam → `ARBot.Analyze magcal` **nikdy neproběhl od začátku do konce**.
+  Podrobně [virtual-hw.md](virtual-hw.md).
+  - **Hotovo:** pole a gravitace z pózy (**z jedné rotace**), vnucené tvrdé i **plné symetrické**
+    měkké železo (`MagSoftIron` bere 3 čísla = diagonálu i 6 = plnou matici — nadmnožina, aby se
+    nemuselo rozhodovat), šum, náklon; `VirtualMagCalControl` s registry 21/23/44/47 v paměti;
+    `SimulatedRobot.HandSpinRadPerSec`; ovládání v panelu *Tools → Virtuální senzory*.
+    **12 nových testů, 1487 celkem.**
+  - **Nejcennější kus je test od začátku do konce:** do simulace se vloží **známé** tvrdé
+    (−0,274; −0,058; 0,076 G) a měkké (1,222/1,175/1,081 + nediagonální) železo, robotem se
+    „otočí rukou" a mise musí vrátit **právě ta čísla**. To je jediná kontrola, která chytí záměnu
+    rámců, obrácenou inverzi nebo špatné pořadí polí — chyby, které v jednotkových testech
+    projdou, protože si obě strany platí tutéž konvenci.
+  - **Ověřeno i za běhu** (`mission=magcal virtualhw=true map=OSM/HajeRovne.osm`): mise se
+    založí, stránka ukazuje živý verdikt „chybí azimuty 15–345°; chybí náklon", `MagCalMsg` teče
+    do záznamu (84 zpráv / 90 s) a offline report je přečte a postaví vedle svého přepočtu.
+  - ⚠️ **Návrh dvakrát podcenil, co je nutné.** (a) Mise vyžadovala `VN100IMUBinary`, takže by se
+    ve virtuálním HW **nezaložila vůbec** — proto to úložiště registrů. (b) **Rotaci nelze vyvolat
+    motory:** mise zahodí regulátor a `ControlLoop` posílá `Drive(0,0)` **každý takt**; a posunout
+    `Theta` napřímo nepomůže, protože kolektor počítá pokrytí z **integrovaného gyra**. Odtud
+    „otáčení rukou" v `SimulatedRobot` — což je věcně správnější, při kalibraci opravdu motory
+    stojí a robotem otáčí člověk.
+  - **Náklon se zadává, nesimuluje** — `SimulatedRobot` je rovinný. Pro měření pokrytí to stačí;
+    simulovat robota nakloněného na kopci je jiná úloha.
+  - ⚠️ **Neověřuje to železo skutečného robota**, jen že náš řetěz najde, co do něj vložíme.
+    **Terénní měření to nenahrazuje** — zvyšuje šanci, že první výjezd uspěje, protože se cestou
+    nenajde chyba v kódu nebo v pokynech na stránce.
+  - Past pro příště: `virtualhw=true` **bez `map=`** nevytvoří žádný HW („neni zadana zadna mapa
+    → zadny HW") a stránka pak nemá ani jeden senzor. Stálo to jeden běh.
+
+- **Kontrola kód ↔ komentáře ↔ dokumentace proti sobě** (na podnět autora: „je to už dost velký
+  projekt a uhlídat, aby si to odpovídalo, není jednoduché"). Nešlo o čtení od oka — co šlo
+  ověřit strojově, ověřilo se, a co se opravilo, to teď hlídá test.
+
+  - **Mrtvé odkazy v dokumentaci.** Přesun runtime do vlastního projektu (4. 9. 2026,
+    `Src/ARBot` → `Src/ARBot.Runtime`) nechal mrtvé odkazy na `ARBotRuntime.cs` v **šesti**
+    doménových dokumentech; jedenáct dní si jich nikdo nevšiml. Opraveno, a přibyl
+    `DokumentaceOdkazyTests` — každý odkaz `[text](cíl)` v živé dokumentaci musí vést na
+    existující soubor. ⚠️ **`devlog.md` a `plan-*.md` se schválně nehlídají:** jsou to záznamy
+    historie, kde je cesta pod starým datem správná pro to datum. Táž zásada, jakou má devlog
+    v hlavičce u obrázků.
+  - **`CLAUDE.md` si odporovala sama se sebou o třicet řádků:** u konfigurace stálo „systemd
+    jednotka aplikace neexistuje" (stav k 1. 9.), o pár odrážek níž je popsaná jednotka `arbot`
+    z 5. 9. Totéž dvakrát v `doc/configuration.md`, kde se z toho navíc vyvozovalo, že větev
+    „pod systemd jen skonči" **nemá jak nastat** — přitom je to dnes živá cesta. Opraveno na
+    obou místech.
+  - **`doc/configuration.md` tvrdila 62 parametrů**, registr jich má **85** (`CLAUDE.md` to měla
+    správně). Spočítáno ze zdroje — původních 62 je počet volání `Bool`/`Num`/`Text`, jenže
+    přibyly továrny `Cesta`, `Vycet` a `Slozeny`.
+  - **Dokumentace zneplatněná dnešními opravami** doplněna tam, kde popisovala staré chování:
+    `ekf-fusion.md` (brána na konečnost a **proč na to gating nestačí** — `nis > práh` je pro
+    `NaN` nepravdivé), `path-following.md` (fail-rámec patří do „neznámo"; `Stop()` teď posílá
+    nulu — do dneška ji neposílal nikde, ačkoli dokumentace tvrdila opak),
+    `record-replay.md` (razítka streamů v `TimeBase`, a že se rozbor zamrzlého streamu tím
+    **nemění**, protože se kotví jen počátek), `configuration.md` (`autorun=true` s jedoucí misí
+    nesmí být v uloženém profilu).
+
+  ⚠️ **Co tím pokryté NENÍ:** hlídač umí jen „soubor existuje". Že komentář **popisuje to, co kód
+  dělá**, strojově neověří nic — a právě na tom dnes stály dva omyly (V6 a V11). Jediná obrana,
+  která zabrala, byla ta, že si autor přečetl, co jsem napsal.
+
+- **Audit, druhá dávka — V4 až V13.** Autor rozhodl **V2 neřešit** (souhlas s rozborem: práh stáří
+  měření by robota zastavil i v legitimních případech, chce to jeho číslo ze záznamu). Zbytek
+  opraven, opět TDD — u každého nálezu nejdřív test, který na současném kódu spadne.
+  Testy **1539 / 115 / 140**, build `x64` i `OrangePI`.
+
+  - **V4 — tichý senzor se tvářil jako zdravý.** Po odpojení USB převodníku zůstane `sp.IsOpen`
+    true, `Read` vrací 0 bajtů a ovladač vrátí `null` **bez výjimky**, takže `SensorBase.Process`
+    nastavil `isError = false`. V Release tedy IMU/GPS mrtvé, stav zelený, v journalu ani řádek.
+    Nově `SilentTimeout` (výchozí 5 s, měří se **od startu**, aby senzor dostal okno na náběh)
+    a „nic neměřím" je chyba.
+  - **V5 — `Stop()` mohl zatuhnout navždy.** `SensorBase.Stop()` čekal `task.Wait()` **bez
+    timeoutu**; u-blox přitom točil `while (pos == null)` bez kontroly zastavení a `Uart` měl
+    `ReadTimeout` = `Infinite` (a `Uart.Read(int)` si příznak zrušení na začátku každého volání
+    **nuluje**, takže `CancelRead` odblokoval jen jedno čtení). ⚠️ Test to ukázal doslova —
+    běh testů s vypnutou opravou **nedoběhl vůbec** a musel se zabít. Léčba na třech místech:
+    `StopTimeout` (3 s, pak jen hlášení — vlákno senzoru nic neřídí, kdežto zatuhlý `Stop()`
+    zastaví i řídicí smyčku), konečný `ReadTimeout` na UARTu a `stopRequired` ve smyčkách
+    u-bloxu a motoru. `stopRequired` je nově `volatile`. Přitom se našlo, že motor při vypínání
+    vydával **falešný fail-rámec** — teď vrací `null`, protože fail-rámec dnes brány mise čtou
+    jako „neznámo".
+  - **V6 — razítka kamer mimo `TimeBase`.** ⚠️ **Autor to rozporoval správně a já to měl vznést
+    sám:** napsal jsem, že čas zařízení je „legitimní jiná základna". Není — všechen čas vychází
+    z `TimeBase`. **T265** razítkovala `IMUState` (od 6. 9. teče do fúze jako `VIO/yawrate`)
+    hodinami kamery, takže se měření buď zahazovala jako `TooOld`, nebo by posunula `tBase`
+    a zahodila **VN100, GPS i odometrii**; opraveno na `TimeBase.Now` v obou HAL větvích.
+    U **D435** jsou `RGBTimeStamp`/`DepthTimeStamp` jen forenzní pole (ověřeno: mimo ovladače
+    je čte **jediné** místo v repu, `ARBot.Analyze`), zato slouží k poznání **zamrzlého streamu** —
+    prosté `TimeBase.Now` by tu diagnostiku zabilo. Po dotazu autora zvolena varianta, kdy se
+    ukotví jen **počátek** a přírůstky zůstávají z kamery (`DeviceClockAnchor`, 6 testů):
+    pravidlo platí bez výjimky a zamrzlé razítko zůstane zamrzlé. `CalcTimeStamp` zrušen.
+    Hlídá to `CasZTimeBaseTests` (sken Common/HAL/Runtime; kalendářní datum pro člověka a seed
+    jsou povolené).
+  - **V7 — datový závod na `GoalField`.** `Step` si pod zámkem bral jen **odkazy** a pak nad
+    nimi počítal venku, zatímco `SetGoal` pole mutoval. Step běží na vlákně stupně navigace,
+    `SetGoal` volá **mise** ze svého (Track při přechodu na místo, Robotour po QR kódu) — takže
+    se to potkává v běžném provozu. Test to reprodukoval: `Collection was modified` přímo uvnitř
+    `GoalField.NearestNode`. Výjimku by spolkl `MessageTarget`, cyklus navigace by **tiše vypadl**
+    a robot by jel dál po poslední mrkvi. Celý cyklus je teď pod zámkem.
+  - **V8 — porucha vize se tvářila jako odpojená kamera.** `FrameProcessor.Process` běžel uvnitř
+    `try` snímací smyčky, jejíž `catch` hlásí „odpojeno", boří pipeline a jde do reconnectu —
+    softwarová vada v ONNX/RKNN se tedy **přičítala k reálným výpadkům D435**, které se zrovna
+    vyšetřují. Nově `CameraVisionStep`: snímek jde dál bez odvozených dat, porucha do `Trace`.
+  - **V9 — služba se v crash loopu trvale odstavila.** `StartLimitBurst=5` nebyla pojistka, ale
+    vypínač: šestý start skončil `start-limit-hit`, jednotka zůstala `failed` a `Restart=always`
+    ji nevrátil — v terénu tedy **natrvalo**. Limit vypnut (`StartLimitIntervalSec=0`); je to
+    bezpečné právě proto, že se robot bez výběru mise sám nerozjede, a deterministické příčiny
+    (2, 3) dál odfiltruje `RestartPreventExitStatus`. Přidán rostoucí `RestartSec`.
+  - **V10 — žádné CI, a čistý klon nešel postavit.** Reprodukováno klonem: `ARBot.Common.csproj`
+    kopíroval `NativeLib.dll` **bez** `Condition="Exists"` (větev `OrangePI` ji měla, `x64` ne)
+    a ta knihovna v gitu není. Opraveno; navíc `NativeLibAvailability` + `Assert.Ignore`, takže
+    testy závislé na knihovně se **přeskočí** místo pádu na `DllNotFoundException` (dřív se
+    musely ručně filtrovat). Ověřeno na stromě bez knihovny: **1481 prošlo / 62 přeskočeno /
+    0 neúspěšných**. Přidán `.github/workflows/build-and-test.yml` (testy x64, build i publish
+    `OrangePI`). ⚠️ **Při tom vznikla a hned se chytila vlastní regrese:** první podoba testu
+    dostupnosti volala `ComputeFree(IntPtr.Zero)` a to nativní kód neustál — **shodilo to celý
+    testovací host** (835 z 1543 testů a konec). Sonda je teď alokace 16 bajtů. Opraven i
+    finalizér `NativeComputeUnit`, který volal P/Invoke bez `try` — neodchycená výjimka ve
+    finalizéru ukončí proces.
+  - **V11 — profil `pi-freerun.cfg`.** Audit hlásil rozpor: komentář sliboval „defenzivních
+    0,1 m/s", hodnota byla `maxspeed=1`. ⚠️ **Opravil jsem to obráceně a autor to vrátil:**
+    strop se v průběhu času vědomě **zvedl na 1 m/s** a zapomněl se přepsat komentář — takže
+    autoritativní je **hodnota**, ne popis. Hodnota zůstává 1, přepsán je komentář. *(Poučení
+    je totéž jako u V6 níž: u rozporu „popis vs. kód" se musí zeptat, která strana je ta
+    pravda, ne to uhodnout. Udělal jsem tutéž chybu dvakrát v jednom sezení.)*
+    Druhá polovina nálezu platí: `autorun=true` + `mission=freerun` znamenalo, že se robot
+    po startu **rozjede sám** — což projekt zakazuje a co headless runtime jinak drží
+    dvoufázovým během; nastaveno `autorun=false` (na jeden běh jde zapnout z příkazové řádky).
+    Obojí hlídá `ProfilyBezpecnostTests` — a test na strop rychlosti je právě proti tomu
+    zapomenutému přepsání: kouká na souvislý blok komentářů **těsně nad klíčem**, takže při
+    další změně stropu upozorní, že se musí přepsat obojí.
+  - **V12 — `vnrestore.sh` zapisoval do flash bez ptaní.** Bez `set -e` navíc po selhání
+    dřívějšího příkazu uložil **polovičatý stav**. Nově `set -euo pipefail` ve všech skriptech
+    `deploy/` a potvrzení „ANO" s výpisem toho, co se zapíše (`VNRESTORE_ASSUME_YES=1` pro dávku).
+    ⚠️ Tím se rozbily příkazy v `deploy/README.md` — `ssh` bez `-t` nemá TTY, takže by skript
+    odmítl; README opraveno na `ssh -t`. Hlídá `DeploySkriptyTests`.
+  - **V13 — licence.** `LICENSE.txt` byl nevyplněná šablona MIT → doplněn rok a jméno. Vznikl
+    `THIRD-PARTY-NOTICES.md` se soupisem cizích součástí. ⚠️ Tři proprietární binárky
+    (`librknnrt.so`, `VectorNav.dll`, `FTD2XX_NET.dll`) jsou označené **(ověřit)** — jejich
+    podmínky redistribuce se z repozitáře vyčíst nedají a je potřeba je potvrdit, než se
+    z veřejného repa udělá distribuce. Otevřené zůstává i **atribuce OSM (ODbL)** tam, kde se
+    mapa zobrazuje, a poznámka o změně v upravených souborech `Src/ThirdParty/Intel.RealSense`
+    (Apache 2.0, čl. 4b).
+
+- **Rozpracováno / další krok:** ⚠️ **na zařízení neběželo nic z obou dávek.** Nejblíž k ověření
+  jsou V4/V5 (odpojit převodník za běhu a zkusit `systemctl stop`) a V6 (v záznamu z T265 musí
+  přestat mizet měření). Ze STŘEDNÍCH nálezů auditu se zatím nesáhlo na nic — nejvíc z nich
+  volají `PVTMessage.HeadVeh` (čte offset 64 místo 84), `uBloxGps` výpočet `FixTime` z ITOW
+  a `SDC2160Ex`, který nekontroluje prefixy řádků (ztracený řádek = skok `Odo/speed` do fúze,
+  kde na senzorová měření není gating).
+
+- **Odkazy:** `ARBot.Common/Devices/SensorBase.cs`,
+  `ARBot.Common/Algorithms/ComputeUnit/{NativeComputeUnit,NativeLibAvailability}.cs`,
+  `ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs`,
+  `ARBot.HAL/Devices/Camera/{DeviceClockAnchor,CameraVisionStep}.cs`,
+  `ARBot.HAL/Devices/Uart/Uart.cs`, `ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs`,
+  `ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs`, `ARBot.HALArmbian|HALWindows/Devices/Camera/*`,
+  `config/pi-freerun.cfg`, `deploy/{arbot.service,vnrestore.sh,vnprobe.sh,stin.sh,README.md}`,
+  `LICENSE.txt`, `THIRD-PARTY-NOTICES.md`, `.github/workflows/build-and-test.yml`.
+
+- **Audit projektu (externí, read-only) — opravena bezpečnostní vrstva řízení.** Autor dodal audit
+  nad HEAD `0e34771`. Tři kritické a jeden vysoký nález jsem **ověřil přímo ve zdroji dřív, než se
+  cokoli měnilo** — sedí všechny čtyři. Postup byl TDD: u každého nejdřív test, který na současném
+  kódu **spadne**, a u NaN pojistek se navíc obě vrstvy dočasně vypnuly, aby bylo vidět, že testy
+  drží skutečně je (a ne něco jiného). Testy 1528 / 138 / 105, build `x64` i `OrangePI`.
+
+  - **K1 — výjimka v taktu řídicí smyčky se polykala a robot jel po posledním příkazu.**
+    `ControlLoop.OnTick` neměl kolem výpočtu try/catch, `Scheduler.PumpDue` výjimku pustil dál
+    (a **přeskočil zbytek dávky**) a v `ARBotRuntime` ji spolkl `Debug.WriteLine`, tedy v Release
+    beze stopy. Trvale házející regulátor (NaN v póze, degenerovaný úsek) = žádné `Drive(0,0)`,
+    poslední rychlost zůstala v motorové jednotce do zásahu jejího 500ms watchdogu. Teď výjimka
+    znamená `Drive(0,0)` + `DriveCommandMsg` s nulami + hlášení do `Trace`; forward snímků zůstal
+    **mimo** ten try, aby porucha řízení neoslepila zároveň záznam, ze kterého se hledá.
+  - **V1 — `Stop()` nikdy neposlal motorům nulu.** `Drive(0,0)` byl v driveru jen v konstruktoru.
+    Platilo pro SIGTERM, `/stop`, `/poweroff` i přestavbu runtime při volbě mise — dokumentace
+    tvrdila opak. Nula je teď v `ControlLoop.Stop()` (runtime ji zastavuje jako stupeň), za
+    odregistrováním taktu, aby po ní už nikdo neposlal nenulový příkaz. ⚠️ Tři existující testy
+    měřily `motor.LastDif` **až po** `loop.Stop()` — odečet se posunul před něj, chování se
+    nezměkčilo.
+  - **K2 — brána „mise jen při drženém nouzovém zastavení" prošla s odpojeným motorovým UARTem.**
+    `SDC2160Ex` po chybě vyrábí každých 500 ms fail-rámec s `IsEmergencyStop = true`; to je
+    fail-safe pro **řídicí smyčku**, ne měření tlačítka — a rámec je *čerstvý*, takže kontrolu
+    stáří projde. Automat Tracku i Robotouru se podle něj posunul do „čeká na uvolnění" a
+    **obnovení linky s nestisknutým tlačítkem se přečetlo jako pokyn „jeď"**; v testu to skončilo
+    ve fázi `Driving`, resp. otevřelo QR skener. Rozlišuje to `HasMeasurement` (existovalo, četlo
+    ho **jediné** místo v repu): fail-rámec = „žádná zpráva", automat se nehne, obě serverové brány
+    (`MissionBlockedReason`, zápis kalibrace do senzoru) blokují. Totéž v `StopHold.NoteMotorState`
+    — nuly z fail-rámce nejsou měřené stání, a `CameraRecoverySupervisor` na tom čeká.
+  - **K3 — jedno vadné měření otrávilo fúzi natrvalo.** `Ekf.UpdateStep` nekontroloval konečnost
+    a **NaN projde i gatingem** (`nis > práh` je pro NaN nepravdivé), takže se zapekl do checkpointů
+    i do `xBase/pBase`. Dvě vrstvy: brána v `AsyncFusionEngine.Enqueue` (NaN/∞ v hodnotě nebo v R se
+    do okna vůbec nedostane — jinak by se přepočítával pořád dokola; počítadlo `DroppedNotFinite`
+    + rozpad po zdrojích) a pojistka na **výsledek** kroku v `UpdateStep`, která chytí i singulární
+    `S` (nulové R při `imuheadingstd=0` a `YprU=0` — MathNet tam nehází, vrací nekonečna).
+
+- **V3 — diagnostika poruch z `Debug` do `Trace`** na cestách, které audit jmenoval: výjimka
+  v `Consume` **kteréhokoli** stupně (`MessageTarget`), celý cyklus `LocalNavigator` + hláška
+  „NOUZOVE ZASTAVENI - kolize", `Uart.ReportEx` (jediné místo, kde se hlásí, že port nejde otevřít),
+  zahozené pakety VN100, čtení u-bloxu, mise Track/Robotour/FreeRun, `GlobalNavigator.Probe`,
+  QR dekodér a kroky `ARBotRuntime.Stop()`. Protože to jsou **horké cesty** (takt 10×/s, rámce
+  100×/s, snímky 30×/s), vznikl škrtič `ARBot.Common/Diagnostics/PoruchaHlasic.cs`: první výskyt
+  celý, další až po 5 s i s počtem potlačených, jiný druh poruchy jde ven hned. ⚠️ Bez škrcení by
+  trvalá porucha zaplavila `Trace` i záznam a narazila na strop `TraceInfoBridge.MaxPerSecond` —
+  ztratila by se právě ta **první**, nejvíc vypovídající hláška.
+  Hlídá to nový `DiagnostikaPoruchTests` (`DiagnostikaSenzoruTests` kryje jen složky `Devices`
+  a jen vzorek `Debug.WriteLine($"{Name}: …`, takže žádné z těch míst neviděl) — a **rovnou našel
+  dalších sedm** neošetřených v `ARBotRuntime`.
+
+- **Rozpracováno / další krok:** ⚠️ **nic z toho neběželo na zařízení** — vše jen build, testy
+  a rozbor zdroje. Z auditu zbývají zejména **V2** (fúze extrapoluje bez omezení; ztráta GPS+IMU
+  při živých kamerách robota nezastaví), **V4/V5** (po odpojení převodníku driver nehlásí `IsError`;
+  `Stop()` může zatuhnout na UARTu bez dat — kandidát na zatuhnutí `Start()` ze 14. 9.), **V6**
+  (razítka D435/T265 ze systémových hodin, ne z `TimeBase`), **V9** (crash loop odstaví službu
+  trvale), **V10** (žádné CI, čistý klon nejde postavit) a **V13** (licence a NOTICE).
+  Zbylých ~25 míst s `Debug.WriteLine(ex)` je hlavně v UI projektu, kde vývojář panel
+  *Debug output* vidí — proto nižší priorita; seznam v `DiagnostikaPoruchTests` je správné místo,
+  kam je postupně přidávat.
+
+- **Odkazy:** `ARBot.Common/Runtime/ControlLoop.cs`, `ARBot.Common/Runtime/StopHold.cs`,
+  `ARBot.Common/Communication/MessageTarget.cs`, `ARBot.Common/Fusion/{Ekf,AsyncFusionEngine}.cs`,
+  `ARBot.Common/Missions/{TrackMission,RobotourMission,FreeRunMission}.cs`,
+  `ARBot.Common/Diagnostics/PoruchaHlasic.cs`, `ARBot.Common/Occupancy/LocalNavigator.cs`,
+  `ARBot.HAL/Devices/Uart/Uart.cs`, `ARBot.Runtime/Web/WebStatus.cs`,
+  `ARBot.Runtime/Robot/ARBotRuntime.cs`.
 
 - **Zadání (teoretická otázka autora):** *co se stane, když se v současném nastavení zapnou korekce
   podle koridoru?* Rozbor z dokumentovaných σ a kadencí našel tři věci, které se do kódu propsaly.

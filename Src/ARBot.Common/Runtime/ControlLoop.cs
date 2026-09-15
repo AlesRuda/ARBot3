@@ -64,6 +64,12 @@ namespace ARBot.Common.Runtime
         private DateTime lastRegulatorTick;      // cas posledni aktualizace regulatoru (v case tiku)
         private double lastForward;              // posledni dopredna rychlost (pro nouzove dobrzdeni)
 
+        // Skrceni hlaseni poruch taktu: takt jede ~10x/s, trvala porucha by jinak zaplavila Trace
+        // a s nim i zaznam, ve kterem se ta porucha hleda. Hodiny jsou cas TAKTU (ne stroje), aby
+        // to pri prehravani zaznamu i v testech vychazelo stejne.
+        private DateTime hlaseniTik;
+        private readonly Diagnostics.PoruchaHlasic hlasic;
+
         /// <summary>
         /// Regulator, ktery smycka jede (bodovy <see cref="PointRegulator"/> nebo dráhový <see cref="PathResult"/>).
         /// Nastavuje ho vyssi ridici smycka (mapa/OSM -> <see cref="IPathPlanner.Plan"/>); vymena je atomicka
@@ -128,6 +134,8 @@ namespace ARBot.Common.Runtime
             this.cameras = cameras;
             this.period = period ?? TimeSpan.FromMilliseconds(Profile.Ts);
             this.pathTimeout = pathTimeout ?? TimeSpan.FromMilliseconds(Profile.PathControlTimeOut);
+            // Hodiny skrtice = cas TAKTU (nastavuje ho Hlas), ne hodiny stroje.
+            hlasic = new Diagnostics.PoruchaHlasic(hodiny: () => hlaseniTik);
 
             registration = scheduler.Register(this.period, OnTick);
         }
@@ -158,16 +166,40 @@ namespace ARBot.Common.Runtime
                 lastMotor = motorState;
         }
 
-        /// <summary>Jeden takt ridici smycky v case <paramref name="tk"/> (bod mrizky).</summary>
+        /// <summary>
+        /// Jeden takt ridici smycky v case <paramref name="tk"/> (bod mrizky).
+        ///
+        /// <para>⚠️ <b>Vypocet je obaleny try/catch a vyjimka znamena <c>Drive(0,0)</c>.</b> Bez toho
+        /// vypadne takt jeste PRED <c>motor.Drive</c>, vyjimka projde <see cref="Scheduler.PumpDue"/>
+        /// (kde navic preskoci zbytek davky) az do casovace runtime a tam se spolkne — trvale
+        /// hazejici regulator (NaN v poze, degenerovany usek) by tedy znamenal: zadny prikaz, zadna
+        /// stopa, a <b>posledni rychlost zustane v motorove jednotce</b>, dokud ji nesrazi jeji
+        /// vlastni 500ms watchdog (rampou, ne tvrdou nulou). Bezpecny stav je stat.</para>
+        ///
+        /// <para>Forward snimku je <b>mimo</b> ten try: porucha rizeni nesmi zaroven oslepit zaznam,
+        /// ze ktereho se ta porucha bude dohledavat.</para>
+        /// </summary>
         private void OnTick(DateTime tk)
         {
             // Vize: pullni nejnovejsi snimky kamer (grid pro rizeni; cely ramec na Stream). Pullujeme
             // NA ZACATKU tiku, aby rizeni melo k dispozici nejcerstvejsi grid. Forward na Stream az
             // po vypoctu rizeni (viz nize), aby zaznam mel prirozene poradi: snimek -> stav -> prikaz.
             IReadOnlyList<CameraFrame> frames = null;
+            // Trace, ne Debug: v Release (a ten bezi na zarizeni) by po vypadku vize nezustala stopa.
             try { frames = cameras?.PullLatest(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            catch (Exception ex) { Hlas(tk, "pull snimku selhal", ex); }
 
+            try { Rizeni(tk); }
+            catch (Exception ex) { ZastavPoVyjimce(tk, ex); }
+
+            if (frames != null)
+                for (int i = 0; i < frames.Count; i++)
+                    ForwardFrame(frames[i]);
+        }
+
+        /// <summary>Vlastni vypocet taktu (vse mezi odhadem stavu a odeslanim prikazu).</summary>
+        private void Rizeni(DateTime tk)
+        {
             RobotState rs = engine.GetStateAt(tk);
             if (rs == null)
             {
@@ -176,9 +208,6 @@ namespace ARBot.Common.Runtime
                 // neznamé pozy je horsi nez nejet.
                 lastForward = 0;
                 motor.Drive(0, 0);
-                if (frames != null)
-                    for (int i = 0; i < frames.Count; i++)
-                        ForwardFrame(frames[i]);
                 return;
             }
 
@@ -281,7 +310,7 @@ namespace ARBot.Common.Runtime
                     var truth = truthSource(rs.TimeStamp);
                     if (truth != null) EmitDerived(truth);
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+                catch (Exception ex) { Hlas(tk, "zdroj skutecnosti (ground truth) selhal", ex); }
             }
 
             EmitDerived(new DriveCommandMsg
@@ -294,13 +323,52 @@ namespace ARBot.Common.Runtime
                 Held = held,
                 TimeStamp = tk
             });
+        }
 
-            // Forward pullnutych snimku na Stream (zaznam/UI). Cely CameraFrame (raw + grid), aby slo
-            // zpetne overit chovani robota. Output je neblokujici fan-out (odberatele maji vlastni
-            // fronty), takze forward na vlakne tiku nebrzdi rizeni.
-            if (frames != null)
-                for (int i = 0; i < frames.Count; i++)
-                    ForwardFrame(frames[i]);
+        /// <summary>
+        /// Odpoved na vyjimku ve vypoctu taktu: <b>zastavit</b> a nechat stopu.
+        ///
+        /// <para>Prikaz jde do motoru i do <see cref="DriveCommandMsg"/>, aby zaznam netvrdil „jedu",
+        /// kdyz robot ma stat — tataz zasada jako u nouzoveho zastaveni ve smycce.</para>
+        /// </summary>
+        private void ZastavPoVyjimce(DateTime tk, Exception ex)
+        {
+            lastForward = 0;
+
+            // Poradi je zamerne: nejdriv motory (to je ta bezpecnostni cast), teprve pak hlaseni
+            // a zprava. Kdyby Drive sam hazel (mrtvy UART), stopa se stejne porizuje nize.
+            try { motor.Drive(0, 0); }
+            catch (Exception ex2) { Hlas(tk, "po vyjimce v taktu nejde zastavit motory", ex2); }
+
+            Hlas(tk, "vyjimka ve vypoctu taktu -> Drive(0,0)", ex);
+
+            try
+            {
+                EmitDerived(new DriveCommandMsg
+                {
+                    Speed = 0, RotationSpeed = 0, Forvard = 0, Dif = 0,
+                    EmergencyStop = false, Held = false, TimeStamp = tk
+                });
+            }
+            catch (Exception ex3) { Hlas(tk, "po vyjimce v taktu nejde emitovat prikaz", ex3); }
+        }
+
+        /// <summary>
+        /// Hlaseni poruchy taktu do <c>Trace</c>, <b>skrcene</b>.
+        ///
+        /// <para>⚠️ Skrceni neni kosmetika: takt jede desetkrat za sekundu, takze trvala porucha by
+        /// jinak zaplnila <c>Trace</c> (a tim i zaznam, ze ktereho se hleda pricina) a narazila na
+        /// strop <c>TraceInfoBridge.MaxPerSecond</c> — prvni, tedy nejzajimavejsi, hlaska by se
+        /// v zaplave ztratila. Prvni vyskyt jde ven vzdy a cely; dalsi az po periode
+        /// <see cref="Diagnostics.PoruchaHlasic"/> i s poctem potlacenych.</para>
+        ///
+        /// <para>Meri se casem TAKTU, ne hodinami stroje — pri prehravani zaznamu i v testech to
+        /// pak vychazi stejne.</para>
+        /// </summary>
+        private void Hlas(DateTime tk, string co, Exception ex)
+        {
+            hlaseniTik = tk;
+            hlasic.Hlas("ControlLoop: " + co, ex);
         }
 
         /// <summary>
@@ -313,10 +381,31 @@ namespace ARBot.Common.Runtime
             if (frame != null) EmitDerived(frame);
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Zastavi smycku — a <b>zastavi motory</b>.
+        ///
+        /// <para>⚠️ <b>Ta druha pulka je podstatna.</b> Odregistrovanim taktu prestanou chodit prikazy,
+        /// ale <b>posledni odeslana rychlost zustane v motorove jednotce</b> a robot jede dal, dokud
+        /// ji nesrazi jeji vlastni 500ms watchdog — rampou, ne tvrdou nulou. Tudy jde SIGTERM,
+        /// <c>/stop</c>, <c>/poweroff</c> i prestavba runtime pri volbe mise (<c>ARBotRuntime.Stop()</c>
+        /// zastavuje smycku jako stupen zpracovani), takze „ukoncit aplikaci" musi znamenat „stat".</para>
+        ///
+        /// <para>Poradi: nejdriv odregistrovat takt (aby uz nikdo neposlal nenulovy prikaz PO nasi
+        /// nule), pak nula, teprve pak <c>base.Stop()</c> — ten dojizdi frontu zprav.</para>
+        /// </summary>
         public override void Stop()
         {
             registration?.Dispose();
+
+            lastForward = 0;
+            try { motor.Drive(0, 0); }
+            catch (Exception ex)
+            {
+                // Trace, ne Debug: pri vypnuti na zarizeni je tohle jedina stopa po tom, ze se
+                // robota nepodarilo zastavit softwarove.
+                System.Diagnostics.Trace.WriteLine($"ControlLoop.Stop: motory nejde zastavit: {ex}");
+            }
+
             base.Stop();
         }
     }

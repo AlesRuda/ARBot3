@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**, celá sada je zelená (1065). Registr obsahuje **62 parametrů**
+> Konfigurace*). Jádro má **77 testů**. Registr obsahuje **85 parametrů**
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -18,9 +18,14 @@
 > ***Uložit a restartovat* je funkční** (ověřil autor 1. 9. 2026) — tím je panel proklikaný celý.
 >
 > **Všechno výše je ověřené na Windows.** **Neověřeno:** nic z toho neběželo **na zařízení**
-> (Armbian/OrangePI). U restartu na tom záleží víc než jinde: **systemd jednotka aplikace
-> neexistuje** (`setup-orangepi.sh` řeší jen síť), takže větev „pod systemd jen skonči" tam pořád
-> nemá jak nastat a chování na Pi může být jiné než tady.
+> (Armbian/OrangePI).
+>
+> ⚠️ **Oprava 15. 9. 2026:** dřív tu stálo, že „systemd jednotka aplikace neexistuje", takže
+> větev „pod systemd jen skonči" nemá jak nastat. **To už neplatí od 5. 9. 2026** — jednotka
+> `arbot` existuje (`deploy/arbot.service`, `Restart=always`, viz [headless.md](headless.md)
+> a [deploy/README.md](../deploy/README.md)) a ta větev je tedy **živá cesta**, ne obrana do
+> budoucna. Chování restartu na Pi tím pádem stojí za ověření tím spíš. *(Našel to audit;
+> tvrzení tady si odporovalo i s `CLAUDE.md`, kde byla jednotka popsaná o pár řádků níž.)*
 >
 > Postup implementace: [plan-configuration.md](plan-configuration.md).
 
@@ -485,6 +490,14 @@ přes SSH podstatné.
 > ⚠️ **Se zapnutou misí se robot rozjede sám**, bez dalšího pokynu; zastaví ho jen nouzové
 > zastavení nebo *Stop* v UI. Prodleva před startem (~3 s) je na **ustálení**, ne bezpečnostní —
 > skutečná pojistka je fyzické nouzové zastavení. Výchozí hodnota je `false`.
+>
+> ⚠️ **A v uloženém profilu to být nesmí** (od 15. 9. 2026): spojení `autorun=true`
+> s jedoucí misí (`freerun`, `robotour`, `track`) obchází pravidlo „robot, který se sám rozjede,
+> je horší než robot, který stojí" (CLAUDE.md), které headless runtime jinak drží dvoufázovým
+> během — bez výběru mise stojí, a i pak se rozjede až po uvolnění **drženého** nouzového
+> zastavení. `config/pi-freerun.cfg` tu bránu obcházel, protože vznikl dřív než ona; hlídá to
+> test `ProfilyBezpecnostTests`. **Na jeden běh** jde autostart pořád zapnout z příkazové řádky
+> (`autorun=true`), kde je to vědomé rozhodnutí člověka u robota, ne vlastnost uloženého souboru.
 
 Při `selftest=true` se `autorun` **ignoruje** (a zapíše se proč): self-test si Run spouští sám
 a druhý start by první zastavil.
@@ -609,10 +622,14 @@ precedence právě uloženou hodnotu a tlačítko by nedělalo, co slibuje. Je t
 ⚠️ **Past se `systemd`:** pod službou s `Restart=always` by spuštění vlastní kopie vyrobilo **dvě
 instance**. Detekce přes proměnnou prostředí `INVOCATION_ID`, kterou `systemd` službě nastavuje:
 je-li přítomná, aplikace se jen ukončí a restart nechá na `systemd`; jinak nastartuje sama sebe.
-> **Zjištěno při implementaci: žádná systemd jednotka aplikace zatím neexistuje.**
-> `OrangePi5Ultra/setup-orangepi.sh` řeší jen síť (hostapd, AP, dnsmasq) — aplikace se na Pi
-> spouští ručně. Ta větev tedy nikdy nenastane a je to obrana do budoucna. **Až jednotka vznikne,
-> musí mít `Restart=always`** — jinak by tlačítko aplikaci vyplo a už ji nezaplo.
+> **Zjištěno při implementaci (1. 9. 2026): žádná systemd jednotka aplikace tehdy neexistovala.**
+> `OrangePi5Ultra/setup-orangepi.sh` řešil jen síť (hostapd, AP, dnsmasq) a aplikace se na Pi
+> spouštěla ručně, takže ta větev nikdy nenastala a byla to obrana do budoucna.
+>
+> ✅ **Od 5. 9. 2026 jednotka existuje** (`deploy/arbot.service`) a **má `Restart=always`**, jak
+> si tenhle odstavec vymínil — větev s `INVOCATION_ID` je tedy živá. ⚠️ Zbývá ji **projít na
+> zařízení**: že se aplikace pod službou opravdu jen ukončí a nastartuje ji systemd, ověřeno
+> nebylo.
 
 Potvrzovací dialog při běžícím Run nebo misi **zatím není** — tlačítko restartuje rovnou. Je to
 vědomý dluh: dialog by chtěl vlastní okno a restart je akce, kterou člověk dělá záměrně.

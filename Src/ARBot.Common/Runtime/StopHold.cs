@@ -151,13 +151,18 @@ namespace ARBot.Common.Runtime
         /// Prevzeti stavu motoru z tiku ridici smycky. <paramref name="motor"/> <c>null</c> nebo
         /// zadny stav = <b>neznamo</b> (tedy NE „stoji") - viz <see cref="StopHold.IsStopped"/>.
         ///
+        /// <para>⚠️ <b>Do „neznamo" patri i fail-ramec driveru</b> (<c>HasMeasurement == false</c>),
+        /// a je to zradnejsi pripad nez mlceni: ramec dorazi, takze vypada jako merenie, ale jeho
+        /// nuly nikdo nemeril — <c>SDC2160Ex</c> ho vyrabi po chybe portu. Bez tohoto rozliseni
+        /// by odpojeny motorovy UART hlasil „robot stoji" prave tehdy, kdy o robotu nevime nic.</para>
+        ///
         /// <para>Test je na PRESNOU nulu, bez epsilonu, stejne jako u nouzoveho zastaveni ve
         /// smycce: <c>LeftWheelSpeed</c> je nefiltrovany prirustek enkoderu, ktery je pri nulovem
         /// posunu presne 0.</para>
         /// </summary>
         public void NoteMotorState(IMotorState motor)
         {
-            standing = motor == null
+            standing = motor == null || !motor.HasMeasurement
                 ? null
                 : (object)(motor.LeftWheelSpeed == 0 && motor.RightWheelSpeed == 0);
         }

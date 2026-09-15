@@ -12,7 +12,7 @@
 # ktery aplikace dostane parametrem dataroot=. Kopie je tim mala (~16 MB).
 #
 # Viz doc/headless.md a doc/plan-headless-provoz.md, navrh H.
-set -eu
+set -euo pipefail
 
 ZDROJ="${1:-/home/ales/arbot-headless}"
 CIL="${2:-/home/ales/arbot-headless-run}"

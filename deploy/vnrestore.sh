@@ -46,7 +46,7 @@
 # ⚠️ Zapis do flash jde overit jen ZPETNYM CTENIM - registr se cte z RAM, ne z flash.
 # Skutecny test je az VYPNUTI A ZAPNUTI robota.
 # ---------------------------------------------------------------------------------
-set -u
+set -euo pipefail
 DEV=${1:-/dev/ttyUSB0}
 MAG=${2:-}
 MAGCAL=${3:-}
@@ -81,9 +81,48 @@ send() { local body="$1"; printf '$%s*%s\r\n' "$body" "$(cks "$body")" > "$DEV";
 echo "=== PRED zapisem ==="
 send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,08"
 sleep 0.3
-grep -ao "\$VN[A-Z]\{3\},\(35\|23\|08\)[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u
+grep -ao "\$VN[A-Z]\{3\},\(35\|23\|08\)[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u || echo "  (zadna ASCII odpoved - senzor mlci nebo je v binarnim rezimu)"
 
 MARK=$(stat -c %s "$OUT")
+
+# --- POTVRZENI -------------------------------------------------------------------
+# ⚠️ Zmena konfigurace senzoru a hlavne ZAPIS DO FLASH je nevratny zasah do zeleza.
+# Do 15. 9. 2026 se delal bez ptani, takze staciloe spustit skript a bylo hotovo -
+# a protoze chybelo i `set -e`, po selhani dreivejsiho prikazu se do flash ulozil
+# POLOVICATY stav. U senzoru, jehoz spatna konfigurace uz stala nekolik vyjezdu
+# (doc/imu-and-frames.md), je to nejdrazsi mozna ticha chyba.
+#
+# Skriptovane pouziti: VNRESTORE_ASSUME_YES=1 ./vnrestore.sh ...
+echo
+echo "=== CO SE ZAPISE ==="
+echo "  port:        $DEV"
+echo "  registr 35:  1,0,1,1  (heading mode ABSOLUTE)"
+case "$MAG" in
+    --mag)      echo "  registr 23:  kalibrace magnetometru z exportu ARBot2 (rok stara!)" ;;
+    --clearmag) echo "  registr 23:  VYMAZANI kalibrace (jednotkova matice, nulovy bias)" ;;
+    --magcal)   echo "  registr 23:  $MAGCAL" ;;
+    "")         echo "  registr 23:  beze zmeny" ;;
+    *)          echo "NEZNAMY prepinac '$MAG' (cekam --mag / --clearmag / --magcal)"; exit 3 ;;
+esac
+echo "  pak VNWNV = ULOZENI DO FLASH (nevratne, prezije vypnuti)"
+echo
+
+if [ "${VNRESTORE_ASSUME_YES:-}" = "1" ]; then
+    echo "VNRESTORE_ASSUME_YES=1 - zapisuji bez ptani."
+elif [ ! -t 0 ]; then
+    # Neinteraktivni beh se NEPOTVRZUJE automaticky: u zapisu do flash je bezpecnejsi
+    # odmitnout nez hadat, ze to tak clovek chtel.
+    echo "Neinteraktivni beh - zapis do flash se nepotvrdil."
+    echo "Kdyz to tak opravdu chces: VNRESTORE_ASSUME_YES=1 $0 $*"
+    exit 4
+else
+    printf 'Zapsat tohle do senzoru a ulozit do FLASH? Napis ANO: '
+    read -r ODPOVED
+    if [ "$ODPOVED" != "ANO" ]; then
+        echo "Zruseno - do senzoru se nezapsalo nic."
+        exit 4
+    fi
+fi
 
 # --- ZAPIS -----------------------------------------------------------------------
 # Reg 35 VPE Basic Control: Enable=1, HeadingMode=0 (Absolute), FilteringMode=1, TuningMode=1.
@@ -111,9 +150,9 @@ echo "=== PO zapisu (zpetne cteni) ==="
 send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,08"; send "VNRRG,27"
 sleep 0.5
 
-kill $CATPID 2>/dev/null
-wait $CATPID 2>/dev/null
+kill $CATPID 2>/dev/null || true
+wait $CATPID 2>/dev/null || true
 
-tail -c +"$MARK" "$OUT" | grep -ao "\$VN[A-Z]\{3\}[^*]*\*[0-9A-Fa-f]\{2\}" | sort -u
+tail -c +"$MARK" "$OUT" | grep -ao "\$VN[A-Z]\{3\}[^*]*\*[0-9A-Fa-f]\{2\}" | sort -u || echo "  (zadna ASCII odpoved po zapisu)"
 echo
 echo "Heading mode ma byt 35,1,0,1,1. Skutecny test trvalosti je az vypnuti a zapnuti robota."

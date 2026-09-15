@@ -1227,7 +1227,7 @@ zkoušet scénáře bez restartu běhu (Ctrl + klik zůstává cílem plánovač
 dává jen polohu.
 
 Platí jen v **Run s virtuálním HW**; ve View a s reálným hardwarem
-[`ARBotRuntime.TeleportSimulatedRobot`](../Src/ARBot/Robot/ARBotRuntime.cs) vrátí `false` a napíše
+[`ARBotRuntime.TeleportSimulatedRobot`](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs) vrátí `false` a napíše
 důvod do Debug outputu. Pohled o runtime nic neví — jen se zeptá přes `TeleportRequested`.
 
 Podstatné je, že se **nemění jen poloha**. Tři věci na sobě závisí a musí se srovnat naráz:

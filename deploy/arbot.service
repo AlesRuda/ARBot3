@@ -16,10 +16,24 @@ Documentation=file:/home/ales/arbot-headless/README.md
 # robotovi zadat ukol. Proto se na ni ceka, ale start se na ni neváže tvrde.
 After=network-online.target
 Wants=network-online.target
-# Pojistka proti smycce padu: pet startu za pet minut a pak se to vzda (stav
-# "failed" je videt v systemctl status). Bez toho by pad pri startu zaplavil journal.
-StartLimitIntervalSec=300
-StartLimitBurst=5
+# ⚠️ BEZ OMEZENI POCTU STARTU (zmena 15. 9. 2026 po auditu).
+#
+# Driv tu bylo StartLimitIntervalSec=300 / StartLimitBurst=5 jako "pojistka proti
+# smycce padu". Jenze to nebyla pojistka, byl to vypinac: SESTY start behem peti
+# minut skoncil "start-limit-hit", jednotka zustala ve stavu failed a Restart=always
+# uz ji NIKDY nevratila. Robot byl mrtvy do rucniho `systemctl reset-failed` - a
+# v terenu, kde je u nej jen mobil, tedy TRVALE. Naslo se to 14. 9. 2026 na
+# reprodukcnim testu, ale dve SIGSEGV pri Stop() tehoz dne rikaji, ze crash loop
+# neni hypoteza.
+#
+# Proc je to bezpecne: robot se po restartu SAM NEROZJEDE (viz hlavicka - ceka na
+# vyber mise pri drzenem nouzovem zastaveni), takze opakovany start nic neridi, jen
+# to zkousi znovu. Dve deterministicke priciny, u kterych opakovani nema smysl,
+# odfiltruje RestartPreventExitStatus niz. Journal zaplaveni nehrozi: systemd si
+# hlaseni sam omezuje a RestartSec navic roste (viz RestartSteps).
+#
+# Hlida to test ArbotServiceUnitTests.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -41,6 +55,12 @@ ExecStart=/usr/bin/dotnet /home/ales/arbot-headless-run/ARBot.Headless.dll \
 # Kdyby nekdy prestalo platit, ze se robot bez volby nerozjede, musi zmizet i tohle.
 Restart=always
 RestartSec=5
+# Rostouci odstup mezi restarty: prvni pokusy rychle (bezny restart sluzby ma byt
+# hned), pri opakovanem padu se odstup zvetsuje az na minutu, takze horka smycka
+# nezere CPU ani journal. Vyzaduje systemd >= 254; na starsim se radky ignoruji
+# (jen varovani) a plati konstantnich RestartSec=5 - to je porad lepsi nez se vzdat.
+RestartSteps=5
+RestartMaxDelaySec=60
 # Vadna konfigurace (2) ani druha instance (3) se restartem nespravi - opakovat to
 # do nekonecna by jen zaplavilo journal a zakrylo pricinu.
 RestartPreventExitStatus=2 3

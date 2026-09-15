@@ -13,7 +13,12 @@ namespace ARBot.Common.Devices
     public abstract class SensorBase<TState>:IDisposable, ISensor, IControllableSensor where TState: class
     {
         protected Task task;
-        protected bool stopRequired = false;
+        /// <summary>
+        /// Žádost o zastavení smyčky. <b>volatile</b> schválně: píše ji vlákno, které volá
+        /// <see cref="Stop"/>, a čte ji smyčka <see cref="Process"/> na vlákně senzoru — bez toho
+        /// si ji JIT smí držet v registru a smyčka by se zastavení nikdy nedozvěděla.
+        /// </summary>
+        protected volatile bool stopRequired = false;
         protected object lck = new object();
         protected DateTime? lastPickupTimeStamp = null;
         protected DateTime? lastTimeStamp = null;
@@ -28,10 +33,59 @@ namespace ARBot.Common.Devices
 
 
         private bool isError = false;
+
+        // Kdy naposledy dorazilo skutecne merenie (nebo kdy se senzor spustil). Slouzi k detekci
+        // TICHEHO senzoru - viz SilentTimeout. Volatile: pise vlakno senzoru, cte volajici IsError.
+        private volatile object lastOkAtBox;
+
+        /// <summary>
+        /// Jak dlouho smi senzor <b>mlčet</b>, než se to počítá za poruchu.
+        /// <see cref="TimeSpan.Zero"/> = hlídání vypnuté.
+        ///
+        /// <para>⚠️ <b>Nač to je (nález auditu 15. 9. 2026).</b> Po odpojení USB převodníku zůstane
+        /// <c>sp.IsOpen</c> <c>true</c>, <c>Read</c> vrací 0 bajtů a ovladač vrátí <c>null</c>
+        /// <b>bez výjimky</b> — takže <see cref="Process"/> nastaví <c>isError = false</c>
+        /// a senzor se tváří zdravě. V Release buildu je pak IMU/GPS mrtvé, stav na stránce
+        /// náhledu zelený a v journalu ani řádek. <b>„Nic neměřím" musí být chyba, ne ticho.</b></para>
+        ///
+        /// <para>Výchozích 5 s je s velkou rezervou nad periodou všech dnešních senzorů (IMU 100 Hz,
+        /// GPS 10 Hz, motor 2 Hz, kamery 30 Hz). Počítá se <b>od startu</b>, ne od nuly — senzor
+        /// dostane okno na náběh.</para>
+        /// </summary>
+        public virtual TimeSpan SilentTimeout => TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Jak dlouho <see cref="Stop"/> čeká na doběhnutí vlákna, než to vzdá a jen to ohlásí.
+        ///
+        /// <para>⚠️ <b>Nač to je (nález auditu 15. 9. 2026).</b> Čekalo se <b>bez timeoutu</b>.
+        /// Ovladač, který uvízne uvnitř <c>GetMeasurement</c> (u-blox točil <c>while (pos == null)</c>
+        /// bez kontroly zastavení, <c>sp.ReadLine()</c> měl nekonečný <c>ReadTimeout</c>), tím
+        /// zastaví <c>ARBotRuntime.Stop()</c> — a ten běží pod zámkem, takže zatuhne celý runtime
+        /// (kandidát na zatuhnutí <c>Start()</c> ze 14. 9. 2026).</para>
+        ///
+        /// <para>Vzdát se čekání je <b>bezpečnější než čekat</b>: vlákno senzoru jen čte port
+        /// a nic neřídí, kdežto zatuhlý <c>Stop()</c> znamená, že se nezastaví ani řídicí smyčka.</para>
+        /// </summary>
+        public virtual TimeSpan StopTimeout => TimeSpan.FromSeconds(3);
+
         /// <summary>
         /// Pehem zpracovani doslo k chybe.
+        ///
+        /// <para>Chybou je i <b>ticho</b> delší než <see cref="SilentTimeout"/> (jen když senzor
+        /// běží — nespuštěný senzor neměří, a to porucha není).</para>
         /// </summary>
-        public virtual bool IsError => isError;
+        public virtual bool IsError => isError || JeTichy();
+
+        /// <summary>Mlčí senzor déle, než smí? Viz <see cref="SilentTimeout"/>.</summary>
+        private bool JeTichy()
+        {
+            var prah = SilentTimeout;
+            if (prah <= TimeSpan.Zero || !IsRunning)
+                return false;
+            if (lastOkAtBox is not DateTime od)
+                return false;                       // jeste nestartoval
+            return Common.TimeBase.Now - od > prah;
+        }
 
         protected virtual void Pickedup(TState s)
         {
@@ -77,6 +131,8 @@ namespace ARBot.Common.Devices
             if (!IsRunning)
             {
                 stopRequired = false;
+                // Prah ticha se pocita od startu - senzor dostane okno na nabehnuti.
+                lastOkAtBox = Common.TimeBase.Now;
                 task = Task.Factory.StartNew(() => Process(), TaskCreationOptions.LongRunning);
             }
         }
@@ -89,7 +145,17 @@ namespace ARBot.Common.Devices
             if(IsRunning)
             {
                 stopRequired = true;
-                task?.Wait();
+                var t = task;
+                // Cekani S TIMEOUTEM - viz StopTimeout. Zatuhly ovladac nesmi zastavit cely runtime.
+                if (t != null && !t.Wait(StopTimeout))
+                {
+                    // Trace, ne Debug: v Release (na zarizeni) je tohle jedina stopa po tom, ze
+                    // senzor zustal viset - a ze se tedy port neuvolnil pro dalsi start.
+                    Trace.WriteLine($"{Name}: vlakno senzoru nedobehlo do {StopTimeout.TotalSeconds:0.#} s "
+                                  + "(ovladac uvizl ve cteni) - pokracuje se bez nej.");
+                    // task se ZAMERNE nenuluje: dokud vlakno zije, IsRunning ma rikat pravdu
+                    // a opakovany Start() nesmi rozjet druhe vlakno nad tymz portem.
+                }
             }
         }
         /// <summary>
@@ -138,7 +204,10 @@ namespace ARBot.Common.Devices
                     }
 
                     if (v != null)
+                    {
+                        lastOkAtBox = Common.TimeBase.Now;   // hlidani ticha - viz SilentTimeout
                         OnMeasurement(v);
+                    }
                     else
                         // Zadne mereni (typicky nedostupny senzor/zavreny port): kratky
                         // backoff, aby smycka nebusy-spinovala a nezaplavovala Debug log.

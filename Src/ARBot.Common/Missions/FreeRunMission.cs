@@ -125,7 +125,9 @@ namespace ARBot.Common.Missions
                 var result = Process(frame);
                 if (result != null) EmitDerived(result.ToLogMessage());
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"FreeRunMission: {ex}"); }
+            // Trace, ne Debug: v Release (na zarizeni) by po selhani cyklu mise nezustala stopa a
+            // vypadalo by to, ze mise "jen nic nedela". Viz CLAUDE.md.
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"FreeRunMission: cyklus selhal: {ex}"); }
         }
 
         /// <summary>

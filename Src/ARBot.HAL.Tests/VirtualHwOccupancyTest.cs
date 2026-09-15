@@ -67,6 +67,12 @@ public class VirtualHwOccupancyTest
                     OccupancyGrid Grid)
         Run(double x, double y, double thetaDeg, bool nativeTransform)
     {
+        // ⚠️ Chybejici nativni knihovna neni regrese, jen chybejici zavislost: stavi se
+        // z Src/NativeFuncs a v gitu NENI (na CI ani v cistem klonu tedy chybi). Do 15. 9. 2026
+        // takove testy padaly na DllNotFoundException a vypadalo to jako rozbite chovani.
+        if (nativeTransform && !ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.JeDostupna)
+            Assert.Ignore(ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.Duvod);
+
         var origin = Origin();
         double theta = Conversions.Deg2Rad(thetaDeg);
         var pose = new RobotState { X = x, Y = y, Theta = theta };

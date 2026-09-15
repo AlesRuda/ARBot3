@@ -19,6 +19,15 @@ Kód: **`ARBot.Common/Fusion/`**. Podrobný rozbor: [`doc/EKF_fuze_dokumentace.d
 - **NIS + gating** (`Gating.cs`): `NIS = dᵀS⁻¹d`; `GateMode.Reject` (zahodit) nebo
   `Soft` (nafouknout R → nikdy se nezasekne, sám se zotaví z výpadku). Bezstavové,
   skládá se s replayem. `AsyncFusionEngine.Diagnostics()` reportuje NIS per měření.
+- ✅ **Brána na konečnost** (od 15. 9. 2026, nález auditu): měření s `NaN`/`±∞` v hodnotě
+  nebo v `R` se do okna **vůbec nedostane** (`AsyncFusionEngine.Enqueue`, počítadlo
+  `DroppedNotFinite` + rozpad po zdrojích) a krok, který nekonečno **vyrobí** (typicky
+  singulární `S` při nulovém `R`), měření zamítne (`Ekf.UpdateStep`).
+  ⚠️ **Gating na to nestačí a je to důvod, proč ta brána vznikla:** `nis > práh` je pro `NaN`
+  **nepravdivé**, takže `NaN` projde jako platné měření — a jelikož se uzly bufferu při každém
+  opožděném měření přepočítávají, zapeče se do checkpointů i do `xBase/pBase` a zpátky už cesta
+  nevede. Jedno poškozené měření by tedy otrávilo filtr **natrvalo**. Zdroje jsou reálné:
+  poškozený rámec z UARTu, `YprU = 0` ze senzoru, degenerovaná kovariance z korelace s mapou.
 - **`SlipDetector`** — při nefyzikálním zrychlení kol nafoukne R odometrie.
 - **`GeoReference`** (`ARBot.Common/Coordinates`) — počátek lokální ENU roviny
   (LLA, kde `[X,Y]=[0,0]`), převod LLA↔lokální metry přes ECEF.

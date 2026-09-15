@@ -290,6 +290,16 @@ end while
             do
             {
                 str = uart.ReadLine();
+
+                // Zastavujeme se: vratit rovnou null, ne fail-ramec. Cekat cele okno pri kazdem
+                // pruchodu by Stop() zbytecne protahovalo (a s nekonecnym ReadTimeout, ktery mel
+                // Uart do 15. 9. 2026, dokonce navzdy - viz SensorBase.StopTimeout).
+                // ⚠️ null, a NE fail-ramec: ten znamena „nevim, co se deje, at robot stoji"
+                // a brany mise ho berou jako „neznamo". Vyrabet ho pri regulernim vypnuti by
+                // do zaznamu psalo poruchu, ktera se nestala.
+                if (stopRequired)
+                    return null;
+
                 if((TimeBase.Now-ts).TotalMilliseconds>500)
                 {
                     fail = true;

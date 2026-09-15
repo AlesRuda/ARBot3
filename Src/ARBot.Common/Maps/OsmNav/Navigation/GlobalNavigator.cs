@@ -276,7 +276,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"GlobalNavigator.Probe: {ex.Message}");
+                // Trace, ne Debug: "cil je nedosazitelny" a "zkouska dosazitelnosti spadla" jsou
+                // dve UPLNE jine veci a navenek vypadaji stejne (NoRoute). Viz CLAUDE.md.
+                System.Diagnostics.Trace.WriteLine($"GlobalNavigator.Probe selhal: {ex}");
                 return new Missions.RouteProbeResult(false, 0);
             }
         }
@@ -474,20 +476,36 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <returns>Zprava o stavu, nebo null kdyz neni co hlasit.</returns>
         public GlobalNavMsg Step(double x, double y, DateTime now)
         {
-            LLA target;
-            Navigator nav;
-            Router rt;
-
+            // ⚠️ CELY CYKLUS JE POD ZAMKEM (oprava zavodu, audit 15. 9. 2026). Do 15. 9. si Step
+            // pod zamkem vzal jen ODKAZY na navigator/router a pak nad nimi pocital venku — jenze
+            // oba sahaji na tyz GoalField, ktery SetGoal soucasne mutuje (ClearGoal + InsertGoal).
+            // Step bezi na vlakne stupne navigace, SetGoal vola MISE ze sveho (Track pri prechodu
+            // na dalsi misto, Robotour po precteni QR kodu), takze se to potkava v beznem provozu,
+            // ne jen teoreticky. Reprodukovano testem: „Collection was modified" primo uvnitr
+            // GoalField.NearestNode.
+            //
+            // Vyjimku odtud by spolkl MessageTarget, takze by cyklus navigace jen TISE vypadl
+            // a robot by jel dal po posledni mrkvi - porucha, ktera se na zarizeni hleda nejhur.
+            //
+            // Pod zamkem zustavaji i zapisy Status/Route/Carrot a volani localGoal: to jsou
+            // kratke metody s vlastnim zamkem, ktere nikdy nevolaji zpet sem, takze poradi zamku
+            // nevznika. Mise pockat muze - cyklus je radu milisekund a SetGoal je vzacny.
             lock (gate)
             {
-                target = goal;
-                nav = navigator;
-                rt = router;
-                // Poza se pamatuje VZDY, i bez cile - jinak by zkouska dosazitelnosti (Probe)
-                // nemela odkud vyjit prave ve chvili, kdy je potreba: mise se rozhoduje o prvnim
-                // cili z QR kodu jeste PREDTIM, nez nejaky cil vubec existuje.
-                probeX = x; probeY = y; hasProbePose = true;
+                return StepPodZamkem(x, y, now);
             }
+        }
+
+        private GlobalNavMsg StepPodZamkem(double x, double y, DateTime now)
+        {
+            LLA target = goal;
+            Navigator nav = navigator;
+            Router rt = router;
+
+            // Poza se pamatuje VZDY, i bez cile - jinak by zkouska dosazitelnosti (Probe)
+            // nemela odkud vyjit prave ve chvili, kdy je potreba: mise se rozhoduje o prvnim
+            // cili z QR kodu jeste PREDTIM, nez nejaky cil vubec existuje.
+            probeX = x; probeY = y; hasProbePose = true;
 
             var here = origin.ToLLA(x, y);
 

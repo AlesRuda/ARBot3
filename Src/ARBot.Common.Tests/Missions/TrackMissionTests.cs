@@ -540,4 +540,52 @@ public class TrackMissionTests
 
         Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.Driving), "bezici mise se nerestartuje");
     }
+
+    // ---------------- Bezpecnost: fail-ramec motoroveho driveru ----------------
+
+    /// <summary>Fail-ramec driveru: stop je v nem fail-safe konstanta, nic z nej nebylo zmereno.</summary>
+    private static MotorStateBase FailRamec()
+        => new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false);
+
+    /// <summary>
+    /// Odpojeny motorovy UART nesmi automat posunout do „ceka na uvolneni stopu".
+    ///
+    /// <para><b>Nac to je:</b> <c>SDC2160Ex</c> po chybe vyrabi kazdych 500 ms fail-ramec
+    /// s <c>IsEmergencyStop = true</c> — to je fail-safe pro ridici smycku, ne mereni tlacitka.
+    /// Kdyby ho automat bral jako stisk, obnoveni linky s NESTISKNUTYM tlacitkem by se precetlo
+    /// jako pokyn „jed" a robot by se rozjel bez lidskeho zameru.</para>
+    /// </summary>
+    [Test]
+    public void FailRamecMotoruNeniStiskStopu()
+    {
+        var h = new Harness();
+        var now = T0;
+        h.Mission.StartMission(now);
+
+        for (int i = 0; i < 5; i++)
+            h.Mission.OnMotors(FailRamec(), now = now.AddSeconds(0.5));
+
+        Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.AwaitingEStop),
+                    "fail-ramec (HasMeasurement=false) neni stisk tlacitka");
+    }
+
+    /// <summary>
+    /// Obnoveni motorove linky bez lidskeho stisku robota nerozjede (druha pulka teze pasti).
+    /// </summary>
+    [Test]
+    public void ObnoveniLinkyBezStiskuMisiNerozjede()
+    {
+        var h = new Harness();
+        var now = T0;
+        h.Mission.StartMission(now);
+
+        for (int i = 0; i < 5; i++)
+            h.Mission.OnMotors(FailRamec(), now = now.AddSeconds(0.5));
+
+        // Linka se obnovila, tlacitko NIKDO nestiskl.
+        h.FeedMotors(emergencyStop: false, standing: true, now = now.AddSeconds(1));
+
+        Assert.That(h.Mission.Phase, Is.EqualTo(TrackPhase.AwaitingEStop));
+        Assert.That(h.Goals.Goals, Is.Empty, "robot dostal cil bez lidskeho zameru");
+    }
 }

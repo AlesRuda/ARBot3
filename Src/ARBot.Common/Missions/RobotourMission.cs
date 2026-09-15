@@ -330,7 +330,9 @@ namespace ARBot.Common.Missions
                     case GlobalNavMsg nav: OnGlobalNav(nav); break;
                 }
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"RobotourMission: {ex}"); }
+            // Trace, ne Debug: v Release (na zarizeni) by po selhani automatu mise nezustala stopa.
+            // Viz CLAUDE.md.
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"RobotourMission: cyklus selhal: {ex}"); }
         }
 
         /// <summary>
@@ -436,6 +438,13 @@ namespace ARBot.Common.Missions
             lock (gate)
             {
                 Advance(now);
+
+                // ⚠️ FAIL-RAMEC NENI ZPRAVA O TLACITKU — viz TrackMission.OnMotors, tataz past
+                // a tentyz duvod: nahradni ramec driveru ma IsEmergencyStop fail-safe na true,
+                // takze by odpojeny motorovy UART sam otevrel servisni okno a obnoveni linky
+                // bez lidskeho stisku by vedlo na Depart(). Viz IMotorState.HasMeasurement.
+                if (motors != null && !motors.HasMeasurement)
+                    return;
 
                 emergencyStop = motors != null && motors.IsEmergencyStop;
                 // Chybejici stav motoru se pocita jako STOJICI (bezpecnejsi smer) a rychlosti se

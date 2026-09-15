@@ -96,8 +96,13 @@
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
   <!-- Nativni knihovna (P/Invoke NativeLib.dll) - kopiruje se do output vc. navazujicich projektu -->
+  <!-- Condition="Exists(...)" je NUTNA, ne opatrnicka (nalez auditu 15. 9. 2026): NativeLib.dll
+       neni v gitu (staví se z ..\NativeFuncs), takze bez teto podminky nesel CISTY KLON vubec
+       postavit pod x64 - a nikdo se to nedozvedel, protoze projekt nema CI. Vetev OrangePI
+       podminku mela uz driv, x64 ne. Bez knihovny se jen preskoci kopirovani; testy, ktere ji
+       potrebuji, si chybejici knihovnu osetruji samy. -->
   <ItemGroup Condition="'$(Platform)' == 'x64'">
-    <None Include="..\NativeFuncs\bin\NativeLib.dll">
+    <None Include="..\NativeFuncs\bin\NativeLib.dll" Condition="Exists('..\NativeFuncs\bin\NativeLib.dll')">
       <Link>NativeLib.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
