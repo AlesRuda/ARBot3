@@ -31,7 +31,7 @@ namespace ARBot.Common.Localization
     public sealed class MapCorrelator : MessageProcessor
     {
         private readonly AsyncFusionEngine engine;
-        private readonly RoadScene scene;
+        private volatile RoadScene scene;
         private readonly MapCorrelatorConfig config;
         private readonly Stopwatch sw = new Stopwatch();
 
@@ -39,6 +39,20 @@ namespace ARBot.Common.Localization
 
         /// <summary>Konfigurace (po sestaveni se nemeni).</summary>
         public MapCorrelatorConfig Config => config;
+
+        /// <summary>
+        /// Vozovka podle mapy. <b>Jde vymenit za behu</b> — naucena sirka cesty
+        /// (doc/plan-naucena-sirka-do-mapy.md).
+        ///
+        /// <para><see cref="RoadScene"/> je NEMENNA, takze zamena reference je atomicka: vlakno
+        /// stupne uvidi bud starou, nebo novou scenu, nikdy rozpracovanou. <c>Process</c> si ji
+        /// proto smi vyzvednout JEDNOU na zacatku cyklu — rastr i skorovani musi videt totez.</para>
+        /// </summary>
+        public RoadScene Scene
+        {
+            get => scene;
+            set => scene = value ?? throw new ArgumentNullException(nameof(value));
+        }
 
         /// <summary>DIAGNOSTIKA: kolik cyklu se dopocitalo.</summary>
         public long ProcessedCycles { get; private set; }
@@ -135,6 +149,12 @@ namespace ARBot.Common.Localization
 
             sw.Restart();
 
+            // Scenu vyzvedni JEDNOU na zacatku cyklu - za behu se muze vymenit (naucena sirka
+            // cesty) a rastr se skorovanim musi videt TOTEZ. Tataz vada uz jednou byla u pozy
+            // v CorridorLocalizer.Process (23. 8. 2026): dve volani s tymz argumentem, mezi nimi
+            // zmena. Viz doc/plan-naucena-sirka-do-mapy.md, rozhodnuti 5.
+            var scena = scene;
+
             // (2) Mapa do rastru zarovnaneho s gridem (jednou za cyklus - dal se uz jen indexuje).
             //     Marze se bere jako VETSI z nastavene a te, kterou si vyzada skutecna geometrie
             //     gridu (rotace kandidata odnese rohovou bunku dal, nez staci posun sam) - jinak by
@@ -142,7 +162,7 @@ namespace ARBot.Common.Localization
             //     skore ZVEDALY. Viz MapCorrelatorConfig.RequiredRasterMarginM.
             double margin = Math.Max(config.MapRasterMarginM,
                                      config.RequiredRasterMarginM(msg.Size, msg.Resolution));
-            var raster = RoadRaster.Build(scene, msg.OriginX, msg.OriginY, msg.Size, msg.Resolution,
+            var raster = RoadRaster.Build(scena, msg.OriginX, msg.OriginY, msg.Size, msg.Resolution,
                                           margin);
 
             // (3) Dukazni bunky ze semantiky (kanal Occ se neucastni).

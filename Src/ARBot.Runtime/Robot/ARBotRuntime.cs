@@ -711,6 +711,36 @@ namespace ARBot.Robot
                 connections.Add(corridor.Output.Connect(stream));
             }
 
+            // NAUCENA SIRKA CESTY DO MAPY: prekryv sirek do RoadScene korelatoru a do MapMsg
+            // (World pohled, webovy pudorys). Graf site se NEMENI.
+            //
+            // ⚠️ Scena VIRTUALNI KAMERY se stavi zvlast v ARBotHW a prekryv NEDOSTANE - kdyby ho
+            // dostala, simulace by renderovala cestu podle odhadu a koridor by meril SAM SEBE
+            // (tataz past jako camerapose=fusion). Hlida to RoadWidthVirtualCameraIsolationTests.
+            // Viz doc/plan-naucena-sirka-do-mapy.md.
+            if (!ParamRegistry.RoadWidthMap.Value)
+            {
+                Trace.WriteLine("roadwidthmap=false: naucena sirka do mapy nejde (vychozi stav). "
+                                + "Zapnout lze parametrem roadwidthmap=true.");
+            }
+            else if (CorridorLocalizer == null || RoadNetwork == null || fusionConfig.GeoReference == null)
+            {
+                Trace.WriteLine("roadwidthmap=true, ale neni odkud brat sirky (corridor=false nebo "
+                                + "chybi mapa) -> updater se nezaklada.");
+            }
+            else
+            {
+                var widthUpdater = new RoadWidthMapUpdater(
+                    RoadNetwork, fusionConfig.GeoReference, CorridorLocalizer.Widths,
+                    s => { if (MapCorrelator != null) MapCorrelator.Scene = s; },
+                    m => { MapMessage = m; stream.Publish(m); },
+                    new RoadWidthMapUpdaterConfig(),
+                    MapMessage?.Name);
+
+                stages.Add(widthUpdater);
+                connections.Add(stream.Connect(widthUpdater));
+            }
+
             // MISE. Vylucuji se, takze se nevybiraji booleovskymi prepinaci jako ostatni stupne, ale
             // jednim selektorem mission=. Dve mise zapnute zaroven by si prepisovaly mrkev a neslo
             // by poznat, ktera vyhrala. Viz doc/mission-freerun.md.

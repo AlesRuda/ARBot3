@@ -73,7 +73,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 84 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 85 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -730,6 +730,24 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **šířka na póze nezávisí vůbec** (`Width = cL − cR` v rámci robotu), takže kvalitu měř **shodou
   měření mezi sebou**, ne shodou s mapou — a podmiňovat učení pózou by vyrobilo týž zámek.
   `RoadWidthFilter` zůstává, dokud se nová cesta neprověří na datech. ⚠️ **Na HW neběželo nic.**
+  ✅ **A od 15. 9. 2026 jde naučená šířka DÁL DO MAPY** (`roadwidthmap=`, výchozí **false**): dostane
+  ji **korelace** (`RoadScene`) i **kreslení** (`MapMsg` → World pohled, webový půdorys). Je to
+  **neměnný překryv `nodeId → šířka`** předaný konzumentům — **graf sítě se nemění vůbec**, protože
+  ten drží i navigace a jeho výměna za běhu by byla záměna identity toho, podle čeho robot jede.
+  Přestavuje `RoadWidthMapUpdater` (tik = `RoadCorridorMsg`, data = přímo estimátor) za prahem
+  0,25 m **a** odstupem 10 s; scéna korelátoru se **atomicky zamění**. ⚠️ **Scénu virtuální kamery
+  to nedostane** — jinak by simulace renderovala podle odhadu a koridor by měřil **sám sebe** (táž
+  past jako `camerapose=fusion`); hlídá to test. ⚠️ **Šířku nese uzel, ne cesta**, takže chodník
+  u vozovky podědí její šířku — známá mez, ne vada.
+  ⚠️ **Šířka uzlu je maximum jen přes cesty, které MAJÍ ODHAD** — a to je oprava vady nalezené týž
+  den na dvoumapovém rigu (vizuální mapa 2 m proti jízdní 3 m), kdy se navenek **neaktualizovalo
+  nic**: původně přispívala i cesta **bez** odhadu svou **mapovou** hodnotou, takže naučené
+  **zúžení** se na každém sdíleném uzlu přehlasilo — a protože půlšířky segmentu se berou z jeho
+  dvou **koncových uzlů**, zůstala celá naučená cesta široká všude, kde se dotýká jiné cesty, tedy
+  prakticky na celé síti. Mapová šířka nezměřené cesty je **default, ne důkaz**. ⚠️ **Perzistence vědomě není:** kdyby naučená
+  šířka přežila restart, přežil by i špatný odhad a už by ho nikdo nepřepsal. Plán:
+  [doc/plan-naucena-sirka-do-mapy.md](doc/plan-naucena-sirka-do-mapy.md). ⚠️ **Na HW neběželo**,
+  ověřeno simulací; prahy jsou odhad a jdou doladit offline.
   **Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridor=true`,
   `corridorsend=false`, `measdiag=Corridor`): plná zátěž, nulový vliv na řízení. Důvod je
   spočítaný — s `gpsposstd=30` by příčná autorita koridoru byla řádu **10⁵–10⁶ : 1**.

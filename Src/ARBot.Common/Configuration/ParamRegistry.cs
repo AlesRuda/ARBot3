@@ -196,6 +196,15 @@ namespace ARBot.Common.Configuration
               Fmt(new Localization.MapCorrelatorConfig().ReferenceInformativeEvidence), K_FUZE,
               "Referencni informativni dukaz [m^2 * log-odds] pro skalovani sigma korelace. "
               + "0 vrati konstantni alfa pro A/B srovnani. Default = MapCorrelatorConfig.");
+        public static readonly BoolParam RoadWidthMap = Bool("roadwidthmap", "false", K_FUZE,
+              "Propsat NAUCENOU SIRKU cesty z koridoru do mapy: do RoadScene korelatoru a do "
+              + "MapMsg (World pohled, webovy pudorys). Vyzaduje corridor=true. ⚠️ Vychozi "
+              + "vypnuto - bez toho by se zmereny odhad zacal propisovat do korelace driv, nez "
+              + "kdokoli videl jediny zaznam ze zarizeni. ⚠️ Scenu VIRTUALNI KAMERY to nedostane "
+              + "nikdy: jinak by simulace renderovala cestu podle odhadu a koridor by meril SAM "
+              + "SEBE (tataz past jako camerapose=fusion). ⚠️ Sirku nese UZEL, ne cesta, takze "
+              + "tam, kde se chodnik dotyka vozovky, podedi chodnik jeji sirku - znama mez. "
+              + "Viz doc/plan-naucena-sirka-do-mapy.md.");
         public static readonly BoolParam Corridor = Bool("corridor", "false", K_FUZE,
               "Zapina hranovou lokalizaci (poloha a kurz z okraju koridoru proti mape).");
         public static readonly BoolParam CorridorSend = Bool("corridorsend", "true", K_FUZE,

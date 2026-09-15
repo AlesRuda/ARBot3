@@ -107,6 +107,88 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   CorridorDeweightTests}.cs`; [map-correlation-localization.md](map-correlation-localization.md),
   sekce „Šířka cesty: odhad s verdiktem kvality" a „Odtlumení koridoru".
 
+- **Hotovo — naučená šířka jde DÁL DO MAPY** (`roadwidthmap=`, výchozí `false`). Pokračování
+  odpoledne: odhad šířky zůstával uvnitř `CorridorLocalizer`u a nedosáhl na `RoadScene` (tedy na
+  korelaci s mapou, kde má jako jediný **algoritmický** dopad) ani na `MapMsg` (World pohled,
+  webový půdorys). Návrh: [plan-naucena-sirka-do-mapy.md](plan-naucena-sirka-do-mapy.md),
+  kroky [plan-naucena-sirka-do-mapy-kroky.md](plan-naucena-sirka-do-mapy-kroky.md).
+
+  - **Překryv, ne přepis grafu.** `RoadWidthOverrides` je **neměnná** mapa `nodeId → šířka`, kterou
+    konzumenti dostanou jako volitelný parametr. Přestavět `RoadNetwork` se zamítlo: `Node.Width`
+    je `get`-only a síť drží kromě korelátoru i `GlobalNavigator`, `RoadAxis` a `TrackMission`,
+    takže výměna sítě za běhu je **záměna identity toho, podle čeho robot jede**.
+  - **Šířku nese UZEL, ne cesta** (rozhodnutí autora), takže převod používá **totéž pravidlo
+    maxima jako `GraphBuilder`**. ⚠️ Chodník u vozovky tím podědí její šířku — **známá mez**, ne
+    vada; léčbou by byla šířka per hrana a s ní `MapMsg` verze 2.
+  - **Přestavuje `RoadWidthMapUpdater`**: tikem je `RoadCorridorMsg` ze streamu (chodí i u
+    zamítnutých cyklů, takže netřeba časovač), daty **přímo estimátor** (zpráva nese naměřenou
+    šířku, ne verdikt kvality per hrana). Práh 0,25 m **a** odstup 10 s; skok času vzad odstup
+    resetuje. Scéna korelátoru se **atomicky zamění** (je neměnná) a `Process` si ji bere
+    **jednou na začátku** — táž vada už jednou byla u pózy v `CorridorLocalizer.Process`.
+  - ⚠️ **Oddělení od virtuální kamery je konstrukcí, ne kázní:** scéna rendereru se staví zvlášť
+    v `ARBotHW` a nikdo jí překryv nepředá. Kdyby ho dostala, simulace by renderovala podle odhadu
+    a koridor by měřil **sám sebe** — táž past jako `camerapose=fusion` (22. 8. 2026). Hlídají to
+    dva testy, z toho jeden čte zdrojový text `ARBotHW.cs`.
+  - **Perzistence vědomě NENÍ** (rozhodnutí autora): naučená šířka nepřežije restart. Kdyby
+    přežívala, přežil by i špatný odhad — a už by ho nikdo nepřepsal měřením, protože šířková
+    brána ho brání.
+
+- **Ověření (druhá část dne):** build celého řešení a testy pod `x64` — **1509 / 105 / 134**
+  zelených (19 nových). **Simulace projetá:** `roadwidthmap=true` nad `OSM/SyntetickyRovny.osm`
+  → *„Naucena sirka cesty: mapa prestavena (9 uzlu, prestaveb celkem 1)"*; bez parametru se
+  nezměnilo nic a v `Trace` je proč. ⚠️ **Na zařízení neběželo nic.**
+  ⚠️ Mimochodem: ta mapa `width` tagy **má** (2 m), takže přestavbu spustil rozdíl mezi naměřenou
+  a mapovou šířkou nad práh — přesně ten vedlejší produkt „tady je cesta jinak široká, než říká
+  mapa", kvůli kterému to celé vzniklo.
+
+- **Tři nálezy při psaní plánu**, které by jinak zastavily práci v půlce: `ARBot.Runtime.Tests`
+  **nereferencuje** `ARBot.Common.Tests` (testovací scény tam nejsou → vlastní `TestRoadNetwork`),
+  `ParamDef.Default` se čte přes `Param.Def`, a `mapPath` je lokální v **jiné** metodě, než kde se
+  drátuje (jméno mapy se bere z `MapMessage?.Name`).
+
+- **⚠️ Vada nalezená autorem hned při prvním proklikání — a navenek vypadala jako „nefunguje to".**
+  Dvoumapový rig (`SyntetickyKoridor.osm` 3 m proti `SyntetickyKoridorPosunuty.osm` 2 m ve východní
+  části), šířka jízdní mapy se **neaktualizovala**. Příčina byla v `RoadWidthOverrides.Build`:
+  do maxima přispívala i cesta **bez** odhadu, a to svou **mapovou** hodnotou. Naučené **zúžení**
+  se tím na každém sdíleném uzlu přehlasilo — a protože půlšířky segmentu se berou z jeho dvou
+  **koncových uzlů**, zůstala celá naučená cesta široká všude, kde se dotýká jiné cesty, tedy
+  prakticky na celé síti.
+
+  **Léčba:** mapová šířka nezměřené cesty je **default, ne důkaz**, takže se maxima **neúčastní**.
+  Šířka uzlu = maximum jen přes cesty, které **mají odhad**. Po opravě tentýž rig dá **4 přestavby**
+  (2 → 3 → 5 → 7 uzlů, jak robot projíždí a učí se další cesty); před ní nebylo vidět nic.
+  Drží to `RoadWidthOverridesTests.UzsiOdhadNaSdilenemUzlu_seNEZTRATI`.
+
+  ⚠️ **Nový důsledek, který platí:** zúžení se propaguje i do **nezměřeného** souseda ve společném
+  uzlu. Je to táž vlastnost jako dřív přiznané „chodník podědí šířku vozovky", jen opačným směrem;
+  léčbou by byla šířka **per hrana** (a s ní `MapMsg` verze 2), ne úprava pravidla.
+
+  ⚠️ **Past v testech, která to pustila dál:** test `UzsiOdhadNezMapa_uzelZuzi` používal
+  `StraightEastRoad`, tedy **jedinou cestu bez sdílených uzlů** — a proto prošel. Zúžení se láme
+  teprve na síti, kde se cesty stýkají; na to je teď test nad T-křižovatkou.
+
+  ⚠️ **A vedlejší nález:** nad `SyntetickyRovny` rigem (obě mapy `width=2`) se přestavba spustí
+  taky, ale rozdíl je **16 mm** (koridor měří 2,016 m proti mapovým 2,000) — tedy **pod pixelem**.
+  Hláška přitom hlásí „9 uzlu", což zní jako událost. **Dvě věci k opravě zůstávají otevřené:**
+  (a) první přestavba je **bezpodmínečná**, protože práh se porovnává proti naposledy použité
+  hodnotě a ta na začátku chybí — proti **mapě** se neporovnává nikdy; (b) hláška počítá uzly,
+  ne **velikost** změny, takže z ní 16 mm od 16 m nerozliší. Táž past jako u `CLEAR_HALT`
+  (14. 9.) a u zón se třemi pixely.
+
+- **Rozpracováno / další krok:** prahy `RebuildThresholdM` 0,25 m a `MinRebuildPeriodSec` 10 s jsou
+  **odhad**. Doladit je z prvního záznamu — jde to **offline**, protože celý mechanismus je čistá
+  funkce posloupnosti `Width` z `RoadCorridorMsg`. A pořád platí to hlavní: **jestli korelaci
+  naučená šířka pomůže, se tímhle nedozvíme** — `mapcorr` je ve výchozím stavu vypnutý a jeho tři
+  podmínky platí dál. Tohle dodalo **předpoklad, ne výsledek**.
+
+- **Odkazy (druhá část dne):** `Src/ARBot.Common/Maps/OsmNav/Graph/{RoadWidthOverrides,RoadScene,
+  RoadNetwork}.cs`, `Src/ARBot.Common/Localization/MapCorrelator.cs`,
+  `Src/ARBot.Runtime/Robot/{RoadWidthMapUpdater,ARBotRuntime}.cs`,
+  `Src/ARBot.Common/Configuration/ParamRegistry.cs`,
+  `Src/ARBot.Common.Tests/OsmNav.Tests/Graph/{RoadWidthOverridesTests,RoadSceneWidthOverrideTests}.cs`,
+  `Src/ARBot.Common.Tests/Localization/MapCorrelatorSceneSwapTests.cs`,
+  `Src/ARBot.Runtime.Tests/{TestRoadNetwork,RoadWidthMapUpdaterTests,RoadWidthVirtualCameraIsolationTests}.cs`.
+
 ## 2026-09-14
 
 **Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí (`HangWatchdog`).** Rozbor dvou záznamů

@@ -2836,3 +2836,36 @@ příčná autorita koridoru byla řádu **10⁵–10⁶ : 1**. Odtlumovací par
 **zakomentované** — nastaví se z prvního záznamu, ne odhadem.
 
 **Ověřeno** buildem a testy pod `x64` (1499 / 105 / 125). ⚠️ **Na zařízení neběželo nic.**
+
+### ✅ Naučená šířka dál do mapy (15. 9. 2026)
+
+Do 15. 9. 2026 viděly naučenou šířku **jen vlastní brány koridoru**. Od té doby ji dostanou
+i **korelace** (`RoadScene`) a **kreslení** (`MapMsg` → World pohled, webový půdorys), zapíná
+`roadwidthmap=` (**výchozí `false`**). Návrh a rozhodnutí:
+**[plan-naucena-sirka-do-mapy.md](plan-naucena-sirka-do-mapy.md)**, kroky
+[plan-naucena-sirka-do-mapy-kroky.md](plan-naucena-sirka-do-mapy-kroky.md).
+
+Jak: `RoadWidthOverrides` je **neměnný překryv `nodeId → šířka`**, který konzumenti dostanou jako
+volitelný parametr — **graf sítě se nemění vůbec** (`Node.Width` je `get`-only a síť drží i
+`GlobalNavigator`, `RoadAxis`, `TrackMission`; výměna sítě za běhu by byla záměna identity toho,
+podle čeho robot jede). `RoadWidthMapUpdater` je stupeň, jehož **tikem** je `RoadCorridorMsg` ze
+streamu a **daty** přímo `RoadWidthEstimator` — zpráva nese naměřenou šířku, ne verdikt kvality
+per hrana. Přestaví, jen když se důvěryhodná šířka liší o víc než `RebuildThresholdM` (0,25 m)
+**a** uplynul `MinRebuildPeriodSec` (10 s); `MapCorrelator.Scene` se **atomicky zamění** (scéna je
+neměnná) a `Process` si ji bere **jednou na začátku cyklu**.
+
+⚠️ **Scéna virtuální kamery překryv nedostane** — staví se zvlášť v `ARBotHW` a nikdo jí ho
+nepředá. Kdyby ho dostala, simulace by renderovala cestu podle odhadu a koridor by měřil **sám
+sebe** (táž past jako `camerapose=fusion`). Hlídá to `RoadWidthVirtualCameraIsolationTests`.
+
+⚠️ **Šířku nese UZEL, ne cesta** (rozhodnutí autora), takže převod používá **totéž pravidlo
+maxima jako `GraphBuilder`** — a tam, kde se chodník dotýká vozovky, podědí chodník její šířku.
+Je to **známá mez**, ne vada; léčbou by byla šířka per hrana (a s ní `MapMsg` verze 2).
+
+⚠️ **Perzistence je vědomě mimo:** naučená šířka **nepřežije restart**. Kdyby přežívala, přežil by
+i špatný odhad — a už by ho nikdo nepřepsal měřením, protože šířková brána ho brání.
+
+**Ověřeno** buildem, testy pod `x64` a simulací (`roadwidthmap=true` nad `OSM/SyntetickyRovny.osm`:
+mapa přestavěna jednou, 9 uzlů; bez parametru beze změny). ⚠️ **Na zařízení neběželo nic**
+a prahy 0,25 m / 10 s jsou **odhad** — jdou doladit offline, protože celý mechanismus je čistá
+funkce posloupnosti `Width` z `RoadCorridorMsg`.
