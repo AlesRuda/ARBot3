@@ -77,10 +77,10 @@
   <bounds minlat="50.02899619" minlon="14.51967647" maxlat="50.02911800" maxlon="14.51998666"/>
 
   <node id="1" visible="true" version="1" lat="50.02900000" lon="14.51998666">
-    <tag k="width" v="3"/>   <!-- x=-0.96 m, y=0.00 m: zacatek useku A (vychodni konec) (posun -0.96, +0.00 m) -->
+    <tag k="width" v="2"/>   <!-- x=-0.96 m, y=0.00 m: zacatek useku A (vychodni konec) (posun -0.96, +0.00 m) -->
   </node>
   <node id="2" visible="true" version="1" lat="50.02899859" lon="14.51987458">
-    <tag k="width" v="3"/>   <!-- x=-8.99 m, y=-0.16 m: drzi A na 3 m az k rohu (posun +0.81, -0.16 m) -->
+    <tag k="width" v="2"/>   <!-- x=-8.99 m, y=-0.16 m: drzi A na 2 m az k rohu (posun +0.81, -0.16 m) -->
   </node>
   <node id="3" visible="true" version="1" lat="50.02899619" lon="14.51985345">
     <tag k="width" v="2"/>   <!-- x=-10.50 m, y=-0.42 m: pravouhly roh A -> B (sirka podle uzsiho B) (posun -0.50, -0.42 m) -->

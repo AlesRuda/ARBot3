@@ -562,6 +562,17 @@ rozlišit „stream se nikdy nerozjel" (černo, šum) od „jeden skutečný sn�
 v kopírování v driveru. Přesně takhle se 6. 9. 2026 diagnostikovala **zamrzlá barva pravé D435**
 (viz [hardware.md](hardware.md)).
 
+⚠️ **Od 15. 9. 2026 jsou ta razítka v základně `TimeBase`, ne v hodinách kamery.** Do té doby se
+počítala jako `epocha 1970 + offset časové zóny + ms z kamery`, tedy **druhá časová základna**
+v záznamu — a navíc závislá na časové zóně stroje, který záznam pořídil. Pravidlo projektu zní
+*všechen čas vychází z `TimeBase`* (CLAUDE.md); nález auditu.
+
+**Rozbor se tím nemění a nesmí měnit:** `DeviceClockAnchor` ukotví jen **počátek** (první snímek
+dostane `TimeBase.Now`) a přírůstky zůstávají z kamery, takže **zamrzlé razítko zůstane zamrzlé** —
+což je jediná vlastnost, na které ta diagnostika stojí. Nově jsou ale razítka streamů porovnatelná
+se zbytkem záznamu. ⚠️ Po restartu pipeline se kotví znovu (hodiny kamery začínají odjinud),
+takže **absolutní hodnota napříč reconnectem nic neříká** — čte se rozdíl, ne číslo.
+
 ### `sigma`: je σ korelace s mapou poctivá?
 
 Porovná **hlášenou** nejistotu se **skutečným rozptylem** chyby proti známé odpovědi — test č. 1

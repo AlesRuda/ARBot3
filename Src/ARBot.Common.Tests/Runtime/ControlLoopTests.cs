@@ -72,11 +72,17 @@ namespace ARBot.Common.Tests.Runtime
                     scheduler.PumpDue(imu.TimeStamp);
                 }
             }
+            // ⚠️ Odecet PRED Stop(): zastaveni smycky samo posila motorum nulu (aby po ukonceni
+            // aplikace nezustala posledni rychlost v motorove jednotce - viz ControlLoop.Stop),
+            // takze po nem uz LastForvard/LastDif nepopisuji posledni TAKT.
+            int taktu = motor.DriveCount;
+            double fwdZTaktu = motor.LastForvard, difZTaktu = motor.LastDif;
+
             loop.Stop();
             collector.Stop();
 
             // Drive byl volan (jednou na kazdy takt).
-            Assert.That(motor.DriveCount, Is.GreaterThan(0), "Drive nebyl volan");
+            Assert.That(taktu, Is.GreaterThan(0), "Drive nebyl volan");
 
             List<RobotStateMsg> states;
             List<DriveCommandMsg> cmds;
@@ -87,8 +93,8 @@ namespace ARBot.Common.Tests.Runtime
             }
 
             // Emituje oba typy, stejny pocet jako pocet taktu.
-            Assert.That(states.Count, Is.EqualTo(motor.DriveCount), "pocet RobotStateMsg != pocet taktu");
-            Assert.That(cmds.Count, Is.EqualTo(motor.DriveCount), "pocet DriveCommandMsg != pocet taktu");
+            Assert.That(states.Count, Is.EqualTo(taktu), "pocet RobotStateMsg != pocet taktu");
+            Assert.That(cmds.Count, Is.EqualTo(taktu), "pocet DriveCommandMsg != pocet taktu");
 
             // Posledni prikaz: dif = RotationSpeed * Rozchod / 2 (dif je offset na kolo); Forvard = Speed.
             var last = cmds[^1];
@@ -96,8 +102,8 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(last.Forvard, Is.EqualTo(last.Speed).Within(1e-12));
 
             // Argumenty poslani do motoru odpovidaji poslednimu prikazu.
-            Assert.That(motor.LastDif, Is.EqualTo(last.Dif).Within(1e-12));
-            Assert.That(motor.LastForvard, Is.EqualTo(last.Forvard).Within(1e-12));
+            Assert.That(difZTaktu, Is.EqualTo(last.Dif).Within(1e-12));
+            Assert.That(fwdZTaktu, Is.EqualTo(last.Forvard).Within(1e-12));
         }
 
         /// <summary>
@@ -288,11 +294,13 @@ namespace ARBot.Common.Tests.Runtime
             var tk = T0.AddMilliseconds(100);
             scheduler.PumpDue(tk);
             var last = CmdAt(cmds, tk);
+            // Odecet PRED Stop() - ten uz posila vlastni nulu (viz ControlLoop.Stop).
+            double difZTaktu = motor.LastDif;
             conn.Dispose(); loop.Stop(); collector.Stop();
 
             Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12));
             Assert.That(last.Dif, Is.EqualTo(0.3 * Profile.Rozchod / 2.0).Within(1e-12));
-            Assert.That(motor.LastDif, Is.EqualTo(last.Dif).Within(1e-12));
+            Assert.That(difZTaktu, Is.EqualTo(last.Dif).Within(1e-12));
         }
 
         // ---------------- Nouzove zastaveni (doc/robotour-mission.md) ----------------
@@ -319,14 +327,16 @@ namespace ARBot.Common.Tests.Runtime
             scheduler.PumpDue(tk);
 
             var last = CmdAt(cmds, tk);
+            // Odecet PRED Stop() - ten uz posila vlastni nulu (viz ControlLoop.Stop).
+            double fwdZTaktu = motor.LastForvard, difZTaktu = motor.LastDif;
             conn.Dispose(); loop.Stop(); collector.Stop();
 
             Assert.That(last.EmergencyStop, Is.True, "priznak nouzoveho zastaveni ma byt v zaznamu");
             Assert.That(last.Forvard, Is.EqualTo(0.0), "dopredna rychlost musi byt nulova");
-            Assert.That(motor.LastForvard, Is.EqualTo(0.0), "do motoru se posila nula");
+            Assert.That(fwdZTaktu, Is.EqualTo(0.0), "do motoru se posila nula");
             // Dokud se kola toci, zatoceni podle regulatoru zustava - dobrzdeni je rizene.
             Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12), "pri dotaceni rotace zustava");
-            Assert.That(motor.LastDif, Is.EqualTo(0.3 * Profile.Rozchod / 2.0).Within(1e-12));
+            Assert.That(difZTaktu, Is.EqualTo(0.3 * Profile.Rozchod / 2.0).Within(1e-12));
         }
 
         [Test]
@@ -490,6 +500,115 @@ namespace ARBot.Common.Tests.Runtime
             foreach (var c in got) peak = Math.Max(peak, c.Forvard);
             Assert.That(peak, Is.GreaterThan(0), "pred zastaranim robot jel");
             Assert.That(got[^1].Forvard, Is.LessThan(peak), "po zastarani drahy dobrzduje");
+        }
+
+        // ---------------- Bezpecnost: vyjimka v taktu a zastaveni smycky ----------------
+
+        /// <summary>Regulator, ktery pri kazdem volani spadne (NaN v poze, degenerovany usek...).</summary>
+        private sealed class ThrowingRegulator : IRegulator
+        {
+            public int Calls;
+            public RegulatorResult Control(Models.IModelState state)
+            {
+                Calls++;
+                throw new InvalidOperationException("simulovana porucha regulatoru");
+            }
+            public bool IsFinished => false;
+        }
+
+        /// <summary>Naplni fuzi tak, aby <c>GetStateAt(tk)</c> vratilo stav (ne null).</summary>
+        private static void SeedFusion(AsyncFusionEngine engine, DefaultMeasurementMapper mapper, DateTime tk)
+        {
+            foreach (var m in mapper.ToMeasurements(TestHelpers.MakeImu(tk, yaw: 0, omega: 0)))
+                engine.Enqueue(m);
+        }
+
+        /// <summary>
+        /// ⚠️ <b>Výjimka ve výpočtu taktu nesmí nechat robota jet po posledním příkazu.</b>
+        ///
+        /// <para>Bez ošetření vypadne <c>OnTick</c> ještě <b>před</b> <c>motor.Drive</c>, výjimka
+        /// projde <c>Scheduler.PumpDue</c> až do časovače runtime a tam se spolkne. Trvale házející
+        /// regulátor pak znamená: žádné <c>Drive(0,0)</c>, žádná stopa — a poslední rychlost zůstane
+        /// v motorové jednotce, dokud ji nesrazí její vlastní 500ms watchdog.</para>
+        /// </summary>
+        [Test]
+        public void VyjimkaVTaktu_ZastaviRobota()
+        {
+            var mapper = new DefaultMeasurementMapper();
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(20));
+            var reg = new ThrowingRegulator();
+            loop.Regulator = reg;
+
+            SeedFusion(engine, mapper, T0);
+            Assert.DoesNotThrow(() => scheduler.PumpDue(T0), "vyjimka nesmi vyletet z taktu");
+
+            loop.Stop();
+
+            Assert.That(reg.Calls, Is.GreaterThan(0), "regulator se vubec nevolal - test nic nemeri");
+            Assert.That(motor.DriveCount, Is.GreaterThan(0), "po vyjimce se neposlal zadny prikaz");
+            Assert.That(motor.LastForvard, Is.EqualTo(0), "po vyjimce musi jit do motoru nula");
+            Assert.That(motor.LastDif, Is.EqualTo(0));
+        }
+
+        /// <summary>
+        /// Výjimka v jednom taktu nesmí zabít ty další — <c>Scheduler.PumpDue</c> jinak přeskočí
+        /// zbytek dávky a smyčka se odmlčí.
+        /// </summary>
+        [Test]
+        public void VyjimkaVTaktu_NezastaviDalsiTakty()
+        {
+            var mapper = new DefaultMeasurementMapper();
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(20));
+            loop.Regulator = new ThrowingRegulator();
+
+            SeedFusion(engine, mapper, T0);
+            for (int i = 0; i < 3; i++)
+                scheduler.PumpDue(T0.AddMilliseconds(i * 20));
+
+            loop.Stop();
+
+            Assert.That(motor.DriveCount, Is.GreaterThanOrEqualTo(3), "smycka se po vyjimce odmlcela");
+        }
+
+        /// <summary>
+        /// ⚠️ <b>Zastavení smyčky musí motory zastavit.</b> Platí pro SIGTERM, <c>/stop</c>,
+        /// <c>/poweroff</c> i přestavbu runtime při volbě mise — <c>ARBotRuntime.Stop()</c> zastavuje
+        /// smyčku jako stupeň zpracování. Bez toho zůstane poslední rychlost v motorové jednotce
+        /// a robot jede dál, dokud ho nesrazí její vlastní watchdog.
+        /// </summary>
+        [Test]
+        public void StopSmycky_PosleMotorumNulu()
+        {
+            var mapper = new DefaultMeasurementMapper();
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(20));
+            var profile = new TrapezoidMotionProfile(Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                                                     Profile.MaxAcceleration, Profile.Rozchod);
+            loop.Regulator = new PathPlanner(profile).Plan(new[]
+            {
+                new RegulatorWayPoint { X = 0, Y = 0 },
+                new RegulatorWayPoint { X = 5, Y = 0 },
+            });
+
+            SeedFusion(engine, mapper, T0);
+            scheduler.PumpDue(T0);
+            Assert.That(motor.LastForvard, Is.GreaterThan(0), "robot se pred zastavenim rozjel");
+
+            loop.Stop();
+
+            Assert.That(motor.LastForvard, Is.EqualTo(0), "Stop() neposlal motorum nulu");
+            Assert.That(motor.LastDif, Is.EqualTo(0));
         }
     }
 }

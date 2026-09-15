@@ -122,7 +122,35 @@ namespace ARBot.Common.Fusion
             var I = Matrix<double>.Build.DenseIdentity(x.Count);
             var IKH = I - K * H;
             var Pn = IKH * P * IKH.Transpose() + K * Reff * K.Transpose();
+
+            // ⚠️ POJISTKA NA KONECNOST VYSLEDKU. Hodnota i R muzou byt v poradku a krok presto
+            // vyrobi NaN/∞ - typicky singularni S (nulove R pri imuheadingstd=0 a YprU=0 ze
+            // senzoru; MathNet u singularni matice nehazi, vraci nekonecna cisla), ale taky
+            // degenerovany jakobian. NaN se pak zapece do checkpointu fuze a zpet uz cesta
+            // nevede: kazdy dalsi dotaz na polohu vrati NaN a ridici smycka podle nej pocita.
+            // Gating to nechyti - "nis > prah" je pro NaN nepravdive. Zamitnuti je bezpecne:
+            // stav zustane takovy, jaky byl pred merenim.
+            if (!JeKonecne(xn) || !JeKonecne(Pn))
+                return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false };
+
             return new UpdateResult { X = xn, P = Pn, Nis = nis, Accepted = true };
+        }
+
+        /// <summary>Je vektor cely konecny (bez NaN a ±∞)?</summary>
+        private static bool JeKonecne(Vector<double> v)
+        {
+            for (int i = 0; i < v.Count; i++)
+                if (!double.IsFinite(v[i])) return false;
+            return true;
+        }
+
+        /// <summary>Je matice cela konecna (bez NaN a ±∞)?</summary>
+        private static bool JeKonecne(Matrix<double> m)
+        {
+            for (int r = 0; r < m.RowCount; r++)
+                for (int c = 0; c < m.ColumnCount; c++)
+                    if (!double.IsFinite(m[r, c])) return false;
+            return true;
         }
     }
 }

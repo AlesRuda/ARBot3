@@ -54,12 +54,20 @@ namespace ARBot.Common.Maps.OsmNav.Graph
         /// </summary>
         /// <param name="network">Silnicni sit (uzly v LLA).</param>
         /// <param name="origin">Pocatek lokalni ENU roviny.</param>
-        public RoadScene(RoadNetwork network, GeoReference origin)
+        /// <param name="prekryv">Naucene sirky cest (<c>nodeId → sirka</c>); <c>null</c> = jen mapa.
+        ///
+        /// <para>Scena je NEMENNA, takze se prekryv <b>zapece pri stavbe</b> — zmena znamena novou
+        /// instanci a ta se konzumentovi ATOMICKY zameni (viz <c>MapCorrelator.Scene</c>).</para>
+        ///
+        /// <para>⚠️ <b>Scena pro VIRTUALNI KAMERU ho dostat nesmi</b> (<c>ARBotHW</c> ji stavi bez
+        /// nej): simulace by pak renderovala cestu podle odhadu a koridor by meril SAM SEBE —
+        /// tataz past jako <c>camerapose=fusion</c>. Viz doc/plan-naucena-sirka-do-mapy.md.</para></param>
+        public RoadScene(RoadNetwork network, GeoReference origin, RoadWidthOverrides prekryv = null)
         {
             if (network == null) throw new ArgumentNullException(nameof(network));
             if (origin == null) throw new ArgumentNullException(nameof(origin));
 
-            segments = BuildSegments(network, origin);
+            segments = BuildSegments(network, origin, prekryv);
 
             if (segments.Length == 0)
             {
@@ -93,7 +101,8 @@ namespace ARBot.Common.Maps.OsmNav.Graph
         /// Prevede hrany site na useky v lokalni rovine. Obousmerne hrany daji tentyz pas, proto se
         /// kazda dvojice zpracuje jen jednou (stejny klic jako <c>RoadNetwork.ToLogMessage</c>).
         /// </summary>
-        private static Segment[] BuildSegments(RoadNetwork network, GeoReference origin)
+        private static Segment[] BuildSegments(RoadNetwork network, GeoReference origin,
+                                               RoadWidthOverrides prekryv)
         {
             var list = new List<Segment>(network.Count);
             var seen = new HashSet<(long, long, long)>();
@@ -108,11 +117,16 @@ namespace ARBot.Common.Maps.OsmNav.Graph
                 var pb = origin.ToLocal(e.To.Location);
 
                 list.Add(new Segment(pa.X, pa.Y, pb.X, pb.Y,
-                                     (float)(e.From.Width * 0.5), (float)(e.To.Width * 0.5)));
+                                     (float)(Sirka(e.From, prekryv) * 0.5),
+                                     (float)(Sirka(e.To, prekryv) * 0.5)));
             }
 
             return list.ToArray();
         }
+
+        /// <summary>Sirka uzlu: naucena z prekryvu, jinak mapova.</summary>
+        private static double Sirka(Node n, RoadWidthOverrides prekryv)
+            => prekryv != null && prekryv.TryGet(n.Id, out double w) ? w : n.Width;
 
         /// <summary>
         /// Zatridi useky do bunek mrizky (kazdy do vsech bunek, ktere protne jeho nafouknuty AABB)

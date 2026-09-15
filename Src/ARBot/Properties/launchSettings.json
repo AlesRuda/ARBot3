@@ -9,7 +9,7 @@
     },
     "ARBot - virtualni HW + dve mapy (visionmap)": {
       "commandName": "Project",
-      "commandLineArgs": "virtualhw=true no_uart=true corridor=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
+      "commandLineArgs": "virtualhw=true no_uart=true corridor=true roadwidthmap=true map=OSM\\SyntetickyKoridor.osm visionmap=OSM\\SyntetickyKoridorPosunuty.osm"
     },
     "ARBot - rovna mapa + koridor (mereni)": {
       "commandName": "Project",

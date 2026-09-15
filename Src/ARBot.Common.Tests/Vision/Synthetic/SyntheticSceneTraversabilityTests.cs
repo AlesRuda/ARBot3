@@ -113,6 +113,12 @@ public class SyntheticSceneTraversabilityTests
     [Test]
     public void NizkaTravaNaUzkeCeste_seZtraci_zavisiNaSirceCesty()
     {
+        // ⚠️ Chybejici nativni knihovna neni regrese, jen chybejici zavislost: stavi se
+        // z Src/NativeFuncs a v gitu NENI (na CI ani v cistem klonu tedy chybi). Do 15. 9. 2026
+        // tenhle test padal na DllNotFoundException a vypadalo to jako rozbite chovani.
+        if (!ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.JeDostupna)
+            Assert.Ignore(ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.Duvod);
+
         var proj = RealMountCamera();
         var pose = new RobotState { X = 0, Y = 0, Theta = 0 };
 

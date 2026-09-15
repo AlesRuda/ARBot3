@@ -144,6 +144,43 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam kadenci v Hz: 0 (neomezeno) az 200");
 
+        /// <summary>
+        /// Prirazek k sigme pricne polohy koridoru [m]: 0 (vypnuto) az 10.
+        /// <para>Strop 10 m je nad sirkou jakekoli cesty, kterou koridor umi zmerit
+        /// (<c>CorridorConfig.MaxWidthM</c> = 8 m) - vetsi cislo uz neni odtlumeni, je to preklep.</para>
+        /// </summary>
+        public static ParamParseResult CorridorStd(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 10 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam prirazek k sigme v METRECH: 0 (vypnuto) az 10");
+
+        /// <summary>
+        /// Prirazek k sigme kurzu z koridoru ve STUPNICH: 0 (vypnuto) az 180.
+        /// <para>Stejna past jako u <see cref="ImuHeadingStd"/>: velmi mala kladna hodnota je
+        /// skoro jiste radian zadany omylem.</para>
+        /// </summary>
+        public static ParamParseResult CorridorHeadingStd(string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                return ParamParseResult.Invalid("cekam cislo");
+            if (v == 0) return ParamParseResult.Valid();
+            if (v > 0 && v < 0.1)
+                return ParamParseResult.Invalid(
+                    "sigma kurzu se zadava ve STUPNICH a " + text + " je min nez podlaha sigmy "
+                    + "koridoru (0,5 deg) - nezadavas to omylem v radianech? Pouzij 0 pro vypnuti.");
+            return v >= 0.1 && v <= 180
+                ? ParamParseResult.Valid()
+                : ParamParseResult.Invalid("cekam sigmu kurzu ve STUPNICH: 0 (vypnuto), nebo 0,1 az 180");
+        }
+
+        /// <summary>Kadence merenii z koridoru do fuze [Hz]: 0 (neomezeno) az 60.</summary>
+        public static ParamParseResult CorridorHz(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 60 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam kadenci v Hz: 0 (neomezeno) az 60");
+
         /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
         public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
 

@@ -354,6 +354,17 @@ namespace ARBot.Common.Missions
             {
                 Advance(now);
 
+                // ⚠️ FAIL-RAMEC NENI ZPRAVA O TLACITKU. Driver po chybe (nedostupny port,
+                // neparsovatelna odpoved) vyrabi kazdych 500 ms nahradni ramec s
+                // IsEmergencyStop = true — to je fail-safe pro RIDICI SMYCKU (at robot stoji),
+                // ne mereni stopu. Automat se podle nej hnout nesmi: jinak odpojeny motorovy
+                // UART sam prejde do „ceka na uvolneni" a obnoveni linky s NESTISKNUTYM
+                // tlacitkem se precte jako pokyn „jed" — robot se rozjede bez lidskeho zameru.
+                // „Zadna zprava" = necham posledni ZNAMY stav (tedy i standing), jen dobehnou
+                // timeouty z Advance. Viz IMotorState.HasMeasurement.
+                if (motors != null && !motors.HasMeasurement)
+                    return;
+
                 emergencyStop = motors != null && motors.IsEmergencyStop;
                 // Chybejici stav motoru se pocita jako STOJICI (bezpecnejsi smer) a rychlosti se
                 // porovnavaji na PRESNOU nulu: LeftWheelSpeed je z pristustku enkoderu, ne

@@ -1512,9 +1512,44 @@ repeat_y1:
             return l;
         }
 
+        /// <summary>
+        /// Dotkne se nativni knihovny, aby se dalo zjistit, jestli vubec je.
+        /// Vyhodi <see cref="DllNotFoundException"/>, kdyz neni. Viz <see cref="NativeLibAvailability"/>.
+        /// </summary>
+        internal static void ZkusNacist()
+        {
+            // ⚠️ Musi to byt volani, ktere je BEZPECNE i kdyz knihovna JE. Prvni pokus sem dal
+            // ComputeFree(IntPtr.Zero) - to nativni kod neustal a shodil cely testovaci host
+            // (835 z 1543 testu a konec). Alokace 16 bajtu a hned jejich uvolneni je nestranna.
+            IntPtr p = NativeMethods.Alloc(16);
+            if (p != IntPtr.Zero)
+                NativeMethods.Free(p);
+        }
+
+        /// <summary>
+        /// Uvolneni nativni pameti.
+        ///
+        /// <para>⚠️ <b>Try/catch je tu nutny, ne opatrnicky</b> (nalez auditu 15. 9. 2026).
+        /// Ve finalizeru se vola P/Invoke, takze bez nativni knihovny vyleti
+        /// <c>DllNotFoundException</c> — a <b>neodchycena vyjimka ve finalizeru ukonci cely
+        /// proces</b>. Nepadal tedy jeden test, padal cely testovaci host, a to zpusobem, ze
+        /// z vysledku nebylo poznat proc. Tataz vec by na zarizeni shodila runtime pri prvnim
+        /// sberu GC, kdyby se knihovna nenasadila.</para>
+        ///
+        /// <para>Polykat se smi, protoze jina odpoved neexistuje: kdyz knihovna chybi, nebylo
+        /// co alokovat, a kdyz je, uvolneni se povedlo.</para>
+        /// </summary>
         ~NativeComputeUnit()
         {
-            NativeMethods.ComputeFree(computeInfoPtr);
+            try
+            {
+                NativeMethods.ComputeFree(computeInfoPtr);
+            }
+            catch
+            {
+                // Zamerne bez hlaseni: finalizer bezi na vlakne GC pri ukonceni procesu, kdy uz
+                // Trace nemusi mit kam psat - a pokus o zapis by byl druha vyjimka na temze miste.
+            }
         }
 
         public void Test()

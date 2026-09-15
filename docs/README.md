@@ -128,7 +128,7 @@ web je nepoužívá.
 |---|---|---|
 | Domovská stránka | `index.html` | text převzat, doplněn rozcestník |
 | — (nová) | `pages/prezentace.html` | popis fungování softwaru |
-| Umístění v soutěžích | `pages/umisteni-v-soutezich.html` | popisy soutěží + tabulka výsledků 2009–2023 |
+| Umístění v soutěžích | `pages/umisteni-v-soutezich.html` | popisy soutěží + tabulka výsledků 2009–2025 |
 | ARBot → Verze | `pages/verze.html` | celý text + 4 fotky + **4 pásy fotek (30 snímků)** |
 | ARBot → Model diferenciálního podvozku | `pages/model-diferencialniho-podvozku.html` | text + 3 schémata (SVG) + **vzorce (1)–(14)** |
 | ARBot → Detekce kraje vozovky | `pages/detekce-kraje-vozovky.html` | text + obrázek + **vzorce (1)–(5)** |

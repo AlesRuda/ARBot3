@@ -1,5 +1,6 @@
 ﻿using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Diagnostics;
 using ARBot.Common.Logs;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,10 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
 {
     public class uBloxGps : UartSensorBase<GPSState>, IGPS
     {
+        // Skrceni hlaseni o chybach cteni (viz PoruchaHlasic): pri poskozene lince se sem chodi
+        // mnohokrat za sekundu a prvni hlaska je ta nejzajimavejsi.
+        private readonly PoruchaHlasic hlasic = new PoruchaHlasic();
+
         /// <summary>
         /// Constructor for the Device class.
         /// </summary>
@@ -28,7 +33,15 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
         protected override GPSState GetMeasurement()
         {
             PVTMessage pos = null;
-            while (pos == null)
+            // ⚠️ Podminka nese i stopRequired (nalez auditu 15. 9. 2026). Bez toho se smycka tocila
+            // DONEKONECNA: Uart.Read(int) si priznak zruseni na zacatku kazdeho volani NULUJE
+            // („novy pozadavek na cteni"), takze CancelRead z UartSensorBase.Stop() odblokoval jen
+            // jedno cteni a hned dalsi zase blokovalo — Stop() senzoru pak cekal navzdy a s nim
+            // i ARBotRuntime.Stop(), ktery bezi pod zamkem.
+            //
+            // null se vraci schvalne: Process() ho bere jako „zadne merenie" a smycku ukonci podle
+            // stopRequired. Zadne merenie se tim nezahodi, protoze zadne neni.
+            while (pos == null && !stopRequired)
             {
                 var msg = Read();
                 if (msg is PVTMessage)
@@ -36,6 +49,8 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
                     pos = msg as PVTMessage;
                 }
             }
+            if (pos == null)
+                return null;      // zastavujeme se
             TimeSpan ts = new TimeSpan(0, 0, 0, 0, 0);
             int d = 0, h = 0, m = 0, s = 0, ms = 0;
             d = (int)pos.ITOW / (1000 * 60 * 60 * 24);
@@ -104,7 +119,10 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex.ToString());
+                // Trace, ne Debug: tohle je jedine misto, kde se hlasi, ze z GPS nejde nic precist.
+                // V Release (a ten bezi na zarizeni) by po nem nezustala zadna stopa - GPS by jen
+                // mlcelo. Skrceno, protoze pri poskozene lince se sem chodi mnohokrat za sekundu.
+                hlasic.Hlas($"{Name}: cteni UBX selhalo", ex);
             }
             return m;
         }

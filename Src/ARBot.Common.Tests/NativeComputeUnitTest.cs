@@ -22,6 +22,13 @@ namespace ARBot.Common.Tests
         [SetUp]
         public void LogRunningTest()
         {
+            // ⚠️ Chybejici nativni knihovna neni regrese, jen chybejici zavislost: stavi se
+            // z Src/NativeFuncs a v gitu NENI, takze v cistem klonu a na CI runneru chybi.
+            // Do 15. 9. 2026 tu padalo 30 testu na DllNotFoundException a vypadalo to jako
+            // rozbite chovani - kdo chtel testy pustit, musel je rucne vyfiltrovat.
+            if (!ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.JeDostupna)
+                Assert.Ignore(ARBot.Common.Algorithms.ComputeUnit.NativeLibAvailability.Duvod);
+
             var f = Environment.GetEnvironmentVariable("CRASH_LOG");
             if (!string.IsNullOrEmpty(f))
                 System.IO.File.AppendAllText(f, TestContext.CurrentContext.Test.Name + "\n");

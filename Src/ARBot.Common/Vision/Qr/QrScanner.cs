@@ -82,7 +82,9 @@ namespace ARBot.Common.Vision.Qr
                 foreach (var r in Process(frame))
                     EmitDerived(r.ToLogMessage());
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"QrScanner: {ex}"); }
+            // Trace, ne Debug: bez toho by v Release nebylo poznat, jestli se kod necetl proto, ze
+            // ho nikdo neukazal, nebo proto, ze dekoder spadl. Viz CLAUDE.md.
+            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"QrScanner: dekodovani selhalo: {ex}"); }
         }
 
         /// <summary>

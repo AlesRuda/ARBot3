@@ -48,7 +48,7 @@ Na cílovém HW (OrangePI) to neběželo.
 | Index už načtený v paměti | [`FileMessageSource.Index`](../Src/ARBot.Common/Communication/FileMessageSource.cs) | `ARBotRuntime` ho čte při `Start(Mode.View, …)` |
 | Náhodné čtení rámce | tamtéž (`ReadFrameAt`, privátní) | vzor, jak přečíst jednu zprávu z `Offset` |
 | Seek v záznamu | `FileMessageSource.SeekTo(seq)` + [`ReplayNavTool`](../Src/ARBot/ViewModels/ReplayNavTool.cs) | napojení tabulky na přehrávání |
-| Soubor otevřený s `FileShare.Read` | [`ARBotRuntime`](../Src/ARBot/Robot/ARBotRuntime.cs) (`StartView`) | skener si smí otevřít **vlastní** stream |
+| Soubor otevřený s `FileShare.Read` | [`ARBotRuntime`](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs) (`StartView`) | skener si smí otevřít **vlastní** stream |
 
 Klíčová vlastnost indexu: `ArrivalTicks` (T_out) stampuje `RecordingTarget` **každé** zprávě,
 kdežto `CaptureTicks` (T_in) je 0 u zpráv bez `IHasCaptureTime` (např. `GraphNavigationMsg`).

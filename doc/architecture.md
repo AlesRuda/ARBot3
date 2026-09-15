@@ -43,7 +43,7 @@ ARBot.Headless (konzole) ──►  (týž ARBot.Runtime)                       
   takže se týž půdorys dá nakreslit ze záznamu. **HTTP a skládání stránky patří do `ARBot.Runtime/Web`**,
   protože potřebují `ARBotRuntime.Stream`. Viz [headless.md](headless.md).
 - **UI dokovatelné dokumenty/nástroje**: viz
-  [Src/ARBot/ARBot/Views/README.md](../Src/ARBot/ARBot/Views/README.md).
+  [Src/ARBot/Views/README.md](../Src/ARBot/Views/README.md).
 
 ## Konvence: převod doménového stavu na zprávu — `ToLogMessage()`
 

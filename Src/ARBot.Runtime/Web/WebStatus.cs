@@ -151,7 +151,7 @@ namespace ARBot.Robot.Web
             lock (gate)
             {
                 if (!AwaitingMission) return "mise uz bezi (zmena vyzaduje zastaveni)";
-                if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
+                if (!StavMotoruZnamy())
                     return "motory nehlasi stav - misi nelze vybrat";
                 if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
                 return null;
@@ -215,11 +215,25 @@ namespace ARBot.Robot.Web
         /// </summary>
         private string BezpecnostniBrana()
         {
-            if (motors == null || (TimeBase.Now - motorsAt).TotalSeconds > MotorFreshSec)
+            if (!StavMotoruZnamy())
                 return "motory nehlasi stav - zapis nelze povolit";
             if (!motors.IsEmergencyStop) return "nejdriv stiskni nouzove zastaveni";
             return null;
         }
+
+        /// <summary>
+        /// Vime o stavu nouzoveho zastaveni neco <b>zmereneho</b>? Vola se pod <c>gate</c>.
+        ///
+        /// <para>Nestaci cerstvost: driver po chybe (odpojeny USB prevodnik, neparsovatelna
+        /// odpoved) vyrabi kazdych 500 ms nahradni ramec, ktery je cerstvy a ma
+        /// <c>IsEmergencyStop = true</c> — jenze to je fail-safe pro <b>ridici smycku</b>
+        /// (at robot stoji), ne mereni tlacitka. Bez teto kontroly by se obe brany otevrely
+        /// prave v okamziku, kdy o robotu nevime nic. Viz <c>IMotorState.HasMeasurement</c>.</para>
+        /// </summary>
+        private bool StavMotoruZnamy()
+            => motors != null
+            && motors.HasMeasurement
+            && (TimeBase.Now - motorsAt).TotalSeconds <= MotorFreshSec;
 
         /// <summary>Jmena kamer, ze kterych uz snimek prisel (diagnostika a vyber vrstvy).</summary>
         public string[] CameraNames

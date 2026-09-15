@@ -1,7 +1,7 @@
 # World pohled (mapa)
 
 Dokovatelný dokument **`WorldViewDocument`** — geografický (world) pohled na data ze
-[`ARBotRuntime.Stream`](../Src/ARBot/Robot/ARBotRuntime.cs) nad **mapovým podkladem**. Analogie
+[`ARBotRuntime.Stream`](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs) nad **mapovým podkladem**. Analogie
 [robot-centrického pohledu](traversability-grid.md) (`RobotCentricDocument`), ale v geografickém rámci
 (WGS84 / Web Mercator EPSG:3857). Menu **Tools → World**.
 

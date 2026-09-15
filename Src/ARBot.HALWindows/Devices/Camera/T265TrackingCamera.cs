@@ -1,3 +1,4 @@
+using ARBot.Common.Common;
 using ARBot.Common.Devices;
 using ARBot.Common.Models;
 using ARBot.HAL;
@@ -246,7 +247,15 @@ namespace ARBot.HAL.Devices.Camera
                     using (var pf = frames.PoseFrame)
                     {
                         var f = pf.PoseData;
-                        DateTime ts = D435Camera.CalcTimeStamp(pf.Timestamp);
+                        // ⚠️ TimeBase.Now, NE hodiny kamery (nalez auditu 15. 9. 2026). Do 15. 9.
+                        // se tu volalo D435Camera.CalcTimeStamp(pf.Timestamp), tedy cas ZARIZENI
+                        // (epocha 1970 + offset zony + ms z kamery). Tenhle IMUState ale od
+                        // 6. 9. 2026 tece do fuze jako VIO/yawrate, kde se razitka porovnavaji
+                        // s oknem historie postavenym na TimeBase — takze se merenie bud
+                        // zahazovala jako TooOld, nebo (kdyby byl cas kamery napred) posunula
+                        // tBase a zahodila tim VN100, GPS i odometrii. Tyz zpusob razitkovani
+                        // jako u vsech ostatnich senzoru (VN100, u-blox, motor).
+                        DateTime ts = TimeBase.Now;
                         return new IMUState()
                         {
                             Name = Name,   // puvodce mereni - v robotovi muze byt IMU vic (viz IMUState.Name)

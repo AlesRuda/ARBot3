@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Linq;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Maps.OsmNav.Graph;
@@ -580,5 +581,60 @@ public class GlobalNavigatorTests
                         "delka trasy je nadhodnocena nejvys o jednu hranu, ne nekonecna");
             Assert.That(ahead.Reachable, Is.True);
         });
+    }
+
+    // ---------------- Souběh vláken (nález auditu 15. 9. 2026) ----------------
+
+    /// <summary>
+    /// ⚠️ <b><c>Step</c> a <c>SetGoal</c> běží na různých vláknech a sahají na týž
+    /// <c>GoalField</c>.</b>
+    ///
+    /// <para><c>Step</c> jede na vlákně stupně navigace (z <c>RobotStateMsg</c>), kdežto
+    /// <c>SetGoal</c> volá <b>mise</b> ze svého vlákna — Track při přechodu na další místo,
+    /// Robotour po přečtení QR kódu. <c>SetGoal</c> přitom pole mutuje
+    /// (<c>ClearGoal</c> + <c>InsertGoal</c>), zatímco <c>Step</c> nad ním počítá
+    /// <c>nav.Update</c> a <c>rt.Plan</c>. Do 15. 9. 2026 si <c>Step</c> bral pod zámkem jen
+    /// <i>odkazy</i> a pak počítal venku, takže to byl datový závod na vnitřku pole.</para>
+    ///
+    /// <para><b>Jak by se to projevilo:</b> výjimkou z <c>Plan</c> nebo <c>Update</c>, kterou
+    /// <c>MessageTarget</c> spolkne — cyklus navigace tedy tiše vypadne a robot jede dál po
+    /// poslední mrkvi. Přesně ten druh poruchy, který se na zařízení hledá nejhůř.</para>
+    ///
+    /// <para>Test není důkaz nepřítomnosti závodu (ten se dokázat nedá), ale na nezamčeném kódu
+    /// padá spolehlivě — je to tisíce přepnutí cíle proti běžícímu plánování.</para>
+    /// </summary>
+    [Test]
+    public void SetGoalZaBehuStepu_NerozbijePole()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+        nav.SetGoal(origin.ToLLA(200, 0));
+
+        Exception vybuch = null;
+        var konec = DateTime.UtcNow.AddSeconds(2);
+
+        var prepinac = new Thread(() =>
+        {
+            try
+            {
+                int i = 0;
+                while (DateTime.UtcNow < konec)
+                    nav.SetGoal(origin.ToLLA(20 * (++i % 10 + 1), 0));
+            }
+            catch (Exception ex) { Interlocked.CompareExchange(ref vybuch, ex, null); }
+        });
+
+        prepinac.Start();
+        try
+        {
+            while (DateTime.UtcNow < konec && vybuch == null)
+                nav.Step(40, 0, DateTime.UtcNow);
+        }
+        catch (Exception ex) { Interlocked.CompareExchange(ref vybuch, ex, null); }
+        prepinac.Join();
+
+        Assert.That(vybuch, Is.Null,
+                    "soubeh Step x SetGoal rozbil GoalField: " + vybuch);
     }
 }

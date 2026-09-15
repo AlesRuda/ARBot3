@@ -1,4 +1,5 @@
 using System;
+using ARBot.Common.Common;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
@@ -21,6 +22,9 @@ namespace ARBot.Common.Communication
         private readonly object startLock = new object();
         private Task consumer;
         private bool started;
+
+        // Skrceni hlaseni poruch stupne (viz Hlas).
+        private readonly PoruchaHlasic hlasic = new PoruchaHlasic();
 
         /// <param name="policy">Chovani pri zaplneni fronty.</param>
         /// <param name="capacity">Kapacita fronty; &lt;=0 = neomezena (Block je pak vzdy bezztratovy).</param>
@@ -93,7 +97,7 @@ namespace ARBot.Common.Communication
                 {
                     long t0 = Stopwatch.GetTimestamp();
                     try { Consume(msg); }
-                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (Exception ex) { Hlas("vyjimka v Consume", ex); }
                     finally
                     {
                         long dt = Stopwatch.GetTimestamp() - t0;
@@ -115,9 +119,25 @@ namespace ARBot.Common.Communication
                     }
                 }
                 try { OnFlush(); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                catch (Exception ex) { Hlas("vyjimka v OnFlush", ex); }
             }
         }
+
+        /// <summary>
+        /// Hlaseni poruchy stupne do <c>Trace</c>, <b>skrcene</b>.
+        ///
+        /// <para>⚠️ <b>Trace, ne Debug.</b> Tudy propada vyjimka z <c>Consume</c> <b>kterehokoli</b>
+        /// stupne — fuze, lokalni navigace, mise, zaznamu. <c>Debug.WriteLine</c> je
+        /// <c>[Conditional("DEBUG")]</c>, takze v Release buildu (a prave ten bezi na zarizeni)
+        /// po takove poruche nezustane <b>zadna</b> stopa: stupen tise prestane delat svou praci
+        /// a zvenku to vypada jako vadny senzor. Viz CLAUDE.md.</para>
+        ///
+        /// <para>Skrceni je nutne: zpravy chodi desitky az stovky za sekundu, takze trvala porucha
+        /// by jinak zaplavila <c>Trace</c> (a s nim zaznam, ze ktereho se pricina hleda) a narazila
+        /// na strop <c>TraceInfoBridge.MaxPerSecond</c> — prvni, tedy nejzajimavejsi, hlaska by se
+        /// v zaplave ztratila. Resi to <see cref="PoruchaHlasic"/>.</para>
+        /// </summary>
+        private void Hlas(string co, Exception ex) => hlasic.Hlas($"{GetType().Name}: {co}", ex);
 
         /// <summary>Zastavi cil: dokonci frontu, dopočte zbytek a flushne (idempotentni).</summary>
         public virtual void Stop()
@@ -126,8 +146,10 @@ namespace ARBot.Common.Communication
             {
                 if (!started) return;
                 channel.Writer.TryComplete();
+                // Trace, ne Debug: kdyz stupen nedojede frontu, je tohle jedina stopa po tom, ze
+                // se zastaveni runtime nepovedlo cely (a proc).
                 try { consumer?.Wait(); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                catch (Exception ex) { Trace.WriteLine($"{GetType().Name}.Stop: {ex}"); }
                 started = false;
             }
             OnStopped();

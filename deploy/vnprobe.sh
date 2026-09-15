@@ -25,7 +25,7 @@
 # a ASCII odpovedi jsou v nich utopene. Vytahovat je proto `grep -ao` na CELY
 # vzorek, ne radkove - radkovy grep prvni pokus o cast odpovedi minul.
 # ---------------------------------------------------------------------------------
-set -u
+set -euo pipefail
 DEV=${1:-/dev/ttyUSB0}
 OUT=${2:-/tmp/vn.raw}
 
@@ -59,9 +59,9 @@ send() { local body="$1"; printf '$%s*%s\r\n' "$body" "$(cks "$body")" > "$DEV";
 for r in 01 06 07 08 21 23 25 26 27 35 36 37 38 44 47 54 83; do send "VNRRG,$r"; done
 
 sleep 1.0
-kill $CATPID 2>/dev/null
-wait $CATPID 2>/dev/null
+kill $CATPID 2>/dev/null || true
+wait $CATPID 2>/dev/null || true
 
 echo "=== bajtu zachyceno: $(stat -c %s "$OUT") ==="
 echo "=== odpovedi (porovnej s vn100-...sencfg v koreni repa) ==="
-grep -ao "\$VN[A-Z]\{3\},[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u
+grep -ao "\$VN[A-Z]\{3\},[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u || echo "  (zadna ASCII odpoved - senzor mlci nebo je v binarnim rezimu)"

@@ -194,6 +194,20 @@ nuluje teprve, až robot **skutečně stojí**. Nouzové zastavení zůstává v
 udělat něco riskantního, nesmí dostat „stojí" od senzoru, který mlčí — proto si volající **musí
 nést vlastní timeout** (bez připojených motorů by čekal navždy).
 
+⚠️ **Do „neznámo" patří i fail-rámec driveru, a do 15. 9. 2026 nepatřil** (nález auditu).
+`SDC2160Ex` po chybě portu vyrábí každých 500 ms náhradní rámec se samými nulami a
+`IsEmergencyStop = true`; ty nuly ale **nikdo neměřil** — je to fail-safe pro řídicí smyčku, ne
+měření. `StopHold.NoteMotorState` je bral jako měřené stání, takže odpojený motorový UART hlásil
+„robot stojí" právě ve chvíli, kdy o robotu nevíme nic — a `CameraRecoverySupervisor` na tom čeká,
+než sáhne na kamery. Rozlišuje to `IMotorState.HasMeasurement`. Je to zrádnější případ než mlčení:
+rámec **dorazí**, takže vypadá jako měření.
+
+⚠️ **Zastavení smyčky teď taky posílá motorům nulu** (`ControlLoop.Stop()`, od 15. 9. 2026).
+Do té doby `Drive(0,0)` nebyl **nikde** kromě konstruktoru driveru, takže po SIGTERM, `/stop`,
+`/poweroff` i po přestavbě runtime při volbě mise zůstala poslední rychlost v motorové jednotce
+a robota srazil až její vlastní 500ms watchdog — rampou, ne tvrdou nulou. Dokumentace přitom
+tvrdila opak (`headless.md`, `CrashLog`).
+
 Do záznamu jde příznak `DriveCommandMsg.Held` (**verze 3**), důvody do `Trace` při prvním držení
 a posledním uvolnění — bez obojího by v záznamu byly nuly bez vysvětlení. Rozhodnutí a další kroky:
 [plan-drive-hold.md](plan-drive-hold.md).

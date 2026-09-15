@@ -58,6 +58,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   mohou. Ta past kousla **dvakrát** — hláška o zahozeném měření ve fúzi (20. 8. 2026) a kamery
   (2. 9. 2026, kdy v panelu *Debug output* nebyl o nefunkčních kamerách ani řádek a příčina se
   hledala hodinu měřením zvenčí). Hlídá to `DiagnostikaSenzoruTests`.
+  ⚠️ **Ten test ale kryje jen složky `Devices`** a jen vzorek `Debug.WriteLine($"{Name}: …`, takže
+  externí audit 15. 9. 2026 našel porušení pravidla přesně tam, kam nevidí: **výjimka v `Consume`
+  kteréhokoli stupně** (`MessageTarget` — fúze, navigace, mise), celý cyklus `LocalNavigator`
+  i jeho hláška „NOUZOVE ZASTAVENI - kolize", a `Uart.ReportEx`, tedy **jediné místo, kde se hlásí,
+  že port nejde otevřít**. Opraveno; hlídá to `DiagnostikaPoruchTests` (výčet souborů, rozšiřuj ho).
+  ⚠️ **Do `Trace` se ale na horké cestě nesmí psát bez škrcení** — takt jede 10×/s, rámce VN100
+  100×/s, snímky 30×/s, takže trvalá porucha zaplaví `Trace` i záznam, ve kterém se ta porucha
+  hledá, a narazí na strop `TraceInfoBridge.MaxPerSecond` (200/s): ztratí se právě ta **první**,
+  nejvíc vypovídající hláška. Na to je `ARBot.Common/Diagnostics/PoruchaHlasic.cs` (první výskyt
+  celý, další po 5 s i s počtem potlačených, **jiný druh poruchy jde ven hned**).
 - **Ověřuj změny buildem a testy** (`dotnet build` / `dotnet test` pod `x64`); u kódu
   s dopadem na HW napiš, co je odsimulované vs. co je nutné ověřit na zařízení.
 - **Git: pracuje se přímo na `master`.** Commity jdou do masteru — **nezakládat feature branch**
@@ -73,7 +83,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 81 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 85 klíčů s popisem a typem), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -86,8 +96,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   připojení mostu zopakuje spolu s verzí binárky (viz
   [record-replay.md](doc/record-replay.md#verze-binárky-a-konfigurace-v-záznamu-od-5-9-2026)). Změna platí **až po restartu** (panel ho
   umí). Hotové 31. 8. 2026; **panel je proklikaný celý** včetně *Uložit a restartovat* (1. 9. 2026),
-  ale **na zařízení nic z toho neběželo** — a systemd jednotka aplikace neexistuje, takže restart
-  se tam může chovat jinak.
+  ale **na zařízení nic z toho neběželo**, takže restart se tam může chovat jinak. ⚠️ Stálo tu,
+  že „systemd jednotka aplikace neexistuje" — **to neplatí od 5. 9. 2026** (jednotka `arbot` je
+  popsaná o pár odrážek níž, takže si tenhle soubor odporoval sám se sebou; našel to audit
+  15. 9. 2026). Restart pod službou je tím pádem **živá cesta**, ne hypotéza.
 - [doc/perf-monitoring.md](doc/perf-monitoring.md) — **měření výkonu řízení**: stíhá řídicí smyčka
   svou periodu? Obsazenost periody, zpoždění a **zameškané takty** ze `Scheduler`u, fronty
   a **zahozené zprávy** ze stupňů, CPU procesu — jednou za sekundu jako `PerfMsg` do streamu
@@ -733,10 +745,52 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   na vnuceném biasu 3,0° — ten drift znovu vyrábí rychleji, než ho příčná korekce stahuje.
   „Pomohly korekce?" **nelze měřit nad posunutou mapou** (tam je správné odejít od pravdy o posun
   mapy) — musí být `visionmap` = `map` a skutečný drift.
-  Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°, **korekce kurzu je ve fúzi bezmocná**
-  (IMU kompas ji přehlasuje ~200:1 a soft gating ji u velkých chyb udusí, naměřeno 22. 8. 2026).
+  Další otevřené vady: `TightAxisAngle` vychýlená ~6,3°.
+  ⚠️ ~~**korekce kurzu je ve fúzi bezmocná** (IMU kompas ji přehlasuje ~200:1)~~ — **to už
+  NEPLATÍ** (15. 9. 2026). Bylo to naměřené 22. 8. 2026, tedy **před** `imuheadingstd=5`
+  a `imuheadinghz=1` z 12. 9.; poměr informace se tím překlopil z **kompas 220 : 1 nad koridorem**
+  na **koridor ~150–1000 : 1 nad kompasem**, tedy o pět řádů. Koridor je jediná reference kurzu
+  **bez magnetického biasu**, ale zamyká kurz na **azimut OSM hrany** — chyba mapy jde 1:1 do kurzu
+  robotu. *(Je to výpočet z dokumentovaných σ a kadencí, ne měření; reprodukuje ale obě dřívější
+  publikovaná čísla.)*
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
+  ✅ **Od 15. 9. 2026 jde odtlumit jako GPS a kompas** (`corridorstd=` [m], `corridorheadingstd=`
+  [°], `corridorhz=` [Hz]; sigmy **kvadraticky**, škrtí se **jen posílání**, ne výpočet — zpráva
+  chodí dál, aby šly prahy proladit offline). **Výchozí 0 = dnešní chování schválně:** u
+  `imuheadingstd` je default 5°, protože ten bias byl změřený, kdežto **dekorelační čas koridoru
+  změřený není**.
+  ✅ **A odemkl se rozjezd odhadu šířky.** Šířková brána se ptala na **mapovou** šířku dřív, než se
+  filtr měl z čeho naučit — na cestě širší než `roadwidth ± 1,5 m` se první měření nepřijalo
+  **nikdy** a hrana zůstala **němá navždy**. `OSM/Hviezdoslavova.osm` přitom nemá **ani jeden** tag
+  `width`, takže celá síť má 3 m: na vozovce by koridor nezměřil nic a v reportu by to vypadalo
+  jako porucha detektoru. Léčba: `RoadWidthEstimator` (okno + **medián** + verdikt kvality z **MAD**)
+  běží **bez brány** a sám řekne „nevím"; brána i posílání platí **až od kvality**
+  (`CorridorFixReason.WidthNotTrusted`). ⚠️ Padlo tím i zdůvodnění u `WidthUpdateMaxDisagreementM`:
+  **šířka na póze nezávisí vůbec** (`Width = cL − cR` v rámci robotu), takže kvalitu měř **shodou
+  měření mezi sebou**, ne shodou s mapou — a podmiňovat učení pózou by vyrobilo týž zámek.
+  `RoadWidthFilter` zůstává, dokud se nová cesta neprověří na datech. ⚠️ **Na HW neběželo nic.**
+  ✅ **A od 15. 9. 2026 jde naučená šířka DÁL DO MAPY** (`roadwidthmap=`, výchozí **false**): dostane
+  ji **korelace** (`RoadScene`) i **kreslení** (`MapMsg` → World pohled, webový půdorys). Je to
+  **neměnný překryv `nodeId → šířka`** předaný konzumentům — **graf sítě se nemění vůbec**, protože
+  ten drží i navigace a jeho výměna za běhu by byla záměna identity toho, podle čeho robot jede.
+  Přestavuje `RoadWidthMapUpdater` (tik = `RoadCorridorMsg`, data = přímo estimátor) za prahem
+  0,25 m **a** odstupem 10 s; scéna korelátoru se **atomicky zamění**. ⚠️ **Scénu virtuální kamery
+  to nedostane** — jinak by simulace renderovala podle odhadu a koridor by měřil **sám sebe** (táž
+  past jako `camerapose=fusion`); hlídá to test. ⚠️ **Šířku nese uzel, ne cesta**, takže chodník
+  u vozovky podědí její šířku — známá mez, ne vada.
+  ⚠️ **Šířka uzlu je maximum jen přes cesty, které MAJÍ ODHAD** — a to je oprava vady nalezené týž
+  den na dvoumapovém rigu (vizuální mapa 2 m proti jízdní 3 m), kdy se navenek **neaktualizovalo
+  nic**: původně přispívala i cesta **bez** odhadu svou **mapovou** hodnotou, takže naučené
+  **zúžení** se na každém sdíleném uzlu přehlasilo — a protože půlšířky segmentu se berou z jeho
+  dvou **koncových uzlů**, zůstala celá naučená cesta široká všude, kde se dotýká jiné cesty, tedy
+  prakticky na celé síti. Mapová šířka nezměřené cesty je **default, ne důkaz**. ⚠️ **Perzistence vědomě není:** kdyby naučená
+  šířka přežila restart, přežil by i špatný odhad a už by ho nikdo nepřepsal. Plán:
+  [doc/plan-naucena-sirka-do-mapy.md](doc/plan-naucena-sirka-do-mapy.md). ⚠️ **Na HW neběželo**,
+  ověřeno simulací; prahy jsou odhad a jdou doladit offline.
+  **Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridor=true`,
+  `corridorsend=false`, `measdiag=Corridor`): plná zátěž, nulový vliv na řízení. Důvod je
+  spočítaný — s `gpsposstd=30` by příčná autorita koridoru byla řádu **10⁵–10⁶ : 1**.
   „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*
   šířky, ne proti mapě, a jde o jeho zaostávání na cestě, která se skutečně rozšiřuje; proti mapě
   kamera souhlasí na centimetry. **Delší rovná testovací mapa hotová 24. 8. 2026**

@@ -7,6 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ARBot.Common.Common;
+using ARBot.Common.Diagnostics;
 namespace ARBot.HAL.Devices.Uart
 {
     /// <summary>
@@ -25,6 +27,11 @@ namespace ARBot.HAL.Devices.Uart
         // smycku, zapis) - drive to delal Thread.Sleep(1000) primo v ReOpen a pri nedostupnem
         // portu zahlcoval threadpool (viz doc/record-replay.md).
         const int ReopenBackoffMs = 1000;
+
+        /// <summary>Strop blokujiciho cteni [ms] - viz konstruktor. NIKDY ne Infinite.</summary>
+        public const int DefaultReadTimeoutMs = 1000;
+        /// <summary>Strop blokujiciho zapisu [ms] - tytez duvody jako u cteni.</summary>
+        public const int DefaultWriteTimeoutMs = 1000;
         DateTime lastOpenAttempt = DateTime.MinValue;
 
         // Kooperativni zruseni blokujiciho cteni (viz CancelRead). Volatile - nastavuje jine
@@ -103,6 +110,19 @@ namespace ARBot.HAL.Devices.Uart
                 sp.StopBits = StopBits.One;
                 sp.Handshake = Handshake.None;
                 sp.NewLine = newLine;
+
+                // ⚠️ KONECNY TIMEOUT CTENI (nalez auditu 15. 9. 2026). Vychozi SerialPort.ReadTimeout
+                // je InfiniteTimeout, takze sp.ReadLine() i sp.Read() na tichem portu (odpojeny USB
+                // prevodnik: IsOpen zustane true, ale data nechodi) BLOKUJI NAVZDY - a CancelRead
+                // je neodblokuje, ten umi jen nasi vlastni smycku v Read(int). Vlakno senzoru tak
+                // uvizne uvnitr GetMeasurement a SensorBase.Stop() ceka; kdyz to potka runtime,
+                // zastavuje se pod zamkem a zatuhne cely.
+                //
+                // Sekunda je nad periodou vsech dnesnich senzoru (motor okno 500 ms, VN100 100 Hz,
+                // GPS 10 Hz), takze v provozu se na ni nikdy nedojde - je to jen strop.
+                sp.ReadTimeout = DefaultReadTimeoutMs;
+                sp.WriteTimeout = DefaultWriteTimeoutMs;
+
                 ReOpen();
             }
             catch (Exception ex)
@@ -465,9 +485,21 @@ namespace ARBot.HAL.Devices.Uart
             readCancel = true;
         }
 
-        private void ReportEx(Exception ex)
-        {
-            Debug.WriteLine(string.Format("{0} ({1}): {2}", name, sp.PortName, ex.ToString()));
-        }
+        /// <summary>
+        /// Jedine misto, kde se hlasi, ze port nejde otevrit, cist nebo zapsat.
+        ///
+        /// <para>⚠️ <b>Trace, ne Debug.</b> <c>Debug.WriteLine</c> je <c>[Conditional("DEBUG")]</c>,
+        /// takze v Release buildu — a prave ten bezi na zarizeni — po odpojeni prevodniku
+        /// nezustane <b>zadna</b> stopa: senzor zmlkne, stav zustane zeleny a v journalu neni ani
+        /// radek. Viz CLAUDE.md.</para>
+        ///
+        /// <para>Skrceno: mrtvy port hazi vyjimku pri kazdem cteni (u motoru 2x/s, u IMU 100x/s),
+        /// takze bez toho by prvni a nejzajimavejsi hlaska utonula v zaplave a narazilo by se na
+        /// strop <c>TraceInfoBridge.MaxPerSecond</c>. Resi to <see cref="PoruchaHlasic"/>.</para>
+        /// </summary>
+        private void ReportEx(Exception ex) => hlasic.Hlas($"{name} ({sp.PortName})", ex);
+
+        // Skrceni hlaseni chyb portu (viz ReportEx).
+        private readonly PoruchaHlasic hlasic = new PoruchaHlasic();
     }
 }

@@ -73,7 +73,11 @@ public sealed class RoadNetwork
     /// deduplikované na jednu úsečku — síť má forward i reverzní hranu). Konvence <c>ToLogMessage</c>
     /// jako u ostatních domén (ICP, Collider, EKFStep, navigace).
     /// </summary>
-    public MapMsg ToLogMessage(string? name = null)
+    /// <param name="name">Jméno mapy do zprávy.</param>
+    /// <param name="prekryv">Naučené šířky uzlů; <c>null</c> = jen mapa. Díky němu kreslí World
+    /// pohled i webový půdorys <b>totéž, proti čemu se koreluje</b> — nesoulad mezi obrázkem
+    /// a výpočtem v tomhle projektu už jednou stál hodiny. Viz doc/plan-naucena-sirka-do-mapy.md.</param>
+    public MapMsg ToLogMessage(string? name = null, RoadWidthOverrides? prekryv = null)
     {
         var msg = new MapMsg { Name = name ?? string.Empty };
         var index = new Dictionary<long, int>();
@@ -81,8 +85,8 @@ public sealed class RoadNetwork
 
         foreach (var e in _edges)
         {
-            int fi = AddNode(msg, index, e.From);
-            int ti = AddNode(msg, index, e.To);
+            int fi = AddNode(msg, index, e.From, prekryv);
+            int ti = AddNode(msg, index, e.To, prekryv);
 
             long a = e.From.Id, b = e.To.Id;
             var key = a < b ? (a, b, e.WayId) : (b, a, e.WayId);
@@ -92,7 +96,7 @@ public sealed class RoadNetwork
         }
         return msg;
 
-        static int AddNode(MapMsg msg, Dictionary<long, int> index, Node n)
+        static int AddNode(MapMsg msg, Dictionary<long, int> index, Node n, RoadWidthOverrides? p)
         {
             if (index.TryGetValue(n.Id, out int i)) return i;
             i = msg.Nodes.Count;
@@ -102,7 +106,7 @@ public sealed class RoadNetwork
                 Id = n.Id,
                 LatDeg = Conversions.Rad2Deg(n.Location.Latitude),
                 LonDeg = Conversions.Rad2Deg(n.Location.Longitude),
-                WidthMeters = n.Width,
+                WidthMeters = p != null && p.TryGet(n.Id, out double w) ? w : n.Width,
             });
             return i;
         }

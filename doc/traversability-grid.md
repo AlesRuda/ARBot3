@@ -52,7 +52,7 @@ jako u [`BackProjectProcessor`](../Src/ARBot.Common/Vision/BackProjectProcessor.
     **opačném pořadí** (`cloud[len-1-p]` = bod pixelu `p`) — ošetřeno indexem. **Ekvivalence obou cest je
     ověřena testem.** Nepoužívá nativní `Segment2` (padá na x64).
 
-### Zapojení do runtime ([`ARBotRuntime`](../Src/ARBot/Robot/ARBotRuntime.cs))
+### Zapojení do runtime ([`ARBotRuntime`](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs))
 
 - **Run:** grid počítá `CameraFrameProcessor` **synchronně na vlákně kamery** (nastaven kamerám v
   `WireRun`; už **není** samostatný stupeň grafu). Projekce se sestavuje **líně z připojené kamery**

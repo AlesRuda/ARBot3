@@ -105,6 +105,10 @@ namespace ARBot.Common.Fusion
         private long droppedTooOld;
         private readonly Dictionary<string, long> droppedBySource = new Dictionary<string, long>();
 
+        // Kolik merenii se zahodilo jako nekonecne (NaN/Inf v hodnote nebo v R), celkem a po zdrojich.
+        private long droppedNotFinite;
+        private readonly Dictionary<string, long> notFiniteBySource = new Dictionary<string, long>();
+
         public AsyncFusionEngine(EKFModel model, TimeSpan? historyWindow = null)
         {
             this.model = model ?? throw new ArgumentNullException(nameof(model));
@@ -152,6 +156,35 @@ namespace ARBot.Common.Fusion
         public IReadOnlyDictionary<string, long> DroppedTooOldBySource()
         {
             lock (sync) { return new Dictionary<string, long>(droppedBySource); }
+        }
+
+        /// <summary>
+        /// Kolik merenii se zahodilo, protoze nebylo <b>konecne</b> (NaN nebo ±∞ v hodnote nebo
+        /// v kovarianci sumu).
+        ///
+        /// <para>⚠️ <b>Proc to je potreba.</b> NaN projde celym korekcnim krokem bez povsimnuti
+        /// a <b>projde i gatingem</b> — porovnani <c>nis &gt; prah</c> je pro NaN nepravdive.
+        /// Odtud se zapece do checkpointu i do <c>xBase/pBase</c> a zpet uz cesta nevede: kazdy
+        /// dalsi dotaz na polohu vrati NaN, ridici smycka podle nej spocte NaN prikaz (nebo spadne)
+        /// a robot jede podle posledniho platneho prikazu dal. Jedno poskozene merenie by tedy
+        /// otravilo fuzi natrvalo.</para>
+        ///
+        /// <para>Zdroje jsou realne: poskozeny ramec z UARTu, <c>YprU = 0</c> ze senzoru (nulove R),
+        /// degenerovana kovariance z korelace s mapou.</para>
+        /// </summary>
+        public long DroppedNotFinite
+        {
+            get { lock (sync) { return droppedNotFinite; } }
+        }
+
+        /// <summary>
+        /// Zahozena nekonecna merenia (viz <see cref="DroppedNotFinite"/>) rozpadla podle
+        /// <see cref="IMeasurement.Source"/> — bez toho se nepozna, ktery senzor je vadny.
+        /// Vraci KOPII.
+        /// </summary>
+        public IReadOnlyDictionary<string, long> DroppedNotFiniteBySource()
+        {
+            lock (sync) { return new Dictionary<string, long>(notFiniteBySource); }
         }
 
         /// <summary>
@@ -316,6 +349,27 @@ namespace ARBot.Common.Fusion
 
             lock (sync)
             {
+            // ⚠️ BRANA NA KONECNOST - drzi to, ze jedno vadne merenie neotravi filtr natrvalo.
+            // Musi byt TADY, pred vlozenim do okna: uzel se pri kazdem out-of-sequence merenii
+            // prepocitava znovu, takze NaN v bufferu by se zapekl do checkpointu i do xBase/pBase
+            // a zpet uz cesta nevede. Gating na NIS to nechyti - "nis > prah" je pro NaN
+            // nepravdive. Viz DroppedNotFinite.
+            if (!JeKonecne(m))
+            {
+                droppedNotFinite++;
+                string zdroj = m.Source ?? "?";
+                notFiniteBySource.TryGetValue(zdroj, out long kolik);
+                notFiniteBySource[zdroj] = kolik + 1;
+
+                // Trace, ne Debug: v Release (a ten bezi na zarizeni) by po zahozeni nezustala stopa.
+                // Prvni vyskyt je ten zajimavy, dalsi uz jen pocitame (u vadneho senzoru jich chodi
+                // 100/s a zaplavily by zaznam, ve kterem se pricina hleda).
+                if (kolik == 0)
+                    Trace.WriteLine($"Fuze: zahozeno NEKONECNE merenie {zdroj} "
+                                  + $"({m.TimeStamp:HH:mm:ss.fff}) - NaN/Inf v hodnote nebo v R.");
+                return;
+            }
+
             if (!initialized)
             {
                 tBase = m.TimeStamp;
@@ -514,6 +568,30 @@ namespace ARBot.Common.Fusion
         }
 
         /// <summary>Index posledniho uzlu s casem &lt;= t (-1 kdyz zadny takovy neni).</summary>
+        /// <summary>
+        /// Je merenie <b>konecne</b> — tedy bez NaN a ±∞ v hodnote i v kovarianci sumu?
+        ///
+        /// <para>Jakobian se tady nekontroluje schvalne: zavisi na stavu, takze by se musel
+        /// vycislit v okamziku, kdy jeste nevime, proti kteremu stavu se merenie uplatni.
+        /// Tu vrstvu drzi <see cref="Ekf.UpdateStep"/>, ktery zamitne krok s nekonecnym
+        /// VYSLEDKEM (a tim i singularni <c>S</c> pri nulovem R).</para>
+        /// </summary>
+        private static bool JeKonecne(IMeasurement m)
+        {
+            var z = m.Value;
+            if (z == null) return false;
+            for (int i = 0; i < z.Count; i++)
+                if (!double.IsFinite(z[i])) return false;
+
+            var R = m.NoiseCovariance;
+            if (R == null) return false;
+            for (int r = 0; r < R.RowCount; r++)
+                for (int c = 0; c < R.ColumnCount; c++)
+                    if (!double.IsFinite(R[r, c])) return false;
+
+            return true;
+        }
+
         private int LastNodeAtOrBefore(DateTime t)
         {
             int lo = 0, hi = nodes.Count - 1, res = -1;

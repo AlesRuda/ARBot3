@@ -92,6 +92,27 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(hold.IsStopped, Is.False, "kdyz motory prestanou hlasit, stani uz neni jiste");
         }
 
+        /// <summary>
+        /// ⚠️ <b>Fail-rámec driveru také není stání</b> — a je to horší případ než mlčení:
+        /// rámec <i>přijde</i>, takže vypadá jako měření, ale jeho nuly nikdo neměřil
+        /// (<c>SDC2160Ex</c> ho vyrábí po chybě portu). Kdo se na něj spolehne, dostane „stojí"
+        /// právě v okamžiku, kdy o robotu neví nic — a <c>CameraRecoverySupervisor</c> na
+        /// <see cref="StopHold.IsStopped"/> čeká, než sáhne na kamery.
+        /// </summary>
+        [Test]
+        public void FailRamecMotoruNeniStani()
+        {
+            var registr = new DriveHoldRegistry();
+            var hold = registr.StopRequest("test");
+
+            registr.NoteMotorState(Motory(0, 0));
+            Assert.That(hold.IsStopped, Is.True);
+
+            // Odpojil se USB prevodnik: driver posila nahradni ramec s nulami, ktere nikdo nemeril.
+            registr.NoteMotorState(new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false));
+            Assert.That(hold.IsStopped, Is.False, "nuly z fail-ramce nejsou merene stani");
+        }
+
         [Test]
         public void StaniSeMeriZKolNeZPrikazu()
         {

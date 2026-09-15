@@ -1,0 +1,94 @@
+# Build a testy pri kazdem pushi a pull requestu.
+#
+# NAC TO JE (nalez auditu 15. 9. 2026): projekt mel ~1 700 testu a dve cilove platformy,
+# ale zadnou automatiku - build a testy se hlidaly RUCNE. Prave proto se nikdy neukazalo,
+# ze CISTY KLON nejde postavit: `ARBot.Common.csproj` kopiroval `NativeLib.dll` bez
+# `Condition="Exists(...)"` a ta knihovna v gitu neni. Na vyvojovem stroji lezi vedle
+# z drivejsiho buildu, takze tam vada nebyla videt vubec.
+#
+# Proto jsou tu ctyri veci, kazda proti jine slepe skvrne:
+#   1) build z CISTEHO klonu (runner nic predem nema)
+#   2) testy pod x64 - tedy tak, jak to zada CLAUDE.md, ne pod AnyCPU
+#   3) build pod OrangePI - platforma zarizeni se stavi jinde nez kde se testuje
+#   4) publish headless - to je artefakt, ktery se opravdu nasazuje
+#
+# ⚠️ NATIVNI KNIHOVNA TU NENI. `NativeLib.dll` / `libNativeLib.so` se stavi z
+# `Src/NativeFuncs` (MSVC / ARM64) a v repozitari nejsou. Testy, ktere na ni sahaji, se
+# proto samy PRESKOCI (`NativeLibAvailability` + `Assert.Ignore`) misto aby padaly na
+# `DllNotFoundException` - overeno 15. 9. 2026 na strome bez te knihovny:
+# 1481 proslo / 62 preskoceno / 0 neuspesnych. Zadny filtr tedy neni potreba a ve
+# vysledku je videt, co se neoverilo. Az se knihovna bude stavet i tady, preskoceni
+# samo zmizi.
+
+name: build a testy
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-x64:
+    name: testy (x64, Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Zamerne PO checkoutu a bez cache zdroju: smysl je overit, ze se z holeho
+      # klonu da postavit. Cache balicku NuGet je v poradku, ta se stahuje.
+      - name: restore
+        run: dotnet restore Src/ARBot.slnx
+
+      - name: build (x64)
+        run: dotnet build Src/ARBot.Common/ARBot.Common.csproj -p:Platform=x64 -c Release --no-restore
+
+      - name: testy ARBot.Common
+        run: dotnet test Src/ARBot.Common.Tests/ARBot.Common.Tests.csproj -p:Platform=x64 -c Release --logger "trx;LogFileName=common.trx"
+
+      - name: testy ARBot.HAL
+        run: dotnet test Src/ARBot.HAL.Tests/ARBot.HAL.Tests.csproj -p:Platform=x64 -c Release --logger "trx;LogFileName=hal.trx"
+
+      - name: testy ARBot.Runtime
+        run: dotnet test Src/ARBot.Runtime.Tests/ARBot.Runtime.Tests.csproj -p:Platform=x64 -c Release --logger "trx;LogFileName=runtime.trx"
+
+      - name: vysledky testu
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vysledky-testu
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+
+  build-orangepi:
+    name: build (OrangePI, ARM64 cil)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Headless runtime je to, co na robotu opravdu bezi - a stavi se pod OrangePI.
+      # Kdyz se neco rozbije jen na teto platforme (jina HAL vetev, jine podminky
+      # v csproj), neukaze to zadny beh testu pod x64.
+      - name: build ARBot.Headless (OrangePI)
+        run: dotnet build Src/ARBot.Headless/ARBot.Headless.csproj -p:Platform=OrangePI -c Release
+
+      - name: publish ARBot.Headless (linux-arm64)
+        run: >
+          dotnet publish Src/ARBot.Headless/ARBot.Headless.csproj
+          -p:Platform=OrangePI -c Release -r linux-arm64 --self-contained false
+          -o publish/headless
+
+      - name: artefakt headless
+        uses: actions/upload-artifact@v4
+        with:
+          name: arbot-headless-linux-arm64
+          path: publish/headless
+          if-no-files-found: error

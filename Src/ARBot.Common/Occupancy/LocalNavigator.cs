@@ -223,8 +223,12 @@ namespace ARBot.Common.Occupancy
         {
             if (!(msg is CameraFrame frame)) return;
 
+            // Trace, ne Debug: Debug.WriteLine je [Conditional("DEBUG")], takze v Release (a ten
+            // bezi na zarizeni) by po selhani CELEHO cyklu lokalni navigace nezustala zadna stopa
+            // - robot by jen prestal planovat a zvenku by to vypadalo jako vadna kamera.
+            // Viz CLAUDE.md.
             try { Process(frame); }
-            catch (Exception ex) { Debug.WriteLine($"LocalNavigator: {ex}"); }
+            catch (Exception ex) { Trace.WriteLine($"LocalNavigator: cyklus selhal: {ex}"); }
         }
 
         private void Process(CameraFrame frame)
@@ -338,7 +342,9 @@ namespace ARBot.Common.Occupancy
                     catch (Exception ex)
                     {
                         // Degenerovana draha (nulovy usek apod.) - radeji nic nez spatny regulator.
-                        Debug.WriteLine($"LocalNavigator: PathPlanner.Plan selhal: {ex.Message}");
+                        // Trace, ne Debug: bez toho by v Release nebylo poznat, ze robot jede dal
+                        // po STARE draze proto, ze planovani spadlo (a ne proto, ze nema kam jet).
+                        Trace.WriteLine($"LocalNavigator: PathPlanner.Plan selhal: {ex}");
                     }
                 }
                 else if (plan.HasPath)
@@ -361,7 +367,10 @@ namespace ARBot.Common.Occupancy
                 activePath = null;
                 activePathIsEscape = false;
 
-                Debug.WriteLine($"LocalNavigator: NOUZOVE ZASTAVENI - kolize {hitDist:F2} m na aktualni draze");
+                // Trace, ne Debug: tohle je jedina hlaska, ktera vysvetluje, PROC navigator zahodil
+                // regulator a robot zastal. V Release by po ni nezustala stopa a v zaznamu by bylo
+                // jen "najednou stoji". Viz CLAUDE.md.
+                Trace.WriteLine($"LocalNavigator: NOUZOVE ZASTAVENI - kolize {hitDist:F2} m na aktualni draze");
                 plan ??= new LocalPlanResult { RequestedGoalX = gx, RequestedGoalY = gy };
                 plan.Status = LocalPlanStatus.AbortedCollision;
                 plan.TimeStamp = frame.TimeStamp;

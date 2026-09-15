@@ -91,6 +91,18 @@ namespace ARBot.HAL.Devices.Camera
             new ARBot.HAL.Devices.Camera.StreamFreezeWatch();
 
         /// <summary>
+        /// Prevod razitek streamu z hodin KAMERY do zakladny TimeBase — viz
+        /// <see cref="ARBot.HAL.Devices.Camera.DeviceClockAnchor"/>. Do 15. 9. 2026 se tu pocitala
+        /// „epocha 1970 + offset casove zony + ms z kamery", tedy druha casova zakladna v zaznamu,
+        /// navic zavisla na casove zone stroje. Pravidlo projektu zni <b>vsechen cas vychazi
+        /// z TimeBase</b> (CLAUDE.md); kotvi se jen POCATEK, prirustky zustavaji z kamery, takze
+        /// zamrzly stream zustane po prevodu zamrzly (a to je jedina vec, na kterou se ta pole
+        /// v zaznamu pouzivaji).
+        /// </summary>
+        private readonly ARBot.HAL.Devices.Camera.DeviceClockAnchor clockAnchor =
+            new ARBot.HAL.Devices.Camera.DeviceClockAnchor();
+
+        /// <summary>
         /// Kolikrat se pipeline restartovala kvuli ZAMRZLEMU streamu (razitko stalo, snimky chodily).
         /// Vede se zvlast od <see cref="StallRestarts"/>: „snimky nechodi" a „snimky chodi, ale jsou
         /// porad stejne" jsou jine poruchy a pri diagnostice je potreba je rozlisit.
@@ -152,16 +164,6 @@ namespace ARBot.HAL.Devices.Camera
         /// kamery (dokud neni pipeline pripojena).
         /// </summary>
         public override bool IsError => !connected || base.IsError;
-
-        /// <summary>
-        /// Prevede timestamp snimku (ms od epochy) na lokalni DateTime.
-        /// </summary>
-        /// <param name="miliseconds">Cas v milisekundach od 1.1.1970.</param>
-        /// <returns>Lokalni cas snimku.</returns>
-        public static DateTime CalcTimeStamp(double miliseconds)
-        {
-            return new DateTime(1970, 1, 1).Add(DateTimeOffset.Now.Offset).AddMilliseconds(miliseconds);
-        }
 
         /// <summary>Prvni dostupna kamera, RGB 640x480.</summary>
         public D435Camera() : this(null, new CameraSettings(640, 480))
@@ -306,8 +308,10 @@ namespace ARBot.HAL.Devices.Camera
                     double rawColorStamp = colorFrame.Timestamp;
                     double rawDepthStamp = depthFrame.Timestamp;
 
-                    var RGBTimeStamp = CalcTimeStamp(rawColorStamp);
-                    var DepthTimeStamp = CalcTimeStamp(rawDepthStamp);
+                    // Razitka streamu do zakladny TimeBase (viz clockAnchor). Pozor: ts uz je
+                    // TimeBase.Now z vyzvednuti - predava se, aby obe pole nesla tentyz okamzik.
+                    var RGBTimeStamp = clockAnchor.ToTimeBase(rawColorStamp, ts);
+                    var DepthTimeStamp = clockAnchor.ToTimeBase(rawDepthStamp, ts);
                     if (imageDepth != null)
                         GetDataGray(depthFrame, imageDepth.Data);
                     if (imageRGB != null)
@@ -338,7 +342,10 @@ namespace ARBot.HAL.Devices.Camera
 
                     // Synchronni dopocet odvozenych vlastnosti (probability, polarni grid) na vlakne
                     // kamery - misto asynchronniho fan-outu do pipeline (viz doc/plan-camera-vision-refactor.md).
-                    FrameProcessor?.Process(frame);
+                    // ⚠️ NE primo: vyjimka odsud by spadla do catch snimaci smycky, ktery hlasi
+                    // „odpojeno" a bouri pipeline - softwarova vada vize by se tak pricitala
+                    // k realnym vypadkum D435. Viz CameraVisionStep.
+                    ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
 
                     return frame;
                 }
@@ -503,6 +510,9 @@ namespace ARBot.HAL.Devices.Camera
             // Sledovani zamrzlych streamu zacina znovu: nova pipeline ma nova razitka a bez
             // vynulovani by prah sepnul hned pri prvnim snimku po pripojeni.
             freezeWatch.Reset();
+            // Tentyz duvod plati pro kotvu hodin kamery: nova pipeline zacina s hodinami odjinud
+            // (klidne od nuly), takze bez nove kotvy by razitka skocila o roky zpet.
+            clockAnchor.Reset();
             if (pipeline != null)
             {
                 try

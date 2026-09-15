@@ -196,10 +196,48 @@ namespace ARBot.Common.Configuration
               Fmt(new Localization.MapCorrelatorConfig().ReferenceInformativeEvidence), K_FUZE,
               "Referencni informativni dukaz [m^2 * log-odds] pro skalovani sigma korelace. "
               + "0 vrati konstantni alfa pro A/B srovnani. Default = MapCorrelatorConfig.");
+        public static readonly BoolParam RoadWidthMap = Bool("roadwidthmap", "false", K_FUZE,
+              "Propsat NAUCENOU SIRKU cesty z koridoru do mapy: do RoadScene korelatoru a do "
+              + "MapMsg (World pohled, webovy pudorys). Vyzaduje corridor=true. ⚠️ Vychozi "
+              + "vypnuto - bez toho by se zmereny odhad zacal propisovat do korelace driv, nez "
+              + "kdokoli videl jediny zaznam ze zarizeni. ⚠️ Scenu VIRTUALNI KAMERY to nedostane "
+              + "nikdy: jinak by simulace renderovala cestu podle odhadu a koridor by meril SAM "
+              + "SEBE (tataz past jako camerapose=fusion). ⚠️ Sirku nese UZEL, ne cesta, takze "
+              + "tam, kde se chodnik dotyka vozovky, podedi chodnik jeji sirku - znama mez. "
+              + "Viz doc/plan-naucena-sirka-do-mapy.md.");
         public static readonly BoolParam Corridor = Bool("corridor", "false", K_FUZE,
               "Zapina hranovou lokalizaci (poloha a kurz z okraju koridoru proti mape).");
         public static readonly BoolParam CorridorSend = Bool("corridorsend", "true", K_FUZE,
               "Posilat mereni z hranove lokalizace do fuze, nebo je jen merit.");
+        // --- Odtlumeni koridoru (15. 9. 2026) ------------------------------------------------
+        //
+        // Tataz lecba a tyz duvod jako gpsposstd u GPS a imuheadingstd + imuheadinghz u kompasu:
+        // filtr bere merenia za NEZAVISLA, jenze koridor meri snimek co snimek TYZ fyzicky okraj
+        // cesty, takze jeho chyba je casove korelovana.
+        //
+        // ⚠️ Vychozi 0 = dnesni chovani, a to SCHVALNE. U imuheadingstd je default 5°, protoze ten
+        // bias byl zmereny; dekorelacni cas koridoru zmereny NENI, takze nenulovy default by byl
+        // odhad vydavany za znalost. Nastavit se to ma z dat: estimator i skrceni jsou funkce
+        // posloupnosti Width/sigma z RoadCorridorMsg, ktera je v zaznamu i u zamitnutych cyklu.
+        public static readonly DoubleParam CorridorStd = Num("corridorstd", "0", K_FUZE,
+              "Prirazek k sigme PRICNE POLOHY z koridoru [m]; sklada se kvadraticky s tou "
+              + "z prolozeni. 0 = zadne nafouknuti (stare chovani pro A/B). ⚠️ Koridor hlasi "
+              + "sigmu z reziduí prolozeni s podlahou 3 cm, jenze snimek co snimek meri TYZ okraj "
+              + "cesty - jeho chyba je tedy casove korelovana a filtr si informaci nascita "
+              + "vickrat, nez v datech je. Tataz past jako u gpsposstd a imuheadingstd. "
+              + "Viz doc/map-correlation-localization.md.", ParamParsers.CorridorStd);
+        public static readonly DoubleParam CorridorHeadingStd = Num("corridorheadingstd", "0", K_FUZE,
+              "Prirazek k sigme KURZU z koridoru [stupne]; sklada se kvadraticky s tou "
+              + "z prolozeni. 0 = zadne nafouknuti. ⚠️ Kurz z koridoru je kurz vuci AZIMUTU OSM "
+              + "HRANY - chyba, se kterou je cesta v mape nakreslena, jde primo do kurzu robotu. "
+              + "Viz doc/map-correlation-localization.md.", ParamParsers.CorridorHeadingStd);
+        public static readonly DoubleParam CorridorHz = Num("corridorhz", "0", K_FUZE,
+              "Kadence merenii z koridoru DO FUZE [Hz]; 0 = neomezeno (kazdy cyklus, tedy az "
+              + "~20/s pri 10Hz smycce a dvou kamerach). ⚠️ Skrti se jen POSILANI, ne vypocet - "
+              + "RoadCorridorMsg chodi dal v plne kadenci, takze ARBot.Analyze corridor ani A/B "
+              + "pres corridorsend= nic neztrati. Tataz lecba jako MinPeriod u korelace s mapou "
+              + "(3 s, zmereno) a imuheadinghz u kompasu (1 Hz, zmereno); u koridoru zmereno "
+              + "NENI. Viz doc/map-correlation-localization.md.", ParamParsers.CorridorHz);
         public static readonly StringParam CorridorTol = Slozeny("corridortol", null,
               ParamParsers.Pair("konstanta,prirustekNaMetr", minA: 0, minB: 0, aStrict: true), K_FUZE,
               "Prah inlieru RANSACu ve tvaru 'konstanta,prirustekNaMetr' [m]. Vzdalena hranice "
