@@ -245,6 +245,44 @@ table.results td a:hover, table.results td a:focus-visible{
   text-decoration-style:solid; text-decoration-color:currentColor;
 }
 
+
+/* ---------- seznam článků o soutěžích ---------- */
+/* Ročník je ve vlastním sloupci, aby šel seznam číst po letech; šířka 3,6em stačí
+   na čtyřmístný rok v monospace. Na úzkém okně se sloupce složí pod sebe. */
+ul.clanky{list-style:none; padding-left:0; margin:1.4em 0}
+ul.clanky li{display:grid; grid-template-columns:3.6em 1fr; gap:0 14px; margin:.7em 0}
+ul.clanky .src{color:var(--muted); white-space:nowrap}
+@media (max-width:520px){
+  ul.clanky li{grid-template-columns:1fr; gap:2px}
+}
+
+
+/* ---------- hero se snímkem (návrh úvodní stránky) ---------- */
+/* Dva sloupce jen na široké obrazovce; pod 860 px se text a fotka poskládají pod sebe,
+   jinak by na mobilu byly oba sloupce nečitelně úzké. */
+.hero-split{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);
+  gap:clamp(24px,4vw,56px); align-items:center}
+.hero-photo{margin:0}
+.hero-photo img{display:block; width:100%; height:auto;
+  border:1px solid var(--hero-line); border-radius:3px}
+/* Ve dvousloupcovem hero je pas cisel uzky, takze 2x2 - auto-fit by nechal jednu bunku prazdnou. */
+.hero-split .stats{grid-template-columns:repeat(2,1fr)}
+@media (max-width:860px){ .hero-split{grid-template-columns:1fr} }
+@media (max-width:420px){ .hero-split .stats{grid-template-columns:1fr} }
+
+/* ---------- pás vítězství ---------- */
+ul.wins{
+  list-style:none; padding:0; margin:1.6em 0;
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:1px; background:var(--line); border:1px solid var(--line);
+}
+ul.wins li{background:var(--surface); padding:13px 15px; margin:0}
+ul.wins b{
+  display:block; color:var(--accent); font-family:"Archivo",Arial,sans-serif;
+  font-size:15px; font-weight:600; letter-spacing:-.01em;
+}
+ul.wins span{display:block; color:var(--muted); font-size:13.5px; margin-top:3px}
+
 /* ---------- kontaktní údaje ---------- */
 .contact{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:26px; margin:2em 0}
 .contact h3{margin:0 0 .5em; font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}

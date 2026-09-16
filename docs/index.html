@@ -23,36 +23,86 @@
 <main>
 
 <header class="hero">
-  <div class="hero-in">
-    <p class="eyebrow">Autonomní mobilní robot &middot; hobby projekt</p>
-    <h1>ARBot</h1>
-    <p>Z místa A na místo B &mdash; po parkových cestách, bez řidiče a bez cizí pomoci.</p>
-    <p class="sub">Vozítko a hlavně algoritmy, které mu umožní aspoň to, co zvládne mravenec
-       nebo včela: zvolit si rozumnou trasu, vyhnout se kolizím a ochránit samo sebe.</p>
+  <div class="hero-in hero-split">
+    <div>
+      <p class="eyebrow">Autonomní mobilní robot &middot; hobby projekt</p>
+      <h1>ARBot</h1>
+      <p>Z místa A na místo B &mdash; po parkových cestách, bez řidiče a bez cizí pomoci.</p>
+      <p class="sub">Vozítko, a hlavně algoritmy: zvolit si rozumnou trasu, vyhnout se kolizím
+         a ochránit samo sebe.</p>
+      <div class="stats">
+        <div class="stat"><span class="stat-n">10&times;/s</span><span class="stat-l">rozhodne, kam jet dál</span></div>
+        <div class="stat"><span class="stat-n">2,7 ms</span><span class="stat-l">mu trvá poznat v obraze cestu</span></div>
+        <div class="stat"><span class="stat-n">4,09 km</span><span class="stat-l">nejdelší jízda bez zásahu člověka</span></div>
+        <div class="stat"><span class="stat-n">7&times;</span><span class="stat-l">první místo v soutěži od roku 2009</span></div>
+      </div>
+    </div>
+    <figure class="hero-photo">
+      <img src="assets/img/hero-robot.jpg" width="720" height="900"
+           alt="Robot ARBot: dřevěná plošina na dvou hnaných kolech, nad ní hloubková kamera, stožár s anténami a krabice s řídicím počítačem.">
+    </figure>
   </div>
 </header>
 
 <section class="first">
   <p class="eyebrow">Úvod</p>
   <h2>Co ARBot je a kam míří</h2>
-  <p class="lead">ARBot je malý autonomní robot, který vznikl jako hobby projekt. Počátečním cílem
-     bylo sestrojit vozítko a zejména vymyslet algoritmy, které umožní alespoň to co dokáže mnohý
-     hmyz jako třeba mravenec či včela. Z místa A se dostat na místo B. Zvolit si v jistém smyslu
-     optimální trasu, vyhnout se kolizím a chránit sama sebe před poškozením.</p>
-  <p>Postupem času byl cíl přeformulován. Dnes je snahou uspět v soutěžích typu Robotour a Robotem
-     rovně, kde se roboty musí dostat ze startovního místa do cíle ideálně po co nejkratší cestě.
-     Pohybují se především po parkových cestách, nesmí vyjet na trávník, vyhýbají se přirozeným
-     i umělým překážkám a neubližují kytičkám a přihlížejícím. A to vše zcela autonomně bez cizí
-     pomoci.</p>
-  <p>Kde je budoucnost? Jaký složitější cíl si vytknout než účast v silničním provozu, ale to je
-     ještě hodně a hodně daleko.</p>
+  <p class="lead">ARBot je malý autonomní robot. Od začátku vznikal jako hobby projekt pro soutěž
+     Robotour: postavit vozítko a hlavně vymyslet algoritmy, které mu dají aspoň tolik
+     samostatnosti, kolik má mravenec nebo včela.</p>
+  <p>Robotour je simulace autonomního doručování: robot dojede na místo nakládky, z QR kódu si
+     přečte, kam má náklad odvézt, a odveze ho. Tím nákladem je pětilitrový soudek piva
+     &mdash; zadání, kterému v Česku rozumí každý.</p>
+  <p>Na Robotouru i na jednodušším Robotem rovně platí totéž: jede se po parkových cestách, na
+     trávník se nesmí, překážkám &mdash; přirozeným i lidským &mdash; je potřeba se vyhnout
+     a kytičkám ani divákům neublížit. A to všechno zcela autonomně, bez cizí pomoci.</p>
+  <p>Kam až to může dojít? Účast v silničním provozu. Ale k tomu je to ještě hodně,
+     hodně daleko.</p>
 </section>
 
-<figure class="model">
-  <img src="assets/img/arbot-model-dark.gif" width="592" height="612" alt="Animovaný 3D model robota ARBot: žlutý podvozek na velkých kolech, na něm sud jako náklad a nahoře stožár s kamerou.">
-  <figcaption><b>Model robota.</b> Žlutý podvozek na dvou hnaných kolech, nahoře stožár se senzory
-    a mezi nimi náklad &mdash; na Robotouru se vozí soudek.</figcaption>
-</figure>
+<section>
+  <p class="eyebrow">Vidění</p>
+  <h2>Co robot vidí</h2>
+  <p>Cesta není v obraze označená čarou &mdash; robot si ji musí najít sám, desetkrát za sekundu
+     a přímo v počítači, který veze s sebou. Tohle jsou skutečné snímky z jeho kamer a z jeho mapy,
+     ne ilustrace.</p>
+
+  <figure>
+    <img src="assets/img/segmentace-srovnani-20260907.png" width="1042" height="1326"
+         alt="Pět snímků z kamery robotu a vedle nich tři varianty rozpoznání cesty: histogram barev a dvě neuronové sítě."
+         loading="lazy">
+    <figcaption><b>Kde je cesta.</b> Vlevo snímek z kamery, vedle něj rozhodnutí tří různých
+      metod &mdash; bílá je sjízdné, černá není. Provozní síť trefí <b>88 % pixelů</b> proti
+      ručně obtažené pravdě a rozhodne se za 2,7 ms.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="assets/img/headless-plan-view-prehled-20260912.png" width="512" height="512"
+         style="max-width:620px"
+         alt="Půdorys okolí robotu: šedá síť cest, fialová naplánovaná trasa, robot jako červený tvar s modrým plánem a oranžovou mrkví."
+         loading="lazy">
+    <figcaption><b>Kam jet.</b> Půdorys z webového náhledu, který robot za jízdy vysílá do mobilu:
+      šedě síť cest z OpenStreetMap, fialově trasa k cíli, u robotu lokální plán a bod, za kterým
+      se právě řídí.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <p class="eyebrow">Výsledky</p>
+  <h2>Sedm prvních míst</h2>
+  <p>ARBot jezdí soutěže od roku 2009 &mdash; Robotour, Robotem rovně, RoboOrienteering
+     a celoroční Robotour Marathon. Vyhrál v nich sedmkrát:</p>
+  <ul class="wins">
+    <li><b>Robotour Marathon 2023</b><span>4,09 km autonomně</span></li>
+    <li><b>Robotem rovně 2023</b><span>314 m po rovné cestě</span></li>
+    <li><b>Robotour 2022</b><span>doručení nákladu v parku</span></li>
+    <li><b>Robotem rovně 2022</b><span>314 m po rovné cestě</span></li>
+    <li><b>Robotour Marathon 2021</b><span>1,28 km autonomně</span></li>
+    <li><b>Robotour 2013</b><span>Lodž, Polsko</span></li>
+    <li><b>RoboOrienteering 2011</b><span>první vítězství vůbec</span></li>
+    <li><b><a href="pages/umisteni-v-soutezich.html">Všechna umístění &rarr;</a></b><span>tabulka po ročnících a zápisky ze závodů</span></li>
+  </ul>
+</section>
 
 <section>
   <p class="eyebrow">Kam dál</p>
@@ -63,14 +113,29 @@
       <p>Co se robotovi odehrává v hlavě: vidění, lokalizace, plánování a řízení &mdash;
          vysvětlené od nuly, se schématy a snímky ze skutečných jízd.</p>
     </a>
+    <a href="pages/umisteni-v-soutezich.html">
+      <h3>Umístění v soutěžích &rarr;</h3>
+      <p>Výsledky od roku 2009 a zápisky z jednotlivých ročníků &mdash; včetně těch, kde se
+         nevyhrálo a bylo z toho poučení.</p>
+    </a>
+    <a href="pages/verze.html">
+      <h3>Verze robotu &rarr;</h3>
+      <p>Tři generace stroje od prvního čtyřkolového podvozku po dnešní dvoukolák, s fotkami
+         z dílny i ze závodů.</p>
+    </a>
+    <a href="pages/model-diferencialniho-podvozku.html">
+      <h3>Model podvozku &rarr;</h3>
+      <p>Jak se ze dvou otáčejících se kol spočítá, kde robot je a kam se natočil &mdash;
+         odvozené krok za krokem.</p>
+    </a>
+    <a href="pages/detekce-kraje-vozovky.html">
+      <h3>Detekce kraje vozovky &rarr;</h3>
+      <p>Jak z obrazu vznikne hranice mezi cestou a trávou, kterou se robot drží uprostřed.</p>
+    </a>
     <a href="https://github.com/AlesRuda/ARBot3">
       <h3>Zdrojový kód &rarr;</h3>
       <p>Celý projekt je veřejný na GitHubu, včetně vývojové dokumentace, deníku rozhodnutí
          a naměřených čísel ke každému tvrzení.</p>
-    </a>
-    <a href="pages/umisteni-v-soutezich.html">
-      <h3>Umístění v soutěžích &rarr;</h3>
-      <p>Výsledky z Robotouru a Robotem rovně.</p>
     </a>
   </div>
 </section>

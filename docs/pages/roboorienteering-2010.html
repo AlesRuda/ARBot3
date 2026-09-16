@@ -1,0 +1,52 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARBot – RoboOrienteering 2010</title>
+<link rel="icon" href="../assets/img/arbot-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+
+<header class="sitehead">
+  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
+  <nav>
+      <a href="../index.html">Úvod</a>
+      <a href="../pages/prezentace.html">Jak to funguje</a>
+      <a href="../pages/umisteni-v-soutezich.html" class="on">Umístění v soutěžích</a>
+      <a href="../pages/verze.html">Verze</a>
+      <a href="../pages/model-diferencialniho-podvozku.html">Model podvozku</a>
+      <a href="../pages/detekce-kraje-vozovky.html">Detekce kraje vozovky</a>
+      <a href="../pages/kontakt.html">Kontakt</a>
+  </nav>
+</header>
+<main>
+  <div class="pagehead">
+    <p class="eyebrow">RoboOrienteering &middot; 2010</p>
+    <h1>RoboOrienteering 2010</h1>
+  </div>
+
+<section class="first">
+  <p>Letos jsem se zůčastnil soutěže RoboOrienteering. Po přestavbě robotu to byla první soutěž a podle toho to také vypadlo. Hned večer před soutěží při testování v Rychnovském parku se projevil první netriviální problém. Začaly se projevovat výpadky na sběrnici I2C, která propojuje většinu periferií. Otázkou bylo proč to a jak to vyřešit. Možná robot v podvečer navlhnul, možná nebyly nakloněni elemtálové. Problém se podařilo částečně omezit odpojením jedné motorové jednotky.</p>
+
+  <p>V prvním kole robot získal 48 bodů což stačilo jen na předposlení místo.</p>
+
+  <p>V druhém kole se robot rozjel úplně blbým směr a získal pohých 5 bodů. Analýzou jsem zjistil, že došlo k výpadku na I2C sběrnici a z enkoderů byl načten nesmyslný údaj, který robota posunul o kilometry blbě. Následovaly úpravy SW, které měly za úkol omezit nepříznivý vliv výpadků na sběrnici.</p>
+
+  <p>V třetím kole na travnatých drnech pro změnu začal robot předvádět pozoruhodné baletní číslo, motal se jak opilej. Tentokrát byla na vině AHRS jednotka, kde velký důraz na gyroskop a vybrace způsobily roztočení kompasu podle svislé osy.</p>
+
+  <p>Celkové 6. místo odpovídalo nedobré přípravě.</p>
+</section>
+
+<section>
+  <p><a href="umisteni-v-soutezich.html">&larr; Zpět na Umístění v soutěžích</a></p>
+  <p class="mono" style="font-size:13px;color:var(--muted)">Text a obrázky jsou převzaté z původního webu na Google Sites; znění článku je beze změn.</p>
+</section>
+
+<footer>
+  <div class="foot-in">
+    <span class="mono">ARBOT &middot; AUTONOMNÍ MOBILNÍ ROBOT</span>
+    <span>Zdrojový kód, vývojová dokumentace a měření:
+      <a href="https://github.com/AlesRuda/ARBot3">github.com/AlesRuda/ARBot3</a></span>
+  </div>
+</footer>
+</main>

@@ -37,6 +37,97 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-16
+- **Nová úvodní stránka webu** (`docs/index.html`) — *na pokyn autora*; napsaná nejdřív jako
+  `index-navrh.html` vedle živé, po schválení překlopená na ni (cesty byly schválně stejné,
+  takže to bylo přejmenování, ne přepis odkazů).
+  - **Co na staré stránce nesedělo:** hero a sekce „Co ARBot je" říkaly **totéž dvakrát**;
+    nebylo tam jediné číslo ani snímek z reálné jízdy (jediný vizuál byl animovaný model);
+    rozcestník kryl 3 stránky ze sedmi; sedm prvenství bylo schovaných za jedním odkazem.
+  - **Hotovo:** hero s fotkou robotu a pásem čtyř čísel (`10×/s`, `2,7 ms`, `4,09 km`, `7×`),
+    sekce „Co robot vidí" (segmentace z kamer + půdorys z webového náhledu), pás vítězství
+    s osmou dlaždicí jako odkazem do tabulky, rozcestník na šest karet. Nové CSS `.hero-split`
+    a `ul.wins`. Zdroje čísel jsou sepsané v [docs/README.md](../docs/README.md).
+  - ⚠️ **Text tvrdil něco, co neplatí, a našlo se to až při česání:** stálo tam, že cílem bylo
+    „to co dokáže mnohý hmyz" a že *„postupem času byl cíl přeformulován"* na soutěže. Autor
+    upřesnil, že robot **vznikal od začátku pro Robotour** — a potvrzuje to i stránka *Verze*,
+    kde si soutěž vybírá **dřív, než sestaví seznam součástek**. Nový text proto začíná
+    Robotourem a vysvětluje ho jako simulaci doručování (soudek piva, cíl z QR kódu).
+    *(Poučení: příběh projektu se ověřuje proti jeho vlastní dokumentaci, ne přepisuje.)*
+  - ⚠️ **Rekord byl o tři roky starý.** Do pásu čísel jsem dal 1 595 m z Marathonu 2020; autor
+    upozornil na **4,09 km z Marathonu 2023** (ověřeno na robotika.cz). Číslo nebylo špatně,
+    jen zastaralé — a vypadalo by, že robot od té doby nic nedokázal.
+  - **Model robotu z úvodu vypadl** (rozhodnutí autora): GIF je zastaralý a render z Fusionu 360
+    zatím není. Soubor v repu zůstává, README to u něj říká.
+  - **Fotka v hero je provizorium** — nejlepší dostupný snímek aktuálního robotu je z obýváku
+    (výřez z `verze-u2-2019-05.jpg`). Fotka z terénu by stránku zvedla nejvíc.
+  - **Ověřeno:** 321 lokálních odkazů v `docs/` sedí, sazba prohlédnutá na 1240 px i 390 px
+    (mobil: jeden sloupec, žádný vodorovný scroll).
+- **Články ze starého webu přenesené do `docs/`, odkazy v tabulce přesměrované dovnitř.**
+  *Na pokyn autora*, hned po doplnění odkazů (odrážka níž) — tím je splacený dluh, který ty
+  odkazy o pár hodin dřív založily: jedenáct z nich viselo na Google Sites, které se má zrušit.
+  - **Hotovo:** 11 stránek v `docs/pages/` (`robotour-2009` … `robotem-rovne-2017`), 6 obrázků
+    v `docs/assets/img/clanky/`, 6 videí jako `youtube-nocookie` iframe. Tabulka umístění na ně
+    míří relativními odkazy; **na `arbot.cz/umístění-v-soutěžích/…` už neukazuje nic**.
+    Ověřeno kontrolou všech 305 lokálních odkazů a obrázků v `docs/` (mimo `tel:` nechybí nic)
+    a prohlédnutím stránek v prohlížeči nad lokálně servírovaným `docs/`.
+  - **Znění je beze změn včetně překlepů** — je to archiv, ne redakce; upravená je jen typografie
+    a struktura. Kdyby to autor chtěl jinak, je to jeden průchod textem.
+  - ⚠️ **Obrázky nešly stáhnout dávkově:** Sites je servíruje přes **podepsané** adresy na
+    `googleusercontent.com`, které po chvíli vracejí **403** — jedna z nich vypršela mezi
+    vytažením a `curl`em. Adresa se musí přečíst a **hned** použít.
+  - ⚠️ **`referrerpolicy="no-referrer"` na YouTube iframu rozbije přehrávač** (*Chyba 153*).
+    Vypadá to jako zrušené video, přitom je to naše hlavička; chyceno až pohledem na stránku,
+    ne kontrolou odkazů.
+  - ⚠️ **Tři odkazy uvnitř článků byly mrtvé už na Sites** (kufr.cz, vosrk.cz, starý blog
+    `arbot.cz/post/…`): text zůstal, odkaz ne. Wayback nebyl zkoušený do konce (archive.org
+    vracel 429), takže je to otevřená možnost, ne vyvrácená.
+  - **Rozpracováno / další krok:** ⏳ **dohledat starý blogový článek „Tuhnutí MD23"**
+    (`arbot.cz/post/2012/04/02/Tuhnuti-MD23`, 2. 4. 2012) — autor ho zkusí najít v záloze;
+    jinak Wayback, až archive.org pojede (teď hlásí *Temporarily Offline*, předtím 429).
+    Až bude text k dispozici, přenést ho stejně jako ostatní a vrátit odkaz u slova „MD23"
+    v článku [Robotour 2013](../docs/pages/robotour-2013.html). Totéž platí pro dva
+    zbylé mrtvé odkazy (kufr.cz, vosrk.cz), ty ale nejsou naše.
+  - ⚠️ **Vložené video se v `file://` nepřehraje** (*Chyba 153*) — stránka otevřená rovnou
+    z disku nemá origin, takže ji YouTube odmítne; přes http(s) jede. Vypadá to jako rozbitý
+    web, přitom je to jen způsob otevření. Od té chyby je popisek videa zároveň **odkazem na
+    YouTube**, aby se k videu dalo dostat i tam, kde se přehrávač nenačte.
+  - **Na stránce je i chronologický seznam článků** (*na pokyn autora*) — **všech 25 položek
+    od 2025 po 2009**, ne jen přenesené články: ročníky 2018+ vedou na stránky pořadatelů
+    (robotika.cz, ok1kpi.cz) a mají u sebe doménu, ať je poznat, že vedou pryč. Tabulka totiž
+    odkazy **skrývá** — prolinkované je jen číslo umístění, takže bez seznamu se k článkům
+    dostane jen ten, kdo na ta čísla zkusí kliknout. Pořadí uvnitř roku je podle termínů závodů
+    (Robotour září → RoboOrienteering červen → Robotem rovně květen; termín RO ověřen na
+    robotika.cz). Sazba seznamu je v `site.css` jako `ul.clanky` (rok ve vlastním sloupci,
+    na úzkém okně se složí pod sebe).
+  - ⚠️ **Web má teď 18 stránek s ručně opsanou hlavičkou** — dřívější varování v
+    [docs/README.md](../docs/README.md) („kdyby jich mělo být výrazně víc, je čas na generátor")
+    je tím překročené. Články vznikly jednorázovým skriptem, který se **záměrně nenechal v repu**
+    (sváděl by k ruční úpravě, kterou by další běh přepsal); při první změně menu to bude
+    osmnáct souborů.
+- **Odkazy z původní tabulky umístění doplněné do webu** (`docs/pages/umisteni-v-soutezich.html`).
+  Na Google Sites byla tabulka výsledků vložená jako blok HTML, který Sites servíruje uvnitř
+  cizího rámečku — odtud se při převodu webu odkazy vytáhnout nepodařilo a v tabulce zbyla
+  holá čísla. Teď jsou zpátky.
+  - **Kde byly:** ne v rámečku, ale **escapované ve zdroji hostitelské stránky** (`&lt;table
+    class="dataTable"&gt;…`). Rámeček je až to, co ten zdroj vykreslí — takže se na něj
+    nemuselo sahat vůbec. *(Poučení: než začneš luštit iframe, prohledej zdroj rodičovské
+    stránky na escapované HTML.)*
+  - **Hotovo:** 22 odkazů — robotika.cz pro ročníky 2018–2023, staré články na Sites pro 2009–2017,
+    a **jména robotů** (U2 / Z / SRV1) vedou na svou sekci stránky *Verze* (do `verze.html`
+    se kvůli tomu doplnila `id` u tří nadpisů). Ověřeno v prohlížeči nad `docs/` servírovaným
+    lokálně: tabulka se kreslí celá, rowspany sedí, odkazy mají tečkované podtržení a kotvy
+    na *Verzi* skáčou správně.
+  - ⚠️ **Odkazy do roku 2017 vedou na články na Google Sites** (`arbot.cz/umístění-v-soutěžích/…`,
+    11 stránek, všechny dnes živé). Zruší-li se publikace Sites podle plánu v
+    [docs/README.md](../docs/README.md), **rozbijí se všechny naráz** — jejich obsah je potřeba
+    předtím přenést do `docs/`. Je to vědomý dluh, ne přehlédnutí; poznámka je i na stránce.
+  - **Opraveno proti předloze:** ročník **2020 (RTM)** vedl na starém webu na *Marathon 2021*;
+    správně je *Marathon 2020*, kde je ARBot v celoroční tabulce druhý (ověřeno na robotika.cz).
+    Ročník **2023 (RT)** míří na českou verzi místo anglické.
+  - **Nepřevzato vědomě:** RT 2019 zůstává na stránku ročníku, ne na jeho výsledkovou listinu —
+    ta řadí ARBot na 4. místo, kdežto tabulka uvádí 3. Rozpor patří autorovi, ne tiché opravě.
+
 ## 2026-09-15
 - **Virtuální magnetometr s vnuceným železem — kalibraci jde celou projít v simulaci.**
   *Na pokyn autora* („udělej 1 i 2" k návrhu). Do té změny `VirtualImu` neposílalo **ani pole,
