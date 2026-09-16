@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 namespace ARBot.HAL.Devices
 {
     /// <summary>
@@ -180,7 +180,10 @@ namespace ARBot.HAL.Devices
         /// <summary>Je nastavena nejaka SYSTEMATICKA chyba? (Zvyrazneni v UI - snadno se zapomene vypnout.)</summary>
         public bool HasSystematicError
             => ImuHeadingBiasRad != 0.0 || ImuGyroBiasRadPerSec != 0.0
-               || LeftWheelSlip != 1.0 || RightWheelSlip != 1.0;
+               || LeftWheelSlip != 1.0 || RightWheelSlip != 1.0
+               // Vnucene zelezo patri sem ze stejneho duvodu jako bias kurzu: je to trvala
+               // chyba, kterou je snadno zapomenout zapnutou - a kurz z ni ujizdi uplne stejne.
+               || MagHardIronG != System.Numerics.Vector3.Zero;
 
         /// <summary>Vynuluje systematicke chyby (sum a frekvence zustavaji).</summary>
         public void ResetSystematicError()
@@ -189,6 +192,7 @@ namespace ARBot.HAL.Devices
             ImuGyroBiasRadPerSec = 0.0;
             LeftWheelSlip = 1.0;
             RightWheelSlip = 1.0;
+            MagHardIronG = System.Numerics.Vector3.Zero;
         }
     }
 }

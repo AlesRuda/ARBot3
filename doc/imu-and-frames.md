@@ -883,6 +883,63 @@ ze 14. 9. proti **+13 °/h** 12. 9. a −4,6 °/h 7. 9. — VN100 má in-run sta
 „Klid" se poznává prahem na úhlovou rychlost, takže to může být i vibrace stojícího robotu
 s motory pod napětím; přeměřit na skutečně vypnutém robotu.
 
+### Živé měření rušení magnetometru (panel IMU, od 15. 9. 2026)
+
+Hledat železo nad záznamem jde až potom; **na robotu je potřeba vidět pole hned**, protože test
+vypadá tak, že člověk drží kabel v ruce a hýbe s ním. Na to je panel v dokumentu **IMU** (panel
+*Sensors* → dvojklik na IMU):
+
+![Panel magnetometru v dokumentu IMU](media/imu-magnetometr-2026-09-15.png)
+
+- **Pole `|B|`** a **rozpětí** `|B|` přes okno grafu. Zemské pole je konstanta, takže při pomalé
+  otočce robotem je rozpětí **přímo míra tvrdého železa** — 12. 9. 2026 (po kalibraci) 0,019 G,
+  14. 9. **0,177 G**.
+- **Rozdíl** X / Y / Z / `|B|` proti **nule** v **mG**. Tlačítko *Vynulovat* vezme průměr posledního
+  půl sekundy za referenci; postup je „robot stojí → Vynulovat → pohnout kabelem → přečíst rozdíl".
+- **Graf posledních 60 s** — odchylky všech čtyř veličin od reference, svislá čárkovaná čára značí
+  okamžik nulování.
+- **Řádek „Klid"** s `|ω|` a otočením od nuly. ⚠️ **Bez něj by měřidlo lhalo:** magnetometr měří
+  pole **v rámci robotu**, takže pootočení o 1° udělá ve vodorovné složce **~3,5 mG** — víc než
+  celý hledaný efekt (kabely ke kamerám: 6,4 mG). Řádek je červený a říká *ROBOT SE HÝBE, NEPLATÍ*,
+  dokud robot nestojí; **neznámá úhlová rychlost se počítá jako „neplatí"**, ne jako klid.
+
+⚠️ **Proč se v mG a proč vektor, ne `|B|`:** hledané rušení je jednotky až desítky mG proti poli
+~490 mG, takže v gaussech se ztratí v zaokrouhlení; a `|B|` je **slepé** na příspěvek kolmý na
+pole — v simulaci je to vidět přímo na obrázku, kde šum v `Y` ±10 mG nechá `|B|` beze změny.
+
+⚠️ **Sklon pole (inklinace) se tu záměrně nepočítá**, ačkoli je to druhá veličina, která má být
+konstantní: počítá se z **akcelerometru**, a ten má na tomhle robotu změřený bias (+7 % ve
+velikosti, 0,27 m/s² v Z), takže by do měřidla vnesl vlastní chybu. Sklon patří do offline rozboru
+(`ARBot.Analyze vn100`), kde jde oddělit.
+
+Logika je v `ARBot.Common/Diagnostics/MagTrace.cs` (tedy v `Common`, aby šla otestovat — 11 testů
+v `MagTraceTests`, včetně toho, že se vložené rušení vrátí zpátky a že otočení robotu shodí
+verdikt), vykreslení v `ARBot/Views/Controls/MagnetometerChartControl.cs`. Sbírá se **na vlákně
+senzoru**, ne až v UI: `IMUDocument` má backpressure a mezilehlá měření zahazuje, takže by
+statistika přes okno i rozpětí `|B|` počítaly jen z toho, co stihlo UI.
+
+⚠️ **V simulaci se `|B|` samo od sebe NEHNE — a není to vada panelu.** Šum virtuálního
+magnetometru sedí na **kurzu** (`VirtualImu` počítá pole z už zašuměného headingu), takže vektor
+jen rotuje a jeho velikost je **konstrukcí konstantní**: `rozpětí` i `Rozdíl |B|` zůstanou na nule,
+ačkoli složky X/Y šumí o ±10 mG. Vyzkoušet to jde **vnuceným tvrdým železem** — *Tools → Virtuální
+senzory → Systematické chyby → tvrdé železo X/Y/Z [mG]* (přidáno 15. 9. 2026). Na obrázku výš je
+skok 0 → 60 mG v X: `|B|` **0,4818 → 0,5094 G**, `rozpětí` 0,0276 a `Rozdíl |B|` 13,6 mG.
+
+⚠️ **Dvě pasti v grafu, které se projeví až po naplnění okna** (obě opravené 15. 9. 2026):
+- **Časová osa musí být celé okno, ne rozsah dat.** Dokud se buffer plní, je dat míň než okno,
+  takže měřítko z `TDo − TOd` se při plnění plynule mění a po naplnění skokem ustane — křivka při
+  každém překreslení mění šířku. Osa se proto kotví na nejnovější vzorek a je vždy `Okno` dlouhá.
+- **Svislá osa potřebuje hysterezi.** Počítat ji pokaždé znovu z maxima v okně znamená přeskakovat
+  mezi stupni (10 → 20 → 10) pokaždé, když špička do okna vstoupí nebo z něj vypadne, a celá křivka
+  při tom skokem změní výšku. Nahoru se pouští hned (jinak by se ořízla), dolů teprve když se data
+  vejdou pod polovinu současné osy.
+- ⚠️ A referencí pro `|B|` **není délka referenčního vektoru**: bez nuly je referencí průměrný
+  *vektor*, a `|průměr|` je při šumu vždy menší než průměr z `|·|`, takže by křivka `|B|` seděla
+  mimo nulu o `σ²/(2|B|)`.
+
+⚠️ **Ověřeno jen v simulaci** (virtuální IMU posílá pole od 8. 9. 2026, viz
+[virtual-hw.md](virtual-hw.md)); **na skutečném VN100 to neběželo**.
+
 ### Konfigurace senzoru
 
 Konfigurace VN100 (včetně reference frame rotation a binárního výstupu) je uložena

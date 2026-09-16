@@ -157,7 +157,7 @@
                            Foreground="#FFD48A" TextWrapping="Wrap" FontSize="11"/>
             </Border>
 
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="prokluz vlevo [-]" Foreground="White"
                            VerticalAlignment="Center" Margin="0,0,8,4"/>
                 <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding LeftWheelSlip}"
@@ -176,9 +176,28 @@
                                Increment="0.5" FormatString="F2" Margin="0,0,0,4"/>
 
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="bias gyra [°/s]" Foreground="White"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
                 <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding ImuGyroBiasDegPerSec}"
-                               Increment="0.05" FormatString="F3"/>
+                               Increment="0.05" FormatString="F3" Margin="0,0,0,4"/>
+
+                <!-- Vnucene tvrde zelezo: jedina cesta, jak v simulaci rozhybat |B| (sum
+                     virtualniho magnetometru sedi na KURZU, takze pole jen rotuje). Slouzi
+                     k vyzkouseni panelu magnetometru v dokumentu IMU. -->
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="tvrdé železo X [mG]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"
+                           ToolTip.Tip="Konstantní posun pole v rámci tělesa — to, co má kalibrace najít. Na robotu bylo naměřeno vodorovně ~280 mG. Rozhýbe |B| v panelu IMU."/>
+                <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding MagHardIronXmG}"
+                               Increment="5" FormatString="F1" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="tvrdé železo Y [mG]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding MagHardIronYmG}"
+                               Increment="5" FormatString="F1" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="6" Grid.Column="0" Text="tvrdé železo Z [mG]" Foreground="White"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <NumericUpDown Grid.Row="6" Grid.Column="1" Value="{Binding MagHardIronZmG}"
+                               Increment="5" FormatString="F1"/>
             </Grid>
 
             <Button Classes="btn" Content="Vynulovat chyby" Command="{Binding ResetSystematicErrorCommand}"

@@ -504,6 +504,45 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   z terénu (kde je po ruce jen `.rec`) se tedy **nedá přečíst, proč** stupeň nevznikl; jde to jen
   odvodit z výpisu konfigurace a z chybějící zprávy. Je to táž třída mezery jako „účinná
   konfigurace se do záznamu nedostávala vůbec" (opraveno 5. 9.). Neopraveno.
+- **A na ten test kabelů vzniklo živé měřidlo v UI** (žádost autora): dokument **IMU** má panel
+  magnetometru — `|B|` a jeho **rozpětí** přes okno, **rozdíl X/Y/Z/`|B|` proti nule v mG**
+  (*Vynulovat* = průměr posledního půl sekundy), **graf posledních 60 s** a řádek **„Klid"**.
+  Postup je „robot stojí → Vynulovat → pohnout kabelem → přečíst rozdíl".
+  ⚠️ **Bez řádku „Klid" by měřidlo lhalo:** pootočení o 1° udělá ve vodorovné složce ~3,5 mG,
+  tedy víc než celý hledaný efekt (6,4 mG) — a **neznámá úhlová rychlost se počítá jako
+  „neplatí"**, ne jako klid. Poučení je přímo z dnešního rozboru záznamu, kde širší okno dalo
+  22,7 mG místo 6,4 právě tím, že do něj spadlo 6° otočení.
+  **Hotovo:** `ARBot.Common/Diagnostics/MagTrace.cs` (v `Common` schválně — aby šla logika
+  otestovat; **11 testů**, mj. že se vložené rušení vrátí zpátky a že otočení robotu shodí
+  verdikt), `ARBot/Views/Controls/MagnetometerChartControl.cs`, panel v `IMUDocumentView.axaml`.
+  Sbírá se **na vlákně senzoru**, ne až v UI — `IMUDocument` má backpressure a mezilehlá měření
+  zahazuje, takže by statistika přes okno počítala jen z toho, co stihlo UI.
+  ⚠️ **Ověřeno proklikáním v simulaci** (build, 1562 testů `Common`), **na skutečném VN100
+  neběželo**. Obrázek: `doc/media/imu-magnetometr-2026-09-15.png`.
+- **Panel po připomínkách autora přestavěný** (týž den): (a) **budíky jsou na jednom řádku
+  s čísly** — dřív byly nad tabulkami a dokument byl vyšší než obrazovka; ušetřený prostor dostal
+  graf (výška `*`). (b) **Graf po naplnení okna poskakoval** — dvě příčiny: časová osa se brala
+  z **rozsahu dat** (dokud se buffer plní, měřítko se plynule mění a po naplnění skokem ustane) a
+  svislá osa se počítala pokadždé znovu z maxima v okně (přeskakovala mezi stupni, když špička
+  do okna vstoupila nebo z něj vypadla). Teď je časová osa **celé okno** kotvené na nejnovější
+  vzorek a svislá má **hysterezi** (nahoru hned, dolů až pod polovinou).
+- **⚠️ „`|B|` pořád ukazuje 0" není vada panelu, ale vlastnost simulace** (dotaz autora): šum
+  `VirtualImu` sedí na **kurzu** (pole se počítá z už zašuměného headingu), takže vektor jen
+  rotuje a jeho velikost je **konstrukcí konstantní** — složky šumí o ±10 mG a `|B|` stojí.
+  ✅ **Vyzkoušet to teď jde**: `MagHardIronG` šlo dosud nastavit jen z kódu, teď je v panelu
+  *Virtuální senzory* jako **tvrdé železo X/Y/Z [mG]**. Změřeno prokliknutím: skok 0 → 60 mG v X
+  dá `|B|` **0,4818 → 0,5094 G**, rozpětí 0,0276 a `Rozdíl |B|` 13,6 mG. Železo se navíc teď
+  počítá do `HasSystematicError` (a maže ho *Vynulovat chyby*) — je to táž třída chyby jako bias
+  kurzu a stejně snadno se zapomene zapnutá.
+- **⚠️ A ještě jedna past, kterou našlo až psaní té opravy:** referencí pro `|B|` **nesmí být
+  délka referenčního vektoru** — bez nuly je referencí průměrný *vektor*, a `|průměr|` je při šumu
+  vždy menší než průměr z `|·|`, takže by křivka `|B|` seděla mimo nulu o `σ²/(2|B|)`.
+- **Zahozená odbočka (záměrně):** zkoušel jsem přidat `open=imu`, aby šel panel otevřít
+  z profilu (na zařízení se aplikace dohlíží přes vzdálenou plochu z mobilu, kde je dvojklik do
+  seznamu senzorů horsi než menu). Naráží to ale na životní cyklus: **virtuální senzory zakládá
+  teprve `ARBotRuntime.Start`**, takze při startu žádná IMU ještě není a dokument senzoru se bez
+  instance založit nedá; ani pollování to v simulaci nerozchodilo a příčinu jsem nedohledal.
+  **Vráceno do původního stavu** — panel se otevírá dvojklikem v panelu *Sensors*.
 - **Odkazy:** `Src/ARBot.Analyze/HeadingReferencesReport.cs`, `Src/ARBot.Analyze/Vn100Report.cs`,
   `Src/ARBot.Analyze/Program.cs`, `Src/ARBot.Runtime/Robot/ARBotRuntime.cs` (pořadí
   `BuildSensorSources` / `traceBridge`),
