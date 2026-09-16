@@ -1311,3 +1311,19 @@ zadny HW") a na stránce nejsou žádné senzory. Otáčení a náklon se ovlád
 Ověřeno 8. 9. 2026: mise se založí, stránka ukazuje živý verdikt („chybí azimuty 15–345°;
 chybí náklon"), `MagCalMsg` teče do záznamu (84 zpráv za 90 s) a `ARBot.Analyze magcal` je
 přečte a postaví vedle vlastního přepočtu.
+
+## Vnucené tvrdé železo z panelu (od 15. 9. 2026)
+
+`VirtualSensorOptions.MagHardIronG` šlo dosud nastavit jen z kódu a z testů. Teď je v panelu
+*Tools → Virtuální senzory* v sekci **Systematické chyby** jako tři pole **tvrdé železo X/Y/Z
+[mG]** — v miligaussech schválně, protože skutečné hodnoty jsou jednotky až stovky mG a v gaussech
+by se zadávala čísla jako `0,0064`.
+
+**Nač to je:** bez něj se v simulaci nedá vyzkoušet živé měření rušení magnetometru v dokumentu
+IMU (viz [imu-and-frames.md](imu-and-frames.md)). Šum virtuálního magnetometru totiž sedí na
+**kurzu**, takže pole jen rotuje a `|B|` je konstrukcí konstantní — `rozpětí` i `Rozdíl |B|`
+zůstanou na nule, ať se robotem děje cokoli.
+
+⚠️ **Železo se od 15. 9. 2026 počítá do `HasSystematicError`** (a maže ho *Vynulovat chyby*), takže
+panel u něj rozsvítí varování „Systematická chyba je aktivní". Je to totéž jako bias kurzu: trvalá
+chyba, kterou je snadné zapomenout zapnutou, a kurz z ní ujíždí stejně.

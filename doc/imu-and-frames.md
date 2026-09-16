@@ -784,6 +784,162 @@ pole **nezasahuje**. Druhá cesta kontaminace tedy neexistuje.
 a náklonem z akcelerometru (`MagCalCoverage.RowOf`), ne atitudou senzoru — i když se po vymazání
 kurz rozjede o desítky stupňů, pokrytí i verdikt platí dál. `BRefG` z registru 21 je nedotčený.
 
+### ⚠️ Kalibrace přestala účinkovat — nové tvrdé železo (nal. 15. 9. 2026 v záznamu ze 14. 9.)
+
+Rozbor `records/test/20260914-170945.rec` (13 min jízdy, mise Track na Hviezdoslavově) a
+`20260914-170611.rec`. **Kalibrace zapsaná 11. 9. a ověřená 12. 9. už není účinná** — mezi
+12. 9. 13:14 a 14. 9. 17:06 přibylo na robotu tvrdé železo.
+
+Důkaz je **model-free**, nezávislý na jakémkoli proložení — velikost zemského pole je konstanta:
+
+| veličina (`ARBot.Analyze vn100 --bref=0.4897 --incl=65.95`) | 12. 9. (`20260912-131024`) | 14. 9. (`20260914-170945`) |
+|---|---|---|
+| `\|B\|` p50 (stání, proud < 0,5 A) | **0,498 G** | **0,614 G** |
+| `\|B\|` rozpětí přes záznam | 0,490–0,509 (**0,019 G**) | 0,547–0,724 (**0,177 G**) |
+| sklon pole | ~62,3°, sd 1,7° | 52,8–87,1° |
+| `YprU` (yaw 1σ, co o sobě senzor tvrdí) | 0,057° | 0,222° |
+| zbytkové tvrdé železo (koule, `magcal`) | **0,0023 G** | **0,4810 G** |
+| 1. / 2. harmonická chyby kurzu (`heading`) | 3,6° / 2,9° | **12,8° / 8,1°** |
+| `IMU yaw − GPS kurz` p50 | −3,6 / −3,1° | **−15,6°**, sd 13,0° |
+
+Referenční `\|B\|` z registru 21 je 0,4897 G, takže při stání **přebývá 0,12 G** a přes záznam
+se `\|B\|` mění o **0,18 G** — víc než před kalibrací (7. 9. bylo rozpětí 0,148 G).
+
+⚠️ **Rozklad toho offsetu na složky ale NEVĚŘ** — proložení koule dá `[0,036; −0,154; −0,454] G`,
+ale ta třetí složka je z běžné jízdy skoro neměřitelná (na rovině 60 436 z 77 891 vzorků) a
+podmíněnost 117 sama nestačí — táž past, která 10. 9. vrátila bias vedle o 476 787 G. Vodorovná
+složka z fitu (0,158 G) navíc **nesedí** s 1. harmonickou chyby kurzu: 12,8° při vodorovné složce
+pole ~0,20 G odpovídá jen ~0,044 G. Platný závěr je proto **„je tam velký konstantní offset"**,
+ne jeho dvanáctka — tu musí dát `mission=magcal` s ručním otáčením a náklony na obě strany.
+
+⚠️ **Závislost na proudu je ZDANDĚNÁ zdánlivá.** Report ji vyčíslí na +0,00543 G/A (43,6 σ) v jednom
+běhu a **−0,01523 G/A (45,8 σ) v druhém** — opačné znaménko túž den. Je to záměna s kurzem: blok 2b
+měří, že **η² = 0,927** rozptylu odchylky `\|B\|` vysvětlí sám kurz. Robot jel s větším proudem
+jiným směrem, než když stál — tedy **je to těleso, ne motory**, a kalibrovatelné to je.
+*(Poučení: koeficient na proudu nemá smysl číst dřív, než se odečte kurz.)*
+
+✅ **Odtud i to, že se „směr robotu pomalu ustaloval":** VPE uvnitř senzoru se táhne za vlastním
+polem se **zesílením `K` = 0,0029 ± 0,0003 1/s, tedy τ = 345 s** (obě nahrávky ze 14. 9. shodně),
+kdežto 12. 9. po kalibraci bylo `K` řádově 0,2 1/s. Sedí to s tím, co se změřilo 12. 9. — dlouhá
+časová konstanta byla z velké části **důsledek nezkalibrovaného železa** (206 s → 53 s), a teď je
+zpátky a horší. Po zatáčce je tedy yaw desítky stupňů vedle a srovnává se **minuty**.
+
+⚠️ **Nejde o naše nastavení nejistot.** Měří to nový blok `ARBot.Analyze heading --bin=`
+(*VYVOJ ROZPORU V CASE*): `odhad − IMU yaw` je ve většině košů **0–4° se sd pod 1,5°**, takže fúze
+kurz pořád **přebírá z kompasu** — `imuheadingstd=5` a `imuheadinghz=1` vazbu jen povolily
+(přes celý běh 2,15° ± 8,60° proti dřívějším ±0,06°), nepřevzaly ji. A `IMU yaw − GPS kurz`
+se **neusazuje**: −11,7 → −14,3 → −12,5 → −31,4 → −33,4 → −15,2° po minutách. Ustalování
+by vypadalo jako klesající |rozpor|; tohle je bloudění.
+
+#### ✅ Je to KABELY ke kamerám — ale jejich železem, ne jejich proudem (změřeno 15. 9. 2026)
+
+Autor upřesnil, že 13. 9. se neprohodily kamery, ale **kabely k nim**, a nadhodil, že jsou možná
+moc blízko magnetometru. Záznam to rozhodne, protože kabel vede **proud**, a ten teče teprve, když
+kamera běží — a nahrávání začíná **dřív, než se D435 připojí**. V `20260914-170945.rec` jdou první
+snímky až v **6,5 s**, takže je tam šest sekund pole *bez proudu v kabelech*. Měří to nový blok 5
+`ARBot.Analyze vn100` (*JE POLE VAZANE NA KAMERY*).
+
+```
+    cas [s]  kamera           z/v  n_pred  n_po   dMag [mG]              |dMag|   zmena atitudy
+       6.5  Left 740112071040 ZAP    300   300   [  4.8, -3.6, -2.3]        6.4   yaw 0.3 dg, naklon 0.0 dg
+       6.7  Right 740112071021 ZAP   300   300   [  4.4, -3.5, -2.2]        6.0   yaw 0.2 dg, naklon 0.5 dg
+```
+
+**Rozsvícení obou kamer posune pole o 6,4 mG**, a to při robotu, který stojí (yaw 0,3°, náklon 0,0°).
+Proti vodorovnému offsetu ~160 mG je to **4 %**, tedy nanejvýš ~1,8° kurzu. ⚠️ A je to **horní
+mez** — USB se napájí a enumeruje dřív, než dorazí první snímek, takže okno těsně před ním už může
+mít kameru pod proudem.
+
+⚠️ **Hrana je rozmazaná na obě strany a širší okno to NEZPŘESNÍ, ale zkazí** — proto jsou
+`--camwin=` / `--camdead=`. Při `camwin=5,5` vyjde 22,7 mG, jenže se do okna dostane **6° otočení
+robotu**, a to je zemská složka, ne kabel; blok takový řádek sám označí *ROBOT SE HYBAL, NEPLATI*.
+Platný je jen nejtěsnější řádek. Napříč všemi variantami je nejstabilnější složka `z` (−2,3 až
+−3,1 mG) — ta se otáčením v rovině nemění, takže je to nejpoctivější odhad příspěvku kamer.
+
+**Železo v kabelu to ale vysvětluje, a měření pro to mluví:**
+
+- Rušení je **konstantní vektor v tělese** — po jeho odečtení je `sd(|B|)` **0,0040 G** (běh 17:06)
+  resp. **0,0203 G** (17:09). Statické železo (ocelové stínění, niklované konektory, **feritové
+  jádro** na USB3 kabelu) se takhle chová; proud ne.
+- **Vodorovná složka sedí v obou bězích téhož dne:** `(0,059; −0,157)` a `(0,036; −0,154) G`,
+  tedy **~0,16 G**. Proti vodorovné složce zemského pole 0,199 G to samo dá chybu kurzu
+  až **±53°** — což je řád toho, co se měří.
+- ⚠️ **Složka `z` je v obou bězích nesmysl a nesmí se z ní počítat**: −0,454 vs −0,722 G. Běžná
+  jízda náklon nemá (17:06: „naklonove skupiny: 1, chybi naklon"), takže `z` není měřená.
+  Z mediánu `|B|` vychází spíš ~−0,15 G, tedy `|b| ≈ 0,23 G`.
+
+**Další krok — v tomhle pořadí:** (1) dát kabely do polohy, ve které mají zůstat, a odvést je od
+VN100, co to jde; (2) **ověřit to měřením, ne pohledem** — minutový záznam s jednou pomalou otočkou
+robotem na místě a `ARBot.Analyze magcal`: rozpětí `|B|` přes otočku bylo 12. 9. **0,019 G**, teď
+je **0,177 G**; (3) teprve pak `mission=magcal`, a **s náklony na obě strany**, jinak zůstane `z`
+neměřená přesně tak, jak je vidět výš. Kalibrovat dřív, než kabely zůstanou na místě, znamená
+kalibrovat stav, který už nebude platit.
+
+⚠️ **Stínit ani přesouvat senzor není potřeba** — to je léčba na rušení závislé na proudu, a to
+je tady změřeně 4 % problému. Zbytek je statické železo, které kalibrace odstraní; cena je, že
+**platnost kalibrace je od teď vázaná na polohu kabelů**.
+⚠️ Vedlejší nález, zatím nevysvětlený: **klidový bias gyra −161 a −453 °/h** ve dvou bězích
+ze 14. 9. proti **+13 °/h** 12. 9. a −4,6 °/h 7. 9. — VN100 má in-run stabilitu řádu jednotek °/h.
+„Klid" se poznává prahem na úhlovou rychlost, takže to může být i vibrace stojícího robotu
+s motory pod napětím; přeměřit na skutečně vypnutém robotu.
+
+### Živé měření rušení magnetometru (panel IMU, od 15. 9. 2026)
+
+Hledat železo nad záznamem jde až potom; **na robotu je potřeba vidět pole hned**, protože test
+vypadá tak, že člověk drží kabel v ruce a hýbe s ním. Na to je panel v dokumentu **IMU** (panel
+*Sensors* → dvojklik na IMU):
+
+![Panel magnetometru v dokumentu IMU](media/imu-magnetometr-2026-09-15.png)
+
+- **Pole `|B|`** a **rozpětí** `|B|` přes okno grafu. Zemské pole je konstanta, takže při pomalé
+  otočce robotem je rozpětí **přímo míra tvrdého železa** — 12. 9. 2026 (po kalibraci) 0,019 G,
+  14. 9. **0,177 G**.
+- **Rozdíl** X / Y / Z / `|B|` proti **nule** v **mG**. Tlačítko *Vynulovat* vezme průměr posledního
+  půl sekundy za referenci; postup je „robot stojí → Vynulovat → pohnout kabelem → přečíst rozdíl".
+- **Graf posledních 60 s** — odchylky všech čtyř veličin od reference, svislá čárkovaná čára značí
+  okamžik nulování.
+- **Řádek „Klid"** s `|ω|` a otočením od nuly. ⚠️ **Bez něj by měřidlo lhalo:** magnetometr měří
+  pole **v rámci robotu**, takže pootočení o 1° udělá ve vodorovné složce **~3,5 mG** — víc než
+  celý hledaný efekt (kabely ke kamerám: 6,4 mG). Řádek je červený a říká *ROBOT SE HÝBE, NEPLATÍ*,
+  dokud robot nestojí; **neznámá úhlová rychlost se počítá jako „neplatí"**, ne jako klid.
+
+⚠️ **Proč se v mG a proč vektor, ne `|B|`:** hledané rušení je jednotky až desítky mG proti poli
+~490 mG, takže v gaussech se ztratí v zaokrouhlení; a `|B|` je **slepé** na příspěvek kolmý na
+pole — v simulaci je to vidět přímo na obrázku, kde šum v `Y` ±10 mG nechá `|B|` beze změny.
+
+⚠️ **Sklon pole (inklinace) se tu záměrně nepočítá**, ačkoli je to druhá veličina, která má být
+konstantní: počítá se z **akcelerometru**, a ten má na tomhle robotu změřený bias (+7 % ve
+velikosti, 0,27 m/s² v Z), takže by do měřidla vnesl vlastní chybu. Sklon patří do offline rozboru
+(`ARBot.Analyze vn100`), kde jde oddělit.
+
+Logika je v `ARBot.Common/Diagnostics/MagTrace.cs` (tedy v `Common`, aby šla otestovat — 11 testů
+v `MagTraceTests`, včetně toho, že se vložené rušení vrátí zpátky a že otočení robotu shodí
+verdikt), vykreslení v `ARBot/Views/Controls/MagnetometerChartControl.cs`. Sbírá se **na vlákně
+senzoru**, ne až v UI: `IMUDocument` má backpressure a mezilehlá měření zahazuje, takže by
+statistika přes okno i rozpětí `|B|` počítaly jen z toho, co stihlo UI.
+
+⚠️ **V simulaci se `|B|` samo od sebe NEHNE — a není to vada panelu.** Šum virtuálního
+magnetometru sedí na **kurzu** (`VirtualImu` počítá pole z už zašuměného headingu), takže vektor
+jen rotuje a jeho velikost je **konstrukcí konstantní**: `rozpětí` i `Rozdíl |B|` zůstanou na nule,
+ačkoli složky X/Y šumí o ±10 mG. Vyzkoušet to jde **vnuceným tvrdým železem** — *Tools → Virtuální
+senzory → Systematické chyby → tvrdé železo X/Y/Z [mG]* (přidáno 15. 9. 2026). Na obrázku výš je
+skok 0 → 60 mG v X: `|B|` **0,4818 → 0,5094 G**, `rozpětí` 0,0276 a `Rozdíl |B|` 13,6 mG.
+
+⚠️ **Dvě pasti v grafu, které se projeví až po naplnění okna** (obě opravené 15. 9. 2026):
+- **Časová osa musí být celé okno, ne rozsah dat.** Dokud se buffer plní, je dat míň než okno,
+  takže měřítko z `TDo − TOd` se při plnění plynule mění a po naplnění skokem ustane — křivka při
+  každém překreslení mění šířku. Osa se proto kotví na nejnovější vzorek a je vždy `Okno` dlouhá.
+- **Svislá osa potřebuje hysterezi.** Počítat ji pokaždé znovu z maxima v okně znamená přeskakovat
+  mezi stupni (10 → 20 → 10) pokaždé, když špička do okna vstoupí nebo z něj vypadne, a celá křivka
+  při tom skokem změní výšku. Nahoru se pouští hned (jinak by se ořízla), dolů teprve když se data
+  vejdou pod polovinu současné osy.
+- ⚠️ A referencí pro `|B|` **není délka referenčního vektoru**: bez nuly je referencí průměrný
+  *vektor*, a `|průměr|` je při šumu vždy menší než průměr z `|·|`, takže by křivka `|B|` seděla
+  mimo nulu o `σ²/(2|B|)`.
+
+⚠️ **Ověřeno jen v simulaci** (virtuální IMU posílá pole od 8. 9. 2026, viz
+[virtual-hw.md](virtual-hw.md)); **na skutečném VN100 to neběželo**.
+
 ### Konfigurace senzoru
 
 Konfigurace VN100 (včetně reference frame rotation a binárního výstupu) je uložena

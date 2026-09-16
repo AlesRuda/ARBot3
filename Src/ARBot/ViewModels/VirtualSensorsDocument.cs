@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using ARBot.Common.Communication;
 using ARBot.Common.Logs;
@@ -70,6 +70,14 @@ namespace ARBot.ViewModels
         [ObservableProperty] private decimal imuGyroBiasDegPerSec;
         [ObservableProperty] private decimal leftWheelSlip;
         [ObservableProperty] private decimal rightWheelSlip;
+
+        // Vnucene TVRDE ZELEZO v miligaussech (v nastaveni je v G). mG schvalne: skutecne
+        // hodnoty jsou jednotky az stovky mG a v gaussech by se zadavala cisla jako 0,0064.
+        // Je to jedina cesta, jak v simulaci rozhybat |B| - sum virtualniho magnetometru sedi
+        // na KURZU, takze pole jen rotuje a jeho velikost je konstrukci konstantni.
+        [ObservableProperty] private decimal magHardIronXmG;
+        [ObservableProperty] private decimal magHardIronYmG;
+        [ObservableProperty] private decimal magHardIronZmG;
 
         /// <summary>Je nastavená nějaká systematická chyba? (Zvýraznění — snadno se zapomene vypnout.)</summary>
         [ObservableProperty] private bool isSystematicErrorActive;
@@ -157,6 +165,9 @@ namespace ARBot.ViewModels
             ImuGyroBiasDegPerSec = (decimal)Rad2Deg(options.ImuGyroBiasRadPerSec);
             LeftWheelSlip = (decimal)options.LeftWheelSlip;
             RightWheelSlip = (decimal)options.RightWheelSlip;
+            MagHardIronXmG = (decimal)(options.MagHardIronG.X * 1000);
+            MagHardIronYmG = (decimal)(options.MagHardIronG.Y * 1000);
+            MagHardIronZmG = (decimal)(options.MagHardIronG.Z * 1000);
 
             IsSystematicErrorActive = options.HasSystematicError;
             EmergencyStop = options.EmergencyStop;
@@ -242,6 +253,27 @@ namespace ARBot.ViewModels
             AfterSystematicChanged();
         }
 
+        partial void OnMagHardIronXmGChanged(decimal value) => ApplyHardIron();
+        partial void OnMagHardIronYmGChanged(decimal value) => ApplyHardIron();
+        partial void OnMagHardIronZmGChanged(decimal value) => ApplyHardIron();
+
+        /// <summary>
+        /// Přenese vnucené tvrdé železo z panelu do nastavení (mG → G).
+        ///
+        /// <para><b>Nač to je:</b> bez něj se v simulaci <c>|B|</c> nerozhýbe vůbec — šum
+        /// virtuálního magnetometru sedí na <b>kurzu</b> (pole se počítá z už zašuměného
+        /// heading), takže vektor jen rotuje a jeho velikost je konstrukcí konstantní. Živé
+        /// měření rušení v dokumentu IMU tedy jinak nejde v simulaci vyzkoušet.</para>
+        /// </summary>
+        private void ApplyHardIron()
+        {
+            options.MagHardIronG = new System.Numerics.Vector3(
+                (float)(MagHardIronXmG / 1000m),
+                (float)(MagHardIronYmG / 1000m),
+                (float)(MagHardIronZmG / 1000m));
+            AfterSystematicChanged();
+        }
+
         /// <summary>Prokluz kol drží <c>SimulatedRobot</c>, ne nastavení — je nutné ho přenést.</summary>
         private void AfterSystematicChanged()
         {
@@ -258,6 +290,9 @@ namespace ARBot.ViewModels
             ImuGyroBiasDegPerSec = 0m;
             LeftWheelSlip = 1m;
             RightWheelSlip = 1m;
+            MagHardIronXmG = 0m;
+            MagHardIronYmG = 0m;
+            MagHardIronZmG = 0m;
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ARBot.ViewModels"
              xmlns:ctl="using:ARBot.Views.Controls"
@@ -30,6 +30,17 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="Margin" Value="8,2,0,2"/>
         </Style>
+        <!-- verdikt "klid": cerveny, dokud se robot hybe; zeleny, kdyz odecet plati.
+             Zaporny stav je VYCHOZI schvalne - "nevim" (chybi gyro) se musi chovat jako
+             "neplati", jinak by meridlo mlcky vydavalo otoceni robotu za ruseni od kabelu. -->
+        <Style Selector="TextBlock.klid">
+            <Setter Property="Foreground" Value="#E06060"/>
+            <Setter Property="FontFamily" Value="Consolas,monospace"/>
+            <Setter Property="Margin" Value="8,2,0,2"/>
+        </Style>
+        <Style Selector="TextBlock.klid.klidOk">
+            <Setter Property="Foreground" Value="#60D060"/>
+        </Style>
         <!-- jednotka za posledním číslem -->
         <Style Selector="TextBlock.unit">
             <Setter Property="Foreground" Value="#A0A0A0"/>
@@ -37,94 +48,150 @@
         </Style>
     </UserControl.Styles>
 
+    <!-- ROZLOZENI: budiky a cisla JSOU NA JEDNOM RADKU (pokyn autora 15. 9. 2026).
+         Driv byly budiky nad tabulkami, takze dokument byl vyssi nez obrazovka a na graf
+         magnetometru uz misto nezbylo. Budiky maji pevnou vysku, tabulky se vejdou vedle nich,
+         a cely usetreny prostor dostane panel magnetometru - jeho graf je jedina vec, ktera
+         z vetsi plochy opravdu tezi. -->
     <Grid RowDefinitions="Auto,Auto,*" Background="#202020">
         <ctl:SensorStatusControl Grid.Row="0" Sensor="{Binding Sensor}" Height="26" Margin="8,6"/>
-        <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="8,0">
-            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                <TextBlock Text="Kompas (yaw)" Foreground="Gray"
-                           HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                <ctl:CompassControl Width="220" Height="220" Heading="{Binding HeadingDeg}"/>
-            </StackPanel>
-            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                <TextBlock Text="Umělý horizont (pitch/roll)" Foreground="Gray"
-                           HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                <ctl:ArtificialHorizonControl Width="220" Height="220"
-                                              Pitch="{Binding PitchDeg}" Roll="{Binding RollDeg}"/>
-            </StackPanel>
-        </Grid>
-        <Border Grid.Row="2" Background="#181818" Margin="8" Padding="10" VerticalAlignment="Top">
-            <StackPanel>
 
-                <!-- Úhly (yaw/pitch/roll) -->
-                <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto">
-                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="yaw"/>
-                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="pitch"/>
-                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="roll"/>
+        <!-- Radek 1: kompas | horizont | cisla (dva sloupce tabulek) -->
+        <Border Grid.Row="1" Background="#181818" Margin="8,0" Padding="10">
+            <Grid ColumnDefinitions="Auto,Auto,*">
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="Kompas (yaw)" Foreground="Gray"
+                               HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                    <ctl:CompassControl Width="150" Height="150" Heading="{Binding HeadingDeg}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,24,0">
+                    <TextBlock Text="Umělý horizont (pitch/roll)" Foreground="Gray"
+                               HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                    <ctl:ArtificialHorizonControl Width="150" Height="150"
+                                                  Pitch="{Binding PitchDeg}" Roll="{Binding RollDeg}"/>
+                </StackPanel>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Orientace"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding YawText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding PitchText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding RollText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="°"/>
+                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" VerticalAlignment="Top">
+                    <!-- Uhly (yaw/pitch/roll) + kvaternion -->
+                    <StackPanel Grid.Column="0" Margin="0,0,32,0">
+                        <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="yaw"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="pitch"/>
+                            <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="roll"/>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Nejistota (1σ)"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding UncYawText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding UncPitchText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding UncRollText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="°"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Orientace"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding YawText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding PitchText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding RollText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="°"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Nejistota (1σ)"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding UncYawText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding UncPitchText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding UncRollText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="°"/>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,78,78,78,78" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="x"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="y"/>
+                            <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="z"/>
+                            <TextBlock Grid.Row="0" Grid.Column="4" Classes="hdr" Text="w"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Kvaternion"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding QuatXText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding QuatYText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding QuatZText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="4" Classes="val" Text="{Binding QuatWText}"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Vektory (X/Y/Z) + duvera a snimek -->
+                    <StackPanel Grid.Column="1">
+                        <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="X"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="Y"/>
+                            <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="Z"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Úhlová rychlost"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding AngVelXText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding AngVelYText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding AngVelZText}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="rad/s"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Akcelerace"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding AccXText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding AccYText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding AccZText}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="m/s²"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Classes="lbl" Text="Magnetometr"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Classes="val" Text="{Binding MagXText}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Classes="val" Text="{Binding MagYText}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="3" Classes="val" Text="{Binding MagZText}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="4" Classes="unit" Text="G"/>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,78" RowDefinitions="Auto" Margin="0,10,0,0">
+                            <TextBlock Grid.Column="0" Classes="lbl" Text="Důvěra"/>
+                            <TextBlock Grid.Column="1" Classes="val" Text="{Binding ConfidenceText}"/>
+                        </Grid>
+
+                        <!-- Radek Snimek je sdileny control (viz SensorFrameInfoControl) -->
+                        <ctl:SensorFrameInfoControl Height="20" Margin="0,4,0,0" HorizontalAlignment="Left"
+                                                    FrameNum="{Binding FrameNum}"
+                                                    Period="{Binding FramePeriod}"
+                                                    Time="{Binding FrameTime}"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Radek 2: mereni ruseni magnetometru (kabely, zelezo na robotu).
+             Absolutni hodnoty jsou v G, ROZDILY v mG: hledany efekt je jednotky az desitky mG
+             proti poli ~490 mG, takze v gaussech by se ztratil v zaokrouhleni.
+             Postup: robota nechat STAT, dat Vynulovat, pak hybat kabelem a cist rozdil.
+             Graf ma vysku "*", takze dostane cely zbytek okna - a dokument se tim vejde
+             na obrazovku i pri mensim okne. -->
+        <Border Grid.Row="2" Background="#141414" BorderBrush="#303030" BorderThickness="1"
+                Margin="8" Padding="8">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,78,78,78,Auto,*" RowDefinitions="Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Classes="lbl" Text="Pole |B|"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="val" Text="{Binding MagAbsText}"/>
+                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="unit" Text="G"/>
+                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="lbl" Text="rozpětí"
+                               HorizontalAlignment="Right"/>
+                    <TextBlock Grid.Row="0" Grid.Column="4" Classes="val" Text="{Binding MagSpanText}"
+                               ToolTip.Tip="Rozpětí |B| přes okno grafu. Zemské pole je konstanta, takže při pomalé otočce robotem je to přímo míra tvrdého železa: 12. 9. 2026 (po kalibraci) 0,019 G, 14. 9. 0,177 G."/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Rozdíl"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding MagDeltaXText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding MagDeltaYText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding MagDeltaZText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="val" Text="{Binding MagDeltaAbsText}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="5" Classes="unit" Text="mG (X Y Z |B|)"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Klid"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="5"
+                               Classes="klid" HorizontalAlignment="Left"
+                               Text="{Binding MagKlidText}"
+                               Classes.klidOk="{Binding MagKlid}"
+                               ToolTip.Tip="Magnetometr měří pole V RÁMCI ROBOTU, takže pootočení o 1° udělá ve vodorovné složce ~3,5 mG — víc než celý hledaný efekt. Odečet platí jen když robot stojí."/>
                 </Grid>
 
-                <!-- Vektory (X/Y/Z) -->
-                <Grid ColumnDefinitions="Auto,78,78,78,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
-                      Margin="0,10,0,0">
-                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="X"/>
-                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="Y"/>
-                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="Z"/>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Vynulovat" Command="{Binding MagVynulovatCommand}"
+                            ToolTip.Tip="Vezme průměr posledního půl sekundy za nulu. Rozdíly se od teď počítají proti němu."/>
+                    <Button Content="Zrušit nulu" Command="{Binding MagZrusitNuluCommand}"
+                            Margin="8,0,0,0" IsEnabled="{Binding MagNula}"/>
+                    <Button Content="Vymazat graf" Command="{Binding MagVymazatCommand}"
+                            Margin="8,0,0,0"/>
+                </StackPanel>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Úhlová rychlost"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding AngVelXText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding AngVelYText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding AngVelZText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="unit" Text="rad/s"/>
-
-                    <TextBlock Grid.Row="2" Grid.Column="0" Classes="lbl" Text="Akcelerace"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" Classes="val" Text="{Binding AccXText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="2" Classes="val" Text="{Binding AccYText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="3" Classes="val" Text="{Binding AccZText}"/>
-                    <TextBlock Grid.Row="2" Grid.Column="4" Classes="unit" Text="m/s²"/>
-
-                    <TextBlock Grid.Row="3" Grid.Column="0" Classes="lbl" Text="Magnetometr"/>
-                    <TextBlock Grid.Row="3" Grid.Column="1" Classes="val" Text="{Binding MagXText}"/>
-                    <TextBlock Grid.Row="3" Grid.Column="2" Classes="val" Text="{Binding MagYText}"/>
-                    <TextBlock Grid.Row="3" Grid.Column="3" Classes="val" Text="{Binding MagZText}"/>
-                </Grid>
-
-                <!-- Kvaternion (x/y/z/w) -->
-                <Grid ColumnDefinitions="Auto,78,78,78,78" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
-                    <TextBlock Grid.Row="0" Grid.Column="1" Classes="hdr" Text="x"/>
-                    <TextBlock Grid.Row="0" Grid.Column="2" Classes="hdr" Text="y"/>
-                    <TextBlock Grid.Row="0" Grid.Column="3" Classes="hdr" Text="z"/>
-                    <TextBlock Grid.Row="0" Grid.Column="4" Classes="hdr" Text="w"/>
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Classes="lbl" Text="Kvaternion"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="val" Text="{Binding QuatXText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="2" Classes="val" Text="{Binding QuatYText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="3" Classes="val" Text="{Binding QuatZText}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="4" Classes="val" Text="{Binding QuatWText}"/>
-                </Grid>
-
-                <Grid ColumnDefinitions="Auto,78" RowDefinitions="Auto" Margin="0,10,0,0">
-                    <TextBlock Grid.Column="0" Classes="lbl" Text="Důvěra"/>
-                    <TextBlock Grid.Column="1" Classes="val" Text="{Binding ConfidenceText}"/>
-                </Grid>
-
-                <!-- Radek Snimek je sdileny control (viz SensorFrameInfoControl) -->
-                <ctl:SensorFrameInfoControl Height="20" Margin="0,6,0,0" HorizontalAlignment="Left"
-                                            FrameNum="{Binding FrameNum}"
-                                            Period="{Binding FramePeriod}"
-                                            Time="{Binding FrameTime}"/>
-
-            </StackPanel>
+                <ctl:MagnetometerChartControl Grid.Row="2" MinHeight="90" Margin="0,8,0,0"
+                                              Snapshot="{Binding MagSnapshot}"/>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

@@ -86,7 +86,7 @@ namespace ARBot.Analyze
                         return 0;
                     case "heading":
                         HeadingReferencesReport.Run(rec, args.Any(a => a == "--nogt"),
-                                                    Text(args, "--csv"));
+                                                    Text(args, "--csv"), Arg(args, "--bin", 60));
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
@@ -122,7 +122,8 @@ namespace ARBot.Analyze
                         // Cte se ZE SENZORU, tady je jen dnesni hodnota jako default: registr 21
                         // (0,234; 0; 0,4212) -> 0,4818 G a 60,9 deg. Po zapnuti modelu pole
                         // (magmodel=) se reference ZMENI a tyhle prepinace jsou pak potreba.
-                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4818), Arg(args, "--incl", 60.9));
+                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4818), Arg(args, "--incl", 60.9),
+                                      Arg(args, "--camwin", 3.0), Arg(args, "--camdead", 0.5));
                         return 0;
                     case "magcal":
                         // --bref = referencni |B| [G] z registru 21; default je dnesni hodnota

@@ -530,6 +530,117 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Odkazy:** `docs/pages/umisteni-v-soutezich.html`, `docs/assets/site.css`,
   `docs/README.md` (rozsah v přehledu převzatých stránek 2009–2023 → 2009–2025).
 
+
+
+**Kompas v záznamu ze 14. 9. je rozbitý — kalibrace z 11. 9. přestala účinkovat.** Na dotaz autora
+(„směr robotu se pomalu ustaloval, je to nastavením nejistot v GPS a VN100?") rozbor
+`records/test/20260914-170945.rec` a `20260914-170611.rec` proti `20260912-131024.rec`.
+
+- **Odpověď na dotaz: ne.** `odhad − IMU yaw` je po minutách 0–4° se sd pod 1,5°, takže fúze kurz
+  pořád **přebírá z kompasu**; `imuheadingstd=5` a `imuheadinghz=1` vazbu jen povolily (2,15° ± 8,60°
+  proti dřívějším ±0,06°), nepřevzaly ji. A rozpor `IMU yaw − GPS kurz` se **vůbec neusazuje**
+  (−11,7 → −14,3 → −31,4 → −15,2° po minutách) — ustalování by bylo klesající |rozpor|.
+- **Skutečná příčina: nové tvrdé železo.** `∣B∣` při stání **0,614 G** proti referenčním 0,4897
+  a proti **0,498 G** naměřeným 12. 9.; rozpětí přes záznam **0,177 G** (12. 9. 0,019 G, před kalibrací
+  7. 9. 0,148 G), zbytkové tvrdé železo **0,481 G** proti 0,0023 G. Harmonické chyby kurzu
+  3,6/2,9° → **12,8/8,1°**, `IMU yaw − GPS kurz` p50 **−15,6°** (sd 13,0°, rozsah −8 až −37°).
+- **A odtud i to „pomalé ustalování":** VPE uvnitř senzoru se táhne za polem s `K` = 0,0029 1/s,
+  tedy **τ = 345 s** (obě nahrávky ze 14. 9. shodně) proti řádově 0,2 1/s 12. 9. Potvrzuje to
+  doměnku z 12. 9., že dlouhá konstanta je důsledek nezkalibrovaného železa (206 → 53 s) — teď je
+  zpátky a horší. Je to **v senzoru**, naše nastavení nejistot na to nesahají.
+- **Dva omyly, které opravílo až měření:** (a) „závislost `∣B∣` na proudu motorů" — vychází
+  +0,00543 G/A v jednom běhu a **−0,01523 G/A v druhém** týž den, protože **η² = 0,927** odchylky
+  vysvětlí sám kurz (robot jel s proudem jinam, než když stál); je to těleso, ne motory, a tedy
+  kalibrovatelné. (b) dvanáctka z proložení koule (`[0,036; −0,154; −0,454] G`) je **nepoužitelná** —
+  běžná jízda složku `z` neměří a podmíněnost 117 sama nestačí (táž past jako 10. 9.); vodorovná
+  složka navíc nesedí s 1. harmonickou (0,158 proti ~0,044 G).
+- **Třetí omyl, který si našel sám sebe:** širší okno u toho měření kamer nedá přesnější číslo,
+  ale **špatné** — při `camwin=5,5` vyjde 22,7 mG, protože se do okna dostane 6° otočení robotu.
+  Proto se ke každému řádku tiskne změna atitudy a blok si nespolehlivý řádek sám označí.
+  ⚠️ A složka `z` tvrdého železa je v obou bězích nesmysl (−0,454 vs −0,722 G) — běžná jízda
+  náklon nemá, takže `z` není měřená; z mediánu `|B|` vychází spíš ~−0,15 G.
+- **Hotovo:** `ARBot.Analyze heading` má nový blok **„VYVOJ ROZPORU V CASE"** (`--bin=`, výchozí 60 s):
+  po koších `IMU yaw − GPS kurz`, `odhad − GPS kurz` a `odhad − IMU yaw`. Třetí sloupec jde měřit
+  i **ve stání**, takže je vidět i usazování po startu, kdy robot ještě čeká na uvolnění stopu.
+  Report se na tuhle „model-free kontrolu" už dřív odkazoval (`vn100`, blok 2), ale netiskl ji.
+  A `ARBot.Analyze vn100` má **blok 5 „JE POLE VAZANE NA KAMERY (JEJICH KABELY)"** (`--camwin=`,
+  `--camdead=`): čte jen **index** (čas a jméno kamery, ne obrazy — jinak by to na 23 GB trvalo
+  desítky minut) a k každému rozsvícení/zhasnutí kamery tiskne změnu **středního vektoru pole
+  v tělese** (ne `|B|` — to je slepé na příspěvek kolmý na pole a plete se s kurzem) plus změnu
+  atitudy jako kontrolu záměny s otáčením. Build čistý, `ARBot.Runtime.Tests` 125 zelených.
+- **✅ Zdroj nalezen a zužený měřením: KABELY ke kamerám** (autor upřesnil, že 13. 9. se
+  prohodily kabely, ne kamery, a že jsou možná moc blízko). **Není to jejich proud:** nový blok 5
+  `ARBot.Analyze vn100` využije toho, že nahrávání začíná dřív než D435 — při rozsvícení obou kamer
+  v 6,5 s se pole posune jen o **6,4 mG** při stojícím robotu (yaw 0,3°, náklon 0,0°), tedy **4 %**
+  vodorovného offsetu ~160 mG. **Je to jejich železo** (stínění, konektory, feritové jádro):
+  rušení je konstantní vektor v tělese (`sd(|B|)` po odečtení 0,0040 / 0,0203 G) a jeho vodorovná
+  složka je v obou bězích téhož dne shodná — `(0,059; −0,157)` a `(0,036; −0,154) G`.
+  Proti zemským 0,199 G to samo dá chybu kurzu až ±53°.
+- **Rozpracované / další krok:** dát kabely do polohy, ve které mají zůstat, pak **minutový záznam
+  s jednou otočkou na místě** (rozpětí `|B|` přes otočku: 12. 9. 0,019 G, teď 0,177 G) — a **teprve
+  pak** `mission=magcal`, **s náklony na obě strany**.
+  ⚠️ Nevysvětlený vedlejší nález: **klidový bias gyra −161 a −453 °/h** proti +13 °/h 12. 9.
+  ⚠️ A platí to i zpětně: všechno, co se nad tímto záznamem měřilo (`localplan` ze 14. 9.),
+  je měřeno **při rozbitém kurzu**.
+- **Dotaz autora: byla za jízdy aplikována korekce na koridor? — NE, a ani se nepočítala.**
+  Účinná konfigurace v záznamu má `corridor=false` i `mapcorr=false` (obojí *default*), takže se
+  stupeň vůbec nezaložil; `corridorsend=true` na tom nic nemění — rozhoduje jen o tom, jestli
+  **existující** stupeň posílá do fúze. Nezávislé potvrzení: v záznamu **není ani jedna**
+  `RoadCorridorMsg` / `MapCorrelationMsg` (15 typů zpráv, `ARBot.Analyze types`) — kdyby stupeň
+  běžel jen „na měření", zpráva by tam byla. Kurz tedy celých 13 minut neměl **žádnou** druhou
+  referenci a šel z kompasu 1:1 do mapy i do mrkve.
+- ⚠️ **Nález při tom: trasovací hlášky z drátování se do záznamu NEDOSTANOU.** `ARBotRuntime`
+  zakládá `TraceInfoBridge` až **za** `BuildSensorSources`, takže řádky jako
+  „*corridor=false: hranova lokalizace se nezaklada*" jsou v journalu, ale v `.rec` ne — u záznamu
+  z terénu (kde je po ruce jen `.rec`) se tedy **nedá přečíst, proč** stupeň nevznikl; jde to jen
+  odvodit z výpisu konfigurace a z chybějící zprávy. Je to táž třída mezery jako „účinná
+  konfigurace se do záznamu nedostávala vůbec" (opraveno 5. 9.). Neopraveno.
+- **A na ten test kabelů vzniklo živé měřidlo v UI** (žádost autora): dokument **IMU** má panel
+  magnetometru — `|B|` a jeho **rozpětí** přes okno, **rozdíl X/Y/Z/`|B|` proti nule v mG**
+  (*Vynulovat* = průměr posledního půl sekundy), **graf posledních 60 s** a řádek **„Klid"**.
+  Postup je „robot stojí → Vynulovat → pohnout kabelem → přečíst rozdíl".
+  ⚠️ **Bez řádku „Klid" by měřidlo lhalo:** pootočení o 1° udělá ve vodorovné složce ~3,5 mG,
+  tedy víc než celý hledaný efekt (6,4 mG) — a **neznámá úhlová rychlost se počítá jako
+  „neplatí"**, ne jako klid. Poučení je přímo z dnešního rozboru záznamu, kde širší okno dalo
+  22,7 mG místo 6,4 právě tím, že do něj spadlo 6° otočení.
+  **Hotovo:** `ARBot.Common/Diagnostics/MagTrace.cs` (v `Common` schválně — aby šla logika
+  otestovat; **11 testů**, mj. že se vložené rušení vrátí zpátky a že otočení robotu shodí
+  verdikt), `ARBot/Views/Controls/MagnetometerChartControl.cs`, panel v `IMUDocumentView.axaml`.
+  Sbírá se **na vlákně senzoru**, ne až v UI — `IMUDocument` má backpressure a mezilehlá měření
+  zahazuje, takže by statistika přes okno počítala jen z toho, co stihlo UI.
+  ⚠️ **Ověřeno proklikáním v simulaci** (build, 1562 testů `Common`), **na skutečném VN100
+  neběželo**. Obrázek: `doc/media/imu-magnetometr-2026-09-15.png`.
+- **Panel po připomínkách autora přestavěný** (týž den): (a) **budíky jsou na jednom řádku
+  s čísly** — dřív byly nad tabulkami a dokument byl vyšší než obrazovka; ušetřený prostor dostal
+  graf (výška `*`). (b) **Graf po naplnení okna poskakoval** — dvě příčiny: časová osa se brala
+  z **rozsahu dat** (dokud se buffer plní, měřítko se plynule mění a po naplnění skokem ustane) a
+  svislá osa se počítala pokadždé znovu z maxima v okně (přeskakovala mezi stupni, když špička
+  do okna vstoupila nebo z něj vypadla). Teď je časová osa **celé okno** kotvené na nejnovější
+  vzorek a svislá má **hysterezi** (nahoru hned, dolů až pod polovinou).
+- **⚠️ „`|B|` pořád ukazuje 0" není vada panelu, ale vlastnost simulace** (dotaz autora): šum
+  `VirtualImu` sedí na **kurzu** (pole se počítá z už zašuměného headingu), takže vektor jen
+  rotuje a jeho velikost je **konstrukcí konstantní** — složky šumí o ±10 mG a `|B|` stojí.
+  ✅ **Vyzkoušet to teď jde**: `MagHardIronG` šlo dosud nastavit jen z kódu, teď je v panelu
+  *Virtuální senzory* jako **tvrdé železo X/Y/Z [mG]**. Změřeno prokliknutím: skok 0 → 60 mG v X
+  dá `|B|` **0,4818 → 0,5094 G**, rozpětí 0,0276 a `Rozdíl |B|` 13,6 mG. Železo se navíc teď
+  počítá do `HasSystematicError` (a maže ho *Vynulovat chyby*) — je to táž třída chyby jako bias
+  kurzu a stejně snadno se zapomene zapnutá.
+- **⚠️ A ještě jedna past, kterou našlo až psaní té opravy:** referencí pro `|B|` **nesmí být
+  délka referenčního vektoru** — bez nuly je referencí průměrný *vektor*, a `|průměr|` je při šumu
+  vždy menší než průměr z `|·|`, takže by křivka `|B|` seděla mimo nulu o `σ²/(2|B|)`.
+- **Zahozená odbočka (záměrně):** zkoušel jsem přidat `open=imu`, aby šel panel otevřít
+  z profilu (na zařízení se aplikace dohlíží přes vzdálenou plochu z mobilu, kde je dvojklik do
+  seznamu senzorů horsi než menu). Naráží to ale na životní cyklus: **virtuální senzory zakládá
+  teprve `ARBotRuntime.Start`**, takze při startu žádná IMU ještě není a dokument senzoru se bez
+  instance založit nedá; ani pollování to v simulaci nerozchodilo a příčinu jsem nedohledal.
+  **Vráceno do původního stavu** — panel se otevírá dvojklikem v panelu *Sensors*.
+- **Odkazy:** `Src/ARBot.Analyze/HeadingReferencesReport.cs`, `Src/ARBot.Analyze/Vn100Report.cs`,
+  `Src/ARBot.Analyze/Program.cs`, `Src/ARBot.Runtime/Robot/ARBotRuntime.cs` (pořadí
+  `BuildSensorSources` / `traceBridge`),
+  [imu-and-frames.md](imu-and-frames.md) (sekce „Kalibrace přestala účinkovat").
+
+---
+
 ## 2026-09-14
 
 **Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí (`HangWatchdog`).** Rozbor dvou záznamů

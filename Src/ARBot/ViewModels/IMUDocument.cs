@@ -1,12 +1,14 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Numerics;
 using ARBot.Common.Common;
 using ARBot.Common.Devices;
+using ARBot.Common.Diagnostics;
 using ARBot.Common.Models;
 using ARBot.HAL;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
 
 namespace ARBot.ViewModels
@@ -28,6 +30,11 @@ namespace ARBot.ViewModels
         private readonly object pendingGate = new object();
         private IMUState? pendingState;
         private volatile bool updateQueued;
+
+        // Stopa magnetickeho pole pro mereni ruseni na robotu (kabely, zelezo). Plni se na
+        // vlakne senzoru, tedy BEZ backpressure - statistika pres okno musi videt vsechny
+        // vzorky, kdezto prekreslovani se dal skrti pres Flush(). Viz MagTrace.
+        private readonly MagTrace magTrace = new MagTrace();
 
         /// <summary>Kurz pro kompas [°], 0 = sever, roste po směru hod. ručiček.</summary>
         [ObservableProperty] private double headingDeg;
@@ -61,6 +68,22 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string uncPitchText = "-";
         [ObservableProperty] private string uncRollText = "-";
         [ObservableProperty] private string confidenceText = "-";
+
+        /// <summary>Snimek stopy pro graf; nova instance = prekresleni.</summary>
+        [ObservableProperty] private MagSnimek? magSnapshot;
+        /// <summary>Velikost pole |B| [G] - zemske pole je konstanta, takze zmena = ruseni.</summary>
+        [ObservableProperty] private string magAbsText = "-";
+        /// <summary>Rozpeti |B| pres okno [G] - pres pomalou otocku je to primo mira tvrdeho zeleza.</summary>
+        [ObservableProperty] private string magSpanText = "-";
+        [ObservableProperty] private string magDeltaXText = "-";
+        [ObservableProperty] private string magDeltaYText = "-";
+        [ObservableProperty] private string magDeltaZText = "-";
+        [ObservableProperty] private string magDeltaAbsText = "-";
+        /// <summary>Stoji robot? Text pro obsluhu; <see cref="MagKlid"/> je na obarveni.</summary>
+        [ObservableProperty] private string magKlidText = "-";
+        [ObservableProperty] private bool magKlid;
+        /// <summary>Je nastavena nula (rozdily se pocitaji proti ni, ne proti prumeru okna)?</summary>
+        [ObservableProperty] private bool magNula;
         // Syrove hodnoty pro SensorFrameInfoControl - formatovani i pevne sloupce resi control.
         [ObservableProperty] private long frameNum;
         [ObservableProperty] private TimeSpan framePeriod;
@@ -98,6 +121,15 @@ namespace ARBot.ViewModels
         {
             if (state == null)
                 return;
+
+            // Stopa se plni ZDE, ne ve Flush(): Flush zahazuje mezilehla mereni (backpressure),
+            // takze by statistika pres okno i rozpeti |B| pocitaly jen z toho, co stihlo UI.
+            if (state.Magnetometer is Vector3 mag)
+            {
+                var ypr = state.YPR();
+                magTrace.Pridej(state.TimeStamp, mag, state.AngularVelocity,
+                                ypr != null ? ypr.Yaw : (double?)null);
+            }
 
             lock (pendingGate)
                 pendingState = state;
@@ -161,9 +193,74 @@ namespace ARBot.ViewModels
                 UncRollText = Num(Conversions.Rad2Deg(u.Z), "F2");
             }
 
+            ApplyMag();
+
             FrameNum = s.FrameNum;
             FramePeriod = s.FrameReceivePeriod;
             FrameTime = s.TimeStamp;
+        }
+
+        /// <summary>
+        /// Prepocte panel magnetometru ze stopy. Jednotky: <b>G</b> pro absolutni hodnoty,
+        /// <b>mG</b> pro rozdily — hledane ruseni je jednotky az desitky mG proti poli ~490 mG,
+        /// takze v gaussech by se ztratilo v zaokrouhleni.
+        /// </summary>
+        private void ApplyMag()
+        {
+            var snap = magTrace.Snimek();
+            MagSnapshot = snap;
+            MagNula = snap.Nula.HasValue;
+
+            if (snap.Vzorky.Count == 0)
+            {
+                MagAbsText = MagSpanText = "-";
+                MagDeltaXText = MagDeltaYText = MagDeltaZText = MagDeltaAbsText = "-";
+                MagKlidText = "-";
+                MagKlid = false;
+                return;
+            }
+
+            MagAbsText = Num(snap.VelikostG, "F4");
+            MagSpanText = Num(snap.RozpetiG, "F4");
+            MagDeltaXText = Num(snap.Rozdil.X * 1000, "F1");
+            MagDeltaYText = Num(snap.Rozdil.Y * 1000, "F1");
+            MagDeltaZText = Num(snap.Rozdil.Z * 1000, "F1");
+            MagDeltaAbsText = Num(snap.RozdilVelikostG * 1000, "F1");
+
+            // ⚠️ Bez teto hlasky by meridlo lhalo: pootoceni o 1 stupen udela ve vodorovne slozce
+            // ~3,5 mG, tedy vic nez cely hledany efekt (kabely ke kameram: 6,4 mG).
+            MagKlid = snap.Klid;
+            string omega = double.IsNaN(snap.OmegaDegS)
+                ? "|w| nezname"
+                : string.Format(CultureInfo.InvariantCulture, "|w| {0:F1} °/s", snap.OmegaDegS);
+            string otoceni = snap.YawOdNulyDeg.HasValue
+                ? string.Format(CultureInfo.InvariantCulture, ", od nuly {0:F1}°", snap.YawOdNulyDeg.Value)
+                : string.Empty;
+            MagKlidText = omega + otoceni + (snap.Klid ? "  — platí" : "  — ROBOT SE HÝBE, NEPLATÍ");
+        }
+
+        /// <summary>Vezme současné pole za nulu — rozdíly se od teď počítají proti němu.</summary>
+        [RelayCommand]
+        private void MagVynulovat()
+        {
+            magTrace.Vynuluj();
+            ApplyMag();
+        }
+
+        /// <summary>Zruší nulu (rozdíly se počítají proti průměru okna).</summary>
+        [RelayCommand]
+        private void MagZrusitNulu()
+        {
+            magTrace.ZrusNulu();
+            ApplyMag();
+        }
+
+        /// <summary>Zahodí historii i nulu — na začátek dalšího pokusu.</summary>
+        [RelayCommand]
+        private void MagVymazat()
+        {
+            magTrace.Vymaz();
+            ApplyMag();
         }
 
         /// <summary>Jedno číslo bez jednotky a bez odsazení - zarovnání řeší buňka ve view.</summary>

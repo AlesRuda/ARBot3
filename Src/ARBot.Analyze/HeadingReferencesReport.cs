@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -39,7 +39,8 @@ namespace ARBot.Analyze
         /// nad SIMULACNIM zaznamem, kde znama odpoved existuje — takze se da rict, jestli hlasi
         /// totez. Tentyz vzor, jakym se tady overuje vsechno ostatni: nejdriv proti znamé odpovedi.</para>
         /// </param>
-        public static void Run(RecordFile rec, bool ignoreGroundTruth = false, string csvPath = null)
+        public static void Run(RecordFile rec, bool ignoreGroundTruth = false, string csvPath = null,
+                               double binSec = 60)
         {
             var truth = new List<(double T, double Th, double V)>();
             var imu = new List<(double T, double Yaw)>();
@@ -140,7 +141,7 @@ namespace ARBot.Analyze
                 if (ignoreGroundTruth && truth.Count > 0)
                     Console.WriteLine($"--nogt: {truth.Count} vzorku pravdy se ZAHAZUJE — jede se "
                                       + "cestou pro realne HW.");
-                ReportWithoutTruth(imu, gps, track, mag, est, gyro, csvPath);
+                ReportWithoutTruth(imu, gps, track, mag, est, gyro, csvPath, binSec);
                 return;
             }
             if (gps.Count == 0)
@@ -255,7 +256,8 @@ namespace ARBot.Analyze
                                                List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)> mag,
                                                List<(double T, double Th)> est,
                                                List<(double T, double W)> gyro,
-                                               string csvPath = null)
+                                               string csvPath = null,
+                                               double binSec = 60)
         {
             Console.WriteLine("Zaznam nenese GroundTruthMsg — jde tedy o REALNE ZARIZENI (nebo beh");
             Console.WriteLine("bez simulace). Pravda neexistuje, ale to podstatne se zmerit da:");
@@ -322,6 +324,7 @@ namespace ARBot.Analyze
             Console.WriteLine();
 
             HeadingDependence(pair);
+            TimeEvolution(pair, est, imu, gps, binSec);
             WhoDoesFusionFollow(est, imu, gps);
             TrackCourseCheck(track, gps, imu);
             GpsCourseNoise(gps, gyro);
@@ -484,6 +487,79 @@ namespace ARBot.Analyze
             var x = a.OrderBy(v => v).ToList();
             double q1 = x[(int)(0.25 * (x.Count - 1))], q3 = x[(int)(0.75 * (x.Count - 1))];
             return (q3 - q1) / 1.349;
+        }
+
+        /// <summary>
+        /// <b>Ustaluje se kurz v case?</b> Blok 2 ve <c>vn100</c> merí zesílení zpetné vazby
+        /// <c>K</c> regresí, a ta je pri zasumené chybe systematicky utlumená k nule — report si
+        /// proto sám ríká o <b>model-free kontrolu</b>: kdyby filtr pole (resp. fúze kompas)
+        /// pouzíval, musel by rozpor proti GPS kurzu v case <b>klesat</b>. Tenhle blok to tiskne.
+        ///
+        /// <para>Tiskne se <b>obojí</b> — <c>IMU yaw - GPS kurz</c> (usazuje se VPE uvnitr senzoru)
+        /// i <c>odhad - GPS kurz</c> (usazuje se nase fúze). Rozlisit je podstatné: prvni je
+        /// casová konstanta cizího filtru, na kterou nastavením <c>imuheadingstd=</c> /
+        /// <c>imuheadinghz=</c> nesaháme, kdezto druhé je presne to, co ta nastavení ridí.</para>
+        ///
+        /// <para>⚠️ Minuta bez jízdy nad prahem rychlosti nemá GPS kurz a v tabulce chybí —
+        /// mezera v case tedy <b>není</b> výpadek mereni, ale stojící robot.</para>
+        /// </summary>
+        private static void TimeEvolution(List<(double T, double Yaw, double Course, double Speed)> pair,
+                                          List<(double T, double Th)> est,
+                                          List<(double T, double Yaw)> imu,
+                                          List<(double T, double Course, double Speed)> gps,
+                                          double binSec)
+        {
+            Console.WriteLine();
+            Console.WriteLine("VYVOJ ROZPORU V CASE (usaduje se kurz?):");
+            if (pair.Count < 10) { Console.WriteLine("  Prilis malo vzorku."); return; }
+            if (binSec < 1) binSec = 60;
+
+            // Zacatek se bere od prvni zpravy, ne od prvni JIZDY - usazovani po startu je
+            // prave to, co je videt, kdyz robot jeste stoji a ceka na uvolneni stopu.
+            double t0 = est.Count > 0 ? Math.Min(est[0].T, pair[0].T) : pair[0].T;
+            var fast = gps.Where(g => g.Speed >= MinSpeedMps).Select(g => (g.T, g.Course)).ToList();
+
+            // Odhad fuze proti GPS kurzu - stejne parovani jako ve WhoDoesFusionFollow,
+            // jen rozdelene do minutovych kosu.
+            var estVsGps = new List<(double T, double D)>();
+            foreach (var (t, th) in est)
+                if (TryNearest(fast, t, 0.2, out double course)) estVsGps.Add((t, Wrap(th - course)));
+
+            // Odhad proti IMU yaw - na rozdil od GPS kurzu to jde merit i ve STANI, takze
+            // je videt i usazovani po startu, kdy robot jeste ceka na uvolneni nouzoveho stopu.
+            var estVsImu = new List<(double T, double D)>();
+            foreach (var (t, th) in est)
+                if (TryNearest(imu, t, 0.1, out double yaw)) estVsImu.Add((t, Wrap(th - yaw)));
+
+            Console.WriteLine("    cas [s]        n   IMU yaw - GPS kurz        n   odhad - GPS kurz        n   odhad - IMU yaw");
+            double last = pair[pair.Count - 1].T;
+            for (double b = 0; b < last - t0; b += binSec)
+            {
+                var im = pair.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec)
+                             .Select(x => Wrap(x.Yaw - x.Course)).ToList();
+                var es = estVsGps.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec)
+                                 .Select(x => x.D).ToList();
+                var ei = estVsImu.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec)
+                                 .Select(x => x.D).ToList();
+                if (im.Count == 0 && es.Count == 0 && ei.Count == 0) continue;
+                string a = im.Count > 0
+                    ? string.Format(CultureInfo.InvariantCulture, "{0,5}  {1,7:F2} +- {2,6:F2}",
+                                    im.Count, Deg(CircMean(im)), Deg(CircSd(im)))
+                    : string.Format("{0,5}  {1,17}", 0, "-");
+                string c = es.Count > 0
+                    ? string.Format(CultureInfo.InvariantCulture, "{0,5}  {1,7:F2} +- {2,6:F2}",
+                                    es.Count, Deg(CircMean(es)), Deg(CircSd(es)))
+                    : string.Format("{0,5}  {1,17}", 0, "-");
+                string d = ei.Count > 0
+                    ? string.Format(CultureInfo.InvariantCulture, "{0,5}  {1,7:F2} +- {2,6:F2}",
+                                    ei.Count, Deg(CircMean(ei)), Deg(CircSd(ei)))
+                    : string.Format("{0,5}  {1,17}", 0, "-");
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4:F0}-{1,4:F0}  {2}   {3}   {4}", b, b + binSec, a, c, d));
+            }
+            Console.WriteLine("  Klesajici |stredni rozpor| = kurz se usazuje; plochy = neusazuje se.");
+            Console.WriteLine("  ⚠️ Kdyz se usazuje sloupec IMU, dela to VPE uvnitr senzoru a nase");
+            Console.WriteLine("  nastaveni nejistot (imuheadingstd=, imuheadinghz=) na to nesahaji.");
         }
 
         /// <summary>
