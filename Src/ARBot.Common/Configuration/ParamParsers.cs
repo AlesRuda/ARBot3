@@ -181,6 +181,59 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam kadenci v Hz: 0 (neomezeno) az 60");
 
+        /// <summary>Pocet kandidatnich hran pri prirazeni koridoru: 1 az 16.</summary>
+        public static ParamParseResult AssocK(string text)
+            => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)
+               && v >= 1 && v <= 16
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam pocet kandidatnich hran: 1 az 16");
+
+        /// <summary>
+        /// Veto na azimut pri prirazeni hrany ve STUPNICH: 1 az 90.
+        /// <para>Nad 90 to nema smysl — primka nema orientaci, takze vetsi rozdil dvou smeru
+        /// neexistuje.</para>
+        /// </summary>
+        public static ParamParseResult AssocVeto(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 1 && v <= 90
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam veto na azimut ve STUPNICH: 1 az 90 "
+                                          + "(nad 90 nema smysl, primka nema orientaci)");
+
+        /// <summary>Podlaha sigmy pricne polohy pri prirazeni [m]: 0 az 50.</summary>
+        public static ParamParseResult AssocFloorLat(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 50 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam podlahu sigmy v METRECH: 0 (bez podlahy) az 50");
+
+        /// <summary>
+        /// Podlaha sigmy kurzu pri prirazeni ve STUPNICH: 0 az 90.
+        /// <para>Tataz past jako u <see cref="ImuHeadingStd"/>: velmi mala kladna hodnota je
+        /// skoro jiste radian zadany omylem.</para>
+        /// </summary>
+        public static ParamParseResult AssocFloorHdg(string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                return ParamParseResult.Invalid("cekam cislo");
+            if (v == 0) return ParamParseResult.Valid();
+            if (v > 0 && v < 0.1)
+                return ParamParseResult.Invalid(
+                    "podlaha sigmy kurzu se zadava ve STUPNICH a " + text
+                    + " je podezrele male - nezadavas to omylem v radianech? Pouzij 0 pro vypnuti.");
+            return v >= 0.1 && v <= 90
+                ? ParamParseResult.Valid()
+                : ParamParseResult.Invalid("cekam podlahu sigmy kurzu ve STUPNICH: 0 (bez podlahy), nebo 0,1 az 90");
+        }
+
+        /// <summary>Strop / odstup chi-kvadratu pri prirazeni hrany: 0 az 1000.</summary>
+        public static ParamParseResult AssocChi2(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 1000 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam hodnotu chi-kvadratu: 0 az 1000 "
+                                          + "(pro 2 stupne volnosti je 5,99 = 95 %, 9,21 = 99 %)");
+
         /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
         public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
 

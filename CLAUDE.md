@@ -1,4 +1,4 @@
-# ARBot3 — rozcestník a pravidla projektu
+﻿# ARBot3 — rozcestník a pravidla projektu
 
 Autonomní mobilní robot. .NET 10, C#. Aplikace `ARBot` (Avalonia UI + Dock), sdílená
 knihovna `ARBot.Common` (modely, fúze, algoritmy), hardwarová vrstva `ARBot.HAL`
@@ -755,6 +755,28 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   publikovaná čísla.)*
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
+  ✅ **Od 16. 9. 2026 vybírá hranu sítě PŘIŘAZENÍ přes χ²** (`assoc=`, výchozí true; `EdgeAssociator`),
+  ne prostá nejbližší hrana — nad `20260916-164926.rec` se totiž **polovina cyklů (1 114 z 2 256)
+  párovala na PŘÍČNOU ulici**: při chybě pózy 3–4 m vyhraje u křižovatky jiná cesta a šířková brána
+  ji nechytí, protože v té mapě nemá žádná cesta tag `width`. Skóre je **Mahalanobisova vzdálenost**
+  (příčná odchylka + azimut, každá dělená svou σ), ne lineární kombinace — váhy tím zmizí a práh má
+  známé rozdělení (5,99 / 9,21). ⚠️ **Obě σ musí mít PODLAHU** (`assocfloorlat=3` m,
+  `assocfloorhdg=10°`): filtr hlásí σ kurzu 1,10°, ale skutečná chyba je 15–20°, takže bez podlahy
+  vyjde χ² kurzu **p50 220 i na správné hraně** a zamítlo by se všechno — počtvrté táž past jako
+  `YprU`, `gpsposstd` a `Reject`. Po opravě magnetometru **snížit na ~3°**. K tomu **tvrdé veto na
+  azimut** (`assocveto=45°`, kolmá ulice není „trochu mimo") a **odstup od druhého kandidáta**
+  (`assocmargin=4`) — při nejednoznačnosti se **neposílá nic** (`AmbiguousEdge`), protože vybrat tu
+  o chlup lepší by znamenalo hádat. ⚠️ **Dvě pasti, které stály čas:** obousměrná cesta jsou dvě
+  hrany se shodnou geometrií, a hlavně **kolineární sousední segment téže OSM cesty dá přesně tutéž
+  osu** (`Relate` počítá z přímky, ne z úsečky), takže bez slučování na **hypotézy** by test
+  nejednoznačnosti zamítl **každou rovnou cestu**. `RoadCorridorMsg` je **verze 6** (skóre vítěze
+  i druhého — prahy jdou proladit jen offline). ✅ **Opravena přitom živá vada v `Send()`:** rozdíl
+  směrů dvou **přímek** se neskládal na ±90° a smysl se nerozhodoval podle kurzu, takže u cesty
+  kolmé na kurz šel do fúze **kurz otočený** — týkalo by se to **40 ze 424 přijatých cyklů (9,4 %)**
+  a `GateMode.Soft` takové měření nezahodí, jen odtlumí. ⚠️ **Cena:** koridor tím už nikdy neřekne
+  „jsi otočený o 180°"; na převrácení musí hlídat **kurz z GPS**. Ověřeno testy (1 584 / 140 / 115)
+  a **během v simulaci** (845/855 cyklů `Ok`, žádný `AmbiguousEdge`); ⚠️ **na zařízení neběželo**
+  a nad tím záznamem to **přeměřené není**.
   ✅ **Od 15. 9. 2026 jde odtlumit jako GPS a kompas** (`corridorstd=` [m], `corridorheadingstd=`
   [°], `corridorhz=` [Hz]; sigmy **kvadraticky**, škrtí se **jen posílání**, ne výpočet — zpráva
   chodí dál, aby šly prahy proladit offline). **Výchozí 0 = dnešní chování schválně:** u

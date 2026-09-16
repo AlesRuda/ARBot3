@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using ARBot.Common.Devices;
+using ARBot.Common.Fusion;
 using ARBot.Common.Localization;
 using ARBot.Common.Logs;
 
@@ -59,6 +61,24 @@ namespace ARBot.Analyze
             Console.WriteLine($"Rozestup zrekonstruovan u {ok.Count(m => skew.ContainsKey(m.TimeStamp))} z nich");
             Console.WriteLine();
 
+            // Doslo to do fuze? „Duvod = Ok" rika jen to, ze merenie PROSLO branami - pri
+            // corridorsend=false se nikam neposila a pri plnem oknu ho fuze zahodi jako prilis
+            // stare. Presne na tuhle zamenu uz jednou dolehla plosna korelace (telemetrie hlasila
+            // Ok i ve chvili, kdy do fuze nedochazelo nic), viz RoadCorridorMsg.DroppedByFusion.
+            int emLat = ok.Count(m => m.EmittedLateral);
+            int emHead = ok.Count(m => m.EmittedHeading);
+            long dropped = msgs.Max(m => m.DroppedByFusion);
+            Console.WriteLine("Doslo to do fuze?");
+            Console.WriteLine($"  poslana pricna korekce   {emLat,5} z {ok.Count} Ok");
+            Console.WriteLine($"  poslana korekce kurzu    {emHead,5} z {ok.Count} Ok");
+            Console.WriteLine($"  zahozeno fuzi (prilis stare) {dropped,5}");
+            if (emLat == 0 && ok.Count > 0)
+                Console.WriteLine("  POZOR: NIC SE NEPOSILALO - merici rezim (corridorsend=false), nebo skrceni corridorhz=.");
+            Console.WriteLine();
+
+            Funnel(msgs);
+            LateralUngated(msgs);
+
             Report("VSECHNA prijata merenia", ok);
 
             var narrow = ok.Where(m => skew.TryGetValue(m.TimeStamp, out double s) && s <= oldWindowMs).ToList();
@@ -87,9 +107,471 @@ namespace ARBot.Analyze
             }
             Console.WriteLine();
 
+            AssociationScore(msgs);
+            HeadingVsGps(rec, msgs);
+            AssociationSigmas(rec, msgs);
             GeometryCheck(ok);
             ByPose(rec, ok, msgs);
         }
+
+        /// <summary>
+        /// <b>Trychtyr:</b> kolik cyklu prezije kterou branu. Samotny vycet <c>FixReason</c> na
+        /// otazku „proc je Ok jen 5 %" neodpovi — je to plocha tabulka, ze ktere neni videt, ze
+        /// brany jsou v <b>rade za sebou</b> a kazda vidi jen to, co ji predchozi pustila.
+        /// </summary>
+        private static void Funnel(List<RoadCorridorMsg> all)
+        {
+            int n = all.Count;
+            int paired = all.Count(m => (CorridorFixReason)m.FixReason != CorridorFixReason.NoPair);
+            int corridor = all.Count(m =>
+            {
+                var r = (CorridorFixReason)m.FixReason;
+                return r != CorridorFixReason.NoPair && r != CorridorFixReason.NoCorridor;
+            });
+            int onEdge = all.Count(m => ReachedLateralGate(m));
+            int lateralOk = all.Count(m =>
+            {
+                var r = (CorridorFixReason)m.FixReason;
+                return r == CorridorFixReason.WidthNotTrusted
+                    || r == CorridorFixReason.WidthDisagreement
+                    || r == CorridorFixReason.Ok;
+            });
+            int okN = all.Count(m => m.FixReason == (byte)CorridorFixReason.Ok);
+
+            // Od 16. 9. 2026 rozhoduje o hrane PRIRAZENI (chi-kvadrat pres kandidaty), ne pricna
+            // brana - trychtyr se proto musi jmenovat podle toho, co zaznam skutecne obsahuje.
+            bool assoc = all.Exists(m => m.AssocCandidates > 0
+                                      || (CorridorFixReason)m.FixReason == CorridorFixReason.EdgeMismatch
+                                      || (CorridorFixReason)m.FixReason == CorridorFixReason.AmbiguousEdge);
+
+            Console.WriteLine("TRYCHTYR - kde se cykly ztraceji (kazda brana vidi jen to, co pustila predchozi):");
+            Console.WriteLine("  brana                        prezilo   z celku   z predchozi");
+            FunnelLine("snimku do stupne", n, n, n);
+            FunnelLine("+ naparovana druha kamera", paired, n, n);
+            FunnelLine("+ koridor se prolozil", corridor, n, paired);
+            FunnelLine(assoc ? "+ prirazena hrana site" : "+ mapa ma po ruce hranu", onEdge, n, corridor);
+            if (!assoc) FunnelLine("+ pricna brana", lateralOk, n, onEdge);
+            FunnelLine("= Ok (sirkove brany)", okN, n, assoc ? onEdge : lateralOk);
+            Console.WriteLine();
+        }
+
+        private static void FunnelLine(string name, int v, int total, int prev)
+            => Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  {0,-28} {1,6}    {2,5:F1} %      {3,5:F1} %",
+                name, v, 100.0 * v / Math.Max(1, total), 100.0 * v / Math.Max(1, prev)));
+
+        /// <summary>Dosel cyklus az na pricnou branu? (tedy koridor i mapova hrana existuji)</summary>
+        private static bool ReachedLateralGate(RoadCorridorMsg m)
+        {
+            var r = (CorridorFixReason)m.FixReason;
+            return r == CorridorFixReason.LateralDisagreement
+                || r == CorridorFixReason.WidthNotTrusted
+                || r == CorridorFixReason.WidthDisagreement
+                || r == CorridorFixReason.Ok;
+        }
+
+        /// <summary>
+        /// Pricny nesouhlas na <b>vsech</b> cyklech, ktere na branu vubec doslo — tedy vcetne
+        /// zamitnutych.
+        ///
+        /// <para><b>Proc zvlast.</b> Statistika nad prijatymi merenimi je <b>useknuta prave tou
+        /// branou</b>, kterou popisuje (<c>MaxLateralDisagreementM</c>): p90 nemuze vyjit vic nez
+        /// strop, at je poloha jakkoli spatna. Cist z ni „chyba pricne pozy je p90 1,2 m" je tedy
+        /// selekcni efekt, ne mereni.</para>
+        /// </summary>
+        private static void LateralUngated(List<RoadCorridorMsg> all)
+        {
+            var reached = all.Where(ReachedLateralGate).ToList();
+            if (reached.Count == 0) return;
+
+            var a = new Stats("abs pricny nesouhlas [m]");
+            var v = new Stats("pricny nesouhlas [m]");
+            foreach (var m in reached) { a.Add(Math.Abs(m.LateralDisagreement)); v.Add(m.LateralDisagreement); }
+            int over = reached.Count(m => Math.Abs(m.LateralDisagreement) > 1.5);
+
+            Console.WriteLine($"PRICNY NESOUHLAS NA VSECH cyklech s hranou (n={reached.Count}, NEuseknuto branou):");
+            Console.WriteLine("  " + v.Line());
+            Console.WriteLine("  " + a.Line());
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  nad branou 1,5 m: {0} ({1:F1} %) - u nich se skutecna chyba nezmeri, brana je usekla",
+                over, 100.0 * over / reached.Count));
+            Console.WriteLine("  POZOR: statistika nad PRIJATYMI (nize) je useknuta prave touhle branou.");
+            Console.WriteLine();
+
+            // Je ten pricny nesouhlas chyba POZY, nebo se paruje JINA hrana? Rozhodne to rozpad
+            // podle nesouhlasu kurzu: kdyz je mapova hrana ta spravna, musi byt rovnobezna s tim,
+            // co vidi kamera. Nesouhlas kolem 90 stupnu je podpis PRICNE ulice u krizovatky -
+            // RoadAxis.Match bere nejblizsi hranu podle VZDALENOSTI, kurz do vyberu nevstupuje.
+            Console.WriteLine("  Je to chyba pozy, nebo spatne naparovana hrana? (rozpad podle nesouhlasu kurzu)");
+            Console.WriteLine("  |nesouhlas kurzu|      n   pricne p50   abs pricne p50   odstup od hrany p50");
+            double[] hb = { 0, 10, 30, 60, 90.0001 };
+            for (int i = 0; i + 1 < hb.Length; i++)
+            {
+                double a0 = hb[i], b0 = hb[i + 1];
+                var bin = reached.Where(m =>
+                {
+                    double h = Math.Abs(Wrap180(m.HeadingDisagreementRad)) * 180 / Math.PI;
+                    return h >= a0 && h < b0;
+                }).ToList();
+                if (bin.Count == 0) continue;
+                var la = new Stats(""); var ed = new Stats(""); var sl = new Stats("");
+                foreach (var m in bin)
+                {
+                    la.Add(Math.Abs(m.LateralDisagreement)); sl.Add(m.LateralDisagreement);
+                    ed.Add(m.EdgeDistance);
+                }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,3:F0}-{1,-3:F0} deg          {2,5}      {3,7:F3}          {4,7:F3}               {5,7:F3}",
+                    a0, b0, bin.Count, sl.Median, la.Median, ed.Median));
+            }
+            Console.WriteLine();
+
+            // Byla poza mimo cestu uz od startu, nebo tam ujela? Rozhoduje to o tom, jestli je
+            // pricna brana nastavena na chybu, kterou ma zachytit. Odstup se bere z mapove strany
+            // (EdgeDistance), tedy nezavisle na tom, co videla kamera.
+            Console.WriteLine("  Odstup POZY od nejblizsi mapove hrany v case (polosirka cesty je ~1,6 m):");
+            Console.WriteLine("  cas [s]         n   odstup p50   odstup p90   abs pricne p50");
+            double t0s = all[0].TimeStamp.Ticks;
+            double lastS = (all[all.Count - 1].TimeStamp - all[0].TimeStamp).TotalSeconds;
+            double step = Math.Max(30, Math.Ceiling(lastS / 8 / 10) * 10);
+            for (double a1 = 0; a1 < lastS; a1 += step)
+            {
+                double b1 = a1 + step;
+                var bin = reached.Where(m =>
+                {
+                    double t = (m.TimeStamp - all[0].TimeStamp).TotalSeconds;
+                    return t >= a1 && t < b1;
+                }).ToList();
+                if (bin.Count == 0) continue;
+                var ed = new Stats(""); var la = new Stats("");
+                foreach (var m in bin) { ed.Add(m.EdgeDistance); la.Add(Math.Abs(m.LateralDisagreement)); }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4:F0}-{1,-4:F0}   {2,6}      {3,7:F3}      {4,7:F3}         {5,7:F3}",
+                    a1, b1, bin.Count, ed.Median, ed.Percentile(90), la.Median));
+            }
+            Console.WriteLine();
+
+            // CO BY PUSTILA JINA BRANA. Pricna brana dnes dela DVE prace najednou: rozhoduje
+            // „jsem na te ceste?" (prirazeni k hrane) a zaroven „neni to odlehla hodnota?".
+            // Prvni prace se pricnou vzdalenosti delat NEMA - to je prave ta velicina, kterou
+            // nezname. Tahle tabulka rika, kolik cyklu by prosla kombinace „okno na AZIMUT
+            // (na poloze nezavisly) + volnejsi pricna brana".
+            Console.WriteLine("  CO BY PUSTILA JINA BRANA (n je z " + reached.Count + " cyklu s hranou):");
+            Console.WriteLine("  okno azimutu    pricna brana 1,5 m    3 m      5 m      8 m    bez brany");
+            foreach (double aw in new[] { 180.0, 30.0, 15.0 })
+            {
+                var sel = reached.Where(m => Math.Abs(Wrap180(m.HeadingDisagreementRad)) * 180 / Math.PI <= aw).ToList();
+                var cells = new List<string>();
+                foreach (double lg in new[] { 1.5, 3.0, 5.0, 8.0, double.MaxValue })
+                {
+                    int c = sel.Count(m => Math.Abs(m.LateralDisagreement) <= lg);
+                    cells.Add(string.Format(CultureInfo.InvariantCulture, "{0,5} ({1,4:F1} %)",
+                                            c, 100.0 * c / Math.Max(1, reached.Count)));
+                }
+                string label = aw >= 180 ? "bez okna" : $"+-{aw:F0} deg";
+                Console.WriteLine($"  {label,-14} {string.Join("  ", cells)}");
+            }
+            Console.WriteLine("  POZOR: okno azimutu je tu spocitane z DNESNIHO kurzu; kdyz je kurz vadny,"
+                              + " posune se cele rozdeleni.");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// <b>Koridor jako reference KURZU</b> proti kurzu nad zemi z GPS.
+        ///
+        /// <para>Merenie kurzu, ktere koridor posila do fuze, je
+        /// <c>θ = (PoseTheta + MapHeadingRelRad) − DirectionRad</c>, tedy <b>azimut mapove hrany
+        /// minus to, o kolik se cesta v ramci robotu jevi stocena</b>. Prvni scitanec je na poze
+        /// nezavisly (je to absolutni azimut hrany), takze cele merenie je nezavisla reference
+        /// kurzu — jedina, ktera nema magneticky bias.</para>
+        ///
+        /// <para><b>Presnost nelze cist z rozptylu proti GPS jako celku:</b> ten nese i sum kurzu
+        /// z GPS a hlavne <b>chybu azimutu mapy</b>, ktera je na jedne hrane KONSTANTA. Proto se
+        /// tiskne rozpad <b>po OSM cestach</b>: stredni hodnota na ceste = bias (mapa + sikme
+        /// jeti), rozptyl uvnitr cesty = sum. A vedle toho σ, kterou hlasi samo prolozeni — pomer
+        /// tech dvou rika, jestli je σ poctiva.</para>
+        /// </summary>
+        private static void HeadingVsGps(RecordFile rec, List<RoadCorridorMsg> all)
+        {
+            const double MinSpeedMps = 0.3;
+            const double MaxSkewSec = 0.15;
+
+            var gps = new List<(DateTime T, double Course)>();
+            foreach (var e in rec.Index)
+            {
+                if (e.MsgName != "GPSState") continue;
+                if (!(rec.Read(e) is GPSState g) || !g.DynamicOrientation.HasValue) continue;
+                double speed = g.Speed ?? g.DynamicSpeed ?? 0.0;
+                if (speed < MinSpeedMps) continue;
+                gps.Add((g.TimeStamp, g.DynamicOrientation.Value));
+            }
+            gps.Sort((x, y) => x.T.CompareTo(y.T));
+
+            Console.WriteLine("KORIDOR JAKO REFERENCE KURZU (proti kurzu nad zemi z GPS):");
+            if (gps.Count == 0)
+            {
+                Console.WriteLine("  zaznam nenese kurz z GPS nad prahem rychlosti - nelze srovnat.");
+                Console.WriteLine();
+                return;
+            }
+
+            var ok = all.Where(m => m.FixReason == (byte)CorridorFixReason.Ok && m.HasPose).ToList();
+            var pairs = new List<(RoadCorridorMsg M, double Corr, double Gps, double Pose)>();
+            foreach (var m in ok)
+            {
+                if (!TryNearestCourse(gps, m.TimeStamp, MaxSkewSec, out double course)) continue;
+                // Rozdil smeru primek slozit na ±90° a teprve pak z nej udelat SMER - tu dvojici
+                // dir / dir+180° rozhodne kurz robotu (kamera to rozhodnout neumi).
+                double corr = Orient(m.PoseTheta + Wrap180(m.MapHeadingRelRad - m.DirectionRad),
+                                     m.PoseTheta);
+                pairs.Add((m, corr, course, m.PoseTheta));
+            }
+            Console.WriteLine($"  cyklu Ok: {ok.Count}, z toho s kurzem z GPS do {MaxSkewSec * 1000:F0} ms "
+                              + $"a nad {MinSpeedMps:F1} m/s: {pairs.Count}");
+
+            // Kolikrat by se na orientaci primky slo spalit? Merenie kurzu, ktere jde do fuze, se
+            // pocita jako (PoseTheta + HeadingRel) − Direction BEZ slozeni na ±90° a bez
+            // rozhodnuti, kterym smerem cesta vede. Kdyz vyjde vic nez 90° od kurzu robotu, je
+            // vybrany OPACNY smer primky - a do fuze jde kurz otoceny.
+            int flipped = ok.Count(m => Math.Abs(Wrap(m.MapHeadingRelRad - m.DirectionRad)) > Math.PI / 2);
+            Console.WriteLine($"  z toho by BEZ orientace podle kurzu robotu vyslo na opacnou stranu"
+                              + $" primky: {flipped} ({100.0 * flipped / Math.Max(1, ok.Count):F1} %)");
+            if (pairs.Count < 5) { Console.WriteLine("  malo vzorku."); Console.WriteLine(); return; }
+
+            var dCorr = new Stats("koridor - GPS kurz [deg]");
+            var dPose = new Stats("odhad fuze - GPS kurz [deg]");
+            var dMap = new Stats("koridor - odhad fuze [deg]");
+            var sig = new Stats("sigma prolozeni [deg]");
+            foreach (var p in pairs)
+            {
+                dCorr.Add(Wrap(p.Corr - p.Gps) * 180 / Math.PI);
+                dPose.Add(Wrap(p.Pose - p.Gps) * 180 / Math.PI);
+                dMap.Add(Wrap(p.Corr - p.Pose) * 180 / Math.PI);
+                sig.Add(p.M.SigmaDirectionRad * 180 / Math.PI);
+            }
+            Console.WriteLine("  " + dCorr.Line());
+            Console.WriteLine("  " + dPose.Line());
+            Console.WriteLine("  " + dMap.Line());
+            Console.WriteLine("  " + sig.Line());
+            Console.WriteLine();
+
+            // Rozpad po ceste je tu proto, ze chyba azimutu MAPY je na jedne hrane konstanta:
+            // stredni hodnota na ceste ji tedy nese, rozptyl uvnitr cesty uz ne.
+            //
+            // ⚠️ Tiskne se stred i MEDIAN a sd i ROBUSTNI sd (1,4826·MAD), protoze rozdeleni je
+            // dvouvrcholove: u krizovatky se jako "nejblizsi hrana" vybere PRICNA ulice a rozpor
+            // vyskoci o ~90 stupnu. Prumer a sd takovou primes rozmazou pres celou cestu a
+            // vypadalo by to, ze koridor kurz nemeri - pritom nemeri MAPA spravnou hranu.
+            Console.WriteLine("  Rozpad po OSM ceste (stred = bias mapy a sikmeho jeti, rozptyl uvnitr = sum):");
+            Console.WriteLine("  wayId              n     stred      sd    median   robust sd   |d|>20deg   sigma fitu");
+            double sumSq = 0; int sumN = 0;
+            foreach (var g in pairs.GroupBy(p => p.M.WayId).OrderByDescending(x => x.Count()))
+            {
+                var d = g.Select(p => Wrap(p.Corr - p.Gps) * 180 / Math.PI).ToList();
+                if (d.Count < 3) continue;
+                double mean = d.Average();
+                double sd = Math.Sqrt(d.Sum(x => (x - mean) * (x - mean)) / (d.Count - 1));
+                double med = Median(d);
+                double rsd = 1.4826 * Median(d.Select(x => Math.Abs(x - med)).ToList());
+                int outl = d.Count(x => Math.Abs(x - med) > 20);
+                var sg = new Stats(""); foreach (var pr in g) sg.Add(pr.M.SigmaDirectionRad * 180 / Math.PI);
+                sumSq += (d.Count - 1) * rsd * rsd; sumN += d.Count - 1;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,-12} {1,5}  {2,8:F2} {3,7:F2}  {4,8:F2}    {5,8:F2}   {6,5:F1} %      {7,6:F2}",
+                    g.Key, d.Count, mean, sd, med, rsd, 100.0 * outl / d.Count, sg.Median));
+            }
+            if (sumN > 0)
+            {
+                double pooled = Math.Sqrt(sumSq / sumN);
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  sdruzena ROBUSTNI sd uvnitr cest: {0:F2} deg (nese i sum kurzu z GPS -> HORNI mez)",
+                    pooled));
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  proti sigme prolozeni p50 {0:F2} deg -> prolozeni je {1:F0}x optimistictejsi",
+                    sig.Median, pooled / Math.Max(1e-9, sig.Median)));
+                Console.WriteLine("  Sloupec |d|>20deg je podil cyklu, kde se nejspis paruje JINA hrana"
+                                  + " (krizovatka) - to neni sum koridoru.");
+            }
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Jak dopadlo <b>prirazeni k hrane</b> (verze 6 zpravy): skore viteze, odstup od druheho
+        /// a pocet kandidatu.
+        ///
+        /// <para><b>Nacpak to je:</b> <c>assocchi2=</c> a <c>assocmargin=</c> jdou proladit jen
+        /// OFFLINE nad zaznamem — prah odstupu se z niceho jineho nez z rozdeleni odstupu
+        /// odvodit neda.</para>
+        /// </summary>
+        private static void AssociationScore(List<RoadCorridorMsg> all)
+        {
+            var withScore = all.Where(m => !double.IsNaN(m.AssocChi2)).ToList();
+            if (withScore.Count == 0) return;      // starsi zaznam, prirazeni se nepocitalo
+
+            var chi = new Stats("chi2 viteze");
+            var second = new Stats("chi2 druheho");
+            var margin = new Stats("odstup od druheho");
+            var cand = new Stats("kandidatu po vetu");
+            foreach (var m in withScore)
+            {
+                chi.Add(m.AssocChi2);
+                cand.Add(m.AssocCandidates);
+                if (!double.IsNaN(m.AssocChi2Second))
+                {
+                    second.Add(m.AssocChi2Second);
+                    margin.Add(m.AssocChi2Second - m.AssocChi2);
+                }
+            }
+
+            Console.WriteLine($"PRIRAZENI K HRANE (skore, n={withScore.Count}):");
+            Console.WriteLine("  " + chi.Line());
+            Console.WriteLine("  " + second.Line());
+            Console.WriteLine("  " + margin.Line());
+            Console.WriteLine("  " + cand.Line());
+            int amb = all.Count(m => (CorridorFixReason)m.FixReason == CorridorFixReason.AmbiguousEdge);
+            int mis = all.Count(m => (CorridorFixReason)m.FixReason == CorridorFixReason.EdgeMismatch);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  nejednoznacnych {0} ({1:F1} %), bez sedici hrany {2} ({3:F1} %)",
+                amb, 100.0 * amb / all.Count, mis, 100.0 * mis / all.Count));
+            Console.WriteLine("  Jen druhy kandidat s malym odstupem je NEJEDNOZNACNOST - jeden"
+                              + " kandidat znamena, ze v okoli zadna jina cesta neni.");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Podklad pro <b>prirazeni k hrane jako Mahalanobisovu vzdalenost</b>: jake sigmy jsou
+        /// vubec k dispozici a jak by z nich vysly obe slozky chi-kvadratu.
+        ///
+        /// <para>Otazka „jak slozit odchylku VZDALENOSTI a odchylku SMERU do jednoho cisla" ma
+        /// odpoved bez volnych vah: obe veliciny maji svou sigmu, takze se deli tou svou a
+        /// scitaji az bezrozmerne. Vahy se pak nenastavuji - <b>meri se</b>. Tenhle blok tiskne
+        /// vsechny ctyri sigmy, ktere do toho vstupuji, protoze dve z nich jsou v zaznamu
+        /// (kovariance pozy z fuze) a dve hlasi samo prolozeni.</para>
+        ///
+        /// <para>⚠️ <b>Hlasene sigmy jsou nepoctive</b> a je to zmerene (viz blok o kurzu vys
+        /// a doc/imu-and-frames.md), takze se tiskne i varianta s <b>podlahou</b> - tatáz lecba
+        /// jako <c>imuheadingstd=</c> u kompasu.</para>
+        /// </summary>
+        private static void AssociationSigmas(RecordFile rec, List<RoadCorridorMsg> all)
+        {
+            var reached = all.Where(ReachedLateralGate).ToList();
+            if (reached.Count == 0) return;
+            var poses = new PoseTrack(rec);
+
+            var sLat = new Stats("sigma pozy pricne [m]");
+            var sTh = new Stats("sigma pozy kurz [deg]");
+            var cLat = new Stats("sigma koridoru pricne [m]");
+            var cTh = new Stats("sigma koridoru kurz [deg]");
+            var chiLat = new Stats("chi2 pricne (hlasene sigmy)");
+            var chiTh = new Stats("chi2 kurz (hlasene sigmy)");
+            var chiThF = new Stats("chi2 kurz (podlaha 10 deg)");
+            const double FloorDeg = 10.0;
+
+            foreach (var m in reached)
+            {
+                var st = poses.Nearest(m.TimeStamp);
+                if (st?.Covariance == null || st.Covariance.RowCount <= EKFModel.ITh) continue;
+
+                // Pricny smer je NORMALA hrany; azimut hrany je PoseTheta + MapHeadingRelRad.
+                double edgeAz = m.PoseTheta + m.MapHeadingRelRad;
+                double nx = -Math.Sin(edgeAz), ny = Math.Cos(edgeAz);
+                double pxx = st.Covariance[EKFModel.IX, EKFModel.IX];
+                double pxy = st.Covariance[EKFModel.IX, EKFModel.IY];
+                double pyy = st.Covariance[EKFModel.IY, EKFModel.IY];
+                double varLat = nx * nx * pxx + 2 * nx * ny * pxy + ny * ny * pyy;
+                double varTh = st.Covariance[EKFModel.ITh, EKFModel.ITh];
+                if (varLat <= 0 || varTh <= 0) continue;
+
+                double sigLat = Math.Sqrt(varLat), sigTh = Math.Sqrt(varTh);
+                sLat.Add(sigLat); sTh.Add(sigTh * 180 / Math.PI);
+                cLat.Add(m.SigmaLateral); cTh.Add(m.SigmaDirectionRad * 180 / Math.PI);
+
+                double dLat = m.LateralDisagreement;
+                double dTh = Wrap180(m.HeadingDisagreementRad);
+                chiLat.Add(dLat * dLat / (varLat + m.SigmaLateral * m.SigmaLateral));
+                chiTh.Add(dTh * dTh / (varTh + m.SigmaDirectionRad * m.SigmaDirectionRad));
+                double floor = FloorDeg * Math.PI / 180;
+                chiThF.Add(dTh * dTh / Math.Max(varTh + m.SigmaDirectionRad * m.SigmaDirectionRad, floor * floor));
+            }
+
+            if (sLat.Count == 0)
+            {
+                Console.WriteLine("PODKLAD PRO PRIRAZENI K HRANE: zaznam nenese kovarianci pozy.");
+                Console.WriteLine();
+                return;
+            }
+
+            Console.WriteLine($"PODKLAD PRO PRIRAZENI K HRANE (Mahalanobis, n={sLat.Count}):");
+            Console.WriteLine("  " + sLat.Line());
+            Console.WriteLine("  " + cLat.Line());
+            Console.WriteLine("  " + sTh.Line());
+            Console.WriteLine("  " + cTh.Line());
+            Console.WriteLine();
+            Console.WriteLine("  " + chiLat.Line());
+            Console.WriteLine("  " + chiTh.Line());
+            Console.WriteLine("  " + chiThF.Line());
+            Console.WriteLine("  Prah chi2 pro 2 stupne volnosti: 5,99 (95 %), 9,21 (99 %).");
+            Console.WriteLine("  POZOR: kdyz je chi2 kurzu radove nad prahem i na SPRAVNE hrane,"
+                              + " je vadna sigma, ne prirazeni.");
+            Console.WriteLine();
+        }
+
+        /// <summary>Kurz z GPS nejblizsi danemu casu, nebo <c>false</c> pri vetsim rozestupu.</summary>
+        private static bool TryNearestCourse(List<(DateTime T, double Course)> gps, DateTime t,
+                                             double maxSkewSec, out double course)
+        {
+            course = 0;
+            int lo = 0, hi = gps.Count - 1, first = gps.Count;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) / 2;
+                if (gps[mid].T < t) lo = mid + 1; else { first = mid; hi = mid - 1; }
+            }
+            double bestDt = double.MaxValue; int bestI = -1;
+            foreach (int i in new[] { first - 1, first })
+            {
+                if (i < 0 || i >= gps.Count) continue;
+                double dt = Math.Abs((gps[i].T - t).TotalSeconds);
+                if (dt < bestDt) { bestDt = dt; bestI = i; }
+            }
+            if (bestI < 0 || bestDt > maxSkewSec) return false;
+            course = gps[bestI].Course;
+            return true;
+        }
+
+        private static double Median(List<double> v)
+        {
+            if (v.Count == 0) return double.NaN;
+            var t = v.OrderBy(x => x).ToList();
+            return t.Count % 2 == 1 ? t[t.Count / 2] : 0.5 * (t[t.Count / 2 - 1] + t[t.Count / 2]);
+        }
+
+        private static double Wrap(double a) => Math.Atan2(Math.Sin(a), Math.Cos(a));
+
+        /// <summary>
+        /// Slozeni uhlu na (−90°, 90°] — <b>rozdil smeru dvou PRIMEK</b>, ne dvou sipek.
+        ///
+        /// <para><b>Proc to tu je.</b> Kamera vidi cestu, ale ne kterym smerem po ni jedeme:
+        /// primka nema orientaci, takze smer x a x+180° jsou totez. <c>RoadCorridor.DirectionRad</c>
+        /// i <c>RoadAxisMatch.HeadingRelRad</c> jsou proto oba slozene na ±90°, jenze jejich
+        /// ROZDIL uz slozeny neni — a kdyz je cesta zhruba kolma na kurz robotu, vyjde jedno
+        /// z cisel u +89° a druhe u −89°, tedy rozdil 178° tam, kde je skutecny nesouhlas 2°.
+        /// Bez tohohle skladani se takovy cyklus tvari jako pricna ulice.</para>
+        /// </summary>
+        private static double Wrap180(double a)
+        {
+            a = Math.IEEERemainder(a, Math.PI);
+            if (a > Math.PI / 2) a -= Math.PI;
+            if (a <= -Math.PI / 2) a += Math.PI;
+            return a;
+        }
+
+        /// <summary>
+        /// Rozhodne, kterym smerem cesta vede: <b>podle kurzu robotu</b>. Z dvojice
+        /// <c>dir</c> / <c>dir + 180°</c> vrati tu blizsi kurzu.
+        /// </summary>
+        private static double Orient(double dir, double heading)
+            => Math.Abs(Wrap(dir - heading)) <= Math.PI / 2 ? dir : Wrap(dir + Math.PI);
 
         /// <summary>
         /// Rozpad prijatych merenii podle <b>rychlosti robotu</b> a podle <b>casu v behu</b>
@@ -308,7 +790,7 @@ namespace ARBot.Analyze
                 stats[4].Add(m.LateralDisagreement);
                 stats[5].Add(Math.Abs(m.LateralDisagreement));
                 stats[6].Add(Math.Abs(m.ParallelErrorRad) * 180 / Math.PI);
-                stats[7].Add(Math.Abs(m.HeadingDisagreementRad) * 180 / Math.PI);
+                stats[7].Add(Math.Abs(Wrap180(m.HeadingDisagreementRad)) * 180 / Math.PI);
                 stats[8].Add(0.5 * (m.ResidualLeft + m.ResidualRight));
                 stats[9].Add(m.InliersLeft);
                 stats[10].Add(m.InliersRight);

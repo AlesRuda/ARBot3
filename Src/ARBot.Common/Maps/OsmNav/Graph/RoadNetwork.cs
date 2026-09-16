@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,6 +55,81 @@ public sealed class RoadNetwork
     /// zavisi vyber cilove hrany pri splitu, viz <c>GoalFieldSplitTests</c>. Bod lezici PRESNE na
     /// obousmerne hrane je stejne daleko od obou jejich smeru, takze tohle poradi neni detail.</para>
     /// </summary>
+    /// <summary>
+    /// Kandidat na „hranu, po ktere jedeme" — vysledek <see cref="NearestEdges"/>.
+    /// </summary>
+    public readonly struct EdgeCandidate
+    {
+        public EdgeCandidate(Edge edge, double t, LLA projection, double distanceM)
+        {
+            Edge = edge; T = t; Projection = projection; DistanceM = distanceM;
+        }
+
+        /// <summary>Hrana site.</summary>
+        public Edge Edge { get; }
+
+        /// <summary>Parametr kolmeho prumetu na hranu (0 = From, 1 = To).</summary>
+        public double T { get; }
+
+        /// <summary>Kolmy prumet bodu na hranu.</summary>
+        public LLA Projection { get; }
+
+        /// <summary>Vzdalenost bodu od hrany [m].</summary>
+        public double DistanceM { get; }
+    }
+
+    /// <summary>
+    /// <b>K nejblizsich hran</b> k bodu, serazenych od nejblizsi — kandidati pro prirazeni
+    /// „po ktere ceste jedu".
+    ///
+    /// <para><b>Proc ne jen <see cref="NearestEdge"/>.</b> Nejblizsi hrana nemusi byt ta spravna:
+    /// pri chybe polohy nekolika metru vyhraje u krizovatky <b>pricna ulice</b>. Zmereno
+    /// 16. 9. 2026, ze se to tyka <b>poloviny</b> cyklu hranove lokalizace. Rozhodnout to jde az
+    /// dalsim udajem (azimut, sirka), a k tomu je potreba vic nez jeden kandidat. Viz
+    /// doc/map-correlation-localization.md.</para>
+    ///
+    /// <para>⚠️ <b>Obousmerna cesta je v siti DVE hrany</b> se shodnou geometrii a nulovym
+    /// rozdilem vzdalenosti. Do vysledku jde jen <b>jedna z nich</b> (ta drive pridana, stejne
+    /// jako u <see cref="NearestEdge"/>) — jinak by kazde prirazeni vyslo jako nejednoznacne,
+    /// protoze druhy kandidat by byl tyz kus asfaltu.</para>
+    /// </summary>
+    /// <param name="p">Bod (poloha robotu).</param>
+    /// <param name="k">Nejvyse kolik kandidatu vratit (pod 1 se bere 1).</param>
+    /// <param name="maxDistanceM">Kandidaty dal nez tohle se zahodi.</param>
+    public IReadOnlyList<EdgeCandidate> NearestEdges(LLA p, int k,
+                                                    double maxDistanceM = double.PositiveInfinity)
+    {
+        if (k < 1) k = 1;
+        var best = new List<EdgeCandidate>(k + 1);
+        var seen = new List<(long From, long To, long Way)>(k + 1);
+
+        for (int i = 0; i < _edges.Count; i++)
+        {
+            if (double.IsPositiveInfinity(_traversal[i])) continue;
+            var e = _edges[i];
+            var (cp, d, tt) = p.ProjectOntoSegment(e.From.Location, e.To.Location);
+            if (d > maxDistanceM) continue;
+            if (best.Count == k && d >= best[best.Count - 1].DistanceM) continue;
+
+            // Neorientovany klic: obe hrany obousmerne cesty jsou tyz kus asfaltu.
+            var key = e.From.Id <= e.To.Id ? (e.From.Id, e.To.Id, e.WayId) : (e.To.Id, e.From.Id, e.WayId);
+            int dup = seen.IndexOf(key);
+            if (dup >= 0)
+            {
+                // Drive pridana hrana vyhrava (ostre <), stejne jako v NearestEdge.
+                if (d >= best[dup].DistanceM) continue;
+                best.RemoveAt(dup); seen.RemoveAt(dup);
+            }
+
+            int at = best.Count;
+            while (at > 0 && best[at - 1].DistanceM > d) at--;
+            best.Insert(at, new EdgeCandidate(e, tt, cp, d));
+            seen.Insert(at, key);
+            if (best.Count > k) { best.RemoveAt(best.Count - 1); seen.RemoveAt(seen.Count - 1); }
+        }
+        return best;
+    }
+
     public Edge? NearestEdge(LLA p, out double t, out LLA proj, out double distance)
     {
         Edge? best = null; distance = double.PositiveInfinity; t = 0; proj = p;

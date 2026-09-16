@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
@@ -52,6 +52,23 @@ namespace ARBot.Common.Localization
         /// je to rozjezd, ne porucha, a vyresi se sam za jednotky sekund.</para>
         /// </summary>
         WidthNotTrusted = 9,
+
+        /// <summary>
+        /// <b>Zadna hrana v okoli nesedla na to, co vidi kamera</b> — vsichni kandidati padli na
+        /// veto azimutu nebo na strop chi-kvadratu (<see cref="EdgeAssociator"/>).
+        ///
+        /// <para>Liší se od <see cref="EdgeTooFar"/>: tam mapa cestu ma, ale je daleko; tady je
+        /// blizko, jenze vede jinam, nez kudy vede videny koridor.</para>
+        /// </summary>
+        EdgeMismatch = 10,
+
+        /// <summary>
+        /// <b>Dve hrany vysly podobne</b> — nevime, po ktere ceste jedeme, takze se neposila nic.
+        ///
+        /// <para>Vybrat tu o chlup lepsi by znamenalo hadat. Podil tohohle duvodu v zaznamu je
+        /// zaroven meridlo, jak casto je mapa v okoli nejednoznacna.</para>
+        /// </summary>
+        AmbiguousEdge = 11,
     }
 
     /// <summary>
@@ -155,23 +172,60 @@ namespace ARBot.Common.Localization
                 return null;
             }
 
-            var axis = RoadAxis.Match(network, origin, pose.X, pose.Y, pose.Theta);
-            if (!axis.Found)
+            // KTEROU CESTU vlastne jedeme. Nejblizsi hrana to nemusi byt: pri chybe polohy
+            // nekolika metru vyhraje u krizovatky pricna ulice (zmereno 16. 9. 2026 - tyka se to
+            // POLOVINY cyklu). Rozhoduje proto azimut, ktery na poloze nezavisi, skladany
+            // s pricnou odchylkou pres chi-kvadrat. Viz EdgeAssociator.
+            RoadAxisMatch axis;
+            if (config.Association.Enabled)
             {
-                fix.Reason = CorridorFixReason.NoEdge;
-                LastFix = fix;
-                return null;
+                var assoc = EdgeAssociator.Associate(network, origin, pose, corridor,
+                                                     config.Association, config.MaxEdgeDistanceM);
+                axis = assoc.Axis;
+                fix.AssocChi2 = assoc.Chi2;
+                fix.AssocChi2Second = assoc.Chi2Second;
+                fix.AssocCandidates = assoc.Candidates;
+
+                if (assoc.Result != EdgeAssocResult.Ok)
+                {
+                    fix.Axis = axis;
+                    fix.Reason = assoc.Result switch
+                    {
+                        EdgeAssocResult.Ambiguous => CorridorFixReason.AmbiguousEdge,
+                        EdgeAssocResult.NoCandidate => axis.Found && axis.DistanceM > config.MaxEdgeDistanceM
+                                                       ? CorridorFixReason.EdgeTooFar
+                                                       : CorridorFixReason.EdgeMismatch,
+                        _ => CorridorFixReason.NoEdge,
+                    };
+                    LastFix = fix;
+                    return null;
+                }
             }
-            if (axis.DistanceM > config.MaxEdgeDistanceM)
+            else
             {
-                fix.Reason = CorridorFixReason.EdgeTooFar;
-                LastFix = fix;
-                return null;
+                axis = RoadAxis.Match(network, origin, pose.X, pose.Y, pose.Theta);
+                if (!axis.Found)
+                {
+                    fix.Reason = CorridorFixReason.NoEdge;
+                    LastFix = fix;
+                    return null;
+                }
+                if (axis.DistanceM > config.MaxEdgeDistanceM)
+                {
+                    fix.Reason = CorridorFixReason.EdgeTooFar;
+                    LastFix = fix;
+                    return null;
+                }
             }
 
             fix.Axis = axis;
             fix.LateralDisagreement = corridor.Lateral - axis.Lateral;
-            fix.HeadingDisagreementRad = corridor.DirectionRad - axis.HeadingRelRad;
+
+            // Rozdil smeru dvou PRIMEK, tedy slozeny na +-90 stupnu. Kamera nevidi, kterym smerem
+            // po ceste jedeme (smer x a x+180 jsou totez), takze bez slozeni vyjde u cesty kolme
+            // na kurz rozdil 178 stupnu tam, kde je nesouhlas 2. Driv se ukladal surovy.
+            fix.HeadingDisagreementRad =
+                Conversions.NormalizeHalfOrientation(corridor.DirectionRad - axis.HeadingRelRad);
 
             // PRICNY nesouhlas se posuzuje PRVNI a je na sirce nezavisly - rika „jsem vubec na
             // teto ceste?". Nad stropem uz neni jiste ani to, ke KTERE hrane merenie patri,
@@ -264,9 +318,23 @@ namespace ARBot.Common.Localization
 
             if (config.SendHeading)
             {
-                // θ_edge = kurz robotu + relativni sklon hrany; θ_true = θ_edge − smer koridoru.
-                double edgeDir = fix.PoseTheta + a.HeadingRelRad;
-                engine.Enqueue(new HeadingMeasurement(edgeDir - c.DirectionRad,
+                // θ_true = kurz robotu + (sklon hrany − smer koridoru).
+                //
+                // ⚠️ Ten rozdil je rozdil dvou PRIMEK: kamera vidi cestu, ale ne kterym smerem po
+                // ni jedeme, takze DirectionRad je slozeny na ±90° a smysl nenese. Slozit se proto
+                // musi i rozdil — bez toho vyjde u cesty zhruba kolme na kurz jedno cislo u +89°
+                // a druhe u −89° a do fuze jde kurz otoceny az o 180°. Naměřeno nad
+                // 20260916-164926.rec: tykalo by se to 40 ze 424 prijatych cyklu (9,4 %), a
+                // GateMode.Soft takove merenie NEZAHODI, jen odtlumi.
+                //
+                // Kterym smerem cesta vede, rozhodne KURZ ROBOTU - jina reference na to neni.
+                // ⚠️ Cena: koridor tim uz nikdy nerekne „jsi otoceny o 180°" (potvrdil by i
+                // obraceny kurz). Na prevraceni musi hlidat kurz z GPS, ktery je skutecny smer,
+                // ne primka. Viz doc/map-correlation-localization.md.
+                double d = Conversions.NormalizeHalfOrientation(a.HeadingRelRad - c.DirectionRad);
+                double heading = Conversions.NormalizePrimaryOrientation(fix.PoseTheta,
+                                                                         fix.PoseTheta + d);
+                engine.Enqueue(new HeadingMeasurement(heading,
                                                       Nafoukni(c.SigmaDirectionRad, config.SigmaHeadingExtraRad),
                                                       fix.Time, config.MeasurementSource)
                 { GateThreshold = gate, GateMode = config.GateMode });

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 
 namespace ARBot.Common.Logs
@@ -161,13 +161,26 @@ namespace ARBot.Common.Logs
         /// </summary>
         public double PoseX, PoseY, PoseTheta;
 
+        /// <summary>
+        /// Chi-kvadrat <b>vybrane</b> hrany a <b>druheho</b> kandidata (verze 6); <c>NaN</c>,
+        /// kdyz se prirazeni nepocitalo nebo druhy kandidat nebyl.
+        ///
+        /// <para><b>Nacpak to je:</b> prah jednoznacnosti jde jen tak proladit <b>offline</b> nad
+        /// zaznamem — jinak by se hadal. Hodnoty chodi i u zamitnutych cyklu, protoze prave ty
+        /// rikaji, kde byla mapa nejednoznacna.</para>
+        /// </summary>
+        public double AssocChi2 = double.NaN, AssocChi2Second = double.NaN;
+
+        /// <summary>Kolik kandidatnich hran se posuzovalo, po vetu azimutu (verze 6).</summary>
+        public int AssocCandidates;
+
         /// <summary>Je <see cref="PoseX"/> vyplnena? (Nula je legitimni poloha, proto vlastni priznak.)</summary>
         public bool HasPose;
 
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RoadCorridorMsg() : base("RoadCorridorMsg", 5)
+        public RoadCorridorMsg() : base("RoadCorridorMsg", 6)
         {
         }
 
@@ -208,6 +221,10 @@ namespace ARBot.Common.Logs
 
             bw.Write(HasPose);              // verze 5
             bw.Write(PoseX); bw.Write(PoseY); bw.Write(PoseTheta);
+
+            bw.Write(AssocChi2);            // verze 6
+            bw.Write(AssocChi2Second);
+            bw.Write(AssocCandidates);
         }
 
         public override void FromData(BinaryReader br)
@@ -261,6 +278,15 @@ namespace ARBot.Common.Logs
             {
                 HasPose = br.ReadBoolean();
                 PoseX = br.ReadDouble(); PoseY = br.ReadDouble(); PoseTheta = br.ReadDouble();
+            }
+
+            // Starsi zaznamy prirazeni pres chi-kvadrat nemely - NaN rika "nepocitalo se",
+            // coz je jina informace nez nula (ta by znamenala dokonalou shodu).
+            if (Verze >= 6)
+            {
+                AssocChi2 = br.ReadDouble();
+                AssocChi2Second = br.ReadDouble();
+                AssocCandidates = br.ReadInt32();
             }
         }
 

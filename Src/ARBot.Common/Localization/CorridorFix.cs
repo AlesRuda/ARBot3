@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace ARBot.Common.Localization
 {
@@ -72,6 +72,24 @@ namespace ARBot.Common.Localization
         /// <summary>Poslala se korekce kurzu?</summary>
         public bool EmittedHeading;
 
+        /// <summary>
+        /// Chi-kvadrat <b>vybrane</b> hrany (<see cref="EdgeAssociator"/>); <c>NaN</c>, kdyz se
+        /// prirazeni nepocitalo.
+        /// </summary>
+        public double AssocChi2 = double.NaN;
+
+        /// <summary>
+        /// Chi-kvadrat <b>druheho</b> kandidata; <c>NaN</c>, kdyz zadny druhy nebyl.
+        ///
+        /// <para><b>Nacpak to je:</b> odstup od druheho je to jedine, z ceho jde poznat, jestli
+        /// bylo prirazeni jednoznacne — a jde ho tak proladit OFFLINE nad zaznamem, misto aby se
+        /// prah hadal. Tez proto tu je <see cref="AssocChi2"/> i u zamitnutych cyklu.</para>
+        /// </summary>
+        public double AssocChi2Second = double.NaN;
+
+        /// <summary>Kolik kandidatu se posuzovalo (po vetu azimutu).</summary>
+        public int AssocCandidates;
+
         /// <summary>Proc se z koridoru (ne)stalo merenie.</summary>
         public CorridorFixReason Reason;
 
@@ -111,6 +129,10 @@ namespace ARBot.Common.Localization
                 PoseX = PoseX,
                 PoseY = PoseY,
                 PoseTheta = PoseTheta,
+
+                AssocChi2 = AssocChi2,              // verze 6
+                AssocChi2Second = AssocChi2Second,
+                AssocCandidates = AssocCandidates,
             };
             // Bez koridoru (chybela druha kamera) by vychozi 0 znamenala "Ok" - to by v telemetrii
             // lhalo, proto vlastni hodnota.

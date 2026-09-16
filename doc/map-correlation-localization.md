@@ -1,4 +1,4 @@
-# Korelace occupancy gridu s mapou — odhad polohy
+﻿# Korelace occupancy gridu s mapou — odhad polohy
 
 Robot ví, jak vypadá vozovka **kolem sebe** (occupancy grid, kanál `LRoad` ze semantiky RGB),
 a zároveň ví, jak vypadá vozovka **podle mapy** (OSM síť, `RoadScene.IsRoad`). Když se ty dva obrazy
@@ -2869,3 +2869,384 @@ i špatný odhad — a už by ho nikdo nepřepsal měřením, protože šířkov
 mapa přestavěna jednou, 9 uzlů; bez parametru beze změny). ⚠️ **Na zařízení neběželo nic**
 a prahy 0,25 m / 10 s jsou **odhad** — jdou doladit offline, protože celý mechanismus je čistá
 funkce posloupnosti `Width` z `RoadCorridorMsg`.
+
+
+## První měřicí záznam koridoru ze zařízení (16. 9. 2026)
+
+`records/test/20260916-164926.rec` — Orange Pi, `config/pi-provoz.cfg`, `mission=track`
+(zvoleno za běhu), 505 s jízdy, 8 089 `RoadCorridorMsg`. **První záznam, ve kterém hranová
+lokalizace na zařízení vůbec běžela** (dosud „na HW neběželo nic").
+
+### Korekce se do fúze nedostaly — a je to záměr profilu, ne porucha
+
+Účinná konfigurace v záznamu: `corridor=true (profil)`, **`corridorsend=false (profil)`**,
+`corridorstd/headingstd/hz = 0 (default)`, `measdiag=Corridor (profil)`. `CorridorLocalizer`
+posílá měření až za testem `if (config.SendCorrections) Send(fix)`, takže do EKF **neodešlo nic**:
+
+| | |
+|---|---|
+| cyklů s `FixReason = Ok` | **424** (5,2 %) |
+| z toho odeslaná příčná korekce | **0** |
+| z toho odeslaná korekce kurzu | **0** |
+| `MeasurementDiagMsg` v záznamu | **0** (přitom `measdiag=Corridor` byl zapnutý) |
+
+⚠️ **`FixReason = Ok` neznamená „došlo to do fúze"** — znamená jen „prošlo branami koridoru".
+Přesně na tuhle záměnu už jednou dolehla plošná korelace. `RoadCorridorMsg` nese od verze 4
+`EmittedLateral` / `EmittedHeading` / `DroppedByFusion`, ale **report je netiskl**; od 16. 9. 2026
+má `ARBot.Analyze corridor` blok *„Doslo to do fuze?"*, který ty tři hodnoty ukáže a při nule
+odeslaných to označí. Bez něj se ta otázka zodpovídala oklikou přes výpis konfigurace.
+
+### Proč je `Ok` jen 5,2 % — trychtýř
+
+Plochý výčet `FixReason` na tu otázku neodpoví: brány jsou **v řadě za sebou** a každá vidí jen to,
+co jí pustila předchozí. Od 16. 9. 2026 to `ARBot.Analyze corridor` tiskne jako trychtýř:
+
+| brána | přežilo | z celku | z předchozí |
+|---|---|---|---|
+| snímků do stupně | 8 089 | 100 % | 100 % |
+| + napárovaná druhá kamera | 7 849 | 97,0 % | 97,0 % |
+| + **koridor se proložil** | 2 313 | 28,6 % | **29,5 %** |
+| + mapa má po ruce hranu | 2 256 | 27,9 % | 97,5 % |
+| + **příčná brána** (1,5 m) | 538 | 6,7 % | **23,8 %** |
+| = `Ok` (šířkové brány) | 424 | 5,2 % | 78,8 % |
+
+Ztráty jsou tedy **dvě, obě velké a na sobě nezávislé**: koridor se neproloží ze **70 %** snímků
+(`TooFewInliers` 3 383, `NotParallel` 1 214, `OneSideOnly` 885) a z těch, co projdou, **76 %**
+neprojde příčnou bránou. Šířkové brány naopak skoro nic neberou (78,8 % projde).
+
+### ⚠️ Příčný nesouhlas je 3,2 m, ne 1,2 m — statistika nad přijatými je uťatá
+
+Nad **přijatými** měřeními vychází příčný nesouhlas `|p50|` 0,536 m, p90 1,198 m. **To se nesmí
+číst jako chyba polohy** — je to uťaté právě tou bránou, kterou to popisuje
+(`MaxLateralDisagreementM = 1,5 m`), takže p90 nemůže vyjít větší než strop, ať je póza jakkoli
+špatná. Selekční efekt, ne měření. Nad **všemi** 2 256 cykly, které na bránu došly:
+
+| | |
+|---|---|
+| příčný nesouhlas `abs p50` | **3,165 m** |
+| `abs p90` | **6,632 m** (max 8,344 m) |
+| nad bránou 1,5 m | 1 718 = **76,2 %** |
+| odstup pózy od nejbližší hrany, p50 | **2,8–3,6 m** |
+
+Na cestě široké 3,2 m to znamená, že póza byla většinu jízdy **mimo mapovanou vozovku**.
+Znaménko se přitom nedrží (`p50` +0,45 m proti `abs p50` 3,17 m), takže **to není konstantní posun
+mapy** — póza bloudí.
+
+### Polovina cyklů se páruje na PŘÍČNOU ulici
+
+Rozpad podle nesouhlasu kurzu (od 16. 9. 2026 v reportu) říká, o co jde:
+
+| \|nesouhlas kurzu\| | n | příčně p50 | abs příčně p50 | odstup od hrany p50 |
+|---|---|---|---|---|
+| 0–10° | 606 | −1,064 m | 3,258 m | 2,770 m |
+| 10–30° | 535 | +3,423 m | 4,181 m | 3,555 m |
+| 30–60° | 1 | | 3,564 m | 4,143 m |
+| **60–180°** | **1 114 (49,4 %)** | +0,703 m | 2,882 m | 3,328 m |
+
+⚠️ **U poloviny cyklů je mapová hrana na to, co vidí kamera, prakticky kolmá.** To není šum
+koridoru — `RoadAxis.Match` bere `RoadNetwork.NearestEdge`, tedy **nejbližší hranu podle
+vzdálenosti**, a kurz do výběru **nevstupuje vůbec**. Když je póza 3 m vedle a poblíž je křižovatka,
+vyhraje příčná ulice; ta má v téhle mapě navíc **tutéž šířku 3 m** (žádný tag `width`), takže
+neselže ani šířková brána. Léčba je zjevná (do výběru hrany přidat shodu azimutu), ale **napřed
+se musí spravit kurz** — jinak se bude zamítat podle reference, která je sama o 15–20° vedle.
+
+⚠️ I v „čisté" skupině (`|Δkurz| < 10°`) je ale příčný nesouhlas `abs p50` **3,26 m**, takže špatné
+párování hran **není jediná příčina** — póza je skutečně několik metrů vedle.
+
+### ✅ Koridor jako reference kurzu: na hlavní cestě **+0,4° ± 2,3°**
+
+Měření kurzu, které koridor posílá do fúze, je `θ = (PoseTheta + MapHeadingRelRad) − DirectionRad`,
+tedy **absolutní azimut mapové hrany minus to, o kolik se cesta v rámci robotu jeví stočená**.
+První sčítanec na póze nezávisí, takže je to **nezávislá reference kurzu — jediná bez magnetického
+biasu**. Proti kurzu nad zemí z GPS (416 cyklů `Ok` spárovaných do 150 ms, rychlost ≥ 0,3 m/s):
+
+| way | n | medián | robustní sd | \|Δ\|>20° | σ proložení |
+|---|---|---|---|---|---|
+| **230064222** | **227** | **+0,42°** | **2,30°** | **0,0 %** | 0,50° |
+| 437915602 | 108 | −98,78° | 14,43° | 39,8 % | 0,58° |
+| 437915603 | 62 | +83,08° | 2,47° | 21,0 % | 0,56° |
+| 437915591 | 11 | +95,45° | 1,64° | 0,0 % | 1,01° |
+| 437915597 | 8 | +78,58° | 0,73° | 37,5 % | 0,50° |
+
+Na hlavní cestě (55 % vzorků) souhlasí koridor s GPS na **+0,42° s robustní sd 2,30°**. Ostatní
+cesty mají medián u **±90°** — to je tatáž vada špatně spárované hrany, ne chyba koridoru; proto se
+tiskne medián a robustní sd (1,4826·MAD) vedle průměru a sd, jinak by průměr tu příměs rozmazal
+přes celou cestu a vypadalo by to, že koridor kurz neměří.
+
+**Pro srovnání na týchž vzorcích:** `odhad fúze − GPS kurz` = **−7,46°** (p50). Koridor je tedy
+proti GPS **o řád blíž než současný odhad**, který kurz přebírá z kompasu.
+
+⚠️ **σ z proložení je 0,50°, ale naměřený rozptyl je 2,30°** (sdružená robustní sd přes cesty
+7,62°, a to je ještě horní mez, protože nese i šum kurzu z GPS) — proložení je tedy zhruba
+**5× až 15× optimističtější**, než jaká je jeho chyba. Táž past jako u `YprU` kompasu. Je to
+**první číslo, ze kterého jde střízlivě nastavit `corridorheadingstd=`** — ale jen na téhle jedné
+cestě a při rozbitém kurzu, takže se to má přeměřit po opravě magnetometru.
+
+### Kurz je pořád rozbitý — železo od kabelů z 14. 9. přetrvává
+
+`ARBot.Analyze heading` nad týmž záznamem (`IMU yaw − GPS kurz` p50 **−18,0°**, střed −15,7°,
+sd 10,8°; harmonické **13,6 / 19,0°**), a chybuje **IMU**: třetí nezávislá cesta
+`Doppler − směr posunu polohy` = **−0,42° ± 5,49°**. Fúze kurz **přebírá**
+(`odhad − IMU yaw` 4,15° ± 4,17°), takže to jde do mapy i do mrkve.
+
+Surové pole to potvrzuje: `|B|` p50 **0,640 G** proti referenčním 0,4897 (14. 9. bylo 0,614 G),
+rozpětí přes záznam **0,157 G**, sklon **54–88°** místo konstantních ~66°. Kalibrace z 11. 9.
+tedy **pořád neúčinkuje** — viz [imu-and-frames.md](imu-and-frames.md), nález o kabelech ke
+kamerám. **Dokud se to nespraví, nemá smysl ladit prahy koridoru** ani pouštět `corridorsend=true`:
+příčná korekce by se počítala proti pozici, jejíž kurz je o 15–20° vedle.
+
+### Póza byla mimo vozovku už od prvního cyklu
+
+Robot startoval u **3. bodu** `OSM/Hviezdoslavova.track` (do sítě přichycen o 0,4 m, trasa k bodu 1
+měřila 50 m), tedy fyzicky **na cestě**. Odstup **pózy** od nejbližší mapové hrany v čase:
+
+| čas [s] | n | odstup p50 | odstup p90 |
+|---|---|---|---|
+| 0–70 | 47 | **4,08 m** | 4,74 m |
+| 70–140 | 65 | 3,67 m | 4,32 m |
+| 140–210 | 614 | 1,95 m | 3,33 m |
+| 210–280 | 544 | 3,55 m | 7,15 m |
+| 280–350 | 471 | 3,05 m | 5,94 m |
+| 350–420 | 370 | **5,13 m** | **7,17 m** |
+| 420–490 | 145 | 2,76 m | 3,94 m |
+
+Pološířka cesty je ~1,6 m, takže póza byla **celou jízdu mimo vozovku** — a to **hned od prvního
+cyklu**, ne že by tam ujela. Fúze si přitom sama hlásí σ polohy **3,73 m**. Brána na 1,5 m je tedy
+nastavená na **0,4 σ** vlastní nejistoty: zamítá podle veličiny, kterou právě nezná.
+
+⚠️ `MaxEdgeDistanceM = 8,0 m` je při p90 7,17 m **taky na hraně** — kdyby se příčná brána
+povolovala, tahle se stane další tichou stropní bránou.
+
+### Příčná brána dělá dvě práce najednou
+
+`MaxLateralDisagreementM` rozhoduje zároveň o dvou různých otázkách:
+
+1. **„Jsem vůbec na téhle cestě?"** — přiřazení k hraně (data association).
+2. **„Není to odlehlá hodnota?"** — gating měření.
+
+Práci 2 už řeší `GateMode.Soft` ve fúzi, a řeší ji dobře (rozhodnuto 22. 8. 2026 z měření: s
+`Reject` se zahodilo 77 % korekcí, protože velký nesouhlas **je** z pohledu filtru odlehlá hodnota
+— jenže právě ten má měření opravit). ⚠️ **Tvrdá brána na 1,5 m ale stojí PŘED ní**, takže měkký
+gating se k těm měřením vůbec nedostane. Dvě rozhodnutí o téže věci si odporují.
+
+Práce 1 se **příčnou vzdáleností dělat nemá** — to je právě ta veličina, kterou neznáme; je to
+kruhem. Na přiřazení je potřeba údaj **nezávislý na poloze**, a jeden takový je po ruce:
+`HeadingDisagreementRad` (= směr koridoru v rámci robotu proti azimutu hrany) závisí na **kurzu**,
+ne na poloze. Dnes do výběru hrany nevstupuje vůbec.
+
+### Co by pustila jiná brána (z 2 256 cyklů s hranou)
+
+| okno azimutu | příčná 1,5 m | 3 m | 5 m | 8 m | bez brány |
+|---|---|---|---|---|---|
+| bez okna (**dnes**) | **538 (23,8 %)** | 1 076 (47,7 %) | 1 714 (76,0 %) | 2 196 (97,3 %) | 2 256 (100 %) |
+| ±30° | 241 (10,7 %) | 465 (20,6 %) | **782 (34,7 %)** | **1 082 (48,0 %)** | 1 141 (50,6 %) |
+| ±15° | 207 (9,2 %) | 361 (16,0 %) | 656 (29,1 %) | 878 (38,9 %) | 937 (41,5 %) |
+
+Čtou se z toho tři věci:
+
+- **Rozšířit samotnou příčnou bránu je nebezpečné.** Na 5 m projde 76 % cyklů, ale skoro polovina
+  z nich je napárovaná na **příčnou ulici** — dnes je zahazuje právě ta úzká brána, tedy *omylem*,
+  jako vedlejší účinek. Bez náhrady by se ta ochrana ztratila.
+- **Okno azimutu je ten správný filtr.** Samo o sobě sráží množinu na 50,6 % a **95 % toho, co
+  pustí, je stejně pod 8 m** — po jeho zavedení už příčná brána skoro neváže a může být volná.
+- **Kombinace dá víc dat než dnešek, ne míň:** ±30° + 8 m je **1 082 proti dnešním 538**, tedy
+  **2×** — a jsou to měření, u kterých máme důvod věřit, že jsou ze správné cesty.
+
+⚠️ Okno ±15° je dnes příliš těsné, protože kurz má sám bias 15–20°. Po opravě magnetometru se
+rozdělení posune a ±15° bude nejspíš správně — tabulka se má **přeměřit**, ne přepočítat.
+
+⚠️ Pořádná léčba není filtr, ale **výběr**: `RoadAxis.Match` bere z `NearestEdge` **jedinou**
+kandidátní hranu, takže azimut umí špatné přiřazení jen *zamítnout*, ne *opravit*. S *k* nejbližšími
+hranami a výběrem podle vzdálenosti **i** azimutu by se ta správná hrana našla i tehdy, když není
+nejbližší — a výtěžnost by přesáhla oněch 50,6 %.
+
+### Jak složit odchylku vzdálenosti a odchylku směru do jednoho čísla
+
+Lineární kombinace `a·|Δd| + b·|Δφ|` má dva volné parametry, které nejde z ničeho odvodit — metry
+a stupně se sčítat nedají. **Řešení je nedělit váhami, ale sigmami:** obě veličiny mají svou
+nejistotu, takže se každá vydělí tou svou a sčítá se až **bezrozměrně**. Vznikne Mahalanobisova
+vzdálenost, tedy χ² se **dvěma stupni volnosti**:
+
+```
+χ² = Δd² / (σ²_póza,příčně + σ²_koridor,příčně)  +  Δφ² / (σ²_póza,kurz + σ²_koridor,kurz)
+```
+
+Váhy tím **zmizí** — nenastavují se, **měří se**. Navíc má výsledek známé rozdělení, takže práh
+není odhad: **5,99 (95 %)**, **9,21 (99 %)**. Je to standardní *nearest-neighbour data association*
+z trackingu, ne vynález pro tenhle projekt.
+
+**Všechny čtyři σ jsou po ruce:** `RobotState.Covariance` cestuje s pózou i do záznamu
+(`RobotStateMsg`), příčný směr je normála hrany, takže `σ²_póza,příčně = nᵀ P_xy n`
+a `σ²_póza,kurz = P[ITh,ITh]`; koridor hlásí `SigmaLateral` a `SigmaDirectionRad`.
+`RoadNetwork.NearestEdge` je prostý průchod přes všechny hrany, takže *k* nejbližších kandidátů
+nestojí nic navíc.
+
+### ⚠️ Naměřeno: s hlášenými σ by to zamítlo všechno
+
+`ARBot.Analyze corridor` to od 16. 9. 2026 tiskne (blok *PODKLAD PRO PRIRAZENI K HRANE*), nad
+2 256 cykly s hranou:
+
+| | p50 | p90 | max |
+|---|---|---|---|
+| σ pózy příčně | 1,407 m | 1,868 m | 9,06 m |
+| σ koridoru příčně | 0,073 m | 0,131 m | 0,307 m |
+| σ pózy kurz | **1,096°** | 1,199° | 1,532° |
+| σ koridoru kurz | 0,656° | 1,172° | 4,111° |
+| **χ² příčně** (hlášené σ) | **4,24** | 26,1 | 42,8 |
+| **χ² kurz** (hlášené σ) | **220,7** | 5 074 | 6 348 |
+| χ² kurz (podlaha 10°) | **4,10** | 82,8 | 122,6 |
+
+Čte se z toho to podstatné: **σ pózy je optimistická a Mahalanobis ji zdědí.** Filtr hlásí σ kurzu
+**1,1°**, zatímco skutečná chyba kurzu je 15–20° — χ² kurzu proto vyjde **220** i tam, kde je hrana
+správná, a test by zamítl úplně všechno. Táž past jako `YprU` u kompasu, `gpsposstd` u GPS a
+`Reject` u gatingu korekcí; v tomhle projektu už počtvrté.
+
+**Léčba je stejná jako u kompasu: podlaha na σ, ne jiná formule.**
+
+```
+σ²_assoc,příčně = max(nᵀ P_xy n, podlaha_d²) + σ²_koridor,příčně
+σ²_assoc,kurz   = max(P[ITh,ITh], podlaha_φ²) + σ²_koridor,kurz
+```
+
+S podlahou kurzu **10°** spadne χ² kurzu z 220 na **4,10** (p50) a rozdělení se rozestoupí:
+správná přiřazení kolem prahu, příčné ulice v chvostu (p90 82,8). Podlaha příčně má být ~**3 m**
+(naměřený odstup pózy od vozovky), jinak zbude χ² příčně p50 4,24 — taky zbytečně přísné.
+
+⚠️ Obě podlahy jsou **konfigurace, ne konstanty v kódu**: po opravě magnetometru se podlaha kurzu
+sníží na ~3° a test se sám zostří. Dokud robot není k dispozici, platí 10°.
+
+### ⚠️ Přímka nemá orientaci — a v `Send()` je to živá vada (9,4 % cyklů)
+
+Kamera vidí cestu, ale **ne kterým směrem po ní jedeme**: směr `x` a `x + 180°` jsou totéž.
+Rozhodnout to umí jen **kurz robotu**.
+
+Na **mapové** straně už to `RoadAxis.Match` dělá správně — vektor hrany se překlopí tak, aby měl
+s kurzem kladný skalární součin, takže `HeadingRelRad` je konstrukcí v (−90°, 90°) a je
+**zorientovaný**. Na **kamerové** straně ale `RoadCorridor.DirectionRad` složený na ±90° je,
+zorientovaný není (kamera to neumí) — a `CorridorLocalizer.Send()` ty dvě veličiny odečte
+**bez složení a bez rozhodnutí o smyslu**:
+
+```csharp
+double edgeDir = fix.PoseTheta + a.HeadingRelRad;
+engine.Enqueue(new HeadingMeasurement(edgeDir - c.DirectionRad, ...));
+```
+
+Když je cesta zhruba kolmá na kurz, vyjde jedno číslo u +89° a druhé u −89° a do fúze jde kurz
+otočený až o 180°. **Naměřeno nad `20260916-164926.rec`: u 40 ze 424 přijatých cyklů (9,4 %)**
+by výsledek padl na opačnou stranu přímky. `HeadingMeasurement.Residual` sice normalizuje na ±180°,
+takže to numericky nevybuchne — jenže s `GateMode.Soft` se takové měření **nezahodí, jen odtlumí**,
+a do kurzu se pustí. Dnes to nic nedělá jen proto, že `corridorsend=false`.
+
+**Správně:** složit *nesouhlas* na ±90° a **teprve pak** z něj udělat směr, s odkazem na kurz:
+
+```csharp
+double d   = Wrap180(a.HeadingRelRad - c.DirectionRad);   // rozdíl dvou PŘÍMEK, (−90°, 90°]
+double th  = Orient(fix.PoseTheta + d, fix.PoseTheta);    // dvojici d / d+180° rozhodne kurz
+```
+
+`HeadingDisagreementRad` se má ukládat **už složený** — dnes se ukládá surový a jako diagnostika
+tedy může hlásit 178° tam, kde je nesouhlas 2°.
+
+⚠️ **Cena té léčby, se kterou se musí počítat:** jakmile se smysl cesty rozhoduje podle kurzu,
+**koridor už nikdy nemůže říct „jsi otočený o 180°"** — potvrdil by jakýkoli kurz, i obrácený.
+Malé chyby opravuje, na převrácení je **strukturálně slepý**. Jediná reference, která 180° chytí,
+je **kurz nad zemí z GPS** (Doppler je skutečný směr, ne přímka), takže na převrácení má hlídat on.
+
+✅ **Práh té orientace (90°) leží přesně tam, kde je rozhodnutí nejednoznačné** — u cesty kolmé na
+kurz. Veto na azimut ±45° (níž) ale takový cyklus zamítne dřív, než se orientace vůbec rozhoduje,
+takže se ty dvě pojistky doplňují: rozhodnutí o smyslu se pak nikdy nedělá blízko své vlastní
+nespojitosti.
+
+ℹ️ **Na rozbor přiřazení to vliv nemělo** (ověřeno): po složení na ±90° vyšla pásma nesouhlasu
+kurzu **beze změny** (606 / 535 / 1 / 1114), takže oněch 49 % „příčných ulic" jsou skutečně příčné
+ulice, ne artefakt přetečení. Na srovnání s GPS vliv mělo: sdružená robustní sd **7,62 → 4,28°**
+(proložení je tedy ~9× optimističtější, ne 15×); hlavní cesta zůstala na +0,42° / 2,30°.
+
+### Dvě pojistky, které k tomu patří
+
+1. **Tvrdé veto na azimut** (~±45°) *před* χ². Součet totiž dovolí, aby výborná příčná shoda
+   vykompenzovala špatný úhel — jenže kolmá ulice není „trochu mimo", je **kategoricky jiná cesta**.
+   S podlahou 10° sice 90° dá χ² ≈ 81 a součet to neutáhne, ale veto je levné a nezávislé na tom,
+   jak kdo nastaví podlahu.
+2. **Odstup od druhého kandidáta.** Když dvě hrany vyjdou podobně, přiřazení je **nejednoznačné**
+   a správná odpověď je **neposlat nic**, ne vybrat tu o chlup lepší. Prakticky: nejlepší musí
+   druhého porazit o pevný rozdíl χ² (např. 4, tedy poměr věrohodností ~7:1), jinak
+   `CorridorFixReason.AmbiguousEdge`. Tohle je přímo ta situace „nemohl si být jistý, jestli jsem
+   na správné cestě" — a robot ji má umět **přiznat**, ne uhodnout.
+
+⚠️ **Šířka jako třetí člen se nabízí, ale v téhle mapě nerozliší nic** — `Hviezdoslavova.osm` nemá
+ani jeden tag `width`, takže všechny cesty mají default 3 m. Do skóre patří (je na póze nezávislá,
+σ z `RoadWidthEstimator`u), ale přínos bude nulový, dokud nebude buď naučená šířka, nebo mapa
+s tagy. Přispívat má **jen u hran s důvěryhodným odhadem**, jinak nulou.
+
+## ✅ Přiřazení k hraně přes χ² — hotovo (16. 9. 2026)
+
+Implementováno; **magnetometr se nečekal**, protože podlaha σ kurzu tu vadu pojme (viz níž).
+
+### Co vzniklo
+
+| část | kde |
+|---|---|
+| *k* nejbližších hran | `RoadNetwork.NearestEdges(p, k, maxDistanceM)` |
+| vztah pózy ke **konkrétní** hraně | `RoadAxis.Relate(...)` — `Match` zůstal beze změny |
+| skóre a výběr | `ARBot.Common/Localization/EdgeAssociator.cs` |
+| nastavení a meze | `EdgeAssociationConfig` (+ `Validate()`) |
+| parametry | `assoc` / `assock` / `assocveto` / `assocfloorlat` / `assocfloorhdg` / `assocchi2` / `assocmargin` |
+| nové důvody | `CorridorFixReason.EdgeMismatch` (10), `AmbiguousEdge` (11) |
+| skóre do záznamu | `RoadCorridorMsg` **verze 6**: `AssocChi2`, `AssocChi2Second`, `AssocCandidates` |
+
+`assoc=false` vrací přesné chování do 16. 9. 2026 (nejbližší hrana) pro A/B.
+
+### Tři pasti, které se našly až při psaní
+
+⚠️ **1. Obousměrná cesta je v síti dvě hrany se shodnou geometrií.** Kdyby šly do kandidátů obě,
+byl by druhý kandidát týž kus asfaltu a **každé** přiřazení by vyšlo jako nejednoznačné.
+`NearestEdges` je proto slučuje přes neorientovaný klíč `(uzel, uzel, way)`.
+
+⚠️ **2. OSM cesta je rozdělená na segmenty mezi lomovými body — a to je horší.** Sousední
+kolineární segment je samostatná hrana s **větší vzdáleností** (projekce se ořízne na konec úsečky),
+ale `RoadAxis.Relate` počítá příčnou polohu i sklon z **přímky**, na které segment leží — u
+kolineárního souseda tedy vyjde **přesně totéž** a χ² jsou shodné. Test nejednoznačnosti by zamítl
+**každou rovnou cestu**. Proto se sbírají **hypotézy, ne hrany**: kandidáti se stejnou osou
+(do `SameHypothesisLateralM` 0,5 m a 5°) spolu nesoutěží. Kritériem je záměrně **výsledek**, ne
+`WayId` — táž ulice může pokračovat pod jiným id a jedna cesta se může zalomit.
+
+⚠️ **3. Práh orientace i veto řeší tutéž nespojitost, ale jen jedno z nich je záměr.** Rozhodnutí
+„kterým směrem cesta vede" má skok u 90°; veto ±45° takový cyklus zamítne dřív. Regresní test na
+převrácení proto musí přiřazení **vypnout** (`assoc=false`) — jinak by testoval součin obou pojistek
+a neřekl by nic o `Send()` samotném.
+
+### Ověřeno
+
+- **1 584 / 140 / 115 testů** pod `x64` (22 nových: `EdgeAssociatorTests`,
+  `CorridorHeadingOrientationTests`, `RoadCorridorMsgAssocTests`).
+- **Regresní test na převrácení kurzu prokazatelně chytá vadu**: po dočasném vrácení staré formule
+  spadne (odhad se překlopí z −89° na +87,8°), po obnovení projde.
+- **Běh v simulaci** (`ARBot.Headless`, `virtualhw=true`, `SyntetickyRovny.osm`, 71 s,
+  `corridor=true corridorsend=true`): zpráva verze 6, **845 z 855 cyklů `Ok` (98,8 %)**, korekce
+  se skutečně posílají (845 příčných + 845 kurzu), **žádný `AmbiguousEdge`** — past se segmenty je
+  ošetřená i v provozu, ne jen v jednotkovém testu. Parametry dorazily do účinné konfigurace.
+- Starší záznamy (verze 5) se čtou dál; `ARBot.Analyze corridor` u nich vypíše původní trychtýř
+  a blok skóre vynechá.
+
+⚠️ **Na zařízení neběželo nic** a **nad `20260916-164926.rec` to přeměřené není** — `ARBot.Analyze`
+záznam nepřehrává přes lokalizátor, takže odhad „±30° + 8 m dá 1 082 místo 538" zůstává **odhadem
+z rozdělení**, ne výsledkem nové cesty kódu. Ověří to až nový záznam.
+
+⚠️ **Prahy jsou odhad, ne měření** — kromě `assocfloorhdg=10`, které vychází ze změřené chyby kurzu
+15–20°. `assocmargin=4` a `assocveto=45` jdou proladit offline ze `AssocChi2` / `AssocChi2Second`
+v záznamu; přesně proto tam jsou.
+
+### Další krok
+
+1. Kabely do definitivní polohy → minutový záznam s jednou otočkou na místě (rozpětí `|B|`)
+   → `mission=magcal` s náklony na obě strany.
+2. ~~Do VÝBĚRU mapové hrany přidat azimut.~~ ✅ **Hotovo 16. 9. 2026** (viz výš). Po opravě
+   magnetometru **snížit `assocfloorhdg` na ~3°** — test se tím sám zostří.
+3. **Teprve s tím rozvolnit `MaxLateralDisagreementM`** na násobek σ pózy (ne na konstantu).
+   Pořadí je podstatné: rozvolnit bránu dřív než přibude azimut znamená pustit dovnitř příčné
+   ulice, které dnes zahazuje ta úzká brána.
+4. Přeměřit koridor a z posloupnosti `Width`/σ nastavit `corridorstd=` / `corridorheadingstd=` /
+   `corridorhz=` — dekorelační čas chyby koridoru **pořád změřený není**, a tenhle záznam ho dát
+   nemůže (kurz je vada, ne šum). První střízlivé číslo pro `corridorheadingstd=` je z tabulky výš
+   **~2,3°** proti hlášeným 0,5°.

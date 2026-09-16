@@ -238,6 +238,53 @@ namespace ARBot.Common.Configuration
               + "pres corridorsend= nic neztrati. Tataz lecba jako MinPeriod u korelace s mapou "
               + "(3 s, zmereno) a imuheadinghz u kompasu (1 Hz, zmereno); u koridoru zmereno "
               + "NENI. Viz doc/map-correlation-localization.md.", ParamParsers.CorridorHz);
+        // --- Prirazeni koridoru k hrane site (16. 9. 2026) -----------------------------------
+        //
+        // Do 16. 9. 2026 se brala prosta NEJBLIZSI hrana a kurz do vyberu nevstupoval vubec.
+        // Nad records/test/20260916-164926.rec se pak POLOVINA cyklu (1 114 z 2 256) parovala na
+        // PRICNOU ulici - pri chybe polohy 3-4 m u krizovatky vyhraje jina cesta a sirkova brana
+        // ji nechyti, protoze v te mape nema zadna cesta tag width (vsechny 3 m).
+        //
+        // Skore je Mahalanobisova vzdalenost, ne linearni kombinace: metry a stupne se scitat
+        // nedaji, ale po deleni vlastni sigmou je soucet bezrozmerny chi-kvadrat se dvema stupni
+        // volnosti - vahy tim zmizi a prah ma zname rozdeleni. Viz doc/map-correlation-localization.md.
+        public static readonly BoolParam Assoc = Bool("assoc", "true", K_FUZE,
+              "Vybirat hranu site pro koridor podle CHI-KVADRATU pres vic kandidatu (pricna "
+              + "odchylka + azimut), misto prosté nejblizsi hrany. ⚠️ false vraci chovani do "
+              + "16. 9. 2026, kdy se POLOVINA cyklu parovala na pricnou ulici - je to pro A/B "
+              + "se stejnou zatezi, ne provozni volba.");
+        public static readonly DoubleParam AssocK = Num("assock", "4", K_FUZE,
+              "Kolik nejblizsich hran se pri prirazeni posoudi. Obe hrany obousmerne cesty se "
+              + "pocitaji za JEDNU (tyz kus asfaltu), jinak by kazde prirazeni vyslo jako "
+              + "nejednoznacne.", ParamParsers.AssocK);
+        public static readonly DoubleParam AssocVeto = Num("assocveto", "45", K_FUZE,
+              "TVRDE VETO na azimut pri prirazeni hrany [stupne]: kandidat, jehoz sklon se od "
+              + "videneho koridoru lisi o vic, se neposuzuje vubec. ⚠️ Je vedle chi-kvadratu "
+              + "schvalne - soucet by dovolil, aby vyborna pricna shoda vykompenzovala spatny "
+              + "uhel, jenze kolma ulice neni 'trochu mimo', je to jina cesta. ✅ Navic odstinuje "
+              + "nespojitost rozhodnuti 'kterym smerem cesta vede', ktera je prave u 90 stupnu.",
+              ParamParsers.AssocVeto);
+        public static readonly DoubleParam AssocFloorLat = Num("assocfloorlat", "3", K_FUZE,
+              "PODLAHA sigmy pricne polohy pri prirazeni [m]; sklada se s kovarianci pozy pres "
+              + "maximum, ne kvadraticky. ⚠️ Bez ni prirazeni zdedi optimismus filtru: nad "
+              + "20260916-164926.rec hlasi fuze sigmu pricne p50 1,41 m, pritom poza stoji 3-4 m "
+              + "od vozovky. 0 = bez podlahy (stare chovani pro A/B).", ParamParsers.AssocFloorLat);
+        public static readonly DoubleParam AssocFloorHdg = Num("assocfloorhdg", "10", K_FUZE,
+              "PODLAHA sigmy kurzu pri prirazeni [stupne]. ⚠️ Nad 20260916-164926.rec hlasi fuze "
+              + "sigmu kurzu 1,10 stupne, zatimco skutecna chyba kurzu je 15-20 (nezkalibrovany "
+              + "magnetometr) - chi-kvadrat kurzu pak vyjde p50 220 i na SPRAVNE hrane a zamitlo "
+              + "by se uplne vsechno. S podlahou 10 spadne na 4,10. Po oprave magnetometru snizit "
+              + "(~3) a test se zostri sam. Tataz lecba jako imuheadingstd u kompasu.",
+              ParamParsers.AssocFloorHdg);
+        public static readonly DoubleParam AssocChi2 = Num("assocchi2", "9.21", K_FUZE,
+              "Strop chi-kvadratu pro prijeti hrany pri prirazeni. Pro 2 stupne volnosti je "
+              + "5,99 = 95 % a 9,21 = 99 %.", ParamParsers.AssocChi2);
+        public static readonly DoubleParam AssocMargin = Num("assocmargin", "4", K_FUZE,
+              "O kolik musi nejlepsi kandidat porazit DRUHEHO, aby bylo prirazeni jednoznacne "
+              + "(rozdil chi-kvadratu; 4 je pomer verohodnosti ~7:1). Kdyz nevyhraje dost, "
+              + "cyklus skonci jako AmbiguousEdge a NEPOSLE SE NIC - vybrat tu o chlup lepsi by "
+              + "znamenalo hadat, po ktere ceste robot jede. 0 = test vypnuty.",
+              ParamParsers.AssocChi2);
         public static readonly StringParam CorridorTol = Slozeny("corridortol", null,
               ParamParsers.Pair("konstanta,prirustekNaMetr", minA: 0, minB: 0, aStrict: true), K_FUZE,
               "Prah inlieru RANSACu ve tvaru 'konstanta,prirustekNaMetr' [m]. Vzdalena hranice "

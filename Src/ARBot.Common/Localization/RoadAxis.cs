@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Maps.OsmNav.Graph;
 
@@ -65,6 +65,30 @@ namespace ARBot.Common.Localization
 
             var edge = network.NearestEdge(origin.ToLLA(x, y), out double t, out _, out double dist);
             if (edge == null) return m;
+            return Relate(origin, edge, t, dist, x, y, theta);
+        }
+
+        /// <summary>
+        /// Vztah pozy ke <b>konkretni</b> hrane — tedy tatáz geometrie jako <see cref="Match"/>,
+        /// jen bez vyberu „ktera hrana to je".
+        ///
+        /// <para><b>Nacpak zvlast:</b> vyber hrany uz neni ciste geometricka uloha (nejblizsi
+        /// nemusi byt spravna, viz <see cref="RoadNetwork.NearestEdges"/>), ale k rozhodnuti je
+        /// potreba to, co vidi kamera. Vyber proto sedi v <see cref="EdgeAssociator"/> a
+        /// <see cref="RoadAxis"/> zustava geometrii — spocita vztah k tomu, co dostane.</para>
+        /// </summary>
+        /// <param name="origin">Pocatek lokalni ENU roviny.</param>
+        /// <param name="edge">Hrana, ke ktere se poza vztahuje.</param>
+        /// <param name="t">Parametr kolmeho prumetu na hranu (0 = From, 1 = To).</param>
+        /// <param name="dist">Vzdalenost pozy od hrany [m].</param>
+        /// <param name="x">Poloha robotu na vychod [m].</param>
+        /// <param name="y">Poloha robotu na sever [m].</param>
+        /// <param name="theta">Kurz robotu [rad], matematicky (0 = vychod).</param>
+        public static RoadAxisMatch Relate(GeoReference origin, Edge edge, double t, double dist,
+                                           double x, double y, double theta)
+        {
+            var m = new RoadAxisMatch();
+            if (origin == null || edge == null) return m;
 
             var a = origin.ToLocal(edge.From.Location);
             var b = origin.ToLocal(edge.To.Location);

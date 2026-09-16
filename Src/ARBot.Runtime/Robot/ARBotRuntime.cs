@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -680,6 +680,26 @@ namespace ARBot.Robot
                     SigmaHeadingExtraRad = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingStd.Value),
                     MinSendPeriodSec = corridorHz > 0 ? 1.0 / corridorHz : 0,
                 };
+
+                // Prirazeni koridoru k hrane site (assoc*): nejblizsi hrana nemusi byt ta spravna
+                // - pri chybe polohy nekolika metru vyhraje u krizovatky pricna ulice. Skore je
+                // chi-kvadrat z pricne odchylky a azimutu, obe delene svoji sigmou s PODLAHOU.
+                // Viz doc/map-correlation-localization.md.
+                corridorCfg.Association = new ARBot.Common.Localization.EdgeAssociationConfig
+                {
+                    Enabled = ParamRegistry.Assoc.Value,
+                    Candidates = (int)ParamRegistry.AssocK.Value,
+                    VetoRad = Conversions.Deg2Rad(ParamRegistry.AssocVeto.Value),
+                    SigmaLateralFloorM = ParamRegistry.AssocFloorLat.Value,
+                    SigmaHeadingFloorRad = Conversions.Deg2Rad(ParamRegistry.AssocFloorHdg.Value),
+                    Chi2Max = ParamRegistry.AssocChi2.Value,
+                    Chi2Margin = ParamRegistry.AssocMargin.Value,
+                };
+                corridorCfg.Association.Validate();
+                if (!corridorCfg.Association.Enabled)
+                    Trace.WriteLine("assoc=false: koridor se vztahuje k NEJBLIZSI hrane site "
+                                    + "(chovani do 16. 9. 2026, kdy se polovina cyklu parovala "
+                                    + "na pricnou ulici).");
 
                 // Prah inlieru RANSACu: corridortol=konstanta,prirustekNaMetr. Vzdalena hranice je
                 // radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne - viz

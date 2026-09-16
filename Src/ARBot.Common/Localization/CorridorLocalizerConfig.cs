@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace ARBot.Common.Localization
 {
@@ -86,6 +86,16 @@ namespace ARBot.Common.Localization
 
         /// <summary>Nad timto odstupem pozy od hrany se hrana nebere za „tu, po ktere jedeme" [m].</summary>
         public double MaxEdgeDistanceM = 8.0;
+
+        /// <summary>
+        /// Jak se vybira hrana, ke ktere se koridor vztahuje (<see cref="EdgeAssociator"/>).
+        ///
+        /// <para>⚠️ Do 16. 9. 2026 se brala prosta <b>nejblizsi</b> hrana a kurz do vyberu
+        /// nevstupoval vubec — nad <c>20260916-164926.rec</c> se pak <b>polovina</b> cyklu
+        /// parovala na PRICNOU ulici. <c>Association.Enabled = false</c> vraci puvodni chovani
+        /// pro A/B.</para>
+        /// </summary>
+        public EdgeAssociationConfig Association = new EdgeAssociationConfig();
 
         /// <summary>
         /// O kolik smi robot byt vic od osy koridoru, nez je jeho polosirka [m] — tedy jak daleko
