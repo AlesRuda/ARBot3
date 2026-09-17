@@ -31,8 +31,8 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">39</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">42</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">103</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">41</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">104</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">2</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -1997,16 +1997,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a></p>
   </article>
-  <article class="tema" id="nast-mapa-ve-view-jednou" data-stav="v-kodu">
-    <h3>Ve View se ztr&#225;cela mapa ze z&#225;znamu a lok&#225;ln&#237; vrstvy plavaly</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 14. 9. 2026</span> <span>vyřešeno 14. 9. 2026</span></p>
-    <p>Při přehr&#225;v&#225;n&#237; z&#225;znamu se nezobrazila mapa, trasa se pohybovala a značka c&#237;le neseděla na z&#243;nu — tři př&#237;znaky jedn&#233; př&#237;činy: <code>MapMsg</code> je v z&#225;znamu jen jednou (při startu) a kdo si World pohled otevřel až za n&#237;, mapu neviděl; bez mapy spadne geografick&#253; poč&#225;tek na nouzov&#253; dopočet z GPS fixu, kter&#253; se s každ&#253;m fixem posouv&#225;. Nov&#225; vrstva z&#243;n vadu zviditelnila, protože jako jedin&#225; kresl&#237; ze zeměpisn&#253;ch souřadnic. Mapa se teď odchyt&#225;v&#225; z přehr&#225;van&#233;ho streamu i ve View a pohled ř&#237;k&#225; nahlas, když jede na nouzov&#233;m poč&#225;tku. Sc&#233;n&#225;ř s&#225;m (otevř&#237;t z&#225;znam a k němu World) se ověřit nepodařilo — je to klik&#225;n&#237; a test by musel zakl&#225;dat singleton runtime.</p>
-    <ul class="kroky">
-      <li class="hotovo">Odchyt <code>MapMsg</code> ve View, varov&#225;n&#237; „BEZ MAPY“ v pohledu <span class="mono">14. 9. 2026</span></li>
-      <li class="otevreno">Ověřit sc&#233;n&#225;ř proklik&#225;n&#237;m (otevř&#237;t z&#225;znam, pak World pohled)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/world-view.md">world-view.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a></p>
-  </article>
   <article class="tema" id="nast-rezim-simulate" data-stav="odlozeno">
     <h3>Režim Simulate — věrn&#253; přepočet běhu nad z&#225;znamem</h3>
     <p class="tema-meta"><span class="stav stav-odlozeno">odloženo</span> <span>záměr</span> <span>nalezeno 27. 7. 2026</span></p>
@@ -2356,6 +2346,16 @@
       <li class="hotovo"><code>POST /virtualestop</code> bez virtu&#225;ln&#237;ho HW vrac&#237; 409 <span class="mono">12. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a></p>
+  </article>
+  <article class="tema" id="nast-mapa-ve-view-jednou" data-stav="hotovo">
+    <h3>Ve View se ztr&#225;cela mapa ze z&#225;znamu a lok&#225;ln&#237; vrstvy plavaly</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 14. 9. 2026</span> <span>vyřešeno 14. 9. 2026</span></p>
+    <p>Při přehr&#225;v&#225;n&#237; z&#225;znamu se nezobrazila mapa, trasa se pohybovala a značka c&#237;le neseděla na z&#243;nu — tři př&#237;znaky jedn&#233; př&#237;činy: <code>MapMsg</code> je v z&#225;znamu jen jednou (při startu) a kdo si World pohled otevřel až za n&#237;, mapu neviděl; bez mapy spadne geografick&#253; poč&#225;tek na nouzov&#253; dopočet z GPS fixu, kter&#253; se s každ&#253;m fixem posouv&#225;. Nov&#225; vrstva z&#243;n vadu zviditelnila, protože jako jedin&#225; kresl&#237; ze zeměpisn&#253;ch souřadnic. Mapa se teď odchyt&#225;v&#225; z přehr&#225;van&#233;ho streamu i ve View a pohled ř&#237;k&#225; nahlas, když jede na nouzov&#233;m poč&#225;tku. Testem to pokr&#253;t nešlo (zakl&#225;dal by singleton runtime); sc&#233;n&#225;ř proklikal autor a je v poř&#225;dku (17. 9. 2026).</p>
+    <ul class="kroky">
+      <li class="hotovo">Odchyt <code>MapMsg</code> ve View, varov&#225;n&#237; „BEZ MAPY“ v pohledu <span class="mono">14. 9. 2026</span></li>
+      <li class="hotovo">Sc&#233;n&#225;ř proklik&#225;n autorem (otevř&#237;t z&#225;znam, pak World pohled) <span class="mono">17. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/world-view.md">world-view.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a></p>
   </article>
   <article class="tema" id="nast-zony-world-pohled" data-stav="hotovo">
     <h3>Dojezdov&#233; z&#243;ny vidět i ve World pohledu aplikace</h3>

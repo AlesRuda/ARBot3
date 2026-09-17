@@ -77,6 +77,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - **Commit jen na výslovný pokyn** — a **jeden pokyn = jeden commit** („commitni to" platí pro tu
   jednu žádost, ne pro zbytek sezení). Jinak změnu jen proveď, ověř buildem/testy a veď DevLog;
   na konci hotového celku ohlas hotovo a čekej. *(Autor chce mít commity pod kontrolou sám.)*
+  ⚠️ **Platí i pro drobnou opravu hned po commitu:** 17. 9. 2026 se po „commitni to" (registr
+  úkolů) opravil CSS osy a asistent ho commitnul sám, jako by pokyn trval — netrvá. Oprava po
+  commitu = změna bez commitu, dokud autor neřekne znovu.
 - **Průběžně veď DevLog** — na konci sezení se smysluplnou změnou přidej záznam dne do
   [doc/devlog.md](doc/devlog.md) (pravidla psaní jsou v hlavičce toho souboru).
 - **Veď registr úkolů** [doc/ukoly.yaml](doc/ukoly.yaml) (od 17. 9. 2026): nový nález nebo

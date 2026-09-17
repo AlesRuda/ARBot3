@@ -5375,7 +5375,7 @@ temata:
     oblast: nastroje
     nazev: Ve View se ztrácela mapa ze záznamu a lokální vrstvy plavaly
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-14
     vyreseno: 2026-09-14
     popis: >
@@ -5384,15 +5384,15 @@ temata:
       World pohled otevřel až za ní, mapu neviděl; bez mapy spadne geografický počátek na nouzový
       dopočet z GPS fixu, který se s každým fixem posouvá. Nová vrstva zón vadu zviditelnila,
       protože jako jediná kreslí ze zeměpisných souřadnic. Mapa se teď odchytává z přehrávaného
-      streamu i ve View a pohled říká nahlas, když jede na nouzovém počátku. Scénář sám (otevřít
-      záznam a k němu World) se ověřit nepodařilo — je to klikání a test by musel zakládat
-      singleton runtime.
+      streamu i ve View a pohled říká nahlas, když jede na nouzovém počátku. Testem to pokrýt nešlo
+      (zakládal by singleton runtime); scénář proklikal autor a je v pořádku (17. 9. 2026).
     kroky:
       - co: Odchyt `MapMsg` ve View, varování „BEZ MAPY“ v pohledu
         stav: hotovo
         kdy: 2026-09-14
-      - co: Ověřit scénář proklikáním (otevřít záznam, pak World pohled)
-        stav: otevreno
+      - co: Scénář proklikán autorem (otevřít záznam, pak World pohled)
+        stav: hotovo
+        kdy: 2026-09-17
     odkazy:
       - text: world-view.md
         cesta: doc/world-view.md

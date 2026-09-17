@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **42** · hotovo **103** · odloženo **7** · zamítnuto **2**.
+Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **41** · hotovo **104** · odloženo **7** · zamítnuto **2**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -84,7 +84,6 @@ Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **42** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Klín mezi zornými poli barevných kamer brzdí robota](#lp-klin-mezi-zornymi-poli) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Track přichycuje všechna místa na síť předem, při odjezdu](#mise-track-prichyceni-predem) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Cíl lokálního plánovače je zóna, ne jediná buňka](#lp-cil-astar-zona) | 14. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
-| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Ve View se ztrácela mapa ze záznamu a lokální vrstvy plavaly](#nast-mapa-ve-view-jednou) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý](#prov-start-limit-sluzba) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí](#prov-zatuhnuti-start-hangwatchdog) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Koridor v měřicím režimu — odtlumení a první měřicí jízda](#lok-koridor-merici-rezim) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -2081,18 +2080,6 @@ Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže 
 
 [configuration.md](configuration.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
 
-<a id="nast-mapa-ve-view-jednou"></a>
-### 🧪 Ve View se ztrácela mapa ze záznamu a lokální vrstvy plavaly
-
-`nast-mapa-ve-view-jednou` · vada · **v kódu, na HW neověřeno** · nalezeno 14. 9. 2026 · vyřešeno 14. 9. 2026
-
-Při přehrávání záznamu se nezobrazila mapa, trasa se pohybovala a značka cíle neseděla na zónu — tři příznaky jedné příčiny: `MapMsg` je v záznamu jen jednou (při startu) a kdo si World pohled otevřel až za ní, mapu neviděl; bez mapy spadne geografický počátek na nouzový dopočet z GPS fixu, který se s každým fixem posouvá. Nová vrstva zón vadu zviditelnila, protože jako jediná kreslí ze zeměpisných souřadnic. Mapa se teď odchytává z přehrávaného streamu i ve View a pohled říká nahlas, když jede na nouzovém počátku. Scénář sám (otevřít záznam a k němu World) se ověřit nepodařilo — je to klikání a test by musel zakládat singleton runtime.
-
-- [x] Odchyt `MapMsg` ve View, varování „BEZ MAPY“ v pohledu (14. 9. 2026)
-- [ ] Ověřit scénář proklikáním (otevřít záznam, pak World pohled)
-
-[world-view.md](world-view.md), [record-replay.md](record-replay.md) · DevLog [2026-09-14](devlog.md#2026-09-14)
-
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem
 
@@ -2518,6 +2505,18 @@ Neznámý klíč se jen s varováním ignoroval (mezi argumenty jsou i cizí př
 - [x] `POST /virtualestop` bez virtuálního HW vrací 409 (12. 9. 2026)
 
 [configuration.md](configuration.md), [headless.md](headless.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
+
+<a id="nast-mapa-ve-view-jednou"></a>
+### ✅ Ve View se ztrácela mapa ze záznamu a lokální vrstvy plavaly
+
+`nast-mapa-ve-view-jednou` · vada · **hotovo** · nalezeno 14. 9. 2026 · vyřešeno 14. 9. 2026
+
+Při přehrávání záznamu se nezobrazila mapa, trasa se pohybovala a značka cíle neseděla na zónu — tři příznaky jedné příčiny: `MapMsg` je v záznamu jen jednou (při startu) a kdo si World pohled otevřel až za ní, mapu neviděl; bez mapy spadne geografický počátek na nouzový dopočet z GPS fixu, který se s každým fixem posouvá. Nová vrstva zón vadu zviditelnila, protože jako jediná kreslí ze zeměpisných souřadnic. Mapa se teď odchytává z přehrávaného streamu i ve View a pohled říká nahlas, když jede na nouzovém počátku. Testem to pokrýt nešlo (zakládal by singleton runtime); scénář proklikal autor a je v pořádku (17. 9. 2026).
+
+- [x] Odchyt `MapMsg` ve View, varování „BEZ MAPY“ v pohledu (14. 9. 2026)
+- [x] Scénář proklikán autorem (otevřít záznam, pak World pohled) (17. 9. 2026)
+
+[world-view.md](world-view.md), [record-replay.md](record-replay.md) · DevLog [2026-09-14](devlog.md#2026-09-14)
 
 <a id="nast-zony-world-pohled"></a>
 ### ✅ Dojezdové zóny vidět i ve World pohledu aplikace
