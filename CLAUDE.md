@@ -79,6 +79,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   na konci hotového celku ohlas hotovo a čekej. *(Autor chce mít commity pod kontrolou sám.)*
 - **Průběžně veď DevLog** — na konci sezení se smysluplnou změnou přidej záznam dne do
   [doc/devlog.md](doc/devlog.md) (pravidla psaní jsou v hlavičce toho souboru).
+- **Veď registr úkolů** [doc/ukoly.yaml](doc/ukoly.yaml) (od 17. 9. 2026): nový nález nebo
+  záměr = nové téma, změna stavu (hotovo v kódu / ověřeno na HW / odloženo) = úprava tématu, a po
+  každé změně **přegenerovat** `dotnet run tools/ukoly.cs` (výstupy [doc/ukoly.md](doc/ukoly.md)
+  a `web/pages/historie.html` jsou commitované, CI hlídá, že sedí se zdrojem). Stav
+  **`v-kodu`** („hotové v kódu, na zařízení neběželo") je schválně samostatný — je to nejčastější
+  stav v projektu a v seznamu musí být vidět. Sekce „Otevřené úkoly" v `doc/*.md` stav **nevedou**,
+  jen odkazují na id v registru. Pravidla a schéma: [doc/plan-ukoly.md](doc/plan-ukoly.md).
 
 ## Doménová dokumentace
 
@@ -149,8 +156,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     se poloha nepoužívá) a nabízí **Power off** (`poweroffcmd=`) — vypnutí celé desky se zastavením
     runtime, aby šlo robotovi bezpečně odpojit napájení.
   - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
-    měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: celý průchod misí na
-    zařízení a start po skutečném rebootu.** ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň
+    měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: start po skutečném rebootu** (`prov-start-po-rebootu`; misi ze stránky robot
+    14. 9. odjel, celý seznam Tracku ale neobjel). ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň
     otevřený *RealSense Viewer* (souvislost není prokázaná, jen časově sedí) — `CrashLog` nativní
     pád nezachytí.
   - **Od 14. 9. 2026 hlídač zatuhnutí** (`hangwatch=`, výchozí 20 s): `HangWatchdog` je sourozenec
@@ -475,7 +482,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   histogram přes plný snímek a `PathEdges` běží nad **24× menším** obrazem. **Snímky se
   neztrácejí** (30 sn/s drží obě varianty), řídicí smyčka si nestěžovala, alokace dokonce klesly
   (70 proti 105 kB/snímek). Obě kamery stojí ~12 % CPU proti ~7 % u histogramu.
-  ⚠️ **Nikdy to ale nejelo ani neřídilo** — všechna měření jsou ze stojícího robota.
+  ✅ **Od 12. 9. 2026 s ní robot jezdí** (provozní profil `backproject=npu`, jízdy 12./14./16. 9.); ⚠️ dopad na řízení proti histogramu **změřený není**.
   ✅ **NPU cesta hotová a změřená (7. 9. 2026): `backproject=npu`, `RknnBackProject` přes P/Invoke
   na `librknnrt.so`, převod `models/onnx2rknn.py`.** **3,3 ms proti 10,2 ms na CPU** (3,1×), za běhu
   runtime **jen +1,2 až +1,5 ms proti histogramu** (`compute_ms` 8,1 → 9,3), přesnost prakticky
@@ -552,8 +559,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   nulu; optimalizovat jde jen horší `.h5` větev, kde se za −12 % času (43,2 → 38,2 ms) platí
   **−1,31 p. b. přesnosti** — zůstává tedy beze změny. ✅ Při tom se zodpovědělo, **z čeho dnešní
   `Model96.2.rknn` vznikl**: z `.tflite` větve, ne z `_float.onnx`, jak se vedlo (fp16 převod
-  `Model96.2.onnx` dá přesně jeho 96,66 % a soubor má na bajt tutéž velikost). ⚠️ **Nikdy s tím
-  ale nejel** — všechna měření jsou ze stojícího robota. ⚠️ Proč je
+  `Model96.2.onnx` dá přesně jeho 96,66 % a soubor má na bajt tutéž velikost). ⚠️ **S Model96.2 robot
+  nikdy nejel** — provozní profil má Model61.1; měření 96.2 jsou ze stojícího robota. ⚠️ Proč je
   `_int8_deq_opt` o 27 % rychlejší než `_float_opt`, když mají **týž graf i týž počet násobení**,
   není vysvětlené (denormály vyvrácené měřením). ⚠️ Přitom se našlo, že
   `Model96.2.onnx` (z `.tflite`, **96,80 %**) a `Model96.2_float.onnx` (z `.h5`, **95,35 %**)
@@ -581,7 +588,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/occupancy-and-local-planning.md](doc/occupancy-and-local-planning.md) — kartézský occupancy grid
   (fúze sjízdnosti z hloubky + z RGB, log-odds, kruhový buffer) a lokální plánování cesty nad ním
   (odstupy od překážek, rychlostní obálka, A\* → `RegulatorWayPoint[]`) + `LocalNavigator` jako vyšší
-  řídicí smyčka. Hotové a napojené (`ARBot.Common/Occupancy`), **neověřeno na HW**.
+  řídicí smyčka. Hotové a napojené (`ARBot.Common/Occupancy`); **robot s tou vrstvou venku jel** (7., 12., 14. 9. 2026) a co se přitom ukázalo, jsou samostatná témata v registru (`lp-*`).
   ⚠️ **Rozbor rychlostní obálky dotažen 7. 9. 2026 a hned něco našel** (`ARBot.Analyze envelope`
   nad `20260907-170728.rec`, FreeRun venku): robot se nezastavoval, **plazil se** — medián
   příkazované rychlosti **0,05 m/s** (podlaha `MinCostSpeed`) a v **53 %** plánů je na podlaze
@@ -696,7 +703,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová
   měření. Léčba na „špatná lokalizace ⇒ špatná mrkev". **Fáze 1–3 hotové** (jádro, měření ve fúzi,
   zpráva + telemetrie, napojení na runtime), jádro má testy. **Ve výchozím stavu se ale vůbec
-  nepočítá** (`mapcorr=false`, od 20. 8. 2026) — nic neřídí a stálo by čtvrt jádra; zapnout
+  nepočítá** (`mapcorr=false`, od 20. 8. 2026) — nic neřídí a stálo by celé jádro (1,31 s na cyklus, při odstupu 3 s ~40 %); zapnout
   `mapcorr=true`. Korekce samotné posílat umí (`SendCorrections`, dřív `Enabled`), okno EKF je 3 s.
   **Tři podmínky, než korekce pustit naostro** (honestní σ, rychlostní limit, strop na nesouhlas
   s GPS) — viz [doc/decisions.md](doc/decisions.md); do jejich splnění nemá smysl ladit současné
@@ -858,7 +865,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   navigace**; když koridor není, drží kurz. Pro homologaci a přesun mezi stanovišti. Je to
   **producent mrkve** — sedí tam, kde jinak `GlobalNavigator`, a lokální vrstva se nemění.
   **Hotové a ověřené proti pravdě** (usadí se na −0,503 m proti požadovaným −0,500, dva běhy),
-  **na HW neověřeno**. Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
+  **venku projetá 7. a 12. 9. 2026** (`20260907-170728.rec`). Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
 - [doc/track-mission.md](doc/track-mission.md) — **mise Track** (`TrackMission`): objezd míst ze
   souboru `*.track` (`mission=track track=<cesta>`). Řádek = `sirka,delka` ve **stupních** (soubor
@@ -875,7 +882,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   mise:** `IRouteProbe.Probe` počítá i dosažitelnost, takže bez pózy vrací nuly a kontrola tiše
   projde („nejvetsi odstup 0,0 m" i pro bod 370 m od cesty) — chyceno při ověřování v simulaci.
   Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
-  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na HW neběželo.**
+  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na zařízení odjela 12. a 14. 9. 2026, ale celý seznam neobjela** (k prvnímu bodu 44 m za 9,5 min, `NoRoute`) — stav vede registr (`mise-track`).
   **Seznamy `*.track` leží od 12. 9. 2026 u map v `OSM/`, ne v `config/`** — seznam patří
   **ke konkrétní mapě** (jeho body musí ležet na její síti), kdežto v `config/` vypadal jako
   nastavení běhu, které jde libovolně kombinovat s jakoukoli mapou. ⚠️ **A právě tak se to jednou stalo:**

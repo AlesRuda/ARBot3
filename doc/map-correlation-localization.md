@@ -1692,29 +1692,29 @@ gatuje zbytek (viz [decisions.md](decisions.md)).
 Co zůstává vázané na rozlišení gridu: `MinEvidenceCells` (400 buněk) a `SigmaFloorM` (0,05 m).
 Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **⚠️ Šířkový nesouhlas po rozšíření párovacího okna** (naměřeno 2026-08-23, **nezkoumáno**).
-  Po zavedení okna 400 ms + kompenzace pohybu vyskočil `|šířkový nesouhlas|` přijatých koridorů
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká. U delších
+bodů zůstává pod odrážkou původní rozbor (čísla a postup platí dál) a analytické podsekce níž
+(estimátor proložení, testovací mapa, `NoPair`, proložené přímky) patří k týmž tématům.
+
+- **[Šířkový nesouhlas vyskočil na 0,23 m — měřil se proti filtru, ne proti mapě](ukoly.md#lok-sirkovy-nesouhlas-proti-filtru)** —
+  po zavedení okna 400 ms + kompenzace pohybu vyskočil `|šířkový nesouhlas|` přijatých koridorů
   z **0,046 m na 0,230 m**, zatímco ostatní ukazatele se zlepšily (příčný nesouhlas 0,007 m,
-  chyba polohy p50 0,036 m, `NoPair` 20 → 1). Buď je to reálná cena širšího okna, nebo chyba
-  v kompenzaci. **Prověřit dřív, než se na tom bude stavět** — je to regrese po vlastní změně.
-
-  **VYŘEŠENO 2026-08-23: regrese to nebyla.** Ani cena okna, ani chyba kompenzace — šířkový
-  nesouhlas se měří proti **filtru šířky**, ne proti mapě, a to, co vyskočilo, je jeho zaostávání
-  na rozšiřující se cestě. Rozbor:
+  chyba polohy p50 0,036 m, `NoPair` 20 → 1); regrese to nebyla — ani cena okna, ani chyba
+  v kompenzaci — šířkový nesouhlas se měří proti **filtru šířky**, ne proti mapě, a to, co vyskočilo,
+  je jeho zaostávání na rozšiřující se cestě. Rozbor:
   [Šířkový nesouhlas byl zaostávání filtru](#šířkový-nesouhlas-byl-zaostávání-filtru-ne-regrese-23-8-2026).
 
+- **[Koridor za jízdy propadal v 92 % cyklů](ukoly.md#lok-koridor-za-jizdy-propada)** — „za jízdy
+  koridor skoro nic nepošle, hranice se sbíhají"; vada v kódu žádná nebyla, obě složky mají příčinu
+  mimo detektor: `NoPair` spravilo párování kamer, a „nerovnoběžnost ~11°" byla **nálevka v testovací
+  mapě** (rozšíření 1 → 3 m na 10 m dává přesně 11,42°). Nad mapou s konstantní šířkou je to
+  **100 % `Ok` po prvních 60 s** a nerovnoběžnost p50 **0,086°**. Rozbor je níže v témž bodě.
 
-- ~~**⚠️ Za jízdy koridor skoro nic nepošle — hranice se sbíhají**~~ **VYŘEŠENO, žádná vada v kódu
-  nebyla** (naměřeno 2026-08-22, vysvětleno 2026-08-24). Obě složky mají příčinu mimo detektor:
-  `NoPair` spravilo párování kamer, a „nerovnoběžnost ~11°" byla **nálevka v testovací mapě**
-  (rozšíření 1 → 3 m na 10 m dává přesně 11,42°). Nad mapou s konstantní šířkou je to **100 % `Ok`
-  po prvních 60 s** a nerovnoběžnost p50 **0,086°**. Rozbor je níže v témž bodě.
-
-  > ⚠️ **Tenhle bod už dvakrát někoho spletl** (naposled 27. 8. 2026, mě): hlavička říkala
-  > „neopraveno", ale rozbor pod ní stejný nález ruší. **Když je pod bodem „VYŘEŠENO", platí to,
-  > ne nadpis** — a nadpis se má rovnou přepsat. Totéž se stalo u „regrese šířkového nesouhlasu".
+  > ⚠️ **Tenhle bod už dvakrát někoho spletl:** hlavička říkala „neopraveno", ale rozbor pod ní
+  > stejný nález rušil. Když je pod bodem rozbor, platí rozbor, ne nadpis — a stav teď vede jen
+  > registr. Totéž se stalo u „regrese šířkového nesouhlasu".
 
   Původní měření a rozbor (ponecháno, protože čísla i postup platí): za 40 s jízdy dalo měření jen
   **35 ze 411** cyklů (8 %). Za tím číslem se skrývají **tři různé věci** a žádná z nich nakonec
@@ -1759,7 +1759,7 @@ Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
   Není to tedy křižovatkou — u ní to naopak funguje. Selhává to **na rovném otevřeném úseku**,
   a to stoprocentně.
 
-  **VYŘEŠENO 2026-08-24: nebyla to vada, byla to nálevka v testovací mapě.** Ten „rovný otevřený
+  **Nebyla to vada, byla to nálevka v testovací mapě.** Ten „rovný otevřený
   úsek" rovný není. Počátek lokální ENU roviny je střed obálky uzlů, tedy `mapX = −11,5 m`, takže
   `appX = mapX + 11,5`. Úsek `appX −2..−8 m` odpovídá `mapX −13,5..−19,5 m` — a to leží **celé
   uvnitř úseku D** (`mapX −13..−23`), což je nálevka rozšiřující se z 1 m na 3 m na délce 10 m.
@@ -1805,7 +1805,7 @@ Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
   a výsledný směr je pak libovolný. Odtud „delší hranice = víc zamítnutí" i to, že směr vychází
   ustáleně 11°, ale bez fyzikálního významu.
 
-  **Náprava (23. 8. 2026, částečná):** práh inlieru v RANSACu je nově **úměrný vzdálenosti bodu**
+  **Náprava (částečná; registr: [práh inlieru úměrný vzdálenosti](ukoly.md#lok-koridor-prah-inlieru-podle-vzdalenosti)):** práh inlieru v RANSACu je nově **úměrný vzdálenosti bodu**
   — `InlierThresholdM + InlierThresholdPerMeter · r`, výchozí `0,10 m + 0,15 m/m`. Rozhoduje se tím
   na správném místě (ve vyhodnocení inlierů), ne ořezáním vstupu. Implementováno jako přetížení
   `RANSAC.LinearRegresion` s `Func<Point2D, double>` místo konstanty; nula = původní chování.
@@ -1816,7 +1816,8 @@ Nic neškálují, takže σ nelžou — ale je to tatáž vada, jen v prahu.
   > koridorů o ±8. **Jedno měření na variantu proto nic neznamená** — a než jsem to zjistil, stihl
   > jsem z jednotlivých běhů vyvodit dva závěry, které neplatily. Všechna čísla níž jsou průměr
   > z 12 opakování. Vedlejší důsledek: **replay hranové lokalizace není reprodukovatelný**, což jde
-  > proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`). Neopraveno.
+  > proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) — registr:
+  > [RANSAC je nedeterministický](ukoly.md#lok-ransac-nedeterministicky).
 
   Sweep nad **týmiž daty** (421 dvojic, záznam `20260823-084807`, 12 opakování na variantu):
 
@@ -2329,8 +2330,8 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   `kor hranice P`.
 
 
-- **⚠️ Korekce kurzu je ve fúzi bezmocná — a soft gating to zhoršuje** (naměřeno 2026-08-22,
-  **neopraveno**). `CorridorLocalizer` kurz posílá (`SendHeading = true`, σ podlaha 0,5°) a měří ho
+- **[Korekci kurzu z koridoru přehlasuje kompas ~200:1](ukoly.md#lok-kurz-koridor-prehlasovan-kompasem)** —
+  a soft gating to zhoršuje. `CorridorLocalizer` kurz posílá (`SendHeading = true`, σ podlaha 0,5°) a měří ho
   správně: při vnuceném biasu kompasu 5° hlásí nesouhlas 4,8°. Fúze se přesto nehne — chyba kurzu
   zůstane **4,96°**, tedy korekce odstraní ~1 %.
 
@@ -2351,11 +2352,12 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
 
   **Co s tím.** Buď dát kompasu σ, které je poctivé vůči jeho *biasu* (ne jen krátkodobému šumu —
   VN100 má magnetometrický bias korelovaný v čase, ne bílý šum), nebo přidat **bias kurzu do stavu
-  EKF** a nechat ho estimovat. Do té doby je korekce kurzu z koridoru dekorace. Souvisí s podmínkou
-  „honestní σ" z [decisions.md](decisions.md).
+  EKF** a nechat ho estimovat. Do té doby je korekce kurzu z koridoru dekorace — s podlahou σ kompasu
+  a jeho škrcením na 1 Hz už to neplatí (viz níž „Oprava staršího tvrzení: korekce kurzu už bezmocná
+  není"). Souvisí s podmínkou „honestní σ" z [decisions.md](decisions.md).
 
 
-- **⚠️ Falešná podélná jistota na cestě pod úhlem k osám gridu** (naměřeno 2026-08-19, **neopraveno**).
+- **[Sigma korelace je slepá k množství důkazu](ukoly.md#lok-korelace-sigma-nepoctiva)** — falešná podélná jistota na cestě pod úhlem k osám gridu.
   Na šikmé **přímé** cestě vychází `SigmaLoose` konečná — 0,1848 m — přesto že přímá cesta žádnou
   podélnou informaci nenese. Je to „jistěji" než skutečná T-křižovatka (0,2943 m) a hluboko pod
   stropem `SigmaCeilingM`. Reálné cesty nejsou zarovnané s osami gridu, takže to postihuje skoro
@@ -2366,8 +2368,8 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   protože se volná osa hlídá zvlášť (viz [Přijetí, nebo mlčení](#7-přijetí-nebo-mlčení)), podélná
   korekce se **nepošle** — mitigace tu vadu mimoděk neutralizuje. Je to ale **hlídač, ne důkaz**:
   na zakřivené cestě nebo u odbočky mimo mřížku může remíza konkurenta zmizet, zatímco σ zůstane
-  chybně malá, a pak se korekce pošle. Před zapnutím korekcí (fáze 3) je proto pořád **nejzávažnější
-  otevřený úkol celé funkce** — jen ne tak akutní, jak tvrdila původní verze tohoto odstavce.
+  chybně malá, a pak se korekce pošle. Před zapnutím korekcí (fáze 3) je to proto pořád **nejzávažnější
+  bod celé funkce** — jen ne tak akutní, jak tvrdila původní verze tohoto odstavce.
   Sledovat se to dá sloupcem `korel os+`: na přímé cestě má být zhasnutý, a `korel konk+` řekne,
   jestli ho zhasl strop σ, nebo právě ten hlídač.
 
@@ -2391,7 +2393,7 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   malý. Je to **třetí naměřená stopa téže vady**, ne samostatný problém — proto je popsaná tady
   a ne jako vlastní úkol. Podrobně [Proč malý oblak obelže hlídač](#proč-malý-oblak-obelže-hlídač) níž.
 
-  **Příčina prvního cyklu dohledána (19. 8. 2026) — není to řídký důkaz, je to znečištěný grid.**
+  **Příčina prvního cyklu dohledána — není to řídký důkaz, je to znečištěný grid** (registr: [První korelace byla chybná, protože se kurz neinicializoval](ukoly.md#lok-kurz-inicializace-ekf)).
   „Málo buněk" byla jen souběžná okolnost. Skutečný řetěz:
 
   1. `AsyncFusionEngine.InitializePosition` inicializovala **jen X a Y** — `Theta` ne. Kurz proto
@@ -2424,7 +2426,7 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   správnou — tedy přesně ten tvar chyby, který by fúzi odtlačil o ~1 m **špatným směrem**. Od
   druhého cyklu je všechno v pořádku.
 
-  **✅ OPRAVENO** (19. 8. 2026), dvěma zásahy — druhý je ten podstatný:
+  **Léčba** dvěma zásahy — druhý je ten podstatný:
 
   1. **`PoseJumpDetector` hlídá i rotaci** (viz [Zpětná vazba na grid](#zpětná-vazba-na-grid)).
      Zabírá demonstrovatelně — grid se zahodí a objeví se cyklus s `Reason = TooFewEvidence`, který
@@ -2504,10 +2506,10 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   > `α`) to nemůže vědět taky. Proto vyjde pro malý oblak σ **menší** (0,1412 proti 0,23–0,29 m):
   > větší jistota tam, kde je podkladu nejmíň. Není to druhá vada, je to táž vada z druhé strany.
 
-  **ZMĚŘENO A OPRAVENO 25. 8. 2026 — viz [Honestní σ: první měření a oprava](#honestní-σ-první-měření-a-oprava-25-8-2026).**
+  **Léčba — viz [Honestní σ: první měření a oprava](#honestní-σ-první-měření-a-oprava-25-8-2026).**
   Přesně jak předvídáno: malý oblak dostane velkou σ a strop ho zahodí sám.
 
-  **Rozhodnuto neopravovat zvlášť** (20. 8. 2026): až se σ naučí počítat, kolik informativního
+  **Rozhodnuto neopravovat zvlášť:** až se σ naučí počítat, kolik informativního
   důkazu za ní stojí, tenhle případ zmizí sám — malý oblak dostane velkou σ, strop σ podélnou osu
   potlačí a hlídač marže nebude potřeba. Opravovat to teď zvlášť by znamenalo přidat další ruční
   práh, což je přesně to, co [Testování](#testování) zakazuje.
@@ -2621,7 +2623,7 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   Scéna, která vazbu skutečně vyrobí, musí porušit soumístnost robotu se symetrií cesty — např.
   robot mimo osu blízko konce cesty, nebo cesta s měnící se šířkou.
 
-- **UI vrstva nemá testovací projekt** (zjištěno 19. 8. 2026 skutečnou výjimkou za běhu).
+- **[Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](ukoly.md#nast-avalonia-headless-testy)** — UI vrstva nemá testovací projekt (zjištěno skutečnou výjimkou za běhu).
   `Src/ARBot` (`TelemetryColumns`, `TelemetryChartControl`, view modely) není pokrytý žádným testem —
   na `ARBot.csproj` neukazuje ani jeden testovací projekt. Právě tam se schovala vada, kterou
   nenašla ani jedna ze čtrnácti review: sdílený helper předával `Enum.IsDefined` vždy `int`, což
@@ -2630,27 +2632,27 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   projekt nad `ARBot`, nebo přesouvat formátovací logiku do `Common` systematicky (precedens:
   `AnglePresentation`, `EnumPresentation`).
 
-- **Marže rastru pokrývá jen úroveň 0** (zjištěno při re-review 2026-08-19, **neopraveno**).
+- (bez tématu v registru) **Marže rastru pokrývá jen úroveň 0** (zjištěno při re-review 2026-08-19, **neopraveno**).
   `RequiredRasterMarginM` sčítá `SearchRangeM + HessianStepM + rotační člen`, ale úrovně se
   re-centrují, takže skutečná výchylka je součet polovin oken (2,9 m) a |φ| až 10,5° + 2° sondy.
   Potřeba je ~5,06 m proti použitým 4,0 m. Dopad: u nejextrémnějších kandidátů se pořád zahazují
   převážně nesouhlasné buňky, tedy jejich skóre je nadhodnocené. Oprava je triviální (sečíst úrovně),
   jen ji nechci dělat bez testu, který by ten rozdíl chytil.
 
-- **Tvrdý limit korekce za cyklus** (doplněno finální review 2026-08-19, **neimplementováno**).
+- **[Tři podmínky, než korekce z mapy pustit naostro](ukoly.md#lok-korelace-tri-podminky-naostro)** — tvrdý limit korekce za cyklus (podmínka 2, doplněno finální review).
   `MaxOffsetM` omezuje naměřený posun, ne aplikovaný krok — při malé σ proti velkému `P` může filtr
   aplikovat téměř celé dva metry v jednom updatu. Slib „jednotky cm za cyklus" je dnes jen naděje
   o tom, jak vyjde `α`. Před zapnutím korekcí přidat limiter nezávislý na σ i na Kalmanově zesílení.
 
-- ~~**Bezobslužný běh neumí zadat cíl**~~ (zjištěno 19. 8. 2026, **doplněno 22. 8. 2026** jako
-  `goal=lat,lon`). Cíl šel zadat jen Ctrl+klikem ve world view (`WorldViewDocument.GoalRequested`),
+- **[Simulace konečně umí změřit lokalizaci a nechat odhad driftovat](ukoly.md#nast-simulace-meri-lokalizaci)** —
+  bezobslužný běh neuměl zadat cíl, doplněno jako `goal=lat,lon`. Cíl šel zadat jen Ctrl+klikem ve world view (`WorldViewDocument.GoalRequested`),
   takže bezobslužné běhy (`selftest=true`, `telemetryshot=true`) vždy proměřily jen **stojící
   robot**. Že to tak opravdu je, se ukázalo až 22. 8. při rozboru kurzu: všechny tehdejší A/B běhy
   měly ujetou dráhu **0,00 m**, takže z nich šlo o chování za jízdy usuzovat jen omylem. Parametr
   jde stejnou cestou jako klik (`GlobalNavigator.SetGoal(LLA)`); bez mapy padne přímo lokálnímu
   plánovači. Fáze 4 tím přestává být blokovaná.
 
-- **Co proměřit nad záznamy před zapnutím** (fáze 4), v tomto pořadí:
+- **[Tři podmínky, než korekce z mapy pustit naostro](ukoly.md#lok-korelace-tri-podminky-naostro)** — co proměřit nad záznamy před zapnutím (fáze 4), v tomto pořadí:
   1. **σ proti realizované chybě** — reportovanou `korel sig-` proti skutečnému rozptylu `korel dx`/
      `korel dy` na známě dobrém úseku. Menší reportovaná σ než rozptyl = `α` je malé a filtr bude
      přesvědčenější, než smí.
@@ -2661,8 +2663,8 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
      odlišení, jestli osu zhasl strop σ, nebo hlídač konkurenta. Když svítí, „falešná podélná jistota"
      protéká přes hlídač a zapínat se nesmí bez ohledu na body 1 a 2.
 
-- **⚠️ Tři podmínky, než korekce pustit naostro** (20. 8. 2026, **návrh k rozhodnutí** — viz
-  [decisions.md](decisions.md)). Rozvaha začala u toho, že kamera neměří polohu, ale **vztah k cestě**
+- **[Tři podmínky, než korekce z mapy pustit naostro](ukoly.md#lok-korelace-tri-podminky-naostro)** — návrh
+  k rozhodnutí, viz [decisions.md](decisions.md). Rozvaha začala u toho, že kamera neměří polohu, ale **vztah k cestě**
   (GPS může lhát, mapa může být špatně nakreslená ve tvaru i v pozici), a mířila na nový stav filtru
   pro posun mapa↔GPS. **Závěr se ale otočil:** přímá korekce pózy stačí, protože mapový rámec *je*
   provozní rámec — mrkev, trasa i cíle misí jsou mapově relativní, a absolutní přesnost je stejně
@@ -2685,18 +2687,18 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   **Než jsou ty tři podmínky splněné, nemá smysl dolaďovat současné chování korekcí** — ladil by se
   mechanismus, který stojí na σ, jež si svou jistotu nezasloužila.
 
-- **Eskalace stavu „lokalizace nepodložená mapou"** — dnes korelátor jen mlčí a stav si nikdo nečte.
-  Chybí k tomu i **schopnost se znovu najít**: záchytný rozsah je jen ±2,5 m a ±8°, takže po delším
-  výpadku GNSS nebo po přenesení robota hierarchický sken principiálně nedosáhne. Kandidát je
-  Fourier-Mellin jako hrubý inicializátor — viz „Korelace přes FFT" v úkolu č. 1.
-  Až bude jasné, jak dlouhé úseky bez shody v praxi vznikají, může `GlobalNavigator` ubrat nebo
-  přestat věřit mrkvi.
-- **Pyramida rastru mapy** — hrubá úroveň skenování by mohla dotazovat rastr s krokem 20 cm.
+- **[Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě](ukoly.md#lok-korelace-eskalace-bez-shody)** —
+  dnes korelátor jen mlčí a stav si nikdo nečte; chybí i schopnost se znovu najít (záchytný rozsah
+  je jen ±2,5 m a ±8°, po delším výpadku GNSS nebo po přenesení robota sken principiálně nedosáhne),
+  kandidát na hrubý inicializátor je Fourier-Mellin (viz „Korelace přes FFT" v úkolu č. 1); až bude
+  jasné, jak dlouhé úseky bez shody vznikají, může `GlobalNavigator` ubrat nebo přestat věřit mrkvi.
+- (bez tématu v registru) **Pyramida rastru mapy** — hrubá úroveň skenování by mohla dotazovat rastr s krokem 20 cm.
   Nevyužitá páka pro výkon na ARM; přidat, až měření řekne, že je potřeba.
-- **Kanál `Occ` jako druhá evidence** — pomohl by u zdí a plotů, kde barva selhává, ale nese věci,
+- (bez tématu v registru) **Kanál `Occ` jako druhá evidence** — pomohl by u zdí a plotů, kde barva selhává, ale nese věci,
   které v mapě nejsou. Až bude příčný odhad z `LRoad` naladěný a bude s čím porovnávat.
-- **Přežití restartu** — naladěná korekce se po restartu aplikace zahodí a filtr začíná od GPS.
-  Stejná otázka jako uzavírání hran napříč běhy v [global-navigation-runtime.md](global-navigation-runtime.md).
+- **[Uzavřené hrany sítě a stav lokalizace nepřežijí restart](ukoly.md#nav-uzavreni-hran-pres-restart)** —
+  naladěná korekce se po restartu aplikace zahodí a filtr začíná od GPS; stejná otázka jako
+  uzavírání hran napříč běhy v [global-navigation-runtime.md](global-navigation-runtime.md).
 
 ---
 
@@ -3237,16 +3239,20 @@ z rozdělení**, ne výsledkem nové cesty kódu. Ověří to až nový záznam.
 15–20°. `assocmargin=4` a `assocveto=45` jdou proladit offline ze `AssocChi2` / `AssocChi2Second`
 v záznamu; přesně proto tam jsou.
 
-### Další krok
+### Otevřený úkol (→ registr): další krok
 
-1. Kabely do definitivní polohy → minutový záznam s jednou otočkou na místě (rozpětí `|B|`)
-   → `mission=magcal` s náklony na obě strany.
-2. ~~Do VÝBĚRU mapové hrany přidat azimut.~~ ✅ **Hotovo 16. 9. 2026** (viz výš). Po opravě
-   magnetometru **snížit `assocfloorhdg` na ~3°** — test se tím sám zostří.
-3. **Teprve s tím rozvolnit `MaxLateralDisagreementM`** na násobek σ pózy (ne na konstantu).
-   Pořadí je podstatné: rozvolnit bránu dřív než přibude azimut znamená pustit dovnitř příčné
-   ulice, které dnes zahazuje ta úzká brána.
-4. Přeměřit koridor a z posloupnosti `Width`/σ nastavit `corridorstd=` / `corridorheadingstd=` /
-   `corridorhz=` — dekorelační čas chyby koridoru **pořád změřený není**, a tenhle záznam ho dát
-   nemůže (kurz je vada, ne šum). První střízlivé číslo pro `corridorheadingstd=` je z tabulky výš
-   **~2,3°** proti hlášeným 0,5°.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Kalibrace magnetometru přestala účinkovat — přibylo železo od kabelů ke kamerám](ukoly.md#hw-zelezo-od-kabelu-kamer)** —
+  kabely do definitivní polohy → minutový záznam s jednou otočkou na místě (rozpětí `|B|`)
+  → `mission=magcal` s náklony na obě strany.
+- **[Polovina cyklů koridoru se párovala na příčnou ulici](ukoly.md#lok-prirazeni-hrany-chi2)** —
+  do výběru mapové hrany přibyl azimut (viz výš); po opravě magnetometru **snížit `assocfloorhdg`
+  na ~3°** — test se tím sám zostří.
+- **[Koridor v měřicím režimu — odtlumení a první měřicí jízda](ukoly.md#lok-koridor-merici-rezim)** —
+  teprve s tím rozvolnit `MaxLateralDisagreementM` na násobek σ pózy (ne na konstantu); pořadí je
+  podstatné: rozvolnit bránu dřív než přibude azimut znamená pustit dovnitř příčné ulice, které
+  dnes zahazuje ta úzká brána. Pak přeměřit koridor a z posloupnosti `Width`/σ nastavit
+  `corridorstd=` / `corridorheadingstd=` / `corridorhz=` — dekorelační čas chyby koridoru **pořád
+  změřený není**, a měřicí záznam ho dát nemůže (kurz je vada, ne šum); první střízlivé číslo pro
+  `corridorheadingstd=` je z tabulky výš **~2,3°** proti hlášeným 0,5°.

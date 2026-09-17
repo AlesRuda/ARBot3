@@ -261,17 +261,21 @@ prvního**. Jedno místo trvalo 170–240 s při trase 170–260 m.
 záměrně vybrané jako **uzly cest** z `HajeRovne.osm`, takže na síti přímo leží. Limit
 `trackoffroad=` tím tedy **prověřený není** (jen jeho testy).
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Projet na zařízení** — v simulaci to jezdí, ale s reálnou GPS, kurzem a occupancy gridem to
-  neběželo. ⚠️ Pozor, kurz z VN100 je dnes desítky stupňů vedle
-  ([imu-and-frames.md](imu-and-frames.md)), takže jízdu po mapě to ovlivní.
-- **`trackoffroad=` nastavit z naměřených odstupů** místo úsudku (údaj je v záznamu).
-- **Rozbor záznamu** (`ARBot.Analyze track`) — jak dlouho trvalo které místo, kolik kol se ujelo,
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — projet celou misi na zařízení:
+  v simulaci to jezdí, na zařízení odjela 12. a 14. 9., ale celý seznam neobjela; kurz z VN100 byl
+  přitom rozbitý železem od kabelů ([imu-and-frames.md](imu-and-frames.md),
+  [registr](ukoly.md#hw-zelezo-od-kabelu-kamer)), takže jízdu po mapě to ovlivní.
+- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — `trackoffroad=` nastavit
+  z naměřených odstupů místo úsudku (údaj je v záznamu).
+- (bez tématu v registru) **Rozbor záznamu** (`ARBot.Analyze track`) — jak dlouho trvalo které místo, kolik kol se ujelo,
   jaké byly odstupy. Vzor: `ARBot.Analyze freerun`.
-- **Volba mise ze stránky bez `track=`** dnes skončí tím, že se mise nezaloží a stránka o tom nic
-  neřekne (jen `Trace`). Buď doplnit hlášku na stránku, nebo ze seznamu misí `track` schovat,
-  když soubor není zadaný.
+- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — volba mise ze stránky bez
+  `track=` dnes skončí tím, že se mise nezaloží a stránka o tom nic neřekne (jen `Trace`); buď
+  doplnit hlášku na stránku, nebo ze seznamu misí `track` schovat, když soubor není zadaný.
 
 ## Odkazy
 

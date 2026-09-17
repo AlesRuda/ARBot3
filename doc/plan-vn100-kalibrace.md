@@ -710,20 +710,29 @@ i η² a rozpad začne rozlišovat.
   6. 9. 2026, zapsáno v [imu-and-frames.md](imu-and-frames.md).
 - **Automatický zápis do senzoru bez člověka.** Nikdy.
 
-## Otevřené otázky a co zůstane neověřené
+## Otevřené úkoly (→ registr)
 
-- **Směr modelu registru 23** (`C·(m−b)` vs. `C·m − b`) — potvrdit z ICD VN-100 (Task 4).
-- ✅ **`UncompMag` v `vndotnetlib-0.4` JE** (ověřeno překladem 8. 9. 2026; v enumu jsou
-  i `UncompAccel`/`UncompGyro`). Surové pole je proto v `IMUState.MagnetometerRaw`, formát 4,
-  a předpoklad „registr 23 = identita" **padl konstrukčně** — mise registr 23 mazat nesmí.
-- **Sémantika polí registrů 37/38** — potvrdit z ICD, dnes se zná jen tvar z exportu.
-- **Stačí 2–3 náklony?** ✅ Změřeno 10. 9. 2026 (`20260910-170809.rec`): se 4 odkloněnými řádky
-  o 20–40° je podmíněnost **113–170**, elipsoida se proloží a kurz z půlek souhlasí na 0,63° —
-  ale složka `z` ne (`b_z` 0,063 vs 0,018 G, `C[2,2]` 0,979 vs 1,076). Pro kurz na rovině stačí,
-  pro `z` ne; viz fáze 1c.
-- **Přežije kalibrace vypnutí a zapnutí?** Jediný skutečný test flash (Task 8).
-- **Celá fáze 2** do přeměření.
-- **`IMUState` FormatVersion 4 se dotkne všech záznamů** — starší se musí dál čítat
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Kalibrace se do senzoru zapisovala ve špatném rámci, offset se přičítal](ukoly.md#hw-magcal-ramec-registru-23)** —
+  směr modelu registru 23 (`C·(m−b)` vs. `C·m − b`), potvrzený z ICD VN-100 i měřením na živém
+  senzoru (Task 4).
+- **[„Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala](ukoly.md#hw-magcal-uncompmag-kompenzovany)** —
+  `UncompMag` v `vndotnetlib-0.4` je (v enumu jsou i `UncompAccel`/`UncompGyro`), surové pole je
+  proto v `IMUState.MagnetometerRaw`, formát 4, a předpoklad „registr 23 = identita" tím padl
+  konstrukčně; jenže binární `UncompMag` je ve skutečnosti taky kompenzovaný, takže si mise
+  registr 23 před sběrem sama vymaže a po nedokončení vrátí.
+- (bez tématu v registru) **Sémantika polí registrů 37/38** — potvrdit z ICD, dnes se zná jen tvar z exportu.
+- **[Robot si kalibraci magnetometru změří sám z telefonu (`mission=magcal`)](ukoly.md#mise-magcal)** —
+  stačí 2–3 náklony? Změřeno nad `20260910-170809.rec`: se 4 odkloněnými řádky o 20–40° je
+  podmíněnost **113–170**, elipsoida se proloží a kurz z půlek souhlasí na 0,63° — ale složka `z` ne
+  (`b_z` 0,063 vs 0,018 G, `C[2,2]` 0,979 vs 1,076). Pro kurz na rovině stačí, pro `z` ne; viz fáze 1c.
+- **[Železo na těle robota kazí kurz o desítky stupňů](ukoly.md#hw-vn100-zelezo-na-robotu)** —
+  přežije kalibrace vypnutí a zapnutí? Jediný skutečný test flash (Task 8); kalibrace zapsaná do
+  flash se venku ověřila třemi záznamy.
+- **[Kurz ze senzoru se táhne za vlastním magnetometrem minuty](ukoly.md#hw-vn100-vpe-tahne-za-polem)** —
+  celá fáze 2 (VPE) do přeměření po kalibraci.
+- (bez tématu v registru) **`IMUState` FormatVersion 4 se dotkne všech záznamů** — starší se musí dál čítat
   (`FromData` podle verze).
 
 ## Odkazy

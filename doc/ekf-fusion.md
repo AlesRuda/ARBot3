@@ -231,64 +231,51 @@ Souvislost s korelací mapy (tamtéž „korekce kurzu je ve fúzi bezmocná"):
 [map-correlation-localization.md](map-correlation-localization.md). Měří to
 `ARBot.Analyze heading`.
 
-### ⚠️ Otevřený úkol: chyby senzorů jako stavy EKF — ale nejdřív potvrdit na HW (2026-08-25)
+### Otevřený úkol (→ registr): chyby senzorů jako stavy EKF
 
-**Návrh (autorův):** místo aby se kompas a ostatní absolutní referencie přehlasovaly, **odhadovat
-chybu jednotlivých senzorů jako stav** — `x = [X, Y, θ, v, ω, b_kompas, b_gyro, …]`. Kompas pak měří
-`θ + b_c`, gyro `ω + b_g`, oba biasy jako náhodná procházka s malým `Q`. Kompas tím **přestane mít
-právo definovat absolutní kurz**; ten pinuje `GPS/heading`, které už hotové je.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-**Proč to není jen ladění σ.** Zvýšit `CompassHeadingStd` na řádově stupně je jednořádkové, ale je to
-fudge: filtr pak kompasu nevěří ani krátkodobě, kde je dobrý. Bias jako stav odděluje „krátkodobý
-šum" od „trvalé odchylky", což jsou dvě různé věci, které dnes popisuje jedno číslo.
+- **[Chyby senzorů (bias kompasu a gyra) jako stavy EKF](ukoly.md#lok-bias-senzoru-jako-stav-ekf)** —
+  místo aby se kompas a ostatní absolutní reference přehlasovaly, odhadovat chybu jednotlivých
+  senzorů jako stav `x = [X, Y, θ, v, ω, b_kompas, b_gyro, …]`: kompas pak měří `θ + b_c`, gyro
+  `ω + b_g`, oba biasy jako náhodná procházka s malým `Q`, a absolutní kurz pinuje `GPS/heading`.
 
-**Observabilita je vyřešená a změřená:** `b_gyro` je observabilní z jakékoli absolutní reference
-kurzu (stačí kompas), `b_kompas` z `GPS/heading` — v simulaci na 3σ za 6 s jízdy. Původní námitka
-(že by bias musela pinovat korelace s mapou, která má vlastní vadu, a stav by tak pojedl chybu
-korelátoru) **padla**: GPS kurz je nezávislý na magnetometru i na mapě.
+  **Proč to není jen ladění σ.** Zvýšit `CompassHeadingStd` na řádově stupně je jednořádkové, ale je to
+  fudge: filtr pak kompasu nevěří ani krátkodobě, kde je dobrý. Bias jako stav odděluje „krátkodobý
+  šum" od „trvalé odchylky", což jsou dvě různé věci, které dnes popisuje jedno číslo.
 
-> **⛔ GATE: potvrdit na reálném HW, jestli je to vůbec potřeba.**
-> Všechno výše je změřené v **simulaci**, kde ten 3° bias kompasu **vnutil člověk** parametrem
-> `imubias=3`. Jestli má skutečný VN100 v téhle montáži bias, je empirická otázka o tom železe —
-> a když ne, celý tenhle úkol je zbytečná složitost ve stavovém vektoru, na kterém visí všechno
-> ostatní.
->
-> **Jak to na zařízení změřit** (potřeba jen jízda, nic nového):
-> ```bash
-> dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- heading Records/<zaznam>.rec
-> ```
-> Report umí i **běh bez ground truth** a tiskne pak `IMU yaw − GPS kurz`: střední hodnotu, šum
-> a kolik vzorků je potřeba na 3σ. Pravdu k tomu nikdo nepotřebuje — stačí, že jsou to dvě
-> nezávislé absolutní referencie.
->
-> **Podmínky pořízení:** jízda nad prahem rychlosti (kurz nad zemí při stání neexistuje), a nejlépe
-> **smyčka nebo aspoň dva různé kurzy**. Bias magnetometru je vázaný na **tělo** robota, takže se
-> s kurzem **otáčí**; deklinace nebo chyba v převodu rámců je vázaná na **svět**, takže nerotuje.
-> Bez otočení se to nerozliší. *(Tentýž rozlišovací znak už doc/map-correlation-localization.md
-> používá na „bias z montáže kamer vs. posun mapy".)*
->
-> **Co s výsledkem:** rozpor řádu stupňů, který rotuje s kurzem ⇒ bias kompasu je skutečný a úkol má
-> smysl. Rozpor pod ~0,5° ⇒ zavřít jako nepotřebné a `GPS/heading` nechat jen jako druhou referenci
-> pro případ výpadku magnetometru.
->
-> **Ten přístroj je ověřený proti známé odpovědi** (`--nogt` nad simulačním záznamem, kde pravda
-> existuje, ale zahodí se): cesta pro HW ohlásila střední rozpor **2,78°** proti vnucenému biasu
-> **2,99°**, tedy shoda do 0,2°, a odhadla potřebu 29 vzorků = 5,8 s jízdy. Bez toho by na zařízení
-> běžel kód, který nikdy nikdo neproměřil.
+  **Observabilita je změřená:** `b_gyro` je observabilní z jakékoli absolutní reference kurzu (stačí
+  kompas), `b_kompas` z `GPS/heading` — v simulaci na 3σ za 6 s jízdy. Námitka, že by bias musela
+  pinovat korelace s mapou (která má vlastní vadu, takže by stav pojedl chybu korelátoru), padla:
+  GPS kurz je nezávislý na magnetometru i na mapě.
 
-#### První měření na zařízení (6. 9. 2026): gate **není** tímto otevřený
+  **Gate: nejdřív potvrdit na reálném HW, jestli je to vůbec potřeba.** Všechno výše je změřené
+  v simulaci, kde ten 3° bias kompasu vnutil člověk parametrem `imubias=3`. Jestli má skutečný VN100
+  v téhle montáži bias, je empirická otázka o tom železe — a když ne, je to zbytečná složitost ve
+  stavovém vektoru, na kterém visí všechno ostatní. Změřit to jde jízdou bez čehokoli nového:
+  `dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- heading Records/<zaznam>.rec` — report
+  umí běh bez ground truth a tiskne `IMU yaw − GPS kurz` (střední hodnotu, šum a kolik vzorků je
+  potřeba na 3σ); stačí, že jsou to dvě nezávislé absolutní reference. Přístroj je ověřený proti
+  známé odpovědi (`--nogt` nad simulačním záznamem, kde pravda existuje, ale zahodí se): ohlásil
+  střední rozpor 2,78° proti vnucenému biasu 2,99°, tedy shoda do 0,2°, a odhadl potřebu 29 vzorků
+  = 5,8 s jízdy.
 
-Nad `records/test/20260906-082403.rec` vyšlo `IMU yaw − GPS kurz` = **−59,2°** a `odhad − IMU yaw`
-= **−0,01° ± 0,21°** — tedy **na skutečném železe platí totéž co v simulaci: kompas kurz
-definuje.** Ten poměr 4 000:1 je tím potvrzený na HW.
+  **Podmínky pořízení:** jízda nad prahem rychlosti (kurz nad zemí při stání neexistuje) a nejlépe
+  smyčka nebo aspoň dva různé kurzy. Bias magnetometru je vázaný na tělo robota, takže se s kurzem
+  otáčí; deklinace nebo chyba v převodu rámců je vázaná na svět, takže nerotuje — bez otočení se to
+  nerozliší (tentýž rozlišovací znak používá [map-correlation-localization.md](map-correlation-localization.md)
+  na „bias z montáže kamer vs. posun mapy"). Rozpor řádu stupňů, který rotuje s kurzem ⇒ bias
+  kompasu je skutečný a úkol má smysl; rozpor pod ~0,5° ⇒ zavřít jako nepotřebné a `GPS/heading`
+  nechat jen jako druhou referenci pro případ výpadku magnetometru.
 
-**Neplatí z toho ale, že je „bias kompasu skutečný“ ve smyslu, který tenhle úkol řeší.**
-59° není bias, který má pojmout stav — je to **porucha**: týž senzor měl 2. 9. rozpor
-−0,25° ± 4,3° a magnetické pole se mezitím nezměnilo (rozbor v
-[imu-and-frames.md](imu-and-frames.md)). Stav v EKF by takovou chybu **schoval**, ne opravil,
-a `GPS/heading` s σ 14° ji stejně nepřetáhne. **Gate zůstává otevřený** — potřeba je záznam
-**se smyčkou** a se **zdravým** kompasem; teprve na něm se ukazuje, jestli má VN100 bias
-řádu stupňů, kvůli kterému by se stav vyplácel.
+  **První měření na zařízení gate nezavřelo:** nad `records/test/20260906-082403.rec` vyšlo
+  `IMU yaw − GPS kurz` = −59,2° a `odhad − IMU yaw` = −0,01° ± 0,21° — na skutečném železe platí
+  totéž co v simulaci, kompas kurz definuje, a poměr 4 000:1 je tím potvrzený na HW. Těch 59° ale
+  není bias, který má pojmout stav, je to porucha: týž senzor měl o čtyři dny dřív rozpor
+  −0,25° ± 4,3° a magnetické pole se mezitím nezměnilo (rozbor v [imu-and-frames.md](imu-and-frames.md)).
+  Stav v EKF by takovou chybu schoval, ne opravil, a `GPS/heading` s σ 14° ji stejně nepřetáhne.
+  Rozhodnout to může jen záznam se smyčkou a se zdravým kompasem; teprve na něm se ukáže, jestli má
+  VN100 bias řádu stupňů, kvůli kterému by se stav vyplácel.
 
 ## GPS táhne stojícího robota (změřeno 2026-09-06)
 
@@ -477,59 +464,56 @@ nehlásí **ani jeden** skok při žádném prahu až po 0,05 m, protože při 1
 Grid se tedy **nikdy nezahazuje, jen rozmazává**, a nápad „posouvat origin místo `Clear()`" na
 tenhle problém nemá vliv.
 
-### Otevřený úkol: Pitch/Roll patří do stavu EKF (2026-08-11)
+### Otevřený úkol (→ registr): Pitch/Roll patří do stavu EKF
 
-`RobotState.Roll`/`Pitch` dnes **nejsou součástí stavu filtru** — doplňuje je
-[`ControlLoop`](../Src/ARBot.Common/Runtime/ControlLoop.cs) z **posledního IMU**, které proteklo jeho
-`Consume` (`lastImu`). Dva problémy s tím:
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-1. **Není poznat, které IMU vzorek poslalo.** [`IMUState`](../Src/ARBot.Common/Models/IMUState.cs) je
-   `SensorStateBase`, ale **ne** `INamedMessage` — nenese žádnou identitu zdroje. Při více IMU tedy
-   vyhrává prostě to, které dorazilo naposled, a Roll/Pitch mohou mezi tiky přeskakovat mezi čidly
-   s jinou montáží i kvalitou. (Fúzní strana měření sice značkuje `Source` — `"IMU/heading"`,
-   `"IMU/gyro"` — ale to jsou **konstanty**, takže ani tam se dvě IMU nerozliší.)
-2. **Obchází to fúzi.** Roll/Pitch jdou mimo EKF: bez gatingu (divoký vzorek se nezahodí), bez
-   kovariance, bez korektního vzorkování v čase `t` (`GetStateAt` je nedopředikuje, jen se přilepí
-   poslední hodnota). Zbytek `RobotState` je přitom fúzovaný a časově konzistentní — je to nekonzistence
-   v jednom objektu.
+- **[Náklon robota jde mimo fúzi a nezná svůj zdroj](ukoly.md#lok-ekf-pitch-roll-stav)** —
+  `RobotState.Roll`/`Pitch` nejsou součástí stavu filtru, doplňuje je
+  [`ControlLoop`](../Src/ARBot.Common/Runtime/ControlLoop.cs) z posledního IMU, které proteklo jeho
+  `Consume` (`lastImu`).
 
-**Návrh:** přidat pitch/roll **do stavového vektoru EKF** (měření z IMU akcelerometru/YPR jako
-regulérní `IMeasurement` s vlastním σ a gatingem) a `RobotState.Roll`/`Pitch` plnit z filtru jako
-ostatní složky. Pak zmizí i `ControlLoop.lastImu` a smyčka nebude muset odebírat `IMUState`.
+  Dva problémy s tím:
 
-**Kdo to používá** (kontrola dopadu): `RobotState.ToWorldTransform()` /
-`ToWorldTransformWithPosition()` (`Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, …)`).
-Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
-vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.
+  1. **Není poznat, které IMU vzorek poslalo.** [`IMUState`](../Src/ARBot.Common/Models/IMUState.cs) je
+     `SensorStateBase`, ale **ne** `INamedMessage` — nenese žádnou identitu zdroje. Při více IMU tedy
+     vyhrává prostě to, které dorazilo naposled, a Roll/Pitch mohou mezi tiky přeskakovat mezi čidly
+     s jinou montáží i kvalitou. (Fúzní strana měření sice značkuje `Source` — `"IMU/heading"`,
+     `"IMU/gyro"` — ale to jsou **konstanty**, takže ani tam se dvě IMU nerozliší.)
+  2. **Obchází to fúzi.** Roll/Pitch jdou mimo EKF: bez gatingu (divoký vzorek se nezahodí), bez
+     kovariance, bez korektního vzorkování v čase `t` (`GetStateAt` je nedopředikuje, jen se přilepí
+     poslední hodnota). Zbytek `RobotState` je přitom fúzovaný a časově konzistentní — je to nekonzistence
+     v jednom objektu.
 
-### Otevřený úkol: diagnostika EKF do streamu a záznamu (2026-08-13)
+  **Návrh:** přidat pitch/roll **do stavového vektoru EKF** (měření z IMU akcelerometru/YPR jako
+  regulérní `IMeasurement` s vlastním σ a gatingem) a `RobotState.Roll`/`Pitch` plnit z filtru jako
+  ostatní složky. Pak zmizí i `ControlLoop.lastImu` a smyčka nebude muset odebírat `IMUState`.
 
-Chování filtru dnes nejde zpětně prohlédnout ze záznamu — `AsyncFusionEngine.Diagnostics()`
-vrací per-měření `Source / Time / Nis / Accepted`, ale nikam se to neemituje, takže je to vidět
-jen za běhu v debuggeru. Když robot v simulaci „poskakoval", nedalo se odlišit, jestli je to
-šum GPS, nebo gating zahazující měření.
+  **Kdo to používá** (kontrola dopadu): `RobotState.ToWorldTransform()` /
+  `ToWorldTransformWithPosition()` (`Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, …)`).
+  Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
+  vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.
 
-**Zpráva už existuje a je připravená:** [`MeasurementDiagMsg`](../Src/ARBot.Common/Logs/MeasurementDiagMsg.cs)
-má přesně potřebná pole (`Source`, `Z`, `DiagR`, `Nis`, `Accepted`, `TimeStamp`) a je
-**zaregistrovaná v katalogu** (`MessageCatalog`), takže by se rovnou serializovala i přehrála
-ve View. Jen ji nikdo neplní. (`EKFStepMsg` vedle ní je něco jiného — dump celých matic
-z předchozí generace, na průběžný záznam příliš těžký.)
+### Otevřený úkol (→ registr): diagnostika EKF do streamu a záznamu
 
-**Pozor na jeden detail, který určuje, kde se emituje:** NIS při `Enqueue` **ještě neexistuje**.
-Měření se jen zařadí a buffer se označí za špinavý; `Nis`/`Accepted` plní až `EnsureValid()`
-a při doražení opožděného měření se uzly **přepočítají**, takže se NIS může zpětně změnit.
-Emitovat při vložení by tedy zapisovalo hodnotu, která ještě není spočtená. Nabízí se odběr
-až usazených hodnot — např. `FusionProcessor` si periodicky (~10 Hz, bezpečně pod oknem
-historie 1 s) přečte `Diagnostics()` a pošle záznamy novější než poslední odeslaný.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-Doplnit bude potřeba `Z` a `DiagR` do `AsyncFusionEngine.MeasurementInfo` (dnes nese jen
-`Source/Time/Nis/Accepted`).
+- **[Fúze zahazovala opožděné korekce a nebylo to vidět](ukoly.md#lok-korekce-zahozene-neviditelne)** —
+  chování filtru nešlo zpětně prohlédnout ze záznamu: `AsyncFusionEngine.Diagnostics()` vracelo
+  per-měření `Source / Time / Nis / Accepted`, ale nikam se to neemitovalo, takže když robot
+  v simulaci „poskakoval", nedalo se odlišit, jestli je to šum GPS, nebo gating zahazující měření;
+  zprávu [`MeasurementDiagMsg`](../Src/ARBot.Common/Logs/MeasurementDiagMsg.cs) (v katalogu
+  `MessageCatalog`, takže se serializuje i přehraje ve View) dnes plní `FusionProcessor`
+  za parametrem `measdiag=`.
 
-Objem: ~155 měření/s (IMU 100 Hz, odometrie 50 Hz, GPS 5 Hz) ≈ 12 kB/s — proti obrazům z kamer
-(~1,8 GB/min) zanedbatelné. Alternativa je periodický souhrn po zdrojích (počet, podíl přijatých,
-průměrný a maximální NIS), ale ten neumožní dohledat konkrétní zahozené měření.
-
-K tomu patří i dokovatelný dokument, který to zobrazí. **Nerozhodnuto, neimplementováno.**
+  Detail, který určil, kde se emituje: NIS při `Enqueue` **ještě neexistuje** — měření se jen
+  zařadí a buffer se označí za špinavý; `Nis`/`Accepted` plní až `EnsureValid()` a při doražení
+  opožděného měření se uzly přepočítají, takže se NIS může zpětně změnit. Emitovat při vložení by
+  zapisovalo hodnotu, která ještě není spočtená; proto se odebírají až usazené hodnoty, periodicky
+  a bezpečně pod oknem historie. Objem ~155 měření/s ≈ 12 kB/s je proti obrazům z kamer
+  (~1,8 GB/min) zanedbatelný; periodický souhrn po zdrojích by naopak neumožnil dohledat konkrétní
+  zahozené měření. (`EKFStepMsg` vedle ní je něco jiného — dump celých matic z předchozí generace,
+  na průběžný záznam příliš těžký.)
 
 ### Zahození „příliš starého" měření: okno historie ≠ základ filtru
 

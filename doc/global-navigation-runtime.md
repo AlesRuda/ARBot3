@@ -481,20 +481,26 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 5. ⬜ **Cíl z UI jako LLA** (Ctrl+klik → globální vrstva), panel stavu globální navigace.
 6. ⬜ **Ověření na HW** — celý řetěz na OrangePI: doba stavby sítě, doba cyklu, chování na reálné trase.
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Recovery manévr** (couvnutí / otočka na místě) v lokální vrstvě — dnes neexistuje; detektor A
-  bez něj umí jen čekat a pak uzavřít hranu.
-  > **Priorita: nízká** (autor, 27. 8. 2026). Zůstává na seznamu, ale nepředbíhá jinou práci —
-  > zastavit a ohlásit je zatím přijatelná odpověď.
-- **Vizuální dojezd na cíl.** Poslední ~3 m řídit podle vidění (u QR kódu dává jeho poloha a velikost
-  v obraze směr i vzdálenost) — GPS na ±2 m je pro „zastav u kódu" na hraně použitelnosti.
-- **Koridor trasy jako cena v lokálním A\*** — dnes je z trasy jen jediný bod (mrkev). Měkká
-  preference blízkosti osy cesty (šířka z `Node.Width`) by robota držela na cestě i tam, kde je
-  vedle geometricky volno.
-- **Korelace occupancy gridu s mapou pro odhad polohy** — už otevřené v
-  [occupancy-and-local-planning.md](occupancy-and-local-planning.md); pro globální navigaci je to
-  nejsilnější léčba na „špatná lokalizace ⇒ špatná mrkev".
-- **Zdroj `.osm` dat** a jejich verzování — soubory v `OSM/` jsou verzované; otevřené zůstává, odkud
-  se berou a jak se aktualizují (dnes ručně stažené výřezy).
-- **Uzavření napříč běhy** — přežití restartu (soutěžní jízda po havárii aplikace).
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Recovery manévr při záseku](ukoly.md#nav-recovery-manevr)** — couvnutí nebo otočka na místě
+  v lokální vrstvě; detektor A bez toho umí jen čekat a pak uzavřít hranu, a zastavit a ohlásit je
+  zatím přijatelná odpověď.
+- **[Vizuální dojezd posledních metrů podle QR kódu](ukoly.md#mise-vizualni-dojezd-na-cil)** —
+  poslední ~3 m řídit podle vidění (u QR kódu dává jeho poloha a velikost v obraze směr
+  i vzdálenost); GPS na ±2 m je pro „zastav u kódu" na hraně použitelnosti.
+- **[Koridor trasy jako měkká cena v lokálním A\*](ukoly.md#lp-koridor-trasy-jako-cena)** — dnes je
+  z trasy jen jediný bod (mrkev); cesty se robot drží sám díky sémantice z vize (27. 8. 2026),
+  otevřené zůstává „kde vize okraj cesty nevidí, mapa se ho nezastane" — měkká preference
+  blízkosti osy cesty (šířka z `Node.Width`).
+- **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
+  pro globální navigaci je to nejsilnější léčba na „špatná lokalizace ⇒ špatná mrkev"; podrobně
+  v [map-correlation-localization.md](map-correlation-localization.md).
+- **[Odkud se berou a jak se aktualizují výřezy `.osm`](ukoly.md#nav-zdroj-osm-dat)** — soubory
+  v `OSM/` jsou verzované; otevřené zůstává, odkud se berou a jak se aktualizují (dnes ručně
+  stažené výřezy).
+- **[Uzavřené hrany sítě a stav lokalizace nepřežijí restart](ukoly.md#nav-uzavreni-hran-pres-restart)** —
+  uzavření napříč běhy (soutěžní jízda po havárii aplikace); mise Robotour restart přežít nemusí
+  (rozhodnutí 27. 8. 2026), tohle je o hranách sítě.

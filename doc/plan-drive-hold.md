@@ -130,10 +130,16 @@ Tři vlastnosti, na kterých to stojí:
   což je hádání zabudované do diagnostiky — zrovna tady to náhodou sedělo, ale příště by to poslalo
   hledat na špatné místo.
 
-## Otevřené
+## Otevřené úkoly (→ registr)
 
-- **Víc epizod** — zotavení je ověřené na jedné. A hlavně **za jízdy**: dosud robot stál bez mise,
-  takže hold neměl co brzdit (držel 2 s). Koordinace s bržděním je zatím jen z testů.
-- **Rozjezd po uvolnění** je potřeba ověřit měřením: má to být rampa, ne skok na příkazovanou
-  rychlost. Rampu má dělat regulátor sám (profil pohybu), ale otestované to není.
-- Kolik trvá recyklace kontextu, a tedy jak dlouhý hold to bude — **nezměřeno**.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Řídicí smyčka umí držené zastavení (StopHold)](ukoly.md#lp-drzene-zastaveni-stophold)** — víc
+  epizod zotavení, a hlavně **za jízdy**: dosud robot stál bez mise, takže hold neměl co brzdit
+  (držel 2 s), a koordinace s bržděním je jen z testů.
+- **[Řídicí smyčka umí držené zastavení (StopHold)](ukoly.md#lp-drzene-zastaveni-stophold)** —
+  rozjezd po uvolnění holdu ověřit měřením: má to být rampa, ne skok na příkazovanou rychlost;
+  rampu má dělat regulátor sám (profil pohybu), ale otestované to není.
+- **[Zaseknuté kamery D435 si runtime zotaví sám za ~29 s](ukoly.md#prov-zotaveni-kamer-supervizor)** —
+  kolik trvá recyklace kontextu, a tedy jak dlouhý hold to bude: změřeno na skutečné poruše,
+  obnova 28–29 s.

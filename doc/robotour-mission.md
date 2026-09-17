@@ -734,25 +734,30 @@ Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód v
 > periodicky hlásí `MissionMsg` (ověřeno: 15s běh = 15 zpráv, nic nespadlo). Vědomě k tomu **není**
 > přepínač „spusť misi sama": robot, který vyrazí bez člověka, je nebezpečný.
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Vizuální dojezd na QR kód** — rohy kódu v obraze dávají směr i vzdálenost; poslední ~3 m by šly
-  řídit vidění místo GPS (viz stejný úkol v [global-navigation-runtime.md](global-navigation-runtime.md)).
-- **Detekce nákladu** (senzor/kamera). Od zrušení potvrzování je jediným důkazem „náklad je naložen"
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Vizuální dojezd posledních metrů podle QR kódu](ukoly.md#mise-vizualni-dojezd-na-cil)** — rohy
+  kódu v obraze dávají směr i vzdálenost; poslední ~3 m by šly řídit viděním místo GPS (týž úkol
+  v [global-navigation-runtime.md](global-navigation-runtime.md)).
+- (bez tématu v registru) **Detekce nákladu** (senzor/kamera). Od zrušení potvrzování je jediným důkazem „náklad je naložen"
   **uvolnění stop tlačítka** — tedy gesto člověka, ne měření. Skutečný senzor by z toho udělal fakt.
-- ~~**Limit vzdálenosti cíle od silniční sítě.**~~ **Hotovo 27. 8. 2026** — cíl se přichycuje na
-  nejbližší hranu a odstup se porovnává s `MaxTargetOffRoadM`; viz „Přichycení cíle na cestu" výše.
-  Zbývá **nastavit limit z dat** (dnes je z úsudku) — odstup se měří a jde do záznamu.
-- **Chování při `NoRoute` na cíl z QR — ROZHODNUTO 27. 8. 2026, ZBÝVÁ NAIMPLEMENTOVAT.** Autor:
-  *„je to neplatný cíl, číst znova."* Dnes `NoRoute` za jízdy misi **přeruší** (`Abort`), což ji
-  ukončí natrvalo — má se místo toho cíl zahodit a vrátit se do servisního okna, tedy k dalšímu
-  pokusu o přečtení kódu, stejně jako když kód neprojde strojovými kontrolami.
+- **[Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](ukoly.md#mise-cil-dosazitelnost)** —
+  limit vzdálenosti cíle od silniční sítě: cíl se přichycuje na nejbližší hranu a odstup se
+  porovnává s `MaxTargetOffRoadM` (viz „Přichycení cíle na cestu" výše); limit je z úsudku a má se
+  nastavit z dat — odstup se měří a jde do záznamu.
+- **[Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](ukoly.md#mise-cil-dosazitelnost)** —
+  chování při `NoRoute` na cíl z QR; rozhodnutí autora: *„je to neplatný cíl, číst znova."* `NoRoute`
+  za jízdy misi **přeruší** (`Abort`), což ji ukončí natrvalo — má se místo toho cíl zahodit a vrátit
+  se do servisního okna, tedy k dalšímu pokusu o přečtení kódu, stejně jako když kód neprojde
+  strojovými kontrolami.
   > Pozor při implementaci: `NoRoute` přijde, když už robot **odjel od stanoviště**, takže „číst
   > znova" znamená čekat na stop a kód **tam, kde robot stojí** — obsluha za ním musí dojít. To je
   > v souladu s tím, že QR ukazuje člověk (viz níže), ale je to jiná situace než zamítnutí kódu
   > přímo na stanovišti.
-- **Rozpoznání startovní/cílové čáry nebo jiných značek soutěže**, pokud je pravidla zavedou.
-- ~~**Kdo v depu ukazuje QR kód?**~~ **Zodpovězeno 27. 8. 2026** — kód ukazuje **obsluha**, a tím je
-  současný průběh (kód nakládky se čte už v depu) v pořádku. Byla to otevřená otázka z 26. 8.:
+- (bez tématu v registru) **Rozpoznání startovní/cílové čáry nebo jiných značek soutěže**, pokud je pravidla zavedou.
+- **[Mise Robotour běží bez operátora — potvrzování cíle zrušeno](ukoly.md#mise-robotour-bez-operatora)** —
+  kdo v depu ukazuje QR kód: **obsluha**, a tím je průběh (kód nakládky se čte už v depu) v pořádku;
   podle zadání v depu nikdo neinteraguje, tak nebylo jasné, jestli nemá kód s místem nakládky
   ukazovat až odesílatel — což by změnilo posloupnost zastavení. Nemění.

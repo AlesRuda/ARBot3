@@ -1,10 +1,16 @@
 # Web arbot.cz (GitHub Pages)
 
 Statický web projektu. **Tenhle adresář je to, co se publikuje** — GitHub Pages ho servíruje
-tak, jak je, žádný build ani generátor se nepouští.
+tak, jak je, žádný build ani generátor se nepouští. Publikuje ho workflow
+[.github/workflows/pages.yml](../.github/workflows/pages.yml) při každém pushi do `master`,
+který se dotkne `web/`.
+
+⚠️ **Jméno složky je `web/`, ne `docs/`** (přejmenováno 17. 9. 2026): vedle `doc/` s vývojovou
+dokumentací byla `docs/` past. Cena: režim *Deploy from a branch* umí jen `/` nebo `/docs`,
+proto se publikuje přes GitHub Actions, kde se složka zadá ve workflow.
 
 ```
-docs/
+web/
   index.html                 úvodní stránka  ->  arbot.cz/
   pages/*.html               podstránky      ->  arbot.cz/pages/<jméno>.html
   assets/site.css            sdílená sazba a barvy všech stránek
@@ -13,18 +19,21 @@ docs/
 ```
 
 Stránky jsou **obyčejné HTML soubory bez frameworku a bez JavaScriptu**; jediná externí věc jsou
-fonty z Google Fonts. Všechny odkazy jsou **relativní**, takže web funguje stejně na
+fonty z Google Fonts. ⚠️ **Jediná výjimka je `pages/historie.html`** (od 17. 9. 2026, rozhodnutí
+autora): inline skript bez knihoven pro filtr podle stavu a hledání v textu; bez JS stránka
+funguje celá, jen bez filtru. Je generovaný (`tools/ukoly.cs`), nepiš ho ručně. Všechny odkazy jsou **relativní**, takže web funguje stejně na
 `arbot.cz` i na `alesruda.github.io/ARBot3/` — díky tomu jde nová verze prohlédnout dřív,
 než se přepne doména.
 
 ## Jak to zapnout
 
-1. **GitHub → Settings → Pages → Build and deployment**: Source = *Deploy from a branch*,
-   Branch = `master`, složka = `/docs`. Po chvíli web běží na
+1. **GitHub → Settings → Pages → Build and deployment**: Source = *GitHub Actions* (ne
+   *Deploy from a branch* — ten neumí složku `web/`). Workflow `pages.yml` pak při dalším pushi
+   do `master` (nebo ručně přes *Actions → web (GitHub Pages) → Run workflow*) web nasadí na
    `https://alesruda.github.io/ARBot3/`.
 2. **Napřed si to na té adrese prohlédni.** Teprve až bude vše v pořádku, přepni doménu (krok 3).
 3. **Vlastní doména.** V *Settings → Pages → Custom domain* zadej `www.arbot.cz`
-   (GitHub si tím sám založí soubor `docs/CNAME`) a zaškrtni *Enforce HTTPS*. V DNS u registrátora:
+   (GitHub si tím sám založí soubor `web/CNAME`) a zaškrtni *Enforce HTTPS*. V DNS u registrátora:
    - `www` → `CNAME` → `alesruda.github.io.`
    - apex `arbot.cz` → čtyři `A` záznamy na IP GitHub Pages (aktuální seznam je
      v dokumentaci GitHubu, *Managing a custom domain for your GitHub Pages site*),
@@ -147,12 +156,19 @@ web je nepoužívá.
   článků o soutěžích), takže tahle duplicita už překročila mez, na kterou tu dřív stálo varování
   „kdyby jich mělo být výrazně víc, je čas na generátor". Články vznikly **jednorázovým skriptem**
   (v repu není — výstupem jsou ty `.html`, a kdyby tu skript zůstal, sváděl by k ruční úpravě,
-  která by se při dalším běhu přepsala). Menu se od té doby nezměnilo; **až se změnit bude,
-  je to osmnáct souborů, ne sedm** — pak generátor.
+  která by se při dalším běhu přepsala). ⚠️ **17. 9. 2026 se menu změnilo** (položka *Historie*)
+  a upravilo se mechanicky ve všech 18 souborech + v generátoru `tools/ukoly.cs`; generátor
+  celého menu zůstává dluh — **příště je to devatenáct míst**.
 - **Nová podstránka**: zkopíruj `pages/kontakt.html`, přepiš `<title>`, nadpis a obsah, a přidej
   odkaz do `<nav>` na všech stránkách. Pozor na `class="on"` — označuje právě zobrazenou položku.
+- ⚠️ **`pages/historie.html` je GENEROVANÁ** z registru úkolů `doc/ukoly.yaml` příkazem
+  `dotnet run tools/ukoly.cs` (od 17. 9. 2026) — ruční úprava se přepíše dalším během a CI
+  hlídá, že soubor odpovídá zdroji. Menu má i tahle stránka natvrdo v generátoru
+  (`tools/ukoly.cs`, `HtmlVystup`), takže **při změně menu se musí upravit i tam** — je to
+  devatenáctý výskyt téhož menu. Styly stránky jsou v `site.css`, sekce „historie".
+  Návrh a pravidla: [doc/plan-ukoly.md](../doc/plan-ukoly.md).
 - **Nový obrázek**: do `assets/img/`. Obrázky pro web jsou tu **záměrně zkopírované** z `doc/media/`
-  (kde slouží vývojové dokumentaci) — GitHub Pages umí servírovat jen to, co leží uvnitř `docs/`.
+  (kde slouží vývojové dokumentaci) — GitHub Pages umí servírovat jen to, co leží uvnitř `web/`.
   Když se obrázek ve `doc/media/` změní, je potřeba kopii obnovit.
 - **Schémata** na stránce *Jak to funguje* jsou inline SVG přímo v `pages/prezentace.html`,
   takže se dají opravit textovým editorem. Jejich PNG varianty (`doc/media/prezentace-schema-*.png`)

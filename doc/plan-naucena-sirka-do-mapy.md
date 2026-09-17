@@ -204,10 +204,14 @@ ARBotHW / VirtualCamera ──► vlastní RoadScene BEZ překryvu  (nikdy se ne
   že dva běhy nad „toutéž" mapou nejsou srovnatelné.
 - **Změna plánovače.** Šířku z mapy dnes nečte — `GlobalNavigator` ji jen přeposílá do telemetrie.
 
-## Otevřené
+## Otevřené úkoly (→ registr)
 
-- **Prahy přestavby (0,25 m / 10 s) nejsou změřené.** Nastavit z prvního záznamu; jde to offline.
-- **Jestli korelaci naučená šířka skutečně pomůže, se tímhle plánem nedozvíme** — `mapcorr` je
-  ve výchozím stavu vypnutý a jeho tři podmínky pro ostré nasazení platí dál (viz
-  [decisions.md](decisions.md)). Tenhle plán dodává **předpoklad**, ne výsledek.
-- **Pravidlo maxima u styku chodník/vozovka** (rozhodnutí 2) — změřit dopad, až budou data.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Naučená šířka cesty jde dál do mapy — korelaci i kreslení](ukoly.md#lok-naucena-sirka-do-mapy)** —
+  prahy přestavby (0,25 m / 10 s) nejsou změřené; nastavit z prvního záznamu, jde to offline.
+  Patří sem i **pravidlo maxima u styku chodník/vozovka** (rozhodnutí 2) — změřit dopad, až budou data.
+- **[Tři podmínky, než korekce z mapy pustit naostro](ukoly.md#lok-korelace-tri-podminky-naostro)** —
+  jestli korelaci naučená šířka skutečně pomůže, se tímhle plánem nedozvíme: `mapcorr` je ve
+  výchozím stavu vypnutý a jeho tři podmínky pro ostré nasazení platí dál (viz
+  [decisions.md](decisions.md)); tenhle plán dodává **předpoklad**, ne výsledek.

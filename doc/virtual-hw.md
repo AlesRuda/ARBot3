@@ -1150,27 +1150,31 @@ tvrdí nulový *bias* — a fúze žádný stav biasu kurzu nemá. Aby korekce k
 skutečném robotu vůbec šanci, musí být buď σ kompasu podstatně větší než jeho krátkodobý šum,
 nebo musí bias kurzu přibýt do stavu EKF.
 
-## Otevřené / budoucí
+## Otevřené úkoly (→ registr)
 
-- **Drsnost trávy je per pixel, ne per místo v terénu** — výška se rozhazuje podle pixelu
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- (bez tématu v registru) **Drsnost trávy je per pixel, ne per místo v terénu** — výška se rozhazuje podle pixelu
   a snímku, takže při pohybu robota „bliká" místo aby byla svázaná se zemí. Pro rozptyl výšky
   v buňce polárního gridu (kvůli čemuž tam je) to stačí; pro časovou konzistenci mezi snímky ne.
   Oprava: hashovat podle kvantované světové polohy zásahu a jednou zpřesnit průsečík.
-- ~~**Koridor za jízdy skoro nic nepošle**~~ — **vyřešeno, vada v kódu žádná nebyla.** `NoPair`
-  spravilo párování kamer a „nerovnoběžnost ~11° na rovném úseku" byla **nálevka v testovací mapě**
-  (rozšíření 1 → 3 m na délce 10 m dává přesně 11,42°; naměřeno 11,3°). Nad mapou s konstantní
-  šířkou je to 100 % `Ok` po prvních 60 s. Detail:
-  [map-correlation-localization.md → Otevřené úkoly](map-correlation-localization.md#otevřené-úkoly).
-- **A/B za jízdy je zašuměné** — dvě jízdy se stejným zadáním ujedou různou dráhu (17,7 vs 16,6 m),
+- **[Koridor za jízdy propadal v 92 % cyklů](ukoly.md#lok-koridor-za-jizdy-propada)** — vada v kódu
+  žádná nebyla: `NoPair` spravilo párování kamer a „nerovnoběžnost ~11° na rovném úseku" byla
+  **nálevka v testovací mapě** (rozšíření 1 → 3 m na délce 10 m dává přesně 11,42°; naměřeno 11,3°);
+  nad mapou s konstantní šířkou je to 100 % `Ok` po prvních 60 s. Detail:
+  [map-correlation-localization.md](map-correlation-localization.md), sekce *Otevřené úkoly*.
+- (bez tématu v registru) **A/B za jízdy je zašuměné** — dvě jízdy se stejným zadáním ujedou různou dráhu (17,7 vs 16,6 m),
   takže se nedají porovnat bod po bodu. Na čisté měření by bylo potřeba porovnávat proti ujeté
   dráze, ne proti času.
-- **σ kompasu je poctivé vůči šumu, ne vůči biasu** — `VirtualImu` hlásí absolutní kurz s bílým
-  šumem, takže při 100 Hz vyjde efektivní σ 0,1° a **žádný jiný zdroj kurzu nemá šanci** (viz
-  [Kurz](#kurz-proč-ho-koridor-neopraví-22-8-2026)). Skutečný VN100 má bias, ne bílý šum. Buď dát
-  kompasu σ odpovídající biasu, nebo přidat bias kurzu do stavu EKF.
-- **Dynamika podvozku** — model je jinak ideální (rampa zrychlení, žádné boční síly).
-- **Obloha jako samostatná barva** (dnes zelená jako tráva).
-- **Objekty mimo vozovku** (překážky, zdi) — dnes scéna zná jen vozovku a trávu.
+- **[Korekci kurzu z koridoru přehlasuje kompas ~200:1](ukoly.md#lok-kurz-koridor-prehlasovan-kompasem)** —
+  σ kompasu je poctivé vůči šumu, ne vůči biasu: `VirtualImu` hlásí absolutní kurz s bílým šumem,
+  takže při 100 Hz vyjde efektivní σ 0,1° a **žádný jiný zdroj kurzu nemá šanci** (viz
+  [Kurz](#kurz-proč-ho-koridor-neopraví-22-8-2026)); skutečný VN100 má bias, ne bílý šum. Buď dát
+  kompasu σ odpovídající biasu ([podlaha σ kompasu](ukoly.md#lok-kompas-sigma-podlaha)), nebo přidat
+  bias kurzu do stavu EKF ([bias jako stav](ukoly.md#lok-bias-senzoru-jako-stav-ekf)).
+- (bez tématu v registru) **Dynamika podvozku** — model je jinak ideální (rampa zrychlení, žádné boční síly).
+- (bez tématu v registru) **Obloha jako samostatná barva** (dnes zelená jako tráva).
+- (bez tématu v registru) **Objekty mimo vozovku** (překážky, zdi) — dnes scéna zná jen vozovku a trávu.
 
 ## Rampa je v (dopředná, rozdíl), ne po kolech
 

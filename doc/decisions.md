@@ -13,6 +13,32 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-17 — Registr úkolů jako jediný zdroj stavu; stránka „Čím si projekt prošel" je generovaná a má JavaScript
+
+**Co:** Úkoly, nálezy a jejich stav se vedou v **jednom strukturovaném zdroji** `doc/ukoly.yaml`
+(hierarchie Oblast → Téma → Kroky, závislosti „čeká na" jen mezi tématy). Z něj generátor
+`tools/ukoly.cs` vyrábí `doc/ukoly.md` (pracovní checklist) a `web/pages/historie.html`
+(veřejná stránka). Sekce „Otevřené úkoly" v doménových dokumentech **stav nevedou**, jen
+odkazují na id. Stav **`v-kodu`** („hotové v kódu, na zařízení neběželo") je samostatný stav.
+
+**Proč:** Na dotaz autora „máme někde přehledný soupis úkolů?" byla odpověď ne — úkoly ležely na
+pěti místech (sekce v ~15 dokumentech, DevLog, checkboxy plánů, decisions, ⚠️ v `CLAUDE.md`)
+a nikde nešlo vyčíst ani „co je dnes otevřené", ani „kdy se to našlo a kdy vyřešilo". Nejčastější
+stav v projektu, *hotové v kódu ale neověřené na HW*, nebyl vidět nikde jako seznam. Zdroj píše
+asistent, autor čte výstupy — proto YAML, ne Markdown (parser Markdownu s metadaty je křehký).
+Výstupy se commitují (autor chce checklist vidět bez spouštění čehokoli), aktuálnost hlídá CI.
+
+**Rekonstrukce od 23. 6. 2026** (rozhodnutí autora): z DevLogu po devíti obdobích paralelně,
+sloučeno a odduplikováno; 180 témat k 17. 9. 2026. Starší verze robota do registru nepatří.
+
+**JavaScript na webu:** web je jinak záměrně bez JS, ale autor rozhodl, že stránka se stovkou
+karet bez filtru podle stavu a hledání v textu není použitelná. Skript je inline, ~25 řádků,
+progresivní (bez JS zůstane celý obsah a legenda s počty).
+
+**Důsledky:** nový nález nebo změna stavu = záznam v `ukoly.yaml` + `dotnet run tools/ukoly.cs`
+(pravidlo v `CLAUDE.md`); DevLog u tématu uvádí jeho id. Menu webu je teď na 19 místech
+(18 stránek + generátor). Plán a schéma: [plan-ukoly.md](plan-ukoly.md).
+
 ### 2026-09-13 — T265 se odpojí NATRVALO: dělá víc potíží než užitku
 
 **Co:** Autor rozhodl 13. 9. 2026 večer, že se **T265 z robota odpojí natrvalo**.

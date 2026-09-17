@@ -230,11 +230,15 @@ a rámců je konzistentní s [imu-and-frames.md](imu-and-frames.md).
   (vzácné via-way se přeskočí); výpočet pole je **jednovláknový**; heuristické zaostření hledání (koridor
   místo „koule") je připravené jako budoucí volitelný režim.
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- ~~**Napojení na řídicí smyčku**~~ — **hotové** (`GlobalNavigator`, fáze 0–4; robot jede k cíli po
-  síti, trasa je vidět v mapě a vrstva si uzavírá neprůchozí hrany). Zbývá recovery manévr, průřez
-  koridorem a ověření na HW — vede se to v [global-navigation-runtime.md](global-navigation-runtime.md).
-- Zdroj `.osm` dat a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat) —
-  rozhodnutí je v návrhu výše (síť vlastní runtime, jedno `GoalField` na misi).
-- Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Globální navigace po síti cest v runtime](ukoly.md#nav-globalni-navigace-runtime)** — napojení
+  na řídicí smyčku (`GlobalNavigator`, fáze 0–4: robot jede k cíli po síti, trasa je vidět v mapě
+  a vrstva si uzavírá neprůchozí hrany); recovery manévr, průřez koridorem a ověření na HW se vedou
+  v [global-navigation-runtime.md](global-navigation-runtime.md).
+- **[Odkud se berou a jak se aktualizují výřezy `.osm`](ukoly.md#nav-zdroj-osm-dat)** — zdroj dat
+  a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat); rozhodnutí je v návrhu
+  výše (síť vlastní runtime, jedno `GoalField` na misi).
+- (bez tématu v registru) Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).

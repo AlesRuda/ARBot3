@@ -461,12 +461,15 @@ do rámečku se napíše `Hranice: VRSTVA VYPNUTA po chybe (…)` a do Debug out
 s počtem featur, nulových, bez extentu, nekonečných, počtem kamer a pózou. Ladicí vrstva nemá
 právo shodit běh.
 
-## Otevřené úkoly / poznámky
+## Otevřené úkoly (→ registr)
 
-- **ARM (OrangePI)**: Mapsui renderuje přes SkiaSharp — na ARM64 **ověřit nativní SkiaSharp assety**
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- (bez tématu v registru) **ARM (OrangePI)**: Mapsui renderuje přes SkiaSharp — na ARM64 **ověřit nativní SkiaSharp assety**
   na zařízení (build ne­blokuje, jde o runtime závislost). Odsimulováno jen na x64.
-- **Vyhledávání (geocoding)** zatím není (vyžadovalo by online službu, např. Nominatim) — možný
+- (bez tématu v registru) **Vyhledávání (geocoding)** zatím není (vyžadovalo by online službu, např. Nominatim) — možný
   další krok.
-- ~~**Trasa/graf/značky** ožijí po napojení OsmNav~~ — **ožily**: `GlobalNavigator` emituje
-  `GraphNavigationMsg` na `Stream`, vrstva se kreslí včetně tooltipů na hranách i značkách.
-- Další podklady (Mapy.cz / Google) vyžadují API klíč a mají ToS omezení — neimplementováno.
+- **[Globální navigace po síti cest v runtime](ukoly.md#nav-globalni-navigace-runtime)** — trasa,
+  graf a značky v mapě: `GlobalNavigator` emituje `GraphNavigationMsg` na `Stream`, vrstva se kreslí
+  včetně tooltipů na hranách i značkách ([tooltipy](ukoly.md#nast-world-tooltipy-navigace)).
+- (bez tématu v registru) Další podklady (Mapy.cz / Google) vyžadují API klíč a mají ToS omezení — neimplementováno.

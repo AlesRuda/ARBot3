@@ -913,49 +913,53 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 9. ⬜ **Ověření na HW** — celý řetěz (integrace + EDT + A\*) na OrangePI. **Zatím jen odsimulované**;
    self-test potvrdil jen to, že runtime s novým uzlem čistě nastartuje a skončí (bez kamer).
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Není okluzní pravidlo `InShadow` příliš přísné?** (nalezeno 2026-08-14) V měření nad virtuálním
-  HW zahodilo **~5 200 z ~12 000** kandidátů na barevný vzorek — tedy většinu. Důsledek: semantický
-  kanál dostane řádově míň dat než geometrický (`road ≈ 3 800` vs. `occ ≈ 8 600` zápisů na snímek)
-  a plocha mimo cestu se potvrzuje pomalu. Záměr pravidla je správný (za první překážkou v daném
-  azimutu patří barva té překážce, ne zemi za ní), ale stíní se **celý zbytek paprsku**, včetně
-  míst, kam kamera zjevně vidí. K rozmyšlení: stínit jen do určité vzdálenosti za překážkou, nebo
-  podle její výšky, případně vzorek jen zeslabit (nižší confidence) místo úplného zahození.
-  Měřicí nástroj je `VirtualHwOccupancyTest.Diagnostika_PricnyProfilSemantiky` (pole `ColorShadowed`
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Okluzní pravidlo zahazuje většinu barevných vzorků](ukoly.md#vid-inshadow-zahazuje-vzorky)** —
+  není `InShadow` příliš přísné? V měření nad virtuálním HW zahodilo **~5 200 z ~12 000** kandidátů
+  na barevný vzorek — tedy většinu. Důsledek: semantický kanál dostane řádově míň dat než
+  geometrický (`road ≈ 3 800` vs. `occ ≈ 8 600` zápisů na snímek) a plocha mimo cestu se potvrzuje
+  pomalu. Záměr pravidla je správný (za první překážkou v daném azimutu patří barva té překážce, ne
+  zemi za ní), ale stíní se **celý zbytek paprsku**, včetně míst, kam kamera zjevně vidí.
+  K rozmyšlení: stínit jen do určité vzdálenosti za překážkou, nebo podle její výšky, případně
+  vzorek jen zeslabit (nižší confidence) místo úplného zahození. Měřicí nástroj je
+  `VirtualHwOccupancyTest.Diagnostika_PricnyProfilSemantiky` (pole `ColorShadowed`
   v `OccupancyIntegrator.IntegrateStats`).
-- **Dvě EDT místo jedné** (zvlášť překážky, zvlášť okraj cesty), kdyby bylo potřeba v nouzi
+- (bez tématu v registru) **Dvě EDT místo jedné** (zvlášť překážky, zvlášť okraj cesty), kdyby bylo potřeba v nouzi
   vyjet z cesty. Zatím schválně jedna společná maska — rozdělí se, až se ukáže, že to chybí.
-- **`MaxZ` per buňka** (2,5D) pro převisy a podjezdy.
-- **Kapslový footprint** místo opsané kružnice, pokud bude opsaná kružnice moc konzervativní.
-- **Korelace s mapou a odhad polohy** (druhý algoritmus nad gridem) — vstupem bude právě tento
-  grid. Proto je world-kotvený a má oddělený kanál `LRoad`: porovnávat okraje cesty z RGB proti
-  šířkám cest z OSM (`OsmNav.Graph.Node.Width`) je silnější signál než geometrické překážky.
-  V repozitáři jsou z předchozí generace robotu `Navigations/MapCorelator` a `PathMapCorelator`
-  — při návrhu se na ně podívat.
-- **Simulate** — až vznikne, `LocalNavigator` poběží nad záznamem beze změny (proto projekce
-  v rámci).
-- **Výkon na ARM** — změřit celý řetěz (integrace + EDT + A\*) na OrangePI.
-- **Přeměřit obálku po opravě kurzu** (viz nález 7. 9. 2026 výš). Až bude kurz z VN100 v pořádku,
-  pustit `ARBot.Analyze envelope` na nový záznam — tentokrát už bude rozpad **ve zprávě**
-  (`LocalPlanMsg` verze 2), takže se nic nerekonstruuje. Otázka je, kolik z odstupu 0,40 m byl
-  špatný kurz a kolik zůstane.
-- **Filtr izolovaných `Blocked` buněk?** Ve 41,5 % plánů dává odstup skvrna do 4 buněk
-  (0,01 m²), která srazí rychlost stejně jako zeď. **Neopravovat naslepo** — dokud je kurz vedle,
-  není jasné, jestli je to šum klasifikace, nebo rozmazání gridu chybou pózy; morfologický filtr
-  by ve druhém případě jen zamaskoval příčinu. Rozhodne přeměření výš.
-- **Má být `SafeDist` zároveň nulovým bodem rampy?** Dnes v těsném místě dostane nejlepší legální
+- (bez tématu v registru) **`MaxZ` per buňka** (2,5D) pro převisy a podjezdy.
+- (bez tématu v registru) **Kapslový footprint** místo opsané kružnice, pokud bude opsaná kružnice moc konzervativní.
+- **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
+  druhý algoritmus nad gridem, kvůli kterému je grid world-kotvený a má oddělený kanál `LRoad`:
+  porovnávat okraje cesty z RGB proti šířkám cest z OSM (`OsmNav.Graph.Node.Width`) je silnější
+  signál než geometrické překážky; podrobně v [map-correlation-localization.md](map-correlation-localization.md).
+- **[Režim Simulate — věrný přepočet běhu nad záznamem](ukoly.md#nast-rezim-simulate)** —
+  až vznikne, `LocalNavigator` poběží
+  nad záznamem beze změny (proto projekce v rámci).
+- **[Výkon řetězu hloubka → grid → EDT → A\* na ARM není změřený](ukoly.md#lp-vykon-retezu-na-arm)** —
+  změřit celý řetěz (integrace + EDT + A\*) na OrangePI.
+- **[Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy](ukoly.md#lp-robot-se-plazi-vyhlazovani)** —
+  přeměřit obálku po opravě kurzu: pustit `ARBot.Analyze envelope` na nový záznam, tentokrát už
+  s rozpadem **ve zprávě** (`LocalPlanMsg` verze 2), takže se nic nerekonstruuje; otázka je, kolik
+  z odstupu 0,40 m byl špatný kurz a kolik zůstane.
+- **[Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď](ukoly.md#lp-filtr-izolovanych-bunek)** —
+  ve 41,5 % plánů dává odstup skvrna do 4 buněk (0,01 m²); **neopravovat naslepo** — dokud je kurz
+  vedle, není jasné, jestli je to šum klasifikace, nebo rozmazání gridu chybou pózy, a morfologický
+  filtr by ve druhém případě jen zamaskoval příčinu; rozhodne přeměření výš.
+- (bez tématu v registru) **Má být `SafeDist` zároveň nulovým bodem rampy?** Dnes v těsném místě dostane nejlepší legální
   dráha nulový podélný strop, takže robot leze 0,05 m/s (14,1 % plánů má odstup *právě* `SafeDist`).
   Rozumné alternativy: nulový bod rampy o půl buňky pod `SafeDist`, nebo podlaha `MinCostSpeed`
   vyšší v místě, kde je odstup přesně na hranici a `closing` je nulové (jízda **podél**). Obojí ale
   slevuje z bezpečnosti, takže **až po přeměření** — může se ukázat, že po opravě kurzu robot
   u okraje vůbec nejezdí.
-- **Doladit vyhlazování na datech ze zařízení** (léčba z 8. 9. 2026 je hotová, viz výš). Otevřené
-  je (a) **počet uzlů** — na realistické scéně 5 → 19; víc uzlů zdraží `PathPlanner` a nafoukne
-  `LocalPlanMsg`, změřit na Pi; (b) předpoklad „plánovač brzdí konzervativněji než regulátor"
-  (`MaxDecceleration` 0,5 proti 1,0 v profilu) — drží, ale je to vazba mezi dvěma konfiguracemi,
-  která nikde nekontroluje; (c) jestli po opravě kurzu vůbec zbude co léčit; (d) dvě alternativy,
-  které se **nedělaly**, protože by se míchaly do jednoho rozhodnutí: dráhu po vyhlazení
-  **odtlačit** gradientem vzdálenostního pole a rozšířit plochou část obálky (`EdgeMarginM`),
-  aby A\* mělo vůbec důvod jet středem. Pořadí zůstává **nejdřív kurz**: zisk se má měřit nad
-  záznamem se správným kurzem.
+- **[Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy](ukoly.md#lp-robot-se-plazi-vyhlazovani)** —
+  doladit vyhlazování na datech ze zařízení: (a) **počet uzlů** — na realistické scéně 5 → 19; víc
+  uzlů zdraží `PathPlanner` a nafoukne `LocalPlanMsg`, změřit na Pi; (b) předpoklad „plánovač brzdí
+  konzervativněji než regulátor" (`MaxDecceleration` 0,5 proti 1,0 v profilu) — drží, ale je to
+  vazba mezi dvěma konfiguracemi, která se nikde nekontroluje; (c) jestli po opravě kurzu vůbec
+  zbude co léčit; (d) dvě alternativy, které se **nedělaly**, protože by se míchaly do jednoho
+  rozhodnutí: dráhu po vyhlazení **odtlačit** gradientem vzdálenostního pole a rozšířit plochou
+  část obálky (`EdgeMarginM`), aby A\* mělo vůbec důvod jet středem. Pořadí zůstává **nejdřív
+  kurz**: zisk se má měřit nad záznamem se správným kurzem.

@@ -2,7 +2,7 @@
 
 Doména **arbot.cz** míří na Google Sites a stránka se má poskládat **z nativních bloků Sites**,
 ne vložením cizího HTML rámečkem. Tenhle soubor je proto *přepis* stránky
-[../docs/pages/prezentace.html](../docs/pages/prezentace.html) do podoby, kterou jde v editoru Sites nakopírovat blok po bloku.
+[../web/pages/prezentace.html](../web/pages/prezentace.html) do podoby, kterou jde v editoru Sites nakopírovat blok po bloku.
 
 **Jak s tím pracovat**
 
@@ -376,7 +376,7 @@ Jádro běží. Robot venku jezdí, vidí, lokalizuje se, kreslí si mapu okolí
 
 ## Jak znovu vyrobit PNG ze schémat
 
-Schémata jsou v [../docs/pages/prezentace.html](../docs/pages/prezentace.html) jako inline SVG. Export dělá headless Chrome
+Schémata jsou v [../web/pages/prezentace.html](../web/pages/prezentace.html) jako inline SVG. Export dělá headless Chrome
 (žádná další knihovna není potřeba):
 
 1. Z `prezentace.html` se vytáhne každý `<svg viewBox="0 0 W H">…</svg>` do samostatného

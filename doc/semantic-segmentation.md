@@ -892,49 +892,47 @@ sloučení kvantizaci zjevně svědčí), ale precision 0,684 při recall 0,977 
 cesta". Použitelné to není a `camerafps=15` u Model96.2 zůstává jediná cesta, jak se vejít do
 snímkové frekvence.
 
-## Otevřené otázky
-- ~~**Pořadí kanálů** je převzaté z ARBot2, ne ověřené měřením.~~ **Zavřeno 7. 9. 2026** — trénink
-  čte `decode_jpeg`, tedy RGB. Viz [Předzpracování](#předzpracování-a-postprocessing).
-- **Kvalita modelu na dnešních datech** je neznámá — ale úžeji, než se dosud psalo. Model **měl**
-  naměřenou výhodu: 0,9546 per-pixel proti ~0,80 histogramu na pevné 50snímkové sadě
-  ([viz výše](#v-notebooku-je-i-měřidlo-proti-pravdě)). Neznámé je, jak si ta výhoda stojí na
-  **datech z D435 v roce 2026** — jiná kamera, jiné scény, a trénovací data jsou z 2019–2022.
-  Na venkovním záznamu dává síť zjevně čistší obraz cesty, na zarostlé ploše je nerozhodná;
-  bez ground truth k **našim** záznamům je to pořád jen rozpor dvou metod.
-- **Dopad menšího rozlišení** na hranice cesty a occupancy grid není naměřený. Pozor: **není to
-  věc konfigurace** — vyšší rozlišení vstupu znamená přetrénování, viz
-  [Síť mění rozlišení](#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
-- ~~**Testovací sada s ground truth v repu ještě není.**~~ **Zavřeno** — sada je v `models/testset`
-  a měřidlo proti ní projeté ([viz výše](#-naměřeno-proti-pravdě-7-9-2026-50-snímků-na-rozměru-sítě)).
-- ~~**Neběželo to jako součást runtime na zařízení.**~~ **Zavřeno 7. 9. 2026** — A/B za běhu
-  ([viz výše](#-a-za-skutečného-běhu-runtime-7-9-2026)): +6,2 až +7,0 ms na snímek, snímková
-  frekvence drží 30 sn/s, žádné varování řídicí smyčky.
-- **Nejelo se s tím.** Všechna měření jsou ze **stojícího** robota; jak se síť chová za jízdy
-  (rozmazání, měnící se expozice, stíny) naměřené není. A hlavně: **nikdy to neřídilo** — že
+## Otevřené úkoly (→ registr)
+
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Sjízdnost z RGB neuronovou sítí místo histogramu barev](ukoly.md#vid-segmentace-nn)** — pořadí
+  kanálů převzaté z ARBot2 je ověřené proti tréninku (čte `decode_jpeg`, tedy RGB, viz
+  [Předzpracování](#předzpracování-a-postprocessing)); testovací sada s ground truth je v `models/testset`
+  a měřidlo proti ní projeté ([viz výše](#-naměřeno-proti-pravdě-7-9-2026-50-snímků-na-rozměru-sítě));
+  jako součást runtime na zařízení proběhlo A/B za běhu ([viz výše](#-a-za-skutečného-běhu-runtime-7-9-2026)):
+  +6,2 až +7,0 ms na snímek, snímková frekvence drží 30 sn/s, žádné varování řídicí smyčky.
+  **Nejelo se s tím**: všechna měření jsou ze **stojícího** robota; jak se síť chová za jízdy
+  (rozmazání, měnící se expozice, stíny) naměřené není, a hlavně **nikdy to neřídilo** — že
   segmentace vypadá líp, ještě neznamená, že podle ní robot pojede líp.
-- ~~**Optimalizovaný graf neprošel měřidlem v repu.**~~ **Zavřeno 9. 9. 2026** — prošel a report
-  je **shodný znak po znaku** se zdrojovým modelem, čas −33 % (Model61.1) a −39 % (Model96.2).
-- ~~**Optimalizovaný graf není v `models/` ani v konfiguraci.**~~ **Zavřeno 9. 9. 2026** — soubory
-  jsou v `models/` a `nnmodel=` má nový default (−54 % času proti dřívějšímu, přesnost v šumu),
-  krytý dvěma testy.
-- ~~🔧 **NEDODĚLEK: optimalizované modely přeložit do RKNN, změřit na Pi a případně nastavit
-  `npumodel=`.**~~ **Zavřeno 9. 9. 2026** — převedeno, změřeno na Orange Pi a `npumodel=` přepnuto
-  na `models/Model61.1_opt.rknn` ([viz níž](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)).
-  Z −49 % ubraných násobení NPU využilo **jen třetinu** (−17 % času), takže ta obava byla na místě.
-  U **Model96.2 to nešlo vůbec** — lepší checkpoint je dynamic-range kvantovaný, takže `onnxopt.py`
-  na něm nic nenajde ([viz níž](#-z-čeho-vznikl-model962rknn-zodpovězeno-9-9-2026)).
-- ~~**Nový `nnmodel=` je na ARM nezměřený.**~~ **Zavřeno 9. 9. 2026** — na Orange Pi dává
-  **9,35 ms** proti 10,18 u starého `_int8` ([viz níž](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)),
-  takže nový default je na ARM správně, jen mnohem těsněji než na x86 (−8 % proti −54 %).
-  ⚠️ **Extrapolace z počtu násobení byla mimo** — čekalo se ~7,7 ms. **V runtime to pořád
-  neběželo**: na zařízení se jede `backproject=npu`, CPU cesta se měřila jen offline.
-- **Proč je `_int8_deq_opt` o 27 % rychlejší než `_float_opt`, když mají týž graf i týž počet
-  násobení**, není vysvětlené — reprodukovatelné přes tři běhy, ale hypotéza na denormalizovaná
-  čísla je vyvrácená měřením.
-- **Kalibrace pravděpodobnosti** je změřeně nepoctivá v dolní polovině rozsahu a jde do log-odds
+- **[Kvalita segmentační sítě na dnešních snímcích D435 je bez ground truth neznámá](ukoly.md#vid-segmentace-pravda-d435)** —
+  model **měl** naměřenou výhodu (0,9546 per-pixel proti ~0,80 histogramu na pevné 50snímkové sadě,
+  [viz výše](#v-notebooku-je-i-měřidlo-proti-pravdě)), neznámé je, jak si stojí na **datech z D435
+  v roce 2026** (jiná kamera, jiné scény, trénovací data z 2019–2022); na venkovním záznamu dává síť
+  čistší obraz cesty, na zarostlé ploše je nerozhodná, a bez ground truth k **našim** záznamům je to
+  jen rozpor dvou metod.
+- **[Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](ukoly.md#vid-segmentace-rozliseni-128)** —
+  dopad menšího rozlišení na hranice cesty a occupancy grid není naměřený; **není to věc
+  konfigurace** — vyšší rozlišení vstupu znamená přetrénování, viz
+  [Síť mění rozlišení](#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
+- **[Polovina výpočtu segmentační sítě byla zbytečná](ukoly.md#vid-model-optimalizace-grafu)** —
+  optimalizovaný graf prošel měřidlem v repu (report je **shodný znak po znaku** se zdrojovým
+  modelem, čas −33 % u Model61.1 a −39 % u Model96.2), soubory jsou v `models/` a `nnmodel=` má nový
+  default (−54 % času proti dřívějšímu, přesnost v šumu, krytý dvěma testy); optimalizované modely
+  jsou přeložené do RKNN, změřené na Orange Pi a `npumodel=` je přepnuté na `models/Model61.1_opt.rknn`
+  ([viz níž](#-optimalizovaný-graf-na-npu-změřeno-9-9-2026)) — z −49 % ubraných násobení NPU využilo
+  **jen třetinu** (−17 % času), takže ta obava byla na místě; u **Model96.2 to nešlo vůbec** — lepší
+  checkpoint je dynamic-range kvantovaný, takže `onnxopt.py` na něm nic nenajde
+  ([viz níž](#-z-čeho-vznikl-model962rknn-zodpovězeno-9-9-2026)). Nový `nnmodel=` na Orange Pi dává
+  **9,35 ms** proti 10,18 u starého `_int8`, takže je na ARM správně, jen mnohem těsněji než na x86
+  (−8 % proti −54 %); ⚠️ extrapolace z počtu násobení byla mimo (čekalo se ~7,7 ms) a v runtime CPU
+  cesta na zařízení neběžela — jede se `backproject=npu`. **Proč je `_int8_deq_opt` o 27 % rychlejší
+  než `_float_opt`, když mají týž graf i týž počet násobení**, není vysvětlené — reprodukovatelné
+  přes tři běhy, ale hypotéza na denormalizovaná čísla je vyvrácená měřením.
+- (bez tématu v registru) **Kalibrace pravděpodobnosti** je změřeně nepoctivá v dolní polovině rozsahu a jde do log-odds
   occupancy gridu jako důvěra; jednoparametrová léčba je snadná, ale **musí se měřit na D435**,
   ne na sadě z ARBot2.
-- **Volba provozního prahu** (dnes 128/255) není naměřená proti tomu, co robotovi škodí —
+- (bez tématu v registru) **Volba provozního prahu** (dnes 128/255) není naměřená proti tomu, co robotovi škodí —
   jen proti per-pixel přesnosti. Vyšší práh výrazně ubírá falešně přidané cesty.
 
 ## NPU (`backproject=npu`)

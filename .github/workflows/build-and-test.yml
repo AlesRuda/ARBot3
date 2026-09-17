@@ -92,3 +92,23 @@ jobs:
           name: arbot-headless-linux-arm64
           path: publish/headless
           if-no-files-found: error
+
+  # Registr ukolu (doc/ukoly.yaml) ma dva GENEROVANE vystupy commitovane v repu
+  # (doc/ukoly.md, web/pages/historie.html). Tenhle krok je jediny "test" generatoru:
+  # prevaliduje zdroj a overi, ze vystupy odpovidaji zdroji - zapomenute spusteni
+  # `dotnet run tools/ukoly.cs` nebo nevalidni YAML tu spadne. Viz doc/plan-ukoly.md.
+  registr-ukolu:
+    name: registr ukolu (generovane soubory aktualni)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: generator
+        run: dotnet run tools/ukoly.cs
+
+      - name: vystupy odpovidaji zdroji
+        run: git diff --exit-code -- doc/ukoly.md web/pages/historie.html

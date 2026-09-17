@@ -17,7 +17,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   datum má nadpis, **připiš k němu** další odrážku, nezakládej druhý.
 - **Formát dne:** krátký souhrn v odrážkách. Doporučené položky (vynech, co nedává smysl):
   - **Hotovo:** co se dokončilo a ověřilo (build/testy/na zařízení).
-  - **Rozpracováno / další krok:** kde se pokračuje příště.
+  - **Rozpracováno / další krok:** kde se pokračuje příště. Od 17. 9. 2026 uváděj u tématu jeho
+    id z registru [ukoly.yaml](ukoly.yaml) (např. `kompas-sigma-podlaha`), aby šel záznam dne
+    spárovat se stavem v [ukoly.md](ukoly.md) — a stav změň **tam**, ne jen tady.
   - **Rozhodnutí:** jedna věta + odkaz do [decisions.md](decisions.md), pokud padlo zásadní rozhodnutí.
   - **Odkazy:** dotčené soubory, `doc/*.md`, commit (`git` hash), issue.
 - **Stav ověření uváděj pravdivě** — co je odsimulované vs. co je nutné ověřit na HW (viz CLAUDE.md).
@@ -36,6 +38,71 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 > a označ je `(zpětně z gitu)`.
 
 ---
+
+## 2026-09-17
+- **Web přejmenován z `docs/` na `web/`** — *na pokyn autora*. Vedle `doc/` (vývojová dokumentace)
+  byla `docs/` (web) past: obě jména se pletou, a to i asistentovi při hledání soupisu úkolů.
+  - **Hotovo:** `git mv docs web` (109 souborů), odkazy v `doc/prezentace-google-sites.md`,
+    `web/README.md` (schéma, návod na zapnutí, `CNAME`) a komentář v `web/assets/site.css`.
+    Odkazy uvnitř webu jsou relativní, ty se neměnily. Zmínky `docs/` ve starších záznamech
+    tohoto deníku zůstávají (historie).
+  - **Cena a řešení:** GitHub Pages v režimu *Deploy from a branch* umí jen `/` nebo `/docs`,
+    jiné jméno nejde zadat. Proto nový workflow
+    [.github/workflows/pages.yml](../.github/workflows/pages.yml) (`upload-pages-artifact`
+    s `path: web` + `deploy-pages`, spouští se na push do `master` dotýkající se `web/`).
+    Vedlejší zisk: až bude web něco generovat (stránka s historií úkolů, viz níž), patří ten
+    krok do workflow a generované HTML se nemusí commitovat.
+  - ⚠️ **Neověřeno:** workflow neběžel (nic se nepushovalo). Podle autora **Pages už je zapnuté
+    a web běží** na `alesruda.github.io/ARBot3/` (doména `arbot.cz` zatím přepnutá není), tedy
+    v režimu *branch* ze `/docs`. **Před pushem, nebo hned po něm, přepnout Settings → Pages →
+    Source na *GitHub Actions*** — jinak GitHub po pushi nenajde `/docs` a web spadne, dokud se
+    nepřepne. Přepnutí je bezpečné udělat napřed: starý obsah zůstane servírovaný, dokud ho
+    první běh workflow nenahradí.
+- **Registr úkolů projektu a stránka „Čím si projekt prošel"** — *dotaz autora:* jestli existuje
+  přehledný checklist úkolů (stav, kdy nalezeno, kdy vyřešeno, popis, odkaz). **Neexistoval**;
+  úkoly byly rozstrkané v sekcích „Otevřené úkoly" ~15 dokumentů, v „Rozpracováno / další krok"
+  tohoto deníku, v checkboxech `plan-*.md` a v ⚠️/✅ odrážkách `CLAUDE.md`. Návrh a rozhodnutí:
+  [plan-ukoly.md](plan-ukoly.md), [decisions.md](decisions.md) 17. 9.
+  - **Hotovo:** zdroj [ukoly.yaml](ukoly.yaml) (hierarchie Oblast → Téma → Kroky, závislosti
+    „čeká na" mezi tématy, stavy `otevreno` / `v-kodu` / `hotovo` / `odlozeno` / `zamitnuto`),
+    generátor `tools/ukoly.cs` (jeden soubor C#, `dotnet run`, přísná validace: data, stavy,
+    cykly závislostí, existence odkazovaných souborů), výstupy [ukoly.md](ukoly.md) a
+    `web/pages/historie.html` (osa po měsících + strom po oblastech, **filtr podle stavu
+    a hledání v textu** — na pokyn autora jediný JavaScript na webu, progresivní). Položka
+    *Historie* v menu všech 18 stránek a karta v rozcestníku; CI krok `registr-ukolu`
+    přegeneruje výstupy a porovná s commitem; pravidla v `CLAUDE.md` a v hlavičce tohoto
+    deníku (u tématu uvádět id).
+  - **Rekonstrukce od 23. 6. 2026:** devět agentů paralelně po obdobích DevLogu, každý vlastní
+    fragment; sloučeno, čtyři duplicity napříč obdobími odstraněny (GPS stupně/radiány,
+    akcelerometr +7 %, hlášky ze startu mimo záznam, zotavení kamer), 18 křížových závislostí
+    doplněno z poznámek agentů. **Kontrola pokrytí proti `CLAUDE.md`** (další agent, ~110
+    tvrzení): 5 chybějících témat doplněno (měření výkonu řízení, dekorelační čas korelace 3 s,
+    past v měřidle σ, průřez koridorem 4b, odložený režim Simulate) + start po rebootu, 6 popisů
+    opraveno tam, kde DevLog dokládá běh na zařízení (Track 12./14. 9., koridor 16. 9., síť na NPU
+    od 12. 9.), 2 dvojice sloučeny a 11 opsaných kroků vyškrtnuto. **Sedm zastaralých tvrzení
+    v `CLAUDE.md`** („na HW neověřeno“ u FreeRunu, Tracku, occupancy, segmentace; „čtvrt jádra“)
+    opraveno. Výsledek po všech kolech: **193 témat**: otevřeno 39, v kódu 42, hotovo 103, odloženo 7,
+    zamítnuto 2. ⚠️ Stavy jsou **rekonstrukce z DevLogu a CLAUDE.md**, ne nezávislé ověření —
+    kde si dokumenty odporují (např. „na HW neověřeno" v hlavičce dokumentu proti doložené
+    jízdě v DevLogu), rozhodoval novější záznam; sporné případy jsou vypsané v hlášeních
+    agentů a stojí za autorův pohled: `mise-track` (v-kodu, ačkoli 12. 9. jel záznam z terénu),
+    `mise-freerun` (hotovo podle jízd 7. a 12. 9.), `lp-regulator-sledovani-drahy` a
+    `nav-globalni-navigace-runtime` (hotovo, protože robot s nimi venku jel).
+  - **Sekce „Otevřené úkoly" v 18 dokumentech přepsané na odkazy do registru** (rozhodnutí 8
+    plánu, agent): položka = `[název](ukoly.md#id)` + jedna věta, stav a data jen v registru.
+    Z ~40 položek bez tématu se **devět skutečných úkolů** doplnilo do registru (vizuální dojezd,
+    koridor jako cena v A*, zdroj `.osm`, uzavřené hrany přes restart, výkon řetězu na ARM, filtr
+    izolovaných buněk, pravda k D435, rozlišení 128×128, eskalace bez shody s mapou) a tři jako
+    kroky; zbytek jsou **nápady bez rozdělané práce** a v sekcích zůstávají označené
+    `(bez tématu v registru)` — vědomě, registr má vést úkoly, ne přání.
+  - **Tři opravy stavu od autora týž den** (věci, které DevLog nezapsal a věděl je jen on):
+    nouzové zastavení ve firmwaru motorů (nahráno 30. 8., ověřeno), panely senzorů a Stop/Start
+    senzoru z panelu (obojí za běhu funguje) — všechny tři `v-kodu` → `hotovo`. Přesně pro tenhle
+    druh rozporu registr vznikl.
+  - **Ověřeno:** generátor idempotentní, stránka prohlédnutá v prohlížeči (180 karet, 244 položek
+    na ose, 0 rozbitých kotev, filtr i hledání fungují). ⚠️ CI krok neběžel (nic se nepushovalo).
+  - Lokální náhled webu: `.claude/launch.json` (`npx http-server web -p 8765`) — pomůcka
+    pro prohlížeč v Claude, do gitu nepatří nutně.
 
 ## 2026-09-16
 - **Prověření záznamu `records/test/20260916-164926.rec`** (první jízda ze zařízení, kde hranová

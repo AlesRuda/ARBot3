@@ -374,45 +374,51 @@ Hlídají dva testy (`PathControllerTests`), oba ověřené tak, že bez opravy 
 
 Původní varianta je ponechaná zakomentovaná do ověření na HW (viz CLAUDE.md).
 
-#### Co zůstává otevřené
+#### Otevřené úkoly (→ registr)
 
-⬜ **`MaxAllowedRotationSpeed = π/6` (30°/s) je nízké.** Po opravě už rychlost nezamyká, ale zůstává
-mezí toho, jak rychle se robot srovná na cílový uzel. Jestli robot mechanicky unese víc, se musí
-potvrdit na zařízení — „maximální **dovolená**" není technická mez. Souvisí s tím i `LookaheadMin`
-(0,15 m), který teď funguje jako práh přeskoku uzlu: příliš malý = míří se na uzly těsně před robotem
-(neklidný azimut), příliš velký = přeskakují se i rohy, které se měly projet. **Neověřeno na HW.**
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-⬜ **`beta = −11,9°` na rovné 6m dráze** je samo o sobě dost. Může jít o důsledek plazení (robot se
-nestihl srovnat) — po rozjezdu bude vidět, jestli odchylka zmizí, nebo je to samostatná chyba
-ve sledování dráhy.
+- **[Regulátor sledování dráhy z waypointů](ukoly.md#lp-regulator-sledovani-drahy)** —
+  `MaxAllowedRotationSpeed = π/6` (30°/s) je nízké: po opravě už rychlost nezamyká, ale zůstává
+  mezí toho, jak rychle se robot srovná na cílový uzel, a jestli robot mechanicky unese víc, se musí
+  potvrdit na zařízení — „maximální **dovolená**" není technická mez. Souvisí s tím i `LookaheadMin`
+  (0,15 m), který teď funguje jako práh přeskoku uzlu: příliš malý = míří se na uzly těsně před
+  robotem (neklidný azimut), příliš velký = přeskakují se i rohy, které se měly projet.
+- (bez tématu v registru) **`beta = −11,9°` na rovné 6m dráze** je samo o sobě dost. Může jít o důsledek plazení (robot se
+  nestihl srovnat) — po rozjezdu bude vidět, jestli odchylka zmizí, nebo je to samostatná chyba
+  ve sledování dráhy.
 
-### ⬜ Otevřený úkol: znaménko rotace ověřit na zařízení
+### Otevřený úkol (→ registr): znaménko rotace ověřit na zařízení
 
-**Znaménko** je jiná otázka než faktor a **z kódu se rozhodnout nedá** — musí se změřit na robotu.
-Papírová nesrovnalost:
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- `rotationSpeed` je matematické, **+CCW = vlevo**;
-- `IMotorControl.Drive` dokumentuje `difSpeed > 0` jako **pravé** otáčení;
-- `SDC2160Ex.Drive` navíc posílá `!VAR 4 −CalcSpeed(difSpeed)`, tedy do řadiče jde `−dif`, přičemž
-  `VAR 4` je ve skriptu dokumentovaná jako „+ = matematický smysl";
-- skript pak počítá `motor1 = −(curSpeed+curRotSpeed)`, `motor2 = curSpeed−curRotSpeed`, takže výsledek
-  závisí i na tom, **které kolo je motor 1** a jak jsou motory namontované (proto ta asymetrická
-  negace).
+- **[Robot by zatáčel dvakrát rychleji, než regulátor chce](ukoly.md#lp-omega-dif-faktor-a-znamenko)** —
+  znaménko je jiná otázka než faktor a z kódu se rozhodnout nedá, musí se změřit na robotu.
 
-Složením těch čtyř míst může znaménko vyjít správně i obráceně; předchozí generace jela s
-`+ω·Rozchod/2` **bez explicitního přehození** a fungovala, což mluví pro to, že to celé vychází.
-**Autorův odhad: komentář `dif>0 = vpravo` je správný a nesrovnalost je jen zdánlivá.**
+  Papírová nesrovnalost:
 
-**Zkouška na robotu** (jedna, rozhodne obojí):
+  - `rotationSpeed` je matematické, **+CCW = vlevo**;
+  - `IMotorControl.Drive` dokumentuje `difSpeed > 0` jako **pravé** otáčení;
+  - `SDC2160Ex.Drive` navíc posílá `!VAR 4 −CalcSpeed(difSpeed)`, tedy do řadiče jde `−dif`, přičemž
+    `VAR 4` je ve skriptu dokumentovaná jako „+ = matematický smysl";
+  - skript pak počítá `motor1 = −(curSpeed+curRotSpeed)`, `motor2 = curSpeed−curRotSpeed`, takže výsledek
+    závisí i na tom, **které kolo je motor 1** a jak jsou motory namontované (proto ta asymetrická
+    negace).
 
-1. Zadat malé konstantní `+ω` (např. 0,3 rad/s) při nulové dopředné rychlosti a sledovat, **kam se
-   robot otočí**. Vlevo (CCW) = řetěz je konzistentní, nechat být. Vpravo = někde v kompozici je
-   přehození; opravit **na jednom místě** a zdůvodnit v [decisions.md](decisions.md).
-2. Týmž pokusem porovnat **odometrické ω** (`Odo/rate` = `(vR − vL)/rozchod`, viz
-   [ekf-fusion.md](ekf-fusion.md)) proti gyroskopu (`IMUState.AngularVelocity.Z`). Musí mít **stejné
-   znaménko** — jinak je fúze proti sobě váží a kurz se rozjede; pojistka je
-   `FusionConfig.OdoOmegaSign`.
+  Složením těch čtyř míst může znaménko vyjít správně i obráceně; předchozí generace jela s
+  `+ω·Rozchod/2` **bez explicitního přehození** a fungovala, což mluví pro to, že to celé vychází.
+  **Autorův odhad: komentář `dif>0 = vpravo` je správný a nesrovnalost je jen zdánlivá.**
 
-*Proč to nespravovat „naslepo": je to příkazová cesta. Otočené znaménko rotace znamená, že robot
-zatáčí od dráhy místo k ní — regulátor pak divergovaně kmitá a při nešťastné konstelaci ujede z cesty.
-Hádat tady je dražší než změřit.*
+  **Zkouška na robotu** (jedna, rozhodne obojí):
+
+  1. Zadat malé konstantní `+ω` (např. 0,3 rad/s) při nulové dopředné rychlosti a sledovat, **kam se
+     robot otočí**. Vlevo (CCW) = řetěz je konzistentní, nechat být. Vpravo = někde v kompozici je
+     přehození; opravit **na jednom místě** a zdůvodnit v [decisions.md](decisions.md).
+  2. Týmž pokusem porovnat **odometrické ω** (`Odo/rate` = `(vR − vL)/rozchod`, viz
+     [ekf-fusion.md](ekf-fusion.md)) proti gyroskopu (`IMUState.AngularVelocity.Z`). Musí mít **stejné
+     znaménko** — jinak je fúze proti sobě váží a kurz se rozjede; pojistka je
+     `FusionConfig.OdoOmegaSign`.
+
+  *Proč to nespravovat „naslepo": je to příkazová cesta. Otočené znaménko rotace znamená, že robot
+  zatáčí od dráhy místo k ní — regulátor pak divergovaně kmitá a při nešťastné konstelaci ujede z cesty.
+  Hádat tady je dražší než změřit.*

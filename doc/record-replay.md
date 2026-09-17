@@ -907,48 +907,52 @@ Simulate postaví bez přepisu formátu. Součástí bude `DummyMotors`, `Compar
 pumpovaný `VirtualClock`em z `FileMessageSource`, a rozhodnutí, zda vize při přepočtu bere surový
 `CameraFrame` (nutná serializace) nebo zaznamenaný RGB `Blob`.
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Revize vizuální cesty na synchronní vlákno-per-kamera** (proti GC pauzám z per-snímek alokací
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Vizuální cesta se každých ~5 s zasekla na 200–450 ms kvůli GC](ukoly.md#vid-gc-spicky-latence)** —
+  revize vizuální cesty na synchronní vlákno-per-kamera (proti GC pauzám z per-snímek alokací
   velkých `Image`): kamera → vize synchronně na vlákně kamery, grid v `CameraFrame`, kamery pullované
-  `ControlLoop`em místo `SensorSource`, poolované buffery + kopie s release pro záznam/UI. Fúze a
-  řídicí smyčka (malé zprávy) zůstávají. Návrh + odůvodnění: [decisions.md 2026-08-01](decisions.md).
-  Plán: [plan-camera-vision-refactor.md](plan-camera-vision-refactor.md).
-  - **Krok 1–2 HOTOVO** (2026-08-01, ověřeno buildem/testy **i na HW** — 1 kamera, `wait` avg 37→13 ms):
-    `ICameraFrameProcessor`/`CameraFrameProcessor` počítá probability + grid synchronně v kameře, grid je
-    v `CameraFrame.Grid` (FormatVersion 2), konzumenti čtou `frame.Grid`, staré async stupně vyřazeny
-    z grafu, `PolarTraversabilityGridMsg` zrušen.
-  - **Krok 3–4 HOTOVO v kódu** (2026-08-01, build x64 i OrangePI + testy zelené, **HW ověření pod zátěží
-    čeká**): kamery **nejsou** v grafu přes `SensorMessageSource`; `ControlLoop` je na tiku **pulluje**
-    (`ICameraPullSource` naplněný `ARBotRuntime.HwCameraPullSource` z `ARBotHW.Current`) a **celý
-    `CameraFrame`** (raw + grid) forwardne na `Stream` pro záznam/UI — bezztrátově vzhledem k datům, která
-    řízení reálně vzorkovalo. Buffery kamery jsou **poolované** (`CaptureFramePool`, triple-buffer) a každý
-    async odběratel (`RecordingTarget`, `ImageDocument`) si drží **vlastní pool kopií** (`CameraFramePool`)
-    s Acquire/Release (best-effort drop při vyschnutí). Cíl: churn ~0 v ustáleném stavu (ověřit na HW přes
-    `logs/traversability-timing-*.csv`). `BackProject` (probability) je vstup **pro řízení** → počítá se vždy
-    (viz [decisions.md 2026-08-01](decisions.md)).
-
-- **Runtime + režimy + scheduler + periodická řídicí smyčka** (viz Implementační kontrakt).
-- ~~**Revize `FusionConfig`** — duplicitní rozchod~~ — **vyřešeno**: `FusionConfig.WheelBase` se bere
-  z `Profile.Rozchod` (0,41), takže je jeden zdroj pravdy. Natvrdo zapsaných 0,5 znamenalo trvalou
-  systematickou chybu úhlové rychlosti −18 %; odůvodnění je v komentáři u toho pole.
-- **Serializace `CameraFrame` — HOTOVO** (2026-07-25, rozšířeno 2026-08-01 na **FormatVersion 2**:
-  uvnitř rámce se nově serializuje i `Grid`; 2026-08-09 na **FormatVersion 3**: serializují se
-  i hranice cesty `PathEdges`; 4: popis projekce; 5: metrické body hranic;
-  2026-08-23 na **FormatVersion 6**: odhad pózy v okamžiku pořízení
-  (`PoseAtCaptureX/Y/Theta` + `HasPose`) — **jen pro vizualizaci**, viz §„Seek určuje, kde smí póza
-  být"; `FromData` má větve `case 1`–`case 6`).
-  `CameraFrame` má versioned `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví podle `Verze`)
-  a je v replay katalogu (`ARBotRuntime.BuildCatalog`); round-trip test v
-  `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Vrstvy se ukládají přes
-  `ImageMsg.Write` **bez komprese (`None`)** — šetří CPU (žádné Jpeg/Png/Deflate kódování).
-  `CameraFrame` je **měření (primární) → zaznamenává se VŽDY** (v `RecordingTarget` bez limitu).
-  Objem ~1,8 GB/min (2 kamery @10 Hz, RGB BGR32 640×480 + Depth Z16 480×270) — na NVMe pár hodin,
-  dost pro testy i soutěžní jízdu. Komprese je připravená (`ImageMsg.Compression` Jpeg/Png/Deflate)
-  a lze ji u vrstev zapnout, když bude potřeba šetřit místo.
-- **Akcelerace barevných převodů přes `NativeComputeUnit`.** `MessageImageLayers` dělá RGB/BGR → BGR32
+  `ControlLoop`em místo `SensorSource`, poolované buffery + kopie s release pro záznam/UI; fúze a
+  řídicí smyčka (malé zprávy) zůstávají. Návrh + odůvodnění: [decisions.md](decisions.md), plán
+  [plan-camera-vision-refactor.md](plan-camera-vision-refactor.md).
+  - Krok 1–2: `ICameraFrameProcessor`/`CameraFrameProcessor` počítá probability + grid synchronně
+    v kameře, grid je v `CameraFrame.Grid` (FormatVersion 2), konzumenti čtou `frame.Grid`, staré
+    async stupně vyřazeny z grafu, `PolarTraversabilityGridMsg` zrušen (na HW s jednou kamerou
+    `wait` avg 37 → 13 ms).
+  - Krok 3–4: kamery **nejsou** v grafu přes `SensorMessageSource`; `ControlLoop` je na tiku
+    **pulluje** (`ICameraPullSource` naplněný `ARBotRuntime.HwCameraPullSource` z `ARBotHW.Current`)
+    a **celý `CameraFrame`** (raw + grid) forwardne na `Stream` pro záznam/UI — bezztrátově vzhledem
+    k datům, která řízení reálně vzorkovalo. Buffery kamery jsou **poolované** (`CaptureFramePool`,
+    triple-buffer) a každý async odběratel (`RecordingTarget`, `ImageDocument`) si drží **vlastní pool
+    kopií** (`CameraFramePool`) s Acquire/Release (best-effort drop při vyschnutí). Cíl: churn ~0
+    v ustáleném stavu (na HW přes `logs/traversability-timing-*.csv`). `BackProject` (probability)
+    je vstup **pro řízení** → počítá se vždy (viz [decisions.md](decisions.md)).
+- **[Systém zpráv, řídicí smyčka a záznam / přehrávání běhu (Run / View)](ukoly.md#nast-system-zprav-record-replay)** —
+  runtime + režimy + scheduler + periodická řídicí smyčka (viz Implementační kontrakt).
+- **[Odometrie do fúze byla dvakrát vedle — i na skutečném robotu](ukoly.md#lok-odometrie-do-fuze-vady)** —
+  revize `FusionConfig` (duplicitní rozchod): `FusionConfig.WheelBase` se bere z `Profile.Rozchod`
+  (0,41), takže je jeden zdroj pravdy; natvrdo zapsaných 0,5 znamenalo trvalou systematickou chybu
+  úhlové rychlosti −18 %, odůvodnění je v komentáři u toho pole.
+- **[Systém zpráv, řídicí smyčka a záznam / přehrávání běhu (Run / View)](ukoly.md#nast-system-zprav-record-replay)** —
+  serializace `CameraFrame`: versioned `ToData`/`FromData`/`Build` (`FormatVersion`, `FromData` větví
+  podle `Verze`, větve `case 1`–`case 6`), v replay katalogu (`ARBotRuntime.BuildCatalog`),
+  round-trip test v `ARBot.Common.Tests/Devices/CameraFrameSerializationTest.cs`. Historie formátu:
+  **2** — uvnitř rámce se serializuje i `Grid`; **3** — hranice cesty `PathEdges`; **4** — popis
+  projekce; **5** — metrické body hranic; **6** — odhad pózy v okamžiku pořízení
+  (`PoseAtCaptureX/Y/Theta` + `HasPose`), **jen pro vizualizaci**, viz §„Seek určuje, kde smí póza
+  být". Vrstvy se ukládají přes `ImageMsg.Write` **bez komprese (`None`)** — šetří CPU (žádné
+  Jpeg/Png/Deflate kódování). `CameraFrame` je **měření (primární) → zaznamenává se VŽDY**
+  (v `RecordingTarget` bez limitu). Objem ~1,8 GB/min (2 kamery @10 Hz, RGB BGR32 640×480 + Depth
+  Z16 480×270) — na NVMe pár hodin, dost pro testy i soutěžní jízdu. Komprese je připravená
+  (`ImageMsg.Compression` Jpeg/Png/Deflate) a lze ji u vrstev zapnout, když bude potřeba šetřit místo.
+- (bez tématu v registru) **Akcelerace barevných převodů přes `NativeComputeUnit`.** `MessageImageLayers` dělá RGB/BGR → BGR32
   **dočasně** managed přes `Image<T>.ConvertTo`. `NativeComputeUnit` je od SIMD/HW akcelerace — má
   `CopyRGB24ToBGR32` / `CopyBGR24ToBGR32`, ale zatím jen nad typovými poli a `IntPtr`, ne nad managed
   `byte[]→byte[]`. Doplnit `byte[]→byte[]` varianty a nasměrovat tam převody (zvážit `NativeLib` závislost).
-- **High-level plánovač cesty** na mapě + **lokalizace srovnáním obrazu s mapou** (vstup do fúze) — později.
-- **Síťová telemetrie** přes `ARBotTCP*` (best-effort `MessageSource`/`Target`).
+- **[Globální navigace po síti cest v runtime](ukoly.md#nav-globalni-navigace-runtime)** —
+  high-level plánovač cesty na mapě.
+- **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
+  lokalizace srovnáním obrazu s mapou jako vstup do fúze.
+- (bez tématu v registru) **Síťová telemetrie** přes `ARBotTCP*` (best-effort `MessageSource`/`Target`).

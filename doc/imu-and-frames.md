@@ -22,18 +22,21 @@ Invariant, který to hlídá: **`Transform` musí být inverzní k mapování `C
 `Transformation`** (paprsek protnutý s rovinou `z = 0`) — z toho se rendruje virtuální scéna
 i staví polární grid. Testuje `VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu`.
 
-### Otevřený úkol: ověřit `TransformBack` (nalezeno 2026-08-14)
+### Otevřený úkol (→ registr): ověřit `TransformBack`
 
-⬜ `CameraProjection.TransformBack` (pixel → bod na zemi) vypadá na **stejnou třídu chyby** jako
-opravený `Transform`: aplikuje `rotation` — matici **s translací** — na *směrový vektor* paprsku
-(`Vector3.Transform(point, rotation)`), takže se do směru přičte posunutí kamery. Při ladění
-occupancy vracela metoda pro většinu pixelů `false` a pro zbytek nesmyslné souřadnice (pro bod
-zhruba (1; 2) m vyšlo (76; 152)).
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-**Neověřeno a neopraveno** — bylo mimo rozsah tehdejšího ladění. Používá ho `TargetPoly`
-(polygon dosahu kamery na vozovce). Před opravou dohledat všechny konzumenty a napsat na to test
-po vzoru `VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu` (round-trip proti mapování
-`Camera2DToCamera3D` + `Transformation`, tedy proti témuž invariantu jako u `Transform`).
+- **[Projekce kamery měla čtyři skryté chyby](ukoly.md#vid-cameraprojection-vady)** —
+  `CameraProjection.TransformBack` (pixel → bod na zemi) měl stejnou třídu chyby jako opravený
+  `Transform`: aplikoval `rotation` — matici **s translací** — na *směrový vektor* paprsku
+  (`Vector3.Transform(point, rotation)`), takže se do směru přičetlo posunutí kamery; při ladění
+  occupancy vracela metoda pro většinu pixelů `false` a pro zbytek nesmyslné souřadnice (pro bod
+  zhruba (1; 2) m vyšlo (76; 152)). Používá ho `TargetPoly` (polygon dosahu kamery na vozovce);
+  správný test je round-trip po vzoru `VirtualHwOccupancyTest.ProjekceTamZpet_JeInverzniKRenderu`
+  (proti mapování `Camera2DToCamera3D` + `Transformation`, tedy proti témuž invariantu jako
+  u `Transform`). Báze se nakonec přepsala tak, aby hloubku používala — viz
+  **[Zpětná projekce pixelu ignorovala hloubku](ukoly.md#vid-zpetna-projekce-hloubka)**, kde zbývá
+  ověření na skutečné D435.
 
 ## IMUState — které pole je v jakém framu
 

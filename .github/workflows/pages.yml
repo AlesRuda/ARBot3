@@ -1,0 +1,53 @@
+# Publikace webu arbot.cz (GitHub Pages) ze slozky `web/`.
+#
+# PROC WORKFLOW A NE "Deploy from a branch": ten rezim umi servirovat JEN koren
+# repozitare nebo slozku `/docs` - jine jmeno nejde zadat. Slozka se 17. 9. 2026
+# prejmenovala z `docs/` na `web/`, protoze vedle `doc/` (vyvojova dokumentace)
+# byla `docs/` (web) past, ktera uz jednou kousla. V rezimu GitHub Actions se slozka
+# zada tady (`path: web`) a jmeno je volne.
+#
+# Zadny build se nepousti - `web/` se publikuje tak, jak lezi (viz web/README.md).
+# Az bude web neco generovat (napr. stranku s historii ukolu), patri ten krok sem,
+# pred `upload-pages-artifact`, a generovany HTML se nemusi commitovat.
+#
+# ZAPNUTI (jednorazove, rucne): GitHub -> Settings -> Pages -> Build and deployment
+# -> Source = "GitHub Actions". Bez toho workflow probehne, ale nic nepublikuje.
+
+name: web (GitHub Pages)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Dva pushe rychle po sobe: druhy pocka na prvni, nerusi ho (at se nepublikuje
+# starsi stav pres novejsi).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

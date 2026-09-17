@@ -500,15 +500,17 @@ Návrh byl záměrně dělaný tak, aby jich bylo minimum. Co se nakonec dooprav
   i `Cursor` jsou už public).
 - **`CLAUDE.md`** — odkaz na tento dokument.
 
-## Otevřené otázky a rizika
+## Otevřené úkoly (→ registr)
 
-- **Rychlost skenu** — náhodné čtení desítek tisíc malých rámců na OrangePI (SD karta) může být
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- (bez tématu v registru) **Rychlost skenu** — náhodné čtení desítek tisíc malých rámců na OrangePI (SD karta) může být
   pomalé. Na vývojovém stroji je to bez problému (`records/20260814-132817.rec`: index 27 541 zpráv
   → **29 ms**, 2806 řádků), na cílovém HW **neměřeno**. Kdyby to vadilo, přejít na sekvenční čtení
   s přeskakováním (`Seek` přes neregistrované rámce) nebo na plnění tabulky průběžně během skenu.
-- **Časy z jednoho taktu** — slévání funguje na přesnou shodu. Jestli se v praxi časy z jednoho
+- (bez tématu v registru) **Časy z jednoho taktu** — slévání funguje na přesnou shodu. Jestli se v praxi časy z jednoho
   taktu rozcházejí, bude potřeba tolerance (a je pak otázka, jaká, aby neslila dva různé takty).
   Ze záznamu, na kterém tabulka běžela, se to zatím nedá říct — je vidět, že se **některé** takty
   slily a jiné ne.
-- **Strop řádků vs. dlouhý běh** — hodinový záznam na 65 zpráv/s je ~230 000 řádků; vejde se do
+- (bez tématu v registru) **Strop řádků vs. dlouhý běh** — hodinový záznam na 65 zpráv/s je ~230 000 řádků; vejde se do
   stropu, ale je to ~110 MB. Případné řešení je rozsahový filtr (skenovat jen výsek času).

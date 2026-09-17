@@ -166,19 +166,25 @@ o poloměr robotu) pro „vejde se robot", plus **per-azimut přesná náběžn�
 vzdálenost k překážce. Plný 3D TSDF je pro čistě přízemní sjízdnost overkill (a drahý na ARM); pro
 převisy/podjezdy stačí 2,5D (`MaxZ` per buňka).
 
-## Otevřené úkoly
+## Otevřené úkoly (→ registr)
 
-- **Ladění prahů a šumového modelu** (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`) na reálných
-  datech — kamera zatím není namontovaná; geometrie a klasifikátor ověřeny syntetickým testem.
-- **Radiální hrany** lze zpřesnit z reálného podílu platných pixelů (teď `AssumedValidFraction`).
-- **Referenční plocha** — per-azimut profil místo jedné roviny, pokud zvlněný terén nestačí.
-- **Přepočet ve View** ze záznamu (odloženo) — vyžadoval by projekci offline (živé intrinsics se
-  nezaznamenávají): buď nominální intrinsics D435 480×270 v `Profile`, nebo zaznamenat intrinsics/tabulku
-  paprsků do `.rec`. Zvoleno zatím: View jen přehrává grid zaznamenaný v Run.
-- ~~**Agregace do kartézského occupancy** + distance transform pro plánovač~~ — **hotovo**, viz
+Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+
+- **[Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech](ukoly.md#vid-grid-prahy-realna-data)** —
+  ladění prahů a šumového modelu (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`) nad záznamem
+  z terénu; geometrie a klasifikátor jsou ověřené syntetickým testem. Patří k tomu i **radiální
+  hrany**, které lze zpřesnit z reálného podílu platných pixelů (teď `AssumedValidFraction`).
+- (bez tématu v registru) **Referenční plocha** — per-azimut profil místo jedné roviny, pokud zvlněný terén nestačí.
+- **[Polární grid sjízdnosti z hloubkové kamery s robot-centrickým pohledem](ukoly.md#vid-polarni-grid-sjizdnosti)** —
+  přepočet ve View ze záznamu je odložený: vyžadoval by projekci offline (živé intrinsics se
+  nezaznamenávají) — buď nominální intrinsics D435 480×270 v `Profile`, nebo zaznamenat
+  intrinsics/tabulku paprsků do `.rec`; View jen přehrává grid zaznamenaný v Run.
+- **[Occupancy grid a lokální plánování nad ním](ukoly.md#lp-occupancy-grid-lokalni-planovani)** —
+  agregace do kartézského occupancy + distance transform pro plánovač, viz
   [occupancy-and-local-planning.md](occupancy-and-local-planning.md). Pozn.: zápis do occupancy hledá
   azimutovou buňku **projekcí bodu země do obrazu** (sloupec), protože u sklopené kamery není sloupec
   konstantním azimutem — proto se azimutové hranice do gridu neukládají a renderer si je dál
   rekonstruuje z těžišť (a jinak to ani nejde).
-- **Výkon na ARM** — managed per-pixel `Transform`; případně přesměrovat na `NativeComputeUnit`
+- **[Polární grid sjízdnosti z hloubkové kamery s robot-centrickým pohledem](ukoly.md#vid-polarni-grid-sjizdnosti)** —
+  výkon na ARM: managed per-pixel `Transform` se přesměroval na `NativeComputeUnit`
   (`DepthTransform2Impl` funguje na x64/ARM).
