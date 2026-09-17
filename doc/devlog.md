@@ -223,6 +223,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - ⚠️ **Opraven flaky test:** `MisePublikujeMimoZamekTests` používal `Task.Run`, a při běhu celé
     sady je thread pool vytížený — jeden běh spadl, druhý prošel. Teď má vlastní vlákno (na pool
     nesahá) a limit 5 s; tři běhy sady po sobě zelené. Flaky test je horší než žádný.
+  - **Zavřeno `hw-magcal-prvni-vyjezd`** (*na pokyn autora: „dnes kalibrace běžela"*). Tři vady
+    z prvního výjezdu 10. 9. byly do té doby jen `v-kodu`; dnešní záznam ukazuje, že na senzoru
+    **zabraly všechny tři**: pokrytí úplné (24/24 azimutů, 5 skupin náklonu, 4 odkloněné, na obě
+    strany), skupiny klíčované **polohou robota** místo velikostí odklonu, a verdikt byl celou
+    dobu **pokyn** („podlož robota na DRUHOU stranu"), ne diagnóza. HOTOVO ve 48. s, zápis do
+    registru 23 i flash v 16:20:20. Poslední otevřený krok byl přesně „spustit na senzoru".
   - **Rozpracováno / další krok:** `prov-zatuhnuti-za-behu-mise` (tep ze `Scheduler`u do hlídače),
     `mise-magcal-sber-po-zapisu` (po `Written` přestat sbírat), `hw-zelezo-od-kabelu-kamer`
     (ověřit novou kalibraci záznamem — jízda po ní se **nenahrála**).

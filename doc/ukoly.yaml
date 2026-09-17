@@ -4601,9 +4601,9 @@ temata:
     oblast: hw
     nazev: První výjezd s kalibrací magnetometru skončil bez výsledku a našel tři vady
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-10
-    vyreseno: 2026-09-10
+    vyreseno: 2026-09-17
     popis: >
       Obsluha `mission=magcal` nedovedla do konce, protože verdikt byl diagnóza bez pokynu (při
       kompletním pokrytí radil „otáčej dál"), skupiny náklonu se klíčovaly velikostí odklonu, kterou
@@ -4612,7 +4612,18 @@ temata:
       půdorysu je mapa pokrytí 24 × 5 poloh robota. Z dokumentace VN100 přibyly dvě opravy práce
       s registrem 44 (reset před během, vypnutí i po nedokončené misi). Rovinná rotace přitom projde
       všemi branami a vrátí nesmyslný bias, proto přibyla třetí brána na měřítko. Od 15. 9. jde celá
-      kalibrace projít v simulaci; na skutečném senzoru s tímhle kódem neběžela.
+      kalibrace projít v simulaci. ✅ **Na skutečném senzoru to doběhlo 17. 9. 2026**
+      (`records/test/20260917-161759.rec`) a v záznamu je vidět, že zabraly všechny tři opravy:
+      pokrytí vyšlo **úplné** (24/24 azimutů, 5 náklonových skupin, z toho 4 odkloněné, na obě
+      strany), skupiny jsou klíčované **polohou robota**, ne velikostí odklonu („na rovině,
+      zvednutý předek, zvednutá levá, zvednutá zadní, zvednutá pravá"), a verdikt byl po celou
+      dobu **pokyn, ne diagnóza** — od „chybí azimuty 30–345°; podlož robota aspoň o 15 stupňů"
+      přes „máš jen jednu stranu (zvednutá zadní) — podlož robota na DRUHOU stranu" až po
+      **HOTOVO ve 48. s** (podmíněnost 330, `sd|B|` 0,0026 G). Kalibrace se v 16:20:20 zapsala
+      do registru 23 i do flash. Tím je téma uzavřené.
+      ⚠️ Co z toho neplyne: že je ta kalibrace v pořádku dlouhodobě (drží se
+      `hw-zelezo-od-kabelu-kamer`) a že stránka po zápisu říká pravdu — kolektor sbírá dál
+      a verdikt se rozpadne, viz `mise-magcal-sber-po-zapisu`.
     kroky:
       - co: "Proložení koule (`TryFitSphere`) a verdikt s pokynem"
         stav: hotovo
@@ -4630,7 +4641,8 @@ temata:
         stav: hotovo
         kdy: 2026-09-15
       - co: "Spustit `mission=magcal` na senzoru s novým kódem"
-        stav: otevreno
+        stav: hotovo
+        kdy: 2026-09-17
     odkazy:
       - text: plan-vn100-kalibrace.md
         cesta: doc/plan-vn100-kalibrace.md
@@ -4638,8 +4650,8 @@ temata:
         cesta: doc/decisions.md
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
-    devlog: [2026-09-10, 2026-09-15]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    devlog: [2026-09-10, 2026-09-15, 2026-09-17]
+    ceka_na: []
 
   - id: hw-magcal-sklon-brana-a-nasazeni
     oblast: hw

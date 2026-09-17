@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **41** · hotovo **105** · odloženo **7** · zamítnuto **2**.
+Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **40** · hotovo **106** · odloženo **7** · zamítnuto **2**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -81,7 +81,6 @@ Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **41** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 | [lp-robot-se-plazi-vyhlazovani](#lp-robot-se-plazi-vyhlazovani) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy](#lp-robot-se-plazi-vyhlazovani) | 7. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | v kódu, na HW neověřeno | Mise | [Mise Track — objezd míst ze souboru](#mise-track) | 8. 9. 2026 |  |
-| v kódu, na HW neověřeno | Hardware a senzory | [První výjezd s kalibrací magnetometru skončil bez výsledku a našel tři vady](#hw-magcal-prvni-vyjezd) | 10. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | v kódu, na HW neověřeno | Vidění | [Pravděpodobnost cesty 128×128 se kreslila jen přes střed snímku](#vid-prob-overlay-128) | 10. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [„Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala](#hw-magcal-uncompmag-kompenzovany) | 11. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
@@ -1901,22 +1900,6 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 
 [rozhodnutí 27. 8. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-08-31](devlog.md#2026-08-31), [2026-09-15](devlog.md#2026-09-15)
 
-<a id="hw-magcal-prvni-vyjezd"></a>
-### 🧪 První výjezd s kalibrací magnetometru skončil bez výsledku a našel tři vady
-
-`hw-magcal-prvni-vyjezd` · vada · **v kódu, na HW neověřeno** · nalezeno 10. 9. 2026 · vyřešeno 10. 9. 2026
-
-Obsluha `mission=magcal` nedovedla do konce, protože verdikt byl diagnóza bez pokynu (při kompletním pokrytí radil „otáčej dál"), skupiny náklonu se klíčovaly velikostí odklonu, kterou ruka neudrží, a obsluha neviděla, kam robota natočit. Léčba: vedle elipsoidy se prokládá i samotná koule, která rozliší „chybí náklon" od „měnilo se pole"; jde zapsat aspoň tvrdé železo; místo půdorysu je mapa pokrytí 24 × 5 poloh robota. Z dokumentace VN100 přibyly dvě opravy práce s registrem 44 (reset před během, vypnutí i po nedokončené misi). Rovinná rotace přitom projde všemi branami a vrátí nesmyslný bias, proto přibyla třetí brána na měřítko. Od 15. 9. jde celá kalibrace projít v simulaci; na skutečném senzoru s tímhle kódem neběžela.
-
-- [x] Proložení koule (`TryFitSphere`) a verdikt s pokynem (10. 9. 2026)
-- [x] Zápis samotného tvrdého železa ze stránky (10. 9. 2026)
-- [x] Mapa pokrytí 24 × 5 a klíčování směrem místo velikostí náklonu (10. 9. 2026)
-- [x] Registr 44 se před během resetuje a po misi vypíná (10. 9. 2026)
-- [x] Kalibrace projitá od začátku do konce v simulaci s vnuceným železem (15. 9. 2026)
-- [ ] Spustit `mission=magcal` na senzoru s novým kódem
-
-čeká na [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) · [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [rozhodnutí 10. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-10](devlog.md#2026-09-10), [2026-09-15](devlog.md#2026-09-15)
-
 <a id="hw-magcal-uncompmag-kompenzovany"></a>
 ### 🧪 „Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala
 
@@ -2094,6 +2077,22 @@ Po opravě registrů projetá smyčka venku: `IMU yaw − GPS kurz` p50 −24°,
 - [x] Ověřena venku třemi záznamy (12. 9. 2026)
 
 [imu-and-frames.md](imu-and-frames.md), [Vn100Report.cs](../Src/ARBot.Analyze/Vn100Report.cs) · DevLog [2026-09-07](devlog.md#2026-09-07), [2026-09-10](devlog.md#2026-09-10), [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-15](devlog.md#2026-09-15)
+
+<a id="hw-magcal-prvni-vyjezd"></a>
+### ✅ První výjezd s kalibrací magnetometru skončil bez výsledku a našel tři vady
+
+`hw-magcal-prvni-vyjezd` · vada · **hotovo** · nalezeno 10. 9. 2026 · vyřešeno 17. 9. 2026
+
+Obsluha `mission=magcal` nedovedla do konce, protože verdikt byl diagnóza bez pokynu (při kompletním pokrytí radil „otáčej dál"), skupiny náklonu se klíčovaly velikostí odklonu, kterou ruka neudrží, a obsluha neviděla, kam robota natočit. Léčba: vedle elipsoidy se prokládá i samotná koule, která rozliší „chybí náklon" od „měnilo se pole"; jde zapsat aspoň tvrdé železo; místo půdorysu je mapa pokrytí 24 × 5 poloh robota. Z dokumentace VN100 přibyly dvě opravy práce s registrem 44 (reset před během, vypnutí i po nedokončené misi). Rovinná rotace přitom projde všemi branami a vrátí nesmyslný bias, proto přibyla třetí brána na měřítko. Od 15. 9. jde celá kalibrace projít v simulaci. ✅ **Na skutečném senzoru to doběhlo 17. 9. 2026** (`records/test/20260917-161759.rec`) a v záznamu je vidět, že zabraly všechny tři opravy: pokrytí vyšlo **úplné** (24/24 azimutů, 5 náklonových skupin, z toho 4 odkloněné, na obě strany), skupiny jsou klíčované **polohou robota**, ne velikostí odklonu („na rovině, zvednutý předek, zvednutá levá, zvednutá zadní, zvednutá pravá"), a verdikt byl po celou dobu **pokyn, ne diagnóza** — od „chybí azimuty 30–345°; podlož robota aspoň o 15 stupňů" přes „máš jen jednu stranu (zvednutá zadní) — podlož robota na DRUHOU stranu" až po **HOTOVO ve 48. s** (podmíněnost 330, `sd|B|` 0,0026 G). Kalibrace se v 16:20:20 zapsala do registru 23 i do flash. Tím je téma uzavřené. ⚠️ Co z toho neplyne: že je ta kalibrace v pořádku dlouhodobě (drží se `hw-zelezo-od-kabelu-kamer`) a že stránka po zápisu říká pravdu — kolektor sbírá dál a verdikt se rozpadne, viz `mise-magcal-sber-po-zapisu`.
+
+- [x] Proložení koule (`TryFitSphere`) a verdikt s pokynem (10. 9. 2026)
+- [x] Zápis samotného tvrdého železa ze stránky (10. 9. 2026)
+- [x] Mapa pokrytí 24 × 5 a klíčování směrem místo velikostí náklonu (10. 9. 2026)
+- [x] Registr 44 se před během resetuje a po misi vypíná (10. 9. 2026)
+- [x] Kalibrace projitá od začátku do konce v simulaci s vnuceným železem (15. 9. 2026)
+- [x] Spustit `mission=magcal` na senzoru s novým kódem (17. 9. 2026)
+
+[plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [rozhodnutí 10. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-10](devlog.md#2026-09-10), [2026-09-15](devlog.md#2026-09-15), [2026-09-17](devlog.md#2026-09-17)
 
 <a id="hw-magcal-sklon-brana-a-nasazeni"></a>
 ### ✅ Verdikt kalibrace shodil rozptyl sklonu, který měří akcelerometr, ne magnetometr
