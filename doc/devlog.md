@@ -101,6 +101,10 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     druh rozporu registr vznikl.
   - **Ověřeno:** generátor idempotentní, stránka prohlédnutá v prohlížeči (180 karet, 244 položek
     na ose, 0 rozbitých kotev, filtr i hledání fungují). ⚠️ CI krok neběžel (nic se nepushovalo).
+  - **Oprava po nasazení:** na ose poskakovaly odkazy, protože kombinované štítky „nalezeno
+    i vyřešeno“ byly širší než sloupec — řádek osy je teď mřížka s pevnými sloupci (datum | typ
+    | téma), na úzkém displeji typ nad odkazem. Web už běží na `alesruda.github.io/ARBot3/`
+    přes workflow (Pages přepnuté na *GitHub Actions*).
   - Lokální náhled webu: `.claude/launch.json` (`npx http-server web -p 8765`) — pomůcka
     pro prohlížeč v Claude, do gitu nepatří nutně.
 
