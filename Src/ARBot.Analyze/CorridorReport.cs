@@ -112,6 +112,142 @@ namespace ARBot.Analyze
             AssociationSigmas(rec, msgs);
             GeometryCheck(ok);
             ByPose(rec, ok, msgs);
+            PrahInlieru(msgs);
+        }
+
+        /// <summary>
+        /// <b>Co by udelal jiny prah inlieru?</b> <c>MinInliers</c> (dnes 25) zahazuje nejvic
+        /// cyklu ze vsech bran — nad zaznamem ze 17. 9. 2026 to bylo 3 987 z 6 173. Prah je
+        /// pritom naladeny na STARSIM zaznamu odjinud, takze otazka „je 25 spravne pro tenhle
+        /// teren?" je legitimni — a da se zodpovedet BEZ noveho vyjezdu, protoze
+        /// <see cref="RoadCorridorMsg"/> nese inliery i <b>usecky obou hranic</b> i u cyklu,
+        /// ktere brana zamitla (<c>CorridorFinder</c> je uklada zamerne driv, nez zamita).
+        ///
+        /// <para><b>Nestaci spocitat, kolik cyklu by navic proslo</b> — to je ta lehka a
+        /// zavadejici polovina odpovedi. Podstatne je, JESTLI JSOU DOBRE: prave proti tomu ten
+        /// prah vznikl, protoze primky prolozene 3–6 body vychazeji kolmo na cestu (sirka az
+        /// 10 m, smer −88°). Proto se u kazde varianty dopocita geometrie koridoru a tiskne se
+        /// rozdeleni sirky — nesmyslna sirka je podpis prave te vady.</para>
+        ///
+        /// <para>⚠️ <b>Nejdriv se meridlo overi proti zname odpovedi</b>: tataz geometrie se
+        /// dopocita i pro cykly, kde koridor VZNIKL, a porovna se s tim, co je ve zprave.
+        /// Kdyz to nesedi, je vadna rekonstrukce a zbytek bloku nema cenu cist.</para>
+        /// </summary>
+        private static void PrahInlieru(List<RoadCorridorMsg> msgs)
+        {
+            Console.WriteLine("PRAH INLIERU - co by pustil jiny MinInliers? (dnes 25)");
+
+            var cfg = new ARBot.Common.Localization.CorridorConfig();
+            double maxPar = cfg.MaxParallelErrorRad;
+
+            // --- kontrola meridla proti zname odpovedi ---
+            var kontrola = new Stats("");
+            int kontrolovano = 0;
+            foreach (var m in msgs)
+            {
+                if (!m.HasLeftLine || !m.HasRightLine) continue;
+                if ((ARBot.Common.Localization.CorridorReason)m.CorridorReason
+                    != ARBot.Common.Localization.CorridorReason.Ok) continue;
+                if (!Geometrie(m, out double w, out _, out _)) continue;
+                kontrola.Add(Math.Abs(w - m.Width));
+                kontrolovano++;
+            }
+            Console.WriteLine(kontrolovano == 0
+                ? "  kontrola meridla: neni na cem (zadny vzniknuty koridor s useckami)"
+                : string.Format(CultureInfo.InvariantCulture,
+                    "  kontrola meridla: {0} cyklu, |dopoctena sirka - ulozena| p50 {1:F4} m, max {2:F4} m"
+                    + (kontrola.Max < 0.01 ? "  -> SEDI" : "  -> NESEDI, dalsi cisla NECIST"),
+                    kontrolovano, kontrola.Median, kontrola.Max));
+
+            // --- sweep prahu ---
+            Console.WriteLine();
+            Console.WriteLine("  prah   koridoru   z toho NotParallel   sirka p50   sirka p10-p90   mimo 1-8 m");
+            foreach (int prah in new[] { 10, 15, 20, 25, 30 })
+            {
+                int vzniklo = 0, neparalelni = 0, mimo = 0;
+                var sirky = new Stats("");
+                foreach (var m in msgs)
+                {
+                    if (!m.HasLeftLine || !m.HasRightLine) continue;
+                    if (m.InliersLeft < prah || m.InliersRight < prah) continue;
+                    if (!Geometrie(m, out double w, out _, out double par)) continue;
+                    if (par > maxPar) { neparalelni++; continue; }
+                    vzniklo++;
+                    sirky.Add(w);
+                    if (w < 1.0 || w > 8.0) mimo++;
+                }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4}   {1,8}   {2,17}   {3,9:F2}   {4,6:F2}-{5,5:F2}   {6,5} ({7,4:F1} %)",
+                    prah, vzniklo, neparalelni, sirky.Median, sirky.Percentile(10), sirky.Percentile(90),
+                    mimo, vzniklo > 0 ? 100.0 * mimo / vzniklo : 0));
+            }
+            Console.WriteLine("  (sirka mimo 1-8 m = podpis prave te vady, proti ktere prah vznikl:");
+            Console.WriteLine("   primka prolozena par body vyjde kolmo na cestu)");
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Geometrie koridoru z ULOZENYCH usecek — tyz vypocet jako <c>CorridorFinder</c> za
+        /// branami. Vraci <c>false</c>, kdyz usecky nejsou k dispozici.
+        /// </summary>
+        private static bool Geometrie(RoadCorridorMsg m, out double width, out double lateral,
+                                      out double parallelError)
+        {
+            width = lateral = parallelError = 0;
+            if (!m.HasLeftLine || !m.HasRightLine) return false;
+
+            double aL = Norm(m.DirectionLeftRad), aR = Norm(m.DirectionRightRad);
+            double par = Norm(aL - aR);
+            parallelError = Math.Abs(par);
+
+            double dir = Norm(aL - par / 2);
+            double nx = -Math.Sin(dir), ny = Math.Cos(dir);
+
+            // ⚠️ Offset se MUSI merit v PATE KOLMICE Z POCATKU, ne v libovolnem bode usecky
+            // (tak to dela CorridorFinder.Offset pres ProjectOntoLine). Normala `n` je prumer
+            // obou hranic, takze kazda z nich s ni svira az polovinu nerovnobeznosti — a `n · p`
+            // se pak podel primky MENI. Pri 10 stupnich a nekolikametrove usecce to dela decimetry:
+            // prvni verze tohohle bloku merila z konce usecky a kontrola meridla ji vratila
+            // (sirka p50 0,05 m, max 0,39 m vedle). Viz doc/map-correlation-localization.md.
+            if (!PataKolmice(m.LeftFromX, m.LeftFromY, m.LeftToX, m.LeftToY, out double lx, out double ly))
+                return false;
+            if (!PataKolmice(m.RightFromX, m.RightFromY, m.RightToX, m.RightToY, out double rx, out double ry))
+                return false;
+
+            double cL = nx * lx + ny * ly;
+            double cR = nx * rx + ny * ry;
+            if (cL < cR) { var t = cL; cL = cR; cR = t; }
+
+            width = cL - cR;
+            lateral = -(cL + cR) / 2;
+            return true;
+        }
+
+        /// <summary>
+        /// Pata kolmice z pocatku na primku danou dvema body usecky. Vraci <c>false</c> u
+        /// degenerovane usecky (oba body splyvaji).
+        /// </summary>
+        private static bool PataKolmice(double ax, double ay, double bx, double by,
+                                        out double px, out double py)
+        {
+            px = py = 0;
+            double dx = bx - ax, dy = by - ay;
+            double len2 = dx * dx + dy * dy;
+            if (len2 < 1e-12) return false;
+
+            // P = A + ((O - A)·u) u, kde O je pocatek a u jednotkovy smer usecky.
+            double t = -(ax * dx + ay * dy) / len2;
+            px = ax + t * dx;
+            py = ay + t * dy;
+            return true;
+        }
+
+        /// <summary>Uhel primky na +-90 stupnu (primka nema orientaci) — jako v CorridorFinder.</summary>
+        private static double Norm(double a)
+        {
+            while (a > Math.PI / 2) a -= Math.PI;
+            while (a < -Math.PI / 2) a += Math.PI;
+            return a;
         }
 
         /// <summary>

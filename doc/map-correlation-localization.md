@@ -3239,6 +3239,54 @@ z rozdělení**, ne výsledkem nové cesty kódu. Ověří to až nový záznam.
 15–20°. `assocmargin=4` a `assocveto=45` jdou proladit offline ze `AssocChi2` / `AssocChi2Second`
 v záznamu; přesně proto tam jsou.
 
+## Práh inlierů `MinInliers` — změřeno ze záznamů (17. 9. 2026)
+
+`MinInliers` (dnes 25) je **největší ztrátová brána proložení koridoru** — nad
+`20260917-160558.rec` zahodila 3 987 z 6 173 cyklů. Práh vznikl na starším záznamu odjinud
+a jeho zdůvodnění je konkrétní: bez něj se do statistiky míchaly přímky proložené 3–6 body,
+které vyjdou **kolmo na cestu** (šířka až 10 m, směr −88°), a šířka měla sd 3,3 m místo 0,45 m.
+
+Změřit to jde **bez nového výjezdu**, protože `RoadCorridorMsg` nese inliery i **úsečky obou
+hranic** i u cyklů, které brána zamítla (`CorridorFinder` je ukládá záměrně dřív, než zamítá).
+Dělá to blok *PRAH INLIERU* v `ARBot.Analyze corridor`.
+
+| práh | `20260917-160558` koridorů / mimo 1–8 m | `20260916-164926` koridorů / mimo 1–8 m |
+|---|---|---|
+| 10 | 2948 / 3,6 % | 3739 / 3,3 % |
+| 15 | 2513 / 2,0 % | 3399 / 2,6 % |
+| **20** | 1181 / 0,9 % | 2986 / **1,7 %** |
+| **25 (dnes)** | 635 / 0,0 % | 2354 / **2,0 %** |
+| 30 | 268 / 0,0 % | 1321 / 2,6 % |
+
+⚠️ **Podstatný je pravý sloupec, ne přírůstek koridorů.** Při dnešním prahu 25 už je nesmyslná
+šířka 2,0 %, kdežto při prahu 20 jen 1,7 % — tedy **méně**. Ta závislost je **nemonotónní**,
+což znamená, že **práh tu vadu neřídí**: případy s kolmou přímkou nejsou soustředěné v cyklech
+s málo inliery. Nula na záznamu ze 17. 9. je vlastnost toho záznamu, ne prahu.
+
+Druhý signál týmž směrem: cykly, které by nižší práh pustil navíc, procházejí testem
+**rovnoběžnosti častěji** než ty dnes přijaté (65 % proti 47 % nad 17. 9.) — přesný opak toho,
+co by „málo inlierů = šum" předpovídalo. Rozdělení šířky se přes všechny prahy prakticky nemění
+(p50 3,00–3,16 m).
+
+⚠️ **Neplyne z toho, že by se tím něco spravilo.** Měří se jen stupeň *proložení*; jestli by ty
+koridory navíc prošly přiřazením hrany a příčnou bránou, se z těchto záznamů říct nedá — 17. 9.
+byl rozbitý kurz a póza 2,5–4,5 m mimo mapovanou vozovku, takže se stejně ztrácelo všechno až
+dál. A „šířka v 1–8 m" je slabé měřítko: přímka proložená na špatnou hranu (obrubník místo trávy)
+dá věrohodnou šířku taky.
+
+⚠️ **Past v samotném měřidle, na kterou se přišlo až kontrolou proti známé odpovědi.** Offset
+hranice se musí měřit v **patě kolmice z počátku** (`CorridorFinder.Offset` →
+`ProjectOntoLine`), ne v libovolném bodě úsečky: normála koridoru je průměr obou hranic, takže
+každá z nich s ní svírá až polovinu nerovnoběžnosti a `n · p` se podél přímky **mění**. Při 10°
+a několikametrové úsečce to dělá decimetry — první verze bloku měřila z konce úsečky a kontrola
+ji vrátila (šířka p50 0,05 m, max 0,39 m vedle). Proto blok **nejdřív dopočítá geometrii
+i pro cykly, kde koridor vznikl, a porovná ji s uloženou hodnotou**; teprve když to sedí na
+nulu, tiskne zbytek.
+
+Od 17. 9. 2026 je práh parametr **`corridormininliers=`** (výchozí 25, tedy beze změny chování;
+validátor 3–500). Výchozí hodnota se záměrně nemění, dokud A/B neproběhne na robotu. Stav vede
+`lok-koridor-prah-inlieru-prisny` v [registru](ukoly.md).
+
 ### Otevřený úkol (→ registr): další krok
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.

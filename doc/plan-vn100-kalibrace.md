@@ -432,6 +432,44 @@ ranní selhání bylo skutečná degenerace dat (tři řádky, koule na hraně 2
 nehoda; vázané proložení by z takových dat *nějakou* elipsoidu vrátilo, ale důvod selhání
 neodstraní.
 
+## Fáze 1d — výjezd 17. 9. 2026: kalibrace se po zápisu SAMA znehodnotí
+
+Záznam `records/test/20260917-161759.rec`. Mise došla do verdiktu **HOTOVO ve 48. s** (podmíněnost
+330, `sd|B|` 0,0026 G, rozpůlení 0,63°) a HOTOVO **držela 88 s**. V 16:20:16 přišel `POST
+/magcal/write`, v 16:20:20 se kalibrace zapsala do registru 23 i do flash — a **v 16:20:19, tedy
+uvnitř toho zápisu, se proložení zhroutilo**:
+
+| čas | vzorků | podmíněnost | `sd\|B\|` [G] | verdikt |
+|---|---|---|---|---|
+| 48 s | 4 612 | 330 | 0,0026 | **HOTOVO** |
+| 137 s (zápis) | 12 451 | 153 | 0,0100 | NEPOUZITELNE |
+| 160 s | 14 494 | 102 | 0,0276 | NEPOUZITELNE |
+
+Měřítko osy z u toho vyskočilo **1,03 → 2,46** (rozpůlení dat: 1. půlka `diag C` [1,09; 1,10; 1,03],
+2. půlka [1,62; 1,18; **2,46**]).
+
+**Příčina je v kódu, ne v poli.** `MagCalMission.Consume` přidává **každý** `IMUState` do kolektoru
+bez ohledu na fázi, `MagCalCollector.Add` žádnou bránu nemá a proložení se počítá přes **celou**
+nasbíranou sadu. `MagnetometerRaw` (`UncompMag`) je přitom podle měření z 12. 9. 2026 pole
+**KOMPENZOVANÉ** — a právě proto si mise registr 23 před sběrem sama maže. Po zápisu už vymazaný
+není, takže od té chvíle padají do téže sady vzorky měřené **přes novou kompenzaci** a fit míchá
+dvě různé soustavy. Je to tedy **třetí** projev téže pasti (`UncompMag` není surové pole), po
+„druhé spuštění mise by dobrou kalibraci přepsalo" a „report nad cizím záznamem měří reziduum".
+
+**Zapsaná kalibrace je v pořádku** — gate `Usable` ve `WriteToSensor()` drží a zapsalo se
+`1,092364; 0,004495; −0,002260; 0,004495; 1,100408; −0,036768; −0,002260; −0,036768; 1,020856;
+−0,181532; 0,163761; −0,109534`, tedy to, co platilo v okamžiku ťuknutí (odpovídá dobré první
+půlce dat). Vada je **v tom, co obsluha uvidí PO úspěšném zápisu**: stránka jí řekne
+„NEPOUZITELNE … Postav robota na JEDNO misto dal od kovu a zacni znovu", tedy ať zahodí kalibraci,
+která právě vyšla. V terénu, kde je u robota jen mobil, to nejde nijak ověřit.
+
+⚠️ **Léčba (neudělaná):** po `MagCalPhase.Written` přestat sbírat a další měření začít s prázdnou
+sadou. Sledovat to jde tématem `mise-magcal-sber-po-zapisu` v [registru](ukoly.md).
+
+⚠️ **Verdikt není monotónní ani jinak** — mezi 48. a 136. s se podmíněnost zlepšila (330 → 161)
+a přesto verdikt nakonec spadl. „Déle otáčet" tedy není bezpečná rada; jakmile je HOTOVO, má se
+zapisovat.
+
 ## Co říká dokumentace VectorNavu (přečteno 10. 9. 2026)
 
 ⚠️ **Ta PDF v repozitáři NEJSOU a nebudou** (TN002 kalibrace, TN004 rámce, ICD, manuál,
@@ -722,6 +760,9 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   proto v `IMUState.MagnetometerRaw`, formát 4, a předpoklad „registr 23 = identita" tím padl
   konstrukčně; jenže binární `UncompMag` je ve skutečnosti taky kompenzovaný, takže si mise
   registr 23 před sběrem sama vymaže a po nedokončení vrátí.
+- **[Kalibrace se po zápisu sama znehodnotí — kolektor sbírá dál](ukoly.md#mise-magcal-sber-po-zapisu)** —
+  po `MagCalPhase.Written` se nepřestane sbírat, takže do téže sady padají vzorky měřené už přes
+  novou kompenzaci a stránka po úspěšném zápisu hlásí „NEPOUŽITELNÉ" (fáze 1d).
 - (bez tématu v registru) **Sémantika polí registrů 37/38** — potvrdit z ICD, dnes se zná jen tvar z exportu.
 - **[Robot si kalibraci magnetometru změří sám z telefonu (`mission=magcal`)](ukoly.md#mise-magcal)** —
   stačí 2–3 náklony? Změřeno nad `20260910-170809.rec`: se 4 odkloněnými řádky o 20–40° je

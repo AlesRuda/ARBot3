@@ -1250,4 +1250,30 @@ public class RobotourMissionTests
         Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopPressed),
                     "mise se posunula bez lidskeho zameru");
     }
+
+    /// <summary>
+    /// <b>Mise nesmi publikovat s drzenym vlastnim zamkem</b> — tataz vada, jakou mela
+    /// <c>TrackMission</c> a kterou 17. 9. 2026 zatuhl runtime na robotu. Mereni a duvod
+    /// popisuje <see cref="MisePublikujeMimoZamekTests"/>; tady jen nad rigem Robotouru.
+    /// </summary>
+    [Test]
+    public void PriPublikaciNedrziMiseSvujZamek()
+    {
+        var h = new Harness();
+        var odber = new CteNaVlakneNavic(() => h.Mission.PhaseText);
+        h.Mission.Output.Connect(odber);
+
+        h.Mission.StartMission();
+        h.FeedGoodFixes(6.0, T0);
+        h.Mission.OnMotors(new MotorStateBase(true, 0, 0, 24, 0, 0, 0, 0), T0.AddSeconds(7));
+        h.Mission.OnMotors(new MotorStateBase(false, 0, 0, 24, 0, 0, 0, 0), T0.AddSeconds(8));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(odber.Zprav, Is.GreaterThan(0),
+                        "test nic nezmeril - mise neposlala zadnou zpravu");
+            Assert.That(odber.ZamekDrzen, Is.False,
+                        "mise publikovala zpravu s DRZENYM vlastnim zamkem");
+        });
+    }
 }

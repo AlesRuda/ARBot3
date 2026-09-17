@@ -289,6 +289,16 @@ namespace ARBot.Common.Configuration
               ParamParsers.Pair("konstanta,prirustekNaMetr", minA: 0, minB: 0, aStrict: true), K_FUZE,
               "Prah inlieru RANSACu ve tvaru 'konstanta,prirustekNaMetr' [m]. Vzdalena hranice "
               + "je radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne.");
+        public static readonly DoubleParam CorridorMinInliers =
+              Num("corridormininliers", Fmt(new ARBot.Common.Localization.CorridorConfig().MinInliers), K_FUZE,
+              "Nejmensi pocet inlieru RANSACu, aby hranice cesty platila. Je to NEJVETSI ztratova "
+              + "brana prolozeni koridoru (17. 9. 2026 zahodila 3 987 z 6 173 cyklu) a vychozi 25 "
+              + "je naladenych na starsim zaznamu odjinud. Zmereno ze zaznamu: prah 20 da o 27 % "
+              + "vic koridoru A ZAROVEN mensi podil nesmyslne sirky nez 25 (1,7 proti 2,0 %), "
+              + "tedy ta zavislost je NEMONOTONNI a prah tu vadu neridi. Parametr je tu proto, "
+              + "aby se to dalo promerit A/B na zarizeni, ne hadat. Viz ARBot.Analyze corridor, "
+              + "blok PRAH INLIERU.",
+              ParamParsers.CorridorMinInliers);
         public static readonly StringParam MeasDiag = Text("measdiag", null, K_FUZE,
               "Diagnostika mereni ve fuzi: 'true' nebo '*' pro vsechna mereni (stovky za "
               + "sekundu), jinak filtr na zdroj mereni.");

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using ARBot.Common.Communication;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
@@ -49,6 +51,9 @@ namespace ARBot.Common.Missions
     public sealed class TrackMission : MessageProcessor, IMissionStatus
     {
         private readonly object gate = new object();
+
+        // Zpravy slozene POD zamkem, ktere se odeslou az po jeho uvolneni (viz Vypust).
+        private readonly List<TrackMsg> cekajici = new List<TrackMsg>();
 
         private readonly IGlobalGoalSink goals;
         private readonly TrackPlan plan;
@@ -196,6 +201,7 @@ namespace ARBot.Common.Missions
         /// </summary>
         public void StartMission()
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             lock (gate)
             {
                 if (phase != TrackPhase.Idle) return;
@@ -213,6 +219,7 @@ namespace ARBot.Common.Missions
         /// <summary>Start mise s <b>explicitnim casem</b> v hodinach dat — pro testy a prehravani.</summary>
         public void StartMission(DateTime now)
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             lock (gate)
             {
                 if (phase != TrackPhase.Idle) return;
@@ -312,6 +319,7 @@ namespace ARBot.Common.Missions
         /// </summary>
         public void Abort(string reason)
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             lock (gate)
             {
                 if (phase == TrackPhase.Aborted) return;
@@ -350,6 +358,7 @@ namespace ARBot.Common.Missions
         /// </summary>
         public void OnMotors(IMotorState motors, DateTime now)
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             lock (gate)
             {
                 Advance(now);
@@ -401,6 +410,7 @@ namespace ARBot.Common.Missions
         /// </summary>
         public void OnGlobalNav(GlobalNavMsg nav)
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             if (nav == null) return;
             lock (gate)
             {
@@ -421,6 +431,7 @@ namespace ARBot.Common.Missions
         /// <summary>Beh casu: timeout jizdy a periodicka <see cref="TrackMsg"/>. Volatelne z testu.</summary>
         public void Tick(DateTime now)
         {
+            using var _ = Publikace();   // publikace az po uvolneni zamku
             lock (gate) { Advance(now); }
         }
 
@@ -641,7 +652,44 @@ namespace ARBot.Common.Missions
             return pole;
         }
 
-        /// <summary>Vyrobi a posle <see cref="TrackMsg"/>.</summary>
+        /// <summary>
+        /// <b>Odesle zpravy slozene pod zamkem — az MIMO nej.</b> Volat se ma z vnejsiho
+        /// rozsahu kazde verejne metody, ktera bere <see cref="gate"/>; dela to
+        /// <see cref="Publikace"/> pres <c>using</c>, takze se na to neda zapomenout ani pri
+        /// <c>return</c> uprostred zamku.
+        ///
+        /// <para>⚠️ <b>Vnorena volani musi mlcet.</b> <see cref="Abort"/> je verejna, ale vola
+        /// se i zevnitr <see cref="OnGlobalNav"/>, ktera uz zamek drzi — a kdyby publikovala
+        /// ona, byli bychom zpatky u puvodni vady. Rozhoduje <see cref="Monitor.IsEntered"/>:
+        /// publikuje vzdy jen ten NEJVNEJSNEJSI rozsah, ostatni to nechaji na nem.</para>
+        /// </summary>
+        private void Vypust()
+        {
+            if (Monitor.IsEntered(gate)) return;
+
+            TrackMsg[] k;
+            lock (gate)
+            {
+                if (cekajici.Count == 0) return;
+                k = cekajici.ToArray();
+                cekajici.Clear();
+            }
+            // Az tady, bez zamku: fan-out smi volat kamkoli, vcetne stranky.
+            for (int i = 0; i < k.Length; i++) EmitDerived(k[i]);
+        }
+
+        /// <summary>Rozsah odlozene publikace — viz <see cref="Vypust"/>. Struktura, tedy bez alokace.</summary>
+        private Publikator Publikace() => new Publikator(this);
+
+        /// <inheritdoc cref="Publikace"/>
+        private readonly struct Publikator : IDisposable
+        {
+            private readonly TrackMission mise;
+            public Publikator(TrackMission mise) { this.mise = mise; }
+            public void Dispose() => mise.Vypust();
+        }
+
+        /// <summary>Vyrobi a <b>zaradi k odeslani</b> <see cref="TrackMsg"/> (viz <see cref="Vypust"/>).</summary>
         private void EmitState(DateTime now)
         {
             lastMessageAt = now;
@@ -672,7 +720,13 @@ namespace ARBot.Common.Missions
             };
 
             LastMessage = msg;
-            EmitDerived(msg);
+            // ⚠️ NEPUBLIKOVAT ZDE. EmitState se vola z EnterPhase a Advance, tedy POD zamkem
+            // `gate`, a fan-out (RelaySource) bezi na vlakne producenta - odeslani odsud by
+            // znamenalo vstoupit do nej s drzenym zamkem. Presne tim 17. 9. 2026 zatuhl runtime
+            // pri volbe mise: vlakno mise drzelo `gate` a cekalo na zamek WebStatus, zatimco
+            // vlakno stranky drzelo WebStatus a cekalo na `gate` (WebStatus.ToJson -> AppendHead
+            // -> PhaseText). Viz Vypust() a doc/headless.md.
+            cekajici.Add(msg);
         }
     }
 }

@@ -234,6 +234,20 @@ namespace ARBot.Common.Configuration
                : ParamParseResult.Invalid("cekam hodnotu chi-kvadratu: 0 az 1000 "
                                           + "(pro 2 stupne volnosti je 5,99 = 95 %, 9,21 = 99 %)");
 
+        /// <summary>
+        /// Nejmensi pocet inlieru RANSACu, aby hranice platila: 3 az 500.
+        ///
+        /// <para>Spodni mez je 3 zamerne: dvema body jde primku prolozit vzdy, takze
+        /// <c>MinInliers = 2</c> by branu fakticky vypnulo a do statistiky by se dostaly prave ty
+        /// primky kolme na cestu, proti kterym prah vznikl.</para>
+        /// </summary>
+        public static ParamParseResult CorridorMinInliers(string text)
+            => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)
+               && v >= 3 && v <= 500
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam pocet inlieru: cele cislo 3 az 500 "
+                                          + "(vychozi 25; dve primku prolozi vzdy, proto ne min nez 3)");
+
         /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
         public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
 

@@ -721,6 +721,17 @@ namespace ARBot.Robot
                                         + "konstanta kladna) -> vychozi prah.");
                     }
                 }
+                // Nejmensi pocet inlieru, aby hranice platila. Stejny duvod jako u corridortol:
+                // je to nejvetsi ztratova brana prolozeni a vychozi hodnota je naladena na
+                // starsim zaznamu odjinud, takze musi jit PROMERIT, ne hadat.
+                int minInliers = (int)Math.Round(ParamRegistry.CorridorMinInliers.Value);
+                if (minInliers != corridorCfg.Corridor.MinInliers)
+                {
+                    Trace.WriteLine($"corridormininliers={minInliers}: prah inlieru hranice "
+                                    + $"(vychozi {corridorCfg.Corridor.MinInliers}).");
+                    corridorCfg.Corridor.MinInliers = minInliers;
+                }
+
                 var corridor = new ARBot.Common.Localization.CorridorLocalizer(
                     engine, RoadNetwork, fusionConfig.GeoReference, corridorCfg);
 

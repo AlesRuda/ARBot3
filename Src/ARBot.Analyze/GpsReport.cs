@@ -59,6 +59,10 @@ namespace ARBot.Analyze
             var encLR = new List<(double T, double L, double R)>();
             var plan = new List<(double T, int Status, double Clearance)>();
             var grid = new List<(double T, int Blocked, double Mass)>();
+            // A0: hodiny robota proti GPS. FixTime plni ovladac z ITOW (cas v GPS tydnu),
+            // takze je v nem i den tydne - a je to JEDINY absolutni cas v zaznamu, ktery nepochazi
+            // z hodin Pi. Viz blok A0 nize.
+            var hodiny = new List<(DateTime Stamp, TimeSpan Fix, int Sat)>();
 
             DateTime t0 = DateTime.MinValue;
             foreach (var e in rec.Index)
@@ -80,6 +84,7 @@ namespace ARBot.Analyze
                                  p.NumberOfSatellites,
                                  DefaultMeasurementMapper.PositionRejectReason(p, cfg),
                                  DefaultMeasurementMapper.PositionStd(p, cfg)));
+                        if (p.FixTime > TimeSpan.Zero) hodiny.Add((p.TimeStamp, p.FixTime, p.NumberOfSatellites));
                         break;
                     case MotorStateBase m:
                         double tm = Sec(m.TimeStamp, ref t0);
@@ -94,6 +99,8 @@ namespace ARBot.Analyze
                         break;
                 }
             }
+
+            Hodiny(hodiny);
 
             Console.WriteLine($"RobotStateMsg {st.Count}, GPSState {gps.Count}, MotorStateBase {enc.Count}, "
                               + $"LocalPlanMsg {plan.Count}, OccupancyGridMsg {grid.Count}");
@@ -1018,5 +1025,90 @@ namespace ARBot.Analyze
             if (t0 == DateTime.MinValue) t0 = t;
             return (t - t0).TotalSeconds;
         }
+
+        /// <summary>
+        /// Zpětný převod <see cref="GPSState.FixTime"/> na ITOW [ms].
+        ///
+        /// <para>⚠️ <b>Ovladač u-bloxu skládá ten <c>TimeSpan</c> ŠPATNĚ</b> (sekundy dělí 60
+        /// místo 3600, viz <c>uBloxGps.Read</c>), takže ve `FixTime` vychází i nesmysl jako
+        /// „9 dní" — v GPS týdnu jsou dny 0–6. Chyba je ale <b>deterministická</b>:
+        /// <c>TotalMs = ITOW + 84 960 000·D + 3 540 000·H</c>, kde <c>D</c> a <c>H</c> jsou dny
+        /// a hodiny plynoucí z ITOW. Dá se proto invertovat — a musí se, protože **starší záznamy
+        /// se přepsat nedají** a jsou jediným absolutním časem, který nepochází z hodin Pi.</para>
+        ///
+        /// <para>Vrací −1, když žádná dvojice (D, H) nevyjde konzistentně (tedy hodnota
+        /// touhle vadou vysvětlit nejde — pak je to nejspíš už opravený ovladač).</para>
+        /// </summary>
+        private static long Itow(TimeSpan fix)
+        {
+            long total = (long)fix.TotalMilliseconds;
+            const long Tyden = 7L * 86400000L;
+
+            // Uz spravna hodnota (ovladac opraven): den v tydnu 0..6 a sedi sama se sebou.
+            if (total >= 0 && total < Tyden) return total;
+
+            for (int d = 0; d < 7; d++)
+                for (int hh = 0; hh < 24; hh++)
+                {
+                    long i = total - 84_960_000L * d - 3_540_000L * hh;
+                    if (i < 0 || i >= Tyden) continue;
+                    if (i / 86400000L != d) continue;
+                    if (i / 3600000L - 24L * d != hh) continue;
+                    return i;
+                }
+            return -1;
+        }
+
+        /// <summary>
+        /// <b>A0) Jdou hodinám robota správně?</b> Jediný absolutní čas v záznamu, který
+        /// NEpochází z hodin Pi, je <see cref="GPSState.FixTime"/> — ovladač ho plní z ITOW,
+        /// tedy z času v GPS týdnu. Rozdíl proti razítku zprávy (které je z hodin Pi) je posun
+        /// systémového času, a ten rozhoduje, jestli jdou časy v záznamu porovnat s čímkoli
+        /// zvenčí (snímek obrazovky, journal, poznámka obsluhy).
+        ///
+        /// <para>⚠️ Tiskne se i <b>syrová</b> hodnota, protože převod ITOW → TimeSpan
+        /// v ovladači nemusí být správný; bez ní by se rozbitý převod tvářil jako posun hodin.</para>
+        /// </summary>
+        private static void Hodiny(List<(DateTime Stamp, TimeSpan Fix, int Sat)> h)
+        {
+            Console.WriteLine();
+            Console.WriteLine("A0) JDOU HODINAM ROBOTA SPRAVNE? (GPS cas proti razitku zpravy)");
+            if (h.Count == 0) { Console.WriteLine("  zadny fix s casem - nelze rict."); Console.WriteLine(); return; }
+
+            Console.WriteLine($"  fixu s casem: {h.Count}");
+            foreach (var i in new[] { 0, h.Count / 2, h.Count - 1 }.Distinct())
+            {
+                var (stamp, fix, sat) = h[i];
+                double itowMs = fix.TotalMilliseconds;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  razitko {0:yyyy-MM-dd HH:mm:ss.fff}  FixTime {1}  (= {2:F0} ms, den v tydnu {3}, druzic {4})",
+                    stamp, fix, itowMs, fix.Days, sat));
+            }
+
+            long itow = Itow(h[0].Fix);
+            if (itow < 0)
+            {
+                Console.WriteLine("  ITOW se z FixTime nepodarilo rekonstruovat - posun hodin nelze rict.");
+                Console.WriteLine();
+                return;
+            }
+
+            TimeSpan gpsDne = TimeSpan.FromMilliseconds(itow % 86400000L);
+            TimeSpan utc = gpsDne - TimeSpan.FromSeconds(18);   // GPS - UTC = 18 s (od r. 2017)
+            TimeSpan mistni = h[0].Stamp.TimeOfDay;
+            TimeSpan rozdil = mistni - utc;
+            double hodZona = Math.Round(rozdil.TotalHours);
+            TimeSpan posun = rozdil - TimeSpan.FromHours(hodZona);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  ITOW {0} ms -> den v tydnu {1}, cas dne v GPS {2}, UTC {3}",
+                itow, itow / 86400000L, gpsDne, utc));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  razitko {0} -> pri zone UTC{1:+0;-0} je POSUN HODIN {2:F1} s",
+                mistni, hodZona, posun.TotalSeconds));
+            Console.WriteLine("  (posun radove sekundy = hodiny jdou; minuty a vic = casy v zaznamu");
+            Console.WriteLine("   NEJDOU porovnavat s hodinami telefonu ani s journalem jineho stroje)");
+            Console.WriteLine();
+        }
+
     }
 }

@@ -144,7 +144,31 @@ pečovat. ⚠️ **Na systémech s `yama`** (`/proc/sys/kernel/yama/ptrace_scope
 vzít `ptrace` na rodiče a dump nevznikne — Orange Pi yama nemá (ověřeno 14. 9. 2026), jinde by to
 chtělo `prctl(PR_SET_PTRACER)`, který odsud nezavoláme. Selhání se hlásí, netiší.
 
-⚠️ **Na zařízení hlídač zatím neběžel** — ověřeno buildem a 10 testy (`HangWatchdogTests`).
+✅ **Na zařízení hlídač poprvé běžel 17. 9. 2026 — a zaplatil se hned napoprvé.** V 16:21:42
+vystřelil na zásek při volbě mise `track`, pořídil `logs/hang-Start-Run-20260917-162142.dmp`
+a z jeho zásobníků je příčina určená na řádek: **ABBA deadlock mezi zámkem `TrackMission`
+a zámkem `WebStatus`** (mise drží svůj zámek a publikuje do fan-outu, stránka drží svůj a ptá se
+mise na `PhaseText`). Bez dumpu by to z ničeho jiného vidět nebylo — přesně ten případ, pro který
+hlídač vznikl. Podrobnosti `prov-deadlock-mise-webstatus` v [registru](ukoly.md).
+
+✅ **Opraveno týž den, z obou stran.** Mise skládá zprávu pod zámkem a **publikuje až mimo něj**;
+drží to `using` rozsah (`Publikace()`), takže se na to nedá zapomenout ani při `return` uprostřed
+zámku, a vnořená volání (`Abort` zevnitř `OnGlobalNav`) podle `Monitor.IsEntered` mlčí, aby
+publikoval vždy jen nejvnějšnější rozsah. `WebStatus.ToJson` si stav mise **ofotí před** svým
+zámkem (`NactiMisi`). Jedna strana by stačila, ale invariant má platit oběma směry — a je to
+pravidlo, které si `RelaySource` píše sám: *fan-out běží na vlákně producenta, takže se do něj
+nesmí vstupovat s drženým zámkem*. ⚠️ Týká se to jen `TrackMission` a `RobotourMission`;
+`FreeRunMission` ani `MagCalMission` nemají zámek žádný. Na zařízení to neběželo.
+
+⚠️ **Zásek ZA během ale nechytí.** Token se po dokončení `Start(Run)` zahodí, takže zásek z téhož
+dne v 16:12 (4 s po startu, `records/test/20260917-161234.rec`) žádný dump nemá. Léčba (neudělaná)
+je tep z běžící smyčky — `Scheduler` tiká 10×/s, takže „poslední tik je starší než N s" je levný
+a jednoznačný příznak. Viz `prov-zatuhnuti-za-behu-mise`.
+
+⚠️ **Dump se na Pi nerozebere bez nástroje a Pi nemá internet.** `dotnet-dump` pro linux-arm64 je
+jeden soubor — stáhnout na PC z `https://aka.ms/dotnet-dump/linux-arm64`, poslat `scp` do `/tmp`
+a spustit tam; analyzovat ho na Windows **nejde** (chybí DAC pro linux-arm64, `dotnet-dump` skončí
+na „Failed to load data access module").
 
 ### ⚠️ Služba se po pěti restartech v pěti minutách vzdá
 
@@ -534,6 +558,27 @@ Když v nich je `SyntheticFrameRenderer` nebo `CameraFrameProcessor`, je to CPU 
 `Monitor.Enter`, je to zámek a patří to nahlásit. Druhý zdroj je `PerfMsg` v záznamu
 (`perf=`, výchozí zapnuto): nese CPU procesu a zameškané takty za každou sekundu, takže po záseku
 jde zpětně poznat, kdy se to začalo sypat.
+
+#### Zásek 17. 9. 2026 — stránka odpovídala, čas v ní neběžel
+
+Druhý případ téhož příznaku, a **není to CPU**. V záznamu `20260917-161234.rec` je vidět, že
+v 16:12:38 obsluha uvolnila nouzové zastavení, mise Track odjela — a **do 20 ms po té hlášce
+přestaly proudit všechny zprávy najednou**: IMU ve 4,074 s záznamu, motory 4,078, GPS 4,068, obě
+kamery, řídicí smyčka i koridor. Dál žilo jediné vlákno: dotazování odpojené T265, jehož hlášky
+tekly do záznamu ještě **140 s**. Web i zapisovač záznamu tedy byli naživu, produkce dat ne — přesně
+to, co obsluha popsala („nehlásila, že nemá konektivitu, ale čas neběžel").
+
+**Co ta data prozrazují o místě záseku.** Vlákno T265 je taky `SensorBase` jako ostatní senzory
+a běželo dál; jediné, čím se od nich liší, je, že **nic nepublikuje** (dotaz vždy selže a jen
+loguje). Všechna vlákna, která publikují, stojí. `Info` z `TraceInfoBridge` jde přímo na `Stream`,
+kdežto měření jdou navíc přes `RoleRouter` do `processing` (`RelaySource` — fan-out **na vlákně
+producenta**), a to je společná větev všeho, co umlklo. Blokující odběratel ale ze statického
+čtení vidět není: stupně mají vlastní frontu `DropOldest` a `RecordingTarget` je `DropNewest`,
+takže žádný `Post` blokovat nemá. **Bez zásobníků vláken se dál nedostaneme** — a právě ty chybí,
+protože hlídač je odzbrojený (viz výše).
+
+⚠️ **Neplést s předchozím odstavcem:** u vyčerpaného CPU robot jede dál a jen stránka zaostává;
+tady se zastavilo i řízení. Rozliší to `PerfMsg` v záznamu a `dotnet-stack report`.
 
 **Zásahy jdou jen přes `POST`** — `GET` na `/stop` i `/mission` vrací 405, aby je nevyvolal prefetch
 prohlížeče nebo náhled odkazu. Hodnota jde **query stringem**, ne tělem: `HttpMini` čte jen

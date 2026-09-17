@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **41** · hotovo **104** · odloženo **7** · zamítnuto **2**.
+Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **41** · hotovo **105** · odloženo **7** · zamítnuto **2**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -51,6 +51,12 @@ Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **41** · 
 | otevřeno | Web a dokumentace | [Web arbot.cz převeden z Google Sites na GitHub Pages](#web-arbot-cz-github-pages) | 13. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Kalibrace magnetometru přestala účinkovat — přibylo železo od kabelů ke kamerám](#hw-zelezo-od-kabelu-kamer) | 15. 9. 2026 |  |
+| otevřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [`MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá](#lok-koridor-prah-inlieru-prisny) | 17. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Měřicí režim koridoru nebyl měřicí — `corridorsend` v profilu chybí](#lok-koridorsend-nebyl-vypnuty) | 17. 9. 2026 |  |
+| otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
+| otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
+| otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Robotour jako stavový automat s QR kódy](#mise-robotour) | 11. 8. 2026 | [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot by zatáčel dvakrát rychleji, než regulátor chce](#lp-omega-dif-faktor-a-znamenko) | 12. 8. 2026 |  |
@@ -85,13 +91,13 @@ Témat celkem **193**: otevřeno **39** · v kódu, na HW neověřeno **41** · 
 | v kódu, na HW neověřeno | Mise | [Mise Track přichycuje všechna místa na síť předem, při odjezdu](#mise-track-prichyceni-predem) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Cíl lokálního plánovače je zóna, ne jediná buňka](#lp-cil-astar-zona) | 14. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý](#prov-start-limit-sluzba) | 14. 9. 2026 |  |
-| v kódu, na HW neověřeno | Provoz na zařízení | [Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí](#prov-zatuhnuti-start-hangwatchdog) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Koridor v měřicím režimu — odtlumení a první měřicí jízda](#lok-koridor-merici-rezim) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Naučená šířka cesty jde dál do mapy — korelaci i kreslení](#lok-naucena-sirka-do-mapy) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Šířková brána koridoru se ptala dřív, než se bylo z čeho učit](#lok-sirka-odhad-bez-brany) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit — bezpečnostní vrstva řízení měla čtyři díry](#prov-audit-bezpecnost-rizeni) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
+| v kódu, na HW neověřeno | Provoz na zařízení | [Deadlock mezi zámkem mise a zámkem stránky při volbě mise](#prov-deadlock-mise-webstatus) | 17. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -176,15 +182,16 @@ Podnět autora: místo přidávání dalších referencí kurzu odhadovat bias k
 
 `lok-gps-casova-korelace` · vada · **otevřeno** · nalezeno 6. 9. 2026
 
-Nový `ARBot.Analyze gps` využívá, že stojící robot dává pravdu zadarmo: chyba fixu má p50 4,4 m a dekorelační čas ~40 s, takže průměrování nepomůže vůbec, a filtr přitom bere 10 fixů za sekundu jako nezávislé — odhad ujíždí 5,5 m/min s časovou konstantou 57 s a hlásí sigmu 0,074 m. Prozatímní léčba: `gpsposstd` je parametr a v provozním profilu je 30 m (20× ze √400 korelovaných vzorků), jen pro Pi, ne jako default. Skutečná léčba je decimace nebo offset GPS jako stav EKF; za jízdy dekorelační čas změřit nešlo, nejdelší souvislá jízda v záznamech je 45 s.
+Nový `ARBot.Analyze gps` využívá, že stojící robot dává pravdu zadarmo: chyba fixu má p50 4,4 m a dekorelační čas ~40 s, takže průměrování nepomůže vůbec, a filtr přitom bere 10 fixů za sekundu jako nezávislé — odhad ujíždí 5,5 m/min s časovou konstantou 57 s a hlásí sigmu 0,074 m. Prozatímní léčba: `gpsposstd` je parametr a v provozním profilu je 30 m (20× ze √400 korelovaných vzorků), jen pro Pi, ne jako default. Skutečná léčba je decimace nebo offset GPS jako stav EKF; za jízdy dekorelační čas změřit nešlo, nejdelší souvislá jízda v záznamech je 45 s. 17. 9. 2026 se za jízdy změřit DAL: souvislý úsek 215 s a 96 m dal dekorelační čas ~40 s (zbytek po zarovnání proti mrtvému odhadu z kol p50 3,58 m, p90 7,58 m) — tedy stejný řád jako ze stání, ale pořád jen ~5 nezávislých vzorků, takže je to orientační číslo. Ze stání (55 s) měl fix odchylku od průměru segmentu p50 9,68 m a maximum 17,3 m, průměrovací křivka je plochá (činitel nadsazení 10,6× při N = 100) a změřené Kalmanovo zesílení 0,32/0,29 říká, že GPS odhad pořád táhne. Tím je vysvětlené, co obsluha viděla na stránce po kalibraci magnetometru — poloha o „3–4 metry ujetá": chyba fixu té velikosti drží desítky sekund, takže nevypadá jako šum, ale jako posunutá stopa. Podmínky byly toho dne slabé: 4–6 družic a DOP 6,8–12, tedy na hraně brány `gpsmaxdop=10` (na startu se zamítlo 136, resp. 205 fixů po sobě).
 
 - [x] `ARBot.Analyze gps` (drift, K, tau, autokorelace, blok A2b za jízdy) (6. 9. 2026)
 - [x] `gpsposstd=` jako parametr, 30 m v `pi-provoz.cfg` (6. 9. 2026)
 - [ ] Ověřit násobek na novém záznamu ze stání (drift a tau se mají posunout 20×)
 - [ ] Souvislá jízda 5–10 minut bez zastavení pro dekorelační čas za jízdy
+- [x] První měření za jízdy (17. 9., úsek 215 s / 96 m → T_d ~40 s); na 5–10 min to nestačí (17. 9. 2026)
 - [ ] Decimace nebo offset GPS jako stav EKF
 
-čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06)
+čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-17](devlog.md#2026-09-17)
 
 <a id="lok-gps-kurz-korelovana-chyba"></a>
 ### ⬜ Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5
@@ -198,6 +205,34 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 - [ ] Rozhodnout, jak σ obou referencí kurzu narovnat
 
 čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
+
+<a id="lok-koridor-prah-inlieru-prisny"></a>
+### ⬜ `MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá
+
+`lok-koridor-prah-inlieru-prisny` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+`MinInliers` je největší ztrátová brána proložení koridoru (17. 9. zahodila 3 987 z 6 173 cyklů). Práh 25 vznikl na starším záznamu odjinud a jeho zdůvodnění je konkrétní: bez něj se do statistiky míchaly přímky proložené 3–6 body, které vyjdou **kolmo na cestu** (šířka až 10 m, směr −88°), a šířka měla sd 3,3 m místo 0,45 m. Změřeno ze záznamů (nový blok *PRAH INLIERU* v `ARBot.Analyze corridor`, který dopočítá geometrii z uložených úseček, takže **nový výjezd netřeba**): nad `20260917-160558.rec` by práh 15 dal **2 513 koridorů místo 635 (4,0×)** a podíl nesmyslné šířky (mimo 1–8 m) by šel 0,0 → 2,0 %; nad `20260916-164926.rec` by dal **3 399 místo 2 354 (1,4×)** a podíl nesmyslné šířky 2,0 → 2,6 %. ⚠️ **Podstatné je to druhé číslo: při dnešním prahu 25 už je nesmyslná šířka 2,0 %**, a při prahu **20 je jen 1,7 %**, tedy MÉNĚ než při 25. Ta závislost je nemonotónní, což znamená, že **práh tu vadu neřídí** — případy s kolmou přímkou nejsou soustředěné v cyklech s málo inliery. Rozdělení šířky je přes všechny prahy prakticky stejné (p50 3,00–3,16 m). Druhý signál týmž směrem: cykly, které by práh navíc pustil, procházejí testem rovnoběžnosti **častěji** než ty dnes přijaté (65 % proti 47 % nad 17. 9.) — přesný opak toho, co by „málo inlierů = šum" předpovídalo. ⚠️ **Neříká to, že by se tím něco spravilo.** Měří se jen stupeň *proložení*; jestli by ty koridory navíc prošly přiřazením hrany a příčnou bránou, se z těchto záznamů říct nedá — 17. 9. byl rozbitý kurz a póza 2,5–4,5 m mimo mapovanou vozovku, takže tam se stejně ztrácelo všechno až dál. A „šířka v 1–8 m" je slabé měřítko kvality: přímka proložená na špatnou hranu (obrubník místo trávy) dá věrohodnou šířku taky. ✅ **Od 17. 9. 2026 je to parametr `corridormininliers=`** (výchozí 25, tedy beze změny chování), takže A/B na zařízení jde pustit z profilu. Výchozí hodnota se ZÁMĚRNĚ nemění, dokud se neprojede na robotu: měření výš je jen o stupni proložení, ne o tom, co doteče do fúze. Spodní mez validátoru je 3 — dvěma body jde přímku proložit vždy, takže 2 by bránu fakticky vypnulo.
+
+- [x] Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi) (17. 9. 2026)
+- [x] Změřeno na dvou záznamech (17. 9. a 16. 9.), nemonotónní závislost potvrzena (17. 9. 2026)
+- [x] Vystavit `MinInliers` jako parametr `corridormininliers=` (validátor 3–500, guard test hlídá, že se čte) (17. 9. 2026)
+- [ ] Projet A/B na zařízení (25 proti 20 proti 15) a rozhodnout výchozí hodnotu
+- [ ] Změřit, kolik z koridorů navíc projde AŽ DO fúze (ne jen proložením) — po opravě kurzu
+
+[map-correlation-localization.md](map-correlation-localization.md), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [CorridorReport.cs](../Src/ARBot.Analyze/CorridorReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+
+<a id="lok-koridorsend-nebyl-vypnuty"></a>
+### ⬜ Měřicí režim koridoru nebyl měřicí — `corridorsend` v profilu chybí
+
+`lok-koridorsend-nebyl-vypnuty` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+`lok-koridor-merici-rezim` i CLAUDE.md tvrdí, že provozní profil běží s `corridorsend=false`, tedy „plná zátěž, nulový vliv na řízení", a týž úkol vede jako OTEVŘENÝ krok „`corridorsend=true` — až po opravě magnetometru a přiřazení hrany". V `config/pi-provoz.cfg` ale ten řádek **vůbec není**, takže platí default `true` a korekce se posílaly do fúze celou dobu. Potvrzuje to i účinná konfigurace v záznamech ze 17. 9. (`corridorsend=true (default)`) a report: *poslana pricna korekce 16 z 16 Ok, poslana korekce kurzu 16 z 16 Ok*. ⚠️ **Podstatné je, co tím prošlo:** těch 16 korekcí kurzu odešlo v běhu, kde měl koridor `abs nesouhlas kurzu` p50 **23,4°** (nezkalibrovaný kompas, viz `hw-zelezo-od-kabelu-kamer`) — tedy přesně ta situace, kvůli které měla brána zůstat zavřená. `GateMode.Soft` je nezahodí, jen odtlumí. Je to vada **dokumentace proti skutečnosti**, ne v kódu: chybí jeden řádek v profilu. ⚠️ A ukazuje na obecnější past — „výchozí hodnota je bezpečná" tu neplatí, protože default `corridorsend` je `true`; bezpečný stav se musí do profilu napsat, ne předpokládat.
+
+- [x] Nález (účinná konfigurace v záznamu proti tvrzení v úkolu i v CLAUDE.md) (17. 9. 2026)
+- [ ] Doplnit `corridorsend=false` do `config/pi-provoz.cfg` a nasadit
+- [ ] Projít profil, jestli takhle „nezapsaným defaultem" nevisí i jiná brána
+
+[pi-provoz.cfg](../config/pi-provoz.cfg), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -318,7 +353,7 @@ Korekce polohy z korelace occupancy gridu s mapou se poprvé pustily naostro a z
 
 `lok-koridor-merici-rezim` · záměr · **v kódu, na HW neověřeno** · nalezeno 15. 9. 2026 · vyřešeno 15. 9. 2026
 
-Koridor měří snímek co snímek týž okraj cesty, takže jeho chyba je časově korelovaná — táž past jako u GPS a kompasu. Přibyly `corridorstd=`, `corridorheadingstd=` a `corridorhz=` (sigmy kvadraticky, škrtí se jen posílání), výchozí 0 schválně, protože dekorelační čas koridoru změřený nebyl; provozní profil běží s `corridor=true`, `corridorsend=false` — plná zátěž, nulový vliv na řízení. První měřicí jízda 16. 9. (první záznam ze zařízení, kde koridor vůbec běžel) dala první střízlivé číslo: koridor je dobrá reference kurzu (+0,42° proti GPS, robustní sd 2,30°), ale proložení hlásí 0,50°, tedy je ~5–9× optimističtější. Poloha byla celou jízdu mimo mapovanou vozovku (3–5 m), takže do fúze neodešlo 0 ze 424 přijatých měření — a report to do té doby neuměl říct (`Ok` znamenalo „prošlo branami“, ne „došlo do fúze“).
+Koridor měří snímek co snímek týž okraj cesty, takže jeho chyba je časově korelovaná — táž past jako u GPS a kompasu. Přibyly `corridorstd=`, `corridorheadingstd=` a `corridorhz=` (sigmy kvadraticky, škrtí se jen posílání), výchozí 0 schválně, protože dekorelační čas koridoru změřený nebyl; provozní profil měl běžet s `corridor=true`, `corridorsend=false` — plná zátěž, nulový vliv na řízení. ⚠️ **Jenže ten řádek se do profilu nikdy nedostal** a default je `true`, takže korekce se posílaly; viz `lok-koridorsend-nebyl-vypnuty`. První měřicí jízda 16. 9. (první záznam ze zařízení, kde koridor vůbec běžel) dala první střízlivé číslo: koridor je dobrá reference kurzu (+0,42° proti GPS, robustní sd 2,30°), ale proložení hlásí 0,50°, tedy je ~5–9× optimističtější. Poloha byla celou jízdu mimo mapovanou vozovku (3–5 m), takže do fúze neodešlo 0 ze 424 přijatých měření — a report to do té doby neuměl říct (`Ok` znamenalo „prošlo branami“, ne „došlo do fúze“).
 
 - [x] Parametry odtlumení a měřicí profil `pi-provoz.cfg` (15. 9. 2026)
 - [x] Měřicí jízda na zařízení (`20260916-164926.rec`) (16. 9. 2026)
@@ -1186,6 +1221,19 @@ Mise Robotour jede na cíl z GPS, jejíž chyba ±2 m je pro „zastav u kódu" 
 
 [global-navigation-runtime.md](global-navigation-runtime.md), [robotour-mission.md](robotour-mission.md), [RobotourMission.cs](../Src/ARBot.Common/Missions/RobotourMission.cs)
 
+<a id="mise-magcal-sber-po-zapisu"></a>
+### ⬜ Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál
+
+`mise-magcal-sber-po-zapisu` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+Mise `magcal` došla do verdiktu HOTOVO v 48. s (podmíněnost 330, `sd|B|` 0,0026 G) a HOTOVO držela 88 s. V 16:20:16 obsluha ťukla na zápis, v 16:20:20 se kalibrace zapsala do registru 23 i do flash — a v 16:20:19, tedy uvnitř toho zápisu, se proložení zhroutilo: `sd|B|` 0,0026 → 0,0073 → 0,0276 G, měřítko osy z 1,03 → 2,46 a verdikt spadl na „NEPOUZITELNE: pole je porad nekonzistentni. Postav robota na JEDNO misto dal od kovu a zacni znovu." Ta rada je opačná než skutečnost — pole konzistentní bylo a přestalo být právě tím zápisem. Příčina je v kódu, ne v poli. `MagCalMission.Consume` přidává každý `IMUState` do kolektoru bez ohledu na fázi, `MagCalCollector.Add` žádnou bránu nemá a proložení se počítá přes celou nasbíranou sadu. `MagnetometerRaw` (`UncompMag`) je přitom podle měření z 12. 9. 2026 pole KOMPENZOVANÉ — právě proto si mise registr 23 před sběrem sama maže. Po zápisu už vymazaný není, takže od té chvíle padají do téže sady vzorky měřené přes novou kompenzaci a fit míchá dvě různé soustavy. Zapsaná kalibrace je přitom v pořádku — zapsalo se to, co platilo v okamžiku ťuknutí (`1,092364 … −0,109534`, tedy dobrá první půlka dat), ne ten rozpadlý výsledek; gate `Usable` ve `WriteToSensor()` drží. Vada je v tom, co obsluha uvidí PO úspěšném zápisu: „NEPOUŽITELNÉ" a pokyn začít znovu, tedy zahodit kalibraci, která právě vyšla.
+
+- [x] Nález a důkaz ze záznamu (časová shoda zhroucení se zápisem do registru 23) (17. 9. 2026)
+- [ ] Po `MagCalPhase.Written` přestat sbírat; další měření začíná s prázdnou sadou
+- [ ] Test, že zápis sám verdikt nezmění
+
+[plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs), [MagCalCollector.cs](../Src/ARBot.Common/Calibration/MagCalCollector.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+
 <a id="mise-robotour"></a>
 ### 🧪 Mise Robotour jako stavový automat s QR kódy
 
@@ -1259,17 +1307,18 @@ Armování v depu čeká na okno kvalitních fixů GPS. Navržený práh 1,0 m b
 
 `mise-track` · záměr · **v kódu, na HW neověřeno** · nalezeno 8. 9. 2026 · vyřešeno 8. 9. 2026
 
-`mission=track track=<cesta>`: řádek = místo ve stupních, `repeat` = jezdit dokola. Každé místo se přichytí na nejbližší bod sítě cest — a to je oprava vady, ne kosmetika, protože dojezd se měří proti surovému cíli a mise by jinak u prvního bodu uvízla navždy. Bod dál než `trackoffroad=` misi přeruší, nesrozumitelný řádek je chyba, mezi body se nezastavuje a volba mise robota nerozjede (čeká na stisk a uvolnění nouzového zastavení). V simulaci objela tři místa a začala druhé kolo. Od 13. 9. se všechna místa přichycují předem při odjezdu, seznamy leží u map v `OSM/`. Na zařízení odjela 12. a 14. 9. (13 min, k prvnímu bodu 44 m za 9,5 minuty, běh z 17:06 skončil `NoRoute`); celý seznam neobjela.
+`mission=track track=<cesta>`: řádek = místo ve stupních, `repeat` = jezdit dokola. Každé místo se přichytí na nejbližší bod sítě cest — a to je oprava vady, ne kosmetika, protože dojezd se měří proti surovému cíli a mise by jinak u prvního bodu uvízla navždy. Bod dál než `trackoffroad=` misi přeruší, nesrozumitelný řádek je chyba, mezi body se nezastavuje a volba mise robota nerozjede (čeká na stisk a uvolnění nouzového zastavení). V simulaci objela tři místa a začala druhé kolo. Od 13. 9. se všechna místa přichycují předem při odjezdu, seznamy leží u map v `OSM/`. Na zařízení odjela 12. a 14. 9. (13 min, k prvnímu bodu 44 m za 9,5 minuty, běh z 17:06 skončil `NoRoute`); celý seznam neobjela. 17. 9. 2026 poprvé DOJELA na místo: trasa 147 m k bodu 1/3 za 3 minuty (16:06:51 → 16:09:53), pak si vzala cíl 2/3 (trasa 37 m) a obsluha ji v 16:11:37 zastavila ze stránky. Přichycení všech tří míst předem proběhlo (největší odstup 2,1 m z limitu 50 m). Jelo se to ale s rozbitým kurzem (viz `hw-zelezo-od-kabelu-kamer`), takže o chování mise po kalibraci to neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`).
 
 - [x] `TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů (8. 9. 2026)
 - [x] Projeto v simulaci (tři místa + druhé kolo) (8. 9. 2026)
 - [x] Seznamy `*.track` přesunuty k mapám do `OSM/` (12. 9. 2026)
 - [ ] Projet celou misi na zařízení
+- [x] První dojezd na místo na zařízení (17. 9., bod 1/3 po trase 147 m za 3 min) (17. 9. 2026)
 - [x] První jízdy na zařízení (12. 9., 14. 9.) — k prvnímu bodu dojela, seznam neobjela (14. 9. 2026)
 - [ ] `trackoffroad=` nastavit z naměřených odstupů (údaj je v záznamu), ne z úsudku
 - [ ] Hláška na stránce, když je `mission=track` bez `track=` (dnes se mise tiše nezaloží)
 
-[track-mission.md](track-mission.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14)
+[track-mission.md](track-mission.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17)
 
 <a id="mise-track-prichyceni-predem"></a>
 ### 🧪 Mise Track přichycuje všechna místa na síť předem, při odjezdu
@@ -1390,6 +1439,35 @@ V reprodukčním testu (32 kol volba mise → stop → restart) proces 12× spad
 
 [headless.md](headless.md) · DevLog [2026-09-14](devlog.md#2026-09-14)
 
+<a id="prov-zatuhnuti-za-behu-mise"></a>
+### ⬜ Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil
+
+`prov-zatuhnuti-za-behu-mise` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+Runtime naběhl, senzory i řídicí smyčka běžely, v 16:12:38 obsluha uvolnila nouzové zastavení, mise Track odjela (přichytila 3 místa, cíl 1/3, trasa 50 m) — a do 20 ms po té hlášce přestaly proudit všechny zprávy najednou: IMU v 4,074 s záznamu, motory 4,078, GPS 4,068, obě kamery, řídicí smyčka i koridor. Dál žilo jediné vlákno — dotazování odpojené T265, jehož hlášky tekly do záznamu ještě 140 s. Stránka podle obsluhy odpovídala, ale čas v ní neběžel, což s tím sedí: web i zapisovač záznamu byli naživu, produkce dat ne. Zásek NENÍ v ovladačích, a je to změřené: vlákno T265 je taky `SensorBase` a běželo dál. Jediné, čím se od ostatních liší, je, že nic nepublikuje (dotaz vždy selže a jen loguje) — všechna vlákna, která publikují, stojí. `Info` z `TraceInfoBridge` jde přímo na `Stream`, kdežto měření jdou navíc přes `RoleRouter` do `processing` (`RelaySource`, fan-out na vlákně producenta), a právě ta větev je společná všemu, co umlklo. Konkrétní blokující odběratel ze statického čtení vidět není (stupně mají vlastní frontu `DropOldest`, `RecordingTarget` je `DropNewest`, takže žádný `Post` blokovat nemá), takže dál se pohne až ze zásobníků vláken. `HangWatchdog` nevystřelil, protože hlídá jen `Start(Mode.Run)` — ten skončil o 4 s dřív a token byl zahozen. Minidump proto neexistuje a jediný důkaz je záznam. ⚠️ **Není to totéž co zásek o devět minut později** (16:21, `prov-deadlock-mise-webstatus`), ačkoli spouštěč je stejný (volba mise `track` ze stránky). Ten je deadlock mezi zámky `TrackMission` a `WebStatus`, oba na fan-outu do `Stream` — jenže kdyby byl držený zámek `WebStatus`, zastavil by se i most `Trace → Info`, protože `WebStatus` je na `Stream` připojený jako PRVNÍ (v `ARBot.Headless/Program.cs`, mimo `connections`, tedy před záznamem). A `Info` teklo dál 140 s. Tenhle zásek je tedy na větvi `processing`, ne na `Stream`, a zůstává neurčený.
+
+- [x] Rozbor záznamu — kdy to umlklo, co přežilo a co mají umlklá vlákna společného (17. 9. 2026)
+- [ ] Hlídač i na běžící smyčku (tep ze `Scheduler`u), aby zásek za jízdy vyrobil minidump
+- [ ] Ze zásobníků vláken určit blokujícího odběratele na větvi `processing`
+
+[headless.md](headless.md), [RelaySource.cs](../Src/ARBot.Common/Communication/RelaySource.cs), [MessageSource.cs](../Src/ARBot.Common/Communication/MessageSource.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+
+<a id="prov-zaznam-nevidet-ze-nebezi"></a>
+### ⬜ V terénu není poznat, jestli se běh nahrává a kam
+
+`prov-zaznam-nevidet-ze-nebezi` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+Po jízdě 17. 9. 2026 (track po kalibraci magnetometru, podle obsluhy s dobrým kurzem) se nenašel žádný `*.rec` — a proč, to ze záznamů dohledat nejde, protože chybí právě ten záznam. Při hledání se ukázalo, že o nahrávání nemluví nic, co má obsluha v terénu po ruce, a u robota je jen mobil: `RecordPathFromParams()` napíše „beh se zaznamenava do …" do `Trace` PŘED tím, než runtime stojí, takže ta hláška skončí jen v journalu a do záznamu se z principu dostat nemůže — táž past jako s účinnou konfigurací, opravená 5. 9. 2026 zopakováním po připojení mostu. Když je `record=` prázdné nebo `false`, vrátí se `null` MLČKY, takže neexistuje ani ta jedna řádka. `ARBotRuntime.RecordPath` se plní jen ve `WireView`, v `Run` zůstává `null`, tedy runtime ani sám neví, kam píše. A stránka náhledu o nahrávání nemá ani slovo. Běh, který se nenahrál, je proto v terénu k nerozeznání od běhu, který se nahrál. Dohledáno na zařízení týž den — a jsou to DVA různé běhy, ne jeden. Pokus v 16:21:22 (`20260917-162122.rec`) se do souboru nedostal vůbec: `Start(Run)` uvízl na deadlocku (`prov-deadlock-mise-webstatus`) o kus dřív, než se `FileStream` vůbec zakládá, takže hláška „beh se zaznamenava do …" v journalu je, ale soubor nikdy nevznikl. Ta hláška se totiž tiskne v `RecordPathFromParams()`, tedy PŘED `WireRun` — **říká záměr, ne výsledek**, a to je samo o sobě matoucí. Druhý pokus je v následujícím bootu (16:22:52) a **robota skutečně řídil** — obsluha má snímky stránky z **16:26** (`běží true`, kurz 0,355 rad, rychlost **0,905 m/s**, trasa, plán i mrkev) a z **16:29**. Hodiny přitom sedí na sekundy: snímek z 16:20 zachycuje dialog o zápisu kalibrace (journal 16:20:16–20) a snímek z 16:21 ukazuje **vlastní čas stránky 16:21:22**, tedy přesně okamžik `POST /mission?m=track` v journalu. ⚠️ **Po tom běhu ale nezůstalo NIC — ani záznam, ani journal — a to je pořád neurčené.** Journal toho bootu končí v **16:23:24** (zatímco robot jel ještě aspoň 6 minut), služba `arbot` v něm nevypsala **ani řádek**, ačkoli jádro ve stejné chvíli hlásí enumeraci kamer (tedy aplikace běžela), a v datovém adresáři není mezi 16:22 a 18:28 zapsaný ani bajt. Plný disk to nebyl (366 GB volných), `record=true` platilo všude a hodiny jsou z RTC. ⚠️ **Prověřeno na zařízení 17. 9. večer a nic z toho to nevysvětluje** — vyloučeno je: plný disk (366 GB volných), chyba disku nebo `errors=remount-ro` (v journalu žádná chyba ext4/NVMe), ztráta přes armbian-ramlog (`/var/log` sice JE na zramu, ale `journal` je symlink na `/var/log.hdd`, tedy na disk), záznam odložený vedle binárek (`~/arbot-headless-run/records/` neexistuje), škrcení journaldem (žádné „Suppressed"), posun hodin (snímky stránky sedí s journalem na sekundy) a jiný boot (výpis všech 18 bootů mezi 16:23:24 a 18:28:13 žádný nemá). **Co zbývá jako holý fakt:** v tom bootu služba `arbot` nastartovala v 16:23:00, jádro v 16:23:16–24 enumeruje obě D435 (tedy aplikace běžela a otevírala kamery) — a služba přitom do journalu nevypsala **ani jeden řádek**, ani úvodní verzi, ani výpis konfigurace, ani „Ceka se na vyber mise". Chybí zároveň **výstup do journalu i záznam**, tedy obojí, co aplikace zapisuje, ačkoli podle snímků jela a řídila robota rychlostí 0,9 m/s. Další krok je **reprodukce**: pustit touž misi znovu a sledovat, jestli se výpis do journalu objeví. Nezávisle na tom dává smysl odstranit spouštěč celé té epizody — deadlock (`prov-deadlock-mise-webstatus`). ⚠️ **Hypotéza „tvrdé vypnutí to spolklo" NESTAČÍ** a je poctivé to říct: `/etc/fstab` má kořen na `commit=120` a `RecordingTarget.OnFlush` dělá jen spravovaný `Flush()` do stránkové cache (**nikdy `fsync`**), takže se ztratí nanejvýš ~2 minuty — jenže mezi posledním řádkem journalu a snímkem obrazovky je **5,5 minuty**. ✅ **Hodiny robota ale z podezřelých vypadly, a to měřením ZE ZÁZNAMU** (`ARBot.Analyze gps`, nový blok A0): GPS nese ITOW, tedy absolutní čas, který nepochází z hodin Pi. Po rekonstrukci (viz `hw-gps-fixtime-rozbity`) vychází den v týdnu **4 = čtvrtek** a systémový čas je proti GPS **+3,9 s** v jednom záznamu a **+4,0 s** v druhém — tedy hodiny jdou a ty ~4 s jsou konstantní zpoždění řetězu, ne drift. Časová osa v záznamech i v journalu je proto skutečná a v 16:29 byl robot podle vlastních hodin **vypnutý**. Čas 16:29 tedy pochází z jiných hodin než robotových; rozhodne obsah toho snímku. Nezávisle na tom platí, že chybějící `fsync` je vada sám o sobě: záznam nemá přežít odpojení napájení jen náhodou.
+
+- [x] Nález — proč to nejde dohledat (žádná stopa mimo journal, stránka mlčí) (17. 9. 2026)
+- [ ] `RecordPath` plnit i ve `WireRun` a dát na stránku řádek „nahrává se do …" / „BEZ ZÁZNAMU"
+- [ ] Hlásit i případ `record=false` a hlášku zopakovat po připojení `TraceInfoBridge`
+- [ ] Na zařízení dohledat, proč záznam ze 17. 9. po kalibraci chybí — pokus 16:21 vysvětlen, běh v 16:29 NE
+- [ ] Záznam přežije odpojení napájení: `fsync` (`Flush(true)`) v `OnFlush`, nebo aspoň hned po založení souboru
+- [ ] Hláška „beh se zaznamenava do …" má říkat výsledek, ne záměr (dnes se tiskne před `WireRun`)
+
+[record-replay.md](record-replay.md), [ARBotRuntime.cs](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs), [WebStatus.cs](../Src/ARBot.Runtime/Web/WebStatus.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+
 <a id="prov-pudorys-umysl-a-zony"></a>
 ### 🧪 Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
 
@@ -1416,20 +1494,6 @@ Systemd má výchozí `StartLimitBurst=5` / `StartLimitIntervalUSec=5min`: šest
 - [ ] Ověřit na zařízení (jednotku nasadit a vyvolat opakovaný pád)
 
 [headless.md](headless.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15)
-
-<a id="prov-zatuhnuti-start-hangwatchdog"></a>
-### 🧪 Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí
-
-`prov-zatuhnuti-start-hangwatchdog` · vada · **v kódu, na HW neověřeno** · nalezeno 14. 9. 2026 · vyřešeno 14. 9. 2026
-
-Při volbě mise ze stránky se runtime na zařízení zasekl uvnitř `Start(Mode.Run)` — v journalu doběhlo `corridor=false`, `mission=track` už nikdy (běžně 5 ms mezi nimi), proces žil dál, stránka umlkla a autor robota vypnul; tím zmizel i stav, ze kterého by to šlo přečíst. Léčba není oprava (mechanismus záseku je neprokázaný), ale důkaz, který si robot pořídí sám: `HangWatchdog` (`hangwatch=`, výchozí 20 s) obaluje start, po vypršení jde do `Trace` hlášení a vedle něj minidump se zásobníky všech vláken. Reprodukce od stolu (32 kol volba mise → stop → restart) zásek nevyvolala; rozdíl je, že tehdy robot jel. Kandidátem na příčinu je od 15. 9. `Stop()` zatuhlý na UARTu bez dat (nález V5 auditu). Hlídač na zařízení neběžel.
-
-- [x] Rozbor journalu a záznamů (dva omyly opravené měřením) (14. 9. 2026)
-- [x] `HangWatchdog` s minidumpem, arm před zámkem, jen pro `Run` (14. 9. 2026)
-- [x] Reprodukce od stolu — negativní (14. 9. 2026)
-- [ ] Nasadit hlídač na zařízení a nechat zásek chytit v provozu
-
-[headless.md](headless.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15)
 
 <a id="prov-audit-bezpecnost-rizeni"></a>
 ### 🧪 Externí audit — bezpečnostní vrstva řízení měla čtyři díry
@@ -1464,6 +1528,21 @@ Zbytek nálezů auditu: po odpojení USB převodníku se senzor tvářil jako zd
 - [ ] Ověřit V4/V5/V6 na zařízení (odpojit převodník za běhu, `systemctl stop`)
 
 [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md), [build-and-test.yml](../.github/workflows/build-and-test.yml), [deploy/README.md](../deploy/README.md), [record-replay.md](record-replay.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
+
+<a id="prov-deadlock-mise-webstatus"></a>
+### 🧪 Deadlock mezi zámkem mise a zámkem stránky při volbě mise
+
+`prov-deadlock-mise-webstatus` · vada · **v kódu, na HW neověřeno** · nalezeno 17. 9. 2026 · vyřešeno 17. 9. 2026
+
+17. 9. 2026 v 16:21:22 se po volbě mise `track` ze stránky runtime zasekl uvnitř `Start(Run)`. `HangWatchdog` vystřelil a pořídil minidump (`logs/hang-Start-Run-20260917-162142.dmp`) — a z jeho zásobníků je příčina určená jednoznačně. Je to klasická inverze pořadí zámků (ABBA): vlákno volby mise drží zámek `TrackMission` (`StartMission` → `lock (gate)` → `EnterPhase` → `EmitState` → `EmitDerived` → `RelaySource.Post` → `WebStatus.Post`) a čeká na zámek `WebStatus`; vlákno webového serveru drží zámek `WebStatus` (`Handle` → `ToJson` → `lock (gate)` → `AppendHead`) a čeká na zámek `TrackMission` (`get_PhaseText`). Spouštěč je proto úplně běžný provoz: stránka se sama obnovuje, takže stačí, aby dotaz na stav přišel ve chvíli, kdy se mise zakládá — a v terénu se na stránku kouká právě v ten okamžik, protože se z ní mise vybírá. ✅ **Že je cyklus UZAVŘENÝ (tedy skutečný deadlock, ne jen dlouhé čekání), je ověřené v kódu:** `WebStatus.ToJson` bere `lock (gate)` a **uvnitř něj** volá `AppendHead`, tedy i `TrackMission.PhaseText`. Sám se nerozpustí — jediné, co ho ukončí, je konec procesu. Sedí to i s tím, co obsluha udělala: stránka zmlkla a robota vypnula a zapnula. Kořen je porušení pravidla, které si `RelaySource` sám píše: fan-out běží na vlákně producenta, takže se do něj nesmí vstupovat s drženým zámkem. Léčba je publikovat AŽ MIMO zámek — pod zámkem zprávu jen složit. Totéž platí pro každou další misi a stupeň, který volá `EmitDerived` zevnitř `lock`, a pro `WebStatus.ToJson`, který si má stav misí napřed ofotit a teprve pak skládat odpověď. **Opraveno 17. 9. 2026, z obou stran** (jedna by stačila, ale invariant má platit oběma směry): mise skládá zprávu pod zámkem a **publikuje až mimo něj** — drží to `using` rozsah (`Publikace()`), takže se na to nedá zapomenout ani při `return` uprostřed zámku, a vnořená volání (`Abort` zevnitř `OnGlobalNav`) mlčí podle `Monitor.IsEntered`, aby publikoval vždy jen nejvnějšnější rozsah. `WebStatus.ToJson` si stav mise **ofotí před** svým zámkem (`NactiMisi`), takže se drží vždy jen jeden zámek. ⚠️ **Prohlédnuty byly všechny mise a týká se to jen dvou:** `TrackMission` a `RobotourMission`. `FreeRunMission` i `MagCalMission` nemají zámek **žádný** (a `MagCalCollector` taky ne), takže tam ten tvar vzniknout nemůže — dřívější tvrzení, že mají tentýž tvar, bylo mylné. Cesta `WebStatus` → `AppendMagCal` → `MagCalWriteBlockedReason` čte jen uloženou zprávu, ne misi. Hlídají to tři testy (`MisePublikujeMimoZamekTests`, jeden i v rigu Robotouru), které **prokazatelně chytají vrácenou vadu** — po dočasném vrácení publikace pod zámek spadly. ⚠️ **Na zařízení to neběželo.**
+
+- [x] Příčina určená z minidumpu (oba zásobníky, uzavřený cyklus zámků) (17. 9. 2026)
+- [x] Publikovat mimo zámek (`Publikace()` + `Vypust()`) v `TrackMission` i `RobotourMission` (17. 9. 2026)
+- [x] `WebStatus.ToJson` si stav mise ofotí předem (`NactiMisi`), ne pod vlastním zámkem (17. 9. 2026)
+- [x] Testy pořadí zámků (ověřeno vrácením vady — spadnou) (17. 9. 2026)
+- [ ] Ověřit na zařízení (volba mise ze stránky při otevřeném náhledu)
+
+[headless.md](headless.md), [TrackMission.cs](../Src/ARBot.Common/Missions/TrackMission.cs), [WebStatus.cs](../Src/ARBot.Runtime/Web/WebStatus.cs), [RelaySource.cs](../Src/ARBot.Common/Communication/RelaySource.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
 <a id="prov-sit-soutezni-provoz"></a>
 ### ✅ Síť robota pro soutěž — vlastní WiFi AP a kabel bez routeru
@@ -1633,6 +1712,20 @@ Zamrzlý stream D435 dřív znamenal mrtvou kameru na stovky sekund až do resta
 
 [plan-drive-hold.md](plan-drive-hold.md), [hardware.md](hardware.md), [headless.md](headless.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14)
 
+<a id="prov-zatuhnuti-start-hangwatchdog"></a>
+### ✅ Runtime zatuhl při volbě mise; z toho hlídač zatuhnutí
+
+`prov-zatuhnuti-start-hangwatchdog` · vada · **hotovo** · nalezeno 14. 9. 2026 · vyřešeno 14. 9. 2026
+
+Při volbě mise ze stránky se runtime na zařízení zasekl uvnitř `Start(Mode.Run)` — v journalu doběhlo `corridor=false`, `mission=track` už nikdy (běžně 5 ms mezi nimi), proces žil dál, stránka umlkla a autor robota vypnul; tím zmizel i stav, ze kterého by to šlo přečíst. Léčba není oprava (mechanismus záseku je neprokázaný), ale důkaz, který si robot pořídí sám: `HangWatchdog` (`hangwatch=`, výchozí 20 s) obaluje start, po vypršení jde do `Trace` hlášení a vedle něj minidump se zásobníky všech vláken. Reprodukce od stolu (32 kol volba mise → stop → restart) zásek nevyvolala; rozdíl je, že tehdy robot jel. Kandidátem na příčinu je od 15. 9. `Stop()` zatuhlý na UARTu bez dat (nález V5 auditu). 17. 9. 2026 hlídač na zařízení POPRVÉ běžel — a v 16:21:42 **vystřelil a odvedl přesně to, kvůli čemu vznikl**: zásek při volbě mise `track`, minidump `logs/hang-Start-Run-20260917-162142.dmp`, a z jeho zásobníků je příčina určená na řádek — je to **ABBA deadlock mezi zámkem `TrackMission` a zámkem `WebStatus`**, viz `prov-deadlock-mise-webstatus`. Tím je tohle téma vyřešené: hlídač je hotový, nasazený a prokázaný v provozu, a vada, kterou chytil, se vede samostatně. ⚠️ **Nechytí ale zásek ZA během** — token se po dokončení `Start(Run)` zahodí, takže zásek z téhož dne v 16:12 (4 s po startu) žádný dump nemá; viz `prov-zatuhnuti-za-behu-mise`.
+
+- [x] Rozbor journalu a záznamů (dva omyly opravené měřením) (14. 9. 2026)
+- [x] `HangWatchdog` s minidumpem, arm před zámkem, jen pro `Run` (14. 9. 2026)
+- [x] Reprodukce od stolu — negativní (14. 9. 2026)
+- [x] Nasadit hlídač na zařízení a nechat zásek chytit v provozu (17. 9. 2026)
+
+[headless.md](headless.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15)
+
 ## Hardware a senzory
 
 <a id="hw-d435-vypadky-za-provozu"></a>
@@ -1745,15 +1838,29 @@ Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzic
 
 `hw-zelezo-od-kabelu-kamer` · vada · **otevřeno** · nalezeno 15. 9. 2026
 
-Kalibrace z 11. 9., ověřená 12. 9., v záznamech ze 14. 9. už neúčinkuje: velikost pole při stání 0,614 G proti 0,4897, rozpětí přes záznam 0,177 G (12. 9. 0,019 G), `IMU yaw − GPS kurz` p50 −15,6° a atitudové řešení senzoru se táhne za polem 345 s. Fúze kurz přebírá, takže to jde 1:1 do mapy i do mrkve — a platí to zpětně pro všechna měření nad těmi záznamy. Zdroj zúžen měřením na kabely ke kamerám (13. 9. se prohodily): je to jejich železo, ne proud — rozsvícení obou kamer posune pole jen o 6,4 mG, 4 % offsetu. 16. 9. železo přetrvává. Pro test kabelů vzniklo živé měřidlo v UI (panel magnetometru v dokumentu IMU s řádkem „Klid“, protože 1° otočení dělá víc než celý hledaný efekt) — na skutečném VN100 neběželo. Nevysvětlený zůstává klidový bias gyra −161 a −453 °/h proti +13 °/h 12. 9.
+Kalibrace z 11. 9., ověřená 12. 9., v záznamech ze 14. 9. už neúčinkuje: velikost pole při stání 0,614 G proti 0,4897, rozpětí přes záznam 0,177 G (12. 9. 0,019 G), `IMU yaw − GPS kurz` p50 −15,6° a atitudové řešení senzoru se táhne za polem 345 s. Fúze kurz přebírá, takže to jde 1:1 do mapy i do mrkve — a platí to zpětně pro všechna měření nad těmi záznamy. Zdroj zúžen měřením na kabely ke kamerám (13. 9. se prohodily): je to jejich železo, ne proud — rozsvícení obou kamer posune pole jen o 6,4 mG, 4 % offsetu. 16. 9. železo přetrvává. Pro test kabelů vzniklo živé měřidlo v UI (panel magnetometru v dokumentu IMU s řádkem „Klid“, protože 1° otočení dělá víc než celý hledaný efekt) — na skutečném VN100 neběželo. Nevysvětlený zůstává klidový bias gyra −161 a −453 °/h proti +13 °/h 12. 9. 17. 9. 2026 to bylo ještě horší než 14. 9.: `|B|` p50 0,693 G proti referenčním 0,4897 (14. 9. 0,614), rozpětí 0,584–0,737 G, a kurz z kompasu byl fakticky náhodný — `IMU yaw − GPS kurz` sd 121°, 2. harmonická 114°, a ze tří modelů vyhrál „zamrzlý kompas" (zbytkový rozptyl 76,5° proti 96 a 115). Že chybuje IMU a ne GPS, potvrdila třetí cesta: `Doppler − směr posunu polohy` −1,8° ± 12,9°. Fúze kurz přebírá (`odhad − IMU yaw` 18,1° ± 17,4°), takže to šlo 1:1 do mapy i do mrkve. Nová kalibrace se týž den změřila (`mission=magcal`) a v 16:20:20 zapsala do registru 23 i do flash; tvrdé železo z proložení koule vyšlo 0,2518 G. Obsluha hlásí, že směr při následující jízdě vypadal velmi dobře — záznam z ní ale není, takže ověřené to není.
 
 - [x] Rozbor záznamů ze 14. 9., dva omyly opravené měřením (15. 9. 2026)
 - [x] Měřidla `ARBot.Analyze vn100` blok 5 (kamery) a `heading --bin` (vývoj rozporu v čase) (15. 9. 2026)
 - [x] Panel magnetometru v UI (`MagTrace`, 11 testů, ověřeno v simulaci) (15. 9. 2026)
 - [ ] Dát kabely do definitivní polohy a ověřit minutovým záznamem s jednou otočkou na místě
-- [ ] `mission=magcal` s náklony na obě strany a nová kalibrace do senzoru
+- [x] `mission=magcal` s náklony na obě strany a nová kalibrace do senzoru (17. 9. 2026)
+- [ ] Ověřit novou kalibraci záznamem (jízda 17. 9. po kalibraci se nenahrála)
 
-[imu-and-frames.md](imu-and-frames.md), [panel magnetometru (snímek)](media/imu-magnetometr-2026-09-15.png) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16)
+[imu-and-frames.md](imu-and-frames.md), [panel magnetometru (snímek)](media/imu-magnetometr-2026-09-15.png) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-17](devlog.md#2026-09-17)
+
+<a id="hw-gps-fixtime-rozbity"></a>
+### ⬜ `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
+
+`hw-gps-fixtime-rozbity` · vada · **otevřeno** · nalezeno 17. 9. 2026
+
+`uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin být `*3600`. Výsledek je pak mimo — v záznamech ze 17. 9. 2026 vychází `FixTime` „**9 dní** 02:16:12", ačkoli v GPS týdnu jsou dny jen 0–6. Do UI to jde rovnou (`GpsDocument.FixTimeText`), takže panel GPS ukazuje nesmyslný čas fixu. Chyba je naštěstí **deterministická a invertovatelná**: platí `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají a jsou jediným absolutním časem, který nepochází z hodin Pi. ⚠️ **Oprava ovladače změní význam pole**, takže inverze v analyzátoru musí umět obojí (pozná to podle toho, že den v týdnu je 0–6).
+
+- [x] Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek) (17. 9. 2026)
+- [ ] Opravit rozklad v `uBloxGps.Read` (a nechat inverzi v analyzátoru pro starší záznamy)
+- [ ] Test nad známým ITOW (dnes to nekryje nic)
+
+[uBloxGps.cs](../Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
 <a id="hw-neopixel-armbian"></a>
 ### 🧪 Driver NeoPixel (WS2812) přes SPI na Armbianu

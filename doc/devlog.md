@@ -107,6 +107,125 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     přes workflow (Pages přepnuté na *GitHub Actions*).
   - Lokální náhled webu: `.claude/launch.json` (`npx http-server web -p 8765`) — pomůcka
     pro prohlížeč v Claude, do gitu nepatří nutně.
+- **Rozbor tří záznamů ze zařízení ze 17. 9.** — *zadání autora:* tři běhy (track před kalibrací
+  magnetometru, kalibrace, a běh, při kterém robot zatuhl), zanalyzovat a doplnit registr.
+  - **Zásek (`records/test/20260917-161234.rec`) je popsaný, ne vysvětlený** — nové téma
+    `prov-zatuhnuti-za-behu-mise`. Runtime běžel normálně, v 16:12:38 obsluha uvolnila nouzové
+    zastavení, mise Track odjela (3 místa přichycena, cíl 1/3, trasa 50 m) a **do 20 ms po té
+    hlášce umlkly všechny zprávy najednou** — IMU ve 4,074 s záznamu, motory 4,078, GPS 4,068,
+    obě kamery i řídicí smyčka. Dál žilo jediné vlákno: dotazování odpojené T265, jehož hlášky
+    tekly do záznamu ještě 140 s. To sedí s tím, co obsluha viděla: stránka odpovídala, ale čas
+    v ní neběžel.
+  - **Co z toho plyne:** zásek **není v ovladačích**. Vlákno T265 je taky `SensorBase` a běželo
+    dál; jediné, čím se liší, je, že **nic nepublikuje**. Všechna vlákna, která publikují, stojí.
+    `Info` z `TraceInfoBridge` jde přímo na `Stream`, měření jdou navíc přes `RoleRouter` do
+    `processing` (`RelaySource`, fan-out na vlákně producenta) — a to je společná větev všeho,
+    co umlklo. Konkrétního blokujícího odběratele ze statického čtení vidět není (stupně mají
+    `DropOldest`, `RecordingTarget` `DropNewest`), takže dál se pohne až ze zásobníků vláken.
+  - ⚠️ **`HangWatchdog` nevystřelil a je to jeho mez, ne porucha:** hlídá jen `Start(Mode.Run)`,
+    který skončil o 4 s dřív, takže token byl zahozený a minidump nevznikl. Doplněno i do
+    `prov-zatuhnuti-start-hangwatchdog` jako nový krok (hlídač i na běžící smyčku).
+  - **Kalibrace magnetometru se po zápisu sama znehodnotí** — nové téma `mise-magcal-sber-po-zapisu`.
+    V záznamu `20260917-161759.rec` došla mise do **HOTOVO ve 48. s** (podmíněnost 330,
+    `sd|B|` 0,0026 G) a držela ho 88 s; v 16:20:16 obsluha ťukla na zápis a **v 16:20:19, uvnitř
+    toho zápisu, se proložení zhroutilo** (`sd|B|` → 0,0276 G, měřítko osy z 1,03 → 2,46, verdikt
+    „NEPOUZITELNE … zacni znovu"). Příčina je v kódu: `MagCalMission.Consume` přidává každý
+    `IMUState` bez ohledu na fázi a `MagnetometerRaw` je podle měření z 12. 9. pole
+    **kompenzované** — proto si mise registr 23 před sběrem maže, jenže po zápisu už vymazaný
+    není a fit míchá dvě soustavy. **Zapsaná kalibrace je v pořádku** (gate `Usable` drží,
+    zapsalo se `1,092364 … −0,109534`); vada je v tom, že obsluha po úspěchu uvidí „NEPOUŽITELNÉ"
+    a pokyn zahodit to, co právě vyšlo.
+  - **Železo před kalibrací bylo horší než 14. 9.** (`hw-zelezo-od-kabelu-kamer`): `|B|` p50
+    **0,693 G** proti referenčním 0,4897 (14. 9. 0,614), a kurz z kompasu fakticky náhodný —
+    `IMU yaw − GPS kurz` sd **121°**, 2. harmonická 114°, ze tří modelů vyhrál „zamrzlý kompas".
+    Chybuje IMU, ne GPS: `Doppler − směr posunu polohy` −1,8° ± 12,9°.
+  - **„GPS byla o 3–4 metry ujetá" je potvrzené měřením** (`lok-gps-casova-korelace`): souvislá
+    jízda 215 s / 96 m dala poprvé dekorelační čas **za jízdy ~40 s** a zbytek po zarovnání
+    p50 **3,58 m** / p90 7,58 m; ze stání (55 s) odchylka fixu p50 9,68 m, max 17,3 m, průměrování
+    nepomáhá (činitel nadsazení 10,6× při N = 100). Podmínky byly slabé: **4–6 družic, DOP 6,8–12**,
+    tedy na hraně brány `gpsmaxdop=10`. Chyba té velikosti drží desítky sekund, takže nevypadá
+    jako šum, ale jako posunutá stopa.
+  - **Mise Track poprvé dojela na místo** (`mise-track`): 147 m k bodu 1/3 za 3 minuty, pak cíl
+    2/3 a obsluha ji zastavila. Jelo se to ale s rozbitým kurzem, takže o chování po kalibraci
+    to neříká nic.
+  - **Chybějící záznam ze čtvrtého běhu** (*dotaz autora*) — příčinu určit nejde, ale zjistilo se,
+    **proč to nejde určit**: nové téma `prov-zaznam-nevidet-ze-nebezi`. O nahrávání nemluví nic,
+    co má obsluha v terénu po ruce. `RecordPathFromParams()` píše „beh se zaznamenava do …" do
+    `Trace` **před** tím, než runtime stojí, takže hláška skončí jen v journalu a **do záznamu se
+    z principu dostat nemůže** (táž past jako s účinnou konfigurací, opravená 5. 9.); při
+    `record=false` se vrátí `null` **mlčky**, takže neexistuje ani ta řádka; `RecordPath` se plní
+    jen ve `WireView`, takže v `Run` runtime ani neví, kam píše; a `WebStatus` o nahrávání nemá
+    **ani slovo**. Běh, který se nenahrál, je tedy k nerozeznání od běhu, který se nahrál.
+    Kandidáti na příčinu (rozhodne journal a volné místo na Pi): `record=` vypnuté, protože po
+    `POST /stop` proces končí a systemd ho vrátí **s argumenty jednotky**, ne s těmi, kterými
+    běžely předchozí tři (ty mají `dataroot=` z příkazové řádky) — nebo plný disk, za 15 minut
+    se toho dne zapsalo 13,9 GB.
+  - **Dohledáno přímo na robotu** (autor ho dal online) — a zmizelý záznam se vysvětlil, včetně
+    **příčiny záseků**. `HangWatchdog` 17. 9. v 16:21:42 poprvé v provozu **vystřelil** a pořídil
+    minidump; `dotnet-dump` nad ním ukazuje **ABBA deadlock**: vlákno volby mise drží zámek
+    `TrackMission` (`StartMission` → `EnterPhase` → `EmitState` → `EmitDerived` →
+    `RelaySource.Post` → `WebStatus.Post`) a čeká na zámek `WebStatus`, zatímco vlákno stránky
+    drží `WebStatus` (`ToJson` → `AppendHead`) a čeká na `TrackMission` (`PhaseText`). Spouštěč
+    je úplně běžný provoz — stránka se sama obnovuje a mise se z ní vybírá. Nové téma
+    `prov-deadlock-mise-webstatus`; kořen je porušení pravidla, které si `RelaySource` sám píše
+    (fan-out běží na vlákně producenta, takže se do něj nesmí s drženým zámkem).
+    **Opravena moje vlastní chybná věta z dřívějška** („hlídač nechytil nic") — nechytil zásek
+    ze 16:12, který přišel až PO `Start(Run)`, ale ten ze 16:21 chytil a vyřešil.
+  - **Chybějící záznam jsou dva různé běhy.** Ten v 16:21:22 se do souboru nedostal vůbec: hláška
+    „beh se zaznamenava do …" se tiskne v `RecordPathFromParams()` **před** `WireRun`, tedy
+    **říká záměr, ne výsledek** — `Start(Run)` uvízl na deadlocku dřív, než se `FileStream`
+    zakládá. Ten druhý (boot v 16:22:52, podle autora robota **chvíli řídil, a docela pěkně**,
+    snímek obrazovky má čas **16:29**) nezanechal nic — a ⚠️ **vysvětlit se ho nepodařilo**.
+    Journal toho bootu končí uprostřed výpisu v 16:23:24 bez vypínací sekvence, další boot je až
+    18:28:13, služba `arbot` v něm nevypsala ani řádek a v datovém adresáři není mezi 16:22 a 18:28
+    zapsaný ani bajt (plný disk to nebyl, 366 GB volných; hodiny jdou z RTC).
+    ⚠️ **Moje první vysvětlení („tvrdé vypnutí + `commit=120`") autor vyvrátil a má pravdu:**
+    `commit=120` plus chybějící `fsync` v `RecordingTarget.OnFlush` spolkne nanejvýš ~2 minuty,
+    kdežto mezi posledním řádkem journalu a snímkem obrazovky je **5,5 minuty**. Zůstává to
+    otevřené; chybějící `fsync` je ale vada i tak.
+  - **Deadlock OPRAVEN** (`prov-deadlock-mise-webstatus`) — *na pokyn autora*. Z obou stran, ačkoli
+    by jedna stačila: invariant má platit oběma směry. Mise skládá zprávu pod zámkem a **publikuje
+    až mimo něj**; drží to `using` rozsah (`Publikace()` → `Vypust()`), takže se na to nedá
+    zapomenout ani při `return` uprostřed zámku, a vnořená volání (`Abort` zevnitř `OnGlobalNav`)
+    podle `Monitor.IsEntered` mlčí, aby publikoval vždy jen nejvnějšnější rozsah.
+    `WebStatus.ToJson` si stav mise **ofotí před** svým zámkem (`NactiMisi`).
+  - ⚠️ **Opravena moje vlastní mylná věta:** „`FreeRun`, `Robotour` i `MagCal` mají tentýž tvar" —
+    neplatí. `FreeRunMission` ani `MagCalMission` (ani `MagCalCollector`) nemají zámek **žádný**,
+    takže se jich to týkat nemůže; dotčené jsou jen `TrackMission` a `RobotourMission`.
+  - **Ověřeno:** tři nové testy (`MisePublikujeMimoZamekTests` + jeden v rigu Robotouru) měří
+    invariant tak, že odběratel si při každé zprávě sáhne z **jiného vlákna** na vlastnost mise —
+    kdyby mise zámek držela, cteni se do limitu nestihne. **Prokázáno, že vadu chytají:** po
+    dočasném vrácení publikace pod zámek spadly, po opravě prošly. Celé sady zelené
+    (1587 / 140 / 115). ⚠️ Na zařízení to neběželo.
+  - **Kvalita koridoru ze záznamu** (*dotaz autora*) — `corridor` report nad `20260917-160558.rec`:
+    koridor prakticky nepracoval, **16 přijatých měření za 339 s (0,3 %)**. Ztrácí se to na dvou
+    místech: proložení vyjde jen v **10,3 %** snímků (`TooFewInliers` 3 987) a z těch, co dostanou
+    hranu, neprojde **81,8 %** příčnou bránou — jenže tam za to koridor nemůže, póza byla celou
+    jízdu **2,5–4,5 m mimo mapovanou vozovku** (souhlasí se snímky obrazovky). Šířka je naopak
+    dobrá: nesouhlas p50 −0,025 m, rezidua 0,072 m.
+  - **Nález u toho: `corridorsend` nebyl vypnutý** (`lok-koridorsend-nebyl-vypnuty`). Úkol
+    i `CLAUDE.md` tvrdí, že provozní profil běží v měřicím režimu s `corridorsend=false`
+    („nulový vliv na řízení") a týž úkol vede jako OTEVŘENÝ krok „`corridorsend=true` až po
+    opravě magnetometru". V `config/pi-provoz.cfg` ten řádek **není** a default je `true`, takže
+    16 korekcí kurzu odešlo do fúze v běhu, kde měl koridor rozpor kurzu p50 **23,4°**. Poučení:
+    „výchozí hodnota je bezpečná" tu neplatí — bezpečný stav se musí do profilu **napsat**.
+  - **Práh inlierů proměřen a vystaven jako parametr** (`lok-koridor-prah-inlieru-prisny`). Nový
+    blok *PRAH INLIERU* v reportu dopočítá geometrii z uložených úseček, takže **nový výjezd
+    netřeba**. Nad dvěma záznamy vyšlo, že **práh 20 dá o 27 % víc koridorů A ZÁROVEŇ menší podíl
+    nesmyslné šířky než dnešních 25** (1,7 proti 2,0 %) — závislost je **nemonotónní**, tedy práh
+    tu vadu, proti které vznikl, vůbec neřídí. Přidán `corridormininliers=` (výchozí 25, beze změny
+    chování); výchozí se nemění, dokud A/B neproběhne na robotu.
+  - ⚠️ **Past v měřidle, kterou chytila až kontrola proti známé odpovědi:** offset hranice se musí
+    měřit v **patě kolmice z počátku**, ne v konci úsečky — normála koridoru je průměr obou hranic,
+    takže `n · p` se podél přímky mění (při 10° a několikametrové úsečce decimetry). První verze
+    bloku byla vedle o p50 0,05 m / max 0,39 m a kontrola ji vrátila. Blok proto nejdřív dopočítá
+    geometrii i pro cykly, kde koridor vznikl, a teprve když sedí na nulu, tiskne zbytek.
+  - ⚠️ **Opraven flaky test:** `MisePublikujeMimoZamekTests` používal `Task.Run`, a při běhu celé
+    sady je thread pool vytížený — jeden běh spadl, druhý prošel. Teď má vlastní vlákno (na pool
+    nesahá) a limit 5 s; tři běhy sady po sobě zelené. Flaky test je horší než žádný.
+  - **Rozpracováno / další krok:** `prov-zatuhnuti-za-behu-mise` (tep ze `Scheduler`u do hlídače),
+    `mise-magcal-sber-po-zapisu` (po `Written` přestat sbírat), `hw-zelezo-od-kabelu-kamer`
+    (ověřit novou kalibraci záznamem — jízda po ní se **nenahrála**).
 
 ## 2026-09-16
 - **Prověření záznamu `records/test/20260916-164926.rec`** (první jízda ze zařízení, kde hranová

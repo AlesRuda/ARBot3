@@ -534,11 +534,19 @@ namespace ARBot.Robot.Web
         public string ToJson(bool running)
         {
             var sb = new StringBuilder(512);
+
+            // ⚠️ Stav mise se ctе PRED nasim zamkem, ne pod nim. Jeho vlastnosti (PhaseText,
+            // WaitingFor, Elapsed) berou zamek MISE, takze sahat na ne s drzenym `gate` znamena
+            // poradi zamku "WebStatus -> mise" - a mise publikuje zpravy, tedy drzi svuj zamek
+            // a chce nas. Presne tak 17. 9. 2026 zatuhl runtime pri volbe mise. Snimek to poradi
+            // rozplete: drzime vzdy jen jeden zamek. Viz doc/headless.md.
+            var mise = NactiMisi();
+
             lock (gate)
             {
                 sb.Append('{');
                 sb.Append("\"running\":").Append(running ? "true" : "false");
-                AppendHead(sb);
+                AppendHead(sb, mise);
                 Num(sb, "x", state?.X); Num(sb, "y", state?.Y); Num(sb, "theta", state?.Theta);
                 Num(sb, "v", state?.V); Num(sb, "omega", state?.Omega);
                 Num(sb, "planLength", plan?.LengthM); Num(sb, "clearance", plan?.MinClearanceM);
@@ -601,7 +609,7 @@ namespace ARBot.Robot.Web
         /// NTP), zatimco <c>now</c> je <b>systemovy</b> cas - jediny udaj, kde je spravne
         /// <c>DateTime.Now</c>, protoze je to kalendarni cas pro cloveka (viz CLAUDE.md).</para>
         /// </summary>
-        private void AppendHead(StringBuilder sb)
+        private void AppendHead(StringBuilder sb, MiseSnimek mise)
         {
             var b = BuildInfo.Current;
             sb.Append(",\"head\":{");
@@ -616,24 +624,19 @@ namespace ARBot.Robot.Web
             sb.Append(",\"uptime\":").Append(Fmt(TimeBase.Uptime.TotalSeconds));
             sb.Append(",\"now\":\"").Append(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)).Append('"');
 
-            ARBot.Common.Missions.IMissionStatus mise = null;
-            try { if (ARBotRuntime.HasCurrent) mise = ARBotRuntime.Current.CurrentMission; }
-            catch (Exception ex) { System.Diagnostics.Trace.WriteLine("WebStatus: cteni mise selhalo: " + ex.Message); }
-
-            if (mise == null)
+            if (!mise.Je)
             {
                 sb.Append(",\"mission\":\"\"");
             }
             else
             {
-                sb.Append(",\"mission\":\"").Append(Escape(mise.MissionName ?? string.Empty)).Append('"');
-                sb.Append(",\"phase\":\"").Append(Escape(mise.PhaseText ?? string.Empty)).Append('"');
-                sb.Append(",\"missionElapsed\":").Append(Fmt(mise.Elapsed.TotalSeconds));
+                sb.Append(",\"mission\":\"").Append(Escape(mise.Nazev)).Append('"');
+                sb.Append(",\"phase\":\"").Append(Escape(mise.Faze)).Append('"');
+                sb.Append(",\"missionElapsed\":").Append(Fmt(mise.Uplynulo.TotalSeconds));
 
                 // Prazdny retezec u "neceka se na nic" je zamer: stranka pak radek vubec neukaze,
                 // misto aby psala "ceka se na: nic".
-                string ceka = ARBot.Common.Missions.MissionStatusText.WaitText(mise.WaitingFor);
-                if (ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(ceka)).Append('"');
+                if (mise.Ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(mise.Ceka)).Append('"');
             }
 
             AppendMissionPick(sb);
@@ -752,6 +755,51 @@ namespace ARBot.Robot.Web
             {
                 System.Diagnostics.Trace.WriteLine("web: cteni drzenych zastaveni selhalo: " + ex.Message);
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Snimek stavu mise porizeny <b>mimo nas zamek</b> — viz <see cref="ToJson"/>.
+        /// Retezce nikdy nejsou <c>null</c>, aby se s nimi dalo pracovat pod zamkem bez dalsich
+        /// dotazu na misi.
+        /// </summary>
+        private readonly struct MiseSnimek
+        {
+            public readonly bool Je;
+            public readonly string Nazev;
+            public readonly string Faze;
+            public readonly TimeSpan Uplynulo;
+            public readonly string Ceka;
+
+            public MiseSnimek(string nazev, string faze, TimeSpan uplynulo, string ceka)
+            {
+                Je = true;
+                Nazev = nazev ?? string.Empty;
+                Faze = faze ?? string.Empty;
+                Uplynulo = uplynulo;
+                Ceka = ceka ?? string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Precte stav bezici mise. <b>Volat jen bez drzeneho <see cref="gate"/></b> — kazda
+        /// z ctenych vlastnosti bere zamek mise. Porucha se hlasi a vraci se prazdny snimek:
+        /// stranka je v terenu jedine, co obsluha ma, takze nesmi spadnout kvuli misi.
+        /// </summary>
+        private static MiseSnimek NactiMisi()
+        {
+            try
+            {
+                if (!ARBotRuntime.HasCurrent) return default;
+                var m = ARBotRuntime.Current.CurrentMission;
+                if (m == null) return default;
+                return new MiseSnimek(m.MissionName, m.PhaseText, m.Elapsed,
+                                      ARBot.Common.Missions.MissionStatusText.WaitText(m.WaitingFor));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("WebStatus: cteni mise selhalo: " + ex.Message);
+                return default;
             }
         }
 
