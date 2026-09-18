@@ -195,11 +195,13 @@ public class CorridorDeweightTests
         {
             SendHeading = false,
             MinSendPeriodSec = 0.5,
-            MaxLateralDisagreementM = 1.0,
         });
 
+        // Zamitnuti drzi "jsem mimo vlastni koridor" (polosirka 2,0 + MaxOutsideCorridorM 0,5).
+        // Do 18. 9. 2026 to shazovala pricna brana; ta uz neexistuje, na povaze testu se tim ale
+        // nic nemeni - jde o to, ze kvotu sebere jen USPESNE odeslani.
         Cycle(loc, T0, lateral: 0.6);                              // odesle
-        Cycle(loc, T0.AddMilliseconds(600), lateral: 2.0);         // zamitnuto (pricny nesouhlas)
+        Cycle(loc, T0.AddMilliseconds(600), lateral: 3.0);         // zamitnuto (mimo koridor)
         Cycle(loc, T0.AddMilliseconds(700), lateral: 0.6);         // musi odeslat
 
         Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.Ok));

@@ -231,20 +231,26 @@ public class CorridorLocalizerTests
     }
 
     [Test]
-    public void VelkyNesouhlas_seNepusti()
+    public void VelkyPricnyNesouhlas_uzSeNezahazuje()
     {
-        // Strop na nesouhlas s mapou: nejspis koreluje na jinou cestu nebo je hranice falesna.
+        // ⚠️ OTOCENO 18. 9. 2026 (drive "VelkyNesouhlas_seNepusti", strop 1,5 m).
+        //
+        // Ta brana testovala tutez velicinu jako EdgeAssociator (dLat), jen pevnym pravitkem
+        // misto chi2 proti kovarianci pozy, a stala az ZA nim. Nad 20260917-160558.rec zahodila
+        // 81,8 % cyklu s hranou pri sigma polohy 3,73 m. Velikost odchylky dnes posuzuje
+        // prirazeni a GateMode.Soft ve fuzi (NIS: nafoukne R misto zahozeni).
         var engine = EngineAt(0, 0, 0);
-        var cfg = new CorridorLocalizerConfig { MaxLateralDisagreementM = 0.3, MaxWidthDisagreementM = 5 };
+        var cfg = new CorridorLocalizerConfig { MaxWidthDisagreementM = 5 };
         var loc = Localizer(engine, cfg: cfg);
         var (left, right) = Frames(4.0, 1.2, 0, T0);
 
         loc.Process(left);
-        var fix = loc.Process(right);
+        loc.Process(right);
 
-        Assert.That(fix, Is.Null);
-        Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.LateralDisagreement));
-        Assert.That(loc.EmittedCorrections, Is.Zero);
+        Assert.That(loc.LastFix.Reason, Is.Not.EqualTo(CorridorFixReason.LateralDisagreement),
+                    "pricna brana je zrusena - tenhle duvod uz nesmi vzniknout");
+        Assert.That(Math.Abs(loc.LastFix.LateralDisagreement), Is.GreaterThan(0.3),
+                    "test by nic nedokazoval, kdyby nesouhlas byl maly");
     }
 
     // Sirkovou branu (drive "NesouhlasSirky_seNepusti") drzi od 15. 9. 2026 CorridorWidthTrustTests:
@@ -310,8 +316,7 @@ public class CorridorLocalizerTests
                             cfg: new CorridorLocalizerConfig
                             {
                                 MaxOutsideCorridorM = 0.5,
-                                MaxLateralDisagreementM = 10,   // ať to nespadne na jiném gatu
-                                MaxWidthDisagreementM = 10,
+                                MaxWidthDisagreementM = 10,     // ať to nespadne na jiném gatu
                             });
         var (left, right) = Frames(width: 2.0, lateral: 2.1, dirRad: 0, t: T0);
 

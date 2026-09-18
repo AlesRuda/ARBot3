@@ -31,7 +31,7 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">45</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">40</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">41</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">106</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">2</span></label>
@@ -324,6 +324,7 @@
       <li data-tema="prov-deadlock-mise-webstatus"><span class="mono">17. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#prov-deadlock-mise-webstatus">Deadlock mezi z&#225;mkem mise a z&#225;mkem str&#225;nky při volbě mise</a></li>
       <li data-tema="prov-zatuhnuti-za-behu-mise"><span class="mono">17. 9.</span> <span class="typ">nalezeno</span> <a href="#prov-zatuhnuti-za-behu-mise">Runtime zatuhl 4 s po odjezdu mise Track a hl&#237;dač ho nechytil</a></li>
       <li data-tema="prov-zaznam-nevidet-ze-nebezi"><span class="mono">17. 9.</span> <span class="typ">nalezeno</span> <a href="#prov-zaznam-nevidet-ze-nebezi">V ter&#233;nu nen&#237; poznat, jestli se běh nahr&#225;v&#225; a kam</a></li>
+      <li data-tema="lok-koridor-pricna-brana"><span class="mono">18. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lok-koridor-pricna-brana">Př&#237;čn&#225; br&#225;na koridoru zahazovala 81,8 % cyklů — zrušena bez n&#225;hrady</a></li>
     </ul>
   </div>
 </section>
@@ -540,7 +541,8 @@
       <li class="hotovo">Parametry odtlumen&#237; a měřic&#237; profil <code>pi-provoz.cfg</code> <span class="mono">15. 9. 2026</span></li>
       <li class="hotovo">Měřic&#237; j&#237;zda na zař&#237;zen&#237; (<code>20260916-164926.rec</code>) <span class="mono">16. 9. 2026</span></li>
       <li class="hotovo">Report <code>corridor</code> — trycht&#253;ř ztr&#225;t, „došlo to do f&#250;ze?“, neuťat&#225; př&#237;čn&#225; statistika, koridor jako reference kurzu <span class="mono">16. 9. 2026</span></li>
-      <li class="otevreno">Nastavit <code>corridorheadingstd=</code> z měřen&#237; (~2,3&#176;) a rozvolnit př&#237;čnou br&#225;nu na n&#225;sobek σ p&#243;zy</li>
+      <li class="otevreno">Nastavit <code>corridorheadingstd=</code> z měřen&#237; (~2,3&#176;)</li>
+      <li class="hotovo">Rozvolnit př&#237;čnou br&#225;nu — vyřešeno zrušen&#237;m br&#225;ny, viz <code>lok-koridor-pricna-brana</code> <span class="mono">18. 9. 2026</span></li>
       <li class="otevreno"><code>corridorsend=true</code> — až po opravě magnetometru a přiřazen&#237; hrany</li>
     </ul>
     <p class="tema-odkazy">čeká na <a href="#lok-korelace-tri-podminky-naostro">Tři podm&#237;nky, než korekce z mapy pustit naostro</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/config/pi-provoz.cfg">pi-provoz.cfg</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-16">2026-09-16</a></p>
@@ -581,6 +583,19 @@
       <li class="otevreno">Ověřit na zař&#237;zen&#237;</li>
     </ul>
     <p class="tema-odkazy">čeká na <a href="#hw-zelezo-od-kabelu-kamer">Kalibrace magnetometru přestala &#250;činkovat — přibylo železo od kabelů ke kamer&#225;m</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-16">2026-09-16</a></p>
+  </article>
+  <article class="tema" id="lok-koridor-pricna-brana" data-stav="v-kodu">
+    <h3>Př&#237;čn&#225; br&#225;na koridoru zahazovala 81,8 % cyklů — zrušena bez n&#225;hrady</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 18. 9. 2026</span> <span>vyřešeno 18. 9. 2026</span></p>
+    <p>Z dotazu autora „na kolik je nastaven parametr ovlivňuj&#237;c&#237; př&#237;čnou br&#225;nu?“ nad <code>20260917-160558.rec</code>. <code>MaxLateralDisagreementM = 1,5 m</code> byla hardcoded konstanta bez kl&#237;če — a hlavně testovala doslova tut&#233;ž veličinu jako <code>EdgeAssociator</code> o p&#225;r ř&#225;dků v&#253;š (<code>dLat = corridor.Lateral − axis.Lateral</code>), jen pevn&#253;m prav&#237;tkem m&#237;sto χ&#178; šk&#225;lovan&#233;ho kovarianc&#237; p&#243;zy, a st&#225;la až ZA n&#237;m. Nad t&#237;m z&#225;znamem zahodila 81,8 % cyklů, kter&#233; dostaly hranu, při σ polohy z f&#250;ze 3,73 m — tedy br&#225;na na 0,4 σ vlastn&#237; nejistoty. Je to t&#225;ž vada, jak&#225; se u <code>MapCorrelator</code>u změřila 25. 8. 2026 (tvrd&#253; <code>Reject</code> dělal v&#253;sledek horš&#237; než nekorigovat vůbec): tvrd&#253; strop na innovaci zahazuje pr&#225;vě ty velk&#233; korekce, kter&#233; jsou potřeba, takže chyba p&#243;zy zůstane nad stropem navždy a hrana je něm&#225;. Zrušeno, ne přenastaveno: rozsah <code>dLat</code> je omezen&#253; konstrukc&#237; (≲ 10 m), takže pr&#225;h „jen jako pojistka“ by byl mrtv&#253; k&#243;d a nižš&#237; řeže do živ&#233;ho. Odemklo to i učen&#237; š&#237;řky (<code>widths.Add</code> st&#225;lo až za branou) — t&#253;ž z&#225;mek, jak&#253; se 15. 9. odstraňoval o patro n&#237;ž. Hodnota enumu <code>LateralDisagreement = 6</code> zůst&#225;v&#225; kvůli čten&#237; starš&#237;ch <code>.rec</code>.</p>
+    <ul class="kroky">
+      <li class="hotovo">N&#225;lez — br&#225;na testuje tut&#233;ž veličinu jako <code>EdgeAssociator</code> a stoj&#237; za n&#237;m <span class="mono">18. 9. 2026</span></li>
+      <li class="hotovo">Br&#225;na i <code>MaxLateralDisagreementM</code> odstraněny, tři testy otočen&#233;/nov&#233; <span class="mono">18. 9. 2026</span></li>
+      <li class="hotovo">Report <code>corridor</code> — „nad b&#253;valou branou“ + varov&#225;n&#237; u starš&#237;ch z&#225;znamů <span class="mono">18. 9. 2026</span></li>
+      <li class="otevreno">Přeměřit nad <code>20260917-160558.rec</code> (kolik cyklů projde, rozdělen&#237; <code>AssocChi2</code>)</li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;</li>
+    </ul>
+    <p class="tema-odkazy">čeká na <a href="#lok-prirazeni-hrany-chi2">Polovina cyklů koridoru se p&#225;rovala na př&#237;čnou ulici</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">decisions.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
   </article>
   <article class="tema" id="lok-korelace-posun-jako-stav-ekf" data-stav="odlozeno">
     <h3>Posun mapa–GPS jako stav filtru</h3>

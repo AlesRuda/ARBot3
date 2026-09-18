@@ -167,11 +167,7 @@ public class CorridorWidthTrustTests
         // v ramci robotu, takze na poze nezavisi. Podminovat ji shodou s pozou by vyrobilo TYZ
         // zamek, jaky se prave odstranuje - pri chybe pozy 0,6 m by se odhad nezalozil nikdy.
         var loc = Localizer(EngineAt(0, 0, 0), mapWidth: 3.0,
-                            cfg: new CorridorLocalizerConfig
-                            {
-                                MaxLateralDisagreementM = 1.5,
-                                WidthUpdateMaxDisagreementM = 0.3,
-                            });
+                            cfg: new CorridorLocalizerConfig { WidthUpdateMaxDisagreementM = 0.3 });
 
         Run(loc, cycles: 12, width: 3.0, lateral: 0.6);   // 0,6 m > 0,3 m
 
@@ -181,20 +177,48 @@ public class CorridorWidthTrustTests
     }
 
     [Test]
-    public void PriVelkemPricnemNesouhlasu_seEstimatorNeuci()
+    public void PriVelkemPricnemNesouhlasu_seEstimatorUci()
     {
-        // Nad MaxLateralDisagreementM uz neni jiste ani to, ke KTERE hrane merenie patri -
-        // tam uz se odhad ucit nema.
+        // ⚠️ OTOCENO 18. 9. 2026 (drive "PriVelkemPricnemNesouhlasu_seEstimatorNeuci").
+        //
+        // Duvod, ktery tu stal ("nad MaxLateralDisagreementM uz neni jiste, ke KTERE hrane
+        // merenie patri"), byl spravna otazka se spatnym meritkem: na "ke ktere hrane" je
+        // EdgeAssociator (azimut + chi2 proti kovarianci pozy), ne pevne pravitko v metrech.
+        // Ta brana byla navic tim, co odhad sirky hladovelo: pri poze 2,5-4,5 m mimo vozovku
+        // (20260917-160558.rec) se estimator nenaucil nic -> WidthNotTrusted -> hrana nema.
+        // Je to tyz zamek, jaky se 15. 9. 2026 odstranoval o patro niz.
         var loc = Localizer(EngineAt(0, 0, 0), mapWidth: 3.0,
-                            cfg: new CorridorLocalizerConfig
-                            {
-                                MaxLateralDisagreementM = 0.3,
-                                MaxOutsideCorridorM = 5,
-                            });
+                            cfg: new CorridorLocalizerConfig { MaxOutsideCorridorM = 5 });
 
-        Run(loc, cycles: 12, width: 3.0, lateral: 1.2);   // 1,2 m > 0,3 m
+        Run(loc, cycles: 12, width: 3.0, lateral: 1.2);
 
-        Assert.That(loc.Widths.Samples(1), Is.Zero);
-        Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.LateralDisagreement));
+        Assert.That(loc.Widths.TryGetWidth(1, out double w), Is.True,
+                    "odhad se musi naucit i pri velkem pricnem nesouhlasu - sirka na poze nezavisi");
+        Assert.That(w, Is.EqualTo(3.0).Within(0.1));
+        Assert.That(loc.LastFix.Reason, Is.EqualTo(CorridorFixReason.Ok));
+    }
+
+    [Test]
+    public void PricnyNesouhlasNadZrusenouBranou_projde()
+    {
+        // Jadro zmeny z 18. 9. 2026: pricny nesouhlas 2,0 m (nad byvalym stropem 1,5 m) uz
+        // merenie nezahazuje. Kdyby brana zustala, skoncilo by to na LateralDisagreement
+        // a fuze by o teto hrane neslysela nikdy - prave to delalo 81,8 % cyklu v zaznamu.
+        var loc = Localizer(EngineAt(0, 0, 0), mapWidth: 3.0,
+                            cfg: new CorridorLocalizerConfig { MaxOutsideCorridorM = 5 });
+
+        // Nejdriv hrana dostane kvalitu sirky (jinak by se skoncilo na WidthNotTrusted), pak
+        // teprve prijde cyklus s velkym pricnym nesouhlasem. Merit se musi TEN cyklus: kdyby se
+        // jelo dvanactkrat za sebou mimo, korekce by pozu dotahly a nesouhlas by klesl k nule -
+        // coz je mimochodem prave to, co tvrda brana znemoznovala.
+        Run(loc, cycles: 12, width: 3.0, lateral: 0);
+        long pred = loc.EmittedCorrections;
+        var fix = Run(loc, cycles: 1, width: 3.0, lateral: 2.0, firstIndex: 12);
+
+        Assert.That(fix, Is.Not.Null, "merenie s velkym pricnym nesouhlasem se ma pustit dal");
+        Assert.That(loc.EmittedCorrections, Is.GreaterThan(pred));
+        Assert.That(fix.Reason, Is.EqualTo(CorridorFixReason.Ok));
+        Assert.That(Math.Abs(fix.LateralDisagreement), Is.GreaterThan(1.5),
+                    "test by nic nedokazoval, kdyby nesouhlas nebyl nad byvalym stropem");
     }
 }

@@ -30,7 +30,13 @@ namespace ARBot.Common.Localization
         /// <summary>Nejblizsi hrana je moc daleko - nejsme na te ceste.</summary>
         EdgeTooFar = 5,
 
-        /// <summary>Merena pricna poloha se od mapove lisi vic, nez je strop.</summary>
+        /// <summary>
+        /// <b>Historicka hodnota - od 18. 9. 2026 se uz nevyrabi</b> (pricna brana
+        /// <c>MaxLateralDisagreementM</c> zrusena, duvod je u samotne brany v <c>Update</c>).
+        /// Polozka zustava kvuli <b>starsim zaznamum</b>: <c>RoadCorridorMsg.FixReason</c> je
+        /// v <c>.rec</c> bajt, takze bez ni by se cykly zamitnute starou branou cetly jako
+        /// neznamy duvod a report by o nich mlcel.
+        /// </summary>
         LateralDisagreement = 6,
 
         /// <summary>Merena sirka se od mapove (nebo filtrovane) lisi vic, nez je strop.</summary>
@@ -227,15 +233,33 @@ namespace ARBot.Common.Localization
             fix.HeadingDisagreementRad =
                 Conversions.NormalizeHalfOrientation(corridor.DirectionRad - axis.HeadingRelRad);
 
-            // PRICNY nesouhlas se posuzuje PRVNI a je na sirce nezavisly - rika „jsem vubec na
-            // teto ceste?". Nad stropem uz neni jiste ani to, ke KTERE hrane merenie patri,
-            // takze se z nej nesmi ucit ani sirka (spatne prirazeni, ne spatna sirka).
-            if (Math.Abs(fix.LateralDisagreement) > config.MaxLateralDisagreementM)
-            {
-                fix.Reason = CorridorFixReason.LateralDisagreement;
-                LastFix = fix;
-                return null;
-            }
+            // ⚠️ PRICNA BRANA TU UZ NENI (zrusena 18. 9. 2026; drive MaxLateralDisagreementM
+            // = 1,5 m, zamitnuti CorridorFixReason.LateralDisagreement).
+            //
+            // Testovala PRESNE TUTEZ velicinu jako EdgeAssociator o par radku vys
+            // (dLat = corridor.Lateral - axis.Lateral), jen pevnym pravitkem v metrech misto
+            // chi-kvadratu skalovaneho kovarianci pozy - a stala az ZA nim, takze poradi bylo
+            // „porovnej poctive, pak zahod podle konstanty". Rozsah dLat je pritom omezeny uz
+            // konstrukci (|corridor.Lateral| <= Width/2 + MaxOutsideCorridorM, |axis.Lateral|
+            // <= MaxEdgeDistanceM), takze pro ni neexistuje ani hodnota, ktera by byla jen
+            // pojistkou: bud rezala do ziveho, nebo byla mrtvy kod.
+            //
+            // Nad 20260917-160558.rec zahazovala 81,8 % cyklu, ktere dostaly hranu, pri sigma
+            // polohy z fuze 3,73 m - tedy brana na 0,4 sigma vlastni nejistoty: zamitala podle
+            // veliciny, kterou filtr prave nezna. Je to tataz vada, jaka se u MapCorrelatoru
+            // zmerila 25. 8. 2026 (tvrdy GateMode.Reject delal vysledek HORSI nez nekorigovat
+            // vubec): tvrdy strop na innovaci zahazuje prave ty velke korekce, ktere jsou
+            // potreba, takze chyba pozy zustane nad stropem navzdy a hrana uz nikdy nepromluvi.
+            //
+            // Velikost odchylky posuzuji dve mista, ktera na to maji meritko: EdgeAssociator
+            // (vyber hrany - chi2 proti kovarianci pozy s podlahou) a GateMode.Soft ve fuzi
+            // (NIS proti sigma_pozy + sigma_merenia; misto zahozeni nafoukne R, takze se poza
+            // muze po cyklech dotahnout). Podminkou zruseni bylo, aby o hrane rozhodoval
+            // AZIMUT, ktery na poloze nezavisi - to plati od 16. 9. 2026.
+            //
+            // Na poze NEZAVISLE pojistky zustavaji beze zmeny: MaxOutsideCorridorM
+            // (CorridorSource), sirkove brany nize, veto azimutu a odstup druheho kandidata
+            // v prirazeni. Viz doc/map-correlation-localization.md.
 
             // Odhad sirky bezi BEZ sirkove brany - jinak by se nemel z ceho naucit (viz nize).
             //

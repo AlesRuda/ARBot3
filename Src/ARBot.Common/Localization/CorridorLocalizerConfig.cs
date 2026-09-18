@@ -61,12 +61,10 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double NoCompensationSkewMs = 20;
 
-        /// <summary>
-        /// Strop na nesouhlas s mapou [m]. Kdyz se merena pricna poloha lisi od mapove o vic,
-        /// merenie se <b>nepusti</b> - nejspis se koreluje na jinou cestu nebo je hranice falesna.
-        /// Nahrada za chybejici nezavislou kontrolu (viz decisions.md, tri podminky).
-        /// </summary>
-        public double MaxLateralDisagreementM = 1.5;
+        // ⚠️ MaxLateralDisagreementM (strop na pricny nesouhlas s mapou, 1,5 m) tu byl do
+        // 18. 9. 2026. Zrusen bez nahrady - duvod je u mista, kde brana stala
+        // (CorridorLocalizer.Update). Strucne: testoval tutez velicinu jako EdgeAssociator, jen
+        // pevnym pravitkem misto chi-kvadratu proti kovarianci pozy, a stal az za nim.
 
         /// <summary>
         /// Strop na nesouhlas sirky proti <b>odhadu</b> [m]. Vetsi rozdil znamena, ze se prolozila
@@ -125,9 +123,14 @@ namespace ARBot.Common.Localization
         /// offsetu dvou primek v ramci robotu (<c>CorridorFinder</c>: <c>Width = cL − cR</c>),
         /// takze pozu nepouziva vubec a chyba pozy se do ni dostat nemuze. Co velky pricny
         /// nesouhlas signalizuje, je <b>spatne prolozeni</b> nebo spatne prirazeni k hrane — a na
-        /// to staci <see cref="MaxLateralDisagreementM"/>, pod kterym se odhad uci. Podminovat
+        /// spatne prirazeni je <c>EdgeAssociator</c> (chi-kvadrat pres azimut a pricnou odchylku),
+        /// na spatne prolozeni <see cref="MaxOutsideCorridorM"/> a sirkove brany. Podminovat
         /// uceni na 0,3 m by navic vyrobilo tyz zamek, ktery se odstranoval: pri chybe pozy 0,6 m
         /// by se odhad nezalozil nikdy. Drzi to <c>CorridorWidthTrustTests</c>.</para>
+        ///
+        /// <para>⚠️ Do 18. 9. 2026 tu stalo „a na to staci <c>MaxLateralDisagreementM</c>, pod
+        /// kterym se odhad uci" — ta brana uz neexistuje, takze se odhad uci ze <b>vsech</b>
+        /// cyklu, ktere prosly prirazenim.</para>
         /// </summary>
         public double WidthUpdateMaxDisagreementM = 0.3;
 

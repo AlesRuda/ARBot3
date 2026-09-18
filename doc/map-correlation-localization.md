@@ -1352,7 +1352,7 @@ Zbývající tři kusy v `ARBot.Common/Localization` a napojení do runtime:
 
 | gate | proč |
 |---|---|
-| `MaxLateralDisagreementM` (1,5 m) | strop na nesouhlas s mapou — náhrada za chybějící nezávislou kontrolu (viz [decisions.md](decisions.md), třetí podmínka) |
+| ~~`MaxLateralDisagreementM` (1,5 m)~~ | ⚠️ **zrušeno 18. 9. 2026 bez náhrady** — testovalo tutéž veličinu jako `EdgeAssociator` (`dLat`), jen pevným pravítkem místo χ² proti kovarianci pózy, a stálo až **za** ním; velikost odchylky posuzuje přiřazení a `GateMode.Soft` ve fúzi |
 | `MaxWidthDisagreementM` (1,5 m) | velký rozdíl šířky = proložila se jiná dvojice hranic, ne ta cesta |
 | `MaxEdgeDistanceM` (8 m) | nejsme na té cestě |
 | `WidthUpdateMaxDisagreementM` (0,3 m) | šířka se učí **jen** z cyklů, kde póza sedí — jinak by se do ní zapsala chyba pózy a ta by se pak sama utvrzovala |
@@ -2732,8 +2732,12 @@ nepotřebuje žádnou vnější referenci, ani mapu, ani pózu.
 
 > ⚠️ Podmiňovat učení šířky shodou s pózou na 0,3 m by navíc vyrobilo **týž zámek**, který se
 > odstraňoval: při chybě pózy 0,6 m by se odhad nezaložil nikdy. `WidthUpdateMaxDisagreementM`
-> se proto **nepoužívá**; učí se pod `MaxLateralDisagreementM`, což je věcně otázka „jsem vůbec
-> na téhle cestě?".
+> se proto **nepoužívá**; učí se ze všeho, co prošlo **přiřazením k hraně**, což je věcně otázka
+> „jsem vůbec na téhle cestě?".
+>
+> ⚠️ Do 18. 9. 2026 tu stálo „učí se pod `MaxLateralDisagreementM`". Ta brána byla ale **týž zámek
+> o patro výš**: při póze 2,5–4,5 m mimo vozovku (`20260917-160558.rec`) se estimátor nenaučil
+> nic → `WidthNotTrusted` → hrana němá. Zrušena, viz níž.
 
 ### `RoadWidthEstimator`
 
@@ -2745,7 +2749,7 @@ dokud se nová cesta neprověří na datech ze zařízení — pravidlo CLAUDE.m
 | poloha | exponenciální průměr, **zakládá první měření** | **medián** z okna |
 | robustnost | jedno špatné proložení je **lepkavé navždy** | odlehlá hodnota s mediánem nehne, staré vypadne z okna |
 | verdikt | žádný — vrací číslo vždy | `TryGetWidth` řekne **„nevím"**, dokud není kvalita |
-| vstup | jen cykly, kde póza sedí do 0,3 m | **každé** měření pod `MaxLateralDisagreementM` |
+| vstup | jen cykly, kde póza sedí do 0,3 m | **každé** měření, které prošlo přiřazením k hraně |
 
 Kvalita je dobrá, když je v okně aspoň `MinSamples` měření **a** jejich rozptyl (**MAD**, ne σ) je
 pod `MaxDispersionM`.
@@ -2769,7 +2773,8 @@ branami**. Prahy tedy jdou proladit **offline nad jedním výjezdem**, stejně j
 ### Nové pořadí bran
 
 1. hrana nalezena, není moc daleko
-2. **příčný nesouhlas** (`MaxLateralDisagreementM`) — na šířce nezávislý, ptá se „jsem na téhle cestě?"
+2. ~~**příčný nesouhlas** (`MaxLateralDisagreementM`)~~ — ⚠️ **zrušeno 18. 9. 2026**; na otázku
+   „jsem na téhle cestě?" odpovídá `EdgeAssociator` (azimut + χ²), ne pevné pravítko v metrech
 3. **estimátor dostane měření** (bez jakékoli šířkové podmínky)
 4. `TryGetWidth`: kvalita **není** → `WidthNotTrusted`, **neposílá se nic**
 5. kvalita **je** → šířková brána proti **odhadu** (ne proti mapě) → `WidthDisagreement`, nebo `Ok`
@@ -2920,8 +2925,9 @@ neprojde příčnou bránou. Šířkové brány naopak skoro nic neberou (78,8 %
 
 Nad **přijatými** měřeními vychází příčný nesouhlas `|p50|` 0,536 m, p90 1,198 m. **To se nesmí
 číst jako chyba polohy** — je to uťaté právě tou bránou, kterou to popisuje
-(`MaxLateralDisagreementM = 1,5 m`), takže p90 nemůže vyjít větší než strop, ať je póza jakkoli
-špatná. Selekční efekt, ne měření. Nad **všemi** 2 256 cykly, které na bránu došly:
+(tehdejší `MaxLateralDisagreementM = 1,5 m`; **zrušena 18. 9. 2026**), takže p90 nemůže vyjít
+větší než strop, ať je póza jakkoli špatná. Selekční efekt, ne měření. Nad **všemi** 2 256 cykly,
+které na bránu došly:
 
 | | |
 |---|---|
@@ -3020,6 +3026,11 @@ nastavená na **0,4 σ** vlastní nejistoty: zamítá podle veličiny, kterou pr
 povolovala, tahle se stane další tichou stropní bránou.
 
 ### Příčná brána dělá dvě práce najednou
+
+> ✅ **Vyřešeno 18. 9. 2026: brána zrušena bez náhrady.** Rozbor níž platí beze změny — je to
+> zdůvodnění té změny. Práci 1 dělá od 16. 9. 2026 `EdgeAssociator` (azimut + χ²), práci 2
+> `GateMode.Soft` ve fúzi. Rozhodl to autor: *„je to už překonané"*. Viz
+> [decisions.md](decisions.md).
 
 `MaxLateralDisagreementM` rozhoduje zároveň o dvou různých otázkách:
 
@@ -3298,9 +3309,10 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   do výběru mapové hrany přibyl azimut (viz výš); po opravě magnetometru **snížit `assocfloorhdg`
   na ~3°** — test se tím sám zostří.
 - **[Koridor v měřicím režimu — odtlumení a první měřicí jízda](ukoly.md#lok-koridor-merici-rezim)** —
-  teprve s tím rozvolnit `MaxLateralDisagreementM` na násobek σ pózy (ne na konstantu); pořadí je
-  podstatné: rozvolnit bránu dřív než přibude azimut znamená pustit dovnitř příčné ulice, které
-  dnes zahazuje ta úzká brána. Pak přeměřit koridor a z posloupnosti `Width`/σ nastavit
+  ✅ příčná brána **zrušena 18. 9. 2026** (obě podmínky splněny: azimut je ve výběru hrany od
+  16. 9., velikost hlídá `GateMode.Soft`) — dřívější plán „rozvolnit `MaxLateralDisagreementM`
+  na násobek σ pózy" se tím vyřídil sám: násobek σ pózy **je** χ² v `EdgeAssociator`u, takže druhá
+  kopie téhož testu nebyla k ničemu. Pak přeměřit koridor a z posloupnosti `Width`/σ nastavit
   `corridorstd=` / `corridorheadingstd=` / `corridorhz=` — dekorelační čas chyby koridoru **pořád
   změřený není**, a měřicí záznam ho dát nemůže (kurz je vada, ne šum); první střízlivé číslo pro
   `corridorheadingstd=` je z tabulky výš **~2,3°** proti hlášeným 0,5°.

@@ -13,6 +13,61 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-18 — Příčná brána koridoru (`MaxLateralDisagreementM`) zrušena bez náhrady
+
+**Co:** Z `CorridorLocalizer`u zmizel strop na příčný nesouhlas s mapou (1,5 m) i zamítnutí
+`CorridorFixReason.LateralDisagreement`. Hodnota enumu **zůstává** (`= 6`), protože
+`RoadCorridorMsg.FixReason` je v `.rec` bajt a starší záznamy ji nesou. Parametr se **nezavádí**
+do registru ani jako vypínatelná varianta.
+
+**Proč:** Dotaz autora nad `20260917-160558.rec` („na kolik je ten práh?") odkryl, že brána
+testovala **doslova tutéž veličinu** jako `EdgeAssociator` o pár řádků výš — `dLat =
+corridor.Lateral − axis.Lateral` — jen pevným pravítkem v metrech místo χ² škálovaného kovariancí
+pózy, a stála **až za ním**. Pořadí bylo „porovnej poctivě, pak zahoď podle konstanty".
+
+Tři věci to dotvrdily:
+
+- Nad tím záznamem zahazovala **81,8 %** cyklů, které dostaly hranu, při σ polohy z fúze
+  **3,73 m** — tedy brána na **0,4 σ** vlastní nejistoty. Zamítala podle veličiny, kterou filtr
+  právě nezná.
+- Je to **tatáž vada**, jaká se u `MapCorrelator`u změřila 25. 8. 2026 (tvrdý `GateMode.Reject`
+  dělal výsledek horší než nekorigovat vůbec): tvrdý strop na innovaci zahazuje právě ty velké
+  korekce, které jsou potřeba, takže chyba pózy zůstane nad stropem **navždy** a hrana je němá.
+  Velikost odchylky navíc už posuzuje `GateMode.Soft` ve fúzi — R se nafoukne, měření se
+  nezahodí, póza se může po cyklech dotáhnout.
+- **Neexistuje pro ni ani hodnota, která by byla jen pojistkou.** Rozsah `dLat` je omezený
+  konstrukcí: `|corridor.Lateral| ≤ Width/2 + MaxOutsideCorridorM` a `|axis.Lateral| ≤
+  MaxEdgeDistanceM = 8 m`, tedy ≲ 10 m. Práh „pro jistotu" na 8–10 m by byl **mrtvý kód**, práh
+  níž řeže do živého. Proto zrušení, ne přenastavení.
+
+**Alternativy, které padly:** (a) *zvednout na 5 m* — nechává špatnou otázku na místě, jen posouvá
+útes, a při chybě GPS přes 5 m (autorova námitka) zahazuje dál; (b) *`corridormaxlat=` s defaultem
+0 = vypnuto* pro A/B, jak to má `imuheadingstd` — zamítl autor („je to už překonané"), a proti
+zvyklosti projektu to obstojí: `imuheadingstd=0` drží **měřený** bias, kdežto tady jde o odstranění
+duplicitního testu, ne o nový provozní bod.
+
+**Předpoklad, který to odemkl:** plán v [map-correlation-localization.md](map-correlation-localization.md)
+žádal pořadí „azimut do **výběru** hrany → teprve pak rozvolnit bránu". Azimut tam je od
+16. 9. 2026 (`EdgeAssociator`), takže podmínka byla splněna. Dřívější formulace „rozvolnit na
+násobek σ pózy" se vyřídila sama: násobek σ pózy **je** ten χ².
+
+**Důsledky:**
+
+- Odemklo se i **učení šířky**: `widths.Add` stálo až za tou bránou, takže při póze mimo vozovku
+  se estimátor nenaučil nic → `WidthNotTrusted` → hrana němá. Týž zámek, jaký se 15. 9. 2026
+  odstraňoval o patro níž.
+- Na póze **nezávislé** pojistky zůstávají beze změny: `MaxOutsideCorridorM`, šířkové brány, veto
+  azimutu a odstup druhého kandidáta v přiřazení.
+- `ARBot.Analyze corridor` tiskne „nad bývalou branou 1,5 m" jako **srovnávací** číslo a nad
+  staršími záznamy hlásí, kolik cyklů brána skutečně zahodila.
+- ⚠️ **Na zařízení to neběželo** a nad `20260917-160558.rec` to **přeměřené není** (autor záznam
+  nemá po ruce). Ověřeno buildem a testy (1 577 / 140 / 115).
+
+**Odkazy:** `Src/ARBot.Common/Localization/CorridorLocalizer.cs` (komentář u místa, kde brána
+stála), `CorridorLocalizerConfig.cs`, `Src/ARBot.Analyze/CorridorReport.cs`,
+`CorridorWidthTrustTests` / `CorridorLocalizerTests` / `CorridorDeweightTests`,
+[map-correlation-localization.md](map-correlation-localization.md).
+
 ### 2026-09-17 — Registr úkolů jako jediný zdroj stavu; stránka „Čím si projekt prošel" je generovaná a má JavaScript
 
 **Co:** Úkoly, nálezy a jejich stav se vedou v **jednom strukturovaném zdroji** `doc/ukoly.yaml`

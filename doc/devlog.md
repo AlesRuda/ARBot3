@@ -39,6 +39,34 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-18
+- **Příčná brána koridoru zrušena** (`lok-koridor-pricna-brana`) — vzniklo z dotazu autora
+  „na kolik je nastaven parametr ovlivňující příčnou bránu?" nad `20260917-160558.rec`, kde
+  koridor přijal 16 měření za 339 s.
+  - **Nález:** `MaxLateralDisagreementM = 1,5 m` je **hardcoded konstanta bez klíče** — a hlavně
+    testuje **doslova tutéž veličinu** jako `EdgeAssociator` o pár řádků výš (`dLat =
+    corridor.Lateral − axis.Lateral`), jen pevným pravítkem místo χ² proti kovarianci pózy, a stojí
+    **až za ním**. Nad tím záznamem zahazovala 81,8 % cyklů s hranou při σ polohy 3,73 m, tedy
+    brána na 0,4 σ vlastní nejistoty.
+  - **Námitka autora, která to rozhodla:** „když robot vidí, že je na cestě, je jediná otázka,
+    jestli není v mapě lepší cesta — a to už řešíme; připustím-li, že GPS může dát víc než 5 m
+    chybně, pak je práh 1,5 m příliš přísný." Sedí to: na otázku „která cesta" je od 16. 9.
+    `EdgeAssociator`, na „jak velká odchylka" `GateMode.Soft` ve fúzi.
+  - **Proč zrušit a ne přenastavit:** rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh
+    „jen jako pojistka" by byl mrtvý kód, a nižší řeže do živého. Autor: *„v tomhle případě bych
+    to smazal rovnou, myslím si, že je to už překonané."*
+  - **Hotovo:** brána i `MaxLateralDisagreementM` pryč (hodnota enumu `LateralDisagreement = 6`
+    **zůstává** kvůli čtení starších `.rec`), report v `ARBot.Analyze corridor` překlopen na
+    „nad bývalou branou" + varování u starších záznamů, tři testy otočené/nové. Build a testy
+    pod `x64`: **1 577 / 140 / 115**.
+  - **Vedlejší zisk:** odemklo se **učení šířky** — `widths.Add` stálo až za tou bránou, takže při
+    póze mimo vozovku se estimátor nenaučil nic → `WidthNotTrusted` → hrana němá. Týž zámek, jaký
+    se 15. 9. odstraňoval o patro níž.
+  - **Rozhodnutí:** viz [decisions.md](decisions.md), 2026-09-18.
+  - ⚠️ **Další krok:** přeměřit `ARBot.Analyze corridor` nad `20260917-160558.rec` (autor ho teď
+    nemá po ruce) — zajímá kolik cyklů projde a jaké je rozdělení `AssocChi2`. **Na zařízení
+    neběželo.**
+
 ## 2026-09-17
 - **Web přejmenován z `docs/` na `web/`** — *na pokyn autora*. Vedle `doc/` (vývojová dokumentace)
   byla `docs/` (web) past: obě jména se pletou, a to i asistentovi při hledání soupisu úkolů.

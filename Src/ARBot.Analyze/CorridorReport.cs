@@ -296,7 +296,12 @@ namespace ARBot.Analyze
                 "  {0,-28} {1,6}    {2,5:F1} %      {3,5:F1} %",
                 name, v, 100.0 * v / Math.Max(1, total), 100.0 * v / Math.Max(1, prev)));
 
-        /// <summary>Dosel cyklus az na pricnou branu? (tedy koridor i mapova hrana existuji)</summary>
+        /// <summary>
+        /// Dostal cyklus mapovou hranu? (tedy koridor se prolozil a prirazeni uspelo)
+        ///
+        /// <para><c>LateralDisagreement</c> je tu kvuli <b>starsim zaznamum</b>: do 18. 9. 2026
+        /// se na tom duvodu koncilo, od te doby uz nevznika. Viz <c>CorridorFixReason</c>.</para>
+        /// </summary>
         private static bool ReachedLateralGate(RoadCorridorMsg m)
         {
             var r = (CorridorFixReason)m.FixReason;
@@ -307,13 +312,13 @@ namespace ARBot.Analyze
         }
 
         /// <summary>
-        /// Pricny nesouhlas na <b>vsech</b> cyklech, ktere na branu vubec doslo — tedy vcetne
-        /// zamitnutych.
+        /// Pricny nesouhlas na <b>vsech</b> cyklech, ktere dostaly mapovou hranu — tedy vcetne
+        /// zamitnutych dal v retezci.
         ///
-        /// <para><b>Proc zvlast.</b> Statistika nad prijatymi merenimi je <b>useknuta prave tou
-        /// branou</b>, kterou popisuje (<c>MaxLateralDisagreementM</c>): p90 nemuze vyjit vic nez
-        /// strop, at je poloha jakkoli spatna. Cist z ni „chyba pricne pozy je p90 1,2 m" je tedy
-        /// selekcni efekt, ne mereni.</para>
+        /// <para><b>Proc zvlast.</b> Statistika nad prijatymi merenimi je <b>vzdy nejak
+        /// useknuta</b> — do 18. 9. 2026 tvrdou pricnou branou 1,5 m, dnes chi-kvadratem
+        /// v <c>EdgeAssociator</c>u. Cist z ni „chyba pricne pozy je p90 1,2 m" je tedy selekcni
+        /// efekt, ne mereni; skutecne rozdeleni je tohle.</para>
         /// </summary>
         private static void LateralUngated(List<RoadCorridorMsg> all)
         {
@@ -324,14 +329,18 @@ namespace ARBot.Analyze
             var v = new Stats("pricny nesouhlas [m]");
             foreach (var m in reached) { a.Add(Math.Abs(m.LateralDisagreement)); v.Add(m.LateralDisagreement); }
             int over = reached.Count(m => Math.Abs(m.LateralDisagreement) > 1.5);
+            int stara = reached.Count(m => (CorridorFixReason)m.FixReason == CorridorFixReason.LateralDisagreement);
 
-            Console.WriteLine($"PRICNY NESOUHLAS NA VSECH cyklech s hranou (n={reached.Count}, NEuseknuto branou):");
+            Console.WriteLine($"PRICNY NESOUHLAS NA VSECH cyklech s hranou (n={reached.Count}):");
             Console.WriteLine("  " + v.Line());
             Console.WriteLine("  " + a.Line());
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "  nad branou 1,5 m: {0} ({1:F1} %) - u nich se skutecna chyba nezmeri, brana je usekla",
+                "  nad byvalou branou 1,5 m: {0} ({1:F1} %) - tolik by jich stara brana zahodila",
                 over, 100.0 * over / reached.Count));
-            Console.WriteLine("  POZOR: statistika nad PRIJATYMI (nize) je useknuta prave touhle branou.");
+            if (stara > 0)
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  POZOR: zaznam je STARSI nez 18. 9. 2026 - {0} cyklu ({1:F1} %) brana skutecne"
+                    + " zahodila, takze do fuze nesly.", stara, 100.0 * stara / reached.Count));
             Console.WriteLine();
 
             // Je ten pricny nesouhlas chyba POZY, nebo se paruje JINA hrana? Rozhodne to rozpad
@@ -387,11 +396,15 @@ namespace ARBot.Analyze
             }
             Console.WriteLine();
 
-            // CO BY PUSTILA JINA BRANA. Pricna brana dnes dela DVE prace najednou: rozhoduje
-            // „jsem na te ceste?" (prirazeni k hrane) a zaroven „neni to odlehla hodnota?".
-            // Prvni prace se pricnou vzdalenosti delat NEMA - to je prave ta velicina, kterou
-            // nezname. Tahle tabulka rika, kolik cyklu by prosla kombinace „okno na AZIMUT
-            // (na poloze nezavisly) + volnejsi pricna brana".
+            // CO BY PUSTILA JINA BRANA. Tabulka, ze ktere se rozhodlo: pricna brana delala DVE
+            // prace najednou - „jsem na te ceste?" (prirazeni k hrane) a „neni to odlehla
+            // hodnota?" (gating). Prvni se pricnou vzdalenosti delat NEMA (rozhodovalo by se
+            // kruhem tou velicinou, kterou neznáme) a na druhou je GateMode.Soft ve fuzi.
+            //
+            // ⚠️ Od 16. 9. 2026 rozhoduje o hrane azimut (EdgeAssociator) a od 18. 9. 2026 je
+            // pricna brana ZRUSENA, takze sloupec „bez brany" je dnesni stav. Tabulka zustava
+            // jako meritko nad starsimi zaznamy a jako kontrola, kolik dat zmena skutecne
+            // odemkla.
             Console.WriteLine("  CO BY PUSTILA JINA BRANA (n je z " + reached.Count + " cyklu s hranou):");
             Console.WriteLine("  okno azimutu    pricna brana 1,5 m    3 m      5 m      8 m    bez brany");
             foreach (double aw in new[] { 180.0, 30.0, 15.0 })

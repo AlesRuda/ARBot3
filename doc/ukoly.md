@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **40** · hotovo **106** · odloženo **7** · zamítnuto **2**.
+Témat celkem **201**: otevřeno **45** · v kódu, na HW neověřeno **41** · hotovo **106** · odloženo **7** · zamítnuto **2**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -97,6 +97,7 @@ Témat celkem **200**: otevřeno **45** · v kódu, na HW neověřeno **40** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 | [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Deadlock mezi zámkem mise a zámkem stránky při volbě mise](#prov-deadlock-mise-webstatus) | 17. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -357,7 +358,8 @@ Koridor měří snímek co snímek týž okraj cesty, takže jeho chyba je časo
 - [x] Parametry odtlumení a měřicí profil `pi-provoz.cfg` (15. 9. 2026)
 - [x] Měřicí jízda na zařízení (`20260916-164926.rec`) (16. 9. 2026)
 - [x] Report `corridor` — trychtýř ztrát, „došlo to do fúze?“, neuťatá příčná statistika, koridor jako reference kurzu (16. 9. 2026)
-- [ ] Nastavit `corridorheadingstd=` z měření (~2,3°) a rozvolnit příčnou bránu na násobek σ pózy
+- [ ] Nastavit `corridorheadingstd=` z měření (~2,3°)
+- [x] Rozvolnit příčnou bránu — vyřešeno zrušením brány, viz `lok-koridor-pricna-brana` (18. 9. 2026)
 - [ ] `corridorsend=true` — až po opravě magnetometru a přiřazení hrany
 
 čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [map-correlation-localization.md](map-correlation-localization.md), [pi-provoz.cfg](../config/pi-provoz.cfg) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16)
@@ -404,6 +406,21 @@ Koridor bral nejbližší hranu sítě podle vzdálenosti, kurz do výběru nevs
 - [ ] Ověřit na zařízení
 
 čeká na [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-16](devlog.md#2026-09-16)
+
+<a id="lok-koridor-pricna-brana"></a>
+### 🧪 Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady
+
+`lok-koridor-pricna-brana` · vada · **v kódu, na HW neověřeno** · nalezeno 18. 9. 2026 · vyřešeno 18. 9. 2026
+
+Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou bránu?“ nad `20260917-160558.rec`. `MaxLateralDisagreementM = 1,5 m` byla hardcoded konstanta bez klíče — a hlavně testovala doslova tutéž veličinu jako `EdgeAssociator` o pár řádků výš (`dLat = corridor.Lateral − axis.Lateral`), jen pevným pravítkem místo χ² škálovaného kovariancí pózy, a stála až ZA ním. Nad tím záznamem zahodila 81,8 % cyklů, které dostaly hranu, při σ polohy z fúze 3,73 m — tedy brána na 0,4 σ vlastní nejistoty. Je to táž vada, jaká se u `MapCorrelator`u změřila 25. 8. 2026 (tvrdý `Reject` dělal výsledek horší než nekorigovat vůbec): tvrdý strop na innovaci zahazuje právě ty velké korekce, které jsou potřeba, takže chyba pózy zůstane nad stropem navždy a hrana je němá. Zrušeno, ne přenastaveno: rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh „jen jako pojistka“ by byl mrtvý kód a nižší řeže do živého. Odemklo to i učení šířky (`widths.Add` stálo až za branou) — týž zámek, jaký se 15. 9. odstraňoval o patro níž. Hodnota enumu `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`.
+
+- [x] Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním (18. 9. 2026)
+- [x] Brána i `MaxLateralDisagreementM` odstraněny, tři testy otočené/nové (18. 9. 2026)
+- [x] Report `corridor` — „nad bývalou branou“ + varování u starších záznamů (18. 9. 2026)
+- [ ] Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`)
+- [ ] Ověřit na zařízení
+
+čeká na [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) · [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md) · DevLog [2026-09-18](devlog.md#2026-09-18)
 
 <a id="lok-korelace-posun-jako-stav-ekf"></a>
 ### ⏸ Posun mapa–GPS jako stav filtru

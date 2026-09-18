@@ -5734,8 +5734,11 @@ temata:
       - co: Report `corridor` — trychtýř ztrát, „došlo to do fúze?“, neuťatá příčná statistika, koridor jako reference kurzu
         stav: hotovo
         kdy: 2026-09-16
-      - co: Nastavit `corridorheadingstd=` z měření (~2,3°) a rozvolnit příčnou bránu na násobek σ pózy
+      - co: Nastavit `corridorheadingstd=` z měření (~2,3°)
         stav: otevreno
+      - co: Rozvolnit příčnou bránu — vyřešeno zrušením brány, viz `lok-koridor-pricna-brana`
+        stav: hotovo
+        kdy: 2026-09-18
       - co: "`corridorsend=true` — až po opravě magnetometru a přiřazení hrany"
         stav: otevreno
     odkazy:
@@ -5872,6 +5875,50 @@ temata:
         cesta: doc/map-correlation-localization.md
     devlog: [2026-09-16]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
+
+  # ---------------------------------------------------------------- 2026-09-18
+  - id: lok-koridor-pricna-brana
+    oblast: lokalizace
+    nazev: Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-18
+    vyreseno: 2026-09-18
+    popis: >
+      Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou bránu?“ nad
+      `20260917-160558.rec`. `MaxLateralDisagreementM = 1,5 m` byla hardcoded konstanta bez klíče —
+      a hlavně testovala doslova tutéž veličinu jako `EdgeAssociator` o pár řádků výš
+      (`dLat = corridor.Lateral − axis.Lateral`), jen pevným pravítkem místo χ² škálovaného
+      kovariancí pózy, a stála až ZA ním. Nad tím záznamem zahodila 81,8 % cyklů, které dostaly
+      hranu, při σ polohy z fúze 3,73 m — tedy brána na 0,4 σ vlastní nejistoty. Je to táž vada,
+      jaká se u `MapCorrelator`u změřila 25. 8. 2026 (tvrdý `Reject` dělal výsledek horší než
+      nekorigovat vůbec): tvrdý strop na innovaci zahazuje právě ty velké korekce, které jsou
+      potřeba, takže chyba pózy zůstane nad stropem navždy a hrana je němá. Zrušeno, ne
+      přenastaveno: rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh „jen jako pojistka“
+      by byl mrtvý kód a nižší řeže do živého. Odemklo to i učení šířky (`widths.Add` stálo až za
+      branou) — týž zámek, jaký se 15. 9. odstraňoval o patro níž. Hodnota enumu
+      `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`.
+    kroky:
+      - co: Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Brána i `MaxLateralDisagreementM` odstraněny, tři testy otočené/nové
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Report `corridor` — „nad bývalou branou“ + varování u starších záznamů
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`)
+        stav: otevreno
+      - co: Ověřit na zařízení
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+      - text: decisions.md
+        cesta: doc/decisions.md
+    devlog: [2026-09-18]
+    ceka_na: [lok-prirazeni-hrany-chi2]
 
   # ---------------------------------------------------------------- 2026-09-17
   - id: prov-zatuhnuti-za-behu-mise
