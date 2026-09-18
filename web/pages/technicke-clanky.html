@@ -1,0 +1,65 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARBot – Technické články</title>
+<link rel="icon" href="../assets/img/arbot-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+
+<header class="sitehead">
+  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
+  <nav>
+      <a href="../index.html">Úvod</a>
+      <a href="../pages/prezentace.html">Jak to funguje</a>
+      <a href="../pages/historie.html">Historie</a>
+      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
+      <a href="../pages/verze.html">Verze</a>
+      <a href="../pages/technicke-clanky.html" class="on">Technické články</a>
+      <a href="../pages/kontakt.html">Kontakt</a>
+  </nav>
+</header>
+<main>
+  <div class="pagehead">
+    <p class="eyebrow">Odvozeno krok za krokem</p>
+    <h1>Technické články</h1>
+    <p class="lead">Jednotlivé kusy robotu rozebrané do vzorců &mdash; každý článek od jednoduché
+      představy až k tomu, co doopravdy běží v kódu.</p>
+  </div>
+
+<section class="first">
+  <p>Stránka <a href="prezentace.html">Jak to funguje</a> popisuje celek: co robot vidí, jak se
+     lokalizuje, jak plánuje a jak jede. Tady je to naopak &mdash; každý článek bere jedno místo
+     a dotáhne ho do konce, včetně odvození, čísel a toho, co se přitom povedlo či nepovedlo.</p>
+
+  <div class="linkcards">
+    <a href="model-diferencialniho-podvozku.html">
+      <h3>Model diferenciálního podvozku &rarr;</h3>
+      <p>Jak se ze dvou otáčejících se kol spočítá, kde robot je a kam se natočil. Končí to
+         zjištěním, že výpočet nedělá úhlovou chybu vůbec a mýlí se jen v délce.</p>
+    </a>
+    <a href="detekce-kraje-vozovky.html">
+      <h3>Detekce kraje vozovky &rarr;</h3>
+      <p>Kde v obraze končí cesta &mdash; hledáno jako maximum jednoduchého kritéria, které se
+         dá spočítat jedním průchodem řádkem.</p>
+    </a>
+    <a href="regulator-sledovani-drahy.html">
+      <h3>Regulátor sledování dráhy &rarr;</h3>
+      <p>Z naplánované dráhy a aktuální polohy dvě čísla pro motory: oblouk vepsaný do rohu,
+         brzdná obálka &mdash; a omezovač, který se díval na vlastní výstup.</p>
+    </a>
+  </div>
+
+  <p>Seznam poroste. Podklad k článkům je vývojová dokumentace v repozitáři
+     (<a href="https://github.com/AlesRuda/ARBot3/tree/master/doc">složka <span class="mono">doc/</span></a>),
+     kde je u každého tvrzení i to, čím se změřilo.</p>
+</section>
+
+<footer>
+  <div class="foot-in">
+    <span class="mono">ARBOT &middot; AUTONOMNÍ MOBILNÍ ROBOT</span>
+    <span>Zdrojový kód, vývojová dokumentace a měření:
+      <a href="https://github.com/AlesRuda/ARBot3">github.com/AlesRuda/ARBot3</a></span>
+  </div>
+</footer>
+</main>

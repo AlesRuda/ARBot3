@@ -16,8 +16,7 @@
       <a href="../pages/historie.html" class="on">Historie</a>
       <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
       <a href="../pages/verze.html">Verze</a>
-      <a href="../pages/model-diferencialniho-podvozku.html">Model podvozku</a>
-      <a href="../pages/detekce-kraje-vozovky.html">Detekce kraje vozovky</a>
+      <a href="../pages/technicke-clanky.html">Technické články</a>
       <a href="../pages/kontakt.html">Kontakt</a>
   </nav>
 </header>
@@ -30,9 +29,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">45</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">41</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">106</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">108</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">2</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -325,6 +324,9 @@
       <li data-tema="prov-zatuhnuti-za-behu-mise"><span class="mono">17. 9.</span> <span class="typ">nalezeno</span> <a href="#prov-zatuhnuti-za-behu-mise">Runtime zatuhl 4 s po odjezdu mise Track a hl&#237;dač ho nechytil</a></li>
       <li data-tema="prov-zaznam-nevidet-ze-nebezi"><span class="mono">17. 9.</span> <span class="typ">nalezeno</span> <a href="#prov-zaznam-nevidet-ze-nebezi">V ter&#233;nu nen&#237; poznat, jestli se běh nahr&#225;v&#225; a kam</a></li>
       <li data-tema="lok-koridor-pricna-brana"><span class="mono">18. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lok-koridor-pricna-brana">Př&#237;čn&#225; br&#225;na koridoru zahazovala 81,8 % cyklů — zrušena bez n&#225;hrady</a></li>
+      <li data-tema="lp-path-following-stara-cisla"><span class="mono">18. 9.</span> <span class="typ">nalezeno</span> <a href="#lp-path-following-stara-cisla">Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</a></li>
+      <li data-tema="web-clanek-regulator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-clanek-regulator">Čl&#225;nek o regul&#225;toru sledov&#225;n&#237; dr&#225;hy a skupina „Technick&#233; čl&#225;nky“ na webu</a></li>
+      <li data-tema="web-menu-generator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-menu-generator">Menu webu opsan&#233; ve 22 m&#237;stech — gener&#225;tor <code>tools/menu.cs</code></a></li>
     </ul>
   </div>
 </section>
@@ -915,6 +917,16 @@
       <li class="otevreno">Měkk&#225; cena podle vzd&#225;lenosti od osy cesty v A* (jen kde vize okraj nevid&#237;)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/LocalPathPlanner.cs">LocalPathPlanner.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a></p>
+  </article>
+  <article class="tema" id="lp-path-following-stara-cisla" data-stav="otevreno">
+    <h3>Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 18. 9. 2026</span></p>
+    <p>Našlo se při psan&#237; webov&#233;ho čl&#225;nku o regul&#225;toru, kde se č&#237;sla nepřeb&#237;rala z dokumentu, ale poč&#237;tala znovu z <code>Profile.cs</code>. Dokument uv&#225;d&#237; u tabulek „hodnoty z <code>Profile</code>“, ale ty hodnoty tam dnes nejsou: <code>MaxAllowedSpeed</code> je 1,2 m/s (provozn&#237; profil 1 m/s) a <code>MaxAcceleration</code> 0,5 m/s&#178;, kdežto tabulky oblouk-vs-klotoida i lookahead poč&#237;taj&#237; s 0,8 a 0,2. Důsledky nejsou kosmetick&#233; — &#250;hlov&#233; zrychlen&#237; vych&#225;z&#237; 2,44 rad/s&#178; m&#237;sto 0,98, n&#225;běh rotace 3,2&#176; m&#237;sto 8&#176; a nejhorš&#237; př&#237;pad (kde se potk&#225;v&#225; limit ot&#225;čen&#237; s <code>v_max</code>) lež&#237; na ~32&#176;, ne na ~40&#176;. Z&#225;věry t&#237;m nepadaj&#237; (n&#225;běh je poř&#225;d mal&#253; proti běžn&#233; zat&#225;čce, chyba oblouku hluboko pod rezervou 1 cm), ale konkr&#233;tn&#237; č&#237;sla v obou tabulk&#225;ch neplat&#237;. Je to t&#225;ž tř&#237;da vady jako <code>maxspeed=1</code> v <code>pi-freerun.cfg</code>, kde koment&#225;ř popisoval poč&#225;tečn&#237; hodnotu, ačkoli se strop mezit&#237;m zvedl — autoritativn&#237; je k&#243;d, dokument se zapomněl přepsat.</p>
+    <ul class="kroky">
+      <li class="otevreno">Přepoč&#237;tat obě tabulky v <code>path-following.md</code> z dnešn&#237;ho <code>Profile.cs</code></li>
+      <li class="otevreno">Zv&#225;žit, jestli jde hl&#237;dat testem (jako <code>ProfilyBezpecnostTests</code> u stropu rychlosti)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Configuration/Profile.cs">Profile.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
   </article>
   <article class="tema" id="lp-omega-dif-faktor-a-znamenko" data-stav="v-kodu">
     <h3>Robot by zat&#225;čel dvakr&#225;t rychleji, než regul&#225;tor chce</h3>
@@ -2526,6 +2538,26 @@
       <li class="hotovo"><code>DokumentaceOdkazyTests</code>, opravy rozporů v <code>CLAUDE.md</code> a <code>doc/*.md</code> <span class="mono">15. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a></p>
+  </article>
+  <article class="tema" id="web-clanek-regulator" data-stav="hotovo">
+    <h3>Čl&#225;nek o regul&#225;toru sledov&#225;n&#237; dr&#225;hy a skupina „Technick&#233; čl&#225;nky“ na webu</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>záměr</span> <span>nalezeno 18. 9. 2026</span> <span>vyřešeno 18. 9. 2026</span></p>
+    <p>Třet&#237; technick&#253; čl&#225;nek ve stylu *Modelu podvozku* a *Detekce kraje vozovky*: odvozen&#237; poloměru oblouku vepsan&#233;ho do rohu z tolerance uzlu, strop rychlosti z limitu ot&#225;čen&#237;, brzdn&#225; ob&#225;lka ze zpětn&#233;ho průchodu, exekuce každ&#253;ch 100 ms — a jako pointa z&#225;padka, kdy omezovač <code>v ≤ d/(k&#183;T_rot)</code> dost&#225;val <code>d = max(d_min, τ&#183;v)</code>, tedy veličinu odvozenou z vlastn&#237;ho v&#253;stupu; uk&#225;z&#225;no, že větev <code>τ&#183;v &gt; d_min</code> je nesplniteln&#225; a soustava se sesune na podlahu 0,048 m/s, což je přesně to, co se 14. 8. 2026 naměřilo na robotu. Tři ručně psan&#225; inline SVG, souřadnice dopoč&#237;tan&#233; skriptem z t&#253;chž vzorců, kter&#233; str&#225;nka odvozuje. Č&#237;sla jsou přepoč&#237;tan&#225; z <code>Profile.cs</code> (v_max 1,2 m/s, a 0,5 m/s&#178;), ne opsan&#225; z <code>path-following.md</code>, kde zůstaly starš&#237; hodnoty 0,8 a 0,2 — proto vych&#225;z&#237; zlom mezi limitem ot&#225;čen&#237; a <code>v_max</code> na 32&#176; a n&#225;běh rotace na 3,2&#176;, ne na 40&#176; a 8&#176;. Z&#225;roveň se na př&#225;n&#237; autora přestalo menu prodlužovat s každ&#253;m čl&#225;nkem: *Model podvozku* a *Detekce kraje vozovky* z lišty zmizely a nahradil je rozcestn&#237;k *Technick&#233; čl&#225;nky*. Rozbalovac&#237; podmenu se zam&#237;tlo — lišta by rostla donekonečna, dropdown chce vlastn&#237; CSS a na dotykov&#233;m displeji se hover chov&#225; hůř. Druh&#253; tehdejš&#237; důvod („menu je natvrdo ve 22 m&#237;stech, takže dropdown = 22 editac&#237; u každ&#233;ho čl&#225;nku“) padl ještě t&#253;ž den, viz <code>web-menu-generator</code>; rozhodnut&#237; na něm ale nest&#225;lo a plat&#237; d&#225;l.</p>
+    <ul class="kroky">
+      <li class="hotovo">Str&#225;nka <code>regulator-sledovani-drahy.html</code> (3 SVG, vzorce 1–11) <span class="mono">18. 9. 2026</span></li>
+      <li class="hotovo">Rozcestn&#237;k <code>technicke-clanky.html</code>, menu přepsan&#233; ve 21 HTML + gener&#225;toru <span class="mono">18. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/regulator-sledovani-drahy.html">regulator-sledovani-drahy.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/technicke-clanky.html">technicke-clanky.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
+  </article>
+  <article class="tema" id="web-menu-generator" data-stav="hotovo">
+    <h3>Menu webu opsan&#233; ve 22 m&#237;stech — gener&#225;tor <code>tools/menu.cs</code></h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>záměr</span> <span>nalezeno 18. 9. 2026</span> <span>vyřešeno 18. 9. 2026</span></p>
+    <p>Z dotazu autora „přišlo mi komplikovan&#233; d&#225;vat menu na 22 m&#237;st a bude jich v&#237;ce“. Hlavička <code>&lt;header class=&quot;sitehead&quot;&gt;</code> byla opsan&#225; v každ&#233; str&#225;nce zvl&#225;šť — 21 HTML plus kopie v <code>tools/ukoly.cs</code> — a rostlo to s každou novou str&#225;nkou; <code>web/README.md</code> to vedlo jako vědom&#253; dluh od 16. 9. Nov&#253; n&#225;stroj drž&#237; menu na jednom m&#237;stě a přepisuje ten blok ve všech <code>web/**/*.html</code>; CI job <code>generovane-soubory</code> pust&#237; <code>ukoly.cs</code>, pak <code>menu.cs</code> a porovn&#225; v&#253;sledek s commitem, takže ručně upraven&#225; hlavička i zapomenut&#233; spuštěn&#237; spadnou. Pořad&#237; je povinn&#233; — <code>ukoly.cs</code> vyp&#237;še pr&#225;zdnou hlavičku a napln&#237; ji až <code>menu.cs</code>. Zam&#237;tnuty Jekyll (<code>_layouts</code>) i skl&#225;d&#225;n&#237; str&#225;nek až ve workflow: oboj&#237; by porušilo to hlavn&#237;, co o složce <code>web/</code> plat&#237; — že je přesně t&#237;m, co se publikuje, takže se web d&#225; prohl&#233;dnout lok&#225;lně a rozbit&#253; v&#253;stup se pozn&#225; před pushem, ne až na živ&#233;m webu. Ověřen&#237;, že převod nic nezměnil, je siln&#233;: **prvn&#237; běh gener&#225;toru nepřepsal ani jeden z 21 souborů**, tedy vyrobil bajt po bajtu tot&#233;ž, co tam bylo ručně. Nav&#237;c zmizel ručn&#237; <code>class=&quot;on&quot;</code> — str&#225;nka bez vlastn&#237; položky v menu je zapsan&#225; ve skupině (čl&#225;nky o soutěž&#237;ch, technick&#233; čl&#225;nky) a zv&#253;razněn&#237; vyr&#225;b&#237; gener&#225;tor. Str&#225;nka, kterou n&#225;stroj nezn&#225;, je chyba (k&#243;d 1, nepřep&#237;še nic): jinak by na n&#237; nebylo zv&#253;razněn&#233; nic.</p>
+    <ul class="kroky">
+      <li class="hotovo"><code>tools/menu.cs</code>, menu vyňat&#233; z <code>tools/ukoly.cs</code>, CI job <code>generovane-soubory</code> <span class="mono">18. 9. 2026</span></li>
+      <li class="hotovo">Ověřeno — prvn&#237; běh beze změny, změna položky propadne do 21 str&#225;nek, nezn&#225;m&#225; str&#225;nka spadne <span class="mono">18. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/README.md">web/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/tools/menu.cs">menu.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
   </article>
 </section>
 <script>

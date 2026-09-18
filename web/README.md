@@ -18,6 +18,11 @@ web/
   .nojekyll                  vypíná Jekyll (servíruje se přesně to, co tu leží)
 ```
 
+Dva soubory v repozitáři jsou **generované** a ručně se needitují (podrobnosti v sekcích níž):
+`pages/historie.html` celá (`tools/ukoly.cs` z `doc/ukoly.yaml`) a **hlavička s menu ve všech
+stránkách** (`tools/menu.cs`). Generují se ale **do repozitáře**, ne až při publikaci, takže
+předchozí odstavec platí dál: co tu leží, to se publikuje.
+
 Stránky jsou **obyčejné HTML soubory bez frameworku a bez JavaScriptu**; jediná externí věc jsou
 fonty z Google Fonts. ⚠️ **Jediná výjimka je `pages/historie.html`** (od 17. 9. 2026, rozhodnutí
 autora): inline skript bez knihoven pro filtr podle stavu a hledání v textu; bez JS stránka
@@ -72,6 +77,61 @@ mnohý hmyz" a že *„postupem času byl cíl přeformulován"* na soutěže. P
 dřív, než sestaví seznam součástek. Nová verze proto začíná Robotourem a vysvětluje, že jde
 o simulaci doručování (soudek piva, cíl z QR kódu).
 
+## Menu je na jednom místě (od 18. 9. 2026)
+
+Hlavní menu žije v **`tools/menu.cs`** a ten ho vypíše do bloku `<header class="sitehead">`
+**ve všech** `web/**/*.html`:
+
+```bash
+dotnet run tools/menu.cs
+```
+
+⚠️ **Pořadí proti registru úkolů je povinné.** `tools/ukoly.cs` vyrobí `pages/historie.html`
+s **prázdnou** hlavičkou a naplní ji až `menu.cs`; obráceně by `menu.cs` naplnil starou verzi
+souboru a `ukoly.cs` by ji zase vyprázdnil. CI (`build-and-test.yml`, job `generovane-soubory`)
+pouští obojí v tomhle pořadí a pak `git diff --exit-code -- doc/ukoly.md web/`, takže **ručně
+upravená hlavička spadne**, stejně jako zapomenuté spuštění.
+
+**Proč generátor a ne šablony.** Hlavička byla opsaná v každé stránce zvlášť — 21 souborů plus
+kopie v `tools/ukoly.cs`, tedy 22 míst, a rostlo to s každou novou stránkou. Jekyll (`_layouts`)
+ani skládání stránek až ve workflow by sice šlo, ale obojí by porušilo to hlavní, co o téhle
+složce platí: **`web/` je přesně to, co se publikuje**, takže se dá prohlédnout lokálně a rozbitý
+výstup se pozná před pushem, ne až na živém webu. Generátor tuhle vlastnost zachovává — v souborech
+pořád leží hotové HTML, jen ho nepíše ruka.
+
+**Co generátor drží navíc:** `class="on"`. Stránka, která v menu vlastní položku nemá, je zapsaná
+ve **skupině** (články o soutěžích → *Umístění v soutěžích*, technické články → *Technické články*)
+a generátor zvýrazní tu. Dřív se to udržovalo ručně a bylo to celé pravidlo uložené jen v hlavě.
+
+⚠️ **Konce řádků se přebírají ze souboru**, ne natvrdo LF: `.gitattributes` má `* text=auto`,
+takže pracovní kopie je na Windows CRLF a na CI LF. Pevné `\n` by na Windows vyrobilo míchané
+konce řádků uvnitř jinak CRLF souboru a `git diff` v CI by pak hlásil rozdíl, který v repu není.
+
+⚠️ **Generátor nepřepisuje nic jiného než ten blok** — text stránek, `<title>`, MathJax
+i konfigurace v hlavičce souboru zůstávají ruční práce.
+
+## Technické články (od 18. 9. 2026)
+
+`pages/technicke-clanky.html` je **rozcestník**: v hlavním menu je jedna položka a teprve za ní
+je seznam článků jako karty (`.linkcards`, stejná stavba jako rozcestník na úvodu). Dnes jsou tam
+tři — *Model diferenciálního podvozku*, *Detekce kraje vozovky*, *Regulátor sledování dráhy*.
+
+**Proč rozcestník a ne rozbalovací podmenu v liště:** lišta by rostla donekonečna — po deseti
+článcích by se na mobilu zalomila na tři řádky a hlavní členění webu by v ní zaniklo. Dropdown
+by k tomu chtěl vlastní CSS a na dotykovém displeji se hover chová hůř, kdežto rozcestník funguje
+všude stejně a bez JS. ⚠️ **Původní důvod byl ještě jiný** („menu je natvrdo ve 22 místech, takže
+každý článek = 22 editací“) a **ten už neplatí** — menu má od téhož dne generátor (sekce výš).
+Rozhodnutí na tom ale nestojí: platí i s generátorem.
+
+⚠️ **`class="on"` se na článcích dává položce *Technické články***, ne článku samotnému — ten
+v menu žádnou položku nemá. Bez toho by na článku nebylo zvýrazněné nic a vypadalo by to, že
+návštěvník vypadl ze struktury webu. **Od 18. 9. 2026 to nikdo neudržuje ručně** — stránka je
+zapsaná ve skupině v `tools/menu.cs` a zvýraznění vyrábí generátor.
+
+Články mají společný tvar: `pagehead` (eyebrow / h1 / lead), text, číslované vzorce v `.mathblock`
+(MathJax se načítá z CDN, konfigurace je v hlavičce každého článku), vysvětlivky symbolů
+v `.legend`, schémata jako inline SVG a poznámky v `.note`.
+
 ## Šířka obsahu
 
 Text i obrázky mají **jednu společnou šířku 1040 px** (sjednoceno 14. 9. 2026). Řídí to jediná
@@ -116,9 +176,17 @@ překreslit i obrázky níže, jinak budou tmavé kresby na světlém pozadí ne
 ### Schémata jsou inline SVG, ne obrázky
 
 Tři schémata na stránce *Model diferenciálního podvozku* (poloha v krocích k a k+1, varianty
-pohybu, sečna vs. tečna) jsou **ručně psané inline SVG přímo v HTML**, stejně jako schémata na
-stránce *Jak to funguje*. Barvy berou z palety (`currentColor`, `var(--accent)`, `var(--plan)`),
+pohybu, sečna vs. tečna) a tři na stránce *Regulátor sledování dráhy* (roh s vepsaným obloukem,
+graf brzdné obálky, schéma zpětné vazby omezovače) jsou **ručně psané inline SVG přímo v HTML**,
+stejně jako schémata na
+stránce *Jak to funguje*. Barvy berou z palety (`currentColor`, `var(--accent)`, `var(--plan)`,
+u regulátoru navíc `var(--block)` a `var(--free)` na rozlišení vady a léčby),
 takže se o tmavý podklad starat nemusí, jsou ostré v každém zvětšení a opraví se textovým editorem.
+
+⚠️ **Souřadnice ve schématech s grafem nebo geometrií nepiš od oka** — u regulátoru jsou dopočítané
+skriptem z týchž vzorců, které stránka odvozuje (poloměr oblouku, body brzdné obálky), takže se
+obrázek nemůže rozejít s textem. Pro ruční úpravu to znamená: měň popisky a čáry, ale ne čísla
+v `points`/`d`, dokud si je nepřepočítáš.
 
 ⚠️ **Předtím to byly překreslené rastry a nevypadalo to dobře** — proto se od převádění obrázků
 u kreseb ustoupilo úplně. Světlé originály ze Sites zůstávají v `assets/img/podvozek-*.png` jako
@@ -150,22 +218,25 @@ web je nepoužívá.
 
 ## Jak přidat nebo upravit stránku
 
-- **Text a obrázky**: uprav `.html` přímo. Vzorem je kterákoli stránka v `pages/` — hlavička
-  (`<header class="sitehead">`) je v každém souboru zvlášť, takže **při přidání položky do menu
-  se musí upravit všechny stránky**. ⚠️ **Od 16. 9. 2026 je jich 18** (7 stránek z menu + 11
-  článků o soutěžích), takže tahle duplicita už překročila mez, na kterou tu dřív stálo varování
-  „kdyby jich mělo být výrazně víc, je čas na generátor". Články vznikly **jednorázovým skriptem**
+- **Text a obrázky**: uprav `.html` přímo. Vzorem je kterákoli stránka v `pages/`. ⚠️ **Hlavičku
+  `<header class="sitehead">` needituj** — v souboru sice fyzicky leží, ale od 18. 9. 2026 ji
+  vyrábí `tools/menu.cs` (viz *Menu je na jednom místě* níž) a další běh generátoru ji přepíše.
+  Články o soutěžích vznikly **jednorázovým skriptem**
   (v repu není — výstupem jsou ty `.html`, a kdyby tu skript zůstal, sváděl by k ruční úpravě,
-  která by se při dalším běhu přepsala). ⚠️ **17. 9. 2026 se menu změnilo** (položka *Historie*)
-  a upravilo se mechanicky ve všech 18 souborech + v generátoru `tools/ukoly.cs`; generátor
-  celého menu zůstává dluh — **příště je to devatenáct míst**.
-- **Nová podstránka**: zkopíruj `pages/kontakt.html`, přepiš `<title>`, nadpis a obsah, a přidej
-  odkaz do `<nav>` na všech stránkách. Pozor na `class="on"` — označuje právě zobrazenou položku.
+  která by se při dalším běhu přepsala).
+- **Nová podstránka**: zkopíruj `pages/kontakt.html`, přepiš `<title>`, nadpis a obsah, zapiš ji
+  do `tools/menu.cs` (buď jako položku menu, nebo do některé skupiny) a pusť
+  `dotnet run tools/menu.cs`. ⚠️ **Stránka, kterou `tools/menu.cs` nezná, je chyba**: generátor
+  skončí kódem 1 a nepřepíše nic. Jinak by na ní nebylo zvýrazněné nic a vypadalo by to, že
+  návštěvník vypadl ze struktury webu.
+- ⚠️ **Nový technický článek do menu NEPATŘÍ.** Přidá se karta na `pages/technicke-clanky.html`
+  a stránka se zapíše do skupiny *Technické články* v `tools/menu.cs`; zvýraznění položky
+  obstará generátor. Viz sekce níž.
 - ⚠️ **`pages/historie.html` je GENEROVANÁ** z registru úkolů `doc/ukoly.yaml` příkazem
   `dotnet run tools/ukoly.cs` (od 17. 9. 2026) — ruční úprava se přepíše dalším během a CI
-  hlídá, že soubor odpovídá zdroji. Menu má i tahle stránka natvrdo v generátoru
-  (`tools/ukoly.cs`, `HtmlVystup`), takže **při změně menu se musí upravit i tam** — je to
-  devatenáctý výskyt téhož menu. Styly stránky jsou v `site.css`, sekce „historie".
+  hlídá, že soubor odpovídá zdroji. ⚠️ **Po `ukoly.cs` se musí pustit i `menu.cs`**: registr
+  vypíše jen prázdné `<header class="sitehead"></header>` a menu do něj doplní až druhý
+  generátor. Styly stránky jsou v `site.css`, sekce „historie".
   Návrh a pravidla: [doc/plan-ukoly.md](../doc/plan-ukoly.md).
 - **Nový obrázek**: do `assets/img/`. Obrázky pro web jsou tu **záměrně zkopírované** z `doc/media/`
   (kde slouží vývojové dokumentaci) — GitHub Pages umí servírovat jen to, co leží uvnitř `web/`.
@@ -188,7 +259,12 @@ web je nepoužívá.
 | Umístění → 11 článků o soutěžích (2009–2017) | `pages/robotour-2009.html` a dalších 10 | text, 6 obrázků, 6 videí; znění beze změn |
 
 Skupina *ARBot* z menu zanikla — na Sites neměla vlastní obsah, byla to jen rozbalovací položka.
-Její tři podstránky jsou teď v menu přímo.
+Její tři podstránky šly nejdřív do menu přímo. ⚠️ **18. 9. 2026 se skupina vrátila**, ale jinak:
+jako *Technické články*, tedy **stránka s obsahem** (rozcestník), ne rozbalovací položka — přibyl
+totiž třetí takový článek (*Regulátor sledování dráhy*) a bylo jasné, že další budou.
+
+Stránky, které na Sites nebyly a vznikly až tady: `pages/prezentace.html`,
+`pages/historie.html`, `pages/technicke-clanky.html` a `pages/regulator-sledovani-drahy.html`.
 
 Obrázky převzaté ze Sites: `assets/img/arbot-logo.png` (logo, slouží i jako favicon),
 `assets/img/arbot-model.gif` (animovaný model robota, 592 × 612, 72 snímků),

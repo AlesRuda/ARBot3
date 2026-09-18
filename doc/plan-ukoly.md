@@ -104,6 +104,11 @@ a `web/pages/historie.html`. Chytí to zapomenuté spuštění generátoru i nev
 zároveň jediný „test" generátoru, který je úměrný jeho velikosti (rozhodnutí 3): validace vstupu
 + idempotence výstupu.
 
+⚠️ **Od 18. 9. 2026 ten job dělá víc** a jmenuje se `generovane-soubory`: po `tools/ukoly.cs`
+pouští ještě `tools/menu.cs` (generátor menu webu, viz [web/README.md](../web/README.md)) a
+porovnává `doc/ukoly.md` a **celou složku `web/`**. Pořadí je povinné — `ukoly.cs` vypíše
+`web/pages/historie.html` s prázdnou hlavičkou a menu do ní doplní až `menu.cs`.
+
 ### 10. Filtr podle stavu a hledání v textu — jediný JavaScript na webu
 
 Původní návrh byl bez JS (web je jinak záměrně statický, `web/README.md`) a jen se dvěma fixními

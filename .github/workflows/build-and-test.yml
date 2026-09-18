@@ -93,12 +93,17 @@ jobs:
           path: publish/headless
           if-no-files-found: error
 
-  # Registr ukolu (doc/ukoly.yaml) ma dva GENEROVANE vystupy commitovane v repu
-  # (doc/ukoly.md, web/pages/historie.html). Tenhle krok je jediny "test" generatoru:
-  # prevaliduje zdroj a overi, ze vystupy odpovidaji zdroji - zapomenute spusteni
-  # `dotnet run tools/ukoly.cs` nebo nevalidni YAML tu spadne. Viz doc/plan-ukoly.md.
-  registr-ukolu:
-    name: registr ukolu (generovane soubory aktualni)
+  # Repozitar ma GENEROVANE soubory commitovane vedle zdroje:
+  #   tools/ukoly.cs  doc/ukoly.yaml          -> doc/ukoly.md + web/pages/historie.html
+  #   tools/menu.cs   (menu primo v nastroji) -> <header class="sitehead"> ve VSECH web/**/*.html
+  # Tenhle job je jediny "test" obou generatoru: prevaliduje zdroje, prepise vystupy a overi,
+  # ze se proti commitu nic nezmenilo - zapomenute spusteni, nevalidni YAML nebo rucne
+  # upravene menu tu spadne. Viz doc/plan-ukoly.md a web/README.md.
+  #
+  # PORADI JE POVINNE: ukoly.cs vyrobi historie.html s PRAZDNOU hlavickou a teprve menu.cs ji
+  # naplni. Obracene by menu.cs naplnil starou verzi souboru a ukoly.cs by ji zase vyprazdnil.
+  generovane-soubory:
+    name: generovane soubory aktualni (registr ukolu + menu webu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,8 +112,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: generator
+      - name: generator registru ukolu
         run: dotnet run tools/ukoly.cs
 
+      - name: generator menu webu
+        run: dotnet run tools/menu.cs
+
       - name: vystupy odpovidaji zdroji
-        run: git diff --exit-code -- doc/ukoly.md web/pages/historie.html
+        run: git diff --exit-code -- doc/ukoly.md web/

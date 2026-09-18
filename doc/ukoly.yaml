@@ -5920,6 +5920,116 @@ temata:
     devlog: [2026-09-18]
     ceka_na: [lok-prirazeni-hrany-chi2]
 
+  - id: web-clanek-regulator
+    oblast: web
+    nazev: Článek o regulátoru sledování dráhy a skupina „Technické články“ na webu
+    druh: zamer
+    stav: hotovo
+    nalezeno: 2026-09-18
+    vyreseno: 2026-09-18
+    popis: >
+      Třetí technický článek ve stylu *Modelu podvozku* a *Detekce kraje vozovky*: odvození
+      poloměru oblouku vepsaného do rohu z tolerance uzlu, strop rychlosti z limitu otáčení,
+      brzdná obálka ze zpětného průchodu, exekuce každých 100 ms — a jako pointa západka, kdy
+      omezovač `v ≤ d/(k·T_rot)` dostával `d = max(d_min, τ·v)`, tedy veličinu odvozenou
+      z vlastního výstupu; ukázáno, že větev `τ·v > d_min` je nesplnitelná a soustava se sesune
+      na podlahu 0,048 m/s, což je přesně to, co se 14. 8. 2026 naměřilo na robotu. Tři ručně
+      psaná inline SVG, souřadnice dopočítané skriptem z týchž vzorců, které stránka odvozuje.
+      Čísla jsou přepočítaná z `Profile.cs` (v_max 1,2 m/s, a 0,5 m/s²), ne opsaná
+      z `path-following.md`, kde zůstaly starší hodnoty 0,8 a 0,2 — proto vychází zlom mezi
+      limitem otáčení a `v_max` na 32° a náběh rotace na 3,2°, ne na 40° a 8°.
+      Zároveň se na přání autora přestalo menu prodlužovat s každým článkem: *Model podvozku*
+      a *Detekce kraje vozovky* z lišty zmizely a nahradil je rozcestník *Technické články*.
+      Rozbalovací podmenu se zamítlo — lišta by rostla donekonečna, dropdown chce vlastní CSS
+      a na dotykovém displeji se hover chová hůř. Druhý tehdejší důvod („menu je natvrdo ve 22
+      místech, takže dropdown = 22 editací u každého článku“) padl ještě týž den, viz
+      `web-menu-generator`; rozhodnutí na něm ale nestálo a platí dál.
+    kroky:
+      - co: Stránka `regulator-sledovani-drahy.html` (3 SVG, vzorce 1–11)
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Rozcestník `technicke-clanky.html`, menu přepsané ve 21 HTML + generátoru
+        stav: hotovo
+        kdy: 2026-09-18
+    odkazy:
+      - text: regulator-sledovani-drahy.html
+        cesta: web/pages/regulator-sledovani-drahy.html
+      - text: technicke-clanky.html
+        cesta: web/pages/technicke-clanky.html
+      - text: path-following.md
+        cesta: doc/path-following.md
+    devlog: [2026-09-18]
+    ceka_na: []
+
+  - id: web-menu-generator
+    oblast: web
+    nazev: Menu webu opsané ve 22 místech — generátor `tools/menu.cs`
+    druh: zamer
+    stav: hotovo
+    nalezeno: 2026-09-18
+    vyreseno: 2026-09-18
+    popis: >
+      Z dotazu autora „přišlo mi komplikované dávat menu na 22 míst a bude jich více“. Hlavička
+      `<header class="sitehead">` byla opsaná v každé stránce zvlášť — 21 HTML plus kopie
+      v `tools/ukoly.cs` — a rostlo to s každou novou stránkou; `web/README.md` to vedlo jako
+      vědomý dluh od 16. 9. Nový nástroj drží menu na jednom místě a přepisuje ten blok ve všech
+      `web/**/*.html`; CI job `generovane-soubory` pustí `ukoly.cs`, pak `menu.cs` a porovná
+      výsledek s commitem, takže ručně upravená hlavička i zapomenuté spuštění spadnou.
+      Pořadí je povinné — `ukoly.cs` vypíše prázdnou hlavičku a naplní ji až `menu.cs`.
+      Zamítnuty Jekyll (`_layouts`) i skládání stránek až ve workflow: obojí by porušilo to
+      hlavní, co o složce `web/` platí — že je přesně tím, co se publikuje, takže se web dá
+      prohlédnout lokálně a rozbitý výstup se pozná před pushem, ne až na živém webu.
+      Ověření, že převod nic nezměnil, je silné: **první běh generátoru nepřepsal ani jeden
+      z 21 souborů**, tedy vyrobil bajt po bajtu totéž, co tam bylo ručně.
+      Navíc zmizel ruční `class="on"` — stránka bez vlastní položky v menu je zapsaná ve skupině
+      (články o soutěžích, technické články) a zvýraznění vyrábí generátor. Stránka, kterou
+      nástroj nezná, je chyba (kód 1, nepřepíše nic): jinak by na ní nebylo zvýrazněné nic.
+    kroky:
+      - co: "`tools/menu.cs`, menu vyňaté z `tools/ukoly.cs`, CI job `generovane-soubory`"
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Ověřeno — první běh beze změny, změna položky propadne do 21 stránek, neznámá stránka spadne
+        stav: hotovo
+        kdy: 2026-09-18
+    odkazy:
+      - text: web/README.md
+        cesta: web/README.md
+      - text: menu.cs
+        cesta: tools/menu.cs
+    devlog: [2026-09-18]
+    ceka_na: []
+
+  - id: lp-path-following-stara-cisla
+    oblast: lokalni-planovani
+    nazev: Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-18
+    popis: >
+      Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebírala z dokumentu, ale
+      počítala znovu z `Profile.cs`. Dokument uvádí u tabulek „hodnoty z `Profile`“, ale ty
+      hodnoty tam dnes nejsou: `MaxAllowedSpeed` je 1,2 m/s (provozní profil 1 m/s) a
+      `MaxAcceleration` 0,5 m/s², kdežto tabulky oblouk-vs-klotoida i lookahead počítají s 0,8
+      a 0,2. Důsledky nejsou kosmetické — úhlové zrychlení vychází 2,44 rad/s² místo 0,98, náběh
+      rotace 3,2° místo 8° a nejhorší případ (kde se potkává limit otáčení s `v_max`) leží na
+      ~32°, ne na ~40°. Závěry tím nepadají (náběh je pořád malý proti běžné zatáčce, chyba
+      oblouku hluboko pod rezervou 1 cm), ale konkrétní čísla v obou tabulkách neplatí. Je to
+      táž třída vady jako `maxspeed=1` v `pi-freerun.cfg`, kde komentář popisoval počáteční
+      hodnotu, ačkoli se strop mezitím zvedl — autoritativní je kód, dokument se zapomněl
+      přepsat.
+    kroky:
+      - co: Přepočítat obě tabulky v `path-following.md` z dnešního `Profile.cs`
+        stav: otevreno
+      - co: Zvážit, jestli jde hlídat testem (jako `ProfilyBezpecnostTests` u stropu rychlosti)
+        stav: otevreno
+    odkazy:
+      - text: path-following.md
+        cesta: doc/path-following.md
+      - text: Profile.cs
+        cesta: Src/ARBot.Common/Configuration/Profile.cs
+    devlog: [2026-09-18]
+    ceka_na: []
+
   # ---------------------------------------------------------------- 2026-09-17
   - id: prov-zatuhnuti-za-behu-mise
     oblast: provoz

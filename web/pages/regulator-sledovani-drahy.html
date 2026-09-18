@@ -1,0 +1,465 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARBot – Regulátor sledování dráhy</title>
+<link rel="icon" href="../assets/img/arbot-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['$$','$$']],tags:'none'},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre']},
+  chtml:{scale:0.95}};</script>
+<script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+
+<header class="sitehead">
+  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
+  <nav>
+      <a href="../index.html">Úvod</a>
+      <a href="../pages/prezentace.html">Jak to funguje</a>
+      <a href="../pages/historie.html">Historie</a>
+      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
+      <a href="../pages/verze.html">Verze</a>
+      <a href="../pages/technicke-clanky.html" class="on">Technické články</a>
+      <a href="../pages/kontakt.html">Kontakt</a>
+  </nav>
+</header>
+<main>
+  <div class="pagehead">
+    <p class="eyebrow">Řízení pohybu</p>
+    <h1>Regulátor sledování dráhy</h1>
+    <p class="lead">Jak se z posloupnosti bodů a aktuální polohy stanou dvě čísla pro motory.</p>
+  </div>
+
+<section class="first">
+  <p>Plánovač vydá <b>dráhu</b>: posloupnost bodů, z nichž každý nese toleranci \(\varepsilon\),
+     v rámci které má robot projet. Regulátor z ní má desetkrát za sekundu vyrobit dvě čísla &mdash;
+     dopřednou rychlost \(v\) a rychlost otáčení \(\omega\) &mdash; tak, aby robot každý uzel projel
+     v toleranci a přitom <b>co nejrychleji</b>. Uzly se neprojíždějí zastavením.</p>
+
+  <p>Úloha se dělí na dvě části, které mají velmi různou frekvenci. <b>Plánování</b> proběhne
+     jednou pro celou dráhu a předpočítá všechno, co plyne z geometrie. <b>Exekuce</b> běží každý
+     takt a vychází z <i>aktuální</i> pózy robotu. Není to úspora výpočtu, je to dělba
+     odpovědnosti: tvar dráhy se mezi takty nemění, poloha robotu ano.</p>
+
+  <h3>Proč ne jeden proporcionální člen</h3>
+  <p>Nabízí se počítat \(\omega\) úměrně příčné odchylce od trasy. Takový zásah ale neví nic o tom,
+     že \(\omega\) je shora omezené, že se příkaz mění jen jednou za 100 ms a že póza ze senzorové
+     fúze je o kus zpožděná &mdash; a v téhle soustavě z toho vzniká kmitání. Regulátor proto každý
+     takt raději <b>přeplánuje manévr z reálné pózy</b> a zásah vydá přes kinematický profil
+     (rampa omezená zrychlením). Zpětná vazba tu nevede přes zesílení, ale přes plán.</p>
+
+  <table class="kv">
+    <tr><td>maximální rychlost</td><td>\(v_{max} = 1{,}2\) m/s <span class="mono">(provozní profil jezdí na 1 m/s)</span></td></tr>
+    <tr><td>maximální otáčení</td><td>\(\omega_{max} = \pi/6\) rad/s = 30 °/s</td></tr>
+    <tr><td>zrychlení</td><td>\(a = 0{,}5\) m/s² (stejné pro brzdění)</td></tr>
+    <tr><td>perioda regulátoru</td><td>\(T_s = 100\) ms</td></tr>
+    <tr><td>rozchod kol</td><td>0,41 m</td></tr>
+    <tr><td>tolerance uzlu</td><td>\(\varepsilon = 0{,}1\) m, z toho 1 cm rezerva</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Roh je oblouk</h2>
+  <p>Dráha je lomená čára a lomený bod se projet nedá &mdash; v něm by se muselo zastavit a otočit.
+     Tolerance \(\varepsilon\) ale říká, jak daleko od uzlu smí robot projet, a to je přesně místo
+     pro <b>oblouk vepsaný do rohu</b>.</p>
+</section>
+
+<figure>
+  <div class="diagram stredni">
+  <svg viewBox="50 50 520 310" role="img" aria-label="Roh dvou useku drahy: vepsany kruhovy oblouk o polomeru R se dotyka obou useku, jeho nejblizsi bod lezi od uzlu o toleranci epsilon, tecna delka je T.">
+    <defs>
+      <marker id="r1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"></polygon>
+      </marker>
+      <marker id="r1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--accent)"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+
+      <!-- cela kruznice, ze ktere je oblouk vyrizly -->
+      <circle cx="333.81" cy="220.00" r="80" fill="none" stroke="currentColor"
+              stroke-opacity=".22" stroke-dasharray="5 6"></circle>
+
+      <!-- lomena draha -->
+      <path d="M90 300 H380 L505 83.5" stroke="currentColor" stroke-opacity=".55" stroke-width="1.6" fill="none"></path>
+      <!-- prodlouzeni vstupniho useku (reference pro uhel theta) -->
+      <path d="M380 300 H470" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 4" fill="none"></path>
+
+      <!-- vepsany oblouk -->
+      <path d="M333.81 300 A 80 80 0 0 0 403.09 260.00" stroke="var(--accent)" stroke-width="2.6" fill="none"></path>
+
+      <!-- uhel theta -->
+      <path d="M438 300 A 58 58 0 0 0 409.00 249.78" stroke="currentColor" stroke-opacity=".8" fill="none"></path>
+      <text x="448" y="272" font-size="16" font-style="italic">&#952;</text>
+
+      <!-- osa uhlu a polomer -->
+      <path d="M380 300 L333.81 220.00" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="4 4" fill="none"></path>
+      <path d="M333.81 220.00 V300" stroke="currentColor" stroke-width="1.3" fill="none"
+            marker-start="url(#r1)" marker-end="url(#r1)"></path>
+      <text x="326" y="266" font-size="16" font-style="italic" text-anchor="end">R</text>
+      <circle cx="333.81" cy="220.00" r="3" fill="currentColor" fill-opacity=".75"></circle>
+
+      <!-- tecna delka T -->
+      <path d="M333.81 304 V330 M380 304 V330" stroke="currentColor" stroke-opacity=".28" fill="none"></path>
+      <path d="M333.81 322 H380" stroke="currentColor" stroke-width="1.3" fill="none"
+            marker-start="url(#r1)" marker-end="url(#r1)"></path>
+      <text x="356.9" y="345" font-size="15" font-style="italic" text-anchor="middle">T</text>
+
+      <!-- epsilon: mezera mezi uzlem a obloukem -->
+      <path d="M380 300 L373.81 289.28" stroke="var(--accent)" stroke-width="3.2" fill="none"></path>
+      <path d="M432 332 L381.5 296.5" stroke="var(--accent)" stroke-width="1.3" fill="none" marker-end="url(#r1a)"></path>
+      <text x="438" y="338" font-size="16" fill="var(--accent)" font-style="italic">&#949;</text>
+
+      <!-- body dotyku a uzel -->
+      <circle cx="333.81" cy="300" r="3.4" fill="var(--accent)"></circle>
+      <circle cx="403.09" cy="260.00" r="3.4" fill="var(--accent)"></circle>
+      <circle cx="380" cy="300" r="4" fill="currentColor"></circle>
+      <text x="390" y="318" font-size="14" fill="currentColor" fill-opacity=".75">uzel</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Roh se prokládá kružnicí, která se dotýká obou úseků. Její střed leží na ose úhlu;
+    <b>nejbližší bod oblouku</b> je od uzlu vzdálený právě tolik, kolik dovoluje tolerance
+    \(\varepsilon\). Tím je poloměr \(R\) jednoznačně určený úhlem zatáčky \(\theta\).</figcaption>
+</figure>
+
+<section>
+  <p>Střed vepsané kružnice leží na ose úhlu ve vzdálenosti \(R/\cos(\theta/2)\) od uzlu, takže
+     nejbližší bod oblouku je od uzlu vzdálený o rozdíl (1). Položíme-li ho rovný toleranci, vyjde
+     poloměr (2); tečná délka rohu je (3).</p>
+  <div class="mathblock">
+  $$\begin{align}
+  e &= \frac{R}{\cos(\theta/2)} - R = R\,\frac{1-\cos(\theta/2)}{\cos(\theta/2)} \tag{1}\\
+  R &= \varepsilon\,\frac{\cos(\theta/2)}{1-\cos(\theta/2)} \tag{2}\\
+  T &= R\,\tan(\theta/2) \tag{3}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(\theta\)</b><span>úhel zatáčky &mdash; změna směru mezi vstupním a výstupním úsekem</span></div>
+    <div><b>\(R\)</b><span>poloměr oblouku vepsaného do rohu</span></div>
+    <div><b>\(\varepsilon\)</b><span>tolerance průjezdu uzlem</span></div>
+    <div><b>\(T\)</b><span>tečná délka &mdash; jak daleko před uzlem oblouk začíná</span></div>
+  </div>
+
+  <p>Oba krajní případy vycházejí samy: pro \(\theta \to 0\) (rovný průjezd) roste \(R\) nade
+     všechny meze a roh neomezuje nic, pro \(\theta \to \pi\) (otočka) jde \(R\) k nule, tedy
+     k zastavení. Zbývá jedno hlídání: tečná délka \(T\) nesmí přesáhnout polovinu kratšího
+     sousedního úseku, jinak by se dva sousední oblouky překryly. Když k tomu dojde, poloměr se
+     zmenší &mdash; a robot v tom rohu pojede pomaleji, než by geometrie sama žádala.</p>
+
+  <h2>Kolik se v rohu smí jet</h2>
+  <p>Po oblouku o poloměru \(R\) jede robot s úhlovou rychlostí \(v/R\), a ta je shora omezená.
+     Odtud strop rychlosti v uzlu (4).</p>
+  <div class="mathblock">
+  $$\begin{align}
+  v_{roh} &= \omega_{max}\,R \tag{4}
+  \end{align}$$
+  </div>
+
+  <div class="results-wrap">
+  <table class="results">
+    <tr><th style="text-transform:none">\(\theta\)</th><th style="text-transform:none">\(R\) [m]</th><th style="text-transform:none">\(\omega_{max}R\) [m/s]</th><th>strop v uzlu [m/s]</th><th>co ho určuje</th></tr>
+    <tr><td>90°</td><td>0,217</td><td>0,11</td><td>0,11</td><td>otáčení</td></tr>
+    <tr><td>60°</td><td>0,582</td><td>0,30</td><td>0,30</td><td>otáčení</td></tr>
+    <tr><td>45°</td><td>1,092</td><td>0,57</td><td>0,57</td><td>otáčení</td></tr>
+    <tr><td>40°</td><td>1,402</td><td>0,73</td><td>0,73</td><td>otáčení</td></tr>
+    <tr><td class="win">≈&nbsp;32°</td><td class="win">2,292</td><td class="win">1,20</td><td class="win">1,20</td><td class="win">zlom</td></tr>
+    <tr><td>30°</td><td>2,551</td><td>1,34</td><td>1,20</td><td>\(v_{max}\)</td></tr>
+    <tr><td>15°</td><td>10,43</td><td>5,46</td><td>1,20</td><td>\(v_{max}\)</td></tr>
+  </table>
+  </div>
+  <p>Tabulka je počítaná pro \(\varepsilon = 0{,}09\) m (tedy 10 cm bez rezervy, viz níž) a hodnoty
+     robotu z boxu nahoře. Zajímavý je <b>zlom u \(\theta \approx 32^\circ\)</b>: ostřejší rohy sráží
+     rychlost limit otáčení, mírnější už nesráží nic a jede se naplno. Pravoúhlá zatáčka znamená
+     0,11 m/s &mdash; jedenáctinu plné rychlosti.</p>
+
+  <h3>Oblouk, ne klotoida</h3>
+  <p>Robot ve skutečnosti oblouk nejede. Rotační rychlost se nemůže změnit skokem, takže křivost
+     náběhá a skutečná křivka je klotoida. Rozhoduje, kolik stupňů robot projede, než se otáčení
+     rozběhne na \(\omega_{max}\) &mdash; vztah (5), kde \(\alpha\) je úhlové zrychlení plynoucí
+     z rozchodu kol.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \varphi &= \frac{\omega_{max}^{2}}{2\alpha},\qquad
+  \alpha = \frac{a}{\text{rozchod}/2} = \frac{0{,}5}{0{,}205} \approx 2{,}44\ \text{rad/s}^2
+  \ \Rightarrow\ \varphi \approx 3{,}2^\circ \tag{5}
+  \end{align}$$
+  </div>
+  <p>Proti běžné zatáčce 30&ndash;90° je náběh 3,2° malý, takže oblouk je dobrá aproximace. Příčný
+     posun klotoidy proti oblouku \(\Delta \approx L_c^2/(24R)\) vychází v celém rozsahu pod
+     <b>1,2 mm</b> &mdash; nejhůř právě u toho zlomu, kde se potkávají oba limity. Neřeší se to
+     přesnější křivkou, ale tak, že se z tolerance odečte <b>1 cm rezervy</b> a rohy se plánují na
+     zbytek. Rezerva zároveň kryje seříznutí zatáčky při vlastním řízení.</p>
+</section>
+
+<section>
+  <h2>Brzdná obálka</h2>
+  <p>Strop v uzlu sám o sobě nestačí &mdash; do pomalého uzlu se musí stihnout dobrzdit, a to začíná
+     dávno před ním. Přes celou dráhu se proto od konce projde <b>zpětným průchodem</b> (6): rychlost
+     na vstupu úseku nesmí přesáhnout ani vlastní strop uzlu, ani rychlost, ze které se ještě dá
+     ubrzdit na strop uzlu následujícího.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  v_{vstup} &= \min\Bigl(v_{uzel},\ \sqrt{v_{v\acute{y}stup}^{2} + 2aL}\Bigr) \tag{6}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(L\)</b><span>délka úseku</span></div>
+    <div><b>\(a\)</b><span>zrychlení (a brzdění)</span></div>
+    <div><b>\(v_{uzel}\)</b><span>vlastní strop uzlu &mdash; z rohu podle (4), z \(v_{max}\), nebo zadaný plánovačem</span></div>
+  </div>
+  <p>Výsledkem je <b>brzdná obálka</b>: <i>nejvyšší rychlost v místě \(s\), ze které ještě stihnu
+     splnit všechno, co je přede mnou.</i> Není to průběh rychlosti, je to strop.</p>
+</section>
+
+<figure>
+  <div class="diagram stredni">
+  <svg viewBox="0 0 620 366" role="img" aria-label="Graf brzdne obalky podel drahy: strop rychlosti klesa pred pravouhlym rohem ve dvou metrech na 0,11 m/s, za nim se vraci na maximum a pred koncem v 5,5 metru klesa k nule.">
+    <defs>
+      <marker id="r2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--plan)"></polygon>
+      </marker>
+      <marker id="r2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+      <!-- osy -->
+      <path d="M72 300 V76" stroke="var(--plan)" stroke-width="1.4" fill="none" marker-end="url(#r2)"></path>
+      <path d="M72 300 H566" stroke="var(--plan)" stroke-width="1.4" fill="none" marker-end="url(#r2)"></path>
+      <text x="34" y="186" font-size="13" fill="var(--plan)" transform="rotate(-90 34 186)" text-anchor="middle">v [m/s]</text>
+      <text x="574" y="306" font-size="13" fill="var(--plan)" font-style="italic">s [m]</text>
+
+      <!-- vodorovne ticky -->
+      <path d="M66 214 H72 M66 128 H72" stroke="currentColor" stroke-opacity=".45" fill="none"></path>
+      <text x="60" y="219" font-size="12" text-anchor="end" fill-opacity=".7">0,5</text>
+      <text x="60" y="133" font-size="12" text-anchor="end" fill-opacity=".7">1,0</text>
+
+      <!-- vmax -->
+      <path d="M72 93.6 H545" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="6 5" fill="none"></path>
+      <text x="452" y="88" font-size="12.5" fill-opacity=".7">v max = 1,20</text>
+
+      <!-- svisle vodici cary uzlu -->
+      <path d="M156 300 V126.9 M240 300 V280.4 M366 300 V93.6 M534 300 V93.6"
+            stroke="currentColor" stroke-opacity=".2" stroke-dasharray="3 5" fill="none"></path>
+
+      <!-- obalka -->
+      <polyline fill="none" stroke="var(--accent)" stroke-width="2.6" points="72.0,93.6 120.3,93.7 122.4,95.5 126.6,99.2 130.8,102.9 135.0,106.7 139.2,110.6 143.4,114.5 147.6,118.5 151.8,122.7 156.0,126.9 160.2,131.2 164.4,135.7 168.6,140.2 172.8,144.9 177.0,149.8 181.2,154.8 185.4,159.9 189.6,165.3 193.8,170.9 198.0,176.8 202.2,183.0 206.4,189.5 210.6,196.4 214.8,203.8 219.0,211.8 223.2,220.6 227.4,230.6 231.6,242.2 235.8,256.8 237.9,266.5 240.0,280.4"></polyline>
+      <polyline fill="none" stroke="var(--accent)" stroke-width="2.6" points="242.1,93.6 412.2,93.6 414.3,94.7 418.5,98.3 422.7,102.0 426.9,105.8 431.1,109.6 435.3,113.6 439.5,117.6 443.7,121.7 447.9,125.9 452.1,130.2 456.3,134.6 460.5,139.1 464.7,143.8 468.9,148.6 473.1,153.5 477.3,158.7 481.5,164.0 485.7,169.6 489.9,175.4 494.1,181.5 498.3,187.9 502.5,194.7 506.7,201.9 510.9,209.8 515.1,218.4 519.3,228.0 523.5,239.2 527.7,252.9 531.9,272.8 534.0,300.0"></polyline>
+      <path d="M240 280.4 V93.6" stroke="var(--accent)" stroke-opacity=".35" stroke-dasharray="4 4" fill="none"></path>
+
+      <!-- vlastni strop uzlu 1 (1,20) srazeny zpetnym pruchodem na 1,01 -->
+      <circle cx="156" cy="93.6" r="4" fill="none" stroke="currentColor" stroke-opacity=".6"></circle>
+      <path d="M156 99 V120" stroke="currentColor" stroke-opacity=".6" stroke-width="1.2" fill="none" marker-end="url(#r2m)"></path>
+      <circle cx="156" cy="126.9" r="4" fill="var(--accent)"></circle>
+      <text x="148" y="148" font-size="12.5" text-anchor="end">1,01 m/s</text>
+      <text x="148" y="164" font-size="11.5" fill-opacity=".6" text-anchor="end">zpětný průchod</text>
+
+      <!-- roh -->
+      <circle cx="240" cy="280.4" r="4" fill="var(--accent)"></circle>
+      <text x="252" y="272" font-size="12.5">roh 90° &rarr; 0,11 m/s</text>
+
+      <!-- konec -->
+      <circle cx="534" cy="300" r="4" fill="var(--accent)"></circle>
+      <text x="528" y="284" font-size="12.5" text-anchor="end">konec, v = 0</text>
+
+      <!-- popisky osy x -->
+      <path d="M72 300 v6 M156 300 v6 M240 300 v6 M366 300 v6 M534 300 v6" stroke="currentColor" stroke-opacity=".45" fill="none"></path>
+      <text x="72" y="322" font-size="12" text-anchor="middle" fill-opacity=".7">0</text>
+      <text x="156" y="322" font-size="12" text-anchor="middle" fill-opacity=".7">1</text>
+      <text x="240" y="322" font-size="12" text-anchor="middle" fill-opacity=".7">2</text>
+      <text x="366" y="322" font-size="12" text-anchor="middle" fill-opacity=".7">3,5</text>
+      <text x="534" y="322" font-size="12" text-anchor="middle" fill-opacity=".7">5,5</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Brzdná obálka nad dráhou s pravoúhlým rohem ve dvou metrech a zastavením v 5,5 m.
+    Uzel v jednom metru má <b>vlastní</b> strop 1,20 m/s (prázdné kolečko), zpětný průchod ho ale
+    srazí na 1,01 m/s &mdash; jinak by se roh nedal ubrzdit. Za rohem obálka skokem vyskočí zpět:
+    je to <b>strop</b>, ne průběh rychlosti, a zrychlení už řeší regulátor živě.</figcaption>
+</figure>
+
+<section>
+  <p>Z 1,2 m/s se při \(a = 0{,}5\) m/s² brzdí 1,44 m. Pravoúhlý roh, ve kterém se smí jen
+     0,11 m/s, si tedy vyžádá začátek brzdění 1,43 m před sebou &mdash; a když je předchozí úsek
+     dlouhý jen metr, nesmí se do něj vletět rychleji než \(\sqrt{0{,}11^2 + 2\cdot 0{,}5\cdot 1}
+     = 1{,}01\) m/s. Odtud se omezení šíří dál dozadu, dokud ho nepřebije \(v_{max}\).</p>
+
+  <div class="note"><b>Zpětný průchod ano, dopředný ne.</b> Akcelerační průchod by musel
+    předpokládat, jakou rychlostí robot do dráhy vjede &mdash; a to plán neví. Zrychlení proto
+    počítá regulátor živě ze <b>skutečné</b> rychlosti, kterou zná až v okamžiku jízdy. Plán nese
+    jen to, co plyne z budoucnosti, ne z minulosti.</div>
+
+  <h2>Exekuce: dvě čísla každých sto milisekund</h2>
+  <p>Každý takt se udělá totéž:</p>
+  <ul>
+    <li><b>Lokalizace.</b> Kolmý průmět pózy na úseky dráhy dá ujetou délku a index úseku. Hledá se
+        jen lokálně kolem posledního známého úseku &mdash; robot se za 100 ms daleko nedostane.</li>
+    <li><b>Dopředná rychlost.</b> Jediný dotaz na kinematický profil: <i>jak rychle mám jet, abych
+        ve vzdálenosti \(d\) byl na stropu \(v_k\).</i> Stačí <b>nejbližší uzel před robotem</b>,
+        protože jeho strop už přes zpětný průchod obsahuje celou budoucnost &mdash; z něj se dá
+        ubrzdit na další, z toho na další, a tak dál. Indukcí je to bezpečné.</li>
+    <li><b>Otáčení.</b> Úhlová odchylka \(\beta\) na cílový uzel, z ní zásah \(\omega\) přes týž
+        profil.</li>
+    <li><b>Vazba obojího.</b> Dopředná rychlost se shora omezí tak, aby se robot stihnul natočit
+        &mdash; vztah (7). Je-li \(|\beta| &gt; \pi/2\), je dopředná rychlost nula a robot se otočí
+        na místě.</li>
+  </ul>
+  <div class="mathblock">
+  $$\begin{align}
+  v &\le \frac{d}{k\,T_{rot}} \tag{7}
+  \end{align}$$
+  </div>
+  <div class="legend">
+    <div><b>\(d\)</b><span>vzdálenost k cílovému bodu řízení</span></div>
+    <div><b>\(T_{rot}\)</b><span>doba, za kterou se robot na cílový bod natočí</span></div>
+    <div><b>\(k\)</b><span>koeficient stability, \(k = 4\)</span></div>
+    <div><b>\(\beta\)</b><span>úhlová odchylka na cílový bod</span></div>
+  </div>
+  <p>Poslední bod vypadá nevinně a je to nejzajímavější místo celého regulátoru.</p>
+</section>
+
+<section>
+  <h2>Omezovač, který se díval na vlastní výstup</h2>
+  <p>Vztah (7) říká rozumnou věc: <i>nejeď dál, než kam se stihneš natočit.</i> Všechno ale závisí
+     na tom, odkud se vezme \(d\).</p>
+  <p>Původně se robot natáčel na <b>virtuální bod na ideální trase</b>, umístěný tím dál, čím
+     rychleji jede &mdash; vztah (8). To samo o sobě dává smysl: při vyšší rychlosti se robot dívá
+     dál dopředu. Dosazením (8) do (7) ale vznikne nerovnost, ve které je \(v\) na obou stranách.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  d &= \max(d_{min},\ \tau v),\qquad d_{min} = 0{,}15\ \text{m},\ \tau = 0{,}3\ \text{s} \tag{8}\\
+  v &\le \frac{\max(d_{min},\ \tau v)}{k\,T_{rot}} \tag{9}
+  \end{align}$$
+  </div>
+  <p>Ve větvi, kde \(\tau v &gt; d_{min}\), se z (9) stane \(v \le v \cdot \tau/(k\,T_{rot})\).
+     Ta je pro \(\tau/(k\,T_{rot}) &lt; 1\) splnitelná jedině pro \(v \le 0\) &mdash; soustava se
+     tedy vždycky sesune do druhé větve a ustálí se na podlaze (10).</p>
+  <div class="mathblock">
+  $$\begin{align}
+  v &\le \frac{d_{min}}{k\,T_{rot}} \tag{10}
+  \end{align}$$
+  </div>
+</section>
+
+<figure>
+  <div class="diagram stredni">
+  <svg viewBox="0 0 720 300" role="img" aria-label="Dve schemata vedle sebe: vlevo cilovy bod pocitany z rychlosti tvori zpetnou vazbu z omezovace zpet na jeho vlastni vstup, vpravo je cilovy bod uzel drahy a smycka neni.">
+    <defs>
+      <marker id="r3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--block)"></polygon>
+      </marker>
+      <marker id="r3f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="var(--free)"></polygon>
+      </marker>
+      <marker id="r3n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"></polygon>
+      </marker>
+    </defs>
+    <g font-family="Archivo, Arial, sans-serif" fill="currentColor">
+
+      <!-- ===== levy panel: vada ===== -->
+      <text x="184" y="24" font-size="12" text-anchor="middle" fill="var(--block)"
+            letter-spacing="1.2">DŘÍV &mdash; CÍL BYL VIRTUÁLNÍ BOD</text>
+
+      <rect x="54" y="48" width="260" height="58" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".7"></rect>
+      <text x="184" y="70" font-size="11" text-anchor="middle" fill-opacity=".6" letter-spacing="1">CÍLOVÝ BOD</text>
+      <text x="184" y="91" font-size="15" text-anchor="middle" font-style="italic">d = max(0,15 ; 0,3&#183;v)</text>
+
+      <path d="M184 106 V138" stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#r3n)"></path>
+      <text x="194" y="128" font-size="14" font-style="italic">d</text>
+
+      <rect x="54" y="146" width="260" height="58" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".7"></rect>
+      <text x="184" y="168" font-size="11" text-anchor="middle" fill-opacity=".6" letter-spacing="1">OMEZOVAČ</text>
+      <text x="184" y="189" font-size="15" text-anchor="middle" font-style="italic">v &#8804; d / (4&#183;T<tspan font-size="11" dy="3">rot</tspan><tspan dy="-3">)</tspan></text>
+
+      <path d="M314 175 H336 V240 H38 V77 H50" stroke="var(--block)" stroke-width="1.8" fill="none" marker-end="url(#r3b)"></path>
+      <text x="187" y="258" font-size="13" text-anchor="middle" fill="var(--block)">v &mdash; vlastní výstup zpátky na vstup</text>
+
+      <!-- ===== pravy panel: lecba ===== -->
+      <text x="544" y="24" font-size="12" text-anchor="middle" fill="var(--free)"
+            letter-spacing="1.2">DNES &mdash; CÍL JE UZEL DRÁHY</text>
+
+      <rect x="414" y="48" width="260" height="58" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".7"></rect>
+      <text x="544" y="70" font-size="11" text-anchor="middle" fill-opacity=".6" letter-spacing="1">CÍLOVÝ BOD</text>
+      <text x="544" y="91" font-size="15" text-anchor="middle" font-style="italic">d = vzdálenost k uzlu dráhy</text>
+
+      <path d="M544 106 V138" stroke="currentColor" stroke-width="1.4" fill="none" marker-end="url(#r3n)"></path>
+      <text x="554" y="128" font-size="14" font-style="italic">d</text>
+
+      <rect x="414" y="146" width="260" height="58" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".7"></rect>
+      <text x="544" y="168" font-size="11" text-anchor="middle" fill-opacity=".6" letter-spacing="1">OMEZOVAČ</text>
+      <text x="544" y="189" font-size="15" text-anchor="middle" font-style="italic">v &#8804; d / (4&#183;T<tspan font-size="11" dy="3">rot</tspan><tspan dy="-3">)</tspan></text>
+
+      <path d="M544 204 V240" stroke="var(--free)" stroke-width="1.8" fill="none" marker-end="url(#r3f)"></path>
+      <text x="544" y="258" font-size="13" text-anchor="middle" fill="var(--free)">v &mdash; ven, smyčka se nezavírá</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption>Tentýž omezovač dvakrát. Vlevo dostává na vstup vzdálenost odvozenou z rychlosti,
+    kterou sám právě omezil &mdash; a soustava se sesune na podlahu. Vpravo přichází vzdálenost
+    z <b>geometrie dráhy</b>, tedy zvenčí; nerovnost zůstane nerovností a přestane být rovnicí
+    o sobě samé.</figcaption>
+</figure>
+
+<section>
+  <p>Na robotu to vyšlo takhle. Dorovnání odchylky 11,9° trvá při \(\omega_{max} = 30\) °/s celých
+     \(T_{rot} = 0{,}786\) s, takže (10) dává \(0{,}15/(4\cdot 0{,}786) = \mathbf{0{,}048}\) m/s.
+     Robot přesně tolik jel &mdash; ačkoli plánovač povoloval 1,2 m/s a brzdná obálka 0,95 m/s.
+     Iterace vztahu (9) je rychlá: 1,20 &rarr; 0,11 &rarr; 0,048 m/s. Aby ze vztahu (7) vyšlo
+     zpátky 1,2 m/s, musel by být cílový bod <b>3,8 m</b> daleko.</p>
+
+  <p>Smyčka by se otevřela jedině při \(\tau \ge k\,T_{rot}\), tedy \(T_{rot} \le 0{,}075\) s.
+     Při 30 °/s je to odchylka pod 2,3° &mdash; prakticky nikdy. Nebyla to tedy mez, do které
+     robot občas narazí; byl to stav, ze kterého se soustava sama nedostane.</p>
+
+  <h3>Léčba: cílem je uzel dráhy</h3>
+  <p>Robot se natáčí na <b>skutečný uzel dráhy</b> před sebou a do <b>téže</b> vzdálenosti se váže
+     dopředná rychlost. Směr i vzdálenost tak pocházejí z jednoho bodu &mdash; jsou to dvě strany
+     téhož: <i>mířím tam a tam se musím stihnout natočit.</i> \(d\) je vzdálenost daná geometrií
+     dráhy, ne vlastním výstupem.</p>
+  <p>Uzel blíž než \(d_{min}\) se přeskakuje. Bez toho by to nešlo ze dvou důvodů: azimut k bodu,
+     na kterém robot prakticky stojí, poskakuje o desítky stupňů, a vzdálenost k němu jde k nule
+     &mdash; takže by (7) robota zastavil na <b>každém</b> uzlu. \(d_{min}\) tedy zůstalo, ale už
+     neurčuje cíl, jen práh <i>„tenhle uzel už mám za sebou&#8220;</i>.</p>
+  <p>Přesnost průjezdu se tím přesunula tam, kam patří: řídí ji <b>hustota uzlů</b> a jejich
+     tolerance. Kde je potřeba projet přesně, nasází plánovač uzly blízko sebe &mdash; a protože se
+     dráha přeplánovává z aktuální pózy každý snímek kamery, příčná odchylka se průběžně vynuluje
+     sama.</p>
+
+  <div class="note"><b>Nebyl to špatný vzorec.</b> Vztahy (7) i (8) jsou každý zvlášť správné
+    a obhajitelné, a oba by prošly kontrolou jednotek i testem sebe sama. Vada vznikla teprve
+    jejich <b>složením</b> &mdash; omezovač dostal na vstup veličinu odvozenou z vlastního výstupu.
+    Takovou věc neodhalí kontrola jedné funkce; vidí ji až otázka, odkud se to číslo bere.</div>
+</section>
+
+<section>
+  <h2>A nakonec dvě čísla pro motory</h2>
+  <p>Výstup regulátoru se převede na příkaz pro motorovou jednotku podle (11): dopředná rychlost
+     zůstane, rotace se přepočte na <b>offset na kolo</b>.</p>
+  <div class="mathblock">
+  $$\begin{align}
+  \mathit{dif} &= \omega\,\frac{\text{rozchod}}{2} \tag{11}
+  \end{align}$$
+  </div>
+  <p>Ta polovina tam patří právě proto, že \(\mathit{dif}\) je offset na jedno kolo, ne rozdíl
+     rychlostí kol: driver ho k jednomu kolu přičte a od druhého odečte, takže
+     \(v_P - v_L = \omega \cdot \text{rozchod} = 2\,\mathit{dif}\). Bez ní robot zatáčel
+     <b>dvakrát rychleji</b>, než regulátor chtěl.</p>
+
+  <div class="note"><b>Když plán přestane chodit.</b> Řídicí smyčka běží nezávisle na tom, jestli
+    vyšší vrstvy stíhají. Když déle než půl sekundy nepřijde nová dráha, robot nedostane volant
+    z ruky &mdash; dobrzdí <b>po poslední známé trase</b>. V zatáčce je řízené dobrzdění po
+    posledním plánu pořád lepší než pustit řízení.</div>
+</section>
+
+<footer>
+  <div class="foot-in">
+    <span class="mono">ARBOT &middot; AUTONOMNÍ MOBILNÍ ROBOT</span>
+    <span>Zdrojový kód, vývojová dokumentace a měření:
+      <a href="https://github.com/AlesRuda/ARBot3">github.com/AlesRuda/ARBot3</a></span>
+  </div>
+</footer>
+</main>

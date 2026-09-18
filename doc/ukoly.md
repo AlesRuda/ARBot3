@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **201**: otevřeno **45** · v kódu, na HW neověřeno **41** · hotovo **106** · odloženo **7** · zamítnuto **2**.
+Témat celkem **204**: otevřeno **46** · v kódu, na HW neověřeno **41** · hotovo **108** · odloženo **7** · zamítnuto **2**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -57,6 +57,7 @@ Témat celkem **201**: otevřeno **45** · v kódu, na HW neověřeno **41** · 
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)](#lp-path-following-stara-cisla) | 18. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Robotour jako stavový automat s QR kódy](#mise-robotour) | 11. 8. 2026 | [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot by zatáčel dvakrát rychleji, než regulátor chce](#lp-omega-dif-faktor-a-znamenko) | 12. 8. 2026 |  |
@@ -806,6 +807,18 @@ Lokální plánovač dostane z trasy po síti cest jen jediný bod (mrkev), tak�
 - [ ] Měkká cena podle vzdálenosti od osy cesty v A* (jen kde vize okraj nevidí)
 
 [global-navigation-runtime.md](global-navigation-runtime.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [LocalPathPlanner.cs](../Src/ARBot.Common/Occupancy/LocalPathPlanner.cs) · DevLog [2026-08-27](devlog.md#2026-08-27)
+
+<a id="lp-path-following-stara-cisla"></a>
+### ⬜ Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)
+
+`lp-path-following-stara-cisla` · vada · **otevřeno** · nalezeno 18. 9. 2026
+
+Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebírala z dokumentu, ale počítala znovu z `Profile.cs`. Dokument uvádí u tabulek „hodnoty z `Profile`“, ale ty hodnoty tam dnes nejsou: `MaxAllowedSpeed` je 1,2 m/s (provozní profil 1 m/s) a `MaxAcceleration` 0,5 m/s², kdežto tabulky oblouk-vs-klotoida i lookahead počítají s 0,8 a 0,2. Důsledky nejsou kosmetické — úhlové zrychlení vychází 2,44 rad/s² místo 0,98, náběh rotace 3,2° místo 8° a nejhorší případ (kde se potkává limit otáčení s `v_max`) leží na ~32°, ne na ~40°. Závěry tím nepadají (náběh je pořád malý proti běžné zatáčce, chyba oblouku hluboko pod rezervou 1 cm), ale konkrétní čísla v obou tabulkách neplatí. Je to táž třída vady jako `maxspeed=1` v `pi-freerun.cfg`, kde komentář popisoval počáteční hodnotu, ačkoli se strop mezitím zvedl — autoritativní je kód, dokument se zapomněl přepsat.
+
+- [ ] Přepočítat obě tabulky v `path-following.md` z dnešního `Profile.cs`
+- [ ] Zvážit, jestli jde hlídat testem (jako `ProfilyBezpecnostTests` u stropu rychlosti)
+
+[path-following.md](path-following.md), [Profile.cs](../Src/ARBot.Common/Configuration/Profile.cs) · DevLog [2026-09-18](devlog.md#2026-09-18)
 
 <a id="lp-omega-dif-faktor-a-znamenko"></a>
 ### 🧪 Robot by zatáčel dvakrát rychleji, než regulátor chce
@@ -2708,4 +2721,28 @@ Na podnět autora („uhlídat, aby si to odpovídalo, není jednoduché“) se 
 - [x] `DokumentaceOdkazyTests`, opravy rozporů v `CLAUDE.md` a `doc/*.md` (15. 9. 2026)
 
 [configuration.md](configuration.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
+
+<a id="web-clanek-regulator"></a>
+### ✅ Článek o regulátoru sledování dráhy a skupina „Technické články“ na webu
+
+`web-clanek-regulator` · záměr · **hotovo** · nalezeno 18. 9. 2026 · vyřešeno 18. 9. 2026
+
+Třetí technický článek ve stylu *Modelu podvozku* a *Detekce kraje vozovky*: odvození poloměru oblouku vepsaného do rohu z tolerance uzlu, strop rychlosti z limitu otáčení, brzdná obálka ze zpětného průchodu, exekuce každých 100 ms — a jako pointa západka, kdy omezovač `v ≤ d/(k·T_rot)` dostával `d = max(d_min, τ·v)`, tedy veličinu odvozenou z vlastního výstupu; ukázáno, že větev `τ·v > d_min` je nesplnitelná a soustava se sesune na podlahu 0,048 m/s, což je přesně to, co se 14. 8. 2026 naměřilo na robotu. Tři ručně psaná inline SVG, souřadnice dopočítané skriptem z týchž vzorců, které stránka odvozuje. Čísla jsou přepočítaná z `Profile.cs` (v_max 1,2 m/s, a 0,5 m/s²), ne opsaná z `path-following.md`, kde zůstaly starší hodnoty 0,8 a 0,2 — proto vychází zlom mezi limitem otáčení a `v_max` na 32° a náběh rotace na 3,2°, ne na 40° a 8°. Zároveň se na přání autora přestalo menu prodlužovat s každým článkem: *Model podvozku* a *Detekce kraje vozovky* z lišty zmizely a nahradil je rozcestník *Technické články*. Rozbalovací podmenu se zamítlo — lišta by rostla donekonečna, dropdown chce vlastní CSS a na dotykovém displeji se hover chová hůř. Druhý tehdejší důvod („menu je natvrdo ve 22 místech, takže dropdown = 22 editací u každého článku“) padl ještě týž den, viz `web-menu-generator`; rozhodnutí na něm ale nestálo a platí dál.
+
+- [x] Stránka `regulator-sledovani-drahy.html` (3 SVG, vzorce 1–11) (18. 9. 2026)
+- [x] Rozcestník `technicke-clanky.html`, menu přepsané ve 21 HTML + generátoru (18. 9. 2026)
+
+[regulator-sledovani-drahy.html](../web/pages/regulator-sledovani-drahy.html), [technicke-clanky.html](../web/pages/technicke-clanky.html), [path-following.md](path-following.md) · DevLog [2026-09-18](devlog.md#2026-09-18)
+
+<a id="web-menu-generator"></a>
+### ✅ Menu webu opsané ve 22 místech — generátor `tools/menu.cs`
+
+`web-menu-generator` · záměr · **hotovo** · nalezeno 18. 9. 2026 · vyřešeno 18. 9. 2026
+
+Z dotazu autora „přišlo mi komplikované dávat menu na 22 míst a bude jich více“. Hlavička `<header class="sitehead">` byla opsaná v každé stránce zvlášť — 21 HTML plus kopie v `tools/ukoly.cs` — a rostlo to s každou novou stránkou; `web/README.md` to vedlo jako vědomý dluh od 16. 9. Nový nástroj drží menu na jednom místě a přepisuje ten blok ve všech `web/**/*.html`; CI job `generovane-soubory` pustí `ukoly.cs`, pak `menu.cs` a porovná výsledek s commitem, takže ručně upravená hlavička i zapomenuté spuštění spadnou. Pořadí je povinné — `ukoly.cs` vypíše prázdnou hlavičku a naplní ji až `menu.cs`. Zamítnuty Jekyll (`_layouts`) i skládání stránek až ve workflow: obojí by porušilo to hlavní, co o složce `web/` platí — že je přesně tím, co se publikuje, takže se web dá prohlédnout lokálně a rozbitý výstup se pozná před pushem, ne až na živém webu. Ověření, že převod nic nezměnil, je silné: **první běh generátoru nepřepsal ani jeden z 21 souborů**, tedy vyrobil bajt po bajtu totéž, co tam bylo ručně. Navíc zmizel ruční `class="on"` — stránka bez vlastní položky v menu je zapsaná ve skupině (články o soutěžích, technické články) a zvýraznění vyrábí generátor. Stránka, kterou nástroj nezná, je chyba (kód 1, nepřepíše nic): jinak by na ní nebylo zvýrazněné nic.
+
+- [x] `tools/menu.cs`, menu vyňaté z `tools/ukoly.cs`, CI job `generovane-soubory` (18. 9. 2026)
+- [x] Ověřeno — první běh beze změny, změna položky propadne do 21 stránek, neznámá stránka spadne (18. 9. 2026)
+
+[web/README.md](../web/README.md), [menu.cs](../tools/menu.cs) · DevLog [2026-09-18](devlog.md#2026-09-18)
 

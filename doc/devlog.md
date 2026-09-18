@@ -40,6 +40,63 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 ---
 
 ## 2026-09-18
+- **Menu webu má generátor** (`web-menu-generator`) — *z dotazu autora* („přišlo mi komplikované
+  dávat menu na 22 míst a bude jich více“). Hlavička `<header class="sitehead">` byla opsaná
+  v 21 HTML + v `tools/ukoly.cs`; `web/README.md` to vedlo jako vědomý dluh od 16. 9.
+  - **Hotovo:** `tools/menu.cs` drží menu na jednom místě a přepisuje ten blok ve všech
+    `web/**/*.html`. Z `tools/ukoly.cs` menu zmizelo — vypisuje prázdné
+    `<header class="sitehead"></header>` a naplní ho až `menu.cs`, **pořadí je proto povinné**.
+    CI job přejmenován na `generovane-soubory`: pustí obojí a pak
+    `git diff --exit-code -- doc/ukoly.md web/`.
+  - **Silné ověření převodu:** **první běh nepřepsal ani jeden z 21 souborů** — generátor vyrobil
+    bajt po bajtu totéž, co tam bylo ručně. K tomu proklepnuté obě chování, kvůli kterým nástroj
+    vzniká: změna jedné položky propadla do všech 21 stránek, a stránka, kterou `menu.cs` nezná,
+    skončí kódem 1 a nepřepíše nic.
+  - **Vedlejší zisk:** `class="on"` se přestalo udržovat ručně. Stránka bez vlastní položky
+    v menu je zapsaná ve **skupině** (články o soutěžích, technické články) a zvýraznění vyrábí
+    generátor — dřív to bylo pravidlo uložené jen v hlavě.
+  - **Zamítnuto: Jekyll (`_layouts`) i skládání stránek až ve workflow.** Obojí by porušilo to
+    hlavní, co o složce `web/` platí: **je přesně tím, co se publikuje**, takže se dá prohlédnout
+    lokálně a rozbitý výstup se pozná před pushem, ne až na živém webu. Generátor tuhle vlastnost
+    zachovává — v souborech pořád leží hotové HTML, jen ho nepíše ruka.
+  - ⚠️ **Konce řádků se přebírají ze souboru**, ne natvrdo LF: `.gitattributes` má `* text=auto`,
+    takže pracovní kopie je na Windows CRLF a na CI LF. Pevné `\n` by na Windows vyrobilo míchané
+    konce řádků a CI by hlásilo rozdíl, který v repu není.
+  - ⚠️ **CI to neběželo** (nepushováno), stejně jako u kroku z 17. 9.
+
+- **Web: článek o regulátoru + skupina „Technické články"** (`web-clanek-regulator`) — na zadání
+  autora („v podobném stylu jako *Model podvozku* a *Detekce kraje vozovky*").
+  - **Stránka** `web/pages/regulator-sledovani-drahy.html`: rozdělení plánování/exekuce a proč ne
+    proporcionální řízení; odvození poloměru oblouku vepsaného do rohu z tolerance uzlu
+    (`R = ε·cos(θ/2)/(1−cos(θ/2))`), strop `v = ω_max·R`, brzdná obálka ze zpětného průchodu,
+    exekuce každých 100 ms a převod `ω → dif` včetně té půlky. Vzorce (1)–(11), tři ručně psaná
+    inline SVG (roh s obloukem, graf obálky, schéma zpětné vazby), souřadnice **dopočítané
+    skriptem** z týchž vzorců, které stránka odvozuje.
+  - **Pointa článku je západka z 14. 8. 2026**: omezovač `v ≤ d/(k·T_rot)` dostával
+    `d = max(d_min, τ·v)`, tedy veličinu odvozenou z vlastního výstupu. Na stránce je ukázané,
+    že větev `τ·v > d_min` je nesplnitelná, takže se soustava sesune na podlahu
+    `d_min/(k·T_rot)` = **0,048 m/s** — přesně to naměřené — a že by se smyčka otevřela jen při
+    `T_rot ≤ 75 ms`, tj. odchylce pod 2,3°.
+  - ⚠️ **Čísla se nepřebírala z `path-following.md`, ale počítala z `Profile.cs` — a rozešla se**
+    (`lp-path-following-stara-cisla`, nové téma): dokument má u tabulek „hodnoty z `Profile`",
+    ale počítá s `v_max` 0,8 m/s a `a` 0,2 m/s², kdežto kód má **1,2 a 0,5**. Proto v článku
+    vychází náběh rotace 3,2° (ne 8°) a zlom mezi limitem otáčení a `v_max` na 32° (ne ~40°).
+    Závěry dokumentu tím nepadají, konkrétní čísla v obou tabulkách ale neplatí. **Neopraveno** —
+    je to samostatná práce v `doc/`.
+  - **Menu se přestalo prodlužovat s každým článkem** — *na pokyn autora* („dal bych to do
+    vlastního menu, časem podobných článků bude víc"). *Model podvozku* a *Detekce kraje vozovky*
+    z lišty zmizely, nahradil je rozcestník `pages/technicke-clanky.html` se třemi kartami; na
+    článcích nese `class="on"` položka *Technické články*. Přepsáno mechanicky ve **21 HTML
+    + generátoru** `tools/ukoly.cs`, `historie.html` přegenerovaná (diff nulový), na úvodní
+    stránce dvě karty nahradila jedna. Zkontrolováno, že všech 355 lokálních odkazů na webu vede
+    na existující soubor.
+  - **Zamítnuto: rozbalovací podmenu v liště.** Lišta by rostla donekonečna, dropdown chce vlastní
+    CSS a na dotykovém displeji se hover chová hůř; rozcestník stojí jednu kartu. *(Druhý tehdejší
+    důvod — „menu je natvrdo ve 22 místech“ — padl ještě týž den, viz záznam o generátoru výš.
+    Rozhodnutí na něm nestálo a platí dál.)*
+  - **Ověřeno** proklikáním v prohlížeči (MathJax, SVG, tmavý podklad, průchod menu → rozcestník
+    → článek). Kód robotu se nedotklo nic.
+
 - **Příčná brána koridoru zrušena** (`lok-koridor-pricna-brana`) — vzniklo z dotazu autora
   „na kolik je nastaven parametr ovlivňující příčnou bránu?" nad `20260917-160558.rec`, kde
   koridor přijal 16 měření za 339 s.

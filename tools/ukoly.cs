@@ -8,6 +8,11 @@
 //
 // Výstup je ZÁMĚRNĚ bez časového razítka: CI porovnává vygenerované soubory s commitem
 // a razítko by je rozhodilo při každém běhu.
+//
+// HLAVIČKA WEBU (menu) se tu NEVYRÁBÍ — vypíše se jen prázdné <header class="sitehead"></header>
+// a naplní ho tools/menu.cs, který drží menu pro celý web na jednom místě. Do 18. 9. 2026 tu
+// menu bylo opsané a byla to jedna z 22 kopií. DŮSLEDEK: po tomhle generátoru se MUSÍ pustit
+// i `dotnet run tools/menu.cs`, jinak zůstane web/pages/historie.html bez menu.
 
 using System.Globalization;
 using System.Text;
@@ -341,19 +346,7 @@ public static class HtmlVystup
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 
-<header class="sitehead">
-  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
-  <nav>
-      <a href="../index.html">Úvod</a>
-      <a href="../pages/prezentace.html">Jak to funguje</a>
-      <a href="../pages/historie.html" class="on">Historie</a>
-      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
-      <a href="../pages/verze.html">Verze</a>
-      <a href="../pages/model-diferencialniho-podvozku.html">Model podvozku</a>
-      <a href="../pages/detekce-kraje-vozovky.html">Detekce kraje vozovky</a>
-      <a href="../pages/kontakt.html">Kontakt</a>
-  </nav>
-</header>
+<header class="sitehead"></header>
 <main>
   <div class="pagehead">
     <p class="eyebrow">Třetí verze softwaru, od června 2026</p>
