@@ -76,8 +76,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   profilem Robot přes sdílené uzly, nechá se ta s největší délkou cest v metrech; co se zahodilo, jde do
   Trace). Offline z pózy na náměstí: přichycení na chodník 2,4 m, cíl dosažitelný 393 m. Testy 5 + 324
   (OsmNav, konfigurace) + Runtime 140. `ARBot.Analyze route` dělá totéž (`--noprune` vypne).
+- **Nasazeno a odjeto 2. kolo Robotouru** (autor) — po ~50 m došla baterie robota.
+- **Změna pravidel Robotour: další nakládka po vykládce** (`mise-robotour-dalsi-nakladka`). Servisní
+  okno u vykládky má zapnutý skener; přečtený kód = místo další nakládky, uvolnění stopu bez kódu =
+  depo (`CodeExpected` vs. `CodeRequired`). Nové hlášení `MissionWait.QrCodeOrRelease` na stránce
+  i v UI panelu, `MissionMsg` verze 7 (`Deliveries`, `NextPickupChosen`). Testy: mise 180 (3 nové,
+  2 přepsané), Common 1 601, Runtime 140; buildy Headless i UI. ⚠️ Na zařízení neběželo.
 - **Další krok:** nasadit binárku i profil; ověřit armování s `depothdop=3`, přijetí kódu z náměstí
-  (`mapprune`) a zobrazení zamítnutí na stránce.
+  (`mapprune`), zobrazení zamítnutí na stránce a průchod vykládka → další nakládka.
 
 ## 2026-09-18
 - **Menu webu má generátor** (`web-menu-generator`) — *z dotazu autora* („přišlo mi komplikované

@@ -484,7 +484,9 @@ namespace ARBot.ViewModels
             {
                 RobotourPhase.AwaitingEStop =>
                     "Zaměř kód na tuhle kameru a pak zmáčkni nouzové zastavení — skenuje se až pod ním.",
-                RobotourPhase.Servicing => "Skenuje se. Drž stop, dokud se kód nepřečte.",
+                RobotourPhase.Servicing => stop == RobotourStop.Drop
+                    ? "Vyloženo. Ukaž kód DALŠÍ nakládky, nebo uvolni stop bez kódu — robot pojede do depa."
+                    : "Skenuje se. Drž stop, dokud se kód nepřečte.",
                 RobotourPhase.AwaitingEStopRelease =>
                     "Kód je přečtený a přijatý. Uvolni nouzové zastavení a robot vyrazí.",
                 _ => string.Empty,
@@ -614,8 +616,9 @@ namespace ARBot.ViewModels
             CanAbort = !finished && phase != RobotourPhase.Idle;
         }
 
-        private static bool CodeExpected(RobotourStop s)
-            => s == RobotourStop.Depot || s == RobotourStop.Pickup;
+        // Od 19. 9. 2026 se kod prijima na KAZDEM stanovisti (u vykladky nepovinne: kod dalsi
+        // nakladky, nebo uvolneni stopu = do depa) - viz RobotourMission.CodeExpected.
+        private static bool CodeExpected(RobotourStop s) => true;
 
         private static bool IsServiceWindow(RobotourPhase p)
             => p == RobotourPhase.AwaitingEStop

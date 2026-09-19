@@ -32,8 +32,8 @@ namespace ARBot.Common.Missions
             RobotourPhase.Idle => MissionWait.MissionStart,
             RobotourPhase.ArmingAtDepot => MissionWait.GpsFix,
             RobotourPhase.AwaitingEStop => MissionWait.EmergencyStopPressed,
-            // Do Servicing se mise dostane VYHRADNE tam, kde se kod cte: kde se necte (vykladka),
-            // jde AwaitingEStop rovnou na AwaitingEStopRelease (viz RobotourMission.OnMotors).
+            // Bez znalosti stanoviste: u depa a nakladky se ceka na kod. U vykladky je to od
+            // 19. 9. 2026 "kod NEBO uvolneni" - to rozlisi az WaitFor(phase, stop).
             RobotourPhase.Servicing => MissionWait.QrCode,
             RobotourPhase.AwaitingEStopRelease => MissionWait.EmergencyStopReleased,
             RobotourPhase.DrivingToPickup => MissionWait.Arrival,
@@ -46,6 +46,17 @@ namespace ARBot.Common.Missions
 
         /// <summary>Jako <see cref="WaitFor(RobotourPhase)"/>, ale z cisla ve zprave (<c>MissionMsg.Phase</c>).</summary>
         public static MissionWait WaitFor(int phase) => WaitFor((RobotourPhase)phase);
+
+        /// <summary>
+        /// Totez s ohledem na STANOVISTE: od zmeny pravidel Robotour (19. 9. 2026) se u vykladky
+        /// v <see cref="RobotourPhase.Servicing"/> ceka na DVE veci najednou - QR kod dalsi
+        /// nakladky, nebo uvolneni stopu bez kodu (= jizda do depa). Rozhoduje obsluha, a stranka
+        /// nahledu to musi rict; „QR kod" by ji nutil kod hledat, i kdyz uz zadny nema.
+        /// </summary>
+        public static MissionWait WaitFor(RobotourPhase phase, RobotourStop stop)
+            => phase == RobotourPhase.Servicing && stop == RobotourStop.Drop
+               ? MissionWait.QrCodeOrRelease
+               : WaitFor(phase);
 
         /// <summary>
         /// Co mise Robotour v dane fazi dela — kratky nazev do hlavicky, ne veta.
@@ -112,6 +123,7 @@ namespace ARBot.Common.Missions
             MissionWait.GpsFix => "kvalitni fix GPS",
             MissionWait.EmergencyStopPressed => "stisknuti nouzoveho zastaveni",
             MissionWait.QrCode => "QR kod",
+            MissionWait.QrCodeOrRelease => "vylozeno: QR kod DALSI nakladky, nebo uvolneni stopu bez kodu = jizda do depa",
             MissionWait.EmergencyStopReleased => "uvolneni nouzoveho zastaveni",
             MissionWait.Arrival => "dojezd k cili",
             _ => "neznamy stav " + (int)wait,

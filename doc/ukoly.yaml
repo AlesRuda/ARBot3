@@ -2613,6 +2613,41 @@ temata:
     devlog: [2026-09-19]
     ceka_na: []
 
+  - id: mise-robotour-dalsi-nakladka
+    oblast: mise
+    nazev: Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa
+    druh: zamer
+    stav: v-kodu
+    nalezeno: 2026-09-19
+    vyreseno: 2026-09-19
+    popis: >
+      Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další nakládku místo
+      návratu do depa, po ní následuje další vykládka a opět volba — dokola. V automatu je to
+      jediný rozdíl: servisní okno u vykládky má zapnutý skener a kód, který tam projde
+      strojovými kontrolami, je místo další nakládky (`nextPickupChosen`); uvolnění stopu bez
+      kódu znamená „žádná další nakládka, do depa“. Rozlišuje se `CodeExpected` (kód se přijímá
+      na každém stanovišti) a `CodeRequired` (bez něj se neodjede — depo a nakládka vrací na
+      `AwaitingEStop`). Stránka náhledu i UI panel u vykládky hlásí „vyloženo: QR kód DALŠÍ
+      nakládky, nebo uvolnění stopu bez kódu = jízda do depa“ (`MissionWait.QrCodeOrRelease`,
+      `MissionStatusText.WaitFor(phase, stop)`); „kód nevidím“ se u vykládky nehlásí. `MissionMsg`
+      je verze 7 (`Deliveries` = počet vykládek, `NextPickupChosen`); `PickupLatDeg`/`DropLatDeg`
+      jsou od té doby poslední nakládka/vykládka. Limit vzdálenosti od depa platí i pro další
+      nakládky.
+    kroky:
+      - co: 'Automat: skener u vykládky, kód = další nakládka, uvolnění bez kódu = depo; `MissionMsg` v7'
+        stav: hotovo
+        kdy: 2026-09-19
+      - co: 'Hlášení na stránce a v UI panelu (`QrCodeOrRelease`), 3 nové testy, 2 přepsané (Common 1 601, Runtime 140)'
+        stav: hotovo
+        kdy: 2026-09-19
+      - co: 'Ověřit na robotu průchod vykládka → kód další nakládky → nakládka → vykládka → depo'
+        stav: otevreno
+    odkazy:
+      - text: robotour-mission.md
+        cesta: doc/robotour-mission.md
+    devlog: [2026-09-19]
+    ceka_na: []
+
   - id: mise-robotour-depothdop
     oblast: mise
     nazev: Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný

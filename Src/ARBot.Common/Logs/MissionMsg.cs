@@ -45,8 +45,13 @@ namespace ARBot.Common.Logs
         /// <b>prichyceny na cestu</b>, ne surova souradnice z kodu. Surova zustava citelna
         /// v <see cref="AcceptedCodeText"/>, takze se z dvojice da odstup zkontrolovat — ale ve
         /// verzich 2–5 znamenaji tytez bajty surovy cil, a to se pozna jen podle cisla verze.</para>
+        ///
+        /// <para><b>Verze 7</b> (2026-09-19) pridala <see cref="Deliveries"/> a
+        /// <see cref="NextPickupChosen"/>: zmena pravidel Robotour dovoluje po vykladce dalsi
+        /// nakladku misto jizdy do depa, takze <c>PickupLatDeg</c>/<c>DropLatDeg</c> jsou od te
+        /// doby POSLEDNI nakladka/vykladka, ne jedina.</para>
         /// </summary>
-        public const int FormatVersion = 6;
+        public const int FormatVersion = 7;
 
         /// <summary>Faze (<c>RobotourPhase</c> jako int, aby zprava prezila doplneni hodnot vyctu).</summary>
         public int Phase;
@@ -119,6 +124,12 @@ namespace ARBot.Common.Logs
 
         /// <summary>Hlasi mise „kod nevidim"?</summary>
         public bool CodeNotSeen;
+
+        /// <summary>Verze 7: kolik vykladek uz probehlo (nakladek muze byt od 19. 9. 2026 vic za sebou).</summary>
+        public int Deliveries;
+
+        /// <summary>Verze 7: u vykladky byl prijat kod DALSI nakladky - po uvolneni stopu se jede na ni, ne do depa.</summary>
+        public bool NextPickupChosen;
 
         /// <summary>
         /// <b>Kvalita fixu v depu</b> (verze 3) — proc se (ne)pokracuje z <c>ArmingAtDepot</c>.
@@ -209,6 +220,10 @@ namespace ARBot.Common.Logs
 
             // Verze 6: odstup prijateho cile od site cest.
             bw.Write(AcceptedOffRoadM);
+
+            // Verze 7: dalsi nakladka po vykladce (zmena pravidel Robotour 19. 9. 2026).
+            bw.Write(Deliveries);
+            bw.Write(NextPickupChosen);
         }
 
         public override void FromData(BinaryReader br)
@@ -291,6 +306,19 @@ namespace ARBot.Common.Logs
             // nejaky cil prijat byl.
             if (Verze >= 6) AcceptedOffRoadM = br.ReadDouble();
             else AcceptedOffRoadM = 0;
+
+            // Verze 7: starsi zaznam znal jen jednu nakladku a jednu vykladku - nula a false je tam
+            // pravda, ne nahrada.
+            if (Verze >= 7)
+            {
+                Deliveries = br.ReadInt32();
+                NextPickupChosen = br.ReadBoolean();
+            }
+            else
+            {
+                Deliveries = 0;
+                NextPickupChosen = false;
+            }
         }
 
         public override Message Build() => new MissionMsg();

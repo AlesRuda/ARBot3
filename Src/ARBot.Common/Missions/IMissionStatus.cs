@@ -41,6 +41,12 @@ namespace ARBot.Common.Missions
         /// <c>magcal</c>). Viz doc/plan-vn100-kalibrace.md.
         /// </summary>
         MagCoverage = 7,
+
+        /// <summary>
+        /// U vykladky po zmene pravidel Robotour (19. 9. 2026): bud QR kod DALSI nakladky, nebo
+        /// uvolneni stopu bez kodu = jizda do depa. Obsluha se rozhoduje, robot ceka na obe veci.
+        /// </summary>
+        QrCodeOrRelease = 8,
     }
 
     /// <summary>

@@ -75,6 +75,22 @@ namespace ARBot.Common.Tests.Missions
             Assert.That(MissionStatusText.WaitFor(faze), Is.EqualTo(ocekavane));
         }
 
+        /// <summary>
+        /// Servisni okno u VYKLADKY (zmena pravidel 19. 9. 2026): ceka se na kod dalsi nakladky NEBO
+        /// uvolneni stopu; jinde v Servicing porad jen na kod. Text musi obe moznosti vyslovit.
+        /// </summary>
+        [TestCase(RobotourStop.Depot, MissionWait.QrCode)]
+        [TestCase(RobotourStop.Pickup, MissionWait.QrCode)]
+        [TestCase(RobotourStop.Drop, MissionWait.QrCodeOrRelease)]
+        public void Servicing_PodleStanoviste(RobotourStop stanoviste, MissionWait ocekavane)
+        {
+            Assert.That(MissionStatusText.WaitFor(RobotourPhase.Servicing, stanoviste), Is.EqualTo(ocekavane));
+            Assert.That(MissionStatusText.WaitFor(RobotourPhase.AwaitingEStop, stanoviste),
+                        Is.EqualTo(MissionWait.EmergencyStopPressed), "stanoviste meni jen Servicing");
+            if (ocekavane == MissionWait.QrCodeOrRelease)
+                Assert.That(MissionStatusText.WaitText(ocekavane), Does.Contain("QR kod").And.Contain("depa"));
+        }
+
         [TestCase(RobotourPhase.Finished)]
         [TestCase(RobotourPhase.Aborted)]
         public void KoncoveFaze_NecekajiNaNic(RobotourPhase faze)

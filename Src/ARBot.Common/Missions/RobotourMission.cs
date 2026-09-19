@@ -99,6 +99,12 @@ namespace ARBot.Common.Missions
         private string abortReason = string.Empty;
         private int codesRead, codesRejected, timeouts;
 
+        // Zmena pravidel Robotour (19. 9. 2026): po vykladce se obsluha muze rozhodnout pro DALSI
+        // nakladku misto jizdy do depa - ukaze u vykladky QR kod dalsiho mista nakladky. Bez kodu
+        // (uvolneni stopu) se jede do depa jako driv. Kolik vykladek uz probehlo, jde do zaznamu.
+        private bool nextPickupChosen;
+        private int deliveries;
+
         // --- okno fixu v depu ---
         private readonly List<LLA> fixWindow = new List<LLA>();
         private DateTime fixWindowStart;
@@ -155,7 +161,7 @@ namespace ARBot.Common.Missions
         public string PhaseText { get { lock (gate) return MissionStatusText.PhaseText(phase); } }
 
         /// <inheritdoc/>
-        public MissionWait WaitingFor { get { lock (gate) return MissionStatusText.WaitFor(phase); } }
+        public MissionWait WaitingFor { get { lock (gate) return MissionStatusText.WaitFor(phase, stop); } }
 
         /// <summary>
         /// Jak dlouho mise bezi — z hodin DAT (razitka zprav), tedy tentyz cas, jaky jde do
@@ -286,15 +292,23 @@ namespace ARBot.Common.Missions
         /// </summary>
         private void AcceptTarget(LLA target, DateTime now)
         {
-            if (stop == RobotourStop.Depot)
+            switch (stop)
             {
-                pickup = target;
-                pickupCodeText = acceptedCodeText;
-            }
-            else
-            {
-                drop = target;
-                dropCodeText = acceptedCodeText;
+                case RobotourStop.Depot:
+                    pickup = target;
+                    pickupCodeText = acceptedCodeText;
+                    break;
+                case RobotourStop.Pickup:
+                    drop = target;
+                    dropCodeText = acceptedCodeText;
+                    break;
+                default:
+                    // Vykladka: kod je DALSI nakladka (zmena pravidel Robotour 19. 9. 2026). Misto
+                    // do depa se po uvolneni stopu pojede na ni - viz Depart.
+                    pickup = target;
+                    pickupCodeText = acceptedCodeText;
+                    nextPickupChosen = true;
+                    break;
             }
 
             // Precteno -> uz neni co skenovat. Zustava to zapnute jen do teto chvile.
@@ -478,28 +492,25 @@ namespace ARBot.Common.Missions
                             servicingSince = now;
                             codeNotSeen = false;
 
-                            // Kde se kod NECTE (vykladka), neni v servisnim okne co delat - ceka se
-                            // uz jen na uvolneni stopu. „Vylozeno" JE to uvolneni; zadne potvrzeni
-                            // v UI neexistuje (viz AcceptTarget).
-                            if (!CodeExpected(stop))
-                            {
-                                EnterPhase(RobotourPhase.AwaitingEStopRelease, now);
-                                break;
-                            }
-
+                            // Servisni okno se skenerem se otvira na KAZDEM stanovisti. Do 19. 9.
+                            // 2026 se u vykladky nic necetlo (rovnou AwaitingEStopRelease); od zmeny
+                            // pravidel Robotour tam obsluha muze ukazat kod DALSI nakladky, nebo stop
+                            // uvolnit bez kodu = jizda do depa (viz Servicing nize a Depart).
                             SetScanner(true);
                             EnterPhase(RobotourPhase.Servicing, now);
                         }
                         break;
 
                     case RobotourPhase.Servicing:
-                        // Clovek pustil stop, aniz kod ukazal. Nesmi to znamenat odjezd bez cile ani
-                        // zaseknuti - ceka se na dalsi pokus. A hlavne: scanner MUSI jit dolu, aby
-                        // platilo „skenuje se vyhradne pod drzenym stopem".
+                        // Clovek pustil stop, aniz kod ukazal. Scanner MUSI jit dolu, aby platilo
+                        // „skenuje se vyhradne pod drzenym stopem". Co dal, zavisi na stanovisti:
+                        // - depo a nakladka: bez kodu neni kam jet -> ceka se na dalsi pokus;
+                        // - vykladka: uvolneni bez kodu JE rozhodnuti „zadna dalsi nakladka, do depa".
                         if (!emergencyStop)
                         {
                             SetScanner(false);
-                            EnterPhase(RobotourPhase.AwaitingEStop, now);
+                            if (CodeRequired(stop)) EnterPhase(RobotourPhase.AwaitingEStop, now);
+                            else Depart(now);
                         }
                         break;
 
@@ -677,8 +688,9 @@ namespace ARBot.Common.Missions
 
                 case RobotourPhase.Servicing:
                     // Stavy pod nouzovym zastavenim timeout NEMAJI — ceka se na obsluhu, jak dlouho
-                    // je potreba. Jen se hlasi, ze kod neni videt, a skenuje se DAL.
-                    if (CodeExpected(stop) && acceptedTarget == null
+                    // je potreba. Jen se hlasi, ze kod neni videt, a skenuje se DAL. U vykladky se
+                    // „kod nevidim" nehlasi: tam kod byt nemusi (uvolneni stopu = do depa).
+                    if (CodeRequired(stop) && acceptedTarget == null
                         && (now - servicingSince).TotalSeconds > config.QrSearchSec)
                         codeNotSeen = true;
                     break;
@@ -737,7 +749,15 @@ namespace ARBot.Common.Missions
             {
                 case RobotourStop.Depot: target = pickup; next = RobotourPhase.DrivingToPickup; break;
                 case RobotourStop.Pickup: target = drop; next = RobotourPhase.DrivingToDrop; break;
-                default: target = depot; next = RobotourPhase.DrivingToDepot; break;
+                default:
+                    // Odjezd z vykladky = vylozeno. Kam dal, rozhodla obsluha v servisnim okne:
+                    // kod dalsi nakladky -> na ni; uvolneni bez kodu -> do depa (pravidla Robotour
+                    // od 19. 9. 2026 pripousteji libovolny pocet nakladek za sebou).
+                    deliveries++;
+                    if (nextPickupChosen) { target = pickup; next = RobotourPhase.DrivingToPickup; }
+                    else { target = depot; next = RobotourPhase.DrivingToDepot; }
+                    nextPickupChosen = false;
+                    break;
             }
 
             if (target == null)
@@ -769,8 +789,17 @@ namespace ARBot.Common.Missions
             EmitState(now);
         }
 
-        /// <summary>Ceka se v tomhle servisnim okne QR kod? U vykladky ne.</summary>
-        private static bool CodeExpected(RobotourStop s)
+        /// <summary>
+        /// Prijima se v tomhle servisnim okne QR kod? Od 19. 9. 2026 <b>vsude</b>: v depu kod
+        /// nakladky, na nakladce kod vykladky, na vykladce kod DALSI nakladky (nepovinny).
+        /// </summary>
+        private static bool CodeExpected(RobotourStop s) => true;
+
+        /// <summary>
+        /// Je kod v tomhle okne <b>nutny</b> k odjezdu? V depu a na nakladce ano (bez cile neni kam
+        /// jet); na vykladce ne - uvolneni stopu bez kodu znamena „zadna dalsi nakladka, do depa".
+        /// </summary>
+        private static bool CodeRequired(RobotourStop s)
             => s == RobotourStop.Depot || s == RobotourStop.Pickup;
 
         private static bool IsDriving(RobotourPhase p)
@@ -903,6 +932,8 @@ namespace ARBot.Common.Missions
                 Timeouts = timeouts,
                 EmergencyStop = emergencyStop,
                 CodeNotSeen = codeNotSeen,
+                Deliveries = deliveries,
+                NextPickupChosen = nextPickupChosen,
                 TimeStamp = now,
             };
 

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **209**: otevřeno **44** · v kódu, na HW neověřeno **44** · hotovo **112** · odloženo **6** · zamítnuto **3**.
+Témat celkem **210**: otevřeno **44** · v kódu, na HW neověřeno **45** · hotovo **112** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -98,6 +98,7 @@ Témat celkem **209**: otevřeno **44** · v kódu, na HW neověřeno **44** · 
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | v kódu, na HW neověřeno | Navigace po mapě | [Mapa z JOSM nese smazané cesty (`action='delete'`) a čtečka je brala jako živé](#nav-osm-josm-action-delete) | 18. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Skener QR na robotu nedostal jediný snímek — jméno kamery „Right" vs. „Right 740112071021"](#mise-qr-jmeno-kamery) | 19. 9. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný](#mise-robotour-depothdop) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -1407,6 +1408,19 @@ Na soutěži 19. 9. 2026 robot v misi Robotour kód nepřečetl (`records/test/2
 - [ ] Ověřit na robotu, že stránka kreslí kameru, ze které se čte QR (řádek „na obrázku (čte QR)")
 
 [robotour-mission.md](robotour-mission.md), [headless.md](headless.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
+
+<a id="mise-robotour-dalsi-nakladka"></a>
+### 🧪 Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa
+
+`mise-robotour-dalsi-nakladka` · záměr · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
+
+Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další nakládku místo návratu do depa, po ní následuje další vykládka a opět volba — dokola. V automatu je to jediný rozdíl: servisní okno u vykládky má zapnutý skener a kód, který tam projde strojovými kontrolami, je místo další nakládky (`nextPickupChosen`); uvolnění stopu bez kódu znamená „žádná další nakládka, do depa“. Rozlišuje se `CodeExpected` (kód se přijímá na každém stanovišti) a `CodeRequired` (bez něj se neodjede — depo a nakládka vrací na `AwaitingEStop`). Stránka náhledu i UI panel u vykládky hlásí „vyloženo: QR kód DALŠÍ nakládky, nebo uvolnění stopu bez kódu = jízda do depa“ (`MissionWait.QrCodeOrRelease`, `MissionStatusText.WaitFor(phase, stop)`); „kód nevidím“ se u vykládky nehlásí. `MissionMsg` je verze 7 (`Deliveries` = počet vykládek, `NextPickupChosen`); `PickupLatDeg`/`DropLatDeg` jsou od té doby poslední nakládka/vykládka. Limit vzdálenosti od depa platí i pro další nakládky.
+
+- [x] Automat: skener u vykládky, kód = další nakládka, uvolnění bez kódu = depo; `MissionMsg` v7 (19. 9. 2026)
+- [x] Hlášení na stránce a v UI panelu (`QrCodeOrRelease`), 3 nové testy, 2 přepsané (Common 1 601, Runtime 140) (19. 9. 2026)
+- [ ] Ověřit na robotu průchod vykládka → kód další nakládky → nakládka → vykládka → depo
+
+[robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
 <a id="mise-robotour-depothdop"></a>
 ### 🧪 Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný

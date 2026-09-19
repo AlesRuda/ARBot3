@@ -84,6 +84,12 @@ namespace ARBot.Common.Missions
         /// <summary>Hlasi mise „kod nevidim"?</summary>
         public bool CodeNotSeen;
 
+        /// <summary>Kolik vykladek uz probehlo (zmena pravidel 19. 9. 2026: nakladek muze byt vic za sebou).</summary>
+        public int Deliveries;
+
+        /// <summary>U vykladky byl prijat kod DALSI nakladky - po uvolneni stopu se jede na ni, ne do depa.</summary>
+        public bool NextPickupChosen;
+
         /// <summary>Cas, ke kteremu stav plati.</summary>
         public DateTime TimeStamp;
 
@@ -129,6 +135,8 @@ namespace ARBot.Common.Missions
                 Timeouts = Timeouts,
                 EmergencyStop = EmergencyStop,
                 CodeNotSeen = CodeNotSeen,
+                Deliveries = Deliveries,
+                NextPickupChosen = NextPickupChosen,
                 TimeStamp = TimeStamp,
             };
     }

@@ -96,11 +96,26 @@ zastavení, teprve pak se něco děje, a jízda pokračuje až po jeho uvolněn�
         │
 Idle ─▶ ArmingAtDepot ─▶ ⟦servisní okno @depo: čtení QR nakládky⟧ ─▶ DrivingToPickup
      ─▶ ⟦servisní okno @nakládka: nakládka + čtení QR vykládky⟧   ─▶ DrivingToDrop
-     ─▶ ⟦servisní okno @vykládka: vykládka⟧                       ─▶ DrivingToDepot ─▶ Finished
+     ─▶ ⟦servisní okno @vykládka: vykládka + VOLBA⟧ ─┬─ kód DALŠÍ nakládky ─▶ DrivingToPickup ─▶ … (dokola)
+                                                    └─ uvolnění stopu bez kódu ─▶ DrivingToDepot ─▶ Finished
 
-⟦servisní okno, kde se čte kód⟧ = AwaitingEStop ─▶ Servicing ─▶ AwaitingEStopRelease
-⟦servisní okno u vykládky⟧      = AwaitingEStop ─▶ AwaitingEStopRelease      (není co číst)
+⟦servisní okno⟧ = AwaitingEStop ─▶ Servicing ─▶ AwaitingEStopRelease   (na každém stanovišti, od 19. 9. 2026)
 ```
+
+**Změna pravidel Robotour 2026 (zapracováno 19. 9. 2026, autor):** po úspěšné vykládce se smí
+místo jízdy do depa jet na **další nakládku**, po ní na další vykládku, a tak dokola — rozhoduje se
+u každé vykládky. V automatu je to jediný rozdíl: servisní okno u vykládky má **zapnutý skener**
+a kód, který se tam přečte a projde strojovými kontrolami, je **místo další nakládky**
+(`AcceptTarget` při `stop == Drop` → `pickup`, `nextPickupChosen`). **Uvolnění stopu bez kódu**
+znamená „žádná další nakládka, do depa" — u depa a nakládky uvolnění bez kódu dál vrací na
+`AwaitingEStop` (bez cíle není kam jet), proto se rozlišuje `CodeExpected` (kód se přijímá všude)
+a `CodeRequired` (bez něj se neodjede). Stránka náhledu i UI panel u vykládky hlásí **„vyloženo:
+QR kód DALŠÍ nakládky, nebo uvolnění stopu bez kódu = jízda do depa"** (`MissionWait.QrCodeOrRelease`,
+`MissionStatusText.WaitFor(phase, stop)`); „kód nevidím" se u vykládky nehlásí, kód tam není
+povinný. `MissionMsg` je **verze 7** (`Deliveries` = počet vykládek, `NextPickupChosen`);
+`PickupLatDeg`/`DropLatDeg` od té doby znamenají **poslední** nakládku/vykládku. Limit
+`MaxTargetDistanceM` se měří od depa i u dalších nakládek. ⚠️ **Na zařízení neběželo** — ověřeno
+testy (mise 180, celkem Common 1 601, Runtime 140).
 
 > **Jediné dva lidské vstupy jsou QR kód a stop tlačítko** (rozhodnutí autora 26. 8. 2026): stisk
 > otevře okno, uvolnění je „hotovo". Žádné potvrzování v UI — viz
@@ -111,8 +126,8 @@ Idle ─▶ ArmingAtDepot ─▶ ⟦servisní okno @depo: čtení QR nakládky�
 | `Idle` | čeká na „Start mise" z UI | operátor |
 | `ArmingAtDepot` | **čeká na kvalitní fix, inicializuje jím fúzi a zapamatuje depo** (viz [níže](#armingatdepot-kvalitní-fix-a-inicializace-fúze)) | fix OK |
 | `AwaitingEStop` | robot **stojí a je pod napětím**; čeká, až obsluha zmáčkne nouzové zastavení. Scanner **vypnutý** | `IsEmergencyStop == true` |
-| `Servicing` | nouzové zastavení drží → člověk nakládá a ukazuje QR; zapnutý `QrScanner`. **Chodí se sem jen tam, kde se kód čte** — u vykládky se rovnou čeká na uvolnění | kód prošel strojovými kontrolami. Uvolnění stopu **bez kódu** → zpět na `AwaitingEStop` (další pokus) |
-| `AwaitingEStopRelease` | cíl přijat (nebo u vykládky není co číst); čeká na **uvolnění** nouzového zastavení — to je signál „hotovo" | `IsEmergencyStop == false` |
+| `Servicing` | nouzové zastavení drží → člověk nakládá/vykládá a ukazuje QR; zapnutý `QrScanner` **na každém stanovišti** (od 19. 9. 2026). U vykládky je kód **nepovinný** = místo další nakládky | kód prošel strojovými kontrolami → `AwaitingEStopRelease`. Uvolnění stopu **bez kódu**: u depa a nakládky → zpět na `AwaitingEStop` (další pokus), u vykládky → **`DrivingToDepot`** (rozhodnutí „žádná další nakládka") |
+| `AwaitingEStopRelease` | cíl přijat; čeká na **uvolnění** nouzového zastavení — to je signál „hotovo" | `IsEmergencyStop == false` → jízda na přijatý cíl (u vykládky s kódem = další nakládka) |
 | `DrivingToPickup` / `DrivingToDrop` / `DrivingToDepot` | `GlobalNavigator.SetGoal(cíl)`, hlídá `GlobalNavMsg` | `Arrived` |
 | `Finished` | stojí, mise hotová, souhrn do logu | — |
 | `Aborted` | okamžité zastavení (`Cancel()` + `Regulator = null`), důvod v `MissionMsg` | operátor |

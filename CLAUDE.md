@@ -971,6 +971,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   zahodí všechny komponenty kromě té s **největší délkou cest** — póza se pak přichytí na chodník
   2,4 m vedle a cíl je dosažitelný. Rozbor `ARBot.Analyze route` (`--noprune` = síť jako v souboru).
   Obojí ⚠️ **na zařízení neběželo** (`mise-robotour-depothdop`, `mise-robotour-mapa-ostrov`).
+  ✅ **Změna pravidel Robotour 2026 (19. 9. 2026): po vykládce smí následovat DALŠÍ nakládka**
+  místo jízdy do depa, a tak dokola. V automatu: servisní okno u vykládky má **zapnutý skener**,
+  přečtený kód je místo další nakládky (`nextPickupChosen`), **uvolnění stopu bez kódu = do depa**;
+  rozlišuje se `CodeExpected` (kód se přijímá všude) a `CodeRequired` (bez něj se neodjede — depo,
+  nakládka). Stránka i UI u vykládky hlásí „vyloženo: QR kód DALŠÍ nakládky, nebo uvolnění stopu
+  bez kódu = jízda do depa" (`MissionWait.QrCodeOrRelease`). `MissionMsg` **verze 7** (`Deliveries`,
+  `NextPickupChosen`). ⚠️ **Na zařízení neběželo** (`mise-robotour-dalsi-nakladka`; testy 1 601 / 140).
   **Dekodér je ZXing.Net, ne ZBar** (binding z ARBot2 nebyl k dispozici; ZXing je čistě managed,
   takže **fáze 1 „nativní libzbar na obě platformy" celá padla**) — viz
   [doc/decisions.md](doc/decisions.md), 26. 8. 2026. Úspěšnost čtení **není naměřená**: testy

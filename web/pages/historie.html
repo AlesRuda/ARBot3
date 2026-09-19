@@ -19,7 +19,7 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">44</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">44</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">45</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">112</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">3</span></label>
@@ -323,6 +323,7 @@
       <li data-tema="web-clanek-regulator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-clanek-regulator">Čl&#225;nek o regul&#225;toru sledov&#225;n&#237; dr&#225;hy a skupina „Technick&#233; čl&#225;nky“ na webu</a></li>
       <li data-tema="web-menu-generator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-menu-generator">Menu webu opsan&#233; ve 22 m&#237;stech — gener&#225;tor <code>tools/menu.cs</code></a></li>
       <li data-tema="mise-qr-jmeno-kamery"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-qr-jmeno-kamery">Skener QR na robotu nedostal jedin&#253; sn&#237;mek — jm&#233;no kamery „Right&quot; vs. „Right 740112071021&quot;</a></li>
+      <li data-tema="mise-robotour-dalsi-nakladka"><span class="mono">19. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#mise-robotour-dalsi-nakladka">Změna pravidel Robotour 2026 — po vykl&#225;dce dalš&#237; nakl&#225;dka m&#237;sto j&#237;zdy do depa</a></li>
       <li data-tema="mise-robotour-depothdop"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-depothdop">Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</a></li>
       <li data-tema="mise-robotour-mapa-ostrov"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-mapa-ostrov">K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</a></li>
     </ul>
@@ -1426,6 +1427,17 @@
       <li class="otevreno">Ověřit na robotu, že str&#225;nka kresl&#237; kameru, ze kter&#233; se čte QR (ř&#225;dek „na obr&#225;zku (čte QR)&quot;)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
+  </article>
+  <article class="tema" id="mise-robotour-dalsi-nakladka" data-stav="v-kodu">
+    <h3>Změna pravidel Robotour 2026 — po vykl&#225;dce dalš&#237; nakl&#225;dka m&#237;sto j&#237;zdy do depa</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
+    <p>Pravidla Robotour dovoluj&#237; po &#250;spěšn&#233; vykl&#225;dce rozhodnout se pro dalš&#237; nakl&#225;dku m&#237;sto n&#225;vratu do depa, po n&#237; n&#225;sleduje dalš&#237; vykl&#225;dka a opět volba — dokola. V automatu je to jedin&#253; rozd&#237;l: servisn&#237; okno u vykl&#225;dky m&#225; zapnut&#253; skener a k&#243;d, kter&#253; tam projde strojov&#253;mi kontrolami, je m&#237;sto dalš&#237; nakl&#225;dky (<code>nextPickupChosen</code>); uvolněn&#237; stopu bez k&#243;du znamen&#225; „ž&#225;dn&#225; dalš&#237; nakl&#225;dka, do depa“. Rozlišuje se <code>CodeExpected</code> (k&#243;d se přij&#237;m&#225; na každ&#233;m stanovišti) a <code>CodeRequired</code> (bez něj se neodjede — depo a nakl&#225;dka vrac&#237; na <code>AwaitingEStop</code>). Str&#225;nka n&#225;hledu i UI panel u vykl&#225;dky hl&#225;s&#237; „vyloženo: QR k&#243;d DALŠ&#205; nakl&#225;dky, nebo uvolněn&#237; stopu bez k&#243;du = j&#237;zda do depa“ (<code>MissionWait.QrCodeOrRelease</code>, <code>MissionStatusText.WaitFor(phase, stop)</code>); „k&#243;d nevid&#237;m“ se u vykl&#225;dky nehl&#225;s&#237;. <code>MissionMsg</code> je verze 7 (<code>Deliveries</code> = počet vykl&#225;dek, <code>NextPickupChosen</code>); <code>PickupLatDeg</code>/<code>DropLatDeg</code> jsou od t&#233; doby posledn&#237; nakl&#225;dka/vykl&#225;dka. Limit vzd&#225;lenosti od depa plat&#237; i pro dalš&#237; nakl&#225;dky.</p>
+    <ul class="kroky">
+      <li class="hotovo">Automat: skener u vykl&#225;dky, k&#243;d = dalš&#237; nakl&#225;dka, uvolněn&#237; bez k&#243;du = depo; <code>MissionMsg</code> v7 <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Hl&#225;šen&#237; na str&#225;nce a v UI panelu (<code>QrCodeOrRelease</code>), 3 nov&#233; testy, 2 přepsan&#233; (Common 1 601, Runtime 140) <span class="mono">19. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu průchod vykl&#225;dka → k&#243;d dalš&#237; nakl&#225;dky → nakl&#225;dka → vykl&#225;dka → depo</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>
   <article class="tema" id="mise-robotour-depothdop" data-stav="v-kodu">
     <h3>Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</h3>

@@ -212,12 +212,13 @@ public class RobotourMissionTests
     }
 
     /// <summary>
-    /// U <b>vykladky</b> se kod necte, takze se na nej ani nesmi cekat — automat jde ze stisknuteho
-    /// stopu rovnou na jeho uvolneni. Kdyby tu stalo „ceka se na QR kod", obsluha by marne hledala,
-    /// co robotovi ukazat.
+    /// U <b>vykladky</b> se od zmeny pravidel Robotour (19. 9. 2026) ceka na DVE veci najednou:
+    /// QR kod DALSI nakladky, nebo uvolneni stopu bez kodu (= jizda do depa). Hlaseni to musi rict
+    /// presne takhle — „ceka se na QR kod" by obsluhu nutilo kod hledat, i kdyz uz zadny nema,
+    /// a „uvolneni stopu" by zamlcelo, ze dalsi nakladka je mozna.
     /// </summary>
     [Test]
-    public void UVykladky_SeNecekaNaKod()
+    public void UVykladky_SeCekaNaKodDalsiNakladkyNeboUvolneni()
     {
         var (h, now) = StartedAtDepot();
         now = PassServiceWindow(h, now, PickupCode);
@@ -226,13 +227,18 @@ public class RobotourMissionTests
         h.Arrive(now = now.AddSeconds(30));
 
         h.FeedMotors(emergencyStop: false, standing: true, now);
-        h.FeedMotors(emergencyStop: true, standing: true, now.AddSeconds(1));
+        h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease));
-            Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.EmergencyStopReleased));
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Servicing));
+            Assert.That(h.Mission.WaitingFor, Is.EqualTo(MissionWait.QrCodeOrRelease));
+            Assert.That(h.Scanner.Enabled, Is.True, "kod dalsi nakladky se cte pod drzenym stopem");
         });
+
+        // Ani po QrSearchSec se nehlasi „kod nevidim" - u vykladky kod byt nemusi.
+        h.Mission.Tick(now.AddSeconds(30));
+        Assert.That(h.Mission.LastMessage.CodeNotSeen, Is.False, "u vykladky neni kod povinny");
     }
 
     /// <summary>
@@ -400,11 +406,11 @@ public class RobotourMissionTests
     }
 
     /// <summary>
-    /// U <b>vykladky se kod necte</b>, takze po stisknuti stopu se ceka uz jen na jeho uvolneni —
-    /// „vylozeno" je prave to uvolneni, zadne tlacitko v UI.
+    /// U vykladky je <b>uvolneni stopu bez kodu rozhodnuti „do depa"</b> — „vylozeno" je prave to
+    /// uvolneni, zadne tlacitko v UI. Scanner pritom musi jit dolu (skenuje se jen pod stopem).
     /// </summary>
     [Test]
-    public void UVykladky_PoStiskuStopuSeCekaJenNaUvolneni()
+    public void UVykladky_UvolneniStopuBezKoduJeJizdaDoDepa()
     {
         var (h, now) = StartedAtDepot();
         now = PassServiceWindow(h, now, PickupCode);
@@ -412,16 +418,88 @@ public class RobotourMissionTests
         now = PassServiceWindow(h, now, DropCode);
         h.Arrive(now = now.AddSeconds(30));
 
-        // Tady jsme u vykladky: stisk stopu nema co cist, takze se rovnou ceka na uvolneni.
         h.FeedMotors(emergencyStop: false, standing: true, now);
         h.FeedMotors(emergencyStop: true, standing: true, now = now.AddSeconds(1));
+        Assert.That(h.Mission.CurrentStop, Is.EqualTo(RobotourStop.Drop));
+        h.FeedMotors(emergencyStop: false, standing: true, now = now.AddSeconds(5));   // bez kodu
 
         Assert.Multiple(() =>
         {
-            Assert.That(h.Mission.CurrentStop, Is.EqualTo(RobotourStop.Drop));
-            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.AwaitingEStopRelease),
-                        "u vykladky neni co cist ani potvrzovat");
-            Assert.That(h.Scanner.Enabled, Is.False, "u vykladky se nikdy neskenuje");
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.DrivingToDepot));
+            Assert.That(h.Scanner.Enabled, Is.False, "po uvolneni stopu se neskenuje");
+            Assert.That(Conversions.Rad2Deg(h.Goals.Goals[^1].Latitude), Is.EqualTo(DepotLatDeg).Within(1e-6));
+            Assert.That(h.Mission.LastMessage.Deliveries, Is.EqualTo(1));
+        });
+    }
+
+    /// <summary>
+    /// <b>Zmena pravidel Robotour (19. 9. 2026): po vykladce dalsi nakladka.</b> Kod ukazany
+    /// u vykladky je misto DALSI nakladky; po uvolneni stopu se jede na ni, tam se cte kod druhe
+    /// vykladky, a teprve uvolneni bez kodu u druhe vykladky posle robota do depa. Pocet vykladek
+    /// jde do zaznamu.
+    /// </summary>
+    [Test]
+    public void PoVykladce_KodDalsiNakladky_JedeNaNiAPakZnovuNaVykladku()
+    {
+        const string Pickup2 = "geo:49.2108,16.5985";
+        const string Drop2 = "geo:49.2100,16.5995";
+        var (h, now) = StartedAtDepot();
+
+        now = PassServiceWindow(h, now, PickupCode);
+        h.Arrive(now = now.AddSeconds(30));
+        now = PassServiceWindow(h, now, DropCode);
+        h.Arrive(now = now.AddSeconds(30));
+
+        // Prvni vykladka: obsluha ukaze kod DALSI nakladky.
+        now = PassServiceWindow(h, now, Pickup2);
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.DrivingToPickup), "misto do depa na dalsi nakladku");
+            Assert.That(Conversions.Rad2Deg(h.Goals.Goals[^1].Latitude), Is.EqualTo(49.2108).Within(1e-9));
+            Assert.That(h.Mission.LastMessage.Deliveries, Is.EqualTo(1));
+            Assert.That(h.Mission.LastMessage.NextPickupChosen, Is.False, "volba se po odjezdu spotrebuje");
+        });
+
+        h.Arrive(now = now.AddSeconds(30));
+        Assert.That(h.Mission.CurrentStop, Is.EqualTo(RobotourStop.Pickup));
+        now = PassServiceWindow(h, now, Drop2);
+        Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.DrivingToDrop));
+
+        // Druha vykladka: bez kodu -> depo.
+        h.Arrive(now = now.AddSeconds(30));
+        now = PassServiceWindow(h, now, code: null);
+        h.Arrive(now.AddSeconds(30));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.Finished));
+            Assert.That(h.Goals.Goals, Has.Count.EqualTo(5), "nakladka, vykladka, nakladka 2, vykladka 2, depo");
+            Assert.That(Conversions.Rad2Deg(h.Goals.Goals[^1].Latitude), Is.EqualTo(DepotLatDeg).Within(1e-6),
+                        "posledni cil musi byt ZAPAMATOVANE depo");
+            Assert.That(h.Mission.LastMessage.Deliveries, Is.EqualTo(2));
+        });
+    }
+
+    /// <summary>
+    /// U vykladky plati na kod dalsi nakladky <b>tytez strojove kontroly</b> jako v depu — zamitnuty
+    /// kod neposune nic a uvolneni stopu pak znamena do depa, ne na zamitnuty cil.
+    /// </summary>
+    [Test]
+    public void PoVykladce_ZamitnutyKodNeposleNaDalsiNakladku()
+    {
+        var (h, now) = StartedAtDepot();
+        now = PassServiceWindow(h, now, PickupCode);
+        h.Arrive(now = now.AddSeconds(30));
+        now = PassServiceWindow(h, now, DropCode);
+        h.Arrive(now = now.AddSeconds(30));
+
+        now = PassServiceWindow(h, now, "geo:55.0,10.0");   // 600 km od depa -> prilis daleko
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(h.Mission.LastMessage.CodesRejected, Is.EqualTo(1));
+            Assert.That(h.Mission.Phase, Is.EqualTo(RobotourPhase.DrivingToDepot), "uvolneni bez PRIJATEHO kodu = depo");
+            Assert.That(Conversions.Rad2Deg(h.Goals.Goals[^1].Latitude), Is.EqualTo(DepotLatDeg).Within(1e-6));
         });
     }
 
