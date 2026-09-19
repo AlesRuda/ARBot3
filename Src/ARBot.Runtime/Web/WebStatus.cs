@@ -121,6 +121,32 @@ namespace ARBot.Robot.Web
         public bool PowerOffAvailable { get; set; }
 
         /// <summary>
+        /// Kamera, kterou stranka kresli, kdyz si zadnou nevybere (<c>/camera.jpg</c> bez <c>cam=</c>).
+        /// <b>Ma to byt tataz kamera, ze ktere se cte QR kod</b> (jmeno jako v <c>QrScannerConfig</c>,
+        /// porovnava se <see cref="ARBot.Common.Vision.Qr.QrScanner.CameraMatches"/>, tedy „Right"
+        /// sedi i na „Right 740112071021"). Prazdne = prvni kamera, ktera poslala snimek.
+        ///
+        /// <para>Proc: do 19. 9. 2026 stranka brala <b>prvni kameru ve slovniku</b>, tedy tu, ktera
+        /// poslala snimek driv - na robotu levou - kdezto QR se cte z prave. Obsluha na soutezi
+        /// pak podle obrazku na telefonu ukazovala kod leve kamere (zaznam
+        /// <c>20260919-092933.rec</c>: levou kameru kod trefil v 09:30:04, pravou az 09:31:25).
+        /// Stranka je jediny nahled, ktery je u robota v terenu k dispozici, takze co ukazuje, tomu
+        /// se kod ukazuje.</para>
+        /// </summary>
+        public string PreferredCameraName { get; set; }
+
+        /// <summary>Snimek vychozi kamery — volat pod <c>gate</c>.</summary>
+        private CameraFrame VychoziKamera()
+        {
+            if (!string.IsNullOrWhiteSpace(PreferredCameraName))
+                foreach (var kv in cameras)
+                    if (ARBot.Common.Vision.Qr.QrScanner.CameraMatches(kv.Key, PreferredCameraName))
+                        return kv.Value;
+            foreach (var kv in cameras) return kv.Value;
+            return null;
+        }
+
+        /// <summary>
         /// Jak stara smi byt zprava od motoru, aby se z ni jeste cetl stav nouzoveho zastaveni [s].
         /// Tyz prah jako „ticho senzoru" na strance; motory hlasi radove desetkrat za sekundu,
         /// takze 3 s je velmi volne.
@@ -504,7 +530,7 @@ namespace ARBot.Robot.Web
             lock (gate)
             {
                 if (!string.IsNullOrEmpty(cam)) cameras.TryGetValue(cam, out frame);
-                else foreach (var kv in cameras) { frame = kv.Value; break; }
+                else frame = VychoziKamera();
             }
             if (frame == null) return null;
 
@@ -560,6 +586,15 @@ namespace ARBot.Robot.Web
                     // neposila) - tady zustava jen to, co jinde neni.
                     Str(sb, "missionCode", mission.AcceptedCodeText);
                     Str(sb, "missionAbort", mission.AbortReason);
+                    // Zamitnuty kod a PROC. Do 19. 9. 2026 stranka ukazovala jen "ceka se na QR kod",
+                    // i kdyz se kod cetl 10x za sekundu a mise ho pokazde zamitla (soutez, cil
+                    // 50.1038082,14.4240751: "na cil nevede po siti zadna trasa") - obsluha si
+                    // myslela, ze se kod NECTE. Kod, ktery se precetl a neprosel, je jina porucha
+                    // nez kod, ktery kamera nevidi, a stranka je jediny nahled v terenu.
+                    if (mission.CodesRead > 0)
+                        Str(sb, "missionCodes", $"precteno {mission.CodesRead}x, zamitnuto {mission.CodesRejected}x");
+                    if (!string.IsNullOrEmpty(mission.RejectReason))
+                        Str(sb, "missionReject", $"{mission.RejectReason} [{mission.RejectedCodeText}]");
                 }
                 if (freeRun != null)
                 {
@@ -573,6 +608,9 @@ namespace ARBot.Robot.Web
                     var jmena = new string[cameras.Count];
                     cameras.Keys.CopyTo(jmena, 0);
                     Str(sb, "cameras", string.Join(",", jmena));
+                    // Ktera z nich je na obrazku - a je to tataz, ze ktere se cte QR (viz
+                    // PreferredCameraName). Obsluha tak vi, ktere kamere kod ukazat.
+                    Str(sb, "cameraShown", VychoziKamera()?.Name);
                 }
 
                 AppendSensors(sb);
@@ -1140,8 +1178,9 @@ var popisky={running:'běží',x:'X [m]',y:'Y [m]',theta:'kurz [rad]',v:'rychlos
  cpu:'CPU procesu [%]',missedTicks:'zameškané takty',
  gpsFix:'GPS fix',gpsSat:'GPS družic',gpsDop:'GPS DOP',gpsStd:'GPS sigma polohy [m]',
  gpsOdmitnuto:'GPS se NEPOUŽÍVÁ',
- missionCode:'kód',missionAbort:'přerušeno',corridor:'koridor',corridorWidth:'šířka koridoru [m]',
- lateral:'odchylka [m]',cameras:'kamery'};
+ missionCode:'kód',missionAbort:'přerušeno',missionCodes:'QR kódy',missionReject:'kód ZAMÍTNUT',
+ corridor:'koridor',corridorWidth:'šířka koridoru [m]',
+ lateral:'odchylka [m]',cameras:'kamery',cameraShown:'na obrázku (čte QR)'};
 // Jeden obrazek, tri vrstvy: pudorys | kamera (RGB) | cesta z RGB (ImageProbability).
 // Kdyz se kouka na pudorys, o snimky kamery se vubec nezada - a server je proto ani nekopiruje.
 var vrstvaObrazu='world';

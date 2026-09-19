@@ -156,6 +156,10 @@ namespace ARBot.Headless
                     // kdo misi vybere, a proces by cekal navzdy.
                     if (!miseZapnuta) cekaniNaMisi = vybranaMise;
                     webStatus.PowerOffAvailable = web.PowerOffAvailable;
+                    // Na obrazku je TATAZ kamera, ze ktere se cte QR kod (qrcamera=, jinak vychozi
+                    // skeneru) - obsluha ukazuje kod tomu, co vidi na telefonu. Viz WebStatus.
+                    webStatus.PreferredCameraName = ParamRegistry.QrCamera.Value
+                                                    ?? new ARBot.Common.Vision.Qr.QrScannerConfig().CameraName;
                     if (ParamRegistry.WebOpen.Value) OtevriNahled(web.Port);
                 }
                 else

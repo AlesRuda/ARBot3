@@ -126,6 +126,12 @@ namespace ARBot.Common.Configuration
               + "vnucena chyba v datech, ne v pozorovateli. Viz doc/virtual-hw.md.");
         public static readonly DoubleParam RoadWidth = Num("roadwidth", "3", K_MAPA,
               "Vychozi sirka cesty [m] pro useky, ktere ji v mape nemaji.");
+        public static readonly BoolParam MapPrune = Bool("mapprune", "true", K_MAPA,
+              "Zahodit z mapy OSTROVY site: komponenty souvislosti, ktere nejsou spojene s tou "
+              + "nejvetsi (podle delky) pod profilem Robot. Robot se na ostrov nedostane, ale GPS ho "
+              + "tam muze posadit - poza se pak prichyti na hranu ostrova a z ni nevede k zadnemu "
+              + "cili trasa (soutez 19. 9. 2026: namesti spojene se siti jen schody, mise zamitala "
+              + "kazdy QR kod 'nevede trasa'). Co se zahodilo, jde do Trace. false = puvodni sit.");
         public static readonly StringParam Start = Slozeny("start", null, ParamParsers.LatLonOrGps, K_MAPA,
               "Vychozi poloha: 'lat,lon[,kurzDeg]' ve stupnich, nebo 'gps' (pocka na prvni "
               + "pouzitelny fix a vypne hadani polohy z mapy).");
@@ -382,6 +388,13 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam DepotFix = Num("depotfix", Fmt(new RobotourConfig().DepotFixSec), K_MISE,
               "Jak dlouho [s] musi fix v depu neprerusene vyhovovat, nez se mise Robotour "
               + "zarmuje. Default = RobotourConfig.DepotFixSec.");
+        public static readonly DoubleParam DepotHdop = Num("depothdop", Fmt(new RobotourConfig().MaxHdop), K_MISE,
+              "Nejvyssi HDOP, se kterym fix v depu VYHOVUJE pro armovani mise Robotour (spolu "
+              + "s druzicemi >= 6, neprerusene depotfix= sekund, pak RMS rozptyl <= 2,5 m). "
+              + "Default = RobotourConfig.MaxHdop. Sigma polohy na strance nahledu je "
+              + "gpsposstd x HDOP, tedy pri gpsposstd=30 odpovida prah 2,0 sigme 60 m. Na soutezi "
+              + "19. 9. 2026 byl HDOP mezi budovami 2,0-2,95 pri 12-16 druzicich a mise se 158 s "
+              + "nezarmovala - viz doc/robotour-mission.md.");
         public static readonly BoolParam AutoRun = Bool("autorun", "false", K_MISE,
               "Spustit rezim Run sam po startu aplikace, bez klikani v UI. Na zarizeni se "
               + "aplikace pousti pres SSH profilem, kde neni co klikat. POZOR: je-li zapnuta "

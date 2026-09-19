@@ -845,6 +845,14 @@ namespace ARBot.Robot
                         robotourCfg.DepotFixSec = depotFix;
                         Trace.WriteLine($"depotfix={depotFix:F1}: okno kvalitniho fixu v depu.");
                     }
+                    // Prah HDOP pro armovani: 19. 9. 2026 na soutezi byl HDOP mezi budovami 2,0-2,95
+                    // a mise s vychozim 2,0 stala 158 s v ArmingAtDepot. Viz doc/robotour-mission.md.
+                    double depotHdop = ParamRegistry.DepotHdop.Value;
+                    if (depotHdop != robotourCfg.MaxHdop)
+                    {
+                        robotourCfg.MaxHdop = depotHdop;
+                        Trace.WriteLine($"depothdop={depotHdop:F1}: nejvyssi HDOP fixu, ktery v depu vyhovuje.");
+                    }
 
                     // Scanner QR je SAMOSTATNY stupen vedle mise - mise o kamerach nic nevi, jen
                     // odebira QrCodeMsg. Vypnuty je do chvile, nez ho mise zapne (a ta ho zapina
@@ -1419,7 +1427,16 @@ namespace ARBot.Robot
             using (var fs = File.OpenRead(path))
             {
                 var data = OsmXmlReader.Read(fs);
-                return GraphBuilder.BuildNetwork(data, TravelProfile.Robot(), defaultWidth);
+                var profile = TravelProfile.Robot();
+                // Ostrovy site pryc (mapprune=, vychozi true): 19. 9. 2026 GPS posadila robota na
+                // namesti spojene se siti jen schody, poza se prichytila na jeho hranu a mise
+                // zamitala kazdy cil "nevede trasa". Viz NetworkIslands a doc/robotour-mission.md.
+                if (ParamRegistry.MapPrune.Value)
+                {
+                    data = NetworkIslands.Prune(data, profile, out var ostrovy);
+                    Trace.WriteLine($"Mapa {Path.GetFileName(path)}: {NetworkIslands.Describe(ostrovy)}");
+                }
+                return GraphBuilder.BuildNetwork(data, profile, defaultWidth);
             }
         }
 

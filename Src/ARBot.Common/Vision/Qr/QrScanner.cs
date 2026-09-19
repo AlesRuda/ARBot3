@@ -127,9 +127,32 @@ namespace ARBot.Common.Vision.Qr
         /// <summary>
         /// Je snimek z te kamery, ze ktere se cte? Prazdne jmeno v konfiguraci = <b>vsechny</b>.
         /// </summary>
-        private bool Matches(string frameName)
-            => string.IsNullOrWhiteSpace(config.CameraName)
-               || string.Equals(frameName, config.CameraName, StringComparison.OrdinalIgnoreCase);
+        private bool Matches(string frameName) => CameraMatches(frameName, config.CameraName);
+
+        /// <summary>
+        /// Odpovida jmeno snimku (<see cref="CameraFrame.Name"/>) nastavene kamere?
+        ///
+        /// <para>⚠️ <b>Skutecna D435 se NEJMENUJE „Right", ale „Right 740112071021"</b> — driver
+        /// (<c>D435Camera.Name</c>) sklada nazev a seriove cislo, kdezto <c>VirtualCamera</c> vraci
+        /// holy nazev. Do 19. 9. 2026 se tu porovnavalo cele jmeno, takze v simulaci skener cetl
+        /// a na robotu <b>nikdy nedostal jediny snimek</b>: v zaznamu <c>20260919-092933.rec</c>
+        /// bezel 239 s v <c>Servicing</c>, offline dekoder nad temiz snimky cte kod v 725 z nich
+        /// (obe kamery), a <c>QrCodeMsg</c> v zaznamu neni ani jedna. Testy to nechytily, protoze
+        /// vsechny stavi snimky se jmenem „Right". Proto se jmeno bere jako <b>prvni slovo</b>:
+        /// presna shoda, nebo nastavene jmeno + mezera + cokoli (seriove cislo).</para>
+        ///
+        /// <para>Prazdne nastaveni = vsechny kamery (bez ohledu na jmeno).</para>
+        /// </summary>
+        public static bool CameraMatches(string frameName, string configuredName)
+        {
+            if (string.IsNullOrWhiteSpace(configuredName)) return true;
+            if (frameName == null) return false;
+            string cfg = configuredName.Trim();
+            if (string.Equals(frameName, cfg, StringComparison.OrdinalIgnoreCase)) return true;
+            return frameName.Length > cfg.Length
+                   && frameName[cfg.Length] == ' '
+                   && frameName.StartsWith(cfg, StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>
         /// Precetl se tentyz text uz dost krat po sobe? Pri <c>Confirmations = 1</c> (vychozi) je to

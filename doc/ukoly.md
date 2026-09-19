@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **206**: otevřeno **44** · v kódu, na HW neověřeno **41** · hotovo **112** · odloženo **6** · zamítnuto **3**.
+Témat celkem **209**: otevřeno **44** · v kódu, na HW neověřeno **44** · hotovo **112** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -97,6 +97,9 @@ Témat celkem **206**: otevřeno **44** · v kódu, na HW neověřeno **41** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Deadlock mezi zámkem mise a zámkem stránky při volbě mise](#prov-deadlock-mise-webstatus) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | v kódu, na HW neověřeno | Navigace po mapě | [Mapa z JOSM nese smazané cesty (`action='delete'`) a čtečka je brala jako živé](#nav-osm-josm-action-delete) | 18. 9. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [Skener QR na robotu nedostal jediný snímek — jméno kamery „Right" vs. „Right 740112071021"](#mise-qr-jmeno-kamery) | 19. 9. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný](#mise-robotour-depothdop) | 19. 9. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -1389,6 +1392,49 @@ Mise Track přichycovala místa na síť cest až ve chvíli, kdy na ně přišl
 - [ ] Ověřit na zařízení
 
 [track-mission.md](track-mission.md), [headless.md](headless.md) · DevLog [2026-09-13](devlog.md#2026-09-13)
+
+<a id="mise-qr-jmeno-kamery"></a>
+### 🧪 Skener QR na robotu nedostal jediný snímek — jméno kamery „Right" vs. „Right 740112071021"
+
+`mise-qr-jmeno-kamery` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
+
+Na soutěži 19. 9. 2026 robot v misi Robotour kód nepřečetl (`records/test/20260919-092933.rec`): automat byl 239 s ve fázi `Servicing` pod drženým stopem, skener zapnutý, a v záznamu není ani jedna `QrCodeMsg`. Kód přitom v obraze BYL — offline dekodér nad týmiž snímky ho čte v 725 z 3 957 (obě kamery, dva různé `geo:` texty). Příčina: skutečná D435 se jmenuje `Right 740112071021` (driver skládá název a sériové číslo), kdežto `QrScannerConfig.CameraName` je `Right` a porovnávalo se celé jméno — virtuální kamera vrací holý název, takže simulace i všech 19 testů procházely a na robotu skener nikdy nedostal snímek. Druhá past téhož dne: stránka náhledu kreslila PRVNÍ kameru ve slovníku (levou), takže obsluha podle telefonu ukazovala kód levé kameře, zatímco se četlo z pravé. Léčba: jméno kamery se bere jako první slovo (`QrScanner.CameraMatches`), stránka kreslí tu kameru, ze které se čte QR, a říká to v řádku „na obrázku (čte QR)". Nouzové obejití bez nové binárky: `qrcamera=` (prázdné = všechny kamery) v profilu. Měří to nový `ARBot.Analyze mission`.
+
+- [x] Rozbor `ARBot.Analyze mission`: časová osa fází a stopu, servisní okna, snímky živým dekodérem (19. 9. 2026)
+- [x] `QrScanner.CameraMatches` — shoda na první slovo jména (2 testy, 21 QR testů zelených) (19. 9. 2026)
+- [x] Stránka náhledu kreslí kameru, ze které se čte QR (`WebStatus.PreferredCameraName`), a hlásí ji (19. 9. 2026)
+- [x] Čtení kódu na robotu: `20260919-100414.rec` 2 `QrCodeMsg` a kód přijat, `-101057` 535, `-101903` 195 (19. 9. 2026)
+- [ ] Ověřit na robotu, že stránka kreslí kameru, ze které se čte QR (řádek „na obrázku (čte QR)")
+
+[robotour-mission.md](robotour-mission.md), [headless.md](headless.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
+
+<a id="mise-robotour-depothdop"></a>
+### 🧪 Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný
+
+`mise-robotour-depothdop` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
+
+Na soutěži 19. 9. 2026 stála mise Robotour 158 s v `ArmingAtDepot` (`20260919-101546.rec`), stránka ukazovala „sigma 60–70 m“. Ta sigma je `gpsposstd × HDOP`, tedy nejistota pro fúzi, ne kritérium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družicích, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelší nepřerušená série byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou ranních záznamů. Práh je teď parametr `depothdop=` (default 2,0 z `RobotourConfig` se nemění), provozní profil `pi-provoz.cfg` má 3,0 — rozptyl polohy hlídá `MaxSpreadM` dál. Měří to blok 1b `ARBot.Analyze mission` (percentily HDOP, % vyhovujících fixů, nejdelší série pro 2,0 / 2,5 / 3,0 / 4,0).
+
+- [x] Blok 1b v `ARBot.Analyze mission`: kvalita fixu v `ArmingAtDepot` proti kritériu mise (19. 9. 2026)
+- [x] Parametr `depothdop=` (registr, runtime, `pi-provoz.cfg` = 3,0) (19. 9. 2026)
+- [ ] Ověřit na robotu: armování v depu s `depothdop=3` do 5 s od stisku
+
+[robotour-mission.md](robotour-mission.md), [configuration.md](configuration.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
+
+<a id="mise-robotour-mapa-ostrov"></a>
+### 🧪 Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody
+
+`mise-robotour-mapa-ostrov` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
+
+Na soutěži 19. 9. 2026 (`20260919-101057.rec`, `-101903.rec`) se QR kód četl (535 a 195 `QrCodeMsg`), ale mise ho pokaždé zamítla hláškou „na cíl nevede po síti žádná trasa (je mimo mapu?)“ — a stránka náhledu dál psala „čeká se na QR kód“, takže obsluha myslela, že se kód nečte. Cíl `50.1038082,14.4240751` je přitom přesně uzel mapy na živé `footway`. Rozbor proti `MapMsg` a `GlobalNavMsg` ze záznamu: síť `Robotour2026-ver1.osm` má pod profilem Robot 2 komponenty souvislosti; ostrov je jediná cesta 956523901 (`highway=pedestrian` + `area=yes`, dlážděné náměstí, 40 uzlů, 139 m) spojená se sítí jen `highway=steps` (uzly 8852424426 a 8852424425, 0,9 m od sebe) — a schody profil Robot nepouští. Robot při zamítnutí stál 3–4 m od uzlu ostrova. `Probe` odpověděl podle grafu správně, ale hláška posílala člověka hledat chybu jinam a stránka ji neukázala. V 10:04 týž kód projel, protože robot stál o 50 m dál na chodníku. Léčba v kódu: řádky „QR kódy“ a „kód ZAMÍTNUT“ na stránce, hláška „z místa, kde robot stojí … síť rozpojená“, nový `ARBot.Analyze route` a blok 1c v `mission`. Ostrov je podle autora skutečný (robot tam nevyjede, GPS ho tam jen posadila), takže se neopravuje mapa, ale načtení: `mapprune=` (výchozí true, `NetworkIslands`) zahodí všechny komponenty kromě té s největší délkou cest v metrech (ne podle počtu uzlů, ne podle toho, kde robot stojí — právě ta póza je z chybné GPS). Offline z pózy na náměstí se póza přichytí na chodník 2,4 m vedle a cíl je dosažitelný (393 m). Co se zahodilo, jde do Trace; `mapprune=false` vrátí síť.
+
+- [x] Rozbor `ARBot.Analyze route` (komponenty, cesty ostrova, nejbližší dvojice uzlů) a blok 1c v `mission` (19. 9. 2026)
+- [x] Stránka náhledu ukazuje počet přečtených/zamítnutých kódů a důvod zamítnutí (19. 9. 2026)
+- [x] Hláška zamítnutí říká, že trasa nevede z místa, kde robot stojí, a že síť může být rozpojená (19. 9. 2026)
+- [x] Ostrovy sítě zahodit při načtení mapy (`mapprune=`, `NetworkIslands`, 5 testů); `route` z náměstí: dosažitelné 393 m (19. 9. 2026)
+- [ ] Ověřit na robotu přijetí kódu z náměstí (Trace „ZAHOZENO 1“ v záznamu) a zobrazení zamítnutí na stránce
+
+[robotour-mission.md](robotour-mission.md), [osm-nav.md](osm-nav.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
 <a id="mise-nouzove-zastaveni-controlloop"></a>
 ### ✅ Nouzové zastavení v řídicí smyčce a ve firmwaru motorů

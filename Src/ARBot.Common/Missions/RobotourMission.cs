@@ -576,8 +576,15 @@ namespace ARBot.Common.Missions
                     // Bez teto kontroly by se NoRoute zjistilo az za jizdy.
                     if (!probe.Reachable)
                     {
+                        // Hlaska rika i ODKUD se hledalo a jak daleko od site cil lezi: 19. 9. 2026
+                        // na soutezi znela „je mimo mapu?", ackoli cil byl presne uzel mapy - robot
+                        // stal na namesti (highway=pedestrian, area=yes), ktere je se siti spojene
+                        // jen schody, a profil Robot schody nepousti. „Mimo mapu" tedy hledal
+                        // clovek na spatnem miste. Rozbor: ARBot.Analyze route / mission (blok 1c).
                         Reject(code.Text, distanceFromDepot,
-                               "na cil nevede po siti zadna trasa (je mimo mapu?)", code.TimeStamp);
+                               $"na cil nevede po siti trasa z mista, kde robot stoji (cil je {probe.OffRoadM:F0} m "
+                               + "od nejblizsi cesty; kdyz je to malo, je sit v mape mezi robotem a cilem "
+                               + "ROZPOJENA - schody, chybejici spojka)", code.TimeStamp);
                         return;
                     }
 

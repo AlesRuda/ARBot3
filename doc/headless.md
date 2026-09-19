@@ -443,7 +443,7 @@ sjízdné, červená blokované, šedá síť cest z mapy, modrá ujetá dráha,
 | cesta | co vrací |
 |---|---|
 | `GET /` | stránka (hlavička, stav mise, výběr mise, lišta, obrázek, senzory, stav) |
-| `GET /camera.jpg` | poslední snímek; `?cam=<jméno>` vybere kameru, `?layer=prob` pošle **pravděpodobnost cesty z RGB** místo barvy |
+| `GET /camera.jpg` | poslední snímek; `?cam=<jméno>` vybere kameru, `?layer=prob` pošle **pravděpodobnost cesty z RGB** místo barvy. Bez `cam=` je to od 19. 9. 2026 **kamera, ze které se čte QR** (`WebStatus.PreferredCameraName`, z `qrcamera=` nebo výchozí skeneru; do té doby první ve slovníku, tedy levá — a obsluha na soutěži ukazovala kód levé kameře, zatímco se četlo z pravé). Která to je, říká řádek „na obrázku (čte QR)" v tabulce |
 | `GET /world.png` | půdorys: occupancy grid pod sítí cest, **trasa navigace**, **dráha z lokálního plánovače**, **zóny mise**, póza, mrkev, ujetá dráha, měřítko a legenda; `?scale=2\|10\|50` volí přiblížení |
 | `GET /status.json` | týž stav jako hlavička, tabulka a senzory — pro obnovení bez reloadu i pro skriptovaný dohled |
 | `POST /mission?m=<mise>` | vybere misi; **409** bez drženého stopu nebo když už mise běží, **400** u neznámé mise a u `none` |

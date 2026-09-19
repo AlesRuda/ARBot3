@@ -403,8 +403,13 @@ tam zůstává surový, tedy `goal=` mimo cestu má pořád starý problém s do
 
 ### Když kód není ve výhledu: řeší to obsluha, ne robot
 
-QR se čte z **pravé** kamery (`ARBotHW.RightCamera`, `Name == "Right"`; předchozí generace používala
+QR se čte z **pravé** kamery (`ARBotHW.RightCamera`; předchozí generace používala
 levou — je to konfigurace, `QrCameraName`). Kód tedy musí být **napravo** od robota.
+⚠️ **Skutečná D435 se ale nejmenuje `Right`, nýbrž `Right 740112071021`** (driver skládá název
+a sériové číslo, virtuální kamera vrací holý název) — proto se od 19. 9. 2026 jméno porovnává jako
+**první slovo** (`QrScanner.CameraMatches`), viz [níže](#skener-na-robotu-nedostal-jediný-snímek-19-9-2026).
+A stránka náhledu kreslí **tutéž kameru** (řádek „na obrázku (čte QR)"), aby obsluha ukazovala kód
+tomu, co vidí na telefonu.
 
 **Robot se za kódem nesmí rozhlížet otočkou** — v okamžiku čtení drží obsluha nouzové zastavení, takže
 motory jsou mrtvé, a to je celý smysl toho handshake. Jakékoli „zametání otočkou" by znamenalo rozjezd
@@ -421,8 +426,9 @@ je výpočetní čas zdarma a odpadá tím celá otázka, na kterou stranu robot
 ### Kde a kdy
 
 - **Vlastní `MessageProcessor` `QrScanner`** (fronta `DropOldest`, kapacita 1) odebírající `CameraFrame`
-  — jen ty s `Name == QrCameraName`. Vlastní vlákno: dekódování nesmí zdržet ani vlákno kamery, ani
-  misi, ani řídicí tik.
+  — jen ty, jejichž `Name` odpovídá `QrCameraName` (**první slovo** jména, protože skutečná kamera
+  se hlásí jako `Right 740112071021`; `QrScanner.CameraMatches`). Vlastní vlákno: dekódování nesmí
+  zdržet ani vlákno kamery, ani misi, ani řídicí tik.
 - **Vypnutý, dokud ho mise nezapne** (`Enabled`) — a mise ho zapíná **jen pod drženým nouzovým
   zastavením** (stav `Servicing`). Za jízdy je to čistá režie a nikoho nezajímá. **Tím je výkonová
   otázka z velké části mimo hru.**
@@ -431,6 +437,98 @@ je výpočetní čas zdarma a odpadá tím celá otázka, na kterou stranu robot
   A5 z 2 m má v 640×480 dost pixelů i po zmenšení na polovinu.
 - Výstup: **`QrCodeMsg`** (nová zpráva: název kamery, text, 4 rohy v obraze, čas) na `Stream` →
   **do záznamu**, takže po soutěži je dohledatelné, co se kdy přečetlo.
+
+### Skener na robotu nedostal jediný snímek (19. 9. 2026)
+
+**Nález ze soutěže** (`records/test/20260919-092933.rec`, rozbor `ARBot.Analyze mission`): automat
+prošel `ArmingAtDepot` → `AwaitingEStop` → `Servicing` za 5 s a v `Servicing` pod drženým stopem
+zůstal **239 s**, skener zapnutý, po 10 s hlásil „kód nevidím" — a v záznamu není **ani jedna
+`QrCodeMsg`**. Kód přitom v obraze **byl**: offline dekodér nad týmiž snímky ho čte v **725 z 3 957**
+(levá kamera ~685×, pravá 40×; dva různé `geo:` texty, protože obsluha zkoušela dva kódy).
+
+| | co se čekalo | co bylo |
+|---|---|---|
+| jméno snímku z pravé D435 | `Right` | **`Right 740112071021`** (`D435Camera.Name => $"{nazev} {sn}"`) |
+| jméno z virtuální kamery | `Right` | `Right` |
+| porovnání ve skeneru | — | **celé jméno**, `string.Equals` |
+
+**Příčina** je tedy prostá záměna jmen: driver skládá název a sériové číslo od prvního commitu,
+`QrScanner` (26. 8. 2026) porovnával celé jméno a **všech 19 testů i simulace stavěly snímky se
+jménem `Right`** — cesta „kamera → skener" na skutečném HW nikdy neběžela a nic ji nehlídalo.
+Nešlo to poznat ani ze stránky: „kód nevidím" znamená totéž pro „kód není v záběru" i pro „skener
+nedostal snímek".
+
+**Druhá past téhož dne:** stránka náhledu bez `cam=` kreslila **první kameru ve slovníku**, tedy
+tu, která poslala snímek dřív — levou. Obsluha podle telefonu ukazovala kód **levé** kameře
+(levá ho trefila v 09:30:04, pravá až 09:31:25), zatímco se četlo z pravé. V terénu je stránka
+jediný náhled, takže **co ukazuje, tomu se kód ukazuje**.
+
+**Léčba (v kódu, ⚠️ na zařízení neběželo):**
+
+- `QrScanner.CameraMatches(frameName, configured)` — přesná shoda **nebo** nastavené jméno + mezera
+  + cokoli (sériové číslo). `Left 740112071040` k `Right` neprojde, `Rightish` taky ne, prázdné
+  nastavení = všechny. Kryjí to dva testy s jménem `Right 740112071021`.
+- Stránka kreslí **kameru, ze které se čte QR** (`WebStatus.PreferredCameraName` =
+  `qrcamera=`, jinak výchozí skeneru; totéž porovnání) a v tabulce má řádek **„na obrázku (čte QR)"**
+  se skutečným jménem kamery.
+- `ARBot.Analyze mission` rozliší tři příčiny „kód se nepřečetl": skener neběžel (časová osa fází
+  a stopu), kód nebyl čitelný (snímky živým dekodérem), vada v běhu (offline čte, `QrCodeMsg` není);
+  a když se k nastavené kameře nehodí jméno **žádného** snímku v záznamu, řekne to rovnou.
+
+**Nouzové obejití bez nové binárky:** `qrcamera=` (prázdná hodnota = všechny kamery) v profilu
+a restart služby — prázdný řetězec projde `Matches` bez ohledu na jméno. Cena: čte se z obou kamer,
+což pod drženým stopem nic nestojí.
+
+### Soutěž 19. 9. 2026: práh HDOP v depu a „nevede trasa“ na náměstí
+
+Druhý nález téhož dopoledne, ze záznamů `20260919-100414` … `-101903.rec` (`ARBot.Analyze mission`,
+bloky 1b a 1c):
+
+**1. Mise se 158 s nezarmovala (`ArmingAtDepot`), stránka ukazovala „sigma 60–70 m“.** Ta sigma je
+`gpsposstd × HDOP` (30 × 2,0–2,3), tedy nejistota pro **fúzi**, a **kritériem mise není**. Mise chce
+fix + **≥ 6 družic** + **HDOP ≤ 2,0** nepřerušeně **5 s**, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl
+HDOP **1,74–2,95** (p50 2,30, p90 2,50) při 12–16 družicích, takže prahu 2,0 vyhovovalo **4,7 %** fixů
+a nejdelší nepřerušená série byla **3 s** z potřebných 5. S prahem 3,0 vyhovuje 100 % fixů obou
+ranních záznamů. Práh je od té doby parametr **`depothdop=`** (default zůstává 2,0
+z `RobotourConfig`), provozní profil `pi-provoz.cfg` má **3,0** — rozptyl polohy hlídá `MaxSpreadM`
+dál, HDOP tu chrání jen před vyloženě špatnou geometrií družic. ⚠️ Na zařízení s tím neběželo.
+
+**2. Kód se četl (535 a 195 `QrCodeMsg`), ale mise ho pokaždé zamítla — a stránka dál psala „čeká se
+na QR kód“.** Důvod zamítnutí byl „na cíl nevede po síti žádná trasa (je mimo mapu?)“ — jenže cíl
+`50.1038082,14.4240751` je **přesně uzel mapy** na živé `footway`. Rozbor proti mapě, kterou runtime
+skutečně měl (`MapMsg` v záznamu) a póze z `GlobalNavMsg`:
+
+| | |
+|---|---|
+| síť `Robotour2026-ver1.osm` (profil Robot) | 209 uzlů, **2 komponenty souvislosti** |
+| komponenta #1 | 169 uzlů, 4 288 m — tam leží oba cíle i depo z 10:04 |
+| komponenta #2 (ostrov) | 40 uzlů, 139 m = **jediná cesta `956523901`**, `highway=pedestrian` + `area=yes` (dlážděné náměstí) |
+| robot při zamítnutí | 3–4 m od uzlu ostrova, tedy **stál na náměstí** |
+| spojení ostrova se sítí | jen **`highway=steps`** mezi uzly 8852424426 a 8852424425 (0,9 m od sebe) — profil Robot schody **nepouští** |
+
+`Probe` tedy odpověděl správně podle grafu, ale hláška „je mimo mapu?“ posílala člověka hledat
+chybu na špatném místě, a **stránka ji vůbec neukázala**. V 10:04 týž kód projel, protože robot stál
+o 50 m dál na chodníku v komponentě #1.
+
+**Léčba (v kódu, ⚠️ na zařízení neběželo):** stránka náhledu má řádky **„QR kódy“** (přečteno ×,
+zamítnuto ×) a **„kód ZAMÍTNUT“** s důvodem a textem; hláška říká, že trasa nevede **z místa, kde robot
+stojí**, kolik je cíl od nejbližší cesty a že při malé vzdálenosti je síť **rozpojená** (schody,
+chybějící spojka). Rozbor `ARBot.Analyze route --map= --from= --to=` vypíše komponenty, cesty ostrova
+a nejbližší dvojice uzlů.
+
+**Ostrov je skutečný** (autor: „s robotem tam skutečně neprojedu, GPS dala chybné souřadnice na
+ostrov“), takže mapa se **neopravuje** — opravuje se to, že se póza smí přichytit na hranu, na kterou
+robot nikdy nedojede. Od 19. 9. 2026 se proto **ostrovy zahazují už při načtení mapy**
+(`mapprune=`, výchozí `true`, `NetworkIslands`): komponenty souvislosti pod profilem Robot (jen
+sdílené uzly, schody nespojují) a nechá se **ta s největší délkou cest v metrech** — ne podle počtu
+uzlů (náměstí má 40 uzlů na 139 m, chodníky 169 na 4,3 km, u jiné mapy by to mohlo vyjít obráceně),
+a ne „komponenta, kde robot stojí“, protože právě ta póza je z chybné GPS. Přichycení pózy dělají tři
+místa (`Probe`, `Navigator.Update`, `Router.Plan`), síť se načítá jednou — proto oprava tam. Ověřeno
+offline: z pózy na náměstí (10:11) se po odříznutí póza přichytí na chodník **2,4 m** daleko a cíl je
+dosažitelný (393 m); `ARBot.Analyze route` bez `--noprune` dělá totéž, co runtime. Co se zahodilo,
+jde do Trace a tím do záznamu. ⚠️ Je to heuristika pro mapu **jednoho areálu** — mapa s dvěma velkými
+oddělenými částmi by přišla o menší; `mapprune=false` vrátí původní síť. ⚠️ **Na zařízení neběželo**
+(5 testů `NetworkIslandsTests`, OsmNav + konfigurace 324, Runtime 140).
 
 ### Čte se jen ve stoje — záměrně
 
@@ -558,7 +656,7 @@ nesmyslná hodnota skončí výjimkou při startu, ne divným chováním za jíz
 
 | parametr | kde | default | pozn. |
 |---|---|---|---|
-| `CameraName` | scanner | `"Right"` | prázdné = skenovat všechny kamery; z příkazové řádky `qrcamera=` |
+| `CameraName` | scanner | `"Right"` | prázdné = skenovat všechny kamery; z příkazové řádky `qrcamera=`. Porovnává se **první slovo** jména snímku (skutečná kamera je `Right 740112071021`), viz nález 19. 9. 2026 |
 | `Confirmations` | scanner | 1 | shodná dekódování **po sobě**; od zrušení potvrzování je to jediná pojistka nad rámec strojových kontrol |
 | `Downscale` | scanner | 2 | podvzorkování před dekódováním |
 | `DepotFixSec` | mise | 5 s | jak dlouho musí fix nepřerušeně vyhovovat; `depotfix=` |

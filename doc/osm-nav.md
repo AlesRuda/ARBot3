@@ -260,3 +260,24 @@ výsledku ho nedá — uzel, cesta i relace; `action="modify"` je běžná edita
 Test `OsmXmlReaderTests.Read_SkipsJosmDeletedObjects`. Soutěžní mapa po opravě: **209 uzlů,
 226 hran** (ověřeno načtením v `ARBot.Headless` v simulaci). ⚠️ **Na zařízení to neběželo** —
 nasazení soutěžního profilu tuhle opravu binárky potřebuje, jinak jede robot po staré síti.
+
+## ⚠️ Ostrovy sítě se od 19. 9. 2026 při načtení zahazují (`mapprune=`, `NetworkIslands`)
+
+Síť pod profilem Robot může být **rozpojená**, aniž by to bylo z mapy vidět: soutěžní
+`Robotour2026-ver1.osm` má dlážděné náměstí (`highway=pedestrian` + `area=yes`, way 956523901,
+40 uzlů / 139 m), spojené se zbytkem sítě **jen `highway=steps`** — a schody profil Robot nepouští.
+Robot na náměstí fyzicky nevyjede, jenže **GPS ho tam 19. 9. 2026 posadila**: póza se přichytila
+na hranu ostrova (1,5 m) místo na chodník o pár metrů dál, a z ostrova nevede k žádnému cíli
+trasa — mise zamítala každý QR kód „nevede trasa", ačkoli cíl byl uzel mapy (detail
+[robotour-mission.md](robotour-mission.md), „Soutěž 19. 9. 2026").
+
+**Léčba je v načtení, ne v mapě ani v přichycování:** `GlobalNavigator.Probe`, `Navigator.Update`
+i `Router.Plan` berou nejbližší hranu a všechny by se musely učit „nejbližší hrana, ze které se dá
+dojet", kdežto síť se načítá jednou (`ARBotRuntime.ReadNetwork`). `NetworkIslands.Prune` spočítá
+komponenty souvislosti přijatých cest (**jen sdílené uzly**, neorientovaně) a nechá **tu s největší
+délkou cest v metrech** — ne podle počtu uzlů (náměstí je hustě natrasované), ne podle toho, kde
+robot stojí (ta póza je právě z chybné GPS). Cesty, které profil nepouští, v datech zůstávají.
+Co se zahodilo, jde do Trace a tím do záznamu; `mapprune=false` vrátí původní síť. Offline
+kontrola: `ARBot.Analyze route --map= --from= --to=` (bez `--noprune` dělá totéž, co runtime).
+⚠️ Heuristika pro mapu **jednoho areálu** — dvě velké oddělené části by přišly o menší.
+⚠️ **Na zařízení neběželo** (`NetworkIslandsTests`, 5 testů).

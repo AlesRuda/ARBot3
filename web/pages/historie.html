@@ -8,18 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 
-<header class="sitehead">
-  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
-  <nav>
-      <a href="../index.html">Úvod</a>
-      <a href="../pages/prezentace.html">Jak to funguje</a>
-      <a href="../pages/historie.html" class="on">Historie</a>
-      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
-      <a href="../pages/verze.html">Verze</a>
-      <a href="../pages/technicke-clanky.html">Technické články</a>
-      <a href="../pages/kontakt.html">Kontakt</a>
-  </nav>
-</header>
+<header class="sitehead"></header>
 <main>
   <div class="pagehead">
     <p class="eyebrow">Třetí verze softwaru, od června 2026</p>
@@ -30,7 +19,7 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">44</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">41</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">44</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">112</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">3</span></label>
@@ -333,6 +322,9 @@
       <li data-tema="nav-osm-josm-action-delete"><span class="mono">18. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nav-osm-josm-action-delete">Mapa z JOSM nese smazan&#233; cesty (<code>action=&#39;delete&#39;</code>) a čtečka je brala jako živ&#233;</a></li>
       <li data-tema="web-clanek-regulator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-clanek-regulator">Čl&#225;nek o regul&#225;toru sledov&#225;n&#237; dr&#225;hy a skupina „Technick&#233; čl&#225;nky“ na webu</a></li>
       <li data-tema="web-menu-generator"><span class="mono">18. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#web-menu-generator">Menu webu opsan&#233; ve 22 m&#237;stech — gener&#225;tor <code>tools/menu.cs</code></a></li>
+      <li data-tema="mise-qr-jmeno-kamery"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-qr-jmeno-kamery">Skener QR na robotu nedostal jedin&#253; sn&#237;mek — jm&#233;no kamery „Right&quot; vs. „Right 740112071021&quot;</a></li>
+      <li data-tema="mise-robotour-depothdop"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-depothdop">Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</a></li>
+      <li data-tema="mise-robotour-mapa-ostrov"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-mapa-ostrov">K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</a></li>
     </ul>
   </div>
 </section>
@@ -1421,6 +1413,43 @@
       <li class="otevreno">Ověřit na zař&#237;zen&#237;</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/track-mission.md">track-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a></p>
+  </article>
+  <article class="tema" id="mise-qr-jmeno-kamery" data-stav="v-kodu">
+    <h3>Skener QR na robotu nedostal jedin&#253; sn&#237;mek — jm&#233;no kamery „Right&quot; vs. „Right 740112071021&quot;</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
+    <p>Na soutěži 19. 9. 2026 robot v misi Robotour k&#243;d nepřečetl (<code>records/test/20260919-092933.rec</code>): automat byl 239 s ve f&#225;zi <code>Servicing</code> pod držen&#253;m stopem, skener zapnut&#253;, a v z&#225;znamu nen&#237; ani jedna <code>QrCodeMsg</code>. K&#243;d přitom v obraze BYL — offline dekod&#233;r nad t&#253;miž sn&#237;mky ho čte v 725 z 3 957 (obě kamery, dva různ&#233; <code>geo:</code> texty). Př&#237;čina: skutečn&#225; D435 se jmenuje <code>Right 740112071021</code> (driver skl&#225;d&#225; n&#225;zev a s&#233;riov&#233; č&#237;slo), kdežto <code>QrScannerConfig.CameraName</code> je <code>Right</code> a porovn&#225;valo se cel&#233; jm&#233;no — virtu&#225;ln&#237; kamera vrac&#237; hol&#253; n&#225;zev, takže simulace i všech 19 testů proch&#225;zely a na robotu skener nikdy nedostal sn&#237;mek. Druh&#225; past t&#233;hož dne: str&#225;nka n&#225;hledu kreslila PRVN&#205; kameru ve slovn&#237;ku (levou), takže obsluha podle telefonu ukazovala k&#243;d lev&#233; kameře, zat&#237;mco se četlo z prav&#233;. L&#233;čba: jm&#233;no kamery se bere jako prvn&#237; slovo (<code>QrScanner.CameraMatches</code>), str&#225;nka kresl&#237; tu kameru, ze kter&#233; se čte QR, a ř&#237;k&#225; to v ř&#225;dku „na obr&#225;zku (čte QR)&quot;. Nouzov&#233; obejit&#237; bez nov&#233; bin&#225;rky: <code>qrcamera=</code> (pr&#225;zdn&#233; = všechny kamery) v profilu. Měř&#237; to nov&#253; <code>ARBot.Analyze mission</code>.</p>
+    <ul class="kroky">
+      <li class="hotovo">Rozbor <code>ARBot.Analyze mission</code>: časov&#225; osa f&#225;z&#237; a stopu, servisn&#237; okna, sn&#237;mky živ&#253;m dekod&#233;rem <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo"><code>QrScanner.CameraMatches</code> — shoda na prvn&#237; slovo jm&#233;na (2 testy, 21 QR testů zelen&#253;ch) <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Str&#225;nka n&#225;hledu kresl&#237; kameru, ze kter&#233; se čte QR (<code>WebStatus.PreferredCameraName</code>), a hl&#225;s&#237; ji <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Čten&#237; k&#243;du na robotu: <code>20260919-100414.rec</code> 2 <code>QrCodeMsg</code> a k&#243;d přijat, <code>-101057</code> 535, <code>-101903</code> 195 <span class="mono">19. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu, že str&#225;nka kresl&#237; kameru, ze kter&#233; se čte QR (ř&#225;dek „na obr&#225;zku (čte QR)&quot;)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
+  </article>
+  <article class="tema" id="mise-robotour-depothdop" data-stav="v-kodu">
+    <h3>Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
+    <p>Na soutěži 19. 9. 2026 st&#225;la mise Robotour 158 s v <code>ArmingAtDepot</code> (<code>20260919-101546.rec</code>), str&#225;nka ukazovala „sigma 60–70 m“. Ta sigma je <code>gpsposstd &#215; HDOP</code>, tedy nejistota pro f&#250;zi, ne krit&#233;rium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družic&#237;ch, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelš&#237; nepřerušen&#225; s&#233;rie byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou rann&#237;ch z&#225;znamů. Pr&#225;h je teď parametr <code>depothdop=</code> (default 2,0 z <code>RobotourConfig</code> se neměn&#237;), provozn&#237; profil <code>pi-provoz.cfg</code> m&#225; 3,0 — rozptyl polohy hl&#237;d&#225; <code>MaxSpreadM</code> d&#225;l. Měř&#237; to blok 1b <code>ARBot.Analyze mission</code> (percentily HDOP, % vyhovuj&#237;c&#237;ch fixů, nejdelš&#237; s&#233;rie pro 2,0 / 2,5 / 3,0 / 4,0).</p>
+    <ul class="kroky">
+      <li class="hotovo">Blok 1b v <code>ARBot.Analyze mission</code>: kvalita fixu v <code>ArmingAtDepot</code> proti krit&#233;riu mise <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Parametr <code>depothdop=</code> (registr, runtime, <code>pi-provoz.cfg</code> = 3,0) <span class="mono">19. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu: armov&#225;n&#237; v depu s <code>depothdop=3</code> do 5 s od stisku</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
+  </article>
+  <article class="tema" id="mise-robotour-mapa-ostrov" data-stav="v-kodu">
+    <h3>K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
+    <p>Na soutěži 19. 9. 2026 (<code>20260919-101057.rec</code>, <code>-101903.rec</code>) se QR k&#243;d četl (535 a 195 <code>QrCodeMsg</code>), ale mise ho pokažd&#233; zam&#237;tla hl&#225;škou „na c&#237;l nevede po s&#237;ti ž&#225;dn&#225; trasa (je mimo mapu?)“ — a str&#225;nka n&#225;hledu d&#225;l psala „ček&#225; se na QR k&#243;d“, takže obsluha myslela, že se k&#243;d nečte. C&#237;l <code>50.1038082,14.4240751</code> je přitom přesně uzel mapy na živ&#233; <code>footway</code>. Rozbor proti <code>MapMsg</code> a <code>GlobalNavMsg</code> ze z&#225;znamu: s&#237;ť <code>Robotour2026-ver1.osm</code> m&#225; pod profilem Robot 2 komponenty souvislosti; ostrov je jedin&#225; cesta 956523901 (<code>highway=pedestrian</code> + <code>area=yes</code>, dl&#225;žděn&#233; n&#225;měst&#237;, 40 uzlů, 139 m) spojen&#225; se s&#237;t&#237; jen <code>highway=steps</code> (uzly 8852424426 a 8852424425, 0,9 m od sebe) — a schody profil Robot nepoušt&#237;. Robot při zam&#237;tnut&#237; st&#225;l 3–4 m od uzlu ostrova. <code>Probe</code> odpověděl podle grafu spr&#225;vně, ale hl&#225;ška pos&#237;lala člověka hledat chybu jinam a str&#225;nka ji neuk&#225;zala. V 10:04 t&#253;ž k&#243;d projel, protože robot st&#225;l o 50 m d&#225;l na chodn&#237;ku. L&#233;čba v k&#243;du: ř&#225;dky „QR k&#243;dy“ a „k&#243;d ZAM&#205;TNUT“ na str&#225;nce, hl&#225;ška „z m&#237;sta, kde robot stoj&#237; … s&#237;ť rozpojen&#225;“, nov&#253; <code>ARBot.Analyze route</code> a blok 1c v <code>mission</code>. Ostrov je podle autora skutečn&#253; (robot tam nevyjede, GPS ho tam jen posadila), takže se neopravuje mapa, ale načten&#237;: <code>mapprune=</code> (v&#253;choz&#237; true, <code>NetworkIslands</code>) zahod&#237; všechny komponenty kromě t&#233; s největš&#237; d&#233;lkou cest v metrech (ne podle počtu uzlů, ne podle toho, kde robot stoj&#237; — pr&#225;vě ta p&#243;za je z chybn&#233; GPS). Offline z p&#243;zy na n&#225;měst&#237; se p&#243;za přichyt&#237; na chodn&#237;k 2,4 m vedle a c&#237;l je dosažiteln&#253; (393 m). Co se zahodilo, jde do Trace; <code>mapprune=false</code> vr&#225;t&#237; s&#237;ť.</p>
+    <ul class="kroky">
+      <li class="hotovo">Rozbor <code>ARBot.Analyze route</code> (komponenty, cesty ostrova, nejbližš&#237; dvojice uzlů) a blok 1c v <code>mission</code> <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Str&#225;nka n&#225;hledu ukazuje počet přečten&#253;ch/zam&#237;tnut&#253;ch k&#243;dů a důvod zam&#237;tnut&#237; <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Hl&#225;ška zam&#237;tnut&#237; ř&#237;k&#225;, že trasa nevede z m&#237;sta, kde robot stoj&#237;, a že s&#237;ť může b&#253;t rozpojen&#225; <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Ostrovy s&#237;tě zahodit při načten&#237; mapy (<code>mapprune=</code>, <code>NetworkIslands</code>, 5 testů); <code>route</code> z n&#225;měst&#237;: dosažiteln&#233; 393 m <span class="mono">19. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu přijet&#237; k&#243;du z n&#225;měst&#237; (Trace „ZAHOZENO 1“ v z&#225;znamu) a zobrazen&#237; zam&#237;tnut&#237; na str&#225;nce</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>
   <article class="tema" id="mise-nouzove-zastaveni-controlloop" data-stav="hotovo">
     <h3>Nouzov&#233; zastaven&#237; v ř&#237;dic&#237; smyčce a ve firmwaru motorů</h3>

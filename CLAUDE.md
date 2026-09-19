@@ -950,6 +950,27 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ⚠️ **`MaxSpreadM` v návrhu (1,0 m) by misi nikdy nezarmovalo** — je pod nominálním šumem GPS;
   je to teď **RMS** odchylka s prahem 2,5 m (maximum s rostoucím *n* roste, takže delší okno
   kritérium přitvrzovalo). Viz [doc/decisions.md](doc/decisions.md).
+  ⚠️ **Na soutěži 19. 9. 2026 skener NEDOSTAL JEDINÝ SNÍMEK** (`20260919-092933.rec`: 239 s
+  v `Servicing`, kód v obraze v 725 snímcích, `QrCodeMsg` žádná): skutečná D435 se jmenuje
+  **`Right 740112071021`**, ne `Right`, a skener porovnával celé jméno — virtuální kamera vrací holý
+  název, takže simulace i všech 19 testů procházely. Od té doby se jméno bere jako **první slovo**
+  (`QrScanner.CameraMatches`) a **stránka náhledu kreslí tu kameru, ze které se čte QR** (do té doby
+  první ve slovníku = levou, takže obsluha ukazovala kód špatné kameře). Rozbor `ARBot.Analyze mission`;
+  nouzové obejití bez binárky `qrcamera=` (prázdné = všechny). ⚠️ **Na zařízení neběželo**
+  (`mise-qr-jmeno-kamery`). Poučení: jméno senzoru, se kterým se porovnává, musí být v testu
+  **to z driveru**, ne to ze simulace.
+  ⚠️ **Týž den další dva nálezy z depa** (`ARBot.Analyze mission`, bloky 1b/1c): (a) mise se **158 s
+  nezarmovala** — kritérium je HDOP ≤ 2,0 + ≥ 6 družic nepřerušeně 5 s, a mezi budovami byl HDOP
+  2,0–2,95 (vyhovovalo 4,7 % fixů); „sigma 60–70 m" na stránce je `gpsposstd × HDOP`, **ne** kritérium.
+  Práh je teď **`depothdop=`** (default 2,0, `pi-provoz.cfg` má 3,0). (b) kód se **četl a mise ho
+  zamítala** „nevede trasa (je mimo mapu?)", ačkoli cíl je uzel mapy: robot stál na **náměstí**
+  (`highway=pedestrian` + `area=yes`, way 956523901), které je se sítí spojené **jen schody** —
+  profil Robot je nepouští, síť má **2 komponenty**. Stránka důvod zamítnutí **neukazovala** (teď
+  řádky „QR kódy" a „kód ZAMÍTNUT"). **Ostrov je skutečný** (robot tam nevyjede, GPS ho tam jen
+  posadila), takže se **neopravuje mapa, ale načtení**: `mapprune=` (výchozí true, `NetworkIslands`)
+  zahodí všechny komponenty kromě té s **největší délkou cest** — póza se pak přichytí na chodník
+  2,4 m vedle a cíl je dosažitelný. Rozbor `ARBot.Analyze route` (`--noprune` = síť jako v souboru).
+  Obojí ⚠️ **na zařízení neběželo** (`mise-robotour-depothdop`, `mise-robotour-mapa-ostrov`).
   **Dekodér je ZXing.Net, ne ZBar** (binding z ARBot2 nebyl k dispozici; ZXing je čistě managed,
   takže **fáze 1 „nativní libzbar na obě platformy" celá padla**) — viz
   [doc/decisions.md](doc/decisions.md), 26. 8. 2026. Úspěšnost čtení **není naměřená**: testy

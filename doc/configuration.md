@@ -138,7 +138,7 @@ zápis profilu i výpis v panelu používají jednu cestu a nemůžou se rozejí
 Default se zapisuje **jen v `ParamDef`**. Kde má pravdu kód, registr si ji při statické inicializaci
 **přečte**, ne opíše (`ParamRegistry.Fmt`): `maxspeed` a `safedist` z `Profile`, porty UART
 z `Profile.PortAHRS`/`PortMotor`/`PortGPS` (konstanty podle platformy `#if IsX64`/`IsARM64`, do 4. 9.
-2026 schované v `ARBotHW.Init`), `freerunlook` z `FreeRunConfig`, `depotfix` z `RobotourConfig`,
+2026 schované v `ARBotHW.Init`), `freerunlook` z `FreeRunConfig`, `depotfix` a `depothdop` z `RobotourConfig`,
 `depthnoise`/`grassrough`/`grassheight` ze `SyntheticSceneOptions`, `mapcorrref` z `MapCorrelatorConfig`.
 Panel tak ukazuje skutečnou hodnotu pro danou platformu (na OrangePI `maxspeed` 0,8, ne 1,2 z popisu),
 profil ji zapíše jen při změně, a změna v kódu se do registru dostane sama — přesně to, co se 3. 9. 2026

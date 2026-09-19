@@ -225,6 +225,53 @@ public class QrScannerTests
         });
     }
 
+    // ---------------- Jmeno kamery na skutecnem HW ----------------
+
+    /// <summary>
+    /// <b>Skutecna D435 se jmenuje „Right 740112071021", ne „Right".</b> Driver sklada nazev
+    /// a seriove cislo, virtualni kamera vraci holy nazev - a vsechny ostatni testy tady stavi
+    /// snimky se jmenem „Right", takze porovnani celeho jmena proslo testy i simulaci a na robotu
+    /// skener nedostal jediny snimek (19. 9. 2026, <c>20260919-092933.rec</c>: 239 s v Servicing,
+    /// kod v obraze v 725 snimcich, QrCodeMsg zadna). Viz QrScanner.CameraMatches.
+    /// </summary>
+    [Test]
+    public void ZapnutyScanner_PrecteKodZKamerySeSeriovymCislemVeJmenu()
+    {
+        var decoder = new FakeDecoder("geo:50.1046662,14.4256603");
+        var scanner = new QrScanner(decoder, new QrScannerConfig { CameraName = "Right" })
+        {
+            Enabled = true,
+        };
+
+        var results = scanner.Process(Frame("Right 740112071021"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(results, Has.Length.EqualTo(1), "jmeno 'Right 740112071021' MA odpovidat nastaveni 'Right'");
+            Assert.That(decoder.Calls, Is.EqualTo(1));
+            Assert.That(results[0].CameraName, Is.EqualTo("Right 740112071021"), "jmeno kamery jde do zpravy tak, jak ho hlasi driver");
+        });
+    }
+
+    [Test]
+    public void CameraMatches_PrvniSlovoJmena()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(QrScanner.CameraMatches("Right", "Right"), Is.True, "presna shoda (simulace)");
+            Assert.That(QrScanner.CameraMatches("right", "Right"), Is.True, "bez ohledu na velikost pismen");
+            Assert.That(QrScanner.CameraMatches("Right 740112071021", "Right"), Is.True, "skutecna D435: nazev + seriove cislo");
+            Assert.That(QrScanner.CameraMatches("Right 740112071021", "right"), Is.True);
+            Assert.That(QrScanner.CameraMatches("Left 740112071040", "Right"), Is.False, "druha kamera se cist NESMI");
+            Assert.That(QrScanner.CameraMatches("Rightish", "Right"), Is.False, "prefix bez mezery neni tataz kamera");
+            Assert.That(QrScanner.CameraMatches("Right", "Right 740112071021"), Is.False, "uzsi jmeno v nastaveni nez ve snimku neplati naopak");
+            Assert.That(QrScanner.CameraMatches("Right 740112071021", "Right 740112071021"), Is.True, "qrcamera= s celym jmenem funguje dal");
+            Assert.That(QrScanner.CameraMatches("Left 740112071040", ""), Is.True, "prazdne = vsechny kamery");
+            Assert.That(QrScanner.CameraMatches("Left 740112071040", null), Is.True);
+            Assert.That(QrScanner.CameraMatches(null, "Right"), Is.False, "snimek bez jmena se k nastavene kamere nehodi");
+        });
+    }
+
     [Test]
     public void Zprava_JeVKataloguZprav()
     {

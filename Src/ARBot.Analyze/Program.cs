@@ -48,6 +48,14 @@ namespace ARBot.Analyze
                 return 0;
             }
 
+            // Trasa nad mapou zaznam nepotrebuje - cte .osm.
+            if (cmd == "route")
+            {
+                RouteReport.Run(Text(args, "--map"), Text(args, "--from"), Text(args, "--to"),
+                                Arg(args, "--roadwidth", 3), !args.Any(a => a == "--noprune"));
+                return 0;
+            }
+
             if (path == null) { Console.Error.WriteLine("Zadny zaznam nenalezen."); return 1; }
             Console.WriteLine($"Zaznam: {path}");
             Console.WriteLine();
@@ -145,6 +153,10 @@ namespace ARBot.Analyze
                                               (int)Arg(args, "--skip", 0),
                                               args.Any(a => a == "--bgr"),
                                               Text(args, "--png"));
+                        return 0;
+                    case "mission":
+                        MissionReport.Run(rec, Text(args, "--camera"), Text(args, "--png"),
+                                          (int)Arg(args, "--limit", 0));
                         return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
@@ -254,6 +266,14 @@ namespace ARBot.Analyze
             Console.WriteLine("  cameras    chodi z kamer opravdu NOVE snimky? pocet ruznych obrazu a nejdelsi");
             Console.WriteLine("             serie totoznych (cte cele snimky - viz --limit, --skip);");
             Console.WriteLine("             --png=<prefix> ulozi prvni snimek kazde kamery jako PNG");
+            Console.WriteLine("  mission    mise Robotour ze zaznamu: casova osa fazi a stopu, servisni okna");
+            Console.WriteLine("             (kdy skener QR vubec bezel) a prohnani skutecnych snimku zivym");
+            Console.WriteLine("             dekoderem - rozlisi 'skener nebezel' od 'kod nebyl citelny';");
+            Console.WriteLine("             --camera=<jmeno|prazdne=vsechny>, --png=<prefix>, --limit=<n>");
+            Console.WriteLine("  route      vede po siti mapy trasa z A do B, a kdyz ne, PROC (komponenty");
+            Console.WriteLine("             souvislosti, prichyceni, obe orientace startu) - totez, co dela");
+            Console.WriteLine("             GlobalNavigator.Probe pri prijimani cile z QR; bez zaznamu:");
+            Console.WriteLine("             --map=<osm> --from=lat,lon --to=lat,lon [--roadwidth=3] [--noprune]");
             Console.WriteLine("  gps        proc se stojicimu robotu hybe poloha: tahne ho GPS (efektivni");
             Console.WriteLine("             Kalmanovo zesileni), je chyba GPS casove korelovana, skace poza");
             Console.WriteLine("             nebo se plizi, a A/B useku, kde brana fix pustila proti odmitnutym");

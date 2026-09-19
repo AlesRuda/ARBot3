@@ -39,6 +39,46 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-19
+
+- **Nález ze soutěže: skener QR na robotu nedostal jediný snímek** (`mise-qr-jmeno-kamery`).
+  Otázka „proč robot v misi Robotour nepřečetl kód" nad `records/test/20260919-092933.rec`:
+  mise prošla do `Servicing` za 5 s a stála v něm 239 s pod drženým stopem, `QrCodeMsg` v záznamu
+  žádná — ale offline dekodér nad týmiž snímky čte kód v **725 z 3 957** (levá ~685×, pravá 40×).
+  Příčina: skutečná D435 se jmenuje **`Right 740112071021`**, skener porovnával celé jméno
+  s `Right`; virtuální kamera vrací holý název, takže simulace i testy procházely. Druhá past:
+  stránka náhledu kreslila **první kameru ve slovníku** (levou), takže obsluha ukazovala kód levé
+  kameře, zatímco se četlo z pravé (levá ho trefila 09:30:04, pravá 09:31:25).
+- **Hotovo (v kódu, ⚠️ na zařízení neběželo):** `QrScanner.CameraMatches` (shoda na první slovo
+  jména; 2 testy, 21 QR testů zelených), stránka náhledu kreslí kameru, ze které se čte QR
+  (`WebStatus.PreferredCameraName`, řádek „na obrázku (čte QR)"), nový rozbor
+  **`ARBot.Analyze mission`** (časová osa fází a stopu, servisní okna, snímky živým dekodérem,
+  hlášení „k nastavené kameře se nehodí žádné jméno v záznamu"). Nouzové obejití bez binárky:
+  `qrcamera=` (prázdné = všechny kamery). Detail: [robotour-mission.md](robotour-mission.md),
+  „Skener na robotu nedostal jediný snímek".
+- ✅ **Čtení kódu na robotu potvrzeno** dalšími záznamy téhož dopoledne (`20260919-100414`: 2 `QrCodeMsg`
+  a kód přijat; `-101057`: 535; `-101903`: 195).
+- **Nález 2: mise se 158 s nezarmovala** (`mise-robotour-depothdop`, `20260919-101546.rec`): kritérium
+  je HDOP ≤ 2,0 + ≥ 6 družic nepřerušeně 5 s; mezi budovami byl HDOP 1,74–2,95 (p50 2,30), vyhovovalo
+  4,7 % fixů, nejdelší série 3 s. „Sigma 60–70 m" na stránce je `gpsposstd × HDOP`, ne kritérium.
+  **Hotovo (v kódu):** parametr `depothdop=` (default 2,0), `pi-provoz.cfg` = 3,0; blok 1b
+  v `ARBot.Analyze mission` (HDOP percentily, % vyhovujících, nejdelší série pro 2,0/2,5/3,0/4,0).
+- **Nález 3: kód se četl, mise ho zamítala a stránka to neukázala** (`mise-robotour-mapa-ostrov`,
+  `-101057`, `-101903`): „nevede trasa (je mimo mapu?)" pro cíl, který je přesně uzel mapy. Podle
+  `MapMsg` a `GlobalNavMsg` ze záznamu má síť **2 komponenty**; robot stál na náměstí
+  (`highway=pedestrian` + `area=yes`, way 956523901), spojeném se sítí jen `steps`, které profil Robot
+  nepouští. **Hotovo (v kódu):** stránka má řádky „QR kódy" a „kód ZAMÍTNUT" s důvodem, hláška říká
+  „z místa, kde robot stojí … síť rozpojená", nový `ARBot.Analyze route` (komponenty, cesty ostrova,
+  nejbližší dvojice uzlů) a blok 1c v `mission`. **Mapu musí spojit člověk v JOSM.** Testy: Common 344
+  (mise + konfigurace), Runtime 140. Detail: [robotour-mission.md](robotour-mission.md).
+- **Ostrov je skutečný** (autor: robot tam nevyjede, GPS ho tam posadila) → mapa se neopravuje,
+  **ostrovy se zahazují při načtení** (`mapprune=`, výchozí true, `NetworkIslands`: komponenty pod
+  profilem Robot přes sdílené uzly, nechá se ta s největší délkou cest v metrech; co se zahodilo, jde do
+  Trace). Offline z pózy na náměstí: přichycení na chodník 2,4 m, cíl dosažitelný 393 m. Testy 5 + 324
+  (OsmNav, konfigurace) + Runtime 140. `ARBot.Analyze route` dělá totéž (`--noprune` vypne).
+- **Další krok:** nasadit binárku i profil; ověřit armování s `depothdop=3`, přijetí kódu z náměstí
+  (`mapprune`) a zobrazení zamítnutí na stránce.
+
 ## 2026-09-18
 - **Menu webu má generátor** (`web-menu-generator`) — *z dotazu autora* („přišlo mi komplikované
   dávat menu na 22 míst a bude jich více“). Hlavička `<header class="sitehead">` byla opsaná
