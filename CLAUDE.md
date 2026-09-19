@@ -84,8 +84,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   [doc/devlog.md](doc/devlog.md) (pravidla psaní jsou v hlavičce toho souboru).
 - **Veď registr úkolů** [doc/ukoly.yaml](doc/ukoly.yaml) (od 17. 9. 2026): nový nález nebo
   záměr = nové téma, změna stavu (hotovo v kódu / ověřeno na HW / odloženo) = úprava tématu, a po
-  každé změně **přegenerovat** `dotnet run tools/ukoly.cs` (výstupy [doc/ukoly.md](doc/ukoly.md)
-  a `web/pages/historie.html` jsou commitované, CI hlídá, že sedí se zdrojem). Stav
+  každé změně **přegenerovat** `dotnet run tools/ukoly.cs` **a hned za ním `dotnet run tools/menu.cs`**
+  (výstupy [doc/ukoly.md](doc/ukoly.md) a `web/pages/historie.html` jsou commitované, CI hlídá,
+  že sedí se zdrojem). ⚠️ **Pořadí je povinné a druhý krok se nesmí vynechat:** `ukoly.cs` vyrobí
+  `historie.html` s **prázdnou** hlavičkou a teprve `menu.cs` do ní doplní společné menu webu;
+  19. 9. 2026 se commitnul výstup jen z prvního kroku a CI (`generovane-soubory`) spadlo na
+  `git diff --exit-code`. Stav
   **`v-kodu`** („hotové v kódu, na zařízení neběželo") je schválně samostatný — je to nejčastější
   stav v projektu a v seznamu musí být vidět. Sekce „Otevřené úkoly" v `doc/*.md` stav **nevedou**,
   jen odkazují na id v registru. Pravidla a schéma: [doc/plan-ukoly.md](doc/plan-ukoly.md).

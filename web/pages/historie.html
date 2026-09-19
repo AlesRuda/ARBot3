@@ -8,7 +8,18 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap">
 <link rel="stylesheet" href="../assets/site.css">
 
-<header class="sitehead"></header>
+<header class="sitehead">
+  <a class="brand" href="../index.html"><img src="../assets/img/arbot-logo.png" width="106" height="106" alt=""><span>ARBot</span></a>
+  <nav>
+      <a href="../index.html">Úvod</a>
+      <a href="../pages/prezentace.html">Jak to funguje</a>
+      <a href="../pages/historie.html" class="on">Historie</a>
+      <a href="../pages/umisteni-v-soutezich.html">Umístění v soutěžích</a>
+      <a href="../pages/verze.html">Verze</a>
+      <a href="../pages/technicke-clanky.html">Technické články</a>
+      <a href="../pages/kontakt.html">Kontakt</a>
+  </nav>
+</header>
 <main>
   <div class="pagehead">
     <p class="eyebrow">Třetí verze softwaru, od června 2026</p>
@@ -1435,7 +1446,8 @@
     <ul class="kroky">
       <li class="hotovo">Automat: skener u vykl&#225;dky, k&#243;d = dalš&#237; nakl&#225;dka, uvolněn&#237; bez k&#243;du = depo; <code>MissionMsg</code> v7 <span class="mono">19. 9. 2026</span></li>
       <li class="hotovo">Hl&#225;šen&#237; na str&#225;nce a v UI panelu (<code>QrCodeOrRelease</code>), 3 nov&#233; testy, 2 přepsan&#233; (Common 1 601, Runtime 140) <span class="mono">19. 9. 2026</span></li>
-      <li class="otevreno">Ověřit na robotu průchod vykl&#225;dka → k&#243;d dalš&#237; nakl&#225;dky → nakl&#225;dka → vykl&#225;dka → depo</li>
+      <li class="hotovo">Průchod vykl&#225;dka → k&#243;d dalš&#237; nakl&#225;dky → nakl&#225;dka → vykl&#225;dka → depo proklik&#225;n autorem v Avalonii na virtu&#225;ln&#237;m HW <span class="mono">19. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu (skutečn&#233; kamery, stop tlač&#237;tko, str&#225;nka n&#225;hledu)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>

@@ -82,8 +82,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   depo (`CodeExpected` vs. `CodeRequired`). Nové hlášení `MissionWait.QrCodeOrRelease` na stránce
   i v UI panelu, `MissionMsg` verze 7 (`Deliveries`, `NextPickupChosen`). Testy: mise 180 (3 nové,
   2 přepsané), Common 1 601, Runtime 140; buildy Headless i UI. ⚠️ Na zařízení neběželo.
-- **Další krok:** nasadit binárku i profil; ověřit armování s `depothdop=3`, přijetí kódu z náměstí
-  (`mapprune`), zobrazení zamítnutí na stránce a průchod vykládka → další nakládka.
+- ✅ Průchod s další nakládkou **proklikán autorem v Avalonii na virtuálním HW**.
+- ⚠️ **CI `generovane-soubory` spadlo** na commitu `53878fd`: po `tools/ukoly.cs` se nepustil
+  `tools/menu.cs`, takže `web/pages/historie.html` šla do gitu s **prázdnou hlavičkou** bez menu.
+  Opraveno přegenerováním v povinném pořadí (obojí je idempotentní, druhý běh nic nemění);
+  pravidlo v CLAUDE.md teď oba kroky jmenuje.
+- **Další krok:** nasadit binárku i profil; ověřit na robotu armování s `depothdop=3`, přijetí kódu
+  z náměstí (`mapprune`), zobrazení zamítnutí na stránce a průchod vykládka → další nakládka.
 
 ## 2026-09-18
 - **Menu webu má generátor** (`web-menu-generator`) — *z dotazu autora* („přišlo mi komplikované

@@ -1418,7 +1418,8 @@ Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další n
 
 - [x] Automat: skener u vykládky, kód = další nakládka, uvolnění bez kódu = depo; `MissionMsg` v7 (19. 9. 2026)
 - [x] Hlášení na stránce a v UI panelu (`QrCodeOrRelease`), 3 nové testy, 2 přepsané (Common 1 601, Runtime 140) (19. 9. 2026)
-- [ ] Ověřit na robotu průchod vykládka → kód další nakládky → nakládka → vykládka → depo
+- [x] Průchod vykládka → kód další nakládky → nakládka → vykládka → depo proklikán autorem v Avalonii na virtuálním HW (19. 9. 2026)
+- [ ] Ověřit na robotu (skutečné kamery, stop tlačítko, stránka náhledu)
 
 [robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
