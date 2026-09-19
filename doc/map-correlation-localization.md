@@ -3316,3 +3316,180 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   `corridorstd=` / `corridorheadingstd=` / `corridorhz=` — dekorelační čas chyby koridoru **pořád
   změřený není**, a měřicí záznam ho dát nemůže (kurz je vada, ne šum); první střízlivé číslo pro
   `corridorheadingstd=` je z tabulky výš **~2,3°** proti hlášeným 0,5°.
+
+## První jízda s korekcemi z koridoru NAOSTRO (18. 9. 2026)
+
+`records/test/20260918-154028.rec` (750 s, 13 415 `RoadCorridorMsg`) a `20260918-155329.rec`
+(555 s, 10 341; **záznam je uťatý** — index bez konce, 229 B posledního rámce ztraceno, tedy
+proces skončil bez uzavření souboru). Orange Pi, `config/pi-provoz.cfg`, `mission=track`
+po `OSM/Hviezdoslavova.track`, kompas po kalibraci z 12. 9. Účinná konfigurace:
+`corridor=true`, **`corridorsend=true (profil)`** — autor ho zapnul 17. 9. (commit `a44b4f4`),
+takže tohle je **první záznam, ve kterém korekce z koridoru řídily pózu** (`poslana pricna
+korekce 2 821 z 2 821 Ok`, resp. 2 889 z 2 889; fúzí nezahozeno nic). Autor to popsal jako
+„robot se pěkně snapoval na koridor"; tady je, co o tom říkají data. Měřidla: `ARBot.Analyze
+corridor` / `corridorfit` / `cameras` / `heading` / `corrections` / `localplan`.
+
+### Kolik toho koridor dává — a proč jen za jízdy
+
+| | 15:40 (`154028`) | 15:53 (`155329`) |
+|---|---|---|
+| cyklů celkem | 13 415 | 10 341 |
+| `Ok` (došlo do fúze) | 2 821 (21,0 %) | 2 889 (27,9 %) |
+| cyklů **za jízdy** (v > 0,3 m/s) | 5 067 | 5 458 |
+| z nich `Ok` | **53,7 %** | **51,6 %** |
+| `NotParallel` | 17,2 % | 14,5 % |
+| `TooFewInliers` | 13,8 % | 18,2 % |
+| `OneSideOnly` | 9,2 % | 10,6 % |
+| `WidthNotTrusted` | 5,4 % | 4,4 % |
+| cyklů **ve stání** (v ≤ 0,05 m/s) | 6 584 | 3 244 |
+| z nich `Ok` | 0,6 % | 0,6 % |
+
+Celkových 21–28 % tedy **není číslo o koridoru, ale o tom, kolik robot stál**: v prvním
+záznamu stojí od ~320 s do konce (7 minut, viz níž), ve druhém prvních 130 s po volbě mise.
+Ve stání koridor vzniknout nemá (robot kouká do trávy nebo do překážky, `OneSideOnly` 39 %,
+`NotParallel` s rozevřením 65–72°). **Za jízdy dá koridor měření v každém druhém cyklu**, tedy
+~9–10 měření za sekundu při ~19 cyklech/s — proti 5,2 % z měřicí jízdy 16. 9. (kde ale ztráty
+seděly až za proložením: póza mimo vozovku a příčná brána).
+
+### Kvalita přijatých měření
+
+| veličina | `154028` | `155329` |
+|---|---|---|
+| šířka měřená p50 | 3,196 m | 3,204 m |
+| šířka z filtru p50 | 3,216 m | 3,217 m |
+| rezidua (L+R)/2 p50 / p90 | 0,072 / 0,123 m | 0,075 / 0,116 m |
+| inliery L / R p50 | 45 / 41 | 40 / 44 |
+| délka úsečky L / R p50 | 7,04 / 6,89 m | 6,97 / 6,98 m |
+| podélný překryv úseček p50 | 6,61 m | 6,61 m |
+| nerovnoběžnost p50 / p90 | 2,8° / 6,8° | 2,9° / 7,1° |
+| σ příčně p50 | 0,072 m | 0,075 m |
+
+Proložení stojí na ~40–45 bodech na stranu s rezidui 7 cm a **dosahuje ~7 m před robota**
+(úsečky obou stran se překrývají na 6,6 m). Rozestup snímků dvojice nemá na nic vliv (pásma
+0–20 až 200–300 ms dávají tytéž mediány) — kompenzace pohybu z 23. 8. funguje i na železe.
+
+⚠️ **Příčný nesouhlas (p50 0,06 m, p90 0,19 m) se tentokrát nesmí číst jako přesnost.** Korekce
+běžely naostro, takže póza je koridorem tažená a nesouhlas měří **konzistenci koridoru se sebou
+samým**, ne s pravdou. Totéž platí pro šířku proti *filtru*. Ground truth v záznamu není; jediná
+**nezávislá** reference je GPS, a ta má dekorelační čas ~40 s a zbytek proti odometrii p50 1,2–1,5 m
+(`ARBot.Analyze gps`, blok A2b), tedy o řád hrubší než to, co se má měřit. Zda korekce pózu
+**opravily nebo odtáhly**, se z těchhle dvou záznamů říct nedá.
+
+### Přiřazení k hraně (`EdgeAssociator`) na zařízení poprvé — a nemělo co rozhodovat
+
+`chi2 viteze` p50 0,004, p90 0,04–0,06; **nejednoznačných 3 z 3 147** a 8 z 3 197, bez sedící
+hrany 0 a 22; druhý kandidát vůbec existoval jen ve 3 a 11 cyklech. Prakticky celá jízda vede
+po jediné OSM cestě (`230064222`), takže χ² a veto byly správně, ale **test to nebyl** — křižovatky
+tahle trať nemá. Cyklů s `|nesouhlas kurzu|` 10–30° je 11 a 43 (proti 1 114 z 2 256 16. 9.), ale
+z jiného důvodu: kurz je po kalibraci kompasu v pořádku (viz níž), ne proto, že by přiřazení něco
+zachránilo.
+
+### ✅ Koridor jako reference kurzu — a fúze už kompas neopisuje
+
+| | `154028` | `155329` |
+|---|---|---|
+| koridor − GPS kurz p50 / robustní sd | −0,95° / 2,64° | +0,25° / 2,39° |
+| IMU yaw − GPS kurz p50 / sd | −2,54° / 3,93° | −1,60° / 4,64° |
+| odhad fúze − IMU yaw | **0,39° ± 1,88°** | **−0,16° ± 4,05°** |
+| odhad fúze − GPS kurz | −0,90° p50 | +0,10° p50 |
+| σ proložení p50 | 0,60° | 0,61° → **4× optimistická** |
+
+Do 12. 9. bylo `odhad − IMU yaw` = −0,01° ± 0,06° — fúze kurz z kompasu **přebírala**. Teď se
+od něj odchyluje o stupně a **jde blíž ke GPS kurzu než kompas sám** (v jízdních minutách
+prvního záznamu: IMU − GPS −2,7 / −4,7 / −3,2°, odhad − GPS −1,1 / −1,8 / −1,0°). To je první
+změření **korekce kurzu z koridoru na zařízení** (`lok-kurz-koridor-prehlasovan-kompasem`,
+dosud jen výpočet): koridor kurz reálně táhne. ⚠️ Zbytkový rozpor kompasu −1,6 až −2,5° proti
+GPS je stejný, jaký zbyl 12. 9. po kalibraci (−3,7°) — konstanta, ne železo, a tahle jízda ji
+neurčí. Kadence do fúze: **`corridorhz=0`, tedy ~10 měření/s** při dekorelačním čase, který
+pořád změřený není; `corridorheadingstd=0`, ačkoli první číslo (~2,3–2,6° proti hlášeným 0,6°)
+tu je potřetí. Gating (`corrections`): NIS p50 0,54 / 0,49, **0 % zamítnutých** — pro
+konzistentní filtr se čeká ~5 %, tedy σ je spíš velká; skoky pózy nad 0,5 m jen 6 z 7 498 a
+5 z 5 644.
+
+### Co D435 vidí u hrany: každá kamera JEN svou stranu (`corridorfit`, nový blok)
+
+`OneSideOnly` v reportu `corridor` říká jen, že jedna hrana zůstala bez bodů — ne která. Nový
+blok *HRANICNI BODY PO KAMERE* v `corridorfit` to rozkládá po kameře a po minutách:
+
+| kamera | snímků | bez levé hrany | bez pravé hrany | bodů L / R p50 |
+|---|---|---|---|---|
+| Left (`154028`) | 6 810 | 8,7 % | 46,8 % | 43 / 2 |
+| Right (`154028`) | 6 606 | 63,9 % | 39,7 % | 0 / 17 |
+| Left (`155329`) | 5 179 | 16,5 % | 54,4 % | 33 / 0 |
+| Right (`155329`) | 5 162 | 60,6 % | 23,0 % | 0 / 31 |
+
+Levá kamera dodává **levou** hranu, pravá **pravou**, druhou stranu jen sporadicky — což při
+±29,3° natočení a 55° barevném zorném poli sedí (přímo před robotem je klín, viz
+`lp-klin-mezi-zornymi-poli`). V jízdních minutách chybí vlastní hrana levé kameře v **1–6 %**
+snímků a pravé v **1–15 %**; `OneSideOnly` za jízdy (9–11 %) je sjednocení obou. Tam, kde robot
+stál nebo se otáčel, chybí i 90–100 % (minuty 10–12 prvního záznamu: pravá kamera bez jediného
+bodu = kouká do překážky). **Koridor tedy stojí na tom, že OBĚ kamery vidí svou hranu** — výpadek
+jedné D435 ho vypne celý, ne zpola.
+
+### `NotParallel` za jízdy: rozevření ~20°, obě strany stejně, brána dělá svou práci
+
+Z 874 / 790 zamítnutí za jízdy je `|dirL − dirR|` p50 **19,6° / 21,5°**, p90 51°; levá strana
+je od osy dál ve 389 z 874, pravá ve 485 — tedy **žádná kamera to nevyrábí přednostně**.
+Anatomie s vypnutým gatem (`corridorfit`): zahozená populace má rezidua **0,096–0,114 m proti
+0,074–0,076 m** u přijaté a šířku p50 **1,8–2,3 m** (nad 20°: 1,7 m) při stejném počtu inlierů
+(44–48). Rezidua horší a šířka nesmyslná ⇒ jsou to **proložení na jinou hranu** (sjezd, roh,
+vnitřní okraj trávníku), ne rozšiřující se cesta — brána zahazuje, co má. Pásmo 10–14° (174 / 126
+snímků) je hraniční: rezidua 0,077–0,112 m, šířka 2,7 m.
+
+### ✅ Estimátor proložení na reálných datech: VŠECHNY varianty stejné (`lok-sirka-koridoru-plus-18-mm`)
+
+`corridorfit --limit=0 --rep=3` nad `155329` (10 340 dvojic): `Ok` 3 209–3 232 pro *všechny*
+varianty (LS 3 219, L1 3 227, Huber 3 212, Tukey 3 176), rezidua 0,076–0,079 m, vychýlení šířky
+proti filtru −0,006 až −0,010 m u všech, rozpětí opakování se překrývají. Argument pro L1 ze
+simulace (zešikmení od drsnosti trávy, +18 mm) **se na skutečné kameře neprojevil** — nikoli
+proto, že by pravda byla známá (není), ale protože varianty **nedají rozdílný výsledek**, který
+by šlo obhajovat. `LeastSquares` zůstává; otázka se zavírá, dokud nebude záznam s pravdou.
+
+### Stání, které koridor vypnulo, není koridorová vada (→ `lp-zasek-v-blokovane-mape`)
+
+`154028`: dvě celá kola Tracku (6 míst za 5 min, 15:40:40–15:45:42), pak na cestě k bodu 1/3
+třetího kola robot od ~320 s zpomaluje na 0,05–0,12 m/s a od 380 s **stojí do konce záznamu**
+(7 min): plán 5 cm, potvrzeně volno 0,00 m, `Blocked` ~50 % buněk, `AlreadyAtGoal` /
+`EscapingBlocked`, 4× „NOUZOVE ZASTAVENI - kolize 0,00 m", hraniční body 1,7–2,8 m před robotem.
+V 15:47:17 (t ≈ 409 s, robot už stál) zamrzla barva pravé D435 → supervizor zotavení, obě
+pipeline zpět za 32 s — **druhé ověření zotavení kamer na skutečné poruše**, ale se stáním to
+nesouvisí (přišlo o minutu později). `155329`: po volbě mise 50–120 s `EscapingBlocked` s nouzovým
+zastavením v 59–85 % taktů, pak se rozjel a objel 5 míst. Co bylo před robotem, ze záznamu bez
+snímků na obrazovce nevím — popsané, ne vysvětlené.
+
+### Co z toho plyne
+
+- Koridor **na zařízení funguje**: za jízdy měření v ~52 % cyklů, rezidua 7 cm, dosah 7 m, a
+  fúze se podle něj **skutečně řídí** (kurz i příčně).
+- **Přesnost pózy ověřená není** a s korekcemi naostro ani být nemůže ze self-konzistence.
+  Potřeba je buď jízda s `corridorsend=false` po téže trati (A/B: kam se póza rozejde s GPS),
+  nebo nezávislá pravda.
+- Otevřené: `corridorhz`/`corridorheadingstd` z naměřeného (σ kurzu 4× optimistická, kadence
+  10/s bez dekorelačního času), a **jak rychle póza po výpadku koridoru** (stání, jedna kamera)
+  spadne zpět na GPS s `gpsposstd=30` — v těchhle záznamech není úsek, kde by to šlo změřit.
+
+### Odtlumení pro soutěž 19. 9. — A/B v simulaci (18. 9. 2026 večer)
+
+Autor po přečtení výše: *„zítra je soutěž, přijde mi vhodné trošku nafouknout σ koridoru, takhle
+je asi moc silný."* V profilu na to čekaly tři zakomentované klíče; hodnoty se nevzaly z komentáře,
+ale z měření výš (`corridorheadingstd=2.5` = robustní sd koridor − GPS kurz), a `corridorhz=2` je
+kompromis mezi „nic" a 1 Hz z komentáře. Než to šlo do profilu, projelo se **pět běhů po 60 s
+v simulaci** (`ARBot.Headless`, `SyntetickyRovny.osm`, `goal=`, prokluz pravého kola 2 %, bias
+kurzu 3°, `gpsposstd=30` jako v profilu; měřeno `ARBot.Analyze corrections` proti `GroundTruthMsg`):
+
+| varianta | do fúze | příčná chyba p50 | chyba kurzu p50 | celková chyba p50 |
+|---|---|---|---|---|
+| A dnes (0 / 0 / 0) | 860 z 860 | **0,003 m** | 0,13° | 0,22 m |
+| B jen σ (0,1 m / 2,5°) | 1 051 z 1 051 | 0,006 m | 0,18° | 0,31 m |
+| **C σ + 2 Hz** (do profilu) | 144 z 742 | **0,018 m** | **0,41°** | 0,27 m |
+| D σ + 1 Hz | 71 z 690 | 0,030 m | 0,55° | 0,26 m |
+| E bez korekcí | 0 z 678 | 0,843 m | 2,40° | 0,88 m |
+
+Čtení: **celková** chyba je ve všech variantách podélná (prokluz, který koridor opravit nemůže a
+GPS s `gpsposstd=30` taky ne) a mezi běhy kolísá; koridorová je ta **příčná** a kurz. Varianta C
+nechá koridoru ~15× méně příčné informace a ~90× méně o kurzu než dnes, a pořád drží pózu na
+2 cm / 0,4°. ⚠️ **Simulace má bílý šum**, takže říká jen, že mechanismus (kvadratické skládání σ,
+škrcení posílání) funguje a kolik autority zbývá — **neříká, jak se to chová na korelované chybě
+hrany**, což je přesně důvod, proč se odtlumuje. NIS v simulaci ~0 (σ je proti bílému šumu
+simulace obrovská) — na reálném záznamu bylo s dnešní σ NIS p50 0,54, s nafouknutou bude ~0,2,
+tedy konzervativní. **Na zařízení s těmito hodnotami nejelo** (`CorridorDeweightTests` 7/7).

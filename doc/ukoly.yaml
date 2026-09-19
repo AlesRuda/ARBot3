@@ -1391,6 +1391,7 @@ temata:
       plošného skenu. Vznikl `CorridorFinder`, mapová protistrana `RoadAxis` a stupeň
       `CorridorLocalizer` (`corridor=`), který posílá do fúze příčné a kurzové měření. Od 15. 9.
       běží v provozním profilu v měřicím režimu (bez vlivu na řízení); první jízda ze zařízení 16. 9. (2 256 cyklů, 424 přijatých).
+      **18. 9. 2026 první jízdy s korekcemi naostro** (`20260918-154028.rec`, `-155329.rec`): za jízdy měření v 52–54 % cyklů (rezidua 7 cm, ~43 inlierů na stranu, úsečky 7 m), ve stání 0,6 %; do fúze odešlo 2 821 + 2 889 měření a fúze se jimi řídí (`odhad − IMU yaw` z ±0,06° na ±1,9°). ⚠️ Přesnost pózy tím ověřená není — s korekcemi naostro je příčný nesouhlas (p50 0,06 m) self-konzistence.
     kroky:
       - co: Spike nad záznamem z virtuálních kamer
         stav: hotovo
@@ -1401,18 +1402,24 @@ temata:
       - co: Ověřeno během v simulaci (178 měření za 40 s, chyba polohy 0,027 m, kurzu 0,18°)
         stav: hotovo
         kdy: 2026-08-23
-      - co: Kvalita hranice na reálné D435, křižovatka a jednostranná viditelnost
-        stav: otevreno
-      - co: Zapnout posílání korekcí naostro
-        stav: otevreno
+      - co: "Kvalita hranice na reálné D435 (18. 9.: rezidua 7 cm, ~43 inlierů, dosah 7 m; každá kamera vidí jen svou hranu — křižovatka na trati nebyla)"
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Zapnout posílání korekcí naostro (autor, `config/pi-provoz.cfg`, commit `a44b4f4`)
+        stav: hotovo
+        kdy: 2026-09-17
       - co: První běh na zařízení v měřicím režimu (`20260916-164926.rec`)
         stav: hotovo
         kdy: 2026-09-16
+      - co: Ověřit přesnost pózy s korekcemi (A/B `corridorsend=false` po téže trati, nebo pravda)
+        stav: otevreno
+      - co: Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
+        stav: otevreno
     ceka_na: [lok-korelace-tri-podminky-naostro]
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16]
+    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18]
 
   - id: vid-kalibrace-kamer-bias
     oblast: videni
@@ -1844,9 +1851,9 @@ temata:
     oblast: lokalizace
     nazev: Korekci kurzu z koridoru přehlasuje kompas ~200:1
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-22
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-18
     popis: >
       Autor se ptal, proč korekce z koridoru chybu kurzu nezmenšila. Nejdřív se zjistilo, že
       kurz nebylo co opravovat (robot stál a virtuální IMU dává absolutní kurz s efektivní σ 0,1°).
@@ -1857,6 +1864,7 @@ temata:
       bias kurzu přibýt do stavu EKF. Od 12. 9. má σ kompasu podlahu 5° a škrtí se na 1 Hz, takže
       15. 9. výpočet ukázal, že poměr se překlopil na koridor ~150–1000:1 nad kompasem — je to ale
       výpočet, ne měření, a na zařízení to neběželo.
+      ✅ **Změřeno na zařízení 18. 9. 2026** (první jízdy s `corridorsend=true`): fúze kurz z kompasu už neopisuje — `odhad − IMU yaw` je +0,39 ± 1,88° (dřív −0,01 ± 0,06°) a odhad je ke GPS kurzu blíž než kompas sám (v jízdních minutách −1,0 až −1,8° proti −2,7 až −4,7°). Koridor kurz reálně táhne; kolik přesně a s jakou σ, zůstává u `lok-koridor-merici-rezim` (σ proložení 4× optimistická, kadence 10/s).
     kroky:
       - co: "Změřit poměr informace kompas : koridor v simulaci (~200:1)"
         stav: hotovo
@@ -1867,8 +1875,9 @@ temata:
       - co: "Přepočet poměru po podlaze σ kompasu a škrcení na 1 Hz (koridor ~150–1000:1)"
         stav: hotovo
         kdy: 2026-09-15
-      - co: Změřit korekci kurzu z koridoru na zařízení
-        stav: otevreno
+      - co: "Změřit korekci kurzu z koridoru na zařízení — 18. 9.: `odhad − IMU yaw` z −0,01 ± 0,06° na +0,39 ± 1,88°, odhad ke GPS kurzu blíž než kompas (−1,0° proti −3°)"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: virtual-hw.md
         cesta: doc/virtual-hw.md
@@ -1876,7 +1885,7 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-08-22, 2026-08-23, 2026-09-15]
+    devlog: [2026-08-22, 2026-08-23, 2026-09-15, 2026-09-18]
     ceka_na: [lok-bias-senzoru-jako-stav-ekf]
 
   - id: lok-koridor-za-jizdy-propada
@@ -2199,8 +2208,9 @@ temata:
     oblast: lokalizace
     nazev: Šířka koridoru vychází o 18 mm větší — nejmenší kvadráty sledují průměr, medián sedí
     druh: vada
-    stav: odlozeno
+    stav: zamitnuto
     nalezeno: 2026-08-24
+    vyreseno: 2026-09-18
     popis: >
       Nad rovnou mapou proti pravdě vyšla šířka 2,018 m místo 2,000 (filtr šířky tu odchylku
       schovával devítinásobně). Surové body chybu nemají — medián sedí na okraji — ale rozdělení je
@@ -2211,6 +2221,7 @@ temata:
       rozhodl počkat na měření na reálné kameře, protože to zešikmení je artefakt simulace a na
       skutečné trávě se může ztratit v šumu. Zapínat léčbu vady, o které se neví, jestli na železe
       existuje, by znamenalo ladit simulaci.
+      ❌ **Zamítnuto 18. 9. 2026:** na reálných datech (`20260918-155329.rec`, 10 340 dvojic) dávají všechny varianty proložení týž výsledek v rámci rozpětí opakování; pravda k dispozici není, ale rozdíl, který by šlo obhajovat, nevzniká. `LeastSquares` zůstává. Otevře se znovu jen se záznamem s pravdou.
     kroky:
       - co: "Nález proti pravdě (`corridorfit --truewidth --axisy`)"
         stav: hotovo
@@ -2224,8 +2235,9 @@ temata:
       - co: Rozhodnutí autora odložit do měření na HW
         stav: hotovo
         kdy: 2026-08-27
-      - co: Změřit zešikmení hranových odchylek na záznamu ze skutečné kamery
-        stav: otevreno
+      - co: "Změřit na záznamu ze skutečné kamery — 18. 9.: `corridorfit --limit=0 --rep=3` nad 10 340 dvojicemi, LS/L1/Huber/Tukey nerozlišitelné (Ok 3 176–3 232, rezidua 0,076–0,079 m, vychýlení proti filtru −0,006 až −0,010 m u všech)"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
@@ -2233,7 +2245,7 @@ temata:
         cesta: Src/ARBot.Common/Common/LineFit.cs
       - text: EdgeBiasReport.cs
         cesta: Src/ARBot.Analyze/EdgeBiasReport.cs
-    devlog: [2026-08-24, 2026-08-27]
+    devlog: [2026-08-24, 2026-08-27, 2026-09-18]
     ceka_na: []
 
   - id: nast-simulace-trava-render
@@ -2296,8 +2308,9 @@ temata:
       škrtí na 1 Hz (`imuheadinghz=`); gyro jede dál v plné kadenci. Poměr informace spadl
       na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere
       jako bílý šum.
+      18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není.
     kroky:
-      - co: 'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %'
+      - co: "'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %'"
         stav: hotovo
         kdy: 2026-08-25
       - co: 'Podlaha sigmy kurzu z kompasu `imuheadingstd=` (výchozí 5°, skládá se kvadraticky s `YprU`)'
@@ -2313,7 +2326,7 @@ temata:
         cesta: doc/ekf-fusion.md
       - text: rozhodnutí 12. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-25, 2026-09-12]
+    devlog: [2026-08-25, 2026-09-12, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
   - id: lok-gps-kurz-do-fuze
@@ -2336,7 +2349,7 @@ temata:
       - co: 'Virtuální GPS hlásí kurz nad zemí (šum v příčné rychlosti, 12° při 0,5 m/s, 3,7° při 3 m/s)'
         stav: hotovo
         kdy: 2026-08-25
-      - co: 'Mapper bere `GPS/heading` do fúze (varianta A: druhá reference, žádné nové stavy)'
+      - co: "'Mapper bere `GPS/heading` do fúze (varianta A: druhá reference, žádné nové stavy)'"
         stav: hotovo
         kdy: 2026-08-25
       - co: '`ARBot.Analyze heading` i bez ground truth (`--nogt`), ověřeno proti známé odpovědi'
@@ -2363,6 +2376,7 @@ temata:
       bias vůbec má (ten 3° v simulaci vnutil člověk). To se potvrdilo v terénu 7. 9. (kurz
       o 24° vedle, po kalibraci magnetometru zbývá konstanta −3,7°). Zůstává cílem; 12. 9. se
       místo něj sáhlo po podlaze sigmy a škrcení kompasu, „na stav EKF teď není prostor".
+      ✅ **Potvrzení z HW 18. 9. 2026:** s kalibrovaným magnetometrem má kompas proti GPS kurzu bias −2,5 / −1,6° (sd ~4°), na protilehlých kurzech stejný, ale mezi běhy jiný — tedy reálný, malý a pomalu proměnný bias, přesně případ pro stav EKF, ne pro konstantu v konfiguraci. Brána „potvrdit na reálném HW" je tím splněná.
     kroky:
       - co: 'Přístroj na rozpor dvou absolutních referencí bez ground truth (`ARBot.Analyze heading --nogt`)'
         stav: hotovo
@@ -2375,7 +2389,7 @@ temata:
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-08-25, 2026-09-07, 2026-09-12]
+    devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18]
     ceka_na: [lok-gps-kurz-do-fuze, hw-zelezo-od-kabelu-kamer]
 
   - id: lok-mapcorr-tvrdy-gate
@@ -2638,7 +2652,7 @@ temata:
       - co: 'Panel *Tools → Mise Robotour*, stop tlačítko ve virtuálních senzorech'
         stav: hotovo
         kdy: 2026-08-26
-      - co: 'Opravy z používání: stupeň hledat znovu, čas mise, deska s kódem, náhled kamery, styl tlačítek'
+      - co: "'Opravy z používání: stupeň hledat znovu, čas mise, deska s kódem, náhled kamery, styl tlačítek'"
         stav: hotovo
         kdy: 2026-08-26
       - co: '`IsActive` pro dokumenty mimo `DocumentDock`, tlačítka s hotovými kódy, stop jako červené tlačítko'
@@ -2830,7 +2844,7 @@ temata:
       T265" padla 14. 9. měřením a `CLEAR_HALT` se ukázal jako šum, ne podpis poruchy; podezřelá je
       fyzická větev USB `2-1.3` (samostatné téma).
     kroky:
-      - co: 'Rešerše: cizí nevyřešený problém, propustnost USB ani sousedé na hubu to nejsou'
+      - co: "'Rešerše: cizí nevyřešený problém, propustnost USB ani sousedé na hubu to nejsou'"
         stav: hotovo
         kdy: 2026-09-11
       - co: 'Supervizor zotavení kamer s drženým zastavením, ověřen na skutečné poruše'
@@ -4220,8 +4234,9 @@ temata:
     oblast: hw
     nazev: Kurz ze senzoru se táhne za vlastním magnetometrem minuty
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-07
+    vyreseno: 2026-09-18
     popis: >
       Zesílení zpětné vazby od magnetometru vyšlo `K` = 0,0049 1/s, tedy časová konstanta 206 s:
       po zatáčce je yaw desítky stupňů vedle i proti svému vlastnímu poli. Původní závěr „to
@@ -4229,6 +4244,7 @@ temata:
       kalibraci konstanta zkrátila na 53 s — z většiny to tedy bylo nezkalibrované železo.
       Ze 14. 9. je ale zpátky a horší (345 s), protože na robotu přibylo nové železo. Je to
       v senzoru; nastavení nejistot ve fúzi na to nesahá.
+      ✅ **Uzavřeno 18. 9. 2026:** po nové kalibraci τ 28–53 s ve dvou jízdách (12. 9. 53 s, 14. 9. s rozbitým železem 345 s, původně 206 s). Dlouhá konstanta byla důsledek nezkalibrovaného železa; zbylých ~30–50 s je vlastnost VPE (registr 35 má zapnuté adaptivní filtrování) a fúzi nevadí — mezi odečty kompasu nese kurz gyro.
     kroky:
       - co: Změřit `K` ze záznamu (blok 2 `ARBot.Analyze vn100`)
         stav: hotovo
@@ -4236,12 +4252,13 @@ temata:
       - co: Přeměřit po kalibraci (206 → 53 s)
         stav: hotovo
         kdy: 2026-09-12
-      - co: Přeměřit po nové kalibraci s kabely v definitivní poloze
-        stav: otevreno
+      - co: "Přeměřit po nové kalibraci — 18. 9.: `K` 0,036 / 0,019 1/s (τ 28 / 53 s) ve dvou jízdách, tedy jako 12. 9.; se špatným železem 14. 9. bylo 345 s"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
-    devlog: [2026-09-07, 2026-09-10, 2026-09-12, 2026-09-15]
+    devlog: [2026-09-07, 2026-09-10, 2026-09-12, 2026-09-15, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
   - id: hw-vn100-akcelerometr-7pct
@@ -4257,6 +4274,7 @@ temata:
       rozptyl sklonu (proto sklon vypadl z brány verdiktu) a svislici natočí o ~1° při náklonu.
       Kalibrace akcelerometru je otevřený samostatný úkol.
       12. 9. to nezávisle potvrdil živý senzor (registr 27 dává +7,3 %, registr 25 je jednotkový); z náklonů do 40° se ale elipsoida akcelerometru neurčí.
+      18. 9. 2026 beze změny: `|a|` v klidu 10,48 m/s² (+6,9 %), sklon pole 62,8–63,0° proti 65,95° z registru 21 — kalibrace magnetometru na to nesáhla, jak se čekalo.
     kroky:
       - co: Změřit bias ze záznamu a přečíst registr 25
         stav: hotovo
@@ -4268,7 +4286,7 @@ temata:
         cesta: doc/imu-and-frames.md
       - text: plan-vn100-kalibrace.md
         cesta: doc/plan-vn100-kalibrace.md
-    devlog: [2026-09-06, 2026-09-10, 2026-09-12]
+    devlog: [2026-09-06, 2026-09-10, 2026-09-12, 2026-09-18]
     ceka_na: []
 
   - id: hw-d435-zamrzly-stream
@@ -4396,6 +4414,7 @@ temata:
       všech tří míst předem proběhlo (největší odstup 2,1 m z limitu 50 m). Jelo se to ale
       s rozbitým kurzem (viz `hw-zelezo-od-kabelu-kamer`), takže o chování mise po kalibraci to
       neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`).
+      ✅ **18. 9. 2026 seznam poprvé objetý celý, i s `repeat`** (`20260918-154028.rec`: 3 místa za 5 min, druhé kolo za 2,5 min, s korekcemi z koridoru naostro); třetí kolo skončilo stáním před blokovanou mapou (`lp-zasek-v-blokovane-mape`). Druhý běh (`-155329.rec`): 5 míst za 8 min, k prvnímu bodu 93 m za 4 min, z toho 130 s stání po startu.
     kroky:
       - co: "`TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů"
         stav: hotovo
@@ -4406,8 +4425,9 @@ temata:
       - co: Seznamy `*.track` přesunuty k mapám do `OSM/`
         stav: hotovo
         kdy: 2026-09-12
-      - co: Projet celou misi na zařízení
-        stav: otevreno
+      - co: "Projet celou misi na zařízení — 18. 9.: dvě celá kola (6 míst za 5 min) včetně `repeat`, ve druhém běhu 5 míst za 8 min"
+        stav: hotovo
+        kdy: 2026-09-18
       - co: První dojezd na místo na zařízení (17. 9., bod 1/3 po trase 147 m za 3 min)
         stav: hotovo
         kdy: 2026-09-17
@@ -4421,7 +4441,7 @@ temata:
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-08, 2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17]
+    devlog: [2026-09-08, 2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-18]
     ceka_na: []
 
   # ---------------------------------------------------------------- lokální plánování
@@ -4443,6 +4463,7 @@ temata:
       čas; strop uzlu je obálka v uzlu. Brzdný zákon se sjednotil do `IMotionProfile.Dist2MaxSpeed`
       a opravil se vadný `Speed2Dist`. Na realistické scéně rychlost 0,05 → 0,49 m/s. Na HW
       neběželo — nejdřív kurz, pak přeměřit.
+      ✅ **18. 9. 2026 přeměřeno venku s dobrým kurzem:** robot za jízdy neleze — plány na podlaze už v prvním uzlu **1 %** proti 53 % ze 7. 9., příkazovaná rychlost p50 1,0 m/s (`ARBot.Analyze localplan`, `envelope`). Na podlaze zůstává jen stání u překážky (`lp-zasek-v-blokovane-mape`).
     kroky:
       - co: "`ARBot.Analyze envelope` po uzlech, `LocalPlanMsg` verze 2"
         stav: hotovo
@@ -4453,8 +4474,9 @@ temata:
       - co: "`smooth=time`, `Dist2MaxSpeed`, oprava `Speed2Dist`, 9 testů"
         stav: hotovo
         kdy: 2026-09-08
-      - co: Přeměřit v terénu po opravě kurzu (uzlů 5 → 19, cena na Pi)
-        stav: otevreno
+      - co: "Přeměřit v terénu po opravě kurzu — 18. 9. (`20260918-155329.rec`, jízda 180–560 s): 1. uzel na podlaze 1 % (7. 9.: 53 %), `vCmd` p50 1,0 m/s, za jízdy obálku neváže nic; uzlů a cena na Pi neměřeny"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
@@ -4462,7 +4484,7 @@ temata:
         cesta: doc/path-following.md
       - text: rozhodnutí 8. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-07, 2026-09-08]
+    devlog: [2026-09-07, 2026-09-08, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
 
@@ -4874,6 +4896,7 @@ temata:
       vestavěný model pole je zastaralý o ~1,9° (epocha ~2015), takže zbytek je ještě o tolik větší,
       a že registr 83 je ve flash, ačkoli se zapisuje bez uložení. Od 14. 9. je kurz rozbitý železem
       od kabelů, takže měření má smysl opakovat až po nové kalibraci.
+      18. 9. 2026 první jízda po nové kalibraci: rozpor `IMU − GPS kurz` je zase na obou protilehlých kurzech stejný (−3,6 / −2,9° a −1,65 / −1,22°), tedy konstanta — ale **mezi dvěma běhy 13 minut po sobě jiná** (−3,4 proti −1,1° středně). Sedí to s dotahováním VPE po každém startu procesu (registr 83, ~100–170 s); průjezd s robotem otočeným o 180° to pořád nerozloží, ale ukazuje to, že hledaná „konstanta" je spíš pomalá proměnná.
     kroky:
       - co: Zbytek změřen a rozložen podle směru a místa
         stav: hotovo
@@ -4886,7 +4909,7 @@ temata:
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
-    devlog: [2026-09-12]
+    devlog: [2026-09-12, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
   - id: nast-panel-konfigurace-mazal-klice
@@ -5370,6 +5393,7 @@ temata:
       o rezervu 0,5 m), heuristika se měří k okraji zóny a A* vrací nejlevnější buňku na dojetí.
       Není to lék na špatnou mapu — blokovaných buněk bylo p50 27,7 % při rozbitém kurzu, takže
       část nedosažitelnosti může být chyba gridu, kterou zóna zakryje.
+      ✅ **18. 9. 2026 na zařízení:** `GoalBlocked` 24 → 2 %, `GoalUnsafe` 19 → 2 %, mrkev nedosažitelná 52 → 33 % — zároveň s opraveným kurzem, takže podíl zóny a podíl kurzu se z jednoho záznamu nerozdělí.
     kroky:
       - co: Měření `ARBot.Analyze localplan` nad záznamem ze 14. 9.
         stav: hotovo
@@ -5379,12 +5403,13 @@ temata:
         kdy: 2026-09-14
       - co: Podívat se na grid v okamžicích nedosažitelnosti (`ARBot.Analyze grid`) — kolik je chyba mapy
         stav: otevreno
-      - co: Přeměřit `localplan` po nasazení na zařízení
-        stav: otevreno
+      - co: "Přeměřit `localplan` po nasazení — 18. 9. (`20260918-155329.rec`): `GoalBlocked` 2 % / `GoalUnsafe` 2 % (14. 9.: 24 / 19 %), mrkev nedosažitelná 33 % (52 %), s dobrým kurzem"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-09-14]
+    devlog: [2026-09-14, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
   - id: nast-zony-world-pohled
@@ -5644,6 +5669,7 @@ temata:
       dokud se neprojede na robotu: měření výš je jen o stupni proložení, ne o tom, co doteče
       do fúze. Spodní mez validátoru je 3 — dvěma body jde přímku proložit vždy, takže 2 by
       bránu fakticky vypnulo.
+      18. 9. 2026 s kalibrovaným kompasem: zisk prahu 20 je jen **+6–7 %** koridorů (17. 9. při rozbitém kurzu 4×) a nesmyslná šířka roste — ztráty už nesedí na tomhle prahu. Výchozích 25 zůstává; A/B na zařízení tím ztrácí naléhavost.
     kroky:
       - co: Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi)
         stav: hotovo
@@ -5656,8 +5682,9 @@ temata:
         kdy: 2026-09-17
       - co: Projet A/B na zařízení (25 proti 20 proti 15) a rozhodnout výchozí hodnotu
         stav: otevreno
-      - co: Změřit, kolik z koridorů navíc projde AŽ DO fúze (ne jen proložením) — po opravě kurzu
-        stav: otevreno
+      - co: "Změřit s dobrým kurzem — 18. 9.: práh 20 dá jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horší nesmyslné šířce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazení hrany pouští 98–99 %, takže by skoro všechny došly do fúze — zisk malý, 25 zůstává"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
@@ -5665,15 +5692,16 @@ temata:
         cesta: Src/ARBot.Common/Localization/CorridorConfig.cs
       - text: CorridorReport.cs
         cesta: Src/ARBot.Analyze/CorridorReport.cs
-    devlog: [2026-09-17]
+    devlog: [2026-09-17, 2026-09-18]
     ceka_na: []
 
   - id: lok-koridorsend-nebyl-vypnuty
     oblast: lokalizace
     nazev: Měřicí režim koridoru nebyl měřicí — `corridorsend` v profilu chybí
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-17
+    vyreseno: 2026-09-18
     popis: >
       `lok-koridor-merici-rezim` i CLAUDE.md tvrdí, že provozní profil běží s
       `corridorsend=false`, tedy „plná zátěž, nulový vliv na řízení", a týž úkol vede jako
@@ -5689,20 +5717,23 @@ temata:
       Je to vada **dokumentace proti skutečnosti**, ne v kódu: chybí jeden řádek v profilu.
       ⚠️ A ukazuje na obecnější past — „výchozí hodnota je bezpečná" tu neplatí, protože default
       `corridorsend` je `true`; bezpečný stav se musí do profilu napsat, ne předpokládat.
+      ✅ **Uzavřeno 18. 9. 2026 opačně, než nález navrhoval:** bezpečný stav se do profilu nezapsal — zapsal se ostrý. Autor `corridorsend=true` zapnul vědomě 17. 9. (`a44b4f4`) a první jízdy 18. 9. ukázaly, že koridor za jízdy dává měření v každém druhém cyklu a fúze se jím řídí (viz `lok-koridor-hranova-lokalizace`). Odstavec v `CLAUDE.md` o „měřicím režimu" přepsán.
     kroky:
       - co: Nález (účinná konfigurace v záznamu proti tvrzení v úkolu i v CLAUDE.md)
         stav: hotovo
         kdy: 2026-09-17
-      - co: "Doplnit `corridorsend=false` do `config/pi-provoz.cfg` a nasadit"
-        stav: otevreno
-      - co: Projít profil, jestli takhle „nezapsaným defaultem" nevisí i jiná brána
-        stav: otevreno
+      - co: "Vyřešeno OPAČNĚ: autor 17. 9. zapsal do profilu `corridorsend=true` vědomě (commit `a44b4f4`); dokumentace (`CLAUDE.md`, registr) srovnána 18. 9."
+        stav: hotovo
+        kdy: 2026-09-17
+      - co: "Projít profil, jestli takhle „nezapsaným defaultem\" nevisí i jiná brána — 18. 9.: `mapcorr` v profilu není a jeho default je `false` (bezpečný), `corridorstd/headingstd/hz` 0 = bez odtlumení (zapsané jako komentář); jediná brána s ostrým defaultem byla `corridorsend`"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: pi-provoz.cfg
         cesta: config/pi-provoz.cfg
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-17]
+    devlog: [2026-09-17, 2026-09-18]
     ceka_na: []
 
   - id: lok-koridor-merici-rezim
@@ -5724,6 +5755,8 @@ temata:
       Poloha byla celou jízdu mimo mapovanou vozovku (3–5 m), takže do fúze neodešlo 0 ze 424
       přijatých měření — a report to do té doby neuměl říct (`Ok` znamenalo „prošlo branami“,
       ne „došlo do fúze“).
+      18. 9. 2026: `corridorsend=true` je v profilu vědomě od 17. 9. a první jízdy naostro ho potvrdily; σ kurzu z proložení je potřetí ~4× optimistická (robustní sd 2,4–2,6° proti 0,6°), takže číslo pro `corridorheadingstd=` je ~2,5°, ale pořád nenastavené.
+      **18. 9. večer, pro soutěž:** autor chtěl koridor „trošku“ oslabit; v profilu je `corridorstd=0.1`, `corridorheadingstd=2.5`, `corridorhz=2` (~15× méně příčné informace, ~90× méně o kurzu než dnes), podloženo A/B v simulaci s pravdou (příčně 0,018 m, kurz 0,41° proti 0,84 m / 2,4° bez korekcí). Na zařízení s tím nejelo.
     kroky:
       - co: Parametry odtlumení a měřicí profil `pi-provoz.cfg`
         stav: hotovo
@@ -5734,19 +5767,23 @@ temata:
       - co: Report `corridor` — trychtýř ztrát, „došlo to do fúze?“, neuťatá příčná statistika, koridor jako reference kurzu
         stav: hotovo
         kdy: 2026-09-16
-      - co: Nastavit `corridorheadingstd=` z měření (~2,3°)
+      - co: "Nastavit `corridorheadingstd=` z měření — 18. 9.: 2,5° (robustní sd koridor − GPS kurz 2,4–2,6°), s `corridorstd=0.1` a `corridorhz=2` v profilu pro soutěž; A/B v simulaci příčně 0,003 → 0,018 m, kurz 0,13 → 0,41°"
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Ověřit odtlumené hodnoty na zařízení (záznam ze soutěže 19. 9., `ARBot.Analyze corridor` + `corrections`)
         stav: otevreno
       - co: Rozvolnit příčnou bránu — vyřešeno zrušením brány, viz `lok-koridor-pricna-brana`
         stav: hotovo
         kdy: 2026-09-18
-      - co: "`corridorsend=true` — až po opravě magnetometru a přiřazení hrany"
-        stav: otevreno
+      - co: "`corridorsend=true` v profilu — autor 17. 9. (commit `a44b4f4`) po kalibraci kompasu 12. 9. a přiřazení hrany 16. 9.; první jízdy 18. 9."
+        stav: hotovo
+        kdy: 2026-09-17
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: pi-provoz.cfg
         cesta: config/pi-provoz.cfg
-    devlog: [2026-09-15, 2026-09-16]
+    devlog: [2026-09-15, 2026-09-16, 2026-09-18]
     ceka_na: [lok-korelace-tri-podminky-naostro]
 
   - id: lok-naucena-sirka-do-mapy
@@ -5788,8 +5825,9 @@ temata:
     oblast: hw
     nazev: Kalibrace magnetometru přestala účinkovat — přibylo železo od kabelů ke kamerám
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-15
+    vyreseno: 2026-09-18
     popis: >
       Kalibrace z 11. 9., ověřená 12. 9., v záznamech ze 14. 9. už neúčinkuje: velikost pole při
       stání 0,614 G proti 0,4897, rozpětí přes záznam 0,177 G (12. 9. 0,019 G), `IMU yaw − GPS
@@ -5809,6 +5847,7 @@ temata:
       Nová kalibrace se týž den změřila (`mission=magcal`) a v 16:20:20 zapsala do registru 23
       i do flash; tvrdé železo z proložení koule vyšlo 0,2518 G. Obsluha hlásí, že směr při
       následující jízdě vypadal velmi dobře — záznam z ní ale není, takže ověřené to není.
+      ✅ **Uzavřeno 18. 9. 2026:** nová kalibrace ze 17. 9. při první jízdě drží — zbytkové vodorovné železo **11–18 mG** (14./17. 9.: 158–169 mG; 12. 9. při otáčení na místě 1,3 mG), `|B|` na referenci, VPE τ 28–53 s, kurz proti GPS −2,5 / −1,6°. Kabely jsou statické (přechody kamer 1–6 mG). Platnost kalibrace je dál vázaná na polohu kabelů — při jejich pohybu znovu `mission=magcal`. Tabulka: `imu-and-frames.md`, „Po NOVÉ kalibraci".
     kroky:
       - co: Rozbor záznamů ze 14. 9., dva omyly opravené měřením
         stav: hotovo
@@ -5819,19 +5858,21 @@ temata:
       - co: Panel magnetometru v UI (`MagTrace`, 11 testů, ověřeno v simulaci)
         stav: hotovo
         kdy: 2026-09-15
-      - co: Dát kabely do definitivní polohy a ověřit minutovým záznamem s jednou otočkou na místě
-        stav: otevreno
+      - co: "Kabely v poloze, ve které se 17. 9. kalibrovalo; 18. 9. jízda: skok pole při zapnutí kamer 1–6 mG (statické, v kalibraci)"
+        stav: hotovo
+        kdy: 2026-09-17
       - co: "`mission=magcal` s náklony na obě strany a nová kalibrace do senzoru"
         stav: hotovo
         kdy: 2026-09-17
-      - co: Ověřit novou kalibraci záznamem (jízda 17. 9. po kalibraci se nenahrála)
-        stav: otevreno
+      - co: "Ověřit novou kalibraci záznamem — 18. 9. (`20260918-154028.rec`, `-155329.rec`): zbytkové vodorovné železo 11–18 mG proti 158–169 mG, `|B|` 0,484–0,490 G, `IMU − GPS kurz` −2,5 / −1,6° (sd ~4°), VPE τ 28–53 s"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
       - text: panel magnetometru (snímek)
         cesta: doc/media/imu-magnetometr-2026-09-15.png
-    devlog: [2026-09-15, 2026-09-16, 2026-09-17]
+    devlog: [2026-09-15, 2026-09-16, 2026-09-17, 2026-09-18]
     ceka_na: []
 
   # ---------------------------------------------------------------- 2026-09-16
@@ -5854,6 +5895,7 @@ temata:
       Přitom se opravila živá vada: `Send()` odečítal směr přímky bez rozhodnutí o smyslu, takže
       u cesty kolmé na kurz šel do fúze kurz otočený (9,4 % přijatých cyklů); cena je, že koridor
       už nikdy neřekne „jsi otočený o 180°“. Ověřeno testy a simulací, na zařízení neběželo.
+      18. 9. 2026 po kalibraci kompasu: chyba kurzu odhadu proti GPS je sd 8–11° včetně stání a ~2–4° za jízdy, takže `assocfloorhdg` jde stáhnout spíš na **5°** než na 3°; před soutěží nezměněno.
     kroky:
       - co: Nález nad `20260916-164926.rec` a podklad pro přiřazení (χ² s hlášenými σ zamítne vše)
         stav: hotovo
@@ -5868,12 +5910,13 @@ temata:
         stav: otevreno
       - co: Po opravě magnetometru snížit `assocfloorhdg` z 10° na ~3°
         stav: otevreno
-      - co: Ověřit na zařízení
-        stav: otevreno
+      - co: "Ověřit na zařízení — 18. 9.: běží (χ² vítěze p50 0,004, nejednoznačných 3 z 3 147), ale trať je jediná OSM cesta, takže křižovatku to neotestovalo"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-16]
+    devlog: [2026-09-16, 2026-09-18]
     ceka_na: [hw-zelezo-od-kabelu-kamer]
 
   # ---------------------------------------------------------------- 2026-09-18
@@ -6027,6 +6070,76 @@ temata:
         cesta: doc/path-following.md
       - text: Profile.cs
         cesta: Src/ARBot.Common/Configuration/Profile.cs
+    devlog: [2026-09-18]
+    ceka_na: []
+
+  - id: lp-zasek-v-blokovane-mape
+    oblast: lokalni-planovani
+    nazev: Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-18
+    popis: >
+      `20260918-154028.rec`: po dvou celých kolech Tracku robot na cestě k bodu 1/3 od ~320 s
+      zpomalil na 0,05–0,12 m/s a od 380 s stál 7 minut do konce záznamu — plán délky 5 cm,
+      potvrzeně volno 0,00 m, `Blocked` ~50 % buněk, stavy `AlreadyAtGoal`/`EscapingBlocked`,
+      4× „NOUZOVE ZASTAVENI - kolize 0,00 m“, hraniční body z kamer 1,7–2,8 m před robotem
+      (něco tam bylo). Reset gridu při zotavení kamer (409 s) nepomohl — blokace se vrátila.
+      `20260918-155329.rec`: po volbě mise 50–120 s `EscapingBlocked` s nouzovým zastavením
+      v 59–85 % taktů, pak se rozjel. Co bylo před robotem, záznam bez snímků na obrazovce
+      neříká; může to být skutečná překážka, tráva, do které mise dovedla, nebo mapa rozmazaná
+      stáním. Vedlejší efekt pro koridor: ve stání nevzniká (0,6 % cyklů), takže celkové
+      procento `Ok` v záznamu je číslo o stání, ne o koridoru.
+    kroky:
+      - co: Nález (`ARBot.Analyze localplan --from=320`, `corridor`, `log`)
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Podívat se na snímky z kamer v čase 320–400 s (View) a říct, co robota zastavilo
+        stav: otevreno
+      - co: Rozhodnout, jestli je to `lp-unik-z-blokovane-bunky` / `lp-filtr-izolovanych-bunek`, nebo nová vada
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md (sekce 18. 9. 2026)
+        cesta: doc/map-correlation-localization.md
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+    devlog: [2026-09-18]
+    ceka_na: []
+
+  - id: nav-osm-josm-action-delete
+    oblast: navigace
+    nazev: Mapa z JOSM nese smazané cesty (`action='delete'`) a čtečka je brala jako živé
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-18
+    vyreseno: 2026-09-18
+    popis: >
+      Při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.osm` (večer před
+      Robotourem) se ukázalo, že soubor uložený z JOSM obsahuje i objekty, které v něm autor
+      smazal — zůstávají v XML s `action='delete'` až do uploadu nebo Purge. V té mapě je to
+      142 z 195 cest a 2 127 uzlů, z cest s `highway` 57 z 95. `OsmXmlReader` atribut `action`
+      neznal, takže by robot navigoval po síti, kterou autor v mapě odstranil, a z aplikace by
+      to nebylo poznat. Čtečka teď smazaný uzel, cestu i relaci přeskočí (subtree odkonzumuje),
+      `action='modify'` bere normálně. Mapa po opravě: 209 uzlů, 226 hran, načteno v simulaci.
+      Totéž platí pro `modrany.osm`, `modrany1.osm` a `modrany_small.osm`; mapy z Overpassu
+      atribut nemají.
+    kroky:
+      - co: Nález při kontrole soutěžní mapy (počty smazaných objektů)
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: "`OsmXmlReader` přeskakuje `action='delete'`, test `Read_SkipsJosmDeletedObjects`"
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Načtení soutěžní mapy v simulaci (209 uzlů, 226 hran)
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Nasadit binárku na zařízení spolu se soutěžním profilem
+        stav: otevreno
+    odkazy:
+      - text: osm-nav.md
+        cesta: doc/osm-nav.md
+      - text: OsmXmlReader.cs
+        cesta: Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs
     devlog: [2026-09-18]
     ceka_na: []
 
@@ -6628,9 +6741,11 @@ temata:
       nasnadě, ale vědomě se neudělal: dokud je kurz z VN100 vedle, nejde rozlišit šum
       klasifikace od rozmazání gridu chybou pózy, a filtr by ve druhém případě jen zamaskoval
       příčinu. Rozhodne přeměření obálky po opravě kurzu.
+      18. 9. 2026 přeměřeno s dobrým kurzem: za jízdy obálku neváže nic, takže izolované skvrny robota aktuálně nebrzdí. Zůstává odložené.
     kroky:
-      - co: Přeměřit `envelope` po opravě kurzu a rozlišit šum klasifikace od rozmazání pózou
-        stav: otevreno
+      - co: "Přeměřit `envelope` po opravě kurzu — 18. 9.: za jízdy neváže rychlost nic (`VAlong` 0 % v jízdních oknech, `Blocked` p50 26,5 %), `VAlong` váže jen ve stání u překážky; rozlišit šum od rozmazání tak není z čeho — filtr není naléhavý"
+        stav: hotovo
+        kdy: 2026-09-18
       - co: Filtr izolovaných buněk — jen když přeměření ukáže šum klasifikace
         stav: otevreno
     odkazy:
@@ -6638,7 +6753,7 @@ temata:
         cesta: doc/occupancy-and-local-planning.md
       - text: EnvelopeReport.cs
         cesta: Src/ARBot.Analyze/EnvelopeReport.cs
-    devlog: [2026-09-07]
+    devlog: [2026-09-07, 2026-09-18]
     ceka_na: [lp-robot-se-plazi-vyhlazovani, hw-zelezo-od-kabelu-kamer]
 
   - id: vid-segmentace-pravda-d435

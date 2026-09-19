@@ -806,7 +806,9 @@ namespace ARBot.Analyze
 
                     foreach (var p in plan.Where(x => x.T >= t && x.T < t + okno))
                     {
-                        if (p.Clearance > 0) (prosel ? clrAcc : clrRej).Add(p.Clearance);
+                        // MinClearanceM = double.MaxValue znamena "na draze zadna prekazka" - do statistiky
+                        // nepatri (18. 9. 2026 se tiskl jako p50 1,8e308 a avg Infinity).
+                        if (p.Clearance > 0 && p.Clearance < 1e6) (prosel ? clrAcc : clrRej).Add(p.Clearance);
                         var d = prosel ? statAcc : statRej;
                         d[p.Status] = d.TryGetValue(p.Status, out int c) ? c + 1 : 1;
                     }

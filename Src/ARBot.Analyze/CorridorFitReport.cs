@@ -226,6 +226,50 @@ namespace ARBot.Analyze
                 return;
             }
 
+            // KTERA STRANA CHYBI a kdy. `OneSideOnly` v reportu `corridor` rika jen, ze po sloučení
+            // dvojice zustala jedna hrana bez bodu — ne ktera, ani ktera kamera ji nedodala. Tady se
+            // to rozpada po kamere a po minutach, protoze prava D435 kouka doprava a leva doleva:
+            // kdyz chybi prava hrana, je to o pravé kameře, ne o „koridoru“. (Doplneno 18. 9. 2026
+            // nad prvnimi zaznamy s korekcemi naostro, kde `OneSideOnly` bral 9–11 % cyklu za jizdy.)
+            Console.WriteLine();
+            Console.WriteLine("HRANICNI BODY PO KAMERE (kolik snimku nedalo ZADNY bod na dane strane):");
+            Console.WriteLine("  kamera                 snimku   L=0      R=0      oba=0    bodu L p50   bodu R p50");
+            foreach (var cam in frames.Select(f => f.Cam).Distinct().OrderBy(c => c))
+            {
+                var fc = frames.Where(f => f.Cam == cam).ToList();
+                var ls = fc.Select(f => (double)f.L.Count).OrderBy(x => x).ToList();
+                var rs = fc.Select(f => (double)f.R.Count).OrderBy(x => x).ToList();
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,-22} {1,6}   {2,5} ({3,4:F1} %)  {4,5} ({5,4:F1} %)  {6,5}    {7,6:F0}       {8,6:F0}",
+                    cam, fc.Count,
+                    fc.Count(f => f.L.Count == 0), 100.0 * fc.Count(f => f.L.Count == 0) / fc.Count,
+                    fc.Count(f => f.R.Count == 0), 100.0 * fc.Count(f => f.R.Count == 0) / fc.Count,
+                    fc.Count(f => f.L.Count == 0 && f.R.Count == 0),
+                    ls[ls.Count / 2], rs[rs.Count / 2]));
+            }
+            {
+                var t0 = frames.Min(f => f.T);
+                var cams = frames.Select(f => f.Cam).Distinct().OrderBy(c => c).ToList();
+                Console.WriteLine("  po minutach (podil snimku bez bodu na strane, L / R, za kazdou kameru):");
+                Console.Write("  min ");
+                foreach (var cam in cams) Console.Write($"   {cam,-22}");
+                Console.WriteLine();
+                foreach (var g in frames.GroupBy(f => (int)((f.T - t0).TotalSeconds / 60)).OrderBy(g => g.Key))
+                {
+                    Console.Write($"  {g.Key,3} ");
+                    foreach (var cam in cams)
+                    {
+                        var fc = g.Where(f => f.Cam == cam).ToList();
+                        if (fc.Count == 0) { Console.Write("   {0,-22}", "-"); continue; }
+                        Console.Write(string.Format(CultureInfo.InvariantCulture, "   L {0,4:F0} % / R {1,4:F0} %  (n={2,3})",
+                            100.0 * fc.Count(f => f.L.Count == 0) / fc.Count,
+                            100.0 * fc.Count(f => f.R.Count == 0) / fc.Count, fc.Count));
+                    }
+                    Console.WriteLine();
+                }
+            }
+            Console.WriteLine();
+
             // SIRKA Z MAPY jako nezavisla reference presnosti. Bez ni jde merit jen
             // self-konzistenci (rezidua, nerovnobeznost), a ta se da "zlepsit" tim, ze se prijmou
             // jen snadne snimky — mensi nerovnobeznost pri mensim poctu Ok tedy sama o sobe

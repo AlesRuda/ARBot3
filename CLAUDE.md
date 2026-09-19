@@ -430,6 +430,15 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `mission=magcal`, s náklony na obě strany**. Měří to nový blok
   `ARBot.Analyze heading --bin=` (*VYVOJ ROZPORU V CASE*). ⚠️ **Platí to zpětně i pro ostatní
   měření nad tím záznamem** (`localplan` ze 14. 9. je měřený při rozbitém kurzu).
+  ✅ **Nová kalibrace 17. 9. 2026 (`mission=magcal`, zapsána do senzoru) a 18. 9. PRVNÍ JÍZDY
+  s ní** (`20260918-154028.rec`, `-155329.rec`): zbytkové vodorovné železo **11–18 mG** (proti
+  158–169 mG 14./17. 9. a 1,3 mG při otáčení na místě 12. 9.), `|B|` 0,484–0,490 G na referenci,
+  VPE `K` 0,019–0,036 1/s (**τ 28–53 s**, jako 12. 9., proti 345 s), skok pole při zapnutí kamer
+  jen 1–6 mG (kabely statické). `IMU yaw − GPS kurz` p50 **−2,5° / −1,6°**, sd 3,9–4,6°, na
+  protilehlých kurzech stejný — **konstanta, ne železo**, ale mezi běhy 13 min po sobě se liší
+  (−3,4 proti −1,1°) → argument pro bias kurzu jako stav EKF. Akcelerometr (+6,9 %) a sklon pole
+  (63° proti 66°) nezměněné. Tabulka přes všechny stavy senzoru: [doc/imu-and-frames.md](doc/imu-and-frames.md),
+  „Po NOVÉ kalibraci". Úkoly, které na to čekaly, přeměřeny (registr, 18. 9.).
 - [doc/hardware.md](doc/hardware.md) — senzory a připojení (per-zařízení, orientační).
   ⚠️ **Výpadky D435 za provozu jsou cizí, Intelem NEVYŘEŠENÝ problém** (rešerše 11. 9. 2026) —
   naše léčba (detekce + zbourání pipeline + reconnect) je to, k čemu ve vláknech všichni dojdou.
@@ -697,6 +706,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/osm-nav.md](doc/osm-nav.md) — OSM navigace (`Maps/OsmNav`): globální navigace nad OpenStreetMap
   (edge-based graf, goal-rooted pole cost-to-goal / LPA\*, dopravní profily, runtime značky) + lokální
   predikce trajektorie a detekce kolizí (`Colider`). Mapa kódu + odkaz na návrhové PDF.
+  ⚠️ **Mapa uložená z JOSM nese i objekty, které v ní autor SMAZAL** (`action='delete'`, JOSM je
+  zahodí až po uploadu nebo *Purge*) — v soutěžní `OSM/Robotour2026-ver1.osm` je to 57 z 95 cest
+  s `highway`. Do 18. 9. 2026 je `OsmXmlReader` bral jako živou síť; od té doby je přeskakuje
+  (test `Read_SkipsJosmDeletedObjects`). Našlo se večer před Robotourem při přepnutí profilu na
+  soutěžní mapu; ⚠️ **na zařízení neběželo**, nasazení profilu potřebuje i novou binárku.
 - [doc/global-navigation-runtime.md](doc/global-navigation-runtime.md) — **napojení OsmNav na runtime**
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
@@ -820,8 +834,22 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   šířka přežila restart, přežil by i špatný odhad a už by ho nikdo nepřepsal. Plán:
   [doc/plan-naucena-sirka-do-mapy.md](doc/plan-naucena-sirka-do-mapy.md). ⚠️ **Na HW neběželo**,
   ověřeno simulací; prahy jsou odhad a jdou doladit offline.
-  **Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridor=true`,
-  `corridorsend=false`, `measdiag=Corridor`): plná zátěž, nulový vliv na řízení. Důvod je
+  ~~**Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridorsend=false`)~~
+  — ⚠️ **to nikdy neplatilo** (řádek v profilu chyběl, default je `true`; nález 17. 9.) a
+  **od 17. 9. 2026 je `corridorsend=true` v profilu zapsané vědomě** (autor, commit `a44b4f4`,
+  po kalibraci kompasu 12. 9. a přiřazení hrany 16. 9.). ✅ **První jízdy s korekcemi naostro
+  18. 9. 2026** (`records/test/20260918-154028.rec`, `-155329.rec`): za jízdy dá koridor měření
+  v **~52 % cyklů** (rezidua 7 cm, ~43 inlierů na stranu, dosah ~7 m), zbytek `NotParallel` 15–17 %
+  (proložení na jinou hranu, brána zahazuje správně), `TooFewInliers` 14–18 %, `OneSideOnly`
+  9–11 %; **ve stání koridor nevzniká** (0,6 %), takže celkové procento je číslo o stání, ne o
+  koridoru. **Fúze se podle něj řídí**: `odhad − IMU yaw` z −0,01 ± 0,06° na **+0,39 ± 1,88°** a
+  odhad je ke GPS kurzu blíž než kompas (první změření korekce kurzu z koridoru na zařízení).
+  ⚠️ **Přesnost pózy tím ověřená není** — s korekcemi naostro je příčný nesouhlas (p50 0,06 m)
+  self-konzistence; potřeba A/B s `corridorsend=false` po téže trati nebo pravda. **Každá D435
+  vidí jen SVOU hranu** (levá levou, pravá pravou; nový blok v `corridorfit`), takže výpadek jedné
+  kamery vypne koridor celý. Estimátor proložení: na reálných datech jsou **všechny varianty
+  (LS/L1/Huber/Tukey) nerozlišitelné**. Detail: [map-correlation-localization.md](doc/map-correlation-localization.md),
+  sekce „První jízda s korekcemi z koridoru NAOSTRO". Původní důvod pro měřicí režim byl
   spočítaný — s `gpsposstd=30` by příčná autorita koridoru byla řádu **10⁵–10⁶ : 1**.
   „Regrese šířkového nesouhlasu" **žádná regrese nebyla** — nesouhlas se měří proti *filtru*
   šířky, ne proti mapě, a jde o jeho zaostávání na cestě, která se skutečně rozšiřuje; proti mapě

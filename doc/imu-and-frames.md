@@ -951,3 +951,58 @@ nastavení z VectorNav Control Center je v rootu repa
 (`vn100-2026-7-8-nastavei z arbot2.sencfg`). Diagnostika jde dělat read-only přes
 `VNRRG` (žádný zápis/flash) — např. registry 1 (model), 6/7 (async), 8/9/27 (YPR/qtn/YMR),
 26 (reference frame rotation).
+
+### Po NOVÉ kalibraci (17. 9.) — první jízda s kalibrovaným magnetometrem (18. 9. 2026)
+
+Kalibrace z `mission=magcal` 17. 9. (zapsáno `1,092364 … −0,109534`, viz devlog 17. 9.) se ten den
+nenahrála v jízdě; **první jízdy s ní jsou `records/test/20260918-154028.rec` a `-155329.rec`**
+(Track po Hviezdoslavově, 750 + 555 s, korekce z koridoru naostro — viz
+[map-correlation-localization.md](map-correlation-localization.md)). Měřidla: `ARBot.Analyze vn100
+--bref=0.4897 --incl=65.95`, `magcal --bref=0.4897` (proložení koule = zbytkové tvrdé železo)
+a `heading`. Srovnání **týmž měřidlem** přes všechny stavy senzoru:
+
+| záznam | stav | zbytkové tvrdé železo vodorovně | `sd|B|` po korekci | `|B|` p50 | `IMU yaw − GPS kurz` p50 / sd | VPE `K` (τ) |
+|---|---|---|---|---|---|---|
+| 12. 9. `131024` (otáčení na místě) | po 1. kalibraci | **1,3 mG** | 0,0020 G | 0,498 G | −3,6 / −3,1° | 0,0186 (53 s) |
+| 12. 9. `125851` (jízda) | po 1. kalibraci | 22 mG | 0,0139 G | | | |
+| 14. 9. `170945` (jízda) | kabely přehozené | **158 mG** | 0,0203 G | 0,614 G | −15,6° / 13,0° | 0,0029 (345 s) |
+| 17. 9. `160558` (jízda) | před 2. kalibrací | **169 mG** | 0,0032 G | 0,693 G | sd 121° („zamrzlý kompas") | |
+| **18. 9. `154028`** (jízda) | **po 2. kalibraci** | **18 mG** | 0,0276 G¹ | 0,484 G | **−2,5° / 3,9°** | **0,036 (28 s)** |
+| **18. 9. `155329`** (jízda) | **po 2. kalibraci** | **11 mG** | 0,0029 G | 0,490 G | **−1,6° / 4,6°** | **0,019 (53 s)** |
+
+¹ `sd|B|` v `154028` zvedá 7 minut stání u překážky na konci (rozsah `|B|` 0,444–0,527 G);
+za jízdy je jako v `155329`. Složka `z` proložení koule je z jízdy neurčená (0,53–0,55 G) —
+bez náklonů to koule nerozliší, proto se čte jen vodorovná část.
+
+**Kalibrace drží a je řádově tam, kde byla 12. 9.:** zbytkové vodorovné železo 11–18 mG
+(2–4 % `|B|`, tedy nejvýš 1–2° kurzu) proti 158–169 mG před ní, `|B|` sedí na referenci
+(0,484–0,490 proti 0,4897 G), a **VPE se za polem už netáhne minuty** — `K` 0,019–0,036 1/s,
+tedy τ 28–53 s, jako 12. 9. (53 s), proti 345 s se špatným železem. Kabely kamer jsou tentokrát
+statické: skok pole při rozsvícení/zhasnutí obou D435 **0,9–5,7 mG** (blok 5), stejný směr
+`[+4, −4, −1]` mG při zapnutí v obou záznamech, tedy železo je v kalibraci a proud v kabelu je
+zanedbatelný. Rušení od motorů: +0,0017 / −0,0009 G/A (znaménko se mezi běhy otáčí = záměna
+s kurzem, jako 15. 9.), `|B|` jízda − stání ±0,005 G.
+
+**Kurz z kompasu proti GPS: −2,5° a −1,6°, sd 3,9–4,6°** (12. 9.: −3,6 / −3,1°; 14. 9.: −15,6°,
+sd 13°). Trať vede po jediné ulici, takže kurz má jen dva shluky (⟨−180, −135) a ⟨0, 45)) —
+harmonický rozklad se nepočítá (3 z 8 oktantů) a v `155329` vyjde z pěti řídkých košů
+(8,4° / 9,0°), což **není měření**, ale rozptyl otáček na koncích ulice. Co se změřit dá: rozpor
+je **na obou protilehlých kurzech stejný** (−3,6 / −2,9° a −1,65 / −1,22°) — tedy **konstanta,
+ne železo**, jak 12. 9. (`hw-kurz-zbytek-konstanta`). ⚠️ Mezi dvěma běhy 13 minut po sobě se ale
+ta konstanta liší (−3,4 proti −1,1° středně) a v `154028` po 330 s vyskočí na −9° při stání
+(GPS kurz ve stání je šum). Sedí to s tím, že se senzor při každém startu procesu znovu dotahuje
+(`MagModel` píše registr 83, VPE konverguje ~100–170 s) — a je to argument **pro bias kurzu
+jako stav EKF** (`lok-bias-senzoru-jako-stav-ekf`): bias je reálný, malý (1–3,5°) a **pomalu
+proměnný**, což je přesně to, co konstanta v konfiguraci nespraví. Kontrola třetí cestou:
+`Doppler − směr posunu polohy` −0,17 / −1,1° ± 4,4–5,8° (GPS kurz sedí), `IMU − směr posunu`
+−2,75 / −2,0°. `kurz z pole − yaw` 3,5 ± 1,8° / 3,6 ± 2,6° = deklinace 3,42° z registru 21, tedy
+VPE pole jen přepočítává, jako 12. 9.
+
+**Co se nezměnilo:** `|a|` v klidu 10,48 m/s² (**+6,9 %**, `hw-vn100-akcelerometr-7pct`) a sklon
+pole 62,8–63,0° proti 65,95° z registru 21 — tatáž neshoda jako 12. 9., akcelerometr zůstává
+nekalibrovaný. Klidový bias gyra 8,9 / −24,8 °/h.
+
+**Důsledek pro fúzi:** `imuheadingstd=5` je proti změřené chybě kompasu (bias do 3,5°, sd ~4°
+včetně šumu GPS kurzu) správná podlaha; `assocfloorhdg` jde z 10° stáhnout — změřená chyba
+kurzu odhadu proti GPS je sd 8–11° **včetně stání** a ~2–4° za jízdy, takže spíš **5°** než plánované
+3° (nezměněno, před soutěží se to neproladí).

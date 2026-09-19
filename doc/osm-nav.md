@@ -242,3 +242,21 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat); rozhodnutí je v návrhu
   výše (síť vlastní runtime, jedno `GoalField` na misi).
 - (bez tématu v registru) Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).
+
+## ⚠️ Mapa z JOSM nese i SMAZANÉ objekty (`action="delete"`) — od 18. 9. 2026 je čtečka přeskakuje
+
+Našlo se při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.osm` (autor,
+večer před Robotourem). Soubor uložený z JOSM po editaci **obsahuje i objekty, které v něm uživatel
+smazal** — zůstávají v XML s atributem `action='delete'`, JOSM je zahodí až po uploadu nebo po
+*File → Purge*. V té mapě je to **142 z 195 cest a 2 127 uzlů**, z cest s `highway` **57 z 95**.
+`OsmXmlReader` atribut `action` neznal, takže by celou smazanou síť bral jako živou a robot by
+navigoval po cestách, které autor v mapě odstranil — a ze stránky ani z mapy v aplikaci by to
+nebylo poznat, protože smazané cesty vypadají jako každé jiné. Totéž platí pro `OSM/modrany.osm`
+(2 715 smazaných cest), `modrany1.osm` (3 021) a `modrany_small.osm` (3); ostatní mapy v repu jsou
+z Overpassu a atribut nemají.
+
+**Oprava:** čtečka objekt s `action="delete"` přečte (subtree se musí odkonzumovat), ale do
+výsledku ho nedá — uzel, cesta i relace; `action="modify"` je běžná editace a bere se normálně.
+Test `OsmXmlReaderTests.Read_SkipsJosmDeletedObjects`. Soutěžní mapa po opravě: **209 uzlů,
+226 hran** (ověřeno načtením v `ARBot.Headless` v simulaci). ⚠️ **Na zařízení to neběželo** —
+nasazení soutěžního profilu tuhle opravu binárky potřebuje, jinak jede robot po staré síti.

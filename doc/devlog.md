@@ -123,6 +123,85 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - ⚠️ **Další krok:** přeměřit `ARBot.Analyze corridor` nad `20260917-160558.rec` (autor ho teď
     nemá po ruce) — zajímá kolik cyklů projde a jaké je rozdělení `AssocChi2`. **Na zařízení
     neběželo.**
+- **Rozbor prvních jízd s korekcemi z koridoru NAOSTRO** (`records/test/20260918-154028.rec`,
+  `-155329.rec`) — *zadání autora:* „robot se pěkně snapoval na koridor, prověř kvalitu koridoru
+  a pozorování hrany cesty pomocí D435." Detail a tabulky:
+  [map-correlation-localization.md](map-correlation-localization.md), sekce „První jízda
+  s korekcemi z koridoru NAOSTRO (18. 9. 2026)".
+  - **Koridor na zařízení funguje** (`lok-koridor-hranova-lokalizace`): `corridorsend=true` je
+    v profilu od 17. 9. vědomě (commit `a44b4f4`), do fúze odešlo 2 821 + 2 889 měření, fúzí
+    nezahozeno nic. **Za jízdy dá měření v 52–54 % cyklů** (rezidua 7 cm, ~43 inlierů na stranu,
+    úsečky 7 m, překryv 6,6 m); ztráty `NotParallel` 15–17 % (rozevření p50 20°, obě strany
+    stejně, zahozená populace má horší rezidua a šířku 1,8–2,3 m = proložení na jinou hranu,
+    brána zahazuje správně), `TooFewInliers` 14–18 %, `OneSideOnly` 9–11 %. **Ve stání 0,6 %** —
+    celkových 21 / 28 % je číslo o tom, kolik robot stál (7 min v prvním, 130 s ve druhém).
+  - **Fúze se koridorem řídí** (`lok-kurz-koridor-prehlasovan-kompasem` → hotovo): `odhad − IMU
+    yaw` z −0,01 ± 0,06° (12. 9.) na **+0,39 ± 1,88°** / −0,16 ± 4,05°, odhad je ke GPS kurzu
+    blíž než kompas (−1,0° proti −3°). Koridor − GPS kurz p50 −0,95° / +0,25°, robustní sd
+    2,4–2,6° proti σ proložení 0,6° → **4× optimistická** (potřetí totéž číslo, `corridorheadingstd`
+    pořád 0). Přiřazení hrany (`lok-prirazeni-hrany-chi2`) na zařízení poprvé: nejednoznačných
+    3 z 3 147, ale trať je jediná OSM cesta — **test to nebyl**.
+  - ⚠️ **Přesnost pózy ověřená NENÍ a z těchhle záznamů být nemůže**: s korekcemi naostro je
+    příčný nesouhlas (p50 0,06 m) self-konzistence, šířka se měří proti filtru, GPS má zbytek
+    1,2–1,5 m. Potřeba A/B s `corridorsend=false` po téže trati, nebo pravda.
+  - **Co D435 vidí u hrany** — nový blok *HRANICNI BODY PO KAMERE* v `ARBot.Analyze corridorfit`
+    (po kameře a po minutách): **levá kamera dodává jen levou hranu, pravá jen pravou**, vlastní
+    hrana chybí za jízdy v 1–6 % (L) a 1–15 % (R) snímků, ve stání/otáčení až 100 %. Výpadek jedné
+    kamery vypne koridor celý.
+  - **Estimátor proložení na reálných datech** (`lok-sirka-koridoru-plus-18-mm` → zamítnuto):
+    `corridorfit --limit=0 --rep=3` nad 10 340 dvojicemi — LS/L1/Huber/Tukey `Ok` 3 176–3 232,
+    rezidua 0,076–0,079 m, rozpětí se překrývají. Argument pro L1 ze simulace se na skutečné
+    kameře **neprojevil**; `LeastSquares` zůstává.
+  - **Vedlejší nálezy:** (a) první záznam — po dvou celých kolech Tracku (6 míst za 5 min,
+    `mise-track`: seznam poprvé objetý včetně `repeat`) robot od ~320 s stál do konce
+    (`EscapingBlocked`/`AlreadyAtGoal`, plán 5 cm, `Blocked` 50 %, 4× kolize 0,00 m) — nové téma
+    `lp-zasek-v-blokovane-mape`, popsané, ne vysvětlené; (b) při tom stání zamrzla barva pravé
+    D435 (15:47:17) a **supervizor zotavení ji podruhé na skutečné poruše vrátil za 32 s**
+    (`lp-drzene-zastaveni-stophold`); (c) druhý záznam je **uťatý** (index bez konce, 229 B
+    ztraceno) — proces skončil bez uzavření souboru; (d) `ARBot.Analyze gps` tiskl
+    `MinClearance` p50 1,8·10³⁰⁸ (sentinel `MaxValue` = bez překážky) — opraveno filtrem.
+  - `lok-koridorsend-nebyl-vypnuty` → hotovo opačně: bezpečný stav se do profilu nezapsal,
+    zapsal se ostrý. `CLAUDE.md` odstavec o „měřicím režimu" přepsán. Build `ARBot.Analyze` OK;
+    testy se kódu robotu netýkají (změny jen v `ARBot.Analyze` a dokumentaci).
+- **Odtlumení koridoru pro soutěž 19. 9.** (`lok-koridor-merici-rezim`) — *pokyn autora:* „trošku
+  nafouknout σ, takhle je asi moc silný". Do `config/pi-provoz.cfg` šlo **`corridorstd=0.1`,
+  `corridorheadingstd=2.5`, `corridorhz=2`** (heading σ z naměřené robustní sd 2,4–2,6°; kadence
+  je kompromis — dekorelační čas koridoru pořád změřený není). **A/B v simulaci** (5 × 60 s,
+  `SyntetickyRovny`, prokluz 2 %, bias kurzu 3°): příčná chyba proti pravdě 0,003 → **0,018 m**
+  (1 Hz 0,030, bez korekcí 0,84 m), kurz 0,13 → **0,41°** (bez korekcí 2,4°) — koridor drží pózu
+  dál, jen ~15× méně tvrdě. ⚠️ Simulace má bílý šum, o korelované chybě hrany neříká nic; **na
+  zařízení s tím nejelo** — profil se musí nasadit (`nasad.ps1`). Testy `CorridorDeweightTests`
+  7/7. Detail: [map-correlation-localization.md](map-correlation-localization.md), „Odtlumení
+  pro soutěž".
+- **První jízda s kalibrovaným magnetometrem — vyhodnocení a úkoly, které na to čekaly**
+  (*zadání autora*). Tabulka týmž měřidlem přes 12./14./17./18. 9.:
+  [imu-and-frames.md](imu-and-frames.md), „Po NOVÉ kalibraci".
+  - **Kalibrace ze 17. 9. drží** (`hw-zelezo-od-kabelu-kamer` → hotovo): zbytkové vodorovné
+    železo **11–18 mG** proti 158–169 mG před ní, `|B|` na referenci, kabely statické (1–6 mG při
+    zapnutí kamer). **VPE τ 28–53 s** proti 345 s (`hw-vn100-vpe-tahne-za-polem` → hotovo: po
+    kalibraci je to konstanta senzoru, ne vada železa). `IMU − GPS kurz` **−2,5 / −1,6°**, sd
+    ~4°, na protilehlých kurzech stejný — konstanta, ne železo, ale mezi běhy jiná (−3,4 / −1,1°)
+    → bias je reálný a pomalu proměnný (`lok-bias-senzoru-jako-stav-ekf` má potvrzení z HW).
+    Harmonický rozklad z téhle trati nejde (dva shluky kurzu). Akcelerometr +6,9 % a sklon 63°
+    beze změny.
+  - **Přeměřeno, co čekalo na kurz:** `lp-robot-se-plazi-vyhlazovani` — za jízdy robot **neleze**
+    (1. uzel na podlaze 1 % proti 53 % ze 7. 9., `vCmd` p50 1,0 m/s, obálka za jízdy neváže nic);
+    `lp-cil-astar-zona` — `GoalBlocked` 2 % / `GoalUnsafe` 2 % proti 24 / 19 % ze 14. 9., mrkev
+    nedosažitelná 33 % proti 52 %; `lp-filtr-izolovanych-bunek` — `VAlong` váže jen ve stání,
+    za jízdy 0 %, takže filtr není naléhavý; `lok-koridor-prah-inlieru-prisny` — s dobrým kurzem
+    dá práh 20 jen **+6–7 %** koridorů (proti 4× ze 17. 9.) při horší nesmyslné šířce, výchozích
+    25 zůstává. `assocfloorhdg` 10 → spíš 5° než 3° (změřeno, nezměněno před soutěží).
+- **Soutěžní mapa v profilu a past z JOSM** (`nav-osm-josm-action-delete`) — *autor přepnul
+  `config/pi-provoz.cfg` na `map=OSM/Robotour2026-ver1.osm`* (`track=` zakomentovaný, profil
+  testem projde). Při kontrole mapy se ukázalo, že **JOSM nechává smazané objekty v souboru**
+  s `action='delete'`: 142 z 195 cest a 2 127 uzlů, z cest s `highway` **57 z 95** — a
+  `OsmXmlReader` je bral jako živou síť, takže by robot navigoval po cestách, které autor v mapě
+  odstranil. **Opraveno:** čtečka smazaný uzel/cestu/relaci přeskočí (`action='modify'` bere
+  normálně), test `Read_SkipsJosmDeletedObjects`, OsmNav testy 158/158. Mapa po opravě: 209 uzlů,
+  226 hran (načteno v `ARBot.Headless`, simulace, `mission=robotour` nastartovala a čeká na fix).
+  Totéž platí pro `modrany.osm`/`modrany1.osm`/`modrany_small.osm`; mapy z Overpassu atribut
+  nemají. ⚠️ **Na zařízení neběželo** — nasazení soutěžního profilu vyžaduje i tuhle binárku.
+  Zapsáno v [osm-nav.md](osm-nav.md).
 
 ## 2026-09-17
 - **Web přejmenován z `docs/` na `web/`** — *na pokyn autora*. Vedle `doc/` (vývojová dokumentace)

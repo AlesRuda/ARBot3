@@ -17,7 +17,15 @@ public sealed record OsmData(
     IReadOnlyList<OsmWayRaw> Ways,
     IReadOnlyList<TurnRestrictionRaw> Restrictions);
 
-/// <summary>Streamované čtení .osm XML (Overpass/JOSM). Jen via-node restrikce.</summary>
+/// <summary>Streamované čtení .osm XML (Overpass/JOSM). Jen via-node restrikce.
+///
+/// <para><b>JOSM a <c>action="delete"</c> (18. 9. 2026):</b> soubor uložený z JOSM po editaci
+/// nese i objekty, které v něm uživatel SMAZAL — zůstávají v XML s atributem
+/// <c>action="delete"</c> (JOSM je zahodí až po uploadu nebo po <i>File → Purge</i>). Do té doby
+/// je čtečka brala jako živou síť: v <c>OSM/Robotour2026-ver1.osm</c> bylo 57 z 95 cest
+/// s <c>highway</c> smazaných a robot by po nich navigoval, ačkoli je autor v mapě odstranil.
+/// Takový objekt se přečte (subtree se musí odkonzumovat), ale do výsledku nejde.
+/// <c>action="modify"</c> je běžná editace a bere se normálně.</para></summary>
 public static class OsmXmlReader
 {
     public static OsmData ReadString(string xml)
@@ -54,6 +62,7 @@ public static class OsmXmlReader
     private static void ReadNode(XmlReader r, List<OsmNodeRaw> nodes)
     {
         long id = Lng(r.GetAttribute("id")!);
+        string? deleted = r.GetAttribute("action");
         double lat = Dbl(r.GetAttribute("lat")!);
         double lon = Dbl(r.GetAttribute("lon")!);
         var tags = new Dictionary<string, string>();
@@ -64,12 +73,16 @@ public static class OsmXmlReader
                 if (r.NodeType == XmlNodeType.Element && r.Name == "tag")
                     tags[r.GetAttribute("k")!] = r.GetAttribute("v")!;
         }
-        nodes.Add(new OsmNodeRaw(id, lat, lon, tags));
+        if (!Deleted(deleted)) nodes.Add(new OsmNodeRaw(id, lat, lon, tags));
     }
+
+    /// <summary>JOSM: <c>action="delete"</c> = objekt v editoru smazaný, v souboru ale stále přítomný.</summary>
+    private static bool Deleted(string? action) => action == "delete";
 
     private static void ReadWay(XmlReader r, List<OsmWayRaw> ways)
     {
         long id = Lng(r.GetAttribute("id")!);
+        string? deleted = r.GetAttribute("action");
         var refs = new List<long>();
         var tags = new Dictionary<string, string>();
         if (!r.IsEmptyElement)
@@ -82,11 +95,12 @@ public static class OsmXmlReader
                 else if (r.Name == "tag") tags[r.GetAttribute("k")!] = r.GetAttribute("v")!;
             }
         }
-        ways.Add(new OsmWayRaw(id, refs, tags));
+        if (!Deleted(deleted)) ways.Add(new OsmWayRaw(id, refs, tags));
     }
 
     private static void ReadRelation(XmlReader r, List<TurnRestrictionRaw> restrictions)
     {
+        string? deleted = r.GetAttribute("action");
         var tags = new Dictionary<string, string>();
         long fromWay = -1, toWay = -1, viaNode = -1;
         bool viaIsNode = false;
@@ -114,6 +128,7 @@ public static class OsmXmlReader
 
         if (tags.GetValueOrDefault("type") != "restriction") return;
         if (!tags.TryGetValue("restriction", out string? kind)) return;
+        if (Deleted(deleted)) return;
         if (!viaIsNode || fromWay < 0 || toWay < 0) return; // via-way nepodporujeme
         restrictions.Add(new TurnRestrictionRaw(fromWay, viaNode, toWay, kind));
     }
