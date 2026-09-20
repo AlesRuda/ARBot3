@@ -54,6 +54,7 @@ var skupiny = new (string Polozka, string[] Stranky)[]
         "pages/robotour-2011.html",
         "pages/robotour-2012.html",
         "pages/robotour-2013.html",
+        "pages/robotour-2026.html",
         "pages/robotem-rovne-2010.html",
         "pages/robotem-rovne-2011.html",
         "pages/robotem-rovne-2012.html",
