@@ -255,7 +255,13 @@ vybírá směr, se dá složit **spojitý potenciál**:
 φ = (1 − t) · BaseTraversalCost(chosen) + CostToGoal(chosen)      [s]
 ```
 
-kde `t` je parametr průmětu robota na hranu. φ je **skalár, který při postupu k cíli monotónně klesá**,
+kde `t` je parametr průmětu robota na hranu **vrácenou `NearestNode`** — a ⚠️ **když `chosen` je její
+OBRÁCENÁ orientace** (trasa vede proti pořadí vložení hrany, u obousměrné cesty zhruba polovina
+případů), zbývá po hraně **`t`, ne `1 − t`**. `Navigator.Update` to tak počítá od začátku
+(`costRev = t · cost(rev) + …`), `GlobalNavigator.ComputePhi` **až od 20. 9. 2026**: do té doby
+φ při jízdě po trase proti orientaci **rostlo o 1 s/m** a detektor B po 20 m penalizoval správnou
+cestu — viz [Robotour 19. 9. 2026](#robotour-19-9-2026-co-dělala-navigace-za-jízdy) níže.
+φ je **skalár, který při postupu k cíli monotónně klesá**,
 a to i přes křižovatky (žádné skoky) — a co je důležité, klesá i tehdy, když robot **objíždí** překážku
 jinou cestou, protože pole je goal-rooted a nezávisí na tom, odkud jsme přijeli. Proti prostému
 „vzdušná vzdálenost k cíli" (která při objíždění roste) je to poctivá míra postupu.
@@ -480,6 +486,73 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
    `SetGoal` parametr už přijímá, ale test průřezu zatím nedělá.
 5. ⬜ **Cíl z UI jako LLA** (Ctrl+klik → globální vrstva), panel stavu globální navigace.
 6. ⬜ **Ověření na HW** — celý řetěz na OrangePI: doba stavby sítě, doba cyklu, chování na reálné trase.
+
+## Robotour 19. 9. 2026: co dělala navigace za jízdy
+
+Rozbor záznamů `records/Robotour2026/Kolo3b.rec` (celá mise depo → nakládka → vykládka → jízda do
+depa, 24 min, 830 m) a `Kolo4.rec` (14 min, uvázl) novým `ARBot.Analyze nav`. Autorovy postřehy
+z jízdy: skoky pózy na rovných úsecích, „po prvním odbočení zamítl pěknou cestu a přeplánoval",
+ve 4. kole „postupně uzavřel všechny cesty" a nakonec „se nacpal do úzké pěšinky a uvázl".
+
+### 1. Uzavírání cest: chyba ve výpočtu φ, ne špatná cesta
+
+`GlobalNavigator` uzavření ani penalizaci **nikam nelogoval** (od 20. 9. 2026 jde obojí do Trace),
+takže se rekonstruovalo z `ClosureCount` v `GlobalNavMsg`, hran `Collision=true` ve zprávě `GN`
+a stavů lokálního plánu:
+
+| | Kolo3b | Kolo4 |
+|---|---|---|
+| událostí (penalizace/uzavření) | **16** za 24 min | **9** za 14 min |
+| detektor podle okolností | 16× B „bez postupu" | 7× B, 2× A „bez pohybu" (až v úzké pěšince) |
+| pokles φ na 20 m dráhy při poplachu | **−11 … −20 s** (φ ROSTLO) u 13 z 16 | −13 … −20 s u všech 7 |
+| stav plánu 5 s před poplachem | Ok 82–101 % u 12 z 16 | Ok 96–101 % u 4 ze 7 |
+| přeplánování (délka trasy o > 20 m) | 20 | 12 |
+
+Robot tedy jel po správné cestě rychlostí ~1 m/s, lokální plán měl v pořádku, a přesto φ **rostlo
+přesně o 1 s na metr** (časová řada `nav --phi=14:29:40,14:30:20`: +0,2 s každých 0,2 s, na hranici
+hrany skok dolů o cenu dokončené hrany). Příčina: `ComputePhi` bralo `(1 − t)` s parametrem `t`
+z hrany, kterou vrátil `NearestNode`, ale `fix.CurrentEdge` byla její **obrácená orientace** —
+`Navigator.Update` vybere reverz, kdykoli je levnější, což je u obousměrné cesty vždy, když trasa
+vede proti pořadí vložení hrany. Zbývající část hrany je pak `t`, ne `1 − t`. Po každých 20 m
+tak detektor B viděl „pokles φ −20 s < 6 s" a hranu **penalizoval ×5** (14:30:14: φ 350 → 433),
+o 4 s později se trasa přeplánovala kolem penalizované hrany (354 → 331 m, resp. 299 → 536 m
+v 14:31:54) — přesně to „po chvíli zamítl pěknou cestu". Ve 4. kole totéž sedmkrát za sebou
+(15:37–15:46), až trasa vedla úzkou pěšinkou vedle hlavní cesty (way 229966997 penalizována
+15:43:30, trasa 302 → 379 m), kde robot uvázl (GoalBlocked 94 s, `Blocked` buněk p50 41 %,
+detektor A pak uzavřel i tu) a od 15:49 hlásil kolize. **Opraveno** (`nav-phi-obracena-hrana`):
+`ComputePhi` rozliší orientaci přes `FindReverse`, regresní test jede po téže silnici oběma směry
+a chce φ monotónně klesající a žádné uzavření. ⚠️ Na zařízení neběželo; jak by jízdy dopadly bez
+té chyby, ze záznamu nejde říct — penalizace měnily trasu, ne jen hlášení.
+
+⚠️ **Nález mimochodem:** i s opravou zůstává detektor B citlivý na **jitter pózy**, protože okno
+měří ujetou dráhu ze součtu kroků pózy (šum a skoky se počítají jako jízda). Kolo3b: 830 m podle
+póz, z toho 15,6 m ve skocích; při pomalé jízdě (únik, GoalBlocked) dráha „ujíždí" bez postupu.
+Neřešeno, jen změřeno.
+
+### 2. Skoky pózy: každý hned po přijatém měření koridoru
+
+| | Kolo3b | Kolo4 | Kolo3-navrat (FreeRun) |
+|---|---|---|---|
+| skoků > 0,5 m nad `|v|·dt` | 14 (0,6–2,5 m) | 9 + 1 start (175 m = inicializace) | 3 |
+| z toho do 1,5 s po přijatém měření `Corridor` | **14 z 14** | **9 z 9** | 3 z 3 |
+| typický odstup od měření | 0,0–0,1 s | 0,0–0,1 s | 0,1 s |
+
+Skoky přicházejí **v sériích v jednom směru** (14:25:05–14:25:07 čtyři skoky −59° o celkem 5,8 m;
+15:42:32–15:42:34 pět skoků ~0° o 4 m), tedy koridor táhl pózu k jiné hraně nebo jiné poloze, ne
+šum. `corrections`: koridor přijat **1 404 z 1 404** (0 % zamítnuto, NIS p90 3,1, **max 443**) —
+`GateMode.Soft` nezahodí nic, i inovaci 443σ jen odtlumí, a `corridorstd=0,1` / `corridorhz=2`
+z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (14:25:07, 14:26:38, 14:26:50,
+15:42:36) — robot je najednou v blokované části gridu a „uniká". **Neopraveno**, jen změřeno
+(`lok-koridor-skoky-pozy`): kandidáti jsou strop na velikost jedné korekce, tvrdší brána pro
+inovace řádu desítek σ, nebo přiřazení hrany (`assoc*`) — rozhodnout se musí z dat, ne odhadem.
+
+### 3. Co se z jízd ověřilo (registr)
+
+- Armování v depu s `depothdop=3`: Kolo3a fix s HDOP **2,71** a 6 družicemi prošel za 5 s
+  (s prahem 2,0 by neprošel nikdy), Kolo3b HDOP 2,15 → `mise-robotour-depothdop` **ověřeno na HW**.
+- Čtení QR na robotu: `QrCodeMsg` v každém kole, cíl přijat (`mise-qr-jmeno-kamery`).
+- Celý průchod misí na HW poprvé: Kolo3b depo → nakládka (`Arrived` 14:15:56) → vykládka
+  (14:27:45) → jízda do depa; do depa nedojel (přeplánování výše), návrat dojet ve FreeRun.
 
 ## Otevřené úkoly (→ registr)
 

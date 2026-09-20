@@ -359,6 +359,41 @@ public class GlobalNavigatorTests
             nav.Step(10 + (i % 2 == 0 ? 0 : 1), 0, t.AddSeconds(i));
     }
 
+    /// <summary>
+    /// <b>Robotour 19. 9. 2026:</b> phi pri jizde po trase ROSTLO o 1 s/m, kdyz trasa vedla proti
+    /// poradi vlozeni hrany (u obousmerne cesty zhruba polovina pripadu): ComputePhi bralo
+    /// <c>1 - t</c> z hrany, kterou vratil NearestNode, ale fix.CurrentEdge byla jeji obracena
+    /// orientace, kde zbyva <c>t</c>. Detektor B pak po 20 m jizdy po spravne ceste hranu
+    /// penalizoval a robot "zamitl peknou cestu a preplanoval" (16 udalosti za 24 min). Tady se jede
+    /// obema smery po teze silnici: phi musi v obou klesat a nic se nesmi uzavrit.
+    /// </summary>
+    [TestCase(190.0, 0.0, -1.0, TestName = "Phi_Klesa_ProtiOrientaciHran (na zapad)")]
+    [TestCase(10.0, 200.0, +1.0, TestName = "Phi_Klesa_PoOrientaciHran (na vychod)")]
+    public void Phi_KlesaPriJizdePoTrase_VObouSmerech_ANicNeuzavira(double startX, double goalX, double smer)
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+        nav.SetGoal(origin.ToLLA(goalX, 0));
+
+        var t = DateTime.UtcNow;
+        var phi = new List<double>();
+        for (int i = 0; i <= 60; i++)
+        {
+            nav.Step(startX + smer * i, 0, t.AddSeconds(i));   // 1 m/s po trase
+            phi.Add(nav.Phi);
+        }
+
+        Assert.Multiple(() =>
+        {
+            for (int i = 1; i < phi.Count; i++)
+                Assert.That(phi[i], Is.LessThanOrEqualTo(phi[i - 1] + 1e-6),
+                            $"phi po kroku {i} vzrostlo ({phi[i - 1]:F1} -> {phi[i]:F1}) - jizda po trase ma phi jen snizovat");
+            Assert.That(phi[0] - phi[^1], Is.EqualTo(60).Within(1.5), "60 m jizdy pri 1 m/s = pokles phi o ~60 s");
+            Assert.That(nav.Closures, Is.Empty, "po spravne ceste se nic nepenalizuje ani neuzavira");
+        });
+    }
+
     [Test]
     public void NoProgress_FirstTime_OnlyPenalizesTheEdge()
     {

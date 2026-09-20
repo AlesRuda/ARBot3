@@ -719,6 +719,32 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
   trasa v mapě, detektory + uzavírání hran); zbývá recovery manévr, průřez koridorem a ověření na HW.
+  ⚠️ **Robotour 19. 9. 2026 (rozbor 20. 9., `ARBot.Analyze nav`): φ při jízdě po trase ROSTLO
+  o 1 s/m**, kdykoli trasa vedla proti pořadí vložení hrany — `ComputePhi` bralo `1 − t` z hrany
+  od `NearestNode`, ale `fix.CurrentEdge` byla její obrácená orientace (zbývá `t`). Detektor B pak
+  po každých 20 m správné jízdy hranu **penalizoval nebo uzavřel** (16 událostí za 24 min ve 3. kole,
+  9 ve 4.; u 20 z 25 pokles φ −11…−20 s při lokálním plánu Ok), trasa se přeplánovala kolem —
+  to je autorovo „zamítl pěknou cestu", ve 4. kole „uzavřel všechno" a nakonec pěšinka a uvázlost.
+  **Opraveno** + regresní test oběma směry (`nav-phi-obracena-hrana`); uzavření a penalizace jdou
+  od té doby do **Trace** (dřív nikam, jediná stopa byl `ClosureCount`). ⚠️ **Skoky pózy 0,6–4 m
+  přicházejí VŠECHNY do 0,1 s po přijatém měření koridoru** (14 z 14, 9 z 9), v sériích jedním
+  směrem; koridor přijat 1 404 z 1 404 s NIS max 443 — soft gate nezahodí nic. Neopraveno, změřeno
+  (`lok-koridor-skoky-pozy`). Detail v dokumentu, sekce „Robotour 19. 9. 2026".
+  ✅ **`corridorstd=` proměřeno 20. 9. 2026** (`ARBot.Analyze corridorstd`, 1-D protifaktický replay
+  kalibrovaný skutečnými kroky — fúze dělá kroky jen 0,19–0,46× toho, co říká `K = P/(P+R)`):
+  kroky > 0,3 m zmizí při **0,5–1,0 m** (Kolo3b 21 → 1 → 0), **5 m nepřidá nic** a srazí informaci
+  koridoru na 6× GPS; cena každé větší σ je pomalejší stažení driftu (odchylka od dnešní trajektorie
+  p50 0,8–1,3 m, p90 2,4–2,6 m). Inovace p50 **0,06 m**, ale 36 nad 2 m **v sériích na téže hraně**
+  (změna hrany jen 6 ze 78) — koridor za jízdu stáhl 20–28 m driftu, s `gpsposstd=30` je **jedinou**
+  příčnou referencí. Správná léčba skoků je **rychlostní limit korekce**, ne σ. Profil nezměněn.
+  Detail: [map-correlation-localization.md](doc/map-correlation-localization.md), „Jak velké `corridorstd=`".
+  ⚠️ **Rychlostní limit korekce se 20. 9. 2026 rozepsal a týž den ZAHODIL** (`PoseSlew` na výstupu
+  fúze: offset mezi přesným stavem a pózou pro řízení, dotahovaný omezenou rychlostí). Autor ho
+  zamítl po rozboru: vznikly by **dvě pózy** (přesná ve filtru, slewovaná v řízení) a rozešly by se
+  vizualizace, `PoseAtCapture` snímků, FreeRun i korekční zprávy; offset navíc nebyl funkcí času
+  dotazu `GetStateAt(t)`. Kód vrácen do stavu před ním, nic z toho v repu není. Léčba skoků zůstává
+  **otevřená** (`lok-koridor-skoky-pozy`): jestli limit uvnitř filtru (čekající korekce, úměrné P),
+  nebo jinak, se má nejdřív probrat.
 - [doc/map-correlation-localization.md](doc/map-correlation-localization.md) — **korelace occupancy gridu
   s mapou** (`MapCorrelator`): shoda semantického kanálu `LRoad` s OSM sítí (`RoadScene.IsRoad`) dá odhad
   chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **210**: otevřeno **44** · v kódu, na HW neověřeno **45** · hotovo **112** · odloženo **6** · zamítnuto **3**.
+Témat celkem **214**: otevřeno **46** · v kódu, na HW neověřeno **45** · hotovo **114** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -56,6 +56,8 @@ Témat celkem **210**: otevřeno **44** · v kódu, na HW neověřeno **45** · 
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)](#lp-path-following-stara-cisla) | 18. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
+| otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Robotour jako stavový automat s QR kódy](#mise-robotour) | 11. 8. 2026 | [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot by zatáčel dvakrát rychleji, než regulátor chce](#lp-omega-dif-faktor-a-znamenko) | 12. 8. 2026 |  |
@@ -99,8 +101,8 @@ Témat celkem **210**: otevřeno **44** · v kódu, na HW neověřeno **45** · 
 | v kódu, na HW neověřeno | Navigace po mapě | [Mapa z JOSM nese smazané cesty (`action='delete'`) a čtečka je brala jako živé](#nav-osm-josm-action-delete) | 18. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Skener QR na robotu nedostal jediný snímek — jméno kamery „Right" vs. „Right 740112071021"](#mise-qr-jmeno-kamery) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný](#mise-robotour-depothdop) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
+| v kódu, na HW neověřeno | Navigace po mapě | [φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty](#nav-phi-obracena-hrana) | 20. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -222,6 +224,19 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 - [x] Změřit s dobrým kurzem — 18. 9.: práh 20 dá jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horší nesmyslné šířce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazení hrany pouští 98–99 %, takže by skoro všechny došly do fúze — zisk malý, 25 zůstává (18. 9. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [CorridorReport.cs](../Src/ARBot.Analyze/CorridorReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
+
+<a id="lok-koridor-skoky-pozy"></a>
+### ⬜ Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
+
+`lok-koridor-skoky-pozy` · vada · **otevřeno** · nalezeno 20. 9. 2026
+
+Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi RobotStateMsg o 0,6–4 m nad `|v|·dt`) přišlo do 0,1 s po přijatém měření `Corridor`, často v sériích jedním směrem (14:25:05–07 čtyři skoky −59° o 5,8 m; 15:42:32–34 pět skoků o 4 m) — koridor táhl pózu k jiné hraně nebo poloze, ne šum. Koridor byl přijat 1 404 z 1 404 (0 % zamítnuto, NIS p90 3,1, max 443): `GateMode.Soft` nezahodí nic, jen odtlumí, a `corridorstd=0,1` / `corridorhz=2` z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (robot je najednou v blokované části gridu). Ve FreeRun (Kolo3-navrat) 3 skoky, všechny také za koridorem. Kandidáti léčby: strop na velikost jedné korekce, tvrdší brána pro inovace řádu desítek σ, nebo přiřazení hrany (`assoc*`) — vybrat z dat (`ARBot.Analyze nav`, `corrections`), ne odhadem. Měří to blok 1 `ARBot.Analyze nav`.
+
+- [x] Změřit: skoky pózy vs. přijatá měření koridoru (blok 1 `nav`) (20. 9. 2026)
+- [x] Proměřit `corridorstd=` protifaktickým 1-D replayem (`ARBot.Analyze corridorstd`): 0,5–1,0 m odstraní kroky > 0,3 m (21 → 1 → 0 v Kolo3b), 5 m nepřidá nic a srazí informaci koridoru na 6× GPS; cena je pomalejší stažení driftu (odchylka p50 0,8–1,3 m, p90 2,4–2,6 m); inovace p50 0,06 m, ale 36 nad 2 m v sériích na téže hraně (změna hrany jen 6 ze 78); koridor za jízdu stáhl 20–28 m driftu (20. 9. 2026)
+- [ ] Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu
+
+[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -743,6 +758,20 @@ Při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.o
 - [ ] Nasadit binárku na zařízení spolu se soutěžním profilem
 
 [osm-nav.md](osm-nav.md), [OsmXmlReader.cs](../Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs) · DevLog [2026-09-18](devlog.md#2026-09-18)
+
+<a id="nav-phi-obracena-hrana"></a>
+### 🧪 φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
+
+`nav-phi-obracena-hrana` · vada · **v kódu, na HW neověřeno** · nalezeno 20. 9. 2026 · vyřešeno 20. 9. 2026
+
+Robotour 19. 9. 2026: autor viděl, že robot „po prvním odbočení zamítl pěknou cestu a přeplánoval“ a ve 4. kole „postupně uzavřel všechny cesty“, až uvázl v úzké pěšince. Rozbor (`ARBot.Analyze nav`, Kolo3b a Kolo4): 16 resp. 9 penalizací/uzavření, u 20 z 25 pokles φ za 20 m dráhy −11 … −20 s (φ ROSTLO) při lokálním plánu Ok a jízdě ~1 m/s po trase; časová řada `--phi=` ukazuje +0,2 s každých 0,2 s a skok dolů na hranici hrany. Příčina: `GlobalNavigator.ComputePhi` bralo `1 − t` s parametrem z hrany, kterou vrátil `NearestNode`, ale `fix.CurrentEdge` z `Navigator.Update` byla její obrácená orientace (trasa proti pořadí vložení hrany — u obousměrné cesty zhruba polovina případů), kde zbývá `t`. Detektor B pak po každých 20 m správné jízdy hranu penalizoval ×5 a trasa se přeplánovala kolem (14:30:14 φ 350 → 433, trasa 354 → 331 m; 14:31:54 299 → 536 m); ve 4. kole sedm poplachů za sebou zavedlo trasu do pěšinky (way 229966997), kde robot uvázl (GoalBlocked 94 s) a detektor A uzavřel i tu. Uzavření ani penalizace se přitom nikam nelogovaly — jediná stopa byl `ClosureCount`. Opraveno: `ComputePhi` rozliší orientaci přes `FindReverse`, regresní test jede po téže silnici oběma směry (φ monotónně klesá, nic se neuzavře), uzavření/penalizace jdou do Trace. Mimochodem změřeno: okno detektoru B počítá dráhu ze součtu kroků pózy, takže jitter a skoky se berou jako jízda (Kolo3b 15,6 m z 830 m) — neřešeno.
+
+- [x] Rozbor `ARBot.Analyze nav` (skoky pózy, stavy plánu, uzavírání s odhadem detektoru, `--phi=`) (20. 9. 2026)
+- [x] Oprava `ComputePhi` (orientace hrany) + test oběma směry; Trace pro `CloseEdge`/`PenalizeEdge` (20. 9. 2026)
+- [ ] Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá)
+- [ ] Dráha v okně detektoru B ze součtu kroků pózy — jitter a skoky se počítají jako jízda (rozhodnout, zda filtrovat)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
 
 <a id="nav-recovery-manevr"></a>
 ### ⏸ Recovery manévr při záseku
@@ -1304,9 +1333,9 @@ Soutěžní scénář depo → nakládka → vykládka → depo: robot dojede, o
 - [x] Návrh a revize zadání (11. 8. 2026)
 - [x] Fáze 2–5: skener QR, parser `geo:`, automat, `MissionMsg`, panel UI (26. 8. 2026)
 - [x] Průchod misí v simulaci, přichycení cíle na cestu (27. 8. 2026)
-- [ ] Ověření na zařízení (fáze 7)
+- [x] Ověření na zařízení (fáze 7): Robotour 19. 9. 2026, Kolo3b — depo → nakládka (Arrived 14:15:56) → vykládka (14:27:45) → jízda do depa; do depa nedojel (penalizace hran, `nav-phi-obracena-hrana`) (19. 9. 2026)
 
-čeká na [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) · [robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026 (ZXing, bez potvrzování)](decisions.md) · DevLog [2026-08-11](devlog.md#2026-08-11), [2026-08-12](devlog.md#2026-08-12), [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27)
+čeká na [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) · [robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026 (ZXing, bez potvrzování)](decisions.md) · DevLog [2026-08-11](devlog.md#2026-08-11), [2026-08-12](devlog.md#2026-08-12), [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27), [2026-09-20](devlog.md#2026-09-20)
 
 <a id="mise-cil-dosazitelnost"></a>
 ### 🧪 Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná
@@ -1423,19 +1452,6 @@ Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další n
 
 [robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
-<a id="mise-robotour-depothdop"></a>
-### 🧪 Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný
-
-`mise-robotour-depothdop` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
-
-Na soutěži 19. 9. 2026 stála mise Robotour 158 s v `ArmingAtDepot` (`20260919-101546.rec`), stránka ukazovala „sigma 60–70 m“. Ta sigma je `gpsposstd × HDOP`, tedy nejistota pro fúzi, ne kritérium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družicích, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelší nepřerušená série byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou ranních záznamů. Práh je teď parametr `depothdop=` (default 2,0 z `RobotourConfig` se nemění), provozní profil `pi-provoz.cfg` má 3,0 — rozptyl polohy hlídá `MaxSpreadM` dál. Měří to blok 1b `ARBot.Analyze mission` (percentily HDOP, % vyhovujících fixů, nejdelší série pro 2,0 / 2,5 / 3,0 / 4,0).
-
-- [x] Blok 1b v `ARBot.Analyze mission`: kvalita fixu v `ArmingAtDepot` proti kritériu mise (19. 9. 2026)
-- [x] Parametr `depothdop=` (registr, runtime, `pi-provoz.cfg` = 3,0) (19. 9. 2026)
-- [ ] Ověřit na robotu: armování v depu s `depothdop=3` do 5 s od stisku
-
-[robotour-mission.md](robotour-mission.md), [configuration.md](configuration.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
-
 <a id="mise-robotour-mapa-ostrov"></a>
 ### 🧪 Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody
 
@@ -1506,6 +1522,19 @@ Místo notebooku v poli: robot stojí, obsluha s ním otáčí rukou, stránka n
 - [x] Zápis do senzoru a ověření venku (12. 9. 2026)
 
 [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [plan-vn100-kalibrace-kroky.md](plan-vn100-kalibrace-kroky.md), [imu-and-frames.md](imu-and-frames.md), [rozhodnutí 10. 9. a 12. 9. 2026](decisions.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-10](devlog.md#2026-09-10), [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12)
+
+<a id="mise-robotour-depothdop"></a>
+### ✅ Mise se v depu nezarmovala — práh HDOP 2,0 mezi budovami nesplnitelný
+
+`mise-robotour-depothdop` · vada · **hotovo** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
+
+Na soutěži 19. 9. 2026 stála mise Robotour 158 s v `ArmingAtDepot` (`20260919-101546.rec`), stránka ukazovala „sigma 60–70 m“. Ta sigma je `gpsposstd × HDOP`, tedy nejistota pro fúzi, ne kritérium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družicích, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelší nepřerušená série byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou ranních záznamů. Práh je teď parametr `depothdop=` (default 2,0 z `RobotourConfig` se nemění), provozní profil `pi-provoz.cfg` má 3,0 — rozptyl polohy hlídá `MaxSpreadM` dál. Měří to blok 1b `ARBot.Analyze mission` (percentily HDOP, % vyhovujících fixů, nejdelší série pro 2,0 / 2,5 / 3,0 / 4,0).
+
+- [x] Blok 1b v `ARBot.Analyze mission`: kvalita fixu v `ArmingAtDepot` proti kritériu mise (19. 9. 2026)
+- [x] Parametr `depothdop=` (registr, runtime, `pi-provoz.cfg` = 3,0) (19. 9. 2026)
+- [x] Ověřeno na robotu (Robotour, Kolo3a/Kolo3b): armování prošlo za 5 s s HDOP 2,71 (6 družic) a 2,15 (19. 9. 2026)
+
+[robotour-mission.md](robotour-mission.md), [configuration.md](configuration.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
 ## Provoz na zařízení
 
@@ -1584,6 +1613,18 @@ Po jízdě 17. 9. 2026 (track po kalibraci magnetometru, podle obsluhy s dobrým
 - [ ] Hláška „beh se zaznamenava do …" má říkat výsledek, ne záměr (dnes se tiskne před `WireRun`)
 
 [record-replay.md](record-replay.md), [ARBotRuntime.cs](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs), [WebStatus.cs](../Src/ARBot.Runtime/Web/WebStatus.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+
+<a id="prov-baterie-na-strance"></a>
+### ⬜ Napětí baterie není na stránce náhledu a nic na něj nevaruje
+
+`prov-baterie-na-strance` · vada · **otevřeno** · nalezeno 19. 9. 2026
+
+Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl zapnutý od rána, při opravách po 1. kole se nepřipojil na nabíječku). V záznamu to bylo vidět, jen to nikdo nečetl: medián napětí z `MotorStateBase` dopoledne 12,1 V (9:29) → 11,8 V (10:19) při stání, v `Kolo2.rec` 10,6 V a poslední vzorek 10,0 V, po nabití 12,5 V. Stránka náhledu napětí neukazuje a žádný práh na něj nehlídá — jediné místo, kde je, je záznam. Jednotlivé vzorky z motorové jednotky jsou hlučné (5–17 V), takže se musí brát medián nebo filtr, ne poslední hodnota. Léčba: řádek s napětím (mediánem za pár sekund) v tabulce senzorů na stránce a varování pod prahem (`batwarn=`), případně odmítnout start mise pod tvrdším prahem.
+
+- [ ] Napětí baterie (medián) do stránky náhledu vedle kvality GPS
+- [ ] Práh varování a hlášení do Trace (škrcené `PoruchaHlasic`)
+
+[robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
 
 <a id="prov-pudorys-umysl-a-zony"></a>
 ### 🧪 Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
@@ -2833,4 +2874,15 @@ Z dotazu autora „přišlo mi komplikované dávat menu na 22 míst a bude jich
 - [x] Ověřeno — první běh beze změny, změna položky propadne do 21 stránek, neznámá stránka spadne (18. 9. 2026)
 
 [web/README.md](../web/README.md), [menu.cs](../tools/menu.cs) · DevLog [2026-09-18](devlog.md#2026-09-18)
+
+<a id="web-clanek-robotour-2026"></a>
+### ✅ Článek o Robotouru 2026 na webu — čtyři kola s čísly ze záznamů
+
+`web-clanek-robotour-2026` · záměr · **hotovo** · nalezeno 19. 9. 2026 · vyřešeno 20. 9. 2026
+
+Stránka `web/pages/robotour-2026.html` ve stylu starších článků o soutěžích: předkolo (skener nedostal snímek kvůli jménu kamery), 1. kolo (práh HDOP a ostrov v mapě), 2. kolo (poprvé vyjel, po 27 s jízdy došla baterie — medián napětí z `MotorStateBase` v `Kolo2.rec` 10,6 V a konec 10,0 V proti 12,1 V dopoledne a 12,5 V po nabití), 3. kolo (první celé doručení na HW, 830 m, cestou do depa 16 penalizací správné hrany) a 4. kolo (9 penalizací, uváznutí v pěšince) s vysvětlením z rozboru 20. 9. (`nav-phi-obracena-hrana`, `lok-koridor-skoky-pozy`, rychlostní omezení pózy `lok-poza-rychlostni-limit`). Čísla jsou z `ARBot.Analyze mission` / `route` / `nav`, snímek s QR kódem z pravé kamery je z `mission --png` (`web/assets/img/clanky/robotour-2026-qr.jpg`). Odkaz v seznamu článků na *Umístění v soutěžích*, stránka je ve skupině té položky v `tools/menu.cs`. Výsledek (7. místo, 13 bodů) je v tabulce výsledků i v článku (doplněno 20. 9. 2026).
+
+- [x] Stránka článku, obrázek, odkaz v seznamu článků, skupina v generátoru menu (20. 9. 2026)
+
+[robotour-2026.html](../web/pages/robotour-2026.html), [robotour-mission.md](robotour-mission.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-19](devlog.md#2026-09-19), [2026-09-20](devlog.md#2026-09-20)
 

@@ -596,11 +596,25 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             var f = field;
             if (f == null) return 0;
 
-            f.NearestNode(here, out double t, out _, out _);
+            var nearest = f.NearestNode(here, out double t, out _, out _);
             double cost = f.CostToGoal(edge);
             if (double.IsInfinity(cost) || double.IsNaN(cost)) return double.PositiveInfinity;
 
-            return (1.0 - t) * f.BaseTraversalCost(edge) + cost;
+            // ⚠️ `t` je parametr na hrane, kterou vratil NearestNode - ale `edge` (fix.CurrentEdge
+            // z Navigator.Update) muze byt jeji OBRACENA orientace, kdyz trasa vede proti poradi
+            // vlozeni hrany (u obousmerne cesty zhruba v polovine pripadu). Zbyvajici cast hrany je
+            // pak `t`, ne `1 - t`. Do 20. 9. 2026 se bralo vzdy `1 - t`, takze phi pri jizde po
+            // trase ROSTLO o 1 s/m (zmereno nad Robotour 19. 9. 2026: +0,2 s kazdych 0,2 s pri
+            // 1 m/s, na hranici hrany skok dolu), detektor B po 20 m jizdy hlasil "bez postupu"
+            // a PENALIZOVAL nebo UZAVREL hranu, po ktere robot spravne jel - 16 udalosti za 24 min
+            // ve 3. kole, 9 ve 4. kole, prakticky vsechny s poklesem phi -13..-20 s na 20 m.
+            // Robot pak "zamitl peknou cestu a preplanoval", ve 4. kole postupne uzavrel vsechno
+            // a skoncil v uzke pesince vedle hlavni cesty. Navigator.Update pocita totez spravne
+            // (costRev = t * cost(rev) + ...), tady se to jen nepreneslo. Viz doc/global-navigation-runtime.md.
+            double zbyva = nearest != null && !ReferenceEquals(nearest, edge)
+                           && ReferenceEquals(f.FindReverse(nearest), edge)
+                           ? t : 1.0 - t;
+            return zbyva * f.BaseTraversalCost(edge) + cost;
         }
 
         /// <summary>
@@ -689,6 +703,14 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
             f.SetTraversalCost(edge, baseCost * cfg.PenaltyFactor);
 
+            // Trace, ne Debug (CLAUDE.md): do 20. 9. 2026 se penalizace ani uzavreni NIKAM
+            // nehlasily - v zaznamu z Robotouru byl jediny dukaz ClosureCount v GlobalNavMsg a
+            // pricina (ktery detektor, jake phi) se musela rekonstruovat (ARBot.Analyze nav).
+            // Udalosti jsou ridke (jednotky za jizdu), skrceni netreba.
+            System.Diagnostics.Trace.WriteLine(
+                $"GlobalNavigator: PENALIZACE hrany {edge.From.Id}->{edge.To.Id} (way {edge.WayId}) x{cfg.PenaltyFactor:F0}, "
+                + $"duvod {reason}, phi {Phi:F0} s, uzavreni/penalizaci celkem {closures.Count + 1}");
+
             closures[key] = new EdgeClosure
             {
                 Key = key,
@@ -715,6 +737,11 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             signs.CloseRoad(edge);
             var reverse = f.FindReverse(edge);
             if (reverse != null) signs.CloseRoad(reverse);
+
+            // Trace, ne Debug - viz PenalizeEdge.
+            System.Diagnostics.Trace.WriteLine(
+                $"GlobalNavigator: UZAVRENI hrany {edge.From.Id}->{edge.To.Id} (way {edge.WayId}, obe orientace), "
+                + $"duvod {reason}, po {count}. poplachu, phi {Phi:F0} s, uzavreni/penalizaci celkem {closures.Count + (old == null ? 1 : 0)}");
 
             closures[key] = new EdgeClosure
             {

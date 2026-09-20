@@ -29,9 +29,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">44</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">45</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">112</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">114</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">3</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -337,6 +337,11 @@
       <li data-tema="mise-robotour-dalsi-nakladka"><span class="mono">19. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#mise-robotour-dalsi-nakladka">Změna pravidel Robotour 2026 — po vykl&#225;dce dalš&#237; nakl&#225;dka m&#237;sto j&#237;zdy do depa</a></li>
       <li data-tema="mise-robotour-depothdop"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-depothdop">Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</a></li>
       <li data-tema="mise-robotour-mapa-ostrov"><span class="mono">19. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-robotour-mapa-ostrov">K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</a></li>
+      <li data-tema="prov-baterie-na-strance"><span class="mono">19. 9.</span> <span class="typ">nalezeno</span> <a href="#prov-baterie-na-strance">Napět&#237; baterie nen&#237; na str&#225;nce n&#225;hledu a nic na něj nevaruje</a></li>
+      <li data-tema="web-clanek-robotour-2026"><span class="mono">19. 9.</span> <span class="typ">začato</span> <a href="#web-clanek-robotour-2026">Čl&#225;nek o Robotouru 2026 na webu — čtyři kola s č&#237;sly ze z&#225;znamů</a></li>
+      <li data-tema="lok-koridor-skoky-pozy"><span class="mono">20. 9.</span> <span class="typ">nalezeno</span> <a href="#lok-koridor-skoky-pozy">Skoky p&#243;zy 0,6–4 m na rovn&#253;ch &#250;sec&#237;ch přich&#225;zej&#237; všechny hned po přijat&#233;m měřen&#237; koridoru</a></li>
+      <li data-tema="nav-phi-obracena-hrana"><span class="mono">20. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nav-phi-obracena-hrana">φ při j&#237;zdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzav&#237;ral spr&#225;vn&#233; cesty</a></li>
+      <li data-tema="web-clanek-robotour-2026"><span class="mono">20. 9.</span> <span class="typ">vyřešeno</span> <a href="#web-clanek-robotour-2026">Čl&#225;nek o Robotouru 2026 na webu — čtyři kola s č&#237;sly ze z&#225;znamů</a></li>
     </ul>
   </div>
 </section>
@@ -435,6 +440,17 @@
       <li class="hotovo">Změřit s dobr&#253;m kurzem — 18. 9.: pr&#225;h 20 d&#225; jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horš&#237; nesmysln&#233; š&#237;řce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazen&#237; hrany poušt&#237; 98–99 %, takže by skoro všechny došly do f&#250;ze — zisk mal&#253;, 25 zůst&#225;v&#225; <span class="mono">18. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Localization/CorridorConfig.cs">CorridorConfig.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Analyze/CorridorReport.cs">CorridorReport.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
+  </article>
+  <article class="tema" id="lok-koridor-skoky-pozy" data-stav="otevreno">
+    <h3>Skoky p&#243;zy 0,6–4 m na rovn&#253;ch &#250;sec&#237;ch přich&#225;zej&#237; všechny hned po přijat&#233;m měřen&#237; koridoru</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 20. 9. 2026</span></p>
+    <p>Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků p&#243;zy (posun mezi RobotStateMsg o 0,6–4 m nad <code>|v|&#183;dt</code>) přišlo do 0,1 s po přijat&#233;m měřen&#237; <code>Corridor</code>, často v s&#233;ri&#237;ch jedn&#237;m směrem (14:25:05–07 čtyři skoky −59&#176; o 5,8 m; 15:42:32–34 pět skoků o 4 m) — koridor t&#225;hl p&#243;zu k jin&#233; hraně nebo poloze, ne šum. Koridor byl přijat 1 404 z 1 404 (0 % zam&#237;tnuto, NIS p90 3,1, max 443): <code>GateMode.Soft</code> nezahod&#237; nic, jen odtlum&#237;, a <code>corridorstd=0,1</code> / <code>corridorhz=2</code> z 18. 9. tomu nezabr&#225;nily. Po skoku typicky <code>EscapingBlocked</code> (robot je najednou v blokovan&#233; č&#225;sti gridu). Ve FreeRun (Kolo3-navrat) 3 skoky, všechny tak&#233; za koridorem. Kandid&#225;ti l&#233;čby: strop na velikost jedn&#233; korekce, tvrdš&#237; br&#225;na pro inovace ř&#225;du des&#237;tek σ, nebo přiřazen&#237; hrany (<code>assoc*</code>) — vybrat z dat (<code>ARBot.Analyze nav</code>, <code>corrections</code>), ne odhadem. Měř&#237; to blok 1 <code>ARBot.Analyze nav</code>.</p>
+    <ul class="kroky">
+      <li class="hotovo">Změřit: skoky p&#243;zy vs. přijat&#225; měřen&#237; koridoru (blok 1 <code>nav</code>) <span class="mono">20. 9. 2026</span></li>
+      <li class="hotovo">Proměřit <code>corridorstd=</code> protifaktick&#253;m 1-D replayem (<code>ARBot.Analyze corridorstd</code>): 0,5–1,0 m odstran&#237; kroky &gt; 0,3 m (21 → 1 → 0 v Kolo3b), 5 m nepřid&#225; nic a sraz&#237; informaci koridoru na 6&#215; GPS; cena je pomalejš&#237; stažen&#237; driftu (odchylka p50 0,8–1,3 m, p90 2,4–2,6 m); inovace p50 0,06 m, ale 36 nad 2 m v s&#233;ri&#237;ch na t&#233;že hraně (změna hrany jen 6 ze 78); koridor za j&#237;zdu st&#225;hl 20–28 m driftu <span class="mono">20. 9. 2026</span></li>
+      <li class="otevreno">Rozhodnout l&#233;čbu: rychlostn&#237; limit korekce (autor souhlas&#237; s principem; n&#225;vrh <code>PoseSlew</code> na v&#253;stupu f&#250;ze 20. 9. zam&#237;tl kvůli dvěma p&#243;z&#225;m v syst&#233;mu — varianta uvnitř filtru se m&#225; nejdř&#237;v probrat), nebo <code>corridorstd</code> 0,5–1,0 v profilu</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
   <article class="tema" id="lok-korelace-gridu-s-mapou" data-stav="v-kodu">
     <h3>Korelace occupancy gridu s mapou jako oprava polohy a kurzu</h3>
@@ -874,6 +890,18 @@
       <li class="otevreno">Nasadit bin&#225;rku na zař&#237;zen&#237; spolu se soutěžn&#237;m profilem</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs">OsmXmlReader.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
+  </article>
+  <article class="tema" id="nav-phi-obracena-hrana" data-stav="v-kodu">
+    <h3>φ při j&#237;zdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzav&#237;ral spr&#225;vn&#233; cesty</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 20. 9. 2026</span> <span>vyřešeno 20. 9. 2026</span></p>
+    <p>Robotour 19. 9. 2026: autor viděl, že robot „po prvn&#237;m odbočen&#237; zam&#237;tl pěknou cestu a přepl&#225;noval“ a ve 4. kole „postupně uzavřel všechny cesty“, až uv&#225;zl v &#250;zk&#233; pěšince. Rozbor (<code>ARBot.Analyze nav</code>, Kolo3b a Kolo4): 16 resp. 9 penalizac&#237;/uzavřen&#237;, u 20 z 25 pokles φ za 20 m dr&#225;hy −11 … −20 s (φ ROSTLO) při lok&#225;ln&#237;m pl&#225;nu Ok a j&#237;zdě ~1 m/s po trase; časov&#225; řada <code>--phi=</code> ukazuje +0,2 s každ&#253;ch 0,2 s a skok dolů na hranici hrany. Př&#237;čina: <code>GlobalNavigator.ComputePhi</code> bralo <code>1 − t</code> s parametrem z hrany, kterou vr&#225;til <code>NearestNode</code>, ale <code>fix.CurrentEdge</code> z <code>Navigator.Update</code> byla jej&#237; obr&#225;cen&#225; orientace (trasa proti pořad&#237; vložen&#237; hrany — u obousměrn&#233; cesty zhruba polovina př&#237;padů), kde zb&#253;v&#225; <code>t</code>. Detektor B pak po každ&#253;ch 20 m spr&#225;vn&#233; j&#237;zdy hranu penalizoval &#215;5 a trasa se přepl&#225;novala kolem (14:30:14 φ 350 → 433, trasa 354 → 331 m; 14:31:54 299 → 536 m); ve 4. kole sedm poplachů za sebou zavedlo trasu do pěšinky (way 229966997), kde robot uv&#225;zl (GoalBlocked 94 s) a detektor A uzavřel i tu. Uzavřen&#237; ani penalizace se přitom nikam nelogovaly — jedin&#225; stopa byl <code>ClosureCount</code>. Opraveno: <code>ComputePhi</code> rozliš&#237; orientaci přes <code>FindReverse</code>, regresn&#237; test jede po t&#233;že silnici oběma směry (φ monot&#243;nně kles&#225;, nic se neuzavře), uzavřen&#237;/penalizace jdou do Trace. Mimochodem změřeno: okno detektoru B poč&#237;t&#225; dr&#225;hu ze součtu kroků p&#243;zy, takže jitter a skoky se berou jako j&#237;zda (Kolo3b 15,6 m z 830 m) — neřešeno.</p>
+    <ul class="kroky">
+      <li class="hotovo">Rozbor <code>ARBot.Analyze nav</code> (skoky p&#243;zy, stavy pl&#225;nu, uzav&#237;r&#225;n&#237; s odhadem detektoru, <code>--phi=</code>) <span class="mono">20. 9. 2026</span></li>
+      <li class="hotovo">Oprava <code>ComputePhi</code> (orientace hrany) + test oběma směry; Trace pro <code>CloseEdge</code>/<code>PenalizeEdge</code> <span class="mono">20. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na robotu: j&#237;zda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v z&#225;znamu pr&#225;zdn&#233;, φ kles&#225;)</li>
+      <li class="otevreno">Dr&#225;ha v okně detektoru B ze součtu kroků p&#243;zy — jitter a skoky se poč&#237;taj&#237; jako j&#237;zda (rozhodnout, zda filtrovat)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
   <article class="tema" id="nav-recovery-manevr" data-stav="odlozeno">
     <h3>Recovery man&#233;vr při z&#225;seku</h3>
@@ -1348,9 +1376,9 @@
       <li class="hotovo">N&#225;vrh a revize zad&#225;n&#237; <span class="mono">11. 8. 2026</span></li>
       <li class="hotovo">F&#225;ze 2–5: skener QR, parser <code>geo:</code>, automat, <code>MissionMsg</code>, panel UI <span class="mono">26. 8. 2026</span></li>
       <li class="hotovo">Průchod mis&#237; v simulaci, přichycen&#237; c&#237;le na cestu <span class="mono">27. 8. 2026</span></li>
-      <li class="otevreno">Ověřen&#237; na zař&#237;zen&#237; (f&#225;ze 7)</li>
+      <li class="hotovo">Ověřen&#237; na zař&#237;zen&#237; (f&#225;ze 7): Robotour 19. 9. 2026, Kolo3b — depo → nakl&#225;dka (Arrived 14:15:56) → vykl&#225;dka (14:27:45) → j&#237;zda do depa; do depa nedojel (penalizace hran, <code>nav-phi-obracena-hrana</code>) <span class="mono">19. 9. 2026</span></li>
     </ul>
-    <p class="tema-odkazy">čeká na <a href="#nav-globalni-navigace-runtime">Glob&#225;ln&#237; navigace po s&#237;ti cest v runtime</a>, <a href="#mise-nouzove-zastaveni-controlloop">Nouzov&#233; zastaven&#237; v ř&#237;dic&#237; smyčce a ve firmwaru motorů</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 26. 8. 2026 (ZXing, bez potvrzov&#225;n&#237;)</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-11">2026-08-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-12">2026-08-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a></p>
+    <p class="tema-odkazy">čeká na <a href="#nav-globalni-navigace-runtime">Glob&#225;ln&#237; navigace po s&#237;ti cest v runtime</a>, <a href="#mise-nouzove-zastaveni-controlloop">Nouzov&#233; zastaven&#237; v ř&#237;dic&#237; smyčce a ve firmwaru motorů</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 26. 8. 2026 (ZXing, bez potvrzov&#225;n&#237;)</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-11">2026-08-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-12">2026-08-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
   <article class="tema" id="mise-cil-dosazitelnost" data-stav="v-kodu">
     <h3>Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</h3>
@@ -1451,17 +1479,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>
-  <article class="tema" id="mise-robotour-depothdop" data-stav="v-kodu">
-    <h3>Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
-    <p>Na soutěži 19. 9. 2026 st&#225;la mise Robotour 158 s v <code>ArmingAtDepot</code> (<code>20260919-101546.rec</code>), str&#225;nka ukazovala „sigma 60–70 m“. Ta sigma je <code>gpsposstd &#215; HDOP</code>, tedy nejistota pro f&#250;zi, ne krit&#233;rium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družic&#237;ch, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelš&#237; nepřerušen&#225; s&#233;rie byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou rann&#237;ch z&#225;znamů. Pr&#225;h je teď parametr <code>depothdop=</code> (default 2,0 z <code>RobotourConfig</code> se neměn&#237;), provozn&#237; profil <code>pi-provoz.cfg</code> m&#225; 3,0 — rozptyl polohy hl&#237;d&#225; <code>MaxSpreadM</code> d&#225;l. Měř&#237; to blok 1b <code>ARBot.Analyze mission</code> (percentily HDOP, % vyhovuj&#237;c&#237;ch fixů, nejdelš&#237; s&#233;rie pro 2,0 / 2,5 / 3,0 / 4,0).</p>
-    <ul class="kroky">
-      <li class="hotovo">Blok 1b v <code>ARBot.Analyze mission</code>: kvalita fixu v <code>ArmingAtDepot</code> proti krit&#233;riu mise <span class="mono">19. 9. 2026</span></li>
-      <li class="hotovo">Parametr <code>depothdop=</code> (registr, runtime, <code>pi-provoz.cfg</code> = 3,0) <span class="mono">19. 9. 2026</span></li>
-      <li class="otevreno">Ověřit na robotu: armov&#225;n&#237; v depu s <code>depothdop=3</code> do 5 s od stisku</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
-  </article>
   <article class="tema" id="mise-robotour-mapa-ostrov" data-stav="v-kodu">
     <h3>K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
@@ -1522,6 +1539,17 @@
       <li class="hotovo">Z&#225;pis do senzoru a ověřen&#237; venku <span class="mono">12. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace-kroky.md">plan-vn100-kalibrace-kroky.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 10. 9. a 12. 9. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-08">2026-09-08</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-10">2026-09-10</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a></p>
+  </article>
+  <article class="tema" id="mise-robotour-depothdop" data-stav="hotovo">
+    <h3>Mise se v depu nezarmovala — pr&#225;h HDOP 2,0 mezi budovami nesplniteln&#253;</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 19. 9. 2026</span></p>
+    <p>Na soutěži 19. 9. 2026 st&#225;la mise Robotour 158 s v <code>ArmingAtDepot</code> (<code>20260919-101546.rec</code>), str&#225;nka ukazovala „sigma 60–70 m“. Ta sigma je <code>gpsposstd &#215; HDOP</code>, tedy nejistota pro f&#250;zi, ne krit&#233;rium mise: to je fix + ≥ 6 družic + HDOP ≤ 2,0 nepřerušeně 5 s, pak RMS rozptyl ≤ 2,5 m. Mezi budovami byl HDOP 1,74–2,95 (p50 2,30, p90 2,50) při 12–16 družic&#237;ch, prahu 2,0 vyhovovalo 4,7 % fixů a nejdelš&#237; nepřerušen&#225; s&#233;rie byla 3 s; s prahem 3,0 vyhovuje 100 % fixů obou rann&#237;ch z&#225;znamů. Pr&#225;h je teď parametr <code>depothdop=</code> (default 2,0 z <code>RobotourConfig</code> se neměn&#237;), provozn&#237; profil <code>pi-provoz.cfg</code> m&#225; 3,0 — rozptyl polohy hl&#237;d&#225; <code>MaxSpreadM</code> d&#225;l. Měř&#237; to blok 1b <code>ARBot.Analyze mission</code> (percentily HDOP, % vyhovuj&#237;c&#237;ch fixů, nejdelš&#237; s&#233;rie pro 2,0 / 2,5 / 3,0 / 4,0).</p>
+    <ul class="kroky">
+      <li class="hotovo">Blok 1b v <code>ARBot.Analyze mission</code>: kvalita fixu v <code>ArmingAtDepot</code> proti krit&#233;riu mise <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Parametr <code>depothdop=</code> (registr, runtime, <code>pi-provoz.cfg</code> = 3,0) <span class="mono">19. 9. 2026</span></li>
+      <li class="hotovo">Ověřeno na robotu (Robotour, Kolo3a/Kolo3b): armov&#225;n&#237; prošlo za 5 s s HDOP 2,71 (6 družic) a 2,15 <span class="mono">19. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>
 </section>
 <section class="oblast">
@@ -1589,6 +1617,16 @@
       <li class="otevreno">Hl&#225;ška „beh se zaznamenava do …&quot; m&#225; ř&#237;kat v&#253;sledek, ne z&#225;měr (dnes se tiskne před <code>WireRun</code>)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Runtime/Robot/ARBotRuntime.cs">ARBotRuntime.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Runtime/Web/WebStatus.cs">WebStatus.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
+  </article>
+  <article class="tema" id="prov-baterie-na-strance" data-stav="otevreno">
+    <h3>Napět&#237; baterie nen&#237; na str&#225;nce n&#225;hledu a nic na něj nevaruje</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 19. 9. 2026</span></p>
+    <p>Ve 2. kole Robotouru 2026 robot po 27 s j&#237;zdy zastavil s vybitou bateri&#237; (byl zapnut&#253; od r&#225;na, při oprav&#225;ch po 1. kole se nepřipojil na nab&#237;ječku). V z&#225;znamu to bylo vidět, jen to nikdo nečetl: medi&#225;n napět&#237; z <code>MotorStateBase</code> dopoledne 12,1 V (9:29) → 11,8 V (10:19) při st&#225;n&#237;, v <code>Kolo2.rec</code> 10,6 V a posledn&#237; vzorek 10,0 V, po nabit&#237; 12,5 V. Str&#225;nka n&#225;hledu napět&#237; neukazuje a ž&#225;dn&#253; pr&#225;h na něj nehl&#237;d&#225; — jedin&#233; m&#237;sto, kde je, je z&#225;znam. Jednotliv&#233; vzorky z motorov&#233; jednotky jsou hlučn&#233; (5–17 V), takže se mus&#237; br&#225;t medi&#225;n nebo filtr, ne posledn&#237; hodnota. L&#233;čba: ř&#225;dek s napět&#237;m (medi&#225;nem za p&#225;r sekund) v tabulce senzorů na str&#225;nce a varov&#225;n&#237; pod prahem (<code>batwarn=</code>), př&#237;padně odm&#237;tnout start mise pod tvrdš&#237;m prahem.</p>
+    <ul class="kroky">
+      <li class="otevreno">Napět&#237; baterie (medi&#225;n) do str&#225;nky n&#225;hledu vedle kvality GPS</li>
+      <li class="otevreno">Pr&#225;h varov&#225;n&#237; a hl&#225;šen&#237; do Trace (škrcen&#233; <code>PoruchaHlasic</code>)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/robotour-2026.html">robotour-2026.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
   <article class="tema" id="prov-pudorys-umysl-a-zony" data-stav="v-kodu">
     <h3>Půdorys n&#225;hledu ukazuje, co se robot chyst&#225; udělat, a z&#243;ny k dosažen&#237;</h3>
@@ -2643,6 +2681,15 @@
       <li class="hotovo">Ověřeno — prvn&#237; běh beze změny, změna položky propadne do 21 str&#225;nek, nezn&#225;m&#225; str&#225;nka spadne <span class="mono">18. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/README.md">web/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/tools/menu.cs">menu.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
+  </article>
+  <article class="tema" id="web-clanek-robotour-2026" data-stav="hotovo">
+    <h3>Čl&#225;nek o Robotouru 2026 na webu — čtyři kola s č&#237;sly ze z&#225;znamů</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>záměr</span> <span>nalezeno 19. 9. 2026</span> <span>vyřešeno 20. 9. 2026</span></p>
+    <p>Str&#225;nka <code>web/pages/robotour-2026.html</code> ve stylu starš&#237;ch čl&#225;nků o soutěž&#237;ch: předkolo (skener nedostal sn&#237;mek kvůli jm&#233;nu kamery), 1. kolo (pr&#225;h HDOP a ostrov v mapě), 2. kolo (poprv&#233; vyjel, po 27 s j&#237;zdy došla baterie — medi&#225;n napět&#237; z <code>MotorStateBase</code> v <code>Kolo2.rec</code> 10,6 V a konec 10,0 V proti 12,1 V dopoledne a 12,5 V po nabit&#237;), 3. kolo (prvn&#237; cel&#233; doručen&#237; na HW, 830 m, cestou do depa 16 penalizac&#237; spr&#225;vn&#233; hrany) a 4. kolo (9 penalizac&#237;, uv&#225;znut&#237; v pěšince) s vysvětlen&#237;m z rozboru 20. 9. (<code>nav-phi-obracena-hrana</code>, <code>lok-koridor-skoky-pozy</code>, rychlostn&#237; omezen&#237; p&#243;zy <code>lok-poza-rychlostni-limit</code>). Č&#237;sla jsou z <code>ARBot.Analyze mission</code> / <code>route</code> / <code>nav</code>, sn&#237;mek s QR k&#243;dem z prav&#233; kamery je z <code>mission --png</code> (<code>web/assets/img/clanky/robotour-2026-qr.jpg</code>). Odkaz v seznamu čl&#225;nků na *Um&#237;stěn&#237; v soutěž&#237;ch*, str&#225;nka je ve skupině t&#233; položky v <code>tools/menu.cs</code>. V&#253;sledek (7. m&#237;sto, 13 bodů) je v tabulce v&#253;sledků i v čl&#225;nku (doplněno 20. 9. 2026).</p>
+    <ul class="kroky">
+      <li class="hotovo">Str&#225;nka čl&#225;nku, obr&#225;zek, odkaz v seznamu čl&#225;nků, skupina v gener&#225;toru menu <span class="mono">20. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/robotour-2026.html">robotour-2026.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
 </section>
 <script>

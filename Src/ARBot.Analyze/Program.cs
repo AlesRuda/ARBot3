@@ -154,6 +154,15 @@ namespace ARBot.Analyze
                                               args.Any(a => a == "--bgr"),
                                               Text(args, "--png"));
                         return 0;
+                    case "corridorstd":
+                        CorridorStdReport.Run(rec,
+                            (Text(args, "--sigmas") ?? "0,0.1,0.3,0.5,1,2,5")
+                                .Split(',').Select(s => double.Parse(s, CultureInfo.InvariantCulture)).ToArray(),
+                            Arg(args, "--jump", 0.5));
+                        return 0;
+                    case "nav":
+                        NavReport.Run(rec, Arg(args, "--jump", 0.5), (int)Arg(args, "--top", 25), Text(args, "--phi"));
+                        return 0;
                     case "mission":
                         MissionReport.Run(rec, Text(args, "--camera"), Text(args, "--png"),
                                           (int)Arg(args, "--limit", 0));
@@ -266,6 +275,14 @@ namespace ARBot.Analyze
             Console.WriteLine("  cameras    chodi z kamer opravdu NOVE snimky? pocet ruznych obrazu a nejdelsi");
             Console.WriteLine("             serie totoznych (cte cele snimky - viz --limit, --skip);");
             Console.WriteLine("             --png=<prefix> ulozi prvni snimek kazde kamery jako PNG");
+            Console.WriteLine("  corridorstd jak velke corridorstd= by zkrotilo skoky pozy: inovace koridoru a skutecny");
+            Console.WriteLine("             krok pozy (overeni K=P/(P+R)), pricny procesni sum z rustu P, a 1-D");
+            Console.WriteLine("             protifakticky replay pro kandidaty sigma (kroky, odchylka od zaznamu,");
+            Console.WriteLine("             informace proti GPS); --sigmas=0,0.1,0.5,1,2,5  --jump=<m>");
+            Console.WriteLine("  nav        globalni navigace za jizdy: SKOKY POZY (posun minus |v|*dt, s koridorem");
+            Console.WriteLine("             a GPS v te chvili), stavy lokalniho planu a epizody uniku/uvaznuti,");
+            Console.WriteLine("             UZAVIRANI HRAN (ClosureCount + GN) s odhadem detektoru A/B/C a preplanovani;");
+            Console.WriteLine("             --jump=<m> prah skoku (0,5), --top=<n> radku");
             Console.WriteLine("  mission    mise Robotour ze zaznamu: casova osa fazi a stopu, servisni okna");
             Console.WriteLine("             (kdy skener QR vubec bezel) a prohnani skutecnych snimku zivym");
             Console.WriteLine("             dekoderem - rozlisi 'skener nebezel' od 'kod nebyl citelny';");

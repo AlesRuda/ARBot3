@@ -3493,3 +3493,49 @@ nechá koridoru ~15× méně příčné informace a ~90× méně o kurzu než dn
 hrany**, což je přesně důvod, proč se odtlumuje. NIS v simulaci ~0 (σ je proti bílému šumu
 simulace obrovská) — na reálném záznamu bylo s dnešní σ NIS p50 0,54, s nafouknutou bude ~0,2,
 tedy konzervativní. **Na zařízení s těmito hodnotami nejelo** (`CorridorDeweightTests` 7/7).
+
+## Jak velké `corridorstd=` — proměřeno nad Robotourem (20. 9. 2026)
+
+Autor po soutěži: skoky pózy se měly krotit přes `corridorstd=`, ale 0,1 m je málo, „viděl bych to
+kolem 5". Místo hádání to měří `ARBot.Analyze corridorstd` nad `records/Robotour2026/Kolo3b.rec`
+(702 měření koridoru do fúze) a `Kolo4.rec` (283). Záznam nese u každého měření inovaci
+(`RoadCorridorMsg.LateralDisagreement`, kamera − mapa příčně), σ proložení, id hrany a pózu,
+v `RobotStateMsg` kovarianci — z toho jde udělat **jednorozměrný protifaktický replay** příčné osy
+pro kandidáty σ (model v hlavičce `CorridorStdReport.cs`; GPS se zanedbává, protože při
+`gpsposstd=30` má σ 49–52 m).
+
+**Co se změřilo o inovacích:** p50 jen **0,06 m** (kamera a mapa souhlasí na centimetry), p90
+0,65 m, ale **36 inovací nad 2 m, max 6,1 m** (Kolo3b); přicházejí v **sériích na téže hraně**
+(14:31:22–14:31:52 way 50914020: −6,0 → −4,1 m, každé měření o kus menší, jak filtr pózu stahuje),
+při **změně hrany jen 6 ze 78** velkých inovací — většina tedy není přepnutí přiřazení, ale
+**nahromaděný drift pózy**, který koridor stahuje po dávkách. Součet |kroků| koridoru za záznam
+je **28 m** (Kolo3b) a **20 m** (Kolo4): s GPS odtlumenou na 30×HDOP je koridor **jediná**
+absolutní příčná reference a dělá reálnou práci.
+
+**Fúze dělá kroky menší než skalární vzorec `K = P/(P+R)`:** skutečný krok / (K·inovace) =
+**0,19** (Kolo3b) a **0,46** (Kolo4) — fixed-lag smoother a další měření v okně krok tlumí; replay
+je tím faktorem kalibrovaný.
+
+**Protifaktický replay (kalibrovaný), Kolo3b:**
+
+| `corridorstd` | kroků > 0,3 m | > 0,5 m | krok max | σ pózy p50 | odchylka od zaznamené trajektorie p50 / p90 / max | info koridor : GPS |
+|---|---|---|---|---|---|---|
+| 0,1 (v záznamu) | 21 | 8 | 0,97 m | 0,05 m | 0,07 / 1,2 / 4,5 m | 9 300 : 1 |
+| 0,3 | 6 | 1 | 0,68 m | 0,08 m | 0,46 / 2,0 / 8,0 m | 1 470 : 1 |
+| **0,5** | **1** | **0** | **0,44 m** | 0,10 m | 0,76 / 2,4 / 9,9 m | 550 : 1 |
+| **1,0** | **0** | **0** | **0,18 m** | 0,17 m | 1,3 / 2,6 / 12,3 m | 140 : 1 |
+| 2,0 | 0 | 0 | 0,07 m | 0,25 m | 1,7 / 2,5 / 14,1 m | 35 : 1 |
+| 5,0 | 0 | 0 | 0,02 m | 0,41 m | 1,5 / 3,5 / 14,8 m | 6 : 1 |
+
+Kolo4 totéž: 0,5 → 12 / 5 kroků, 1,0 → 3 / 2, 2,0 → 0 / 0; odchylka p50 0,3 / 0,9 / 1,5 m.
+
+**Závěr:** skoky nad 0,3 m (práh, při kterém `PoseJumpDetector` maže grid) zmizí už při
+**0,5–1,0 m**; **5 m nepřidá nic** (max krok 0,02 proti 0,07 m u 2,0), jen srazí informaci koridoru
+na 6× GPS a σ pózy na 0,4 m. ⚠️ **Cena každé větší σ je drift:** velká inovace se pak nestahuje ve
+třech krocích, ale v desítkách, takže póza sedí p50 0,8–1,3 m a p90 2,4–2,6 m jinde než dnes,
+a v epizodách s inovací 5–6 m až 10–12 m — a **jestli byly ty epizody pravdivé (póza opravdu vedle)
+nebo falešné (proložení / hrana), 1-D model neřekne**. Robot s pózou 5 m vedle dostane mrkev mimo
+cestu, což je totéž `GoalBlocked`, jen bez skoku. **Správná léčba skoků není σ, ale rychlostní
+limit aplikované korekce** (podmínka 2 z [decisions.md](decisions.md): rozložit velkou inovaci na
+víc taktů) — pak jde mít rychlé stažení driftu bez mazání gridu. Do té doby je z dat obhajitelné
+`corridorstd=0,5` až `1,0`; **hodnota se v profilu nezměnila**, rozhodnutí je autorovo.

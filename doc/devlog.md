@@ -39,6 +39,47 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-20
+
+- **Rozbor jízd z Robotouru** (`records/Robotour2026/*`, nový `ARBot.Analyze nav`: skoky pózy,
+  stavy lokálního plánu, uzavírání hran s odhadem detektoru, přeplánování, `--phi=` časová řada).
+  Autorovy postřehy potvrzené a vysvětlené:
+  - **„Zamítl pěknou cestu a přeplánoval" / „uzavřel všechny cesty" = chyba výpočtu φ**
+    (`nav-phi-obracena-hrana`): `ComputePhi` bralo `1 − t` z hrany od `NearestNode`, ale
+    `fix.CurrentEdge` byla její obrácená orientace, takže φ při jízdě po trase rostlo o 1 s/m
+    a detektor B po každých 20 m penalizoval/uzavřel správnou hranu (Kolo3b 16×, Kolo4 9×, pokles
+    φ −11…−20 s při plánu Ok). Ve 4. kole to vedlo trasu do úzké pěšinky a k uváznutí. **Opraveno**,
+    regresní test oběma směry; uzavření/penalizace jdou nově do Trace (dřív nikam). ⚠️ Na zařízení
+    neběželo.
+  - **Skoky pózy na rovných úsecích jdou za koridorem** (`lok-koridor-skoky-pozy`): 14 z 14 (Kolo3b)
+    a 9 z 9 (Kolo4) skoků 0,6–4 m do 0,1 s po přijatém měření `Corridor`, v sériích jedním směrem;
+    koridor přijat 1 404 z 1 404, NIS max 443 (soft gate). Po skoku `EscapingBlocked`. Změřeno,
+    neopraveno — léčba se má vybrat z dat.
+  - Ověřeno na HW: armování s `depothdop=3` (HDOP 2,71 a 2,15), čtení QR v každém kole, poprvé celý
+    průchod depo → nakládka → vykládka na skutečném robotu (Kolo3b).
+  - **`corridorstd=` proměřeno** (nový `ARBot.Analyze corridorstd`, 1-D protifaktický replay
+    kalibrovaný skutečnými kroky): kroky > 0,3 m zmizí při 0,5–1,0 m (Kolo3b 21 → 1 → 0), 5 m
+    nepřidá nic a srazí informaci koridoru na 6× GPS; cena je pomalejší stažení driftu (odchylka
+    p50 0,8–1,3 m). Inovace p50 0,06 m, ale 36 nad 2 m v sériích na téže hraně — koridor stáhl za
+    jízdu 20–28 m driftu, je jediná příčná reference (GPS 30×HDOP). Hodnota v profilu nezměněna;
+    správná léčba je rychlostní limit korekce. Detail: [map-correlation-localization.md](map-correlation-localization.md).
+  - **Rychlostní limit korekce: rozepsán a týž den zahozen.** Návrh `PoseSlew` (offset na výstupu
+    fúze mezi přesným stavem a pózou pro řízení, dotahovaný omezenou rychlostí; `RobotStateMsg` v2
+    s offsetem) autor po rozboru zamítl: dvě pózy v systému by rozešly vizualizaci, `PoseAtCapture`,
+    FreeRun i korekční zprávy, a offset nebyl funkcí času dotazu `GetStateAt(t)`. Kód vrácen do
+    stavu před tím (`git checkout`), v repu nezůstalo nic. Léčba skoků zůstává otevřená
+    v `lok-koridor-skoky-pozy`; před dalším kódem se má probrat varianta uvnitř filtru.
+  Detail: [global-navigation-runtime.md](global-navigation-runtime.md), „Robotour 19. 9. 2026".
+  Testy Common 1 603 / OsmNav 165 / Runtime 140.
+
+- **Článek o Robotouru 2026 na web** (`web-clanek-robotour-2026`): `web/pages/robotour-2026.html`
+  — předkolo (jméno kamery), 1. kolo (HDOP, ostrov), 2. kolo (baterie: medián 10,6 V, konec 10,0 V
+  proti 12,1 V dopoledne a 12,5 V po nabití — změřeno z `MotorStateBase` v `Kolo2.rec`), 3. kolo
+  (celé doručení, 830 m, 16 penalizací) a 4. kolo (9 penalizací, pěšinka) s vysvětlením z rozboru výše;
+  snímek s QR kódem z pravé kamery (`assets/img/clanky/robotour-2026-qr.jpg`, z `mission --png`).
+  Odkaz v seznamu článků na *Umístění v soutěžích*, stránka ve skupině v `tools/menu.cs`. Nový nález
+  z toho: napětí baterie není na stránce náhledu a nic na něj nevaruje (`prov-baterie-na-strance`).
+
 ## 2026-09-19
 
 - **Nález ze soutěže: skener QR na robotu nedostal jediný snímek** (`mise-qr-jmeno-kamery`).
