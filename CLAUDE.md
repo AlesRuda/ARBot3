@@ -714,7 +714,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   zahodí až po uploadu nebo *Purge*) — v soutěžní `OSM/Robotour2026-ver1.osm` je to 57 z 95 cest
   s `highway`. Do 18. 9. 2026 je `OsmXmlReader` bral jako živou síť; od té doby je přeskakuje
   (test `Read_SkipsJosmDeletedObjects`). Našlo se večer před Robotourem při přepnutí profilu na
-  soutěžní mapu; ⚠️ **na zařízení neběželo**, nasazení profilu potřebuje i novou binárku.
+  soutěžní mapu; ✅ **na zařízení běželo na Robotouru 19. 9.** (`MapMsg` v záznamech nese síť po
+  opravě, 209 uzlů).
 - [doc/global-navigation-runtime.md](doc/global-navigation-runtime.md) — **napojení OsmNav na runtime**
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
@@ -875,7 +876,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   [doc/plan-naucena-sirka-do-mapy.md](doc/plan-naucena-sirka-do-mapy.md). ⚠️ **Na HW neběželo**,
   ověřeno simulací; prahy jsou odhad a jdou doladit offline.
   ~~**Provozní profil `pi-provoz.cfg` je od 15. 9. 2026 v MĚŘICÍM režimu** (`corridorsend=false`)~~
-  — ⚠️ **to nikdy neplatilo** (řádek v profilu chyběl, default je `true`; nález 17. 9.) a
+  — ⚠️ **platilo to jen 15.–17. 9.** (řádek byl v profilu od `0e34771`, měřicí jízda 16. 9.
+  s ním jela; autor ho 17. 9. v přípravě na Robotour odstranil, `8bf1081`, a default je `true`;
+  dřívější tvrzení „nikdy neplatilo" opravil audit 21. 9.) a
   **od 17. 9. 2026 je `corridorsend=true` v profilu zapsané vědomě** (autor, commit `a44b4f4`,
   po kalibraci kompasu 12. 9. a přiřazení hrany 16. 9.). ✅ **První jízdy s korekcemi naostro
   18. 9. 2026** (`records/test/20260918-154028.rec`, `-155329.rec`): za jízdy dá koridor měření
@@ -953,7 +956,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   mise:** `IRouteProbe.Probe` počítá i dosažitelnost, takže bez pózy vrací nuly a kontrola tiše
   projde („nejvetsi odstup 0,0 m" i pro bod 370 m od cesty) — chyceno při ověřování v simulaci.
   Volba mise robota **nerozjede**: automat čeká na stisk a uvolnění nouzového
-  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo), ⚠️ **na zařízení odjela 12. a 14. 9. 2026, ale celý seznam neobjela** (k prvnímu bodu 44 m za 9,5 min, `NoRoute`) — stav vede registr (`mise-track`).
+  zastavení. ✅ **Projeto v simulaci** (36 testů; objela tři místa a po `repeat` začala druhé kolo); na zařízení 12. a 14. 9. 2026 seznam neobjela (rozbitý kurz), ✅ **18. 9. 2026 objetý celý včetně `repeat`** (dvě kola, 6 míst za 5 min) — stav vede registr (`mise-track`).
   **Seznamy `*.track` leží od 12. 9. 2026 u map v `OSM/`, ne v `config/`** — seznam patří
   **ke konkrétní mapě** (jeho body musí ležet na její síti), kdežto v `config/` vypadal jako
   nastavení běhu, které jde libovolně kombinovat s jakoukoli mapou. ⚠️ **A právě tak se to jednou stalo:**

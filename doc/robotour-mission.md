@@ -478,7 +478,8 @@ tu, která poslala snímek dřív — levou. Obsluha podle telefonu ukazovala k�
 (levá ho trefila v 09:30:04, pravá až 09:31:25), zatímco se četlo z pravé. V terénu je stránka
 jediný náhled, takže **co ukazuje, tomu se kód ukazuje**.
 
-**Léčba (v kódu, ⚠️ na zařízení neběželo):**
+**Léčba (nasazená před 1. kolem; od 10:04 se kód na robotu čte — `20260919-100414.rec` 2 `QrCodeMsg`,
+`-101057` 535, `-101903` 195):**
 
 - `QrScanner.CameraMatches(frameName, configured)` — přesná shoda **nebo** nastavené jméno + mezera
   + cokoli (sériové číslo). `Left 740112071040` k `Right` neprojde, `Rightish` taky ne, prázdné
@@ -506,7 +507,8 @@ HDOP **1,74–2,95** (p50 2,30, p90 2,50) při 12–16 družicích, takže prahu
 a nejdelší nepřerušená série byla **3 s** z potřebných 5. S prahem 3,0 vyhovuje 100 % fixů obou
 ranních záznamů. Práh je od té doby parametr **`depothdop=`** (default zůstává 2,0
 z `RobotourConfig`), provozní profil `pi-provoz.cfg` má **3,0** — rozptyl polohy hlídá `MaxSpreadM`
-dál, HDOP tu chrání jen před vyloženě špatnou geometrií družic. ⚠️ Na zařízení s tím neběželo.
+dál, HDOP tu chrání jen před vyloženě špatnou geometrií družic. Nasazeno před 2. kolem; armování
+pak prošlo při HDOP 2,71 a 2,15 (Kolo3a/3b).
 
 **2. Kód se četl (535 a 195 `QrCodeMsg`), ale mise ho pokaždé zamítla — a stránka dál psala „čeká se
 na QR kód“.** Důvod zamítnutí byl „na cíl nevede po síti žádná trasa (je mimo mapu?)“ — jenže cíl
@@ -542,8 +544,10 @@ místa (`Probe`, `Navigator.Update`, `Router.Plan`), síť se načítá jednou �
 offline: z pózy na náměstí (10:11) se po odříznutí póza přichytí na chodník **2,4 m** daleko a cíl je
 dosažitelný (393 m); `ARBot.Analyze route` bez `--noprune` dělá totéž, co runtime. Co se zahodilo,
 jde do Trace a tím do záznamu. ⚠️ Je to heuristika pro mapu **jednoho areálu** — mapa s dvěma velkými
-oddělenými částmi by přišla o menší; `mapprune=false` vrátí původní síť. ⚠️ **Na zařízení neběželo**
-(5 testů `NetworkIslandsTests`, OsmNav + konfigurace 324, Runtime 140).
+oddělenými částmi by přišla o menší; `mapprune=false` vrátí původní síť. Nasazeno před 2. kolem
+(11:37): robot startoval ze servisní zóny, kde se ráno kódy zamítaly, a kód přijal — ve 2., 3. i 4. kole
+(nepřímý důkaz, Trace „ZAHOZENO 1" z `Kolo2.rec` nevyčteno; 5 testů `NetworkIslandsTests`, OsmNav +
+konfigurace 324, Runtime 140).
 
 ### Čte se jen ve stoje — záměrně
 

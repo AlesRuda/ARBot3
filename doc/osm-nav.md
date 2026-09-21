@@ -258,8 +258,9 @@ z Overpassu a atribut nemají.
 **Oprava:** čtečka objekt s `action="delete"` přečte (subtree se musí odkonzumovat), ale do
 výsledku ho nedá — uzel, cesta i relace; `action="modify"` je běžná editace a bere se normálně.
 Test `OsmXmlReaderTests.Read_SkipsJosmDeletedObjects`. Soutěžní mapa po opravě: **209 uzlů,
-226 hran** (ověřeno načtením v `ARBot.Headless` v simulaci). ⚠️ **Na zařízení to neběželo** —
-nasazení soutěžního profilu tuhle opravu binárky potřebuje, jinak jede robot po staré síti.
+226 hran** (ověřeno načtením v `ARBot.Headless` v simulaci). ✅ **Na zařízení běželo na Robotouru
+19. 9. 2026:** `MapMsg` v záznamech z 10:11 a 10:19 nese síť o 209 uzlech a 2 komponentách, tedy
+přesně síť po opravě (bez ní by měla o 2 127 uzlů víc), a robot po ní odjel Kolo3b i Kolo4.
 
 ## ⚠️ Ostrovy sítě se od 19. 9. 2026 při načtení zahazují (`mapprune=`, `NetworkIslands`)
 
@@ -280,4 +281,6 @@ robot stojí (ta póza je právě z chybné GPS). Cesty, které profil nepoušt�
 Co se zahodilo, jde do Trace a tím do záznamu; `mapprune=false` vrátí původní síť. Offline
 kontrola: `ARBot.Analyze route --map= --from= --to=` (bez `--noprune` dělá totéž, co runtime).
 ⚠️ Heuristika pro mapu **jednoho areálu** — dvě velké oddělené části by přišly o menší.
-⚠️ **Na zařízení neběželo** (`NetworkIslandsTests`, 5 testů).
+Nasazeno na Robotouru 19. 9. 2026 před 2. kolem: od té doby robot kód přijímal i ze servisní zóny,
+kde se ráno zamítal (nepřímý důkaz, Trace „ZAHOZENO" ze záznamu nevyčteno; `NetworkIslandsTests`,
+5 testů).

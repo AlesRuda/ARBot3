@@ -360,12 +360,15 @@ temata:
       `ArmbianSpiNeoPixelDriver` posílá sub-bity LED pásku jedním zápisem přes `/dev/spidev0.0`;
       `SpiDevice` vstupuje jako parametr, vlastníkem je volající. Buildy pro OrangePI zelené,
       ale na desce nikdy neběželo — časování `PulseConfig` proti SPI hodinám a reálný běh
-      animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit.
+      animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver
+      navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026
+      zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým
+      driverem.
     kroky:
       - co: Driver + balíček `System.Device.Gpio`
         stav: hotovo
         kdy: 2026-07-07
-      - co: Ověřit časování a běh na Orange Pi
+      - co: "Založit `ArmbianSpiNeoPixelDriver` v `ARBotHW` (Armbian) a ověřit časování a běh na Orange Pi"
         stav: otevreno
     odkazy:
       - text: OrangePi5Ultra/POSTUP.md
@@ -462,8 +465,10 @@ temata:
       Geometrie a klasifikátor polárního gridu jsou ověřené syntetickým testem a na živé kameře
       grid ukazuje data, ale prahy (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`), šumový
       model a radiální hrany z reálného podílu platných pixelů se nikdy neladily nad záznamem
-      z terénu. Grid dnes plní occupancy mapu, nad kterou plánuje lokální navigace — a ta na
-      zařízení taky neřídila, takže případná chyba prahů zatím není vidět.
+      z terénu. Grid dnes plní occupancy mapu, nad kterou plánuje lokální navigace — a podle té
+      mapy robot od 7. 9. 2026 venku jezdí; co z chování v terénu jde na vrub prahů gridu a co
+      chyby kurzu nebo vyhlazování, změřené není (viz `lp-zasek-v-blokovane-mape`,
+      `lp-robot-se-plazi-vyhlazovani`).
     kroky:
       - co: Ladění prahů a šumového modelu nad záznamem ze zařízení
         stav: otevreno
@@ -473,7 +478,7 @@ temata:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
     devlog: [2026-07-30]
-    ceka_na: [vid-polarni-grid-sjizdnosti]
+    ceka_na: []
 
   - id: vid-gc-spicky-latence
     oblast: videni
@@ -823,16 +828,19 @@ temata:
     oblast: mise
     nazev: Mise Robotour jako stavový automat s QR kódy
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-11
-    vyreseno: 2026-08-26
+    vyreseno: 2026-09-19
     popis: >
       Soutěžní scénář depo → nakládka → vykládka → depo: robot dojede, obsluha drží nouzové
       zastavení, z pravé kamery se přečte QR kód s cílem a po uvolnění stopu se jede dál. Návrh
       z 11. 8. prošel třemi revizemi (mrkev až na okraj mapy, počátek roviny z mapy, nouzové
       zastavení řeší řídicí smyčka). Dekodér je nakonec ZXing.Net místo ZBar, potvrzování cíle
       obsluhou se zrušilo (mise běží bez operátora) a cíl z kódu se přichycuje na cestu. Celý
-      průchod je proklikaný v simulaci, na zařízení mise neběžela.
+      průchod je proklikaný v simulaci a na Robotouru 19. 9. 2026 (Kolo3b) robot poprvé odjel
+      depo → nakládka → vykládka naostro, s čtením QR v každém kole; do depa nedojel kvůli
+      penalizaci hran (`nav-phi-obracena-hrana`) a nálezy ze soutěže mají vlastní témata
+      `mise-robotour-*`.
     kroky:
       - co: "Návrh a revize zadání"
         stav: hotovo
@@ -958,17 +966,19 @@ temata:
     oblast: lokalni-planovani
     nazev: Robot by zatáčel dvakrát rychleji, než regulátor chce
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-12
-    vyreseno: 2026-08-12
+    vyreseno: 2026-09-21
     popis: >
       Převod úhlové rychlosti na příkaz motorům bral `dif` jako rozdíl rychlostí kol, jenže
       driver ho k jednomu kolu přičítá a od druhého odečítá - je to offset na kolo, správně
       s polovinou rozchodu. Shodly se na tom tři nezávislé zdroje (předchozí generace robotu,
       profil pohybu, skript řadiče); dva existující testy starý faktor kódovaly. Znaménko rotace
       je jiná otázka a z kódu se rozhodnout nedá (asymetrická negace ve skriptu, záleží, které
-      kolo je motor 1) - má se změřit na robotu malým `+ω` ve stoje. Naslepo se neopravuje:
-      otočené znaménko znamená zatáčet od dráhy místo k ní.
+      kolo je motor 1) - mělo se změřit na robotu malým `+ω` ve stoje. Samostatná zkouška
+      nakonec nebyla potřeba: robot od 7. 9. 2026 opakovaně jezdí venku po dráze (FreeRun, Track,
+      Robotour) a s otočeným znaménkem by zatáčel od dráhy místo k ní a regulátor by divergoval,
+      takže znaménko je jízdou prokázané. Uzavřeno rozhodnutím autora 21. 9. 2026.
     kroky:
       - co: "Faktor 1/2 v `ControlLoop`, test `RotationSpeed_ToDif_IsHalfWheelBase`"
         stav: hotovo
@@ -976,8 +986,9 @@ temata:
       - co: "Znaménko odometrického ω potvrzeno předchozí generací"
         stav: hotovo
         kdy: 2026-08-12
-      - co: "Změřit znaménko příkazové rotace na zařízení"
-        stav: otevreno
+      - co: "Znaménko příkazové rotace: odvozeno z jízd na zařízení (robot sleduje dráhu od 7. 9. 2026), samostatné měření `+ω` ve stoje zrušeno"
+        stav: hotovo
+        kdy: 2026-09-21
     odkazy:
       - text: path-following.md
         cesta: doc/path-following.md
@@ -1085,6 +1096,10 @@ temata:
       montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do
       času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového
       vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal.
+      Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`), takže
+      přeskakování náklonu mezi dvěma IMU v provozu nenastává; zůstává obcházení fúze (bez
+      gatingu, kovariance a dopředikování) a chybějící identita zdroje v `IMUState` pro případ,
+      že by druhé IMU přibylo.
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
@@ -1127,9 +1142,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Robot jel 0,1 m/s, i když bylo povoleno 1,2 m/s
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-14
-    vyreseno: 2026-08-14
+    vyreseno: 2026-09-18
     popis: >
       Mapa, obálka i plánovač pouštěly plnou rychlost, ale regulátor vydával 0,05 m/s. Omezovač
       váže dopřednou rychlost na vzdálenost k lookahead bodu a dobu dorovnání rotace - a lookahead
@@ -1137,8 +1152,12 @@ temata:
       zůstával nízký: západka, ze které se soustava sama nedostane. Dvě dřívější hypotézy padly,
       protože stály na offline testu místo na měření za běhu. Podle návrhu autora se teď míří na
       nejbližší uzel dráhy před robotem (uzly blíž než lookahead se přeskakují); bez opravy dosáhne
-      test 0,19 z 0,80 m/s. Na zařízení se to samostatně nepotvrdilo - venku 7. 9. brzdil robota
-      jiný omezovač (odstup od překážky).
+      test 0,19 z 0,80 m/s. Venku 7. 9. se to samostatně nepotvrdilo, protože robota brzdil jiný
+      omezovač (odstup od překážky, `lp-robot-se-plazi-vyhlazovani`). Potvrzeno venku 18. 9. 2026
+      s opraveným kurzem (`20260918-155329.rec`): příkazovaná rychlost p50 1,0 m/s při stropu
+      `maxspeed=1` v provozním profilu, tedy robot jede na povoleném stropu; a článek
+      `regulator-sledovani-drahy` 20. 9. ukázal, že podlaha západky `d_min/(k·T_rot)` = 0,048 m/s
+      je přesně to, co se 14. 8. naměřilo.
     kroky:
       - co: "Diagnostika po stupních (grid, obálka, plánovač, regulátor)"
         stav: hotovo
@@ -1146,12 +1165,13 @@ temata:
       - co: "Cíl řízení = nejbližší uzel dráhy, přeskok blízkých uzlů, dva regresní testy"
         stav: hotovo
         kdy: 2026-08-14
-      - co: "Potvrdit na zařízení, že robot dosáhne povolené rychlosti"
-        stav: otevreno
+      - co: "Potvrdit na zařízení, že robot dosáhne povolené rychlosti — 18. 9. 2026 venku `vCmd` p50 1,0 m/s při `maxspeed=1` (`ARBot.Analyze localplan`, `envelope`)"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-08-14, 2026-09-07]
+    devlog: [2026-08-14, 2026-09-07, 2026-09-18, 2026-09-21]
     ceka_na: []
 
   - id: vid-inshadow-zahazuje-vzorky
@@ -1257,6 +1277,11 @@ temata:
       tři věci: honestní sigma, rychlostní limit na aplikovanou korekci a strop na nesouhlas
       s GPS; k tomu měkký gating místo tvrdého zamítání. První podmínka je od 25. 8. splněná,
       druhá nemá naměřenou naléhavost, třetí je naměřeně nutná a chybí.
+      Podmínka 2 od 21. 9. 2026: mechanismus (`IMeasurement.MaxStep`, nafouknutí `R` v EKF,
+      `corridorslew=`) v kódu existuje, ale nastavuje ho jen koridor — `MapCorrelator` ho
+      nepoužívá; naléhavost se 19. 9. změřila na koridoru v téže fúzi (skoky pózy 0,6–4 m,
+      `lok-koridor-skoky-pozy`). Koridor šel 17. 9. naostro bez podmínek 2 a 3, takže tyhle
+      podmínky dnes gatují jen `mapcorr=`, který na zařízení nikdy neběžel.
     kroky:
       - co: Podmínka 1 — honestní sigma
         stav: hotovo
@@ -1268,7 +1293,7 @@ temata:
         stav: otevreno
       - co: Podmínka 3 — strop na kumulovaný nesouhlas s GPS
         stav: otevreno
-    ceka_na: [lok-kurz-koridor-prehlasovan-kompasem, lok-kompas-sigma-podlaha]
+    ceka_na: [lok-kompas-sigma-podlaha, lok-koridor-skoky-pozy]
     odkazy:
       - text: rozhodnutí 20. 8. 2026
         cesta: doc/decisions.md
@@ -1393,6 +1418,9 @@ temata:
       `CorridorLocalizer` (`corridor=`), který posílá do fúze příčné a kurzové měření. Od 15. 9.
       běží v provozním profilu v měřicím režimu (bez vlivu na řízení); první jízda ze zařízení 16. 9. (2 256 cyklů, 424 přijatých).
       **18. 9. 2026 první jízdy s korekcemi naostro** (`20260918-154028.rec`, `-155329.rec`): za jízdy měření v 52–54 % cyklů (rezidua 7 cm, ~43 inlierů na stranu, úsečky 7 m), ve stání 0,6 %; do fúze odešlo 2 821 + 2 889 měření a fúze se jimi řídí (`odhad − IMU yaw` z ±0,06° na ±1,9°). ⚠️ Přesnost pózy tím ověřená není — s korekcemi naostro je příčný nesouhlas (p50 0,06 m) self-konzistence.
+      Robotour 19. 9.: koridor je jediná příčná reference (za jízdu stáhl 20–28 m driftu), ale
+      skoky pózy 0,6–4 m jdou všechny za ním (`lok-koridor-skoky-pozy`) — to je dnes to, co
+      koridoru reálně chybí; tři podmínky z `lok-korelace-tri-podminky-naostro` se u něj obešly.
     kroky:
       - co: Spike nad záznamem z virtuálních kamer
         stav: hotovo
@@ -1416,11 +1444,11 @@ temata:
         stav: otevreno
       - co: Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
         stav: otevreno
-    ceka_na: [lok-korelace-tri-podminky-naostro]
+    ceka_na: [lok-koridor-skoky-pozy]
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18]
+    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20]
 
   - id: vid-kalibrace-kamer-bias
     oblast: videni
@@ -1815,9 +1843,9 @@ temata:
     oblast: lokalizace
     nazev: Hranová lokalizace za běhu zahazovala 77 % korekcí a hlásila měření i metr mimo cestu
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-22
-    vyreseno: 2026-08-22
+    vyreseno: 2026-09-20
     popis: >
       Při prvním běhu hranové lokalizace (`corridor=`) vyplavaly dvě vady. Tvrdý gate `Reject`
       pustil jen 65 z 280 měření, protože měření tvrdilo 3 cm jistoty a nesouhlasilo o 55 cm;
@@ -1826,8 +1854,11 @@ temata:
       koridoru" (`OutsideCorridor`) a počítadlo, kolik korekcí fúze skutečně přijala
       (`DroppedByFusion`), protože „poslali jsme" není totéž co „došlo to". Přitom se ukázalo, že
       rig dvou map ani `poseerror=` nemohou ověřit konvergenci — vkládají chybu do pozorování,
-      ne do pózy. Na zařízení koridor běží od 15. 9. jen v měřicím režimu, korekce se do fúze
-      neposílají.
+      ne do pózy. Na zařízení jde koridor naostro od 17. 9. (`a44b4f4`), první jízdy 18. 9.:
+      `corrections` NIS p50 0,5, 0 % zamítnuto, fúzí nezahozeno nic; na Robotouru 19. 9. přijato
+      1 404 z 1 404 včetně NIS 443 — Soft gate na zařízení prokazatelně nezahazuje, a jeho
+      odvrácenou stranu (skoky pózy) vede `lok-koridor-skoky-pozy`. Podíl `OutsideCorridor`
+      v rozpadu ze zařízení samostatně vyčíslený není.
     kroky:
       - co: "Počítadlo `DroppedByFusion` v `RoadCorridorMsg`"
         stav: hotovo
@@ -1838,15 +1869,16 @@ temata:
       - co: "Gate `MaxOutsideCorridorM` → `CorridorFixReason.OutsideCorridor`"
         stav: hotovo
         kdy: 2026-08-22
-      - co: Ověřit gating s korekcemi naostro na zařízení
-        stav: otevreno
+      - co: "Ověřit gating s korekcemi naostro na zařízení — 18. 9. NIS p50 0,5, 0 % zamítnuto, `DroppedByFusion` 0; 19. 9. 1 404 z 1 404 (podíl `OutsideCorridor` nevyčíslen)"
+        stav: hotovo
+        kdy: 2026-09-20
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: CorridorLocalizer.cs
         cesta: Src/ARBot.Common/Localization/CorridorLocalizer.cs
-    devlog: [2026-08-22]
-    ceka_na: [lok-korelace-tri-podminky-naostro]
+    devlog: [2026-08-22, 2026-09-18, 2026-09-20]
+    ceka_na: []
 
   - id: lok-kurz-koridor-prehlasovan-kompasem
     oblast: lokalizace
@@ -2310,6 +2342,9 @@ temata:
       na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere
       jako bílý šum.
       18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není.
+      Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí
+      defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06°
+      → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy.
     kroky:
       - co: "'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %'"
         stav: hotovo
@@ -2328,7 +2363,7 @@ temata:
       - text: rozhodnutí 12. 9. 2026
         cesta: doc/decisions.md
     devlog: [2026-08-25, 2026-09-12, 2026-09-18]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
   - id: lok-gps-kurz-do-fuze
     oblast: lokalizace
@@ -2391,7 +2426,7 @@ temata:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
     devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18]
-    ceka_na: [lok-gps-kurz-do-fuze, hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
   - id: lok-mapcorr-tvrdy-gate
     oblast: lokalizace
@@ -2538,9 +2573,10 @@ temata:
       p90 3,1, max 443): `GateMode.Soft` nezahodí nic, jen odtlumí, a `corridorstd=0,1` /
       `corridorhz=2` z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (robot je
       najednou v blokované části gridu). Ve FreeRun (Kolo3-navrat) 3 skoky, všechny také za
-      koridorem. Kandidáti léčby: strop na velikost jedné korekce, tvrdší brána pro inovace řádu
-      desítek σ, nebo přiřazení hrany (`assoc*`) — vybrat z dat (`ARBot.Analyze nav`, `corrections`),
-      ne odhadem. Měří to blok 1 `ARBot.Analyze nav`.
+      koridorem. Měří to blok 1 `ARBot.Analyze nav`. Léčba je od 21. 9. v kódu: rychlostní
+      limit kroku uvnitř filtru (`corridorslew=` m/s, `corridorheadingslew=` °/s, výchozí 0
+      = dnešní chování); hodnota se vybere z Kola 3b/4 (`ARBot.Analyze corridorstd --slew=`),
+      v profilu zatím 0 a na zařízení neběželo.
     kroky:
       - co: 'Změřit: skoky pózy vs. přijatá měření koridoru (blok 1 `nav`)'
         stav: hotovo
@@ -2654,17 +2690,21 @@ temata:
     oblast: mise
     nazev: Čtení QR kódů z kamery (ZXing.Net místo ZBaru)
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-26
-    vyreseno: 2026-08-26
+    vyreseno: 2026-09-19
     popis: >
       Cíl mise Robotour zadává člověk QR kódem. Dekodér je čistě managed ZXing.Net — binding
       ZBaru z ARBot2 nebyl k dispozici, a tím celá plánovaná fáze „nativní libzbar na obě
       platformy" zmizela. Skener je samostatný stupeň, který mise zapíná jen pod drženým stopem;
       převod na šedou se zobecnil na `Image<T>.ToGray`. Aby šel průchod misí projít v simulaci,
       umí virtuální kamera postavit svislou desku s kódem (jen do barvy, ne do hloubky). Z 1,2 m
-      se kód nepřečetl, staví se na 1,0 m. Úspěšnost čtení na skutečném stanovišti není naměřená —
-      testy dokazují cestu, ne čitelnost, protože kód kóduje týž ZXing.
+      se kód nepřečetl, staví se na 1,0 m. Testy dokazují cestu, ne čitelnost, protože kód
+      kóduje týž ZXing. Na skutečném stanovišti se četlo poprvé na Robotouru 19. 9. 2026 — až
+      po opravě jména kamery (`mise-qr-jmeno-kamery`): `20260919-100414.rec` 2 `QrCodeMsg`
+      a kód přijat, `-101057` 535, `-101903` 195, kódy z mobilu, notebooku i papíru; offline
+      živý dekodér čte 725 z 3 957 snímků. Doba dekódování se neměří (`QrScanner` čas nebere,
+      `QrCodeMsg` ho nenese) — pod drženým stopem je z velké části mimo hru.
     kroky:
       - co: '`QrScanner` + `QrCodeMsg`, dekodér ZXing.Net, převod BGR32 → Y800'
         stav: hotovo
@@ -2675,8 +2715,12 @@ temata:
       - co: 'Deska kolmo na pohled kamery a na 1,0 m (z 1,2 m se nepřečte)'
         stav: hotovo
         kdy: 2026-08-27
-      - co: 'Změřit úspěšnost čtení a dobu dekódování na skutečném stanovišti (Orange Pi, D435)'
-        stav: otevreno
+      - co: 'Úspěšnost čtení na skutečném stanovišti (Orange Pi, D435) — Robotour 19. 9.: kód čten a přijat v každém kole'
+        stav: hotovo
+        kdy: 2026-09-19
+      - co: 'Doba dekódování na Orange Pi — škrtnuto rozhodnutím autora 21. 9. (pod drženým stopem nerozhoduje)'
+        stav: hotovo
+        kdy: 2026-09-21
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
@@ -2684,14 +2728,14 @@ temata:
         cesta: doc/decisions.md
       - text: virtual-hw.md
         cesta: doc/virtual-hw.md
-    devlog: [2026-08-26, 2026-08-27]
+    devlog: [2026-08-26, 2026-08-27, 2026-09-19]
     ceka_na: []
 
   - id: mise-qr-jmeno-kamery
     oblast: mise
     nazev: Skener QR na robotu nedostal jediný snímek — jméno kamery „Right" vs. „Right 740112071021"
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-19
     vyreseno: 2026-09-19
     popis: >
@@ -2706,7 +2750,10 @@ temata:
       ukazovala kód levé kameře, zatímco se četlo z pravé. Léčba: jméno kamery se bere jako první
       slovo (`QrScanner.CameraMatches`), stránka kreslí tu kameru, ze které se čte QR, a říká to
       v řádku „na obrázku (čte QR)". Nouzové obejití bez nové binárky: `qrcamera=` (prázdné =
-      všechny kamery) v profilu. Měří to nový `ARBot.Analyze mission`.
+      všechny kamery) v profilu. Měří to nový `ARBot.Analyze mission`. Oprava byla nasazená
+      před 1. kolem a od 10:04 se kód na robotu čte (535 čtení v 10:11 proti 2 v 10:04 říká,
+      že obsluha od té doby ukazovala kód správné kameře); řádek „na obrázku (čte QR)" autor
+      na stránce v terénu viděl (potvrzeno 21. 9.).
     kroky:
       - co: 'Rozbor `ARBot.Analyze mission`: časová osa fází a stopu, servisní okna, snímky živým dekodérem'
         stav: hotovo
@@ -2720,8 +2767,9 @@ temata:
       - co: 'Čtení kódu na robotu: `20260919-100414.rec` 2 `QrCodeMsg` a kód přijat, `-101057` 535, `-101903` 195'
         stav: hotovo
         kdy: 2026-09-19
-      - co: 'Ověřit na robotu, že stránka kreslí kameru, ze které se čte QR (řádek „na obrázku (čte QR)")'
-        stav: otevreno
+      - co: 'Ověřit na robotu, že stránka kreslí kameru, ze které se čte QR — autor řádek „na obrázku (čte QR)" na soutěži viděl'
+        stav: hotovo
+        kdy: 2026-09-19
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
@@ -2749,7 +2797,9 @@ temata:
       `MissionStatusText.WaitFor(phase, stop)`); „kód nevidím“ se u vykládky nehlásí. `MissionMsg`
       je verze 7 (`Deliveries` = počet vykládek, `NextPickupChosen`); `PickupLatDeg`/`DropLatDeg`
       jsou od té doby poslední nakládka/vykládka. Limit vzdálenosti od depa platí i pro další
-      nakládky.
+      nakládky. Binárka s tím jela ve 4. kole Robotouru 19. 9. (nahraná před startem kola), ale
+      robot k nakládce nedojel (`nav-phi-obracena-hrana`), takže větev vykládka → další
+      nakládka na zařízení nikdy nenastala; ve 3. kole to software ještě neuměl.
     kroky:
       - co: 'Automat: skener u vykládky, kód = další nakládka, uvolnění bez kódu = depo; `MissionMsg` v7'
         stav: hotovo
@@ -2828,6 +2878,11 @@ temata:
       s největší délkou cest v metrech (ne podle počtu uzlů, ne podle toho, kde robot stojí — právě
       ta póza je z chybné GPS). Offline z pózy na náměstí se póza přichytí na chodník 2,4 m vedle
       a cíl je dosažitelný (393 m). Co se zahodilo, jde do Trace; `mapprune=false` vrátí síť.
+      Nasazeno před 2. kolem (11:37): robot startoval ze servisní zóny, kde se v 10:11 a 10:19
+      kódy zamítaly, a kód přečetl a přijal — stejně ve 3. a 4. kole. Je to nepřímý důkaz, že
+      `mapprune` na zařízení účinkoval; Trace „ZAHOZENO 1" z `Kolo2.rec` nikdo nevyčetl a GPS
+      mohla robota posadit jinam. Zobrazení zamítnutí na stránce ověřit nešlo — po nasazení
+      žádné zamítnutí nenastalo.
     kroky:
       - co: 'Rozbor `ARBot.Analyze route` (komponenty, cesty ostrova, nejbližší dvojice uzlů) a blok 1c v `mission`'
         stav: hotovo
@@ -2841,14 +2896,17 @@ temata:
       - co: 'Ostrovy sítě zahodit při načtení mapy (`mapprune=`, `NetworkIslands`, 5 testů); `route` z náměstí: dosažitelné 393 m'
         stav: hotovo
         kdy: 2026-09-19
-      - co: 'Ověřit na robotu přijetí kódu z náměstí (Trace „ZAHOZENO 1“ v záznamu) a zobrazení zamítnutí na stránce'
+      - co: 'Přijetí kódu z náměstí po nasazení — 2., 3. a 4. kolo kód přijat ze servisní zóny (Trace „ZAHOZENO 1“ v `Kolo2.rec` nevyčteno)'
+        stav: hotovo
+        kdy: 2026-09-19
+      - co: 'Zobrazení zamítnutí na stránce na robotu (po nasazení žádné zamítnutí nenastalo)'
         stav: otevreno
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
       - text: osm-nav.md
         cesta: doc/osm-nav.md
-    devlog: [2026-09-19]
+    devlog: [2026-09-19, 2026-09-20]
     ceka_na: []
 
   - id: mise-robotour-armovani-rozptyl
@@ -2864,7 +2922,11 @@ temata:
       delší čekání kritérium přitvrzovalo. Teď se měří RMS s prahem 2,5 m; tatáž veličina jde
       filtru jako sigma jednoho vzorku. Práh je z úsudku, panel naměřený rozptyl vypisuje, takže
       se má nastavit z prvních běhů na zařízení. Zároveň panel říká, PROČ se nepokračuje
-      (fix nedorazil / nesplňuje kritéria / fixy jsou rozházené).
+      (fix nedorazil / nesplňuje kritéria / fixy jsou rozházené). Na Robotouru 19. 9. 2026
+      armování prošlo pětkrát za 5–6 s (9:29 při 16 družicích a HDOP 1,36; Kolo3a/3b při HDOP
+      2,71 / 2,15) — práh RMS 2,5 m nebránil, jediné selhání (158 s) bylo HDOP
+      (`mise-robotour-depothdop`). Naměřený rozptyl (`MissionMsg.FixSpreadM`, `ARBot.Analyze
+      mission` tiskne `spread=`) z těch záznamů zatím nikdo nevyčetl.
     kroky:
       - co: 'RMS místo maxima, práh 2,5 m'
         stav: hotovo
@@ -2872,30 +2934,31 @@ temata:
       - co: 'Kvalita fixu a rozptyl okna ve `MissionMsg` a v panelu'
         stav: hotovo
         kdy: 2026-08-26
-      - co: 'Nastavit práh z naměřeného rozptylu na zařízení'
+      - co: 'Nastavit práh z naměřeného rozptylu na zařízení (vyčíst `spread=` z Kolo3a/3b)'
         stav: otevreno
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
       - text: rozhodnutí 26. 8. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-26]
+    devlog: [2026-08-26, 2026-09-19]
     ceka_na: []
 
   - id: mise-robotour-bez-operatora
     oblast: mise
     nazev: Mise Robotour běží bez operátora — potvrzování cíle zrušeno
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-26
-    vyreseno: 2026-08-26
+    vyreseno: 2026-09-19
     popis: >
       Úloha je simulace autonomního doručení: s robotem interagují jen odesílatel a odběratel,
       a to pouze QR kódem a stop tlačítkem. Potvrzovací tlačítko v panelu modelovalo někoho, kdo
       v úloze není, proto se zrušilo. Uvolnění stopu je od té doby plnohodnotný signál („vyloženo",
       nebo „člověk odešel" bez přečteného kódu); robot nikdy neodjede bez cíle a zamítnutý kód
-      má viditelný důvod. Celý průchod misí autor proklikal v simulaci 27. 8.; na zařízení mise
-      neběžela.
+      má viditelný důvod. Celý průchod misí autor proklikal v simulaci 27. 8.; na Robotouru
+      19. 9. 2026 (Kolo3b) robot odjel depo → nakládka → vykládka bez operátora: kód v depu
+      i na nakládce, uvolnění stopu po vykládce jako signál „vyloženo".
     kroky:
       - co: 'Zrušit potvrzování, uvolnění stopu jako signál, `MissionMsg` verze 5'
         stav: hotovo
@@ -2906,12 +2969,15 @@ temata:
       - co: 'Průchod misí v simulaci proklikán autorem'
         stav: hotovo
         kdy: 2026-08-27
+      - co: 'Celý průchod bez operátora na zařízení (Robotour 19. 9. 2026, Kolo3b)'
+        stav: hotovo
+        kdy: 2026-09-19
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
       - text: rozhodnutí 26. 8. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-26, 2026-08-27]
+    devlog: [2026-08-26, 2026-08-27, 2026-09-20]
     ceka_na: []
 
   - id: mise-robotour-panel
@@ -2962,6 +3028,10 @@ temata:
       cíl odsazený od osy cesty víc než o 3 m by nikdy neohlásil dojezd a mise by uvízla napořád.
       Cíl se proto přichycuje na cestu a co je dál než `MaxTargetOffRoadM` (15 m, z úsudku) je
       nedosažitelné; odstup jde do záznamu. Tatáž past se 12. 9. znovu řešila u mise Track.
+      Na Robotouru 19. 9. 2026 dojezd na přichycený cíl z kódu nastal dvakrát (Kolo3b: nakládka
+      14:15:56, vykládka 14:27:45), takže vada „`Arrived` by nenastalo nikdy" je na zařízení
+      vyvrácená; cíle byly přesně uzly mapy, k limitu 15 m data nedaly. Zamítnutí `NoRoute`
+      z `Probe` na náměstí je jiná věc než `NoRoute` za jízdy — vede `mise-robotour-mapa-ostrov`.
     kroky:
       - co: 'Zkouška bere minimum přes hranu i její reverzní (cíl za robotem)'
         stav: hotovo
@@ -2980,7 +3050,7 @@ temata:
         cesta: doc/decisions.md
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-08-26, 2026-08-27, 2026-09-12]
+    devlog: [2026-08-26, 2026-08-27, 2026-09-12, 2026-09-20]
     ceka_na: []
 
   # ---------------------------------------------------------------- hw
@@ -3123,7 +3193,8 @@ temata:
       ověřený na robotu na skutečné poruše (obě kamery zpět za 29 s, dřív mrtvá kamera desítky
       minut). Je to obvaz, ne léčba: porucha přijde asi jednou za 17 minut. Hypotéza „může za to
       T265" padla 14. 9. měřením a `CLEAR_HALT` se ukázal jako šum, ne podpis poruchy; podezřelá je
-      fyzická větev USB `2-1.3` (samostatné téma).
+      fyzická větev USB `2-1.3` (samostatné téma). Druhá epizoda 18. 9.: zamrzla barva pravé D435
+      (15:47:17) a supervizor ji vrátil za 32 s, robot stál.
     kroky:
       - co: "'Rešerše: cizí nevyřešený problém, propustnost USB ani sousedé na hubu to nejsou'"
         stav: hotovo
@@ -3143,7 +3214,7 @@ temata:
         cesta: doc/plan-drive-hold.md
       - text: rozhodnutí 11. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-31, 2026-09-06, 2026-09-11, 2026-09-13, 2026-09-14]
+    devlog: [2026-08-31, 2026-09-06, 2026-09-11, 2026-09-13, 2026-09-14, 2026-09-18]
     ceka_na: [hw-vetev-usb-2-1-3]
 
   # ---------------------------------------------------------------- provoz
@@ -3408,7 +3479,7 @@ temata:
       - co: Změřit v simulaci na Windows
         stav: hotovo
         kdy: 2026-09-01
-      - co: Přeměřit totéž na Orange Pi a rozhodnout o dohánění taktů
+      - co: "Přeměřit totéž na Orange Pi a rozhodnout o dohánění taktů (data jsou v `PerfMsg` záznamů z Pi od 4. 9., chybí měřidlo `ARBot.Analyze perf`)"
         stav: otevreno
     odkazy:
       - text: perf-monitoring.md
@@ -3416,7 +3487,7 @@ temata:
       - text: plan-perf-monitoring.md
         cesta: doc/plan-perf-monitoring.md
     devlog: [2026-09-01]
-    ceka_na: []
+    ceka_na: [prov-perf-monitoring]
 
   - id: nav-profil-robot-osm
     oblast: navigace
@@ -3660,7 +3731,9 @@ temata:
       po startu 10 s lezl 0,05 m/s, protože grid před ním nic nepotvrdil (léčba: půdorys robota je
       pro obálku sjízdný), a radiální rampa brzdila i podél okraje trávy (léčba: směrový model,
       `envelope=directional`). Nový graf rychlostního profilu v pohledu World tu vadu odhalil.
-      Nic z toho nejelo na HW.
+      Na zařízení obálka řídí od 7. 9. 2026 (`ARBot.Analyze envelope`: `VAlong` vázal v 77 %
+      plánů — právě ona robota zpomalila na 0,05 m/s, viz `lp-robot-se-plazi-vyhlazovani`);
+      18. 9. za jízdy neváže nic při 1,0 m/s. Směrový model a půdorys robota z jízdy rozlišit nejdou.
     kroky:
       - co: Strop uzlu, ze kterého se odjíždí, platí podél celého úseku
         stav: hotovo
@@ -3680,8 +3753,8 @@ temata:
         cesta: doc/path-following.md
       - text: rozhodnutí 3. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-02, 2026-09-03]
-    ceka_na: [lp-robot-se-plazi-vyhlazovani]
+    devlog: [2026-09-02, 2026-09-03, 2026-09-07, 2026-09-18]
+    ceka_na: []
 
   - id: prov-fake-hwclock
     oblast: provoz
@@ -4615,17 +4688,20 @@ temata:
       jeden neúspěšný dotaz. Managed strana je v pořádku (vše v `using`), roste to na nativní
       straně, takže léčba není dozavírat, ale přestat se ptát každou sekundu. Restart služby
       kameru vrátil. 14. 9. runtime hledal odpojenou T265 ~1× za sekundu (7 829 řádků za
-      168 minut) — dotaz přes sdílený zámek jde dál.
+      168 minut) — dotaz přes sdílený zámek jde dál, a 17. 9. se ukázalo, že hlášky marného
+      dotazu tečou i do záznamu (140 s po zatuhnutí). Rozpor k přeměření: 14. 9. běh se 7 829
+      selháními T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď vázaný na zapojenou,
+      ale zaseknutou D435 („failed to set power state"), nebo měl 6. 9. jinou příčinu.
     kroky:
       - co: Backoff dotazů `QueryDevices` po selhání
         stav: otevreno
-      - co: Změřit, jestli růst paměti končí pádem
+      - co: Změřit růst paměti při trvale selhávajícím dotazu (T265 chybí / D435 zaseknutá) a jestli končí pádem
         stav: otevreno
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
-    devlog: [2026-09-06, 2026-09-14]
-    ceka_na: []
+    devlog: [2026-09-06, 2026-09-14, 2026-09-17]
+    ceka_na: [hw-t265-odpojena-natrvalo]
 
   # ---------------------------------------------------------------- mise
 
@@ -4696,6 +4772,9 @@ temata:
       s rozbitým kurzem (viz `hw-zelezo-od-kabelu-kamer`), takže o chování mise po kalibraci to
       neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`).
       ✅ **18. 9. 2026 seznam poprvé objetý celý, i s `repeat`** (`20260918-154028.rec`: 3 místa za 5 min, druhé kolo za 2,5 min, s korekcemi z koridoru naostro); třetí kolo skončilo stáním před blokovanou mapou (`lp-zasek-v-blokovane-mape`). Druhý běh (`-155329.rec`): 5 míst za 8 min, k prvnímu bodu 93 m za 4 min, z toho 130 s stání po startu.
+      Jízdy 18. 9. jely ještě s chybou φ (`nav-phi-obracena-hrana`, opraveno 20. 9.); dopad na
+      Track měřený není. Mise sama je na zařízení hotová, `v-kodu` drží jen dva drobné kroky
+      (`trackoffroad=` z dat, hláška bez `track=`).
     kroky:
       - co: "`TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů"
         stav: hotovo
@@ -4731,9 +4810,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-07
-    vyreseno: 2026-09-08
+    vyreseno: 2026-09-18
     popis: >
       Rozbor venkovní jízdy (`ARBot.Analyze envelope`, rozpad po uzlech): medián příkazované
       rychlosti 0,05 m/s a v 53 % plánů je na podlaze už první uzel; váže odstup od překážky
@@ -4742,8 +4821,8 @@ temata:
       tvrdého `d ≥ SafeDist` a zahodí odstup, který A* koupil cenou. Léčba `smooth=time`: zkratka
       se přijme, jen když se pod obálku vejde rampa, kterou regulátor odjede, a nezhorší jízdní
       čas; strop uzlu je obálka v uzlu. Brzdný zákon se sjednotil do `IMotionProfile.Dist2MaxSpeed`
-      a opravil se vadný `Speed2Dist`. Na realistické scéně rychlost 0,05 → 0,49 m/s. Na HW
-      neběželo — nejdřív kurz, pak přeměřit.
+      a opravil se vadný `Speed2Dist`. Na realistické scéně rychlost 0,05 → 0,49 m/s. Přeměření
+      na HW čekalo na opravu kurzu.
       ✅ **18. 9. 2026 přeměřeno venku s dobrým kurzem:** robot za jízdy neleze — plány na podlaze už v prvním uzlu **1 %** proti 53 % ze 7. 9., příkazovaná rychlost p50 1,0 m/s (`ARBot.Analyze localplan`, `envelope`). Na podlaze zůstává jen stání u překážky (`lp-zasek-v-blokovane-mape`).
     kroky:
       - co: "`ARBot.Analyze envelope` po uzlech, `LocalPlanMsg` verze 2"
@@ -4766,7 +4845,7 @@ temata:
       - text: rozhodnutí 8. 9. 2026
         cesta: doc/decisions.md
     devlog: [2026-09-07, 2026-09-08, 2026-09-18]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
 
   # ---- období P8
@@ -4867,7 +4946,7 @@ temata:
       - text: models/README.md
         cesta: models/README.md
     devlog: [2026-09-09]
-    ceka_na: []
+    ceka_na: [vid-trenink-nejde-zopakovat]
 
   - id: vid-prob-overlay-128
     oblast: videni
@@ -5042,7 +5121,11 @@ temata:
       do registru 23 přímo, takže druhé spuštění by dobrou kalibraci přepsalo maticí blízkou jednotkové.
       Mise si teď registr 23 před sběrem vymaže (jen do RAM, výpadek napájení vrátí flash) a při
       ukončení bez zápisu ho vrátí; když ho nejde přečíst ani vymazat, nezačne. Skládání kalibrací se
-      zamítlo, protože potřebuje rámcovou transformaci, která už jednou kousla. Na senzoru neběželo.
+      zamítlo, protože potřebuje rámcovou transformaci, která už jednou kousla. Vymazání na
+      senzoru proběhlo 17. 9. 2026: mise `magcal` došla do fáze `Written` (bez přečtení
+      a vymazání registru 23 se do sběru nedostane) a zapsaná kalibrace 18. 9. drží (zbytkové
+      železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vrácení registru po
+      nedokončené misi na senzoru zatím nevyzkoušeno.
     kroky:
       - co: "Změřit `Magnetometer` proti `MagnetometerRaw` ze záznamu"
         stav: hotovo
@@ -5050,7 +5133,10 @@ temata:
       - co: Mise registr 23 vymaže a po nedokončení vrátí
         stav: hotovo
         kdy: 2026-09-12
-      - co: Ověřit na senzoru, že se registr vymaže a vrátí
+      - co: "Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do `Written`, kalibrace 18. 9. drží"
+        stav: hotovo
+        kdy: 2026-09-17
+      - co: Ověřit na senzoru vrácení registru 23 po nedokončené misi
         stav: otevreno
     odkazy:
       - text: rozhodnutí 12. 9. 2026
@@ -5059,8 +5145,8 @@ temata:
         cesta: doc/imu-and-frames.md
       - text: plan-vn100-kalibrace.md
         cesta: doc/plan-vn100-kalibrace.md
-    devlog: [2026-09-11, 2026-09-12]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    devlog: [2026-09-11, 2026-09-12, 2026-09-17]
+    ceka_na: []
 
   - id: hw-vypadky-kamer-hypoteza-t265
     oblast: hw
@@ -5110,7 +5196,10 @@ temata:
       o dojezdovém poloměru kolem míst mise (aktivní plnou čarou), aby šlo v terénu dohlížet na závod.
       Kvůli tomu nese `GlobalNavMsg` dojezdový poloměr a `TrackMsg` celý seznam míst; od 13. 9. se zóny
       kreslí na přichycených místech, od 14. 9. jsou i vrstvou ve World pohledu (`GoalZones`). Zdroje se
-      nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci, na zařízení neběželo.
+      nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci. Trasa
+      a lokální plán byly na zařízení vidět 17. 9. (snímky stránky 16:26: trasa, plán, mrkev)
+      a na Robotouru 19. 9. obsluha na stránce sledovala přeplánování trasy; že někdo viděl
+      i zóny (kružnice o dojezdovém poloměru), zapsané není.
     kroky:
       - co: Trasa a lokální plán s prahem stáří, legenda
         stav: hotovo
@@ -5121,7 +5210,10 @@ temata:
       - co: "Zóny na přichycených místech (`TrackMsg` v3)"
         stav: hotovo
         kdy: 2026-09-13
-      - co: Ověřit na zařízení
+      - co: "Trasa a lokální plán na stránce za jízdy — 17. 9. snímky 16:26, 19. 9. přeplánování vidět na stránce"
+        stav: hotovo
+        kdy: 2026-09-17
+      - co: Zóny na stránce na zařízení (nikdo nezapsal, že je viděl)
         stav: otevreno
     odkazy:
       - text: headless.md
@@ -5130,7 +5222,7 @@ temata:
         cesta: doc/world-view.md
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-12, 2026-09-13, 2026-09-14]
+    devlog: [2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-20]
     ceka_na: []
 
   - id: lok-gps-kurz-korelovana-chyba
@@ -5147,7 +5239,9 @@ temata:
       opravilo, že GPS chodí 10 Hz — všechny přepočty byly dvakrát vedle, frekvence se teď měří. Důsledek
       pro kompas: jeho bias je korelovaný na stovky sekund, počtivá σ by byla ~1 200°, takže podlaha 5°
       je pořád řádově málo. Léčba (podlaha v desítkách stupňů, další škrcení, nebo bias jako stav EKF)
-      není rozhodnutá.
+      není rozhodnutá. 18. 9. 2026 s kalibrovaným kompasem: velikost biasu je 1–3,5° a sd ~4°,
+      takže 5° sedí na velikost chyby — „řádově málo" se týká jen její časové korelace, obě
+      tvrzení platí zároveň.
     kroky:
       - co: "Korelace chyby GPS kurzu změřena (`ARBot.Analyze heading`)"
         stav: hotovo
@@ -5160,7 +5254,7 @@ temata:
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-09-12]
+    devlog: [2026-09-12, 2026-09-18]
     ceka_na: [lok-bias-senzoru-jako-stav-ekf]
 
   - id: hw-kurz-zbytek-konstanta
@@ -5175,8 +5269,8 @@ temata:
       a tímhle měřením se nedá rozložit na pootočení senzoru, zbytek kalibrace a šikmé jetí — na to je
       potřeba průjezd téhož úseku s robotem otočeným o 180°. Z živého senzoru se přitom zjistilo, že
       vestavěný model pole je zastaralý o ~1,9° (epocha ~2015), takže zbytek je ještě o tolik větší,
-      a že registr 83 je ve flash, ačkoli se zapisuje bez uložení. Od 14. 9. je kurz rozbitý železem
-      od kabelů, takže měření má smysl opakovat až po nové kalibraci.
+      a že registr 83 je ve flash, ačkoli se zapisuje bez uložení. Od 14. 9. byl kurz rozbitý železem
+      od kabelů, takže měření mělo smysl opakovat až po nové kalibraci — ta proběhla 17. 9.
       18. 9. 2026 první jízda po nové kalibraci: rozpor `IMU − GPS kurz` je zase na obou protilehlých kurzech stejný (−3,6 / −2,9° a −1,65 / −1,22°), tedy konstanta — ale **mezi dvěma běhy 13 minut po sobě jiná** (−3,4 proti −1,1° středně). Sedí to s dotahováním VPE po každém startu procesu (registr 83, ~100–170 s); průjezd s robotem otočeným o 180° to pořád nerozloží, ale ukazuje to, že hledaná „konstanta" je spíš pomalá proměnná.
     kroky:
       - co: Zbytek změřen a rozložen podle směru a místa
@@ -5191,7 +5285,7 @@ temata:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
     devlog: [2026-09-12, 2026-09-18]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
   - id: nast-panel-konfigurace-mazal-klice
     oblast: nastroje
@@ -5269,8 +5363,8 @@ temata:
       `StopHold` je druhý, nezávislý a počítaný vstup: robot stojí, dokud drží kdokoli, brzdí
       rampou místo tvrdé nuly, důvod držení je povinný a jde do `DriveCommandMsg` (verze 3)
       i na stránku náhledu; detektor záseku se pod drženým stopem odzbrojí a po uvolnění zase
-      ozbrojí. Držení se na robotu potvrdilo při zotavení kamer, ale robot u toho stál —
-      brzdění pod holdem za jízdy je zatím jen z testů.
+      ozbrojí. Držení se na robotu potvrdilo při zotavení kamer (13. 9. za 29 s, podruhé 18. 9.
+      za 32 s), ale robot u toho pokaždé stál — brzdění pod holdem za jízdy je zatím jen z testů.
     kroky:
       - co: Mechanismus `StopHold` v řídicí smyčce, brzdění rampou, příznak ve zprávě
         stav: hotovo
@@ -5293,7 +5387,7 @@ temata:
         cesta: doc/plan-drive-hold.md
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-09-13]
+    devlog: [2026-09-13, 2026-09-18]
     ceka_na: []
 
   - id: prov-zotaveni-kamer-supervizor
@@ -5356,7 +5450,11 @@ temata:
       nezměnily — a `CLEAR_HALT` teče 3–15/min i ve zdravém stavu, takže jako měřidlo je mrtvý.
       Další krok je kabel nebo port, ne software: autor 14. 9. večer přesadil kameru na volný
       port téhož hubu (testuje větev, ne hub ani řadič); vyhodnocení v DevLogu zatím není —
-      a nula záseků za hodinu nic neznamená, za 3 h čistého běhu už ano.
+      a nula záseků za hodinu nic neznamená, za 3 h čistého běhu už ano. 18. 9. 15:47 přišel
+      tvrdý zásek pravé D435 — té přesazené (supervizor zasahuje až po 15 selhaných dotazech,
+      tedy táž třída jako 12 z 12 na `2-1.3`): buď zásek putuje s kamerou nebo kabelem, ne
+      s portem, nebo je nový port na téže větvi. Port pravé kamery od 14. 9. zapsaný není
+      (13. a 17. 9. se navíc hýbalo kabely kvůli magnetometru).
     kroky:
       - co: Prohodit kamery mezi porty a sbírat epizody (8 z 8 na `2-1.3`)
         stav: hotovo
@@ -5367,7 +5465,7 @@ temata:
       - co: Přesadit kameru z `2-1.3` na volný port téhož hubu
         stav: hotovo
         kdy: 2026-09-14
-      - co: Vyhodnotit přesazení (aspoň 3 h čistého běhu služby)
+      - co: "Vyhodnotit přesazení: zjistit port pravé kamery od 14. 9. (`/sys/bus/usb/devices/2-1.*/serial`), spočítat čistý běh služby 14.–19. 9. a přiřadit k němu zásek 18. 9. 15:47"
         stav: otevreno
       - co: Podle výsledku kabel / jiná větev hubu / řadič
         stav: otevreno
@@ -5376,7 +5474,7 @@ temata:
         cesta: doc/hardware.md
       - text: rozhodnutí 13. 9. 2026 (odpojení T265)
         cesta: doc/decisions.md
-    devlog: [2026-09-13, 2026-09-14]
+    devlog: [2026-09-13, 2026-09-14, 2026-09-18]
     ceka_na: []
 
   - id: hw-t265-odpojena-natrvalo
@@ -5392,7 +5490,9 @@ temata:
       Autor rozhodl kameru odpojit natrvalo (od 13. 9. večer na sběrnici není). Runtime ji ale
       dál hledá ~1×/s přes sdílený zámek RealSense a na každý pokus píše chybu do journalu
       (7 829 řádků za 168 min) — neškodí, ale zahlcuje; nezakládat ji, když není na sběrnici,
-      zbývá.
+      zbývá. Profil ji vypnout neumí (žádný parametr, `ARBotHW` ji zakládá bezpodmínečně)
+      a 17. 9. se ukázalo, že hledání teče i do záznamu, ne jen do journalu (po zatuhnutí
+      runtime bylo vlákno T265 jediné živé, 140 s hlášek v `.rec`).
     kroky:
       - co: T265 zapojena do zotavení kamer, per-kamera vzdání po třech marných pokusech
         stav: hotovo
@@ -5404,26 +5504,29 @@ temata:
         cesta: doc/decisions.md
       - text: hardware.md
         cesta: doc/hardware.md
-    devlog: [2026-09-13, 2026-09-14]
+    devlog: [2026-09-13, 2026-09-14, 2026-09-17]
     ceka_na: []
 
   - id: mise-track-prichyceni-predem
     oblast: mise
     nazev: Mise Track přichycuje všechna místa na síť předem, při odjezdu
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-13
-    vyreseno: 2026-09-13
+    vyreseno: 2026-09-17
     popis: >
       Mise Track přichycovala místa na síť cest až ve chvíli, kdy na ně přišla řada — se seznamem,
       jehož druhé místo leží mimo síť, robot odjel na první a misi přerušil daleko od člověka.
       Teď se všechna místa přichytí a zkontrolují při odjezdu (ne už při volbě mise: tam bez pózy
       kontrola vracela nuly a tiše prošla i pro bod 372 m od cesty), `TrackMsg` verze 3 nese
       přichycené souřadnice a zóny na půdorysu se kreslí z nich, ne ze surových bodů. Autorem
-      hlášený zásek po uvolnění nouzového zastavení se nereprodukoval; reprodukoval se jiný —
-      simulace nad velkou mapou (3 771 uzlů) vyčerpá CPU renderem virtuální kamery a stránka
-      umlkne, takže simulace není měřítko výkonu robota. Ověřeno v simulaci, na zařízení
-      neběželo.
+      hlášený zásek po uvolnění nouzového zastavení se v simulaci nereprodukoval; reprodukoval
+      se jiný — simulace nad velkou mapou (3 771 uzlů) vyčerpá CPU renderem virtuální kamery
+      a stránka umlkne, takže simulace není měřítko výkonu robota. Na zařízení přichycení
+      proběhlo 17. 9. (tři místa, největší odstup 2,1 m z limitu 50 m) a 18. 9. při dvou celých
+      kolech. Hlášený zásek se 17. 9. reprodukoval na zařízení (týž příznak: stránka odpovídá,
+      čas v ní neběží) a má vlastní témata `prov-zatuhnuti-za-behu-mise`
+      a `prov-deadlock-mise-webstatus` — s přichycením nesouvisí.
     kroky:
       - co: Přichycení všech míst v `Depart`, rozlišení „odstup 0“ od „nepřichyceno“
         stav: hotovo
@@ -5431,16 +5534,18 @@ temata:
       - co: "`TrackMsg` verze 3 s přichycenými místy; zóny kreslené z nich"
         stav: hotovo
         kdy: 2026-09-13
-      - co: Hlášený zásek po uvolnění stopu — nereprodukován, postup jak chytit zapsán (dotnet-stack + `PerfMsg`)
-        stav: otevreno
-      - co: Ověřit na zařízení
-        stav: otevreno
+      - co: "Hlášený zásek po uvolnění stopu — 17. 9. reprodukován na zařízení, vede `prov-zatuhnuti-za-behu-mise` / `prov-deadlock-mise-webstatus`"
+        stav: hotovo
+        kdy: 2026-09-17
+      - co: "Ověřit na zařízení — 17. 9. tři místa přichycena (odstup ≤ 2,1 m), 18. 9. dvě celá kola"
+        stav: hotovo
+        kdy: 2026-09-17
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
       - text: headless.md
         cesta: doc/headless.md
-    devlog: [2026-09-13]
+    devlog: [2026-09-13, 2026-09-17, 2026-09-18]
     ceka_na: []
 
   - id: lp-klin-mezi-zornymi-poli
@@ -5471,8 +5576,9 @@ temata:
         stav: otevreno
       - co: Dopad ceny neznámých buněk (`UnknownCostFactor`) na tvar dráhy — neměřený
         stav: otevreno
-      - co: Běh na zařízení
-        stav: otevreno
+      - co: "Běh na zařízení — od 18. 9. (binárka s `bc08c06` nese i `WedgeFiller`, profil `wedgefill=` nepřepisuje, platí 6°); účinek nezměřen, `ARBot.Analyze wedge` nad `20260918-*` neběžel"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
@@ -5519,11 +5625,16 @@ temata:
       LaTeXu, sázené MathJaxem), čtyři karusely fotek (30 snímků schovaných jako pozadí skrytých
       divů), tři schémata podvozku překreslená jako inline SVG (přebarvování rastrů byla slepá
       ulička), 22 odkazů v tabulce umístění, 11 článků z let 2009–2017 s obrázky a videi, ročníky
-      2024–2025 a nová úvodní stránka s fotkou a čtyřmi čísly. Podle autora Pages běží na
-      `alesruda.github.io/ARBot3/`; doména `arbot.cz` přepnutá není a do té doby se publikace
-      Sites nesmí zrušit. Web má 18 stránek s ručně opsanou hlavičkou — při první změně menu je
-      to osmnáct souborů (vědomý dluh, generátor menu je jiná práce).
+      2024–2025 a nová úvodní stránka s fotkou a čtyřmi čísly. Web měl 18 stránek s ručně
+      opsanou hlavičkou; od 18. 9. hlavičku a menu generuje `tools/menu.cs`
+      (`web-menu-generator`) a stránek je 21 plus index.
       17. 9. se složka přejmenovala z `docs/` na `web/` (vedle `doc/` to byla past) a publikace přešla na workflow GitHub Actions, protože režim „z větve“ jiné jméno než `/docs` neumí — v nastavení repozitáře se to musí přepnout ve stejnou chvíli jako push, jinak web spadne.
+      Stav 21. 9. 2026 (audit, `gh api repos/AlesRuda/ARBot3/pages`): Source je „workflow", doména
+      `arbot.cz` je na Pages přepnutá (CNAME, certifikát pro `arbot.cz` i `www`, HTTPS vynucené),
+      `https://arbot.cz/` odpovídá 200 a `alesruda.github.io/ARBot3/` přesměrovává. Publikaci
+      Google Sites autor zrušil 18. 9. 2026 (doména tedy běžela na Pages nejpozději tehdy).
+      `web/README.md` „Jak to zapnout" popisuje kroky, které už jsou provedené. Otevřený zůstává
+      jen článek „Tuhnutí MD23" a dva mrtvé odkazy.
     kroky:
       - co: Převod sedmi stránek + prezentace do repa
         stav: hotovo
@@ -5540,17 +5651,23 @@ temata:
       - co: Zapnout GitHub Pages (autor; web běží na github.io)
         stav: hotovo
         kdy: 2026-09-17
-      - co: Přepnout doménu `arbot.cz` (DNS, `CNAME`) a teprve pak zrušit publikaci Google Sites
-        stav: otevreno
+      - co: "Doména `arbot.cz` na Pages (DNS, CNAME, certifikát) — živá nejpozději 18. 9. (kdy se rušily Sites), ověřeno 21. 9. přes `gh api`"
+        stav: hotovo
+        kdy: 2026-09-18
+      - co: Zrušit publikaci Google Sites (autor, 18. 9.)
+        stav: hotovo
+        kdy: 2026-09-18
       - co: Dohledat starý blogový článek „Tuhnutí MD23“ (2012) a dva mrtvé odkazy (Wayback)
         stav: otevreno
-      - co: Generátor hlavičky a menu (18 ručně opsaných stránek)
-        stav: otevreno
+      - co: "Generátor hlavičky a menu — `tools/menu.cs`, vlastní téma `web-menu-generator`"
+        stav: hotovo
+        kdy: 2026-09-18
       - co: Přejmenování `docs/` → `web/`, oprava odkazů, workflow `pages.yml`
         stav: hotovo
         kdy: 2026-09-17
       - co: Přepnout Settings → Pages → Source na GitHub Actions (autor, ve chvíli pushe)
-        stav: otevreno
+        stav: hotovo
+        kdy: 2026-09-18
       - co: Stránka „Čím si projekt prošel“ generovaná z registru úkolů (`doc/ukoly.yaml`)
         stav: hotovo
         kdy: 2026-09-17
@@ -5561,7 +5678,7 @@ temata:
         cesta: web/index.html
       - text: plan-ukoly.md
         cesta: doc/plan-ukoly.md
-    devlog: [2026-09-13, 2026-09-14, 2026-09-15, 2026-09-16, 2026-09-17]
+    devlog: [2026-09-13, 2026-09-14, 2026-09-15, 2026-09-16, 2026-09-17, 2026-09-18, 2026-09-21]
     ceka_na: []
 
   # ---------------------------------------------------------------- 2026-09-14
@@ -5661,9 +5778,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Cíl lokálního plánovače je zóna, ne jediná buňka
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-14
-    vyreseno: 2026-09-14
+    vyreseno: 2026-09-18
     popis: >
       Robot nedokázal dojet k prvnímu bodu trasy: k 44 m jel 9,5 minuty. Cílem A* byla jediná
       buňka, takže mrkev v trávě nebo u překážky byla nedosažitelná jako celek — plán skončil na
@@ -5675,6 +5792,9 @@ temata:
       Není to lék na špatnou mapu — blokovaných buněk bylo p50 27,7 % při rozbitém kurzu, takže
       část nedosažitelnosti může být chyba gridu, kterou zóna zakryje.
       ✅ **18. 9. 2026 na zařízení:** `GoalBlocked` 24 → 2 %, `GoalUnsafe` 19 → 2 %, mrkev nedosažitelná 52 → 33 % — zároveň s opraveným kurzem, takže podíl zóny a podíl kurzu se z jednoho záznamu nerozdělí.
+      Zóna tedy na zařízení běžela 18. 9. i na Robotouru 19. 9. Rozbor gridu v okamžicích
+      nedosažitelnosti (kolik je chyba mapy) je věcně táž otázka jako `lp-zasek-v-blokovane-mape`
+      a vede se tam; téma uzavřeno rozhodnutím autora 21. 9. 2026.
     kroky:
       - co: Měření `ARBot.Analyze localplan` nad záznamem ze 14. 9.
         stav: hotovo
@@ -5682,16 +5802,17 @@ temata:
       - co: Zóna jako cíl A*, poloměr jako vlastnost cíle, tři pasti hlídané testy
         stav: hotovo
         kdy: 2026-09-14
-      - co: Podívat se na grid v okamžicích nedosažitelnosti (`ARBot.Analyze grid`) — kolik je chyba mapy
-        stav: otevreno
+      - co: "Podívat se na grid v okamžicích nedosažitelnosti — přesunuto do `lp-zasek-v-blokovane-mape` (táž otázka)"
+        stav: hotovo
+        kdy: 2026-09-21
       - co: "Přeměřit `localplan` po nasazení — 18. 9. (`20260918-155329.rec`): `GoalBlocked` 2 % / `GoalUnsafe` 2 % (14. 9.: 24 / 19 %), mrkev nedosažitelná 33 % (52 %), s dobrým kurzem"
         stav: hotovo
         kdy: 2026-09-18
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-09-14, 2026-09-18]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    devlog: [2026-09-14, 2026-09-18, 2026-09-21]
+    ceka_na: []
 
   - id: nast-zony-world-pohled
     oblast: nastroje
@@ -5835,7 +5956,10 @@ temata:
       startu (V11); `vnrestore.sh` zapisoval do flash bez ptaní (V12); nevyplněná licence a
       chybějící soupis cizích součástí (V13). Nález V2 (fúze extrapoluje bez omezení) autor rozhodl
       neřešit; ze středních nálezů (`HeadVeh` čte špatný offset, `FixTime` z ITOW, driver motorů
-      nekontroluje prefixy řádků) se nesáhlo na nic. Na zařízení neběželo nic.
+      nekontroluje prefixy řádků) se nesáhlo na nic; `FixTime` má od 17. 9. vlastní téma
+      `hw-gps-fixtime-rozbity`. Binárka s opravami jela 16.–19. 9., ale žádný z nálezů by se
+      bez vyvolané poruchy neprojevil; V13 má v `THIRD-PARTY-NOTICES.md` u tří binárek dál
+      „(ověřit)".
     kroky:
       - co: V4 + V5 — `SilentTimeout`, `StopTimeout`, konečný `ReadTimeout` UARTu
         stav: hotovo
@@ -5854,7 +5978,7 @@ temata:
         kdy: 2026-09-15
       - co: V13 — ověřit podmínky tří proprietárních binárek, atribuce OSM (ODbL)
         stav: otevreno
-      - co: Střední nálezy (`PVTMessage.HeadVeh`, `FixTime` z ITOW, prefixy řádků `SDC2160Ex`)
+      - co: "Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`)"
         stav: otevreno
       - co: Ověřit V4/V5/V6 na zařízení (odpojit převodník za běhu, `systemctl stop`)
         stav: otevreno
@@ -5891,9 +6015,9 @@ temata:
     oblast: lokalizace
     nazev: Šířková brána koridoru se ptala dřív, než se bylo z čeho učit
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-15
-    vyreseno: 2026-09-15
+    vyreseno: 2026-09-18
     popis: >
       Porovnání naměřené šířky cesty s odhadem běželo před jeho aktualizací a při prvním kontaktu
       s hranou vracelo mapovou šířku — u cest bez tagu `width` jen default 3 m. Na cestě širší než
@@ -5902,6 +6026,9 @@ temata:
       porucha detektoru. `RoadWidthEstimator` běží bez brány (okno, medián, kvalita z MAD) a dokud
       si měření nesednou, řekne „nevím“; šířka na póze nezávisí, takže kvalitu měří shoda měření
       mezi sebou, ne shoda s mapou. Při měřicí jízdě 16. 9. na zařízení šířka seděla (nesouhlas p50 0,057 m); prahy zůstávají odhad.
+      18. 9. naostro: `WidthNotTrusted` jen 5,4 % / 4,4 % cyklů za jízdy, šířka p50 3,20 m
+      proti filtru 3,22 m — vada „hrana němá navždy" je na zařízení pryč, doladění prahů nemá
+      naléhavost; uzavřeno rozhodnutím autora 21. 9. 2026.
     kroky:
       - co: "`RoadWidthEstimator` s verdiktem kvality, důvod `WidthNotTrusted`"
         stav: hotovo
@@ -5909,12 +6036,13 @@ temata:
       - co: Rozpad `FixReason` nad měřicí jízdou (16. 9. šířka sedí, nesouhlas p50 0,057 m)
         stav: hotovo
         kdy: 2026-09-16
-      - co: Doladit prahy kvality offline z posloupnosti `Width`
-        stav: otevreno
+      - co: "Prahy kvality — 18. 9. naostro `WidthNotTrusted` 4–5 % za jízdy, doladění bez naléhavosti"
+        stav: hotovo
+        kdy: 2026-09-18
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-15, 2026-09-16]
+    devlog: [2026-09-15, 2026-09-16, 2026-09-18]
     ceka_na: []
 
   - id: lok-koridor-prah-inlieru-prisny
@@ -5951,6 +6079,7 @@ temata:
       do fúze. Spodní mez validátoru je 3 — dvěma body jde přímku proložit vždy, takže 2 by
       bránu fakticky vypnulo.
       18. 9. 2026 s kalibrovaným kompasem: zisk prahu 20 je jen **+6–7 %** koridorů (17. 9. při rozbitém kurzu 4×) a nesmyslná šířka roste — ztráty už nesedí na tomhle prahu. Výchozích 25 zůstává; A/B na zařízení tím ztrácí naléhavost.
+      Škrcení 1,4–4× z názvu tedy platilo jen při rozbitém kurzu; s dobrým kurzem je to ~7 %.
     kroky:
       - co: Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi)
         stav: hotovo
@@ -5987,10 +6116,14 @@ temata:
       `lok-koridor-merici-rezim` i CLAUDE.md tvrdí, že provozní profil běží s
       `corridorsend=false`, tedy „plná zátěž, nulový vliv na řízení", a týž úkol vede jako
       OTEVŘENÝ krok „`corridorsend=true` — až po opravě magnetometru a přiřazení hrany".
-      V `config/pi-provoz.cfg` ale ten řádek **vůbec není**, takže platí default `true`
-      a korekce se posílaly do fúze celou dobu. Potvrzuje to i účinná konfigurace v záznamech
+      V `config/pi-provoz.cfg` ale ten řádek 17. 9. **nebyl**, takže platil default `true`
+      a korekce se posílaly do fúze. Potvrzuje to i účinná konfigurace v záznamech
       ze 17. 9. (`corridorsend=true (default)`) a report: *poslana pricna korekce 16 z 16 Ok,
-      poslana korekce kurzu 16 z 16 Ok*.
+      poslana korekce kurzu 16 z 16 Ok*. Upřesnění z gitu (audit 21. 9.): řádek
+      `corridorsend=false` v profilu **byl** od 15. 9. (`0e34771`) a měřicí jízda 16. 9. s ním
+      jela (`corridorsend=false (profil)` v účinné konfiguraci); odstranil ho autor 17. 9.
+      v přípravě na Robotour (`8bf1081`, zakomentováno) a týž den zapsal `true` (`a44b4f4`).
+      Měřicí režim tedy platil jeden den, ne „nikdy".
       ⚠️ **Podstatné je, co tím prošlo:** těch 16 korekcí kurzu odešlo v běhu, kde měl koridor
       `abs nesouhlas kurzu` p50 **23,4°** (nezkalibrovaný kompas, viz `hw-zelezo-od-kabelu-kamer`)
       — tedy přesně ta situace, kvůli které měla brána zůstat zavřená. `GateMode.Soft` je
@@ -6021,23 +6154,26 @@ temata:
     oblast: lokalizace
     nazev: Koridor v měřicím režimu — odtlumení a první měřicí jízda
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-15
-    vyreseno: 2026-09-15
+    vyreseno: 2026-09-20
     popis: >
       Koridor měří snímek co snímek týž okraj cesty, takže jeho chyba je časově korelovaná — táž
       past jako u GPS a kompasu. Přibyly `corridorstd=`, `corridorheadingstd=` a `corridorhz=`
       (sigmy kvadraticky, škrtí se jen posílání), výchozí 0 schválně, protože dekorelační čas
       koridoru změřený nebyl; provozní profil měl běžet s `corridor=true`, `corridorsend=false` —
-      plná zátěž, nulový vliv na řízení. ⚠️ **Jenže ten řádek se do profilu nikdy nedostal**
-      a default je `true`, takže korekce se posílaly; viz `lok-koridorsend-nebyl-vypnuty`. První měřicí jízda 16. 9. (první záznam ze zařízení, kde
+      plná zátěž, nulový vliv na řízení. Řádek `corridorsend=false` v profilu byl od 15. 9.
+      (commit `0e34771`) a měřicí jízda 16. 9. s ním jela; 17. 9. ho autor v přípravě na Robotour
+      odstranil (`8bf1081`) a týž den zapsal `corridorsend=true` (`a44b4f4`) — od té doby se
+      korekce posílají vědomě; viz `lok-koridorsend-nebyl-vypnuty`. První měřicí jízda 16. 9. (první záznam ze zařízení, kde
       koridor vůbec běžel) dala první střízlivé číslo: koridor je dobrá reference kurzu (+0,42°
       proti GPS, robustní sd 2,30°), ale proložení hlásí 0,50°, tedy je ~5–9× optimističtější.
       Poloha byla celou jízdu mimo mapovanou vozovku (3–5 m), takže do fúze neodešlo 0 ze 424
       přijatých měření — a report to do té doby neuměl říct (`Ok` znamenalo „prošlo branami“,
       ne „došlo do fúze“).
       18. 9. 2026: `corridorsend=true` je v profilu vědomě od 17. 9. a první jízdy naostro ho potvrdily; σ kurzu z proložení je potřetí ~4× optimistická (robustní sd 2,4–2,6° proti 0,6°), takže číslo pro `corridorheadingstd=` je ~2,5°, ale pořád nenastavené.
-      **18. 9. večer, pro soutěž:** autor chtěl koridor „trošku“ oslabit; v profilu je `corridorstd=0.1`, `corridorheadingstd=2.5`, `corridorhz=2` (~15× méně příčné informace, ~90× méně o kurzu než dnes), podloženo A/B v simulaci s pravdou (příčně 0,018 m, kurz 0,41° proti 0,84 m / 2,4° bez korekcí). Na zařízení s tím nejelo.
+      **18. 9. večer, pro soutěž:** autor chtěl koridor „trošku“ oslabit; v profilu je `corridorstd=0.1`, `corridorheadingstd=2.5`, `corridorhz=2` (~15× méně příčné informace, ~90× méně o kurzu než dnes), podloženo A/B v simulaci s pravdou (příčně 0,018 m, kurz 0,41° proti 0,84 m / 2,4° bez korekcí).
+      S těmi hodnotami jel robot na Robotouru 19. 9. (profil z `da82549`); rozbor 20. 9.: koridor přijat 1 404 z 1 404 (NIS p90 3,1, max 443), odtlumení mechanicky funguje, ale skokům pózy nebrání — to vede `lok-koridor-skoky-pozy`.
     kroky:
       - co: Parametry odtlumení a měřicí profil `pi-provoz.cfg`
         stav: hotovo
@@ -6051,8 +6187,9 @@ temata:
       - co: "Nastavit `corridorheadingstd=` z měření — 18. 9.: 2,5° (robustní sd koridor − GPS kurz 2,4–2,6°), s `corridorstd=0.1` a `corridorhz=2` v profilu pro soutěž; A/B v simulaci příčně 0,003 → 0,018 m, kurz 0,13 → 0,41°"
         stav: hotovo
         kdy: 2026-09-18
-      - co: Ověřit odtlumené hodnoty na zařízení (záznam ze soutěže 19. 9., `ARBot.Analyze corridor` + `corrections`)
-        stav: otevreno
+      - co: "Ověřit odtlumené hodnoty na zařízení — Robotour 19. 9. (Kolo3b, Kolo4, rozbor 20. 9. `ARBot.Analyze nav` + `corridorstd`): 1 404 z 1 404 přijato, NIS p90 3,1, max 443; skoky pózy to neodstranilo → `lok-koridor-skoky-pozy`"
+        stav: hotovo
+        kdy: 2026-09-20
       - co: Rozvolnit příčnou bránu — vyřešeno zrušením brány, viz `lok-koridor-pricna-brana`
         stav: hotovo
         kdy: 2026-09-18
@@ -6064,8 +6201,8 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: pi-provoz.cfg
         cesta: config/pi-provoz.cfg
-    devlog: [2026-09-15, 2026-09-16, 2026-09-18]
-    ceka_na: [lok-korelace-tri-podminky-naostro]
+    devlog: [2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20]
+    ceka_na: []
 
   - id: lok-naucena-sirka-do-mapy
     oblast: lokalizace
@@ -6177,6 +6314,8 @@ temata:
       u cesty kolmé na kurz šel do fúze kurz otočený (9,4 % přijatých cyklů); cena je, že koridor
       už nikdy neřekne „jsi otočený o 180°“. Ověřeno testy a simulací, na zařízení neběželo.
       18. 9. 2026 po kalibraci kompasu: chyba kurzu odhadu proti GPS je sd 8–11° včetně stání a ~2–4° za jízdy, takže `assocfloorhdg` jde stáhnout spíš na **5°** než na 3°; před soutěží nezměněno.
+      Robotour 19. 9. byla první jízda přes skutečné křižovatky (830 m městem), ale rozbor
+      přiřazení nad ní není — z `nav` je jen „změna hrany u 6 ze 78 velkých inovací".
     kroky:
       - co: Nález nad `20260916-164926.rec` a podklad pro přiřazení (χ² s hlášenými σ zamítne vše)
         stav: hotovo
@@ -6189,16 +6328,18 @@ temata:
         kdy: 2026-09-16
       - co: Přeměřit nad měřicí jízdou (odhad „2× víc měření“ je z rozdělení, ne z běhu)
         stav: otevreno
-      - co: Po opravě magnetometru snížit `assocfloorhdg` z 10° na ~3°
+      - co: "Po opravě magnetometru snížit `assocfloorhdg` z 10° na ~5° (18. 9. změřeno, nezměněno)"
         stav: otevreno
       - co: "Ověřit na zařízení — 18. 9.: běží (χ² vítěze p50 0,004, nejednoznačných 3 z 3 147), ale trať je jediná OSM cesta, takže křižovatku to neotestovalo"
         stav: hotovo
         kdy: 2026-09-18
+      - co: "Vyčíslit `AssocChi2` / `AmbiguousEdge` nad Kolo3b a Kolo4 (Robotour 19. 9., první jízda s křižovatkami)"
+        stav: otevreno
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
     devlog: [2026-09-16, 2026-09-18]
-    ceka_na: [hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
   # ---------------------------------------------------------------- 2026-09-18
   - id: lok-koridor-pricna-brana
@@ -6221,7 +6362,10 @@ temata:
       přenastaveno: rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh „jen jako pojistka“
       by byl mrtvý kód a nižší řeže do živého. Odemklo to i učení šířky (`widths.Add` stálo až za
       branou) — týž zámek, jaký se 15. 9. odstraňoval o patro níž. Hodnota enumu
-      `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`.
+      `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`. Na zařízení od 19. 9.
+      (binárka nasazená ráno na Robotouru): do fúze došly inovace 36× nad 2 m, max 6,1 m, které
+      by brána 1,5 m nepustila — a právě ty vyrobily skoky pózy (`lok-koridor-skoky-pozy`);
+      to je cena zrušení, kterou má zaplatit limit kroku, ne vrácená brána.
     kroky:
       - co: Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním
         stav: hotovo
@@ -6234,14 +6378,15 @@ temata:
         kdy: 2026-09-18
       - co: Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`)
         stav: otevreno
-      - co: Ověřit na zařízení
-        stav: otevreno
+      - co: "Ověřit na zařízení — Robotour 19. 9.: inovace do 6,1 m došly do fúze, brána prokazatelně pryč; cena = skoky pózy"
+        stav: hotovo
+        kdy: 2026-09-20
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: decisions.md
         cesta: doc/decisions.md
-    devlog: [2026-09-18]
+    devlog: [2026-09-18, 2026-09-20]
     ceka_na: [lok-prirazeni-hrany-chi2]
 
   - id: web-clanek-regulator
@@ -6391,9 +6536,9 @@ temata:
     oblast: navigace
     nazev: Mapa z JOSM nese smazané cesty (`action='delete'`) a čtečka je brala jako živé
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-18
-    vyreseno: 2026-09-18
+    vyreseno: 2026-09-19
     popis: >
       Při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.osm` (večer před
       Robotourem) se ukázalo, že soubor uložený z JOSM obsahuje i objekty, které v něm autor
@@ -6403,7 +6548,9 @@ temata:
       to nebylo poznat. Čtečka teď smazaný uzel, cestu i relaci přeskočí (subtree odkonzumuje),
       `action='modify'` bere normálně. Mapa po opravě: 209 uzlů, 226 hran, načteno v simulaci.
       Totéž platí pro `modrany.osm`, `modrany1.osm` a `modrany_small.osm`; mapy z Overpassu
-      atribut nemají.
+      atribut nemají. Na zařízení to běželo na Robotouru 19. 9. 2026: `MapMsg` v záznamech
+      z 10:11 a 10:19 nese síť o 209 uzlech a 2 komponentách, což je přesně počet po opravě
+      (bez ní by síť měla o 2 127 uzlů víc), a robot po ní odjel Kolo3b i Kolo4.
     kroky:
       - co: Nález při kontrole soutěžní mapy (počty smazaných objektů)
         stav: hotovo
@@ -6414,14 +6561,15 @@ temata:
       - co: Načtení soutěžní mapy v simulaci (209 uzlů, 226 hran)
         stav: hotovo
         kdy: 2026-09-18
-      - co: Nasadit binárku na zařízení spolu se soutěžním profilem
-        stav: otevreno
+      - co: "Nasadit binárku na zařízení spolu se soutěžním profilem — Robotour 19. 9., `MapMsg` v záznamech má 209 uzlů (síť po opravě)"
+        stav: hotovo
+        kdy: 2026-09-19
     odkazy:
       - text: osm-nav.md
         cesta: doc/osm-nav.md
       - text: OsmXmlReader.cs
         cesta: Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs
-    devlog: [2026-09-18]
+    devlog: [2026-09-18, 2026-09-19]
     ceka_na: []
 
   # ---------------------------------------------------------------- 2026-09-17
@@ -6455,7 +6603,8 @@ temata:
       `WebStatus`, zastavil by se i most `Trace → Info`, protože `WebStatus` je na `Stream`
       připojený jako PRVNÍ (v `ARBot.Headless/Program.cs`, mimo `connections`, tedy před
       záznamem). A `Info` teklo dál 140 s. Tenhle zásek je tedy na větvi `processing`, ne na
-      `Stream`, a zůstává neurčený.
+      `Stream`, a zůstává neurčený. V ~10 bězích 18.–19. 9. (dva Tracky, Robotour) se
+      neopakoval; příčina tím určená není.
     kroky:
       - co: Rozbor záznamu — kdy to umlklo, co přežilo a co mají umlklá vlákna společného
         stav: hotovo
@@ -6512,9 +6661,9 @@ temata:
     oblast: provoz
     nazev: Deadlock mezi zámkem mise a zámkem stránky při volbě mise
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-17
-    vyreseno: 2026-09-17
+    vyreseno: 2026-09-19
     popis: >
       17. 9. 2026 v 16:21:22 se po volbě mise `track` ze stránky runtime zasekl uvnitř
       `Start(Run)`. `HangWatchdog` vystřelil a pořídil minidump
@@ -6549,7 +6698,10 @@ temata:
       `MagCalWriteBlockedReason` čte jen uloženou zprávu, ne misi.
       Hlídají to tři testy (`MisePublikujeMimoZamekTests`, jeden i v rigu Robotouru), které
       **prokazatelně chytají vrácenou vadu** — po dočasném vrácení publikace pod zámek spadly.
-      ⚠️ **Na zařízení to neběželo.**
+      Na zařízení od 18. 9. (binárka nasazená spolu s profilem `a44b4f4`): 18. 9. dvě volby mise
+      Track ze stránky, 19. 9. na Robotouru nejméně osm voleb mise Robotour z telefonu
+      s otevřeným, samoobnovujícím se náhledem — bez jediného záseku, kdežto 17. 9. nastal
+      při jedné ze tří voleb. Důkaz je statistický (závod), deterministicky to kryjí testy.
     kroky:
       - co: Příčina určená z minidumpu (oba zásobníky, uzavřený cyklus zámků)
         stav: hotovo
@@ -6563,8 +6715,9 @@ temata:
       - co: Testy pořadí zámků (ověřeno vrácením vady — spadnou)
         stav: hotovo
         kdy: 2026-09-17
-      - co: Ověřit na zařízení (volba mise ze stránky při otevřeném náhledu)
-        stav: otevreno
+      - co: "Ověřit na zařízení (volba mise ze stránky při otevřeném náhledu) — 18. 9. 2× Track, 19. 9. ≥ 8× Robotour bez záseku; důkaz statistický"
+        stav: hotovo
+        kdy: 2026-09-19
     odkazy:
       - text: headless.md
         cesta: doc/headless.md
@@ -6574,7 +6727,7 @@ temata:
         cesta: Src/ARBot.Runtime/Web/WebStatus.cs
       - text: RelaySource.cs
         cesta: Src/ARBot.Common/Communication/RelaySource.cs
-    devlog: [2026-09-17]
+    devlog: [2026-09-17, 2026-09-18, 2026-09-19]
     ceka_na: []
 
   - id: prov-zaznam-nevidet-ze-nebezi
@@ -6862,23 +7015,32 @@ temata:
     oblast: provoz
     nazev: Start služby po skutečném rebootu Orange Pi se nezkoušel
     druh: zamer
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-05
+    vyreseno: 2026-09-17
     popis: >
       Služba `arbot` je `enabled` s `Restart=always`, restart služby i SIGTERM jsou ověřené,
       ale nikdo ještě nenechal desku nabootovat od studena a nezkontroloval, že runtime
       nastartuje, rozjede senzory a stojí, dokud mu člověk nevybere misi. Souvisí s tím
       i kamery, které se po bootu občas vyčtou jen na USB 2.0.
+      Prošlo provozem: 17. 9. 2026 obsluha robota vypnula a zapnula (boot 16:22:52), služba
+      nastartovala v 16:23:00, jádro enumerovalo obě D435 a v 16:26 robot podle snímků stránky
+      řídil (trasa, plán, mrkev); na Robotouru 19. 9. byl robot zapnutý od rána a po nabití
+      baterie znovu, pokaždé senzory po bootu žily. Výhrada: journal právě toho bootu ze 17. 9.
+      je anomální (služba nevypsala ani řádek, vede `prov-zaznam-nevidet-ze-nebezi`), takže
+      z něj je vidět jen start služby. Sérii startů na baterii kvůli USB 2.0 nikdo nepočítal
+      (`hw-kamery-usb2-po-bootu` zůstává vlastní téma).
     kroky:
-      - co: Reboot desky a kontrola journalu, náhledu a senzorů po startu
-        stav: otevreno
+      - co: "Reboot desky a kontrola journalu, náhledu a senzorů po startu — 17. 9. (vypnutí a zapnutí obsluhou): služba naběhla za 8 s, kamery enumerovány, robot řídil; potvrzeno provozem 19. 9."
+        stav: hotovo
+        kdy: 2026-09-17
     odkazy:
       - text: headless.md
         cesta: doc/headless.md
       - text: deploy/README.md
         cesta: deploy/README.md
-    devlog: [2026-09-05]
-    ceka_na: [hw-kamery-usb2-po-bootu]
+    devlog: [2026-09-05, 2026-09-17, 2026-09-19]
+    ceka_na: []
 
   # ---- doplněno ze sekcí „Otevřené úkoly" (17. 9. 2026)
 
@@ -6945,6 +7107,12 @@ temata:
       (`RoadNetwork`) a cílové pole (`GoalField`) stavět a přeplánovávat; tady rozhodnutí padlo
       už v návrhu (síť vlastní runtime, jedno pole na misi). Zapsáno jako další krok hned při
       integraci OsmNav, od té doby jen upřesněno („`OSM/` je verzované, otevřené zůstává odkud").
+      Od 18. 9. 2026 se ví, že část map je ručně upravená v JOSM (soutěžní `Robotour2026-ver1.osm`,
+      `modrany*.osm`, nesou `action=`) a část je export z Overpassu (viz
+      `nav-osm-josm-action-delete`); oblast a datum stažení zapsané dál nejsou.
+    kroky:
+      - co: "Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení"
+        stav: otevreno
     odkazy:
       - text: osm-nav.md
         cesta: doc/osm-nav.md

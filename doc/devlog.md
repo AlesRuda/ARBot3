@@ -61,6 +61,59 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   zapamatuje a skok nekontroluje. Zapsáno do registru, neopraveno (s limitem kroku detektor chránit
   nemusí; oprava chce nejdřív změřit podíl snímků s `dt ≤ 0`).
   Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
+- **Registr: `mise-robotour` přepnuto `v-kodu` → `hotovo`** (`vyreseno` 19. 9. 2026). Commit
+  `bcb5e09` z 20. 9. označil krok „Ověření na zařízení (fáze 7)" za hotový (Kolo3b: depo →
+  nakládka → vykládka naostro, čtení QR v každém kole), ale stav tématu a věta „na zařízení mise
+  neběžela" v popisu zůstaly staré. Do depa robot nedojel — to nese `nav-phi-obracena-hrana`,
+  nálezy ze soutěže mají vlastní témata `mise-robotour-*`. Výstupy přegenerovány (`ukoly.cs`,
+  `menu.cs`).
+- **Registr: `lp-omega-dif-faktor-a-znamenko` uzavřeno** (`v-kodu` → `hotovo`, rozhodnutí autora):
+  otevřený krok „změřit znaménko příkazové rotace `+ω` ve stoje" nahradila jízda — robot od 7. 9.
+  venku sleduje dráhu (FreeRun, Track, Robotour) a s otočeným znaménkem by od ní zatáčel a regulátor
+  by divergoval. Upraven komentář v `ControlLoop.OnTick` a sekce v
+  [path-following.md](path-following.md) (rozbor nesrovnalosti zůstává jako záznam).
+- **Audit registru: všech 85 otevřených a „v kódu" témat proti devlogu, docs a gitu** (na pokyn
+  autora; šest paralelních průchodů po oblastech, změny aplikovány jen s konkrétním důkazem).
+  - **Uzavřeno 8 témat** (`v-kodu`/`otevreno` → `hotovo`), všechna s důkazem z jízd 17.–20. 9.:
+    `lp-robot-se-plazi-vyhlazovani` (18. 9. vCmd p50 1,0 m/s), `nav-osm-josm-action-delete`
+    (`MapMsg` v záznamech z 19. 9. má 209 uzlů = síť po opravě), `lok-koridor-merici-rezim`
+    (odtlumené hodnoty projety na Robotouru, rozbor 20. 9.), `lok-koridor-gating-a-gate-mimo-koridor`
+    (Soft gate na zařízení: 1 404/1 404 přijato), `mise-robotour-bez-operatora` (Kolo3b),
+    `mise-track-prichyceni-predem` (17./18. 9.; hlášený zásek má vlastní `prov-*` témata),
+    `prov-start-po-rebootu` (boot 17. 9. 16:22 po vypnutí obsluhou, provoz 19. 9.),
+    `prov-deadlock-mise-webstatus` (≥ 10 voleb mise ze stránky bez záseku — důkaz statistický).
+  - **Posunuté kroky** bez uzavření: magcal mazání registru 23 na senzoru (17. 9.), `WedgeFiller`
+    na zařízení (odvozeno z linie binárky, účinek nezměřen), zrušená příčná brána (inovace do
+    6,1 m došly do fúze), čtení QR na stanovišti (19. 9.), `mapprune` (kód přijat ze servisní
+    zóny od 2. kola), trasa a plán na stránce (17. 9.), web (Source = workflow, doména
+    `arbot.cz` živá — ověřeno `gh api`, datum přepnutí nezapsané).
+  - **Opravený fakt:** řádek `corridorsend=false` v profilu **byl** 15.–17. 9. (`0e34771`, měřicí
+    jízda 16. 9. s ním jela) a odstranil ho autor v `8bf1081`; tvrzení „nikdy neplatilo"
+    v `CLAUDE.md` a ve dvou tématech opraveno.
+  - **Zastaralé `ceka_na`** na `hw-zelezo-od-kabelu-kamer` (hotovo 18. 9.) vyprázdněno u sedmi
+    témat; `lok-korelace-tri-podminky-naostro` už nezablokuje koridor (šel naostro bez nich),
+    závislosti přesměrovány na `lok-koridor-skoky-pozy`.
+  - **Docs:** zastaralé „na zařízení neběželo" opraveno v `osm-nav.md` (JOSM, `mapprune`),
+    `robotour-mission.md` (jméno kamery, `depothdop`, `mapprune`), `track-mission.md` a `CLAUDE.md`.
+  - **Rozhodnutí autora týž den:** uzavřeno dalších pět — `lp-cil-astar-zona` (rozbor gridu
+    přesunut do `lp-zasek-v-blokovane-mape`), `lok-sirka-odhad-bez-brany` (doladění prahů bez
+    naléhavosti), `mise-qr-cteni` (doba dekódování škrtnuta), `mise-qr-jmeno-kamery` (autor řádek
+    „na obrázku (čte QR)" na soutěži viděl); Google Sites zrušeny 18. 9., doména `arbot.cz` tedy na
+    Pages nejpozději od té doby (`web-arbot-cz-github-pages` zůstává otevřené jen kvůli článku
+    „Tuhnutí MD23" a dvěma mrtvým odkazům).
+  - **Zbývající otázky** (v registru nezměněno): `lok-koridor-prah-inlieru-prisny` (A/B ztratilo
+    naléhavost → `odlozeno`?); `lok-gps-casova-korelace` (Kalmanovo zesílení 0,32/0,29 v popisu
+    není v žádném dokumentu doložené, proti 0,0023 z 6. 9. je o dva řády výš);
+    `hw-d435-query-pamet` (25 MB/dotaz proti 7 829 marným dotazům 14. 9. bez potíží).
+  - **Mimo registr:** neverzovaný `models/ds_train/` (879 párů, 41 MB, originální trénovací sada
+    z Drive z 7. 9.) není v `.gitignore` ani v `models/README.md`; fail-rámec motorů
+    v `SDC2160Ex` nezanechává stopu v Trace; `PerfMsg` CPU procesu neodpovídá zátěži (14. 9.);
+    uťatý záznam 18. 9. bez přiřazení k tématu.
+- **Registr: `lp-regulator-zapadka-lookahead` uzavřeno** (`v-kodu` → `hotovo`, `vyreseno` 18. 9.):
+  otevřený krok „potvrdit na zařízení, že robot dosáhne povolené rychlosti" už byl změřený 18. 9.
+  v rámci `lp-robot-se-plazi-vyhlazovani` (`vCmd` p50 1,0 m/s při `maxspeed=1`), jen se nepřenesl
+  do tohoto tématu. Zakomentovaná původní varianta regulátoru v kódu tím ztratila důvod zůstat;
+  zatím neodstraněna.
 
 ## 2026-09-20
 

@@ -280,7 +280,7 @@ přetlumeno (bez překmitu). Při `v_max`: `L_d = 0,24 m` → návrat ~0,5–0,7
    `PathControlTimeOut`) + `Profile`; record/replay + selftest.
 6. **Dokumentace + DevLog** (tento dokument, `decisions.md`, odkaz z `CLAUDE.md`).
 
-## Převod ω → `dif` a otevřený úkol: ověřit znaménko rotace na HW
+## Převod ω → `dif` a znaménko rotace (prokázáno jízdou 21. 9. 2026)
 
 [`ControlLoop.OnTick`](../Src/ARBot.Common/Runtime/ControlLoop.cs) předává výstup regulátoru motorům
 jako `motor.Drive(forvard, dif)`, kde
@@ -372,7 +372,14 @@ Hlídají dva testy (`PathControllerTests`), oba ověřené tak, že bez opravy 
 | `Straight_ReachesFullSpeed` (rovinka 20 m, s odchylkou kurzu i bez ní) | rozjel se jen na **0,19 z 0,80 m/s** |
 | `ManyCollinearWaypoints_DoesNotStallAtEach` (uzel po 1 m) | bez přeskakování **0,62 z 0,80 m/s** + padají i rohové testy |
 
-Původní varianta je ponechaná zakomentovaná do ověření na HW (viz CLAUDE.md).
+Původní varianta je ponechaná zakomentovaná do ověření na HW (viz CLAUDE.md). ✅ **Ověřeno na
+zařízení 18. 9. 2026** (`records/test/20260918-155329.rec`, jízda s opraveným kurzem): příkazovaná
+rychlost p50 **1,0 m/s** při stropu `maxspeed=1` v provozním profilu, tedy robot jede na povoleném
+stropu a západka se nevrací (`ARBot.Analyze localplan`, `envelope`). Venku 7. 9. to potvrdit nešlo,
+protože robota brzdil jiný omezovač (odstup od překážky, viz
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md)). Registr:
+[Robot jel 0,1 m/s, i když bylo povoleno 1,2 m/s](ukoly.md#lp-regulator-zapadka-lookahead), uzavřeno
+21. 9. 2026; zakomentovanou původní variantu je tím možné odstranit.
 
 #### Otevřené úkoly (→ registr)
 
@@ -388,12 +395,18 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   nestihl srovnat) — po rozjezdu bude vidět, jestli odchylka zmizí, nebo je to samostatná chyba
   ve sledování dráhy.
 
-### Otevřený úkol (→ registr): znaménko rotace ověřit na zařízení
+### Znaménko rotace: prokázáno jízdou (uzavřeno 21. 9. 2026)
 
-Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
+Stav a data vede [registr úkolů](ukoly.md); tady je jen rozbor, proč se to dalo uzavřít bez
+samostatného měření.
 
 - **[Robot by zatáčel dvakrát rychleji, než regulátor chce](ukoly.md#lp-omega-dif-faktor-a-znamenko)** —
-  znaménko je jiná otázka než faktor a z kódu se rozhodnout nedá, musí se změřit na robotu.
+  znaménko je jiná otázka než faktor a z kódu se rozhodnout nedá. **Uzavřeno rozhodnutím autora
+  21. 9. 2026 bez zkoušky `+ω` ve stoje:** robot od 7. 9. 2026 opakovaně jezdí venku po dráze
+  (FreeRun 7. a 12. 9., Track 12. a 14. 9., Robotour 19. 9.) a sleduje ji — s otočeným znaménkem by
+  podle rozboru níže zatáčel od dráhy místo k ní a regulátor by divergoval, což se neděje. Jízda je
+  tedy silnější důkaz než plánovaná zkouška. Text níže zůstává jako záznam, proč se ta otázka vůbec
+  kladla.
 
   Papírová nesrovnalost:
 
@@ -409,7 +422,8 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   `+ω·Rozchod/2` **bez explicitního přehození** a fungovala, což mluví pro to, že to celé vychází.
   **Autorův odhad: komentář `dif>0 = vpravo` je správný a nesrovnalost je jen zdánlivá.**
 
-  **Zkouška na robotu** (jedna, rozhodne obojí):
+  **Původně plánovaná zkouška na robotu** (jedna, rozhodne obojí; první bod nahradila jízda,
+  druhý zůstává užitečný jako kontrola fúze, kdyby se někdy měnil driver motorů nebo montáž):
 
   1. Zadat malé konstantní `+ω` (např. 0,3 rad/s) při nulové dopředné rychlosti a sledovat, **kam se
      robot otočí**. Vlevo (CCW) = řetěz je konzistentní, nechat být. Vpravo = někde v kompozici je

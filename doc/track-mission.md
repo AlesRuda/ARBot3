@@ -265,10 +265,10 @@ záměrně vybrané jako **uzly cest** z `HajeRovne.osm`, takže na síti přím
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — projet celou misi na zařízení:
-  v simulaci to jezdí, na zařízení odjela 12. a 14. 9., ale celý seznam neobjela; kurz z VN100 byl
-  přitom rozbitý železem od kabelů ([imu-and-frames.md](imu-and-frames.md),
-  [registr](ukoly.md#hw-zelezo-od-kabelu-kamer)), takže jízdu po mapě to ovlivní.
+- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — celá mise na zařízení projetá
+  18. 9. 2026 (`20260918-154028.rec`: dvě celá kola včetně `repeat`, 6 míst za 5 min; druhý běh
+  5 míst za 8 min) s kalibrovaným kompasem; jízdy 12. a 14. 9. seznam neobjely kvůli kurzu
+  rozbitému železem od kabelů ([registr](ukoly.md#hw-zelezo-od-kabelu-kamer)).
 - **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — `trackoffroad=` nastavit
   z naměřených odstupů místo úsudku (údaj je v záznamu).
 - (bez tématu v registru) **Rozbor záznamu** (`ARBot.Analyze track`) — jak dlouho trvalo které místo, kolik kol se ujelo,

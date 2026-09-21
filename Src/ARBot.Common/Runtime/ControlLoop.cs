@@ -289,12 +289,12 @@ namespace ARBot.Common.Runtime
             // chce. Totez pulkovani ma predchozi generace (Drive(ReqSpeed, ReqRotationSpeed*Rozchod/2))
             // i TrapezoidMotionProfile (rozchod2 = rozchod/2 jako rameno pro prepocet omega <-> kolo).
             //
-            // OTEVRENY UKOL - ZNAMENKO OVERIT NA ZARIZENI: rotationSpeed je +CCW (vlevo), ale
-            // IMotorControl.Drive dokumentuje dif>0 jako PRAVE otaceni a SDC2160Ex jeste posila
-            // -CalcSpeed(dif). Z kodu se to rozhodnout neda (zalezi i na tom, ktere kolo je motor 1);
-            // predchozi generace jela s +omega*Rozchod/2 bez prehozeni, takze to nejspis vychazi.
-            // Zkouska: zadat male +omega pri nulove rychlosti a videt, kam se robot otoci.
-            // Viz doc/path-following.md -> "Otevreny ukol: znamenko rotace overit na zarizeni".
+            // ZNAMENKO: rotationSpeed je +CCW (vlevo), ale IMotorControl.Drive dokumentuje dif>0 jako
+            // PRAVE otaceni a SDC2160Ex jeste posila -CalcSpeed(dif). Z kodu se to rozhodnout neda
+            // (zalezi i na tom, ktere kolo je motor 1). Prokazane JIZDOU: robot od 7. 9. 2026 venku
+            // sleduje drahu (FreeRun, Track, Robotour) - s otocenym znamenkem by zatacel od drahy
+            // a regulator by divergoval. Uzavreno 21. 9. 2026, viz doc/path-following.md
+            // -> "Znamenko rotace: prokazano jizdou".
             double dif = rotationSpeed * wheelBase / 2.0;
             motor.Drive(forvard, dif);
 
