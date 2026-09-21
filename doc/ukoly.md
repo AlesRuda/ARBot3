@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **215**: otevřeno **46** · v kódu, na HW neověřeno **31** · hotovo **129** · odloženo **6** · zamítnuto **3**.
+Témat celkem **215**: otevřeno **44** · v kódu, na HW neověřeno **31** · hotovo **131** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,10 +46,8 @@ Témat celkem **215**: otevřeno **46** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Lokalizace a fúze senzorů | [Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5](#lok-gps-kurz-korelovana-chyba) | 12. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Hardware a senzory | [Odpojená T265: runtime ji dál hledá a zahlcuje journal](#hw-t265-odpojena-natrvalo) | 13. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Tvrdé záseky kamer na větvi USB `2-1.3`](#hw-vetev-usb-2-1-3) | 13. 9. 2026 |  |
-| otevřeno | Web a dokumentace | [Web arbot.cz převeden z Google Sites na GitHub Pages](#web-arbot-cz-github-pages) | 13. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [`MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá](#lok-koridor-prah-inlieru-prisny) | 17. 9. 2026 |  |
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
@@ -195,21 +193,6 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 - [ ] Rozhodnout, jak σ obou referencí kurzu narovnat
 
 čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
-
-<a id="lok-koridor-prah-inlieru-prisny"></a>
-### ⬜ `MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá
-
-`lok-koridor-prah-inlieru-prisny` · vada · **otevřeno** · nalezeno 17. 9. 2026
-
-`MinInliers` je největší ztrátová brána proložení koridoru (17. 9. zahodila 3 987 z 6 173 cyklů). Práh 25 vznikl na starším záznamu odjinud a jeho zdůvodnění je konkrétní: bez něj se do statistiky míchaly přímky proložené 3–6 body, které vyjdou **kolmo na cestu** (šířka až 10 m, směr −88°), a šířka měla sd 3,3 m místo 0,45 m. Změřeno ze záznamů (nový blok *PRAH INLIERU* v `ARBot.Analyze corridor`, který dopočítá geometrii z uložených úseček, takže **nový výjezd netřeba**): nad `20260917-160558.rec` by práh 15 dal **2 513 koridorů místo 635 (4,0×)** a podíl nesmyslné šířky (mimo 1–8 m) by šel 0,0 → 2,0 %; nad `20260916-164926.rec` by dal **3 399 místo 2 354 (1,4×)** a podíl nesmyslné šířky 2,0 → 2,6 %. ⚠️ **Podstatné je to druhé číslo: při dnešním prahu 25 už je nesmyslná šířka 2,0 %**, a při prahu **20 je jen 1,7 %**, tedy MÉNĚ než při 25. Ta závislost je nemonotónní, což znamená, že **práh tu vadu neřídí** — případy s kolmou přímkou nejsou soustředěné v cyklech s málo inliery. Rozdělení šířky je přes všechny prahy prakticky stejné (p50 3,00–3,16 m). Druhý signál týmž směrem: cykly, které by práh navíc pustil, procházejí testem rovnoběžnosti **častěji** než ty dnes přijaté (65 % proti 47 % nad 17. 9.) — přesný opak toho, co by „málo inlierů = šum" předpovídalo. ⚠️ **Neříká to, že by se tím něco spravilo.** Měří se jen stupeň *proložení*; jestli by ty koridory navíc prošly přiřazením hrany a příčnou bránou, se z těchto záznamů říct nedá — 17. 9. byl rozbitý kurz a póza 2,5–4,5 m mimo mapovanou vozovku, takže tam se stejně ztrácelo všechno až dál. A „šířka v 1–8 m" je slabé měřítko kvality: přímka proložená na špatnou hranu (obrubník místo trávy) dá věrohodnou šířku taky. ✅ **Od 17. 9. 2026 je to parametr `corridormininliers=`** (výchozí 25, tedy beze změny chování), takže A/B na zařízení jde pustit z profilu. Výchozí hodnota se ZÁMĚRNĚ nemění, dokud se neprojede na robotu: měření výš je jen o stupni proložení, ne o tom, co doteče do fúze. Spodní mez validátoru je 3 — dvěma body jde přímku proložit vždy, takže 2 by bránu fakticky vypnulo. 18. 9. 2026 s kalibrovaným kompasem: zisk prahu 20 je jen **+6–7 %** koridorů (17. 9. při rozbitém kurzu 4×) a nesmyslná šířka roste — ztráty už nesedí na tomhle prahu. Výchozích 25 zůstává; A/B na zařízení tím ztrácí naléhavost. Škrcení 1,4–4× z názvu tedy platilo jen při rozbitém kurzu; s dobrým kurzem je to ~7 %.
-
-- [x] Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi) (17. 9. 2026)
-- [x] Změřeno na dvou záznamech (17. 9. a 16. 9.), nemonotónní závislost potvrzena (17. 9. 2026)
-- [x] Vystavit `MinInliers` jako parametr `corridormininliers=` (validátor 3–500, guard test hlídá, že se čte) (17. 9. 2026)
-- [ ] Projet A/B na zařízení (25 proti 20 proti 15) a rozhodnout výchozí hodnotu
-- [x] Změřit s dobrým kurzem — 18. 9.: práh 20 dá jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horší nesmyslné šířce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazení hrany pouští 98–99 %, takže by skoro všechny došly do fúze — zisk malý, 25 zůstává (18. 9. 2026)
-
-[map-correlation-localization.md](map-correlation-localization.md), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [CorridorReport.cs](../Src/ARBot.Analyze/CorridorReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
 
 <a id="lok-koridor-skoky-pozy"></a>
 ### ⬜ Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
@@ -675,6 +658,21 @@ Porovnání naměřené šířky cesty s odhadem běželo před jeho aktualizac�
 - [x] Prahy kvality — 18. 9. naostro `WidthNotTrusted` 4–5 % za jízdy, doladění bez naléhavosti (18. 9. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18)
+
+<a id="lok-koridor-prah-inlieru-prisny"></a>
+### ✅ `MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá
+
+`lok-koridor-prah-inlieru-prisny` · vada · **hotovo** · nalezeno 17. 9. 2026 · vyřešeno 21. 9. 2026
+
+`MinInliers` je největší ztrátová brána proložení koridoru (17. 9. zahodila 3 987 z 6 173 cyklů). Práh 25 vznikl na starším záznamu odjinud a jeho zdůvodnění je konkrétní: bez něj se do statistiky míchaly přímky proložené 3–6 body, které vyjdou **kolmo na cestu** (šířka až 10 m, směr −88°), a šířka měla sd 3,3 m místo 0,45 m. Změřeno ze záznamů (nový blok *PRAH INLIERU* v `ARBot.Analyze corridor`, který dopočítá geometrii z uložených úseček, takže **nový výjezd netřeba**): nad `20260917-160558.rec` by práh 15 dal **2 513 koridorů místo 635 (4,0×)** a podíl nesmyslné šířky (mimo 1–8 m) by šel 0,0 → 2,0 %; nad `20260916-164926.rec` by dal **3 399 místo 2 354 (1,4×)** a podíl nesmyslné šířky 2,0 → 2,6 %. ⚠️ **Podstatné je to druhé číslo: při dnešním prahu 25 už je nesmyslná šířka 2,0 %**, a při prahu **20 je jen 1,7 %**, tedy MÉNĚ než při 25. Ta závislost je nemonotónní, což znamená, že **práh tu vadu neřídí** — případy s kolmou přímkou nejsou soustředěné v cyklech s málo inliery. Rozdělení šířky je přes všechny prahy prakticky stejné (p50 3,00–3,16 m). Druhý signál týmž směrem: cykly, které by práh navíc pustil, procházejí testem rovnoběžnosti **častěji** než ty dnes přijaté (65 % proti 47 % nad 17. 9.) — přesný opak toho, co by „málo inlierů = šum" předpovídalo. ⚠️ **Neříká to, že by se tím něco spravilo.** Měří se jen stupeň *proložení*; jestli by ty koridory navíc prošly přiřazením hrany a příčnou bránou, se z těchto záznamů říct nedá — 17. 9. byl rozbitý kurz a póza 2,5–4,5 m mimo mapovanou vozovku, takže tam se stejně ztrácelo všechno až dál. A „šířka v 1–8 m" je slabé měřítko kvality: přímka proložená na špatnou hranu (obrubník místo trávy) dá věrohodnou šířku taky. ✅ **Od 17. 9. 2026 je to parametr `corridormininliers=`** (výchozí 25, tedy beze změny chování), takže A/B na zařízení jde pustit z profilu. Výchozí hodnota se ZÁMĚRNĚ nemění, dokud se neprojede na robotu: měření výš je jen o stupni proložení, ne o tom, co doteče do fúze. Spodní mez validátoru je 3 — dvěma body jde přímku proložit vždy, takže 2 by bránu fakticky vypnulo. 18. 9. 2026 s kalibrovaným kompasem: zisk prahu 20 je jen **+6–7 %** koridorů (17. 9. při rozbitém kurzu 4×) a nesmyslná šířka roste — ztráty už nesedí na tomhle prahu. Výchozích 25 zůstává; A/B na zařízení tím ztrácí naléhavost. Škrcení 1,4–4× z názvu tedy platilo jen při rozbitém kurzu; s dobrým kurzem je to ~7 %. **Rozhodnutí autora 21. 9. 2026: přísnějších 25 zůstává**, A/B na zařízení se nedělá — měření z 18. 9. říká, že 20 přinese jen ~7 % koridorů navíc za horší nesmyslnou šířku, a parametr `corridormininliers=` je k dispozici, kdyby se to mělo někdy přeměřit.
+
+- [x] Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi) (17. 9. 2026)
+- [x] Změřeno na dvou záznamech (17. 9. a 16. 9.), nemonotónní závislost potvrzena (17. 9. 2026)
+- [x] Vystavit `MinInliers` jako parametr `corridormininliers=` (validátor 3–500, guard test hlídá, že se čte) (17. 9. 2026)
+- [x] Rozhodnout výchozí hodnotu — autor 21. 9.: zůstává 25, A/B na zařízení se nedělá (18. 9. změřeno, že 20 dá jen ~7 % navíc za horší šířku) (21. 9. 2026)
+- [x] Změřit s dobrým kurzem — 18. 9.: práh 20 dá jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horší nesmyslné šířce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazení hrany pouští 98–99 %, takže by skoro všechny došly do fúze — zisk malý, 25 zůstává (18. 9. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [CorridorReport.cs](../Src/ARBot.Analyze/CorridorReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
 
 <a id="lok-koridorsend-nebyl-vypnuty"></a>
 ### ✅ Měřicí režim koridoru nebyl měřicí — `corridorsend` v profilu chybí
@@ -2805,28 +2803,6 @@ Půdorys stránky náhledu kreslil zóny od 12. 9., v Avalonii vidět nebyly, pr
 
 ## Web a dokumentace
 
-<a id="web-arbot-cz-github-pages"></a>
-### ⬜ Web arbot.cz převeden z Google Sites na GitHub Pages
-
-`web-arbot-cz-github-pages` · záměr · **otevřeno** · nalezeno 13. 9. 2026
-
-Autor zvolil GitHub Pages: statické HTML bez frameworku s relativními odkazy, sdílená sazba, web natrvalo tmavý. Přeneseno je vše ze Sites — sedm stránek, vzorce (doplněné z autorova LaTeXu, sázené MathJaxem), čtyři karusely fotek (30 snímků schovaných jako pozadí skrytých divů), tři schémata podvozku překreslená jako inline SVG (přebarvování rastrů byla slepá ulička), 22 odkazů v tabulce umístění, 11 článků z let 2009–2017 s obrázky a videi, ročníky 2024–2025 a nová úvodní stránka s fotkou a čtyřmi čísly. Web měl 18 stránek s ručně opsanou hlavičkou; od 18. 9. hlavičku a menu generuje `tools/menu.cs` (`web-menu-generator`) a stránek je 21 plus index. 17. 9. se složka přejmenovala z `docs/` na `web/` (vedle `doc/` to byla past) a publikace přešla na workflow GitHub Actions, protože režim „z větve“ jiné jméno než `/docs` neumí — v nastavení repozitáře se to musí přepnout ve stejnou chvíli jako push, jinak web spadne. Stav 21. 9. 2026 (audit, `gh api repos/AlesRuda/ARBot3/pages`): Source je „workflow", doména `arbot.cz` je na Pages přepnutá (CNAME, certifikát pro `arbot.cz` i `www`, HTTPS vynucené), `https://arbot.cz/` odpovídá 200 a `alesruda.github.io/ARBot3/` přesměrovává. Publikaci Google Sites autor zrušil 18. 9. 2026 (doména tedy běžela na Pages nejpozději tehdy). `web/README.md` „Jak to zapnout" popisuje kroky, které už jsou provedené. Otevřený zůstává jen článek „Tuhnutí MD23" a dva mrtvé odkazy.
-
-- [x] Převod sedmi stránek + prezentace do repa (13. 9. 2026)
-- [x] Vzorce z LaTeXu, karusely, tmavý web, SVG schémata podvozku, vztah (14) (14. 9. 2026)
-- [x] Ročníky 2024 a 2025 v tabulce umístění (15. 9. 2026)
-- [x] Odkazy v tabulce umístění, 11 článků přenesených ze Sites, chronologický seznam, nová úvodní stránka (16. 9. 2026)
-- [x] Zapnout GitHub Pages (autor; web běží na github.io) (17. 9. 2026)
-- [x] Doména `arbot.cz` na Pages (DNS, CNAME, certifikát) — živá nejpozději 18. 9. (kdy se rušily Sites), ověřeno 21. 9. přes `gh api` (18. 9. 2026)
-- [x] Zrušit publikaci Google Sites (autor, 18. 9.) (18. 9. 2026)
-- [ ] Dohledat starý blogový článek „Tuhnutí MD23“ (2012) a dva mrtvé odkazy (Wayback)
-- [x] Generátor hlavičky a menu — `tools/menu.cs`, vlastní téma `web-menu-generator` (18. 9. 2026)
-- [x] Přejmenování `docs/` → `web/`, oprava odkazů, workflow `pages.yml` (17. 9. 2026)
-- [x] Přepnout Settings → Pages → Source na GitHub Actions (autor, ve chvíli pushe) (18. 9. 2026)
-- [x] Stránka „Čím si projekt prošel“ generovaná z registru úkolů (`doc/ukoly.yaml`) (17. 9. 2026)
-
-[web/README.md](../web/README.md), [index.html](../web/index.html), [plan-ukoly.md](plan-ukoly.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18), [2026-09-21](devlog.md#2026-09-21)
-
 <a id="web-dokumentace-devlog"></a>
 ### ✅ Dokumentace v repozitáři — rozcestník `CLAUDE.md`, doménové `doc/*.md` a DevLog
 
@@ -2838,6 +2814,28 @@ Poznatky se od začátku vedou výhradně v repozitáři: `CLAUDE.md` jako rozce
 - [x] Zavedení DevLogu a zpětná rekonstrukce od 23. 6. (30. 7. 2026)
 
 [devlog.md](devlog.md), [decisions.md](decisions.md) · DevLog [2026-07-10](devlog.md#2026-07-10), [2026-07-30](devlog.md#2026-07-30)
+
+<a id="web-arbot-cz-github-pages"></a>
+### ✅ Web arbot.cz převeden z Google Sites na GitHub Pages
+
+`web-arbot-cz-github-pages` · záměr · **hotovo** · nalezeno 13. 9. 2026 · vyřešeno 21. 9. 2026
+
+Autor zvolil GitHub Pages: statické HTML bez frameworku s relativními odkazy, sdílená sazba, web natrvalo tmavý. Přeneseno je vše ze Sites — sedm stránek, vzorce (doplněné z autorova LaTeXu, sázené MathJaxem), čtyři karusely fotek (30 snímků schovaných jako pozadí skrytých divů), tři schémata podvozku překreslená jako inline SVG (přebarvování rastrů byla slepá ulička), 22 odkazů v tabulce umístění, 11 článků z let 2009–2017 s obrázky a videi, ročníky 2024–2025 a nová úvodní stránka s fotkou a čtyřmi čísly. Web měl 18 stránek s ručně opsanou hlavičkou; od 18. 9. hlavičku a menu generuje `tools/menu.cs` (`web-menu-generator`) a stránek je 21 plus index. 17. 9. se složka přejmenovala z `docs/` na `web/` (vedle `doc/` to byla past) a publikace přešla na workflow GitHub Actions, protože režim „z větve“ jiné jméno než `/docs` neumí — v nastavení repozitáře se to musí přepnout ve stejnou chvíli jako push, jinak web spadne. Stav 21. 9. 2026 (audit, `gh api repos/AlesRuda/ARBot3/pages`): Source je „workflow", doména `arbot.cz` je na Pages přepnutá (CNAME, certifikát pro `arbot.cz` i `www`, HTTPS vynucené), `https://arbot.cz/` odpovídá 200 a `alesruda.github.io/ARBot3/` přesměrovává. Publikaci Google Sites autor zrušil 18. 9. 2026 (doména tedy běžela na Pages nejpozději tehdy). `web/README.md` „Jak to zapnout" popisuje kroky, které už jsou provedené. Článek „Tuhnutí MD23" (2012) a dva mrtvé odkazy se dohledávat nebudou — rozhodnutí autora 21. 9. 2026 („už je to velká historie"), stránka z roku 2013 to říká na místě odkazu. Tím je převod hotový.
+
+- [x] Převod sedmi stránek + prezentace do repa (13. 9. 2026)
+- [x] Vzorce z LaTeXu, karusely, tmavý web, SVG schémata podvozku, vztah (14) (14. 9. 2026)
+- [x] Ročníky 2024 a 2025 v tabulce umístění (15. 9. 2026)
+- [x] Odkazy v tabulce umístění, 11 článků přenesených ze Sites, chronologický seznam, nová úvodní stránka (16. 9. 2026)
+- [x] Zapnout GitHub Pages (autor; web běží na github.io) (17. 9. 2026)
+- [x] Doména `arbot.cz` na Pages (DNS, CNAME, certifikát) — živá nejpozději 18. 9. (kdy se rušily Sites), ověřeno 21. 9. přes `gh api` (18. 9. 2026)
+- [x] Zrušit publikaci Google Sites (autor, 18. 9.) (18. 9. 2026)
+- [x] Dohledat starý blogový článek „Tuhnutí MD23“ (2012) a dva mrtvé odkazy — nebude se hledat, rozhodnutí autora („velká historie") (21. 9. 2026)
+- [x] Generátor hlavičky a menu — `tools/menu.cs`, vlastní téma `web-menu-generator` (18. 9. 2026)
+- [x] Přejmenování `docs/` → `web/`, oprava odkazů, workflow `pages.yml` (17. 9. 2026)
+- [x] Přepnout Settings → Pages → Source na GitHub Actions (autor, ve chvíli pushe) (18. 9. 2026)
+- [x] Stránka „Čím si projekt prošel“ generovaná z registru úkolů (`doc/ukoly.yaml`) (17. 9. 2026)
+
+[web/README.md](../web/README.md), [index.html](../web/index.html), [plan-ukoly.md](plan-ukoly.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18), [2026-09-21](devlog.md#2026-09-21)
 
 <a id="web-popularizacni-stranka"></a>
 ### ✅ Popularizační stránka o softwaru robota

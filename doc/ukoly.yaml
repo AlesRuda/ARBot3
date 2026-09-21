@@ -5617,8 +5617,9 @@ temata:
     oblast: web
     nazev: Web arbot.cz převeden z Google Sites na GitHub Pages
     druh: zamer
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-13
+    vyreseno: 2026-09-21
     popis: >
       Autor zvolil GitHub Pages: statické HTML bez frameworku s relativními odkazy, sdílená sazba,
       web natrvalo tmavý. Přeneseno je vše ze Sites — sedm stránek, vzorce (doplněné z autorova
@@ -5633,8 +5634,10 @@ temata:
       `arbot.cz` je na Pages přepnutá (CNAME, certifikát pro `arbot.cz` i `www`, HTTPS vynucené),
       `https://arbot.cz/` odpovídá 200 a `alesruda.github.io/ARBot3/` přesměrovává. Publikaci
       Google Sites autor zrušil 18. 9. 2026 (doména tedy běžela na Pages nejpozději tehdy).
-      `web/README.md` „Jak to zapnout" popisuje kroky, které už jsou provedené. Otevřený zůstává
-      jen článek „Tuhnutí MD23" a dva mrtvé odkazy.
+      `web/README.md` „Jak to zapnout" popisuje kroky, které už jsou provedené. Článek „Tuhnutí
+      MD23" (2012) a dva mrtvé odkazy se dohledávat nebudou — rozhodnutí autora 21. 9. 2026
+      („už je to velká historie"), stránka z roku 2013 to říká na místě odkazu. Tím je převod
+      hotový.
     kroky:
       - co: Převod sedmi stránek + prezentace do repa
         stav: hotovo
@@ -5657,8 +5660,9 @@ temata:
       - co: Zrušit publikaci Google Sites (autor, 18. 9.)
         stav: hotovo
         kdy: 2026-09-18
-      - co: Dohledat starý blogový článek „Tuhnutí MD23“ (2012) a dva mrtvé odkazy (Wayback)
-        stav: otevreno
+      - co: Dohledat starý blogový článek „Tuhnutí MD23“ (2012) a dva mrtvé odkazy — nebude se hledat, rozhodnutí autora („velká historie")
+        stav: hotovo
+        kdy: 2026-09-21
       - co: "Generátor hlavičky a menu — `tools/menu.cs`, vlastní téma `web-menu-generator`"
         stav: hotovo
         kdy: 2026-09-18
@@ -6049,8 +6053,9 @@ temata:
     oblast: lokalizace
     nazev: "`MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá"
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-17
+    vyreseno: 2026-09-21
     popis: >
       `MinInliers` je největší ztrátová brána proložení koridoru (17. 9. zahodila 3 987 z 6 173
       cyklů). Práh 25 vznikl na starším záznamu odjinud a jeho zdůvodnění je konkrétní: bez něj
@@ -6080,6 +6085,9 @@ temata:
       bránu fakticky vypnulo.
       18. 9. 2026 s kalibrovaným kompasem: zisk prahu 20 je jen **+6–7 %** koridorů (17. 9. při rozbitém kurzu 4×) a nesmyslná šířka roste — ztráty už nesedí na tomhle prahu. Výchozích 25 zůstává; A/B na zařízení tím ztrácí naléhavost.
       Škrcení 1,4–4× z názvu tedy platilo jen při rozbitém kurzu; s dobrým kurzem je to ~7 %.
+      **Rozhodnutí autora 21. 9. 2026: přísnějších 25 zůstává**, A/B na zařízení se nedělá —
+      měření z 18. 9. říká, že 20 přinese jen ~7 % koridorů navíc za horší nesmyslnou šířku,
+      a parametr `corridormininliers=` je k dispozici, kdyby se to mělo někdy přeměřit.
     kroky:
       - co: Blok *PRAH INLIERU* v reportu (geometrie z uložených úseček; měřidlo ověřené proti známé odpovědi)
         stav: hotovo
@@ -6090,8 +6098,9 @@ temata:
       - co: "Vystavit `MinInliers` jako parametr `corridormininliers=` (validátor 3–500, guard test hlídá, že se čte)"
         stav: hotovo
         kdy: 2026-09-17
-      - co: Projet A/B na zařízení (25 proti 20 proti 15) a rozhodnout výchozí hodnotu
-        stav: otevreno
+      - co: "Rozhodnout výchozí hodnotu — autor 21. 9.: zůstává 25, A/B na zařízení se nedělá (18. 9. změřeno, že 20 dá jen ~7 % navíc za horší šířku)"
+        stav: hotovo
+        kdy: 2026-09-21
       - co: "Změřit s dobrým kurzem — 18. 9.: práh 20 dá jen +6 / +7 % koridorů (3 414 proti 3 221; 3 426 proti 3 211) při horší nesmyslné šířce (1,7 → 2,5 %; 0,6 → 0,9 %); přiřazení hrany pouští 98–99 %, takže by skoro všechny došly do fúze — zisk malý, 25 zůstává"
         stav: hotovo
         kdy: 2026-09-18

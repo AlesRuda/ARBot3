@@ -99,10 +99,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     přesunut do `lp-zasek-v-blokovane-mape`), `lok-sirka-odhad-bez-brany` (doladění prahů bez
     naléhavosti), `mise-qr-cteni` (doba dekódování škrtnuta), `mise-qr-jmeno-kamery` (autor řádek
     „na obrázku (čte QR)" na soutěži viděl); Google Sites zrušeny 18. 9., doména `arbot.cz` tedy na
-    Pages nejpozději od té doby (`web-arbot-cz-github-pages` zůstává otevřené jen kvůli článku
-    „Tuhnutí MD23" a dvěma mrtvým odkazům).
-  - **Zbývající otázky** (v registru nezměněno): `lok-koridor-prah-inlieru-prisny` (A/B ztratilo
-    naléhavost → `odlozeno`?); `lok-gps-casova-korelace` (Kalmanovo zesílení 0,32/0,29 v popisu
+    Pages nejpozději od té doby; článek „Tuhnutí MD23" a dva mrtvé odkazy se hledat nebudou
+    („velká historie"), takže `web-arbot-cz-github-pages` je tím uzavřené.
+  - `lok-koridor-prah-inlieru-prisny` uzavřeno rozhodnutím autora: `MinInliers` zůstává 25
+    (20 dává podle měření z 18. 9. jen ~7 % koridorů navíc za horší šířku), A/B se nedělá.
+  - **Zbývající otázky** (v registru nezměněno): `lok-gps-casova-korelace` (Kalmanovo zesílení 0,32/0,29 v popisu
     není v žádném dokumentu doložené, proti 0,0023 z 6. 9. je o dva řády výš);
     `hw-d435-query-pamet` (25 MB/dotaz proti 7 829 marným dotazům 14. 9. bez potíží).
   - **Mimo registr:** neverzovaný `models/ds_train/` (879 párů, 41 MB, originální trénovací sada
