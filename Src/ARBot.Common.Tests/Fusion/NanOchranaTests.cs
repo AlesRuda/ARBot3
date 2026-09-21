@@ -33,6 +33,7 @@ namespace ARBot.Common.Tests.Fusion
             public Matrix<double> NoiseCovariance { get; set; }
             public double? GateThreshold => null;
             public GateMode GateMode => GateMode.Reject;
+            public double? MaxStep => null;
             /// <summary>NaN v jakobianu — hodnota i R jsou pritom v poradku.</summary>
             public bool NanJakobian;
 

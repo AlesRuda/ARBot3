@@ -742,9 +742,19 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   fúze: offset mezi přesným stavem a pózou pro řízení, dotahovaný omezenou rychlostí). Autor ho
   zamítl po rozboru: vznikly by **dvě pózy** (přesná ve filtru, slewovaná v řízení) a rozešly by se
   vizualizace, `PoseAtCapture` snímků, FreeRun i korekční zprávy; offset navíc nebyl funkcí času
-  dotazu `GetStateAt(t)`. Kód vrácen do stavu před ním, nic z toho v repu není. Léčba skoků zůstává
-  **otevřená** (`lok-koridor-skoky-pozy`): jestli limit uvnitř filtru (čekající korekce, úměrné P),
-  nebo jinak, se má nejdřív probrat.
+  dotazu `GetStateAt(t)`. Kód vrácen do stavu před ním, nic z toho v repu není.
+  ✅ **Od 21. 9. 2026 je léčba v kódu jako limit UVNITŘ filtru** (`corridorslew=` m/s,
+  `corridorheadingslew=` °/s, výchozí **0 = dnešní chování**): `IMeasurement.MaxStep` a
+  `Ekf.UpdateStep` nafoukne `R` právě tak, aby krok podél osy měření vyšel na `slew × Δt`
+  (Δt od předchozího odeslání, ořez 0,02–1 s) — měření se nezahazuje, `P` zůstane konzistentní,
+  zbytek inovace stáhnou další měření; jediná póza v systému. Ne ořez inovace v korelátoru (filtr
+  by srazil `P` jako po plném měření), ne σ (drift by zůstal). `MeasurementDiagMsg` verze 3
+  (`RInflation`, `StepLimited`). ⚠️ **Hodnota NENÍ zvolená** — záznamy z Robotouru nejsou na
+  vývojovém stroji; vybere ji `ARBot.Analyze corridorstd --slew=` (blok 4) nad Kolem 3b/4.
+  ⚠️ Na zařízení neběželo. Viz [decisions.md](doc/decisions.md), 21. 9. 2026.
+  ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
+  při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše
+  (`lok-skok-pozy-nedetekce`, neopraveno).
 - [doc/map-correlation-localization.md](doc/map-correlation-localization.md) — **korelace occupancy gridu
   s mapou** (`MapCorrelator`): shoda semantického kanálu `LRoad` s OSM sítí (`RoadScene.IsRoad`) dá odhad
   chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová

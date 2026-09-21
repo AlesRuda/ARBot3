@@ -146,6 +146,29 @@ namespace ARBot.Analyze
             }
             Console.WriteLine();
 
+            // Limit kroku (corridorslew=, 21. 9. 2026) a nafouknuti R: MeasurementDiagMsg verze 3.
+            // DiagR je to, co merenie PRINESLO; ucinne R = DiagR x RInflation. Bez tohohle bloku
+            // by se ze zaznamu nepoznalo, jak casto limit zasahl.
+            var v3 = diag.Where(d => d.Verze >= 3).ToList();
+            if (v3.Count > 0)
+            {
+                Console.WriteLine("LIMIT KROKU A NAFOUKNUTI R (MeasurementDiagMsg v3) podle zdroje:");
+                Console.WriteLine("  zdroj                    n   limit zasahl   nafouknuti R p50   p90   max");
+                foreach (var grp in v3.GroupBy(d => d.Source ?? "?").OrderByDescending(g => g.Count()))
+                {
+                    var list = grp.ToList();
+                    var infl = new Stats("");
+                    foreach (var d in list) if (d.RInflation > 0) infl.Add(d.RInflation);
+                    int lim = list.Count(d => d.StepLimited);
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "  {0,-20} {1,5}  {2,6} ({3,5:F1} %)  {4,14:F1}  {5,5:F1}  {6,5:F1}",
+                        Trim(grp.Key, 20), list.Count, lim, 100.0 * lim / list.Count,
+                        infl.Median, infl.Percentile(90), infl.Max));
+                }
+                Console.WriteLine("  limit zasahl = krok narazil na corridorslew=/corridorheadingslew= (0 % = limit vypnuty nebo nikdy nebyl potreba)");
+                Console.WriteLine();
+            }
+
             foreach (var name in Interesting)
             {
                 var list = diag.Where(d => (d.Source ?? "").StartsWith(name, StringComparison.Ordinal)).ToList();

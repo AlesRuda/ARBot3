@@ -3539,3 +3539,86 @@ cestu, což je totéž `GoalBlocked`, jen bez skoku. **Správná léčba skoků 
 limit aplikované korekce** (podmínka 2 z [decisions.md](decisions.md): rozložit velkou inovaci na
 víc taktů) — pak jde mít rychlé stažení driftu bez mazání gridu. Do té doby je z dat obhajitelné
 `corridorstd=0,5` až `1,0`; **hodnota se v profilu nezměnila**, rozhodnutí je autorovo.
+
+## Limit kroku korekce z koridoru (`corridorslew=`, 21. 9. 2026)
+
+**Odkud:** rozbor 20. 9. skončil závěrem „správná léčba skoků není σ, ale rychlostní limit
+aplikované korekce", a návrh `PoseSlew` na výstupu fúze autor týž den zamítl (dvě pózy
+v systému). Autor 21. 9.: *„jednoduché řešení by mohlo být omezit generovaný zásah koridorového
+korelátoru — korekce posílaná do EKF nemůže být větší než nějaký limit"*. To je princip, který se
+tu implementuje, se dvěma úpravami proti doslovnému znění:
+
+1. **Omezuje se krok filtru, ne inovace.** Kdyby korelátor poslal oříznutou inovaci se stejnou σ,
+   filtr by srazil `P` jako po plně přijatém měření, byl by přesvědčený o poloze, která je pořád
+   metry vedle, a zbytek driftu by stahoval pomaleji, než bylo záměrem (malé `K`, Soft brána navrch).
+   Do záznamu by navíc šlo měření, o kterém víme, že je nepravdivé. Místo toho se `R` nafoukne
+   **právě tak, aby krok vyšel na limit**:
+
+   ```
+   krok podél osy měření  s = P_h/(P_h + R) · ν,   P_h = H·P·Hᵀ
+   chci |s| ≤ L           →  R' = max(R, P_h · (|ν|/L − 1))
+   ```
+
+   Filtr zůstane konzistentní (`P` se zmenší jen úměrně tomu, co skutečně přijal), nespotřebovaná
+   část inovace „čeká" na další měření a je to deterministická funkce `(x, P, m)`, tedy bezpečné
+   pro replay. Měření se **nezahazuje** — tvrdý gate dělal výsledek horší než nekorigovat
+   (25. 8. 2026), a tohle je přesně opak: velká korekce se uplatní celá, jen po dávkách.
+
+2. **Mechanismus je v EKF, politika v koridoru.** `IMeasurement.MaxStep` (jednotky měření: m,
+   rad) a pár řádků v `Ekf.UpdateStep` hned za Soft gatem — oba nafukují `R`, skládají se
+   **maximem**, takže platí přísnější. Jen pro **skalární** měření (koridor posílá dvě: příčnou
+   polohu a kurz); u vektorového (GPS 2-D) se limit ignoruje. Koridor ho nastaví
+   z `corridorslew=` [m/s] a `corridorheadingslew=` [°/s] jako `slew × Δt`, kde Δt je odstup od
+   předchozího odeslání, **ořezaný na 0,02–1 s** (`SlewDtFloorSec` / `SlewDtCapSec`):
+   - **strop 1 s**: bez něj by po dlouhé mezeře (stání, výpadek kamery) první měření smělo skočit
+     libovolně, což je přesně skok, který se krotí; první odeslání a skok času vzad (seek) berou
+     strop;
+   - **podlaha 20 ms**: dvě měření v témž okamžiku (obě kamery) by dala limit 0, a nulový limit
+     filtr bere jako **vypnutý** — podlaha z něj udělá malý, ne žádný.
+
+   Je to tedy **rychlostní limit** v pravém slova smyslu: `corridorslew=0,3` znamená, že koridor
+   smí pózu příčně posouvat nejvýš 0,3 m/s bez ohledu na `corridorhz=`. Drift 6 m z Kola 3b by
+   tak zmizel za ~20 s místo tří skoků.
+
+**Kurz má vlastní limit.** Grid je kotvený ve světě, takže otočení pózy o dθ posune jeho obsah
+o `R·dθ` — čtyři skoky −59° o 5,8 m z Kola 3b (14:25:05–07) byly právě tohle.
+
+**Limit je horní mez, ne cíl.** Smoother dnes dělá kroky 0,19–0,46× toho, co říká skalární vzorec
+(kalibrace v `corridorstd`), takže skutečný posun pózy bude pod limitem.
+
+**Co se nemění:** σ (`corridorstd`), kadence (`corridorhz`) ani Soft gate. Přiřazení hrany
+(`assoc*`) dál rozhoduje, *ke které* hraně se táhne; limit rozhoduje jen *jak rychle*. Vedlejší
+zisk: falešná inovace (špatná hrana) táhne pomalu a přiřazení má čas hranu přehodnotit.
+
+**Do záznamu** jde od téhož dne `MeasurementDiagMsg` **verze 3**: `RInflation` (kolikrát fúze
+nafoukla `R` proti tomu, co měření hlásilo; 1 = beze změny) a `StepLimited` (krok narazil na
+limit). Bez nich se ze záznamu nepozná, jak často limit zasáhl — `DiagR` je jen to, co měření
+přineslo. V telemetrii sloupce „mereni nafouknuti R" a „mereni limit kroku"; `ARBot.Analyze
+corrections` má nový blok „LIMIT KROKU A NAFOUKNUTI R" (kolik měření limit omezil, nafouknutí
+p50/p90/max podle zdroje).
+
+**Ověřeno simulací** (45 s FreeRun na `SyntetickyRovny.osm`, `corridorslew=0,3
+corridorheadingslew=3 measdiag=Corridor`, prokluz 2 %): 1 310 měření koridoru v záznamu s verzí 3,
+limit zasáhl 2× (0,2 %; v simulaci je drift malý, inovace p50 pod 1 cm), blok 4 nad tím záznamem
+stropuje krok přesně na limit (`slew=0,1` → krok max 0,10 m, 156 omezených). Řetěz parametr →
+koridor → EKF → záznam → měřidlo tedy drží; **co udělá s driftem 4–6 m, řekne až Kolo 3b**.
+
+**Volba hodnoty je z dat, ne z úvahy:** `ARBot.Analyze corridorstd <rec> --slew=0,0.1,0.2,0.3,0.5,1`
+(blok 4, `--std=` přebije σ ze záznamu) dělá týž kalibrovaný 1-D replay jako pro σ, jen s limitem
+kroku: tiskne, kolik měření limit omezil, kroky p50/p90/max, počty nad 0,3 a 0,5 m, odchylku
+protifaktické trajektorie od zaznamenané a **kolik sekund by póza byla dál než 1 m** od dnešní
+(cena za pomalejší stažení driftu). ⚠️ **Nad Kolem 3b/4 to změřené NENÍ** — záznamy nejsou na
+vývojovém stroji; **profil má `corridorslew=0` a `corridorheadingslew=0`** (dnešní chování) do
+doby, než se hodnota z těch záznamů vybere. ⚠️ **Na zařízení neběželo.** Testy: `StepLimitTests`
+(9: krok = limit, konzistence `P`, dotažení po dávkách, složení se Soft gatem, kurz, 2-D ignoruje,
+0 = vypnuto), `CorridorDeweightTests` (5: Δt strop/podlaha, skok času vzad, kurz, 0 = staré chování),
+`MeasurementDiagTests` (v3 obousměrně, v2 se čte).
+
+**Poznámka k `PoseJumpDetector`:** autor 21. 9. z náhledu webu a z měření ví, že při těch
+skocích **grid nesmazal** (robot se skokem ocitl mimo sjízdnou oblast, stará mapa zůstala).
+V kódu je díra, která to vysvětluje: `Check` při `dt ≤ 0` (snímky dvou kamer s přehozenými
+razítky) pózu **jen zapamatuje a skok nekontroluje**, takže skok, který přijde na takový snímek,
+se spolkne a další snímek už se porovnává s pózou po skoku. Vedeno jako `lok-skok-pozy-nedetekce`;
+**neopravuje se tu** — s limitem kroku detektor chránit nemusí (pomalu dotahovaná póza se z gridu
+vypere sama, jako dnes centimetrové korekce), a oprava by musela nejdřív změřit, kolik snímků
+chodí s `dt ≤ 0`, aby nevyrobila bezdůvodná mazání.

@@ -262,6 +262,13 @@ namespace ARBot.Telemetry
                 + "jako odlehlé) / TooOld (přišlo starší než okno historie, do filtru vůbec "
                 + "nevstoupilo). Rozdíl mezi GatedOut a TooOld je rozdíl mezi „opravit sigma“ "
                 + "a „zkrátit výpočet“."),
+            Num<MeasurementDiagMsg>("mereni nafouknuti R", m => m.RInflation,
+                "Kolikrát fúze nafoukla R proti tomu, co měření hlásilo: 1 = beze změny; víc = "
+                + "Soft gate (odlehlé měření) a/nebo limit kroku (corridorslew=), který velkou "
+                + "inovaci rozkládá na víc měření.", "F1"),
+            Flag<MeasurementDiagMsg>("mereni limit kroku", m => m.StepLimited,
+                "Narazil krok filtru na limit kroku (corridorslew= / corridorheadingslew=)? "
+                + "Ano = póza se posunula jen o limit a zbytek inovace čeká na další měření."),
 
             // --- surove GPS (bez fuze) ---
             // GPSState drzi RADIANY (viz GPSState.Latitude), sloupce se ukazuji ve STUPNICH.

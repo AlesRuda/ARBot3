@@ -224,4 +224,100 @@ public class CorridorDeweightTests
 
         Assert.That(loc.EmittedCorrections, Is.EqualTo(3));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Limit kroku korekce (corridorslew= / corridorheadingslew=, 21. 9. 2026).
+    //
+    // Na Robotouru 19. 9. 2026 stahl koridor nahromadeny drift 4-6 m v jednom kroku a robot se
+    // skokem ocitl v blokovane casti gridu. Limit rika: na jedno mereni smi poza uhnout nejvys
+    // slew × Δt; zbytek inovace filtr stahne dalsimi merenimi. Mechanismus je v Ekf.UpdateStep
+    // (StepLimitTests), tady se zkousi, ze ho koridor SPRAVNE NASTAVUJE - vcetne Δt.
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>Pricny posun odhadu po prvnim mereni s koridorem 2 m vedle (bez limitu ~1,9 m).</summary>
+    private static (double poPrvnim, double poDruhem, CorridorLocalizer loc) PosunSeSlew(double slew)
+    {
+        var engine = EngineAt(0, 0, 0);
+        var loc = Localizer(engine, new CorridorLocalizerConfig
+        {
+            SendHeading = false,
+            SlewRateMps = slew,
+        });
+        Cycle(loc, T0, lateral: 2.0);                              // prvni odeslani: Δt = strop 1 s
+        double prvni = engine.GetStateAt(T0.AddMilliseconds(50)).Y;
+        Cycle(loc, T0.AddMilliseconds(100), lateral: 2.0);         // dve mereni: Δt 80 ms a 20 ms
+        double druhy = engine.GetStateAt(T0.AddMilliseconds(150)).Y;
+        return (prvni, druhy, loc);
+    }
+
+    [Test]
+    public void LimitKroku_prvniMereniSmiJenSlewKratStrop()
+    {
+        var (bez, _, _) = PosunSeSlew(0);
+        var (s, _, _) = PosunSeSlew(0.2);
+
+        Assert.That(bez, Is.GreaterThan(1.0), "bez limitu filtr drift 2 m stahne skoro cely");
+        Assert.That(s, Is.LessThanOrEqualTo(0.2 + 1e-6), "prvni odeslani: 0,2 m/s × strop 1 s");
+        Assert.That(s, Is.GreaterThan(0.15), "ale hnout se MA - limit merenie nezahazuje");
+    }
+
+    [Test]
+    public void LimitKroku_dalsiMereniDostanouDeltaTOdPredchoziho()
+    {
+        var (prvni, druhy, _) = PosunSeSlew(0.2);
+        // 100 ms po prvnim prijdou dve mereni (Δt 80 ms + 20 ms): dohromady 0,2 × 0,1 = 0,02 m.
+        Assert.That(druhy - prvni, Is.LessThanOrEqualTo(0.02 + 1e-6));
+        Assert.That(druhy - prvni, Is.GreaterThan(0.005), "i male okno musi neco stahnout");
+    }
+
+    [Test]
+    public void LimitKroku_nulaJeStareChovani()
+    {
+        var (a, a2, _) = PosunSeSlew(0);
+        var engine = EngineAt(0, 0, 0);
+        var loc = Localizer(engine, new CorridorLocalizerConfig { SendHeading = false });
+        Cycle(loc, T0, lateral: 2.0);
+        double b = engine.GetStateAt(T0.AddMilliseconds(50)).Y;
+        Assert.That(a, Is.EqualTo(b).Within(1e-12), "0 = presne dnesni chovani (A/B)");
+        Assert.That(a2, Is.GreaterThan(a), "bez limitu se dotahne dal");
+    }
+
+    [Test]
+    public void LimitKurzu_omeziOtoceniPozy()
+    {
+        double Kurz(double slewDegPerSec)
+        {
+            var engine = EngineAt(0, 0, 0);
+            var loc = Localizer(engine, new CorridorLocalizerConfig
+            {
+                SigmaLateralExtraM = 1000,           // pricny kanal umlcet, at je videt jen kurz
+                SlewRateHeadingRadPerSec = Conversions.Deg2Rad(slewDegPerSec),
+            });
+            var (l, r) = Frames(4.0, 0, T0, dirRad: 0.15);
+            loc.Process(l);
+            loc.Process(r);
+            // Limit plati pro krok V CASE MERENI; o par ms pozdeji uz pozu tahne predikce
+            // z uhlove rychlosti (stav omega se merenim kurzu hnul taky), proto dotaz v case fixu.
+            return Math.Abs(engine.GetStateAt(loc.LastFix.Time).Theta);
+        }
+
+        double bez = Kurz(0);
+        double s = Kurz(1.0);
+        Assert.That(bez, Is.GreaterThan(Conversions.Deg2Rad(3)), "bez limitu se kurz stoci o vic nez 3 st.");
+        Assert.That(s, Is.LessThanOrEqualTo(Conversions.Deg2Rad(1.0) + 1e-6), "1 st/s × strop 1 s");
+        Assert.That(s, Is.GreaterThan(Conversions.Deg2Rad(0.5)));
+    }
+
+    [Test]
+    public void LimitKroku_skokCasuVzadBereStrop()
+    {
+        // Seek v zaznamu: Δt by vysel zaporny; bere se strop, ne nula (nula = vypnuty limit).
+        var engine = EngineAt(0, 0, 0);
+        var loc = Localizer(engine, new CorridorLocalizerConfig { SendHeading = false, SlewRateMps = 0.2 });
+        Cycle(loc, T0.AddSeconds(5), lateral: 2.0);
+        double pred = engine.GetStateAt(T0.AddSeconds(5.05)).Y;
+        Cycle(loc, T0.AddSeconds(4), lateral: 2.0);                // skok vzad
+        double po = engine.GetStateAt(T0.AddSeconds(5.05)).Y;
+        Assert.That(po - pred, Is.LessThanOrEqualTo(0.2 + 1e-6), "po skoku vzad plati strop, ne libovolny skok");
+    }
 }

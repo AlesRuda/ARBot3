@@ -31,6 +31,15 @@ namespace ARBot.Common.Logs
         /// </summary>
         public byte Verdict;
 
+        /// <summary>
+        /// Kolikrat filtr nafoukl R proti <see cref="DiagR"/> (Soft gate a/nebo limit kroku
+        /// <c>IMeasurement.MaxStep</c>); 1 = beze zmeny (verze 3). Ucinne R = <c>DiagR × RInflation</c>.
+        /// </summary>
+        public double RInflation = 1;
+
+        /// <summary>True, kdyz krok filtru narazil na limit kroku (<c>corridorslew=</c>) (verze 3).</summary>
+        public bool StepLimited;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
@@ -46,8 +55,11 @@ namespace ARBot.Common.Logs
         /// verze, ktera se opravdu <b>publikuje</b> - do te doby byla zprava jen v katalogu
         /// a nikdo ji nevytvoril, takze zadny zaznam s verzi 1 realne neexistuje; cteni verze 1
         /// je tu jen pro poradek.</para>
+        /// <para><b>Verze 3</b> (2026-09-21) pridala <see cref="RInflation"/> a <see cref="StepLimited"/>:
+        /// bez nich se ze zaznamu nepozna, jak casto limit kroku (<c>corridorslew=</c>) zasahl a jak
+        /// moc Soft gate merenie odtlumil — <see cref="DiagR"/> je jen to, co merenie prineslo.</para>
         /// </summary>
-        public MeasurementDiagMsg() : base("MeasurementDiagMsg", 2)
+        public MeasurementDiagMsg() : base("MeasurementDiagMsg", 3)
         {
         }
 
@@ -60,6 +72,8 @@ namespace ARBot.Common.Logs
             bw.Write(Accepted);
             Write(bw, TimeStamp);
             bw.Write(Verdict);
+            bw.Write(RInflation);
+            bw.Write(StepLimited);
         }
 
         public override void FromData(BinaryReader br)
@@ -79,6 +93,26 @@ namespace ARBot.Common.Logs
                 return;
             }
             Verdict = br.ReadByte();
+            if (Verze < 3)
+            {
+                RInflation = 1;
+                StepLimited = false;
+                return;
+            }
+            RInflation = br.ReadDouble();
+            StepLimited = br.ReadBoolean();
+        }
+
+        /// <summary>Zapis ve formatu verze 2 - jen pro test cteni starych zaznamu.</summary>
+        public void ToDataV2ForTest(BinaryWriter bw)
+        {
+            bw.Write(Source ?? string.Empty);
+            WriteDoubles(bw, Z);
+            WriteDoubles(bw, DiagR);
+            bw.Write(Nis);
+            bw.Write(Accepted);
+            Write(bw, TimeStamp);
+            bw.Write(Verdict);
         }
 
         /// <summary>Zapis ve formatu verze 1 - jen pro test cteni starych zaznamu.</summary>

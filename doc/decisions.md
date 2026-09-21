@@ -13,6 +13,36 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-21 — Skoky pózy: limit kroku UVNITŘ filtru nafouknutím R, ne ořez inovace, ne σ, ne `PoseSlew`
+
+**Co:** Korekce z koridoru dostává **rychlostní limit** (`corridorslew=` m/s, `corridorheadingslew=`
+°/s, výchozí 0 = dnešní chování). Mechanismus je v EKF (`IMeasurement.MaxStep`, `Ekf.UpdateStep`):
+když by krok `K·ν` podél osy měření přesáhl `L = slew × Δt`, nafoukne se `R` na
+`P_h·(|ν|/L − 1)`, takže krok vyjde přesně na `L`. Politika (Δt od předchozího odeslání, ořez
+0,02–1 s) je v `CorridorLocalizer`u.
+
+**Proč tak, a ne jinak:**
+
+- **Ne ořez inovace v korelátoru** (autorova první formulace): filtr by srazil `P` jako po plném
+  měření a byl by sebejistý o poloze metry vedle; zbytek driftu by pak stahoval pomaleji, než byl
+  záměr, a do záznamu by šlo měření, o kterém víme, že je nepravdivé. Nafouknutí `R` dá týž krok,
+  ale konzistentní `P` a zbytek inovace zůstane „na stole".
+- **Ne σ** (`corridorstd`): proměřeno 20. 9. — skoky odstraní jen za cenu, že drift zůstane
+  (odchylka p90 2,4–2,6 m). Limit dovolí rychlé stažení driftu bez skoku.
+- **Ne `PoseSlew` na výstupu fúze** (zamítnuto 20. 9.): dvě pózy v systému. Tady zůstává jediná.
+- **Ne zahození** velkých inovací: tvrdý gate dělal výsledek horší než nekorigovat (25. 8. 2026).
+- **Rychlost, ne krok na měření:** limit na měření by se škáloval s `corridorhz=`; `slew × Δt`
+  je invariantní vůči kadenci. Strop Δt 1 s, protože po dlouhé mezeře by první měření smělo
+  skočit libovolně; podlaha 20 ms, protože nulový limit filtr bere jako vypnutý.
+- **Kurz má vlastní limit:** grid je kotvený ve světě, otočení o dθ posune obsah o `R·dθ`.
+
+**Důsledky:** `MeasurementDiagMsg` verze 3 (`RInflation`, `StepLimited`); `ARBot.Analyze
+corridorstd --slew=` (blok 4) pro volbu hodnoty z dat. **Hodnota se zatím nenastavuje** — záznamy
+z Robotouru nejsou na vývojovém stroji, profil má 0; nastaví se večer 21. 9. z Kola 3b/4.
+Limit se nevztahuje na `PoseJumpDetector` (jeho tolerance 0,5 m není argument: při skocích
+z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`).
+Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
+
 ### 2026-09-18 — Příčná brána koridoru (`MaxLateralDisagreementM`) zrušena bez náhrady
 
 **Co:** Z `CorridorLocalizer`u zmizel strop na příčný nesouhlas s mapou (1,5 m) i zamítnutí

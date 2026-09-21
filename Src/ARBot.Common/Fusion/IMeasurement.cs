@@ -38,6 +38,19 @@ namespace ARBot.Common.Fusion
         /// <summary>Rezim gatingu (tvrde zahozeni vs. mekke down-weight). Vyznam jen kdyz je nastaven GateThreshold.</summary>
         GateMode GateMode { get; }
 
+        /// <summary>
+        /// Volitelny <b>limit kroku filtru</b> podel osy merenia (v jednotkach merenia: metry
+        /// u polohy, radiany u kurzu). null nebo 0 = bez limitu.
+        ///
+        /// <para>Kdyz by krok <c>K·ν</c> limit prekrocil, filtr nafoukne R prave tak, aby krok
+        /// vysel na limit - merenie se NEZAHODI (to delalo vysledek horsi nez nekorigovat, zmereno
+        /// 25. 8. 2026), jen se velka inovace rozlozi na vic merenii. Filtr zustane konzistentni:
+        /// P se zmensi jen umerne tomu, co skutecne prijal, a zbytek inovace ceka na dalsi merenie.
+        /// Plati jen pro <b>skalarni</b> merenia (k = 1); u vektorovych se ignoruje.
+        /// Viz doc/map-correlation-localization.md („Limit kroku korekce").</para>
+        /// </summary>
+        double? MaxStep { get; }
+
         /// <summary>Reziduum z - h(x) se spravnym zabalenim uhlu.</summary>
         Vector<double> Residual(Vector<double> z, Vector<double> hx);
     }

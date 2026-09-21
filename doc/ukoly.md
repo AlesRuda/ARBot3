@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **214**: otevřeno **46** · v kódu, na HW neověřeno **45** · hotovo **114** · odloženo **6** · zamítnuto **3**.
+Témat celkem **215**: otevřeno **47** · v kódu, na HW neověřeno **45** · hotovo **114** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -58,6 +58,7 @@ Témat celkem **214**: otevřeno **46** · v kódu, na HW neověřeno **45** · 
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Robotour jako stavový automat s QR kódy](#mise-robotour) | 11. 8. 2026 | [nav-globalni-navigace-runtime](#nav-globalni-navigace-runtime), [mise-nouzove-zastaveni-controlloop](#mise-nouzove-zastaveni-controlloop) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot by zatáčel dvakrát rychleji, než regulátor chce](#lp-omega-dif-faktor-a-znamenko) | 12. 8. 2026 |  |
@@ -234,9 +235,24 @@ Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi R
 
 - [x] Změřit: skoky pózy vs. přijatá měření koridoru (blok 1 `nav`) (20. 9. 2026)
 - [x] Proměřit `corridorstd=` protifaktickým 1-D replayem (`ARBot.Analyze corridorstd`): 0,5–1,0 m odstraní kroky > 0,3 m (21 → 1 → 0 v Kolo3b), 5 m nepřidá nic a srazí informaci koridoru na 6× GPS; cena je pomalejší stažení driftu (odchylka p50 0,8–1,3 m, p90 2,4–2,6 m); inovace p50 0,06 m, ale 36 nad 2 m v sériích na téže hraně (změna hrany jen 6 ze 78); koridor za jízdu stáhl 20–28 m driftu (20. 9. 2026)
-- [ ] Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu
+- [x] Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu (21. 9. 2026)
+- [x] Mechanismus v kódu: `IMeasurement.MaxStep` + nafouknutí R v `Ekf.UpdateStep` (krok = přesně limit, P konzistentní, měření se nezahazuje), `corridorslew=` [m/s] a `corridorheadingslew=` [°/s] s Δt od předchozího odeslání (0,02–1 s), `MeasurementDiagMsg` v3 (`RInflation`, `StepLimited`), `ARBot.Analyze corridorstd --slew=` (blok 4), blok „limit kroku" v `ARBot.Analyze corrections`; výchozí 0 = dnešní chování; 16 testů; řetěz ověřen 45s simulací (`StepLimited` v záznamu, blok 4 stropuje krok přesně na limit) (21. 9. 2026)
+- [ ] Zvolit hodnotu z dat: `ARBot.Analyze corridorstd Kolo3b.rec --slew=0,0.1,0.2,0.3,0.5,1` (a Kolo4) a zapsat `corridorslew=` / `corridorheadingslew=` do `config/pi-provoz.cfg` (záznamy nejsou na vývojovém stroji, autor nastaví večer)
+- [ ] Ověřit na zařízení: jízda s limitem, `MeasurementDiagMsg.StepLimited` v záznamu, žádný skok > 0,5 m po měření koridoru (`ARBot.Analyze nav`)
 
-[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
+[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 21. 9.](decisions.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-21](devlog.md#2026-09-21)
+
+<a id="lok-skok-pozy-nedetekce"></a>
+### ⬜ PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
+
+`lok-skok-pozy-nedetekce` · vada · **otevřeno** · nalezeno 21. 9. 2026
+
+Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9. (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje: `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář: „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků, aby nevyrobila bezdůvodná mazání gridu.
+
+- [ ] Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek
+- [ ] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu
+
+[PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu

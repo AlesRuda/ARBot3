@@ -140,6 +140,12 @@ namespace ARBot.Common.Localization
         /// <summary>Cas posledniho ODESLANI do fuze (skrceni kadence).</summary>
         private DateTime posledniOdeslani;
 
+        /// <summary>
+        /// Cas posledniho odeslani pro <b>limit kroku</b> (Δt = slew × odstup). Vede se zvlast od
+        /// <see cref="posledniOdeslani"/>, ktery zije jen pri zapnutem skrceni kadence.
+        /// </summary>
+        private DateTime posledniLimitCas;
+
         /// <summary>Posledni vysledek (i neuspesny) - pro telemetrii.</summary>
         public CorridorFix LastFix { get; private set; }
 
@@ -332,11 +338,18 @@ namespace ARBot.Common.Localization
             var a = fix.Axis;
             var c = fix.Corridor;
 
+            // Limit kroku (corridorslew= / corridorheadingslew=): slew × Δt od predchoziho
+            // odeslani. Obe mereni z tehoz fixu dostanou TYZ Δt.
+            double dt = LimitDt(fix.Time);
+            double? maxLat = config.SlewRateMps > 0 ? config.SlewRateMps * dt : (double?)null;
+            double? maxHdg = config.SlewRateHeadingRadPerSec > 0 ? config.SlewRateHeadingRadPerSec * dt : (double?)null;
+            posledniLimitCas = fix.Time;
+
             double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + c.Lateral;
             engine.Enqueue(new AxisOffsetMeasurement(a.NormalX, a.NormalY, value,
                                                      Nafoukni(c.SigmaLateral, config.SigmaLateralExtraM),
                                                      fix.Time, config.MeasurementSource)
-            { GateThreshold = gate, GateMode = config.GateMode });
+            { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxLat });
             EmittedCorrections++;
             fix.EmittedLateral = true;
 
@@ -361,10 +374,24 @@ namespace ARBot.Common.Localization
                 engine.Enqueue(new HeadingMeasurement(heading,
                                                       Nafoukni(c.SigmaDirectionRad, config.SigmaHeadingExtraRad),
                                                       fix.Time, config.MeasurementSource)
-                { GateThreshold = gate, GateMode = config.GateMode });
+                { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxHdg });
                 EmittedCorrections++;
                 fix.EmittedHeading = true;
             }
+        }
+
+        /// <summary>
+        /// Δt pro limit kroku: odstup od predchoziho odeslani, orezany na
+        /// [<see cref="CorridorLocalizerConfig.SlewDtFloorSec"/>, <see cref="CorridorLocalizerConfig.SlewDtCapSec"/>].
+        /// Prvni odeslani a <b>skok casu vzad</b> (seek pri prehravani) berou strop - stejna
+        /// past jako u <see cref="VydatMerenie"/>.
+        /// </summary>
+        private double LimitDt(DateTime t)
+        {
+            double cap = Math.Max(config.SlewDtCapSec, config.SlewDtFloorSec);
+            if (posledniLimitCas == default || t < posledniLimitCas) return cap;
+            double dt = (t - posledniLimitCas).TotalSeconds;
+            return Math.Min(cap, Math.Max(config.SlewDtFloorSec, dt));
         }
 
         /// <summary>

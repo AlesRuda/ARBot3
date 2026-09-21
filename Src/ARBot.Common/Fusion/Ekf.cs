@@ -49,6 +49,10 @@ namespace ARBot.Common.Fusion
         public double LastNis { get; private set; }
         /// <summary>Zda bylo posledni merenie prijato (neproslo gatingem = false).</summary>
         public bool LastAccepted { get; private set; }
+        /// <summary>Nafouknuti R u posledniho merenia (Soft gate a/nebo limit kroku); 1 = beze zmeny.</summary>
+        public double LastInflation { get; private set; } = 1;
+        /// <summary>Zda posledni merenie narazilo na <see cref="IMeasurement.MaxStep"/>.</summary>
+        public bool LastStepLimited { get; private set; }
 
         public void Update(IMeasurement m)
         {
@@ -56,6 +60,8 @@ namespace ARBot.Common.Fusion
             X = r.X; P = r.P;
             LastNis = r.Nis;
             LastAccepted = r.Accepted;
+            LastInflation = r.Inflation;
+            LastStepLimited = r.StepLimited;
         }
 
         // --- ciste kroky nad libovolnym (x, P) - potrebne pro replay a prune v engine ---
@@ -81,6 +87,13 @@ namespace ARBot.Common.Fusion
             public double Nis;
             /// <summary>False, kdyz merenie neproslo gatingem (stav ponechan beze zmeny).</summary>
             public bool Accepted;
+            /// <summary>
+            /// Kolikrat se R nafouklo proti tomu, co merenie hlasilo (Soft gate, limit kroku);
+            /// 1 = beze zmeny. U vektoroveho merenia pomer prvnich diagonalnich prvku.
+            /// </summary>
+            public double Inflation;
+            /// <summary>True, kdyz krok narazil na <see cref="IMeasurement.MaxStep"/> a R se kvuli nemu nafouklo.</summary>
+            public bool StepLimited;
         }
 
         /// <summary>
@@ -106,7 +119,7 @@ namespace ARBot.Common.Fusion
             if (m.GateThreshold.HasValue && nis > m.GateThreshold.Value)
             {
                 if (m.GateMode == GateMode.Reject)
-                    return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false };
+                    return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false, Inflation = 1 };
 
                 // GateMode.Soft: nafoukni R umerne prekroceni prahu (robustni down-weight)
                 double w = nis / m.GateThreshold.Value;   // > 1
@@ -114,6 +127,35 @@ namespace ARBot.Common.Fusion
                 S = HPHt + Reff;
                 Sinv = S.Inverse();
             }
+
+            // LIMIT KROKU (IMeasurement.MaxStep, 21. 9. 2026). Krok stavu podel osy skalarniho
+            // merenia je s = P_h/(P_h + R)·ν, kde P_h = H·P·Hᵀ. Kdyz |s| > L, nafoukne se R prave
+            // tak, aby |s| = L:  R' = P_h·(|ν|/L − 1). Je to tataz cesta jako Soft gate (nafouknuti
+            // R, ne zahozeni), jen s jinym kriteriem: Soft se pta „jak moc je merenie odlehle",
+            // limit „o kolik smi poza uhnout na jedno merenie". Sklada se s nim maximem, takze
+            // plati prisnejsi z obou. Zbytek inovace filtr NEZTRATI - P se zmensi jen umerne
+            // prijate casti (Josephova forma nize pocita s Reff), takze dalsi merenie tahne dal.
+            //
+            // Nacpak: na Robotouru 19. 9. 2026 stahl koridor nahromadeny drift 4-6 m v jednom kroku
+            // a robot se skokem ocitl v blokovane casti gridu (doc/map-correlation-localization.md).
+            // Jen pro k = 1 (koridor, kurz): uzavreny tvar; u vektoroveho merenia se limit
+            // ignoruje, protoze „krok" by se musel definovat po osach.
+            bool stepLimited = false;
+            if (m.MaxStep is double lim && lim > 0 && y.Count == 1)
+            {
+                double ph = HPHt[0, 0];
+                double nu = Math.Abs(y[0]);
+                double krok = ph / (ph + Reff[0, 0]) * nu;
+                if (krok > lim)
+                {
+                    double rMin = ph * (nu / lim - 1);
+                    Reff = Matrix<double>.Build.Dense(1, 1, Math.Max(rMin, Reff[0, 0]));
+                    S = HPHt + Reff;
+                    Sinv = S.Inverse();
+                    stepLimited = true;
+                }
+            }
+            double inflation = R[0, 0] > 0 ? Reff[0, 0] / R[0, 0] : 1;
 
             var K = P * Ht * Sinv;
             var xn = x + K * y;
@@ -131,9 +173,10 @@ namespace ARBot.Common.Fusion
             // Gating to nechyti - "nis > prah" je pro NaN nepravdive. Zamitnuti je bezpecne:
             // stav zustane takovy, jaky byl pred merenim.
             if (!JeKonecne(xn) || !JeKonecne(Pn))
-                return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false };
+                return new UpdateResult { X = x, P = P, Nis = nis, Accepted = false, Inflation = 1 };
 
-            return new UpdateResult { X = xn, P = Pn, Nis = nis, Accepted = true };
+            return new UpdateResult { X = xn, P = Pn, Nis = nis, Accepted = true,
+                                      Inflation = inflation, StepLimited = stepLimited };
         }
 
         /// <summary>Je vektor cely konecny (bez NaN a ±∞)?</summary>

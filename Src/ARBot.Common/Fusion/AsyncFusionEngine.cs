@@ -32,6 +32,8 @@ namespace ARBot.Common.Fusion
             public Matrix<double> P;
             public double Nis;         // NIS merenia pri jeho aplikaci
             public bool Accepted;      // false = zahozeno gatingem
+            public double Inflation;   // nafouknuti R (Soft gate / limit kroku), 1 = beze zmeny
+            public bool StepLimited;   // krok narazil na IMeasurement.MaxStep
             public DateTime T => M.TimeStamp;
         }
 
@@ -53,6 +55,16 @@ namespace ARBot.Common.Fusion
             public double[] DiagR;
 
             /// <summary>
+            /// Kolikrat filtr R nafoukl proti tomu, co merenie hlasilo (Soft gate a/nebo limit
+            /// kroku); 1 = beze zmeny. <see cref="DiagR"/> je to, co merenie PRINESLO — ucinne
+            /// R je <c>DiagR × RInflation</c>.
+            /// </summary>
+            public double RInflation;
+
+            /// <summary>True, kdyz krok narazil na <see cref="IMeasurement.MaxStep"/>.</summary>
+            public bool StepLimited;
+
+            /// <summary>
             /// Zprava pro telemetrii a zaznam. Konverzi vlastni domena — zprava zustava pasivni
             /// DTO (viz CLAUDE.md).
             /// </summary>
@@ -66,6 +78,8 @@ namespace ARBot.Common.Fusion
                     Verdict = (byte)Verdict,
                     Z = Z,
                     DiagR = DiagR,
+                    RInflation = RInflation,
+                    StepLimited = StepLimited,
                 };
         }
 
@@ -440,7 +454,7 @@ namespace ARBot.Common.Fusion
                         predZakladem, tBase, pokrytoMs, window.TotalMilliseconds));
 
                 // Zahozene merenie do bufferu nevstoupi, takze verdikt je konecny uz tady.
-                Report(m, double.NaN, false, MeasurementVerdict.TooOld);
+                Report(m, double.NaN, false, MeasurementVerdict.TooOld, 1, false);
                 return;
             }
 
@@ -491,6 +505,8 @@ namespace ARBot.Common.Fusion
                 node.P = up.P;
                 node.Nis = up.Nis;
                 node.Accepted = up.Accepted;
+                node.Inflation = up.Inflation;
+                node.StepLimited = up.StepLimited;
                 x = up.X; P = up.P; t = node.T;
             }
             dirtyFrom = nodes.Count;
@@ -534,13 +550,15 @@ namespace ARBot.Common.Fusion
         /// </summary>
         private void ReportFinal(Node n)
             => Report(n.M, n.Nis, n.Accepted,
-                      n.Accepted ? MeasurementVerdict.Accepted : MeasurementVerdict.GatedOut);
+                      n.Accepted ? MeasurementVerdict.Accepted : MeasurementVerdict.GatedOut,
+                      n.Inflation, n.StepLimited);
 
         /// <summary>
         /// Ohlasi verdikt odberateli <see cref="OnMeasurement"/>. Bez odberatele se nic nepocita
         /// ani nealokuje (kopie z/R je jinak alokace na kazde merenie, tedy stovky za sekundu).
         /// </summary>
-        private void Report(IMeasurement m, double nis, bool accepted, MeasurementVerdict verdict)
+        private void Report(IMeasurement m, double nis, bool accepted, MeasurementVerdict verdict,
+                            double inflation, bool stepLimited)
         {
             var sink = OnMeasurement;
             if (sink == null) return;
@@ -554,6 +572,8 @@ namespace ARBot.Common.Fusion
                 Verdict = verdict,
                 Z = m.Value?.ToArray(),
                 DiagR = Diagonal(m.NoiseCovariance),
+                RInflation = inflation > 0 ? inflation : 1,
+                StepLimited = stepLimited,
             });
         }
 

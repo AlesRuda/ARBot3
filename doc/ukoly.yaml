@@ -2549,13 +2549,54 @@ temata:
         stav: hotovo
         kdy: 2026-09-20
       - co: 'Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu'
+        stav: hotovo
+        kdy: 2026-09-21
+      - co: 'Mechanismus v kódu: `IMeasurement.MaxStep` + nafouknutí R v `Ekf.UpdateStep` (krok = přesně limit, P konzistentní, měření se nezahazuje), `corridorslew=` [m/s] a `corridorheadingslew=` [°/s] s Δt od předchozího odeslání (0,02–1 s), `MeasurementDiagMsg` v3 (`RInflation`, `StepLimited`), `ARBot.Analyze corridorstd --slew=` (blok 4), blok „limit kroku" v `ARBot.Analyze corrections`; výchozí 0 = dnešní chování; 16 testů; řetěz ověřen 45s simulací (`StepLimited` v záznamu, blok 4 stropuje krok přesně na limit)'
+        stav: hotovo
+        kdy: 2026-09-21
+      - co: 'Zvolit hodnotu z dat: `ARBot.Analyze corridorstd Kolo3b.rec --slew=0,0.1,0.2,0.3,0.5,1` (a Kolo4) a zapsat `corridorslew=` / `corridorheadingslew=` do `config/pi-provoz.cfg` (záznamy nejsou na vývojovém stroji, autor nastaví večer)'
+        stav: otevreno
+      - co: 'Ověřit na zařízení: jízda s limitem, `MeasurementDiagMsg.StepLimited` v záznamu, žádný skok > 0,5 m po měření koridoru (`ARBot.Analyze nav`)'
         stav: otevreno
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-20]
+      - text: rozhodnutí 21. 9.
+        cesta: doc/decisions.md
+    devlog: [2026-09-20, 2026-09-21]
+    ceka_na: []
+
+  - id: lok-skok-pozy-nedetekce
+    oblast: lokalizace
+    nazev: PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-21
+    popis: >
+      Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9.
+      (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo
+      sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje:
+      `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář:
+      „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps
+      chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se
+      spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad
+      záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku
+      (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo
+      nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků,
+      aby nevyrobila bezdůvodná mazání gridu.
+    kroky:
+      - co: 'Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek'
+        stav: otevreno
+      - co: 'Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu'
+        stav: otevreno
+    odkazy:
+      - text: PoseJumpDetector.cs
+        cesta: Src/ARBot.Common/Occupancy/PoseJumpDetector.cs
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+    devlog: [2026-09-21]
     ceka_na: []
 
   - id: nav-recovery-manevr

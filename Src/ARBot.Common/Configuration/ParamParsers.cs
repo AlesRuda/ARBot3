@@ -181,6 +181,36 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam kadenci v Hz: 0 (neomezeno) az 60");
 
+        /// <summary>
+        /// Rychlostni limit pricne korekce z koridoru [m/s]: 0 (vypnuto) az 10.
+        /// <para>Strop 10 m/s je desetinasobek rychlosti robotu - vetsi cislo uz neni limit,
+        /// je to preklep.</para>
+        /// </summary>
+        public static ParamParseResult CorridorSlew(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 10 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam rychlostni limit v m/s: 0 (vypnuto) az 10");
+
+        /// <summary>
+        /// Rychlostni limit korekce kurzu z koridoru ve STUPNICH za sekundu: 0 (vypnuto) az 360.
+        /// <para>Stejna past jako u <see cref="CorridorHeadingStd"/>: velmi mala kladna hodnota je
+        /// skoro jiste radian zadany omylem.</para>
+        /// </summary>
+        public static ParamParseResult CorridorHeadingSlew(string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                return ParamParseResult.Invalid("cekam cislo");
+            if (v == 0) return ParamParseResult.Valid();
+            if (v > 0 && v < 0.1)
+                return ParamParseResult.Invalid(
+                    "limit kurzu se zadava ve STUPNICH za sekundu a " + text + " je pod 0,1 - "
+                    + "nezadavas to omylem v radianech? Pouzij 0 pro vypnuti.");
+            return v >= 0.1 && v <= 360
+                ? ParamParseResult.Valid()
+                : ParamParseResult.Invalid("cekam limit kurzu ve STUPNICH za sekundu: 0 (vypnuto), nebo 0,1 az 360");
+        }
+
         /// <summary>Pocet kandidatnich hran pri prirazeni koridoru: 1 az 16.</summary>
         public static ParamParseResult AssocK(string text)
             => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)

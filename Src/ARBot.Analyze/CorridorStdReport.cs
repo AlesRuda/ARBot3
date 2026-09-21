@@ -29,10 +29,23 @@ namespace ARBot.Analyze
     /// <para>⚠️ Je to 1-D aproximace: neříká, jestli byla inovace <i>pravdivá</i> (póza opravdu
     /// vedle) nebo <i>falešná</i> (špatná hrana / proložení). Proto se u velkých inovací tiskne
     /// i změna <c>WayId</c> — skok při přepnutí hrany je problém přiřazení, ne σ.</para>
+    ///
+    /// <para><b>Blok 4 (21. 9. 2026): kandidáti `corridorslew=`</b> — týž replay, ale místo σ se
+    /// zkouší <b>limit kroku</b>: na jedno měření smí póza uhnout nejvýš <c>slew × Δt</c>
+    /// (Δt od předchozího měření, ořezaný na 0,02–1 s jako v <c>CorridorLocalizer</c>); filtr
+    /// toho dosáhne nafouknutím R (<c>R' = P·(|ν|/L − 1)</c>, viz <c>Ekf.UpdateStep</c>).
+    /// Limit se uplatňuje na krok podle skalárního vzorce (tak, jak to dělá filtr); vytištěný
+    /// krok je pak kalibrovaný faktorem <c>K_eff</c>, takže skutečný posun pózy je pod limitem.
+    /// Závěr 20. 9.: σ skoky odstraní jen za cenu, že drift zůstane — limit má dovolit rychlé
+    /// stažení driftu bez skoku. Tady se to měří, ne hádá.</para>
     /// </summary>
     public static class CorridorStdReport
     {
-        public static void Run(RecordFile rec, double[] kandidati, double jumpM)
+        /// <summary>Strop a podlaha Δt pro limit kroku — stejné jako <c>CorridorLocalizerConfig</c>.</summary>
+        private const double SlewDtCap = 1.0, SlewDtFloor = 0.02;
+
+        public static void Run(RecordFile rec, double[] kandidati, double jumpM,
+                               double[] slewKandidati = null, double? stdProSlew = null)
         {
             var cors = rec.ReadAll<RoadCorridorMsg>("RoadCorridorMsg").Where(c => c.EmittedLateral && c.HasPose)
                           .OrderBy(c => c.TimeStamp).ToList();
@@ -162,6 +175,56 @@ namespace ARBot.Analyze
             Console.WriteLine("  krok = |K'·(inovace − delta)| za jedno mereni; delta = odchylka protifakticke trajektorie od zaznamenane (pricne);");
             Console.WriteLine("  sigPoza = pricna sigma pozy po mereni; info kor:GPS = (kadence/R) koridoru proti GPS za sekundu.");
             Console.WriteLine("  POZOR: 1-D model bez GPS a bez zmeny prirazeni hrany; velka delta znamena, ze by robot jel jinudy a merenia by byla jina.");
+
+            // ---------- 4. Protifakticky replay pro LIMIT KROKU (corridorslew=) ----------
+            if (slewKandidati == null || slewKandidati.Length == 0) return;
+            double sigmaSlew = stdProSlew ?? stdRec;
+            Console.WriteLine();
+            Console.WriteLine($"=== 4. PROTIFAKTICKY 1-D REPLAY PRO KANDIDATY corridorslew= (limit kroku; sigma {sigmaSlew:F2} m{(stdProSlew.HasValue ? " z --std" : " ze zaznamu")}) ===");
+            Console.WriteLine("  limit na mereni L = slew x dt, dt = odstup od predchoziho mereni orezany na 0,02-1 s; kdyz by krok K*nu prekrocil L,");
+            Console.WriteLine("  nafoukne se R na P*(|nu|/L - 1) (tak to dela Ekf.UpdateStep). Kroky jsou kalibrovane K_eff, tedy skutecny posun pozy je POD limitem.");
+            Console.WriteLine($"  {"slew",6} {"omezeno",8} {"krok p50",9} {"krok p90",9} {"krok max",9} {">0,3 m",7} {">0,5 m",7} {"sigPoza p50",11} {"|delta| p50",11} {"|delta| p90",11} {"|delta| max",11} {"nad 1 m [s]",11}");
+            foreach (double slew in slewKandidati)
+            {
+                double P = radky[0].PLat, delta = 0;
+                var kroky = new List<double>(); var deltas = new List<double>(); var sig = new List<double>();
+                int omezeno = 0;
+                double sekundNad1m = 0;
+                DateTime tPrev = radky[0].T;
+                bool prvni = true;
+                foreach (var r in radky)
+                {
+                    double dt = Math.Max(0, (r.T - tPrev).TotalSeconds);
+                    double dtLim = prvni || r.T < tPrev ? SlewDtCap : Math.Min(SlewDtCap, Math.Max(SlewDtFloor, dt));
+                    prvni = false;
+                    tPrev = r.T;
+                    P += qMed * dt;
+                    double R = r.SigmaFit * r.SigmaFit + sigmaSlew * sigmaSlew;
+                    double nuCf = r.Nu - delta;
+                    if (slew > 0)
+                    {
+                        double L = slew * dtLim;
+                        double krokRaw = P / (P + R) * Math.Abs(nuCf);
+                        if (krokRaw > L)
+                        {
+                            R = Math.Max(R, P * (Math.Abs(nuCf) / L - 1));
+                            omezeno++;
+                        }
+                    }
+                    double K = kal * P / (P + R);
+                    double s = K * nuCf;
+                    double sRec = kal * r.KRec * r.Nu;
+                    delta = delta + s - sRec;
+                    P = (1 - P / (P + R)) * P;
+                    kroky.Add(Math.Abs(s)); deltas.Add(Math.Abs(delta)); sig.Add(Math.Sqrt(P));
+                    if (Math.Abs(delta) > 1.0) sekundNad1m += dt;
+                }
+                kroky.Sort(); deltas.Sort(); sig.Sort();
+                Console.WriteLine($"  {slew,6:F2} {omezeno,8} {Q(kroky, .5),9:F2} {Q(kroky, .9),9:F2} {kroky.Last(),9:F2} {kroky.Count(x => x > 0.3),7} {kroky.Count(x => x > 0.5),7} {Q(sig, .5),11:F2} {Q(deltas, .5),11:F2} {Q(deltas, .9),11:F2} {deltas.Last(),11:F1} {sekundNad1m,11:F0}"
+                                  + (slew == 0 ? "  <- bez limitu" : ""));
+            }
+            Console.WriteLine("  omezeno = kolik mereni narazilo na limit; nad 1 m [s] = jak dlouho by protifakticka trajektorie byla dal nez 1 m od zaznamenane");
+            Console.WriteLine("  (= cena za pomalejsi stazeni driftu). Kolik z driftu bylo PRAVDIVEHO, 1-D model nerekne - viz blok 1 (zmeny hrany).");
         }
 
         private sealed class Radek

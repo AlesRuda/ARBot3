@@ -184,6 +184,49 @@ namespace ARBot.Common.Localization
         /// <summary>Posilat i korekci kurzu?</summary>
         public bool SendHeading = true;
 
+        // --- Limit kroku korekce (21. 9. 2026) ---------------------------------------------------
+        //
+        // Na Robotouru 19. 9. 2026 prisel kazdy skok pozy (0,6-4 m) do 0,1 s po prijatem mereni
+        // koridoru: filtr nahromadeny drift stahl v JEDNOM kroku, robot se skokem ocitl v blokovane
+        // casti gridu a presel do uniku. Sigma to neresi (velka sigma drift jen zakonzervuje,
+        // zmereno 20. 9. 2026 protifaktickym replayem), zahozeni taky ne (tvrdy gate delal vysledek
+        // horsi nez nekorigovat, 25. 8. 2026). Lecba je RYCHLOSTNI LIMIT: krok filtru na jedno
+        // mereni smi byt nejvys slew × Δt, kde Δt je odstup od predchoziho odeslani; filtr toho
+        // dosahne nafouknutim R (IMeasurement.MaxStep, Ekf.UpdateStep), takze zustane konzistentni
+        // a zbytek inovace stahne dalsimi merenimi. Navrh PoseSlew na VYSTUPU fuze autor 20. 9.
+        // zamitl (dve pozy v systemu); tohle je varianta uvnitr filtru.
+        //
+        // Vychozi 0 = dnesni chovani (A/B); hodnota se ma nastavit z dat
+        // (ARBot.Analyze corridorstd --slew=). Viz doc/map-correlation-localization.md.
+
+        /// <summary>
+        /// Rychlostni limit <b>pricne</b> korekce z koridoru [m/s]; 0 = bez limitu. Na jedno
+        /// mereni smi poza podel normaly cesty uhnout nejvys <c>SlewRateMps × Δt</c>
+        /// (Δt = odstup od predchoziho odeslani, orezany na <see cref="SlewDtFloorSec"/> az
+        /// <see cref="SlewDtCapSec"/>).
+        /// </summary>
+        public double SlewRateMps = 0;
+
+        /// <summary>
+        /// Rychlostni limit korekce <b>kurzu</b> z koridoru [rad/s]; 0 = bez limitu. Grid je
+        /// kotveny ve svete, takze otoceni pozy o dθ posune jeho obsah o R·dθ - proto ma kurz
+        /// vlastni limit.
+        /// </summary>
+        public double SlewRateHeadingRadPerSec = 0;
+
+        /// <summary>
+        /// Strop na Δt pro limit kroku [s]. Bez nej by po dlouhe mezere koridoru (stani, vypadek
+        /// kamery) prvni mereni smelo skocit libovolne - a to je presne skok, ktery se tu krotí.
+        /// Prvni odeslani a skok casu vzad (seek) berou strop.
+        /// </summary>
+        public double SlewDtCapSec = 1.0;
+
+        /// <summary>
+        /// Podlaha na Δt pro limit kroku [s]. Dve mereni v temz okamziku (obe kamery) by jinak dala
+        /// limit 0, a nulovy limit filtr bere jako VYPNUTY - podlaha z neho udela maly, ne zadny.
+        /// </summary>
+        public double SlewDtFloorSec = 0.02;
+
         /// <summary>
         /// Rezim gatingu merenii z koridoru. <b>Vychozi <c>Soft</c>, a to je podstatne.</b>
         ///

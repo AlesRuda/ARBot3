@@ -679,6 +679,10 @@ namespace ARBot.Robot
                     SigmaLateralExtraM = ParamRegistry.CorridorStd.Value,
                     SigmaHeadingExtraRad = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingStd.Value),
                     MinSendPeriodSec = corridorHz > 0 ? 1.0 / corridorHz : 0,
+                    // Limit kroku (corridorslew= / corridorheadingslew=): velka inovace se rozlozi
+                    // na vic mereni misto skoku pozy. Vychozi 0 = bez limitu.
+                    SlewRateMps = ParamRegistry.CorridorSlew.Value,
+                    SlewRateHeadingRadPerSec = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingSlew.Value),
                 };
 
                 // Prirazeni koridoru k hrane site (assoc*): nejblizsi hrana nemusi byt ta spravna

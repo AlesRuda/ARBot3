@@ -39,6 +39,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-21
+
+- **Limit kroku korekce z koridoru** (`lok-koridor-skoky-pozy`): autorův návrh „korekce posílaná
+  do EKF nesmí být větší než limit" rozpracován jako **rychlostní limit uvnitř filtru**:
+  `IMeasurement.MaxStep` + `Ekf.UpdateStep` nafoukne `R` tak, aby krok podél osy měření vyšel
+  přesně na `L = slew × Δt` (Δt od předchozího odeslání, ořez 0,02–1 s); měření se nezahazuje,
+  zbytek inovace stáhnou další měření, `P` zůstane konzistentní. Parametry `corridorslew=` [m/s]
+  a `corridorheadingslew=` [°/s], **výchozí 0 = dnešní chování**; kurz má vlastní limit, protože
+  otočení pózy posouvá world-kotvený grid o `R·dθ`. `MeasurementDiagMsg` v3 (`RInflation`,
+  `StepLimited`) + dva sloupce telemetrie. `ARBot.Analyze corridorstd --slew=` (blok 4) dělá týž
+  kalibrovaný 1-D replay pro kandidáty limitu, `corrections` nový blok „limit kroku". Řetěz
+  ověřen 45s simulací (1 310 měření v záznamu s v3, limit zasáhl 2×, blok 4 stropuje krok přesně
+  na limit). ⚠️ **Nad Kolem 3b/4 neměřeno** (záznamy nejsou na tomto stroji) — hodnotu autor
+  nastaví večer z logu; profil zatím 0. ⚠️ Na zařízení neběželo.
+  Rozhodnutí (proč ne ořez inovace, ne σ, ne `PoseSlew`): [decisions.md](decisions.md).
+  Testy Common 1 608 / Runtime 140 / HAL 115.
+- **Nález `lok-skok-pozy-nedetekce`:** autor z náhledu webu a z měření ví, že `PoseJumpDetector`
+  při skocích z 19. 9. **grid nesmazal** (robot se ocitl mimo sjízdnou oblast ve staré mapě).
+  V kódu je vysvětlení: `Check` při `dt ≤ 0` (přehozená razítka snímků dvou kamer) pózu jen
+  zapamatuje a skok nekontroluje. Zapsáno do registru, neopraveno (s limitem kroku detektor chránit
+  nemusí; oprava chce nejdřív změřit podíl snímků s `dt ≤ 0`).
+  Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
+
 ## 2026-09-20
 
 - **Rozbor jízd z Robotouru** (`records/Robotour2026/*`, nový `ARBot.Analyze nav`: skoky pózy,

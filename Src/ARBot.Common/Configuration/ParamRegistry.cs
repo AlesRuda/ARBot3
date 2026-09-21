@@ -244,6 +244,26 @@ namespace ARBot.Common.Configuration
               + "pres corridorsend= nic neztrati. Tataz lecba jako MinPeriod u korelace s mapou "
               + "(3 s, zmereno) a imuheadinghz u kompasu (1 Hz, zmereno); u koridoru zmereno "
               + "NENI. Viz doc/map-correlation-localization.md.", ParamParsers.CorridorHz);
+        // --- Limit kroku korekce z koridoru (21. 9. 2026) -----------------------------------
+        //
+        // Na Robotouru 19. 9. 2026 prisel kazdy skok pozy (0,6-4 m) do 0,1 s po prijatem mereni
+        // koridoru: filtr stahl nahromadeny drift v jednom kroku a robot se skokem ocitl v blokovane
+        // casti gridu. Sigma (corridorstd) skoky odstrani jen za cenu, ze drift zustane (zmereno
+        // 20. 9. 2026); limit kroku dovoli rychle stazeni driftu BEZ skoku. Filtr ho drzi
+        // nafouknutim R (Ekf.UpdateStep, IMeasurement.MaxStep), takze zustane konzistentni.
+        // Vychozi 0 = dnesni chovani; hodnota se nastavuje z dat (ARBot.Analyze corridorstd --slew=).
+        public static readonly DoubleParam CorridorSlew = Num("corridorslew", "0", K_FUZE,
+              "Rychlostni limit PRICNE korekce z koridoru [m/s]; 0 = bez limitu. Na jedno mereni "
+              + "smi poza pricne uhnout nejvys corridorslew × Δt (Δt = odstup od predchoziho "
+              + "mereni koridoru, 0,02 az 1 s). Merenie se NEZAHAZUJE, jen se velka inovace "
+              + "rozlozi na vic mereni (filtr nafoukne R). ⚠️ S corridorhz= se to sklada: pri "
+              + "2 Hz je limit na mereni polovina teto hodnoty. Viz doc/map-correlation-localization.md.",
+              ParamParsers.CorridorSlew);
+        public static readonly DoubleParam CorridorHeadingSlew = Num("corridorheadingslew", "0", K_FUZE,
+              "Rychlostni limit korekce KURZU z koridoru [stupne/s]; 0 = bez limitu. Grid je "
+              + "kotveny ve svete, takze otoceni pozy o dθ posune jeho obsah o R·dθ - proto ma kurz "
+              + "vlastni limit. Viz doc/map-correlation-localization.md.",
+              ParamParsers.CorridorHeadingSlew);
         // --- Prirazeni koridoru k hrane site (16. 9. 2026) -----------------------------------
         //
         // Do 16. 9. 2026 se brala prosta NEJBLIZSI hrana a kurz do vyberu nevstupoval vubec.

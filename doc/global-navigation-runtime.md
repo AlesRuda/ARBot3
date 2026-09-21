@@ -545,6 +545,10 @@ z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (14:25:07, 14:26:
 15:42:36) — robot je najednou v blokované části gridu a „uniká". **Neopraveno**, jen změřeno
 (`lok-koridor-skoky-pozy`): kandidáti jsou strop na velikost jedné korekce, tvrdší brána pro
 inovace řádu desítek σ, nebo přiřazení hrany (`assoc*`) — rozhodnout se musí z dat, ne odhadem.
+✅ **Od 21. 9. 2026 je v kódu limit kroku uvnitř filtru** (`corridorslew=` / `corridorheadingslew=`,
+výchozí 0), hodnota se vybere nad těmito záznamy; viz
+[map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
+⚠️ `PoseJumpDetector` přitom při těch skocích grid **nesmazal** (`lok-skok-pozy-nedetekce`).
 
 ### 3. Co se z jízd ověřilo (registr)
 

@@ -83,6 +83,45 @@ public class MeasurementDiagTests
     }
 
     [Test]
+    public void Verze3_neseNafouknutiALimitKroku()
+    {
+        var original = new AsyncFusionEngine.MeasurementInfo
+        {
+            Source = "Corridor", Time = T0, Nis = 40, Accepted = true, Verdict = MeasurementVerdict.Accepted,
+            Z = new[] { 3.0 }, DiagR = new[] { 0.01 }, RInflation = 37.5, StepLimited = true,
+        }.ToLogMessage();
+
+        var buffer = new MemoryStream();
+        using (var bw = new BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            original.ToData(bw);
+        buffer.Position = 0;
+        var loaded = new MeasurementDiagMsg();
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            loaded.FromData(br);
+
+        Assert.That(loaded.RInflation, Is.EqualTo(37.5).Within(1e-12));
+        Assert.That(loaded.StepLimited, Is.True);
+    }
+
+    [Test]
+    public void StaryZaznamVerze2_seCteDal_bezNafouknuti()
+    {
+        var v2 = new MeasurementDiagMsg { Source = "Corridor", TimeStamp = T0, Nis = 1.5, Accepted = true,
+                                          Verdict = (byte)MeasurementVerdict.Accepted, Z = new[] { 5.0 }, DiagR = new[] { 2.25 } };
+        var buffer = new MemoryStream();
+        using (var bw = new BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            v2.ToDataV2ForTest(bw);
+        buffer.Position = 0;
+        var loaded = new MeasurementDiagMsg { Verze = 2 };
+        using (var br = new BinaryReader(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+            loaded.FromData(br);
+
+        Assert.That(loaded.Verdict, Is.EqualTo((byte)MeasurementVerdict.Accepted));
+        Assert.That(loaded.RInflation, Is.EqualTo(1.0), "stary zaznam nafouknuti nenese: 1 = beze zmeny");
+        Assert.That(loaded.StepLimited, Is.False);
+    }
+
+    [Test]
     public void StaryZaznamBezVerdiktu_SeCteDal()
     {
         // Verze 1 nesla Verdict. Stary zaznam se musi precist a verdikt se dopocita z Accepted,
