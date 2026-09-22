@@ -3581,7 +3581,10 @@ tu implementuje, se dvěma úpravami proti doslovnému znění:
    tak zmizel za ~20 s místo tří skoků.
 
 **Kurz má vlastní limit.** Grid je kotvený ve světě, takže otočení pózy o dθ posune jeho obsah
-o `R·dθ` — čtyři skoky −59° o 5,8 m z Kola 3b (14:25:05–07) byly právě tohle.
+o `R·dθ`. ⚠️ ~~Čtyři skoky −59° o 5,8 m z Kola 3b (14:25:05–07) byly právě tohle.~~ **Ne, nebyly**
+(opraveno týž den večer): „−59°" ve výpisu `ARBot.Analyze nav` je **směr posunu** (azimut ENU
+vektoru skoku), ne změna kurzu. Inovace kurzu z koridoru byla v tu chvíli −6,2° a krok kurzu
+−2,7°; posun 5,8 m byl **příčný**, tedy práce limitu polohy, ne kurzu (blok 4b níž).
 
 **Limit je horní mez, ne cíl.** Smoother dnes dělá kroky 0,19–0,46× toho, co říká skalární vzorec
 (kalibrace v `corridorstd`), takže skutečný posun pózy bude pod limitem.
@@ -3607,12 +3610,67 @@ koridor → EKF → záznam → měřidlo tedy drží; **co udělá s driftem 4�
 (blok 4, `--std=` přebije σ ze záznamu) dělá týž kalibrovaný 1-D replay jako pro σ, jen s limitem
 kroku: tiskne, kolik měření limit omezil, kroky p50/p90/max, počty nad 0,3 a 0,5 m, odchylku
 protifaktické trajektorie od zaznamenané a **kolik sekund by póza byla dál než 1 m** od dnešní
-(cena za pomalejší stažení driftu). ⚠️ **Nad Kolem 3b/4 to změřené NENÍ** — záznamy nejsou na
-vývojovém stroji; **profil má `corridorslew=0` a `corridorheadingslew=0`** (dnešní chování) do
-doby, než se hodnota z těch záznamů vybere. ⚠️ **Na zařízení neběželo.** Testy: `StepLimitTests`
+(cena za pomalejší stažení driftu). **Blok 4b** (`--hslew=0,1,2,3,5,10,20` [°/s]) dělá totéž pro
+kurz: inovace `−HeadingDisagreementRad`, `P = Covariance[ITh, ITh]`, R = σ směru² +
+`corridorheadingstd`², práh 5° (`PoseJumpDetector.ToleranceRad`). Testy: `StepLimitTests`
 (9: krok = limit, konzistence `P`, dotažení po dávkách, složení se Soft gatem, kurz, 2-D ignoruje,
 0 = vypnuto), `CorridorDeweightTests` (5: Δt strop/podlaha, skok času vzad, kurz, 0 = staré chování),
 `MeasurementDiagTests` (v3 obousměrně, v2 se čte).
+
+### Změřeno nad Kolem 3b a 4 a hodnota zvolena (21. 9. 2026 večer)
+
+`ARBot.Analyze corridorstd records/Robotour2026/Kolo3b.rec --slew=0,0.05,0.1,0.2,0.3,0.5,1,2
+--hslew=0,0.5,1,2,3,5,10,20` a totéž pro `Kolo4.rec` (σ ze záznamu: `corridorstd=0,1`,
+`corridorheadingstd=2,5`, `corridorhz=2`; 702 resp. 283 měření příčně i v kurzu).
+
+**Příčná poloha (blok 4)** — kroky kalibrované `K_eff` (0,19 v Kole 3b, 0,46 v Kole 4), odchylka
+`|δ|` protifaktické trajektorie od zaznamenané:
+
+| `corridorslew` [m/s] | omezeno měření (3b / 4) | krok max [m] (3b / 4) | kroků > 0,3 m (3b / 4) | `\|δ\|` p50 / p90 / max [m], Kolo 3b | totéž, Kolo 4 | nad 1 m [s] (3b / 4) |
+|---|---|---|---|---|---|---|
+| 0 (Robotour) | 0 / 0 | 0,97 / 2,87 | **21 / 16** | 0,07 / 1,20 / 4,5 | 0,04 / 0,14 / 1,8 | 78 / 5 |
+| 0,1 | 619 / 266 | 0,02 / 0,05 | 0 / 0 | 1,49 / 2,61 / 15,0 | 1,62 / 3,64 / 4,3 | 769 / 385 |
+| 0,2 | 479 / 226 | 0,04 / 0,09 | 0 / 0 | 0,69 / 2,65 / 13,8 | 1,28 / 3,61 / 4,4 | 568 / 305 |
+| 0,3 | 386 / 183 | 0,06 / 0,14 | 0 / 0 | 0,37 / 2,73 / 13,2 | 0,77 / 3,52 / 4,7 | 369 / 284 |
+| **0,5** | 283 / 147 | 0,09 / 0,23 | **0 / 0** | **0,21** / 2,76 / 12,4 | **0,19** / 3,56 / 5,8 | 306 / 322 |
+| 1,0 | 163 / 70 | 0,19 / **0,46** | 0 / **23** | 0,14 / 2,17 / 10,8 | 0,07 / 1,53 / 5,1 | 250 / 250 |
+| 2,0 | 106 / 29 | 0,37 / 0,92 | 16 / 22 | 0,10 / 1,64 / 8,3 | 0,05 / 0,40 / 3,6 | 238 / 208 |
+
+Čtení: každý limit do 1,0 m/s odstraní **všechny** kroky nad 0,3 m v Kole 3b, ale v Kole 4
+(`K_eff` 0,46) nechá 1,0 m/s 23 kroků do 0,46 m — **0,5 m/s je největší hodnota, která projde
+v obou**. Menší hodnoty už nic nepřidají (kroků nad 0,3 m je nula od 0,5 dolů) a **stojí drift**:
+p50 odchylky roste 0,21 → 0,37 → 0,69 → 1,49 m (Kolo 3b) resp. 0,19 → 0,77 → 1,28 → 1,62 m
+(Kolo 4). Sloupec „nad 1 m" je pro rozhodnutí slabý — má podlahu z nesouladu modelu (78 s
+i bez limitu) a mezi 0,3 a 0,5 se hýbe oběma směry (369 → 306, 284 → 322 s).
+
+**Kurz (blok 4b)** — inovace kurzu z koridoru p50 1,2 / 1,5°, p90 4,0 / 4,5°, max 10,4 / 22,0°;
+`K_rec` p50 **0,07 / 0,08** (σ kurzu pózy 0,7° proti R z 0,5° + 2,5°), takže **bez limitu je krok
+kurzu max 2,0 / 0,6°** — nikdy nad tolerancí detektoru 5°. Kalibrace modelu **nesedí**
+(skutečný krok / `K·ν` = −0,02 v Kole 3b, 0,24 v Kole 4): kurz pózy 50 ms po měření hýbe něco
+jiného (kompas 1 Hz, gyro, křížová kovariance z příčné korekce), ne koridor. S `3 °/s`: omezeno
+104 / 48 měření (skoro vše jsou druhá měření z páru kamer s Δt na podlaze 0,02 s → L 0,06°),
+krok max 2,03 / 0,58°, odchylka kurzu p50 / p90 / max **0,09 / 0,68 / 2,0°** proti 0,07 / 0,64 /
+2,0° bez limitu, čas nad 5° **0 s** ve všech variantách. ⚠️ Model kurzu nemá kompas ani gyro,
+takže `δ` je horní odhad — a i ten je nula.
+
+**Zvoleno (v `config/pi-provoz.cfg`): `corridorslew=0.5`, `corridorheadingslew=3`.**
+- 0,5 m/s: viz tabulka; surový krok filtru je nejvýš 0,5 m na měření (strop Δt 1 s), tedy na
+  toleranci `PoseJumpDetector` (0,5 m, ostré `>`), a skutečný posun pózy pod ní.
+- 3 °/s je **pojistka, ne oprava** — data limit kurzu nepotřebují (krok max 2°), ale po dlouhé
+  mezeře bez koridoru `P` kurzu naroste (q p50 0,07–0,08 °²/s → za 60 s σ 2,2°, K 0,4) a jedno
+  měření s inovací 22° by udělalo 9°; 3 °/s ho drží pod 5° a v replayi nestojí nic.
+
+⚠️ **Dvě věci, které replay neumí, a proto se musí ověřit na zařízení**
+(`lok-koridor-skoky-pozy`, krok „ověřit na zařízení"):
+1. **`K_eff` je z okna 50 ms a podceňuje krok.** Skok 14:25:05 z Kola 3b má inovaci 6,13 m,
+   `K·ν` = 5,83 m, a `nav` blok 1 ukazuje **čtyři** skoky 2,47 + 1,64 + 1,06 + 0,64 = **5,81 m
+   během 1,6 s** — fúze tedy krok neztlumila na 0,19×, ale **rozložila** ho (fixed-lag okno)
+   a měřidlo vidí jen jeho první část. Sloupce „krok" v tabulce jsou tím podhodnocené a sloupce
+   ceny (`|δ|`, „nad 1 m") nadhodnocené; **pořadí variant to nemění** (limit stropuje surový krok,
+   který se rozkládá stejně). Přeměřit `K_eff` přes delší okno je otevřený krok měřidla.
+2. **Kolik z driftu bylo pravdivého**, 1-D model neřekne (6 z 78 velkých inovací při změně
+   hrany) — s limitem falešná hrana táhne pomalu, což je zisk, ale pravdivý drift 6 m se stahuje
+   ~12–20 s místo tří skoků, a po tu dobu je mrkev vedle.
 
 **Poznámka k `PoseJumpDetector`:** autor 21. 9. z náhledu webu a z měření ví, že při těch
 skocích **grid nesmazal** (robot se skokem ocitl mimo sjízdnou oblast, stará mapa zůstala).

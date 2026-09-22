@@ -546,8 +546,10 @@ z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (14:25:07, 14:26:
 (`lok-koridor-skoky-pozy`): kandidáti jsou strop na velikost jedné korekce, tvrdší brána pro
 inovace řádu desítek σ, nebo přiřazení hrany (`assoc*`) — rozhodnout se musí z dat, ne odhadem.
 ✅ **Od 21. 9. 2026 je v kódu limit kroku uvnitř filtru** (`corridorslew=` / `corridorheadingslew=`,
-výchozí 0), hodnota se vybere nad těmito záznamy; viz
-[map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
+výchozí 0) a **hodnota je vybraná nad těmito záznamy** (`corridorslew=0.5`, `corridorheadingslew=3`
+v `pi-provoz.cfg`); viz [map-correlation-localization.md](map-correlation-localization.md),
+„Limit kroku korekce". ⚠️ „−59°" ve sloupci *směr skoku* výš je azimut posunu, ne změna kurzu —
+korekce kurzu z koridoru byly max 2°.
 ⚠️ `PoseJumpDetector` přitom při těch skocích grid **nesmazal** (`lok-skok-pozy-nedetekce`).
 
 ### 3. Co se z jízd ověřilo (registr)

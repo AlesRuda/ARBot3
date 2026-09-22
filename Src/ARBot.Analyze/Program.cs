@@ -163,7 +163,9 @@ namespace ARBot.Analyze
                                 Arg(args, "--jump", 0.5),
                                 (Text(args, "--slew") ?? "0,0.1,0.2,0.3,0.5,1")
                                     .Split(',').Select(s => double.Parse(s, CultureInfo.InvariantCulture)).ToArray(),
-                                std == null ? (double?)null : double.Parse(std, CultureInfo.InvariantCulture));
+                                std == null ? (double?)null : double.Parse(std, CultureInfo.InvariantCulture),
+                                (Text(args, "--hslew") ?? "0,1,2,3,5,10,20")
+                                    .Split(',').Select(s => double.Parse(s, CultureInfo.InvariantCulture)).ToArray());
                             return 0;
                         }
                     case "nav":
@@ -286,7 +288,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             protifakticky replay pro kandidaty sigma (kroky, odchylka od zaznamu,");
             Console.WriteLine("             informace proti GPS); --sigmas=0,0.1,0.5,1,2,5  --jump=<m>;");
             Console.WriteLine("             blok 4 = tyz replay pro LIMIT KROKU corridorslew= (--slew=0,0.1,0.2,0.3,0.5,1 [m/s],");
-            Console.WriteLine("             --std=<m> sigma pro ten blok, jinak corridorstd ze zaznamu)");
+            Console.WriteLine("             --std=<m> sigma pro ten blok, jinak corridorstd ze zaznamu);");
+            Console.WriteLine("             blok 4b = totez pro KURZ corridorheadingslew= (--hslew=0,1,2,3,5,10,20 [st/s])");
             Console.WriteLine("  nav        globalni navigace za jizdy: SKOKY POZY (posun minus |v|*dt, s koridorem");
             Console.WriteLine("             a GPS v te chvili), stavy lokalniho planu a epizody uniku/uvaznuti,");
             Console.WriteLine("             UZAVIRANI HRAN (ClosureCount + GN) s odhadem detektoru A/B/C a preplanovani;");

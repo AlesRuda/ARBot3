@@ -35,10 +35,17 @@ když by krok `K·ν` podél osy měření přesáhl `L = slew × Δt`, nafoukne
   je invariantní vůči kadenci. Strop Δt 1 s, protože po dlouhé mezeře by první měření smělo
   skočit libovolně; podlaha 20 ms, protože nulový limit filtr bere jako vypnutý.
 - **Kurz má vlastní limit:** grid je kotvený ve světě, otočení o dθ posune obsah o `R·dθ`.
+  *(Večer změřeno, že korekce kurzu z koridoru jsou max 2° a skoky z 19. 9. otočení nebyly —
+  limit kurzu je pojistka na dlouhou mezeru bez koridoru, ne oprava.)*
 
 **Důsledky:** `MeasurementDiagMsg` verze 3 (`RInflation`, `StepLimited`); `ARBot.Analyze
-corridorstd --slew=` (blok 4) pro volbu hodnoty z dat. **Hodnota se zatím nenastavuje** — záznamy
-z Robotouru nejsou na vývojovém stroji, profil má 0; nastaví se večer 21. 9. z Kola 3b/4.
+corridorstd --slew=` (blok 4) pro volbu hodnoty z dat. **Hodnota zvolena večer 21. 9. z Kola 3b/4:
+`corridorslew=0.5`, `corridorheadingslew=3`** (v `pi-provoz.cfg`; výchozí v registru zůstává 0).
+Proč 0,5 a ne 0,3 nebo 1,0: 0,5 m/s je největší hodnota, při které v obou záznamech nezbyde
+kalibrovaný krok nad 0,3 m (1,0 nechá v Kole 4 23 kroků do 0,46 m), a menší hodnoty už jen
+prodražují drift (p50 odchylky 0,21 → 0,37 → 0,69 m). Proč 3 °/s, když data limit kurzu
+nepotřebují: po dlouhé mezeře bez koridoru naroste `P` kurzu a jedno měření s inovací 22° by
+udělalo ~9° (> tolerance detektoru 5°); v replayi 3 °/s nestojí nic.
 Limit se nevztahuje na `PoseJumpDetector` (jeho tolerance 0,5 m není argument: při skocích
 z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`).
 Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
