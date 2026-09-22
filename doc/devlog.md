@@ -39,6 +39,37 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-22
+
+- **Záměr (registr `lp-drsnost-povrchu-rychlostni-strop`):** obtížně sjízdný povrch (hrbol,
+  prasklina v asfaltu) jako spojitý rychlostní strop místo dnešní dvoustavové sjízdnosti. Rozbor
+  nad kódem: polární grid drsnost už měří (`StdZ`, odchylka od roviny), kartézský grid ji zahazuje
+  (nese jen `LOcc` / `LRoad`); obálka plánovače stropy skládá přes `min` a zpětná brzdná obálka jde
+  přes `Dist2MaxSpeed`, takže třetí strop `VSurface` je levný na přidání. První krok je měření ze
+  záznamů, ne kód — po zkušenosti s `VAlong` (7. 9.), který robota přibrzdil v 77 % plánů.
+- **Rozhovor s autorem ten záměr přeostřil** (inspirace: kořeny na Robotouru, kde se robot jen
+  těsně nepřeklopil): nebezpečí není otřes, ale **klopení dopředu při najetí ZADNÍHO pasivního kola**,
+  tedy o rozvor později než ráz přední nápravy — a brzdění v tu chvíli klopný moment zvětšuje.
+  Důsledky pro model: strop platí od `hrbol − brzdná dráha` po `hrbol + rozvor` a uvnitř je
+  **plochý** (zpomalit před, projet konstantně, zrychlit až za); mapa si ho musí pamatovat i pod
+  robotem a za ním. **Spodní mez strop nemá** — moje námitka „kolečko potřebuje hybnost" padla:
+  kola regulovaná na polohu ho přes schod protlačí a na asfaltu neprokluzují (staticky vyjde
+  potřebná síla `N·√(h(2r−h))/(r−h)`, pro schod do třetiny poloměru kolečka pod 1,5·N). Ground
+  truth pro měření je **náklon z VN100, ne RMS zrychlení**, a podpis hrbolu je **dvojice špiček**
+  (ráz, pak klopení v odstupu `rozvor / v`; odstup × rychlost musí dát rozvor = kontrola párování).
+  ⚠️ Terénní záznamy z 18. a 19. 9. na vývojovém stroji nejsou (`records/test/` prázdný).
+- **Nový záměr (registr `lp-reflex-klopeni-zadni-kolo`):** reflex nezávislý na mapě — první špička
+  ohlašuje druhou předem, smyčka si naplánuje okno a v něm drží dolní mez příkazu
+  `v + k·rampa·Δt` (`k = 0` zákaz brzdění, `k = 1` přidání; rampy jsou obě 0,50 m/s², takže je to
+  v amplitudě symetrické — zákaz ale pomůže jen když by robot brzdil, přidání vždy). Ověřeno v kódu,
+  že smyčka jede **na 100 ms** (`Profile.Ts`, `ARBotRuntime.cs`), ne na 100 Hz — to je kadence IMU;
+  okno proto musí být 2–3 takty a prediktivní časovač je nutnost, ne vylepšení. Který `k` má smysl,
+  rozhodne náklon při druhé špičce rozdělený podle znaménka derivace příkazu (přirozený experiment
+  ze čtyř kol Robotouru). Zatím jen úvaha, autor: „takhle mi to dává smysl".
+- **Rozpracováno / další krok:** zkopírovat terénní záznamy ze zařízení; měřidlo dvojic špiček
+  v `ARBot.Analyze` (+ co polární grid v té buňce viděl, + znaménko derivace příkazu); podle
+  výsledku go/no-go a návrh (`plan-*.md`).
+
 ## 2026-09-21
 
 - **Limit kroku korekce z koridoru** (`lok-koridor-skoky-pozy`): autorův návrh „korekce posílaná

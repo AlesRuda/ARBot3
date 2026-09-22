@@ -7351,3 +7351,86 @@ temata:
         cesta: doc/headless.md
     devlog: [2026-09-20]
     ceka_na: []
+
+  - id: lp-drsnost-povrchu-rychlostni-strop
+    oblast: lokalni-planovani
+    nazev: Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě
+    druh: zamer
+    stav: otevreno
+    nalezeno: 2026-09-22
+    popis: >
+      Sjízdnost z hloubkové kamery je dnes dvoustavová: buňka je buď volná, nebo překážka (práh
+      výškové odchylky 3 cm + 2 cm na metr dosahu). Hrbol nebo kořen pod prahem projde jako
+      hladká cesta a robot přes něj jede plnou rychlostí; nad prahem je z něj zeď. Inspirace:
+      kořeny a hrboly na Robotouru 19. 9. 2026, kde se robot jen těsně nepřeklopil. Nebezpečí
+      přitom není ráz hnaných kol, ale klopení dopředu, když na hrbol najede ZADNÍ pasivní kolo —
+      o rozvor později než přední náprava; brzdění v tu chvíli klopný moment zvětšuje. Záměr:
+      vést spojitou míru drsnosti (výška schodu a rozptyl výšek, které polární grid už měří, ale
+      do kartézského gridu nepřenáší) jako třetí kanál lokální mapy a odvodit z ní rychlostní strop
+      `VSurface`, který se skládá s ostatními stropy obálky. Strop musí platit od `hrbol − brzdná
+      dráha` po `hrbol + rozvor` a uvnitř být PLOCHÝ (zpomalit před, projet konstantně, zrychlit
+      až za) — mapa si ho tedy musí pamatovat i pod robotem a za ním. Spodní mez strop nemá: kolo
+      regulované na polohu kolečko přes schod protlačí (na asfaltu bez prokluzu), cena nízké
+      rychlosti je jen čas. Riziko: šum hloubky roste s r² (reference 1 cm + 0,4 cm/m², ve 3 m
+      4,6 cm), takže drsnost je čitelná asi do 1,5 m, brzdná dráha z 1 m/s je řádově metr —
+      horizont stačí jen tak tak a praskliny v asfaltu budou nejspíš pod rozlišením. Proto nejdřív
+      měření ze záznamů, ne kód: bez toho by třetí strop mohl robota přibrzdit všude, jako to
+      7. 9. udělal `VAlong`. Terénní záznamy z 18. a 19. 9. nejsou na vývojovém stroji.
+    kroky:
+      - co: "Měřidlo `ARBot.Analyze`: dvojice špiček (ráz přední nápravy, klopení zadního kola o `rozvor / v` později) z VN100 nad záznamy z Robotouru; kontrola, že odstup × rychlost dává rozvor; k události dohledat, co polární grid v té buňce hlásil o pár sekund dřív (byl kořen v hloubce vidět?)"
+        stav: otevreno
+      - co: "Go/no-go: korelace drsnost → náklon jen do ~1 m znamená, že robot nestihne brzdit a kanál nemá smysl"
+        stav: otevreno
+      - co: "Třetí kanál gridu (drsnost, `byte`, spíš max s rozpadem než log-odds), gather zápis z polárního gridu, hodnota přežije pod půdorysem robota a rozvor za ním; nahradit skrytou vazbu `fRough` (drsná buňka dnes jen slaběji Free)"
+        stav: otevreno
+      - co: "`VSurface` v `LocalPlannerConfig`: plochý strop na úseku před hrbolem až rozvor za ním, sloučení do ceny A* i stropu uzlu, rozpad obálky `EnvVSurface`"
+        stav: otevreno
+      - co: "Kalibrační jízda přes známé hrboly a ověření na zařízení"
+        stav: otevreno
+    odkazy:
+      - text: traversability-grid.md
+        cesta: doc/traversability-grid.md
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+      - text: path-following.md
+        cesta: doc/path-following.md
+    devlog: [2026-09-22]
+    ceka_na: []
+
+  - id: lp-reflex-klopeni-zadni-kolo
+    oblast: lokalni-planovani
+    nazev: Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)
+    druh: zamer
+    stav: otevreno
+    nalezeno: 2026-09-22
+    popis: >
+      Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se ohlásí rázem
+      předních hnaných kol ve VN100 (100 Hz) a zadní pasivní kolo na něj najede o `rozvor / v`
+      později — první špička tedy OHLAŠUJE druhou předem a řídicí smyčka si může naplánovat okno
+      kolem ní. V okně platí dolní mez příkazu `v_aktuální + k · rampa · Δt`: `k = 0` zakáže
+      brzdění z obálky, `k = 1` na okno přidá (rampy jsou obě 0,50 m/s², takže brzdění působí
+      jednu rampu v neprospěch a zrychlení jednu ve prospěch). Zákaz pomůže jen tehdy, když by
+      robot v tu chvíli brzdil; přidání zabere vždy, ale je to aktivní zásah proti plánovači.
+      Podpis dvou špiček v odstupu daném rychlostí filtruje falešné spouštěče (samotný náklon
+      vzniká i při brzdění a na svahu). Meze: smyčka posílá příkaz jen 10×/s (`Profile.Ts`
+      = 100 ms, scheduler má změřené zpoždění až 108 ms), takže okno musí být 2–3 takty, ne jeden;
+      nouzové, držené i kolizní zastavení vyhrávají vždy; jen jízda vpřed nad minimální rychlostí
+      (při couvání jede kolečko první). Zapadá vedle `StopHold` jako jeho protějšek („teď
+      nezpomaluj" proti „smím jet"), oba stojí vedle regulátoru, ne v něm. Který `k` má smysl,
+      rozhodne měření: náklon při druhé špičce rozdělený podle znaménka derivace příkazu v tu
+      chvíli (zrychloval / držel / brzdil) — přirozený experiment, který se za čtyři kola
+      Robotouru odehrál mnohokrát.
+    kroky:
+      - co: "V měřidle dvojic špiček (viz `lp-drsnost-povrchu-rychlostni-strop`) sloupec: znaménko derivace příkazu při druhé špičce a velikost náklonu po skupinách zrychloval / držel / brzdil"
+        stav: otevreno
+      - co: "Reflex v `ControlLoop`: spouštěč z rázu přední nápravy + časovač `rozvor / v`, okno 2–3 takty, dolní mez příkazu s parametrem `k`, pojistky (nouzové/držené/kolizní zastavení, jen vpřed)"
+        stav: otevreno
+      - co: "Ověření ze záznamů, kolikrát by reflex v okamžiku skutečného klopení zasáhl a kolikrát falešně; pak A/B `k = 0` proti `k = 1` na zařízení"
+        stav: otevreno
+    odkazy:
+      - text: path-following.md
+        cesta: doc/path-following.md
+      - text: plan-drive-hold.md
+        cesta: doc/plan-drive-hold.md
+    devlog: [2026-09-22]
+    ceka_na: []

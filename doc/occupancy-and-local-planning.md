@@ -930,6 +930,11 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - (bez tématu v registru) **Dvě EDT místo jedné** (zvlášť překážky, zvlášť okraj cesty), kdyby bylo potřeba v nouzi
   vyjet z cesty. Zatím schválně jedna společná maska — rozdělí se, až se ukáže, že to chybí.
 - (bez tématu v registru) **`MaxZ` per buňka** (2,5D) pro převisy a podjezdy.
+- **[Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](ukoly.md#lp-drsnost-povrchu-rychlostni-strop)** —
+  třetí kanál gridu s drsností (polární grid ji měří, kartézský zahazuje) a strop `VSurface` v obálce,
+  **plochý** od `hrbol − brzdná dráha` po `hrbol + rozvor` (klopí zadní pasivní kolo, ne přední náprava;
+  brzdění na hrbolu klopení zhoršuje); nejdřív měření ze záznamů, aby třetí strop nebrzdil všude jako
+  `VAlong` 7. 9. Doplňuje ho reflex z IMU nezávislý na mapě (`lp-reflex-klopeni-zadni-kolo`).
 - (bez tématu v registru) **Kapslový footprint** místo opsané kružnice, pokud bude opsaná kružnice moc konzervativní.
 - **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
   druhý algoritmus nad gridem, kvůli kterému je grid world-kotvený a má oddělený kanál `LRoad`:

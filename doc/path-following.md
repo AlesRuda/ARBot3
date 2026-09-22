@@ -385,6 +385,11 @@ protože robota brzdil jiný omezovač (odstup od překážky, viz
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
+- **[Reflex proti překlopení při najetí zadního kola na hrbol](ukoly.md#lp-reflex-klopeni-zadni-kolo)** —
+  ráz přední nápravy ve VN100 ohlašuje o `rozvor / v` později klopení od zadního pasivního kola;
+  smyčka si naplánuje okno (2–3 takty, jede na 100 ms) a v něm drží dolní mez příkazu (`k = 0`
+  nebrzdit, `k = 1` přidat). Protějšek `StopHold`, vedle regulátoru; nouzové a držené zastavení
+  vyhrávají vždy. Zatím úvaha, rozhodne měření ze záznamů Robotouru.
 - **[Regulátor sledování dráhy z waypointů](ukoly.md#lp-regulator-sledovani-drahy)** —
   `MaxAllowedRotationSpeed = π/6` (30°/s) je nízké: po opravě už rychlost nezamyká, ale zůstává
   mezí toho, jak rychle se robot srovná na cílový uzel, a jestli robot mechanicky unese víc, se musí

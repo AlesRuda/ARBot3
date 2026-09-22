@@ -175,6 +175,9 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   z terénu; geometrie a klasifikátor jsou ověřené syntetickým testem. Patří k tomu i **radiální
   hrany**, které lze zpřesnit z reálného podílu platných pixelů (teď `AssumedValidFraction`).
 - (bez tématu v registru) **Referenční plocha** — per-azimut profil místo jedné roviny, pokud zvlněný terén nestačí.
+- **[Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](ukoly.md#lp-drsnost-povrchu-rychlostni-strop)** —
+  `StdZ` a odchylka od roviny pod prahem `MaxHeightDev` dnes zůstávají v polární buňce a dál nejdou;
+  záměr je přenést je jako spojitou drsnost do kartézského gridu a odvodit z ní rychlostní strop.
 - **[Polární grid sjízdnosti z hloubkové kamery s robot-centrickým pohledem](ukoly.md#vid-polarni-grid-sjizdnosti)** —
   přepočet ve View ze záznamu je odložený: vyžadoval by projekci offline (živé intrinsics se
   nezaznamenávají) — buď nominální intrinsics D435 480×270 v `Profile`, nebo zaznamenat
