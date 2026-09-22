@@ -7380,15 +7380,30 @@ temata:
       4,6 cm), takže drsnost je čitelná asi do 1,5 m, brzdná dráha z 1 m/s je řádově metr —
       horizont stačí jen tak tak a praskliny v asfaltu budou nejspíš pod rozlišením. Proto nejdřív
       měření ze záznamů, ne kód: bez toho by třetí strop mohl robota přibrzdit všude, jako to
-      7. 9. udělal `VAlong`. Terénní záznamy z 18. a 19. 9. nejsou na vývojovém stroji.
+      7. 9. udělal `VAlong`.
+      ZMĚŘENO 22. 9. 2026 (`ARBot.Analyze bumps` nad `records/Robotour2026/`, Kolo3b 799 m):
+      drsnost JE vlastnost úseku, ne bodu — nejhorší pětimetrové okno je 2,5× drsnější než medián
+      a podobnost dvou míst klesá pomalu (r = 0,80 na 5 m, 0,65 na 10 m, 0,44 na 20 m, 0,19 na
+      30 m). Záměr se tím posouvá: nemusí se předpovídat JEDEN kořen z hloubky na 1,5 m (kde šum
+      4,6 cm ve 3 m sotva stačí), stačí poznat HRBOLATÝ ÚSEK a strop postavit z IMU podle toho,
+      po čem robot už projel. Podmínkou je normalizace na jednotku dráhy — viz kroky.
     kroky:
-      - co: "Měřidlo `ARBot.Analyze`: dvojice špiček (ráz přední nápravy, klopení zadního kola o `rozvor / v` později) z VN100 nad záznamy z Robotouru; kontrola, že odstup × rychlost dává rozvor; k události dohledat, co polární grid v té buňce hlásil o pár sekund dřív (byl kořen v hloubce vidět?)"
+      - co: "Měřidlo `ARBot.Analyze bumps` nad záznamy z Robotouru"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "Go/no-go ZMĚŘENO — a odpověď záměr PŘEFORMULOVALA: jednotlivý hrbol z kamery předpovídat netřeba, protože drsnost drží přes desítky metrů (r = 0,80 na 5 m, 0,44 na 20 m, dekorelační délka ~20 m; nejhorší okno 2,5× nad mediánem). Strop jde postavit z IMU, z toho, po čem robot UŽ projel — dosah hloubky 1,5 m přestává být překážkou"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "Normalizovat drsnost na jednotku DRÁHY, ne času: dnešní RMS rychlosti klopení koreluje s rychlostí okna r = 0,134 nad Kolem 3b, ale 0,822 nad Kolem 4. Bez toho by mapa drsnosti byla zčásti mapou rychlosti a strop by se honil za vlastním ocasem (zpomal → vypadá hladce → zrychli)"
         stav: otevreno
-      - co: "Go/no-go: korelace drsnost → náklon jen do ~1 m znamená, že robot nestihne brzdit a kanál nemá smysl"
+      - co: "Rozhodnout ZDROJ drsnosti: z IMU po projetí, nebo z polárního gridu dopředu. ZMĚŘENO 22. 9. 2026 (`bumps --depth=`): grid JE v záznamu uvnitř CameraFrame (dřívější 'neposílá se, chce replay' byl omyl), ale na místě, kde robot později zakopl, se od obyčejné vozovky NELIŠÍ — StdZ p90 poměr hrbol/kontrola 0,95 / 0,98 / 0,91 / 1,68 / 1,02 na 0,5–3,0 m, bez trendu a s odporujícími si ukazateli. Cesta 'z IMU po projetí' je tedy zatím jediná změřeně nosná"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "Vysvětlit rozpor: z náklonu plyne, že kola stoupla o ~6 cm během ~0,13 m dráhy, a to by v hloubce vidět být MĚLO. Buď je párování místa hrubší, než se zdá (chyba dráhy, boční posun, buňka ~7 x 9 cm ve 2 m), nebo to StdZ nezachytí, protože útvar leží uvnitř jedné buňky a proložení roviny ho pohltí. Rozhodne pokus se ZNÁMOU překážkou"
         stav: otevreno
-      - co: "Třetí kanál gridu (drsnost, `byte`, spíš max s rozpadem než log-odds), gather zápis z polárního gridu, hodnota přežije pod půdorysem robota a rozvor za ním; nahradit skrytou vazbu `fRough` (drsná buňka dnes jen slaběji Free)"
+      - co: "Třetí kanál gridu (drsnost, `byte`, spíš max s rozpadem než log-odds), hodnota přežije pod půdorysem robota a za ním; nahradit skrytou vazbu `fRough` (drsná buňka dnes jen slaběji Free)"
         stav: otevreno
-      - co: "`VSurface` v `LocalPlannerConfig`: plochý strop na úseku před hrbolem až rozvor za ním, sloučení do ceny A* i stropu uzlu, rozpad obálky `EnvVSurface`"
+      - co: "`VSurface` v `LocalPlannerConfig`: plochý strop, sloučení do ceny A* i stropu uzlu, rozpad obálky `EnvVSurface`"
         stav: otevreno
       - co: "Kalibrační jízda přes známé hrboly a ověření na zařízení"
         stav: otevreno
@@ -7425,12 +7440,53 @@ temata:
       rozhodne měření: náklon při druhé špičce rozdělený podle znaménka derivace příkazu v tu
       chvíli (zrychloval / držel / brzdil) — přirozený experiment, který se za čtyři kola
       Robotouru odehrál mnohokrát.
+      ZMĚŘENO 22. 9. 2026 (`ARBot.Analyze bumps` nad `records/Robotour2026/`), ve dvou kolech:
+      nejdřív přes celý záznam (záporně), pak — na upřesnění autora, KDY se na trati zakoplo
+      o kořeny pod asfaltem (Kolo3b 14:12:20–14:13:00) — i nad tím oknem, a tam vyšlo něco jiného.
+      (a) SPOUŠTĚČ: ANI POTVRZEN, ANI VYLOUČEN. Přes 799 m žádná dvojice špiček (autokorelace jen
+      klesá, průměr přes 521 rázů bez hrbolku, 91,3 % spárovaných je POD náhodou 93,7 %).
+      Autor pak doplnil geometrii (ostruha MEZI hnanými koly, rozvor ~0,35 m při přímé jízdě,
+      mění se při manévrování; příčné defekty ale zasáhnou všechna kola), z čehož plyne ostrá
+      předpověď: ozvěna na 0,35 m u PŘÍČNÝCH defektů a při PŘÍMÉ jízdě. Měřeno (`--rozvor=`,
+      `--straight=`, dělení podle odezvy do strany) a NEPOTVRDILO SE: ve třech drsných úsecích
+      Kola 3b je hodnota na 0,35 m u podmnožiny „příčný + rovně" 1,18 / 0,80 / 0,54 proti pozadí
+      1,50 / 0,92 / 1,72, tedy nikde nad pozadím, a vrchol putuje mezi 0,28 a 1,70 m.
+      ⚠️ ODVOLÁN mezitímní závěr „v úseku s kořeny druhý vrchol JE na 0,25–0,30 m" — vyšel
+      z jednoho okna na jedné ose dráhy a se změnou okna nebo osy mizí.
+      Data to ale ani nevyvracejí: po podmínce zbývá 6–12 událostí na úsek, osa dráhy je PRÁVĚ
+      v okamžiku události nespolehlivá (odometrie se integruje z kol, která prokluzují; náhradní
+      osa „rychlost před událostí × čas" nepočítá se skutečným zpomalením — obě dávají jinou
+      odpověď, 0,28 proti 0,23 m), rozvor sám není konstanta (ostruha se vytáčí) a ostruha je
+      lehce zatížená, takže její ráz může být prostě slabý.
+      (b) BRZDĚNÍ KLOPENÍ NEZHORŠUJE — p50 1,54° při brzdění proti 1,42° při držení, jenže tentýž
+      rozdíl vyjde i u PRVNÍCH špiček (1,55 / 1,41) a na gyrem měřené veličině není rozdíl žádný
+      (2,60 / 2,64°). Je to „na hrbolaté zemi se častěji brzdí", ne „brzdění klopí"; Kolo3a i Kolo4
+      souhlasí. Smyčka navíc v okamžiku druhé špičky brzdí jen v 6,8–11,5 % případů.
+      (c) ALE KLOPENÍ MALÉ NENÍ. První verze tohohle záznamu tvrdila „gyrem potvrzené maximum ~6°,
+      velké výchylky jsou artefakty" — bylo to OBRÁCENĚ, vadná byla kontrolní veličina: integrace
+      gyra přes celé okno vyrušila fázi nosem nahoru proti fázi dolů. Po opravě (integrál se při
+      změně smyslu nuluje) je maximum klopení dopředu 18,06°, gyrem potvrzeno 14,09°, rozkmit
+      vrchol-vrchol 19,78°, celozáznamové maximum z gyra 19,32°. Zakopnutí 14:12:52: robot se
+      předními koly vyhoupne na +9,7°, za 0,75 s se sklopí na −9,9°.
+      (d) ČAS NA REFLEX JE — od prvního znatelného pohybu k nejhoršímu sklopení 0,5–0,75 s, tedy
+      5–7 taktů; obava „okno musí být 2–3 takty" vycházela z odstupu špiček, na velkých událostech
+      je času víc.
+      ZŮSTÁVÁ OTEVŘENÉ, ale s jinou otázkou než na začátku: ne „naprogramovat reflex", nýbrž
+      „existuje spouštěč?". Bez rozvoru a bez odpovědi, jestli zadní kolečko jezdí ve stopě hnaných
+      kol, se dál nehne.
     kroky:
-      - co: "V měřidle dvojic špiček (viz `lp-drsnost-povrchu-rychlostni-strop`) sloupec: znaménko derivace příkazu při druhé špičce a velikost náklonu po skupinách zrychloval / držel / brzdil"
+      - co: "V měřidle sloupec: znaménko derivace příkazu při druhé špičce a náklon po skupinách zrychloval / držel / brzdil"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "Ověřit ze záznamů, jestli se dvojice špiček vyskytuje — přes celý záznam NE, v úseku s kořeny ANO, druhý vrchol na 0,25–0,30 m (dvě nezávislé metody)"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "Geometrie podvozku zjištěna od autora: ostruha mezi hnanými koly, rozvor ~0,35 m při přímé jízdě, mění se při manévrování; příčné defekty zasáhnou všechna kola"
+        stav: hotovo
+        kdy: 2026-09-22
+      - co: "ZÁMĚRNÝ POKUS místo dolování ze závodních dat: přejet JEDNU známou příčnou překážku (lať, práh) několikrát rovně při 0,4 a 1,1 m/s. Poměr rychlostí 2,75 oddělí ozvěnu (pevná vzdálenost) od kmitu karoserie (pevný čas) jednoznačně — v Robotouru byl poměr jen 1,38 a předpovědi se lišily o 0,09 m. Zároveň dá opakované události se známou geometrií, kterých je dnes po podmínce jen 6–12 na úsek"
         stav: otevreno
-      - co: "Reflex v `ControlLoop`: spouštěč z rázu přední nápravy + časovač `rozvor / v`, okno 2–3 takty, dolní mez příkazu s parametrem `k`, pojistky (nouzové/držené/kolizní zastavení, jen vpřed)"
-        stav: otevreno
-      - co: "Ověření ze záznamů, kolikrát by reflex v okamžiku skutečného klopení zasáhl a kolikrát falešně; pak A/B `k = 0` proti `k = 1` na zařízení"
+      - co: "Reflex v `ControlLoop` — až bude potvrzený spouštěč; brzdění klopení prokazatelně nezhoršuje, takže `k = 0` odpadá a smysl by měl jen `k = 1` (přidat)"
         stav: otevreno
     odkazy:
       - text: path-following.md

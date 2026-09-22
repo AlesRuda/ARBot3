@@ -24,6 +24,13 @@
             <TextBlock Text="Průhlednost:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <Slider Minimum="0" Maximum="1" Value="{Binding OverlayOpacity}" Width="130"
                     VerticalAlignment="Center"/>
+            <!-- Prah masky: zapnuto = ostra hrana jako v ARBot2 (ten mel binarni uz samotnou
+                 pravdepodobnost), vypnuto = plynuly prechod, na kterem je videt, kde si sit
+                 neni jista. Meni BITMAPU, takze prepnuti si vynuti prekresleni ve ViewModelu. -->
+            <CheckBox IsChecked="{Binding MaskThresholdOn}" Margin="12,0,0,0"
+                      VerticalAlignment="Center" Foreground="White"
+                      Content="Práh masky 0,5"
+                      ToolTip.Tip="Maska kryje naplno nad pravděpodobností 0,5 a jinde vůbec (ostrá hrana jako v ARBot2). Vypnuto = krytí roste plynule s pravděpodobností."/>
         </WrapPanel>
 
         <!-- Dva panely: levy a pravy snimek, kazdy s polopruhlednym overlayem -->
@@ -35,11 +42,26 @@
                  si kazdy zachoval vlastni pomer, takze probability skoncila jako ctverec pres
                  prostrednich 75 % sirky obrazu (nalez 10. 9. 2026, doc/devlog.md).
                  Popiska je ZAMERNE mimo Viewbox - jinak by se skalovala i ona.
+
+                 ⚠️ Overlay se NEVYPINA vyhlazovani. Maska je prahovana (viz RenderProbabilityMask),
+                 takze hrana uz je ostra sama o sobe a vyhlazovani ji jen vyhladi pres jeden zdrojovy
+                 pixel - presne jako v ARBot2, ktery to ve WPF taky nechal na vychozim nastaveni.
+                 BitmapInterpolationMode="None" by udelalo tvrde schody bloku masky (pri 128x128
+                 asi 5x4 px sceny); je to jednoradkova zmena, kdyby to nekdo chtel jeste ostrejsi.
+
                  Kurzor obsluhuje vnitrni Grid (Background="Transparent" kvuli hit-testu), takze
                  poloha z e.GetPosition JSOU scenove pixely; overlay ma IsHitTestVisible=False.
-                 Tag rozlisuje panel (L/P) v obsluze v code-behind. -->
-            <Grid Grid.Column="0" Margin="0,0,4,0">
-                <Viewbox Stretch="Uniform">
+                 Tag rozlisuje panel (L/P) v obsluze v code-behind.
+
+                 ⚠️ Oba snimky se DOTYKAJI (zadna mezera) - lip to odpovida pohledu z robotu,
+                 kde jsou kamery vedle sebe. Nestaci na to zrusit okraje mezi sloupci: Viewbox
+                 se Stretch="Uniform" sve dite CENTRUJE, takze kdyz je sloupec sirsi nez pomer
+                 stran snimku, zbyde prazdne misto po OBOU stranach kazdeho snimku a mezera mezi
+                 nimi zustane i pri nulovem okraji. Proto je levy Viewbox zarovnany doprava
+                 a pravy doleva - snimky se tim potkaji uprostred a prazdne misto (pokud nejake
+                 je) odejde na vnejsi kraje. -->
+            <Grid Grid.Column="0">
+                <Viewbox Stretch="Uniform" HorizontalAlignment="Right">
                     <Grid Width="{Binding LeftSceneWidth}" Height="{Binding LeftSceneHeight}"
                           Background="Transparent" Tag="L"
                           PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited">
@@ -58,8 +80,8 @@
                     </StackPanel>
                 </Border>
             </Grid>
-            <Grid Grid.Column="1" Margin="4,0,0,0">
-                <Viewbox Stretch="Uniform">
+            <Grid Grid.Column="1">
+                <Viewbox Stretch="Uniform" HorizontalAlignment="Left">
                     <Grid Width="{Binding RightSceneWidth}" Height="{Binding RightSceneHeight}"
                           Background="Transparent" Tag="R"
                           PointerMoved="OnImagePointerMoved" PointerExited="OnImagePointerExited">
@@ -68,7 +90,10 @@
                                Opacity="{Binding OverlayOpacity}" IsHitTestVisible="False"/>
                     </Grid>
                 </Viewbox>
-                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                <!-- Popiska praveho panelu je u PRAVEHO okraje: oba snimky se ted dotykaji
+                     uprostred, takze vlevo by sedela primo na spoji a prekryvala by konec
+                     leveho snimku. Takhle jsou obe popisky ve vnejsich rozich. -->
+                <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6"
                         Background="#80000000" Padding="8,4" CornerRadius="3">
                     <StackPanel>
                         <TextBlock Text="{Binding RightInfo}" Foreground="White" FontFamily="Consolas,monospace"/>
