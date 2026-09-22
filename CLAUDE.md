@@ -750,8 +750,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (Δt od předchozího odeslání, ořez 0,02–1 s) — měření se nezahazuje, `P` zůstane konzistentní,
   zbytek inovace stáhnou další měření; jediná póza v systému. Ne ořez inovace v korelátoru (filtr
   by srazil `P` jako po plném měření), ne σ (drift by zůstal). `MeasurementDiagMsg` verze 3
-  (`RInflation`, `StepLimited`). ⚠️ **Hodnota NENÍ zvolená** — záznamy z Robotouru nejsou na
-  vývojovém stroji; vybere ji `ARBot.Analyze corridorstd --slew=` (blok 4) nad Kolem 3b/4.
+  (`RInflation`, `StepLimited`). ✅ **Hodnota zvolená z dat týž den večer** (`ARBot.Analyze
+  corridorstd --slew= --hslew=`, bloky 4 a 4b nad Kolem 3b/4): **`corridorslew=0.5`** je největší
+  hodnota, při které v obou záznamech nezbyde krok nad 0,3 m (bez limitu 21 / 16, 1,0 m/s nechá
+  v Kole 4 23 kroků do 0,46 m), za cenu p50 odchylky 0,2 m; **`corridorheadingslew=3`** je jen
+  pojistka — korekce kurzu z koridoru jsou max 2° (K p50 0,07) a ⚠️ **„−59°" u skoků z 19. 9.
+  byl SMĚR posunu, ne otočení pózy**. ⚠️ `K_eff` měřidla (okno 50 ms) krok podceňuje: skok
+  14:25:05 byl 4 dílčí skoky = 5,81 m za 1,6 s ≈ celé `K·ν` 5,83 m, fúze ho rozkládá, ne tlumí.
   ⚠️ Na zařízení neběželo. Viz [decisions.md](doc/decisions.md), 21. 9. 2026.
   ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
   při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše

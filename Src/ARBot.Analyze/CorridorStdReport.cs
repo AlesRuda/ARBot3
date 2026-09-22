@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -45,7 +45,8 @@ namespace ARBot.Analyze
         private const double SlewDtCap = 1.0, SlewDtFloor = 0.02;
 
         public static void Run(RecordFile rec, double[] kandidati, double jumpM,
-                               double[] slewKandidati = null, double? stdProSlew = null)
+                               double[] slewKandidati = null, double? stdProSlew = null,
+                               double[] hdgSlewKandidatiDegS = null)
         {
             var cors = rec.ReadAll<RoadCorridorMsg>("RoadCorridorMsg").Where(c => c.EmittedLateral && c.HasPose)
                           .OrderBy(c => c.TimeStamp).ToList();
@@ -177,10 +178,19 @@ namespace ARBot.Analyze
             Console.WriteLine("  POZOR: 1-D model bez GPS a bez zmeny prirazeni hrany; velka delta znamena, ze by robot jel jinudy a merenia by byla jina.");
 
             // ---------- 4. Protifakticky replay pro LIMIT KROKU (corridorslew=) ----------
-            if (slewKandidati == null || slewKandidati.Length == 0) return;
-            double sigmaSlew = stdProSlew ?? stdRec;
+            if (slewKandidati != null && slewKandidati.Length > 0)
+                Blok4Pricne(radky, slewKandidati, stdProSlew ?? stdRec, stdProSlew.HasValue, qMed, kal);
+
+            // ---------- 4b. Totez pro KURZ (corridorheadingslew=) ----------
+            if (hdgSlewKandidatiDegS != null && hdgSlewKandidatiDegS.Length > 0)
+                Blok4bKurz(rec, states, hdgSlewKandidatiDegS);
+        }
+
+        private static void Blok4Pricne(List<Radek> radky, double[] slewKandidati, double sigmaSlew, bool sigmaZArg,
+                                        double qMed, double kal)
+        {
             Console.WriteLine();
-            Console.WriteLine($"=== 4. PROTIFAKTICKY 1-D REPLAY PRO KANDIDATY corridorslew= (limit kroku; sigma {sigmaSlew:F2} m{(stdProSlew.HasValue ? " z --std" : " ze zaznamu")}) ===");
+            Console.WriteLine($"=== 4. PROTIFAKTICKY 1-D REPLAY PRO KANDIDATY corridorslew= (limit kroku; sigma {sigmaSlew:F2} m{(sigmaZArg ? " z --std" : " ze zaznamu")}) ===");
             Console.WriteLine("  limit na mereni L = slew x dt, dt = odstup od predchoziho mereni orezany na 0,02-1 s; kdyz by krok K*nu prekrocil L,");
             Console.WriteLine("  nafoukne se R na P*(|nu|/L - 1) (tak to dela Ekf.UpdateStep). Kroky jsou kalibrovane K_eff, tedy skutecny posun pozy je POD limitem.");
             Console.WriteLine($"  {"slew",6} {"omezeno",8} {"krok p50",9} {"krok p90",9} {"krok max",9} {">0,3 m",7} {">0,5 m",7} {"sigPoza p50",11} {"|delta| p50",11} {"|delta| p90",11} {"|delta| max",11} {"nad 1 m [s]",11}");
@@ -225,6 +235,150 @@ namespace ARBot.Analyze
             }
             Console.WriteLine("  omezeno = kolik mereni narazilo na limit; nad 1 m [s] = jak dlouho by protifakticka trajektorie byla dal nez 1 m od zaznamenane");
             Console.WriteLine("  (= cena za pomalejsi stazeni driftu). Kolik z driftu bylo PRAVDIVEHO, 1-D model nerekne - viz blok 1 (zmeny hrany).");
+        }
+
+        /// <summary>
+        /// <b>Blok 4b (21. 9. 2026): kandidáti `corridorheadingslew=`</b> — týž 1-D replay jako blok 4,
+        /// ale pro <b>kurz</b>. Inovace je <c>−HeadingDisagreementRad</c> (měření − póza, tak jak ji
+        /// skládá <c>CorridorLocalizer.Send</c>: <c>θ_meas = θ_pose + (sklon hrany − směr koridoru)</c>),
+        /// P je <c>Covariance[ITh, ITh]</c> stavu před měřením, R = σ směru z proložení² +
+        /// <c>corridorheadingstd</c>² (ze záznamu). Skutečný krok kurzu = Δθ mezi stavem před a po
+        /// měření minus <c>ω·dt</c>; z velkých inovací se kalibruje K_eff jako u příčné osy.
+        ///
+        /// <para><b>Proč zvlášť:</b> grid je kotvený ve světě, takže otočení pózy o dθ posune jeho
+        /// obsah o <c>R·dθ</c>. ⚠️ „−59°" u skoků z Kola 3b (14:25:05–07) ve výpisu <c>nav</c> je
+        /// ale <b>směr posunu</b>, ne změna kurzu — změřeno tímhle blokem 21. 9. 2026: inovace kurzu
+        /// byla −6,2°, krok −2,7°, a bez limitu je krok kurzu z koridoru max 2,0° (Kolo 3b) /
+        /// 0,6° (Kolo 4), tedy nikdy nad tolerancí detektoru. Práh detektoru skoku pro kurz je
+        /// <c>PoseJumpDetector.ToleranceRad</c> (5°), proto se počítají kroky nad 5° (a nad 2° jako
+        /// přísnější měřítko).</para>
+        ///
+        /// <para>⚠️ Kompas (<c>imuheadinghz=1</c>) ani gyro v modelu nejsou — odchylka kurzu
+        /// protifaktické trajektorie se stahuje jen dalšími měřeními koridoru, takže <c>delta</c>
+        /// je <b>horní</b> odhad ceny.</para>
+        /// </summary>
+        private static void Blok4bKurz(RecordFile rec, List<RobotStateMsg> states, double[] kandidatiDegS)
+        {
+            const double R2D = 180.0 / Math.PI, D2R = Math.PI / 180.0;
+            var cors = rec.ReadAll<RoadCorridorMsg>("RoadCorridorMsg").Where(c => c.EmittedHeading && c.HasPose)
+                          .OrderBy(c => c.TimeStamp).ToList();
+            double hstdDeg = ParamZLogu(rec, "corridorheadingstd", 0);
+            double hstd = hstdDeg * D2R;
+            Console.WriteLine();
+            Console.WriteLine($"=== 4b. PROTIFAKTICKY 1-D REPLAY PRO KANDIDATY corridorheadingslew= (limit kroku KURZU; corridorheadingstd={hstdDeg} st. ze zaznamu) ===");
+            Console.WriteLine($"  merenia kurzu poslana do fuze (EmittedHeading): {cors.Count}");
+            if (cors.Count < 10) { Console.WriteLine("  Malo dat."); return; }
+
+            // radky: inovace [rad], sigma prolozeni, P_theta pred merenim, K_rec, skutecny krok
+            var radky = new List<Radek>();
+            int si = 0;
+            for (int i = 0; i < cors.Count; i++)
+            {
+                var c = cors[i];
+                while (si + 1 < states.Count && states[si + 1].TimeStamp <= c.TimeStamp) si++;
+                var pred = states[si];
+                var po = states.Skip(si + 1).FirstOrDefault(s => (s.TimeStamp - c.TimeStamp).TotalSeconds >= 0.05) ?? pred;
+                double pth = PTheta(pred);
+                double sigmaFit = c.SigmaDirectionRad;
+                double rRec = sigmaFit * sigmaFit + hstd * hstd;
+                double kRec = pth / (pth + rRec);
+                double dt = (po.TimeStamp - pred.TimeStamp).TotalSeconds;
+                double dth = Uhel(po.Theta - pred.Theta) - pred.Omega * dt;
+                double nu = -c.HeadingDisagreementRad;   // mereni - poza (viz CorridorLocalizer.Send)
+                radky.Add(new Radek { T = c.TimeStamp, Nu = nu, SigmaFit = sigmaFit, PLat = pth, KRec = kRec,
+                                      KrokModel = kRec * nu, KrokSkut = dth, ZmenaWay = i > 0 && cors[i - 1].WayId != c.WayId, WayId = c.WayId });
+            }
+            var absNu = radky.Select(r => Math.Abs(r.Nu) * R2D).OrderBy(x => x).ToList();
+            var sf = radky.Select(r => r.SigmaFit * R2D).OrderBy(x => x).ToList();
+            var pl = radky.Select(r => Math.Sqrt(r.PLat) * R2D).OrderBy(x => x).ToList();
+            var kr = radky.Select(r => r.KRec).OrderBy(x => x).ToList();
+            Console.WriteLine($"  |inovace kurzu| [st.]: p50 {Q(absNu, .5):F2}  p90 {Q(absNu, .9):F2}  p99 {Q(absNu, .99):F1}  max {absNu.Last():F1}; "
+                              + $"nad 2 st.: {absNu.Count(x => x > 2)}, nad 5 st.: {absNu.Count(x => x > 5)}, nad 20 st.: {absNu.Count(x => x > 20)}");
+            Console.WriteLine($"  sigma smeru z prolozeni [st.]: p50 {Q(sf, .5):F2}  p90 {Q(sf, .9):F2}; sigma kurzu pozy pred merenim [st.]: p50 {Q(pl, .5):F2}  p90 {Q(pl, .9):F2}; "
+                              + $"K_rec: p50 {Q(kr, .5):F2}  p90 {Q(kr, .9):F2}");
+
+            // Kalibrace K_eff z velkych inovaci (nad 2 st.)
+            double prahRad = 2 * D2R;
+            var velke = radky.Where(r => Math.Abs(r.Nu) > prahRad).ToList();
+            double kal = 1;
+            if (velke.Count >= 5)
+            {
+                double sxx = velke.Sum(r => r.KrokModel * r.KrokModel), sxy = velke.Sum(r => r.KrokModel * r.KrokSkut);
+                double slope = sxx > 0 ? sxy / sxx : double.NaN;
+                Console.WriteLine($"  overeni modelu (|inovace| > 2 st., n={velke.Count}): skutecny krok / (K_rec*inovace) = {slope:F2}");
+                Console.WriteLine($"  {"cas",-11} {"inovace",8} {"sigmaFit",8} {"sigPoza",8} {"K_rec",6} {"krok model",10} {"krok skut",10}  way   [stupne]");
+                foreach (var r in velke.OrderByDescending(r => Math.Abs(r.Nu)).Take(15).OrderBy(r => r.T))
+                    Console.WriteLine($"  {Cas(r.T),-11} {r.Nu * R2D,8:F2} {r.SigmaFit * R2D,8:F2} {Math.Sqrt(r.PLat) * R2D,8:F2} {r.KRec,6:F2} {r.KrokModel * R2D,10:F2} {r.KrokSkut * R2D,10:F2}  {r.WayId}{(r.ZmenaWay ? " <- ZMENA HRANY" : "")}");
+                if (sxx > 0 && slope > 0.05 && slope < 1.5) kal = slope;
+            }
+            double sumRec = radky.Sum(r => Math.Abs(kal * r.KRec * r.Nu)) * R2D;
+            Console.WriteLine($"  kalibrace zesileni pro replay: K_eff = {kal:F2} x K; soucet |kroku| kurzu za zaznam (kalibrovany): {sumRec:F0} st.");
+
+            // Procesni sum kurzu z rustu P mezi merenimi
+            var qs = new List<double>();
+            for (int i = 1; i < radky.Count; i++)
+            {
+                double dt = (radky[i].T - radky[i - 1].T).TotalSeconds;
+                if (dt <= 0 || dt > 5) continue;
+                double pPo = (1 - radky[i - 1].KRec) * radky[i - 1].PLat;
+                double q = (radky[i].PLat - pPo) / dt;
+                if (q > 0) qs.Add(q);
+            }
+            qs.Sort();
+            double qMed = qs.Count > 0 ? Q(qs, .5) : 1e-4;
+            Console.WriteLine($"  procesni sum kurzu q [st.^2/s]: p50 {qMed * R2D * R2D:F4}  (n={qs.Count})");
+
+            Console.WriteLine("  limit na mereni L = slew x dt [st.], dt orezany na 0,02-1 s; kroky kalibrovane K_eff; prah detektoru skoku kurzu je 5 st. (PoseJumpDetector.ToleranceRad)");
+            Console.WriteLine($"  {"slew st/s",9} {"omezeno",8} {"krok p50",9} {"krok p90",9} {"krok max",9} {">2 st",6} {">5 st",6} {"sigPoza p50",11} {"|delta| p50",11} {"|delta| p90",11} {"|delta| max",11} {"nad 5st [s]",11}");
+            foreach (double slewDeg in kandidatiDegS)
+            {
+                double slew = slewDeg * D2R;
+                double P = radky[0].PLat, delta = 0;
+                var kroky = new List<double>(); var deltas = new List<double>(); var sig = new List<double>();
+                int omezeno = 0; double sekundNad = 0;
+                DateTime tPrev = radky[0].T; bool prvni = true;
+                foreach (var r in radky)
+                {
+                    double dt = Math.Max(0, (r.T - tPrev).TotalSeconds);
+                    double dtLim = prvni || r.T < tPrev ? SlewDtCap : Math.Min(SlewDtCap, Math.Max(SlewDtFloor, dt));
+                    prvni = false; tPrev = r.T;
+                    P += qMed * dt;
+                    double R = r.SigmaFit * r.SigmaFit + hstd * hstd;
+                    double nuCf = Uhel(r.Nu - delta);
+                    if (slew > 0)
+                    {
+                        double L = slew * dtLim;
+                        double krokRaw = P / (P + R) * Math.Abs(nuCf);
+                        if (krokRaw > L) { R = Math.Max(R, P * (Math.Abs(nuCf) / L - 1)); omezeno++; }
+                    }
+                    double K = kal * P / (P + R);
+                    double s = K * nuCf;
+                    double sRec = kal * r.KRec * r.Nu;
+                    delta = Uhel(delta + s - sRec);
+                    P = (1 - P / (P + R)) * P;
+                    kroky.Add(Math.Abs(s) * R2D); deltas.Add(Math.Abs(delta) * R2D); sig.Add(Math.Sqrt(P) * R2D);
+                    if (Math.Abs(delta) * R2D > 5) sekundNad += dt;
+                }
+                kroky.Sort(); deltas.Sort(); sig.Sort();
+                Console.WriteLine($"  {slewDeg,9:F1} {omezeno,8} {Q(kroky, .5),9:F2} {Q(kroky, .9),9:F2} {kroky.Last(),9:F2} {kroky.Count(x => x > 2),6} {kroky.Count(x => x > 5),6} {Q(sig, .5),11:F2} {Q(deltas, .5),11:F2} {Q(deltas, .9),11:F2} {deltas.Last(),11:F1} {sekundNad,11:F0}"
+                                  + (slewDeg == 0 ? "  <- bez limitu" : ""));
+            }
+            Console.WriteLine("  omezeno = kolik mereni narazilo na limit; nad 5st [s] = jak dlouho by kurz protifakticke trajektorie byl dal nez 5 st. od zaznamenaneho.");
+            Console.WriteLine("  POZOR: kompas (imuheadinghz=1) a gyro v modelu nejsou - odchylka kurzu se stahuje jen dalsimi merenimi koridoru, takze delta je HORNI odhad.");
+        }
+
+        private static double PTheta(RobotStateMsg s)
+        {
+            var P = s.Covariance;
+            if (P == null || P.RowCount < 3 || P.ColumnCount < 3) return 1e-4;
+            return Math.Max(1e-8, P[2, 2]);   // EKFModel.ITh = 2
+        }
+
+        private static double Uhel(double a)
+        {
+            while (a > Math.PI) a -= 2 * Math.PI;
+            while (a < -Math.PI) a += 2 * Math.PI;
+            return a;
         }
 
         private sealed class Radek

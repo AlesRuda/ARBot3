@@ -72,6 +72,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-21
 
+- **Večer: hodnota limitu zvolená z Robotouru** (`lok-koridor-skoky-pozy`, záznamy jsou na tomto
+  stroji v `records/Robotour2026/`): `ARBot.Analyze corridorstd Kolo3b.rec / Kolo4.rec --slew=`
+  → **`corridorslew=0.5`** (největší hodnota bez kalibrovaného kroku nad 0,3 m v obou záznamech;
+  1,0 nechá v Kole 4 23 kroků do 0,46 m, 0,3 prodraží drift p50 0,21 → 0,37 / 0,19 → 0,77 m).
+  Pro kurz přibyl **blok 4b** (`--hslew=`) a ukázal, že korekce kurzu z koridoru jsou **max 2°**
+  (K p50 0,07) — **„−59°" u skoků z 19. 9. byl směr posunu, ne otočení pózy** (opraveno v docs
+  i v komentáři analyzátoru); **`corridorheadingslew=3`** je pojistka na dlouhou mezeru bez
+  koridoru, v replayi nestojí nic. Obojí v `config/pi-provoz.cfg`, výchozí v registru dál 0.
+  ⚠️ Nález o měřidle: `K_eff` (okno 50 ms) krok podceňuje — skok 14:25:05 byl 4 dílčí skoky
+  = 5,81 m za 1,6 s ≈ celé `K·ν`; fúze rozkládá, ne tlumí (otevřený krok v registru).
+  ⚠️ Na zařízení s limitem nejelo. Detail:
+  [map-correlation-localization.md](map-correlation-localization.md), „Změřeno nad Kolem 3b a 4".
 - **Limit kroku korekce z koridoru** (`lok-koridor-skoky-pozy`): autorův návrh „korekce posílaná
   do EKF nesmí být větší než limit" rozpracován jako **rychlostní limit uvnitř filtru**:
   `IMeasurement.MaxStep` + `Ekf.UpdateStep` nafoukne `R` tak, aby krok podél osy měření vyšel
