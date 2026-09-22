@@ -70,6 +70,268 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   v `ARBot.Analyze` (+ co polární grid v té buňce viděl, + znaménko derivace příkazu); podle
   výsledku go/no-go a návrh (`plan-*.md`).
 
+- **Večer: měřidlo napsané a obojí změřeno — `ARBot.Analyze bumps`** (`BumpReport.cs`). Terénní
+  záznamy ze zařízení nakonec kopírovat netřeba: soutěžní kola **na tomhle stroji jsou**
+  (`records/Robotour2026/`), a Kolo3b jich nese nejvíc (799 m jízdy, 147 tisíc vzorků VN100).
+  Měřeno nad Kolem 3b, Kolem 4 (287 m), Kolem 3a (103 m), Kolem 3-návrat (125 m) a Kolem 2 (18 m).
+  - ❌ **`lp-reflex-klopeni-zadni-kolo`: přes celý záznam dvojice špiček NENÍ** — tři nezávislé testy,
+    všechny záporné. Autokorelace energie klopení **v dráze** (bez prahů, 677 m) jen jednotvárně
+    klesá 0,29 → 0,03 a na obvodu kola 0,508 m nemá nic; **průměr přes 521 nejsilnějších rázů**
+    (citlivější, protože průměruje jen skutečné rázy) je hladký pokles 14,8× → ~2× **bez hrbolku**
+    kdekoli mezi 0,15 a 2 m; a 91,3 % spárovaných špiček je **pod náhodou** (Poisson dá 93,7 %).
+    Příčina: ráz přijde jednou za **0,51 m** — není to řada oddělených nárazů, ale **souvislá
+    vibrace**, na které se nemá co spustit. Kolo4 to reprodukuje.
+  - ❌ **A brzdění klopení nezhoršuje.** Přirozený experiment, o který si záměr říkal, proběhl:
+    klopení dopředu p50 **1,27°** při brzdění proti **1,19°** při držení — jenže tentýž rozdíl
+    vyjde i u **prvních** špiček (1,20 / 1,18), takže je to „na hrbolaté zemi se častěji brzdí",
+    ne „brzdění klopí". Navíc **není co zachraňovat**: p50 1,2°, p90 2,7°, gyrem potvrzené maximum
+    ~6°, a smyčka v tu chvíli brzdí jen v **6,8–11,5 %** případů. Téma přepnuto na `odlozeno`.
+  - ⚠️ **Jediná cesta, jak ten záporný výsledek vysvětlit jinak, je konstrukční** a ze záznamu
+    se nezodpoví: *jezdí zadní kolečko ve stopě hnaných kol?* Když je uprostřed, nad místo po
+    hnaném kole (±0,205 m od osy) nikdy nenajede a ozvěna nemůže existovat z principu. Zbylo jako
+    otevřený krok — je to pohled do podvozku, ne měření.
+  - ✅ **`lp-drsnost-povrchu-rychlostni-strop`: go/no-go změřeno a záměr to PŘEFORMULOVALO.**
+    Drsnost je vlastnost **úseku**, ne bodu: nejhorší pětimetrové okno je **2,5× drsnější než
+    medián** a podobnost dvou míst klesá pomalu (r = **0,80** na 5 m, 0,65 na 10 m, 0,44 na 20 m,
+    0,19 na 30 m, tedy dekorelační délka ~20 m). Původní go/no-go („korelace jen do ~1 m znamená,
+    že robot nestihne brzdit") se tím ptá na špatnou věc — strop nemusí předpovídat *tenhle* kořen
+    z hloubky na 1,5 m, dá se postavit **z IMU podle toho, po čem robot už projel**, a problém
+    s dosahem hloubky zmizí.
+  - ⚠️ **Podmínka, než se z toho stane kanál mapy:** normalizovat drsnost na jednotku **dráhy**.
+    Dnešní RMS rychlosti klopení koreluje s rychlostí okna r = 0,134 nad Kolem 3b (jelo se skoro
+    konstantně), ale **0,822 nad Kolem 4** (0,29–1,02 m/s) — bez normalizace by mapa drsnosti byla
+    zčásti mapou rychlosti a strop by se honil za vlastním ocasem (zpomal → vypadá hladce →
+    zrychli). Táž kruhovost jako u `camerapose=fusion`; měřidlo tu kontrolu tiskne samo.
+  - ⚠️ **VN100 sráží rychlost klopení na 0,69×** (směrnice 0,689 / 0,692 / 0,693 ve třech
+    záznamech), takže filtrovaný úhel krátký ráz spíš podhodnocuje; klopení se proto měří oběma
+    cestami.
+  - **Konvence ověřené, ne předpokládané.** `YawPitchRoll(q, Euler.zxy)` ukládá do pole `Pitch`
+    úhel prostřední rotace (kolem X), což by při FLU byl náklon **do strany** — podle algebry by
+    tedy jména polí neodpovídala fyzice. Rozhodla data: proti náklonu z gravitace vyjde
+    `ypr.Pitch` ↔ klopení dopředu r = **0,971** a `ypr.Roll` ↔ do strany r = **0,987**, tedy jména
+    sedí a rychlost klopení je `gyroY` (r = −0,92 proti ose X 0,04). ⚠️ Samotné „robot stojí" na
+    ten test **nestačí** — v depu s ním hýbe obsluha a bez sekundového vyhlazení spadla korelace
+    na 0,12.
+  - ⚠️ **Dvě pasti zapsané do měřidla**, protože obě by tiše zkazily výsledek: obvod kola je
+    **0,508 m**, tedy týž řád jako rozvor (periodický jev od kola vypadá jako ozvěna — rozliší
+    ho harmonické, proto se tiskne celá křivka), a **procento spárovaných špiček nic neznamená**,
+    když je špička každých 0,5 m a okno 1 m široké (proto se vedle něj tiskne poissonovská
+    náhoda). Třetí past kousla při psaní: vzorkování energie do mřížky **nejbližším vzorkem**
+    zahodí při 0,2 m/s čtyři pětiny dat, a podvzorkování širokopásmového signálu ho **zbělí**,
+    tedy smaže právě tu ozvěnu, která se hledá — vzorkuje se průměrem přes buňku.
+  - **Ověřeno:** `dotnet build -p:Platform=x64`, měřidlo proběhlo nad pěti záznamy. Dokumentace:
+    [occupancy-and-local-planning.md](occupancy-and-local-planning.md) („Hrboly a klopení"),
+    [record-replay.md](record-replay.md) (`bumps`), registr přegenerován.
+
+- **Večer podruhé: autor upřesnil, KDY se zakopávalo — a závěr se tím ve dvou bodech obrátil.**
+  Kořeny pod asfaltem, Kolo3b **14:12:20–14:13:00**. Do měřidla přibylo `--from=`/`--to=`
+  (hodiny ze záznamu i sekundy), `--detail=<n>` se **syrovým průběhem** události a rozhodčí
+  „vzdálenost proti času".
+  - ⚠️ **Oprava vlastní chyby č. 1: klopení malé NENÍ.** Ráno tu stálo, že největší výchylky
+    (18,06°, 10,72°) jsou artefakty, protože je gyro nepotvrzuje (0,82°, 0,00°). Bylo to
+    **obráceně — vadná byla kontrolní veličina**: `GyroNoseDown` integrovala přes celé okno, takže
+    se u **kmitavé** události fáze nosem nahoru a dolů vyrušily. Po opravě (integrál se při změně
+    smyslu nuluje) gyro tytéž události potvrzuje: **14,09°** a **14,35°**, celozáznamové maximum
+    **19,32°**, rozkmit vrchol-vrchol **19,78°**. Zakopnutí 14:12:52: robot se předními koly
+    vyhoupne na **+9,7°**, za 0,75 s se sklopí na **−9,9°** a vrací se rychlostí −95 °/s, přičemž
+    rychlost kol kolísá 0,30–0,86 m/s. Je to skutečné zakopnutí a sedí na to, co autor viděl.
+    *Poučení: když se dvě měřidla téže věci rozejdou o řád, podezřelé je to složitější.*
+  - ⚠️ **Oprava vlastní chyby č. 2: konvence se nesmí určovat z okna.** Na 40 s je klidových
+    vzorků pár set, osy se v bloku 1 nerozliší a výběr padne na `ypr.Roll` a gyro X místo
+    `ypr.Pitch` a gyro Y — varování se vytiskne, ale zbytek reportu už počítá ze špatné osy.
+    Konvence se teď určuje vždy z **celého** záznamu a teprve pak se ořezává okno.
+  - ⚠️ **Mezitímní závěr „v úseku s kořeny druhý vrchol JE na 0,25–0,30 m" byl ODVOLÁN ještě týž
+    večer.** Vyšel z **jednoho** okna na **jedné** ose dráhy; se změnou okna nebo osy mizí (viz
+    níž). Téma vráceno na `otevreno` s jinou otázkou než ráno — ne „naprogramovat reflex", ale
+    „existuje spouštěč?".
+  - ✅ **Co po opravě platí dál, a silněji:** brzdění klopení nezhoršuje (1,54° proti 1,42°, ale
+    tentýž rozdíl i u **prvních** špiček 1,55 / 1,41, a na gyrem měřené veličině rozdíl **žádný**
+    — 2,60 proti 2,64°), takže `k = 0` odpadá a smysl by měl jen `k = 1`. Rychlost na klopení
+    nemá vliv v rozsahu, ve kterém se jelo (1,4–1,5° od 0,4 do 1,2 m/s).
+  - ✅ **A jedna věc se obrátila ve prospěch reflexu:** časový rozpočet je pohodlný. Od prvního
+    znatelného pohybu k nejhoršímu sklopení je **0,5–0,75 s**, tedy **5–7 taktů** stomilisekundové
+    smyčky; ranní obava „okno musí být 2–3 takty" vycházela z odstupu špiček (p50 0,34 s), ale na
+    velkých událostech je času víc.
+
+- **Večer potřetí: autor doplnil geometrii podvozku — a předpověď, která z ní plyne, se
+  nepotvrdila.** Zadní kolo je **volně otočná ostruha MEZI hnanými koly**, rozvor při přímé jízdě
+  **~0,35 m**, při manévrování se mění; ostruha tedy nejede ve stopě předních kol, **ale většina
+  problémových defektů je příčná nebo tak velká, že zasáhne všechna kola**. Z toho plyne ostrá
+  předpověď — ozvěna **na 0,35 m**, jen u **příčných** defektů a při **přímé** jízdě. Do měřidla
+  přibylo `--rozvor=`, `--straight=`, dělení událostí podle odezvy do strany a druhá, na prokluzu
+  nezávislá **osa dráhy** (rychlost *před* událostí × čas).
+  - ⚠️ **Nepotvrdilo se.** Ve třech drsných úsecích Kola 3b je hodnota na 0,35 m u podmnožiny
+    „příčný + rovně" **1,18 / 0,80 / 0,54** proti pozadí 1,50 / 0,92 / 1,72 — tedy **nikde nad
+    pozadím**, a to právě tam, kde má být ozvěna nejsilnější. Vrchol přitom putuje mezi 0,28 a
+    1,70 m, což je chování šumu.
+  - ⚠️ **Ale ani vyvráceno to není**, a stojí za to vědět proč: po podmínce zbývá **6–12** událostí
+    na úsek; **osa dráhy je právě v okamžiku události nespolehlivá** (odometrie se integruje
+    z týchž kol, která přes hrbol šplhají a prokluzují, náhradní osa zase nepočítá se skutečným
+    zpomalením — dávají 0,28 proti 0,23 m a ani jedna není pravda); **rozvor sám není konstanta**,
+    protože se ostruha vytáčí, takže se ozvěna rozmaže přes interval; a ostruha je **lehce
+    zatížená**, takže její ráz může být prostě slabý.
+  - ✅ **Další krok proto není další měření nad Robotourem, ale ZÁMĚRNÝ POKUS:** přejet **jednu
+    známou příčnou překážku** (lať, práh) několikrát rovně při **0,4 a 1,1 m/s**. Poměr rychlostí
+    2,75 oddělí ozvěnu (pevná vzdálenost) od kmitu karoserie (pevný čas) jednoznačně — v závodních
+    datech byl poměr jen 1,38 a předpovědi obou hypotéz se lišily o 0,09 m, tedy pod rozlišením.
+    Deset minut u robota nahradí libovolné množství dolování z 800 m závodní jízdy.
+  - *Poučení k zápisu: mezitímní závěr z jednoho okna a jedné osy neměl vydržet do večera. Když
+    vrchol nepřežije změnu výběru, není to nález.*
+
+- **Večer počtvrté: „lze tu nerovnost poznat z hloubkové kamery?" — na 1–3 m NE.**
+  - ⚠️ **Nejdřív oprava předpokladu, který jsem dnes dvakrát napsal:** tvrdil jsem, že to ze
+    záznamu nejde, protože polární grid svou drsnost neposílá a chtělo by to replay snímků.
+    **Omyl** — grid se ukládá **uvnitř `CameraFrame`** (`CameraFrame.Grid`, FormatVersion 2, od
+    1. 8. 2026) i se `StdZ`, `MeanZ`, `MaxZ` a třídou buňky. Nemuselo se přehrávat nic.
+  - **Nový blok 9 měřidla** (`bumps --depth=<n>`, `BumpDepthReport`): hrbol je v okamžiku, kdy na
+    něj najede přední náprava, pod počátkem tělesového rámce, takže se v gridu z dřívějšího snímku
+    hledá pás kolem `x = Δs`. ⚠️ **Bez pózy schválně** (v Kole 3b skákala až o 4 m), z pásu
+    ±0,30 m se bere **nejhorší** buňka (kolo najede na nejvyšší věc v cestě, ne na průměr), výška
+    se měří proti **mediánu téhož prstence v témže snímku**. A hlavně proti **kontrolní skupině**
+    obyčejných míst — bez ní by „StdZ 0,4 cm" neznamenalo nic.
+  - **Výsledek** (okno 14:12:20–14:13:00, 1 025 snímků s gridem, 17 událostí, 2 160 nahlédnutí
+    proti 5 677 kontrolním): `StdZ` p90 poměr hrbol/kontrola **0,95 / 0,98 / 0,91 / 1,68 / 1,02**
+    na 0,5–3,0 m — kolísá kolem 1,0 bez trendu a ukazatele si odporují (na 2,0–2,5 m `StdZ` 1,68×,
+    ale nejvyšší bod 0,93×). Podíl buněk `Obstacle` 2,6 / 2,5 / 9,0 / 8,4 / 5,2 % proti kontrole
+    8,6 / 4,4 / 4,9 / 1,2 / 1,1 %, tedy v nejbližším koši je **kontrola vyšší**.
+    ⚠️ Koš 3,5–4,0 m (`StdZ` 10,6×) se **nesmí** číst jako „daleko je to vidět" — v pásu jsou tam
+    skutečné překážky (zeleň, zeď, lidé).
+  - ⚠️ **Zbývá nevysvětlený rozpor:** z náklonu plyne, že kola stoupla o **~6 cm** (9,7° při
+    rozvoru 0,35 m) během ~0,13 m dráhy, a takový útvar by vidět být **měl**. Buď je párování
+    místa hrubší, než se zdá (chyba dráhy, boční posun, buňka ~7 × 9 cm ve 2 m), nebo to `StdZ`
+    nezachytí, protože útvar leží celý uvnitř jedné buňky a proložení roviny ho pohltí.
+  - **Praktický důsledek pro `lp-drsnost-povrchu-rychlostni-strop`:** cesta „drsnost z IMU podle
+    toho, po čem robot už projel" je zatím **jediná změřeně nosná**; předpověď z hloubky dopředu
+    se na těchhle datech nepotvrdila. Rozhodne ji týž **pokus se známou překážkou**, který má
+    rozhodnout i ozvěnu — tam se ví, kde překážka je, a párování přestane být zdrojem pochybností.
+
+- **ImageView: pravděpodobnost jako MASKA místo šedivé vrstvy** (na zadání autora).
+  Do teď se pravděpodobnost kreslila do překryvného slotu jako **šedotónový obraz** a posuvník
+  měnil průhlednost **celé vrstvy najednou**. Důsledek: místa s nulovou pravděpodobností ležela
+  přes podklad jako **černá plocha** a místa s jedničkou jako bílá — podklad byl tedy zastíněný
+  všude stejně, a nejvíc zrovna tam, kde se nic neděje.
+  Nově je overlay **jednolitá černá s alfa kanálem = pravděpodobnost** (p = 0 → úplně průhledné,
+  p = 1 → plná maska, mezi tím lineárně). Posuvník zůstal jako `Opacity` obrázku v XAML, takže se
+  **násobí** s alfou pixelu a výsledná krycí síla je `posuvník × p`; při jeho změně se tedy nic
+  nepřepočítává, skládá to vrstva.
+  - **Jen v překryvném slotu** — jako *podklad* zůstává pravděpodobnost šedivá: kdo si ji dá do
+    panelu místo obrazu, chce ji vidět, ne černou masku nad ničím. `Render()` proto dostalo
+    příznak `overlay` (`RenderSlot` ho odvodí ze slotu).
+  - ⚠️ Bitmapa musí být `AlphaFormat.Unpremul`; `Opaque` (jako u ostatních vrstev) by alfu zahodilo
+    a maska by byla plná plocha.
+  - ⚠️ **Maska byla proti ARBot2 ROZMAZANÁ — a první vysvětlení bylo špatně.** Autor to poznal
+    na snímku obrazovky („na ARBot2 bylo to pokrytí ostré"). Nejdřív se usoudilo na **rozlišení**
+    (ARBot2 prý počítal histogram v plném rozlišení snímku, tady je síť 128×128 a Avalonia to při
+    zvětšování vyhlazuje) a vypnulo se vyhlazování. **Autor to opravil:** ARBot2 jel na **téže
+    síti** na Coralu, takže rozlišení bylo stejné a příčina musí být jinde.
+  - ✅ **Skutečná příčina: ARBot2 měl masku BINÁRNÍ.** `TFSemanticSegmentation.cs` v něm zapisoval
+    rovnou rozhodnutí `p.Value = probability[idx] < probability[idx+1] ? 255 : 0` — ne
+    pravděpodobnost. `OnnxBackProject` tady naproti tomu vrací **spojitých 0..255** (normalizuje
+    výstup součtem kanálů), takže maska přechází plynule a působí rozmazaně. Léčba je tedy
+    **prahování při kreslení**, ne vypínání vyhlazování; to se vrátilo zpět, protože ARBot2 ho ve
+    WPF taky nechal na výchozím nastavení a hrana z binární masky je ostrá sama o sobě.
+  - **Práh je 128 a není to odhad:** síť končí sigmoidou a výstup se normalizuje součtem kanálů
+    právě proto, aby práh 128 dal **totéž rozhodnutí** jako původní `out[0] < out[1]` z ARBot2
+    (viz [semantic-segmentation.md](semantic-segmentation.md)). Prahování je tedy přesná
+    reprodukce toho, co ARBot2 dělal už při výpočtu.
+  - ⚠️ **Prahuje se jen ZOBRAZENÍ.** Spojitá pravděpodobnost je data a bere si ji occupancy grid;
+    zahodit ji už při výpočtu by ochudilo všechny ostatní konzumenty kvůli vzhledu jednoho panelu.
+  - **Přepínač `Práh masky 0,5`** (checkbox v ovládacím řádku, `MaskThresholdOn`, výchozí zapnuto):
+    vypnuto = plynulé krytí, na kterém je vidět, **kde si síť není jistá** — což prah zahodí.
+    ⚠️ Přepnutí mění **bitmapu**, ne jen průhlednost, takže si vynutí překreslení obou overlayů;
+    spolehnout se na další snímek nejde, ve View (pauza) už žádný přijít nemusí a přepínač by
+    vypadal jako nefunkční.
+  - **Ověřeno překladem** (0 chyb `CS`/`AVLN`); kopírování výstupu selhalo, protože aplikace
+    zrovna běžela.
+  - **Barva prošla kolečkem černá → červená → černá.** Autor zkusil červenou, nelíbila se, a na
+    jeho pokyn se koukalo do **ARBot2**, jak se to řešilo tam — a vyšlo najevo, že ARBot2 měl
+    v `Image<T>.ToMask()` **položku po položce totéž**, co byla první verze tady: černá,
+    alfa = pravděpodobnost, `PixelFormats.Bgra32` (ve WPF nepremultiplikovaná), skládané jako
+    samostatný `<Image>` nad snímkem se `Stretch="Fill"`, `Opacity="0.5"` a
+    `IsHitTestVisible="False"`. Jediný rozdíl v ARBot3 je, že těch 0,5 je na **posuvníku**.
+    Polarita sedí taky: `BackProject.Process` v ARBot2 vrací vysokou hodnotu tam, kde barva sedí
+    na naučený histogram **cesty**, takže maska ztmavovala cestu — stejně jako dnes.
+    Barva je v pojmenovaných konstantách `MaskB/MaskG/MaskR`, takže je to jednořádková změna.
+  - ⚠️ Pořadí složek je **B, G, R** (`Bgra8888`), takže záměna se pozná až na obrazovce; ověřeno
+    proti `RenderEdgesOverlay`, kde je `Mark(…, 0xF0, 0xAF, 0x4C, …)` komentovaná jako *modrá*.
+    Na `AlphaFormat` přitom záleží **až u nenulové barvy** — u černé zůstanou nuly nulami, ať se
+    násobí čímkoli, takže by se špatný formát (`Premul`) projevil teprve při změně barvy.
+  - **Ověřeno překladem** (`ARBot` x64, plný build) a kontrolou pořadí složek proti existujícímu
+    kódu; ⚠️ **vizuálně neproklikáno**. Soubor:
+    [ImageDocument.cs](../Src/ARBot/ViewModels/ImageDocument.cs), `RenderProbabilityMask`.
+
+- **Záznam obrazovky do mp4: zrušen limit délky a srovnána rychlost videa** (na zadání autora —
+  15minutový záznam ze soutěže, zítra hodinový maraton).
+  - **Limit 10 minut u mp4 zrušen.** Technický důvod neměl: snímky tečou přes `FfmpegPipe` rovnou
+    do kodéru jako surové BGRA, takže paměť je konstantní a roste jen soubor na disku. Byla to
+    pojistka proti zapomenutému nahrávání. ⚠️ **U GIFu limit zůstává a zůstat musí** —
+    `palettegen` potřebuje celý stream a drží si ho v paměti.
+    `Mp4MaxSeconds` je teď `double.PositiveInfinity`; `Remaining` se kvůli tomu změnilo na
+    `TimeSpan?` (`null` = bez stropu), protože `TimeSpan.FromSeconds(infinity)` **vyhodí výjimku**
+    a vracet nulu by volající četl jako „hned konec" a vypsal by to uživateli.
+  - ⚠️ **Hotové video bylo kratší než skutečnost a jelo zrychleně.** ffmpeg dostává `-framerate 15`
+    a **věří mu**, takže každý přijatý snímek považuje za 1/15 s; snímkování ale běží na
+    `DispatcherPriority.Background` a při vytížení UI se tiky zpozdí. **Změřeno:** 10 snímků za
+    3,26 s reálného času dalo video **0,667 s**, tedy skoro pětinásobné zrychlení.
+  - **Dvě slepé uličky, obě zamítnuté autorem, a obě poučné.** Nejdřív doplňovat chybějící snímky
+    podle **stopek** — náhražka. Pak nechat razítka na ffmpegu
+    (`-use_wallclock_as_timestamps 1 -vsync vfr`); ověřeno měřením, že to funguje (2,934 s místo
+    0,667 s při nezměněných 10 snímcích), ale autor upřesnil, že **video má odpovídat ZÁZNAMU**,
+    ne tomu, jak dlouho ho aplikace přehrávala. A to jsou dvě různé věci, protože
+    `ReplayPacing.RealTime` zpoždění **nedohání** — přehrávání je reálný čas *nebo pomalejší*.
+  - ✅ **Řešení: řídící veličinou je ČASOVÁ OSA, ne počet tiků.** `ScreenRecorder.Timeline` říká,
+    kde na ní jsme, a na sekundu osy odejde přesně `fps` snímků: když se posunula míň než o snímek,
+    snímek se vůbec nepořizuje; když o víc, chybějící se doplní kopiemi. V režimu View je tou osou
+    **čas záznamu** — přibylo `FileMessageSource.ReplayTime` (razítko poslední přehrané zprávy
+    proti první). V Run zdroj souboru není, osa zůstane `null` a měří se stopkami, což je tam
+    správně.
+  - ✅ **A autorův nápad odstranil i ty kopie:** délku a počet snímků nese samotný záznam, takže
+    z nich jde spočítat **skutečná snímková frekvence** a nahrávat rovnou jí. Přibylo
+    `FileMessageSource.FrameRate` (z indexu, bez čtení snímků) a `ScreenRecorder.FpsOverride`.
+    Nad `Kolo2.rec` vyjde **8,5 sn/s** (997 snímků / 2 kamery / 58,6 s) — výchozích 15 fps tam
+    tedy vymýšlelo skoro polovinu snímků. ⚠️ Počítá se **maximum přes kamery**, ne prostý počet
+    `CameraFrame`: kamery jsou dvě, takže by frekvence vyšla dvojnásobná a video by běželo dvakrát
+    rychleji. Frekvence se už jen snižuje pod výchozí hodnotu formátu.
+  - ⚠️ **Novější ffmpeg by nepomohl** a není potřeba ho instalovat: surové video v rouře žádná
+    razítka nenese, takže vlastní čas snímku se ffmpegu předat nedá v žádné verzi. Proto
+    převzorkování na naší straně a pevné `-framerate`.
+  - Ověřeno překladem a měřením chování ffmpegu proti známému časování (tabulka v
+    [screen-capture.md](screen-capture.md)); ⚠️ **celá cesta z běžící aplikace nevyzkoušena** —
+    před maratonem stojí za to nahrát minutu záznamu a porovnat délku videa s délkou toho úseku.
+    Soubory: `ScreenRecorder.cs`, `FfmpegPipe.cs`, `FileMessageSource.cs`,
+    `MainWindowViewModel.Capture.cs`.
+
+- **Replay: posuvník poskakoval do stran a měl nad sebou místo navíc** (na zadání autora).
+  - ⚠️ **Poskakování mělo konkrétní příčinu:** popiska vlevo od posuvníku je `Position/Maximum`
+    a sedí ve sloupci `Auto`. Na **začátku** přehrávání se pořadí rychle mění 0 → 9 → 10 → 99 →
+    100, tedy se mění i **šířka** textu, sloupec se přizpůsobuje a posuvník vedle něj se posouvá.
+    Léčba: pořadí se doplní mezerami na šířku celkového počtu (`PadLeft`), font je monospace
+    (Consolas), takže šířka je od té chvíle konstantní; změní se už jen při načtení jiného
+    záznamu, kdy se mění `Maximum`. *Hezké na tom je, že se ta vada projeví jen v první vteřině —
+    přesně tak ji autor taky popsal.*
+  - **Místo nad posuvníkem**: výchozí Fluent styl si pro `Slider` bere 32 px a drážka je
+    uprostřed, takže nad ní zbývá volno. Sraženo na `MinHeight="24"` (palec má 20 px, takže se
+    neořízne) a okraje panelu zmenšeny (`8` → `8,4,8,8`, řádek `6` → `4`).
+    ⚠️ Kdyby to pořád bylo moc, další krok jsou prostředky tématu `SliderPreContentMargin` /
+    `SliderPostContentMargin` (rezervují místo na stupnici, kterou tady nepoužíváme) — ty se ale
+    resolvují **až za běhu**, takže by se překlep neprojevil při překladu, a proto se na ně
+    nesáhlo jako první.
+  - Ověřeno překladem (0 chyb `CS`/`AVLN`); ⚠️ vizuálně neproklikáno.
+
+- **ImageView: oba snímky se dotýkají** (na zadání autora — „lépe to odpovídá pohledu z robota",
+  kde jsou kamery vedle sebe). ⚠️ **Nestačilo zrušit okraje mezi sloupci:** `Viewbox` se
+  `Stretch="Uniform"` své dítě **centruje**, takže když je sloupec širší, než odpovídá poměru
+  stran snímku, zbude prázdné místo po **obou** stranách každého snímku a mezera zůstane i při
+  nulovém okraji. Léčba je **zarovnání k vnitřní hraně** — levý `Viewbox`
+  `HorizontalAlignment="Right"`, pravý `Left`; snímky se tím potkají uprostřed a prázdné místo
+  odejde na vnější kraje.
+  - Popiska **pravého** panelu se posunula k pravému okraji: vlevo by po téhle změně seděla přímo
+    na spoji a překrývala konec levého snímku. Obě popisky jsou teď ve vnějších rozích.
+  - Ověřeno překladem; ⚠️ **vizuálně neproklikáno** — spoléhá se na to, že `Viewbox` s nastaveným
+    `HorizontalAlignment` pořád škáluje na velikost buňky (měří dítě, spočítá `Uniform` škálu
+    a vrátí zmenšenou velikost), jen ji zarovná jinam. To je chování, které stojí za to vidět.
+    Soubor: [ImageDocumentView.axaml](../Src/ARBot/Views/ImageDocumentView.axaml).
+
 ## 2026-09-21
 
 - **Večer: hodnota limitu zvolená z Robotouru** (`lok-koridor-skoky-pozy`, záznamy jsou na tomto

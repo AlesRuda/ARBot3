@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
@@ -103,6 +103,19 @@ namespace ARBot.Diagnostics
         /// <summary>Sestaví argumenty ffmpegu pro čtení surového videa ze stdin.</summary>
         private static string BuildArgs(int width, int height, int fps, string outPath, string format, int outWidth)
         {
+            // ⚠️ Pevna snimkova frekvence, a je to ZAMER. ffmpeg veri parametru -framerate
+            // a kazdy prijaty snimek povazuje za 1/fps sekundy - volajici (ScreenRecorder) proto
+            // MUSI posilat presne fps snimku na sekundu sve casove osy. Dela to a osa je v rezimu
+            // View cas ZAZNAMU, ne hodiny (viz ScreenRecorder.Timeline).
+            //
+            // Zvazovalo se -use_wallclock_as_timestamps 1 + -vsync vfr, kdy si razitka doplni
+            // ffmpeg sam podle toho, kdy snimek dorazil. Zmereno, ze to funguje (10 snimku za
+            // 3,26 s: 0,667 s bez razitek proti 2,934 s s nimi), ale resi to JINOU otazku: delka
+            // by odpovidala tomu, jak dlouho to trvalo aplikaci, kdezto potreba je, aby odpovidala
+            // ZAZNAMU. Prehravani je pritom realny cas NEBO POMALEJSI (RealTime pacing zpozdeni
+            // nedohani), takze by video vyslo delsi nez zaznam. Surove video v roure zadna razitka
+            // nenese, takze vlastni cas snimku ffmpegu nijak predat nejde - odtud prevzorkovani
+            // na strane volajiciho.
             string input = $"-hide_banner -loglevel error -y -f rawvideo -pixel_format bgra " +
                            $"-video_size {width}x{height} -framerate {fps} -i - -an";
 

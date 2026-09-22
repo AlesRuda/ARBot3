@@ -11,13 +11,19 @@
         <vm:ReplayNavTool/>
     </Design.DataContext>
 
-    <Grid Margin="8" RowDefinitions="Auto,Auto,*">
+    <Grid Margin="8,4,8,8" RowDefinitions="Auto,Auto,*">
         <!-- Ovladani na JEDNOM radku: pozice, posuvnik (roztahuje se), tlacitka.
              Play a Pauza je jedno prepinaci tlacitko - treti stav neexistuje. -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,4" >
             <TextBlock Grid.Column="0" Text="{Binding Info}" FontFamily="Consolas,monospace"
                        VerticalAlignment="Center" Margin="0,0,8,0"/>
 
+            <!-- MinHeight sraz vysku samotneho posuvniku: vychozi Fluent styl si bere 32 px
+                 a drazka je uprostred, takze nad ni zbyva volne misto, ktere vypada jako mezera
+                 nad ovladanim. Palec ma 20 px, takze 24 ho jeste neorizne. Kdyby to porad bylo
+                 moc, dalsi krok jsou prostredky tematu SliderPreContentMargin /
+                 SliderPostContentMargin (rezervuji misto na stupnici, kterou tady nepouzivame) -
+                 ty uz se ale resolvuji AZ ZA BEHU, takze se preklep neprojevi pri prekladu. -->
             <Slider Grid.Column="1"
                     Minimum="0"
                     Maximum="{Binding Maximum}"
@@ -25,6 +31,7 @@
                     IsSnapToTickEnabled="True"
                     TickFrequency="1"
                     SmallChange="1" LargeChange="10"
+                    MinHeight="24"
                     VerticalAlignment="Center"/>
 
             <!-- Vnejsi dvojice = skok na sousedni zpravu TEHOZ proudu (stejny typ i jmeno),

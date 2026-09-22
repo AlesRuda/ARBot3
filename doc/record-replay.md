@@ -520,6 +520,37 @@ replika, ale ten kód, který poběží na robotu). Tímhle se ukázalo, že mec
 **+0,8 %** a hlavní brzdou je **chybějící geometrie (40,7 % zastavení)**, ne semantika
 (20,0 %). `--wedgefill=<stupně>` a `--wedgeconf=` pro A/B, `--limit=<n>` kolik gridů vzorkovat.
 
+**`bumps`** (od 22. 9. 2026) — **hrboly pod robotem**: najíždí na tutéž nerovnost zadní pasivní
+kolo o *rozvor* později než přední náprava, a klopí se robot víc, když zrovna brzdí? Měřidlo
+k záměrům `lp-drsnost-povrchu-rychlostni-strop` a `lp-reflex-klopeni-zadni-kolo` — obojí stojí na
+předpokladu, že **první ráz ohlašuje druhý**, a ten se měl změřit dřív, než se sáhne na mapu nebo
+na řídicí smyčku (poučení z `VAlong`, 7. 9. 2026). Bloky: **znaménka** (rozhodčím je gravitace, ne
+úvaha — viz níž), **rozvor autokorelací energie klopení v dráze** (bez prahů), **ozvěna po silném
+rázu** (spike-triggered average — citlivější, protože průměruje jen přes skutečné rázy),
+**párování špiček** s poissonovskou nulovou hypotézou, **klopení podle toho, co smyčka právě
+dělala** (přirozený experiment pro `k`), **závislost na rychlosti** a **držení drsnosti přes delší
+úsek**. `--ds=` krok mřížky v dráze, `--hp=` šířka horní propusti (0 = kontrolní běh bez ní),
+`--madk=` práh špičky, `--pairlo=`/`--pairhi=` okno párování.
+**`--from=` / `--to=`** (`HH:MM:SS` podle hodin v záznamu, nebo sekundy) omezí měření na jeden
+úsek a **`--detail=<n>`** k němu vypíše **syrový průběh** n nejsilnějších událostí — rychlost
+klopení proti *ujeté dráze*, takže se odstup dvou rázů čte přímo v metrech.
+⚠️ **Tohle není kosmetika, ale často jediný způsob, jak odpověď vůbec dostat:** pár skutečných
+zakopnutí se v průměru přes stovky metrů běžné jízdy utopí (v Kole 3b je úsek s kořeny 2,8 %
+dráhy a celozáznamový průměr v něm nenajde nic, co v něm samotném vidí obě metody). Když člověk
+ví, *kdy* se něco stalo, má se měřidlo ptát tam. Konvence (blok 1) se přitom počítají **vždy
+z celého záznamu** — na krátkém okně je klidových vzorků málo, osy se nerozliší a výběr by padl
+na jinou osu než nad celým záznamem, jen s varováním.
+⚠️ **Dvě pasti, na které měřidlo samo upozorňuje:** obvod kola je **0,508 m**, tedy týž řád jako
+rozvor, takže periodický jev od kola vypadá jako ozvěna hrbolu (rozliší je harmonické — tiskne se
+celá křivka, ne jen vrchol); a **procento spárovaných špiček nic neznamená**, když je špička každých
+0,5 m a okno je 1 m široké — proto se vedle něj tiskne, kolik by jich vyšlo **náhodně**.
+**`--depth=<n>`** odpovídá na otázku **„byla nerovnost vidět v hloubkové kameře dřív, než na ni
+robot najel?"** — přečte snímky a podívá se, co polární grid hlásil o *místě, kde robot později
+zakopl*, dokud bylo ještě před ním, proti kontrolní skupině obyčejných míst. ⚠️ Dlouho se to vedlo
+jako nezodpověditelné („grid svou drsnost do záznamu neposílá"); **grid je ale v záznamu uvnitř
+`CameraFrame`** (`CameraFrame.Grid`, FormatVersion 2) i se `StdZ`, `MeanZ`, `MaxZ` a třídou buňky. Výsledky: [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
+sekce „Hrboly a klopení".
+
 `types`.
 
 ### `log`: co aplikace při běhu hlásila

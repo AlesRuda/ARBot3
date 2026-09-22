@@ -913,6 +913,175 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 9. ⬜ **Ověření na HW** — celý řetěz (integrace + EDT + A\*) na OrangePI. **Zatím jen odsimulované**;
    self-test potvrdil jen to, že runtime s novým uzlem čistě nastartuje a skončí (bez kamer).
 
+## Hrboly a klopení — co o nich říkají záznamy z Robotouru (22. 9. 2026)
+
+Měřeno `ARBot.Analyze bumps` nad `records/Robotour2026/` (Kolo3b **799 m**, Kolo4 287 m,
+Kolo3-návrat 125 m, Kolo3a 103 m, Kolo2 18 m; rychlost p50 0,93 m/s). Cílem bylo **rozhodnout před
+psaním kódu**, jestli platí předpoklad, na kterém stojí oba záměry — `lp-drsnost-povrchu-rychlostni-strop`
+i `lp-reflex-klopeni-zadni-kolo`: že *ráz přední nápravy ohlašuje klopení, které o rozvor později
+způsobí zadní pasivní kolo*.
+
+### ⚠️ Přes CELÝ záznam dvojice špiček není — ale průměr přes 799 m je špatná otázka
+
+Nejdřív se měřilo přes celý záznam a vyšlo to záporně (tabulka níž). Autor pak upřesnil, **kdy**
+se na trati zakoplo o kořeny pod asfaltem (Kolo3b, **14:12:20–14:13:00**), a v tom okně vypadají
+data jinak. Obojí platí a neodporuje si: v těch 40 s je **22 m** jízdy z 799, tedy **2,8 %** —
+několik skutečných zakopnutí se v celozáznamovém průměru utopí. Proto má měřidlo `--from=`/`--to=`
+a `--detail=`; **napřed se ptej tam, kde člověk něco viděl.**
+
+### Přes celý záznam: tři nezávislé testy, všechny záporné
+
+| test | co by ukázal rozvor | co vyšlo (Kolo3b, 677 m jízdy) |
+|---|---|---|
+| autokorelace energie klopení **v dráze** | vrchol na rozvoru | jednotvárný pokles 0,29 → 0,03, **žádný vrchol**; na obvodu kola (0,508 m) `r` = 0,059, stejně jako u sousedů |
+| **ozvěna po silném rázu** (průměr přes 521 nejsilnějších) | hrbolek na jednom místě | hladký pokles 14,8× → ~2×, mezi 0,15 a 2 m **nic** |
+| párování špiček | vrchol v histogramu odstupů | 91,3 % spárovaných, ale **náhodou by jich vyšlo 93,7 %** — tedy *pod* náhodou; histogram od nejmenšího koše jen klesá |
+
+Kolo4 to reprodukuje (90,9 % proti náhodným 89,8 %). Přes celý záznam přijde práh překračující ráz
+jednou za **0,51 m**, tedy to na téhle úrovni není řada oddělených nárazů, ale souvislá vibrace.
+Že jde o skutečný terén a ne o šum senzoru, je ověřené: `|gyroY|` je v jízdě **270×** větší než ve
+stání.
+
+### ⚠️ Ozvěna na rozvoru: ANI POTVRZENÁ, ANI VYLOUČENÁ — a jeden mezizávěr byl odvolán
+
+Autor 22. 9. 2026 doplnil geometrii, kterou záznam nenese: zadní kolo je **volně otočná ostruha**
+**mezi** hnanými koly, rozvor při přímé jízdě **~0,35 m**, ale při manévrování se mění. Ostruha
+tedy nejede ve stopě předních kol — **jenže většina problémových defektů je příčná nebo tak velká,
+že zasáhne všechna kola**. Tím vzniká ostrá předpověď: ozvěna se má objevit **na 0,35 m**, a to jen
+u **příčných** defektů (malá odezva do strany) a při **přímé** jízdě. Měřidlo tuhle podmínku umí
+(`--rozvor=`, `--straight=`, dělení podle odezvy do strany).
+
+⚠️ **Odvolání.** Mezitímco stálo, že „v úseku s kořeny druhý vrchol JE, na 0,25–0,30 m". **Neobstálo
+to.** Vrchol vyšel z **jednoho** okna (14:12:20–14:13:00) na **jedné** ose dráhy; jakmile se změnilo
+okno nebo osa, zmizel:
+
+| úsek | vrchol (odometrie) | hodnota **na 0,35 m** / pozadí | totéž pro *příčný defekt + rovně* |
+|---|---|---|---|
+| 14:11:10–14:12:00 (n = 11) | 1,15 m | 1,60 / 1,52 | 1,18 / 1,50 |
+| 14:12:20–14:13:00 (n = 17) | 0,28 m | 2,74 / 0,78 | 0,80 / 0,92 |
+| 14:15:30–14:16:20 (n = 10) | 1,70 m | 2,48 / 1,80 | 0,54 / 1,72 |
+| 14:11:10–14:13:00 (n = 47) | 0,60 m | 1,76 / 1,81 | 1,42 / 1,86 |
+
+Rozhodující je **poslední sloupec**: právě tam, kde má být ozvěna nejsilnější, není v **žádném**
+z úseků nad pozadím. A vrchol putuje mezi 0,28 a 1,70 m, což je chování šumu, ne geometrie.
+
+⚠️ **Proč to data nerozhodnou — a je to vlastnost úlohy, ne nedbalost měření:**
+- **Čistých událostí je málo.** Po podmínce „příčný + rovně" zbývá v jednom úseku **6–12** událostí.
+- **Osa dráhy je právě v okamžiku události nespolehlivá.** Odometrie se integruje z týchž kol, která
+  přes hrbol šplhají a prokluzují; náhradní osa „rychlost *před* událostí × čas" zase nepočítá se
+  skutečným zpomalením. Obě dávají systematicky jinou odpověď (0,28 proti 0,23 m) a **žádná z nich
+  není pravda**. Proto se tisknou obě.
+- **Rozvor sám není konstanta** — ostruha se vytáčí, takže se podélný odstup mezi událostmi mění
+  a případná ozvěna se rozmaže přes interval, ne do jednoho koše.
+- **Ostruha je lehce zatížená** (váha je na hnaných kolech), takže její ráz může být prostě mnohem
+  slabší než ráz přední nápravy.
+
+✅ **Co by to rozhodlo:** jeden **záměrný pokus** místo dolování ze závodních dat — přejet
+**jednu známou příčnou překážku** (lať, práh) několikrát rovně a při dvou zřetelně různých
+rychlostech (např. 0,4 a 1,1 m/s). Události jsou pak opakované, se známou geometrií a s poměrem
+rychlostí 2,75, takže se ozvěna (pevná vzdálenost) od kmitu karoserie (pevný čas) oddělí
+jednoznačně — dnešní poměr 1,38 rozlišil předpovědi jen o 0,09 m. Je to práce na deset minut
+u robota a nahradí libovolné množství dalšího měření nad Robotourem.
+
+### ⚠️ Klopení ale malé NENÍ — a první verze tohohle dokumentu to tvrdila špatně
+
+Zde stálo, že největší výchylky úhlu (18,06°, 10,72°, 9,69°) jsou artefakty, protože je gyro
+nepotvrzuje (0,82°, 0,00°, 1,76°). **Bylo to obráceně: vadná byla kontrolní veličina.**
+`GyroNoseDown` sčítala rychlost klopení přes celé okno, jenže zakopnutí je **kmitavé** — fáze nosem
+nahoru a nosem dolů se v součtu vyrušily. Po opravě (integrál se při změně smyslu nuluje, tedy měří
+největší *souvislou* rotaci dopředu) gyro tytéž události potvrzuje: **14,09°**, 2,92°, **14,35°**,
+a celozáznamové maximum je **19,32°**.
+
+Skutečné hodnoty nad Kolem 3b: klopení dopředu p50 **1,4°**, p90 3,0°, **max 18,06°**; rozkmit
+vrchol-vrchol p90 5,1° a **max 19,78°**. Zakopnutí 14:12:52 je typické: robot se předními koly
+vyhoupne na **+9,7°** (nos nahoru), za 0,75 s se sklopí na **−9,9°** a pak se vrátí rychlostí
+−95 °/s; rychlost kol přitom kolísá 0,30–0,86 m/s, jak kolo šplhá a padá. To je **skutečné
+zakopnutí, ne šum** — a odpovídá tomu, co autor na trati viděl.
+
+Proto se klopení měří oběma cestami: VN100 sráží rychlost klopení na **0,69×** (směrnice
+0,689 / 0,692 / 0,693 ve třech záznamech), tedy filtrovaný úhel krátký ráz spíš podhodnocuje.
+
+### ✅ Co v datech JE: drsnost je vlastnost ÚSEKU, ne bodu
+
+Nad Kolem 3b je nejhorší pětimetrové okno **2,5× drsnější než medián** a podobnost drsnosti dvou
+míst klesá s jejich vzdáleností pomalu: `r` = **0,80** na 5 m, 0,65 na 10 m, 0,54 na 15 m, 0,44 na
+20 m, 0,33 na 25 m, 0,19 na 30 m — dekorelační délka řádu **20 m**.
+
+To **přeformulovává go/no-go** zapsané u `lp-drsnost-povrchu-rychlostni-strop` („korelace
+drsnost → náklon jen do ~1 m znamená, že robot nestihne brzdit"). Ta otázka předpokládá, že se musí
+předpovědět *tenhle* kořen z kamery na 1,5 m, kde šum hloubky (4,6 cm ve 3 m) sotva stačí. Když ale
+drsnost drží přes desítky metrů, stačí poznat, že **tenhle úsek je hrbolatý**, a strop postavit
+z toho, po čem robot **už projel** — z IMU, bez kamery, a problém s dosahem hloubky zmizí.
+
+⚠️ **Než se z toho udělá kanál mapy, musí se drsnost normalizovat na jednotku dráhy.** Dnešní
+měřidlo (RMS rychlosti klopení v okně) koreluje s rychlostí okna `r` = 0,134 nad Kolem 3b (kde se
+jelo skoro konstantně), ale **0,822 nad Kolem 4** (kde se rychlost měnila 0,29–1,02 m/s). Bez
+normalizace by mapa drsnosti byla zčásti mapou rychlosti a strop by se honil za vlastním ocasem:
+zpomal → vypadá hladce → zrychli. Táž kruhovost jako u `camerapose=fusion`.
+
+### ⚠️ Byla nerovnost vidět v hloubkové kameře? Na 1–3 m NE
+
+Tahle otázka se v projektu dvakrát odbyla jako nezodpověditelná ze záznamu („polární grid svou
+drsnost `StdZ` do záznamu neposílá, chtělo by to replay snímků"). **Byl to omyl:** grid se ukládá
+**uvnitř `CameraFrame`** (`CameraFrame.Grid`, FormatVersion 2, od 1. 8. 2026) i s `StdZ`, `MeanZ`,
+`MaxZ` a třídou buňky. Nemuselo se přehrávat nic, stačilo se podívat.
+
+**Jak se to páruje.** Hrbol je v okamžiku, kdy na něj najede přední náprava, **pod počátkem
+tělesového rámce**. O Δs metrů dřív tedy ležel Δs **před** robotem, takže se v gridu z dřívějšího
+snímku hledá pás kolem `x = Δs`. ⚠️ Pózu to nepoužívá **schválně** — v Kole 3b skákala korekcemi
+až o 4 m, kdežto ujetá dráha za pár sekund je spolehlivá. V pásu se bere **nejhorší** buňka
+(|y| ≤ 0,30 m, tedy stopa kol na ±0,205 m), protože kolo najede na to nejvyšší, co mu leží v cestě,
+ne na průměr; výška se měří proti **mediánu téhož prstence v témže snímku** (absolutní `MeanZ` by
+měřilo hlavně sklon terénu a montáž kamery).
+
+Nad oknem 14:12:20–14:13:00 (1 025 snímků s gridem, 17 událostí, 2 160 nahlédnutí) proti
+**kontrolní skupině** obyčejných míst (5 677 nahlédnutí):
+
+| jak daleko to ještě bylo | `StdZ` p90 hrbol / kontrola | nejvyšší bod p90 hrbol / kontrola |
+|---|---|---|
+| 0,5–1,0 m | 0,44 / 0,46 cm (**0,95×**) | 4,53 / 4,05 cm (1,12×) |
+| 1,0–1,5 m | 0,48 / 0,49 cm (**0,98×**) | 5,68 / 4,64 cm (1,22×) |
+| 1,5–2,0 m | 0,62 / 0,67 cm (**0,91×**) | 8,98 / 7,47 cm (1,20×) |
+| 2,0–2,5 m | 1,36 / 0,81 cm (1,68×) | 7,95 / 8,56 cm (0,93×) |
+| 2,5–3,0 m | 0,93 / 0,91 cm (**1,02×**) | 9,04 / 8,24 cm (1,10×) |
+
+**Na vzdálenostech, kde by se dalo zpomalit, se místo hrbolu od obyčejné vozovky nepozná.** Poměry
+kolísají kolem 1,0 bez trendu a ukazatele si navzájem odporují (na 2,0–2,5 m je `StdZ` 1,68×, ale
+nejvyšší bod 0,93×). Totéž pro podíl buněk označených `Obstacle`: 2,6 / 2,5 / 9,0 / 8,4 / 5,2 %
+proti kontrole 8,6 / 4,4 / 4,9 / 1,2 / 1,1 % — v nejbližším koši je kontrola **vyšší**.
+⚠️ Koš 3,5–4,0 m (`StdZ` 10,6×, nejvyšší bod 91 cm) se **nesmí číst jako „daleko je to vidět"** —
+v pásu jsou na té vzdálenosti skutečné překážky (zeleň, zeď, lidé), tedy něco úplně jiného než
+kořen.
+
+⚠️ **Je v tom ale rozpor, který tohle měření nevysvětlí.** Z náklonu plyne, že přední kola stoupla
+o **~6 cm** (9,7° při rozvoru 0,35 m), a to během ~0,13 m dráhy — takový útvar by v hloubce vidět
+být **měl**. Buď je prostorové párování hrubší, než se zdá (chyba dráhy, boční posun, velikost
+buňky ~7 × 9 cm ve 2 m), nebo `StdZ` takový útvar nezachytí, protože leží celý uvnitř jedné buňky
+a proložení roviny ho pohltí. Rozhodnout to jde **jen pokusem se známou překážkou** — tam se ví,
+kde překážka je, a pairing přestane být zdrojem pochybností.
+
+### ⚠️ Dvě vady měřidla, obě nalezené až daty (a obě by tiše lhaly)
+
+1. **Vyrušení kmitu v kontrolní veličině** — popsáno výš; vedlo k závěru „velké náklony jsou
+   artefakty", tedy k **opačnému** tvrzení, než jaké data nesou. Poučení: když se dvě měřidla téže
+   věci rozejdou o řád, podezřelé je to **kontrolní**, ne měřené — zvlášť když je měřené jednodušší.
+2. **Konvence určená z okna místo z celého záznamu** — na 40s okně je klidových vzorků pár set,
+   osy se v bloku 1 nerozliší a výběr padne na `ypr.Roll` a gyro X místo `ypr.Pitch` a gyro Y.
+   Varování se vytisklo, ale zbytek reportu už počítal ze špatné osy. Montáž senzoru se během
+   jízdy nemění, takže se konvence určuje **vždy z celého záznamu** a teprve pak se ořezává okno.
+
+### Vedlejší nález: konvence klopení jsou v pořádku, ale ověřit se musely
+
+`YawPitchRoll(q, Euler.zxy)` ukládá do pole `Pitch` úhel **prostřední** rotace, tedy kolem osy X —
+a při tělesovém rámci FLU je rotace kolem X náklon do strany. Podle algebry by tedy jména polí
+neodpovídala fyzice. **Rozhodla data, ne úvaha:** proti náklonu z gravitace vychází
+`ypr.Pitch` ↔ klopení dopředu `r` = **0,971** (do strany −0,434) a `ypr.Roll` ↔ náklon do strany
+`r` = **0,987** (dopředu −0,476). Jména tedy sedí, klopení je `ypr.Pitch` a jeho rychlost `gyroY`
+(`r` = −0,92 proti ose X 0,04). Blok 1 měřidla tenhle test dělá při každém běhu.
+⚠️ **Samotné „robot stojí" na tenhle test nestačí:** v depu s robotem hýbe obsluha a akcelerometr
+to vidí — bez sekundového vyhlazení vyšel náklon z gravitace `sd` 5,6° proti 1,3° z atitudy
+a korelace spadla na 0,12.
+
 ## Otevřené úkoly (→ registr)
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.

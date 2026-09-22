@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using ARBot.Diagnostics;
@@ -120,6 +120,16 @@ namespace ARBot.ViewModels
             }
 
             string path = Path.Combine(CaptureDir(), "rec-" + Stamp() + "." + format);
+            // ⚠️ V rezimu View se video ridi casem ZAZNAMU, ne hodinami: prehravani je realny cas
+            // NEBO POMALEJSI (RealTime pacing zpozdeni nedohani), takze podle hodin by video
+            // vyslo delsi nez zaznam. V Run zdroj souboru neni a Timeline zustane null = stopky.
+            var fs = ARBot.Robot.ARBotRuntime.Current?.FileSource;
+            _recorder.Timeline = fs == null ? null : new Func<TimeSpan?>(() => fs.ReplayTime);
+
+            // Snimkova frekvence podle toho, co zaznam skutecne nese: vic snimku neni z ceho vzit
+            // (musely by se duplikovat), min by zahazovalo data. Z indexu, tedy bez cteni snimku.
+            _recorder.FpsOverride = fs?.FrameRate;
+
             if (!_recorder.Start(visual, format, path, out string error))
             {
                 CaptureStatus = "Záznam nelze spustit: " + error;
@@ -184,9 +194,23 @@ namespace ARBot.ViewModels
         {
             if (!_recorder.IsRecording) return;
             string drop = _recorder.DroppedFrames > 0 ? $", {_recorder.DroppedFrames} zahozeno" : "";
-            CaptureStatus = $"● REC {_recorder.Format} · {_recorder.Elapsed.TotalSeconds:0.0} s · " +
-                            $"{_recorder.FrameCount} snímků{drop} · zbývá {_recorder.Remaining.TotalSeconds:0} s";
+            // Bez stropu (mp4) se misto "zbyva" nepise nic - nula by vypadala jako "hned konec".
+            var zbyva = _recorder.Remaining;
+            string limit = zbyva.HasValue ? $" · zbývá {zbyva.Value.TotalSeconds:0} s" : "";
+            CaptureStatus = $"● REC {_recorder.Format} · {Delka(_recorder.Elapsed)} · " +
+                            $"{_recorder.FrameCount} snímků{drop}{limit}";
         }
+
+        /// <summary>
+        /// Delka zaznamu pro cloveka. ⚠️ Nad minutu se prepne na <c>m:ss</c> - u hodinoveho
+        /// zaznamu (maraton) je "3612,4 s" necitelne, a prave takhle dlouhe zaznamy jsou duvod,
+        /// proc u mp4 strop zmizel.
+        /// </summary>
+        private static string Delka(TimeSpan t)
+            => t.TotalMinutes < 1
+                ? $"{t.TotalSeconds:0.0} s"
+                : (t.TotalHours < 1 ? $"{(int)t.TotalMinutes}:{t.Seconds:00}"
+                                    : $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}");
 
         private void RefreshCaptureCommands()
         {

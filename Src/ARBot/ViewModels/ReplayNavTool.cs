@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Globalization;
 using System.Collections.Generic;
 using ARBot.Common.Communication;
 using Avalonia.Threading;
@@ -216,11 +217,19 @@ namespace ARBot.ViewModels
         /// <summary>
         /// Pozice jako <c>poradi/celkem</c>. Zamerne NIC dalsiho - typ zpravy i cas jsou videt
         /// na vybranem radku gridu, takze by se tu jen duplikovaly a braly misto tomu gridu.
+        ///
+        /// <para>⚠️ <b>Poradi se doplnuje mezerami na sirku celkoveho poctu.</b> Bez toho se
+        /// retezec na ZACATKU prehravani rychle meni sirku (0 → 9 → 10 → 99 → 100 …), sloupec
+        /// s timhle textem je <c>Auto</c>, a posuvnik vedle nej tim <b>poskakuje do stran</b>.
+        /// Font je monospace (Consolas), takze doplneni mezerami drzi sirku presne; delka se
+        /// zmeni uz jen pri nacteni jineho zaznamu, kdy se meni <see cref="Maximum"/>.</para>
         /// </summary>
         private void UpdateInfo()
         {
             if (src?.Index == null) { Info = "(bez indexu)"; return; }
-            Info = $"{Position}/{Maximum}";
+            string celkem = Maximum.ToString(CultureInfo.InvariantCulture);
+            Info = Position.ToString(CultureInfo.InvariantCulture).PadLeft(celkem.Length)
+                   + "/" + celkem;
         }
     }
 }

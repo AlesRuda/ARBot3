@@ -41,15 +41,56 @@ Nejsou v UI (toolbar má být jednoduchý), jsou to konstanty v `ScreenRecorder`
 
 | | fps | max. šířka | limit délky |
 |---|---|---|---|
-| **mp4** (H.264, crf 23, yuv420p) | 15 | 1280 px | 10 min |
+| **mp4** (H.264, crf 23, yuv420p) | 15 | 1280 px | **žádný** |
 | **gif** (paletizovaný) | 8 | 800 px | 60 s |
 | **gif bez ffmpegu** (vestavěný) | 8 | 800 px | ~37 s (300 snímků) |
 
-Po dosažení limitu se záznam **sám zastaví** a uloží (`AutoStopRequested`) — aby zapomenuté nahrávání
-nezaplnilo disk ani paměť. Zbývající čas je vidět v hlášce vedle tlačítek.
+U GIFu se po dosažení limitu záznam **sám zastaví** a uloží (`AutoStopRequested`); zbývající čas je
+vidět v hlášce vedle tlačítek. **U mp4 limit od 22. 9. 2026 není** — do té doby tam bylo 10 minut
+jako pojistka proti zapomenutému nahrávání, ale technický důvod to nemělo: snímky tečou přes
+`FfmpegPipe` rovnou do kodéru, takže paměť je konstantní a roste jen soubor na disku (při 15 fps,
+1280 px a crf 23 řádově stovky MB za hodinu). Zrušeno kvůli sestříhání 15minutového záznamu ze
+soutěže a hodinového záznamu z maratonu. U GIFu limit **zůstat musí**: `palettegen` potřebuje celý
+stream, takže si ho ffmpeg drží v paměti.
 
-Proč je GIF omezenější: `palettegen` potřebuje celý stream, takže si ho ffmpeg drží v paměti; a GIF
-je i tak řádově větší soubor než H.264. **Pro delší záznamy používej mp4.**
+### ⚠️ Délka videa odpovídá ZÁZNAMU, ne tomu, jak dlouho ho aplikace přehrávala
+
+ffmpeg dostává `-framerate 15` a **věří mu** — každý přijatý snímek považuje za 1/15 s. Snímkování
+ale běží na `DispatcherPriority.Background`, takže se při vytížení UI tiky zpozdí; hotové video pak
+bylo **kratší než skutečnost a jelo zrychleně**. Změřeno: 10 snímků za 3,26 s reálného času dalo
+video **0,667 s** (= 10/15), tedy skoro pětinásobné zrychlení.
+
+**Řídící veličinou je od 22. 9. 2026 časová osa, ne počet tiků.** `ScreenRecorder.Timeline` říká,
+kde na ní zrovna jsme, a na sekundu té osy odejde přesně `fps` snímků:
+
+- posunula se **míň** než o snímek → snímek se vůbec nepořizuje, jen se čeká;
+- posunula se o **víc** → chybějící se doplní kopiemi (jiná data pro ten úsek osy nejsou).
+
+**V režimu View je tou osou čas ZÁZNAMU** (`FileMessageSource.ReplayTime`), ne stopky. To není
+detail: `ReplayPacing.RealTime` sice čeká na razítka záznamu, ale **když nestíhá, zpoždění
+nedohání** — přehrávání je reálný čas *nebo pomalejší*. Podle stopek by tedy patnáctiminutový
+záznam dal delší video. V režimu Run zdroj souboru neexistuje, `Timeline` zůstane `null` a měří se
+stopkami, což je tam správně.
+
+**Proč ne `-use_wallclock_as_timestamps`.** Nabízí se nechat razítka na ffmpegu (`-vsync vfr`)
+a ověřeně to funguje — v témže pokusu vyšlo video 2,934 s místo 0,667 s při nezměněných 10 snímcích.
+Jenže to odpovídá času **aplikace**, ne záznamu, takže to řeší jinou otázku. Surové video v rouře
+žádná razítka nenese, takže vlastní čas snímku ffmpegu předat nejde — odtud převzorkování na naší
+straně. ⚠️ **Novější ffmpeg s tím nepomůže**, není to otázka verze.
+
+**Snímková frekvence se bere ze záznamu** (`FileMessageSource.FrameRate`, počítá se z indexu, tedy
+bez čtení snímků): víc snímků za sekundu, než kolik jich záznam nese, není z čeho vzít a musely by
+se duplikovat; míň by zahazovalo data. Nad `records/Robotour2026/Kolo2.rec` vyjde **8,5 sn/s**
+(997 snímků / 2 kamery / 58,6 s), takže výchozích 15 fps tam vymýšlelo skoro polovinu snímků.
+Frekvence se už jen **snižuje** pod výchozí hodnotu formátu — nad ni nemá smysl jít, tolik snímků
+se stejně nepořídí. ⚠️ Počítá se **maximum přes kamery**, ne prostý počet `CameraFrame`: kamery jsou
+dvě a každá posílá vlastní snímek, takže by frekvence vyšla **dvojnásobná** a video by běželo
+dvakrát rychleji.
+
+⚠️ Na jeden tik se doplní nejvýš 30 snímků (2 s): po delším zaseknutí by se jinak do fronty
+o kapacitě 8 hrnuly stovky snímků, většina by se stejně zahodila a jen by to přidusilo kódování ve
+chvíli, kdy je stroj beztak vytížený. ⚠️ Kopie musí jít do **nového bufferu** — `WriteFrame`
+přebírá vlastnictví a po zápisu ho vrací do poolu.
 
 ## Jak to funguje (a proč zrovna takhle)
 

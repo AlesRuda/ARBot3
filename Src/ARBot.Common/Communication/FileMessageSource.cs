@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -99,6 +99,64 @@ namespace ARBot.Common.Communication
 
         /// <summary>Pocet zaznamu v indexu (0 kdyz index neni k dispozici).</summary>
         public int Count => index?.Count ?? 0;
+
+        /// <summary>
+        /// <b>Cas ZAZNAMU</b>, ve kterem prehravani prave je — od razitka prvni prehrane zpravy.
+        /// <c>null</c>, dokud nedosla zprava s casem porizeni.
+        ///
+        /// <para><b>Nacpak to je.</b> Neni totez co uplynuly cas na hodinach.
+        /// <see cref="ReplayPacing.RealTime"/> sice ceka na razitka, ale kdyz nestiha, zpozdeni
+        /// <b>nedohani</b> — prehravani je tedy realny cas NEBO POMALEJSI. Kdo potrebuje vedet,
+        /// kde v zaznamu se prave je (treba videozaznam obrazovky, ktery ma byt stejne dlouhy
+        /// jako zaznam, ne jako jeho prehravani), musi se ptat na tohle, ne na stopky.</para>
+        /// </summary>
+        public TimeSpan? ReplayTime
+        {
+            get { lock (navLock) return haveFirstCapture ? lastCapture - firstCaptureAbs : (TimeSpan?)null; }
+        }
+
+        private DateTime firstCaptureAbs, lastCapture;
+        private bool haveFirstCapture;
+
+        /// <summary>
+        /// <b>Skutecna snimkova frekvence zaznamu</b> [sn/s] podle indexu, nebo <c>null</c>
+        /// (bez indexu, prilis kratky zaznam, zadne snimky).
+        ///
+        /// <para><b>Nacpak to je.</b> Videozaznam obrazovky nad prehravanim ma mit tolik snimku za
+        /// sekundu, kolik jich zaznam skutecne nese - vic jich neni z ceho vzit a musely by se
+        /// duplikovat, min by zahazovalo data. Spocte se jako pocet snimku JEDNE kamery deleno
+        /// delkou zaznamu.</para>
+        ///
+        /// <para>⚠️ <b>Deli se poctem kamer, respektive bere se maximum pres kamery.</b> Kamery
+        /// jsou dve a kazda posila vlastni <c>CameraFrame</c>, takze prosty pocet zaznamu by dal
+        /// <b>dvojnasobnou</b> frekvenci a video by belo dvakrat rychleji. Seskupeni podle
+        /// <see cref="IndexEntry.Name"/> to resi i pro jiny pocet kamer.</para>
+        /// </summary>
+        public double? FrameRate
+        {
+            get
+            {
+                var ix = index;
+                if (ix == null || ix.Count < 2) return null;
+                double sec = (ix[ix.Count - 1].CaptureTime - ix[0].CaptureTime).TotalSeconds;
+                if (sec < 1.0) return null;
+
+                var perCam = new Dictionary<string, int>(StringComparer.Ordinal);
+                foreach (var e in ix)
+                {
+                    if (e.MsgName != "CameraFrame") continue;
+                    string k = e.Name ?? string.Empty;
+                    perCam.TryGetValue(k, out int n);
+                    perCam[k] = n + 1;
+                }
+                if (perCam.Count == 0) return null;
+
+                int max = 0;
+                foreach (var kv in perCam) if (kv.Value > max) max = kv.Value;
+                double fps = max / sec;
+                return fps > 0.1 ? fps : (double?)null;
+            }
+        }
 
         /// <summary>Snapshot indexu (pro navigacni nastroj); null bez indexu.</summary>
         public IReadOnlyList<IndexEntry> Index => index;
@@ -251,6 +309,15 @@ namespace ARBot.Common.Communication
                 if (msg == null) continue;   // neznamy typ / chyba dekodovani -> preskoc
 
                 if (typeFilter != null && !typeFilter.Contains(msg.MsgName)) continue;
+
+                // Cas zaznamu se sleduje VZDY, i pri pacingu AsFastAsPossible - ptat se na nej
+                // muze kdokoli bez ohledu na to, jak se prehrava.
+                if (msg is IHasCaptureTime ht)
+                    lock (navLock)
+                    {
+                        if (!haveFirstCapture) { firstCaptureAbs = ht.CaptureTime; haveFirstCapture = true; }
+                        lastCapture = ht.CaptureTime;
+                    }
 
                 if (pacing == ReplayPacing.RealTime && msg is IHasCaptureTime h)
                 {

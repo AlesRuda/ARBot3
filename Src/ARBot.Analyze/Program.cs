@@ -175,6 +175,17 @@ namespace ARBot.Analyze
                         MissionReport.Run(rec, Text(args, "--camera"), Text(args, "--png"),
                                           (int)Arg(args, "--limit", 0));
                         return 0;
+                    case "bumps":
+                        BumpReport.Run(rec, Arg(args, "--ds", 0.01), Arg(args, "--minspeed", 0.15),
+                                       Arg(args, "--maxlag", 2.0), Arg(args, "--madk", 3.0),
+                                       Arg(args, "--refractory", 0.10),
+                                       Arg(args, "--pairlo", 0.20), Arg(args, "--pairhi", 1.20),
+                                       (int)Arg(args, "--top", 20), Arg(args, "--hp", 0.3),
+                                       Text(args, "--from"), Text(args, "--to"),
+                                       (int)Arg(args, "--detail", 0),
+                                       Arg(args, "--straight", 10.0), Arg(args, "--rozvor", 0.35),
+                                       (int)Arg(args, "--depth", 0));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -326,6 +337,26 @@ namespace ARBot.Analyze
             Console.WriteLine("             vytahne Src/Colab/ExportTestSet.ipynb do models/testset/");
             Console.WriteLine("             (--truththreshold=N pro masky 0/1, vychozi 128 pro 0/255;");
             Console.WriteLine("             --resizecenter vzorkuje pri zmenseni stred bloku jako trenink)");
+            Console.WriteLine("  bumps      hrboly pod robotem: najizdi na tutez nerovnost zadni pasivni");
+            Console.WriteLine("             kolo o ROZVOR pozdeji nez predni naprava? Rozvor se hleda dvema");
+            Console.WriteLine("             nezavislymi cestami - autokorelaci energie klopeni V DRAZE (bez");
+            Console.WriteLine("             prahu) a parovanim spicek gyra. Pak: je klopeni dopredu vetsi,");
+            Console.WriteLine("             kdyz smycka prave BRZDILA (prirozeny experiment pro reflex),");
+            Console.WriteLine("             roste s rychlosti, a kolik casu ma smycka mezi obema razy.");
+            Console.WriteLine("             --ds=<m> --minspeed=<m/s> --maxlag=<m> --madk=<k> --refractory=<m>");
+            Console.WriteLine("             --hp=<s> sirka okna horni propusti (0 = bez ni, kontrolni beh)");
+            Console.WriteLine("             --from=<HH:MM:SS|s> --to=<...> jen tenhle usek zaznamu - prumer");
+            Console.WriteLine("             pres cely zaznam utopi par skutecnych zakopnuti mezi stovkami");
+            Console.WriteLine("             metru bezne jizdy, takze kdyz clovek vi KDY, ma se ptat jen tam");
+            Console.WriteLine("             --detail=<n> vypsat n nejsilnejsich udalosti i se SYROVYM prubehem");
+            Console.WriteLine("             (rychlost klopeni proti UJETE DRAZE - dvojice razu se cte primo)");
+            Console.WriteLine("             --rozvor=<m> ocekavany rozvor (vychozi 0,35) a --straight=<deg/s>");
+            Console.WriteLine("             hranice prime jizdy: ostruha je mezi hnanymi koly a pri manevrovani");
+            Console.WriteLine("             se vytaci, takze ozvena se ma cekat jen u PRICNYCH defektu a rovne");
+            Console.WriteLine("             --depth=<n> BYLA NEROVNOST VIDET V HLOUBCE? precte n snimku a podiva");
+            Console.WriteLine("             se, co polarni grid hlasil o MISTE, kde robot pozdeji zakopl, dokud");
+            Console.WriteLine("             bylo jeste pred nim - proti kontrolni skupine obycejnych mist");
+            Console.WriteLine("             --pairlo=<m> --pairhi=<m> --top=<n>");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");

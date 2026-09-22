@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,13 +40,36 @@ namespace ARBot.Diagnostics
         // Výchozí parametry záznamu. mp4 je levné (H.264), GIF drahý na paměť i velikost -> nižší fps,
         // menší šířka a kratší strop.
         private const int Mp4Fps = 15, Mp4MaxWidth = 1280;
-        private const double Mp4MaxSeconds = 600;
+
+        /// <summary>
+        /// Strop délky mp4 - <b>žádný</b>.
+        ///
+        /// <para>Do 22. 9. 2026 tu bylo 600 s (10 min) jako pojistka proti zapomenutému nahrávání.
+        /// Zrušeno na žádost autora: potřeboval sestříhat 15minutový záznam ze soutěže a chystá se
+        /// nahrávat hodinový maraton. <b>Technický důvod ten strop neměl</b> - snímky tečou přes
+        /// <see cref="FfmpegPipe"/> rovnou do kodéru jako surové BGRA, takže paměť je konstantní
+        /// a roste jen soubor na disku (při 15 fps, 1280 px a crf 23 řádově stovky MB za hodinu).</para>
+        ///
+        /// <para>⚠️ <b>U GIFu strop zůstává a zůstat musí</b> (<see cref="GifMaxSeconds"/>):
+        /// <c>palettegen</c> potřebuje celý stream, takže si ho ffmpeg drží v paměti. Totéž pro
+        /// vestavěný zapisovač bez ffmpegu (<see cref="MemMaxFrames"/>), který drží snímky sám.</para>
+        /// </summary>
+        private const double Mp4MaxSeconds = double.PositiveInfinity;
         private const int GifFps = 8, GifMaxWidth = 1280;
         private const double GifMaxSeconds = 60;
         /// <summary>Strop pro fallback bez ffmpegu - snímky se drží v paměti (300 @ 8 fps ≈ 37 s).</summary>
         private const int MemMaxFrames = 300;
         /// <summary>Kolik bufferů snímků držet v poolu k recyklaci.</summary>
         private const int PoolLimit = 8;
+
+        /// <summary>
+        /// Nejvic snimku, ktere se smi doplnit na jeden tik, kdyz se casova osa posunula vic,
+        /// nez staci jeden snimek. Po dlouhem zaseknuti by se jinak do fronty o kapacite 8
+        /// hrnuly stovky snimku - vetsina by se stejne zahodila a jen by to pridusilo kodovani
+        /// prave ve chvili, kdy uz je stroj vytizeny.
+        /// </summary>
+        private const int MaxCatchUpPerTick = 30;
+
 
         private DispatcherTimer _timer;
         private RenderTargetBitmap _rtb;
@@ -70,13 +93,52 @@ namespace ARBot.Diagnostics
         public bool UsesFfmpeg { get; private set; }
         /// <summary>Počet zachycených snímků.</summary>
         public int FrameCount { get; private set; }
+        /// <summary>
+        /// <b>Časová osa videa.</b> Vrací, kde na ní zrovna jsme; <c>null</c> = použít stopky.
+        ///
+        /// <para><b>Nač to je.</b> Při nahrávání <i>přehrávaného záznamu</i> má být video dlouhé
+        /// jako <b>záznam</b>, ne jako jeho přehrávání — a to jsou dvě různé věci, protože
+        /// <c>ReplayPacing.RealTime</c> zpoždění <b>nedohání</b> (je to reálný čas nebo pomalejší).
+        /// Volající sem proto dá <c>FileMessageSource.ReplayTime</c>; v režimu Run, kde se nahrává
+        /// dění naživo, zůstane <c>null</c> a měří se stopkami.</para>
+        /// </summary>
+        public Func<TimeSpan?> Timeline { get; set; }
+
+        /// <summary>
+        /// <b>Snímková frekvence videa</b> [sn/s]; <c>null</c> = výchozí podle formátu.
+        ///
+        /// <para><b>Nač to je.</b> Nad přehrávaným záznamem má smysl jen tolik snímků za sekundu,
+        /// kolik jich <b>záznam skutečně nese</b> (<c>FileMessageSource.FrameRate</c>): víc jich
+        /// není z čeho vzít a musely by se duplikovat, míň by zahazovalo data. U záznamu z 5 fps
+        /// kamery je pak video třikrát menší a nic se neztratí.</para>
+        ///
+        /// <para>⚠️ Nastavuje se <b>před</b> <see cref="Start"/>; za běhu už ne — kodér má
+        /// frekvenci v argumentech a měnit ji uprostřed proudu nejde.</para>
+        /// </summary>
+        public double? FpsOverride { get; set; }
+
+        /// <summary>Kde na časové ose jsme (osa z <see cref="Timeline"/>, jinak stopky).</summary>
+        private TimeSpan Now => Timeline?.Invoke() ?? Elapsed;
+
         /// <summary>Snímky zahozené kvůli nestíhajícímu kodéru.</summary>
         public int DroppedFrames => _pipe?.DroppedFrames ?? 0;
         /// <summary>Délka běžícího záznamu.</summary>
         public TimeSpan Elapsed => _clock?.Elapsed ?? TimeSpan.Zero;
-        /// <summary>Zbývající čas do automatického zastavení.</summary>
-        public TimeSpan Remaining
-            => IsRecording ? TimeSpan.FromSeconds(Math.Max(0, _maxSeconds - Elapsed.TotalSeconds)) : TimeSpan.Zero;
+        /// <summary>Má běžící (nebo poslední) záznam vůbec časový strop? U mp4 ne.</summary>
+        public bool HasLimit => !double.IsInfinity(_maxSeconds);
+
+        /// <summary>
+        /// Zbývající čas do automatického zastavení; <c>null</c> = <b>bez stropu</b>.
+        ///
+        /// <para>⚠️ Typ je schválně <c>TimeSpan?</c>, ne <c>TimeSpan</c>. Vracet u neomezeného
+        /// záznamu nulu by volající četl jako „hned se to zastaví" a vypsal by to uživateli;
+        /// <c>null</c> ho donutí ten případ ošetřit. A <c>TimeSpan.FromSeconds(infinity)</c> by
+        /// rovnou <b>vyhodilo výjimku</b>, takže nestačí nechat výpočet být.</para>
+        /// </summary>
+        public TimeSpan? Remaining
+            => !IsRecording || !HasLimit
+                ? (TimeSpan?)null
+                : TimeSpan.FromSeconds(Math.Max(0, _maxSeconds - Elapsed.TotalSeconds));
 
         /// <summary>
         /// Záznam dosáhl limitu (nebo se rozpadla roura) a je nutné ho zastavit. Vyvolá se na UI vlákně;
@@ -106,6 +168,11 @@ namespace ARBot.Diagnostics
             if (_w <= 0 || _h <= 0) { error = "Okno má nulový rozměr."; return false; }
 
             _fps = gif ? GifFps : Mp4Fps;
+            // Meze: pod 1 sn/s uz to neni video, nad vychozi hodnotu nema smysl jit (stejne se
+            // tolik snimku neporidi) - a nula by rozbila vypocet periody.
+            if (FpsOverride.HasValue && FpsOverride.Value >= 1)
+                _fps = Math.Min(_fps, (int)Math.Round(FpsOverride.Value));
+            _fps = Math.Max(1, _fps);
             _delayMs = Math.Max(1, 1000 / _fps);
             _maxSeconds = gif ? GifMaxSeconds : Mp4MaxSeconds;
 
@@ -167,11 +234,32 @@ namespace ARBot.Diagnostics
                 {
                     if (_pipe.Failed) { RequestAutoStop(); return; }
 
+                    // ⚠️ POCET SNIMKU SE RIDI CASOVOU OSOU, ne poctem tiku. ffmpeg dostava pevne
+                    // -framerate a kazdy snimek povazuje za 1/fps sekundy, takze aby video melo
+                    // spravnou delku, musi jich na sekundu osy odejit presne fps.
+                    //  - osa se posunula min nez o snimek (prehravani je pomalejsi nez snimkovani,
+                    //    nebo stoji)  -> snimek se VUBEC neporizuje, jen se ceka;
+                    //  - posunula se o vic (prehravani predbehlo, treba po skoku)  -> chybejici
+                    //    se doplni kopiemi, protoze jina data pro ten usek osy nejsou.
+                    int cil = (int)(Now.TotalSeconds * _fps);
+                    if (cil <= FrameCount) return;
+
                     var buf = Rent();
                     _rtb.Render(_visual);
                     var handle = GCHandle.Alloc(buf, GCHandleType.Pinned);
                     try { _rtb.CopyPixels(new PixelRect(0, 0, _w, _h), handle.AddrOfPinnedObject(), buf.Length, _w * 4); }
                     finally { handle.Free(); }
+
+                    // Kopie musi jit do NOVEHO bufferu: WriteFrame prebira vlastnictvi a po zapisu
+                    // ho vraci do poolu, takze poslat tentyz objekt dvakrat by znamenalo cist
+                    // z pameti, kterou uz mezitim prepsal jiny snimek.
+                    int chybi = Math.Min(cil - FrameCount - 1, MaxCatchUpPerTick);
+                    for (int i = 0; i < chybi && !_pipe.Failed; i++)
+                    {
+                        var kopie = Rent();
+                        Buffer.BlockCopy(buf, 0, kopie, 0, buf.Length);
+                        if (_pipe.WriteFrame(kopie)) FrameCount++;
+                    }
 
                     if (_pipe.WriteFrame(buf)) FrameCount++;
                 }
@@ -192,6 +280,7 @@ namespace ARBot.Diagnostics
                 Debug.WriteLine("ScreenRecorder.OnTick: " + ex.Message);
             }
 
+            // Bez stropu (mp4) je _maxSeconds nekonecno, takze tahle podminka nikdy neplati.
             if (Elapsed.TotalSeconds >= _maxSeconds)
                 RequestAutoStop();
         }

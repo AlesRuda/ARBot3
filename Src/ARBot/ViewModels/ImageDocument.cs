@@ -72,6 +72,15 @@ namespace ARBot.ViewModels
         [ObservableProperty] private string rightOverlayLayer;
         [ObservableProperty] private double overlayOpacity = 0.5;   // spolecna pruhlednost obou overlayu
 
+        /// <summary>
+        /// Prahovat masku pravdepodobnosti na <see cref="MaskThreshold"/> (ostra hrana), nebo ji
+        /// kreslit plynule? Viz <see cref="RenderProbabilityMask"/>.
+        ///
+        /// <para><b>Vychozi je zapnuto</b> — tak to vypadalo v ARBot2 a autor si o to rekl. Plynula
+        /// varianta ale ukaze, KDE si sit neni jista, coz prah zahodi, takze se prepinat vyplati.</para>
+        /// </summary>
+        [ObservableProperty] private bool maskThresholdOn = true;
+
         [ObservableProperty] private WriteableBitmap leftImage;
         [ObservableProperty] private WriteableBitmap rightImage;
         [ObservableProperty] private WriteableBitmap leftOverlayImage;
@@ -505,6 +514,17 @@ namespace ARBot.ViewModels
         partial void OnLeftOverlayLayerChanged(string value) => RenderFromRegistry(Slot.LeftOverlay, value);
         partial void OnRightOverlayLayerChanged(string value) => RenderFromRegistry(Slot.RightOverlay, value);
 
+        /// <summary>
+        /// Prepnuti prahu meni BITMAPU, ne jen jeji pruhlednost, takze se musi prekreslit.
+        /// ⚠️ Nestaci spolehnout se na dalsi snimek: ve View (pauza) uz zadny prijit nemusi
+        /// a prepinac by vypadal jako nefunkcni.
+        /// </summary>
+        partial void OnMaskThresholdOnChanged(bool value)
+        {
+            RenderFromRegistry(Slot.LeftOverlay, LeftOverlayLayer);
+            RenderFromRegistry(Slot.RightOverlay, RightOverlayLayer);
+        }
+
         // ---------------- pixel pod kurzorem ----------------
 
         /// <summary>
@@ -610,7 +630,8 @@ namespace ARBot.ViewModels
 
         private void RenderSlot(Slot slot, ImageLayer layer)
         {
-            var bmp = Render(layer);
+            bool overlay = slot == Slot.LeftOverlay || slot == Slot.RightOverlay;
+            var bmp = Render(layer, overlay);
             int sw = layer.EffectiveSceneWidth, sh = layer.EffectiveSceneHeight;
             // Kdyz se rozliseni vrstvy a scény lisi, je to v popisce VIDET - jinak si clovek
             // mysli, ze pravdepodobnost je snimek 128×128, a ne 640×480 spocitanych nahrubo.
@@ -656,17 +677,114 @@ namespace ARBot.ViewModels
             else { LeftSceneWidth = s.w; LeftSceneHeight = s.h; }
         }
 
+        /// <summary>
+        /// Barva masky pravdepodobnosti (<see cref="RenderProbabilityMask"/>) — <b>cerna</b>,
+        /// tedy tatáž, kterou mel ARBot2 (<c>Image&lt;T&gt;.ToMask()</c>). Cervena se 22. 9. 2026
+        /// zkusila a autor se vratil k cerne.
+        ///
+        /// <para>Pojmenovana konstanta schvalne: v tele smycky by to byly jen nuly bez vysvetleni,
+        /// a poradi slozek je navic B, G, R (Bgra8888), takze zamena pri zmene barvy se pozna az
+        /// na obrazovce. ⚠️ Pri nenulove barve by zalezelo i na <see cref="AlphaFormat"/> —
+        /// u <see cref="AlphaFormat.Premul"/> by se slozky musely nasobit alfou. Tady je
+        /// <see cref="AlphaFormat.Unpremul"/>, takze se nic prepocitavat nemusi ani po zmene
+        /// barvy; ARBot2 pouzival <c>PixelFormats.Bgra32</c>, coz je ve WPF totez
+        /// (premultiplikovany je tam <c>Pbgra32</c>).</para>
+        /// </summary>
+        private const byte MaskB = 0, MaskG = 0, MaskR = 0;
+
+        /// <summary>
+        /// Prah, nad kterym maska kryje naplno (<see cref="RenderProbabilityMask"/>).
+        ///
+        /// <para><b>Proc se vubec prahuje.</b> ARBot2 nepocital pravdepodobnost jako spojitou
+        /// hodnotu — jeho <c>TFSemanticSegmentation</c> zapisoval rovnou ROZHODNUTI
+        /// <c>probability[idx] &lt; probability[idx+1] ? 255 : 0</c>, tedy masku <b>binarni</b>.
+        /// Proto tam bylo pokryti ostre. <c>OnnxBackProject</c> tady naproti tomu vraci spojitych
+        /// 0..255 (normalizuje vystup souctem kanalu), takze maska prechazela plynule a pusobila
+        /// rozmazane — autor to poznal 22. 9. 2026 na snimku obrazovky.</para>
+        ///
+        /// <para><b>Proc zrovna 128.</b> Neni to odhad: sit konci sigmoidou a vystup se normalizuje
+        /// souctem kanalu prave proto, aby prah 128 dal <b>totez rozhodnuti</b> jako puvodni
+        /// <c>out[0] &lt; out[1]</c> z ARBot2 (viz doc/semantic-segmentation.md). Prahovani tady je
+        /// tedy presna reprodukce toho, co ARBot2 delal uz pri vypoctu.</para>
+        ///
+        /// <para>⚠️ Prahuje se <b>jen zobrazeni</b>. Spojita pravdepodobnost je data a bere si ji
+        /// occupancy grid; zahodit ji uz pri vypoctu by znamenalo ochudit vsechny ostatni
+        /// konzumenty kvuli tomu, jak to vypada v jednom panelu.</para>
+        /// </summary>
+        private const byte MaskThreshold = 128;
+
         // --- render Image<T> -> WriteableBitmap (Bgra8888) ---
 
-        private WriteableBitmap Render(ImageLayer layer)
+        /// <param name="overlay">
+        /// Kresli se do PREKRYVNEHO slotu? Pravdepodobnost se pak nekresli jako sediva bitmapa,
+        /// ale jako <b>maska</b> — viz <see cref="RenderProbabilityMask"/>.
+        /// </param>
+        private WriteableBitmap Render(ImageLayer layer, bool overlay = false)
         {
             switch (layer.Kind)
             {
                 case LayerKind.Color: return RenderColor(layer.Color);
-                case LayerKind.Probability: return RenderGray(layer.Gray);
+                // Jako PODKLAD zustava pravdepodobnost sediva - kdyz si ji clovek da do panelu
+                // misto obrazu, chce ji videt, ne cernou masku nad nicim.
+                case LayerKind.Probability:
+                    return overlay ? RenderProbabilityMask(layer.Gray) : RenderGray(layer.Gray);
                 case LayerKind.Depth: return RenderDepth(layer.Depth);
                 default: return null;
             }
+        }
+
+        /// <summary>
+        /// Pravdepodobnost jako <b>maska</b>: jednolita <b>cerna</b> barva, ktera kryje tam, kde
+        /// pravdepodobnost prekroci <see cref="MaskThreshold"/>, a jinde je uplne pruhledna.
+        ///
+        /// <para><b>Tohle uz jednou existovalo.</b> ARBot2 mel totez v
+        /// <c>Image&lt;T&gt;.ToMask()</c> (cerna, alfa z hodnoty, <c>Bgra32</c>) a skladal to jako
+        /// samostatny <c>&lt;Image&gt;</c> nad snimkem se <c>Stretch="Fill"</c>,
+        /// <c>Opacity="0.5"</c> a <c>IsHitTestVisible="False"</c>. Rozdily tady jsou dva: tech 0,5
+        /// je na <b>posuvniku</b>, a prahovat se musi az <b>pri kresleni</b>, protoze ARBot2 mel
+        /// binarni uz samotnou pravdepodobnost (viz <see cref="MaskThreshold"/>).</para>
+        ///
+        /// <para><b>Proc ne sediva bitmapa s jednotnou pruhlednosti.</b> Do 22. 9. 2026 se
+        /// pravdepodobnost kreslila jako sedotonovy obraz a posuvnik menil pruhlednost CELE
+        /// vrstvy najednou. Mista s nulovou pravdepodobnosti tim pres podklad lezela jako cerna
+        /// plocha a mista s jednickou jako bila - podklad byl tedy zasteneny VSUDE stejne
+        /// a nejvic prave tam, kde se nic nedeje. Takhle je podklad videt presne tam, kde je
+        /// pravdepodobnost nizka, a maska sili se svou hodnotou.</para>
+        ///
+        /// <para><b>Posuvnik zustava</b> jako <c>Opacity</c> obrazku v XAML a nasobi se s alfou
+        /// pixelu, takze vysledna kryci sila je <c>posuvnik × p</c>. Neni tedy potreba nic
+        /// prepocitavat pri jeho zmene - prekresluje to skladaci vrstva.</para>
+        ///
+        /// <para>⚠️ <b>Bitmapa musi byt <see cref="AlphaFormat.Unpremul"/></b> (ostatni vrstvy
+        /// maji <see cref="AlphaFormat.Opaque"/>, to by alfu zahodilo uplne a maska by byla plna
+        /// plocha). Viz <see cref="MaskB"/> k tomu, proc na formatu zalezi az u nenulove barvy.</para>
+        /// </summary>
+        private WriteableBitmap RenderProbabilityMask(Image<Gray> gray)
+        {
+            if (gray == null || gray.Width <= 0 || gray.Height <= 0) return null;
+            int w = gray.Width, h = gray.Height;
+            var src = gray.Data;   // 1 bajt/pixel = pravdepodobnost 0..255
+            DiagBitmapsCreated++;
+            var bmp = new WriteableBitmap(new PixelSize(w, h), new Vector(96, 96),
+                PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+            byte[] row = new byte[w * 4];
+            using (var fb = bmp.Lock())
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    int srcRow = y * w;
+                    for (int x = 0; x < w; x++)
+                    {
+                        int o = x * 4;
+                        // Poradi slozek je B, G, R, A (Bgra8888).
+                        row[o] = MaskB; row[o + 1] = MaskG; row[o + 2] = MaskR;
+                        byte p = src[srcRow + x];
+                        row[o + 3] = MaskThresholdOn ? (p >= MaskThreshold ? (byte)255 : (byte)0) : p;
+                    }
+                    Marshal.Copy(row, 0, fb.Address + y * fb.RowBytes, w * 4);
+                }
+            }
+            return bmp;
         }
 
         private static WriteableBitmap RenderColor(Image<BGR32> rgb)
