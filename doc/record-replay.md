@@ -150,6 +150,31 @@ zahozeno (data se na disk už nedostala), 167 kB useknutého snímku; `230138` �
 `MessageIndexRepairTests` (useknutý index, index za koncem dat + nuly, bez sidecaru, smetí místo
 hlavičky, oprava na disku).
 
+## Export do GPX (od 24. 9. 2026)
+
+**File → Export GPX…** (aktivní jen ve View) uloží otevřený záznam do GPX 1.1. Dialog nabídne
+`<záznam>.gpx` vedle záznamu. Čte se **celý záznam** vlastním read-only streamem jako sken
+telemetrie, takže se to přehrávání nedotkne a na pozici přehrávání nezáleží. Co se uložilo, jde do
+`Trace` a panel *Debug output* se otevře. Jádro je `ARBot.Common/Export/GpxExport.cs`, testy
+`GpxExportTest`.
+
+- **Stopa „GPS“** jsou surové `GPSState`, jen platné fixy (`IsFixed`), s `<ele>`, `<sat>` a `<hdop>`.
+  Radiány se převádějí na stupně až tady na okraji.
+- **Stopa „Fúze“** je `RobotStateMsg` z lokálního ENU převedená přes **počátek mapy ze záznamu**
+  (`MapMsg.BuildOrigin()`). Je to tatáž definice jako `ARBotRuntime.BuildOriginFromMap` a sdílí ji
+  i World pohled. Ve View runtime mapu nenačítá, takže `MapMsg` je jediný zdroj počátku. **Bez
+  mapy v záznamu se stopa vynechá** a hlášení řekne proč. Počátek dopočítaný z GPS (nouzová
+  varianta World pohledu) by stopu rozskákal o šum fixu. Póza je proředěná na 10 Hz.
+- **Mezera nad 2 s** (výpadek fixu, pauza) začne nový `<trkseg>`.
+- **Čas je UTC odvozený z GPS.** Razítka záznamu jsou místní čas stroje, který nahrával
+  (`TimeBase`), bez zóny, a Pi může běžet v jiné zóně než PC s exportem. `FixTime` je UTC čas
+  dne. Posun je rozdíl zaokrouhlený na 15 min, na kterém se shodne většina fixů. ⚠️ u-blox dává
+  do `FixTime` i den, bere se jen čas dne. Bez GPS času (virtuální GPS) se použije zóna tohoto PC
+  a hlášení to řekne.
+- **Ověřeno:** fúzní stopa přes počátek mapy sedí na polohu, kterou za běhu spočítal runtime
+  (`GlobalNavMsg.LatDeg/LonDeg`), na **0,000 m** v 5 záznamech. ⚠️ Všechny byly ze simulace,
+  takže odvození UTC z GPS času kryjí jen unit testy.
+
 ## Determinismus
 
 „Teď" jde z `IClock`. V Run porovnání neprobíhá → stačí tolerance / best-effort. `AsyncFusionEngine`

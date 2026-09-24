@@ -539,6 +539,8 @@ namespace ARBot.Common.Configuration
               "Zaznam pro telemetryshot. Bez nej se vezme nejnovejsi indexovany zaznam.");
         public static readonly BoolParam WorldShot = Bool("worldshot", "false", K_TEST,
               "Bezobsluzny snimek World pohledu.");
+        public static readonly BoolParam ProfileShot = Bool("profileshot", "false", K_TEST,
+              "Bezobsluzny snimek profilu sceny nad zaznamem (zaznam z ts_rec, jinak nejnovejsi indexovany).");
 
         // config= sam do registru NEPATRI - neni to nastaveni aplikace, ale volba, ODKUD se
         // nastaveni bere. Kdyby v registru byl, sel by zapsat do profilu a profil by mohl

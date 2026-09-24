@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **217**: otevřeno **46** · v kódu, na HW neověřeno **31** · hotovo **131** · odloženo **6** · zamítnuto **3**.
+Témat celkem **220**: otevřeno **46** · v kódu, na HW neověřeno **34** · hotovo **131** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -89,6 +89,9 @@ Témat celkem **217**: otevřeno **46** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty](#nav-phi-obracena-hrana) | 20. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)](#ui-avalonia-deadlock-popup) | 24. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -2387,6 +2390,43 @@ Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže 
 - [ ] Proklikat uložení v panelu
 
 [configuration.md](configuration.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
+
+<a id="nast-profil-sceny"></a>
+### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
+
+`nast-profil-sceny` · záměr · **v kódu, na HW neověřeno** · nalezeno 23. 9. 2026 · vyřešeno 24. 9. 2026
+
+Nástroj na ladění detekce terénu (Tools → Profil scény, `open=profile`). Ukazuje graf z(r) v jednom azimutu polárního gridu: surové body z 16 sloupců hloubky, ze kterých buňky vznikly, a přes ně buňky se třídou, referenční rovinou ± tolerancí a MeanZ/StdZ/MaxZ. Pod myší řekne, které kritérium klasifikace buňka překročila. Vysvětlení počítá tentýž kód jako `CameraFrameProcessor`, nesoulad s gridem hlásí. Běží v Run i ve View (hloubka i projekce jsou v záznamu). Vznikl kvůli otevřenému rozporu v `lp-drsnost-povrchu-rychlostni-strop` (náklon ukazuje hrbol, grid ne). Nad záznamem simulace: třída sedí ve všech 332 970 buňkách, počty bodů v 16 buňkách ±1 mezi sousedními prstenci (zaokrouhlení nativní SIMD cesty). Nad terénním záznamem zatím neběžel.
+
+- [x] Fáze 1: graf z(r) v azimutu gridu, surové body + buňky + vysvětlení klasifikace, Run i View, `profileshot=` (24. 9. 2026)
+- [ ] Projít terénní záznam z Robotouru (místo zakopnutí v Kolo3b) — je hrbol v bodech vidět a pohltí ho agregace buňky?
+- [ ] Fáze 2: 3D pohled na mračno (rotace/posun/zoom) — samostatný návrh, softwarová projekce vs. OpenGL
+
+[plan-profil-sceny.md](plan-profil-sceny.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+
+<a id="nast-export-gpx"></a>
+### 🧪 Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)
+
+`nast-export-gpx` · záměr · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno.
+
+- [x] Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX… (24. 9. 2026)
+- [ ] Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)
+
+[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+
+<a id="ui-avalonia-deadlock-popup"></a>
+### 🧪 Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
+
+`ui-avalonia-deadlock-popup` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít, CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo už při zavírání rozbaleného menu v `WinUiCompositedWindow.Dispose` na zámku `SyncRoot`, který drželo vlákno kompozitoru, a to čekalo v `OnCommitCompleted` na `_wakeEvent` (render smyčka uspaná, když se nic nekreslí) — probuzení by poslalo právě UI vlákno. Chyba Avalonie, opravená v PR #21591 (vyšla ve 12.0.5 a 12.1.x). Týká se zavření JAKÉHOKOLI popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK; samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy, ne opakovaným pokusem. ⚠️ Na zařízení nové UI neběželo.
+
+- [x] Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View (24. 9. 2026)
+- [ ] Ověřit na zařízení (UI na Armbianu) a export GPX během replay v aplikaci
+
+[build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem

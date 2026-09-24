@@ -7495,3 +7495,93 @@ temata:
         cesta: doc/plan-drive-hold.md
     devlog: [2026-09-22]
     ceka_na: []
+
+  - id: nast-profil-sceny
+    oblast: nastroje
+    nazev: Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
+    druh: zamer
+    stav: v-kodu
+    nalezeno: 2026-09-23
+    vyreseno: 2026-09-24
+    popis: >
+      Nástroj na ladění detekce terénu (Tools → Profil scény, `open=profile`). Ukazuje graf z(r)
+      v jednom azimutu polárního gridu: surové body z 16 sloupců hloubky, ze kterých buňky
+      vznikly, a přes ně buňky se třídou, referenční rovinou ± tolerancí a MeanZ/StdZ/MaxZ. Pod
+      myší řekne, které kritérium klasifikace buňka překročila. Vysvětlení počítá tentýž kód jako
+      `CameraFrameProcessor`, nesoulad s gridem hlásí. Běží v Run i ve View (hloubka i projekce
+      jsou v záznamu). Vznikl kvůli otevřenému rozporu v `lp-drsnost-povrchu-rychlostni-strop`
+      (náklon ukazuje hrbol, grid ne). Nad záznamem simulace: třída sedí ve všech 332 970 buňkách,
+      počty bodů v 16 buňkách ±1 mezi sousedními prstenci (zaokrouhlení nativní SIMD cesty).
+      Nad terénním záznamem zatím neběžel.
+    kroky:
+      - co: "Fáze 1: graf z(r) v azimutu gridu, surové body + buňky + vysvětlení klasifikace, Run i View, `profileshot=`"
+        stav: hotovo
+        kdy: 2026-09-24
+      - co: "Projít terénní záznam z Robotouru (místo zakopnutí v Kolo3b) — je hrbol v bodech vidět a pohltí ho agregace buňky?"
+        stav: otevreno
+      - co: "Fáze 2: 3D pohled na mračno (rotace/posun/zoom) — samostatný návrh, softwarová projekce vs. OpenGL"
+        stav: otevreno
+    odkazy:
+      - text: plan-profil-sceny.md
+        cesta: doc/plan-profil-sceny.md
+      - text: traversability-grid.md
+        cesta: doc/traversability-grid.md
+    devlog: [2026-09-24]
+    ceka_na: []
+
+  - id: nast-export-gpx
+    oblast: nastroje
+    nazev: Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)
+    druh: zamer
+    stav: v-kodu
+    nalezeno: 2026-09-24
+    vyreseno: 2026-09-24
+    popis: >
+      File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů
+      (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu
+      (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový
+      segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS
+      (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času
+      se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze
+      simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno.
+    kroky:
+      - co: "Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX…"
+        stav: hotovo
+        kdy: 2026-09-24
+      - co: "Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)"
+        stav: otevreno
+    odkazy:
+      - text: record-replay.md
+        cesta: doc/record-replay.md
+    devlog: [2026-09-24]
+    ceka_na: []
+
+  - id: ui-avalonia-deadlock-popup
+    oblast: nastroje
+    nazev: Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-24
+    vyreseno: 2026-09-24
+    popis: >
+      Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít,
+      CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo
+      už při zavírání rozbaleného menu v `WinUiCompositedWindow.Dispose` na zámku `SyncRoot`,
+      který drželo vlákno kompozitoru, a to čekalo v `OnCommitCompleted` na `_wakeEvent` (render
+      smyčka uspaná, když se nic nekreslí) — probuzení by poslalo právě UI vlákno. Chyba
+      Avalonie, opravená v PR #21591 (vyšla ve 12.0.5 a 12.1.x). Týká se zavření JAKÉHOKOLI
+      popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop,
+      Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK;
+      samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy,
+      ne opakovaným pokusem. ⚠️ Na zařízení nové UI neběželo.
+    kroky:
+      - co: "Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View"
+        stav: hotovo
+        kdy: 2026-09-24
+      - co: "Ověřit na zařízení (UI na Armbianu) a export GPX během replay v aplikaci"
+        stav: otevreno
+    odkazy:
+      - text: build-and-platforms.md
+        cesta: doc/build-and-platforms.md
+    devlog: [2026-09-24]
+    ceka_na: []

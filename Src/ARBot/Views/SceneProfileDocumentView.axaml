@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ARBot.ViewModels"
+             xmlns:ctl="using:ARBot.Views.Controls"
+             x:Class="ARBot.Views.SceneProfileDocumentView"
+             x:DataType="vm:SceneProfileDocument">
+    <Design.DataContext><vm:SceneProfileDocument/></Design.DataContext>
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="6,4">
+            <TextBlock Text="Kamera" VerticalAlignment="Center"/>
+            <ComboBox ItemsSource="{Binding Cameras}" SelectedItem="{Binding SelectedCamera}" MinWidth="160"/>
+            <TextBlock Text="Azimut" VerticalAlignment="Center"/>
+            <Slider Minimum="0" Maximum="{Binding AzimuthMax}" Value="{Binding Azimuth}"
+                    IsSnapToTickEnabled="True" TickFrequency="1" SmallChange="1" LargeChange="1"
+                    Width="260" VerticalAlignment="Center"
+                    ToolTip.Tip="Azimutová buňka gridu (skupina sloupců hloubkového obrazu); 0 = levý okraj obrazu. Šipky posouvají o jednu."/>
+            <TextBlock Text="{Binding Azimuth}" VerticalAlignment="Center" MinWidth="24"/>
+            <CheckBox Content="Zmrazit" IsChecked="{Binding IsFrozen}"
+                      ToolTip.Tip="Podrží aktuální snímek - nad ním jde listovat azimuty."/>
+            <CheckBox Content="1:1" IsChecked="{Binding EqualScale}"
+                      ToolTip.Tip="Stejné měřítko obou os (skutečný tvar). Jinak je výška zvětšená."/>
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Info}" Margin="6,0,6,4" FontSize="12"
+                   TextWrapping="Wrap" Foreground="#B0B0B0"/>
+        <TextBlock DockPanel.Dock="Bottom" Margin="6,2" FontSize="11" Foreground="#909090"
+                   Text="Pozadí = třída buňky (sytost = důvěra) · modře rovina ± tolerance výšky · žlutě MeanZ a ±StdZ · oranžově MaxZ · kolečko lupa, Ctrl+kolečko výška, pravé tažení posun, dvojklik auto"/>
+        <ctl:SceneProfileControl Profile="{Binding Profile}" EqualScale="{Binding EqualScale}"/>
+    </DockPanel>
+</UserControl>

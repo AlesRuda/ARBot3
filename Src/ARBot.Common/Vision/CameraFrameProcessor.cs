@@ -485,8 +485,12 @@ namespace ARBot.Common.Vision
 
         // Fit referencni roviny z bunek s dost body, blizko a s malou vyskou (odfiltruje prekazky).
         private PlaneParams FitReferencePlane(PolarCell[] cells)
+            => FitReferencePlane(cells, cfg, planePts);   // znovupouzity seznam (misto alokace per snimek)
+
+        /// <summary>Fit referencni roviny. Staticky, aby ho <see cref="SceneProfile"/> volal TENTYZ,
+        /// ne kopii - profil vysvetluje klasifikaci a musi pocitat stejne jako grid.</summary>
+        internal static PlaneParams FitReferencePlane(PolarCell[] cells, PolarGridConfig cfg, List<Point4D> pts)
         {
-            var pts = planePts;   // znovupouzity seznam (misto alokace per snimek)
             pts.Clear();
             float maxR2 = cfg.PlaneFitMaxRangeM * cfg.PlaneFitMaxRangeM;
             foreach (var c in cells)
@@ -506,7 +510,7 @@ namespace ARBot.Common.Vision
         }
 
         // Znamenkova odchylka teziste bunky od roviny (v-vektor viz PlaneParams).
-        private static float Deviation(in PolarCell c, in PlaneParams plane)
+        internal static float Deviation(in PolarCell c, in PlaneParams plane)
         {
             var p = new Point4D { X = c.MeanX, Y = c.MeanY, Z = c.MeanZ, A = 1 };
             return p * plane.v;
@@ -540,7 +544,7 @@ namespace ARBot.Common.Vision
                     float rng = MathF.Sqrt(cell.MeanX * cell.MeanX + cell.MeanY * cell.MeanY);
                     float adev = Math.Abs(dev[idx]);
                     float rough = cell.StdZ;
-                    float slope = MaxNeighborSlope(cells, dev, a, r, A, R, idx);
+                    float slope = MaxNeighborSlope(cfg, cells, dev, a, r, A, R, idx);
 
                     float roughRef = cfg.RoughRef(rng);
                     bool obstacle =
@@ -565,7 +569,7 @@ namespace ARBot.Common.Vision
         }
 
         // Max stoupani (plane-rel.) vuci radialnim a azimutovym sousedum.
-        private float MaxNeighborSlope(PolarCell[] cells, float[] dev, int a, int r, int A, int R, int idx)
+        internal static float MaxNeighborSlope(PolarGridConfig cfg, PolarCell[] cells, float[] dev, int a, int r, int A, int R, int idx)
         {
             float max = 0f;
             var self = cells[idx];
