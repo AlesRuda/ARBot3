@@ -39,6 +39,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-23
+
+- **Videozáznam: rozdělen na dvě úlohy** (na zadání autora). Včerejší úprava vedla obojí po jedné
+  cestě, a to bylo špatně:
+  - **Tlačítko ● MP4 v toolbaru jede zase podle HODIN**, i ve View — a je to záměr: *„je tam vidět,
+    co dělá aplikace"*, jak stíhá kreslit a kde se zadrhne. Včerejší napojení na čas záznamu se
+    odtud odebralo.
+  - **Nový příkaz `Runtime → Uložit záznam do MP4`**: přehraje otevřený záznam **celý od začátku**
+    rychlostí, kterou nese, a na jeho konci (`FileMessageSource.Completed`) nahrávání sám ukončí.
+    Tady zůstává osa = čas záznamu a snímková frekvence ze záznamu, takže video má délku **záznamu**.
+  - ⚠️ **Export převíjí na začátek** (`Pause` + `SeekTo(0)`), jinak by ve videu visel prvních pár
+    sekund stav z předchozího přehrávání. Kvůli tomu musí `SeekTo` **nulovat počítání času
+    záznamu** — bez toho by se `ReplayTime` porovnával s razítkem první zprávy *předchozího*
+    přehrávání a po skoku na začátek by vyšel **záporný**.
+  - ⚠️ `Completed` přichází z **přehrávacího vlákna**, kdežto `StopAsync` se musí volat z UI vlákna
+    (dokončuje kódování a sahá na stav tlačítek) — odtud `Dispatcher.UIThread.Post`. A odhlásit se
+    z události je nutné hned, jinak by se po dalším přehrání zastavovalo nahrávání, které už dávno
+    neběží.
+  - ⚠️ Export může trvat **déle**, než je záznam dlouhý (`RealTime` pacing zpoždění nedohání);
+    výsledné video má přesto délku záznamu. Ověřeno překladem; ⚠️ **neproklikáno**.
+    Soubory: `MainWindowViewModel.Capture.cs`, `MainWindow.axaml`, `FileMessageSource.cs`,
+    [screen-capture.md](screen-capture.md).
+
 ## 2026-09-22
 
 - **Záměr (registr `lp-drsnost-povrchu-rychlostni-strop`):** obtížně sjízdný povrch (hrbol,

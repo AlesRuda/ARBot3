@@ -53,6 +53,26 @@ jako pojistka proti zapomenutému nahrávání, ale technický důvod to nemělo
 soutěže a hodinového záznamu z maratonu. U GIFu limit **zůstat musí**: `palettegen` potřebuje celý
 stream, takže si ho ffmpeg drží v paměti.
 
+### Dvě různé úlohy: tlačítko v toolbaru a *Runtime → Uložit záznam do MP4*
+
+Vypadají stejně, ale měří jiný čas — a je to záměr:
+
+| | tlačítko **● MP4** v toolbaru | menu **Runtime → Uložit záznam do MP4** |
+|---|---|---|
+| co nahrává | co je zrovna na obrazovce, dokud se nevypne | otevřený záznam **celý od začátku** |
+| časová osa | **hodiny** | **čas záznamu** (`FileMessageSource.ReplayTime`) |
+| snímková frekvence | 15 sn/s | **ze záznamu** (`FileMessageSource.FrameRate`) |
+| konec | ruční (druhý stisk) | sám na konci záznamu (`Completed`) |
+| k čemu to je | **je vidět, co dělá aplikace** — jak stíhá kreslit, kde se zadrhne | video má odpovídat **záznamu** |
+
+⚠️ **Export může trvat déle, než je záznam dlouhý** — `ReplayPacing.RealTime` zpoždění
+**nedohání**, takže přehrávání je reálný čas *nebo pomalejší*. Výsledné video má přesto délku
+záznamu. Okno se po tu dobu nesmí zmenšit (rozměr snímku se fixuje při startu).
+⚠️ Export nejdřív **převine na začátek** (`Pause` + `SeekTo(0)`), takže ve videu nevisí prvních
+pár sekund stav z předchozího přehrávání. Kvůli tomu `SeekTo` **nuluje počítání času záznamu** —
+jinak by se `ReplayTime` porovnával s razítkem první zprávy *předchozího* přehrávání a po skoku na
+začátek by vyšel záporný.
+
 ### ⚠️ Délka videa odpovídá ZÁZNAMU, ne tomu, jak dlouho ho aplikace přehrávala
 
 ffmpeg dostává `-framerate 15` a **věří mu** — každý přijatý snímek považuje za 1/15 s. Snímkování
@@ -66,11 +86,10 @@ kde na ní zrovna jsme, a na sekundu té osy odejde přesně `fps` snímků:
 - posunula se **míň** než o snímek → snímek se vůbec nepořizuje, jen se čeká;
 - posunula se o **víc** → chybějící se doplní kopiemi (jiná data pro ten úsek osy nejsou).
 
-**V režimu View je tou osou čas ZÁZNAMU** (`FileMessageSource.ReplayTime`), ne stopky. To není
-detail: `ReplayPacing.RealTime` sice čeká na razítka záznamu, ale **když nestíhá, zpoždění
+**Při exportu z menu je tou osou čas ZÁZNAMU** (`FileMessageSource.ReplayTime`), ne stopky; tlačítko
+v toolbaru naopak jede na stopkách i ve View. To není detail: `ReplayPacing.RealTime` sice čeká na razítka záznamu, ale **když nestíhá, zpoždění
 nedohání** — přehrávání je reálný čas *nebo pomalejší*. Podle stopek by tedy patnáctiminutový
-záznam dal delší video. V režimu Run zdroj souboru neexistuje, `Timeline` zůstane `null` a měří se
-stopkami, což je tam správně.
+záznam dal delší video.
 
 **Proč ne `-use_wallclock_as_timestamps`.** Nabízí se nechat razítka na ffmpegu (`-vsync vfr`)
 a ověřeně to funguje — v témže pokusu vyšlo video 2,934 s místo 0,667 s při nezměněných 10 snímcích.

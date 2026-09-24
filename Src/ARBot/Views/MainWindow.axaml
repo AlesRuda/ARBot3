@@ -26,6 +26,11 @@
                 <MenuItem Header="Run without log" Command="{Binding RunModeCommand}"/>
                 <MenuItem Header="Run and log" Command="{Binding RunAndLogCommand}"/>
                 <MenuItem Header="View…" Command="{Binding ViewModeCommand}"/>
+                <!-- Export zaznamu do videa, ne tlacitko v toolbaru: to nahrava podle HODIN
+                     (je na nem videt, co dela aplikace), kdezto tenhle prikaz prehraje zaznam
+                     cely od zacatku a video ma delku ZAZNAMU. -->
+                <MenuItem Header="Uložit záznam do MP4" Command="{Binding ExportRecordToMp4Command}"
+                          ToolTip.Tip="Přehraje otevřený záznam celý od začátku a uloží ho do MP4 v doc/media/. Video má délku záznamu, i když přehrávání trvá déle."/>
                 <Separator/>
                 <MenuItem Header="Stop" Command="{Binding StopRuntimeCommand}"/>
                 <Separator/>

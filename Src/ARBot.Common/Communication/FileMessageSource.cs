@@ -247,7 +247,13 @@ namespace ARBot.Common.Communication
             }
 
             lock (navLock)
+            {
                 cursor = pos + 1;
+                // ⚠️ Cas zaznamu se pri previnuti musi zacit pocitat znovu. Bez toho by se
+                // ReplayTime porovnaval s razitkem prvni zpravy PREDCHOZIHO prehravani - po skoku
+                // na zacatek by vysel zaporny a export do videa by z nej udelal nesmysl.
+                haveFirstCapture = false;
+            }
         }
 
         /// <summary>Nahodne precte jeden ramec z daneho <paramref name="offset"/> (samostatny ctenar).</summary>

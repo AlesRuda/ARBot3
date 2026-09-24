@@ -120,15 +120,13 @@ namespace ARBot.ViewModels
             }
 
             string path = Path.Combine(CaptureDir(), "rec-" + Stamp() + "." + format);
-            // ⚠️ V rezimu View se video ridi casem ZAZNAMU, ne hodinami: prehravani je realny cas
-            // NEBO POMALEJSI (RealTime pacing zpozdeni nedohani), takze podle hodin by video
-            // vyslo delsi nez zaznam. V Run zdroj souboru neni a Timeline zustane null = stopky.
-            var fs = ARBot.Robot.ARBotRuntime.Current?.FileSource;
-            _recorder.Timeline = fs == null ? null : new Func<TimeSpan?>(() => fs.ReplayTime);
 
-            // Snimkova frekvence podle toho, co zaznam skutecne nese: vic snimku neni z ceho vzit
-            // (musely by se duplikovat), min by zahazovalo data. Z indexu, tedy bez cteni snimku.
-            _recorder.FpsOverride = fs?.FrameRate;
+            // ⚠️ Tlacitko v toolbaru nahrava podle HODIN, zamerne: ma byt videt, co dela
+            // aplikace - jak rychle stiha kreslit, kde se zadrhne. Export zaznamu do videa je
+            // jina uloha (video ma odpovidat ZAZNAMU) a ma vlastni prikaz v menu, viz
+            // ExportRecordToMp4.
+            _recorder.Timeline = null;
+            _recorder.FpsOverride = null;
 
             if (!_recorder.Start(visual, format, path, out string error))
             {
@@ -140,16 +138,103 @@ namespace ARBot.ViewModels
             // Odkaz na předchozí soubor by během nahrávání mátl (ukazoval by na starý výstup).
             LastFilePath = "";
 
-            if (!_autoStopHooked)
-            {
-                // Recorder si sám říká o zastavení při dosažení limitu (nebo když spadne kodér).
-                _recorder.AutoStopRequested += () => _ = StopRecordingAsync();
-                _autoStopHooked = true;
-            }
+            HookAutoStop();
 
             System.Diagnostics.Debug.WriteLine($"Záznam {format} spuštěn: {path}");
             StartStatusTimer();
             RefreshCaptureCommands();
+        }
+
+        /// <summary>
+        /// <b>Export otevřeného záznamu do MP4.</b> Přehraje ho celý od začátku rychlostí, kterou
+        /// nese záznam, a na jeho konci nahrávání sám ukončí.
+        ///
+        /// <para><b>Proč to není totéž co tlačítko v toolbaru.</b> Tlačítko nahrává podle
+        /// <b>hodin</b>, a to schválně — je na něm vidět, co dělá aplikace, jak rychle stíhá
+        /// kreslit a kde se zadrhne. Tady je úloha opačná: video má odpovídat <b>záznamu</b>.
+        /// A to jsou dvě různé délky, protože <c>ReplayPacing.RealTime</c> zpoždění
+        /// <b>nedohání</b> — přehrávání je reálný čas <i>nebo pomalejší</i>. Proto se tu nastaví
+        /// <see cref="ScreenRecorder.Timeline"/> na čas záznamu a
+        /// <see cref="ScreenRecorder.FpsOverride"/> na jeho skutečnou snímkovou frekvenci.</para>
+        ///
+        /// <para>⚠️ Export proto může trvat <b>déle</b>, než je záznam dlouhý — výsledné video má
+        /// přesto délku záznamu. Okno se po tu dobu nesmí zavřít ani zmenšit (rozměr se fixuje
+        /// při startu).</para>
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanExportRecord))]
+        private void ExportRecordToMp4()
+        {
+            var fs = ARBot.Robot.ARBotRuntime.Current?.FileSource;
+            if (fs == null)
+            {
+                CaptureStatus = "Export do MP4 jde jen v režimu View (otevřený záznam).";
+                return;
+            }
+            if (App.MainTopLevel is not Visual visual)
+            {
+                CaptureStatus = "Okno není k dispozici.";
+                return;
+            }
+
+            // Od zacatku: Pause je podminka SeekTo, a SeekTo(0) navic posklada stav tak, jak
+            // vypadal na zacatku zaznamu (jinak by ve videu prvni sekundy visely zpravy
+            // z predchoziho prehravani).
+            try
+            {
+                fs.Pause();
+                if (fs.Index != null) fs.SeekTo(0);
+                else CaptureStatus = "Záznam nemá index - exportuje se od aktuální pozice.";
+            }
+            catch (Exception ex)
+            {
+                CaptureStatus = "Nelze převinout na začátek: " + ex.Message;
+                System.Diagnostics.Debug.WriteLine(ex);
+                return;
+            }
+
+            string path = Path.Combine(CaptureDir(), "rec-" + Stamp() + ".mp4");
+            _recorder.Timeline = () => fs.ReplayTime;
+            _recorder.FpsOverride = fs.FrameRate;
+
+            if (!_recorder.Start(visual, "mp4", path, out string error))
+            {
+                CaptureStatus = "Export nelze spustit: " + error;
+                System.Diagnostics.Debug.WriteLine("Export nelze spustit: " + error);
+                return;
+            }
+
+            LastFilePath = "";
+            HookAutoStop();
+
+            // Konec zaznamu ukonci nahravani. ⚠️ Completed prijde z PREHRAVACIHO vlakna, kdezto
+            // StopAsync se musi volat z UI vlakna (dokonceni kodovani sahá na recorder i na stav
+            // tlacitek). A odhlasit se musi hned - jinak by se po dalsim prehrani zaznamu
+            // zastavovalo nahravani, ktere uz davno nebezi.
+            EventHandler hotovo = null;
+            hotovo = (s, e) =>
+            {
+                fs.Completed -= hotovo;
+                Dispatcher.UIThread.Post(() => _ = StopRecordingAsync());
+            };
+            fs.Completed += hotovo;
+
+            System.Diagnostics.Debug.WriteLine($"Export zaznamu do MP4 spusten: {path}");
+            StartStatusTimer();
+            RefreshCaptureCommands();
+            fs.Play();
+        }
+
+        /// <summary>Export jde jen ve View a jen když se zrovna nenahrává.</summary>
+        private bool CanExportRecord
+            => !_savingRecording && !_recorder.IsRecording
+               && ARBot.Robot.ARBotRuntime.Current?.FileSource != null;
+
+        private void HookAutoStop()
+        {
+            if (_autoStopHooked) return;
+            // Recorder si sám říká o zastavení při dosažení limitu (nebo když spadne kodér).
+            _recorder.AutoStopRequested += () => _ = StopRecordingAsync();
+            _autoStopHooked = true;
         }
 
         private async Task StopRecordingAsync()
@@ -216,6 +301,7 @@ namespace ARBot.ViewModels
         {
             ToggleMp4Command.NotifyCanExecuteChanged();
             ToggleGifCommand.NotifyCanExecuteChanged();
+            ExportRecordToMp4Command.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(IsRecordingMp4));
             OnPropertyChanged(nameof(IsRecordingGif));
             OnPropertyChanged(nameof(Mp4ButtonText));
