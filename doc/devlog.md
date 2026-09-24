@@ -79,6 +79,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   zmizení je doložené opravou v Avalonii, ne opakovaným pokusem. Na zařízení nové UI neběželo.
   Poučení: „Windows hlásí, že okno odpovídá“ neznamená, že reaguje na vstup. Rozhodly až
   zásobníky, ne úvaha.
+- **Kurz se na zpáteční jízdě FreeRun na jih stáčel na západ** (autor, jízda 23. 9.; registr
+  `lok-freerun-kurz-staci-na-zapad`). Zatím jen rozbor kódu, záznam tu není. Normalizace kurzu
+  z koridoru do EKF je v pořádku. Zjistil jsem, že **hranová lokalizace proti mapě běží i ve
+  FreeRun**, protože se zakládá podle `corridor=`/`map=`, ne podle mise. Podezřelí jsou kompas
+  (chyba závislá na kurzu) a přiřazení koridoru k cizí hraně. Čeká se na záznam.
 - **Další krok:** projít Kolo3b z Robotouru v místě zakopnutí. Ukáže se, jestli hrbol v bodech
   je a pohltí ho agregace buňky, což je otevřený rozpor v `lp-drsnost-povrchu-rychlostni-strop`.
 

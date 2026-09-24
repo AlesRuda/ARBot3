@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **220**: otevřeno **46** · v kódu, na HW neověřeno **34** · hotovo **131** · odloženo **6** · zamítnuto **3**.
+Témat celkem **221**: otevřeno **47** · v kódu, na HW neověřeno **34** · hotovo **131** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -58,6 +58,7 @@ Témat celkem **220**: otevřeno **46** · v kódu, na HW neověřeno **34** · 
 | otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Nulové nebo záporné zrychlení motorů prošlo do řadiče](#hw-pojistka-zrychleni-motoru) | 18. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Únik z blokované buňky pod robotem](#lp-unik-z-blokovane-bunky) | 18. 8. 2026 |  |
@@ -227,6 +228,19 @@ Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Rob
 - [ ] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu
 
 [PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
+
+<a id="lok-freerun-kurz-staci-na-zapad"></a>
+### ⬜ Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ
+
+`lok-freerun-kurz-staci-na-zapad` · vada · **otevřeno** · nalezeno 24. 9. 2026
+
+Autor 23. 9. 2026 na reálné cestě sever–jih: tam (mise Track, na sever) kurz seděl, zpět (FreeRun, na jih) se EKF póza postupně stáčela k západu o desítky stupňů, ačkoli robot jel stále na jih. Záznam zatím není k dispozici. Prověřeno v kódu: normalizace kurzu z koridoru do EKF je v pořádku (skládání přímky na ±90°, volba smyslu podle kurzu, reziduum `NormalizeOrientation(z − h)` včetně gatingu a limitu kroku); chyba normalizace by se navíc projevila skokem o 180° kolem západu, ne plynulým stáčením od jihu. Hypotézy: (1) KOMPAS — chyba závislá na kurzu (sever OK, jih desítky stupňů) je podpis železa/neplatné kalibrace, „postupně“ odpovídá dotahování VPE; (2) KOREKCE Z MAPY BĚŽÍ I VE FREERUN — mise sama mapu nepoužívá, ale `CorridorLocalizer` se zakládá podle `corridor=`/`map=`, ne podle mise (profil má `corridor=true`, `corridorsend=true`); pokud zpáteční trasa neležela na zmapované hraně, přiřazovač pustí hranu odlišnou až o 45° (`assocveto`) a korekce táhne kurz k jejímu azimutu, rozloženě po 3°/s.
+
+- [ ] Rozbor záznamu z 23. 9.: `ARBot.Analyze heading` (IMU − GPS kurz podle směru, `--bin=`), `vn100` blok 5 (železo), `odhad − IMU yaw`, přiřazená hrana a posílaný kurz v `RoadCorridorMsg`
+- [ ] Při příští jízdě FreeRun zpět A/B `corridorsend=false` / `true` na téže cestě
+- [ ] Podle výsledku rozhodnout, zda má FreeRun korekce z mapy vypínat/odtlumit
+
+[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu

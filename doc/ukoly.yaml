@@ -7585,3 +7585,39 @@ temata:
         cesta: doc/build-and-platforms.md
     devlog: [2026-09-24]
     ceka_na: []
+
+  - id: lok-freerun-kurz-staci-na-zapad
+    oblast: lokalizace
+    nazev: Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-24
+    popis: >
+      Autor 23. 9. 2026 na reálné cestě sever–jih: tam (mise Track, na sever) kurz seděl, zpět
+      (FreeRun, na jih) se EKF póza postupně stáčela k západu o desítky stupňů, ačkoli robot jel
+      stále na jih. Záznam zatím není k dispozici. Prověřeno v kódu: normalizace kurzu z koridoru
+      do EKF je v pořádku (skládání přímky na ±90°, volba smyslu podle kurzu, reziduum
+      `NormalizeOrientation(z − h)` včetně gatingu a limitu kroku); chyba normalizace by se navíc
+      projevila skokem o 180° kolem západu, ne plynulým stáčením od jihu. Hypotézy: (1) KOMPAS —
+      chyba závislá na kurzu (sever OK, jih desítky stupňů) je podpis železa/neplatné kalibrace,
+      „postupně“ odpovídá dotahování VPE; (2) KOREKCE Z MAPY BĚŽÍ I VE FREERUN — mise sama mapu
+      nepoužívá, ale `CorridorLocalizer` se zakládá podle `corridor=`/`map=`, ne podle mise
+      (profil má `corridor=true`, `corridorsend=true`); pokud zpáteční trasa neležela na zmapované
+      hraně, přiřazovač pustí hranu odlišnou až o 45° (`assocveto`) a korekce táhne kurz k jejímu
+      azimutu, rozloženě po 3°/s.
+    kroky:
+      - co: "Rozbor záznamu z 23. 9.: `ARBot.Analyze heading` (IMU − GPS kurz podle směru, `--bin=`), `vn100` blok 5 (železo), `odhad − IMU yaw`, přiřazená hrana a posílaný kurz v `RoadCorridorMsg`"
+        stav: otevreno
+      - co: "Při příští jízdě FreeRun zpět A/B `corridorsend=false` / `true` na téže cestě"
+        stav: otevreno
+      - co: "Podle výsledku rozhodnout, zda má FreeRun korekce z mapy vypínat/odtlumit"
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+      - text: mission-freerun.md
+        cesta: doc/mission-freerun.md
+      - text: imu-and-frames.md
+        cesta: doc/imu-and-frames.md
+    devlog: [2026-09-24]
+    ceka_na: []
