@@ -60,6 +60,7 @@ namespace ARBot.ViewModels
                     case "sensors": OpenSensors(); break;
                     case "images": OpenImages(); break;
                     case "robot": OpenRobotCentric(); break;
+                    case "profile": OpenSceneProfile(); break;
                     case "world": OpenWorldView(); break;
                     case "telemetry": OpenTelemetry(); break;
                     case "debug": OpenDebugOutput(); break;

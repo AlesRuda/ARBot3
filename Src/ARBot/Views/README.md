@@ -181,6 +181,8 @@ Vlastní vykreslované controly (Avalonia `Control` + `Render` + `StyledProperty
 - `SensorStatusControl` — indikátor stavu `ISensor` (tečka + jméno + OK/CHYBA), poll
   `DispatcherTimer` 1 s (protože `ISensor.IsError` nenotifikuje). Dej do záhlaví každého
   dokumentu senzoru: `<ctl:SensorStatusControl Sensor="{Binding Sensor}"/>`.
+- `SceneProfileControl` — graf profilu scény (body, pásy buněk, rovina ± tolerance, odečítací
+  okno s kritérii klasifikace). Lupa a posun fungují jako u `TelemetryChartControl`.
 - `CompassControl`, `ArtificialHorizonControl` — kompas a umělý horizont pro IMU
   (kompas využívá i `GpsDocument` pro kurz/azimut).
 - `SensorFrameInfoControl` — řádek **„Snímek": číslo · frekvence · čas** (+ volitelná
@@ -385,6 +387,10 @@ odpověď na nesouhlas dat než vycentrovaný obraz jinde, než kam ukazuje kurz
   třídy, průhlednost dle důvěry. Výhledově další vrstvy (RGB sjízdnost, okraje vozovky…). Odběr `Stream`
   (Run i View), backpressure „latest-wins". Menu **Tools → Robot-centric**.
   Viz [doc/traversability-grid.md](../../../doc/traversability-grid.md).
+- `SceneProfileDocument` (`SceneProfileControl`) — profil scény z(r) v jednom azimutu gridu.
+  Ukazuje surové body hloubky a buňky gridu s vysvětlením klasifikace. Odběr `Stream` (Run
+  i View), latest-wins. **Hloubku kopíruje** (pool), nejvýš 10× za sekundu času záznamu na kameru.
+  Menu **Tools → Profil scény**. Viz [doc/plan-profil-sceny.md](../../../doc/plan-profil-sceny.md).
 - `WorldViewDocument` (Mapsui `MapControl`) — world (geo) pohled: mapa s přepínatelným podkladem
   (OSM online / MBTiles offline / žádný) a vypínatelnými vrstvami dat ze `Stream` (poloha+kurz z `GPSState`/
   `RobotStateMsg`, trajektorie z GPS, trasa/graf a značky z `GraphNavigationMsg`). Podklad lze úplně vypnout ⇒

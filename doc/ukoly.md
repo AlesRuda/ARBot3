@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **217**: otevřeno **46** · v kódu, na HW neověřeno **31** · hotovo **131** · odloženo **6** · zamítnuto **3**.
+Témat celkem **221**: otevřeno **47** · v kódu, na HW neověřeno **34** · hotovo **131** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -58,6 +58,7 @@ Témat celkem **217**: otevřeno **46** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Nulové nebo záporné zrychlení motorů prošlo do řadiče](#hw-pojistka-zrychleni-motoru) | 18. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Únik z blokované buňky pod robotem](#lp-unik-z-blokovane-bunky) | 18. 8. 2026 |  |
@@ -89,6 +90,9 @@ Témat celkem **217**: otevřeno **46** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty](#nav-phi-obracena-hrana) | 20. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)](#ui-avalonia-deadlock-popup) | 24. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -224,6 +228,19 @@ Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Rob
 - [ ] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu
 
 [PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
+
+<a id="lok-freerun-kurz-staci-na-zapad"></a>
+### ⬜ Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ
+
+`lok-freerun-kurz-staci-na-zapad` · vada · **otevřeno** · nalezeno 24. 9. 2026
+
+Autor 23. 9. 2026 na reálné cestě sever–jih: tam (mise Track, na sever) kurz seděl, zpět (FreeRun, na jih) se EKF póza postupně stáčela k západu o desítky stupňů, ačkoli robot jel stále na jih. Záznam zatím není k dispozici. Prověřeno v kódu: normalizace kurzu z koridoru do EKF je v pořádku (skládání přímky na ±90°, volba smyslu podle kurzu, reziduum `NormalizeOrientation(z − h)` včetně gatingu a limitu kroku); chyba normalizace by se navíc projevila skokem o 180° kolem západu, ne plynulým stáčením od jihu. Hypotézy: (1) KOMPAS — chyba závislá na kurzu (sever OK, jih desítky stupňů) je podpis železa/neplatné kalibrace, „postupně“ odpovídá dotahování VPE; (2) KOREKCE Z MAPY BĚŽÍ I VE FREERUN — mise sama mapu nepoužívá, ale `CorridorLocalizer` se zakládá podle `corridor=`/`map=`, ne podle mise (profil má `corridor=true`, `corridorsend=true`); pokud zpáteční trasa neležela na zmapované hraně, přiřazovač pustí hranu odlišnou až o 45° (`assocveto`) a korekce táhne kurz k jejímu azimutu, rozloženě po 3°/s.
+
+- [ ] Rozbor záznamu z 23. 9.: `ARBot.Analyze heading` (IMU − GPS kurz podle směru, `--bin=`), `vn100` blok 5 (železo), `odhad − IMU yaw`, přiřazená hrana a posílaný kurz v `RoadCorridorMsg`
+- [ ] Při příští jízdě FreeRun zpět A/B `corridorsend=false` / `true` na téže cestě
+- [ ] Podle výsledku rozhodnout, zda má FreeRun korekce z mapy vypínat/odtlumit
+
+[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -2387,6 +2404,43 @@ Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže 
 - [ ] Proklikat uložení v panelu
 
 [configuration.md](configuration.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
+
+<a id="nast-profil-sceny"></a>
+### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
+
+`nast-profil-sceny` · záměr · **v kódu, na HW neověřeno** · nalezeno 23. 9. 2026 · vyřešeno 24. 9. 2026
+
+Nástroj na ladění detekce terénu (Tools → Profil scény, `open=profile`). Ukazuje graf z(r) v jednom azimutu polárního gridu: surové body z 16 sloupců hloubky, ze kterých buňky vznikly, a přes ně buňky se třídou, referenční rovinou ± tolerancí a MeanZ/StdZ/MaxZ. Pod myší řekne, které kritérium klasifikace buňka překročila. Vysvětlení počítá tentýž kód jako `CameraFrameProcessor`, nesoulad s gridem hlásí. Běží v Run i ve View (hloubka i projekce jsou v záznamu). Vznikl kvůli otevřenému rozporu v `lp-drsnost-povrchu-rychlostni-strop` (náklon ukazuje hrbol, grid ne). Nad záznamem simulace: třída sedí ve všech 332 970 buňkách, počty bodů v 16 buňkách ±1 mezi sousedními prstenci (zaokrouhlení nativní SIMD cesty). Nad terénním záznamem zatím neběžel.
+
+- [x] Fáze 1: graf z(r) v azimutu gridu, surové body + buňky + vysvětlení klasifikace, Run i View, `profileshot=` (24. 9. 2026)
+- [ ] Projít terénní záznam z Robotouru (místo zakopnutí v Kolo3b) — je hrbol v bodech vidět a pohltí ho agregace buňky?
+- [ ] Fáze 2: 3D pohled na mračno (rotace/posun/zoom) — samostatný návrh, softwarová projekce vs. OpenGL
+
+[plan-profil-sceny.md](plan-profil-sceny.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+
+<a id="nast-export-gpx"></a>
+### 🧪 Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)
+
+`nast-export-gpx` · záměr · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno.
+
+- [x] Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX… (24. 9. 2026)
+- [ ] Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)
+
+[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+
+<a id="ui-avalonia-deadlock-popup"></a>
+### 🧪 Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
+
+`ui-avalonia-deadlock-popup` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít, CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo už při zavírání rozbaleného menu v `WinUiCompositedWindow.Dispose` na zámku `SyncRoot`, který drželo vlákno kompozitoru, a to čekalo v `OnCommitCompleted` na `_wakeEvent` (render smyčka uspaná, když se nic nekreslí) — probuzení by poslalo právě UI vlákno. Chyba Avalonie, opravená v PR #21591 (vyšla ve 12.0.5 a 12.1.x). Týká se zavření JAKÉHOKOLI popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK; samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy, ne opakovaným pokusem. ⚠️ Na zařízení nové UI neběželo.
+
+- [x] Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View (24. 9. 2026)
+- [ ] Ověřit na zařízení (UI na Armbianu) a export GPX během replay v aplikaci
+
+[build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem

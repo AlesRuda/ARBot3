@@ -93,6 +93,39 @@ namespace ARBot.Common.Logs
                 });
         }
 
+        /// <summary>
+        /// Pocatek lokalni ENU roviny, se kterym runtime pocital = STRED OBALKY uzlu lezicich na
+        /// hranach. Musi to byt tataz definice jako <c>ARBotRuntime.BuildOriginFromMap</c> (odtud
+        /// pruchod pres hrany, ne pres vsechny uzly), jinak by se poza ze zaznamu posunula - ve View
+        /// runtime mapu nenacita, takze je to jediny zdroj pocatku (World pohled, export GPX).
+        /// Vraci null, kdyz mapa nema zadnou hranu.
+        /// </summary>
+        public ARBot.Common.Coordinates.GeoReference BuildOrigin()
+        {
+            if (Nodes == null || Edges == null || Nodes.Count == 0) return null;
+
+            double minLat = double.MaxValue, maxLat = double.MinValue;
+            double minLon = double.MaxValue, maxLon = double.MinValue;
+            bool any = false;
+
+            foreach (var e in Edges)
+            {
+                foreach (int idx in new[] { e.From, e.To })
+                {
+                    if (idx < 0 || idx >= Nodes.Count) continue;
+                    var n = Nodes[idx];
+                    any = true;
+                    if (n.LatDeg < minLat) minLat = n.LatDeg;
+                    if (n.LatDeg > maxLat) maxLat = n.LatDeg;
+                    if (n.LonDeg < minLon) minLon = n.LonDeg;
+                    if (n.LonDeg > maxLon) maxLon = n.LonDeg;
+                }
+            }
+
+            if (!any) return null;
+            return ARBot.Common.Coordinates.GeoReference.FromDegrees((minLat + maxLat) / 2, (minLon + maxLon) / 2);
+        }
+
         public override Message Build() => new MapMsg();
 
         public override string ToString() => string.Format("MapMsg {0} nodes={1} edges={2}", Name, Nodes.Count, Edges.Count);

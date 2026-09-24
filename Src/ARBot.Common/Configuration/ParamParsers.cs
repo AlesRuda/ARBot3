@@ -345,7 +345,7 @@ namespace ARBot.Common.Configuration
         /// </summary>
         public static readonly string[] ViewNames =
         {
-            "sensors", "images", "robot", "world", "telemetry", "debug", "virtual", "robotour", "config", "perf",
+            "sensors", "images", "robot", "profile", "world", "telemetry", "debug", "virtual", "robotour", "config", "perf",
         };
 
         /// <summary>

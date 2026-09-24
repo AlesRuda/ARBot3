@@ -878,35 +878,10 @@ namespace ARBot.ViewModels
         }
 
         /// <summary>
-        /// Pocatek lokalni ENU roviny ze zaznamenane mapy = STRED OBALKY uzlu, ktere lezi na hranach.
-        /// Musi to byt tataz definice jako <c>ARBotRuntime.BuildOriginFromMap</c> (odtud i pruchod
-        /// pres hrany, ne pres vsechny uzly), jinak by se data ve View kreslila posunuta.
+        /// Pocatek lokalni ENU roviny ze zaznamenane mapy (<see cref="MapMsg.BuildOrigin"/> - tataz
+        /// definice jako <c>ARBotRuntime.BuildOriginFromMap</c>; sdili ji i export GPX).
         /// </summary>
-        private static GeoReference? OriginFromMap(MapMsg? map)
-        {
-            if (map?.Nodes == null || map.Edges == null || map.Nodes.Count == 0) return null;
-
-            double minLat = double.MaxValue, maxLat = double.MinValue;
-            double minLon = double.MaxValue, maxLon = double.MinValue;
-            bool any = false;
-
-            foreach (var e in map.Edges)
-            {
-                foreach (int idx in new[] { e.From, e.To })
-                {
-                    if (idx < 0 || idx >= map.Nodes.Count) continue;
-                    var n = map.Nodes[idx];
-                    any = true;
-                    if (n.LatDeg < minLat) minLat = n.LatDeg;
-                    if (n.LatDeg > maxLat) maxLat = n.LatDeg;
-                    if (n.LonDeg < minLon) minLon = n.LonDeg;
-                    if (n.LonDeg > maxLon) maxLon = n.LonDeg;
-                }
-            }
-
-            if (!any) return null;
-            return GeoReference.FromDegrees((minLat + maxLat) / 2, (minLon + maxLon) / 2);
-        }
+        private static GeoReference? OriginFromMap(MapMsg? map) => map?.BuildOrigin();
 
         /// <summary>
         /// Zahodi vse, co se akumuluje pres sezeni (stopa, posledni zpravy, vrstvy). Vola se, kdyz

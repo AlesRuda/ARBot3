@@ -39,6 +39,54 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-24
+
+- **Nový nástroj „Profil scény“** (registr `nast-profil-sceny`, návrh
+  [plan-profil-sceny.md](plan-profil-sceny.md)). Autor chtěl vidět profil 3D scény před robotem
+  a rozhodl: nejdřív graf z(r) v azimutu gridu, 3D pohled později zvlášť, účel je ladění detekce
+  terénu. Tools → Profil scény (`open=profile`) ukazuje surové body hloubky ze 16 sloupců
+  azimutové buňky a přes ně buňky gridu: třídu, rovinu ± toleranci a MeanZ/StdZ/MaxZ. Pod myší
+  řekne, které kritérium klasifikace buňka překročila. Jádro `SceneProfile` vysvětluje
+  klasifikaci **tímtéž kódem** jako `CameraFrameProcessor`: fit roviny, odchylka a stoupání jsou
+  kvůli tomu `internal static`, žádná kopie. Běží v Run i ve View, formát záznamu se neměnil.
+- **Ověřeno:**
+  - 5 nových testů + 1613 / 140 celkem,
+  - nad záznamem `records/20260915-123520.rec` (simulace, 200 snímků): třída přepočtu sedí
+    ve **všech 332 970 buňkách**. Počty bodů nesedí v 16 buňkách, vždy ±1 mezi sousedními
+    prstenci. Je to zaokrouhlení nativní SIMD cesty na hraně prstence, součty za azimut sedí,
+  - screenshot z aplikace přes nový `profileshot=true`
+    ([střed](media/scene-profile-20260924.png), [azimut s překážkou](media/scene-profile-obstacle-20260924.png)).
+    Na něm je vidět rozhraní hladké cesty a drsné trávy ve 2,2 m.
+  - ⚠️ Odečítací okno pod myší na snímku není. **Nad terénním záznamem to neběželo.**
+- **Export GPX** (registr `nast-export-gpx`, popis v
+  [record-replay.md](record-replay.md#export-do-gpx-od-24-9-2026)): File → Export GPX… ve View
+  uloží celý záznam jako dvě stopy.
+  - „GPS“ jsou surové platné fixy.
+  - „Fúze“ je póza převedená přes počátek mapy ze záznamu. Výpočet počátku se přesunul do
+    `MapMsg.BuildOrigin()` a World pohled ho bere odtud, místo své kopie.
+  - Čas je UTC s posunem odvozeným z GPS času. Razítka jsou místní čas nahrávajícího stroje bez
+    zóny a Pi může běžet v jiné zóně.
+  - **Ověřeno:** 9 testů, nad 5 záznamy (simulace) sedí fúzní stopa na polohu z `GlobalNavMsg`
+    runtime na 0,000 m. ⚠️ Dialog uložení jsem neproklikal a na záznamu ze zařízení to neběželo,
+    takže odvození UTC z u-bloxu je jen z testů.
+- **Zatuhnutí aplikace při exportu GPX během replay** (registr `ui-avalonia-deadlock-popup`):
+  **nebyla to chyba exportu.** Zásobníky zatuhlé instance (`dotnet-stack`, spuštěný jako
+  správce, protože aplikace běžela se zvýšenými právy) ukázaly deadlock uvnitř Avalonie 12.0.3.
+  UI vlákno při zavírání menu čekalo na zámek kompozitoru a vlákno kompozitoru ho drželo, zatímco
+  čekalo na probuzení uspané render smyčky. Export se ani nespustil. Opraveno v Avalonii
+  [#21591](https://github.com/AvaloniaUI/Avalonia/pull/21591), proto **Avalonia 12.0.3 → 12.0.5**.
+  Build x64 i OrangePI prošel, aplikace běží ve View. ⚠️ Deadlock závisí na načasování, jeho
+  zmizení je doložené opravou v Avalonii, ne opakovaným pokusem. Na zařízení nové UI neběželo.
+  Poučení: „Windows hlásí, že okno odpovídá“ neznamená, že reaguje na vstup. Rozhodly až
+  zásobníky, ne úvaha.
+- **Kurz se na zpáteční jízdě FreeRun na jih stáčel na západ** (autor, jízda 23. 9.; registr
+  `lok-freerun-kurz-staci-na-zapad`). Zatím jen rozbor kódu, záznam tu není. Normalizace kurzu
+  z koridoru do EKF je v pořádku. Zjistil jsem, že **hranová lokalizace proti mapě běží i ve
+  FreeRun**, protože se zakládá podle `corridor=`/`map=`, ne podle mise. Podezřelí jsou kompas
+  (chyba závislá na kurzu) a přiřazení koridoru k cizí hraně. Čeká se na záznam.
+- **Další krok:** projít Kolo3b z Robotouru v místě zakopnutí. Ukáže se, jestli hrbol v bodech
+  je a pohltí ho agregace buňky, což je otevřený rozpor v `lp-drsnost-povrchu-rychlostni-strop`.
+
 ## 2026-09-23
 
 - **Videozáznam: rozdělen na dvě úlohy** (na zadání autora). Včerejší úprava vedla obojí po jedné
@@ -61,6 +109,7 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
     výsledné video má přesto délku záznamu. Ověřeno překladem; ⚠️ **neproklikáno**.
     Soubory: `MainWindowViewModel.Capture.cs`, `MainWindow.axaml`, `FileMessageSource.cs`,
     [screen-capture.md](screen-capture.md).
+
 
 ## 2026-09-22
 

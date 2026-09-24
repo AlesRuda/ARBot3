@@ -343,7 +343,9 @@ ale tabulka se bez nich četla špatně):
 
 Vykreslení: **`Avalonia.Controls.DataGrid` 12.0.0** (virtualizace, měnitelné šířky sloupců) —
 existuje a funguje, riziko z návrhu je vyřešené. Pozor na verzi: 12.0.1 a novější si vynucují
-Avalonia ≥ 12.0.5, kdežto projekt drží 12.0.3, takže by build spadl na `NU1605`. Balíček potřebuje
+Avalonia ≥ 12.0.5. Projekt tehdy držel 12.0.3, takže by build spadl na `NU1605`. Od 24. 9. 2026
+je na 12.0.5 kvůli deadlocku při zavírání popupu (`ui-avalonia-deadlock-popup`), takže novější
+DataGrid už jde, jen se zatím nepovyšoval. Balíček potřebuje
 i `StyleInclude` svého tématu v `App.axaml` (`avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml`),
 jinak se tabulka vykreslí jako prázdné místo. Sloupce se staví **v code-behind** (je jich desítky
 a jsou datově řízené registrem) a jsou to `DataGridTemplateColumn`, protože textový sloupec neumí

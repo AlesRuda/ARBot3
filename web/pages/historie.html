@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">31</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">34</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">131</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">3</span></label>
@@ -359,6 +359,11 @@
       <li data-tema="web-arbot-cz-github-pages"><span class="mono">21. 9.</span> <span class="typ">vyřešeno</span> <a href="#web-arbot-cz-github-pages">Web arbot.cz převeden z Google Sites na GitHub Pages</a></li>
       <li data-tema="lp-drsnost-povrchu-rychlostni-strop"><span class="mono">22. 9.</span> <span class="typ">začato</span> <a href="#lp-drsnost-povrchu-rychlostni-strop">Obt&#237;žně sj&#237;zdn&#253; povrch (hrbol, prasklina) jako rychlostn&#237; strop v lok&#225;ln&#237; mapě</a></li>
       <li data-tema="lp-reflex-klopeni-zadni-kolo"><span class="mono">22. 9.</span> <span class="typ">začato</span> <a href="#lp-reflex-klopeni-zadni-kolo">Reflex proti překlopen&#237; při najet&#237; zadn&#237;ho kola na hrbol (nebrzdit, př&#237;padně přidat)</a></li>
+      <li data-tema="nast-profil-sceny"><span class="mono">23. 9.</span> <span class="typ">začato</span> <a href="#nast-profil-sceny">Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</a></li>
+      <li data-tema="lok-freerun-kurz-staci-na-zapad"><span class="mono">24. 9.</span> <span class="typ">nalezeno</span> <a href="#lok-freerun-kurz-staci-na-zapad">Při zp&#225;tečn&#237; j&#237;zdě FreeRun na jih se kurz odhadu postupně stočil o des&#237;tky stupňů na z&#225;pad</a></li>
+      <li data-tema="nast-export-gpx"><span class="mono">24. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#nast-export-gpx">Export otevřen&#233;ho z&#225;znamu do GPX (stopa GPS a stopa f&#250;ze)</a></li>
+      <li data-tema="nast-profil-sceny"><span class="mono">24. 9.</span> <span class="typ">vyřešeno</span> <a href="#nast-profil-sceny">Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</a></li>
+      <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">24. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
     </ul>
   </div>
 </section>
@@ -469,6 +474,17 @@
       <li class="otevreno">Opravit <code>Check</code> (kontrola posunu i při <code>dt ≤ 0</code>, bez <code>explained</code>) a přeměřit počet maz&#225;n&#237; gridu</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/PoseJumpDetector.cs">PoseJumpDetector.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-21">2026-09-21</a></p>
+  </article>
+  <article class="tema" id="lok-freerun-kurz-staci-na-zapad" data-stav="otevreno">
+    <h3>Při zp&#225;tečn&#237; j&#237;zdě FreeRun na jih se kurz odhadu postupně stočil o des&#237;tky stupňů na z&#225;pad</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 24. 9. 2026</span></p>
+    <p>Autor 23. 9. 2026 na re&#225;ln&#233; cestě sever–jih: tam (mise Track, na sever) kurz seděl, zpět (FreeRun, na jih) se EKF p&#243;za postupně st&#225;čela k z&#225;padu o des&#237;tky stupňů, ačkoli robot jel st&#225;le na jih. Z&#225;znam zat&#237;m nen&#237; k dispozici. Prověřeno v k&#243;du: normalizace kurzu z koridoru do EKF je v poř&#225;dku (skl&#225;d&#225;n&#237; př&#237;mky na &#177;90&#176;, volba smyslu podle kurzu, reziduum <code>NormalizeOrientation(z − h)</code> včetně gatingu a limitu kroku); chyba normalizace by se nav&#237;c projevila skokem o 180&#176; kolem z&#225;padu, ne plynul&#253;m st&#225;čen&#237;m od jihu. Hypot&#233;zy: (1) KOMPAS — chyba z&#225;visl&#225; na kurzu (sever OK, jih des&#237;tky stupňů) je podpis železa/neplatn&#233; kalibrace, „postupně“ odpov&#237;d&#225; dotahov&#225;n&#237; VPE; (2) KOREKCE Z MAPY BĚŽ&#205; I VE FREERUN — mise sama mapu nepouž&#237;v&#225;, ale <code>CorridorLocalizer</code> se zakl&#225;d&#225; podle <code>corridor=</code>/<code>map=</code>, ne podle mise (profil m&#225; <code>corridor=true</code>, <code>corridorsend=true</code>); pokud zp&#225;tečn&#237; trasa neležela na zmapovan&#233; hraně, přiřazovač pust&#237; hranu odlišnou až o 45&#176; (<code>assocveto</code>) a korekce t&#225;hne kurz k jej&#237;mu azimutu, rozloženě po 3&#176;/s.</p>
+    <ul class="kroky">
+      <li class="otevreno">Rozbor z&#225;znamu z 23. 9.: <code>ARBot.Analyze heading</code> (IMU − GPS kurz podle směru, <code>--bin=</code>), <code>vn100</code> blok 5 (železo), <code>odhad − IMU yaw</code>, přiřazen&#225; hrana a pos&#237;lan&#253; kurz v <code>RoadCorridorMsg</code></li>
+      <li class="otevreno">Při př&#237;št&#237; j&#237;zdě FreeRun zpět A/B <code>corridorsend=false</code> / <code>true</code> na t&#233;že cestě</li>
+      <li class="otevreno">Podle v&#253;sledku rozhodnout, zda m&#225; FreeRun korekce z mapy vyp&#237;nat/odtlumit</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
   </article>
   <article class="tema" id="lok-korelace-gridu-s-mapou" data-stav="v-kodu">
     <h3>Korelace occupancy gridu s mapou jako oprava polohy a kurzu</h3>
@@ -2310,6 +2326,37 @@
       <li class="otevreno">Proklikat uložen&#237; v panelu</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a></p>
+  </article>
+  <article class="tema" id="nast-profil-sceny" data-stav="v-kodu">
+    <h3>Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 23. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
+    <p>N&#225;stroj na laděn&#237; detekce ter&#233;nu (Tools → Profil sc&#233;ny, <code>open=profile</code>). Ukazuje graf z(r) v jednom azimutu pol&#225;rn&#237;ho gridu: surov&#233; body z 16 sloupců hloubky, ze kter&#253;ch buňky vznikly, a přes ně buňky se tř&#237;dou, referenčn&#237; rovinou &#177; toleranc&#237; a MeanZ/StdZ/MaxZ. Pod myš&#237; řekne, kter&#233; krit&#233;rium klasifikace buňka překročila. Vysvětlen&#237; poč&#237;t&#225; tent&#253;ž k&#243;d jako <code>CameraFrameProcessor</code>, nesoulad s gridem hl&#225;s&#237;. Běž&#237; v Run i ve View (hloubka i projekce jsou v z&#225;znamu). Vznikl kvůli otevřen&#233;mu rozporu v <code>lp-drsnost-povrchu-rychlostni-strop</code> (n&#225;klon ukazuje hrbol, grid ne). Nad z&#225;znamem simulace: tř&#237;da sed&#237; ve všech 332 970 buňk&#225;ch, počty bodů v 16 buňk&#225;ch &#177;1 mezi sousedn&#237;mi prstenci (zaokrouhlen&#237; nativn&#237; SIMD cesty). Nad ter&#233;nn&#237;m z&#225;znamem zat&#237;m neběžel.</p>
+    <ul class="kroky">
+      <li class="hotovo">F&#225;ze 1: graf z(r) v azimutu gridu, surov&#233; body + buňky + vysvětlen&#237; klasifikace, Run i View, <code>profileshot=</code> <span class="mono">24. 9. 2026</span></li>
+      <li class="otevreno">Proj&#237;t ter&#233;nn&#237; z&#225;znam z Robotouru (m&#237;sto zakopnut&#237; v Kolo3b) — je hrbol v bodech vidět a pohlt&#237; ho agregace buňky?</li>
+      <li class="otevreno">F&#225;ze 2: 3D pohled na mračno (rotace/posun/zoom) — samostatn&#253; n&#225;vrh, softwarov&#225; projekce vs. OpenGL</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-profil-sceny.md">plan-profil-sceny.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
+  </article>
+  <article class="tema" id="nast-export-gpx" data-stav="v-kodu">
+    <h3>Export otevřen&#233;ho z&#225;znamu do GPX (stopa GPS a stopa f&#250;ze)</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 24. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
+    <p>File → Export GPX… ve View ulož&#237; cel&#253; z&#225;znam do GPX 1.1: stopa surov&#253;ch platn&#253;ch GPS fixů (ele, sat, hdop) a stopa f&#250;ze (RobotStateMsg) převeden&#225; přes poč&#225;tek mapy ze z&#225;znamu (<code>MapMsg.BuildOrigin</code>, tat&#225;ž definice jako runtime; bez mapy se stopa vynech&#225;). Nov&#253; segment při mezeře nad 2 s, p&#243;za proředěn&#225; na 10 Hz. Čas je UTC s posunem odvozen&#253;m z GPS (<code>FixTime</code>), protože raz&#237;tka jsou m&#237;stn&#237; čas nahr&#225;vaj&#237;c&#237;ho stroje bez z&#243;ny; bez GPS času se použije z&#243;na PC. F&#250;zn&#237; stopa sed&#237; na <code>GlobalNavMsg</code> runtime na 0,000 m (5 z&#225;znamů ze simulace); odvozen&#237; UTC z GPS kryj&#237; jen testy — na z&#225;znamu ze zař&#237;zen&#237; neověřeno.</p>
+    <ul class="kroky">
+      <li class="hotovo">J&#225;dro <code>GpxExport</code> + testy, <code>MapMsg.BuildOrigin</code> sd&#237;len&#253; s World pohledem, př&#237;kaz File → Export GPX… <span class="mono">24. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na z&#225;znamu ze zař&#237;zen&#237; (UTC z GPS času u-bloxu, v&#253;padky fixu jako segmenty)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
+  </article>
+  <article class="tema" id="ui-avalonia-deadlock-popup" data-stav="v-kodu">
+    <h3>Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 24. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
+    <p>Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevř&#237;t, CPU 0). Z&#225;sobn&#237;ky (<code>dotnet-stack</code>) uk&#225;zaly, že export se vůbec nespustil: UI vl&#225;kno viselo už při zav&#237;r&#225;n&#237; rozbalen&#233;ho menu v <code>WinUiCompositedWindow.Dispose</code> na z&#225;mku <code>SyncRoot</code>, kter&#253; drželo vl&#225;kno kompozitoru, a to čekalo v <code>OnCommitCompleted</code> na <code>_wakeEvent</code> (render smyčka uspan&#225;, když se nic nekresl&#237;) — probuzen&#237; by poslalo pr&#225;vě UI vl&#225;kno. Chyba Avalonie, opraven&#225; v PR #21591 (vyšla ve 12.0.5 a 12.1.x). T&#253;k&#225; se zavřen&#237; JAK&#201;HOKOLI popupu, z&#225;vis&#237; na načasov&#225;n&#237;. L&#233;čba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřov&#253; běh aplikace ve View OK; samotn&#253; deadlock nejde spolehlivě vyvolat, takže jeho zmizen&#237; je doložen&#233; zdrojem opravy, ne opakovan&#253;m pokusem. ⚠️ Na zař&#237;zen&#237; nov&#233; UI neběželo.</p>
+    <ul class="kroky">
+      <li class="hotovo">Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřov&#253; běh ve View <span class="mono">24. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237; (UI na Armbianu) a export GPX během replay v aplikaci</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/build-and-platforms.md">build-and-platforms.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
   </article>
   <article class="tema" id="nast-rezim-simulate" data-stav="odlozeno">
     <h3>Režim Simulate — věrn&#253; přepočet běhu nad z&#225;znamem</h3>

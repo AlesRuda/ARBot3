@@ -166,6 +166,16 @@ o poloměr robotu) pro „vejde se robot", plus **per-azimut přesná náběžn�
 vzdálenost k překážce. Plný 3D TSDF je pro čistě přízemní sjízdnost overkill (a drahý na ARM); pro
 převisy/podjezdy stačí 2,5D (`MaxZ` per buňka).
 
+## Ladění: profil scény (od 24. 9. 2026)
+
+**Tools → Profil scény** (`open=profile`) ukazuje graf výšky podle vodorovné vzdálenosti v jednom
+azimutu gridu. Vidět jsou **surové body hloubky**, ze kterých buňky vznikly, a přes ně buňky:
+třída, rovina ± tolerance, `MeanZ`/`StdZ`/`MaxZ`. Pod myší nástroj ukáže, **které kritérium
+klasifikace** buňka překročila. Vysvětlení počítá tentýž kód jako `CameraFrameProcessor`, takže
+nemůže lhát, a nesoulad s gridem hlásí. Běží v Run i ve View. Body se ve View přepočítávají
+z hloubky a z popisu projekce, který je v záznamu od CameraFrame v4. Poznámka níž o tom, že se
+intrinsiky nezaznamenávají, je tím zastaralá. Detail: [plan-profil-sceny.md](plan-profil-sceny.md).
+
 ## Otevřené úkoly (→ registr)
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.

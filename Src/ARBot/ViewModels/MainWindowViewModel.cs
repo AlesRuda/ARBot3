@@ -61,6 +61,9 @@ namespace ARBot.ViewModels
             // Totéž pro telemetrickou tabulku a graf (parametr telemetryshot=true).
             StartTelemetryShotIfRequested();
 
+            // Totéž pro profil scény (parametr profileshot=true).
+            StartProfileShotIfRequested();
+
             // Automatický start režimu Run (parametr autorun=true) - bezobslužný běh na zařízení.
             // AŽ ZA self-testem: ten si Run spouští sám a autorun se v tom případě vynechá.
             StartAutoRunIfRequested();
@@ -268,6 +271,36 @@ namespace ARBot.ViewModels
                 _factory.SetFocusedDockable(Layout, doc);
         }
 
+        /// <summary>Otevre (nebo aktivuje) profil sceny pred robotem - graf z(vzdalenost) v azimutu
+        /// gridu se surovymi body hloubky a vysvetlenim klasifikace bunek (Run i View).</summary>
+        [RelayCommand]
+        private void OpenSceneProfile()
+        {
+            var dock = _factory.DocumentDock;
+            if (dock == null)
+                return;
+
+            var existing = dock.VisibleDockables?.FirstOrDefault(d => d.Id == "SceneProfile");
+            if (existing != null)
+            {
+                _factory.SetActiveDockable(existing);
+                if (Layout is not null) _factory.SetFocusedDockable(Layout, existing);
+                return;
+            }
+
+            var doc = new SceneProfileDocument();
+            try
+            {
+                doc.AttachFeed(ARBotRuntime.Current.Stream.Connect(doc));
+            }
+            catch { /* runtime nedostupne (napr. design-time) */ }
+
+            _factory.AddDockable(dock, doc);
+            _factory.SetActiveDockable(doc);
+            if (Layout is not null)
+                _factory.SetFocusedDockable(Layout, doc);
+        }
+
         [RelayCommand]
         private void OpenRobotCentric()
         {
@@ -449,6 +482,7 @@ namespace ARBot.ViewModels
             RunAndLogCommand.NotifyCanExecuteChanged();
             ViewModeCommand.NotifyCanExecuteChanged();
             StopRuntimeCommand.NotifyCanExecuteChanged();
+            ExportGpxCommand.NotifyCanExecuteChanged();
             UseNoHwCommand.NotifyCanExecuteChanged();
             UseRealHwCommand.NotifyCanExecuteChanged();
             UseVirtualHwCommand.NotifyCanExecuteChanged();
