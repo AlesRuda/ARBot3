@@ -6,17 +6,16 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **224**: otevřeno **47** · v kódu, na HW neověřeno **37** · hotovo **131** · odloženo **6** · zamítnuto **3**.
+Témat celkem **225**: otevřeno **46** · v kódu, na HW neověřeno **37** · hotovo **132** · odloženo **6** · zamítnuto **4**.
 
 ## Otevřené a v kódu (kde jsme)
 
 | stav | oblast | téma | nalezeno | čeká na |
 |---|---|---|---|---|
 | otevřeno | Vidění | [Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech](#vid-grid-prahy-realna-data) | 30. 7. 2026 |  |
-| otevřeno | Navigace po mapě | [Odkud se berou a jak se aktualizují výřezy `.osm`](#nav-zdroj-osm-dat) | 4. 8. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi a nezná svůj zdroj](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Uzavřené hrany sítě a stav lokalizace nepřežijí restart](#nav-uzavreni-hran-pres-restart) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
@@ -51,7 +50,6 @@ Témat celkem **224**: otevřeno **47** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)](#lp-path-following-stara-cisla) | 18. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
@@ -59,6 +57,7 @@ Témat celkem **224**: otevřeno **47** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
+| otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Nulové nebo záporné zrychlení motorů prošlo do řadiče](#hw-pojistka-zrychleni-motoru) | 18. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Únik z blokované buňky pod robotem](#lp-unik-z-blokovane-bunky) | 18. 8. 2026 |  |
@@ -744,17 +743,6 @@ Nad rovnou mapou proti pravdě vyšla šířka 2,018 m místo 2,000 (filtr ší�
 
 ## Navigace po mapě
 
-<a id="nav-zdroj-osm-dat"></a>
-### ⬜ Odkud se berou a jak se aktualizují výřezy `.osm`
-
-`nav-zdroj-osm-dat` · záměr · **otevřeno** · nalezeno 4. 8. 2026
-
-Síť cest se čte z výřezů OpenStreetMap v adresáři `OSM/`. Soubory jsou verzované v gitu, ale stahují se ručně a nikde není zapsáno, čím, z jaké oblasti a kdy — takže výřez nejde obnovit ani říct, jak je starý proti skutečnosti. Otevřené je i to, kdy se má síť (`RoadNetwork`) a cílové pole (`GoalField`) stavět a přeplánovávat; tady rozhodnutí padlo už v návrhu (síť vlastní runtime, jedno pole na misi). Zapsáno jako další krok hned při integraci OsmNav, od té doby jen upřesněno („`OSM/` je verzované, otevřené zůstává odkud"). Od 18. 9. 2026 se ví, že část map je ručně upravená v JOSM (soutěžní `Robotour2026-ver1.osm`, `modrany*.osm`, nesou `action=`) a část je export z Overpassu (viz `nav-osm-josm-action-delete`); oblast a datum stažení zapsané dál nejsou.
-
-- [ ] Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení
-
-[osm-nav.md](osm-nav.md), [global-navigation-runtime.md](global-navigation-runtime.md), [OSM/](../OSM) · DevLog [2026-08-04](devlog.md#2026-08-04), [2026-08-18](devlog.md#2026-08-18)
-
 <a id="nav-uzavreni-hran-pres-restart"></a>
 ### ⬜ Uzavřené hrany sítě a stav lokalizace nepřežijí restart
 
@@ -872,6 +860,17 @@ Při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.o
 
 [osm-nav.md](osm-nav.md), [OsmXmlReader.cs](../Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-19](devlog.md#2026-09-19)
 
+<a id="nav-zdroj-osm-dat"></a>
+### ❌ Odkud se berou a jak se aktualizují výřezy `.osm`
+
+`nav-zdroj-osm-dat` · záměr · **zamítnuto** · nalezeno 4. 8. 2026 · vyřešeno 25. 9. 2026
+
+Síť cest se čte z výřezů OpenStreetMap v adresáři `OSM/`. Soubory jsou verzované v gitu, ale stahují se ručně a nikde není zapsáno, čím, z jaké oblasti a kdy — takže výřez nejde obnovit ani říct, jak je starý proti skutečnosti. Otevřené je i to, kdy se má síť (`RoadNetwork`) a cílové pole (`GoalField`) stavět a přeplánovávat; tady rozhodnutí padlo už v návrhu (síť vlastní runtime, jedno pole na misi). Zapsáno jako další krok hned při integraci OsmNav, od té doby jen upřesněno („`OSM/` je verzované, otevřené zůstává odkud"). Od 18. 9. 2026 se ví, že část map je ručně upravená v JOSM (soutěžní `Robotour2026-ver1.osm`, `modrany*.osm`, nesou `action=`) a část je export z Overpassu (viz `nav-osm-josm-action-delete`); oblast a datum stažení zapsané dál nejsou. ❌ **Zamítnuto 25. 9. 2026 (autor):** výřezy jsou podkladová data trati, verzovaná v gitu; původ se evidovat nebude a pravidelná aktualizace není potřeba. Viz `decisions.md`, 25. 9. 2026.
+
+- [ ] Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení — zamítnuto 25. 9. 2026
+
+[decisions.md](decisions.md), [osm-nav.md](osm-nav.md), [global-navigation-runtime.md](global-navigation-runtime.md), [OSM/](../OSM) · DevLog [2026-08-04](devlog.md#2026-08-04), [2026-08-18](devlog.md#2026-08-18), [2026-09-25](devlog.md#2026-09-25)
+
 ## Lokální mapa a plánování
 
 <a id="lp-vykon-retezu-na-arm"></a>
@@ -890,24 +889,12 @@ Occupancy grid, distanční transformace a A* běží v řídicí smyčce každ�
 
 `lp-koridor-trasy-jako-cena` · záměr · **otevřeno** · nalezeno 12. 8. 2026
 
-Lokální plánovač dostane z trasy po síti cest jen jediný bod (mrkev), takže tvar cesty do ceny A* nevstupuje. Původní obava „robot sjede z cesty všude, kde je vedle geometricky volno" se 27. 8. 2026 ukázala lichá — cesty se drží sám díky sémantickému kanálu z vize (mimo cestu = blokováno) a ceně neznáma, a přibyly testy, které to přibíjejí. Otevřený zbytek je užší: kde vize okraj cesty nevidí, mapa se ho nezastane — měkká preference blízkosti osy cesty (šířka z `Node.Width`) by to doplnila. Nikdo to zatím nepotřeboval.
+Lokální plánovač dostane z trasy po síti cest jen jediný bod (mrkev), takže tvar cesty do ceny A* nevstupuje. Původní obava „robot sjede z cesty všude, kde je vedle geometricky volno" se 27. 8. 2026 ukázala lichá — cesty se drží sám díky sémantickému kanálu z vize (mimo cestu = blokováno) a ceně neznáma, a přibyly testy, které to přibíjejí. Otevřený zbytek je užší: kde vize okraj cesty nevidí, mapa se ho nezastane — měkká preference blízkosti osy cesty (šířka z `Node.Width`) by to doplnila. Nikdo to zatím nepotřeboval. Pomohlo by na široké zpevněné ploše (náměstí, parkoviště, cyklostezka ~5 m), při nízkém kontrastu okraje, mimo zorné pole a při výpadku kamery. ⚠️ **Podmínka (autor, 25. 9. 2026): nesahat na to před vyřešením driftu kurzu** (`lok-freerun-kurz-staci-na-zapad`) — cena se počítá v souřadnicích mapy, takže při ujeté póze (23. 9. kurz o desítky stupňů, 19. 9. skoky 0,6–4 m) by táhla robota k ose, která leží jinde. I pak jen jako slabá preference, kterou vidění přebije tam, kde okraj vidí.
 
 - [x] Ověřeno testy, že plán drží cestu díky sémantice a nebere zkratku přes neznámo (27. 8. 2026)
 - [ ] Měkká cena podle vzdálenosti od osy cesty v A* (jen kde vize okraj nevidí)
 
-[global-navigation-runtime.md](global-navigation-runtime.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [LocalPathPlanner.cs](../Src/ARBot.Common/Occupancy/LocalPathPlanner.cs) · DevLog [2026-08-27](devlog.md#2026-08-27)
-
-<a id="lp-path-following-stara-cisla"></a>
-### ⬜ Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)
-
-`lp-path-following-stara-cisla` · vada · **otevřeno** · nalezeno 18. 9. 2026
-
-Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebírala z dokumentu, ale počítala znovu z `Profile.cs`. Dokument uvádí u tabulek „hodnoty z `Profile`“, ale ty hodnoty tam dnes nejsou: `MaxAllowedSpeed` je 1,2 m/s (provozní profil 1 m/s) a `MaxAcceleration` 0,5 m/s², kdežto tabulky oblouk-vs-klotoida i lookahead počítají s 0,8 a 0,2. Důsledky nejsou kosmetické — úhlové zrychlení vychází 2,44 rad/s² místo 0,98, náběh rotace 3,2° místo 8° a nejhorší případ (kde se potkává limit otáčení s `v_max`) leží na ~32°, ne na ~40°. Závěry tím nepadají (náběh je pořád malý proti běžné zatáčce, chyba oblouku hluboko pod rezervou 1 cm), ale konkrétní čísla v obou tabulkách neplatí. Je to táž třída vady jako `maxspeed=1` v `pi-freerun.cfg`, kde komentář popisoval počáteční hodnotu, ačkoli se strop mezitím zvedl — autoritativní je kód, dokument se zapomněl přepsat.
-
-- [ ] Přepočítat obě tabulky v `path-following.md` z dnešního `Profile.cs`
-- [ ] Zvážit, jestli jde hlídat testem (jako `ProfilyBezpecnostTests` u stropu rychlosti)
-
-[path-following.md](path-following.md), [Profile.cs](../Src/ARBot.Common/Configuration/Profile.cs) · DevLog [2026-09-18](devlog.md#2026-09-18)
+čeká na [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) · [global-navigation-runtime.md](global-navigation-runtime.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [LocalPathPlanner.cs](../Src/ARBot.Common/Occupancy/LocalPathPlanner.cs) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-09-25](devlog.md#2026-09-25)
 
 <a id="lp-zasek-v-blokovane-mape"></a>
 ### ⬜ Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené
@@ -1119,6 +1106,18 @@ Robot nedokázal dojet k prvnímu bodu trasy: k 44 m jel 9,5 minuty. Cílem A* b
 - [x] Přeměřit `localplan` po nasazení — 18. 9. (`20260918-155329.rec`): `GoalBlocked` 2 % / `GoalUnsafe` 2 % (14. 9.: 24 / 19 %), mrkev nedosažitelná 33 % (52 %), s dobrým kurzem (18. 9. 2026)
 
 [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-09-21](devlog.md#2026-09-21)
+
+<a id="lp-path-following-stara-cisla"></a>
+### ✅ Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)
+
+`lp-path-following-stara-cisla` · vada · **hotovo** · nalezeno 18. 9. 2026 · vyřešeno 25. 9. 2026
+
+Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebírala z dokumentu, ale počítala znovu z `Profile.cs`. Dokument uvádí u tabulek „hodnoty z `Profile`“, ale ty hodnoty tam dnes nejsou: `MaxAllowedSpeed` je 1,2 m/s (provozní profil 1 m/s) a `MaxAcceleration` 0,5 m/s², kdežto tabulky oblouk-vs-klotoida i lookahead počítají s 0,8 a 0,2. Důsledky nejsou kosmetické — úhlové zrychlení vychází 2,44 rad/s² místo 0,98, náběh rotace 3,2° místo 8° a nejhorší případ (kde se potkává limit otáčení s `v_max`) leží na ~32°, ne na ~40°. Závěry tím nepadají (náběh je pořád malý proti běžné zatáčce, chyba oblouku hluboko pod rezervou 1 cm), ale konkrétní čísla v obou tabulkách neplatí. Je to táž třída vady jako `maxspeed=1` v `pi-freerun.cfg`, kde komentář popisoval počáteční hodnotu, ačkoli se strop mezitím zvedl — autoritativní je kód, dokument se zapomněl přepsat. **Vyřešeno 25. 9. 2026 jinak, než se plánovalo (autor):** parametry jízdy se mění podle schopností robotu i podmínek soutěže, takže tabulky se na aktuální nastavení **nepřepisují**. U obou je teď výslovně sada parametrů, pro kterou jsou spočtené, a pod nimi vzorce pro nejhorší případ, ze kterých jde číslo přepočítat. Aktuální limity má ukázat pohled v aplikaci (`nast-limity-jizdy-view`). Při přepočtu vyšlo, že při `maxspeed=1.7` dá seříznutí + oblouk ~11,7 mm, tedy o málo víc než rezerva `PathEpsilonMargin` (10 mm).
+
+- [x] Označit u obou tabulek sadu parametrů (0,8 m/s, 0,2 m/s², π/6, rozchod 0,41 m, ε 0,1 m) a doplnit vzorce pro nejhorší případ — místo přepočtu na dnešní `Profile.cs` (25. 9. 2026)
+- [x] Hlídat tabulky testem — nepotřeba, tabulky už netvrdí aktuální hodnoty (25. 9. 2026)
+
+[path-following.md](path-following.md), [Profile.cs](../Src/ARBot.Common/Configuration/Profile.cs) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-25](devlog.md#2026-09-25)
 
 ## Vidění
 
@@ -2436,6 +2435,18 @@ Na otázku autora, jestli by šlo omezit jeho účast při klikání v UI, se sp
 - [ ] Zavést testovací projekt a pravidlo „asertovat i předpoklad"
 
 [Views/README.md](../Src/ARBot/Views/README.md) · DevLog [2026-09-01](devlog.md#2026-09-01), [2026-09-02](devlog.md#2026-09-02)
+
+<a id="nast-limity-jizdy-view"></a>
+### ⬜ Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení
+
+`nast-limity-jizdy-view` · záměr · **otevřeno** · nalezeno 25. 9. 2026
+
+Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rychlost otáčení, lookahead, tolerance rohu) se mění podle schopností robotu i podmínek soutěže, takže tabulky v `path-following.md` jsou spočtené pro jednu pevnou sadu a na aktuální hodnoty se nepřepisují. Místo toho by aplikace mohla mít pohled, který tentýž rozbor spočítá z právě účinné konfigurace: rychlost a poloměr podle úhlu zatáčky, náběh rotace, chybu oblouku proti klotoidě, seříznutí zatáčky lookaheadem, nejhorší úhel a porovnání součtu s rezervou `PathEpsilonMargin`. Rozbor by počítal tentýž kód jako plánovač (`IMotionProfile`, geometrie rohu), ne opis vzorců. Užitečné hlavně při změně `maxspeed=` před soutěží: při 1,7 m/s už součet (~11,7 mm) přesahuje rezervu 10 mm.
+
+- [ ] Návrh pohledu (tabulka a/nebo graf podle úhlu zatáčky, zdroj parametrů z `ParamRegistry`)
+- [ ] Implementace (Tools → Limity jízdy), výpočet sdílený s plánovačem
+
+[path-following.md](path-following.md), [configuration.md](configuration.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
 
 <a id="nast-panel-konfigurace-mazal-klice"></a>
 ### 🧪 Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem

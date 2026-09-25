@@ -77,9 +77,16 @@ náběhu rotace**:
 φ_rampa = ω_max² / (2α) ≈ 0,52² / (2·0,98) ≈ 0,14 rad ≈ 8°
 ```
 
-(hodnoty z `Profile`: `ω_max = π/6`, `α = a/(rozchod/2) = 0,20/0,205 ≈ 0,98 rad/s²`.)
+(`ω_max = π/6`, `α = a/(rozchod/2) = 0,20/0,205 ≈ 0,98 rad/s²`.)
 Náběh 8° proti běžné zatáčce 30–90° je malý ⇒ oblouk je dobrá aproximace. Klotoidní posun
 `Δ ≈ L_c²/(24R)`, `L_c = v·(ω_max/α)`, dává pro `ε = 0,1 m`:
+
+> **Tabulka je spočtená pro jednu sadu parametrů, ne pro aktuální nastavení:** `v_max = 0,8 m/s`,
+> `a = 0,2 m/s²`, `ω_max = π/6`, rozchod 0,41 m, `ε = 0,1 m` (hodnoty z doby návrhu, srpen 2026).
+> Parametry jízdy se mění podle schopností robotu i podmínek soutěže (k 25. 9. 2026 je výchozí
+> `v_max` 1,2 m/s, provozní profil `maxspeed=1.7`, `a = 0,5 m/s²`), takže se tabulka **záměrně
+> nepřepisuje** na každé nastavení. Přenáší se tvar a závěr; pro jiné parametry viz vzorce pod
+> tabulkou.
 
 | θ | R [m] | v [m/s] | Δ (chyba) |
 |---|---|---|---|
@@ -90,6 +97,18 @@ Náběh 8° proti běžné zatáčce 30–90° je malý ⇒ oblouk je dobrá apr
 
 Nejhorší ~5 mm proti `ε = 100 mm` (< 5 %), navíc přechodová a hluboko pod nejistotou EKF
 (centimetry). Řešíme malou **rezervou na `ε`** (viz níže), ne přesnou klotoidou.
+
+**Přepočet pro jiné parametry.** Nejhorší případ leží tam, kde se limit otáčení potká se stropem
+rychlosti, tedy při `R* = v_max/ω_max` (úhel zatáčky z `R* = ε·cos(θ/2)/(1 − cos(θ/2))`).
+Tam je
+
+```
+φ_rampa = ω_max²·(b/2) / (2a)          Δ_max = v_max·ω_max³·b² / (96·a²)       (b = rozchod)
+```
+
+Pro ilustraci (`ω_max = π/6`, `b = 0,41 m`, `a = 0,5 m/s²`, `ε = 0,1 m`): náběh 3,2°; při `v_max = 1,2 m/s`
+je nejhorší úhel ~33° a `Δ_max` 1,2 mm, při 1,7 m/s ~28° a 1,7 mm. Větší zrychlení
+chybu zmenšuje s druhou mocninou, vyšší strop rychlosti ji zvětšuje lineárně.
 
 ### Vrcholové stropy rychlosti a zpětný průchod
 V každém uzlu strop `v_uzel = min(v_max, ω_max·R, waypoint.Speed)`. Přes celou dráhu pak
@@ -238,7 +257,9 @@ srovná obě meze naráz:
   je lookahead vždy 3 řídicí kroky.
 - Seříznutí: v ostrém rohu je `v` (a tím `L_d`) malé ⇒ `e_A` malé.
 
-Pro `τ_look = 0,3 s` (reálné `Profile`, `ε = 0,1`):
+Pro `τ_look = 0,3 s`, `ε = 0,1 m` a **tutéž sadu parametrů jako tabulka oblouk vs. klotoida**
+(`v_max = 0,8 m/s`, `ω_max = π/6`; zrychlení do `e_A` nevstupuje). Tabulka se na aktuální
+nastavení záměrně nepřepisuje, vzorec pro nejhorší případ je pod ní:
 
 | θ | R [m] | v [m/s] | L_d [m] | e_A |
 |---|---|---|---|---|
@@ -251,6 +272,17 @@ Pro `τ_look = 0,3 s` (reálné `Profile`, `ε = 0,1`):
 **Odchylka ≈ 1–5 mm (1–5 % z `ε`) v celém rozsahu rychlostí.** Nejhůř kolem θ≈40°, kde `v`
 dosedne na `v_max` — stejný režim jako nejhorší případ oblouk-vs-klotoida (oba efekty míří
 stejným směrem, robot dál od waypointu, a sčítají se).
+
+**Přepočet pro jiné parametry:** v nejhorším případě (`R* = v_max/ω_max`, `L_d = τ_look·v_max`)
+
+```
+e_A,max = τ_look² · v_max · ω_max / 8
+```
+
+tedy roste **lineárně se stropem rychlosti**: 4,7 mm při 0,8 m/s, 7,1 mm při 1,2 m/s a 10,0 mm
+při 1,7 m/s. ⚠️ Při `maxspeed=1.7` (provozní profil k 25. 9. 2026) dává součet s obloukem
+(1,7 mm) ~11,7 mm, tedy **o málo víc než rezerva `PathEpsilonMargin` = 10 mm** níže. Proti
+`ε = 100 mm` je to pořád zanedbatelné, ale rezerva „~1 cm" tím přestává být konzervativní.
 
 **Přechod (návrat na trasu):** po vychýlení `e₀` návrat přes ~`2–3·L_d`; pro `τ_look ≥ 0,3 s`
 přetlumeno (bez překmitu). Při `v_max`: `L_d = 0,24 m` → návrat ~0,5–0,7 m.
@@ -396,6 +428,9 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   potvrdit na zařízení — „maximální **dovolená**" není technická mez. Souvisí s tím i `LookaheadMin`
   (0,15 m), který teď funguje jako práh přeskoku uzlu: příliš malý = míří se na uzly těsně před
   robotem (neklidný azimut), příliš velký = přeskakují se i rohy, které se měly projet.
+- **[Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](ukoly.md#nast-limity-jizdy-view)** —
+  tabulky oblouk vs. klotoida a lookahead výše jsou pro pevnou sadu parametrů; aktuální limity
+  (nejhorší úhel, chyba proti rezervě `PathEpsilonMargin`) má spočítat pohled z účinné konfigurace.
 - (bez tématu v registru) **`beta = −11,9°` na rovné 6m dráze** je samo o sobě dost. Může jít o důsledek plazení (robot se
   nestihl srovnat) — po rozjezdu bude vidět, jestli odchylka zmizí, nebo je to samostatná chyba
   ve sledování dráhy.

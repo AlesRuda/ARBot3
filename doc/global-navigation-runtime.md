@@ -573,13 +573,12 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[Koridor trasy jako měkká cena v lokálním A\*](ukoly.md#lp-koridor-trasy-jako-cena)** — dnes je
   z trasy jen jediný bod (mrkev); cesty se robot drží sám díky sémantice z vize (27. 8. 2026),
   otevřené zůstává „kde vize okraj cesty nevidí, mapa se ho nezastane" — měkká preference
-  blízkosti osy cesty (šířka z `Node.Width`).
+  blízkosti osy cesty (šířka z `Node.Width`). Čeká na vyřešení driftu kurzu
+  ([`lok-freerun-kurz-staci-na-zapad`](ukoly.md#lok-freerun-kurz-staci-na-zapad)): při ujeté
+  póze by cena táhla robota k ose, která leží jinde.
 - **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
   pro globální navigaci je to nejsilnější léčba na „špatná lokalizace ⇒ špatná mrkev"; podrobně
   v [map-correlation-localization.md](map-correlation-localization.md).
-- **[Odkud se berou a jak se aktualizují výřezy `.osm`](ukoly.md#nav-zdroj-osm-dat)** — soubory
-  v `OSM/` jsou verzované; otevřené zůstává, odkud se berou a jak se aktualizují (dnes ručně
-  stažené výřezy).
 - **[Uzavřené hrany sítě a stav lokalizace nepřežijí restart](ukoly.md#nav-uzavreni-hran-pres-restart)** —
   uzavření napříč běhy (soutěžní jízda po havárii aplikace); mise Robotour restart přežít nemusí
   (rozhodnutí 27. 8. 2026), tohle je o hranách sítě.

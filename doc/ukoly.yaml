@@ -6551,8 +6551,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Tabulky v `path-following.md` počítají se starými limity (0,8 m/s a 0,2 m/s²)
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-18
+    vyreseno: 2026-09-25
     popis: >
       Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebírala z dokumentu, ale
       počítala znovu z `Profile.cs`. Dokument uvádí u tabulek „hodnoty z `Profile`“, ale ty
@@ -6565,17 +6566,25 @@ temata:
       táž třída vady jako `maxspeed=1` v `pi-freerun.cfg`, kde komentář popisoval počáteční
       hodnotu, ačkoli se strop mezitím zvedl — autoritativní je kód, dokument se zapomněl
       přepsat.
+      **Vyřešeno 25. 9. 2026 jinak, než se plánovalo (autor):** parametry jízdy se mění podle
+      schopností robotu i podmínek soutěže, takže tabulky se na aktuální nastavení **nepřepisují**.
+      U obou je teď výslovně sada parametrů, pro kterou jsou spočtené, a pod nimi vzorce pro
+      nejhorší případ, ze kterých jde číslo přepočítat. Aktuální limity má ukázat pohled
+      v aplikaci (`nast-limity-jizdy-view`). Při přepočtu vyšlo, že při `maxspeed=1.7` dá
+      seříznutí + oblouk ~11,7 mm, tedy o málo víc než rezerva `PathEpsilonMargin` (10 mm).
     kroky:
-      - co: Přepočítat obě tabulky v `path-following.md` z dnešního `Profile.cs`
-        stav: otevreno
-      - co: Zvážit, jestli jde hlídat testem (jako `ProfilyBezpecnostTests` u stropu rychlosti)
-        stav: otevreno
+      - co: "Označit u obou tabulek sadu parametrů (0,8 m/s, 0,2 m/s², π/6, rozchod 0,41 m, ε 0,1 m) a doplnit vzorce pro nejhorší případ — místo přepočtu na dnešní `Profile.cs`"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Hlídat tabulky testem — nepotřeba, tabulky už netvrdí aktuální hodnoty"
+        stav: hotovo
+        kdy: 2026-09-25
     odkazy:
       - text: path-following.md
         cesta: doc/path-following.md
       - text: Profile.cs
         cesta: Src/ARBot.Common/Configuration/Profile.cs
-    devlog: [2026-09-18]
+    devlog: [2026-09-18, 2026-09-25]
     ceka_na: []
 
   - id: lp-zasek-v-blokovane-mape
@@ -7157,6 +7166,12 @@ temata:
       (mimo cestu = blokováno) a ceně neznáma, a přibyly testy, které to přibíjejí. Otevřený
       zbytek je užší: kde vize okraj cesty nevidí, mapa se ho nezastane — měkká preference
       blízkosti osy cesty (šířka z `Node.Width`) by to doplnila. Nikdo to zatím nepotřeboval.
+      Pomohlo by na široké zpevněné ploše (náměstí, parkoviště, cyklostezka ~5 m), při nízkém
+      kontrastu okraje, mimo zorné pole a při výpadku kamery. ⚠️ **Podmínka (autor, 25. 9. 2026):
+      nesahat na to před vyřešením driftu kurzu** (`lok-freerun-kurz-staci-na-zapad`) — cena se
+      počítá v souřadnicích mapy, takže při ujeté póze (23. 9. kurz o desítky stupňů, 19. 9. skoky
+      0,6–4 m) by táhla robota k ose, která leží jinde. I pak jen jako slabá preference, kterou
+      vidění přebije tam, kde okraj vidí.
     kroky:
       - co: Ověřeno testy, že plán drží cestu díky sémantice a nebere zkratku přes neznámo
         stav: hotovo
@@ -7170,15 +7185,16 @@ temata:
         cesta: doc/occupancy-and-local-planning.md
       - text: LocalPathPlanner.cs
         cesta: Src/ARBot.Common/Occupancy/LocalPathPlanner.cs
-    devlog: [2026-08-27]
-    ceka_na: []
+    devlog: [2026-08-27, 2026-09-25]
+    ceka_na: [lok-freerun-kurz-staci-na-zapad]
 
   - id: nav-zdroj-osm-dat
     oblast: navigace
     nazev: Odkud se berou a jak se aktualizují výřezy `.osm`
     druh: zamer
-    stav: otevreno
+    stav: zamitnuto
     nalezeno: 2026-08-04
+    vyreseno: 2026-09-25
     popis: >
       Síť cest se čte z výřezů OpenStreetMap v adresáři `OSM/`. Soubory jsou verzované v gitu,
       ale stahují se ručně a nikde není zapsáno, čím, z jaké oblasti a kdy — takže výřez nejde
@@ -7189,17 +7205,21 @@ temata:
       Od 18. 9. 2026 se ví, že část map je ručně upravená v JOSM (soutěžní `Robotour2026-ver1.osm`,
       `modrany*.osm`, nesou `action=`) a část je export z Overpassu (viz
       `nav-osm-josm-action-delete`); oblast a datum stažení zapsané dál nejsou.
+      ❌ **Zamítnuto 25. 9. 2026 (autor):** výřezy jsou podkladová data trati, verzovaná v gitu;
+      původ se evidovat nebude a pravidelná aktualizace není potřeba. Viz `decisions.md`, 25. 9. 2026.
     kroky:
-      - co: "Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení"
+      - co: "Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení — zamítnuto 25. 9. 2026"
         stav: otevreno
     odkazy:
+      - text: decisions.md
+        cesta: doc/decisions.md
       - text: osm-nav.md
         cesta: doc/osm-nav.md
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
       - text: OSM/
         cesta: OSM
-    devlog: [2026-08-04, 2026-08-18]
+    devlog: [2026-08-04, 2026-08-18, 2026-09-25]
     ceka_na: []
 
   - id: nav-uzavreni-hran-pres-restart
@@ -7592,6 +7612,35 @@ temata:
       - text: traversability-grid.md
         cesta: doc/traversability-grid.md
     devlog: [2026-09-24]
+    ceka_na: []
+
+  - id: nast-limity-jizdy-view
+    oblast: nastroje
+    nazev: Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení
+    druh: zamer
+    stav: otevreno
+    nalezeno: 2026-09-25
+    popis: >
+      Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rychlost otáčení,
+      lookahead, tolerance rohu) se mění podle schopností robotu i podmínek soutěže, takže tabulky
+      v `path-following.md` jsou spočtené pro jednu pevnou sadu a na aktuální hodnoty se
+      nepřepisují. Místo toho by aplikace mohla mít pohled, který tentýž rozbor spočítá z právě
+      účinné konfigurace: rychlost a poloměr podle úhlu zatáčky, náběh rotace, chybu oblouku proti
+      klotoidě, seříznutí zatáčky lookaheadem, nejhorší úhel a porovnání součtu s rezervou
+      `PathEpsilonMargin`. Rozbor by počítal tentýž kód jako plánovač (`IMotionProfile`, geometrie
+      rohu), ne opis vzorců. Užitečné hlavně při změně `maxspeed=` před soutěží: při 1,7 m/s už
+      součet (~11,7 mm) přesahuje rezervu 10 mm.
+    kroky:
+      - co: Návrh pohledu (tabulka a/nebo graf podle úhlu zatáčky, zdroj parametrů z `ParamRegistry`)
+        stav: otevreno
+      - co: Implementace (Tools → Limity jízdy), výpočet sdílený s plánovačem
+        stav: otevreno
+    odkazy:
+      - text: path-following.md
+        cesta: doc/path-following.md
+      - text: configuration.md
+        cesta: doc/configuration.md
+    devlog: [2026-09-25]
     ceka_na: []
 
   - id: nast-export-gpx

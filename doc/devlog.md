@@ -79,6 +79,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   Aktuální FW je v3.1.0.0 (březen 2023, autor), náš je o verzi pozadu. Jako příčina driftu
   kurzu z 23. 9. je to jen hypotéza (týž FW jel dobře 12. a 18. 9.); rozhodne jízda
   s `UncompGyro`. Krok přidán do `lok-freerun-kurz-staci-na-zapad`.
+- **Zamítnuto `nav-zdroj-osm-dat`** (autor): původ výřezů `.osm` se evidovat nebude a pravidelná
+  aktualizace není potřeba, jsou to podkladová data trati verzovaná v gitu.
+  **Rozhodnutí:** [decisions.md](decisions.md), 25. 9. 2026.
+- **`lp-koridor-trasy-jako-cena` čeká na `lok-freerun-kurz-staci-na-zapad`** (autor): měkká cena
+  podle osy mapové cesty by při ujeté póze táhla robota mimo skutečnou cestu, takže až po
+  vyřešení driftu kurzu. Doplněn popis, kde by pomohla (široké zpevněné plochy, slepá místa vidění).
+- **Tabulky v [path-following.md](path-following.md) se nepřepisují na aktuální parametry**
+  (autor; `lp-path-following-stara-cisla` uzavřeno): parametry jízdy se mění se schopnostmi
+  robotu i podmínkami soutěže. U obou tabulek je teď sada parametrů (0,8 m/s, 0,2 m/s², π/6)
+  a vzorce pro nejhorší případ (`Δ_max = v·ω³·b²/(96a²)`, `e_A,max = τ²·v·ω/8`). Přepočet
+  ukázal, že při `maxspeed=1.7` dá součet ~11,7 mm, o málo víc než rezerva 10 mm. Nový záměr
+  `nast-limity-jizdy-view`: pohled v aplikaci, který rozbor spočítá z účinné konfigurace.
 
 ## 2026-09-24
 

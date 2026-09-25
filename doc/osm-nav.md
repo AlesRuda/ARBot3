@@ -238,9 +238,6 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   na řídicí smyčku (`GlobalNavigator`, fáze 0–4: robot jede k cíli po síti, trasa je vidět v mapě
   a vrstva si uzavírá neprůchozí hrany); recovery manévr, průřez koridorem a ověření na HW se vedou
   v [global-navigation-runtime.md](global-navigation-runtime.md).
-- **[Odkud se berou a jak se aktualizují výřezy `.osm`](ukoly.md#nav-zdroj-osm-dat)** — zdroj dat
-  a životní cyklus `RoadNetwork`/`GoalField` (kdy stavět, kdy přeplánovat); rozhodnutí je v návrhu
-  výše (síť vlastní runtime, jedno `GoalField` na misi).
 - (bez tématu v registru) Zdroj `Obstacle` seznamu (z vize / polárního gridu — [traversability-grid.md](traversability-grid.md)).
 
 ## ⚠️ Mapa z JOSM nese i SMAZANÉ objekty (`action="delete"`) — od 18. 9. 2026 je čtečka přeskakuje

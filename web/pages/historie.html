@@ -29,11 +29,11 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">37</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">131</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">132</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
-    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">3</span></label>
+    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">4</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
   </form>
@@ -367,6 +367,9 @@
       <li data-tema="nast-profil-sceny"><span class="mono">24. 9.</span> <span class="typ">vyřešeno</span> <a href="#nast-profil-sceny">Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</a></li>
       <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">24. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
       <li data-tema="hw-vn100-hsi-run-ve-flash"><span class="mono">25. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#hw-vn100-hsi-run-ve-flash">VN100 startuje s běž&#237;c&#237; palubn&#237; HSI (registr 44 = Run uložen&#253; do flash mis&#237; magcal)</a></li>
+      <li data-tema="lp-path-following-stara-cisla"><span class="mono">25. 9.</span> <span class="typ">vyřešeno</span> <a href="#lp-path-following-stara-cisla">Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</a></li>
+      <li data-tema="nast-limity-jizdy-view"><span class="mono">25. 9.</span> <span class="typ">začato</span> <a href="#nast-limity-jizdy-view">Pohled v aplikaci s rozborem limitů j&#237;zdy pro aktu&#225;ln&#237; nastaven&#237;</a></li>
+      <li data-tema="nav-zdroj-osm-dat"><span class="mono">25. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-zdroj-osm-dat">Odkud se berou a jak se aktualizuj&#237; v&#253;řezy <code>.osm</code></a></li>
     </ul>
   </div>
 </section>
@@ -914,15 +917,6 @@
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
   <h2>Navigace po mapě</h2>
-  <article class="tema" id="nav-zdroj-osm-dat" data-stav="otevreno">
-    <h3>Odkud se berou a jak se aktualizuj&#237; v&#253;řezy <code>.osm</code></h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 4. 8. 2026</span></p>
-    <p>S&#237;ť cest se čte z v&#253;řezů OpenStreetMap v adres&#225;ři <code>OSM/</code>. Soubory jsou verzovan&#233; v gitu, ale stahuj&#237; se ručně a nikde nen&#237; zaps&#225;no, č&#237;m, z jak&#233; oblasti a kdy — takže v&#253;řez nejde obnovit ani ř&#237;ct, jak je star&#253; proti skutečnosti. Otevřen&#233; je i to, kdy se m&#225; s&#237;ť (<code>RoadNetwork</code>) a c&#237;lov&#233; pole (<code>GoalField</code>) stavět a přepl&#225;nov&#225;vat; tady rozhodnut&#237; padlo už v n&#225;vrhu (s&#237;ť vlastn&#237; runtime, jedno pole na misi). Zaps&#225;no jako dalš&#237; krok hned při integraci OsmNav, od t&#233; doby jen upřesněno („<code>OSM/</code> je verzovan&#233;, otevřen&#233; zůst&#225;v&#225; odkud&quot;). Od 18. 9. 2026 se v&#237;, že č&#225;st map je ručně upraven&#225; v JOSM (soutěžn&#237; <code>Robotour2026-ver1.osm</code>, <code>modrany*.osm</code>, nesou <code>action=</code>) a č&#225;st je export z Overpassu (viz <code>nav-osm-josm-action-delete</code>); oblast a datum stažen&#237; zapsan&#233; d&#225;l nejsou.</p>
-    <ul class="kroky">
-      <li class="otevreno">Zapsat u každ&#233;ho <code>.osm</code> v <code>OSM/</code> původ (JOSM / Overpass), oblast a datum stažen&#237;</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/OSM">OSM/</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-04">2026-08-04</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a></p>
-  </article>
   <article class="tema" id="nav-uzavreni-hran-pres-restart" data-stav="otevreno">
     <h3>Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span></p>
@@ -1017,6 +1011,15 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs">OsmXmlReader.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
   </article>
+  <article class="tema" id="nav-zdroj-osm-dat" data-stav="zamitnuto">
+    <h3>Odkud se berou a jak se aktualizuj&#237; v&#253;řezy <code>.osm</code></h3>
+    <p class="tema-meta"><span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span>záměr</span> <span>nalezeno 4. 8. 2026</span> <span>vyřešeno 25. 9. 2026</span></p>
+    <p>S&#237;ť cest se čte z v&#253;řezů OpenStreetMap v adres&#225;ři <code>OSM/</code>. Soubory jsou verzovan&#233; v gitu, ale stahuj&#237; se ručně a nikde nen&#237; zaps&#225;no, č&#237;m, z jak&#233; oblasti a kdy — takže v&#253;řez nejde obnovit ani ř&#237;ct, jak je star&#253; proti skutečnosti. Otevřen&#233; je i to, kdy se m&#225; s&#237;ť (<code>RoadNetwork</code>) a c&#237;lov&#233; pole (<code>GoalField</code>) stavět a přepl&#225;nov&#225;vat; tady rozhodnut&#237; padlo už v n&#225;vrhu (s&#237;ť vlastn&#237; runtime, jedno pole na misi). Zaps&#225;no jako dalš&#237; krok hned při integraci OsmNav, od t&#233; doby jen upřesněno („<code>OSM/</code> je verzovan&#233;, otevřen&#233; zůst&#225;v&#225; odkud&quot;). Od 18. 9. 2026 se v&#237;, že č&#225;st map je ručně upraven&#225; v JOSM (soutěžn&#237; <code>Robotour2026-ver1.osm</code>, <code>modrany*.osm</code>, nesou <code>action=</code>) a č&#225;st je export z Overpassu (viz <code>nav-osm-josm-action-delete</code>); oblast a datum stažen&#237; zapsan&#233; d&#225;l nejsou. ❌ **Zam&#237;tnuto 25. 9. 2026 (autor):** v&#253;řezy jsou podkladov&#225; data trati, verzovan&#225; v gitu; původ se evidovat nebude a pravideln&#225; aktualizace nen&#237; potřeba. Viz <code>decisions.md</code>, 25. 9. 2026.</p>
+    <ul class="kroky">
+      <li class="otevreno">Zapsat u každ&#233;ho <code>.osm</code> v <code>OSM/</code> původ (JOSM / Overpass), oblast a datum stažen&#237; — zam&#237;tnuto 25. 9. 2026</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">decisions.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/OSM">OSM/</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-04">2026-08-04</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
+  </article>
 </section>
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
@@ -1033,22 +1036,12 @@
   <article class="tema" id="lp-koridor-trasy-jako-cena" data-stav="otevreno">
     <h3>Koridor trasy jako měkk&#225; cena v lok&#225;ln&#237;m A*</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span></p>
-    <p>Lok&#225;ln&#237; pl&#225;novač dostane z trasy po s&#237;ti cest jen jedin&#253; bod (mrkev), takže tvar cesty do ceny A* nevstupuje. Původn&#237; obava „robot sjede z cesty všude, kde je vedle geometricky volno&quot; se 27. 8. 2026 uk&#225;zala lich&#225; — cesty se drž&#237; s&#225;m d&#237;ky s&#233;mantick&#233;mu kan&#225;lu z vize (mimo cestu = blokov&#225;no) a ceně nezn&#225;ma, a přibyly testy, kter&#233; to přib&#237;jej&#237;. Otevřen&#253; zbytek je užš&#237;: kde vize okraj cesty nevid&#237;, mapa se ho nezastane — měkk&#225; preference bl&#237;zkosti osy cesty (š&#237;řka z <code>Node.Width</code>) by to doplnila. Nikdo to zat&#237;m nepotřeboval.</p>
+    <p>Lok&#225;ln&#237; pl&#225;novač dostane z trasy po s&#237;ti cest jen jedin&#253; bod (mrkev), takže tvar cesty do ceny A* nevstupuje. Původn&#237; obava „robot sjede z cesty všude, kde je vedle geometricky volno&quot; se 27. 8. 2026 uk&#225;zala lich&#225; — cesty se drž&#237; s&#225;m d&#237;ky s&#233;mantick&#233;mu kan&#225;lu z vize (mimo cestu = blokov&#225;no) a ceně nezn&#225;ma, a přibyly testy, kter&#233; to přib&#237;jej&#237;. Otevřen&#253; zbytek je užš&#237;: kde vize okraj cesty nevid&#237;, mapa se ho nezastane — měkk&#225; preference bl&#237;zkosti osy cesty (š&#237;řka z <code>Node.Width</code>) by to doplnila. Nikdo to zat&#237;m nepotřeboval. Pomohlo by na širok&#233; zpevněn&#233; ploše (n&#225;měst&#237;, parkoviště, cyklostezka ~5 m), při n&#237;zk&#233;m kontrastu okraje, mimo zorn&#233; pole a při v&#253;padku kamery. ⚠️ **Podm&#237;nka (autor, 25. 9. 2026): nesahat na to před vyřešen&#237;m driftu kurzu** (<code>lok-freerun-kurz-staci-na-zapad</code>) — cena se poč&#237;t&#225; v souřadnic&#237;ch mapy, takže při ujet&#233; p&#243;ze (23. 9. kurz o des&#237;tky stupňů, 19. 9. skoky 0,6–4 m) by t&#225;hla robota k ose, kter&#225; lež&#237; jinde. I pak jen jako slab&#225; preference, kterou viděn&#237; přebije tam, kde okraj vid&#237;.</p>
     <ul class="kroky">
       <li class="hotovo">Ověřeno testy, že pl&#225;n drž&#237; cestu d&#237;ky s&#233;mantice a nebere zkratku přes nezn&#225;mo <span class="mono">27. 8. 2026</span></li>
       <li class="otevreno">Měkk&#225; cena podle vzd&#225;lenosti od osy cesty v A* (jen kde vize okraj nevid&#237;)</li>
     </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/LocalPathPlanner.cs">LocalPathPlanner.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a></p>
-  </article>
-  <article class="tema" id="lp-path-following-stara-cisla" data-stav="otevreno">
-    <h3>Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 18. 9. 2026</span></p>
-    <p>Našlo se při psan&#237; webov&#233;ho čl&#225;nku o regul&#225;toru, kde se č&#237;sla nepřeb&#237;rala z dokumentu, ale poč&#237;tala znovu z <code>Profile.cs</code>. Dokument uv&#225;d&#237; u tabulek „hodnoty z <code>Profile</code>“, ale ty hodnoty tam dnes nejsou: <code>MaxAllowedSpeed</code> je 1,2 m/s (provozn&#237; profil 1 m/s) a <code>MaxAcceleration</code> 0,5 m/s&#178;, kdežto tabulky oblouk-vs-klotoida i lookahead poč&#237;taj&#237; s 0,8 a 0,2. Důsledky nejsou kosmetick&#233; — &#250;hlov&#233; zrychlen&#237; vych&#225;z&#237; 2,44 rad/s&#178; m&#237;sto 0,98, n&#225;běh rotace 3,2&#176; m&#237;sto 8&#176; a nejhorš&#237; př&#237;pad (kde se potk&#225;v&#225; limit ot&#225;čen&#237; s <code>v_max</code>) lež&#237; na ~32&#176;, ne na ~40&#176;. Z&#225;věry t&#237;m nepadaj&#237; (n&#225;běh je poř&#225;d mal&#253; proti běžn&#233; zat&#225;čce, chyba oblouku hluboko pod rezervou 1 cm), ale konkr&#233;tn&#237; č&#237;sla v obou tabulk&#225;ch neplat&#237;. Je to t&#225;ž tř&#237;da vady jako <code>maxspeed=1</code> v <code>pi-freerun.cfg</code>, kde koment&#225;ř popisoval poč&#225;tečn&#237; hodnotu, ačkoli se strop mezit&#237;m zvedl — autoritativn&#237; je k&#243;d, dokument se zapomněl přepsat.</p>
-    <ul class="kroky">
-      <li class="otevreno">Přepoč&#237;tat obě tabulky v <code>path-following.md</code> z dnešn&#237;ho <code>Profile.cs</code></li>
-      <li class="otevreno">Zv&#225;žit, jestli jde hl&#237;dat testem (jako <code>ProfilyBezpecnostTests</code> u stropu rychlosti)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Configuration/Profile.cs">Profile.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
+    <p class="tema-odkazy">čeká na <a href="#lok-freerun-kurz-staci-na-zapad">Při j&#237;zdě FreeRun na jih ujel kurz VN100 i odhadu o des&#237;tky až 180&#176; (atitudov&#233; řešen&#237; senzoru přestalo br&#225;t magnetometr)</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/LocalPathPlanner.cs">LocalPathPlanner.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
   <article class="tema" id="lp-zasek-v-blokovane-mape" data-stav="otevreno">
     <h3>Robot 18. 9. dvakr&#225;t st&#225;l minuty před blokovanou lok&#225;ln&#237; mapou — popsan&#233;, ne vysvětlen&#233;</h3>
@@ -1230,6 +1223,16 @@
       <li class="hotovo">Přeměřit <code>localplan</code> po nasazen&#237; — 18. 9. (<code>20260918-155329.rec</code>): <code>GoalBlocked</code> 2 % / <code>GoalUnsafe</code> 2 % (14. 9.: 24 / 19 %), mrkev nedosažiteln&#225; 33 % (52 %), s dobr&#253;m kurzem <span class="mono">18. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-21">2026-09-21</a></p>
+  </article>
+  <article class="tema" id="lp-path-following-stara-cisla" data-stav="hotovo">
+    <h3>Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 18. 9. 2026</span> <span>vyřešeno 25. 9. 2026</span></p>
+    <p>Našlo se při psan&#237; webov&#233;ho čl&#225;nku o regul&#225;toru, kde se č&#237;sla nepřeb&#237;rala z dokumentu, ale poč&#237;tala znovu z <code>Profile.cs</code>. Dokument uv&#225;d&#237; u tabulek „hodnoty z <code>Profile</code>“, ale ty hodnoty tam dnes nejsou: <code>MaxAllowedSpeed</code> je 1,2 m/s (provozn&#237; profil 1 m/s) a <code>MaxAcceleration</code> 0,5 m/s&#178;, kdežto tabulky oblouk-vs-klotoida i lookahead poč&#237;taj&#237; s 0,8 a 0,2. Důsledky nejsou kosmetick&#233; — &#250;hlov&#233; zrychlen&#237; vych&#225;z&#237; 2,44 rad/s&#178; m&#237;sto 0,98, n&#225;běh rotace 3,2&#176; m&#237;sto 8&#176; a nejhorš&#237; př&#237;pad (kde se potk&#225;v&#225; limit ot&#225;čen&#237; s <code>v_max</code>) lež&#237; na ~32&#176;, ne na ~40&#176;. Z&#225;věry t&#237;m nepadaj&#237; (n&#225;běh je poř&#225;d mal&#253; proti běžn&#233; zat&#225;čce, chyba oblouku hluboko pod rezervou 1 cm), ale konkr&#233;tn&#237; č&#237;sla v obou tabulk&#225;ch neplat&#237;. Je to t&#225;ž tř&#237;da vady jako <code>maxspeed=1</code> v <code>pi-freerun.cfg</code>, kde koment&#225;ř popisoval poč&#225;tečn&#237; hodnotu, ačkoli se strop mezit&#237;m zvedl — autoritativn&#237; je k&#243;d, dokument se zapomněl přepsat. **Vyřešeno 25. 9. 2026 jinak, než se pl&#225;novalo (autor):** parametry j&#237;zdy se měn&#237; podle schopnost&#237; robotu i podm&#237;nek soutěže, takže tabulky se na aktu&#225;ln&#237; nastaven&#237; **nepřepisuj&#237;**. U obou je teď v&#253;slovně sada parametrů, pro kterou jsou spočten&#233;, a pod nimi vzorce pro nejhorš&#237; př&#237;pad, ze kter&#253;ch jde č&#237;slo přepoč&#237;tat. Aktu&#225;ln&#237; limity m&#225; uk&#225;zat pohled v aplikaci (<code>nast-limity-jizdy-view</code>). Při přepočtu vyšlo, že při <code>maxspeed=1.7</code> d&#225; seř&#237;znut&#237; + oblouk ~11,7 mm, tedy o m&#225;lo v&#237;c než rezerva <code>PathEpsilonMargin</code> (10 mm).</p>
+    <ul class="kroky">
+      <li class="hotovo">Označit u obou tabulek sadu parametrů (0,8 m/s, 0,2 m/s&#178;, π/6, rozchod 0,41 m, ε 0,1 m) a doplnit vzorce pro nejhorš&#237; př&#237;pad — m&#237;sto přepočtu na dnešn&#237; <code>Profile.cs</code> <span class="mono">25. 9. 2026</span></li>
+      <li class="hotovo">Hl&#237;dat tabulky testem — nepotřeba, tabulky už netvrd&#237; aktu&#225;ln&#237; hodnoty <span class="mono">25. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Configuration/Profile.cs">Profile.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
 </section>
 <section class="oblast">
@@ -2354,6 +2357,16 @@
       <li class="otevreno">Zav&#233;st testovac&#237; projekt a pravidlo „asertovat i předpoklad&quot;</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot/Views/README.md">Views/README.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-01">2026-09-01</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-02">2026-09-02</a></p>
+  </article>
+  <article class="tema" id="nast-limity-jizdy-view" data-stav="otevreno">
+    <h3>Pohled v aplikaci s rozborem limitů j&#237;zdy pro aktu&#225;ln&#237; nastaven&#237;</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 25. 9. 2026</span></p>
+    <p>N&#225;pad autora (25. 9. 2026): parametry j&#237;zdy (strop rychlosti, zrychlen&#237;, rychlost ot&#225;čen&#237;, lookahead, tolerance rohu) se měn&#237; podle schopnost&#237; robotu i podm&#237;nek soutěže, takže tabulky v <code>path-following.md</code> jsou spočten&#233; pro jednu pevnou sadu a na aktu&#225;ln&#237; hodnoty se nepřepisuj&#237;. M&#237;sto toho by aplikace mohla m&#237;t pohled, kter&#253; tent&#253;ž rozbor spoč&#237;t&#225; z pr&#225;vě &#250;činn&#233; konfigurace: rychlost a poloměr podle &#250;hlu zat&#225;čky, n&#225;běh rotace, chybu oblouku proti klotoidě, seř&#237;znut&#237; zat&#225;čky lookaheadem, nejhorš&#237; &#250;hel a porovn&#225;n&#237; součtu s rezervou <code>PathEpsilonMargin</code>. Rozbor by poč&#237;tal tent&#253;ž k&#243;d jako pl&#225;novač (<code>IMotionProfile</code>, geometrie rohu), ne opis vzorců. Užitečn&#233; hlavně při změně <code>maxspeed=</code> před soutěž&#237;: při 1,7 m/s už součet (~11,7 mm) přesahuje rezervu 10 mm.</p>
+    <ul class="kroky">
+      <li class="otevreno">N&#225;vrh pohledu (tabulka a/nebo graf podle &#250;hlu zat&#225;čky, zdroj parametrů z <code>ParamRegistry</code>)</li>
+      <li class="otevreno">Implementace (Tools → Limity j&#237;zdy), v&#253;počet sd&#237;len&#253; s pl&#225;novačem</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
   <article class="tema" id="nast-panel-konfigurace-mazal-klice" data-stav="v-kodu">
     <h3>Panel Konfigurace tiše mazal z profilu kl&#237;če shodn&#233; s defaultem</h3>

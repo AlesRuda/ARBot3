@@ -13,6 +13,21 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-25 — Původ výřezů `.osm` se neeviduje a nepravidelně se neaktualizují
+
+**Co:** U map v `OSM/` se **nezapisuje** původ (JOSM / Overpass), oblast ani datum stažení a pro
+výřezy se **nezavádí žádná pravidelná aktualizace**. Téma `nav-zdroj-osm-dat` je zamítnuté.
+Rozhodnutí autora.
+
+**Proč:** Výřezy jsou podkladová data konkrétní trati. Jsou verzované v gitu, takže jejich
+podoba i změny jsou dohledatelné tam. Když se trať změní nebo je potřeba nová oblast, stáhne se
+nebo upraví nový výřez; evidence původu by nic z toho nezjednodušila. Druhá část původního
+tématu (kdy stavět síť a cílové pole) byla rozhodnutá už v návrhu (síť vlastní runtime, jedno
+pole na misi).
+
+**Důsledky:** Stáří výřezu proti skutečnosti se nesleduje. Ručně upravené mapy z JOSM dál nesou
+`action=` a čtečka smazané objekty přeskakuje (`nav-osm-josm-action-delete`).
+
 ### 2026-09-24 — Zatuhlé vlákno kamery: jen zapsat důkaz, NEléčit restartem služby
 
 **Co:** Když `NativeCallWatch` zjistí, že vlákno kamery visí v nativním volání RealSense (limit
