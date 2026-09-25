@@ -30,6 +30,19 @@ namespace ARBot.Common.Localization
         NotComputed = 6,
     }
 
+    /// <summary>Ktera hranice nese merenie z JEDNE hrany (<see cref="RoadCorridor.SingleSide"/>).</summary>
+    public enum CorridorSide : byte
+    {
+        /// <summary>Zadna - koridor je oboustranny, nebo nevznikl vubec.</summary>
+        None = 0,
+
+        /// <summary>Jen leva hranice.</summary>
+        Left = 1,
+
+        /// <summary>Jen prava hranice.</summary>
+        Right = 2,
+    }
+
     /// <summary>
     /// Koridor cesty videny z jednoho okamziku: <b>sirka</b>, <b>pricna poloha robotu</b>
     /// a <b>odchylka osy cesty</b> — v ramci robotu (X vpred, Y vlevo).
@@ -98,6 +111,43 @@ namespace ARBot.Common.Localization
 
         /// <summary>Je koridor pouzitelny?</summary>
         public bool Ok => Reason == CorridorReason.Ok;
+
+        /// <summary>
+        /// <b>Merenie z JEDNE hrany</b> (od 24. 9. 2026, <see cref="CorridorConfig.SingleEdge"/>):
+        /// oboustranny koridor nevznikl (<see cref="Reason"/> nese proc), ale jedna strana se
+        /// prolozila dost spolehlive. Pak plati <see cref="DirectionRad"/> /
+        /// <see cref="SigmaDirectionRad"/> (smer TE hrany) a <see cref="EdgeOffset"/>;
+        /// <see cref="Width"/> ani <see cref="Lateral"/> se z jedne hrany urcit nedaji.
+        ///
+        /// <para><b>Proc.</b> Na siroke ceste (cyklostezka v Modranech, 23. 9. 2026) nevzniklo
+        /// ze 4 zaznamu ani jedno oboustranne merenie — kamera tam vzdalenejsi hranici vidi
+        /// ridce. Kurz z jedne hrany na sirce nezavisi vubec, pricna poloha pres predpokladanou
+        /// sirku ano. ARBot2 jednu hranu pouzival taky. Viz doc/map-correlation-localization.md.</para>
+        /// </summary>
+        public CorridorSide SingleSide;
+
+        /// <summary>Je vyplnene merenie z jedne hrany?</summary>
+        public bool HasSingleEdge => SingleSide != CorridorSide.None;
+
+        /// <summary>
+        /// Znamenkovy odstup JEDINE hranice od robotu [m] podel leve normaly jejiho smeru;
+        /// <b>kladne = hranice je vlevo od robotu</b>. U leve hranice ma tedy byt kladny, u prave
+        /// zaporny.
+        /// </summary>
+        public double EdgeOffset;
+
+        /// <summary>Sigma <see cref="EdgeOffset"/> [m] - z reziduí, s podlahou jako u koridoru.</summary>
+        public double EdgeSigma;
+
+        /// <summary>
+        /// Pricna poloha robotu vuci ose cesty z jedine hrany a PREDPOKLADANE sirky
+        /// <paramref name="widthM"/>; stejna konvence jako <see cref="Lateral"/> (+ = vlevo).
+        /// Chyba sirky se do vysledku prenasi <b>polovinou</b>.
+        /// </summary>
+        public double SingleEdgeLateral(double widthM)
+            => SingleSide == CorridorSide.Left ? widthM / 2 - EdgeOffset
+             : SingleSide == CorridorSide.Right ? -EdgeOffset - widthM / 2
+             : double.NaN;
 
         /// <summary>Smer cesty ve stupnich (pro cteni v telemetrii).</summary>
         public double DirectionDeg => DirectionRad * 180.0 / Math.PI;

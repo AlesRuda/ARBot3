@@ -152,8 +152,20 @@ hlavičky, oprava na disku).
 
 ## Export do GPX (od 24. 9. 2026)
 
-**File → Export GPX…** (aktivní jen ve View) uloží otevřený záznam do GPX 1.1. Dialog nabídne
-`<záznam>.gpx` vedle záznamu. Čte se **celý záznam** vlastním read-only streamem jako sken
+**File → Export GPX** (aktivní jen ve View) uloží otevřený záznam do GPX 1.1. Podnabídka volí,
+**jak oddělit GPS a fúzi** (od 24. 9. 2026 — řada prohlížečů GPX ukáže jen první stopu souboru,
+nebo obě slije do jedné čáry):
+
+| položka | výsledek |
+|---|---|
+| GPS i fúze v jednom souboru… | jeden soubor, dvě `<trk>` (dosavadní chování) |
+| GPS a fúze do dvou souborů… | ze zvoleného názvu `X.gpx` vzniknou `X-gps.gpx` a `X-fuze.gpx` |
+| Jen GPS… | jen stopa GPS |
+| Jen fúze (EKF)… | jen stopa fúze |
+
+Volbu nese `GpxExportOptions.Tracks`. Pro dva soubory se záznam čte **jednou**
+(`GpxExport.ReadMessages`) a `Build` se zavolá pro každou stopu, takže oba soubory mají tentýž
+posun UTC. Dialog nabídne `<záznam>.gpx` (u jedné stopy `-gps` / `-fuze`) vedle záznamu. Čte se **celý záznam** vlastním read-only streamem jako sken
 telemetrie, takže se to přehrávání nedotkne a na pozici přehrávání nezáleží. Co se uložilo, jde do
 `Trace` a panel *Debug output* se otevře. Jádro je `ARBot.Common/Export/GpxExport.cs`, testy
 `GpxExportTest`.

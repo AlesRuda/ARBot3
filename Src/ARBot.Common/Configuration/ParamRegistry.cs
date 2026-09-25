@@ -325,6 +325,25 @@ namespace ARBot.Common.Configuration
               + "aby se to dalo promerit A/B na zarizeni, ne hadat. Viz ARBot.Analyze corridor, "
               + "blok PRAH INLIERU.",
               ParamParsers.CorridorMinInliers);
+        // --- Merenie z JEDNE hrany (24. 9. 2026) ----------------------------------------------
+        //
+        // Na siroke cyklostezce v Modranech (23. 9. 2026) nedal oboustranny koridor ze 4 zaznamu
+        // ani jedno merenie - vzdalenejsi hranici kamera vidi ridce. Kurz z jedne hrany na sirce
+        // nezavisi; pricna poloha pres predpokladanou sirku ano (naucenou, jinak mapovou s vetsi
+        // sigmou - rozhodnuti autora). Viz doc/map-correlation-localization.md.
+        public static readonly BoolParam CorridorSingle = Bool("corridorsingle", "true", K_FUZE,
+              "Merenie z JEDNE hrany cesty, kdyz oboustranny koridor nevznikne (druha strana "
+              + "chybi nebo ma malo inlieru, vcetne vypadku druhe kamery). Do fuze jde kurz "
+              + "(smer hrany proti mapove ose - na sirce nezavisi) a pricna poloha pres "
+              + "predpokladanou sirku: naucenou z oboustrannych merení, jinak mapovou s nejistotou "
+              + "corridorsinglewidthstd=. ⚠️ Chyba mapove sirky je BIAS - poloha se ustali posunuta "
+              + "o jeji polovinu. false = chovani do 24. 9. 2026 (jen oboustranny koridor).");
+        public static readonly DoubleParam CorridorSingleWidthStd = Num("corridorsinglewidthstd",
+              Fmt(new ARBot.Common.Localization.CorridorLocalizerConfig().SingleEdgeWidthStdM), K_FUZE,
+              "Nejistota (1 sigma) MAPOVE sirky cesty [m] pro pricnou polohu z jedne hrany, dokud "
+              + "sirka neni naucena z oboustrannych merení. Do sigmy pricne polohy jde polovinou "
+              + "(1 m -> aspon 0,5 m). U cest bez tagu width je mapova sirka jen roadwidth=.",
+              ParamParsers.CorridorSingleWidthStd);
         public static readonly StringParam MeasDiag = Text("measdiag", null, K_FUZE,
               "Diagnostika mereni ve fuzi: 'true' nebo '*' pro vsechna mereni (stovky za "
               + "sekundu), jinak filtr na zdroj mereni.");

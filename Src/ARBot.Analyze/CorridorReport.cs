@@ -56,8 +56,9 @@ namespace ARBot.Analyze
             Console.WriteLine();
 
             var skew = PairingSkew(rec, msgs);
-            var ok = msgs.Where(m => m.FixReason == (byte)CorridorFixReason.Ok).ToList();
+            var ok = msgs.Where(OboustrannyOk).ToList();
             Console.WriteLine($"Prijatych merenii (Ok): {ok.Count}");
+            JednaHrana(msgs);
             Console.WriteLine($"Rozestup zrekonstruovan u {ok.Count(m => skew.ContainsKey(m.TimeStamp))} z nich");
             Console.WriteLine();
 
@@ -272,7 +273,7 @@ namespace ARBot.Analyze
                     || r == CorridorFixReason.WidthDisagreement
                     || r == CorridorFixReason.Ok;
             });
-            int okN = all.Count(m => m.FixReason == (byte)CorridorFixReason.Ok);
+            int okN = all.Count(OboustrannyOk);
 
             // Od 16. 9. 2026 rozhoduje o hrane PRIRAZENI (chi-kvadrat pres kandidaty), ne pricna
             // brana - trychtyr se proto musi jmenovat podle toho, co zaznam skutecne obsahuje.
@@ -464,7 +465,7 @@ namespace ARBot.Analyze
                 return;
             }
 
-            var ok = all.Where(m => m.FixReason == (byte)CorridorFixReason.Ok && m.HasPose).ToList();
+            var ok = all.Where(m => OboustrannyOk(m) && m.HasPose).ToList();
             var pairs = new List<(RoadCorridorMsg M, double Corr, double Gps, double Pose)>();
             foreach (var m in ok)
             {
@@ -802,7 +803,7 @@ namespace ARBot.Analyze
                 var bin = all.Where(m => { double dt = (m.TimeStamp - t0).TotalSeconds;
                                            return dt >= a && dt < b; }).ToList();
                 if (bin.Count == 0) continue;
-                int okN = bin.Count(m => m.FixReason == (byte)CorridorFixReason.Ok);
+                int okN = bin.Count(OboustrannyOk);
                 int np = bin.Count(m => m.FixReason == (byte)CorridorFixReason.NoCorridor
                                      && m.CorridorReason == (byte)CorridorReason.NotParallel);
                 Console.WriteLine($"  {a,2:F0}-{b,-2:F0}          {bin.Count,5} {okN,5}         {np,5}");
@@ -870,6 +871,39 @@ namespace ARBot.Analyze
         /// CSV radek za kazdy cyklus koridoru — pro pripady, kdy percentily nestaci a je potreba
         /// videt <b>casovy prubeh</b> (napr. jestli filtr sirky konverguje, nebo stoji).
         /// </summary>
+        /// <summary>
+        /// Prijate OBOUSTRANNE merenie. Od <c>RoadCorridorMsg</c> verze 7 (24. 9. 2026) je <c>Ok</c>
+        /// i merenie z JEDNE hrany - to ale nema sirku ani <c>Lateral</c> (jsou 0), takze by
+        /// statistikam sirky a pricne polohy vnutilo nuly. Pocita se proto zvlast (<see cref="JednaHrana"/>).
+        /// </summary>
+        private static bool OboustrannyOk(RoadCorridorMsg m)
+            => m.FixReason == (byte)CorridorFixReason.Ok && m.SingleSide == 0;
+
+        /// <summary>Souhrn merení z JEDNE hrany (verze 7): kolik, ktera strana, sigma a nesouhlas s mapou.</summary>
+        private static void JednaHrana(List<RoadCorridorMsg> msgs)
+        {
+            var single = msgs.Where(m => m.FixReason == (byte)CorridorFixReason.Ok && m.SingleSide != 0).ToList();
+            int kandidatu = msgs.Count(m => m.SingleSide != 0);
+            if (kandidatu == 0) return;
+            Console.WriteLine($"Prijatych z JEDNE hrany: {single.Count} (leva {single.Count(m => m.SingleSide == 1)}, "
+                              + $"prava {single.Count(m => m.SingleSide == 2)}; kandidatu vc. zamitnutych {kandidatu})");
+            foreach (var g in msgs.Where(m => m.SingleSide != 0 && m.FixReason != (byte)CorridorFixReason.Ok)
+                                  .GroupBy(m => (CorridorFixReason)m.FixReason).OrderByDescending(g => g.Count()))
+                Console.WriteLine($"    zamitnuto {g.Key,-18} {g.Count(),5}");
+            if (single.Count == 0) return;
+            var sig = new Stats("  sigma pricne vc. sirky [m]");
+            var sw = new Stats("  nejistota sirky [m]");
+            var dLat = new Stats("  pricny nesouhlas s pozou [m]");
+            var dHdg = new Stats("  nesouhlas kurzu s pozou [deg]");
+            foreach (var m in single)
+            {
+                sig.Add(m.SingleSigmaLateral); sw.Add(m.SingleWidthStd);
+                dLat.Add(m.LateralDisagreement); dHdg.Add(m.HeadingDisagreementRad * 180 / Math.PI);
+            }
+            Console.WriteLine(sig.Line("m")); Console.WriteLine(sw.Line("m"));
+            Console.WriteLine(dLat.Line("m")); Console.WriteLine(dHdg.Line("deg"));
+        }
+
         public static void Dump(RecordFile rec)
         {
             var msgs = new List<RoadCorridorMsg>();

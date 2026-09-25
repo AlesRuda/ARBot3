@@ -32,8 +32,8 @@ namespace ARBot.Common.Tests.Devices
         }
 
         [Test]
-        public void VerzeFormatuJe4()
-            => Assert.That(IMUState.FormatVersion, Is.EqualTo(4),
+        public void VerzeFormatuJe5()
+            => Assert.That(IMUState.FormatVersion, Is.EqualTo(5),
                            "pridani pole = zvednuta verze, jinak by se stare zaznamy cetly spatne");
 
         [Test]
@@ -52,6 +52,52 @@ namespace ARBot.Common.Tests.Devices
                 Assert.That(zpet.Magnetometer, Is.EqualTo(vzorek.Magnetometer),
                             "kompenzovane pole musi zustat vedle suroveho, ne byt prepsane");
             });
+        }
+
+        [Test]
+        public void RoundTrip_ZachovaGyroBezBiasuATeplotu()
+        {
+            // Verze 5 (24. 9. 2026): Gyro − UncompGyro je odhad biasu z filtru VN; bez nej nebylo
+            // poznat, jestli drift kurzu 23. 9. byl gyro, nebo filtr.
+            var vzorek = Vzorek();
+            vzorek.AngularVelocity = new System.Numerics.Vector3(0.01f, -0.02f, 0.03f);
+            vzorek.AngularVelocityRaw = new System.Numerics.Vector3(0.011f, -0.019f, 0.047f);
+            vzorek.Temperature = 41.25;
+
+            var zpet = Kolecko(vzorek);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(zpet.AngularVelocityRaw, Is.EqualTo(vzorek.AngularVelocityRaw));
+                Assert.That(zpet.AngularVelocity, Is.EqualTo(vzorek.AngularVelocity), "kompenzovane zustava vedle");
+                Assert.That(zpet.Temperature, Is.EqualTo(41.25));
+                Assert.That(vzorek.Clone().AngularVelocityRaw, Is.EqualTo(vzorek.AngularVelocityRaw));
+                Assert.That(vzorek.Clone().Temperature, Is.EqualTo(41.25));
+            });
+        }
+
+        [Test]
+        public void Verze4_seCteBezGyraBezBiasuATeploty()
+        {
+            // Starsi zaznam (verze 4): za MagnetometerRaw uz nic neni.
+            var vzorek = Vzorek();
+            vzorek.MagnetometerRaw = new System.Numerics.Vector3(0.12f, 0.05f, -0.22f);
+            vzorek.Verze = 4;
+            var ms = new MemoryStream();
+            using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+            {
+                vzorek.ToData(bw);
+            }
+            // Ulozena data verze 5 zkratit o pole verze 5 (1 B priznak null + 1 B null) by bylo
+            // krehke; misto toho se zapise v4 rucne: ToData zapisuje vzdy nejnovejsi format.
+            var v4 = new MemoryStream(ms.ToArray(), 0, (int)ms.Length - 2);
+            var zpet = new IMUState { Verze = 4 };
+            using (var br = new BinaryReader(v4))
+                zpet.FromData(br);
+
+            Assert.That(zpet.MagnetometerRaw, Is.EqualTo(vzorek.MagnetometerRaw));
+            Assert.That(zpet.AngularVelocityRaw, Is.Null);
+            Assert.That(zpet.Temperature, Is.Null);
         }
 
         [Test]

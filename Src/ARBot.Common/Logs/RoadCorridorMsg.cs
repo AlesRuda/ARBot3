@@ -180,7 +180,31 @@ namespace ARBot.Common.Logs
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RoadCorridorMsg() : base("RoadCorridorMsg", 6)
+        /// <summary>
+        /// <b>Verze 7</b> (24. 9. 2026): merenie z JEDNE hrany. <see cref="SingleSide"/> = ktera
+        /// (0 = zadna, 1 = leva, 2 = prava); u prijateho cyklu (<c>FixReason</c> Ok) nese merenie,
+        /// jinak jen kandidata. <see cref="Width"/> a <see cref="Lateral"/> jsou u jedne hrany 0 —
+        /// pricna poloha je v <see cref="SingleLateral"/> a sirka, se kterou se pocitala,
+        /// v <see cref="MapWidth"/>.
+        /// </summary>
+        public byte SingleSide;
+
+        /// <summary>Znamenkovy odstup jedine hrany od robotu [m] (+ = vlevo).</summary>
+        public double EdgeOffset;
+
+        /// <summary>Sigma <see cref="EdgeOffset"/> [m].</summary>
+        public double EdgeSigma;
+
+        /// <summary>Pricna poloha z jedne hrany a predpokladane sirky [m].</summary>
+        public double SingleLateral;
+
+        /// <summary>Sigma <see cref="SingleLateral"/> vcetne nejistoty sirky [m].</summary>
+        public double SingleSigmaLateral;
+
+        /// <summary>Nejistota pouzite sirky (1 sigma) [m].</summary>
+        public double SingleWidthStd;
+
+        public RoadCorridorMsg() : base("RoadCorridorMsg", 7)
         {
         }
 
@@ -225,6 +249,13 @@ namespace ARBot.Common.Logs
             bw.Write(AssocChi2);            // verze 6
             bw.Write(AssocChi2Second);
             bw.Write(AssocCandidates);
+
+            bw.Write(SingleSide);           // verze 7
+            bw.Write(EdgeOffset);
+            bw.Write(EdgeSigma);
+            bw.Write(SingleLateral);
+            bw.Write(SingleSigmaLateral);
+            bw.Write(SingleWidthStd);
         }
 
         public override void FromData(BinaryReader br)
@@ -287,6 +318,16 @@ namespace ARBot.Common.Logs
                 AssocChi2 = br.ReadDouble();
                 AssocChi2Second = br.ReadDouble();
                 AssocCandidates = br.ReadInt32();
+            }
+
+            if (Verze >= 7)
+            {
+                SingleSide = br.ReadByte();
+                EdgeOffset = br.ReadDouble();
+                EdgeSigma = br.ReadDouble();
+                SingleLateral = br.ReadDouble();
+                SingleSigmaLateral = br.ReadDouble();
+                SingleWidthStd = br.ReadDouble();
             }
         }
 

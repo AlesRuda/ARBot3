@@ -314,6 +314,9 @@ namespace ARBot.HAL.Devices.Camera
 
             try
             {
+                // Zamrzly stream se bourá AZ PO uvolneni framesetu - viz nize u freezeWatch.
+                bool bouratPoFramesetu = false;
+
                 if (pipeline.TryWaitForFrames(out var frames, FrameTimeoutMs))
                 using (frames)
                 {
@@ -365,22 +368,34 @@ namespace ARBot.HAL.Devices.Camera
                         FrozenStreamRestarts++;
                         Trace.WriteLine($"{Name}: {zamrzlo} -> restart pipeline (celkem {FrozenStreamRestarts}x). "
                                         + "Snimky chodily dal, jen porad tytez - bez tohohle by kamera hlasila OK.");
-                        Teardown();
-                        return null;
+                        // ⚠️ NE Teardown() tady: jsme uvnitr `using (frames)`, takze by se pipeline
+                        // zastavovala, zatimco drzime jeji NEUVOLNENY frameset. Vsechny ostatni
+                        // cesty (timeout, vyjimka) bouraji az po uvolneni. Podezrely na zatuhnuti
+                        // leve D435 v 20260923-143515.rec (po teto hlasce uz neprislo nic) - viz
+                        // NativeCallWatch a doc/hardware.md.
+                        bouratPoFramesetu = true;
                     }
+                    else
+                    {
+                        // Odhad pozy jako METADATUM snimku (vyhradne pro vizualizaci - viz
+                        // CameraFrame.PoseAtCaptureX). Chybejici poza snimek NEZAHAZUJE.
+                        ARBot.HAL.Devices.Camera.CameraPoseStamp.Apply(frame, EstimatedPoseAt);
 
-                    // Odhad pozy jako METADATUM snimku (vyhradne pro vizualizaci - viz
-                    // CameraFrame.PoseAtCaptureX). Chybejici poza snimek NEZAHAZUJE.
-                    ARBot.HAL.Devices.Camera.CameraPoseStamp.Apply(frame, EstimatedPoseAt);
+                        // Synchronni dopocet odvozenych vlastnosti (probability, polarni grid) na vlakne
+                        // kamery - misto asynchronniho fan-outu do pipeline (viz doc/plan-camera-vision-refactor.md).
+                        // ⚠️ NE primo: vyjimka odsud by spadla do catch snimaci smycky, ktery hlasi
+                        // „odpojeno" a bouri pipeline - softwarova vada vize by se tak pricitala
+                        // k realnym vypadkum D435. Viz CameraVisionStep.
+                        ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
 
-                    // Synchronni dopocet odvozenych vlastnosti (probability, polarni grid) na vlakne
-                    // kamery - misto asynchronniho fan-outu do pipeline (viz doc/plan-camera-vision-refactor.md).
-                    // ⚠️ NE primo: vyjimka odsud by spadla do catch snimaci smycky, ktery hlasi
-                    // „odpojeno" a bouri pipeline - softwarova vada vize by se tak pricitala
-                    // k realnym vypadkum D435. Viz CameraVisionStep.
-                    ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
+                        return frame;
+                    }
+                }
 
-                    return frame;
+                if (bouratPoFramesetu)
+                {
+                    Teardown();
+                    return null;
                 }
 
                 // Timeout bez snimku: odpojeni se nemusi projevit vyjimkou, jen prestanou chodit
@@ -437,7 +452,8 @@ namespace ARBot.HAL.Devices.Camera
             // streamy umi spadnout na "failed to set power state" (zmereno na OrangePi 1. 9. 2026),
             // a kdyby se to vydavalo za odpojeni, hlasil by driver "kamera odpojena" u kamery,
             // ktera je na miste - a slo by se hledat kabel.
-            return RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "D4"));
+            using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: QueryDevices"))
+                return RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "D4"));
         }
 
         /// <summary>
@@ -482,7 +498,8 @@ namespace ARBot.HAL.Devices.Camera
                 if (pipeline == null)
                     pipeline = new Pipeline(RealSenseShared.Context);
 
-                pipelineProfile = pipeline.Start(cfg);
+                using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Start"))
+                    pipelineProfile = pipeline.Start(cfg);
                 connected = true;
                 everConnected = true;
                 Trace.WriteLine($"{Name}: pipeline pripojena. {PopisLinky()}");
@@ -540,7 +557,8 @@ namespace ARBot.HAL.Devices.Camera
             {
                 try
                 {
-                    pipeline.Stop();
+                    using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Stop"))
+                        pipeline.Stop();
                 }
                 catch (Exception ex)
                 {
@@ -548,7 +566,8 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 try
                 {
-                    pipeline.Dispose();
+                    using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Dispose"))
+                        pipeline.Dispose();
                 }
                 catch (Exception ex)
                 {

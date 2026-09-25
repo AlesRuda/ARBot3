@@ -30,9 +30,10 @@ public class RoadCorridorMsgAssocTests
     }
 
     [Test]
-    public void Verze_je6()
+    public void Verze_je7()
     {
-        Assert.That(new RoadCorridorMsg().Verze, Is.EqualTo(6));
+        // Verze 7 (24. 9. 2026) = merenie z jedne hrany; round-trip je v CorridorSingleEdgeTests.
+        Assert.That(new RoadCorridorMsg().Verze, Is.EqualTo(7));
     }
 
     [Test]

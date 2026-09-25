@@ -825,6 +825,14 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   publikovaná čísla.)*
   **Hranová lokalizace (`corridor=`) je k 23. 8. 2026 funkční, ale pořád vypnutá:** 178 měření
   za 40 s, chyba polohy 0,027 m, kurzu 0,18°. Zapnout ji naostro gatují tři podmínky výše.
+  ✅ **Od 24. 9. 2026 měří koridor i z JEDNÉ hrany** (`corridorsingle=`, výchozí true): na široké
+  cyklostezce v Modřanech (23. 9.) nedal oboustranný koridor ze čtyř záznamů ani jedno měření,
+  jedna hrana je tam v 48–80 % snímků a její kurz sedí na GPS kurz (p50 ±1,3°, sd 2,4–4,9°), zatímco
+  odhad fúze ujel o 30°+. Kurz na šířce nezávisí; příčná poloha jde přes **naučenou** šířku, jinak
+  **mapovou** s nejistotou `corridorsinglewidthstd=` (1 m → σ ≥ 0,5 m) — ⚠️ chyba mapové šířky je
+  bias. FreeRun jednu hranu nevidí (`Result.Ok`). `RoadCorridorMsg` verze 7. ⚠️ **Na zařízení
+  neběželo.** Detail: [map-correlation-localization.md](doc/map-correlation-localization.md),
+  „Měření z JEDNÉ hrany".
   ✅ **Od 16. 9. 2026 vybírá hranu sítě PŘIŘAZENÍ přes χ²** (`assoc=`, výchozí true; `EdgeAssociator`),
   ne prostá nejbližší hrana — nad `20260916-164926.rec` se totiž **polovina cyklů (1 114 z 2 256)
   párovala na PŘÍČNOU ulici**: při chybě pózy 3–4 m vyhraje u křižovatky jiná cesta a šířková brána

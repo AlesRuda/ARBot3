@@ -80,6 +80,15 @@ namespace ARBot.Common.Localization
 
             /// <summary>Je koridor pouzitelny?</summary>
             public bool Ok => Corridor != null && Reason == CorridorFixReason.Ok;
+
+            /// <summary>
+            /// Oboustranny koridor nevznikl, ale <b>jedna hrana je pouzitelna</b>
+            /// (<see cref="RoadCorridor.SingleSide"/>) a lezi na spravne strane robotu. Zamerne
+            /// oddelene od <see cref="Ok"/>: FreeRun potrebuje sirku a pricnou polohu, ktere
+            /// z jedne hrany nevzniknou, takze jedna hrana jde jen do mapove poloviny
+            /// (<see cref="CorridorLocalizer"/>).
+            /// </summary>
+            public bool SingleEdgeUsable;
         }
 
         /// <summary>
@@ -105,7 +114,24 @@ namespace ARBot.Common.Localization
 
             // Druha kamera: nejblizsi cas z jineho jmena.
             if (!TryPair(cam, frame.TimeStamp, out var other))
-                return new Result { Time = frame.TimeStamp, Pose = pose, Reason = CorridorFixReason.NoPair };
+            {
+                var noPair = new Result { Time = frame.TimeStamp, Pose = pose, Reason = CorridorFixReason.NoPair };
+
+                // Bez druhe kamery oboustranny koridor nevznikne, ale JEDNA HRANA z teto kamery
+                // ano - a prave pri vypadku kamery (zamrznuti barvy, 23. 9. 2026: 34 % cyklu
+                // NoPair) je to jedina reference z obrazu. Koridor se pripoji jen tehdy, kdyz je
+                // jedna hrana pouzitelna; jinak zustava NoPair bez koridoru jako drive.
+                if (config.Corridor.SingleEdge)
+                {
+                    var single = finder.Find(left, right);
+                    if (!single.Ok && single.HasSingleEdge && SingleEdgeOnCorrectSide(single))
+                    {
+                        noPair.Corridor = single;
+                        noPair.SingleEdgeUsable = true;
+                    }
+                }
+                return noPair;
+            }
 
             // KOMPENZACE POHYBU mezi snimky. Body druhe kamery jsou v ramci robotu z JEJIHO casu;
             // mezitim robot popojel a pootocil se, takze slozit je s aktualnimi bez prepoctu
@@ -141,6 +167,7 @@ namespace ARBot.Common.Localization
             if (!corridor.Ok)
             {
                 result.Reason = CorridorFixReason.NoCorridor;
+                result.SingleEdgeUsable = corridor.HasSingleEdge && SingleEdgeOnCorrectSide(corridor);
                 return result;
             }
 
@@ -156,6 +183,16 @@ namespace ARBot.Common.Localization
             result.Reason = CorridorFixReason.Ok;
             return result;
         }
+
+        /// <summary>
+        /// Lezi jedina hrana na SVE strane robotu? Leva ma byt vlevo (kladny odstup), prava vpravo;
+        /// tolerance je <see cref="CorridorLocalizerConfig.MaxOutsideCorridorM"/>, tataz jako u
+        /// oboustranneho koridoru. Leva hranice vpravo od robotu znamena, ze robot je mimo cestu,
+        /// nebo ze se prolozilo neco jineho - v obou pripadech merenie nema co opravovat.
+        /// </summary>
+        private bool SingleEdgeOnCorrectSide(RoadCorridor c)
+            => c.SingleSide == CorridorSide.Left ? c.EdgeOffset > -config.MaxOutsideCorridorM
+             : c.SingleSide == CorridorSide.Right && c.EdgeOffset < config.MaxOutsideCorridorM;
 
         /// <summary>
         /// Prepocte body z ramce robotu v case <paramref name="then"/> do ramce robotu v case

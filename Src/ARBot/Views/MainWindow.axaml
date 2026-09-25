@@ -22,8 +22,20 @@
                 <MenuItem Header="Open" Command="{Binding OpenCommand}"/>
                 <MenuItem Header="Save" Command="{Binding SaveCommand}"/>
                 <Separator/>
-                <MenuItem Header="Export GPX…" Command="{Binding ExportGpxCommand}"
-                          ToolTip.Tip="Uloží otevřený záznam (Runtime → View…) do GPX: stopa surových GPS fixů a stopa odhadu fúze."/>
+                <!-- Podnabidka: jak oddelit GPS a fuzi. Rada prohlizecu GPX ukaze jen prvni stopu
+                     souboru, nebo obe slije do jedne cary (24. 9. 2026). -->
+                <MenuItem Header="Export GPX"
+                          ToolTip.Tip="Uloží otevřený záznam (Runtime → View…) do GPX: stopa surových GPS fixů a stopa odhadu fúze (EKF).">
+                    <MenuItem Header="GPS i fúze v jednom souboru…" Command="{Binding ExportGpxCommand}" CommandParameter="both"
+                              ToolTip.Tip="Jeden soubor, dvě stopy (&lt;trk&gt;). Některé prohlížeče ukážou jen první."/>
+                    <MenuItem Header="GPS a fúze do dvou souborů…" Command="{Binding ExportGpxCommand}" CommandParameter="split"
+                              ToolTip.Tip="Ze zvoleného názvu vzniknou dva soubory: …-gps.gpx a …-fuze.gpx."/>
+                    <Separator/>
+                    <MenuItem Header="Jen GPS…" Command="{Binding ExportGpxCommand}" CommandParameter="gps"
+                              ToolTip.Tip="Jen surové platné GPS fixy."/>
+                    <MenuItem Header="Jen fúze (EKF)…" Command="{Binding ExportGpxCommand}" CommandParameter="pose"
+                              ToolTip.Tip="Jen odhad polohy z fúze (RobotStateMsg), převedený přes počátek mapy."/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="Runtime">
                 <MenuItem Header="Run without log" Command="{Binding RunModeCommand}"/>

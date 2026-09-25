@@ -363,15 +363,19 @@ namespace ARBot.Common.Missions
             // Plati i kdyz nize selze flash - zahodit novou kalibraci kvuli tomu by bylo horsi.
             reg23KVraceni = null;
 
+            // Palubni HSI vypnout PRED ulozenim do flash. ⚠️ VNWNV uklada CELOU sadu registru,
+            // jak je prave v RAM - do 25. 9. 2026 se HSI vypinala az po nem, takze se do flash
+            // ulozil i registr 44 v rezimu Run a senzor od kalibrace 17. 9. startoval po kazdem
+            // zapnuti s bezici palubni HSI (nalezeno vnprobe.sh 25. 9.: $VNRRG,44,1,1,5, export
+            // ma 0,1,5). TN002 kap. 5.2 to vede mezi pricinami ujizdejiciho kurzu.
+            VypniHsi();
+
             if (!control.SaveToFlash())
             {
                 Trace.WriteLine("MagCal: registr 23 zapsan, ale ULOZENI DO FLASH SELHALO -"
                                 + " po vypnuti senzoru bude kalibrace pryc.");
                 return false;
             }
-
-            // Palubni HSI uz nema co delat - vypnout, at nebezi zbytecne.
-            VypniHsi();
 
             Phase = MagCalPhase.Written;
             WrittenHardIronOnly = castecna;

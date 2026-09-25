@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -12,7 +13,9 @@ namespace ARBot.ViewModels
 {
     /// <summary>
     /// File → Export GPX: ulozi otevreny zaznam (rezim View) do GPX - stopa surovych GPS fixu
-    /// a stopa fuze (<see cref="GpxExport"/>). Cte se CELY zaznam vlastnim read-only streamem
+    /// a stopa fuze (<see cref="GpxExport"/>). Podnabidka (24. 9. 2026) voli, jak se obe stopy
+    /// oddeli: v jednom souboru, do dvou souboru (<c>-gps</c> / <c>-fuze</c>), jen GPS, jen fuze -
+    /// rada prohlizecu totiz ukaze jen prvni stopu souboru. Cte se CELY zaznam vlastnim read-only streamem
     /// (jako sken telemetrie), takze prehravani se to nedotkne a na pozici prehravani nezalezi.
     /// Vysledek jde do Trace (panel Debug output), ktery se po exportu otevre.
     /// </summary>
@@ -24,16 +27,38 @@ namespace ARBot.ViewModels
                                      && ARBotRuntime.Current?.RecordPath != null
                                      && ARBotRuntime.Current?.FileSource?.Index?.Count > 0;
 
+        /// <param name="mode"><c>both</c> (obe stopy v jednom souboru), <c>split</c> (dva soubory),
+        /// <c>gps</c> (jen GPS), <c>pose</c> (jen fuze); jine/null = <c>both</c>.</param>
         [RelayCommand(CanExecute = nameof(CanExportGpx))]
-        private async Task ExportGpx()
+        private async Task ExportGpx(string mode)
         {
             var runtime = ARBotRuntime.Current;
             string record = runtime?.RecordPath;
             var index = runtime?.FileSource?.Index;
             if (record == null || index == null) return;
 
-            string target = await PickGpxPathAsync(record);
+            string suffix = mode switch { "gps" => "-gps", "pose" => "-fuze", _ => "" };
+            string target = await PickGpxPathAsync(record, suffix);
             if (target == null) return;
+
+            // Dva soubory: zvoleny nazev je ZAKLAD, pripony -gps / -fuze se pridaji.
+            var ukoly = new List<(string Path, GpxTracks Tracks)>();
+            if (mode == "split")
+            {
+                string dir = Path.GetDirectoryName(target) ?? "";
+                string stem = Path.GetFileNameWithoutExtension(target);
+                ukoly.Add((Path.Combine(dir, stem + "-gps.gpx"), GpxTracks.GpsOnly));
+                ukoly.Add((Path.Combine(dir, stem + "-fuze.gpx"), GpxTracks.PoseOnly));
+            }
+            else
+            {
+                ukoly.Add((target, mode switch
+                {
+                    "gps" => GpxTracks.GpsOnly,
+                    "pose" => GpxTracks.PoseOnly,
+                    _ => GpxTracks.Both,
+                }));
+            }
 
             exportingGpx = true;
             ExportGpxCommand.NotifyCanExecuteChanged();
@@ -41,14 +66,22 @@ namespace ARBot.ViewModels
             {
                 string name = Path.GetFileNameWithoutExtension(record);
                 var catalog = ARBotRuntime.BuildCatalog();
-                var result = await Task.Run(() =>
+                var hlaseni = await Task.Run(() =>
                 {
-                    using var fs = new FileStream(record, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    var r = GpxExport.FromRecord(fs, index, catalog, name);
-                    File.WriteAllText(target, r.Gpx, new UTF8Encoding(false));
-                    return r;
+                    // Zaznam se projde JEDNOU i pro dva soubory.
+                    List<ARBot.Common.Logs.Message> zpravy;
+                    using (var fs = new FileStream(record, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        zpravy = GpxExport.ReadMessages(fs, index, catalog);
+                    var vysledky = new List<string>();
+                    foreach (var (path, tracks) in ukoly)
+                    {
+                        var r = GpxExport.Build(zpravy, name, new GpxExportOptions { Tracks = tracks });
+                        File.WriteAllText(path, r.Gpx, new UTF8Encoding(false));
+                        vysledky.Add($"{path} - {r.Summary()}");
+                    }
+                    return vysledky;
                 });
-                Trace.WriteLine($"Export GPX: {target} - {result.Summary()}");
+                foreach (var h in hlaseni) Trace.WriteLine($"Export GPX: {h}");
             }
             catch (Exception ex)
             {
@@ -62,8 +95,8 @@ namespace ARBot.ViewModels
             }
         }
 
-        /// <summary>Dialog ulozeni; nabidne <c>&lt;zaznam&gt;.gpx</c> vedle zaznamu. null = zruseno.</summary>
-        private static async Task<string> PickGpxPathAsync(string record)
+        /// <summary>Dialog ulozeni; nabidne <c>&lt;zaznam&gt;&lt;pripona&gt;.gpx</c> vedle zaznamu. null = zruseno.</summary>
+        private static async Task<string> PickGpxPathAsync(string record, string suffix = "")
         {
             try
             {
@@ -77,7 +110,7 @@ namespace ARBot.ViewModels
                 var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
                 {
                     Title = "Export GPX",
-                    SuggestedFileName = Path.GetFileNameWithoutExtension(record) + ".gpx",
+                    SuggestedFileName = Path.GetFileNameWithoutExtension(record) + suffix + ".gpx",
                     SuggestedStartLocation = start,
                     DefaultExtension = "gpx",
                     FileTypeChoices = new[] { new FilePickerFileType("GPX") { Patterns = new[] { "*.gpx" } } },

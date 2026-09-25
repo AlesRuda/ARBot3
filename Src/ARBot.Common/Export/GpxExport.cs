@@ -14,9 +14,29 @@ using ARBot.Common.Logs;
 
 namespace ARBot.Common.Export
 {
+    /// <summary>Ktere stopy jdou do souboru.</summary>
+    public enum GpxTracks
+    {
+        /// <summary>Obe stopy (GPS i fuze) v jednom souboru jako dve <c>&lt;trk&gt;</c>.</summary>
+        Both = 0,
+
+        /// <summary>Jen surove GPS fixy.</summary>
+        GpsOnly = 1,
+
+        /// <summary>Jen poza z fuze (EKF).</summary>
+        PoseOnly = 2,
+    }
+
     /// <summary>Nastaveni exportu do GPX.</summary>
     public sealed class GpxExportOptions
     {
+        /// <summary>
+        /// Ktere stopy zapsat (od 24. 9. 2026). Rada prohlizecu GPX ukaze jen prvni stopu souboru,
+        /// nebo obe slije do jedne cary - GPS a fuzi pak nejde porovnat. Proto jde zapsat jen jednu
+        /// a export „do dvou souboru" zavola <see cref="GpxExport.Build"/> dvakrat.
+        /// </summary>
+        public GpxTracks Tracks = GpxTracks.Both;
+
         /// <summary>Nejmensi odstup bodu stopy fuze [s] (0 = kazda zprava). Poza chodi rychleji,
         /// nez je v prohlizeci GPX potreba; 0,1 s = 10 Hz.</summary>
         public double PoseMinIntervalS = 0.1;
@@ -38,14 +58,23 @@ namespace ARBot.Common.Export
         public TimeSpan UtcOffset;
         /// <summary>Byl posun odvozen z GPS (true), nebo je to mistni zona tohoto PC (false)?</summary>
         public bool UtcOffsetFromGps;
+        /// <summary>Ktere stopy se zapisovaly.</summary>
+        public GpxTracks Tracks;
 
         public string Summary()
         {
             var sb = new StringBuilder();
-            sb.AppendFormat(CultureInfo.InvariantCulture, "GPS: {0} bodů v {1} úsecích", GpsPoints, GpsSegments);
-            if (GpsRejected > 0) sb.AppendFormat(CultureInfo.InvariantCulture, " (bez fixu vynecháno {0})", GpsRejected);
-            sb.Append(" · Fúze: ");
-            sb.Append(PoseNote ?? string.Format(CultureInfo.InvariantCulture, "{0} bodů v {1} úsecích", PosePoints, PoseSegments));
+            if (Tracks != GpxTracks.PoseOnly)
+            {
+                sb.AppendFormat(CultureInfo.InvariantCulture, "GPS: {0} bodů v {1} úsecích", GpsPoints, GpsSegments);
+                if (GpsRejected > 0) sb.AppendFormat(CultureInfo.InvariantCulture, " (bez fixu vynecháno {0})", GpsRejected);
+            }
+            if (Tracks == GpxTracks.Both) sb.Append(" · ");
+            if (Tracks != GpxTracks.GpsOnly)
+            {
+                sb.Append("Fúze: ");
+                sb.Append(PoseNote ?? string.Format(CultureInfo.InvariantCulture, "{0} bodů v {1} úsecích", PosePoints, PoseSegments));
+            }
             sb.AppendFormat(CultureInfo.InvariantCulture, " · čas UTC{0}{1:hh\\:mm} ({2})",
                             UtcOffset < TimeSpan.Zero ? "-" : "+", UtcOffset.Duration(),
                             UtcOffsetFromGps ? "posun z GPS" : "zóna tohoto PC - GPS čas nemá");
@@ -87,6 +116,22 @@ namespace ARBot.Common.Export
             if (index == null) throw new ArgumentNullException(nameof(index));
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
             return Build(Read(data, index, catalog.ToPrototypeMap(), progress, ct), trackName, options);
+        }
+
+        /// <summary>
+        /// Precte ze zaznamu jen zpravy, ktere export potrebuje (<see cref="MsgNames"/>), do pameti.
+        /// Pro export do vic souboru: zaznam se projde jednou a <see cref="Build"/> se zavola nad
+        /// seznamem pro kazdou stopu zvlast. Zpravy jsou male (GPS, poza, mapa), snimky se nectou.
+        /// </summary>
+        public static List<Message> ReadMessages(Stream data, IReadOnlyList<IndexEntry> index,
+                                                 MessageCatalog catalog,
+                                                 IProgress<double> progress = null,
+                                                 CancellationToken ct = default)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (index == null) throw new ArgumentNullException(nameof(index));
+            if (catalog == null) throw new ArgumentNullException(nameof(catalog));
+            return Read(data, index, catalog.ToPrototypeMap(), progress, ct).ToList();
         }
 
         private static IEnumerable<Message> Read(Stream data, IReadOnlyList<IndexEntry> index,
@@ -194,9 +239,11 @@ namespace ARBot.Common.Export
                 w.WriteElementString("name", ns, trackName ?? "ARBot");
                 w.WriteEndElement();
 
-                (result.GpsPoints, result.GpsSegments) = WriteTrack(w, ns, (trackName ?? "ARBot") + " GPS", gps, opt, result.UtcOffset);
-                if (posePts.Count > 0)
+                if (opt.Tracks != GpxTracks.PoseOnly)
+                    (result.GpsPoints, result.GpsSegments) = WriteTrack(w, ns, (trackName ?? "ARBot") + " GPS", gps, opt, result.UtcOffset);
+                if (opt.Tracks != GpxTracks.GpsOnly && posePts.Count > 0)
                     (result.PosePoints, result.PoseSegments) = WriteTrack(w, ns, (trackName ?? "ARBot") + " Fúze", posePts, opt, result.UtcOffset);
+                result.Tracks = opt.Tracks;
 
                 w.WriteEndElement();
                 w.WriteEndDocument();

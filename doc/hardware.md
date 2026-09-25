@@ -475,6 +475,35 @@ jde hláška, která rovnou říká, co s tím (fyzický replug). Ověřeno na r
 donekonečna**. Šedesátisekundový odstup, se kterým to bylo napsané, na to nestačil — u poruchy,
 kterou lék neřeší, byl pořád horší než porucha sama.
 
+### ⚠️ Levá D435 po restartu pipeline ZTICHLA úplně — jiná třída záseku (23. 9. 2026)
+
+`records/test/20260923-143515.rec` (mise Track, Modřany). Průběh podle `ARBot.Analyze log`:
+
+| čas | co |
+|---|---|
+| 14:38:44 | pravá D435: barva zamrzla → restart pipeline → 15× `QueryDevices selhalo: failed to set power state` |
+| 14:39:02–04 | supervizor: `StopHold`, recyklace kontextu, **obě kamery zpět** (14:39:16/17) |
+| 14:40:53 | **levá** D435: barva zamrzla → „restart pipeline (celkem 1x)" |
+| 14:40:53–14:45:58 | o levé kameře **ani řádka**, snímky z ní žádné (poslední po 338 s), pravá jede do konce |
+
+Na rozdíl od záseků 12.–18. 9. tu **vlákno kamery nehlásí nic**: ne neúspěšné dotazy (ty by po
+15 pokusech spustily supervizor, od posledního zotavení uběhlo 109 s, tedy nad limitem 60 s),
+ne připojení, ne chybu. Vlákno tedy **zatuhlo v nativním volání** RealSense (`pipeline.Stop`,
+`Dispose`, `QueryDevices` nebo `Start`) — které to bylo, se ze záznamu zjistit nedá. T265 přitom
+logovala dál ~45×/min, sdílený zámek dotazů tedy volný byl.
+
+**Podezřelé místo v kódu:** hlídka zamrzlého streamu volala `Teardown()` **uvnitř
+`using (frames)`**, tedy zastavovala pipeline, zatímco vlákno drželo její neuvolněný frameset.
+Všechny ostatní cesty (timeout, výjimka) bourají až po uvolnění. Stejná cesta 13. 9. doběhla, takže
+to deterministické není — **je to podezření, ne dokázaná příčina.** Od 24. 9. 2026 se bourá až po
+uvolnění framesetu a nativní volání hlídá `NativeCallWatch` (limit `hangwatch=`, 20 s): při
+zatuhnutí zapíše do `Trace`, **ve kterém volání** vlákno visí, a runtime pořídí minidump
+(`logs/hang-kamera-*.dmp`). Neléčí to: zatuhlé nativní volání nejde přerušit a recyklovat kontext
+pod ním by byl nativní pád; kamera zůstane mrtvá do restartu procesu. **Autor 24. 9. rozhodl, že
+se to tak má nechat** — restart služby by přerušil misi, robot jede dál s jednou kamerou (viz
+[decisions.md](decisions.md), 24. 9. 2026). Registr:
+`hw-d435-vlakno-zatuhlo-po-restartu`. ⚠️ **Na zařízení neběželo.**
+
 ### Sériové porty na Orange Pi
 
 Na Pi **nejede žádný onboard UART** — všechny tři sériové periferie visí na USB.

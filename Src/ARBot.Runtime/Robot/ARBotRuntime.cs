@@ -177,6 +177,12 @@ namespace ARBot.Robot
                 ? HangWatchdog.Guard("Start(Run)", ParamRegistry.HangWatch.Value)
                 : null;
 
+            // Hlidac NATIVNICH volani RealSense v driverech kamer (24. 9. 2026): leva D435
+            // v 20260923-143515.rec po restartu pipeline zatuhla a uz nikdy nic nehlasila. Limit je
+            // tyz hangwatch= (0 = vypnuto), dump poridi HangWatchdog - driver runtime nevidi.
+            ARBot.HAL.Devices.Camera.NativeCallWatch.LimitSec = ParamRegistry.HangWatch.Value;
+            ARBot.HAL.Devices.Camera.NativeCallWatch.OnHang = co => HangWatchdog.DumpNow("kamera-" + co);
+
             lock (gate)
             {
                 if (running) Stop();
@@ -735,6 +741,14 @@ namespace ARBot.Robot
                                     + $"(vychozi {corridorCfg.Corridor.MinInliers}).");
                     corridorCfg.Corridor.MinInliers = minInliers;
                 }
+
+                // Merenie z JEDNE hrany (corridorsingle= / corridorsinglewidthstd=): na siroke
+                // ceste oboustranny koridor nevznika (Modrany 23. 9. 2026: ani jedno merenie).
+                corridorCfg.Corridor.SingleEdge = ParamRegistry.CorridorSingle.Value;
+                corridorCfg.SingleEdgeWidthStdM = ParamRegistry.CorridorSingleWidthStd.Value;
+                if (!corridorCfg.Corridor.SingleEdge)
+                    Trace.WriteLine("corridorsingle=false: koridor meri jen z OBOU hran "
+                                    + "(chovani do 24. 9. 2026).");
 
                 var corridor = new ARBot.Common.Localization.CorridorLocalizer(
                     engine, RoadNetwork, fusionConfig.GeoReference, corridorCfg);

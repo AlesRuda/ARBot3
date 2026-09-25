@@ -278,6 +278,17 @@ namespace ARBot.Common.Configuration
                : ParamParseResult.Invalid("cekam pocet inlieru: cele cislo 3 az 500 "
                                           + "(vychozi 25; dve primku prolozi vzdy, proto ne min nez 3)");
 
+        /// <summary>
+        /// Nejistota mapove sirky pro pricnou polohu z jedne hrany [m]: 0 az 5. Nula je povolena
+        /// (verit mapove sirce presne), ale je to vedome rozhodnuti - u cest bez tagu width je
+        /// mapova sirka jen roadwidth=.
+        /// </summary>
+        public static ParamParseResult CorridorSingleWidthStd(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 5 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam nejistotu sirky v metrech: 0 az 5 (vychozi 1)");
+
         /// <summary>Snimkove frekvence, ktere D435 zna (jina pipeline vubec nenastartuje).</summary>
         public static readonly int[] CameraFpsHodnoty = { 6, 15, 30, 60 };
 

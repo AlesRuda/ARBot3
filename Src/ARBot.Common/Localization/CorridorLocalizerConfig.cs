@@ -82,6 +82,29 @@ namespace ARBot.Common.Localization
         /// <summary>Nastaveni odhadu sirky cest (okno, minimum vzorku, strop rozptylu).</summary>
         public RoadWidthEstimatorConfig WidthEstimator = new RoadWidthEstimatorConfig();
 
+        /// <summary>
+        /// <b>Nejistota MAPOVE sirky</b> (1 sigma) [m] pro pricnou polohu z JEDNE hrany
+        /// (<see cref="CorridorConfig.SingleEdge"/>), kdyz sirka te cesty jeste neni naucena
+        /// z oboustrannych merení (<see cref="RoadWidthEstimator.TryGetWidth"/>). Parametr
+        /// <c>corridorsinglewidthstd=</c>.
+        ///
+        /// <para>Do pricne polohy jde <b>polovinou</b>: <c>sigma = sqrt(sigma_hrany² + (tohle/2)²)</c>,
+        /// takze vychozi 1 m da sigmu aspon 0,5 m. Mapova sirka je u cest bez tagu <c>width</c>
+        /// jen <c>roadwidth=</c> (3 m) - v Modranech 23. 9. 2026 pri skutecne ~5 m ceste. ⚠️ Je to
+        /// ale <b>bias, ne sum</b>: sigma ho neodstrani, jen mu ubere autoritu; poloha se ustali
+        /// posunuta o polovinu chyby sirky. Kurz z jedne hrany na sirce nezavisi.</para>
+        ///
+        /// <para>S <b>naucenou</b> sirkou se misto tehle hodnoty bere rozptyl odhadu (MAD) s podlahou
+        /// <see cref="SingleEdgeLearnedWidthStdFloorM"/>.</para>
+        /// </summary>
+        public double SingleEdgeWidthStdM = 1.0;
+
+        /// <summary>
+        /// Podlaha nejistoty NAUCENE sirky [m] pro pricnou polohu z jedne hrany. Rozptyl okna
+        /// (MAD) muze vyjit skoro nula, pritom sirka je median jen par desitek merení.
+        /// </summary>
+        public double SingleEdgeLearnedWidthStdFloorM = 0.1;
+
         /// <summary>Nad timto odstupem pozy od hrany se hrana nebere za „tu, po ktere jedeme" [m].</summary>
         public double MaxEdgeDistanceM = 8.0;
 

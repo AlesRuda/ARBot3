@@ -76,6 +76,9 @@ namespace ARBot.Analyze
                             T = Sec(i.TimeStamp, ref t0),
                             Yaw = ypr.Yaw,
                             GyroZ = i.AngularVelocity?.Z,
+                            GyroRaw = i.AngularVelocityRaw,
+                            Gyro = i.AngularVelocity,
+                            Temp = i.Temperature,
                             Unc = i.OrientationUncertainty,
                             Mag = i.Magnetometer,
                             Acc = i.Acceleration,
@@ -114,6 +117,59 @@ namespace ARBot.Analyze
             StandingDrift(s, field, speed);
             MotorInterference(s, motor);
             CameraInterference(rec, s, t0, camWinSec, camDeadSec);
+            FilterGyroBias(s, motor);
+        }
+
+        /// <summary>
+        /// Blok 6 — <b>odhad biasu gyra z filtru VN</b> (<c>Gyro − UncompGyro</c>) a teplota, po
+        /// minutach. Od <c>IMUState</c> verze 5 (24. 9. 2026).
+        ///
+        /// <para><b>Nacpak:</b> 23. 9. 2026 ujel kurz VN100 o ~1 °/s spolu s nahravanym gyrem
+        /// (<c>Gyro</c> je kompenzovane odhadem biasu z VPE) a nebylo poznat, jestli je to gyro,
+        /// nebo filtr. Tady je to videt primo: kdyz roste rozdil, dela to filtr; kdyz roste surove
+        /// gyro ve stani, dela to senzor (a pak je zajimava teplota).</para>
+        /// </summary>
+        private static void FilterGyroBias(List<Sample> s, List<(double T, double Amp)> motor)
+        {
+            Console.WriteLine();
+            Console.WriteLine("6) ODHAD BIASU GYRA Z FILTRU VN (Gyro - UncompGyro) A TEPLOTA:");
+            var raw = s.Where(x => x.GyroRaw.HasValue && x.Gyro.HasValue).ToList();
+            if (raw.Count < 100)
+            {
+                Console.WriteLine("  Zaznam UncompGyro nenese (IMUState verze < 5, pred 24. 9. 2026) - nelze.");
+                return;
+            }
+            const double D = 180.0 / Math.PI * 3600.0;   // rad/s -> deg/h
+            bool shodne = raw.All(x => x.GyroRaw.Value == x.Gyro.Value);
+            if (shodne)
+                Console.WriteLine("  ⚠️ Gyro a UncompGyro jsou BIT PO BITU SHODNE - vystup UncompGyro "
+                                  + "tedy NENI bez biasu (jako UncompMag 12. 9. 2026).");
+
+            // Stani = proud motoru pod 0,5 A (stejne jako blok 4).
+            bool Stoji(double t)
+            {
+                if (motor.Count == 0) return false;
+                int lo = 0, hi = motor.Count - 1;
+                while (lo < hi) { int m = (lo + hi) / 2; if (motor[m].T < t) lo = m + 1; else hi = m; }
+                return Math.Abs(motor[lo].T - t) < 0.5 && motor[lo].Amp < 0.5;
+            }
+
+            Console.WriteLine("    minuta      n   bias filtru Z [deg/h]   syrove gyro Z ve stani [deg/h]  (n)   teplota [C]");
+            double t0 = raw[0].T;
+            foreach (var g in raw.GroupBy(x => (int)((x.T - t0) / 60)).OrderBy(g => g.Key))
+            {
+                var bias = g.Select(x => (double)(x.Gyro.Value.Z - x.GyroRaw.Value.Z) * D).ToList();
+                var stani = g.Where(x => Stoji(x.T)).Select(x => (double)x.GyroRaw.Value.Z * D).ToList();
+                var tep = g.Where(x => x.Temp.HasValue).Select(x => x.Temp.Value).ToList();
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4}-{1,4} s {2,6}   {3,12:F1}           {4,12}              {5,5}   {6,8}",
+                    g.Key * 60, g.Key * 60 + 60, bias.Count, bias.Average(),
+                    stani.Count > 0 ? stani.Average().ToString("F1", CultureInfo.InvariantCulture) : "-",
+                    stani.Count,
+                    tep.Count > 0 ? tep.Average().ToString("F2", CultureInfo.InvariantCulture) : "-"));
+            }
+            Console.WriteLine("  Bias filtru = co VPE od gyra odecita (znamenko: Gyro = UncompGyro + bias).");
+            Console.WriteLine("  Kdyz se meni bias filtru a syrove gyro ve stani stoji, ujizdi FILTR, ne senzor.");
         }
 
         /// <summary>Blok 1 — co senzor tvrdi o vlastni presnosti (YprU).</summary>
@@ -760,6 +816,8 @@ namespace ARBot.Analyze
             public double T;
             public double Yaw;
             public float? GyroZ;
+            public Vector3? Gyro, GyroRaw;
+            public double? Temp;
             public Vector3? Unc;
             public Vector3? Mag;
             public Vector3? Acc;

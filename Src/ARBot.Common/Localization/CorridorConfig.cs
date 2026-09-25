@@ -212,5 +212,26 @@ namespace ARBot.Common.Localization
 
         /// <summary>Dolni hranice sigma smeru [rad].</summary>
         public double SigmaFloorRad = 0.5 * Math.PI / 180;
+
+        /// <summary>
+        /// <b>Merenie z JEDNE hrany</b>, kdyz oboustranny koridor nevznikne (od 24. 9. 2026,
+        /// parametr <c>corridorsingle=</c>). Pouzije se jen tehdy, kdyz se spolehlive prolozi
+        /// PRAVE JEDNA strana — druha chybi, nebo nema dost inlieru. Kdyz se prolozi obe a jen
+        /// nesedi na sebe (<see cref="CorridorReason.NotParallel"/>,
+        /// <see cref="CorridorReason.WidthOutOfRange"/>), jedna z nich je spatne a nevime ktera,
+        /// takze z toho nevznikne nic.
+        ///
+        /// <para>Nad zaznamy z 23. 9. 2026 (siroka cyklostezka) nedal oboustranny koridor ani
+        /// jedno merenie, pritom jedna strana mela v Track medián 55 inlieru. <c>false</c> vraci
+        /// chovani do 24. 9. 2026.</para>
+        /// </summary>
+        public bool SingleEdge = true;
+
+        /// <summary>
+        /// Nejmensi pocet inlieru JEDINE hrany. Stejny vyznam jako <see cref="MinInliers"/>
+        /// (proti primkam prolozenym par body, ktere vyjdou kolmo na cestu) a zatim i stejna
+        /// hodnota — zvlast je proto, aby slo jednu hranu zprisnit bez vlivu na oboustranny koridor.
+        /// </summary>
+        public int SingleEdgeMinInliers = 25;
     }
 }

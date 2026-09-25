@@ -3680,3 +3680,86 @@ se spolkne a další snímek už se porovnává s pózou po skoku. Vedeno jako `
 **neopravuje se tu** — s limitem kroku detektor chránit nemusí (pomalu dotahovaná póza se z gridu
 vypere sama, jako dnes centimetrové korekce), a oprava by musela nejdřív změřit, kolik snímků
 chodí s `dt ≤ 0`, aby nevyrobila bezdůvodná mazání.
+
+
+## Měření z JEDNÉ hrany (`corridorsingle=`, 24. 9. 2026)
+
+**Proč.** Na široké cyklostezce v Modřanech (`records/test/20260923-*.rec`, `OSM/modrany2.osm`)
+nedal oboustranný koridor ze čtyř záznamů **ani jedno** přijaté měření: proložil se v 0,1–0,2 %
+cyklů, protože vzdálenější hranici kamera vidí řídce (21–25 inlierů proti prahu 25, v Tracku
+vpravo 10). Track se tak neměl podle čeho korigovat a FreeRun jel po ujíždějícím kurzu VN100
+(`lok-freerun-kurz-staci-na-zapad`). Registr: `lok-koridor-siroka-cyklostezka`.
+
+**Co jedna hrana nese.** Přímku v rámci robotu: směr `d` a znaménkový odstup `c` podél její levé
+normály (`RoadCorridor.SingleSide`, `EdgeOffset`, `EdgeSigma`).
+- **Kurz** se počítá stejně jako z oboustranného koridoru (`θ = θ_hrany_mapy − d`, smysl podle
+  kurzu robotu) a **na šířce nezávisí** — předpoklad je jen, že hrana je rovnoběžná s osou cesty.
+- **Příčná poloha** šířku potřebuje: levá `lateral = W/2 − c`, pravá `lateral = −c − W/2`. Chyba
+  šířky jde do polohy **polovinou**. Šířka je **naučená** z oboustranných měření
+  (`RoadWidthEstimator.TryGetWidth`, nejistota = MAD s podlahou 0,1 m), jinak **mapová**
+  s nejistotou `corridorsinglewidthstd=` (výchozí 1 m), takže σ příčné polohy je aspoň 0,5 m
+  (rozhodnutí autora 24. 9. 2026). ⚠️ Chyba mapové šířky je **bias, ne šum** — σ mu jen ubere
+  autoritu, poloha se ustálí posunutá o polovinu chyby šířky (v Modřanech mapa 3 m bez tagu).
+- **Šířka z jedné hrany nevzniká** a odhad šířky se z ní **neučí**; šířková brána neplatí.
+
+**Kdy vznikne** (`CorridorFinder.TrySingleEdge`): jen když spolehlivě (`SingleEdgeMinInliers`,
+25) projde **právě jedna** strana a druhá chybí nebo je pod `MinInliers`. Dvě silné strany, které
+na sebe nesedí (`NotParallel`, `WidthOutOfRange`), nedají nic — jedna z nich je špatně a nevíme
+která. `RoadCorridor.Reason` zůstává důvod oboustranného selhání, takže **FreeRun**
+(`CorridorSource.Result.Ok`) jednu hranu nevidí vůbec. Jedna hrana vzniká i z **osamoceného
+snímku** (druhá kamera mimo párovací okno — zamrznutí barvy), kde dřív byl jen `NoPair`.
+
+**Pojistky:** hrana musí ležet na své straně robotu (tolerance `MaxOutsideCorridorM`), přiřazení
+k hraně sítě (`EdgeAssociator`) počítá příčnou polohu **pro každého kandidáta s jeho šířkou**
+a σ zahrnuje nejistotu šířky, a robot musí ležet na cestě
+(`|lateral| ≤ W/2 + MaxOutsideCorridorM + σ_W`, jinak `OutsideCorridor`).
+
+ARBot2 (`PathEdgeFinder` + `State.cs`) jednu hranu používal taky: příčnou polohu ale posílal
+**jen s naučenou šířkou** (≥ 3 vzorky, rozptyl < 0,1) a se slabším ziskem (0,04 proti 0,1)
+a korekci kurzu z hran měl vypnutou (`angleDiff = 0 * angleDiff`).
+
+**Změřeno nad záznamy z 23. 9.** (`ARBot.Analyze singleedge --map=OSM/modrany2.osm`, přehrání
+snímků dnešním `CorridorFinder`em bez kompenzace pohybu, kurz z hrany proti GPS kurzu):
+
+| záznam | oboustranný | jedna hrana (L / P) | hrana − GPS kurz p50 | robustní sd | odhad fúze − GPS p50 |
+|---|---|---|---|---|---|
+| Track 143515 | 0,1 % | 29,8 / 18,9 % | −1,3° | 3,3° | −2,1° |
+| Track 144635 | 0,2 % | 34,8 / 44,9 % | +0,1° | 2,4° | −0,9° |
+| FreeRun 144934 | 0,2 % | 54,6 / 24,5 % | +0,2° | 3,3° | **+13,2°** (až 31° a dál) |
+| FreeRun 145648 | 0,2 % | 50,5 / 22,0 % | +1,2° | 4,9° | **+28,9°** |
+
+Ve FreeRun drží kurz z hrany po koších 0–5° od GPS kurzu, zatímco odhad fúze ujíždí na 31°
+(144934, 240 s) — jedna hrana by drift chytila. Robustní sd zahrnuje i šum GPS kurzu (1–3°).
+⚠️ Chyba azimutu OSM hrany jde do kurzu 1:1. ⚠️ **Na zařízení neběželo**; příčná poloha z mapové
+šířky ověřená není (pravda o šířce cyklostezky chybí). `RoadCorridorMsg` je **verze 7**
+(`SingleSide`, `EdgeOffset`, `EdgeSigma`, `SingleLateral`, `SingleSigmaLateral`, `SingleWidthStd`);
+`ARBot.Analyze corridor` počítá jednu hranu zvlášť, aby statistikám šířky nevnutila nuly.
+
+### Nižší práh inlierů pro OBOUSTRANNÝ koridor — změřeno (24. 9. 2026)
+
+`ARBot.Analyze singleedge --sweep=25,20,15,12,10,8,6` přehraje tytéž dvojice snímků s různým
+`MinInliers` (jedna hrana vypnutá) a u přijatých koridorů měří **kvalitu**: šířku (na téže cestě
+má být stejná, robustní sd = měřítko nesmyslu), nerovnoběžnost a kurz koridoru proti GPS kurzu.
+Jeden běh na práh (RANSAC je nedeterministický), bez kompenzace pohybu.
+
+| záznam | Ok při 25 | 15 | 12 | 10 | šířka p50 (≤ 15) | rsd šířky | kurz − GPS rsd |
+|---|---|---|---|---|---|---|---|
+| Track 143515 | 0,2 % | 1,6 % | 2,1 % | 3,1 % | 5,0–5,1 m | 1,0–1,4 m | 2,4–3,3° |
+| Track 144635 | 0,2 % | 10,7 % | 19,4 % | 30,0 % | 5,04–5,09 m | 0,22–0,29 m | 1,4–3,0° |
+| FreeRun 144934 | 0,2 % | 9,4 % | 17,0 % | 19,6 % | 4,85–4,87 m | 0,17–0,21 m | 2,1–2,6° |
+| FreeRun 145648 | 0,3 % | 6,4 % | 11,3 % | 15,2 % | 5,21–5,29 m | 0,35–0,38 m | (odhad ujel, málo párů) |
+| Hviezdoslavova 18. 9. | 24,3 % | 28,6 % | 29,9 % | 30,8 % | 3,24–3,25 m | 0,27 m | 2,7° |
+
+- **Při prahu 25 a 20 je v Modřanech to málo, co projde, NESMYSL**: šířka p50 1,2–1,9 m (proti
+  ~5 m). Snížením prahu se nesmysl nerozmnoží, ale **rozředí** — od 15 dolů je šířka soustředěná
+  kolem 4,9–5,3 m.
+- **Cyklostezka je široká ~5 m** (4,85–5,3 m), mapa `modrany2.osm` bez tagu `width` tedy
+  počítá o 2 m méně. S nižším prahem by se šířka naučila a jedna hrana by pak brala tu naučenou.
+- **Na Hviezdoslavově nižší práh nic nezhorší** (šířka i kurz beze změny, Ok +5,6 p. b. při 12).
+- Pod 10 roste `NotParallel` (tu práci převezme brána nerovnoběžnosti) a u 144635 začne růst
+  i rozptyl šířky a kurzu (8: 0,37 m / 3,2°).
+- Track 143515 má i při nízkém prahu ~10 % úzkých „koridorů" (p10 0,6–1,1 m) — neobjasněno;
+  šířkový odhad (medián + MAD) a šířková brána by je měly odfiltrovat.
+
+Závěr: **práh 12–15 je bezpečný** a v Modřanech dá 6–19 % oboustranných koridorů místo 0,2 %.
+Zatím nezměněno (`corridormininliers=`, výchozí 25) — čeká na rozhodnutí autora.

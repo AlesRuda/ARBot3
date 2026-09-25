@@ -123,6 +123,12 @@ sudo cp ~/arbot-headless/arbot.service /etc/systemd/system/ && sudo systemctl da
 Stránka: `http://<ip>:8080/` — stav, snímek kamery, půdorys, výběr mise, zastavení.
 Adresy robota: AP `arbot` → `192.168.7.1`, kabel napřímo → `192.168.66.1`.
 
+**Vypnutí z PC: `deploy\poweroff.bat`** (volitelně adresa, výchozí `192.168.66.1`). Nejdřív
+`systemctl stop arbot` (uzavře záznam, zastaví motory) a teprve pak `sudo /sbin/poweroff` —
+tentýž postup jako tlačítko *Power off* na stránce. Když selže první krok (spojení nebo sudo),
+nevypíná se nic; návratový kód 255 u druhého kroku je úspěch (vypnutí přeruší spojení).
+Obojí jede přes `sudo -n`, takže při požadavku na heslo skončí chybou místo čekání.
+
 ## Diagnostika VN100 (`vnprobe.sh`)
 
 Read-only výpis registrů IMU z živého senzoru — pro porovnání s referenčním exportem

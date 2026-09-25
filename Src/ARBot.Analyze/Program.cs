@@ -186,6 +186,11 @@ namespace ARBot.Analyze
                                        Arg(args, "--straight", 10.0), Arg(args, "--rozvor", 0.35),
                                        (int)Arg(args, "--depth", 0));
                         return 0;
+                    case "singleedge":
+                        SingleEdgeReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
+                                             Arg(args, "--bin", 30), Arg(args, "--maxskew", 400),
+                                             Text(args, "--sweep"));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -256,6 +261,9 @@ namespace ARBot.Analyze
             Console.WriteLine("  sigma      je sigma korelace s mapou poctiva? hlasena nejistota proti");
             Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved) +");
             Console.WriteLine("             casova korelace mezi cykly (kolik merenii je nezavislych)");
+            Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
+            Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
+            Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");
             Console.WriteLine("  corrections co korekce z lokalizace SKUTECNE delaji, kdyz se pusti naostro:");
             Console.WriteLine("             velikost aplikovaneho kroku pozy (PoseJumpDetector), rozdeleni");
             Console.WriteLine("             NIS a gatingu podle zdroje, a chyba pozy proti ground truth");

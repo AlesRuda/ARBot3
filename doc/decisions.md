@@ -13,6 +13,26 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-24 — Zatuhlé vlákno kamery: jen zapsat důkaz, NEléčit restartem služby
+
+**Co:** Když `NativeCallWatch` zjistí, že vlákno kamery visí v nativním volání RealSense (limit
+`hangwatch=`, 20 s), zapíše do `Trace`, ve kterém volání, a pořídí minidump — a **víc nedělá**.
+Robot jede dál bez té kamery; kamera se vrátí až při dalším restartu služby (ručním nebo z jiné
+příčiny). Rozhodnutí autora.
+
+**Proč:** Zatuhlé nativní volání .NET přerušit neumí a recyklovat sdílený kontext pod ním by byl
+nativní pád, takže jediná skutečná léčba je restart procesu — a ten **přeruší běžící misi**
+(Robotour i Track po restartu začínají znovu). Jízda s jednou kamerou je menší zlo; supervizor
+se stejnou úvahou už dnes „vzdává" kameru, která si žádá zotavení příliš často. Navíc příčina
+není dokázaná (`hw-d435-vlakno-zatuhlo-po-restartu`) a první je potřeba minidump.
+
+**Důsledky:** Po zatuhnutí je kamera mrtvá do restartu; v záznamu i journalu je řádek
+`NativeCallWatch: '… pipeline.Stop' se nevratilo…` a v `logs/hang-kamera-*.dmp` zásobníky.
+Kdyby se zatuhnutí opakovalo, rozhodnutí se má přehodnotit (např. restart služby jen mimo misi).
+
+**Odkazy:** [hardware.md](hardware.md) (sekce z 23. 9. 2026),
+`Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs`, `Src/ARBot.Runtime/HangWatchdog.cs`.
+
 ### 2026-09-21 — Skoky pózy: limit kroku UVNITŘ filtru nafouknutím R, ne ořez inovace, ne σ, ne `PoseSlew`
 
 **Co:** Korekce z koridoru dostává **rychlostní limit** (`corridorslew=` m/s, `corridorheadingslew=`

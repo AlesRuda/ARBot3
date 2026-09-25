@@ -12,7 +12,7 @@
 #
 # POUZITI (sluzba musi byt zastavena, jinak port drzi ona):
 #   sudo systemctl stop arbot
-#   ./vnrestore.sh /dev/ttyUSB0            # jen heading mode -> Absolute
+#   ./vnrestore.sh /dev/ttyUSB0            # heading mode -> Absolute, palubni HSI -> Off
 #   ./vnrestore.sh /dev/ttyUSB0 --mag      # navic obnovi kalibraci magnetometru z exportu
 #   ./vnrestore.sh /dev/ttyUSB0 --clearmag # navic VYMAZE kalibraci magnetometru (jednotkova)
 #   ./vnrestore.sh /dev/ttyUSB0 --magcal 1.12,0.007,...  # navic zapise ZADANOU kalibraci
@@ -79,9 +79,9 @@ cks() { local s="$1" c=0 i n; for ((i=0;i<${#s};i++)); do printf -v n '%d' "'${s
 send() { local body="$1"; printf '$%s*%s\r\n' "$body" "$(cks "$body")" > "$DEV"; sleep "${2:-0.4}"; }
 
 echo "=== PRED zapisem ==="
-send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,08"
+send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,44"; send "VNRRG,08"
 sleep 0.3
-grep -ao "\$VN[A-Z]\{3\},\(35\|23\|08\)[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u || echo "  (zadna ASCII odpoved - senzor mlci nebo je v binarnim rezimu)"
+grep -ao "\$VN[A-Z]\{3\},\(35\|23\|44\|08\)[^*]*\*[0-9A-Fa-f]\{2\}" "$OUT" | sort -u || echo "  (zadna ASCII odpoved - senzor mlci nebo je v binarnim rezimu)"
 
 MARK=$(stat -c %s "$OUT")
 
@@ -97,6 +97,7 @@ echo
 echo "=== CO SE ZAPISE ==="
 echo "  port:        $DEV"
 echo "  registr 35:  1,0,1,1  (heading mode ABSOLUTE)"
+echo "  registr 44:  0,1,5    (palubni HSI VYPNUTA, jako v exportu)"
 case "$MAG" in
     --mag)      echo "  registr 23:  kalibrace magnetometru z exportu ARBot2 (rok stara!)" ;;
     --clearmag) echo "  registr 23:  VYMAZANI kalibrace (jednotkova matice, nulovy bias)" ;;
@@ -128,6 +129,12 @@ fi
 # Reg 35 VPE Basic Control: Enable=1, HeadingMode=0 (Absolute), FilteringMode=1, TuningMode=1.
 send "VNWRG,35,1,0,1,1"
 
+# Reg 44 Magnetometer Calibration Control: HSIMode=0 (Off), HSIOutput=1 (NoOnboard), rate 5 -
+# stav z exportu. Pridano 25. 9. 2026: mise magcal do te doby ukladala do flash (VNWNV)
+# DRIV, nez HSI vypnula, takze senzor od kalibrace 17. 9. startoval s bezici palubni HSI
+# ($VNRRG,44,1,1,5). TN002 kap. 5.2 to vede mezi pricinami ujizdejiciho kurzu.
+send "VNWRG,44,0,1,5"
+
 if [ "$MAG" = "--mag" ]; then
     # Reg 23 Magnetometer Compensation z exportu vn100-2026-7-8-nastavei z arbot2.sencfg:
     #   C = [(1.222; 0.005; 0.01)(0.002; 1.175; -0.012)(-0.004; -0.017; 1.081)]
@@ -147,7 +154,7 @@ fi
 send "VNWNV" 3.0
 
 echo "=== PO zapisu (zpetne cteni) ==="
-send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,08"; send "VNRRG,27"
+send "VNRRG,35"; send "VNRRG,23"; send "VNRRG,44"; send "VNRRG,08"; send "VNRRG,27"
 sleep 0.5
 
 kill $CATPID 2>/dev/null || true
@@ -155,4 +162,4 @@ wait $CATPID 2>/dev/null || true
 
 tail -c +"$MARK" "$OUT" | grep -ao "\$VN[A-Z]\{3\}[^*]*\*[0-9A-Fa-f]\{2\}" | sort -u || echo "  (zadna ASCII odpoved po zapisu)"
 echo
-echo "Heading mode ma byt 35,1,0,1,1. Skutecny test trvalosti je az vypnuti a zapnuti robota."
+echo "Heading mode ma byt 35,1,0,1,1 a HSI 44,0,1,5. Skutecny test trvalosti je az vypnuti a zapnuti robota."

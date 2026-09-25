@@ -49,6 +49,22 @@ namespace ARBot.Common.Models
         /// </summary>
         public Vector3? MagnetometerRaw;
         /// <summary>
+        /// Uhlova rychlost rad/s [BODY frame] <b>BEZ dynamickeho odhadu biasu</b> z filtru senzoru
+        /// (VN100 <c>UncompGyro</c>: jen tovarni a uzivatelska kalibrace). <c>null</c> u zdroju,
+        /// ktere ho neposilaji, a u zaznamu starsich nez format 5.
+        ///
+        /// <para><b>Nacpak (24. 9. 2026).</b> <see cref="AngularVelocity"/> z VN100 je
+        /// kompenzovane odhadem biasu z palubniho filtru (VPE). 23. 9. 2026 ujel kurz o ~1 °/s a ze
+        /// zaznamu nebylo poznat, jestli je to gyro, nebo chybny odhad biasu ve filtru. Rozdil
+        /// <c>AngularVelocity − AngularVelocityRaw</c> je prave ten odhad.</para>
+        /// </summary>
+        public Vector3? AngularVelocityRaw;
+        /// <summary>
+        /// Teplota senzoru [°C]; <c>null</c> = zdroj ji neposila (T265, virtualni IMU, format &lt; 5).
+        /// Bias gyra na teplote zavisi - bez ni se drift biasu neda vysvetlit.
+        /// </summary>
+        public double? Temperature;
+        /// <summary>
         /// Akcelerace v m/s^2 [BODY frame]. Surove mereni akcelerometru (vc. gravitace).
         /// </summary>
         public Vector3? Acceleration ;
@@ -126,8 +142,10 @@ namespace ARBot.Common.Models
         /// jako <c>true</c> — presne to totiz o svych zdrojich predpokladal kod do 6. 9. 2026.
         /// <b>4</b> = pribyl <see cref="MagnetometerRaw"/>; verze 1-3 ho nenesou a ctou se jako
         /// <c>null</c> (starsi zaznamy nekompenzovane pole opravdu neobsahuji).
+        /// <b>5</b> = pribyly <see cref="AngularVelocityRaw"/> a <see cref="Temperature"/> (24. 9. 2026);
+        /// starsi verze je nenesou a ctou se jako <c>null</c>.
         /// </summary>
-        public const int FormatVersion = 4;
+        public const int FormatVersion = 5;
 
         /// <summary>
         /// Konstruktor
@@ -170,6 +188,8 @@ namespace ARBot.Common.Models
             v.Velocity = Velocity;
             v.Magnetometer = Magnetometer;
             v.MagnetometerRaw = MagnetometerRaw;   // bez nej by se kalibrace prokladala z niceho
+            v.AngularVelocityRaw = AngularVelocityRaw;
+            v.Temperature = Temperature;
             v.OrientationUncertainty = OrientationUncertainty;
             v.Name = Name;              // puvodce mereni se klonovanim nesmi ztratit
             v.HasAbsoluteHeading = HasAbsoluteHeading;   // jinak by se relativni yaw stal absolutnim
@@ -356,6 +376,8 @@ namespace ARBot.Common.Models
             // Verze 4 se pripisuje na KONEC zamerne: pridani doprostred by posunulo vsechna
             // nasledujici pole a starsi zaznamy uz by se necetly.
             Write(bw, MagnetometerRaw);       // verze 4
+            Write(bw, AngularVelocityRaw);    // verze 5
+            Write(bw, Temperature);
         }
 
         /// <inheritdoc/>
@@ -385,6 +407,18 @@ namespace ARBot.Common.Models
             // driver ho tehdy ze senzoru vubec nevycital. Offline prolozeni kalibrace nad takovym
             // zaznamem tedy musi spadnout na kompenzovane pole a rict to (viz MagCalReport).
             MagnetometerRaw = Verze >= 4 ? ReadNullableVector3(br) : null;
+
+            // Verze 1-4 gyro bez biasu ani teplotu nenesou - driver je tehdy nevycital.
+            if (Verze >= 5)
+            {
+                AngularVelocityRaw = ReadNullableVector3(br);
+                Temperature = ReadDouble(br);
+            }
+            else
+            {
+                AngularVelocityRaw = null;
+                Temperature = null;
+            }
         }
     }
 }

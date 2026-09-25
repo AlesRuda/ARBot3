@@ -53,12 +53,14 @@ namespace ARBot.Common.Localization
                 r.Reason = CorridorReason.TooFewPoints;
                 return r;
             }
-            if (r.PointsLeft < cfg.MinPoints || r.PointsRight < cfg.MinPoints)
+            bool oneSide = r.PointsLeft < cfg.MinPoints || r.PointsRight < cfg.MinPoints;
+            if (oneSide && !cfg.SingleEdge)
             {
                 r.Reason = CorridorReason.OneSideOnly;
                 return r;
             }
 
+            // Pri jedne strane se prokládá jen ta, ktera ma body (Fit na malo bodech vrati null).
             var left = Fit(leftPoints);
             var right = Fit(rightPoints);
             r.InliersLeft = left.inliers; r.InliersRight = right.inliers;
@@ -70,24 +72,28 @@ namespace ARBot.Common.Localization
                 r.HasLeftLine = true; r.LeftFrom = left.from; r.LeftTo = left.to;
                 r.DirectionLeftRad = Normalize(left.line.Angle);
             }
-            else
-            {
-
-            }
             if (right.line != null)
             {
                 r.HasRightLine = true; r.RightFrom = right.from; r.RightTo = right.to;
                 r.DirectionRightRad = Normalize(right.line.Angle);
             }
 
+            if (oneSide)
+            {
+                r.Reason = CorridorReason.OneSideOnly;
+                TrySingleEdge(r, left, right, leftPoints, rightPoints);
+                return r;
+            }
             if (left.line == null || right.line == null)
             {
                 r.Reason = CorridorReason.TooFewPoints;
+                TrySingleEdge(r, left, right, leftPoints, rightPoints);
                 return r;
             }
             if (left.inliers < cfg.MinInliers || right.inliers < cfg.MinInliers)
             {
                 r.Reason = CorridorReason.TooFewInliers;
+                TrySingleEdge(r, left, right, leftPoints, rightPoints);
                 return r;
             }
 
@@ -138,6 +144,53 @@ namespace ARBot.Common.Localization
 
             r.Reason = CorridorReason.Ok;
             return r;
+        }
+
+        /// <summary>
+        /// Oboustranny koridor nevznikl — zkusi se <b>merenie z jedne hrany</b>. Vznikne jen tehdy,
+        /// kdyz spolehlive (<see cref="CorridorConfig.SingleEdgeMinInliers"/>) projde PRAVE JEDNA
+        /// strana a druha je slaba (pod <see cref="CorridorConfig.MinInliers"/>) nebo chybi.
+        /// Dve silne strany, ktere na sebe nesedi, sem nechodi vubec (volajici to nevola).
+        ///
+        /// <para><see cref="RoadCorridor.Reason"/> se NEMENI — dal rika, proc oboustranny koridor
+        /// nevznikl; jedna hrana je vedlejsi vysledek v <see cref="RoadCorridor.SingleSide"/>. Diky
+        /// tomu FreeRun (sirka, pricna poloha) ani statistiky oboustranneho koridoru nic nevidi.</para>
+        /// </summary>
+        private void TrySingleEdge(RoadCorridor r,
+                                   (Line2D line, int inliers, double rms, Point2D from, Point2D to) left,
+                                   (Line2D line, int inliers, double rms, Point2D from, Point2D to) right,
+                                   IReadOnlyList<Point2D> leftPoints, IReadOnlyList<Point2D> rightPoints)
+        {
+            if (!cfg.SingleEdge) return;
+
+            bool leftGood = left.line != null && left.inliers >= cfg.SingleEdgeMinInliers;
+            bool rightGood = right.line != null && right.inliers >= cfg.SingleEdgeMinInliers;
+            bool leftWeak = left.line == null || left.inliers < cfg.MinInliers;
+            bool rightWeak = right.line == null || right.inliers < cfg.MinInliers;
+
+            // Obe dobre (jde jen pri SingleEdgeMinInliers < MinInliers): neni jak rozhodnout,
+            // ktera plati.
+            if (leftGood && rightGood) return;
+
+            CorridorSide side;
+            if (leftGood && rightWeak) side = CorridorSide.Left;
+            else if (rightGood && leftWeak) side = CorridorSide.Right;
+            else return;
+
+            var fit = side == CorridorSide.Left ? left : right;
+            var pts = side == CorridorSide.Left ? leftPoints : rightPoints;
+
+            double dir = Normalize(fit.line.Angle);
+            double nx = -Math.Sin(dir), ny = Math.Cos(dir);
+
+            r.SingleSide = side;
+            r.DirectionRad = dir;
+            r.EdgeOffset = Offset(fit.line, nx, ny);
+            // Stejna sigma jako u oboustranneho koridoru, jen z jedne strany (viz Find:
+            // zamerne bez deleni sqrt(n)).
+            r.EdgeSigma = Math.Max(cfg.SigmaFloorM, fit.rms);
+            r.SigmaDirectionRad = Math.Max(cfg.SigmaFloorRad,
+                                           Math.Atan2(fit.rms, Math.Max(0.5, Span(pts))));
         }
 
         private sealed class Holder { public Point2D P; public bool Inlier; }

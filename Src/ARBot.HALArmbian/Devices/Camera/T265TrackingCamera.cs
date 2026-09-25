@@ -224,7 +224,10 @@ namespace ARBot.HAL.Devices.Camera
         private volatile bool released;
 
         private bool? DevicePresent()
-            => RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "T265"));
+        {
+            using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: QueryDevices"))
+                return RealSenseShared.Query(Name, RealSenseShared.BySerialOrName(sn, "T265"));
+        }
 
         /// <summary>
         /// Zajisti pripojenou a bezici pipeline. Pokud kamera chybi nebo se start nezdari,
@@ -266,7 +269,8 @@ namespace ARBot.HAL.Devices.Camera
                 if (pipeline == null)
                     pipeline = new Pipeline(RealSenseShared.Context);
 
-                pipelineProfile = pipeline.Start(cfg);
+                using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Start"))
+                    pipelineProfile = pipeline.Start(cfg);
                 connected = true;
                 everConnected = true;
                 Trace.WriteLine($"{Name}: pipeline pripojena.");
@@ -323,7 +327,8 @@ namespace ARBot.HAL.Devices.Camera
             {
                 try
                 {
-                    pipeline.Stop();
+                    using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Stop"))
+                        pipeline.Stop();
                 }
                 catch (Exception ex)
                 {
@@ -331,7 +336,8 @@ namespace ARBot.HAL.Devices.Camera
                 }
                 try
                 {
-                    pipeline.Dispose();
+                    using (ARBot.HAL.Devices.Camera.NativeCallWatch.Guard($"{Name}: pipeline.Dispose"))
+                        pipeline.Dispose();
                 }
                 catch (Exception ex)
                 {

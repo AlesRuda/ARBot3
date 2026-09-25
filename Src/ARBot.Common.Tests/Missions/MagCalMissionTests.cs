@@ -100,9 +100,13 @@ namespace ARBot.Common.Tests.Missions
                 return true;
             }
 
+            /// <summary>Bezela palubni HSI v okamziku ulozeni do flash? (VNWNV uklada i registr 44.)</summary>
+            public bool? HsiPriUlozeni;
+
             public bool SaveToFlash()
             {
                 if (FlashSelze) return false;
+                HsiPriUlozeni = Hsi;
                 Flash = true;
                 return true;
             }
@@ -426,6 +430,23 @@ namespace ARBot.Common.Tests.Missions
                 Assert.That(s.Zapsano, Is.EqualTo(zapsanaKalibrace),
                     "po uspesnem zapisu uz se registr 23 vracet NESMI");
             });
+        }
+
+        [Test]
+        public void PriZapisu_JeHsiVypnutaDRIV_NezSeUkladaDoFlash()
+        {
+            // VNWNV uklada celou RAM vcetne registru 44. Do 25. 9. 2026 se HSI vypinala az po
+            // nem, takze senzor od kalibrace 17. 9. startoval s bezici palubni HSI.
+            var s = new Senzor();
+            var m = MiseSFrontou(s, new Drzitel());
+            m.StartMission();
+            NakrmOtackami(m);
+
+            Assert.That(m.WriteToSensor(), Is.True, m.PhaseText);
+            m.Dispose();
+
+            Assert.That(s.HsiPriUlozeni, Is.False, "do flash se nesmi ulozit registr 44 v rezimu Run");
+            Assert.That(s.Hsi, Is.False);
         }
 
         [Test]

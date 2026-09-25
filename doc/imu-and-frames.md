@@ -1006,3 +1006,75 @@ nekalibrovaný. Klidový bias gyra 8,9 / −24,8 °/h.
 včetně šumu GPS kurzu) správná podlaha; `assocfloorhdg` jde z 10° stáhnout — změřená chyba
 kurzu odhadu proti GPS je sd 8–11° **včetně stání** a ~2–4° za jízdy, takže spíš **5°** než plánované
 3° (nezměněno, před soutěží se to neproladí).
+
+### ⚠️ Kurz VN100 ujel o až 180° za jízdy FreeRun — VPE přestala brát magnetometr (záznamy 23. 9. 2026)
+
+Cyklostezka v Modřanech, dva běhy FreeRun na jih (`records/test/20260923-144934.rec`, `-145648.rec`),
+předtím dva Track na sever. Robot jel podle GPS celou dobu na azimut 170–184°, **VN100 yaw šel
+166 → 100 → 4 → 323°** (5 min), resp. 152 → 18° (2 min), tedy **doleva, k východu**. Měří to
+`ARBot.Analyze heading` (nové bloky *DRIFT PROTI GYRU* a *SMĚR POSUNU*, 24. 9.) a `vn100`:
+
+| | Track 143515 | FreeRun 144934 | FreeRun 145648 |
+|---|---|---|---|
+| `IMU yaw − GPS kurz` | −5,7° (sd 6,9°) | +5 → **+177°** | +12 → **−163°** |
+| `kurz z pole − yaw` | +3 … +11° | +1,5 → **+168°** | −12 → −157° |
+| `kurz z pole − GPS kurz` | +1,5 ± 10,3° | **+4,7 ± 5,7°** | +5,8 ± 11,2° |
+| zesílení VPE k poli `K` [1/s] | 0,0099 (τ ~100 s) | −0,0035 ≈ 0 | −0,0021 ≈ 0 |
+| `GPS kurz − ∫gyro` na konci | −26° / 10 min | −62° / 330 s | **−154° / 150 s** |
+| gyro ve stání | 365 °/h | 126 °/h | (málo stání) |
+
+**Pole je v pořádku** (`|B|` 0,495 G konstantní, sklon 66,4° proti 65,95° z registru 21, kurz
+z pole sedí na GPS kurz o deklinaci), GPS kurz taky (`Doppler − směr posunu polohy` −0,3 ± 3,5°).
+Od pole se odtrhlo **atitudové řešení senzoru** a s ním **gyro, které nahráváme**: `ImuGroup.Gyro`
+(bit 10) je podle ICD kap. 2.4.11 *AngularRate*, **kompenzované i dynamickým odhadem biasu
+z Kalmanova filtru VN** — ne surové `UncompGyro` (bit 3). Bias ~1 °/s (3 600 °/h) je u VN100 fyzicky
+nepravděpodobný (18. 9. klidový bias 8,9 / −24,8 °/h), takže nejpravděpodobnější je **chybný odhad
+biasu gyra uvnitř VPE**; dokázané to není, dokud se nenahrává i `UncompGyro`. Po restartu aplikace
+(zápis registru 83 z `magmodel=`) začal yaw znovu u pravdy a ujel rychleji.
+
+⚠️ **Fúze tomu nemá čím vzdorovat:** `IMU/gyro` jde do EKF v plné kadenci, kompas je škrcený na
+1 Hz s podlahou 5°, GPS kurz má σ `atan2(0,3; v)` ≈ 21° a koridor v Modřanech nedal ani jedno
+měření (`lok-koridor-siroka-cyklostezka`). Odhad se jen zpozdil (`odhad − IMU yaw` −20 až −54°).
+Registr: `lok-freerun-kurz-staci-na-zapad`. Další krok je read-only `deploy/vnprobe.sh` (registry
+35, 36, 38, 43, 83), protože v záznamu nejsou.
+
+**Od 24. 9. 2026 se nahrává i `UncompGyro` a teplota** (`IMUState.AngularVelocityRaw`,
+`IMUState.Temperature`, formát **verze 5**). Rozdíl `Gyro − UncompGyro` je přímo odhad biasu, který
+filtr VN od gyra odečítá; měří ho `ARBot.Analyze vn100`, blok 6 (po minutách, se syrovým gyrem ve
+stání a s teplotou). Kvůli propustnosti linky (115 200 Bd, ~11 520 B/s) se z binárního výstupu
+**vyřadil `YprRate`**, který nikdo nečetl: paket má 96 B, tedy 9 600 B/s = 83 % linky (dřív 92 B,
+80 %; s `YprRate` by to bylo 108 B, 94 %). ⚠️ Jestli se `UncompGyro` od `Gyro` opravdu liší, ukáže
+teprve záznam — u `UncompMag` se 12. 9. ukázalo, že je v binárním výstupu shodný s `Mag` (blok 6
+to hlásí sám). ⚠️ **Na zařízení neběželo.**
+
+#### Registry na živém senzoru 25. 9. 2026 (`deploy/vnprobe.sh`) — konfigurace VPE sedí, HSI běží
+
+```
+$VNRRG,35,1,0,1,1                     <- Absolute, adaptivní filtrování + ladění (= export)
+$VNRRG,36,4,4,4,5,5,5,5.5,5.5,5.5     <- = export
+$VNRRG,37,0,0,0,6,6,6,0.4,2,1000      <- = export
+$VNRRG,38,6,6,6,3,3,3,5,5,5           <- = export
+$VNRRG,43,+00.000000,+00.000000,+00.000000   <- startovní bias gyra nulový (= export)
+$VNRRG,44,1,1,5                       <- !!! palubní HSI v režimu RUN (export: 0,1,5)
+$VNRRG,47,0.822667,0,0,0,0.822667,0,0,0,0.822667,-0.125885,0.117963,-0.0737394
+$VNRRG,54,…,-00.007109,+00.011665,+00.008627,+31.7,+098.711   <- gyro [rad/s], teplota 31,7 °C
+$VNRRG,27,…,+00.000459,-00.000486,-00.001354                 <- gyro kompenzované
+$VNRRG,83,1,1,0,0,1000,2026.709,+50.03247680,+014.52533830,…  <- model pole zapnutý
+```
+
+- **Konfigurace VPE (35–38, 43) je přesně podle exportu ARBot2** — drift kurzu 23. 9. tedy
+  nezpůsobila změna nastavení.
+- **Registr 44 = Run je vada v našem kódu:** `MagCalMission` ukládala do flash (`VNWNV`) **dřív**,
+  než palubní HSI vypnula, a `VNWNV` ukládá celou RAM. Senzor proto od kalibrace 17. 9. startoval
+  po každém zapnutí s běžící HSI (registr 47 nese její čerstvé řešení; `HSIOutput = 1`, takže se
+  **neaplikuje**). Opraveno 25. 9. (HSI se vypíná před `VNWNV`, test), senzor srovná
+  `vnrestore.sh` (nově píše i `44,0,1,5`). ⚠️ **Příčinou driftu 23. 9. to být nemusí:** stejný stav
+  byl ve flash už při dobrých jízdách 18. 9. (K 0,019–0,036 1/s). TN002 kap. 5.2 ale běžící HSI
+  vede mezi příčinami ujíždějícího kurzu, takže ho vypnout je správně tak jako tak.
+- **Registr 83** nese polohu a rok ze 17. 9. (2026,709, 50,032 / 14,525) — z flash po misi
+  magcal; `magmodel=` ho po startu přepisuje jen do RAM, a to až po prvním kvalitním fixu.
+- **Jeden snímek gyra:** registr 54 dává v ose Z **+0,0086 rad/s (0,49 °/s)**, kompenzované gyro
+  v registru 27 **−0,0014 rad/s (−0,08 °/s)**. Pokud je gyro v registru 54 opravdu bez
+  dynamického biasu (u magnetometru v tomtéž registru se ukázalo, že kompenzované je), odečítá
+  filtr v ose Z odhad biasu **~0,57 °/s** — řádově tolik, o kolik 23. 9. ujíždělo. Je to jediný
+  vzorek a výklad registru 54 není jistý; rozhodne záznam s `UncompGyro` (`vn100`, blok 6).

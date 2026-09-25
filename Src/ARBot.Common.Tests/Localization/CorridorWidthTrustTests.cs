@@ -65,6 +65,11 @@ public class CorridorWidthTrustTests
     {
         var origin = CorrelationTestScenes.Origin();
         var net = CorrelationTestScenes.StraightEastRoad(origin, mapWidth);
+        cfg ??= new CorridorLocalizerConfig();
+        // Jen OBOUSTRANNY koridor: jedna hrana (od 24. 9. 2026) by z prvniho, jeste nesparovaneho
+        // snimku poslala vlastni merenie a zamichala by se do toho, co tu testy zkoumaji.
+        // Jedna hrana ma vlastni soubor CorridorSingleEdgeTests.
+        cfg.Corridor.SingleEdge = false;
         return new CorridorLocalizer(engine, net, origin, cfg);
     }
 

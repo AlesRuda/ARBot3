@@ -60,6 +60,29 @@ namespace ARBot
         public static IDisposable Guard(string co, double sekundy)
             => sekundy > 0 ? new Token(co ?? "?", sekundy) : (IDisposable)VypnutyToken.Instance;
 
+        /// <summary>
+        /// Pořídí minidump <b>hned</b> — pro hlídače, kteří zatuhnutí zjistili sami (např.
+        /// <c>NativeCallWatch</c> v HAL, který runtime nevidí). Hlášení o tom, CO zatuhlo, píše
+        /// volající; tady jde jen o dump. Vrací cestu, nebo <c>null</c> (důvod v <see cref="Trace"/>).
+        /// </summary>
+        public static string DumpNow(string co)
+        {
+            try
+            {
+                string dump = Dump(co ?? "?");
+                Trace.WriteLine(dump != null
+                    ? $"HangWatchdog: minidump v '{dump}'. Zasobniky vlaken z nej precte "
+                      + "'dotnet-dump analyze' (nebo gdb nad zivym procesem)."
+                    : "HangWatchdog: minidump se nepodaril - zbyva jen hlaseni a journal.");
+                return dump;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("HangWatchdog: minidump selhal: " + ex.Message);
+                return null;
+            }
+        }
+
         /// <summary>Token vypnutého hlídače — jedna instance, žádná práce, žádná alokace navíc.</summary>
         private sealed class VypnutyToken : IDisposable
         {

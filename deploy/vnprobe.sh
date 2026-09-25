@@ -48,15 +48,19 @@ send() { local body="$1"; printf '$%s*%s\r\n' "$body" "$(cks "$body")" > "$DEV";
 
 # 01 model, 06/07 async vystup, 08 YPR, 21 referencni vektory pole a gravitace,
 # 23 KOMPENZACE MAGNETOMETRU (tvrde/mekke zelezo), 25 kompenzace akcelerometru,
-# 37/38 VPE mag ADVANCED tuning (adaptivni filtrovani - kandidat na vadu "VPE se tahne
-#       za vlastnim polem 206 s", viz doc/plan-vn100-kalibrace.md, faze 2),
+# 37 VPE mag ADVANCED tuning (adaptivni filtrovani - kandidat na vadu "VPE se tahne
+#    za vlastnim polem 206 s", viz doc/plan-vn100-kalibrace.md, faze 2),
+# 38 VPE ACCELEROMETER basic tuning (v exportu ARBot2 (6;6;6) (3;3;3) (5;5;5)),
+# 43 STARTUP FILTER GYRO BIAS (bias gyra, se kterym VPE startuje; export (0;0;0)) - pridano
+#    24. 9. 2026: 23. 9. ujelo gyro kompenzovane filtrem o ~1 deg/s a tenhle registr jsme
+#    nikdy necetli (my ho nepiseme, zmenit ho umi jen VNWRG,43 nebo VNSGB),
 # 26 reference frame rotation, 27 YMR (zivy snimek yaw+pole+zrychleni+rychlosti),
 # 35 VPE BASIC CONTROL (heading mode!), 36 VPE mag tuning, 44 HSI mode,
 # 47 vypoctena kalibrace HSI, 54 SYROVA (nekompenzovana) mereni,
 # 83 REFERENCE VECTOR CONFIGURATION (pouziva se model pole? kdyz ne, referencni vektor
 #    v reg 21 je pevny a jeho VYCHODNI slozka rika, jestli je v nem DEKLINACE - pri E=0
 #    je hlaseny kurz MAGNETICKY, ne k pravemu severu).
-for r in 01 06 07 08 21 23 25 26 27 35 36 37 38 44 47 54 83; do send "VNRRG,$r"; done
+for r in 01 06 07 08 21 23 25 26 27 35 36 37 38 43 44 47 54 83; do send "VNRRG,$r"; done
 
 sleep 1.0
 kill $CATPID 2>/dev/null || true

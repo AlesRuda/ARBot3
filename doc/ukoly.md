@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **221**: otevřeno **47** · v kódu, na HW neověřeno **34** · hotovo **131** · odloženo **6** · zamítnuto **3**.
+Témat celkem **224**: otevřeno **47** · v kódu, na HW neověřeno **37** · hotovo **131** · odloženo **6** · zamítnuto **3**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -58,7 +58,7 @@ Témat celkem **221**: otevřeno **47** · v kódu, na HW neověřeno **34** · 
 | otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Nulové nebo záporné zrychlení motorů prošlo do řadiče](#hw-pojistka-zrychleni-motoru) | 18. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Únik z blokované buňky pod robotem](#lp-unik-z-blokovane-bunky) | 18. 8. 2026 |  |
@@ -91,8 +91,11 @@ Témat celkem **221**: otevřeno **47** · v kódu, na HW neověřeno **34** · 
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty](#nav-phi-obracena-hrana) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
+| v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)](#ui-avalonia-deadlock-popup) | 24. 9. 2026 |  |
+| v kódu, na HW neověřeno | Hardware a senzory | [VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)](#hw-vn100-hsi-run-ve-flash) | 25. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
@@ -230,17 +233,19 @@ Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Rob
 [PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
 
 <a id="lok-freerun-kurz-staci-na-zapad"></a>
-### ⬜ Při zpáteční jízdě FreeRun na jih se kurz odhadu postupně stočil o desítky stupňů na západ
+### ⬜ Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)
 
 `lok-freerun-kurz-staci-na-zapad` · vada · **otevřeno** · nalezeno 24. 9. 2026
 
-Autor 23. 9. 2026 na reálné cestě sever–jih: tam (mise Track, na sever) kurz seděl, zpět (FreeRun, na jih) se EKF póza postupně stáčela k západu o desítky stupňů, ačkoli robot jel stále na jih. Záznam zatím není k dispozici. Prověřeno v kódu: normalizace kurzu z koridoru do EKF je v pořádku (skládání přímky na ±90°, volba smyslu podle kurzu, reziduum `NormalizeOrientation(z − h)` včetně gatingu a limitu kroku); chyba normalizace by se navíc projevila skokem o 180° kolem západu, ne plynulým stáčením od jihu. Hypotézy: (1) KOMPAS — chyba závislá na kurzu (sever OK, jih desítky stupňů) je podpis železa/neplatné kalibrace, „postupně“ odpovídá dotahování VPE; (2) KOREKCE Z MAPY BĚŽÍ I VE FREERUN — mise sama mapu nepoužívá, ale `CorridorLocalizer` se zakládá podle `corridor=`/`map=`, ne podle mise (profil má `corridor=true`, `corridorsend=true`); pokud zpáteční trasa neležela na zmapované hraně, přiřazovač pustí hranu odlišnou až o 45° (`assocveto`) a korekce táhne kurz k jejímu azimutu, rozloženě po 3°/s.
+Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Track, na sever) kurz seděl, zpět (FreeRun, na jih) se kurz odhadu postupně stáčel, ačkoli robot jel stále na jih. **Rozbor záznamů 24. 9.** (`records/test/20260923-144934.rec`, `-145648.rec`; `ARBot.Analyze heading` bloky *DRIFT PROTI GYRU* a *SMĚR POSUNU*, `vn100`): robot podle GPS jel celou dobu na azimut 170–184°, ale **VN100 yaw šel 166 → 100 → 4 → 323°** (za 5 min) a ve druhém běhu 152 → 18° (za 2 min), tedy **doleva = k VÝCHODU** (autor 24. 9. potvrdil, že se spletl ve stranách — bylo to na východ; id tématu zůstává). Kurz odhadu a stopa na mapě šly s ním (azimut kurzu odhadu 177 → 73°, posun odhadu 160 → 15°), fúze se jen zpožďovala (`odhad − IMU yaw` −20 až −54°). **Magnetometr je v pořádku:** `|B|` 0,495 G konstantní, sklon 66,4° (reference 65,95°), kurz z pole − GPS kurz +4,7 ± 5,7° (≈ deklinace) — **od pole se odtrhl až yaw senzoru** (`kurz z pole − yaw` 1,5 → −33 → −103 → 168°), zesílení VPE k poli K ≈ 0 (−0,0035 ± 0,0013 1/s). GPS kurz je spolehlivý (Doppler − směr posunu polohy −0,3 ± 3,5°). **Proti integrálu gyra ujíždí GPS kurz** (−62° za 330 s, resp. −154° za 150 s, tj. až ~1 °/s), zatímco VN yaw se od gyra odchýlí jen o +35 až +130° — nahrávané gyro je `ImuGroup.Gyro` = **AngularRate, kompenzované odhadem biasu z Kalmanova filtru VN** (ICD kap. 2.4.11), takže bias ~1 °/s je nejspíš **chybný odhad biasu uvnitř VPE**, ne fyzický gyroskop (surové `UncompGyro` se nenahrává, takže to dokázané není). Ve stání čte gyro 126–365 °/h proti −4,6 °/h ze 7. 9. Týž den v Track (`20260923-143515.rec`) bylo K = 0,010 (τ ~100 s proti 28–53 s 18. 9.) a drift gyra −26° za 10 min, tedy stejná vada slabší. Po restartu aplikace (zápis registru 83 `magmodel=`) začal VN yaw znovu u pravdy a pak ujel rychleji. **Fúze to nezachytila**, protože `IMU/gyro` jde do EKF v plné kadenci (nese většinu informace o úhlové rychlosti) a GPS kurz má σ `atan2(0,3; v)` ≈ 21° — a koridor v Modřanech nedal ani jedno měření (`lok-koridor-siroka-cyklostezka`). Hypotéza „korekce z mapy táhnou kurz“ tím padá: koridor neposlal nic. ⚠️ Registry senzoru (35, 36, 38, 83, 43) v záznamu nejsou.
 
-- [ ] Rozbor záznamu z 23. 9.: `ARBot.Analyze heading` (IMU − GPS kurz podle směru, `--bin=`), `vn100` blok 5 (železo), `odhad − IMU yaw`, přiřazená hrana a posílaný kurz v `RoadCorridorMsg`
-- [ ] Při příští jízdě FreeRun zpět A/B `corridorsend=false` / `true` na téže cestě
-- [ ] Podle výsledku rozhodnout, zda má FreeRun korekce z mapy vypínat/odtlumit
+- [x] Rozbor záznamu z 23. 9.: `ARBot.Analyze heading` (IMU − GPS kurz podle směru, `--bin=`), `vn100` blok 5 (železo), `odhad − IMU yaw`, přiřazená hrana a posílaný kurz v `RoadCorridorMsg` (24. 9. 2026)
+- [x] Read-only `deploy/vnprobe.sh` na senzoru: registr 35 (heading mode, adaptivní filtrování), 36/38 (VPE ladění mag/acc), 83, 43 (startovní bias gyra). Očekávané hodnoty z exportu ARBot2 + historie zápisů: 35 = `1,0,1,1`, 36/38 jako export, 43 = (0,0,0), 83 s `UseMagModel=1` (magmodel=). Registr 43 sonda do 24. 9. nečetla, doplněn. Nižší priorita než záznam s `UncompGyro` — registry neřeknou, proč VPE za jízdy magnetometr utlumila. Přečteno 25. 9.: 35–38 a 43 přesně podle exportu, 44 = Run (vada, `hw-vn100-hsi-run-ve-flash`) (25. 9. 2026)
+- [x] Nahrávat i `UncompGyro` (a teplotu) vedle `Gyro` — rozliší chybný odhad biasu ve VPE od skutečného gyra. V kódu 24. 9. (`IMUState` verze 5, `YprRate` vyřazen kvůli lince, `vn100` blok 6); na zařízení neběželo (24. 9. 2026)
+- [ ] Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro?
+- [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
-[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+[imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -375,6 +380,20 @@ Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou brán
 - [x] Ověřit na zařízení — Robotour 19. 9.: inovace do 6,1 m došly do fúze, brána prokazatelně pryč; cena = skoky pózy (20. 9. 2026)
 
 čeká na [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) · [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20)
+
+<a id="lok-koridor-siroka-cyklostezka"></a>
+### 🧪 Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“
+
+`lok-koridor-siroka-cyklostezka` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OSM/modrany2.osm`): **0 přijatých měření koridoru**, koridor se proložil v 0,2–0,3 % cyklů (18. 9. na Hviezdoslavově ~52 %). Za jízdy vadí `TooFewInliers` a `OneSideOnly`; přímky obou hran existují v ~50 % cyklů, ale s mediánem **21–25 inlierů** proti prahu `corridormininliers=25` (18. 9. 39–43), v Track na pravé straně jen 10 (rezidua 0,116 m). FreeRun proto měl mrkev z koridoru jen v 18 z 6 632 cyklů a jinak držel kurz — ten ujíždějící (`lok-freerun-kurz-staci-na-zapad`); na cestě ho držela lokální mapa. Segmentace sítě je na asfaltu čistá (`backproject --compare`), jde tedy o proložení hran na široké cestě (hrana daleko, řídké body). Mapa nemá u cyklostezky tag `width` (síť počítá s `roadwidth=3`). V Track navíc 34 % `NoPair` kvůli dvěma zamrznutím barvy (pravá 14:38:44, levá 14:40:53, obě zotavené). Kód detekce se od 21. 9. neměnil. **Léčba 24. 9. 2026: měření z JEDNÉ hrany** (`corridorsingle=`, výchozí true): kurz ze směru hrany (na šířce nezávisí), příčná poloha přes naučenou šířku, jinak mapovou s nejistotou `corridorsinglewidthstd=` (1 m) v σ — rozhodnutí autora. `ARBot.Analyze singleedge` nad týmiž záznamy: jedna hrana v 48–80 % snímků, kurz z ní proti GPS kurzu p50 −1,3 až +1,2°, robustní sd 2,4–4,9°; ve FreeRun drží u nuly, zatímco odhad fúze ujel na 30°+. `RoadCorridorMsg` verze 7. ⚠️ Chyba mapové šířky je bias příčné polohy (Modřany: mapa 3 m).
+
+- [x] Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy (24. 9. 2026)
+- [ ] Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`)
+- [ ] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)
+- [ ] Snížit `corridormininliers` na 12–15 (změřeno `singleedge --sweep`: Modřany 0,2 % → 6–19 % oboustranných koridorů při šířce soustředěné ~5 m, Hviezdoslavova beze změny kvality) — rozhodnutí autora
+
+[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
 <a id="lok-korelace-posun-jako-stav-ekf"></a>
 ### ⏸ Posun mapa–GPS jako stav filtru
@@ -2103,6 +2122,31 @@ Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senz
 
 [rozhodnutí 12. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-17](devlog.md#2026-09-17)
 
+<a id="hw-d435-vlakno-zatuhlo-po-restartu"></a>
+### 🧪 Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání
+
+`hw-d435-vlakno-zatuhlo-po-restartu` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
+
+`records/test/20260923-143515.rec`: ve 14:40:53 levé D435 zamrzla barva, driver ohlásil restart pipeline a pak už o ní nepřišlo nic — žádný dotaz, připojení ani chyba, žádné snímky; pravá jela do konce. Supervizor zotavení nezasáhl, protože kamera o nic nežádala (na rozdíl od záseků 12.–18. 9., kdy vlákno žilo a hlásilo `QueryDevices selhalo`). Vlákno tedy zatuhlo v nativním volání RealSense. Podezřelé místo: hlídka zamrzlého streamu bourala pipeline UVNITŘ `using (frames)` (s neuvolněným framesetem), ostatní cesty až po uvolnění — podezření, ne dokázaná příčina (13. 9. stejná cesta doběhla). Opraveno bourání až po uvolnění a přidán `NativeCallWatch` (Stop/Dispose/Start/QueryDevices u D435 i T265, limit `hangwatch=`), který při zatuhnutí zapíše, ve kterém volání vlákno visí, a pořídí minidump.
+
+- [x] Bourat pipeline až po uvolnění framesetu + `NativeCallWatch` s minidumpem (24. 9. 2026)
+- [ ] Na zařízení: sledovat, jestli se zatuhnutí opakuje; při výskytu přečíst `logs/hang-kamera-*.dmp` (`dotnet-dump analyze`)
+- [x] Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.) (24. 9. 2026)
+
+[hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+
+<a id="hw-vn100-hsi-run-ve-flash"></a>
+### 🧪 VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
+
+`hw-vn100-hsi-run-ve-flash` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 9. 2026 · vyřešeno 25. 9. 2026
+
+`deploy/vnprobe.sh` 25. 9. 2026 přečetl `$VNRRG,44,1,1,5` (export ARBot2: `0,1,5`). `MagCalMission.Zapis` volala `SaveToFlash()` (VNWNV, ukládá celou RAM) DŘÍV než `VypniHsi()`, takže se do flash uložil i registr 44 v režimu Run a senzor od kalibrace 17. 9. startoval s běžící palubní HSI (výsledek do registru 47, neaplikovaný). Opraveno pořadí + test (`PriZapisu_JeHsiVypnutaDRIV_NezSeUkladaDoFlash`); `vnrestore.sh` nově píše i `44,0,1,5`. Příčinou driftu kurzu 23. 9. to být nemusí — stejný stav byl ve flash i při dobrých jízdách 18. 9.; TN002 kap. 5.2 ale běžící HSI vede mezi příčinami ujíždějícího kurzu.
+
+- [x] Pořadí v `MagCalMission.Zapis` (HSI off před VNWNV) + test, `vnrestore.sh` píše registr 44 (25. 9. 2026)
+- [ ] Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`
+
+[imu-and-frames.md](imu-and-frames.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs) · DevLog [2026-09-25](devlog.md#2026-09-25)
+
 <a id="hw-orangepi-bringup"></a>
 ### ✅ Zprovoznění cílové desky Orange Pi 5 Ultra (Armbian, RealSense, USB, SPI, GPU, WiFi)
 
@@ -2427,6 +2471,7 @@ File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových
 
 - [x] Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX… (24. 9. 2026)
 - [ ] Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)
+- [x] Podnabídka Export GPX: GPS i fúze v jednom souboru / do dvou souborů (`-gps`, `-fuze`) / jen GPS / jen fúze (autor 24. 9.; `GpxExportOptions.Tracks`, 4 testy). V běžící aplikaci neproklikáno (24. 9. 2026)
 
 [record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 

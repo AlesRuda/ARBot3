@@ -81,9 +81,15 @@ namespace ARBot.Common.Localization
         /// <param name="corridor">Koridor videny kamerami.</param>
         /// <param name="cfg">Nastaveni prirazeni.</param>
         /// <param name="maxEdgeDistanceM">Nad timhle odstupem se hrana nebere za „tu nasi" [m].</param>
+        /// <param name="singleEdgeWidth">
+        /// Jen pro merenie z JEDNE hrany (<see cref="RoadCorridor.HasSingleEdge"/>): sirka cesty
+        /// kandidata a jeji nejistota [m]. Pricna poloha z jedne hrany na sirce ZAVISI, takze se
+        /// musi pocitat pro kazdeho kandidata zvlast - jina cesta, jina sirka, jina poloha.
+        /// </param>
         public static EdgeAssociation Associate(RoadNetwork network, GeoReference origin,
                                                 RobotState pose, RoadCorridor corridor,
-                                                EdgeAssociationConfig cfg, double maxEdgeDistanceM)
+                                                EdgeAssociationConfig cfg, double maxEdgeDistanceM,
+                                                Func<RoadAxisMatch, (double WidthM, double StdM)> singleEdgeWidth = null)
         {
             var none = new EdgeAssociation(EdgeAssocResult.NoEdge, default, double.NaN, double.NaN, 0);
             if (network == null || origin == null || pose == null || corridor == null || cfg == null)
@@ -92,6 +98,8 @@ namespace ARBot.Common.Localization
             var candidates = network.NearestEdges(origin.ToLLA(pose.X, pose.Y), cfg.Candidates,
                                                   maxEdgeDistanceM);
             if (candidates.Count == 0) return none;
+            bool single = !corridor.Ok && corridor.HasSingleEdge;
+            if (single && singleEdgeWidth == null) return none;
 
             double varThPose = Variance(pose, EKFModel.ITh, EKFModel.ITh);
             var fallbackAxis = default(RoadAxisMatch);
@@ -114,12 +122,19 @@ namespace ARBot.Common.Localization
                 double dHdg = Conversions.NormalizeHalfOrientation(corridor.DirectionRad - axis.HeadingRelRad);
                 if (Math.Abs(dHdg) > cfg.VetoRad) continue;
 
-                double dLat = corridor.Lateral - axis.Lateral;
+                double lateral = corridor.Lateral, sigmaLat = corridor.SigmaLateral;
+                if (single)
+                {
+                    var (w, sw) = singleEdgeWidth(axis);
+                    lateral = corridor.SingleEdgeLateral(w);
+                    sigmaLat = Math.Sqrt(Sq(corridor.EdgeSigma) + Sq(sw / 2));
+                }
+                double dLat = lateral - axis.Lateral;
 
                 // Sigma pricne = kovariance pozy promitnuta do NORMALY hrany (ne sqrt(P_xx)).
                 double varLatPose = Variance(pose, axis.NormalX, axis.NormalY);
                 double varLat = Math.Max(varLatPose, Sq(cfg.SigmaLateralFloorM))
-                                + Sq(corridor.SigmaLateral);
+                                + Sq(sigmaLat);
                 double varHdg = Math.Max(varThPose, Sq(cfg.SigmaHeadingFloorRad))
                                 + Sq(corridor.SigmaDirectionRad);
                 if (varLat <= 0 || varHdg <= 0) continue;

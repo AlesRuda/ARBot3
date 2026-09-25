@@ -50,6 +50,7 @@ namespace ARBot.Analyze
             var mag = new List<(double T, System.Numerics.Vector3 M, System.Numerics.Vector3 A)>();
             var gps = new List<(double T, double Course, double Speed)>();
             var est = new List<(double T, double Th)>();
+            var estXy = new List<(double T, double X, double Y)>();
 
             DateTime t0 = DateTime.MinValue;
             int gpsTotal = 0;
@@ -78,6 +79,7 @@ namespace ARBot.Analyze
                         break;
                     case RobotStateMsg s:
                         est.Add((Sec(s.TimeStamp, ref t0), s.Theta));
+                        estXy.Add((Sec(s.TimeStamp, ref t0), s.X, s.Y));
                         break;
                     case IMUState i when i.Rotation.HasValue:
                         // ⚠️ V robotu je IMU VIC (VN100 + T265, napojena 6. 9. 2026) a obe posilaji
@@ -142,6 +144,7 @@ namespace ARBot.Analyze
                     Console.WriteLine($"--nogt: {truth.Count} vzorku pravdy se ZAHAZUJE — jede se "
                                       + "cestou pro realne HW.");
                 ReportWithoutTruth(imu, gps, track, mag, est, gyro, csvPath, binSec);
+                MotionDirection(track, estXy, est, binSec);
                 return;
             }
             if (gps.Count == 0)
@@ -325,6 +328,7 @@ namespace ARBot.Analyze
 
             HeadingDependence(pair);
             TimeEvolution(pair, est, imu, gps, binSec);
+            DriftAgainstGyro(imu, gps, est, gyro, binSec);
             WhoDoesFusionFollow(est, imu, gps);
             TrackCourseCheck(track, gps, imu);
             GpsCourseNoise(gps, gyro);
@@ -444,6 +448,118 @@ namespace ARBot.Analyze
             Console.WriteLine("  ⚠️ Kdyz model sedi na POCTIVOU sigmu a ne na celkovou, je to spravne");
             Console.WriteLine("  cislo ze spatneho duvodu: jeho dokumentace mluvi o pricnem sumu rychlosti,");
             Console.WriteLine("  ktery je ve skutecnosti o rad mensi. Drzi to nahodou, ne konstrukci.");
+        }
+
+        /// <summary>
+        /// <b>Kdo z kurzu ujizdi proti gyru?</b> Rozpor dvou absolutnich referenci nerekne, ktera
+        /// se hybe; gyro je treti cesta, ktera na magnetometru ani na GPS nezavisi a na minutach
+        /// ujede jen o svuj bias (klidovy −4,6 °/h, viz doc/imu-and-frames.md). Tiskne se stredni
+        /// <c>kurz − integral gyra</c> po kosech, vztazeny k prvnimu kosu: roste-li jen sloupec
+        /// VN yaw, driftuje <b>atitudove reseni senzoru</b>; roste-li i GPS, je to bias gyra.
+        ///
+        /// <para>Pridano 24. 9. 2026 nad zaznamy FreeRun z 23. 9., kde VN yaw ujel o ~180° za
+        /// 5 minut, zatimco kurz z magnetickeho pole sedel na GPS.</para>
+        /// </summary>
+        private static void DriftAgainstGyro(List<(double T, double Yaw)> imu,
+                                             List<(double T, double Course, double Speed)> gps,
+                                             List<(double T, double Th)> est,
+                                             List<(double T, double W)> gyro,
+                                             double binSec)
+        {
+            Console.WriteLine();
+            Console.WriteLine("DRIFT PROTI GYRU (kurz - integral gyra, vztazeno k prvnimu kosu):");
+            if (gyro.Count < 200) { Console.WriteLine("  Malo gyra."); return; }
+            if (binSec < 1) binSec = 60;
+
+            var kum = new List<(double T, double Yaw)>(gyro.Count);
+            double yaw = 0;
+            var gs = gyro.OrderBy(x => x.T).ToList();
+            for (int i = 0; i < gs.Count; i++)
+            {
+                if (i > 0)
+                {
+                    double dt = gs[i].T - gs[i - 1].T;
+                    if (dt > 0 && dt < 0.5) yaw += gs[i].W * dt;
+                }
+                kum.Add((gs[i].T, yaw));
+            }
+
+            List<(double T, double D)> Proti(IEnumerable<(double T, double V)> src)
+            {
+                var r = new List<(double T, double D)>();
+                foreach (var (t, v) in src)
+                    if (YawZGyra(kum, t, out double g)) r.Add((t, Wrap(v - g)));
+                return r;
+            }
+
+            var dImu = Proti(imu);
+            var dGps = Proti(gps.Where(x => x.Speed >= MinSpeedMps).Select(x => (x.T, x.Course)));
+            var dEst = Proti(est);
+            double t0 = kum[0].T, last = kum[kum.Count - 1].T;
+
+            double? r0Imu = null, r0Gps = null, r0Est = null;
+            string Col(List<(double T, double D)> d, double b, ref double? r0)
+            {
+                var v = d.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec).Select(x => x.D).ToList();
+                if (v.Count < 5) return string.Format("{0,5}  {1,8}", v.Count, "-");
+                double m = CircMean(v);
+                if (r0 == null) r0 = m;
+                return string.Format(CultureInfo.InvariantCulture, "{0,5}  {1,8:F2}", v.Count, Deg(Wrap(m - r0.Value)));
+            }
+
+            Console.WriteLine("    cas [s]        n    VN yaw        n  GPS kurz        n  odhad fuze");
+            for (double b = 0; b < last - t0; b += binSec)
+            {
+                string a = Col(dImu, b, ref r0Imu), c = Col(dGps, b, ref r0Gps), e = Col(dEst, b, ref r0Est);
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4:F0}-{1,4:F0}  {2}   {3}   {4}", b, b + binSec, a, c, e));
+            }
+            Console.WriteLine("  Roste-li jen VN yaw, ujizdi atitudove reseni senzoru (VPE), ne gyro;");
+            Console.WriteLine("  roste-li i GPS kurz stejnym tempem, je to bias gyra (a VN yaw je v pravu).");
+        }
+
+        /// <summary>
+        /// <b>Kam se to hybe na mape?</b> Azimut POSUNU za kos: z GPS polohy (skutecny smer jizdy)
+        /// a z polohy odhadu fuze (co ukazuje mapa), vedle azimutu kurzu odhadu. Rozpor kurzu
+        /// rika, kam ukazuje sipka; tenhle blok rika, kam utika stopa — a to nemusi byt totez,
+        /// protoze polohu tahne i GPS a koridor. Azimut je od severu po smeru hodin (jak na mape).
+        /// Pridano 24. 9. 2026 (FreeRun 23. 9., „odhad se staci na zapad").
+        /// </summary>
+        private static void MotionDirection(List<(double T, double Lat, double Lon)> track,
+                                            List<(double T, double X, double Y)> estXy,
+                                            List<(double T, double Th)> est,
+                                            double binSec)
+        {
+            Console.WriteLine();
+            Console.WriteLine("SMER POSUNU PO KOSECH (azimut od severu po smeru hodin, jak na mape):");
+            if (track.Count < 10 || estXy.Count < 10) { Console.WriteLine("  Malo dat."); return; }
+            if (binSec < 1) binSec = 60;
+            double lat0 = track[0].Lat;
+            const double R = 6378137.0;
+            // GPSState nese radiany (od 26. 8. 2026), viz CLAUDE.md.
+            double E(double lon) => (lon - track[0].Lon) * R * Math.Cos(lat0);
+            double N(double lat) => (lat - lat0) * R;
+            double Az(double de, double dn) => (Deg(Math.Atan2(de, dn)) + 360) % 360;
+            double t0 = Math.Min(track[0].T, estXy[0].T);
+            double last = Math.Max(track[track.Count - 1].T, estXy[estXy.Count - 1].T);
+            Console.WriteLine("    cas [s]    GPS draha  az GPS posunu   odhad draha  az posunu odhadu   az kurzu odhadu");
+            for (double b = 0; b < last - t0; b += binSec)
+            {
+                var g = track.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec).ToList();
+                var e = estXy.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec).ToList();
+                var th = est.Where(x => x.T - t0 >= b && x.T - t0 < b + binSec).Select(x => x.Th).ToList();
+                if (g.Count < 2 || e.Count < 2) continue;
+                double gde = E(g[g.Count - 1].Lon) - E(g[0].Lon), gdn = N(g[g.Count - 1].Lat) - N(g[0].Lat);
+                double ede = e[e.Count - 1].X - e[0].X, edn = e[e.Count - 1].Y - e[0].Y;
+                double gd = Math.Sqrt(gde * gde + gdn * gdn), ed = Math.Sqrt(ede * ede + edn * edn);
+                string azTh = th.Count > 0 ? string.Format(CultureInfo.InvariantCulture, "{0,6:F0}",
+                                  (90 - Deg(CircMean(th)) + 720) % 360) : "     -";
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4:F0}-{1,4:F0}  {2,8:F1} m  {3,10}   {4,8:F1} m  {5,14}   {6,15}",
+                    b, b + binSec, gd, gd > 3 ? Az(gde, gdn).ToString("F0", CultureInfo.InvariantCulture) : "-",
+                    ed, ed > 3 ? Az(ede, edn).ToString("F0", CultureInfo.InvariantCulture) : "-", azTh));
+            }
+            Console.WriteLine("  Posun odhadu vedle GPS = stopa na mape utika; kurz odhadu vedle posunu = sipka ukazuje jinam.");
         }
 
         /// <summary>Integrovany yaw z gyra v case <paramref name="t"/>; false = neni vzorek dost blizko.</summary>

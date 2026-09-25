@@ -39,8 +39,69 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-25
+
+- **`deploy\poweroff.bat`**: vypne robota z PC přes ssh. Nejdřív zastaví službu (uzavře
+  záznam), pak `sudo /sbin/poweroff`, stejně jako tlačítko *Power off* na stránce. Nespouštěno,
+  vypnulo by robota. Popis v [deploy/README.md](../deploy/README.md).
+- **Registry VN100 přečtené na živém senzoru** (`deploy/vnprobe.sh`, nově i registr 43).
+  Konfigurace VPE (35–38) a startovní bias gyra (43) jsou přesně podle exportu ARBot2, drift
+  kurzu 23. 9. tedy nezpůsobila změna nastavení. **Registr 44 je ale `Run`** (registr
+  `hw-vn100-hsi-run-ve-flash`): mise magcal ukládala do flash dřív, než vypnula palubní HSI.
+  Opraveno pořadí + test (magcal 66), `vnrestore.sh` nově píše `44,0,1,5`. Senzor zatím
+  srovnaný není, to je vědomý ruční zápis. Snímek registru 54 naznačuje, že filtr v ose Z
+  odečítá bias gyra ~0,57 °/s, ale je to jeden vzorek a nejistý výklad. Rozhodne záznam
+  s `UncompGyro`. Detail: [imu-and-frames.md](imu-and-frames.md).
+
 ## 2026-09-24
 
+- **Export GPX: volba, jak oddělit GPS a fúzi** (autor; `nast-export-gpx`). File → Export GPX
+  je teď podnabídka se čtyřmi volbami: obě stopy v jednom souboru, dva soubory (`-gps`,
+  `-fuze`), jen GPS, jen fúze. Řada prohlížečů totiž ukáže jen první stopu. Záznam se čte
+  jednou i pro dva soubory. 4 nové testy. V běžící aplikaci neproklikáno (aplikace běžela
+  a držela DLL), jen přeloženo. Viz [record-replay.md](record-replay.md).
+- **VN100: nahrává se i `UncompGyro` a teplota** (`IMUState` verze 5; registr
+  `lok-freerun-kurz-staci-na-zapad`). `Gyro − UncompGyro` je odhad biasu z filtru VN, takže příště
+  bude vidět, jestli drift dělá filtr, nebo gyro. Vyhodnocuje to `ARBot.Analyze vn100`, blok 6.
+  Z výstupu se vyřadil nepoužívaný `YprRate`, jinak by linka 115 200 Bd byla na 94 % (takhle
+  83 %). Testy HAL 121, Common 1 652, Runtime 140. Build x64 i OrangePI. ⚠️ Na zařízení
+  neběželo.
+- **Levá D435 v Track 143515 po restartu pipeline zatuhla natrvalo** (autor; registr
+  `hw-d435-vlakno-zatuhlo-po-restartu`). Po hlášce „BARVA zamrzla → restart pipeline" už
+  o kameře nepřišlo nic. Vlákno tedy zatuhlo v nativním volání RealSense a supervizor nezasáhl,
+  protože kamera o pomoc nežádala. Jiná třída poruchy než 12.–18. 9. Opraveno podezřelé místo
+  (hlídka bourala pipeline uvnitř `using (frames)`) a přidán `NativeCallWatch` (minidump přes
+  `HangWatchdog.DumpNow`). Příčina dokázaná není. Testy HAL 119 (4 nové), Runtime 140, build
+  x64 i OrangePI. ⚠️ Na zařízení neběželo. Detail: [hardware.md](hardware.md).
+  **Rozhodnutí:** zatuhlé vlákno se neléčí, zapíše se jen důkaz. Restart služby by přerušil misi
+  ([decisions.md](decisions.md), 24. 9. 2026).
+- **Práh inlierů pro oboustranný koridor** (`ARBot.Analyze singleedge --sweep=`): při 25 projde
+  v Modřanech 0,2 % a to málo je nesmysl (šířka ~1,3 m). Při 12–15 projde 6–19 %, šířka se
+  soustředí na 4,9–5,3 m (cyklostezka je tedy ~5 m, mapa počítá 3 m) a kurz proti GPS má rsd
+  1,4–2,6°. Na Hviezdoslavově kvalita beze změny. Výchozí hodnota zatím nezměněna, čeká na autora.
+  Detail: [map-correlation-localization.md](map-correlation-localization.md).
+- **Koridor měří i z JEDNÉ hrany** (`corridorsingle=`, `corridorsinglewidthstd=`; registr
+  `lok-koridor-siroka-cyklostezka`). Autor: k poloze na cestě stačí jedna hrana a předpokládaná
+  šířka, šířku to ale neurčí. ARBot2 to dělal taky (`PathEdgeFinder`: když dvojice nesedí, vezme
+  hranu nejbližší směru mapy). Tam ale příčnou polohu posílal jen s naučenou šířkou a kurz z hran
+  měl vypnutý. Rozhodnutí autora: použije se naučená šířka, jinak mapová s nejistotou šířky/2 v σ.
+  Kurz se posílá vždy. `ARBot.Analyze singleedge` nad záznamy 23. 9.: jedna hrana je v 48–80 %
+  snímků (oboustranný koridor v 0,1–0,2 %), kurz z ní proti GPS kurzu p50 −1,3 až +1,2°, sd
+  2,4–4,9°. Ve FreeRun by tedy drift chytil. Testy 1 650 / 115 / 140 (13 nových). Stávající
+  testy oboustranného koridoru mají jednu hranu vypnutou, protože osamocený první snímek teď dá
+  měření. ⚠️ Na zařízení neběželo. Detail: [map-correlation-localization.md](map-correlation-localization.md).
+- **Rozbor jízd z 23. 9. (Modřany): kurz ve FreeRun neujel kvůli koridoru, ale uvnitř VN100**
+  (registr `lok-freerun-kurz-staci-na-zapad`, `lok-koridor-siroka-cyklostezka`). Robot jel na
+  jih a VN yaw šel za 5 minut o ~180° **doleva (k východu)**, fúze s ním. Magnetické pole i GPS
+  kurz přitom seděly. Od pole se odtrhlo atitudové řešení senzoru (VPE, K ≈ 0) a s ním i
+  nahrávané gyro: to je `AngularRate` **kompenzované odhadem biasu z filtru VN**, drift až
+  ~1 °/s. Koridor ve všech čtyřech záznamech nedal **ani jedno** přijaté měření (široká
+  cyklostezka, 21–25 inlierů proti prahu 25), takže Track se neměl podle čeho korigovat a FreeRun
+  jel „rovně“ po ujíždějícím kurzu. Hypotéza „korekce z mapy táhnou kurz“ tím padá. Do
+  `ARBot.Analyze heading` přibyly bloky *DRIFT PROTI GYRU* a *SMĚR POSUNU PO KOŠÍCH*. Čísla jsou
+  v [imu-and-frames.md](imu-and-frames.md), poslední sekce.
+  **Další krok:** `deploy/vnprobe.sh` (registry 35/36/38/43/83), nahrávat i `UncompGyro`, pojistka
+  ve fúzi na trvalý rozpor s GPS kurzem.
 - **Nový nástroj „Profil scény“** (registr `nast-profil-sceny`, návrh
   [plan-profil-sceny.md](plan-profil-sceny.md)). Autor chtěl vidět profil 3D scény před robotem
   a rozhodl: nejdřív graf z(r) v azimutu gridu, 3D pohled později zvlášť, účel je ladění detekce

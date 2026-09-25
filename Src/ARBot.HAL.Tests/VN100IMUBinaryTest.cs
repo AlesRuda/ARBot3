@@ -148,6 +148,57 @@ namespace ARBot.HAL.Tests
             Assert.That(s.Magnetometer, Is.Not.Null, "kompenzovane pole tam ale byt musi");
         }
 
+        // --- Gyro bez biasu z filtru a teplota (24. 9. 2026) ---------------------------------
+
+        /// <summary>
+        /// Dnesni konfigurace driveru. Poradi v payloadu je podle BITU: UncompMag (2),
+        /// UncompGyro (8), Temp (16), Mag (256), Accel (512), Gyro (1024); Attitude Ypr (2), YprU (256).
+        /// </summary>
+        private static ushort[] MasksDnes()
+        {
+            var m = new ushort[6];
+            m[2] = 2 | 8 | 16 | 256 | 512 | 1024;
+            m[4] = 2 | 256;
+            return m;
+        }
+
+        [Test]
+        public void PayloadLength_Dnes_96BajtuPaketu()
+        {
+            // 5 vektoru × 12 + teplota 4 = 64; Ypr + YprU = 24. Paket = 8 B rezie + 88 = 96 B,
+            // tedy 9 600 B/s pri 100 Hz na lince 115 200 Bd (~11 520 B/s): 83 %.
+            Assert.That(VN100IMUBinary.PayloadLength(Groups, MasksDnes()), Is.EqualTo(64 + 24));
+        }
+
+        [Test]
+        public void DecodePacket_UncompGyroATeplota_NEPROHODI_Gyro()
+        {
+            var magRaw = new Vector3(0.12f, 0.05f, -0.22f);
+            var gyroRaw = new Vector3(0.011f, 0.022f, 0.047f);
+            var mag = new Vector3(1, 2, 3);
+            var acc = new Vector3(4, 5, 6);
+            var gyro = new Vector3(0.01f, 0.02f, 0.03f);
+
+            var b = new List<byte>();
+            void F(float f) => b.AddRange(BitConverter.GetBytes(f));
+            void V(Vector3 v) { F(v.X); F(v.Y); F(v.Z); }
+            V(magRaw); V(gyroRaw); F(38.5f); V(mag); V(acc); V(gyro);
+            V(new Vector3(0, 5, -3)); V(new Vector3(10, 20, 30));
+
+            var s = VN100IMUBinary.DecodePacket(Groups, MasksDnes(), b.ToArray());
+
+            Assert.That(s, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(s.AngularVelocityRaw, Is.EqualTo(new Vector3(gyroRaw.X, -gyroRaw.Y, -gyroRaw.Z)));
+                Assert.That(s.AngularVelocity, Is.EqualTo(new Vector3(gyro.X, -gyro.Y, -gyro.Z)));
+                Assert.That(s.Temperature, Is.EqualTo(38.5).Within(1e-6));
+                Assert.That(s.MagnetometerRaw, Is.EqualTo(new Vector3(magRaw.X, -magRaw.Y, -magRaw.Z)));
+                Assert.That(s.Magnetometer, Is.EqualTo(new Vector3(mag.X, -mag.Y, -mag.Z)));
+                Assert.That(s.OrientationUncertainty.Value.X, Is.EqualTo(Conversions.Deg2Rad(10)).Within(1e-6));
+            });
+        }
+
         [Test]
         public void DecodePacket_NoOrientation_ReturnsNull()
         {

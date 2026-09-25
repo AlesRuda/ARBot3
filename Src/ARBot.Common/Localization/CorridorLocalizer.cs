@@ -165,6 +165,7 @@ namespace ARBot.Common.Localization
             Frames = source.Frames;
 
             var pose = src.Pose;
+            if (!src.Ok && src.SingleEdgeUsable) return ProcessSingleEdge(src, pose);
             if (!src.Ok)
             {
                 LastFix = WithPose(new CorridorFix
@@ -302,9 +303,120 @@ namespace ARBot.Common.Localization
             }
 
             fix.Reason = CorridorFixReason.Ok;
-            if (config.SendCorrections) Send(fix);
+            if (config.SendCorrections) Send(fix, corridor.Lateral, corridor.SigmaLateral);
             LastFix = fix;
             return fix;
+        }
+
+        /// <summary>
+        /// <b>Merenie z JEDNE hrany</b> (<see cref="CorridorConfig.SingleEdge"/>, od 24. 9. 2026).
+        ///
+        /// <para><b>Kurz</b> se posila stejne jako u oboustranneho koridoru — smer hrany proti
+        /// azimutu mapove osy na sirce nezavisi (predpoklad: hrana je rovnobezna s osou).
+        /// <b>Pricna poloha</b> potrebuje sirku: <c>lateral = W/2 − odstup</c> (leva) nebo
+        /// <c>−odstup − W/2</c> (prava). Sirka je NAUCENA z oboustrannych merení, kdyz ji odhad
+        /// ma, jinak MAPOVA a jeji nejistota <see cref="CorridorLocalizerConfig.SingleEdgeWidthStdM"/>
+        /// jde polovinou do sigmy (rozhodnuti autora 24. 9. 2026).</para>
+        ///
+        /// <para><b>Co tu schvalne neni:</b> odhad sirky se z jedne hrany NEUCI (nejde z ni urcit)
+        /// a sirkova brana neplati (neni co porovnat). Ochranu proti cizi hrane nese prirazeni
+        /// (veto azimutu, chi-kvadrat s nejistotou sirky, nejednoznacnost) a kontrola, ze robot
+        /// lezi na ceste. ARBot2 postupoval podobne, jen pricnou polohu posilal vyhradne s naucenou
+        /// sirkou a kurz z hran nepouzival vubec.</para>
+        /// </summary>
+        private CorridorFix ProcessSingleEdge(CorridorSource.Result src, Fusion.RobotState pose)
+        {
+            var corridor = src.Corridor;
+            var fix = WithPose(new CorridorFix { Time = src.Time, Corridor = corridor }, pose);
+            fix.SingleSide = corridor.SingleSide;
+
+            if (pose == null)
+            {
+                fix.Reason = CorridorFixReason.NoPose;
+                LastFix = fix;
+                return null;
+            }
+
+            RoadAxisMatch axis;
+            if (config.Association.Enabled)
+            {
+                var assoc = EdgeAssociator.Associate(network, origin, pose, corridor,
+                                                     config.Association, config.MaxEdgeDistanceM,
+                                                     SingleEdgeWidth);
+                axis = assoc.Axis;
+                fix.AssocChi2 = assoc.Chi2;
+                fix.AssocChi2Second = assoc.Chi2Second;
+                fix.AssocCandidates = assoc.Candidates;
+                if (assoc.Result != EdgeAssocResult.Ok)
+                {
+                    fix.Axis = axis;
+                    fix.Reason = assoc.Result switch
+                    {
+                        EdgeAssocResult.Ambiguous => CorridorFixReason.AmbiguousEdge,
+                        EdgeAssocResult.NoCandidate => axis.Found && axis.DistanceM > config.MaxEdgeDistanceM
+                                                       ? CorridorFixReason.EdgeTooFar
+                                                       : CorridorFixReason.EdgeMismatch,
+                        _ => CorridorFixReason.NoEdge,
+                    };
+                    LastFix = fix;
+                    return null;
+                }
+            }
+            else
+            {
+                axis = RoadAxis.Match(network, origin, pose.X, pose.Y, pose.Theta);
+                if (!axis.Found || axis.DistanceM > config.MaxEdgeDistanceM)
+                {
+                    fix.Axis = axis;
+                    fix.Reason = axis.Found ? CorridorFixReason.EdgeTooFar : CorridorFixReason.NoEdge;
+                    LastFix = fix;
+                    return null;
+                }
+            }
+
+            fix.Axis = axis;
+            var (w, sw) = SingleEdgeWidth(axis);
+            double lateral = corridor.SingleEdgeLateral(w);
+            double sigmaLat = Math.Sqrt(corridor.EdgeSigma * corridor.EdgeSigma + sw * sw / 4);
+            fix.MapWidthM = w;
+            fix.SingleWidthStdM = sw;
+            fix.SingleLateral = lateral;
+            fix.SingleSigmaLateral = sigmaLat;
+            fix.FilteredWidthM = widths.RawEstimate(axis.WayId, axis.WidthM);
+            fix.LateralDisagreement = lateral - axis.Lateral;
+            fix.HeadingDisagreementRad =
+                Conversions.NormalizeHalfOrientation(corridor.DirectionRad - axis.HeadingRelRad);
+
+            // Robot musi lezet NA CESTE - obdoba OutsideCorridor u oboustranneho koridoru, jen
+            // s predpokladanou sirkou, takze tolerance zahrnuje i jeji nejistotu. Hrana dal nez
+            // sirka cesty je cizi hrana (jina cesta za travnikem, obrubnik protejsiho chodniku).
+            if (Math.Abs(lateral) > w / 2 + config.MaxOutsideCorridorM + sw)
+            {
+                fix.Reason = CorridorFixReason.OutsideCorridor;
+                LastFix = fix;
+                return null;
+            }
+
+            fix.Reason = CorridorFixReason.Ok;
+            if (config.SendCorrections) Send(fix, lateral, sigmaLat);
+            LastFix = fix;
+            return fix;
+        }
+
+        /// <summary>
+        /// Sirka cesty pro merenie z jedne hrany a jeji nejistota (1 sigma) [m]: naucena, kdyz ji
+        /// odhad ma s kvalitou, jinak mapova s <see cref="CorridorLocalizerConfig.SingleEdgeWidthStdM"/>.
+        /// </summary>
+        private (double WidthM, double StdM) SingleEdgeWidth(RoadAxisMatch axis)
+        {
+            if (widths.TryGetWidth(axis.WayId, out double learned))
+            {
+                double mad = widths.DispersionOf(axis.WayId);
+                double std = double.IsNaN(mad) ? config.SingleEdgeLearnedWidthStdFloorM
+                                               : Math.Max(config.SingleEdgeLearnedWidthStdFloorM, mad);
+                return (learned, std);
+            }
+            return (axis.WidthM, config.SingleEdgeWidthStdM);
         }
 
         /// <summary>
@@ -330,7 +442,7 @@ namespace ARBot.Common.Localization
         /// na ose. Kurz: cesta se v ramci robotu jevi stocena o <c>d</c>, mapa rika, ze vede pod
         /// <c>θ_edge</c>, tedy <c>θ_true = θ_edge − d</c>.</para>
         /// </summary>
-        private void Send(CorridorFix fix)
+        private void Send(CorridorFix fix, double lateral, double sigmaLateral)
         {
             if (!VydatMerenie(fix.Time)) { ThrottledSends++; return; }
 
@@ -345,9 +457,9 @@ namespace ARBot.Common.Localization
             double? maxHdg = config.SlewRateHeadingRadPerSec > 0 ? config.SlewRateHeadingRadPerSec * dt : (double?)null;
             posledniLimitCas = fix.Time;
 
-            double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + c.Lateral;
+            double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + lateral;
             engine.Enqueue(new AxisOffsetMeasurement(a.NormalX, a.NormalY, value,
-                                                     Nafoukni(c.SigmaLateral, config.SigmaLateralExtraM),
+                                                     Nafoukni(sigmaLateral, config.SigmaLateralExtraM),
                                                      fix.Time, config.MeasurementSource)
             { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxLat });
             EmittedCorrections++;

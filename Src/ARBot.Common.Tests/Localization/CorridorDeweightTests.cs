@@ -77,6 +77,10 @@ public class CorridorDeweightTests
         var origin = CorrelationTestScenes.Origin();
         var net = CorrelationTestScenes.StraightEastRoad(origin, 4.0);
         cfg.WidthEstimator.MinSamples = 1;
+        // Jen OBOUSTRANNY koridor: jedna hrana (od 24. 9. 2026) by z prvniho, jeste nesparovaneho
+        // snimku poslala vlastni merenie a zamichala by se do toho, co tu testy zkoumaji.
+        // Jedna hrana ma vlastni soubor CorridorSingleEdgeTests.
+        cfg.Corridor.SingleEdge = false;
         return new CorridorLocalizer(engine, net, origin, cfg);
     }
 

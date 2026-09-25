@@ -21,7 +21,7 @@ namespace ARBot.HAL.Devices.AHRS
     /// pro fúzní filtr.
     ///
     /// Konfigurace výstupu se sestaví přes <see cref="BinaryOutputConfig"/> (skupiny
-    /// Imu: Accel/Gyro/Mag/UncompMag; Attitude: Ypr/YprU/YprRate). Pakety se rámují a dekódují ručně
+    /// Imu: Accel/Gyro/Mag/UncompMag/UncompGyro/Temp; Attitude: Ypr/YprU). Pakety se rámují a dekódují ručně
     /// podle nakonfigurovaného layoutu (velikosti polí z BinaryOutputInfoAttribute).
     /// Orientace se bere z VN Ypr (yaw = azimut z magnetometru) a ukládá jako ENU/matematická
     /// orientace (viz Azimut2Orientation), takže Rotation odpovídá konvenci projektu.
@@ -69,10 +69,19 @@ namespace ARBot.HAL.Devices.AHRS
                            | BinaryOutputConfig.ImuGroupOptions.Mag
                            // NEKOMPENZOVANE pole (pred registrem 23) kvuli kalibraci
                            // magnetometru — viz doc/plan-vn100-kalibrace.md.
-                           | BinaryOutputConfig.ImuGroupOptions.UncompMag,
+                           | BinaryOutputConfig.ImuGroupOptions.UncompMag
+                           // Gyro BEZ dynamickeho biasu z filtru VN a teplota senzoru (24. 9. 2026).
+                           // `Gyro` (AngularRate, ICD 2.4.11) je kompenzovane odhadem biasu z VPE,
+                           // takze 23. 9. nebylo poznat, jestli ~1 °/s drift je gyro, nebo chybny
+                           // odhad biasu ve filtru. Rozdil Gyro − UncompGyro JE ten odhad.
+                           // Viz doc/imu-and-frames.md a registr lok-freerun-kurz-staci-na-zapad.
+                           | BinaryOutputConfig.ImuGroupOptions.UncompGyro
+                           | BinaryOutputConfig.ImuGroupOptions.Temp,
+                // YprRate (12 B) VYRAZENO 24. 9. 2026: nikdo ho necetl, a linka 115 200 Bd
+                // (~11 520 B/s) by s nim a s UncompGyro+Temp byla na 94 % (108 B × 100 Hz).
+                // Bez nej 96 B × 100 Hz = 83 % (drive 92 B = 80 %).
                 AttitudeGroup = BinaryOutputConfig.AttitudeGroupOptions.Ypr
-                                | BinaryOutputConfig.AttitudeGroupOptions.YprU
-                                | BinaryOutputConfig.AttitudeGroupOptions.YprRate,
+                                | BinaryOutputConfig.AttitudeGroupOptions.YprU,
             };
 
             WriteCommand("VNWRG,06,0");                            // ADOR = 0 → vypnout ASCII async
@@ -342,7 +351,8 @@ namespace ARBot.HAL.Devices.AHRS
         internal static IMUState DecodePacket(byte groups, ushort[] masks, byte[] payload)
         {
             Vector3? yprDeg = null;   // VN Ypr [yaw, pitch, roll] ve stupních (azimut)
-            Vector3? gyro = null, accel = null, mag = null, magRaw = null, ypru = null;
+            Vector3? gyro = null, accel = null, mag = null, magRaw = null, ypru = null, gyroRaw = null;
+            float? temp = null;
 
             int off = 0;
             for (int g = 0; g < GroupEnums.Length; g++)
@@ -364,6 +374,9 @@ namespace ARBot.HAL.Devices.AHRS
                         else if (name == "UncompMag") magRaw = Vec3(payload, off);
                         else if (name == "Accel") accel = Vec3(payload, off);
                         else if (name == "Gyro") gyro = Vec3(payload, off);
+                        // Gyro bez dynamickeho biasu z filtru VN (jen tovarni + uzivatelska kalibrace).
+                        else if (name == "UncompGyro") gyroRaw = Vec3(payload, off);
+                        else if (name == "Temp") temp = BitConverter.ToSingle(payload, off);
                     }
                     else if (GroupEnums[g] == typeof(BinaryOutputConfig.AttitudeGroupOptions))
                     {
@@ -395,6 +408,11 @@ namespace ARBot.HAL.Devices.AHRS
             // Tyz prevod ramce: reference frame rotation (reg 26) plati na kompenzovane
             // i nekompenzovane pole, takze obe musi skoncit ve stejnych osach.
             state.MagnetometerRaw = FrdToFlu(magRaw);
+            // ICD 2.4.4: UncompGyro je "v body-frame", tedy tymz ramcem jako Gyro - stejny prevod.
+            // ⚠️ U UncompMag se 12. 9. 2026 ukazalo, ze je v binarnim vystupu bit po bitu shodne
+            // s Mag; jestli se UncompGyro od Gyro opravdu lisi, ukaze teprve zaznam.
+            state.AngularVelocityRaw = FrdToFlu(gyroRaw);
+            if (temp.HasValue) state.Temperature = temp.Value;
             // YprU je [yaw, pitch, roll] ve stupních (1σ) → radiány
             if (ypru is Vector3 u)
                 state.OrientationUncertainty = new Vector3(

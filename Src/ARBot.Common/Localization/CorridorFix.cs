@@ -99,6 +99,21 @@ namespace ARBot.Common.Localization
         /// </summary>
         public long DroppedByFusion;
 
+        /// <summary>
+        /// Merenie z JEDNE hrany (<see cref="CorridorSide.None"/> = oboustranny koridor nebo nic).
+        /// Pri nem <see cref="MapWidthM"/> nese sirku, se kterou se pricna poloha pocitala.
+        /// </summary>
+        public CorridorSide SingleSide;
+
+        /// <summary>Pricna poloha z jedne hrany a predpokladane sirky [m] (+ = vlevo od osy).</summary>
+        public double SingleLateral;
+
+        /// <summary>Jeji sigma vcetne nejistoty sirky [m] (pred <c>corridorstd=</c>).</summary>
+        public double SingleSigmaLateral;
+
+        /// <summary>Nejistota pouzite sirky (1 sigma) [m]: rozptyl nauceneho odhadu, nebo <c>corridorsinglewidthstd=</c>.</summary>
+        public double SingleWidthStdM;
+
         /// <summary>Vzniklo merenie?</summary>
         public bool Ok => Reason == CorridorFixReason.Ok;
 
@@ -133,6 +148,11 @@ namespace ARBot.Common.Localization
                 AssocChi2 = AssocChi2,              // verze 6
                 AssocChi2Second = AssocChi2Second,
                 AssocCandidates = AssocCandidates,
+
+                SingleSide = (byte)SingleSide,      // verze 7
+                SingleLateral = SingleLateral,
+                SingleSigmaLateral = SingleSigmaLateral,
+                SingleWidthStd = SingleWidthStdM,
             };
             // Bez koridoru (chybela druha kamera) by vychozi 0 znamenala "Ok" - to by v telemetrii
             // lhalo, proto vlastni hodnota.
@@ -160,6 +180,11 @@ namespace ARBot.Common.Localization
                 m.RightFromX = Corridor.RightFrom.X; m.RightFromY = Corridor.RightFrom.Y;
                 m.RightToX = Corridor.RightTo.X; m.RightToY = Corridor.RightTo.Y;
                 m.CorridorReason = (byte)Corridor.Reason;
+                m.EdgeOffset = Corridor.EdgeOffset;          // verze 7
+                m.EdgeSigma = Corridor.EdgeSigma;
+                // Kandidat na jednu hranu i tam, kde se z nej merenie nestalo (NoPair bez
+                // koridoru ho nema) - at jde v reportu videt, kolik jich bylo.
+                if (SingleSide == CorridorSide.None) m.SingleSide = (byte)Corridor.SingleSide;
             }
             return m;
         }
