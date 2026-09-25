@@ -41,7 +41,6 @@ namespace ARBot.Common.Communication
             var c = new MessageCatalog();
             // Telemetrie z ARBot2
             c.Register(new State());
-            c.Register(new EKFStepMsg());
             c.Register(new Info());
             c.Register(new ImageMsg());
             c.Register(new Marker());

@@ -52,6 +52,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   srovnaný není, to je vědomý ruční zápis. Snímek registru 54 naznačuje, že filtr v ose Z
   odečítá bias gyra ~0,57 °/s, ale je to jeden vzorek a nejistý výklad. Rozhodne záznam
   s `UncompGyro`. Detail: [imu-and-frames.md](imu-and-frames.md).
+- **Smazán legacy EKF z ARBot2** (do té doby jen `<Compile Remove>`): `Common/EKF.cs`,
+  `EKFStep.cs`, `Models/EKFModel2*`, `EKFModel3*`, `EKFModelInput/Measurement`, starý modelový
+  rámec `IModel`/`SimpleModel`/`ModelState(History)` a osiřelé `ARBot.Common.Tests1` (bez csproj,
+  mimo `ARBot.slnx`). Náhradu, fúzi v `Fusion/`, kryjí testy a jezdí na robotu. Build x64 bez
+  chyb, testy 1646 / 140 / 121 zelené. Následně pryč i `EKFStepMsg` a `IEKFStepInfo` (včetně
+  registrace v `MessageCatalog`) a vyřazené `Driver/ARBotState(Collection)`: v ARBot3 je nikdo
+  nevyráběl a v žádném ze 44 záznamů v `records/` nejsou. Detail: [ekf-fusion.md](ekf-fusion.md).
 
 ## 2026-09-24
 

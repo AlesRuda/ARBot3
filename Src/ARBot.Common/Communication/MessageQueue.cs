@@ -30,8 +30,6 @@ namespace ARBot.Common.Communication
         {
 /*            Message m=new State();
             Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
-            m = new EKFStepMsg();
-            Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit = 10 });
             m = new Info();
             Cfg.Add(m.MsgName, new ItemInfo() { Msg = m, CountLimit=100 });
             m = new Blob();

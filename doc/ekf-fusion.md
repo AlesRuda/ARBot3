@@ -61,10 +61,9 @@ navíc, **σ jde pustit i na starší záznamy**.
 engine je **asynchronní s okny historie a zpětnými opravami** — „jeden krok" v něm nemá odpovídající
 věc, a měření chodí různě rychle (IMU ~100 Hz).
 
-> **Zpráva `EKFStepMsg` existuje, ale nikdo ji neposílá.** Nese celý krok klasického EKF
-> (`P` před/po, `K`, `M`, `C`, `Q`, `R`, innovace) a `EKFModel3.ToLogMessage()` ji umí sestavit —
-> je to ale **pozůstatek z ARBot2**, registrovaný v katalogu kvůli čitelnosti starých záznamů,
-> stejně jako zpráva `Module`. Na dnešní asynchronní engine její tvar **nesedí**: popisuje jeden
+> **Zpráva `EKFStepMsg` byla 25. 9. 2026 smazána.** Nesla celý krok klasického EKF
+> (`P` před/po, `K`, `M`, `C`, `Q`, `R`, innovace) a sestavoval ji jen legacy `EKFModel3`
+> z ARBot2. V ARBot3 ji nikdo neposílal. Na dnešní asynchronní engine její tvar **nesedí**: popisovala jeden
 > synchronní krok. Kdyby se vnitřek filtru měl zveřejňovat (zisk `K` odpovídá na „komu filtr
 > věřil"), je to úkol na **nový tvar zprávy**, ne na oživení téhle.
 
@@ -74,8 +73,12 @@ věc, a měření chodí různě rychle (IMU ~100 Hz).
   smyk, wrap, OOSM replay, prune, NIS/gating).
 - **Adaptivní odhad R/Q z reziduí je vědomě odložen** — je stavový a konfliktní
   s bezstavovým replayem; zatím per-měření R z kvality senzoru + fyzikální Q + NIS gating.
-- **Legacy EKF** (`Common/EKF.cs`, `Models/EKFModel2/3*`) je vyřazen z kompilace
-  (`<Compile Remove>` v `ARBot.Common.csproj`) — slouží jen jako referenční matematika.
+- **Legacy EKF z ARBot2** (`Common/EKF.cs`, `EKFStep.cs`, `Models/EKFModel2/3*`, spolu se starým
+  modelovým rámcem `IModel`/`SimpleModel`/`ModelState(History)` a osiřelým `ARBot.Common.Tests1`)
+  byl **25. 9. 2026 smazán** — do té doby jen vyřazený z kompilace. Nahradila ho fúze v `Fusion/`
+  (testy + provoz na robotu). Kdyby byla potřeba referenční matematika, je v historii gitu.
+  Týž den šly pryč i `EKFStepMsg` + `IEKFStepInfo`: v ARBot3 je nikdo nevyráběl a v žádném
+  záznamu nejsou. Zůstal `IModelState`, protože ho používá nová fúze i regulátory.
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
 
@@ -512,8 +515,8 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   zapisovalo hodnotu, která ještě není spočtená; proto se odebírají až usazené hodnoty, periodicky
   a bezpečně pod oknem historie. Objem ~155 měření/s ≈ 12 kB/s je proti obrazům z kamer
   (~1,8 GB/min) zanedbatelný; periodický souhrn po zdrojích by naopak neumožnil dohledat konkrétní
-  zahozené měření. (`EKFStepMsg` vedle ní je něco jiného — dump celých matic z předchozí generace,
-  na průběžný záznam příliš těžký.)
+  zahozené měření. (`EKFStepMsg`, smazaná 25. 9. 2026, byla něco jiného — dump celých matic
+  z předchozí generace, na průběžný záznam příliš těžký.)
 
 ### Zahození „příliš starého" měření: okno historie ≠ základ filtru
 

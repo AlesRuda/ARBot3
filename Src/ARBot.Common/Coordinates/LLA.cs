@@ -10,7 +10,7 @@ namespace ARBot.Common.Coordinates
     /// <summary>
     /// Geodetická souřadnice (Latitude/Longitude/Altitude) ve WGS84. Šířka i délka jsou
     /// v <b>radiánech</b> (délka roste na východ, 0 = rovník / nultý poledník), výška v metrech
-    /// nad povrchem. Systémový geotyp (GPS, <c>ARBotState</c>, mapy, OsmNav). Ze stupňů viz
+    /// nad povrchem. Systémový geotyp (GPS, mapy, OsmNav). Ze stupňů viz
     /// <see cref="FromDegrees"/>; převody přes <see cref="ECEF"/>/<see cref="Ellipsoid"/> a lokální
     /// ENU rovinu řeší <see cref="GeoReference"/>, vzdálenost <see cref="GreatCircle"/>.
     /// </summary>
