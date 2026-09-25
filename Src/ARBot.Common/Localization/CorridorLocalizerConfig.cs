@@ -105,8 +105,22 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double SingleEdgeLearnedWidthStdFloorM = 0.1;
 
-        /// <summary>Nad timto odstupem pozy od hrany se hrana nebere za „tu, po ktere jedeme" [m].</summary>
-        public double MaxEdgeDistanceM = 8.0;
+        /// <summary>
+        /// Nad timto odstupem pozy od hrany se hrana nebere za „tu, po ktere jedeme" [m];
+        /// vychozi <see cref="double.PositiveInfinity"/> = bez omezeni.
+        ///
+        /// <para><b>Vypnuto 26. 9. 2026 na pokyn autora</b> (driv 8 m). V Track
+        /// <c>20260925-142428.rec</c> byla po zatacce poza 11–12 m vedle cesty (chyba obvodu kola)
+        /// a koridor 80 s hlasil jen <c>NoEdge</c>: byl slepy prave tehdy, kdy byla chyba nejvetsi,
+        /// a GPS s <c>gpsposstd=30</c> pozu nevratila. Kterou hranu vzit, rozhoduje
+        /// <see cref="EdgeAssociator"/> podle chi-kvadratu (azimut + pricna odchylka proti
+        /// kovarianci pozy s podlahou), ne vzdalenost.</para>
+        ///
+        /// <para>⚠️ <b>Samo to velkou chybu neopravi:</b> s podlahou <c>assocfloorlat=3</c> m vyjde pri
+        /// odchylce 12 m chi2 ≈ 16 &gt; <c>assocchi2=9,21</c>, takze misto <c>NoEdge</c> prijde
+        /// <c>EdgeMismatch</c>. Registr <c>lok-koridor-noedge-po-zatacce</c>.</para>
+        /// </summary>
+        public double MaxEdgeDistanceM = double.PositiveInfinity;
 
         /// <summary>
         /// Jak se vybira hrana, ke ktere se koridor vztahuje (<see cref="EdgeAssociator"/>).

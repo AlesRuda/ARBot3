@@ -1,4 +1,5 @@
 ﻿using System;
+using ARBot.Common.Regulators;
 using System.Collections.Generic;
 using System.Globalization;
 using ARBot.Common.Missions;
@@ -93,6 +94,20 @@ namespace ARBot.Common.Configuration
               + "'passable' (puvodni: staci tvrdy odstup SafeDist podel usecky - pro A/B). "
               + "Puvodni pravidlo optimalizovalo DELKU, kdezto A* CAS, takze zahazovalo objizdku, "
               + "kterou cena koupila, a drahu pritisklo na mez prujezdnosti.");
+        public static readonly StringParam MotionProfile = Vycet("motionprofile", "latency", new[] { "latency", "trapezoid" }, K_RIZENI,
+              "Kinematicky profil regulatoru drahy (IMotionProfile): 'latency' (vychozi od 25. 9. 2026: "
+              + "spojity zakon v = -a*L + sqrt((a*L)^2 + 2a*x + ve^2) se zpozdenim smycky L, viz "
+              + "motionlatency=) nebo 'trapezoid' (puvodni diskretni profil z ARBot2 - pro A/B). "
+              + "Puvodni profil se pri mrkvi ve stale vzdalenosti ustali hluboko pod bezpecnou rychlosti "
+              + "(1,4 m -> 0,855 m/s), kvantuje prikaz a kdyz uz robot nestihne zastavit, nebrzdi naplno "
+              + "- rotace z toho kmita ~3x za sekundu. Viz doc/path-following.md.");
+        public static readonly DoubleParam MotionLatency = Num("motionlatency",
+              Fmt(LatencyMotionProfile.DefaultLatency), K_RIZENI,
+              "Zpozdeni ridici smycky L [s] pro motionprofile=latency: robot pocita s tim, ze zacne "
+              + "brzdit az za L. U cile dava zakon zesileni 1/L - mensi L = ostrejsi rizeni, ale pod "
+              + "skutecnym zpozdenim (~0,2-0,25 s: takt + mrtva doba + nabeh motoru) kmita a pri "
+              + "dojezdu prejede cil (simulace 25. 9. 2026: L = 0,1 prejede o 8 cm, L <= 0,15 kmita "
+              + "v zatacce vic nez puvodni profil). Musi byt > 0.", ParamParsers.Kladne);
         public static readonly DoubleParam WedgeFill = Num("wedgefill",
               Fmt(new OccupancyIntegratorConfig().WedgeFillDeg), K_RIZENI,
               "Sirka KLINU mezi zornymi poli barevnych kamer [stupne], ve kterem se dopisuje "

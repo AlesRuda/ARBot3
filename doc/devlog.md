@@ -39,7 +39,84 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-26
+
+- **Rozbor Track `20260925-142428.rec` nad třemi pozorováními autora** (nový
+  `ARBot.Analyze posegps`: póza proti GPS podélně a příčně, měřítko kol, odstup od sítě, koridor
+  a plán po 10s oknech; GPS se převádí do runtimové ENU přes počátek z `MapMsg`).
+  (1) **Obvod kola je o ~1,8 % velký**: na přímých úsecích kola / tětiva GPS 1,018, Doppler / kola
+  0,982; póza byla po ~740 m 12,5 m před GPS, kurz v pořádku (`lok-odometrie-obvod-kola`).
+  (2) **Po zatáčce se podélná chyba změnila na příčnou** (póza 12 m severně od cesty) a koridor
+  neměřil, protože hranu hledá jen do 8 m od pózy (`NoEdge` 80 s) (`lok-koridor-noedge-po-zatacce`).
+  (3) Pozdní jednohranové korekce stáhly pózu o ~10 m za 30 s, **po 2 cm na snímek**, takže
+  `PoseJumpDetector` grid nesmazal a robot skončil v buňkách zapsaných ze špatné pózy
+  (`EscapingBlocked` 14:34:18–28) (`lp-grid-posun-pomalou-korekci`). **Konečné zastavení ale
+  způsobil timeout mise** (600 s na úsek, trasa 1 118 m) (`mise-track-timeout-delka-useku`).
+  Kód se neměnil, všechno čeká na rozhodnutí autora.
+- **Rozhodnutí autora k rozboru:** obvod kola opravil sám (`WheelRadius` činitel 0,94 → 0,923);
+  **timeout jízdy Tracku vypnut** (`TrackConfig.DrivingTimeoutSec = 0`, jako u Robotouru);
+  **8m limit hledání hrany koridoru vypnut** (`MaxEdgeDistanceM = ∞`). ⚠️ Samo to velkou
+  odchylku neopraví: χ² přiřazení s podlahou 3 m zamítne 12 m (χ² ≈ 16 > 9,21), takže místo
+  `NoEdge` přijde `EdgeMismatch` — otevřená otázka v `lok-koridor-noedge-po-zatacce`. Posun do
+  nesjízdného gridu řešil únikový manévr v obou epizodách za 6–10 s (`lp-grid-posun-pomalou-korekci`).
+
 ## 2026-09-25
+
+- **Rozbor jízd 25. 9. (`records/test/20260925-*.rec`, tři Track a jeden FreeRun 23 min) nad
+  třemi pozorováními autora.** Nový `ARBot.Analyze drive` přehrává regulátor dráhy takt po taktu
+  nad zaznamenanými plány a stavy; se zaznamenaným příkazem se shoduje v 99,9 % taktů.
+  (1) **Naučená šířka se do mapy nepropsala, protože `roadwidthmap=false`** (výchozí, ve všech čtyřech
+  záznamech). Estimátor se ji naučil: 3,68 m proti mapovým 3 m, `WidthNotTrusted` 2,3 %
+  (`lok-naucena-sirka-do-mapy`, nový krok „zapnout v profilu", rozhodnutí autora).
+  (2) **FreeRun jede ~0,8 m/s při `maxspeed=1.7`**: plán končí v mrkvi 1,5 m před robotem a plánovač
+  bere konec dráhy jako hranici potvrzeného, takže `VBrake` váže 97 % plánů na 1,22 m/s. Regulátor
+  pak brzdí k poslednímu uzlu (p50 0,855) a vazba na rotaci má ve jmenovateli tutéž krátkou
+  vzdálenost. Track téhož dne s mrkví ~5,6 m jede 1,70 m/s (`mise-freerun-pomala-mrkev-blizko`).
+  (3) **Cukání dělá kmitání rotace**: diskrétní profil zaokrouhluje počet kroků, takže příkaz
+  skáče po 0,045 m/s a 0,220 rad/s, znaménko rotace se mění 3× za sekundu při úhlu na cíl ~1°
+  a 84 % skoků rychlosti > 0,1 m/s dělá vazba na dobu rotace (`lp-regulator-kmitani-rotace`).
+  Léčba ani jednoho se nezačala, čeká na autora. Ve FreeRun vznikl oboustranný koridor jen ve 3 %
+  cyklů. Popis reportu: [record-replay.md](record-replay.md).
+- **Provozní profil: `roadwidthmap=true` a `freerunlook=3`** (pokyn autora, `config/pi-provoz.cfg`).
+  Naučená šířka jde od teď do korelace i do kreslení. Mrkev FreeRun 3 m místo 1,5 m zvedá strop
+  z brzdné obálky z 1,22 na ~1,73 m/s. ⚠️ Oprava týž den: skutečně se robot ustálí jen na
+  **~1,3 m/s**, protože `TrapezoidMotionProfile.Compute` má při stálé vzdálenosti mrkve vlastní
+  pevný bod (1,4 m → 0,855 m/s, což je přesně naměřený medián; viz rozbor `Compute` níže). Výchozí hodnoty v kódu se neměnily (simulace a krátké
+  testovací mapy). Kmitání rotace zůstává otevřené. ⚠️ Na zařízení nejelo, ověří `drive` /
+  `envelope` nad další jízdou FreeRun.
+- **Kmitání rotace: příčina rozebraná** (`lp-regulator-kmitani-rotace`). `ARBot.Analyze drive` má
+  nové bloky: model akčního členu ze záznamu (τ ~0,05 s, T ~0,08 s, K ~1,1, gyro i kola shodně,
+  tedy motory jsou rychlé) a skok úhlu na cíl mezi takty (s novým plánem p90 4,5°, se starým
+  1,8°). Buzením je přeplánování (uzly ve středech 5cm buněk, plán 16×/s), zesilovačem zákon
+  `Rot2RotSpeed` (u nuly ~6 s⁻¹, schod 0,22 rad/s). Simulace uzavřené smyčky s naměřeným modelem
+  realitu reprodukuje (3,14 proti 3,1 změnám znaménka/s). Lineární zóna u nuly (`k = 2,5`) v ní
+  dá 1,24/s při mrkvi 1,4 m a 0,19/s při 3 m. Kód regulátoru se neměnil, čeká na rozhodnutí autora.
+- **Rozbor `TrapezoidMotionProfile.Compute`** (na otázku autora, jestli je diskrétní model nutný).
+  Vzorec plánuje **trojúhelník z aktuální rychlosti** (zrychlit z `vs`, pak zabrzdit na `ve`
+  v celém `x`) a vrací jeho vrchol; rampu přitom dělá motorová jednotka sama (MicroBasic skript
+  v `SDC2160Ex`). Tři důsledky: (a) **pevný bod** při stálé vzdálenosti cíle leží hluboko pod
+  bezpečnou rychlostí — 1,4 m → 0,855 m/s (naměřený medián FreeRun), 3 m → 1,305, proti `√(2ax)`
+  1,18 / 1,73; (b) **kvantování** po `0,9·a·tSam` = 0,045 m/s z `floor(ne)`; (c) **když už robot
+  nestihne zastavit, nebrzdí naplno**: vrací kladnou rychlost ~0,6–0,9·`vs` (např. `x` = 2 cm,
+  `vs` = 1,2 → 0,72), u rotace 1° při 0,5 rad/s k cíli 0,204 rad/s — přestřelení je tím dané.
+  Fyzikálně oprávněná část diskrétnosti je jen **držení příkazu po jeden takt** (zastavit se dá
+  nejdřív od dalšího taktu), a ta jde vyjádřit spojitě: `v = −a·L + √((a·L)² + 2a·x + ve²)`, kde
+  `L` je zpoždění smyčky. Totéž dá u nuly konečné zesílení `1/L`, tedy lineární zónu z rozboru
+  kmitání. Kód se neměnil.
+- **Simulace profilu se zpožděním `L`** nad skutečnými `PathPlanner`/`PathResult` a naměřeným
+  akčním členem. FreeRun s mrkví 3 m: dnes 1,305 m/s a 1,83 změny znaménka ω za sekundu,
+  s `L = 0,4` 1,54 m/s a 0,20 (příčná odchylka rms 2,5 → 4,2 cm). Dojezd bez přejetí od `L = 0,2`,
+  zatáčka 90° bez kmitu od `L = 0,3` a s `L = 0,4` s menší odchylkou než dnes. `L ≤ 0,15` je horší
+  než dnešek. Čísla v registru (`lp-regulator-kmitani-rotace`), návrh `L = 0,4`, čeká na autora.
+- **`LatencyMotionProfile` implementován a je výchozí** (pokyn autora, `L = 0,4 s`). Nová
+  implementace `IMotionProfile`; `PathResult` a plánovač beze změny, volba v `ARBotRuntime`
+  (`motionprofile=latency|trapezoid`, `motionlatency=`). Proti návrhu jedna oprava: `max(v_e, …)`,
+  jinak by vzorec zpomaloval průjezd uzlem i robotu, který už jede `v_e`. 13 nových testů
+  (`LatencyMotionProfileTests`: zákon, pevný bod, kvantování, `T_rot`, a simulace uzavřené smyčky
+  s naměřeným akčním členem — FreeRun 1,83 → 0,20 změny znaménka ω/s, dojezd bez přejetí,
+  zatáčka bez kmitu) a nový profil v testech kontraktu. Testy 1 670 / 140 / 121, build x64
+  i OrangePI. ⚠️ Na zařízení neběželo; ověří A/B jízda nad `ARBot.Analyze drive`.
+  **Rozhodnutí:** [decisions.md](decisions.md), 25. 9. 2026; popis [path-following.md](path-following.md).
 
 - **`deploy\poweroff.bat`**: vypne robota z PC přes ssh. Nejdřív zastaví službu (uzavře
   záznam), pak `sudo /sbin/poweroff`, stejně jako tlačítko *Power off* na stránce. Nespouštěno,

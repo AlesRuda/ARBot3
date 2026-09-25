@@ -514,9 +514,24 @@ namespace ARBot.Robot
             if (integratorCfg.WedgeFillDeg <= 0)
                 Trace.WriteLine("wedgefill=0: klin mezi zornymi poli barvy se nedoplnuje (A/B).");
 
-            var motionProfile = new TrapezoidMotionProfile(
-                Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
-                Profile.MaxAcceleration, Profile.Rozchod);
+            // motionprofile= vybira kinematicky profil regulatoru drahy. Vychozi 'latency' je spojity
+            // zakon se zpozdenim smycky (motionlatency=); 'trapezoid' vraci puvodni diskretni profil
+            // pro A/B. Regulator (PathResult) i planovac jsou pro oba stejne. Viz
+            // doc/path-following.md, "Profil se zpozdenim smycky".
+            IMotionProfile motionProfile;
+            if (ParamRegistry.MotionProfile.Value == "trapezoid")
+            {
+                motionProfile = new TrapezoidMotionProfile(
+                    Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                    Profile.MaxAcceleration, Profile.Rozchod);
+                Trace.WriteLine("motionprofile=trapezoid: puvodni diskretni profil regulatoru (A/B).");
+            }
+            else
+            {
+                motionProfile = new LatencyMotionProfile(
+                    Profile.MaxAllowedSpeed, Profile.MaxAllowedRotationSpeed,
+                    Profile.MaxAcceleration, Profile.Rozchod, ParamRegistry.MotionLatency.Value);
+            }
 
             var navigator = new LocalNavigator(
                 engine,

@@ -124,7 +124,7 @@ nezaložit, ne jezdit podle jeho čitelné části.
 |---|---|
 | `NoRoute` z globální navigace | mise se **přeruší** (zotavovací manévr neexistuje, takže zastavení je jediná bezpečná odpověď) |
 | bod dál od sítě než limit | mise se **přeruší**, důvod říká *který* bod a jeho souřadnice |
-| jízda k jednomu místu trvá nad `DrivingTimeoutSec` (600 s) | mise se **přeruší** |
+| jízda k jednomu místu trvá nad `DrivingTimeoutSec` | mise se **přeruší** — ⚠️ **od 26. 9. 2026 vypnuto** (`0`, pokyn autora): pevných 600 s bylo kratší než první úsek v Modřanech (1 118 m ≈ 670 s), zaseknutí hlídají detektory `GlobalNavigator` |
 | čekání na člověka (stisk/uvolnění stopu) | **timeout nemá** — čeká se, jak dlouho je potřeba |
 
 Nouzové zastavení **za jízdy** tímto automatem nehýbe — o zastavení se stará `ControlLoop` a po

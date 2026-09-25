@@ -25,14 +25,18 @@ namespace ARBot.Common.Missions
         public double MaxPointOffRoadM = 50.0;
 
         /// <summary>
-        /// Timeout jizdy k jednomu mistu [s]; <c>0</c> = neomezovat.
+        /// Timeout jizdy k jednomu mistu [s]; <c>0</c> = neomezovat (vychozi).
         ///
-        /// <para><b>Nikdy tiche zaseknuti:</b> jizda k cili sama timeout nema, takze bez tohohle
-        /// stropu by robot, ktery se nekam zaklinil, stal <b>navzdy</b> a mise by dal hlasila
-        /// „jede". Zotavovaci manevr neexistuje, takze jedina bezpecna odpoved je zastavit
-        /// a rict to.</para>
+        /// <para><b>Vypnuto 26. 9. 2026 na pokyn autora</b> (driv 600 s, stejne jako u Robotouru je
+        /// 0). Pevny strop nesedi na useky, ktere se mezi seznamy lisi radove: v Modranech
+        /// (<c>20260925-142428.rec</c>) mela trasa k prvnimu mistu 1 118 m, tedy ~670 s pri
+        /// 1,66 m/s, a mise se prerusila, i kdyz robot jel. Puvodni duvod („nikdy tiche
+        /// zaseknuti" - robot zaklineny navzdy a mise hlasi „jede") plati dal, jen ho uz nekryje
+        /// tenhle strop: zaseknuti hlidaji detektory v <c>GlobalNavigator</c> (bez pohybu, bez
+        /// postupu, prehrazeno) a je videt na strance nahledu. Registr
+        /// <c>mise-track-timeout-delka-useku</c>.</para>
         /// </summary>
-        public double DrivingTimeoutSec = 600.0;
+        public double DrivingTimeoutSec = 0;
 
         /// <summary>Jak casto se posila <c>TrackMsg</c> [s] — do webu i do zaznamu.</summary>
         public double MessagePeriodSec = 1.0;

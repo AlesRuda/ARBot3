@@ -284,7 +284,7 @@ jako dvě skupiny téhož jména. Hlídá to `ParamRegistryTests.KazdaKategorieJ
 12. 9. 2026: `magmodel` měl kategorii *Hardware*, ale deklaraci uprostřed bloku *Fúze*).
 
 Kategorie *Řízení a plánování* (`K_RIZENI`) vznikla **12. 9. 2026** pro `envelope`, `smooth`
-a `safedist`. Do té doby byly pod *Hardware*, kam nepatří: neříkají, **čím je robot osazený**, ale
+a `safedist` (25. 9. 2026 přibyly `motionprofile` a `motionlatency`). Do té doby byly pod *Hardware*, kam nepatří: neříkají, **čím je robot osazený**, ale
 **jak se rozhoduje, kudy a jak rychle jet**. `maxspeed` zůstal v *Hardware* — je to mez stroje,
 která jde i do driveru motorů, ne volba plánovače.
 

@@ -13,6 +13,26 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-25 — Regulátor dráhy: spojitý profil se zpožděním smyčky místo diskrétního `TrapezoidMotionProfile`
+Robot ve FreeRun jel 0,855 m/s při povolených 1,7 a cukal (rotace měnila znaménko ~3× za sekundu).
+Obojí má kořen v diskrétním profilu převzatém z ARBot2: plánuje trojúhelník z aktuální rychlosti
+(pevný bod pod bezpečnou rychlostí), kvantuje příkaz a když robot nestihne zastavit, nebrzdí
+naplno. **Rozhodnutí (autor):** nová implementace `IMotionProfile` — `LatencyMotionProfile`,
+`v = max(v_e, −a·L + √((a·L)² + 2a·x + v_e²))` se zpožděním smyčky **`L = 0,4 s`**, výchozí hned.
+- **Mění se jen profil, ne regulátor** — `PathResult`, `PathPlanner` i vyhlazování drah jsou beze
+  změny; kontrakt „`Dist2Speed` ≤ `Dist2MaxSpeed`" platí (člen `−a·L`).
+- **Upřesňuje rozhodnutí 2. 8. 2026** (časově optimální profil místo proporcionálního řízení):
+  daleko od cíle zůstává časově optimální křivka, jen u cíle má zákon konečné zesílení `1/L`.
+  Nekonečné zesílení časově optimálního zákona u nuly kmitá se skutečným zpožděním stejně jako
+  proporcionální řízení s velkým ziskem.
+- **`T_rot` z klidu, ne z měřené ω** — jinak zákmit rotace trhá dopřednou rychlostí přes vazbu.
+- **`L` ze simulace, ne z měření na HW**: naměřené zpoždění ~0,2–0,25 s, 0,4 s je rezerva na
+  zpoždění fúze. Pod ~0,15 s je chování horší než původní.
+- Původní profil zůstává (`motionprofile=trapezoid`) do potvrzení jízdou (pravidlo projektu).
+**Odkazy:** [path-following.md](path-following.md) („Profil se zpožděním smyčky"),
+`Src/ARBot.Common/Regulators/LatencyMotionProfile.cs`, testy `LatencyMotionProfileTests`,
+registr `lp-regulator-kmitani-rotace`. **Stav:** v kódu, na zařízení neběželo.
+
 ### 2026-09-25 — Původ výřezů `.osm` se neeviduje a nepravidelně se neaktualizují
 
 **Co:** U map v `OSM/` se **nezapisuje** původ (JOSM / Overpass), oblast ani datum stažení a pro

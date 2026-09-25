@@ -689,6 +689,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 - [doc/path-following.md](doc/path-following.md) — regulátory pohybu (`IRegulator`: `PointRegulator` /
   `PathResult`, `IPathPlanner`, `IMotionProfile`): sledování dráhy z waypointů — plán = geometrie rohů +
   brzdná obálka, exekuce = feedforward + lookahead; analýza odchylky vs. vzdálenost cílového bodu.
+  ✅ **Od 25. 9. 2026 je výchozí profil `LatencyMotionProfile`** (`motionprofile=latency`,
+  `motionlatency=0.4`; `trapezoid` = původní diskrétní z ARBot2): spojitý zákon
+  `v = max(v_e, −a·L + √((a·L)² + 2a·x + v_e²))` se zpožděním smyčky. Původní profil měl při stálé
+  vzdálenosti mrkve pevný bod pod bezpečnou rychlostí (FreeRun 0,855 m/s při 1,7), kvantoval
+  a nebrzdil naplno, takže rotace kmitala ~3×/s; v simulaci s naměřeným akčním členem 1,83 → 0,20
+  změny znaménka ω/s. Mění se jen profil, `PathResult` ne. ⚠️ **Na zařízení neběželo** (A/B přes
+  `ARBot.Analyze drive`).
   ✅ **Od 13. 9. 2026 má smyčka DRŽENÉ ZASTAVENÍ** (`StopHold`, `controlLoop.StopRequest("důvod")`):
   druhý, nezávislý vstup „smím jet" vedle regulátoru „kam jet". Držitelů může být víc a robot stojí,
   dokud drží kdokoli — tím zmizí přetahování o `Regulator = null`, které dnes nese obojí najednou
@@ -942,7 +949,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   Odchylky hranových bodů proti známému okraji měří `ARBot.Analyze edgebias`, grid ze záznamu
   (tedy co skutečně vyrobila běžící aplikace) `ARBot.Analyze grid`.
   Měření nad záznamy dělá `Src/ARBot.Analyze` (`corridor` / `corridorfit` / `edgebias` / `grid` /
-  `envelope` / `dump` / `cameras` / `log` / `types`), viz
+  `envelope` / `drive` / `posegps` / `dump` / `cameras` / `log` / `types`), viz
   [doc/record-replay.md](doc/record-replay.md#offline-analýza-záznamu-arbotanalyze) — a **měř
   každou variantu víckrát**: rozptyl mezi běhy téže konfigurace je větší, než se čeká. Pozor,
   **rezidua nejsou přesnost** a **méně přijatých při lepší geometrii není zlepšení** — obojí se

@@ -547,6 +547,32 @@ záznamu** (`safedist=`, `maxspeed=`, `envelope=` z výpisu `Info`), aby rozpad 
 robotu; `--safedist=`/`--maxspeed=` to přepíšou pro A/B „co by bylo, kdyby". Nález, kvůli kterému
 vznikl: [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
 
+**`drive`** (od 25. 9. 2026) — **co z plánu udělal regulátor a proč robot cuká**. `envelope` končí
+u stropu, který dal plánovač; mezivýsledky regulátoru (`PathResult.Control`: strop z obálky dráhy,
+vazba na dobu rotace, úhel na cílový uzel) jdou jen do `Debug`, takže v záznamu z robotu nejsou.
+Report je **přehraje**: zprávy bere v pořadí zápisu, každý `LocalPlanMsg` postaví regulátor týmž
+`PathPlanner`em a profilem jako `ARBotRuntime` (`maxspeed=` ze záznamu, `--maxspeed=` přepíše)
+a každý takt (`RobotStateMsg` + `DriveCommandMsg` se stejným razítkem) na něm zavolá `Control`.
+**První řádek je shoda se zaznamenaným příkazem** (na `20260925-144658.rec` 99,9 % taktů do
+0,02 m/s) — bez ní by rozpad popisoval jiný regulátor. Dál: rozpad rychlosti, protifaktický příkaz
+„bez brzdění na konci plánu" (stropy uzlů jen z odstupu), skoky příkazu mezi takty a kdo je udělal
+(obálka / vazba na rotaci), změny znaménka rotace, nejčastější hodnoty příkazu (kvantování
+diskrétního profilu), skok úhlu na cílový uzel mezi takty (s novým / se starým plánem — buzení
+přeplánováním), časová osa a **dynamika rotace**: proložení modelu „mrtvá doba + 1. řád + zesílení"
+mezi příkazem ω a gyrem i rotací z kol (grid search, na 300 s úseku ~15 s); `--from=`/`--to=` [s]
+zúží úsek. Nálezy:
+[ukoly.md](ukoly.md) `mise-freerun-pomala-mrkev-blizko`, `lp-regulator-kmitani-rotace`.
+
+**`posegps`** (od 26. 9. 2026) — **kde je póza proti GPS a proti mapě a kdo ji opravoval**.
+Časová osa po oknech (`--bin=` [s], výchozí 10): odchylka pózy od GPS rozložená **podélně**
+a **příčně** vůči směru jízdy, dráha z kol proti GPS, odstup pózy i GPS od mapové sítě, koridor
+(oboustranný / z jedné hrany / poslaný do fúze, důvody `NoEdge` / `AmbiguousEdge`) a stavy
+lokálního plánu. GPS se převádí do **runtimové** ENU přes počátek z `MapMsg`, takže odchylka je
+absolutní, ne až na posun. Blok **PŘÍMÉ ÚSEKY** měří měřítko odometrie jako dráhu z kol proti
+**tětivě** GPS (okno 30 s, změna směru < 3°): dráha z poloh po 0,1 s je šumem nafouknutá a ve
+stání roste bez pohybu, takže by měřítko zkreslila. Nález, kvůli kterému vznikl:
+[ukoly.md](ukoly.md) `lok-odometrie-obvod-kola`.
+
 **`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
 barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy
 nedosáhne; buňka je pak `Unknown`, ačkoli hloubka o ní ví. Tiskne tři věci: **zorná pole

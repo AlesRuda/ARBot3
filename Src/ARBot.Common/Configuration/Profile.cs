@@ -46,7 +46,7 @@ namespace ARBot.Common.Configuration
         /// Polomer kola v metrech.
         /// 0.94 - je konstanta urcena merenim, reprezentuje zmacknuti pneumatiky vahou robotu
         /// </summary>
-        public static double WheelRadius = 0.085944*0.94;
+        public static double WheelRadius = 0.085944 * 0.923;
 #if true   //rychly motor
         /// <summary>
         /// Prevodovy pomer prevodovky

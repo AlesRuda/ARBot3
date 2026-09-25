@@ -191,6 +191,13 @@ namespace ARBot.Analyze
                                              Arg(args, "--bin", 30), Arg(args, "--maxskew", 400),
                                              Text(args, "--sweep"));
                         return 0;
+                    case "posegps":
+                        PoseGpsReport.Run(rec, Arg(args, "--bin", 10));
+                        return 0;
+                    case "drive":
+                        DriveReport.Run(rec, Arg(args, "--maxspeed", double.NaN),
+                                        Arg(args, "--from", 0), Arg(args, "--to", double.MaxValue));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }

@@ -1354,7 +1354,7 @@ Zbývající tři kusy v `ARBot.Common/Localization` a napojení do runtime:
 |---|---|
 | ~~`MaxLateralDisagreementM` (1,5 m)~~ | ⚠️ **zrušeno 18. 9. 2026 bez náhrady** — testovalo tutéž veličinu jako `EdgeAssociator` (`dLat`), jen pevným pravítkem místo χ² proti kovarianci pózy, a stálo až **za** ním; velikost odchylky posuzuje přiřazení a `GateMode.Soft` ve fúzi |
 | `MaxWidthDisagreementM` (1,5 m) | velký rozdíl šířky = proložila se jiná dvojice hranic, ne ta cesta |
-| `MaxEdgeDistanceM` (8 m) | nejsme na té cestě |
+| ~~`MaxEdgeDistanceM` (8 m)~~ | ⚠️ **vypnuto 26. 9. 2026** (∞, pokyn autora): po zatáčce byla póza 11–12 m vedle cesty (obvod kola) a koridor 80 s hlásil jen `NoEdge` — slepý právě při největší chybě. Hranu vybírá χ² přiřazení; ⚠️ s podlahou `assocfloorlat=3` ale 12 m dá χ² ≈ 16 > 9,21, takže velkou chybu to samo neopraví (`EdgeMismatch`) |
 | `WidthUpdateMaxDisagreementM` (0,3 m) | šířka se učí **jen** z cyklů, kde póza sedí — jinak by se do ní zapsala chyba pózy a ta by se pak sama utvrzovala |
 
 **Přepínače** (stejný vzor jako u plošné korelace): `corridor=true` zakládá stupeň (default
@@ -3023,7 +3023,8 @@ cyklu**, ne že by tam ujela. Fúze si přitom sama hlásí σ polohy **3,73 m**
 nastavená na **0,4 σ** vlastní nejistoty: zamítá podle veličiny, kterou právě nezná.
 
 ⚠️ `MaxEdgeDistanceM = 8,0 m` je při p90 7,17 m **taky na hraně** — kdyby se příčná brána
-povolovala, tahle se stane další tichou stropní bránou.
+povolovala, tahle se stane další tichou stropní bránou. *(Stalo se 25. 9. 2026 v Modřanech —
+od 26. 9. je vypnutá, viz tabulka bran výš.)*
 
 ### Příčná brána dělá dvě práce najednou
 

@@ -100,6 +100,7 @@ namespace ARBot.Common.Tests.Regulators
         {
             new TrapezoidMotionProfile(VMax, WMax, Accel, Rozchod),
             new SqrtMotionProfile(VMax, WMax, Accel, Rozchod),
+            new LatencyMotionProfile(VMax, WMax, Accel, Rozchod),
         };
 
         /// <summary>V bode, kde uz ma byt endSpeed, je stropem prave endSpeed - jinak by obalka lhala.</summary>

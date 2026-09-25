@@ -6308,6 +6308,9 @@ temata:
         kdy: 2026-09-15
       - co: Doladit `RebuildThresholdM` a `MinRebuildPeriodSec` z prvního záznamu
         stav: otevreno
+      - co: "Zapnuto `roadwidthmap=true` v `config/pi-provoz.cfg` (pokyn autora) — 25. 9. 2026 autor šířku do mapy nepropsanou neviděl, ačkoli estimátor se ji naučil (Track `20260925-143643.rec`: 3,68 m proti mapovým 3 m, `WidthNotTrusted` jen 2,3 %); všechny čtyři záznamy běžely s `roadwidthmap=false (default)`"
+        stav: hotovo
+        kdy: 2026-09-25
       - co: Ověřit na zařízení
         stav: otevreno
     odkazy:
@@ -6315,7 +6318,7 @@ temata:
         cesta: doc/plan-naucena-sirka-do-mapy.md
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-15]
+    devlog: [2026-09-15, 2026-09-25]
     ceka_na: [lok-korelace-tri-podminky-naostro]
 
   - id: hw-zelezo-od-kabelu-kamer
@@ -7802,4 +7805,236 @@ temata:
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
     devlog: [2026-09-24]
+    ceka_na: []
+
+  - id: mise-freerun-pomala-mrkev-blizko
+    oblast: mise
+    nazev: FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
+    druh: vada
+    stav: v-kodu
+    vyreseno: 2026-09-25
+    nalezeno: 2026-09-25
+    popis: >
+      Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 23 min, Modřany):
+      robot jede výrazně pomaleji, než je `maxspeed=1.7`. Potvrzeno měřením: příkaz p50 **0,81 m/s**,
+      rychlost fúze 0,78 m/s. Mrkev leží vždy `freerunlook=` = **1,5 m** před robotem a plán končí
+      v ní; plánovač bere konec dráhy jako hranici potvrzeně sjízdného (`BuildWayPoints`: frontier se
+      inicializuje na konec dráhy, poslední uzel má strop 0), takže obálka `VBrake` váže 97,4 %
+      plánů na `√(2·0,5·1,5)` = **1,22 m/s**. Regulátor z toho udělá ještě méně: `Dist2Speed`
+      k poslednímu uzlu (diskrétní profil s rezervou 0,9) dá p50 0,855 m/s, a vazba dopředné rychlosti
+      na dobu rotace `d/(4·T_rot)` má ve jmenovateli tutéž krátkou vzdálenost, takže srazí rychlost
+      v 35 % taktů (p50 o 0,17 m/s). Protifakticky bez brzdění na konci plánu by příkaz byl p50 0,90,
+      p90 1,35 m/s. Pro srovnání Track téhož dne (`20260925-143643.rec`): mrkev ~5,6 m, příkaz p50
+      **1,70 m/s**, vazba na rotaci jen v 11 % taktů. Měří `ARBot.Analyze drive` (rekonstrukce
+      `PathResult.Control` sedí na záznam v 99,9 % taktů) a `envelope`. Ve FreeRun navíc vznikl
+      oboustranný koridor jen ve 3 % cyklů, zbytek jel „rovně“ (`lok-koridor-siroka-cyklostezka`).
+    kroky:
+      - co: "Změřeno: obálka `VBrake` k mrkvi 1,5 m + `Dist2Speed` k poslednímu uzlu + vazba na rotaci přes krátkou vzdálenost (`ARBot.Analyze drive`, `envelope`)"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem"
+        stav: otevreno
+    odkazy:
+      - text: mission-freerun.md
+        cesta: doc/mission-freerun.md
+      - text: path-following.md
+        cesta: doc/path-following.md
+    devlog: [2026-09-25]
+    ceka_na: []
+
+  - id: lp-regulator-kmitani-rotace
+    oblast: lokalni-planovani
+    nazev: Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost
+    druh: vada
+    stav: v-kodu
+    vyreseno: 2026-09-25
+    nalezeno: 2026-09-25
+    popis: >
+      Pozorování autora z FreeRun 25. 9. 2026: robot nejede plynule. Rekonstrukce regulátoru
+      (`ARBot.Analyze drive` nad `20260925-144658.rec`): příkaz rychlosti se mezi takty (10 Hz) mění
+      o víc než 0,1 m/s ve **40,5 %** taktů (4 skoky za sekundu), a **84 %** těch skoků nedělá
+      obálka, ale **vazba dopředné rychlosti na dobu dorovnání rotace** (`SpeedLimit`,
+      `d/(4·T_rot)`). Rotace přitom kmitá: znaménko příkazu `ω` se mění **3,1× za sekundu** při
+      úhlu na cíl p50 jen 1°, `|ω|` fúze p50 0,14 rad/s. Příčina je v diskrétním profilu
+      (`TrapezoidMotionProfile.Compute`, převzatý z ARBot2): počet kroků `ne` se nad 2 zaokrouhluje
+      dolů a výsledek násobí 0,9, takže příkaz skáče po kvantech — rychlost po **0,045 m/s**
+      (0,810 / 0,855 / 0,900…), rotace po **0,220 rad/s** (= 0,045 / polovina rozchodu; přesně tahle
+      hodnota je ve 24,6 % taktů, 0,440 ve 4,1 %). Malý úhel tak dostane celé kvantum, přestřelí,
+      a protože `T_rot` počítá i s dobrzděním aktuální `ω`, kmitání zvedá `T_rot` a srazí rychlost.
+      Ve FreeRun je to vidět víc než v Track (tam je `d` ~5,6 m místo 1,4 m, vazba váže v 11 % taktů,
+      skoků je 14,5 %), rotace ale kmitá i tam (2,1 změny znaménka za sekundu).
+      **Rozbor příčiny (25. 9. 2026):** akční člen je rychlý — model „mrtvá doba + 1. řád" proložený
+      ze záznamu dává τ 0,04–0,06 s, T 0,07–0,08 s, K 1,1–1,15 (gyro i kola shodně). Kmitání tedy
+      nedělají motory, ale zákon a jeho buzení: `Rot2RotSpeed` má u malých úhlů zesílení ~6 s⁻¹
+      (1° → 0,106 rad/s), mezi ~2,5° a 10° plochý schod 0,22 rad/s (relé) a `T_rot` nikdy pod 0,2 s.
+      Buzení je **přeplánování**: s novým plánem skočí úhel na cílový uzel mezi takty o p50 1,1°,
+      p90 4,5° (se starým plánem 0,7 / 1,8°, což je jen vlastní rotace) — uzly leží ve středech
+      buněk 5 cm a plán se mění 16×/s. Simulace uzavřené smyčky s naměřeným akčním členem, terénní
+      poruchou a rozptylem cíle 5 cm reprodukuje realitu (dnešní zákon 3,14 změny znaménka/s proti
+      naměřeným 3,1); bez rozptylu cíle jen 0,7. Tamtéž: mrkev 3 m srazí kmitání na 2,15/s a skoky
+      rychlosti z vazby na rotaci zmizí; zákon „sqrt s lineární zónou" (`k = 2,5 s⁻¹`, mimo zónu
+      tentýž časově optimální `√(2α|β|)`) dá 1,24/s při 1,4 m a **0,19/s při 3 m**, za cenu příčné
+      odchylky rms 2 → 3 cm (ε je 10 cm). Spojitý `√` bez lineární zóny je horší než dnešek (2,7/s).
+      Simulace je zjednodušená (přímka, konstantní v), ověřit to musí jízda.
+      **Rozbor `Compute` (25. 9.):** diskrétní vzorec plánuje trojúhelník z aktuální rychlosti
+      a vrací jeho vrchol, ačkoli rampu dělá motorová jednotka. Důsledky: pevný bod při stálé
+      vzdálenosti cíle (1,4 m → 0,855 m/s = medián FreeRun, 3 m → 1,305) hluboko pod `√(2ax)`,
+      kvantování 0,045 m/s a hlavně **žádné plné brzdění, když už robot nestihne zastavit** (vrací
+      ~0,6–0,9·`vs`; rotace 1° při 0,5 rad/s k cíli → 0,204 rad/s). Oprávněné je jen držení příkazu
+      po takt, spojitě `v = −a·L + √((a·L)² + 2a·x + ve²)`; u nuly dává zesílení `1/L`.
+      **Simulace profilu se zpožděním `L` (25. 9.)** nad skutečnými `PathPlanner`/`PathResult`,
+      s naměřeným akčním členem (dopředně rampa 0,5 m/s², rotace τ 0,05 / T 0,08 / K 1,1), `T_rot`
+      nového profilu = `2·√(|β|/α)`. FreeRun, mrkev 3 m (5 běhů, šum): dnes 1,305 m/s a 1,83 změny
+      znaménka ω/s; `L = 0,3` 1,59 m/s / 0,44; **`L = 0,4` 1,54 m/s / 0,20**; `L = 0,5` 1,50 / 0,08.
+      Mrkev 1,4 m: dnes 0,855 / 2,59, `L = 0,4` 0,99 / 1,05. Cena: příčná odchylka rms 2,5 → 4,2 cm
+      (`L = 0,4`, mrkev 3 m). Dojezd na cíl 5 m: `L ≥ 0,2` bez přejetí, `L = 0,1` přejede 8 cm
+      (potvrzuje, že člen se zpožděním je nutný). Zatáčka 90°: `L ≥ 0,3` bez změny znaménka ω,
+      `L = 0,4` odchylka 0,42 m a překmit kurzu 9° proti dnešním 0,51 m / 11,8°; `L ≤ 0,15` horší
+      než dnes. Simulace nemodeluje zpoždění fúze (stav je pravda) — to mluví spíš pro větší `L`.
+    kroky:
+      - co: "Změřeno: kvantování příkazu, změny znaménka rotace, podíl skoků z vazby na rotaci (`ARBot.Analyze drive`)"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Změřena dynamika akčního členu a buzení přeplánováním (`drive`, bloky DYNAMIKA ROTACE a `|d beta|`), simulace zákonů uzavřené smyčky"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Simulace profilu se zpožděním pro `L` 0,1–0,5 s (FreeRun, dojezd, zatáčka)"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Léčba (autor): `LatencyMotionProfile` se zpožděním `L = 0,4 s`, výchozí (`motionprofile=latency`, `motionlatency=`; `trapezoid` = původní), `PathResult` beze změny; testy zákona a uzavřené smyčky (`LatencyMotionProfileTests`)"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Ověřit jízdou A/B (`motionprofile=trapezoid` proti výchozímu): změny znaménka rotace, skoky `|dv|`, rychlost a příčná odchylka v `drive`"
+        stav: otevreno
+    odkazy:
+      - text: path-following.md
+        cesta: doc/path-following.md
+      - text: rozhodnutí 25. 9. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-09-25]
+    ceka_na: []
+
+  - id: lok-odometrie-obvod-kola
+    oblast: lokalizace
+    nazev: Obvod kola je o ~1,8 % větší, než robot ujede — póza na rovince utíká dopředu (12,5 m na 740 m)
+    druh: vada
+    stav: v-kodu
+    vyreseno: 2026-09-26
+    nalezeno: 2026-09-26
+    popis: >
+      Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Modřany, rovinka
+      k severu 0–450 s): odhad fúze se postupně vzdaluje od GPS. Změřeno `ARBot.Analyze posegps`:
+      póza je před GPS podélně o 0,06 m v 10 s, 5,7 m ve 100 s a **12,5 m ve 440 s** (~740 m jízdy),
+      příčně jen ~1 m (kurz sedí, IMU − GPS −1,2°). Na přímých úsecích (okno 30 s, změna směru < 3°)
+      je dráha z kol / tětiva GPS **1,018** (p10–p90 1,00–1,03, n = 63) a Doppler / kola ve stejných
+      oknech 0,982 — dvě nezávislé cesty, stejné číslo. `Profile.WheelRadius = 0,085944 · 0,94`
+      (0,94 = „změřené zmáčknutí pneumatiky") je tedy o ~1,8 % velký; odpovídal by činitel ~0,923.
+      S `gpsposstd=30` určuje podélnou polohu téměř jen odometrie (σ 0,05 m/s, ~91 Hz), takže chyba
+      měřítka jde 1:1 do pózy — a **po zatáčce se změní na příčnou** (`lok-koridor-noedge-po-zatacce`).
+      Jedna jízda, jeden povrch; zmáčknutí závisí na zatížení, tlaku a povrchu.
+    kroky:
+      - co: "Změřeno: kola / tětiva GPS 1,018, Doppler / kola 0,982 (`ARBot.Analyze posegps`)"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Autor opravil konstantu `Profile.WheelRadius`: činitel 0,94 → 0,923"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00"
+        stav: otevreno
+    odkazy:
+      - text: ekf-fusion.md
+        cesta: doc/ekf-fusion.md
+    devlog: [2026-09-26]
+    ceka_na: []
+
+  - id: lok-koridor-noedge-po-zatacce
+    oblast: lokalizace
+    nazev: Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-26
+    popis: >
+      Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky
+      (`lok-odometrie-obvod-kola`) se v první zatáčce (~460 s) změnila na **příčnou**: na cestě
+      k východu je póza 12,0–13,0 m severně od GPS, odstup pózy od sítě 11–12 m, GPS od sítě
+      0,4–1,5 m (robot fyzicky jel po cestě, lokální plán `Ok`, 1,5–1,6 m/s). Koridor po celou
+      dobu (490–570 s) hlásí **`NoEdge`** (119–198 cyklů za 10 s) a nepošle nic: přiřazení hledá
+      hranu jen do `CorridorLocalizerConfig.MaxEdgeDistanceM` = **8 m** od pózy. Oboustranný
+      koridor přitom měřil jen v úseku 290–440 s (way 154101921), jinde jen z jedné hrany.
+      Jakmile se ~580 s dostala do 8 m nějaká hrana, jednohranová měření s inovacemi −2,7 / +3,2 /
+      +2,0 m (p50 za 10 s) stáhla pózu limitem `corridorslew=0,5` za ~30 s o ~10 m zpět k GPS
+      (odchylka 12,6 → 2,3 m). Která hrana to byla (správná, nebo příčná), z toho vidět není.
+      Koridor je tak slepý právě tehdy, když je chyba největší — a GPS s σ 30 m pózu nevrátí.
+    kroky:
+      - co: "Změřeno: `NoEdge` po zatáčce, odstup pózy od sítě 11–12 m, pozdní korekce ~10 m za 30 s (`ARBot.Analyze posegps`, `corridor`)"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Příčina opravena (`lok-odometrie-obvod-kola`) a 8m limit vypnut (autor): `MaxEdgeDistanceM = ∞`"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m)"
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+    devlog: [2026-09-26]
+    ceka_na: []
+
+  - id: lp-grid-posun-pomalou-korekci
+    oblast: lokalni-planovani
+    nazev: Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-26
+    popis: >
+      Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za ~30 s o ~10 m
+      (`lok-koridor-noedge-po-zatacce`), ale po krocích ~2 cm na snímek (`corridorslew=0,5` m/s).
+      `PoseJumpDetector` porovnává posun s `|v|·dt + 0,5 m`, takže nezasáhl ani jednou (report
+      `nav`: jediný skok 0,59 m ve stání) a world-kotvený grid zůstal namalovaný v rámci špatné
+      pózy. Robot se po korekci ocitl v buňkách, které tam dřív zapsala tráva viděná z posunuté
+      pózy: `EscapingBlocked` 14:34:18–14:34:28 (167 plánů za 10 s) a `GoalUnsafe`. Limit kroku
+      byl navržen právě tak, aby detektor nespouštěl (21. 9.) — to platí pro malé korekce, ne pro
+      součet 10 m. Totéž se dá čekat u každé velké, ale postupné opravy pózy.
+      **Únikový manévr to zvládl** (autor: „to by měl řešit únikový manévr"): v obou epizodách
+      (první zatáčka 14:32:22–28, po korekci 14:34:18–28) robot z blokované buňky vyjel za 6–10 s
+      a pokračoval (`Ok`, v 1,66 resp. 0,22 m/s → pak přerušení timeoutem). Únik ale řeší jen
+      „stojím v blokované buňce", ne „celá okolní mapa je posunutá" — posunutý grid se přepisuje
+      až tím, co kamery znovu uvidí. S opraveným obvodem kola by velké korekce neměly vznikat.
+      **Zastavení na konci ale způsobil jiný důvod:** 14:34:39 `Track: mise PRERUSENA - timeout
+      jizdy k mistu 1/2 (limit 600 s)` (`mise-track-timeout-delka-useku`).
+    kroky:
+      - co: "Změřeno: `EscapingBlocked` hned po korekci ~10 m, detektor skoku nezasáhl (`posegps`, `nav`)"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat"
+        stav: otevreno
+    odkazy:
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+    devlog: [2026-09-26]
+    ceka_na: [lok-koridor-noedge-po-zatacce]
+
+  - id: mise-track-timeout-delka-useku
+    oblast: mise
+    nazev: Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
+    druh: vada
+    stav: v-kodu
+    vyreseno: 2026-09-26
+    nalezeno: 2026-09-26
+    popis: >
+      Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 14:34:39
+      „timeout jizdy k mistu 1/2 (limit 600 s)". Trasa k prvnímu místu měla na startu **1 118 m**;
+      při ~1,66 m/s je to ~670 s, tedy přes limit i bez jediného zdržení. `TrackConfig.DrivingTimeoutSec`
+      je pevných 600 s (a jako parametr nejde nastavit), kdežto délka úseku se mezi seznamy liší řádově.
+    kroky:
+      - co: "Timeout vypnut (autor): `TrackConfig.DrivingTimeoutSec = 0`, stejně jako u Robotouru; zaseknutí hlídají detektory `GlobalNavigator`"
+        stav: hotovo
+        kdy: 2026-09-26
+    odkazy:
+      - text: track-mission.md
+        cesta: doc/track-mission.md
+    devlog: [2026-09-26]
     ceka_na: []

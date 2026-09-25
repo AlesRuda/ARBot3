@@ -187,6 +187,73 @@ Zásah = dvě nezávisle počítaná čísla: **dopredná rychlost** a **rotačn
 
 ---
 
+## Profil se zpožděním smyčky (`LatencyMotionProfile`, od 25. 9. 2026)
+
+`motionprofile=latency` (výchozí), `motionlatency=` (výchozí **0,4 s**); `motionprofile=trapezoid`
+vrací původní `TrapezoidMotionProfile`. **`PathResult` ani plánovač se nemění** — rozhoduje jen,
+kterou implementaci `IMotionProfile` postaví `ARBotRuntime`.
+
+**Zákon.** Příkaz je nejvyšší rychlost, ze které se robot stihne zpomalit na `v_e`, když se brzdit
+začne až za zpoždění smyčky `L` (takt + mrtvá doba + náběh motorů):
+
+```
+v·L + (v² − v_e²)/(2a) ≤ x   ⇒   v = max(v_e, −a·L + √((a·L)² + 2a·x + v_e²)),  ≤ MaxSpeed
+```
+
+Daleko od cíle je to časově optimální `√(2a·x)`, u cíle `v ≈ x/L`, tedy **konečné zesílení `1/L`**.
+Časově optimální zákon bez zpoždění má u nuly zesílení nekonečné a se skutečným zpožděním akčního
+členu kmitá. `max(v_e, …)`: robot jedoucí nejvýš `v_e` brzdit nemusí, člen `v·L` se ho netýká; obě
+větve se potkají v `x = v_e·L`. Rotace je týž zákon s úhlovým zrychlením `a/(rozchod/2)`.
+Aktuální rychlost (`startSpeed`) zákon nepotřebuje — příkaz je strop a rampu k němu (i plné
+brzdění) dělá motorová jednotka (MicroBasic skript v `SDC2160Ex`). **Doba dorovnání rotace**
+`T_rot` pro vazbu `SpeedLimit` je doba časově optimálního natočení o `β` **z klidu**: u nuly jde
+k nule a nezávisí na měřené ω.
+
+**Proč ne původní diskrétní profil** (`TrapezoidMotionProfile.Compute`, z ARBot2). Vzorec plánuje
+trojúhelník „zrychli z aktuální rychlosti, pak zabrzdi" a vrací jeho vrchol zmenšený o 0,9
+a zaokrouhlený na celý počet taktů. Rozbor 25. 9. 2026 (FreeRun `20260925-144658.rec`,
+`ARBot.Analyze drive`, rekonstrukce regulátoru sedí na 99,9 % taktů):
+
+- **pevný bod** při stálé vzdálenosti mrkve hluboko pod bezpečnou rychlostí — 1,4 m → **0,855 m/s**
+  (přesně naměřený medián příkazu), 3 m → 1,305 m/s, proti `√(2ax)` 1,18 / 1,73;
+- **kvantování** po `0,9·a·tSam` = 0,045 m/s, u rotace 0,22 rad/s (ta hodnota byla ve 25 % taktů);
+- **žádné plné brzdění, když už robot zastavit nestihne** — vrací ~0,6–0,9 aktuální rychlosti
+  (rotace 1° při 0,5 rad/s k cíli → 0,204 rad/s), přestřelení je tím dané;
+- `T_rot` z měřené ω: každý zákmit rotace trhl dopřednou rychlostí (84 % skoků > 0,1 m/s).
+
+Fyzikálně oprávněná část diskrétnosti je jen **držení příkazu po takt**; to je v `L`.
+
+**Proč kmitá rotace** (a proč rozhodnutí z 2. 8. „časově optimální profil místo proporcionálního
+řízení" nestačilo). Akční člen je rychlý — model ze záznamu: mrtvá doba ~0,05 s, 1. řád ~0,08 s,
+zesílení ~1,1 (gyro i kola shodně). Jeden příkaz na 1° otočí robota o 0,67°, ale do dalšího taktu
+se z toho projeví jen ~13 %, takže regulátor přidá další zásah a přestřelí (odezva na skok 27–31 %).
+Smyčka je stabilní, ale špatně tlumená; trvalé kmitání budí **přeplánování** — s novým plánem
+skočí úhel na cílový uzel mezi takty o p50 1,1°, p90 4,5° (uzly ve středech 5cm buněk, plán 16×/s).
+Lineární zóna u nuly (zesílení `1/L`) je tedy **omezené zesílení jen u malých úhlů**, ne návrat
+k proporcionálnímu řízení: daleko od cíle zůstává časově optimální křivka.
+
+**Volba `L = 0,4 s`** (autor, ze simulace; testy `LatencyMotionProfileTests` ji drží). Simulace nad
+skutečnými `PathPlanner`/`PathResult` s naměřeným akčním členem, poruchou terénu, šumem kurzu
+a rozptylem mrkve 5 cm reprodukuje naměřené kmitání původního profilu. Výsledky:
+
+| | původní | L = 0,2 | L = 0,3 | **L = 0,4** | L = 0,5 |
+|---|---|---|---|---|---|
+| FreeRun mrkev 3 m: v p50 [m/s] | 1,305 | 1,64 | 1,59 | **1,54** | 1,50 |
+| změny znaménka ω [1/s] | 1,83 | 0,91 | 0,44 | **0,20** | 0,08 |
+| příčná odchylka rms [cm] | 2,5 | 2,5 | 3,4 | **4,2** | 5,1 |
+| mrkev 1,4 m: v p50 / změny ω | 0,855 / 2,59 | 1,07 / 1,95 | 1,03 / 1,40 | **0,99 / 1,05** | 0,96 / 0,70 |
+| zatáčka 90°: odchylka [m] / změny ω | 0,51 / 1 | 0,58 / 1 | 0,57 / 0 | **0,42–0,47 / 0** | 0,36 / 0 |
+
+Dojezd na cíl 5 m je bez přejetí od `L = 0,2`; `L = 0,1` přejede o 8 cm a `L ≤ 0,15` kmitá
+v zatáčce víc než původní profil. Naměřené zpoždění je ~0,2–0,25 s; rezerva do 0,4 s je na
+zpoždění fúze, které simulace nemodeluje (regulátor v ní vidí přesný stav).
+
+⚠️ **Na zařízení neběželo.** Ověřit A/B jízdou (`motionprofile=trapezoid` proti výchozímu) nad
+`ARBot.Analyze drive`: změny znaménka ω, skoky `|dv|`, rychlost a příčná odchylka. Rampu motorové
+jednotky 0,5 m/s² simulace převzala z konfigurace, neměřila ji.
+
+---
+
 ## Držené zastavení (`StopHold`, od 13. 9. 2026)
 
 Smyčka má kromě regulátoru druhý, **nezávislý** vstup: *smí se vůbec jet?* Získá se
