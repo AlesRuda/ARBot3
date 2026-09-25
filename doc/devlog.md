@@ -74,6 +74,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   kolekce) a `MovingStat`: držel je jen nevolaný konstruktor `GraphNavigationMsg(Map, …)`, který
   šel taky pryč (formát zprávy beze změny). Konzolový `ARBot.Record` přibyl do `ARBot.slnx` (staví se jen pod x64,
   stejně jako `ARBot.Analyze`).
+- **Identita VN100 v [hardware.md](hardware.md):** VN-100S-BB, FW 3.0.0.0, HW revize 7,
+  S/N 100016133 (z exportu `.sencfg` z 8. 7.; autor potvrdil, že je to kus v robotu).
+  Aktuální FW je v3.1.0.0 (březen 2023, autor), náš je o verzi pozadu. Jako příčina driftu
+  kurzu z 23. 9. je to jen hypotéza (týž FW jel dobře 12. a 18. 9.); rozhodne jízda
+  s `UncompGyro`. Krok přidán do `lok-freerun-kurz-staci-na-zapad`.
 
 ## 2026-09-24
 

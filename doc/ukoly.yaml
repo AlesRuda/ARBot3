@@ -7697,6 +7697,8 @@ temata:
         kdy: 2026-09-24
       - co: "Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro?"
         stav: otevreno
+      - co: "Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`"
+        stav: otevreno
       - co: "Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF"
         stav: otevreno
     odkazy:
@@ -7708,7 +7710,7 @@ temata:
         cesta: Src/ARBot.Analyze/HeadingReferencesReport.cs
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
-    devlog: [2026-09-24]
+    devlog: [2026-09-24, 2026-09-25]
     ceka_na: []
 
   - id: lok-koridor-siroka-cyklostezka

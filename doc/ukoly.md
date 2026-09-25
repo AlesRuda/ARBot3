@@ -243,9 +243,10 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [x] Read-only `deploy/vnprobe.sh` na senzoru: registr 35 (heading mode, adaptivní filtrování), 36/38 (VPE ladění mag/acc), 83, 43 (startovní bias gyra). Očekávané hodnoty z exportu ARBot2 + historie zápisů: 35 = `1,0,1,1`, 36/38 jako export, 43 = (0,0,0), 83 s `UseMagModel=1` (magmodel=). Registr 43 sonda do 24. 9. nečetla, doplněn. Nižší priorita než záznam s `UncompGyro` — registry neřeknou, proč VPE za jízdy magnetometr utlumila. Přečteno 25. 9.: 35–38 a 43 přesně podle exportu, 44 = Run (vada, `hw-vn100-hsi-run-ve-flash`) (25. 9. 2026)
 - [x] Nahrávat i `UncompGyro` (a teplotu) vedle `Gyro` — rozliší chybný odhad biasu ve VPE od skutečného gyra. V kódu 24. 9. (`IMUState` verze 5, `YprRate` vyřazen kvůli lince, `vn100` blok 6); na zařízení neběželo (24. 9. 2026)
 - [ ] Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro?
+- [ ] Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
-[imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+[imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu

@@ -544,4 +544,13 @@ Poznámky:
   COM9 byl v jedné relaci hlášen jako chyba „port nenalezen" — tj. buď jiný port, nebo odpojeno).
 - VN100 má konfiguraci (reference frame rotation, binární výstup) uloženou ve flash —
   detaily a montáž viz [imu-and-frames.md](imu-and-frames.md).
+- **Identita VN100:** model **VN-100S-BB**, firmware **3.0.0.0**, HW revize **7**, sériové číslo
+  **100016133**. Zdroj je hlavička exportu `vn100-2026-7-8-nastavei z arbot2.sencfg` (kořen repa,
+  8. 7. 2026); že je to **týž kus, který je dnes v robotu**, potvrdil autor 25. 9. 2026.
+  `deploy/vnprobe.sh` čte z identifikačních registrů jen registr 1 (model); FW je v registru 4,
+  HW revize ve 2 a sériové číslo ve 3.
+  **Aktuální FW od VectorNavu je v3.1.0.0 (březen 2023)** (autor, 25. 9. 2026), náš kus je tedy
+  o verzi pozadu. Co 3.1 opravuje, zjištěné není. Jako příčina driftu kurzu z 23. 9. je FW
+  hypotéza, ne nález (týž FW při dobrých jízdách 12. a 18. 9.) — viz registr
+  `lok-freerun-kurz-staci-na-zapad`.
 - Výběr platformového HAL (D435/T265 wrapper) viz [build-and-platforms.md](build-and-platforms.md).
