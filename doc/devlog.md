@@ -59,6 +59,21 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   chyb, testy 1646 / 140 / 121 zelené. Následně pryč i `EKFStepMsg` a `IEKFStepInfo` (včetně
   registrace v `MessageCatalog`) a vyřazené `Driver/ARBotState(Collection)`: v ARBot3 je nikdo
   nevyráběl a v žádném ze 44 záznamů v `records/` nejsou. Detail: [ekf-fusion.md](ekf-fusion.md).
+- **Smazán zbylý mrtvý kód z ARBot2** (134 souborů): všech 22 zbylých `<Compile Remove>` (Voronoi,
+  RRT, `MapCorelator`, EdgeTPU/TF segmentace…), kód, který se kompiloval, ale v produkci ho nic
+  nepoužívalo a neměl testy (`Navigations/*`, `SLAM/*`, `LocalMaps/*`, `KDTree/*`,
+  `Algorithms/Graphs|Voronoi3|Simplification|EdgeTPU`, `Kabsch*`, `Collider`/`Collider2`,
+  `PathEdgeFinder`, `History`, `Histogram`, `Performance`, TCP klient/server, `MessageQueue`,
+  `ARBot.HAL/Devices/Lidar`…), projekt **`ARBot.HALZBoard`** (nikdo ho neodkazoval) a zprávy, které
+  nikdo nevyráběl (`State`, `Marker`, `Module`, `Lidar`, `VFH`, `ICPMsg`, `ColliderMsg`,
+  `PathEdgeMsg`). Kdyby byly v nějakém starém záznamu, přehrávání je přeskočí jako neznámý typ.
+  Nechal se kód, který se používá jen v testech (`OsmNav/Colider`, `RoadWidthFilter`,
+  `PointRegulator`…), protože u části z nich je to záměr. Build x64 i OrangePI (Headless) bez
+  chyb, testy 1646 / 140 / 121 zelené; test odkazů v dokumentaci chytil pět odkazů na smazané
+  soubory, opraveno. Dodatečně pryč i stará mapa `Maps/Map.cs` (+ `MapPoint`, `MapWay`,
+  kolekce) a `MovingStat`: držel je jen nevolaný konstruktor `GraphNavigationMsg(Map, …)`, který
+  šel taky pryč (formát zprávy beze změny). Konzolový `ARBot.Record` přibyl do `ARBot.slnx` (staví se jen pod x64,
+  stejně jako `ARBot.Analyze`).
 
 ## 2026-09-24
 

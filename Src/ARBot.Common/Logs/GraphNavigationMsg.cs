@@ -1,6 +1,5 @@
 ﻿using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
-using ARBot.Common.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,8 +11,8 @@ namespace ARBot.Common.Logs
 {
     /// <summary>
     /// Odvozena zprava: <b>graf navigace k zobrazeni a do zaznamu</b> - vrcholy, hrany mezi nimi
-    /// a tri znacky (start / cil / vysledek). Je to zamerne OBECNY kontejner: pouziva ho
-    /// soucasna globalni navigace nad OsmNav i starsi navigatory (Voronoi, grid, Dijkstra nad
+    /// a tri znacky (start / cil / vysledek). Je to zamerne OBECNY kontejner: dnes ho plni jen
+    /// globalni navigace nad OsmNav, ale drive i starsi navigatory (Voronoi, grid, Dijkstra nad
     /// <c>Maps.Map</c>), takze <b>vyznam poli zavisi na producentovi</b> - viz tabulka nize.
     /// Ve world pohledu se kresli jako vrstva „Trasa+graf" a kazda hrana ma tooltip
     /// (viz doc/world-view.md); rozhodovaci stav globalni navigace nese zvlast
@@ -32,8 +31,12 @@ namespace ARBot.Common.Logs
     ///     (<c>DistanceCalculated</c> = false).</description>
     ///   </item>
     ///   <item>
-    ///     <term><see cref="GraphNavigationMsg(Map, MapWay, MapPoint, Point2D, double)"/>
-    ///     (starsi cesta pres <c>Maps.Map</c>)</term>
+    ///     <term>Nasledujici producenti byli 25. 9. 2026 smazani (mrtvy kod z ARBot2); konvence
+    ///     zustavaji popsane kvuli pripadnym starsim zaznamum.</term>
+    ///     <description></description>
+    ///   </item>
+    ///   <item>
+    ///     <term>Konstruktor nad <c>Maps.Map</c> (Dijkstra)</term>
     ///     <description><c>Name</c> = „Map". Souradnice vrcholu jsou <b>slozky ECEF</b>
     ///     (X = <c>Position.Y</c>, Y = <c>Position.Z</c>) - stara konvence, NE lokalni ENU.
     ///     <c>Length</c> hrany je <b>vaha</b> (<c>WeigthDistance</c>), ne metry. Vrcholy nesou
@@ -227,80 +230,6 @@ Width: {2:N3}", Length, a, w, ID);
 
             Vertexes = vertexes;
             Edges = edges;
-        }
-
-        /// <summary>
-        /// Zprava z okoli bodu/cesty ve starsi mape <see cref="Map"/>: od zadaneho bodu a cesty se
-        /// prochazi sit dokud jsou uzly do vzdalenosti <paramref name="r"/> od
-        /// <paramref name="center"/>, a vse nalezene se prevede na vrcholy a hrany.
-        /// <para><b>Souradnice vrcholu jsou slozky ECEF</b> (X = <c>Position.Y</c>,
-        /// Y = <c>Position.Z</c>) a <c>Length</c> hrany je <b>vaha</b> (<c>WeigthDistance</c>),
-        /// ne metry - stara konvence, viz tabulka u <see cref="GraphNavigationMsg"/>.</para>
-        /// </summary>
-        /// <param name="map">Mapa (nepouziva se primo, prochazi se od <paramref name="p"/>/<paramref name="w"/>).</param>
-        /// <param name="w">Vychozi cesta, nebo <c>null</c>.</param>
-        /// <param name="p">Vychozi bod, nebo <c>null</c>.</param>
-        /// <param name="center">Stred oblasti (v tychz souradnicich jako vrcholy); pouzije se
-        /// i jako znacka start i cil.</param>
-        /// <param name="r">Polomer oblasti - dal uz se sit neprochazi.</param>
-        public GraphNavigationMsg(Map map, MapWay w, MapPoint p, Point2D center, double r) : base("GN", 2)
-        {
-            Name = "Map";
-
-            Dictionary<MapPoint, int> points = new Dictionary<MapPoint, int>();
-            Queue<MapPoint> newPoints = new Queue<MapPoint>();
-
-            Dictionary<MapWay, int> ways = new Dictionary<MapWay, int>();
-
-            if (p != null)
-            {
-                points.Add(p, points.Count);
-                newPoints.Enqueue(p);
-            }
-            if (w != null)
-            {
-                ways.Add(w, 0);
-                if (!points.ContainsKey(w.Start))
-                {
-                    points.Add(w.Start, points.Count);
-                    newPoints.Enqueue(w.Start);
-                }
-                if (!points.ContainsKey(w.End))
-                {
-                    points.Add(w.End, points.Count);
-                    newPoints.Enqueue(w.End);
-                }
-            }
-
-            while(newPoints.Count>0)
-            {
-                var point = newPoints.Dequeue();
-                foreach (MapWay way in point.Ways)
-                {
-                    MapPoint to = (way.Start.ID == point.ID) ? way.End : way.Start;
-                    MapPoint from = (way.Start.ID == point.ID) ? way.Start : way.End;
-
-                    ECEF ecef = from.Position;
-                    var p1 = new Point2D(ecef.Y, ecef.Z);
-                    if ((p1 - center).Length < r && !points.ContainsKey(to))
-                    {
-                        points.Add(to, points.Count);
-                        newPoints.Enqueue(to);
-                    }
-                    if (!ways.ContainsKey(way))
-                        ways.Add(way, 0);
-                }
-            }
-
-            StartX = center.X;
-            StartY = center.Y;
-            TargetX = center.X;
-            TargetY = center.Y;
-            ResultX = null;
-            ResultY = null;
-
-            Vertexes = points.OrderBy(kv=>kv.Value).Select(kv=>new Vertex() { X = kv.Key.Position.Y, Y = kv.Key.Position.Z, Distance = kv.Key.Distance, DistanceCalculated = kv.Key.DistanceCalculated, Final = kv.Key.Final, Width=kv.Key.Width, ID=kv.Key.ID }).ToList();
-            Edges = ways.Keys.Select(k=>new Edge(this) { From = points.ContainsKey(k.Start)?points[k.Start]:-1, To = points.ContainsKey(k.End) ? points[k.End]:-1, Length = k.WeigthDistance, Collision = false, Path = true, Graph = false, ID=k.ID, HightLight=k.HighLight }).ToList();
         }
 
         /// <summary>Zapis do zaznamu. Priznak <see cref="Edge.HightLight"/> se zapisuje jen ve

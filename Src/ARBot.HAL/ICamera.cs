@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ARBot.Common.Common;
-using ARBot.Common.LocalMaps;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
 using ARBot.Common.Vision;

@@ -28,7 +28,7 @@ nestíhá — **která část to brzdí** a je viník uvnitř aplikace, nebo mim
 
 Do 1. 9. 2026 se to zjistit nedalo. Existovalo měření **vizuální cesty**
 (`traversability-timing-*.csv`: `compute avg/p50/p95/max`, `wait_avg`) a jeho souhrn v self-testu,
-plus obecná pomůcka [`Performance`](../Src/ARBot.Common/Common/Performance.cs) (agregace
+plus obecná pomůcka `Performance` (smazaná 25. 9. 2026 jako nepoužitá; agregace
 Sum/Sum2/Cnt). **O samotné řídicí smyčce se nevědělo nic.**
 
 ## Rozsah
@@ -107,11 +107,11 @@ interpretaci není potřeba — jádra potřebuje jen **výpočet** uvnitř
 
 ### Proč ne stávající zpráva `Module`
 
-[`Module`](../Src/ARBot.Common/Logs/Module.cs) má pole `Name`, `Enabled`, `CPU` a vypadá jako
+`Module` (smazaná 25. 9. 2026) měla pole `Name`, `Enabled`, `CPU` a vypadá jako
 hotové místo — ale je to **mrtvá zpráva z ARBot2**: registrovaná v katalogu kvůli čitelnosti
 starých záznamů, jinak jen v zakomentovaném kódu, nikdo ji neposílá ani nečte. Její tvar navíc
 nestačí (chybí fronta, zahozené, doba zpracování) a je ve starých záznamech jako verze 1.
-Zůstane, jak je.
+Nechala se být a 25. 9. 2026 se smazala spolu s dalším mrtvým kódem z ARBot2.
 
 ## Nestejná jádra: proč se sleduje, kde takt běžel
 

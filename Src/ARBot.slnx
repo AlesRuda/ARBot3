@@ -42,15 +42,15 @@
     <Platform Solution="*|x86" Project="x86" />
     <Build Solution="*|OrangePI" Project="false" />
   </Project>
-  <Project Path="ARBot.HALZBoard/ARBot.HALZBoard.csproj" Id="61a8f1d9-f8c1-4255-9863-fa2f5f653d05">
-    <Platform Solution="*|x64" Project="x64" />
-    <Platform Solution="*|x86" Project="x86" />
-    <Build Solution="*|OrangePI" Project="false" />
-  </Project>
   <Project Path="ARBot.Headless/ARBot.Headless.csproj">
     <Platform Solution="*|OrangePI" Project="OrangePI" />
     <Platform Solution="*|x64" Project="x64" />
     <Build Solution="*|x86" Project="false" />
+  </Project>
+  <Project Path="ARBot.Record/ARBot.Record.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="*|x86" Project="false" />
+    <Build Solution="*|OrangePI" Project="false" />
   </Project>
   <Project Path="ARBot.Runtime.Tests/ARBot.Runtime.Tests.csproj">
     <Platform Solution="*|x64" Project="x64" />

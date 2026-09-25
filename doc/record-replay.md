@@ -374,7 +374,9 @@ jen tehdy, když se stará hodnota převést *nedá* — tak to má `MapCorrelat
 Většina zpráv má jednoho producenta, takže význam polí je jednoznačný.
 [`GraphNavigationMsg`](../Src/ARBot.Common/Logs/GraphNavigationMsg.cs) je výjimka a stojí za
 zvláštní zmínku: je to **obecný kontejner „graf navigace"** (vrcholy + hrany + značky
-start/cíl/výsledek), který plní **čtyři různí producenti** a **každý jinak**. Úplná tabulka je
+start/cíl/výsledek), který plnili **čtyři různí producenti** a **každý jinak**. Od 25. 9. 2026
+zbyl jen `GlobalNavigator`; ostatní tři (`Maps.Map`, Voronoi, grid) se smazali jako mrtvý kód
+z ARBot2, jejich konvence ale platí pro případné starší záznamy. Úplná tabulka je
 v XML komentáři třídy; sem patří jen to, co z toho plyne pro čtení záznamů:
 
 - **Souřadnice nejsou univerzální.** `GlobalNavigator` (dnešní runtime, OsmNav) posílá lokální
@@ -495,7 +497,7 @@ ARBOT_RECORD=logs/beh.rec dotnet test Src/ARBot.Common.Tests -p:Platform=x64 --f
   `CrashLog`, `RuntimeBootstrap`. Do 4. 9. 2026 leželo v `Src/ARBot/Robot`; přesun kvůli
   konzolovému `ARBot.Headless`, viz [headless.md](headless.md) a [architecture.md](architecture.md).
 - **App (UI)** — `Src/ARBot`: `ImageDocument` a ostatní odběratele `ARBotRuntime.Current.Stream`.
-- **Nástroj** — `Src/ARBot.Record` (konzole, není v `ARBot.slnx`).
+- **Nástroj** — `Src/ARBot.Record` (konzole, v `ARBot.slnx` od 25. 9. 2026, staví se jen pod x64).
 - **Offline analýza záznamu** — `Src/ARBot.Analyze` (konzole, v `ARBot.slnx` jen pro `x64`);
   viz [Offline analýza záznamu](#offline-analýza-záznamu-arbotanalyze) níže.
 

@@ -38,13 +38,13 @@ a `NativeLib.dll` (z Common) se šíří stejnou cestou.
 | projekt | typ | `Platforms` | v `.slnx` |
 |---|---|---|---|
 | `ARBot.Common`, `ARBot.HAL`, `ARBot.HALArmbian`, `Intel.RealSense` | knihovny | `AnyCPU;x64;(x86;)OrangePI` | všechny |
-| `ARBot.HALWindows`, `ARBot.HALZBoard` | knihovny | `AnyCPU;x64;x86` | bez OrangePI |
+| `ARBot.HALWindows` | knihovna | `AnyCPU;x64;x86` | bez OrangePI |
 | `ARBot.Runtime` | knihovna (runtime bez UI) | `x64;x86;OrangePI` | všechny |
 | `ARBot` | WinExe (Avalonia) | `AnyCPU;x64;OrangePI` | x64, OrangePI |
 | `ARBot.Headless` | Exe (konzole) | `x64;OrangePI` | x64, OrangePI |
 | `ARBot.Analyze` | Exe (konzole) | `AnyCPU;x64;OrangePI` | jen x64 |
 | `ARBot.Common.Tests`, `ARBot.HAL.Tests`, `ARBot.Runtime.Tests` | NUnit | x64 (HAL.Tests i OrangePI) | bez OrangePI (HAL.Tests i s ním) |
-| `ARBot.Record` | Exe (konzole) | `AnyCPU;x64` | není |
+| `ARBot.Record` | Exe (konzole) | `AnyCPU;x64` | jen x64 (od 25. 9. 2026) |
 
 Publish headless pro zařízení: `dotnet publish Src/ARBot.Headless/ARBot.Headless.csproj
 -p:Platform=OrangePI -r linux-arm64 --self-contained false -o <cíl>` (~45 MB, ověřeno 4. 9. 2026,
@@ -130,7 +130,7 @@ Platformově dedikovaný HAL (viz výše): `D435Camera` i `T265TrackingCamera` e
 Řešení je `Src/ARBot/ARBot.slnx` (**ne `.sln`**). Platforma **`OrangePI`** (Armbian/ARM64,
 `DefineConstants += IsARM64`) je definovaná v `ARBot`, `ARBot.Headless`, `ARBot.Runtime`, `ARBot.HAL`,
 `ARBot.HALArmbian`, `ARBot.Common`, `Intel.RealSense` (HALWindows platformu OrangePI NEMÁ). V `.slnx`
-je řetězec `*|OrangePI → OrangePI` a `HALWindows`/`HALZBoard`/`ARBot.Common.Tests`/`ARBot.Runtime.Tests`/
+je řetězec `*|OrangePI → OrangePI` a `HALWindows`/`ARBot.Common.Tests`/`ARBot.Runtime.Tests`/
 `ARBot.Analyze` jsou z OrangePI buildu vyloučené. `Platform=ARM64` je Windows-on-ARM, `RID linux-arm64` je RID-specific — proto vlastní
 `OrangePI`. App se na Pi deployuje framework-dependent (managed výstup zůstává portable IL).
 

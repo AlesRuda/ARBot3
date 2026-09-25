@@ -1,5 +1,4 @@
 ﻿using ARBot.Common.Common;
-using ARBot.Common.SLAM;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,37 +13,6 @@ namespace ARBot.Common.Logs
 {
     public static partial class Extensions
     {
-        public static Common.Rectangle Border(this List<Point2D> ss)
-        {
-            double xmin = ss[0].X;
-            double ymin = ss[0].Y;
-            double xmax = ss[0].X;
-            double ymax = ss[0].Y;
-
-            Point2D p;
-            double x;
-            double y;
-
-            for (int i = 0; i < ss.Count; i++)
-            {
-                p = ss[i];
-                x = p.X;
-                y = p.Y;
-
-                if (x < xmin)
-                    xmin = x;
-                else if (x > xmax)
-                    xmax = x;
-
-                if (y < ymin)
-                    ymin = y;
-                else if (y > ymax)
-                    ymax = y;
-            }
-
-            return new Common.Rectangle(xmin, ymin, xmax, ymax);
-        }
-
         //public static System.Windows.Media.Color GetPixelColor(this BitmapSource bitmap, int x, int y)
         //{
         //    System.Windows.Media.Color color;

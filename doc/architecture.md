@@ -55,11 +55,13 @@ případně `ToLogMessages()` pro více zpráv. **Konverzi vlastní doména, ne 
   (nese jen data + serializaci `ToData`/`FromData`) a nezná doménový typ, ze kterého vznikla.
 - Nezakládej opačné statické tovární metody na zprávě (`XxxMsg.FromDomain(...)`) — místo toho přidej
   `ToLogMessage()` na doménový objekt.
-- Zavedeno napříč projektem: `ICP`, `Collider2`, `VoronoiNavigation`/`RRT` (navigace),
+- Zavedeno napříč projektem: `MapCorrelator`, `CorridorLocalizer`, `AsyncFusionEngine`, mise,
   `RoadNetwork` (OsmNav) → `MapMsg`, atd.
 
 ## Poznámka: probíhající migrace z ARBot2
 
 Část kódu se portuje ze staršího ARBotu (ARBot2). Starý/nekompilovatelný kód bývá vyřazen
-z buildu přes `<Compile Remove>` v `.csproj` (např. Voronoi, RRT) a slouží jako reference —
-nemazat, dokud novou implementaci nepotvrdí testy.
+z buildu přes `<Compile Remove>` v `.csproj` a slouží jako reference —
+nemazat, dokud novou implementaci nepotvrdí testy. K 25. 9. 2026 je takový kód smazaný celý
+(legacy EKF, Voronoi, RRT, ICP/SLAM, lokální mapy, stará korelace s mapou, `HALZBoard`) a žádný
+`<Compile Remove>` nezbyl; stará implementace je v historii gitu.

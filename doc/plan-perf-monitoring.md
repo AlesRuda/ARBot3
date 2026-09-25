@@ -38,7 +38,7 @@ Nejsou v kódu vidět a stály už čas — každá z nich se v projektu skuteč
    `1000.0 / Stopwatch.Frequency`, nikdy `new TimeSpan(ticks)`. Na Windows to vychází stejně jen
    shodou okolností (QPC 10 MHz), na Linux/ARM64 je `Frequency` 1 GHz a časy by byly **100× delší**
    — přesně tahle záměna způsobila, že `TimeBase` běžel na OrangePi 100× rychleji. Týká se to
-   Tasků 1, 2 a 3; vzor je v [`Performance.cs`](../Src/ARBot.Common/Common/Performance.cs).
+   Tasků 1, 2 a 3; vzor byl v `Common/Performance.cs` (smazaný 25. 9. 2026, v historii gitu).
 2. **Build hlásí `MSB3027 / MSB3021` na zamčené `ARBot.exe`, když aplikace běží.** Není to chyba
    kódu. Ověřit samotný překlad jde přes `dotnet build … -t:Compile`; pro plný build je potřeba
    aplikaci zavřít.

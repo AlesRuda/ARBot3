@@ -2,7 +2,6 @@
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Devices;
-using ARBot.Common.LocalMaps;
 using ARBot.Common.Vision;
 using ARBot.HAL;
 using Intel.RealSense;

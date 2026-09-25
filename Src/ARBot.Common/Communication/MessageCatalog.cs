@@ -40,16 +40,8 @@ namespace ARBot.Common.Communication
         {
             var c = new MessageCatalog();
             // Telemetrie z ARBot2
-            c.Register(new State());
             c.Register(new Info());
             c.Register(new ImageMsg());
-            c.Register(new Marker());
-            c.Register(new Module());
-            c.Register(new VFH());
-            c.Register(new Lidar());
-            c.Register(new ICPMsg());
-            c.Register(new ColliderMsg());
-            c.Register(new PathEdgeMsg());
             c.Register(new GraphNavigationMsg());
             c.Register(new MapMsg());
             // Sjednocena merenia (Common)

@@ -40,31 +40,6 @@
 	<PropertyGroup Condition="'$(Platform)' == 'OrangePI'">
 		<DefineConstants>$(DefineConstants);IsARM64</DefineConstants>
 	</PropertyGroup>
-  <ItemGroup Label="Compile items now included by globbing that were not in the original project file">
-    <Compile Remove="Algorithms\EdgeTPU\EdgeTPUSemanticSegmentation.cs" />
-    <Compile Remove="Common\TFSemanticSegmentation.cs" />
-    <Compile Remove="Common\VirtualizedImage.cs" />
-    <Compile Remove="Coordinates\CameraProjection2.cs" />
-    <Compile Remove="Common\Graphics2D.cs" />
-    <Compile Remove="Algorithms\Voronoi\VoronoiDiagram.cs" />
-    <Compile Remove="Algorithms\Voronoi\SiteSorterYX.cs" />
-    <Compile Remove="Algorithms\Voronoi\Site.cs" />
-    <Compile Remove="Algorithms\Voronoi\Point.cs" />
-    <Compile Remove="Algorithms\Voronoi\Halfedge.cs" />
-    <Compile Remove="Algorithms\Voronoi\GraphEdge.cs" />
-    <Compile Remove="Algorithms\Voronoi\Edge.cs" />
-    <Compile Remove="Algorithms\Voronoi2\VoronoiElements.cs" />
-    <Compile Remove="Algorithms\Voronoi2\Voronoi.cs" />
-    <Compile Remove="Algorithms\ComputeUnit\Akcelerator.cs" />
-    <Compile Remove="Navigations\LidarFolowMeNavigation.cs" />
-    <Compile Remove="Navigations\MapCorelator.cs" />
-    <Compile Remove="Navigations\RayEx.cs" />
-    <Compile Remove="Navigations\RayExtensions.cs" />
-    <Compile Remove="Navigations\RRT.cs" />
-    <Compile Remove="Navigations\RRTModel.cs" />
-    <Compile Remove="Navigations\RRTStateSimple.cs" />
-    <Compile Remove="SLAM\TopologicalLine.cs" />
-  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <!-- Inference neuronove site (semanticka segmentace sjizdnosti, OnnxBackProject).

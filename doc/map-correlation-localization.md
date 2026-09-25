@@ -252,13 +252,13 @@ bez maticové `R`.
 
 ### Ze staré generace robotu
 
-V repozitáři jsou dvě předchozí implementace téhož nápadu. Nová je nepoužívá, ale tvarovaly ji:
+V repozitáři byly dvě předchozí implementace téhož nápadu (smazané 25. 9. 2026, jsou v historii gitu). Nová je nepoužívá, ale tvarovaly ji:
 
-- [MapCorelator.cs](../Src/ARBot.Common/Navigations/MapCorelator.cs) — FFT fázová korelace
+- `Navigations/MapCorelator.cs` — FFT fázová korelace
   rastr↔rastr s gaussovským okénkem, **jen translace**, a kovariance počítaná z korelační plochy.
   Ten poslední nápad nová verze přebírá; FFT ne, protože chceme i rotaci a hledáme v malém okně
   (přímé skenování je tam levnější a lépe se ladí).
-- [PathMapCorelator.cs](../Src/ARBot.Common/Navigations/PathMapCorelator.cs) — point-to-line ICP
+- `Navigations/PathMapCorelator.cs` — point-to-line ICP
   (Kabsch) okrajů vozovky proti hranám mapy. Umí i rotaci, ale potřebuje extrahovat okrajové body
   a asociace a má lokální minima. Nová verze skóruje **shodu ploch**, což je z hustého gridu
   přirozenější a nepotřebuje asociace.
@@ -1178,8 +1178,8 @@ průsečíky s oběma hranicemi dají **šířku cesty, příčnou polohu robotu
 | kus | stav |
 |---|---|
 | `NativeComputeUnit.PathEdges` | **běží každý snímek**, jde do `CameraFrame` v3 → je to v záznamech; dnes to nikdo nekonzumuje |
-| [`PathEdgeFinder`](../Src/ARBot.Common/Common/PathEdgeFinder.cs) | RANSAC vlevo/vpravo, kontrola paralelnosti, výběr páru podle očekávaného směru, `LeftDistance`/`RightDistance`/`AngleDiff` — přesně ta spolehlivá varianta, nenapojené |
-| `PathEdgeMsg` v4 | zpráva ta čísla už umí zaznamenat |
+| `PathEdgeFinder` (smazaný 25. 9. 2026, v historii gitu) | RANSAC vlevo/vpravo, kontrola paralelnosti, výběr páru podle očekávaného směru, `LeftDistance`/`RightDistance`/`AngleDiff` — přesně ta spolehlivá varianta, nenapojené |
+| `PathEdgeMsg` v4 | zpráva ta čísla uměla zaznamenat (smazaná 25. 9. 2026) |
 | `RoadScene` | úsečky **s pološířkou** → mapová hranice je analytická, `RoadRaster` netřeba |
 
 ### Naměřeno nad `records/20260821-095328.rec` (562 snímků, virtuální HW, dvě mapy)
