@@ -653,6 +653,15 @@ dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- cameras records/<zazna
 `--png=<prefix>` uloží první snímek každé kamery — zamrzlý obraz je potřeba **vidět**, jinak nejde
 rozlišit „stream se nikdy nerozjel" (černo, šum) od „jeden skutečný snímek a pak už nic".
 
+`--vypadky` (od 26. 9. 2026) místo souhrnu vypíše **časovou osu výpadků přes celý záznam**: pro každou
+kameru epizody bez snímku delší než `--gap=` (výchozí 1 s) a epizody, kdy stála barva / hloubka /
+razítko barvy z driveru / cesta z RGB déle než `--freeze=` (výchozí 1 s), s časem od prvního snímku
+(pro dohledání ve videu) a souhrnem. Čte všechny snímky, nad Kolem 3b (44 GB) to trvá minuty.
+
+```bash
+dotnet run --project Src/ARBot.Analyze -p:Platform=x64 -- cameras records/<zaznam>.rec --vypadky --gap=0.5 --freeze=0.5
+```
+
 **Razítka streamů rozhodují, KDE je vada.** Když stojí razítko barvy, nedodává snímky librealsense
 (nebo senzor) a naše kopie je v pořádku; kdyby se razítko hýbalo a pixely ne, byla by chyba
 v kopírování v driveru. Přesně takhle se 6. 9. 2026 diagnostikovala **zamrzlá barva pravé D435**

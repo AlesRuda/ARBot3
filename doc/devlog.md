@@ -41,6 +41,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-26
 
+- **Výpadky kamer v Robotouru — podklad pro video Kola 3b** (nové `ARBot.Analyze cameras --vypadky`,
+  časová osa mezer a zamrznutí přes celý záznam). **Kolo3b nemá ani jedno zamrznutí přes 5 s**
+  (hlídka nezasáhla, v logu žádný restart pipeline), ale má **147 krátkých zamrznutí barvy**
+  (≤ 1,1 s, p50 ~1 s, razítko z driveru stojí, obě kamery zhruba stejně, ~ každých 14 s, 23×
+  obě naráz) a 39 mezer bez snímku 0,5–0,8 s; hustě kolem 14:32 před uvíznutím v písku. **Táž vada
+  jako 25. 9. se stala už na Robotouru:** `Kolo3-navrat` 14:36:55 levá D435 → restart pipeline →
+  nepřipojila se, mlčela do konce (172 s), návrat do depa na jednu kameru; v `Kolo3a` 14:06:30
+  stejný restart doběhl za 2,7 s. Zapsáno do `hw-d435-vlakno-zatuhlo-po-restartu`.
+
+- **Web: verze PI, 6. místo na Robotouru 2026.** Na stránce *Verze* nová sekce **Verze PI** (Orange Pi
+  5 Ultra místo UP squared, odpojená T265 kvůli potížím s USB a konci výroby i podpory, přepsaný
+  řídicí software) s pásem tří fotek: dvě z Robotouru 19. 9. (otočené podle EXIF, **bez metadat**,
+  protože fotka z telefonu nese GPS polohu) a fotka desky Orange Pi. V tabulce výsledků nový
+  řádek **PI** (2026, RT 6 → článek). Článek o Robotouru 2026: **6. místo** (dřív 7.), 13 bodů
+  z 12 týmů, body po kolech 0 + 1 + 11 + 1 podle
+  [live.robotour.cz](https://live.robotour.cz/competitions/2026/results), odkazy na obě výsledkové
+  stránky. Do `.claude/launch.json` přibyla konfigurace `web-python` (na tomhle stroji chybí `npx`;
+  Python 3.6 nezná `--directory`, proto `os.chdir`). Ověřeno v prohlížeči.
+  Na pokyn autora vyměněna i **fotka v hero úvodní stránky**: verze PI před lunárním modulem
+  u Planetária (výřez 720 × 900 z téže fotky, bez metadat) místo robotu U2 z obýváku.
+  Do článku o Robotouru 2026 přibylo **video ze třetího kola** (`youtube-nocookie`, titulek podle
+  skutečného názvu na YouTube „ARBot: Robotour 2026").
+
 - **Zatuhlá levá D435 se 25. 9. opakovala dvakrát** (`143643` 14:40:12 barva, `144658` 15:08:12
   hloubka; registr `hw-d435-vlakno-zatuhlo-po-restartu`, zpět na `otevreno`). `NativeCallWatch`
   na zařízení zabral: po restartu pipeline se vrátil `Stop`, **`Dispose` ne**, minidumpy jsou na Pi.

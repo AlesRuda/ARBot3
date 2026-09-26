@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "http-server", "web", "-p", "8765", "-c-1", "--silent"],
       "port": 8765
+    },
+    {
+      "name": "web-python",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import os, http.server; os.chdir('web'); http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler, port=8766)"],
+      "port": 8766
     }
   ]
 }

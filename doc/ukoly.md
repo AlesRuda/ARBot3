@@ -2217,6 +2217,7 @@ Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senz
 - [x] Na zařízení: sledovat, jestli se zatuhnutí opakuje — 25. 9. dvakrát (levá D435, visí `pipeline.Dispose`), minidumpy pořízené (25. 9. 2026)
 - [x] Přečteny minidumpy z Pi (gdb): `Dispose` čeká na mutex hlídače zařízení, ten je zaměstnaný výčtem USB, který živí hon na T265 přes všechny produktové řady (26. 9. 2026)
 - [x] Léčba (autor): T265 driver se nezakládá (`ARBotHW`, zakomentováno s odůvodněním) — T265 je od 14. 9. odpojená, hon tím zmizí (26. 9. 2026)
+- [x] Zpětně v záznamech z Robotouru (`cameras --vypadky`): táž vada už 19. 9. — `Kolo3-navrat` 14:36:55 levá D435, barva stála 5 s → restart pipeline → „pipeline pripojena“ nepřišlo, levá mlčela do konce záznamu (172 s, návrat do depa dojet na pravou kameru); v `Kolo3a` 14:06:30 tentýž restart doběhl (snímky zpět za 2,7 s). `Kolo3b` bez 5s zamrznutí, ale 147 krátkých (≤ 1,1 s, razítko barvy z driveru stojí) pod prahem hlídky (26. 9. 2026)
 - [ ] Ověřit na zařízení: po zamrznutí a restartu pipeline se kamera vrátí (žádné `NativeCallWatch` hlášení), kernel po `Stop` bez opakovaného `Found UVC`; a jestli ubylo samotných zamrznutí
 - [x] Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.) (24. 9. 2026)
 

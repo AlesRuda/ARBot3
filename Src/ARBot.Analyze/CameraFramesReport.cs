@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -64,6 +64,114 @@ namespace ARBot.Analyze
             {
                 k.Vypis();
                 if (!string.IsNullOrWhiteSpace(png)) k.UlozPng(png);
+            }
+        }
+
+        /// <summary>
+        /// <b>Časová osa výpadků kamer přes celý záznam</b> (<c>cameras --vypadky</c>). Pro každou
+        /// kameru vypíše epizody, kdy (a) nepřišel žádný snímek déle než <paramref name="gapSec"/>,
+        /// nebo (b) barva / hloubka / razítko barvy z driveru stály (totožný obsah) déle než
+        /// <paramref name="freezeSec"/>. Čas se tiskne i jako odstup od prvního snímku záznamu, aby
+        /// šel přímo dohledat ve videu z jízdy. Vzniklo 26. 9. 2026 pro popis videa z Robotouru.
+        ///
+        /// <para>Čte <b>všechny</b> snímky — nad desítkami GB to trvá minuty.</para>
+        /// </summary>
+        public static void RunEpisodes(RecordFile rec, double gapSec, double freezeSec)
+        {
+            var entries = rec.Index.Where(e => e.MsgName == "CameraFrame").ToList();
+            Console.WriteLine($"CameraFrame v indexu: {entries.Count}; mezera > {gapSec:F1} s, zamrznuti > {freezeSec:F1} s");
+            if (entries.Count == 0) return;
+
+            var kamery = new Dictionary<string, Osa>(StringComparer.Ordinal);
+            DateTime? zacatek = null;
+            foreach (var e in entries)
+            {
+                if (!(rec.Read(e) is CameraFrame f)) continue;
+                zacatek ??= f.TimeStamp;
+                string jmeno = f.Name ?? "(bez jmena)";
+                if (!kamery.TryGetValue(jmeno, out var k)) kamery[jmeno] = k = new Osa(jmeno);
+                k.Pridej(f);
+            }
+
+            foreach (var k in kamery.Values.OrderBy(x => x.Jmeno, StringComparer.Ordinal))
+                k.Vypis(zacatek.Value, gapSec, freezeSec);
+        }
+
+        /// <summary>Epizody výpadků jedné kamery (mezery ve snímcích a stojící obsah).</summary>
+        private sealed class Osa
+        {
+            public readonly string Jmeno;
+            private readonly List<(DateTime Od, DateTime Do, string Druh)> epizody = new();
+            private DateTime prvni, posledni;
+            private int snimku;
+            private readonly Serie barva = new("barva stoji");
+            private readonly Serie hloubka = new("hloubka stoji");
+            private readonly Serie razitko = new("razitko barvy z driveru stoji");
+            private readonly Serie cesta = new("cesta z RGB stoji");
+
+            public Osa(string jmeno) { Jmeno = jmeno; }
+
+            public void Pridej(CameraFrame f)
+            {
+                if (snimku == 0) prvni = f.TimeStamp;
+                else if ((f.TimeStamp - posledni).TotalSeconds > 0)
+                    epizody.Add((posledni, f.TimeStamp, "mezera bez snimku"));
+                posledni = f.TimeStamp;
+                snimku++;
+
+                barva.Pridej(Kamera.Otisk(f.ImageRGB?.Data), f.TimeStamp, epizody);
+                hloubka.Pridej(Kamera.Otisk(f.ImageDepth?.Data), f.TimeStamp, epizody);
+                razitko.Pridej((ulong)f.RGBTimeStamp.Ticks, f.TimeStamp, epizody);
+                cesta.Pridej(Kamera.Otisk(f.ImageProbability?.Data), f.TimeStamp, epizody);
+            }
+
+            public void Vypis(DateTime zacatek, double gapSec, double freezeSec)
+            {
+                barva.Uzavri(epizody); hloubka.Uzavri(epizody); razitko.Uzavri(epizody); cesta.Uzavri(epizody);
+
+                var vybrane = epizody
+                    .Where(x => (x.Do - x.Od).TotalSeconds > (x.Druh.StartsWith("mezera") ? gapSec : freezeSec))
+                    .OrderBy(x => x.Od).ToList();
+
+                double sekund = (posledni - prvni).TotalSeconds;
+                Console.WriteLine();
+                Console.WriteLine($"=== {Jmeno}: {snimku} snimku za {sekund:F0} s ({(sekund > 0 ? snimku / sekund : 0):F1} Hz), epizod {vybrane.Count}");
+                Console.WriteLine("  od            do            trvani   od startu  druh");
+                foreach (var x in vybrane)
+                {
+                    var t = x.Od - zacatek;
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "  {0:HH:mm:ss.f}  {1:HH:mm:ss.f}  {2,6:F1} s  {3,3}:{4:00}     {5}",
+                        x.Od, x.Do, (x.Do - x.Od).TotalSeconds, (int)t.TotalMinutes, t.Seconds, x.Druh));
+                }
+                foreach (var g in vybrane.GroupBy(x => x.Druh))
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "  souhrn {0}: {1}x, celkem {2:F1} s", g.Key, g.Count(), g.Sum(x => (x.Do - x.Od).TotalSeconds)));
+            }
+        }
+
+        /// <summary>Série po sobě jdoucích snímků se shodným otiskem → epizoda „stojí".</summary>
+        private sealed class Serie
+        {
+            private readonly string druh;
+            private ulong? predchozi;
+            private DateTime od, naposledy;
+            private int delka;
+
+            public Serie(string druh) { this.druh = druh; }
+
+            public void Pridej(ulong? otisk, DateTime t, List<(DateTime, DateTime, string)> ven)
+            {
+                if (otisk == null) return;
+                if (predchozi == otisk) { delka++; naposledy = t; return; }
+                Uzavri(ven);
+                predchozi = otisk; od = t; naposledy = t; delka = 1;
+            }
+
+            public void Uzavri(List<(DateTime, DateTime, string)> ven)
+            {
+                if (delka > 1) ven.Add((od, naposledy, druh));
+                delka = 0;
             }
         }
 
@@ -158,7 +266,7 @@ namespace ARBot.Analyze
             /// Otisk stačí: hledá se <b>shoda</b>, ne podobnost, a držet předchozí obraz by znamenalo
             /// držet megabajty.
             /// </summary>
-            private static ulong? Otisk(byte[] data)
+            internal static ulong? Otisk(byte[] data)
             {
                 if (data == null || data.Length == 0) return null;
 

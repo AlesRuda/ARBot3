@@ -5539,6 +5539,9 @@ temata:
       - co: "Léčba (autor): T265 driver se nezakládá (`ARBotHW`, zakomentováno s odůvodněním) — T265 je od 14. 9. odpojená, hon tím zmizí"
         stav: hotovo
         kdy: 2026-09-26
+      - co: "Zpětně v záznamech z Robotouru (`cameras --vypadky`): táž vada už 19. 9. — `Kolo3-navrat` 14:36:55 levá D435, barva stála 5 s → restart pipeline → „pipeline pripojena“ nepřišlo, levá mlčela do konce záznamu (172 s, návrat do depa dojet na pravou kameru); v `Kolo3a` 14:06:30 tentýž restart doběhl (snímky zpět za 2,7 s). `Kolo3b` bez 5s zamrznutí, ale 147 krátkých (≤ 1,1 s, razítko barvy z driveru stojí) pod prahem hlídky"
+        stav: hotovo
+        kdy: 2026-09-26
       - co: "Ověřit na zařízení: po zamrznutí a restartu pipeline se kamera vrátí (žádné `NativeCallWatch` hlášení), kernel po `Stop` bez opakovaného `Found UVC`; a jestli ubylo samotných zamrznutí"
         stav: otevreno
       - co: "Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.)"

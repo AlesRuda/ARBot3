@@ -116,6 +116,8 @@ namespace ARBot.Analyze
                         return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
                     case "log": LogReport.Run(rec, Text(args, "--filter"), (int)Arg(args, "--limit", 0)); return 0;
+                    case "cameras" when args.Any(a => a == "--vypadky"):
+                        CameraFramesReport.RunEpisodes(rec, Arg(args, "--gap", 1.0), Arg(args, "--freeze", 1.0)); return 0;
                     case "cameras": CameraFramesReport.Run(rec, (int)Arg(args, "--limit", 400),
                                                             (int)Arg(args, "--skip", 0),
                                                             Text(args, "--png")); return 0;
