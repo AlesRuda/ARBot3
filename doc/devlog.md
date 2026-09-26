@@ -41,6 +41,32 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-26
 
+- **FreeRun jede i podle jedné hrany cesty** (autor; registr `mise-freerun-jedna-hrana`). Ve FreeRun
+  `20260925-144658.rec` byla mrkev z koridoru jen ve 3 % cyklů, zbytek jel rovně podle kurzu:
+  oboustranný koridor vznikl ve 2,7 % snímků, jedna hrana ale v 86 % a její směr seděl na GPS
+  (p50 0,24°). Mise ji dosud záměrně ignorovala. Teď: se šířkou z mapy (cesta do 8 m od pózy
+  a rovnoběžná s hranou do 20°) mrkev do středu pravé poloviny, bez ní ve směru hrany se zachovaným
+  odstupem. `freerunsingle=` (výchozí true), `FreeRunMsg` verze 2, `ARBot.Analyze freerun` ukazuje
+  rozpad. 13 nových testů, všechny testy 1 684 / 140, build x64 i OrangePI. ⚠️ Na zařízení
+  neběželo. Detail: [mission-freerun.md](mission-freerun.md).
+- **FreeRun: pravá polovina jen s odstupem od pravého kraje** (pravidlo autora). Požadovaná čára
+  musí ležet aspoň `SafeDist + EdgeMarginM` (0,55 m) od pravého kraje, jinak se posune k ose,
+  nejdál na střed: `min(Width/4, max(0, Width/2 − 0,55))`. Spojité (přepínač by při kolísající
+  šířce přeskakoval), nad 2,2 m beze změny, pod 1,1 m střed; u pravé hrany bez šířky drží aspoň
+  0,55 m. `FreeRunConfig.MinRightEdgeClearanceM` bere runtime z konfigurace plánovače. 5 nových
+  testů, testy 1 689 / 140, build x64 i OrangePI. ⚠️ Na zařízení neběželo.
+- **`corridormininliers=20` v `config/pi-provoz.cfg`** (pokyn autora): oboustranný koridor
+  ve FreeRun `20260925-144658.rec` by vznikl ve 28 % snímků místo 2,7 % (šířka p50 3,61 m).
+
+- **Pojistka zrychlení motorů ověřena na robotu** (`hw-pojistka-zrychleni-motoru` → hotovo): autor
+  potvrdil, že `MotorAcceleration.ToUnits` se skriptem nahraným 30. 8. funguje na robotu dobře,
+  rampa i nouzové zastavení.
+
+- **Únik z blokované buňky → hotovo** (`lp-unik-z-blokovane-bunky`): ověření na robotu už bylo
+  v Tracku 25. 9. (dvě epizody `EscapingBlocked`, obě vyjel), jen se nepromítlo do registru. Krok
+  „zápis volna pod půdorysem do hloubky" vyčleněn jako odložené `lp-zapis-volna-pod-robotem` —
+  případ z 18. 8. by nevyřešil a zápis podle chybné pózy by mazal skutečné překážky ve slepé zóně.
+
 - **Výpadky kamer v Robotouru — podklad pro video Kola 3b** (nové `ARBot.Analyze cameras --vypadky`,
   časová osa mezer a zamrznutí přes celý záznam). **Kolo3b nemá ani jedno zamrznutí přes 5 s**
   (hlídka nezasáhla, v logu žádný restart pipeline), ale má **147 krátkých zamrznutí barvy**

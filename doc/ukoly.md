@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **231**: otevřeno **48** · v kódu, na HW neověřeno **41** · hotovo **132** · odloženo **6** · zamítnuto **4**.
+Témat celkem **233**: otevřeno **48** · v kódu, na HW neověřeno **40** · hotovo **134** · odloženo **7** · zamítnuto **4**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -61,8 +61,6 @@ Témat celkem **231**: otevřeno **48** · v kódu, na HW neověřeno **41** · 
 | otevřeno | Lokalizace a fúze senzorů | [Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)](#lok-koridor-noedge-po-zatacce) | 26. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
-| v kódu, na HW neověřeno | Hardware a senzory | [Nulové nebo záporné zrychlení motorů prošlo do řadiče](#hw-pojistka-zrychleni-motoru) | 18. 8. 2026 |  |
-| v kódu, na HW neověřeno | Lokální mapa a plánování | [Únik z blokované buňky pod robotem](#lp-unik-z-blokovane-bunky) | 18. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Sigma korelace je slepá k množství důkazu](#lok-korelace-sigma-nepoctiva) | 19. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
@@ -100,9 +98,11 @@ Témat celkem **231**: otevřeno **48** · v kódu, na HW neověřeno **41** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí](#mise-freerun-pomala-mrkev-blizko) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Obvod kola je o ~1,8 % větší, než robot ujede — póza na rovince utíká dopředu (12,5 m na 740 m)](#lok-odometrie-obvod-kola) | 26. 9. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech](#mise-track-timeout-delka-useku) | 26. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
+| odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Vrstva hranic občas shodí Mapsui při přehrávání](#nast-mapsui-pad-vrstvy-hranic) | 23. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď](#lp-filtr-izolovanych-bunek) | 7. 9. 2026 | [lp-robot-se-plazi-vyhlazovani](#lp-robot-se-plazi-vyhlazovani), [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
@@ -411,7 +411,7 @@ Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OS
 - [x] Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy (24. 9. 2026)
 - [ ] Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`)
 - [ ] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)
-- [ ] Snížit `corridormininliers` na 12–15 (změřeno `singleedge --sweep`: Modřany 0,2 % → 6–19 % oboustranných koridorů při šířce soustředěné ~5 m, Hviezdoslavova beze změny kvality) — rozhodnutí autora
+- [x] Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami) (26. 9. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
 
@@ -987,19 +987,6 @@ Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za 
 
 čeká na [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) · [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
-<a id="lp-unik-z-blokovane-bunky"></a>
-### 🧪 Únik z blokované buňky pod robotem
-
-`lp-unik-z-blokovane-bunky` · záměr · **v kódu, na HW neověřeno** · nalezeno 18. 8. 2026 · vyřešeno 18. 8. 2026
-
-Robot v záznamu 5 s hlásil `RobotBlocked`, ačkoli stál na okraji cesty, ne u překážky — buňka pod ním byla podle barvy jistě mimo cestu a nejbližší průjezdná ležela 5 cm vedle. Relaxace gridu se zamítla (kamera buňku pod sebou nikdy neuvidí). Únik vede přes semanticky blokované buňky, přes geometricky blokované nikdy, nejvýš 1,5 m, a uváznutí není selhání plánu, aby nezavřelo hranu, která je v pořádku. V aplikaci neběželo.
-
-- [x] Návrh a implementace úniku s testy (18. 8. 2026)
-- [ ] Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky (krok 3 návrhu)
-- [ ] Ověřit za běhu
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-08-18](devlog.md#2026-08-18), [2026-09-03](devlog.md#2026-09-03)
-
 <a id="lp-freerun-stisnene-podminky"></a>
 ### 🧪 První FreeRun na železe ve stísněném prostoru skončil nárazem
 
@@ -1073,6 +1060,15 @@ Pozorování autora z FreeRun 25. 9. 2026: robot nejede plynule. Rekonstrukce re
 
 [path-following.md](path-following.md), [rozhodnutí 25. 9. 2026](decisions.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
 
+<a id="lp-zapis-volna-pod-robotem"></a>
+### ⏸ Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky
+
+`lp-zapis-volna-pod-robotem` · záměr · **odloženo** · nalezeno 18. 8. 2026
+
+Původně krok 3 návrhu úniku z blokované buňky, vyčleněný 26. 9. 2026 (autor). Pomohl by jen tehdy, když robot stojí na zdánlivé překážce z HLOUBKY (posunutý grid po korekci pózy, šum těsně u robota) a ta pokrývá celý půdorys — únik smí z výchozí buňky odjet, ale do další geometricky blokované nevjede. Případ z 18. 8. by nevyřešil (tam blokovala barva a do semantického kanálu se psát nesmí), pomalý rozjezd po startu už řeší sjízdný půdorys v obálce (3. 9.). Riziko: zápis podle chybné pózy smaže skutečnou překážku ve slepé zóně kamer, kde ji nic hned nepřepíše. Posunutý grid se má řešit u příčiny (`lp-grid-posun-pomalou-korekci`). Vrátit se k tomu, až se v záznamu objeví `RobotBlocked` kvůli hloubce pod půdorysem.
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
+
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď
 
@@ -1138,6 +1134,19 @@ Mapa, obálka i plánovač pouštěly plnou rychlost, ale regulátor vydával 0,
 - [x] Potvrdit na zařízení, že robot dosáhne povolené rychlosti — 18. 9. 2026 venku `vCmd` p50 1,0 m/s při `maxspeed=1` (`ARBot.Analyze localplan`, `envelope`) (18. 9. 2026)
 
 [path-following.md](path-following.md) · DevLog [2026-08-14](devlog.md#2026-08-14), [2026-09-07](devlog.md#2026-09-07), [2026-09-18](devlog.md#2026-09-18), [2026-09-21](devlog.md#2026-09-21)
+
+<a id="lp-unik-z-blokovane-bunky"></a>
+### ✅ Únik z blokované buňky pod robotem
+
+`lp-unik-z-blokovane-bunky` · záměr · **hotovo** · nalezeno 18. 8. 2026 · vyřešeno 26. 9. 2026
+
+Robot v záznamu 5 s hlásil `RobotBlocked`, ačkoli stál na okraji cesty, ne u překážky — buňka pod ním byla podle barvy jistě mimo cestu a nejbližší průjezdná ležela 5 cm vedle. Relaxace gridu se zamítla (kamera buňku pod sebou nikdy neuvidí). Únik vede přes semanticky blokované buňky, přes geometricky blokované nikdy, nejvýš 1,5 m, a uváznutí není selhání plánu, aby nezavřelo hranu, která je v pořádku. Od 3. 9. řeší týmž únikem i robota stojícího blíž k překážce, než je `SafeDist`. Na robotu zabral 25. 9. 2026 (Track, `20260925-142428.rec`): po posunu gridu korekcí pózy dvakrát vyjel z blokované buňky za 6–10 s a pokračoval. Zápis „volno" pod půdorysem je vyčleněný jako samostatné odložené téma (`lp-zapis-volna-pod-robotem`).
+
+- [x] Návrh a implementace úniku s testy (18. 8. 2026)
+- [x] Těsný start u překážky řešen únikem místo eskapovací zóny (3. 9. 2026)
+- [x] Ověřeno na robotu: Track 25. 9. (`20260925-142428.rec`), dvě epizody `EscapingBlocked`, obě vyjel (25. 9. 2026)
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-08-18](devlog.md#2026-08-18), [2026-09-03](devlog.md#2026-09-03), [2026-09-26](devlog.md#2026-09-26)
 
 <a id="lp-robot-se-plazi-vyhlazovani"></a>
 ### ✅ Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy
@@ -1544,6 +1553,20 @@ Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 2
 - [ ] Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem
 
 [mission-freerun.md](mission-freerun.md), [path-following.md](path-following.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
+
+<a id="mise-freerun-jedna-hrana"></a>
+### 🧪 FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
+
+`mise-freerun-jedna-hrana` · vada · **v kódu, na HW neověřeno** · nalezeno 26. 9. 2026 · vyřešeno 26. 9. 2026
+
+Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, Modřany): mrkev byla ve směru robotu, ne v koridoru. Změřeno: mrkev z koridoru jen u 578 z 22 646 cyklů (3 %), zbytek `NoCorridor` / `NoPair`. Oboustranný koridor vznikl ve 2,7 % snímků (`corridormininliers=25`; při 20 by to bylo 28 % se šířkou p50 3,61 m), **jedna hrana v 86 %** (pravá 65 %, levá 21 %) a její směr proti GPS kurzu p50 0,24°, p90 5° (`ARBot.Analyze singleedge`). `CorridorSource` jednu hranu poznal (`SingleEdgeUsable`), ale FreeRun ji záměrně nebral s tím, že z ní nevznikne šířka ani příčná poloha. **Léčba (autor):** příčná poloha vůči hraně je změřená; se šířkou z mapy (blízká a rovnoběžná cesta) mrkev do středu pravé poloviny jako u koridoru, bez ní ve směru hrany se zachovaným odstupem. `freerunsingle=` (výchozí true), `FreeRunMsg` verze 2, 13 testů.
+
+- [x] Změřeno: 3 % mrkví z koridoru, jedna hrana v 86 % snímků (`freerun`, `corridor`, `singleedge`) (26. 9. 2026)
+- [x] Mrkev z jedné hrany (šířka z mapy / zachovaný odstup), `freerunsingle=`, `FreeRunMsg` v2, rozpad v `ARBot.Analyze freerun` (26. 9. 2026)
+- [ ] Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu
+- [x] `corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu (26. 9. 2026)
+
+[mission-freerun.md](mission-freerun.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
 <a id="mise-track-timeout-delka-useku"></a>
 ### 🧪 Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
@@ -2165,19 +2188,6 @@ Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzic
 
 [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07)
 
-<a id="hw-pojistka-zrychleni-motoru"></a>
-### 🧪 Nulové nebo záporné zrychlení motorů prošlo do řadiče
-
-`hw-pojistka-zrychleni-motoru` · vada · **v kódu, na HW neověřeno** · nalezeno 18. 8. 2026 · vyřešeno 18. 8. 2026
-
-Drivery posílaly hodnotu zrychlení bez kontroly — záporná prošla (rampa diverguje až na plnou rychlost opačným směrem), malá se zaokrouhlila na nulu a nula za jízdy znamená, že nouzové zastavení nemá čím zabrat. Pojistka ve skriptu jednotky by robota stejně nezastavila. Nově společný převod `MotorAcceleration.ToUnits` (velikost, minimum 1); skript `RizeniDiffPodvozku.mbs` byl dosynchronizován a 30. 8. nahrán do jednotky, chování na robotu (hlavně nouzové zastavení) zbývá ověřit.
-
-- [x] `MotorAcceleration.ToUnits` v obou driverech, 5 testů (18. 8. 2026)
-- [x] Skript nahrán do motorové jednotky (30. 8. 2026)
-- [ ] Ověřit nouzové zastavení a rampu na robotu
-
-[MotorAcceleration.cs](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), [hardware.md](hardware.md) · DevLog [2026-08-18](devlog.md#2026-08-18), [2026-08-30](devlog.md#2026-08-30)
-
 <a id="hw-motor-chybovy-ramec"></a>
 ### 🧪 Chybový rámec motorového driveru se tvářil jako měření
 
@@ -2296,6 +2306,19 @@ Při portu T265 na Armbian se zapsalo riziko „T265 byl v librealsense 2.50+ od
 - [x] Rešerše a oprava tvrzení v dokumentaci (11. 9. 2026)
 
 [build-and-platforms.md](build-and-platforms.md), [hardware.md](hardware.md) · DevLog [2026-07-13](devlog.md#2026-07-13), [2026-07-30](devlog.md#2026-07-30), [2026-09-11](devlog.md#2026-09-11)
+
+<a id="hw-pojistka-zrychleni-motoru"></a>
+### ✅ Nulové nebo záporné zrychlení motorů prošlo do řadiče
+
+`hw-pojistka-zrychleni-motoru` · vada · **hotovo** · nalezeno 18. 8. 2026 · vyřešeno 26. 9. 2026
+
+Drivery posílaly hodnotu zrychlení bez kontroly — záporná prošla (rampa diverguje až na plnou rychlost opačným směrem), malá se zaokrouhlila na nulu a nula za jízdy znamená, že nouzové zastavení nemá čím zabrat. Pojistka ve skriptu jednotky by robota stejně nezastavila. Nově společný převod `MotorAcceleration.ToUnits` (velikost, minimum 1); skript `RizeniDiffPodvozku.mbs` byl dosynchronizován a 30. 8. nahrán do jednotky. Na robotu funguje dobře (potvrdil autor 26. 9. 2026).
+
+- [x] `MotorAcceleration.ToUnits` v obou driverech, 5 testů (18. 8. 2026)
+- [x] Skript nahrán do motorové jednotky (30. 8. 2026)
+- [x] Ověřit nouzové zastavení a rampu na robotu (26. 9. 2026)
+
+[MotorAcceleration.cs](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), [hardware.md](hardware.md) · DevLog [2026-08-18](devlog.md#2026-08-18), [2026-08-30](devlog.md#2026-08-30), [2026-09-26](devlog.md#2026-09-26)
 
 <a id="hw-realsense-retez-hubu"></a>
 ### ✅ Kamery RealSense nešly za řetězem dvou USB hubů

@@ -439,6 +439,12 @@ namespace ARBot.Common.Configuration
         public static readonly DoubleParam FreeRunLook = Num("freerunlook", Fmt(new FreeRunConfig().LookaheadM), K_MISE,
               "Lookahead mrkve mise FreeRun [m] - jedina skutecna ladici konstanta te mise. "
               + "Default = FreeRunConfig.LookaheadM.");
+        public static readonly BoolParam FreeRunSingle = Bool("freerunsingle", "true", K_MISE,
+              "Klade FreeRun mrkev i podle JEDINE viditelne hrany cesty? Se sirkou z mapy (je-li "
+              + "mapa a jeji cesta u robotu rovnobezna s hranou) jde mrkev doprostred prave poloviny, "
+              + "bez ni ve smeru hrany se zachovanym zmerenym odstupem. false = jen oboustranny "
+              + "koridor, jinak rovne podle kurzu (chovani do 26. 9. 2026). Zmereno 25. 9.: jedna "
+              + "hrana v 86 % snimku, obe jen v 2,7 %. Viz doc/mission-freerun.md.");
         public static readonly DoubleParam DepotFix = Num("depotfix", Fmt(new RobotourConfig().DepotFixSec), K_MISE,
               "Jak dlouho [s] musi fix v depu neprerusene vyhovovat, nez se mise Robotour "
               + "zarmuje. Default = RobotourConfig.DepotFixSec.");

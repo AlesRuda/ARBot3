@@ -959,7 +959,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   navigace**; když koridor není, drží kurz. Pro homologaci a přesun mezi stanovišti. Je to
   **producent mrkve** — sedí tam, kde jinak `GlobalNavigator`, a lokální vrstva se nemění.
   **Hotové a ověřené proti pravdě** (usadí se na −0,503 m proti požadovaným −0,500, dva běhy),
-  **venku projetá 7. a 12. 9. 2026** (`20260907-170728.rec`). Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
+  **venku projetá 7. a 12. 9. 2026** (`20260907-170728.rec`). ✅ **Od 26. 9. 2026 jede i podle
+  JEDNÉ hrany** (`freerunsingle=`): 25. 9. vznikl oboustranný koridor jen ve 2,7 % snímků, jedna
+  hrana v 86 %, a mise 97 % času jela rovně podle kurzu. Se šířkou z mapy mrkev do pravé poloviny,
+  bez ní ve směru hrany se zachovaným odstupem; ⚠️ na zařízení neběželo. Zapíná se **selektorem `mission=none|freerun|robotour`** — mise se vylučují,
   takže se nevybírají booleovskými přepínači. Rozbor záznamu: `ARBot.Analyze freerun`.
 - [doc/track-mission.md](doc/track-mission.md) — **mise Track** (`TrackMission`): objezd míst ze
   souboru `*.track` (`mission=track track=<cesta>`). Řádek = `sirka,delka` ve **stupních** (soubor

@@ -845,10 +845,26 @@ namespace ARBot.Robot
                     // vubec nemusi byt zalozeny (corridor=false je vychozi) a hlavne vyzaduje mapu,
                     // kterou FreeRun nema. Parovani snimku je bezstavove vuci mape, takze dva
                     // zdroje vedle sebe si nevadi.
+                    // freerunsingle= mrkev i podle JEDINE hrany; sirku k ni bere z mapy, je-li
+                    // nactena (bez mapy drzi zmereny odstup od hrany). Viz FreeRunConfig.UseSingleEdge.
+                    freeRunCfg.UseSingleEdge = ParamRegistry.FreeRunSingle.Value;
+                    // Odstup pozadovane cary od praveho kraje cesty: tatáz mez, od ktere planovac
+                    // pusti plnou rychlost podel prekazky (SafeDist + EdgeMarginM), aby sledovala
+                    // i safedist=. Viz FreeRunConfig.MinRightEdgeClearanceM.
+                    freeRunCfg.MinRightEdgeClearanceM = plannerCfg.SafeDist + plannerCfg.EdgeMarginM;
+                    if (!freeRunCfg.UseSingleEdge)
+                        Trace.WriteLine("freerunsingle=false: FreeRun jede jen podle oboustranneho koridoru (A/B).");
+                    Func<RobotState, ARBot.Common.Localization.RoadCorridor, double?> freeRunWidth = null;
+                    var freeRunNet = RoadNetwork;
+                    var freeRunGeo = fusionConfig.GeoReference;
+                    if (freeRunNet != null && freeRunGeo != null)
+                        freeRunWidth = (p, c) => ARBot.Common.Missions.FreeRunMission.MapWidthAt(
+                            freeRunNet, freeRunGeo, p, c, freeRunCfg);
+
                     var freeRun = new ARBot.Common.Missions.FreeRunMission(
                         engine, navigator,
                         new ARBot.Common.Localization.CorridorSource(engine),
-                        freeRunCfg);
+                        freeRunCfg, mapWidth: freeRunWidth);
 
                     FreeRunMission = freeRun;
                     stages.Add(freeRun);

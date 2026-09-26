@@ -53,10 +53,24 @@ namespace ARBot.Common.Logs
         /// <summary>Cas, ke kteremu vysledek plati (cas snimku).</summary>
         public DateTime TimeStamp;
 
+        /// <summary>
+        /// <b>Verze 2</b> (26. 9. 2026): mrkev podle JEDINE hrany - ktera
+        /// (<c>ARBot.Common.Localization.CorridorSide</c> jako byte, 0 = zadna), jeji odstup od robotu
+        /// [m, kladne = vlevo] a jestli byla sirka z mapy. Ve verzi 1 chybi (0 / false).
+        /// </summary>
+        public byte SingleSide;
+        /// <summary>Znamenkovy odstup jedine hrany od robotu [m] (verze 2).</summary>
+        public double EdgeOffset;
+        /// <summary>Byla u jedine hrany sirka z mapy? (verze 2)</summary>
+        public bool WidthFromMap;
+
+        /// <summary>Format verze 2: pridano mereni z jedine hrany.</summary>
+        public const int FormatVersion = 2;
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public FreeRunMsg() : base("FreeRunMsg", 1)
+        public FreeRunMsg() : base("FreeRunMsg", FormatVersion)
         {
         }
 
@@ -74,6 +88,12 @@ namespace ARBot.Common.Logs
             bw.Write(PoseTheta);
             bw.Write(HasPose);
             Write(bw, TimeStamp);
+            if (Verze >= 2)
+            {
+                bw.Write(SingleSide);
+                bw.Write(EdgeOffset);
+                bw.Write(WidthFromMap);
+            }
         }
 
         public override void FromData(BinaryReader br)
@@ -90,6 +110,13 @@ namespace ARBot.Common.Logs
             PoseTheta = br.ReadDouble();
             HasPose = br.ReadBoolean();
             TimeStamp = ReadDateTime(br);
+            // Starsi zaznamy (v1) mereni z jedine hrany nemaji - zustava 0 / false.
+            if (Verze >= 2)
+            {
+                SingleSide = br.ReadByte();
+                EdgeOffset = br.ReadDouble();
+                WidthFromMap = br.ReadBoolean();
+            }
         }
 
         public override Message Build() => new FreeRunMsg();

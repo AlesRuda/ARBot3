@@ -30,9 +30,9 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">48</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">41</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">132</span></label>
-    <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">6</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">40</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">134</span></label>
+    <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">4</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
@@ -117,8 +117,9 @@
       <li data-tema="nast-replay-krokovani-a-panely"><span class="mono">17. 8.</span> <span class="typ">vyřešeno</span> <a href="#nast-replay-krokovani-a-panely">Laděn&#237; nad z&#225;znamem — krok po t&#233;mž proudu, hodnota pixelu, spr&#225;vn&#233; panely kamer</a></li>
       <li data-tema="nast-telemetricky-pohled"><span class="mono">17. 8.</span> <span class="typ">začato</span> <a href="#nast-telemetricky-pohled">Telemetrick&#253; pohled — &#250;daje ze zpr&#225;v srovnan&#233; v čase a graf</a></li>
       <li data-tema="nast-world-tooltipy-navigace"><span class="mono">17. 8.</span> <span class="typ">začato i vyřešeno</span> <a href="#nast-world-tooltipy-navigace">Tooltipy všech tř&#237; &#250;rovn&#237; navigace ve World pohledu</a></li>
-      <li data-tema="hw-pojistka-zrychleni-motoru"><span class="mono">18. 8.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#hw-pojistka-zrychleni-motoru">Nulov&#233; nebo z&#225;porn&#233; zrychlen&#237; motorů prošlo do řadiče</a></li>
-      <li data-tema="lp-unik-z-blokovane-bunky"><span class="mono">18. 8.</span> <span class="typ">začato i vyřešeno</span> <a href="#lp-unik-z-blokovane-bunky">&#218;nik z blokovan&#233; buňky pod robotem</a></li>
+      <li data-tema="hw-pojistka-zrychleni-motoru"><span class="mono">18. 8.</span> <span class="typ">nalezeno</span> <a href="#hw-pojistka-zrychleni-motoru">Nulov&#233; nebo z&#225;porn&#233; zrychlen&#237; motorů prošlo do řadiče</a></li>
+      <li data-tema="lp-unik-z-blokovane-bunky"><span class="mono">18. 8.</span> <span class="typ">začato</span> <a href="#lp-unik-z-blokovane-bunky">&#218;nik z blokovan&#233; buňky pod robotem</a></li>
+      <li data-tema="lp-zapis-volna-pod-robotem"><span class="mono">18. 8.</span> <span class="typ">začato</span> <a href="#lp-zapis-volna-pod-robotem">Zapisovat pod půdorysem robota důkaz „volno&quot; do kan&#225;lu hloubky</a></li>
       <li data-tema="nast-telemetricky-pohled"><span class="mono">18. 8.</span> <span class="typ">vyřešeno</span> <a href="#nast-telemetricky-pohled">Telemetrick&#253; pohled — &#250;daje ze zpr&#225;v srovnan&#233; v čase a graf</a></li>
       <li data-tema="nast-virtualni-robot-rampa-kol"><span class="mono">18. 8.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nast-virtualni-robot-rampa-kol">Virtu&#225;ln&#237; robot zmrazil zat&#225;čen&#237; při saturaci kol</a></li>
       <li data-tema="lok-korelace-gridu-s-mapou"><span class="mono">19. 8.</span> <span class="typ">začato i vyřešeno</span> <a href="#lok-korelace-gridu-s-mapou">Korelace occupancy gridu s mapou jako oprava polohy a kurzu</a></li>
@@ -373,9 +374,12 @@
       <li data-tema="nast-limity-jizdy-view"><span class="mono">25. 9.</span> <span class="typ">začato</span> <a href="#nast-limity-jizdy-view">Pohled v aplikaci s rozborem limitů j&#237;zdy pro aktu&#225;ln&#237; nastaven&#237;</a></li>
       <li data-tema="nav-zdroj-osm-dat"><span class="mono">25. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-zdroj-osm-dat">Odkud se berou a jak se aktualizuj&#237; v&#253;řezy <code>.osm</code></a></li>
       <li data-tema="hw-d435-vlakno-zatuhlo-po-restartu"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-d435-vlakno-zatuhlo-po-restartu">Lev&#225; D435 po restartu pipeline (zamrzl&#225; barva) &#250;plně ztichla — vl&#225;kno kamery zatuhlo v nativn&#237;m vol&#225;n&#237;</a></li>
+      <li data-tema="hw-pojistka-zrychleni-motoru"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-pojistka-zrychleni-motoru">Nulov&#233; nebo z&#225;porn&#233; zrychlen&#237; motorů prošlo do řadiče</a></li>
       <li data-tema="lok-koridor-noedge-po-zatacce"><span class="mono">26. 9.</span> <span class="typ">nalezeno</span> <a href="#lok-koridor-noedge-po-zatacce">Po zat&#225;čce je p&#243;za 12 m vedle cesty a koridor ji neoprav&#237; — hranu hled&#225; jen do 8 m (<code>NoEdge</code>)</a></li>
       <li data-tema="lok-odometrie-obvod-kola"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lok-odometrie-obvod-kola">Obvod kola je o ~1,8 % větš&#237;, než robot ujede — p&#243;za na rovince ut&#237;k&#225; dopředu (12,5 m na 740 m)</a></li>
       <li data-tema="lp-grid-posun-pomalou-korekci"><span class="mono">26. 9.</span> <span class="typ">nalezeno</span> <a href="#lp-grid-posun-pomalou-korekci">Postupn&#225; korekce p&#243;zy (limit kroku) nesmaže grid — robot se ocitne v „historicky&quot; nesj&#237;zdn&#253;ch buňk&#225;ch</a></li>
+      <li data-tema="lp-unik-z-blokovane-bunky"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#lp-unik-z-blokovane-bunky">&#218;nik z blokovan&#233; buňky pod robotem</a></li>
+      <li data-tema="mise-freerun-jedna-hrana"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-freerun-jedna-hrana">FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala</a></li>
       <li data-tema="mise-track-timeout-delka-useku"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-track-timeout-delka-useku">Timeout j&#237;zdy k m&#237;stu Tracku (600 s) je kratš&#237;, než trv&#225; prvn&#237; &#250;sek v Modřanech</a></li>
     </ul>
   </div>
@@ -638,7 +642,7 @@
       <li class="hotovo">Měřen&#237; z jedn&#233; hrany v k&#243;du + <code>ARBot.Analyze singleedge</code> + testy <span class="mono">24. 9. 2026</span></li>
       <li class="otevreno">J&#237;zda na cyklostezce s <code>corridorsingle=true</code>: kurz odhadu proti GPS kurzu (<code>heading</code>), pod&#237;l přijat&#253;ch z jedn&#233; hrany (<code>corridor</code>)</li>
       <li class="otevreno">Změřit skutečnou š&#237;řku cyklostezky (nebo doplnit <code>width</code> do mapy) — př&#237;čn&#225; poloha z mapov&#233; š&#237;řky je jinak posunut&#225;. Z koridoru při prahu ≤ 15 vych&#225;z&#237; 4,85–5,3 m (mapa 3 m)</li>
-      <li class="otevreno">Sn&#237;žit <code>corridormininliers</code> na 12–15 (změřeno <code>singleedge --sweep</code>: Modřany 0,2 % → 6–19 % oboustrann&#253;ch koridorů při š&#237;řce soustředěn&#233; ~5 m, Hviezdoslavova beze změny kvality) — rozhodnut&#237; autora</li>
+      <li class="hotovo">Sn&#237;žit <code>corridormininliers</code> — autor 26. 9. 2026: **20** v <code>config/pi-provoz.cfg</code> (FreeRun <code>20260925-144658.rec</code>: 2,7 → 28 % sn&#237;mků, š&#237;řka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo v&#237;c, ale s nesmysln&#253;mi š&#237;řkami) <span class="mono">26. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
   </article>
@@ -1123,17 +1127,6 @@
     </ul>
     <p class="tema-odkazy">čeká na <a href="#lok-koridor-noedge-po-zatacce">Po zat&#225;čce je p&#243;za 12 m vedle cesty a koridor ji neoprav&#237; — hranu hled&#225; jen do 8 m (<code>NoEdge</code>)</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
   </article>
-  <article class="tema" id="lp-unik-z-blokovane-bunky" data-stav="v-kodu">
-    <h3>&#218;nik z blokovan&#233; buňky pod robotem</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 18. 8. 2026</span> <span>vyřešeno 18. 8. 2026</span></p>
-    <p>Robot v z&#225;znamu 5 s hl&#225;sil <code>RobotBlocked</code>, ačkoli st&#225;l na okraji cesty, ne u přek&#225;žky — buňka pod n&#237;m byla podle barvy jistě mimo cestu a nejbližš&#237; průjezdn&#225; ležela 5 cm vedle. Relaxace gridu se zam&#237;tla (kamera buňku pod sebou nikdy neuvid&#237;). &#218;nik vede přes semanticky blokovan&#233; buňky, přes geometricky blokovan&#233; nikdy, nejv&#253;š 1,5 m, a uv&#225;znut&#237; nen&#237; selh&#225;n&#237; pl&#225;nu, aby nezavřelo hranu, kter&#225; je v poř&#225;dku. V aplikaci neběželo.</p>
-    <ul class="kroky">
-      <li class="hotovo">N&#225;vrh a implementace &#250;niku s testy <span class="mono">18. 8. 2026</span></li>
-      <li class="otevreno">Zapisovat pod půdorysem robota důkaz „volno&quot; do kan&#225;lu hloubky (krok 3 n&#225;vrhu)</li>
-      <li class="otevreno">Ověřit za běhu</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-03">2026-09-03</a></p>
-  </article>
   <article class="tema" id="lp-freerun-stisnene-podminky" data-stav="v-kodu">
     <h3>Prvn&#237; FreeRun na železe ve st&#237;sněn&#233;m prostoru skončil n&#225;razem</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 2. 9. 2026</span> <span>vyřešeno 3. 9. 2026</span></p>
@@ -1197,6 +1190,12 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 25. 9. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
+  <article class="tema" id="lp-zapis-volna-pod-robotem" data-stav="odlozeno">
+    <h3>Zapisovat pod půdorysem robota důkaz „volno&quot; do kan&#225;lu hloubky</h3>
+    <p class="tema-meta"><span class="stav stav-odlozeno">odloženo</span> <span>záměr</span> <span>nalezeno 18. 8. 2026</span></p>
+    <p>Původně krok 3 n&#225;vrhu &#250;niku z blokovan&#233; buňky, vyčleněn&#253; 26. 9. 2026 (autor). Pomohl by jen tehdy, když robot stoj&#237; na zd&#225;nliv&#233; přek&#225;žce z HLOUBKY (posunut&#253; grid po korekci p&#243;zy, šum těsně u robota) a ta pokr&#253;v&#225; cel&#253; půdorys — &#250;nik sm&#237; z v&#253;choz&#237; buňky odjet, ale do dalš&#237; geometricky blokovan&#233; nevjede. Př&#237;pad z 18. 8. by nevyřešil (tam blokovala barva a do semantick&#233;ho kan&#225;lu se ps&#225;t nesm&#237;), pomal&#253; rozjezd po startu už řeš&#237; sj&#237;zdn&#253; půdorys v ob&#225;lce (3. 9.). Riziko: z&#225;pis podle chybn&#233; p&#243;zy smaže skutečnou přek&#225;žku ve slep&#233; z&#243;ně kamer, kde ji nic hned nepřep&#237;še. Posunut&#253; grid se m&#225; řešit u př&#237;činy (<code>lp-grid-posun-pomalou-korekci</code>). Vr&#225;tit se k tomu, až se v z&#225;znamu objev&#237; <code>RobotBlocked</code> kvůli hloubce pod půdorysem.</p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
+  </article>
   <article class="tema" id="lp-filtr-izolovanych-bunek" data-stav="odlozeno">
     <h3>Izolovan&#233; skvrny <code>Blocked</code> do 4 buněk brzd&#237; robota jako zeď</h3>
     <p class="tema-meta"><span class="stav stav-odlozeno">odloženo</span> <span>vada</span> <span>nalezeno 7. 9. 2026</span></p>
@@ -1252,6 +1251,17 @@
       <li class="hotovo">Potvrdit na zař&#237;zen&#237;, že robot dos&#225;hne povolen&#233; rychlosti — 18. 9. 2026 venku <code>vCmd</code> p50 1,0 m/s při <code>maxspeed=1</code> (<code>ARBot.Analyze localplan</code>, <code>envelope</code>) <span class="mono">18. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-14">2026-08-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-07">2026-09-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-21">2026-09-21</a></p>
+  </article>
+  <article class="tema" id="lp-unik-z-blokovane-bunky" data-stav="hotovo">
+    <h3>&#218;nik z blokovan&#233; buňky pod robotem</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>záměr</span> <span>nalezeno 18. 8. 2026</span> <span>vyřešeno 26. 9. 2026</span></p>
+    <p>Robot v z&#225;znamu 5 s hl&#225;sil <code>RobotBlocked</code>, ačkoli st&#225;l na okraji cesty, ne u přek&#225;žky — buňka pod n&#237;m byla podle barvy jistě mimo cestu a nejbližš&#237; průjezdn&#225; ležela 5 cm vedle. Relaxace gridu se zam&#237;tla (kamera buňku pod sebou nikdy neuvid&#237;). &#218;nik vede přes semanticky blokovan&#233; buňky, přes geometricky blokovan&#233; nikdy, nejv&#253;š 1,5 m, a uv&#225;znut&#237; nen&#237; selh&#225;n&#237; pl&#225;nu, aby nezavřelo hranu, kter&#225; je v poř&#225;dku. Od 3. 9. řeš&#237; t&#253;mž &#250;nikem i robota stoj&#237;c&#237;ho bl&#237;ž k přek&#225;žce, než je <code>SafeDist</code>. Na robotu zabral 25. 9. 2026 (Track, <code>20260925-142428.rec</code>): po posunu gridu korekc&#237; p&#243;zy dvakr&#225;t vyjel z blokovan&#233; buňky za 6–10 s a pokračoval. Z&#225;pis „volno&quot; pod půdorysem je vyčleněn&#253; jako samostatn&#233; odložen&#233; t&#233;ma (<code>lp-zapis-volna-pod-robotem</code>).</p>
+    <ul class="kroky">
+      <li class="hotovo">N&#225;vrh a implementace &#250;niku s testy <span class="mono">18. 8. 2026</span></li>
+      <li class="hotovo">Těsn&#253; start u přek&#225;žky řešen &#250;nikem m&#237;sto eskapovac&#237; z&#243;ny <span class="mono">3. 9. 2026</span></li>
+      <li class="hotovo">Ověřeno na robotu: Track 25. 9. (<code>20260925-142428.rec</code>), dvě epizody <code>EscapingBlocked</code>, obě vyjel <span class="mono">25. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-03">2026-09-03</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
   </article>
   <article class="tema" id="lp-robot-se-plazi-vyhlazovani" data-stav="hotovo">
     <h3>Robot se venku plazil rychlost&#237; 0,05 m/s — může za to vyhlazov&#225;n&#237; dr&#225;hy</h3>
@@ -1597,6 +1607,18 @@
       <li class="otevreno">J&#237;zda FreeRun s l&#233;čbou: <code>drive</code> / <code>envelope</code> / <code>localplan</code> nad z&#225;znamem</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
+  </article>
+  <article class="tema" id="mise-freerun-jedna-hrana" data-stav="v-kodu">
+    <h3>FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 26. 9. 2026</span> <span>vyřešeno 26. 9. 2026</span></p>
+    <p>Pozorov&#225;n&#237; autora z FreeRun 25. 9. 2026 (<code>records/test/20260925-144658.rec</code>, Modřany): mrkev byla ve směru robotu, ne v koridoru. Změřeno: mrkev z koridoru jen u 578 z 22 646 cyklů (3 %), zbytek <code>NoCorridor</code> / <code>NoPair</code>. Oboustrann&#253; koridor vznikl ve 2,7 % sn&#237;mků (<code>corridormininliers=25</code>; při 20 by to bylo 28 % se š&#237;řkou p50 3,61 m), **jedna hrana v 86 %** (prav&#225; 65 %, lev&#225; 21 %) a jej&#237; směr proti GPS kurzu p50 0,24&#176;, p90 5&#176; (<code>ARBot.Analyze singleedge</code>). <code>CorridorSource</code> jednu hranu poznal (<code>SingleEdgeUsable</code>), ale FreeRun ji z&#225;měrně nebral s t&#237;m, že z n&#237; nevznikne š&#237;řka ani př&#237;čn&#225; poloha. **L&#233;čba (autor):** př&#237;čn&#225; poloha vůči hraně je změřen&#225;; se š&#237;řkou z mapy (bl&#237;zk&#225; a rovnoběžn&#225; cesta) mrkev do středu prav&#233; poloviny jako u koridoru, bez n&#237; ve směru hrany se zachovan&#253;m odstupem. <code>freerunsingle=</code> (v&#253;choz&#237; true), <code>FreeRunMsg</code> verze 2, 13 testů.</p>
+    <ul class="kroky">
+      <li class="hotovo">Změřeno: 3 % mrkv&#237; z koridoru, jedna hrana v 86 % sn&#237;mků (<code>freerun</code>, <code>corridor</code>, <code>singleedge</code>) <span class="mono">26. 9. 2026</span></li>
+      <li class="hotovo">Mrkev z jedn&#233; hrany (š&#237;řka z mapy / zachovan&#253; odstup), <code>freerunsingle=</code>, <code>FreeRunMsg</code> v2, rozpad v <code>ARBot.Analyze freerun</code> <span class="mono">26. 9. 2026</span></li>
+      <li class="otevreno">J&#237;zda FreeRun na zař&#237;zen&#237;: pod&#237;l mrkv&#237; z koridoru / jedn&#233; hrany / rovně (<code>freerun</code>), jestli robot drž&#237; pravou polovinu</li>
+      <li class="hotovo"><code>corridormininliers=20</code> v <code>config/pi-provoz.cfg</code> (autor): oboustrann&#253; koridor 2,7 → 28 % sn&#237;mků v t&#233;mž z&#225;znamu <span class="mono">26. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
   </article>
   <article class="tema" id="mise-track-timeout-delka-useku" data-stav="v-kodu">
     <h3>Timeout j&#237;zdy k m&#237;stu Tracku (600 s) je kratš&#237;, než trv&#225; prvn&#237; &#250;sek v Modřanech</h3>
@@ -2129,17 +2151,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/OrangePi5Ultra/POSTUP.md">OrangePi5Ultra/POSTUP.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-06-23">2026-06-23</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-07-07">2026-07-07</a></p>
   </article>
-  <article class="tema" id="hw-pojistka-zrychleni-motoru" data-stav="v-kodu">
-    <h3>Nulov&#233; nebo z&#225;porn&#233; zrychlen&#237; motorů prošlo do řadiče</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 18. 8. 2026</span> <span>vyřešeno 18. 8. 2026</span></p>
-    <p>Drivery pos&#237;laly hodnotu zrychlen&#237; bez kontroly — z&#225;porn&#225; prošla (rampa diverguje až na plnou rychlost opačn&#253;m směrem), mal&#225; se zaokrouhlila na nulu a nula za j&#237;zdy znamen&#225;, že nouzov&#233; zastaven&#237; nem&#225; č&#237;m zabrat. Pojistka ve skriptu jednotky by robota stejně nezastavila. Nově společn&#253; převod <code>MotorAcceleration.ToUnits</code> (velikost, minimum 1); skript <code>RizeniDiffPodvozku.mbs</code> byl dosynchronizov&#225;n a 30. 8. nahr&#225;n do jednotky, chov&#225;n&#237; na robotu (hlavně nouzov&#233; zastaven&#237;) zb&#253;v&#225; ověřit.</p>
-    <ul class="kroky">
-      <li class="hotovo"><code>MotorAcceleration.ToUnits</code> v obou driverech, 5 testů <span class="mono">18. 8. 2026</span></li>
-      <li class="hotovo">Skript nahr&#225;n do motorov&#233; jednotky <span class="mono">30. 8. 2026</span></li>
-      <li class="otevreno">Ověřit nouzov&#233; zastaven&#237; a rampu na robotu</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs">MotorAcceleration.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-30">2026-08-30</a></p>
-  </article>
   <article class="tema" id="hw-motor-chybovy-ramec" data-stav="v-kodu">
     <h3>Chybov&#253; r&#225;mec motorov&#233;ho driveru se tv&#225;řil jako měřen&#237;</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 27. 8. 2026</span> <span>vyřešeno 15. 9. 2026</span></p>
@@ -2239,6 +2250,17 @@
       <li class="hotovo">Rešerše a oprava tvrzen&#237; v dokumentaci <span class="mono">11. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/build-and-platforms.md">build-and-platforms.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-07-13">2026-07-13</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-07-30">2026-07-30</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a></p>
+  </article>
+  <article class="tema" id="hw-pojistka-zrychleni-motoru" data-stav="hotovo">
+    <h3>Nulov&#233; nebo z&#225;porn&#233; zrychlen&#237; motorů prošlo do řadiče</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 18. 8. 2026</span> <span>vyřešeno 26. 9. 2026</span></p>
+    <p>Drivery pos&#237;laly hodnotu zrychlen&#237; bez kontroly — z&#225;porn&#225; prošla (rampa diverguje až na plnou rychlost opačn&#253;m směrem), mal&#225; se zaokrouhlila na nulu a nula za j&#237;zdy znamen&#225;, že nouzov&#233; zastaven&#237; nem&#225; č&#237;m zabrat. Pojistka ve skriptu jednotky by robota stejně nezastavila. Nově společn&#253; převod <code>MotorAcceleration.ToUnits</code> (velikost, minimum 1); skript <code>RizeniDiffPodvozku.mbs</code> byl dosynchronizov&#225;n a 30. 8. nahr&#225;n do jednotky. Na robotu funguje dobře (potvrdil autor 26. 9. 2026).</p>
+    <ul class="kroky">
+      <li class="hotovo"><code>MotorAcceleration.ToUnits</code> v obou driverech, 5 testů <span class="mono">18. 8. 2026</span></li>
+      <li class="hotovo">Skript nahr&#225;n do motorov&#233; jednotky <span class="mono">30. 8. 2026</span></li>
+      <li class="hotovo">Ověřit nouzov&#233; zastaven&#237; a rampu na robotu <span class="mono">26. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs">MotorAcceleration.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-30">2026-08-30</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
   </article>
   <article class="tema" id="hw-realsense-retez-hubu" data-stav="hotovo">
     <h3>Kamery RealSense nešly za řetězem dvou USB hubů</h3>

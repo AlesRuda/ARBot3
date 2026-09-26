@@ -96,7 +96,7 @@ public class FreeRunMissionTests
     [Test]
     public void MrkevNaOse_MiriDoPraveHalfky()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 3.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 3.0, MinRightEdgeClearanceM = 0 };
 
         var (bodyX, bodyY) = FreeRunMission.CarrotBody(Corridor(width: 2.0, lateral: 0.0), cfg);
 
@@ -111,7 +111,7 @@ public class FreeRunMissionTests
     [Test]
     public void MrkevNaPozadovaneCare_MiriPrimoVpred()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 3.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 3.0, MinRightEdgeClearanceM = 0 };
 
         var (bodyX, bodyY) = FreeRunMission.CarrotBody(Corridor(width: 2.0, lateral: -0.5), cfg);
 
@@ -126,7 +126,7 @@ public class FreeRunMissionTests
     [Test]
     public void MrkevPriliVpravo_TahneZpatkyVlevo()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 3.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 3.0, MinRightEdgeClearanceM = 0 };
 
         var (_, bodyY) = FreeRunMission.CarrotBody(Corridor(width: 2.0, lateral: -1.5), cfg);
 
@@ -141,7 +141,7 @@ public class FreeRunMissionTests
     [Test]
     public void Odsazeni_JeProporcionalniSirce()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 1.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 1.0, MinRightEdgeClearanceM = 0 };
 
         Assert.Multiple(() =>
         {
@@ -156,7 +156,7 @@ public class FreeRunMissionTests
     [Test]
     public void ZatacejiciCesta_MrkevJdePoSmeruCesty()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 2.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 2.0, MinRightEdgeClearanceM = 0 };
         double phi = Math.PI / 6;   // cesta 30 stupnu vlevo
 
         var (bodyX, bodyY) = FreeRunMission.CarrotBody(Corridor(2.0, 0.0, phi), cfg);
@@ -182,7 +182,7 @@ public class FreeRunMissionTests
     [Test]
     public void PrevodDoSveta_PouzijePozuPorizeni()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 3.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 3.0, MinRightEdgeClearanceM = 0 };
         var corridor = Corridor(width: 2.0, lateral: 0.0);
 
         // Robot v (10, 5) otoceny na sever: telove +X je svetove +Y, telove +Y je svetove -X.
@@ -205,7 +205,7 @@ public class FreeRunMissionTests
     [Test]
     public void BezKoridoru_MrkevPrimoVpredOdAktualniPozy()
     {
-        var cfg = new FreeRunConfig { LookaheadM = 4.0 };
+        var cfg = new FreeRunConfig { LookaheadM = 4.0, MinRightEdgeClearanceM = 0 };
         var pose = Pose(1, 2, 0.0);   // miri na vychod
 
         var (wx, wy) = FreeRunMission.CarrotStraightAhead(pose, cfg);
@@ -277,7 +277,7 @@ public class FreeRunMissionTests
     {
         // Nulovy lookahead by polozil mrkev NA robota - planovac by nemel kam jet.
         Assert.That(new FreeRunConfig().LookaheadM, Is.GreaterThan(0.5));
-        Assert.That(() => new FreeRunConfig { LookaheadM = 0 }.Validate(),
+        Assert.That(() => new FreeRunConfig { LookaheadM = 0, MinRightEdgeClearanceM = 0 }.Validate(),
                     Throws.TypeOf<ArgumentException>());
     }
 

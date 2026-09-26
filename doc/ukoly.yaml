@@ -1654,27 +1654,54 @@ temata:
     oblast: lokalni-planovani
     nazev: Únik z blokované buňky pod robotem
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-18
-    vyreseno: 2026-08-18
+    vyreseno: 2026-09-26
     popis: >
       Robot v záznamu 5 s hlásil `RobotBlocked`, ačkoli stál na okraji cesty, ne u překážky —
       buňka pod ním byla podle barvy jistě mimo cestu a nejbližší průjezdná ležela 5 cm vedle.
       Relaxace gridu se zamítla (kamera buňku pod sebou nikdy neuvidí). Únik vede přes
       semanticky blokované buňky, přes geometricky blokované nikdy, nejvýš 1,5 m, a uváznutí
-      není selhání plánu, aby nezavřelo hranu, která je v pořádku. V aplikaci neběželo.
+      není selhání plánu, aby nezavřelo hranu, která je v pořádku. Od 3. 9. řeší týmž únikem
+      i robota stojícího blíž k překážce, než je `SafeDist`. Na robotu zabral 25. 9. 2026
+      (Track, `20260925-142428.rec`): po posunu gridu korekcí pózy dvakrát vyjel z blokované
+      buňky za 6–10 s a pokračoval. Zápis „volno" pod půdorysem je vyčleněný jako samostatné
+      odložené téma (`lp-zapis-volna-pod-robotem`).
     kroky:
       - co: Návrh a implementace úniku s testy
         stav: hotovo
         kdy: 2026-08-18
-      - co: Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky (krok 3 návrhu)
-        stav: otevreno
-      - co: Ověřit za běhu
-        stav: otevreno
+      - co: Těsný start u překážky řešen únikem místo eskapovací zóny
+        stav: hotovo
+        kdy: 2026-09-03
+      - co: "Ověřeno na robotu: Track 25. 9. (`20260925-142428.rec`), dvě epizody `EscapingBlocked`, obě vyjel"
+        stav: hotovo
+        kdy: 2026-09-25
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-08-18, 2026-09-03]
+    devlog: [2026-08-18, 2026-09-03, 2026-09-26]
+
+  - id: lp-zapis-volna-pod-robotem
+    oblast: lokalni-planovani
+    nazev: Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky
+    druh: zamer
+    stav: odlozeno
+    nalezeno: 2026-08-18
+    popis: >
+      Původně krok 3 návrhu úniku z blokované buňky, vyčleněný 26. 9. 2026 (autor). Pomohl by jen
+      tehdy, když robot stojí na zdánlivé překážce z HLOUBKY (posunutý grid po korekci pózy, šum
+      těsně u robota) a ta pokrývá celý půdorys — únik smí z výchozí buňky odjet, ale do další
+      geometricky blokované nevjede. Případ z 18. 8. by nevyřešil (tam blokovala barva a do
+      semantického kanálu se psát nesmí), pomalý rozjezd po startu už řeší sjízdný půdorys
+      v obálce (3. 9.). Riziko: zápis podle chybné pózy smaže skutečnou překážku ve slepé zóně
+      kamer, kde ji nic hned nepřepíše. Posunutý grid se má řešit u příčiny
+      (`lp-grid-posun-pomalou-korekci`). Vrátit se k tomu, až se v záznamu objeví
+      `RobotBlocked` kvůli hloubce pod půdorysem.
+    odkazy:
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+    devlog: [2026-09-26]
 
   - id: nast-virtualni-robot-rampa-kol
     oblast: nastroje
@@ -1698,16 +1725,16 @@ temata:
     oblast: hw
     nazev: Nulové nebo záporné zrychlení motorů prošlo do řadiče
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-18
-    vyreseno: 2026-08-18
+    vyreseno: 2026-09-26
     popis: >
       Drivery posílaly hodnotu zrychlení bez kontroly — záporná prošla (rampa diverguje až na
       plnou rychlost opačným směrem), malá se zaokrouhlila na nulu a nula za jízdy znamená, že
       nouzové zastavení nemá čím zabrat. Pojistka ve skriptu jednotky by robota stejně nezastavila.
       Nově společný převod `MotorAcceleration.ToUnits` (velikost, minimum 1); skript
-      `RizeniDiffPodvozku.mbs` byl dosynchronizován a 30. 8. nahrán do jednotky, chování na
-      robotu (hlavně nouzové zastavení) zbývá ověřit.
+      `RizeniDiffPodvozku.mbs` byl dosynchronizován a 30. 8. nahrán do jednotky. Na robotu
+      funguje dobře (potvrdil autor 26. 9. 2026).
     kroky:
       - co: "`MotorAcceleration.ToUnits` v obou driverech, 5 testů"
         stav: hotovo
@@ -1716,13 +1743,14 @@ temata:
         stav: hotovo
         kdy: 2026-08-30
       - co: Ověřit nouzové zastavení a rampu na robotu
-        stav: otevreno
+        stav: hotovo
+        kdy: 2026-09-26
     odkazy:
       - text: MotorAcceleration.cs
         cesta: Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs
       - text: hardware.md
         cesta: doc/hardware.md
-    devlog: [2026-08-18, 2026-08-30]
+    devlog: [2026-08-18, 2026-08-30, 2026-09-26]
 
   - id: nast-hlasky-startu-do-zaznamu
     oblast: nastroje
@@ -7836,8 +7864,9 @@ temata:
         stav: otevreno
       - co: "Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)"
         stav: otevreno
-      - co: "Snížit `corridormininliers` na 12–15 (změřeno `singleedge --sweep`: Modřany 0,2 % → 6–19 % oboustranných koridorů při šířce soustředěné ~5 m, Hviezdoslavova beze změny kvality) — rozhodnutí autora"
-        stav: otevreno
+      - co: "Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami)"
+        stav: hotovo
+        kdy: 2026-09-26
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
@@ -8075,5 +8104,41 @@ temata:
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
+    devlog: [2026-09-26]
+    ceka_na: []
+
+  - id: mise-freerun-jedna-hrana
+    oblast: mise
+    nazev: FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-26
+    vyreseno: 2026-09-26
+    popis: >
+      Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, Modřany):
+      mrkev byla ve směru robotu, ne v koridoru. Změřeno: mrkev z koridoru jen u 578 z 22 646
+      cyklů (3 %), zbytek `NoCorridor` / `NoPair`. Oboustranný koridor vznikl ve 2,7 % snímků
+      (`corridormininliers=25`; při 20 by to bylo 28 % se šířkou p50 3,61 m), **jedna hrana v 86 %**
+      (pravá 65 %, levá 21 %) a její směr proti GPS kurzu p50 0,24°, p90 5° (`ARBot.Analyze
+      singleedge`). `CorridorSource` jednu hranu poznal (`SingleEdgeUsable`), ale FreeRun ji
+      záměrně nebral s tím, že z ní nevznikne šířka ani příčná poloha. **Léčba (autor):** příčná
+      poloha vůči hraně je změřená; se šířkou z mapy (blízká a rovnoběžná cesta) mrkev do středu
+      pravé poloviny jako u koridoru, bez ní ve směru hrany se zachovaným odstupem.
+      `freerunsingle=` (výchozí true), `FreeRunMsg` verze 2, 13 testů.
+    kroky:
+      - co: "Změřeno: 3 % mrkví z koridoru, jedna hrana v 86 % snímků (`freerun`, `corridor`, `singleedge`)"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Mrkev z jedné hrany (šířka z mapy / zachovaný odstup), `freerunsingle=`, `FreeRunMsg` v2, rozpad v `ARBot.Analyze freerun`"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu"
+        stav: otevreno
+      - co: "`corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu"
+        stav: hotovo
+        kdy: 2026-09-26
+    odkazy:
+      - text: mission-freerun.md
+        cesta: doc/mission-freerun.md
     devlog: [2026-09-26]
     ceka_na: []

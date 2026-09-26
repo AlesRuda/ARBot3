@@ -407,7 +407,13 @@ výhradně chování ve chvíli, kdy robot v blokované buňce už stojí (regre
 
 **Odloženo:** zapisovat pod půdorysem robotu důkaz „volno" do kanálu **hloubky** (robot tam
 prokazatelně stojí, a je to jediná buňka, kterou kamera nikdy neuvidí). Do semantického kanálu se
-psát nesmí — jinak by se robot naučil, že cesta je všude, kam zabloudí.
+psát nesmí — jinak by se robot naučil, že cesta je všude, kam zabloudí. Pomohlo by jen na zdánlivou
+překážku z hloubky pod celým půdorysem a zápis podle chybné pózy by smazal skutečnou překážku ve
+slepé zóně; čeká, až se takový `RobotBlocked` objeví v záznamu (`lp-zapis-volna-pod-robotem`).
+
+**Na robotu ověřeno 25. 9. 2026** (Track, `20260925-142428.rec`): po posunu gridu korekcí pózy
+dvakrát `EscapingBlocked`, robot pokaždé za 6–10 s vyjel a pokračoval
+(`lp-grid-posun-pomalou-korekci`).
 
 ---
 

@@ -39,6 +39,24 @@ namespace ARBot.Common.Missions
         public bool HasPose;
 
         /// <summary>
+        /// Mrkev podle <b>jedine</b> hrany (<see cref="CorridorSide.Left"/> / <see cref="CorridorSide.Right"/>);
+        /// <see cref="CorridorSide.None"/> = oboustranny koridor nebo jizda rovne.
+        /// </summary>
+        public CorridorSide SingleSide;
+
+        /// <summary>Jela se mrkev podle jedine hrany?</summary>
+        public bool FromSingleEdge => SingleSide != CorridorSide.None;
+
+        /// <summary>Znamenkovy odstup jedine hrany od robotu [m], kladne = hrana vlevo.</summary>
+        public double EdgeOffset;
+
+        /// <summary>
+        /// U jedine hrany: byla sirka z mapy (<c>true</c>, pak <see cref="Width"/> a
+        /// <see cref="Lateral"/> plati), nebo se drzel zmereny odstup od hrany (<c>false</c>)?
+        /// </summary>
+        public bool WidthFromMap;
+
+        /// <summary>
         /// Prevod na log-zpravu. Konvenci vlastni domena (viz CLAUDE.md) — <c>Logs</c> zustava
         /// pasivni DTO.
         /// </summary>
@@ -57,6 +75,9 @@ namespace ARBot.Common.Missions
                 PoseY = PoseY,
                 PoseTheta = PoseTheta,
                 HasPose = HasPose,
+                SingleSide = (byte)SingleSide,
+                EdgeOffset = EdgeOffset,
+                WidthFromMap = WidthFromMap,
             };
     }
 }

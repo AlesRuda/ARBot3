@@ -32,6 +32,51 @@ namespace ARBot.Common.Missions
         /// </summary>
         public double RightOffsetFraction = 0.25;
 
+        /// <summary>
+        /// Nejmensi odstup pozadovane cary od PRAVEHO kraje cesty [m]. Prava polovina jen tehdy,
+        /// kdyz od kraje zbyde aspon tolik; jinak se cara posune k ose, nejdal na stred cesty
+        /// (pravidlo autora 26. 9. 2026, viz <see cref="FreeRunMission.RightOffsetFromAxis"/>).
+        ///
+        /// <para><b>Hodnota:</b> <c>SafeDist + EdgeMarginM</c> lokalniho planovace (0,40 + 0,15 m) —
+        /// pod <c>SafeDist</c> planovac nejde vubec a v pasmu <c>EdgeMarginM</c> nad nim podel
+        /// prekazky zpomaluje; kraj cesty (trava) je pro nej neprujezdny. Runtime ho bere ze
+        /// skutecne konfigurace planovace, takze sleduje i <c>safedist=</c>.</para>
+        /// </summary>
+        public double MinRightEdgeClearanceM = DefaultMinRightEdgeClearance();
+
+        private static double DefaultMinRightEdgeClearance()
+        {
+            var p = new Occupancy.LocalPlannerConfig();
+            return p.SafeDist + p.EdgeMarginM;
+        }
+
+        /// <summary>
+        /// Klade se mrkev i podle <b>JEDINE</b> viditelne hrany cesty? (<c>freerunsingle=</c>)
+        ///
+        /// <para><b>Proc (26. 9. 2026, pokyn autora):</b> ve FreeRun <c>20260925-144658.rec</c> vznikl
+        /// oboustranny koridor jen ve 2,7 % snimku, jedna hrana ale v 86 % (prava 65 %, leva 21 %)
+        /// a jeji smer sedel na GPS kurz (p50 0,24°, p90 5°). Mise pritom brala jen oboustranny
+        /// koridor, takze 97 % casu jela „rovne podle kurzu".</para>
+        ///
+        /// <para><b>Jak:</b> odstup hrany od robotu je zmereny, takze pricna poloha vuci hrane je
+        /// znama. Se sirkou z mapy (<see cref="FreeRunMission.MapWidthAt"/>) z ni vznikne osa cesty
+        /// a mrkev jde doprostred prave poloviny jako u oboustranneho koridoru; bez sirky jde mrkev
+        /// ve smeru hrany se <b>zachovanym zmerenym odstupem</b>. <c>false</c> = chovani do 26. 9.</para>
+        /// </summary>
+        public bool UseSingleEdge = true;
+
+        /// <summary>
+        /// Nejvetsi odstup pozy od mapove cesty [m], pri kterem se jeji sirka jeste bere. Dal uz
+        /// nejspis nejde o cestu, po ktere robot jede, a mrkev pujde podle odstupu od hrany.
+        /// </summary>
+        public double MapWidthMaxDistanceM = 8.0;
+
+        /// <summary>
+        /// Nejvetsi rozdil smeru viditelne hrany a mapove cesty [stupne], pri kterem se sirka z mapy
+        /// bere. Chrani pred sirkou PRICNE ulice u krizovatky.
+        /// </summary>
+        public double MapWidthMaxAngleDeg = 20.0;
+
         // POZN.: bývalo tu pole MaxSpeedMps ("strop rychlosti mise"). Bylo to MRTVÉ - nikdo ho
         // nečetl, a číst ho ani nešlo: šev do lokální vrstvy je
         // ILocalGoalSink.SetGoal(worldX, worldY, corridorWidthM) a kanál pro rychlost tam není.
@@ -51,6 +96,13 @@ namespace ARBot.Common.Missions
                     $"FreeRunConfig.RightOffsetFraction ({RightOffsetFraction}) musi byt v (0; 0,5). "
                     + "Polovina sirky uz lezi NA prave hranici koridoru, takze to neni "
                     + "'prava polovina', ale 'prave po okraji'; nula je stred cesty.");
+            if (!(MinRightEdgeClearanceM >= 0))
+                throw new ArgumentException(
+                    $"FreeRunConfig.MinRightEdgeClearanceM ({MinRightEdgeClearanceM}) musi byt >= 0.");
+            if (!(MapWidthMaxDistanceM > 0) || !(MapWidthMaxAngleDeg > 0) || MapWidthMaxAngleDeg > 90)
+                throw new ArgumentException(
+                    $"FreeRunConfig.MapWidthMaxDistanceM ({MapWidthMaxDistanceM}) musi byt > 0 "
+                    + $"a MapWidthMaxAngleDeg ({MapWidthMaxAngleDeg}) v (0; 90].");
         }
     }
 }

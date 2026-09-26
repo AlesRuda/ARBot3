@@ -62,7 +62,9 @@ FreeRun ho má přirozeně z `RoadCorridor.Width`.
 | situace | co robot dělá |
 |---|---|
 | koridor je | mrkev v **pravé polovině**, odsazení **`Width/4` od osy** |
-| koridor není | mrkev **přímo vpřed** od aktuální pózy (drží aktuální kurz) |
+| jen **jedna hrana** + šířka z mapy (od 26. 9. 2026) | osa z odstupu hrany a mapové šířky, mrkev v **pravé polovině** jako u koridoru |
+| jen **jedna hrana**, šířka neznámá (od 26. 9. 2026) | mrkev **ve směru hrany se zachovaným změřeným odstupem** |
+| koridor ani hrana nejsou | mrkev **přímo vpřed** od aktuální pózy (drží aktuální kurz) |
 | překážka v pravé polovině | **překážka vyhraje** — A\* ji objede kudy může, i přes osu nebo mimo koridor, a pak se robot vrátí vpravo |
 | není průjezd vůbec | zastavit a ohlásit (recovery manévr neexistuje — viz [Otevřené](#co-zůstává-otevřené)) |
 | ukončení | **jen zastavením obsluhou** (nouzové zastavení / UI) |
@@ -107,6 +109,45 @@ protože šířka už z koridoru je. Pevných „0,5 m od pravé hrany" by na 1m
 od osy**.
 
 **Jediná nová konstanta je lookahead `L`.** To je i jediné, co se bude ladit.
+
+### Mrkev z jedné hrany (od 26. 9. 2026, `freerunsingle=`)
+
+**Proč:** ve FreeRun `records/test/20260925-144658.rec` (Modřany, 23 min) vznikl oboustranný
+koridor jen ve **2,7 %** snímků, ale **jedna hrana v 86 %** (pravá 65 %, levá 21 %) a její směr
+seděl na GPS kurz (p50 0,24°, p90 5°, `ARBot.Analyze singleedge`). Mise brala jen oboustranný
+koridor, takže **97 % času jela rovně podle kurzu** — autor to viděl na robotu jako mrkev „ve směru
+robotu, ne v koridoru". Oboustranný koridor na široké cyklostezce padá hlavně na prahu inlierů
+(`corridormininliers=25`; při 20 by vznikl ve 28 % snímků, šířka p50 3,61 m — provozní profil má
+od 26. 9. 2026 právě 20).
+
+**Odstup od pravého kraje** (pravidlo autora, 26. 9. 2026): pravá polovina jen tehdy, když
+požadovaná čára leží aspoň `MinRightEdgeClearanceM` od pravého kraje — výchozí
+`SafeDist + EdgeMarginM` plánovače (0,40 + 0,15 = 0,55 m; runtime ho bere ze skutečné konfigurace,
+takže sleduje i `safedist=`). Jinak se čára posune k ose, nejdál na střed cesty:
+
+```
+vpravo_od_osy = min(Width·f, max(0, Width/2 − MinRightEdgeClearanceM))
+```
+
+Cesta nad 2,2 m tedy jede čtvrtinu šířky vpravo jako dosud, pod 1,1 m středem. Je to **omezení,
+ne přepínač** — přepínač „pravá polovina / střed" by při šířce kolísající kolem prahu přeskakoval
+o čtvrtinu šířky snímek od snímku. U jedné **pravé** hrany bez šířky se změřený odstup drží, ale
+nejméně na `MinRightEdgeClearanceM`.
+
+**Jak** (rozhodnutí autora): `RoadCorridor` z jedné hrany nese její směr `DirectionRad`
+a znaménkový odstup `EdgeOffset` (kladný = hrana vlevo), tedy příčnou polohu **vůči hraně**.
+
+- **Se šířkou `w` z mapy:** `Lateral = SingleEdgeLateral(w)` a dál tentýž vzorec jako u koridoru —
+  u pravé hrany vyjde cíl `w/4` dovnitř od ní, u levé `3w/4` od ní.
+- **Bez šířky:** `mrkev_body = L·d`, tedy rovnoběžně s hranou se zachovaným odstupem. Příčná poloha
+  vůči ose známá není, takže se na ni neřídí.
+
+Šířka z mapy (`FreeRunMission.MapWidthAt`) se bere jen tehdy, když je mapová cesta u pózy do
+`MapWidthMaxDistanceM` (8 m) **a** rovnoběžná s viděnou hranou do `MapWidthMaxAngleDeg` (20°) —
+jinak by u křižovatky šířku dala příčná ulice. Bez mapy (`map=` nezadané) jde vždy druhá varianta.
+V záznamu to nese **`FreeRunMsg` verze 2** (`SingleSide`, `EdgeOffset`, `WidthFromMap`) a rozpad
+ukazuje `ARBot.Analyze freerun`. ⚠️ **Na zařízení neběželo**; `freerunsingle=false` vrací chování
+do 26. 9. Stránka náhledu zatím ukazuje jen stav mise („jede podle pravé hrany, šířka z mapy").
 
 ## Návrhové rozhodnutí: vytáhnout `CorridorSource`
 

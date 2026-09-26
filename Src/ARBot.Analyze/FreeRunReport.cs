@@ -50,9 +50,17 @@ namespace ARBot.Analyze
 
             // (1) Mela mise vubec co sledovat?
             int fromCorridor = msgs.Count(m => m.FromCorridor);
+            // FreeRunMsg verze 2 (od 26. 9. 2026): mrkev i podle JEDINE hrany.
+            int single = msgs.Count(m => !m.FromCorridor && m.SingleSide != 0);
+            int singleMap = msgs.Count(m => !m.FromCorridor && m.SingleSide != 0 && m.WidthFromMap);
+            int straight = msgs.Count - fromCorridor - single;
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "MELA MISE CO SLEDOVAT: mrkev z koridoru u {0} z {1} cyklu ({2:F0} %), "
-                + "zbytek jel rovne", fromCorridor, msgs.Count, 100.0 * fromCorridor / msgs.Count));
+                "MELA MISE CO SLEDOVAT: mrkev z koridoru u {0} z {1} cyklu ({2:F0} %), podle jedne hrany "
+                + "u {3} ({4:F0} %; z toho se sirkou z mapy {5}), rovne podle kurzu {6} ({7:F0} %)",
+                fromCorridor, msgs.Count, 100.0 * fromCorridor / msgs.Count,
+                single, 100.0 * single / msgs.Count, singleMap, straight, 100.0 * straight / msgs.Count));
+            if (msgs.All(m => m.Verze < 2))
+                Console.WriteLine("  (zprava verze 1 - jednu hranu mise tehdy jeste nepouzivala)");
             Console.WriteLine("  duvody (CorridorFixReason):");
             foreach (var g in msgs.GroupBy(m => m.Reason).OrderByDescending(g => g.Count()))
                 Console.WriteLine($"    {g.Key,-4} {g.Count(),6}");
