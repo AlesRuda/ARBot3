@@ -23,7 +23,7 @@
   <div class="pagehead">
     <p class="eyebrow">2008 &rarr; dnes</p>
     <h1>Verze</h1>
-    <p class="lead">Tři generace robota. Co fungovalo, zůstalo; co nefungovalo, se přepracovalo.</p>
+    <p class="lead">Čtyři generace robota: SRV1, Z, U2 a PI. Co fungovalo, zůstalo; co nefungovalo, se přepracovalo.</p>
   </div>
 
 <section class="first">
@@ -230,6 +230,38 @@
       <a href="../assets/img/verze-u2-2019-05.jpg" target="_blank" rel="noopener"><img src="../assets/img/nahledy/verze-u2-2019-05.jpg" width="345" height="460" alt="Robot ARBot verze U2 po roce 2019 (5/5)" loading="lazy"></a>
   </div>
   <figcaption><b>U2 od roku 2019.</b> Dvě kamery RealSense D435 místo R200, bez lidaru, nahoře tištěná skříň elektroniky. <span class="hint">&nbsp;&middot;&nbsp; 5 fotek, posouvá se do stran &middot; klik otevře plnou velikost</span></figcaption>
+</figure>
+
+<section>
+  <h2 id="pi">Verze PI</h2>
+  <p>V roce 2026 přišla další generace, pojmenovaná podle nového řídicího počítače. Podvozek, motory
+     s jednotkou SDC2160, AHRS VN-100, GPS od uBloxu i obě kamery RealSense D435 zůstaly. Změnily se
+     tři věci:</p>
+  <ul>
+    <li><b>Řídicí počítač.</b> SBC UP squared nahradil <b>Orange Pi 5 Ultra</b> s procesorem Rockchip
+       RK3588 (osm jader ARM), 8 GB RAM, 512 GB NVMe diskem a operačním systémem Armbian. Deska má
+       vlastní NPU, takže neuronová síť pro segmentaci obrazu běží přímo na ní a Edge TPU Coral už
+       není potřeba.</li>
+    <li><b>Bez RealSense T265.</b> Kamera pro sledování polohy byla odpojena ze dvou důvodů: dělala
+       problémy s připojením na USB a Intel ukončil její výrobu i podporu &mdash; poslední verze
+       ovladačů, která ji umí, je 2.53.</li>
+    <li><b>Řídicí software je přepsaný od základu.</b> Nová verze vzniká od června 2026 v C# na .NET 10
+       a na robotu běží jako služba bez grafického rozhraní. Stav robota, obraz z kamer a mapu okolí
+       ukazuje webová stránka, kterou jde otevřít i v telefonu, a každá jízda se nahrává, aby šla
+       rozebrat do čísel. Zdrojový kód je veřejný na
+       <a href="https://github.com/AlesRuda/ARBot3">GitHubu</a>.</li>
+  </ul>
+  <p>První soutěží nové verze byl <a href="robotour-2026.html">Robotour 2026</a> v pražské Stromovce
+     &mdash; šesté místo a poprvé celé doručení na skutečném robotu.</p>
+</section>
+
+<figure class="strip wide">
+  <div class="strip-scroll">
+      <a href="../assets/img/verze-pi-01.jpg" target="_blank" rel="noopener"><img src="../assets/img/nahledy/verze-pi-01.jpg" width="345" height="460" alt="Robot ARBot verze PI na dlažbě před modelem lunárního modulu u Planetária v pražské Stromovce." loading="lazy"></a>
+      <a href="../assets/img/verze-pi-02.jpg" target="_blank" rel="noopener"><img src="../assets/img/nahledy/verze-pi-02.jpg" width="345" height="460" alt="Robot ARBot verze PI shora: dřevěný podvozek se soudkem piva, stožár s kamerami a anténou GPS." loading="lazy"></a>
+      <a href="../assets/img/OrangePiUltra_Top.jpg" target="_blank" rel="noopener"><img src="../assets/img/nahledy/OrangePiUltra_Top.jpg" width="613" height="460" alt="Jednodeskový počítač Orange Pi 5 Ultra s měděným chladičem a ventilátorem." loading="lazy"></a>
+  </div>
+  <figcaption><b>Verze PI.</b> Robotour 2026, Stromovka, 19. září 2026, a nový řídicí počítač Orange Pi 5 Ultra. <span class="hint">&nbsp;&middot;&nbsp; 3 fotky, posouvá se do stran &middot; klik otevře plnou velikost</span></figcaption>
 </figure>
 
 <section>

@@ -67,9 +67,11 @@ Přepsaná 16. 9. 2026. Stavba shora dolů: **hero** (text + fotka robotu + pás
 ⚠️ **U rekordů ověřuj poslední ročník.** První verze pásu nesla 1 595 m z Marathonu 2020 —
 číslo bylo správně, jen o tři roky staré, a vypadalo by to, že robot od té doby nic nedokázal.
 
-**Fotka v hero** (`assets/img/hero-robot.jpg`, 720 × 900) je výřez z `verze-u2-2019-05.jpg`
-(`ffmpeg -vf "crop=1440:1800:60:160,scale=720:900"`). Je z obýváku, protože **fotka aktuálního
-robotu v terénu v repu není** — až vznikne, patří sem místo ní.
+**Fotka v hero** (`assets/img/hero-robot.jpg`, 720 × 900) je od 26. 9. 2026 **verze PI na
+Robotouru 2026** u Planetária ve Stromovce: výřez z originálu fotky `verze-pi-01.jpg`
+(3060 × 4080 po otočení podle EXIF, celá šířka, výška 3825 od y = 128, pak zmenšení na 720 × 900;
+uloženo bez metadat). Do té doby tu byl výřez z `verze-u2-2019-05.jpg` z obýváku, protože fotka
+aktuálního robotu v terénu v repu nebyla.
 
 ⚠️ **Text úvodu tvrdil něco, co neplatí.** Do 16. 9. 2026 tu stálo, že cílem bylo „to co dokáže
 mnohý hmyz" a že *„postupem času byl cíl přeformulován"* na soutěže. Podle autora se robot
@@ -252,7 +254,7 @@ web je nepoužívá.
 | Domovská stránka | `index.html` | text přepsaný (16. 9. 2026), pás čísel, snímky z jízdy, rozcestník |
 | — (nová) | `pages/prezentace.html` | popis fungování softwaru |
 | Umístění v soutěžích | `pages/umisteni-v-soutezich.html` | popisy soutěží + tabulka výsledků 2009–2025 **včetně odkazů** |
-| ARBot → Verze | `pages/verze.html` | celý text + 4 fotky + **4 pásy fotek (30 snímků)** |
+| ARBot → Verze | `pages/verze.html` | celý text + 4 fotky + **4 pásy fotek (30 snímků)**; 26. 9. 2026 přibyla sekce **Verze PI** s pátým pásem (3 snímky) |
 | ARBot → Model diferenciálního podvozku | `pages/model-diferencialniho-podvozku.html` | text + 3 schémata (SVG) + **vzorce (1)–(14)** |
 | ARBot → Detekce kraje vozovky | `pages/detekce-kraje-vozovky.html` | text + obrázek + **vzorce (1)–(5)** |
 | Kontakt | `pages/kontakt.html` | kontaktní a fakturační údaje |
@@ -265,6 +267,10 @@ totiž třetí takový článek (*Regulátor sledování dráhy*) a bylo jasné,
 
 Stránky, které na Sites nebyly a vznikly až tady: `pages/prezentace.html`,
 `pages/historie.html`, `pages/technicke-clanky.html` a `pages/regulator-sledovani-drahy.html`.
+
+**Fotky z telefonu** (`verze-pi-*.jpg`, 26. 9. 2026) se před uložením otáčejí podle EXIF
+(telefon ukládá fotku na šířku a otočení jen zapíše do metadat) a **ukládají se bez metadat** —
+fotka z telefonu nese i GPS polohu místa, kde vznikla. Plná velikost 1536 × 2048, náhled 345 × 460.
 
 Obrázky převzaté ze Sites: `assets/img/arbot-logo.png` (logo, slouží i jako favicon),
 `assets/img/arbot-model.gif` (animovaný model robota, 592 × 612, 72 snímků),
