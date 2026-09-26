@@ -16,6 +16,13 @@
 | Kamera D435 (hloubka) | `ICamera` | USB (RealSense) | USB 3.0, **dva kusy** (`8086:0b07`) | `D435Camera` (platformový HAL) |
 | Kamera T265 (tracking) | pose → `IMUState` | USB (RealSense) | USB 2.0, hlásí se jako Movidius VPU (`03e7:2150`) | `T265TrackingCamera` |
 
+> ⚠️ **Od 26. 9. 2026 se T265 driver NEZAKLÁDÁ** (`ARBotHW.SetRealHW`, pokyn autora). Hon na
+> odpojenou T265 ~1× za sekundu (`RealSenseShared.Query` → `QueryDevices()` přes všechny řady,
+> čtení `Info` každé zařízení vytvoří a otevře) otevíral a zavíral i D435 uvolněnou po restartu
+> zamrzlého streamu, takže hlídač zařízení librealsense pořád vyčítal a `pipeline.Dispose` na
+> něm natrvalo zatuhl (25. 9. dvakrát, minidumpy). Vrátit jde odkomentováním, ale nejdřív omezit
+> hon na produktovou řadu T200 (maska `0x10`). Registr `hw-d435-vlakno-zatuhlo-po-restartu`.
+
 ### RealSense: jeden kontext, boot T265 před D435 (3. 9. 2026)
 
 Všechny RealSense drivery v `ARBot.HALArmbian` (obě `D435Camera` i `T265TrackingCamera`) sdílí

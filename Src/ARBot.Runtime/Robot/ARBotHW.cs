@@ -507,7 +507,20 @@ namespace ARBot.Robot
                 sensors.Add(GPS);
             }
 
-            sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
+            // T265 se od 26. 9. 2026 NEZAKLADA (pokyn autora). Driver ji hledal ~1x za sekundu
+            // pres RealSenseShared.Query -> Context.QueryDevices() nad VSEMI produktovymi radami,
+            // a cteni d.Info[...] kazde zarizeni plne vytvori a otevre jeho USB rozhrani - i obe
+            // D435. U streamujicich to koncilo "failed to set power state", ale D435 uvolnenou po
+            // pipeline.Stop (restart zamrzleho streamu) to otviralo a zaviralo porad dokola (kernel:
+            // "Found UVC ... 2-1.2" kazde 1-2 s bez konce). Hlidac zarizeni librealsense tak porad
+            // vycital a pipeline.Dispose, ktery ho pri ruseni zastavuje, se k jeho mutexu nedostal:
+            // leva D435 25. 9. dvakrat zatuhla natrvalo (minidumpy logs/hang-kamera-*-20260925-*.dmp,
+            // zasobnik rs2_delete_pipeline -> context::stop -> polling_device_watcher::stop ->
+            // dispatcher::stop -> mutex). T265 je navic od 14. 9. odpojena, takze driver nedaval
+            // nic. Zbytek kodu s TrackingCamera == null pocita. Vratit = odkomentovat, ale nejdriv
+            // omezit hon na produktovou radu T200 (rs2_query_devices_ex s maskou 0x10), aby se D435
+            // pri nem nevytvarely. Registr hw-d435-vlakno-zatuhlo-po-restartu, doc/hardware.md.
+//            sensors.Add(TrackingCamera = new T265TrackingCamera(T265Serial));
 //            TrackingCamera = new T265TrackingCameraNative(T265Serial);
             // Snimkova frekvence kamer: snizit ji jde kvuli drazsi segmentaci (viz camerafps=
             // a doc/semantic-segmentation.md). Povolene hodnoty hlida uz registr, takze sem

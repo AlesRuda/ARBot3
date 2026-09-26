@@ -5487,8 +5487,8 @@ temata:
     nazev: Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání
     druh: vada
     stav: v-kodu
+    vyreseno: 2026-09-26
     nalezeno: 2026-09-24
-    vyreseno: 2026-09-24
     popis: >
       `records/test/20260923-143515.rec`: ve 14:40:53 levé D435 zamrzla barva, driver ohlásil
       restart pipeline a pak už o ní nepřišlo nic — žádný dotaz, připojení ani chyba, žádné snímky;
@@ -5499,11 +5499,47 @@ temata:
       ne dokázaná příčina (13. 9. stejná cesta doběhla). Opraveno bourání až po uvolnění
       a přidán `NativeCallWatch` (Stop/Dispose/Start/QueryDevices u D435 i T265, limit
       `hangwatch=`), který při zatuhnutí zapíše, ve kterém volání vlákno visí, a pořídí minidump.
+      **Opakovalo se 25. 9. 2026 DVAKRÁT, vždy levá D435, a `NativeCallWatch` to na zařízení
+      zachytil:** `20260925-143643.rec` 14:40:12 (zamrzla barva) a `20260925-144658.rec` 15:08:12
+      (zamrzla hloubka) → restart pipeline → **`pipeline.Stop` se vrátil, `pipeline.Dispose` ne**
+      (hlášení po 20 s, „nakonec doběhlo" nepřišlo nikdy) → minidumpy
+      `logs/hang-kamera-Left-740112071040-pipeline.Dispose-20260925-144033.dmp` a `…-150833.dmp`
+      na Pi. Levá kamera pak do konce záznamu neposlala snímek (66 s, resp. 118 s), pravá jela dál.
+      Probrala se až restartem procesu (`/stop` ze stránky → systemd). V `20260925-144200.rec`
+      zamrzly obě kamery a restart pipeline doběhl (obě zpět do 15 s). Oprava z 24. 9. (bourat až
+      po uvolnění framesetu) tedy zatuhnutí **neodstranila** — visí přímo nativní `Dispose`.
+      **Rozbor dumpů 26. 9. 2026** (gdb přímo na Pi, všechny tři dumpy z 25. 9. včetně ranního
+      `Right …-070157`): visící vlákno je vždy `rs2_delete_pipeline → ~pipeline → ~device_hub →
+      context::stop → polling_device_watcher::stop → dispatcher::stop → std::mutex::lock`, tedy
+      rušení pipeline čeká, až doběhne kolo **hlídače zařízení** RealSense kontextu. To kolo je
+      zaměstnané výčtem USB (`query_uvc_devices → libusb_init_context →
+      udev_enumerate_scan_devices`, v okamžiku dumpu uvnitř libudev). V prvním dumpu k tomu jiné
+      vlákno ze spravovaného kódu dělá `rs2_create_device → rs435_device` — to je **hon na
+      odpojenou T265** (`RealSenseShared.Query`, ~1×/s): `Context.QueryDevices()` bere všechny
+      řady (maska `0xfe`) a čtení `d.Info[…]` každé zařízení plně vytvoří a otevře jeho UVC
+      rozhraní, **i obě D435**. U streamujících to končí „failed to set power state" (odtud ta
+      hláška v logu), ale uvolněnou levou D435 po `pipeline.Stop` to skutečně otevře a zavře:
+      kernel log od 14:40:13 / 15:08:12 ukazuje `Found UVC … 2-1.2` každých ~1–2 s bez konce
+      (pravá 2-1.4 ne). Každé otevření vyvolá udev události, hlídač zařízení pořád vyčítá
+      a `Dispose` se k jeho mutexu nedostane. **Navržená léčba:** hon na T265 omezit na její
+      produktovou řadu (`rs2_query_devices_ex` s maskou `RS2_PRODUCT_LINE_T200 = 0x10`), aby se
+      D435 při něm vůbec nevytvářely. ⚠️ Vedlejší hypotéza: hon sahal na streamující D435 ~1×/s
+      i během měření 14. 9. „bez T265" (kamera byla odpojená, hon běžel dál), takže jeho vliv
+      na samotné zamrzání streamů změřený **není**.
     kroky:
       - co: "Bourat pipeline až po uvolnění framesetu + `NativeCallWatch` s minidumpem"
         stav: hotovo
         kdy: 2026-09-24
-      - co: "Na zařízení: sledovat, jestli se zatuhnutí opakuje; při výskytu přečíst `logs/hang-kamera-*.dmp` (`dotnet-dump analyze`)"
+      - co: "Na zařízení: sledovat, jestli se zatuhnutí opakuje — 25. 9. dvakrát (levá D435, visí `pipeline.Dispose`), minidumpy pořízené"
+        stav: hotovo
+        kdy: 2026-09-25
+      - co: "Přečteny minidumpy z Pi (gdb): `Dispose` čeká na mutex hlídače zařízení, ten je zaměstnaný výčtem USB, který živí hon na T265 přes všechny produktové řady"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Léčba (autor): T265 driver se nezakládá (`ARBotHW`, zakomentováno s odůvodněním) — T265 je od 14. 9. odpojená, hon tím zmizí"
+        stav: hotovo
+        kdy: 2026-09-26
+      - co: "Ověřit na zařízení: po zamrznutí a restartu pipeline se kamera vrátí (žádné `NativeCallWatch` hlášení), kernel po `Stop` bez opakovaného `Found UVC`; a jestli ubylo samotných zamrznutí"
         stav: otevreno
       - co: "Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.)"
         stav: hotovo
@@ -5515,7 +5551,7 @@ temata:
         cesta: Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs
       - text: rozhodnutí 24. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-24]
+    devlog: [2026-09-24, 2026-09-26]
     ceka_na: []
 
   - id: hw-vn100-hsi-run-ve-flash

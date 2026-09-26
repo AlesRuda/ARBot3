@@ -41,6 +41,20 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-26
 
+- **Zatuhlá levá D435 se 25. 9. opakovala dvakrát** (`143643` 14:40:12 barva, `144658` 15:08:12
+  hloubka; registr `hw-d435-vlakno-zatuhlo-po-restartu`, zpět na `otevreno`). `NativeCallWatch`
+  na zařízení zabral: po restartu pipeline se vrátil `Stop`, **`Dispose` ne**, minidumpy jsou na Pi.
+  Kamera pak mlčela do konce záznamu (66 / 118 s), probral ji až restart procesu přes `/stop`.
+  Oprava z 24. 9. tedy nestačila.
+- **Dumpy přečtené (gdb na Pi):** `Dispose` visí v `polling_device_watcher::stop` a čeká na mutex
+  hlídače zařízení, který je pořád zaměstnaný výčtem USB. Výčet živí **hon na odpojenou T265**:
+  `QueryDevices()` přes všechny řady a čtení `Info` každé zařízení vytvoří a otevře, i D435. Uvolněnou
+  levou D435 tak po `Stop` otevírá a zavírá ~1× za 1–2 s (kernel: nekonečné `Found UVC … 2-1.2`).
+  Navržená léčba: dotaz s maskou produktové řady T200.
+- **T265 driver se nezakládá** (pokyn autora; `ARBotHW.SetRealHW`, řádek zakomentovaný
+  s odůvodněním). T265 je od 14. 9. odpojená a jediné, co driver dělal, byl ten hon. Zbytek kódu
+  s `TrackingCamera == null` počítá. Build x64 i OrangePI, testy runtime 140. ⚠️ Na zařízení
+  neběželo — ověří další zamrznutí kamery (má se vrátit bez `NativeCallWatch`).
 - **Rozbor Track `20260925-142428.rec` nad třemi pozorováními autora** (nový
   `ARBot.Analyze posegps`: póza proti GPS podélně a příčně, měřítko kol, odstup od sítě, koridor
   a plán po 10s oknech; GPS se převádí do runtimové ENU přes počátek z `MapMsg`).
