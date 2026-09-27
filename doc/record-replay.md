@@ -180,9 +180,12 @@ telemetrie, takže se to přehrávání nedotkne a na pozici přehrávání nez�
 - **Mezera nad 2 s** (výpadek fixu, pauza) začne nový `<trkseg>`.
 - **Čas je UTC odvozený z GPS.** Razítka záznamu jsou místní čas stroje, který nahrával
   (`TimeBase`), bez zóny, a Pi může běžet v jiné zóně než PC s exportem. `FixTime` je UTC čas
-  dne. Posun je rozdíl zaokrouhlený na 15 min, na kterém se shodne většina fixů. ⚠️ u-blox dává
-  do `FixTime` i den, bere se jen čas dne. Bez GPS času (virtuální GPS) se použije zóna tohoto PC
-  a hlášení to řekne.
+  dne. Posun je rozdíl zaokrouhlený na 15 min, na kterém se shodne většina fixů. ⚠️ **Do
+  `GPSState` verze 2 (záznamy do 27. 9. 2026) dával u-blox do `FixTime` ITOW složený špatně**
+  (i „9 dní"), takže posun vycházel −07:45 místo +02:00 a vyexportované stopy měly čas o hodiny
+  vedle (`Kolo3b.gpx` 21:40Z u odpoledního kola). Čte se proto přes `GPSState.UtcTimeOfDay()`,
+  která starší záznamy přepočte (`hw-gps-fixtime-rozbity`). Bez GPS času (virtuální GPS) se
+  použije zóna tohoto PC a hlášení to řekne.
 - **Ověřeno:** fúzní stopa přes počátek mapy sedí na polohu, kterou za běhu spočítal runtime
   (`GlobalNavMsg.LatDeg/LonDeg`), na **0,000 m** v 5 záznamech. ⚠️ Všechny byly ze simulace,
   takže odvození UTC z GPS času kryjí jen unit testy.

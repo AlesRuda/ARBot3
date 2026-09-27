@@ -292,10 +292,11 @@ namespace ARBot.Common.Export
         }
 
         /// <summary>
-        /// Posun razitek zaznamu proti UTC: <c>razitko − UTC</c>. Z fixu s nenulovym
-        /// <see cref="GPSState.FixTime"/> (bere se jen cas dne - u-blox do nej dava i den) se spocte
-        /// rozdil, zabali do ±12 h a zaokrouhli na 15 min (latence fixu je pod sekundu). Plati
-        /// hodnota, na ktere se shodne aspon polovina a aspon 3 fixy; jinak zona tohoto PC.
+        /// Posun razitek zaznamu proti UTC: <c>razitko − UTC</c>. Z fixu se znamym UTC casem dne
+        /// (<see cref="GPSState.UtcTimeOfDay"/> - ta u starsich zaznamu prepocita rozbity ITOW
+        /// z u-bloxu, bez ni vychazel posun −07:45 misto +02:00) se spocte rozdil, zabali do ±12 h
+        /// a zaokrouhli na 15 min (latence fixu je pod sekundu). Plati hodnota, na ktere se shodne
+        /// aspon polovina a aspon 3 fixy; jinak zona tohoto PC.
         /// </summary>
         public static (TimeSpan offset, bool fromGps) EstimateUtcOffset(IReadOnlyList<GPSState> fixes, DateTime? recordTime = null)
         {
@@ -303,8 +304,8 @@ namespace ARBot.Common.Export
             int n = 0;
             foreach (var g in fixes)
             {
-                if (g.FixTime <= TimeSpan.Zero) continue;
-                double diffMin = (g.TimeStamp.TimeOfDay - TimeSpan.FromTicks(g.FixTime.Ticks % TimeSpan.TicksPerDay)).TotalMinutes;
+                if (g.UtcTimeOfDay() is not TimeSpan utc) continue;
+                double diffMin = (g.TimeStamp.TimeOfDay - utc).TotalMinutes;
                 while (diffMin > 12 * 60) diffMin -= 24 * 60;
                 while (diffMin < -12 * 60) diffMin += 24 * 60;
                 long q = (long)Math.Round(diffMin / 15.0);

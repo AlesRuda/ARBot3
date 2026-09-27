@@ -20,11 +20,12 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             }
         }
 
+        // Offset 4 (ICD UBX-NAV-PVT); do 27. 9. 2026 tu bylo 2, tedy horni pulka ITOW.
         public UInt16 Year
         {
             get
             {
-                return GetUInt16(2);
+                return GetUInt16(4);
             }
         }
 

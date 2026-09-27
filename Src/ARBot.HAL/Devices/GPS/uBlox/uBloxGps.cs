@@ -51,16 +51,18 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             }
             if (pos == null)
                 return null;      // zastavujeme se
-            TimeSpan ts = new TimeSpan(0, 0, 0, 0, 0);
-            int d = 0, h = 0, m = 0, s = 0, ms = 0;
-            d = (int)pos.ITOW / (1000 * 60 * 60 * 24);
-            h = (int)pos.ITOW / (1000 * 60 * 60) - d * 24;
-            m = (int)pos.ITOW / (1000 * 60) - (d * 24 + h) * 60;
-            s = (int)pos.ITOW / 1000 - ((d * 24 + h) * 60 + m * 60);
-            ms = (int)pos.ITOW - (((d * 24 + h) * 60 + m * 60) + s) * 1000;
+            // Puvodni rozklad ITOW (do 27. 9. 2026). Byl SPATNE - sekundy odecitaly hodiny *60
+            // misto *3600, takze vychazelo i „9 dni" (viz GPSState.ItowFromBrokenUblox, ktera ho
+            // pro starsi zaznamy invertuje). Ponechano do potvrzeni nove cesty na zarizeni.
+            //int d = 0, h = 0, m = 0, s = 0, ms = 0;
+            //d = (int)pos.ITOW / (1000 * 60 * 60 * 24);
+            //h = (int)pos.ITOW / (1000 * 60 * 60) - d * 24;
+            //m = (int)pos.ITOW / (1000 * 60) - (d * 24 + h) * 60;
+            //s = (int)pos.ITOW / 1000 - ((d * 24 + h) * 60 + m * 60);
+            //ms = (int)pos.ITOW - (((d * 24 + h) * 60 + m * 60) + s) * 1000;
             return new GPSState()
             {
-                FixTime = new TimeSpan(d, h, m, s, ms),
+                FixTime = FixTimeFrom(pos.Hour, pos.Min, pos.Sec, pos.NanoSec, pos.Valid),
                 // u-blox posila 1e-7 STUPNE; GPSState drzi RADIANY (viz GPSState.Latitude).
                 Latitude = Conversions.Deg2Rad(pos.Latitude),
                 Longitude = Conversions.Deg2Rad(pos.Longitude),
@@ -76,6 +78,31 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
                 Speed = pos.GroundSpeed,
                 TimeStamp = TimeBase.Now
             };
+        }
+
+        /// <summary>Bit <c>validTime</c> v poli <c>valid</c> UBX-NAV-PVT: UTC cas dne je platny.</summary>
+        public const byte ValidTime = 0x02;
+
+        /// <summary>
+        /// <see cref="GPSState.FixTime"/> z UTC poli UBX-NAV-PVT: <b>UTC cas dne</b>, tataz vec
+        /// jako u NMEA (<c>GGA</c>). Bez bitu <see cref="ValidTime"/> vraci <see cref="TimeSpan.Zero"/>
+        /// (= neznamy) — prijimac pred prvnim fixem posila v tech polich nesmysl.
+        ///
+        /// <para><c>nano</c> je <b>znamenkova</b> oprava k <c>h:m:s</c> (−1e9 … +1e9 ns), takze
+        /// vysledek muze vyjit pred pulnoci nebo za ni; zabali se do jednoho dne.</para>
+        ///
+        /// <para>Proc ne ITOW: je to GPS cas v tydnu (o 18 s napred proti UTC a s dnem v tydnu),
+        /// zatimco vsichni konzumenti (panel GPS, export GPX, rozbor hodin) chteji cas dne v UTC.
+        /// Rozkladat ho navic uz jednou selhalo — viz komentar v <c>GetMeasurement</c>.</para>
+        /// </summary>
+        public static TimeSpan FixTimeFrom(byte hour, byte min, byte sec, int nano, byte valid)
+        {
+            if ((valid & ValidTime) == 0) return TimeSpan.Zero;
+            var t = new TimeSpan(hour, min, sec) + TimeSpan.FromTicks(nano / 100);
+            long day = TimeSpan.TicksPerDay;
+            var z = TimeSpan.FromTicks(((t.Ticks % day) + day) % day);
+            // Presne pulnoc by se cetla jako „neznamy" (Zero); o tik vedle je to jedno.
+            return z == TimeSpan.Zero ? TimeSpan.FromTicks(1) : z;
         }
 
         /// <summary>

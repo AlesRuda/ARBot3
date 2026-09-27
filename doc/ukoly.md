@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **233**: otevřeno **48** · v kódu, na HW neověřeno **40** · hotovo **134** · odloženo **7** · zamítnuto **4**.
+Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **40** · hotovo **135** · odloženo **7** · zamítnuto **4**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,7 +46,6 @@ Témat celkem **233**: otevřeno **48** · v kódu, na HW neověřeno **40** · 
 | otevřeno | Hardware a senzory | [Odpojená T265: runtime ji dál hledá a zahlcuje journal](#hw-t265-odpojena-natrvalo) | 13. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Tvrdé záseky kamer na větvi USB `2-1.3`](#hw-vetev-usb-2-1-3) | 13. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
-| otevřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
@@ -74,7 +73,6 @@ Témat celkem **233**: otevřeno **48** · v kódu, na HW neověřeno **40** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Track — objezd míst ze souboru](#mise-track) | 8. 9. 2026 |  |
-| v kódu, na HW neověřeno | Vidění | [Pravděpodobnost cesty 128×128 se kreslila jen přes střed snímku](#vid-prob-overlay-128) | 10. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [„Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala](#hw-magcal-uncompmag-kompenzovany) | 11. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení](#prov-pudorys-umysl-a-zony) | 12. 9. 2026 |  |
@@ -85,6 +83,7 @@ Témat celkem **233**: otevřeno **48** · v kódu, na HW neověřeno **40** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit — bezpečnostní vrstva řízení měla čtyři díry](#prov-audit-bezpecnost-rizeni) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 |  |
+| v kódu, na HW neověřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
@@ -1293,19 +1292,6 @@ Převod pixelu barevného obrazu na bod v prostoru byl mrtvý na všech platform
 
 [map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-21](devlog.md#2026-08-21)
 
-<a id="vid-prob-overlay-128"></a>
-### 🧪 Pravděpodobnost cesty 128×128 se kreslila jen přes střed snímku
-
-`vid-prob-overlay-128` · vada · **v kódu, na HW neověřeno** · nalezeno 10. 9. 2026 · vyřešeno 10. 9. 2026
-
-Síť počítá ve 128×128 a pokrývá celý snímek 640×480, ale panel Obrázky držel poměr stran každé vrstvy zvlášť, takže překryv kryl jen prostředních 75 % šířky, a odečet hodnoty pod kurzorem platil jen v levém horním rohu a i tam pro jiný bod. Řídicí cesta byla v pořádku, zkreslení bylo jen v zobrazení. Vrstva teď nese rozměr scény, kterou pokrývá, a každá osa se škáluje zvlášť; tutéž vadu měl webový náhled (`?layer=prob`), kde se pravděpodobnost natahuje na rozměr barvy. Panel ověřen za běhu v simulaci, web jen testem rozměru JPEG.
-
-- [x] Překryv a odečet kurzoru v panelu Obrázky (10. 9. 2026)
-- [x] Webový náhled natahuje pravděpodobnost na rozměr snímku (10. 9. 2026)
-- [ ] Ověřit webový náhled na zařízení
-
-[Views/README.md](../Src/ARBot/Views/README.md), [semantic-segmentation.md](semantic-segmentation.md) · DevLog [2026-09-10](devlog.md#2026-09-10)
-
 <a id="vid-nativni-knihovna-opravy"></a>
 ### ✅ Nativní knihovna měla chybějící exporty na x64 a špatnou volací konvenci na ARM
 
@@ -1441,6 +1427,19 @@ Rozbor Model61.1 a trénovacího notebooku ze zadání „co by šlo vylepšit".
 - [x] Chyby v notebooku sepsané a opravené, architektura v `GenericModel27` (9. 9. 2026)
 
 [semantic-segmentation.md](semantic-segmentation.md), [SemanticSegmentation.ipynb](../Src/Colab/SemanticSegmentation.ipynb) · DevLog [2026-09-09](devlog.md#2026-09-09)
+
+<a id="vid-prob-overlay-128"></a>
+### ✅ Pravděpodobnost cesty 128×128 se kreslila jen přes střed snímku
+
+`vid-prob-overlay-128` · vada · **hotovo** · nalezeno 10. 9. 2026 · vyřešeno 26. 9. 2026
+
+Síť počítá ve 128×128 a pokrývá celý snímek 640×480, ale panel Obrázky držel poměr stran každé vrstvy zvlášť, takže překryv kryl jen prostředních 75 % šířky, a odečet hodnoty pod kurzorem platil jen v levém horním rohu a i tam pro jiný bod. Řídicí cesta byla v pořádku, zkreslení bylo jen v zobrazení. Vrstva teď nese rozměr scény, kterou pokrývá, a každá osa se škáluje zvlášť; tutéž vadu měl webový náhled (`?layer=prob`), kde se pravděpodobnost natahuje na rozměr barvy. Panel ověřen za běhu v simulaci, webový náhled na zařízení potvrdil autor 26. 9. 2026.
+
+- [x] Překryv a odečet kurzoru v panelu Obrázky (10. 9. 2026)
+- [x] Webový náhled natahuje pravděpodobnost na rozměr snímku (10. 9. 2026)
+- [x] Ověřit webový náhled na zařízení (autor) (26. 9. 2026)
+
+[Views/README.md](../Src/ARBot/Views/README.md), [semantic-segmentation.md](semantic-segmentation.md) · DevLog [2026-09-10](devlog.md#2026-09-10), [2026-09-26](devlog.md#2026-09-26)
 
 ## Mise
 
@@ -2163,19 +2162,6 @@ Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzic
 
 [hardware.md](hardware.md), [rozhodnutí 13. 9. 2026 (odpojení T265)](decisions.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18)
 
-<a id="hw-gps-fixtime-rozbity"></a>
-### ⬜ `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
-
-`hw-gps-fixtime-rozbity` · vada · **otevřeno** · nalezeno 17. 9. 2026
-
-`uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin být `*3600`. Výsledek je pak mimo — v záznamech ze 17. 9. 2026 vychází `FixTime` „**9 dní** 02:16:12", ačkoli v GPS týdnu jsou dny jen 0–6. Do UI to jde rovnou (`GpsDocument.FixTimeText`), takže panel GPS ukazuje nesmyslný čas fixu. Chyba je naštěstí **deterministická a invertovatelná**: platí `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají a jsou jediným absolutním časem, který nepochází z hodin Pi. ⚠️ **Oprava ovladače změní význam pole**, takže inverze v analyzátoru musí umět obojí (pozná to podle toho, že den v týdnu je 0–6).
-
-- [x] Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek) (17. 9. 2026)
-- [ ] Opravit rozklad v `uBloxGps.Read` (a nechat inverzi v analyzátoru pro starší záznamy)
-- [ ] Test nad známým ITOW (dnes to nekryje nic)
-
-[uBloxGps.cs](../Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
-
 <a id="hw-neopixel-armbian"></a>
 ### 🧪 Driver NeoPixel (WS2812) přes SPI na Armbianu
 
@@ -2215,6 +2201,20 @@ Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senz
 - [ ] Ověřit na senzoru vrácení registru 23 po nedokončené misi
 
 [rozhodnutí 12. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-17](devlog.md#2026-09-17)
+
+<a id="hw-gps-fixtime-rozbity"></a>
+### 🧪 `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
+
+`hw-gps-fixtime-rozbity` · vada · **v kódu, na HW neověřeno** · nalezeno 17. 9. 2026 · vyřešeno 27. 9. 2026
+
+`uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin být `*3600`. Výsledek je pak mimo — v záznamech ze 17. 9. 2026 vychází `FixTime` „**9 dní** 02:16:12", ačkoli v GPS týdnu jsou dny jen 0–6. Do UI to jde rovnou (`GpsDocument.FixTimeText`), takže panel GPS ukazuje nesmyslný čas fixu. Chyba je naštěstí **deterministická a invertovatelná**: platí `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají a jsou jediným absolutním časem, který nepochází z hodin Pi. 26. 9. se ukázalo, že na to doplácí i **export GPX**: posun proti UTC vycházel −07:45 místo +02:00 a vyexportovaný `Kolo3b.gpx` má čas 21:40Z u odpoledního kola. **Opraveno 27. 9.:** `FixTime` je u u-bloxu **UTC čas dne z UTC polí NAV-PVT** (bez bitu `validTime` nula = neznámý), tedy totéž co u NMEA, a `GPSState` je **verze 3**. Starší záznamy přepočítává jediná funkce `GPSState.UtcTimeOfDay()` (inverze rozbitého rozkladu a odečet 18 s GPS−UTC); používá ji export GPX, panel GPS i `ARBot.Analyze gps` (A0), jehož vlastní kopie inverze zmizela. Nad `20260925-142428.rec` dává UTC 12:24:22 z uložených „10 dní 22:12:40" a posun hodin Pi 6,9 s. Mimochodem opraven `PVTMessage.Year` (četl offset 2 místo 4; nikde se nepoužíval).
+
+- [x] Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek) (17. 9. 2026)
+- [x] `uBloxGps.FixTimeFrom` z UTC polí NAV-PVT, `GPSState` verze 3, `UtcTimeOfDay()` pro starší záznamy (GPX, panel, Analyze A0) (27. 9. 2026)
+- [x] Testy: inverze pro všech 7 × 24 hodin, UTC pole a offsety PVT, posun GPX nad záznamem verze 2 (12 testů) (27. 9. 2026)
+- [ ] Ověřit na zařízení: nový záznam má `GPSState` verze 3 a A0 / panel GPS ukáže UTC čas bez přepočtu
+
+[uBloxGps.cs](../Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-27](devlog.md#2026-09-27)
 
 <a id="hw-d435-vlakno-zatuhlo-po-restartu"></a>
 ### 🧪 Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání
@@ -2590,13 +2590,13 @@ Nástroj na ladění detekce terénu (Tools → Profil scény, `open=profile`). 
 
 `nast-export-gpx` · záměr · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
 
-File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno.
+File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno. ⚠️ 26. 9. nad záznamy ze zařízení vyšel posun −07:45 místo +02:00: u-blox do 27. 9. skládal `FixTime` špatně (`hw-gps-fixtime-rozbity`, opraveno, čte se přes `GPSState.UtcTimeOfDay()`). GPX vyexportované dřív (`Kolo3b.gpx`) mají čas o hodiny vedle.
 
 - [x] Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX… (24. 9. 2026)
 - [ ] Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)
 - [x] Podnabídka Export GPX: GPS i fúze v jednom souboru / do dvou souborů (`-gps`, `-fuze`) / jen GPS / jen fúze (autor 24. 9.; `GpxExportOptions.Tracks`, 4 testy). V běžící aplikaci neproklikáno (24. 9. 2026)
 
-[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
+[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27)
 
 <a id="ui-avalonia-deadlock-popup"></a>
 ### 🧪 Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)

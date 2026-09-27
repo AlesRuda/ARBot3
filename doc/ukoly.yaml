@@ -4985,16 +4985,16 @@ temata:
     oblast: videni
     nazev: Pravděpodobnost cesty 128×128 se kreslila jen přes střed snímku
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-10
-    vyreseno: 2026-09-10
+    vyreseno: 2026-09-26
     popis: >
       Síť počítá ve 128×128 a pokrývá celý snímek 640×480, ale panel Obrázky držel poměr stran každé
       vrstvy zvlášť, takže překryv kryl jen prostředních 75 % šířky, a odečet hodnoty pod kurzorem
       platil jen v levém horním rohu a i tam pro jiný bod. Řídicí cesta byla v pořádku, zkreslení bylo
       jen v zobrazení. Vrstva teď nese rozměr scény, kterou pokrývá, a každá osa se škáluje zvlášť;
       tutéž vadu měl webový náhled (`?layer=prob`), kde se pravděpodobnost natahuje na rozměr barvy.
-      Panel ověřen za běhu v simulaci, web jen testem rozměru JPEG.
+      Panel ověřen za běhu v simulaci, webový náhled na zařízení potvrdil autor 26. 9. 2026.
     kroky:
       - co: Překryv a odečet kurzoru v panelu Obrázky
         stav: hotovo
@@ -5002,14 +5002,15 @@ temata:
       - co: Webový náhled natahuje pravděpodobnost na rozměr snímku
         stav: hotovo
         kdy: 2026-09-10
-      - co: Ověřit webový náhled na zařízení
-        stav: otevreno
+      - co: Ověřit webový náhled na zařízení (autor)
+        stav: hotovo
+        kdy: 2026-09-26
     odkazy:
       - text: Views/README.md
         cesta: Src/ARBot/Views/README.md
       - text: semantic-segmentation.md
         cesta: doc/semantic-segmentation.md
-    devlog: [2026-09-10]
+    devlog: [2026-09-10, 2026-09-26]
     ceka_na: []
 
   - id: hw-magcal-prvni-vyjezd
@@ -6785,8 +6786,9 @@ temata:
     oblast: hw
     nazev: "`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně"
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-17
+    vyreseno: 2026-09-27
     popis: >
       `uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a
       **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin
@@ -6797,22 +6799,33 @@ temata:
       `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat
       zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají
       a jsou jediným absolutním časem, který nepochází z hodin Pi.
-      ⚠️ **Oprava ovladače změní význam pole**, takže inverze v analyzátoru musí umět obojí
-      (pozná to podle toho, že den v týdnu je 0–6).
+      26. 9. se ukázalo, že na to doplácí i **export GPX**: posun proti UTC vycházel −07:45 místo
+      +02:00 a vyexportovaný `Kolo3b.gpx` má čas 21:40Z u odpoledního kola.
+      **Opraveno 27. 9.:** `FixTime` je u u-bloxu **UTC čas dne z UTC polí NAV-PVT** (bez bitu
+      `validTime` nula = neznámý), tedy totéž co u NMEA, a `GPSState` je **verze 3**. Starší
+      záznamy přepočítává jediná funkce `GPSState.UtcTimeOfDay()` (inverze rozbitého rozkladu
+      a odečet 18 s GPS−UTC); používá ji export GPX, panel GPS i `ARBot.Analyze gps` (A0), jehož
+      vlastní kopie inverze zmizela. Nad `20260925-142428.rec` dává UTC 12:24:22 z uložených
+      „10 dní 22:12:40" a posun hodin Pi 6,9 s. Mimochodem opraven `PVTMessage.Year` (četl
+      offset 2 místo 4; nikde se nepoužíval).
     kroky:
       - co: Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek)
         stav: hotovo
         kdy: 2026-09-17
-      - co: Opravit rozklad v `uBloxGps.Read` (a nechat inverzi v analyzátoru pro starší záznamy)
-        stav: otevreno
-      - co: Test nad známým ITOW (dnes to nekryje nic)
+      - co: "`uBloxGps.FixTimeFrom` z UTC polí NAV-PVT, `GPSState` verze 3, `UtcTimeOfDay()` pro starší záznamy (GPX, panel, Analyze A0)"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Testy: inverze pro všech 7 × 24 hodin, UTC pole a offsety PVT, posun GPX nad záznamem verze 2 (12 testů)"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Ověřit na zařízení: nový záznam má `GPSState` verze 3 a A0 / panel GPS ukáže UTC čas bez přepočtu"
         stav: otevreno
     odkazy:
       - text: uBloxGps.cs
         cesta: Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs
       - text: GpsReport.cs
         cesta: Src/ARBot.Analyze/GpsReport.cs
-    devlog: [2026-09-17]
+    devlog: [2026-09-17, 2026-09-27]
     ceka_na: []
 
   - id: prov-deadlock-mise-webstatus
@@ -7728,6 +7741,9 @@ temata:
       (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času
       se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze
       simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno.
+      ⚠️ 26. 9. nad záznamy ze zařízení vyšel posun −07:45 místo +02:00: u-blox do 27. 9.
+      skládal `FixTime` špatně (`hw-gps-fixtime-rozbity`, opraveno, čte se přes
+      `GPSState.UtcTimeOfDay()`). GPX vyexportované dřív (`Kolo3b.gpx`) mají čas o hodiny vedle.
     kroky:
       - co: "Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX…"
         stav: hotovo
@@ -7740,7 +7756,7 @@ temata:
     odkazy:
       - text: record-replay.md
         cesta: doc/record-replay.md
-    devlog: [2026-09-24]
+    devlog: [2026-09-24, 2026-09-27]
     ceka_na: []
 
   - id: ui-avalonia-deadlock-popup

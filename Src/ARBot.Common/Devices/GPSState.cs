@@ -18,8 +18,13 @@ namespace ARBot.Common.Devices
         /// pozna <b>jen podle verze</b> — a bez prevodu by se z nej stala tichá nesmyslna data
         /// (50 „radianu" je platne cislo, takze by se to projevilo az chovanim fuze o desitky tisic
         /// kilometru dal).</para>
+        ///
+        /// <para><b>Verze 3</b> (2026-09-27): <see cref="FixTime"/> je u u-bloxu <b>UTC cas dne</b>
+        /// (z UTC poli UBX-NAV-PVT), tedy tataz vec jako u NMEA. Do verze 2 do nej ovladac u-bloxu
+        /// skladal ITOW (cas v GPS tydnu) a skladal ho <b>spatne</b> — vychazelo i „9 dni".
+        /// Bajty se nemeni; stary vyznam prepocitava <see cref="UtcTimeOfDay"/>.</para>
         /// </summary>
-        public const int FormatVersion = 2;
+        public const int FormatVersion = 3;
 
         public GPSState() : base(FormatVersion)
         {
@@ -55,9 +60,64 @@ namespace ARBot.Common.Devices
         /// </summary>
         public bool IsFixed => Quality == FixQuality.DgpsFix || Quality == FixQuality.PpsFix || Quality == FixQuality.GpsFix;
         /// <summary>
-        /// Time of day fix was taken
+        /// <b>UTC cas dne</b>, kdy byl fix porizen (od verze 3 u vsech ovladacu); <see cref="TimeSpan.Zero"/>
+        /// = neznamy (virtualni GPS, u-blox bez platneho UTC). Pro cteni ze zaznamu pouzij
+        /// <see cref="UtcTimeOfDay"/> — ta zvladne i starsi verze, kde to u u-bloxu byl rozbity ITOW.
         /// </summary>
         public TimeSpan FixTime { get; set; }
+
+        /// <summary>Rozdil GPS − UTC (prestupne sekundy, plati od 1. 1. 2017).</summary>
+        public static readonly TimeSpan GpsMinusUtc = TimeSpan.FromSeconds(18);
+
+        /// <summary>
+        /// UTC cas dne fixu, nebo <c>null</c>, kdyz ho zprava nenese. Jedine misto, ktere zna
+        /// vyznam <see cref="FixTime"/> napric verzemi zaznamu:
+        /// <list type="bullet">
+        /// <item>verze 3+: <see cref="FixTime"/> primo;</item>
+        /// <item>verze 1–2 a hodnota pod 1 den: cas dne z NMEA (nebo u-blox v nedeli 00–01 h GPS,
+        /// kde rozbity rozklad dava spravne cislo — pak je to GPS cas, o 18 s napred);</item>
+        /// <item>verze 1–2 a hodnota nad 1 den: rozbity ITOW z u-bloxu → <see cref="ItowFromBrokenUblox"/>
+        /// a odecet prestupnych sekund.</item>
+        /// </list>
+        /// </summary>
+        public TimeSpan? UtcTimeOfDay()
+        {
+            if (FixTime <= TimeSpan.Zero) return null;
+            if (Verze >= 3 || FixTime < TimeSpan.FromDays(1)) return FixTime;
+            long itow = ItowFromBrokenUblox(FixTime);
+            if (itow < 0) return null;
+            var gps = TimeSpan.FromMilliseconds(itow % 86400000L) - GpsMinusUtc;
+            return gps < TimeSpan.Zero ? gps + TimeSpan.FromDays(1) : gps;
+        }
+
+        /// <summary>
+        /// Zpetny prevod <see cref="FixTime"/> ze zaznamu verze 1–2 na ITOW [ms] (cas v GPS tydnu).
+        ///
+        /// <para>Ovladac u-bloxu ho do 27. 9. 2026 skladal <b>spatne</b>: sekundy pocital jako
+        /// <c>ITOW/1000 − ((d·24 + h)·60 + m·60)</c>, tedy hodiny nasobil 60 misto 3600. Chyba je
+        /// <b>deterministicka</b>: <c>TotalMs = ITOW + 84 960 000·D + 3 540 000·H</c>, kde <c>D</c> a
+        /// <c>H</c> jsou den a hodina plynouci z ITOW — a da se invertovat. Musi se, protoze starsi
+        /// zaznamy se prepsat nedaji a je to v nich jediny absolutni cas, ktery nepochazi z hodin Pi.</para>
+        ///
+        /// <para>Vraci −1, kdyz zadna dvojice (D, H) nevyjde konzistentne. ⚠️ Nevola se na hodnoty
+        /// pod 1 den: tam je rozbity i spravny rozklad totez cislo (D = H = 0) a mohl by to byt
+        /// i NMEA cas dne.</para>
+        /// </summary>
+        public static long ItowFromBrokenUblox(TimeSpan fix)
+        {
+            long total = (long)fix.TotalMilliseconds;
+            const long Tyden = 7L * 86400000L;
+            for (int d = 0; d < 7; d++)
+                for (int hh = 0; hh < 24; hh++)
+                {
+                    long i = total - 84_960_000L * d - 3_540_000L * hh;
+                    if (i < 0 || i >= Tyden) continue;
+                    if (i / 86400000L != d) continue;
+                    if (i / 3600000L - 24L * d != hh) continue;
+                    return i;
+                }
+            return -1;
+        }
 
         /// <summary>
         /// Zemepisna sirka v <b>RADIANECH</b> (od 26. 8. 2026; do te doby to byly stupne).

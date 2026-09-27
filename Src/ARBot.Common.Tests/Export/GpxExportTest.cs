@@ -85,12 +85,25 @@ namespace ARBot.Common.Tests.Export
         }
 
         [Test]
-        public void UtcOffset_UbloxFixTimeWithDays_UsesTimeOfDayOnly()
+        public void UtcOffset_OldUbloxRecord_BrokenItowIsInverted()
         {
-            // u-blox dava do FixTime i den v mesici.
-            var fixes = Enumerable.Range(0, 5)
-                .Select(i => Fix(i, 50, 14, fixTime: new TimeSpan(19, 12, 0, i, 0) - TimeSpan.FromMilliseconds(300)))
-                .ToList();
+            // Zaznam verze 2 z u-bloxu: FixTime je ITOW slozeny SPATNE (sekundy odecitaly hodiny *60
+            // misto *3600). Bez prevodu vychazel posun −07:45 misto +02:00 (nalez 26. 9. 2026 nad
+            // zaznamy 25. 9. a Kolo3b.gpx). Tady patek 19. 9. 2026 12:00:0i UTC = GPS +18 s, den 5.
+            static TimeSpan Rozbity(long itow)
+            {
+                int d = (int)itow / 86_400_000, h = (int)itow / 3_600_000 - d * 24;
+                int m = (int)itow / 60_000 - (d * 24 + h) * 60;
+                int s = (int)itow / 1000 - ((d * 24 + h) * 60 + m * 60);
+                int ms = (int)itow - (((d * 24 + h) * 60 + m * 60) + s) * 1000;
+                return new TimeSpan(d, h, m, s, ms);
+            }
+            var fixes = Enumerable.Range(0, 5).Select(i =>
+            {
+                var f = Fix(i, 50, 14, fixTime: Rozbity(5 * 86_400_000L + (12 * 3600 + 18 + i) * 1000L - 300));
+                f.Verze = 2;
+                return f;
+            }).ToList();
             var (off, fromGps) = GpxExport.EstimateUtcOffset(fixes);
             Assert.That(fromGps, Is.True);
             Assert.That(off, Is.EqualTo(TimeSpan.FromHours(2)));

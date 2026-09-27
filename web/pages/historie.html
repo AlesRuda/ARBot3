@@ -29,9 +29,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">48</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">40</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">134</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">135</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">4</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -266,7 +266,7 @@
       <li data-tema="vid-rozbor-modelu-a-notebooku"><span class="mono">9. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#vid-rozbor-modelu-a-notebooku">Tr&#233;novac&#237; notebook validoval na testovac&#237; sadě a měl dalš&#237; chyby</a></li>
       <li data-tema="hw-magcal-prvni-vyjezd"><span class="mono">10. 9.</span> <span class="typ">nalezeno</span> <a href="#hw-magcal-prvni-vyjezd">Prvn&#237; v&#253;jezd s kalibrac&#237; magnetometru skončil bez v&#253;sledku a našel tři vady</a></li>
       <li data-tema="hw-magcal-sklon-brana-a-nasazeni"><span class="mono">10. 9.</span> <span class="typ">nalezeno</span> <a href="#hw-magcal-sklon-brana-a-nasazeni">Verdikt kalibrace shodil rozptyl sklonu, kter&#253; měř&#237; akcelerometr, ne magnetometr</a></li>
-      <li data-tema="vid-prob-overlay-128"><span class="mono">10. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#vid-prob-overlay-128">Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</a></li>
+      <li data-tema="vid-prob-overlay-128"><span class="mono">10. 9.</span> <span class="typ">nalezeno</span> <a href="#vid-prob-overlay-128">Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</a></li>
       <li data-tema="hw-magcal-ramec-registru-23"><span class="mono">11. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#hw-magcal-ramec-registru-23">Kalibrace se do senzoru zapisovala ve špatn&#233;m r&#225;mci, offset se přič&#237;tal</a></li>
       <li data-tema="hw-magcal-uncompmag-kompenzovany"><span class="mono">11. 9.</span> <span class="typ">nalezeno</span> <a href="#hw-magcal-uncompmag-kompenzovany">„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</a></li>
       <li data-tema="hw-t265-v-librealsense-253"><span class="mono">11. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-t265-v-librealsense-253">Obava, že librealsense 2.53 už T265 nepodporuje</a></li>
@@ -381,6 +381,8 @@
       <li data-tema="lp-unik-z-blokovane-bunky"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#lp-unik-z-blokovane-bunky">&#218;nik z blokovan&#233; buňky pod robotem</a></li>
       <li data-tema="mise-freerun-jedna-hrana"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-freerun-jedna-hrana">FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala</a></li>
       <li data-tema="mise-track-timeout-delka-useku"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-track-timeout-delka-useku">Timeout j&#237;zdy k m&#237;stu Tracku (600 s) je kratš&#237;, než trv&#225; prvn&#237; &#250;sek v Modřanech</a></li>
+      <li data-tema="vid-prob-overlay-128"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#vid-prob-overlay-128">Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</a></li>
+      <li data-tema="hw-gps-fixtime-rozbity"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-gps-fixtime-rozbity"><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</a></li>
     </ul>
   </div>
 </section>
@@ -1384,17 +1386,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a></p>
   </article>
-  <article class="tema" id="vid-prob-overlay-128" data-stav="v-kodu">
-    <h3>Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 10. 9. 2026</span> <span>vyřešeno 10. 9. 2026</span></p>
-    <p>S&#237;ť poč&#237;t&#225; ve 128&#215;128 a pokr&#253;v&#225; cel&#253; sn&#237;mek 640&#215;480, ale panel Obr&#225;zky držel poměr stran každ&#233; vrstvy zvl&#225;šť, takže překryv kryl jen prostředn&#237;ch 75 % š&#237;řky, a odečet hodnoty pod kurzorem platil jen v lev&#233;m horn&#237;m rohu a i tam pro jin&#253; bod. Ř&#237;dic&#237; cesta byla v poř&#225;dku, zkreslen&#237; bylo jen v zobrazen&#237;. Vrstva teď nese rozměr sc&#233;ny, kterou pokr&#253;v&#225;, a každ&#225; osa se šk&#225;luje zvl&#225;šť; tut&#233;ž vadu měl webov&#253; n&#225;hled (<code>?layer=prob</code>), kde se pravděpodobnost natahuje na rozměr barvy. Panel ověřen za běhu v simulaci, web jen testem rozměru JPEG.</p>
-    <ul class="kroky">
-      <li class="hotovo">Překryv a odečet kurzoru v panelu Obr&#225;zky <span class="mono">10. 9. 2026</span></li>
-      <li class="hotovo">Webov&#253; n&#225;hled natahuje pravděpodobnost na rozměr sn&#237;mku <span class="mono">10. 9. 2026</span></li>
-      <li class="otevreno">Ověřit webov&#253; n&#225;hled na zař&#237;zen&#237;</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot/Views/README.md">Views/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-10">2026-09-10</a></p>
-  </article>
   <article class="tema" id="vid-nativni-knihovna-opravy" data-stav="hotovo">
     <h3>Nativn&#237; knihovna měla chyběj&#237;c&#237; exporty na x64 a špatnou volac&#237; konvenci na ARM</h3>
     <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 3. 7. 2026</span> <span>vyřešeno 3. 7. 2026</span></p>
@@ -1510,6 +1501,17 @@
       <li class="hotovo">Chyby v notebooku sepsan&#233; a opraven&#233;, architektura v <code>GenericModel27</code> <span class="mono">9. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/Colab/SemanticSegmentation.ipynb">SemanticSegmentation.ipynb</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-09">2026-09-09</a></p>
+  </article>
+  <article class="tema" id="vid-prob-overlay-128" data-stav="hotovo">
+    <h3>Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 10. 9. 2026</span> <span>vyřešeno 26. 9. 2026</span></p>
+    <p>S&#237;ť poč&#237;t&#225; ve 128&#215;128 a pokr&#253;v&#225; cel&#253; sn&#237;mek 640&#215;480, ale panel Obr&#225;zky držel poměr stran každ&#233; vrstvy zvl&#225;šť, takže překryv kryl jen prostředn&#237;ch 75 % š&#237;řky, a odečet hodnoty pod kurzorem platil jen v lev&#233;m horn&#237;m rohu a i tam pro jin&#253; bod. Ř&#237;dic&#237; cesta byla v poř&#225;dku, zkreslen&#237; bylo jen v zobrazen&#237;. Vrstva teď nese rozměr sc&#233;ny, kterou pokr&#253;v&#225;, a každ&#225; osa se šk&#225;luje zvl&#225;šť; tut&#233;ž vadu měl webov&#253; n&#225;hled (<code>?layer=prob</code>), kde se pravděpodobnost natahuje na rozměr barvy. Panel ověřen za běhu v simulaci, webov&#253; n&#225;hled na zař&#237;zen&#237; potvrdil autor 26. 9. 2026.</p>
+    <ul class="kroky">
+      <li class="hotovo">Překryv a odečet kurzoru v panelu Obr&#225;zky <span class="mono">10. 9. 2026</span></li>
+      <li class="hotovo">Webov&#253; n&#225;hled natahuje pravděpodobnost na rozměr sn&#237;mku <span class="mono">10. 9. 2026</span></li>
+      <li class="hotovo">Ověřit webov&#253; n&#225;hled na zař&#237;zen&#237; (autor) <span class="mono">26. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot/Views/README.md">Views/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-10">2026-09-10</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
   </article>
 </section>
 <section class="oblast">
@@ -2130,17 +2132,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 13. 9. 2026 (odpojen&#237; T265)</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
   </article>
-  <article class="tema" id="hw-gps-fixtime-rozbity" data-stav="otevreno">
-    <h3><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 17. 9. 2026</span></p>
-    <p><code>uBloxGps.Read</code> rozkl&#225;d&#225; ITOW (čas v GPS t&#253;dnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy děl&#237; špatně**: <code>s = ITOW/1000 - ((d*24+h)*60 + m*60)</code>, kde m&#237;sto <code>*60</code> m&#225; u hodin b&#253;t <code>*3600</code>. V&#253;sledek je pak mimo — v z&#225;znamech ze 17. 9. 2026 vych&#225;z&#237; <code>FixTime</code> „**9 dn&#237;** 02:16:12&quot;, ačkoli v GPS t&#253;dnu jsou dny jen 0–6. Do UI to jde rovnou (<code>GpsDocument.FixTimeText</code>), takže panel GPS ukazuje nesmysln&#253; čas fixu. Chyba je naštěst&#237; **deterministick&#225; a invertovateln&#225;**: plat&#237; <code>TotalMs = ITOW + 84 960 000&#183;D + 3 540 000&#183;H</code>, takže se z uložen&#233; hodnoty d&#225; ITOW spoč&#237;tat zp&#225;tky — a <code>ARBot.Analyze gps</code> (blok A0) to děl&#225;, protože starš&#237; z&#225;znamy se přepsat nedaj&#237; a jsou jedin&#253;m absolutn&#237;m časem, kter&#253; nepoch&#225;z&#237; z hodin Pi. ⚠️ **Oprava ovladače změn&#237; v&#253;znam pole**, takže inverze v analyz&#225;toru mus&#237; umět oboj&#237; (pozn&#225; to podle toho, že den v t&#253;dnu je 0–6).</p>
-    <ul class="kroky">
-      <li class="hotovo">N&#225;lez a invertovatelnost ověřen&#225; na z&#225;znamech (den v t&#253;dnu vyšel 4 = čtvrtek) <span class="mono">17. 9. 2026</span></li>
-      <li class="otevreno">Opravit rozklad v <code>uBloxGps.Read</code> (a nechat inverzi v analyz&#225;toru pro starš&#237; z&#225;znamy)</li>
-      <li class="otevreno">Test nad zn&#225;m&#253;m ITOW (dnes to nekryje nic)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs">uBloxGps.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Analyze/GpsReport.cs">GpsReport.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
-  </article>
   <article class="tema" id="hw-neopixel-armbian" data-stav="v-kodu">
     <h3>Driver NeoPixel (WS2812) přes SPI na Armbianu</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 7. 7. 2026</span> <span>vyřešeno 7. 7. 2026</span></p>
@@ -2174,6 +2165,18 @@
       <li class="otevreno">Ověřit na senzoru vr&#225;cen&#237; registru 23 po nedokončen&#233; misi</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 12. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
+  </article>
+  <article class="tema" id="hw-gps-fixtime-rozbity" data-stav="v-kodu">
+    <h3><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 17. 9. 2026</span> <span>vyřešeno 27. 9. 2026</span></p>
+    <p><code>uBloxGps.Read</code> rozkl&#225;d&#225; ITOW (čas v GPS t&#253;dnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy děl&#237; špatně**: <code>s = ITOW/1000 - ((d*24+h)*60 + m*60)</code>, kde m&#237;sto <code>*60</code> m&#225; u hodin b&#253;t <code>*3600</code>. V&#253;sledek je pak mimo — v z&#225;znamech ze 17. 9. 2026 vych&#225;z&#237; <code>FixTime</code> „**9 dn&#237;** 02:16:12&quot;, ačkoli v GPS t&#253;dnu jsou dny jen 0–6. Do UI to jde rovnou (<code>GpsDocument.FixTimeText</code>), takže panel GPS ukazuje nesmysln&#253; čas fixu. Chyba je naštěst&#237; **deterministick&#225; a invertovateln&#225;**: plat&#237; <code>TotalMs = ITOW + 84 960 000&#183;D + 3 540 000&#183;H</code>, takže se z uložen&#233; hodnoty d&#225; ITOW spoč&#237;tat zp&#225;tky — a <code>ARBot.Analyze gps</code> (blok A0) to děl&#225;, protože starš&#237; z&#225;znamy se přepsat nedaj&#237; a jsou jedin&#253;m absolutn&#237;m časem, kter&#253; nepoch&#225;z&#237; z hodin Pi. 26. 9. se uk&#225;zalo, že na to dopl&#225;c&#237; i **export GPX**: posun proti UTC vych&#225;zel −07:45 m&#237;sto +02:00 a vyexportovan&#253; <code>Kolo3b.gpx</code> m&#225; čas 21:40Z u odpoledn&#237;ho kola. **Opraveno 27. 9.:** <code>FixTime</code> je u u-bloxu **UTC čas dne z UTC pol&#237; NAV-PVT** (bez bitu <code>validTime</code> nula = nezn&#225;m&#253;), tedy tot&#233;ž co u NMEA, a <code>GPSState</code> je **verze 3**. Starš&#237; z&#225;znamy přepoč&#237;t&#225;v&#225; jedin&#225; funkce <code>GPSState.UtcTimeOfDay()</code> (inverze rozbit&#233;ho rozkladu a odečet 18 s GPS−UTC); použ&#237;v&#225; ji export GPX, panel GPS i <code>ARBot.Analyze gps</code> (A0), jehož vlastn&#237; kopie inverze zmizela. Nad <code>20260925-142428.rec</code> d&#225;v&#225; UTC 12:24:22 z uložen&#253;ch „10 dn&#237; 22:12:40&quot; a posun hodin Pi 6,9 s. Mimochodem opraven <code>PVTMessage.Year</code> (četl offset 2 m&#237;sto 4; nikde se nepouž&#237;val).</p>
+    <ul class="kroky">
+      <li class="hotovo">N&#225;lez a invertovatelnost ověřen&#225; na z&#225;znamech (den v t&#253;dnu vyšel 4 = čtvrtek) <span class="mono">17. 9. 2026</span></li>
+      <li class="hotovo"><code>uBloxGps.FixTimeFrom</code> z UTC pol&#237; NAV-PVT, <code>GPSState</code> verze 3, <code>UtcTimeOfDay()</code> pro starš&#237; z&#225;znamy (GPX, panel, Analyze A0) <span class="mono">27. 9. 2026</span></li>
+      <li class="hotovo">Testy: inverze pro všech 7 &#215; 24 hodin, UTC pole a offsety PVT, posun GPX nad z&#225;znamem verze 2 (12 testů) <span class="mono">27. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: nov&#253; z&#225;znam m&#225; <code>GPSState</code> verze 3 a A0 / panel GPS uk&#225;že UTC čas bez přepočtu</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs">uBloxGps.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Analyze/GpsReport.cs">GpsReport.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a></p>
   </article>
   <article class="tema" id="hw-d435-vlakno-zatuhlo-po-restartu" data-stav="v-kodu">
     <h3>Lev&#225; D435 po restartu pipeline (zamrzl&#225; barva) &#250;plně ztichla — vl&#225;kno kamery zatuhlo v nativn&#237;m vol&#225;n&#237;</h3>
@@ -2492,13 +2495,13 @@
   <article class="tema" id="nast-export-gpx" data-stav="v-kodu">
     <h3>Export otevřen&#233;ho z&#225;znamu do GPX (stopa GPS a stopa f&#250;ze)</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 24. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
-    <p>File → Export GPX… ve View ulož&#237; cel&#253; z&#225;znam do GPX 1.1: stopa surov&#253;ch platn&#253;ch GPS fixů (ele, sat, hdop) a stopa f&#250;ze (RobotStateMsg) převeden&#225; přes poč&#225;tek mapy ze z&#225;znamu (<code>MapMsg.BuildOrigin</code>, tat&#225;ž definice jako runtime; bez mapy se stopa vynech&#225;). Nov&#253; segment při mezeře nad 2 s, p&#243;za proředěn&#225; na 10 Hz. Čas je UTC s posunem odvozen&#253;m z GPS (<code>FixTime</code>), protože raz&#237;tka jsou m&#237;stn&#237; čas nahr&#225;vaj&#237;c&#237;ho stroje bez z&#243;ny; bez GPS času se použije z&#243;na PC. F&#250;zn&#237; stopa sed&#237; na <code>GlobalNavMsg</code> runtime na 0,000 m (5 z&#225;znamů ze simulace); odvozen&#237; UTC z GPS kryj&#237; jen testy — na z&#225;znamu ze zař&#237;zen&#237; neověřeno.</p>
+    <p>File → Export GPX… ve View ulož&#237; cel&#253; z&#225;znam do GPX 1.1: stopa surov&#253;ch platn&#253;ch GPS fixů (ele, sat, hdop) a stopa f&#250;ze (RobotStateMsg) převeden&#225; přes poč&#225;tek mapy ze z&#225;znamu (<code>MapMsg.BuildOrigin</code>, tat&#225;ž definice jako runtime; bez mapy se stopa vynech&#225;). Nov&#253; segment při mezeře nad 2 s, p&#243;za proředěn&#225; na 10 Hz. Čas je UTC s posunem odvozen&#253;m z GPS (<code>FixTime</code>), protože raz&#237;tka jsou m&#237;stn&#237; čas nahr&#225;vaj&#237;c&#237;ho stroje bez z&#243;ny; bez GPS času se použije z&#243;na PC. F&#250;zn&#237; stopa sed&#237; na <code>GlobalNavMsg</code> runtime na 0,000 m (5 z&#225;znamů ze simulace); odvozen&#237; UTC z GPS kryj&#237; jen testy — na z&#225;znamu ze zař&#237;zen&#237; neověřeno. ⚠️ 26. 9. nad z&#225;znamy ze zař&#237;zen&#237; vyšel posun −07:45 m&#237;sto +02:00: u-blox do 27. 9. skl&#225;dal <code>FixTime</code> špatně (<code>hw-gps-fixtime-rozbity</code>, opraveno, čte se přes <code>GPSState.UtcTimeOfDay()</code>). GPX vyexportovan&#233; dř&#237;v (<code>Kolo3b.gpx</code>) maj&#237; čas o hodiny vedle.</p>
     <ul class="kroky">
       <li class="hotovo">J&#225;dro <code>GpxExport</code> + testy, <code>MapMsg.BuildOrigin</code> sd&#237;len&#253; s World pohledem, př&#237;kaz File → Export GPX… <span class="mono">24. 9. 2026</span></li>
       <li class="otevreno">Ověřit na z&#225;znamu ze zař&#237;zen&#237; (UTC z GPS času u-bloxu, v&#253;padky fixu jako segmenty)</li>
       <li class="hotovo">Podnab&#237;dka Export GPX: GPS i f&#250;ze v jednom souboru / do dvou souborů (<code>-gps</code>, <code>-fuze</code>) / jen GPS / jen f&#250;ze (autor 24. 9.; <code>GpxExportOptions.Tracks</code>, 4 testy). V běž&#237;c&#237; aplikaci neproklik&#225;no <span class="mono">24. 9. 2026</span></li>
     </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a></p>
   </article>
   <article class="tema" id="ui-avalonia-deadlock-popup" data-stav="v-kodu">
     <h3>Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</h3>

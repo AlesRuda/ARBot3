@@ -39,6 +39,20 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-27
+
+- **Čas fixu z u-bloxu opraven** (`hw-gps-fixtime-rozbity` → v-kodu). Ovladač skládal do
+  `GPSState.FixTime` ITOW a sekundy počítal s hodinami `*60` místo `*3600` (i „9 dní"); na to
+  doplácel panel GPS a hlavně **export GPX** (posun −07:45 místo +02:00, `Kolo3b.gpx` 21:40Z),
+  což našla včerejší prověrka témat `v-kodu`. Místo opravy rozkladu se bere **UTC čas dne
+  z UTC polí NAV-PVT** (`uBloxGps.FixTimeFrom`, bez `validTime` = neznámý) — tentýž význam jako
+  u NMEA, bez 18 s GPS−UTC. `GPSState` **verze 3**; starší záznamy přepočítává jediná
+  `GPSState.UtcTimeOfDay()`, kterou teď bere GPX, panel i `ARBot.Analyze gps` A0 (jeho vlastní
+  kopie inverze zmizela). Opraven i `PVTMessage.Year` (offset 2 → 4, nepoužívalo se).
+  Ověřeno: testy (Common 1 695, HAL 127, Runtime 140; nových 12), A0 nad `20260925-142428.rec`
+  dá UTC 12:24:22 z uloženého „10.22:12:40" a posun hodin Pi 6,9 s. ⚠️ **Na zařízení neběželo**
+  — že přijímač nastavuje `validTime` a UTC pole sedí, ukáže až první záznam verze 3.
+
 ## 2026-09-26
 
 - **FreeRun jede i podle jedné hrany cesty** (autor; registr `mise-freerun-jedna-hrana`). Ve FreeRun
@@ -66,6 +80,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   v Tracku 25. 9. (dvě epizody `EscapingBlocked`, obě vyjel), jen se nepromítlo do registru. Krok
   „zápis volna pod půdorysem do hloubky" vyčleněn jako odložené `lp-zapis-volna-pod-robotem` —
   případ z 18. 8. by nevyřešil a zápis podle chybné pózy by mazal skutečné překážky ve slepé zóně.
+
+- **Překryv pravděpodobnosti cesty přes celý snímek ověřen na zařízení** (`vid-prob-overlay-128` →
+  hotovo): autor potvrdil, že webový náhled (`?layer=prob`) kreslí vrstvu správně.
 
 - **Výpadky kamer v Robotouru — podklad pro video Kola 3b** (nové `ARBot.Analyze cameras --vypadky`,
   časová osa mezer a zamrznutí přes celý záznam). **Kolo3b nemá ani jedno zamrznutí přes 5 s**

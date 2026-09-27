@@ -150,7 +150,10 @@ namespace ARBot.ViewModels
             SpeedMsText = speed is double v ? v.ToString("F2", CultureInfo.InvariantCulture) : "-";
             SpeedKmhText = speed is double v2 ? (v2 * 3.6).ToString("F1", CultureInfo.InvariantCulture) : "-";
 
-            FixTimeText = s.FixTime.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
+            // UTC cas dne; UtcTimeOfDay prepocita i starsi zaznamy, kde u-blox skladal ITOW spatne.
+            FixTimeText = s.UtcTimeOfDay() is TimeSpan utc
+                ? utc.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture) + " UTC"
+                : "-";
 
             FrameNum = s.FrameNum;
             FramePeriod = s.FrameReceivePeriod;
