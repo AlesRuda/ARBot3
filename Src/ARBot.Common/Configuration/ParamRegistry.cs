@@ -310,12 +310,15 @@ namespace ARBot.Common.Configuration
               + "maximum, ne kvadraticky. ⚠️ Bez ni prirazeni zdedi optimismus filtru: nad "
               + "20260916-164926.rec hlasi fuze sigmu pricne p50 1,41 m, pritom poza stoji 3-4 m "
               + "od vozovky. 0 = bez podlahy (stare chovani pro A/B).", ParamParsers.AssocFloorLat);
-        public static readonly DoubleParam AssocFloorHdg = Num("assocfloorhdg", "10", K_FUZE,
+        public static readonly DoubleParam AssocFloorHdg = Num("assocfloorhdg",
+              Fmt(Math.Round(new ARBot.Common.Localization.EdgeAssociationConfig().SigmaHeadingFloorRad * 180 / Math.PI, 6)), K_FUZE,
               "PODLAHA sigmy kurzu pri prirazeni [stupne]. ⚠️ Nad 20260916-164926.rec hlasi fuze "
               + "sigmu kurzu 1,10 stupne, zatimco skutecna chyba kurzu je 15-20 (nezkalibrovany "
               + "magnetometr) - chi-kvadrat kurzu pak vyjde p50 220 i na SPRAVNE hrane a zamitlo "
-              + "by se uplne vsechno. S podlahou 10 spadne na 4,10. Po oprave magnetometru snizit "
-              + "(~3) a test se zostri sam. Tataz lecba jako imuheadingstd u kompasu.",
+              + "by se uplne vsechno. Do 27. 9. 2026 bylo 10; po kalibraci magnetometru (chyba "
+              + "kurzu za jizdy 2-4 stupne) 5 - prepocet nad Robotourem (ARBot.Analyze "
+              + "assocreplay) dal +10 % prirazenych cyklu, zadny na pricnou ulici. 3 uz je pod "
+              + "chybou kurzu. Tataz lecba jako imuheadingstd u kompasu.",
               ParamParsers.AssocFloorHdg);
         public static readonly DoubleParam AssocChi2 = Num("assocchi2", "9.21", K_FUZE,
               "Strop chi-kvadratu pro prijeti hrany pri prirazeni. Pro 2 stupne volnosti je "

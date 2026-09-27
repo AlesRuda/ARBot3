@@ -200,9 +200,18 @@ public class EdgeAssociatorTests
                     "bez podlahy zamitne i spravnou hranu");
         Assert.That(s.Chi2, Is.GreaterThan(100), "chi-kvadrat radu stovek - presne jak v zaznamu");
 
-        var sPodlahou = Cfg();                                        // podlaha 10 stupnu
+        // Podlaha 10 stupnu = vychozi hodnota do 27. 9. 2026, zvolena prave pro tuhle chybu kurzu.
+        var sPodlahou = Cfg();
+        sPodlahou.SigmaHeadingFloorRad = Conversions.Deg2Rad(10);
         var t = EdgeAssociator.Associate(net, o, pose, corridor, sPodlahou, 8.0);
-        Assert.That(t.Result, Is.EqualTo(EdgeAssocResult.Ok), "s podlahou spravna hrana projde");
+        Assert.That(t.Result, Is.EqualTo(EdgeAssocResult.Ok), "s podlahou 10 stupnu spravna hrana projde");
+
+        // CENA dnesniho defaultu 5 stupnu (od 27. 9. 2026, po kalibraci magnetometru): pri chybe
+        // kurzu 16 stupnu uz zamitne i spravnou hranu. Tenhle radek to drzi jako vedomou volbu -
+        // kdyby kurz zase ujel (14. 9. 2026: kabely ke kameram), je treba podlahu zvednout.
+        var dnes = EdgeAssociator.Associate(net, o, pose, corridor, new EdgeAssociationConfig(), 8.0);
+        Assert.That(dnes.Result, Is.EqualTo(EdgeAssocResult.NoCandidate),
+                    "podlaha 5 stupnu pri chybe kurzu 16 stupnu spravnou hranu zamitne");
     }
 
     [Test]

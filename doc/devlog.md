@@ -53,6 +53,29 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   dá UTC 12:24:22 z uloženého „10.22:12:40" a posun hodin Pi 6,9 s. ⚠️ **Na zařízení neběželo**
   — že přijímač nastavuje `validTime` a UTC pole sedí, ukáže až první záznam verze 3.
 
+- **Přiřazení k hraně přepočtené nad Robotourem** (`lok-prirazeni-hrany-chi2`): nový
+  `ARBot.Analyze assocreplay` pustí `EdgeAssociator` znovu nad zaznamenanými cykly (koridor
+  a póza ze zprávy, kovariance z `RobotStateMsg`, `MaxEdgeDistanceM = 8` z doby soutěže)
+  s jinou podlahou kurzu a odstupem. Opakovat jízdu by A/B nebylo (autor: jiné světlo, póza,
+  prostředí). Měřidlo sedí na záznam **100 %** (8 238 / 3 258 verdiktů, skóre na 0,000). Kontrola
+  proti GPS se musela zmírnit na „do 2 m od nejbližší cesty“, protože u křižovatek se nejbližší
+  id cesty láme a trestalo správný výběr. Výsledek: **`assocfloorhdg=5`** dá +10 % / +9 % přijatých
+  cyklů a všechny nové jsou u GPS, 3° +28 % / +24 %. **Změněný vítěz** (autorův dotaz, „je to
+  k lepšímu?“) se posuzuje GPS dráhou ±5 s proti osám obou hran: je to **vždy tatáž cesta, jen
+  správnější úsek** zakřivené cesty v Kole 3b (stará osa 18–25° mimo kurz, nová 2–8°), verdikt
+  5° 2 : 0, 3° 28 : 0, zbytek nerozhodnutý — obava, že na 3° rozhoduje podlaha místo dat, se
+  nepotvrdila, ale je to jedno místo a dvě minuty jízdy. Autor upozornil, že u křižovatky
+  vzdálenost nestačí (příčná ulice prochází tímtéž místem) — přibyla kontrola **směrem** (osa
+  proti kurzu z GPS): nově přijaté nad 30° 0,0 %, změněný vítěz 5° 2 : 0, 3° 64 : 0. Příčná
+  ulice je za vetem 45°, nejednoznačnost je mezi segmenty zakřivené cesty. **Autor rozhodl:
+  výchozí `assocfloorhdg=5`** (`EdgeAssociationConfig`; registr parametru default nově čte odtud,
+  místo aby ho opisoval). Test ze 16. 9. teď drží i cenu: při chybě kurzu 16° podlaha 5° správnou
+  hranu zamítne. `assocreplay` má parametry z jízdy výslovně, jinak by se po změně defaultu
+  ověřoval proti jiným hodnotám. ⚠️ Na zařízení neběželo. Nově přijaté
+  v Kole 3b mají příčný nesouhlas ~6 m a je to skutečná chyba pózy. Viz rozhodnutí výš. Bod „přeměřit nad měřicí jízdou“ uzavřen jako nahrazený. Detail:
+  [map-correlation-localization.md](map-correlation-localization.md), „Robotour 19. 9. 2026:
+  přepočet přiřazení“.
+
 ## 2026-09-26
 
 - **FreeRun jede i podle jedné hrany cesty** (autor; registr `mise-freerun-jedna-hrana`). Ve FreeRun

@@ -58,9 +58,15 @@ namespace ARBot.Common.Localization
         /// <b>p50 220</b> i na spravne hrane a test by zamitl uplne vsechno. S podlahou 10° spadne
         /// na 4,10 a rozdeleni se rozestoupi.</para>
         ///
-        /// <para>Po oprave magnetometru se podlaha snizi (~3°) a test se <b>zostri sam</b>.</para>
+        /// <para><b>Od 27. 9. 2026 5°</b> (do te doby 10°): po kalibraci magnetometru je chyba kurzu
+        /// odhadu za jizdy 2–4° a podlaha 10° nerozlisila segmenty zakrivene cesty (10–20° od sebe)
+        /// - ~37 % prolozenych koridoru na Robotouru skoncilo jako nejednoznacne. Prepocet nad
+        /// Kolem 3b / 4 (<c>ARBot.Analyze assocreplay</c>): +10 % / +9 % prirazenych cyklu, zadny
+        /// novy na pricnou ulici (osa proti kurzu z GPS nad 30° 0,0 %), zmeneny vitez podle kurzu
+        /// z GPS 2 : 0 k lepsimu. 3° by pridalo dal, ale je pod chybou kurzu - kdyz kurz ujede,
+        /// zacne zamitat i spravnou hranu. Viz doc/map-correlation-localization.md.</para>
         /// </summary>
-        public double SigmaHeadingFloorRad = 10 * System.Math.PI / 180;
+        public double SigmaHeadingFloorRad = 5 * System.Math.PI / 180;
 
         /// <summary>
         /// Strop chi-kvadratu pro prijeti kandidata. Vychozi 9,21 = 99 % pro 2 stupne volnosti.

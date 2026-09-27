@@ -6464,8 +6464,14 @@ temata:
       u cesty kolmé na kurz šel do fúze kurz otočený (9,4 % přijatých cyklů); cena je, že koridor
       už nikdy neřekne „jsi otočený o 180°“. Ověřeno testy a simulací, na zařízení neběželo.
       18. 9. 2026 po kalibraci kompasu: chyba kurzu odhadu proti GPS je sd 8–11° včetně stání a ~2–4° za jízdy, takže `assocfloorhdg` jde stáhnout spíš na **5°** než na 3°; před soutěží nezměněno.
-      Robotour 19. 9. byla první jízda přes skutečné křižovatky (830 m městem), ale rozbor
-      přiřazení nad ní není — z `nav` je jen „změna hrany u 6 ze 78 velkých inovací".
+      Robotour 19. 9. byla první jízda přes skutečné křižovatky (830 m městem). Rozbor z 27. 9.
+      (`ARBot.Analyze assocreplay`, přepočet přiřazení nad záznamem, ověřený shodou 100 % verdiktů):
+      na příčnou ulici se nepárovalo nic, hlavní ztráta je **nejednoznačnost** (~37 % proložených
+      koridorů). Podlaha kurzu 5° místo 10° přidá ~10 % přijatých cyklů a všechny nové jsou
+      u GPS; 3° přidá +28 %. Změněný vítěz (5 cyklů na 5°, 68 na 3°) je vždy tatáž cesta, jen
+      správnější úsek zakřivené cesty — podle GPS dráhy i podle kurzu z GPS k lepšímu (3°:
+      64 : 0 směrem), ale jen z jednoho místa. Nově přijaté nemíří na příčnou ulici (osa proti
+      kurzu z GPS nad 30° 0,0 %) — ta je za vetem 45° a do soutěže nevstupuje.
     kroky:
       - co: Nález nad `20260916-164926.rec` a podklad pro přiřazení (χ² s hlášenými σ zamítne vše)
         stav: hotovo
@@ -6476,19 +6482,24 @@ temata:
       - co: Oprava orientace kurzu v `Send()` (složení na ±90°, smysl podle kurzu)
         stav: hotovo
         kdy: 2026-09-16
-      - co: Přeměřit nad měřicí jízdou (odhad „2× víc měření“ je z rozdělení, ne z běhu)
-        stav: otevreno
-      - co: "Po opravě magnetometru snížit `assocfloorhdg` z 10° na ~5° (18. 9. změřeno, nezměněno)"
+      - co: "Přeměřit nad měřicí jízdou — nahrazeno: odhad „2× víc měření“ ze 16. 9. ověřit nejde (spolu s ním padla příčná brána, zisky nejdou oddělit); místo něj přepočet nad Robotourem, kde nový kód skutečně jel"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Po opravě magnetometru snížit `assocfloorhdg` z 10° na 5° — výchozí od 27. 9. (autor); přepočtem: 5° = +10 % / +9 % Ok, 3° = +28 % / +24 %; nové cykly 100 % u GPS, změněný vítěz jen jiný úsek téže cesty a podle GPS k lepšímu (5°: 2 : 0, 3°: 28 : 0, zbytek nerozhodnutý)"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Ověřit na zařízení: podíl `AmbiguousEdge` a `EdgeMismatch` v jízdě s podlahou 5°"
         stav: otevreno
       - co: "Ověřit na zařízení — 18. 9.: běží (χ² vítěze p50 0,004, nejednoznačných 3 z 3 147), ale trať je jediná OSM cesta, takže křižovatku to neotestovalo"
         stav: hotovo
         kdy: 2026-09-18
-      - co: "Vyčíslit `AssocChi2` / `AmbiguousEdge` nad Kolo3b a Kolo4 (Robotour 19. 9., první jízda s křižovatkami)"
-        stav: otevreno
+      - co: "Vyčíslit nad Kolem 3b / 4: `AmbiguousEdge` 3 153 / 1 208 (38 / 37 % proložených), `EdgeMismatch` 6 / 3, χ² vítěze p50 0,058 / 0,040; nástroj `ARBot.Analyze assocreplay`"
+        stav: hotovo
+        kdy: 2026-09-27
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-16, 2026-09-18]
+    devlog: [2026-09-16, 2026-09-18, 2026-09-27]
     ceka_na: []
 
   # ---------------------------------------------------------------- 2026-09-18

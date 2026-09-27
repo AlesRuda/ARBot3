@@ -846,9 +846,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ji nechytí, protože v té mapě nemá žádná cesta tag `width`. Skóre je **Mahalanobisova vzdálenost**
   (příčná odchylka + azimut, každá dělená svou σ), ne lineární kombinace — váhy tím zmizí a práh má
   známé rozdělení (5,99 / 9,21). ⚠️ **Obě σ musí mít PODLAHU** (`assocfloorlat=3` m,
-  `assocfloorhdg=10°`): filtr hlásí σ kurzu 1,10°, ale skutečná chyba je 15–20°, takže bez podlahy
+  `assocfloorhdg`): filtr hlásí σ kurzu 1,10°, ale skutečná chyba je 15–20°, takže bez podlahy
   vyjde χ² kurzu **p50 220 i na správné hraně** a zamítlo by se všechno — počtvrté táž past jako
-  `YprU`, `gpsposstd` a `Reject`. Po opravě magnetometru **snížit na ~3°**. K tomu **tvrdé veto na
+  `YprU`, `gpsposstd` a `Reject`. ✅ **Od 27. 9. 2026 je podlaha kurzu 5° (dřív 10°)** — po
+  kalibraci magnetometru je chyba kurzu za jízdy 2–4° a přepočet nad Robotourem
+  (`ARBot.Analyze assocreplay`) dal +10 % přiřazených cyklů, žádný na příčnou ulici; ⚠️ když
+  kurz zase ujede (14. 9.: kabely ke kamerám), zamítne i správnou hranu. K tomu **tvrdé veto na
   azimut** (`assocveto=45°`, kolmá ulice není „trochu mimo") a **odstup od druhého kandidáta**
   (`assocmargin=4`) — při nejednoznačnosti se **neposílá nic** (`AmbiguousEdge`), protože vybrat tu
   o chlup lepší by znamenalo hádat. ⚠️ **Dvě pasti, které stály čas:** obousměrná cesta jsou dvě

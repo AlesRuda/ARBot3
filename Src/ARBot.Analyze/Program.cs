@@ -193,6 +193,11 @@ namespace ARBot.Analyze
                                              Arg(args, "--bin", 30), Arg(args, "--maxskew", 400),
                                              Text(args, "--sweep"));
                         return 0;
+                    case "assocreplay":
+                        AssocReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
+                                              Arg(args, "--maxedge", 8), Text(args, "--floors"),
+                                              Text(args, "--margins"));
+                        return 0;
                     case "posegps":
                         PoseGpsReport.Run(rec, Arg(args, "--bin", 10));
                         return 0;
@@ -270,6 +275,9 @@ namespace ARBot.Analyze
             Console.WriteLine("  sigma      je sigma korelace s mapou poctiva? hlasena nejistota proti");
             Console.WriteLine("             skutecnemu rozptylu (--truedx/--truedy = znama odpoved) +");
             Console.WriteLine("             casova korelace mezi cykly (kolik merenii je nezavislych)");
+            Console.WriteLine("  assocreplay co by udelalo prirazeni k hrane s jinou podlahou kurzu / odstupem:");
+            Console.WriteLine("             prepocet EdgeAssociator nad zaznamenanymi cykly (--map=OSM/x.osm,");
+            Console.WriteLine("             --floors=10,7,5,3, --margins=4, --maxedge=8 = hodnota z Robotouru)");
             Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
             Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
             Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");

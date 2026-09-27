@@ -3251,6 +3251,85 @@ z rozdělení**, ne výsledkem nové cesty kódu. Ověří to až nový záznam.
 15–20°. `assocmargin=4` a `assocveto=45` jdou proladit offline ze `AssocChi2` / `AssocChi2Second`
 v záznamu; přesně proto tam jsou.
 
+### Robotour 19. 9. 2026: přepočet přiřazení s jinou podlahou kurzu (27. 9. 2026)
+
+Kolo 3b a Kolo 4 byly první jízdy přiřazení přes skutečné křižovatky. Kolem 37 % proložených
+oboustranných koridorů v nich skončilo jako `AmbiguousEdge`, tedy druhý kandidát byl méně než
+`assocmargin=4` za vítězem. Přitom kurzová složka χ² měla p50 jen ~0,02, takže podlaha 10° je po
+opravě magnetometru zbytečně volná a kurz skoro nerozlišuje.
+
+**Měřidlo:** `ARBot.Analyze assocreplay <rec> --map=OSM/Robotour2026-ver1.osm` znovu pustí
+`EdgeAssociator` nad zaznamenanými cykly. Vstupy jsou stejné jako za jízdy (koridor a póza ze
+`RoadCorridorMsg`, kovariance z nejbližšího `RobotStateMsg`, síť z téže mapy po `mapprune`,
+`MaxEdgeDistanceM = 8` z doby Robotouru), mění se jen podlaha a odstup. Opakovat jízdu by A/B nebylo:
+jiné světlo, jiná póza, jiný provoz.
+
+- **Ověřeno proti známé odpovědi:** s parametry z jízdy přepočet vrátí **shodný verdikt u 8 238 z
+  8 238** (Kolo 3b) a **3 258 z 3 258** (Kolo 4) cyklů. Skóre se od záznamu liší o 0,000.
+- **Nezávislá kontrola správné cesty:** vybraná cesta musí být od GPS fixu nejvýš o 2 m dál než
+  cesta k němu nejbližší. Reference (cykly přijaté už za jízdy) splňuje 99,8 % / 99,4 %. Shoda
+  podle samotného id cesty by byla past: u křižovatky, kde nejednoznačnost vzniká, je „nejbližší
+  cesta“ podle GPS náhoda mezi sousedními úseky (vycházelo 72–89 % i pro zjevně správný výběr).
+
+Tabulka při `assocmargin=4`. Sloupec *nově* = cykly, které za jízdy přijaté nebyly a teď jsou.
+Sloupec *jiný vítěz* = podlaha převrátila pořadí kandidátů a vybrala jinou osu, než byl nejlepší
+kandidát za jízdy.
+
+| `assocfloorhdg` | Kolo 3b: Ok | nově | jiný vítěz | nově u GPS | Kolo 4: Ok | nově | jiný vítěz | nově u GPS |
+|---|---|---|---|---|---|---|---|---|
+| **10° (jízda)** | 5 079 (61,7 %) | — | — | — | 2 047 (62,8 %) | — | — | — |
+| 7° | 5 138 | 61 | 0 | 100 % | 2 162 | 117 | 0 | 100 % |
+| **5°** | **5 596 (+10 %)** | 538 | **5** | 100 % | **2 223 (+9 %)** | 187 | **0** | 100 % |
+| 3° | 6 524 (+28 %) | 1 497 | **68** | 100 % | 2 535 (+24 %) | 527 | 0 | 100 % |
+
+- **Na 5° je zisk čistý:** přibude ~10 % přijatých cyklů, pořadí se převrátí jen v 5 z 8 238
+  cyklů a všechny nově přijaté jsou u GPS.
+- **Změněný vítěz je změna K LEPŠÍMU** (blok *ZMENENY VITEZ*: medián vzdálenosti GPS fixů
+  v okně ±5 s od osy staré a nové hrany, rozhoduje rozdíl nad 1 m, sousední cykly sloučené do
+  epizod). Ve **všech** případech (5° i 3°, margin 4 i 2, obě kola) je to **tatáž OSM cesta**,
+  jen jiný úsek: zakřivená cesta 33898716 v Kole 3b, 14:22–14:24. Stará volba brala sousední
+  segment za ohybem, který míří 18–25° mimo kurz; nová bere segment se směrem 2–8°, tedy ten,
+  na kterém robot je. Verdikt GPS: na 5° **2 lepší, 0 horších, 3 nerozhodnuté**, na 3° **28 : 0 : 40**
+  (6 epizod), na 5°/margin 2 **15 : 0 : 13**. Nerozhodnuté jsou ty, kde se osy obou segmentů
+  v okolí robota liší o méně než 1 m.
+- ⚠️ **Poloha sama u křižovatky nestačí** (upozornil autor): příčná ulice prochází místem, kde
+  robot je, takže vzdálenost GPS od přímky ji neodliší. Druhá nezávislá kontrola je proto
+  **směr**: úhel mezi osou vybrané hrany a **kurzem z GPS** (Doppler, jen při jízdě nad 0,5 m/s),
+  jako přímky 0–90°.
+  - Reference (přijaté za jízdy): p50 **3,1° / 4,9°**, p90 9,9° / 11,4°, nad 30° 0,2 % / 0,0 %.
+  - **Nově přijaté** na 5°: p50 5,6° / 4,0°, p90 14,3° / 17,4°, **nad 30° 0,0 %**; na 3° nad 30°
+    0,2 % / 0,0 %. Na **příčnou ulici tedy nové přijetí nepárovalo nic**.
+  - **Změněný vítěz podle směru:** 5° **2 : 0**, 3° **64 : 0** (1 nerozhodnutý, 3 ve stání),
+    5°/margin 2 25 : 0. Jediný „horší“ je na 3°/margin 2 (1 cyklus). Stará osa míří 13–21°
+    mimo kurz z GPS, nová 2–10°.
+  - **Proč je to vždy tatáž cesta:** příčná ulice (~90°) je za vetem `assocveto=45` a do
+    soutěže vůbec nevstupuje. Nejednoznačnost proto vzniká mezi **segmenty téže zakřivené cesty**
+    a u **rozvětvení pod ostrým úhlem**, ne u pravoúhlé křižovatky. Kde přesně zbylých ~2 600
+    nejednoznačných leží (u uzlu se třemi a více hranami, nebo v ohybu), změřené není.
+- **Na 3° přibude ještě víc** (+28 % / +24 %) a obava, že podlaha začne rozhodovat místo dat, se
+  **nepotvrdila**: nižší podlaha tu jen víc váží souhlas směru koridoru se segmentem. ⚠️ Všechny
+  změny jsou ale z **jediného místa** a dvou minut jízdy, takže to je dobrý signál, ne důkaz.
+  Hlášená σ kurzu za jízdy je 2–4° (18. 9.), takže 3° je pod ní.
+- **Nově přijaté cykly v Kole 3b mají příčný nesouhlas p90 ~6 m** (v Kole 4 jen 0,4–0,8 m).
+  Protože jsou všechny u GPS, je to **skutečná chyba pózy** (v Kole 3b ujelo až 20–28 m, viz
+  „Jak velké `corridorstd=`“), tedy přesně ty korekce, které byly potřeba. Neprošly kvůli tomu,
+  že u křižovatky nešel rozlišit druhý kandidát.
+- **Odstup `assocmargin=2`** je druhá páka se stejným směrem: na 10° přidá jen 126 / 123 cyklů,
+  na 5° 1 149 / 415, ale s 28 převrácenými vítězi v Kole 3b. Nerozhoduje se tu o ní.
+- `EdgeMismatch` („nic nesedí“) mírně roste (Kolo 3b 6 → 31 na 5°): užší podlaha vyřadí kandidáta,
+  jehož směr se od koridoru liší o víc než ~5 σ. Ve sloupci Ok je to už započtené.
+
+✅ **Autor týž den rozhodl: výchozí `assocfloorhdg=5`** (`EdgeAssociationConfig`, registr parametru
+čte default odtud). Cena je zapsaná v testu `BezPODLAHYsigmyKurzu_bySpravnaHranaNEPROSLA`: při chybě
+kurzu 16° (stav 16. 9.) podlaha 5° zamítne i správnou hranu. Měřidlo `assocreplay` má parametry
+z jízdy zadané **výslovně** (10°), ne z defaultu, jinak by se po změně tiše ověřovalo proti něčemu
+jinému, než s čím se jelo. ⚠️ **Na zařízení neběželo.**
+
+⚠️ **Omezení:** jde o přepočet **prvního řádu**. Víc přijatých měření by fúzi vedlo jinudy a další
+pózy by byly jiné. Šířkové brány za přiřazením se nepřehrávají, takže do fúze by šlo méně cyklů
+než v sloupci Ok. Kontrola proti GPS s tolerancí 2 m nerozliší dva kandidáty, kteří jsou od GPS
+oba do 2 m a u křižovatky ani příčnou ulici. Proto se čte hlavně kontrola **směrem** (kurz z GPS).
+
 ## Práh inlierů `MinInliers` — změřeno ze záznamů (17. 9. 2026)
 
 `MinInliers` (dnes 25) je **největší ztrátová brána proložení koridoru** — nad
@@ -3307,8 +3386,8 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   kabely do definitivní polohy → minutový záznam s jednou otočkou na místě (rozpětí `|B|`)
   → `mission=magcal` s náklony na obě strany.
 - **[Polovina cyklů koridoru se párovala na příčnou ulici](ukoly.md#lok-prirazeni-hrany-chi2)** —
-  do výběru mapové hrany přibyl azimut (viz výš); po opravě magnetometru **snížit `assocfloorhdg`
-  na ~3°** — test se tím sám zostří.
+  do výběru mapové hrany přibyl azimut (viz výš); ✅ `assocfloorhdg` **snížena na 5°** (27. 9. 2026,
+  z přepočtu nad Robotourem; 3° je pod chybou kurzu za jízdy).
 - **[Koridor v měřicím režimu — odtlumení a první měřicí jízda](ukoly.md#lok-koridor-merici-rezim)** —
   ✅ příčná brána **zrušena 18. 9. 2026** (obě podmínky splněny: azimut je ve výběru hrany od
   16. 9., velikost hlídá `GateMode.Soft`) — dřívější plán „rozvolnit `MaxLateralDisagreementM`
