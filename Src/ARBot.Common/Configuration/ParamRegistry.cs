@@ -70,6 +70,11 @@ namespace ARBot.Common.Configuration
               "Seriovy port GPS (uBlox). Default podle platformy (Profile.PortGPS).");
         // Model magnetickeho pole v senzoru (8. 9. 2026). Je to NASTAVENI SENZORU (zapis do
         // registru 83 VN100), proto Hardware, ne Fuze - ta si jen odnasi dusledek v kurzu.
+        public static readonly BoolParam NeoPixel = Bool("neopixel", "true", K_HW,
+              "LED pasek WS2812 (36 LED: predni svetla, blinkry, brzda, couvani, nouzove "
+              + "zastaveni) pres SPI /dev/spidev0.0 - jen na Orange Pi (Armbian), jinde se "
+              + "ignoruje. Kdyz SPI nejde otevrit (overlay, prava), robot jede dal bez LED a duvod "
+              + "je v Trace. false = pasek se nezaklada. Viz OrangePi5Ultra/POSTUP.md.");
         public static readonly BoolParam MagModel = Bool("magmodel", "true", K_HW,
               "Nastavit VN100 model magnetickeho pole podle polohy robota (registr 83), jednorazove "
               + "po prvnim kvalitnim fixu GPS. Bez nej drzi VN referenci natvrdo v registru 21 a ta "

@@ -428,6 +428,7 @@ namespace ARBot.Robot
         /// </summary>
         public void SetNoHW()
         {
+            NeoPixelStop();
             CameraStop();
             MotionSensorsStop();
             SimulatedRobot = null;
@@ -435,6 +436,74 @@ namespace ARBot.Robot
 
             if (CameraStateChanged != null)
                 CameraStateChanged();
+        }
+
+#if IsARM64
+        /// <summary>SPI pro LED pasek; vlastni ho ARBotHW (driver ho jen pouziva).</summary>
+        private System.Device.Spi.SpiDevice neoPixelSpi;
+#endif
+
+        /// <summary>
+        /// Zalozi LED pasek (WS2812) a spusti jeho animaci - jen na Orange Pi (<c>IsARM64</c>)
+        /// a jen kdyz <c>neopixel=true</c>. Do 28. 9. 2026 se nezakladal vubec (blok v
+        /// <see cref="Init"/> byl zakomentovany a jen pro FTDI na Windows).
+        ///
+        /// <para>SPI0 (overlay <c>spi0-m2-cs0-spidev</c>, <c>/dev/spidev0.0</c>), 6,4 MHz a 8 sub-bitu
+        /// na bit WS2812: sub-bit 156 ns, nula 2+6 (313 ns vysoko), jednicka 5+3 (781 ns), bit
+        /// 1,25 us - v tolerancich datasheetu. Zapojeni: OrangePi5Ultra/POSTUP.md.</para>
+        ///
+        /// <para>⚠️ <c>SpiDevice.Create</c> soubor jeste neotevira - chyba prav (<c>/dev/spidev0.0</c>
+        /// je defaultne jen pro roota, sluzba bezi pod uzivatelem) by se ukazala az v animacni
+        /// smycce. Proto se hned posle zhasnuty snimek: kdyz selze, pasek se nezalozi a duvod jde
+        /// do Trace. Robot jede dal - LED nejsou podminka jizdy.</para>
+        /// </summary>
+        private void NeoPixelStart()
+        {
+#if IsARM64
+            if (!ParamRegistry.NeoPixel.Value)
+            {
+                Trace.WriteLine("NeoPixel: neopixel=false -> LED pasek se nezaklada.");
+                return;
+            }
+            try
+            {
+                neoPixelSpi = System.Device.Spi.SpiDevice.Create(new System.Device.Spi.SpiConnectionSettings(0, 0)
+                {
+                    ClockFrequency = 6_400_000,
+                    Mode = System.Device.Spi.SpiMode.Mode0,
+                    DataBitLength = 8,
+                });
+                var driver = new ArmbianSpiNeoPixelDriver(neoPixelSpi,
+                    new SpiNeoPixelDriver.PulseConfig { T0H = 2, T0L = 6, T1H = 5, T1L = 3 });
+                var dark = new Color[36];
+                for (int i = 0; i < dark.Length; i++) dark[i] = new Color(0, 0, 0);
+                driver.Send(dark);   // zkouska zapisu (prava, overlay) - viz vyse
+                NeoPixel = new NeoPixelProcessor(driver);
+                NeoPixel.StartTask();
+                Trace.WriteLine("NeoPixel: LED pasek bezi (/dev/spidev0.0, 6,4 MHz).");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine("NeoPixel: LED pasek NEJEDE - /dev/spidev0.0 nejde otevrit nebo do nej"
+                                + " zapsat (overlay spi0-m2-cs0-spidev? prava - deploy/99-arbot-spidev.rules?): "
+                                + ex.Message);
+                NeoPixel = null;
+                neoPixelSpi?.Dispose();
+                neoPixelSpi = null;
+            }
+#endif
+        }
+
+        /// <summary>Zastavi animaci, pasek zhasne a SPI se uvolni. Idempotentni.</summary>
+        private void NeoPixelStop()
+        {
+            try { NeoPixel?.Stop(); }
+            catch (Exception ex) { Trace.WriteLine("NeoPixel: zastaveni selhalo: " + ex.Message); }
+            NeoPixel = null;
+#if IsARM64
+            neoPixelSpi?.Dispose();
+            neoPixelSpi = null;
+#endif
         }
 
         public Action CameraStateChanged;
@@ -532,6 +601,8 @@ namespace ARBot.Robot
             sensors.Add(LeftCamera = new D435Camera(D435LeftSerial, "Left", fps) { Swap = true });
             sensors.Add(RightCamera = new D435Camera(D435RightSerial, "Right", fps) { Swap = false });
             ApplyEstimatedPose();   // muze byt jeste null - runtime ji doplni, az bude fuze
+
+            NeoPixelStart();
 
             Mode = HwMode.Real;
             Debug.WriteLine("ARBotHW: realny HW aktivni.");

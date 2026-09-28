@@ -2170,12 +2170,14 @@ Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzic
 
 `hw-neopixel-armbian` · záměr · **v kódu, na HW neověřeno** · nalezeno 7. 7. 2026 · vyřešeno 7. 7. 2026
 
-`ArmbianSpiNeoPixelDriver` posílá sub-bity LED pásku jedním zápisem přes `/dev/spidev0.0`; `SpiDevice` vstupuje jako parametr, vlastníkem je volající. Buildy pro OrangePI zelené, ale na desce nikdy neběželo — časování `PulseConfig` proti SPI hodinám a reálný běh animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026 zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým driverem.
+`ArmbianSpiNeoPixelDriver` posílá sub-bity LED pásku jedním zápisem přes `/dev/spidev0.0`; `SpiDevice` vstupuje jako parametr, vlastníkem je volající. Buildy pro OrangePI zelené, ale na desce nikdy neběželo — časování `PulseConfig` proti SPI hodinám a reálný běh animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026 zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým driverem. Od 28. 9. 2026 ho `ARBotHW` na Orange Pi zakládá (`neopixel=`, výchozí true) a `NeoPixelBridge` mu podle pravidel z ARBot2 posílá stav robota (couvání, brzda, blinkry, nouzové zastavení z `DriveCommandMsg`, přední Alert při čekání na stisk stopu). Na robotu nasazeno, runtime posílá 20 snímků/s bez chyb, ale **pásek nesvítí** — příčina je fyzická (úroveň 3,3 V proti 5 V WS2812, zapojení), musí se přeměřit.
 
 - [x] Driver + balíček `System.Device.Gpio` (7. 7. 2026)
-- [ ] Založit `ArmbianSpiNeoPixelDriver` v `ARBotHW` (Armbian) a ověřit časování a běh na Orange Pi
+- [x] Založit driver v `ARBotHW` (Armbian), `NeoPixelBridge` podle ARBot2, hlášení poruch a zhasnutí při zastavení, pravidlo udev pro `/dev/spidev0.0`; 10 testů (28. 9. 2026)
+- [x] Nasazeno na Orange Pi: journal „LED pasek bezi“, statistika spi0 20 přenosů/s × 864 B bez chyb, SPI skutečně 6,25 MHz (200 MHz / 32) — časování v tolerancích (28. 9. 2026)
+- [ ] Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1)
 
-[OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07)
+[OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07), [2026-09-28](devlog.md#2026-09-28)
 
 <a id="hw-motor-chybovy-ramec"></a>
 ### 🧪 Chybový rámec motorového driveru se tvářil jako měření

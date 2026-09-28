@@ -41,6 +41,20 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-28
 
+- **LED pásek (NeoPixel) dotažen v softwaru, fyzicky zatím nesvítí** (`hw-neopixel-armbian`).
+  `ARBotHW` na Orange Pi zakládá `ArmbianSpiNeoPixelDriver` nad `/dev/spidev0.0` (`neopixel=`,
+  zkušební zápis hned při založení, porucha jde do `Trace` a robot jede dál). Nový
+  `NeoPixelBridge` bere stav ze streamu podle pravidel ARBot2 (`State.cs`/`Program.cs`): couvání,
+  brzda (pokles > 0,3 podržený 0,5 s + držené zastavení), blinkry nad ±0,2 rad/s, nouzové
+  zastavení z `DriveCommandMsg`, přední `Alert` při čekání na stisk stopu. Stav mise bere ze
+  zpráv, ne z mise (zámek, viz 17. 9.). `NeoPixelProcessor` dostal hlášení poruch a `Stop()`
+  se zhasnutím. Pravidlo udev `deploy/99-arbot-spidev.rules` (spidev jen pro roota, služba
+  běží pod `ales`), nainstalováno. 10 testů. Nasazeno: runtime posílá 20 snímků/s bez chyb,
+  SPI jede 6,25 MHz, **pásek ale nesvítí**. DIN je na GPIO1_B2, což by podle pinoutu RK3588 byl
+  MOSI (`POSTUP.md` uvádí B1). Na přeměření multimetrem `deploy/spitest.sh`.
+  ⚠️ `nasad.ps1` při tom přepsal `pi-provoz.cfg` na robotu verzí z repa; autor potvrdil, že
+  ručně upravený nebyl.
+
 - **Registr 23 po nedokončené kalibraci ověřen na senzoru** (`hw-magcal-uncompmag-kompenzovany`
   → hotovo): `vnprobe.sh` před misí, `mission=magcal` ze stránky, ukončení tlačítkem Stop
   (autor), `vnprobe.sh` po. Journal: registr 23 vymazán 7:51:21, vrácen 7:51:45; senzor po misi

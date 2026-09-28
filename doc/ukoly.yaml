@@ -363,17 +363,29 @@ temata:
       animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver
       navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026
       zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým
-      driverem.
+      driverem. Od 28. 9. 2026 ho `ARBotHW` na Orange Pi zakládá (`neopixel=`, výchozí true)
+      a `NeoPixelBridge` mu podle pravidel z ARBot2 posílá stav robota (couvání, brzda, blinkry,
+      nouzové zastavení z `DriveCommandMsg`, přední Alert při čekání na stisk stopu). Na robotu
+      nasazeno, runtime posílá 20 snímků/s bez chyb, ale **pásek nesvítí** — příčina je fyzická
+      (úroveň 3,3 V proti 5 V WS2812, zapojení), musí se přeměřit.
     kroky:
       - co: Driver + balíček `System.Device.Gpio`
         stav: hotovo
         kdy: 2026-07-07
-      - co: "Založit `ArmbianSpiNeoPixelDriver` v `ARBotHW` (Armbian) a ověřit časování a běh na Orange Pi"
+      - co: "Založit driver v `ARBotHW` (Armbian), `NeoPixelBridge` podle ARBot2, hlášení poruch a zhasnutí při zastavení, pravidlo udev pro `/dev/spidev0.0`; 10 testů"
+        stav: hotovo
+        kdy: 2026-09-28
+      - co: "Nasazeno na Orange Pi: journal „LED pasek bezi“, statistika spi0 20 přenosů/s × 864 B bez chyb, SPI skutečně 6,25 MHz (200 MHz / 32) — časování v tolerancích"
+        stav: hotovo
+        kdy: 2026-09-28
+      - co: "Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1)"
         stav: otevreno
     odkazy:
       - text: OrangePi5Ultra/POSTUP.md
         cesta: OrangePi5Ultra/POSTUP.md
-    devlog: [2026-06-23, 2026-07-07]
+      - text: deploy/README.md
+        cesta: deploy/README.md
+    devlog: [2026-06-23, 2026-07-07, 2026-09-28]
     ceka_na: []
 
   - id: nast-system-zprav-record-replay

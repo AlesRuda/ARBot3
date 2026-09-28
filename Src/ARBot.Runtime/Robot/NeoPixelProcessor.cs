@@ -313,12 +313,33 @@ namespace ARBot.Robot
                         }
 
                         // Odeslani sestaveneho framebufferu na pasek a pauza (~20 FPS).
-                        driver.Send(pixels);
+                        // ⚠️ Vyjimka z driveru (SPI zmizelo, prava) by drive tiše ukoncila Task
+                        // a pasek by zamrzl na poslednim snimku bez jedine stopy. Hlasi se do
+                        // Trace skrcene (20x/s by zaplavilo zaznam) a smycka jede dal.
+                        try { driver.Send(pixels); }
+                        catch (Exception ex) { hlasic.Hlas("NeoPixel: zapis na pasek selhal", ex); }
                         Thread.Sleep(50);
                     }
                     // Smycka skoncila (CancelTask) - task uz nepracuje.
                     IsBusy = false;
                 });
         }
+
+        /// <summary>
+        /// Zastavi animacni smycku a pasek ZHASNE. Bez zhasnuti by po ukonceni aplikace LED
+        /// svitily dal v poslednim stavu (WS2812 drzi barvu, dokud ma napajeni).
+        /// </summary>
+        public void Stop()
+        {
+            CancelTask = true;
+            for (int i = 0; i < 20 && IsBusy; i++) Thread.Sleep(20);
+            var dark = new Color[pixels.Length];
+            for (int i = 0; i < dark.Length; i++) dark[i] = DarkColor;
+            try { driver.Send(dark); }
+            catch (Exception ex) { Trace.WriteLine("NeoPixel: zhasnuti pasku selhalo: " + ex.Message); }
+        }
+
+        /// <summary>Skrcene hlaseni poruch zapisu (viz CLAUDE.md, diagnostika do Trace).</summary>
+        private readonly ARBot.Common.Diagnostics.PoruchaHlasic hlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
     }
 }

@@ -34,6 +34,18 @@ sudo systemctl enable --now arbot
 Profil `config/pi-provoz.cfg` musí být v datovém adresáři (`~/arbot/config/`). **Od 6. 9. 2026
 ho tam dostane `nasad.ps1` sám** — viz níž.
 
+**LED pasek (od 28. 9. 2026):** runtime ho zakládá sám nad `/dev/spidev0.0` (overlay
+`spi0-m2-cs0-spidev`, viz `OrangePi5Ultra/POSTUP.md`), jenže to zařízení je jen pro roota a služba
+běží pod `ales`. Jednou na Pi nainstalovat pravidlo udev z [99-arbot-spidev.rules](99-arbot-spidev.rules):
+
+```bash
+scp deploy/99-arbot-spidev.rules ales@192.168.66.1:/tmp/
+ssh ales@192.168.66.1 'sudo cp /tmp/99-arbot-spidev.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=spidev && ls -l /dev/spidev0.0'
+```
+
+Bez něj robot jede dál, jen pásek nesvítí a v journalu je `NeoPixel: LED pasek NEJEDE`.
+Vypnout pásek jde parametrem `neopixel=false`.
+
 ## Běžné nasazení
 
 ```bash

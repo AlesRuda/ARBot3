@@ -377,6 +377,16 @@ namespace ARBot.Robot
                 scheduler.Metrics = perf.Metrics;
             }
 
+            // LED pasek: stav robota (prikaz jizdy, nouzove zastaveni, na co ceka mise) ze streamu.
+            // Pasek zaklada ARBotHW jen na Orange Pi; tady se jen pripoji a pri Stop odpoji, pricemz
+            // most vrati klidovy stav (jinak by po zastaveni svitil posledni blinkr). Viz NeoPixelBridge.
+            if (hw.NeoPixel != null)
+            {
+                var neoBridge = new NeoPixelBridge(hw.NeoPixel);
+                var neoConn = stream.Connect(neoBridge);
+                connections.Add(new DisposeBoth(neoConn, neoBridge));
+            }
+
             // Motory: realny driver z ARBotHW, jinak DummyMotors (dev bez HW).
             IMotorControl motor = hw.Motor ?? (IMotorControl)new DummyMotors();
 
