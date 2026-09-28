@@ -309,7 +309,7 @@ Plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí naj
 - [x] Simulace proti pravdě (`ARBot.Analyze truth`, provozní profil, prokluz 1,8 %, bias kompasu 3°, 2 × 2 běhy): příčná za jízdy p50 0,03 m s korekcemi proti 2,07 m bez, kurz 0,2° proti 1,4°, podélná 1,2 proti 2,3 m (27. 9. 2026)
 - [x] Přehrání fúze nad jízdami 25. 9., Kolo 3b, 18. 9. (`ARBot.Analyze fusionreplay`, měřidlo sedí na záznam p50 0,000 m): příčně od GPS lepší ve všech třech (1,00/1,50, 1,73/3,12, 0,46/0,83 m), podélně ve dvou ze tří mírně horší (27. 9. 2026)
 - [x] Dohledat, proč korekce zhoršují PODÉLNOU chybu proti GPS — nalezeno (`fusionreplay` blok 4): koridor v zatáčkách srazí podélnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s `gpsposstd=30` pak GPS podélně táhne ~30× slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde má malou σ i varianta bez (Kolo 3b), korekce podélně pomáhají (28. 9. 2026)
-- [ ] Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`
+- [ ] Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. ⚠️ 27. 9. nerozhodne: GPS byla sama 4,7 m mimo cestu (3 družice na startu), podélná odchylka od GPS je proto k ničemu. Ukázalo ale, že koridor drží pózu na cestě (od osy 0,36 proti 3,58 m bez) a opakovaný průjezd sedí 0,49 proti 5,58 m bez
 - [ ] Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
 
 čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28)
@@ -426,7 +426,7 @@ Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Mod
 
 - [x] Změřeno: kola / tětiva GPS 1,018, Doppler / kola 0,982 (`ARBot.Analyze posegps`) (26. 9. 2026)
 - [x] Autor opravil konstantu `Profile.WheelRadius`: činitel 0,94 → 0,923 (26. 9. 2026)
-- [ ] Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00
+- [ ] Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00. ⚠️ 27. 9. (binárka s 0,923, Track a FreeRun Hviezdoslavova) NEPOUŽITELNÉ: po jednom 30s přímém okně (kola / tětiva 1,018 a 1,022, n = 1), GPS startovala na 3 družicích a ležela p50 4,7 m od cesty, jízdy 163 a 120 m. Potřeba delší jízda s rovinkami (25. 9.: 63 oken) a s GPS usazenou předem
 
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
@@ -2175,7 +2175,7 @@ Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzic
 - [x] Driver + balíček `System.Device.Gpio` (7. 7. 2026)
 - [x] Založit driver v `ARBotHW` (Armbian), `NeoPixelBridge` podle ARBot2, hlášení poruch a zhasnutí při zastavení, pravidlo udev pro `/dev/spidev0.0`; 10 testů (28. 9. 2026)
 - [x] Nasazeno na Orange Pi: journal „LED pasek bezi“, statistika spi0 20 přenosů/s × 864 B bez chyb, SPI skutečně 6,25 MHz (200 MHz / 32) — časování v tolerancích (28. 9. 2026)
-- [ ] Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1)
+- [ ] Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1). 28. 9. večer puštěn vzor high (SPI 6,25 MHz, linka vytížená ~71 %), autor: měření vyžaduje rozebrat robota — odloženo
 
 [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07), [2026-09-28](devlog.md#2026-09-28)
 
@@ -2220,9 +2220,10 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 - [x] Léčba (autor): T265 driver se nezakládá (`ARBotHW`, zakomentováno s odůvodněním) — T265 je od 14. 9. odpojená, hon tím zmizí (26. 9. 2026)
 - [x] Zpětně v záznamech z Robotouru (`cameras --vypadky`): táž vada už 19. 9. — `Kolo3-navrat` 14:36:55 levá D435, barva stála 5 s → restart pipeline → „pipeline pripojena“ nepřišlo, levá mlčela do konce záznamu (172 s, návrat do depa dojet na pravou kameru); v `Kolo3a` 14:06:30 tentýž restart doběhl (snímky zpět za 2,7 s). `Kolo3b` bez 5s zamrznutí, ale 147 krátkých (≤ 1,1 s, razítko barvy z driveru stojí) pod prahem hlídky (26. 9. 2026)
 - [ ] Ověřit na zařízení: po zamrznutí a restartu pipeline se kamera vrátí (žádné `NativeCallWatch` hlášení), kernel po `Stop` bez opakovaného `Found UVC`; a jestli ubylo samotných zamrznutí
+- [x] Průběžně z journalu Pi (28. 9., 14.–28. 9.): bez T265 zatím jen 1,2 h běhu a 5 restartů — všech 5 obnoveno, 4 do 5 s (80 %; s T265 20 % z 49, medián 33 s, 7× neobnoveno do konce služby, 6× NativeCallWatch), 1 přes supervizor za 29 s, žádné NativeCallWatch. Četnost zamrznutí beze změny (4,1 proti 3,2 za h, n = 5). Slibné, ale jedno ráno — přeměřit po delším provozu (28. 9. 2026)
 - [x] Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.) (24. 9. 2026)
 
-[hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-26](devlog.md#2026-09-26)
+[hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-26](devlog.md#2026-09-26), [2026-09-28](devlog.md#2026-09-28)
 
 <a id="hw-vn100-hsi-run-ve-flash"></a>
 ### 🧪 VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)

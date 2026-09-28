@@ -41,6 +41,28 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-28
 
+- **Odstranění T265 a restarty D435 — průběžně z journalu Pi** (`hw-d435-vlakno-zatuhlo-po-restartu`).
+  Journal služby sahá od 14. 9.; hranice je první start binárky `fea9f9b1` (26. 9. 11:29).
+  S T265 17,5 h běhu, 56 restartů pipeline (3,2 / h); bez T265 zatím jen **1,2 h a 5 restartů**
+  (4,1 / h). **Četnost zamrznutí se nezměnila**, to se čekalo (14. 9. s fyzicky odpojenou T265
+  taky ne). **Změnilo se zotavení:** s T265 se do 5 s obnovilo 20 % (medián 33 s, 18× nad 40 s,
+  7× se kamera neobnovila do konce služby, 6× `NativeCallWatch`); bez T265 **4 z 5 do 5 s**,
+  jeden přes supervizor zotavení za 29 s, žádné zatuhnutí. Pravděpodobnost takového výsledku
+  při starém chování ~0,7 %, jenže všech 5 je z jednoho rána a 4 jsou levá kamera — slibné,
+  ne prokázané. Přeměřit po delším provozu: stejný rozbor nad journalem služby, páruje hlášky
+  „restart pipeline“ a „pipeline pripojena“ téže kamery.
+
+- **Jízdy 27. 9. (Hviezdoslavova, Track `20260927-172546` a FreeRun `-173033`, binárka už
+  s opraveným obvodem kola) nerozhodnou ani obvod kola, ani podélnou chybu.** GPS startovala na
+  3 družicích a ležela p50 **4,7 m / 4,3 m od osy cesty** (18. 9. na téže trati 0,4 m), jízdy
+  měly 163 a 120 m a v každé bylo jen jedno přímé okno, takže `posegps` kola / tětiva
+  1,018 / 1,022 při n = 1 nic nedokazuje (25. 9.: 63 oken). `fusionreplay` sedí na záznam
+  p50 0,000 m. Protože GPS byla mimo, je podélná odchylka od ní k ničemu. Jinak ale ukazuje,
+  co koridor dělá, když GPS ujede: póza zůstává na cestě (od osy p50 0,36 proti 3,58 m bez
+  koridoru) a opakovaný průjezd týmž místem sedí na **0,49 m proti 5,58 m** (GPS sama 3,48 m).
+  Oba kroky (`lok-odometrie-obvod-kola`, `lok-koridor-hranova-lokalizace`) zůstávají otevřené.
+  Příště: delší jízda s rovinkami a GPS usazenou předem (≥ 10 družic).
+
 - **LED pásek (NeoPixel) dotažen v softwaru, fyzicky zatím nesvítí** (`hw-neopixel-armbian`).
   `ARBotHW` na Orange Pi zakládá `ArmbianSpiNeoPixelDriver` nad `/dev/spidev0.0` (`neopixel=`,
   zkušební zápis hned při založení, porucha jde do `Trace` a robot jede dál). Nový
