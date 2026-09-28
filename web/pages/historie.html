@@ -30,10 +30,10 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">39</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">136</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">38</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">137</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
-    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">4</span></label>
+    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">5</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
   </form>
@@ -273,7 +273,6 @@
       <li data-tema="hw-vypadky-kamer-hypoteza-t265"><span class="mono">11. 9.</span> <span class="typ">nalezeno</span> <a href="#hw-vypadky-kamer-hypoteza-t265">Za v&#253;padky kamer může souběh s T265 (hypot&#233;za CLEAR_HALT)</a></li>
       <li data-tema="hw-kurz-zbytek-konstanta"><span class="mono">12. 9.</span> <span class="typ">nalezeno</span> <a href="#hw-kurz-zbytek-konstanta">Po kalibraci zb&#253;v&#225; konstantn&#237; posun kurzu −3,7&#176;, kter&#253; nejde rozložit</a></li>
       <li data-tema="hw-magcal-sklon-brana-a-nasazeni"><span class="mono">12. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-magcal-sklon-brana-a-nasazeni">Verdikt kalibrace shodil rozptyl sklonu, kter&#253; měř&#237; akcelerometr, ne magnetometr</a></li>
-      <li data-tema="hw-magcal-uncompmag-kompenzovany"><span class="mono">12. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-magcal-uncompmag-kompenzovany">„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</a></li>
       <li data-tema="hw-vn100-zelezo-na-robotu"><span class="mono">12. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-vn100-zelezo-na-robotu">Železo na těle robota kaz&#237; kurz o des&#237;tky stupňů</a></li>
       <li data-tema="lok-gps-kurz-korelovana-chyba"><span class="mono">12. 9.</span> <span class="typ">nalezeno</span> <a href="#lok-gps-kurz-korelovana-chyba">Chyba kurzu z GPS nen&#237; b&#237;l&#253; šum a GPS běž&#237; 10 Hz, ne 5</a></li>
       <li data-tema="lok-kompas-sigma-podlaha"><span class="mono">12. 9.</span> <span class="typ">vyřešeno</span> <a href="#lok-kompas-sigma-podlaha">Kompas si věř&#237; 60–90&#215; v&#237;c, než jak&#253; je</a></li>
@@ -384,6 +383,8 @@
       <li data-tema="vid-prob-overlay-128"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#vid-prob-overlay-128">Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</a></li>
       <li data-tema="hw-gps-fixtime-rozbity"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-gps-fixtime-rozbity"><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</a></li>
       <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
+      <li data-tema="hw-magcal-reg23-po-padu"><span class="mono">28. 9.</span> <span class="typ">nalezeno i zamítnuto</span> <a href="#hw-magcal-reg23-po-padu">P&#225;d procesu během mise magcal nech&#225; senzor bez kalibrace magnetometru</a></li>
+      <li data-tema="hw-magcal-uncompmag-kompenzovany"><span class="mono">28. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-magcal-uncompmag-kompenzovany">„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</a></li>
     </ul>
   </div>
 </section>
@@ -2160,18 +2161,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 27. 8. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-31">2026-08-31</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a></p>
   </article>
-  <article class="tema" id="hw-magcal-uncompmag-kompenzovany" data-stav="v-kodu">
-    <h3>„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 11. 9. 2026</span> <span>vyřešeno 12. 9. 2026</span></p>
-    <p>Registr 54, kter&#253; ICD uv&#225;d&#237; jako nekompenzovan&#225; měřen&#237;, se na našem senzoru měn&#237; podle registru 23 stejně jako kompenzovan&#253; v&#253;stup; 12. 9. se ze z&#225;znamu potvrdilo, že bin&#225;rn&#237; <code>UncompMag</code> je bit po bitu shodn&#253; s kompenzovan&#253;m polem. Kalibračn&#237; mise ale sb&#237;r&#225; pr&#225;vě tohle pole a v&#253;sledek zapisuje do registru 23 př&#237;mo, takže druh&#233; spuštěn&#237; by dobrou kalibraci přepsalo matic&#237; bl&#237;zkou jednotkov&#233;. Mise si teď registr 23 před sběrem vymaže (jen do RAM, v&#253;padek nap&#225;jen&#237; vr&#225;t&#237; flash) a při ukončen&#237; bez z&#225;pisu ho vr&#225;t&#237;; když ho nejde přeč&#237;st ani vymazat, nezačne. Skl&#225;d&#225;n&#237; kalibrac&#237; se zam&#237;tlo, protože potřebuje r&#225;mcovou transformaci, kter&#225; už jednou kousla. Vymaz&#225;n&#237; na senzoru proběhlo 17. 9. 2026: mise <code>magcal</code> došla do f&#225;ze <code>Written</code> (bez přečten&#237; a vymaz&#225;n&#237; registru 23 se do sběru nedostane) a zapsan&#225; kalibrace 18. 9. drž&#237; (zbytkov&#233; železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vr&#225;cen&#237; registru po nedokončen&#233; misi na senzoru zat&#237;m nevyzkoušeno.</p>
-    <ul class="kroky">
-      <li class="hotovo">Změřit <code>Magnetometer</code> proti <code>MagnetometerRaw</code> ze z&#225;znamu <span class="mono">12. 9. 2026</span></li>
-      <li class="hotovo">Mise registr 23 vymaže a po nedokončen&#237; vr&#225;t&#237; <span class="mono">12. 9. 2026</span></li>
-      <li class="hotovo">Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do <code>Written</code>, kalibrace 18. 9. drž&#237; <span class="mono">17. 9. 2026</span></li>
-      <li class="otevreno">Ověřit na senzoru vr&#225;cen&#237; registru 23 po nedokončen&#233; misi</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 12. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
-  </article>
   <article class="tema" id="hw-gps-fixtime-rozbity" data-stav="v-kodu">
     <h3><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 17. 9. 2026</span> <span>vyřešeno 27. 9. 2026</span></p>
@@ -2405,6 +2394,18 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 11. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/deploy/vnrestore.sh">deploy/vnrestore.sh</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a></p>
   </article>
+  <article class="tema" id="hw-magcal-uncompmag-kompenzovany" data-stav="hotovo">
+    <h3>„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 11. 9. 2026</span> <span>vyřešeno 28. 9. 2026</span></p>
+    <p>Registr 54, kter&#253; ICD uv&#225;d&#237; jako nekompenzovan&#225; měřen&#237;, se na našem senzoru měn&#237; podle registru 23 stejně jako kompenzovan&#253; v&#253;stup; 12. 9. se ze z&#225;znamu potvrdilo, že bin&#225;rn&#237; <code>UncompMag</code> je bit po bitu shodn&#253; s kompenzovan&#253;m polem. Kalibračn&#237; mise ale sb&#237;r&#225; pr&#225;vě tohle pole a v&#253;sledek zapisuje do registru 23 př&#237;mo, takže druh&#233; spuštěn&#237; by dobrou kalibraci přepsalo matic&#237; bl&#237;zkou jednotkov&#233;. Mise si teď registr 23 před sběrem vymaže (jen do RAM, v&#253;padek nap&#225;jen&#237; vr&#225;t&#237; flash) a při ukončen&#237; bez z&#225;pisu ho vr&#225;t&#237;; když ho nejde přeč&#237;st ani vymazat, nezačne. Skl&#225;d&#225;n&#237; kalibrac&#237; se zam&#237;tlo, protože potřebuje r&#225;mcovou transformaci, kter&#225; už jednou kousla. Vymaz&#225;n&#237; na senzoru proběhlo 17. 9. 2026: mise <code>magcal</code> došla do f&#225;ze <code>Written</code> (bez přečten&#237; a vymaz&#225;n&#237; registru 23 se do sběru nedostane) a zapsan&#225; kalibrace 18. 9. drž&#237; (zbytkov&#233; železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vr&#225;cen&#237; registru po nedokončen&#233; misi ověřeno na senzoru 28. 9. 2026 (mise ukončen&#225; tlač&#237;tkem na str&#225;nce: registr 23 i 44 přečten&#233; <code>vnprobe.sh</code> před a po jsou shodn&#233;). P&#225;d procesu během mise registr nevr&#225;t&#237; — zn&#225;m&#233; chov&#225;n&#237;, neřešeno (<code>hw-magcal-reg23-po-padu</code>).</p>
+    <ul class="kroky">
+      <li class="hotovo">Změřit <code>Magnetometer</code> proti <code>MagnetometerRaw</code> ze z&#225;znamu <span class="mono">12. 9. 2026</span></li>
+      <li class="hotovo">Mise registr 23 vymaže a po nedokončen&#237; vr&#225;t&#237; <span class="mono">12. 9. 2026</span></li>
+      <li class="hotovo">Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do <code>Written</code>, kalibrace 18. 9. drž&#237; <span class="mono">17. 9. 2026</span></li>
+      <li class="hotovo">Ověřit na senzoru vr&#225;cen&#237; registru 23 po nedokončen&#233; misi — 28. 9. (bin&#225;rka <code>8587ff65</code>): <code>magcal</code> 7:51:21 vymazala, Stop na str&#225;nce 7:51:45 vr&#225;tila; <code>vnprobe.sh</code> před a po: registr 23 i 44 (<code>0,1,5</code>) shodn&#233; <span class="mono">28. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 12. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-28">2026-09-28</a></p>
+  </article>
   <article class="tema" id="hw-zelezo-od-kabelu-kamer" data-stav="hotovo">
     <h3>Kalibrace magnetometru přestala &#250;činkovat — přibylo železo od kabelů ke kamer&#225;m</h3>
     <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 15. 9. 2026</span> <span>vyřešeno 18. 9. 2026</span></p>
@@ -2440,6 +2441,16 @@
       <li class="hotovo">Běh bez T265 změřen na robotu, hypot&#233;za padla <span class="mono">14. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 11. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/build-and-platforms.md">build-and-platforms.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a></p>
+  </article>
+  <article class="tema" id="hw-magcal-reg23-po-padu" data-stav="zamitnuto">
+    <h3>P&#225;d procesu během mise magcal nech&#225; senzor bez kalibrace magnetometru</h3>
+    <p class="tema-meta"><span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span>vada</span> <span>nalezeno 28. 9. 2026</span> <span>vyřešeno 28. 9. 2026</span></p>
+    <p>Mise <code>magcal</code> si registr 23 (kompenzace magnetometru) na dobu sběru vymaže v RAM senzoru a zapne palubn&#237; HSI; vrac&#237; oboj&#237; v <code>Stop()</code>. Ten se zavol&#225; při ukončen&#237; ze str&#225;nky, SIGTERM (restart služby, nasazen&#237;) i Power off — ověřeno 28. 9. Při **p&#225;du procesu** (v&#253;jimka, SIGSEGV, <code>kill -9</code>, zatuhnut&#237; zabit&#233; systemd) se ale nezavol&#225; a senzor zůstane bez kalibrace a s běž&#237;c&#237; HSI, dokud neztrat&#237; nap&#225;jen&#237;. Služba se přitom sama restartuje, takže robot jezd&#237; d&#225;l s kurzem, kter&#253; 6. 9. dělal chybu &#177;25&#176;. Vypnut&#237; vyp&#237;načem je v poř&#225;dku (flash se během mise neměn&#237;). L&#233;čba navržen&#225;, nedělan&#225;: při startu runtime varovat, když je registr 23 jednotkov&#253;, nebo při startu ovladače resetovat senzor (<code>$VNRST</code> načte flash). **Autor 28. 9. 2026: zn&#225;m&#233; chov&#225;n&#237;, neřešit** — n&#225;prava je vypnout a zapnout robota.</p>
+    <ul class="kroky">
+      <li class="hotovo">N&#225;lez z k&#243;du (<code>MagCalMission.Stop</code>, <code>ARBotRuntime.Stop</code>); norm&#225;ln&#237; ukončen&#237; ověřeno na senzoru <span class="mono">28. 9. 2026</span></li>
+      <li class="hotovo">Rozhodnut&#237; autora: zn&#225;m&#233; chov&#225;n&#237;, neřešit (zaps&#225;no v plan-vn100-kalibrace.md a decisions.md) <span class="mono">28. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 28. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-28">2026-09-28</a></p>
   </article>
 </section>
 <section class="oblast">

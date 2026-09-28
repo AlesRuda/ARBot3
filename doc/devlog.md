@@ -41,6 +41,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-28
 
+- **Registr 23 po nedokončené kalibraci ověřen na senzoru** (`hw-magcal-uncompmag-kompenzovany`
+  → hotovo): `vnprobe.sh` před misí, `mission=magcal` ze stránky, ukončení tlačítkem Stop
+  (autor), `vnprobe.sh` po. Journal: registr 23 vymazán 7:51:21, vrácen 7:51:45; senzor po misi
+  shodný s výchozím stavem (registr 23 kalibrace ze 17. 9., registr 44 `0,1,5`). Pád procesu
+  během mise ho z kódu nevrátí — téma `hw-magcal-reg23-po-padu`, autor rozhodl brát jako známé chování a neřešit (náprava: vypnout a zapnout robota; decisions.md).
+
 - **Proč korekce z koridoru zhoršují podélnou chybu proti GPS** (`lok-koridor-hranova-lokalizace`):
   `fusionreplay` má blok 4 (podélně se znaménkem v kurzu z GPS, σ podél z kovariance,
   mezivarianty „jen příčné“ a „jen kurz“). Koridor podélně neměří, ale v zatáčkách dá filtru

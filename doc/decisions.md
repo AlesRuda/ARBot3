@@ -13,6 +13,15 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-28 — Pád procesu během kalibrace magnetometru: známé chování, neřešit
+Mise `magcal` si na dobu sběru vymaže registr 23 v RAM senzoru a zapne palubní HSI; `Stop()`
+obojí vrací při každém řádném ukončení (ověřeno na senzoru 28. 9.). Při pádu procesu se nevrátí
+a senzor zůstane bez kalibrace až do ztráty napájení. **Rozhodnutí (autor):** brát jako známé
+chování a dál neřešit. Mise se spouští vědomě, u robota stojí člověk a pád právě v ní je
+nepravděpodobný. Náprava je vypnout a zapnout robota. Zamítnuté léčby: varování při startu
+runtime, když je registr 23 jednotkový; reset senzoru (`$VNRST`) při startu ovladače.
+Odkazy: [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), registr `hw-magcal-reg23-po-padu`.
+
 ### 2026-09-25 — Regulátor dráhy: spojitý profil se zpožděním smyčky místo diskrétního `TrapezoidMotionProfile`
 Robot ve FreeRun jel 0,855 m/s při povolených 1,7 a cukal (rotace měnila znaménko ~3× za sekundu).
 Obojí má kořen v diskrétním profilu převzatém z ARBot2: plánuje trojúhelník z aktuální rychlosti

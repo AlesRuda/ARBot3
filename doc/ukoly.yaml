@@ -5157,9 +5157,9 @@ temata:
     oblast: hw
     nazev: „Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-11
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-28
     popis: >
       Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senzoru mění podle registru 23
       stejně jako kompenzovaný výstup; 12. 9. se ze záznamu potvrdilo, že binární `UncompMag` je bit po
@@ -5171,7 +5171,9 @@ temata:
       senzoru proběhlo 17. 9. 2026: mise `magcal` došla do fáze `Written` (bez přečtení
       a vymazání registru 23 se do sběru nedostane) a zapsaná kalibrace 18. 9. drží (zbytkové
       železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vrácení registru po
-      nedokončené misi na senzoru zatím nevyzkoušeno.
+      nedokončené misi ověřeno na senzoru 28. 9. 2026 (mise ukončená tlačítkem na stránce: registr
+      23 i 44 přečtené `vnprobe.sh` před a po jsou shodné). Pád procesu během mise registr nevrátí
+      — známé chování, neřešeno (`hw-magcal-reg23-po-padu`).
     kroky:
       - co: "Změřit `Magnetometer` proti `MagnetometerRaw` ze záznamu"
         stav: hotovo
@@ -5182,8 +5184,9 @@ temata:
       - co: "Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do `Written`, kalibrace 18. 9. drží"
         stav: hotovo
         kdy: 2026-09-17
-      - co: Ověřit na senzoru vrácení registru 23 po nedokončené misi
-        stav: otevreno
+      - co: "Ověřit na senzoru vrácení registru 23 po nedokončené misi — 28. 9. (binárka `8587ff65`): `magcal` 7:51:21 vymazala, Stop na stránce 7:51:45 vrátila; `vnprobe.sh` před a po: registr 23 i 44 (`0,1,5`) shodné"
+        stav: hotovo
+        kdy: 2026-09-28
     odkazy:
       - text: rozhodnutí 12. 9. 2026
         cesta: doc/decisions.md
@@ -5191,7 +5194,41 @@ temata:
         cesta: doc/imu-and-frames.md
       - text: plan-vn100-kalibrace.md
         cesta: doc/plan-vn100-kalibrace.md
-    devlog: [2026-09-11, 2026-09-12, 2026-09-17]
+    devlog: [2026-09-11, 2026-09-12, 2026-09-17, 2026-09-28]
+    ceka_na: []
+
+  - id: hw-magcal-reg23-po-padu
+    oblast: hw
+    nazev: Pád procesu během mise magcal nechá senzor bez kalibrace magnetometru
+    druh: vada
+    stav: zamitnuto
+    nalezeno: 2026-09-28
+    vyreseno: 2026-09-28
+    popis: >
+      Mise `magcal` si registr 23 (kompenzace magnetometru) na dobu sběru vymaže v RAM senzoru
+      a zapne palubní HSI; vrací obojí v `Stop()`. Ten se zavolá při ukončení ze stránky, SIGTERM
+      (restart služby, nasazení) i Power off — ověřeno 28. 9. Při **pádu procesu** (výjimka,
+      SIGSEGV, `kill -9`, zatuhnutí zabité systemd) se ale nezavolá a senzor zůstane bez
+      kalibrace a s běžící HSI, dokud neztratí napájení. Služba se přitom sama restartuje, takže
+      robot jezdí dál s kurzem, který 6. 9. dělal chybu ±25°. Vypnutí vypínačem je v pořádku
+      (flash se během mise nemění). Léčba navržená, nedělaná: při startu runtime varovat, když je
+      registr 23 jednotkový, nebo při startu ovladače resetovat senzor (`$VNRST` načte flash).
+      **Autor 28. 9. 2026: známé chování, neřešit** — náprava je vypnout a zapnout robota.
+    kroky:
+      - co: "Nález z kódu (`MagCalMission.Stop`, `ARBotRuntime.Stop`); normální ukončení ověřeno na senzoru"
+        stav: hotovo
+        kdy: 2026-09-28
+      - co: "Rozhodnutí autora: známé chování, neřešit (zapsáno v plan-vn100-kalibrace.md a decisions.md)"
+        stav: hotovo
+        kdy: 2026-09-28
+    odkazy:
+      - text: rozhodnutí 28. 9. 2026
+        cesta: doc/decisions.md
+      - text: plan-vn100-kalibrace.md
+        cesta: doc/plan-vn100-kalibrace.md
+      - text: imu-and-frames.md
+        cesta: doc/imu-and-frames.md
+    devlog: [2026-09-28]
     ceka_na: []
 
   - id: hw-vypadky-kamer-hypoteza-t265

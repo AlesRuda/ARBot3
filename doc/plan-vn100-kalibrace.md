@@ -510,6 +510,14 @@ must be turned off to ensure proper function of the sensor."* Do 10. 9. 2026 se 
 cestě po úspěšném zápisu** — takže mise ukončená bez zápisu (přesně to, co se v poli stalo)
 nechala senzor v Run. Dnes to řeší `MagCalMission.Stop()`.
 
+**Známé chování — pád procesu během mise (rozhodnutí autora 28. 9. 2026: neřešit).**
+`Stop()` vrátí registr 23 i 44 při ukončení ze stránky, SIGTERM (restart služby, nasazení)
+a Power off (ukončení ze stránky ověřeno na senzoru 28. 9.). Při **pádu procesu** (výjimka,
+SIGSEGV, `kill -9`) se nezavolá: senzor zůstane s **vymazanou kompenzací a běžící HSI**, dokud
+neztratí napájení, a služba se mezitím sama restartuje. **Náprava: vypnout a zapnout robota**
+(VN100 načte kalibraci i registr 44 z flash, ta se během mise nemění), případně přečíst stav
+`deploy/vnprobe.sh`. Téma `hw-magcal-reg23-po-padu` v registru (zamítnuto).
+
 ### Otevřené možnosti, které z dokumentace vyplynuly (nic z toho není uděláno)
 
 - ⚠️ **Existuje „2D kalibrace", kterou neumíme.** TN002 kap. 3.2: *„a 2D calibration is

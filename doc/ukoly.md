@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **39** · hotovo **136** · odloženo **7** · zamítnuto **4**.
+Témat celkem **234**: otevřeno **47** · v kódu, na HW neověřeno **38** · hotovo **137** · odloženo **7** · zamítnuto **5**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -73,7 +73,6 @@ Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **39** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise Track — objezd míst ze souboru](#mise-track) | 8. 9. 2026 |  |
-| v kódu, na HW neověřeno | Hardware a senzory | [„Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala](#hw-magcal-uncompmag-kompenzovany) | 11. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení](#prov-pudorys-umysl-a-zony) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Řídicí smyčka umí držené zastavení (StopHold)](#lp-drzene-zastaveni-stophold) | 13. 9. 2026 |  |
@@ -2192,20 +2191,6 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 
 [rozhodnutí 27. 8. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-08-31](devlog.md#2026-08-31), [2026-09-15](devlog.md#2026-09-15)
 
-<a id="hw-magcal-uncompmag-kompenzovany"></a>
-### 🧪 „Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala
-
-`hw-magcal-uncompmag-kompenzovany` · vada · **v kódu, na HW neověřeno** · nalezeno 11. 9. 2026 · vyřešeno 12. 9. 2026
-
-Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senzoru mění podle registru 23 stejně jako kompenzovaný výstup; 12. 9. se ze záznamu potvrdilo, že binární `UncompMag` je bit po bitu shodný s kompenzovaným polem. Kalibrační mise ale sbírá právě tohle pole a výsledek zapisuje do registru 23 přímo, takže druhé spuštění by dobrou kalibraci přepsalo maticí blízkou jednotkové. Mise si teď registr 23 před sběrem vymaže (jen do RAM, výpadek napájení vrátí flash) a při ukončení bez zápisu ho vrátí; když ho nejde přečíst ani vymazat, nezačne. Skládání kalibrací se zamítlo, protože potřebuje rámcovou transformaci, která už jednou kousla. Vymazání na senzoru proběhlo 17. 9. 2026: mise `magcal` došla do fáze `Written` (bez přečtení a vymazání registru 23 se do sběru nedostane) a zapsaná kalibrace 18. 9. drží (zbytkové železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vrácení registru po nedokončené misi na senzoru zatím nevyzkoušeno.
-
-- [x] Změřit `Magnetometer` proti `MagnetometerRaw` ze záznamu (12. 9. 2026)
-- [x] Mise registr 23 vymaže a po nedokončení vrátí (12. 9. 2026)
-- [x] Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do `Written`, kalibrace 18. 9. drží (17. 9. 2026)
-- [ ] Ověřit na senzoru vrácení registru 23 po nedokončené misi
-
-[rozhodnutí 12. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-17](devlog.md#2026-09-17)
-
 <a id="hw-gps-fixtime-rozbity"></a>
 ### 🧪 `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
 
@@ -2482,6 +2467,20 @@ Při nasazení kalibrace se na živém senzoru změřilo, jak VN100 registr 23 a
 
 [rozhodnutí 11. 9. 2026](decisions.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [deploy/vnrestore.sh](../deploy/vnrestore.sh) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12)
 
+<a id="hw-magcal-uncompmag-kompenzovany"></a>
+### ✅ „Surové" pole magnetometru je kompenzované, druhá kalibrace by tu první přepsala
+
+`hw-magcal-uncompmag-kompenzovany` · vada · **hotovo** · nalezeno 11. 9. 2026 · vyřešeno 28. 9. 2026
+
+Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senzoru mění podle registru 23 stejně jako kompenzovaný výstup; 12. 9. se ze záznamu potvrdilo, že binární `UncompMag` je bit po bitu shodný s kompenzovaným polem. Kalibrační mise ale sbírá právě tohle pole a výsledek zapisuje do registru 23 přímo, takže druhé spuštění by dobrou kalibraci přepsalo maticí blízkou jednotkové. Mise si teď registr 23 před sběrem vymaže (jen do RAM, výpadek napájení vrátí flash) a při ukončení bez zápisu ho vrátí; když ho nejde přečíst ani vymazat, nezačne. Skládání kalibrací se zamítlo, protože potřebuje rámcovou transformaci, která už jednou kousla. Vymazání na senzoru proběhlo 17. 9. 2026: mise `magcal` došla do fáze `Written` (bez přečtení a vymazání registru 23 se do sběru nedostane) a zapsaná kalibrace 18. 9. drží (zbytkové železo 11–18 mG), což by při sběru přes starou kompenzaci nevyšlo. Vrácení registru po nedokončené misi ověřeno na senzoru 28. 9. 2026 (mise ukončená tlačítkem na stránce: registr 23 i 44 přečtené `vnprobe.sh` před a po jsou shodné). Pád procesu během mise registr nevrátí — známé chování, neřešeno (`hw-magcal-reg23-po-padu`).
+
+- [x] Změřit `Magnetometer` proti `MagnetometerRaw` ze záznamu (12. 9. 2026)
+- [x] Mise registr 23 vymaže a po nedokončení vrátí (12. 9. 2026)
+- [x] Ověřit na senzoru, že se registr před sběrem vymaže — 17. 9., mise došla do `Written`, kalibrace 18. 9. drží (17. 9. 2026)
+- [x] Ověřit na senzoru vrácení registru 23 po nedokončené misi — 28. 9. (binárka `8587ff65`): `magcal` 7:51:21 vymazala, Stop na stránce 7:51:45 vrátila; `vnprobe.sh` před a po: registr 23 i 44 (`0,1,5`) shodné (28. 9. 2026)
+
+[rozhodnutí 12. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-17](devlog.md#2026-09-17), [2026-09-28](devlog.md#2026-09-28)
+
 <a id="hw-zelezo-od-kabelu-kamer"></a>
 ### ✅ Kalibrace magnetometru přestala účinkovat — přibylo železo od kabelů ke kamerám
 
@@ -2523,6 +2522,18 @@ Rešerše ukázala, že odmlčení D435 za provozu je cizí, Intelem nevyřešen
 - [x] Běh bez T265 změřen na robotu, hypotéza padla (14. 9. 2026)
 
 [hardware.md](hardware.md), [rozhodnutí 11. 9. 2026](decisions.md), [build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-14](devlog.md#2026-09-14)
+
+<a id="hw-magcal-reg23-po-padu"></a>
+### ❌ Pád procesu během mise magcal nechá senzor bez kalibrace magnetometru
+
+`hw-magcal-reg23-po-padu` · vada · **zamítnuto** · nalezeno 28. 9. 2026 · vyřešeno 28. 9. 2026
+
+Mise `magcal` si registr 23 (kompenzace magnetometru) na dobu sběru vymaže v RAM senzoru a zapne palubní HSI; vrací obojí v `Stop()`. Ten se zavolá při ukončení ze stránky, SIGTERM (restart služby, nasazení) i Power off — ověřeno 28. 9. Při **pádu procesu** (výjimka, SIGSEGV, `kill -9`, zatuhnutí zabité systemd) se ale nezavolá a senzor zůstane bez kalibrace a s běžící HSI, dokud neztratí napájení. Služba se přitom sama restartuje, takže robot jezdí dál s kurzem, který 6. 9. dělal chybu ±25°. Vypnutí vypínačem je v pořádku (flash se během mise nemění). Léčba navržená, nedělaná: při startu runtime varovat, když je registr 23 jednotkový, nebo při startu ovladače resetovat senzor (`$VNRST` načte flash). **Autor 28. 9. 2026: známé chování, neřešit** — náprava je vypnout a zapnout robota.
+
+- [x] Nález z kódu (`MagCalMission.Stop`, `ARBotRuntime.Stop`); normální ukončení ověřeno na senzoru (28. 9. 2026)
+- [x] Rozhodnutí autora: známé chování, neřešit (zapsáno v plan-vn100-kalibrace.md a decisions.md) (28. 9. 2026)
+
+[rozhodnutí 28. 9. 2026](decisions.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-28](devlog.md#2026-09-28)
 
 ## Nástroje, záznam a analýza
 
