@@ -30,8 +30,8 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">40</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">135</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">39</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">136</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">4</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -366,7 +366,7 @@
       <li data-tema="lok-koridor-siroka-cyklostezka"><span class="mono">24. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lok-koridor-siroka-cyklostezka">Na širok&#233; cyklostezce (Modřany) koridor nedal ani jedno měřen&#237; — Track se podle něj nekorigoval a FreeRun jel „rovně“</a></li>
       <li data-tema="nast-export-gpx"><span class="mono">24. 9.</span> <span class="typ">začato i vyřešeno</span> <a href="#nast-export-gpx">Export otevřen&#233;ho z&#225;znamu do GPX (stopa GPS a stopa f&#250;ze)</a></li>
       <li data-tema="nast-profil-sceny"><span class="mono">24. 9.</span> <span class="typ">vyřešeno</span> <a href="#nast-profil-sceny">Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</a></li>
-      <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">24. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
+      <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">24. 9.</span> <span class="typ">nalezeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
       <li data-tema="hw-vn100-hsi-run-ve-flash"><span class="mono">25. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#hw-vn100-hsi-run-ve-flash">VN100 startuje s běž&#237;c&#237; palubn&#237; HSI (registr 44 = Run uložen&#253; do flash mis&#237; magcal)</a></li>
       <li data-tema="lp-path-following-stara-cisla"><span class="mono">25. 9.</span> <span class="typ">vyřešeno</span> <a href="#lp-path-following-stara-cisla">Tabulky v <code>path-following.md</code> poč&#237;taj&#237; se star&#253;mi limity (0,8 m/s a 0,2 m/s&#178;)</a></li>
       <li data-tema="lp-regulator-kmitani-rotace"><span class="mono">25. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lp-regulator-kmitani-rotace">Robot cuk&#225; — kvantovan&#253; př&#237;kaz rotace kmit&#225; a přes vazbu na rotaci trh&#225; i dopřednou rychlost</a></li>
@@ -383,6 +383,7 @@
       <li data-tema="mise-track-timeout-delka-useku"><span class="mono">26. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#mise-track-timeout-delka-useku">Timeout j&#237;zdy k m&#237;stu Tracku (600 s) je kratš&#237;, než trv&#225; prvn&#237; &#250;sek v Modřanech</a></li>
       <li data-tema="vid-prob-overlay-128"><span class="mono">26. 9.</span> <span class="typ">vyřešeno</span> <a href="#vid-prob-overlay-128">Pravděpodobnost cesty 128&#215;128 se kreslila jen přes střed sn&#237;mku</a></li>
       <li data-tema="hw-gps-fixtime-rozbity"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-gps-fixtime-rozbity"><code>GPSState.FixTime</code> je nesmysl — ovladač u-bloxu skl&#225;d&#225; ITOW špatně</a></li>
+      <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
     </ul>
   </div>
 </section>
@@ -555,10 +556,14 @@
       <li class="hotovo">Kvalita hranice na re&#225;ln&#233; D435 (18. 9.: rezidua 7 cm, ~43 inlierů, dosah 7 m; každ&#225; kamera vid&#237; jen svou hranu — křižovatka na trati nebyla) <span class="mono">18. 9. 2026</span></li>
       <li class="hotovo">Zapnout pos&#237;l&#225;n&#237; korekc&#237; naostro (autor, <code>config/pi-provoz.cfg</code>, commit <code>a44b4f4</code>) <span class="mono">17. 9. 2026</span></li>
       <li class="hotovo">Prvn&#237; běh na zař&#237;zen&#237; v měřic&#237;m režimu (<code>20260916-164926.rec</code>) <span class="mono">16. 9. 2026</span></li>
-      <li class="otevreno">Ověřit přesnost p&#243;zy s korekcemi (A/B <code>corridorsend=false</code> po t&#233;že trati, nebo pravda)</li>
+      <li class="hotovo">Přesnost p&#243;zy s korekcemi — A/B na zař&#237;zen&#237; nejde (dvě j&#237;zdy nejsou srovnateln&#233;, autor); nahrazeno dvěma kroky n&#237;ž <span class="mono">27. 9. 2026</span></li>
+      <li class="hotovo">Simulace proti pravdě (<code>ARBot.Analyze truth</code>, provozn&#237; profil, prokluz 1,8 %, bias kompasu 3&#176;, 2 &#215; 2 běhy): př&#237;čn&#225; za j&#237;zdy p50 0,03 m s korekcemi proti 2,07 m bez, kurz 0,2&#176; proti 1,4&#176;, pod&#233;ln&#225; 1,2 proti 2,3 m <span class="mono">27. 9. 2026</span></li>
+      <li class="hotovo">Přehr&#225;n&#237; f&#250;ze nad j&#237;zdami 25. 9., Kolo 3b, 18. 9. (<code>ARBot.Analyze fusionreplay</code>, měřidlo sed&#237; na z&#225;znam p50 0,000 m): př&#237;čně od GPS lepš&#237; ve všech třech (1,00/1,50, 1,73/3,12, 0,46/0,83 m), pod&#233;lně ve dvou ze tř&#237; m&#237;rně horš&#237; <span class="mono">27. 9. 2026</span></li>
+      <li class="hotovo">Dohledat, proč korekce zhoršuj&#237; POD&#201;LNOU chybu proti GPS — nalezeno (<code>fusionreplay</code> blok 4): koridor v zat&#225;čk&#225;ch sraz&#237; pod&#233;lnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s <code>gpsposstd=30</code> pak GPS pod&#233;lně t&#225;hne ~30&#215; slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde m&#225; malou σ i varianta bez (Kolo 3b), korekce pod&#233;lně pom&#225;haj&#237; <span class="mono">28. 9. 2026</span></li>
+      <li class="otevreno">Přeměřit pod&#233;lnou chybu s opraven&#253;m obvodem kola (26. 9.) na př&#237;št&#237; j&#237;zdě; pak rozhodnout o poctivějš&#237; σ GPS (<code>gpsposstd</code>) nebo o nejistotě mapy v <code>corridorstd</code></li>
       <li class="otevreno">Změřit, jak rychle p&#243;za po v&#253;padku koridoru (st&#225;n&#237;, jedna kamera) spadne na GPS při <code>gpsposstd=30</code></li>
     </ul>
-    <p class="tema-odkazy">čeká na <a href="#lok-koridor-skoky-pozy">Skoky p&#243;zy 0,6–4 m na rovn&#253;ch &#250;sec&#237;ch přich&#225;zej&#237; všechny hned po přijat&#233;m měřen&#237; koridoru</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-23">2026-08-23</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-16">2026-09-16</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
+    <p class="tema-odkazy">čeká na <a href="#lok-koridor-skoky-pozy">Skoky p&#243;zy 0,6–4 m na rovn&#253;ch &#250;sec&#237;ch přich&#225;zej&#237; všechny hned po přijat&#233;m měřen&#237; koridoru</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-23">2026-08-23</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-16">2026-09-16</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-28">2026-09-28</a></p>
   </article>
   <article class="tema" id="lok-kompas-sigma-podlaha" data-stav="v-kodu">
     <h3>Kompas si věř&#237; 60–90&#215; v&#237;c, než jak&#253; je</h3>
@@ -2504,16 +2509,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a></p>
   </article>
-  <article class="tema" id="ui-avalonia-deadlock-popup" data-stav="v-kodu">
-    <h3>Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 24. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
-    <p>Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevř&#237;t, CPU 0). Z&#225;sobn&#237;ky (<code>dotnet-stack</code>) uk&#225;zaly, že export se vůbec nespustil: UI vl&#225;kno viselo už při zav&#237;r&#225;n&#237; rozbalen&#233;ho menu v <code>WinUiCompositedWindow.Dispose</code> na z&#225;mku <code>SyncRoot</code>, kter&#253; drželo vl&#225;kno kompozitoru, a to čekalo v <code>OnCommitCompleted</code> na <code>_wakeEvent</code> (render smyčka uspan&#225;, když se nic nekresl&#237;) — probuzen&#237; by poslalo pr&#225;vě UI vl&#225;kno. Chyba Avalonie, opraven&#225; v PR #21591 (vyšla ve 12.0.5 a 12.1.x). T&#253;k&#225; se zavřen&#237; JAK&#201;HOKOLI popupu, z&#225;vis&#237; na načasov&#225;n&#237;. L&#233;čba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřov&#253; běh aplikace ve View OK; samotn&#253; deadlock nejde spolehlivě vyvolat, takže jeho zmizen&#237; je doložen&#233; zdrojem opravy, ne opakovan&#253;m pokusem. ⚠️ Na zař&#237;zen&#237; nov&#233; UI neběželo.</p>
-    <ul class="kroky">
-      <li class="hotovo">Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřov&#253; běh ve View <span class="mono">24. 9. 2026</span></li>
-      <li class="otevreno">Ověřit na zař&#237;zen&#237; (UI na Armbianu) a export GPX během replay v aplikaci</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/build-and-platforms.md">build-and-platforms.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a></p>
-  </article>
   <article class="tema" id="nast-rezim-simulate" data-stav="odlozeno">
     <h3>Režim Simulate — věrn&#253; přepočet běhu nad z&#225;znamem</h3>
     <p class="tema-meta"><span class="stav stav-odlozeno">odloženo</span> <span>záměr</span> <span>nalezeno 27. 7. 2026</span></p>
@@ -2882,6 +2877,16 @@
       <li class="hotovo"><code>GoalZones</code> sd&#237;len&#253; mezi webem a World pohledem, vrstva Z&#243;ny, značka ve středu <span class="mono">14. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/world-view.md">world-view.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/media/world-view-zony-20260914.png">sn&#237;mek z aplikace</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a></p>
+  </article>
+  <article class="tema" id="ui-avalonia-deadlock-popup" data-stav="hotovo">
+    <h3>Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 24. 9. 2026</span> <span>vyřešeno 27. 9. 2026</span></p>
+    <p>Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevř&#237;t, CPU 0). Z&#225;sobn&#237;ky (<code>dotnet-stack</code>) uk&#225;zaly, že export se vůbec nespustil: UI vl&#225;kno viselo už při zav&#237;r&#225;n&#237; rozbalen&#233;ho menu v <code>WinUiCompositedWindow.Dispose</code> na z&#225;mku <code>SyncRoot</code>, kter&#253; drželo vl&#225;kno kompozitoru, a to čekalo v <code>OnCommitCompleted</code> na <code>_wakeEvent</code> (render smyčka uspan&#225;, když se nic nekresl&#237;) — probuzen&#237; by poslalo pr&#225;vě UI vl&#225;kno. Chyba Avalonie, opraven&#225; v PR #21591 (vyšla ve 12.0.5 a 12.1.x). T&#253;k&#225; se zavřen&#237; JAK&#201;HOKOLI popupu, z&#225;vis&#237; na načasov&#225;n&#237;. L&#233;čba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřov&#253; běh aplikace ve View OK; samotn&#253; deadlock nejde spolehlivě vyvolat, takže jeho zmizen&#237; je doložen&#233; zdrojem opravy, ne opakovan&#253;m pokusem. Autor 27. 9. potvrdil, že se po upgradu při běžn&#233;m použ&#237;v&#225;n&#237; už nestalo. Krok „UI na Armbianu“ odpadl: na robotu běž&#237; <code>ARBot.Headless</code>, Avalonia UI se na Pi nenasazuje.</p>
+    <ul class="kroky">
+      <li class="hotovo">Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřov&#253; běh ve View <span class="mono">24. 9. 2026</span></li>
+      <li class="hotovo">Ověřeno použ&#237;v&#225;n&#237;m aplikace na PC (autor): po upgradu se zatuhnut&#237; neopakovalo <span class="mono">27. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/build-and-platforms.md">build-and-platforms.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a></p>
   </article>
 </section>
 <section class="oblast">

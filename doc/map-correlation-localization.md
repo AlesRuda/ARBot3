@@ -3574,6 +3574,135 @@ hrany**, což je přesně důvod, proč se odtlumuje. NIS v simulaci ~0 (σ je p
 simulace obrovská) — na reálném záznamu bylo s dnešní σ NIS p50 0,54, s nafouknutou bude ~0,2,
 tedy konzervativní. **Na zařízení s těmito hodnotami nejelo** (`CorridorDeweightTests` 7/7).
 
+## Přesnost pózy s korekcemi z koridoru — A/B v simulaci a nad skutečnými jízdami (27. 9. 2026)
+
+Otázka: **je póza s korekcemi z koridoru přesnější než bez nich?** Dvě jízdy po téže trati
+(`corridorsend=true` / `false`) A/B nedají, protože světlo, póza a provoz se liší víc než
+měřený rozdíl (autor). Proto dvě náhrady, každá odpovídá na jinou půlku otázky.
+
+### 1. Simulace proti pravdě (`ARBot.Analyze truth`)
+
+`ARBot.Headless` s virtuálním HW a provozním profilem (`config=config/pi-provoz.cfg`, přebité jen
+`virtualhw=true no_uart=true backproject=hist`), Track na `OSM/Hviezdoslavova.osm`, jedno kolo
+(~285 m), **prokluz kol 1,8 %** (`wheelslip=0.982,0.982`, velikost nálezu obvodu kola) a **bias
+kompasu 3°** (`imubias=3,0`). Obě varianty dvakrát. Chyba je pravda − odhad, rozložená podle
+skutečného směru jízdy, bez prvních 20 s. Níž jsou hodnoty **za jízdy**.
+
+| varianta | příčná p50 / p90 / max [m] | podélná p50 / p90 [m] | kurz p50 / p90 [°] | příčná > 1 m |
+|---|---|---|---|---|
+| `corridorsend=true` (2 běhy) | **0,025–0,033** / 0,31–0,33 / 0,58–0,96 | 1,15–1,23 / 1,90–2,00 | **0,19–0,26** / 0,94–0,97 | **0 %** |
+| `corridorsend=false` (2 běhy) | 2,07 / 2,68–2,81 / 3,56–3,71 | 2,26–2,27 / 3,18–3,21 | 1,38–1,40 / 2,10–2,16 | 87 % |
+
+- **Příčnou polohu a kurz koridor drží na centimetry a desetiny stupně.** Bez něj póza při
+  `gpsposstd=30` ujede příčně na 2–4 m, protože GPS ji skoro netáhne.
+- **Podélná chyba zůstává 1–2 m i s korekcemi.** Koridor podélně neměří. Podélnou chybu stáhne
+  jen nepřímo, v zatáčce, kde se promění v příčnou.
+- Ve variantě `false` nešlo do fúze nic (0 odeslaných měření, 0 `MeasurementDiagMsg`).
+- ⚠️ **Co simulace idealizuje:** mapa je přesně svět (chyba geometrie OSM jde 1:1 do pózy
+  a tady je nulová); okraj je čistý přechod asfalt/tráva; šum je bílý (NIS p50 0,01, σ je proti
+  němu velmi konzervativní); úspěšnost koridoru ~80 % proti ~52 % na D435 18. 9.; prokluz a bias
+  jsou konstantní. Dokazuje to **mechanismus s provozními hodnotami**, ne velikost chyby na
+  skutečném okraji a skutečné mapě.
+- Vedlejší: v jednom běhu robot stál 128 s v `EscapingBlocked`. Příčina se nezkoumala.
+
+### 2. Přehrání fúze nad skutečnými jízdami (`ARBot.Analyze fusionreplay`)
+
+Fúze se znovu přehraje nad zaznamenanými senzory (IMU, GPS, motory) s konfigurací z logu
+záznamu, jednou s korekcemi a jednou bez nich. Měření koridoru se **přepočítává proti
+přehrávané póze v čase snímku**: přiřazení k hraně, šířkové brány, škrcení, limit kroku
+a `Send`. Proložení hran se bere ze `RoadCorridorMsg`. Logika je kopie `CorridorLocalizer`
+v Analyze, produkční kód se neměnil.
+
+**Měřidlo sedí:** varianta s korekcemi reprodukuje zaznamenaný `RobotStateMsg` s odchylkou polohy
+p50 0,000 m (max 0,02–0,27 m) a do fúze jde stejný počet měření se stejnými hodnotami
+(2 518 / 1 404 / 5 642).
+
+Pravda k jízdě není, takže se měří nezávislými náhražkami. Tabulka uvádí medián / p90 v metrech.
+
+| jízda | varianta | od osy sítě | nad ½ šířky | příčně od GPS | podélně od GPS | opakovaný průjezd |
+|---|---|---|---|---|---|---|
+| 25. 9. Modřany (Track) | s | 0,05 / 11,4 | 20 % | **1,00** / 12,2 | 6,8 / 12,1 | — |
+| | bez | 2,68 / 10,1 | 68 % | 1,50 / 10,7 | **6,2** / 11,8 | — |
+| Kolo 3b (Robotour) | s | 0,43 / 4,6 | 23 % | **1,73** / 5,6 | **3,6** / 8,0 | 2,67 / 7,9 |
+| | bez | 3,34 / 6,1 | 74 % | 3,12 / 6,6 | 4,5 / 9,4 | **0,91** / 7,6 |
+| 18. 9. Hviezdoslavova (Track, 2 kola) | s | 0,16 / 0,5 | 3 % | **0,46** / 1,3 | 1,71 / 3,3 | **0,11** / 0,9 |
+| | bez | 0,92 / 2,3 | 26 % | 0,83 / 2,0 | **1,00** / 1,9 | 0,51 / 1,9 |
+
+- **Příčně od GPS jsou korekce lepší ve všech třech jízdách.** Rozdíl je ale řádu chyby GPS
+  (~1 m), takže je to souhlasná tendence, ne důkaz.
+- ⚠️ **Podélně od GPS jsou korekce ve dvou jízdách ze tří mírně horší** (Modřany 6,8 proti 6,2 m,
+  Hviezdoslavova 1,7 proti 1,0 m). Koridor podélně neměří, takže ji nemá čím opravit. Proč ji
+  zhoršuje, **dohledané není** (kandidáti: korekce kurzu, přitahování k ose v zatáčce).
+- **„Od osy sítě“ je pro variantu s korekcemi z části kruhové:** koridor pózu k ose přímo táhne.
+  Je to nutná podmínka, ne důkaz.
+- **Opakovaný průjezd nerozhoduje:** na Hviezdoslavově vychází lépe varianta s korekcemi, v Kole 3b
+  varianta bez nich. Póza posunutá v obou průjezdech stejně vyjde konzistentní i jako špatná.
+- V Modřanech všechno přebíjí chyba obvodu kola (podélně až 12 m, opraveno 26. 9.).
+- Vedlejší nález: nad Modřany s dnešním kódem (bez limitu `MaxEdgeDistanceM` 8 m) skončí
+  6 468 dřív přijatých cyklů jako `AmbiguousEdge` (Ok 65 → 19 %). Chce to `assocreplay` nad tou
+  jízdou, i s dnešním `assocfloorhdg=5`.
+
+### Proč korekce nad skutečnými jízdami zhoršují podélnou chybu (28. 9. 2026)
+
+Rozbor je v `fusionreplay`, blok 4. Podélná odchylka se počítá **se znaménkem ve směru kurzu
+z GPS**, ne v kurzu pózy té které varianty (tabulka A/B výš rozkládá podle kurzu pózy, který se
+mezi variantami liší). K tomu podélná σ z kovariance filtru a dvě mezivarianty: *jen příčné
+korekce* a *jen korekce kurzu*.
+
+| jízda | varianta | podélně se znam. p50 [m] | \|podélně\| p50 / p90 [m] | σ podél z P p50 [m] |
+|---|---|---|---|---|
+| 18. 9. Hviezdoslavova | s korekcemi | +0,68 | 1,78 / 3,27 | **0,39** |
+| | jen příčné | +9,46 | 9,75 / 11,13 | 0,49 |
+| | jen kurz | +0,80 | 1,03 / 1,92 | 2,23 |
+| | bez | +0,81 | 0,99 / 1,92 | **2,23** |
+| Kolo 3b | s korekcemi | **+3,59** | 3,59 / 7,96 | 0,32 |
+| | bez | +4,36 | 4,55 / 9,43 | 0,59 |
+| 25. 9. Modřany | s korekcemi | +6,81 | 6,81 / 12,06 | 0,99 |
+| | bez | +5,94 | 5,94 / 11,70 | 1,11 |
+
+**Mechanismus:**
+1. **Zdrojem podélné chyby je obvod kola** (+1,8 %, opraveno 26. 9.). Póza je ve všech jízdách
+   i variantách **před** GPS a jediné, co ji podélně vrací, je GPS.
+2. **Koridor podélně neměří, ale v zatáčkách dá filtru podélnou JISTOTU.** Příčná měření ve
+   směrech různých normál se na zakřivené trati skládají i do podélné osy. Na Hviezdoslavově
+   srazí σ podél **z 2,23 na 0,39 m**.
+3. **S `gpsposstd=30` pak GPS podélně skoro netáhne.** Zisk na fix je úměrný σ²_podél / σ²_GPS:
+   0,39² proti 2,23² znamená ~30× slabší tah. Chyba z obvodu kola zůstane stát a proti GPS vyjde
+   hůř (1,78 proti 0,99 m). Bez koridoru ji GPS s časovou konstantou desítek sekund stahuje.
+4. **Kde má i varianta bez koridoru malou σ, obrací se to:** Kolo 3b (inicializace v depu se
+   σ 0,3 m, σ podél 0,59 m) — GPS netáhne ani jednu, a podélná informace ze zatáček koridor
+   **zlepší** (+3,6 proti +4,4 m). V simulaci, kde je mapa přesně svět, je ta informace správná,
+   a podélně korekce pomáhají (1,2 proti 2,3 m proti pravdě).
+5. **Rovná cyklostezka (Modřany)** σ podél nemění (0,99 proti 1,11 m) a rozdíl 0,9 m na 6 m chyby
+   z obvodu kola mechanismus nemá.
+
+⚠️ **Podélná jistota z koridoru je optimistická:** předpokládá **přesnou geometrii OSM** a
+**nezávislá měření** (2 Hz, dekorelační čas koridoru změřený není). Chyba mapy podél cesty tak
+jde do pózy s jistotou, kterou jí GPS nevyvrátí.
+
+Varianta **jen příčné** na Hviezdoslavově uletí podélně o +9,5 m: příčné korekce bez korekce
+kurzu v zatáčkách podélnou chybu přímo pumpují. Provozní profil posílá obě, takže je to jen
+poučení, proč musí jít spolu.
+
+Časový posun τ (hledání latence GPS) je ve všech jízdách na mezi rozsahu 2 s, takže o latenci
+nic neříká. Přebíjí ho chyba obvodu kola.
+
+**Co s tím (neděláno):**
+- Po opravě obvodu kola (26. 9.) přeměřit. Zmizí-li zdroj podélné chyby, mechanismus zůstane,
+  ale nebude co držet.
+- `gpsposstd=30` dělá GPS podélně skoro bezmocnou vždy, když má filtr malou σ. Poctivější
+  σ GPS by jí vrátila podélnou autoritu.
+- Zahrnout nejistotu geometrie mapy do σ příčného měření z koridoru (`corridorstd=`), aby
+  podélná jistota ze zatáček nebyla přehnaná.
+
+### Co z toho plyne
+
+Obě měření říkají totéž, každé jinou silou. **Koridor opravuje příčnou polohu a kurz.** V simulaci
+je to změřené proti pravdě (2 m → 3 cm), nad skutečnými jízdami je to souhlasná tendence proti
+GPS. **Podélnou polohu neopravuje** a nad skutečnými jízdami ji ve dvou ze tří mírně zhoršuje.
+Přesnost pózy na reálném okraji a reálné mapě v centimetrech **změřit nejde**, dokud k jízdě
+nebude pravda (např. RTK).
+
 ## Jak velké `corridorstd=` — proměřeno nad Robotourem (20. 9. 2026)
 
 Autor po soutěži: skoky pózy se měly krotit přes `corridorstd=`, ale 0,1 m je málo, „viděl bych to

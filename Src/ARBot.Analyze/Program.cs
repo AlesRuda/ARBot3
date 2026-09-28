@@ -201,10 +201,15 @@ namespace ARBot.Analyze
                     case "posegps":
                         PoseGpsReport.Run(rec, Arg(args, "--bin", 10));
                         return 0;
+                    case "fusionreplay":
+                        FusionReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
+                                               Arg(args, "--revisit", 60));
+                        return 0;
                     case "drive":
                         DriveReport.Run(rec, Arg(args, "--maxspeed", double.NaN),
                                         Arg(args, "--from", 0), Arg(args, "--to", double.MaxValue));
                         return 0;
+                    case "truth": TruthReport.Run(rec, Arg(args, "--skip", 20), Arg(args, "--bin", 60)); return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -278,9 +283,15 @@ namespace ARBot.Analyze
             Console.WriteLine("  assocreplay co by udelalo prirazeni k hrane s jinou podlahou kurzu / odstupem:");
             Console.WriteLine("             prepocet EdgeAssociator nad zaznamenanymi cykly (--map=OSM/x.osm,");
             Console.WriteLine("             --floors=10,7,5,3, --margins=4, --maxedge=8 = hodnota z Robotouru)");
+            Console.WriteLine("  fusionreplay A/B hranove lokalizace nad JEDNOU jizdou: prehraje fuzi ze senzoru S korekcemi");
+            Console.WriteLine("             z koridoru (prirazeni prepocitane proti prehravane poze) a BEZ nich, overi");
+            Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");
+            Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60)");
             Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
             Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
             Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");
+            Console.WriteLine("  truth      chyba pozy proti PRAVDE (simulace): pricna/podelna vuci skutecnemu smeru");
+            Console.WriteLine("             jizdy, kurz, podil casu nad 0,5/1 m a co poslal koridor (--skip=20, --bin=60)");
             Console.WriteLine("  corrections co korekce z lokalizace SKUTECNE delaji, kdyz se pusti naostro:");
             Console.WriteLine("             velikost aplikovaneho kroku pozy (PoseJumpDetector), rozdeleni");
             Console.WriteLine("             NIS a gatingu podle zdroje, a chyba pozy proti ground truth");

@@ -39,7 +39,38 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-28
+
+- **Proč korekce z koridoru zhoršují podélnou chybu proti GPS** (`lok-koridor-hranova-lokalizace`):
+  `fusionreplay` má blok 4 (podélně se znaménkem v kurzu z GPS, σ podél z kovariance,
+  mezivarianty „jen příčné“ a „jen kurz“). Koridor podélně neměří, ale v zatáčkách dá filtru
+  podélnou **jistotu** (Hviezdoslavova σ podél 2,23 → 0,39 m). S `gpsposstd=30` pak GPS podélně
+  táhne ~30× slaběji a chyba z obvodu kola (+1,8 %, opraveno 26. 9.) zůstane stát. Kde má malou σ
+  i varianta bez (Kolo 3b, inicializace v depu), korekce podélně pomáhají. Podélná jistota ze
+  zatáček předpokládá přesnou mapu a nezávislá měření, takže je optimistická. Nic se neměnilo,
+  další krok je přeměřit s opraveným obvodem kola. Detail:
+  [map-correlation-localization.md](map-correlation-localization.md), „Proč korekce nad
+  skutečnými jízdami zhoršují podélnou chybu“.
+
 ## 2026-09-27
+
+- **Přesnost pózy s korekcemi z koridoru** (`lok-koridor-hranova-lokalizace`): A/B dvěma jízdami
+  na robotu nejde (autor: jiné podmínky), takže dvě náhrady.
+  - **Simulace proti pravdě**, nový `ARBot.Analyze truth`: provozní profil, Track Hviezdoslavova,
+    prokluz 1,8 %, bias kompasu 3°, 2 × 2 běhy. Za jízdy je příčná chyba p50 **0,03 m s korekcemi
+    proti 2,07 m bez**, kurz 0,2° proti 1,4°, podélná 1,2 proti 2,3 m. Simulace idealizuje mapu
+    (= svět), okraj a šum.
+  - **Přehrání fúze nad skutečnými jízdami**, nový `ARBot.Analyze fusionreplay`: měření koridoru
+    se přepočítává proti přehrávané póze. Měřidlo sedí na záznam p50 0,000 m. Příčně od GPS
+    jsou korekce lepší ve všech třech jízdách, ale o řád chyby GPS. **Podélně jsou ve dvou ze tří
+    mírně horší**, proč, se neví (nový otevřený krok).
+  - Nad Modřany s dnešním kódem bez limitu 8 m skončí 6 468 cyklů jako `AmbiguousEdge`.
+  - Detail: [map-correlation-localization.md](map-correlation-localization.md), „Přesnost pózy
+    s korekcemi z koridoru“. Simulační záznamy (~27 GB) jsou jen ve scratchpadu, v repu nejsou.
+
+- **Zatuhnutí Avalonie při zavření menu → hotovo** (`ui-avalonia-deadlock-popup`): autor potvrdil,
+  že se po upgradu na 12.0.5 při běžném používání už nestalo. Krok „UI na Armbianu“ odpadl,
+  Avalonia UI se na Pi nenasazuje.
 
 - **Čas fixu z u-bloxu opraven** (`hw-gps-fixtime-rozbity` → v-kodu). Ovladač skládal do
   `GPSState.FixTime` ITOW a sekundy počítal s hodinami `*60` místo `*3600` (i „9 dní"); na to

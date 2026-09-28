@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **40** · hotovo **135** · odloženo **7** · zamítnuto **4**.
+Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **39** · hotovo **136** · odloženo **7** · zamítnuto **4**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -92,7 +92,6 @@ Témat celkem **233**: otevřeno **47** · v kódu, na HW neověřeno **40** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
-| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)](#ui-avalonia-deadlock-popup) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)](#hw-vn100-hsi-run-ve-flash) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí](#mise-freerun-pomala-mrkev-blizko) | 25. 9. 2026 |  |
@@ -307,10 +306,14 @@ Plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí naj
 - [x] Kvalita hranice na reálné D435 (18. 9.: rezidua 7 cm, ~43 inlierů, dosah 7 m; každá kamera vidí jen svou hranu — křižovatka na trati nebyla) (18. 9. 2026)
 - [x] Zapnout posílání korekcí naostro (autor, `config/pi-provoz.cfg`, commit `a44b4f4`) (17. 9. 2026)
 - [x] První běh na zařízení v měřicím režimu (`20260916-164926.rec`) (16. 9. 2026)
-- [ ] Ověřit přesnost pózy s korekcemi (A/B `corridorsend=false` po téže trati, nebo pravda)
+- [x] Přesnost pózy s korekcemi — A/B na zařízení nejde (dvě jízdy nejsou srovnatelné, autor); nahrazeno dvěma kroky níž (27. 9. 2026)
+- [x] Simulace proti pravdě (`ARBot.Analyze truth`, provozní profil, prokluz 1,8 %, bias kompasu 3°, 2 × 2 běhy): příčná za jízdy p50 0,03 m s korekcemi proti 2,07 m bez, kurz 0,2° proti 1,4°, podélná 1,2 proti 2,3 m (27. 9. 2026)
+- [x] Přehrání fúze nad jízdami 25. 9., Kolo 3b, 18. 9. (`ARBot.Analyze fusionreplay`, měřidlo sedí na záznam p50 0,000 m): příčně od GPS lepší ve všech třech (1,00/1,50, 1,73/3,12, 0,46/0,83 m), podélně ve dvou ze tří mírně horší (27. 9. 2026)
+- [x] Dohledat, proč korekce zhoršují PODÉLNOU chybu proti GPS — nalezeno (`fusionreplay` blok 4): koridor v zatáčkách srazí podélnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s `gpsposstd=30` pak GPS podélně táhne ~30× slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde má malou σ i varianta bez (Kolo 3b), korekce podélně pomáhají (28. 9. 2026)
+- [ ] Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`
 - [ ] Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
 
-čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20)
+čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28)
 
 <a id="lok-kompas-sigma-podlaha"></a>
 ### 🧪 Kompas si věří 60–90× víc, než jaký je
@@ -2599,18 +2602,6 @@ File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových
 
 [record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27)
 
-<a id="ui-avalonia-deadlock-popup"></a>
-### 🧪 Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
-
-`ui-avalonia-deadlock-popup` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
-
-Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít, CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo už při zavírání rozbaleného menu v `WinUiCompositedWindow.Dispose` na zámku `SyncRoot`, který drželo vlákno kompozitoru, a to čekalo v `OnCommitCompleted` na `_wakeEvent` (render smyčka uspaná, když se nic nekreslí) — probuzení by poslalo právě UI vlákno. Chyba Avalonie, opravená v PR #21591 (vyšla ve 12.0.5 a 12.1.x). Týká se zavření JAKÉHOKOLI popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK; samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy, ne opakovaným pokusem. ⚠️ Na zařízení nové UI neběželo.
-
-- [x] Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View (24. 9. 2026)
-- [ ] Ověřit na zařízení (UI na Armbianu) a export GPX během replay v aplikaci
-
-[build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-24](devlog.md#2026-09-24)
-
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem
 
@@ -3059,6 +3050,18 @@ Půdorys stránky náhledu kreslil zóny od 12. 9., v Avalonii vidět nebyly, pr
 - [x] `GoalZones` sdílený mezi webem a World pohledem, vrstva Zóny, značka ve středu (14. 9. 2026)
 
 [world-view.md](world-view.md), [snímek z aplikace](media/world-view-zony-20260914.png) · DevLog [2026-09-14](devlog.md#2026-09-14)
+
+<a id="ui-avalonia-deadlock-popup"></a>
+### ✅ Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
+
+`ui-avalonia-deadlock-popup` · vada · **hotovo** · nalezeno 24. 9. 2026 · vyřešeno 27. 9. 2026
+
+Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít, CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo už při zavírání rozbaleného menu v `WinUiCompositedWindow.Dispose` na zámku `SyncRoot`, který drželo vlákno kompozitoru, a to čekalo v `OnCommitCompleted` na `_wakeEvent` (render smyčka uspaná, když se nic nekreslí) — probuzení by poslalo právě UI vlákno. Chyba Avalonie, opravená v PR #21591 (vyšla ve 12.0.5 a 12.1.x). Týká se zavření JAKÉHOKOLI popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop, Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK; samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy, ne opakovaným pokusem. Autor 27. 9. potvrdil, že se po upgradu při běžném používání už nestalo. Krok „UI na Armbianu“ odpadl: na robotu běží `ARBot.Headless`, Avalonia UI se na Pi nenasazuje.
+
+- [x] Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View (24. 9. 2026)
+- [x] Ověřeno používáním aplikace na PC (autor): po upgradu se zatuhnutí neopakovalo (27. 9. 2026)
+
+[build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27)
 
 ## Web a dokumentace
 

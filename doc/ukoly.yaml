@@ -1440,7 +1440,19 @@ temata:
       - co: První běh na zařízení v měřicím režimu (`20260916-164926.rec`)
         stav: hotovo
         kdy: 2026-09-16
-      - co: Ověřit přesnost pózy s korekcemi (A/B `corridorsend=false` po téže trati, nebo pravda)
+      - co: "Přesnost pózy s korekcemi — A/B na zařízení nejde (dvě jízdy nejsou srovnatelné, autor); nahrazeno dvěma kroky níž"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Simulace proti pravdě (`ARBot.Analyze truth`, provozní profil, prokluz 1,8 %, bias kompasu 3°, 2 × 2 běhy): příčná za jízdy p50 0,03 m s korekcemi proti 2,07 m bez, kurz 0,2° proti 1,4°, podélná 1,2 proti 2,3 m"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Přehrání fúze nad jízdami 25. 9., Kolo 3b, 18. 9. (`ARBot.Analyze fusionreplay`, měřidlo sedí na záznam p50 0,000 m): příčně od GPS lepší ve všech třech (1,00/1,50, 1,73/3,12, 0,46/0,83 m), podélně ve dvou ze tří mírně horší"
+        stav: hotovo
+        kdy: 2026-09-27
+      - co: "Dohledat, proč korekce zhoršují PODÉLNOU chybu proti GPS — nalezeno (`fusionreplay` blok 4): koridor v zatáčkách srazí podélnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s `gpsposstd=30` pak GPS podélně táhne ~30× slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde má malou σ i varianta bez (Kolo 3b), korekce podélně pomáhají"
+        stav: hotovo
+        kdy: 2026-09-28
+      - co: "Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`"
         stav: otevreno
       - co: Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
         stav: otevreno
@@ -1448,7 +1460,7 @@ temata:
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20]
+    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20, 2026-09-27, 2026-09-28]
 
   - id: vid-kalibrace-kamer-bias
     oblast: videni
@@ -7774,9 +7786,9 @@ temata:
     oblast: nastroje
     nazev: Aplikace natrvalo zatuhla při zavření menu (deadlock kompozitoru Avalonia 12.0.3)
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-24
-    vyreseno: 2026-09-24
+    vyreseno: 2026-09-27
     popis: >
       Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, menu neotevřít,
       CPU 0). Zásobníky (`dotnet-stack`) ukázaly, že export se vůbec nespustil: UI vlákno viselo
@@ -7787,17 +7799,20 @@ temata:
       popupu, závisí na načasování. Léčba: Avalonia 12.0.3 → 12.0.5 (Avalonia, Desktop,
       Themes.Fluent, Fonts.Inter). Build x64 i OrangePI, kouřový běh aplikace ve View OK;
       samotný deadlock nejde spolehlivě vyvolat, takže jeho zmizení je doložené zdrojem opravy,
-      ne opakovaným pokusem. ⚠️ Na zařízení nové UI neběželo.
+      ne opakovaným pokusem. Autor 27. 9. potvrdil, že se po upgradu při běžném používání už
+      nestalo. Krok „UI na Armbianu“ odpadl: na robotu běží `ARBot.Headless`, Avalonia UI se na
+      Pi nenasazuje.
     kroky:
       - co: "Aktualizace Avalonia 12.0.3 → 12.0.5, build x64 + OrangePI, kouřový běh ve View"
         stav: hotovo
         kdy: 2026-09-24
-      - co: "Ověřit na zařízení (UI na Armbianu) a export GPX během replay v aplikaci"
-        stav: otevreno
+      - co: "Ověřeno používáním aplikace na PC (autor): po upgradu se zatuhnutí neopakovalo"
+        stav: hotovo
+        kdy: 2026-09-27
     odkazy:
       - text: build-and-platforms.md
         cesta: doc/build-and-platforms.md
-    devlog: [2026-09-24]
+    devlog: [2026-09-24, 2026-09-27]
     ceka_na: []
 
   - id: lok-freerun-kurz-staci-na-zapad
