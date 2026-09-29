@@ -2411,6 +2411,14 @@ temata:
       Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí
       defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06°
       → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy.
+      **29. 9. 2026 (autor): A/B se dělá OFFLINE nad existujícími záznamy**, ne dvěma jízdami.
+      Dvě jízdy po sobě by účinek nerozlišily: bias kompasu se mezi běhy liší o ~2° (18. 9. −3,4
+      proti −1,1° za 13 min), což je řádově tolik, kolik má podlaha změnit, a jiný odhad kurzu
+      by v uzavřené smyčce dal i jinou trajektorii. `ARBot.Analyze fusionreplay` přehrává fúzi ze
+      zaznamenaných senzorů (dnes A/B koridoru), takže obě varianty uvidí přesně tatáž data.
+      Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť
+      po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9.,
+      27. 9. a pozdější).
     kroky:
       - co: "'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %'"
         stav: hotovo
@@ -2421,14 +2429,18 @@ temata:
       - co: 'Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno)'
         stav: hotovo
         kdy: 2026-09-12
-      - co: 'Záznam na zařízení s `imuheadingstd=5` a `=0` nad týmž úsekem (A/B)'
+      - co: 'A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — rozšířit `ARBot.Analyze fusionreplay` o variantu podlahy kompasu'
+        stav: otevreno
+      - co: 'Pustit A/B nad záznamy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější) — záznamy nejsou v repu, pouští se tam, kde jsou'
         stav: otevreno
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
       - text: rozhodnutí 12. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-25, 2026-09-12, 2026-09-18]
+      - text: FusionReplayReport.cs
+        cesta: Src/ARBot.Analyze/FusionReplayReport.cs
+    devlog: [2026-08-25, 2026-09-12, 2026-09-18, 2026-09-29]
     ceka_na: []
 
   - id: lok-gps-kurz-do-fuze

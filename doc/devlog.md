@@ -67,7 +67,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   (`lok-korelace-gridu-s-mapou`, `-sigma-nepoctiva`, `-tri-podminky-naostro`, `-dekorelacni-cas`,
   `-eskalace-bez-shody`, `lok-tight-axis-angle-vychylena`, `lok-mapcorr-tvrdy-gate`) je
   `odlozeno`. Důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly
-  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor. Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
+  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor.
+- **A/B podlahy kompasu (`lok-kompas-sigma-podlaha`) se udělá offline** (autor): dvě varianty
+  fúze nad toutéž jízdou přes `ARBot.Analyze fusionreplay`, ne dvě jízdy. Bias kompasu se mezi
+  běhy liší o ~2°, tedy řádově o tolik, kolik má podlaha změnit. Kroky v registru přepsané
+  (rozšířit `fusionreplay`, pustit nad záznamy z 18. 9., 27. 9. a pozdějšími). Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
 
 ## 2026-09-28
 
