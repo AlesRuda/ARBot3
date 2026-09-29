@@ -12,8 +12,19 @@ public sealed class Router
     private readonly GoalField _field;
     public Router(GoalField field) => _field = field;
 
-    public IReadOnlyList<Edge> Plan(LLA from)
+    public IReadOnlyList<Edge> Plan(LLA from) => Plan(from, out _);
+
+    /// <summary>
+    /// Trasa jako <see cref="Plan(LLA)"/> a k ní <b>zbývající délka od robotu</b> [m].
+    /// <para>Trasa je seznam <b>celých</b> hran, takže prostý součet <c>LengthMeters</c> započítá
+    /// první hranu i tou částí, která je už za robotem (na startu nadhodnocení až o jednu hranu).
+    /// Tady se z první hrany bere jen zbytek před robotem: <c>1 − t</c>, když se jede po hraně,
+    /// kterou vrátil mapmatch, a <c>t</c>, když se jede po její <b>obrácené</b> orientaci (stejně
+    /// jako cena <c>costRev</c> níže). Do 29. 9. 2026 se délka počítala jen součtem.</para>
+    /// </summary>
+    public IReadOnlyList<Edge> Plan(LLA from, out double remainingM)
     {
+        remainingM = 0;
         var start = _field.NearestNode(from, out double t, out _, out _);
         if (start is null) return System.Array.Empty<Edge>();
 
@@ -33,7 +44,9 @@ public sealed class Router
             ? t * _field.BaseTraversalCost(rev) + _field.CostToGoal(rev)
             : double.PositiveInfinity;
 
-        if (rev is not null && costRev < costFwd) start = rev;
+        // Podíl první hrany, který je ještě PŘED robotem (t je parametr na hraně z mapmatche).
+        double ahead = 1.0 - t;
+        if (rev is not null && costRev < costFwd) { start = rev; ahead = t; }
 
         if (double.IsPositiveInfinity(_field.CostToGoal(start))) return System.Array.Empty<Edge>();
 
@@ -49,6 +62,13 @@ public sealed class Router
             if (next.From.Id != next.To.Id) path.Add(next); // odfiltruj virtuální G
             cur = next;
         }
+
+        for (int i = 0; i < path.Count; i++)
+            remainingM += path[i].LengthMeters;
+        // Oříznout jen tehdy, když první hrana trasy JE hrana, na které robot stojí (virtuální
+        // smyčka cíle se do trasy nepřidává, pak začíná trasa až další hranou).
+        if (path.Count > 0 && ReferenceEquals(path[0], start))
+            remainingM -= (1.0 - Math.Clamp(ahead, 0.0, 1.0)) * start.LengthMeters;
         return path;
     }
 }

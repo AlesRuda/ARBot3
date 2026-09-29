@@ -52,9 +52,18 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <summary>Klouzave okno (ujeta draha, φ) pro detektor B.</summary>
         private readonly ProgressWindow progress;
 
-        /// <summary>Kumulativni ujeta draha [m] - integruje se z po sobe jdoucich poz.</summary>
+        /// <summary>
+        /// Kumulativni ujeta draha [m] pro detektory A a B: krok je <c>min(|Δpoza|, |v|·dt)</c>.
+        /// <para>Do 29. 9. 2026 to byl jen soucet <c>|Δpoza|</c>, takze skoky a sum pozy z korekci
+        /// fuze (GPS, koridor; na Robotouru skoky 0,6–4 m) se pocitaly jako jizda: okno detektoru B
+        /// se plnilo i pri stani a detektor A bral skoky jako pohyb. Rychlost z fuze skoky nenese,
+        /// takze <c>|v|·dt</c> je odrizne; <c>|Δpoza|</c> zase ohranici krok po vypadku zprav
+        /// (velke <c>dt</c>), bez libovolneho stropu na <c>dt</c>. <c>min</c> muze drahu jen
+        /// zkratit, takze chyba jde ve prospech nepoplachu. Viz <c>nav-detektor-b-jitter-drahy</c>.</para>
+        /// </summary>
         private double travelledM;
         private double lastX, lastY;
+        private DateTime lastPoseTime;
         private bool hasLastPose;
 
         // Posledni VIDENA poza - vedena zvlast od lastX/lastY detektoru, protoze ta se plni jen
@@ -100,6 +109,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
         /// <summary>Posledni trasa jako hrany site (pro zobrazeni a diagnostiku).</summary>
         public IReadOnlyList<Edge> Route { get; private set; } = Array.Empty<Edge>();
+
+        /// <summary>Zbyvajici delka <see cref="Route"/> od robotu do cile [m] (viz <c>Router.Plan</c>).</summary>
+        private double routeRemainingM;
 
         /// <summary>Posledni predana mrkev [m, world ENU], nebo null.</summary>
         public Point2D? Carrot { get; private set; }
@@ -177,6 +189,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             {
                 goal = null;
                 Route = Array.Empty<Edge>();
+                routeRemainingM = 0;
                 Status = GlobalNavStatus.NoGoal;
             }
             localGoal.ClearGoal();
@@ -216,8 +229,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// orientace zkousi a beru levnejsi, takze <b>jet se tam da</b>. Do 27. 8. 2026 to zkouska
         /// nedelala a zamitala dobre cile hlaskou „nevede trasa".</para>
         ///
-        /// <para><b>Delka trasy</b> je soucet delek hran: u cile presna, na zacatku nadhodnocena az
-        /// o delku jedne hrany (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
+        /// <para><b>Delka trasy</b> se meri od robotu k cili (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
         /// </summary>
         public Missions.RouteProbeResult Probe(LLA target)
         {
@@ -268,9 +280,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 if (double.IsInfinity(cost) || double.IsNaN(cost))
                     return new Missions.RouteProbeResult(false, 0, snapped, offRoad);
 
-                var route = new Router(probeField).Plan(here);
-                double length = 0;
-                for (int i = 0; i < route.Count; i++) length += route[i].LengthMeters;
+                new Router(probeField).Plan(here, out double length);
 
                 return new Missions.RouteProbeResult(true, length, snapped, offRoad);
             }
@@ -311,7 +321,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 return;
             lastCycle = state.TimeStamp;
 
-            var result = Step(state.X, state.Y, state.TimeStamp);
+            var result = Step(state.X, state.Y, state.V, state.TimeStamp);
             if (result != null)
                 EmitDerived(result);
 
@@ -474,7 +484,20 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <param name="y">Poloha robota na sever [m].</param>
         /// <param name="now">Cas pozy.</param>
         /// <returns>Zprava o stavu, nebo null kdyz neni co hlasit.</returns>
+        /// <remarks>Bez rychlosti: ujeta draha se pocita jen z posunu pozy (neomezeny
+        /// <c>|v|·dt</c>). Runtime vola variantu s rychlosti z <see cref="RobotStateMsg"/>.</remarks>
         public GlobalNavMsg Step(double x, double y, DateTime now)
+            => Step(x, y, double.PositiveInfinity, now);
+
+        /// <summary>
+        /// Jeden cyklus globalni navigace s doprednou rychlosti ze stavu fuze.
+        /// </summary>
+        /// <param name="x">Poloha robota na vychod [m].</param>
+        /// <param name="y">Poloha robota na sever [m].</param>
+        /// <param name="v">Dopredna rychlost ze stavu fuze [m/s]; omezuje krok ujete drahy
+        /// detektoru A a B na <c>|v|·dt</c> (skoky pozy z korekci nejsou jizda).</param>
+        /// <param name="now">Cas pozy.</param>
+        public GlobalNavMsg Step(double x, double y, double v, DateTime now)
         {
             // ⚠️ CELY CYKLUS JE POD ZAMKEM (oprava zavodu, audit 15. 9. 2026). Do 15. 9. si Step
             // pod zamkem vzal jen ODKAZY na navigator/router a pak nad nimi pocital venku — jenze
@@ -492,11 +515,11 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             // nevznika. Mise pockat muze - cyklus je radu milisekund a SetGoal je vzacny.
             lock (gate)
             {
-                return StepPodZamkem(x, y, now);
+                return StepPodZamkem(x, y, v, now);
             }
         }
 
-        private GlobalNavMsg StepPodZamkem(double x, double y, DateTime now)
+        private GlobalNavMsg StepPodZamkem(double x, double y, double v, DateTime now)
         {
             LLA target = goal;
             Navigator nav = navigator;
@@ -531,8 +554,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 return BuildMessage(here, target, null, fix.OffRouteDist, 0, now);
             }
 
-            var route = rt.Plan(here);
+            var route = rt.Plan(here, out double remaining);
             Route = route;
+            routeRemainingM = remaining;
 
             var polyline = ToPolyline(route, target);
             var robot = new Point2D(x, y);
@@ -554,7 +578,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             Carrot = carrot;
             localGoal.SetGoal(carrot.Value.X, carrot.Value.Y, 0, CarrotRadius(carrot.Value, target));
 
-            TrackProgressAndDetect(here, fix, x, y, now);
+            TrackProgressAndDetect(here, fix, x, y, v, now);
 
             return BuildMessage(here, target, carrot, fix.OffRouteDist, route.Count, now);
         }
@@ -562,15 +586,18 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <summary>
         /// Vede metadata o postupu a spousti detektory zaseku. Viz doc/global-navigation-runtime.md.
         /// </summary>
-        private void TrackProgressAndDetect(LLA here, NavigationFix fix, double x, double y, DateTime now)
+        private void TrackProgressAndDetect(LLA here, NavigationFix fix, double x, double y, double v, DateTime now)
         {
-            // Ujeta draha z po sobe jdoucich poz (odometr pro okno i pro detektor A).
+            // Ujeta draha (odometr pro okno B i pro detektor A): min(|Δpoza|, |v|·dt), viz travelledM.
             if (hasLastPose)
             {
                 double dx = x - lastX, dy = y - lastY;
-                travelledM += Math.Sqrt(dx * dx + dy * dy);
+                double krok = Math.Sqrt(dx * dx + dy * dy);
+                double dt = (now - lastPoseTime).TotalSeconds;
+                if (dt > 0) krok = Math.Min(krok, Math.Abs(v) * dt);
+                travelledM += krok;
             }
-            lastX = x; lastY = y; hasLastPose = true;
+            lastX = x; lastY = y; lastPoseTime = now; hasLastPose = true;
 
             ExpireClosures(now);
 
@@ -840,10 +867,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         private GlobalNavMsg BuildMessage(LLA here, LLA target, Point2D? carrot,
                                           double offRoute, int routeEdges, DateTime now)
         {
-            double routeLength = 0;
-            var route = Route;
-            for (int i = 0; i < route.Count; i++)
-                routeLength += route[i].LengthMeters;
+            double routeLength = routeRemainingM;
 
             return new GlobalNavMsg
             {

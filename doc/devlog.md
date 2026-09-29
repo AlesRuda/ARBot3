@@ -41,6 +41,33 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-09-29
 
+- **Zamítnuto `nav-uzavreni-hran-pres-restart`** (autor): každý běh jede s čistou mapou, uzavřené
+  hrany ani korekce lokalizace se přes restart nepřenášejí. Hranu mohla uzavřít umělá překážka,
+  která příště nebude. **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- Komentář u `Profile.WheelRadius` už neopakuje hodnotu koeficientu stlačení pneumatiky (uváděl
+  0,94, v kódu je 0,923).
+- **Délka trasy k cíli se měří od robotu** (`nav-delka-trasy` hotovo): `Router.Plan(from, out
+  remainingM)` bere z první hrany jen část před robotem (`1 − t`, u obrácené orientace `t`).
+  Dosud byla na startu nadhodnocená až o jednu hranu. Platí pro „zbývá do cíle" v `GlobalNavMsg`
+  i pro délku ze zkoušky dosažitelnosti (Track, Robotour). 3 nové testy (oba směry jízdy,
+  zpráva navigátoru), zpřísněn `Probe_GoalBehindRobot_IsReachable` (±25 m → ±1 m). Testy
+  1 686 / 148 / 129; jediný pád `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` na
+  `deploy/spitest.sh` (commit `886e599`, bez `set -euo pipefail`) s touto změnou nesouvisí.
+- **`nav-phi-obracena-hrana` ověřeno na robotu** (autor): testovací jízdy po Hviezdoslavově po
+  opravě z 20. 9. prošly trasu s odbočkami bez penalizace správných cest. Záznamy nejsou v repu,
+  `ARBot.Analyze nav` nad nimi neběžel. Zbylý krok o jitteru pózy v okně detektoru B je teď
+  samostatné téma `nav-detektor-b-jitter-drahy`.
+- **Ujetá dráha detektorů A a B bez skoků pózy** (`nav-detektor-b-jitter-drahy` → v kódu): krok je
+  `min(|Δpóza|, |v|·dt)` s rychlostí ze stavu fúze (`GlobalNavigator.Step` dostal rychlost).
+  Skoky pózy z korekcí už neplní okno B při stání a A je nebere jako pohyb; `|Δpóza|` ohraničí
+  krok po výpadku zpráv. Odometrie kol zamítnuta kvůli prokluzu v písku (autor). 4 nové testy,
+  dva z nich na starém chování padají. Testy 1 690 / 148 / 129, jediný pád dál `spitest.sh`.
+  ⚠️ Na zařízení neběželo. Detail: [global-navigation-runtime.md](global-navigation-runtime.md).
+- **Korelace occupancy gridu s mapou odložena celá** (autor): 7 otevřených a „v kódu" témat
+  (`lok-korelace-gridu-s-mapou`, `-sigma-nepoctiva`, `-tri-podminky-naostro`, `-dekorelacni-cas`,
+  `-eskalace-bez-shody`, `lok-tight-axis-angle-vychylena`, `lok-mapcorr-tvrdy-gate`) je
+  `odlozeno`. Důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly
+  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor. Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
 - **Rozbor jízd 29. 9. v Modřanech nad čtyřmi pozorováními autora** (`records/test/20260929-150844.rec`
   Track 430 s, `-151634.rec` FreeRun 395 s; mapa `OSM/modrany2.osm`).
   (1) **Obvod kola sedí**: kola / tětiva GPS na přímých úsecích 0,999 v obou (n = 58 a 28), úkol

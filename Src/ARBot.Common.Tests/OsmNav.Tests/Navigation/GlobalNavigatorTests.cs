@@ -425,6 +425,92 @@ public class GlobalNavigatorTests
                     "opakovane bloudeni na teze hrane uz znamena uzavreni");
     }
 
+    // ---------------- Ujetá dráha pro detektory A a B (nav-detektor-b-jitter-drahy) ----------------
+    //
+    // Dráha se počítá jako min(|Δpóza|, |v|·dt). Do 29. 9. 2026 to byl jen součet |Δpóza|, takže
+    // skoky a šum pózy z korekcí fúze plnily okno detektoru B i ve chvíli, kdy robot stál, a
+    // detektor A je naopak bral jako pohyb.
+
+    /// <summary>Stojící robot (v = 0), jehož póza skáče o 2 m: okno B se nesmí plnit, nic se nepenalizuje.</summary>
+    [Test]
+    public void Stani_SkokyPozy_NeplniOknoDetektoruB()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink, new GlobalNavigatorConfig { ProgressWindowM = 5.0 });
+        nav.SetGoal(origin.ToLLA(200, 0));
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 30; i++)
+            nav.Step(10, i % 2 == 0 ? 1.0 : -1.0, 0.0, t.AddSeconds(i));   // stoji, poza cuka ±1 m
+
+        Assert.That(nav.Closures, Is.Empty,
+                    "skoky pozy pri stani nejsou jizda - bez rychlosti se okno B plnit nema");
+    }
+
+    /// <summary>Skutečné bloudění (robot jede tam a zpět 1 m/s) detektor B dál penalizuje.</summary>
+    [Test]
+    public void Bloudeni_SeSkutecnouRychlosti_PoradPenalizuje()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink, new GlobalNavigatorConfig { ProgressWindowM = 5.0 });
+        nav.SetGoal(origin.ToLLA(200, 0));
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 7; i++)
+            nav.Step(10 + (i % 2 == 0 ? 0 : 1), 0, 1.0, t.AddSeconds(i));
+
+        Assert.That(nav.Closures, Is.Not.Empty, "jizda bez postupu k cili ma hranu penalizovat");
+    }
+
+    /// <summary>
+    /// Výpadek zpráv: robot minutu stál, pak přijde póza o 0,5 m dál s rychlostí 1 m/s.
+    /// Dráha je 0,5 m (|Δpóza|), ne 60 m (v·dt) — jinak by jeden krok naplnil okno a detektor B
+    /// by penalizoval hranu kvůli tomu, že zprávy nechodily.
+    /// </summary>
+    [Test]
+    public void VypadekZprav_NepricteFiktivniDrahu()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink, new GlobalNavigatorConfig { ProgressWindowM = 5.0 });
+        nav.SetGoal(origin.ToLLA(200, 0));
+
+        var t = DateTime.UtcNow;
+        nav.Step(10, 0, 0.0, t);
+        nav.Step(10.5, 0, 1.0, t.AddSeconds(60));
+
+        Assert.That(nav.Closures, Is.Empty, "60 s bez zprav neni 60 m jizdy");
+    }
+
+    /// <summary>
+    /// Detektor A (stání) musí zásek poznat i tehdy, když póza skáče: skoky z korekcí fúze nejsou
+    /// pohyb. Dosud je A počítal jako ujetou dráhu a zásek s cukající pózou neohlásil nikdy.
+    /// </summary>
+    [Test]
+    public void DetektorA_PoznaStani_IKdyzPozaSkace()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 10; i++)
+            nav.Step(10, i % 2 == 0 ? 1.0 : -1.0, 0.0, t.AddSeconds(i));   // stoji, poza cuka ±1 m
+
+        Assert.That(nav.Closures.Any(c => c.Reason == ClosureReason.NoMotion), Is.True,
+                    "robot se nehybe (v = 0) - skoky pozy nesmi zasek zamaskovat");
+    }
+
     /// <summary>Pod nouzovym zastavenim robot legitimne stoji - zasek se nesmi hlasit.</summary>
     [Test]
     public void NoMotionUnderEmergencyStop_DoesNotCloseAnything()
@@ -612,10 +698,30 @@ public class GlobalNavigatorTests
         Assert.Multiple(() =>
         {
             Assert.That(behind.Reachable, Is.True, "cil za robotem se da objet otockou na miste");
-            Assert.That(behind.LengthM, Is.EqualTo(50).Within(25),
-                        "delka trasy je nadhodnocena nejvys o jednu hranu, ne nekonecna");
+            Assert.That(behind.LengthM, Is.EqualTo(50).Within(1),
+                        "delka trasy se meri od robotu (od 29. 9. 2026; drive nadhodnocena az o hranu)");
             Assert.That(ahead.Reachable, Is.True);
+            Assert.That(ahead.LengthM, Is.EqualTo(50).Within(1));
         });
+    }
+
+    /// <summary>
+    /// <b>„Zbývá do cíle" v <c>GlobalNavMsg</c> se měří od robotu.</b> Robot uprostřed hrany
+    /// 100–120 m, cíl na 200 m: zbývá 90 m. Součet celých hran dával 100 m — první hrana se
+    /// započítala i tou polovinou, kterou už robot ujel.
+    /// </summary>
+    [Test]
+    public void RouteLength_MeasuredFromRobot_NotFromStartOfFirstEdge()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        var msg = nav.Step(110, 0, DateTime.UtcNow);
+
+        Assert.That(msg!.RouteLengthM, Is.EqualTo(90).Within(1),
+                    "10 m zbytek prvni hrany + 4 hrany po 20 m; soucet celych hran by dal 100 m");
     }
 
     // ---------------- Souběh vláken (nález auditu 15. 9. 2026) ----------------

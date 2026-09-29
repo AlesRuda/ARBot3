@@ -1210,9 +1210,8 @@ temata:
     oblast: lokalizace
     nazev: Korelace occupancy gridu s mapou jako oprava polohy a kurzu
     druh: zamer
-    stav: v-kodu
+    stav: odlozeno
     nalezeno: 2026-08-19
-    vyreseno: 2026-08-19
     popis: >
       Semantický kanál lokální mapy (co kamera vidí jako cestu) se porovnává s vozovkou podle OSM
       a z posunu se odhaduje chyba polohy a kurzu, která jde do fúze jako dvě osová měření a kurz.
@@ -1220,6 +1219,10 @@ temata:
       první měření hlásilo cyklus 126 ms, 25. 8. se ukázalo, že stojí 1,31 s, celé jádro (Debug 5,5× pomalejší a k měření
       bezcenný). Ve výchozím stavu se korelátor vůbec nezakládá (`mapcorr=false`) — nic neřídí
       a stál by celé jádro (při odstupu 3 s ~40 %); naostro ho pustí až tři podmínky. Na zařízení neběželo.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: Jádro, napojení do runtime a telemetrie (plán fáze 1–3)
         stav: hotovo
@@ -1241,15 +1244,14 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: plan-map-correlation.md
         cesta: doc/plan-map-correlation.md
-    devlog: [2026-08-19, 2026-08-20, 2026-08-21]
+    devlog: [2026-08-19, 2026-08-20, 2026-08-21, 2026-09-29]
 
   - id: lok-korelace-sigma-nepoctiva
     oblast: lokalizace
     nazev: Sigma korelace je slepá k množství důkazu
     druh: vada
-    stav: v-kodu
+    stav: odlozeno
     nalezeno: 2026-08-19
-    vyreseno: 2026-08-25
     popis: >
       Nejistota korelace se počítala ze zakřivení normalizovaného skóre, takže nevěděla, kolik
       buněk za ní stojí — malý oblak důkazu hlásil větší jistotu než velký a na cestě rovnoběžné
@@ -1257,6 +1259,10 @@ temata:
       se ukázal být touž vadou a vědomě se neopravoval zvlášť. Léčba přišla 25. 8.: sigma se
       škáluje vahou informativního důkazu (`ReferenceInformativeEvidence`), měřeno proti tuze
       posunuté mapě. Po odečtení chyby fúze v měřidle (samostatné téma) vyšla σ naopak ~1,25× konzervativní a vědomě se neopravuje; na zařízení neběželo.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: Falešná podélná jistota potvrzena za běhu (SigmaLoose konečná ve všech cyklech)
         stav: hotovo
@@ -1275,13 +1281,13 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: rozhodnutí 25. 8. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-19, 2026-08-20, 2026-08-25]
+    devlog: [2026-08-19, 2026-08-20, 2026-08-25, 2026-09-29]
 
   - id: lok-korelace-tri-podminky-naostro
     oblast: lokalizace
     nazev: Tři podmínky, než korekce z mapy pustit naostro
     druh: zamer
-    stav: otevreno
+    stav: odlozeno
     nalezeno: 2026-08-20
     popis: >
       Korelace s naměřenou sigmou 0,1 m přehlasuje GPS zhruba 400 : 1, takže záchyt na souběžné
@@ -1294,6 +1300,10 @@ temata:
       nepoužívá; naléhavost se 19. 9. změřila na koridoru v téže fúzi (skoky pózy 0,6–4 m,
       `lok-koridor-skoky-pozy`). Koridor šel 17. 9. naostro bez podmínek 2 a 3, takže tyhle
       podmínky dnes gatují jen `mapcorr=`, který na zařízení nikdy neběžel.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: Podmínka 1 — honestní sigma
         stav: hotovo
@@ -1311,7 +1321,7 @@ temata:
         cesta: doc/decisions.md
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-20, 2026-08-25]
+    devlog: [2026-08-20, 2026-08-25, 2026-09-29]
 
   - id: lok-korekce-zahozene-neviditelne
     oblast: lokalizace
@@ -1373,17 +1383,21 @@ temata:
     oblast: lokalizace
     nazev: Určená osa korelace je vychýlená o 6°
     druh: vada
-    stav: otevreno
+    stav: odlozeno
     nalezeno: 2026-08-19
     popis: >
       Směr lépe určené osy (`TightAxisAngle`) vychází soustavně o −6,3° vedle kolmice na cestu,
       protože fit kvadratiky na skóre tvaru „stan" ho ohýbá. Kdo podle ní rozkládá hlášený posun,
       dostane u velké podélné nejednoznačnosti o 40 % víc; rozklad se proto převedl na kurz robota.
       Vada sama zůstává nedotčená.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-19, 2026-08-25]
+    devlog: [2026-08-19, 2026-08-25, 2026-09-29]
 
   - id: lok-kurz-inicializace-ekf
     oblast: lokalizace
@@ -2484,9 +2498,8 @@ temata:
     oblast: lokalizace
     nazev: Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba
     druh: vada
-    stav: v-kodu
+    stav: odlozeno
     nalezeno: 2026-08-25
-    vyreseno: 2026-08-25
     popis: >
       Korekce polohy z korelace occupancy gridu s mapou se poprvé pustily naostro a změřily
       (`ARBot.Analyze corrections`): s tvrdým gatem byl výsledek horší, než když se nekorigovalo
@@ -2495,6 +2508,10 @@ temata:
       hlásil správně. Měkký gate (`GateMode.Soft`) je od té doby výchozí (0,59 m), `mapcorrgate=reject`
       vrací staré chování. Zisk je ale jen 6–13 %, dokud kurz drží kompas; celá korelace je navíc
       ve výchozím stavu vypnutá (`mapcorr=false`), takže na zařízení nikdy neběžela.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: 'Přístroj `ARBot.Analyze corrections` (krok pózy, gating, NIS podle zdroje, chyba proti pravdě)'
         stav: hotovo
@@ -2512,7 +2529,7 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: rozhodnutí 25. 8. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-25]
+    devlog: [2026-08-25, 2026-09-29]
     ceka_na: [lok-kompas-sigma-podlaha]
 
   - id: lok-odometrie-pod-stopem
@@ -2550,31 +2567,37 @@ temata:
     oblast: navigace
     nazev: Délka trasy k cíli nepočítala poslední úsek
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-08-26
+    vyreseno: 2026-09-29
     popis: >
       Při vložení cíle do sítě se rozřízne nejbližší hrana; obě půlky dostávaly správnou cenu,
       ale nulovou délku, takže „vzdálenost do cíle" v záznamu i v panelu mise byla podhodnocená
       o celý poslední úsek (test: 100 m místo 130 m). Opraveno 26. 8. Zůstává známá nepřesnost
       na druhém konci: plánovač vrací celé hrany, takže první hrana se započítá i tou částí, která
       je už za robotem — délka je na startu nadhodnocená, u cíle přesná.
+      **Dořešeno 29. 9. 2026:** `Router.Plan(from, out remainingM)` bere z první hrany jen část
+      před robotem (`1 − t`, u obrácené orientace `t`, stejně jako cena `costRev`), takže
+      „zbývá do cíle" v `GlobalNavMsg` i délka ze zkoušky dosažitelnosti (Track, Robotour) se měří
+      od robotu. Trasa zůstává seznamem hran, polyline nebyla potřeba. Testy v obou směrech jízdy.
     kroky:
       - co: 'Délky půlek rozříznuté hrany u cíle'
         stav: hotovo
         kdy: 2026-08-26
-      - co: 'Odečíst část první hrany za robotem (trasa jako polyline, ne seznam hran)'
-        stav: otevreno
+      - co: 'Odečíst část první hrany za robotem — `Router.Plan(from, out remainingM)`, testy `ZbyvajiciDelka_*` a `RouteLength_MeasuredFromRobot_*`'
+        stav: hotovo
+        kdy: 2026-09-29
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
-    devlog: [2026-08-26, 2026-08-27]
+    devlog: [2026-08-26, 2026-08-27, 2026-09-29]
     ceka_na: []
 
   - id: nav-phi-obracena-hrana
     oblast: navigace
     nazev: φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-20
     vyreseno: 2026-09-20
     popis: >
@@ -2594,6 +2617,9 @@ temata:
       po téže silnici oběma směry (φ monotónně klesá, nic se neuzavře), uzavření/penalizace jdou do
       Trace. Mimochodem změřeno: okno detektoru B počítá dráhu ze součtu kroků pózy, takže jitter
       a skoky se berou jako jízda (Kolo3b 15,6 m z 830 m) — neřešeno.
+      **Ověřeno na robotu (autor, 29. 9. 2026):** testovací jízdy po Hviezdoslavově po opravě
+      z 20. 9. prošly trasu s odbočkami bez penalizace a uzavírání správných cest. Potvrzení je
+      autorovo z jízd, záznamy nejsou v repu a `ARBot.Analyze nav` nad nimi neběžel.
     kroky:
       - co: 'Rozbor `ARBot.Analyze nav` (skoky pózy, stavy plánu, uzavírání s odhadem detektoru, `--phi=`)'
         stav: hotovo
@@ -2601,14 +2627,50 @@ temata:
       - co: 'Oprava `ComputePhi` (orientace hrany) + test oběma směry; Trace pro `CloseEdge`/`PenalizeEdge`'
         stav: hotovo
         kdy: 2026-09-20
-      - co: 'Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá)'
-        stav: otevreno
-      - co: 'Dráha v okně detektoru B ze součtu kroků pózy — jitter a skoky se počítají jako jízda (rozhodnout, zda filtrovat)'
+      - co: 'Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá) — potvrdil autor z testovacích jízd po Hviezdoslavově'
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: 'Dráha v okně detektoru B ze součtu kroků pózy — převedeno do samostatného tématu `nav-detektor-b-jitter-drahy`'
+        stav: hotovo
+        kdy: 2026-09-29
+    odkazy:
+      - text: global-navigation-runtime.md
+        cesta: doc/global-navigation-runtime.md
+    devlog: [2026-09-20, 2026-09-29]
+    ceka_na: []
+
+  - id: nav-detektor-b-jitter-drahy
+    oblast: navigace
+    nazev: Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-20
+    vyreseno: 2026-09-29
+    popis: >
+      Nález mimochodem při rozboru Robotouru 19. 9. 2026 (`nav-phi-obracena-hrana`). Detektor B
+      v `GlobalNavigator` posuzuje pokles φ za okno ujeté dráhy, a tu počítá jako součet
+      vzdáleností mezi po sobě jdoucími pózami. Šum a skoky pózy se tak započítají jako jízda:
+      v Kole 3b bylo podle póz ujeto 830 m, z toho 15,6 m ve skocích. Při pomalé jízdě (únik,
+      `GoalBlocked`) pak dráha „ujíždí" bez skutečného postupu a detektor může hlásit „bez postupu"
+      falešně. Převedeno 29. 9. 2026 z kroku tématu `nav-phi-obracena-hrana`.
+      **Opraveno 29. 9. 2026 (rozhodnutí autora):** krok dráhy je `min(|Δpóza|, |v|·dt)` s rychlostí
+      ze stavu fúze. `|v|·dt` odřízne skoky a šum z korekcí, `|Δpóza|` ohraničí krok po výpadku
+      zpráv bez libovolného stropu na `dt`; `min` dráhu jen zkracuje, chyba jde ve prospěch
+      nepoplachu. Tutéž dráhu používá detektor A, takže stání teď pozná i s cukající pózou.
+      Měření „jak rychle se okno při stání plní" se nedělalo — výsledek by závisel na tom, kde
+      robot zrovna stojí. Odometrie kol zamítnuta: při prokluzu v písku by točení kol počítala jako
+      jízdu. V písku se pak podle toho, čemu fúze věří, ozve B (póza se sune, φ neklesá) nebo A
+      (póza stojí) — obojí je správná reakce.
+    kroky:
+      - co: 'Rozhodnout, zda dráhu okna filtrovat — `min(|Δpóza|, |v|·dt)`, 4 testy (stání se skoky neplní B, skutečné bloudění dál penalizuje, výpadek zpráv nepřičte fiktivní dráhu, A pozná stání i se skoky)'
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: 'Ověřit na robotu: čekání před překážkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ prázdné)'
         stav: otevreno
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
-    devlog: [2026-09-20]
+    devlog: [2026-09-20, 2026-09-29]
     ceka_na: []
 
   - id: lok-koridor-skoky-pozy
@@ -7145,9 +7207,8 @@ temata:
     oblast: lokalizace
     nazev: Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s
     druh: vada
-    stav: v-kodu
+    stav: odlozeno
     nalezeno: 2026-08-25
-    vyreseno: 2026-08-25
     popis: >
       Fúze bere každé měření jako nezávislé, ale korelace čte tentýž grid s pamětí ~2,5 s, takže
       dva cykly po sobě říkají skoro totéž a informace se započítá dvakrát (činitel nadsazení
@@ -7157,6 +7218,10 @@ temata:
       Při tom se opravil o řádek špatný údaj o ceně — cyklus stojí 1,31 s (celé jádro), ne
       ~126 ms; hranice 400 ms byla v praxi mrtvá. Změřeno v simulaci, na zařízení korelace
       neběžela (`mapcorr=false`).
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: "Autokorelace reziduí a dekorelační čas v `ARBot.Analyze sigma` (tři běhy)"
         stav: hotovo
@@ -7173,7 +7238,7 @@ temata:
         cesta: doc/decisions.md
       - text: SigmaReport.cs
         cesta: Src/ARBot.Analyze/SigmaReport.cs
-    devlog: [2026-08-25]
+    devlog: [2026-08-25, 2026-09-29]
     ceka_na: [lok-korelace-tri-podminky-naostro]
 
   - id: lok-korelace-mericidlo-chyba-fuze
@@ -7384,8 +7449,9 @@ temata:
     oblast: navigace
     nazev: Uzavřené hrany sítě a stav lokalizace nepřežijí restart
     druh: zamer
-    stav: otevreno
+    stav: zamitnuto
     nalezeno: 2026-08-12
+    vyreseno: 2026-09-29
     popis: >
       Globální navigace si za jízdy uzavírá hrany sítě, které se ukázaly neprůjezdné, a korelace
       s mapou si ladí korekci pózy — obojí žije jen v paměti procesu. Po pádu nebo restartu
@@ -7394,6 +7460,9 @@ temata:
       autor 27. 8. 2026 vědomě zrušil (mise se po restartu spouští od začátku) — tady jde o stav
       navigační vrstvy (uzavření mají trvalou identitu `EdgeKey`, takže by se ukládat daly)
       a lokalizace, ne o fázi mise. Zda to vůbec dělat, rozhodnuto není.
+      ❌ **Zamítnuto 29. 9. 2026 (autor):** každý běh jede s čistou mapou. Hranu mohla uzavřít
+      umělá překážka, která příště na místě nebude, a přenesené uzavření by robota posílalo
+      objížďkou kolem něčeho, co už neexistuje. Viz `decisions.md`, 29. 9. 2026.
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
@@ -7403,7 +7472,7 @@ temata:
         cesta: doc/decisions.md
       - text: EdgeClosure.cs
         cesta: Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs
-    devlog: [2026-08-27]
+    devlog: [2026-08-27, 2026-09-29]
     ceka_na: []
 
   - id: lp-vykon-retezu-na-arm
@@ -7512,7 +7581,7 @@ temata:
     oblast: lokalizace
     nazev: Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě
     druh: zamer
-    stav: otevreno
+    stav: odlozeno
     nalezeno: 2026-08-20
     popis: >
       Když korelace occupancy gridu s mapou shodu nenajde, korelátor jen mlčí — stav „lokalizace
@@ -7523,6 +7592,10 @@ temata:
       přesnost, sken to dojemní) — jako náhrada skenu byla 20. 8. 2026 zamítnuta, jako
       inicializátor sedí. Až bude z dat vidět, jak dlouhé úseky bez shody v praxi vznikají,
       může `GlobalNavigator` ubrat nebo mrkvi přestat věřit.
+      ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou
+      (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože
+      sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci
+      podle cesty se od té doby používá koridor (`corridor=`).
     kroky:
       - co: Změřit z dat, jak dlouhé úseky bez shody v praxi vznikají
         stav: otevreno
@@ -7537,7 +7610,7 @@ temata:
         cesta: Src/ARBot.Common/Localization/MapCorrelator.cs
       - text: GlobalNavigator.cs
         cesta: Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs
-    devlog: [2026-08-20]
+    devlog: [2026-08-20, 2026-09-29]
     ceka_na: []
 
   - id: web-clanek-robotour-2026
