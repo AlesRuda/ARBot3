@@ -665,6 +665,10 @@ namespace ARBot.Robot.Web
             if (!mise.Je)
             {
                 sb.Append(",\"mission\":\"\"");
+                // Zadana mise, ktera NEVZNIKLA, neni „zadna mise": obsluha musi videt, ze se neco
+                // pokazilo a proc - v terenu ma jen tuhle stranku, ne journal.
+                if (!string.IsNullOrEmpty(mise.Nezalozena))
+                    sb.Append(",\"missionFailed\":\"").Append(Escape(mise.Nezalozena)).Append('"');
             }
             else
             {
@@ -809,6 +813,12 @@ namespace ARBot.Robot.Web
             public readonly TimeSpan Uplynulo;
             public readonly string Ceka;
 
+            /// <summary>
+            /// Proc zadana mise nevznikla (<see cref="ARBotRuntime.MissionNotCreatedReason"/>), nebo
+            /// <c>null</c>. Ma smysl jen pri <c>Je == false</c>.
+            /// </summary>
+            public readonly string Nezalozena;
+
             public MiseSnimek(string nazev, string faze, TimeSpan uplynulo, string ceka)
             {
                 Je = true;
@@ -816,6 +826,13 @@ namespace ARBot.Robot.Web
                 Faze = faze ?? string.Empty;
                 Uplynulo = uplynulo;
                 Ceka = ceka ?? string.Empty;
+                Nezalozena = null;
+            }
+
+            public MiseSnimek(string nezalozena)
+            {
+                this = default;
+                Nezalozena = nezalozena;
             }
         }
 
@@ -830,7 +847,7 @@ namespace ARBot.Robot.Web
             {
                 if (!ARBotRuntime.HasCurrent) return default;
                 var m = ARBotRuntime.Current.CurrentMission;
-                if (m == null) return default;
+                if (m == null) return new MiseSnimek(ARBotRuntime.Current.MissionNotCreatedReason);
                 return new MiseSnimek(m.MissionName, m.PhaseText, m.Elapsed,
                                       ARBot.Common.Missions.MissionStatusText.WaitText(m.WaitingFor));
             }
@@ -1077,6 +1094,7 @@ namespace ARBot.Robot.Web
  /* Stav mise: to je naopak to hlavni, co clovek u robota cte. */
  .mise{font-size:14px;margin-bottom:10px;max-width:520px}
  .mise .ceka{color:#ffb74d;font-weight:600}
+ .mise .chyba{color:#ff6b6b;font-weight:700}
  /* Vyber mise: ukazuje se JEN dokud se na volbu ceka. Ramecek proto, aby bylo na prvni pohled
     videt, ze tohle je jediny ukon, ktery se od cloveka ceka. */
  .volba{max-width:520px;border:1px solid #2a2f35;border-radius:6px;padding:10px;margin-bottom:10px;
@@ -1279,7 +1297,12 @@ function hlavicka(h){
  document.getElementById('info').innerHTML=t;
 
  var m='';
- if(!h.mission){
+ if(!h.mission&&h.missionFailed){
+  // Zadana mise nevznikla - to neni zadna mise, robot stoji z duvodu, ktery clovek musi videt.
+  m='<b>mise:</b> <span class=""chyba"">NEZALOŽENA</span> — '
+   +h.missionFailed.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+   +'<br><span class=""ceka"">oprav konfiguraci a restartuj (Terminate, službu vrátí systemd)</span>';
+ }else if(!h.mission){
   m='<b>mise:</b> žádná';
  }else{
   m='<b>mise:</b> '+h.mission+(h.phase?' — '+h.phase:'')

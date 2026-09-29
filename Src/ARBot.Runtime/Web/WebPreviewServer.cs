@@ -305,6 +305,17 @@ namespace ARBot.Robot.Web
             string duvod = status.MissionBlockedReason();
             if (duvod != null) { HttpMini.WriteText(s, 409, duvod); return; }
 
+            // Misi, ktera nepujde zalozit (track bez track=), odmitnout HNED: vyber by jinak
+            // prestavel runtime se zaznamem a mise by tise nevznikla - a volba uz by se na strance
+            // nenabizela (overeno v headless 29. 9. 2026: 200 „mise track spustena", pak „mise: zadna").
+            duvod = ARBotRuntime.MissionPickProblem(mise);
+            if (duvod != null)
+            {
+                Trace.WriteLine($"web: vyber mise {mise} odmitnut: {duvod}");
+                HttpMini.WriteText(s, 409, duvod);
+                return;
+            }
+
             try
             {
                 Trace.WriteLine($"web: prisel POST /mission?m={mise}");

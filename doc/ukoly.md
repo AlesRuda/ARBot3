@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **37** · hotovo **140** · odloženo **14** · zamítnuto **6**.
+Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **36** · hotovo **141** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -64,7 +64,6 @@ Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **37** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [Mise Track — objezd míst ze souboru](#mise-track) | 8. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení](#prov-pudorys-umysl-a-zony) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Řídicí smyčka umí držené zastavení (StopHold)](#lp-drzene-zastaveni-stophold) | 13. 9. 2026 |  |
@@ -1567,24 +1566,6 @@ Armování v depu čeká na okno kvalitních fixů GPS. Navržený práh 1,0 m b
 
 [robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026](decisions.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-09-19](devlog.md#2026-09-19)
 
-<a id="mise-track"></a>
-### 🧪 Mise Track — objezd míst ze souboru
-
-`mise-track` · záměr · **v kódu, na HW neověřeno** · nalezeno 8. 9. 2026 · vyřešeno 8. 9. 2026
-
-`mission=track track=<cesta>`: řádek = místo ve stupních, `repeat` = jezdit dokola. Každé místo se přichytí na nejbližší bod sítě cest — a to je oprava vady, ne kosmetika, protože dojezd se měří proti surovému cíli a mise by jinak u prvního bodu uvízla navždy. Bod dál než `trackoffroad=` misi přeruší, nesrozumitelný řádek je chyba, mezi body se nezastavuje a volba mise robota nerozjede (čeká na stisk a uvolnění nouzového zastavení). V simulaci objela tři místa a začala druhé kolo. Od 13. 9. se všechna místa přichycují předem při odjezdu, seznamy leží u map v `OSM/`. Na zařízení odjela 12. a 14. 9. (13 min, k prvnímu bodu 44 m za 9,5 minuty, běh z 17:06 skončil `NoRoute`); celý seznam neobjela. 17. 9. 2026 poprvé DOJELA na místo: trasa 147 m k bodu 1/3 za 3 minuty (16:06:51 → 16:09:53), pak si vzala cíl 2/3 (trasa 37 m) a obsluha ji v 16:11:37 zastavila ze stránky. Přichycení všech tří míst předem proběhlo (největší odstup 2,1 m z limitu 50 m). Jelo se to ale s rozbitým kurzem (viz `hw-zelezo-od-kabelu-kamer`), takže o chování mise po kalibraci to neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`). ✅ **18. 9. 2026 seznam poprvé objetý celý, i s `repeat`** (`20260918-154028.rec`: 3 místa za 5 min, druhé kolo za 2,5 min, s korekcemi z koridoru naostro); třetí kolo skončilo stáním před blokovanou mapou (`lp-zasek-v-blokovane-mape`). Druhý běh (`-155329.rec`): 5 míst za 8 min, k prvnímu bodu 93 m za 4 min, z toho 130 s stání po startu. Jízdy 18. 9. jely ještě s chybou φ (`nav-phi-obracena-hrana`, opraveno 20. 9.); dopad na Track měřený není. Mise sama je na zařízení hotová, `v-kodu` drží jen dva drobné kroky (`trackoffroad=` z dat, hláška bez `track=`).
-
-- [x] `TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů (8. 9. 2026)
-- [x] Projeto v simulaci (tři místa + druhé kolo) (8. 9. 2026)
-- [x] Seznamy `*.track` přesunuty k mapám do `OSM/` (12. 9. 2026)
-- [x] Projet celou misi na zařízení — 18. 9.: dvě celá kola (6 míst za 5 min) včetně `repeat`, ve druhém běhu 5 míst za 8 min (18. 9. 2026)
-- [x] První dojezd na místo na zařízení (17. 9., bod 1/3 po trase 147 m za 3 min) (17. 9. 2026)
-- [x] První jízdy na zařízení (12. 9., 14. 9.) — k prvnímu bodu dojela, seznam neobjela (14. 9. 2026)
-- [ ] `trackoffroad=` nastavit z naměřených odstupů (údaj je v záznamu), ne z úsudku
-- [ ] Hláška na stránce, když je `mission=track` bez `track=` (dnes se mise tiše nezaloží)
-
-[track-mission.md](track-mission.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
-
 <a id="mise-robotour-dalsi-nakladka"></a>
 ### 🧪 Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa
 
@@ -1751,6 +1732,24 @@ Místo notebooku v poli: robot stojí, obsluha s ním otáčí rukou, stránka n
 - [x] Zápis do senzoru a ověření venku (12. 9. 2026)
 
 [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [plan-vn100-kalibrace-kroky.md](plan-vn100-kalibrace-kroky.md), [imu-and-frames.md](imu-and-frames.md), [rozhodnutí 10. 9. a 12. 9. 2026](decisions.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-10](devlog.md#2026-09-10), [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12)
+
+<a id="mise-track"></a>
+### ✅ Mise Track — objezd míst ze souboru
+
+`mise-track` · záměr · **hotovo** · nalezeno 8. 9. 2026 · vyřešeno 29. 9. 2026
+
+`mission=track track=<cesta>`: řádek = místo ve stupních, `repeat` = jezdit dokola. Každé místo se přichytí na nejbližší bod sítě cest — a to je oprava vady, ne kosmetika, protože dojezd se měří proti surovému cíli a mise by jinak u prvního bodu uvízla navždy. Bod dál než `trackoffroad=` misi přeruší, nesrozumitelný řádek je chyba, mezi body se nezastavuje a volba mise robota nerozjede (čeká na stisk a uvolnění nouzového zastavení). V simulaci objela tři místa a začala druhé kolo. Od 13. 9. se všechna místa přichycují předem při odjezdu, seznamy leží u map v `OSM/`. Na zařízení odjela 12. a 14. 9. (13 min, k prvnímu bodu 44 m za 9,5 minuty, běh z 17:06 skončil `NoRoute`); celý seznam neobjela. 17. 9. 2026 poprvé DOJELA na místo: trasa 147 m k bodu 1/3 za 3 minuty (16:06:51 → 16:09:53), pak si vzala cíl 2/3 (trasa 37 m) a obsluha ji v 16:11:37 zastavila ze stránky. Přichycení všech tří míst předem proběhlo (největší odstup 2,1 m z limitu 50 m). Jelo se to ale s rozbitým kurzem (viz `hw-zelezo-od-kabelu-kamer`), takže o chování mise po kalibraci to neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`). ✅ **18. 9. 2026 seznam poprvé objetý celý, i s `repeat`** (`20260918-154028.rec`: 3 místa za 5 min, druhé kolo za 2,5 min, s korekcemi z koridoru naostro); třetí kolo skončilo stáním před blokovanou mapou (`lp-zasek-v-blokovane-mape`). Druhý běh (`-155329.rec`): 5 míst za 8 min, k prvnímu bodu 93 m za 4 min, z toho 130 s stání po startu. Jízdy 18. 9. jely ještě s chybou φ (`nav-phi-obracena-hrana`, opraveno 20. 9.); dopad na Track měřený není. Mise sama je na zařízení hotová; poslední dva drobné kroky uzavřeny 29. 9. 2026: `trackoffroad=50` je volba autora (neměří se) a nezaložená mise se hlásí na stránce (ověřeno v headless simulaci; autor: ověření na Pi není potřeba).
+
+- [x] `TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů (8. 9. 2026)
+- [x] Projeto v simulaci (tři místa + druhé kolo) (8. 9. 2026)
+- [x] Seznamy `*.track` přesunuty k mapám do `OSM/` (12. 9. 2026)
+- [x] Projet celou misi na zařízení — 18. 9.: dvě celá kola (6 míst za 5 min) včetně `repeat`, ve druhém běhu 5 míst za 8 min (18. 9. 2026)
+- [x] První dojezd na místo na zařízení (17. 9., bod 1/3 po trase 147 m za 3 min) (17. 9. 2026)
+- [x] První jízdy na zařízení (12. 9., 14. 9.) — k prvnímu bodu dojela, seznam neobjela (14. 9. 2026)
+- [x] `trackoffroad=` nastavit z naměřených odstupů (údaj je v záznamu), ne z úsudku — autor 29. 9. 2026: 50 m je jeho volba, není co měřit (29. 9. 2026)
+- [x] Hláška na stránce, když je `mission=track` bez `track=` (dnes se mise tiše nezaloží). Reprodukováno v headless simulaci (výběr `track` ze stránky → 200 „mise track spustena“, runtime se přestavěl se záznamem, stránka „mise: žádná“ a volbu už nenabízela). Léčba: výběr ze stránky se bez použitelného `track=` odmítne hned (409 s důvodem, `ARBotRuntime.MissionPickProblem`, sdílí kontrolu se `Start`); nezaložená mise z příkazové řádky / profilu se na stránce ukáže červeně „NEZALOŽENA — důvod“ (`MissionNotCreatedReason`, JSON `missionFailed`, platí pro všechny mise). Opraveno i nenulování `TrackMission` při přestavbě runtime. 3 nové testy; ověřeno v headless obě cesty včetně vykreslení stránky; na Pi ověřovat netřeba (autor) (29. 9. 2026)
+
+[track-mission.md](track-mission.md) · DevLog [2026-09-08](devlog.md#2026-09-08), [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="mise-track-prichyceni-predem"></a>
 ### ✅ Mise Track přichycuje všechna místa na síť předem, při odjezdu

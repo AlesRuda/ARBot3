@@ -404,6 +404,71 @@ namespace ARBot.Runtime.Tests.Web
             });
         }
 
+        /// <summary>
+        /// Track bez <c>track=</c> se odmitne HNED (409 s duvodem), ne az po prestavbe runtime.
+        /// Do 29. 9. 2026 server odpovedel 200 „mise track spustena", runtime se prestavel
+        /// se zaznamem a mise tise nevznikla — stranka ukazala „mise: zadna" a volbu uz nenabizela
+        /// (overeno v headless). Proces ted zustane cekat na jinou volbu.
+        /// </summary>
+        [Test]
+        public async Task TrackBezSeznamuMist_SeOdmitneSDuvodem()
+        {
+            ARBot.Common.Configuration.ParamStore.Build(new[] { "ARBot.exe" });
+            Stop(drzi: true);
+
+            var r = await klient.PostAsync("/mission?m=track", null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((int)r.StatusCode, Is.EqualTo(409));
+                Assert.That(zvolene, Is.Empty, "runtime se NESMI prestavet na misi, ktera nevznikne");
+            });
+            Assert.That(await r.Content.ReadAsStringAsync(), Does.Contain("track="),
+                        "obsluha musi vedet, co chybi");
+        }
+
+        [Test]
+        public async Task TrackSNecitelnymSeznamem_SeOdmitne()
+        {
+            string soubor = System.IO.Path.GetTempFileName();
+            try
+            {
+                System.IO.File.WriteAllText(soubor, "tohle neni misto\n");
+                ARBot.Common.Configuration.ParamStore.Build(new[] { "ARBot.exe", "track=" + soubor });
+                Stop(drzi: true);
+
+                var r = await klient.PostAsync("/mission?m=track", null);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That((int)r.StatusCode, Is.EqualTo(409));
+                    Assert.That(zvolene, Is.Empty);
+                });
+            }
+            finally { System.IO.File.Delete(soubor); }
+        }
+
+        [Test]
+        public async Task TrackSPlatnymSeznamem_SeSpusti()
+        {
+            string soubor = System.IO.Path.GetTempFileName();
+            try
+            {
+                System.IO.File.WriteAllText(soubor, "50.0,14.4\n50.001,14.401\n");
+                ARBot.Common.Configuration.ParamStore.Build(new[] { "ARBot.exe", "track=" + soubor });
+                Stop(drzi: true);
+
+                var r = await klient.PostAsync("/mission?m=track", null);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(r.IsSuccessStatusCode, Is.True, "kontrola nesmi blokovat platnou volbu");
+                    Assert.That(zvolene, Is.EqualTo(new[] { "track" }));
+                });
+            }
+            finally { System.IO.File.Delete(soubor); }
+        }
+
         [Test]
         public async Task GetMiseNespusti()
         {

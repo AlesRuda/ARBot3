@@ -163,6 +163,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   zařízení** (`mise-freerun-jedna-hrana`): mrkev z jedné hrany v 70 % cyklů, rovně 30 %; jestli
   drží pravou polovinu, měřidlo neumí. (4) Jedno zamrznutí pravé D435 vrátil supervizor za 29 s
   (`hw-d435-vlakno-zatuhlo-po-restartu`).
+- **Mise Track uzavřena** (`mise-track` → hotovo). `trackoffroad=50` je volba autora, neměří se.
+  Hláška bez `track=` **reprodukovaná v headless simulaci**: výběr `track` ze stránky dostal 200,
+  runtime se přestavěl i se záznamem, mise tiše nevznikla, stránka ukázala „mise: žádná" a volbu
+  už nenabízela. Teď se výběr bez použitelného `track=` odmítne hned (409 s důvodem;
+  `ARBotRuntime.MissionPickProblem` sdílí kontrolu se `Start`) a nezaložená mise z profilu nebo
+  příkazové řádky se na stránce ukáže červeně „NEZALOŽENA — důvod" (`MissionNotCreatedReason`,
+  JSON `missionFailed`, pro všechny mise). Opraveno i nenulování `TrackMission` při přestavbě
+  runtime. 3 nové testy; testy Runtime 151, Common 1 719, build OrangePI. Obě cesty ověřené
+  v headless (`virtualhw=true`, `map=OSM/Hviezdoslavova.osm`, `web=`) včetně vykreslení stránky.
+  Ověření na Pi není potřeba (autor: stačí počítač). Detail: [track-mission.md](track-mission.md).
 
 ## 2026-09-28
 

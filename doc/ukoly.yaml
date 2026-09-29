@@ -4898,9 +4898,9 @@ temata:
     oblast: mise
     nazev: Mise Track — objezd míst ze souboru
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-08
-    vyreseno: 2026-09-08
+    vyreseno: 2026-09-29
     popis: >
       `mission=track track=<cesta>`: řádek = místo ve stupních, `repeat` = jezdit dokola. Každé
       místo se přichytí na nejbližší bod sítě cest — a to je oprava vady, ne kosmetika, protože
@@ -4916,8 +4916,9 @@ temata:
       neříká nic. Druhý běh téhož dne zatuhl 4 s po odjezdu (`prov-zatuhnuti-za-behu-mise`).
       ✅ **18. 9. 2026 seznam poprvé objetý celý, i s `repeat`** (`20260918-154028.rec`: 3 místa za 5 min, druhé kolo za 2,5 min, s korekcemi z koridoru naostro); třetí kolo skončilo stáním před blokovanou mapou (`lp-zasek-v-blokovane-mape`). Druhý běh (`-155329.rec`): 5 míst za 8 min, k prvnímu bodu 93 m za 4 min, z toho 130 s stání po startu.
       Jízdy 18. 9. jely ještě s chybou φ (`nav-phi-obracena-hrana`, opraveno 20. 9.); dopad na
-      Track měřený není. Mise sama je na zařízení hotová, `v-kodu` drží jen dva drobné kroky
-      (`trackoffroad=` z dat, hláška bez `track=`).
+      Track měřený není. Mise sama je na zařízení hotová; poslední dva drobné kroky uzavřeny
+      29. 9. 2026: `trackoffroad=50` je volba autora (neměří se) a nezaložená mise se hlásí na
+      stránce (ověřeno v headless simulaci; autor: ověření na Pi není potřeba).
     kroky:
       - co: "`TrackPlan`, `TrackMission`, `TrackMsg`, parametry, 36 testů"
         stav: hotovo
@@ -4937,14 +4938,16 @@ temata:
       - co: První jízdy na zařízení (12. 9., 14. 9.) — k prvnímu bodu dojela, seznam neobjela
         stav: hotovo
         kdy: 2026-09-14
-      - co: "`trackoffroad=` nastavit z naměřených odstupů (údaj je v záznamu), ne z úsudku"
-        stav: otevreno
-      - co: "Hláška na stránce, když je `mission=track` bez `track=` (dnes se mise tiše nezaloží)"
-        stav: otevreno
+      - co: "`trackoffroad=` nastavit z naměřených odstupů (údaj je v záznamu), ne z úsudku — autor 29. 9. 2026: 50 m je jeho volba, není co měřit"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Hláška na stránce, když je `mission=track` bez `track=` (dnes se mise tiše nezaloží). Reprodukováno v headless simulaci (výběr `track` ze stránky → 200 „mise track spustena“, runtime se přestavěl se záznamem, stránka „mise: žádná“ a volbu už nenabízela). Léčba: výběr ze stránky se bez použitelného `track=` odmítne hned (409 s důvodem, `ARBotRuntime.MissionPickProblem`, sdílí kontrolu se `Start`); nezaložená mise z příkazové řádky / profilu se na stránce ukáže červeně „NEZALOŽENA — důvod“ (`MissionNotCreatedReason`, JSON `missionFailed`, platí pro všechny mise). Opraveno i nenulování `TrackMission` při přestavbě runtime. 3 nové testy; ověřeno v headless obě cesty včetně vykreslení stránky; na Pi ověřovat netřeba (autor)"
+        stav: hotovo
+        kdy: 2026-09-29
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-08, 2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-18]
+    devlog: [2026-09-08, 2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-18, 2026-09-29]
     ceka_na: []
 
   # ---------------------------------------------------------------- lokální plánování
