@@ -178,6 +178,109 @@ public class EdgeAssociatorTests
     }
 
     // ---------------------------------------------------------------------------------------
+    // Podelny presah (assocfloorlong, od 29. 9. 2026)
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Rovinka z jedne OSM cesty zalomena o 2° v uzlu (0, 0): usek A→B do (−100, 0), usek B→C
+    /// 150 m dal pod 2°. Presne takhle vypada cyklostezka v Modranech (lomena cara po 20–180 m).
+    /// </summary>
+    private static RoadNetwork LomenaRovinka(GeoReference o)
+    {
+        double bend = Conversions.Deg2Rad(2.0);
+        var a = new Node(1, o.ToLLA(-100, 0), 4.0);
+        var b = new Node(2, o.ToLLA(0, 0), 4.0);
+        var c = new Node(3, o.ToLLA(150 * Math.Cos(bend), 150 * Math.Sin(bend)), 4.0);
+        var builder = new RoadNetwork.Builder();
+        builder.AddEdge(a, b, 100.0, wayId: 7, traversalCost: 100.0);
+        builder.AddEdge(b, c, 150.0, wayId: 7, traversalCost: 150.0);
+        return builder.Build();
+    }
+
+    [Test]
+    public void LomenaRovinka_vzdalenySousedniUsek_NENIdruhyKandidat()
+    {
+        // Robot 50 m pred zlomem, vedle useku A→B. Primka useku B→C (2°) ma v tom miste osu
+        // o 50·tan 2° = 1,75 m vedle - vic nez SameHypothesisLateralM, takze je to samostatna
+        // hypoteza, a pri podlaze pricne sigmy 3 m je rozdil chi2 jen ~0,3. Robot vedle nej ale
+        // nestoji (presah 50 m), tak nema soutezit.
+        var o = Origin();
+        var net = LomenaRovinka(o);
+        var pose = Pose(x: -50, y: 0.3, theta: 0);
+        var corridor = Corridor(width: 4.0, lateral: 0.3, dirRad: 0);
+
+        var bezPresahu = Cfg();
+        bezPresahu.SigmaLongitudinalFloorM = 0;
+        var stare = EdgeAssociator.Associate(net, o, pose, corridor, bezPresahu, double.PositiveInfinity);
+        Assert.That(stare.Result, Is.EqualTo(EdgeAssocResult.Ambiguous),
+                    "premisa testu: bez presahu je to remiza se sousednim usekem (29. 9. 2026)");
+
+        var assoc = EdgeAssociator.Associate(net, o, pose, corridor, Cfg(), double.PositiveInfinity);
+
+        Assert.That(assoc.Result, Is.EqualTo(EdgeAssocResult.Ok),
+                    "usek 50 m daleko se hlasi jen extrapolaci sve primky");
+        Assert.That(assoc.Axis.OverhangM, Is.EqualTo(0).Within(1e-9), "vitez je usek, vedle ktereho robot stoji");
+        Assert.That(assoc.Axis.Lateral, Is.EqualTo(0.3).Within(0.01), "osa z useku vedle robotu, ne extrapolovana");
+    }
+
+    [Test]
+    public void DveSKUTECNErovnobezneCesty_zustanouNejednoznacne_iSPresahem()
+    {
+        // Presah nesmi rozseknout skutecnou nejednoznacnost: robot stoji vedle OBOU cest, takze
+        // obe maji presah 0 a prirazka je nula.
+        var o = Origin();
+        var builder = new RoadNetwork.Builder();
+        builder.AddEdge(new Node(1, o.ToLLA(-30, 1.0), 4.0), new Node(2, o.ToLLA(30, 1.0), 4.0),
+                        60.0, wayId: 1, traversalCost: 60.0);
+        builder.AddEdge(new Node(3, o.ToLLA(-30, -1.0), 4.0), new Node(4, o.ToLLA(30, -1.0), 4.0),
+                        60.0, wayId: 2, traversalCost: 60.0);
+        var net = builder.Build();
+        var cfg = Cfg();
+        Assert.That(cfg.SigmaLongitudinalFloorM, Is.GreaterThan(0), "test ma bezet s presahem");
+
+        var assoc = EdgeAssociator.Associate(net, o, Pose(0, 0, 0), Corridor(4.0, 0, 0),
+                                             cfg, double.PositiveInfinity);
+
+        Assert.That(assoc.Result, Is.EqualTo(EdgeAssocResult.Ambiguous));
+    }
+
+    [Test]
+    public void ZaKoncemSite_malyPresahProjde_velkyNe()
+    {
+        // Jedina cesta konci v (0, 0). Poza 3 m za koncem (podelna chyba pozy) = prirazka 1,
+        // porad prijato. Poza 15 m za koncem = prirazka 25 nad stropem 9,21 - robot u te cesty
+        // podle mapy neni.
+        var o = Origin();
+        var builder = new RoadNetwork.Builder();
+        builder.AddEdge(new Node(1, o.ToLLA(-60, 0), 4.0), new Node(2, o.ToLLA(0, 0), 4.0),
+                        60.0, wayId: 1, traversalCost: 60.0);
+        var net = builder.Build();
+        var corridor = Corridor(4.0, 0, 0);
+
+        var blizko = EdgeAssociator.Associate(net, o, Pose(3, 0, 0), corridor, Cfg(), double.PositiveInfinity);
+        Assert.That(blizko.Result, Is.EqualTo(EdgeAssocResult.Ok));
+        Assert.That(blizko.Chi2, Is.EqualTo(1.0).Within(0.05), "presah 3 m pri podlaze 3 m = prirazka 1");
+
+        var daleko = EdgeAssociator.Associate(net, o, Pose(15, 0, 0), corridor, Cfg(), double.PositiveInfinity);
+        Assert.That(daleko.Result, Is.EqualTo(EdgeAssocResult.NoCandidate));
+    }
+
+    [Test]
+    public void Relate_podelnyPresah_nulaVedleUsecky_kladnyZaObemaKonci()
+    {
+        var o = Origin();
+        var a = new Node(1, o.ToLLA(0, 0), 4.0);
+        var b = new Node(2, o.ToLLA(20, 0), 4.0);
+        var edge = new RoadNetwork.Builder().AddEdge(a, b, 20.0, wayId: 1, traversalCost: 20.0);
+
+        Assert.That(RoadAxis.Relate(o, edge, 0.5, 1, 10, 1, 0).OverhangM, Is.EqualTo(0).Within(1e-6));
+        Assert.That(RoadAxis.Relate(o, edge, 0, 5, -5, 1, 0).OverhangM, Is.EqualTo(5).Within(0.01));
+        Assert.That(RoadAxis.Relate(o, edge, 1, 7, 27, 1, 0).OverhangM, Is.EqualTo(7).Within(0.01));
+        // Na smeru jizdy nezalezi (Relate hranu otoci podle kurzu).
+        Assert.That(RoadAxis.Relate(o, edge, 1, 7, 27, 1, Math.PI).OverhangM, Is.EqualTo(7).Within(0.01));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Podlahy sigem
     // ---------------------------------------------------------------------------------------
 
@@ -280,6 +383,8 @@ public class EdgeAssociatorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Candidates = 0 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Chi2Max = 0 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Chi2Margin = -1 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { SigmaLongitudinalFloorM = -1 }.Validate());
+        Assert.DoesNotThrow(() => new EdgeAssociationConfig { SigmaLongitudinalFloorM = 0 }.Validate());
 
         // Veto nad 90 stupnu nema smysl - primka nema orientaci, vetsi rozdil smeru neexistuje.
         Assert.Throws<ArgumentOutOfRangeException>(

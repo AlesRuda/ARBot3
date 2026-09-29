@@ -8318,8 +8318,9 @@ temata:
     oblast: lokalizace
     nazev: Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-29
+    vyreseno: 2026-09-29
     popis: >
       Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec`
       FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů,
@@ -8345,11 +8346,19 @@ temata:
       - co: "Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`)"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Rozhodnout léčbu (autor): podélný přesah do χ² (protifakt), nebo slučovat hypotézy téže cesty spojené přes uzel, nebo počítat příčnou polohu z úsečky místo z přímky"
+      - co: "**Je to regrese z 26. 9.** (`d193c12`, `MaxEdgeDistanceM` 8 m → ∞ kvůli `lok-koridor-noedge-po-zatacce`): s limitem 8 m se úsek 50 m daleko do kandidátů vůbec nedostal. Přepočet s `--maxedge=8` sedí na starší záznamy 99,6–99,9 % (s ∞ jen 41–73 %), a dnešní Track by s 8 m měl Ok 3 779 cyklů místo 137. Oprava 26. 9. přitom získala jen pás 8–~9 m: nad ním zamítne kandidáta χ² s podlahou 3 m (`EdgeMismatch`). Protifakt s podélným přesahem na 13 záznamech (Hviezdoslavova, Robotour, Modřany): **nezávisí na limitu** (Ok s 8 m i ∞ v rozmezí ±6 %), **nezměnil vítěze ani jednou** mezi cykly přiřazenými dnes, ztráta ≤ 0,4 %, a navíc spraví nejednoznačnost sousedních úseků v zatáčkách, která existovala i s 8 m (Robotour Kolo 3b +780 a Kolo 4 +817 cyklů, vybraná cesta u GPS 100 %)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Léčba (autor): podélný přesah do χ², `assocfloorlong=3` m (0 = nepočítá se), `MaxEdgeDistanceM` zůstává ∞. `RoadAxisMatch.OverhangM`, `EdgeAssociator`, 4 nové testy; `EdgeAssociator` dává nad 8 záznamy (39 871 cyklů) tentýž verdikt jako protifakt v měřidle ve 100 %. Změněná cesta jen v 9 cyklech 27. 9. (GPS 4,7 m mimo, nerozhodne). `FusionReplayReport` bere hodnotu z logu (starší záznam = 0)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Ověřit na zařízení: jízda po lomené rovince (Modřany) — podíl `AmbiguousEdge` (`corridor`), poslaná měření a příčná odchylka pózy od GPS (`posegps`)"
         stav: otevreno
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
+      - text: rozhodnutí 29. 9. 2026
+        cesta: doc/decisions.md
     devlog: [2026-09-29]
     ceka_na: []
 

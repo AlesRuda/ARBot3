@@ -851,7 +851,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `YprU`, `gpsposstd` a `Reject`. ✅ **Od 27. 9. 2026 je podlaha kurzu 5° (dřív 10°)** — po
   kalibraci magnetometru je chyba kurzu za jízdy 2–4° a přepočet nad Robotourem
   (`ARBot.Analyze assocreplay`) dal +10 % přiřazených cyklů, žádný na příčnou ulici; ⚠️ když
-  kurz zase ujede (14. 9.: kabely ke kamerám), zamítne i správnou hranu. K tomu **tvrdé veto na
+  kurz zase ujede (14. 9.: kabely ke kamerám), zamítne i správnou hranu. ✅ **Od 29. 9. 2026
+  i PODÉLNÝ PŘESAH** (`assocfloorlong=3` m, 0 = nepočítá se): úsek, za jehož koncem póza leží,
+  dostane přirážku `(přesah/σ)²` — příčná poloha se bere z **přímky** úseku, takže vzdálený
+  sousední úsek téže cesty zalomený o 1–2° dělal nejednoznačnost (Modřany 29. 9.: 51 % cyklů,
+  póza ujela o 10 m). ⚠️ Byla to **regrese z 26. 9.**: do té doby ty úseky držel mimo limit
+  `MaxEdgeDistanceM` 8 m (teď ∞). Přepočet nad 8 záznamy 2–30× víc přiřazených, nově přiřazené
+  u GPS 99,6–100 %; ⚠️ na zařízení neběželo. K tomu **tvrdé veto na
   azimut** (`assocveto=45°`, kolmá ulice není „trochu mimo") a **odstup od druhého kandidáta**
   (`assocmargin=4`) — při nejednoznačnosti se **neposílá nic** (`AmbiguousEdge`), protože vybrat tu
   o chlup lepší by znamenalo hádat. ⚠️ **Dvě pasti, které stály čas:** obousměrná cesta jsou dvě

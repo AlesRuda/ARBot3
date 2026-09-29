@@ -196,7 +196,8 @@ namespace ARBot.Analyze
                     case "assocwhy":
                         AssocWhyReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
                                            Arg(args, "--floorhdg", 5), Arg(args, "--margin", 4),
-                                           Arg(args, "--singlestd", 1));
+                                           Arg(args, "--singlestd", 1), Arg(args, "--maxedge", double.PositiveInfinity),
+                                           Arg(args, "--floorlong", 3), Arg(args, "--jelfloorlong", 0));
                         return 0;
                     case "assocreplay":
                         AssocReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
@@ -289,7 +290,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             prepocet EdgeAssociator nad zaznamenanymi cykly (--map=OSM/x.osm,");
             Console.WriteLine("             --floors=10,7,5,3, --margins=4, --maxedge=8 = hodnota z Robotouru)");
             Console.WriteLine("  assocwhy   proc je prirazeni k hrane nejednoznacne: kdo je druhy kandidat (jina cesta,");
-            Console.WriteLine("             nebo sousedni usek tehoz) + protifakt s podelnym presahem (--map=, --floorhdg=5, --margin=4)");
+            Console.WriteLine("             nebo sousedni usek tehoz) + protifakt s podelnym presahem (--map=, --floorhdg=5, --margin=4,");
+            Console.WriteLine("             --maxedge=, --floorlong=3 protifakt, --jelfloorlong=0 s cim robot jel)");
             Console.WriteLine("  fusionreplay A/B hranove lokalizace nad JEDNOU jizdou: prehraje fuzi ze senzoru S korekcemi");
             Console.WriteLine("             z koridoru (prirazeni prepocitane proti prehravane poze) a BEZ nich, overi");
             Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");

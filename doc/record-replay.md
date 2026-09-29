@@ -583,7 +583,9 @@ cesta, nebo sousední / vzdálenější úsek **téže** cesty, jeho vzdálenost
 přesah** (o kolik póza leží za koncem jeho úsečky). Přidá protifakt s přesahem v χ² a shodu
 vybrané cesty s GPS. Měřidlo se nejdřív ověřuje proti verdiktům v záznamu. Parametry mají
 odpovídat jízdě: `--map=` (povinné), `--floorhdg=` (5), `--margin=` (4), `--roadwidth=` (3),
-`--singlestd=` (1). Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
+`--singlestd=` (1), `--maxedge=` (∞; do 26. 9. 2026 jel robot s 8) a `--jelfloorlong=` (0; od
+29. 9. hodnota `assocfloorlong=` z logu). `--floorlong=` (3) je podlaha protifaktu. Blok
+KONTROLA IMPLEMENTACE pouští skutečný `EdgeAssociator` a musí dát tentýž verdikt jako protifakt. Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
 
 **`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
 barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy

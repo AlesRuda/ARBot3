@@ -718,7 +718,8 @@ namespace ARBot.Robot
 
                 // Prirazeni koridoru k hrane site (assoc*): nejblizsi hrana nemusi byt ta spravna
                 // - pri chybe polohy nekolika metru vyhraje u krizovatky pricna ulice. Skore je
-                // chi-kvadrat z pricne odchylky a azimutu, obe delene svoji sigmou s PODLAHOU.
+                // chi-kvadrat z pricne odchylky a azimutu, obe delene svoji sigmou s PODLAHOU,
+                // plus podelny presah za konec usecky (assocfloorlong, od 29. 9. 2026).
                 // Viz doc/map-correlation-localization.md.
                 corridorCfg.Association = new ARBot.Common.Localization.EdgeAssociationConfig
                 {
@@ -726,6 +727,7 @@ namespace ARBot.Robot
                     Candidates = (int)ParamRegistry.AssocK.Value,
                     VetoRad = Conversions.Deg2Rad(ParamRegistry.AssocVeto.Value),
                     SigmaLateralFloorM = ParamRegistry.AssocFloorLat.Value,
+                    SigmaLongitudinalFloorM = ParamRegistry.AssocFloorLong.Value,
                     SigmaHeadingFloorRad = Conversions.Deg2Rad(ParamRegistry.AssocFloorHdg.Value),
                     Chi2Max = ParamRegistry.AssocChi2.Value,
                     Chi2Margin = ParamRegistry.AssocMargin.Value,

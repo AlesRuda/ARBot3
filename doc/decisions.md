@@ -13,6 +13,26 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-29 — Přiřazení hrany penalizuje podélný přesah za konec úsečky (`assocfloorlong=3`), limit hledání hrany zůstává ∞
+
+**Co:** Kandidát na „hranu, po které jedu“, za jehož koncem úsečky póza leží o `d` metrů, dostane
+k χ² přirážku `(d / σ)²`, `σ = max(kovariance pózy podél hrany, assocfloorlong)`, výchozí 3 m;
+`0` = přesah se nepočítá. `MaxEdgeDistanceM` zůstává nekonečno. Rozhodnutí autora.
+
+**Proč:** Příčná poloha se bere z přímky úseku, takže vzdálený sousední úsek téže cesty zalomený
+o 1–2° vypadal jako cesta o metr vedle a přiřazení končilo jako nejednoznačné (29. 9. v Modřanech
+51 % cyklů, póza ujela o 10 m). Do 26. 9. to maskoval limit 8 m. Alternativy: **vrátit 8 m**
+(vrátí slepotu při velké odchylce a nespraví zatáčky), **slučovat úseky téže cesty** (nepomůže při
+změně id cesty a hrozí výběr extrapolované osy), **zvětšit toleranci slučování** (sloučí i skutečné
+souběžné cesty). Přesah řeší příčinu: úsek, vedle kterého robot nestojí, se hlásí jen extrapolací.
+Podlaha 3 m je stejná úvaha jako `assocfloorlat` — σ z fúze je optimistická.
+
+**Důsledky:** Přepočet nad 8 záznamy: přiřazených cyklů 2–30× víc, nově přiřazené u GPS 99,6–100 %,
+změněná cesta jen v 9 cyklech z 2 101 (27. 9., GPS nerozhodne), ztráta do 1,4 %. Cena: podélný
+drift pózy nad ~6 m za zatáčkou penalizuje i správný úsek. Na zařízení neběželo.
+Viz [map-correlation-localization.md](map-correlation-localization.md), „Podélný přesah“;
+registr `lok-assoc-sousedni-usek`.
+
 ### 2026-09-29 — Každý běh začíná s čistou mapou: uzavřené hrany ani korekce lokalizace se přes restart nepřenášejí
 
 **Co:** Stav navigační vrstvy (hrany sítě uzavřené nebo penalizované za jízdy) ani stav

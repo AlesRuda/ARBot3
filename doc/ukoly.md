@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **238**: otevřeno **45** · v kódu, na HW neověřeno **33** · hotovo **140** · odloženo **14** · zamítnuto **6**.
+Témat celkem **238**: otevřeno **44** · v kódu, na HW neověřeno **34** · hotovo **140** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -54,7 +54,6 @@ Témat celkem **238**: otevřeno **45** · v kódu, na HW neověřeno **33** · 
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)](#lok-koridor-noedge-po-zatacce) | 26. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
-| otevřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | otevřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
@@ -90,6 +89,7 @@ Témat celkem **238**: otevřeno **45** · v kódu, na HW neověřeno **33** · 
 | v kódu, na HW neověřeno | Mise | [FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí](#mise-freerun-pomala-mrkev-blizko) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech](#mise-track-timeout-delka-useku) | 26. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
@@ -227,18 +227,6 @@ Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky (`lo
 
 [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
-<a id="lok-assoc-sousedni-usek"></a>
-### ⬜ Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
-
-`lok-assoc-sousedni-usek` · vada · **otevřeno** · nalezeno 29. 9. 2026
-
-Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec` FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů, do fúze za celou Track jízdu (430 s) šly jen desítky měření z jedné hrany v první minutě, pak nic; póza mezitím ujela od GPS příčně až o **10 m** (FreeRun 16 m), tempem ~0,06 m/s, tedy ~2° kurzu. Nový `ARBot.Analyze assocwhy` (rozklad na hypotézy, přepočet sedí na záznam v 99,3 / 100 %): druhým kandidátem je ve **99 %** nejednoznačných cyklů **jiný úsek téže cyklostezky** (way 154101921; sousední 67–75 %, vzdálenější 23–32 %), jiná cesta jen 0,4–1,4 %. Ten úsek je od pózy p50 **46–51 m** (p90 106–119 m) a robot vedle něj vůbec nestojí — `RoadAxis.Relate` počítá příčnou polohu z **nekonečné přímky** úseku, takže ohyb 1,7° (p50) dá v té vzdálenosti osu ~0,8–1,0 m vedle: víc než `SameHypothesisLateralM` (0,5 m), a při podlaze příčné sigmy 3 m je rozdíl χ² ~0,1 proti požadovanému odstupu 4. `NearestEdges` přitom kandidáty řadí podle vzdálenosti k ÚSEČCE, ale skóre ji nepoužije vůbec. OSM rovinka je lomená čára po 20–180 m, takže to platí na celé její délce; slučování kolineárních úseků (16. 9.) chytí jen přímou návaznost. **Protifakt** (měření, ne změna kódu): k χ² přičíst `(podélný přesah / σ)²`, kde přesah je, o kolik póza leží za koncem úsečky, a σ = max(póza podél hrany, podlaha 3 m). Nejednoznačných 4 289 → 357 a 2 161 → 81, přiřazeno Ok 137 → 4 053 a 306 → 2 333, vybraná cesta do 2 m od GPS **99,9 % a 94,6 %** (dnes 97,8 % a 51,6 %). Příčný nesouhlas těch přiřazených p50 4,3 / 2,7 m je z velké části právě nashromážděný drift pózy. ⚠️ Za přiřazením jsou ještě brány šířky a „robot na cestě“, takže do fúze by šlo méně; ⚠️ příčná poloha z jedné hrany jde přes mapovou šířku 3 m proti skutečným ~5 m (`lok-koridor-siroka-cyklostezka`), tedy s biasem ~1 m.
-
-- [x] Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`) (29. 9. 2026)
-- [ ] Rozhodnout léčbu (autor): podélný přesah do χ² (protifakt), nebo slučovat hypotézy téže cesty spojené přes uzel, nebo počítat příčnou polohu z úsečky místo z přímky
-
-[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
-
 <a id="lok-fuze-poza-pred-koly"></a>
 ### ⬜ Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
 
@@ -349,6 +337,20 @@ Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OS
 - [x] 29. 9. 2026 (`20260929-150844.rec`, `-151634.rec`, `corridormininliers=20`): oboustranný koridor jen v **1,6 % a 1,2 %** snímků (135 a 78 cyklů), ne 28 % jako nad 25. 9. — a šířka z nich p50 **1,36 / 0,40 m** (mimo 1–8 m 24 / 88 %), tedy převážně nesmysl; při prahu 10 by jich bylo 2 432 / 1 051 se šířkou p50 **5,04 / 4,79 m**. Do přiřazení došlo jen 89 a 20 oboustranných cyklů, takže **naučená šířka nevznikla** (odhad se učí jen z oboustranného koridoru po přiřazení hrany) a `roadwidthmap=true` neměl co propsat. Jedna hrana 86 % a 70 % cyklů (převážně pravá) (29. 9. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-assoc-sousedni-usek"></a>
+### 🧪 Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
+
+`lok-assoc-sousedni-usek` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 29. 9. 2026
+
+Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec` FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů, do fúze za celou Track jízdu (430 s) šly jen desítky měření z jedné hrany v první minutě, pak nic; póza mezitím ujela od GPS příčně až o **10 m** (FreeRun 16 m), tempem ~0,06 m/s, tedy ~2° kurzu. Nový `ARBot.Analyze assocwhy` (rozklad na hypotézy, přepočet sedí na záznam v 99,3 / 100 %): druhým kandidátem je ve **99 %** nejednoznačných cyklů **jiný úsek téže cyklostezky** (way 154101921; sousední 67–75 %, vzdálenější 23–32 %), jiná cesta jen 0,4–1,4 %. Ten úsek je od pózy p50 **46–51 m** (p90 106–119 m) a robot vedle něj vůbec nestojí — `RoadAxis.Relate` počítá příčnou polohu z **nekonečné přímky** úseku, takže ohyb 1,7° (p50) dá v té vzdálenosti osu ~0,8–1,0 m vedle: víc než `SameHypothesisLateralM` (0,5 m), a při podlaze příčné sigmy 3 m je rozdíl χ² ~0,1 proti požadovanému odstupu 4. `NearestEdges` přitom kandidáty řadí podle vzdálenosti k ÚSEČCE, ale skóre ji nepoužije vůbec. OSM rovinka je lomená čára po 20–180 m, takže to platí na celé její délce; slučování kolineárních úseků (16. 9.) chytí jen přímou návaznost. **Protifakt** (měření, ne změna kódu): k χ² přičíst `(podélný přesah / σ)²`, kde přesah je, o kolik póza leží za koncem úsečky, a σ = max(póza podél hrany, podlaha 3 m). Nejednoznačných 4 289 → 357 a 2 161 → 81, přiřazeno Ok 137 → 4 053 a 306 → 2 333, vybraná cesta do 2 m od GPS **99,9 % a 94,6 %** (dnes 97,8 % a 51,6 %). Příčný nesouhlas těch přiřazených p50 4,3 / 2,7 m je z velké části právě nashromážděný drift pózy. ⚠️ Za přiřazením jsou ještě brány šířky a „robot na cestě“, takže do fúze by šlo méně; ⚠️ příčná poloha z jedné hrany jde přes mapovou šířku 3 m proti skutečným ~5 m (`lok-koridor-siroka-cyklostezka`), tedy s biasem ~1 m.
+
+- [x] Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`) (29. 9. 2026)
+- [x] **Je to regrese z 26. 9.** (`d193c12`, `MaxEdgeDistanceM` 8 m → ∞ kvůli `lok-koridor-noedge-po-zatacce`): s limitem 8 m se úsek 50 m daleko do kandidátů vůbec nedostal. Přepočet s `--maxedge=8` sedí na starší záznamy 99,6–99,9 % (s ∞ jen 41–73 %), a dnešní Track by s 8 m měl Ok 3 779 cyklů místo 137. Oprava 26. 9. přitom získala jen pás 8–~9 m: nad ním zamítne kandidáta χ² s podlahou 3 m (`EdgeMismatch`). Protifakt s podélným přesahem na 13 záznamech (Hviezdoslavova, Robotour, Modřany): **nezávisí na limitu** (Ok s 8 m i ∞ v rozmezí ±6 %), **nezměnil vítěze ani jednou** mezi cykly přiřazenými dnes, ztráta ≤ 0,4 %, a navíc spraví nejednoznačnost sousedních úseků v zatáčkách, která existovala i s 8 m (Robotour Kolo 3b +780 a Kolo 4 +817 cyklů, vybraná cesta u GPS 100 %) (29. 9. 2026)
+- [x] Léčba (autor): podélný přesah do χ², `assocfloorlong=3` m (0 = nepočítá se), `MaxEdgeDistanceM` zůstává ∞. `RoadAxisMatch.OverhangM`, `EdgeAssociator`, 4 nové testy; `EdgeAssociator` dává nad 8 záznamy (39 871 cyklů) tentýž verdikt jako protifakt v měřidle ve 100 %. Změněná cesta jen v 9 cyklech 27. 9. (GPS 4,7 m mimo, nerozhodne). `FusionReplayReport` bere hodnotu z logu (starší záznam = 0) (29. 9. 2026)
+- [ ] Ověřit na zařízení: jízda po lomené rovince (Modřany) — podíl `AmbiguousEdge` (`corridor`), poslaná měření a příčná odchylka pózy od GPS (`posegps`)
+
+[map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu

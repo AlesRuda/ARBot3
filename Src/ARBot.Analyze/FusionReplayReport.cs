@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -149,6 +149,8 @@ namespace ARBot.Analyze
                 Candidates = (int)GetD(c, "assock", 4),
                 VetoRad = Conversions.Deg2Rad(GetD(c, "assocveto", 45)),
                 SigmaLateralFloorM = GetD(c, "assocfloorlat", 3),
+                // Podelny presah je od 29. 9. 2026; starsi zaznam klic nema = robot ho nepocital.
+                SigmaLongitudinalFloorM = GetD(c, "assocfloorlong", 0),
                 SigmaHeadingFloorRad = Conversions.Deg2Rad(GetD(c, "assocfloorhdg", 10)),
                 Chi2Max = GetD(c, "assocchi2", 9.21),
                 Chi2Margin = GetD(c, "assocmargin", 4),
@@ -413,7 +415,7 @@ namespace ARBot.Analyze
             foreach (var k in new[] { "gpsminsat", "gpsmaxdop", "gpsposstd", "gpsdopsigma", "imuheadingstd", "imuheadinghz",
                                       "corridor", "corridorsend", "corridorstd", "corridorheadingstd", "corridorhz",
                                       "corridorslew", "corridorheadingslew", "corridorsingle", "corridorsinglewidthstd",
-                                      "assoc", "assock", "assocveto", "assocfloorlat", "assocfloorhdg", "assocchi2",
+                                      "assoc", "assock", "assocveto", "assocfloorlat", "assocfloorlong", "assocfloorhdg", "assocchi2",
                                       "assocmargin", "mapcorr", "roadwidth", "mapprune", "mission", "start" })
                 Console.WriteLine($"  {k}={Get(c, k, "(v logu neni)")}" + (c.TryGetValue(k, out var v) ? $"  ({v.Origin})" : ""));
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "  MaxEdgeDistanceM={0} (podle data binarky / --maxedge)", maxEdge));

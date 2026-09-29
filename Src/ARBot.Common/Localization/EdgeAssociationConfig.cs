@@ -69,6 +69,28 @@ namespace ARBot.Common.Localization
         public double SigmaHeadingFloorRad = 5 * System.Math.PI / 180;
 
         /// <summary>
+        /// <b>Podlaha</b> sigmy podelne polohy pro <b>podelny presah</b> [m]: kandidat, za jehoz
+        /// koncem usecky poza lezi o <c>d</c> metru, dostane k chi-kvadratu <c>(d / σ)²</c>, kde
+        /// <c>σ = max(kovariance pozy podel hrany, tahle podlaha)</c> — sklada se pres maximum
+        /// jako <see cref="SigmaLateralFloorM"/>. Kandidat, vedle ktereho robot stoji, prirazku
+        /// nedostane.
+        ///
+        /// <para><b>Proc.</b> <see cref="RoadAxis.Relate"/> pocita pricnou polohu z <b>primky</b>
+        /// useku. Sousedni usek tehoz asfaltu zalomeny o 1–2° ma ve vzdalenosti 50 m osu o metr
+        /// vedle — vic nez <see cref="SameHypothesisLateralM"/> — a pri podlaze pricne sigmy 3 m je
+        /// to remiza: 29. 9. 2026 v Modranech 51 % cyklu <c>AmbiguousEdge</c> a do fuze nic,
+        /// poza ujela o 10 m. Do 26. 9. to skryval strop <c>MaxEdgeDistanceM</c> = 8 m, v zatackach
+        /// (Robotour) to delalo nejednoznacnost i s nim. Prepocet nad 13 zaznamy
+        /// (<c>ARBot.Analyze assocwhy</c>): zadny zmeneny vitez, ztrata do 0,4 %. Viz
+        /// doc/map-correlation-localization.md.</para>
+        ///
+        /// <para>⚠️ <b>0 znamena „presah se nepocita"</b> (chovani do 29. 9. 2026 pro A/B), ne
+        /// „bez podlahy" jako u <see cref="SigmaLateralFloorM"/>: sigma z fuze (desetiny metru)
+        /// by jinak dala prirazky v tisicich a zamitla i spravny usek hned za uzlem.</para>
+        /// </summary>
+        public double SigmaLongitudinalFloorM = 3.0;
+
+        /// <summary>
         /// Strop chi-kvadratu pro prijeti kandidata. Vychozi 9,21 = 99 % pro 2 stupne volnosti.
         /// </summary>
         public double Chi2Max = 9.21;
@@ -116,6 +138,9 @@ namespace ARBot.Common.Localization
             if (SigmaLateralFloorM < 0)
                 throw new System.ArgumentOutOfRangeException(nameof(SigmaLateralFloorM),
                     SigmaLateralFloorM, "Podlaha sigmy nemuze byt zaporna.");
+            if (SigmaLongitudinalFloorM < 0 || double.IsNaN(SigmaLongitudinalFloorM))
+                throw new System.ArgumentOutOfRangeException(nameof(SigmaLongitudinalFloorM),
+                    SigmaLongitudinalFloorM, "Podlaha sigmy nemuze byt zaporna (0 = presah se nepocita).");
             if (SigmaHeadingFloorRad < 0)
                 throw new System.ArgumentOutOfRangeException(nameof(SigmaHeadingFloorRad),
                     SigmaHeadingFloorRad, "Podlaha sigmy nemuze byt zaporna.");

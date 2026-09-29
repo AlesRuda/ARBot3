@@ -33,6 +33,14 @@ namespace ARBot.Common.Localization
 
         /// <summary>Vzdalenost pozy od hrany [m] podle <see cref="RoadNetwork.NearestEdge"/>.</summary>
         public double DistanceM;
+
+        /// <summary>
+        /// <b>Podelny presah</b> [m]: o kolik poza lezi za koncem USECKY hrany, mereno ve smeru
+        /// hrany; 0 = robot stoji vedle ni. <see cref="Lateral"/> se pocita z PRIMKY, takze usek,
+        /// vedle ktereho robot nestoji, ma osu jen extrapolovanou — viz
+        /// <see cref="EdgeAssociationConfig.SigmaLongitudinalFloorM"/>.
+        /// </summary>
+        public double OverhangM;
     }
 
     /// <summary>
@@ -96,6 +104,10 @@ namespace ARBot.Common.Localization
             double len = Math.Sqrt(ex * ex + ey * ey);
             if (len < 1e-6) return m;
             ex /= len; ey /= len;
+
+            // Poloha pozy podel USECKY (pred srovnanim smeru s kurzem, parametr od From).
+            double along = ex * (x - a.X) + ey * (y - a.Y);
+            m.OverhangM = along < 0 ? -along : along > len ? along - len : 0;
 
             // Srovnat smer hrany s kurzem robotu (viz poznamka v hlavicce tridy).
             double hx = Math.Cos(theta), hy = Math.Sin(theta);

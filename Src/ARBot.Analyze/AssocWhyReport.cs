@@ -32,7 +32,7 @@ namespace ARBot.Analyze
     /// merenie, ne zmena kodu.</para>
     ///
     /// <para>Pouziti: <c>ARBot.Analyze assocwhy zaznam.rec --map=OSM/x.osm [--floorhdg=5]
-    /// [--margin=4] [--roadwidth=3] [--singlestd=1]</c>. Parametry maji odpovidat jizde
+    /// [--margin=4] [--roadwidth=3] [--singlestd=1] [--maxedge=∞] [--floorlong=3] [--jelfloorlong=0]</c>. Do 26. 9. 2026 jel robot s <c>--maxedge=8</c>, do 29. 9. s <c>--jelfloorlong=0</c> (od te doby <c>assocfloorlong=</c> z logu). Parametry maji odpovidat jizde
     /// (vypis konfigurace v <c>log</c>).</para>
     /// </summary>
     public static class AssocWhyReport
@@ -48,7 +48,8 @@ namespace ARBot.Analyze
         }
 
         public static void Run(RecordFile rec, string mapPath, double roadWidth, double floorHdgDeg,
-                               double margin, double singleStd)
+                               double margin, double singleStd, double maxEdgeM = double.PositiveInfinity,
+                               double floorLong = 3.0, double recFloorLong = 0.0)
         {
             if (string.IsNullOrWhiteSpace(mapPath) || !File.Exists(mapPath))
             {
@@ -88,8 +89,8 @@ namespace ARBot.Analyze
                 Chi2Margin = margin,
             };
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "parametry: floorhdg {0}, floorlat 3, margin {1}, veto 45, chi2max 9,21, sirka z mapy +- {2} m (jedna hrana)",
-                floorHdgDeg, margin, singleStd));
+                "parametry: floorhdg {0}, floorlat 3, margin {1}, veto 45, chi2max 9,21, sirka z mapy +- {2} m (jedna hrana), maxedge {3} m; floorlong jizda {4}, protifakt {5}",
+                floorHdgDeg, margin, singleStd, maxEdgeM, recFloorLong, floorLong));
 
             int n = 0, same = 0;
             var mism = new Dictionary<string, int>();
@@ -103,6 +104,16 @@ namespace ARBot.Analyze
             int cfOk = 0, cfAmb = 0, cfMis = 0, cfGpsHit = 0, cfGpsN = 0, cfOkWasAmb = 0;
             int baseOk = 0, baseGpsHit = 0, baseGpsN = 0;
             var cfDLat = new Stats("|pricny nesouhlas koridor - vybrana osa| [m]");
+            // Pojistka: co protifakt udela s cykly, ktere uz DNES prirazeni melo.
+            int implSame = 0, implN = 0;
+            var implCfg = new EdgeAssociationConfig
+            {
+                Candidates = cfg.Candidates, VetoRad = cfg.VetoRad, SigmaLateralFloorM = cfg.SigmaLateralFloorM,
+                SigmaHeadingFloorRad = cfg.SigmaHeadingFloorRad, Chi2Max = cfg.Chi2Max, Chi2Margin = cfg.Chi2Margin,
+                SigmaLongitudinalFloorM = floorLong,
+            };
+            int keepSame = 0, keepOtherWay = 0, keepOtherAxis = 0, lostAmb = 0, lostMis = 0;
+            int freshGpsHit = 0, freshGpsN = 0, chgOldHit = 0, chgNewHit = 0, chgGpsN = 0;
             var byTime = new SortedDictionary<int, (int Amb, int Cf)>();
             DateTime t0 = msgs.Count > 0 ? msgs[0].TimeStamp : default;
 
@@ -116,7 +127,7 @@ namespace ARBot.Analyze
                 var st = poses.Nearest(m.TimeStamp);
                 var pose = new RobotState { X = m.PoseX, Y = m.PoseY, Theta = m.PoseTheta, Covariance = st?.Covariance };
 
-                var hyps = Hypotheses(net, origin, pose, corridor, cfg, singleStd, overhangTerm: false);
+                var hyps = Hypotheses(net, origin, pose, corridor, cfg, singleStd, maxEdgeM, recFloorLong);
                 var res = Verdict(hyps, cfg);
                 n++;
                 if (res == recRes.Value) same++;
@@ -149,8 +160,13 @@ namespace ARBot.Analyze
                 }
 
                 // Protifakt: podelny presah v chi-kvadratu.
-                var cf = Hypotheses(net, origin, pose, corridor, cfg, singleStd, overhangTerm: true);
+                var cf = Hypotheses(net, origin, pose, corridor, cfg, singleStd, maxEdgeM, floorLong);
                 var cfRes = Verdict(cf, cfg);
+                // Skutecny EdgeAssociator s touz podlahou musi dat totez co kopie v meridle.
+                var impl = EdgeAssociator.Associate(net, origin, pose, corridor, implCfg, maxEdgeM,
+                                                    ax => (ax.WidthM, singleStd));
+                implN++;
+                if (impl.Result == cfRes) implSame++;
                 int bin = (int)((m.TimeStamp - t0).TotalSeconds / 30) * 30;
                 byTime.TryGetValue(bin, out var bt);
                 byTime[bin] = (bt.Amb + (res == EdgeAssocResult.Ambiguous ? 1 : 0),
@@ -161,11 +177,27 @@ namespace ARBot.Analyze
                         cfOk++;
                         if (res == EdgeAssocResult.Ambiguous) cfOkWasAmb++;
                         if (gpsWays != null) { cfGpsN++; if (gpsWays.Contains(cf[0].Axis.WayId)) cfGpsHit++; }
+                        if (res == EdgeAssocResult.Ok)
+                        {
+                            var o = hyps[0].Axis; var nw = cf[0].Axis;
+                            if (o.WayId != nw.WayId) keepOtherWay++;
+                            else if (Math.Abs(o.Lateral - nw.Lateral) > 0.5
+                                     || Math.Abs(Conversions.NormalizeHalfOrientation(o.HeadingRelRad - nw.HeadingRelRad)) > 5 * Math.PI / 180)
+                                keepOtherAxis++;
+                            else keepSame++;
+                            if (o.WayId != nw.WayId && gpsWays != null)
+                            {
+                                chgGpsN++;
+                                if (gpsWays.Contains(o.WayId)) chgOldHit++;
+                                if (gpsWays.Contains(nw.WayId)) chgNewHit++;
+                            }
+                        }
+                        else if (gpsWays != null) { freshGpsN++; if (gpsWays.Contains(cf[0].Axis.WayId)) freshGpsHit++; }
                         double lat = corridor.Ok ? corridor.Lateral : corridor.SingleEdgeLateral(cf[0].Axis.WidthM);
                         cfDLat.Add(Math.Abs(lat - cf[0].Axis.Lateral));
                         break;
-                    case EdgeAssocResult.Ambiguous: cfAmb++; break;
-                    case EdgeAssocResult.NoCandidate: cfMis++; break;
+                    case EdgeAssocResult.Ambiguous: cfAmb++; if (res == EdgeAssocResult.Ok) lostAmb++; break;
+                    case EdgeAssocResult.NoCandidate: cfMis++; if (res == EdgeAssocResult.Ok) lostMis++; break;
                 }
             }
 
@@ -192,7 +224,7 @@ namespace ARBot.Analyze
             Console.WriteLine("  prihlasil jen EXTRAPOLACI sve primky, robot vedle nej nestoji.");
 
             Console.WriteLine();
-            Console.WriteLine("PROTIFAKT: chi2 += (podelny presah / sigma)^2, sigma = max(poza podel hrany, podlaha 3 m):");
+            Console.WriteLine("PROTIFAKT: chi2 += (podelny presah / sigma)^2, sigma = max(poza podel hrany, podlaha --floorlong):");
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "  dnes:      Ok {0,6}   z toho cesta do 2 m od GPS {1:F1} % (n={2})", baseOk,
                 baseGpsN > 0 ? 100.0 * baseGpsHit / baseGpsN : double.NaN, baseGpsN));
@@ -200,6 +232,15 @@ namespace ARBot.Analyze
                 "  protifakt: Ok {0,6}   z toho cesta do 2 m od GPS {1:F1} % (n={2}); nejednozn. {3}, nesedi {4}; Ok z drive nejednoznacnych {5}",
                 cfOk, cfGpsN > 0 ? 100.0 * cfGpsHit / cfGpsN : double.NaN, cfGpsN, cfAmb, cfMis, cfOkWasAmb));
             Console.WriteLine("  " + cfDLat.Line());
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  nove prirazene (dnes ne): cesta do 2 m od GPS {0:F1} % (n={1})",
+                freshGpsN > 0 ? 100.0 * freshGpsHit / freshGpsN : double.NaN, freshGpsN));
+            Console.WriteLine($"  POJISTKA - dnes Ok ({baseOk}): tataz osa {keepSame}, jina osa tehoz way {keepOtherAxis}, JINA CESTA {keepOtherWay}, ztraceno {lostAmb} nejednozn. + {lostMis} nesedi");
+            if (chgGpsN > 0)
+                Console.WriteLine($"    u jine cesty: stara do 2 m od GPS {chgOldHit}, nova {chgNewHit} (z {chgGpsN})");
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  KONTROLA IMPLEMENTACE: EdgeAssociator s floorlong {0} dava tentyz verdikt jako protifakt v {1} z {2} ({3:F2} %)",
+                floorLong, implSame, implN, implN > 0 ? 100.0 * implSame / implN : double.NaN));
             Console.WriteLine("  Pozor: Ok tu neznamena poslano do fuze - za prirazenim jsou jeste sirkove brany a 'robot na ceste'.");
 
             Console.WriteLine();
@@ -228,14 +269,14 @@ namespace ARBot.Analyze
 
         /// <summary>
         /// Kopie smycky z <see cref="EdgeAssociator.Associate"/> (vcetne slucovani hypotez), ktera
-        /// hypotezy VRACI; <paramref name="overhangTerm"/> = protifakt s podelnym presahem.
+        /// hypotezy VRACI; <paramref name="floorLong"/> &gt; 0 = s podelnym presahem (0 = bez).
         /// </summary>
         private static List<Hyp> Hypotheses(RoadNetwork net, GeoReference origin, RobotState pose,
                                             RoadCorridor corridor, EdgeAssociationConfig cfg,
-                                            double singleStd, bool overhangTerm)
+                                            double singleStd, double maxEdgeM, double floorLong)
         {
             var list = new List<Hyp>();
-            var candidates = net.NearestEdges(origin.ToLLA(pose.X, pose.Y), cfg.Candidates);
+            var candidates = net.NearestEdges(origin.ToLLA(pose.X, pose.Y), cfg.Candidates, maxEdgeM);
             bool single = !corridor.Ok && corridor.HasSingleEdge;
             var p = pose.Covariance;
             double varTh = p != null && p.RowCount > EKFModel.ITh ? p[EKFModel.ITh, EKFModel.ITh] : 0;
@@ -268,9 +309,9 @@ namespace ARBot.Analyze
                     ex /= len; ey /= len;
                     double s = ex * (pose.X - a.X) + ey * (pose.Y - a.Y);
                     over = s < 0 ? -s : s > len ? s - len : 0;
-                    varLong = Math.Max(Var(p, ex, ey), cfg.SigmaLateralFloorM * cfg.SigmaLateralFloorM);
+                    varLong = Math.Max(Var(p, ex, ey), floorLong * floorLong);
                 }
-                if (overhangTerm && over > 0) chi2 += over * over / varLong;
+                if (floorLong > 0 && over > 0) chi2 += over * over / varLong;
                 if (double.IsNaN(chi2)) continue;
 
                 var h = new Hyp { Axis = axis, Edge = c.Edge, Chi2 = chi2, Overhang = over, VarLong = varLong };

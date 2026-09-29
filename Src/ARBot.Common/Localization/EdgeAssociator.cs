@@ -66,7 +66,8 @@ namespace ARBot.Common.Localization
     /// chi-kvadrat se dvema stupni volnosti. Vahy tim zmizi a prah ma zname rozdeleni. Sigmy
     /// vstupuji ctyri: dve z kovariance pozy (<see cref="RobotState.Covariance"/> promitnuta do
     /// normaly hrany, resp. prvek kurzu) a dve z prolozeni koridoru — obe s <b>podlahou</b>, viz
-    /// <see cref="EdgeAssociationConfig"/>.</para>
+    /// <see cref="EdgeAssociationConfig"/>. Od 29. 9. 2026 k tomu <b>podelny presah</b> za konec
+    /// usecky (<see cref="EdgeAssociationConfig.SigmaLongitudinalFloorM"/>).</para>
     ///
     /// <para>Viz doc/map-correlation-localization.md.</para>
     /// </summary>
@@ -140,6 +141,17 @@ namespace ARBot.Common.Localization
                 if (varLat <= 0 || varHdg <= 0) continue;
 
                 double chi2 = Sq(dLat) / varLat + Sq(dHdg) / varHdg;
+
+                // Podelny presah: usek, vedle ktereho robot nestoji, se hlasi jen EXTRAPOLACI sve
+                // primky. Bez prirazky by sousedni usek tehoz asfaltu zalomeny o 1-2° soutezil
+                // jako cesta o metr vedle. Sigma podel = kovariance pozy ve smeru hrany (tecna
+                // je normala otocena o 90°) s podlahou. Viz EdgeAssociationConfig.SigmaLongitudinalFloorM.
+                if (cfg.SigmaLongitudinalFloorM > 0 && axis.OverhangM > 0)
+                {
+                    double varLong = Math.Max(Variance(pose, axis.NormalY, -axis.NormalX),
+                                              Sq(cfg.SigmaLongitudinalFloorM));
+                    chi2 += Sq(axis.OverhangM) / varLong;
+                }
                 if (double.IsNaN(chi2)) continue;
 
                 int same = hypotheses.FindIndex(h => SameHypothesis(h.Axis, axis, cfg));

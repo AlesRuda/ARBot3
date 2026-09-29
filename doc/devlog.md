@@ -89,6 +89,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   celou cyklostezku (`nav-mrkev-kolmy-prumet`).
   Kód runtime se neměnil; léčba (2) a (4) čeká na rozhodnutí autora. Přibylo jen měřidlo
   `assocwhy` v `ARBot.Analyze`.
+- **Nejednoznačnost přiřazení je regrese z 26. 9. a je opravená** (`lok-assoc-sousedni-usek` → v kódu).
+  Úseky téže cesty 50 m daleko držel do 26. 9. mimo kandidáty limit `MaxEdgeDistanceM` 8 m
+  (s ním sedí přepočet na starší záznamy 99,6–99,9 %). Léčba podle autora: **podélný přesah za
+  konec úsečky do χ²** (`assocfloorlong=3`, 0 = nepočítá se), limit zůstává ∞. Nad 8 záznamy
+  (Modřany, Hviezdoslavova, Robotour Kolo 3b/4) je přiřazených cyklů 2–30× víc, nově přiřazené
+  leží u GPS v 99,6–100 %, dnes přiřazené změnily cestu jen v 9 cyklech 27. 9. (GPS nerozhodne).
+  Skutečný `EdgeAssociator` dává tentýž verdikt jako měřidlo ve 100 %. Testy 1 705 / 148 / 129
+  (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
+  **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
 
 ## 2026-09-28
 

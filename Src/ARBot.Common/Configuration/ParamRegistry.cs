@@ -315,6 +315,15 @@ namespace ARBot.Common.Configuration
               + "maximum, ne kvadraticky. ⚠️ Bez ni prirazeni zdedi optimismus filtru: nad "
               + "20260916-164926.rec hlasi fuze sigmu pricne p50 1,41 m, pritom poza stoji 3-4 m "
               + "od vozovky. 0 = bez podlahy (stare chovani pro A/B).", ParamParsers.AssocFloorLat);
+        public static readonly DoubleParam AssocFloorLong = Num("assocfloorlong",
+              Fmt(new ARBot.Common.Localization.EdgeAssociationConfig().SigmaLongitudinalFloorM), K_FUZE,
+              "PODLAHA sigmy podelne polohy pri prirazeni [m] pro PODELNY PRESAH: usek, za jehoz "
+              + "koncem poza lezi o d metru, dostane k chi-kvadratu (d / sigma)^2. Pricna poloha se "
+              + "pocita z PRIMKY useku, takze sousedni usek teze cesty zalomeny o 1-2 stupne mel "
+              + "50 m od robotu osu o metr vedle a delal nejednoznacnost - 29. 9. 2026 v Modranech "
+              + "51 % cyklu AmbiguousEdge a do fuze nic. ⚠️ 0 = presah se NEPOCITA (chovani do "
+              + "29. 9. 2026 pro A/B), ne 'bez podlahy' jako u assocfloorlat.",
+              ParamParsers.AssocFloorLong);
         public static readonly DoubleParam AssocFloorHdg = Num("assocfloorhdg",
               Fmt(Math.Round(new ARBot.Common.Localization.EdgeAssociationConfig().SigmaHeadingFloorRad * 180 / Math.PI, 6)), K_FUZE,
               "PODLAHA sigmy kurzu pri prirazeni [stupne]. ⚠️ Nad 20260916-164926.rec hlasi fuze "

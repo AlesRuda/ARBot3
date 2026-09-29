@@ -237,6 +237,13 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam podlahu sigmy v METRECH: 0 (bez podlahy) az 50");
 
+        /// <summary>Podlaha sigmy podelneho presahu pri prirazeni [m]: 0 (presah se nepocita) az 50.</summary>
+        public static ParamParseResult AssocFloorLong(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 50 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam podlahu sigmy v METRECH: 0 (presah se nepocita) az 50");
+
         /// <summary>
         /// Podlaha sigmy kurzu pri prirazeni ve STUPNICH: 0 az 90.
         /// <para>Tataz past jako u <see cref="ImuHeadingStd"/>: velmi mala kladna hodnota je
