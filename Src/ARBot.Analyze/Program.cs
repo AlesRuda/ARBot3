@@ -129,16 +129,19 @@ namespace ARBot.Analyze
                         return 0;
                     case "vn100":
                         // --bref / --incl = referencni vektor pole z registru 21 (|B| a sklon).
-                        // Cte se ZE SENZORU, tady je jen dnesni hodnota jako default: registr 21
-                        // (0,234; 0; 0,4212) -> 0,4818 G a 60,9 deg. Po zapnuti modelu pole
-                        // (magmodel=) se reference ZMENI a tyhle prepinace jsou pak potreba.
-                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4818), Arg(args, "--incl", 60.9),
+                        // Cte se ZE SENZORU, tady je jen posledni prectena hodnota jako default:
+                        // registr 21 (0,199158; 0,0119037; 0,447158) -> 0,4896 G a 65,95 deg
+                        // (model pole magmodel=, vnprobe.sh 12. 9. 2026; default srovnan 29. 9.).
+                        // Do 29. 9. tu byl stary registr 21 pred magmodel= (0,4818 G, 60,9 deg) -
+                        // na zaznamy pred 8. 9. 2026 ho zadej rucne.
+                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4896), Arg(args, "--incl", 65.95),
                                       Arg(args, "--camwin", 3.0), Arg(args, "--camdead", 0.5));
                         return 0;
                     case "magcal":
-                        // --bref = referencni |B| [G] z registru 21; default je dnesni hodnota
-                        // senzoru (0,234; 0; 0,4212) -> 0,4818 G. Viz doc/plan-vn100-kalibrace.md.
-                        MagCalReport.Run(rec, Arg(args, "--bref", 0.4818), Text(args, "--reg47"));
+                        // --bref = referencni |B| [G] z registru 21; default je posledni prectena
+                        // hodnota senzoru (model pole) -> 0,4896 G, srovnano 29. 9. 2026 (drive
+                        // 0,4818 z registru 21 pred magmodel=). Viz doc/plan-vn100-kalibrace.md.
+                        MagCalReport.Run(rec, Arg(args, "--bref", 0.4896), Text(args, "--reg47"));
                         return 0;
                     case "backproject" when Text(args, "--compare") != null:
                         // Srovnavaci mrizka (vstup | histogram | modely) misto mereni.
@@ -369,6 +372,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             Navic rozpad toho zesileni po kosich odchylky |B| a sklonu");
             Console.WriteLine("             od referencniho vektoru (--bref=/--incl= z registru 21) -");
             Console.WriteLine("             dusi VPE magnetometr pri nesouhlasu? NUTNA PODMINKA, NE DUKAZ");
+            Console.WriteLine("             Blok 6 bias gyra z filtru VN, blok 7 |B| proti teplote senzoru");
+            Console.WriteLine("             (po minutach a po kosich kurzu; od IMUState verze 5)");
             Console.WriteLine("  backproject vyplati se neuronova sit misto histogramu? cas obou prevodu");
             Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
             Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");

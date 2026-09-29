@@ -925,6 +925,15 @@ ten nese všechno, co senzor poslal: yaw, jeho vlastní odhad nejistoty (`YprU`)
    na oknech po 1 s; směrnice **K** je zesílení [1/s] a `1/K` časová konstanta.
 3. **Drift yaw proti poli a klidový bias gyra.**
 
+Další bloky: 4 rušení od motorů, 5 pole vázané na kamery, 6 bias gyra z filtru VN
+(`Gyro − UncompGyro`) a teplota, **7 velikost pole `|B|` proti teplotě senzoru** (od 29. 9. 2026).
+Blok 7 vypisuje po minutách teplotu, `|B|` a kurz a v koších kurzu po 30° regresi `|B|` na
+teplotě; koše jsou tam proto, že zbytkové železo dělá z `|B|` funkci kurzu. Uvnitř jedné jízdy
+obvykle nerozhodne (teplota se mění o jednotky °C, `|B|` kolísá jinými vlivy o ±10 mG), slouží
+hlavně k porovnání `|B|` p50 proti průměrné teplotě **mezi záznamy** — 29. 9. 2026 to přes šest
+záznamů dalo ~−1,8 mG/°C (`hw-vn100-zmena-po-27-9` v [ukoly.yaml](ukoly.yaml)). Bloky 6 a 7
+potřebují `IMUState` verze 5 (teplota).
+
 ⚠️ **Dvě pasti, do kterých ten report při psaní spadl** — obě mají společnou příčinu, že **kurz
 přepočtený z pole je sám vadný a zašuměný**:
 

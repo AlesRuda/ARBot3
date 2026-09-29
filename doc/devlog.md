@@ -146,6 +146,23 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `trap … EXIT`, aby proběhl i při konci chybou. Vedlejší zisk: při nedostupném `/dev/spidev0.0`
   skript dřív v nekonečné smyčce vypisoval chyby, teď skončí hned s kódem 1 (ověřeno podstrčeným
   zařízením). Na Orange Pi znovu nespouštěno.
+- **Jízdy 29. 9. z pohledu VN100, FreeRun a kamer** (doplnění k rozboru výš, jen registr).
+  (1) **Blok 6 `vn100` odpověděl** (`lok-freerun-kurz-staci-na-zapad`): filtr VN odečítá v ose Z
+  ~1 °/s a kompenzované gyro proti GPS kurzu sedí na ≤ 0,07 °/s, takže offset má syrové gyro
+  a VPE ho odhaduje správně. Sloupec „syrové gyro ve stání“ je nepoužitelný (stání jen podle
+  proudu motorů). (2) **Mezi 27. a 29. 9. se změnil stav VN100** (nové `hw-vn100-zmena-po-27-9`):
+  `|B|` 0,461 / 0,467 proti 0,494–0,505 G, `IMU yaw − GPS kurz` −5,5 / +10,8° proti −3 až +1°,
+  senzor 47–54 °C proti 28–36 °C. Na robotu se podle autora nic neměnilo (LED pásek byl i při
+  kalibraci), teplotu způsobilo dlouhé stání na slunci. `|B|` leží přes šest záznamů na přímce
+  ~−1,8 mG/°C, což by pokles vysvětlilo, uvnitř jízdy se to ale potvrdit nedá. Chyba kurzu je
+  v Track hlavně posunutý směr pole (~3–4°), ve FreeRun hlavně VPE, které se za polem táhne.
+  Hypotéza „ohřátí“ čeká na jízdu se studeným senzorem. Měří to nový `vn100` blok 7 (`|B|`
+  proti teplotě po minutách a v koších kurzu). Výchozí reference `vn100` a `magcal` srovnána na
+  dnešní registr 21 (`--bref=0.4896`, `--incl=65.95`; dřív 0,4818 G a 60,9° z doby před
+  `magmodel=`, záznamy před 8. 9. je potřeba pouštět s nimi). (3) **FreeRun podle jedné hrany poprvé na
+  zařízení** (`mise-freerun-jedna-hrana`): mrkev z jedné hrany v 70 % cyklů, rovně 30 %; jestli
+  drží pravou polovinu, měřidlo neumí. (4) Jedno zamrznutí pravé D435 vrátil supervizor za 29 s
+  (`hw-d435-vlakno-zatuhlo-po-restartu`).
 
 ## 2026-09-28
 

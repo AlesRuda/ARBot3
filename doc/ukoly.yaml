@@ -5720,6 +5720,9 @@ temata:
         kdy: 2026-09-26
       - co: "Ověřit na zařízení: po zamrznutí a restartu pipeline se kamera vrátí (žádné `NativeCallWatch` hlášení), kernel po `Stop` bez opakovaného `Found UVC`; a jestli ubylo samotných zamrznutí"
         stav: otevreno
+      - co: "Záznamy 29. 9. (`20260929-150844.rec`, `-151634.rec`, 13,7 min, bez T265): jedno zamrznutí — pravá D435 15:18:10 barva stála 5 s → restart pipeline → 15× `QueryDevices selhalo: failed to set power state` → supervizor zotavení (držené zastavení 2 s, nový RealSense kontext) → obě D435 zpět 15:18:39, tedy **29 s**, bez `NativeCallWatch`. Restart pipeline sám kameru nevrátil, vrátil ji supervizor. Jinak jen krátká zamrznutí barvy ~1 s (10 + 5 a 13 + 6×). Kernel log z Pi neprověřen"
+        stav: hotovo
+        kdy: 2026-09-29
       - co: "Průběžně z journalu Pi (28. 9., 14.–28. 9.): bez T265 zatím jen 1,2 h běhu a 5 restartů — všech 5 obnoveno, 4 do 5 s (80 %; s T265 20 % z 49, medián 33 s, 7× neobnoveno do konce služby, 6× NativeCallWatch), 1 přes supervizor za 29 s, žádné NativeCallWatch. Četnost zamrznutí beze změny (4,1 proti 3,2 za h, n = 5). Slibné, ale jedno ráno — přeměřit po delším provozu"
         stav: hotovo
         kdy: 2026-09-28
@@ -5733,7 +5736,7 @@ temata:
         cesta: Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs
       - text: rozhodnutí 24. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-24, 2026-09-26, 2026-09-28]
+    devlog: [2026-09-24, 2026-09-26, 2026-09-28, 2026-09-29]
     ceka_na: []
 
   - id: hw-vn100-hsi-run-ve-flash
@@ -8005,9 +8008,12 @@ temata:
       - co: "Nahrávat i `UncompGyro` (a teplotu) vedle `Gyro` — rozliší chybný odhad biasu ve VPE od skutečného gyra. V kódu 24. 9. (`IMUState` verze 5, `YprRate` vyřazen kvůli lince, `vn100` blok 6); na zařízení neběželo"
         stav: hotovo
         kdy: 2026-09-24
-      - co: "Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro?"
+      - co: "Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro? ✅ 29. 9. 2026 (`20260929-150844.rec` Track na sever, `-151634.rec` FreeRun na jih, Modřany; pro srovnání 25. a 27. 9.): bias, který filtr VN odečítá v ose Z (`Gyro − UncompGyro`), je **3 400–4 060 °/h (~1 °/s)** a uvnitř jízdy stabilní (25. 9. 1 540–2 040, 27. 9. 1 110–1 550 °/h). **Kompenzované gyro přitom sedí:** `GPS kurz − ∫gyro` za ~7 min jen +9° / −30°, tedy nejvýš ~0,07 °/s. Offset ~1 °/s má tedy **syrové gyro** a VPE ho odhaduje správně — ne chybný odhad biasu jako 23. 9. Napříč pěti záznamy roste bias s teplotou senzoru (28–31 °C → 1,1–1,5 tis., 31–36 °C → 1,5–2,0 tis., 47–54 °C → 3,4–4,1 tis. °/h), uvnitř jízdy ale ne (Track: teplota klesá 54 → 52 °C, bias roste), takže je to jen podezření; 29. 9. byl senzor ohřátý dlouhým stáním na slunci (autor), viz `hw-vn100-zmena-po-27-9`. Velký drift z 23. 9. se nezopakoval, jen slabší podoba: ve FreeRun na jih se yaw za 7 min odtrhl od vlastního magnetometru (`kurz z pole − yaw` +1,3 → −22°) a `IMU yaw − GPS kurz` došel na +25°"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Měřidlo `vn100` blok 6: sloupec „syrové gyro Z ve stání“ je nepoužitelný — stání pozná jen podle proudu motorů pod 0,5 A, takže zahrnuje i otáčení a doběh (29. 9. průměry po minutách skáčou o ±12 000 °/h). Stání brát z nulové rychlosti kol a GPS (ne z gyra, to by výběr zkreslilo)"
         stav: otevreno
-      - co: "Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`"
+      - co: "Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`. ⚠️ 29. 9. předpoklad nenastal: syrové gyro čisté není (offset ~1 °/s) a odhad biasu ve VPE seděl. Jízda ale velký drift z 23. 9. nezopakovala, takže to hypotézu nevyvrací"
         stav: otevreno
       - co: "Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF"
         stav: otevreno
@@ -8020,7 +8026,7 @@ temata:
         cesta: Src/ARBot.Analyze/HeadingReferencesReport.cs
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
-    devlog: [2026-09-24, 2026-09-25]
+    devlog: [2026-09-24, 2026-09-25, 2026-09-29]
     ceka_na: []
 
   - id: lok-koridor-siroka-cyklostezka
@@ -8051,7 +8057,7 @@ temata:
       - co: "Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy"
         stav: hotovo
         kdy: 2026-09-24
-      - co: "Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`)"
+      - co: "Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`). ⚠️ 29. 9. (`20260929-150844.rec`, `-151634.rec`) NEROZHODNE: přijato z jedné hrany jen **135 (1,6 %) a 306 (4,6 %)** cyklů, a to hlavně v první ~2 min; zbytek zamítlo přiřazení hrany (`AmbiguousEdge` 4 171 / 2 159, `EdgeMismatch` 1 121 / 1 932) — regrese opravená týž den (`lok-assoc-sousedni-usek`). Kurz odhadu − GPS kurz −3,3 ± 6,5° / +4,3 ± 11,2°, ale ten určoval kompas (`hw-vn100-zmena-po-27-9`), ne koridor. Přeměřit s `assocfloorlong=3`"
         stav: otevreno
       - co: "Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)"
         stav: otevreno
@@ -8327,7 +8333,7 @@ temata:
       - co: "Mrkev z jedné hrany (šířka z mapy / zachovaný odstup), `freerunsingle=`, `FreeRunMsg` v2, rozpad v `ARBot.Analyze freerun`"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu"
+      - co: "Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu. Částečně 29. 9. (`20260929-151634.rec`, Modřany na jih, 395 s): mrkev **z jedné hrany v 70 %** cyklů (4 603, z toho 2 764 se šířkou z mapy), rovně podle kurzu 30 %, z koridoru 12 cyklů (25. 9.: 3 % koridor, 97 % rovně). Měření koridoru z jedné hrany jsou převážně z pravé (285 z 306 přijatých). Zbývá pravá polovina: `freerun` hodnotí odchylku od požadované čáry jen u mrkví z koridoru (12 cyklů), pro jednu hranu to neměří"
         stav: otevreno
       - co: "`corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu"
         stav: hotovo
@@ -8335,7 +8341,7 @@ temata:
     odkazy:
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-29]
     ceka_na: []
 
   - id: lok-assoc-sousedni-usek
@@ -8481,5 +8487,73 @@ temata:
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
+    devlog: [2026-09-29]
+    ceka_na: []
+
+  - id: hw-vn100-zmena-po-27-9
+    oblast: hw
+    nazev: VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-29
+    popis: >
+      Rozbor jízd 29. 9. 2026 v Modřanech (`records/test/20260929-150844.rec` Track na sever,
+      `-151634.rec` FreeRun na jih; `ARBot.Analyze heading`, `vn100`) proti 25. 9.
+      (`20260925-142428.rec`, `-144658.rec`) a 27. 9. (`20260927-172546.rec`, `-173033.rec`).
+      **Velikost pole `|B|`** p50 **0,461 / 0,467 G** proti 0,494–0,505 G 25. a 27. 9. (reference
+      0,4897, po kalibraci 18. 9. 0,484–0,490), tedy o ~7 % méně; sklon 65,6–65,7° se nezměnil.
+      **Kurz:** `IMU yaw − GPS kurz` p50 **−5,5°** (Track) a **+10,8°** (FreeRun, ke konci až +25°)
+      proti −1,5 / +0,7° 25. 9. a −3,2 / −0,8° 27. 9. Chybuje IMU, ne GPS (`Doppler − směr posunu
+      polohy` 0,6 / 0,5°). Fúze kurz drží podle kompasu (`odhad − GPS kurz` −3,3 ± 6,5° / +4,3 ± 11,2°)
+      a koridor ho nekorigoval (`lok-assoc-sousedni-usek`), takže póza ujela od GPS příčně o 10
+      a 16 m. **Teplota senzoru** 47–54 °C proti 28–36 °C 25. a 27. 9.; s ní i offset syrového gyra
+      (`lok-freerun-kurz-staci-na-zapad`). Opačné znaménko rozporu tam a zpět by ukazovalo na
+      železo vázané na tělo robota, jenže na jih se v Track (+1,3 / +3,8°) a ve FreeRun (+10,9°)
+      liší a ve FreeRun se yaw za 7 min odtrhl od vlastního pole (+1,3 → −22°), takže to může být
+      i drift VPE. Harmonický rozklad nerozhodne: kurz měl v jízdách rozptyl jen 44° a 27°.
+      **Autor 29. 9.: na robotu se nic neměnilo.** LED pásek (40 cm od senzoru, nesvítí) byl na
+      robotu už při kalibraci 17. 9., takže jeho železo je v ní; nedokončená `mission=magcal`
+      28. 9. vrátila registr 23 shodný (`hw-magcal-uncompmag-kompenzovany`). Rušení závislé na
+      proudu motorů zanedbatelné (0,00035 G/A). **Teplotu autor vysvětluje dlouhým stáním na
+      přímém slunci** — a ta je jediná známá změna.
+      **Rozklad chyby kurzu** (`IMU yaw − GPS kurz` = `(kurz z pole − GPS kurz) − (kurz z pole − yaw)`,
+      obojí z `heading`): (a) **směr samotného pole** proti GPS kurzu je 25. a 27. 9. +2,5 až +4,6°
+      (≈ deklinace), 29. 9. **−0,8°** na sever a **+5,7°** na jih — posun ~3–4° s opačným znaménkem
+      tam a zpět, tedy malý offset pole v tělese; (b) **za polem se táhne VPE**: `kurz z pole − yaw`
+      25. a 27. 9. +3,2 až +4,7°, 29. 9. +5,1° v Track, ale ve FreeRun **−6,6 ± 8,5°** a v čase
+      +1,3 → −22°, zesílení k poli v Track K = 0,014 1/s (τ 71 s proti 28–53 s 18. 9.). V Track
+      je tedy většina chyby ve směru pole, ve FreeRun ve VPE.
+      **`|B|` proti teplotě** přes šest záznamů leží na jedné přímce ~**−1,8 mG/°C** (~−0,37 %/°C):
+      28–31 °C → 0,490–0,508 G, 33–36 °C → 0,492–0,496 G, 47–54 °C → 0,445–0,471 G; to by celý
+      pokles o 7 % vysvětlilo. **Uvnitř jízdy to potvrdit nejde:** za 2–4 °C by se `|B|` měnila
+      o 4–8 mG, jenže jinými vlivy (kurz, zbytkové železo) kolísá o ±10 mG i při stálé teplotě
+      (25. 9. `-144658` 0,490 → 0,508 G při 30,8–31,2 °C); regrese po košících kurzu dává −7 až
+      +9 mG/°C. **Pracovní hypotéza (neprokázaná):** ohřátí na 54 °C změnilo citlivost
+      a offset magnetometru → pole o 7 % pod referencí registru 21 (0,4896 G) a o 3–4° jinam →
+      VPE, které `|B|` s referencí porovnává, magnetometru méně věří a kurz se táhne za gyrem.
+      Stejnoměrná změna citlivosti sama kurz neotočí — otočení dělá až offset (a), a ten je
+      malý. Příčina neurčena.
+    kroky:
+      - co: "Změřeno: `|B|`, `IMU yaw − GPS kurz` a teplota proti 25. a 27. 9. (`heading`, `vn100`)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Zjistit, co se na robotu mezi 27. a 29. 9. změnilo v okolí VN100 a odkud je senzor o 20 °C teplejší. Autor 29. 9.: na robotu se nic neměnilo (LED pásek byl i při kalibraci 17. 9., 40 cm od senzoru, nesvítí); teplota = dlouhé stání na přímém slunci"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Rozklad chyby kurzu na směr pole a VPE a `|B|` proti teplotě přes šest záznamů 25.–29. 9.: napříč dny ~−1,8 mG/°C (vysvětlí celých 7 %), uvnitř jízdy nerozhodne (rozsah 2–4 °C, jiné vlivy ±10 mG)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Měřidlo: `ARBot.Analyze vn100` blok 7 — `|B|` proti teplotě senzoru po minutách a regrese v koších kurzu po 30° (od `IMUState` verze 5). Ověřeno nad `20260929-151634.rec` a `20260925-144658.rec` (čísla shodná s ručním rozborem); starší záznam bez teploty blok odmítne"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Jízda s chladným senzorem (bez dlouhého stání na slunci): vrátí-li se `|B|` k ~0,49–0,50 G a `IMU yaw − GPS kurz` k −3 … +1°, je příčinou ohřátí; pokud ne, hledat dál (poloha kabelů ke kamerám). Nejčistší je týž pokus za studena a po ohřátí na témž místě s otočkou na místě — teplota se pak neplete s kurzem ani s místem"
+        stav: otevreno
+      - co: "Minutový záznam s jednou otočkou na místě (rozpětí `|B|` přes otočku; 18. 9. zbytkové vodorovné železo 11–18 mG) — rozliší železo od driftu VPE; při železe nová `mission=magcal`"
+        stav: otevreno
+    odkazy:
+      - text: imu-and-frames.md
+        cesta: doc/imu-and-frames.md
+      - text: Vn100Report.cs
+        cesta: Src/ARBot.Analyze/Vn100Report.cs
     devlog: [2026-09-29]
     ceka_na: []

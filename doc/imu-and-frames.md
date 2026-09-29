@@ -629,8 +629,8 @@ $VNRRG,83,1,1,0,0,1000,2026.693,+50.03377850,+014.52639480,+00306.653
 | registr 83, `UseMagModel` | **1** | model pole je zapnutý |
 | registr 21, východní složka | **0,0119 G** (nenulová) | deklinace **v referenci JE** |
 | → deklinace z referenčního vektoru | **3,42°** | WMM pro Prahu 2026 dává ~5,3° |
-| → `\|B\|` | **0,4896 G** | starý default `--bref=0.4818` je tedy neaktuální |
-| → sklon | **65,95°** | stará hodnota byla 60,9° |
+| → `\|B\|` | **0,4896 G** | starý default `--bref=0.4818` je tedy neaktuální (od 29. 9. 2026 je výchozí 0,4896) |
+| → sklon | **65,95°** | stará hodnota byla 60,9° (od 29. 9. 2026 výchozí `--incl=65.95`) |
 
 ⚠️ **Vestavěný model pole VN je zastaralý o ~1,9°.** Senzor dostal rok 2026,693 a přesto
 počítá deklinaci **3,42°**; ~5,3° odpovídá WMM2025 pro dnešek a rozdíl 1,9° je při sekulární
