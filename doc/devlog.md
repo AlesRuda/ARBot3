@@ -46,6 +46,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   která příště nebude. **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
 - Komentář u `Profile.WheelRadius` už neopakuje hodnotu koeficientu stlačení pneumatiky (uváděl
   0,94, v kódu je 0,923).
+- **Délka trasy k cíli se měří od robotu** (`nav-delka-trasy` hotovo): `Router.Plan(from, out
+  remainingM)` bere z první hrany jen část před robotem (`1 − t`, u obrácené orientace `t`).
+  Dosud byla na startu nadhodnocená až o jednu hranu. Platí pro „zbývá do cíle" v `GlobalNavMsg`
+  i pro délku ze zkoušky dosažitelnosti (Track, Robotour). 3 nové testy (oba směry jízdy,
+  zpráva navigátoru), zpřísněn `Probe_GoalBehindRobot_IsReachable` (±25 m → ±1 m). Testy
+  1 686 / 148 / 129; jediný pád `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` na
+  `deploy/spitest.sh` (commit `886e599`, bez `set -euo pipefail`) s touto změnou nesouvisí.
 
 ## 2026-09-28
 

@@ -612,10 +612,30 @@ public class GlobalNavigatorTests
         Assert.Multiple(() =>
         {
             Assert.That(behind.Reachable, Is.True, "cil za robotem se da objet otockou na miste");
-            Assert.That(behind.LengthM, Is.EqualTo(50).Within(25),
-                        "delka trasy je nadhodnocena nejvys o jednu hranu, ne nekonecna");
+            Assert.That(behind.LengthM, Is.EqualTo(50).Within(1),
+                        "delka trasy se meri od robotu (od 29. 9. 2026; drive nadhodnocena az o hranu)");
             Assert.That(ahead.Reachable, Is.True);
+            Assert.That(ahead.LengthM, Is.EqualTo(50).Within(1));
         });
+    }
+
+    /// <summary>
+    /// <b>„Zbývá do cíle" v <c>GlobalNavMsg</c> se měří od robotu.</b> Robot uprostřed hrany
+    /// 100–120 m, cíl na 200 m: zbývá 90 m. Součet celých hran dával 100 m — první hrana se
+    /// započítala i tou polovinou, kterou už robot ujel.
+    /// </summary>
+    [Test]
+    public void RouteLength_MeasuredFromRobot_NotFromStartOfFirstEdge()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var nav = Create(origin, sink);
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        var msg = nav.Step(110, 0, DateTime.UtcNow);
+
+        Assert.That(msg!.RouteLengthM, Is.EqualTo(90).Within(1),
+                    "10 m zbytek prvni hrany + 4 hrany po 20 m; soucet celych hran by dal 100 m");
     }
 
     // ---------------- Souběh vláken (nález auditu 15. 9. 2026) ----------------

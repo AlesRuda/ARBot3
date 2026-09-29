@@ -101,6 +101,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// <summary>Posledni trasa jako hrany site (pro zobrazeni a diagnostiku).</summary>
         public IReadOnlyList<Edge> Route { get; private set; } = Array.Empty<Edge>();
 
+        /// <summary>Zbyvajici delka <see cref="Route"/> od robotu do cile [m] (viz <c>Router.Plan</c>).</summary>
+        private double routeRemainingM;
+
         /// <summary>Posledni predana mrkev [m, world ENU], nebo null.</summary>
         public Point2D? Carrot { get; private set; }
 
@@ -177,6 +180,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             {
                 goal = null;
                 Route = Array.Empty<Edge>();
+                routeRemainingM = 0;
                 Status = GlobalNavStatus.NoGoal;
             }
             localGoal.ClearGoal();
@@ -216,8 +220,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// orientace zkousi a beru levnejsi, takze <b>jet se tam da</b>. Do 27. 8. 2026 to zkouska
         /// nedelala a zamitala dobre cile hlaskou „nevede trasa".</para>
         ///
-        /// <para><b>Delka trasy</b> je soucet delek hran: u cile presna, na zacatku nadhodnocena az
-        /// o delku jedne hrany (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
+        /// <para><b>Delka trasy</b> se meri od robotu k cili (viz <see cref="Logs.GlobalNavMsg.RouteLengthM"/>).</para>
         /// </summary>
         public Missions.RouteProbeResult Probe(LLA target)
         {
@@ -268,9 +271,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 if (double.IsInfinity(cost) || double.IsNaN(cost))
                     return new Missions.RouteProbeResult(false, 0, snapped, offRoad);
 
-                var route = new Router(probeField).Plan(here);
-                double length = 0;
-                for (int i = 0; i < route.Count; i++) length += route[i].LengthMeters;
+                new Router(probeField).Plan(here, out double length);
 
                 return new Missions.RouteProbeResult(true, length, snapped, offRoad);
             }
@@ -531,8 +532,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 return BuildMessage(here, target, null, fix.OffRouteDist, 0, now);
             }
 
-            var route = rt.Plan(here);
+            var route = rt.Plan(here, out double remaining);
             Route = route;
+            routeRemainingM = remaining;
 
             var polyline = ToPolyline(route, target);
             var robot = new Point2D(x, y);
@@ -840,10 +842,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         private GlobalNavMsg BuildMessage(LLA here, LLA target, Point2D? carrot,
                                           double offRoute, int routeEdges, DateTime now)
         {
-            double routeLength = 0;
-            var route = Route;
-            for (int i = 0; i < route.Count; i++)
-                routeLength += route[i].LengthMeters;
+            double routeLength = routeRemainingM;
 
             return new GlobalNavMsg
             {

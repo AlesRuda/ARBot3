@@ -29,9 +29,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">45</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">38</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">137</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">138</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">6</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -385,6 +385,7 @@
       <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
       <li data-tema="hw-magcal-reg23-po-padu"><span class="mono">28. 9.</span> <span class="typ">nalezeno i zamítnuto</span> <a href="#hw-magcal-reg23-po-padu">P&#225;d procesu během mise magcal nech&#225; senzor bez kalibrace magnetometru</a></li>
       <li data-tema="hw-magcal-uncompmag-kompenzovany"><span class="mono">28. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-magcal-uncompmag-kompenzovany">„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</a></li>
+      <li data-tema="nav-delka-trasy"><span class="mono">29. 9.</span> <span class="typ">vyřešeno</span> <a href="#nav-delka-trasy">D&#233;lka trasy k c&#237;li nepoč&#237;tala posledn&#237; &#250;sek</a></li>
       <li data-tema="nav-uzavreni-hran-pres-restart"><span class="mono">29. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-uzavreni-hran-pres-restart">Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</a></li>
     </ul>
   </div>
@@ -970,16 +971,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md (f&#225;ze 4b)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/LocalNavigator.cs">LocalNavigator.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-13">2026-08-13</a></p>
   </article>
-  <article class="tema" id="nav-delka-trasy" data-stav="otevreno">
-    <h3>D&#233;lka trasy k c&#237;li nepoč&#237;tala posledn&#237; &#250;sek</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 26. 8. 2026</span></p>
-    <p>Při vložen&#237; c&#237;le do s&#237;tě se rozř&#237;zne nejbližš&#237; hrana; obě půlky dost&#225;valy spr&#225;vnou cenu, ale nulovou d&#233;lku, takže „vzd&#225;lenost do c&#237;le&quot; v z&#225;znamu i v panelu mise byla podhodnocen&#225; o cel&#253; posledn&#237; &#250;sek (test: 100 m m&#237;sto 130 m). Opraveno 26. 8. Zůst&#225;v&#225; zn&#225;m&#225; nepřesnost na druh&#233;m konci: pl&#225;novač vrac&#237; cel&#233; hrany, takže prvn&#237; hrana se započ&#237;t&#225; i tou č&#225;st&#237;, kter&#225; je už za robotem — d&#233;lka je na startu nadhodnocen&#225;, u c&#237;le přesn&#225;.</p>
-    <ul class="kroky">
-      <li class="hotovo">D&#233;lky půlek rozř&#237;znut&#233; hrany u c&#237;le <span class="mono">26. 8. 2026</span></li>
-      <li class="otevreno">Odeč&#237;st č&#225;st prvn&#237; hrany za robotem (trasa jako polyline, ne seznam hran)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a></p>
-  </article>
   <article class="tema" id="nav-phi-obracena-hrana" data-stav="v-kodu">
     <h3>φ při j&#237;zdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzav&#237;ral spr&#225;vn&#233; cesty</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 20. 9. 2026</span> <span>vyřešeno 20. 9. 2026</span></p>
@@ -1026,6 +1017,16 @@
     <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 16. 8. 2026</span> <span>vyřešeno 16. 8. 2026</span></p>
     <p>Graf s&#237;tě měřil vzd&#225;lenosti haversinem na kouli, zat&#237;mco lok&#225;ln&#237; rovina a f&#250;ze poč&#237;taj&#237; na elipsoidu WGS84 — na syntetick&#233; mapě vyšlo 9,969 m m&#237;sto 10,000 m, a t&#253;kalo se to všech map. <code>GreatCircle</code> teď poč&#237;t&#225; geodetiku na zvolen&#233;m elipsoidu; projekce na &#250;sečku vědomě zůstala na kouli, protože se tam měř&#237;tko vykr&#225;t&#237;. Při tom se přejmenovala vlastnost, kter&#225; tvrdila excentricitu a byla zploštěn&#237;.</p>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 16. 8. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-16">2026-08-16</a></p>
+  </article>
+  <article class="tema" id="nav-delka-trasy" data-stav="hotovo">
+    <h3>D&#233;lka trasy k c&#237;li nepoč&#237;tala posledn&#237; &#250;sek</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 26. 8. 2026</span> <span>vyřešeno 29. 9. 2026</span></p>
+    <p>Při vložen&#237; c&#237;le do s&#237;tě se rozř&#237;zne nejbližš&#237; hrana; obě půlky dost&#225;valy spr&#225;vnou cenu, ale nulovou d&#233;lku, takže „vzd&#225;lenost do c&#237;le&quot; v z&#225;znamu i v panelu mise byla podhodnocen&#225; o cel&#253; posledn&#237; &#250;sek (test: 100 m m&#237;sto 130 m). Opraveno 26. 8. Zůst&#225;v&#225; zn&#225;m&#225; nepřesnost na druh&#233;m konci: pl&#225;novač vrac&#237; cel&#233; hrany, takže prvn&#237; hrana se započ&#237;t&#225; i tou č&#225;st&#237;, kter&#225; je už za robotem — d&#233;lka je na startu nadhodnocen&#225;, u c&#237;le přesn&#225;. **Dořešeno 29. 9. 2026:** <code>Router.Plan(from, out remainingM)</code> bere z prvn&#237; hrany jen č&#225;st před robotem (<code>1 − t</code>, u obr&#225;cen&#233; orientace <code>t</code>, stejně jako cena <code>costRev</code>), takže „zb&#253;v&#225; do c&#237;le&quot; v <code>GlobalNavMsg</code> i d&#233;lka ze zkoušky dosažitelnosti (Track, Robotour) se měř&#237; od robotu. Trasa zůst&#225;v&#225; seznamem hran, polyline nebyla potřeba. Testy v obou směrech j&#237;zdy.</p>
+    <ul class="kroky">
+      <li class="hotovo">D&#233;lky půlek rozř&#237;znut&#233; hrany u c&#237;le <span class="mono">26. 8. 2026</span></li>
+      <li class="hotovo">Odeč&#237;st č&#225;st prvn&#237; hrany za robotem — <code>Router.Plan(from, out remainingM)</code>, testy <code>ZbyvajiciDelka_*</code> a <code>RouteLength_MeasuredFromRobot_*</code> <span class="mono">29. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
   </article>
   <article class="tema" id="nav-profil-robot-osm" data-stav="hotovo">
     <h3>Mapa se nač&#237;tala profilem chodce — bez cyklostezek, se schody a skrz zamčen&#233; branky</h3>

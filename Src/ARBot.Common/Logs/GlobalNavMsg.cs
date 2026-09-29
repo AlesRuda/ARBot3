@@ -62,10 +62,10 @@ namespace ARBot.Common.Logs
         /// skutecnou geometrickou delku. Do te doby mely nulu, takze posledni usek k cili se
         /// nezapocital vubec.</para>
         ///
-        /// <para><b>Na ZACATKU je nadhodnocena</b> az o delku jedne hrany: <c>Router.Plan</c> vraci
-        /// <b>cele</b> hrany, takze prvni z nich se zapocita i tou casti, ktera je uz za robotem.
-        /// Je to vlastnost toho, ze trasa je seznam HRAN, ne polyline — na rozhodovani to nema vliv
-        /// (gatuje se dosazitelnost), ale jako „vzdalenost do cile" to cislo mirne prestreluje.</para>
+        /// <para><b>Meri se OD ROBOTU</b> (od 29. 9. 2026): <c>Router.Plan</c> vraci <b>cele</b>
+        /// hrany, takze z prvni se bere jen cast pred robotem (<c>1 − t</c>, u obracene orientace
+        /// <c>t</c>). Do te doby byla delka na zacatku nadhodnocena az o delku jedne hrany.
+        /// Zaznamy pred timto datem tedy nesou soucet celych hran.</para>
         /// </summary>
         public double RouteLengthM;
 

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **234**: otevřeno **46** · v kódu, na HW neověřeno **38** · hotovo **137** · odloženo **7** · zamítnuto **6**.
+Témat celkem **234**: otevřeno **45** · v kódu, na HW neověřeno **38** · hotovo **138** · odloženo **7** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -26,7 +26,6 @@ Témat celkem **234**: otevřeno **46** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný](#lok-ransac-nedeterministicky) | 23. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
-| otevřeno | Navigace po mapě | [Délka trasy k cíli nepočítala poslední úsek](#nav-delka-trasy) | 26. 8. 2026 |  |
 | otevřeno | Hardware a senzory | [Kamera D435 se za provozu odmlčí](#hw-d435-vypadky-za-provozu) | 31. 8. 2026 | [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) |
 | otevřeno | Nástroje, záznam a analýza | [Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](#nast-avalonia-headless-testy) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Měření výkonu řízení — stíhá řídicí smyčka svou periodu?](#prov-perf-monitoring) | 1. 9. 2026 |  |
@@ -788,18 +787,6 @@ Nejsilnější důkaz, že je cesta přehrazená, je „všechny buňky napří�
 
 [global-navigation-runtime.md (fáze 4b)](global-navigation-runtime.md), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-08-13](devlog.md#2026-08-13)
 
-<a id="nav-delka-trasy"></a>
-### ⬜ Délka trasy k cíli nepočítala poslední úsek
-
-`nav-delka-trasy` · vada · **otevřeno** · nalezeno 26. 8. 2026
-
-Při vložení cíle do sítě se rozřízne nejbližší hrana; obě půlky dostávaly správnou cenu, ale nulovou délku, takže „vzdálenost do cíle" v záznamu i v panelu mise byla podhodnocená o celý poslední úsek (test: 100 m místo 130 m). Opraveno 26. 8. Zůstává známá nepřesnost na druhém konci: plánovač vrací celé hrany, takže první hrana se započítá i tou částí, která je už za robotem — délka je na startu nadhodnocená, u cíle přesná.
-
-- [x] Délky půlek rozříznuté hrany u cíle (26. 8. 2026)
-- [ ] Odečíst část první hrany za robotem (trasa jako polyline, ne seznam hran)
-
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27)
-
 <a id="nav-phi-obracena-hrana"></a>
 ### 🧪 φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
 
@@ -858,6 +845,18 @@ Vrstva nad lokálním plánovačem: dostane cíl v zeměpisných souřadnicích,
 Graf sítě měřil vzdálenosti haversinem na kouli, zatímco lokální rovina a fúze počítají na elipsoidu WGS84 — na syntetické mapě vyšlo 9,969 m místo 10,000 m, a týkalo se to všech map. `GreatCircle` teď počítá geodetiku na zvoleném elipsoidu; projekce na úsečku vědomě zůstala na kouli, protože se tam měřítko vykrátí. Při tom se přejmenovala vlastnost, která tvrdila excentricitu a byla zploštění.
 
 [rozhodnutí 16. 8. 2026](decisions.md) · DevLog [2026-08-16](devlog.md#2026-08-16)
+
+<a id="nav-delka-trasy"></a>
+### ✅ Délka trasy k cíli nepočítala poslední úsek
+
+`nav-delka-trasy` · vada · **hotovo** · nalezeno 26. 8. 2026 · vyřešeno 29. 9. 2026
+
+Při vložení cíle do sítě se rozřízne nejbližší hrana; obě půlky dostávaly správnou cenu, ale nulovou délku, takže „vzdálenost do cíle" v záznamu i v panelu mise byla podhodnocená o celý poslední úsek (test: 100 m místo 130 m). Opraveno 26. 8. Zůstává známá nepřesnost na druhém konci: plánovač vrací celé hrany, takže první hrana se započítá i tou částí, která je už za robotem — délka je na startu nadhodnocená, u cíle přesná. **Dořešeno 29. 9. 2026:** `Router.Plan(from, out remainingM)` bere z první hrany jen část před robotem (`1 − t`, u obrácené orientace `t`, stejně jako cena `costRev`), takže „zbývá do cíle" v `GlobalNavMsg` i délka ze zkoušky dosažitelnosti (Track, Robotour) se měří od robotu. Trasa zůstává seznamem hran, polyline nebyla potřeba. Testy v obou směrech jízdy.
+
+- [x] Délky půlek rozříznuté hrany u cíle (26. 8. 2026)
+- [x] Odečíst část první hrany za robotem — `Router.Plan(from, out remainingM)`, testy `ZbyvajiciDelka_*` a `RouteLength_MeasuredFromRobot_*` (29. 9. 2026)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="nav-profil-robot-osm"></a>
 ### ✅ Mapa se načítala profilem chodce — bez cyklostezek, se schody a skrz zamčené branky
