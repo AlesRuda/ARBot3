@@ -8366,8 +8366,9 @@ temata:
     oblast: navigace
     nazev: Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-29
+    vyreseno: 2026-09-29
     popis: >
       Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na kolmém průmětu
       robotu na cestu. `RouteCarrot.Find` bere poslední bod trasy uvnitř čtverce ±`CarrotHalfExtentM`
@@ -8385,11 +8386,16 @@ temata:
       - co: "Změřeno: mrkev = kolmý průmět při odstupu nad 5,9 m (`GlobalNavMsg` proti `RobotStateMsg`)"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Rozhodnout léčbu (autor): mrkev ve vzdálenosti podél trasy od průmětu; co s ní, když tím vyjde mimo lokální mapu (oříznout spojnici robot → mrkev hranou mapy?)"
+      - co: "Léčba (autor): čtverec pro hledání mrkve vystředěný na kolmém průmětu robota na trasu, i nad `OffRouteMaxM` (mrkev táhne po trase k cíli, ne kolmo). Účelem je omezit možnost, aby se robot snadno rozhodl pro špatný směr — pózu to neopravuje a nemá. Oříznutí mrkve mimo lokální mapu už uměl `LocalPathPlanner.ClipToGrid` (`Partial`). 5 nových testů, 4 z nich na starém kódu padají"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Ověřit na zařízení: při odstupu pózy od trasy mrkev před průmětem (`GlobalNavMsg` proti póze) a bez uzavírání hran detektorem B"
         stav: otevreno
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
+      - text: rozhodnutí 29. 9. 2026
+        cesta: doc/decisions.md
     devlog: [2026-09-29]
     ceka_na: []
 

@@ -98,6 +98,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   Skutečný `EdgeAssociator` dává tentýž verdikt jako měřidlo ve 100 %. Testy 1 705 / 148 / 129
   (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
   **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Mrkev se měří od kolmého průmětu robota na trasu** (`nav-mrkev-kolmy-prumet` → v kódu). Čtverec
+  pro hledání mrkve v `RouteCarrot` je vystředěný na průmětu, ne na robotu: na trase beze změny,
+  mimo ni leží mrkev půl mapy před průmětem a robot k trase najíždí šikmo (odstup 9 m: 57° místo
+  90°) a postupuje. Platí i nad `OffRouteMaxM` — návrhová výjimka „nejbližší bod trasy“ se ruší
+  (autor: mrkev má táhnout k cíli). 5 nových testů, 4 na starém kódu padají; testy 1 710 / 148 / 129
+  (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
+  **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
 
 ## 2026-09-28
 

@@ -727,6 +727,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
   trasa v mapě, detektory + uzavírání hran); zbývá recovery manévr, průřez koridorem a ověření na HW.
+  ✅ **Od 29. 9. 2026 se mrkev měří od KOLMÉHO PRŮMĚTU robota na trasu** (`RouteCarrot`): do té
+  doby byl čtverec kolem robotu a při odstupu nad 5,9 m vracel průmět samotný — robot měl jet
+  kolmo, nepostupoval a detektor B zavřel hranu. Teď leží mrkev před průmětem i mimo trasu (i nad
+  `OffRouteMaxM`, rozhodnutí autora), lokální plánovač ji ořízne (`Partial`). ⚠️ Na HW neběželo.
   ⚠️ **Robotour 19. 9. 2026 (rozbor 20. 9., `ARBot.Analyze nav`): φ při jízdě po trase ROSTLO
   o 1 s/m**, kdykoli trasa vedla proti pořadí vložení hrany — `ComputePhi` bralo `1 − t` z hrany
   od `NearestNode`, ale `fix.CurrentEdge` byla její obrácená orientace (zbývá `t`). Detektor B pak

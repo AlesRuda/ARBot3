@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **238**: otevřeno **44** · v kódu, na HW neověřeno **34** · hotovo **140** · odloženo **14** · zamítnuto **6**.
+Témat celkem **238**: otevřeno **43** · v kódu, na HW neověřeno **35** · hotovo **140** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -55,7 +55,6 @@ Témat celkem **238**: otevřeno **44** · v kódu, na HW neověřeno **34** · 
 | otevřeno | Lokalizace a fúze senzorů | [Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)](#lok-koridor-noedge-po-zatacce) | 26. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | otevřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
-| otevřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -90,6 +89,7 @@ Témat celkem **238**: otevřeno **44** · v kódu, na HW neověřeno **34** · 
 | v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech](#mise-track-timeout-delka-useku) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
+| v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
@@ -816,18 +816,6 @@ Nejsilnější důkaz, že je cesta přehrazená, je „všechny buňky napří�
 
 [global-navigation-runtime.md (fáze 4b)](global-navigation-runtime.md), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-08-13](devlog.md#2026-08-13)
 
-<a id="nav-mrkev-kolmy-prumet"></a>
-### ⬜ Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou
-
-`nav-mrkev-kolmy-prumet` · vada · **otevřeno** · nalezeno 29. 9. 2026
-
-Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na kolmém průmětu robotu na cestu. `RouteCarrot.Find` bere poslední bod trasy uvnitř čtverce ±`CarrotHalfExtentM` (6,4 − 0,5 = 5,9 m) kolem **pózy**; když kolmý průmět pózy na trasu leží mimo čtverec, vrátí **průmět samotný**. Změřeno nad `GlobalNavMsg` proti póze: při odstupu 0–5,9 m je mrkev 5,6–5,9 m vpředu (do boku = odstup), nad 5,9 m **vpřed −0,3 m a do boku = odstup** (poměr 1,00) — v té jízdě ~100 s (280–380 s, odstup 6,5–9 m). Protože póza ujela od skutečnosti (robot fyzicky jel po cestě, `lok-assoc-sousedni-usek`), leží taková mrkev z pohledu robotu kolmo **za okrajem cesty**. Stav přitom zůstává `Driving` až do `OffRouteMaxM` = 15 m, a teprve pro tu situaci komentář v `GlobalNavigator` s mrkví v průmětu počítá — mezi 5,9 a 15 m je to nezamýšlené. Téhož dne pak detektor B (bez postupu) penalizoval a zavřel celou cyklostezku (way 154101921, 15:15:16 a 15:15:42, offRoute 8,4 m). Návrh autora: vzdálenost mrkve měřit **od kolmého průmětu podél trasy**, ne čtvercem kolem robotu.
-
-- [x] Změřeno: mrkev = kolmý průmět při odstupu nad 5,9 m (`GlobalNavMsg` proti `RobotStateMsg`) (29. 9. 2026)
-- [ ] Rozhodnout léčbu (autor): mrkev ve vzdálenosti podél trasy od průmětu; co s ní, když tím vyjde mimo lokální mapu (oříznout spojnici robot → mrkev hranou mapy?)
-
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
-
 <a id="nav-detektor-b-jitter-drahy"></a>
 ### 🧪 Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu
 
@@ -839,6 +827,19 @@ Nález mimochodem při rozboru Robotouru 19. 9. 2026 (`nav-phi-obracena-hrana`).
 - [ ] Ověřit na robotu: čekání před překážkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ prázdné)
 
 [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="nav-mrkev-kolmy-prumet"></a>
+### 🧪 Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou
+
+`nav-mrkev-kolmy-prumet` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 29. 9. 2026
+
+Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na kolmém průmětu robotu na cestu. `RouteCarrot.Find` bere poslední bod trasy uvnitř čtverce ±`CarrotHalfExtentM` (6,4 − 0,5 = 5,9 m) kolem **pózy**; když kolmý průmět pózy na trasu leží mimo čtverec, vrátí **průmět samotný**. Změřeno nad `GlobalNavMsg` proti póze: při odstupu 0–5,9 m je mrkev 5,6–5,9 m vpředu (do boku = odstup), nad 5,9 m **vpřed −0,3 m a do boku = odstup** (poměr 1,00) — v té jízdě ~100 s (280–380 s, odstup 6,5–9 m). Protože póza ujela od skutečnosti (robot fyzicky jel po cestě, `lok-assoc-sousedni-usek`), leží taková mrkev z pohledu robotu kolmo **za okrajem cesty**. Stav přitom zůstává `Driving` až do `OffRouteMaxM` = 15 m, a teprve pro tu situaci komentář v `GlobalNavigator` s mrkví v průmětu počítá — mezi 5,9 a 15 m je to nezamýšlené. Téhož dne pak detektor B (bez postupu) penalizoval a zavřel celou cyklostezku (way 154101921, 15:15:16 a 15:15:42, offRoute 8,4 m). Návrh autora: vzdálenost mrkve měřit **od kolmého průmětu podél trasy**, ne čtvercem kolem robotu.
+
+- [x] Změřeno: mrkev = kolmý průmět při odstupu nad 5,9 m (`GlobalNavMsg` proti `RobotStateMsg`) (29. 9. 2026)
+- [x] Léčba (autor): čtverec pro hledání mrkve vystředěný na kolmém průmětu robota na trasu, i nad `OffRouteMaxM` (mrkev táhne po trase k cíli, ne kolmo). Účelem je omezit možnost, aby se robot snadno rozhodl pro špatný směr — pózu to neopravuje a nemá. Oříznutí mrkve mimo lokální mapu už uměl `LocalPathPlanner.ClipToGrid` (`Partial`). 5 nových testů, 4 z nich na starém kódu padají (29. 9. 2026)
+- [ ] Ověřit na zařízení: při odstupu pózy od trasy mrkev před průmětem (`GlobalNavMsg` proti póze) a bez uzavírání hran detektorem B
+
+[global-navigation-runtime.md](global-navigation-runtime.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
 
 <a id="nav-recovery-manevr"></a>
 ### ⏸ Recovery manévr při záseku

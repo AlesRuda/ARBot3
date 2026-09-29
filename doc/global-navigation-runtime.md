@@ -182,6 +182,8 @@ je ještě v lokální mapě**:
 
 > **Mrkev = poslední bod trasy, který je ještě uvnitř gridu** (zmenšeného o `CarrotMarginM`), počítáno
 > postupem po lomené čáře trasy od průmětu robota **k prvnímu výstupu z gridu**.
+> Od 29. 9. 2026 je ten čtverec vystředěný na **kolmém průmětu** robota na trasu, ne na robotu —
+> na trase je to totéž, mimo ni viz [Mimo trasu](#mimo-trasu).
 
 **Proč až na okraj a ne „pár metrů dopředu":** blízká mrkev dělá z lokálního plánovače krátkozraké
 zvíře. V **bludišti** (a park se živým plotem, zdmi a slepými odbočkami se tak chová) by robot
@@ -234,10 +236,21 @@ rovně za nosem. **Změřit na OrangePI** (patří do fáze 6 spolu se zbytkem �
 
 ### Mimo trasu
 
-`Navigator` off-route neřeší explicitně (jiná poloha jen přečte pole jinde) — a to je správné, dokud
-je robot blízko sítě. Když `NavigationFix.OffRouteDist > OffRouteMaxM` (default 15 m), přestává mít
-mrkev na hraně smysl (mezi robotem a sítí může být cokoli): mrkev = **nejbližší bod trasy**, stav
-`OffRoute`, a je to hlášená (nikoli tichá) situace. Vyšší vrstva se může rozhodnout misi přerušit.
+`Navigator` off-route neřeší explicitně (jiná poloha jen přečte pole jinde). **Mrkev se měří od
+kolmého průmětu robota na trasu** — účelem je omezit možnost, aby se robot snadno rozhodl pro
+špatný směr (pózu to neopravuje, to je úkol lokalizace): čtverec ±`CarrotHalfExtentM` se vystředí na průmětu, takže
+mrkev leží půl mapy **před** průmětem po trase a robot k trase najíždí šikmo (při odstupu 6,5 m pod
+48°, 9 m 57°, 15 m 68°) a přitom po ní postupuje ke cíli. Mrkev mimo lokální mapu ořízne
+`LocalPathPlanner.ClipToGrid` po spojnici robot → mrkev (stav plánu `Partial`). Když
+`NavigationFix.OffRouteDist > OffRouteMaxM` (default 15 m), je stav `OffRoute` — hlášená (nikoli
+tichá) situace, vyšší vrstva se může rozhodnout misi přerušit; mrkev se počítá stejně.
+
+⚠️ **Do 29. 9. 2026 to bylo jinak, a byla to vada:** čtverec byl kolem robotu a když z něj průmět
+vypadl (odstup nad 5,9 m, ne až nad 15 m, jak zamýšlel návrh), vracel se **průmět samotný**. Robot
+měl jet kolmo na trasu, nepostupoval a detektor B zavřel hranu (Track 29. 9. v Modřanech, ~100 s
+při odstupu 6,5–9 m, `nav-mrkev-kolmy-prumet`). Autor rozhodl měřit od průmětu **i nad
+`OffRouteMaxM`**: mrkev má táhnout po trase směrem k cíli, ne kolmo — viz
+[decisions.md](decisions.md), 29. 9. 2026.
 
 Napětí, které tu zůstává vědomě nevyřešené: **když je špatná lokalizace, je špatná i mrkev** a robot
 sjede z cesty, protože grid mu to dovolí (tráva je geometricky sjízdná). Protijedem je semantický
@@ -416,7 +429,7 @@ mapě** dnes zadává cíl přímo lokální vrstvě; po zapojení půjde do glo
 | `CarrotMarginM` | 0,5 m | o kolik se grid zmenší, než se hledá výstup trasy |
 | `HorizonM` | **25 m** (z 6,0) | `LocalPlannerConfig` — **délka** dráhy, viz [výše](#důsledek-localplannerconfighorizonm-je-potřeba-zvednout) |
 | `ArrivalRadiusMeters` | **3,0 m** (z 12,0) | `NavigatorOptions`; „menší než stanoviště", ne „co nejmenší" |
-| `OffRouteMaxM` | 15,0 m | nad tím mrkev = nejbližší bod trasy |
+| `OffRouteMaxM` | 15,0 m | nad tím stav `OffRoute` (mrkev se počítá stejně, od průmětu; do 29. 9. 2026 nejbližší bod trasy) |
 | `NoMotionSec` / `MinMotionM` | 10 s / 0,5 m | detektor A |
 | `ProgressWindowM` / `ProgressGain` | 20 m / 0,3 | detektor B |
 | `BlockedPlanCount` | 20 (≈2 s) | detektor C |
@@ -443,7 +456,7 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 - **znovuaplikování uzavření po přestavbě sítě** (načtení mapy za běhu) podle `(WayId, From, To)`;
 - **bloudění:** póza se hýbe, φ neklesá → soft penalizace, ne uzavření;
 - **zásek:** póza stojí při aktivním cíli → `StuckNoMotion` a eskalace; při neaktivním cíli **nic**;
-- **mimo trasu:** póza 30 m od sítě → stav `OffRoute`, mrkev = nejbližší bod trasy;
+- **mimo trasu:** póza 30 m od sítě → stav `OffRoute`; robot 3 / 8 / 20 m vedle trasy → mrkev půl mapy **před** průmětem, ne v něm (`RouteCarrotTests`);
 - `ClosureTtl` → hrana se otevře na soft penalizaci, po druhém potvrzení je trvale zavřená;
 - roundtrip `GlobalNavMsg` (serializace) a `RouteProgress` → zpráva;
 - A/B nad reálným `.rec` ze soutěžní trasy, až bude.

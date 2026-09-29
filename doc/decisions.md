@@ -13,6 +13,26 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-29 — Mrkev se měří od kolmého průmětu robota na trasu, i mimo trasu
+
+**Co:** `RouteCarrot` vystředí čtverec ±`CarrotHalfExtentM` (5,9 m) na **kolmém průmětu** robota na
+trasu místo na robotu; mrkev je dál „první výstup trasy ze čtverce“. Platí pro jakýkoli odstup,
+i nad `OffRouteMaxM` (15 m), kde zůstává jen hlášení `OffRoute`. Rozhodnutí autora.
+
+**Proč:** Cílem je **omezit možnost, aby se robot snadno rozhodl pro špatný směr** (autor); pózu to
+opravovat nemá. Se čtvercem kolem robotu se při odstupu nad 5,9 m vracel průmět samotný — robot měl jet
+kolmo na trasu, nepostupoval a detektor B zavřel hranu (Track 29. 9. 2026). Kolmý průmět netáhne
+ani k cíli, ani od něj; mrkev před průmětem táhne po trase směrem k cíli a robot se k ní sbíhá
+šikmo. Alternativa „mrkev ve vzdálenosti L po trase“ by v zatáčkách mrkev zkrátila proti dnešku
+a oslabila pravidlo „mrkev až na okraji mapy“ (A\* má využít celou známou mapu). Návrhová výjimka
+„nad 15 m nejbližší bod trasy“ se ruší: i tam má mrkev táhnout k cíli.
+
+**Důsledky:** Na trase beze změny. Mimo ni mrkev často leží za okrajem lokální mapy a lokální
+plánovač ji ořízne (`Partial`). Špatnou **pózu** to neřeší a řešit nemá (to je lokalizace) — mrkev
+jen i pak ukazuje po trase směrem k cíli, ne kolmo do strany. Na zařízení neběželo.
+Viz [global-navigation-runtime.md](global-navigation-runtime.md), „Mimo trasu“; registr
+`nav-mrkev-kolmy-prumet`.
+
 ### 2026-09-29 — Přiřazení hrany penalizuje podélný přesah za konec úsečky (`assocfloorlong=3`), limit hledání hrany zůstává ∞
 
 **Co:** Kandidát na „hranu, po které jedu“, za jehož koncem úsečky póza leží o `d` metrů, dostane

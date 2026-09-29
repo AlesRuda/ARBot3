@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Communication;
@@ -569,8 +569,9 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 return BuildMessage(here, target, null, fix.OffRouteDist, route.Count, now);
             }
 
-            // Mimo trasu: mrkev na hrane mapy prestava mit smysl (mezi robotem a siti muze byt
-            // cokoli). RouteCarrot v tom pripade vraci nejblizsi bod trasy, coz je presne ono.
+            // Mimo trasu: RouteCarrot meri mrkev od KOLMEHO PRUMETU robota na trasu, takze i pri
+            // odstupu lezi kus pred nim po trase a robot k ni najizdi sikmo (od 29. 9. 2026; driv
+            // nad 5,9 m prumet samotny a robot nepostupoval). OffRoute je jen hlaseni pro misi.
             Status = fix.OffRouteDist > cfg.OffRouteMaxM
                 ? GlobalNavStatus.OffRoute
                 : (IsGoalInMap(target, robot) ? GlobalNavStatus.GoalInMap : GlobalNavStatus.Driving);

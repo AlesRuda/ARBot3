@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">44</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">34</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">43</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">35</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">140</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">6</span></label>
@@ -390,7 +390,7 @@
       <li data-tema="lok-odometrie-obvod-kola"><span class="mono">29. 9.</span> <span class="typ">vyřešeno</span> <a href="#lok-odometrie-obvod-kola">Obvod kola je o ~1,8 % větš&#237;, než robot ujede — p&#243;za na rovince ut&#237;k&#225; dopředu (12,5 m na 740 m)</a></li>
       <li data-tema="nav-delka-trasy"><span class="mono">29. 9.</span> <span class="typ">vyřešeno</span> <a href="#nav-delka-trasy">D&#233;lka trasy k c&#237;li nepoč&#237;tala posledn&#237; &#250;sek</a></li>
       <li data-tema="nav-detektor-b-jitter-drahy"><span class="mono">29. 9.</span> <span class="typ">vyřešeno</span> <a href="#nav-detektor-b-jitter-drahy">Detektor „bez postupu“ poč&#237;t&#225; ujetou dr&#225;hu ze součtu kroků p&#243;zy, takže jitter a skoky p&#243;zy berou jako j&#237;zdu</a></li>
-      <li data-tema="nav-mrkev-kolmy-prumet"><span class="mono">29. 9.</span> <span class="typ">nalezeno</span> <a href="#nav-mrkev-kolmy-prumet">Je-li p&#243;za od trasy d&#225;l než 5,9 m, mrkev je kolm&#253; průmět na trasu — robot m&#225; jet např&#237;č cestou</a></li>
+      <li data-tema="nav-mrkev-kolmy-prumet"><span class="mono">29. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nav-mrkev-kolmy-prumet">Je-li p&#243;za od trasy d&#225;l než 5,9 m, mrkev je kolm&#253; průmět na trasu — robot m&#225; jet např&#237;č cestou</a></li>
       <li data-tema="nav-uzavreni-hran-pres-restart"><span class="mono">29. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-uzavreni-hran-pres-restart">Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</a></li>
     </ul>
   </div>
@@ -999,16 +999,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md (f&#225;ze 4b)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Occupancy/LocalNavigator.cs">LocalNavigator.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-13">2026-08-13</a></p>
   </article>
-  <article class="tema" id="nav-mrkev-kolmy-prumet" data-stav="otevreno">
-    <h3>Je-li p&#243;za od trasy d&#225;l než 5,9 m, mrkev je kolm&#253; průmět na trasu — robot m&#225; jet např&#237;č cestou</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 29. 9. 2026</span></p>
-    <p>Pozorov&#225;n&#237; autora z Track 29. 9. 2026 (<code>20260929-150844.rec</code>): mrkev byla na kolm&#233;m průmětu robotu na cestu. <code>RouteCarrot.Find</code> bere posledn&#237; bod trasy uvnitř čtverce &#177;<code>CarrotHalfExtentM</code> (6,4 − 0,5 = 5,9 m) kolem **p&#243;zy**; když kolm&#253; průmět p&#243;zy na trasu lež&#237; mimo čtverec, vr&#225;t&#237; **průmět samotn&#253;**. Změřeno nad <code>GlobalNavMsg</code> proti p&#243;ze: při odstupu 0–5,9 m je mrkev 5,6–5,9 m vpředu (do boku = odstup), nad 5,9 m **vpřed −0,3 m a do boku = odstup** (poměr 1,00) — v t&#233; j&#237;zdě ~100 s (280–380 s, odstup 6,5–9 m). Protože p&#243;za ujela od skutečnosti (robot fyzicky jel po cestě, <code>lok-assoc-sousedni-usek</code>), lež&#237; takov&#225; mrkev z pohledu robotu kolmo **za okrajem cesty**. Stav přitom zůst&#225;v&#225; <code>Driving</code> až do <code>OffRouteMaxM</code> = 15 m, a teprve pro tu situaci koment&#225;ř v <code>GlobalNavigator</code> s mrkv&#237; v průmětu poč&#237;t&#225; — mezi 5,9 a 15 m je to nezam&#253;šlen&#233;. T&#233;hož dne pak detektor B (bez postupu) penalizoval a zavřel celou cyklostezku (way 154101921, 15:15:16 a 15:15:42, offRoute 8,4 m). N&#225;vrh autora: vzd&#225;lenost mrkve měřit **od kolm&#233;ho průmětu pod&#233;l trasy**, ne čtvercem kolem robotu.</p>
-    <ul class="kroky">
-      <li class="hotovo">Změřeno: mrkev = kolm&#253; průmět při odstupu nad 5,9 m (<code>GlobalNavMsg</code> proti <code>RobotStateMsg</code>) <span class="mono">29. 9. 2026</span></li>
-      <li class="otevreno">Rozhodnout l&#233;čbu (autor): mrkev ve vzd&#225;lenosti pod&#233;l trasy od průmětu; co s n&#237;, když t&#237;m vyjde mimo lok&#225;ln&#237; mapu (oř&#237;znout spojnici robot → mrkev hranou mapy?)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
-  </article>
   <article class="tema" id="nav-detektor-b-jitter-drahy" data-stav="v-kodu">
     <h3>Detektor „bez postupu“ poč&#237;t&#225; ujetou dr&#225;hu ze součtu kroků p&#243;zy, takže jitter a skoky p&#243;zy berou jako j&#237;zdu</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 20. 9. 2026</span> <span>vyřešeno 29. 9. 2026</span></p>
@@ -1018,6 +1008,17 @@
       <li class="otevreno">Ověřit na robotu: ček&#225;n&#237; před přek&#225;žkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ pr&#225;zdn&#233;)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
+  </article>
+  <article class="tema" id="nav-mrkev-kolmy-prumet" data-stav="v-kodu">
+    <h3>Je-li p&#243;za od trasy d&#225;l než 5,9 m, mrkev je kolm&#253; průmět na trasu — robot m&#225; jet např&#237;č cestou</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 29. 9. 2026</span> <span>vyřešeno 29. 9. 2026</span></p>
+    <p>Pozorov&#225;n&#237; autora z Track 29. 9. 2026 (<code>20260929-150844.rec</code>): mrkev byla na kolm&#233;m průmětu robotu na cestu. <code>RouteCarrot.Find</code> bere posledn&#237; bod trasy uvnitř čtverce &#177;<code>CarrotHalfExtentM</code> (6,4 − 0,5 = 5,9 m) kolem **p&#243;zy**; když kolm&#253; průmět p&#243;zy na trasu lež&#237; mimo čtverec, vr&#225;t&#237; **průmět samotn&#253;**. Změřeno nad <code>GlobalNavMsg</code> proti p&#243;ze: při odstupu 0–5,9 m je mrkev 5,6–5,9 m vpředu (do boku = odstup), nad 5,9 m **vpřed −0,3 m a do boku = odstup** (poměr 1,00) — v t&#233; j&#237;zdě ~100 s (280–380 s, odstup 6,5–9 m). Protože p&#243;za ujela od skutečnosti (robot fyzicky jel po cestě, <code>lok-assoc-sousedni-usek</code>), lež&#237; takov&#225; mrkev z pohledu robotu kolmo **za okrajem cesty**. Stav přitom zůst&#225;v&#225; <code>Driving</code> až do <code>OffRouteMaxM</code> = 15 m, a teprve pro tu situaci koment&#225;ř v <code>GlobalNavigator</code> s mrkv&#237; v průmětu poč&#237;t&#225; — mezi 5,9 a 15 m je to nezam&#253;šlen&#233;. T&#233;hož dne pak detektor B (bez postupu) penalizoval a zavřel celou cyklostezku (way 154101921, 15:15:16 a 15:15:42, offRoute 8,4 m). N&#225;vrh autora: vzd&#225;lenost mrkve měřit **od kolm&#233;ho průmětu pod&#233;l trasy**, ne čtvercem kolem robotu.</p>
+    <ul class="kroky">
+      <li class="hotovo">Změřeno: mrkev = kolm&#253; průmět při odstupu nad 5,9 m (<code>GlobalNavMsg</code> proti <code>RobotStateMsg</code>) <span class="mono">29. 9. 2026</span></li>
+      <li class="hotovo">L&#233;čba (autor): čtverec pro hled&#225;n&#237; mrkve vystředěn&#253; na kolm&#233;m průmětu robota na trasu, i nad <code>OffRouteMaxM</code> (mrkev t&#225;hne po trase k c&#237;li, ne kolmo). &#218;čelem je omezit možnost, aby se robot snadno rozhodl pro špatn&#253; směr — p&#243;zu to neopravuje a nem&#225;. Oř&#237;znut&#237; mrkve mimo lok&#225;ln&#237; mapu už uměl <code>LocalPathPlanner.ClipToGrid</code> (<code>Partial</code>). 5 nov&#253;ch testů, 4 z nich na star&#233;m k&#243;du padaj&#237; <span class="mono">29. 9. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: při odstupu p&#243;zy od trasy mrkev před průmětem (<code>GlobalNavMsg</code> proti p&#243;ze) a bez uzav&#237;r&#225;n&#237; hran detektorem B</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 29. 9. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
   </article>
   <article class="tema" id="nav-recovery-manevr" data-stav="odlozeno">
     <h3>Recovery man&#233;vr při z&#225;seku</h3>
