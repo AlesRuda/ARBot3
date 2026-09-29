@@ -137,6 +137,10 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   nebo lepší. 8 nových testů, testy 1 719 / 148 / 129, build OrangePI. ⚠️ Na zařízení neběželo.
   V `config/pi-provoz.cfg` nastaveno výslovně `corridorseekback=1` a `corridorposlimit=true`
   (pokyn autora; jsou to i výchozí hodnoty). **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Krok „měřidlo `K_eff` podceňuje“ vyvrácen** (`lok-koridor-skoky-pozy`): čtyři dílčí skoky
+  z Kola 3b 14:25:05 jsou čtyři samostatná měření koridoru, každé s vlastním krokem (2,45 / 1,63 /
+  1,04 / 0,61 m podle `fusionreplay` bloku 6), ne jeden krok 5,83 m rozložený fúzí. Okno 50 ms
+  v `corridorstd` měřilo správně; volbu `corridorslew` jde dnes zkoušet přímo `fusionreplay --set`.
 - **CI znovu zelené: `deploy/spitest.sh` má `set -euo pipefail`** (padal na něm
   `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` od `886e599`). Úklid dočasného souboru přes
   `trap … EXIT`, aby proběhl i při konci chybou. Vedlejší zisk: při nedostupném `/dev/spidev0.0`
