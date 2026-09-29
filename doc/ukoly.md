@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **234**: otevřeno **45** · v kódu, na HW neověřeno **38** · hotovo **138** · odloženo **7** · zamítnuto **6**.
+Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · hotovo **139** · odloženo **7** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -84,7 +84,7 @@ Témat celkem **234**: otevřeno **45** · v kódu, na HW neověřeno **38** · 
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
-| v kódu, na HW neověřeno | Navigace po mapě | [φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty](#nav-phi-obracena-hrana) | 20. 9. 2026 |  |
+| v kódu, na HW neověřeno | Navigace po mapě | [Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu](#nav-detektor-b-jitter-drahy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
@@ -787,19 +787,17 @@ Nejsilnější důkaz, že je cesta přehrazená, je „všechny buňky napří�
 
 [global-navigation-runtime.md (fáze 4b)](global-navigation-runtime.md), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-08-13](devlog.md#2026-08-13)
 
-<a id="nav-phi-obracena-hrana"></a>
-### 🧪 φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
+<a id="nav-detektor-b-jitter-drahy"></a>
+### 🧪 Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu
 
-`nav-phi-obracena-hrana` · vada · **v kódu, na HW neověřeno** · nalezeno 20. 9. 2026 · vyřešeno 20. 9. 2026
+`nav-detektor-b-jitter-drahy` · vada · **v kódu, na HW neověřeno** · nalezeno 20. 9. 2026 · vyřešeno 29. 9. 2026
 
-Robotour 19. 9. 2026: autor viděl, že robot „po prvním odbočení zamítl pěknou cestu a přeplánoval“ a ve 4. kole „postupně uzavřel všechny cesty“, až uvázl v úzké pěšince. Rozbor (`ARBot.Analyze nav`, Kolo3b a Kolo4): 16 resp. 9 penalizací/uzavření, u 20 z 25 pokles φ za 20 m dráhy −11 … −20 s (φ ROSTLO) při lokálním plánu Ok a jízdě ~1 m/s po trase; časová řada `--phi=` ukazuje +0,2 s každých 0,2 s a skok dolů na hranici hrany. Příčina: `GlobalNavigator.ComputePhi` bralo `1 − t` s parametrem z hrany, kterou vrátil `NearestNode`, ale `fix.CurrentEdge` z `Navigator.Update` byla její obrácená orientace (trasa proti pořadí vložení hrany — u obousměrné cesty zhruba polovina případů), kde zbývá `t`. Detektor B pak po každých 20 m správné jízdy hranu penalizoval ×5 a trasa se přeplánovala kolem (14:30:14 φ 350 → 433, trasa 354 → 331 m; 14:31:54 299 → 536 m); ve 4. kole sedm poplachů za sebou zavedlo trasu do pěšinky (way 229966997), kde robot uvázl (GoalBlocked 94 s) a detektor A uzavřel i tu. Uzavření ani penalizace se přitom nikam nelogovaly — jediná stopa byl `ClosureCount`. Opraveno: `ComputePhi` rozliší orientaci přes `FindReverse`, regresní test jede po téže silnici oběma směry (φ monotónně klesá, nic se neuzavře), uzavření/penalizace jdou do Trace. Mimochodem změřeno: okno detektoru B počítá dráhu ze součtu kroků pózy, takže jitter a skoky se berou jako jízda (Kolo3b 15,6 m z 830 m) — neřešeno.
+Nález mimochodem při rozboru Robotouru 19. 9. 2026 (`nav-phi-obracena-hrana`). Detektor B v `GlobalNavigator` posuzuje pokles φ za okno ujeté dráhy, a tu počítá jako součet vzdáleností mezi po sobě jdoucími pózami. Šum a skoky pózy se tak započítají jako jízda: v Kole 3b bylo podle póz ujeto 830 m, z toho 15,6 m ve skocích. Při pomalé jízdě (únik, `GoalBlocked`) pak dráha „ujíždí" bez skutečného postupu a detektor může hlásit „bez postupu" falešně. Převedeno 29. 9. 2026 z kroku tématu `nav-phi-obracena-hrana`. **Opraveno 29. 9. 2026 (rozhodnutí autora):** krok dráhy je `min(|Δpóza|, |v|·dt)` s rychlostí ze stavu fúze. `|v|·dt` odřízne skoky a šum z korekcí, `|Δpóza|` ohraničí krok po výpadku zpráv bez libovolného stropu na `dt`; `min` dráhu jen zkracuje, chyba jde ve prospěch nepoplachu. Tutéž dráhu používá detektor A, takže stání teď pozná i s cukající pózou. Měření „jak rychle se okno při stání plní" se nedělalo — výsledek by závisel na tom, kde robot zrovna stojí. Odometrie kol zamítnuta: při prokluzu v písku by točení kol počítala jako jízdu. V písku se pak podle toho, čemu fúze věří, ozve B (póza se sune, φ neklesá) nebo A (póza stojí) — obojí je správná reakce.
 
-- [x] Rozbor `ARBot.Analyze nav` (skoky pózy, stavy plánu, uzavírání s odhadem detektoru, `--phi=`) (20. 9. 2026)
-- [x] Oprava `ComputePhi` (orientace hrany) + test oběma směry; Trace pro `CloseEdge`/`PenalizeEdge` (20. 9. 2026)
-- [ ] Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá)
-- [ ] Dráha v okně detektoru B ze součtu kroků pózy — jitter a skoky se počítají jako jízda (rozhodnout, zda filtrovat)
+- [x] Rozhodnout, zda dráhu okna filtrovat — `min(|Δpóza|, |v|·dt)`, 4 testy (stání se skoky neplní B, skutečné bloudění dál penalizuje, výpadek zpráv nepřičte fiktivní dráhu, A pozná stání i se skoky) (29. 9. 2026)
+- [ ] Ověřit na robotu: čekání před překážkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ prázdné)
 
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="nav-recovery-manevr"></a>
 ### ⏸ Recovery manévr při záseku
@@ -883,6 +881,20 @@ Při přepnutí provozního profilu na soutěžní mapu `OSM/Robotour2026-ver1.o
 - [x] Nasadit binárku na zařízení spolu se soutěžním profilem — Robotour 19. 9., `MapMsg` v záznamech má 209 uzlů (síť po opravě) (19. 9. 2026)
 
 [osm-nav.md](osm-nav.md), [OsmXmlReader.cs](../Src/ARBot.Common/Maps/OsmNav/Osm/OsmXmlReader.cs) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-19](devlog.md#2026-09-19)
+
+<a id="nav-phi-obracena-hrana"></a>
+### ✅ φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
+
+`nav-phi-obracena-hrana` · vada · **hotovo** · nalezeno 20. 9. 2026 · vyřešeno 20. 9. 2026
+
+Robotour 19. 9. 2026: autor viděl, že robot „po prvním odbočení zamítl pěknou cestu a přeplánoval“ a ve 4. kole „postupně uzavřel všechny cesty“, až uvázl v úzké pěšince. Rozbor (`ARBot.Analyze nav`, Kolo3b a Kolo4): 16 resp. 9 penalizací/uzavření, u 20 z 25 pokles φ za 20 m dráhy −11 … −20 s (φ ROSTLO) při lokálním plánu Ok a jízdě ~1 m/s po trase; časová řada `--phi=` ukazuje +0,2 s každých 0,2 s a skok dolů na hranici hrany. Příčina: `GlobalNavigator.ComputePhi` bralo `1 − t` s parametrem z hrany, kterou vrátil `NearestNode`, ale `fix.CurrentEdge` z `Navigator.Update` byla její obrácená orientace (trasa proti pořadí vložení hrany — u obousměrné cesty zhruba polovina případů), kde zbývá `t`. Detektor B pak po každých 20 m správné jízdy hranu penalizoval ×5 a trasa se přeplánovala kolem (14:30:14 φ 350 → 433, trasa 354 → 331 m; 14:31:54 299 → 536 m); ve 4. kole sedm poplachů za sebou zavedlo trasu do pěšinky (way 229966997), kde robot uvázl (GoalBlocked 94 s) a detektor A uzavřel i tu. Uzavření ani penalizace se přitom nikam nelogovaly — jediná stopa byl `ClosureCount`. Opraveno: `ComputePhi` rozliší orientaci přes `FindReverse`, regresní test jede po téže silnici oběma směry (φ monotónně klesá, nic se neuzavře), uzavření/penalizace jdou do Trace. Mimochodem změřeno: okno detektoru B počítá dráhu ze součtu kroků pózy, takže jitter a skoky se berou jako jízda (Kolo3b 15,6 m z 830 m) — neřešeno. **Ověřeno na robotu (autor, 29. 9. 2026):** testovací jízdy po Hviezdoslavově po opravě z 20. 9. prošly trasu s odbočkami bez penalizace a uzavírání správných cest. Potvrzení je autorovo z jízd, záznamy nejsou v repu a `ARBot.Analyze nav` nad nimi neběžel.
+
+- [x] Rozbor `ARBot.Analyze nav` (skoky pózy, stavy plánu, uzavírání s odhadem detektoru, `--phi=`) (20. 9. 2026)
+- [x] Oprava `ComputePhi` (orientace hrany) + test oběma směry; Trace pro `CloseEdge`/`PenalizeEdge` (20. 9. 2026)
+- [x] Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá) — potvrdil autor z testovacích jízd po Hviezdoslavově (29. 9. 2026)
+- [x] Dráha v okně detektoru B ze součtu kroků pózy — převedeno do samostatného tématu `nav-detektor-b-jitter-drahy` (29. 9. 2026)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="nav-zdroj-osm-dat"></a>
 ### ❌ Odkud se berou a jak se aktualizují výřezy `.osm`

@@ -521,13 +521,21 @@ v 14:31:54) — přesně to „po chvíli zamítl pěknou cestu". Ve 4. kole tot
 15:43:30, trasa 302 → 379 m), kde robot uvázl (GoalBlocked 94 s, `Blocked` buněk p50 41 %,
 detektor A pak uzavřel i tu) a od 15:49 hlásil kolize. **Opraveno** (`nav-phi-obracena-hrana`):
 `ComputePhi` rozliší orientaci přes `FindReverse`, regresní test jede po téže silnici oběma směry
-a chce φ monotónně klesající a žádné uzavření. ⚠️ Na zařízení neběželo; jak by jízdy dopadly bez
-té chyby, ze záznamu nejde říct — penalizace měnily trasu, ne jen hlášení.
+a chce φ monotónně klesající a žádné uzavření. ✅ **Na robotu ověřeno** (autor, 29. 9. 2026):
+testovací jízdy po Hviezdoslavově prošly trasu s odbočkami bez penalizace správných cest
+(potvrzení z jízd, záznamy nejsou v repu). Jak by dopadly jízdy na Robotouru bez té chyby, ze
+záznamu nejde říct — penalizace měnily trasu, ne jen hlášení.
 
 ⚠️ **Nález mimochodem:** i s opravou zůstává detektor B citlivý na **jitter pózy**, protože okno
 měří ujetou dráhu ze součtu kroků pózy (šum a skoky se počítají jako jízda). Kolo3b: 830 m podle
 póz, z toho 15,6 m ve skocích; při pomalé jízdě (únik, GoalBlocked) dráha „ujíždí" bez postupu.
-Neřešeno, jen změřeno.
+([`nav-detektor-b-jitter-drahy`](ukoly.md#nav-detektor-b-jitter-drahy)).
+✅ **Od 29. 9. 2026 se krok dráhy počítá jako `min(|Δpóza|, |v|·dt)`** s `v` = dopředná rychlost
+ze stavu fúze. Skoky a šum pózy z korekcí rychlost nenesou, takže je `|v|·dt` odřízne; `|Δpóza|`
+zase ohraničí krok po výpadku zpráv (velké `dt`) bez libovolného stropu. `min` dráhu jen
+zkracuje, tedy chyba jde ve prospěch nepoplachu. Zpřísnil se tím i **detektor A**: skoky pózy už
+nevypadají jako pohyb, takže stání pozná i s cukající pózou. Odometrie kol jako zdroj dráhy byla
+zamítnutá — při prokluzu v písku by točení kol počítala jako jízdu. ⚠️ Na zařízení neběželo.
 
 ### 2. Skoky pózy: každý hned po přijatém měření koridoru
 

@@ -53,6 +53,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   zpráva navigátoru), zpřísněn `Probe_GoalBehindRobot_IsReachable` (±25 m → ±1 m). Testy
   1 686 / 148 / 129; jediný pád `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` na
   `deploy/spitest.sh` (commit `886e599`, bez `set -euo pipefail`) s touto změnou nesouvisí.
+- **`nav-phi-obracena-hrana` ověřeno na robotu** (autor): testovací jízdy po Hviezdoslavově po
+  opravě z 20. 9. prošly trasu s odbočkami bez penalizace správných cest. Záznamy nejsou v repu,
+  `ARBot.Analyze nav` nad nimi neběžel. Zbylý krok o jitteru pózy v okně detektoru B je teď
+  samostatné téma `nav-detektor-b-jitter-drahy`.
+- **Ujetá dráha detektorů A a B bez skoků pózy** (`nav-detektor-b-jitter-drahy` → v kódu): krok je
+  `min(|Δpóza|, |v|·dt)` s rychlostí ze stavu fúze (`GlobalNavigator.Step` dostal rychlost).
+  Skoky pózy z korekcí už neplní okno B při stání a A je nebere jako pohyb; `|Δpóza|` ohraničí
+  krok po výpadku zpráv. Odometrie kol zamítnuta kvůli prokluzu v písku (autor). 4 nové testy,
+  dva z nich na starém chování padají. Testy 1 690 / 148 / 129, jediný pád dál `spitest.sh`.
+  ⚠️ Na zařízení neběželo. Detail: [global-navigation-runtime.md](global-navigation-runtime.md).
 
 ## 2026-09-28
 

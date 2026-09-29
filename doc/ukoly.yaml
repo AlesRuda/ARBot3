@@ -2580,7 +2580,7 @@ temata:
     oblast: navigace
     nazev: φ při jízdě po trase rostlo o 1 s/m — detektor „bez postupu“ penalizoval a uzavíral správné cesty
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-20
     vyreseno: 2026-09-20
     popis: >
@@ -2600,6 +2600,9 @@ temata:
       po téže silnici oběma směry (φ monotónně klesá, nic se neuzavře), uzavření/penalizace jdou do
       Trace. Mimochodem změřeno: okno detektoru B počítá dráhu ze součtu kroků pózy, takže jitter
       a skoky se berou jako jízda (Kolo3b 15,6 m z 830 m) — neřešeno.
+      **Ověřeno na robotu (autor, 29. 9. 2026):** testovací jízdy po Hviezdoslavově po opravě
+      z 20. 9. prošly trasu s odbočkami bez penalizace a uzavírání správných cest. Potvrzení je
+      autorovo z jízd, záznamy nejsou v repu a `ARBot.Analyze nav` nad nimi neběžel.
     kroky:
       - co: 'Rozbor `ARBot.Analyze nav` (skoky pózy, stavy plánu, uzavírání s odhadem detektoru, `--phi=`)'
         stav: hotovo
@@ -2607,14 +2610,50 @@ temata:
       - co: 'Oprava `ComputePhi` (orientace hrany) + test oběma směry; Trace pro `CloseEdge`/`PenalizeEdge`'
         stav: hotovo
         kdy: 2026-09-20
-      - co: 'Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá)'
-        stav: otevreno
-      - co: 'Dráha v okně detektoru B ze součtu kroků pózy — jitter a skoky se počítají jako jízda (rozhodnout, zda filtrovat)'
+      - co: 'Ověřit na robotu: jízda po trase s odbočkami bez penalizace (Trace „PENALIZACE“/„UZAVRENI“ v záznamu prázdné, φ klesá) — potvrdil autor z testovacích jízd po Hviezdoslavově'
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: 'Dráha v okně detektoru B ze součtu kroků pózy — převedeno do samostatného tématu `nav-detektor-b-jitter-drahy`'
+        stav: hotovo
+        kdy: 2026-09-29
+    odkazy:
+      - text: global-navigation-runtime.md
+        cesta: doc/global-navigation-runtime.md
+    devlog: [2026-09-20, 2026-09-29]
+    ceka_na: []
+
+  - id: nav-detektor-b-jitter-drahy
+    oblast: navigace
+    nazev: Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-09-20
+    vyreseno: 2026-09-29
+    popis: >
+      Nález mimochodem při rozboru Robotouru 19. 9. 2026 (`nav-phi-obracena-hrana`). Detektor B
+      v `GlobalNavigator` posuzuje pokles φ za okno ujeté dráhy, a tu počítá jako součet
+      vzdáleností mezi po sobě jdoucími pózami. Šum a skoky pózy se tak započítají jako jízda:
+      v Kole 3b bylo podle póz ujeto 830 m, z toho 15,6 m ve skocích. Při pomalé jízdě (únik,
+      `GoalBlocked`) pak dráha „ujíždí" bez skutečného postupu a detektor může hlásit „bez postupu"
+      falešně. Převedeno 29. 9. 2026 z kroku tématu `nav-phi-obracena-hrana`.
+      **Opraveno 29. 9. 2026 (rozhodnutí autora):** krok dráhy je `min(|Δpóza|, |v|·dt)` s rychlostí
+      ze stavu fúze. `|v|·dt` odřízne skoky a šum z korekcí, `|Δpóza|` ohraničí krok po výpadku
+      zpráv bez libovolného stropu na `dt`; `min` dráhu jen zkracuje, chyba jde ve prospěch
+      nepoplachu. Tutéž dráhu používá detektor A, takže stání teď pozná i s cukající pózou.
+      Měření „jak rychle se okno při stání plní" se nedělalo — výsledek by závisel na tom, kde
+      robot zrovna stojí. Odometrie kol zamítnuta: při prokluzu v písku by točení kol počítala jako
+      jízdu. V písku se pak podle toho, čemu fúze věří, ozve B (póza se sune, φ neklesá) nebo A
+      (póza stojí) — obojí je správná reakce.
+    kroky:
+      - co: 'Rozhodnout, zda dráhu okna filtrovat — `min(|Δpóza|, |v|·dt)`, 4 testy (stání se skoky neplní B, skutečné bloudění dál penalizuje, výpadek zpráv nepřičte fiktivní dráhu, A pozná stání i se skoky)'
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: 'Ověřit na robotu: čekání před překážkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ prázdné)'
         stav: otevreno
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
-    devlog: [2026-09-20]
+    devlog: [2026-09-20, 2026-09-29]
     ceka_na: []
 
   - id: lok-koridor-skoky-pozy
