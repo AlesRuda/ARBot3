@@ -117,6 +117,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   starém kódu padají); testy 1 712 / 148 / 129 (jediný pád dál `spitest.sh`), build OrangePI.
   Robota v blokované buňce vyprošťuje únikový manévr, který se zkouší každý cyklus plánování
   (25. 9. po 22,8 s `RobotBlocked` cestu ven našel). Na zařízení neběželo.
+- **CI znovu zelené: `deploy/spitest.sh` má `set -euo pipefail`** (padal na něm
+  `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` od `886e599`). Úklid dočasného souboru přes
+  `trap … EXIT`, aby proběhl i při konci chybou. Vedlejší zisk: při nedostupném `/dev/spidev0.0`
+  skript dřív v nekonečné smyčce vypisoval chyby, teď skončí hned s kódem 1 (ověřeno podstrčeným
+  zařízením). Na Orange Pi znovu nespouštěno.
 
 ## 2026-09-28
 

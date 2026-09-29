@@ -25,7 +25,7 @@
 # Pasek pri vzoru high dostane "same jednicky" = bila na plny jas na VSECH LED,
 # pokud je zapojeny spravne - pozor na odber (36 LED x 60 mA ~ 2,2 A).
 # ---------------------------------------------------------------------------------
-set -u
+set -euo pipefail   # konec pri prvni chybe (i uprostred roury) - DeploySkriptyTests
 DEV=/dev/spidev0.0
 case "${1:-}" in
     high) B='\377' ;;
@@ -39,5 +39,6 @@ fi
 echo "posilam vzor '$1' na $DEV nepretrzite, Ctrl+C = konec"
 BUF=$(mktemp)
 head -c 4096 /dev/zero | tr '\000' "$B" > "$BUF"
-trap 'rm -f "$BUF"; echo; echo konec; exit 0' INT TERM
+trap 'rm -f "$BUF"' EXIT                    # uklid i pri konci chybou (set -e)
+trap 'echo; echo konec; exit 0' INT TERM
 while :; do cat "$BUF" > "$DEV"; done
