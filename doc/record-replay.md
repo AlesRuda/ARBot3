@@ -576,6 +576,15 @@ absolutní, ne až na posun. Blok **PŘÍMÉ ÚSEKY** měří měřítko odometr
 stání roste bez pohybu, takže by měřítko zkreslila. Nález, kvůli kterému vznikl:
 [ukoly.md](ukoly.md) `lok-odometrie-obvod-kola`.
 
+**`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
+`EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od
+`assocreplay`), rozloží ho na jednotlivé hypotézy a u nejednoznačných tiskne, kdo je druhý: jiná
+cesta, nebo sousední / vzdálenější úsek **téže** cesty, jeho vzdálenost od pózy a **podélný
+přesah** (o kolik póza leží za koncem jeho úsečky). Přidá protifakt s přesahem v χ² a shodu
+vybrané cesty s GPS. Měřidlo se nejdřív ověřuje proti verdiktům v záznamu. Parametry mají
+odpovídat jízdě: `--map=` (povinné), `--floorhdg=` (5), `--margin=` (4), `--roadwidth=` (3),
+`--singlestd=` (1). Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
+
 **`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
 barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy
 nedosáhne; buňka je pak `Unknown`, ačkoli hloubka o ní ví. Tiskne tři věci: **zorná pole

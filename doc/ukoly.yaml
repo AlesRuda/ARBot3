@@ -7961,12 +7961,15 @@ temata:
       - co: "Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami)"
         stav: hotovo
         kdy: 2026-09-26
+      - co: "29. 9. 2026 (`20260929-150844.rec`, `-151634.rec`, `corridormininliers=20`): oboustranný koridor jen v **1,6 % a 1,2 %** snímků (135 a 78 cyklů), ne 28 % jako nad 25. 9. — a šířka z nich p50 **1,36 / 0,40 m** (mimo 1–8 m 24 / 88 %), tedy převážně nesmysl; při prahu 10 by jich bylo 2 432 / 1 051 se šířkou p50 **5,04 / 4,79 m**. Do přiřazení došlo jen 89 a 20 oboustranných cyklů, takže **naučená šířka nevznikla** (odhad se učí jen z oboustranného koridoru po přiřazení hrany) a `roadwidthmap=true` neměl co propsat. Jedna hrana 86 % a 70 % cyklů (převážně pravá)"
+        stav: hotovo
+        kdy: 2026-09-29
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
-    devlog: [2026-09-24]
+    devlog: [2026-09-24, 2026-09-29]
     ceka_na: []
 
   - id: mise-freerun-pomala-mrkev-blizko
@@ -8083,8 +8086,8 @@ temata:
     oblast: lokalizace
     nazev: Obvod kola je o ~1,8 % větší, než robot ujede — póza na rovince utíká dopředu (12,5 m na 740 m)
     druh: vada
-    stav: v-kodu
-    vyreseno: 2026-09-26
+    stav: hotovo
+    vyreseno: 2026-09-29
     nalezeno: 2026-09-26
     popis: >
       Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Modřany, rovinka
@@ -8104,12 +8107,13 @@ temata:
       - co: "Autor opravil konstantu `Profile.WheelRadius`: činitel 0,94 → 0,923"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00. ⚠️ 27. 9. (binárka s 0,923, Track a FreeRun Hviezdoslavova) NEPOUŽITELNÉ: po jednom 30s přímém okně (kola / tětiva 1,018 a 1,022, n = 1), GPS startovala na 3 družicích a ležela p50 4,7 m od cesty, jízdy 163 a 120 m. Potřeba delší jízda s rovinkami (25. 9.: 63 oken) a s GPS usazenou předem"
-        stav: otevreno
+      - co: "Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00. ⚠️ 27. 9. (binárka s 0,923, Track a FreeRun Hviezdoslavova) NEPOUŽITELNÉ: po jednom 30s přímém okně (kola / tětiva 1,018 a 1,022, n = 1), GPS startovala na 3 družicích a ležela p50 4,7 m od cesty, jízdy 163 a 120 m. ✅ 29. 9. (Modřany, `20260929-150844.rec` Track a `-151634.rec` FreeRun, 425 a 405 m): kola / tětiva GPS **0,999** (p10–p90 0,96–1,02, n = 58) a **0,999** (0,98–1,00, n = 28), Doppler / kola 1,003 a 0,990. Obvod sedí. Vzorky motorů jsou bez mezer ≥ 0,1 s, měřidlo tedy dráhu z kol nepodhodnocuje. ⚠️ Póza přitom jede o 1,1 % dál než kola — to není obvod, viz `lok-fuze-poza-pred-koly`"
+        stav: hotovo
+        kdy: 2026-09-29
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-29]
     ceka_na: []
 
   - id: lok-koridor-noedge-po-zatacce
@@ -8235,4 +8239,101 @@ temata:
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
     devlog: [2026-09-26]
+    ceka_na: []
+
+  - id: lok-assoc-sousedni-usek
+    oblast: lokalizace
+    nazev: Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-29
+    popis: >
+      Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec`
+      FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů,
+      do fúze za celou Track jízdu (430 s) šly jen desítky měření z jedné hrany v první minutě, pak nic;
+      póza mezitím ujela od GPS příčně až o **10 m** (FreeRun 16 m), tempem ~0,06 m/s, tedy ~2° kurzu.
+      Nový `ARBot.Analyze assocwhy` (rozklad na hypotézy, přepočet sedí na záznam v 99,3 / 100 %):
+      druhým kandidátem je ve **99 %** nejednoznačných cyklů **jiný úsek téže cyklostezky**
+      (way 154101921; sousední 67–75 %, vzdálenější 23–32 %), jiná cesta jen 0,4–1,4 %. Ten úsek je
+      od pózy p50 **46–51 m** (p90 106–119 m) a robot vedle něj vůbec nestojí — `RoadAxis.Relate`
+      počítá příčnou polohu z **nekonečné přímky** úseku, takže ohyb 1,7° (p50) dá v té vzdálenosti
+      osu ~0,8–1,0 m vedle: víc než `SameHypothesisLateralM` (0,5 m), a při podlaze příčné sigmy 3 m je
+      rozdíl χ² ~0,1 proti požadovanému odstupu 4. `NearestEdges` přitom kandidáty řadí podle
+      vzdálenosti k ÚSEČCE, ale skóre ji nepoužije vůbec. OSM rovinka je lomená čára po 20–180 m,
+      takže to platí na celé její délce; slučování kolineárních úseků (16. 9.) chytí jen přímou návaznost.
+      **Protifakt** (měření, ne změna kódu): k χ² přičíst `(podélný přesah / σ)²`, kde přesah je, o kolik
+      póza leží za koncem úsečky, a σ = max(póza podél hrany, podlaha 3 m). Nejednoznačných
+      4 289 → 357 a 2 161 → 81, přiřazeno Ok 137 → 4 053 a 306 → 2 333, vybraná cesta do 2 m od GPS
+      **99,9 % a 94,6 %** (dnes 97,8 % a 51,6 %). Příčný nesouhlas těch přiřazených p50 4,3 / 2,7 m je
+      z velké části právě nashromážděný drift pózy. ⚠️ Za přiřazením jsou ještě brány šířky
+      a „robot na cestě“, takže do fúze by šlo méně; ⚠️ příčná poloha z jedné hrany jde přes mapovou
+      šířku 3 m proti skutečným ~5 m (`lok-koridor-siroka-cyklostezka`), tedy s biasem ~1 m.
+    kroky:
+      - co: "Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Rozhodnout léčbu (autor): podélný přesah do χ² (protifakt), nebo slučovat hypotézy téže cesty spojené přes uzel, nebo počítat příčnou polohu z úsečky místo z přímky"
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+    devlog: [2026-09-29]
+    ceka_na: []
+
+  - id: nav-mrkev-kolmy-prumet
+    oblast: navigace
+    nazev: Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-29
+    popis: >
+      Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na kolmém průmětu
+      robotu na cestu. `RouteCarrot.Find` bere poslední bod trasy uvnitř čtverce ±`CarrotHalfExtentM`
+      (6,4 − 0,5 = 5,9 m) kolem **pózy**; když kolmý průmět pózy na trasu leží mimo čtverec, vrátí
+      **průmět samotný**. Změřeno nad `GlobalNavMsg` proti póze: při odstupu 0–5,9 m je mrkev
+      5,6–5,9 m vpředu (do boku = odstup), nad 5,9 m **vpřed −0,3 m a do boku = odstup** (poměr 1,00)
+      — v té jízdě ~100 s (280–380 s, odstup 6,5–9 m). Protože póza ujela od skutečnosti (robot fyzicky
+      jel po cestě, `lok-assoc-sousedni-usek`), leží taková mrkev z pohledu robotu kolmo **za
+      okrajem cesty**. Stav přitom zůstává `Driving` až do `OffRouteMaxM` = 15 m, a teprve pro
+      tu situaci komentář v `GlobalNavigator` s mrkví v průmětu počítá — mezi 5,9 a 15 m je to
+      nezamýšlené. Téhož dne pak detektor B (bez postupu) penalizoval a zavřel celou cyklostezku
+      (way 154101921, 15:15:16 a 15:15:42, offRoute 8,4 m). Návrh autora: vzdálenost mrkve měřit
+      **od kolmého průmětu podél trasy**, ne čtvercem kolem robotu.
+    kroky:
+      - co: "Změřeno: mrkev = kolmý průmět při odstupu nad 5,9 m (`GlobalNavMsg` proti `RobotStateMsg`)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Rozhodnout léčbu (autor): mrkev ve vzdálenosti podél trasy od průmětu; co s ní, když tím vyjde mimo lokální mapu (oříznout spojnici robot → mrkev hranou mapy?)"
+        stav: otevreno
+    odkazy:
+      - text: global-navigation-runtime.md
+        cesta: doc/global-navigation-runtime.md
+    devlog: [2026-09-29]
+    ceka_na: []
+
+  - id: lok-fuze-poza-pred-koly
+    oblast: lokalizace
+    nazev: Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-09-29
+    popis: >
+      Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých
+      úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách
+      (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS
+      o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů
+      po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol,
+      ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na
+      časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m
+      pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m.
+    kroky:
+      - co: "Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii"
+        stav: otevreno
+    odkazy:
+      - text: ekf-fusion.md
+        cesta: doc/ekf-fusion.md
+    devlog: [2026-09-29]
     ceka_na: []

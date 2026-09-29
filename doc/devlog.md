@@ -39,6 +39,30 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-29
+
+- **Rozbor jízd 29. 9. v Modřanech nad čtyřmi pozorováními autora** (`records/test/20260929-150844.rec`
+  Track 430 s, `-151634.rec` FreeRun 395 s; mapa `OSM/modrany2.osm`).
+  (1) **Obvod kola sedí**: kola / tětiva GPS na přímých úsecích 0,999 v obou (n = 58 a 28), úkol
+  `lok-odometrie-obvod-kola` uzavřen. Vedlejší nález: **póza ujede o 1,1 % víc než kola**
+  (tětiva pózy / tětiva GPS 1,011), měřidlo kol je v pořádku, příčina ve fúzi neprověřená
+  (`lok-fuze-poza-pred-koly`).
+  (2) **Korekce z koridoru opravdu nešly — kvůli nejednoznačnosti, ale ne s jinou cestou:**
+  `AmbiguousEdge` 51 / 33 % cyklů a druhým kandidátem je v 99 % **úsek téže cyklostezky**
+  46–51 m daleko. Příčná poloha se bere z nekonečné přímky úseku, takže ohyb ~1,7° dá v té
+  vzdálenosti osu o metr vedle a při podlaze 3 m je to remíza. Póza mezitím ujela příčně o 10
+  a 16 m. Protifakt s podélným přesahem v χ² srazí nejednoznačnost na desetinu a vybraná cesta
+  sedí na GPS v 99,9 / 94,6 % (`lok-assoc-sousedni-usek`, nový `ARBot.Analyze assocwhy`).
+  (3) **Šířka se nenaučila, protože nebylo z čeho**: oboustranný koridor jen 1,6 / 1,2 % snímků
+  (a jeho šířky převážně nesmysl), do přiřazení došlo 89 a 20 cyklů. Nejednoznačnost to ještě
+  zhoršila, ale sama by to nespravila (`lok-koridor-siroka-cyklostezka`).
+  (4) **Mrkev v kolmém průmětu**: `RouteCarrot` bere hranu čtverce ±5,9 m kolem pózy, a když je
+  póza od trasy dál, vrátí kolmý průmět; v Track ~100 s (odstup 6,5–9 m), z pohledu robotu kolmo
+  za okraj cesty. Stav přitom zůstal `Driving` (práh `OffRoute` je 15 m) a detektor B pak zavřel
+  celou cyklostezku (`nav-mrkev-kolmy-prumet`).
+  Kód runtime se neměnil; léčba (2) a (4) čeká na rozhodnutí autora. Přibylo jen měřidlo
+  `assocwhy` v `ARBot.Analyze`.
+
 ## 2026-09-28
 
 - **Odstranění T265 a restarty D435 — průběžně z journalu Pi** (`hw-d435-vlakno-zatuhlo-po-restartu`).
