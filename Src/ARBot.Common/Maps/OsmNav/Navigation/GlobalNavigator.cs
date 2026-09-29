@@ -357,7 +357,14 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             // ZATIM i zachazi (plan platny, ne selhani), aby se chovani globalni navigace nezmenilo
             // potichu. Spravna reakce (pocitat to jako prehrazenou cestu? zavirat hranu?) je OTEVRENE
             // rozhodnuti autora - viz doc/devlog.md 3. 9. 2026.
-            bool failed = status == LocalPlanStatus.NoRoute || status == LocalPlanStatus.RobotBlocked;
+            // RobotBlocked (od 29. 9. 2026) taky NENI selhani: robot stoji v blokovane bunce a unik
+            // se nenasel - tataz situace jako EscapingBlocked, jen bez cesty ven. Nerika, ze je
+            // prehrazena CESTA, ale ze mapa vede jako blokovanou bunku pod robotem. Do te doby se
+            // pocitala a po kazdych 20 planech se zavrela "aktualni" hrana - jenze robot stal dal,
+            // trasa se kolem zavrene hrany preplanovala a zavrela se dalsi: Track 25. 9. 2026
+            // (20260925-144200.rec) 15 uzavreni teze cyklostezky za 21 s, az 78 m od robotu.
+            // Registr nav-detektor-c-kaskada.
+            bool failed = status == LocalPlanStatus.NoRoute;
             localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial
                           || status == LocalPlanStatus.GoalBlocked || status == LocalPlanStatus.GoalUnsafe;
 
@@ -666,7 +673,8 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
 
         /// <summary>
         /// Detektor C - cesta je prehrazena (mapa lze). Lokalni planovani opakovane hlasi, ze
-        /// se neda projet. Reakce: zakazat hranu <b>i jeji reverzni</b> - fyzicka zabrana blokuje
+        /// se neda projet (<see cref="LocalPlanStatus.NoRoute"/>; <c>RobotBlocked</c> se od
+        /// 29. 9. 2026 nepocita, viz <see cref="OnLocalPlan"/>). Reakce: zakazat hranu <b>i jeji reverzni</b> - fyzicka zabrana blokuje
         /// oba smery.
         /// </summary>
         private void DetectRoadBlocked(Edge edge, DateTime now)

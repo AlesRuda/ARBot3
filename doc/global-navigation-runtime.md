@@ -291,7 +291,7 @@ ten platí jen pro jednu instanci `RoadNetwork`):
 | `TravelledM` | ujetá dráha (z odometru) po dobu, kdy jsme byli na této hraně |
 | `MaxT`, `CurrentT` | nejdál dosažený průmět — „ujel jsem 20 m, ale `t` se posunulo o 0,05" je bloudění |
 | `PhiAtEntry`, `PhiBest` | potenciál při vjezdu a nejlepší dosažený |
-| `PlanFailures` | počet `NoRoute` / `RobotBlocked` / `AbortedCollision` z `LocalPlanMsg` na této hraně |
+| `PlanFailures` | počet `NoRoute` / `RobotBlocked` / `AbortedCollision` z `LocalPlanMsg` na této hraně (návrh; detektor C od 29. 9. 2026 počítá jen `NoRoute`) |
 | `StoppedSec` | doba, kdy robot stál, ačkoli měl jet |
 | `Closure` | zda a kdy byla hrana uzavřena/penalizována, kolikrát a proč |
 
@@ -324,10 +324,21 @@ jsme se k cíli přiblížili aspoň třetinou toho, co jsme ujeli"). Interpreta
 oscilace mezi dvěma variantami, chybná lokalizace, nebo cesta, která nikam nevede.
 
 **C — cesta je přehrazená (mapa lže).** Robot fakticky stojí (jako A, ale s krátkým prahem) **a**
-posledních `BlockedPlanCount` (default 20 ≈ 2 s) výsledků lokálního plánování hlásí `NoRoute` /
-`RobotBlocked`, nebo `Partial`, u něhož se vzdálenost `ReachedGoal → RequestedGoal` přestala zmenšovat.
+posledních `BlockedPlanCount` (default 20 ≈ 2 s) výsledků lokálního plánování hlásí `NoRoute`,
+nebo `Partial`, u něhož se vzdálenost `ReachedGoal → RequestedGoal` přestala zmenšovat.
 Interpretace: **napříč celou šířkou cesty je překážka**, kterou mapa nezná — přehrazený vjezd, závora,
 plot, spadlý strom.
+
+*Implementace:* počítá se jen série `NoRoute`; `EscapingBlocked` a **od 29. 9. 2026 i
+`RobotBlocked`** ji vynulují. `RobotBlocked` (robot stojí v blokované buňce a únik se nenašel) neříká,
+že je přehrazená cesta, ale že mapa vede buňku pod robotem jako blokovanou — to je úloha úniku.
+⚠️ Do té doby se počítal a při dlouhém stání v blokované buňce vznikla **kaskáda**: po každých 20
+plánech se zavřela „aktuální“ hrana, trasa se přeplánovala a zavřela se další — Track 25. 9. 2026
+(`20260925-144200.rec`) 15 uzavření téže cyklostezky za 21 s, až 78 m od robotu
+(`nav-detektor-c-kaskada`). Robota v blokované buňce vyprošťuje **únikový manévr**: zkouší se
+v každém cyklu plánování nad aktuální mapou a `RobotBlocked` znamená jen „v tomto cyklu cesta ven
+do `EscapeMaxLength` (1,5 m) nevede“. Ve 25. 9. únik po 22,8 s cestu našel a robot pokračoval;
+zavírání hran k tomu nic nepřidávalo.
 
 *Zpřesnění (fáze 4b): průřez napříč cestou.* Nejsilnější důkaz přehrazení je „všechny buňky na
 kolmici k cestě v šířce `Node.Width + margin` jsou `Blocked`". Ten test **musí proběhnout na vlákně

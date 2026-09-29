@@ -105,6 +105,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   (autor: mrkev má táhnout k cíli). 5 nových testů, 4 na starém kódu padají; testy 1 710 / 148 / 129
   (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
   **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Oprava φ z 20. 9. změřena nad záznamy** (`nav-phi-obracena-hrana`): přes sedm jízd s globální
+  navigací 23.–29. 9. (Modřany, Hviezdoslavova 27. 9.) roste φ při jízdě po trase v 0–9 % 2s oken
+  proti 46 / 57 % v Robotour Kolo 3b / 4. Zbylých 5 poplachů detektoru B má jiné příčiny: skok pózy
+  o 157 m při startu GPS (27. 9., to řeší dnešní `min(|Δpóza|, |v|·dt)`), póza se od cíle skutečně
+  vzdalovala nebo sjížděla z trasy u zablokovaného plánu, a mrkev v kolmém průmětu (29. 9.).
+  Nový nález: **kaskáda detektoru C** 25. 9. — při 22,8 s `RobotBlocked` zavřel 15 hran téže
+  cyklostezky za 21 s, až 78 m od robotu (`nav-detektor-c-kaskada`).
+- **Detektor C nepočítá `RobotBlocked`** (pokyn autora, `nav-detektor-c-kaskada` → v kódu): série
+  selhání je jen `NoRoute`, `RobotBlocked` ji vynuluje jako `EscapingBlocked`. 2 nové testy (oba na
+  starém kódu padají); testy 1 712 / 148 / 129 (jediný pád dál `spitest.sh`), build OrangePI.
+  Robota v blokované buňce vyprošťuje únikový manévr, který se zkouší každý cyklus plánování
+  (25. 9. po 22,8 s `RobotBlocked` cestu ven našel). Na zařízení neběželo.
 
 ## 2026-09-28
 
