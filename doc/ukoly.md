@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **234**: otevřeno **47** · v kódu, na HW neověřeno **38** · hotovo **137** · odloženo **7** · zamítnuto **5**.
+Témat celkem **234**: otevřeno **46** · v kódu, na HW neověřeno **38** · hotovo **137** · odloženo **7** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -17,7 +17,6 @@ Témat celkem **234**: otevřeno **47** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi a nezná svůj zdroj](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
-| otevřeno | Navigace po mapě | [Uzavřené hrany sítě a stav lokalizace nepřežijí restart](#nav-uzavreni-hran-pres-restart) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Určená osa korelace je vychýlená o 6°](#lok-tight-axis-angle-vychylena) | 19. 8. 2026 |  |
@@ -778,15 +777,6 @@ Nad rovnou mapou proti pravdě vyšla šířka 2,018 m místo 2,000 (filtr ší�
 
 ## Navigace po mapě
 
-<a id="nav-uzavreni-hran-pres-restart"></a>
-### ⬜ Uzavřené hrany sítě a stav lokalizace nepřežijí restart
-
-`nav-uzavreni-hran-pres-restart` · záměr · **otevřeno** · nalezeno 12. 8. 2026
-
-Globální navigace si za jízdy uzavírá hrany sítě, které se ukázaly neprůjezdné, a korelace s mapou si ladí korekci pózy — obojí žije jen v paměti procesu. Po pádu nebo restartu aplikace (při soutěžní jízdě reálná situace) začíná robot od nuly: může se vrátit do téže slepé uličky a filtr startuje od GPS. Je to jiná otázka než přežití mise Robotour, které autor 27. 8. 2026 vědomě zrušil (mise se po restartu spouští od začátku) — tady jde o stav navigační vrstvy (uzavření mají trvalou identitu `EdgeKey`, takže by se ukládat daly) a lokalizace, ne o fázi mise. Zda to vůbec dělat, rozhodnuto není.
-
-[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 27. 8. (mise restart přežít nemusí)](decisions.md), [EdgeClosure.cs](../Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs) · DevLog [2026-08-27](devlog.md#2026-08-27)
-
 <a id="nav-prurez-koridorem"></a>
 ### ⬜ Detektor přehrazení bez průřezu koridorem (fáze 4b)
 
@@ -905,6 +895,15 @@ Síť cest se čte z výřezů OpenStreetMap v adresáři `OSM/`. Soubory jsou v
 - [ ] Zapsat u každého `.osm` v `OSM/` původ (JOSM / Overpass), oblast a datum stažení — zamítnuto 25. 9. 2026
 
 [decisions.md](decisions.md), [osm-nav.md](osm-nav.md), [global-navigation-runtime.md](global-navigation-runtime.md), [OSM/](../OSM) · DevLog [2026-08-04](devlog.md#2026-08-04), [2026-08-18](devlog.md#2026-08-18), [2026-09-25](devlog.md#2026-09-25)
+
+<a id="nav-uzavreni-hran-pres-restart"></a>
+### ❌ Uzavřené hrany sítě a stav lokalizace nepřežijí restart
+
+`nav-uzavreni-hran-pres-restart` · záměr · **zamítnuto** · nalezeno 12. 8. 2026 · vyřešeno 29. 9. 2026
+
+Globální navigace si za jízdy uzavírá hrany sítě, které se ukázaly neprůjezdné, a korelace s mapou si ladí korekci pózy — obojí žije jen v paměti procesu. Po pádu nebo restartu aplikace (při soutěžní jízdě reálná situace) začíná robot od nuly: může se vrátit do téže slepé uličky a filtr startuje od GPS. Je to jiná otázka než přežití mise Robotour, které autor 27. 8. 2026 vědomě zrušil (mise se po restartu spouští od začátku) — tady jde o stav navigační vrstvy (uzavření mají trvalou identitu `EdgeKey`, takže by se ukládat daly) a lokalizace, ne o fázi mise. Zda to vůbec dělat, rozhodnuto není. ❌ **Zamítnuto 29. 9. 2026 (autor):** každý běh jede s čistou mapou. Hranu mohla uzavřít umělá překážka, která příště na místě nebude, a přenesené uzavření by robota posílalo objížďkou kolem něčeho, co už neexistuje. Viz `decisions.md`, 29. 9. 2026.
+
+[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 27. 8. (mise restart přežít nemusí)](decisions.md), [EdgeClosure.cs](../Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-09-29](devlog.md#2026-09-29)
 
 ## Lokální mapa a plánování
 

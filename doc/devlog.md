@@ -39,6 +39,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-29
+
+- **Zamítnuto `nav-uzavreni-hran-pres-restart`** (autor): každý běh jede s čistou mapou, uzavřené
+  hrany ani korekce lokalizace se přes restart nepřenášejí. Hranu mohla uzavřít umělá překážka,
+  která příště nebude. **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- Komentář u `Profile.WheelRadius` už neopakuje hodnotu koeficientu stlačení pneumatiky (uváděl
+  0,94, v kódu je 0,923).
+
 ## 2026-09-28
 
 - **Odstranění T265 a restarty D435 — průběžně z journalu Pi** (`hw-d435-vlakno-zatuhlo-po-restartu`).

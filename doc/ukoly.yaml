@@ -7384,8 +7384,9 @@ temata:
     oblast: navigace
     nazev: Uzavřené hrany sítě a stav lokalizace nepřežijí restart
     druh: zamer
-    stav: otevreno
+    stav: zamitnuto
     nalezeno: 2026-08-12
+    vyreseno: 2026-09-29
     popis: >
       Globální navigace si za jízdy uzavírá hrany sítě, které se ukázaly neprůjezdné, a korelace
       s mapou si ladí korekci pózy — obojí žije jen v paměti procesu. Po pádu nebo restartu
@@ -7394,6 +7395,9 @@ temata:
       autor 27. 8. 2026 vědomě zrušil (mise se po restartu spouští od začátku) — tady jde o stav
       navigační vrstvy (uzavření mají trvalou identitu `EdgeKey`, takže by se ukládat daly)
       a lokalizace, ne o fázi mise. Zda to vůbec dělat, rozhodnuto není.
+      ❌ **Zamítnuto 29. 9. 2026 (autor):** každý běh jede s čistou mapou. Hranu mohla uzavřít
+      umělá překážka, která příště na místě nebude, a přenesené uzavření by robota posílalo
+      objížďkou kolem něčeho, co už neexistuje. Viz `decisions.md`, 29. 9. 2026.
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
@@ -7403,7 +7407,7 @@ temata:
         cesta: doc/decisions.md
       - text: EdgeClosure.cs
         cesta: Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs
-    devlog: [2026-08-27]
+    devlog: [2026-08-27, 2026-09-29]
     ceka_na: []
 
   - id: lp-vykon-retezu-na-arm

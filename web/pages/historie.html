@@ -29,11 +29,11 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">47</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">46</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">38</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">137</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">7</span></label>
-    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">5</span></label>
+    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">6</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
   </form>
@@ -385,6 +385,7 @@
       <li data-tema="ui-avalonia-deadlock-popup"><span class="mono">27. 9.</span> <span class="typ">vyřešeno</span> <a href="#ui-avalonia-deadlock-popup">Aplikace natrvalo zatuhla při zavřen&#237; menu (deadlock kompozitoru Avalonia 12.0.3)</a></li>
       <li data-tema="hw-magcal-reg23-po-padu"><span class="mono">28. 9.</span> <span class="typ">nalezeno i zamítnuto</span> <a href="#hw-magcal-reg23-po-padu">P&#225;d procesu během mise magcal nech&#225; senzor bez kalibrace magnetometru</a></li>
       <li data-tema="hw-magcal-uncompmag-kompenzovany"><span class="mono">28. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-magcal-uncompmag-kompenzovany">„Surov&#233;&quot; pole magnetometru je kompenzovan&#233;, druh&#225; kalibrace by tu prvn&#237; přepsala</a></li>
+      <li data-tema="nav-uzavreni-hran-pres-restart"><span class="mono">29. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-uzavreni-hran-pres-restart">Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</a></li>
     </ul>
   </div>
 </section>
@@ -960,12 +961,6 @@
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
   <h2>Navigace po mapě</h2>
-  <article class="tema" id="nav-uzavreni-hran-pres-restart" data-stav="otevreno">
-    <h3>Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span></p>
-    <p>Glob&#225;ln&#237; navigace si za j&#237;zdy uzav&#237;r&#225; hrany s&#237;tě, kter&#233; se uk&#225;zaly neprůjezdn&#233;, a korelace s mapou si lad&#237; korekci p&#243;zy — oboj&#237; žije jen v paměti procesu. Po p&#225;du nebo restartu aplikace (při soutěžn&#237; j&#237;zdě re&#225;ln&#225; situace) zač&#237;n&#225; robot od nuly: může se vr&#225;tit do t&#233;že slep&#233; uličky a filtr startuje od GPS. Je to jin&#225; ot&#225;zka než přežit&#237; mise Robotour, kter&#233; autor 27. 8. 2026 vědomě zrušil (mise se po restartu spoušt&#237; od zač&#225;tku) — tady jde o stav navigačn&#237; vrstvy (uzavřen&#237; maj&#237; trvalou identitu <code>EdgeKey</code>, takže by se ukl&#225;dat daly) a lokalizace, ne o f&#225;zi mise. Zda to vůbec dělat, rozhodnuto nen&#237;.</p>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 27. 8. (mise restart přež&#237;t nemus&#237;)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs">EdgeClosure.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a></p>
-  </article>
   <article class="tema" id="nav-prurez-koridorem" data-stav="otevreno">
     <h3>Detektor přehrazen&#237; bez průřezu koridorem (f&#225;ze 4b)</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 13. 8. 2026</span></p>
@@ -1062,6 +1057,12 @@
       <li class="otevreno">Zapsat u každ&#233;ho <code>.osm</code> v <code>OSM/</code> původ (JOSM / Overpass), oblast a datum stažen&#237; — zam&#237;tnuto 25. 9. 2026</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">decisions.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/osm-nav.md">osm-nav.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/OSM">OSM/</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-04">2026-08-04</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-18">2026-08-18</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
+  </article>
+  <article class="tema" id="nav-uzavreni-hran-pres-restart" data-stav="zamitnuto">
+    <h3>Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</h3>
+    <p class="tema-meta"><span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span> <span>vyřešeno 29. 9. 2026</span></p>
+    <p>Glob&#225;ln&#237; navigace si za j&#237;zdy uzav&#237;r&#225; hrany s&#237;tě, kter&#233; se uk&#225;zaly neprůjezdn&#233;, a korelace s mapou si lad&#237; korekci p&#243;zy — oboj&#237; žije jen v paměti procesu. Po p&#225;du nebo restartu aplikace (při soutěžn&#237; j&#237;zdě re&#225;ln&#225; situace) zač&#237;n&#225; robot od nuly: může se vr&#225;tit do t&#233;že slep&#233; uličky a filtr startuje od GPS. Je to jin&#225; ot&#225;zka než přežit&#237; mise Robotour, kter&#233; autor 27. 8. 2026 vědomě zrušil (mise se po restartu spoušt&#237; od zač&#225;tku) — tady jde o stav navigačn&#237; vrstvy (uzavřen&#237; maj&#237; trvalou identitu <code>EdgeKey</code>, takže by se ukl&#225;dat daly) a lokalizace, ne o f&#225;zi mise. Zda to vůbec dělat, rozhodnuto nen&#237;. ❌ **Zam&#237;tnuto 29. 9. 2026 (autor):** každ&#253; běh jede s čistou mapou. Hranu mohla uzavř&#237;t uměl&#225; přek&#225;žka, kter&#225; př&#237;ště na m&#237;stě nebude, a přenesen&#233; uzavřen&#237; by robota pos&#237;lalo obj&#237;žďkou kolem něčeho, co už neexistuje. Viz <code>decisions.md</code>, 29. 9. 2026.</p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 27. 8. (mise restart přež&#237;t nemus&#237;)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Maps/OsmNav/Navigation/EdgeClosure.cs">EdgeClosure.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
   </article>
 </section>
 <section class="oblast">

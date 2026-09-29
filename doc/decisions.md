@@ -13,6 +13,24 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-29 — Každý běh začíná s čistou mapou: uzavřené hrany ani korekce lokalizace se přes restart nepřenášejí
+
+**Co:** Stav navigační vrstvy (hrany sítě uzavřené nebo penalizované za jízdy) ani stav
+lokalizace (naladěná korekce z korelace s mapou, naučené šířky cest) se **neukládají** a po
+restartu aplikace se neobnovují. Každý běh jede s čistou mapou a filtr startuje od GPS. Téma
+`nav-uzavreni-hran-pres-restart` je zamítnuté. Rozhodnutí autora.
+
+**Proč:** Hrana se uzavírá kvůli tomu, co robot na místě zažil, a to bývá dočasné. Důvodem mohou
+být **umělé překážky** (na soutěži je staví pořadatelé), které příště na místě nebudou.
+Přenesené uzavření by pak robota posílalo objížďkou kolem něčeho, co už neexistuje, a nikdo by
+ho neodemkl. Stejná úvaha platí u naučené šířky cesty (proto nemá perzistenci ani ona, viz
+`plan-naucena-sirka-do-mapy.md`). Navazuje na rozhodnutí z 27. 8. 2026, že mise restart
+přežít nemusí.
+
+**Důsledky:** Po pádu nebo restartu uprostřed soutěžní jízdy se robot může vrátit do téže slepé
+uličky a musí si ji uzavřít znovu. Kdyby se to v provozu ukázalo jako problém, otevře se nové
+téma s podmínkou, jak přenesené uzavření expiruje.
+
 ### 2026-09-28 — Pád procesu během kalibrace magnetometru: známé chování, neřešit
 Mise `magcal` si na dobu sběru vymaže registr 23 v RAM senzoru a zapne palubní HSI; `Stop()`
 obojí vrací při každém řádném ukončení (ověřeno na senzoru 28. 9.). Při pádu procesu se nevrátí

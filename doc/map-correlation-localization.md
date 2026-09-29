@@ -2696,9 +2696,6 @@ statistiku počítat jen tam, kde koridor podle mapy vůbec existovat může.
   Nevyužitá páka pro výkon na ARM; přidat, až měření řekne, že je potřeba.
 - (bez tématu v registru) **Kanál `Occ` jako druhá evidence** — pomohl by u zdí a plotů, kde barva selhává, ale nese věci,
   které v mapě nejsou. Až bude příčný odhad z `LRoad` naladěný a bude s čím porovnávat.
-- **[Uzavřené hrany sítě a stav lokalizace nepřežijí restart](ukoly.md#nav-uzavreni-hran-pres-restart)** —
-  naladěná korekce se po restartu aplikace zahodí a filtr začíná od GPS; stejná otázka jako
-  uzavírání hran napříč běhy v [global-navigation-runtime.md](global-navigation-runtime.md).
 
 ---
 

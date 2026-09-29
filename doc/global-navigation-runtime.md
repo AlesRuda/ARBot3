@@ -579,6 +579,3 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[Korelace occupancy gridu s mapou jako oprava polohy a kurzu](ukoly.md#lok-korelace-gridu-s-mapou)** —
   pro globální navigaci je to nejsilnější léčba na „špatná lokalizace ⇒ špatná mrkev"; podrobně
   v [map-correlation-localization.md](map-correlation-localization.md).
-- **[Uzavřené hrany sítě a stav lokalizace nepřežijí restart](ukoly.md#nav-uzavreni-hran-pres-restart)** —
-  uzavření napříč běhy (soutěžní jízda po havárii aplikace); mise Robotour restart přežít nemusí
-  (rozhodnutí 27. 8. 2026), tohle je o hranách sítě.

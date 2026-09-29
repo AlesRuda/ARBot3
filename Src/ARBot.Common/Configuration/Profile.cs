@@ -44,7 +44,7 @@ namespace ARBot.Common.Configuration
         public static double wErr = 0.0;
         /// <summary>
         /// Polomer kola v metrech.
-        /// 0.94 - je konstanta urcena merenim, reprezentuje zmacknuti pneumatiky vahou robotu
+        /// Druhy cinitel je konstanta urcena merenim, reprezentuje zmacknuti pneumatiky vahou robotu
         /// </summary>
         public static double WheelRadius = 0.085944 * 0.923;
 #if true   //rychly motor
