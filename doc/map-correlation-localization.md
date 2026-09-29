@@ -10,6 +10,14 @@ Motivace: GPS na ±2 m je pro globální navigaci na hraně použitelnosti. Špa
 plánovač pracuje správně. Korelace s mapou je na tuhle vadu nejsilnější léčba, protože mapu bereme
 jako pravdu a chyba je celá v póze.
 
+> ⏸ **Odloženo (29. 9. 2026, autor).** Korelace occupancy gridu s mapou (`MapCorrelator`) je
+> odložená celá, včetně všech jejích otevřených témat v [registru](ukoly.md). Důvodem zastavení
+> bylo, že **cykly korelace nejsou nezávislé**, protože sousední cykly korelují z téhož
+> nahromaděného oblaku bodů (viz sekce „Časová korelace mezi cykly" níže). Ve výchozím stavu
+> se nepočítá (`mapcorr=false`); lokalizaci
+> podle cesty dnes dělá **hranová lokalizace z koridoru** (`corridor=`), popsaná v témže
+> dokumentu níže. Kód, testy a nástroje korelace zůstávají.
+
 ## Stav (2026-08-19)
 
 Vznikl 19. 8. 2026 z otevřených úkolů v [occupancy-and-local-planning.md](occupancy-and-local-planning.md)

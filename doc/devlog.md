@@ -63,6 +63,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   krok po výpadku zpráv. Odometrie kol zamítnuta kvůli prokluzu v písku (autor). 4 nové testy,
   dva z nich na starém chování padají. Testy 1 690 / 148 / 129, jediný pád dál `spitest.sh`.
   ⚠️ Na zařízení neběželo. Detail: [global-navigation-runtime.md](global-navigation-runtime.md).
+- **Korelace occupancy gridu s mapou odložena celá** (autor): 7 otevřených a „v kódu" témat
+  (`lok-korelace-gridu-s-mapou`, `-sigma-nepoctiva`, `-tri-podminky-naostro`, `-dekorelacni-cas`,
+  `-eskalace-bez-shody`, `lok-tight-axis-angle-vychylena`, `lok-mapcorr-tvrdy-gate`) je
+  `odlozeno`. Důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly
+  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor. Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
 
 ## 2026-09-28
 

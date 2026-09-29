@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · hotovo **139** · odloženo **7** · zamítnuto **6**.
+Témat celkem **235**: otevřeno **42** · v kódu, na HW neověřeno **34** · hotovo **139** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -19,9 +19,6 @@ Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Určená osa korelace je vychýlená o 6°](#lok-tight-axis-angle-vychylena) | 19. 8. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě](#lok-korelace-eskalace-bez-shody) | 20. 8. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Tři podmínky, než korekce z mapy pustit naostro](#lok-korelace-tri-podminky-naostro) | 20. 8. 2026 | [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha), [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | otevřeno | Nástroje, záznam a analýza | [Hlášky ze startu runtime se do záznamu nedostanou](#nast-hlasky-startu-do-zaznamu) | 20. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný](#lok-ransac-nedeterministicky) | 23. 8. 2026 |  |
@@ -58,13 +55,9 @@ Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Lokalizace a fúze senzorů | [Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)](#lok-koridor-noedge-po-zatacce) | 26. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Sigma korelace je slepá k množství důkazu](#lok-korelace-sigma-nepoctiva) | 19. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Kompas si věří 60–90× víc, než jaký je](#lok-kompas-sigma-podlaha) | 25. 8. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s](#lok-korelace-dekorelacni-cas) | 25. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba](#lok-mapcorr-tvrdy-gate) | 25. 8. 2026 | [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha) |
 | v kódu, na HW neověřeno | Mise | [Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](#mise-cil-dosazitelnost) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
@@ -98,8 +91,15 @@ Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · 
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
+| odloženo | Lokalizace a fúze senzorů | [Sigma korelace je slepá k množství důkazu](#lok-korelace-sigma-nepoctiva) | 19. 8. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Určená osa korelace je vychýlená o 6°](#lok-tight-axis-angle-vychylena) | 19. 8. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě](#lok-korelace-eskalace-bez-shody) | 20. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Tři podmínky, než korekce z mapy pustit naostro](#lok-korelace-tri-podminky-naostro) | 20. 8. 2026 | [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha), [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | odloženo | Nástroje, záznam a analýza | [Vrstva hranic občas shodí Mapsui při přehrávání](#nast-mapsui-pad-vrstvy-hranic) | 23. 8. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s](#lok-korelace-dekorelacni-cas) | 25. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
+| odloženo | Lokalizace a fúze senzorů | [Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba](#lok-mapcorr-tvrdy-gate) | 25. 8. 2026 | [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha) |
 | odloženo | Lokální mapa a plánování | [Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď](#lp-filtr-izolovanych-bunek) | 7. 9. 2026 | [lp-robot-se-plazi-vyhlazovani](#lp-robot-se-plazi-vyhlazovani), [hw-zelezo-od-kabelu-kamer](#hw-zelezo-od-kabelu-kamer) |
 | odloženo | Lokalizace a fúze senzorů | [Fúze extrapoluje bez omezení — ztráta GPS i IMU robota nezastaví](#lok-fuze-extrapoluje-bez-omezeni) | 15. 9. 2026 |  |
 
@@ -113,42 +113,6 @@ Témat celkem **235**: otevřeno **45** · v kódu, na HW neověřeno **38** · 
 Řídicí smyčka bere roll a pitch z posledního došlého IMU vzorku, který nenese identitu zdroje - při dvou IMU (VN100 a T265) může náklon mezi tiky přeskakovat mezi čidly s jinou montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal. Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`), takže přeskakování náklonu mezi dvěma IMU v provozu nenastává; zůstává obcházení fúze (bez gatingu, kovariance a dopředikování) a chybějící identita zdroje v `IMUState` pro případ, že by druhé IMU přibylo.
 
 [ekf-fusion.md](ekf-fusion.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-08-11](devlog.md#2026-08-11)
-
-<a id="lok-tight-axis-angle-vychylena"></a>
-### ⬜ Určená osa korelace je vychýlená o 6°
-
-`lok-tight-axis-angle-vychylena` · vada · **otevřeno** · nalezeno 19. 8. 2026
-
-Směr lépe určené osy (`TightAxisAngle`) vychází soustavně o −6,3° vedle kolmice na cestu, protože fit kvadratiky na skóre tvaru „stan" ho ohýbá. Kdo podle ní rozkládá hlášený posun, dostane u velké podélné nejednoznačnosti o 40 % víc; rozklad se proto převedl na kurz robota. Vada sama zůstává nedotčená.
-
-[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-25](devlog.md#2026-08-25)
-
-<a id="lok-korelace-eskalace-bez-shody"></a>
-### ⬜ Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě
-
-`lok-korelace-eskalace-bez-shody` · záměr · **otevřeno** · nalezeno 20. 8. 2026
-
-Když korelace occupancy gridu s mapou shodu nenajde, korelátor jen mlčí — stav „lokalizace nepodložená mapou" si nikdo nečte a navigace věří mrkvi dál stejně. Chybí i schopnost se znovu najít: záchytný rozsah skenu je jen ±2,5 m a ±8°, takže po delším výpadku GNSS nebo po přenesení robota hierarchický sken principiálně nedosáhne. Kandidát na hrubý inicializátor s širokým záběrem je Fourier–Mellinova transformace (jeden výstřel, nízká přesnost, sken to dojemní) — jako náhrada skenu byla 20. 8. 2026 zamítnuta, jako inicializátor sedí. Až bude z dat vidět, jak dlouhé úseky bez shody v praxi vznikají, může `GlobalNavigator` ubrat nebo mrkvi přestat věřit.
-
-- [ ] Změřit z dat, jak dlouhé úseky bez shody v praxi vznikají
-- [ ] Eskalace stavu do `GlobalNavigator` (ubrat, přestat věřit mrkvi)
-- [ ] Hrubý inicializátor pro široký záběr (kandidát Fourier–Mellin)
-
-[map-correlation-localization.md](map-correlation-localization.md), [MapCorrelator.cs](../Src/ARBot.Common/Localization/MapCorrelator.cs), [GlobalNavigator.cs](../Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs) · DevLog [2026-08-20](devlog.md#2026-08-20)
-
-<a id="lok-korelace-tri-podminky-naostro"></a>
-### ⬜ Tři podmínky, než korekce z mapy pustit naostro
-
-`lok-korelace-tri-podminky-naostro` · záměr · **otevřeno** · nalezeno 20. 8. 2026
-
-Korelace s naměřenou sigmou 0,1 m přehlasuje GPS zhruba 400 : 1, takže záchyt na souběžné cestě by unesl pózu a nikdo by to nezastavil. Než se korekce pustí do řízení, musí platit tři věci: honestní sigma, rychlostní limit na aplikovanou korekci a strop na nesouhlas s GPS; k tomu měkký gating místo tvrdého zamítání. První podmínka je od 25. 8. splněná, druhá nemá naměřenou naléhavost, třetí je naměřeně nutná a chybí. Podmínka 2 od 21. 9. 2026: mechanismus (`IMeasurement.MaxStep`, nafouknutí `R` v EKF, `corridorslew=`) v kódu existuje, ale nastavuje ho jen koridor — `MapCorrelator` ho nepoužívá; naléhavost se 19. 9. změřila na koridoru v téže fúzi (skoky pózy 0,6–4 m, `lok-koridor-skoky-pozy`). Koridor šel 17. 9. naostro bez podmínek 2 a 3, takže tyhle podmínky dnes gatují jen `mapcorr=`, který na zařízení nikdy neběžel.
-
-- [x] Podmínka 1 — honestní sigma (25. 8. 2026)
-- [x] `GateMode.Soft` místo `Reject` (tvrdý gate zahazoval právě potřebné korekce) (25. 8. 2026)
-- [ ] Podmínka 2 — rychlostní limit na aplikovanou korekci (proměřit v běhu bez GPS)
-- [ ] Podmínka 3 — strop na kumulovaný nesouhlas s GPS
-
-čeká na [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha), [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [rozhodnutí 20. 8. 2026](decisions.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25)
 
 <a id="lok-ransac-nedeterministicky"></a>
 ### ⬜ RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný
@@ -261,35 +225,6 @@ Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky (`lo
 
 [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
-<a id="lok-korelace-gridu-s-mapou"></a>
-### 🧪 Korelace occupancy gridu s mapou jako oprava polohy a kurzu
-
-`lok-korelace-gridu-s-mapou` · záměr · **v kódu, na HW neověřeno** · nalezeno 19. 8. 2026 · vyřešeno 19. 8. 2026
-
-Semantický kanál lokální mapy (co kamera vidí jako cestu) se porovnává s vozovkou podle OSM a z posunu se odhaduje chyba polohy a kurzu, která jde do fúze jako dvě osová měření a kurz. Jádro, napojení do runtime a 17 telemetrických sloupců vznikly podle dvanáctidílného plánu; první měření hlásilo cyklus 126 ms, 25. 8. se ukázalo, že stojí 1,31 s, celé jádro (Debug 5,5× pomalejší a k měření bezcenný). Ve výchozím stavu se korelátor vůbec nezakládá (`mapcorr=false`) — nic neřídí a stál by celé jádro (při odstupu 3 s ~40 %); naostro ho pustí až tři podmínky. Na zařízení neběželo.
-
-- [x] Jádro, napojení do runtime a telemetrie (plán fáze 1–3) (19. 8. 2026)
-- [x] První spuštění v simulaci a naměřená doba cyklu (19. 8. 2026)
-- [x] Přepínač `Enabled` nevypínal výpočet, jen posílání — nový `mapcorr=` (výchozí false) a přejmenování na `SendCorrections` (20. 8. 2026)
-- [x] Přepínač `mapcorrsend=` pro A/B se stejnou zátěží (21. 8. 2026)
-- [ ] Měření na OrangePi (fáze 5 plánu)
-
-čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [map-correlation-localization.md](map-correlation-localization.md), [plan-map-correlation.md](plan-map-correlation.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-20](devlog.md#2026-08-20), [2026-08-21](devlog.md#2026-08-21)
-
-<a id="lok-korelace-sigma-nepoctiva"></a>
-### 🧪 Sigma korelace je slepá k množství důkazu
-
-`lok-korelace-sigma-nepoctiva` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 8. 2026 · vyřešeno 25. 8. 2026
-
-Nejistota korelace se počítala ze zakřivení normalizovaného skóre, takže nevěděla, kolik buněk za ní stojí — malý oblak důkazu hlásil větší jistotu než velký a na cestě rovnoběžné s osou gridu vycházela falešná podélná jistota. Případ „malý oblak obelže hlídač volné osy" se ukázal být touž vadou a vědomě se neopravoval zvlášť. Léčba přišla 25. 8.: sigma se škáluje vahou informativního důkazu (`ReferenceInformativeEvidence`), měřeno proti tuze posunuté mapě. Po odečtení chyby fúze v měřidle (samostatné téma) vyšla σ naopak ~1,25× konzervativní a vědomě se neopravuje; na zařízení neběželo.
-
-- [x] Falešná podélná jistota potvrzena za běhu (SigmaLoose konečná ve všech cyklech) (19. 8. 2026)
-- [x] Malý oblak obelže hlídač — změřeno, že je to táž vada, rozhodnuto neopravovat zvlášť (20. 8. 2026)
-- [x] Rozvaha korelace přes FFT / Fourier-Mellin — jako jiný estimátor by pomohla, odloženo do rozhodnutí o přestavbě (20. 8. 2026)
-- [x] Honestní sigma změřena nástrojem `ARBot.Analyze sigma` a opravena (25. 8. 2026)
-
-[map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25)
-
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
 
@@ -325,33 +260,6 @@ Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mý
 - [ ] Záznam na zařízení s `imuheadingstd=5` a `=0` nad týmž úsekem (A/B)
 
 [ekf-fusion.md](ekf-fusion.md), [rozhodnutí 12. 9. 2026](decisions.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
-
-<a id="lok-korelace-dekorelacni-cas"></a>
-### 🧪 Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s
-
-`lok-korelace-dekorelacni-cas` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 8. 2026 · vyřešeno 25. 8. 2026
-
-Fúze bere každé měření jako nezávislé, ale korelace čte tentýž grid s pamětí ~2,5 s, takže dva cykly po sobě říkají skoro totéž a informace se započítá dvakrát (činitel nadsazení 1,9–2,4). Dekorelační čas vyšel 2,85 / 2,93 / 3,31 s na třech bězích s periodou lišící se o 42 %, tedy je to konstanta scény, ne artefakt měření. Léčba je odstup konstrukcí: nejmenší perioda korelace 400 ms → 3 s, po změně je korelace sousedních cyklů záporná a činitel 1,00. Při tom se opravil o řádek špatný údaj o ceně — cyklus stojí 1,31 s (celé jádro), ne ~126 ms; hranice 400 ms byla v praxi mrtvá. Změřeno v simulaci, na zařízení korelace neběžela (`mapcorr=false`).
-
-- [x] Autokorelace reziduí a dekorelační čas v `ARBot.Analyze sigma` (tři běhy) (25. 8. 2026)
-- [x] `MinPeriod` 400 ms → 3 s (rozhodnutí autora), ověřeno dvěma běhy (25. 8. 2026)
-- [ ] Ověřit odstup a cenu cyklu na Orange Pi (se zapnutým `mapcorr=`)
-
-čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md), [SigmaReport.cs](../Src/ARBot.Analyze/SigmaReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25)
-
-<a id="lok-mapcorr-tvrdy-gate"></a>
-### 🧪 Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba
-
-`lok-mapcorr-tvrdy-gate` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 8. 2026 · vyřešeno 25. 8. 2026
-
-Korekce polohy z korelace occupancy gridu s mapou se poprvé pustily naostro a změřily (`ARBot.Analyze corrections`): s tvrdým gatem byl výsledek horší, než když se nekorigovalo vůbec (příčná chyba p50 0,67 → 0,85 m), protože gate zamítal 42–46 % korekcí podle velikosti innovace — tedy přesně ty velké, které měly chybu stáhnout. Korelátor přitom hlásil správně. Měkký gate (`GateMode.Soft`) je od té doby výchozí (0,59 m), `mapcorrgate=reject` vrací staré chování. Zisk je ale jen 6–13 %, dokud kurz drží kompas; celá korelace je navíc ve výchozím stavu vypnutá (`mapcorr=false`), takže na zařízení nikdy neběžela.
-
-- [x] Přístroj `ARBot.Analyze corrections` (krok pózy, gating, NIS podle zdroje, chyba proti pravdě) (25. 8. 2026)
-- [x] Změřit tvrdý proti měkkému gatu na scéně se skutečným driftem (dva běhy na variantu) (25. 8. 2026)
-- [x] `GateMode.Soft` výchozí (25. 8. 2026)
-- [ ] Ověřit se zapnutou korelací na zařízení
-
-čeká na [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha) · [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md) · DevLog [2026-08-25](devlog.md#2026-08-25)
 
 <a id="lok-naucena-sirka-do-mapy"></a>
 ### 🧪 Naučená šířka cesty jde dál do mapy — korelaci i kreslení
@@ -428,6 +336,57 @@ Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Mod
 
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
+<a id="lok-korelace-gridu-s-mapou"></a>
+### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu
+
+`lok-korelace-gridu-s-mapou` · záměr · **odloženo** · nalezeno 19. 8. 2026
+
+Semantický kanál lokální mapy (co kamera vidí jako cestu) se porovnává s vozovkou podle OSM a z posunu se odhaduje chyba polohy a kurzu, která jde do fúze jako dvě osová měření a kurz. Jádro, napojení do runtime a 17 telemetrických sloupců vznikly podle dvanáctidílného plánu; první měření hlásilo cyklus 126 ms, 25. 8. se ukázalo, že stojí 1,31 s, celé jádro (Debug 5,5× pomalejší a k měření bezcenný). Ve výchozím stavu se korelátor vůbec nezakládá (`mapcorr=false`) — nic neřídí a stál by celé jádro (při odstupu 3 s ~40 %); naostro ho pustí až tři podmínky. Na zařízení neběželo. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [x] Jádro, napojení do runtime a telemetrie (plán fáze 1–3) (19. 8. 2026)
+- [x] První spuštění v simulaci a naměřená doba cyklu (19. 8. 2026)
+- [x] Přepínač `Enabled` nevypínal výpočet, jen posílání — nový `mapcorr=` (výchozí false) a přejmenování na `SendCorrections` (20. 8. 2026)
+- [x] Přepínač `mapcorrsend=` pro A/B se stejnou zátěží (21. 8. 2026)
+- [ ] Měření na OrangePi (fáze 5 plánu)
+
+čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [map-correlation-localization.md](map-correlation-localization.md), [plan-map-correlation.md](plan-map-correlation.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-20](devlog.md#2026-08-20), [2026-08-21](devlog.md#2026-08-21), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-korelace-sigma-nepoctiva"></a>
+### ⏸ Sigma korelace je slepá k množství důkazu
+
+`lok-korelace-sigma-nepoctiva` · vada · **odloženo** · nalezeno 19. 8. 2026
+
+Nejistota korelace se počítala ze zakřivení normalizovaného skóre, takže nevěděla, kolik buněk za ní stojí — malý oblak důkazu hlásil větší jistotu než velký a na cestě rovnoběžné s osou gridu vycházela falešná podélná jistota. Případ „malý oblak obelže hlídač volné osy" se ukázal být touž vadou a vědomě se neopravoval zvlášť. Léčba přišla 25. 8.: sigma se škáluje vahou informativního důkazu (`ReferenceInformativeEvidence`), měřeno proti tuze posunuté mapě. Po odečtení chyby fúze v měřidle (samostatné téma) vyšla σ naopak ~1,25× konzervativní a vědomě se neopravuje; na zařízení neběželo. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [x] Falešná podélná jistota potvrzena za běhu (SigmaLoose konečná ve všech cyklech) (19. 8. 2026)
+- [x] Malý oblak obelže hlídač — změřeno, že je to táž vada, rozhodnuto neopravovat zvlášť (20. 8. 2026)
+- [x] Rozvaha korelace přes FFT / Fourier-Mellin — jako jiný estimátor by pomohla, odloženo do rozhodnutí o přestavbě (20. 8. 2026)
+- [x] Honestní sigma změřena nástrojem `ARBot.Analyze sigma` a opravena (25. 8. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-tight-axis-angle-vychylena"></a>
+### ⏸ Určená osa korelace je vychýlená o 6°
+
+`lok-tight-axis-angle-vychylena` · vada · **odloženo** · nalezeno 19. 8. 2026
+
+Směr lépe určené osy (`TightAxisAngle`) vychází soustavně o −6,3° vedle kolmice na cestu, protože fit kvadratiky na skóre tvaru „stan" ho ohýbá. Kdo podle ní rozkládá hlášený posun, dostane u velké podélné nejednoznačnosti o 40 % víc; rozklad se proto převedl na kurz robota. Vada sama zůstává nedotčená. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-korelace-eskalace-bez-shody"></a>
+### ⏸ Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě
+
+`lok-korelace-eskalace-bez-shody` · záměr · **odloženo** · nalezeno 20. 8. 2026
+
+Když korelace occupancy gridu s mapou shodu nenajde, korelátor jen mlčí — stav „lokalizace nepodložená mapou" si nikdo nečte a navigace věří mrkvi dál stejně. Chybí i schopnost se znovu najít: záchytný rozsah skenu je jen ±2,5 m a ±8°, takže po delším výpadku GNSS nebo po přenesení robota hierarchický sken principiálně nedosáhne. Kandidát na hrubý inicializátor s širokým záběrem je Fourier–Mellinova transformace (jeden výstřel, nízká přesnost, sken to dojemní) — jako náhrada skenu byla 20. 8. 2026 zamítnuta, jako inicializátor sedí. Až bude z dat vidět, jak dlouhé úseky bez shody v praxi vznikají, může `GlobalNavigator` ubrat nebo mrkvi přestat věřit. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [ ] Změřit z dat, jak dlouhé úseky bez shody v praxi vznikají
+- [ ] Eskalace stavu do `GlobalNavigator` (ubrat, přestat věřit mrkvi)
+- [ ] Hrubý inicializátor pro široký záběr (kandidát Fourier–Mellin)
+
+[map-correlation-localization.md](map-correlation-localization.md), [MapCorrelator.cs](../Src/ARBot.Common/Localization/MapCorrelator.cs), [GlobalNavigator.cs](../Src/ARBot.Common/Maps/OsmNav/Navigation/GlobalNavigator.cs) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-09-29](devlog.md#2026-09-29)
+
 <a id="lok-korelace-posun-jako-stav-ekf"></a>
 ### ⏸ Posun mapa–GPS jako stav filtru
 
@@ -436,6 +395,47 @@ Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Mod
 Návrh autora: kamera neměří polohu, ale vztah k cestě, takže by posun mezi rámcem GPS a rámcem mapy mohl být samostatný stav EKF krmený korelací. Týž den se závěr otočil — přímá korekce pózy stačí, protože všechny cíle robota jsou mapově relativní a absolutní přesnost je stejně omezená chybou mapy. Stav bude potřeba až pro použití nezávislé na mapě (návrat do depa podle GNSS, jiný zdroj mapy).
 
 [rozhodnutí 20. 8. 2026](decisions.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-20](devlog.md#2026-08-20)
+
+<a id="lok-korelace-tri-podminky-naostro"></a>
+### ⏸ Tři podmínky, než korekce z mapy pustit naostro
+
+`lok-korelace-tri-podminky-naostro` · záměr · **odloženo** · nalezeno 20. 8. 2026
+
+Korelace s naměřenou sigmou 0,1 m přehlasuje GPS zhruba 400 : 1, takže záchyt na souběžné cestě by unesl pózu a nikdo by to nezastavil. Než se korekce pustí do řízení, musí platit tři věci: honestní sigma, rychlostní limit na aplikovanou korekci a strop na nesouhlas s GPS; k tomu měkký gating místo tvrdého zamítání. První podmínka je od 25. 8. splněná, druhá nemá naměřenou naléhavost, třetí je naměřeně nutná a chybí. Podmínka 2 od 21. 9. 2026: mechanismus (`IMeasurement.MaxStep`, nafouknutí `R` v EKF, `corridorslew=`) v kódu existuje, ale nastavuje ho jen koridor — `MapCorrelator` ho nepoužívá; naléhavost se 19. 9. změřila na koridoru v téže fúzi (skoky pózy 0,6–4 m, `lok-koridor-skoky-pozy`). Koridor šel 17. 9. naostro bez podmínek 2 a 3, takže tyhle podmínky dnes gatují jen `mapcorr=`, který na zařízení nikdy neběžel. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [x] Podmínka 1 — honestní sigma (25. 8. 2026)
+- [x] `GateMode.Soft` místo `Reject` (tvrdý gate zahazoval právě potřebné korekce) (25. 8. 2026)
+- [ ] Podmínka 2 — rychlostní limit na aplikovanou korekci (proměřit v běhu bez GPS)
+- [ ] Podmínka 3 — strop na kumulovaný nesouhlas s GPS
+
+čeká na [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha), [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [rozhodnutí 20. 8. 2026](decisions.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-korelace-dekorelacni-cas"></a>
+### ⏸ Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s
+
+`lok-korelace-dekorelacni-cas` · vada · **odloženo** · nalezeno 25. 8. 2026
+
+Fúze bere každé měření jako nezávislé, ale korelace čte tentýž grid s pamětí ~2,5 s, takže dva cykly po sobě říkají skoro totéž a informace se započítá dvakrát (činitel nadsazení 1,9–2,4). Dekorelační čas vyšel 2,85 / 2,93 / 3,31 s na třech bězích s periodou lišící se o 42 %, tedy je to konstanta scény, ne artefakt měření. Léčba je odstup konstrukcí: nejmenší perioda korelace 400 ms → 3 s, po změně je korelace sousedních cyklů záporná a činitel 1,00. Při tom se opravil o řádek špatný údaj o ceně — cyklus stojí 1,31 s (celé jádro), ne ~126 ms; hranice 400 ms byla v praxi mrtvá. Změřeno v simulaci, na zařízení korelace neběžela (`mapcorr=false`). ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [x] Autokorelace reziduí a dekorelační čas v `ARBot.Analyze sigma` (tři běhy) (25. 8. 2026)
+- [x] `MinPeriod` 400 ms → 3 s (rozhodnutí autora), ověřeno dvěma běhy (25. 8. 2026)
+- [ ] Ověřit odstup a cenu cyklu na Orange Pi (se zapnutým `mapcorr=`)
+
+čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md), [SigmaReport.cs](../Src/ARBot.Analyze/SigmaReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-mapcorr-tvrdy-gate"></a>
+### ⏸ Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba
+
+`lok-mapcorr-tvrdy-gate` · vada · **odloženo** · nalezeno 25. 8. 2026
+
+Korekce polohy z korelace occupancy gridu s mapou se poprvé pustily naostro a změřily (`ARBot.Analyze corrections`): s tvrdým gatem byl výsledek horší, než když se nekorigovalo vůbec (příčná chyba p50 0,67 → 0,85 m), protože gate zamítal 42–46 % korekcí podle velikosti innovace — tedy přesně ty velké, které měly chybu stáhnout. Korelátor přitom hlásil správně. Měkký gate (`GateMode.Soft`) je od té doby výchozí (0,59 m), `mapcorrgate=reject` vrací staré chování. Zisk je ale jen 6–13 %, dokud kurz drží kompas; celá korelace je navíc ve výchozím stavu vypnutá (`mapcorr=false`), takže na zařízení nikdy neběžela. ⏸ **Odloženo 29. 9. 2026 (autor)** spolu s celou korelací occupancy gridu s mapou (`mapcorr=false`): důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly korelují z téhož nahromaděného oblaku bodů. Na lokalizaci podle cesty se od té doby používá koridor (`corridor=`).
+
+- [x] Přístroj `ARBot.Analyze corrections` (krok pózy, gating, NIS podle zdroje, chyba proti pravdě) (25. 8. 2026)
+- [x] Změřit tvrdý proti měkkému gatu na scéně se skutečným driftem (dva běhy na variantu) (25. 8. 2026)
+- [x] `GateMode.Soft` výchozí (25. 8. 2026)
+- [ ] Ověřit se zapnutou korelací na zařízení
+
+čeká na [lok-kompas-sigma-podlaha](#lok-kompas-sigma-podlaha) · [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 25. 8. 2026](decisions.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-fuze-extrapoluje-bez-omezeni"></a>
 ### ⏸ Fúze extrapoluje bez omezení — ztráta GPS i IMU robota nezastaví
