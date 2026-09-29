@@ -192,6 +192,13 @@ namespace ARBot.Common.Configuration
                ? ParamParseResult.Valid()
                : ParamParseResult.Invalid("cekam rychlostni limit v m/s: 0 (vypnuto) az 10");
 
+        /// <summary>Hranice seeku pro skrceni a limit koridoru [s]: 0 az 10.</summary>
+        public static ParamParseResult CorridorSeekBack(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 10 && !double.IsNaN(v)
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam SEKUNDY: 0 (kazdy skok zpet je seek) az 10");
+
         /// <summary>
         /// Rychlostni limit korekce kurzu z koridoru ve STUPNICH za sekundu: 0 (vypnuto) az 360.
         /// <para>Stejna past jako u <see cref="CorridorHeadingStd"/>: velmi mala kladna hodnota je

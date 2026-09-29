@@ -284,6 +284,17 @@ namespace ARBot.Common.Configuration
               + "kotveny ve svete, takze otoceni pozy o dθ posune jeho obsah o R·dθ - proto ma kurz "
               + "vlastni limit. Viz doc/map-correlation-localization.md.",
               ParamParsers.CorridorHeadingSlew);
+        public static readonly BoolParam CorridorPosLimit = Bool("corridorposlimit", "true", K_FUZE,
+              "Hlidat corridorslew i CELY posun polohy jednim merenim koridoru (i u merenia kurzu), "
+              + "ne jen krok podel osy merenia. Pres vazby v kovarianci posunulo jedno pricne merenie "
+              + "pozu o 3,98 m PODEL cesty pri limitu 0,25 m (Track 27. 9. 2026). false = chovani do "
+              + "29. 9. 2026 (A/B). Bez corridorslew nema ucinek.");
+        public static readonly DoubleParam CorridorSeekBack = Num("corridorseekback", "1", K_FUZE,
+              "Skok casu snimku koridoru ZPET vetsi nez tohle [s] je seek (novy zaznam, prehravani) "
+              + "a skrceni corridorhz i limit corridorslew zacnou znovu. Mensi skok je prehozene "
+              + "poradi snimku dvou kamer (22-26 % zprav, o 10-20 ms) a bere se jako Δt = 0. "
+              + "0 = kazdy skok zpet je seek (chovani do 29. 9. 2026: ctvrtina odeslani obesla "
+              + "skrceni i limit a delala kolme skoky ~0,7 m).", ParamParsers.CorridorSeekBack);
         // --- Prirazeni koridoru k hrane site (16. 9. 2026) -----------------------------------
         //
         // Do 16. 9. 2026 se brala prosta NEJBLIZSI hrana a kurz do vyberu nevstupoval vubec.

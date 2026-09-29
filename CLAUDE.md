@@ -769,6 +769,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   byl SMĚR posunu, ne otočení pózy**. ⚠️ `K_eff` měřidla (okno 50 ms) krok podceňuje: skok
   14:25:05 byl 4 dílčí skoky = 5,81 m za 1,6 s ≈ celé `K·ν` 5,83 m, fúze ho rozkládá, ne tlumí.
   ⚠️ Na zařízení neběželo. Viz [decisions.md](doc/decisions.md), 21. 9. 2026.
+  ✅ **29. 9. 2026 přeměřeno na 12 jízdách s limitem: skoky zbyly, dva úniky opraveny** — malý skok
+  času fixu zpět (dvě kamery, 22–26 % zpráv) už není seek (`corridorseekback=1`; dřív obešel
+  škrcení i limit), a limit hlídá i celý posun POLOHY (`corridorposlimit=true`,
+  `IMeasurement.MaxPositionStep`; vazbou v kovarianci ujela póza jedním měřením až 4 m podél
+  cesty). Přehrání 7 jízd: skoků od koridoru 0. ⚠️ Na zařízení neběželo.
   ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
   při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše
   (`lok-skok-pozy-nedetekce`, neopraveno).

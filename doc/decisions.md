@@ -13,6 +13,25 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-29 — Limit kroku z koridoru hlídá celý posun polohy a malý skok času zpět není seek
+
+**Co:** (1) `CorridorLocalizer` bere skok času fixu zpět za seek jen nad `corridorseekback=` (1 s);
+menší je Δt ≈ 0 (škrcení neposlat, limit podlaha). (2) Limit `corridorslew` omezuje i normu posunu
+polohy jedním měřením (`IMeasurement.MaxPositionStep`, `corridorposlimit=true`), u příčného
+i kurzového měření. Rozhodnutí autora.
+
+**Proč:** Po zavedení limitu 21. 9. skoky pózy nezmizely a přehrání ukázalo, že je dělá koridor
+dvěma úniky: čtvrtina odeslání obcházela škrcení i limit, protože čas fixu dvou kamer jde o pár ms
+zpět (kolmé skoky ~0,7 m), a limit hlídal jen krok podél osy měření, zatímco vazba v kovarianci
+posunula pózu až o 4 m podél cesty. Alternativa „zvětšit σ koridoru“ byla zamítnutá už 20. 9.
+(drift zůstane).
+
+**Důsledky:** V přehrání 7 jízd nezbyl žádný skok od koridoru, přesnost stejná nebo lepší, do fúze
+jde o 25–35 % méně měření (ta nad kvótu). Oba parametry mají hodnotu pro staré chování (`0` /
+`false`) pro A/B a přehrání starých záznamů. Na zařízení neběželo. Viz
+[map-correlation-localization.md](map-correlation-localization.md), „Limit na zařízení a dva
+úniky“; registr `lok-koridor-skoky-pozy`.
+
 ### 2026-09-29 — Mrkev se měří od kolmého průmětu robota na trasu, i mimo trasu
 
 **Co:** `RouteCarrot` vystředí čtverec ±`CarrotHalfExtentM` (5,9 m) na **kolmém průmětu** robota na

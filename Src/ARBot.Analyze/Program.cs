@@ -209,7 +209,7 @@ namespace ARBot.Analyze
                         return 0;
                     case "fusionreplay":
                         FusionReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
-                                               Arg(args, "--revisit", 60));
+                                               Arg(args, "--revisit", 60), Text(args, "--set"));
                         return 0;
                     case "drive":
                         DriveReport.Run(rec, Arg(args, "--maxspeed", double.NaN),
@@ -295,7 +295,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  fusionreplay A/B hranove lokalizace nad JEDNOU jizdou: prehraje fuzi ze senzoru S korekcemi");
             Console.WriteLine("             z koridoru (prirazeni prepocitane proti prehravane poze) a BEZ nich, overi");
             Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");
-            Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60)");
+            Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60,");
+            Console.WriteLine("             --set=klic=hodnota;... prepise hodnotu z logu)");
             Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
             Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
             Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");

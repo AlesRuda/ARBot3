@@ -254,7 +254,7 @@ namespace ARBot.Common.Localization
         /// <summary>
         /// Strop na Δt pro limit kroku [s]. Bez nej by po dlouhe mezere koridoru (stani, vypadek
         /// kamery) prvni mereni smelo skocit libovolne - a to je presne skok, ktery se tu krotí.
-        /// Prvni odeslani a skok casu vzad (seek) berou strop.
+        /// Prvni odeslani a seek (skok casu vzad nad <see cref="SeekBackSec"/>) berou strop.
         /// </summary>
         public double SlewDtCapSec = 1.0;
 
@@ -263,6 +263,24 @@ namespace ARBot.Common.Localization
         /// limit 0, a nulovy limit filtr bere jako VYPNUTY - podlaha z neho udela maly, ne zadny.
         /// </summary>
         public double SlewDtFloorSec = 0.02;
+
+        /// <summary>
+        /// Skok casu fixu ZPET vetsi nez tohle [s] je <b>seek</b> (prehravani, novy zaznam):
+        /// skrceni i limit kroku zacnou znovu (strop Δt). Mensi skok je jen prehozene poradi
+        /// snimku dvou kamer a bere se jako Δt = 0 (neposlat, resp. podlaha limitu).
+        /// <para>Zmereno 29. 9. 2026: cas fixu jde zpet ve 22–26 % zprav, typicky o 10–20 ms,
+        /// nejvys o 0,17 s. Do te doby se kazdy skok zpet bral jako seek.</para>
+        /// </summary>
+        public double SeekBackSec = 1.0;
+
+        /// <summary>
+        /// Hlidat pricnym limitem (<see cref="SlewRateMps"/>) i CELY posun polohy jednim merenim
+        /// (<see cref="Fusion.IMeasurement.MaxPositionStep"/>), u pricneho i kurzoveho merenia?
+        /// <c>false</c> = limit jen podel osy merenia (chovani do 29. 9. 2026, A/B).
+        /// <para>Zmereno 29. 9. 2026: pres vazby v kovarianci posunulo jedno pricne merenie pozu
+        /// o 3,98 m PODEL hrany pri limitu 0,25 m podel normaly (Track 27. 9., po inicializaci z GPS).</para>
+        /// </summary>
+        public bool PositionSlewLimit = true;
 
         /// <summary>
         /// Rezim gatingu merenii z koridoru. <b>Vychozi <c>Soft</c>, a to je podstatne.</b>

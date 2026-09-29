@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Devices;
@@ -222,11 +222,37 @@ public class CorridorDeweightTests
             MinSendPeriodSec = 0.5,
         });
 
-        Cycle(loc, T0);
-        Cycle(loc, T0.AddMilliseconds(500));                       // odesle (perioda uplynula)
-        Cycle(loc, T0.AddMilliseconds(100));                       // skok vzad -> musi odeslat
+        // Seek je skok VETSI nez SeekBackSec (1 s) - maly skok je prehozene poradi kamer, viz nize.
+        Cycle(loc, T0.AddSeconds(5));
+        Cycle(loc, T0.AddSeconds(5.5));                            // odesle (perioda uplynula)
+        Cycle(loc, T0.AddSeconds(2));                              // seek vzad -> musi odeslat
 
         Assert.That(loc.EmittedCorrections, Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// Maly skok casu ZPET (snimek druhe kamery o par ms pozadu) neni seek a skrceni NESMI
+    /// obejit. Do 29. 9. 2026 ho obesel: ve ~25 % odeslani prosla dve merenia v jednom 100ms
+    /// intervalu pozy a dohromady dala kolmy skok ~0,7 m (fusionreplay blok 6).
+    /// </summary>
+    [Test]
+    public void MalySkokCasuVzad_skrceniNeobejde()
+    {
+        long Odeslano(double seekBack)
+        {
+            var loc = Localizer(EngineAt(0, 0, 0), new CorridorLocalizerConfig
+            {
+                SendHeading = false,
+                MinSendPeriodSec = 0.5,
+                SeekBackSec = seekBack,
+            });
+            Cycle(loc, T0.AddMilliseconds(100));
+            Cycle(loc, T0.AddMilliseconds(50));                    // o 50 ms zpet
+            return loc.EmittedCorrections;
+        }
+
+        Assert.That(Odeslano(0), Is.GreaterThan(1), "premisa: se starym chovanim (0) projde znovu");
+        Assert.That(Odeslano(1.0), Is.EqualTo(1), "maly skok zpet je dt ~ 0, tedy pod periodou");
     }
 
     // ---------------------------------------------------------------------------------------
@@ -320,8 +346,32 @@ public class CorridorDeweightTests
         var loc = Localizer(engine, new CorridorLocalizerConfig { SendHeading = false, SlewRateMps = 0.2 });
         Cycle(loc, T0.AddSeconds(5), lateral: 2.0);
         double pred = engine.GetStateAt(T0.AddSeconds(5.05)).Y;
-        Cycle(loc, T0.AddSeconds(4), lateral: 2.0);                // skok vzad
+        Cycle(loc, T0.AddSeconds(3), lateral: 2.0);                // seek vzad (nad SeekBackSec)
         double po = engine.GetStateAt(T0.AddSeconds(5.05)).Y;
         Assert.That(po - pred, Is.LessThanOrEqualTo(0.2 + 1e-6), "po skoku vzad plati strop, ne libovolny skok");
+    }
+
+    /// <summary>
+    /// Maly skok casu zpet dostane PODLAHU dt, ne strop. Do 29. 9. 2026 bral strop (1 s),
+    /// takze merenie o par ms pozadu smelo poskocit o cely slew x 1 s.
+    /// </summary>
+    [Test]
+    public void LimitKroku_malySkokCasuVzadBerePodlahu()
+    {
+        double Posun(double seekBack)
+        {
+            var engine = EngineAt(0, 0, 0);
+            var loc = Localizer(engine, new CorridorLocalizerConfig
+            {
+                SendHeading = false, SlewRateMps = 0.2, SeekBackSec = seekBack,
+            });
+            Cycle(loc, T0.AddMilliseconds(100), lateral: 2.0);
+            double pred = engine.GetStateAt(T0.AddMilliseconds(200)).Y;
+            Cycle(loc, T0.AddMilliseconds(50), lateral: 2.0);      // o 50 ms zpet
+            return engine.GetStateAt(T0.AddMilliseconds(200)).Y - pred;
+        }
+
+        Assert.That(Posun(0), Is.GreaterThan(0.1), "premisa: se starym chovanim (0) plati strop 1 s");
+        Assert.That(Posun(1.0), Is.LessThan(0.02), "maly skok zpet = podlaha dt (0,02 s x 0,2 m/s na merenie)");
     }
 }

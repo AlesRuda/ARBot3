@@ -576,6 +576,12 @@ absolutní, ne až na posun. Blok **PŘÍMÉ ÚSEKY** měří měřítko odometr
 stání roste bez pohybu, takže by měřítko zkreslila. Nález, kvůli kterému vznikl:
 [ukoly.md](ukoly.md) `lok-odometrie-obvod-kola`.
 
+**`fusionreplay`, bloky 5 a 6 a `--set=`** (od 29. 9. 2026). `--set=klíč=hodnota;…` přepíše
+hodnotu z logu (přehrát jízdu s opravou, se kterou robot nejel). Blok 5 počítá skoky pózy
+(posun minus `|v|·dt` nad 0,5 m) ve variantě s koridorem a bez něj — skok, který je i bez koridoru,
+koridor nezpůsobil. Blok 6 měří u každého odeslání koridoru posun **aktuální** pózy (před / po
+vložení) kolmo k hraně, podél ní a v kurzu a porovná ho s limitem. Nález: `lok-koridor-skoky-pozy`.
+
 **`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
 `EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od
 `assocreplay`), rozloží ho na jednotlivé hypotézy a u nejednoznačných tiskne, kdo je druhý: jiná

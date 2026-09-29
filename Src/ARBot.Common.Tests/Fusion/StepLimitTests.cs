@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ARBot.Common.Fusion;
 using MathNet.Numerics.LinearAlgebra;
 using NUnit.Framework;
@@ -138,6 +138,75 @@ namespace ARBot.Common.Tests.Fusion
             s.Update(new PositionMeasurement(6, 0, 0.1, 0.1, T0, "GPS") { MaxStep = 0.25 });
             Assert.That(s.Current(T0).X, Is.EqualTo(bez.Current(T0).X).Within(1e-12));
             Assert.That(s.LastStepLimited, Is.False);
+        }
+
+        // -----------------------------------------------------------------------------------
+        // Limit posunu POLOHY (IMeasurement.MaxPositionStep, 29. 9. 2026). MaxStep hlida jen krok
+        // podel osy merenia; pres vazby v P posune skalarni merenie i ostatni slozky. Track
+        // 27. 9. 2026: jedno pricne merenie koridoru posunulo pozu 3,98 m podel hrany, 0,18 m kolmo.
+        // -----------------------------------------------------------------------------------
+
+        /// <summary>Model s KORELOVANOU polohou (x a y spolu vazane, jako po inicializaci / zatacce).</summary>
+        private static EKFModel Korelovany(double sigmaPos, double rho)
+        {
+            var m = Model(sigmaPos);
+            m.P[EKFModel.IX, EKFModel.IY] = m.P[EKFModel.IY, EKFModel.IX] = rho * sigmaPos * sigmaPos;
+            return m;
+        }
+
+        private static double Posun(EKFModel m)
+        {
+            var s = m.Current(T0);
+            return Math.Sqrt(s.X * s.X + s.Y * s.Y);
+        }
+
+        [Test]
+        public void PricneMereni_bezLimituPolohy_utecePodelKorelace()
+        {
+            // Premisa: MaxStep drzi krok podel osy (y), ale x ujede pres vazbu v P.
+            var m = Korelovany(2.0, 0.95);
+            m.Update(Pricne(6.0, 0.1, 0.25));
+            Assert.That(m.Current(T0).Y, Is.EqualTo(0.25).Within(1e-9));
+            Assert.That(Math.Abs(m.Current(T0).X), Is.GreaterThan(0.2), "podel korelace ujede skoro stejne");
+            Assert.That(Posun(m), Is.GreaterThan(0.3), "celkovy posun nad limitem");
+        }
+
+        [Test]
+        public void PricneMereni_limitPolohy_drziCelyPosun()
+        {
+            var m = Korelovany(2.0, 0.95);
+            m.Update(new AxisOffsetMeasurement(0, 1, 6.0, 0.1, T0, "Corridor") { MaxStep = 0.25, MaxPositionStep = 0.25 });
+            Assert.That(m.LastAccepted, Is.True, "limit merenie nezahazuje");
+            Assert.That(m.LastStepLimited, Is.True);
+            Assert.That(Posun(m), Is.EqualTo(0.25).Within(1e-9), "norma posunu (x, y) = limit");
+            Assert.That(m.Current(T0).Y, Is.GreaterThan(0), "a smerem k mereni");
+        }
+
+        [Test]
+        public void MereniKurzu_limitPolohy_omeziPosunPresKorelaci()
+        {
+            // Merenie kurzu polohu primo nemeri, ale s vazbou P[x, theta] ji posune.
+            Func<double?, EKFModel> mer = limPos =>
+            {
+                var m = Model(2.0);
+                m.P[EKFModel.ITh, EKFModel.ITh] = 0.25;
+                m.P[EKFModel.IX, EKFModel.ITh] = m.P[EKFModel.ITh, EKFModel.IX] = 0.9 * 2.0 * 0.5;
+                m.Update(new HeadingMeasurement(0.5, 0.01, T0, "Corridor") { MaxPositionStep = limPos });
+                return m;
+            };
+            Assert.That(Posun(mer(null)), Is.GreaterThan(0.5), "premisa: bez limitu polohy se poloha hne o hodne");
+            Assert.That(Posun(mer(0.1)), Is.LessThanOrEqualTo(0.1 + 1e-9), "limit polohy plati i pro merenie kurzu");
+        }
+
+        [Test]
+        public void LimitPolohy_bezKorelace_jeTotezCoMaxStep()
+        {
+            // Pri nezavislych osach je posun cisty podel osy merenia - oba limity davaji totez.
+            var a = Model(2.0); var b = Model(2.0);
+            a.Update(Pricne(6.0, 0.1, 0.25));
+            b.Update(new AxisOffsetMeasurement(0, 1, 6.0, 0.1, T0, "Corridor") { MaxStep = 0.25, MaxPositionStep = 0.25 });
+            Assert.That(b.Current(T0).Y, Is.EqualTo(a.Current(T0).Y).Within(1e-9));
+            Assert.That(b.P[EKFModel.IY, EKFModel.IY], Is.EqualTo(a.P[EKFModel.IY, EKFModel.IY]).Within(1e-9));
         }
 
         [Test]

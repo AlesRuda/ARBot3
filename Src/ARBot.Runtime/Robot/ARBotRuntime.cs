@@ -714,6 +714,8 @@ namespace ARBot.Robot
                     // na vic mereni misto skoku pozy. Vychozi 0 = bez limitu.
                     SlewRateMps = ParamRegistry.CorridorSlew.Value,
                     SlewRateHeadingRadPerSec = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingSlew.Value),
+                    SeekBackSec = ParamRegistry.CorridorSeekBack.Value,
+                    PositionSlewLimit = ParamRegistry.CorridorPosLimit.Value,
                 };
 
                 // Prirazeni koridoru k hrane site (assoc*): nejblizsi hrana nemusi byt ta spravna

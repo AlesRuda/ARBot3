@@ -451,17 +451,22 @@ namespace ARBot.Common.Localization
             var c = fix.Corridor;
 
             // Limit kroku (corridorslew= / corridorheadingslew=): slew × Δt od predchoziho
-            // odeslani. Obe mereni z tehoz fixu dostanou TYZ Δt.
+            // odeslani. Obe mereni z tehoz fixu dostanou TYZ Δt. Od 29. 9. 2026 hlida pricny
+            // limit i CELY posun polohy (MaxPositionStep), u obou merenii - pres vazby v P
+            // posune pricne merenie polohu i podel cesty a merenie kurzu polohu vubec.
             double dt = LimitDt(fix.Time);
             double? maxLat = config.SlewRateMps > 0 ? config.SlewRateMps * dt : (double?)null;
             double? maxHdg = config.SlewRateHeadingRadPerSec > 0 ? config.SlewRateHeadingRadPerSec * dt : (double?)null;
-            posledniLimitCas = fix.Time;
+            // Pamatovat NEJNOVEJSI cas: fix o par ms pozadu (druha kamera) ho nesmi vratit zpet,
+            // jinak by dalsi Δt vyslo o ten kus delsi. Seek (JeSeek) pamet prepise.
+            if (posledniLimitCas == default || fix.Time > posledniLimitCas || JeSeek(fix.Time, posledniLimitCas))
+                posledniLimitCas = fix.Time;
 
             double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + lateral;
             engine.Enqueue(new AxisOffsetMeasurement(a.NormalX, a.NormalY, value,
                                                      Nafoukni(sigmaLateral, config.SigmaLateralExtraM),
                                                      fix.Time, config.MeasurementSource)
-            { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxLat });
+            { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxLat, MaxPositionStep = config.PositionSlewLimit ? maxLat : null });
             EmittedCorrections++;
             fix.EmittedLateral = true;
 
@@ -486,7 +491,7 @@ namespace ARBot.Common.Localization
                 engine.Enqueue(new HeadingMeasurement(heading,
                                                       Nafoukni(c.SigmaDirectionRad, config.SigmaHeadingExtraRad),
                                                       fix.Time, config.MeasurementSource)
-                { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxHdg });
+                { GateThreshold = gate, GateMode = config.GateMode, MaxStep = maxHdg, MaxPositionStep = config.PositionSlewLimit ? maxLat : null });
                 EmittedCorrections++;
                 fix.EmittedHeading = true;
             }
@@ -501,10 +506,20 @@ namespace ARBot.Common.Localization
         private double LimitDt(DateTime t)
         {
             double cap = Math.Max(config.SlewDtCapSec, config.SlewDtFloorSec);
-            if (posledniLimitCas == default || t < posledniLimitCas) return cap;
+            if (posledniLimitCas == default || JeSeek(t, posledniLimitCas)) return cap;
+            // Maly skok casu ZPET (fix druhe kamery o par ms pozadu) je Δt ≈ 0, tedy PODLAHA -
+            // ne strop. Do 29. 9. 2026 bral kazdy skok zpet strop (1 s → 0,5 m) a ve ~25 %
+            // odeslani tak limit pustil dvojnasobek; viz CorridorLocalizerConfig.SeekBackSec.
             double dt = (t - posledniLimitCas).TotalSeconds;
             return Math.Min(cap, Math.Max(config.SlewDtFloorSec, dt));
         }
+
+        /// <summary>
+        /// Je skok casu zpet SEEK (prehravani, novy zaznam), nebo jen prehozene poradi snimku dvou
+        /// kamer? Hranice je <see cref="CorridorLocalizerConfig.SeekBackSec"/>.
+        /// </summary>
+        private bool JeSeek(DateTime t, DateTime posledni)
+            => (posledni - t).TotalSeconds > config.SeekBackSec;
 
         /// <summary>
         /// Sigma do fuze: co rika prolozeni, <b>slozene kvadraticky</b> s prirazkem z konfigurace.
@@ -525,16 +540,23 @@ namespace ARBot.Common.Localization
         /// <para><b>Skok casu vzad</b> (seek pri prehravani, novy zaznam) skrceni RESETUJE - jinak
         /// by se po skoku dozadu neposlalo uz nic. Tataz past je okomentovana
         /// u <c>MapCorrelator.Process</c>.</para>
+        ///
+        /// <para>⚠️ <b>Ale jen VELKY skok</b> (nad <see cref="CorridorLocalizerConfig.SeekBackSec"/>).
+        /// Koridor paruje snimky dvou kamer a cas fixu jde ve 22–26 % zprav o 10–20 ms zpet
+        /// (zmereno 29. 9. 2026). Do te doby i to skrceni resetovalo, takze ~ctvrtina odeslani
+        /// prosla hned po predchozim a do jednoho 100ms intervalu pozy padla dve merenia -
+        /// dohromady kolmy skok ~0,7 m pri limitu 0,25 m na merenie.</para>
         /// </summary>
         private bool VydatMerenie(DateTime t)
         {
             double perioda = config.MinSendPeriodSec;
             if (!(perioda > 0)) return true;
-            if (posledniOdeslani == default || t < posledniOdeslani)
+            if (posledniOdeslani == default || JeSeek(t, posledniOdeslani))
             {
                 posledniOdeslani = t;
                 return true;
             }
+            // Maly skok zpet vyjde zaporny, tedy pod periodou - neposlat.
             if ((t - posledniOdeslani).TotalSeconds + 1e-9 < perioda) return false;
             posledniOdeslani = t;
             return true;

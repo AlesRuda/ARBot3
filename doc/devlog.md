@@ -117,6 +117,26 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   starém kódu padají); testy 1 712 / 148 / 129 (jediný pád dál `spitest.sh`), build OrangePI.
   Robota v blokované buňce vyprošťuje únikový manévr, který se zkouší každý cyklus plánování
   (25. 9. po 22,8 s `RobotBlocked` cestu ven našel). Na zařízení neběželo.
+- **Hranová lokalizace přeměřena nad jízdami 29. 9.** (`lok-koridor-hranova-lokalizace`,
+  `fusionreplay` dostal `--set=klíč=hodnota`, protože robot jel ještě s nejednoznačností
+  přiřazení): s `assocfloorlong=3` je póza od osy sítě p50 0,25 / 0,59 m proti 1,75 / 4,85 m bez
+  korekcí, příčně od GPS 1,49 / 0,62 proti 2,73 / 5,08 m (p90 2,0 proti 6,7 / 10,4). Podélná chyba
+  je po opravě obvodu kola 1–2 m a s / bez se liší jen v řádu chyby GPS. Skutečný výpadek koridoru
+  (Track po první minutě) ukázal, že s `gpsposstd=30` póza na GPS nespadne: 1,8 → 9,7 m za 6 min.
+  Oba otevřené kroky tématu uzavřeny. ⚠️ S `assocfloorlong=3` na zařízení neběželo.
+- **Skoky pózy s limitem kroku přeměřeny** (`lok-koridor-skoky-pozy`): 12 jízd s `corridorslew=0.5`,
+  limit zasahuje, skoky jsou menší a řidší, ale zbyly a **všechny je dělá koridor** (nový blok 5
+  `fusionreplay`: skoky S proti BEZ). Blok 6 (posun aktuální pózy jedním odesláním) našel dva úniky:
+  (a) čas fixu jde ve 22–26 % zpráv o 10–20 ms zpět (dvě kamery) a `VydatMerenie` / `LimitDt` to
+  berou jako seek — škrcení se obejde a limit dostane strop 1 s, takže dvě odeslání v jednom intervalu
+  dají kolmý skok ~0,7 m; (b) limit hlídá jen krok podél osy měření, podél hrany se póza posune přes
+  vazbu v kovarianci až o 4 m jedním měřením (po inicializaci z GPS).
+- **Oba úniky opraveny** (pokyn autora, `lok-koridor-skoky-pozy` → v kódu): malý skok času zpět už
+  není seek (`corridorseekback=1`), limit hlídá i normu posunu polohy (`MaxPositionStep`,
+  `corridorposlimit=true`, i u měření kurzu). Přehrání 7 jízd: skoků od koridoru 0, přesnost stejná
+  nebo lepší. 8 nových testů, testy 1 719 / 148 / 129, build OrangePI. ⚠️ Na zařízení neběželo.
+  V `config/pi-provoz.cfg` nastaveno výslovně `corridorseekback=1` a `corridorposlimit=true`
+  (pokyn autora; jsou to i výchozí hodnoty). **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
 - **CI znovu zelené: `deploy/spitest.sh` má `set -euo pipefail`** (padal na něm
   `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` od `886e599`). Úklid dočasného souboru přes
   `trap … EXIT`, aby proběhl i při konci chybou. Vedlejší zisk: při nedostupném `/dev/spidev0.0`

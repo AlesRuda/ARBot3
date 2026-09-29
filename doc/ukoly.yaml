@@ -1478,15 +1478,17 @@ temata:
       - co: "Dohledat, proč korekce zhoršují PODÉLNOU chybu proti GPS — nalezeno (`fusionreplay` blok 4): koridor v zatáčkách srazí podélnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s `gpsposstd=30` pak GPS podélně táhne ~30× slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde má malou σ i varianta bez (Kolo 3b), korekce podélně pomáhají"
         stav: hotovo
         kdy: 2026-09-28
-      - co: "Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. ⚠️ 27. 9. nerozhodne: GPS byla sama 4,7 m mimo cestu (3 družice na startu), podélná odchylka od GPS je proto k ničemu. Ukázalo ale, že koridor drží pózu na cestě (od osy 0,36 proti 3,58 m bez) a opakovaný průjezd sedí 0,49 proti 5,58 m bez"
-        stav: otevreno
-      - co: Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30`
-        stav: otevreno
+      - co: "Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. ⚠️ 27. 9. nerozhodne: GPS byla sama 4,7 m mimo cestu (3 družice na startu), podélná odchylka od GPS je proto k ničemu. Ukázalo ale, že koridor drží pózu na cestě (od osy 0,36 proti 3,58 m bez) a opakovaný průjezd sedí 0,49 proti 5,58 m bez. ✅ 29. 9. (Modřany, obvod kola opraven, GPS 14 družic, `fusionreplay --set=assocfloorlong=3`, protože robot jel ještě s nejednoznačností `lok-assoc-sousedni-usek`): |podélně od GPS| p50 / p90 Track **0,89 / 4,16 s korekcemi proti 1,11 / 2,07 bez**, FreeRun **2,27 / 4,23 proti 1,64 / 4,70**; σ podél 0,91–1,05 proti 1,12–1,22 m (rovná cyklostezka ji nesrazí). Podélná chyba je proti 25. 9. (6–7 m) na 1–2 m a rozdíl s / bez je řádu chyby GPS bez systematického směru — rozhodnutí o `gpsposstd` / `corridorstd` tím nic netlačí. Příčně korekce jasně pomáhají: od osy sítě 0,25 / 0,59 m proti 1,75 / 4,85 m, příčně od GPS 1,49 / 0,62 proti 2,73 / 5,08 m, p90 1,97 / 2,07 proti 6,68 / 10,39 m"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí"
+        stav: hotovo
+        kdy: 2026-09-29
     ceka_na: [lok-koridor-skoky-pozy]
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20, 2026-09-27, 2026-09-28]
+    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20, 2026-09-27, 2026-09-28, 2026-09-29]
 
   - id: vid-kalibrace-kamer-bias
     oblast: videni
@@ -2691,8 +2693,9 @@ temata:
     oblast: lokalizace
     nazev: Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-20
+    vyreseno: 2026-09-29
     popis: >
       Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi RobotStateMsg
       o 0,6–4 m nad `|v|·dt`) přišlo do 0,1 s po přijatém měření `Corridor`, často v sériích jedním
@@ -2727,6 +2730,12 @@ temata:
         stav: otevreno
       - co: 'Ověřit na zařízení: jízda s limitem, `MeasurementDiagMsg.StepLimited` v záznamu, žádný skok > 0,5 m po měření koridoru (`ARBot.Analyze nav`)'
         stav: otevreno
+      - co: "Změřeno 29. 9. nad 12 jízdami s limitem (23.–29. 9., `corridorslew=0.5`): limit zasahuje (`StepLimited` 0,5–18 % měření), skoků je méně a menší (0–11 na jízdu, většinou 0,6–1 m; Kolo 3b bez limitu 14 až 2,5 m), ale NEZMIZELY — a `fusionreplay` blok 5 ukázal, že **všechny** udělal koridor (ve variantě bez koridoru žádný). Blok 6 (účinek jednoho odeslání na aktuální pózu) našel DVA úniky: (a) **kolmé skoky 0,6–0,85 m** = dvě odeslání v jednom 100ms intervalu pózy, každé v limitu: `VydatMerenie` i `LimitDt` berou JAKÝKOLI skok času zpět jako seek — škrcení se vynuluje a Δt dostane strop 1 s (limit 0,5 m); čas fixu jde zpět ve 22–26 % zpráv (párování dvou kamer, o 10–20 ms, max 0,17 s), u odeslání ve ~25 % (25. 9.: 927 z 2 924). (b) **podélné skoky 1–4 m** (27. 9. 17:26:01 jedno odeslání posunulo pózu 3,98 m podél hrany a 0,18 m kolmo): limit omezuje krok jen podél osy měření, podélná složka jde přes vazbu v kovarianci (typicky po inicializaci z GPS)"
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Léčba (autor, obojí): (a) `corridorseekback=` (1 s, `SeekBackSec`) — menší skok zpět je Δt ≈ 0; (b) `IMeasurement.MaxPositionStep` + `Ekf.PositionIndices`, `corridorposlimit=true` — limit normy posunu polohy u příčného i kurzového měření. 8 nových testů (premisy se starým chováním padají), testy 1 719 / 148 / 129. Přehrání 7 jízd se zapnutou léčbou: skoků od koridoru 0 (dřív 2–11 na jízdu), přesnost stejná nebo lepší, měření o 25–35 % méně. Starší záznamy přehrávání pouští se starým chováním (klíče v logu nejsou)"
+        stav: hotovo
+        kdy: 2026-09-29
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
@@ -2734,7 +2743,7 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: rozhodnutí 21. 9.
         cesta: doc/decisions.md
-    devlog: [2026-09-20, 2026-09-21]
+    devlog: [2026-09-20, 2026-09-21, 2026-09-29]
     ceka_na: []
 
   - id: lok-skok-pozy-nedetekce

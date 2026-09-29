@@ -3694,6 +3694,34 @@ Pravda k jízdě není, takže se měří nezávislými náhražkami. Tabulka uv
   6 468 dřív přijatých cyklů jako `AmbiguousEdge` (Ok 65 → 19 %). Chce to `assocreplay` nad tou
   jízdou, i s dnešním `assocfloorhdg=5`.
 
+### Přehrání jízd 29. 9. 2026 (Modřany, obvod kola opraven)
+
+`20260929-150844.rec` (Track) a `-151634.rec` (FreeRun). Obvod kola sedí (kola / tětiva GPS 0,999)
+a GPS byla dobrá (14 družic, HDOP 1,8, od osy sítě p50 1,4 / 1,0 m). Robot ale jel ještě
+s nejednoznačností přiřazení (`lok-assoc-sousedni-usek`) a koridor skoro nic neposlal, proto se
+přehrává s `--set=assocfloorlong=3` (opraveno týž den). S konfigurací z jízdy měřidlo sedí na
+záznam p50 0,000 m a posílá táž měření (78 / 148). Medián / p90 v metrech, za jízdy:
+
+| jízda | varianta | od osy sítě | příčně od GPS | \|podélně od GPS\| | σ podél z P |
+|---|---|---|---|---|---|
+| Track | jak jel robot | 3,14 / 8,24 | 4,76 / 9,44 | 1,38 / 1,84 | 0,97 |
+| | s korekcemi (`assocfloorlong=3`) | **0,25 / 0,74** | **1,49 / 1,97** | 0,89 / 4,16 | 0,91 |
+| | bez korekcí | 1,75 / 5,49 | 2,73 / 6,68 | 1,11 / 2,07 | 1,12 |
+| FreeRun | jak jel robot | 5,62 / 9,54 | 6,28 / 11,70 | 1,71 / 5,29 | 1,07 |
+| | s korekcemi (`assocfloorlong=3`) | **0,59 / 2,37** | **0,62 / 2,07** | 2,27 / 4,23 | 1,05 |
+| | bez korekcí | 4,85 / 8,66 | 5,08 / 10,39 | 1,64 / 4,70 | 1,22 |
+
+- **Příčně korekce jasně pomáhají**, hlavně v chvostu (p90 příčně od GPS 2,0 proti 6,7 a 10,4 m).
+  „Od osy sítě“ je pro variantu s korekcemi z části kruhové, „příčně od GPS“ ne.
+- **Podélná chyba je po opravě obvodu kola 1–2 m** (25. 9. 6–7 m) a rozdíl s / bez je řádu chyby GPS
+  bez systematického směru (Track medián lepší, p90 horší; FreeRun obráceně). Na rovné cyklostezce
+  koridor podélnou σ skoro nesrazí (0,91–1,05 proti 1,12–1,22 m), mechanismus ze Hviezdoslavovy se
+  tu neprojeví. Rozhodnutí o `gpsposstd` / `corridorstd` to nevynucuje.
+- **Výpadek koridoru změřený na skutečné jízdě:** Track poslal korekce jen v první minutě a |póza −
+  GPS| pak rostl 1,8 → 9,7 m za 6 minut (varianta úplně bez koridoru 1,1 → 6,9 m). S `gpsposstd=30`
+  **póza na GPS nespadne** — ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS ji nevrátí.
+- ⚠️ Přehrání prvního řádu: na zařízení s `assocfloorlong=3` neběželo.
+
 ### Proč korekce nad skutečnými jízdami zhoršují podélnou chybu (28. 9. 2026)
 
 Rozbor je v `fusionreplay`, blok 4. Podélná odchylka se počítá **se znaménkem ve směru kurzu
@@ -3942,6 +3970,46 @@ se spolkne a další snímek už se porovnává s pózou po skoku. Vedeno jako `
 vypere sama, jako dnes centimetrové korekce), a oprava by musela nejdřív změřit, kolik snímků
 chodí s `dt ≤ 0`, aby nevyrobila bezdůvodná mazání.
 
+
+### Limit na zařízení a dva úniky (29. 9. 2026)
+
+Všech 12 jízd od 23. 9. jelo s `corridorslew=0.5` a limit zasahoval (`StepLimited` 0,5–18 %
+měření koridoru). Skoků pózy ubylo (0–11 na jízdu, většinou 0,6–1 m; Kolo 3b bez limitu 14 až
+2,5 m), ale nezmizely. `ARBot.Analyze fusionreplay` blok 5 (skoky ve variantě s koridorem a bez něj)
+ukázal, že **všechny** zbylé udělal koridor, a blok 6 (posun aktuální pózy jedním odesláním,
+rozložený kolmo a podél hrany) našel dva úniky:
+
+1. **Kolmé skoky ~0,7 m — dvě odeslání v jednom 100ms intervalu pózy.** Čas fixu koridoru jde ve
+   22–26 % zpráv o 10–20 ms zpět (max 0,17 s), protože se párují snímky dvou kamer.
+   `VydatMerenie` (škrcení `corridorhz`) i `LimitDt` braly **každý** skok zpět jako seek: škrcení se
+   vynulovalo a Δt dostal strop 1 s (limit 0,5 m místo 0,25 m). Týkalo se to ~čtvrtiny odeslání
+   (25. 9.: 927 z 2 924).
+2. **Podélné skoky 1–4 m — vazba v kovarianci.** Limit hlídal krok jen podél osy měření. Stav se
+   ale mění o `K·ν` ve všech složkách, takže příčné měření posune polohu i podél cesty a měření
+   kurzu polohu vůbec. Track 27. 9. 17:26:01 (po inicializaci z GPS na 4 družicích): jedno měření
+   posunulo pózu o **3,98 m podél hrany** a o 0,18 m kolmo.
+
+**Léčba (autor, 29. 9. 2026):**
+
+- **Seek je jen velký skok zpět** (`corridorseekback=`, výchozí 1 s; `SeekBackSec`). Menší skok
+  je Δt ≈ 0: škrcení ho nepustí a limit dostane podlahu. Paměť posledního času drží **nejnovější**
+  čas, aby ji fix o pár ms pozadu nevrátil. `0` = každý skok zpět je seek (chování do 29. 9.).
+- **Limit posunu polohy** (`IMeasurement.MaxPositionStep`, `corridorposlimit=`, výchozí true):
+  `Ekf.UpdateStep` omezí i normu posunu `(x, y)` — posun je `|g|·|ν|/(P_h + R)`, `g` jsou řádky
+  polohy z `P·Hᵀ`, a nad limitem se R nafoukne na `|g|·|ν|/L − P_h`. Tatáž cesta jako `MaxStep`
+  (P zůstane konzistentní), skládá se maximem. Koridor ho posílá u **příčného i kurzového**
+  měření s hodnotou `corridorslew × Δt`. Indexy polohy dává `Ekf.PositionIndices` (`EKFModel`:
+  `IX`, `IY`).
+
+**Přehrání se zapnutou léčbou** (`fusionreplay --set=corridorseekback=1;corridorposlimit=true`,
+7 jízd 25.–29. 9.): skoků způsobených koridorem **0** ve všech (dřív 2–11 na jízdu), jediný zbylý
+je inicializace z GPS 27. 9. (157 m, i bez koridoru). Přesnost pózy stejná nebo lepší (27. 9.
+Track: od osy p90 1,04 → 0,78 m, podélně od GPS p50 7,26 → 2,12 m; ostatní v šumu). Odeslaných
+měření je o 25–35 % méně — přesně ta, která dřív obcházela škrcení. Přehrání s konfigurací z logu
+zůstává věrné záznamu: klíče v logu starších jízd nejsou a přehrání je bere jako `0` / `false`.
+Spolu s `assocfloorlong=3` nad jízdami 29. 9.: skoků 0, Track od osy 0,26 / 0,71 m, příčně od GPS
+1,47 / 1,95 m, podélně 0,68 / 2,92 m (jen s `assocfloorlong` 0,89 / 4,16 m); FreeRun beze změny
+v šumu. ⚠️ **Na zařízení neběželo.**
 
 ## Měření z JEDNÉ hrany (`corridorsingle=`, 24. 9. 2026)
 
