@@ -5413,9 +5413,9 @@ temata:
     oblast: provoz
     nazev: Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-12
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-30
     popis: >
       Na půdorysu stránky náhledu přibyla trasa globální navigace, dráha z lokálního plánovače (i s uzly,
       z jejichž rozestupu je vidět vyhlazování), legenda včetně dosud nepopsané ujeté dráhy a kružnice
@@ -5425,7 +5425,8 @@ temata:
       nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci. Trasa
       a lokální plán byly na zařízení vidět 17. 9. (snímky stránky 16:26: trasa, plán, mrkev)
       a na Robotouru 19. 9. obsluha na stránce sledovala přeplánování trasy; že někdo viděl
-      i zóny (kružnice o dojezdovém poloměru), zapsané není.
+      i zóny (kružnice o dojezdovém poloměru), zapsané nebylo — ✅ autor 30. 9. 2026: zóny na
+      stránce na zařízení vidět jsou.
     kroky:
       - co: Trasa a lokální plán s prahem stáří, legenda
         stav: hotovo
@@ -5439,8 +5440,9 @@ temata:
       - co: "Trasa a lokální plán na stránce za jízdy — 17. 9. snímky 16:26, 19. 9. přeplánování vidět na stránce"
         stav: hotovo
         kdy: 2026-09-17
-      - co: Zóny na stránce na zařízení (nikdo nezapsal, že je viděl)
-        stav: otevreno
+      - co: Zóny na stránce na zařízení — autor potvrdil, že jsou vidět
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: headless.md
         cesta: doc/headless.md
@@ -5448,7 +5450,7 @@ temata:
         cesta: doc/world-view.md
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-20]
+    devlog: [2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-20, 2026-09-30]
     ceka_na: []
 
   - id: lok-gps-kurz-korelovana-chyba
@@ -5517,16 +5519,17 @@ temata:
     oblast: nastroje
     nazev: Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-12
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-30
     popis: >
       Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže z `pi-provoz.cfg`
       zmizel schválně připnutý `npumodel=` — po příští změně defaultu by robot tiše počítal jiným
       modelem. Teď se zapisují i klíče, které v profilu výslovně byly. Z téhož uložení vyšel druhý nález:
       panel uložil cestu s windowsovým zpětným lomítkem, které na Linuxu je obyčejný znak, takže by mapa
       na Pi nebyla nalezena; hlídá to nový test nad profily v repu. Ručně psané komentáře v profilu se
-      při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. Uložení v UI proklikané není.
+      při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. ✅ Autor 30. 9. 2026:
+      uložení z panelu je v pořádku.
     kroky:
       - co: Zapisují se i výslovně nastavené klíče
         stav: hotovo
@@ -5534,12 +5537,13 @@ temata:
       - co: Test na linuxový tvar cest v profilech
         stav: hotovo
         kdy: 2026-09-12
-      - co: Proklikat uložení v panelu
-        stav: otevreno
+      - co: Proklikat uložení v panelu — autor potvrdil, že je to v pořádku
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: configuration.md
         cesta: doc/configuration.md
-    devlog: [2026-09-12]
+    devlog: [2026-09-12, 2026-09-30]
     ceka_na: []
 
   - id: nast-cfg-preklep-tiche-ignorovani
@@ -5788,9 +5792,9 @@ temata:
     oblast: hw
     nazev: VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-25
-    vyreseno: 2026-09-25
+    vyreseno: 2026-09-30
     popis: >
       `deploy/vnprobe.sh` 25. 9. 2026 přečetl `$VNRRG,44,1,1,5` (export ARBot2: `0,1,5`).
       `MagCalMission.Zapis` volala `SaveToFlash()` (VNWNV, ukládá celou RAM) DŘÍV než `VypniHsi()`,
@@ -5803,14 +5807,15 @@ temata:
       - co: "Pořadí v `MagCalMission.Zapis` (HSI off před VNWNV) + test, `vnrestore.sh` píše registr 44"
         stav: hotovo
         kdy: 2026-09-25
-      - co: "Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`"
-        stav: otevreno
+      - co: "Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`. Autor 30. 9.: srovnáno; `vnprobe.sh` 28. 9. před misí magcal i po ní četl registr 44 `0,1,5`. Opravené pořadí zápisu v `MagCalMission` na senzoru neběželo (od té doby se kalibrace nezapisovala), drží ho test"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
       - text: MagCalMission.cs
         cesta: Src/ARBot.Common/Missions/MagCalMission.cs
-    devlog: [2026-09-25]
+    devlog: [2026-09-25, 2026-09-28, 2026-09-30]
     ceka_na: []
 
   - id: hw-t265-odpojena-natrvalo
@@ -6246,9 +6251,9 @@ temata:
     oblast: provoz
     nazev: Externí audit — bezpečnostní vrstva řízení měla čtyři díry
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-15
-    vyreseno: 2026-09-15
+    vyreseno: 2026-09-30
     popis: >
       Autor dodal externí read-only audit; tři kritické a jeden vysoký nález se potvrdily přímo
       ve zdroji. Výjimka v taktu řídicí smyčky se polykala a robot jel po posledním příkazu až do
@@ -6258,7 +6263,7 @@ temata:
       jako pokyn „jeď“ (K2); jedno NaN měření otrávilo fúzi natrvalo, protože gating na NaN
       nezabere (K3). K tomu diagnostika poruch z `Debug` do `Trace` na cestách, které audit
       jmenoval, se škrtičem `PoruchaHlasic` proti zaplavení záznamu (V3). Opraveno TDD — u každého
-      nálezu nejdřív test, který na starém kódu spadl. Nic z toho neběželo na zařízení.
+      nálezu nejdřív test, který na starém kódu spadl. ✅ Autor 30. 9. 2026: na zařízení ověřeno.
     kroky:
       - co: K1 — výjimka v taktu = `Drive(0,0)` + zpráva s nulami + `Trace`
         stav: hotovo
@@ -6275,14 +6280,15 @@ temata:
       - co: V3 — `Debug` → `Trace` se škrtičem, `DiagnostikaPoruchTests`
         stav: hotovo
         kdy: 2026-09-15
-      - co: Ověřit na zařízení
-        stav: otevreno
+      - co: Ověřit na zařízení — autor potvrdil
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: path-following.md
         cesta: doc/path-following.md
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-09-15]
+    devlog: [2026-09-15, 2026-09-30]
     ceka_na: []
 
   - id: prov-audit-druha-davka
@@ -8156,8 +8162,8 @@ temata:
     oblast: mise
     nazev: FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
     druh: vada
-    stav: v-kodu
-    vyreseno: 2026-09-25
+    stav: hotovo
+    vyreseno: 2026-09-30
     nalezeno: 2026-09-25
     popis: >
       Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 23 min, Modřany):
@@ -8180,14 +8186,15 @@ temata:
       - co: "Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne"
         stav: hotovo
         kdy: 2026-09-25
-      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem"
-        stav: otevreno
+      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem — autor 30. 9.: ověřeno OK. FreeRun 29. 9. (`20260929-151634.rec`, `freerunlook=5`, profil `latency`): mrkev p50 5,09 m, příkaz p50 **1,67 m/s** (`drive`, takty za jízdy; 25. 9. 0,81), rychlost fúze p50 1,49 m/s, strop obálky p50 1,44 m/s, vazba na rotaci srazila rychlost ve 27 % taktů (25. 9. 35 %)"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-09-25]
+    devlog: [2026-09-25, 2026-09-30]
     ceka_na: []
 
   - id: lp-regulator-kmitani-rotace
@@ -8373,8 +8380,8 @@ temata:
     oblast: mise
     nazev: Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
     druh: vada
-    stav: v-kodu
-    vyreseno: 2026-09-26
+    stav: hotovo
+    vyreseno: 2026-09-30
     nalezeno: 2026-09-26
     popis: >
       Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 14:34:39
@@ -8385,10 +8392,13 @@ temata:
       - co: "Timeout vypnut (autor): `TrackConfig.DrivingTimeoutSec = 0`, stejně jako u Robotouru; zaseknutí hlídají detektory `GlobalNavigator`"
         stav: hotovo
         kdy: 2026-09-26
+      - co: "Ověřeno na zařízení (autor 30. 9. 2026)"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-30]
     ceka_na: []
 
   - id: mise-freerun-jedna-hrana

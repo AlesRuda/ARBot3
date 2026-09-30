@@ -81,6 +81,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   náklony půjdou do EKF spolu s odhadem chyb senzorů (`lok-bias-senzoru-jako-stav-ekf`, nový krok).
 - **Póza 12 m vedle cesty po zatáčce → uzavřeno** (`lok-koridor-noedge-po-zatacce`, autor): obvod kola
   opraven (29. 9. potvrzeno 0,999), 8m brána zrušená; podlaha χ² přiřazení zůstává.
+- **Panel Konfigurace, mazání klíčů při uložení → hotovo** (`nast-panel-konfigurace-mazal-klice`):
+  autor potvrdil, že uložení z panelu je v pořádku.
+- **VN100 s běžící HSI po startu → hotovo** (`hw-vn100-hsi-run-ve-flash`): senzor srovnán (autor),
+  `vnprobe.sh` 28. 9. četl registr 44 `0,1,5`.
+- **Externí audit bezpečnostní vrstvy řízení → hotovo** (`prov-audit-bezpecnost-rizeni`): opravy
+  K1/V1/K2/K3/V3 z 15. 9. autor ověřil na zařízení.
+- **Půdorys náhledu se zónami → hotovo** (`prov-pudorys-umysl-a-zony`): autor potvrdil, že zóny
+  o dojezdovém poloměru jsou na stránce na zařízení vidět.
+- **Timeout jízdy k místu Tracku → hotovo** (`mise-track-timeout-delka-useku`): vypnutý timeout
+  (26. 9.) autor ověřil na zařízení.
+- **Pomalý FreeRun → hotovo** (`mise-freerun-pomala-mrkev-blizko`, autor: ověřeno OK). FreeRun 29. 9.
+  s `freerunlook=5`: příkaz p50 1,67 m/s (25. 9. 0,81), rychlost fúze p50 1,49 m/s.
 
 ## 2026-09-29
 

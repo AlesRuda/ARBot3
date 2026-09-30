@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **36** · v kódu, na HW neověřeno **37** · hotovo **147** · odloženo **14** · zamítnuto **6**.
+Témat celkem **240**: otevřeno **36** · v kódu, na HW neověřeno **31** · hotovo **153** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -58,13 +58,10 @@ Témat celkem **240**: otevřeno **36** · v kódu, na HW neověřeno **37** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](#vid-segmentace-rozliseni-128) | 6. 9. 2026 |  |
-| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
-| v kódu, na HW neověřeno | Provoz na zařízení | [Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení](#prov-pudorys-umysl-a-zony) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Řídicí smyčka umí držené zastavení (StopHold)](#lp-drzene-zastaveni-stophold) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Klín mezi zornými poli barevných kamer brzdí robota](#lp-klin-mezi-zornymi-poli) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý](#prov-start-limit-sluzba) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Naučená šířka cesty jde dál do mapy — korelaci i kreslení](#lok-naucena-sirka-do-mapy) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
-| v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit — bezpečnostní vrstva řízení měla čtyři díry](#prov-audit-bezpecnost-rizeni) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
@@ -77,11 +74,8 @@ Témat celkem **240**: otevřeno **36** · v kódu, na HW neověřeno **37** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
-| v kódu, na HW neověřeno | Hardware a senzory | [VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)](#hw-vn100-hsi-run-ve-flash) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí](#mise-freerun-pomala-mrkev-blizko) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech](#mise-track-timeout-delka-useku) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu](#nav-detektor-c-kaskada) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
@@ -1594,19 +1588,6 @@ Na soutěži 19. 9. 2026 (`20260919-101057.rec`, `-101903.rec`) se QR kód četl
 
 [robotour-mission.md](robotour-mission.md), [osm-nav.md](osm-nav.md) · DevLog [2026-09-19](devlog.md#2026-09-19), [2026-09-20](devlog.md#2026-09-20)
 
-<a id="mise-freerun-pomala-mrkev-blizko"></a>
-### 🧪 FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
-
-`mise-freerun-pomala-mrkev-blizko` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 9. 2026 · vyřešeno 25. 9. 2026
-
-Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 23 min, Modřany): robot jede výrazně pomaleji, než je `maxspeed=1.7`. Potvrzeno měřením: příkaz p50 **0,81 m/s**, rychlost fúze 0,78 m/s. Mrkev leží vždy `freerunlook=` = **1,5 m** před robotem a plán končí v ní; plánovač bere konec dráhy jako hranici potvrzeně sjízdného (`BuildWayPoints`: frontier se inicializuje na konec dráhy, poslední uzel má strop 0), takže obálka `VBrake` váže 97,4 % plánů na `√(2·0,5·1,5)` = **1,22 m/s**. Regulátor z toho udělá ještě méně: `Dist2Speed` k poslednímu uzlu (diskrétní profil s rezervou 0,9) dá p50 0,855 m/s, a vazba dopředné rychlosti na dobu rotace `d/(4·T_rot)` má ve jmenovateli tutéž krátkou vzdálenost, takže srazí rychlost v 35 % taktů (p50 o 0,17 m/s). Protifakticky bez brzdění na konci plánu by příkaz byl p50 0,90, p90 1,35 m/s. Pro srovnání Track téhož dne (`20260925-143643.rec`): mrkev ~5,6 m, příkaz p50 **1,70 m/s**, vazba na rotaci jen v 11 % taktů. Měří `ARBot.Analyze drive` (rekonstrukce `PathResult.Control` sedí na záznam v 99,9 % taktů) a `envelope`. Ve FreeRun navíc vznikl oboustranný koridor jen ve 3 % cyklů, zbytek jel „rovně“ (`lok-koridor-siroka-cyklostezka`).
-
-- [x] Změřeno: obálka `VBrake` k mrkvi 1,5 m + `Dist2Speed` k poslednímu uzlu + vazba na rotaci přes krátkou vzdálenost (`ARBot.Analyze drive`, `envelope`) (25. 9. 2026)
-- [x] Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne (25. 9. 2026)
-- [ ] Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem
-
-[mission-freerun.md](mission-freerun.md), [path-following.md](path-following.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
-
 <a id="mise-freerun-jedna-hrana"></a>
 ### 🧪 FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
 
@@ -1620,17 +1601,6 @@ Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, M
 - [x] `corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu (26. 9. 2026)
 
 [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="mise-track-timeout-delka-useku"></a>
-### 🧪 Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
-
-`mise-track-timeout-delka-useku` · vada · **v kódu, na HW neověřeno** · nalezeno 26. 9. 2026 · vyřešeno 26. 9. 2026
-
-Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 14:34:39 „timeout jizdy k mistu 1/2 (limit 600 s)". Trasa k prvnímu místu měla na startu **1 118 m**; při ~1,66 m/s je to ~670 s, tedy přes limit i bez jediného zdržení. `TrackConfig.DrivingTimeoutSec` je pevných 600 s (a jako parametr nejde nastavit), kdežto délka úseku se mezi seznamy liší řádově.
-
-- [x] Timeout vypnut (autor): `TrackConfig.DrivingTimeoutSec = 0`, stejně jako u Robotouru; zaseknutí hlídají detektory `GlobalNavigator` (26. 9. 2026)
-
-[track-mission.md](track-mission.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
 <a id="mise-nouzove-zastaveni-controlloop"></a>
 ### ✅ Nouzové zastavení v řídicí smyčce a ve firmwaru motorů
@@ -1791,6 +1761,31 @@ Na soutěži 19. 9. 2026 stála mise Robotour 158 s v `ArmingAtDepot` (`20260919
 
 [robotour-mission.md](robotour-mission.md), [configuration.md](configuration.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
+<a id="mise-freerun-pomala-mrkev-blizko"></a>
+### ✅ FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
+
+`mise-freerun-pomala-mrkev-blizko` · vada · **hotovo** · nalezeno 25. 9. 2026 · vyřešeno 30. 9. 2026
+
+Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 23 min, Modřany): robot jede výrazně pomaleji, než je `maxspeed=1.7`. Potvrzeno měřením: příkaz p50 **0,81 m/s**, rychlost fúze 0,78 m/s. Mrkev leží vždy `freerunlook=` = **1,5 m** před robotem a plán končí v ní; plánovač bere konec dráhy jako hranici potvrzeně sjízdného (`BuildWayPoints`: frontier se inicializuje na konec dráhy, poslední uzel má strop 0), takže obálka `VBrake` váže 97,4 % plánů na `√(2·0,5·1,5)` = **1,22 m/s**. Regulátor z toho udělá ještě méně: `Dist2Speed` k poslednímu uzlu (diskrétní profil s rezervou 0,9) dá p50 0,855 m/s, a vazba dopředné rychlosti na dobu rotace `d/(4·T_rot)` má ve jmenovateli tutéž krátkou vzdálenost, takže srazí rychlost v 35 % taktů (p50 o 0,17 m/s). Protifakticky bez brzdění na konci plánu by příkaz byl p50 0,90, p90 1,35 m/s. Pro srovnání Track téhož dne (`20260925-143643.rec`): mrkev ~5,6 m, příkaz p50 **1,70 m/s**, vazba na rotaci jen v 11 % taktů. Měří `ARBot.Analyze drive` (rekonstrukce `PathResult.Control` sedí na záznam v 99,9 % taktů) a `envelope`. Ve FreeRun navíc vznikl oboustranný koridor jen ve 3 % cyklů, zbytek jel „rovně“ (`lok-koridor-siroka-cyklostezka`).
+
+- [x] Změřeno: obálka `VBrake` k mrkvi 1,5 m + `Dist2Speed` k poslednímu uzlu + vazba na rotaci přes krátkou vzdálenost (`ARBot.Analyze drive`, `envelope`) (25. 9. 2026)
+- [x] Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne (25. 9. 2026)
+- [x] Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem — autor 30. 9.: ověřeno OK. FreeRun 29. 9. (`20260929-151634.rec`, `freerunlook=5`, profil `latency`): mrkev p50 5,09 m, příkaz p50 **1,67 m/s** (`drive`, takty za jízdy; 25. 9. 0,81), rychlost fúze p50 1,49 m/s, strop obálky p50 1,44 m/s, vazba na rotaci srazila rychlost ve 27 % taktů (25. 9. 35 %) (30. 9. 2026)
+
+[mission-freerun.md](mission-freerun.md), [path-following.md](path-following.md) · DevLog [2026-09-25](devlog.md#2026-09-25), [2026-09-30](devlog.md#2026-09-30)
+
+<a id="mise-track-timeout-delka-useku"></a>
+### ✅ Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
+
+`mise-track-timeout-delka-useku` · vada · **hotovo** · nalezeno 26. 9. 2026 · vyřešeno 30. 9. 2026
+
+Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 14:34:39 „timeout jizdy k mistu 1/2 (limit 600 s)". Trasa k prvnímu místu měla na startu **1 118 m**; při ~1,66 m/s je to ~670 s, tedy přes limit i bez jediného zdržení. `TrackConfig.DrivingTimeoutSec` je pevných 600 s (a jako parametr nejde nastavit), kdežto délka úseku se mezi seznamy liší řádově.
+
+- [x] Timeout vypnut (autor): `TrackConfig.DrivingTimeoutSec = 0`, stejně jako u Robotouru; zaseknutí hlídají detektory `GlobalNavigator` (26. 9. 2026)
+- [x] Ověřeno na zařízení (autor 30. 9. 2026) (30. 9. 2026)
+
+[track-mission.md](track-mission.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-30](devlog.md#2026-09-30)
+
 ## Provoz na zařízení
 
 <a id="prov-perf-monitoring"></a>
@@ -1870,21 +1865,6 @@ Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl 
 
 [robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
 
-<a id="prov-pudorys-umysl-a-zony"></a>
-### 🧪 Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
-
-`prov-pudorys-umysl-a-zony` · záměr · **v kódu, na HW neověřeno** · nalezeno 12. 9. 2026 · vyřešeno 12. 9. 2026
-
-Na půdorysu stránky náhledu přibyla trasa globální navigace, dráha z lokálního plánovače (i s uzly, z jejichž rozestupu je vidět vyhlazování), legenda včetně dosud nepopsané ujeté dráhy a kružnice o dojezdovém poloměru kolem míst mise (aktivní plnou čarou), aby šlo v terénu dohlížet na závod. Kvůli tomu nese `GlobalNavMsg` dojezdový poloměr a `TrackMsg` celý seznam míst; od 13. 9. se zóny kreslí na přichycených místech, od 14. 9. jsou i vrstvou ve World pohledu (`GoalZones`). Zdroje se nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci. Trasa a lokální plán byly na zařízení vidět 17. 9. (snímky stránky 16:26: trasa, plán, mrkev) a na Robotouru 19. 9. obsluha na stránce sledovala přeplánování trasy; že někdo viděl i zóny (kružnice o dojezdovém poloměru), zapsané není.
-
-- [x] Trasa a lokální plán s prahem stáří, legenda (12. 9. 2026)
-- [x] Zóny o dojezdovém poloměru, `GlobalNavMsg` v2 a `TrackMsg` v2 (12. 9. 2026)
-- [x] Zóny na přichycených místech (`TrackMsg` v3) (13. 9. 2026)
-- [x] Trasa a lokální plán na stránce za jízdy — 17. 9. snímky 16:26, 19. 9. přeplánování vidět na stránce (17. 9. 2026)
-- [ ] Zóny na stránce na zařízení (nikdo nezapsal, že je viděl)
-
-[headless.md](headless.md), [world-view.md](world-view.md), [track-mission.md](track-mission.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-20](devlog.md#2026-09-20)
-
 <a id="prov-start-limit-sluzba"></a>
 ### 🧪 Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý
 
@@ -1897,22 +1877,6 @@ Systemd má výchozí `StartLimitBurst=5` / `StartLimitIntervalUSec=5min`: šest
 - [ ] Ověřit na zařízení (jednotku nasadit a vyvolat opakovaný pád)
 
 [headless.md](headless.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15)
-
-<a id="prov-audit-bezpecnost-rizeni"></a>
-### 🧪 Externí audit — bezpečnostní vrstva řízení měla čtyři díry
-
-`prov-audit-bezpecnost-rizeni` · vada · **v kódu, na HW neověřeno** · nalezeno 15. 9. 2026 · vyřešeno 15. 9. 2026
-
-Autor dodal externí read-only audit; tři kritické a jeden vysoký nález se potvrdily přímo ve zdroji. Výjimka v taktu řídicí smyčky se polykala a robot jel po posledním příkazu až do zásahu 500ms watchdogu motorů (K1); `Stop()` nikdy neposlal motorům nulu, ačkoli dokumentace tvrdila opak (V1); brána „mise jen při drženém nouzovém zastavení“ prošla s odpojeným motorovým UARTem, protože fail-rámec driveru se četl jako stisk tlačítka a obnovení linky jako pokyn „jeď“ (K2); jedno NaN měření otrávilo fúzi natrvalo, protože gating na NaN nezabere (K3). K tomu diagnostika poruch z `Debug` do `Trace` na cestách, které audit jmenoval, se škrtičem `PoruchaHlasic` proti zaplavení záznamu (V3). Opraveno TDD — u každého nálezu nejdřív test, který na starém kódu spadl. Nic z toho neběželo na zařízení.
-
-- [x] K1 — výjimka v taktu = `Drive(0,0)` + zpráva s nulami + `Trace` (15. 9. 2026)
-- [x] V1 — nula motorům v `ControlLoop.Stop()` (15. 9. 2026)
-- [x] K2 — fail-rámec není měření tlačítka (`HasMeasurement`), automaty mise i brány stojí (15. 9. 2026)
-- [x] K3 — brána na konečnost před fúzí a pojistka na výsledek kroku EKF (15. 9. 2026)
-- [x] V3 — `Debug` → `Trace` se škrtičem, `DiagnostikaPoruchTests` (15. 9. 2026)
-- [ ] Ověřit na zařízení
-
-[path-following.md](path-following.md), [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
 
 <a id="prov-audit-druha-davka"></a>
 ### 🧪 Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence
@@ -2095,6 +2059,21 @@ Aby šlo robotovi bezpečně odpojit napájení bez notebooku, stránka náhledu
 
 [headless.md](headless.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-13](devlog.md#2026-09-13)
 
+<a id="prov-pudorys-umysl-a-zony"></a>
+### ✅ Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
+
+`prov-pudorys-umysl-a-zony` · záměr · **hotovo** · nalezeno 12. 9. 2026 · vyřešeno 30. 9. 2026
+
+Na půdorysu stránky náhledu přibyla trasa globální navigace, dráha z lokálního plánovače (i s uzly, z jejichž rozestupu je vidět vyhlazování), legenda včetně dosud nepopsané ujeté dráhy a kružnice o dojezdovém poloměru kolem míst mise (aktivní plnou čarou), aby šlo v terénu dohlížet na závod. Kvůli tomu nese `GlobalNavMsg` dojezdový poloměr a `TrackMsg` celý seznam míst; od 13. 9. se zóny kreslí na přichycených místech, od 14. 9. jsou i vrstvou ve World pohledu (`GoalZones`). Zdroje se nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci. Trasa a lokální plán byly na zařízení vidět 17. 9. (snímky stránky 16:26: trasa, plán, mrkev) a na Robotouru 19. 9. obsluha na stránce sledovala přeplánování trasy; že někdo viděl i zóny (kružnice o dojezdovém poloměru), zapsané nebylo — ✅ autor 30. 9. 2026: zóny na stránce na zařízení vidět jsou.
+
+- [x] Trasa a lokální plán s prahem stáří, legenda (12. 9. 2026)
+- [x] Zóny o dojezdovém poloměru, `GlobalNavMsg` v2 a `TrackMsg` v2 (12. 9. 2026)
+- [x] Zóny na přichycených místech (`TrackMsg` v3) (13. 9. 2026)
+- [x] Trasa a lokální plán na stránce za jízdy — 17. 9. snímky 16:26, 19. 9. přeplánování vidět na stránce (17. 9. 2026)
+- [x] Zóny na stránce na zařízení — autor potvrdil, že jsou vidět (30. 9. 2026)
+
+[headless.md](headless.md), [world-view.md](world-view.md), [track-mission.md](track-mission.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-20](devlog.md#2026-09-20), [2026-09-30](devlog.md#2026-09-30)
+
 <a id="prov-zotaveni-kamer-supervizor"></a>
 ### ✅ Zaseknuté kamery D435 si runtime zotaví sám za ~29 s
 
@@ -2124,6 +2103,22 @@ Při volbě mise ze stránky se runtime na zařízení zasekl uvnitř `Start(Mod
 - [x] Nasadit hlídač na zařízení a nechat zásek chytit v provozu (17. 9. 2026)
 
 [headless.md](headless.md) · DevLog [2026-09-14](devlog.md#2026-09-14), [2026-09-15](devlog.md#2026-09-15)
+
+<a id="prov-audit-bezpecnost-rizeni"></a>
+### ✅ Externí audit — bezpečnostní vrstva řízení měla čtyři díry
+
+`prov-audit-bezpecnost-rizeni` · vada · **hotovo** · nalezeno 15. 9. 2026 · vyřešeno 30. 9. 2026
+
+Autor dodal externí read-only audit; tři kritické a jeden vysoký nález se potvrdily přímo ve zdroji. Výjimka v taktu řídicí smyčky se polykala a robot jel po posledním příkazu až do zásahu 500ms watchdogu motorů (K1); `Stop()` nikdy neposlal motorům nulu, ačkoli dokumentace tvrdila opak (V1); brána „mise jen při drženém nouzovém zastavení“ prošla s odpojeným motorovým UARTem, protože fail-rámec driveru se četl jako stisk tlačítka a obnovení linky jako pokyn „jeď“ (K2); jedno NaN měření otrávilo fúzi natrvalo, protože gating na NaN nezabere (K3). K tomu diagnostika poruch z `Debug` do `Trace` na cestách, které audit jmenoval, se škrtičem `PoruchaHlasic` proti zaplavení záznamu (V3). Opraveno TDD — u každého nálezu nejdřív test, který na starém kódu spadl. ✅ Autor 30. 9. 2026: na zařízení ověřeno.
+
+- [x] K1 — výjimka v taktu = `Drive(0,0)` + zpráva s nulami + `Trace` (15. 9. 2026)
+- [x] V1 — nula motorům v `ControlLoop.Stop()` (15. 9. 2026)
+- [x] K2 — fail-rámec není měření tlačítka (`HasMeasurement`), automaty mise i brány stojí (15. 9. 2026)
+- [x] K3 — brána na konečnost před fúzí a pojistka na výsledek kroku EKF (15. 9. 2026)
+- [x] V3 — `Debug` → `Trace` se škrtičem, `DiagnostikaPoruchTests` (15. 9. 2026)
+- [x] Ověřit na zařízení — autor potvrdil (30. 9. 2026)
+
+[path-following.md](path-following.md), [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="prov-deadlock-mise-webstatus"></a>
 ### ✅ Deadlock mezi zámkem mise a zámkem stránky při volbě mise
@@ -2272,18 +2267,6 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 - [x] Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.) (24. 9. 2026)
 
 [hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-26](devlog.md#2026-09-26), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="hw-vn100-hsi-run-ve-flash"></a>
-### 🧪 VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
-
-`hw-vn100-hsi-run-ve-flash` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 9. 2026 · vyřešeno 25. 9. 2026
-
-`deploy/vnprobe.sh` 25. 9. 2026 přečetl `$VNRRG,44,1,1,5` (export ARBot2: `0,1,5`). `MagCalMission.Zapis` volala `SaveToFlash()` (VNWNV, ukládá celou RAM) DŘÍV než `VypniHsi()`, takže se do flash uložil i registr 44 v režimu Run a senzor od kalibrace 17. 9. startoval s běžící palubní HSI (výsledek do registru 47, neaplikovaný). Opraveno pořadí + test (`PriZapisu_JeHsiVypnutaDRIV_NezSeUkladaDoFlash`); `vnrestore.sh` nově píše i `44,0,1,5`. Příčinou driftu kurzu 23. 9. to být nemusí — stejný stav byl ve flash i při dobrých jízdách 18. 9.; TN002 kap. 5.2 ale běžící HSI vede mezi příčinami ujíždějícího kurzu.
-
-- [x] Pořadí v `MagCalMission.Zapis` (HSI off před VNWNV) + test, `vnrestore.sh` píše registr 44 (25. 9. 2026)
-- [ ] Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`
-
-[imu-and-frames.md](imu-and-frames.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs) · DevLog [2026-09-25](devlog.md#2026-09-25)
 
 <a id="hw-orangepi-bringup"></a>
 ### ✅ Zprovoznění cílové desky Orange Pi 5 Ultra (Armbian, RealSense, USB, SPI, GPU, WiFi)
@@ -2586,6 +2569,18 @@ Kalibrace z 11. 9., ověřená 12. 9., v záznamech ze 14. 9. už neúčinkuje: 
 
 [imu-and-frames.md](imu-and-frames.md), [panel magnetometru (snímek)](media/imu-magnetometr-2026-09-15.png) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
 
+<a id="hw-vn100-hsi-run-ve-flash"></a>
+### ✅ VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
+
+`hw-vn100-hsi-run-ve-flash` · vada · **hotovo** · nalezeno 25. 9. 2026 · vyřešeno 30. 9. 2026
+
+`deploy/vnprobe.sh` 25. 9. 2026 přečetl `$VNRRG,44,1,1,5` (export ARBot2: `0,1,5`). `MagCalMission.Zapis` volala `SaveToFlash()` (VNWNV, ukládá celou RAM) DŘÍV než `VypniHsi()`, takže se do flash uložil i registr 44 v režimu Run a senzor od kalibrace 17. 9. startoval s běžící palubní HSI (výsledek do registru 47, neaplikovaný). Opraveno pořadí + test (`PriZapisu_JeHsiVypnutaDRIV_NezSeUkladaDoFlash`); `vnrestore.sh` nově píše i `44,0,1,5`. Příčinou driftu kurzu 23. 9. to být nemusí — stejný stav byl ve flash i při dobrých jízdách 18. 9.; TN002 kap. 5.2 ale běžící HSI vede mezi příčinami ujíždějícího kurzu.
+
+- [x] Pořadí v `MagCalMission.Zapis` (HSI off před VNWNV) + test, `vnrestore.sh` píše registr 44 (25. 9. 2026)
+- [x] Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`. Autor 30. 9.: srovnáno; `vnprobe.sh` 28. 9. před misí magcal i po ní četl registr 44 `0,1,5`. Opravené pořadí zápisu v `MagCalMission` na senzoru neběželo (od té doby se kalibrace nezapisovala), drží ho test (30. 9. 2026)
+
+[imu-and-frames.md](imu-and-frames.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs) · DevLog [2026-09-25](devlog.md#2026-09-25), [2026-09-28](devlog.md#2026-09-28), [2026-09-30](devlog.md#2026-09-30)
+
 <a id="hw-t265-nedava-pozu"></a>
 ### ❌ T265 nedává pózu — firmware hlásí chybu vidění
 
@@ -2649,19 +2644,6 @@ Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rych
 - [ ] Implementace (Tools → Limity jízdy), výpočet sdílený s plánovačem
 
 [path-following.md](path-following.md), [configuration.md](configuration.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
-
-<a id="nast-panel-konfigurace-mazal-klice"></a>
-### 🧪 Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem
-
-`nast-panel-konfigurace-mazal-klice` · vada · **v kódu, na HW neověřeno** · nalezeno 12. 9. 2026 · vyřešeno 12. 9. 2026
-
-Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže z `pi-provoz.cfg` zmizel schválně připnutý `npumodel=` — po příští změně defaultu by robot tiše počítal jiným modelem. Teď se zapisují i klíče, které v profilu výslovně byly. Z téhož uložení vyšel druhý nález: panel uložil cestu s windowsovým zpětným lomítkem, které na Linuxu je obyčejný znak, takže by mapa na Pi nebyla nalezena; hlídá to nový test nad profily v repu. Ručně psané komentáře v profilu se při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. Uložení v UI proklikané není.
-
-- [x] Zapisují se i výslovně nastavené klíče (12. 9. 2026)
-- [x] Test na linuxový tvar cest v profilech (12. 9. 2026)
-- [ ] Proklikat uložení v panelu
-
-[configuration.md](configuration.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
 
 <a id="nast-profil-sceny"></a>
 ### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
@@ -3127,6 +3109,19 @@ Neznámý klíč se jen s varováním ignoroval (mezi argumenty jsou i cizí př
 - [x] `POST /virtualestop` bez virtuálního HW vrací 409 (12. 9. 2026)
 
 [configuration.md](configuration.md), [headless.md](headless.md) · DevLog [2026-09-12](devlog.md#2026-09-12)
+
+<a id="nast-panel-konfigurace-mazal-klice"></a>
+### ✅ Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem
+
+`nast-panel-konfigurace-mazal-klice` · vada · **hotovo** · nalezeno 12. 9. 2026 · vyřešeno 30. 9. 2026
+
+Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže z `pi-provoz.cfg` zmizel schválně připnutý `npumodel=` — po příští změně defaultu by robot tiše počítal jiným modelem. Teď se zapisují i klíče, které v profilu výslovně byly. Z téhož uložení vyšel druhý nález: panel uložil cestu s windowsovým zpětným lomítkem, které na Linuxu je obyčejný znak, takže by mapa na Pi nebyla nalezena; hlídá to nový test nad profily v repu. Ručně psané komentáře v profilu se při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. ✅ Autor 30. 9. 2026: uložení z panelu je v pořádku.
+
+- [x] Zapisují se i výslovně nastavené klíče (12. 9. 2026)
+- [x] Test na linuxový tvar cest v profilech (12. 9. 2026)
+- [x] Proklikat uložení v panelu — autor potvrdil, že je to v pořádku (30. 9. 2026)
+
+[configuration.md](configuration.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="nast-mapa-ve-view-jednou"></a>
 ### ✅ Ve View se ztrácela mapa ze záznamu a lokální vrstvy plavaly
