@@ -29,9 +29,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">42</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">38</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">37</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">141</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">145</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">6</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -396,6 +396,10 @@
       <li data-tema="nav-detektor-c-kaskada"><span class="mono">29. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nav-detektor-c-kaskada">Detektor C („přehrazeno“) při RobotBlocked zav&#237;r&#225; hranu každ&#253;ch ~1,4 s — za 20 s zavřel 15 hran t&#233;že cesty až 78 m od robotu</a></li>
       <li data-tema="nav-mrkev-kolmy-prumet"><span class="mono">29. 9.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#nav-mrkev-kolmy-prumet">Je-li p&#243;za od trasy d&#225;l než 5,9 m, mrkev je kolm&#253; průmět na trasu — robot m&#225; jet např&#237;č cestou</a></li>
       <li data-tema="nav-uzavreni-hran-pres-restart"><span class="mono">29. 9.</span> <span class="typ">zamítnuto</span> <a href="#nav-uzavreni-hran-pres-restart">Uzavřen&#233; hrany s&#237;tě a stav lokalizace nepřežij&#237; restart</a></li>
+      <li data-tema="hw-d435-query-pamet"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-d435-query-pamet">Když se kamera ned&#225; znovu vyč&#237;st, proces roste v paměti</a></li>
+      <li data-tema="hw-kamery-usb2-po-bootu"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-kamery-usb2-po-bootu">Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez viděn&#237;</a></li>
+      <li data-tema="hw-t265-odpojena-natrvalo"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#hw-t265-odpojena-natrvalo">Odpojen&#225; T265: runtime ji d&#225;l hled&#225; a zahlcuje journal</a></li>
+      <li data-tema="nast-hlasky-startu-do-zaznamu"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#nast-hlasky-startu-do-zaznamu">Hl&#225;šky ze startu runtime se do z&#225;znamu nedostanou</a></li>
       <li data-tema="vid-segmentace-rozliseni-128"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#vid-segmentace-rozliseni-128">Dopad v&#253;počtu ve 128&#215;128 na hustotu dat pro grid a hranice cesty</a></li>
     </ul>
   </div>
@@ -2148,28 +2152,6 @@
     </ul>
     <p class="tema-odkazy">čeká na <a href="#hw-vetev-usb-2-1-3">Tvrd&#233; z&#225;seky kamer na větvi USB <code>2-1.3</code></a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 11. 9. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-31">2026-08-31</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-06">2026-09-06</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
   </article>
-  <article class="tema" id="hw-kamery-usb2-po-bootu" data-stav="otevreno">
-    <h3>Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez viděn&#237;</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 2. 9. 2026</span></p>
-    <p>Obě D435 se po bootu hl&#225;sily jen rychlost&#237; USB 2.0, na kter&#233; se hloubka a barva nevejdou ani pro jednu kameru — robot tedy neviděl nic a kernel si nestěžoval. Odpojen&#237; a zapojen&#237; linku vr&#225;tilo na 5 Gbps. Domněnka o nedovřen&#233;m konektoru padla (autor s kabely neh&#253;bal); jde o SuperSpeed linku, kter&#225; se při bootu nenatr&#233;nuje. S&#233;rie restartů na nab&#237;ječce dala 6&#215; dobře, jedin&#225; stopa je nap&#225;jen&#237; (selh&#225;n&#237; přišlo na dosluhuj&#237;c&#237; baterii). Od 11. 9. driver typ linky hl&#225;s&#237; a na USB 2.0 varuje i s l&#233;čbou; měřen&#237; na baterii se neudělalo.</p>
-    <ul class="kroky">
-      <li class="hotovo">Fyzick&#233; přepojen&#237; kamer, ověřeno 30/30 fps <span class="mono">2. 9. 2026</span></li>
-      <li class="hotovo">Studen&#253; start a pět tepl&#253;ch restartů na nab&#237;ječce (6&#215; dobře) <span class="mono">2. 9. 2026</span></li>
-      <li class="hotovo">Driver hl&#225;s&#237; typ USB linky (<code>UsbLinkCheck</code>), varov&#225;n&#237; na USB 2.0 <span class="mono">11. 9. 2026</span></li>
-      <li class="otevreno">Zopakovat s&#233;rii startů na baterii bez nab&#237;ječky</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/OrangePi5Ultra/POSTUP.md">OrangePi5Ultra/POSTUP.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-02">2026-09-02</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a></p>
-  </article>
-  <article class="tema" id="hw-d435-query-pamet" data-stav="otevreno">
-    <h3>Když se kamera ned&#225; znovu vyč&#237;st, proces roste v paměti</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 6. 9. 2026</span></p>
-    <p>Po nasazen&#237; lev&#225; kamera nenaběhla a <code>QueryDevices</code> hl&#225;sil „failed to set power state&quot; ~0,7&#215; za sekundu; běh s 93 selh&#225;n&#237;mi vyšplhal na 1,8 GB proti 130–140 MB, tedy ~25 MB na jeden ne&#250;spěšn&#253; dotaz. Managed strana je v poř&#225;dku (vše v <code>using</code>), roste to na nativn&#237; straně, takže l&#233;čba nen&#237; dozav&#237;rat, ale přestat se pt&#225;t každou sekundu. Restart služby kameru vr&#225;til. 14. 9. runtime hledal odpojenou T265 ~1&#215; za sekundu (7 829 ř&#225;dků za 168 minut) — dotaz přes sd&#237;len&#253; z&#225;mek jde d&#225;l, a 17. 9. se uk&#225;zalo, že hl&#225;šky marn&#233;ho dotazu tečou i do z&#225;znamu (140 s po zatuhnut&#237;). Rozpor k přeměřen&#237;: 14. 9. běh se 7 829 selh&#225;n&#237;mi T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď v&#225;zan&#253; na zapojenou, ale zaseknutou D435 („failed to set power state&quot;), nebo měl 6. 9. jinou př&#237;činu.</p>
-    <ul class="kroky">
-      <li class="otevreno">Backoff dotazů <code>QueryDevices</code> po selh&#225;n&#237;</li>
-      <li class="otevreno">Změřit růst paměti při trvale selh&#225;vaj&#237;c&#237;m dotazu (T265 chyb&#237; / D435 zaseknut&#225;) a jestli konč&#237; p&#225;dem</li>
-    </ul>
-    <p class="tema-odkazy">čeká na <a href="#hw-t265-odpojena-natrvalo">Odpojen&#225; T265: runtime ji d&#225;l hled&#225; a zahlcuje journal</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-06">2026-09-06</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
-  </article>
   <article class="tema" id="hw-vn100-akcelerometr-7pct" data-stav="otevreno">
     <h3>Akcelerometr VN100 měř&#237; o 7 % v&#237;c než g</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 6. 9. 2026</span></p>
@@ -2190,16 +2172,6 @@
       <li class="otevreno">Průjezd t&#233;hož &#250;seku s robotem otočen&#253;m o 180&#176;</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-18">2026-09-18</a></p>
-  </article>
-  <article class="tema" id="hw-t265-odpojena-natrvalo" data-stav="otevreno">
-    <h3>Odpojen&#225; T265: runtime ji d&#225;l hled&#225; a zahlcuje journal</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 13. 9. 2026</span></p>
-    <p>T265 se 13. 9. rozbila tak, že se připoj&#237;, ale ned&#225;v&#225; p&#243;zu; softwarov&#253; reset selže a nepomůže ani restart služby, jen fyzick&#233; přepojen&#237; — a po něm se za 1,5 h zasekla znovu. Každ&#233; jej&#237; marn&#233; zotaven&#237; přitom stahovalo kontextem i obě zdrav&#233; D435 a zastavovalo robota. Autor rozhodl kameru odpojit natrvalo (od 13. 9. večer na sběrnici nen&#237;). Runtime ji ale d&#225;l hled&#225; ~1&#215;/s přes sd&#237;len&#253; z&#225;mek RealSense a na každ&#253; pokus p&#237;še chybu do journalu (7 829 ř&#225;dků za 168 min) — neškod&#237;, ale zahlcuje; nezakl&#225;dat ji, když nen&#237; na sběrnici, zb&#253;v&#225;. Profil ji vypnout neum&#237; (ž&#225;dn&#253; parametr, <code>ARBotHW</code> ji zakl&#225;d&#225; bezpodm&#237;nečně) a 17. 9. se uk&#225;zalo, že hled&#225;n&#237; teče i do z&#225;znamu, ne jen do journalu (po zatuhnut&#237; runtime bylo vl&#225;kno T265 jedin&#233; živ&#233;, 140 s hl&#225;šek v <code>.rec</code>).</p>
-    <ul class="kroky">
-      <li class="hotovo">T265 zapojena do zotaven&#237; kamer, per-kamera vzd&#225;n&#237; po třech marn&#253;ch pokusech <span class="mono">13. 9. 2026</span></li>
-      <li class="otevreno">Nezakl&#225;dat T265 v runtime, když nen&#237; na sběrnici (hled&#225;n&#237; 1&#215;/s přes sd&#237;len&#253; z&#225;mek)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 13. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
   </article>
   <article class="tema" id="hw-vetev-usb-2-1-3" data-stav="otevreno">
     <h3>Tvrd&#233; z&#225;seky kamer na větvi USB <code>2-1.3</code></h3>
@@ -2394,6 +2366,18 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 1. 9. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-01">2026-09-01</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a></p>
   </article>
+  <article class="tema" id="hw-kamery-usb2-po-bootu" data-stav="hotovo">
+    <h3>Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez viděn&#237;</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 2. 9. 2026</span> <span>vyřešeno 30. 9. 2026</span></p>
+    <p>Obě D435 se po bootu hl&#225;sily jen rychlost&#237; USB 2.0, na kter&#233; se hloubka a barva nevejdou ani pro jednu kameru — robot tedy neviděl nic a kernel si nestěžoval. Odpojen&#237; a zapojen&#237; linku vr&#225;tilo na 5 Gbps. Domněnka o nedovřen&#233;m konektoru padla (autor s kabely neh&#253;bal); jde o SuperSpeed linku, kter&#225; se při bootu nenatr&#233;nuje. S&#233;rie restartů na nab&#237;ječce dala 6&#215; dobře, jedin&#225; stopa je nap&#225;jen&#237; (selh&#225;n&#237; přišlo na dosluhuj&#237;c&#237; baterii). Od 11. 9. driver typ linky hl&#225;s&#237; a na USB 2.0 varuje i s l&#233;čbou; měřen&#237; na baterii se neudělalo. ✅ **Uzavřeno 30. 9. 2026 (autor): od 2. 9. se to neopakovalo** — a s&#233;rie startů na baterii v principu proběhla při testech v ter&#233;nu. Doloženo i z&#225;znamy: všech 27 j&#237;zd 12.–29. 9. nese sn&#237;mky z OBOU kamer s hloubkou i barvou (vzorek ~200 sn&#237;mků na z&#225;znam, 100 %; na USB 2.0 by D435 neposlala oboj&#237;), kde je připojen&#237; kamery v z&#225;znamu, driver hl&#225;s&#237; <code>USB 3.2</code> (29&#215;) a hl&#225;ška o USB 2 nen&#237; v ž&#225;dn&#233;m. Př&#237;čina neurčena; kdyby se vr&#225;tilo, ohl&#225;s&#237; to <code>UsbLinkCheck</code>.</p>
+    <ul class="kroky">
+      <li class="hotovo">Fyzick&#233; přepojen&#237; kamer, ověřeno 30/30 fps <span class="mono">2. 9. 2026</span></li>
+      <li class="hotovo">Studen&#253; start a pět tepl&#253;ch restartů na nab&#237;ječce (6&#215; dobře) <span class="mono">2. 9. 2026</span></li>
+      <li class="hotovo">Driver hl&#225;s&#237; typ USB linky (<code>UsbLinkCheck</code>), varov&#225;n&#237; na USB 2.0 <span class="mono">11. 9. 2026</span></li>
+      <li class="hotovo">Zopakovat s&#233;rii startů na baterii bez nab&#237;ječky — v principu proběhla při testech v ter&#233;nu (autor 30. 9.: starty na baterii 12.–29. 9.), vada se od 2. 9. neopakovala, z&#225;znamy všechny na USB 3.2 <span class="mono">30. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/OrangePi5Ultra/POSTUP.md">OrangePi5Ultra/POSTUP.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-02">2026-09-02</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-30">2026-09-30</a></p>
+  </article>
   <article class="tema" id="hw-realsense-jeden-kontext" data-stav="hotovo">
     <h3>Tři drivery se třemi kontexty RealSense bootovaly T265 nar&#225;z a shodily proces</h3>
     <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 3. 9. 2026</span> <span>vyřešeno 3. 9. 2026</span></p>
@@ -2404,6 +2388,16 @@
       <li class="hotovo">Nasazeno a běž&#237; na Pi <span class="mono">3. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-03">2026-09-03</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a></p>
+  </article>
+  <article class="tema" id="hw-d435-query-pamet" data-stav="hotovo">
+    <h3>Když se kamera ned&#225; znovu vyč&#237;st, proces roste v paměti</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 6. 9. 2026</span> <span>vyřešeno 30. 9. 2026</span></p>
+    <p>Po nasazen&#237; lev&#225; kamera nenaběhla a <code>QueryDevices</code> hl&#225;sil „failed to set power state&quot; ~0,7&#215; za sekundu; běh s 93 selh&#225;n&#237;mi vyšplhal na 1,8 GB proti 130–140 MB, tedy ~25 MB na jeden ne&#250;spěšn&#253; dotaz. Managed strana je v poř&#225;dku (vše v <code>using</code>), roste to na nativn&#237; straně, takže l&#233;čba nen&#237; dozav&#237;rat, ale přestat se pt&#225;t každou sekundu. Restart služby kameru vr&#225;til. 14. 9. runtime hledal odpojenou T265 ~1&#215; za sekundu (7 829 ř&#225;dků za 168 minut) — dotaz přes sd&#237;len&#253; z&#225;mek jde d&#225;l, a 17. 9. se uk&#225;zalo, že hl&#225;šky marn&#233;ho dotazu tečou i do z&#225;znamu (140 s po zatuhnut&#237;). Rozpor k přeměřen&#237;: 14. 9. běh se 7 829 selh&#225;n&#237;mi T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď v&#225;zan&#253; na zapojenou, ale zaseknutou D435 („failed to set power state&quot;), nebo měl 6. 9. jinou př&#237;činu. ✅ **Uzavřeno 30. 9. 2026 (autor): od 6. 9. se neopakovalo a driver dnes vypad&#225; jinak.** Supervizor zotaven&#237; (od 13. 9.) vyměn&#237; RealSense kontext po 15 marn&#253;ch dotazech, takže s&#233;rie selh&#225;n&#237; konč&#237; po ~15 s m&#237;sto 93 dotazů (všechny pozorovan&#233; epizody se vr&#225;tily, naposledy 29. 9. za 29 s), a od 26. 9. se nehled&#225; odpojen&#225; T265. ⚠️ **Zbytkov&#233; riziko vědomě ponech&#225;no:** když zotaven&#237; u kamery vzd&#225; (3&#215; marně za 15 min), <code>D435Camera</code> se pt&#225; d&#225;l každou sekundu bez konce (<code>ReconnectPeriodMs</code>) — kdyby růst ~25 MB na dotaz platil, je to sc&#233;n&#225;ř z 6. 9. Backoff ani paměť procesu v <code>PerfMsg</code> autor nechce (30. 9.); růst paměti ze z&#225;znamu změřit nejde.</p>
+    <ul class="kroky">
+      <li class="hotovo">Backoff dotazů <code>QueryDevices</code> po selh&#225;n&#237; — nahrazeno supervizorem zotaven&#237; kamer (13. 9.), backoff po vzd&#225;n&#237; zotaven&#237; autor 30. 9. nechce <span class="mono">30. 9. 2026</span></li>
+      <li class="hotovo">Změřit růst paměti při trvale selh&#225;vaj&#237;c&#237;m dotazu (T265 chyb&#237; / D435 zaseknut&#225;) a jestli konč&#237; p&#225;dem — neděl&#225; se (autor 30. 9.): od 6. 9. se neopakovalo, T265 se od 26. 9. nehled&#225; <span class="mono">30. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-06">2026-09-06</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-30">2026-09-30</a></p>
   </article>
   <article class="tema" id="hw-d435-zamrzly-stream" data-stav="hotovo">
     <h3>Prav&#225; D435 pos&#237;lala poř&#225;d tent&#253;ž barevn&#253; sn&#237;mek a nikdo to nepoznal</h3>
@@ -2499,6 +2493,16 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 12. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-11">2026-09-11</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-28">2026-09-28</a></p>
   </article>
+  <article class="tema" id="hw-t265-odpojena-natrvalo" data-stav="hotovo">
+    <h3>Odpojen&#225; T265: runtime ji d&#225;l hled&#225; a zahlcuje journal</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 13. 9. 2026</span> <span>vyřešeno 30. 9. 2026</span></p>
+    <p>T265 se 13. 9. rozbila tak, že se připoj&#237;, ale ned&#225;v&#225; p&#243;zu; softwarov&#253; reset selže a nepomůže ani restart služby, jen fyzick&#233; přepojen&#237; — a po něm se za 1,5 h zasekla znovu. Každ&#233; jej&#237; marn&#233; zotaven&#237; přitom stahovalo kontextem i obě zdrav&#233; D435 a zastavovalo robota. Autor rozhodl kameru odpojit natrvalo (od 13. 9. večer na sběrnici nen&#237;). Runtime ji ale d&#225;l hled&#225; ~1&#215;/s přes sd&#237;len&#253; z&#225;mek RealSense a na každ&#253; pokus p&#237;še chybu do journalu (7 829 ř&#225;dků za 168 min) — neškod&#237;, ale zahlcuje; nezakl&#225;dat ji, když nen&#237; na sběrnici, zb&#253;v&#225;. Profil ji vypnout neum&#237; (ž&#225;dn&#253; parametr, <code>ARBotHW</code> ji zakl&#225;d&#225; bezpodm&#237;nečně) a 17. 9. se uk&#225;zalo, že hled&#225;n&#237; teče i do z&#225;znamu, ne jen do journalu (po zatuhnut&#237; runtime bylo vl&#225;kno T265 jedin&#233; živ&#233;, 140 s hl&#225;šek v <code>.rec</code>). ✅ **Vyřešeno 26. 9. 2026, uzavřeno 30. 9. (autor):** T265 se v <code>ARBotHW</code> nezakl&#225;d&#225; vůbec (zakomentov&#225;no s odůvodněn&#237;m, <code>hw-d435-vlakno-zatuhlo-po-restartu</code>). Ověřeno z&#225;znamy: hl&#225;šek o T265 bylo v j&#237;zd&#225;ch 14.–25. 9. 128–1 198 na z&#225;znam, od bin&#225;rky <code>8587ff65</code> (j&#237;zdy 27. a 29. 9.) **nula**.</p>
+    <ul class="kroky">
+      <li class="hotovo">T265 zapojena do zotaven&#237; kamer, per-kamera vzd&#225;n&#237; po třech marn&#253;ch pokusech <span class="mono">13. 9. 2026</span></li>
+      <li class="hotovo">Nezakl&#225;dat T265 v runtime, když nen&#237; na sběrnici (hled&#225;n&#237; 1&#215;/s přes sd&#237;len&#253; z&#225;mek) — T265 se od 26. 9. nezakl&#225;d&#225; vůbec; v z&#225;znamech 27. a 29. 9. ž&#225;dn&#225; hl&#225;ška o T265 <span class="mono">26. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 13. 9. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-13">2026-09-13</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-14">2026-09-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-30">2026-09-30</a></p>
+  </article>
   <article class="tema" id="hw-zelezo-od-kabelu-kamer" data-stav="hotovo">
     <h3>Kalibrace magnetometru přestala &#250;činkovat — přibylo železo od kabelů ke kamer&#225;m</h3>
     <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 15. 9. 2026</span> <span>vyřešeno 18. 9. 2026</span></p>
@@ -2549,17 +2553,6 @@
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
   <h2>N&#225;stroje, z&#225;znam a anal&#253;za</h2>
-  <article class="tema" id="nast-hlasky-startu-do-zaznamu" data-stav="otevreno">
-    <h3>Hl&#225;šky ze startu runtime se do z&#225;znamu nedostanou</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 20. 8. 2026</span></p>
-    <p>Most <code>Trace</code> → z&#225;znam se připojuje až na konci dr&#225;tov&#225;n&#237;, takže hl&#225;šky o načten&#237; mapy, poč&#225;tečn&#237; p&#243;ze nebo o tom, proč se nějak&#253; stupeň nezaložil, jdou jen do debug outputu. U z&#225;znamu z ter&#233;nu se tak ned&#225; přeč&#237;st, proč něco nevzniklo. &#218;činn&#225; konfigurace se od 5. 9. po připojen&#237; mostu zopakuje a přibyl př&#237;kaz <code>ARBot.Analyze log</code>, ale trasovac&#237; hl&#225;šky z dr&#225;tov&#225;n&#237; zůst&#225;vaj&#237; mimo (znovu nalezeno 15. 9.). Nejnověji chyběl ř&#225;dek „corridor=false: hranov&#225; lokalizace se nezakl&#225;d&#225;“ — v journalu byl, v <code>.rec</code> ne.</p>
-    <ul class="kroky">
-      <li class="hotovo">Konfigurace a verze se po připojen&#237; mostu zopakuj&#237; do z&#225;znamu <span class="mono">5. 9. 2026</span></li>
-      <li class="hotovo"><code>ARBot.Analyze log</code> — textov&#253; log ze z&#225;znamu <span class="mono">5. 9. 2026</span></li>
-      <li class="otevreno">Připojit most dř&#237;v nebo hl&#225;šky z dr&#225;tov&#225;n&#237; pufrovat</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-20">2026-08-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-05">2026-09-05</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a></p>
-  </article>
   <article class="tema" id="nast-avalonia-headless-testy" data-stav="otevreno">
     <h3>Headless testy UI v Avalonii — ověřeno spikem, nezavedeno</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 1. 9. 2026</span></p>
@@ -2787,6 +2780,17 @@
       <li class="hotovo"><code>visionmap=</code> — druh&#225; mapa pro kamery, vrstva Mapa (vize) ve World pohledu <span class="mono">21. 8. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/virtual-hw.md">virtual-hw.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 22. 8. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Simulation/SimulatedRobot.cs">SimulatedRobot.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Logs/GroundTruthMsg.cs">GroundTruthMsg.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-19">2026-08-19</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-20">2026-08-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-22">2026-08-22</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-24">2026-08-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-31">2026-08-31</a></p>
+  </article>
+  <article class="tema" id="nast-hlasky-startu-do-zaznamu" data-stav="hotovo">
+    <h3>Hl&#225;šky ze startu runtime se do z&#225;znamu nedostanou</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 20. 8. 2026</span> <span>vyřešeno 30. 9. 2026</span></p>
+    <p>Most <code>Trace</code> → z&#225;znam se připojuje až na konci dr&#225;tov&#225;n&#237;, takže hl&#225;šky o načten&#237; mapy, poč&#225;tečn&#237; p&#243;ze nebo o tom, proč se nějak&#253; stupeň nezaložil, jdou jen do debug outputu. U z&#225;znamu z ter&#233;nu se tak ned&#225; přeč&#237;st, proč něco nevzniklo. &#218;činn&#225; konfigurace se od 5. 9. po připojen&#237; mostu zopakuje a přibyl př&#237;kaz <code>ARBot.Analyze log</code>, ale trasovac&#237; hl&#225;šky z dr&#225;tov&#225;n&#237; zůst&#225;vaj&#237; mimo (znovu nalezeno 15. 9.). Nejnověji chyběl ř&#225;dek „corridor=false: hranov&#225; lokalizace se nezakl&#225;d&#225;“ — v journalu byl, v <code>.rec</code> ne. Ještě 29. 9. chyběly v <code>.rec</code> třeba „mission=track: … nastartovana“ nebo načten&#237; mapy. ✅ **Opraveno 30. 9. 2026:** most se založ&#237; a zapoj&#237; do <code>Trace</code> na zač&#225;tku <code>WireRun</code> (hned za <code>WaitReady</code>), verze a konfigurace jdou jako prvn&#237; a ř&#225;dky z dr&#225;tov&#225;n&#237; čekaj&#237; ve frontě mostu, dokud se se stupni nespust&#237;. Ověřeno v headless simulaci: z&#225;znam nese všech 13 hl&#225;šek, kter&#233; dř&#237;v šly jen na konzoli. Mimo z&#225;znam zůst&#225;v&#225; jen to, co je před <code>Start</code> (v&#253;pis <code>RuntimeBootstrap</code>, hlavička headless, ček&#225;n&#237; na HW).</p>
+    <ul class="kroky">
+      <li class="hotovo">Konfigurace a verze se po připojen&#237; mostu zopakuj&#237; do z&#225;znamu <span class="mono">5. 9. 2026</span></li>
+      <li class="hotovo"><code>ARBot.Analyze log</code> — textov&#253; log ze z&#225;znamu <span class="mono">5. 9. 2026</span></li>
+      <li class="hotovo">Připojit most dř&#237;v nebo hl&#225;šky z dr&#225;tov&#225;n&#237; pufrovat — most se zapoj&#237; na zač&#225;tku <code>WireRun</code>, ř&#225;dky čekaj&#237; v jeho frontě; test <code>RadkyPredStartem_OdejdouPoStartu</code>, ověřeno v headless simulaci <span class="mono">30. 9. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-20">2026-08-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-05">2026-09-05</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-15">2026-09-15</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-30">2026-09-30</a></p>
   </article>
   <article class="tema" id="nast-cesty-relativne-ke-korenu-repa" data-stav="hotovo">
     <h3>Cesty k map&#225;m byly absolutn&#237; a v&#225;zan&#233; na jeden stroj</h3>

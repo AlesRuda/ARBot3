@@ -50,6 +50,23 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   1,6 → 14,8 % a 0,4 → 7,2 % (25. 9. 29,6 → 56,5 %), na Hviezdoslavově ~24 → ~29 %. Simulace (FreeRun 75 s v headless,
   brána 48 bodů) netrpí: 96,5 % Ok proti 95,5 %. 6 nových testů; testy 1 725 / 151 / 129, build
   x64 i OrangePI. ⚠️ Na zařízení neběželo. **Rozhodnutí:** [decisions.md](decisions.md), 30. 9. 2026.
+- **Kamery na USB 2.0 po bootu → uzavřeno** (`hw-kamery-usb2-po-bootu`, autor: od 2. 9. se
+  neopakovalo a starty na baterii v principu proběhly při testech v terénu). Doloženo záznamy: všech 27 jízd 12.–29. 9. má snímky z obou D435 s barvou
+  i hloubkou (na USB 2.0 by nejely obě), připojení v záznamu vždy `USB 3.2`, hláška o USB 2 nikde.
+  Příčina neurčena; návrat by ohlásil `UsbLinkCheck`.
+- **Růst paměti při marném dotazu na kameru → uzavřeno** (`hw-d435-query-pamet`, autor: od 6. 9.
+  se neopakovalo). Sérii selhání dnes ukončí supervizor zotavení po ~15 dotazech a T265 se od 26. 9.
+  nehledá. Vědomě ponechané riziko: po vzdání zotavení se kamera ptá dál 1×/s bez konce; backoff
+  ani paměť procesu v `PerfMsg` autor nechce.
+- **Hledání odpojené T265 → uzavřeno** (`hw-t265-odpojena-natrvalo`): T265 se od 26. 9. nezakládá.
+  Záznamy: hlášek o T265 bylo v jízdách 14.–25. 9. 128–1 198 na záznam, od binárky `8587ff65`
+  (27. a 29. 9.) nula.
+- **Hlášky ze startu runtime jsou v záznamu** (`nast-hlasky-startu-do-zaznamu` → hotovo): most
+  `Trace` → záznam se v `WireRun` zakládá a zapojuje hned za `WaitReady`, ne až po založení stupňů;
+  verze a konfigurace jdou první, řádky z drátování čekají ve frontě mostu. V headless simulaci je
+  v `.rec` všech 13 hlášek z drátování (mapa, počáteční póza, co se nezaložilo, brány koridoru,
+  `mission=freerun: …`), které dřív šly jen na konzoli. Nový test; testy Common (most) a Runtime
+  151 zelené, build OrangePI.
 
 ## 2026-09-29
 

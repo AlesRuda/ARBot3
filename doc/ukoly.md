@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **42** · v kódu, na HW neověřeno **37** · hotovo **141** · odloženo **14** · zamítnuto **6**.
+Témat celkem **240**: otevřeno **38** · v kódu, na HW neověřeno **37** · hotovo **145** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -19,7 +19,6 @@ Témat celkem **240**: otevřeno **42** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
-| otevřeno | Nástroje, záznam a analýza | [Hlášky ze startu runtime se do záznamu nedostanou](#nast-hlasky-startu-do-zaznamu) | 20. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný](#lok-ransac-nedeterministicky) | 23. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
@@ -27,8 +26,6 @@ Témat celkem **240**: otevřeno **42** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Nástroje, záznam a analýza | [Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](#nast-avalonia-headless-testy) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Měření výkonu řízení — stíhá řídicí smyčka svou periodu?](#prov-perf-monitoring) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Řídicí smyčka na Windows zamešká 3–4 takty za sekundu, ačkoli práce trvá pod 1 ms](#prov-zameskane-takty-windows) | 1. 9. 2026 | [prov-perf-monitoring](#prov-perf-monitoring) |
-| otevřeno | Hardware a senzory | [Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez vidění](#hw-kamery-usb2-po-bootu) | 2. 9. 2026 |  |
-| otevřeno | Hardware a senzory | [Když se kamera nedá znovu vyčíst, proces roste v paměti](#hw-d435-query-pamet) | 6. 9. 2026 | [hw-t265-odpojena-natrvalo](#hw-t265-odpojena-natrvalo) |
 | otevřeno | Hardware a senzory | [Akcelerometr VN100 měří o 7 % víc než g](#hw-vn100-akcelerometr-7pct) | 6. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou](#lok-gps-casova-korelace) | 6. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Vidění | [Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci](#vid-model96-2-na-npu) | 7. 9. 2026 |  |
@@ -37,7 +34,6 @@ Témat celkem **240**: otevřeno **42** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Vidění | [U Model96.2 chybí float checkpoint lepších vah, optimalizace je nevyužitelná](#vid-model96-float-checkpoint) | 9. 9. 2026 | [vid-trenink-nejde-zopakovat](#vid-trenink-nejde-zopakovat) |
 | otevřeno | Hardware a senzory | [Po kalibraci zbývá konstantní posun kurzu −3,7°, který nejde rozložit](#hw-kurz-zbytek-konstanta) | 12. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5](#lok-gps-kurz-korelovana-chyba) | 12. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
-| otevřeno | Hardware a senzory | [Odpojená T265: runtime ji dál hledá a zahlcuje journal](#hw-t265-odpojena-natrvalo) | 13. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Tvrdé záseky kamer na větvi USB `2-1.3`](#hw-vetev-usb-2-1-3) | 13. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
@@ -2161,32 +2157,6 @@ Při prvním běhu aplikace na Pi se pravá D435 po ~4600 s odmlčela; odpojená
 
 čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18)
 
-<a id="hw-kamery-usb2-po-bootu"></a>
-### ⬜ Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez vidění
-
-`hw-kamery-usb2-po-bootu` · vada · **otevřeno** · nalezeno 2. 9. 2026
-
-Obě D435 se po bootu hlásily jen rychlostí USB 2.0, na které se hloubka a barva nevejdou ani pro jednu kameru — robot tedy neviděl nic a kernel si nestěžoval. Odpojení a zapojení linku vrátilo na 5 Gbps. Domněnka o nedovřeném konektoru padla (autor s kabely nehýbal); jde o SuperSpeed linku, která se při bootu nenatrénuje. Série restartů na nabíječce dala 6× dobře, jediná stopa je napájení (selhání přišlo na dosluhující baterii). Od 11. 9. driver typ linky hlásí a na USB 2.0 varuje i s léčbou; měření na baterii se neudělalo.
-
-- [x] Fyzické přepojení kamer, ověřeno 30/30 fps (2. 9. 2026)
-- [x] Studený start a pět teplých restartů na nabíječce (6× dobře) (2. 9. 2026)
-- [x] Driver hlásí typ USB linky (`UsbLinkCheck`), varování na USB 2.0 (11. 9. 2026)
-- [ ] Zopakovat sérii startů na baterii bez nabíječky
-
-[hardware.md](hardware.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-11](devlog.md#2026-09-11)
-
-<a id="hw-d435-query-pamet"></a>
-### ⬜ Když se kamera nedá znovu vyčíst, proces roste v paměti
-
-`hw-d435-query-pamet` · vada · **otevřeno** · nalezeno 6. 9. 2026
-
-Po nasazení levá kamera nenaběhla a `QueryDevices` hlásil „failed to set power state" ~0,7× za sekundu; běh s 93 selháními vyšplhal na 1,8 GB proti 130–140 MB, tedy ~25 MB na jeden neúspěšný dotaz. Managed strana je v pořádku (vše v `using`), roste to na nativní straně, takže léčba není dozavírat, ale přestat se ptát každou sekundu. Restart služby kameru vrátil. 14. 9. runtime hledal odpojenou T265 ~1× za sekundu (7 829 řádků za 168 minut) — dotaz přes sdílený zámek jde dál, a 17. 9. se ukázalo, že hlášky marného dotazu tečou i do záznamu (140 s po zatuhnutí). Rozpor k přeměření: 14. 9. běh se 7 829 selháními T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď vázaný na zapojenou, ale zaseknutou D435 („failed to set power state"), nebo měl 6. 9. jinou příčinu.
-
-- [ ] Backoff dotazů `QueryDevices` po selhání
-- [ ] Změřit růst paměti při trvale selhávajícím dotazu (T265 chybí / D435 zaseknutá) a jestli končí pádem
-
-čeká na [hw-t265-odpojena-natrvalo](#hw-t265-odpojena-natrvalo) · [hardware.md](hardware.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17)
-
 <a id="hw-vn100-akcelerometr-7pct"></a>
 ### ⬜ Akcelerometr VN100 měří o 7 % víc než g
 
@@ -2211,18 +2181,6 @@ Po ověření kalibrace zůstal kurz VN100 proti GPS o −3,7° vedle. Není to 
 - [ ] Průjezd téhož úseku s robotem otočeným o 180°
 
 [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
-
-<a id="hw-t265-odpojena-natrvalo"></a>
-### ⬜ Odpojená T265: runtime ji dál hledá a zahlcuje journal
-
-`hw-t265-odpojena-natrvalo` · vada · **otevřeno** · nalezeno 13. 9. 2026
-
-T265 se 13. 9. rozbila tak, že se připojí, ale nedává pózu; softwarový reset selže a nepomůže ani restart služby, jen fyzické přepojení — a po něm se za 1,5 h zasekla znovu. Každé její marné zotavení přitom stahovalo kontextem i obě zdravé D435 a zastavovalo robota. Autor rozhodl kameru odpojit natrvalo (od 13. 9. večer na sběrnici není). Runtime ji ale dál hledá ~1×/s přes sdílený zámek RealSense a na každý pokus píše chybu do journalu (7 829 řádků za 168 min) — neškodí, ale zahlcuje; nezakládat ji, když není na sběrnici, zbývá. Profil ji vypnout neumí (žádný parametr, `ARBotHW` ji zakládá bezpodmínečně) a 17. 9. se ukázalo, že hledání teče i do záznamu, ne jen do journalu (po zatuhnutí runtime bylo vlákno T265 jediné živé, 140 s hlášek v `.rec`).
-
-- [x] T265 zapojena do zotavení kamer, per-kamera vzdání po třech marných pokusech (13. 9. 2026)
-- [ ] Nezakládat T265 v runtime, když není na sběrnici (hledání 1×/s přes sdílený zámek)
-
-[rozhodnutí 13. 9. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17)
 
 <a id="hw-vetev-usb-2-1-3"></a>
 ### ⬜ Tvrdé záseky kamer na větvi USB `2-1.3`
@@ -2452,6 +2410,20 @@ Při dořešení odmlčené pravé kamery z 31. 8. se našly dvě vady v driveru
 
 [hardware.md](hardware.md), [rozhodnutí 1. 9. 2026](decisions.md) · DevLog [2026-09-01](devlog.md#2026-09-01), [2026-09-13](devlog.md#2026-09-13)
 
+<a id="hw-kamery-usb2-po-bootu"></a>
+### ✅ Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez vidění
+
+`hw-kamery-usb2-po-bootu` · vada · **hotovo** · nalezeno 2. 9. 2026 · vyřešeno 30. 9. 2026
+
+Obě D435 se po bootu hlásily jen rychlostí USB 2.0, na které se hloubka a barva nevejdou ani pro jednu kameru — robot tedy neviděl nic a kernel si nestěžoval. Odpojení a zapojení linku vrátilo na 5 Gbps. Domněnka o nedovřeném konektoru padla (autor s kabely nehýbal); jde o SuperSpeed linku, která se při bootu nenatrénuje. Série restartů na nabíječce dala 6× dobře, jediná stopa je napájení (selhání přišlo na dosluhující baterii). Od 11. 9. driver typ linky hlásí a na USB 2.0 varuje i s léčbou; měření na baterii se neudělalo. ✅ **Uzavřeno 30. 9. 2026 (autor): od 2. 9. se to neopakovalo** — a série startů na baterii v principu proběhla při testech v terénu. Doloženo i záznamy: všech 27 jízd 12.–29. 9. nese snímky z OBOU kamer s hloubkou i barvou (vzorek ~200 snímků na záznam, 100 %; na USB 2.0 by D435 neposlala obojí), kde je připojení kamery v záznamu, driver hlásí `USB 3.2` (29×) a hláška o USB 2 není v žádném. Příčina neurčena; kdyby se vrátilo, ohlásí to `UsbLinkCheck`.
+
+- [x] Fyzické přepojení kamer, ověřeno 30/30 fps (2. 9. 2026)
+- [x] Studený start a pět teplých restartů na nabíječce (6× dobře) (2. 9. 2026)
+- [x] Driver hlásí typ USB linky (`UsbLinkCheck`), varování na USB 2.0 (11. 9. 2026)
+- [x] Zopakovat sérii startů na baterii bez nabíječky — v principu proběhla při testech v terénu (autor 30. 9.: starty na baterii 12.–29. 9.), vada se od 2. 9. neopakovala, záznamy všechny na USB 3.2 (30. 9. 2026)
+
+[hardware.md](hardware.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-11](devlog.md#2026-09-11), [2026-09-30](devlog.md#2026-09-30)
+
 <a id="hw-realsense-jeden-kontext"></a>
 ### ✅ Tři drivery se třemi kontexty RealSense bootovaly T265 naráz a shodily proces
 
@@ -2464,6 +2436,18 @@ První pád rozebraný z minidumpu: SIGSEGV v librealsense při bootu firmwaru T
 - [x] Nasazeno a běží na Pi (3. 9. 2026)
 
 [hardware.md](hardware.md) · DevLog [2026-09-03](devlog.md#2026-09-03), [2026-09-13](devlog.md#2026-09-13)
+
+<a id="hw-d435-query-pamet"></a>
+### ✅ Když se kamera nedá znovu vyčíst, proces roste v paměti
+
+`hw-d435-query-pamet` · vada · **hotovo** · nalezeno 6. 9. 2026 · vyřešeno 30. 9. 2026
+
+Po nasazení levá kamera nenaběhla a `QueryDevices` hlásil „failed to set power state" ~0,7× za sekundu; běh s 93 selháními vyšplhal na 1,8 GB proti 130–140 MB, tedy ~25 MB na jeden neúspěšný dotaz. Managed strana je v pořádku (vše v `using`), roste to na nativní straně, takže léčba není dozavírat, ale přestat se ptát každou sekundu. Restart služby kameru vrátil. 14. 9. runtime hledal odpojenou T265 ~1× za sekundu (7 829 řádků za 168 minut) — dotaz přes sdílený zámek jde dál, a 17. 9. se ukázalo, že hlášky marného dotazu tečou i do záznamu (140 s po zatuhnutí). Rozpor k přeměření: 14. 9. běh se 7 829 selháními T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď vázaný na zapojenou, ale zaseknutou D435 („failed to set power state"), nebo měl 6. 9. jinou příčinu. ✅ **Uzavřeno 30. 9. 2026 (autor): od 6. 9. se neopakovalo a driver dnes vypadá jinak.** Supervizor zotavení (od 13. 9.) vymění RealSense kontext po 15 marných dotazech, takže série selhání končí po ~15 s místo 93 dotazů (všechny pozorované epizody se vrátily, naposledy 29. 9. za 29 s), a od 26. 9. se nehledá odpojená T265. ⚠️ **Zbytkové riziko vědomě ponecháno:** když zotavení u kamery vzdá (3× marně za 15 min), `D435Camera` se ptá dál každou sekundu bez konce (`ReconnectPeriodMs`) — kdyby růst ~25 MB na dotaz platil, je to scénář z 6. 9. Backoff ani paměť procesu v `PerfMsg` autor nechce (30. 9.); růst paměti ze záznamu změřit nejde.
+
+- [x] Backoff dotazů `QueryDevices` po selhání — nahrazeno supervizorem zotavení kamer (13. 9.), backoff po vzdání zotavení autor 30. 9. nechce (30. 9. 2026)
+- [x] Změřit růst paměti při trvale selhávajícím dotazu (T265 chybí / D435 zaseknutá) a jestli končí pádem — nedělá se (autor 30. 9.): od 6. 9. se neopakovalo, T265 se od 26. 9. nehledá (30. 9. 2026)
+
+[hardware.md](hardware.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="hw-d435-zamrzly-stream"></a>
 ### ✅ Pravá D435 posílala pořád tentýž barevný snímek a nikdo to nepoznal
@@ -2575,6 +2559,18 @@ Registr 54, který ICD uvádí jako nekompenzovaná měření, se na našem senz
 
 [rozhodnutí 12. 9. 2026](decisions.md), [imu-and-frames.md](imu-and-frames.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md) · DevLog [2026-09-11](devlog.md#2026-09-11), [2026-09-12](devlog.md#2026-09-12), [2026-09-17](devlog.md#2026-09-17), [2026-09-28](devlog.md#2026-09-28)
 
+<a id="hw-t265-odpojena-natrvalo"></a>
+### ✅ Odpojená T265: runtime ji dál hledá a zahlcuje journal
+
+`hw-t265-odpojena-natrvalo` · vada · **hotovo** · nalezeno 13. 9. 2026 · vyřešeno 30. 9. 2026
+
+T265 se 13. 9. rozbila tak, že se připojí, ale nedává pózu; softwarový reset selže a nepomůže ani restart služby, jen fyzické přepojení — a po něm se za 1,5 h zasekla znovu. Každé její marné zotavení přitom stahovalo kontextem i obě zdravé D435 a zastavovalo robota. Autor rozhodl kameru odpojit natrvalo (od 13. 9. večer na sběrnici není). Runtime ji ale dál hledá ~1×/s přes sdílený zámek RealSense a na každý pokus píše chybu do journalu (7 829 řádků za 168 min) — neškodí, ale zahlcuje; nezakládat ji, když není na sběrnici, zbývá. Profil ji vypnout neumí (žádný parametr, `ARBotHW` ji zakládá bezpodmínečně) a 17. 9. se ukázalo, že hledání teče i do záznamu, ne jen do journalu (po zatuhnutí runtime bylo vlákno T265 jediné živé, 140 s hlášek v `.rec`). ✅ **Vyřešeno 26. 9. 2026, uzavřeno 30. 9. (autor):** T265 se v `ARBotHW` nezakládá vůbec (zakomentováno s odůvodněním, `hw-d435-vlakno-zatuhlo-po-restartu`). Ověřeno záznamy: hlášek o T265 bylo v jízdách 14.–25. 9. 128–1 198 na záznam, od binárky `8587ff65` (jízdy 27. a 29. 9.) **nula**.
+
+- [x] T265 zapojena do zotavení kamer, per-kamera vzdání po třech marných pokusech (13. 9. 2026)
+- [x] Nezakládat T265 v runtime, když není na sběrnici (hledání 1×/s přes sdílený zámek) — T265 se od 26. 9. nezakládá vůbec; v záznamech 27. a 29. 9. žádná hláška o T265 (26. 9. 2026)
+
+[rozhodnutí 13. 9. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-17](devlog.md#2026-09-17), [2026-09-26](devlog.md#2026-09-26), [2026-09-30](devlog.md#2026-09-30)
+
 <a id="hw-zelezo-od-kabelu-kamer"></a>
 ### ✅ Kalibrace magnetometru přestala účinkovat — přibylo železo od kabelů ke kamerám
 
@@ -2630,19 +2626,6 @@ Mise `magcal` si registr 23 (kompenzace magnetometru) na dobu sběru vymaže v R
 [rozhodnutí 28. 9. 2026](decisions.md), [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-28](devlog.md#2026-09-28)
 
 ## Nástroje, záznam a analýza
-
-<a id="nast-hlasky-startu-do-zaznamu"></a>
-### ⬜ Hlášky ze startu runtime se do záznamu nedostanou
-
-`nast-hlasky-startu-do-zaznamu` · vada · **otevřeno** · nalezeno 20. 8. 2026
-
-Most `Trace` → záznam se připojuje až na konci drátování, takže hlášky o načtení mapy, počáteční póze nebo o tom, proč se nějaký stupeň nezaložil, jdou jen do debug outputu. U záznamu z terénu se tak nedá přečíst, proč něco nevzniklo. Účinná konfigurace se od 5. 9. po připojení mostu zopakuje a přibyl příkaz `ARBot.Analyze log`, ale trasovací hlášky z drátování zůstávají mimo (znovu nalezeno 15. 9.). Nejnověji chyběl řádek „corridor=false: hranová lokalizace se nezakládá“ — v journalu byl, v `.rec` ne.
-
-- [x] Konfigurace a verze se po připojení mostu zopakují do záznamu (5. 9. 2026)
-- [x] `ARBot.Analyze log` — textový log ze záznamu (5. 9. 2026)
-- [ ] Připojit most dřív nebo hlášky z drátování pufrovat
-
-[record-replay.md](record-replay.md), [headless.md](headless.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-09-05](devlog.md#2026-09-05), [2026-09-15](devlog.md#2026-09-15)
 
 <a id="nast-avalonia-headless-testy"></a>
 ### ⬜ Headless testy UI v Avalonii — ověřeno spikem, nezavedeno
@@ -2919,6 +2902,19 @@ Virtuální kamera renderovala z odhadu fúze, takže chyba odhadu posunula i ob
 - [x] `visionmap=` — druhá mapa pro kamery, vrstva Mapa (vize) ve World pohledu (21. 8. 2026)
 
 [virtual-hw.md](virtual-hw.md), [rozhodnutí 22. 8. 2026](decisions.md), [SimulatedRobot.cs](../Src/ARBot.Common/Simulation/SimulatedRobot.cs), [GroundTruthMsg.cs](../Src/ARBot.Common/Logs/GroundTruthMsg.cs) · DevLog [2026-08-19](devlog.md#2026-08-19), [2026-08-20](devlog.md#2026-08-20), [2026-08-21](devlog.md#2026-08-21), [2026-08-22](devlog.md#2026-08-22), [2026-08-24](devlog.md#2026-08-24), [2026-08-31](devlog.md#2026-08-31)
+
+<a id="nast-hlasky-startu-do-zaznamu"></a>
+### ✅ Hlášky ze startu runtime se do záznamu nedostanou
+
+`nast-hlasky-startu-do-zaznamu` · vada · **hotovo** · nalezeno 20. 8. 2026 · vyřešeno 30. 9. 2026
+
+Most `Trace` → záznam se připojuje až na konci drátování, takže hlášky o načtení mapy, počáteční póze nebo o tom, proč se nějaký stupeň nezaložil, jdou jen do debug outputu. U záznamu z terénu se tak nedá přečíst, proč něco nevzniklo. Účinná konfigurace se od 5. 9. po připojení mostu zopakuje a přibyl příkaz `ARBot.Analyze log`, ale trasovací hlášky z drátování zůstávají mimo (znovu nalezeno 15. 9.). Nejnověji chyběl řádek „corridor=false: hranová lokalizace se nezakládá“ — v journalu byl, v `.rec` ne. Ještě 29. 9. chyběly v `.rec` třeba „mission=track: … nastartovana“ nebo načtení mapy. ✅ **Opraveno 30. 9. 2026:** most se založí a zapojí do `Trace` na začátku `WireRun` (hned za `WaitReady`), verze a konfigurace jdou jako první a řádky z drátování čekají ve frontě mostu, dokud se se stupni nespustí. Ověřeno v headless simulaci: záznam nese všech 13 hlášek, které dřív šly jen na konzoli. Mimo záznam zůstává jen to, co je před `Start` (výpis `RuntimeBootstrap`, hlavička headless, čekání na HW).
+
+- [x] Konfigurace a verze se po připojení mostu zopakují do záznamu (5. 9. 2026)
+- [x] `ARBot.Analyze log` — textový log ze záznamu (5. 9. 2026)
+- [x] Připojit most dřív nebo hlášky z drátování pufrovat — most se zapojí na začátku `WireRun`, řádky čekají v jeho frontě; test `RadkyPredStartem_OdejdouPoStartu`, ověřeno v headless simulaci (30. 9. 2026)
+
+[record-replay.md](record-replay.md), [headless.md](headless.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-09-05](devlog.md#2026-09-05), [2026-09-15](devlog.md#2026-09-15), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="nast-cesty-relativne-ke-korenu-repa"></a>
 ### ✅ Cesty k mapám byly absolutní a vázané na jeden stroj

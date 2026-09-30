@@ -68,6 +68,48 @@ namespace ARBot.Common.Tests.Diagnostics
         /// z korelace s mapou (stara o celou dobu vypoctu) je to rozdil mezi "funkce jede"
         /// a "funkce nedela nic". Viz doc/map-correlation-localization.md.
         /// </summary>
+        /// <summary>
+        /// Radky zapsane <b>pred</b> startem mostu a pred pripojenim jeho vystupu se neztrati —
+        /// pockaji ve fronte a odejdou po startu, v poradi. Na tom od 30. 9. 2026 stoji to, ze
+        /// hlasky z dratovani runtime (mapa, pocatecni poza, proc se stupen nezalozil) jsou
+        /// v zaznamu: most se zapoji do Trace na zacatku dratovani, ale spusti se az se stupni.
+        /// </summary>
+        [Test]
+        public void RadkyPredStartem_OdejdouPoStartu()
+        {
+            var bridge = new TraceInfoBridge(clock: () => T0);
+            var received = new List<Info>();
+            var sink = new DelegateTarget(m => { if (m is Info i) lock (received) received.Add(i); });
+            try
+            {
+                bridge.Attach();
+                Trace.WriteLine("dratovani 1");
+                Trace.WriteLine("dratovani 2");
+
+                sink.Start();
+                bridge.Output.Connect(sink);
+                bridge.Start();
+
+                var end = Environment.TickCount64 + 2000;
+                while (Environment.TickCount64 < end)
+                {
+                    lock (received) if (received.Count >= 2) break;
+                    Thread.Sleep(5);
+                }
+                lock (received)
+                {
+                    var moje = received.FindAll(i => i.Message.StartsWith("dratovani"));
+                    Assert.That(moje.ConvertAll(i => i.Message), Is.EqualTo(new[] { "dratovani 1", "dratovani 2" }));
+                }
+            }
+            finally
+            {
+                bridge.Detach();
+                bridge.Stop();
+                sink.Stop();
+            }
+        }
+
         [Test]
         public void ZahozeneMerenieVeFuzi_DorazidoProudu()
         {
