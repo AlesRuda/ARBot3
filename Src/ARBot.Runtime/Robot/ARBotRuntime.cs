@@ -763,13 +763,19 @@ namespace ARBot.Robot
                 // Nejmensi pocet inlieru, aby hranice platila. Stejny duvod jako u corridortol:
                 // je to nejvetsi ztratova brana prolozeni a vychozi hodnota je naladena na
                 // starsim zaznamu odjinud, takze musi jit PROMERIT, ne hadat.
-                int minInliers = (int)Math.Round(ParamRegistry.CorridorMinInliers.Value);
-                if (minInliers != corridorCfg.Corridor.MinInliers)
-                {
-                    Trace.WriteLine($"corridormininliers={minInliers}: prah inlieru hranice "
-                                    + $"(vychozi {corridorCfg.Corridor.MinInliers}).");
-                    corridorCfg.Corridor.MinInliers = minInliers;
-                }
+                //
+                // Od 30. 9. 2026 v PROCENTECH RADKU pravdepodobnostniho obrazu (corridorinliers=,
+                // corridorsingleinliers=), ne v bodech: hranice davaji jednu dvojici hran na radek,
+                // takze pevny pocet byl vazany na rozliseni (sit 128x128 ~4x mene bodu nez plny
+                // snimek). Viz CorridorConfig.MinInliersPercent a ARBot.Analyze probres.
+                corridorCfg.Corridor.MinInliersPercent = ParamRegistry.CorridorInliers.Value;
+                corridorCfg.Corridor.SingleEdgeMinInliersPercent = ParamRegistry.CorridorSingleInliers.Value;
+                Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "corridorinliers={0} %, corridorsingleinliers={1} % radku pravdepodobnostniho obrazu "
+                    + "(sit 128 radku: {2} / {3} bodu, plny snimek 480: {4} / {5}).",
+                    corridorCfg.Corridor.MinInliersPercent, corridorCfg.Corridor.SingleEdgeMinInliersPercent,
+                    corridorCfg.Corridor.EffectiveMinInliers(128), corridorCfg.Corridor.EffectiveSingleEdgeMinInliers(128),
+                    corridorCfg.Corridor.EffectiveMinInliers(480), corridorCfg.Corridor.EffectiveSingleEdgeMinInliers(480)));
 
                 // Merenie z JEDNE hrany (corridorsingle= / corridorsinglewidthstd=): na siroke
                 // ceste oboustranny koridor nevznika (Modrany 23. 9. 2026: ani jedno merenie).

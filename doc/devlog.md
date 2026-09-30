@@ -39,6 +39,18 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-30
+
+- **Brána inlierů koridoru v procentech řádků** (`vid-segmentace-rozliseni-128` → v kódu, rozhodnutí
+  autora): `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % řádků pravděpodobnostního
+  obrazu (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, profil
+  `pi-provoz.cfg` přepsán. `CorridorFinder.Find(…, probRows)` a `CorridorSource` bere výšku ze
+  snímku; bez ní (testy, offline reporty) platí absolutních 25. `probres` má blok s procentní
+  branou: histogram na plném a zmenšeném snímku teď dává totéž, síť v Modřanech 29. 9. Ok
+  1,6 → 14,8 % a 0,4 → 7,2 % (25. 9. 29,6 → 56,5 %), na Hviezdoslavově ~24 → ~29 %. Simulace (FreeRun 75 s v headless,
+  brána 48 bodů) netrpí: 96,5 % Ok proti 95,5 %. 6 nových testů; testy 1 725 / 151 / 129, build
+  x64 i OrangePI. ⚠️ Na zařízení neběželo. **Rozhodnutí:** [decisions.md](decisions.md), 30. 9. 2026.
+
 ## 2026-09-29
 
 - **Zamítnuto `nav-uzavreni-hran-pres-restart`** (autor): každý běh jede s čistou mapou, uzavřené
@@ -173,6 +185,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   runtime. 3 nové testy; testy Runtime 151, Common 1 719, build OrangePI. Obě cesty ověřené
   v headless (`virtualhw=true`, `map=OSM/Hviezdoslavova.osm`, `web=`) včetně vykreslení stránky.
   Ověření na Pi není potřeba (autor: stačí počítač). Detail: [track-mission.md](track-mission.md).
+- **Dopad 128×128 na hranice cesty a grid změřen** (`vid-segmentace-rozliseni-128`, nový
+  `ARBot.Analyze probres`): tentýž histogram na plném a zmenšeném snímku + síť ze záznamu, stejnou
+  cestou `FindPathEdge` → `ColorPixelTo3D` → `CorridorFinder`; kontrola měřidla proti zapsaným
+  hranám 0,000 (1,4 mil. bodů). Bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí
+  pevná brána `corridormininliers=20`, ne kvalita bodů**: Modřany 29. 9. Ok 43 / 21 % na plném
+  snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky (5) se histogram
+  vrátí na úroveň plného snímku a síť dá 33 / 27 %. Na úzké Hviezdoslavově brána skoro nevadí.
+  Přesnost z řidších bodů skoro netrpí (šířka 4–9 cm, příčně 2–4 cm, směr 0,4–0,7° p50). Grid:
+  jeden řádek 128×128 ve 3–5 m pokrývá až ~5 buněk 5 cm. O bráně rozhodne autor (krok v registru).
+  Detail: [semantic-segmentation.md](semantic-segmentation.md).
 
 ## 2026-09-28
 

@@ -40,8 +40,16 @@ namespace ARBot.Common.Localization
         /// Koridor z hranicnich bodu v ramci robotu. Vzdy vraci vysledek - kdyz koridor nevznikl,
         /// je duvod v <see cref="RoadCorridor.Reason"/>.
         /// </summary>
-        public RoadCorridor Find(IReadOnlyList<Point2D> leftPoints, IReadOnlyList<Point2D> rightPoints)
+        /// <param name="probRows">Vyska pravdepodobnostniho obrazu, ze ktereho hranice vzesly
+        /// (jedna dvojice hran na radek). Brany v poctu inlieru se podle ni preskaluji
+        /// (<see cref="CorridorConfig.MinInliersPercent"/>); 0 = neznama, plati absolutni
+        /// <see cref="CorridorConfig.MinInliers"/> / <see cref="CorridorConfig.SingleEdgeMinInliers"/>.</param>
+        public RoadCorridor Find(IReadOnlyList<Point2D> leftPoints, IReadOnlyList<Point2D> rightPoints,
+                                 int probRows = 0)
         {
+            int minInliers = cfg.EffectiveMinInliers(probRows);
+            int singleMinInliers = cfg.EffectiveSingleEdgeMinInliers(probRows);
+
             var r = new RoadCorridor
             {
                 PointsLeft = leftPoints?.Count ?? 0,
@@ -81,19 +89,19 @@ namespace ARBot.Common.Localization
             if (oneSide)
             {
                 r.Reason = CorridorReason.OneSideOnly;
-                TrySingleEdge(r, left, right, leftPoints, rightPoints);
+                TrySingleEdge(r, left, right, leftPoints, rightPoints, minInliers, singleMinInliers);
                 return r;
             }
             if (left.line == null || right.line == null)
             {
                 r.Reason = CorridorReason.TooFewPoints;
-                TrySingleEdge(r, left, right, leftPoints, rightPoints);
+                TrySingleEdge(r, left, right, leftPoints, rightPoints, minInliers, singleMinInliers);
                 return r;
             }
-            if (left.inliers < cfg.MinInliers || right.inliers < cfg.MinInliers)
+            if (left.inliers < minInliers || right.inliers < minInliers)
             {
                 r.Reason = CorridorReason.TooFewInliers;
-                TrySingleEdge(r, left, right, leftPoints, rightPoints);
+                TrySingleEdge(r, left, right, leftPoints, rightPoints, minInliers, singleMinInliers);
                 return r;
             }
 
@@ -159,14 +167,15 @@ namespace ARBot.Common.Localization
         private void TrySingleEdge(RoadCorridor r,
                                    (Line2D line, int inliers, double rms, Point2D from, Point2D to) left,
                                    (Line2D line, int inliers, double rms, Point2D from, Point2D to) right,
-                                   IReadOnlyList<Point2D> leftPoints, IReadOnlyList<Point2D> rightPoints)
+                                   IReadOnlyList<Point2D> leftPoints, IReadOnlyList<Point2D> rightPoints,
+                                   int minInliers, int singleMinInliers)
         {
             if (!cfg.SingleEdge) return;
 
-            bool leftGood = left.line != null && left.inliers >= cfg.SingleEdgeMinInliers;
-            bool rightGood = right.line != null && right.inliers >= cfg.SingleEdgeMinInliers;
-            bool leftWeak = left.line == null || left.inliers < cfg.MinInliers;
-            bool rightWeak = right.line == null || right.inliers < cfg.MinInliers;
+            bool leftGood = left.line != null && left.inliers >= singleMinInliers;
+            bool rightGood = right.line != null && right.inliers >= singleMinInliers;
+            bool leftWeak = left.line == null || left.inliers < minInliers;
+            bool rightWeak = right.line == null || right.inliers < minInliers;
 
             // Obe dobre (jde jen pri SingleEdgeMinInliers < MinInliers): neni jak rozhodnout,
             // ktera plati.

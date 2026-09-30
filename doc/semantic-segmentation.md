@@ -338,6 +338,44 @@ odpovídá zhruba 5×4 px původního snímku. Co to udělá s přesností hrani
 
 Navíc se snímek 640×480 zmenšuje na čtvercových 128×128, tedy **s deformací poměru stran**.
 
+✅ **Změřeno 29. 9. 2026 nad pěti záznamy** (`ARBot.Analyze probres`): tentýž histogram na plném
+snímku a na snímku zmenšeném jako vstup sítě, třetí sloupec síť ze záznamu; všechny projdou toutéž
+cestou `FindPathEdge` → `ColorPixelTo3D` → párování kamer → `CorridorFinder`. Kontrola měřidla:
+hrany přepočtené z uloženého obrazu sítě sedí s tím, co zapsal robot, **na 0,000** (1,4 mil. bodů).
+
+- **Hranice cesty: bodů je ~4× méně** (jedna dvojice hran na řádek, 128 místo 480 řádků) — a
+  **oboustranný koridor propadá kvůli pevné bráně `corridormininliers`, ne kvůli horším bodům**.
+  Ok při bráně 20 (provozní profil):
+
+  | záznam | hist 640×480 | hist 128×128 | síť (záznam) | hist 128, brána 5 | síť, brána 5 |
+  |---|---|---|---|---|---|
+  | 18. 9. Track Hviezdoslavova | 26,5 % | 24,7 % | 25,0 % | 26,8 % | 31,6 % |
+  | 25. 9. FreeRun Modřany | 58,2 % | 31,3 % | 29,6 % | 57,6 % | 75,0 % |
+  | 27. 9. Track Hviezdoslavova | 22,0 % | 16,6 % | 23,7 % | 21,5 % | 30,5 % |
+  | 29. 9. Track Modřany | 43,0 % | 4,8 % | **1,6 %** | 41,6 % | 33,1 % |
+  | 29. 9. FreeRun Modřany | 20,6 % | 3,8 % | **0,4 %** | 20,8 % | 26,5 % |
+
+  Brána přepočtená na počet řádků (20 × 128/480 = 5) vrátí histogram 128×128 na úroveň plného
+  snímku ve všech pěti záznamech. Na úzké cestě (Hviezdoslavova, inlierů p50 36–54) brána 20 nevadí,
+  na široké cyklostezce (Modřany, hrana daleko, inlierů p50 13–25) zabije oboustranný koridor téměř
+  celý — to je velká část toho, proč tam „koridor nevznikal". Sedí to i s nálezem z 26. 9.
+  (brána 25 → 20: 2,7 → 28 % nad `20260925-144658.rec`; replay dává síti 29,6 %).
+- **Přesnost z menšího počtu bodů skoro netrpí:** v cyklech, kde projde plný histogram (brána 20)
+  i zmenšený (brána 5), se liší šířka p50 4–9 cm, příčná poloha 2–4 cm, směr 0,4–0,7° (p90
+  0,15–0,42 m / 0,08–0,21 m / 1,6–2,8°); rezidua stejná. ⚠️ Nižší brána zvedne i podíl
+  `NotParallel` — to jsou cykly, které by jinak skončily na `TooFewInliers`, brána je tedy zahodí
+  později, ne vůbec. Kvalita cyklů, které projdou JEN s nižší branou, změřená není.
+- **Grid:** jeden řádek 128×128 pokrývá po zemi (medián vzdálenosti po řádcích přes snímky)
+  ve 2–3 m 0,05–0,07 m, **ve 3–4 m 0,06–0,15 m, ve 4–5 m 0,18–0,24 m** na široké cestě v Modřanech
+  (na Hviezdoslavově ve 4–5 m 0,03–0,12 m — tam je v té dálce už málo země), tedy **až ~5 buněk
+  5 cm za sebou dostane tentýž pixel**; plný snímek je ~4× jemnější. Příčně
+  0,03 m ve 4 m. Zápis do gridu je jeden vzorek na buňku, takže hustota zápisu se nemění, jen
+  prostorové rozlišení sémantiky v dálce. Nad 5 m je měřidlo nespolehlivé (málo platné hloubky).
+- **Co z toho plyne:** brána v počtu bodů je vázaná na rozlišení pravděpodobnostního obrazu.
+  ✅ **Rozhodnutí autora 30. 9. 2026: brána v procentech řádků** — `corridorinliers=` a nový
+  `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48); viz
+  [map-correlation-localization.md](map-correlation-localization.md).
+
 ⚠️ **Neopravovat — je to replika tréninku, ne nedbalost.** Notebook zmenšuje celý snímek
 z kamery na `shape=(128, 128)`, tedy dělá **tentýž squash 4:3 → 1:1**. Vstup 160×128 „se
 správným poměrem stran" by modelu vnutil geometrii, jakou nikdy neviděl. Ze stejného důvodu
@@ -912,9 +950,9 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   čistší obraz cesty, na zarostlé ploše je nerozhodná, a bez ground truth k **našim** záznamům je to
   jen rozpor dvou metod.
 - **[Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](ukoly.md#vid-segmentace-rozliseni-128)** —
-  dopad menšího rozlišení na hranice cesty a occupancy grid není naměřený; **není to věc
-  konfigurace** — vyšší rozlišení vstupu znamená přetrénování, viz
-  [Síť mění rozlišení](#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
+  změřeno 29. 9. 2026 (`probres`): oboustranný koridor na široké cestě zabíjí pevná brána
+  v počtu bodů, ne kvalita bodů; zbývá rozhodnout o bráně. Vyšší rozlišení vstupu **není věc
+  konfigurace** (přetrénování), viz [Síť mění rozlišení](#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
 - **[Polovina výpočtu segmentační sítě byla zbytečná](ukoly.md#vid-model-optimalizace-grafu)** —
   optimalizovaný graf prošel měřidlem v repu (report je **shodný znak po znaku** se zdrojovým
   modelem, čas −33 % u Model61.1 a −39 % u Model96.2), soubory jsou v `models/` a `nnmodel=` má nový

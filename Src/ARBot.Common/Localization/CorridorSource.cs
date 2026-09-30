@@ -104,6 +104,10 @@ namespace ARBot.Common.Localization
 
             var (left, right) = MetricPoints(frame.PathEdges);
             string cam = frame.Name ?? string.Empty;
+            // Vyska pravdepodobnostniho obrazu, ze ktereho hranice vzesly (jedna dvojice hran na
+            // radek): brany v poctu inlieru se podle ni preskaluji (CorridorConfig.MinInliersPercent).
+            // Obe kamery maji tentyz prevod, takze staci tenhle snimek.
+            int probRows = frame.ImageProbability?.Height ?? 0;
             lastByCamera[cam] = (frame.TimeStamp, left, right);
 
             // Poza k casu snimku se vyzvedne HNED a jen jednou. Pouziva ji kompenzace pohybu,
@@ -123,7 +127,7 @@ namespace ARBot.Common.Localization
                 // jedna hrana pouzitelna; jinak zustava NoPair bez koridoru jako drive.
                 if (config.Corridor.SingleEdge)
                 {
-                    var single = finder.Find(left, right);
+                    var single = finder.Find(left, right, probRows);
                     if (!single.Ok && single.HasSingleEdge && SingleEdgeOnCorrectSide(single))
                     {
                         noPair.Corridor = single;
@@ -161,7 +165,7 @@ namespace ARBot.Common.Localization
             var leftPts = left.Count >= otherLeft.Count ? left : otherLeft;
             var rightPts = right.Count >= otherRight.Count ? right : otherRight;
 
-            var corridor = finder.Find(leftPts, rightPts);
+            var corridor = finder.Find(leftPts, rightPts, probRows);
             var result = new Result { Time = frame.TimeStamp, Pose = pose, Corridor = corridor };
 
             if (!corridor.Ok)

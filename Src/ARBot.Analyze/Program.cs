@@ -98,6 +98,13 @@ namespace ARBot.Analyze
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
+                    case "probres":
+                        // --mininliers = PEVNA brana pro srovnani (do 29. 9. 2026 profil 20),
+                        // --inliers = brana v % radku jako runtime (corridorinliers=, vychozi z CorridorConfig).
+                        ProbResolutionReport.Run(rec, (int)Arg(args, "--limit", 0), (int)Arg(args, "--skip", 0),
+                                                 (int)Arg(args, "--size", 128), (int)Arg(args, "--mininliers", 20),
+                                                 Arg(args, "--inliers", new ARBot.Common.Localization.CorridorConfig().MinInliersPercent));
+                        return 0;
                     case "wedge":
                         WedgeReport.Run(rec, (int)Arg(args, "--limit", 300),
                                         Arg(args, "--wedgefill",
@@ -319,6 +326,9 @@ namespace ARBot.Analyze
             Console.WriteLine("             magnetickeho pole (|B|, sklon, kurz z pole)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
+            Console.WriteLine("  probres    dopad rozliseni pravdepodobnosti (sit 128x128 vs plny snimek) na hranice");
+            Console.WriteLine("             cesty, koridor a grid: tyz histogram na plnem a zmensenem snimku + sit");
+            Console.WriteLine("             ze zaznamu (--size=128, --mininliers=20, --inliers=10, --limit=, --skip=)");
             Console.WriteLine("  wedge      je pred robotem KLIN bez semantiky? (zorna pole barvy se ve smeru");
             Console.WriteLine("             jizdy nemusi prekryvat) - rozpad Unknown podle priciny a podle");
             Console.WriteLine("             azimutu v telesovem ramci + o kolik by kvuli tomu klinu prisla");

@@ -358,16 +358,21 @@ namespace ARBot.Common.Configuration
               ParamParsers.Pair("konstanta,prirustekNaMetr", minA: 0, minB: 0, aStrict: true), K_FUZE,
               "Prah inlieru RANSACu ve tvaru 'konstanta,prirustekNaMetr' [m]. Vzdalena hranice "
               + "je radove nejistejsi nez blizka, takze jeden prah pro vsechny body je spatne.");
-        public static readonly DoubleParam CorridorMinInliers =
-              Num("corridormininliers", Fmt(new ARBot.Common.Localization.CorridorConfig().MinInliers), K_FUZE,
-              "Nejmensi pocet inlieru RANSACu, aby hranice cesty platila. Je to NEJVETSI ztratova "
-              + "brana prolozeni koridoru (17. 9. 2026 zahodila 3 987 z 6 173 cyklu) a vychozi 25 "
-              + "je naladenych na starsim zaznamu odjinud. Zmereno ze zaznamu: prah 20 da o 27 % "
-              + "vic koridoru A ZAROVEN mensi podil nesmyslne sirky nez 25 (1,7 proti 2,0 %), "
-              + "tedy ta zavislost je NEMONOTONNI a prah tu vadu neridi. Parametr je tu proto, "
-              + "aby se to dalo promerit A/B na zarizeni, ne hadat. Viz ARBot.Analyze corridor, "
-              + "blok PRAH INLIERU.",
-              ParamParsers.CorridorMinInliers);
+        public static readonly DoubleParam CorridorInliers =
+              Num("corridorinliers", Fmt(new ARBot.Common.Localization.CorridorConfig().MinInliersPercent), K_FUZE,
+              "Nejmensi pocet inlieru RANSACu, aby hranice cesty platila (oboustranny koridor), "
+              + "v PROCENTECH RADKU pravdepodobnostniho obrazu: hranice davaji jednu dvojici hran "
+              + "na radek, takze sit 128x128 da ~4x mene bodu nez histogram 640x480 a pevny pocet "
+              + "by byl vazany na rozliseni (29. 9. 2026: pevnych 20 zabilo koridor v Modranech "
+              + "skoro cely). 10 % = sit 13 bodu, plny snimek 48. Ucinne nejmene 3 body. "
+              + "0 = pevnych 25 bodu (chovani s absolutni branou). Viz ARBot.Analyze probres.",
+              ParamParsers.CorridorInliersPercent);
+        public static readonly DoubleParam CorridorSingleInliers =
+              Num("corridorsingleinliers", Fmt(new ARBot.Common.Localization.CorridorConfig().SingleEdgeMinInliersPercent), K_FUZE,
+              "Totez jako corridorinliers= pro merenie z JEDNE hrany: nejmensi pocet inlieru jedine "
+              + "hrany v procentech radku pravdepodobnostniho obrazu. Preskaluje se stejne "
+              + "(rozhodnuti autora 30. 9. 2026); do te doby pevnych 25 bodu. 0 = pevnych 25 bodu.",
+              ParamParsers.CorridorInliersPercent);
         // --- Merenie z JEDNE hrany (24. 9. 2026) ----------------------------------------------
         //
         // Na siroke cyklostezce v Modranech (23. 9. 2026) nedal oboustranny koridor ze 4 zaznamu

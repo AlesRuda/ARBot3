@@ -279,18 +279,18 @@ namespace ARBot.Common.Configuration
                                           + "(pro 2 stupne volnosti je 5,99 = 95 %, 9,21 = 99 %)");
 
         /// <summary>
-        /// Nejmensi pocet inlieru RANSACu, aby hranice platila: 3 az 500.
-        ///
-        /// <para>Spodni mez je 3 zamerne: dvema body jde primku prolozit vzdy, takze
-        /// <c>MinInliers = 2</c> by branu fakticky vypnulo a do statistiky by se dostaly prave ty
-        /// primky kolme na cestu, proti kterym prah vznikl.</para>
+        /// Brana inlieru koridoru v procentech radku pravdepodobnostniho obrazu: 0 az 100
+        /// (0 = absolutni brana 25 bodu). Ucinny pocet ma podlahu 3 bodu v kodu
+        /// (<c>CorridorConfig.MinInliersFloor</c>): dvema body jde primku prolozit vzdy, takze
+        /// mensi brana by ji fakticky vypnula a do statistiky by se dostaly prave primky kolme
+        /// na cestu, proti kterym vznikla.
         /// </summary>
-        public static ParamParseResult CorridorMinInliers(string text)
-            => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)
-               && v >= 3 && v <= 500
+        public static ParamParseResult CorridorInliersPercent(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 100
                ? ParamParseResult.Valid()
-               : ParamParseResult.Invalid("cekam pocet inlieru: cele cislo 3 az 500 "
-                                          + "(vychozi 25; dve primku prolozi vzdy, proto ne min nez 3)");
+               : ParamParseResult.Invalid("cekam procento radku pravdepodobnostniho obrazu: 0 az 100 "
+                                          + "(vychozi 10; 0 = pevnych 25 bodu)");
 
         /// <summary>
         /// Nejistota mapove sirky pro pricnou polohu z jedne hrany [m]: 0 az 5. Nula je povolena

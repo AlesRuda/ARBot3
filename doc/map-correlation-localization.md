@@ -3430,6 +3430,17 @@ Od 17. 9. 2026 je práh parametr **`corridormininliers=`** (výchozí 25, tedy b
 validátor 3–500). Výchozí hodnota se záměrně nemění, dokud A/B neproběhne na robotu. Stav vede
 `lok-koridor-prah-inlieru-prisny` v [registru](ukoly.md).
 
+✅ **Od 30. 9. 2026 je brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu** (rozhodnutí autora):
+`corridorinliers=` pro oboustranný koridor a nově `corridorsingleinliers=` pro jednu hranu,
+výchozí obojí **10 %** (síť 128 řádků → 13 bodů, plný snímek 480 → 48), účinně nejméně 3 body;
+`corridormininliers=` zanikl. Důvod: hranice dávají jednu dvojici hran na řádek, takže pevný počet
+bodů byl vázaný na rozlišení — síť 128×128 jich dá ~4× méně než histogram a pevných 20 zabilo
+oboustranný koridor v Modřanech 29. 9. skoro celý ([semantic-segmentation.md](semantic-segmentation.md#-síť-mění-rozlišení-pravděpodobnostního-obrazu),
+`ARBot.Analyze probres`). `CorridorSource` bere výšku obrazu ze snímku (`ImageProbability.Height`);
+bez ní (testy, offline reporty) platí absolutní `MinInliers` / `SingleEdgeMinInliers` = 25.
+`0` v parametru = absolutních 25 bodů. Simulace (histogram 480 řádků, brána 48) netrpí: FreeRun
+75 s 96,5 % Ok proti 95,5 % s absolutní branou. ⚠️ Na zařízení neběželo.
+
 ### Otevřený úkol (→ registr): další krok
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
@@ -4091,4 +4102,5 @@ Jeden běh na práh (RANSAC je nedeterministický), bez kompenzace pohybu.
   šířkový odhad (medián + MAD) a šířková brána by je měly odfiltrovat.
 
 Závěr: **práh 12–15 je bezpečný** a v Modřanech dá 6–19 % oboustranných koridorů místo 0,2 %.
-Zatím nezměněno (`corridormininliers=`, výchozí 25) — čeká na rozhodnutí autora.
+Zatím nezměněno (`corridormininliers=`, výchozí 25) — čeká na rozhodnutí autora. *(Od 30. 9. 2026
+brána v % řádků, `corridorinliers=10`, tedy 13 bodů na síti — viz výš u parametru.)*

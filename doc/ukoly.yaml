@@ -7588,23 +7588,49 @@ temata:
     oblast: videni
     nazev: Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
     druh: zamer
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-06
+    vyreseno: 2026-09-30
     popis: >
       Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram
       barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak
       dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené
       není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže
       stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se.
+      **Změřeno 29. 9. 2026** (`ARBot.Analyze probres`, pět záznamů 18.–29. 9., tentýž histogram na
+      plném a zmenšeném snímku + síť ze záznamu, kontrola měřidla proti zapsaným hranám 0,000):
+      hraničních bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí pevná brána
+      `corridormininliers=20` v počtu bodů, ne kvalita bodů** — Modřany 29. 9.: Ok 43,0 / 20,6 % na
+      plném snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky
+      (20 × 128/480 = 5) histogram 41,6 / 20,8 % a síť 33,1 / 26,5 %. Na úzké Hviezdoslavově brána
+      skoro nevadí (26,5 → 24,7 %). Přesnost z řidších bodů skoro netrpí (šířka p50 4–9 cm, příčně
+      2–4 cm, směr 0,4–0,7° proti plnému snímku). Grid: jeden řádek 128×128 ve 3–5 m pokrývá
+      0,06–0,24 m, tedy až ~5 buněk 5 cm; hustota zápisu se nemění. Detail a tabulka:
+      `semantic-segmentation.md`, sekce „Síť mění rozlišení".
     kroky:
-      - co: Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid
+      - co: Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid — `ARBot.Analyze probres` nad pěti záznamy
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Rozhodnout bránu koridoru pro síť 128×128 (autor): `corridormininliers` (a `SingleEdgeMinInliers`, dnes pevných 25) snížit, nebo je vyjádřit na 480 řádků a přepočítat podle výšky pravděpodobnostního obrazu. Navazuje na dřívější měření brány, se kterými `probres` souhlasí a vysvětluje je (počet bodů je vázaný na 128 řádků): Hviezdoslavova 18. 9. 25 → 20 jen +6–7 % (`lok-koridor-prah-inlieru-prisny`, inlierů je tam 40–50); Modřany 25. 9. 25 → 20 2,7 → 28 % (profil od 26. 9.; hrany tam měly 20–25 inlierů, tedy těsně nad 20); Modřany 23. 9. práh 12–15 bezpečný (šířka ~5 m), pod 10 roste `NotParallel` i rozptyl šířky a kurzu (`map-correlation-localization.md`); Modřany 29. 9. při 20 jen 1,6 / 1,2 % s nesmyslnou šířkou, při 10 tisíce se šířkou ~5 m (`lok-koridor-siroka-cyklostezka`). Brána 5 z `probres` je tedy přepočet, ne doporučená hodnota. Nižší brána zvedne i `NotParallel`; kvalita cyklů, které projdou jen s nižší branou, změřená není. ⚠️ `fusionreplay` bere proložení koridoru hotové z `RoadCorridorMsg`, takže `--set=corridormininliers=` na něj NEÚČINKUJE — pro dopad na pózu by musel proložení přepočítat ze snímků (jako `probres`). Rozhodnuto 30. 9. (autor): přeškálovat, v procentech řádků, i bránu jedné hrany"
+        stav: hotovo
+        kdy: 2026-09-30
+      - co: "Léčba (autor 30. 9.): brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu, `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, `CorridorSource` bere výšku obrazu ze snímku, bez ní platí absolutních 25. `probres` s branou 10 %: histogram plný vs. 128×128 dává totéž (Modřany 29. 9. 27,0 / 26,3 % a 11,5 / 11,5 %), síť 1,6 → 14,8 % a 0,4 → 7,2 %, Modřany 25. 9. 29,6 → 56,5 %, Hviezdoslavova 25,1 → 29,4 % a 23,4 → 28,1 %. Simulace FreeRun 75 s: 96,5 % Ok proti 95,5 % s absolutní branou. 6 nových testů; testy 1 725 / 151 / 129, build x64 i OrangePI"
+        stav: hotovo
+        kdy: 2026-09-30
+      - co: "Ověřit na zařízení: jízda na široké cestě (Modřany) s `corridorinliers=10` — podíl oboustranného koridoru a jedné hrany (`corridor`, `probres`), šířka a kurz koridoru proti GPS"
         stav: otevreno
     odkazy:
       - text: semantic-segmentation.md
         cesta: doc/semantic-segmentation.md
       - text: OnnxBackProject.cs
         cesta: Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs
-    devlog: [2026-09-06, 2026-09-07]
+      - text: ProbResolutionReport.cs
+        cesta: Src/ARBot.Analyze/ProbResolutionReport.cs
+      - text: CorridorConfig.cs
+        cesta: Src/ARBot.Common/Localization/CorridorConfig.cs
+      - text: rozhodnutí 30. 9. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-09-06, 2026-09-07, 2026-09-29, 2026-09-30]
     ceka_na: []
 
   - id: lok-korelace-eskalace-bez-shody

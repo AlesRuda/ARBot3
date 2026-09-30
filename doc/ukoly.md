@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **36** · hotovo **141** · odloženo **14** · zamítnuto **6**.
+Témat celkem **240**: otevřeno **42** · v kódu, na HW neověřeno **37** · hotovo **141** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -31,7 +31,6 @@ Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Hardware a senzory | [Když se kamera nedá znovu vyčíst, proces roste v paměti](#hw-d435-query-pamet) | 6. 9. 2026 | [hw-t265-odpojena-natrvalo](#hw-t265-odpojena-natrvalo) |
 | otevřeno | Hardware a senzory | [Akcelerometr VN100 měří o 7 % víc než g](#hw-vn100-akcelerometr-7pct) | 6. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou](#lok-gps-casova-korelace) | 6. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
-| otevřeno | Vidění | [Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](#vid-segmentace-rozliseni-128) | 6. 9. 2026 |  |
 | otevřeno | Vidění | [Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci](#vid-model96-2-na-npu) | 7. 9. 2026 |  |
 | otevřeno | Vidění | [Kvalita segmentační sítě na dnešních snímcích D435 je bez ground truth neznámá](#vid-segmentace-pravda-d435) | 7. 9. 2026 |  |
 | otevřeno | Vidění | [Trénink segmentace se dnes nedá zopakovat jedním kliknutím](#vid-trenink-nejde-zopakovat) | 7. 9. 2026 |  |
@@ -64,6 +63,7 @@ Témat celkem **240**: otevřeno **43** · v kódu, na HW neověřeno **36** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
+| v kódu, na HW neověřeno | Vidění | [Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](#vid-segmentace-rozliseni-128) | 6. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem](#nast-panel-konfigurace-mazal-klice) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení](#prov-pudorys-umysl-a-zony) | 12. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Řídicí smyčka umí držené zastavení (StopHold)](#lp-drzene-zastaveni-stophold) | 13. 9. 2026 |  |
@@ -1295,17 +1295,6 @@ Chyba v montáži kamery (yaw o 1° při dohledu 3–6 m) posune celý bodový o
 
 [map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-23](devlog.md#2026-08-23)
 
-<a id="vid-segmentace-rozliseni-128"></a>
-### ⬜ Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
-
-`vid-segmentace-rozliseni-128` · záměr · **otevřeno** · nalezeno 6. 9. 2026
-
-Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se.
-
-- [ ] Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid
-
-[semantic-segmentation.md](semantic-segmentation.md), [OnnxBackProject.cs](../Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-07](devlog.md#2026-09-07)
-
 <a id="vid-model96-2-na-npu"></a>
 ### ⬜ Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci
 
@@ -1365,6 +1354,20 @@ Převod pixelu barevného obrazu na bod v prostoru byl mrtvý na všech platform
 - [ ] Ověřit extrinsiky a body hranice na skutečné D435
 
 [map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-21](devlog.md#2026-08-21)
+
+<a id="vid-segmentace-rozliseni-128"></a>
+### 🧪 Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
+
+`vid-segmentace-rozliseni-128` · záměr · **v kódu, na HW neověřeno** · nalezeno 6. 9. 2026 · vyřešeno 30. 9. 2026
+
+Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se. **Změřeno 29. 9. 2026** (`ARBot.Analyze probres`, pět záznamů 18.–29. 9., tentýž histogram na plném a zmenšeném snímku + síť ze záznamu, kontrola měřidla proti zapsaným hranám 0,000): hraničních bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí pevná brána `corridormininliers=20` v počtu bodů, ne kvalita bodů** — Modřany 29. 9.: Ok 43,0 / 20,6 % na plném snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky (20 × 128/480 = 5) histogram 41,6 / 20,8 % a síť 33,1 / 26,5 %. Na úzké Hviezdoslavově brána skoro nevadí (26,5 → 24,7 %). Přesnost z řidších bodů skoro netrpí (šířka p50 4–9 cm, příčně 2–4 cm, směr 0,4–0,7° proti plnému snímku). Grid: jeden řádek 128×128 ve 3–5 m pokrývá 0,06–0,24 m, tedy až ~5 buněk 5 cm; hustota zápisu se nemění. Detail a tabulka: `semantic-segmentation.md`, sekce „Síť mění rozlišení".
+
+- [x] Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid — `ARBot.Analyze probres` nad pěti záznamy (29. 9. 2026)
+- [x] Rozhodnout bránu koridoru pro síť 128×128 (autor): `corridormininliers` (a `SingleEdgeMinInliers`, dnes pevných 25) snížit, nebo je vyjádřit na 480 řádků a přepočítat podle výšky pravděpodobnostního obrazu. Navazuje na dřívější měření brány, se kterými `probres` souhlasí a vysvětluje je (počet bodů je vázaný na 128 řádků): Hviezdoslavova 18. 9. 25 → 20 jen +6–7 % (`lok-koridor-prah-inlieru-prisny`, inlierů je tam 40–50); Modřany 25. 9. 25 → 20 2,7 → 28 % (profil od 26. 9.; hrany tam měly 20–25 inlierů, tedy těsně nad 20); Modřany 23. 9. práh 12–15 bezpečný (šířka ~5 m), pod 10 roste `NotParallel` i rozptyl šířky a kurzu (`map-correlation-localization.md`); Modřany 29. 9. při 20 jen 1,6 / 1,2 % s nesmyslnou šířkou, při 10 tisíce se šířkou ~5 m (`lok-koridor-siroka-cyklostezka`). Brána 5 z `probres` je tedy přepočet, ne doporučená hodnota. Nižší brána zvedne i `NotParallel`; kvalita cyklů, které projdou jen s nižší branou, změřená není. ⚠️ `fusionreplay` bere proložení koridoru hotové z `RoadCorridorMsg`, takže `--set=corridormininliers=` na něj NEÚČINKUJE — pro dopad na pózu by musel proložení přepočítat ze snímků (jako `probres`). Rozhodnuto 30. 9. (autor): přeškálovat, v procentech řádků, i bránu jedné hrany (30. 9. 2026)
+- [x] Léčba (autor 30. 9.): brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu, `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, `CorridorSource` bere výšku obrazu ze snímku, bez ní platí absolutních 25. `probres` s branou 10 %: histogram plný vs. 128×128 dává totéž (Modřany 29. 9. 27,0 / 26,3 % a 11,5 / 11,5 %), síť 1,6 → 14,8 % a 0,4 → 7,2 %, Modřany 25. 9. 29,6 → 56,5 %, Hviezdoslavova 25,1 → 29,4 % a 23,4 → 28,1 %. Simulace FreeRun 75 s: 96,5 % Ok proti 95,5 % s absolutní branou. 6 nových testů; testy 1 725 / 151 / 129, build x64 i OrangePI (30. 9. 2026)
+- [ ] Ověřit na zařízení: jízda na široké cestě (Modřany) s `corridorinliers=10` — podíl oboustranného koridoru a jedné hrany (`corridor`, `probres`), šířka a kurz koridoru proti GPS
+
+[semantic-segmentation.md](semantic-segmentation.md), [OnnxBackProject.cs](../Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs), [ProbResolutionReport.cs](../Src/ARBot.Analyze/ProbResolutionReport.cs), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [rozhodnutí 30. 9. 2026](decisions.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-07](devlog.md#2026-09-07), [2026-09-29](devlog.md#2026-09-29), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="vid-nativni-knihovna-opravy"></a>
 ### ✅ Nativní knihovna měla chybějící exporty na x64 a špatnou volací konvenci na ARM

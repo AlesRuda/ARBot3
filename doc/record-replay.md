@@ -907,6 +907,20 @@ opravdu jel.
 
 Výsledky prvního měření: [ekf-fusion.md](ekf-fusion.md#gps-tahne-stojiciho-robota).
 
+### `probres`: dopad rozlišení pravděpodobnostního obrazu (od 29. 9. 2026)
+
+```bash
+ARBot.Analyze probres records/test/<zaznam>.rec [--size=128] [--mininliers=20] [--limit=] [--skip=]
+```
+
+Tentýž histogram barev na plném snímku a na snímku zmenšeném nejbližším sousedem na `size×size`
+(jako vstup sítě) a síť ze záznamu (uložený `ImageProbability`); všechny tři projdou `FindPathEdge`
+(NativeLib, jen x64) → `ColorPixelTo3D` → párováním kamer jako `CorridorLocalizer` →
+`CorridorFinder`. Bloky: 0 kontrola měřidla (hrany ze sítě proti zapsaným, má být 0), 1 hraniční
+body na snímek, 2 koridor (Ok, jedna hrana, důvody, inliery) včetně brány přepočtené na počet řádků,
+3 přesnost plný vs. zmenšený, 4 stopa jednoho řádku po zemi (grid). Výsledky:
+[semantic-segmentation.md](semantic-segmentation.md#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
+
 ### `vn100`: prověření samotného senzoru ze záznamu
 
 ```bash

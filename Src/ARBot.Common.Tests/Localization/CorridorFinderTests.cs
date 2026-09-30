@@ -470,4 +470,73 @@ public class CorridorFinderTests
             Assert.That(b.Lateral, Is.EqualTo(a.Lateral).Within(1e-9));
         });
     }
+
+    // ------------------------------------------------ brana inlieru v % radku (30. 9. 2026)
+
+    /// <summary>
+    /// Tytez body (20 na strane) projdou pri obrazu 128 radku (10 % = 13 bodu), ale ne pri 480
+    /// radcich (10 % = 48 bodu). Presne to je smysl procenta: sit 128×128 dava ~4× mene hranicnich
+    /// bodu nez plny snimek, a pevna brana tak na siroke ceste zabila koridor skoro cely
+    /// (Modrany 29. 9. 2026, <c>ARBot.Analyze probres</c>).
+    /// </summary>
+    [Test]
+    public void BranaVProcentechRadku_seSkalujeSVyskouObrazu()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+        var cfg = new CorridorConfig { MinInliersPercent = 10 };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cfg.EffectiveMinInliers(128), Is.EqualTo(13));
+            Assert.That(cfg.EffectiveMinInliers(480), Is.EqualTo(48));
+            Assert.That(Finder(cfg).Find(l, r, probRows: 128).Reason, Is.EqualTo(CorridorReason.Ok));
+            Assert.That(Finder(cfg).Find(l, r, probRows: 480).Reason, Is.EqualTo(CorridorReason.TooFewInliers));
+        });
+    }
+
+    /// <summary>Bez vysky obrazu (testy, offline reporty) nebo pri 0 % plati absolutni brana.</summary>
+    [Test]
+    public void BezVyskyObrazu_platiAbsolutniBrana()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+
+        Assert.Multiple(() =>
+        {
+            // Absolutni vychozi 25 > 20 bodu.
+            Assert.That(Finder().Find(l, r).Reason, Is.EqualTo(CorridorReason.TooFewInliers));
+            Assert.That(Finder(new CorridorConfig { MinInliersPercent = 0 }).Find(l, r, probRows: 128).Reason,
+                        Is.EqualTo(CorridorReason.TooFewInliers), "0 % = absolutni brana i se znamou vyskou");
+        });
+    }
+
+    /// <summary>Ucinna brana ma podlahu 3 body - dvema body jde primku prolozit vzdy.</summary>
+    [Test]
+    public void UcinnaBrana_maPodlahuTriBody()
+    {
+        var cfg = new CorridorConfig { MinInliersPercent = 1, SingleEdgeMinInliersPercent = 1 };
+        Assert.Multiple(() =>
+        {
+            Assert.That(cfg.EffectiveMinInliers(128), Is.EqualTo(CorridorConfig.MinInliersFloor));
+            Assert.That(cfg.EffectiveSingleEdgeMinInliers(128), Is.EqualTo(CorridorConfig.MinInliersFloor));
+        });
+    }
+
+    /// <summary>
+    /// Jedna hrana se preskaluje stejne (rozhodnuti autora 30. 9. 2026): 20 bodu jedine hrany
+    /// projde pri 128 radcich, ale ne pri 480.
+    /// </summary>
+    [Test]
+    public void JednaHrana_seSkalujeStejne()
+    {
+        var (l, _) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+        var cfg = new CorridorConfig { SingleEdgeMinInliersPercent = 10 };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Finder(cfg).Find(l, new List<Point2D>(), probRows: 128).SingleSide,
+                        Is.EqualTo(CorridorSide.Left));
+            Assert.That(Finder(cfg).Find(l, new List<Point2D>(), probRows: 480).SingleSide,
+                        Is.EqualTo(CorridorSide.None));
+        });
+    }
 }
