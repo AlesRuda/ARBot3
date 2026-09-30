@@ -67,6 +67,20 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   v `.rec` všech 13 hlášek z drátování (mapa, počáteční póza, co se nezaložilo, brány koridoru,
   `mission=freerun: …`), které dřív šly jen na konzoli. Nový test; testy Common (most) a Runtime
   151 zelené, build OrangePI.
+- **RANSAC je seedovaný** (`lok-ransac-nedeterministicky` → hotovo): `RANSAC<T>.Seed` (výchozí
+  pevné, `null` = staré chování), generátor se zakládá při každém výpočtu, koridor bere
+  `CorridorConfig.RansacSeed`. Tentýž vstup = tentýž koridor, replay hranové lokalizace je
+  reprodukovatelný (dva běhy `corridorfit` nad `20260918-154028.rec` se liší jen časem na dvojici).
+  `corridorfit --rep=` mění semínko v každém opakování, takže rozpětí dál měří citlivost na
+  losování. 2 testy; testy 1 728 / 151, build OrangePI.
+- **Náklon mimo fúzi — opraven zastaralý popis** (`lok-ekf-pitch-roll-stav`, upozornil autor):
+  `IMUState` nese identitu zdroje už od 4. 9. (`Name`), registr, `ekf-fusion.md` i komentář
+  v `ControlLoop` tvrdily opak. Smyčka ji ale nepoužívá (bere poslední došlé IMU); dnes nehrozí,
+  zakládá se jen VN100. Otevřené zůstává obcházení fúze. Kód se neměnil (jen komentář).
+  Mezikrok „brát náklon jen z IMU s absolutním kurzem" se rozepsal a na pokyn autora vrátil:
+  náklony půjdou do EKF spolu s odhadem chyb senzorů (`lok-bias-senzoru-jako-stav-ekf`, nový krok).
+- **Póza 12 m vedle cesty po zatáčce → uzavřeno** (`lok-koridor-noedge-po-zatacce`, autor): obvod kola
+  opraven (29. 9. potvrzeno 0,999), 8m brána zrušená; podlaha χ² přiřazení zůstává.
 
 ## 2026-09-29
 

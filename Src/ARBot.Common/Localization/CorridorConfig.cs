@@ -28,8 +28,9 @@ namespace ARBot.Common.Localization
         /// (jeden prah pro vsechny).</para>
         ///
         /// <para><b>Vychozi 0,15 je namerena.</b> Sweep nad TYMIZ daty (421 dvojic snimku, zaznam
-        /// 20260823-084807), <b>12 opakovani na variantu</b> - RANSAC je nedeterministicky
-        /// (neseedovany <c>Random</c>), takze jedno mereni na variantu nestaci:</para>
+        /// 20260823-084807), <b>12 opakovani na variantu</b> - RANSAC byl tehdy nedeterministicky
+        /// (neseedovany <c>Random</c>, od 30. 9. 2026 seedovany - viz <see cref="RansacSeed"/>),
+        /// takze jedno mereni na variantu nestacilo:</para>
         ///
         /// <code>
         ///   prirustek   Ok (rozpeti)      NotParallel
@@ -90,6 +91,15 @@ namespace ARBot.Common.Localization
             => percent > 0 && probRows > 0
                ? Math.Max(MinInliersFloor, (int)Math.Round(percent / 100.0 * probRows))
                : absolute;
+
+        /// <summary>
+        /// Seminko losovani RANSACu (<see cref="ARBot.Common.Algorithms.ML.RANSAC{TModel}.Seed"/>);
+        /// <c>null</c> = neseedovany (chovani do 30. 9. 2026). S pevnym seminkem da tentyz vstup
+        /// vzdy tentyz koridor, takze replay hranove lokalizace je reprodukovatelny a jedno
+        /// mereni na variantu staci. Citlivost na losovani jde dal merit rizene — reporty
+        /// (<c>ARBot.Analyze corridorfit --rep=</c>) meni seminko v kazdem opakovani.
+        /// </summary>
+        public int? RansacSeed = ARBot.Common.Algorithms.ML.RANSAC.DefaultSeed;
 
         /// <summary>Minimalni pocet vstupnich bodu, aby se prokladani vubec zkousilo.</summary>
         public int MinPoints = 6;

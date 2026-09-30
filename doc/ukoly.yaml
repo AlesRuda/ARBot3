@@ -1098,7 +1098,7 @@ temata:
 
   - id: lok-ekf-pitch-roll-stav
     oblast: lokalizace
-    nazev: Náklon robota jde mimo fúzi a nezná svůj zdroj
+    nazev: Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)
     druh: vada
     stav: otevreno
     nalezeno: 2026-08-11
@@ -1108,17 +1108,22 @@ temata:
       montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do
       času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového
       vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal.
-      Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`), takže
-      přeskakování náklonu mezi dvěma IMU v provozu nenastává; zůstává obcházení fúze (bez
-      gatingu, kovariance a dopředikování) a chybějící identita zdroje v `IMUState` pro případ,
-      že by druhé IMU přibylo.
+      Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`) a od 26. 9.
+      se v runtime ani nezakládá, takže přeskakování náklonu mezi dvěma IMU nastat nemůže.
+      **Identitu zdroje `IMUState` nese už od 4. 9. 2026** (`Name`, formát verze 2; VN100,
+      virtuální IMU i T265 ho vyplňují — zjištěno 30. 9., popis to do té doby tvrdil opak);
+      `ControlLoop` ji ale nepoužívá, při dvou IMU by pořád vyhrávalo „poslední došlé".
+      Zůstává obcházení fúze (bez gatingu, kovariance a dopředikování).
+      **Autor 30. 9. 2026:** mezikrok (výběr IMU pro náklon podle jména / absolutního kurzu)
+      zamítnut — správné řešení je dát náklony do EKF, a to **spolu s odhadem chyb senzorů**
+      (`lok-bias-senzoru-jako-stav-ekf`). Do té doby zůstává otevřené.
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
-    devlog: [2026-08-11]
-    ceka_na: []
+    devlog: [2026-08-11, 2026-09-30]
+    ceka_na: [lok-bias-senzoru-jako-stav-ekf]
 
   - id: nast-trace-do-zaznamu
     oblast: nastroje
@@ -2081,8 +2086,9 @@ temata:
     oblast: lokalizace
     nazev: RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-08-23
+    vyreseno: 2026-09-30
     popis: >
       `RANSAC.Compute` používá neseedovaný `new Random()`, takže tentýž vstup dá pokaždé jiný
       výsledek (±8 přijatých ze 421 dvojic). Než se to zjistilo, vyšly z jednotlivých běhů dva
@@ -2090,15 +2096,22 @@ temata:
       rozpětí. Jde to proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) a je
       podezřelé i z jednoho nestabilního běhu testovací sady. Zaseedování je drobnost, zatím
       neudělaná — v kódu je pořád `new Random()`.
+      ✅ **Opraveno 30. 9. 2026:** `RANSAC<T>.Seed` (výchozí `RANSAC.DefaultSeed`, `null` = staré
+      chování), generátor se zakládá s pevným semínkem při každém výpočtu; koridor ho bere
+      z `CorridorConfig.RansacSeed`. Tentýž vstup dá tentýž koridor nezávisle na předchozích
+      výpočtech. `corridorfit --rep=` mění semínko v každém opakování (1. = runtime), takže rozpětí
+      dál měří citlivost na losování, reprodukovatelně. Seedovaný `Random` je v .NET stejný na x64
+      i ARM64.
     kroky:
-      - co: "Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu)"
-        stav: otevreno
+      - co: "Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu) — 2 testy (shoda bit po bitu i po jiném výpočtu; na testovacích datech na losování opravdu záleží), dva běhy `corridorfit` nad `20260918-154028.rec` se liší jen časem; testy 1 728 / 151, build OrangePI"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: RANSAC.cs
         cesta: Src/ARBot.Common/Algorithms/ML/RANSAC.cs
-    devlog: [2026-08-23, 2026-08-24]
+    devlog: [2026-08-23, 2026-08-24, 2026-09-30]
     ceka_na: []
 
   - id: nast-hranice-cesty-v-ui
@@ -2498,10 +2511,12 @@ temata:
         kdy: 2026-09-07
       - co: 'Bias kompasu a gyra jako stavy EKF (varianta B)'
         stav: otevreno
+      - co: 'Spolu s tím dát do stavu EKF i náklony (pitch/roll) — rozhodnutí autora 30. 9. 2026, téma `lok-ekf-pitch-roll-stav`'
+        stav: otevreno
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18]
+    devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18, 2026-09-30]
     ceka_na: []
 
   - id: lok-mapcorr-tvrdy-gate
@@ -8285,8 +8300,9 @@ temata:
     oblast: lokalizace
     nazev: Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-26
+    vyreseno: 2026-09-30
     popis: >
       Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky
       (`lok-odometrie-obvod-kola`) se v první zatáčce (~460 s) změnila na **příčnou**: na cestě
@@ -8299,6 +8315,10 @@ temata:
       +2,0 m (p50 za 10 s) stáhla pózu limitem `corridorslew=0,5` za ~30 s o ~10 m zpět k GPS
       (odchylka 12,6 → 2,3 m). Která hrana to byla (správná, nebo příčná), z toho vidět není.
       Koridor je tak slepý právě tehdy, když je chyba největší — a GPS s σ 30 m pózu nevrátí.
+      ✅ **Uzavřeno 30. 9. 2026 (autor):** příčina (obvod kola) je opravená — 29. 9. potvrzeno,
+      kola / tětiva GPS 0,999 — takže podélná chyba, ze které se v zatáčce stává příčná, bude
+      menší, a 8m brána je zrušená (`MaxEdgeDistanceM = ∞`). Podlaha χ² přiřazení
+      (`assocfloorlat=3`) zůstává, jak je.
     kroky:
       - co: "Změřeno: `NoEdge` po zatáčce, odstup pózy od sítě 11–12 m, pozdní korekce ~10 m za 30 s (`ARBot.Analyze posegps`, `corridor`)"
         stav: hotovo
@@ -8306,12 +8326,13 @@ temata:
       - co: "Příčina opravena (`lok-odometrie-obvod-kola`) a 8m limit vypnut (autor): `MaxEdgeDistanceM = ∞`"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m)"
-        stav: otevreno
+      - co: "Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m). Autor 30. 9.: nechat — s opraveným obvodem kola bude chyba menší"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-30]
     ceka_na: []
 
   - id: lp-grid-posun-pomalou-korekci

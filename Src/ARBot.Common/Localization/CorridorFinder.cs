@@ -219,8 +219,8 @@ namespace ARBot.Common.Localization
             int sample = Math.Max(2, Math.Min(cfg.ModelSamplePoints, holders.Count));
 
             var line = cfg.InlierThresholdPerMeter > 0
-                ? RANSAC.LinearRegresion(holders, sample, ThresholdAt, 0.99, h => h.P, h => h.Inlier = true)
-                : RANSAC.LinearRegresion(holders, sample, cfg.InlierThresholdM, 0.99, h => h.P, h => h.Inlier = true);
+                ? RANSAC.LinearRegresion(holders, sample, ThresholdAt, 0.99, h => h.P, h => h.Inlier = true, cfg.RansacSeed)
+                : RANSAC.LinearRegresion(holders, sample, cfg.InlierThresholdM, 0.99, h => h.P, h => h.Inlier = true, cfg.RansacSeed);
             if (line == null) return (null, 0, 0, default, default);
 
             // RANSAC hleda KONSENZUS - vrati model z minimalniho vzorku, ktery ma nejvic inlieru.

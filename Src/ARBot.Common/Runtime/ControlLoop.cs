@@ -149,12 +149,15 @@ namespace ARBot.Common.Runtime
 
         /// <inheritdoc/>
         /// <remarks>
-        /// OTEVRENY UKOL: <see cref="IMUState"/> nenese identitu zdroje (neni INamedMessage), takze pri
-        /// dvou IMU (VN100 + T265) tady vyhrava "posledni dosle" a Roll/Pitch mohou mezi tiky preskakovat
-        /// mezi cidly s jinou montazi a kvalitou. Navic to obchazi fuzi (bez gatingu, bez kovariance, bez
-        /// dopredikovani do casu tiku). Spravne resen: mit pitch/roll ve STAVU EKF a brat je z
-        /// <see cref="RobotState"/> jako ostatni slozky - pak tento Consume i <see cref="lastImu"/> zmizi.
-        /// Viz doc/ekf-fusion.md → "Pitch/Roll patri do stavu EKF".
+        /// OTEVRENY UKOL (registr <c>lok-ekf-pitch-roll-stav</c>): tady vyhrava "posledni doslé" IMU.
+        /// <see cref="IMUState"/> identitu zdroje od 4. 9. 2026 nese (<see cref="IMUState.Name"/>),
+        /// ale tenhle kod ji nepouziva - pri dvou IMU by Roll/Pitch mohly mezi tiky preskakovat mezi
+        /// cidly s jinou montazi a kvalitou. Dnes nehrozi: od 26. 9. 2026 se zaklada jen VN100 (T265
+        /// ne). Navic to obchazi fuzi (bez gatingu, bez kovariance, bez dopredikovani do casu tiku).
+        /// Spravne reseni: mit pitch/roll ve STAVU EKF a brat je z <see cref="RobotState"/> jako
+        /// ostatni slozky - pak tento Consume i <see cref="lastImu"/> zmizi. Mezikrok vyberem IMU
+        /// podle jmena/kurzu autor 30. 9. 2026 zamitl; naklony pujdou do EKF spolu s odhadem chyb
+        /// senzoru. Viz doc/ekf-fusion.md → "Pitch/Roll patri do stavu EKF".
         /// </remarks>
         protected override void Consume(Message msg)
         {

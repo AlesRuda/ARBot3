@@ -9,7 +9,8 @@ namespace ARBot.Analyze
     /// Offline analyza zaznamu (<c>Records/*.rec</c>). Konzolovy nastroj — <b>zamerne
     /// v repozitari</b>: analyzatory se driv psaly jednorazove mimo projekt a kazde dalsi sezeni
     /// je muselo postavit znovu (viz doc/devlog.md, 23. 8. 2026). Namerene cislo je uzitecne jen
-    /// tehdy, kdyz ho jde zopakovat — a u RANSACu, ktery je nedeterministicky, to plati dvojnasob.
+    /// tehdy, kdyz ho jde zopakovat — a u RANSACu, jehoz vysledek zavisi na losovani, to plati
+    /// dvojnasob (od 30. 9. 2026 je seedovany, takze tentyz vstup da tentyz vysledek).
     ///
     /// <para>Pouziti: <c>ARBot.Analyze corridor &lt;zaznam.rec&gt; [--old-window=60]</c>.
     /// Bez cesty vezme nejnovejsi zaznam v <c>Records/</c>.</para>
@@ -423,8 +424,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");
             Console.WriteLine("  --synth            corridorfit nad syntetickymi daty se znamou pravdou");
-            Console.WriteLine("  --rep=<n>          kolikrat zopakovat kazdou variantu (vychozi 12; RANSAC");
-            Console.WriteLine("                     je nedeterministicky, jedno mereni nic neznamena)");
+            Console.WriteLine("  --rep=<n>          kolikrat zopakovat kazdou variantu, pokazde s jinym seminkem");
+            Console.WriteLine("                     RANSACu (vychozi 12; rozpeti = citlivost na losovani)");
             Console.WriteLine("  --trials=<n>       kolik syntetickych scen na opakovani (vychozi 300)");
             Console.WriteLine("  --gross=<0..1>     podil hrubych outlieru v syntetice (vychozi 0)");
             Console.WriteLine("  --huberk=<k>       kde zacina Huberovo potlaceni (vychozi 1,5 = nasobek");

@@ -1826,6 +1826,16 @@ bodů zůstává pod odrážkou původní rozbor (čísla a postup platí dál) 
   > z 12 opakování. Vedlejší důsledek: **replay hranové lokalizace není reprodukovatelný**, což jde
   > proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) — registr:
   > [RANSAC je nedeterministický](ukoly.md#lok-ransac-nedeterministicky).
+  >
+  > ✅ **Od 30. 9. 2026 je RANSAC seedovaný** (`RANSAC<T>.Seed`, výchozí `RANSAC.DefaultSeed`,
+  > v koridoru `CorridorConfig.RansacSeed`; `null` = staré chování): generátor se zakládá s pevným
+  > semínkem při **každém** výpočtu, takže tentýž vstup dá tentýž koridor nezávisle na tom, co se
+  > počítalo předtím, a replay je reprodukovatelný (dva běhy `corridorfit` nad `20260918-154028.rec`
+  > se liší jen časem na dvojici). `corridorfit --rep=` dál opakuje, ale **pokaždé s jiným
+  > semínkem** (1. opakování = to, co počítá runtime), takže rozpětí zůstává mírou citlivosti na
+  > losování — jen je teď reprodukovatelné. Hlídají to testy `TentyzVstup_DaTentyzKoridor`
+  > a `RuznaSeminka_DajiRuznyVysledek_TakzeSeminkoNecoResi`. Starší čísla v tomto dokumentu jsou
+  > z doby před seedováním.
 
   Sweep nad **týmiž daty** (421 dvojic, záznam `20260823-084807`, 12 opakování na variantu):
 

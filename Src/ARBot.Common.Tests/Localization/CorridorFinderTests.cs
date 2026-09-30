@@ -404,7 +404,8 @@ public class CorridorFinderTests
         {
             Assert.That(without.Reason, Is.EqualTo(CorridorReason.Ok), "predpoklad testu");
             Assert.That(with.Reason, Is.EqualTo(CorridorReason.Ok));
-            // RANSAC je nedeterministicky, takze se netvrdi "vic" - tvrdi se "ne vyrazne mene".
+            // Vysledek RANSACu zavisi na losovani (od 30. 9. 2026 seedovanem, ale seminko je
+            // vec implementace), takze se netvrdi "vic" - tvrdi se "ne vyrazne mene".
             Assert.That(with.InliersLeft, Is.GreaterThanOrEqualTo(without.InliersLeft - 3));
             Assert.That(with.InliersRight, Is.GreaterThanOrEqualTo(without.InliersRight - 3));
             Assert.That(with.Width, Is.EqualTo(2.0).Within(0.1));
@@ -538,5 +539,53 @@ public class CorridorFinderTests
             Assert.That(Finder(cfg).Find(l, new List<Point2D>(), probRows: 480).SingleSide,
                         Is.EqualTo(CorridorSide.None));
         });
+    }
+
+    // ------------------------------------------------ reprodukovatelnost RANSACu (30. 9. 2026)
+
+    /// <summary>
+    /// Tentyz vstup da BIT PO BITU tentyz koridor, i kdyz se mezi tim pocitalo neco jineho —
+    /// RANSAC ma pevne seminko a generator zaklada pri kazdem vypoctu znovu. Do 30. 9. 2026 byl
+    /// neseedovany a replay hranove lokalizace dal pokazde jiny vysledek (±8 prijatych ze 421
+    /// dvojic). Registr <c>lok-ransac-nedeterministicky</c>.
+    /// </summary>
+    [Test]
+    public void TentyzVstup_DaTentyzKoridor()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.3, dirRad: 0.1, count: 60, noise: 0.15);
+        var jiny = Corridor(width: 2.0, lateral: -0.2, dirRad: -0.2, count: 40, noise: 0.1);
+        var finder = Finder();
+
+        var a = finder.Find(l, r);
+        finder.Find(jiny.left, jiny.right);          // mezitim jiny vypocet
+        var b = new CorridorFinder().Find(l, r);     // a jina instance
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(b.Reason, Is.EqualTo(a.Reason));
+            Assert.That(b.InliersLeft, Is.EqualTo(a.InliersLeft));
+            Assert.That(b.InliersRight, Is.EqualTo(a.InliersRight));
+            Assert.That(b.Width, Is.EqualTo(a.Width));
+            Assert.That(b.Lateral, Is.EqualTo(a.Lateral));
+            Assert.That(b.DirectionRad, Is.EqualTo(a.DirectionRad));
+        });
+    }
+
+    /// <summary>
+    /// Kontrola, ze predchozi test neni prazdny: na tech datech na losovani ZALEZI — ruzna
+    /// seminka daji ruzne konsenzualni sady. Kdyby nezalezelo, test shody by prosel i bez
+    /// seminka a nic by nedokazoval.
+    /// </summary>
+    [Test]
+    public void RuznaSeminka_DajiRuznyVysledek_TakzeSeminkoNecoResi()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.3, dirRad: 0.1, count: 60, noise: 0.15);
+        var vysledky = new HashSet<(int, int)>();
+        for (int seed = 1; seed <= 20; seed++)
+        {
+            var c = new CorridorFinder(new CorridorConfig { RansacSeed = seed }).Find(l, r);
+            vysledky.Add((c.InliersLeft, c.InliersRight));
+        }
+        Assert.That(vysledky.Count, Is.GreaterThan(1));
     }
 }

@@ -89,6 +89,21 @@ namespace ARBot.Common.Algorithms.ML
         }
 
         /// <summary>
+        /// Seminko generatoru pro losovani vzorku. <b>Vychozi je pevne</b>
+        /// (<see cref="RANSAC.DefaultSeed"/>) a generator se zaklada znovu pri KAZDEM
+        /// <see cref="Compute(int, out int[])"/>, takze tentyz vstup da vzdy tentyz vysledek —
+        /// nezavisle na tom, co se pocitalo predtim. <c>null</c> = neseedovany <c>Random</c>
+        /// (chovani do 30. 9. 2026).
+        ///
+        /// <para><b>Proc</b> (registr <c>lok-ransac-nedeterministicky</c>): s neseedovanym
+        /// <c>Random</c> dal replay hranove lokalizace pokazde jiny vysledek (±8 prijatych ze 421
+        /// dvojic), dva zavery z jednotlivych behu pak neplatily a kazda varianta se musela merit
+        /// 12×. Seedovany <c>Random</c> v .NET pouziva starsi (Knuthuv subtraktivni) generator,
+        /// ktery je stejny na vsech platformach, tedy i na x64 a ARM64.</para>
+        /// </summary>
+        public int? Seed { get; set; } = RANSAC.DefaultSeed;
+
+        /// <summary>
         /// Gets the current estimate of trials needed.
         /// </summary>
         public int TrialsNeeded { get; private set; }
@@ -198,7 +213,7 @@ namespace ARBot.Common.Algorithms.ML
 
             Dictionary<int, int> dic = new Dictionary<int, int>();
             List<int> l = new List<int>();
-            Random rnd = new Random();
+            Random rnd = Seed.HasValue ? new Random(Seed.Value) : new Random();
 
             // We are going to find the best model (which fits
             //  the maximum number of inlier points as possible).
@@ -290,7 +305,10 @@ namespace ARBot.Common.Algorithms.ML
         }
     }
     public class RANSAC
-    { 
+    {
+        /// <summary>Vychozi seminko losovani (viz <see cref="RANSAC{TModel}.Seed"/>).</summary>
+        public const int DefaultSeed = 1;
+
         /// <summary>
         /// Linearni regrese
         /// </summary>
@@ -299,11 +317,12 @@ namespace ARBot.Common.Algorithms.ML
         /// <param name="treshold">Hranice pro zarazeni do inliner</param>
         /// <param name="probability">Pravdepodobnost, ze zadny z vybranych bodu neni outliner</param>
         /// <returns></returns>
-        public static Line2D LinearRegresion(List<Point2D> points, int minCount, double treshold, double probability)
+        public static Line2D LinearRegresion(List<Point2D> points, int minCount, double treshold, double probability,
+                                             int? seed = DefaultSeed)
         {
             if (points.Count < minCount)
                 return null;
-            var r=new RANSAC<Line2D>(minCount, treshold, probability);
+            var r=new RANSAC<Line2D>(minCount, treshold, probability) { Seed = seed };
             r.Fitting = (samples) => samples.Select(i => points[i]).ToList().LinearRegesion();
             r.Distances = (m, t) =>
               {
@@ -327,13 +346,14 @@ namespace ARBot.Common.Algorithms.ML
         /// <param name="getter">Ze vstupniho pole ziskava Point@d reprezentujici prokladany bod</param>
         /// <param name="marker">Ve vstupnim poli oznaci inliery</param>
         /// <returns></returns>
-        public static Tuple<Line2D, RANSAC<Line2D>> LinearRegresion2<T>(List<T> points, int minCount, double treshold, double probability, Func<T, Point2D> getter, Action<T> marker)
+        public static Tuple<Line2D, RANSAC<Line2D>> LinearRegresion2<T>(List<T> points, int minCount, double treshold, double probability, Func<T, Point2D> getter, Action<T> marker,
+                                                                         int? seed = DefaultSeed)
         {
             if (getter == null)
                 throw new ArgumentNullException(nameof(getter));
             if (points.Count < minCount)
                 return null;
-            var r = new RANSAC<Line2D>(minCount, treshold, probability);
+            var r = new RANSAC<Line2D>(minCount, treshold, probability) { Seed = seed };
             r.Fitting = (samples) => samples.Select(i => getter(points[i])).ToList().LinearRegesion();
             r.Distances = (m, t) =>
             {
@@ -375,7 +395,8 @@ namespace ARBot.Common.Algorithms.ML
         /// <param name="marker">Ve vstupnim poli oznaci inliery</param>
         public static Line2D LinearRegresion<T>(List<T> points, int minCount,
                                                 Func<Point2D, double> treshold, double probability,
-                                                Func<T, Point2D> getter, Action<T> marker)
+                                                Func<T, Point2D> getter, Action<T> marker,
+                                                int? seed = DefaultSeed)
         {
             if (getter == null) throw new ArgumentNullException(nameof(getter));
             if (treshold == null) throw new ArgumentNullException(nameof(treshold));
@@ -383,7 +404,7 @@ namespace ARBot.Common.Algorithms.ML
 
             // Nominalni prah se dovnitr predava jen proto, ze ho RANSAC<T> vyzaduje; vlastni
             // rozhodnuti dela Distances nize a tuhle hodnotu ignoruje.
-            var r = new RANSAC<Line2D>(minCount, 1.0, probability);
+            var r = new RANSAC<Line2D>(minCount, 1.0, probability) { Seed = seed };
             r.Fitting = (samples) => samples.Select(i => getter(points[i])).ToList().LinearRegesion();
             r.Distances = (m, _) =>
             {
@@ -415,9 +436,10 @@ namespace ARBot.Common.Algorithms.ML
         /// <param name="getter">Ze vstupniho pole ziskava Point@d reprezentujici prokladany bod</param>
         /// <param name="marker">Ve vstupnim poli oznaci inliery</param>
         /// <returns></returns>
-        public static Line2D LinearRegresion<T>(List<T> points, int minCount, double treshold, double probability, Func<T, Point2D> getter, Action<T> marker)
+        public static Line2D LinearRegresion<T>(List<T> points, int minCount, double treshold, double probability, Func<T, Point2D> getter, Action<T> marker,
+                                                int? seed = DefaultSeed)
         {
-            var r = LinearRegresion2<T>(points, minCount, treshold, probability, getter, marker);
+            var r = LinearRegresion2<T>(points, minCount, treshold, probability, getter, marker, seed);
             return r?.Item1;
         }
     }

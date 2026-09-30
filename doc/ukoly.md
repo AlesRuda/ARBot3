@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **38** · v kódu, na HW neověřeno **37** · hotovo **145** · odloženo **14** · zamítnuto **6**.
+Témat celkem **240**: otevřeno **36** · v kódu, na HW neověřeno **37** · hotovo **147** · odloženo **14** · zamítnuto **6**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -14,13 +14,12 @@ Témat celkem **240**: otevřeno **38** · v kódu, na HW neověřeno **37** · 
 |---|---|---|---|---|
 | otevřeno | Vidění | [Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech](#vid-grid-prahy-realna-data) | 30. 7. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi a nezná svůj zdroj](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný](#lok-ransac-nedeterministicky) | 23. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
 | otevřeno | Hardware a senzory | [Kamera D435 se za provozu odmlčí](#hw-d435-vypadky-za-provozu) | 31. 8. 2026 | [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) |
 | otevřeno | Nástroje, záznam a analýza | [Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](#nast-avalonia-headless-testy) | 1. 9. 2026 |  |
@@ -46,7 +45,6 @@ Témat celkem **240**: otevřeno **38** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)](#lok-koridor-noedge-po-zatacce) | 26. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
@@ -105,24 +103,13 @@ Témat celkem **240**: otevřeno **38** · v kódu, na HW neověřeno **37** · 
 ## Lokalizace a fúze senzorů
 
 <a id="lok-ekf-pitch-roll-stav"></a>
-### ⬜ Náklon robota jde mimo fúzi a nezná svůj zdroj
+### ⬜ Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)
 
 `lok-ekf-pitch-roll-stav` · vada · **otevřeno** · nalezeno 11. 8. 2026
 
-Řídicí smyčka bere roll a pitch z posledního došlého IMU vzorku, který nenese identitu zdroje - při dvou IMU (VN100 a T265) může náklon mezi tiky přeskakovat mezi čidly s jinou montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal. Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`), takže přeskakování náklonu mezi dvěma IMU v provozu nenastává; zůstává obcházení fúze (bez gatingu, kovariance a dopředikování) a chybějící identita zdroje v `IMUState` pro případ, že by druhé IMU přibylo.
+Řídicí smyčka bere roll a pitch z posledního došlého IMU vzorku, který nenese identitu zdroje - při dvou IMU (VN100 a T265) může náklon mezi tiky přeskakovat mezi čidly s jinou montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal. Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`) a od 26. 9. se v runtime ani nezakládá, takže přeskakování náklonu mezi dvěma IMU nastat nemůže. **Identitu zdroje `IMUState` nese už od 4. 9. 2026** (`Name`, formát verze 2; VN100, virtuální IMU i T265 ho vyplňují — zjištěno 30. 9., popis to do té doby tvrdil opak); `ControlLoop` ji ale nepoužívá, při dvou IMU by pořád vyhrávalo „poslední došlé". Zůstává obcházení fúze (bez gatingu, kovariance a dopředikování). **Autor 30. 9. 2026:** mezikrok (výběr IMU pro náklon podle jména / absolutního kurzu) zamítnut — správné řešení je dát náklony do EKF, a to **spolu s odhadem chyb senzorů** (`lok-bias-senzoru-jako-stav-ekf`). Do té doby zůstává otevřené.
 
-[ekf-fusion.md](ekf-fusion.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-08-11](devlog.md#2026-08-11)
-
-<a id="lok-ransac-nedeterministicky"></a>
-### ⬜ RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný
-
-`lok-ransac-nedeterministicky` · vada · **otevřeno** · nalezeno 23. 8. 2026
-
-`RANSAC.Compute` používá neseedovaný `new Random()`, takže tentýž vstup dá pokaždé jiný výsledek (±8 přijatých ze 421 dvojic). Než se to zjistilo, vyšly z jednotlivých běhů dva závěry, které neplatily; od té doby se každá varianta estimátoru měří 12× a porovnávají se rozpětí. Jde to proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) a je podezřelé i z jednoho nestabilního běhu testovací sady. Zaseedování je drobnost, zatím neudělaná — v kódu je pořád `new Random()`.
-
-- [ ] Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu)
-
-[map-correlation-localization.md](map-correlation-localization.md), [RANSAC.cs](../Src/ARBot.Common/Algorithms/ML/RANSAC.cs) · DevLog [2026-08-23](devlog.md#2026-08-23), [2026-08-24](devlog.md#2026-08-24)
+čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-08-11](devlog.md#2026-08-11), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="lok-bias-senzoru-jako-stav-ekf"></a>
 ### ⬜ Chyby senzorů (bias kompasu a gyra) jako stavy EKF
@@ -134,8 +121,9 @@ Podnět autora: místo přidávání dalších referencí kurzu odhadovat bias k
 - [x] Přístroj na rozpor dvou absolutních referencí bez ground truth (`ARBot.Analyze heading --nogt`) (25. 8. 2026)
 - [x] Potvrdit bias kompasu na skutečném senzoru záznamem se smyčkou (7. 9. 2026)
 - [ ] Bias kompasu a gyra jako stavy EKF (varianta B)
+- [ ] Spolu s tím dát do stavu EKF i náklony (pitch/roll) — rozhodnutí autora 30. 9. 2026, téma `lok-ekf-pitch-roll-stav`
 
-[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-07](devlog.md#2026-09-07), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
+[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-07](devlog.md#2026-09-07), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="lok-gps-casova-korelace"></a>
 ### ⬜ Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou
@@ -194,19 +182,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-koridor-noedge-po-zatacce"></a>
-### ⬜ Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
-
-`lok-koridor-noedge-po-zatacce` · vada · **otevřeno** · nalezeno 26. 9. 2026
-
-Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky (`lok-odometrie-obvod-kola`) se v první zatáčce (~460 s) změnila na **příčnou**: na cestě k východu je póza 12,0–13,0 m severně od GPS, odstup pózy od sítě 11–12 m, GPS od sítě 0,4–1,5 m (robot fyzicky jel po cestě, lokální plán `Ok`, 1,5–1,6 m/s). Koridor po celou dobu (490–570 s) hlásí **`NoEdge`** (119–198 cyklů za 10 s) a nepošle nic: přiřazení hledá hranu jen do `CorridorLocalizerConfig.MaxEdgeDistanceM` = **8 m** od pózy. Oboustranný koridor přitom měřil jen v úseku 290–440 s (way 154101921), jinde jen z jedné hrany. Jakmile se ~580 s dostala do 8 m nějaká hrana, jednohranová měření s inovacemi −2,7 / +3,2 / +2,0 m (p50 za 10 s) stáhla pózu limitem `corridorslew=0,5` za ~30 s o ~10 m zpět k GPS (odchylka 12,6 → 2,3 m). Která hrana to byla (správná, nebo příčná), z toho vidět není. Koridor je tak slepý právě tehdy, když je chyba největší — a GPS s σ 30 m pózu nevrátí.
-
-- [x] Změřeno: `NoEdge` po zatáčce, odstup pózy od sítě 11–12 m, pozdní korekce ~10 m za 30 s (`ARBot.Analyze posegps`, `corridor`) (26. 9. 2026)
-- [x] Příčina opravena (`lok-odometrie-obvod-kola`) a 8m limit vypnut (autor): `MaxEdgeDistanceM = ∞` (26. 9. 2026)
-- [ ] Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m)
-
-[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
 <a id="lok-fuze-poza-pred-koly"></a>
 ### ⬜ Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
@@ -609,6 +584,17 @@ Autor se ptal, proč korekce z koridoru chybu kurzu nezmenšila. Nejdřív se zj
 
 čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [virtual-hw.md](virtual-hw.md), [map-correlation-localization.md](map-correlation-localization.md), [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-08-22](devlog.md#2026-08-22), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-18](devlog.md#2026-09-18)
 
+<a id="lok-ransac-nedeterministicky"></a>
+### ✅ RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný
+
+`lok-ransac-nedeterministicky` · vada · **hotovo** · nalezeno 23. 8. 2026 · vyřešeno 30. 9. 2026
+
+`RANSAC.Compute` používá neseedovaný `new Random()`, takže tentýž vstup dá pokaždé jiný výsledek (±8 přijatých ze 421 dvojic). Než se to zjistilo, vyšly z jednotlivých běhů dva závěry, které neplatily; od té doby se každá varianta estimátoru měří 12× a porovnávají se rozpětí. Jde to proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) a je podezřelé i z jednoho nestabilního běhu testovací sady. Zaseedování je drobnost, zatím neudělaná — v kódu je pořád `new Random()`. ✅ **Opraveno 30. 9. 2026:** `RANSAC<T>.Seed` (výchozí `RANSAC.DefaultSeed`, `null` = staré chování), generátor se zakládá s pevným semínkem při každém výpočtu; koridor ho bere z `CorridorConfig.RansacSeed`. Tentýž vstup dá tentýž koridor nezávisle na předchozích výpočtech. `corridorfit --rep=` mění semínko v každém opakování (1. = runtime), takže rozpětí dál měří citlivost na losování, reprodukovatelně. Seedovaný `Random` je v .NET stejný na x64 i ARM64.
+
+- [x] Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu) — 2 testy (shoda bit po bitu i po jiném výpočtu; na testovacích datech na losování opravdu záleží), dva běhy `corridorfit` nad `20260918-154028.rec` se liší jen časem; testy 1 728 / 151, build OrangePI (30. 9. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md), [RANSAC.cs](../Src/ARBot.Common/Algorithms/ML/RANSAC.cs) · DevLog [2026-08-23](devlog.md#2026-08-23), [2026-08-24](devlog.md#2026-08-24), [2026-09-30](devlog.md#2026-09-30)
+
 <a id="lok-sirkovy-nesouhlas-proti-filtru"></a>
 ### ✅ Šířkový nesouhlas vyskočil na 0,23 m — měřil se proti filtru, ne proti mapě
 
@@ -774,6 +760,19 @@ Porovnání naměřené šířky cesty s odhadem běželo před jeho aktualizac�
 - [x] Projít profil, jestli takhle „nezapsaným defaultem" nevisí i jiná brána — 18. 9.: `mapcorr` v profilu není a jeho default je `false` (bezpečný), `corridorstd/headingstd/hz` 0 = bez odtlumení (zapsané jako komentář); jediná brána s ostrým defaultem byla `corridorsend` (18. 9. 2026)
 
 [pi-provoz.cfg](../config/pi-provoz.cfg), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
+
+<a id="lok-koridor-noedge-po-zatacce"></a>
+### ✅ Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
+
+`lok-koridor-noedge-po-zatacce` · vada · **hotovo** · nalezeno 26. 9. 2026 · vyřešeno 30. 9. 2026
+
+Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky (`lok-odometrie-obvod-kola`) se v první zatáčce (~460 s) změnila na **příčnou**: na cestě k východu je póza 12,0–13,0 m severně od GPS, odstup pózy od sítě 11–12 m, GPS od sítě 0,4–1,5 m (robot fyzicky jel po cestě, lokální plán `Ok`, 1,5–1,6 m/s). Koridor po celou dobu (490–570 s) hlásí **`NoEdge`** (119–198 cyklů za 10 s) a nepošle nic: přiřazení hledá hranu jen do `CorridorLocalizerConfig.MaxEdgeDistanceM` = **8 m** od pózy. Oboustranný koridor přitom měřil jen v úseku 290–440 s (way 154101921), jinde jen z jedné hrany. Jakmile se ~580 s dostala do 8 m nějaká hrana, jednohranová měření s inovacemi −2,7 / +3,2 / +2,0 m (p50 za 10 s) stáhla pózu limitem `corridorslew=0,5` za ~30 s o ~10 m zpět k GPS (odchylka 12,6 → 2,3 m). Která hrana to byla (správná, nebo příčná), z toho vidět není. Koridor je tak slepý právě tehdy, když je chyba největší — a GPS s σ 30 m pózu nevrátí. ✅ **Uzavřeno 30. 9. 2026 (autor):** příčina (obvod kola) je opravená — 29. 9. potvrzeno, kola / tětiva GPS 0,999 — takže podélná chyba, ze které se v zatáčce stává příčná, bude menší, a 8m brána je zrušená (`MaxEdgeDistanceM = ∞`). Podlaha χ² přiřazení (`assocfloorlat=3`) zůstává, jak je.
+
+- [x] Změřeno: `NoEdge` po zatáčce, odstup pózy od sítě 11–12 m, pozdní korekce ~10 m za 30 s (`ARBot.Analyze posegps`, `corridor`) (26. 9. 2026)
+- [x] Příčina opravena (`lok-odometrie-obvod-kola`) a 8m limit vypnut (autor): `MaxEdgeDistanceM = ∞` (26. 9. 2026)
+- [x] Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m). Autor 30. 9.: nechat — s opraveným obvodem kola bude chyba menší (30. 9. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="lok-odometrie-obvod-kola"></a>
 ### ✅ Obvod kola je o ~1,8 % větší, než robot ujede — póza na rovince utíká dopředu (12,5 m na 740 m)

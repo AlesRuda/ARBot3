@@ -471,18 +471,20 @@ tenhle problém nemá vliv.
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- **[Náklon robota jde mimo fúzi a nezná svůj zdroj](ukoly.md#lok-ekf-pitch-roll-stav)** —
+- **[Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](ukoly.md#lok-ekf-pitch-roll-stav)** —
   `RobotState.Roll`/`Pitch` nejsou součástí stavu filtru, doplňuje je
   [`ControlLoop`](../Src/ARBot.Common/Runtime/ControlLoop.cs) z posledního IMU, které proteklo jeho
   `Consume` (`lastImu`).
 
   Dva problémy s tím:
 
-  1. **Není poznat, které IMU vzorek poslalo.** [`IMUState`](../Src/ARBot.Common/Models/IMUState.cs) je
-     `SensorStateBase`, ale **ne** `INamedMessage` — nenese žádnou identitu zdroje. Při více IMU tedy
-     vyhrává prostě to, které dorazilo naposled, a Roll/Pitch mohou mezi tiky přeskakovat mezi čidly
-     s jinou montáží i kvalitou. (Fúzní strana měření sice značkuje `Source` — `"IMU/heading"`,
-     `"IMU/gyro"` — ale to jsou **konstanty**, takže ani tam se dvě IMU nerozliší.)
+  1. **Smyčka nerozlišuje, které IMU vzorek poslalo.** ~~`IMUState` nenese identitu zdroje~~ —
+     **nese od 4. 9. 2026** ([`IMUState.Name`](../Src/ARBot.Common/Models/IMUState.cs), `INamedMessage`,
+     formát verze 2; opraveno v textu 30. 9.). `ControlLoop` ji ale nepoužívá: při více IMU vyhrává
+     to, které dorazilo naposled, a Roll/Pitch mohou mezi tiky přeskakovat mezi čidly s jinou montáží
+     i kvalitou. Dnes nehrozí — od 26. 9. 2026 se zakládá jen VN100 (T265 ne). (Fúzní strana
+     měření značkuje `Source` — `"IMU/heading"`, `"IMU/gyro"` — konstantami, takže ani tam se dvě
+     IMU nerozliší.)
   2. **Obchází to fúzi.** Roll/Pitch jdou mimo EKF: bez gatingu (divoký vzorek se nezahodí), bez
      kovariance, bez korektního vzorkování v čase `t` (`GetStateAt` je nedopředikuje, jen se přilepí
      poslední hodnota). Zbytek `RobotState` je přitom fúzovaný a časově konzistentní — je to nekonzistence
@@ -494,8 +496,10 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 
   **Kdo to používá** (kontrola dopadu): `RobotState.ToWorldTransform()` /
   `ToWorldTransformWithPosition()` (`Conversions.WorldToWorldTransform(Orientation, Pitch, Roll, …)`).
-  Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo dát `IMUState` identitu zdroje a
-  vybírat **konkrétní** IMU podle konfigurace — ale nekonzistenci s fúzí to neřeší.
+  Jako mezikrok (kdyby se stav EKF rozšiřovat nechtěl) by stačilo v `ControlLoop` vybírat
+  **konkrétní** IMU podle `IMUState.Name` (identitu už zpráva nese) — ale nekonzistenci s fúzí to
+  neřeší. **Autor 30. 9. 2026 mezikrok zamítl:** náklony půjdou do stavu EKF spolu s odhadem
+  chyb senzorů (bias kompasu a gyra, `lok-bias-senzoru-jako-stav-ekf`).
 
 ### Otevřený úkol (→ registr): diagnostika EKF do streamu a záznamu
 
