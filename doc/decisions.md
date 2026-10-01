@@ -13,6 +13,30 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-01 — Odometrie bere čas z motorové jednotky, ne okno rychlosti ve fúzi
+
+**Co:** Proti nadsazené dráze z kol (`lok-fuze-poza-pred-koly`, +1,9 %) se razítko vzorku
+a interval pro rychlost kol berou z **hodin motorové jednotky**: skript v Roboteq posílá před každým
+blokem telemetrie řádek `T=<ms>` a `SDC2160Ex` ho převádí na `TimeBase` (`DeviceClock`).
+Rozhodnutí autora; varianta „rychlost z enkodérů přes okno ~33 ms ve fúzi" se **dělat nebude**.
+
+**Proč:** Příčinou je razítko z času příchodu — Roboteq posílá po USB CDC v dávkách (vzor
+12 / 12 / 9 ms při vzorkování po 11 ms) a rychlost `Δenc / Δrazítko` nese jitter linky. Okno
+ve fúzi by následek zakrylo (offline ověřeno 1,0004–1,0022) a za cenu ~16 ms zpoždění rychlosti;
+čas jednotky odstraní příčinu a opraví i načasování odometrie vůči IMU. Razítko až při příchodu
+řádku `DI=` by dávkování linky nechalo.
+
+**Důsledky:** Skript se musí **nahrát do jednotky** (cesta nouzového zastavení → ověřit na
+zařízení). Je zpětně kompatibilní oběma směry: starý driver řádek `T=` přeskočí, nový driver bez
+něj jede po staru. `MotorStateBase` je **verze 4** (`DeviceTimeMs`, surový čas jednotky), aby šel
+převod hodin ověřit nad záznamem. Staré záznamy zůstávají s vadou (fúze z nich přehraná dál
+nadsazuje ~1,9 %). Ověření po jízdě: `ARBot.Analyze fusionreplay`, blok 9 („pole rychlosti ze
+zprávy" ~1,000).
+
+**Odkazy:** `Src/RoboRun/RizeniDiffPodvozku.mbs` (skript, verze 2.1 — primární zdroj; kopie
+v komentáři driveru), `Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs` (parsování),
+`Src/ARBot.Common/Devices/DeviceClock.cs`, [ekf-fusion.md](ekf-fusion.md).
+
 ### 2026-10-01 — Kvalita segmentační sítě se dál neověřuje novou anotovanou sadou
 
 **Co:** Téma `vid-segmentace-pravda-d435` (pořídit anotovanou sadu snímků z D435 z roku 2026) je

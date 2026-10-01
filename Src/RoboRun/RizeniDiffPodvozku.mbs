@@ -28,17 +28,25 @@ dim di3 as integer
 dim timeout as integer
 dim lastMark as integer
 dim mark as integer
+'cas jednotky v ms pro razitko vzorku (radek T=), modulo 1000000000 (~11,6 dne);
+'host ho prevadi na svuj cas (DeviceClock) a pocita z nej rychlost kol - viz SDC2160Ex
+dim tick as integer
 
 timeout=0
+tick=0
 currentTimer=GetTimerCount(1)
 
-print("Version 2.0\r")
+print("Version 2.1\r")
 
 while true
 	lastTimer=currentTimer
 	currentTimer=GetTimerCount(1)
 	'vypocet uplynuleho casu v ms
 	time =lastTimer-currentTimer
+	tick+=time
+	if tick>=1000000000 then
+		tick-=1000000000
+	end if
 	'pokud ma timer milou hodnotu tak ho restratnu
 	if currentTimer<10000 then
 		currentTimer=0x7fffffff
@@ -158,6 +166,7 @@ while true
 	SetCommand(_VAR, 5, curSpeed)
 	SetCommand(_VAR, 6, curRotSpeed)
 
+	print("T=", tick, "\r")
 	print("DI=", di3, "\r")
 	print("C=", GetValue(_C, 1), ":", GetValue(_C, 2), "\r")
 	print("V=", GetValue(_V, 2), "\r")

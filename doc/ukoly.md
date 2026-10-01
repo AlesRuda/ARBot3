@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **34** · v kódu, na HW neověřeno **32** · hotovo **153** · odloženo **14** · zamítnuto **7**.
+Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **33** · hotovo **153** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -45,7 +45,6 @@ Témat celkem **240**: otevřeno **34** · v kódu, na HW neověřeno **32** · 
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -76,6 +75,7 @@ Témat celkem **240**: otevřeno **34** · v kódu, na HW neověřeno **32** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu](#nav-detektor-c-kaskada) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -163,18 +163,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-fuze-poza-pred-koly"></a>
-### ⬜ Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
-
-`lok-fuze-poza-pred-koly` · vada · **otevřeno** · nalezeno 29. 9. 2026
-
-Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m.
-
-- [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
-- [ ] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii
-
-[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
@@ -321,6 +309,22 @@ Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Trac
 - [ ] Ověřit na zařízení: jízda po lomené rovince (Modřany) — podíl `AmbiguousEdge` (`corridor`), poslaná měření a příčná odchylka pózy od GPS (`posegps`)
 
 [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-fuze-poza-pred-koly"></a>
+### 🧪 Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
+
+`lok-fuze-poza-pred-koly` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 1. 10. 2026
+
+Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1. **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. ⚠️ Skript v jednotce zatím není, na zařízení neběželo.
+
+- [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
+- [x] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii. Výsledek: razítka `SDC2160Ex` (vzor 12/12/9 ms) a rychlost `Δenc/Δrazítko` držená v EKF dopředu; `fusionreplay` bloky 8 a 9 (1. 10. 2026)
+- [x] Rozhodnout léčbu (autor): čas z motorové jednotky (řádek `T=`); okno rychlosti ve fúzi se nedělá (1. 10. 2026)
+- [x] Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace (1. 10. 2026)
+- [ ] Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog
+- [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00
+
+[ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu

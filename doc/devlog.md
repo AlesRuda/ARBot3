@@ -60,6 +60,25 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   snapshotech `OccupancyGridMsg` ze skutečné jízdy), takže pozorování z 19. 9. tahle díra
   vysvětluje jen zčásti. Oprava: kontrola s `|dt|` (`CheckBackwardTime`, false = staré chování
   pro A/B), 4 nové testy, Common 1 732 zelených. ⚠️ Na zařízení neběželo.
+- **`lok-fuze-poza-pred-koly`: příčina nalezena — razítka odometrie.** `SDC2160Ex` razítkuje vzorek
+  na začátku čtení a rychlost počítá jako `Δenkodér / Δrazítko`; řádky chodí v dávkách (vzor
+  12 / 12 / 9 ms), takže vzorek po krátkém intervalu hlásí 1,33× víc. Integrál „zpětně" to vyruší
+  (enkodéry = 1,000), EKF ale měření drží dopředu a dráhu nadsadí o **1,85–1,92 %** (čtyři jízdy
+  25. a 29. 9.). GPS ani koridor to nejsou (rozklad přehráním s vypínanými zdroji, `fusionreplay`
+  blok 8). Výběr oken v `posegps` (podmínka na poměr pózy a kol) to nadsazoval jen o ~0,005 —
+  `posegps` teď tiskne i čísla bez něj. Protifakt: rychlost z enkodérů přes 3 vzorky (~33 ms) dá
+  1,0004–1,0022. Detail [ekf-fusion.md](ekf-fusion.md), měřidlo `fusionreplay` bloky 8 a 9.
+- **Léčba v kódu: čas z motorové jednotky** (rozhodnutí autora, okno ve fúzi se nedělá —
+  [decisions.md](decisions.md)). Skript Roboteq (`Src/RoboRun/RizeniDiffPodvozku.mbs`, verze 2.1;
+  napoprvé se změna omylem dostala jen do kopie v komentáři driveru — primární je `.mbs`, autor)
+  posílá před telemetrií `T=<ms>` (modulo 10⁹),
+  `SDC2160Ex` z něj bere interval pro rychlost kol i razítko; převod na `TimeBase` dělá nový
+  `DeviceClock` (minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu).
+  `MotorStateBase` verze 4 (`DeviceTimeMs`), blok 9 `fusionreplay` ho umí vyhodnotit. Testy
+  HAL 133 / Common 1 741 / Runtime 151, build celého řešení i Headless pro `OrangePI`.
+  ⚠️ **Skript se musí nahrát do jednotky** (cesta nouzového zastavení) a vyjet; odsimulované je
+  jen parsování a převod hodin, ne chování skutečné jednotky (že časovač běží po 1 ms a smyčka
+  po 11 ms, je odvozené z průměru intervalů 11,002 ms).
 
 ## 2026-09-30
 

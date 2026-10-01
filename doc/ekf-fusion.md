@@ -172,6 +172,46 @@ nepouští. Převod je teď výslovný, hlídá ho `UBloxFixQualityTests`. Pozor
 u těch 570 m vlastně hlásil**. Právě proto přibyla kvalita GPS do náhledu — příště to bude vidět
 na stránce místo čtení kódu. Je možné, že fix hlásil dobré hodnoty a příčina je jinde.
 
+### ⚠️ Rychlost z kol nadsazuje dráhu o ~1,9 % — razítka odometrie (změřeno 2026-10-01)
+
+Fúze krmená **jen** rychlostí z kol ujede o **1,85–1,92 %** víc, než kola skutečně ujela (enkodéry),
+ve všech čtyřech měřených jízdách (25. 9. a 29. 9. 2026). V provozu ji GPS poloha stahuje zpět, takže
+póza je o 0–1,4 % před koly podle toho, jak silně GPS v dané jízdě táhne (`lok-fuze-poza-pred-koly`).
+
+**Mechanismus.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení, ještě před čekáním
+na řádek `DI=`, a rychlost kola počítá jako `Δenkodér / Δrazítko`. Kontrolér přitom posílá
+v pravidelné periodě — enkodér přibude v každém vzorku o stejných ~13,8 mm —, jenže řádky chodí po
+sériové lince v dávkách a razítka mají vzor **12 / 12 / 9 ms**. Vzorek po krátkém intervalu tak hlásí
+rychlost 1,334× průměru sousedů, po dlouhém 0,857×. Dokud se rychlost integruje tak, jak vznikla
+(„hodnota platí zpětně za svůj interval"), chyba se vyruší přesně: integrál rychlostí = enkodéry na
+1,000, a proto sedí i měření obvodu kola. **EKF ale měření drží dopředu** — vysoká rychlost po 9ms
+intervalu platí i přes následujících 12 ms. Na periodě 12/12/9 to dělá +2,8 % (integrál dopředu
+naměřen 1,032–1,034), filtr to vyhladí na +1,9 %.
+
+| zdroj rychlosti pro EKF (jen `Odo/speed`) | 29. 9. Track | 29. 9. FreeRun | 25. 9. Track | 25. 9. FreeRun |
+|---|---|---|---|---|
+| pole rychlosti ze zprávy (dnes) | 1,0186 | 1,0192 | 1,0185 | 1,0186 |
+| z enkodérů přes 2 vzorky | 1,0062 | 1,0063 | 1,0060 | 1,0061 |
+| z enkodérů přes 3 vzorky (~33 ms) | **1,0008** | **1,0005** | **1,0004** | **1,0022** |
+
+(dráha z EKF / dráha z enkodérů; poslední jízda má mezery až 1,6 s)
+
+Rozklad podle zdrojů (`fusionreplay` blok 8, tětiva pózy / kola na přímých úsecích) potvrzuje, že
+přebytek nevzniká v GPS ani v koridoru: bez GPS polohy, bez koridoru i jen z kol a IMU vychází
+1,016–1,019, s GPS 1,00–1,01. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1.
+Měří to `ARBot.Analyze fusionreplay`, bloky 8 a 9.
+
+✅ **Léčba v kódu (1. 10. 2026, rozhodnutí autora): čas z motorové jednotky.** Skript v Roboteq
+posílá před každým blokem telemetrie svůj čítač v ms (`T=`, modulo 10⁹ ≈ 11,6 dne) a `SDC2160Ex`
+z něj bere interval pro rychlost kol i razítko vzorku. Převod na `TimeBase` dělá `DeviceClock`:
+posun hodin = **minimum** z `příchod − čas jednotky` (latence linky je vždy ≥ 0), stoupat smí jen
+rychlostí driftu krystalu (`MaxDriftPpm` 500), restart jednotky pozná podle skoku dopředu nebo
+trvale vysoké latence (> 1 s déle než 2 s; dohánění dávky po zahlcení resync nespustí). Interval
+razítek je pak interval jednotky a absolutní čas nese jen minimální latenci linky. Bez řádku `T=`
+driver jede po staru. `MotorStateBase` verze 4 nese surový čas jednotky (`DeviceTimeMs`). Okno
+rychlosti ve fúzi se nedělá. ⚠️ **Skript se musí nahrát do jednotky a vyjet** — blok 9 pak má
+ukázat „pole rychlosti ze zprávy" ~1,000. Viz [decisions.md](decisions.md), 1. 10. 2026.
+
 ### Odometrie teče i pod nouzovým zastavením (2026-08-27)
 
 Do 27. 8. 2026 `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Zrušeno

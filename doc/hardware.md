@@ -541,6 +541,14 @@ k VN100 a tam na 115200 opravdu záleží.
 rychlostech. Není to závada. Reálný driver to nepozná, protože `SDC2160Ex` hned
 v konstruktoru posílá `^ECHOF 1`. Odpověď na `?FID`: `Roboteq v1.7 SDC2XXX 10/13/2016`.
 
+**Od 1. 10. 2026 skript posílá i čas jednotky** — řádek `T=<ms>` **před** `DI=` (čítač modulo
+10⁹). Data přes USB CDC chodí v dávkách, takže čas příchodu má jitter (12 / 12 / 9 ms při vzorkování
+po 11 ms) a rychlost kol z něj nadsazovala dráhu ve fúzi o ~1,9 % (`lok-fuze-poza-pred-koly`).
+Skript je **`Src/RoboRun/RizeniDiffPodvozku.mbs` (verze 2.1, vypisuje ji po startu)** — to je
+primární zdroj, komentář v `SDC2160Ex.cs` je jen kopie. **Do jednotky se nahrává ručně**
+(Roborun+ / MicroBasic) a jde to i pod starou binárku (řádek `T=` přeskočí). Že jednotka čas posílá, je vidět v záznamu
+(`MotorStateBase.DeviceTimeMs ≥ 0`, `fusionreplay` blok 9).
+
 Porty **znovu najde skript [`OrangePi5Ultra/find-serial-ports.sh`](../OrangePi5Ultra/find-serial-ports.sh)**
 (pasivně, bez zápisu do portů): inventura `by-id` / `lsusb` / živých `ttyS*`, pak posluch
 a rozpoznání podle toho, co která periferie vysílá, a nakonec výpis hotových `Uart*=`

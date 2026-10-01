@@ -631,6 +631,207 @@ namespace ARBot.Analyze
             JumpAnalysis(recorded, withC.Samples, noC.Samples);
             EffectAnalysis(withC.Effects);
             GridResetAnalysis(withC);
+
+            // ---------------- 8) podelne meritko pozy proti kolum, 9) proc
+            var noGpsPos = RunVariant("BEZ GPS polohy", false, c, origin, net, maxEdge, msgs,
+                                      keep: m => m.Source != "GPS/position");
+            var odoImu = RunVariant("jen kola+IMU", false, c, origin, net, maxEdge, msgs,
+                                    keep: m => !m.Source.StartsWith("GPS/", StringComparison.Ordinal));
+            var odoSpeed = RunVariant("jen Odo/speed", false, c, origin, net, maxEdge, msgs,
+                                      keep: m => m.Source == "Odo/speed");
+            ScaleAnalysis(msgs, gpsLocal, new List<(string, List<Sample>)>
+            {
+                ("zaznam (runtime)", recorded), (withC.Name, withC.Samples), (noC.Name, noC.Samples),
+                (noGpsPos.Name, noGpsPos.Samples), (odoImu.Name, odoImu.Samples), (odoSpeed.Name, odoSpeed.Samples),
+            });
+            OdoTimingAnalysis(msgs, BuildFusionConfig(c, origin));
+        }
+
+        /// <summary>
+        /// <b>Proc fuze z rychlosti kol ujede vic nez enkodery?</b> (<c>lok-fuze-poza-pred-koly</c>,
+        /// zmereno 1. 10. 2026.) <c>SDC2160Ex</c> razitkuje vzorek na ZACATKU cteni a rychlost
+        /// pocita jako <c>Δenkoder / Δrazitko</c>. Kontroler posila v pravidelne periode (enkoder
+        /// pribyva rovnomerne), ale radky chodi po seriove lince v davkach, takze razitka maji
+        /// vzor ~12 / 12 / 9 ms a vzorek po kratkem intervalu hlasi o ~35 % vyssi rychlost.
+        /// Integral „hodnota plati ZPETNE" (jak vznikla) to vyrusi presne; EKF ale merenie drzi
+        /// DOPREDU, takze vysokou rychlost pocita i pres nasledujicich 12 ms.
+        /// <para>Blok tiskne: rozpad intervalu, integral rychlosti obema pravidly proti enkoderum,
+        /// samotny EKF krmeny jen <c>Odo/speed</c> a protifakt: rychlost z enkoderu pres N vzorku
+        /// (okno pres celou periodu davek chybu razitek vyrusi).</para>
+        /// </summary>
+        private static void OdoTimingAnalysis(List<Message> msgs, FusionConfig fcfg)
+        {
+            var raw = msgs.OfType<MotorStateBase>().Where(m => m.HasMeasurement).OrderBy(m => m.TimeStamp).ToList();
+            Console.WriteLine();
+            Console.WriteLine("9) RAZITKA ODOMETRIE: integral rychlosti kol proti enkoderum, EKF jen z Odo/speed:");
+            if (raw.Count < 10) { Console.WriteLine("   malo vzorku motoru"); return; }
+            double V(MotorStateBase m) => 0.5 * (m.LeftWheelSpeed + m.RightWheelSpeed);
+            double E(MotorStateBase m) => 0.5 * (m.LeftEncoder + m.RightEncoder);
+
+            var dts = new Stats("interval mezi vzorky [ms]");
+            int nShort = 0, nLong = 0;
+            var vShort = new Stats("s"); var vLong = new Stats("l");
+            double back = 0, fwd = 0, enc = 0;
+            for (int i = 1; i < raw.Count; i++)
+            {
+                double dt = (raw[i].TimeStamp - raw[i - 1].TimeStamp).TotalSeconds;
+                dts.Add(dt * 1000);
+                enc += E(raw[i]) - E(raw[i - 1]);
+                if (dt <= 0 || dt > 1) continue;
+                back += V(raw[i]) * dt;         // hodnota plati ZPETNE (jak ji driver spocetl)
+                fwd += V(raw[i - 1]) * dt;      // hodnota plati DOPREDU (jak ji drzi EKF)
+                // Za jizdy: rychlost po kratkem (< 10,5 ms) a po dlouhem intervalu, pomer k sousedum.
+                if (i + 1 < raw.Count && V(raw[i - 1]) > 0.5 && V(raw[i + 1]) > 0.5)
+                {
+                    double around = 0.5 * (V(raw[i - 1]) + V(raw[i + 1]));
+                    if (dt * 1000 < 10.5) { nShort++; vShort.Add(V(raw[i]) / around); }
+                    else { nLong++; vLong.Add(V(raw[i]) / around); }
+                }
+            }
+            Console.WriteLine($"   vzorku {raw.Count}; " + dts.Line("ms"));
+
+            // Cas jednotky (MotorStateBase verze 4, radek T= ze skriptu): interval podle jednotky
+            // a jak se od nej lisi interval razitek. Po oprave ma razitko jit s jednotkou (rozdil
+            // ~0) a radek "pole rychlosti ze zpravy" nize vyjit ~1,000.
+            int withDev = raw.Count(m => m.HasDeviceTime);
+            if (withDev == 0)
+                Console.WriteLine("   cas jednotky: zaznam ho nenese (skript bez radku T= nebo binarka pred 1. 10. 2026)");
+            else
+            {
+                var dDev = new Stats("interval podle jednotky [ms]");
+                var dDiff = new Stats("|interval razitek - interval jednotky| [ms]");
+                for (int i = 1; i < raw.Count; i++)
+                {
+                    if (!raw[i].HasDeviceTime || !raw[i - 1].HasDeviceTime) continue;
+                    long d = raw[i].DeviceTimeMs - raw[i - 1].DeviceTimeMs;
+                    if (d < 0) d += 1_000_000_000;   // SDC2160Ex.DeviceTimeModulus
+                    if (d > 1000) continue;          // mezera / restart jednotky
+                    dDev.Add(d);
+                    dDiff.Add(Math.Abs((raw[i].TimeStamp - raw[i - 1].TimeStamp).TotalMilliseconds - d));
+                }
+                Console.WriteLine($"   cas jednotky nese {withDev} z {raw.Count} vzorku");
+                Console.WriteLine("   " + dDev.Line("ms"));
+                Console.WriteLine("   " + dDiff.Line("ms"));
+            }
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "   za jizdy: po intervalu < 10,5 ms {0} vzorku, rychlost / prumer sousedu p50 {1:F3}; po delsim {2}, p50 {3:F3}",
+                nShort, vShort.Median, nLong, vLong.Median));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "   draha: enkodery {0:F2} m | integral rychlosti zpetne {1:F2} m ({2:F4}) | dopredu {3:F2} m ({4:F4})",
+                enc, back, back / enc, fwd, fwd / enc));
+
+            // EKF jen z rychlosti: dnesni pole rychlosti (N = 1 je totez co Δenc/Δrazitko) a okno pres N vzorku.
+            Console.WriteLine("   EKF jen z rychlosti kol (posun / enkodery):");
+            foreach (int nWin in new[] { 0, 1, 2, 3, 6 })
+            {
+                var ekf = new EKFModel(fcfg);
+                double x0 = ekf.X[EKFModel.IX];
+                DateTime last = raw[0].TimeStamp;
+                for (int i = Math.Max(1, nWin); i < raw.Count; i++)
+                {
+                    double v;
+                    if (nWin == 0) v = V(raw[i]);
+                    else
+                    {
+                        double dtw = (raw[i].TimeStamp - raw[i - nWin].TimeStamp).TotalSeconds;
+                        if (dtw <= 0.001) continue;
+                        v = (E(raw[i]) - E(raw[i - nWin])) / dtw;
+                    }
+                    double dt = (raw[i].TimeStamp - last).TotalSeconds;
+                    if (dt > 0) ekf.Predict(dt);
+                    last = raw[i].TimeStamp;
+                    ekf.Update(ScalarStateMeasurement.Velocity(v, fcfg.OdoSpeedStd, raw[i].TimeStamp, "Odo/speed"));
+                }
+                double d = ekf.X[EKFModel.IX] - x0;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "     {0,-44} {1,9:F2} m   {2:F4}",
+                    nWin == 0 ? "pole rychlosti ze zpravy (dnes)" : $"z enkoderu pres {nWin} vzorky (okno)", d, d / enc));
+            }
+            Console.WriteLine("   (pomer > 1 = fuze z rychlosti ujede vic, nez kola skutecne ujela)");
+        }
+
+        /// <summary>
+        /// <b>Ujede poza vic nez kola?</b> (<c>lok-fuze-poza-pred-koly</c>.) Na primych useku
+        /// (okno 30 s, smer prvni a druhe poloviny podle GPS se lisi o &lt; 3 deg, tetiva GPS
+        /// &gt;= 20 m) parovy pomer tetivy pozy a drahy z kol (integral <c>(vL + vR)/2</c>,
+        /// overeny proti enkoderum) a integral <c>V</c> ze stavu v kazde variante prehrani.
+        /// Varianta bez zdroje, ktery pomer zvedal, ma vyjit ~1,000.
+        /// <para>Okna se NEVYBIRAJI podle pomeru pozy a kol (to dela <c>posegps</c>; useknuti
+        /// zvedalo median, tady se ukazalo, ze jen o ~0,005).</para>
+        /// </summary>
+        private static void ScaleAnalysis(List<Message> msgs, List<(DateTime T, double X, double Y)> gps,
+                                          List<(string Name, List<Sample> S)> variants)
+        {
+            Console.WriteLine();
+            Console.WriteLine("8) PODELNE MERITKO: tetiva pozy / draha z kol na primych usecich (okno 30 s):");
+            var wheels = msgs.OfType<MotorStateBase>().Where(m => m.HasMeasurement)
+                             .Select(m => (T: m.TimeStamp, V: 0.5 * (m.LeftWheelSpeed + m.RightWheelSpeed),
+                                           E: 0.5 * (m.LeftEncoder + m.RightEncoder)))
+                             .OrderBy(w => w.T).ToList();
+            // Enkoder (kumulativni draha) v case t: nejblizsi vzorek motoru.
+            double EncAt(DateTime t)
+            {
+                int lo = 0, hi = wheels.Count - 1;
+                while (lo < hi) { int m = (lo + hi) / 2; if (wheels[m].T < t) lo = m + 1; else hi = m; }
+                if (lo > 0 && (t - wheels[lo - 1].T) < (wheels[lo].T - t)) lo--;
+                return wheels[lo].E;
+            }
+            const double win = 30;
+            var windows = new List<(DateTime A, DateTime B, double Wheel, double Gps, double Enc)>();
+            for (int i = 0; i < gps.Count; i += 50)
+            {
+                var a = gps[i];
+                int j = gps.FindIndex(i, g => g.T >= a.T.AddSeconds(win));
+                if (j < 0) break;
+                var b = gps[j];
+                if ((b.T - a.T).TotalSeconds > win + 0.5) continue;
+                var mid = gps[gps.FindIndex(i, g => g.T >= a.T.AddSeconds(win / 2))];
+                double az1 = Math.Atan2(mid.Y - a.Y, mid.X - a.X), az2 = Math.Atan2(b.Y - mid.Y, b.X - mid.X);
+                double dAz = Math.Abs(Math.IEEERemainder(az2 - az1, 2 * Math.PI)) * 180 / Math.PI;
+                double cg = Math.Sqrt(Sq(b.X - a.X) + Sq(b.Y - a.Y));
+                if (dAz > 3 || cg < 20) continue;
+                double wk = 0;
+                for (int k = 1; k < wheels.Count; k++)
+                {
+                    if (wheels[k].T <= a.T || wheels[k].T > b.T) continue;
+                    double dt = (wheels[k].T - wheels[k - 1].T).TotalSeconds;
+                    if (dt > 0 && dt < 0.1) wk += wheels[k].V * dt;
+                }
+                if (wk > 1) windows.Add((a.T, b.T, wk, cg, Math.Abs(EncAt(b.T) - EncAt(a.T))));
+            }
+            Console.WriteLine($"   primych oken {windows.Count}; draha z kol celkem {windows.Sum(w => w.Wheel):F0} m");
+            if (windows.Count == 0) return;
+            var kg = new Stats("kola / tetiva GPS");
+            foreach (var w in windows) kg.Add(w.Wheel / w.Gps);
+            Console.WriteLine("   " + kg.Line());
+            var ew = new Stats("enkodery / integral rychlosti kol");
+            foreach (var w in windows) ew.Add(w.Enc / w.Wheel);
+            Console.WriteLine("   " + ew.Line());
+            Console.WriteLine("   varianta             n    poza/kola p10 / p50 / p90      souhrn (soucet tetiv / soucet kol)   poza/tetiva GPS p50   integral V / kola p50");
+            foreach (var (name, smp) in variants)
+            {
+                var r = new Stats("r"); var rg = new Stats("g"); var rv = new Stats("v");
+                double sp = 0, sw = 0;
+                foreach (var w in windows)
+                {
+                    if (!TryPoseAt(smp, w.A, out var pa) || !TryPoseAt(smp, w.B, out var pb)) continue;
+                    double cp = Math.Sqrt(Sq(pb.X - pa.X) + Sq(pb.Y - pa.Y));
+                    r.Add(cp / w.Wheel); rg.Add(cp / w.Gps);
+                    sp += cp; sw += w.Wheel;
+                    // Integral V ze stavu (lichobeznik pres vzorky varianty, ~10 Hz).
+                    int i0 = Lower(smp, w.A), i1 = Lower(smp, w.B);
+                    double iv = 0;
+                    for (int k = Math.Max(1, i0 + 1); k <= Math.Min(i1, smp.Count - 1); k++)
+                    {
+                        double dt = (smp[k].T - smp[k - 1].T).TotalSeconds;
+                        if (dt > 0 && dt < 0.5) iv += 0.5 * (smp[k].V + smp[k - 1].V) * dt;
+                    }
+                    rv.Add(iv / w.Wheel);
+                }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "   {0,-17} {1,5}    {2,6:F4} / {3,6:F4} / {4,6:F4}         {5,6:F4}                          {6,6:F4}             {7,6:F4}",
+                    name, r.Count, r.Percentile(10), r.Median, r.Percentile(90), sw > 0 ? sp / sw : double.NaN, rg.Median, rv.Median));
+            }
+            Console.WriteLine("   (> 1 = poza ujede vic nez kola; varianta, ve ktere zmizi, ukaze zdroj.)");
         }
 
         /// <summary>
@@ -765,7 +966,8 @@ namespace ARBot.Analyze
 
         private static Variant RunVariant(string name, bool send, Dictionary<string, (string Value, string Origin)> c,
                                           GeoReference origin, RoadNetwork net, double maxEdge, List<Message> msgs,
-                                          bool lateral = true, bool heading = true, List<FrameMark> frames = null)
+                                          bool lateral = true, bool heading = true, List<FrameMark> frames = null,
+                                          Func<IMeasurement, bool> keep = null)
         {
             var fcfg = BuildFusionConfig(c, origin);
             var engine = new AsyncFusionEngine(new EKFModel(fcfg));
@@ -809,7 +1011,8 @@ namespace ARBot.Analyze
                 switch (m)
                 {
                     case SensorStateBase s:
-                        foreach (var meas in v.Mapper.ToMeasurements(s)) engine.Enqueue(meas);
+                        foreach (var meas in v.Mapper.ToMeasurements(s))
+                            if (keep == null || keep(meas)) engine.Enqueue(meas);
                         break;
                     case RoadCorridorMsg rc:
                     {

@@ -8583,8 +8583,9 @@ temata:
     oblast: lokalizace
     nazev: Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-29
+    vyreseno: 2026-10-01
     popis: >
       Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých
       úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách
@@ -8594,16 +8595,50 @@ temata:
       ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na
       časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m
       pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m.
+      **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko
+      na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako
+      `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku
+      o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor
+      **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů
+      (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál
+      rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**:
+      integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech
+      čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez
+      koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce
+      z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy
+      a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků
+      (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky
+      1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1.
+      **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie
+      řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun
+      hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu
+      jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`).
+      Zpětně kompatibilní oběma směry. ⚠️ Skript v jednotce zatím není, na zařízení neběželo.
     kroky:
       - co: "Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`)"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii"
+      - co: "Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii. Výsledek: razítka `SDC2160Ex` (vzor 12/12/9 ms) a rychlost `Δenc/Δrazítko` držená v EKF dopředu; `fusionreplay` bloky 8 a 9"
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: "Rozhodnout léčbu (autor): čas z motorové jednotky (řádek `T=`); okno rychlosti ve fúzi se nedělá"
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: "Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace"
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: "Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog"
+        stav: otevreno
+      - co: "Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00"
         stav: otevreno
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-09-29]
+      - text: SDC2160Ex.cs
+        cesta: Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs
+      - text: rozhodnutí 1. 10. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-09-29, 2026-10-01]
     ceka_na: []
 
   - id: nav-detektor-c-kaskada

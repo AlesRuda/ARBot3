@@ -596,6 +596,14 @@ kamery (čas pořízení z indexu, snímek se nečte) se v místě snímku ve st
 na `GetStateAt(čas snímku)` jako `LocalNavigator` a pustí to `PoseJumpDetector`em postaru i ponovu
 (`CheckBackwardTime`): podíl snímků s časem pozadu, mazání gridu, a kolik skoků z bloku 5 grid
 smazalo. Nález: `lok-skok-pozy-nedetekce`.
+**Bloky 8 a 9** (od 1. 10. 2026) — **ujede póza víc než kola, a proč?** Blok 8 přehraje fúzi ještě
+třikrát (bez GPS polohy, jen kola + IMU, jen `Odo/speed`) a na přímých úsecích (okno 30 s, přímost
+z GPS) tiskne párový poměr tětiva pózy / dráha z kol a integrál `V` ze stavu pro každou variantu;
+dráha z kol je ověřená proti kumulativním enkodérům. Blok 9 rozebere razítka odometrie: intervaly,
+rychlost po krátkém a dlouhém intervalu, integrál rychlostí „zpětně" a „dopředu" proti enkodérům
+a EKF krmený jen rychlostí — z pole zprávy i z enkodérů přes okno N vzorků; u záznamu
+s časem jednotky (`MotorStateBase` verze 4, `DeviceTimeMs`) navíc interval podle jednotky a jeho
+rozdíl od intervalu razítek. Nález: `lok-fuze-poza-pred-koly`, viz [ekf-fusion.md](ekf-fusion.md).
 
 **`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
 `EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od
