@@ -1203,10 +1203,16 @@ temata:
       kandidátů, takže semantický kanál dostává řádově míň dat než geometrický a plocha mimo cestu
       se potvrzuje pomalu. Záměr pravidla je správný, míra ne; k rozmyšlení je stínit jen do jisté
       vzdálenosti nebo vzorek jen zeslabit. Neřešeno.
+      1. 10. 2026 (autor): nejdřív změřit nad skutečnými záznamy, až budou k dispozici — číslo
+      ze 14. 8. je ze simulace. Rozhodne mezi stínem podle výšky překážky (`d·H/(h−H)`, výpočetně
+      zanedbatelné, `PolarCell.MaxZ` je k dispozici) a ignorováním malých skvrn v hloubce.
+    kroky:
+      - co: 'Změřit podíl zahozených barevných vzorků nad skutečným záznamem (offline přehráním snímků, `ColorShadowed`) a kolik z nich stíní skvrny do pár buněk'
+        stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-08-14]
+    devlog: [2026-08-14, 2026-10-01]
     ceka_na: []
 
 
@@ -1505,19 +1511,36 @@ temata:
       Chyba v montáži kamery (yaw o 1° při dohledu 3–6 m) posune celý bodový oblak o 5–10 cm —
       o řád víc, než je vlastní šum korelace (5 mm). Filtr bere měření jako nezávislá, takže
       bias vyhraje vahou počtu a póza se drží posunutá s falešnou jistotou. Kalibrace je tedy
-      pravděpodobně dominantní chybový člen. Rozlišovací znak jde změřit hned: bias z montáže
-      se s kurzem otáčí, posun mapy ne — stačí projet smyčku. Extrinsiky reálných D435 neměřené.
+      pravděpodobně dominantní chybový člen. Extrinsiky reálných D435 neměřené (v `Profile.cs`
+      mají sklon a náklon změřené hodnoty, yaw je kulatých ±29,0°, tedy nejspíš nominál).
+      **Upřesněno 1. 10. 2026 (s autorem):** „bias se s kurzem otáčí" platí jen pro POLOHU
+      vzdálených bodů (posun `d·δ` vždy na stranu robota, při otočce se v rámci světa překlopí),
+      ne pro KURZ — chyba yaw kamery dá kurz z koridoru chybný o δ v obou směrech jízdy, a přesně
+      totéž dá hrana mapy pootočená o ε. Na jedné rovné cestě se to rozlišit nedá. Rozliší to:
+      (1) víc cest různých směrů — bias kamery je stejný na všech hranách, chyba mapy se liší
+      hranu od hrany; (2) směr GPS stopy proti azimutu hrany v OSM dá chybu mapy bez kamery;
+      (3) nerovnoběžnost levé a pravé hrany dá rozdíl chyb kamer (`δ_L − δ_R`), chyba mapy ji
+      způsobit nemůže. Data: **Robotour 19. 9. 2026** (jezdilo se různými směry, po nové
+      kalibraci kompasu; mapa `Robotour2026-ver1.osm` je ručně upravená v JOSM); Hviezdoslavova
+      a Modřany jsou většinou rovné úseky jednoho směru. Přiřazení k hraně brát podle GPS polohy,
+      ne podle pózy, aby do toho nevstoupila lokalizace.
     kroky:
-      - co: Projet smyčku a sledovat, zda se hlášený nesouhlas otáčí s kurzem
+      - co: 'Chyba azimutu hran mapy: směr GPS stopy po úsecích proti azimutu hrany v OSM (Robotour 19. 9.)'
         stav: otevreno
-      - co: Změřit extrinsiky skutečných D435
+      - co: 'Zbytek `kurz z koridoru − GPS kurz` napříč hranami: stejný na všech = kamera, různý = mapa (Robotour 19. 9.)'
+        stav: otevreno
+      - co: 'Nerovnoběžnost levé a pravé hrany koridoru (rozdíl yaw kamer) přes záznamy'
+        stav: otevreno
+      - co: 'Výška, sklon a náklon obou D435 z roviny země: robot stojí na rovné podlaze doma, krátký záznam, proložení roviny hloubkou (autor 1. 10. 2026; kamery jsou pevně přidělané, takže stačí jednorázově, průběžný hlídač není potřeba)'
+        stav: otevreno
+      - co: Změřit extrinsiky skutečných D435 — zbývá yaw (rovina země ho neurčí)
         stav: otevreno
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: traversability-grid.md
         cesta: doc/traversability-grid.md
-    devlog: [2026-08-20, 2026-08-23]
+    devlog: [2026-08-20, 2026-08-23, 2026-10-01]
 
   - id: vid-zpetna-projekce-hloubka
     oblast: videni
@@ -7631,15 +7654,20 @@ temata:
     oblast: videni
     nazev: Kvalita segmentační sítě na dnešních snímcích D435 je bez ground truth neznámá
     druh: zamer
-    stav: otevreno
+    stav: zamitnuto
     nalezeno: 2026-09-07
+    vyreseno: 2026-10-01
     popis: >
       Segmentační síť má proti histogramu barev naměřenou výhodu (88,2 % proti 78,0 % per-pixel)
-      jen na sadě 50 snímků z ARBot2 — jiná kamera, jiné scény, data z let 2019–2022. Na dnešních
+      jen na sadě 50 snímků z ARBot2 — jiné scény, data z let 2019–2022. Na dnešních
       záznamech z D435 dává síť zjevně čistší obraz cesty, na zarostlé ploše je ale nerozhodná,
       zatímco histogram tvrdí 80 % sjízdné — a bez ground truth k našim záznamům je to jen rozpor
       dvou metod, ne verdikt. Chybí anotovaná sada snímků z D435 z roku 2026; s ní by šlo říct,
       která metoda má pravdu a jestli síť za jízdy (rozmazání, expozice, stíny) drží.
+      ❌ **Uzavřeno 1. 10. 2026 (autor):** tvrzení „jiná kamera" bylo chybné — robot jezdí se
+      **stejnými kusy D435**, ze kterých je i testovací sada, takže se liší jen scénami a obdobím.
+      Rozpor mezi sadou a dnešními záznamy tím odpadá a nová anotovaná sada se pořizovat nebude.
+      Viz `decisions.md`, 1. 10. 2026.
     odkazy:
       - text: semantic-segmentation.md
         cesta: doc/semantic-segmentation.md
@@ -7647,7 +7675,9 @@ temata:
         cesta: models/testset
       - text: OnnxBackProject.cs
         cesta: Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs
-    devlog: [2026-09-07]
+      - text: decisions.md
+        cesta: doc/decisions.md
+    devlog: [2026-09-07, 2026-10-01]
     ceka_na: []
 
   - id: vid-segmentace-rozliseni-128

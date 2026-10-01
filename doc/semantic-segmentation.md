@@ -311,8 +311,9 @@ Změřeno po koších (ECE 0,049, ale rozdělené systematicky): v pásmu **0,20
 ~26 % a cesta tam je ve **1,6 %** případů, v pásmu 0,30–0,40 tvrdí 35 % proti skutečným 20 %,
 kdežto v pásmu **0,40–0,50** tvrdí 44 % proti skutečným **53 %**. Nad 0,8 už sedí na jednotky
 promile. Do log-odds gridu tedy jde v dolní polovině **příliš mírné** „tady cesta není".
-Léčba je jednoparametrová (teplota/Plattova kalibrace nad tou 50snímkovou sadou), ale
-⚠️ **měřit se to musí na datech z D435** — tahle sada je z kamery ARBot2 z let 2019–2022.
+Léčba je jednoparametrová (teplota/Plattova kalibrace nad tou 50snímkovou sadou). Sada je
+z let 2019–2022, ale ze **stejných kusů D435**, se kterými robot jezdí dnes (autor, 1. 10. 2026),
+takže se liší scénami a obdobím, ne kamerou.
 
 ## Zapojení do pipeline
 
@@ -943,12 +944,6 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   **Nejelo se s tím**: všechna měření jsou ze **stojícího** robota; jak se síť chová za jízdy
   (rozmazání, měnící se expozice, stíny) naměřené není, a hlavně **nikdy to neřídilo** — že
   segmentace vypadá líp, ještě neznamená, že podle ní robot pojede líp.
-- **[Kvalita segmentační sítě na dnešních snímcích D435 je bez ground truth neznámá](ukoly.md#vid-segmentace-pravda-d435)** —
-  model **měl** naměřenou výhodu (0,9546 per-pixel proti ~0,80 histogramu na pevné 50snímkové sadě,
-  [viz výše](#v-notebooku-je-i-měřidlo-proti-pravdě)), neznámé je, jak si stojí na **datech z D435
-  v roce 2026** (jiná kamera, jiné scény, trénovací data z 2019–2022); na venkovním záznamu dává síť
-  čistší obraz cesty, na zarostlé ploše je nerozhodná, a bez ground truth k **našim** záznamům je to
-  jen rozpor dvou metod.
 - **[Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](ukoly.md#vid-segmentace-rozliseni-128)** —
   změřeno 29. 9. 2026 (`probres`): oboustranný koridor na široké cestě zabíjí pevná brána
   v počtu bodů, ne kvalita bodů; zbývá rozhodnout o bráně. Vyšší rozlišení vstupu **není věc

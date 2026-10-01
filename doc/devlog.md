@@ -39,6 +39,19 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-01
+
+- **Zamítnuto `vid-segmentace-pravda-d435`** (autor): tvrzení, že testovací sada segmentace je
+  z jiné kamery, bylo chybné — robot jezdí se stejnými kusy D435 jako ARBot2. Sada se liší jen
+  scénami a obdobím, nová anotovaná sada se pořizovat nebude. Opraveno i
+  v [semantic-segmentation.md](semantic-segmentation.md). **Rozhodnutí:** [decisions.md](decisions.md), 1. 10. 2026.
+- **`vid-inshadow-zahazuje-vzorky`**: nejdřív změřit nad skutečnými záznamy (číslo ze 14. 8. je
+  ze simulace); stín podle výšky překážky by byl výpočetně zanedbatelný.
+- **`vid-kalibrace-kamer-bias` upřesněno** (s autorem): chyba yaw kamery se při otočce překlápí
+  jen u polohy vzdálených bodů, ne u kurzu — tam je na jedné cestě nerozlišitelná od pootočené
+  hrany mapy. Rozliší to víc cest různých směrů, GPS stopa proti azimutu hrany a nerovnoběžnost
+  levé a pravé hrany. Data z Robotouru 19. 9.; kroky v registru přepsané.
+
 ## 2026-09-30
 
 - **Brána inlierů koridoru v procentech řádků** (`vid-segmentace-rozliseni-128` → v kódu, rozhodnutí

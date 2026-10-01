@@ -13,6 +13,21 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-01 — Kvalita segmentační sítě se dál neověřuje novou anotovanou sadou
+
+**Co:** Téma `vid-segmentace-pravda-d435` (pořídit anotovanou sadu snímků z D435 z roku 2026) je
+zamítnuté. Měřítkem kvality sítě zůstává 50snímková sada `models/testset` (síť 88,2 % / IoU 0,846,
+histogram 78,0 %). Rozhodnutí autora.
+
+**Proč:** Téma stálo na chybném předpokladu, že sada je z **jiné kamery**. Robot jezdí se
+**stejnými kusy D435** jako ARBot2, ze kterého sada pochází, takže se liší jen scénami a obdobím
+(2019–2022). Rozpor „naměřeno na sadě vs. neznámé na dnešních datech" tím odpadá a aktuální
+anotované snímky k dispozici nejsou.
+
+**Důsledky:** Chování sítě za jízdy (rozmazání, expozice, stíny) proti pravdě změřené zůstává
+nezměřené; na zarostlé ploše je síť dál nerozhodná. Kalibrace výstupu (teplota/Platt) se může
+dělat nad stávající sadou.
+
 ### 2026-09-30 — Brána inlierů koridoru v procentech řádků pravděpodobnostního obrazu
 
 **Co:** Nejmenší počet inlierů hranice se udává v **procentech řádků** pravděpodobnostního obrazu,

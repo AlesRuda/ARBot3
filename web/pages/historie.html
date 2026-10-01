@@ -29,11 +29,11 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">36</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">35</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">31</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">153</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
-    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">6</span></label>
+    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">7</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
   </form>
@@ -409,6 +409,12 @@
       <li data-tema="prov-audit-bezpecnost-rizeni"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#prov-audit-bezpecnost-rizeni">Extern&#237; audit — bezpečnostn&#237; vrstva ř&#237;zen&#237; měla čtyři d&#237;ry</a></li>
       <li data-tema="prov-pudorys-umysl-a-zony"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#prov-pudorys-umysl-a-zony">Půdorys n&#225;hledu ukazuje, co se robot chyst&#225; udělat, a z&#243;ny k dosažen&#237;</a></li>
       <li data-tema="vid-segmentace-rozliseni-128"><span class="mono">30. 9.</span> <span class="typ">vyřešeno</span> <a href="#vid-segmentace-rozliseni-128">Dopad v&#253;počtu ve 128&#215;128 na hustotu dat pro grid a hranice cesty</a></li>
+    </ul>
+  </div>
+  <div class="osa">
+    <h3>ř&#237;jen 2026</h3>
+    <ul>
+      <li data-tema="vid-segmentace-pravda-d435"><span class="mono">1. 10.</span> <span class="typ">zamítnuto</span> <a href="#vid-segmentace-pravda-d435">Kvalita segmentačn&#237; s&#237;tě na dnešn&#237;ch sn&#237;mc&#237;ch D435 je bez ground truth nezn&#225;m&#225;</a></li>
     </ul>
   </div>
 </section>
@@ -1408,18 +1414,24 @@
   <article class="tema" id="vid-inshadow-zahazuje-vzorky" data-stav="otevreno">
     <h3>Okluzn&#237; pravidlo zahazuje většinu barevn&#253;ch vzorků</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 14. 8. 2026</span></p>
-    <p>Při z&#225;pisu barvy do occupancy gridu se za prvn&#237; přek&#225;žkou v dan&#233;m azimutu st&#237;n&#237; cel&#253; zbytek paprsku, i m&#237;sta, kam kamera zjevně vid&#237;. Nad virtu&#225;ln&#237;m HW to zahodilo ~5 200 z ~12 000 kandid&#225;tů, takže semantick&#253; kan&#225;l dost&#225;v&#225; ř&#225;dově m&#237;ň dat než geometrick&#253; a plocha mimo cestu se potvrzuje pomalu. Z&#225;měr pravidla je spr&#225;vn&#253;, m&#237;ra ne; k rozmyšlen&#237; je st&#237;nit jen do jist&#233; vzd&#225;lenosti nebo vzorek jen zeslabit. Neřešeno.</p>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-14">2026-08-14</a></p>
+    <p>Při z&#225;pisu barvy do occupancy gridu se za prvn&#237; přek&#225;žkou v dan&#233;m azimutu st&#237;n&#237; cel&#253; zbytek paprsku, i m&#237;sta, kam kamera zjevně vid&#237;. Nad virtu&#225;ln&#237;m HW to zahodilo ~5 200 z ~12 000 kandid&#225;tů, takže semantick&#253; kan&#225;l dost&#225;v&#225; ř&#225;dově m&#237;ň dat než geometrick&#253; a plocha mimo cestu se potvrzuje pomalu. Z&#225;měr pravidla je spr&#225;vn&#253;, m&#237;ra ne; k rozmyšlen&#237; je st&#237;nit jen do jist&#233; vzd&#225;lenosti nebo vzorek jen zeslabit. Neřešeno. 1. 10. 2026 (autor): nejdř&#237;v změřit nad skutečn&#253;mi z&#225;znamy, až budou k dispozici — č&#237;slo ze 14. 8. je ze simulace. Rozhodne mezi st&#237;nem podle v&#253;šky přek&#225;žky (<code>d&#183;H/(h−H)</code>, v&#253;početně zanedbateln&#233;, <code>PolarCell.MaxZ</code> je k dispozici) a ignorov&#225;n&#237;m mal&#253;ch skvrn v hloubce.</p>
+    <ul class="kroky">
+      <li class="otevreno">Změřit pod&#237;l zahozen&#253;ch barevn&#253;ch vzorků nad skutečn&#253;m z&#225;znamem (offline přehr&#225;n&#237;m sn&#237;mků, <code>ColorShadowed</code>) a kolik z nich st&#237;n&#237; skvrny do p&#225;r buněk</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-14">2026-08-14</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-01">2026-10-01</a></p>
   </article>
   <article class="tema" id="vid-kalibrace-kamer-bias" data-stav="otevreno">
     <h3>Chybn&#225; kalibrace kamer je bias, kter&#253; lokalizace integruje</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 20. 8. 2026</span></p>
-    <p>Chyba v mont&#225;ži kamery (yaw o 1&#176; při dohledu 3–6 m) posune cel&#253; bodov&#253; oblak o 5–10 cm — o ř&#225;d v&#237;c, než je vlastn&#237; šum korelace (5 mm). Filtr bere měřen&#237; jako nez&#225;visl&#225;, takže bias vyhraje vahou počtu a p&#243;za se drž&#237; posunut&#225; s falešnou jistotou. Kalibrace je tedy pravděpodobně dominantn&#237; chybov&#253; člen. Rozlišovac&#237; znak jde změřit hned: bias z mont&#225;že se s kurzem ot&#225;č&#237;, posun mapy ne — stač&#237; projet smyčku. Extrinsiky re&#225;ln&#253;ch D435 neměřen&#233;.</p>
+    <p>Chyba v mont&#225;ži kamery (yaw o 1&#176; při dohledu 3–6 m) posune cel&#253; bodov&#253; oblak o 5–10 cm — o ř&#225;d v&#237;c, než je vlastn&#237; šum korelace (5 mm). Filtr bere měřen&#237; jako nez&#225;visl&#225;, takže bias vyhraje vahou počtu a p&#243;za se drž&#237; posunut&#225; s falešnou jistotou. Kalibrace je tedy pravděpodobně dominantn&#237; chybov&#253; člen. Extrinsiky re&#225;ln&#253;ch D435 neměřen&#233; (v <code>Profile.cs</code> maj&#237; sklon a n&#225;klon změřen&#233; hodnoty, yaw je kulat&#253;ch &#177;29,0&#176;, tedy nejsp&#237;š nomin&#225;l). **Upřesněno 1. 10. 2026 (s autorem):** „bias se s kurzem ot&#225;č&#237;&quot; plat&#237; jen pro POLOHU vzd&#225;len&#253;ch bodů (posun <code>d&#183;δ</code> vždy na stranu robota, při otočce se v r&#225;mci světa překlop&#237;), ne pro KURZ — chyba yaw kamery d&#225; kurz z koridoru chybn&#253; o δ v obou směrech j&#237;zdy, a přesně tot&#233;ž d&#225; hrana mapy pootočen&#225; o ε. Na jedn&#233; rovn&#233; cestě se to rozlišit ned&#225;. Rozliš&#237; to: (1) v&#237;c cest různ&#253;ch směrů — bias kamery je stejn&#253; na všech hran&#225;ch, chyba mapy se liš&#237; hranu od hrany; (2) směr GPS stopy proti azimutu hrany v OSM d&#225; chybu mapy bez kamery; (3) nerovnoběžnost lev&#233; a prav&#233; hrany d&#225; rozd&#237;l chyb kamer (<code>δ_L − δ_R</code>), chyba mapy ji způsobit nemůže. Data: **Robotour 19. 9. 2026** (jezdilo se různ&#253;mi směry, po nov&#233; kalibraci kompasu; mapa <code>Robotour2026-ver1.osm</code> je ručně upraven&#225; v JOSM); Hviezdoslavova a Modřany jsou většinou rovn&#233; &#250;seky jednoho směru. Přiřazen&#237; k hraně br&#225;t podle GPS polohy, ne podle p&#243;zy, aby do toho nevstoupila lokalizace.</p>
     <ul class="kroky">
-      <li class="otevreno">Projet smyčku a sledovat, zda se hl&#225;šen&#253; nesouhlas ot&#225;č&#237; s kurzem</li>
-      <li class="otevreno">Změřit extrinsiky skutečn&#253;ch D435</li>
+      <li class="otevreno">Chyba azimutu hran mapy: směr GPS stopy po &#250;sec&#237;ch proti azimutu hrany v OSM (Robotour 19. 9.)</li>
+      <li class="otevreno">Zbytek <code>kurz z koridoru − GPS kurz</code> např&#237;č hranami: stejn&#253; na všech = kamera, různ&#253; = mapa (Robotour 19. 9.)</li>
+      <li class="otevreno">Nerovnoběžnost lev&#233; a prav&#233; hrany koridoru (rozd&#237;l yaw kamer) přes z&#225;znamy</li>
+      <li class="otevreno">V&#253;ška, sklon a n&#225;klon obou D435 z roviny země: robot stoj&#237; na rovn&#233; podlaze doma, kr&#225;tk&#253; z&#225;znam, proložen&#237; roviny hloubkou (autor 1. 10. 2026; kamery jsou pevně přidělan&#233;, takže stač&#237; jednor&#225;zově, průběžn&#253; hl&#237;dač nen&#237; potřeba)</li>
+      <li class="otevreno">Změřit extrinsiky skutečn&#253;ch D435 — zb&#253;v&#225; yaw (rovina země ho neurč&#237;)</li>
     </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-20">2026-08-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-23">2026-08-23</a></p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-20">2026-08-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-23">2026-08-23</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-01">2026-10-01</a></p>
   </article>
   <article class="tema" id="vid-model96-2-na-npu" data-stav="otevreno">
     <h3>Lepš&#237; model Model96.2 d&#225;v&#225; 96,7 %, ale půl&#237; sn&#237;mkovou frekvenci</h3>
@@ -1431,12 +1443,6 @@
       <li class="otevreno">Rozhodnout provozn&#237; bod j&#237;zdou — jestli 16 sn&#237;mků/s ř&#237;zen&#237; stač&#237;</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-07">2026-09-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-09">2026-09-09</a></p>
-  </article>
-  <article class="tema" id="vid-segmentace-pravda-d435" data-stav="otevreno">
-    <h3>Kvalita segmentačn&#237; s&#237;tě na dnešn&#237;ch sn&#237;mc&#237;ch D435 je bez ground truth nezn&#225;m&#225;</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 7. 9. 2026</span></p>
-    <p>Segmentačn&#237; s&#237;ť m&#225; proti histogramu barev naměřenou v&#253;hodu (88,2 % proti 78,0 % per-pixel) jen na sadě 50 sn&#237;mků z ARBot2 — jin&#225; kamera, jin&#233; sc&#233;ny, data z let 2019–2022. Na dnešn&#237;ch z&#225;znamech z D435 d&#225;v&#225; s&#237;ť zjevně čistš&#237; obraz cesty, na zarostl&#233; ploše je ale nerozhodn&#225;, zat&#237;mco histogram tvrd&#237; 80 % sj&#237;zdn&#233; — a bez ground truth k našim z&#225;znamům je to jen rozpor dvou metod, ne verdikt. Chyb&#237; anotovan&#225; sada sn&#237;mků z D435 z roku 2026; s n&#237; by šlo ř&#237;ct, kter&#225; metoda m&#225; pravdu a jestli s&#237;ť za j&#237;zdy (rozmaz&#225;n&#237;, expozice, st&#237;ny) drž&#237;.</p>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/models/testset">models/testset (sada z ARBot2)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs">OnnxBackProject.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-07">2026-09-07</a></p>
   </article>
   <article class="tema" id="vid-trenink-nejde-zopakovat" data-stav="otevreno">
     <h3>Tr&#233;nink segmentace se dnes ned&#225; zopakovat jedn&#237;m kliknut&#237;m</h3>
@@ -1608,6 +1614,12 @@
       <li class="hotovo">Ověřit webov&#253; n&#225;hled na zař&#237;zen&#237; (autor) <span class="mono">26. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot/Views/README.md">Views/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-10">2026-09-10</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a></p>
+  </article>
+  <article class="tema" id="vid-segmentace-pravda-d435" data-stav="zamitnuto">
+    <h3>Kvalita segmentačn&#237; s&#237;tě na dnešn&#237;ch sn&#237;mc&#237;ch D435 je bez ground truth nezn&#225;m&#225;</h3>
+    <p class="tema-meta"><span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span>záměr</span> <span>nalezeno 7. 9. 2026</span> <span>vyřešeno 1. 10. 2026</span></p>
+    <p>Segmentačn&#237; s&#237;ť m&#225; proti histogramu barev naměřenou v&#253;hodu (88,2 % proti 78,0 % per-pixel) jen na sadě 50 sn&#237;mků z ARBot2 — jin&#233; sc&#233;ny, data z let 2019–2022. Na dnešn&#237;ch z&#225;znamech z D435 d&#225;v&#225; s&#237;ť zjevně čistš&#237; obraz cesty, na zarostl&#233; ploše je ale nerozhodn&#225;, zat&#237;mco histogram tvrd&#237; 80 % sj&#237;zdn&#233; — a bez ground truth k našim z&#225;znamům je to jen rozpor dvou metod, ne verdikt. Chyb&#237; anotovan&#225; sada sn&#237;mků z D435 z roku 2026; s n&#237; by šlo ř&#237;ct, kter&#225; metoda m&#225; pravdu a jestli s&#237;ť za j&#237;zdy (rozmaz&#225;n&#237;, expozice, st&#237;ny) drž&#237;. ❌ **Uzavřeno 1. 10. 2026 (autor):** tvrzen&#237; „jin&#225; kamera&quot; bylo chybn&#233; — robot jezd&#237; se **stejn&#253;mi kusy D435**, ze kter&#253;ch je i testovac&#237; sada, takže se liš&#237; jen sc&#233;nami a obdob&#237;m. Rozpor mezi sadou a dnešn&#237;mi z&#225;znamy t&#237;m odpad&#225; a nov&#225; anotovan&#225; sada se pořizovat nebude. Viz <code>decisions.md</code>, 1. 10. 2026.</p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/models/testset">models/testset (sada z ARBot2)</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs">OnnxBackProject.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">decisions.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-07">2026-09-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-01">2026-10-01</a></p>
   </article>
 </section>
 <section class="oblast">
