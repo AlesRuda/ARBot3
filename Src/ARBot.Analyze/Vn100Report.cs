@@ -118,6 +118,88 @@ namespace ARBot.Analyze
             MotorInterference(s, motor);
             CameraInterference(rec, s, t0, camWinSec, camDeadSec);
             FilterGyroBias(s, motor);
+            FieldVsTemperature(s, bRefG);
+        }
+
+        /// <summary>Šířka koše kurzu v bloku 7 [°].</summary>
+        private const double TempBinDeg = 30.0;
+
+        /// <summary>Nejmenší rozsah teploty v koši, nad kterým má regrese |B| na teplotě smysl [°C].</summary>
+        private const double TempMinRangeC = 1.0;
+
+        /// <summary>
+        /// Blok 7 — <b>velikost pole proti teplotě senzoru</b>: po minutách (teplota, |B|, kurz)
+        /// a regrese |B| na teplotě uvnitř košů kurzu po 30°.
+        ///
+        /// <para><b>Nacpak:</b> 29. 9. 2026 bylo |B| o ~7 % pod referencí a kurz vedle, ačkoli se
+        /// na robotu nic neměnilo — jediná známá změna bylo ohřátí sluncem na 54 °C. Přes šest
+        /// záznamů 25.–29. 9. leží p50 |B| proti průměrné teplotě na přímce ~−1,8 mG/°C
+        /// (viz doc/ukoly.yaml, <c>hw-vn100-zmena-po-27-9</c>). Tenhle blok dává čísla pro takové
+        /// srovnání mezi záznamy a zkouší totéž uvnitř jednoho záznamu.</para>
+        ///
+        /// <para><b>Proč po koších kurzu:</b> zbytkové železo dělá z |B| funkci kurzu, a robot
+        /// při chladnutí zároveň jezdí jinam. Regrese přes celý záznam by vliv kurzu přičetla
+        /// teplotě. <b>Uvnitř jízdy to přesto obvykle nerozhodne</b> — teplota se mění o jednotky
+        /// °C (tedy o jednotky mG), kdežto |B| kolísá jinými vlivy o ±10 mG i při stálé teplotě.
+        /// Rozhodující je pokus za studena a po ohřátí na témž místě s otočkou na místě.</para>
+        /// </summary>
+        private static void FieldVsTemperature(List<Sample> s, double bRefG)
+        {
+            Console.WriteLine();
+            Console.WriteLine("7) VELIKOST POLE PROTI TEPLOTE SENZORU:");
+            var v = s.Where(x => x.Mag.HasValue && x.Temp.HasValue)
+                     .Select(x => (x.T, Temp: x.Temp.Value, B: (double)x.Mag.Value.Length(),
+                                   YawDeg: x.Yaw * 180.0 / Math.PI))
+                     .ToList();
+            if (v.Count < 100)
+            {
+                Console.WriteLine("  Zaznam teplotu nenese (IMUState verze < 5, pred 24. 9. 2026) - nelze.");
+                return;
+            }
+
+            double bMed = Median(v.Select(x => x.B));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  cely zaznam: teplota prumer {0:F2} C ({1:F1} .. {2:F1}), |B| p50 {3:F4} G = {4:+0.0;-0.0} % proti --bref={5:F4}",
+                v.Average(x => x.Temp), v.Min(x => x.Temp), v.Max(x => x.Temp), bMed,
+                (bMed / bRefG - 1) * 100, bRefG));
+
+            Console.WriteLine("    minuta      n   teplota [C]   |B| p50 [G]   kurz p50 [deg]");
+            double t0 = v[0].T;
+            foreach (var g in v.GroupBy(x => (int)((x.T - t0) / 60)).OrderBy(g => g.Key))
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,4}-{1,4} s {2,6}   {3,10:F2}   {4,11:F4}   {5,14:F1}",
+                    g.Key * 60, g.Key * 60 + 60, g.Count(), g.Average(x => x.Temp),
+                    Median(g.Select(x => x.B)), Median(g.Select(x => x.YawDeg))));
+
+            Console.WriteLine("  po kosich kurzu (regrese |B| na teplote uvnitr kose):");
+            Console.WriteLine("    kurz [deg]          n   teplota [C]      d|B|/dT [mG/C]   |B| p50 [G]");
+            foreach (var g in v.GroupBy(x => (int)Math.Floor((x.YawDeg + 180) / TempBinDeg)).OrderBy(g => g.Key))
+            {
+                var l = g.ToList();
+                if (l.Count < 500) continue;
+                double lo = g.Key * TempBinDeg - 180, tMin = l.Min(x => x.Temp), tMax = l.Max(x => x.Temp);
+                string sklon;
+                if (tMax - tMin < TempMinRangeC) sklon = "(malo rozsahu)";
+                else
+                {
+                    double mt = l.Average(x => x.Temp), mb = l.Average(x => x.B);
+                    double k = l.Sum(x => (x.Temp - mt) * (x.B - mb)) / l.Sum(x => (x.Temp - mt) * (x.Temp - mt));
+                    sklon = (k * 1000).ToString("F2", CultureInfo.InvariantCulture);
+                }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "    {0,4:F0} .. {1,4:F0}   {2,7}   {3,5:F1} .. {4,5:F1}   {5,14}   {6,11:F4}",
+                    lo, lo + TempBinDeg, l.Count, tMin, tMax, sklon, Median(l.Select(x => x.B))));
+            }
+            Console.WriteLine("  Mezi zaznamy porovnavej |B| p50 proti prumerne teplote (29. 9. 2026 pres sest");
+            Console.WriteLine("  zaznamu ~-1,8 mG/C). Uvnitr jizdy se teplota meni o jednotky C, kdezto |B| kolisa");
+            Console.WriteLine("  jinymi vlivy (kurz, zbytkove zelezo) o +-10 mG i pri stale teplote - sklon v kosi");
+            Console.WriteLine("  proto casto nerozhodne. Rozhodne pokus za studena a po ohrati s otockou na miste.");
+        }
+
+        private static double Median(IEnumerable<double> v)
+        {
+            var a = v.OrderBy(x => x).ToArray();
+            return a.Length == 0 ? double.NaN : a[a.Length / 2];
         }
 
         /// <summary>
@@ -449,7 +531,7 @@ namespace ARBot.Analyze
         /// <para><b>Nacpak.</b> Registr 36 zapina adaptivni ladeni VPE, ktere ma magnetometr
         /// <i>zamerne</i> utlumit, kdyz se merene <c>|B|</c> a sklon rozejdou s referenci
         /// z registru 21. Na tom stoji rozhodnuti zapnout model pole (<c>magmodel=</c>): registr
-        /// 21 dnes znamena sklon 60,9°, ackoli pro CR je ~65,7°, takze i perfektni kalibrace
+        /// 21 tehdy znamenal sklon 60,9° (dnes s modelem pole 65,95°), ackoli pro CR je ~65,7°, takze i perfektni kalibrace
         /// muze zustat castecne udusena. Z dokumentace VN se to vycist neda; ze zaznamu se to
         /// da <b>podporit nebo vyvratit</b>. Hypoteza predpovida <b>monotonni pokles K</b>
         /// s rostouci odchylkou. Viz doc/plan-vn100-kalibrace.md, „Levne overeni hypotezy".</para>

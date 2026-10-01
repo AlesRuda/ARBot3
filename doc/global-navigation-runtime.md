@@ -182,6 +182,8 @@ je ještě v lokální mapě**:
 
 > **Mrkev = poslední bod trasy, který je ještě uvnitř gridu** (zmenšeného o `CarrotMarginM`), počítáno
 > postupem po lomené čáře trasy od průmětu robota **k prvnímu výstupu z gridu**.
+> Od 29. 9. 2026 je ten čtverec vystředěný na **kolmém průmětu** robota na trasu, ne na robotu —
+> na trase je to totéž, mimo ni viz [Mimo trasu](#mimo-trasu).
 
 **Proč až na okraj a ne „pár metrů dopředu":** blízká mrkev dělá z lokálního plánovače krátkozraké
 zvíře. V **bludišti** (a park se živým plotem, zdmi a slepými odbočkami se tak chová) by robot
@@ -234,10 +236,21 @@ rovně za nosem. **Změřit na OrangePI** (patří do fáze 6 spolu se zbytkem �
 
 ### Mimo trasu
 
-`Navigator` off-route neřeší explicitně (jiná poloha jen přečte pole jinde) — a to je správné, dokud
-je robot blízko sítě. Když `NavigationFix.OffRouteDist > OffRouteMaxM` (default 15 m), přestává mít
-mrkev na hraně smysl (mezi robotem a sítí může být cokoli): mrkev = **nejbližší bod trasy**, stav
-`OffRoute`, a je to hlášená (nikoli tichá) situace. Vyšší vrstva se může rozhodnout misi přerušit.
+`Navigator` off-route neřeší explicitně (jiná poloha jen přečte pole jinde). **Mrkev se měří od
+kolmého průmětu robota na trasu** — účelem je omezit možnost, aby se robot snadno rozhodl pro
+špatný směr (pózu to neopravuje, to je úkol lokalizace): čtverec ±`CarrotHalfExtentM` se vystředí na průmětu, takže
+mrkev leží půl mapy **před** průmětem po trase a robot k trase najíždí šikmo (při odstupu 6,5 m pod
+48°, 9 m 57°, 15 m 68°) a přitom po ní postupuje ke cíli. Mrkev mimo lokální mapu ořízne
+`LocalPathPlanner.ClipToGrid` po spojnici robot → mrkev (stav plánu `Partial`). Když
+`NavigationFix.OffRouteDist > OffRouteMaxM` (default 15 m), je stav `OffRoute` — hlášená (nikoli
+tichá) situace, vyšší vrstva se může rozhodnout misi přerušit; mrkev se počítá stejně.
+
+⚠️ **Do 29. 9. 2026 to bylo jinak, a byla to vada:** čtverec byl kolem robotu a když z něj průmět
+vypadl (odstup nad 5,9 m, ne až nad 15 m, jak zamýšlel návrh), vracel se **průmět samotný**. Robot
+měl jet kolmo na trasu, nepostupoval a detektor B zavřel hranu (Track 29. 9. v Modřanech, ~100 s
+při odstupu 6,5–9 m, `nav-mrkev-kolmy-prumet`). Autor rozhodl měřit od průmětu **i nad
+`OffRouteMaxM`**: mrkev má táhnout po trase směrem k cíli, ne kolmo — viz
+[decisions.md](decisions.md), 29. 9. 2026.
 
 Napětí, které tu zůstává vědomě nevyřešené: **když je špatná lokalizace, je špatná i mrkev** a robot
 sjede z cesty, protože grid mu to dovolí (tráva je geometricky sjízdná). Protijedem je semantický
@@ -278,7 +291,7 @@ ten platí jen pro jednu instanci `RoadNetwork`):
 | `TravelledM` | ujetá dráha (z odometru) po dobu, kdy jsme byli na této hraně |
 | `MaxT`, `CurrentT` | nejdál dosažený průmět — „ujel jsem 20 m, ale `t` se posunulo o 0,05" je bloudění |
 | `PhiAtEntry`, `PhiBest` | potenciál při vjezdu a nejlepší dosažený |
-| `PlanFailures` | počet `NoRoute` / `RobotBlocked` / `AbortedCollision` z `LocalPlanMsg` na této hraně |
+| `PlanFailures` | počet `NoRoute` / `RobotBlocked` / `AbortedCollision` z `LocalPlanMsg` na této hraně (návrh; detektor C od 29. 9. 2026 počítá jen `NoRoute`) |
 | `StoppedSec` | doba, kdy robot stál, ačkoli měl jet |
 | `Closure` | zda a kdy byla hrana uzavřena/penalizována, kolikrát a proč |
 
@@ -311,10 +324,21 @@ jsme se k cíli přiblížili aspoň třetinou toho, co jsme ujeli"). Interpreta
 oscilace mezi dvěma variantami, chybná lokalizace, nebo cesta, která nikam nevede.
 
 **C — cesta je přehrazená (mapa lže).** Robot fakticky stojí (jako A, ale s krátkým prahem) **a**
-posledních `BlockedPlanCount` (default 20 ≈ 2 s) výsledků lokálního plánování hlásí `NoRoute` /
-`RobotBlocked`, nebo `Partial`, u něhož se vzdálenost `ReachedGoal → RequestedGoal` přestala zmenšovat.
+posledních `BlockedPlanCount` (default 20 ≈ 2 s) výsledků lokálního plánování hlásí `NoRoute`,
+nebo `Partial`, u něhož se vzdálenost `ReachedGoal → RequestedGoal` přestala zmenšovat.
 Interpretace: **napříč celou šířkou cesty je překážka**, kterou mapa nezná — přehrazený vjezd, závora,
 plot, spadlý strom.
+
+*Implementace:* počítá se jen série `NoRoute`; `EscapingBlocked` a **od 29. 9. 2026 i
+`RobotBlocked`** ji vynulují. `RobotBlocked` (robot stojí v blokované buňce a únik se nenašel) neříká,
+že je přehrazená cesta, ale že mapa vede buňku pod robotem jako blokovanou — to je úloha úniku.
+⚠️ Do té doby se počítal a při dlouhém stání v blokované buňce vznikla **kaskáda**: po každých 20
+plánech se zavřela „aktuální“ hrana, trasa se přeplánovala a zavřela se další — Track 25. 9. 2026
+(`20260925-144200.rec`) 15 uzavření téže cyklostezky za 21 s, až 78 m od robotu
+(`nav-detektor-c-kaskada`). Robota v blokované buňce vyprošťuje **únikový manévr**: zkouší se
+v každém cyklu plánování nad aktuální mapou a `RobotBlocked` znamená jen „v tomto cyklu cesta ven
+do `EscapeMaxLength` (1,5 m) nevede“. Ve 25. 9. únik po 22,8 s cestu našel a robot pokračoval;
+zavírání hran k tomu nic nepřidávalo.
 
 *Zpřesnění (fáze 4b): průřez napříč cestou.* Nejsilnější důkaz přehrazení je „všechny buňky na
 kolmici k cestě v šířce `Node.Width + margin` jsou `Blocked`". Ten test **musí proběhnout na vlákně
@@ -416,7 +440,7 @@ mapě** dnes zadává cíl přímo lokální vrstvě; po zapojení půjde do glo
 | `CarrotMarginM` | 0,5 m | o kolik se grid zmenší, než se hledá výstup trasy |
 | `HorizonM` | **25 m** (z 6,0) | `LocalPlannerConfig` — **délka** dráhy, viz [výše](#důsledek-localplannerconfighorizonm-je-potřeba-zvednout) |
 | `ArrivalRadiusMeters` | **3,0 m** (z 12,0) | `NavigatorOptions`; „menší než stanoviště", ne „co nejmenší" |
-| `OffRouteMaxM` | 15,0 m | nad tím mrkev = nejbližší bod trasy |
+| `OffRouteMaxM` | 15,0 m | nad tím stav `OffRoute` (mrkev se počítá stejně, od průmětu; do 29. 9. 2026 nejbližší bod trasy) |
 | `NoMotionSec` / `MinMotionM` | 10 s / 0,5 m | detektor A |
 | `ProgressWindowM` / `ProgressGain` | 20 m / 0,3 | detektor B |
 | `BlockedPlanCount` | 20 (≈2 s) | detektor C |
@@ -443,7 +467,7 @@ Vrstva je čistě algoritmická → testovatelná celá, bez HW i bez fúze (`AR
 - **znovuaplikování uzavření po přestavbě sítě** (načtení mapy za běhu) podle `(WayId, From, To)`;
 - **bloudění:** póza se hýbe, φ neklesá → soft penalizace, ne uzavření;
 - **zásek:** póza stojí při aktivním cíli → `StuckNoMotion` a eskalace; při neaktivním cíli **nic**;
-- **mimo trasu:** póza 30 m od sítě → stav `OffRoute`, mrkev = nejbližší bod trasy;
+- **mimo trasu:** póza 30 m od sítě → stav `OffRoute`; robot 3 / 8 / 20 m vedle trasy → mrkev půl mapy **před** průmětem, ne v něm (`RouteCarrotTests`);
 - `ClosureTtl` → hrana se otevře na soft penalizaci, po druhém potvrzení je trvale zavřená;
 - roundtrip `GlobalNavMsg` (serializace) a `RouteProgress` → zpráva;
 - A/B nad reálným `.rec` ze soutěžní trasy, až bude.

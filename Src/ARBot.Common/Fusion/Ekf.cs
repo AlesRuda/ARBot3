@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using MathNet.Numerics.LinearAlgebra;
 
 namespace ARBot.Common.Fusion
@@ -36,6 +36,12 @@ namespace ARBot.Common.Fusion
         protected abstract Matrix<double> ProcessNoise(Vector<double> x, double dt);
         /// <summary>Normalizace stavu po kroku (napr. zabaleni orientace do +-pi).</summary>
         protected virtual void NormalizeState(Vector<double> x) { }
+
+        /// <summary>
+        /// Indexy polohy (x, y) ve stavu - pro <see cref="IMeasurement.MaxPositionStep"/>.
+        /// <c>null</c> = model polohu nema a limit posunu polohy se ignoruje.
+        /// </summary>
+        protected virtual (int X, int Y)? PositionIndices => null;
 
         // --- verejne API pracujici nad instancnim stavem ---
 
@@ -149,6 +155,32 @@ namespace ARBot.Common.Fusion
                 if (krok > lim)
                 {
                     double rMin = ph * (nu / lim - 1);
+                    Reff = Matrix<double>.Build.Dense(1, 1, Math.Max(rMin, Reff[0, 0]));
+                    S = HPHt + Reff;
+                    Sinv = S.Inverse();
+                    stepLimited = true;
+                }
+            }
+
+            // LIMIT POSUNU POLOHY (IMeasurement.MaxPositionStep, 29. 9. 2026). Limit vyse hlida jen
+            // krok podel osy merenia. Stav se ale meni o K·ν = P·Hᵀ·ν/(P_h + R) ve VSECH slozkach:
+            // pricne merenie koridoru posune pres vazbu v P i polohu podel cesty, merenie kurzu
+            // polohu vubec. Posun polohy je |g|·|ν|/(P_h + R), g = radky polohy z P·Hᵀ; kdyz
+            // prekroci limit L, nafoukne se R na |g|·|ν|/L − P_h (tataz cesta jako vyse, sklada se
+            // maximem). Nacpak: Track 27. 9. 2026 17:26:01 - jedno pricne merenie posunulo pozu
+            // o 3,98 m podel hrany a o 0,18 m kolmo, ackoli limit podel osy byl 0,25 m.
+            if (m.MaxPositionStep is double limPos && limPos > 0 && y.Count == 1
+                && PositionIndices is (int ix, int iy))
+            {
+                var pht = P * Ht;
+                double gx = pht[ix, 0], gy = pht[iy, 0];
+                double g = Math.Sqrt(gx * gx + gy * gy);
+                double ph = HPHt[0, 0];
+                double nu = Math.Abs(y[0]);
+                double posun = g * nu / (ph + Reff[0, 0]);
+                if (posun > limPos)
+                {
+                    double rMin = g * nu / limPos - ph;
                     Reff = Matrix<double>.Build.Dense(1, 1, Math.Max(rMin, Reff[0, 0]));
                     S = HPHt + Reff;
                     Sinv = S.Inverse();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -40,7 +40,8 @@ namespace ARBot.Analyze
     /// <see cref="MissionMsg"/> (poloha depa, sigma = max(rozptyl fixu, 0,3 m)).</para>
     ///
     /// <para>Pouziti: <c>ARBot.Analyze fusionreplay zaznam.rec [--map=OSM/x.osm]
-    /// [--maxedge=8] [--revisit=60]</c>. <c>--maxedge</c> vychozi podle data binarky v logu
+    /// [--maxedge=8] [--revisit=60] [--set=klic=hodnota;klic=hodnota]</c>. <c>--set</c> prepise
+    /// hodnotu z logu (napr. <c>assocfloorlong=3</c> nad jizdou z doby pred nim). <c>--maxedge</c> vychozi podle data binarky v logu
     /// (8 m do 25. 9. 2026 vcetne, pak nekonecno).</para>
     /// </summary>
     public static class FusionReplayReport
@@ -58,6 +59,15 @@ namespace ARBot.Analyze
             public DateTime T;
             public bool Heading;
             public double Z, Sigma;
+            /// <summary>Normala hrany (pricne merenie) a limit kroku; NaN = bez limitu.</summary>
+            public double NX, NY, MaxStep = double.NaN;
+        }
+
+        /// <summary>Ucinek jednoho odeslani koridoru na AKTUALNI pozu (pred / po vlozeni do fuze).</summary>
+        private sealed class SendEffect
+        {
+            public DateTime T, Now;
+            public double Perp, Along, DTheta, MaxLat;
         }
 
         /// <summary>Jedna varianta prehrani.</summary>
@@ -70,6 +80,7 @@ namespace ARBot.Analyze
             public CorridorReplay Corridor;
             public readonly List<Sample> Samples = new List<Sample>();
             public readonly List<(DateTime T, double X, double Y)> DepotInits = new List<(DateTime, double, double)>();
+            public readonly List<SendEffect> Effects = new List<SendEffect>();
         }
 
         // ------------------------------------------------------------------ konfigurace z logu
@@ -141,6 +152,9 @@ namespace ARBot.Analyze
                 MinSendPeriodSec = hz > 0 ? 1.0 / hz : 0,
                 SlewRateMps = GetD(c, "corridorslew", 0),
                 SlewRateHeadingRadPerSec = Conversions.Deg2Rad(GetD(c, "corridorheadingslew", 0)),
+                // Od 29. 9. 2026; starsi zaznam klice nema = robot jel se starym chovanim.
+                SeekBackSec = GetD(c, "corridorseekback", 0),
+                PositionSlewLimit = GetB(c, "corridorposlimit", false),
                 MaxEdgeDistanceM = maxEdgeM,
             };
             k.Association = new EdgeAssociationConfig
@@ -149,6 +163,8 @@ namespace ARBot.Analyze
                 Candidates = (int)GetD(c, "assock", 4),
                 VetoRad = Conversions.Deg2Rad(GetD(c, "assocveto", 45)),
                 SigmaLateralFloorM = GetD(c, "assocfloorlat", 3),
+                // Podelny presah je od 29. 9. 2026; starsi zaznam klic nema = robot ho nepocital.
+                SigmaLongitudinalFloorM = GetD(c, "assocfloorlong", 0),
                 SigmaHeadingFloorRad = Conversions.Deg2Rad(GetD(c, "assocfloorhdg", 10)),
                 Chi2Max = GetD(c, "assocchi2", 9.21),
                 Chi2Margin = GetD(c, "assocmargin", 4),
@@ -314,15 +330,18 @@ namespace ARBot.Analyze
                 double dt = LimitDt(t);
                 double? maxLat = cfg.SlewRateMps > 0 ? cfg.SlewRateMps * dt : (double?)null;
                 double? maxHdg = cfg.SlewRateHeadingRadPerSec > 0 ? cfg.SlewRateHeadingRadPerSec * dt : (double?)null;
-                posledniLimitCas = t;
+                if (posledniLimitCas == default || t > posledniLimitCas || JeSeek(t, posledniLimitCas))
+                    posledniLimitCas = t;
 
                 if (SendLateral)
                 {
                     double value = a.NormalX * a.AxisX + a.NormalY * a.AxisY + lateral;
                     double sLat = Nafoukni(sigmaLateral, cfg.SigmaLateralExtraM);
                     engine.Enqueue(new AxisOffsetMeasurement(a.NormalX, a.NormalY, value, sLat, t, cfg.MeasurementSource)
-                    { GateThreshold = gate, GateMode = cfg.GateMode, MaxStep = maxLat });
-                    Out.Add(new Emitted { T = t, Heading = false, Z = value, Sigma = sLat });
+                    { GateThreshold = gate, GateMode = cfg.GateMode, MaxStep = maxLat,
+                      MaxPositionStep = cfg.PositionSlewLimit ? maxLat : null });
+                    Out.Add(new Emitted { T = t, Heading = false, Z = value, Sigma = sLat,
+                                          NX = a.NormalX, NY = a.NormalY, MaxStep = maxLat ?? double.NaN });
                 }
 
                 if (cfg.SendHeading)
@@ -331,7 +350,8 @@ namespace ARBot.Analyze
                     double heading = Conversions.NormalizePrimaryOrientation(poseTheta, poseTheta + d);
                     double sH = Nafoukni(c.SigmaDirectionRad, cfg.SigmaHeadingExtraRad);
                     engine.Enqueue(new HeadingMeasurement(heading, sH, t, cfg.MeasurementSource)
-                    { GateThreshold = gate, GateMode = cfg.GateMode, MaxStep = maxHdg });
+                    { GateThreshold = gate, GateMode = cfg.GateMode, MaxStep = maxHdg,
+                      MaxPositionStep = cfg.PositionSlewLimit ? maxLat : null });
                     Out.Add(new Emitted { T = t, Heading = true, Z = heading, Sigma = sH });
                 }
             }
@@ -339,10 +359,12 @@ namespace ARBot.Analyze
             private double LimitDt(DateTime t)
             {
                 double cap = Math.Max(cfg.SlewDtCapSec, cfg.SlewDtFloorSec);
-                if (posledniLimitCas == default || t < posledniLimitCas) return cap;
+                if (posledniLimitCas == default || JeSeek(t, posledniLimitCas)) return cap;
                 double dt = (t - posledniLimitCas).TotalSeconds;
                 return Math.Min(cap, Math.Max(cfg.SlewDtFloorSec, dt));
             }
+
+            private bool JeSeek(DateTime t, DateTime posledni) => (posledni - t).TotalSeconds > cfg.SeekBackSec;
 
             private static double Nafoukni(double sigma, double prirazek)
                 => prirazek > 0 ? Math.Sqrt(sigma * sigma + prirazek * prirazek) : sigma;
@@ -351,7 +373,7 @@ namespace ARBot.Analyze
             {
                 double perioda = cfg.MinSendPeriodSec;
                 if (!(perioda > 0)) return true;
-                if (posledniOdeslani == default || t < posledniOdeslani) { posledniOdeslani = t; return true; }
+                if (posledniOdeslani == default || JeSeek(t, posledniOdeslani)) { posledniOdeslani = t; return true; }
                 if ((t - posledniOdeslani).TotalSeconds + 1e-9 < perioda) return false;
                 posledniOdeslani = t;
                 return true;
@@ -362,7 +384,8 @@ namespace ARBot.Analyze
 
         // ------------------------------------------------------------------ hlavni beh
 
-        public static void Run(RecordFile rec, string mapOverride, double maxEdgeArg, double revisitSec)
+        public static void Run(RecordFile rec, string mapOverride, double maxEdgeArg, double revisitSec,
+                               string setText = null)
         {
             var c = ReadConfig(rec, out string version);
             if (c.Count == 0)
@@ -371,6 +394,20 @@ namespace ARBot.Analyze
                 return;
             }
             Console.WriteLine(version ?? "(verze binarky v logu neni)");
+
+            // --set=klic=hodnota[;klic=hodnota]: prehrat s JINOU konfiguraci, nez s jakou robot jel
+            // (napr. assocfloorlong=3 nad zaznamem z doby pred nim). Varianta S pak se zaznamem
+            // sedet nemusi - kontrola shody plati jen pro konfiguraci z logu.
+            if (!string.IsNullOrWhiteSpace(setText))
+            {
+                foreach (var kv in setText.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    int eq = kv.IndexOf('=');
+                    if (eq <= 0) { Console.WriteLine($"fusionreplay: --set '{kv}' neni klic=hodnota."); return; }
+                    c[kv.Substring(0, eq).Trim()] = (kv.Substring(eq + 1).Trim(), "--set");
+                }
+                Console.WriteLine($"POZOR: konfigurace prepsana --set ({setText}) - shoda varianty S se zaznamem se neceka.");
+            }
 
             // Limit odstupu hrany: 8 m do buildu 25. 9. 2026 vcetne (d193c12 ho 26. 9. vypnul).
             double maxEdge = maxEdgeArg;
@@ -412,8 +449,8 @@ namespace ARBot.Analyze
             Console.WriteLine("KONFIGURACE Z LOGU (co se pouzilo):");
             foreach (var k in new[] { "gpsminsat", "gpsmaxdop", "gpsposstd", "gpsdopsigma", "imuheadingstd", "imuheadinghz",
                                       "corridor", "corridorsend", "corridorstd", "corridorheadingstd", "corridorhz",
-                                      "corridorslew", "corridorheadingslew", "corridorsingle", "corridorsinglewidthstd",
-                                      "assoc", "assock", "assocveto", "assocfloorlat", "assocfloorhdg", "assocchi2",
+                                      "corridorslew", "corridorheadingslew", "corridorseekback", "corridorposlimit", "corridorsingle", "corridorsinglewidthstd",
+                                      "assoc", "assock", "assocveto", "assocfloorlat", "assocfloorlong", "assocfloorhdg", "assocchi2",
                                       "assocmargin", "mapcorr", "roadwidth", "mapprune", "mission", "start" })
                 Console.WriteLine($"  {k}={Get(c, k, "(v logu neni)")}" + (c.TryGetValue(k, out var v) ? $"  ({v.Origin})" : ""));
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "  MaxEdgeDistanceM={0} (podle data binarky / --maxedge)", maxEdge));
@@ -558,6 +595,79 @@ namespace ARBot.Analyze
                 (withC.Name, withC.Samples), (latOnly.Name, latOnly.Samples),
                 (hdgOnly.Name, hdgOnly.Samples), (noC.Name, noC.Samples),
             }, gpsCourse, moving);
+
+            JumpAnalysis(recorded, withC.Samples, noC.Samples);
+            EffectAnalysis(withC.Effects);
+        }
+
+        /// <summary>
+        /// <b>Drzi limit kroku na poze, kterou vidi rizeni?</b> Pro kazde odeslani koridoru: posun
+        /// AKTUALNI pozy (cas posledniho RobotStateMsg) mezi stavem pred vlozenim merenia a po nem,
+        /// rozlozeny KOLMO k hrane (to limit omezuje, <c>MaxStep</c>) a PODEL ni (to neomezuje nic)
+        /// a zmena kurzu. Merenie ma cas SNIMKU, takze se vklada do historie a ocas se prepocita.
+        /// </summary>
+        private static void EffectAnalysis(List<SendEffect> e)
+        {
+            Console.WriteLine();
+            Console.WriteLine("6) UCINEK JEDNOHO ODESLANI KORIDORU NA AKTUALNI POZU (pred / po vlozeni, varianta S):");
+            if (e.Count == 0) { Console.WriteLine("   zadne odeslani"); return; }
+            var perp = new Stats("kolmo k hrane [m]"); var along = new Stats("podel hrany [m]");
+            var dth = new Stats("|zmena kurzu| [deg]"); var lag = new Stats("stari snimku [s]");
+            int over = 0, withLim = 0;
+            foreach (var x in e)
+            {
+                perp.Add(x.Perp); along.Add(x.Along); dth.Add(Math.Abs(x.DTheta));
+                lag.Add((x.Now - x.T).TotalSeconds);
+                if (!double.IsNaN(x.MaxLat)) { withLim++; if (x.Perp > x.MaxLat * 1.05 + 0.01) over++; }
+            }
+            Console.WriteLine("   " + perp.Line()); Console.WriteLine("   " + along.Line());
+            Console.WriteLine("   " + dth.Line()); Console.WriteLine("   " + lag.Line());
+            Console.WriteLine($"   kolmy posun NAD limitem (MaxStep): {over} z {withLim} odeslani s limitem");
+            Console.WriteLine("   nejvetsi posuny (kolmo + podel):");
+            Console.WriteLine("   cas snimku    stari[s]  kolmo  limit  podel  dKurz[deg]");
+            foreach (var x in e.OrderByDescending(x => x.Perp + x.Along).Take(15))
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "   {0:HH:mm:ss.f}   {1,6:F2}  {2,5:F2}  {3,5:F2}  {4,5:F2}   {5,7:F2}",
+                    x.T, (x.Now - x.T).TotalSeconds, x.Perp, x.MaxLat, x.Along, x.DTheta));
+        }
+
+        /// <summary>
+        /// <b>Skoky pozy: udelal je koridor?</b> Stejne meritko jako <c>ARBot.Analyze nav</c> blok 1
+        /// (posun mezi po sobe jdoucimi pozami minus <c>|v|·dt + 0,05</c> nad 0,5 m), ale ve variante
+        /// S koridorem i BEZ nej. Skok, ktery je i ve variante BEZ (do ±0,3 s), koridor nezpusobil
+        /// — typicky usazovani pozy na GPS po startu. Casova souvislost s merenim koridoru nestaci:
+        /// koridor posila 2× za sekundu, takze nejake jeho merenie je „tesne pred" skoro vzdy.
+        /// </summary>
+        private static void JumpAnalysis(List<Sample> recorded, List<Sample> withC, List<Sample> noC)
+        {
+            const double JumpM = 0.5, MatchSec = 0.3;
+            List<(DateTime T, double D, double V, double Dir)> Jumps(List<Sample> s)
+            {
+                var j = new List<(DateTime, double, double, double)>();
+                for (int i = 1; i < s.Count; i++)
+                {
+                    double dt = (s[i].T - s[i - 1].T).TotalSeconds;
+                    if (dt <= 0 || dt > 1.0) continue;
+                    double dx = s[i].X - s[i - 1].X, dy = s[i].Y - s[i - 1].Y, d = Math.Sqrt(dx * dx + dy * dy);
+                    if (d - (Math.Abs(s[i - 1].V) * dt + 0.05) > JumpM)
+                        j.Add((s[i].T, d, s[i - 1].V, Math.Atan2(dy, dx) * 180 / Math.PI));
+                }
+                return j;
+            }
+            var jr = Jumps(recorded); var js = Jumps(withC); var jb = Jumps(noC);
+            bool In(List<(DateTime T, double D, double V, double Dir)> l, DateTime t)
+                => l.Any(x => Math.Abs((x.T - t).TotalSeconds) <= MatchSec);
+
+            Console.WriteLine();
+            Console.WriteLine("5) SKOKY POZY (posun minus |v|*dt nad 0,5 m, jako nav blok 1): udelal je koridor?");
+            Console.WriteLine($"   zaznam {jr.Count}, S koridorem {js.Count} (drah {js.Sum(x => x.D):F1} m), BEZ koridoru {jb.Count} (drah {jb.Sum(x => x.D):F1} m)");
+            int shared = js.Count(x => In(jb, x.T));
+            Console.WriteLine($"   ze skoku S je i ve variante BEZ (do {MatchSec:F1} s): {shared} -> koridor je NEZPUSOBIL; jen v S: {js.Count - shared}");
+            if (js.Count == 0) return;
+            Console.WriteLine("   cas           skok [m]    v    smer    i BEZ?");
+            foreach (var x in js.Take(40))
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "   {0:HH:mm:ss.f}   {1,7:F2}  {2,5:F2}  {3,6:F0}    {4}",
+                    x.T, x.D, x.V, x.Dir, In(jb, x.T) ? "ano" : "NE - koridor"));
+            if (js.Count > 40) Console.WriteLine($"   ... a dalsich {js.Count - 40}");
         }
 
         private static bool NearestMoving(List<Sample> rec, DateTime t)
@@ -585,6 +695,7 @@ namespace ARBot.Analyze
                 Corridor = new CorridorReplay(net, origin, kcfg) { SendLateral = lateral },
             };
             bool depotSeen = false;
+            DateTime lastPoseT = default;
             foreach (var m in msgs)
             {
                 switch (m)
@@ -593,9 +704,36 @@ namespace ARBot.Analyze
                         foreach (var meas in v.Mapper.ToMeasurements(s)) engine.Enqueue(meas);
                         break;
                     case RoadCorridorMsg rc:
+                    {
+                        // Ucinek na AKTUALNI pozu (cas posledniho RobotStateMsg): stav pred a po
+                        // vlozeni merenia. Limit kroku plati v case SNIMKU - tady je videt, co z nej
+                        // zbyde na poze, kterou vidi rizeni.
+                        int before = v.Corridor.Out.Count;
+                        var s0 = lastPoseT == default ? null : engine.GetStateAt(lastPoseT);
                         v.Corridor.Process(rc, engine);
+                        if (s0 != null && v.Corridor.Out.Count > before)
+                        {
+                            var lat = v.Corridor.Out.Skip(before).FirstOrDefault(o => !o.Heading);
+                            var s1 = engine.GetStateAt(lastPoseT);
+                            if (lat != null && s1 != null)
+                            {
+                                double dx = s1.X - s0.X, dy = s1.Y - s0.Y;
+                                double dth = s1.Theta - s0.Theta;
+                                while (dth > Math.PI) dth -= 2 * Math.PI;
+                                while (dth < -Math.PI) dth += 2 * Math.PI;
+                                v.Effects.Add(new SendEffect
+                                {
+                                    T = lat.T, Now = lastPoseT,
+                                    Perp = Math.Abs(dx * lat.NX + dy * lat.NY),
+                                    Along = Math.Abs(-dx * lat.NY + dy * lat.NX),
+                                    DTheta = dth * 180 / Math.PI, MaxLat = lat.MaxStep,
+                                });
+                            }
+                        }
                         break;
+                    }
                     case RobotStateMsg r:
+                        lastPoseT = r.TimeStamp;
                         var st = engine.GetStateAt(r.TimeStamp);
                         if (st != null) v.Samples.Add(new Sample
                         {

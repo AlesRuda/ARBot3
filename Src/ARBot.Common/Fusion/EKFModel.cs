@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ARBot.Common.Common;
 using MathNet.Numerics.LinearAlgebra;
 
@@ -93,6 +93,9 @@ namespace ARBot.Common.Fusion
 
             return Q;
         }
+
+        /// <inheritdoc/>
+        protected override (int X, int Y)? PositionIndices => (IX, IY);
 
         protected override void NormalizeState(Vector<double> x)
         {

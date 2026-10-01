@@ -13,6 +13,65 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-29 — Limit kroku z koridoru hlídá celý posun polohy a malý skok času zpět není seek
+
+**Co:** (1) `CorridorLocalizer` bere skok času fixu zpět za seek jen nad `corridorseekback=` (1 s);
+menší je Δt ≈ 0 (škrcení neposlat, limit podlaha). (2) Limit `corridorslew` omezuje i normu posunu
+polohy jedním měřením (`IMeasurement.MaxPositionStep`, `corridorposlimit=true`), u příčného
+i kurzového měření. Rozhodnutí autora.
+
+**Proč:** Po zavedení limitu 21. 9. skoky pózy nezmizely a přehrání ukázalo, že je dělá koridor
+dvěma úniky: čtvrtina odeslání obcházela škrcení i limit, protože čas fixu dvou kamer jde o pár ms
+zpět (kolmé skoky ~0,7 m), a limit hlídal jen krok podél osy měření, zatímco vazba v kovarianci
+posunula pózu až o 4 m podél cesty. Alternativa „zvětšit σ koridoru“ byla zamítnutá už 20. 9.
+(drift zůstane).
+
+**Důsledky:** V přehrání 7 jízd nezbyl žádný skok od koridoru, přesnost stejná nebo lepší, do fúze
+jde o 25–35 % méně měření (ta nad kvótu). Oba parametry mají hodnotu pro staré chování (`0` /
+`false`) pro A/B a přehrání starých záznamů. Na zařízení neběželo. Viz
+[map-correlation-localization.md](map-correlation-localization.md), „Limit na zařízení a dva
+úniky“; registr `lok-koridor-skoky-pozy`.
+
+### 2026-09-29 — Mrkev se měří od kolmého průmětu robota na trasu, i mimo trasu
+
+**Co:** `RouteCarrot` vystředí čtverec ±`CarrotHalfExtentM` (5,9 m) na **kolmém průmětu** robota na
+trasu místo na robotu; mrkev je dál „první výstup trasy ze čtverce“. Platí pro jakýkoli odstup,
+i nad `OffRouteMaxM` (15 m), kde zůstává jen hlášení `OffRoute`. Rozhodnutí autora.
+
+**Proč:** Cílem je **omezit možnost, aby se robot snadno rozhodl pro špatný směr** (autor); pózu to
+opravovat nemá. Se čtvercem kolem robotu se při odstupu nad 5,9 m vracel průmět samotný — robot měl jet
+kolmo na trasu, nepostupoval a detektor B zavřel hranu (Track 29. 9. 2026). Kolmý průmět netáhne
+ani k cíli, ani od něj; mrkev před průmětem táhne po trase směrem k cíli a robot se k ní sbíhá
+šikmo. Alternativa „mrkev ve vzdálenosti L po trase“ by v zatáčkách mrkev zkrátila proti dnešku
+a oslabila pravidlo „mrkev až na okraji mapy“ (A\* má využít celou známou mapu). Návrhová výjimka
+„nad 15 m nejbližší bod trasy“ se ruší: i tam má mrkev táhnout k cíli.
+
+**Důsledky:** Na trase beze změny. Mimo ni mrkev často leží za okrajem lokální mapy a lokální
+plánovač ji ořízne (`Partial`). Špatnou **pózu** to neřeší a řešit nemá (to je lokalizace) — mrkev
+jen i pak ukazuje po trase směrem k cíli, ne kolmo do strany. Na zařízení neběželo.
+Viz [global-navigation-runtime.md](global-navigation-runtime.md), „Mimo trasu“; registr
+`nav-mrkev-kolmy-prumet`.
+
+### 2026-09-29 — Přiřazení hrany penalizuje podélný přesah za konec úsečky (`assocfloorlong=3`), limit hledání hrany zůstává ∞
+
+**Co:** Kandidát na „hranu, po které jedu“, za jehož koncem úsečky póza leží o `d` metrů, dostane
+k χ² přirážku `(d / σ)²`, `σ = max(kovariance pózy podél hrany, assocfloorlong)`, výchozí 3 m;
+`0` = přesah se nepočítá. `MaxEdgeDistanceM` zůstává nekonečno. Rozhodnutí autora.
+
+**Proč:** Příčná poloha se bere z přímky úseku, takže vzdálený sousední úsek téže cesty zalomený
+o 1–2° vypadal jako cesta o metr vedle a přiřazení končilo jako nejednoznačné (29. 9. v Modřanech
+51 % cyklů, póza ujela o 10 m). Do 26. 9. to maskoval limit 8 m. Alternativy: **vrátit 8 m**
+(vrátí slepotu při velké odchylce a nespraví zatáčky), **slučovat úseky téže cesty** (nepomůže při
+změně id cesty a hrozí výběr extrapolované osy), **zvětšit toleranci slučování** (sloučí i skutečné
+souběžné cesty). Přesah řeší příčinu: úsek, vedle kterého robot nestojí, se hlásí jen extrapolací.
+Podlaha 3 m je stejná úvaha jako `assocfloorlat` — σ z fúze je optimistická.
+
+**Důsledky:** Přepočet nad 8 záznamy: přiřazených cyklů 2–30× víc, nově přiřazené u GPS 99,6–100 %,
+změněná cesta jen v 9 cyklech z 2 101 (27. 9., GPS nerozhodne), ztráta do 1,4 %. Cena: podélný
+drift pózy nad ~6 m za zatáčkou penalizuje i správný úsek. Na zařízení neběželo.
+Viz [map-correlation-localization.md](map-correlation-localization.md), „Podélný přesah“;
+registr `lok-assoc-sousedni-usek`.
+
 ### 2026-09-29 — Každý běh začíná s čistou mapou: uzavřené hrany ani korekce lokalizace se přes restart nepřenášejí
 
 **Co:** Stav navigační vrstvy (hrany sítě uzavřené nebo penalizované za jízdy) ani stav

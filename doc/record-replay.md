@@ -576,6 +576,23 @@ absolutní, ne až na posun. Blok **PŘÍMÉ ÚSEKY** měří měřítko odometr
 stání roste bez pohybu, takže by měřítko zkreslila. Nález, kvůli kterému vznikl:
 [ukoly.md](ukoly.md) `lok-odometrie-obvod-kola`.
 
+**`fusionreplay`, bloky 5 a 6 a `--set=`** (od 29. 9. 2026). `--set=klíč=hodnota;…` přepíše
+hodnotu z logu (přehrát jízdu s opravou, se kterou robot nejel). Blok 5 počítá skoky pózy
+(posun minus `|v|·dt` nad 0,5 m) ve variantě s koridorem a bez něj — skok, který je i bez koridoru,
+koridor nezpůsobil. Blok 6 měří u každého odeslání koridoru posun **aktuální** pózy (před / po
+vložení) kolmo k hraně, podél ní a v kurzu a porovná ho s limitem. Nález: `lok-koridor-skoky-pozy`.
+
+**`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
+`EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od
+`assocreplay`), rozloží ho na jednotlivé hypotézy a u nejednoznačných tiskne, kdo je druhý: jiná
+cesta, nebo sousední / vzdálenější úsek **téže** cesty, jeho vzdálenost od pózy a **podélný
+přesah** (o kolik póza leží za koncem jeho úsečky). Přidá protifakt s přesahem v χ² a shodu
+vybrané cesty s GPS. Měřidlo se nejdřív ověřuje proti verdiktům v záznamu. Parametry mají
+odpovídat jízdě: `--map=` (povinné), `--floorhdg=` (5), `--margin=` (4), `--roadwidth=` (3),
+`--singlestd=` (1), `--maxedge=` (∞; do 26. 9. 2026 jel robot s 8) a `--jelfloorlong=` (0; od
+29. 9. hodnota `assocfloorlong=` z logu). `--floorlong=` (3) je podlaha protifaktu. Blok
+KONTROLA IMPLEMENTACE pouští skutečný `EdgeAssociator` a musí dát tentýž verdikt jako protifakt. Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
+
 **`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
 barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy
 nedosáhne; buňka je pak `Unknown`, ačkoli hloubka o ní ví. Tiskne tři věci: **zorná pole
@@ -907,6 +924,15 @@ ten nese všechno, co senzor poslal: yaw, jeho vlastní odhad nejistoty (`YprU`)
    a ten rozdíl by mířil k poli. Měří se regresí `(Δyaw/Δt − ω_z)` na `(kurz z pole − yaw)`
    na oknech po 1 s; směrnice **K** je zesílení [1/s] a `1/K` časová konstanta.
 3. **Drift yaw proti poli a klidový bias gyra.**
+
+Další bloky: 4 rušení od motorů, 5 pole vázané na kamery, 6 bias gyra z filtru VN
+(`Gyro − UncompGyro`) a teplota, **7 velikost pole `|B|` proti teplotě senzoru** (od 29. 9. 2026).
+Blok 7 vypisuje po minutách teplotu, `|B|` a kurz a v koších kurzu po 30° regresi `|B|` na
+teplotě; koše jsou tam proto, že zbytkové železo dělá z `|B|` funkci kurzu. Uvnitř jedné jízdy
+obvykle nerozhodne (teplota se mění o jednotky °C, `|B|` kolísá jinými vlivy o ±10 mG), slouží
+hlavně k porovnání `|B|` p50 proti průměrné teplotě **mezi záznamy** — 29. 9. 2026 to přes šest
+záznamů dalo ~−1,8 mG/°C (`hw-vn100-zmena-po-27-9` v [ukoly.yaml](ukoly.yaml)). Bloky 6 a 7
+potřebují `IMUState` verze 5 (teplota).
 
 ⚠️ **Dvě pasti, do kterých ten report při psaní spadl** — obě mají společnou příčinu, že **kurz
 přepočtený z pole je sám vadný a zašuměný**:

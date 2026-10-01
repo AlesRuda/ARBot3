@@ -67,11 +67,116 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   (`lok-korelace-gridu-s-mapou`, `-sigma-nepoctiva`, `-tri-podminky-naostro`, `-dekorelacni-cas`,
   `-eskalace-bez-shody`, `lok-tight-axis-angle-vychylena`, `lok-mapcorr-tvrdy-gate`) je
   `odlozeno`. Důvodem zastavení bylo, že cykly korelace nejsou nezávislé, protože sousední cykly
-  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor.
+  korelují z téhož nahromaděného oblaku bodů; lokalizaci podle cesty dělá koridor. Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
 - **A/B podlahy kompasu (`lok-kompas-sigma-podlaha`) se udělá offline** (autor): dvě varianty
   fúze nad toutéž jízdou přes `ARBot.Analyze fusionreplay`, ne dvě jízdy. Bias kompasu se mezi
   běhy liší o ~2°, tedy řádově o tolik, kolik má podlaha změnit. Kroky v registru přepsané
-  (rozšířit `fusionreplay`, pustit nad záznamy z 18. 9., 27. 9. a pozdějšími). Poznámka i v hlavičce [map-correlation-localization.md](map-correlation-localization.md).
+  (rozšířit `fusionreplay`, pustit nad záznamy z 18. 9., 27. 9. a pozdějšími).
+- **Rozbor jízd 29. 9. v Modřanech nad čtyřmi pozorováními autora** (`records/test/20260929-150844.rec`
+  Track 430 s, `-151634.rec` FreeRun 395 s; mapa `OSM/modrany2.osm`).
+  (1) **Obvod kola sedí**: kola / tětiva GPS na přímých úsecích 0,999 v obou (n = 58 a 28), úkol
+  `lok-odometrie-obvod-kola` uzavřen. Vedlejší nález: **póza ujede o 1,1 % víc než kola**
+  (tětiva pózy / tětiva GPS 1,011), měřidlo kol je v pořádku, příčina ve fúzi neprověřená
+  (`lok-fuze-poza-pred-koly`).
+  (2) **Korekce z koridoru opravdu nešly — kvůli nejednoznačnosti, ale ne s jinou cestou:**
+  `AmbiguousEdge` 51 / 33 % cyklů a druhým kandidátem je v 99 % **úsek téže cyklostezky**
+  46–51 m daleko. Příčná poloha se bere z nekonečné přímky úseku, takže ohyb ~1,7° dá v té
+  vzdálenosti osu o metr vedle a při podlaze 3 m je to remíza. Póza mezitím ujela příčně o 10
+  a 16 m. Protifakt s podélným přesahem v χ² srazí nejednoznačnost na desetinu a vybraná cesta
+  sedí na GPS v 99,9 / 94,6 % (`lok-assoc-sousedni-usek`, nový `ARBot.Analyze assocwhy`).
+  (3) **Šířka se nenaučila, protože nebylo z čeho**: oboustranný koridor jen 1,6 / 1,2 % snímků
+  (a jeho šířky převážně nesmysl), do přiřazení došlo 89 a 20 cyklů. Nejednoznačnost to ještě
+  zhoršila, ale sama by to nespravila (`lok-koridor-siroka-cyklostezka`).
+  (4) **Mrkev v kolmém průmětu**: `RouteCarrot` bere hranu čtverce ±5,9 m kolem pózy, a když je
+  póza od trasy dál, vrátí kolmý průmět; v Track ~100 s (odstup 6,5–9 m), z pohledu robotu kolmo
+  za okraj cesty. Stav přitom zůstal `Driving` (práh `OffRoute` je 15 m) a detektor B pak zavřel
+  celou cyklostezku (`nav-mrkev-kolmy-prumet`).
+  Kód runtime se neměnil; léčba (2) a (4) čeká na rozhodnutí autora. Přibylo jen měřidlo
+  `assocwhy` v `ARBot.Analyze`.
+- **Nejednoznačnost přiřazení je regrese z 26. 9. a je opravená** (`lok-assoc-sousedni-usek` → v kódu).
+  Úseky téže cesty 50 m daleko držel do 26. 9. mimo kandidáty limit `MaxEdgeDistanceM` 8 m
+  (s ním sedí přepočet na starší záznamy 99,6–99,9 %). Léčba podle autora: **podélný přesah za
+  konec úsečky do χ²** (`assocfloorlong=3`, 0 = nepočítá se), limit zůstává ∞. Nad 8 záznamy
+  (Modřany, Hviezdoslavova, Robotour Kolo 3b/4) je přiřazených cyklů 2–30× víc, nově přiřazené
+  leží u GPS v 99,6–100 %, dnes přiřazené změnily cestu jen v 9 cyklech 27. 9. (GPS nerozhodne).
+  Skutečný `EdgeAssociator` dává tentýž verdikt jako měřidlo ve 100 %. Testy 1 705 / 148 / 129
+  (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
+  **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Mrkev se měří od kolmého průmětu robota na trasu** (`nav-mrkev-kolmy-prumet` → v kódu). Čtverec
+  pro hledání mrkve v `RouteCarrot` je vystředěný na průmětu, ne na robotu: na trase beze změny,
+  mimo ni leží mrkev půl mapy před průmětem a robot k trase najíždí šikmo (odstup 9 m: 57° místo
+  90°) a postupuje. Platí i nad `OffRouteMaxM` — návrhová výjimka „nejbližší bod trasy“ se ruší
+  (autor: mrkev má táhnout k cíli). 5 nových testů, 4 na starém kódu padají; testy 1 710 / 148 / 129
+  (jediný pád dál `spitest.sh`), build x64 i OrangePI. ⚠️ Na zařízení neběželo.
+  **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Oprava φ z 20. 9. změřena nad záznamy** (`nav-phi-obracena-hrana`): přes sedm jízd s globální
+  navigací 23.–29. 9. (Modřany, Hviezdoslavova 27. 9.) roste φ při jízdě po trase v 0–9 % 2s oken
+  proti 46 / 57 % v Robotour Kolo 3b / 4. Zbylých 5 poplachů detektoru B má jiné příčiny: skok pózy
+  o 157 m při startu GPS (27. 9., to řeší dnešní `min(|Δpóza|, |v|·dt)`), póza se od cíle skutečně
+  vzdalovala nebo sjížděla z trasy u zablokovaného plánu, a mrkev v kolmém průmětu (29. 9.).
+  Nový nález: **kaskáda detektoru C** 25. 9. — při 22,8 s `RobotBlocked` zavřel 15 hran téže
+  cyklostezky za 21 s, až 78 m od robotu (`nav-detektor-c-kaskada`).
+- **Detektor C nepočítá `RobotBlocked`** (pokyn autora, `nav-detektor-c-kaskada` → v kódu): série
+  selhání je jen `NoRoute`, `RobotBlocked` ji vynuluje jako `EscapingBlocked`. 2 nové testy (oba na
+  starém kódu padají); testy 1 712 / 148 / 129 (jediný pád dál `spitest.sh`), build OrangePI.
+  Robota v blokované buňce vyprošťuje únikový manévr, který se zkouší každý cyklus plánování
+  (25. 9. po 22,8 s `RobotBlocked` cestu ven našel). Na zařízení neběželo.
+- **Hranová lokalizace přeměřena nad jízdami 29. 9.** (`lok-koridor-hranova-lokalizace`,
+  `fusionreplay` dostal `--set=klíč=hodnota`, protože robot jel ještě s nejednoznačností
+  přiřazení): s `assocfloorlong=3` je póza od osy sítě p50 0,25 / 0,59 m proti 1,75 / 4,85 m bez
+  korekcí, příčně od GPS 1,49 / 0,62 proti 2,73 / 5,08 m (p90 2,0 proti 6,7 / 10,4). Podélná chyba
+  je po opravě obvodu kola 1–2 m a s / bez se liší jen v řádu chyby GPS. Skutečný výpadek koridoru
+  (Track po první minutě) ukázal, že s `gpsposstd=30` póza na GPS nespadne: 1,8 → 9,7 m za 6 min.
+  Oba otevřené kroky tématu uzavřeny. ⚠️ S `assocfloorlong=3` na zařízení neběželo.
+- **Skoky pózy s limitem kroku přeměřeny** (`lok-koridor-skoky-pozy`): 12 jízd s `corridorslew=0.5`,
+  limit zasahuje, skoky jsou menší a řidší, ale zbyly a **všechny je dělá koridor** (nový blok 5
+  `fusionreplay`: skoky S proti BEZ). Blok 6 (posun aktuální pózy jedním odesláním) našel dva úniky:
+  (a) čas fixu jde ve 22–26 % zpráv o 10–20 ms zpět (dvě kamery) a `VydatMerenie` / `LimitDt` to
+  berou jako seek — škrcení se obejde a limit dostane strop 1 s, takže dvě odeslání v jednom intervalu
+  dají kolmý skok ~0,7 m; (b) limit hlídá jen krok podél osy měření, podél hrany se póza posune přes
+  vazbu v kovarianci až o 4 m jedním měřením (po inicializaci z GPS).
+- **Oba úniky opraveny** (pokyn autora, `lok-koridor-skoky-pozy` → v kódu): malý skok času zpět už
+  není seek (`corridorseekback=1`), limit hlídá i normu posunu polohy (`MaxPositionStep`,
+  `corridorposlimit=true`, i u měření kurzu). Přehrání 7 jízd: skoků od koridoru 0, přesnost stejná
+  nebo lepší. 8 nových testů, testy 1 719 / 148 / 129, build OrangePI. ⚠️ Na zařízení neběželo.
+  V `config/pi-provoz.cfg` nastaveno výslovně `corridorseekback=1` a `corridorposlimit=true`
+  (pokyn autora; jsou to i výchozí hodnoty). **Rozhodnutí:** [decisions.md](decisions.md), 29. 9. 2026.
+- **Krok „měřidlo `K_eff` podceňuje“ vyvrácen** (`lok-koridor-skoky-pozy`): čtyři dílčí skoky
+  z Kola 3b 14:25:05 jsou čtyři samostatná měření koridoru, každé s vlastním krokem (2,45 / 1,63 /
+  1,04 / 0,61 m podle `fusionreplay` bloku 6), ne jeden krok 5,83 m rozložený fúzí. Okno 50 ms
+  v `corridorstd` měřilo správně; volbu `corridorslew` jde dnes zkoušet přímo `fusionreplay --set`.
+- **CI znovu zelené: `deploy/spitest.sh` má `set -euo pipefail`** (padal na něm
+  `DeploySkriptyTests.SkriptyKonciPriPrvniChybe` od `886e599`). Úklid dočasného souboru přes
+  `trap … EXIT`, aby proběhl i při konci chybou. Vedlejší zisk: při nedostupném `/dev/spidev0.0`
+  skript dřív v nekonečné smyčce vypisoval chyby, teď skončí hned s kódem 1 (ověřeno podstrčeným
+  zařízením). Na Orange Pi znovu nespouštěno.
+- **Jízdy 29. 9. z pohledu VN100, FreeRun a kamer** (doplnění k rozboru výš, jen registr).
+  (1) **Blok 6 `vn100` odpověděl** (`lok-freerun-kurz-staci-na-zapad`): filtr VN odečítá v ose Z
+  ~1 °/s a kompenzované gyro proti GPS kurzu sedí na ≤ 0,07 °/s, takže offset má syrové gyro
+  a VPE ho odhaduje správně. Sloupec „syrové gyro ve stání“ je nepoužitelný (stání jen podle
+  proudu motorů). (2) **Mezi 27. a 29. 9. se změnil stav VN100** (nové `hw-vn100-zmena-po-27-9`):
+  `|B|` 0,461 / 0,467 proti 0,494–0,505 G, `IMU yaw − GPS kurz` −5,5 / +10,8° proti −3 až +1°,
+  senzor 47–54 °C proti 28–36 °C. Na robotu se podle autora nic neměnilo (LED pásek byl i při
+  kalibraci), teplotu způsobilo dlouhé stání na slunci. `|B|` leží přes šest záznamů na přímce
+  ~−1,8 mG/°C, což by pokles vysvětlilo, uvnitř jízdy se to ale potvrdit nedá. Chyba kurzu je
+  v Track hlavně posunutý směr pole (~3–4°), ve FreeRun hlavně VPE, které se za polem táhne.
+  Hypotéza „ohřátí“ čeká na jízdu se studeným senzorem. Měří to nový `vn100` blok 7 (`|B|`
+  proti teplotě po minutách a v koších kurzu). Výchozí reference `vn100` a `magcal` srovnána na
+  dnešní registr 21 (`--bref=0.4896`, `--incl=65.95`; dřív 0,4818 G a 60,9° z doby před
+  `magmodel=`, záznamy před 8. 9. je potřeba pouštět s nimi). (3) **FreeRun podle jedné hrany poprvé na
+  zařízení** (`mise-freerun-jedna-hrana`): mrkev z jedné hrany v 70 % cyklů, rovně 30 %; jestli
+  drží pravou polovinu, měřidlo neumí. (4) Jedno zamrznutí pravé D435 vrátil supervizor za 29 s
+  (`hw-d435-vlakno-zatuhlo-po-restartu`).
+- **Mise Track uzavřena** (`mise-track` → hotovo). `trackoffroad=50` je volba autora, neměří se.
+  Hláška bez `track=` **reprodukovaná v headless simulaci**: výběr `track` ze stránky dostal 200,
+  runtime se přestavěl i se záznamem, mise tiše nevznikla, stránka ukázala „mise: žádná" a volbu
+  už nenabízela. Teď se výběr bez použitelného `track=` odmítne hned (409 s důvodem;
+  `ARBotRuntime.MissionPickProblem` sdílí kontrolu se `Start`) a nezaložená mise z profilu nebo
+  příkazové řádky se na stránce ukáže červeně „NEZALOŽENA — důvod" (`MissionNotCreatedReason`,
+  JSON `missionFailed`, pro všechny mise). Opraveno i nenulování `TrackMission` při přestavbě
+  runtime. 3 nové testy; testy Runtime 151, Common 1 719, build OrangePI. Obě cesty ověřené
+  v headless (`virtualhw=true`, `map=OSM/Hviezdoslavova.osm`, `web=`) včetně vykreslení stránky.
+  Ověření na Pi není potřeba (autor: stačí počítač). Detail: [track-mission.md](track-mission.md).
 
 ## 2026-09-28
 

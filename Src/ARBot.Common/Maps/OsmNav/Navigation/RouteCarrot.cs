@@ -20,6 +20,16 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
     /// pozdejsi kus uvnitr mapy <b>nespojeny</b> s robotem a cil na nem by lokalni planovac
     /// nedokazal poctive obslouzit.
     /// </para>
+    /// <para>
+    /// <b>Ctverec je vystredeny na KOLMEM PRUMETU robota na trasu, ne na robotu</b> (od 29. 9. 2026).
+    /// Na trase je to totez. Mimo ni mrkev lezi porad kus PRED prumetem, takze robot najizdi k trase
+    /// sikmo a pritom po ni postupuje; mrkev mimo lokalni mapu orizne lokalni planovac
+    /// (<c>LocalPathPlanner.ClipToGrid</c>, stav <c>Partial</c>). Do te doby byl ctverec kolem robota
+    /// a pri odstupu nad polovinu mapy (5,9 m) se vracel <b>prumet samotny</b> — robot mel jet kolmo
+    /// na trasu, nepostupoval a detektor bez postupu zavrel hranu (Track 29. 9. 2026 v Modranech,
+    /// ~100 s pri odstupu 6,5–9 m). Plati i nad <c>OffRouteMaxM</c> (rozhodnuti autora: i tam ma
+    /// mrkev tahnout po trase smerem k cili, ne kolmo).
+    /// </para>
     /// Viz doc/global-navigation-runtime.md.
     /// </summary>
     public static class RouteCarrot
@@ -28,7 +38,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// Vrati posledni bod trasy, ktery je jeste uvnitr lokalni mapy.
         /// </summary>
         /// <param name="route">Trasa jako lomena cara v lokalni ENU rovine [m].</param>
-        /// <param name="robot">Poloha robota (stred lokalni mapy) [m].</param>
+        /// <param name="robot">Poloha robota [m]; ctverec se vystredi na jeho kolmem prumetu na trasu.</param>
         /// <param name="halfExtentM">Polovina hrany lokalni mapy [m], uz zmensena o okraj.</param>
         /// <returns>Mrkev, nebo null kdyz trasa neexistuje.</returns>
         public static Point2D? Find(IReadOnlyList<Point2D> route, Point2D robot, double halfExtentM)
@@ -41,17 +51,16 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             double ax = route[segment].X + t * (route[segment + 1].X - route[segment].X);
             double ay = route[segment].Y + t * (route[segment + 1].Y - route[segment].Y);
 
-            // Robot mimo mapu vlastni trasy (off-route) - nejlepsi, co lze nabidnout, je nejblizsi
-            // bod trasy; rozhodnuti, co s tim, patri volajicimu.
-            if (!Inside(ax, ay, robot, halfExtentM))
-                return new Point2D(ax, ay);
+            // Stred ctverce = kolmy prumet robota na trasu (viz hlavicka tridy). Robot na trase
+            // s prumetem splyva; mimo ni se tak mrkev meri od prumetu, ne od robota.
+            var center = new Point2D(ax, ay);
 
-            // Postup po trase od prumetu k prvnimu vystupu z mapy.
+            // Postup po trase od prumetu k prvnimu vystupu ze ctverce.
             for (int i = segment; i + 1 < route.Count; i++)
             {
                 double bx = route[i + 1].X, by = route[i + 1].Y;
 
-                if (TryExit(ax, ay, bx, by, robot, halfExtentM, out double ex, out double ey))
+                if (TryExit(ax, ay, bx, by, center, halfExtentM, out double ex, out double ey))
                     return new Point2D(ex, ey);
 
                 ax = bx; ay = by;   // cely usek je uvnitr - pokracuj dalsim
@@ -61,12 +70,8 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             return new Point2D(ax, ay);
         }
 
-        /// <summary>Lezi bod uvnitr ctvercove mapy kolem robota?</summary>
-        private static bool Inside(double x, double y, Point2D robot, double half)
-            => Math.Abs(x - robot.X) <= half && Math.Abs(y - robot.Y) <= half;
-
         /// <summary>
-        /// Najde bod, kde usek A→B opousti ctvercovou mapu. Predpoklada, ze A je uvnitr;
+        /// Najde bod, kde usek A→B opousti ctverec kolem <paramref name="robot"/>. Predpoklada, ze A je uvnitr;
         /// pak staci nejmensi kladny parametr pruniku s ctyrmi hranicnimi primkami (slab metoda).
         /// </summary>
         private static bool TryExit(double ax, double ay, double bx, double by,

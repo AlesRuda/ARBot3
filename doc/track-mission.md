@@ -112,11 +112,16 @@ se dá nastavit z dat místo úsudkem.
 |---|---|---|
 | `mission=track` | `none` | zapne misi |
 | `track=<cesta>` | — | soubor se seznamem míst; **bez něj se mise nezaloží** |
-| `trackoffroad=<m>` | 50 | největší přípustný odstup místa od sítě cest |
+| `trackoffroad=<m>` | 50 | největší přípustný odstup místa od sítě cest (**volba autora**, 29. 9. 2026 potvrzeno — z dat se neladí) |
 
-Mise se **nezaloží** (a runtime to napíše do `Trace`) když: není globální navigace (chybí `map=`
-nebo `GeoReference`), není zadané `track=`, nebo soubor nejde přečíst. Vadný seznam je důvod misi
-nezaložit, ne jezdit podle jeho čitelné části.
+Mise se **nezaloží** když: není globální navigace (chybí `map=` nebo `GeoReference`), není zadané
+`track=`, nebo soubor nejde přečíst. Vadný seznam je důvod misi nezaložit, ne jezdit podle jeho
+čitelné části. Důvod jde do `Trace` **i na stránku náhledu** (od 29. 9. 2026): řádek mise ukáže
+červeně „NEZALOŽENA — `track: …`" (`ARBotRuntime.MissionNotCreatedReason`, v JSON `missionFailed`)
+místo dřívějšího „mise: žádná". **Výběr `track` ze stránky** se bez použitelného `track=` odmítne
+hned (409 s důvodem, `ARBotRuntime.MissionPickProblem`) — dřív server odpověděl 200, runtime se
+přestavěl i se záznamem, mise tiše nevznikla a volba už se nenabízela. `track=` za běhu zadat
+nejde (bílá listina přepínatelných parametrů má jen `mission=`), patří do profilu.
 
 ## Poruchy — nikdy tiché zaseknutí
 
@@ -269,13 +274,8 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   18. 9. 2026 (`20260918-154028.rec`: dvě celá kola včetně `repeat`, 6 míst za 5 min; druhý běh
   5 míst za 8 min) s kalibrovaným kompasem; jízdy 12. a 14. 9. seznam neobjely kvůli kurzu
   rozbitému železem od kabelů ([registr](ukoly.md#hw-zelezo-od-kabelu-kamer)).
-- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — `trackoffroad=` nastavit
-  z naměřených odstupů místo úsudku (údaj je v záznamu).
 - (bez tématu v registru) **Rozbor záznamu** (`ARBot.Analyze track`) — jak dlouho trvalo které místo, kolik kol se ujelo,
   jaké byly odstupy. Vzor: `ARBot.Analyze freerun`.
-- **[Mise Track — objezd míst ze souboru](ukoly.md#mise-track)** — volba mise ze stránky bez
-  `track=` dnes skončí tím, že se mise nezaloží a stránka o tom nic neřekne (jen `Trace`); buď
-  doplnit hlášku na stránku, nebo ze seznamu misí `track` schovat, když soubor není zadaný.
 
 ## Odkazy
 

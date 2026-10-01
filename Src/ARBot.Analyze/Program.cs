@@ -129,16 +129,19 @@ namespace ARBot.Analyze
                         return 0;
                     case "vn100":
                         // --bref / --incl = referencni vektor pole z registru 21 (|B| a sklon).
-                        // Cte se ZE SENZORU, tady je jen dnesni hodnota jako default: registr 21
-                        // (0,234; 0; 0,4212) -> 0,4818 G a 60,9 deg. Po zapnuti modelu pole
-                        // (magmodel=) se reference ZMENI a tyhle prepinace jsou pak potreba.
-                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4818), Arg(args, "--incl", 60.9),
+                        // Cte se ZE SENZORU, tady je jen posledni prectena hodnota jako default:
+                        // registr 21 (0,199158; 0,0119037; 0,447158) -> 0,4896 G a 65,95 deg
+                        // (model pole magmodel=, vnprobe.sh 12. 9. 2026; default srovnan 29. 9.).
+                        // Do 29. 9. tu byl stary registr 21 pred magmodel= (0,4818 G, 60,9 deg) -
+                        // na zaznamy pred 8. 9. 2026 ho zadej rucne.
+                        Vn100Report.Run(rec, Arg(args, "--bref", 0.4896), Arg(args, "--incl", 65.95),
                                       Arg(args, "--camwin", 3.0), Arg(args, "--camdead", 0.5));
                         return 0;
                     case "magcal":
-                        // --bref = referencni |B| [G] z registru 21; default je dnesni hodnota
-                        // senzoru (0,234; 0; 0,4212) -> 0,4818 G. Viz doc/plan-vn100-kalibrace.md.
-                        MagCalReport.Run(rec, Arg(args, "--bref", 0.4818), Text(args, "--reg47"));
+                        // --bref = referencni |B| [G] z registru 21; default je posledni prectena
+                        // hodnota senzoru (model pole) -> 0,4896 G, srovnano 29. 9. 2026 (drive
+                        // 0,4818 z registru 21 pred magmodel=). Viz doc/plan-vn100-kalibrace.md.
+                        MagCalReport.Run(rec, Arg(args, "--bref", 0.4896), Text(args, "--reg47"));
                         return 0;
                     case "backproject" when Text(args, "--compare") != null:
                         // Srovnavaci mrizka (vstup | histogram | modely) misto mereni.
@@ -193,6 +196,12 @@ namespace ARBot.Analyze
                                              Arg(args, "--bin", 30), Arg(args, "--maxskew", 400),
                                              Text(args, "--sweep"));
                         return 0;
+                    case "assocwhy":
+                        AssocWhyReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
+                                           Arg(args, "--floorhdg", 5), Arg(args, "--margin", 4),
+                                           Arg(args, "--singlestd", 1), Arg(args, "--maxedge", double.PositiveInfinity),
+                                           Arg(args, "--floorlong", 3), Arg(args, "--jelfloorlong", 0));
+                        return 0;
                     case "assocreplay":
                         AssocReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
                                               Arg(args, "--maxedge", 8), Text(args, "--floors"),
@@ -203,7 +212,7 @@ namespace ARBot.Analyze
                         return 0;
                     case "fusionreplay":
                         FusionReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
-                                               Arg(args, "--revisit", 60));
+                                               Arg(args, "--revisit", 60), Text(args, "--set"));
                         return 0;
                     case "drive":
                         DriveReport.Run(rec, Arg(args, "--maxspeed", double.NaN),
@@ -283,10 +292,14 @@ namespace ARBot.Analyze
             Console.WriteLine("  assocreplay co by udelalo prirazeni k hrane s jinou podlahou kurzu / odstupem:");
             Console.WriteLine("             prepocet EdgeAssociator nad zaznamenanymi cykly (--map=OSM/x.osm,");
             Console.WriteLine("             --floors=10,7,5,3, --margins=4, --maxedge=8 = hodnota z Robotouru)");
+            Console.WriteLine("  assocwhy   proc je prirazeni k hrane nejednoznacne: kdo je druhy kandidat (jina cesta,");
+            Console.WriteLine("             nebo sousedni usek tehoz) + protifakt s podelnym presahem (--map=, --floorhdg=5, --margin=4,");
+            Console.WriteLine("             --maxedge=, --floorlong=3 protifakt, --jelfloorlong=0 s cim robot jel)");
             Console.WriteLine("  fusionreplay A/B hranove lokalizace nad JEDNOU jizdou: prehraje fuzi ze senzoru S korekcemi");
             Console.WriteLine("             z koridoru (prirazeni prepocitane proti prehravane poze) a BEZ nich, overi");
             Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");
-            Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60)");
+            Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60,");
+            Console.WriteLine("             --set=klic=hodnota;... prepise hodnotu z logu)");
             Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
             Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
             Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");
@@ -359,6 +372,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             Navic rozpad toho zesileni po kosich odchylky |B| a sklonu");
             Console.WriteLine("             od referencniho vektoru (--bref=/--incl= z registru 21) -");
             Console.WriteLine("             dusi VPE magnetometr pri nesouhlasu? NUTNA PODMINKA, NE DUKAZ");
+            Console.WriteLine("             Blok 6 bias gyra z filtru VN, blok 7 |B| proti teplote senzoru");
+            Console.WriteLine("             (po minutach a po kosich kurzu; od IMUState verze 5)");
             Console.WriteLine("  backproject vyplati se neuronova sit misto histogramu? cas obou prevodu");
             Console.WriteLine("             barva->pravdepodobnost nad snimky ZE ZAZNAMU a jak moc se lisi");
             Console.WriteLine("             jejich verdikt (--model=<.onnx>, --limit, --skip, --bgr,");

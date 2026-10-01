@@ -714,11 +714,14 @@ namespace ARBot.Robot
                     // na vic mereni misto skoku pozy. Vychozi 0 = bez limitu.
                     SlewRateMps = ParamRegistry.CorridorSlew.Value,
                     SlewRateHeadingRadPerSec = Conversions.Deg2Rad(ParamRegistry.CorridorHeadingSlew.Value),
+                    SeekBackSec = ParamRegistry.CorridorSeekBack.Value,
+                    PositionSlewLimit = ParamRegistry.CorridorPosLimit.Value,
                 };
 
                 // Prirazeni koridoru k hrane site (assoc*): nejblizsi hrana nemusi byt ta spravna
                 // - pri chybe polohy nekolika metru vyhraje u krizovatky pricna ulice. Skore je
-                // chi-kvadrat z pricne odchylky a azimutu, obe delene svoji sigmou s PODLAHOU.
+                // chi-kvadrat z pricne odchylky a azimutu, obe delene svoji sigmou s PODLAHOU,
+                // plus podelny presah za konec usecky (assocfloorlong, od 29. 9. 2026).
                 // Viz doc/map-correlation-localization.md.
                 corridorCfg.Association = new ARBot.Common.Localization.EdgeAssociationConfig
                 {
@@ -726,6 +729,7 @@ namespace ARBot.Robot
                     Candidates = (int)ParamRegistry.AssocK.Value,
                     VetoRad = Conversions.Deg2Rad(ParamRegistry.AssocVeto.Value),
                     SigmaLateralFloorM = ParamRegistry.AssocFloorLat.Value,
+                    SigmaLongitudinalFloorM = ParamRegistry.AssocFloorLong.Value,
                     SigmaHeadingFloorRad = Conversions.Deg2Rad(ParamRegistry.AssocFloorHdg.Value),
                     Chi2Max = ParamRegistry.AssocChi2.Value,
                     Chi2Margin = ParamRegistry.AssocMargin.Value,
@@ -828,6 +832,10 @@ namespace ARBot.Robot
             // Bez tohohle by po zastaveni zustala mrtva reference a stranka by nabizela
             // „Zapsat do senzoru" proti misi, ktera uz nebezi.
             MagCalMission = null;
+            // Chybel tu do 29. 9. 2026: po Stop + Start s jinou (nebo nezalozenou) misi by stranka
+            // dal hlasila Track, ktery uz nebezi.
+            TrackMission = null;
+            MissionNotCreatedReason = null;
 
             switch (mission)
             {
@@ -838,7 +846,7 @@ namespace ARBot.Robot
                 case "freerun":
                     if (navigator == null)
                     {
-                        Trace.WriteLine("mission=freerun, ale neni lokalni navigator -> mise se nezaklada.");
+                        MisiNelzeZalozit(mission, "neni lokalni navigator");
                         break;
                     }
 
@@ -890,8 +898,7 @@ namespace ARBot.Robot
                     // Ridi GLOBALNI navigaci (LLA cile), takze bez mapy nema co zadavat.
                     if (GlobalNavigator == null)
                     {
-                        Trace.WriteLine("mission=robotour, ale neni globalni navigace (chybi mapa "
-                                        + "map= nebo GeoReference) -> mise se nezaklada.");
+                        MisiNelzeZalozit(mission, "neni globalni navigace (chybi mapa map= nebo GeoReference)");
                         break;
                     }
 
@@ -984,9 +991,9 @@ namespace ARBot.Robot
 
                     if (magCtl == null)
                     {
-                        Trace.WriteLine("mission=magcal, ale neni binarni VN100 (IMU je "
-                                        + (ARBotHW.Current.IMU?.Name ?? "null")
-                                        + ") ani virtualni HW -> mise se nezaklada.");
+                        MisiNelzeZalozit(mission, "neni binarni VN100 (IMU je "
+                                                  + (ARBotHW.Current.IMU?.Name ?? "null")
+                                                  + ") ani virtualni HW");
                         break;
                     }
 
@@ -1017,31 +1024,18 @@ namespace ARBot.Robot
                     // bez mapy nema co zadavat - stejne jako Robotour.
                     if (GlobalNavigator == null)
                     {
-                        Trace.WriteLine("mission=track, ale neni globalni navigace (chybi mapa "
-                                        + "map= nebo GeoReference) -> mise se nezaklada.");
+                        MisiNelzeZalozit(mission, "neni globalni navigace (chybi mapa map= nebo GeoReference)");
                         break;
                     }
 
                     string trackRaw = ParamRegistry.Track.Value;
-                    if (string.IsNullOrWhiteSpace(trackRaw))
+                    // ⚠️ Vadny seznam je duvod misi NEZALOZIT, ne jezdit podle jeho citelne casti:
+                    // robot by objel jinou trasu, nez clovek zadal, a poznalo by se to jen tim, co
+                    // v ni NENI. Tataz kontrola bezi uz pri vyberu mise ze stranky (TrackPlanProblem).
+                    string trackProblem = TrackPlanProblem(out var trackPlan);
+                    if (trackProblem != null)
                     {
-                        Trace.WriteLine("mission=track, ale track= (soubor se seznamem mist) neni "
-                                        + "zadany -> mise se nezaklada.");
-                        break;
-                    }
-
-                    ARBot.Common.Missions.TrackPlan trackPlan;
-                    try
-                    {
-                        trackPlan = ARBot.Common.Missions.TrackPlan.Load(RepoPaths.Resolve(trackRaw));
-                    }
-                    catch (Exception ex)
-                    {
-                        // ⚠️ Vadny seznam je duvod misi NEZALOZIT, ne jezdit podle jeho citelne
-                        // casti: robot by objel jinou trasu, nez clovek zadal, a poznalo by se to
-                        // jen tim, co v ni NENI. Trace (ne Debug) - na zarizeni bezi Release.
-                        Trace.WriteLine($"mission=track: soubor '{trackRaw}' nejde pouzit -> mise "
-                                        + "se nezaklada. " + ex.Message);
+                        MisiNelzeZalozit(mission, trackProblem);
                         break;
                     }
 
@@ -1079,8 +1073,7 @@ namespace ARBot.Robot
                 default:
                     // Tise ignorovat neznamou misi by znamenalo "mise nebezi, i kdyz si ji nekdo
                     // pral" - a to je presne ten druh chyby, ktery se pak hleda na soutezi.
-                    Trace.WriteLine($"mission={mission}: neznama mise "
-                                    + "(znam none|freerun|robotour|magcal|track) -> zadna mise nebezi.");
+                    MisiNelzeZalozit(mission, "neznama mise (znam none|freerun|robotour|magcal|track)");
                     break;
             }
 
@@ -1288,6 +1281,67 @@ namespace ARBot.Robot
         /// <c>mission=</c> a <c>track=</c>). Viz doc/track-mission.md.
         /// </summary>
         public ARBot.Common.Missions.TrackMission TrackMission { get; private set; }
+
+        /// <summary>
+        /// <b>Proc zadana mise NEVZNIKLA</b> (napr. <c>"track: track= ... neni zadany"</c>), nebo
+        /// <c>null</c> — mise bezi, nebo zadna zadana nebyla. Nastavuje <c>Start</c>.
+        ///
+        /// <para><b>Nacpak:</b> do 29. 9. 2026 sla tahle informace jen do <c>Trace</c>, takze stranka
+        /// nahledu po vyberu <c>track</c> bez <c>track=</c> ukazala „mise: zadna" — obsluha u robota
+        /// s telefonem nevidela, ze se neco pokazilo, natoz co. Journal na miste k dispozici neni.</para>
+        /// </summary>
+        public string MissionNotCreatedReason { get; private set; }
+
+        /// <summary>Mise se nezaklada: duvod do <c>Trace</c> (na zarizeni bezi Release) i na stranku.</summary>
+        private void MisiNelzeZalozit(string mission, string duvod)
+        {
+            MissionNotCreatedReason = mission + ": " + duvod;
+            Trace.WriteLine($"mission={mission}: {duvod} -> mise se nezaklada.");
+        }
+
+        /// <summary>
+        /// Da se z <c>track=</c> nacist seznam mist? <c>null</c> = ano (<paramref name="plan"/> je
+        /// nacteny), jinak duvod pro cloveka.
+        ///
+        /// <para>Jedna kontrola pro dve mista: zakladani mise ve <c>Start</c> a <b>vyber mise ze
+        /// stranky</b> (<see cref="MissionPickProblem"/>). Kdyby si ji kazde psalo samo, rozesly by se
+        /// — a stranka by pustila volbu, kterou runtime pak tise odmitne.</para>
+        /// </summary>
+        public static string TrackPlanProblem(out ARBot.Common.Missions.TrackPlan plan)
+        {
+            plan = null;
+            string raw = ParamRegistry.Track.Value;
+            if (string.IsNullOrWhiteSpace(raw))
+                return "track= (soubor se seznamem mist) neni zadany - patri do profilu "
+                       + "(config=) nebo na prikazovou radku, za behu ho zmenit nejde";
+            try
+            {
+                plan = ARBot.Common.Missions.TrackPlan.Load(RepoPaths.Resolve(raw));
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return $"soubor track='{raw}' nejde pouzit: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Kontrola <b>pred vyberem mise ze stranky</b>: <c>null</c> = mise pujde zalozit (co se da
+        /// overit bez prestavby runtime), jinak duvod. Vyber mise prestavi runtime a zapne zaznam;
+        /// kdyby mise pak nevznikla, zustal by robot stat s bezicim zaznamem a stranka uz by volbu
+        /// nenabizela — navrat je jen restartem sluzby. Odmitnout volbu hned (409 s duvodem) nechava
+        /// proces cekat na jinou.
+        ///
+        /// <para>Overuje jen to, co za behu zmenit nejde a co se da zjistit bez HW: <c>track=</c>
+        /// u mise track. Chybejici mapa, VN100 apod. se ukazou az ze <see cref="Start"/> pres
+        /// <see cref="MissionNotCreatedReason"/>.</para>
+        /// </summary>
+        public static string MissionPickProblem(string mission)
+        {
+            if (string.Equals(mission?.Trim(), "track", StringComparison.OrdinalIgnoreCase))
+                return TrackPlanProblem(out _) is string duvod ? "mise track: " + duvod : null;
+            return null;
+        }
 
         /// <summary>
         /// Konfigurace fuze slozeneho behu, nebo <c>null</c> (runtime jeste nebezel). Cte ji webovy

@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Linq;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Maps.OsmNav.Graph;
@@ -323,6 +323,57 @@ public class GlobalNavigatorTests
         nav.Step(10, 0, t.AddSeconds(1));
 
         Assert.That(nav.Closures, Is.Empty, "unik se nesmi scitat jako selhani planu");
+    }
+
+    /// <summary>
+    /// RobotBlocked (robot stoji v blokovane bunce a unik se nenasel) NENI prehrazena cesta.
+    /// Do 29. 9. 2026 se pocital: Track 25. 9. (20260925-144200.rec) pri 22,8 s RobotBlocked
+    /// zavrel detektor C 15 hran teze cyklostezky za 21 s, az 78 m od robotu.
+    /// </summary>
+    [Test]
+    public void RobotBlocked_IsNotAPlanFailure_AndClosesNothing()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { BlockedPlanCount = 3 };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.Step(10, 0, t);
+
+        // Dlouhe stani v blokovane bunce: kazdych par planu globalni cyklus - jako na robotu.
+        for (int cyklus = 1; cyklus <= 10; cyklus++)
+        {
+            for (int i = 0; i < cfg.BlockedPlanCount; i++)
+                nav.OnLocalPlan(LocalPlanStatus.RobotBlocked);
+            nav.Step(10, 0, t.AddSeconds(cyklus));
+        }
+
+        Assert.That(nav.Closures, Is.Empty, "robot v blokovane bunce nesmi zavirat hrany trasy");
+    }
+
+    /// <summary>RobotBlocked uprostred serie NoRoute ji prerusi (jako EscapingBlocked).</summary>
+    [Test]
+    public void RobotBlocked_BreaksTheNoRouteStreak()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig { BlockedPlanCount = 3 };
+        var nav = Create(origin, sink, cfg);
+        var t = DateTime.UtcNow;
+
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.Step(10, 0, t);
+
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+        nav.OnLocalPlan(LocalPlanStatus.RobotBlocked);
+        nav.OnLocalPlan(LocalPlanStatus.NoRoute);
+
+        nav.Step(10, 0, t.AddSeconds(1));
+
+        Assert.That(nav.Closures, Is.Empty, "RobotBlocked neni selhani, serie NoRoute se jim prerusi");
     }
 
     /// <summary>Uspesny plan mezi selhanimi vynuluje pocitadlo - jinak by staciler nasbirat selhani kdykoli.</summary>

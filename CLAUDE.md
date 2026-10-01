@@ -727,6 +727,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (`GlobalNavigator`): LLA cíl → trasa po síti → „mrkev" pro `LocalNavigator`, metadata o postupu úseků,
   detekce záseku/bloudění/přehrazené cesty a uzavírání hran. **Fáze 0–4 hotové** (jízda k cíli po síti,
   trasa v mapě, detektory + uzavírání hran); zbývá recovery manévr, průřez koridorem a ověření na HW.
+  ✅ **Od 29. 9. 2026 se mrkev měří od KOLMÉHO PRŮMĚTU robota na trasu** (`RouteCarrot`): do té
+  doby byl čtverec kolem robotu a při odstupu nad 5,9 m vracel průmět samotný — robot měl jet
+  kolmo, nepostupoval a detektor B zavřel hranu. Teď leží mrkev před průmětem i mimo trasu (i nad
+  `OffRouteMaxM`, rozhodnutí autora), lokální plánovač ji ořízne (`Partial`). ⚠️ Na HW neběželo.
   ⚠️ **Robotour 19. 9. 2026 (rozbor 20. 9., `ARBot.Analyze nav`): φ při jízdě po trase ROSTLO
   o 1 s/m**, kdykoli trasa vedla proti pořadí vložení hrany — `ComputePhi` bralo `1 − t` z hrany
   od `NearestNode`, ale `fix.CurrentEdge` byla její obrácená orientace (zbývá `t`). Detektor B pak
@@ -765,6 +769,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   byl SMĚR posunu, ne otočení pózy**. ⚠️ `K_eff` měřidla (okno 50 ms) krok podceňuje: skok
   14:25:05 byl 4 dílčí skoky = 5,81 m za 1,6 s ≈ celé `K·ν` 5,83 m, fúze ho rozkládá, ne tlumí.
   ⚠️ Na zařízení neběželo. Viz [decisions.md](doc/decisions.md), 21. 9. 2026.
+  ✅ **29. 9. 2026 přeměřeno na 12 jízdách s limitem: skoky zbyly, dva úniky opraveny** — malý skok
+  času fixu zpět (dvě kamery, 22–26 % zpráv) už není seek (`corridorseekback=1`; dřív obešel
+  škrcení i limit), a limit hlídá i celý posun POLOHY (`corridorposlimit=true`,
+  `IMeasurement.MaxPositionStep`; vazbou v kovarianci ujela póza jedním měřením až 4 m podél
+  cesty). Přehrání 7 jízd: skoků od koridoru 0. ⚠️ Na zařízení neběželo.
   ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
   při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše
   (`lok-skok-pozy-nedetekce`, neopraveno).
@@ -851,7 +860,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `YprU`, `gpsposstd` a `Reject`. ✅ **Od 27. 9. 2026 je podlaha kurzu 5° (dřív 10°)** — po
   kalibraci magnetometru je chyba kurzu za jízdy 2–4° a přepočet nad Robotourem
   (`ARBot.Analyze assocreplay`) dal +10 % přiřazených cyklů, žádný na příčnou ulici; ⚠️ když
-  kurz zase ujede (14. 9.: kabely ke kamerám), zamítne i správnou hranu. K tomu **tvrdé veto na
+  kurz zase ujede (14. 9.: kabely ke kamerám), zamítne i správnou hranu. ✅ **Od 29. 9. 2026
+  i PODÉLNÝ PŘESAH** (`assocfloorlong=3` m, 0 = nepočítá se): úsek, za jehož koncem póza leží,
+  dostane přirážku `(přesah/σ)²` — příčná poloha se bere z **přímky** úseku, takže vzdálený
+  sousední úsek téže cesty zalomený o 1–2° dělal nejednoznačnost (Modřany 29. 9.: 51 % cyklů,
+  póza ujela o 10 m). ⚠️ Byla to **regrese z 26. 9.**: do té doby ty úseky držel mimo limit
+  `MaxEdgeDistanceM` 8 m (teď ∞). Přepočet nad 8 záznamy 2–30× víc přiřazených, nově přiřazené
+  u GPS 99,6–100 %; ⚠️ na zařízení neběželo. K tomu **tvrdé veto na
   azimut** (`assocveto=45°`, kolmá ulice není „trochu mimo") a **odstup od druhého kandidáta**
   (`assocmargin=4`) — při nejednoznačnosti se **neposílá nic** (`AmbiguousEdge`), protože vybrat tu
   o chlup lepší by znamenalo hádat. ⚠️ **Dvě pasti, které stály čas:** obousměrná cesta jsou dvě

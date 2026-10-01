@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -434,6 +434,7 @@ namespace ARBot.Analyze
             Candidates = 4,
             VetoRad = 45 * Math.PI / 180,
             SigmaLateralFloorM = 3.0,
+            SigmaLongitudinalFloorM = 0,   // podelny presah prisel az 29. 9. 2026
             SigmaHeadingFloorRad = floorHdgDeg * Math.PI / 180,
             Chi2Max = 9.21,
             Chi2Margin = margin,

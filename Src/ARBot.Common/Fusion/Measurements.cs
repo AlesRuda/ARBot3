@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ARBot.Common.Common;
 using MathNet.Numerics.LinearAlgebra;
 
@@ -16,6 +16,7 @@ namespace ARBot.Common.Fusion
         public double? GateThreshold { get; set; }
         public GateMode GateMode { get; set; } = GateMode.Reject;
         public double? MaxStep { get; set; }
+        public double? MaxPositionStep { get; set; }
 
         public PositionMeasurement(double x, double y, double stdX, double stdY, DateTime t, string source)
         {
@@ -54,6 +55,7 @@ namespace ARBot.Common.Fusion
         public double? GateThreshold { get; set; }
         public GateMode GateMode { get; set; } = GateMode.Reject;
         public double? MaxStep { get; set; }
+        public double? MaxPositionStep { get; set; }
 
         public HeadingMeasurement(double theta, double std, DateTime t, string source)
         {
@@ -94,6 +96,7 @@ namespace ARBot.Common.Fusion
         public double? GateThreshold { get; set; }
         public GateMode GateMode { get; set; } = GateMode.Reject;
         public double? MaxStep { get; set; }
+        public double? MaxPositionStep { get; set; }
 
         public ScalarStateMeasurement(int stateIndex, double value, double std, DateTime t, string source)
         {
@@ -140,6 +143,7 @@ namespace ARBot.Common.Fusion
         public double? GateThreshold { get; set; }
         public GateMode GateMode { get; set; } = GateMode.Reject;
         public double? MaxStep { get; set; }
+        public double? MaxPositionStep { get; set; }
 
         public PoseMeasurement(double x, double y, double theta, double stdX, double stdY, double stdTheta, DateTime t, string source)
         {
@@ -195,6 +199,7 @@ namespace ARBot.Common.Fusion
         public double? GateThreshold { get; set; }
         public GateMode GateMode { get; set; } = GateMode.Reject;
         public double? MaxStep { get; set; }
+        public double? MaxPositionStep { get; set; }
 
         /// <param name="axisX">Slozka osy na vychod (nemusi byt normovana).</param>
         /// <param name="axisY">Slozka osy na sever (nemusi byt normovana).</param>

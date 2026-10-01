@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using MathNet.Numerics.LinearAlgebra;
 
 namespace ARBot.Common.Fusion
@@ -50,6 +50,16 @@ namespace ARBot.Common.Fusion
         /// Viz doc/map-correlation-localization.md („Limit kroku korekce").</para>
         /// </summary>
         double? MaxStep { get; }
+
+        /// <summary>
+        /// Volitelny <b>limit posunu POLOHY</b> [m]: norma zmeny (x, y) jednim merenim. null nebo 0
+        /// = bez limitu. Doplnuje <see cref="MaxStep"/>, ktery hlida jen krok PODEL OSY merenia:
+        /// pres vazby v kovarianci ale skalarni merenie posune i ostatni slozky - pricne merenie
+        /// polohu PODEL cesty, merenie kurzu polohu vubec. Stejna cesta (nafouknuti R), takze
+        /// filtr zustane konzistentni. Nalez 29. 9. 2026: jedno pricne merenie koridoru posunulo
+        /// pozu o 3,98 m podel hrany a jen 0,18 m kolmo (doc/map-correlation-localization.md).
+        /// </summary>
+        double? MaxPositionStep => null;
 
         /// <summary>Reziduum z - h(x) se spravnym zabalenim uhlu.</summary>
         Vector<double> Residual(Vector<double> z, Vector<double> hx);
