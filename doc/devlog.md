@@ -79,6 +79,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   ⚠️ **Skript se musí nahrát do jednotky** (cesta nouzového zastavení) a vyjet; odsimulované je
   jen parsování a převod hodin, ne chování skutečné jednotky (že časovač běží po 1 ms a smyčka
   po 11 ms, je odvozené z průměru intervalů 11,002 ms).
+- **`lok-kompas-sigma-podlaha` uzavřeno: A/B podlahy a škrcení kompasu změřeno offline.** Nový
+  `ARBot.Analyze compassab` (příprava `fusionreplay` vytažená do sdíleného `Prepare`) nad 16 jízdami
+  18.–29. 9.: zabírá jen kombinace 5° + 1 Hz (škrcení samo ≤ 0,2°, podlaha sama ≤ 0,3°, jen 18. 9. ~0,9°); kde je kompas vedle,
+  chyba kurzu proti nezávislému směru posunu GPS polohy klesne na 25–45 % jeho biasu, kde je
+  v pořádku, je to skoro neutrální. Táhne GPS kurz, koridor přidá nejvýš ~0,7°. Zbytek do 4° —
+  dál cílem bias jako stav EKF. Tabulka [ekf-fusion.md](ekf-fusion.md).
 
 ## 2026-09-30
 

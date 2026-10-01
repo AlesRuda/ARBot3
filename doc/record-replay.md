@@ -605,6 +605,14 @@ a EKF krmený jen rychlostí — z pole zprávy i z enkodérů přes okno N vzor
 s časem jednotky (`MotorStateBase` verze 4, `DeviceTimeMs`) navíc interval podle jednotky a jeho
 rozdíl od intervalu razítek. Nález: `lok-fuze-poza-pred-koly`, viz [ekf-fusion.md](ekf-fusion.md).
 
+**`compassab`** (od 1. 10. 2026) — **A/B podlahy a škrcení kurzu z kompasu** nad jednou jízdou.
+Přehraje fúzi (táž příprava jako `fusionreplay`) ve variantách `imuheadingstd` 5 / 0 ×
+`imuheadinghz` 1 / 0, s korekcemi z koridoru (jak jelo) i bez nich, a kurz každé varianty porovná
+se **směrem posunu GPS polohy** (tětiva ±1 s, přímočaře, nad `--minspeed=` 0,8 m/s; nezávislá
+reference), s GPS kurzem a s IMU yaw, zvlášť po směrech posunu (V/S/Z/J). Řádek „IMU yaw" je
+kompas sám. Ověřuje se proti `RobotStateMsg` varianta, se kterou se jelo. Nález:
+`lok-kompas-sigma-podlaha`, viz [ekf-fusion.md](ekf-fusion.md).
+
 **`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
 `EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od
 `assocreplay`), rozloží ho na jednotlivé hypotézy a u nejednoznačných tiskne, kdo je druhý: jiná

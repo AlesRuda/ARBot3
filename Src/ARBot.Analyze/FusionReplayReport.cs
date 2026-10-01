@@ -12,6 +12,7 @@ using ARBot.Common.Localization;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Maps.OsmNav.Osm;
+using ARBot.Common.Models;
 using ARBot.Common.Occupancy;
 using ARBot.Common.Runtime;
 
@@ -408,14 +409,165 @@ namespace ARBot.Analyze
 
         // ------------------------------------------------------------------ hlavni beh
 
-        public static void Run(RecordFile rec, string mapOverride, double maxEdgeArg, double revisitSec,
-                               string setText = null)
+        /// <summary>Spolecna priprava prehravani: konfigurace z logu, mapa, pocatek a zpravy v poradi indexu.</summary>
+        private sealed class Ctx
+        {
+            public Dictionary<string, (string Value, string Origin)> C;
+            public GeoReference Origin;
+            public RoadNetwork Net;
+            public double MaxEdge, RoadWidth;
+            public List<Message> Msgs;
+            public List<FrameMark> Frames;
+            public List<Sample> Recorded;
+        }
+
+        // ------------------------------------------------------------------ A/B kompasu
+
+        /// <summary>
+        /// <b>A/B podlahy a skrceni kurzu z kompasu nad JEDNOU jizdou</b> (<c>lok-kompas-sigma-podlaha</c>).
+        /// Fuze se prehraje ze zaznamenanych senzoru ve ctyrech variantach kompasu — podlaha sigmy
+        /// <c>imuheadingstd</c> 5° / 0 (0 = jen <c>YprU</c> ze senzoru) krat skrceni
+        /// <c>imuheadinghz</c> 1 Hz / 0 (neomezeno) — a kazda S korekcemi z koridoru (jak jelo) i BEZ nich
+        /// (koridor kurz zamyka na azimut hrany a ucinek kompasu by schoval). Obe varianty vidi tataz
+        /// data, takze rozdil je ucinek nastaveni, ne jine jizdy (rozhodnuti autora 29. 9. 2026).
+        /// <para><b>Meritka</b> (za jizdy nad prahem rychlosti, primocare):</para>
+        /// <list type="bullet">
+        ///   <item><c>odhad − smer posunu GPS polohy</c> (tetiva ±1 s): NEZAVISLA reference — poloha jde
+        ///   do fuze se sigmou 30 m, takze kurz prakticky neovlivni. Zvlast po smerech: bias kompasu
+        ///   (zelezo) se s kurzem otaci, konstantni posun ne.</item>
+        ///   <item><c>odhad − GPS kurz</c> (course over ground): GPS kurz sam do fuze vstupuje, takze
+        ///   to neni nezavisle — tiskne se pro navaznost na drivejsi cisla.</item>
+        ///   <item><c>odhad − IMU yaw</c>: jak moc fuze kompas prebira (dnes ~0 ± 0,06° = prebira).</item>
+        /// </list>
+        /// </summary>
+        public static void RunCompassAB(RecordFile rec, string mapOverride, double maxEdgeArg, double minSpeed)
+        {
+            var ctx = Prepare(rec, mapOverride, maxEdgeArg, null);
+            if (ctx == null) return;
+            var c = ctx.C;
+            var fbase = BuildFusionConfig(c, ctx.Origin);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "jelo s: imuheadingstd={0:F1} deg, imuheadinghz={1}, koridor do fuze {2}",
+                fbase.CompassHeadingStdFloor * 180 / Math.PI,
+                fbase.CompassHeadingMinPeriodSec > 0 ? (1 / fbase.CompassHeadingMinPeriodSec).ToString("F1", CultureInfo.InvariantCulture) : "0 (neomezeno)",
+                GetB(c, "corridor", false) && GetB(c, "corridorsend", false) ? "ano" : "NE"));
+
+            // ---- reference
+            var gps = ctx.Msgs.OfType<GPSState>().Where(g => g.IsFixed && DefaultMeasurementMapper.PositionRejectReason(g, fbase) == null)
+                         .OrderBy(g => g.TimeStamp)
+                         .Select(g => { var q = ctx.Origin.ToLocal(g.Latitude, g.Longitude);
+                                        return (T: g.TimeStamp, X: (double)q.X, Y: (double)q.Y, V: g.Speed ?? g.DynamicSpeed, Cog: g.DynamicOrientation); })
+                         .ToList();
+            var imu = ctx.Msgs.OfType<IMUState>().Where(m => m.HasAbsoluteHeading && m.Rotation.HasValue)
+                         .Select(m => (T: m.TimeStamp, Yaw: m.YPR()?.Yaw ?? double.NaN))
+                         .Where(m => !double.IsNaN(m.Yaw)).OrderBy(m => m.T).ToList();
+            // Body mereni: fix uprostred primocareho useku (tetiva -1 .. +1 s, poloviny se lisi o < 5°).
+            var pts = new List<(DateTime T, double Disp, double? Cog)>();
+            for (int i = 0, j0 = 0, j1 = 0; i < gps.Count; i++)
+            {
+                var g = gps[i];
+                if (!(g.V >= minSpeed)) continue;
+                while (j0 < i && (g.T - gps[j0].T).TotalSeconds > 1.0) j0++;
+                if (j1 < i) j1 = i;
+                while (j1 + 1 < gps.Count && (gps[j1 + 1].T - g.T).TotalSeconds <= 1.0) j1++;
+                var a = gps[j0]; var b = gps[j1];
+                if ((g.T - a.T).TotalSeconds < 0.8 || (b.T - g.T).TotalSeconds < 0.8) continue;
+                double d1 = Math.Sqrt(Sq(g.X - a.X) + Sq(g.Y - a.Y)), d2 = Math.Sqrt(Sq(b.X - g.X) + Sq(b.Y - g.Y));
+                if (d1 < 0.8 || d2 < 0.8) continue;
+                double az1 = Math.Atan2(g.Y - a.Y, g.X - a.X), az2 = Math.Atan2(b.Y - g.Y, b.X - g.X);
+                if (Math.Abs(Wrap(az2 - az1)) > 5 * Math.PI / 180) continue;
+                pts.Add((g.T, Math.Atan2(b.Y - a.Y, b.X - a.X), g.Cog));
+            }
+            Console.WriteLine($"bodu mereni (GPS fix za jizdy >= {minSpeed:F1} m/s, primocare): {pts.Count}; IMU vzorku {imu.Count}");
+            if (pts.Count < 20) { Console.WriteLine("malo bodu - zaznam bez jizdy nebo bez GPS"); return; }
+
+            double ImuAt(DateTime t)
+            {
+                int lo = 0, hi = imu.Count - 1;
+                if (hi < 0) return double.NaN;
+                while (lo < hi) { int m = (lo + hi) / 2; if (imu[m].T < t) lo = m + 1; else hi = m; }
+                if (lo > 0 && (t - imu[lo - 1].T) < (imu[lo].T - t)) lo--;
+                return Math.Abs((imu[lo].T - t).TotalSeconds) < 0.05 ? imu[lo].Yaw : double.NaN;
+            }
+
+            // ---- varianty
+            bool drove = GetB(c, "corridor", false) && GetB(c, "corridorsend", false);
+            var rows = new List<(string Name, Func<DateTime, double> Heading)>();
+            rows.Add(("IMU yaw (kompas sam)", t => ImuAt(t)));
+            var rec0 = ctx.Recorded;
+            rows.Add(("zaznam (runtime)", t => TryPoseAt(rec0, t, out var q) ? q.Th : double.NaN));
+            var variants = new List<(string Name, List<Sample> S)>();
+            foreach (bool send in drove ? new[] { true, false } : new[] { false })
+                foreach (var (std, hz) in new[] { (5.0, 1.0), (0.0, 1.0), (5.0, 0.0), (0.0, 0.0) })
+                {
+                    string name = $"{(send ? "S kor." : "BEZ kor.")} {std:F0} deg / {(hz > 0 ? hz.ToString("F0", CultureInfo.InvariantCulture) + " Hz" : "neomez.")}";
+                    var v = RunVariant(name, send, c, ctx.Origin, ctx.Net, ctx.MaxEdge, ctx.Msgs,
+                                       tweak: f => { f.CompassHeadingStdFloor = std * Math.PI / 180; f.CompassHeadingMinPeriodSec = hz > 0 ? 1 / hz : 0; });
+                    variants.Add((name, v.Samples));
+                    var smp = v.Samples;
+                    rows.Add((name, t => TryPoseAt(smp, t, out var q) ? q.Th : double.NaN));
+                }
+
+            // Kontrola meridla: varianta, ktera odpovida jizde, ma sedet na zaznam.
+            {
+                double hzLog = fbase.CompassHeadingMinPeriodSec > 0 ? 1 / fbase.CompassHeadingMinPeriodSec : 0;
+                string match = $"{(drove ? "S kor." : "BEZ kor.")} {fbase.CompassHeadingStdFloor * 180 / Math.PI:F0} deg / {(hzLog > 0 ? hzLog.ToString("F0", CultureInfo.InvariantCulture) + " Hz" : "neomez.")}";
+                var mv = variants.FirstOrDefault(x => x.Name == match);
+                if (mv.S != null)
+                {
+                    var dh = new Stats("|kurz replay - zaznam| [deg]");
+                    foreach (var r in rec0) if (TryPoseAt(mv.S, r.T, out var q)) dh.Add(Math.Abs(Wrap(q.Th - r.Th)) * 180 / Math.PI);
+                    Console.WriteLine($"OVERENI MERIDLA (varianta '{match}' proti RobotStateMsg): " + dh.Line("deg"));
+                }
+                else Console.WriteLine($"OVERENI MERIDLA: varianta odpovidajici jizde ('{match}') neni mezi prehranymi.");
+            }
+
+            string[] sect = { "V (0)", "S (90)", "Z (180)", "J (270)" };
+            Console.WriteLine();
+            Console.WriteLine("KURZ PROTI REFERENCIM [deg]  (e = kurz - reference; p50 / prumer / sd / p90 |e|)");
+            Console.WriteLine("  varianta                 n    vs. posun GPS polohy (nezavisle)      vs. GPS kurz (neni nezav.)        vs. IMU yaw            po smerech posunu: p50 e (n)");
+            foreach (var (name, hf) in rows)
+            {
+                var eD = new Stats("d"); var eD2 = new Stats("d2"); var eC = new Stats("c"); var eC2 = new Stats("c2"); var eI = new Stats("i"); var eI2 = new Stats("i2");
+                var aD = new Stats("ad"); var aC = new Stats("ac");
+                var bySec = Enumerable.Range(0, 4).Select(_ => new Stats("s")).ToArray();
+                foreach (var pt in pts)
+                {
+                    double h = hf(pt.T);
+                    if (double.IsNaN(h)) continue;
+                    double ed = Wrap(h - pt.Disp) * 180 / Math.PI;
+                    eD.Add(ed); aD.Add(Math.Abs(ed));
+                    int sIdx = (int)Math.Floor(Wrap(pt.Disp + Math.PI / 4) / (Math.PI / 2) + 4) % 4;   // V/S/Z/J po 90°
+                    bySec[sIdx].Add(ed);
+                    if (pt.Cog is double cog) { double ec = Wrap(h - cog) * 180 / Math.PI; eC.Add(ec); aC.Add(Math.Abs(ec)); }
+                    double yi = ImuAt(pt.T);
+                    if (!double.IsNaN(yi)) eI.Add(Wrap(h - yi) * 180 / Math.PI);
+                }
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  {0,-22} {1,5}   {2,6:F2} / {3,6:F2} / {4,5:F2} / {5,5:F2}     {6,6:F2} / {7,6:F2} / {8,5:F2} / {9,5:F2}    {10,6:F2} / {11,5:F2}     {12}",
+                    name, eD.Count, eD.Median, eD.Mean, Sd(eD), aD.Percentile(90),
+                    eC.Median, eC.Mean, Sd(eC), aC.Percentile(90), eI.Median, Sd(eI),
+                    string.Join("  ", Enumerable.Range(0, 4).Select(k => bySec[k].Count == 0 ? $"{sect[k]} -" :
+                        string.Format(CultureInfo.InvariantCulture, "{0} {1:F2} ({2})", sect[k], bySec[k].Median, bySec[k].Count)))));
+            }
+            Console.WriteLine("  (sd vs. posun GPS obsahuje i sum smeru posunu - u vsech variant stejny, takze rozdily mezi radky jsou ucinek kompasu)");
+        }
+
+        private static double Wrap(double a) => Math.IEEERemainder(a, 2 * Math.PI);
+
+        private static double Sd(Stats s)
+        {
+            // Stats nema rozptyl; z percentilu: robustni sd = (p84 - p16) / 2
+            return s.Count < 3 ? double.NaN : (s.Percentile(84.13) - s.Percentile(15.87)) / 2;
+        }
+
+        private static Ctx Prepare(RecordFile rec, string mapOverride, double maxEdgeArg, string setText)
         {
             var c = ReadConfig(rec, out string version);
             if (c.Count == 0)
             {
                 Console.WriteLine("fusionreplay: v logu zaznamu neni blok ucinne konfigurace - neni podle ceho skladat fuzi.");
-                return;
+                return null;
             }
             Console.WriteLine(version ?? "(verze binarky v logu neni)");
 
@@ -427,7 +579,7 @@ namespace ARBot.Analyze
                 foreach (var kv in setText.Split(';', StringSplitOptions.RemoveEmptyEntries))
                 {
                     int eq = kv.IndexOf('=');
-                    if (eq <= 0) { Console.WriteLine($"fusionreplay: --set '{kv}' neni klic=hodnota."); return; }
+                    if (eq <= 0) { Console.WriteLine($"fusionreplay: --set '{kv}' neni klic=hodnota."); return null; }
                     c[kv.Substring(0, eq).Trim()] = (kv.Substring(eq + 1).Trim(), "--set");
                 }
                 Console.WriteLine($"POZOR: konfigurace prepsana --set ({setText}) - shoda varianty S se zaznamem se neceka.");
@@ -446,7 +598,7 @@ namespace ARBot.Analyze
             if (mapPath == null || !File.Exists(mapPath))
             {
                 Console.WriteLine($"fusionreplay: mapa '{mapPath}' neexistuje (zadej --map=).");
-                return;
+                return null;
             }
             double roadWidth = GetD(c, "roadwidth", 3);
             RoadNetwork net;
@@ -513,6 +665,21 @@ namespace ARBot.Analyze
 
             var recorded = msgs.OfType<RobotStateMsg>()
                                .Select(r => new Sample { T = r.TimeStamp, X = r.X, Y = r.Y, Th = r.Theta, V = r.V }).ToList();
+
+            return new Ctx
+            {
+                C = c, Origin = origin, Net = net, MaxEdge = maxEdge, RoadWidth = roadWidth,
+                Msgs = msgs, Frames = frames, Recorded = recorded,
+            };
+        }
+
+        public static void Run(RecordFile rec, string mapOverride, double maxEdgeArg, double revisitSec,
+                               string setText = null)
+        {
+            var ctx = Prepare(rec, mapOverride, maxEdgeArg, setText);
+            if (ctx == null) return;
+            var (c, origin, net, maxEdge, roadWidth) = (ctx.C, ctx.Origin, ctx.Net, ctx.MaxEdge, ctx.RoadWidth);
+            var (msgs, frames, recorded) = (ctx.Msgs, ctx.Frames, ctx.Recorded);
 
             var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs, frames: frames);
             var noC = RunVariant("BEZ koridoru", false, c, origin, net, maxEdge, msgs);
@@ -967,9 +1134,10 @@ namespace ARBot.Analyze
         private static Variant RunVariant(string name, bool send, Dictionary<string, (string Value, string Origin)> c,
                                           GeoReference origin, RoadNetwork net, double maxEdge, List<Message> msgs,
                                           bool lateral = true, bool heading = true, List<FrameMark> frames = null,
-                                          Func<IMeasurement, bool> keep = null)
+                                          Func<IMeasurement, bool> keep = null, Action<FusionConfig> tweak = null)
         {
             var fcfg = BuildFusionConfig(c, origin);
+            tweak?.Invoke(fcfg);      // varianta konfigurace fuze (A/B kompasu) - mapper ji bere odtud
             var engine = new AsyncFusionEngine(new EKFModel(fcfg));
             var kcfg = BuildCorridorConfig(c, send, maxEdge);
             // Rozbor podelne chyby: ktera polovina mereni koridoru co dela. SendHeading je vlastnost

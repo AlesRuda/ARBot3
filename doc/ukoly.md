@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **33** · hotovo **153** · odloženo **14** · zamítnuto **7**.
+Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **32** · hotovo **154** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -48,7 +48,6 @@ Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **33** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Kompas si věří 60–90× víc, než jaký je](#lok-kompas-sigma-podlaha) | 25. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](#mise-cil-dosazitelnost) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
@@ -185,21 +184,6 @@ Plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí naj
 - [x] Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí (29. 9. 2026)
 
 čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-kompas-sigma-podlaha"></a>
-### 🧪 Kompas si věří 60–90× víc, než jaký je
-
-`lok-kompas-sigma-podlaha` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 8. 2026 · vyřešeno 12. 9. 2026
-
-Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mýlí o 3–5°. Fúze proto věřila kompasu asi 4 000× víc než GPS a žádná druhá reference kurzu (GPS kurz, korelace s mapou) neměla šanci cokoli opravit — odhad kurzu seděl na kompasu na 100 % i se zapnutými korekcemi. Jádro je v tom, co sigma kompasu popisuje: krátkodobý šum, ne bias. Od 12. 9. má sigma kurzu z kompasu podlahu 5° (`imuheadingstd=`) a absolutní kurz se navíc škrtí na 1 Hz (`imuheadinghz=`); gyro jede dál v plné kadenci. Poměr informace spadl na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere jako bílý šum. 18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není. Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06° → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy. **29. 9. 2026 (autor): A/B se dělá OFFLINE nad existujícími záznamy**, ne dvěma jízdami. Dvě jízdy po sobě by účinek nerozlišily: bias kompasu se mezi běhy liší o ~2° (18. 9. −3,4 proti −1,1° za 13 min), což je řádově tolik, kolik má podlaha změnit, a jiný odhad kurzu by v uzavřené smyčce dal i jinou trajektorii. `ARBot.Analyze fusionreplay` přehrává fúzi ze zaznamenaných senzorů (dnes A/B koridoru), takže obě varianty uvidí přesně tatáž data. Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější).
-
-- [x] 'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %' (25. 8. 2026)
-- [x] Podlaha sigmy kurzu z kompasu `imuheadingstd=` (výchozí 5°, skládá se kvadraticky s `YprU`) (12. 9. 2026)
-- [x] Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno) (12. 9. 2026)
-- [ ] A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — rozšířit `ARBot.Analyze fusionreplay` o variantu podlahy kompasu
-- [ ] Pustit A/B nad záznamy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější) — záznamy nejsou v repu, pouští se tam, kde jsou
-
-[ekf-fusion.md](ekf-fusion.md), [rozhodnutí 12. 9. 2026](decisions.md), [FusionReplayReport.cs](../Src/ARBot.Analyze/FusionReplayReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-naucena-sirka-do-mapy"></a>
 ### 🧪 Naučená šířka cesty jde dál do mapy — korelaci i kreslení
@@ -617,6 +601,21 @@ Přijímač GPS hlásí kurz nad zemí a reálné drivery ho plnily, ale fúze h
 - [x] `ARBot.Analyze heading` i bez ground truth (`--nogt`), ověřeno proti známé odpovědi (25. 8. 2026)
 
 [ekf-fusion.md](ekf-fusion.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-07](devlog.md#2026-09-07), [2026-09-12](devlog.md#2026-09-12)
+
+<a id="lok-kompas-sigma-podlaha"></a>
+### ✅ Kompas si věří 60–90× víc, než jaký je
+
+`lok-kompas-sigma-podlaha` · vada · **hotovo** · nalezeno 25. 8. 2026 · vyřešeno 1. 10. 2026
+
+Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mýlí o 3–5°. Fúze proto věřila kompasu asi 4 000× víc než GPS a žádná druhá reference kurzu (GPS kurz, korelace s mapou) neměla šanci cokoli opravit — odhad kurzu seděl na kompasu na 100 % i se zapnutými korekcemi. Jádro je v tom, co sigma kompasu popisuje: krátkodobý šum, ne bias. Od 12. 9. má sigma kurzu z kompasu podlahu 5° (`imuheadingstd=`) a absolutní kurz se navíc škrtí na 1 Hz (`imuheadinghz=`); gyro jede dál v plné kadenci. Poměr informace spadl na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere jako bílý šum. 18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není. Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06° → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy. **29. 9. 2026 (autor): A/B se dělá OFFLINE nad existujícími záznamy**, ne dvěma jízdami. Dvě jízdy po sobě by účinek nerozlišily: bias kompasu se mezi běhy liší o ~2° (18. 9. −3,4 proti −1,1° za 13 min), což je řádově tolik, kolik má podlaha změnit, a jiný odhad kurzu by v uzavřené smyčce dal i jinou trajektorii. `ARBot.Analyze fusionreplay` přehrává fúzi ze zaznamenaných senzorů (dnes A/B koridoru), takže obě varianty uvidí přesně tatáž data. Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější). **A/B změřeno 1. 10. 2026** (`ARBot.Analyze compassab`, 16 jízd 18.–29. 9. včetně Robotouru, referencí je nezávislý směr posunu GPS polohy, měřidlo sedí na `RobotStateMsg` 0,000°): **zabírá jen kombinace 5° + 1 Hz** — samotné škrcení dá totéž co kompas (≤ 0,2°), samotná podlaha skoro totéž (≤ 0,3°, jen 18. 9. 0,8–1,0°). Kde je kompas vedle, stáhne chybu na 25–45 % jeho biasu (−6,6 → −1,8°, +9,3 → +4,2°, −4,9 → −1,7°, −1,6 → −0,1°) a rozptyl většinou klesne (4,4 → 2,7°, 5,3 → 2,2°); v obou jízdách 18. 9. rozptyl o ~0,6° vzrostl. Kde je kompas v pořádku, je to skoro neutrální (střed do ±0,6°, v jedné krátké jízdě 1,4°). Táhne GPS kurz — varianta bez koridoru je do ~0,7° stejná. Zbytek biasu do 4° zůstává: bias kurzu jako stav EKF zůstává cílem. Tabulka v [ekf-fusion.md](ekf-fusion.md).
+
+- [x] 'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %' (25. 8. 2026)
+- [x] Podlaha sigmy kurzu z kompasu `imuheadingstd=` (výchozí 5°, skládá se kvadraticky s `YprU`) (12. 9. 2026)
+- [x] Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno) (12. 9. 2026)
+- [x] A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — nový příkaz `ARBot.Analyze compassab` (příprava sdílená s `fusionreplay`, 5/0 ° × 1/0 Hz, s koridorem i bez) (1. 10. 2026)
+- [x] Pustit A/B nad záznamy s kalibrovaným kompasem: 16 jízd (18., 19. — Kolo 3b a 4, 23., 25., 27. a 29. 9.); zabírá jen 5° + 1 Hz, chyba na 25–45 % biasu kompasu, kde je kompas v pořádku skoro neutrální (1. 10. 2026)
+
+[ekf-fusion.md](ekf-fusion.md), [rozhodnutí 12. 9. 2026](decisions.md), [FusionReplayReport.cs](../Src/ARBot.Analyze/FusionReplayReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-korelace-mericidlo-chyba-fuze"></a>
 ### ✅ Měřidlo poctivosti σ účtovalo korelátoru vlastní chybu fúze

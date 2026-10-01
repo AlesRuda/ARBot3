@@ -2441,9 +2441,9 @@ temata:
     oblast: lokalizace
     nazev: Kompas si věří 60–90× víc, než jaký je
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-25
-    vyreseno: 2026-09-12
+    vyreseno: 2026-10-01
     popis: >
       Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mýlí o 3–5°.
       Fúze proto věřila kompasu asi 4 000× víc než GPS a žádná druhá reference kurzu (GPS kurz,
@@ -2465,6 +2465,14 @@ temata:
       Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť
       po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9.,
       27. 9. a pozdější).
+      **A/B změřeno 1. 10. 2026** (`ARBot.Analyze compassab`, 16 jízd 18.–29. 9. včetně Robotouru,
+      referencí je nezávislý směr posunu GPS polohy, měřidlo sedí na `RobotStateMsg` 0,000°):
+      **zabírá jen kombinace 5° + 1 Hz** — samotné škrcení dá totéž co kompas (≤ 0,2°), samotná
+      podlaha skoro totéž (≤ 0,3°, jen 18. 9. 0,8–1,0°). Kde je kompas vedle, stáhne chybu na 25–45 % jeho biasu (−6,6 → −1,8°, +9,3 → +4,2°,
+      −4,9 → −1,7°, −1,6 → −0,1°) a rozptyl většinou klesne (4,4 → 2,7°, 5,3 → 2,2°); v obou jízdách
+      18. 9. rozptyl o ~0,6° vzrostl. Kde je kompas v pořádku, je to skoro neutrální (střed do ±0,6°, v jedné krátké jízdě 1,4°). Táhne GPS
+      kurz — varianta bez koridoru je do ~0,7° stejná. Zbytek biasu do 4° zůstává: bias kurzu jako
+      stav EKF zůstává cílem. Tabulka v [ekf-fusion.md](ekf-fusion.md).
     kroky:
       - co: "'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %'"
         stav: hotovo
@@ -2475,10 +2483,12 @@ temata:
       - co: 'Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno)'
         stav: hotovo
         kdy: 2026-09-12
-      - co: 'A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — rozšířit `ARBot.Analyze fusionreplay` o variantu podlahy kompasu'
-        stav: otevreno
-      - co: 'Pustit A/B nad záznamy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější) — záznamy nejsou v repu, pouští se tam, kde jsou'
-        stav: otevreno
+      - co: 'A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — nový příkaz `ARBot.Analyze compassab` (příprava sdílená s `fusionreplay`, 5/0 ° × 1/0 Hz, s koridorem i bez)'
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: 'Pustit A/B nad záznamy s kalibrovaným kompasem: 16 jízd (18., 19. — Kolo 3b a 4, 23., 25., 27. a 29. 9.); zabírá jen 5° + 1 Hz, chyba na 25–45 % biasu kompasu, kde je kompas v pořádku skoro neutrální'
+        stav: hotovo
+        kdy: 2026-10-01
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
@@ -2486,7 +2496,7 @@ temata:
         cesta: doc/decisions.md
       - text: FusionReplayReport.cs
         cesta: Src/ARBot.Analyze/FusionReplayReport.cs
-    devlog: [2026-08-25, 2026-09-12, 2026-09-18, 2026-09-29]
+    devlog: [2026-08-25, 2026-09-12, 2026-09-18, 2026-09-29, 2026-10-01]
     ceka_na: []
 
   - id: lok-gps-kurz-do-fuze
