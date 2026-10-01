@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **32** · hotovo **154** · odloženo **14** · zamítnuto **7**.
+Témat celkem **241**: otevřeno **34** · v kódu, na HW neověřeno **31** · hotovo **155** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -45,6 +45,7 @@ Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **32** · 
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví](#lok-assoc-velka-sigma-soubezna-ulice) | 1. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -61,7 +62,6 @@ Témat celkem **240**: otevřeno **33** · v kódu, na HW neověřeno **32** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady](#lok-koridor-pricna-brana) | 18. 9. 2026 | [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
@@ -163,6 +163,19 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
 
+<a id="lok-assoc-velka-sigma-soubezna-ulice"></a>
+### ⬜ Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví
+
+`lok-assoc-velka-sigma-soubezna-ulice` · vada · **otevřeno** · nalezeno 1. 10. 2026
+
+Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). Přehrání `20260917-160558.rec` (Hviezdoslavova, uliční síť) s dnešní konfigurací koridoru (`MaxEdgeDistanceM` = ∞ od 26. 9., limit kroku, 2 Hz, σ koridoru): přijato 129 cyklů, ale vítězná hrana leží p50 **14 m od pózy a 24,5 m od GPS**, kdežto GPS sedí na síti (p50 2,6 m od osy) — souběžná ulice. Příčina: nejistota polohy z fúze p50 **7,5 m** (`gpsposstd=30`, binárka ze 17. 9. nevyráběla měření z jedné hrany, takže koridor měřil málo), a χ² se σ 7,5 m pustí hranu do ~20 m. Azimutové veto souběžnou ulici nezastaví (má týž azimut) a odstup od druhého kandidáta jen tehdy, když projde i správná. S limitem odstupu 8 m vede přiřazení na ulici pod GPS (0,17 m, 26 cyklů). Korekce šly skrz škrcení 2 Hz a limit kroku, takže se póza za 6 min posunula jen o ≤ 3 m — na delší jízdě by ji ale táhly na špatnou ulici rychlostí 0,5 m/s. V Modřanech (25. a 29. 9., čtyři jízdy) je ∞ i 8 m totéž (GPS od osy vítěze p50 0,8–1,4 m, σ polohy 0,2–0,9 m): koridor z jedné hrany měří pořád a souběžná ulice tam není. Rozpor s rozborem 29. 9. („podélný přesah nezávisí na limitu, vítěze nezměnil") je jen zdánlivý: ten se dělal nad zaznamenanými pózami (`assocwhy`), kde byla σ malá. ⚠️ Rozhodčím je GPS (σ 30 m ve městě), přímá pravda k jízdě není; jedna jízda, jedna mapa.
+
+- [x] Změřeno: přiřazení na souběžnou ulici 24,5 m od GPS při σ polohy 7,5 m a odstupu ∞; s 8 m 0,17 m (`fusionreplay` blok 2, `--maxedge=`, `--set=` s dnešním profilem) (1. 10. 2026)
+- [ ] Rozhodnout léčbu (autor): strop σ polohy v χ² přiřazení (podlaha je jen zdola), limit odstupu vázaný na σ, nebo vyžadovat souhlas GPS polohy s vítěznou hranou, když je σ velká
+- [ ] Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste
+
+[map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01)
+
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
 
@@ -217,21 +230,6 @@ Koridor bral nejbližší hranu sítě podle vzdálenosti, kurz do výběru nevs
 - [x] Vyčíslit nad Kolem 3b / 4: `AmbiguousEdge` 3 153 / 1 208 (38 / 37 % proložených), `EdgeMismatch` 6 / 3, χ² vítěze p50 0,058 / 0,040; nástroj `ARBot.Analyze assocreplay` (27. 9. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-27](devlog.md#2026-09-27)
-
-<a id="lok-koridor-pricna-brana"></a>
-### 🧪 Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady
-
-`lok-koridor-pricna-brana` · vada · **v kódu, na HW neověřeno** · nalezeno 18. 9. 2026 · vyřešeno 18. 9. 2026
-
-Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou bránu?“ nad `20260917-160558.rec`. `MaxLateralDisagreementM = 1,5 m` byla hardcoded konstanta bez klíče — a hlavně testovala doslova tutéž veličinu jako `EdgeAssociator` o pár řádků výš (`dLat = corridor.Lateral − axis.Lateral`), jen pevným pravítkem místo χ² škálovaného kovariancí pózy, a stála až ZA ním. Nad tím záznamem zahodila 81,8 % cyklů, které dostaly hranu, při σ polohy z fúze 3,73 m — tedy brána na 0,4 σ vlastní nejistoty. Je to táž vada, jaká se u `MapCorrelator`u změřila 25. 8. 2026 (tvrdý `Reject` dělal výsledek horší než nekorigovat vůbec): tvrdý strop na innovaci zahazuje právě ty velké korekce, které jsou potřeba, takže chyba pózy zůstane nad stropem navždy a hrana je němá. Zrušeno, ne přenastaveno: rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh „jen jako pojistka“ by byl mrtvý kód a nižší řeže do živého. Odemklo to i učení šířky (`widths.Add` stálo až za branou) — týž zámek, jaký se 15. 9. odstraňoval o patro níž. Hodnota enumu `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`. Na zařízení od 19. 9. (binárka nasazená ráno na Robotouru): do fúze došly inovace 36× nad 2 m, max 6,1 m, které by brána 1,5 m nepustila — a právě ty vyrobily skoky pózy (`lok-koridor-skoky-pozy`); to je cena zrušení, kterou má zaplatit limit kroku, ne vrácená brána.
-
-- [x] Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním (18. 9. 2026)
-- [x] Brána i `MaxLateralDisagreementM` odstraněny, tři testy otočené/nové (18. 9. 2026)
-- [x] Report `corridor` — „nad bývalou branou“ + varování u starších záznamů (18. 9. 2026)
-- [ ] Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`)
-- [x] Ověřit na zařízení — Robotour 19. 9.: inovace do 6,1 m došly do fúze, brána prokazatelně pryč; cena = skoky pózy (20. 9. 2026)
-
-čeká na [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) · [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20)
 
 <a id="lok-koridor-skoky-pozy"></a>
 ### 🧪 Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
@@ -758,6 +756,21 @@ Porovnání naměřené šířky cesty s odhadem běželo před jeho aktualizac�
 - [x] Projít profil, jestli takhle „nezapsaným defaultem" nevisí i jiná brána — 18. 9.: `mapcorr` v profilu není a jeho default je `false` (bezpečný), `corridorstd/headingstd/hz` 0 = bez odtlumení (zapsané jako komentář); jediná brána s ostrým defaultem byla `corridorsend` (18. 9. 2026)
 
 [pi-provoz.cfg](../config/pi-provoz.cfg), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
+
+<a id="lok-koridor-pricna-brana"></a>
+### ✅ Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady
+
+`lok-koridor-pricna-brana` · vada · **hotovo** · nalezeno 18. 9. 2026 · vyřešeno 1. 10. 2026
+
+Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou bránu?“ nad `20260917-160558.rec`. `MaxLateralDisagreementM = 1,5 m` byla hardcoded konstanta bez klíče — a hlavně testovala doslova tutéž veličinu jako `EdgeAssociator` o pár řádků výš (`dLat = corridor.Lateral − axis.Lateral`), jen pevným pravítkem místo χ² škálovaného kovariancí pózy, a stála až ZA ním. Nad tím záznamem zahodila 81,8 % cyklů, které dostaly hranu, při σ polohy z fúze 3,73 m — tedy brána na 0,4 σ vlastní nejistoty. Je to táž vada, jaká se u `MapCorrelator`u změřila 25. 8. 2026 (tvrdý `Reject` dělal výsledek horší než nekorigovat vůbec): tvrdý strop na innovaci zahazuje právě ty velké korekce, které jsou potřeba, takže chyba pózy zůstane nad stropem navždy a hrana je němá. Zrušeno, ne přenastaveno: rozsah `dLat` je omezený konstrukcí (≲ 10 m), takže práh „jen jako pojistka“ by byl mrtvý kód a nižší řeže do živého. Odemklo to i učení šířky (`widths.Add` stálo až za branou) — týž zámek, jaký se 15. 9. odstraňoval o patro níž. Hodnota enumu `LateralDisagreement = 6` zůstává kvůli čtení starších `.rec`. Na zařízení od 19. 9. (binárka nasazená ráno na Robotouru): do fúze došly inovace 36× nad 2 m, max 6,1 m, které by brána 1,5 m nepustila — a právě ty vyrobily skoky pózy (`lok-koridor-skoky-pozy`); to je cena zrušení, kterou má zaplatit limit kroku, ne vrácená brána. **Přeměřeno 1. 10. 2026** nad `20260917-160558.rec` (`fusionreplay`, uzavřená smyčka): záznam 198 cyklů s hranou, brána zahodila 162 (81,8 %), prošlo 16. Bez brány s tehdejší konfigurací Ok 73, z bráněných 53 → Ok (83 → `NoEdge`, 26 → `WidthNotTrusted`), χ² vítěze p50 0,91 / p90 6,61 (max 9,17 pod prahem 9,21); pomohlo to v minutě 2 (0,68 proti 2,02 m od osy sítě), ale bez limitu kroku přišel skok 3,65 m a v minutě 4 póza 11 m od sítě (s bránou 2,4 m). S dnešními pojistkami skoky od koridoru zmizely (3 → 0) a póza je do ~1 m varianty bez koridoru. Vedlejší nález: při neomezeném odstupu hrany a nejistotě polohy ~7,5 m bere přiřazení souběžnou ulici 24,5 m od GPS → `lok-assoc-velka-sigma-soubezna-ulice`. Tabulka v [map-correlation-localization.md](map-correlation-localization.md).
+
+- [x] Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním (18. 9. 2026)
+- [x] Brána i `MaxLateralDisagreementM` odstraněny, tři testy otočené/nové (18. 9. 2026)
+- [x] Report `corridor` — „nad bývalou branou“ + varování u starších záznamů (18. 9. 2026)
+- [x] Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`): 16 → 73 Ok, χ² p50 0,91 / p90 6,61; `fusionreplay` blok 2 tiskne nově χ², odstup, σ polohy a |GPS − osa vítěze| (1. 10. 2026)
+- [x] Ověřit na zařízení — Robotour 19. 9.: inovace do 6,1 m došly do fúze, brána prokazatelně pryč; cena = skoky pózy (20. 9. 2026)
+
+čeká na [lok-prirazeni-hrany-chi2](#lok-prirazeni-hrany-chi2) · [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-koridor-noedge-po-zatacce"></a>
 ### ✅ Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)

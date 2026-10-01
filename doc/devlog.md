@@ -85,6 +85,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   chyba kurzu proti nezávislému směru posunu GPS polohy klesne na 25–45 % jeho biasu, kde je
   v pořádku, je to skoro neutrální. Táhne GPS kurz, koridor přidá nejvýš ~0,7°. Zbytek do 4° —
   dál cílem bias jako stav EKF. Tabulka [ekf-fusion.md](ekf-fusion.md).
+- **`lok-koridor-pricna-brana` přeměřeno a uzavřeno** nad `20260917-160558.rec` (poslední jízda
+  s bránou): bez brány Ok 16 → 73, χ² vítěze p50 0,91 / p90 6,61; s tehdejší konfigurací (bez
+  limitu kroku) to ale udělalo skok 3,65 m a pózu 11 m od sítě, s dnešními pojistkami skoky zmizely.
+  **Nový nález `lok-assoc-velka-sigma-soubezna-ulice`:** s neomezeným odstupem hrany a σ polohy
+  ~7,5 m bere přiřazení souběžnou ulici 24,5 m od GPS (s limitem 8 m 0,17 m); v Modřanech se to
+  neděje (σ pod 1 m, souběžná ulice není). `fusionreplay` blok 2 tiskne u přijatých cyklů χ²,
+  odstup, σ polohy a |GPS − osa vítěze|. Detail [map-correlation-localization.md](map-correlation-localization.md).
 
 ## 2026-09-30
 

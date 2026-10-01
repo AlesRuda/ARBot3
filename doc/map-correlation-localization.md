@@ -3048,6 +3048,34 @@ od 26. 9. je vypnutá, viz tabulka bran výš.)*
 > `GateMode.Soft` ve fúzi. Rozhodl to autor: *„je to už překonané"*. Viz
 > [decisions.md](decisions.md).
 
+**Přeměřeno 1. 10. 2026** (`lok-koridor-pricna-brana`) nad `records/test/20260917-160558.rec`
+(Hviezdoslavova, poslední jízda s bránou). Záznam: 198 cyklů s hranou, brána zahodila **162
+(81,8 %)**, prošlo 16. Přehrání `fusionreplay` (přiřazení a měření se počítají znovu proti
+přehrávané póze, uzavřená smyčka):
+
+| konfigurace přehrání | Ok | do fúze | χ² vítěze p50 / p90 | \|GPS − osa vítěze\| p50 | σ polohy p50 | od osy sítě p50 / p90 |
+|---|---|---|---|---|---|---|
+| záznam (s bránou) | 16 | 32 | — | — | — | 3,21 / 7,16 m |
+| ze 17. 9. bez brány (odstup ≤ 8 m, bez limitu kroku) | 73 | 146 | 0,91 / 6,61 | 2,88 m | 0,21 m | 4,60 / 11,65 m |
+| dnešní (∞, limit kroku, 2 Hz, σ koridoru) | 129 | 38 | 4,50 / 6,65 | **24,47 m** | **7,51 m** | 3,68 / 8,07 m |
+| dnešní, ale odstup ≤ 8 m | 26 | 12 | 4,08 / 7,50 | **0,17 m** | 2,32 m | 3,77 / 7,99 m |
+| bez koridoru | — | — | — | — | — | 4,05 / 8,40 m |
+
+- **Bez brány s tehdejší konfigurací** přešlo do Ok 53 ze 162 cyklů, které brána zahodila
+  (83 skončilo `NoEdge`, 26 `WidthNotTrusted`). V minutě 2 to pomohlo (0,68 m od osy sítě proti
+  2,02 m), ale bez limitu kroku přišel skok 3,65 m (16:08:18) a v minutě 4 skončila póza 11 m od
+  sítě (s bránou 2,4 m). To je cena zrušení, kterou od 21. 9. platí limit kroku.
+- **S dnešními pojistkami** skoky od koridoru nejsou (0 proti 3), ale na téhle jízdě koridor
+  téměř nepomáhá: póza je od varianty bez koridoru p50 1,1 m. A objevilo se něco nového:
+  **přiřazení bere souběžnou ulici.** Bez měření z jedné hrany (binárka ze 17. 9. je
+  nevyráběla, přehrání je neumí dopočítat) naroste nejistota polohy na ~7,5 m a χ² s ní pustí
+  hranu 14 m od pózy — od GPS je přitom 24,5 m, kdežto GPS sedí na síti (p50 2,6 m). S limitem
+  odstupu 8 m vede přiřazení na ulici pod GPS (0,17 m). Vede to `lok-assoc-velka-sigma-soubezna-ulice`.
+- V Modřanech (25. a 29. 9., čtyři jízdy) dává dnešní konfigurace s odstupem ∞ i 8 m **totéž**:
+  GPS od osy vítěze p50 0,8–1,4 m, σ polohy 0,2–0,9 m — koridor z jedné hrany měří pořád a souběžná
+  ulice tam není. Na tamních jízdách přehrání s dnešní konfigurací drží pózu p50 0,07–0,89 m od
+  osy sítě (jízda 0,05–5,6 m).
+
 `MaxLateralDisagreementM` rozhoduje zároveň o dvou různých otázkách:
 
 1. **„Jsem vůbec na téhle cestě?"** — přiřazení k hraně (data association).

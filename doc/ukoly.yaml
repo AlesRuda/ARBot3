@@ -6777,9 +6777,9 @@ temata:
     oblast: lokalizace
     nazev: Příčná brána koridoru zahazovala 81,8 % cyklů — zrušena bez náhrady
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-18
-    vyreseno: 2026-09-18
+    vyreseno: 2026-10-01
     popis: >
       Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou bránu?“ nad
       `20260917-160558.rec`. `MaxLateralDisagreementM = 1,5 m` byla hardcoded konstanta bez klíče —
@@ -6797,6 +6797,15 @@ temata:
       (binárka nasazená ráno na Robotouru): do fúze došly inovace 36× nad 2 m, max 6,1 m, které
       by brána 1,5 m nepustila — a právě ty vyrobily skoky pózy (`lok-koridor-skoky-pozy`);
       to je cena zrušení, kterou má zaplatit limit kroku, ne vrácená brána.
+      **Přeměřeno 1. 10. 2026** nad `20260917-160558.rec` (`fusionreplay`, uzavřená smyčka): záznam
+      198 cyklů s hranou, brána zahodila 162 (81,8 %), prošlo 16. Bez brány s tehdejší konfigurací
+      Ok 73, z bráněných 53 → Ok (83 → `NoEdge`, 26 → `WidthNotTrusted`), χ² vítěze p50 0,91 / p90 6,61
+      (max 9,17 pod prahem 9,21); pomohlo to v minutě 2 (0,68 proti 2,02 m od osy sítě), ale bez
+      limitu kroku přišel skok 3,65 m a v minutě 4 póza 11 m od sítě (s bránou 2,4 m). S dnešními
+      pojistkami skoky od koridoru zmizely (3 → 0) a póza je do ~1 m varianty bez koridoru. Vedlejší
+      nález: při neomezeném odstupu hrany a nejistotě polohy ~7,5 m bere přiřazení souběžnou ulici
+      24,5 m od GPS → `lok-assoc-velka-sigma-soubezna-ulice`. Tabulka v
+      [map-correlation-localization.md](map-correlation-localization.md).
     kroky:
       - co: Nález — brána testuje tutéž veličinu jako `EdgeAssociator` a stojí za ním
         stav: hotovo
@@ -6807,8 +6816,9 @@ temata:
       - co: Report `corridor` — „nad bývalou branou“ + varování u starších záznamů
         stav: hotovo
         kdy: 2026-09-18
-      - co: Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`)
-        stav: otevreno
+      - co: "Přeměřit nad `20260917-160558.rec` (kolik cyklů projde, rozdělení `AssocChi2`): 16 → 73 Ok, χ² p50 0,91 / p90 6,61; `fusionreplay` blok 2 tiskne nově χ², odstup, σ polohy a |GPS − osa vítěze|"
+        stav: hotovo
+        kdy: 2026-10-01
       - co: "Ověřit na zařízení — Robotour 19. 9.: inovace do 6,1 m došly do fúze, brána prokazatelně pryč; cena = skoky pózy"
         stav: hotovo
         kdy: 2026-09-20
@@ -6817,8 +6827,46 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: decisions.md
         cesta: doc/decisions.md
-    devlog: [2026-09-18, 2026-09-20]
+    devlog: [2026-09-18, 2026-09-20, 2026-10-01]
     ceka_na: [lok-prirazeni-hrany-chi2]
+
+  - id: lok-assoc-velka-sigma-soubezna-ulice
+    oblast: lokalizace
+    nazev: Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-01
+    popis: >
+      Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). Přehrání
+      `20260917-160558.rec` (Hviezdoslavova, uliční síť) s dnešní konfigurací koridoru
+      (`MaxEdgeDistanceM` = ∞ od 26. 9., limit kroku, 2 Hz, σ koridoru): přijato 129 cyklů, ale vítězná
+      hrana leží p50 **14 m od pózy a 24,5 m od GPS**, kdežto GPS sedí na síti (p50 2,6 m od osy) —
+      souběžná ulice. Příčina: nejistota polohy z fúze p50 **7,5 m** (`gpsposstd=30`, binárka ze
+      17. 9. nevyráběla měření z jedné hrany, takže koridor měřil málo), a χ² se σ 7,5 m pustí hranu
+      do ~20 m. Azimutové veto souběžnou ulici nezastaví (má týž azimut) a odstup od druhého kandidáta
+      jen tehdy, když projde i správná. S limitem odstupu 8 m vede přiřazení na ulici pod GPS
+      (0,17 m, 26 cyklů). Korekce šly skrz škrcení 2 Hz a limit kroku, takže se póza za 6 min posunula
+      jen o ≤ 3 m — na delší jízdě by ji ale táhly na špatnou ulici rychlostí 0,5 m/s. V Modřanech
+      (25. a 29. 9., čtyři jízdy) je ∞ i 8 m totéž (GPS od osy vítěze p50 0,8–1,4 m, σ polohy
+      0,2–0,9 m): koridor z jedné hrany měří pořád a souběžná ulice tam není. Rozpor s rozborem
+      29. 9. („podélný přesah nezávisí na limitu, vítěze nezměnil") je jen zdánlivý: ten se dělal
+      nad zaznamenanými pózami (`assocwhy`), kde byla σ malá. ⚠️ Rozhodčím je GPS (σ 30 m ve městě),
+      přímá pravda k jízdě není; jedna jízda, jedna mapa.
+    kroky:
+      - co: "Změřeno: přiřazení na souběžnou ulici 24,5 m od GPS při σ polohy 7,5 m a odstupu ∞; s 8 m 0,17 m (`fusionreplay` blok 2, `--maxedge=`, `--set=` s dnešním profilem)"
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: "Rozhodnout léčbu (autor): strop σ polohy v χ² přiřazení (podlaha je jen zdola), limit odstupu vázaný na σ, nebo vyžadovat souhlas GPS polohy s vítěznou hranou, když je σ velká"
+        stav: otevreno
+      - co: "Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste"
+        stav: otevreno
+    odkazy:
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+      - text: EdgeAssociator.cs
+        cesta: Src/ARBot.Common/Localization/EdgeAssociator.cs
+    devlog: [2026-10-01]
+    ceka_na: []
 
   - id: web-clanek-regulator
     oblast: web

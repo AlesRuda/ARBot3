@@ -220,6 +220,14 @@ namespace ARBot.Analyze
             public readonly Stats HdgVsMsg = new Stats("kurz pri snimku vs zprava [deg]");
             /// <summary>|kamera − mapa| pricne u cyklu, ktere dostaly hranu (Ok) [m].</summary>
             public readonly Stats LatDisagree = new Stats("|kamera - mapa| pricne [m]");
+            // Prirazeni u prijatych cyklu (lok-koridor-pricna-brana: co pusti chi2, kdyz pricna
+            // brana 1,5 m neni): skore viteze, odstup pozy od jeho osy a nejistota polohy z fuze.
+            public readonly Stats OkChi2 = new Stats("chi2 viteze (Ok)");
+            public readonly Stats OkAxisDist = new Stats("odstup pozy od osy viteze (Ok) [m]");
+            public readonly Stats OkPoseSigma = new Stats("sigma polohy z fuze (Ok) [m]");
+            /// <summary>Osa vitezne hrany u prijatych cyklu (kolmy prumet pozy + normala) - proti GPS.</summary>
+            public readonly List<(DateTime T, double Ax, double Ay, double Nx, double Ny)> OkAxes =
+                new List<(DateTime, double, double, double, double)>();
             public int Usable, UsableSingle, ReasonSame, ReasonCompared, Throttled;
             public readonly Dictionary<(CorridorFixReason Rec, CorridorFixReason New), int> ReasonDiff =
                 new Dictionary<(CorridorFixReason, CorridorFixReason), int>();
@@ -332,6 +340,12 @@ namespace ARBot.Analyze
 
                 Count(CorridorFixReason.Ok, m);
                 LatDisagree.Add(Math.Abs(lateral - axis.Lateral));
+                OkChi2.Add(assoc.Chi2);
+                OkAxisDist.Add(axis.DistanceM);
+                OkAxes.Add((m.TimeStamp, axis.AxisX, axis.AxisY, axis.NormalX, axis.NormalY));
+                var pc = pose.Covariance;
+                if (pc != null && pc.RowCount > EKFModel.IY)
+                    OkPoseSigma.Add(Math.Sqrt(0.5 * (pc[EKFModel.IX, EKFModel.IX] + pc[EKFModel.IY, EKFModel.IY])));
                 if (cfg.SendCorrections) Send(engine, m.TimeStamp, pose.Theta, axis, corridor, lateral, sigmaLat);
             }
 
@@ -709,6 +723,13 @@ namespace ARBot.Analyze
             // ---------------- 2) koridor v obou variantach
             Console.WriteLine();
             Console.WriteLine("2) KORIDOR v obou variantach (koridor ze zpravy, prirazeni proti prehravane poze):");
+            // GPS proti ose vitezne hrany: je to ulice, po ktere robot jel, nebo vedlejsi? (GPS je
+            // s pozou nezavisla jen castecne, ale na 10 m rozliseni ulic staci.)
+            var fcfg2 = BuildFusionConfig(c, origin);
+            var gpsAx = msgs.OfType<GPSState>().Where(g => g.IsFixed && DefaultMeasurementMapper.PositionRejectReason(g, fcfg2) == null)
+                            .OrderBy(g => g.TimeStamp)
+                            .Select(g => { var q = origin.ToLocal(g.Latitude, g.Longitude); return new Sample { T = g.TimeStamp, X = q.X, Y = q.Y }; })
+                            .ToList();
             foreach (var v in new[] { withC, noC })
             {
                 var k = v.Corridor;
@@ -718,6 +739,21 @@ namespace ARBot.Analyze
                     v.Name, k.Usable, k.UsableSingle, ok, k.Usable > 0 ? 100.0 * ok / k.Usable : double.NaN, k.Out.Count, k.Throttled));
                 Console.WriteLine("      duvody: " + string.Join(", ", k.Reasons.OrderByDescending(p => p.Value).Select(p => $"{p.Key} {p.Value}")));
                 Console.WriteLine("      " + k.LatDisagree.Line("m"));
+                Console.WriteLine("      " + k.OkChi2.Line());
+                Console.WriteLine("      " + k.OkAxisDist.Line("m"));
+                Console.WriteLine("      " + k.OkPoseSigma.Line("m"));
+                var ga = new Stats("|GPS - osa viteze| pricne (Ok) [m]");
+                foreach (var a in k.OkAxes)
+                {
+                    int gi = Lower(gpsAx, a.T);
+                    Sample? best = null;
+                    foreach (int q in new[] { gi - 1, gi })
+                        if (q >= 0 && q < gpsAx.Count && Math.Abs((gpsAx[q].T - a.T).TotalSeconds) <= 0.15
+                            && (best == null || Math.Abs((gpsAx[q].T - a.T).TotalSeconds) < Math.Abs((best.Value.T - a.T).TotalSeconds)))
+                            best = gpsAx[q];
+                    if (best is Sample g) ga.Add(Math.Abs(a.Nx * (g.X - a.Ax) + a.Ny * (g.Y - a.Ay)));
+                }
+                Console.WriteLine("      " + ga.Line("m"));
             }
             Console.WriteLine("  (|kamera - mapa| je v S z velke casti inovace, kterou fuze sama stahuje - nezavisle je jen v BEZ.)");
 

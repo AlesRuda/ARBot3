@@ -596,6 +596,9 @@ kamery (čas pořízení z indexu, snímek se nečte) se v místě snímku ve st
 na `GetStateAt(čas snímku)` jako `LocalNavigator` a pustí to `PoseJumpDetector`em postaru i ponovu
 (`CheckBackwardTime`): podíl snímků s časem pozadu, mazání gridu, a kolik skoků z bloku 5 grid
 smazalo. Nález: `lok-skok-pozy-nedetekce`.
+**Blok 2 u přijatých cyklů** (od 1. 10. 2026) tiskne i χ² vítězné hrany, odstup pózy od její
+osy, σ polohy z fúze a **|GPS − osa vítěze| příčně** — ten rozliší ulici, po které robot jel, od
+souběžné (`lok-assoc-velka-sigma-soubezna-ulice`).
 **Bloky 8 a 9** (od 1. 10. 2026) — **ujede póza víc než kola, a proč?** Blok 8 přehraje fúzi ještě
 třikrát (bez GPS polohy, jen kola + IMU, jen `Odo/speed`) a na přímých úsecích (okno 30 s, přímost
 z GPS) tiskne párový poměr tětiva pózy / dráha z kol a integrál `V` ze stavu pro každou variantu;
