@@ -28,8 +28,9 @@ namespace ARBot.Common.Localization
         /// (jeden prah pro vsechny).</para>
         ///
         /// <para><b>Vychozi 0,15 je namerena.</b> Sweep nad TYMIZ daty (421 dvojic snimku, zaznam
-        /// 20260823-084807), <b>12 opakovani na variantu</b> - RANSAC je nedeterministicky
-        /// (neseedovany <c>Random</c>), takze jedno mereni na variantu nestaci:</para>
+        /// 20260823-084807), <b>12 opakovani na variantu</b> - RANSAC byl tehdy nedeterministicky
+        /// (neseedovany <c>Random</c>, od 30. 9. 2026 seedovany - viz <see cref="RansacSeed"/>),
+        /// takze jedno mereni na variantu nestacilo:</para>
         ///
         /// <code>
         ///   prirustek   Ok (rozpeti)      NotParallel
@@ -53,8 +54,52 @@ namespace ARBot.Common.Localization
         /// <para><b>Toto je ten podstatny gate.</b> Nad zaznamem zahodil 282 z 559 snimku a bez nej
         /// se do statistiky michaly primky prolozene 3–6 body, ktere vyjdou kolmo na cestu
         /// (sirka az 10 m, smer −88°). S nim: sirka sd 0,45 m misto 3,3 m.</para>
+        ///
+        /// <para>⚠️ <b>Od 30. 9. 2026 je to jen ZALOHA</b> pro volani bez vysky pravdepodobnostniho
+        /// obrazu (<c>probRows = 0</c>, testy, offline reporty) nebo pri
+        /// <see cref="MinInliersPercent"/> = 0. Za behu plati procento radku - viz tam.</para>
         /// </summary>
         public int MinInliers = 25;
+
+        /// <summary>
+        /// Brana <see cref="MinInliers"/> v <b>procentech radku pravdepodobnostniho obrazu</b>
+        /// (parametr <c>corridorinliers=</c>); 0 = plati absolutni <see cref="MinInliers"/>.
+        /// Ucinny pocet je <c>max(<see cref="MinInliersFloor"/>, round(procento × radky))</c>
+        /// (<see cref="EffectiveMinInliers"/>).
+        ///
+        /// <para><b>Proc procento</b> (29.–30. 9. 2026, rozhodnuti autora): hranice cesty davaji
+        /// jednu dvojici hran na RADEK obrazu, takze pocet bodu je vazany na jeho rozliseni — sit
+        /// 128×128 jich da ~4× mene nez histogram 640×480. Pevnych 20–25 bodu tak na siroke
+        /// ceste zabilo oboustranny koridor skoro cely (Modrany 29. 9.: 1,6 / 0,4 % Ok), ackoli
+        /// tentyz histogram na plnem snimku dal 43 / 21 % a presnost z ridsich bodu skoro netrpi
+        /// (<c>ARBot.Analyze probres</c>). 10 % = sit 13 bodu, plny snimek 48 — uprostred pasma
+        /// 12–15, ktere mereni v Modranech 23. 9. oznacilo za bezpecne.</para>
+        /// </summary>
+        public double MinInliersPercent = 10;
+
+        /// <summary>Nejmensi ucinna brana: dvema body jde primku prolozit vzdy (viz validator parametru).</summary>
+        public const int MinInliersFloor = 3;
+
+        /// <summary>Ucinna brana <see cref="MinInliers"/> pro obraz s <paramref name="probRows"/> radky.</summary>
+        public int EffectiveMinInliers(int probRows) => Scale(MinInliersPercent, MinInliers, probRows);
+
+        /// <summary>Ucinna brana <see cref="SingleEdgeMinInliers"/> pro obraz s <paramref name="probRows"/> radky.</summary>
+        public int EffectiveSingleEdgeMinInliers(int probRows)
+            => Scale(SingleEdgeMinInliersPercent, SingleEdgeMinInliers, probRows);
+
+        private static int Scale(double percent, int absolute, int probRows)
+            => percent > 0 && probRows > 0
+               ? Math.Max(MinInliersFloor, (int)Math.Round(percent / 100.0 * probRows))
+               : absolute;
+
+        /// <summary>
+        /// Seminko losovani RANSACu (<see cref="ARBot.Common.Algorithms.ML.RANSAC{TModel}.Seed"/>);
+        /// <c>null</c> = neseedovany (chovani do 30. 9. 2026). S pevnym seminkem da tentyz vstup
+        /// vzdy tentyz koridor, takze replay hranove lokalizace je reprodukovatelny a jedno
+        /// mereni na variantu staci. Citlivost na losovani jde dal merit rizene — reporty
+        /// (<c>ARBot.Analyze corridorfit --rep=</c>) meni seminko v kazdem opakovani.
+        /// </summary>
+        public int? RansacSeed = ARBot.Common.Algorithms.ML.RANSAC.DefaultSeed;
 
         /// <summary>Minimalni pocet vstupnich bodu, aby se prokladani vubec zkousilo.</summary>
         public int MinPoints = 6;
@@ -231,7 +276,18 @@ namespace ARBot.Common.Localization
         /// Nejmensi pocet inlieru JEDINE hrany. Stejny vyznam jako <see cref="MinInliers"/>
         /// (proti primkam prolozenym par body, ktere vyjdou kolmo na cestu) a zatim i stejna
         /// hodnota — zvlast je proto, aby slo jednu hranu zprisnit bez vlivu na oboustranny koridor.
+        /// Od 30. 9. 2026 jen zaloha jako <see cref="MinInliers"/>; za behu plati
+        /// <see cref="SingleEdgeMinInliersPercent"/>.
         /// </summary>
         public int SingleEdgeMinInliers = 25;
+
+        /// <summary>
+        /// Brana <see cref="SingleEdgeMinInliers"/> v procentech radku pravdepodobnostniho obrazu
+        /// (parametr <c>corridorsingleinliers=</c>); 0 = plati absolutni hodnota. Preskaluje se
+        /// stejne jako <see cref="MinInliersPercent"/> (rozhodnuti autora 30. 9. 2026) — do te
+        /// doby byla pevnych 25 bodu a na siti 128×128 tedy ~20 % radku, prisnejsi nez oboustranny
+        /// koridor.
+        /// </summary>
+        public double SingleEdgeMinInliersPercent = 10;
     }
 }

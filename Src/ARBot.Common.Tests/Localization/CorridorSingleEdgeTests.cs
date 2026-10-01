@@ -315,6 +315,24 @@ public class CorridorSingleEdgeTests
         Assert.That(r.SingleEdgeUsable, Is.True);
     }
 
+    /// <summary>
+    /// <c>CorridorSource</c> bere vysku pravdepodobnostniho obrazu ZE SNIMKU (brana v % radku,
+    /// od 30. 9. 2026): 20 bodu jedine hrany projde u site 128×128 (10 % = 13), ale ne u plneho
+    /// snimku 640×480 (10 % = 48). Bez toho by runtime dal pouzival absolutnich 25 bodu.
+    /// </summary>
+    [TestCase(128, true)]
+    [TestCase(480, false)]
+    public void CorridorSource_branaSeBereZVyskyObrazuSnimku(int probRows, bool usable)
+    {
+        var src = new CorridorSource(EngineAt(0, 0, 0));
+        var f = Frame(left: true, width: 4.0, lateral: 0, dirRad: 0, T0, count: 20);
+        f.ImageProbability = new Image<Gray>(probRows == 128 ? 128 : 640, probRows);
+
+        var r = src.Process(f);
+
+        Assert.That(r.SingleEdgeUsable, Is.EqualTo(usable));
+    }
+
     [Test]
     public void Zprava_verze7_neseJednuHranu()
     {

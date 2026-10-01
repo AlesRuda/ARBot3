@@ -9,7 +9,8 @@ namespace ARBot.Analyze
     /// Offline analyza zaznamu (<c>Records/*.rec</c>). Konzolovy nastroj — <b>zamerne
     /// v repozitari</b>: analyzatory se driv psaly jednorazove mimo projekt a kazde dalsi sezeni
     /// je muselo postavit znovu (viz doc/devlog.md, 23. 8. 2026). Namerene cislo je uzitecne jen
-    /// tehdy, kdyz ho jde zopakovat — a u RANSACu, ktery je nedeterministicky, to plati dvojnasob.
+    /// tehdy, kdyz ho jde zopakovat — a u RANSACu, jehoz vysledek zavisi na losovani, to plati
+    /// dvojnasob (od 30. 9. 2026 je seedovany, takze tentyz vstup da tentyz vysledek).
     ///
     /// <para>Pouziti: <c>ARBot.Analyze corridor &lt;zaznam.rec&gt; [--old-window=60]</c>.
     /// Bez cesty vezme nejnovejsi zaznam v <c>Records/</c>.</para>
@@ -98,6 +99,13 @@ namespace ARBot.Analyze
                         return 0;
                     case "dump": CorridorReport.Dump(rec); return 0;
                     case "occupancy": OccupancyReport.Run(rec); return 0;
+                    case "probres":
+                        // --mininliers = PEVNA brana pro srovnani (do 29. 9. 2026 profil 20),
+                        // --inliers = brana v % radku jako runtime (corridorinliers=, vychozi z CorridorConfig).
+                        ProbResolutionReport.Run(rec, (int)Arg(args, "--limit", 0), (int)Arg(args, "--skip", 0),
+                                                 (int)Arg(args, "--size", 128), (int)Arg(args, "--mininliers", 20),
+                                                 Arg(args, "--inliers", new ARBot.Common.Localization.CorridorConfig().MinInliersPercent));
+                        return 0;
                     case "wedge":
                         WedgeReport.Run(rec, (int)Arg(args, "--limit", 300),
                                         Arg(args, "--wedgefill",
@@ -319,6 +327,9 @@ namespace ARBot.Analyze
             Console.WriteLine("             magnetickeho pole (|B|, sklon, kurz z pole)");
             Console.WriteLine("  dump       CSV radek za kazdy cyklus koridoru (do souboru/rouru)");
             Console.WriteLine("  occupancy  lokalni mapa: cim je ktera bunka blokovana (geometrie/semantika)");
+            Console.WriteLine("  probres    dopad rozliseni pravdepodobnosti (sit 128x128 vs plny snimek) na hranice");
+            Console.WriteLine("             cesty, koridor a grid: tyz histogram na plnem a zmensenem snimku + sit");
+            Console.WriteLine("             ze zaznamu (--size=128, --mininliers=20, --inliers=10, --limit=, --skip=)");
             Console.WriteLine("  wedge      je pred robotem KLIN bez semantiky? (zorna pole barvy se ve smeru");
             Console.WriteLine("             jizdy nemusi prekryvat) - rozpad Unknown podle priciny a podle");
             Console.WriteLine("             azimutu v telesovem ramci + o kolik by kvuli tomu klinu prisla");
@@ -413,8 +424,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");
             Console.WriteLine("  --synth            corridorfit nad syntetickymi daty se znamou pravdou");
-            Console.WriteLine("  --rep=<n>          kolikrat zopakovat kazdou variantu (vychozi 12; RANSAC");
-            Console.WriteLine("                     je nedeterministicky, jedno mereni nic neznamena)");
+            Console.WriteLine("  --rep=<n>          kolikrat zopakovat kazdou variantu, pokazde s jinym seminkem");
+            Console.WriteLine("                     RANSACu (vychozi 12; rozpeti = citlivost na losovani)");
             Console.WriteLine("  --trials=<n>       kolik syntetickych scen na opakovani (vychozi 300)");
             Console.WriteLine("  --gross=<0..1>     podil hrubych outlieru v syntetice (vychozi 0)");
             Console.WriteLine("  --huberk=<k>       kde zacina Huberovo potlaceni (vychozi 1,5 = nasobek");

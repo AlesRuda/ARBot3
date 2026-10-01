@@ -13,6 +13,32 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-09-30 — Brána inlierů koridoru v procentech řádků pravděpodobnostního obrazu
+
+**Co:** Nejmenší počet inlierů hranice se udává v **procentech řádků** pravděpodobnostního obrazu,
+ze kterého hranice vzešly: `corridorinliers=` (oboustranný koridor) a nový `corridorsingleinliers=`
+(jedna hrana), výchozí i v provozním profilu **10 %** (síť 128 řádků → 13 bodů, plný snímek 480 →
+48), účinně nejméně 3 body. `corridormininliers=` (absolutní počet) zanikl. Rozhodnutí autora,
+včetně toho, že se stejně přeškáluje i brána jedné hrany a dostane parametr.
+
+**Proč:** `FindPathEdge` dává jednu dvojici hran na řádek, takže počet bodů je vázaný na rozlišení
+— síť 128×128 jich dá ~4× méně než histogram 640×480. Pevných 20 bodů pak na široké cyklostezce
+zabilo oboustranný koridor skoro celý (Modřany 29. 9.: síť 1,6 / 0,4 % Ok), ačkoli přesnost
+z řidších bodů skoro netrpí (`ARBot.Analyze probres`). Dřívější snížení 25 → 20 (26. 9.) pomohlo
+jen tam, kde hrany měly 20–25 inlierů. Alternativy: pevné číslo pro síť (by se rozešlo s histogramem
+a simulací) nebo počet „na 480 řádků" (autor dal přednost procentu). Hodnota 10 % leží uprostřed
+pásma 12–15 bodů na síti, které měření v Modřanech 23. 9. označilo za bezpečné (pod 10 roste
+rozptyl šířky a kurzu).
+
+**Důsledky:** Histogram na plném a zmenšeném snímku dává s touž bránou stejný výsledek. Síť
+v Modřanech 29. 9.: Ok 1,6 → 14,8 % (Track), 0,4 → 7,2 % (FreeRun), 25. 9. FreeRun 29,6 → 56,5 %;
+na Hviezdoslavově ~24 → ~29 %.
+Jedna hrana je o něco volnější než dřív (13 místo 25 bodů na síti). Bez výšky obrazu (testy, offline
+reporty) platí dál absolutních 25; `0 %` v parametru vrací absolutní bránu. Simulace (brána 48)
+netrpí. Na zařízení neběželo. Viz [semantic-segmentation.md](semantic-segmentation.md),
+[map-correlation-localization.md](map-correlation-localization.md); registr
+`vid-segmentace-rozliseni-128`.
+
 ### 2026-09-29 — Limit kroku z koridoru hlídá celý posun polohy a malý skok času zpět není seek
 
 **Co:** (1) `CorridorLocalizer` bere skok času fixu zpět za seek jen nad `corridorseekback=` (1 s);

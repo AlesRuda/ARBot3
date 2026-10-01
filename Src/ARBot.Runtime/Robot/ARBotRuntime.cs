@@ -325,6 +325,25 @@ namespace ARBot.Robot
             else if (RequestedHwMode == HwMode.None && hw.Mode != HwMode.None)
                 hw.SetNoHW();
 
+            // Most Trace -> Info (do zaznamu) HNED na zacatku dratovani, ne az na konci. Do 30. 9.
+            // 2026 se zapojoval az po zalozeni vsech stupnu, takze hlasky ze samotneho dratovani -
+            // nactena mapa, pocatecni poza, "mission=track: ... nastartovana", "corridor=false:
+            // ... nezaklada", brany koridoru - sly jen na konzoli a do journalu, v .rec nebyly
+            // (registr nast-hlasky-startu-do-zaznamu). Radky se zatim jen radi do fronty mostu
+            // (kanal existuje od konstruktoru, drop nejstarsich pri 512); odeslou se, az se stupen
+            // spusti - to uz je Output pripojeny na Stream a stoji zaznam. Az za WaitReady schvalne:
+            // cekani na HW muze trvat a chybove hlasky kamer by frontu vytlacily.
+            traceBridge = new TraceInfoBridge();
+            traceBridge.Attach();
+
+            // Verze binarky a ucinna konfigurace DO ZAZNAMU, jako PRVNI radky behu. RuntimeBootstrap
+            // je vypisuje pred startem runtime, kdy most jeste nestoji, takze zaznam je do 5. 9. 2026
+            // NEOBSAHOVAL. ~110 radku, dohromady s hlaskami z dratovani pod stropem
+            // TraceInfoBridge.MaxPerSecond (200).
+            Trace.WriteLine("ARBot verze: " + BuildInfo.Current.Popis());
+            foreach (var line in ParamStore.Current.DescribeAll())
+                Trace.WriteLine(line);
+
             // Sdileny fuzni engine (fuze i rizeni jej sdili - thread-safe).
             var fusionConfig = new FusionConfig();
             ApplyGpsQualityParams(fusionConfig);
@@ -763,13 +782,19 @@ namespace ARBot.Robot
                 // Nejmensi pocet inlieru, aby hranice platila. Stejny duvod jako u corridortol:
                 // je to nejvetsi ztratova brana prolozeni a vychozi hodnota je naladena na
                 // starsim zaznamu odjinud, takze musi jit PROMERIT, ne hadat.
-                int minInliers = (int)Math.Round(ParamRegistry.CorridorMinInliers.Value);
-                if (minInliers != corridorCfg.Corridor.MinInliers)
-                {
-                    Trace.WriteLine($"corridormininliers={minInliers}: prah inlieru hranice "
-                                    + $"(vychozi {corridorCfg.Corridor.MinInliers}).");
-                    corridorCfg.Corridor.MinInliers = minInliers;
-                }
+                //
+                // Od 30. 9. 2026 v PROCENTECH RADKU pravdepodobnostniho obrazu (corridorinliers=,
+                // corridorsingleinliers=), ne v bodech: hranice davaji jednu dvojici hran na radek,
+                // takze pevny pocet byl vazany na rozliseni (sit 128x128 ~4x mene bodu nez plny
+                // snimek). Viz CorridorConfig.MinInliersPercent a ARBot.Analyze probres.
+                corridorCfg.Corridor.MinInliersPercent = ParamRegistry.CorridorInliers.Value;
+                corridorCfg.Corridor.SingleEdgeMinInliersPercent = ParamRegistry.CorridorSingleInliers.Value;
+                Trace.WriteLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "corridorinliers={0} %, corridorsingleinliers={1} % radku pravdepodobnostniho obrazu "
+                    + "(sit 128 radku: {2} / {3} bodu, plny snimek 480: {4} / {5}).",
+                    corridorCfg.Corridor.MinInliersPercent, corridorCfg.Corridor.SingleEdgeMinInliersPercent,
+                    corridorCfg.Corridor.EffectiveMinInliers(128), corridorCfg.Corridor.EffectiveSingleEdgeMinInliers(128),
+                    corridorCfg.Corridor.EffectiveMinInliers(480), corridorCfg.Corridor.EffectiveSingleEdgeMinInliers(480)));
 
                 // Merenie z JEDNE hrany (corridorsingle= / corridorsinglewidthstd=): na siroke
                 // ceste oboustranny koridor nevznika (Modrany 23. 9. 2026: ani jedno merenie).
@@ -1102,28 +1127,15 @@ namespace ARBot.Robot
 
             // Most Trace -> Info: debugovaci vystup (Debug.WriteLine i logy Avalonie) tece do Stream,
             // takze se ULOZI DO ZAZNAMU a da se precist zpetne - i z behu na zarizeni, kde k oknu
-            // Debug output nikdo nesedi. Pripojuje se az sem, aby uz stal zaznam i dokumenty.
-            // Viz doc/record-replay.md.
-            traceBridge = new TraceInfoBridge();
+            // Debug output nikdo nesedi. Zalozeny a zapojeny do Trace je uz od zacatku dratovani
+            // (radky ceka ve fronte); tady se jen pripoji na Stream a spusti se se stupni, kdy uz
+            // stoji zaznam i dokumenty. Viz doc/record-replay.md.
             stages.Add(traceBridge);
             connections.Add(traceBridge.Output.Connect(stream));
 
             // --- Start: cile pred zdroji ---
             foreach (var st in stages) st.Start();
             recording?.Start();
-
-            // Az po startu stupnu - drive by zpravy padaly do fronty bez konzumenta.
-            traceBridge.Attach();
-
-            // Verze binarky a ucinna konfigurace DO ZAZNAMU. Musi to byt az TADY, po Attach:
-            // RuntimeBootstrap.TryConfigure je vypisuje pred startem runtime, kdy most jeste
-            // nestoji a nikdo je nesbira, takze zaznam je do 5. 9. 2026 NEOBSAHOVAL - navzdory
-            // tomu, co o nem tvrdila dokumentace i komentare u vypisu. Bez toho nejde u nahravky
-            // ze zarizeni zjistit, jaka binarka a jake parametry ji porizovaly. Radku je ~60,
-            // tedy pod stropem TraceInfoBridge.MaxPerSecond (200).
-            Trace.WriteLine("ARBot verze: " + BuildInfo.Current.Popis());
-            foreach (var line in ParamStore.Current.DescribeAll())
-                Trace.WriteLine(line);
 
             // Casovac scheduleru: pravidelne pumpuje ridici smycku (~Profile.Ts).
             // Reentrancni pojistka: System.Threading.Timer callbacky se pri pomalem Pump()

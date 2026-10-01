@@ -39,6 +39,61 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-09-30
+
+- **Brána inlierů koridoru v procentech řádků** (`vid-segmentace-rozliseni-128` → v kódu, rozhodnutí
+  autora): `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % řádků pravděpodobnostního
+  obrazu (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, profil
+  `pi-provoz.cfg` přepsán. `CorridorFinder.Find(…, probRows)` a `CorridorSource` bere výšku ze
+  snímku; bez ní (testy, offline reporty) platí absolutních 25. `probres` má blok s procentní
+  branou: histogram na plném a zmenšeném snímku teď dává totéž, síť v Modřanech 29. 9. Ok
+  1,6 → 14,8 % a 0,4 → 7,2 % (25. 9. 29,6 → 56,5 %), na Hviezdoslavově ~24 → ~29 %. Simulace (FreeRun 75 s v headless,
+  brána 48 bodů) netrpí: 96,5 % Ok proti 95,5 %. 6 nových testů; testy 1 725 / 151 / 129, build
+  x64 i OrangePI. ⚠️ Na zařízení neběželo. **Rozhodnutí:** [decisions.md](decisions.md), 30. 9. 2026.
+- **Kamery na USB 2.0 po bootu → uzavřeno** (`hw-kamery-usb2-po-bootu`, autor: od 2. 9. se
+  neopakovalo a starty na baterii v principu proběhly při testech v terénu). Doloženo záznamy: všech 27 jízd 12.–29. 9. má snímky z obou D435 s barvou
+  i hloubkou (na USB 2.0 by nejely obě), připojení v záznamu vždy `USB 3.2`, hláška o USB 2 nikde.
+  Příčina neurčena; návrat by ohlásil `UsbLinkCheck`.
+- **Růst paměti při marném dotazu na kameru → uzavřeno** (`hw-d435-query-pamet`, autor: od 6. 9.
+  se neopakovalo). Sérii selhání dnes ukončí supervizor zotavení po ~15 dotazech a T265 se od 26. 9.
+  nehledá. Vědomě ponechané riziko: po vzdání zotavení se kamera ptá dál 1×/s bez konce; backoff
+  ani paměť procesu v `PerfMsg` autor nechce.
+- **Hledání odpojené T265 → uzavřeno** (`hw-t265-odpojena-natrvalo`): T265 se od 26. 9. nezakládá.
+  Záznamy: hlášek o T265 bylo v jízdách 14.–25. 9. 128–1 198 na záznam, od binárky `8587ff65`
+  (27. a 29. 9.) nula.
+- **Hlášky ze startu runtime jsou v záznamu** (`nast-hlasky-startu-do-zaznamu` → hotovo): most
+  `Trace` → záznam se v `WireRun` zakládá a zapojuje hned za `WaitReady`, ne až po založení stupňů;
+  verze a konfigurace jdou první, řádky z drátování čekají ve frontě mostu. V headless simulaci je
+  v `.rec` všech 13 hlášek z drátování (mapa, počáteční póza, co se nezaložilo, brány koridoru,
+  `mission=freerun: …`), které dřív šly jen na konzoli. Nový test; testy Common (most) a Runtime
+  151 zelené, build OrangePI.
+- **RANSAC je seedovaný** (`lok-ransac-nedeterministicky` → hotovo): `RANSAC<T>.Seed` (výchozí
+  pevné, `null` = staré chování), generátor se zakládá při každém výpočtu, koridor bere
+  `CorridorConfig.RansacSeed`. Tentýž vstup = tentýž koridor, replay hranové lokalizace je
+  reprodukovatelný (dva běhy `corridorfit` nad `20260918-154028.rec` se liší jen časem na dvojici).
+  `corridorfit --rep=` mění semínko v každém opakování, takže rozpětí dál měří citlivost na
+  losování. 2 testy; testy 1 728 / 151, build OrangePI.
+- **Náklon mimo fúzi — opraven zastaralý popis** (`lok-ekf-pitch-roll-stav`, upozornil autor):
+  `IMUState` nese identitu zdroje už od 4. 9. (`Name`), registr, `ekf-fusion.md` i komentář
+  v `ControlLoop` tvrdily opak. Smyčka ji ale nepoužívá (bere poslední došlé IMU); dnes nehrozí,
+  zakládá se jen VN100. Otevřené zůstává obcházení fúze. Kód se neměnil (jen komentář).
+  Mezikrok „brát náklon jen z IMU s absolutním kurzem" se rozepsal a na pokyn autora vrátil:
+  náklony půjdou do EKF spolu s odhadem chyb senzorů (`lok-bias-senzoru-jako-stav-ekf`, nový krok).
+- **Póza 12 m vedle cesty po zatáčce → uzavřeno** (`lok-koridor-noedge-po-zatacce`, autor): obvod kola
+  opraven (29. 9. potvrzeno 0,999), 8m brána zrušená; podlaha χ² přiřazení zůstává.
+- **Panel Konfigurace, mazání klíčů při uložení → hotovo** (`nast-panel-konfigurace-mazal-klice`):
+  autor potvrdil, že uložení z panelu je v pořádku.
+- **VN100 s běžící HSI po startu → hotovo** (`hw-vn100-hsi-run-ve-flash`): senzor srovnán (autor),
+  `vnprobe.sh` 28. 9. četl registr 44 `0,1,5`.
+- **Externí audit bezpečnostní vrstvy řízení → hotovo** (`prov-audit-bezpecnost-rizeni`): opravy
+  K1/V1/K2/K3/V3 z 15. 9. autor ověřil na zařízení.
+- **Půdorys náhledu se zónami → hotovo** (`prov-pudorys-umysl-a-zony`): autor potvrdil, že zóny
+  o dojezdovém poloměru jsou na stránce na zařízení vidět.
+- **Timeout jízdy k místu Tracku → hotovo** (`mise-track-timeout-delka-useku`): vypnutý timeout
+  (26. 9.) autor ověřil na zařízení.
+- **Pomalý FreeRun → hotovo** (`mise-freerun-pomala-mrkev-blizko`, autor: ověřeno OK). FreeRun 29. 9.
+  s `freerunlook=5`: příkaz p50 1,67 m/s (25. 9. 0,81), rychlost fúze p50 1,49 m/s.
+
 ## 2026-09-29
 
 - **Zamítnuto `nav-uzavreni-hran-pres-restart`** (autor): každý běh jede s čistou mapou, uzavřené
@@ -177,6 +232,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   runtime. 3 nové testy; testy Runtime 151, Common 1 719, build OrangePI. Obě cesty ověřené
   v headless (`virtualhw=true`, `map=OSM/Hviezdoslavova.osm`, `web=`) včetně vykreslení stránky.
   Ověření na Pi není potřeba (autor: stačí počítač). Detail: [track-mission.md](track-mission.md).
+- **Dopad 128×128 na hranice cesty a grid změřen** (`vid-segmentace-rozliseni-128`, nový
+  `ARBot.Analyze probres`): tentýž histogram na plném a zmenšeném snímku + síť ze záznamu, stejnou
+  cestou `FindPathEdge` → `ColorPixelTo3D` → `CorridorFinder`; kontrola měřidla proti zapsaným
+  hranám 0,000 (1,4 mil. bodů). Bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí
+  pevná brána `corridormininliers=20`, ne kvalita bodů**: Modřany 29. 9. Ok 43 / 21 % na plném
+  snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky (5) se histogram
+  vrátí na úroveň plného snímku a síť dá 33 / 27 %. Na úzké Hviezdoslavově brána skoro nevadí.
+  Přesnost z řidších bodů skoro netrpí (šířka 4–9 cm, příčně 2–4 cm, směr 0,4–0,7° p50). Grid:
+  jeden řádek 128×128 ve 3–5 m pokrývá až ~5 buněk 5 cm. O bráně rozhodne autor (krok v registru).
+  Detail: [semantic-segmentation.md](semantic-segmentation.md).
 
 ## 2026-09-28
 

@@ -1098,7 +1098,7 @@ temata:
 
   - id: lok-ekf-pitch-roll-stav
     oblast: lokalizace
-    nazev: Náklon robota jde mimo fúzi a nezná svůj zdroj
+    nazev: Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)
     druh: vada
     stav: otevreno
     nalezeno: 2026-08-11
@@ -1108,17 +1108,22 @@ temata:
       montáží a kvalitou. Obchází to fúzi: bez gatingu, bez kovariance a bez dopředikování do
       času tiku, zatímco zbytek stavu robota fúzovaný je. Návrh je přidat náklon do stavového
       vektoru EKF jako regulérní měření; je to zásah do filtru a zatím se neudělal.
-      Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`), takže
-      přeskakování náklonu mezi dvěma IMU v provozu nenastává; zůstává obcházení fúze (bez
-      gatingu, kovariance a dopředikování) a chybějící identita zdroje v `IMUState` pro případ,
-      že by druhé IMU přibylo.
+      Od 13. 9. 2026 je T265 z robota odpojená natrvalo (rozhodnutí v `decisions.md`) a od 26. 9.
+      se v runtime ani nezakládá, takže přeskakování náklonu mezi dvěma IMU nastat nemůže.
+      **Identitu zdroje `IMUState` nese už od 4. 9. 2026** (`Name`, formát verze 2; VN100,
+      virtuální IMU i T265 ho vyplňují — zjištěno 30. 9., popis to do té doby tvrdil opak);
+      `ControlLoop` ji ale nepoužívá, při dvou IMU by pořád vyhrávalo „poslední došlé".
+      Zůstává obcházení fúze (bez gatingu, kovariance a dopředikování).
+      **Autor 30. 9. 2026:** mezikrok (výběr IMU pro náklon podle jména / absolutního kurzu)
+      zamítnut — správné řešení je dát náklony do EKF, a to **spolu s odhadem chyb senzorů**
+      (`lok-bias-senzoru-jako-stav-ekf`). Do té doby zůstává otevřené.
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
-    devlog: [2026-08-11]
-    ceka_na: []
+    devlog: [2026-08-11, 2026-09-30]
+    ceka_na: [lok-bias-senzoru-jako-stav-ekf]
 
   - id: nast-trace-do-zaznamu
     oblast: nastroje
@@ -1796,8 +1801,9 @@ temata:
     oblast: nastroje
     nazev: Hlášky ze startu runtime se do záznamu nedostanou
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-08-20
+    vyreseno: 2026-09-30
     popis: >
       Most `Trace` → záznam se připojuje až na konci drátování, takže hlášky o načtení mapy,
       počáteční póze nebo o tom, proč se nějaký stupeň nezaložil, jdou jen do debug outputu.
@@ -1805,6 +1811,12 @@ temata:
       po připojení mostu zopakuje a přibyl příkaz `ARBot.Analyze log`, ale trasovací hlášky
       z drátování zůstávají mimo (znovu nalezeno 15. 9.).
       Nejnověji chyběl řádek „corridor=false: hranová lokalizace se nezakládá“ — v journalu byl, v `.rec` ne.
+      Ještě 29. 9. chyběly v `.rec` třeba „mission=track: … nastartovana“ nebo načtení mapy.
+      ✅ **Opraveno 30. 9. 2026:** most se založí a zapojí do `Trace` na začátku `WireRun` (hned za
+      `WaitReady`), verze a konfigurace jdou jako první a řádky z drátování čekají ve frontě mostu,
+      dokud se se stupni nespustí. Ověřeno v headless simulaci: záznam nese všech 13 hlášek, které
+      dřív šly jen na konzoli. Mimo záznam zůstává jen to, co je před `Start` (výpis
+      `RuntimeBootstrap`, hlavička headless, čekání na HW).
     kroky:
       - co: Konfigurace a verze se po připojení mostu zopakují do záznamu
         stav: hotovo
@@ -1812,14 +1824,15 @@ temata:
       - co: "`ARBot.Analyze log` — textový log ze záznamu"
         stav: hotovo
         kdy: 2026-09-05
-      - co: Připojit most dřív nebo hlášky z drátování pufrovat
-        stav: otevreno
+      - co: "Připojit most dřív nebo hlášky z drátování pufrovat — most se zapojí na začátku `WireRun`, řádky čekají v jeho frontě; test `RadkyPredStartem_OdejdouPoStartu`, ověřeno v headless simulaci"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: record-replay.md
         cesta: doc/record-replay.md
       - text: headless.md
         cesta: doc/headless.md
-    devlog: [2026-08-20, 2026-09-05, 2026-09-15]
+    devlog: [2026-08-20, 2026-09-05, 2026-09-15, 2026-09-30]
 
   - id: nast-cesty-relativne-ke-korenu-repa
     oblast: nastroje
@@ -2073,8 +2086,9 @@ temata:
     oblast: lokalizace
     nazev: RANSAC je nedeterministický, replay hranové lokalizace není reprodukovatelný
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-08-23
+    vyreseno: 2026-09-30
     popis: >
       `RANSAC.Compute` používá neseedovaný `new Random()`, takže tentýž vstup dá pokaždé jiný
       výsledek (±8 přijatých ze 421 dvojic). Než se to zjistilo, vyšly z jednotlivých běhů dva
@@ -2082,15 +2096,22 @@ temata:
       rozpětí. Jde to proti zbytku projektu (`DeterministicNoise`, `ComparisonTarget`) a je
       podezřelé i z jednoho nestabilního běhu testovací sady. Zaseedování je drobnost, zatím
       neudělaná — v kódu je pořád `new Random()`.
+      ✅ **Opraveno 30. 9. 2026:** `RANSAC<T>.Seed` (výchozí `RANSAC.DefaultSeed`, `null` = staré
+      chování), generátor se zakládá s pevným semínkem při každém výpočtu; koridor ho bere
+      z `CorridorConfig.RansacSeed`. Tentýž vstup dá tentýž koridor nezávisle na předchozích
+      výpočtech. `corridorfit --rep=` mění semínko v každém opakování (1. = runtime), takže rozpětí
+      dál měří citlivost na losování, reprodukovatelně. Seedovaný `Random` je v .NET stejný na x64
+      i ARM64.
     kroky:
-      - co: "Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu)"
-        stav: otevreno
+      - co: "Naseedovat `RANSAC` (reprodukovatelný replay, jedno měření na variantu) — 2 testy (shoda bit po bitu i po jiném výpočtu; na testovacích datech na losování opravdu záleží), dva běhy `corridorfit` nad `20260918-154028.rec` se liší jen časem; testy 1 728 / 151, build OrangePI"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: RANSAC.cs
         cesta: Src/ARBot.Common/Algorithms/ML/RANSAC.cs
-    devlog: [2026-08-23, 2026-08-24]
+    devlog: [2026-08-23, 2026-08-24, 2026-09-30]
     ceka_na: []
 
   - id: nast-hranice-cesty-v-ui
@@ -2502,10 +2523,12 @@ temata:
         kdy: 2026-09-07
       - co: 'Bias kompasu a gyra jako stavy EKF (varianta B)'
         stav: otevreno
+      - co: 'Spolu s tím dát do stavu EKF i náklony (pitch/roll) — rozhodnutí autora 30. 9. 2026, téma `lok-ekf-pitch-roll-stav`'
+        stav: otevreno
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18]
+    devlog: [2026-08-25, 2026-09-07, 2026-09-12, 2026-09-18, 2026-09-30]
     ceka_na: []
 
   - id: lok-mapcorr-tvrdy-gate
@@ -3724,8 +3747,9 @@ temata:
     oblast: hw
     nazev: Kamery se po bootu vyčetly jen na USB 2.0 a robot byl bez vidění
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-02
+    vyreseno: 2026-09-30
     popis: >
       Obě D435 se po bootu hlásily jen rychlostí USB 2.0, na které se hloubka a barva nevejdou
       ani pro jednu kameru — robot tedy neviděl nic a kernel si nestěžoval. Odpojení a zapojení
@@ -3733,6 +3757,12 @@ temata:
       jde o SuperSpeed linku, která se při bootu nenatrénuje. Série restartů na nabíječce dala
       6× dobře, jediná stopa je napájení (selhání přišlo na dosluhující baterii). Od 11. 9. driver
       typ linky hlásí a na USB 2.0 varuje i s léčbou; měření na baterii se neudělalo.
+      ✅ **Uzavřeno 30. 9. 2026 (autor): od 2. 9. se to neopakovalo** — a série startů na baterii
+      v principu proběhla při testech v terénu. Doloženo i záznamy: všech
+      27 jízd 12.–29. 9. nese snímky z OBOU kamer s hloubkou i barvou (vzorek ~200 snímků na
+      záznam, 100 %; na USB 2.0 by D435 neposlala obojí), kde je
+      připojení kamery v záznamu, driver hlásí `USB 3.2` (29×) a hláška o USB 2 není v žádném.
+      Příčina neurčena; kdyby se vrátilo, ohlásí to `UsbLinkCheck`.
     kroky:
       - co: Fyzické přepojení kamer, ověřeno 30/30 fps
         stav: hotovo
@@ -3743,14 +3773,15 @@ temata:
       - co: "Driver hlásí typ USB linky (`UsbLinkCheck`), varování na USB 2.0"
         stav: hotovo
         kdy: 2026-09-11
-      - co: Zopakovat sérii startů na baterii bez nabíječky
-        stav: otevreno
+      - co: "Zopakovat sérii startů na baterii bez nabíječky — v principu proběhla při testech v terénu (autor 30. 9.: starty na baterii 12.–29. 9.), vada se od 2. 9. neopakovala, záznamy všechny na USB 3.2"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
       - text: OrangePi5Ultra/POSTUP.md
         cesta: OrangePi5Ultra/POSTUP.md
-    devlog: [2026-09-02, 2026-09-11]
+    devlog: [2026-09-02, 2026-09-11, 2026-09-30]
     ceka_na: []
 
   - id: nast-analyze-katalog-zaznamu
@@ -4835,8 +4866,9 @@ temata:
     oblast: hw
     nazev: Když se kamera nedá znovu vyčíst, proces roste v paměti
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-06
+    vyreseno: 2026-09-30
     popis: >
       Po nasazení levá kamera nenaběhla a `QueryDevices` hlásil „failed to set power state"
       ~0,7× za sekundu; běh s 93 selháními vyšplhal na 1,8 GB proti 130–140 MB, tedy ~25 MB na
@@ -4847,16 +4879,26 @@ temata:
       dotazu tečou i do záznamu (140 s po zatuhnutí). Rozpor k přeměření: 14. 9. běh se 7 829
       selháními T265 paměťově nevadil, takže růst ~25 MB na dotaz je buď vázaný na zapojenou,
       ale zaseknutou D435 („failed to set power state"), nebo měl 6. 9. jinou příčinu.
+      ✅ **Uzavřeno 30. 9. 2026 (autor): od 6. 9. se neopakovalo a driver dnes vypadá jinak.**
+      Supervizor zotavení (od 13. 9.) vymění RealSense kontext po 15 marných dotazech, takže série
+      selhání končí po ~15 s místo 93 dotazů (všechny pozorované epizody se vrátily, naposledy
+      29. 9. za 29 s), a od 26. 9. se nehledá odpojená T265. ⚠️ **Zbytkové riziko vědomě
+      ponecháno:** když zotavení u kamery vzdá (3× marně za 15 min), `D435Camera` se ptá dál
+      každou sekundu bez konce (`ReconnectPeriodMs`) — kdyby růst ~25 MB na dotaz platil, je to
+      scénář z 6. 9. Backoff ani paměť procesu v `PerfMsg` autor nechce (30. 9.); růst paměti ze
+      záznamu změřit nejde.
     kroky:
-      - co: Backoff dotazů `QueryDevices` po selhání
-        stav: otevreno
-      - co: Změřit růst paměti při trvale selhávajícím dotazu (T265 chybí / D435 zaseknutá) a jestli končí pádem
-        stav: otevreno
+      - co: "Backoff dotazů `QueryDevices` po selhání — nahrazeno supervizorem zotavení kamer (13. 9.), backoff po vzdání zotavení autor 30. 9. nechce"
+        stav: hotovo
+        kdy: 2026-09-30
+      - co: "Změřit růst paměti při trvale selhávajícím dotazu (T265 chybí / D435 zaseknutá) a jestli končí pádem — nedělá se (autor 30. 9.): od 6. 9. se neopakovalo, T265 se od 26. 9. nehledá"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
-    devlog: [2026-09-06, 2026-09-14, 2026-09-17]
-    ceka_na: [hw-t265-odpojena-natrvalo]
+    devlog: [2026-09-06, 2026-09-14, 2026-09-17, 2026-09-30]
+    ceka_na: []
 
   # ---------------------------------------------------------------- mise
 
@@ -5383,9 +5425,9 @@ temata:
     oblast: provoz
     nazev: Půdorys náhledu ukazuje, co se robot chystá udělat, a zóny k dosažení
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-12
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-30
     popis: >
       Na půdorysu stránky náhledu přibyla trasa globální navigace, dráha z lokálního plánovače (i s uzly,
       z jejichž rozestupu je vidět vyhlazování), legenda včetně dosud nepopsané ujeté dráhy a kružnice
@@ -5395,7 +5437,8 @@ temata:
       nesčítají — přednost má to, co zadal člověk. Ověřeno testy a jízdou v simulaci. Trasa
       a lokální plán byly na zařízení vidět 17. 9. (snímky stránky 16:26: trasa, plán, mrkev)
       a na Robotouru 19. 9. obsluha na stránce sledovala přeplánování trasy; že někdo viděl
-      i zóny (kružnice o dojezdovém poloměru), zapsané není.
+      i zóny (kružnice o dojezdovém poloměru), zapsané nebylo — ✅ autor 30. 9. 2026: zóny na
+      stránce na zařízení vidět jsou.
     kroky:
       - co: Trasa a lokální plán s prahem stáří, legenda
         stav: hotovo
@@ -5409,8 +5452,9 @@ temata:
       - co: "Trasa a lokální plán na stránce za jízdy — 17. 9. snímky 16:26, 19. 9. přeplánování vidět na stránce"
         stav: hotovo
         kdy: 2026-09-17
-      - co: Zóny na stránce na zařízení (nikdo nezapsal, že je viděl)
-        stav: otevreno
+      - co: Zóny na stránce na zařízení — autor potvrdil, že jsou vidět
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: headless.md
         cesta: doc/headless.md
@@ -5418,7 +5462,7 @@ temata:
         cesta: doc/world-view.md
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-20]
+    devlog: [2026-09-12, 2026-09-13, 2026-09-14, 2026-09-17, 2026-09-20, 2026-09-30]
     ceka_na: []
 
   - id: lok-gps-kurz-korelovana-chyba
@@ -5487,16 +5531,17 @@ temata:
     oblast: nastroje
     nazev: Panel Konfigurace tiše mazal z profilu klíče shodné s defaultem
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-12
-    vyreseno: 2026-09-12
+    vyreseno: 2026-09-30
     popis: >
       Uložení profilu z panelu zapisovalo jen hodnoty odlišné od defaultu, takže z `pi-provoz.cfg`
       zmizel schválně připnutý `npumodel=` — po příští změně defaultu by robot tiše počítal jiným
       modelem. Teď se zapisují i klíče, které v profilu výslovně byly. Z téhož uložení vyšel druhý nález:
       panel uložil cestu s windowsovým zpětným lomítkem, které na Linuxu je obyčejný znak, takže by mapa
       na Pi nebyla nalezena; hlídá to nový test nad profily v repu. Ručně psané komentáře v profilu se
-      při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. Uložení v UI proklikané není.
+      při uložení ztrácejí dál (skládají se znovu z registru) — známá mez. ✅ Autor 30. 9. 2026:
+      uložení z panelu je v pořádku.
     kroky:
       - co: Zapisují se i výslovně nastavené klíče
         stav: hotovo
@@ -5504,12 +5549,13 @@ temata:
       - co: Test na linuxový tvar cest v profilech
         stav: hotovo
         kdy: 2026-09-12
-      - co: Proklikat uložení v panelu
-        stav: otevreno
+      - co: Proklikat uložení v panelu — autor potvrdil, že je to v pořádku
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: configuration.md
         cesta: doc/configuration.md
-    devlog: [2026-09-12]
+    devlog: [2026-09-12, 2026-09-30]
     ceka_na: []
 
   - id: nast-cfg-preklep-tiche-ignorovani
@@ -5758,9 +5804,9 @@ temata:
     oblast: hw
     nazev: VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-25
-    vyreseno: 2026-09-25
+    vyreseno: 2026-09-30
     popis: >
       `deploy/vnprobe.sh` 25. 9. 2026 přečetl `$VNRRG,44,1,1,5` (export ARBot2: `0,1,5`).
       `MagCalMission.Zapis` volala `SaveToFlash()` (VNWNV, ukládá celou RAM) DŘÍV než `VypniHsi()`,
@@ -5773,22 +5819,24 @@ temata:
       - co: "Pořadí v `MagCalMission.Zapis` (HSI off před VNWNV) + test, `vnrestore.sh` píše registr 44"
         stav: hotovo
         kdy: 2026-09-25
-      - co: "Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`"
-        stav: otevreno
+      - co: "Srovnat senzor: `vnrestore.sh` (bez přepínače = registr 23 beze změny), pak vypnout/zapnout a `vnprobe.sh` → 44 má být `0,1,5`. Autor 30. 9.: srovnáno; `vnprobe.sh` 28. 9. před misí magcal i po ní četl registr 44 `0,1,5`. Opravené pořadí zápisu v `MagCalMission` na senzoru neběželo (od té doby se kalibrace nezapisovala), drží ho test"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
       - text: MagCalMission.cs
         cesta: Src/ARBot.Common/Missions/MagCalMission.cs
-    devlog: [2026-09-25]
+    devlog: [2026-09-25, 2026-09-28, 2026-09-30]
     ceka_na: []
 
   - id: hw-t265-odpojena-natrvalo
     oblast: hw
     nazev: "Odpojená T265: runtime ji dál hledá a zahlcuje journal"
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-13
+    vyreseno: 2026-09-30
     popis: >
       T265 se 13. 9. rozbila tak, že se připojí, ale nedává pózu; softwarový reset selže a
       nepomůže ani restart služby, jen fyzické přepojení — a po něm se za 1,5 h zasekla znovu.
@@ -5799,18 +5847,23 @@ temata:
       zbývá. Profil ji vypnout neumí (žádný parametr, `ARBotHW` ji zakládá bezpodmínečně)
       a 17. 9. se ukázalo, že hledání teče i do záznamu, ne jen do journalu (po zatuhnutí
       runtime bylo vlákno T265 jediné živé, 140 s hlášek v `.rec`).
+      ✅ **Vyřešeno 26. 9. 2026, uzavřeno 30. 9. (autor):** T265 se v `ARBotHW` nezakládá vůbec
+      (zakomentováno s odůvodněním, `hw-d435-vlakno-zatuhlo-po-restartu`). Ověřeno záznamy: hlášek
+      o T265 bylo v jízdách 14.–25. 9. 128–1 198 na záznam, od binárky `8587ff65` (jízdy 27. a 29. 9.)
+      **nula**.
     kroky:
       - co: T265 zapojena do zotavení kamer, per-kamera vzdání po třech marných pokusech
         stav: hotovo
         kdy: 2026-09-13
-      - co: Nezakládat T265 v runtime, když není na sběrnici (hledání 1×/s přes sdílený zámek)
-        stav: otevreno
+      - co: "Nezakládat T265 v runtime, když není na sběrnici (hledání 1×/s přes sdílený zámek) — T265 se od 26. 9. nezakládá vůbec; v záznamech 27. a 29. 9. žádná hláška o T265"
+        stav: hotovo
+        kdy: 2026-09-26
     odkazy:
       - text: rozhodnutí 13. 9. 2026
         cesta: doc/decisions.md
       - text: hardware.md
         cesta: doc/hardware.md
-    devlog: [2026-09-13, 2026-09-14, 2026-09-17]
+    devlog: [2026-09-13, 2026-09-14, 2026-09-17, 2026-09-26, 2026-09-30]
     ceka_na: []
 
   - id: mise-track-prichyceni-predem
@@ -6210,9 +6263,9 @@ temata:
     oblast: provoz
     nazev: Externí audit — bezpečnostní vrstva řízení měla čtyři díry
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-15
-    vyreseno: 2026-09-15
+    vyreseno: 2026-09-30
     popis: >
       Autor dodal externí read-only audit; tři kritické a jeden vysoký nález se potvrdily přímo
       ve zdroji. Výjimka v taktu řídicí smyčky se polykala a robot jel po posledním příkazu až do
@@ -6222,7 +6275,7 @@ temata:
       jako pokyn „jeď“ (K2); jedno NaN měření otrávilo fúzi natrvalo, protože gating na NaN
       nezabere (K3). K tomu diagnostika poruch z `Debug` do `Trace` na cestách, které audit
       jmenoval, se škrtičem `PoruchaHlasic` proti zaplavení záznamu (V3). Opraveno TDD — u každého
-      nálezu nejdřív test, který na starém kódu spadl. Nic z toho neběželo na zařízení.
+      nálezu nejdřív test, který na starém kódu spadl. ✅ Autor 30. 9. 2026: na zařízení ověřeno.
     kroky:
       - co: K1 — výjimka v taktu = `Drive(0,0)` + zpráva s nulami + `Trace`
         stav: hotovo
@@ -6239,14 +6292,15 @@ temata:
       - co: V3 — `Debug` → `Trace` se škrtičem, `DiagnostikaPoruchTests`
         stav: hotovo
         kdy: 2026-09-15
-      - co: Ověřit na zařízení
-        stav: otevreno
+      - co: Ověřit na zařízení — autor potvrdil
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: path-following.md
         cesta: doc/path-following.md
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-09-15]
+    devlog: [2026-09-15, 2026-09-30]
     ceka_na: []
 
   - id: prov-audit-druha-davka
@@ -7600,23 +7654,49 @@ temata:
     oblast: videni
     nazev: Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
     druh: zamer
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-06
+    vyreseno: 2026-09-30
     popis: >
       Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram
       barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak
       dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené
       není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže
       stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se.
+      **Změřeno 29. 9. 2026** (`ARBot.Analyze probres`, pět záznamů 18.–29. 9., tentýž histogram na
+      plném a zmenšeném snímku + síť ze záznamu, kontrola měřidla proti zapsaným hranám 0,000):
+      hraničních bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí pevná brána
+      `corridormininliers=20` v počtu bodů, ne kvalita bodů** — Modřany 29. 9.: Ok 43,0 / 20,6 % na
+      plném snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky
+      (20 × 128/480 = 5) histogram 41,6 / 20,8 % a síť 33,1 / 26,5 %. Na úzké Hviezdoslavově brána
+      skoro nevadí (26,5 → 24,7 %). Přesnost z řidších bodů skoro netrpí (šířka p50 4–9 cm, příčně
+      2–4 cm, směr 0,4–0,7° proti plnému snímku). Grid: jeden řádek 128×128 ve 3–5 m pokrývá
+      0,06–0,24 m, tedy až ~5 buněk 5 cm; hustota zápisu se nemění. Detail a tabulka:
+      `semantic-segmentation.md`, sekce „Síť mění rozlišení".
     kroky:
-      - co: Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid
+      - co: Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid — `ARBot.Analyze probres` nad pěti záznamy
+        stav: hotovo
+        kdy: 2026-09-29
+      - co: "Rozhodnout bránu koridoru pro síť 128×128 (autor): `corridormininliers` (a `SingleEdgeMinInliers`, dnes pevných 25) snížit, nebo je vyjádřit na 480 řádků a přepočítat podle výšky pravděpodobnostního obrazu. Navazuje na dřívější měření brány, se kterými `probres` souhlasí a vysvětluje je (počet bodů je vázaný na 128 řádků): Hviezdoslavova 18. 9. 25 → 20 jen +6–7 % (`lok-koridor-prah-inlieru-prisny`, inlierů je tam 40–50); Modřany 25. 9. 25 → 20 2,7 → 28 % (profil od 26. 9.; hrany tam měly 20–25 inlierů, tedy těsně nad 20); Modřany 23. 9. práh 12–15 bezpečný (šířka ~5 m), pod 10 roste `NotParallel` i rozptyl šířky a kurzu (`map-correlation-localization.md`); Modřany 29. 9. při 20 jen 1,6 / 1,2 % s nesmyslnou šířkou, při 10 tisíce se šířkou ~5 m (`lok-koridor-siroka-cyklostezka`). Brána 5 z `probres` je tedy přepočet, ne doporučená hodnota. Nižší brána zvedne i `NotParallel`; kvalita cyklů, které projdou jen s nižší branou, změřená není. ⚠️ `fusionreplay` bere proložení koridoru hotové z `RoadCorridorMsg`, takže `--set=corridormininliers=` na něj NEÚČINKUJE — pro dopad na pózu by musel proložení přepočítat ze snímků (jako `probres`). Rozhodnuto 30. 9. (autor): přeškálovat, v procentech řádků, i bránu jedné hrany"
+        stav: hotovo
+        kdy: 2026-09-30
+      - co: "Léčba (autor 30. 9.): brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu, `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, `CorridorSource` bere výšku obrazu ze snímku, bez ní platí absolutních 25. `probres` s branou 10 %: histogram plný vs. 128×128 dává totéž (Modřany 29. 9. 27,0 / 26,3 % a 11,5 / 11,5 %), síť 1,6 → 14,8 % a 0,4 → 7,2 %, Modřany 25. 9. 29,6 → 56,5 %, Hviezdoslavova 25,1 → 29,4 % a 23,4 → 28,1 %. Simulace FreeRun 75 s: 96,5 % Ok proti 95,5 % s absolutní branou. 6 nových testů; testy 1 725 / 151 / 129, build x64 i OrangePI"
+        stav: hotovo
+        kdy: 2026-09-30
+      - co: "Ověřit na zařízení: jízda na široké cestě (Modřany) s `corridorinliers=10` — podíl oboustranného koridoru a jedné hrany (`corridor`, `probres`), šířka a kurz koridoru proti GPS"
         stav: otevreno
     odkazy:
       - text: semantic-segmentation.md
         cesta: doc/semantic-segmentation.md
       - text: OnnxBackProject.cs
         cesta: Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs
-    devlog: [2026-09-06, 2026-09-07]
+      - text: ProbResolutionReport.cs
+        cesta: Src/ARBot.Analyze/ProbResolutionReport.cs
+      - text: CorridorConfig.cs
+        cesta: Src/ARBot.Common/Localization/CorridorConfig.cs
+      - text: rozhodnutí 30. 9. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-09-06, 2026-09-07, 2026-09-29, 2026-09-30]
     ceka_na: []
 
   - id: lok-korelace-eskalace-bez-shody
@@ -8094,8 +8174,8 @@ temata:
     oblast: mise
     nazev: FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
     druh: vada
-    stav: v-kodu
-    vyreseno: 2026-09-25
+    stav: hotovo
+    vyreseno: 2026-09-30
     nalezeno: 2026-09-25
     popis: >
       Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 23 min, Modřany):
@@ -8118,14 +8198,15 @@ temata:
       - co: "Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne"
         stav: hotovo
         kdy: 2026-09-25
-      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem"
-        stav: otevreno
+      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem — autor 30. 9.: ověřeno OK. FreeRun 29. 9. (`20260929-151634.rec`, `freerunlook=5`, profil `latency`): mrkev p50 5,09 m, příkaz p50 **1,67 m/s** (`drive`, takty za jízdy; 25. 9. 0,81), rychlost fúze p50 1,49 m/s, strop obálky p50 1,44 m/s, vazba na rotaci srazila rychlost ve 27 % taktů (25. 9. 35 %)"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-09-25]
+    devlog: [2026-09-25, 2026-09-30]
     ceka_na: []
 
   - id: lp-regulator-kmitani-rotace
@@ -8238,8 +8319,9 @@ temata:
     oblast: lokalizace
     nazev: Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-09-26
+    vyreseno: 2026-09-30
     popis: >
       Track 25. 9. 2026 (`20260925-142428.rec`): podélná chyba 12,9 m z rovinky
       (`lok-odometrie-obvod-kola`) se v první zatáčce (~460 s) změnila na **příčnou**: na cestě
@@ -8252,6 +8334,10 @@ temata:
       +2,0 m (p50 za 10 s) stáhla pózu limitem `corridorslew=0,5` za ~30 s o ~10 m zpět k GPS
       (odchylka 12,6 → 2,3 m). Která hrana to byla (správná, nebo příčná), z toho vidět není.
       Koridor je tak slepý právě tehdy, když je chyba největší — a GPS s σ 30 m pózu nevrátí.
+      ✅ **Uzavřeno 30. 9. 2026 (autor):** příčina (obvod kola) je opravená — 29. 9. potvrzeno,
+      kola / tětiva GPS 0,999 — takže podélná chyba, ze které se v zatáčce stává příčná, bude
+      menší, a 8m brána je zrušená (`MaxEdgeDistanceM = ∞`). Podlaha χ² přiřazení
+      (`assocfloorlat=3`) zůstává, jak je.
     kroky:
       - co: "Změřeno: `NoEdge` po zatáčce, odstup pózy od sítě 11–12 m, pozdní korekce ~10 m za 30 s (`ARBot.Analyze posegps`, `corridor`)"
         stav: hotovo
@@ -8259,12 +8345,13 @@ temata:
       - co: "Příčina opravena (`lok-odometrie-obvod-kola`) a 8m limit vypnut (autor): `MaxEdgeDistanceM = ∞`"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m)"
-        stav: otevreno
+      - co: "Rozhodnout (autor): χ² přiřazení s podlahou `assocfloorlat=3` pořád zamítne 12 m (χ² ≈ 16 > 9,21 → `EdgeMismatch`) — nechat, nebo podlahu vázat na skutečnou nejistotu pózy (filtr hlásí 0,1 m při chybě 12 m). Autor 30. 9.: nechat — s opraveným obvodem kola bude chyba menší"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-30]
     ceka_na: []
 
   - id: lp-grid-posun-pomalou-korekci
@@ -8305,8 +8392,8 @@ temata:
     oblast: mise
     nazev: Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
     druh: vada
-    stav: v-kodu
-    vyreseno: 2026-09-26
+    stav: hotovo
+    vyreseno: 2026-09-30
     nalezeno: 2026-09-26
     popis: >
       Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 14:34:39
@@ -8317,10 +8404,13 @@ temata:
       - co: "Timeout vypnut (autor): `TrackConfig.DrivingTimeoutSec = 0`, stejně jako u Robotouru; zaseknutí hlídají detektory `GlobalNavigator`"
         stav: hotovo
         kdy: 2026-09-26
+      - co: "Ověřeno na zařízení (autor 30. 9. 2026)"
+        stav: hotovo
+        kdy: 2026-09-30
     odkazy:
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-09-26]
+    devlog: [2026-09-26, 2026-09-30]
     ceka_na: []
 
   - id: mise-freerun-jedna-hrana

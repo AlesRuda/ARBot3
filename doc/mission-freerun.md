@@ -118,7 +118,8 @@ seděl na GPS kurz (p50 0,24°, p90 5°, `ARBot.Analyze singleedge`). Mise brala
 koridor, takže **97 % času jela rovně podle kurzu** — autor to viděl na robotu jako mrkev „ve směru
 robotu, ne v koridoru". Oboustranný koridor na široké cyklostezce padá hlavně na prahu inlierů
 (`corridormininliers=25`; při 20 by vznikl ve 28 % snímků, šířka p50 3,61 m — provozní profil má
-od 26. 9. 2026 právě 20).
+od 26. 9. 2026 právě 20; od 30. 9. 2026 je brána v % řádků pravděpodobnostního obrazu,
+`corridorinliers=10` = 13 bodů na síti).
 
 **Odstup od pravého kraje** (pravidlo autora, 26. 9. 2026): pravá polovina jen tehdy, když
 požadovaná čára leží aspoň `MinRightEdgeClearanceM` od pravého kraje — výchozí

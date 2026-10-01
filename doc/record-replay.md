@@ -414,7 +414,7 @@ a nemá smysl to cpát do pipeline, která se právě rozebírá).
 ### Verze binárky a konfigurace v záznamu (od 5. 9. 2026)
 
 Hned po `traceBridge.Attach()` runtime vypíše **verzi běžící binárky** (`BuildInfo`) a **celou
-účinnou konfiguraci** (`ParamStore.Current.DescribeAll()`, ~60 řádků). Bez toho nešlo u nahrávky ze
+účinnou konfiguraci** (`ParamStore.Current.DescribeAll()`, dnes ~110 řádků). Bez toho nešlo u nahrávky ze
 zařízení zjistit, jaká binárka a jaké parametry ji pořizovaly — a na zařízení se nasazuje často
 a z rozpracované kopie, takže samotný hash commitu by lhal.
 
@@ -427,6 +427,16 @@ Proto se ten výpis po připojení mostu **zopakuje**. Řádky se vejdou pod str
 Praktický důsledek: v `.rec` se dá najít řádek `ARBot verze: 1.0.247.19186 (2316de12-dirty, build
 2026-09-05 10:39 UTC)` a pod ním `mission=freerun  (zvoleno za behu)` — tedy i to, že misi vybral
 člověk ze stránky, ne profil.
+
+✅ **Od 30. 9. 2026 jsou v záznamu i hlášky z drátování runtime** (načtená mapa, počáteční póza,
+virtuální HW, proč se stupeň nezaložil, brány koridoru, `mission=…: … nastartovana`). Do té doby se
+most do `Trace` zapojoval až **po** založení všech stupňů, takže tyhle řádky šly jen na konzoli
+a do journalu. Teď se `TraceInfoBridge` založí a zapojí **na začátku `WireRun`** (hned za
+`WaitReady`, aby frontu nevytlačily chybové hlášky kamer z čekání na HW), verze a konfigurace
+se vypíšou jako první a řádky čekají ve frontě mostu (512, drop nejstarších), dokud se se stupni
+nespustí — to už je jeho výstup připojený na Stream a stojí záznam. Ověřeno v headless simulaci;
+hlídá to test `RadkyPredStartem_OdejdouPoStartu`. Mimo záznam zůstávají jen řádky z doby **před**
+`Start` (výpis `RuntimeBootstrap`, hlavička headless, čekání na HW).
 
 ### `Trace.WriteLine` vs. `Debug.WriteLine` — na tom záleží
 
@@ -906,6 +916,20 @@ vypíše **rozdělení posunu kol** — pár milimetrů znamená šum enkodérů
 opravdu jel.
 
 Výsledky prvního měření: [ekf-fusion.md](ekf-fusion.md#gps-tahne-stojiciho-robota).
+
+### `probres`: dopad rozlišení pravděpodobnostního obrazu (od 29. 9. 2026)
+
+```bash
+ARBot.Analyze probres records/test/<zaznam>.rec [--size=128] [--mininliers=20] [--limit=] [--skip=]
+```
+
+Tentýž histogram barev na plném snímku a na snímku zmenšeném nejbližším sousedem na `size×size`
+(jako vstup sítě) a síť ze záznamu (uložený `ImageProbability`); všechny tři projdou `FindPathEdge`
+(NativeLib, jen x64) → `ColorPixelTo3D` → párováním kamer jako `CorridorLocalizer` →
+`CorridorFinder`. Bloky: 0 kontrola měřidla (hrany ze sítě proti zapsaným, má být 0), 1 hraniční
+body na snímek, 2 koridor (Ok, jedna hrana, důvody, inliery) včetně brány přepočtené na počet řádků,
+3 přesnost plný vs. zmenšený, 4 stopa jednoho řádku po zemi (grid). Výsledky:
+[semantic-segmentation.md](semantic-segmentation.md#-síť-mění-rozlišení-pravděpodobnostního-obrazu).
 
 ### `vn100`: prověření samotného senzoru ze záznamu
 

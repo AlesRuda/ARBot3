@@ -20,10 +20,11 @@ namespace ARBot.Analyze
     /// Nad zaznamem se naopak meri to, co syntetika neumi: skutecne rozlozeni bodu, dropouty
     /// a podil zamitnutych cyklu.</para>
     ///
-    /// <para><b>Proc to neni jen v testech.</b> RANSAC je nedeterministicky (neseedovany
-    /// <c>Random</c>), takze jedno mereni na variantu nic neznamena — nad tymiz daty kolisa pocet
-    /// prijatych koridoru o +-8. Kazda varianta se proto meri <c>--rep</c> krat a tiskne se
-    /// ROZPETI, ne jedno cislo. Viz doc/map-correlation-localization.md.</para>
+    /// <para><b>Proc to neni jen v testech.</b> Vysledek RANSACu zavisi na losovani — nad tymiz
+    /// daty kolisal pocet prijatych koridoru o +-8, dokud byl neseedovany. Od 30. 9. 2026 je
+    /// seedovany (<see cref="CorridorConfig.RansacSeed"/>), takze tentyz vstup da tentyz vysledek;
+    /// kazda varianta se ale dal meri <c>--rep</c> krat, pokazde s JINYM seminkem, a tiskne se
+    /// ROZPETI — tedy citlivost na losovani, reprodukovatelne. Viz doc/map-correlation-localization.md.</para>
     ///
     /// <para><b>Nad zaznamem se NEPOCITAJI body znovu z hloubky</b> — berou se metricke body, ktere
     /// uz v zaznamu jsou (<see cref="CameraFrame.PathEdges"/>, format verze &gt;= 5). Meri se tedy
@@ -87,6 +88,17 @@ namespace ARBot.Analyze
         /// a roste jen rozptyl — z +-0,05 m na 1 m na radove +-0,5 m na 10 m. Tedy NENI to
         /// "presne body + hrube outliery", je to nevychyleny sum rostouci se vzdalenosti.
         /// </summary>
+        /// <summary>
+        /// Seminko RANSACu pro dane opakovani: 1. opakovani = vychozi (tedy presne to, co pocita
+        /// runtime), dalsi posunute. Rozpeti pres opakovani je pak citlivost na losovani,
+        /// a pritom reprodukovatelna — dva behy reportu daji totez.
+        /// </summary>
+        private static CorridorConfig Seeded(CorridorConfig cfg, int rep)
+        {
+            cfg.RansacSeed = ARBot.Common.Algorithms.ML.RANSAC.DefaultSeed + rep;
+            return cfg;
+        }
+
         public static void Synth(int trials, int repeats, double grossFraction, double huberK, int regate)
         {
             Console.WriteLine($"SYNTETIKA — {trials} scen x {repeats} opakovani na variantu");
@@ -96,7 +108,8 @@ namespace ARBot.Analyze
             Console.WriteLine();
             Console.WriteLine("  Kazde cislo je MEDIAN v ramci opakovani a v zavorce rozpeti mezi opakovanimi.");
             Console.WriteLine("  Bez toho rozpeti nejde rict, jestli je rozdil mezi variantami skutecny —");
-            Console.WriteLine("  RANSAC je nedeterministicky. Prekryvajici se rozpeti = zadny prukazny rozdil.");
+            Console.WriteLine("  RANSAC zavisi na losovani (kazde opakovani ma jine seminko). Prekryvajici se");
+            Console.WriteLine("  rozpeti = zadny prukazny rozdil.");
             Console.WriteLine();
 
             Console.WriteLine("  varianta                            Ok            chyba smeru [deg]      chyba pricne [m]        chyba sirky [m]      inliery");
@@ -111,7 +124,7 @@ namespace ARBot.Analyze
                 for (int rep = 0; rep < repeats; rep++)
                 {
                     int ok = 0;
-                    var finder = new CorridorFinder(v.Make());
+                    var finder = new CorridorFinder(Seeded(v.Make(), rep));
                     // Seed zavisi na opakovani, ne na variante — vsechny varianty vidi TATAZ data.
                     var rnd = new Random(1000 + rep);
                     var dir = new Stats(""); var lat = new Stats(""); var wid = new Stats(""); var inl = new Stats("");
@@ -375,7 +388,7 @@ namespace ARBot.Analyze
                 var clock = new System.Diagnostics.Stopwatch();
                 for (int rep = 0; rep < repeats; rep++)
                 {
-                    var finder = new CorridorFinder(v.Make());
+                    var finder = new CorridorFinder(Seeded(v.Make(), rep));
                     int ok = 0, notPar = 0, tooFew = 0;
                     clock.Start();
                     foreach (var p in pairs)

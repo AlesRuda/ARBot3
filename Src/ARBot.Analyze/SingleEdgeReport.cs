@@ -236,7 +236,7 @@ namespace ARBot.Analyze
             }
 
             Console.WriteLine();
-            Console.WriteLine($"PRAH INLIERU PRO OBOUSTRANNY KORIDOR (dvojic {pary.Count}, jedna hrana vypnuta, RANSAC nedeterministicky):");
+            Console.WriteLine($"PRAH INLIERU PRO OBOUSTRANNY KORIDOR (dvojic {pary.Count}, jedna hrana vypnuta, RANSAC s vychozim seminkem jako runtime):");
             Console.WriteLine("  prah     Ok  TooFewInl  OneSide  NotPar  WidthOut | sirka p10/p50/p90 [m]  rsd  | nerovnob. p50/p90 | kurz-GPS n   p50   rsd [deg]");
             foreach (int k in prahy)
             {

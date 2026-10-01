@@ -404,7 +404,8 @@ public class CorridorFinderTests
         {
             Assert.That(without.Reason, Is.EqualTo(CorridorReason.Ok), "predpoklad testu");
             Assert.That(with.Reason, Is.EqualTo(CorridorReason.Ok));
-            // RANSAC je nedeterministicky, takze se netvrdi "vic" - tvrdi se "ne vyrazne mene".
+            // Vysledek RANSACu zavisi na losovani (od 30. 9. 2026 seedovanem, ale seminko je
+            // vec implementace), takze se netvrdi "vic" - tvrdi se "ne vyrazne mene".
             Assert.That(with.InliersLeft, Is.GreaterThanOrEqualTo(without.InliersLeft - 3));
             Assert.That(with.InliersRight, Is.GreaterThanOrEqualTo(without.InliersRight - 3));
             Assert.That(with.Width, Is.EqualTo(2.0).Within(0.1));
@@ -469,5 +470,122 @@ public class CorridorFinderTests
             Assert.That(b.Width, Is.EqualTo(a.Width).Within(1e-9));
             Assert.That(b.Lateral, Is.EqualTo(a.Lateral).Within(1e-9));
         });
+    }
+
+    // ------------------------------------------------ brana inlieru v % radku (30. 9. 2026)
+
+    /// <summary>
+    /// Tytez body (20 na strane) projdou pri obrazu 128 radku (10 % = 13 bodu), ale ne pri 480
+    /// radcich (10 % = 48 bodu). Presne to je smysl procenta: sit 128×128 dava ~4× mene hranicnich
+    /// bodu nez plny snimek, a pevna brana tak na siroke ceste zabila koridor skoro cely
+    /// (Modrany 29. 9. 2026, <c>ARBot.Analyze probres</c>).
+    /// </summary>
+    [Test]
+    public void BranaVProcentechRadku_seSkalujeSVyskouObrazu()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+        var cfg = new CorridorConfig { MinInliersPercent = 10 };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cfg.EffectiveMinInliers(128), Is.EqualTo(13));
+            Assert.That(cfg.EffectiveMinInliers(480), Is.EqualTo(48));
+            Assert.That(Finder(cfg).Find(l, r, probRows: 128).Reason, Is.EqualTo(CorridorReason.Ok));
+            Assert.That(Finder(cfg).Find(l, r, probRows: 480).Reason, Is.EqualTo(CorridorReason.TooFewInliers));
+        });
+    }
+
+    /// <summary>Bez vysky obrazu (testy, offline reporty) nebo pri 0 % plati absolutni brana.</summary>
+    [Test]
+    public void BezVyskyObrazu_platiAbsolutniBrana()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+
+        Assert.Multiple(() =>
+        {
+            // Absolutni vychozi 25 > 20 bodu.
+            Assert.That(Finder().Find(l, r).Reason, Is.EqualTo(CorridorReason.TooFewInliers));
+            Assert.That(Finder(new CorridorConfig { MinInliersPercent = 0 }).Find(l, r, probRows: 128).Reason,
+                        Is.EqualTo(CorridorReason.TooFewInliers), "0 % = absolutni brana i se znamou vyskou");
+        });
+    }
+
+    /// <summary>Ucinna brana ma podlahu 3 body - dvema body jde primku prolozit vzdy.</summary>
+    [Test]
+    public void UcinnaBrana_maPodlahuTriBody()
+    {
+        var cfg = new CorridorConfig { MinInliersPercent = 1, SingleEdgeMinInliersPercent = 1 };
+        Assert.Multiple(() =>
+        {
+            Assert.That(cfg.EffectiveMinInliers(128), Is.EqualTo(CorridorConfig.MinInliersFloor));
+            Assert.That(cfg.EffectiveSingleEdgeMinInliers(128), Is.EqualTo(CorridorConfig.MinInliersFloor));
+        });
+    }
+
+    /// <summary>
+    /// Jedna hrana se preskaluje stejne (rozhodnuti autora 30. 9. 2026): 20 bodu jedine hrany
+    /// projde pri 128 radcich, ale ne pri 480.
+    /// </summary>
+    [Test]
+    public void JednaHrana_seSkalujeStejne()
+    {
+        var (l, _) = Corridor(width: 3.0, lateral: 0.0, dirRad: 0.0, count: 20);
+        var cfg = new CorridorConfig { SingleEdgeMinInliersPercent = 10 };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Finder(cfg).Find(l, new List<Point2D>(), probRows: 128).SingleSide,
+                        Is.EqualTo(CorridorSide.Left));
+            Assert.That(Finder(cfg).Find(l, new List<Point2D>(), probRows: 480).SingleSide,
+                        Is.EqualTo(CorridorSide.None));
+        });
+    }
+
+    // ------------------------------------------------ reprodukovatelnost RANSACu (30. 9. 2026)
+
+    /// <summary>
+    /// Tentyz vstup da BIT PO BITU tentyz koridor, i kdyz se mezi tim pocitalo neco jineho —
+    /// RANSAC ma pevne seminko a generator zaklada pri kazdem vypoctu znovu. Do 30. 9. 2026 byl
+    /// neseedovany a replay hranove lokalizace dal pokazde jiny vysledek (±8 prijatych ze 421
+    /// dvojic). Registr <c>lok-ransac-nedeterministicky</c>.
+    /// </summary>
+    [Test]
+    public void TentyzVstup_DaTentyzKoridor()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.3, dirRad: 0.1, count: 60, noise: 0.15);
+        var jiny = Corridor(width: 2.0, lateral: -0.2, dirRad: -0.2, count: 40, noise: 0.1);
+        var finder = Finder();
+
+        var a = finder.Find(l, r);
+        finder.Find(jiny.left, jiny.right);          // mezitim jiny vypocet
+        var b = new CorridorFinder().Find(l, r);     // a jina instance
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(b.Reason, Is.EqualTo(a.Reason));
+            Assert.That(b.InliersLeft, Is.EqualTo(a.InliersLeft));
+            Assert.That(b.InliersRight, Is.EqualTo(a.InliersRight));
+            Assert.That(b.Width, Is.EqualTo(a.Width));
+            Assert.That(b.Lateral, Is.EqualTo(a.Lateral));
+            Assert.That(b.DirectionRad, Is.EqualTo(a.DirectionRad));
+        });
+    }
+
+    /// <summary>
+    /// Kontrola, ze predchozi test neni prazdny: na tech datech na losovani ZALEZI — ruzna
+    /// seminka daji ruzne konsenzualni sady. Kdyby nezalezelo, test shody by prosel i bez
+    /// seminka a nic by nedokazoval.
+    /// </summary>
+    [Test]
+    public void RuznaSeminka_DajiRuznyVysledek_TakzeSeminkoNecoResi()
+    {
+        var (l, r) = Corridor(width: 3.0, lateral: 0.3, dirRad: 0.1, count: 60, noise: 0.15);
+        var vysledky = new HashSet<(int, int)>();
+        for (int seed = 1; seed <= 20; seed++)
+        {
+            var c = new CorridorFinder(new CorridorConfig { RansacSeed = seed }).Find(l, r);
+            vysledky.Add((c.InliersLeft, c.InliersRight));
+        }
+        Assert.That(vysledky.Count, Is.GreaterThan(1));
     }
 }
