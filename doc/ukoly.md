@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **240**: otevřeno **35** · v kódu, na HW neověřeno **31** · hotovo **153** · odloženo **14** · zamítnuto **7**.
+Témat celkem **240**: otevřeno **34** · v kódu, na HW neověřeno **32** · hotovo **153** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -39,7 +39,6 @@ Témat celkem **240**: otevřeno **35** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
@@ -69,6 +68,7 @@ Témat celkem **240**: otevřeno **35** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu](#nav-detektor-b-jitter-drahy) | 20. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
@@ -146,18 +146,6 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 - [ ] Rozhodnout, jak σ obou referencí kurzu narovnat
 
 čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
-
-<a id="lok-skok-pozy-nedetekce"></a>
-### ⬜ PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
-
-`lok-skok-pozy-nedetekce` · vada · **otevřeno** · nalezeno 21. 9. 2026
-
-Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9. (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje: `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář: „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků, aby nevyrobila bezdůvodná mazání gridu.
-
-- [ ] Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek
-- [ ] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu
-
-[PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
 
 <a id="lok-freerun-kurz-staci-na-zapad"></a>
 ### ⬜ Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)
@@ -291,6 +279,19 @@ Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi R
 - [x] Léčba (autor, obojí): (a) `corridorseekback=` (1 s, `SeekBackSec`) — menší skok zpět je Δt ≈ 0; (b) `IMeasurement.MaxPositionStep` + `Ekf.PositionIndices`, `corridorposlimit=true` — limit normy posunu polohy u příčného i kurzového měření. 8 nových testů (premisy se starým chováním padají), testy 1 719 / 148 / 129. Přehrání 7 jízd se zapnutou léčbou: skoků od koridoru 0 (dřív 2–11 na jízdu), přesnost stejná nebo lepší, měření o 25–35 % méně. Starší záznamy přehrávání pouští se starým chováním (klíče v logu nejsou) (29. 9. 2026)
 
 [global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 21. 9.](decisions.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-21](devlog.md#2026-09-21), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-skok-pozy-nedetekce"></a>
+### 🧪 PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
+
+`lok-skok-pozy-nedetekce` · vada · **v kódu, na HW neověřeno** · nalezeno 21. 9. 2026 · vyřešeno 1. 10. 2026
+
+Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9. (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje: `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář: „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků, aby nevyrobila bezdůvodná mazání gridu. **Změřeno a opraveno 1. 10. 2026** (`ARBot.Analyze fusionreplay`, nový blok 7 — póza `GetStateAt(čas snímku)` v pořadí streamu, replay sedí na `RobotStateMsg` p50 0,000 m): díra je skutečná, ale **malá**. Snímků s `dt ≤ 0` je 22–23 % (prakticky jen pravá kamera, |dt| p50 12–15 ms); spolknuté mazání gridu **2 z 21** (Kolo 3b) a **1 z 10** (Kolo 4), všechna na skutečných skocích 0,55–0,98 m, **žádné zbytečné**. Ze skoků pózy (blok 5) starý detektor grid smazal u 14 ze 14 a 8 z 10, nový u 14 a 9. Propady gridu ve snapshotech `OccupancyGridMsg` ze skutečné jízdy (Kolo 3b, 9 propadů) sedí časově na mazání, která replay připisuje starému detektoru — **grid se při skocích většinou mazal**, takže pozorování z 19. 9. tahle díra vysvětluje jen zčásti. Oprava: `Check` při `dt ≤ 0` porovnává s `|dt|` (`CheckBackwardTime`, výchozí true; false = staré chování pro A/B). ⚠️ Na zařízení neběželo.
+
+- [x] Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek (1. 10. 2026)
+- [x] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, s `|v|·|dt|`) a přeměřit počet mazání gridu (1. 10. 2026)
+- [ ] Ověřit na zařízení (počet `GridResets` / propady gridu ve snapshotech proti skokům pózy)
+
+[PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-koridor-siroka-cyklostezka"></a>
 ### 🧪 Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“

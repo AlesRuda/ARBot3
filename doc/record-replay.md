@@ -591,6 +591,11 @@ hodnotu z logu (přehrát jízdu s opravou, se kterou robot nejel). Blok 5 poč�
 (posun minus `|v|·dt` nad 0,5 m) ve variantě s koridorem a bez něj — skok, který je i bez koridoru,
 koridor nezpůsobil. Blok 6 měří u každého odeslání koridoru posun **aktuální** pózy (před / po
 vložení) kolmo k hraně, podél ní a v kurzu a porovná ho s limitem. Nález: `lok-koridor-skoky-pozy`.
+**Blok 7** (od 1. 10. 2026) — **smaže `LocalNavigator` při skoku pózy grid?** U každého snímku
+kamery (čas pořízení z indexu, snímek se nečte) se v místě snímku ve streamu zeptá fúze varianty S
+na `GetStateAt(čas snímku)` jako `LocalNavigator` a pustí to `PoseJumpDetector`em postaru i ponovu
+(`CheckBackwardTime`): podíl snímků s časem pozadu, mazání gridu, a kolik skoků z bloku 5 grid
+smazalo. Nález: `lok-skok-pozy-nedetekce`.
 
 **`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
 `EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od

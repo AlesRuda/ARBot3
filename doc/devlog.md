@@ -51,6 +51,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   jen u polohy vzdálených bodů, ne u kurzu — tam je na jedné cestě nerozlišitelná od pootočené
   hrany mapy. Rozliší to víc cest různých směrů, GPS stopa proti azimutu hrany a nerovnoběžnost
   levé a pravé hrany. Data z Robotouru 19. 9.; kroky v registru přepsané.
+- **`lok-skok-pozy-nedetekce` změřeno a opraveno v kódu.** `PoseJumpDetector.Check` při snímku
+  s časem pozadu skok nekontroloval a spolkl ho. Nový blok 7 `ARBot.Analyze fusionreplay` (póza
+  v čase snímku v pořadí streamu, starý a nový detektor vedle sebe) nad Kolem 3b a 4: s časem
+  pozadu chodí **22–23 % snímků**, téměř jen z pravé kamery; spolknutá byla **3 mazání gridu
+  z 31**, všechna na skutečných skocích 0,55–0,98 m, a oprava žádné zbytečné nepřidala. **Grid se
+  ale při skocích většinou mazal** (14/14 a 8/10 skoků i postaru, potvrzují to propady ve
+  snapshotech `OccupancyGridMsg` ze skutečné jízdy), takže pozorování z 19. 9. tahle díra
+  vysvětluje jen zčásti. Oprava: kontrola s `|dt|` (`CheckBackwardTime`, false = staré chování
+  pro A/B), 4 nové testy, Common 1 732 zelených. ⚠️ Na zařízení neběželo.
 
 ## 2026-09-30
 

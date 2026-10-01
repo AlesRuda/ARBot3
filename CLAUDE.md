@@ -774,9 +774,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   škrcení i limit), a limit hlídá i celý posun POLOHY (`corridorposlimit=true`,
   `IMeasurement.MaxPositionStep`; vazbou v kovarianci ujela póza jedním měřením až 4 m podél
   cesty). Přehrání 7 jízd: skoků od koridoru 0. ⚠️ Na zařízení neběželo.
-  ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
-  při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše
-  (`lok-skok-pozy-nedetekce`, neopraveno).
+  ✅ **`PoseJumpDetector` kontroluje skok i u snímku s časem pozadu** (od 1. 10. 2026,
+  `lok-skok-pozy-nedetekce`): dřív při `dt ≤ 0` (přehozená razítka dvou kamer, 22–23 % snímků)
+  pózu jen přepsal a skok spolkl. Změřeno `fusionreplay` blok 7: spolknutá byla 3 mazání gridu
+  z 31, všechna na skutečných skocích, nová verze nepřidala žádné zbytečné. ⚠️ Pozorování
+  „grid při skocích 19. 9. nesmazal" to vysvětluje **jen zčásti** — grid se při nich většinou
+  mazal (sedí i propady ve snapshotech ze skutečné jízdy). Na zařízení neběželo.
 - [doc/map-correlation-localization.md](doc/map-correlation-localization.md) — **korelace occupancy gridu
   s mapou** (`MapCorrelator`): shoda semantického kanálu `LRoad` s OSM sítí (`RoadScene.IsRoad`) dá odhad
   chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová

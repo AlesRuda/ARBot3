@@ -42,6 +42,19 @@ namespace ARBot.Common.Occupancy
         /// </summary>
         public double ToleranceRad { get; set; } = 5.0 * Math.PI / 180.0;
 
+        /// <summary>
+        /// Kontrolovat skok i u pozy s casem POZADU (<c>dt &lt;= 0</c>)? Vychozi <c>true</c>.
+        /// <para>Snimky dvou kamer maji jine casy grabu a chodi prehozene bezne. Do 1. 10. 2026 se
+        /// u takoveho snimku poza jen zapamatovala a skok se nekontroloval - skok, ktery prisel
+        /// prave na nej, se tim SPOLKL (dalsi snimek se uz porovnal s pozou po skoku) a grid se
+        /// nesmazal. Pozorovano na Robotouru 19. 9. 2026: robot se skokem ocitl mimo sjizdnou
+        /// oblast stare mapy a presel do uniku (<c>lok-skok-pozy-nedetekce</c>).</para>
+        /// <para>Poza v case pozadu se posuzuje stejne jako dopredu, jen s <c>|dt|</c>: poza o
+        /// <c>|dt|</c> drive se smi lisit o tolik, kolik vysvetli rychlost za <c>|dt|</c>.
+        /// <c>false</c> = stare chovani (jen pro A/B v <c>ARBot.Analyze fusionreplay</c>).</para>
+        /// </summary>
+        public bool CheckBackwardTime { get; set; } = true;
+
         /// <summary>Zapomene predchozi pozu (dalsi <see cref="Check"/> skok nehlasi).</summary>
         public void Reset() => hasPrevious = false;
 
@@ -65,11 +78,16 @@ namespace ARBot.Common.Occupancy
             double dt = (t - prevTime).TotalSeconds;
 
             // Cas pozadu: snimky dvou kamer maji jine casy grabu a mohou prijit prehozene.
-            // To neni skok pozy - jen se stav prepise a jede se dal.
+            // Samotne prehozeni skok neni, ale skok, ktery na takovy snimek pripadne, se musi
+            // poznat taky - jinak se spolkne (viz CheckBackwardTime). Posuzuje se s |dt|.
             if (dt <= 0)
             {
-                Remember(x, y, theta, t);
-                return false;
+                if (!CheckBackwardTime)
+                {
+                    Remember(x, y, theta, t);
+                    return false;
+                }
+                dt = -dt;
             }
 
             double moved = Math.Sqrt((x - prevX) * (x - prevX) + (y - prevY) * (y - prevY));

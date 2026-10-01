@@ -12,6 +12,7 @@ using ARBot.Common.Localization;
 using ARBot.Common.Logs;
 using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Maps.OsmNav.Osm;
+using ARBot.Common.Occupancy;
 using ARBot.Common.Runtime;
 
 namespace ARBot.Analyze
@@ -81,6 +82,29 @@ namespace ARBot.Analyze
             public readonly List<Sample> Samples = new List<Sample>();
             public readonly List<(DateTime T, double X, double Y)> DepotInits = new List<(DateTime, double, double)>();
             public readonly List<SendEffect> Effects = new List<SendEffect>();
+            public readonly List<FrameCheck> Frames = new List<FrameCheck>();
+            public int FramesDropped;
+        }
+
+        /// <summary>Snimek kamery v poradi streamu: pred kterou zpravou <c>msgs</c> prisel.</summary>
+        private struct FrameMark
+        {
+            public int Pos;
+            public DateTime T;
+            public string Name;
+        }
+
+        /// <summary>
+        /// Poza v case snimku, jak ji vidi <c>LocalNavigator</c> (<c>GetStateAt(frame.TimeStamp)</c>
+        /// v miste snimku ve streamu), a verdikt <see cref="PoseJumpDetector"/> postaru (cas pozadu
+        /// se nekontroluje) a ponovu.
+        /// </summary>
+        private sealed class FrameCheck
+        {
+            public DateTime T;
+            public string Name;
+            public double Dt, Moved, TurnedDeg, V;
+            public bool OldJump, NewJump;
         }
 
         // ------------------------------------------------------------------ konfigurace z logu
@@ -464,9 +488,17 @@ namespace ARBot.Analyze
             var wanted = new HashSet<string> { "IMUState", "GPSState", "MotorStateBase", "RoadCorridorMsg",
                                                "RobotStateMsg", "MeasurementDiagMsg", "MissionMsg" };
             var msgs = new List<Message>();
+            var frames = new List<FrameMark>();
             var otherSensors = new Dictionary<string, int>();
             foreach (var e in rec.Index)
             {
+                // Snimek se necte (jsou to gigabajty) - LocalNavigator z nej pro pozu potrebuje
+                // jen cas porizeni, a ten nese index.
+                if (e.MsgName == "CameraFrame")
+                {
+                    frames.Add(new FrameMark { Pos = msgs.Count, T = e.CaptureTime, Name = e.Name });
+                    continue;
+                }
                 if (!wanted.Contains(e.MsgName))
                 {
                     if (e.MsgName != "CameraFrame" && e.MsgName.Contains("State")) { otherSensors.TryGetValue(e.MsgName, out int n); otherSensors[e.MsgName] = n + 1; }
@@ -482,7 +514,7 @@ namespace ARBot.Analyze
             var recorded = msgs.OfType<RobotStateMsg>()
                                .Select(r => new Sample { T = r.TimeStamp, X = r.X, Y = r.Y, Th = r.Theta, V = r.V }).ToList();
 
-            var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs);
+            var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs, frames: frames);
             var noC = RunVariant("BEZ koridoru", false, c, origin, net, maxEdge, msgs);
 
             // ---------------- 1) overeni meridla
@@ -598,6 +630,56 @@ namespace ARBot.Analyze
 
             JumpAnalysis(recorded, withC.Samples, noC.Samples);
             EffectAnalysis(withC.Effects);
+            GridResetAnalysis(withC);
+        }
+
+        /// <summary>
+        /// <b>Smaze LocalNavigator pri skoku pozy grid?</b> (<c>lok-skok-pozy-nedetekce</c>.)
+        /// Pro kazdy snimek kamery v poradi streamu poza <c>GetStateAt(cas snimku)</c> z varianty S
+        /// (ta odpovida jizde) a verdikt <see cref="PoseJumpDetector"/> postaru a ponovu. Obe verze
+        /// si pamatuji kazdou pozu, takze u snimku s <c>dt &gt; 0</c> rozhoduji shodne - lisit se
+        /// mohou jen snimky s casem pozadu. Skoky pozy (blok 5) se pak paruji se smazanim gridu.
+        /// <para><b>Aproximace:</b> runtime se pta az po zpracovani snimku ve fronte stupne,
+        /// tedy o neco pozdeji - do fuze uz muze dorazit dalsi merenie.</para>
+        /// </summary>
+        private static void GridResetAnalysis(Variant v)
+        {
+            const double MatchSec = 0.5;
+            var f = v.Frames;
+            Console.WriteLine();
+            Console.WriteLine("7) MAZANI GRIDU PRI SKOKU POZY (PoseJumpDetector v casech snimku, varianta S):");
+            if (f.Count == 0) { Console.WriteLine("   zadny snimek"); return; }
+            var back = f.Skip(1).Where(x => x.Dt <= 0).ToList();
+            var backMs = new Stats("|dt| snimku s casem pozadu [ms]");
+            foreach (var x in back) backMs.Add(-x.Dt * 1000);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "   snimku {0} (bez pozy zahozeno {1}), s casem pozadu (dt <= 0) {2} ({3:F1} %)",
+                f.Count, v.FramesDropped, back.Count, 100.0 * back.Count / Math.Max(1, f.Count - 1)));
+            if (back.Count > 0) Console.WriteLine("   " + backMs.Line("ms"));
+            foreach (var g in f.Skip(1).GroupBy(x => x.Name ?? "").OrderBy(g => g.Key))
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "     kamera {0,-22} snimku {1,6}, s casem pozadu {2,6}",
+                    g.Key, g.Count(), g.Count(x => x.Dt <= 0)));
+
+            int oldN = f.Count(x => x.OldJump), newN = f.Count(x => x.NewJump);
+            int onlyNew = f.Count(x => x.NewJump && !x.OldJump), onlyOld = f.Count(x => x.OldJump && !x.NewJump);
+            int pingPong = 0;
+            for (int i = 1; i < f.Count; i++) if (f[i].NewJump && f[i - 1].NewJump) pingPong++;
+            Console.WriteLine($"   smazani gridu: postaru {oldN}, ponovu {newN} (navic {onlyNew}, chybi {onlyOld}); dvakrat po sobe ponovu {pingPong}");
+
+            // Skoky pozy podle RobotStateMsg (tez meritko jako blok 5): kolik z nich grid smazalo?
+            var js = Jumps(v.Samples);
+            int hitOld = js.Count(j => f.Any(x => x.OldJump && Math.Abs((x.T - j.T).TotalSeconds) <= MatchSec));
+            int hitNew = js.Count(j => f.Any(x => x.NewJump && Math.Abs((x.T - j.T).TotalSeconds) <= MatchSec));
+            Console.WriteLine($"   skoku pozy (blok 5) {js.Count}: grid smazan do {MatchSec:F1} s postaru u {hitOld}, ponovu u {hitNew}");
+
+            var list = f.Where(x => x.NewJump).ToList();
+            if (list.Count == 0) return;
+            Console.WriteLine("   cas snimku    kamera                    dt[ms]  posun[m]  kurz[deg]   v     postaru");
+            foreach (var x in list.Take(40))
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "   {0:HH:mm:ss.fff}  {1,-24} {2,7:F1}  {3,7:F2}  {4,8:F1}  {5,5:F2}   {6}",
+                    x.T, x.Name, x.Dt * 1000, x.Moved, x.TurnedDeg, x.V, x.OldJump ? "ano" : "NE - spolknut"));
+            if (list.Count > 40) Console.WriteLine($"   ... a dalsich {list.Count - 40}");
         }
 
         /// <summary>
@@ -639,20 +721,7 @@ namespace ARBot.Analyze
         /// </summary>
         private static void JumpAnalysis(List<Sample> recorded, List<Sample> withC, List<Sample> noC)
         {
-            const double JumpM = 0.5, MatchSec = 0.3;
-            List<(DateTime T, double D, double V, double Dir)> Jumps(List<Sample> s)
-            {
-                var j = new List<(DateTime, double, double, double)>();
-                for (int i = 1; i < s.Count; i++)
-                {
-                    double dt = (s[i].T - s[i - 1].T).TotalSeconds;
-                    if (dt <= 0 || dt > 1.0) continue;
-                    double dx = s[i].X - s[i - 1].X, dy = s[i].Y - s[i - 1].Y, d = Math.Sqrt(dx * dx + dy * dy);
-                    if (d - (Math.Abs(s[i - 1].V) * dt + 0.05) > JumpM)
-                        j.Add((s[i].T, d, s[i - 1].V, Math.Atan2(dy, dx) * 180 / Math.PI));
-                }
-                return j;
-            }
+            const double MatchSec = 0.3;
             var jr = Jumps(recorded); var js = Jumps(withC); var jb = Jumps(noC);
             bool In(List<(DateTime T, double D, double V, double Dir)> l, DateTime t)
                 => l.Any(x => Math.Abs((x.T - t).TotalSeconds) <= MatchSec);
@@ -670,6 +739,22 @@ namespace ARBot.Analyze
             if (js.Count > 40) Console.WriteLine($"   ... a dalsich {js.Count - 40}");
         }
 
+        /// <summary>Skoky pozy mezi po sobe jdoucimi vzorky: posun minus <c>|v|·dt + 0,05</c> nad 0,5 m.</summary>
+        private static List<(DateTime T, double D, double V, double Dir)> Jumps(List<Sample> s)
+        {
+            const double JumpM = 0.5;
+            var j = new List<(DateTime, double, double, double)>();
+            for (int i = 1; i < s.Count; i++)
+            {
+                double dt = (s[i].T - s[i - 1].T).TotalSeconds;
+                if (dt <= 0 || dt > 1.0) continue;
+                double dx = s[i].X - s[i - 1].X, dy = s[i].Y - s[i - 1].Y, d = Math.Sqrt(dx * dx + dy * dy);
+                if (d - (Math.Abs(s[i - 1].V) * dt + 0.05) > JumpM)
+                    j.Add((s[i].T, d, s[i - 1].V, Math.Atan2(dy, dx) * 180 / Math.PI));
+            }
+            return j;
+        }
+
         private static bool NearestMoving(List<Sample> rec, DateTime t)
         {
             int i = Lower(rec, t);
@@ -680,7 +765,7 @@ namespace ARBot.Analyze
 
         private static Variant RunVariant(string name, bool send, Dictionary<string, (string Value, string Origin)> c,
                                           GeoReference origin, RoadNetwork net, double maxEdge, List<Message> msgs,
-                                          bool lateral = true, bool heading = true)
+                                          bool lateral = true, bool heading = true, List<FrameMark> frames = null)
         {
             var fcfg = BuildFusionConfig(c, origin);
             var engine = new AsyncFusionEngine(new EKFModel(fcfg));
@@ -696,8 +781,31 @@ namespace ARBot.Analyze
             };
             bool depotSeen = false;
             DateTime lastPoseT = default;
-            foreach (var m in msgs)
+            // Snimky: jako LocalNavigator.Process - GetStateAt(cas snimku), null = zahodit, jinak detektor.
+            var detOld = new PoseJumpDetector { CheckBackwardTime = false };
+            var detNew = new PoseJumpDetector();
+            int fi = 0;
+            RobotState prevFrame = null;
+            for (int mi = 0; mi < msgs.Count; mi++)
             {
+                for (; frames != null && fi < frames.Count && frames[fi].Pos <= mi; fi++)
+                {
+                    var fs = engine.GetStateAt(frames[fi].T);
+                    if (fs == null) { v.FramesDropped++; continue; }
+                    double fdx = prevFrame == null ? 0 : fs.X - prevFrame.X, fdy = prevFrame == null ? 0 : fs.Y - prevFrame.Y;
+                    v.Frames.Add(new FrameCheck
+                    {
+                        T = frames[fi].T, Name = frames[fi].Name,
+                        Dt = prevFrame == null ? double.NaN : (fs.TimeStamp - prevFrame.TimeStamp).TotalSeconds,
+                        Moved = Math.Sqrt(fdx * fdx + fdy * fdy),
+                        TurnedDeg = prevFrame == null ? 0 : Conversions.NormalizeOrientation(fs.Theta - prevFrame.Theta) * 180 / Math.PI,
+                        V = fs.V,
+                        OldJump = detOld.Check(fs.X, fs.Y, fs.Theta, fs.V, fs.Omega, fs.TimeStamp),
+                        NewJump = detNew.Check(fs.X, fs.Y, fs.Theta, fs.V, fs.Omega, fs.TimeStamp),
+                    });
+                    prevFrame = fs;
+                }
+                var m = msgs[mi];
                 switch (m)
                 {
                     case SensorStateBase s:

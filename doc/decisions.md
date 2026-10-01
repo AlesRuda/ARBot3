@@ -229,7 +229,9 @@ prodražují drift (p50 odchylky 0,21 → 0,37 → 0,69 m). Proč 3 °/s, když 
 nepotřebují: po dlouhé mezeře bez koridoru naroste `P` kurzu a jedno měření s inovací 22° by
 udělalo ~9° (> tolerance detektoru 5°); v replayi 3 °/s nestojí nic.
 Limit se nevztahuje na `PoseJumpDetector` (jeho tolerance 0,5 m není argument: při skocích
-z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`).
+z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`). *(1. 10. 2026 přeměřeno: grid
+se při skocích **většinou mazal** — v Kole 3b u 14 ze 14, v Kole 4 u 8 z 10; díra pro snímky
+s časem pozadu spolkla 3 mazání ze 31 a je opravená.)*
 Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
 
 ### 2026-09-18 — Příčná brána koridoru (`MaxLateralDisagreementM`) zrušena bez náhrady

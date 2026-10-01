@@ -2809,8 +2809,9 @@ temata:
     oblast: lokalizace
     nazev: PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-21
+    vyreseno: 2026-10-01
     popis: >
       Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9.
       (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo
@@ -2823,17 +2824,31 @@ temata:
       (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo
       nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků,
       aby nevyrobila bezdůvodná mazání gridu.
+      **Změřeno a opraveno 1. 10. 2026** (`ARBot.Analyze fusionreplay`, nový blok 7 — póza
+      `GetStateAt(čas snímku)` v pořadí streamu, replay sedí na `RobotStateMsg` p50 0,000 m):
+      díra je skutečná, ale **malá**. Snímků s `dt ≤ 0` je 22–23 % (prakticky jen pravá kamera,
+      |dt| p50 12–15 ms); spolknuté mazání gridu **2 z 21** (Kolo 3b) a **1 z 10** (Kolo 4), všechna
+      na skutečných skocích 0,55–0,98 m, **žádné zbytečné**. Ze skoků pózy (blok 5) starý detektor
+      grid smazal u 14 ze 14 a 8 z 10, nový u 14 a 9. Propady gridu ve snapshotech
+      `OccupancyGridMsg` ze skutečné jízdy (Kolo 3b, 9 propadů) sedí časově na mazání, která replay
+      připisuje starému detektoru — **grid se při skocích většinou mazal**, takže pozorování
+      z 19. 9. tahle díra vysvětluje jen zčásti. Oprava: `Check` při `dt ≤ 0` porovnává s `|dt|`
+      (`CheckBackwardTime`, výchozí true; false = staré chování pro A/B). ⚠️ Na zařízení neběželo.
     kroky:
       - co: 'Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek'
-        stav: otevreno
-      - co: 'Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu'
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: 'Opravit `Check` (kontrola posunu i při `dt ≤ 0`, s `|v|·|dt|`) a přeměřit počet mazání gridu'
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: Ověřit na zařízení (počet `GridResets` / propady gridu ve snapshotech proti skokům pózy)
         stav: otevreno
     odkazy:
       - text: PoseJumpDetector.cs
         cesta: Src/ARBot.Common/Occupancy/PoseJumpDetector.cs
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-09-21]
+    devlog: [2026-09-21, 2026-10-01]
     ceka_na: []
 
   - id: nav-recovery-manevr

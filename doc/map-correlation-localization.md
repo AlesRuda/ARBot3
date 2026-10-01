@@ -3991,6 +3991,26 @@ se spolkne a další snímek už se porovnává s pózou po skoku. Vedeno jako `
 vypere sama, jako dnes centimetrové korekce), a oprava by musela nejdřív změřit, kolik snímků
 chodí s `dt ≤ 0`, aby nevyrobila bezdůvodná mazání.
 
+✅ **Změřeno a opraveno 1. 10. 2026** (`ARBot.Analyze fusionreplay`, blok 7: póza
+`GetStateAt(čas snímku)` v místě snímku ve streamu, obě verze detektoru vedle sebe):
+
+| | Kolo 3b | Kolo 4 |
+|---|---|---|
+| snímků / s časem pozadu | 27 778 / **22,4 %** | 19 018 / **23,0 %** |
+| \|dt\| těch pozadu p50 / p90 | 14,8 / 26,0 ms | 11,9 / 28,0 ms |
+| mazání gridu postaru / ponovu | 19 / 21 | 9 / 10 |
+| skoků pózy (blok 5) se smazaným gridem do 0,5 s, postaru / ponovu | 14 / 14 ze 14 | 8 / 9 z 10 |
+
+Snímky s časem pozadu jsou prakticky jen z **pravé** kamery (6 220 z 6 222), tedy pravá chodí
+do streamu soustavně o kus za levou. Všechna mazání navíc jsou na **skutečných** skocích
+(0,55–0,98 m), zbytečné žádné. **Grid se tedy při skocích většinou mazal** — a sedí to
+i nezávisle: propady počtu známých buněk ve snapshotech `OccupancyGridMsg` ze skutečné jízdy
+(`localplan`, Kolo 3b 9 propadů) leží časově na mazáních, která replay připisuje **starému**
+detektoru. Díra pozorování z 19. 9. vysvětluje jen zčásti. Oprava: při `dt ≤ 0` se kontroluje
+stejně jako dopředu, jen s `|dt|` (`PoseJumpDetector.CheckBackwardTime`, výchozí true).
+Aproximace měřidla: runtime se ptá až po frontě stupně, tedy o kus později. ⚠️ Na zařízení
+neběželo.
+
 
 ### Limit na zařízení a dva úniky (29. 9. 2026)
 
