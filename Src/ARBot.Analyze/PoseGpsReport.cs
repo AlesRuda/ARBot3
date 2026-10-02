@@ -220,6 +220,14 @@ namespace ARBot.Analyze
             var chordK = new Stats("kola / tetiva GPS");
             var chordP = new Stats("tetiva pozy / tetiva GPS");
             var chordD = new Stats("Doppler / kola (tataz okna)");
+            // Bez vyberu podle pomeru pozy a kol (lok-fuze-poza-pred-koly, 1. 10. 2026): podminka
+            // "kola <= 1,005 x tetiva pozy" mela vyradit zatacky, ale zaroven USEKNE okna, kde poza
+            // ujela mene nez kola - a tim zvedne median tetivy pozy. Primost se tu bere z GPS i z pozy
+            // (smer prvni a druhe poloviny okna < 3 deg u obou), ne z pomeru, ktery se meri.
+            var uK = new Stats("kola / tetiva GPS");
+            var uP = new Stats("tetiva pozy / tetiva GPS");
+            var uPK = new Stats("tetiva pozy / kola (parove)");
+            var fPK = new Stats("tetiva pozy / kola (parove)");
             const double win = 30;
             var okGps = gps.Where(g => g.ok).ToList();
             for (int i = 0; i < okGps.Count; i += 50)
@@ -244,10 +252,18 @@ namespace ARBot.Analyze
                 }
                 var pa = poses.OrderBy(q => Math.Abs(q.t - a.t)).First();
                 var pb = poses.OrderBy(q => Math.Abs(q.t - b.t)).First();
+                var pm = poses.OrderBy(q => Math.Abs(q.t - mid.t)).First();
                 double cp = Math.Sqrt((pb.x - pa.x) * (pb.x - pa.x) + (pb.y - pa.y) * (pb.y - pa.y));
+                double pz1 = Math.Atan2(pm.y - pa.y, pm.x - pa.x), pz2 = Math.Atan2(pb.y - pm.y, pb.x - pm.x);
+                double dPz = Math.Abs(Math.IEEERemainder(pz2 - pz1, 2 * Math.PI)) * 180 / Math.PI;
+                if (dPz <= 3 && wk > 0)
+                {
+                    uK.Add(wk / cg); uP.Add(cp / cg); uPK.Add(cp / wk);
+                }
                 if (wk > cp * 1.005) continue;
                 chordK.Add(wk / cg);
                 chordP.Add(cp / cg);
+                if (wk > 0) fPK.Add(cp / wk);
                 var dop = okGps.Skip(i).Take(j - i).Where(g => g.v.HasValue).Select(g => g.v.Value).ToList();
                 if (dop.Count > 0 && wk > 0) chordD.Add(dop.Average() * (b.t - a.t) / wk);
             }
@@ -255,7 +271,13 @@ namespace ARBot.Analyze
             Console.WriteLine("    " + chordK.Line());
             Console.WriteLine("    " + chordP.Line());
             Console.WriteLine("    " + chordD.Line());
+            Console.WriteLine("    " + fPK.Line());
             Console.WriteLine("    kola/tetiva > 1 = kola hlasi vic nez skutecny posun -> obvod kola v Profile je o tolik velky.");
+            Console.WriteLine("    POZOR: okna vyse jsou vybrana podminkou kola <= 1,005 x tetiva pozy - ta useka okna, kde poza");
+            Console.WriteLine("    ujela mene nez kola, a tetivu pozy tim nadsazuje. Bez ni (primost z GPS i z pozy, < 3 deg):");
+            Console.WriteLine("    " + uK.Line());
+            Console.WriteLine("    " + uP.Line());
+            Console.WriteLine("    " + uPK.Line());
             Console.WriteLine();
 
             Console.WriteLine($"CASOVA OSA (okno {binSec:F0} s; mediany):");

@@ -69,6 +69,59 @@ public class PoseJumpDetectorTests
         Assert.That(d.Check(0.1, 0, theta: 0, v: 1.0, omega: 0, T0), Is.False);
     }
 
+    /// <summary>
+    /// REGRESE (lok-skok-pozy-nedetekce, Robotour 19. 9. 2026): skok, ktery pripadne na snimek
+    /// s casem POZADU (prehozene snimky dvou kamer), se driv spolkl - detektor pozu jen zapamatoval
+    /// a dalsi snimek uz porovnal s pozou po skoku. Grid se nesmazal.
+    /// </summary>
+    [Test]
+    public void SkokNaSnimkuSCasemPozadu_JeSkok()
+    {
+        var d = new PoseJumpDetector { ToleranceM = 0.5 };
+        d.Check(0, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(1.000));
+
+        // Snimek druhe kamery o 10 ms drive, ale uz po korekci o 2 m.
+        Assert.That(d.Check(2.0, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(0.990)), Is.True);
+        // Dalsi snimek navazuje na pozu po skoku - podruhe se grid mazat nesmi.
+        Assert.That(d.Check(2.03, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(1.023)), Is.False);
+    }
+
+    /// <summary>Totez pro skok kurzu (konvergence kurzu, korekce kurzu z koridoru).</summary>
+    [Test]
+    public void SkokKurzuNaSnimkuSCasemPozadu_JeSkok()
+    {
+        var d = new PoseJumpDetector();
+        d.Check(0, 0, theta: 0, v: 0.0, omega: 0, T0.AddSeconds(1.000));
+
+        double theta = 20.0 * Math.PI / 180.0;
+        Assert.That(d.Check(0, 0, theta: theta, v: 0.0, omega: 0, T0.AddSeconds(0.990)), Is.True);
+    }
+
+    /// <summary>Stare chovani (A/B): u casu pozadu se skok nekontroluje a spolkne se.</summary>
+    [Test]
+    public void BezKontrolyCasuPozadu_SkokSeSpolkne()
+    {
+        var d = new PoseJumpDetector { ToleranceM = 0.5, CheckBackwardTime = false };
+        d.Check(0, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(1.000));
+
+        Assert.That(d.Check(2.0, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(0.990)), Is.False);
+        Assert.That(d.Check(2.03, 0, theta: 0, v: 1.0, omega: 0, T0.AddSeconds(1.023)), Is.False);
+    }
+
+    /// <summary>
+    /// Pohyb mezi prehozenymi snimky vysvetli rychlost za <c>|dt|</c> - jizda s prehozenymi
+    /// snimky skok hlasit nesmi.
+    /// </summary>
+    [Test]
+    public void PrehozeneSnimkyZaJizdy_NeniSkok()
+    {
+        var d = new PoseJumpDetector { ToleranceM = 0.5 };
+        // 1,5 m/s, kamery A a B s rozestupem 15 ms a casto v obracenem poradi.
+        double[] t = { 0.000, 0.033, 0.018, 0.066, 0.051, 0.100, 0.084 };
+        foreach (double s in t)
+            Assert.That(d.Check(1.5 * s, 0, theta: 0, v: 1.5, omega: 0, T0.AddSeconds(s)), Is.False, $"t={s}");
+    }
+
     [Test]
     public void Reset_ZapomeneStav()
     {

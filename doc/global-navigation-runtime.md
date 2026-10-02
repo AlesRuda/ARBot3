@@ -582,7 +582,10 @@ výchozí 0) a **hodnota je vybraná nad těmito záznamy** (`corridorslew=0.5`,
 v `pi-provoz.cfg`); viz [map-correlation-localization.md](map-correlation-localization.md),
 „Limit kroku korekce". ⚠️ „−59°" ve sloupci *směr skoku* výš je azimut posunu, ne změna kurzu —
 korekce kurzu z koridoru byly max 2°.
-⚠️ `PoseJumpDetector` přitom při těch skocích grid **nesmazal** (`lok-skok-pozy-nedetekce`).
+⚠️ ~~`PoseJumpDetector` přitom při těch skocích grid **nesmazal**~~ — přeměřeno 1. 10. 2026
+(`fusionreplay` blok 7 + propady gridu ve snapshotech): **většinou smazal** (Kolo 3b 14 ze 14,
+Kolo 4 8 z 10); díra pro snímky s časem pozadu spolkla 3 mazání ze 31 a je opravená
+(`lok-skok-pozy-nedetekce`).
 
 ### 3. Co se z jízd ověřilo (registr)
 

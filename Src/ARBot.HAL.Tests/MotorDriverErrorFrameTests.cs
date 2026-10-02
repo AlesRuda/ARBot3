@@ -126,5 +126,78 @@ namespace ARBot.HAL.Tests
                 Assert.That(state.Voltage, Is.EqualTo(24.0).Within(1e-9));
             });
         }
+
+        // ==================== Cas jednotky (radek T=) ====================
+        // lok-fuze-poza-pred-koly: razitko z casu prichodu neslo cist (USB CDC v davkach, vzor
+        // 12 / 12 / 9 ms) a rychlost Δenc/Δrazitko po kratkem intervalu nadsazovala. Skript
+        // posila svuj citac v ms, driver z nej bere interval i razitko.
+
+        /// <summary>
+        /// Rychlost kol z intervalu JEDNOTKY: dva ramce prectene hned po sobe (cas prichodu se
+        /// skoro nelisi), ale jednotka mezi nimi napocitala 11 ms a enkoder 11 pulzu -> 1 m/s.
+        /// Z casu prichodu by vysla rychlost o rady vyssi.
+        /// </summary>
+        [Test]
+        public void CasJednotky_RychlostZIntervaluJednotky()
+        {
+            var uart = new ScriptedUart();
+            var driver = StoppedDriver(uart);
+
+            // enc2Dist = 1 m / 1000 pulzu = 1 mm na pulz; pravy kanal kladne, levy zaporne.
+            uart.Feed("T=5000", "DI=1", "?C=1000:-1000", "?V=240", "?A=10:20");
+            var first = driver.ReadOneFrame() as MotorStateBase;
+            uart.Feed("T=5011", "DI=1", "?C=1011:-1011", "?V=240", "?A=10:20");
+            var second = driver.ReadOneFrame() as MotorStateBase;
+
+            Assert.That(first, Is.Not.Null);
+            Assert.That(second, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(second!.RightWheelSpeed, Is.EqualTo(1.0).Within(1e-9));
+                Assert.That(second.LeftWheelSpeed, Is.EqualTo(1.0).Within(1e-9));
+                Assert.That(second.DeviceTimeMs, Is.EqualTo(5011), "surovy cas jednotky jde do zpravy");
+                // Interval razitek se tu netestuje: ramce prisly 1 ms po sobe, ale jednotka mezi
+                // nimi napocitala 11 ms - prvni tedy mel o 10 ms vetsi latenci a odhad posunu se
+                // spravne posune (minimum). Ustaleny stav kryje DeviceClockTests.
+                Assert.That(second.TimeStamp, Is.LessThanOrEqualTo(ARBot.Common.Common.TimeBase.Now),
+                            "razitko nesmi byt v budoucnosti");
+                Assert.That(first!.DeviceTimeMs, Is.EqualTo(5000));
+                Assert.That(driver.DeviceClockSyncs, Is.EqualTo(1));
+            });
+        }
+
+        /// <summary>
+        /// Stary skript (bez radku T=): driver jede po staru z casu prichodu a zprava cas jednotky
+        /// nenese. Novy driver musi jit pustit proti jednotce, do ktere se skript jeste nenahral.
+        /// </summary>
+        [Test]
+        public void BezCasuJednotky_PoStaru()
+        {
+            var uart = new ScriptedUart();
+            var driver = StoppedDriver(uart);
+
+            uart.Feed("DI=1", "?C=1000:-1000", "?V=240", "?A=10:20");
+            var state = driver.ReadOneFrame() as MotorStateBase;
+
+            Assert.That(state, Is.Not.Null);
+            Assert.That(state!.HasDeviceTime, Is.False);
+            Assert.That(state.DeviceTimeMs, Is.EqualTo(-1));
+            Assert.That(driver.DeviceClockSyncs, Is.EqualTo(0));
+        }
+
+        /// <summary>Nesmyslny radek T= neshodi ramec: cas jednotky se jen nepouzije.</summary>
+        [Test]
+        public void NeplatnyCasJednotky_RamecPlati()
+        {
+            var uart = new ScriptedUart();
+            var driver = StoppedDriver(uart);
+
+            uart.Feed("T=xyz", "DI=1", "?C=1000:-1000", "?V=240", "?A=10:20");
+            var state = driver.ReadOneFrame() as MotorStateBase;
+
+            Assert.That(state, Is.Not.Null);
+            Assert.That(state!.HasMeasurement, Is.True);
+            Assert.That(state.HasDeviceTime, Is.False);
+        }
     }
 }

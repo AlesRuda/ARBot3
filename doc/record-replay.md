@@ -591,6 +591,27 @@ hodnotu z logu (přehrát jízdu s opravou, se kterou robot nejel). Blok 5 poč�
 (posun minus `|v|·dt` nad 0,5 m) ve variantě s koridorem a bez něj — skok, který je i bez koridoru,
 koridor nezpůsobil. Blok 6 měří u každého odeslání koridoru posun **aktuální** pózy (před / po
 vložení) kolmo k hraně, podél ní a v kurzu a porovná ho s limitem. Nález: `lok-koridor-skoky-pozy`.
+**Blok 7** (od 1. 10. 2026) — **smaže `LocalNavigator` při skoku pózy grid?** U každého snímku
+kamery (čas pořízení z indexu, snímek se nečte) se v místě snímku ve streamu zeptá fúze varianty S
+na `GetStateAt(čas snímku)` jako `LocalNavigator` a pustí to `PoseJumpDetector`em postaru i ponovu
+(`CheckBackwardTime`): podíl snímků s časem pozadu, mazání gridu, a kolik skoků z bloku 5 grid
+smazalo. Nález: `lok-skok-pozy-nedetekce`.
+**Bloky 8 a 9** (od 1. 10. 2026) — **ujede póza víc než kola, a proč?** Blok 8 přehraje fúzi ještě
+třikrát (bez GPS polohy, jen kola + IMU, jen `Odo/speed`) a na přímých úsecích (okno 30 s, přímost
+z GPS) tiskne párový poměr tětiva pózy / dráha z kol a integrál `V` ze stavu pro každou variantu;
+dráha z kol je ověřená proti kumulativním enkodérům. Blok 9 rozebere razítka odometrie: intervaly,
+rychlost po krátkém a dlouhém intervalu, integrál rychlostí „zpětně" a „dopředu" proti enkodérům
+a EKF krmený jen rychlostí — z pole zprávy i z enkodérů přes okno N vzorků; u záznamu
+s časem jednotky (`MotorStateBase` verze 4, `DeviceTimeMs`) navíc interval podle jednotky a jeho
+rozdíl od intervalu razítek. Nález: `lok-fuze-poza-pred-koly`, viz [ekf-fusion.md](ekf-fusion.md).
+
+**`compassab`** (od 1. 10. 2026) — **A/B podlahy a škrcení kurzu z kompasu** nad jednou jízdou.
+Přehraje fúzi (táž příprava jako `fusionreplay`) ve variantách `imuheadingstd` 5 / 0 ×
+`imuheadinghz` 1 / 0, s korekcemi z koridoru (jak jelo) i bez nich, a kurz každé varianty porovná
+se **směrem posunu GPS polohy** (tětiva ±1 s, přímočaře, nad `--minspeed=` 0,8 m/s; nezávislá
+reference), s GPS kurzem a s IMU yaw, zvlášť po směrech posunu (V/S/Z/J). Řádek „IMU yaw" je
+kompas sám. Ověřuje se proti `RobotStateMsg` varianta, se kterou se jelo. Nález:
+`lok-kompas-sigma-podlaha`, viz [ekf-fusion.md](ekf-fusion.md).
 
 **`assocwhy`** (od 29. 9. 2026) — **s čím vítězná hrana při přiřazení soutěží?** Přepočítá
 `EdgeAssociator` nad zaznamenanými cykly koridoru (oboustranný **i jedna hrana**, na rozdíl od

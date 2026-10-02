@@ -172,6 +172,46 @@ nepouští. Převod je teď výslovný, hlídá ho `UBloxFixQualityTests`. Pozor
 u těch 570 m vlastně hlásil**. Právě proto přibyla kvalita GPS do náhledu — příště to bude vidět
 na stránce místo čtení kódu. Je možné, že fix hlásil dobré hodnoty a příčina je jinde.
 
+### ⚠️ Rychlost z kol nadsazuje dráhu o ~1,9 % — razítka odometrie (změřeno 2026-10-01)
+
+Fúze krmená **jen** rychlostí z kol ujede o **1,85–1,92 %** víc, než kola skutečně ujela (enkodéry),
+ve všech čtyřech měřených jízdách (25. 9. a 29. 9. 2026). V provozu ji GPS poloha stahuje zpět, takže
+póza je o 0–1,4 % před koly podle toho, jak silně GPS v dané jízdě táhne (`lok-fuze-poza-pred-koly`).
+
+**Mechanismus.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení, ještě před čekáním
+na řádek `DI=`, a rychlost kola počítá jako `Δenkodér / Δrazítko`. Kontrolér přitom posílá
+v pravidelné periodě — enkodér přibude v každém vzorku o stejných ~13,8 mm —, jenže řádky chodí po
+sériové lince v dávkách a razítka mají vzor **12 / 12 / 9 ms**. Vzorek po krátkém intervalu tak hlásí
+rychlost 1,334× průměru sousedů, po dlouhém 0,857×. Dokud se rychlost integruje tak, jak vznikla
+(„hodnota platí zpětně za svůj interval"), chyba se vyruší přesně: integrál rychlostí = enkodéry na
+1,000, a proto sedí i měření obvodu kola. **EKF ale měření drží dopředu** — vysoká rychlost po 9ms
+intervalu platí i přes následujících 12 ms. Na periodě 12/12/9 to dělá +2,8 % (integrál dopředu
+naměřen 1,032–1,034), filtr to vyhladí na +1,9 %.
+
+| zdroj rychlosti pro EKF (jen `Odo/speed`) | 29. 9. Track | 29. 9. FreeRun | 25. 9. Track | 25. 9. FreeRun |
+|---|---|---|---|---|
+| pole rychlosti ze zprávy (dnes) | 1,0186 | 1,0192 | 1,0185 | 1,0186 |
+| z enkodérů přes 2 vzorky | 1,0062 | 1,0063 | 1,0060 | 1,0061 |
+| z enkodérů přes 3 vzorky (~33 ms) | **1,0008** | **1,0005** | **1,0004** | **1,0022** |
+
+(dráha z EKF / dráha z enkodérů; poslední jízda má mezery až 1,6 s)
+
+Rozklad podle zdrojů (`fusionreplay` blok 8, tětiva pózy / kola na přímých úsecích) potvrzuje, že
+přebytek nevzniká v GPS ani v koridoru: bez GPS polohy, bez koridoru i jen z kol a IMU vychází
+1,016–1,019, s GPS 1,00–1,01. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1.
+Měří to `ARBot.Analyze fusionreplay`, bloky 8 a 9.
+
+✅ **Léčba v kódu (1. 10. 2026, rozhodnutí autora): čas z motorové jednotky.** Skript v Roboteq
+posílá před každým blokem telemetrie svůj čítač v ms (`T=`, modulo 10⁹ ≈ 11,6 dne) a `SDC2160Ex`
+z něj bere interval pro rychlost kol i razítko vzorku. Převod na `TimeBase` dělá `DeviceClock`:
+posun hodin = **minimum** z `příchod − čas jednotky` (latence linky je vždy ≥ 0), stoupat smí jen
+rychlostí driftu krystalu (`MaxDriftPpm` 500), restart jednotky pozná podle skoku dopředu nebo
+trvale vysoké latence (> 1 s déle než 2 s; dohánění dávky po zahlcení resync nespustí). Interval
+razítek je pak interval jednotky a absolutní čas nese jen minimální latenci linky. Bez řádku `T=`
+driver jede po staru. `MotorStateBase` verze 4 nese surový čas jednotky (`DeviceTimeMs`). Okno
+rychlosti ve fúzi se nedělá. ⚠️ **Skript se musí nahrát do jednotky a vyjet** — blok 9 pak má
+ukázat „pole rychlosti ze zprávy" ~1,000. Viz [decisions.md](decisions.md), 1. 10. 2026.
+
 ### Odometrie teče i pod nouzovým zastavením (2026-08-27)
 
 Do 27. 8. 2026 `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Zrušeno
@@ -608,9 +648,58 @@ záznamy. Parser **odmítá hodnoty v intervalu (0; 0,1)**: `imuheadingstd=0.087
 by tiše nastavilo 0,087 **stupně**, což je méně než samo `YprU` — podlaha by se fakticky vypla
 a nikdo by si toho nevšiml.
 
-⚠️ **Na HW to neběželo** a dopad na jízdu změřený není. Další krok: záznam s `imuheadingstd=5`
-a `imuheadingstd=0` nad týmž úsekem a porovnat `odhad − IMU yaw` a `odhad − GPS kurz`
-(`ARBot.Analyze heading`). Kryje to 16 testů v `KompasSigmaTests`.
+Kryje to 16 testů v `KompasSigmaTests`.
+
+### ✅ A/B na datech ze zařízení (1. 10. 2026)
+
+Robot s 5° / 1 Hz jezdí od 18. 9. (výchozí hodnoty registru, profil je nenastavuje). A/B se dělal
+**offline** (rozhodnutí autora 29. 9.): `ARBot.Analyze compassab` přehraje fúzi ze zaznamenaných
+senzorů ve čtyřech variantách kompasu (podlaha 5° / 0 × škrcení 1 Hz / neomezeno), s korekcemi
+z koridoru i bez nich, takže všechny varianty vidí tatáž data. Měřidlo sedí: varianta, se kterou
+se jelo, dává proti `RobotStateMsg` kurz p50 0,000° ve všech jízdách. Referencí je **směr posunu
+GPS polohy** (tětiva ±1 s, přímočaře, nad 0,8 m/s) — poloha jde do fúze se σ 30 m, takže kurz
+neovlivní; GPS kurz (course over ground) sám do fúze vstupuje, proto není nezávislý.
+
+Chyba kurzu proti směru posunu GPS polohy, p50 / robustní sd [°] (jízdy s alespoň 280 body):
+
+| jízda | kompas sám | 5° + 1 Hz (dnes) | 0° + 1 Hz | 5° + neomez. | 5° + 1 Hz bez koridoru |
+|---|---|---|---|---|---|
+| 18. 9. `154028` | −2,08 / 3,34 | **−0,63** / 3,87 | −1,87 / 3,31 | −1,26 / 3,24 | −1,28 / 3,12 |
+| 18. 9. `155329` | −2,05 / 2,84 | **−0,54** / 3,44 | −1,93 / 2,82 | −1,10 / 3,29 | −1,47 / 2,71 |
+| 19. 9. Kolo 3b | −0,03 / 3,43 | −0,20 / 3,59 | −0,01 / 3,49 | −0,02 / 3,49 | +0,07 / 3,28 |
+| 19. 9. Kolo 4 | −0,90 / 5,54 | −1,45 / **4,63** | −0,78 / 5,47 | −0,84 / 5,43 | −1,29 / 4,57 |
+| 23. 9. `143515` | −6,58 / 4,39 | **−1,84 / 2,70** | −6,59 / 4,36 | −6,44 / 4,26 | −1,84 / 2,70 |
+| 23. 9. `144635` | −5,29 / 9,25 | **−0,62 / 3,72** | −5,23 / 9,34 | −4,98 / 9,16 | −0,62 / 3,72 |
+| 25. 9. `142428` | −1,62 / 2,49 | **−0,14 / 1,38** | −1,60 / 2,44 | −1,41 / 2,24 | −0,75 / 1,36 |
+| 25. 9. `143643` | −1,75 / 3,80 | **−0,49 / 2,22** | −1,72 / 3,78 | −1,56 / 3,61 | −0,14 / 2,33 |
+| 25. 9. `144200` | +0,58 / 4,01 | +1,21 / 3,23 | +0,57 / 3,97 | +0,73 / 3,91 | +0,62 / 3,68 |
+| 25. 9. `144658` | +0,72 / 2,29 | +0,40 / 2,14 | +0,79 / 2,30 | +0,73 / 2,26 | +0,63 / 2,17 |
+| 27. 9. `172546` | −0,65 / 5,21 | +0,76 / 5,23 | −0,67 / 5,07 | −0,61 / 5,09 | +0,73 / 5,18 |
+| 27. 9. `173033` | −1,36 / 4,13 | −0,30 / 4,28 | −1,34 / 4,04 | −1,21 / 4,09 | +0,04 / 3,90 |
+| 29. 9. `150844` | −4,87 / 4,05 | **−1,67 / 2,82** | −4,89 / 4,01 | −4,87 / 4,01 | −1,77 / 2,49 |
+| 29. 9. `151634` | +9,26 / 5,34 | **+4,21 / 2,17** | +9,23 / 5,32 | +9,04 / 5,14 | +4,26 / 2,07 |
+
+(Dvě krátké jízdy z 23. 9. s 25 a 78 body jsou vynechané; směr je stejný.)
+
+1. **Zabírá jen kombinace podlahy a škrcení.** Samotné škrcení (jedno měření za sekundu se
+   σ 0,06° kurz přepíše) dá totéž co kompas sám (≤ 0,2°), samotná podlaha (5° při 100 Hz je pořád
+   ~100× víc informace) skoro totéž (≤ 0,3°, jen v obou jízdách 18. 9. 0,8–1,0°).
+2. **Kde je kompas vedle, stáhne to chybu na 25–45 % jeho biasu** a rozptyl většinou klesne
+   (4,39 → 2,70°, 5,34 → 2,17°, 9,25 → 3,72°, 2,49 → 1,38°). V obou jízdách 18. 9. rozptyl
+   naopak o ~0,6° vzrostl. **Kde je kompas v pořádku** (Kolo 3b, 25. 9. odpoledne, 27. 9.), je
+   to skoro neutrální: střed se posune do ±0,6° (Kolo 4 −0,90 → −1,45° při rozptylu 5,54 → 4,63°),
+   jen v krátké jízdě 27. 9. `172546` (286 bodů) o 1,4° (−0,65 → +0,76°).
+3. **Táhne GPS kurz, ne koridor.** Varianta bez korekcí z koridoru dává skoro totéž (rozdíl
+   nejvýš ~0,7°; v obou jízdách 18. 9. je s koridorem o 0,6–0,9° blíž). Že je koridor pro kurz
+   „150–1000× silnější než kompas", platí jen pro okamžiky, kdy měří — v těchto jízdách to na
+   kurzu skoro vidět není.
+4. **Zbytek biasu zůstává** (29. 9. FreeRun +4,2°): filtr pořád bere bias kompasu jako bílý šum.
+   Podlaha a škrcení jsou zmírnění, ne léčba — tou je bias kurzu jako stav EKF.
+
+Vedlejší: v jízdách 29. 9. se chyba kompasu liší podle směru (na sever −5,0°, na jih +9,1°,
+i uvnitř Track jízdy +4,6° na 84 bodech k jihu), 19. 9. Kolo 4 sever +3,9° / jih −3,7°. To vede
+téma `hw-vn100-zmena-po-27-9`; 23. 9. (konstantní −7°) `lok-freerun-kurz-staci-na-zapad`.
+V Kole 4 se navíc GPS kurz liší od směru posunu polohy o ~2,7°, jinde do ~0,5°.
 
 ## ⚠️ Odkud se bere σ kurzu z GPS — a proč je správná ze špatného důvodu (12. 9. 2026)
 

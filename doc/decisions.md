@@ -13,6 +13,30 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-01 — Odometrie bere čas z motorové jednotky, ne okno rychlosti ve fúzi
+
+**Co:** Proti nadsazené dráze z kol (`lok-fuze-poza-pred-koly`, +1,9 %) se razítko vzorku
+a interval pro rychlost kol berou z **hodin motorové jednotky**: skript v Roboteq posílá před každým
+blokem telemetrie řádek `T=<ms>` a `SDC2160Ex` ho převádí na `TimeBase` (`DeviceClock`).
+Rozhodnutí autora; varianta „rychlost z enkodérů přes okno ~33 ms ve fúzi" se **dělat nebude**.
+
+**Proč:** Příčinou je razítko z času příchodu — Roboteq posílá po USB CDC v dávkách (vzor
+12 / 12 / 9 ms při vzorkování po 11 ms) a rychlost `Δenc / Δrazítko` nese jitter linky. Okno
+ve fúzi by následek zakrylo (offline ověřeno 1,0004–1,0022) a za cenu ~16 ms zpoždění rychlosti;
+čas jednotky odstraní příčinu a opraví i načasování odometrie vůči IMU. Razítko až při příchodu
+řádku `DI=` by dávkování linky nechalo.
+
+**Důsledky:** Skript se musí **nahrát do jednotky** (cesta nouzového zastavení → ověřit na
+zařízení). Je zpětně kompatibilní oběma směry: starý driver řádek `T=` přeskočí, nový driver bez
+něj jede po staru. `MotorStateBase` je **verze 4** (`DeviceTimeMs`, surový čas jednotky), aby šel
+převod hodin ověřit nad záznamem. Staré záznamy zůstávají s vadou (fúze z nich přehraná dál
+nadsazuje ~1,9 %). Ověření po jízdě: `ARBot.Analyze fusionreplay`, blok 9 („pole rychlosti ze
+zprávy" ~1,000).
+
+**Odkazy:** `Src/RoboRun/RizeniDiffPodvozku.mbs` (skript, verze 2.1 — primární zdroj; kopie
+v komentáři driveru), `Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs` (parsování),
+`Src/ARBot.Common/Devices/DeviceClock.cs`, [ekf-fusion.md](ekf-fusion.md).
+
 ### 2026-10-01 — Kvalita segmentační sítě se dál neověřuje novou anotovanou sadou
 
 **Co:** Téma `vid-segmentace-pravda-d435` (pořídit anotovanou sadu snímků z D435 z roku 2026) je
@@ -229,7 +253,9 @@ prodražují drift (p50 odchylky 0,21 → 0,37 → 0,69 m). Proč 3 °/s, když 
 nepotřebují: po dlouhé mezeře bez koridoru naroste `P` kurzu a jedno měření s inovací 22° by
 udělalo ~9° (> tolerance detektoru 5°); v replayi 3 °/s nestojí nic.
 Limit se nevztahuje na `PoseJumpDetector` (jeho tolerance 0,5 m není argument: při skocích
-z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`).
+z 19. 9. grid stejně nesmazal, viz `lok-skok-pozy-nedetekce`). *(1. 10. 2026 přeměřeno: grid
+se při skocích **většinou mazal** — v Kole 3b u 14 ze 14, v Kole 4 u 8 z 10; díra pro snímky
+s časem pozadu spolkla 3 mazání ze 31 a je opravená.)*
 Detail: [map-correlation-localization.md](map-correlation-localization.md), „Limit kroku korekce".
 
 ### 2026-09-18 — Příčná brána koridoru (`MaxLateralDisagreementM`) zrušena bez náhrady

@@ -1,4 +1,4 @@
-using ARBot.Common.Logs;
+﻿using ARBot.Common.Logs;
 using ARBot.Common.Models;
 using System;
 using System.Collections.Generic;
@@ -24,11 +24,16 @@ namespace ARBot.Common.Devices
         /// „merenie" od „zastupneho ramce po chybe driveru". Starsi zaznam priznak nema a cte se
         /// jako <c>true</c>: zastupne ramce v nem sice jsou, ale nejsou od merenych rozeznatelne,
         /// takze tvrdit o nich cokoli jineho by bylo vymysleni.</para>
+        ///
+        /// <para><b>Verze 4</b> (2026-10-01) pridala <see cref="DeviceTimeMs"/> — cas vzorku podle
+        /// hodin MOTOROVE JEDNOTKY (radek <c>T=</c> ze skriptu <c>SDC2160Ex</c>). Starsi zaznam ho
+        /// nema (<c>-1</c>). Viz <see cref="DeviceClock"/> a <c>lok-fuze-poza-pred-koly</c>.</para>
         /// </summary>
-        public const int FormatVersion = 3;
+        public const int FormatVersion = 4;
 
         bool emergencyStop;
         bool hasMeasurement;
+        long deviceTimeMs;
         double leftEncoder, rightEncoder, voltage, leftMotorCurrent, rightMotorCurrent;
         double leftWheelSpeed, rightWheelSpeed;
 
@@ -47,13 +52,16 @@ namespace ARBot.Common.Devices
         /// <param name="hasMeasurement">Nese ramec skutecne merenie? <c>false</c> = zastupny ramec
         /// po chybe driveru, ze ktereho plati jen <paramref name="emergencyStop"/>. Viz
         /// <see cref="HasMeasurement"/>.</param>
+        /// <param name="deviceTimeMs">Cas vzorku podle hodin zarizeni [ms], <c>-1</c> = zarizeni
+        /// cas neposila. Viz <see cref="DeviceTimeMs"/>.</param>
         public MotorStateBase(bool emergencyStop, double leftEncoder, double rightEncoder, double voltage,
                               double leftMotorCurrent, double rightMotorCurrent,
                               double leftWheelSpeed, double rightWheelSpeed,
-                              bool hasMeasurement = true)
+                              bool hasMeasurement = true, long deviceTimeMs = -1)
             : base(FormatVersion)
         {
             this.hasMeasurement = hasMeasurement;
+            this.deviceTimeMs = deviceTimeMs;
             this.emergencyStop = emergencyStop;
             this.leftEncoder=leftEncoder;
             this.rightEncoder=rightEncoder;
@@ -92,6 +100,18 @@ namespace ARBot.Common.Devices
                 return hasMeasurement;
             }
         }
+        /// <summary>
+        /// Cas vzorku podle hodin ZARIZENI [ms] (citac motorove jednotky, bezi modulo
+        /// <c>SDC2160Ex.DeviceTimeModulus</c>); <c>-1</c> = zarizeni cas neposila (stary skript,
+        /// jiny driver, zaznam pred verzi 4). <see cref="SensorStateBase.TimeStamp"/> je pak
+        /// z nej prevedene razitko v case aplikace a rychlosti kol jsou spocitane z intervalu
+        /// zarizeni — surova hodnota je tu proto, aby slo prevod hodin overit nad zaznamem.
+        /// </summary>
+        public long DeviceTimeMs => deviceTimeMs;
+
+        /// <summary>Nese vzorek cas zarizeni (<see cref="DeviceTimeMs"/>)?</summary>
+        public bool HasDeviceTime => deviceTimeMs >= 0;
+
         /// <summary>
         /// Left encoder distance in m
         /// </summary>
@@ -172,6 +192,7 @@ namespace ARBot.Common.Devices
             bw.Write(leftWheelSpeed);
             bw.Write(rightWheelSpeed);
             bw.Write(hasMeasurement);       // verze 3
+            bw.Write(deviceTimeMs);         // verze 4
         }
 
         /// <inheritdoc/>
@@ -203,6 +224,9 @@ namespace ARBot.Common.Devices
             // po chybe driveru v nem od merenych NEJDOU rozeznat, takze je jedina poctiva odpoved
             // "true"; opacna volba by z kazdeho stareho zaznamu udelala samou neduveru.
             hasMeasurement = Verze < 3 || br.ReadBoolean();
+
+            // Verze 4: cas zarizeni. Starsi zaznam ho nema - zarizeni ho tehdy neposilalo.
+            deviceTimeMs = Verze >= 4 ? br.ReadInt64() : -1;
         }
     }
 }

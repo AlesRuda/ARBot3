@@ -218,6 +218,10 @@ namespace ARBot.Analyze
                     case "posegps":
                         PoseGpsReport.Run(rec, Arg(args, "--bin", 10));
                         return 0;
+                    case "compassab":
+                        FusionReplayReport.RunCompassAB(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
+                                                        Arg(args, "--minspeed", 0.8));
+                        return 0;
                     case "fusionreplay":
                         FusionReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
                                                Arg(args, "--revisit", 60), Text(args, "--set"));
@@ -308,6 +312,9 @@ namespace ARBot.Analyze
             Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");
             Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60,");
             Console.WriteLine("             --set=klic=hodnota;... prepise hodnotu z logu)");
+            Console.WriteLine("  compassab  A/B kompasu nad JEDNOU jizdou: podlaha sigmy imuheadingstd 5/0 x skrceni");
+            Console.WriteLine("             imuheadinghz 1/0, s koridorem i bez; kurz proti smeru posunu GPS polohy (nezavisle),");
+            Console.WriteLine("             GPS kurzu a IMU yaw, po smerech (--map=, --maxedge=, --minspeed=0.8)");
             Console.WriteLine("  singleedge co by dala JEDNA hrana cesty: prehraje snimky dnesnim CorridorFinderem");
             Console.WriteLine("             a kurz z jedne hrany porovna s GPS kurzem (--map=OSM/x.osm, --bin=30);");
             Console.WriteLine("             --sweep=25,20,15,10 = prah inlieru oboustranneho koridoru a jeho kvalita");

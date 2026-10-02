@@ -130,5 +130,24 @@ namespace ARBot.HAL.Tests
 
             Assert.That(back!.HasMeasurement, Is.True);
         }
+
+        /// <summary>
+        /// <b>Cas jednotky prezije zaznam</b> (verze 4) — bez nej by prevod hodin jednotky
+        /// (<c>DeviceClock</c>) nesel nad zaznamem overit proti casu prichodu.
+        /// </summary>
+        [Test]
+        public void MotorStateBase_DeviceTime_RoundTrips()
+        {
+            var back = RoundTrip(new MotorStateBase(false, 1, 1, 24, 0, 0, 0.5, 0.5, deviceTimeMs: 123456789)) as MotorStateBase;
+            var none = RoundTrip(new MotorStateBase(false, 1, 1, 24, 0, 0, 0.5, 0.5)) as MotorStateBase;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(back!.DeviceTimeMs, Is.EqualTo(123456789));
+                Assert.That(back.HasDeviceTime, Is.True);
+                Assert.That(none!.DeviceTimeMs, Is.EqualTo(-1), "vychozi = zarizeni cas neposila");
+                Assert.That(none.HasDeviceTime, Is.False);
+            });
+        }
     }
 }

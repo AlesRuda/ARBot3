@@ -51,6 +51,40 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   jen u polohy vzdálených bodů, ne u kurzu — tam je na jedné cestě nerozlišitelná od pootočené
   hrany mapy. Rozliší to víc cest různých směrů, GPS stopa proti azimutu hrany a nerovnoběžnost
   levé a pravé hrany. Data z Robotouru 19. 9.; kroky v registru přepsané.
+- **`lok-skok-pozy-nedetekce` změřeno a opraveno v kódu.** `PoseJumpDetector.Check` při snímku
+  s časem pozadu skok nekontroloval a spolkl ho. Nový blok 7 `ARBot.Analyze fusionreplay` (póza
+  v čase snímku v pořadí streamu, starý a nový detektor vedle sebe) nad Kolem 3b a 4: s časem
+  pozadu chodí **22–23 % snímků**, téměř jen z pravé kamery; spolknutá byla **3 mazání gridu
+  z 31**, všechna na skutečných skocích 0,55–0,98 m, a oprava žádné zbytečné nepřidala. **Grid se
+  ale při skocích většinou mazal** (14/14 a 8/10 skoků i postaru, potvrzují to propady ve
+  snapshotech `OccupancyGridMsg` ze skutečné jízdy), takže pozorování z 19. 9. tahle díra
+  vysvětluje jen zčásti. Oprava: kontrola s `|dt|` (`CheckBackwardTime`, false = staré chování
+  pro A/B), 4 nové testy, Common 1 732 zelených. ⚠️ Na zařízení neběželo.
+- **`lok-fuze-poza-pred-koly`: příčina nalezena — razítka odometrie.** `SDC2160Ex` razítkuje vzorek
+  na začátku čtení a rychlost počítá jako `Δenkodér / Δrazítko`; řádky chodí v dávkách (vzor
+  12 / 12 / 9 ms), takže vzorek po krátkém intervalu hlásí 1,33× víc. Integrál „zpětně" to vyruší
+  (enkodéry = 1,000), EKF ale měření drží dopředu a dráhu nadsadí o **1,85–1,92 %** (čtyři jízdy
+  25. a 29. 9.). GPS ani koridor to nejsou (rozklad přehráním s vypínanými zdroji, `fusionreplay`
+  blok 8). Výběr oken v `posegps` (podmínka na poměr pózy a kol) to nadsazoval jen o ~0,005 —
+  `posegps` teď tiskne i čísla bez něj. Protifakt: rychlost z enkodérů přes 3 vzorky (~33 ms) dá
+  1,0004–1,0022. Detail [ekf-fusion.md](ekf-fusion.md), měřidlo `fusionreplay` bloky 8 a 9.
+- **Léčba v kódu: čas z motorové jednotky** (rozhodnutí autora, okno ve fúzi se nedělá —
+  [decisions.md](decisions.md)). Skript Roboteq (`Src/RoboRun/RizeniDiffPodvozku.mbs`, verze 2.1;
+  napoprvé se změna omylem dostala jen do kopie v komentáři driveru — primární je `.mbs`, autor)
+  posílá před telemetrií `T=<ms>` (modulo 10⁹),
+  `SDC2160Ex` z něj bere interval pro rychlost kol i razítko; převod na `TimeBase` dělá nový
+  `DeviceClock` (minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu).
+  `MotorStateBase` verze 4 (`DeviceTimeMs`), blok 9 `fusionreplay` ho umí vyhodnotit. Testy
+  HAL 133 / Common 1 741 / Runtime 151, build celého řešení i Headless pro `OrangePI`.
+  ⚠️ **Skript se musí nahrát do jednotky** (cesta nouzového zastavení) a vyjet; odsimulované je
+  jen parsování a převod hodin, ne chování skutečné jednotky (že časovač běží po 1 ms a smyčka
+  po 11 ms, je odvozené z průměru intervalů 11,002 ms).
+- **`lok-kompas-sigma-podlaha` uzavřeno: A/B podlahy a škrcení kompasu změřeno offline.** Nový
+  `ARBot.Analyze compassab` (příprava `fusionreplay` vytažená do sdíleného `Prepare`) nad 16 jízdami
+  18.–29. 9.: zabírá jen kombinace 5° + 1 Hz (škrcení samo ≤ 0,2°, podlaha sama ≤ 0,3°, jen 18. 9. ~0,9°); kde je kompas vedle,
+  chyba kurzu proti nezávislému směru posunu GPS polohy klesne na 25–45 % jeho biasu, kde je
+  v pořádku, je to skoro neutrální. Táhne GPS kurz, koridor přidá nejvýš ~0,7°. Zbytek do 4° —
+  dál cílem bias jako stav EKF. Tabulka [ekf-fusion.md](ekf-fusion.md).
 
 ## 2026-09-30
 

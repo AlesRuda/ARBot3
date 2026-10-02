@@ -220,8 +220,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   tím spadl z **~3,2 × 10⁶ : 1** na **~440 : 1**. ⚠️ **Počtivý filtr z toho ale není, jen méně
   nepočtivý:** bias je časově korelovaný a filtr ho bere jako bílý šum, takže ustálená σ kurzu
   ve filtru vyroste jen z ~0,06° na **~0,58°** proti skutečné chybě 3–5° (pořád ~8× přehnaně
-  sebejistý) — táž past jako u `gpsposstd`. ⚠️ **Na HW to neběželo**; další krok je záznam
-  s `imuheadingstd=5` a `=0` nad týmž úsekem. ⚠️ **A těch 5° je nejspíš pořád řádově málo:**
+  sebejistý) — táž past jako u `gpsposstd`. ✅ **A/B nad 16 jízdami 18.–29. 9. (1. 10. 2026,
+  `ARBot.Analyze compassab`, offline nad týmiž daty):** zabírá **jen kombinace** 5° + 1 Hz — samotná
+  škrcení dá totéž co kompas (≤ 0,2°), samotná podlaha skoro totéž (≤ 0,3°, jen 18. 9. 0,8–1,0°). S ní chyba kurzu proti
+  nezávislému směru posunu GPS polohy klesne tam, kde je kompas vedle, na **25–45 % jeho biasu**
+  (−6,6 → −1,8°, +9,3 → +4,2°, −4,9 → −1,7°), kde je kompas v pořádku, je skoro neutrální (střed do ±0,6°, v jedné krátké jízdě 1,4°);
+  táhne GPS kurz, koridor přidá nejvýš ~0,7°. **Zbytek do 4° zůstává** — cílem je dál bias jako
+  stav EKF. Detail [ekf-fusion.md](doc/ekf-fusion.md). ⚠️ **A těch 5° je nejspíš pořád řádově málo:**
   změřeno (`ARBot.Analyze heading`, blok o šumu GPS kurzu), že chyba kurzu z GPS je časově
   **korelovaná** (σ 8,4° / 4,1° při τ 10 s / 5 s), takže počtivá σ pro filtr je `σ·√(τ·f)`
   = **83° / 29°** — a model `atan2(0,3; v)` = 23° to trefuje **náhodou, ne konstrukcí** (příčný
@@ -774,9 +779,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   škrcení i limit), a limit hlídá i celý posun POLOHY (`corridorposlimit=true`,
   `IMeasurement.MaxPositionStep`; vazbou v kovarianci ujela póza jedním měřením až 4 m podél
   cesty). Přehrání 7 jízd: skoků od koridoru 0. ⚠️ Na zařízení neběželo.
-  ⚠️ **`PoseJumpDetector` při těch skocích grid NESMAZAL** (autor z náhledu a z měření): `Check`
-  při `dt ≤ 0` (přehozená razítka snímků dvou kamer) skok nekontroluje, jen pózu přepíše
-  (`lok-skok-pozy-nedetekce`, neopraveno).
+  ✅ **`PoseJumpDetector` kontroluje skok i u snímku s časem pozadu** (od 1. 10. 2026,
+  `lok-skok-pozy-nedetekce`): dřív při `dt ≤ 0` (přehozená razítka dvou kamer, 22–23 % snímků)
+  pózu jen přepsal a skok spolkl. Změřeno `fusionreplay` blok 7: spolknutá byla 3 mazání gridu
+  z 31, všechna na skutečných skocích, nová verze nepřidala žádné zbytečné. ⚠️ Pozorování
+  „grid při skocích 19. 9. nesmazal" to vysvětluje **jen zčásti** — grid se při nich většinou
+  mazal (sedí i propady ve snapshotech ze skutečné jízdy). Na zařízení neběželo.
 - [doc/map-correlation-localization.md](doc/map-correlation-localization.md) — **korelace occupancy gridu
   s mapou** (`MapCorrelator`): shoda semantického kanálu `LRoad` s OSM sítí (`RoadScene.IsRoad`) dá odhad
   chyby polohy a kurzu; 3-DOF `(dx, dy, φ)` s anizotropní kovariancí, do fúze jako dvě skalární osová

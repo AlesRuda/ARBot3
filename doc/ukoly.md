@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **241**: otevřeno **36** · v kódu, na HW neověřeno **31** · hotovo **153** · odloženo **14** · zamítnuto **7**.
+Témat celkem **241**: otevřeno **34** · v kódu, na HW neověřeno **32** · hotovo **154** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -39,19 +39,16 @@ Témat celkem **241**: otevřeno **36** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce), [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Návrh: lokální vrstva v odometrické soustavě — odometrická póza (x, y, θ) jako vedlejší integrátor ve snapshotu fúze](#lp-grid-odometricka-soustava) | 2. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Kompas si věří 60–90× víc, než jaký je](#lok-kompas-sigma-podlaha) | 25. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](#mise-cil-dosazitelnost) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
@@ -70,6 +67,7 @@ Témat celkem **241**: otevřeno **36** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu](#nav-detektor-b-jitter-drahy) | 20. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
@@ -77,6 +75,7 @@ Témat celkem **241**: otevřeno **36** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu](#nav-detektor-c-kaskada) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -148,18 +147,6 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 
 čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
 
-<a id="lok-skok-pozy-nedetekce"></a>
-### ⬜ PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
-
-`lok-skok-pozy-nedetekce` · vada · **otevřeno** · nalezeno 21. 9. 2026
-
-Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9. (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje: `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář: „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků, aby nevyrobila bezdůvodná mazání gridu.
-
-- [ ] Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek
-- [ ] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, bez `explained`) a přeměřit počet mazání gridu
-
-[PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21)
-
 <a id="lok-freerun-kurz-staci-na-zapad"></a>
 ### ⬜ Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)
 
@@ -176,18 +163,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-fuze-poza-pred-koly"></a>
-### ⬜ Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
-
-`lok-fuze-poza-pred-koly` · vada · **otevřeno** · nalezeno 29. 9. 2026
-
-Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m.
-
-- [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
-- [ ] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii
-
-[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
@@ -210,21 +185,6 @@ Plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí naj
 - [x] Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí (29. 9. 2026)
 
 čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-kompas-sigma-podlaha"></a>
-### 🧪 Kompas si věří 60–90× víc, než jaký je
-
-`lok-kompas-sigma-podlaha` · vada · **v kódu, na HW neověřeno** · nalezeno 25. 8. 2026 · vyřešeno 12. 9. 2026
-
-Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mýlí o 3–5°. Fúze proto věřila kompasu asi 4 000× víc než GPS a žádná druhá reference kurzu (GPS kurz, korelace s mapou) neměla šanci cokoli opravit — odhad kurzu seděl na kompasu na 100 % i se zapnutými korekcemi. Jádro je v tom, co sigma kompasu popisuje: krátkodobý šum, ne bias. Od 12. 9. má sigma kurzu z kompasu podlahu 5° (`imuheadingstd=`) a absolutní kurz se navíc škrtí na 1 Hz (`imuheadinghz=`); gyro jede dál v plné kadenci. Poměr informace spadl na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere jako bílý šum. 18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není. Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06° → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy. **29. 9. 2026 (autor): A/B se dělá OFFLINE nad existujícími záznamy**, ne dvěma jízdami. Dvě jízdy po sobě by účinek nerozlišily: bias kompasu se mezi běhy liší o ~2° (18. 9. −3,4 proti −1,1° za 13 min), což je řádově tolik, kolik má podlaha změnit, a jiný odhad kurzu by v uzavřené smyčce dal i jinou trajektorii. `ARBot.Analyze fusionreplay` přehrává fúzi ze zaznamenaných senzorů (dnes A/B koridoru), takže obě varianty uvidí přesně tatáž data. Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější).
-
-- [x] 'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %' (25. 8. 2026)
-- [x] Podlaha sigmy kurzu z kompasu `imuheadingstd=` (výchozí 5°, skládá se kvadraticky s `YprU`) (12. 9. 2026)
-- [x] Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno) (12. 9. 2026)
-- [ ] A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — rozšířit `ARBot.Analyze fusionreplay` o variantu podlahy kompasu
-- [ ] Pustit A/B nad záznamy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější) — záznamy nejsou v repu, pouští se tam, kde jsou
-
-[ekf-fusion.md](ekf-fusion.md), [rozhodnutí 12. 9. 2026](decisions.md), [FusionReplayReport.cs](../Src/ARBot.Analyze/FusionReplayReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-naucena-sirka-do-mapy"></a>
 ### 🧪 Naučená šířka cesty jde dál do mapy — korelaci i kreslení
@@ -293,6 +253,19 @@ Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi R
 
 [global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 21. 9.](decisions.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-21](devlog.md#2026-09-21), [2026-09-29](devlog.md#2026-09-29)
 
+<a id="lok-skok-pozy-nedetekce"></a>
+### 🧪 PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
+
+`lok-skok-pozy-nedetekce` · vada · **v kódu, na HW neověřeno** · nalezeno 21. 9. 2026 · vyřešeno 1. 10. 2026
+
+Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Robotouru 19. 9. (`lok-koridor-skoky-pozy`) `PoseJumpDetector` grid **nesmazal** — robot se skokem ocitl mimo sjízdnou oblast staré mapy a přešel do úniku. V kódu je díra, která to vysvětluje: `PoseJumpDetector.Check` při `dt ≤ 0` pózu jen zapamatuje a skok nekontroluje (komentář: „snímky dvou kamer mají jiné časy grabu a mohou přijít přehozené"). Se dvěma D435 po 30 fps chodí snímky s přehozenými razítky běžně, takže skok, který přijde právě na takový snímek, se spolkne a další snímek se už porovnává s pózou po skoku. Ověřeno jen čtením kódu, ne nad záznamem (není na vývojovém stroji). Neopravuje se hned: s limitem kroku (`corridorslew=`) detektor chránit nemusí, a oprava (porovnávat i při `dt ≤ 0`, nebo nepřepisovat pamatovanou pózu) chce nejdřív změřit podíl snímků s `dt ≤ 0` a četnost skoků, aby nevyrobila bezdůvodná mazání gridu. **Změřeno a opraveno 1. 10. 2026** (`ARBot.Analyze fusionreplay`, nový blok 7 — póza `GetStateAt(čas snímku)` v pořadí streamu, replay sedí na `RobotStateMsg` p50 0,000 m): díra je skutečná, ale **malá**. Snímků s `dt ≤ 0` je 22–23 % (prakticky jen pravá kamera, |dt| p50 12–15 ms); spolknuté mazání gridu **2 z 21** (Kolo 3b) a **1 z 10** (Kolo 4), všechna na skutečných skocích 0,55–0,98 m, **žádné zbytečné**. Ze skoků pózy (blok 5) starý detektor grid smazal u 14 ze 14 a 8 z 10, nový u 14 a 9. Propady gridu ve snapshotech `OccupancyGridMsg` ze skutečné jízdy (Kolo 3b, 9 propadů) sedí časově na mazání, která replay připisuje starému detektoru — **grid se při skocích většinou mazal**, takže pozorování z 19. 9. tahle díra vysvětluje jen zčásti. Oprava: `Check` při `dt ≤ 0` porovnává s `|dt|` (`CheckBackwardTime`, výchozí true; false = staré chování pro A/B). ⚠️ Na zařízení neběželo.
+
+- [x] Změřit nad Kolo3b/Kolo4: podíl volání `Process` s `dt ≤ 0` a kolik skoků z bloku 1 `nav` připadlo na takový snímek (1. 10. 2026)
+- [x] Opravit `Check` (kontrola posunu i při `dt ≤ 0`, s `|v|·|dt|`) a přeměřit počet mazání gridu (1. 10. 2026)
+- [ ] Ověřit na zařízení (počet `GridResets` / propady gridu ve snapshotech proti skokům pózy)
+
+[PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21), [2026-10-01](devlog.md#2026-10-01)
+
 <a id="lok-koridor-siroka-cyklostezka"></a>
 ### 🧪 Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“
 
@@ -321,6 +294,22 @@ Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Trac
 - [ ] Ověřit na zařízení: jízda po lomené rovince (Modřany) — podíl `AmbiguousEdge` (`corridor`), poslaná měření a příčná odchylka pózy od GPS (`posegps`)
 
 [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-fuze-poza-pred-koly"></a>
+### 🧪 Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
+
+`lok-fuze-poza-pred-koly` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 1. 10. 2026
+
+Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1. **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. ⚠️ Skript v jednotce zatím není, na zařízení neběželo.
+
+- [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
+- [x] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii. Výsledek: razítka `SDC2160Ex` (vzor 12/12/9 ms) a rychlost `Δenc/Δrazítko` držená v EKF dopředu; `fusionreplay` bloky 8 a 9 (1. 10. 2026)
+- [x] Rozhodnout léčbu (autor): čas z motorové jednotky (řádek `T=`); okno rychlosti ve fúzi se nedělá (1. 10. 2026)
+- [x] Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace (1. 10. 2026)
+- [ ] Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog
+- [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00
+
+[ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -613,6 +602,21 @@ Přijímač GPS hlásí kurz nad zemí a reálné drivery ho plnily, ale fúze h
 - [x] `ARBot.Analyze heading` i bez ground truth (`--nogt`), ověřeno proti známé odpovědi (25. 8. 2026)
 
 [ekf-fusion.md](ekf-fusion.md), [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-07](devlog.md#2026-09-07), [2026-09-12](devlog.md#2026-09-12)
+
+<a id="lok-kompas-sigma-podlaha"></a>
+### ✅ Kompas si věří 60–90× víc, než jaký je
+
+`lok-kompas-sigma-podlaha` · vada · **hotovo** · nalezeno 25. 8. 2026 · vyřešeno 1. 10. 2026
+
+Senzor VN100 hlásí nejistotu kurzu 0,06°, ale proti kurzu z GPS se trvale mýlí o 3–5°. Fúze proto věřila kompasu asi 4 000× víc než GPS a žádná druhá reference kurzu (GPS kurz, korelace s mapou) neměla šanci cokoli opravit — odhad kurzu seděl na kompasu na 100 % i se zapnutými korekcemi. Jádro je v tom, co sigma kompasu popisuje: krátkodobý šum, ne bias. Od 12. 9. má sigma kurzu z kompasu podlahu 5° (`imuheadingstd=`) a absolutní kurz se navíc škrtí na 1 Hz (`imuheadinghz=`); gyro jede dál v plné kadenci. Poměr informace spadl na ~2,2 : 1, ale poctivý filtr z toho není — bias je časově korelovaný a filtr ho bere jako bílý šum. 18. 9. 2026 (kalibrovaný kompas): chyba kompasu proti GPS kurzu má bias do 3,5° a sd ~4° (včetně šumu GPS kurzu), takže podlaha 5° je správného řádu. A/B `imuheadingstd=5` proti `=0` pořád není. Na zařízení jely jízdy 18. a 19. 9. s výchozími 5° / 1 Hz (profil hodnoty nenastavuje, platí defaulty registru). Že fúze kompas už nepřebírá, je vidět (`odhad − IMU yaw` −0,01 ± 0,06° → +0,39 ± 1,88°), ale je to společný účinek s korekcemi z koridoru naostro, ne A/B podlahy. **29. 9. 2026 (autor): A/B se dělá OFFLINE nad existujícími záznamy**, ne dvěma jízdami. Dvě jízdy po sobě by účinek nerozlišily: bias kompasu se mezi běhy liší o ~2° (18. 9. −3,4 proti −1,1° za 13 min), což je řádově tolik, kolik má podlaha změnit, a jiný odhad kurzu by v uzavřené smyčce dal i jinou trajektorii. `ARBot.Analyze fusionreplay` přehrává fúzi ze zaznamenaných senzorů (dnes A/B koridoru), takže obě varianty uvidí přesně tatáž data. Měřítka: `odhad kurzu − GPS kurz` na úsecích nad prahem rychlosti (střed a rozptyl, zvlášť po směrech) a `odhad − IMU yaw`. Vhodné záznamy: jízdy s kalibrovaným kompasem (18. 9., 27. 9. a pozdější). **A/B změřeno 1. 10. 2026** (`ARBot.Analyze compassab`, 16 jízd 18.–29. 9. včetně Robotouru, referencí je nezávislý směr posunu GPS polohy, měřidlo sedí na `RobotStateMsg` 0,000°): **zabírá jen kombinace 5° + 1 Hz** — samotné škrcení dá totéž co kompas (≤ 0,2°), samotná podlaha skoro totéž (≤ 0,3°, jen 18. 9. 0,8–1,0°). Kde je kompas vedle, stáhne chybu na 25–45 % jeho biasu (−6,6 → −1,8°, +9,3 → +4,2°, −4,9 → −1,7°, −1,6 → −0,1°) a rozptyl většinou klesne (4,4 → 2,7°, 5,3 → 2,2°); v obou jízdách 18. 9. rozptyl o ~0,6° vzrostl. Kde je kompas v pořádku, je to skoro neutrální (střed do ±0,6°, v jedné krátké jízdě 1,4°). Táhne GPS kurz — varianta bez koridoru je do ~0,7° stejná. Zbytek biasu do 4° zůstává: bias kurzu jako stav EKF zůstává cílem. Tabulka v [ekf-fusion.md](ekf-fusion.md).
+
+- [x] 'Změřit poměr informace kompas : GPS kurz (~4 000 : 1) a že odhad sedí na kompasu na 100 %' (25. 8. 2026)
+- [x] Podlaha sigmy kurzu z kompasu `imuheadingstd=` (výchozí 5°, skládá se kvadraticky s `YprU`) (12. 9. 2026)
+- [x] Škrcení absolutního kurzu z kompasu `imuheadinghz=` (výchozí 1 Hz, gyro neomezeno) (12. 9. 2026)
+- [x] A/B `imuheadingstd=5` proti `=0` OFFLINE nad existujícími záznamy (dvě varianty fúze nad toutéž jízdou, ne dvě jízdy) — nový příkaz `ARBot.Analyze compassab` (příprava sdílená s `fusionreplay`, 5/0 ° × 1/0 Hz, s koridorem i bez) (1. 10. 2026)
+- [x] Pustit A/B nad záznamy s kalibrovaným kompasem: 16 jízd (18., 19. — Kolo 3b a 4, 23., 25., 27. a 29. 9.); zabírá jen 5° + 1 Hz, chyba na 25–45 % biasu kompasu, kde je kompas v pořádku skoro neutrální (1. 10. 2026)
+
+[ekf-fusion.md](ekf-fusion.md), [rozhodnutí 12. 9. 2026](decisions.md), [FusionReplayReport.cs](../Src/ARBot.Analyze/FusionReplayReport.cs) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-korelace-mericidlo-chyba-fuze"></a>
 ### ✅ Měřidlo poctivosti σ účtovalo korelátoru vlastní chybu fúze

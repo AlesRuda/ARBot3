@@ -13,10 +13,24 @@ namespace ARBot.HAL.Devices.MotorDrivers
     /// Implement Roboteq SDC2160 driver.
     /// Vyzaduje nahrany ridici program v motorove jednotce (MicroBasic skript nize).
     ///
+    /// <para><b>Primarni zdroj skriptu je <c>Src/RoboRun/RizeniDiffPodvozku.mbs</c></b> — ten se
+    /// nahrava do jednotky. Text nize je jen KOPIE pro cteni u driveru: menit se ma nejdriv
+    /// <c>.mbs</c> a sem prenest totez (1. 10. 2026 se radek <c>T=</c> omylem dostal jen sem).</para>
+    ///
     /// <para><b>POZOR - skript nize NENI kompilovany kod.</b> Je to zdroj programu, ktery bezi
     /// V MOTOROVE JEDNOTCE; do zarizeni se nahrava zvlast (Roborun+ / MicroBasic upload). Zmena
     /// tady sama o sobe chovani robota NEZMENI, dokud se skript do jednotky nenahraje - a protoze
     /// jde o cestu nouzoveho zastaveni, je nutne ji po nahrani OVERIT NA ZARIZENI.</para>
+    ///
+    /// <para><b>Cas jednotky (radek <c>T=</c>, od 1. 10. 2026).</b> Skript posila pred kazdym
+    /// blokem telemetrie svuj citac v ms (modulo <see cref="DeviceTimeModulus"/>). Driver z nej
+    /// bere razitko vzorku i interval pro rychlost kol (<see cref="DeviceClock"/>). Razitko
+    /// z casu prichodu neslo: Roboteq posila po USB CDC v davkach, razitka mela vzor 12 / 12 / 9 ms
+    /// pri pravidelnem vzorkovani po 11 ms, rychlost <c>Δenkoder / Δrazitko</c> po kratkem
+    /// intervalu hlasila o 33 % vic a fuze z toho nadsadila drahu o ~1,9 %
+    /// (<c>lok-fuze-poza-pred-koly</c>, doc/ekf-fusion.md). Bez radku <c>T=</c> (stary skript
+    /// v jednotce) driver jede po staru z casu prichodu; stary driver radek <c>T=</c> preskoci
+    /// (ceka na <c>DI=</c>), takze novy skript jde nahrat i pod starou binarku.</para>
     /// </summary>
     /*
 
@@ -50,15 +64,25 @@ dim di3 as integer
 dim timeout as integer
 dim lastMark as integer
 dim mark as integer
+'cas jednotky v ms pro razitko vzorku (radek T=), modulo 1000000000 (~11,6 dne);
+'host ho prevadi na svuj cas (DeviceClock) a pocita z nej rychlost kol - viz SDC2160Ex
+dim tick as integer
 
 timeout=0
+tick=0
 currentTimer=GetTimerCount(1)
+
+print("Version 2.1\r")
 
 while true
 	lastTimer=currentTimer
 	currentTimer=GetTimerCount(1)
 	'vypocet uplynuleho casu v ms
 	time =lastTimer-currentTimer
+	tick+=time
+	if tick>=1000000000 then
+		tick-=1000000000
+	end if
 	'pokud ma timer milou hodnotu tak ho restratnu
 	if currentTimer<10000 then
 		currentTimer=0x7fffffff
@@ -178,6 +202,7 @@ while true
 	SetCommand(_VAR, 5, curSpeed)
 	SetCommand(_VAR, 6, curRotSpeed)
 
+	print("T=", tick, "\r")
 	print("DI=", di3, "\r")
 	print("C=", GetValue(_C, 1), ":", GetValue(_C, 2), "\r")
 	print("V=", GetValue(_V, 2), "\r")
@@ -208,6 +233,15 @@ end while
         double? prevRightEnc, prevLeftEnc;
         DateTime? prevEncTime;
         int cnt = 0;
+
+        /// <summary>Citac casu ve skriptu jednotky bezi modulo tato hodnota [ms] (viz skript vyse).</summary>
+        public const long DeviceTimeModulus = 1000000000;
+
+        /// <summary>Prevod casu jednotky (radek <c>T=</c>) na cas aplikace.</summary>
+        readonly DeviceClock deviceClock = new DeviceClock(DeviceTimeModulus);
+
+        /// <summary>Kolikrat se hodiny jednotky (re)synchronizovaly; 0 = jednotka cas neposila.</summary>
+        public int DeviceClockSyncs => deviceClock.Syncs;
         /// <summary>
         /// Construktor
         /// </summary>
@@ -286,10 +320,19 @@ end while
             bool fail = false;
 //            str= uart.ReadAll();
             var ts = TimeBase.Now;
+            // Cas jednotky z radku T= pred DI= (novy skript); -1 = neprisel.
+            long tick = -1;
+            DateTime tickArrival = default;
 
             do
             {
                 str = uart.ReadLine();
+                if (str != null && str.StartsWith("T="))
+                {
+                    var arrival = TimeBase.Now;
+                    tick = long.TryParse(GetValue(str), out long t) ? t : -1;
+                    tickArrival = arrival;
+                }
 
                 // Zastavujeme se: vratit rovnou null, ne fail-ramec. Cekat cele okno pri kazdem
                 // pruchodu by Stop() zbytecne protahovalo (a s nekonecnym ReadTimeout, ktery mel
@@ -363,8 +406,16 @@ end while
                 s= new MotorStateBase(true, 0, 0, 0, 0, 0, 0, 0, hasMeasurement: false) { TimeStamp = ts };
             else
             {
+                // Cas jednotky: razitko i interval z jejich hodin (DeviceClock). Kdyz ho skript
+                // neposila, nebo jde o prvni vzorek po (re)synchronizaci, interval z casu
+                // prichodu jako driv - jeden vzorek s jitterem je lepsi nez rychlost 0 za jizdy.
+                var mapped = tick >= 0 ? deviceClock.Map(tick, tickArrival) : null;
+                if (mapped.HasValue)
+                    ts = mapped.Value.Time;
+
                 // Rychlost z vlastniho vzorkovaciho intervalu; prvni vzorek ji jeste nema.
-                double dt = prevEncTime.HasValue ? (ts - prevEncTime.Value).TotalSeconds : 0;
+                double dt = mapped?.DeltaMs is long dMs ? dMs / 1000.0
+                          : prevEncTime.HasValue ? (ts - prevEncTime.Value).TotalSeconds : 0;
                 double leftSpeed = 0, rightSpeed = 0;
                 if (dt > 0.001)
                 {
@@ -376,7 +427,8 @@ end while
                 // (a neprijde o nej, i kdyz nejaky vzorek preskoci).
                 s = new MotorStateBase(isEmergencyStop = (di == "0"), leftEnc, rightEnc,
                                        batVolts, leftCurrent, rightCurrent,
-                                       leftSpeed, rightSpeed) { TimeStamp = ts };
+                                       leftSpeed, rightSpeed,
+                                       deviceTimeMs: mapped.HasValue ? tick : -1) { TimeStamp = ts };
 
                 prevLeftEnc = leftEnc;
                 prevRightEnc = rightEnc;
