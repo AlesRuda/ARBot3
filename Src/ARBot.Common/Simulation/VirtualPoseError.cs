@@ -119,6 +119,10 @@ namespace ARBot.Common.Simulation
                 Covariance = pose.Covariance,
                 Roll = pose.Roll,
                 Pitch = pose.Pitch,
+                // Odometricka poza se neposouva: vnucena chyba je chyba GLOBALNI pozy.
+                OdomX = pose.OdomX,
+                OdomY = pose.OdomY,
+                OdomTheta = pose.OdomTheta,
             };
         }
     }

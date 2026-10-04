@@ -72,6 +72,13 @@ namespace ARBot.Common.Runtime
             CompareField(idx, a.TimeStamp, "Theta", 0, Conversions.NormalizeOrientation(a.Theta - r.Theta), r.Theta, a.Theta);
             CompareField(idx, a.TimeStamp, "V", r.V, a.V);
             CompareField(idx, a.TimeStamp, "Omega", r.Omega, a.Omega);
+            // Odometricka poza jen u zprav, ktere ji nesou (verze 1 ma nuly, ne odometrii).
+            if (r.HasOdom && a.HasOdom)
+            {
+                CompareField(idx, a.TimeStamp, "OdomX", r.OdomX, a.OdomX);
+                CompareField(idx, a.TimeStamp, "OdomY", r.OdomY, a.OdomY);
+                CompareField(idx, a.TimeStamp, "OdomTheta", 0, Conversions.NormalizeOrientation(a.OdomTheta - r.OdomTheta), r.OdomTheta, a.OdomTheta);
+            }
             idx++;
         }
 

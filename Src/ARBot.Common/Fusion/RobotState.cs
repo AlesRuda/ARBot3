@@ -33,6 +33,31 @@ namespace ARBot.Common.Fusion
         /// <summary>Kovariance stavu (5x5), muze byt null.</summary>
         public Matrix<double> Covariance;
 
+        /// <summary>
+        /// Poloha v <b>odometricke soustave</b> na vychod [m] (viz <see cref="OdomPose"/>):
+        /// spojita, korekce GPS / koridoru / korelace do ni neskacou. Pocatek je tam, kde fuze
+        /// dostala prvni merenie. Plni ji <see cref="AsyncFusionEngine.GetStateAt"/>; ve stavu
+        /// odjinud (simulace, zprava starsi verze) je 0.
+        /// </summary>
+        public double OdomX;
+        /// <summary>Poloha v odometricke soustave na sever [m] (viz <see cref="OdomX"/>).</summary>
+        public double OdomY;
+        /// <summary>Orientace v odometricke soustave [rad], matematicky (viz <see cref="OdomX"/>).</summary>
+        public double OdomTheta;
+
+        /// <summary>
+        /// Transformace odometricka soustava → svet v okamziku tohoto stavu: svet =
+        /// <c>R(dTheta)·odom + (dX, dY)</c>. Prevadi mezi soustavami vse, co se v nich potka
+        /// (cil a mrkev do lokalni vrstvy, grid a plan do zobrazeni). Meni se jen korekcemi,
+        /// mezi nimi stoji.
+        /// </summary>
+        public (double dX, double dY, double dTheta) OdomToWorld()
+        {
+            double dTh = Conversions.NormalizeOrientation(Theta - OdomTheta);
+            double c = Math.Cos(dTh), s = Math.Sin(dTh);
+            return (X - (c * OdomX - s * OdomY), Y - (s * OdomX + c * OdomY), dTh);
+        }
+
         /// <summary>Naklon vlevo/vpravo [rad] (z posledniho IMU, NE z EKF - viz pozn. u <see cref="Pitch"/>).</summary>
         public double Roll { get; set; }
         /// <summary>

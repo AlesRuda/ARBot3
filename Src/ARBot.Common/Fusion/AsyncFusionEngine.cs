@@ -22,6 +22,10 @@ namespace ARBot.Common.Fusion
     /// - Merenie starsi nez okno historie se zahodi (zaloguje).
     ///
     /// Prune: nejstarsi uzly mimo okno se natrvalo zapecou do bazoveho checkpointu (fold-in).
+    ///
+    /// Kazdy checkpoint (uzel i baze) nese vedle {x, P} i odometrickou pozu (<see cref="OdomPose"/>):
+    /// integruje se mezi checkpointy z v, omega predchoziho posteriorniho stavu, update ani
+    /// inicializace ji nemeni. Out-of-sequence i Prune ji tak obslouzi tymz prepoctem.
     /// </summary>
     public class AsyncFusionEngine : Missions.IPositionInitializer
     {
@@ -30,6 +34,7 @@ namespace ARBot.Common.Fusion
             public IMeasurement M;
             public Vector<double> X;   // filtrovany stav po aplikaci M (v case M.TimeStamp)
             public Matrix<double> P;
+            public OdomPose O;         // odometricka poza v case M.TimeStamp (viz OdomPose)
             public double Nis;         // NIS merenia pri jeho aplikaci
             public bool Accepted;      // false = zahozeno gatingem
             public double Inflation;   // nafouknuti R (Soft gate / limit kroku), 1 = beze zmeny
@@ -110,6 +115,9 @@ namespace ARBot.Common.Fusion
         private Vector<double> xBase;
         private Matrix<double> pBase;
         private DateTime tBase;
+        // odometricka poza v case tBase. Neni soucasti stavu EKF (viz OdomPose): integruje se mezi
+        // checkpointy z v, omega predchoziho posteriorniho stavu a inicializace ji NEPREPISUJE.
+        private OdomPose oBase;
         // index prvniho neplatneho uzlu; == nodes.Count kdyz je cely buffer platny
         private int dirtyFrom;
         private bool initialized;
@@ -286,6 +294,12 @@ namespace ARBot.Common.Fusion
             var xv = (initialized ? StateAtLocked(t) ?? xBase : model.X).Clone();
             var P = (initialized ? pBase : model.P).Clone();
 
+            // Odometricka poza inicializaci BEZI DAL (rozhodnuti autora 4. 10. 2026,
+            // lp-grid-odometricka-soustava): prepisuje se jen globalni poza, grid kresleny
+            // v odometricke soustave se nemaze. Novy zaklad tedy dostane odometrii v case t
+            // z dosavadni historie; pred prvnim merenim zustava pocatek (0, 0, 0).
+            var ov = initialized ? OdomAtLocked(t) ?? oBase : oBase;
+
             for (int n = 0; n < indices.Length; n++)
                 xv[indices[n]] = values[n];
 
@@ -301,6 +315,7 @@ namespace ARBot.Common.Fusion
 
             xBase = xv;
             pBase = P;
+            oBase = ov;
             tBase = t;
 
             // Merenia z doby pred inicializaci zahodit, novejsi prepocitat z noveho zakladu.
@@ -341,6 +356,24 @@ namespace ARBot.Common.Fusion
             var P = idx < 0 ? pBase : nodes[idx].P;
             var tt = idx < 0 ? tBase : nodes[idx].T;
             return model.PredictStep(x, P, (t - tt).TotalSeconds).X;
+        }
+
+        /// <summary>
+        /// Odometricka poza v case t bez zamku (volat pod <see cref="sync"/>); null = mimo okno.
+        /// Dopredikuje z posledniho checkpointu rychlostmi jeho posteriorniho stavu — stejne jako
+        /// <see cref="StateAtLocked"/> dopredikuje globalni stav.
+        /// </summary>
+        private OdomPose? OdomAtLocked(DateTime t)
+        {
+            EnsureValid();
+            if (t < tBase) return null;
+            if (t == tBase) return oBase;
+
+            int idx = LastNodeAtOrBefore(t);
+            var x = idx < 0 ? xBase : nodes[idx].X;
+            var o = idx < 0 ? oBase : nodes[idx].O;
+            var tt = idx < 0 ? tBase : nodes[idx].T;
+            return o.Integrate(x[EKFModel.IV], x[EKFModel.IW], (t - tt).TotalSeconds);
         }
 
         /// <summary>Cas nejnovejsiho merenia v bufferu (resp. tBase kdyz je prazdny).</summary>
@@ -389,6 +422,8 @@ namespace ARBot.Common.Fusion
                 tBase = m.TimeStamp;
                 xBase = model.X.Clone();
                 pBase = model.P.Clone();
+                // oBase zustava: (0, 0, 0) pred prvnim merenim, jinak to, co nechala
+                // InitializePosition/-Heading volana pred nim.
                 nodes.Add(new Node { M = m });
                 dirtyFrom = 0;               // novy uzel je zatim nespocteny
                 initialized = true;
@@ -485,22 +520,29 @@ namespace ARBot.Common.Fusion
 
             Vector<double> x;
             Matrix<double> P;
+            OdomPose o;
             DateTime t;
             if (dirtyFrom == 0)
             {
-                x = xBase; P = pBase; t = tBase;
+                x = xBase; P = pBase; o = oBase; t = tBase;
             }
             else
             {
                 var prev = nodes[dirtyFrom - 1];
-                x = prev.X; P = prev.P; t = prev.T;
+                x = prev.X; P = prev.P; o = prev.O; t = prev.T;
             }
 
             for (int k = dirtyFrom; k < nodes.Count; k++)
             {
                 var node = nodes[k];
-                var pr = model.PredictStep(x, P, (node.T - t).TotalSeconds);
+                double dt = (node.T - t).TotalSeconds;
+                var pr = model.PredictStep(x, P, dt);
                 var up = model.UpdateStep(pr.X, pr.P, node.M);
+                // Odometrie z v, omega PREDCHOZIHO posteriorniho stavu - tytez, ze kterych
+                // predikce integruje globalni pozu. Update ji nemeni: korekce polohy a kurzu
+                // do ni nevstoupi, jen jejich (spojity) dopad na rychlosti.
+                o = o.Integrate(x[EKFModel.IV], x[EKFModel.IW], dt);
+                node.O = o;
                 node.X = up.X;
                 node.P = up.P;
                 node.Nis = up.Nis;
@@ -526,14 +568,16 @@ namespace ARBot.Common.Fusion
                 if (dirtyFrom > 0)
                 {
                     // checkpoint nejstarsiho uzlu je platny -> je to primo novy bazovy stav
-                    xBase = n0.X; pBase = n0.P;
+                    xBase = n0.X; pBase = n0.P; oBase = n0.O;
                     ReportFinal(n0);
                 }
                 else
                 {
                     // nejstarsi uzel jeste nebyl spocten -> zapec ho do baze jednim krokem
-                    var pr = model.PredictStep(xBase, pBase, (n0.T - tBase).TotalSeconds);
+                    double dt = (n0.T - tBase).TotalSeconds;
+                    var pr = model.PredictStep(xBase, pBase, dt);
                     var up = model.UpdateStep(pr.X, pr.P, n0.M);
+                    oBase = oBase.Integrate(xBase[EKFModel.IV], xBase[EKFModel.IW], dt);
                     xBase = up.X; pBase = up.P;
                     n0.Nis = up.Nis; n0.Accepted = up.Accepted;
                     ReportFinal(n0);
@@ -647,31 +691,43 @@ namespace ARBot.Common.Fusion
             lock (sync)
             {
                 if (!initialized)
-                    return model.Current(t);
+                    return WithOdom(model.Current(t), oBase);
 
                 EnsureValid();
 
                 if (t < tBase)
                     return null;                                        // mimo okno -> "nevim"
                 if (t == tBase)
-                    return model.ToRobotState(xBase, pBase, t);         // presne na bazi odhad plati
+                    return WithOdom(model.ToRobotState(xBase, pBase, t), oBase);   // presne na bazi odhad plati
 
                 int idx = LastNodeAtOrBefore(t);
                 Vector<double> x;
                 Matrix<double> P;
+                OdomPose o;
                 DateTime tt;
                 if (idx < 0)
                 {
-                    x = xBase; P = pBase; tt = tBase;
+                    x = xBase; P = pBase; o = oBase; tt = tBase;
                 }
                 else
                 {
-                    x = nodes[idx].X; P = nodes[idx].P; tt = nodes[idx].T;
+                    x = nodes[idx].X; P = nodes[idx].P; o = nodes[idx].O; tt = nodes[idx].T;
                 }
 
-                var fin = model.PredictStep(x, P, (t - tt).TotalSeconds);
-                return model.ToRobotState(fin.X, fin.P, t);
+                double dt = (t - tt).TotalSeconds;
+                var fin = model.PredictStep(x, P, dt);
+                return WithOdom(model.ToRobotState(fin.X, fin.P, t),
+                                o.Integrate(x[EKFModel.IV], x[EKFModel.IW], dt));
             }
+        }
+
+        /// <summary>Doplni do stavu odometrickou pozu (viz <see cref="OdomPose"/>).</summary>
+        private static RobotState WithOdom(RobotState s, OdomPose o)
+        {
+            s.OdomX = o.X;
+            s.OdomY = o.Y;
+            s.OdomTheta = o.Theta;
+            return s;
         }
 
         /// <summary>

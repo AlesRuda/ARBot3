@@ -12,6 +12,12 @@ namespace ARBot.Common.Logs
     [Serializable()]
     public class RobotStateMsg : Message, IHasCaptureTime
     {
+        /// <summary>
+        /// Format verze 2 (4. 10. 2026): pridana odometricka poza <see cref="OdomX"/>,
+        /// <see cref="OdomY"/>, <see cref="OdomTheta"/> (lp-grid-odometricka-soustava).
+        /// </summary>
+        public const int FormatVersion = 2;
+
         /// <summary>Poloha na vychod [m].</summary>
         public double X;
         /// <summary>Poloha na sever [m].</summary>
@@ -26,11 +32,23 @@ namespace ARBot.Common.Logs
         public DateTime TimeStamp;
         /// <summary>Kovariance stavu (5x5), muze byt null.</summary>
         public Matrix<double> Covariance;
+        /// <summary>Poloha v odometricke soustave na vychod [m] (viz <see cref="OdomPose"/>).</summary>
+        public double OdomX;
+        /// <summary>Poloha v odometricke soustave na sever [m].</summary>
+        public double OdomY;
+        /// <summary>Orientace v odometricke soustave [rad], matematicky.</summary>
+        public double OdomTheta;
+
+        /// <summary>
+        /// Nese zprava odometrickou pozu? Ve verzi 1 neni — tam jsou <see cref="OdomX"/> atd. nuly
+        /// a rozbor zaznamu je nesmi brat jako „robot stal v pocatku".
+        /// </summary>
+        public bool HasOdom => Verze >= 2;
 
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public RobotStateMsg() : base("RobotStateMsg", 1)
+        public RobotStateMsg() : base("RobotStateMsg", FormatVersion)
         {
         }
 
@@ -43,6 +61,9 @@ namespace ARBot.Common.Logs
             Omega = s.Omega;
             TimeStamp = s.TimeStamp;
             Covariance = s.Covariance;
+            OdomX = s.OdomX;
+            OdomY = s.OdomY;
+            OdomTheta = s.OdomTheta;
         }
 
         /// <summary>Typovany pohled na obsah zpravy.</summary>
@@ -54,7 +75,10 @@ namespace ARBot.Common.Logs
             V = V,
             Omega = Omega,
             TimeStamp = TimeStamp,
-            Covariance = Covariance
+            Covariance = Covariance,
+            OdomX = OdomX,
+            OdomY = OdomY,
+            OdomTheta = OdomTheta
         };
 
         public override void ToData(BinaryWriter bw)
@@ -68,6 +92,12 @@ namespace ARBot.Common.Logs
             bw.Write(Covariance != null);
             if (Covariance != null)
                 Write(bw, Covariance);
+            if (Verze >= 2)
+            {
+                bw.Write(OdomX);
+                bw.Write(OdomY);
+                bw.Write(OdomTheta);
+            }
         }
 
         public override void FromData(BinaryReader br)
@@ -80,6 +110,13 @@ namespace ARBot.Common.Logs
             TimeStamp = ReadDateTime(br);
             if (br.ReadBoolean())
                 Covariance = ReadMatrixDouble(br);
+            // Verze 1 odometrii nenese - zustava 0 (a HasOdom = false).
+            if (Verze >= 2)
+            {
+                OdomX = br.ReadDouble();
+                OdomY = br.ReadDouble();
+                OdomTheta = br.ReadDouble();
+            }
         }
 
         public override Message Build() => new RobotStateMsg();

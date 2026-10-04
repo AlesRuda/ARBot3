@@ -54,6 +54,8 @@ namespace ARBot.Analyze
             public double X, Y, Th, V;
             /// <summary>Sigma polohy PODEL kurzu z kovariance filtru [m]; NaN = neni.</summary>
             public double SigmaAlong;
+            /// <summary>Odometricka poza z prehravane fuze (blok 10); u zaznamu se neplni.</summary>
+            public double OX, OY, OTh;
         }
 
         private sealed class Emitted
@@ -1091,6 +1093,108 @@ namespace ARBot.Analyze
                 (noGpsPos.Name, noGpsPos.Samples), (odoImu.Name, odoImu.Samples), (odoSpeed.Name, odoSpeed.Samples),
             });
             OdoTimingAnalysis(msgs, BuildFusionConfig(c, origin));
+
+            // ---------------- 10) odometricka poza: korekce v gridu a unik pres rychlosti
+            var relOnly = RunVariant("jen kola+gyro", false, c, origin, net, maxEdge, msgs,
+                                     keep: m => m.Source.StartsWith("Odo/", StringComparison.Ordinal)
+                                             || m.Source == "IMU/gyro" || m.Source == "VIO/yawrate");
+            OdomAnalysis(withC, noC, relOnly, moving);
+        }
+
+        /// <summary>
+        /// <b>Odometricka poza</b> (<c>lp-grid-odometricka-soustava</c>, faze 1, 4. 10. 2026):
+        /// podklad pro rozhodnuti, jestli lokalni vrstvu prepnout do odometricke soustavy.
+        ///
+        /// <para><b>a) Kolik korekci se dnes promita do gridu.</b> Grid kotveny ve svete je
+        /// kresleny pozou z fuze. Bunka zapsana pred W sekundami tam, kde robot byl, lezi vuci
+        /// robotu spravne jen tehdy, kdyz se mezitim transformace odom → svet nezmenila.
+        /// Meri se <c>|g(t) − T(t−W)·o(t)|</c>: kde je robot podle fuze ted, proti tomu, kde by
+        /// byl, kdyby se od t−W nic neopravilo — tedy o kolik se mu obsah gridu z t−W posunul
+        /// <b>bez pohybu</b>. Plus pootoceni (u bunky ve vzdalenosti r posun r·Δθ). Odometricka
+        /// soustava tohle odstrani.</para>
+        ///
+        /// <para><b>b) Unik pres rychlosti</b> (podminka 3 navrhu): korekce polohy a kurzu
+        /// posunou pres kovarianci i <c>v</c> a <c>ω</c> a integrator je nacita. Srovnava se posun
+        /// odometricke pozy plne fuze s variantou krmenou JEN rychlostmi z kol a gyrem (bez
+        /// GPS, kompasu, koridoru) za totez okno, v ramci pozy na jeho zacatku. ⚠️ Je to <b>horni
+        /// mez</b> uniku: v rozdilu je i GPS rychlost, ktera je legitimni merenie rychlosti,
+        /// a ruzna integrace driftu gyra.</para>
+        /// </summary>
+        private static void OdomAnalysis(Variant full, Variant noC, Variant rel, HashSet<DateTime> moving)
+        {
+            Console.WriteLine();
+            Console.WriteLine("10) ODOMETRICKA POZA (lp-grid-odometricka-soustava): korekce v gridu a unik pres rychlosti");
+            Console.WriteLine("   a) posun obsahu gridu proti robotu za okno W bez pohybu (zmena transformace odom -> svet), za jizdy:");
+            Console.WriteLine("      varianta          W     n    posun p50/p90/p99/max [m]        >0,2 m  >0,5 m   pootoceni p50/p90/max [deg]   draha p50 [m]  posun/draha p50 [%]");
+            var shift90 = new Dictionary<double, double>();
+            foreach (double w in new[] { 5.0, 10.0 })
+                foreach (var v in new[] { full, noC })
+                {
+                    var sh = new Stats("posun"); var rot = new Stats("pootoceni"); var path = new Stats("draha"); var ratio = new Stats("posun/draha");
+                    int over02 = 0, over05 = 0;
+                    var s = v.Samples;
+                    for (int i = 0; i < s.Count; i++)
+                    {
+                        if (!moving.Contains(s[i].T)) continue;
+                        if (!TryPoseAt(s, s[i].T.AddSeconds(-w), out var a)) continue;
+                        var b = s[i];
+                        // T(t−W) = transformace odom → svet na zacatku okna, aplikovana na o(t).
+                        double dth = Conversions.NormalizeOrientation(a.Th - a.OTh);
+                        double c = Math.Cos(dth), sn = Math.Sin(dth);
+                        double tx = a.X - (c * a.OX - sn * a.OY), ty = a.Y - (sn * a.OX + c * a.OY);
+                        double px = c * b.OX - sn * b.OY + tx, py = sn * b.OX + c * b.OY + ty;
+                        double d = Math.Sqrt(Sq(b.X - px) + Sq(b.Y - py));
+                        sh.Add(d);
+                        if (d > 0.2) over02++;
+                        if (d > 0.5) over05++;
+                        rot.Add(Math.Abs(Conversions.NormalizeOrientation((b.Th - b.OTh) - (a.Th - a.OTh))) * 180 / Math.PI);
+                        double dr = Math.Sqrt(Sq(b.OX - a.OX) + Sq(b.OY - a.OY));
+                        path.Add(dr);
+                        if (dr > 1) ratio.Add(100 * d / dr);
+                    }
+                    if (v == full) shift90[w] = sh.Percentile(90);
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "      {0,-15} {1,4:F0} s {2,5}   {3,5:F2} / {4,5:F2} / {5,5:F2} / {6,6:F2}    {7,5:F1} % {8,5:F1} %    {9,5:F2} / {10,5:F2} / {11,6:F2}      {12,6:F2}         {13,5:F1}",
+                        v.Name, w, sh.Count, sh.Median, sh.Percentile(90), sh.Percentile(99), sh.Max,
+                        sh.Count > 0 ? 100.0 * over02 / sh.Count : double.NaN, sh.Count > 0 ? 100.0 * over05 / sh.Count : double.NaN,
+                        rot.Median, rot.Percentile(90), rot.Max, path.Median, ratio.Median));
+                }
+
+            Console.WriteLine("   b) unik pres rychlosti: posun odometricke pozy za okno (v ramci pozy na zacatku okna),");
+            Console.WriteLine($"      '{full.Name}' proti '{rel.Name}' (horni mez - obsahuje i GPS rychlost), za jizdy:");
+            Console.WriteLine("        W     n    |rozdil posunu| p50/p90/max [m]   podelne p50/p90 [m]   rozdil otoceni p50/p90/max [deg]   p90 uniku / p90 posunu gridu");
+            var relByT = new Dictionary<DateTime, Sample>();
+            foreach (var x in rel.Samples) relByT[x.T] = x;
+            foreach (double w in new[] { 5.0, 10.0 })
+            {
+                var dd = new Stats("rozdil"); var along = new Stats("podelne"); var dr = new Stats("otoceni");
+                var s = full.Samples;
+                for (int i = 0; i < s.Count; i++)
+                {
+                    if (!moving.Contains(s[i].T)) continue;
+                    if (!TryPoseAt(s, s[i].T.AddSeconds(-w), out var a)) continue;
+                    if (!relByT.TryGetValue(s[i].T, out var rb) || !relByT.TryGetValue(a.T, out var ra)) continue;
+                    var (fx, fy, fth) = Local(a, s[i]);
+                    var (rx, ry, rth) = Local(ra, rb);
+                    dd.Add(Math.Sqrt(Sq(fx - rx) + Sq(fy - ry)));
+                    along.Add(Math.Abs(fx - rx));
+                    dr.Add(Math.Abs(Conversions.NormalizeOrientation(fth - rth)) * 180 / Math.PI);
+                }
+                double ratio = shift90.TryGetValue(w, out var g90) && g90 > 0 ? dd.Percentile(90) / g90 : double.NaN;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "      {0,4:F0} s {1,5}   {2,6:F3} / {3,6:F3} / {4,6:F3}        {5,6:F3} / {6,6:F3}        {7,6:F3} / {8,6:F3} / {9,6:F3}              {10,6:F3}",
+                    w, dd.Count, dd.Median, dd.Percentile(90), dd.Max, along.Median, along.Percentile(90),
+                    dr.Median, dr.Percentile(90), dr.Max, ratio));
+            }
+            Console.WriteLine("   (a) je to, co odometricka soustava z gridu odstrani; (b) je to, co v ni zustane navic proti ciste odometrii.)");
+        }
+
+        /// <summary>Posun a otoceni odometricke pozy z <paramref name="a"/> do <paramref name="b"/> v ramci pozy <paramref name="a"/>.</summary>
+        private static (double X, double Y, double Th) Local(Sample a, Sample b)
+        {
+            double c = Math.Cos(a.OTh), sn = Math.Sin(a.OTh);
+            double dx = b.OX - a.OX, dy = b.OY - a.OY;
+            return (c * dx + sn * dy, -sn * dx + c * dy, Conversions.NormalizeOrientation(b.OTh - a.OTh));
         }
 
         /// <summary>
@@ -1498,6 +1602,7 @@ namespace ARBot.Analyze
                         {
                             T = r.TimeStamp, X = st.X, Y = st.Y, Th = st.Theta, V = st.V,
                             SigmaAlong = SigmaAlong(st),
+                            OX = st.OdomX, OY = st.OdomY, OTh = st.OdomTheta,
                         });
                         break;
                     case MissionMsg mm:

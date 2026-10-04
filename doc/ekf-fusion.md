@@ -82,6 +82,32 @@ věc, a měření chodí různě rychle (IMU ~100 Hz).
 - **Zbývá** (příště, v projektu `ARBot`): `SensorAdapters` napojující reálné senzory na
   engine + řídicí smyčka; ladění σ a prahů gatingu na reálných datech.
 
+### Odometrická póza vedle globální (od 4. 10. 2026)
+
+Fúze nese vedle stavu `[X, Y, θ, v, ω]` i **odometrickou pózu** `(OdomX, OdomY, OdomTheta)`
+([`Fusion/OdomPose.cs`](../Src/ARBot.Common/Fusion/OdomPose.cs)) — soustava `odom` z ROS REP-105:
+spojitá, korekce GPS / koridoru / korelace do ní neskáčou, za to driftuje. Je to fáze 1 tématu
+`lp-grid-odometricka-soustava` (registr [ukoly.yaml](ukoly.yaml)): occupancy grid se dnes kreslí
+globální pózou, takže každá korekce posune jeho obsah proti robotu, ačkoli se robot nepohnul.
+**Zatím ji nikdo nepoužívá**; počítá se a nahrává vždy (rozhodnutí autora), aby šla změřit nad
+záznamy dřív, než se lokální vrstva přepne (`localframe=`, fáze 2).
+
+- **Není to stav EKF.** Deterministický integrátor mimo `P` a mimo update — jako stav s kovariancí
+  by sdílel `v` a `θ` s `X/Y` a každý update GPS by ho přes zisk posunul skokem. Je součástí každého
+  checkpointu `AsyncFusionEngine` (`Node.O`, báze `oBase`): v `EnsureValid` se mezi uzly integruje
+  z `v`, `ω` **předchozího posteriorního** stavu týmž vzorcem jako `EKFModel.PredictState`, `Prune`
+  ji zapeče do báze, přehrání zpožděného měření ji přepočítá spolu se vším (jedna časová osa).
+- **Inicializace ji nepřeruší** (`InitializePosition` / `-Heading` přepíšou jen globální pózu);
+  počátek `(0, 0, 0)` je tam, kde fúze dostala první měření.
+- **Ven jde** v `RobotState` (`OdomX/OdomY/OdomTheta`, `OdomToWorld()` = transformace odom → svět)
+  a v **`RobotStateMsg` verze 2** (`HasOdom`; verze 1 má nuly, ne odometrii). Telemetrie má sloupce
+  `odom X/Y/theta` a `korekce posun/kurz` (velikost transformace = součet korekcí od startu).
+- Testy `OdomPoseTests`: skok GPS ani kurzu ji nepohne, bez korekcí stojí transformace,
+  out-of-sequence a `Prune` (oba případy) dají totéž do 1e-9, inicializace ji nepřeruší.
+- ⚠️ **Prokluz kol do ní proteče celý** (fúze ho nepozná, viz níž) a v záznamech před skriptem
+  motorové jednotky 2.1 nese i bias rychlosti z kol +1,9 %.
+- Měřidlo: `ARBot.Analyze fusionreplay`, blok 10 (výsledky v registru u tématu).
+
 ### T265 (VIO): relativní yaw se používá jako ÚHLOVÁ RYCHLOST (2026-09-06)
 
 **Dva nálezy naráz.** Za prvé: `hw.TrackingCamera` **nebyla vůbec napojená do pipeline** —

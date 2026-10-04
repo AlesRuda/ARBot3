@@ -47,6 +47,26 @@ namespace ARBot.Telemetry
                 "Skutečná úhlová rychlost otáčení z fúze; kladně = doleva (proti hodinovým "
                 + "ručičkám); s přepínačem Azimut je kladně doprava.", "F1"),
 
+            // --- odometricka soustava (RobotStateMsg verze 2, lp-grid-odometricka-soustava) ---
+            // Prazdno = starsi zaznam, ktery odometrickou pozu nenese; NENI to nula.
+            Num<RobotStateMsg>("odom X [m]", m => m.HasOdom ? m.OdomX : null,
+                "Poloha v ODOMETRICKÉ soustavě (východ): integrál fúzovaných rychlostí, do kterého "
+                + "korekce GPS, koridoru ani korelace neskáčou. Počátek = první měření fúze. Spojitá, "
+                + "za to s driftem. Prázdno = záznam ji nenese."),
+            Num<RobotStateMsg>("odom Y [m]", m => m.HasOdom ? m.OdomY : null,
+                "Poloha v ODOMETRICKÉ soustavě (sever), viz „odom X“."),
+            Num<RobotStateMsg>("odom theta [°]", m => m.HasOdom ? Conversions.Rad2Deg(m.OdomTheta) : null,
+                "Kurz v ODOMETRICKÉ soustavě (matematická orientace), viz „odom X“. Liší se od "
+                + "„theta“ o součet korekcí kurzu.", "F1"),
+            Num<RobotStateMsg>("korekce posun [m]", m => m.HasOdom ? KorekcePosun(m) : null,
+                "Velikost posunu transformace odometrická soustava → svět: kolik metrů korekcí "
+                + "polohy (a kurzu, přes rameno k počátku) se od startu nasčítalo. Skok = skok "
+                + "korekce; mezi korekcemi stojí.", "F2"),
+            Num<RobotStateMsg>("korekce kurz [°]", m => m.HasOdom
+                    ? Conversions.Rad2Deg(Conversions.NormalizeOrientation(m.Theta - m.OdomTheta)) : null,
+                "Pootočení transformace odometrická soustava → svět: součet korekcí kurzu. "
+                + "Přepínač Azimut se neuplatňuje.", "F2"),
+
             // --- nejistota fuze (odmocniny diagonaly kovariance P) ---
             // Kovariance tekla v RobotStateMsg na Stream i do zaznamu uz davno, ale nikdo ji
             // NEZOBRAZOVAL - o vyvoji nejistoty filtru tedy nebylo videt nic. Vypocet je
@@ -407,6 +427,13 @@ namespace ARBot.Telemetry
         /// </summary>
         private static double? Deg(double? rad)
             => rad.HasValue ? Conversions.Rad2Deg(rad.Value) : (double?)null;
+
+        /// <summary>Velikost posunu transformace odom → svet (viz <c>RobotState.OdomToWorld</c>).</summary>
+        private static double KorekcePosun(RobotStateMsg m)
+        {
+            var (dx, dy, _) = m.ToRobotState().OdomToWorld();
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
 
         /// <summary>Logicky sloupec: zobrazi se jako zkratka (kdyz plati), jinak pomlcka.</summary>
         private static ColumnSpec Flag<T>(string header, Func<T, bool> value, string description)

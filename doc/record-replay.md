@@ -613,6 +613,14 @@ rychlost po krátkém a dlouhém intervalu, integrál rychlostí „zpětně" a 
 a EKF krmený jen rychlostí — z pole zprávy i z enkodérů přes okno N vzorků; u záznamu
 s časem jednotky (`MotorStateBase` verze 4, `DeviceTimeMs`) navíc interval podle jednotky a jeho
 rozdíl od intervalu razítek. Nález: `lok-fuze-poza-pred-koly`, viz [ekf-fusion.md](ekf-fusion.md).
+**Blok 10** (od 4. 10. 2026) — **odometrická póza** (`lp-grid-odometricka-soustava`, fáze 1).
+(a) Kolik korekcí se dnes promítá do gridu: za okno W = 5 / 10 s posun obsahu gridu proti robotu
+**bez pohybu**, tedy `|g(t) − T(t−W)·o(t)|` (kde je robot podle fúze teď proti tomu, kde by byl,
+kdyby se od `t−W` nic neopravilo), pootočení a poměr k ujeté dráze — S koridorem i BEZ něj.
+(b) Únik korekcí přes rychlosti: posun odometrické pózy plné fúze proti variantě krmené jen
+`Odo/*`, `IMU/gyro` a `VIO/yawrate` za totéž okno, v rámci pózy na jeho začátku — horní mez,
+obsahuje i GPS rychlost. Odometrickou pózu bere z přehrané fúze, takže jde pustit i na záznamy
+s `RobotStateMsg` verze 1.
 
 **`compassab`** (od 1. 10. 2026) — **A/B podlahy a škrcení kurzu z kompasu** nad jednou jízdou.
 Přehraje fúzi (táž příprava jako `fusionreplay`) ve variantách `imuheadingstd` 5 / 0 ×

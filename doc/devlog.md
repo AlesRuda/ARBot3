@@ -41,6 +41,19 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-04
 
+- **Odometrická póza ve fúzi — fáze 1 `lp-grid-odometricka-soustava`** (v kódu, nikdo ji zatím
+  nepoužívá): `AsyncFusionEngine` nese v každém checkpointu (uzel i báze) `OdomPose` — integrál
+  `v`, `ω` předchozího posteriorního stavu týmž vzorcem jako predikce, mimo `P` a mimo update;
+  `Prune` ji zapeče do báze, out-of-sequence ji přepočítá, `InitializePosition/-Heading` ji
+  nepřeruší (rozhodnutí autora). Ven v `RobotState.OdomX/OdomY/OdomTheta` (+ `OdomToWorld()`)
+  a v `RobotStateMsg` **verze 2**; telemetrie `odom X/Y/theta`, `korekce posun/kurz`. 14 testů
+  (`OdomPoseTests`); Common 1 758, Runtime 151, HAL 133, golden replay porovnává i odometrii.
+  **Změřeno** (`fusionreplay` blok 10, tři jízdy 25. a 29. 9.): obsah gridu se dnes korekcemi
+  posouvá proti robotu za 5 s p50 0,1–0,2 m (to je ale řádově drift odometrie, 2–5 % dráhy),
+  **p99 1,4–2,1 m a max až 4,3 m** (skoky, hlavně od koridoru), pootočení p90 0,9–2,4°. Únik
+  korekcí přes rychlosti do odometrické pózy ~1 % (p90 ≤ 9 mm za 10 s) — pojistka s vynulovanými
+  řádky zisku na těch jízdách potřeba není. **Další krok:** posouzení autorem, pak fáze 2
+  (`localframe=`). ⚠️ Na zařízení neběželo (do záznamu se dostane s příští binárkou).
 - **Přiřazení hrany posuzuje všechny hrany, ne 4 nejbližší úseky** (návrh autora, `lok-assoc-velka-sigma-soubezna-ulice`
   → v kódu). Úseky se řadily podle vzdálenosti k úsečce a pevná 4 v husté síti vyřadila soupeře,
   kvůli kterému má vyjít „nejednoznačné". Teď χ² přes všechny průjezdné hrany

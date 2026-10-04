@@ -206,6 +206,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   fúze **jen jako úhlová rychlost z rozdílu** (na nepřekrývajícím se okně 0,5 s) — jako kurz by
   vnutil filtru libovolně otočený svět. Rozlišuje to `IMUState.HasAbsoluteHeading` (verze zprávy 3).
   **Absolutní kurz z ní nevznikne**, dokud nebude offset yaw stavem EKF.
+  ✅ **Od 4. 10. 2026 nese fúze i ODOMETRICKOU pózu** (`OdomPose`, `RobotState.OdomX/OdomY/OdomTheta`,
+  `RobotStateMsg` verze 2): integrál fúzovaných `v`, `ω` v checkpointech `AsyncFusionEngine`, **mimo
+  kovarianci a mimo update** (korekce do ní neskáčou), inicializace ji nepřeruší. Fáze 1 tématu
+  `lp-grid-odometricka-soustava` — **zatím ji nikdo nepoužívá**, přepnutí lokální vrstvy je fáze 2.
+  Únik korekcí přes rychlosti změřen ~1 % (`fusionreplay` blok 10). ⚠️ Na HW neběželo.
   **Od 25. 8. 2026 fúze bere i `GPS/heading`** (kurz nad zemí, `σ = max(podlaha, atan2(σ_příčné, v))`,
   práh na rychlost, jízda vzad vyloučená) — druhá absolutní reference kurzu vedle magnetometru.
   ⚠️ **Samo to ale nic nezmění a je to změřené:** kompas přehlasuje GPS kurz **~4 000:1** (σ 0,017 rad
