@@ -13,6 +13,31 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-04 — Přiřazení hrany posuzuje všechny hrany, ne 4 nejbližší úseky
+
+**Co:** `EdgeAssociator` bere do χ² **všechny** průjezdné hrany sítě (`assock=0`, nový výchozí),
+slučuje je na hypotézy a řadí podle χ². Pevný počet 4 nejbližších úseků padl. Návrh autora
+(„úseky řadit podle χ², magickou 4 dát pryč"); `assock=4` zůstává jen pro A/B.
+
+**Proč:** Test nejednoznačnosti má smysl jen tehdy, když vidí každého soupeře, který může výsledek
+změnit. „4 nejbližší" se počítalo po **úsecích mezi sousedními uzly OSM** a podle vzdálenosti
+k úsečce, takže v husté síti zabraly místa krátké spojky vyřazené vetem a soupeř zmizel
+(17. 9. Hviezdoslavova: vyhrála ulice 15 m od pózy, souběžná v 19 m by dala „nejednoznačné").
+Poloměr si χ² určí sám (`|poloha v koridoru| + √(Chi2Max + Chi2Margin)·σ`), výpočetně je to
+zanedbatelné. Slučování na hypotézy zůstává nutné: sousední úsek téže rovné cesty má podélný
+přesah jen o kus za uzlem, takže přirážka ho od vítěze neoddělí.
+
+**Důsledky (offline přes 23 jízd, otevřená smyčka nad zaznamenanými pózami):** špatných přiřazení
+(vítěz dál než 2 m od GPS) −145 (−12 %), správných −152 (−0,26 %, skončila jako nejednoznačná).
+Dva nové projevy, oba změřené: (a) hned po startu, kdy má póza nejistotu desítek metrů, je
+nejednoznačná i správná cesta (27. 9.: soupeř 34 m daleko s χ² 1,4); (b) když blízké cesty
+vypadnou na směru (χ² ~70, rozbitý kurz), vyhraje sama vzdálenější cesta těsně pod prahem —
+29. 9. +33, 23. 9. +6 špatných. Limit 4 dřív fungoval jako skrytý strop vzdálenosti. ⚠️ Na zařízení
+neběželo. Detail: [map-correlation-localization.md](map-correlation-localization.md).
+
+**Odkazy:** `Src/ARBot.Common/Localization/EdgeAssociator.cs`, `RoadNetwork.EdgesWithin`,
+`EdgeAssociationConfig.Candidates`, `lok-assoc-velka-sigma-soubezna-ulice`.
+
 ### 2026-10-01 — Odometrie bere čas z motorové jednotky, ne okno rychlosti ve fúzi
 
 **Co:** Proti nadsazené dráze z kol (`lok-fuze-poza-pred-koly`, +1,9 %) se razítko vzorku

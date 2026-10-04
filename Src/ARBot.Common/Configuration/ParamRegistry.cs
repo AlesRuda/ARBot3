@@ -310,10 +310,12 @@ namespace ARBot.Common.Configuration
               + "odchylka + azimut), misto prosté nejblizsi hrany. ⚠️ false vraci chovani do "
               + "16. 9. 2026, kdy se POLOVINA cyklu parovala na pricnou ulici - je to pro A/B "
               + "se stejnou zatezi, ne provozni volba.");
-        public static readonly DoubleParam AssocK = Num("assock", "4", K_FUZE,
-              "Kolik nejblizsich hran se pri prirazeni posoudi. Obe hrany obousmerne cesty se "
-              + "pocitaji za JEDNU (tyz kus asfaltu), jinak by kazde prirazeni vyslo jako "
-              + "nejednoznacne.", ParamParsers.AssocK);
+        public static readonly DoubleParam AssocK = Num("assock", "0", K_FUZE,
+              "Kolik nejblizsich hran se pri prirazeni posoudi; 0 = VSECHNY (od 4. 10. 2026). "
+              + "Kandidati se radi podle chi-kvadratu, takze pevny pocet nejblizsich useku muze "
+              + "vyradit soupere, kvuli kteremu ma prirazeni rict 'nejednoznacne'. Obe hrany "
+              + "obousmerne cesty se pocitaji za JEDNU. Kladne cislo (driv 4) jen pro A/B.",
+              ParamParsers.AssocK);
         public static readonly DoubleParam AssocVeto = Num("assocveto", "45", K_FUZE,
               "TVRDE VETO na azimut pri prirazeni hrany [stupne]: kandidat, jehoz sklon se od "
               + "videneho koridoru lisi o vic, se neposuzuje vubec. ⚠️ Je vedle chi-kvadratu "

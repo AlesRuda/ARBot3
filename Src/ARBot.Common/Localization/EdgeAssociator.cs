@@ -96,8 +96,14 @@ namespace ARBot.Common.Localization
             if (network == null || origin == null || pose == null || corridor == null || cfg == null)
                 return none;
 
-            var candidates = network.NearestEdges(origin.ToLLA(pose.X, pose.Y), cfg.Candidates,
-                                                  maxEdgeDistanceM);
+            // Vsechny hrany (Candidates = 0, vychozi): rozhoduje chi-kvadrat, ne poradi podle
+            // vzdalenosti - pevny pocet nejblizsich useku mohl vyradit soupere, kvuli kteremu ma
+            // vyjit Ambiguous (viz EdgeAssociationConfig.Candidates). Poradi zustava od nejblizsi,
+            // takze fallbackAxis (diagnostika) je dal nejblizsi hrana.
+            var lla = origin.ToLLA(pose.X, pose.Y);
+            var candidates = cfg.Candidates > 0
+                ? network.NearestEdges(lla, cfg.Candidates, maxEdgeDistanceM)
+                : network.EdgesWithin(lla, maxEdgeDistanceM);
             if (candidates.Count == 0) return none;
             bool single = !corridor.Ok && corridor.HasSingleEdge;
             if (single && singleEdgeWidth == null) return none;

@@ -228,6 +228,17 @@ namespace ARBot.Analyze
             /// <summary>Osa vitezne hrany u prijatych cyklu (kolmy prumet pozy + normala) - proti GPS.</summary>
             public readonly List<(DateTime T, double Ax, double Ay, double Nx, double Ny)> OkAxes =
                 new List<(DateTime, double, double, double, double)>();
+
+            /// <summary>
+            /// Vypis JEDNOHO prirazeni (<c>--dumpassoc=</c>): od tohoto casu prvni prijaty cyklus,
+            /// jehoz vitez lezi aspon <see cref="DumpMinAxisDist"/> od pozy. <c>null</c> = nevypisovat.
+            /// </summary>
+            public DateTime? DumpFrom;
+            public double DumpMinAxisDist = 10;
+            public AssocDump Dump;
+            public GeoReference Origin => origin;
+            public RoadNetwork Net => net;
+            public CorridorLocalizerConfig Cfg => cfg;
             public int Usable, UsableSingle, ReasonSame, ReasonCompared, Throttled;
             public readonly Dictionary<(CorridorFixReason Rec, CorridorFixReason New), int> ReasonDiff =
                 new Dictionary<(CorridorFixReason, CorridorFixReason), int>();
@@ -343,6 +354,9 @@ namespace ARBot.Analyze
                 OkChi2.Add(assoc.Chi2);
                 OkAxisDist.Add(axis.DistanceM);
                 OkAxes.Add((m.TimeStamp, axis.AxisX, axis.AxisY, axis.NormalX, axis.NormalY));
+                if (Dump == null && DumpFrom is DateTime df && m.TimeStamp >= df && axis.DistanceM >= DumpMinAxisDist)
+                    Dump = AssocDump.Build(net, origin, pose, corridor, cfg, single ? SingleEdgeWidth : null,
+                                           m.TimeStamp, assoc, single);
                 var pc = pose.Covariance;
                 if (pc != null && pc.RowCount > EKFModel.IY)
                     OkPoseSigma.Add(Math.Sqrt(0.5 * (pc[EKFModel.IX, EKFModel.IX] + pc[EKFModel.IY, EKFModel.IY])));
@@ -575,6 +589,214 @@ namespace ARBot.Analyze
             return s.Count < 3 ? double.NaN : (s.Percentile(84.13) - s.Percentile(15.87)) / 2;
         }
 
+        /// <summary>
+        /// Rozklad jednoho prirazeni hrany na kandidaty — tataz logika jako
+        /// <see cref="EdgeAssociator.Associate"/> (veto azimutu, χ² pricne + kurz + podelny presah,
+        /// slucovani na hypotezy), jen pro VIC kandidatu a s vypisem, proc kdo vypadl. Sedi to
+        /// s produkcnim kodem jen do te doby, nez se jedno z toho zmeni — proto se vitez porovnava
+        /// s vysledkem <c>Associate</c>.
+        /// </summary>
+        private sealed class AssocDump
+        {
+            public DateTime T;
+            public double X, Y, Theta, SigLatX, SigLatY, SigTheta;
+            public bool Single;
+            public double CorLateral, CorWidth, CorDir, CorSigLat, CorSigDir;
+            public EdgeAssociation Result;
+            public readonly List<Cand> Cands = new List<Cand>();
+
+            public sealed class Cand
+            {
+                public int Rank; public long WayId; public Edge Edge;
+                public double Ax, Ay, Bx, By;   // usecka hrany v lokalni ENU
+                public double Dist, AxisLat, HdgRelDeg, DHdgDeg, DLat, SigLat, Chi2Lat, Chi2Hdg, Chi2Long, Chi2;
+                public bool InTopK, Vetoed;
+                public string Note = "";
+            }
+
+            public static AssocDump Build(RoadNetwork net, GeoReference origin, RobotState pose, RoadCorridor corridor,
+                                          CorridorLocalizerConfig lcfg, Func<RoadAxisMatch, (double WidthM, double StdM)> singleWidth,
+                                          DateTime t, EdgeAssociation result, bool single)
+            {
+                var cfg = lcfg.Association;
+                var d = new AssocDump
+                {
+                    T = t, X = pose.X, Y = pose.Y, Theta = pose.Theta, Single = single, Result = result,
+                    CorLateral = corridor.Lateral, CorWidth = corridor.Width, CorDir = corridor.DirectionRad,
+                    CorSigLat = corridor.SigmaLateral, CorSigDir = corridor.SigmaDirectionRad,
+                };
+                var P = pose.Covariance;
+                double V(double ux, double uy) => P == null ? 0 : ux * ux * P[EKFModel.IX, EKFModel.IX]
+                    + 2 * ux * uy * P[EKFModel.IX, EKFModel.IY] + uy * uy * P[EKFModel.IY, EKFModel.IY];
+                d.SigLatX = Math.Sqrt(V(1, 0)); d.SigLatY = Math.Sqrt(V(0, 1));
+                double varTh = P == null ? 0 : P[EKFModel.ITh, EKFModel.ITh];
+                d.SigTheta = Math.Sqrt(varTh);
+
+                var cands = net.NearestEdges(origin.ToLLA(pose.X, pose.Y), 16, 60);
+                for (int i = 0; i < cands.Count; i++)
+                {
+                    var c = cands[i];
+                    var ax = RoadAxis.Relate(origin, c.Edge, c.T, c.DistanceM, pose.X, pose.Y, pose.Theta);
+                    var pa = origin.ToLocal(c.Edge.From.Location); var pb = origin.ToLocal(c.Edge.To.Location);
+                    var k = new Cand { Rank = i + 1, WayId = c.Edge.WayId, Edge = c.Edge, Dist = c.DistanceM,
+                                       Ax = pa.X, Ay = pa.Y, Bx = pb.X, By = pb.Y,
+                                       InTopK = (cfg.Candidates == 0 || i < cfg.Candidates) && c.DistanceM <= lcfg.MaxEdgeDistanceM };
+                    d.Cands.Add(k);
+                    if (!ax.Found) { k.Note = "osa nenalezena"; continue; }
+                    k.AxisLat = ax.Lateral; k.HdgRelDeg = ax.HeadingRelRad * 180 / Math.PI;
+                    double dHdg = Conversions.NormalizeHalfOrientation(corridor.DirectionRad - ax.HeadingRelRad);
+                    k.DHdgDeg = dHdg * 180 / Math.PI;
+                    if (Math.Abs(dHdg) > cfg.VetoRad) { k.Vetoed = true; k.Note = "VETO azimutu"; continue; }
+                    double lateral = corridor.Lateral, sigmaLat = corridor.SigmaLateral;
+                    if (single && singleWidth != null)
+                    {
+                        var (w, sw) = singleWidth(ax);
+                        lateral = corridor.SingleEdgeLateral(w);
+                        sigmaLat = Math.Sqrt(corridor.EdgeSigma * corridor.EdgeSigma + sw * sw / 4);
+                    }
+                    k.DLat = lateral - ax.Lateral;
+                    double varLat = Math.Max(V(ax.NormalX, ax.NormalY), Sq(cfg.SigmaLateralFloorM)) + Sq(sigmaLat);
+                    double varHdg = Math.Max(varTh, Sq(cfg.SigmaHeadingFloorRad)) + Sq(corridor.SigmaDirectionRad);
+                    k.SigLat = Math.Sqrt(varLat);
+                    k.Chi2Lat = Sq(k.DLat) / varLat; k.Chi2Hdg = Sq(dHdg) / varHdg;
+                    if (cfg.SigmaLongitudinalFloorM > 0 && ax.OverhangM > 0)
+                        k.Chi2Long = Sq(ax.OverhangM) / Math.Max(V(ax.NormalY, -ax.NormalX), Sq(cfg.SigmaLongitudinalFloorM));
+                    k.Chi2 = k.Chi2Lat + k.Chi2Hdg + k.Chi2Long;
+                    if (!k.InTopK) k.Note = k.Rank > cfg.Candidates ? $"mimo {cfg.Candidates} nejblizsich" : "nad limitem odstupu";
+                    else if (k.Chi2 > cfg.Chi2Max) k.Note = "chi2 nad prahem";
+                }
+                return d;
+            }
+
+            /// <summary>
+            /// Obrazek okoli (100 x 100 m kolem pozy): sit cest, kandidati (vitez cervene, veto sede),
+            /// poza z prehrani se smerem a 1σ, jeji draha ±15 s, poza ze zaznamu, GPS ±15 s.
+            /// </summary>
+            public void WriteSvg(string path, RoadNetwork net, GeoReference origin, List<Sample> gps,
+                                 List<Sample> track, List<Sample> recorded, double half = 50, double trackSec = 15)
+            {
+                double px = 800 / (2 * half);     // obrazek 800 px
+                double x0 = X - half, y1 = Y + half;
+                string P(double x, double y) => F((x - x0) * px) + "," + F((y1 - y) * px);
+                var sb = new System.Text.StringBuilder();
+                int W = (int)(2 * half * px);
+                sb.AppendLine($"<svg xmlns='http://www.w3.org/2000/svg' width='{W}' height='{W + 150}' viewBox='0 0 {W} {W + 150}' font-family='sans-serif' font-size='12'>");
+                sb.AppendLine($"<rect width='{W}' height='{W + 150}' fill='white'/>");
+                // mrizka po 10 m
+                for (int i = 0; i <= (int)(2 * half / 10); i++)
+                {
+                    double v = i * 10 * px;
+                    sb.AppendLine($"<line x1='{F(v)}' y1='0' x2='{F(v)}' y2='{W}' stroke='#eee'/><line x1='0' y1='{F(v)}' x2='{W}' y2='{F(v)}' stroke='#eee'/>");
+                }
+                bool In(double x, double y) => Math.Abs(x - X) < half * 1.5 && Math.Abs(y - Y) < half * 1.5;
+                // sit
+                foreach (var e in net.Edges)
+                {
+                    var a = origin.ToLocal(e.From.Location); var b = origin.ToLocal(e.To.Location);
+                    if (!In(a.X, a.Y) && !In(b.X, b.Y)) continue;
+                    sb.AppendLine($"<line x1='{P(a.X, a.Y).Split(',')[0]}' y1='{P(a.X, a.Y).Split(',')[1]}' x2='{P(b.X, b.Y).Split(',')[0]}' y2='{P(b.X, b.Y).Split(',')[1]}' stroke='#bbb' stroke-width='3'/>");
+                }
+                // kandidati
+                foreach (var k in Cands)
+                {
+                    bool win = k.WayId == Result.Axis.WayId && Math.Abs(k.AxisLat - Result.Axis.Lateral) < 0.01;
+                    string col = win ? "#d00" : k.Vetoed ? "#888" : k.InTopK ? "#e90" : "#69c";
+                    string dash = k.Vetoed ? " stroke-dasharray='6,4'" : "";
+                    var a = P(k.Ax, k.Ay).Split(','); var b = P(k.Bx, k.By).Split(',');
+                    sb.AppendLine($"<line x1='{a[0]}' y1='{a[1]}' x2='{b[0]}' y2='{b[1]}' stroke='{col}' stroke-width='{(win ? 5 : 3)}'{dash}/>");
+                    double mx = (k.Ax + k.Bx) / 2, my = (k.Ay + k.By) / 2;
+                    if (In(mx, my))
+                    {
+                        var m = P(mx, my).Split(',');
+                        sb.AppendLine($"<text x='{m[0]}' y='{m[1]}' fill='{col}' font-weight='bold'>#{k.Rank}</text>");
+                    }
+                }
+                // GPS +-15 s
+                foreach (var q in gps)
+                {
+                    if (Math.Abs((q.T - T).TotalSeconds) > trackSec || !In(q.X, q.Y)) continue;
+                    var m = P(q.X, q.Y).Split(',');
+                    bool now = Math.Abs((q.T - T).TotalSeconds) <= 0.1;
+                    sb.AppendLine($"<circle cx='{m[0]}' cy='{m[1]}' r='{(now ? 6 : 2)}' fill='#0a0'/>");
+                }
+                // drahy +-15 s
+                void Track(List<Sample> list, string col, string dash)
+                {
+                    var pts = list.Where(q => Math.Abs((q.T - T).TotalSeconds) <= trackSec).Select(q => P(q.X, q.Y));
+                    sb.AppendLine($"<polyline points='{string.Join(" ", pts)}' fill='none' stroke='{col}' stroke-width='2'{dash}/>");
+                }
+                Track(recorded, "#a0a", " stroke-dasharray='4,3'");
+                Track(track, "#03c", "");
+                // poza + 1 sigma + smer
+                var c0 = P(X, Y).Split(',');
+                sb.AppendLine($"<ellipse cx='{c0[0]}' cy='{c0[1]}' rx='{F(SigLatX * px)}' ry='{F(SigLatY * px)}' fill='#03c' fill-opacity='0.08' stroke='#03c' stroke-dasharray='3,3'/>");
+                var hd = P(X + 4 * Math.Cos(Theta), Y + 4 * Math.Sin(Theta)).Split(',');
+                sb.AppendLine($"<line x1='{c0[0]}' y1='{c0[1]}' x2='{hd[0]}' y2='{hd[1]}' stroke='#03c' stroke-width='3'/>");
+                sb.AppendLine($"<circle cx='{c0[0]}' cy='{c0[1]}' r='5' fill='#03c'/>");
+                // legenda
+                int ly = W + 18;
+                string[] leg =
+                {
+                    $"{T:HH:mm:ss.fff}  vysledek {Result.Result}, chi2 {Result.Chi2:F2}, way {Result.Axis.WayId}  (mrizka 10 m)",
+                    "modra: poza z prehrani (dnesni konfigurace), smer a 1 sigma; modra cara: jeji draha +-15 s",
+                    "fialova carkovane: poza ze zaznamu (jak jelo); zelene: GPS +-15 s, velky bod = GPS v tomto okamziku",
+                    "cervena: vitezna hrana; oranzova: mezi " + "kandidaty bez veta; seda carkovane: VETO azimutu; modrava: dal nez K nejblizsich",
+                    "sede: ostatni sit; #n = poradi hrany podle vzdalenosti od pozy (viz vypis)",
+                };
+                foreach (var line in leg) { sb.AppendLine($"<text x='8' y='{ly}'>{System.Security.SecurityElement.Escape(line)}</text>"); ly += 18; }
+                sb.AppendLine("</svg>");
+                File.WriteAllText(path, sb.ToString());
+            }
+
+            public void Print(List<Sample> gps)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"VYPIS PRIRAZENI {T:HH:mm:ss.fff} ({(Single ? "jedna hrana" : "oboustranny koridor")}), vysledek {Result.Result}, chi2 {Result.Chi2:F2} / druhy {Result.Chi2Second:F2}, way {Result.Axis.WayId}");
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  poza X={0:F1} Y={1:F1} kurz {2:F1} deg; sigma X {3:F2} m, Y {4:F2} m, kurz {5:F2} deg",
+                    X, Y, Theta * 180 / Math.PI, SigLatX, SigLatY, SigTheta * 180 / Math.PI));
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  koridor: pricne {0:F2} m (sigma {1:F2}), sirka {2:F2} m, smer v ramci robotu {3:F1} deg (sigma {4:F2})",
+                    CorLateral, CorSigLat, CorWidth, CorDir * 180 / Math.PI, CorSigDir * 180 / Math.PI));
+                var g = NearestGps(gps, T);
+                if (g is Sample gg)
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "  GPS ({0:F2} s): X={1:F1} Y={2:F1}, od pozy {3:F1} m",
+                        (gg.T - T).TotalSeconds, gg.X, gg.Y, Math.Sqrt(Sq(gg.X - X) + Sq(gg.Y - Y))));
+                Console.WriteLine("  #   way         odstup  osa.lat  dKurz[deg]  dLat[m]  sigmaLat  chi2 pric+kurz+pres = celkem   GPS primka/usecka  poznamka");
+                foreach (var k in Cands)
+                {
+                    // Vzdalenost GPS od PRIMKY hrany (tak, jak ji pocita Relate) a od USECKY.
+                    string gpsAx = "-";
+                    if (g is Sample q)
+                    {
+                        double ex = k.Bx - k.Ax, ey = k.By - k.Ay, l = Math.Sqrt(ex * ex + ey * ey);
+                        if (l > 1e-6)
+                        {
+                            double line = Math.Abs((-(ey) * (q.X - k.Ax) + ex * (q.Y - k.Ay)) / l);
+                            double u = Math.Clamp(((q.X - k.Ax) * ex + (q.Y - k.Ay) * ey) / (l * l), 0, 1);
+                            double seg = Math.Sqrt(Sq(k.Ax + u * ex - q.X) + Sq(k.Ay + u * ey - q.Y));
+                            gpsAx = string.Format(CultureInfo.InvariantCulture, "{0:F1}/{1:F1}", line, seg);
+                        }
+                    }
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                        "  {0,-3} {1,-11} {2,6:F1}  {3,7:F1}  {4,9:F1}  {5,7:F1}  {6,7:F2}   {7,5:F2}+{8,5:F2}+{9,5:F2} = {10,6:F2}   {11,8}   {12}{13}",
+                        k.Rank, k.WayId, k.Dist, k.AxisLat, k.DHdgDeg, k.DLat, k.SigLat, k.Chi2Lat, k.Chi2Hdg, k.Chi2Long, k.Chi2,
+                        gpsAx, k.WayId == Result.Axis.WayId && Math.Abs(k.AxisLat - Result.Axis.Lateral) < 0.01 ? "<- VITEZ " : "", k.Note));
+                }
+            }
+        }
+
+        private static string F(double v) => v.ToString("F1", CultureInfo.InvariantCulture);
+
+        private static Sample? NearestGps(List<Sample> gps, DateTime t)
+        {
+            Sample? best = null;
+            foreach (var q in gps)
+                if (Math.Abs((q.T - t).TotalSeconds) <= 0.2 && (best == null || Math.Abs((q.T - t).TotalSeconds) < Math.Abs((best.Value.T - t).TotalSeconds)))
+                    best = q;
+            return best;
+        }
+
         private static Ctx Prepare(RecordFile rec, string mapOverride, double maxEdgeArg, string setText)
         {
             var c = ReadConfig(rec, out string version);
@@ -688,14 +910,21 @@ namespace ARBot.Analyze
         }
 
         public static void Run(RecordFile rec, string mapOverride, double maxEdgeArg, double revisitSec,
-                               string setText = null)
+                               string setText = null, string dumpAssoc = null, string svgPath = null,
+                               double svgHalf = 50, double svgTrackSec = 15)
         {
             var ctx = Prepare(rec, mapOverride, maxEdgeArg, setText);
             if (ctx == null) return;
             var (c, origin, net, maxEdge, roadWidth) = (ctx.C, ctx.Origin, ctx.Net, ctx.MaxEdge, ctx.RoadWidth);
             var (msgs, frames, recorded) = (ctx.Msgs, ctx.Frames, ctx.Recorded);
 
-            var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs, frames: frames);
+            // --dumpassoc=auto | HH:mm:ss: vypis jednoho prirazeni, jehoz vitez je >= 10 m od pozy.
+            DateTime? dumpFrom = null;
+            if (!string.IsNullOrWhiteSpace(dumpAssoc) && recorded.Count > 0)
+                dumpFrom = dumpAssoc == "auto" ? DateTime.MinValue
+                         : TimeSpan.TryParse(dumpAssoc, CultureInfo.InvariantCulture, out var tod) ? recorded[0].T.Date + tod
+                         : (DateTime?)null;
+            var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs, frames: frames, dumpFrom: dumpFrom);
             var noC = RunVariant("BEZ koridoru", false, c, origin, net, maxEdge, msgs);
 
             // ---------------- 1) overeni meridla
@@ -756,6 +985,20 @@ namespace ARBot.Analyze
                 Console.WriteLine("      " + ga.Line("m"));
             }
             Console.WriteLine("  (|kamera - mapa| je v S z velke casti inovace, kterou fuze sama stahuje - nezavisle je jen v BEZ.)");
+            if (dumpFrom != null)
+            {
+                var dump = withC.Corridor.Dump;
+                if (dump == null) Console.WriteLine("  VYPIS PRIRAZENI: zadny prijaty cyklus s vitezem >= 10 m od pozy (od zadaneho casu).");
+                else
+                {
+                    dump.Print(gpsAx);
+                    if (!string.IsNullOrWhiteSpace(svgPath))
+                    {
+                        dump.WriteSvg(svgPath, net, origin, gpsAx, withC.Samples, recorded, svgHalf, svgTrackSec);
+                        Console.WriteLine($"  obrazek: {svgPath}");
+                    }
+                }
+            }
 
             // ---------------- 3) A/B
             Console.WriteLine();
@@ -1170,7 +1413,8 @@ namespace ARBot.Analyze
         private static Variant RunVariant(string name, bool send, Dictionary<string, (string Value, string Origin)> c,
                                           GeoReference origin, RoadNetwork net, double maxEdge, List<Message> msgs,
                                           bool lateral = true, bool heading = true, List<FrameMark> frames = null,
-                                          Func<IMeasurement, bool> keep = null, Action<FusionConfig> tweak = null)
+                                          Func<IMeasurement, bool> keep = null, Action<FusionConfig> tweak = null,
+                                          DateTime? dumpFrom = null)
         {
             var fcfg = BuildFusionConfig(c, origin);
             tweak?.Invoke(fcfg);      // varianta konfigurace fuze (A/B kompasu) - mapper ji bere odtud
@@ -1183,7 +1427,7 @@ namespace ARBot.Analyze
             {
                 Name = name, Send = send, Engine = engine,
                 Mapper = new DefaultMeasurementMapper(fcfg, engine),   // CERSTVY mapper (je stavovy)
-                Corridor = new CorridorReplay(net, origin, kcfg) { SendLateral = lateral },
+                Corridor = new CorridorReplay(net, origin, kcfg) { SendLateral = lateral, DumpFrom = dumpFrom },
             };
             bool depotSeen = false;
             DateTime lastPoseT = default;

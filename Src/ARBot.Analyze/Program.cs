@@ -208,7 +208,8 @@ namespace ARBot.Analyze
                         AssocWhyReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
                                            Arg(args, "--floorhdg", 5), Arg(args, "--margin", 4),
                                            Arg(args, "--singlestd", 1), Arg(args, "--maxedge", double.PositiveInfinity),
-                                           Arg(args, "--floorlong", 3), Arg(args, "--jelfloorlong", 0));
+                                           Arg(args, "--floorlong", 3), Arg(args, "--jelfloorlong", 0),
+                                           (int)Arg(args, "--jelk", 4), (int)Arg(args, "--k", 0));
                         return 0;
                     case "assocreplay":
                         AssocReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--roadwidth", 3),
@@ -224,7 +225,9 @@ namespace ARBot.Analyze
                         return 0;
                     case "fusionreplay":
                         FusionReplayReport.Run(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN),
-                                               Arg(args, "--revisit", 60), Text(args, "--set"));
+                                               Arg(args, "--revisit", 60), Text(args, "--set"),
+                                               Text(args, "--dumpassoc"), Text(args, "--svg"),
+                                               Arg(args, "--svghalf", 50), Arg(args, "--svgtrack", 15));
                         return 0;
                     case "drive":
                         DriveReport.Run(rec, Arg(args, "--maxspeed", double.NaN),
@@ -306,12 +309,15 @@ namespace ARBot.Analyze
             Console.WriteLine("             --floors=10,7,5,3, --margins=4, --maxedge=8 = hodnota z Robotouru)");
             Console.WriteLine("  assocwhy   proc je prirazeni k hrane nejednoznacne: kdo je druhy kandidat (jina cesta,");
             Console.WriteLine("             nebo sousedni usek tehoz) + protifakt s podelnym presahem (--map=, --floorhdg=5, --margin=4,");
-            Console.WriteLine("             --maxedge=, --floorlong=3 protifakt, --jelfloorlong=0 s cim robot jel)");
+            Console.WriteLine("             --maxedge=, --floorlong=3 protifakt, --jelfloorlong=0 s cim robot jel,");
+            Console.WriteLine("             --k=0 kandidatu v protifaktu (0 = vsechny hrany), --jelk=4 s cim robot jel)");
             Console.WriteLine("  fusionreplay A/B hranove lokalizace nad JEDNOU jizdou: prehraje fuzi ze senzoru S korekcemi");
             Console.WriteLine("             z koridoru (prirazeni prepocitane proti prehravane poze) a BEZ nich, overi");
             Console.WriteLine("             shodu s RobotStateMsg a porovna odstup od site, GPS a opakovany pruchod");
             Console.WriteLine("             (konfigurace z logu; --map=, --maxedge= podle data binarky, --revisit=60,");
-            Console.WriteLine("             --set=klic=hodnota;... prepise hodnotu z logu)");
+            Console.WriteLine("             --set=klic=hodnota;... prepise hodnotu z logu; --dumpassoc=auto|HH:mm:ss vypise");
+            Console.WriteLine("             jedno prirazeni hrany se vsemi kandidaty, --svg=soubor.svg nakresli okoli,");
+            Console.WriteLine("             --svghalf=50 polovina vyrezu [m], --svgtrack=15 drahy a GPS +-s)");
             Console.WriteLine("  compassab  A/B kompasu nad JEDNOU jizdou: podlaha sigmy imuheadingstd 5/0 x skrceni");
             Console.WriteLine("             imuheadinghz 1/0, s koridorem i bez; kurz proti smeru posunu GPS polohy (nezavisle),");
             Console.WriteLine("             GPS kurzu a IMU yaw, po smerech (--map=, --maxedge=, --minspeed=0.8)");

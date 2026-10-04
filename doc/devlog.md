@@ -39,6 +39,19 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-04
+
+- **Přiřazení hrany posuzuje všechny hrany, ne 4 nejbližší úseky** (návrh autora, `lok-assoc-velka-sigma-soubezna-ulice`
+  → v kódu). Úseky se řadily podle vzdálenosti k úsečce a pevná 4 v husté síti vyřadila soupeře,
+  kvůli kterému má vyjít „nejednoznačné". Teď χ² přes všechny průjezdné hrany
+  (`RoadNetwork.EdgesWithin`, `assock=0`; 1–16 = staré chování pro A/B), slučování na hypotézy
+  zůstává (sousední úsek rovné cesty má za uzlem přesah jen desítky cm). 3 nové testy; Common 1 744,
+  Runtime 151, HAL 133. Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatných
+  přiřazení −145, správných −152 (→ nejednoznačné). Nový projev: když blízké cesty vypadnou na směru,
+  vyhraje sama vzdálenější (29. 9. +33, 23. 9. +6) — limit 4 dřív fungoval jako skrytý strop
+  vzdálenosti. Rozhodnutí: [decisions.md](decisions.md); tabulka [map-correlation-localization.md](map-correlation-localization.md).
+  ⚠️ Na zařízení neběželo.
+
 ## 2026-10-01
 
 - **Zamítnuto `vid-segmentace-pravda-d435`** (autor): tvrzení, že testovací sada segmentace je
@@ -92,6 +105,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   ~7,5 m bere přiřazení souběžnou ulici 24,5 m od GPS (s limitem 8 m 0,17 m); v Modřanech se to
   neděje (σ pod 1 m, souběžná ulice není). `fusionreplay` blok 2 tiskne u přijatých cyklů χ²,
   odstup, σ polohy a |GPS − osa vítěze|. Detail [map-correlation-localization.md](map-correlation-localization.md).
+- **Konkrétní případ souběžné ulice na mapě** (dotaz autora, jak může projít cesta 14 m daleko):
+  nový výpis `fusionreplay --dumpassoc= --svg=`. Tři nejbližší hrany (spojky napříč) vyřadilo
+  veto azimutu podle **rozbitého kurzu** (kompas 17. 9. +61°), vyhrála čtvrtá — jižní ulice — bez
+  soupeře; severní ulice by dala Ambiguous, ale `assock=4` počítá segmenty a do kandidátů se
+  nevešla. Téma `lok-assoc-velka-sigma-soubezna-ulice` přepsáno, obrázky
+  `doc/media/assoc-prirazeni-20260917-160711-*.png`.
 
 ## 2026-09-30
 

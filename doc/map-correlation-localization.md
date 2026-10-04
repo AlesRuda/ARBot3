@@ -3071,6 +3071,56 @@ přehrávané póze, uzavřená smyčka):
   nevyráběla, přehrání je neumí dopočítat) naroste nejistota polohy na ~7,5 m a χ² s ní pustí
   hranu 14 m od pózy — od GPS je přitom 24,5 m, kdežto GPS sedí na síti (p50 2,6 m). S limitem
   odstupu 8 m vede přiřazení na ulici pod GPS (0,17 m). Vede to `lok-assoc-velka-sigma-soubezna-ulice`.
+  **Konkrétní případ** (`fusionreplay --dumpassoc=auto --svg=…`, cyklus 16:07:11.7):
+
+  ![Detail 100 × 100 m](media/assoc-prirazeni-20260917-160711-detail.png)
+
+  Póza je podle mapy uprostřed bloku. Tři nejbližší hrany (krátké spojky napříč, 5,6–14,6 m) vyřadilo
+  **veto azimutu**, protože kompas byl v té jízdě o ~61° vedle (17. 9. před novou kalibrací)
+  a směr koridoru ve světě tím vyšel špatně. Čtvrtou nejbližší hranou byla jižní ulice a vyhrála
+  jako jediný kandidát. Severní ulice (χ² 7,55 proti 5,55, tedy rozdíl pod odstupem 4) by cyklus
+  shodila na **nejednoznačný**, jenže byla pátá a `assock=4` počítá segmenty. GPS se celou jízdu
+  drží u severní ulice ([trasa](media/assoc-prirazeni-20260917-160711-trasa.png)).
+
+### Kandidáti: všechny hrany místo 4 nejbližších úseků (4. 10. 2026)
+
+Od 4. 10. 2026 bere `EdgeAssociator` do χ² **všechny** průjezdné hrany (`assock=0`, výchozí;
+`RoadNetwork.EdgesWithin`, O(n log n)). Do té doby se posuzovaly 4 nejbližší **úseky** (hrana = úsek
+mezi dvěma sousedními uzly OSM cesty, řazené podle vzdálenosti pózy k úsečce), takže v husté síti
+mohly místa zabrat krátké spojky vyřazené vetem a soupeř, kvůli kterému má vyjít „nejednoznačné",
+se do výběru nevešel. Slučování na hypotézy zůstává: sousední úsek téže rovné cesty má jen malý
+podélný přesah (0,4 m za uzlem dá přirážku 0,02 proti odstupu 4), takže by soutěžil sám se sebou.
+
+Přepočet nad 23 jízdami (`ARBot.Analyze assocwhy --k=0` proti `--k=4`, tytéž zaznamenané pózy,
+dnešní podlahy; „správně" = vítězná cesta do 2 m od GPS). Skutečný `EdgeAssociator` s `assock=0`
+dává ve všech jízdách tentýž verdikt jako kopie v měřidle (100 %):
+
+| jízda | 4 úseky: správně / špatně | všechny hrany: správně / špatně | rozdíl |
+|---|---|---|---|
+| 17. 9. Hviezdoslavova `160558` | 69 / 89 | 69 / 12 | špatně −77 |
+| 18. 9. Hviezdoslavova `155329` | 3 013 / 126 | 3 015 / 122 | +2 / −4 |
+| 27. 9. Hviezdoslavova `172546` | 1 466 / 421 | 1 427 / 364 | −39 / −57 |
+| 27. 9. Hviezdoslavova `173033` | 1 641 / 211 | 1 640 / 184 | −1 / −27 |
+| 25. 9. Modřany `142428` | 9 933 / 0 | 9 908 / 0 | −25 / 0 |
+| 25. 9. Modřany `144658` | 18 295 / 129 | 18 253 / 110 | −42 / −19 |
+| 29. 9. Modřany `150844` | 4 049 / 4 | 4 002 / 4 | −47 / 0 |
+| 29. 9. Modřany `151634` | 2 207 / 126 | 2 207 / 159 | 0 / **+33** |
+| 23. 9. Modřany `143515` | 3 / 0 | 3 / 6 | 0 / **+6** |
+| ostatní (12 jízd, vč. Robotouru) | | | do ±2 |
+| **celkem 23 jízd** | **59 230 / 1 208** | **59 078 / 1 063** | **−152 / −145** |
+
+Co se mění, ukazují konkrétní cykly (blok *ZMĚNY PROTI 4 NEJBLIŽŠÍM ÚSEKŮM*):
+
+- **17. 9.:** 77× Ok → nejednoznačné, všechna byla na jižní ulici daleko od GPS; soupeřem je teď
+  severní ulice (χ² 5,8–8,9 proti 3,7–6,7).
+- **27. 9.:** 97× Ok → nejednoznačné na **správné** ulici (1–2 m, χ² ~0,01): je to hned po startu,
+  kdy má póza nejistotu desítek metrů, a ulice 34 m daleko dostane χ² 1,4–3,2. Z pohledu χ² je to
+  poctivé — póza opravdu neví.
+- **29. 9. (+33) a 23. 9. (+6) — nový projev:** nejbližší cesty (1,5–3,8 m, u GPS) vypadnou na χ²
+  25–75 (rozdíl směru těsně pod vetem 45°), a vzdálenější cesta (7 m), která se do 4 nejbližších
+  úseků nevešla, projde těsně pod prahem (6,4–9,2) a vyhraje sama. Limit 4 tu dřív fungoval jako
+  skrytý strop vzdálenosti. Kořen je týž jako 17. 9.: směr, podle kterého se cesty třídí, je vedle.
+
 - V Modřanech (25. a 29. 9., čtyři jízdy) dává dnešní konfigurace s odstupem ∞ i 8 m **totéž**:
   GPS od osy vítěze p50 0,8–1,4 m, σ polohy 0,2–0,9 m — koridor z jedné hrany měří pořád a souběžná
   ulice tam není. Na tamních jízdách přehrání s dnešní konfigurací drží pózu p50 0,07–0,89 m od

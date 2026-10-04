@@ -598,7 +598,13 @@ na `GetStateAt(čas snímku)` jako `LocalNavigator` a pustí to `PoseJumpDetecto
 smazalo. Nález: `lok-skok-pozy-nedetekce`.
 **Blok 2 u přijatých cyklů** (od 1. 10. 2026) tiskne i χ² vítězné hrany, odstup pózy od její
 osy, σ polohy z fúze a **|GPS − osa vítěze| příčně** — ten rozliší ulici, po které robot jel, od
-souběžné (`lok-assoc-velka-sigma-soubezna-ulice`).
+souběžné (`lok-assoc-velka-sigma-soubezna-ulice`). **`--dumpassoc=auto|HH:mm:ss`** vypíše první
+přijatý cyklus (od zadaného času), jehož vítěz je ≥ 10 m od pózy, se **16 nejbližšími hranami**:
+odstup, rozdíl směru, veto, χ² po složkách (příčně + kurz + podélný přesah), zda se vešla mezi
+`assock` kandidátů a vzdálenost GPS od přímky / úsečky hrany. **`--svg=soubor.svg`** k tomu nakreslí
+okolí (síť, kandidáti barevně, póza s 1σ a směrem, dráha z přehrání i ze záznamu, GPS);
+`--svghalf=` polovina výřezu [m], `--svgtrack=` délka drah ± s. Rozklad kopíruje
+`EdgeAssociator.Associate` — po jeho změně ho je třeba srovnat.
 **Bloky 8 a 9** (od 1. 10. 2026) — **ujede póza víc než kola, a proč?** Blok 8 přehraje fúzi ještě
 třikrát (bez GPS polohy, jen kola + IMU, jen `Odo/speed`) a na přímých úsecích (okno 30 s, přímost
 z GPS) tiskne párový poměr tětiva pózy / dráha z kol a integrál `V` ze stavu pro každou variantu;
@@ -625,7 +631,10 @@ vybrané cesty s GPS. Měřidlo se nejdřív ověřuje proti verdiktům v zázna
 odpovídat jízdě: `--map=` (povinné), `--floorhdg=` (5), `--margin=` (4), `--roadwidth=` (3),
 `--singlestd=` (1), `--maxedge=` (∞; do 26. 9. 2026 jel robot s 8) a `--jelfloorlong=` (0; od
 29. 9. hodnota `assocfloorlong=` z logu). `--floorlong=` (3) je podlaha protifaktu. Blok
-KONTROLA IMPLEMENTACE pouští skutečný `EdgeAssociator` a musí dát tentýž verdikt jako protifakt. Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
+KONTROLA IMPLEMENTACE pouští skutečný `EdgeAssociator` a musí dát tentýž verdikt jako protifakt.
+Od 4. 10. 2026 `--k=` (kandidátů v protifaktu, 0 = všechny hrany, výchozí) a `--jelk=` (s čím se
+jelo, výchozí 4); při `--k≠4` přibude blok **ZMĚNY PROTI 4 NEJBLIŽŠÍM ÚSEKŮM** s přechody verdiktů
+a příklady cyklů (vítěz, odstup, χ², zda u GPS, druhý kandidát). Nález, kvůli kterému vznikl: [ukoly.md](ukoly.md) `lok-assoc-sousedni-usek`.
 
 **`wedge`** (od 12. 9. 2026) — **je před robotem klín, ve kterém chybí semantika?** Zorná pole
 barvy se ve směru jízdy nemusí překrývat, takže přímo před robotem zůstane pruh, kam barva nikdy

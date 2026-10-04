@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using ARBot.Common.Common;
 using ARBot.Common.Coordinates;
 using ARBot.Common.Fusion;
@@ -155,6 +156,98 @@ public class EdgeAssociatorTests
         Assert.That(assoc.Result, Is.EqualTo(EdgeAssocResult.Ok),
                     "kolinearni sousedni segment nesmi delat nejednoznacnost");
         Assert.That(assoc.Candidates, Is.EqualTo(1), "oba useky teze primky jsou JEDNA hypoteza");
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Kandidati: vsechny hrany, ne 4 nejblizsi useky (4. 10. 2026)
+    // ---------------------------------------------------------------------------------------
+
+    [Test]
+    public void EdgesWithin_vraciVsechny_obousmernouJednou_odNejblizsi()
+    {
+        var o = Origin();
+        var builder = new RoadNetwork.Builder();
+        var a = new Node(1, o.ToLLA(-10, 2), 4.0); var b = new Node(2, o.ToLLA(10, 2), 4.0);
+        var c = new Node(3, o.ToLLA(-10, -5), 4.0); var d = new Node(4, o.ToLLA(10, -5), 4.0);
+        var e = new Node(5, o.ToLLA(-10, 30), 4.0); var f = new Node(6, o.ToLLA(10, 30), 4.0);
+        builder.AddEdge(a, b, 20, wayId: 1, traversalCost: 20);
+        builder.AddEdge(b, a, 20, wayId: 1, traversalCost: 20);   // obousmerna: tyz kus asfaltu
+        builder.AddEdge(c, d, 20, wayId: 2, traversalCost: 20);
+        builder.AddEdge(e, f, 20, wayId: 3, traversalCost: 20);
+        var net = builder.Build();
+
+        var all = net.EdgesWithin(o.ToLLA(0, 0));
+        Assert.That(all.Select(x => x.Edge.WayId), Is.EqualTo(new long[] { 1, 2, 3 }));
+        Assert.That(all[0].DistanceM, Is.EqualTo(2.0).Within(0.05));
+
+        var near = net.EdgesWithin(o.ToLLA(0, 0), maxDistanceM: 10);
+        Assert.That(near.Count, Is.EqualTo(2), "limit odstupu plati i tady");
+    }
+
+    /// <summary>
+    /// REGRESE (lok-assoc-velka-sigma-soubezna-ulice, 17. 9. 2026 v Hviezdoslavove): poza uprostred
+    /// bloku, nejblizsi tri hrany jsou kratke spojky NAPRIC (veto azimutu), ctvrta nejblizsi je
+    /// jizni ulice a severni soubezna je az pata. Se 4 nejblizsimi vyhrala jizni jako jediny
+    /// kandidat; vsechny hrany najdou i severni a cyklus je spravne NEJEDNOZNACNY.
+    /// </summary>
+    [Test]
+    public void SpojkyNapricZabralyMista_soubeznaUliceUzNesmiZmizet()
+    {
+        var o = Origin();
+        var builder = new RoadNetwork.Builder();
+        long id = 1;
+        void Road(double x1, double y1, double x2, double y2, long way)
+        {
+            var n1 = new Node(id++, o.ToLLA(x1, y1), 4.0); var n2 = new Node(id++, o.ToLLA(x2, y2), 4.0);
+            double len = Math.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+            builder.AddEdge(n1, n2, len, way, len);
+        }
+        Road(-60, -15.6, 60, -15.6, 10);   // jizni ulice
+        Road(-60, 19.4, 60, 19.4, 20);     // severni ulice (pata nejblizsi)
+        Road(5.6, -3, 5.6, 3, 31);         // spojky napric, blize nez obe ulice
+        Road(-13.2, -3, -13.2, 3, 32);
+        Road(14.6, -3, 14.6, 3, 33);
+        var net = builder.Build();
+
+        var pose = Pose(0, 0, 0, sigmaPosM: 8.0);
+        var corridor = Corridor(3.1, 0.2, 0);
+
+        var old = EdgeAssociator.Associate(net, o, pose, corridor, new EdgeAssociationConfig { Candidates = 4 },
+                                           maxEdgeDistanceM: double.PositiveInfinity);
+        Assert.That(old.Result, Is.EqualTo(EdgeAssocResult.Ok), "stare chovani: jizni ulice bez soupere");
+        Assert.That(old.Axis.WayId, Is.EqualTo(10));
+
+        var assoc = EdgeAssociator.Associate(net, o, pose, corridor, Cfg(), maxEdgeDistanceM: double.PositiveInfinity);
+        Assert.That(assoc.Result, Is.EqualTo(EdgeAssocResult.Ambiguous),
+                    "soubezna ulice je soupere - vybrat jednu by znamenalo hadat");
+        Assert.That(assoc.Candidates, Is.EqualTo(2), "spojky napric padly na vetu, zbyly dve ulice");
+    }
+
+    /// <summary>
+    /// Dlouha rovna cesta z mnoha kratkych useku (uzly OSM po 5 m), robot kousek za uzlem: se
+    /// vsemi hranami se posoudi i desitky useku tehoz asfaltu. Musi z nich byt JEDNA hypoteza -
+    /// sousedni usek za uzlem ma podelny presah jen 0,4 m, tedy prirazku (0,4/3)² = 0,02 proti
+    /// odstupu 4, takze sam presah by ho od viteze neoddelil.
+    /// </summary>
+    [Test]
+    public void DlouhaRovnaCestaZKratkychUseku_jeJednaHypoteza()
+    {
+        var o = Origin();
+        var builder = new RoadNetwork.Builder();
+        Node prev = null;
+        for (int i = 0; i <= 40; i++)
+        {
+            var n = new Node(100 + i, o.ToLLA(-100 + 5 * i, 0), 4.0);
+            if (prev != null) { builder.AddEdge(prev, n, 5, wayId: 7, traversalCost: 5); builder.AddEdge(n, prev, 5, wayId: 7, traversalCost: 5); }
+            prev = n;
+        }
+        var net = builder.Build();
+
+        var assoc = EdgeAssociator.Associate(net, o, Pose(0.4, 0.3, 0), Corridor(4.0, 0.3, 0),
+                                             Cfg(), maxEdgeDistanceM: double.PositiveInfinity);
+
+        Assert.That(assoc.Result, Is.EqualTo(EdgeAssocResult.Ok));
+        Assert.That(assoc.Candidates, Is.EqualTo(1), "40 useku tehoz asfaltu = jedna hypoteza");
     }
 
     [Test]
@@ -380,7 +473,8 @@ public class EdgeAssociatorTests
     [Test]
     public void Validate_chytiNesmyslneMeze()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Candidates = 0 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Candidates = -1 }.Validate());
+        Assert.DoesNotThrow(() => new EdgeAssociationConfig { Candidates = 0 }.Validate(), "0 = vsechny hrany (vychozi)");
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Chi2Max = 0 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { Chi2Margin = -1 }.Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new EdgeAssociationConfig { SigmaLongitudinalFloorM = -1 }.Validate());

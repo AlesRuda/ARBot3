@@ -130,6 +130,37 @@ public sealed class RoadNetwork
         return best;
     }
 
+    /// <summary>
+    /// <b>Vsechny</b> pruchozi hrany do <paramref name="maxDistanceM"/>, serazene od nejblizsi
+    /// (vzdalenost k USECCE). Obousmerna cesta jako u <see cref="NearestEdges"/> jen jednou.
+    /// <para>Pro prirazeni koridoru k hrane (<c>EdgeAssociator</c>, od 4. 10. 2026): kandidati se
+    /// tam radi podle chi-kvadratu, ne podle vzdalenosti, takze pevny pocet nejblizsich
+    /// (driv 4) by mohl vyradit prave soupere, kvuli kteremu ma prirazeni rict „nejednoznacne"
+    /// (<c>lok-assoc-velka-sigma-soubezna-ulice</c>). O(n log n) — <see cref="NearestEdges"/>
+    /// s velkym <c>k</c> by bylo O(n·k).</para>
+    /// </summary>
+    public IReadOnlyList<EdgeCandidate> EdgesWithin(LLA p, double maxDistanceM = double.PositiveInfinity)
+    {
+        var best = new Dictionary<(long, long, long), (EdgeCandidate C, int Order)>();
+        for (int i = 0; i < _edges.Count; i++)
+        {
+            if (double.IsPositiveInfinity(_traversal[i])) continue;
+            var e = _edges[i];
+            var (cp, d, tt) = p.ProjectOntoSegment(e.From.Location, e.To.Location);
+            if (d > maxDistanceM) continue;
+            // Neorientovany klic: obe hrany obousmerne cesty jsou tyz kus asfaltu. Drive pridana
+            // vyhrava pri shode (ostre <), stejne jako v NearestEdges.
+            var key = e.From.Id <= e.To.Id ? (e.From.Id, e.To.Id, e.WayId) : (e.To.Id, e.From.Id, e.WayId);
+            if (best.TryGetValue(key, out var old) && d >= old.C.DistanceM) continue;
+            best[key] = (new EdgeCandidate(e, tt, cp, d), old.C.Edge == null ? i : old.Order);
+        }
+        var list = best.Values.ToList();
+        // Pri shode vzdalenosti rozhoduje poradi pridani - stabilni a stejne jako v NearestEdges.
+        list.Sort((a, b) => a.C.DistanceM != b.C.DistanceM ? a.C.DistanceM.CompareTo(b.C.DistanceM)
+                                                           : a.Order.CompareTo(b.Order));
+        return list.Select(x => x.C).ToList();
+    }
+
     public Edge? NearestEdge(LLA p, out double t, out LLA proj, out double distance)
     {
         Edge? best = null; distance = double.PositiveInfinity; t = 0; proj = p;

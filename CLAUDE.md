@@ -874,7 +874,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   sousední úsek téže cesty zalomený o 1–2° dělal nejednoznačnost (Modřany 29. 9.: 51 % cyklů,
   póza ujela o 10 m). ⚠️ Byla to **regrese z 26. 9.**: do té doby ty úseky držel mimo limit
   `MaxEdgeDistanceM` 8 m (teď ∞). Přepočet nad 8 záznamy 2–30× víc přiřazených, nově přiřazené
-  u GPS 99,6–100 %; ⚠️ na zařízení neběželo. K tomu **tvrdé veto na
+  u GPS 99,6–100 %; ⚠️ na zařízení neběželo. ✅ **Od 4. 10. 2026 se posuzují VŠECHNY hrany** (`assock=0`, dřív 4
+  nejbližší úseky): soupeř, kvůli kterému má vyjít „nejednoznačné", už nezmizí za krátkými spojkami
+  vyřazenými vetem. Přes 23 jízd −145 špatných / −152 správných přiřazení; ⚠️ když blízké cesty
+  vypadnou na směru, vyhraje teď sama vzdálenější (29. 9. +33). K tomu **tvrdé veto na
   azimut** (`assocveto=45°`, kolmá ulice není „trochu mimo") a **odstup od druhého kandidáta**
   (`assocmargin=4`) — při nejednoznačnosti se **neposílá nic** (`AmbiguousEdge`), protože vybrat tu
   o chlup lepší by znamenalo hádat. ⚠️ **Dvě pasti, které stály čas:** obousměrná cesta jsou dvě

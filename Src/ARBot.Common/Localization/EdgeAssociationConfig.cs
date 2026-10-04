@@ -19,10 +19,19 @@ namespace ARBot.Common.Localization
         public bool Enabled = true;
 
         /// <summary>
-        /// Kolik nejblizsich hran se posoudi. Obe hrany obousmerne cesty se pocitaji za jednu
-        /// (<see cref="Maps.OsmNav.Graph.RoadNetwork.NearestEdges"/>).
+        /// Kolik nejblizsich hran se posoudi; <b>0 = vsechny</b> (vychozi od 4. 10. 2026). Obe hrany
+        /// obousmerne cesty se pocitaji za jednu.
+        /// <para><b>Proc vsechny.</b> Kandidati se radi podle chi-kvadratu, ne podle vzdalenosti,
+        /// a test nejednoznacnosti ma smysl jen tehdy, kdyz vidi KAZDEHO soupere, ktery muze
+        /// vysledek zmenit. Pevne 4 nejblizsi USEKY (useky mezi sousednimi uzly OSM) to v huste siti
+        /// nesplni: 17. 9. 2026 v Hviezdoslavove zabraly ctyri mista kratke spojky napric (veto
+        /// azimutu), vyhrala ulice 15 m od pozy jako jediny kandidat a soubezna ulice v 19 m, ktera
+        /// by dala Ambiguous, se do vyberu nevesla (<c>lok-assoc-velka-sigma-soubezna-ulice</c>).
+        /// Polomer si chi-kvadrat urci sam: hrana dal nez <c>|poloha v koridoru| + √(Chi2Max +
+        /// Chi2Margin)·σ</c> vysledek zmenit nemuze. Vypocetne je to zanedbatelne (sit se prochazi
+        /// tak jako tak). Kladne cislo = stare chovani (4 nejblizsi) pro A/B nad zaznamy.</para>
         /// </summary>
-        public int Candidates = 4;
+        public int Candidates = 0;
 
         /// <summary>
         /// <b>Tvrde veto na azimut</b> [rad]: kandidat, jehoz sklon se od videneho koridoru lisi
@@ -128,9 +137,9 @@ namespace ARBot.Common.Localization
         /// <summary>Kontrola mezi, at se preklep v profilu pozna pri startu, ne az z dat.</summary>
         public void Validate()
         {
-            if (Candidates < 1)
+            if (Candidates < 0)
                 throw new System.ArgumentOutOfRangeException(nameof(Candidates), Candidates,
-                    "Pocet kandidatu musi byt aspon 1.");
+                    "Pocet kandidatu nemuze byt zaporny (0 = vsechny).");
             if (VetoRad <= 0 || VetoRad > System.Math.PI / 2)
                 throw new System.ArgumentOutOfRangeException(nameof(VetoRad),
                     Conversions.Rad2Deg(VetoRad),

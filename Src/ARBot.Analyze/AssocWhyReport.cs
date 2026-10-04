@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -49,7 +49,7 @@ namespace ARBot.Analyze
 
         public static void Run(RecordFile rec, string mapPath, double roadWidth, double floorHdgDeg,
                                double margin, double singleStd, double maxEdgeM = double.PositiveInfinity,
-                               double floorLong = 3.0, double recFloorLong = 0.0)
+                               double floorLong = 3.0, double recFloorLong = 0.0, int recK = 4, int cfK = 0)
         {
             if (string.IsNullOrWhiteSpace(mapPath) || !File.Exists(mapPath))
             {
@@ -79,9 +79,10 @@ namespace ARBot.Analyze
             if (origin == null) { Console.WriteLine("assocwhy: zaznam nema MapMsg."); return; }
             var poses = new PoseTrack(rec);
 
+            // recK = s cim se jelo (do 4. 10. 2026 4 nejblizsi useky), cfK = protifakt (0 = vsechny hrany).
             var cfg = new EdgeAssociationConfig
             {
-                Candidates = 4,
+                Candidates = recK,
                 VetoRad = 45 * Math.PI / 180,
                 SigmaLateralFloorM = 3.0,
                 SigmaHeadingFloorRad = floorHdgDeg * Math.PI / 180,
@@ -89,8 +90,13 @@ namespace ARBot.Analyze
                 Chi2Margin = margin,
             };
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "parametry: floorhdg {0}, floorlat 3, margin {1}, veto 45, chi2max 9,21, sirka z mapy +- {2} m (jedna hrana), maxedge {3} m; floorlong jizda {4}, protifakt {5}",
-                floorHdgDeg, margin, singleStd, maxEdgeM, recFloorLong, floorLong));
+                "parametry: floorhdg {0}, floorlat 3, margin {1}, veto 45, chi2max 9,21, sirka z mapy +- {2} m (jedna hrana), maxedge {3} m; floorlong jizda {4}, protifakt {5}; kandidatu jizda {6}, protifakt {7} (0 = vsechny)",
+                floorHdgDeg, margin, singleStd, maxEdgeM, recFloorLong, floorLong, recK, cfK));
+            var cfCfg = new EdgeAssociationConfig
+            {
+                Candidates = cfK, VetoRad = cfg.VetoRad, SigmaLateralFloorM = cfg.SigmaLateralFloorM,
+                SigmaHeadingFloorRad = cfg.SigmaHeadingFloorRad, Chi2Max = cfg.Chi2Max, Chi2Margin = cfg.Chi2Margin,
+            };
 
             int n = 0, same = 0;
             var mism = new Dictionary<string, int>();
@@ -108,11 +114,13 @@ namespace ARBot.Analyze
             int implSame = 0, implN = 0;
             var implCfg = new EdgeAssociationConfig
             {
-                Candidates = cfg.Candidates, VetoRad = cfg.VetoRad, SigmaLateralFloorM = cfg.SigmaLateralFloorM,
+                Candidates = cfK, VetoRad = cfg.VetoRad, SigmaLateralFloorM = cfg.SigmaLateralFloorM,
                 SigmaHeadingFloorRad = cfg.SigmaHeadingFloorRad, Chi2Max = cfg.Chi2Max, Chi2Margin = cfg.Chi2Margin,
                 SigmaLongitudinalFloorM = floorLong,
             };
             int keepSame = 0, keepOtherWay = 0, keepOtherAxis = 0, lostAmb = 0, lostMis = 0;
+            var kChg = new Dictionary<string, int>();
+            var kEx = new List<string>();
             int freshGpsHit = 0, freshGpsN = 0, chgOldHit = 0, chgNewHit = 0, chgGpsN = 0;
             var byTime = new SortedDictionary<int, (int Amb, int Cf)>();
             DateTime t0 = msgs.Count > 0 ? msgs[0].TimeStamp : default;
@@ -160,8 +168,34 @@ namespace ARBot.Analyze
                 }
 
                 // Protifakt: podelny presah v chi-kvadratu.
-                var cf = Hypotheses(net, origin, pose, corridor, cfg, singleStd, maxEdgeM, floorLong);
-                var cfRes = Verdict(cf, cfg);
+                var cf = Hypotheses(net, origin, pose, corridor, cfCfg, singleStd, maxEdgeM, floorLong);
+                var cfRes = Verdict(cf, cfCfg);
+                // Tentyz protifakt se 4 nejblizsimi useky (stare chovani) - kde se verdikt lisi?
+                if (cfK != 4)
+                {
+                    var k4Cfg = new EdgeAssociationConfig
+                    {
+                        Candidates = 4, VetoRad = cfCfg.VetoRad, SigmaLateralFloorM = cfCfg.SigmaLateralFloorM,
+                        SigmaHeadingFloorRad = cfCfg.SigmaHeadingFloorRad, Chi2Max = cfCfg.Chi2Max, Chi2Margin = cfCfg.Chi2Margin,
+                    };
+                    var k4 = Hypotheses(net, origin, pose, corridor, k4Cfg, singleStd, maxEdgeM, floorLong);
+                    var k4Res = Verdict(k4, k4Cfg);
+                    bool changed = k4Res != cfRes || (cfRes == EdgeAssocResult.Ok && k4Res == EdgeAssocResult.Ok
+                                                      && !SameAxis(k4[0].Axis, cf[0].Axis));
+                    if (changed)
+                    {
+                        string key = $"{k4Res} -> {cfRes}";
+                        kChg[key] = kChg.TryGetValue(key, out int kc) ? kc + 1 : 1;
+                        if (kEx.Count < 12)
+                        {
+                            string W(List<Hyp> h, EdgeAssocResult r) => h.Count == 0 ? $"{r}" :
+                                string.Format(CultureInfo.InvariantCulture, "{0} way {1} {2:F1} m chi2 {3:F2}{4}", r, h[0].Axis.WayId,
+                                    h[0].Axis.DistanceM, h[0].Chi2, gpsWays == null ? "" : gpsWays.Contains(h[0].Axis.WayId) ? " (u GPS)" : " (NE u GPS)");
+                            kEx.Add($"    {m.TimeStamp:HH:mm:ss.f}  k=4: {W(k4, k4Res)}  |  vse: {W(cf, cfRes)}"
+                                    + (cf.Count > 1 ? string.Format(CultureInfo.InvariantCulture, "; druhy way {0} {1:F1} m chi2 {2:F2}", cf[1].Axis.WayId, cf[1].Axis.DistanceM, cf[1].Chi2) : ""));
+                        }
+                    }
+                }
                 // Skutecny EdgeAssociator s touz podlahou musi dat totez co kopie v meridle.
                 var impl = EdgeAssociator.Associate(net, origin, pose, corridor, implCfg, maxEdgeM,
                                                     ax => (ax.WidthM, singleStd));
@@ -224,7 +258,8 @@ namespace ARBot.Analyze
             Console.WriteLine("  prihlasil jen EXTRAPOLACI sve primky, robot vedle nej nestoji.");
 
             Console.WriteLine();
-            Console.WriteLine("PROTIFAKT: chi2 += (podelny presah / sigma)^2, sigma = max(poza podel hrany, podlaha --floorlong):");
+            Console.WriteLine("PROTIFAKT: chi2 += (podelny presah / sigma)^2, sigma = max(poza podel hrany, podlaha --floorlong);");
+            Console.WriteLine($"  kandidatu: jizda {recK}, protifakt {cfK} (0 = vsechny hrany, od 4. 10. 2026):");
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "  dnes:      Ok {0,6}   z toho cesta do 2 m od GPS {1:F1} % (n={2})", baseOk,
                 baseGpsN > 0 ? 100.0 * baseGpsHit / baseGpsN : double.NaN, baseGpsN));
@@ -242,6 +277,15 @@ namespace ARBot.Analyze
                 "  KONTROLA IMPLEMENTACE: EdgeAssociator s floorlong {0} dava tentyz verdikt jako protifakt v {1} z {2} ({3:F2} %)",
                 floorLong, implSame, implN, implN > 0 ? 100.0 * implSame / implN : double.NaN));
             Console.WriteLine("  Pozor: Ok tu neznamena poslano do fuze - za prirazenim jsou jeste sirkove brany a 'robot na ceste'.");
+
+            if (cfK != 4)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"ZMENY PROTI 4 NEJBLIZSIM USEKUM (tentyz protifakt, kandidatu {cfK}):");
+                foreach (var kv in kChg.OrderByDescending(k => k.Value))
+                    Console.WriteLine($"  {kv.Key,-28} {kv.Value,6}");
+                foreach (var ex in kEx) Console.WriteLine(ex);
+            }
 
             Console.WriteLine();
             Console.WriteLine("NEJEDNOZNACNE PO CASE (30 s): dnes / protifakt");
@@ -276,7 +320,9 @@ namespace ARBot.Analyze
                                             double singleStd, double maxEdgeM, double floorLong)
         {
             var list = new List<Hyp>();
-            var candidates = net.NearestEdges(origin.ToLLA(pose.X, pose.Y), cfg.Candidates, maxEdgeM);
+            var lla = origin.ToLLA(pose.X, pose.Y);
+            var candidates = cfg.Candidates > 0 ? net.NearestEdges(lla, cfg.Candidates, maxEdgeM)
+                                                : net.EdgesWithin(lla, maxEdgeM);
             bool single = !corridor.Ok && corridor.HasSingleEdge;
             var p = pose.Covariance;
             double varTh = p != null && p.RowCount > EKFModel.ITh ? p[EKFModel.ITh, EKFModel.ITh] : 0;
@@ -331,6 +377,12 @@ namespace ARBot.Analyze
             if (h.Count > 1 && h[1].Chi2 - h[0].Chi2 < cfg.Chi2Margin) return EdgeAssocResult.Ambiguous;
             return EdgeAssocResult.Ok;
         }
+
+        /// <summary>Tataz osa: tataz cesta, pricne do 0,5 m a smer do 5° (jako SameHypothesis).</summary>
+        private static bool SameAxis(RoadAxisMatch a, RoadAxisMatch b)
+            => a.WayId == b.WayId
+            && Math.Abs(a.Lateral - b.Lateral) <= 0.5
+            && Math.Abs(Conversions.NormalizeHalfOrientation(a.HeadingRelRad - b.HeadingRelRad)) <= 5 * Math.PI / 180;
 
         private static bool SharesNode(Edge a, Edge b)
             => a.From.Id == b.From.Id || a.From.Id == b.To.Id || a.To.Id == b.From.Id || a.To.Id == b.To.Id;

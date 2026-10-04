@@ -218,12 +218,12 @@ namespace ARBot.Common.Configuration
                 : ParamParseResult.Invalid("cekam limit kurzu ve STUPNICH za sekundu: 0 (vypnuto), nebo 0,1 az 360");
         }
 
-        /// <summary>Pocet kandidatnich hran pri prirazeni koridoru: 1 az 16.</summary>
+        /// <summary>Pocet kandidatnich hran pri prirazeni koridoru: 0 (vsechny) nebo 1 az 16.</summary>
         public static ParamParseResult AssocK(string text)
             => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v)
-               && v >= 1 && v <= 16
+               && v >= 0 && v <= 16
                ? ParamParseResult.Valid()
-               : ParamParseResult.Invalid("cekam pocet kandidatnich hran: 1 az 16");
+               : ParamParseResult.Invalid("cekam pocet kandidatnich hran: 0 (vsechny) nebo 1 az 16");
 
         /// <summary>
         /// Veto na azimut pri prirazeni hrany ve STUPNICH: 1 az 90.

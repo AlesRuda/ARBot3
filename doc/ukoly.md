@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **241**: otevřeno **34** · v kódu, na HW neověřeno **31** · hotovo **155** · odloženo **14** · zamítnuto **7**.
+Témat celkem **241**: otevřeno **33** · v kódu, na HW neověřeno **32** · hotovo **155** · odloženo **14** · zamítnuto **7**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -45,7 +45,6 @@ Témat celkem **241**: otevřeno **34** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lok-koridor-noedge-po-zatacce](#lok-koridor-noedge-po-zatacce) |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví](#lok-assoc-velka-sigma-soubezna-ulice) | 1. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -77,6 +76,7 @@ Témat celkem **241**: otevřeno **34** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu](#nav-detektor-c-kaskada) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany vzalo ulici 15 m od pózy — veto podle rozbitého kurzu vyřadilo bližší cesty a limit 4 hran schoval soupeře](#lok-assoc-velka-sigma-soubezna-ulice) | 1. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
@@ -162,19 +162,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-assoc-velka-sigma-soubezna-ulice"></a>
-### ⬜ Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví
-
-`lok-assoc-velka-sigma-soubezna-ulice` · vada · **otevřeno** · nalezeno 1. 10. 2026
-
-Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). Přehrání `20260917-160558.rec` (Hviezdoslavova, uliční síť) s dnešní konfigurací koridoru (`MaxEdgeDistanceM` = ∞ od 26. 9., limit kroku, 2 Hz, σ koridoru): přijato 129 cyklů, ale vítězná hrana leží p50 **14 m od pózy a 24,5 m od GPS**, kdežto GPS sedí na síti (p50 2,6 m od osy) — souběžná ulice. Příčina: nejistota polohy z fúze p50 **7,5 m** (`gpsposstd=30`, binárka ze 17. 9. nevyráběla měření z jedné hrany, takže koridor měřil málo), a χ² se σ 7,5 m pustí hranu do ~20 m. Azimutové veto souběžnou ulici nezastaví (má týž azimut) a odstup od druhého kandidáta jen tehdy, když projde i správná. S limitem odstupu 8 m vede přiřazení na ulici pod GPS (0,17 m, 26 cyklů). Korekce šly skrz škrcení 2 Hz a limit kroku, takže se póza za 6 min posunula jen o ≤ 3 m — na delší jízdě by ji ale táhly na špatnou ulici rychlostí 0,5 m/s. V Modřanech (25. a 29. 9., čtyři jízdy) je ∞ i 8 m totéž (GPS od osy vítěze p50 0,8–1,4 m, σ polohy 0,2–0,9 m): koridor z jedné hrany měří pořád a souběžná ulice tam není. Rozpor s rozborem 29. 9. („podélný přesah nezávisí na limitu, vítěze nezměnil") je jen zdánlivý: ten se dělal nad zaznamenanými pózami (`assocwhy`), kde byla σ malá. ⚠️ Rozhodčím je GPS (σ 30 m ve městě), přímá pravda k jízdě není; jedna jízda, jedna mapa.
-
-- [x] Změřeno: přiřazení na souběžnou ulici 24,5 m od GPS při σ polohy 7,5 m a odstupu ∞; s 8 m 0,17 m (`fusionreplay` blok 2, `--maxedge=`, `--set=` s dnešním profilem) (1. 10. 2026)
-- [ ] Rozhodnout léčbu (autor): strop σ polohy v χ² přiřazení (podlaha je jen zdola), limit odstupu vázaný na σ, nebo vyžadovat souhlas GPS polohy s vítěznou hranou, když je σ velká
-- [ ] Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste
-
-[map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
@@ -307,6 +294,24 @@ Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9
 - [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00
 
 [ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
+
+<a id="lok-assoc-velka-sigma-soubezna-ulice"></a>
+### 🧪 Přiřazení hrany vzalo ulici 15 m od pózy — veto podle rozbitého kurzu vyřadilo bližší cesty a limit 4 hran schoval soupeře
+
+`lok-assoc-velka-sigma-soubezna-ulice` · vada · **v kódu, na HW neověřeno** · nalezeno 1. 10. 2026 · vyřešeno 4. 10. 2026
+
+Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). Přehrání `20260917-160558.rec` (Hviezdoslavova, uliční síť) s dnešní konfigurací koridoru (`MaxEdgeDistanceM` = ∞ od 26. 9., limit kroku, 2 Hz, σ koridoru): přijato 129 cyklů, ale vítězná hrana leží p50 **14 m od pózy a 24,5 m od GPS**, kdežto GPS sedí na síti (p50 2,6 m od osy) — souběžná ulice. Příčina: nejistota polohy z fúze p50 **7,5 m** (`gpsposstd=30`, binárka ze 17. 9. nevyráběla měření z jedné hrany, takže koridor měřil málo), a χ² se σ 7,5 m pustí hranu do ~20 m. Azimutové veto souběžnou ulici nezastaví (má týž azimut) a odstup od druhého kandidáta jen tehdy, když projde i správná. S limitem odstupu 8 m vede přiřazení na ulici pod GPS (0,17 m, 26 cyklů). Korekce šly skrz škrcení 2 Hz a limit kroku, takže se póza za 6 min posunula jen o ≤ 3 m — na delší jízdě by ji ale táhly na špatnou ulici rychlostí 0,5 m/s. V Modřanech (25. a 29. 9., čtyři jízdy) je ∞ i 8 m totéž (GPS od osy vítěze p50 0,8–1,4 m, σ polohy 0,2–0,9 m): koridor z jedné hrany měří pořád a souběžná ulice tam není. Rozpor s rozborem 29. 9. („podélný přesah nezávisí na limitu, vítěze nezměnil") je jen zdánlivý: ten se dělal nad zaznamenanými pózami (`assocwhy`), kde byla σ malá. ⚠️ Rozhodčím je GPS (σ 30 m ve městě), přímá pravda k jízdě není; jedna jízda, jedna mapa. **Konkrétní případ na mapě (1. 10. 2026, dotaz autora „jak může projít 14 m vzdálená cesta, když robot po nějaké jede?")** — `fusionreplay --dumpassoc=auto --svg=`, cyklus 16:07:11.7, obrázky `doc/media/assoc-prirazeni-20260917-160711-detail.png` a `-trasa.png`. Podle mapy stojí póza **uprostřed bloku** mezi dvěma souběžnými ulicemi (jižní way 52464567 15,6 m, severní way 230064222 19,4 m) a nejbližší jsou **krátké spojky napříč** (5,6 / 13,2 / 14,6 m). Ty tři vyřadilo **veto azimutu** (−71 až −75° proti směru, který vidí kamery) a čtvrtou nejbližší hranou byla jižní ulice — jediný kandidát, vyhrál bez soupeře (χ² 5,55, σ polohy 8 m). Severní ulice by měla χ² 7,55, tedy rozdíl 2,0 < odstup 4 → **Ambiguous, nic by se neposlalo** — jenže byla až pátou nejbližší hranou a `assock=4` počítá **segmenty**, ne cesty, takže sloty sežraly spojky. Proč veto: **kompas byl v té jízdě rozbitý** (`compassab`: IMU yaw proti směru posunu GPS p50 +61°, sd 74°, na východ +135° — 17. 9. odpoledne, před novou kalibrací, železo kabelů ke kamerám ze 14. 9.), takže směr koridoru převedený do světa byl jinde a veto vyhodilo cesty podle špatného kurzu. GPS se celou jízdu drží u **severní** ulice a spojky #2, tedy ne u vítěze. Dvě slabiny, které platí obecně: (a) veto stojí na kurzu, takže rozbitý kurz vyřadí správnou cestu; (b) limit 4 nejbližších **segmentů** v husté síti skryje soupeře, kvůli kterému by přiřazení správně řeklo „nejednoznačné". Limit odstupu 8 m to dřív jen náhodou zakryl.
+
+- [x] Změřeno: přiřazení na souběžnou ulici 24,5 m od GPS při σ polohy 7,5 m a odstupu ∞; s 8 m 0,17 m (`fusionreplay` blok 2, `--maxedge=`, `--set=` s dnešním profilem) (1. 10. 2026)
+- [x] Konkrétní případ na mapě (`fusionreplay --dumpassoc= --svg=`): spojky napříč vyřazené vetem podle rozbitého kurzu (kompas +61°), soupeř (severní ulice) mimo 4 nejbližší segmenty — jinak by cyklus vyšel Ambiguous (1. 10. 2026)
+- [x] Rozhodnout léčbu (autor): kandidáty řadit podle χ² přes VŠECHNY hrany, bez limitu 4 (návrh autora 4. 10.) (4. 10. 2026)
+- [x] V kódu: `RoadNetwork.EdgesWithin`, `EdgeAssociationConfig.Candidates` = 0 (všechny, výchozí), `assock=0` (1–16 = staré chování pro A/B); 3 nové testy (regrese 17. 9., dlouhá rovná cesta z 40 úseků = jedna hypotéza, `EdgesWithin`); `assocwhy --k= --jelk=` s výpisem změn (4. 10. 2026)
+- [x] Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama (4. 10. 2026)
+- [ ] Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu
+- [ ] Ověřit na zařízení: podíl `AmbiguousEdge` a vítěz u GPS (`assocwhy`, `corridor`)
+- [ ] Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste
+
+[map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu

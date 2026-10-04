@@ -6832,10 +6832,11 @@ temata:
 
   - id: lok-assoc-velka-sigma-soubezna-ulice
     oblast: lokalizace
-    nazev: Při velké nejistotě pózy bere přiřazení hrany souběžnou ulici — bez limitu odstupu ji nic nezastaví
+    nazev: Přiřazení hrany vzalo ulici 15 m od pózy — veto podle rozbitého kurzu vyřadilo bližší cesty a limit 4 hran schoval soupeře
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-01
+    vyreseno: 2026-10-04
     popis: >
       Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). Přehrání
       `20260917-160558.rec` (Hviezdoslavova, uliční síť) s dnešní konfigurací koridoru
@@ -6852,11 +6853,41 @@ temata:
       29. 9. („podélný přesah nezávisí na limitu, vítěze nezměnil") je jen zdánlivý: ten se dělal
       nad zaznamenanými pózami (`assocwhy`), kde byla σ malá. ⚠️ Rozhodčím je GPS (σ 30 m ve městě),
       přímá pravda k jízdě není; jedna jízda, jedna mapa.
+      **Konkrétní případ na mapě (1. 10. 2026, dotaz autora „jak může projít 14 m vzdálená cesta,
+      když robot po nějaké jede?")** — `fusionreplay --dumpassoc=auto --svg=`, cyklus 16:07:11.7,
+      obrázky `doc/media/assoc-prirazeni-20260917-160711-detail.png` a `-trasa.png`. Podle mapy stojí
+      póza **uprostřed bloku** mezi dvěma souběžnými ulicemi (jižní way 52464567 15,6 m, severní
+      way 230064222 19,4 m) a nejbližší jsou **krátké spojky napříč** (5,6 / 13,2 / 14,6 m). Ty tři
+      vyřadilo **veto azimutu** (−71 až −75° proti směru, který vidí kamery) a čtvrtou nejbližší hranou
+      byla jižní ulice — jediný kandidát, vyhrál bez soupeře (χ² 5,55, σ polohy 8 m). Severní ulice
+      by měla χ² 7,55, tedy rozdíl 2,0 < odstup 4 → **Ambiguous, nic by se neposlalo** — jenže byla až
+      pátou nejbližší hranou a `assock=4` počítá **segmenty**, ne cesty, takže sloty sežraly spojky.
+      Proč veto: **kompas byl v té jízdě rozbitý** (`compassab`: IMU yaw proti směru posunu GPS p50
+      +61°, sd 74°, na východ +135° — 17. 9. odpoledne, před novou kalibrací, železo kabelů ke kamerám
+      ze 14. 9.), takže směr koridoru převedený do světa byl jinde a veto vyhodilo cesty podle
+      špatného kurzu. GPS se celou jízdu drží u **severní** ulice a spojky #2, tedy ne u vítěze.
+      Dvě slabiny, které platí obecně: (a) veto stojí na kurzu, takže rozbitý kurz vyřadí správnou
+      cestu; (b) limit 4 nejbližších **segmentů** v husté síti skryje soupeře, kvůli kterému by
+      přiřazení správně řeklo „nejednoznačné". Limit odstupu 8 m to dřív jen náhodou zakryl.
     kroky:
       - co: "Změřeno: přiřazení na souběžnou ulici 24,5 m od GPS při σ polohy 7,5 m a odstupu ∞; s 8 m 0,17 m (`fusionreplay` blok 2, `--maxedge=`, `--set=` s dnešním profilem)"
         stav: hotovo
         kdy: 2026-10-01
-      - co: "Rozhodnout léčbu (autor): strop σ polohy v χ² přiřazení (podlaha je jen zdola), limit odstupu vázaný na σ, nebo vyžadovat souhlas GPS polohy s vítěznou hranou, když je σ velká"
+      - co: "Konkrétní případ na mapě (`fusionreplay --dumpassoc= --svg=`): spojky napříč vyřazené vetem podle rozbitého kurzu (kompas +61°), soupeř (severní ulice) mimo 4 nejbližší segmenty — jinak by cyklus vyšel Ambiguous"
+        stav: hotovo
+        kdy: 2026-10-01
+      - co: "Rozhodnout léčbu (autor): kandidáty řadit podle χ² přes VŠECHNY hrany, bez limitu 4 (návrh autora 4. 10.)"
+        stav: hotovo
+        kdy: 2026-10-04
+      - co: "V kódu: `RoadNetwork.EdgesWithin`, `EdgeAssociationConfig.Candidates` = 0 (všechny, výchozí), `assock=0` (1–16 = staré chování pro A/B); 3 nové testy (regrese 17. 9., dlouhá rovná cesta z 40 úseků = jedna hypotéza, `EdgesWithin`); `assocwhy --k= --jelk=` s výpisem změn"
+        stav: hotovo
+        kdy: 2026-10-04
+      - co: "Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama"
+        stav: hotovo
+        kdy: 2026-10-04
+      - co: "Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu"
+        stav: otevreno
+      - co: "Ověřit na zařízení: podíl `AmbiguousEdge` a vítěz u GPS (`assocwhy`, `corridor`)"
         stav: otevreno
       - co: "Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste"
         stav: otevreno
