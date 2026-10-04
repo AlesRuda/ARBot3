@@ -8557,12 +8557,21 @@ temata:
       drift, dokud `v` nestáhne další měření rychlosti. `v` je skalár ve směru kurzu, takže
       **příčná** korekce do ní přímo neteče; teče ale přes `P_xθ` do `θ` a `ω`, a změna `ω` jde do
       `θOdom` (tam ji vrací gyro 100 Hz a `Odo/rate`). Odhad na 1D modelu se šumem `EKFModel`
-      (`SigmaAccel` 1, `OdoSpeedStd` 0,05; odometrie **předpokládaná** 20 Hz, neověřeno), podíl
+      (`SigmaAccel` 1, `OdoSpeedStd` 0,05; odometrie předpokládaná 20 Hz — **skutečně chodí ~91 Hz**,
+      interval 11 ms, změřeno 1. 10. 2026 při rozboru razítek odometrie (`fusionreplay` blok 9,
+      `lok-fuze-poza-pred-koly`), takže odhad je konzervativní: změnu `v` stáhne další měření
+      rychlosti ~4,5× dřív), podíl
       kroku polohy, který proteče do `xOdom`: **s odometrií kol pod 1 %** (σ polohy 0,1 / 0,5 /
       1,5 m → 0,5 / 0,1 / 0 %), **bez ní, jen s GPS rychlostí (σ 0,3 m/s), až 27 %** (→ 27 / 8 /
       3 %). U postupné korekce se podíly sčítají: o 10 m za 30 s s odometrií centimetry, bez ní metry.
-      Rizikem jsou tedy úseky, kdy odometrie do fúze nechodí — výpadek motorů a nejspíš zahazování
-      odometrie `SlipDetector`em při prokluzu (v kódu neověřeno). Pojistka, kdyby to vadilo:
+      Rizikem jsou tedy úseky, kdy odometrie do fúze nechodí — výpadek motorů (zástupné rámce
+      s `HasMeasurement = false` mapper zahazuje). Prokluz to není: `SlipDetector` se v mapperu ani
+      ve fúzi **nikde nevolá** (ověřeno v kódu 4. 10. 2026; dřív tu stálo „nejspíš zahazování
+      odometrie `SlipDetector`em"), odometrie se při prokluzu nezahazuje ani neodtlumuje. A z kol
+      by ho ani nepoznal: měřená kola jsou hnaná a ve zpětné vazbě, takže sledují rampu příkazu
+      bez ohledu na trakci (postřeh autora). Prokluz dopředu tedy do `xOdom` proteče celý — na
+      horizontu paměti gridu je ale zanedbatelný (`doc/ekf-fusion.md`, „Prokluz kol fúze
+      nepozná"). Pojistka, kdyby to vadilo:
       absolutní měření (poloha, kurz) mají **vynulované řádky zisku pro `v` a `ω`** — `v` dál
       opravuje GPS rychlost a odometrie, jen ne přes korelaci s polohou; hlavní filtr je pak
       formálně o chlup méně optimální. Nezapínat naslepo, nejdřív změřit.
@@ -8580,20 +8589,43 @@ temata:
       zprávy stavu. Zamítnuté levnější varianty: posouvat obsah gridu o součet korekcí (u rotace
       převzorkování — cena, kvůli které se natočený grid zamítl 10. 8.), smazat grid při velkém
       součtu korekcí (zahodí paměť právě když je potřeba).
+      **Rozhodnutí autora 4. 10. 2026:** (1) při resetu / inicializaci fúze odometrická póza **běží
+      dál** (inicializace přepíše jen globální pózu, grid se nemaže); (2) zapíná se **parametrem**
+      `localframe=world|odom`, výchozí `world` — odometrická póza se ale počítá a nahrává vždy, aby
+      šla změřit nad záznamy dřív, než se výchozí hodnota přepne; (3) **po fázích**.
+      **Návrh implementace (4. 10. 2026, z čtení `AsyncFusionEngine`):** odometrická póza
+      `(xo, yo, θo)` je součástí každého checkpointu — `Node` (vedle `X`, `P`) i báze (`xBase`/`pBase`
+      → `oBase`). V `EnsureValid` se mezi uzly integruje z `v`, `ω` **předchozího posteriorního**
+      stavu (táž, kterou používá predikce), stejným vzorcem jako `EKFModel.PredictState` (střední
+      orientace `θo + ω·dt/2`); update ji nemění. `GetStateAt(t)` ji dopredikuje z uzlu do `t` týmž
+      vzorcem. `Prune` ji předá do báze (`oBase = n0.O`, u nespočteného uzlu dointegrovat).
+      `InitializeAxesLocked` (InitializePosition/-Heading) vezme `oBase` = odometrie v čase `t`
+      z dosavadní historie (běží dál); první inicializace enginu začne na (0, 0, 0). Přehrání
+      zpožděného měření ji přepočítá spolu se vším (jedna časová osa). `RobotState` dostane
+      `OdomX/OdomY/OdomTheta`, `RobotStateMsg` novou verzi (vzniká v `ControlLoop.cs:304`).
+      Fáze 2 musí převést i **`ControlLoop`/regulátor** (dráha z lokální vrstvy je v odometrické
+      soustavě, póza regulátoru taky), cíl `SetGoal` (světový → odometrický transformací v čase
+      snímku) a **zobrazení** gridu a plánu (web, UI, `ARBot.Analyze`) — `OccupancyGridMsg`
+      a `LocalPlanMsg` ponesou transformaci odom → svět.
     kroky:
       - co: "Rozprava s autorem: dvě soustavy; odometrická póza jako vedlejší integrátor ve fúzi (x, y, θ), mimo kovarianci, z fúzovaných rychlostí"
         stav: hotovo
         kdy: 2026-10-02
-      - co: "Rozhodnout chování při resetu fúze (odometrie běží dál, nebo nulování + smazání gridu)"
+      - co: "Rozhodnout chování při resetu fúze: odometrie BĚŽÍ DÁL (autor 4. 10.); zapínání parametrem `localframe=world|odom`, výchozí `world`; po fázích"
+        stav: hotovo
+        kdy: 2026-10-04
+      - co: "Fáze 1: integrátor v checkpointech `AsyncFusionEngine` (Node, báze, Prune, inicializace běží dál), `GetStateAt` vrací obě pózy, `RobotState` + nová verze `RobotStateMsg`; testy (bez korekcí odom = globální posun; skok GPS/koridoru odom nepohne; inicializace odom nepřeruší; out-of-sequence měření a Prune konzistentní)"
         stav: otevreno
-      - co: "Plán přestavby: integrátor ve snapshotu fúze, `GetStateAt` vrací obě pózy, převod konzumentů, verze zprávy stavu"
+      - co: "Fáze 1 — měření v `fusionreplay`: kolik korekcí se dnes promítá do gridu (rozdíl posunu globální a odometrické pózy na oknech 5/10 s) a únik přes rychlosti (odometrická póza plné fúze proti variantě jen z kol + gyra)"
         stav: otevreno
-      - co: "Změřit nad záznamy drift odometrické pózy na horizontu paměti gridu (sekundy, 12,8 m) a kolik korekcí se do gridu dnes promítá"
+      - co: "Fáze 2 (až po posouzení fáze 1 autorem): parametr `localframe=`, `LocalNavigator` (grid, plán, `SetGoal` přes transformaci, `PoseJumpDetector`), `ControlLoop`/regulátor, `FreeRunMission`, transformace odom → svět v `OccupancyGridMsg`/`LocalPlanMsg` pro web, UI a `ARBot.Analyze`"
+        stav: otevreno
+      - co: "Změřit nad záznamy drift odometrické pózy na horizontu paměti gridu (sekundy, 12,8 m) a kolik korekcí se do gridu dnes promítá. ⚠️ Do nahrání `RizeniDiffPodvozku.mbs` 2.1 (čas z motorové jednotky) nese rychlost z kol ve fúzi bias +1,9 % (`lok-fuze-poza-pred-koly`) — v záznamech před tím ho drift odometrické pózy obsahuje"
         stav: otevreno
       - co: "Odhad úniku korekcí přes rychlosti na 1D modelu: s odometrií kol pod 1 % kroku, bez ní až 27 %"
         stav: hotovo
         kdy: 2026-10-02
-      - co: "Změřit v replayi únik přes rychlosti: změna `v` a `ω` u každého měření polohy/kurzu, součet do `xOdom`/`θOdom`; zvlášť úseky s prokluzem (`SlipDetector`) a výpadkem motorů; ověřit skutečnou frekvenci `Odo/speed`"
+      - co: "Změřit v replayi únik přes rychlosti: změna `v` a `ω` u každého měření polohy/kurzu, součet do `xOdom`/`θOdom`; zvlášť úseky s výpadkem motorů (frekvence `Odo/speed` už změřena: ~91 Hz; `SlipDetector` se nevolá, prokluz odometrii nevyřazuje)"
         stav: otevreno
       - co: "Podle měření rozhodnout pojistku: vynulované řádky zisku pro `v` a `ω` u absolutních měření"
         stav: otevreno
@@ -8602,7 +8634,7 @@ temata:
         cesta: doc/occupancy-and-local-planning.md
       - text: decisions.md
         cesta: doc/decisions.md
-    devlog: []
+    devlog: [2026-10-04]
     ceka_na: []
 
   - id: mise-track-timeout-delka-useku

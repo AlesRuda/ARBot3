@@ -7,6 +7,16 @@ namespace ARBot.Common.Fusion
     /// Jednoducha heuristika detekce smyku / hrabani kol. Kdyz zrychleni kola prekroci
     /// fyzikalni limit, povazuje odometrii za nespolehlivou a vraci nasobek pro nafouknuti
     /// kovariance jejiho merenia. Volajici (adapter) tim doCasne "neveri kolum".
+    ///
+    /// <para>⚠️ <b>Nikde se nevola</b> (overeno 4. 10. 2026 — ani <c>DefaultMeasurementMapper</c>,
+    /// ani fuze) a <b>v teto podobe by na robotu nefungovala.</b> Merena kola jsou zaroven HNANA
+    /// a motory jsou ve zpetne vazbe: kolo sleduje prikaz z rampy ve skriptu motorove jednotky
+    /// (<c>curSpeed ± time·acceleration</c>, <c>Src/RoboRun/RizeniDiffPodvozku.mbs</c>), at ma trakci,
+    /// nebo ne. Pri prokluzu se toci stejne, jen robot ujede mene — zrychleni kola je vzdy zrychleni
+    /// rampy a mez <see cref="FusionConfig.MaxWheelAccel"/> neprekroci. Prokluz jde poznat jen
+    /// proti NEZAVISLE referenci: otaceni gyrem (to fuze dela, gyro prehlasuje <c>Odo/rate</c>
+    /// ~30 : 1), doprednou rychlost Dopplerem GPS (procenta, 10 Hz), akcelerometrem nebo kamerou.
+    /// Viz doc/ekf-fusion.md („Prokluz kol fuze nepozna").</para>
     /// </summary>
     public class SlipDetector
     {

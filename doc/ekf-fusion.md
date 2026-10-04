@@ -212,6 +212,29 @@ driver jede po staru. `MotorStateBase` verze 4 nese surový čas jednotky (`Devi
 rychlosti ve fúzi se nedělá. ⚠️ **Skript se musí nahrát do jednotky a vyjet** — blok 9 pak má
 ukázat „pole rychlosti ze zprávy" ~1,000. Viz [decisions.md](decisions.md), 1. 10. 2026.
 
+### Prokluz kol fúze nepozná (2026-10-04)
+
+Měřená kola jsou zároveň **hnaná** a motory jsou ve **zpětné vazbě** (viz níž, „Odometrie teče
+i pod nouzovým zastavením"): kolo sleduje příkaz z rampy ve skriptu motorové jednotky, ať má
+trakci, nebo ne. Při prokluzu na trávě nebo písku se točí stejně, jen robot ujede méně — **z kol
+samotných se prokluz poznat nedá.** Proto se ani nepoužívá `SlipDetector` (hlásí prokluz podle
+zrychlení kola nad mez; zrychlení kola je u nás vždy zrychlení rampy, takže by nevystřelil).
+Postřeh autora 4. 10. 2026; že se `SlipDetector` nikde nevolá, ověřeno v kódu.
+
+Prokluz jde poznat jen proti **nezávislé** referenci:
+
+- **otáčení** — gyro proti `Odo/rate`; to fúze dělá a gyro kola přehlasuje **~30 : 1**
+  (`GyroRateStd` 0,02 při 100 Hz proti `OdoRateStd` 0,10 při ~91 Hz), takže smyk v zatáčce do
+  kurzu neproteče;
+- **dopředná rychlost** — Doppler z GPS (10 Hz, rozlišení zhruba procenta), akcelerometr (šumí
+  a má změřenou chybu měřítka +6,9 %), kamera.
+
+⚠️ **Dopřednou rychlost ale ve fúzi určují kola, ~300 : 1 nad rychlostí z GPS** (`OdoSpeedStd`
+0,05 při ~91 Hz proti `GpsSpeedStd` 0,3 při 10 Hz). Ustálený prokluz tedy proteče do pózy celý
+a stáhne ho jen GPS poloha se σ 30 m, tedy pomalu — další zdroj podélné chyby vedle obvodu kola
+a razítek odometrie. Pro odometrickou pózu lokální vrstvy (`lp-grid-odometricka-soustava`) to
+nevadí: za pár sekund paměti gridu je prokluz zanedbatelný.
+
 ### Odometrie teče i pod nouzovým zastavením (2026-08-27)
 
 Do 27. 8. 2026 `DefaultMeasurementMapper` pod nouzovým zastavením odometrii **zahazoval**. Zrušeno

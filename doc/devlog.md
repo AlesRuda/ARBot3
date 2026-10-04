@@ -51,6 +51,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   vyhraje sama vzdálenější (29. 9. +33, 23. 9. +6) — limit 4 dřív fungoval jako skrytý strop
   vzdálenosti. Rozhodnutí: [decisions.md](decisions.md); tabulka [map-correlation-localization.md](map-correlation-localization.md).
   ⚠️ Na zařízení neběželo.
+- **`lp-grid-odometricka-soustava` — dva předpoklady opravené z dat:** odometrie chodí ~91 Hz,
+  ne předpokládaných 20 Hz (odhad úniku korekcí přes rychlosti je tím konzervativní), a
+  `SlipDetector` se nikde nevolá, takže prokluz odometrii nevyřazuje. Doplněno, že drift
+  odometrické pózy v záznamech před nahráním skriptu 2.1 nese bias rychlosti z kol +1,9 %.
+- **Prokluz kol fúze nepozná** (postřeh autora): měřená kola jsou hnaná a ve zpětné vazbě, takže
+  sledují rampu příkazu bez ohledu na trakci — proto `SlipDetector` (práh na zrychlení kola) nemá
+  smysl a nevolá se. Prokluz jde poznat jen proti nezávislé referenci; otáčení hlídá gyro (~30 : 1
+  nad koly), dopřednou rychlost ale určují kola ~300 : 1 nad GPS, takže ustálený prokluz proteče do
+  pózy celý. Zapsáno do [ekf-fusion.md](ekf-fusion.md), komentáře `SlipDetector` a tématu
+  `lp-grid-odometricka-soustava`.
 
 ## 2026-10-01
 
