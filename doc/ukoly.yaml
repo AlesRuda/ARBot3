@@ -8514,13 +8514,96 @@ temata:
       - co: "Změřeno: `EscapingBlocked` hned po korekci ~10 m, detektor skoku nezasáhl (`posegps`, `nav`)"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat"
+      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Návrh 2. 10. 2026: grid v odometrické soustavě (`lp-grid-odometricka-soustava`)"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
     devlog: [2026-09-26]
-    ceka_na: [lok-koridor-noedge-po-zatacce]
+    ceka_na: [lok-koridor-noedge-po-zatacce, lp-grid-odometricka-soustava]
+
+  - id: lp-grid-odometricka-soustava
+    oblast: lokalni-planovani
+    nazev: "Návrh: lokální vrstva v odometrické soustavě — odometrická póza (x, y, θ) jako vedlejší integrátor ve snapshotu fúze"
+    druh: zamer
+    stav: otevreno
+    nalezeno: 2026-10-02
+    popis: >
+      **Problém:** occupancy grid se zapisuje pózou z fúze, takže každá korekce z GPS, koridoru nebo
+      korelace (skokem, nebo postupně přes `corridorslew=`) posune obsah gridu vůči robotu, ačkoli
+      se robot nepohnul (`lp-grid-posun-pomalou-korekci`: o 10 m za 30 s → `EscapingBlocked`).
+      Kotvit grid „na robota" místo do světa samo nepomůže — robot-centrický grid se musí posouvat
+      o pohyb robota a ten by se bral z téže pózy; rozhoduje, **z jaké pózy se počítá pohyb mezi
+      snímky**. Lokální vrstva přitom globální pravdu nepotřebuje: grid kreslený z „posunuté" pózy
+      je lokálně správně, korekce ho lokálně rozbije.
+      **Návrh (rozprava s autorem 2. 10. 2026):** dvě soustavy jako v ROS (REP-105, `odom` / `map`),
+      ale **bez druhého systému výpočtu pózy** — autorova varianta: fúze nese navíc odometrickou
+      pózu `xOdom`, `yOdom`, `θOdom` a `GetStateAt(t)` vrací obě, každý si vezme, co potřebuje.
+      Výhoda proti dvěma systémům: **jedna časová osa** — transformace globální → odometrická se
+      počítá z téhož snapshotu téhož běhu filtru, replay zpožděných měření (okno 3 s) obslouží
+      obojí, záznam jen rozšíří zprávu stavu. Liší se od zamítnutého `PoseSlew` (20. 9.): nejde
+      o dvě pózy téže věci, ale o dvě soustavy s pevnou rolí a nic se k ničemu nedotahuje.
+      **Podmínka 1 — NE jako stavy EKF s kovariancí:** sdílí `v` a `θ` s `x`/`y`, predikce by
+      vyrobila korelaci a každý update GPS/koridoru by přes Kalmanův zisk posunul i `xOdom` skokem.
+      Musí to být **deterministický integrátor** v predikci, mimo `P` a mimo update (raději mimo
+      stavový vektor, jen součást snapshotu historie, než vynulované řádky zisku).
+      **Podmínka 2 — i `θOdom`, ne jen poloha:** grid má osy pevně ve světě, korekce kurzu o dθ
+      otočí obsah kolem robotu (5 m · 2° = 17 cm); bez `θOdom` by zmizel posun, ale zůstalo kroucení.
+      **Integruje se z rychlostí po fúzi** (`v`, `ω`), ne ze syrových kol a gyra: korekce rychlostí
+      jsou spojité (integrál neskáče) a fúze přitom potlačí prokluz i bias gyra — jako
+      `robot_localization` v soustavě `odom`.
+      **Podmínka 3 — korekce nesmí protéct přes rychlosti (rozprava 2. 10. 2026):** měření polohy
+      posune přes kovarianci `P_pv` i `v` (`K_v·ν`) a integrátor by tu změnu načítal — ne skok, ale
+      drift, dokud `v` nestáhne další měření rychlosti. `v` je skalár ve směru kurzu, takže
+      **příčná** korekce do ní přímo neteče; teče ale přes `P_xθ` do `θ` a `ω`, a změna `ω` jde do
+      `θOdom` (tam ji vrací gyro 100 Hz a `Odo/rate`). Odhad na 1D modelu se šumem `EKFModel`
+      (`SigmaAccel` 1, `OdoSpeedStd` 0,05; odometrie **předpokládaná** 20 Hz, neověřeno), podíl
+      kroku polohy, který proteče do `xOdom`: **s odometrií kol pod 1 %** (σ polohy 0,1 / 0,5 /
+      1,5 m → 0,5 / 0,1 / 0 %), **bez ní, jen s GPS rychlostí (σ 0,3 m/s), až 27 %** (→ 27 / 8 /
+      3 %). U postupné korekce se podíly sčítají: o 10 m za 30 s s odometrií centimetry, bez ní metry.
+      Rizikem jsou tedy úseky, kdy odometrie do fúze nechodí — výpadek motorů a nejspíš zahazování
+      odometrie `SlipDetector`em při prokluzu (v kódu neověřeno). Pojistka, kdyby to vadilo:
+      absolutní měření (poloha, kurz) mají **vynulované řádky zisku pro `v` a `ω`** — `v` dál
+      opravuje GPS rychlost a odometrie, jen ne přes korelaci s polohou; hlavní filtr je pak
+      formálně o chlup méně optimální. Nezapínat naslepo, nejdřív změřit.
+      **Rozdělení konzumentů:** odometrickou pózu bere `LocalNavigator` (grid, plánovač, obálka,
+      regulátor) a `FreeRunMission`; globální `GlobalNavigator` a mise; přes transformaci jde mrkev,
+      zóny a cíle — skok korekce se projeví skokem mrkve (A\* přeplánuje), ne překážek.
+      `CorridorSource` a `MapCorrelator` by měřily nad gridem nerozmazaným vlastními korekcemi
+      a přirozeně by měřily chybu transformace (odpadne kruh „grid kreslený pózou, kterou z něj
+      opravujeme"). `lok-skok-pozy-nedetekce` by tím ztratil většinu významu.
+      **Známé důsledky:** (a) replay zpožděného měření zpětně o kousek změní minulé `xOdom`, grid
+      už je zapsaný — centimetry, šum, ne skok; (b) reset/inicializace fúze (první fix, seek):
+      odometrie buď běží dál přes reset (lepší, ale stav přežívající reinicializaci), nebo se nuluje
+      a grid se musí smazat zároveň. Cena: přestavba všech volajících `GetStateAt`
+      (`LocalNavigator`, `FreeRunMission`, `CorridorSource`, `MapCorrelator`, `ControlLoop`) a verze
+      zprávy stavu. Zamítnuté levnější varianty: posouvat obsah gridu o součet korekcí (u rotace
+      převzorkování — cena, kvůli které se natočený grid zamítl 10. 8.), smazat grid při velkém
+      součtu korekcí (zahodí paměť právě když je potřeba).
+    kroky:
+      - co: "Rozprava s autorem: dvě soustavy; odometrická póza jako vedlejší integrátor ve fúzi (x, y, θ), mimo kovarianci, z fúzovaných rychlostí"
+        stav: hotovo
+        kdy: 2026-10-02
+      - co: "Rozhodnout chování při resetu fúze (odometrie běží dál, nebo nulování + smazání gridu)"
+        stav: otevreno
+      - co: "Plán přestavby: integrátor ve snapshotu fúze, `GetStateAt` vrací obě pózy, převod konzumentů, verze zprávy stavu"
+        stav: otevreno
+      - co: "Změřit nad záznamy drift odometrické pózy na horizontu paměti gridu (sekundy, 12,8 m) a kolik korekcí se do gridu dnes promítá"
+        stav: otevreno
+      - co: "Odhad úniku korekcí přes rychlosti na 1D modelu: s odometrií kol pod 1 % kroku, bez ní až 27 %"
+        stav: hotovo
+        kdy: 2026-10-02
+      - co: "Změřit v replayi únik přes rychlosti: změna `v` a `ω` u každého měření polohy/kurzu, součet do `xOdom`/`θOdom`; zvlášť úseky s prokluzem (`SlipDetector`) a výpadkem motorů; ověřit skutečnou frekvenci `Odo/speed`"
+        stav: otevreno
+      - co: "Podle měření rozhodnout pojistku: vynulované řádky zisku pro `v` a `ω` u absolutních měření"
+        stav: otevreno
+    odkazy:
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+      - text: decisions.md
+        cesta: doc/decisions.md
+    devlog: []
+    ceka_na: []
 
   - id: mise-track-timeout-delka-useku
     oblast: mise
