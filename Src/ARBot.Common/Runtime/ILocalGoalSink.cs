@@ -30,6 +30,21 @@ namespace ARBot.Common.Runtime
         void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
                      double goalRadiusM = double.NaN);
 
+        /// <summary>
+        /// Soustava, ve ktere lokalni vrstva pracuje (parametr <c>localframe=</c>). Producent cile,
+        /// ktery ho pocita <b>vuci robotu</b> (FreeRun), ho podle ni posle pres
+        /// <see cref="SetLocalGoal"/> — tak mezi snimkem a zapisem cile neprotece korekce pozy.
+        /// Vychozi <see cref="Fusion.LocalFrame.World"/>.
+        /// </summary>
+        Fusion.LocalFrame Frame => Fusion.LocalFrame.World;
+
+        /// <summary>
+        /// Nastavi cil v soustave <see cref="Frame"/> (ne ve svete). Jinak tytez parametry jako
+        /// <see cref="SetGoal"/>; pri <see cref="Fusion.LocalFrame.World"/> je to totez.
+        /// </summary>
+        void SetLocalGoal(double x, double y, double corridorWidthM = 0, double goalRadiusM = double.NaN)
+            => SetGoal(x, y, corridorWidthM, goalRadiusM);
+
         /// <summary>Zrusi cil.</summary>
         void ClearGoal();
     }

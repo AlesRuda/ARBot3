@@ -41,6 +41,17 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-04
 
+- **Lokální vrstva v odometrické soustavě — fáze 2 `lp-grid-odometricka-soustava`** (v kódu,
+  výchozí dál `world`): parametr `localframe=world|odom` nastaví `LocalNavigator` i `ControlLoop`
+  (grid, plán a regulátor dostanou `RobotState.InFrame`). Světový cíl se převádí u každého snímku
+  transformací v jeho čase (korekce = skok cíle, ne posun překážek); FreeRun posílá mrkev rovnou
+  v lokální soustavě (`ILocalGoalSink.SetLocalGoal`), aby mezi snímkem a cílem neprotekla korekce.
+  `OccupancyGridMsg` v2 a `LocalPlanMsg` v3 nesou soustavu + transformaci do světa, `InWorldFrame()`
+  (grid převzorkovaný nejbližším sousedem) používá web, World pohled, korelátor (`EvidenceCloud`)
+  i `ARBot.Analyze` (`RecordFile`; `drive` přehrává regulátor v soustavě plánu). Testy Common 1 775,
+  Runtime 151, HAL 133; simulace FreeRun 40 s `world` / `odom`: proti pravdě stejně (−0,462 / −0,444 m,
+  cíl −0,5), v `odom` plány 100 % `Ok`, transformace se korekcemi mění o desítky cm a grid na webu
+  sedí. **Další krok:** jízda na zařízení s `localframe=odom`, pak rozhodnout výchozí. ⚠️ Na HW neběželo.
 - **Odometrická póza ve fúzi — fáze 1 `lp-grid-odometricka-soustava`** (v kódu, nikdo ji zatím
   nepoužívá): `AsyncFusionEngine` nese v každém checkpointu (uzel i báze) `OdomPose` — integrál
   `v`, `ω` předchozího posteriorního stavu týmž vzorcem jako predikce, mimo `P` a mimo update;

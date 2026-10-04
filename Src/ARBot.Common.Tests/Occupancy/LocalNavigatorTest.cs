@@ -255,6 +255,100 @@ namespace ARBot.Common.Tests.Occupancy
         }
 
 
+        // ---------------- localframe=odom (4. 10. 2026) ----------------
+
+        /// <summary>
+        /// Skok globalni pozy (tady inicializace polohy v depu o 100 m) ve SVETOVE soustave grid
+        /// smaze - je na spatnem miste. V ODOMETRICKE soustave se grid nehne: korekce pozy do ni
+        /// neskaci, takze to, co robot videl, zustava na svem miste vuci nemu.
+        /// </summary>
+        [TestCase(LocalFrame.World, 1, TestName = "SkokPozy_World_GridSmaze")]
+        [TestCase(LocalFrame.Odom, 0, TestName = "SkokPozy_Odom_GridZustane")]
+        public void SkokGlobalniPozy(LocalFrame frame, int expectedResets)
+        {
+            var engine = Engine(T0);
+            var nav = MakeNavigator(engine);
+            nav.Frame = frame;
+            using var s = new Session(nav);
+
+            s.Send(Frame(T0.AddSeconds(1.0)));
+            engine.InitializePosition(100, 50, 0.5, T0.AddSeconds(1.5));
+            s.Send(Frame(T0.AddSeconds(2.0)));
+
+            Assert.That(nav.GridResets, Is.EqualTo(expectedResets));
+            if (frame == LocalFrame.Odom)
+            {
+                // Grid je v odometricke soustave: robot stoji porad v jejim pocatku a zem pred nim
+                // ma dukaz z OBOU snimku (nesmazany).
+                Assert.That(nav.Grid.LogOddsOcc(nav.Grid.CellX(1.5), nav.Grid.CellY(0)), Is.LessThan(0f));
+                var g = s.Snapshot().FindLast(m => m is OccupancyGridMsg) as OccupancyGridMsg;
+                Assert.That(g.Frame, Is.EqualTo(LocalFrame.Odom));
+                Assert.That(g.FrameDX, Is.EqualTo(100).Within(1e-6), "zprava nese transformaci odom -> svet");
+                Assert.That(g.FrameDY, Is.EqualTo(50).Within(1e-6));
+            }
+        }
+
+        /// <summary>
+        /// Svetovy cil se v odometricke soustave prevadi transformaci v case snimku: plan miri na
+        /// lokalni (3, 0) a zprava ho umi vratit do sveta.
+        /// </summary>
+        [Test]
+        public void Odom_SvetovyCilSePrevadiDoLokalniSoustavy()
+        {
+            var engine = Engine(T0);
+            engine.InitializePosition(100, 50, 0.5, T0.AddSeconds(0.5));
+            var nav = MakeNavigator(engine);
+            nav.Frame = LocalFrame.Odom;
+            nav.SetGoal(103, 50);
+            using var s = new Session(nav);
+
+            s.Send(Frame(T0.AddSeconds(1.0)));
+
+            var plan = s.Snapshot().Find(m => m is LocalPlanMsg) as LocalPlanMsg;
+            Assert.That(plan, Is.Not.Null);
+            Assert.That(plan.Frame, Is.EqualTo(LocalFrame.Odom));
+            Assert.That(plan.RequestedGoalX, Is.EqualTo(3.0).Within(1e-6), "cil v odometricke soustave");
+            Assert.That(plan.RequestedGoalY, Is.EqualTo(0.0).Within(1e-6));
+            Assert.That(plan.WayPoints, Has.Length.GreaterThanOrEqualTo(2), "plan ma vzniknout");
+            var w = plan.InWorldFrame();
+            Assert.That(w.RequestedGoalX, Is.EqualTo(103).Within(1e-6));
+            Assert.That(w.WayPoints[0].X, Is.EqualTo(100).Within(0.2), "draha zacina u robotu ve svete");
+        }
+
+        [Test]
+        public void Odom_LokalniCilSeNeprevadi()
+        {
+            var engine = Engine(T0);
+            engine.InitializePosition(100, 50, 0.5, T0.AddSeconds(0.5));
+            var nav = MakeNavigator(engine);
+            nav.Frame = LocalFrame.Odom;
+            nav.SetLocalGoal(3, 0);
+            using var s = new Session(nav);
+
+            s.Send(Frame(T0.AddSeconds(1.0)));
+
+            var plan = s.Snapshot().Find(m => m is LocalPlanMsg) as LocalPlanMsg;
+            Assert.That(plan.RequestedGoalX, Is.EqualTo(3.0).Within(1e-9));
+            Assert.That(plan.RequestedGoalY, Is.EqualTo(0.0).Within(1e-9));
+        }
+
+        /// <summary>Teleport v odometricke soustave grid smaze — do odometrie se nepromitne.</summary>
+        [Test]
+        public void Odom_RequestPathReset_SmazeGrid()
+        {
+            var nav = MakeNavigator(Engine(T0));
+            nav.Frame = LocalFrame.Odom;
+            using var s = new Session(nav);
+
+            s.Send(Frame(T0.AddSeconds(1.0)));
+            Assert.That(nav.Grid.LogOddsOcc(nav.Grid.CellX(1.5), nav.Grid.CellY(0)), Is.LessThan(0f));
+
+            nav.RequestPathReset();
+            // Snimek bez hloubky (prazdny grid) - nic nezapise, takze po smazani zustane bez dukazu.
+            s.Send(new CameraFrame { Name = "Cam", TimeStamp = T0.AddSeconds(1.5) });
+            Assert.That(nav.Grid.LogOddsOcc(nav.Grid.CellX(1.5), nav.Grid.CellY(0)), Is.EqualTo(0f));
+        }
+
         // ---------------- teleport robotu (18. 8. 2026) ----------------
 
         /// <summary>

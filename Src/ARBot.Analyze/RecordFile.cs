@@ -38,6 +38,16 @@ namespace ARBot.Analyze
         /// <summary>Co se zjistilo pri nacitani indexu (poskozeny zaznam apod.).</summary>
         public IndexLoadReport IndexReport { get; }
 
+        /// <summary>
+        /// Prevadet <see cref="OccupancyGridMsg"/> a <see cref="LocalPlanMsg"/> do SVETOVE soustavy
+        /// (vychozi true)? Od 4. 10. 2026 muze lokalni vrstva pracovat v odometricke soustave
+        /// (<c>localframe=odom</c>) a rozbory je skladaji se svetovou pozou z <c>RobotStateMsg</c>.
+        /// Prevod je jedno misto pro vsechny — grid se pri pootoceni prevzorkuje nejblizsim sousedem
+        /// (~1 bunka), plan se transformuji presne, oboji transformaci v case zpravy. U zaznamu
+        /// ve svetove soustave se nemeni nic. Kdo potrebuje lokalni soustavu, nastavi false.
+        /// </summary>
+        public bool LocalLayerInWorld { get; set; } = true;
+
         public RecordFile(string recPath)
         {
             Path = recPath;
@@ -77,9 +87,16 @@ namespace ARBot.Analyze
                 if (n <= 0) break;
                 got += n;
             }
+            Message m;
             using (var ms = new MemoryStream(buf, 0, got, writable: false))
             using (var r = new MessageReader(ms, Encoding.UTF8, prototypes))
-                return r.Read();
+                m = r.Read();
+            if (LocalLayerInWorld)
+            {
+                if (m is OccupancyGridMsg g) return g.InWorldFrame();
+                if (m is LocalPlanMsg p) return p.InWorldFrame();
+            }
+            return m;
         }
 
         /// <summary>Vycte vsechny zpravy daneho typu (podle <see cref="IndexEntry.MsgName"/>).</summary>

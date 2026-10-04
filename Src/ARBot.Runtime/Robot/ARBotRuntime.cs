@@ -577,6 +577,16 @@ namespace ARBot.Robot
             {
                 ControlLoop = loop,
             };
+
+            // localframe= soustava lokalni vrstvy. Navigator i smycka MUSI mit tutez: draha je
+            // v soustave gridu a regulator ji porovnava s pozou, kterou mu da smycka.
+            // Viz doc/occupancy-and-local-planning.md.
+            var localFrame = ParamRegistry.LocalFrame.Value == "odom" ? LocalFrame.Odom : LocalFrame.World;
+            navigator.Frame = localFrame;
+            loop.Frame = localFrame;
+            if (localFrame == LocalFrame.Odom)
+                Trace.WriteLine("localframe=odom: grid, lokalni plan a regulator v ODOMETRICKE soustave "
+                                + "(korekce pozy obsah gridu neposouvaji; cil se prevadi transformaci).");
             Navigator = navigator;
             stages.Add(navigator);
 

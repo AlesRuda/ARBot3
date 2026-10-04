@@ -113,6 +113,15 @@ namespace ARBot.Common.Configuration
               + "skutecnym zpozdenim (~0,2-0,25 s: takt + mrtva doba + nabeh motoru) kmita a pri "
               + "dojezdu prejede cil (simulace 25. 9. 2026: L = 0,1 prejede o 8 cm, L <= 0,15 kmita "
               + "v zatacce vic nez puvodni profil). Musi byt > 0.", ParamParsers.Kladne);
+        public static readonly StringParam LocalFrame = Vycet("localframe", "world", new[] { "world", "odom" }, K_RIZENI,
+              "Soustava lokalni vrstvy (occupancy grid, lokalni planovac, regulator drahy): 'world' "
+              + "(vychozi, puvodni chovani: grid se kresli globalni pozou, takze kazda korekce z GPS, "
+              + "koridoru nebo korelace posune jeho obsah proti robotu, ackoli se robot nepohnul) "
+              + "nebo 'odom' (odometricka poza z fuze - spojita, korekce do ni neskacou; svetovy cil "
+              + "se prevadi transformaci v case snimku, takze korekce posune cil, ne prekazky). "
+              + "Zmereno nad jizdami 25. a 29. 9. 2026: korekce dnes posouvaji grid za 5 s p99 "
+              + "1,4-2,1 m, max 4,3 m; cenou za 'odom' je drift odometrie (2-5 % drahy v zaznamech "
+              + "pred skriptem 2.1). ⚠️ NEOVERENO NA HW. Viz doc/occupancy-and-local-planning.md.");
         public static readonly DoubleParam WedgeFill = Num("wedgefill",
               Fmt(new OccupancyIntegratorConfig().WedgeFillDeg), K_RIZENI,
               "Sirka KLINU mezi zornymi poli barevnych kamer [stupne], ve kterem se dopisuje "

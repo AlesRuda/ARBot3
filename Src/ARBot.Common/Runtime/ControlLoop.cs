@@ -83,6 +83,14 @@ namespace ARBot.Common.Runtime
             set { regulator = value; regulatorFresh = true; }
         }
 
+        /// <summary>
+        /// Soustava, ve ktere regulator dostava pozu (parametr <c>localframe=</c>). Musi byt TATAZ
+        /// jako <see cref="Occupancy.LocalNavigator.Frame"/>: draha je z lokalni vrstvy, takze
+        /// v odometricke soustave ji regulator musi porovnavat s odometrickou pozou. Do
+        /// <see cref="RobotStateMsg"/> jde dal cely stav (globalni i odometricka poza).
+        /// </summary>
+        public LocalFrame Frame { get; set; } = LocalFrame.World;
+
         /// <inheritdoc/>
         public StopHold StopRequest(string duvod) => holds.StopRequest(duvod);
 
@@ -232,7 +240,7 @@ namespace ARBot.Common.Runtime
             double forvard = 0, rotationSpeed = 0;
             if (reg != null)
             {
-                var r = reg.Control(rs);
+                var r = reg.Control(rs.InFrame(Frame));
                 rotationSpeed = r.RotationSpeed;
                 if (tk - lastRegulatorTick > pathTimeout)
                 {

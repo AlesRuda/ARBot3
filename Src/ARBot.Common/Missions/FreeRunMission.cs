@@ -187,11 +187,15 @@ namespace ARBot.Common.Missions
                 PoseX = pose.X, PoseY = pose.Y, PoseTheta = pose.Theta,
             };
 
-            double gx, gy, width;
+            // Mrkev se pocita v RAMCI ROBOTU a do sveta (zprava, zobrazeni) i do soustavy lokalni
+            // vrstvy (cil) se prevadi pozou TEHOZ snimku. Svetova mrkev prevedena az navigatorem by
+            // brala transformaci z jineho snimku a korekce pozy mezi nimi by ji posunula
+            // (lp-grid-odometricka-soustava). Ve svetove soustave je to totez jako drive.
+            double bx, by, width;
             if (src.Ok)
             {
                 var c = src.Corridor;
-                (gx, gy) = CarrotWorld(c, pose, config);
+                (bx, by) = CarrotBody(c, config);
                 width = c.Width;
                 result.FromCorridor = true;
                 result.Width = c.Width;
@@ -211,8 +215,7 @@ namespace ARBot.Common.Missions
                 catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"FreeRunMission: sirka z mapy selhala: {ex.Message}"); }
                 if (w.HasValue && !(w.Value > 0)) w = null;
 
-                var (bx, by) = CarrotBodySingleEdge(c, w, config);
-                (gx, gy) = BodyToWorld(bx, by, pose);
+                (bx, by) = CarrotBodySingleEdge(c, w, config);
                 width = w ?? 0;
                 result.FromCorridor = false;
                 result.SingleSide = c.SingleSide;
@@ -230,15 +233,17 @@ namespace ARBot.Common.Missions
             {
                 // Koridor neni -> drzet AKTUALNI kurz. Sirka se neposila (0 = neresit): bez koridoru
                 // se nema o cem tvrdit, jak je cesta siroka.
-                (gx, gy) = CarrotStraightAhead(pose, config);
+                (bx, by) = (config.LookaheadM, 0.0);   // = CarrotStraightAhead
                 width = 0;
                 result.FromCorridor = false;
                 CarrotsStraightAhead++;
             }
 
+            var (gx, gy) = BodyToWorld(bx, by, pose);
             result.GoalX = gx;
             result.GoalY = gy;
-            localGoal.SetGoal(gx, gy, width);
+            var (lx, ly) = BodyToWorld(bx, by, pose.InFrame(localGoal.Frame));
+            localGoal.SetLocalGoal(lx, ly, width);
 
             LastResult = result;
             return result;

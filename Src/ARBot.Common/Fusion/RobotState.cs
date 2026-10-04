@@ -51,11 +51,47 @@ namespace ARBot.Common.Fusion
         /// (cil a mrkev do lokalni vrstvy, grid a plan do zobrazeni). Meni se jen korekcemi,
         /// mezi nimi stoji.
         /// </summary>
-        public (double dX, double dY, double dTheta) OdomToWorld()
+        public FrameTransform OdomToWorld()
         {
             double dTh = Conversions.NormalizeOrientation(Theta - OdomTheta);
             double c = Math.Cos(dTh), s = Math.Sin(dTh);
-            return (X - (c * OdomX - s * OdomY), Y - (s * OdomX + c * OdomY), dTh);
+            return new FrameTransform(X - (c * OdomX - s * OdomY), Y - (s * OdomX + c * OdomY), dTh);
+        }
+
+        /// <summary>
+        /// Transformace z dane lokalni soustavy do sveta v okamziku tohoto stavu
+        /// (<see cref="LocalFrame.World"/> = identita).
+        /// </summary>
+        public FrameTransform ToWorldTransform(LocalFrame frame)
+            => frame == LocalFrame.Odom ? OdomToWorld() : FrameTransform.Identity;
+
+        /// <summary>
+        /// Stav vyjadreny v dane soustave: u <see cref="LocalFrame.World"/> tentyz objekt, u
+        /// <see cref="LocalFrame.Odom"/> KOPIE, ve ktere <see cref="X"/>/<see cref="Y"/>/<see cref="Theta"/>
+        /// nesou odometrickou pozu (rychlosti, cas, naklony i odometricka pole zustavaji). Tak ji
+        /// dostane lokalni vrstva i regulator, aniz by o soustave vedely.
+        ///
+        /// <para>Kovariance se kopiruje BEZE ZMENY — je to nejistota globalni pozy, odometricka
+        /// vlastni nema. Lokalni vrstva ji nepouziva.</para>
+        /// </summary>
+        public RobotState InFrame(LocalFrame frame)
+        {
+            if (frame != LocalFrame.Odom) return this;
+            return new RobotState
+            {
+                X = OdomX,
+                Y = OdomY,
+                Theta = OdomTheta,
+                V = V,
+                Omega = Omega,
+                TimeStamp = TimeStamp,
+                Covariance = Covariance,
+                Roll = Roll,
+                Pitch = Pitch,
+                OdomX = OdomX,
+                OdomY = OdomY,
+                OdomTheta = OdomTheta,
+            };
         }
 
         /// <summary>Naklon vlevo/vpravo [rad] (z posledniho IMU, NE z EKF - viz pozn. u <see cref="Pitch"/>).</summary>

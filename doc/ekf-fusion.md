@@ -87,10 +87,10 @@ věc, a měření chodí různě rychle (IMU ~100 Hz).
 Fúze nese vedle stavu `[X, Y, θ, v, ω]` i **odometrickou pózu** `(OdomX, OdomY, OdomTheta)`
 ([`Fusion/OdomPose.cs`](../Src/ARBot.Common/Fusion/OdomPose.cs)) — soustava `odom` z ROS REP-105:
 spojitá, korekce GPS / koridoru / korelace do ní neskáčou, za to driftuje. Je to fáze 1 tématu
-`lp-grid-odometricka-soustava` (registr [ukoly.yaml](ukoly.yaml)): occupancy grid se dnes kreslí
-globální pózou, takže každá korekce posune jeho obsah proti robotu, ačkoli se robot nepohnul.
-**Zatím ji nikdo nepoužívá**; počítá se a nahrává vždy (rozhodnutí autora), aby šla změřit nad
-záznamy dřív, než se lokální vrstva přepne (`localframe=`, fáze 2).
+`lp-grid-odometricka-soustava` (registr [ukoly.yaml](ukoly.yaml)): occupancy grid se ve výchozím
+stavu kreslí globální pózou, takže každá korekce posune jeho obsah proti robotu, ačkoli se robot
+nepohnul. Počítá se a nahrává vždy (rozhodnutí autora); lokální vrstva ji použije s
+`localframe=odom` (fáze 2, viz [occupancy-and-local-planning.md](occupancy-and-local-planning.md)).
 
 - **Není to stav EKF.** Deterministický integrátor mimo `P` a mimo update — jako stav s kovariancí
   by sdílel `v` a `θ` s `X/Y` a každý update GPS by ho přes zisk posunul skokem. Je součástí každého

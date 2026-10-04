@@ -59,6 +59,11 @@ namespace ARBot.Common.Localization
             var ys = new List<double>();
             var ws = new List<float>();
 
+            // Oblak je VZDY ve svete (korelace s mapou): grid v odometricke soustave
+            // (localframe=odom) se prevadi transformaci, kterou nese zprava. Bunky se tim neprevzorkuji,
+            // jen se posunou jejich stredy - vaha bunky zustava. Korelator tak meri prave chybu
+            // transformace odom -> svet.
+            var t = msg.Transform;
             if (msg.Road != null)
             {
                 for (int j = 0; j < msg.Size; j++)
@@ -69,8 +74,9 @@ namespace ARBot.Common.Localization
                     {
                         float w = msg.Road[rowBase + i] * msg.Scale;
                         if (w > -threshold && w < threshold) continue;
-                        xs.Add(msg.CenterX(i));
-                        ys.Add(y);
+                        var (wx, wy) = t.ToWorld(msg.CenterX(i), y);
+                        xs.Add(wx);
+                        ys.Add(wy);
                         ws.Add(w);
                     }
                 }

@@ -88,9 +88,9 @@ namespace ARBot.Common.Tests.Fusion
 
             Assert.Multiple(() =>
             {
-                Assert.That(b.dX, Is.EqualTo(a.dX).Within(1e-3));
-                Assert.That(b.dY, Is.EqualTo(a.dY).Within(1e-3));
-                Assert.That(b.dTheta, Is.EqualTo(a.dTheta).Within(1e-4));
+                Assert.That(b.DX, Is.EqualTo(a.DX).Within(1e-3));
+                Assert.That(b.DY, Is.EqualTo(a.DY).Within(1e-3));
+                Assert.That(b.DTheta, Is.EqualTo(a.DTheta).Within(1e-4));
                 Assert.That(s.OdomTheta, Is.EqualTo(Conversions.NormalizeOrientation(s.Theta)).Within(0.05),
                             "bez mereni kurzu se kurz globalni a odometricke pozy rozejde jen o usazovani omega");
             });

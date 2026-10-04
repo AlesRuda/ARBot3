@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using ARBot.Common.Fusion;
 using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
 
@@ -16,9 +17,9 @@ namespace ARBot.Common.Logs
         /// <summary>Stav planovani (<see cref="LocalPlanStatus"/> jako int, aby zprava prezila
         /// pripadne doplneni hodnot vyctu).</summary>
         public int Status;
-        /// <summary>Pozadovany cil [m, world ENU].</summary>
+        /// <summary>Pozadovany cil [m] v soustave <see cref="Frame"/> (do verze 2 vzdy world ENU).</summary>
         public double RequestedGoalX;
-        /// <summary>Pozadovany cil [m, world ENU].</summary>
+        /// <summary>Pozadovany cil [m] v soustave <see cref="Frame"/>.</summary>
         public double RequestedGoalY;
         /// <summary>Cil, ke kteremu plan skutecne vede (po oriznuti na grid/horizont) [m].</summary>
         public double ReachedGoalX;
@@ -109,6 +110,60 @@ namespace ARBot.Common.Logs
         /// <summary>Cas pozy, ze ktere se planovalo.</summary>
         public DateTime TimeStamp;
 
+        /// <summary>
+        /// Soustava, ve ktere jsou souradnice: <see cref="LocalFrame.World"/>, nebo
+        /// <see cref="LocalFrame.Odom"/> (parametr <c>localframe=</c>). Do sveta je prevadi
+        /// <see cref="Transform"/>, resp. <see cref="InWorldFrame"/>.
+        /// </summary>
+        public LocalFrame Frame;
+        /// <summary>Transformace lokalni soustava → svet v case <see cref="TimeStamp"/>: posun X [m].</summary>
+        public double FrameDX;
+        /// <summary>Transformace lokalni soustava → svet: posun Y [m].</summary>
+        public double FrameDY;
+        /// <summary>Transformace lokalni soustava → svet: pootoceni [rad].</summary>
+        public double FrameDTheta;
+
+        /// <summary>Transformace lokalni soustava → svet (identita u <see cref="LocalFrame.World"/>).</summary>
+        public FrameTransform Transform
+        {
+            get => new FrameTransform(FrameDX, FrameDY, FrameDTheta);
+            set { FrameDX = value.DX; FrameDY = value.DY; FrameDTheta = value.DTheta; }
+        }
+
+        /// <summary>
+        /// Plan ve <b>svetove</b> soustave pro zobrazeni a rozbor: u identity <b>tentyz objekt</b>,
+        /// jinak kopie s prevedenymi waypointy (poloha i orientace) a cili. Rozpad obalky se sdili
+        /// (je to skalar na uzel, na soustave nezavisi).
+        /// </summary>
+        public LocalPlanMsg InWorldFrame()
+        {
+            var t = Transform;
+            if (t.IsIdentity) return this;
+
+            var w = (LocalPlanMsg)MemberwiseClone();
+            w.Frame = LocalFrame.World;
+            w.Transform = FrameTransform.Identity;
+            (w.RequestedGoalX, w.RequestedGoalY) = t.ToWorld(RequestedGoalX, RequestedGoalY);
+            (w.ReachedGoalX, w.ReachedGoalY) = t.ToWorld(ReachedGoalX, ReachedGoalY);
+            if (WayPoints != null)
+            {
+                w.WayPoints = new RegulatorWayPoint[WayPoints.Length];
+                for (int i = 0; i < WayPoints.Length; i++)
+                {
+                    var a = WayPoints[i];
+                    var (x, y) = t.ToWorld(a.X, a.Y);
+                    w.WayPoints[i] = new RegulatorWayPoint
+                    {
+                        X = x, Y = y, Speed = a.Speed,
+                        MaxPositionError = a.MaxPositionError, MaxSpeedError = a.MaxSpeedError,
+                        Orientation = a.Orientation.HasValue ? t.AngleToWorld(a.Orientation.Value) : (double?)null,
+                        MaxOrientationError = a.MaxOrientationError,
+                    };
+                }
+            }
+            return w;
+        }
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
@@ -118,8 +173,10 @@ namespace ARBot.Common.Logs
         /// <summary>Verze formatu serializace (viz doc/record-replay.md -> Verzovani zprav).
         /// <para><b>Verze 2</b> (2026-09-07) pridala <b>rozpad rychlostni obalky</b>
         /// (<see cref="MinFreeAheadM"/>, <see cref="MinVClear"/>, <see cref="MinVBrake"/>,
-        /// <see cref="MinWayPointSpeed"/>).</para></summary>
-        public const int FormatVersion = 2;
+        /// <see cref="MinWayPointSpeed"/>).</para>
+        /// <para><b>Verze 3</b> (2026-10-04) pridala soustavu planu <see cref="Frame"/> a transformaci
+        /// do sveta (lp-grid-odometricka-soustava).</para></summary>
+        public const int FormatVersion = 3;
 
         public LocalPlanMsg() : base("LocalPlanMsg", FormatVersion)
         {
@@ -160,6 +217,14 @@ namespace ARBot.Common.Logs
                 bw.Write(At(EnvFreeAheadM, i));
                 bw.Write(At(EnvVClearance, i));
                 bw.Write(At(EnvVBrake, i));
+            }
+
+            if (Verze >= 3)
+            {
+                bw.Write((byte)Frame);
+                bw.Write(FrameDX);
+                bw.Write(FrameDY);
+                bw.Write(FrameDTheta);
             }
         }
 
@@ -213,6 +278,15 @@ namespace ARBot.Common.Logs
                     EnvVClearance[i] = br.ReadSingle();
                     EnvVBrake[i] = br.ReadSingle();
                 }
+            }
+
+            // Do verze 2 vcetne je plan vzdy ve svete (Frame = World, transformace identita).
+            if (Verze >= 3)
+            {
+                Frame = (LocalFrame)br.ReadByte();
+                FrameDX = br.ReadDouble();
+                FrameDY = br.ReadDouble();
+                FrameDTheta = br.ReadDouble();
             }
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using ARBot.Common.Fusion;
 using ARBot.Common.Occupancy;
 
 namespace ARBot.Common.Logs
@@ -16,6 +17,12 @@ namespace ARBot.Common.Logs
     [Serializable()]
     public class OccupancyGridMsg : Message, IHasCaptureTime
     {
+        /// <summary>
+        /// Format verze 2 (4. 10. 2026): soustava gridu (<see cref="Frame"/>) a transformace
+        /// lokalni soustava → svet — lp-grid-odometricka-soustava. Verze 1 je vzdy ve svete.
+        /// </summary>
+        public const int FormatVersion = 2;
+
         /// <summary>Pocet bunek na stranu.</summary>
         public int Size;
         /// <summary>Velikost bunky [m].</summary>
@@ -37,10 +44,30 @@ namespace ARBot.Common.Logs
         /// <summary>Cas, ke kteremu snapshot plati (cas pozy, ze ktere se naposledy zapisovalo).</summary>
         public DateTime TimeStamp;
 
+        /// <summary>
+        /// Soustava, ve ktere jsou souradnice: <see cref="LocalFrame.World"/>, nebo
+        /// <see cref="LocalFrame.Odom"/> (parametr <c>localframe=</c>). Do sveta je prevadi
+        /// <see cref="Transform"/>, resp. <see cref="InWorldFrame"/>.
+        /// </summary>
+        public LocalFrame Frame;
+        /// <summary>Transformace lokalni soustava → svet v case <see cref="TimeStamp"/>: posun X [m].</summary>
+        public double FrameDX;
+        /// <summary>Transformace lokalni soustava → svet: posun Y [m].</summary>
+        public double FrameDY;
+        /// <summary>Transformace lokalni soustava → svet: pootoceni [rad].</summary>
+        public double FrameDTheta;
+
+        /// <summary>Transformace lokalni soustava → svet (identita u <see cref="LocalFrame.World"/>).</summary>
+        public FrameTransform Transform
+        {
+            get => new FrameTransform(FrameDX, FrameDY, FrameDTheta);
+            set { FrameDX = value.DX; FrameDY = value.DY; FrameDTheta = value.DTheta; }
+        }
+
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
 
-        public OccupancyGridMsg() : base("OccupancyGridMsg", 1)
+        public OccupancyGridMsg() : base("OccupancyGridMsg", FormatVersion)
         {
         }
 
@@ -56,10 +83,70 @@ namespace ARBot.Common.Logs
             return CellState.Unknown;
         }
 
-        /// <summary>Svetova X souradnice stredu bunky [m].</summary>
+        /// <summary>X souradnice stredu bunky [m] v soustave <see cref="Frame"/> (ve svete jen
+        /// u identity — vzdy u <see cref="LocalFrame.World"/>; jinak pres <see cref="Transform"/>).</summary>
         public double CenterX(int i) => (OriginX + i + 0.5) * Resolution;
-        /// <summary>Svetova Y souradnice stredu bunky [m].</summary>
+        /// <summary>Y souradnice stredu bunky [m] v soustave <see cref="Frame"/>.</summary>
         public double CenterY(int j) => (OriginY + j + 0.5) * Resolution;
+
+        /// <summary>
+        /// Snapshot ve <b>svetove</b> soustave pro zobrazeni a rozbor. Je-li transformace identita
+        /// (vzdy u <see cref="LocalFrame.World"/>), vrati <b>tentyz objekt</b>; jinak novy grid
+        /// zarovnany s osami sveta, prevzorkovany nejblizsim sousedem (bunka sveta dostane hodnotu
+        /// lokalni bunky, do ktere padne jeji stred). Pri pootoceni je tedy o ~1 bunku nepresny
+        /// a vetsi (obalka otoceneho ctverce) — na kresleni a statistiky to staci, na planovani ne.
+        ///
+        /// <para>Prevzorkovani a ne otoceny obrazek proto, aby zobrazeni (web, World pohled,
+        /// <c>ARBot.Analyze</c>) zustalo beze zmeny: osove zarovnany raster umi vsichni.</para>
+        /// </summary>
+        public OccupancyGridMsg InWorldFrame()
+        {
+            var t = Transform;
+            if (t.IsIdentity || Size <= 0 || Occ == null) return this;
+
+            double res = Resolution;
+            double lx0 = OriginX * res, ly0 = OriginY * res;
+            double lx1 = (OriginX + Size) * res, ly1 = (OriginY + Size) * res;
+            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var (cx, cy) in new[] { (lx0, ly0), (lx1, ly0), (lx0, ly1), (lx1, ly1) })
+            {
+                var (wx, wy) = t.ToWorld(cx, cy);
+                minX = Math.Min(minX, wx); maxX = Math.Max(maxX, wx);
+                minY = Math.Min(minY, wy); maxY = Math.Max(maxY, wy);
+            }
+
+            int ox = (int)Math.Floor(minX / res), oy = (int)Math.Floor(minY / res);
+            int n = Math.Max((int)Math.Ceiling(maxX / res) - ox, (int)Math.Ceiling(maxY / res) - oy);
+            var w = new OccupancyGridMsg
+            {
+                Size = n,
+                Resolution = res,
+                OriginX = ox,
+                OriginY = oy,
+                Scale = Scale,
+                BlockedThreshold = BlockedThreshold,
+                FreeThreshold = FreeThreshold,
+                TimeStamp = TimeStamp,
+                Frame = LocalFrame.World,
+                Occ = new sbyte[n * n],
+                Road = Road != null ? new sbyte[n * n] : null,
+            };
+
+            for (int j = 0; j < n; j++)
+            {
+                double wy = (oy + j + 0.5) * res;
+                for (int i = 0; i < n; i++)
+                {
+                    var (lx, ly) = t.ToLocal((ox + i + 0.5) * res, wy);
+                    int li = (int)Math.Floor(lx / res) - OriginX, lj = (int)Math.Floor(ly / res) - OriginY;
+                    if ((uint)li >= (uint)Size || (uint)lj >= (uint)Size) continue;   // mimo = nevim (0)
+                    int src = li + lj * Size, dst = i + j * n;
+                    w.Occ[dst] = Occ[src];
+                    if (w.Road != null) w.Road[dst] = Road[src];
+                }
+            }
+            return w;
+        }
 
         public override void ToData(BinaryWriter bw)
         {
@@ -73,6 +160,13 @@ namespace ARBot.Common.Logs
             Write(bw, TimeStamp);
             WriteChannel(bw, Occ);
             WriteChannel(bw, Road);
+            if (Verze >= 2)
+            {
+                bw.Write((byte)Frame);
+                bw.Write(FrameDX);
+                bw.Write(FrameDY);
+                bw.Write(FrameDTheta);
+            }
         }
 
         public override void FromData(BinaryReader br)
@@ -87,6 +181,14 @@ namespace ARBot.Common.Logs
             TimeStamp = ReadDateTime(br);
             Occ = ReadChannel(br);
             Road = ReadChannel(br);
+            // Verze 1 je vzdy ve svete (Frame = World, transformace identita).
+            if (Verze >= 2)
+            {
+                Frame = (LocalFrame)br.ReadByte();
+                FrameDX = br.ReadDouble();
+                FrameDY = br.ReadDouble();
+                FrameDTheta = br.ReadDouble();
+            }
         }
 
         private static void WriteChannel(BinaryWriter bw, sbyte[] data)

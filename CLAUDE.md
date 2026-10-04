@@ -208,9 +208,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **Absolutní kurz z ní nevznikne**, dokud nebude offset yaw stavem EKF.
   ✅ **Od 4. 10. 2026 nese fúze i ODOMETRICKOU pózu** (`OdomPose`, `RobotState.OdomX/OdomY/OdomTheta`,
   `RobotStateMsg` verze 2): integrál fúzovaných `v`, `ω` v checkpointech `AsyncFusionEngine`, **mimo
-  kovarianci a mimo update** (korekce do ní neskáčou), inicializace ji nepřeruší. Fáze 1 tématu
-  `lp-grid-odometricka-soustava` — **zatím ji nikdo nepoužívá**, přepnutí lokální vrstvy je fáze 2.
-  Únik korekcí přes rychlosti změřen ~1 % (`fusionreplay` blok 10). ⚠️ Na HW neběželo.
+  kovarianci a mimo update** (korekce do ní neskáčou), inicializace ji nepřeruší. Únik korekcí přes
+  rychlosti změřen ~1 % (`fusionreplay` blok 10). **Od téhož dne ji umí použít lokální vrstva:**
+  `localframe=odom` (výchozí `world`) přepne grid, plánovač i regulátor do odometrické soustavy,
+  světový cíl se převádí transformací v čase snímku a `OccupancyGridMsg` v2 / `LocalPlanMsg` v3
+  nesou transformaci do světa (`InWorldFrame()` pro web, UI i `ARBot.Analyze`). Viz
+  [occupancy-and-local-planning.md](doc/occupancy-and-local-planning.md). ⚠️ Na HW neběželo.
   **Od 25. 8. 2026 fúze bere i `GPS/heading`** (kurz nad zemí, `σ = max(podlaha, atan2(σ_příčné, v))`,
   práh na rychlost, jízda vzad vyloučená) — druhá absolutní reference kurzu vedle magnetometru.
   ⚠️ **Samo to ale nic nezmění a je to změřené:** kompas přehlasuje GPS kurz **~4 000:1** (σ 0,017 rad

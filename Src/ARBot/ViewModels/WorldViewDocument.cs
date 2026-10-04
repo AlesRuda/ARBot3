@@ -583,6 +583,10 @@ namespace ARBot.ViewModels
                 map = pendingMap; pendingMap = null;
                 occupancy = pendingOccupancy; pendingOccupancy = null;
                 plan = pendingPlan; pendingPlan = null;
+                // Lokalni vrstva muze pracovat v odometricke soustave (localframe=odom) - mapa je
+                // ve svete. U localframe=world tentyz objekt (nic se neprevzorkovava).
+                occupancy = occupancy?.InWorldFrame();
+                plan = plan?.InWorldFrame();
                 globalNav = pendingGlobalNav; pendingGlobalNav = null;
                 if (pendingTrack != null) { lastTrack = pendingTrack; pendingTrack = null; zonesDirty = true; }
                 if (pendingMission != null) { lastMission = pendingMission; pendingMission = null; zonesDirty = true; }

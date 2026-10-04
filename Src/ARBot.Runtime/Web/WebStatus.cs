@@ -405,6 +405,9 @@ namespace ARBot.Robot.Web
                     input.HasCarrot = true; input.CarrotX = freeRun.GoalX; input.CarrotY = freeRun.GoalY;
                 }
             }
+            // Grid do svetove soustavy (u localframe=odom prevzorkovani; u world tentyz objekt).
+            // Az ZA zamkem a jen pri kresleni - lini render: bez publika se neprevzorkovava.
+            input.Grid = input.Grid?.InWorldFrame();
             return PlanViewRenderer.Render(input, new PlanViewOptions
             {
                 SpanM = PlanViewRenderer.SpanForScaleBar(scaleBarM),
@@ -470,8 +473,14 @@ namespace ARBot.Robot.Web
             if (wp == null || wp.Length < 2) return null;
             if ((TimeBase.Now - planAt).TotalSeconds > PlanFreshSec) return null;
 
+            // Waypointy jsou v soustave lokalni vrstvy (localframe=), pudorys je ve svete.
+            var t = plan.Transform;
             var body = new PlanViewPoint[wp.Length];
-            for (int i = 0; i < wp.Length; i++) body[i] = new PlanViewPoint(wp[i].X, wp[i].Y);
+            for (int i = 0; i < wp.Length; i++)
+            {
+                var (x, y) = t.ToWorld(wp[i].X, wp[i].Y);
+                body[i] = new PlanViewPoint(x, y);
+            }
             return body;
         }
 

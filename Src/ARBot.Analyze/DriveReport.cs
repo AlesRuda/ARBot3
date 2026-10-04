@@ -64,6 +64,12 @@ namespace ARBot.Analyze
             var gyro = new List<(double t, double w)>();
             DateTime? t0 = null;
 
+            // Regulator se prehrava v SOUSTAVE PLANU, presne jako ControlLoop (localframe=): plan
+            // se proto necte prevedeny do sveta a poza se bere v jeho soustave (odometricka
+            // z RobotStateMsg verze 2). U zaznamu ve svetove soustave se nemeni nic.
+            rec.LocalLayerInWorld = false;
+            var planFrame = ARBot.Common.Fusion.LocalFrame.World;
+
             foreach (var e in rec.Index)
             {
                 string n = e.MsgName;
@@ -75,6 +81,7 @@ namespace ARBot.Analyze
                         t0 ??= p.TimeStamp;
                         if (p.WayPoints != null && p.WayPoints.Length >= 2)
                         {
+                            planFrame = p.Frame;
                             try { reg = planner.Plan(p.WayPoints); } catch { reg = null; }
                             regCf = null;
                             if (p.HasEnvelope && p.EnvVClearance.Length == p.WayPoints.Length)
@@ -119,7 +126,7 @@ namespace ARBot.Analyze
                         newPlan = false;
                         if (reg != null)
                         {
-                            var st = pendingState.ToRobotState();
+                            var st = pendingState.ToRobotState().InFrame(planFrame);
                             var r = reg.Control(st);
                             tk.Rep = r.Speed; tk.RepRot = r.RotationSpeed;
                             if (reg is PathResult pr)
@@ -128,7 +135,7 @@ namespace ARBot.Analyze
                                 tk.LimitDist = pr.LastLimitDist; tk.Target = pr.LastTargetIndex;
                                 tk.Nodes = pr.WayPoints.Length;
                             }
-                            if (regCf != null) tk.Cf = regCf.Control(pendingState.ToRobotState()).Speed;
+                            if (regCf != null) tk.Cf = regCf.Control(st).Speed;
                         }
                         ticks.Add(tk);
                         break;

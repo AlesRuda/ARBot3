@@ -146,6 +146,49 @@ Zamítnuto.
 pamětí, ne dokonalou lokalizací — na horizontu jednotek sekund je drift zanedbatelný a víc
 historie stejně nepotřebujeme.
 
+### Soustava lokální vrstvy: svět, nebo odometrie (`localframe=`, od 4. 10. 2026)
+
+Osy gridu jsou srovnané se světem i dál — mění se, **jakou pózou** se do něj zapisuje. Ve výchozím
+`localframe=world` je to globální póza z fúze, takže **každá korekce** z GPS, koridoru nebo korelace
+(skokem, nebo postupně přes `corridorslew=`) posune obsah gridu proti robotu, ačkoli se robot nepohnul
+(`lp-grid-posun-pomalou-korekci`: 10 m za 30 s → `EscapingBlocked`). Změřeno nad jízdami 25. a 29. 9.
+(`ARBot.Analyze fusionreplay` blok 10): za 5 s **p99 1,4–2,1 m, max až 4,3 m**, pootočení p90
+0,9–2,4°. S `localframe=odom` pracuje grid, plánovač i regulátor v **odometrické soustavě**
+(`OdomPose`, viz [ekf-fusion.md](ekf-fusion.md)) — spojité, korekce do ní neskáčou. Cenou je drift
+odometrie (2–5 % dráhy v záznamech před skriptem motorové jednotky 2.1); medián posunu výše je
+právě tento drift, zisk je ve chvostech. Registr: `lp-grid-odometricka-soustava`.
+
+- **Póza:** `LocalNavigator` i `ControlLoop` berou z `GetStateAt` celý stav a předají dál
+  `RobotState.InFrame(Frame)` — u `World` tentýž objekt, u `Odom` kopii s odometrickou pózou.
+  **Obě musí mít touž soustavu** (runtime je nastaví z jednoho parametru): dráha je v soustavě
+  gridu, takže ji regulátor musí porovnávat s pózou v téže soustavě. `RobotStateMsg` nese dál
+  globální i odometrickou pózu.
+- **Cíl:** světový cíl (`SetGoal` — globální navigace, UI, `goal=`) se do lokální soustavy převádí
+  **u každého snímku** transformací v jeho čase (`RobotState.ToWorldTransform`, `FrameTransform`).
+  Korekce pózy se tak projeví **skokem cíle** (A\* přeplánuje), ne posunem překážek. FreeRun počítá
+  mrkev vůči robotu, takže ji posílá **přímo v lokální soustavě** (`ILocalGoalSink.SetLocalGoal`,
+  soustavu zjistí z `ILocalGoalSink.Frame`) pózou téhož snímku — převod světové mrkve až
+  v navigátoru by bral transformaci z jiného snímku a korekce mezi nimi by mrkev posunula.
+  Do `FreeRunMsg` jde mrkev dál ve světě.
+- **Zprávy:** `OccupancyGridMsg` verze 2 a `LocalPlanMsg` verze 3 nesou `Frame` a transformaci
+  lokální soustava → svět v čase zprávy. `InWorldFrame()` vrátí zprávu ve světě: u identity
+  tentýž objekt, plán se transformuje přesně, **grid se převzorkuje** nejbližším sousedem do
+  osově zarovnaného rastru (při pootočení ~1 buňka nepřesnosti, větší rozměr — obálka otočeného
+  čtverce). Díky tomu zůstalo kreslení beze změny: web (při kreslení, ne při příjmu — líný render),
+  World pohled a `ARBot.Analyze` (`RecordFile.LocalLayerInWorld`, výchozí true; `drive` ho vypíná
+  a přehrává regulátor v soustavě plánu jako `ControlLoop`).
+- **Korelace s mapou:** `EvidenceCloud.FromGrid` převádí středy buněk transformací ze zprávy, takže
+  oblak je vždy ve světě a korelátor měří přímo chybu transformace odom → svět.
+- **Detektor skoku pózy** běží dál nad pózou v lokální soustavě — v odometrické skoky z korekcí
+  nevznikají z konstrukce, hlídá jen poruchu. Inicializace polohy v depu grid **nesmaže**
+  (rozhodnutí autora 4. 10. 2026). Teleport v simulaci (`RequestPathReset`) v odometrické soustavě
+  grid smaže: do odometrie se nepromítne, takže by obsah zůstal pod robotem.
+- **Ověřeno:** testy (`LocalNavigatorTest`, `LocalFrameTests`) a během v simulaci (FreeRun na
+  `SyntetickyRovny.osm`, 40 s v každé soustavě): v `odom` drží pravou polovinu proti pravdě stejně
+  (konec běhu −0,444 m proti −0,462 m ve `world`, cíl −0,5 m), plány 100 % `Ok`, transformace se
+  korekcemi mění o desítky cm a desetiny stupně a grid na webu sedí na mapu.
+  ⚠️ **Na zařízení neběželo**; výchozí zůstává `world`.
+
 ### Rozměry
 
 | parametr | default | pozn. |

@@ -30,6 +30,13 @@ namespace ARBot.Common.Occupancy
     /// vrati <c>null</c> (snimek je starsi nez okno historie), snimek se ZAHODI: zapsat ho se spatnou
     /// pozou otravi mapu hur, nez kdyz jeden chybi.</para>
     ///
+    /// <para><b>Soustava</b> (<see cref="Frame"/>, parametr <c>localframe=</c>): grid, plan
+    /// i regulator pracuji bud ve svete (globalni poza), nebo v ODOMETRICKE soustave
+    /// (<see cref="OdomPose"/>), kde korekce pozy obsah gridu proti robotu neposouvaji. Svetovy cil
+    /// (<see cref="SetGoal"/>) se do lokalni soustavy prevadi u KAZDEHO snimku transformaci v jeho
+    /// case, takze korekce posune cil, ne prekazky. Zpravy gridu a planu nesou transformaci do sveta.
+    /// Viz doc/occupancy-and-local-planning.md.</para>
+    ///
     /// <para><b>Zadny stary plan se nedrzi.</b> Kazdy cyklus se pocita cely znovu z aktualniho stavu
     /// gridu; drzet plan spocteny nad starsi mapou = jet proti dukazum, ktere robot uz ma. Stabilitu
     /// resi cena otoceni v <see cref="LocalPathPlanner"/>, ne lepivost v case.</para>
@@ -74,12 +81,27 @@ namespace ARBot.Common.Occupancy
         private bool hasGoal;
         private double goalX, goalY;
 
+        /// <summary>Je cil v lokalni soustave (<see cref="SetLocalGoal"/>), nebo ve svete
+        /// (<see cref="SetGoal"/>)? Svetovy se prevadi u kazdeho snimku.</summary>
+        private bool goalIsLocal;
+
+        /// <summary>Transformace lokalni soustava → svet z posledniho zpracovaneho snimku
+        /// (do zpravy gridu). Jen na vlakne navigatoru.</summary>
+        private FrameTransform lastTransform;
+
         /// <summary>Sirka koridoru cesty v miste cile [m]; zatim jen ulozena (faze 4b).</summary>
         private double goalCorridorWidth;
 
         /// <summary>Polomer cilove zony pro AKTUALNI cil [m]; <c>NaN</c> = vzit vychozi
         /// z konfigurace planovace. Viz <see cref="SetGoal"/>.</summary>
         private double goalRadius = double.NaN;
+
+        /// <summary>
+        /// Soustava lokalni vrstvy (parametr <c>localframe=</c>, vychozi <see cref="LocalFrame.World"/>).
+        /// Nastavit PRED spustenim a stejne jako <see cref="Runtime.ControlLoop.Frame"/> — regulator
+        /// jede waypointy z teto soustavy, takze ho smycka musi krmit pozou v teze soustave.
+        /// </summary>
+        public LocalFrame Frame { get; set; } = LocalFrame.World;
 
         /// <summary>Occupancy grid, ktery smycka akumuluje (jen ke cteni zvenci - vlastni ho toto vlakno).</summary>
         public OccupancyGrid Grid => grid;
@@ -186,12 +208,27 @@ namespace ARBot.Common.Occupancy
         public void SetGoal(double worldX, double worldY, double corridorWidthM = 0,
                             double goalRadiusM = double.NaN)
         {
+            StoreGoal(worldX, worldY, corridorWidthM, goalRadiusM, local: false);
+        }
+
+        /// <summary>
+        /// Nastavi cil v soustave <see cref="Frame"/> (u <see cref="LocalFrame.World"/> totez co
+        /// <see cref="SetGoal"/>). Pro producenty, kteri cil pocitaji vuci robotu (FreeRun) — svetovy
+        /// cil by se prevadel transformaci z jineho snimku a korekce mezi nimi by ho posunula.
+        /// </summary>
+        public void SetLocalGoal(double x, double y, double corridorWidthM = 0,
+                                 double goalRadiusM = double.NaN)
+            => StoreGoal(x, y, corridorWidthM, goalRadiusM, local: true);
+
+        private void StoreGoal(double x, double y, double corridorWidthM, double goalRadiusM, bool local)
+        {
             lock (goalLock)
             {
-                goalX = worldX;
-                goalY = worldY;
+                goalX = x;
+                goalY = y;
                 goalCorridorWidth = corridorWidthM;
                 goalRadius = goalRadiusM;
+                goalIsLocal = local;
                 hasGoal = true;
             }
         }
@@ -208,7 +245,8 @@ namespace ARBot.Common.Occupancy
                 hasGoal = false;
         }
 
-        /// <summary>Aktualni cil, nebo null.</summary>
+        /// <summary>Aktualni cil, nebo null — tak, jak byl zadan (svetovy z <see cref="SetGoal"/>,
+        /// lokalni z <see cref="SetLocalGoal"/>).</summary>
         public (double X, double Y)? Goal
         {
             get
@@ -237,15 +275,22 @@ namespace ARBot.Common.Occupancy
 
             // (1) Poza v case PORIZENI TOHOTO snimku (per kamera zvlast). null = mimo okno historie
             //     -> snimek zahodit, spatna poza by mapu otravila.
-            var pose = engine.GetStateAt(frame.TimeStamp);
-            if (pose == null)
+            var state = engine.GetStateAt(frame.TimeStamp);
+            if (state == null)
             {
                 DroppedFrames++;
                 return;
             }
 
+            // Poza v soustave lokalni vrstvy (u World tentyz objekt) a transformace do sveta
+            // v case TOHOTO snimku - prevadi svetovy cil dovnitr a zpravy ven.
+            var frameKind = Frame;
+            var pose = state.InFrame(frameKind);
+            var toWorld = state.ToWorldTransform(frameKind);
+
             // Skok pozy (korekce z korelace s mapou, znovuzachyceni GPS, konvergence kurzu po
-            // startu) znamena, ze obsah gridu je na spatnem miste. Zahodit je bezpecnejsi i
+            // startu) znamena, ze obsah gridu je na spatnem miste. V odometricke soustave skoky
+            // z korekci nevznikaji z konstrukce, detektor tam hlida jen poruchu. Zahodit je bezpecnejsi i
             // levnejsi nez resamplovat. Kurz se predava spolu s polohou: grid je world-kotveny,
             // takze jeho obsah posouva i ROTACE (o R*dTheta), a to i kdyz robot stoji.
             if (poseJump.Check(pose.X, pose.Y, pose.Theta, pose.V, pose.Omega, pose.TimeStamp))
@@ -256,7 +301,7 @@ namespace ARBot.Common.Occupancy
 
             // Pocitadlo az PO dokonceni cele prace - jinak by pozorovatel (UI, test) videl
             // "zpracovano" driv, nez je grid a plan hotovy.
-            try { ProcessCore(frame, pose); }
+            try { ProcessCore(frame, pose, toWorld); }
             finally { ProcessedFrames++; }
         }
 
@@ -268,18 +313,22 @@ namespace ARBot.Common.Occupancy
         /// pro co byla draha spoctena - typicky po teleportu ve World pohledu (Shift + klik, viz
         /// doc/virtual-hw.md). Bez toho by nizsi smycka jela dal po drazе, ktera vede odjinud.
         ///
-        /// <para>Grid se resit nemusi: integrator ho na novou pozu vycentruje sam pri dalsim
-        /// snimku (nove vstoupivsi pruhy vynuluje).</para>
+        /// <para>Ve svetove soustave se grid resit nemusi: integrator ho na novou pozu vycentruje sam
+        /// pri dalsim snimku (nove vstoupivsi pruhy vynuluje). V odometricke se ale teleport do
+        /// odometrie nepromitne (ta integruje rychlosti) - grid by zustal na miste pod robotem,
+        /// proto se tam smaze.</para>
         /// </summary>
         public void RequestPathReset() => pathResetRequested = true;
 
-        private void ProcessCore(CameraFrame frame, RobotState pose)
+        private void ProcessCore(CameraFrame frame, RobotState pose, FrameTransform toWorld)
         {
+            lastTransform = toWorld;
             if (pathResetRequested)
             {
                 pathResetRequested = false;
                 activePath = null;
                 activePathIsEscape = false;
+                if (Frame == LocalFrame.Odom) grid.Clear();
 
                 var loopToStop = ControlLoop;
                 if (loopToStop != null) loopToStop.Regulator = null;   // null = stat (bezpecny stav)
@@ -299,9 +348,12 @@ namespace ARBot.Common.Occupancy
 
             // (3) Bez cile a bez rozjete drahy neni co resit - mapa se ale akumuluje dal.
             double gx, gy;
-            bool goal;
+            bool goal, goalLocal;
             double gr;
-            lock (goalLock) { goal = hasGoal; gx = goalX; gy = goalY; gr = goalRadius; }
+            lock (goalLock) { goal = hasGoal; gx = goalX; gy = goalY; gr = goalRadius; goalLocal = goalIsLocal; }
+            // Svetovy cil do lokalni soustavy transformaci v case TOHOTO snimku: korekce pozy se
+            // tak projevi skokem cile (A* preplanuje), ne posunem prekazek.
+            if (goal && !goalLocal) (gx, gy) = toWorld.ToLocal(gx, gy);
             if (!goal && activePath == null)
             {
                 LogIntegrateStats(frame, pose);
@@ -382,7 +434,10 @@ namespace ARBot.Common.Occupancy
             {
                 plan.ComputeMs = sw.Elapsed.TotalMilliseconds;
                 LastPlan = plan;
-                EmitDerived(plan.ToLogMessage());
+                var planMsg = plan.ToLogMessage();
+                planMsg.Frame = Frame;
+                planMsg.Transform = toWorld;
+                EmitDerived(planMsg);
             }
             LogIntegrateStats(frame, pose);   // az tady - at je v logu AKTUALNI plan, ne minuly
             EmitGridIfDue(frame.TimeStamp);
@@ -597,7 +652,10 @@ namespace ARBot.Common.Occupancy
         {
             if (now - lastGridMsg < gridMsgPeriod) return;
             lastGridMsg = now;
-            EmitDerived(grid.ToLogMessage(lastFrameTime));
+            var msg = grid.ToLogMessage(lastFrameTime);
+            msg.Frame = Frame;
+            msg.Transform = lastTransform;
+            EmitDerived(msg);
         }
     }
 }
