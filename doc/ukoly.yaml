@@ -3243,9 +3243,9 @@ temata:
     oblast: mise
     nazev: Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-08-26
-    vyreseno: 2026-08-27
+    vyreseno: 2026-10-05
     popis: >
       Dvě vady v tom, jak mise posuzuje cíl z kódu. Zkouška byla pesimističtější než jízda:
       cíl na téže cestě za robotem hlásila jako nedosažitelný, protože mapmatching vybral
@@ -3258,6 +3258,10 @@ temata:
       14:15:56, vykládka 14:27:45), takže vada „`Arrived` by nenastalo nikdy" je na zařízení
       vyvrácená; cíle byly přesně uzly mapy, k limitu 15 m data nedaly. Zamítnutí `NoRoute`
       z `Probe` na náměstí je jiná věc než `NoRoute` za jízdy — vede `mise-robotour-mapa-ostrov`.
+      ✅ **Uzavřeno 5. 10. 2026 (autor: „už není aktuální"):** obě vady jsou opravené a dojezd
+      na přichycený cíl z kódu na zařízení nastal. Dosažitelnost se zkouší **už při čtení kódu**
+      (`Probe` → zamítnutí s důvodem, obsluha ukáže kód znovu), takže `NoRoute` za jízdy zbývá
+      jen pro síť změněnou mezitím (uzavřené hrany) a ten misi dál přeruší. Limit 15 m zůstává.
     kroky:
       - co: 'Zkouška bere minimum přes hranu i její reverzní (cíl za robotem)'
         stav: hotovo
@@ -3265,10 +3269,12 @@ temata:
       - co: 'Přichycení cíle na cestu, limit `MaxTargetOffRoadM`, `MissionMsg` verze 6'
         stav: hotovo
         kdy: 2026-08-27
-      - co: '`NoRoute` na cíl z QR = neplatný cíl, číst znova (dnes přerušení mise)'
-        stav: otevreno
-      - co: 'Nastavit 15 m z odstupů naměřených na zařízení'
-        stav: otevreno
+      - co: '`NoRoute` na cíl z QR = neplatný cíl, číst znova (dnes přerušení mise) — neaktuální (autor): nedosažitelný cíl se zamítne už při čtení kódu a čte se znova; `NoRoute` za jízdy přerušuje dál'
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: 'Nastavit 15 m z odstupů naměřených na zařízení — neaktuální (autor): cíle z kódů na Robotouru byly uzly mapy, limit 15 m zůstává'
+        stav: hotovo
+        kdy: 2026-10-05
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
@@ -3276,7 +3282,7 @@ temata:
         cesta: doc/decisions.md
       - text: track-mission.md
         cesta: doc/track-mission.md
-    devlog: [2026-08-26, 2026-08-27, 2026-09-12, 2026-09-20]
+    devlog: [2026-08-26, 2026-08-27, 2026-09-12, 2026-09-20, 2026-10-05]
     ceka_na: []
 
   # ---------------------------------------------------------------- hw
@@ -7582,14 +7588,20 @@ temata:
     oblast: mise
     nazev: Vizuální dojezd posledních metrů podle QR kódu
     druh: zamer
-    stav: otevreno
+    stav: zamitnuto
     nalezeno: 2026-08-12
+    vyreseno: 2026-10-05
     popis: >
       Mise Robotour jede na cíl z GPS, jejíž chyba ±2 m je pro „zastav u kódu" na hraně
       použitelnosti — stanoviště se proto bere jako zóna o dojezdovém poloměru 3 m, ne bod.
       Poslední ~3 m by šly řídit podle vidění: rohy QR kódu v obraze dávají směr i vzdálenost
       a robot by dojel ke kódu, ne k místu, kde ho GPS tuší. Zapsáno při návrhu globální
       navigace a mise Robotour v srpnu 2026 jako budoucí rozšíření; kód ani měření nevznikly.
+      ❌ **Zamítnuto 5. 10. 2026 (autor): takhle Robotour nefunguje.** QR kód při příjezdu
+      v obraze není — obsluha ho ukazuje (z mobilu nebo vytištěný na papíře) až **zastavenému**
+      robotu, a mise ho v souladu s tím čte jen ve stavu `Servicing` pod drženým nouzovým
+      zastavením. Není tedy k čemu dojíždět. Kdyby se ukázalo, že stanoviště je menší než chyba
+      dojezdu, léčbou je přesnější lokalizace, ne vidění kódu.
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
@@ -7597,6 +7609,9 @@ temata:
         cesta: doc/robotour-mission.md
       - text: RobotourMission.cs
         cesta: Src/ARBot.Common/Missions/RobotourMission.cs
+      - text: rozhodnutí 5. 10. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-10-05]
     ceka_na: []
 
   - id: lp-koridor-trasy-jako-cena

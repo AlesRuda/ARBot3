@@ -143,8 +143,10 @@ měří a loguje uplynulý čas.
 **`Arrived` chodí z globální vrstvy a stojí na póze z EKF** (vzdálenost od cíle ≤
 `NavigatorOptions.ArrivalRadiusMeters`, default 3 m). Tolerance se nastavuje podle toho, že
 **stanoviště je větší než chyba dojezdu** — ne aby byla co nejmenší. Žádné ruční tlačítko „jsem na
-místě" tím není potřeba; kdyby se ukázalo, že stanoviště je menší než chyba EKF, řešením je vizuální
-dojezd na QR kód, ne obsluha místo senzoru.
+místě" tím není potřeba; kdyby se ukázalo, že stanoviště je menší než chyba EKF, řešením je přesnější
+lokalizace, ne obsluha místo senzoru. **Vizuální dojezd na QR kód to být nemůže** (zamítnuto 5. 10. 2026,
+[`mise-vizualni-dojezd-na-cil`](ukoly.md#mise-vizualni-dojezd-na-cil)): kód při příjezdu v obraze není —
+obsluha ho ukazuje z mobilu nebo na papíře až zastavenému robotu, proto se čte jen v `Servicing`.
 
 ### Zastavení na stanovišti: dvě fáze
 
@@ -855,24 +857,8 @@ Panel zároveň ukazuje **obraz té kamery**, takže je vidět, jestli je kód v
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- **[Vizuální dojezd posledních metrů podle QR kódu](ukoly.md#mise-vizualni-dojezd-na-cil)** — rohy
-  kódu v obraze dávají směr i vzdálenost; poslední ~3 m by šly řídit viděním místo GPS (týž úkol
-  v [global-navigation-runtime.md](global-navigation-runtime.md)).
 - (bez tématu v registru) **Detekce nákladu** (senzor/kamera). Od zrušení potvrzování je jediným důkazem „náklad je naložen"
   **uvolnění stop tlačítka** — tedy gesto člověka, ne měření. Skutečný senzor by z toho udělal fakt.
-- **[Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](ukoly.md#mise-cil-dosazitelnost)** —
-  limit vzdálenosti cíle od silniční sítě: cíl se přichycuje na nejbližší hranu a odstup se
-  porovnává s `MaxTargetOffRoadM` (viz „Přichycení cíle na cestu" výše); limit je z úsudku a má se
-  nastavit z dat — odstup se měří a jde do záznamu.
-- **[Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](ukoly.md#mise-cil-dosazitelnost)** —
-  chování při `NoRoute` na cíl z QR; rozhodnutí autora: *„je to neplatný cíl, číst znova."* `NoRoute`
-  za jízdy misi **přeruší** (`Abort`), což ji ukončí natrvalo — má se místo toho cíl zahodit a vrátit
-  se do servisního okna, tedy k dalšímu pokusu o přečtení kódu, stejně jako když kód neprojde
-  strojovými kontrolami.
-  > Pozor při implementaci: `NoRoute` přijde, když už robot **odjel od stanoviště**, takže „číst
-  > znova" znamená čekat na stop a kód **tam, kde robot stojí** — obsluha za ním musí dojít. To je
-  > v souladu s tím, že QR ukazuje člověk (viz níže), ale je to jiná situace než zamítnutí kódu
-  > přímo na stanovišti.
 - (bez tématu v registru) **Rozpoznání startovní/cílové čáry nebo jiných značek soutěže**, pokud je pravidla zavedou.
 - **[Mise Robotour běží bez operátora — potvrzování cíle zrušeno](ukoly.md#mise-robotour-bez-operatora)** —
   kdo v depu ukazuje QR kód: **obsluha**, a tím je průběh (kód nakládky se čte už v depu) v pořádku;

@@ -602,9 +602,6 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[Recovery manévr při záseku](ukoly.md#nav-recovery-manevr)** — couvnutí nebo otočka na místě
   v lokální vrstvě; detektor A bez toho umí jen čekat a pak uzavřít hranu, a zastavit a ohlásit je
   zatím přijatelná odpověď.
-- **[Vizuální dojezd posledních metrů podle QR kódu](ukoly.md#mise-vizualni-dojezd-na-cil)** —
-  poslední ~3 m řídit podle vidění (u QR kódu dává jeho poloha a velikost v obraze směr
-  i vzdálenost); GPS na ±2 m je pro „zastav u kódu" na hraně použitelnosti.
 - **[Koridor trasy jako měkká cena v lokálním A\*](ukoly.md#lp-koridor-trasy-jako-cena)** — dnes je
   z trasy jen jediný bod (mrkev); cesty se robot drží sám díky sémantice z vize (27. 8. 2026),
   otevřené zůstává „kde vize okraj cesty nevidí, mapa se ho nezastane" — měkká preference

@@ -29,11 +29,11 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">33</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">34</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">155</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">32</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">33</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">156</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
-    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">7</span></label>
+    <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">8</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
     <span class="mono pocet" id="filtr-pocet"></span>
   </form>
@@ -176,7 +176,6 @@
       <li data-tema="nav-delka-trasy"><span class="mono">26. 8.</span> <span class="typ">nalezeno</span> <a href="#nav-delka-trasy">D&#233;lka trasy k c&#237;li nepoč&#237;tala posledn&#237; &#250;sek</a></li>
       <li data-tema="hw-motor-chybovy-ramec"><span class="mono">27. 8.</span> <span class="typ">nalezeno</span> <a href="#hw-motor-chybovy-ramec">Chybov&#253; r&#225;mec motorov&#233;ho driveru se tv&#225;řil jako měřen&#237;</a></li>
       <li data-tema="lok-odometrie-pod-stopem"><span class="mono">27. 8.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lok-odometrie-pod-stopem">Robot na mapě poskakoval, protože f&#250;ze pod nouzov&#253;m zastaven&#237;m zahazovala odometrii</a></li>
-      <li data-tema="mise-cil-dosazitelnost"><span class="mono">27. 8.</span> <span class="typ">vyřešeno</span> <a href="#mise-cil-dosazitelnost">Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</a></li>
       <li data-tema="mise-robotour-panel"><span class="mono">27. 8.</span> <span class="typ">vyřešeno</span> <a href="#mise-robotour-panel">Panel mise Robotour a nouzov&#233; zastaven&#237; v simulaci</a></li>
       <li data-tema="prov-sit-soutezni-provoz"><span class="mono">29. 8.</span> <span class="typ">začato</span> <a href="#prov-sit-soutezni-provoz">S&#237;ť robota pro soutěž — vlastn&#237; WiFi AP a kabel bez routeru</a></li>
       <li data-tema="hw-realsense-retez-hubu"><span class="mono">30. 8.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#hw-realsense-retez-hubu">Kamery RealSense nešly za řetězem dvou USB hubů</a></li>
@@ -423,6 +422,8 @@
       <li data-tema="lok-assoc-velka-sigma-soubezna-ulice"><span class="mono">4. 10.</span> <span class="typ">vyřešeno</span> <a href="#lok-assoc-velka-sigma-soubezna-ulice">Přiřazen&#237; hrany vzalo ulici 15 m od p&#243;zy — veto podle rozbit&#233;ho kurzu vyřadilo bližš&#237; cesty a limit 4 hran schoval soupeře</a></li>
       <li data-tema="lp-grid-odometricka-soustava"><span class="mono">4. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-grid-odometricka-soustava">Lok&#225;ln&#237; vrstva v odometrick&#233; soustavě (<code>localframe=odom</code>) — odometrick&#225; p&#243;za (x, y, θ) jako vedlejš&#237; integr&#225;tor ve snapshotu f&#250;ze</a></li>
       <li data-tema="lp-schody-v-uzine-regulator-brzdi"><span class="mono">5. 10.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lp-schody-v-uzine-regulator-brzdi">V &#250;zk&#233;m průjezdu pl&#225;n „schoduje“ po buňk&#225;ch 45&#176; a regul&#225;tor kvůli tomu jede ~0,1 m/s, ačkoli ob&#225;lka pl&#225;nu dovoluje 0,6–0,9</a></li>
+      <li data-tema="mise-cil-dosazitelnost"><span class="mono">5. 10.</span> <span class="typ">vyřešeno</span> <a href="#mise-cil-dosazitelnost">Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</a></li>
+      <li data-tema="mise-vizualni-dojezd-na-cil"><span class="mono">5. 10.</span> <span class="typ">zamítnuto</span> <a href="#mise-vizualni-dojezd-na-cil">Vizu&#225;ln&#237; dojezd posledn&#237;ch metrů podle QR k&#243;du</a></li>
     </ul>
   </div>
 </section>
@@ -1685,12 +1686,6 @@
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
   <h2>Mise</h2>
-  <article class="tema" id="mise-vizualni-dojezd-na-cil" data-stav="otevreno">
-    <h3>Vizu&#225;ln&#237; dojezd posledn&#237;ch metrů podle QR k&#243;du</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span></p>
-    <p>Mise Robotour jede na c&#237;l z GPS, jej&#237;ž chyba &#177;2 m je pro „zastav u k&#243;du&quot; na hraně použitelnosti — stanoviště se proto bere jako z&#243;na o dojezdov&#233;m poloměru 3 m, ne bod. Posledn&#237; ~3 m by šly ř&#237;dit podle viděn&#237;: rohy QR k&#243;du v obraze d&#225;vaj&#237; směr i vzd&#225;lenost a robot by dojel ke k&#243;du, ne k m&#237;stu, kde ho GPS tuš&#237;. Zaps&#225;no při n&#225;vrhu glob&#225;ln&#237; navigace a mise Robotour v srpnu 2026 jako budouc&#237; rozš&#237;řen&#237;; k&#243;d ani měřen&#237; nevznikly.</p>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Missions/RobotourMission.cs">RobotourMission.cs</a></p>
-  </article>
   <article class="tema" id="mise-magcal-sber-po-zapisu" data-stav="otevreno">
     <h3>Kalibrace magnetometru se po z&#225;pisu sama znehodnot&#237; — kolektor sb&#237;r&#225; d&#225;l</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 17. 9. 2026</span></p>
@@ -1701,18 +1696,6 @@
       <li class="otevreno">Test, že z&#225;pis s&#225;m verdikt nezměn&#237;</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Missions/MagCalMission.cs">MagCalMission.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Calibration/MagCalCollector.cs">MagCalCollector.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
-  </article>
-  <article class="tema" id="mise-cil-dosazitelnost" data-stav="v-kodu">
-    <h3>Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 26. 8. 2026</span> <span>vyřešeno 27. 8. 2026</span></p>
-    <p>Dvě vady v tom, jak mise posuzuje c&#237;l z k&#243;du. Zkouška byla pesimističtějš&#237; než j&#237;zda: c&#237;l na t&#233;že cestě za robotem hl&#225;sila jako nedosažiteln&#253;, protože mapmatching vybral orientovanou hranu podle pořad&#237;, ne podle kurzu — teď zkouš&#237; obě orientace. A dosažitelnost neověřovala vzd&#225;lenost c&#237;le od s&#237;tě; hůř, navigace měř&#237; dojezd proti surov&#233;mu c&#237;li, takže c&#237;l odsazen&#253; od osy cesty v&#237;c než o 3 m by nikdy neohl&#225;sil dojezd a mise by uv&#237;zla napoř&#225;d. C&#237;l se proto přichycuje na cestu a co je d&#225;l než <code>MaxTargetOffRoadM</code> (15 m, z &#250;sudku) je nedosažiteln&#233;; odstup jde do z&#225;znamu. Tat&#225;ž past se 12. 9. znovu řešila u mise Track. Na Robotouru 19. 9. 2026 dojezd na přichycen&#253; c&#237;l z k&#243;du nastal dvakr&#225;t (Kolo3b: nakl&#225;dka 14:15:56, vykl&#225;dka 14:27:45), takže vada „<code>Arrived</code> by nenastalo nikdy&quot; je na zař&#237;zen&#237; vyvr&#225;cen&#225;; c&#237;le byly přesně uzly mapy, k limitu 15 m data nedaly. Zam&#237;tnut&#237; <code>NoRoute</code> z <code>Probe</code> na n&#225;měst&#237; je jin&#225; věc než <code>NoRoute</code> za j&#237;zdy — vede <code>mise-robotour-mapa-ostrov</code>.</p>
-    <ul class="kroky">
-      <li class="hotovo">Zkouška bere minimum přes hranu i jej&#237; reverzn&#237; (c&#237;l za robotem) <span class="mono">27. 8. 2026</span></li>
-      <li class="hotovo">Přichycen&#237; c&#237;le na cestu, limit <code>MaxTargetOffRoadM</code>, <code>MissionMsg</code> verze 6 <span class="mono">27. 8. 2026</span></li>
-      <li class="otevreno"><code>NoRoute</code> na c&#237;l z QR = neplatn&#253; c&#237;l, č&#237;st znova (dnes přerušen&#237; mise)</li>
-      <li class="otevreno">Nastavit 15 m z odstupů naměřen&#253;ch na zař&#237;zen&#237;</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 27. 8. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/track-mission.md">track-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
   </article>
   <article class="tema" id="mise-robotour-armovani-rozptyl" data-stav="v-kodu">
     <h3>Mise by se v depu nezarmovala nikdy — pr&#225;h rozptylu fixů byl pod šumem GPS</h3>
@@ -1798,6 +1781,18 @@
       <li class="hotovo">Prvn&#237; j&#237;zda venku na zař&#237;zen&#237; (<code>20260907-170728.rec</code>) <span class="mono">7. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-25">2026-08-25</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-01">2026-09-01</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-07">2026-09-07</a></p>
+  </article>
+  <article class="tema" id="mise-cil-dosazitelnost" data-stav="hotovo">
+    <h3>Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 26. 8. 2026</span> <span>vyřešeno 5. 10. 2026</span></p>
+    <p>Dvě vady v tom, jak mise posuzuje c&#237;l z k&#243;du. Zkouška byla pesimističtějš&#237; než j&#237;zda: c&#237;l na t&#233;že cestě za robotem hl&#225;sila jako nedosažiteln&#253;, protože mapmatching vybral orientovanou hranu podle pořad&#237;, ne podle kurzu — teď zkouš&#237; obě orientace. A dosažitelnost neověřovala vzd&#225;lenost c&#237;le od s&#237;tě; hůř, navigace měř&#237; dojezd proti surov&#233;mu c&#237;li, takže c&#237;l odsazen&#253; od osy cesty v&#237;c než o 3 m by nikdy neohl&#225;sil dojezd a mise by uv&#237;zla napoř&#225;d. C&#237;l se proto přichycuje na cestu a co je d&#225;l než <code>MaxTargetOffRoadM</code> (15 m, z &#250;sudku) je nedosažiteln&#233;; odstup jde do z&#225;znamu. Tat&#225;ž past se 12. 9. znovu řešila u mise Track. Na Robotouru 19. 9. 2026 dojezd na přichycen&#253; c&#237;l z k&#243;du nastal dvakr&#225;t (Kolo3b: nakl&#225;dka 14:15:56, vykl&#225;dka 14:27:45), takže vada „<code>Arrived</code> by nenastalo nikdy&quot; je na zař&#237;zen&#237; vyvr&#225;cen&#225;; c&#237;le byly přesně uzly mapy, k limitu 15 m data nedaly. Zam&#237;tnut&#237; <code>NoRoute</code> z <code>Probe</code> na n&#225;měst&#237; je jin&#225; věc než <code>NoRoute</code> za j&#237;zdy — vede <code>mise-robotour-mapa-ostrov</code>. ✅ **Uzavřeno 5. 10. 2026 (autor: „už nen&#237; aktu&#225;ln&#237;&quot;):** obě vady jsou opraven&#233; a dojezd na přichycen&#253; c&#237;l z k&#243;du na zař&#237;zen&#237; nastal. Dosažitelnost se zkouš&#237; **už při čten&#237; k&#243;du** (<code>Probe</code> → zam&#237;tnut&#237; s důvodem, obsluha uk&#225;že k&#243;d znovu), takže <code>NoRoute</code> za j&#237;zdy zb&#253;v&#225; jen pro s&#237;ť změněnou mezit&#237;m (uzavřen&#233; hrany) a ten misi d&#225;l přeruš&#237;. Limit 15 m zůst&#225;v&#225;.</p>
+    <ul class="kroky">
+      <li class="hotovo">Zkouška bere minimum přes hranu i jej&#237; reverzn&#237; (c&#237;l za robotem) <span class="mono">27. 8. 2026</span></li>
+      <li class="hotovo">Přichycen&#237; c&#237;le na cestu, limit <code>MaxTargetOffRoadM</code>, <code>MissionMsg</code> verze 6 <span class="mono">27. 8. 2026</span></li>
+      <li class="hotovo"><code>NoRoute</code> na c&#237;l z QR = neplatn&#253; c&#237;l, č&#237;st znova (dnes přerušen&#237; mise) — neaktu&#225;ln&#237; (autor): nedosažiteln&#253; c&#237;l se zam&#237;tne už při čten&#237; k&#243;du a čte se znova; <code>NoRoute</code> za j&#237;zdy přerušuje d&#225;l <span class="mono">5. 10. 2026</span></li>
+      <li class="hotovo">Nastavit 15 m z odstupů naměřen&#253;ch na zař&#237;zen&#237; — neaktu&#225;ln&#237; (autor): c&#237;le z k&#243;dů na Robotouru byly uzly mapy, limit 15 m zůst&#225;v&#225; <span class="mono">5. 10. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 27. 8. 2026</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/track-mission.md">track-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-26">2026-08-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-27">2026-08-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-12">2026-09-12</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-05">2026-10-05</a></p>
   </article>
   <article class="tema" id="mise-qr-cteni" data-stav="hotovo">
     <h3>Čten&#237; QR k&#243;dů z kamery (ZXing.Net m&#237;sto ZBaru)</h3>
@@ -1920,6 +1915,12 @@
       <li class="hotovo">Ověřeno na zař&#237;zen&#237; (autor 30. 9. 2026) <span class="mono">30. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/track-mission.md">track-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-26">2026-09-26</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-30">2026-09-30</a></p>
+  </article>
+  <article class="tema" id="mise-vizualni-dojezd-na-cil" data-stav="zamitnuto">
+    <h3>Vizu&#225;ln&#237; dojezd posledn&#237;ch metrů podle QR k&#243;du</h3>
+    <p class="tema-meta"><span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span>záměr</span> <span>nalezeno 12. 8. 2026</span> <span>vyřešeno 5. 10. 2026</span></p>
+    <p>Mise Robotour jede na c&#237;l z GPS, jej&#237;ž chyba &#177;2 m je pro „zastav u k&#243;du&quot; na hraně použitelnosti — stanoviště se proto bere jako z&#243;na o dojezdov&#233;m poloměru 3 m, ne bod. Posledn&#237; ~3 m by šly ř&#237;dit podle viděn&#237;: rohy QR k&#243;du v obraze d&#225;vaj&#237; směr i vzd&#225;lenost a robot by dojel ke k&#243;du, ne k m&#237;stu, kde ho GPS tuš&#237;. Zaps&#225;no při n&#225;vrhu glob&#225;ln&#237; navigace a mise Robotour v srpnu 2026 jako budouc&#237; rozš&#237;řen&#237;; k&#243;d ani měřen&#237; nevznikly. ❌ **Zam&#237;tnuto 5. 10. 2026 (autor): takhle Robotour nefunguje.** QR k&#243;d při př&#237;jezdu v obraze nen&#237; — obsluha ho ukazuje (z mobilu nebo vytištěn&#253; na pap&#237;ře) až **zastaven&#233;mu** robotu, a mise ho v souladu s t&#237;m čte jen ve stavu <code>Servicing</code> pod držen&#253;m nouzov&#253;m zastaven&#237;m. Nen&#237; tedy k čemu doj&#237;ždět. Kdyby se uk&#225;zalo, že stanoviště je menš&#237; než chyba dojezdu, l&#233;čbou je přesnějš&#237; lokalizace, ne viděn&#237; k&#243;du.</p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Missions/RobotourMission.cs">RobotourMission.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/decisions.md">rozhodnut&#237; 5. 10. 2026</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-05">2026-10-05</a></p>
   </article>
 </section>
 <section class="oblast">

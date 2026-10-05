@@ -41,6 +41,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-05
 
+- **Zamítnut vizuální dojezd na QR kód** (`mise-vizualni-dojezd-na-cil`, autor): v Robotouru se
+  kód ukazuje z mobilu nebo na papíře až zastavenému robotu, takže při příjezdu v obraze není.
+  Téma v registru `zamitnuto`, odrážky z „Otevřených úkolů" v `robotour-mission.md`
+  a `global-navigation-runtime.md` pryč, opravena věta „řešením je vizuální dojezd na QR kód".
+  Rozhodnutí: [decisions.md](decisions.md).
+- **Uzavřeno `mise-cil-dosazitelnost`** (autor: „už není aktuální") — téma `hotovo`: obě vady
+  opravené 27. 8., dojezd na přichycený cíl z kódu nastal na Robotouru 19. 9.; nedosažitelný cíl se
+  zamítne už při čtení kódu (obsluha ho ukáže znovu). Otevřené kroky (`NoRoute` za jízdy jako
+  „číst znova", 15 m z dat) uzavřeny jako neaktuální, odrážky z „Otevřených úkolů"
+  v `robotour-mission.md` pryč.
 - **Rozbor dvou skoků v simulaci** (`records/20261005-075416.rec`, `SyntetickyKoridor` +
   posunutá vizuální mapa, `roadwidthmap=true`, tehdy ještě `localframe=world`): póza skočila
   příčně o **0,37 m** (07:54:51.5, way 101) a **0,40 m** + 3° kurzu (07:56:14.1, way 104),

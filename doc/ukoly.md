@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **243**: otevřeno **33** · v kódu, na HW neověřeno **34** · hotovo **155** · odloženo **14** · zamítnuto **7**.
+Témat celkem **243**: otevřeno **32** · v kódu, na HW neověřeno **33** · hotovo **156** · odloženo **14** · zamítnuto **8**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -16,7 +16,6 @@ Témat celkem **243**: otevřeno **33** · v kódu, na HW neověřeno **34** · 
 | otevřeno | Lokální mapa a plánování | [Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
-| otevřeno | Mise | [Vizuální dojezd posledních metrů podle QR kódu](#mise-vizualni-dojezd-na-cil) | 12. 8. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
@@ -48,7 +47,6 @@ Témat celkem **243**: otevřeno **33** · v kódu, na HW neověřeno **34** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná](#mise-cil-dosazitelnost) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
@@ -1573,15 +1571,6 @@ Segmentační síť má proti histogramu barev naměřenou výhodu (88,2 % proti
 
 ## Mise
 
-<a id="mise-vizualni-dojezd-na-cil"></a>
-### ⬜ Vizuální dojezd posledních metrů podle QR kódu
-
-`mise-vizualni-dojezd-na-cil` · záměr · **otevřeno** · nalezeno 12. 8. 2026
-
-Mise Robotour jede na cíl z GPS, jejíž chyba ±2 m je pro „zastav u kódu" na hraně použitelnosti — stanoviště se proto bere jako zóna o dojezdovém poloměru 3 m, ne bod. Poslední ~3 m by šly řídit podle vidění: rohy QR kódu v obraze dávají směr i vzdálenost a robot by dojel ke kódu, ne k místu, kde ho GPS tuší. Zapsáno při návrhu globální navigace a mise Robotour v srpnu 2026 jako budoucí rozšíření; kód ani měření nevznikly.
-
-[global-navigation-runtime.md](global-navigation-runtime.md), [robotour-mission.md](robotour-mission.md), [RobotourMission.cs](../Src/ARBot.Common/Missions/RobotourMission.cs)
-
 <a id="mise-magcal-sber-po-zapisu"></a>
 ### ⬜ Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál
 
@@ -1594,20 +1583,6 @@ Mise `magcal` došla do verdiktu HOTOVO v 48. s (podmíněnost 330, `sd|B|` 0,00
 - [ ] Test, že zápis sám verdikt nezmění
 
 [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs), [MagCalCollector.cs](../Src/ARBot.Common/Calibration/MagCalCollector.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
-
-<a id="mise-cil-dosazitelnost"></a>
-### 🧪 Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná
-
-`mise-cil-dosazitelnost` · vada · **v kódu, na HW neověřeno** · nalezeno 26. 8. 2026 · vyřešeno 27. 8. 2026
-
-Dvě vady v tom, jak mise posuzuje cíl z kódu. Zkouška byla pesimističtější než jízda: cíl na téže cestě za robotem hlásila jako nedosažitelný, protože mapmatching vybral orientovanou hranu podle pořadí, ne podle kurzu — teď zkouší obě orientace. A dosažitelnost neověřovala vzdálenost cíle od sítě; hůř, navigace měří dojezd proti surovému cíli, takže cíl odsazený od osy cesty víc než o 3 m by nikdy neohlásil dojezd a mise by uvízla napořád. Cíl se proto přichycuje na cestu a co je dál než `MaxTargetOffRoadM` (15 m, z úsudku) je nedosažitelné; odstup jde do záznamu. Tatáž past se 12. 9. znovu řešila u mise Track. Na Robotouru 19. 9. 2026 dojezd na přichycený cíl z kódu nastal dvakrát (Kolo3b: nakládka 14:15:56, vykládka 14:27:45), takže vada „`Arrived` by nenastalo nikdy" je na zařízení vyvrácená; cíle byly přesně uzly mapy, k limitu 15 m data nedaly. Zamítnutí `NoRoute` z `Probe` na náměstí je jiná věc než `NoRoute` za jízdy — vede `mise-robotour-mapa-ostrov`.
-
-- [x] Zkouška bere minimum přes hranu i její reverzní (cíl za robotem) (27. 8. 2026)
-- [x] Přichycení cíle na cestu, limit `MaxTargetOffRoadM`, `MissionMsg` verze 6 (27. 8. 2026)
-- [ ] `NoRoute` na cíl z QR = neplatný cíl, číst znova (dnes přerušení mise)
-- [ ] Nastavit 15 m z odstupů naměřených na zařízení
-
-[robotour-mission.md](robotour-mission.md), [rozhodnutí 27. 8. 2026](decisions.md), [track-mission.md](track-mission.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27), [2026-09-12](devlog.md#2026-09-12), [2026-09-20](devlog.md#2026-09-20)
 
 <a id="mise-robotour-armovani-rozptyl"></a>
 ### 🧪 Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS
@@ -1707,6 +1682,20 @@ Jednodušší mise před Robotourem, pro homologaci a přesun mezi stanovišti: 
 - [x] První jízda venku na zařízení (`20260907-170728.rec`) (7. 9. 2026)
 
 [mission-freerun.md](mission-freerun.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-01](devlog.md#2026-09-01), [2026-09-07](devlog.md#2026-09-07)
+
+<a id="mise-cil-dosazitelnost"></a>
+### ✅ Zkouška dosažitelnosti cíle z QR kódu nebyla důvěryhodná
+
+`mise-cil-dosazitelnost` · vada · **hotovo** · nalezeno 26. 8. 2026 · vyřešeno 5. 10. 2026
+
+Dvě vady v tom, jak mise posuzuje cíl z kódu. Zkouška byla pesimističtější než jízda: cíl na téže cestě za robotem hlásila jako nedosažitelný, protože mapmatching vybral orientovanou hranu podle pořadí, ne podle kurzu — teď zkouší obě orientace. A dosažitelnost neověřovala vzdálenost cíle od sítě; hůř, navigace měří dojezd proti surovému cíli, takže cíl odsazený od osy cesty víc než o 3 m by nikdy neohlásil dojezd a mise by uvízla napořád. Cíl se proto přichycuje na cestu a co je dál než `MaxTargetOffRoadM` (15 m, z úsudku) je nedosažitelné; odstup jde do záznamu. Tatáž past se 12. 9. znovu řešila u mise Track. Na Robotouru 19. 9. 2026 dojezd na přichycený cíl z kódu nastal dvakrát (Kolo3b: nakládka 14:15:56, vykládka 14:27:45), takže vada „`Arrived` by nenastalo nikdy" je na zařízení vyvrácená; cíle byly přesně uzly mapy, k limitu 15 m data nedaly. Zamítnutí `NoRoute` z `Probe` na náměstí je jiná věc než `NoRoute` za jízdy — vede `mise-robotour-mapa-ostrov`. ✅ **Uzavřeno 5. 10. 2026 (autor: „už není aktuální"):** obě vady jsou opravené a dojezd na přichycený cíl z kódu na zařízení nastal. Dosažitelnost se zkouší **už při čtení kódu** (`Probe` → zamítnutí s důvodem, obsluha ukáže kód znovu), takže `NoRoute` za jízdy zbývá jen pro síť změněnou mezitím (uzavřené hrany) a ten misi dál přeruší. Limit 15 m zůstává.
+
+- [x] Zkouška bere minimum přes hranu i její reverzní (cíl za robotem) (27. 8. 2026)
+- [x] Přichycení cíle na cestu, limit `MaxTargetOffRoadM`, `MissionMsg` verze 6 (27. 8. 2026)
+- [x] `NoRoute` na cíl z QR = neplatný cíl, číst znova (dnes přerušení mise) — neaktuální (autor): nedosažitelný cíl se zamítne už při čtení kódu a čte se znova; `NoRoute` za jízdy přerušuje dál (5. 10. 2026)
+- [x] Nastavit 15 m z odstupů naměřených na zařízení — neaktuální (autor): cíle z kódů na Robotouru byly uzly mapy, limit 15 m zůstává (5. 10. 2026)
+
+[robotour-mission.md](robotour-mission.md), [rozhodnutí 27. 8. 2026](decisions.md), [track-mission.md](track-mission.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-08-27](devlog.md#2026-08-27), [2026-09-12](devlog.md#2026-09-12), [2026-09-20](devlog.md#2026-09-20), [2026-10-05](devlog.md#2026-10-05)
 
 <a id="mise-qr-cteni"></a>
 ### ✅ Čtení QR kódů z kamery (ZXing.Net místo ZBaru)
@@ -1849,6 +1838,15 @@ Track 25. 9. 2026 (`20260925-142428.rec`, `OSM/modrany2.track`): mise skončila 
 - [x] Ověřeno na zařízení (autor 30. 9. 2026) (30. 9. 2026)
 
 [track-mission.md](track-mission.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-30](devlog.md#2026-09-30)
+
+<a id="mise-vizualni-dojezd-na-cil"></a>
+### ❌ Vizuální dojezd posledních metrů podle QR kódu
+
+`mise-vizualni-dojezd-na-cil` · záměr · **zamítnuto** · nalezeno 12. 8. 2026 · vyřešeno 5. 10. 2026
+
+Mise Robotour jede na cíl z GPS, jejíž chyba ±2 m je pro „zastav u kódu" na hraně použitelnosti — stanoviště se proto bere jako zóna o dojezdovém poloměru 3 m, ne bod. Poslední ~3 m by šly řídit podle vidění: rohy QR kódu v obraze dávají směr i vzdálenost a robot by dojel ke kódu, ne k místu, kde ho GPS tuší. Zapsáno při návrhu globální navigace a mise Robotour v srpnu 2026 jako budoucí rozšíření; kód ani měření nevznikly. ❌ **Zamítnuto 5. 10. 2026 (autor): takhle Robotour nefunguje.** QR kód při příjezdu v obraze není — obsluha ho ukazuje (z mobilu nebo vytištěný na papíře) až **zastavenému** robotu, a mise ho v souladu s tím čte jen ve stavu `Servicing` pod drženým nouzovým zastavením. Není tedy k čemu dojíždět. Kdyby se ukázalo, že stanoviště je menší než chyba dojezdu, léčbou je přesnější lokalizace, ne vidění kódu.
+
+[global-navigation-runtime.md](global-navigation-runtime.md), [robotour-mission.md](robotour-mission.md), [RobotourMission.cs](../Src/ARBot.Common/Missions/RobotourMission.cs), [rozhodnutí 5. 10. 2026](decisions.md) · DevLog [2026-10-05](devlog.md#2026-10-05)
 
 ## Provoz na zařízení
 

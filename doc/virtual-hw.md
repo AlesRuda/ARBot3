@@ -365,8 +365,9 @@ je binární vzor s ostrými hranami a rozmazání je právě to, co dekodéru v
 > **Deska se kreslí JEN do barvy, ne do hloubky** (rozhodnutí). Je to *vizuální značka*, ne fyzický
 > objekt: kdyby psala hloubku, stala by se překážkou v occupancy gridu a mohla by ovlivnit detekci
 > koridoru i plánování — tedy zkreslit právě to, co se v simulaci měří. Cena: nedá se na ní měřit
-> vizuální dojezd. Až to bude potřeba, je to samostatný krok — a bude chtít vlastní rozhodnutí,
-> protože pak už to překážka **je**. Hlídá to test (hloubka se přidáním desky nesmí změnit).
+> vizuální dojezd — ten je ale od 5. 10. 2026 zamítnutý (`mise-vizualni-dojezd-na-cil`: v Robotouru
+> se kód ukazuje až zastavenému robotu, takže deska je jen náhrada mobilu / papíru v servisním okně).
+> Hlídá to test (hloubka se přidáním desky nesmí změnit).
 
 **Jak to pustit.** Panel *Tools → Mise Robotour* má v servisním okně sekci „QR kód do virtuální
 kamery": text kódu, dvě tlačítka s **hotovými kódy stanovišť** (nakládka / vykládka), vzdálenost

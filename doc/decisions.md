@@ -13,6 +13,17 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-05 — Vizuální dojezd na QR kód zamítnut: kód se ukazuje až zastavenému robotu
+
+**Co:** téma `mise-vizualni-dojezd-na-cil` (poslední ~3 m k stanovišti řídit podle polohy
+a velikosti QR kódu v obraze) se ruší. **Proč (autor):** takhle Robotour nefunguje — QR kód
+při příjezdu v obraze není, obsluha ho ukazuje z mobilu nebo vytištěný na papíře až **po
+zastavení** robota. Mise to tak má i v kódu: skener je zapnutý jen ve stavu `Servicing` pod
+drženým nouzovým zastavením. Návrh vznikl v srpnu 2026 z představy, že kód stojí na stanovišti
+jako značka. **Důsledky:** stanoviště zůstává zóna o dojezdovém poloměru (3 m); kdyby byla menší
+než chyba dojezdu, léčba je v lokalizaci. Odkazy: [robotour-mission.md](robotour-mission.md),
+registr `mise-vizualni-dojezd-na-cil`.
+
 ### 2026-10-05 — Výchozí `localframe=odom` a druhý průchod vyhlazování s poctivým časem rohů
 
 **Co (1):** lokální vrstva pracuje ve výchozím stavu v **odometrické** soustavě (`localframe=odom`,
