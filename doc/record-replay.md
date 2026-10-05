@@ -575,6 +575,15 @@ přeplánováním), časová osa a **dynamika rotace**: proložení modelu „mr
 mezi příkazem ω a gyrem i rotací z kol (grid search, na 300 s úseku ~15 s); `--from=`/`--to=` [s]
 zúží úsek. Nálezy:
 [ukoly.md](ukoly.md) `mise-freerun-pomala-mrkev-blizko`, `lp-regulator-kmitani-rotace`.
+**Od 5. 10. 2026** bere profil z konfigurace v záznamu (`motionprofile=`, `motionlatency=`; záznam bez
+klíče = `trapezoid`) — do té doby byl napevno lichoběžníkový, takže u jízd od 25. 9. (výchozí
+`latency`) shoda vycházela jen p50 0,09–0,12 m/s mimo a celý rozpad popisoval jiný regulátor (teď
+99,7–99,9 % do 0,02 m/s). Regulátor se přehrává **v soustavě plánu** (`localframe=`, odometrická póza
+z `RobotStateMsg` verze 2). Poslední blok **PŘÍČNÁ CHYBA SLEDOVÁNÍ A ODSTUP ROBOTU** měří, o kolik
+robot uhne z dráhy, kterou v taktu jel (rovně / v zatáčce / podle stáří plánu), a skutečný odstup
+robotu od nejbližší neprůjezdné buňky posledního gridu proti `SafeDist` a `SafeDist + EdgeMarginM`,
+včetně odchylky v taktech pod `SafeDist` (malá = změnila se mapa, ne sledování). Nález:
+`lp-rychlostni-obalka-neridila`.
 
 **`posegps`** (od 26. 9. 2026) — **kde je póza proti GPS a proti mapě a kdo ji opravoval**.
 Časová osa po oknech (`--bin=` [s], výchozí 10): odchylka pózy od GPS rozložená **podélně**

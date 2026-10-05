@@ -51,6 +51,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   zamítne už při čtení kódu (obsluha ho ukáže znovu). Otevřené kroky (`NoRoute` za jízdy jako
   „číst znova", 15 m z dat) uzavřeny jako neaktuální, odrážky z „Otevřených úkolů"
   v `robotour-mission.md` pryč.
+- **Příčná chyba sledování dráhy změřena na zařízení** (`lp-rychlostni-obalka-neridila`, poslední
+  otevřený krok): nový blok v `ARBot.Analyze drive` nad jízdami 18. a 29. 9. — odchylka od dráhy
+  p99 2,6–9,3 cm, nad `EdgeMarginM` 0,15 m v ≤ 0,44 % taktů, takže pásmo zůstává; robot pod
+  `SafeDist` (0,19–0,70 % taktů) jen při odchylce pár mm, tedy kvůli změně mapy. Téma `hotovo`.
+  Při tom nalezeno a opraveno, že `drive` přehrával regulátor napevno lichoběžníkovým profilem
+  (`an-drive-pevny-profil`): u jízd od 25. 9. rekonstrukce neseděla, teď 99,7–99,9 %.
 - **Rozbor dvou skoků v simulaci** (`records/20261005-075416.rec`, `SyntetickyKoridor` +
   posunutá vizuální mapa, `roadwidthmap=true`, tehdy ještě `localframe=world`): póza skočila
   příčně o **0,37 m** (07:54:51.5, way 101) a **0,40 m** + 3° kurzu (07:56:14.1, way 104),

@@ -490,7 +490,13 @@ RADIÁLNÍ model (původní, envelope=radial, pro A/B):
 **kolmé** — jak rychle se k němu robot blíží — a to řeší `v_closing` jako brzdnou dráhu k hranici.
 Jízda **podél** okraje robota nepřibližuje, jediné, před čím tam rampa chrání, je příčná chyba
 sledování dráhy; proto je `EdgeMarginM` úzké pásmo (0,15 m, v simulaci je příčná chyba sledování
-p50 0,01–0,05 m, na HW přeměřit). Uzel dostává **minimum obálky přes vzorky svého okna**, ne obálku
+p50 0,01–0,05 m). ✅ **Přeměřeno na zařízení 5. 10. 2026** (`ARBot.Analyze drive`, čtyři jízdy 18. a
+29. 9.): odchylka od dráhy, kterou regulátor v taktu jel, p50 1–9 mm, **p99 2,6–9,3 cm**, nad 0,15 m
+v 0,02–0,44 % taktů — pásmo stačí, s rezervou ~1,6× proti nejhorší jízdě. Plán se obnovuje každých
+~0,12 s a začíná u robotu, takže odchylka roste jen se stářím plánu (FreeRun 29. 9.: p50 8 mm při
+stáří do 0,15 s, 53 mm při 0,3–0,6 s). Robot byl **pod `SafeDist`** v 0,19–0,70 % taktů, ale
+s odchylkou od dráhy p50 0–6 mm — tam se pod ním změnila **mapa** (nová překážka, posun gridu),
+ne sledování, a to šířka pásma nevyřeší. Uzel dostává **minimum obálky přes vzorky svého okna**, ne obálku
 minima odstupu — ve směrovém modelu záleží u každého vzorku i na směru.
 
 *Proč:* radiální rampa trestala **blízkost** okraje bez ohledu na směr. FreeRun v pravé polovině

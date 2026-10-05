@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **243**: otevřeno **32** · v kódu, na HW neověřeno **33** · hotovo **156** · odloženo **14** · zamítnuto **8**.
+Témat celkem **244**: otevřeno **32** · v kódu, na HW neověřeno **32** · hotovo **158** · odloženo **14** · zamítnuto **8**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -50,7 +50,6 @@ Témat celkem **243**: otevřeno **32** · v kódu, na HW neověřeno **33** · 
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 | [lp-cil-astar-zona](#lp-cil-astar-zona) |
-| v kódu, na HW neověřeno | Lokální mapa a plánování | [Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila](#lp-rychlostni-obalka-neridila) | 2. 9. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](#vid-segmentace-rozliseni-128) | 6. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Řídicí smyčka umí držené zastavení (StopHold)](#lp-drzene-zastaveni-stophold) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Klín mezi zornými poli barevných kamer brzdí robota](#lp-klin-mezi-zornymi-poli) | 13. 9. 2026 |  |
@@ -1084,20 +1083,6 @@ Rozbor 417 s záznamu novým `ARBot.Analyze localplan`: koridor se detekoval jen
 
 čeká na [lp-cil-astar-zona](#lp-cil-astar-zona) · [plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [rozhodnutí 3. 9. 2026](decisions.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-03](devlog.md#2026-09-03)
 
-<a id="lp-rychlostni-obalka-neridila"></a>
-### 🧪 Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila
-
-`lp-rychlostni-obalka-neridila` · vada · **v kódu, na HW neověřeno** · nalezeno 2. 9. 2026 · vyřešeno 3. 9. 2026
-
-Strop rychlosti z odstupu od překážek a z hranice potvrzeného terénu platil jen v uzlu, do kterého se přijíždí, ne podél úseku — a u dvoubodového plánu robot → mrkev (100 % plánů FreeRunu) se strop startovního uzlu nikdy nečetl. Změřeno: strop 0,30 m/s, robot jel 0,86 m/s. Po opravě obálka poprvé skutečně řídila — a hned bylo vidět další dvě věci: robot po startu 10 s lezl 0,05 m/s, protože grid před ním nic nepotvrdil (léčba: půdorys robota je pro obálku sjízdný), a radiální rampa brzdila i podél okraje trávy (léčba: směrový model, `envelope=directional`). Nový graf rychlostního profilu v pohledu World tu vadu odhalil. Na zařízení obálka řídí od 7. 9. 2026 (`ARBot.Analyze envelope`: `VAlong` vázal v 77 % plánů — právě ona robota zpomalila na 0,05 m/s, viz `lp-robot-se-plazi-vyhlazovani`); 18. 9. za jízdy neváže nic při 1,0 m/s. Směrový model a půdorys robota z jízdy rozlišit nejdou.
-
-- [x] Strop uzlu, ze kterého se odjíždí, platí podél celého úseku (3. 9. 2026)
-- [x] Půdorys robota sjízdný pro brzdnou obálku (`FootprintRadiusM`) (3. 9. 2026)
-- [x] Směrový model stropu z odstupu (`envelope=directional`) (3. 9. 2026)
-- [ ] Přeměřit šířku pásma podél překážky a příčnou chybu sledování na zařízení
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [path-following.md](path-following.md), [rozhodnutí 3. 9. 2026](decisions.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-03](devlog.md#2026-09-03), [2026-09-07](devlog.md#2026-09-07), [2026-09-18](devlog.md#2026-09-18)
-
 <a id="lp-drzene-zastaveni-stophold"></a>
 ### 🧪 Řídicí smyčka umí držené zastavení (StopHold)
 
@@ -1267,6 +1252,20 @@ Robot v záznamu 5 s hlásil `RobotBlocked`, ačkoli stál na okraji cesty, ne u
 
 [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-08-18](devlog.md#2026-08-18), [2026-09-03](devlog.md#2026-09-03), [2026-09-26](devlog.md#2026-09-26)
 
+<a id="lp-rychlostni-obalka-neridila"></a>
+### ✅ Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila
+
+`lp-rychlostni-obalka-neridila` · vada · **hotovo** · nalezeno 2. 9. 2026 · vyřešeno 5. 10. 2026
+
+Strop rychlosti z odstupu od překážek a z hranice potvrzeného terénu platil jen v uzlu, do kterého se přijíždí, ne podél úseku — a u dvoubodového plánu robot → mrkev (100 % plánů FreeRunu) se strop startovního uzlu nikdy nečetl. Změřeno: strop 0,30 m/s, robot jel 0,86 m/s. Po opravě obálka poprvé skutečně řídila — a hned bylo vidět další dvě věci: robot po startu 10 s lezl 0,05 m/s, protože grid před ním nic nepotvrdil (léčba: půdorys robota je pro obálku sjízdný), a radiální rampa brzdila i podél okraje trávy (léčba: směrový model, `envelope=directional`). Nový graf rychlostního profilu v pohledu World tu vadu odhalil. Na zařízení obálka řídí od 7. 9. 2026 (`ARBot.Analyze envelope`: `VAlong` vázal v 77 % plánů — právě ona robota zpomalila na 0,05 m/s, viz `lp-robot-se-plazi-vyhlazovani`); 18. 9. za jízdy neváže nic při 1,0 m/s. Směrový model a půdorys robota z jízdy rozlišit nejdou.
+
+- [x] Strop uzlu, ze kterého se odjíždí, platí podél celého úseku (3. 9. 2026)
+- [x] Půdorys robota sjízdný pro brzdnou obálku (`FootprintRadiusM`) (3. 9. 2026)
+- [x] Směrový model stropu z odstupu (`envelope=directional`) (3. 9. 2026)
+- [x] Přeměřit šířku pásma podél překážky a příčnou chybu sledování na zařízení. Hotovo (`ARBot.Analyze drive`, nový blok; jízdy 18. 9. `-154028`, `-155329`, 29. 9. `-150844`, `-151634`): odchylka od dráhy, kterou regulátor jel, p50 1–9 mm, p99 2,6–9,3 cm (rovně i v zatáčce podobně), nad `EdgeMarginM` 0,15 m v 0,02–0,44 % taktů — **0,15 m stačí** a zůstává. Pod `SafeDist` byl robot v 0,19–0,70 % taktů s odchylkou p50 0–6 mm, tedy kvůli změně mapy pod ním, ne sledování. Plán se obnovuje po ~0,12 s, proto je odchylka malá; s plánem starým 0,3–0,6 s FreeRun 29. 9. p50 53 mm (5. 10. 2026)
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [path-following.md](path-following.md), [rozhodnutí 3. 9. 2026](decisions.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-03](devlog.md#2026-09-03), [2026-09-07](devlog.md#2026-09-07), [2026-09-18](devlog.md#2026-09-18), [2026-10-05](devlog.md#2026-10-05)
+
 <a id="lp-robot-se-plazi-vyhlazovani"></a>
 ### ✅ Robot se venku plazil rychlostí 0,05 m/s — může za to vyhlazování dráhy
 
@@ -1306,6 +1305,17 @@ Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebí
 - [x] Hlídat tabulky testem — nepotřeba, tabulky už netvrdí aktuální hodnoty (25. 9. 2026)
 
 [path-following.md](path-following.md), [Profile.cs](../Src/ARBot.Common/Configuration/Profile.cs) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-25](devlog.md#2026-09-25)
+
+<a id="an-drive-pevny-profil"></a>
+### ✅ `ARBot.Analyze drive` přehrával regulátor napevno s lichoběžníkovým profilem
+
+`an-drive-pevny-profil` · vada · **hotovo** · nalezeno 5. 10. 2026 · vyřešeno 5. 10. 2026
+
+Rozbor `drive` stavěl regulátor vždy s `TrapezoidMotionProfile`, ačkoli od 25. 9. 2026 je výchozí `motionprofile=latency`. U jízd z 29. 9. proto rekonstrukce příkazu neseděla se záznamem (p50 0,09–0,12 m/s, p90 0,34–0,43 m/s) a celý rozpad rychlosti popisoval jiný regulátor, než který jel. Našlo se při měření příčné chyby sledování (`lp-rychlostni-obalka-neridila`). Report teď bere `motionprofile=` a `motionlatency=` z konfigurace v záznamu (bez klíče = lichoběžník); shoda 99,7–99,9 % taktů do 0,02 m/s. Závěry dřívějších rozborů `drive` nad jízdami od 25. 9. je potřeba brát s touto výhradou.
+
+- [x] Profil z konfigurace v záznamu, ověřeno nad `20260929-150844.rec` a `-151634.rec` (5. 10. 2026)
+
+[record-replay.md](record-replay.md) · DevLog [2026-10-05](devlog.md#2026-10-05)
 
 ## Vidění
 

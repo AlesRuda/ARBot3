@@ -3960,9 +3960,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Rychlostní obálka lokálního plánovače v přímé jízdě vůbec neřídila
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-02
-    vyreseno: 2026-09-03
+    vyreseno: 2026-10-05
     popis: >
       Strop rychlosti z odstupu od překážek a z hranice potvrzeného terénu platil jen v uzlu, do
       kterého se přijíždí, ne podél úseku — a u dvoubodového plánu robot → mrkev (100 % plánů
@@ -3984,8 +3984,9 @@ temata:
       - co: "Směrový model stropu z odstupu (`envelope=directional`)"
         stav: hotovo
         kdy: 2026-09-03
-      - co: Přeměřit šířku pásma podél překážky a příčnou chybu sledování na zařízení
-        stav: otevreno
+      - co: "Přeměřit šířku pásma podél překážky a příčnou chybu sledování na zařízení. Hotovo (`ARBot.Analyze drive`, nový blok; jízdy 18. 9. `-154028`, `-155329`, 29. 9. `-150844`, `-151634`): odchylka od dráhy, kterou regulátor jel, p50 1–9 mm, p99 2,6–9,3 cm (rovně i v zatáčce podobně), nad `EdgeMarginM` 0,15 m v 0,02–0,44 % taktů — **0,15 m stačí** a zůstává. Pod `SafeDist` byl robot v 0,19–0,70 % taktů s odchylkou p50 0–6 mm, tedy kvůli změně mapy pod ním, ne sledování. Plán se obnovuje po ~0,12 s, proto je odchylka malá; s plánem starým 0,3–0,6 s FreeRun 29. 9. p50 53 mm"
+        stav: hotovo
+        kdy: 2026-10-05
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
@@ -3993,7 +3994,32 @@ temata:
         cesta: doc/path-following.md
       - text: rozhodnutí 3. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-02, 2026-09-03, 2026-09-07, 2026-09-18]
+    devlog: [2026-09-02, 2026-09-03, 2026-09-07, 2026-09-18, 2026-10-05]
+    ceka_na: []
+
+  - id: an-drive-pevny-profil
+    oblast: lokalni-planovani
+    nazev: "`ARBot.Analyze drive` přehrával regulátor napevno s lichoběžníkovým profilem"
+    druh: vada
+    stav: hotovo
+    nalezeno: 2026-10-05
+    vyreseno: 2026-10-05
+    popis: >
+      Rozbor `drive` stavěl regulátor vždy s `TrapezoidMotionProfile`, ačkoli od 25. 9. 2026 je
+      výchozí `motionprofile=latency`. U jízd z 29. 9. proto rekonstrukce příkazu neseděla se
+      záznamem (p50 0,09–0,12 m/s, p90 0,34–0,43 m/s) a celý rozpad rychlosti popisoval jiný
+      regulátor, než který jel. Našlo se při měření příčné chyby sledování
+      (`lp-rychlostni-obalka-neridila`). Report teď bere `motionprofile=` a `motionlatency=`
+      z konfigurace v záznamu (bez klíče = lichoběžník); shoda 99,7–99,9 % taktů do 0,02 m/s.
+      Závěry dřívějších rozborů `drive` nad jízdami od 25. 9. je potřeba brát s touto výhradou.
+    kroky:
+      - co: "Profil z konfigurace v záznamu, ověřeno nad `20260929-150844.rec` a `-151634.rec`"
+        stav: hotovo
+        kdy: 2026-10-05
+    odkazy:
+      - text: record-replay.md
+        cesta: doc/record-replay.md
+    devlog: [2026-10-05]
     ceka_na: []
 
   - id: prov-fake-hwclock

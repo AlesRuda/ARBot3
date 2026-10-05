@@ -6,6 +6,7 @@ using ARBot.Common.Configuration;
 using ARBot.Common.Devices;
 using ARBot.Common.Logs;
 using ARBot.Common.Models;
+using ARBot.Common.Occupancy;
 using ARBot.Common.Regulators;
 
 namespace ARBot.Analyze
@@ -30,6 +31,12 @@ namespace ARBot.Analyze
     /// jen z odstupu (<c>EnvVClearance</c>), tedy jako by potvrzeně sjízdný terén pokračoval za
     /// posledním uzlem. Je to horní mez toho, co by dalo prodloužení hranice potvrzeného za mrkev
     /// — ne předpověď.</para>
+    ///
+    /// <para><b>Příčná chyba sledování a odstup robotu</b> (od 5. 10. 2026, krok tématu
+    /// <c>lp-rychlostni-obalka-neridila</c>): šířka podélné rampy <c>EdgeMarginM</c> (0,15 m) je
+    /// rezerva na to, o kolik robot uhne z dráhy, a byla odhadnutá ze simulace. Blok měří obojí na
+    /// záznamu — vzdálenost pózy od dráhy, kterou regulátor v tom taktu jel, a skutečný odstup robotu
+    /// od nejbližší neprůjezdné buňky gridu proti <c>SafeDist</c>.</para>
     /// </summary>
     public static class DriveReport
     {
@@ -42,21 +49,43 @@ namespace ARBot.Analyze
             public double Cf;          // protifakticky prikaz bez brzdeni na konci planu
             public double VFuse, WFuse;
             public bool NewPlan, Stop;
+            /// <summary>Pricna odchylka pozy od aktivni drahy [m], + = vlevo od smeru drahy; NaN = neni.</summary>
+            public double Xt = double.NaN;
+            /// <summary>Stari aktivniho planu v case taktu [s].</summary>
+            public double PlanAge = double.NaN;
+            /// <summary>Odstup robotu od nejblizsi neprujezdne bunky posledniho gridu [m]; NaN = grid neni.</summary>
+            public double Clear = double.NaN;
+            /// <summary>Aktivni plan je unik z blokovane bunky (odstup pod SafeDist je zamerny).</summary>
+            public bool Escape;
         }
 
         public static void Run(RecordFile rec, double maxSpeedArg, double from, double to)
         {
             double maxSpeed = !double.IsNaN(maxSpeedArg) ? maxSpeedArg : ConfigValue(rec, "maxspeed=") ?? Profile.MaxAllowedSpeed;
-            var profile = new TrapezoidMotionProfile(maxSpeed, Profile.MaxAllowedRotationSpeed,
-                                                     Profile.MaxAcceleration, Profile.Rozchod);
+            // Profil jako ARBotRuntime: motionprofile= z konfigurace v zaznamu. Do 5. 10. 2026 tu byl
+            // napevno lichobeznikovy, takze u zaznamu od 25. 9. (vychozi 'latency') rekonstrukce
+            // prikazu nesedela (p50 0,09-0,12 m/s) a cely rozpad popisoval jiny regulator.
+            // Zaznam bez klice (pred 25. 9.) jel lichobeznikovym.
+            string profileName = ConfigString(rec, "motionprofile=") ?? "trapezoid";
+            double latency = ConfigValue(rec, "motionlatency=") ?? LatencyMotionProfile.DefaultLatency;
+            IMotionProfile profile = profileName == "latency"
+                ? new LatencyMotionProfile(maxSpeed, Profile.MaxAllowedRotationSpeed,
+                                           Profile.MaxAcceleration, Profile.Rozchod, latency)
+                : new TrapezoidMotionProfile(maxSpeed, Profile.MaxAllowedRotationSpeed,
+                                             Profile.MaxAcceleration, Profile.Rozchod);
             var planner = new PathPlanner(profile, Profile.PathEpsilonMargin, Profile.LookaheadTime, Profile.LookaheadMin);
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                "PROFIL: maxspeed={0:F2} m/s, a={1:F2} m/s2, omega_max={2:F3} rad/s, rozchod={3:F2} m, lookahead {4:F2} s / min {5:F2} m",
+                "PROFIL: {6}{7}, maxspeed={0:F2} m/s, a={1:F2} m/s2, omega_max={2:F3} rad/s, rozchod={3:F2} m, lookahead {4:F2} s / min {5:F2} m",
                 maxSpeed, Profile.MaxAcceleration, Profile.MaxAllowedRotationSpeed, Profile.Rozchod,
-                Profile.LookaheadTime, Profile.LookaheadMin));
+                Profile.LookaheadTime, Profile.LookaheadMin, profileName,
+                profileName == "latency" ? string.Format(CultureInfo.InvariantCulture, " (L={0:F2} s)", latency) : ""));
 
             IRegulator reg = null, regCf = null;
             bool newPlan = false;
+            RegulatorWayPoint[] curWps = null;     // aktivni draha (v soustave planu)
+            DateTime curPlanT = default;
+            bool curEscape = false;
+            OccupancyGridMsg lastGrid = null;      // posledni snapshot gridu (tataz soustava jako plan)
             RobotStateMsg pendingState = null;
             var ticks = new List<Tick>();
             var wheel = new List<(double t, double v)>();
@@ -73,7 +102,8 @@ namespace ARBot.Analyze
             foreach (var e in rec.Index)
             {
                 string n = e.MsgName;
-                if (n != "LocalPlanMsg" && n != "RobotStateMsg" && n != "DriveCommandMsg" && n != "MotorStateBase" && n != "IMUState") continue;
+                if (n != "LocalPlanMsg" && n != "RobotStateMsg" && n != "DriveCommandMsg" && n != "MotorStateBase"
+                    && n != "IMUState" && n != "OccupancyGridMsg") continue;
                 var m = rec.Read(e);
                 switch (m)
                 {
@@ -82,6 +112,9 @@ namespace ARBot.Analyze
                         if (p.WayPoints != null && p.WayPoints.Length >= 2)
                         {
                             planFrame = p.Frame;
+                            curWps = p.WayPoints;
+                            curPlanT = p.TimeStamp;
+                            curEscape = p.PlanStatus == LocalPlanStatus.EscapingBlocked;
                             try { reg = planner.Plan(p.WayPoints); } catch { reg = null; }
                             regCf = null;
                             if (p.HasEnvelope && p.EnvVClearance.Length == p.WayPoints.Length)
@@ -102,6 +135,9 @@ namespace ARBot.Analyze
                         break;
                     case RobotStateMsg s:
                         pendingState = s;
+                        break;
+                    case OccupancyGridMsg g when g.Occ != null && g.Size > 0:
+                        lastGrid = g;
                         break;
                     case MotorStateBase mot when mot.HasMeasurement && t0.HasValue:
                         wheel.Add(((mot.TimeStamp - t0.Value).TotalSeconds,
@@ -136,6 +172,14 @@ namespace ARBot.Analyze
                                 tk.Nodes = pr.WayPoints.Length;
                             }
                             if (regCf != null) tk.Cf = regCf.Control(st).Speed;
+
+                            tk.Xt = CrossTrack(curWps, st.X, st.Y);
+                            tk.PlanAge = (d.TimeStamp - curPlanT).TotalSeconds;
+                            tk.Escape = curEscape;
+                            // Grid jen ve tez soustave jako plan (localframe= se za behu nemeni,
+                            // ale starsi zaznam s gridem v1 a planem v3 by se jinak smichal).
+                            if (lastGrid != null && lastGrid.Frame == planFrame)
+                                tk.Clear = Clearance(lastGrid, st.X, st.Y, ClearanceSearchM);
                         }
                         ticks.Add(tk);
                         break;
@@ -292,6 +336,126 @@ namespace ARBot.Analyze
             Console.WriteLine();
 
             RotationDynamics(sel, gyro, wheelW, from, to);
+            Console.WriteLine();
+            CrossTrackReport(drive, rec);
+        }
+
+        /// <summary>Do jake vzdalenosti se hleda neprujezdna bunka kolem robotu [m].</summary>
+        private const double ClearanceSearchM = 1.5;
+
+        /// <summary>
+        /// <b>Je rezerva <c>EdgeMarginM</c> dost siroka?</b> Podelny strop rychlosti roste od nuly na
+        /// <c>SafeDist</c> do plne rychlosti na <c>SafeDist + EdgeMarginM</c>; draha se tak drzi nad
+        /// <c>SafeDist</c> a rampa je rezerva na to, o kolik robot z drahy uhne. Tiskne:
+        /// (a) pricnou odchylku pozy od drahy, kterou regulator v taktu jel — rovne / v zatacce /
+        /// podle stari planu (plan zacina u robotu, takze odchylka roste az s jeho starim);
+        /// (b) skutecny odstup robotu od nejblizsi neprujezdne bunky posledniho gridu — pod
+        /// <c>SafeDist</c> uz robot je, kam ho plan pustit nesmel.
+        /// </summary>
+        private static void CrossTrackReport(List<Tick> drive, RecordFile rec)
+        {
+            var cfg = new LocalPlannerConfig();
+            double safe = ConfigValue(rec, "safedist=") ?? cfg.SafeDist;
+            double margin = cfg.EdgeMarginM;
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "PRICNA CHYBA SLEDOVANI A ODSTUP ROBOTU (SafeDist {0:F2} m, EdgeMarginM {1:F2} m; takty za jizdy, bez uniku):",
+                safe, margin));
+
+            var t = drive.Where(x => !x.Escape && !double.IsNaN(x.Xt)).ToList();
+            if (t.Count == 0) { Console.WriteLine("  zadny takt s aktivni drahou"); return; }
+
+            var all = new Stats("|odchylka od drahy| vse");
+            var straight = new Stats("  rovne (|omega| < 0,1 rad/s)");
+            var curve = new Stats("  v zatacce (|omega| >= 0,1)");
+            var signed = new Stats("odchylka se znamenkem (+ vlevo)");
+            foreach (var x in t)
+            {
+                all.Add(Math.Abs(x.Xt));
+                (Math.Abs(x.WFuse) < 0.1 ? straight : curve).Add(Math.Abs(x.Xt));
+                signed.Add(x.Xt);
+            }
+            foreach (var st in new[] { all, straight, curve })
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "  {0}  p99={1:F3}", st.Line("m"), st.Percentile(99)));
+            Console.WriteLine("  " + signed.Line("m"));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  |odchylka| nad EdgeMarginM ({0:F2} m): {1:F2} % taktu, nad polovinou: {2:F2} %",
+                margin, 100.0 * t.Count(x => Math.Abs(x.Xt) > margin) / t.Count,
+                100.0 * t.Count(x => Math.Abs(x.Xt) > margin / 2) / t.Count));
+
+            Console.WriteLine("  podle stari planu (plan zacina u robotu - odchylka je to, co nabehlo od nej):");
+            foreach (var (lo, hi) in new[] { (0.0, 0.15), (0.15, 0.3), (0.3, 0.6), (0.6, double.MaxValue) })
+            {
+                var g = new Stats(hi == double.MaxValue ? $"    stari >= {lo:F2} s" : $"    stari {lo:F2}-{hi:F2} s");
+                foreach (var x in t) if (x.PlanAge >= lo && x.PlanAge < hi) g.Add(Math.Abs(x.Xt));
+                if (g.Count > 0) Console.WriteLine(g.Line("m"));
+            }
+            var age = new Stats("    stari planu v taktu [s]");
+            foreach (var x in t) age.Add(x.PlanAge);
+            Console.WriteLine(age.Line());
+
+            var c = t.Where(x => !double.IsNaN(x.Clear)).ToList();
+            if (c.Count == 0) { Console.WriteLine("  odstup: zaznam nema OccupancyGridMsg v soustave planu"); return; }
+            var clr = new Stats("odstup robotu od neprujezdne bunky");
+            foreach (var x in c) clr.Add(Math.Min(x.Clear, ClearanceSearchM));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  {0}  p1={1:F3} p5={2:F3} p10={3:F3} m (nad {4:F1} m = {4:F1})",
+                clr.Line("m"), clr.Percentile(1), clr.Percentile(5), clr.Percentile(10), ClearanceSearchM));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  robot POD SafeDist: {0:F2} % taktu ({1}), v pasmu SafeDist..SafeDist+EdgeMarginM: {2:F2} %",
+                100.0 * c.Count(x => x.Clear < safe) / c.Count, c.Count(x => x.Clear < safe),
+                100.0 * c.Count(x => x.Clear >= safe && x.Clear < safe + margin) / c.Count));
+            // Pod SafeDist kvuli odchylce od drahy, nebo proto, ze se pod robotem zmenila mapa (nova
+            // prekazka, posun gridu)? Pri male odchylce to neni vec EdgeMarginM.
+            var pod = new Stats("    |odchylka od drahy| v taktech POD SafeDist");
+            foreach (var x in c) if (x.Clear < safe) pod.Add(Math.Abs(x.Xt));
+            if (pod.Count > 0) Console.WriteLine(pod.Line("m"));
+            var podPlan = new Stats("    stari planu v taktech POD SafeDist [s]");
+            foreach (var x in c) if (x.Clear < safe) podPlan.Add(x.PlanAge);
+            if (podPlan.Count > 0) Console.WriteLine(podPlan.Line());
+            Console.WriteLine("  Odstup je stred bunky robotu -> stred bunky (jako pole odstupu planovace) z posledniho");
+            Console.WriteLine("  snapshotu gridu (500 ms), tedy ne z TEHOZ gridu, nad kterym se planovalo.");
+        }
+
+        /// <summary>
+        /// Pricna vzdalenost bodu od lomene cary se znamenkem (+ = vlevo od smeru drahy); NaN pro
+        /// draha kratsi nez useku.
+        /// </summary>
+        internal static double CrossTrack(RegulatorWayPoint[] wps, double x, double y)
+        {
+            if (wps == null || wps.Length < 2) return double.NaN;
+            double best = double.MaxValue, sign = 1;
+            for (int i = 0; i < wps.Length - 1; i++)
+            {
+                double ax = wps[i].X, ay = wps[i].Y, dx = wps[i + 1].X - ax, dy = wps[i + 1].Y - ay;
+                double len2 = dx * dx + dy * dy;
+                if (len2 < 1e-12) continue;
+                double u = Math.Clamp(((x - ax) * dx + (y - ay) * dy) / len2, 0, 1);
+                double px = x - (ax + u * dx), py = y - (ay + u * dy);
+                double d2 = px * px + py * py;
+                if (d2 < best) { best = d2; sign = dx * py - dy * px >= 0 ? 1 : -1; }
+            }
+            return best == double.MaxValue ? double.NaN : sign * Math.Sqrt(best);
+        }
+
+        /// <summary>
+        /// Odstup bodu od nejblizsi <see cref="CellState.Blocked"/> bunky gridu [m] (stred bunky ->
+        /// stred bunky); <c>+inf</c>, kdyz v okruhu <paramref name="maxM"/> zadna neni; NaN mimo grid.
+        /// </summary>
+        internal static double Clearance(OccupancyGridMsg g, double x, double y, double maxM)
+        {
+            double res = g.Resolution;
+            int ci = (int)Math.Floor(x / res) - g.OriginX, cj = (int)Math.Floor(y / res) - g.OriginY;
+            if ((uint)ci >= (uint)g.Size || (uint)cj >= (uint)g.Size) return double.NaN;
+            int r = (int)Math.Ceiling(maxM / res);
+            double best = double.PositiveInfinity;
+            for (int j = Math.Max(0, cj - r); j <= Math.Min(g.Size - 1, cj + r); j++)
+                for (int i = Math.Max(0, ci - r); i <= Math.Min(g.Size - 1, ci + r); i++)
+                {
+                    if (g.State(i, j) != CellState.Blocked) continue;
+                    double d = res * Math.Sqrt((i - ci) * (i - ci) + (j - cj) * (j - cj));
+                    if (d < best) best = d;
+                }
+            return best;
         }
 
         /// <summary>
@@ -379,6 +543,14 @@ namespace ARBot.Analyze
 
         private static double? ConfigValue(RecordFile rec, string prefix)
         {
+            string s = ConfigString(rec, prefix);
+            return s != null && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+                ? v : (double?)null;
+        }
+
+        /// <summary>Hodnota klice z vypisu ucinne konfigurace v logu zaznamu (prvni vyskyt), nebo null.</summary>
+        private static string ConfigString(RecordFile rec, string prefix)
+        {
             foreach (var e in rec.Index)
             {
                 if (e.MsgName != "Info") continue;
@@ -388,7 +560,7 @@ namespace ARBot.Analyze
                 string rest = s.Substring(prefix.Length).Trim();
                 int sp = rest.IndexOf(' ');
                 if (sp > 0) rest = rest.Substring(0, sp);
-                if (double.TryParse(rest, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)) return v;
+                return rest;
             }
             return null;
         }
