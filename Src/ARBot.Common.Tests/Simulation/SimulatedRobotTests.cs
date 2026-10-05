@@ -258,4 +258,35 @@ public class SimulatedRobotTests
             Assert.That(msg.TimeStamp, Is.EqualTo(stamp));
         });
     }
+
+    // ---------------- Rampy jako skript jednotky 2.2 (5. 10. 2026) ----------------
+
+    /// <summary>Rozjede robot na 1 m/s (rozjezd 0,4 m/s² = 2,5 s), pak Drive(0) a po 0,5 s vrati rychlost.</summary>
+    private static double RychlostPulSekunduPoZastaveni(bool nouze, bool sRampami)
+    {
+        var r = new SimulatedRobot(WheelBase, T0);
+        if (sRampami) r.SetRamps(new ARBot.Common.Devices.MotorRamps(0.4, 1.0));
+        else r.SetAcceleration(0.4);
+        r.Drive(1.0, 0);
+        r.Advance(T0.AddSeconds(3));
+        r.EmergencyBraking = nouze;
+        r.Drive(0, 0);
+        r.Advance(T0.AddSeconds(3.5));
+        r.Read(out _, out _, out _, out double l, out double p, out _, out _);
+        return 0.5 * (l + p);
+    }
+
+    [Test]
+    public void Rampy_BezneBrzdeni_ZpomalenimBeznym()
+        => Assert.That(RychlostPulSekunduPoZastaveni(nouze: false, sRampami: true), Is.EqualTo(0.8).Within(1e-6));
+
+    [Test]
+    public void Rampy_NouzoveZastaveni_NouzovymZpomalenim()
+        => Assert.That(RychlostPulSekunduPoZastaveni(nouze: true, sRampami: true), Is.EqualTo(0.5).Within(1e-6),
+                       "pod nouzovym zastavenim 1,0 m/s² misto 0,4");
+
+    [Test]
+    public void BezSetRamps_NouzeBrzdiJakoDriv()
+        => Assert.That(RychlostPulSekunduPoZastaveni(nouze: true, sRampami: false), Is.EqualTo(0.8).Within(1e-6),
+                       "bez SetRamps puvodni chovani - jedna rampa");
 }

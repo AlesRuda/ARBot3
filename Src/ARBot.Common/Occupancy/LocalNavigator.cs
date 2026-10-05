@@ -462,7 +462,7 @@ namespace ARBot.Common.Occupancy
 
             var cfg = planner.Config;
             double v = Math.Abs(pose.V);
-            double check = v * v / (2.0 * cfg.MaxDeceleration)      // brzdna draha z aktualni rychlosti
+            double check = v * v / (2.0 * cfg.MaxAcceleration)      // brzdna draha z aktualni rychlosti
                            + v * (Profile.Ts / 1000.0)              // jeden takt nez zasah dojede
                            + grid.Resolution;                       // rezerva na diskretizaci
             if (check <= 0) return false;                           // robot stoji - neni co zastavovat

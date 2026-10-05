@@ -1,3 +1,4 @@
+using ARBot.Common.Devices;
 using System;
 
 namespace ARBot.Common.Simulation
@@ -30,6 +31,11 @@ namespace ARBot.Common.Simulation
 
         private DateTime time;
         private double acceleration = 1.0;
+
+        // Nouzove brzdeni dopredne slozky. NaN = jako acceleration (puvodni chovani, dokud nikdo
+        // nezavola SetRamps). Bezna jizda ma jedinou rampu acceleration. Viz MotorRamps.
+        private double emergencyDeceleration = double.NaN;
+        private bool emergencyBraking;
 
         // Stav v tychz velicinach, jake dostava radic: dopredna rychlost a POLOVICNI rozdil kol
         // (vL = forward - dif, vR = forward + dif).
@@ -143,6 +149,28 @@ namespace ARBot.Common.Simulation
         }
 
         /// <summary>
+        /// Rampy jako skript motorove jednotky 2.2: bezna jizda <see cref="MotorRamps.Acceleration"/>
+        /// (rozjezd i brzdeni), dopredna slozka pod nouzovym zastavenim (<see cref="EmergencyBraking"/>)
+        /// brzdi <see cref="MotorRamps.EmergencyDeceleration"/>; rotacni slozka ma jedinou rampu,
+        /// stejne jako ve skriptu.
+        /// </summary>
+        public void SetRamps(MotorRamps ramps)
+        {
+            lock (gate)
+            {
+                acceleration = Math.Abs(ramps.Acceleration);
+                emergencyDeceleration = Math.Abs(ramps.EmergencyDeceleration);
+            }
+        }
+
+        /// <summary>Brzdi se nouzovou rampou (nouzove zastaveni). Nastavuje virtualni motor.</summary>
+        public bool EmergencyBraking
+        {
+            get { lock (gate) return emergencyBraking; }
+            set { lock (gate) emergencyBraking = value; }
+        }
+
+        /// <summary>
         /// Posune stav do zadaneho casu. Volani s casem v minulosti stav nemeni.
         /// </summary>
         public void Advance(DateTime now)
@@ -176,7 +204,7 @@ namespace ARBot.Common.Simulation
 
             // Obe slozky maji SVOU rampu a jsou na sobe nezavisle - doraz zrychleni v dopredne
             // slozce nesmi zdrzet ustaveni rotace (to byla chyba rampy po kolech).
-            speedForward = Ramp(speedForward, targetForward, dt);
+            speedForward = RampForward(speedForward, targetForward, dt);
             speedDif = Ramp(speedDif, targetDif, dt);
 
             // Saturace kola: ustoupi DOPREDNA rychlost, rotace zustava. Tvar i poradi podminek
@@ -344,10 +372,25 @@ namespace ARBot.Common.Simulation
             return angle;
         }
 
-        /// <summary>Posune rychlost k cili nejvyse o <c>acceleration * dt</c>.</summary>
-        private double Ramp(double current, double target, double dt)
+        /// <summary>
+        /// Rampa dopredne slozky jako ve skriptu 2.2: pod nouzovym zastavenim
+        /// (<see cref="EmergencyBraking"/>) se BRZDI nouzovou rampou, jinak vse jednou rampou.
+        /// </summary>
+        private double RampForward(double current, double target, double dt)
         {
-            double maxStep = acceleration * dt;
+            bool braking = (current > 0 && target < current) || (current < 0 && target > current);
+            double rate = braking && emergencyBraking && !double.IsNaN(emergencyDeceleration)
+                ? emergencyDeceleration : acceleration;
+            return Ramp(current, target, dt, rate);
+        }
+
+        /// <summary>Posune rychlost k cili nejvyse o <c>acceleration * dt</c>.</summary>
+        private double Ramp(double current, double target, double dt) => Ramp(current, target, dt, acceleration);
+
+        /// <summary>Posune rychlost k cili nejvyse o <c>rate * dt</c>.</summary>
+        private static double Ramp(double current, double target, double dt, double rate)
+        {
+            double maxStep = rate * dt;
             double diff = target - current;
 
             if (diff > maxStep) return current + maxStep;

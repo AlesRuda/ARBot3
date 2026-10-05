@@ -13,6 +13,65 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-06 — Běžná jízda jednou rampou: `VAR 8` a `MaxDecceleration` zrušeny
+
+**Co:** samostatné běžné brzdění se ruší — ve skriptu jednotky (`VAR 8`), v `MotorRamps`
+(`Deceleration`) i v kódu (`Profile.MaxDecceleration`; pole brzdné obálky plánovače je teď
+`LocalPlannerConfig.MaxAcceleration`). Pro běžnou jízdu platí **jen `Profile.MaxAcceleration`**
+(rozjezd i brzdění, plánovač, rampy ve smyčce); zvlášť zůstává nouzové zastavení (`VAR 9`).
+**Proč (autor):** s různou rampou pro rozjezd a brzdění by změna rychlosti nebyla symetrická —
+kdyby se rampovalo po kolech, kolo, které zrychluje, a kolo, které zpomaluje, by nedošla cíle
+současně a robot by nejel po oblouku. Skript sice rampuje po složkách (tam to nenastane), ale
+samostatné brzdění nic nepřinášelo (obě hodnoty 0,40) a svádělo k nesouměrnému nastavení.
+**Odkazy:** registr `hw-motor-rampa-jednotky`, [hardware.md](hardware.md).
+
+### 2026-10-05 — Rampy motorové jednotky zvlášť: běžná jízda a nouzové zastavení
+
+**Co:** skript jednotky 2.2 má pro dopřednou složku vedle běžné rampy (`VAR 1`) zvlášť brzdění pod
+nouzovým zastavením i watchdogem (`VAR 9`); hostitel je nastavuje `IMotorControl.SetRamps`
+(`MotorRamps`: `MaxAcceleration` 0,40 / `EmergencyDeceleration` 1,0 m/s²). *(Původně i běžné brzdění
+`VAR 8` — 6. 10. zrušeno, viz výš.)*
+**Proč (autor, „oddělit akceleraci při běžném provozu od nouzového zastavení"):** běžná jízda má být
+plynulá a sedět na model plánovače, nouzové zastavení má zastavit co nejdřív, co dovolí trakce
+a náklad — jedna hodnota je kompromis špatný na obě strany; oprava převodu by jinak prodloužila
+brzdnou dráhu pod stopem z ~1,4 na ~3,6 m. **Jak a proč tam:** nouzová rampa je ve **skriptu**,
+protože nouzové zastavení (`DI3`) i watchdog obsluhuje jednotka sama, i když hostitel mlčí; skript
+má **výchozí hodnoty** (nula v proměnné rampu nezmrazí — po restartu jednotky by jinak brzdění
+záviselo na tom, jestli host stihl nastavení poslat) a hlásí účinnou nouzovou rampu řádkem `ED=`,
+podle kterého driver pozná starý skript. 1,0 m/s² je hodnota ozkoušená v září, ne změřené
+maximum. **Odkazy:** `Src/RoboRun/RizeniDiffPodvozku.mbs`, `SDC2160Ex.SetRamps`, `MotorRamps`,
+[hardware.md](hardware.md), registr `hw-motor-rampa-jednotky`. ⚠️ Skript do jednotky nahraje autor
+a nouzové zastavení se musí ověřit na robotu.
+
+### 2026-10-05 — Zrychlení do skriptu motorové jednotky v jeho jednotkách
+
+**Co:** `SDC2160Ex.SetAcceleration` posílá skriptu `MotorAcceleration.ToScriptUnits` =
+`1000·a / MaxTheoreticalSpeed` (tisíciny plného rozsahu za sekundu, jak skript deklaruje), ne
+`ToUnits` (0,1 ot/min za s, jednotky nativního `!AC`). **Proč (autor):** rampa jednotky byla 2,6×
+strmější, než říká `Profile.MaxAcceleration` (0,40 → 1,04 m/s², změřeno ze záznamů), takže číslo
+v profilu nepopisovalo skutečnost. **Důsledky:** robot se bude rozjíždět i pod nouzovým zastavením
+brzdit **0,40 m/s²** místo 1,04 — brzdná dráha jednotky z 1,7 m/s ~3,6 m místo ~1,4 m.
+`MaxAcceleration` zůstal 0,40; jakou hodnotu chceme doopravdy, rozhoduje autor
+(`hw-motor-rampa-jednotky`). ⚠️ Na zařízení neběželo.
+
+### 2026-10-05 — Zastaralá dráha: stojící robot se netočí; příkaz rychlosti bez rampy smí zůstat
+
+**Co (1):** když je dráha zastaralá (regulátor se neobnovil déle než `PathControlTimeOut`), dopředný
+příkaz dobrzdil na nulu a kola stojí, řídicí smyčka **nuluje i rotaci**. **Proč (autor):** „plán je
+starý a robot zastavil, nevidím důvod, proč by měl rotovat." Záznam 29. 9. (`20260929-151634.rec`):
+po uvolnění holdu (zotavení kamer) chyběl plán 8,7 s a robot se točil na místě −0,5 rad/s k dráze
+z doby před holdem, až obsluha zmáčkla nouzové zastavení. Neznámý stav motorů se bere jako stání;
+platný plán s nulovou rychlostí (otočení na místě z plánovače) se netýká.
+
+**Co (2):** příkaz dopředné rychlosti se ve smyčce **nerampuje** — skok 0 → 1,5 m/s za takt je
+přípustný, rozjezd omezí motorová jednotka (autor). Měření k tomu ukázalo, že rampa jednotky je
+2,6× strmější, než říká `Profile.MaxAcceleration` (převod jednotek pro `SDC2160Ex`), a to je
+samostatná otázka (`hw-motor-rampa-jednotky`).
+
+**Odkazy:** `Src/ARBot.Common/Runtime/ControlLoop.cs`, `ControlLoopTests.ZastaralaDraha_*`,
+registr `lp-zastaraly-regulator-toci-na-miste`, `lp-prikaz-rychlosti-bez-rampy`,
+[plan-drive-hold.md](plan-drive-hold.md).
+
 ### 2026-10-05 — Vizuální dojezd na QR kód zamítnut: kód se ukazuje až zastavenému robotu
 
 **Co:** téma `mise-vizualni-dojezd-na-cil` (poslední ~3 m k stanovišti řídit podle polohy

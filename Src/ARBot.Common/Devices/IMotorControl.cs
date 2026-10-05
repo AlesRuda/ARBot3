@@ -25,6 +25,13 @@ namespace ARBot.Common.Devices
         /// </summary>
         /// <param name="acceleration"></param>
         void SetAcceleration(double acceleration);
+
+        /// <summary>
+        /// Nastavi rampy zvlast pro rozjezd, bezne brzdeni a nouzove zastaveni (viz
+        /// <see cref="MotorRamps"/>). Vychozi implementace pro jednotky, ktere to neumi, nastavi jen
+        /// <see cref="SetAcceleration"/> zrychlenim rozjezdu.
+        /// </summary>
+        void SetRamps(MotorRamps ramps) => SetAcceleration(ramps.Acceleration);
 /*
         /// <summary>
         /// Emergency stop

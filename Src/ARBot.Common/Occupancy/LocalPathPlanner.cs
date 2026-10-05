@@ -146,17 +146,17 @@ namespace ARBot.Common.Occupancy
             cfg = config ?? new LocalPlannerConfig();
             cfg.Validate();
             motion = motionProfile ?? new TrapezoidMotionProfile(
-                cfg.MaxSpeed, cfg.MaxRotationSpeed, cfg.MaxDeceleration, Profile.Rozchod);
+                cfg.MaxSpeed, cfg.MaxRotationSpeed, cfg.MaxAcceleration, Profile.Rozchod);
 
-            // Rychlostni obalka (VBrake/VClosing) pocita s cfg.MaxDeceleration, predpovezena rampa
+            // Rychlostni obalka (VBrake/VClosing) pocita s cfg.MaxAcceleration, predpovezena rampa
             // s decelaraci profilu. Kdyz regulator brzdi POMALEJI, nez obalka predpoklada, poruse ji
             // i bez jakehokoli slucovani - a tuhle vazbu mezi dvema konfiguracemi jinak nikdo nehlida.
             // Do Trace, ne do Debug: v Release na zarizeni po poruse musi zustat stopa.
-            if (motion.Acceleration < cfg.MaxDeceleration * (1 - 1e-9))
+            if (motion.Acceleration < cfg.MaxAcceleration * (1 - 1e-9))
                 System.Diagnostics.Trace.WriteLine(
                     $"LocalPathPlanner: profil brzdi {motion.Acceleration:F2} m/s^2, ale rychlostni "
-                    + $"obalka pocita s {cfg.MaxDeceleration:F2} m/s^2 - obalka se muze porusit "
-                    + "i bez slucovani useku. Srovnat Profile.MaxAcceleration a MaxDecceleration.");
+                    + $"obalka pocita s {cfg.MaxAcceleration:F2} m/s^2 - obalka se muze porusit "
+                    + "i bez slucovani useku. Profil i obalka maji brat Profile.MaxAcceleration.");
 
             int n = size * size;
             state = new byte[n];
@@ -1225,7 +1225,7 @@ namespace ARBot.Common.Occupancy
                 // neprekroci - viz ShortcutKeepsTime. Zbytek uz umi vrstva pod tim: PathPlanner z
                 // Speed udela VLimit uzlu a PathResult k nemu dobrzduje, takze mezi dvema uzly
                 // vznikne prave ta rampa. Predpoklad: planovac brzdi konzervativneji nez regulator
-                // (cfg.MaxDeceleration <= decelerace profilu) - jinak by rampa byla plossi nez
+                // (cfg.MaxAcceleration <= decelerace profilu) - jinak by rampa byla plossi nez
                 // overena. Viz doc/occupancy-and-local-planning.md a decisions.md 8. 9. 2026.
                 //
                 // Puvodni pravidlo (minimum pres okno) proto ZUSTAVA u smooth=passable a u uniku:

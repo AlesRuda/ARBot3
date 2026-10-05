@@ -5675,9 +5675,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Řídicí smyčka umí držené zastavení (StopHold)
     druh: zamer
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-13
-    vyreseno: 2026-09-13
+    vyreseno: 2026-10-05
     popis: >
       Robota šlo zastavit jen tím, že mu mise odebrala regulátor — jenže táž vlastnost nese
       „kam jet" i „smím jet" najednou, takže jakmile chce robota podržet někdo jiný než mise
@@ -5687,6 +5687,11 @@ temata:
       i na stránku náhledu; detektor záseku se pod drženým stopem odzbrojí a po uvolnění zase
       ozbrojí. Držení se na robotu potvrdilo při zotavení kamer (13. 9. za 29 s, podruhé 18. 9.
       za 32 s), ale robot u toho pokaždé stál — brzdění pod holdem za jízdy je zatím jen z testů.
+      ✅ **Ověřeno ze záznamů 5. 10. 2026** (`ARBot.Analyze hold`): ze čtyř epizod (16., 18., 23.
+      a 29. 9., vždy zotavení pravé D435, 1,6–6,2 s) dvě padly do jízdy a robot pod holdem brzdil
+      **rampou** a zastavil za 0,27–0,35 s na 3–5 cm. Rozjezd po uvolnění rampou **není** a na
+      jízdě se ukázaly dvě nové vady — vedou je samostatná témata
+      `lp-zastaraly-regulator-toci-na-miste` a `lp-prikaz-rychlosti-bez-rampy`.
     kroky:
       - co: Mechanismus `StopHold` v řídicí smyčce, brzdění rampou, příznak ve zprávě
         stav: hotovo
@@ -5697,19 +5702,165 @@ temata:
       - co: "Řádek „zastaveno: důvod“ na stránce náhledu"
         stav: hotovo
         kdy: 2026-09-13
-      - co: Ověřit brzdění pod holdem za jízdy na zařízení (mise + přirozený výpadek kamery)
-        stav: otevreno
+      - co: "Ověřit brzdění pod holdem za jízdy na zařízení (mise + přirozený výpadek kamery). Ze záznamu (`ARBot.Analyze hold`): 23. 9. `20260923-143515.rec` z 0,47 m/s (kola 0,60), příkaz po 0,050 m/s za takt (tehdejší `MaxDecceleration` 0,50), kola stojí za 0,35 s, dráha 5 cm; 29. 9. `20260929-151634.rec` z 0,13 m/s, příkaz po 0,040 m/s za takt, kola stojí za 0,27 s, 3 cm. Žádný skok, kola sledují příkaz se zpožděním ~0,1 s"
+        stav: hotovo
+        kdy: 2026-10-05
       - co: Hold vzatý supervizorem na robotu při skutečné poruše kamery (robot stál)
         stav: hotovo
         kdy: 2026-09-13
-      - co: Rozjezd po uvolnění holdu rampou, ne skokem — ověřit měřením (rampu má dělat profil pohybu)
-        stav: otevreno
+      - co: "Rozjezd po uvolnění holdu rampou, ne skokem — ověřit měřením (rampu má dělat profil pohybu). Změřeno: rampou NENÍ. Po uvolnění přišel první plán až za 13,1 s (23. 9.) a 8,7 s (29. 9.), do té doby je regulátor zastaralý a dopředný příkaz zůstává 0 (`lp-zastaraly-regulator-toci-na-miste`); s prvním plánem skočí příkaz 0 → 0,57 m/s za jeden takt a za 1 s na 1,53 m/s, zrychlení omezí až motorová jednotka (`lp-prikaz-rychlosti-bez-rampy`)"
+        stav: hotovo
+        kdy: 2026-10-05
     odkazy:
       - text: plan-drive-hold.md
         cesta: doc/plan-drive-hold.md
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-09-13, 2026-09-18]
+    devlog: [2026-09-13, 2026-09-18, 2026-10-05]
+    ceka_na: []
+
+  - id: lp-zastaraly-regulator-toci-na-miste
+    oblast: lokalni-planovani
+    nazev: Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-10-05
+    vyreseno: 2026-10-05
+    popis: >
+      Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastaveni-stophold`).
+      Po uvolnění holdu, který vzalo zotavení kamer, přišel první `LocalPlanMsg` až za **13,1 s**
+      (`20260923-143515.rec`) a **8,7 s** (`20260929-151634.rec`). Do té doby je regulátor
+      zastaralý (`ControlLoop`: déle než `PathControlTimeOut` bez nového plánu) — dopředný příkaz
+      se dobrzďuje rampou z nuly, tedy zůstává 0, ale **rotace z regulátoru jde dál**. Pod holdem
+      ji smyčka u stojícího robotu nuluje, po uvolnění už ne: 29. 9. šlo do motorů −0,48 až
+      −0,52 rad/s a gyro naměřilo −0,47 až −0,55 rad/s, tedy robot se točil na místě za dráhou
+      naplánovanou před holdem; 0,5 s nato obsluha stiskla nouzové zastavení a po jeho uvolnění
+      se točil znovu (−0,52 rad/s, 1 s). 23. 9. to byly jen záchvěvy do ±0,13 rad/s. Totéž platí
+      pro každou zastaralou dráhu, nejen po holdu: dobrzdění „po poslední trase" má smysl za jízdy,
+      ale u stojícího robotu je to otáčení k dráze, která už neplatí. Proč plány 9–13 s nechodí,
+      když kamery jsou podle supervizoru zpátky, z těchto dat vidět není.
+      ✅ **V kódu 5. 10. 2026 (rozhodnutí autora):** u zastaralé dráhy se rotace nuluje, jakmile
+      dopředný příkaz dobrzdil na nulu a kola stojí (neznámý stav motorů = stání) — `ControlLoop`,
+      testy `ZastaralaDraha_*`. Platný plán s nulovou rychlostí (otočení na místě z plánovače) se
+      netýká. Po uvolnění nouzového zastavení přichází plán do 0,05–0,4 s, takže tam to nehrozí.
+    kroky:
+      - co: "Změřeno ze záznamu: plán za 13,1 / 8,7 s po uvolnění, rotace na místě −0,5 rad/s (gyro) při nulovém dopředném příkazu"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Rozhodnout (autor): u zastaralé dráhy nulovat rotaci, jakmile dopředný příkaz dojde na nulu / robot stojí (jako pod holdem), nebo jinak. Autor: ano — „plán je starý a robot zastavil, nevidím důvod, proč by měl rotovat“; v kódu (`ControlLoop`, 5 testů)"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Ověřit na zařízení: po uvolnění holdu robot stojí (gyro ~0) do prvního nového plánu (`ARBot.Analyze hold`)"
+        stav: otevreno
+      - co: "Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?)"
+        stav: otevreno
+    odkazy:
+      - text: plan-drive-hold.md
+        cesta: doc/plan-drive-hold.md
+      - text: ControlLoop.cs
+        cesta: Src/ARBot.Common/Runtime/ControlLoop.cs
+    devlog: [2026-10-05]
+    ceka_na: []
+
+  - id: lp-prikaz-rychlosti-bez-rampy
+    oblast: lokalni-planovani
+    nazev: Příkaz dopředné rychlosti skáče bez rampy — zrychlení omezuje až motorová jednotka
+    druh: vada
+    stav: zamitnuto
+    nalezeno: 2026-10-05
+    vyreseno: 2026-10-05
+    popis: >
+      Nalezeno při ověřování rozjezdu po uvolnění holdu (`ARBot.Analyze hold`). Předpoklad byl,
+      že rampu rozjezdu udělá profil pohybu regulátoru. Neudělá: s prvním plánem po uvolnění skočil
+      příkaz za jeden takt z 0 na **0,57 m/s** (23. 9.) resp. **0,51 m/s** (29. 9.) a za další
+      sekundu na 1,53 / 1,70 m/s, tedy krok až 0,9 m/s za takt proti `MaxAcceleration·Ts` 0,04.
+      Za jízdy totéž (29. 9. 0,28 → 1,69 m/s v jednom taktu). Profil (`LatencyMotionProfile`)
+      dává nejvyšší rychlost, ze které se ještě stihne zastavit, a na **současnou** rychlost se
+      neohlíží; `MaxAcceleration` v něm brání jen brzdné křivce. Kola zrychlila přibližně
+      o 1,9 m/s² (23. 9.: 0,05 → 0,61 m/s za 0,3 s) — to je rampa motorové jednotky, ne naše.
+      Důsledky: `DriveCommandMsg` neříká, jak rychle robot pojede, a regulátor počítá s rychlostí,
+      kterou robot ještě nemá. ⚠️ Rychlost kol z jednotlivých vzorků je zašuměná (razítka
+      odometrie, `lok-fuze-poza-pred-koly`); číslo zrychlení je orientační.
+      ❌ **Zamítnuto jako vada 5. 10. 2026 (autor):** robot smí vydat příkaz „jeď maximální
+      rychlostí", rozjezd reálně omezí motorová jednotka. Po uvolnění nouzového zastavení je obraz
+      týž (příkaz skočí až o 1,5–1,6 m/s za takt, kola zrychlují plynule). Měření přitom ukázalo,
+      že rampa jednotky **není** `Profile.MaxAcceleration` — vede `hw-motor-rampa-jednotky`.
+    kroky:
+      - co: "Změřeno ze záznamu: skok příkazu 0 → 0,51–0,57 m/s za takt, kola ~1,9 m/s²"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Rozhodnout (autor): omezit nárůst příkazu v řídicí smyčce na MaxAcceleration·Ts, nebo nechat na motorové jednotce a jen to zdokumentovat. Autor: nechat na motorové jednotce"
+        stav: hotovo
+        kdy: 2026-10-05
+    odkazy:
+      - text: path-following.md
+        cesta: doc/path-following.md
+      - text: plan-drive-hold.md
+        cesta: doc/plan-drive-hold.md
+      - text: rozhodnutí 5. 10. 2026
+        cesta: doc/decisions.md
+    devlog: [2026-10-05]
+    ceka_na: []
+
+  - id: hw-motor-rampa-jednotky
+    oblast: hw
+    nazev: Rampa motorové jednotky je 2,6× strmější, než říká `Profile.MaxAcceleration`
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-10-05
+    vyreseno: 2026-10-05
+    popis: >
+      Nalezeno při rozboru rozjezdu po uvolnění holdu a nouzového zastavení (`ARBot.Analyze hold
+      --estop`). Kola zrychlují ~1,0–1,3 m/s², ačkoli runtime nastavuje jednotce
+      `Profile.MaxAcceleration` (0,40 m/s², do 27. 9. 2026 0,50). Příčina je v převodu jednotek:
+      `MotorAcceleration.ToUnits` počítá `600·a/obvod`, tedy jednotky Roboteq příkazu `!AC`
+      (0,1 ot/min za sekundu), ale `SDC2160Ex.SetAcceleration` to číslo posílá do proměnné
+      MicroBasic skriptu (`!VAR 1/2`), který ho přičítá jako `time[ms]·acceleration` k rychlosti
+      v miliontinách plného rozsahu (`MaxTheoreticalSpeed` = 2,16 m/s). Skutečná rampa je tedy
+      `jednotky · 2,16 / 1000` = **1,04 m/s²** pro 0,40 (482 jednotek) a **1,30 m/s²** pro 0,50 —
+      činitel `0,6 · MaxTheoreticalSpeed / obvod` = 2,6. Naměřeno: 29. 9. kola 0,04 → 0,57 m/s
+      za 0,5 s (≈ 1,06 m/s²), 25. 9. ≈ 1,2 m/s². Táž hodnota jde do zpomalení (skript ji bere pro
+      obě strany rampy), takže i nouzové dobrzdění jednotky je 2,6× strmější. Plánovač a profil
+      pohybu přitom počítají s 0,40 m/s² — u brzdění je to konzervativní, u modelu rozjezdu ne.
+      ⚠️ Oprava převodu by zpomalila rozjezd robota 2,6× proti dnešku — je to změna chování, ne jen
+      kosmetika; rozhoduje autor.
+      ✅ **Převod opraven 5. 10. 2026 (autor: „určitě je potřeba opravit převod"):**
+      `MotorAcceleration.ToScriptUnits` = `1000·a / MaxTheoreticalSpeed` (0,40 m/s² → 185 jednotek
+      místo 482), `SDC2160Ex` ho používá; `ToUnits` zůstává pro nativní `!AC` u `SDC2160`. Skript
+      v jednotce se nemění (oprava je v hodnotě, kterou posílá hostitel). `Profile.MaxAcceleration`
+      zůstal 0,40 m/s² — ⚠️ **pod nouzovým zastavením tím jednotka brzdí 0,40 místo 1,04 m/s²**,
+      takže z `maxspeed=1.7` je brzdná dráha **~3,6 m místo ~1,4 m**; hodnotu rozhoduje autor.
+      ✅ **Týž den rozděleno (autor: oddělit akceleraci při běžném provozu od nouzového
+      zastavení):** skript jednotky 2.2 má rampy zvlášť — běžná jízda (`VAR 1/2`, jedna rampa pro
+      rozjezd i brzdění; samostatné běžné brzdění `VAR 8` i `Profile.MaxDecceleration` autor
+      6. 10. zrušil kvůli symetrii) a nouzové zastavení i watchdog (`VAR 9`,
+      `Profile.EmergencyDeceleration` 1,0 m/s², tedy to, s čím robot fakticky brzdil celé září). Nouzová rampa je ve **skriptu**, protože
+      nouzové zastavení obsluhuje jednotka i bez hostitele; nula v proměnné ji nezmrazí (výchozí
+      hodnoty ve skriptu) a skript ji hlásí řádkem `ED=`. ⚠️ **Do jednotky se skript musí nahrát
+      ručně** a do té doby by nová binárka brzdila pod stopem jen 0,40 m/s² — driver to hlásí do
+      Trace. Detail: `doc/hardware.md`.
+    kroky:
+      - co: "Změřeno ze záznamů a dopočteno z převodu jednotek: rampa 1,04 m/s² místo 0,40"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Rozhodnout (autor): opravit převod pro `SDC2160Ex` (jednotky = 1000·a / MaxTheoreticalSpeed) a případně zvednout `MaxAcceleration` na skutečně chtěnou hodnotu, nebo dnešní 1,04 m/s² zapsat jako skutečnost do `Profile`. Autor: opravit převod; v kódu (`MotorAcceleration.ToScriptUnits`, 3 nové testy)"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Rozhodnout (autor) hodnotu `Profile.MaxAcceleration` po opravě: 0,40 m/s² znamená pod nouzovým zastavením brzdnou dráhu ~3,6 m z 1,7 m/s (dřív ~1,4 m); táž hodnota jde do plánovače (`LatencyMotionProfile`, `MaxDecceleration` zvlášť). Autor: oddělit běžnou akceleraci od nouzového zastavení — skript 2.2 (`VAR 9` nouzové + watchdog, výchozí hodnoty ve skriptu, řádek `ED=`), `MotorRamps`/`IMotorControl.SetRamps`, `Profile.EmergencyDeceleration` 1,0 m/s², driver hlásí starý skript do Trace, simulace brzdí pod stopem nouzovou rampou; testy HAL +5, Common +3. 6. 10. (autor): běžná jízda jen `MaxAcceleration` — `VAR 8`, `MotorRamps.Deceleration` i `Profile.MaxDecceleration` zrušeny, pole obálky plánovače přejmenováno na `LocalPlannerConfig.MaxAcceleration`"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Nahrát skript 2.2 do motorové jednotky (Roborun+) a v Trace ověřit hlášení `ED=` (1,00 m/s², shodné s nastavením)"
+        stav: otevreno
+      - co: "Ověřit na zařízení: zrychlení kol při rozjezdu ~0,40 m/s², brzdění pod nouzovým zastavením ~1,0 m/s² (z 1,7 m/s ~1,4 m) a při watchdogu (`ARBot.Analyze hold --estop`); případně změřit, jestli jde nouzová rampa strměji bez prokluzu a s nákladem"
+        stav: otevreno
+    odkazy:
+      - text: SDC2160Ex.cs
+        cesta: Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs
+      - text: MotorAcceleration.cs
+        cesta: Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs
+      - text: plan-drive-hold.md
+        cesta: doc/plan-drive-hold.md
+    devlog: [2026-10-05]
     ceka_na: []
 
   - id: prov-zotaveni-kamer-supervizor

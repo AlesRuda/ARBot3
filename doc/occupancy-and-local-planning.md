@@ -697,11 +697,12 @@ když už robot jede rychleji, než obálka dovoluje, regulátor vrací nejlepš
 nesplnitelný strop (`Dist2Speed(0,05, v=0,4, v_e=0)` = **0,252** proti stropu 0,141; z 0,4 m/s se na
 pěti centimetrech zastavit nedá). Že robot vjíždí pod stropem, drží zpětný průchod plus strop úseku.
 
-⚠️ **Obálka a profil brzdí každý podle své konstanty** (`LocalPlannerConfig.MaxDeceleration` proti
-`IMotionProfile.Acceleration`, dnes obě 0,50 z `Profile`). Kdyby profil brzdil **pomaleji**, poruší
+⚠️ **Obálka a profil brzdí každý podle své konstanty** (`LocalPlannerConfig.MaxAcceleration` proti
+`IMotionProfile.Acceleration`, obě z `Profile.MaxAcceleration`; do 6. 10. 2026 bylo pole obálky
+`MaxDeceleration` z `Profile.MaxDecceleration`, zrušené — běžná jízda má jednu rampu). Kdyby profil brzdil **pomaleji**, poruší
 se obálka i **bez jakéhokoli slučování** — proto na to `LocalPathPlanner` v konstruktoru upozorní
 do `Trace`. Tuhle vazbu mezi dvěma konfiguracemi jinak nikdo nehlídá; `VBrake`/`VClosing` zůstávají
-na `cfg.MaxDeceleration`, protože `LocalPlannerConfig` profil nezná.
+na `cfg.MaxAcceleration`, protože `LocalPlannerConfig` profil nezná.
 do `Trace`. Tuhle vazbu mezi dvěma konfiguracemi jinak nikdo nehlídá.
 
 **Strop uzlu se tím zároveň mění na obálku V UZLU** (dřív minimum přes obě sousední úsečky).
@@ -1006,7 +1007,7 @@ Vrstva je čistě algoritmická (bez HW), takže jde otestovat celá:
 | `MinCostSpeed` | 0,05 m/s | `LocalPlannerConfig` |
 | `SafeDist` | 0,40 m | `Profile` (existuje) |
 | `PrefDist` | 0,80 m | `Profile` (jen radiální režim) |
-| `MaxDecceleration` | 0,30 m/s² | `Profile` (existuje) |
+| `MaxAcceleration` (brzdná obálka; do 6. 10. 2026 `MaxDecceleration`) | 0,40 m/s² | `Profile` (existuje) |
 | `MaxAllowedRotationSpeed` | π/6 rad/s | `Profile` (existuje) |
 | `HistoryWindow` | 1 s | `FusionConfig` (existuje) |
 

@@ -726,8 +726,17 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   15 testů). ✅ **Zotavení kamer ověřeno na robotu 13. 9. 2026 i na SKUTEČNÉ poruše**: zamrzla barva →
   15× `failed to set power state` → supervizor vzal hold a vyměnil RealSense kontext → **obě D435
   zpátky, od zamrznutí do obnovy 29 s** (dřív táž porucha znamenala mrtvou kameru 343 s a 22 min,
-  než přišel restart služby). ⚠️ **Jedna epizoda a robot u toho STÁL** — koordinace s bržděním
-  za jízdy je zatím jen z testů.
+  než přišel restart služby). ✅ **Brzdění pod holdem za jízdy ověřeno ze záznamů 5. 10. 2026**
+  (`ARBot.Analyze hold`, 23. a 29. 9.): rampa, stání za 0,27–0,35 s na 3–5 cm. ⚠️ **Rozjezd po
+  uvolnění ale ukázal dvě vady** — plán přijde až za 9–13 s a zastaralý regulátor mezitím točil
+  robotem na místě (od 5. 10. 2026 smyčka u zastaralé dráhy a stojícího robotu rotaci nuluje,
+  `lp-zastaraly-regulator-toci-na-miste`), a příkaz rychlosti skáče bez rampy — to autor nechal,
+  rozjezd omezí motorová jednotka. ⚠️ **Její rampa byla 1,04 m/s², ne nastavených 0,40**
+  (převod jednotek pro `SDC2160Ex`, `hw-motor-rampa-jednotky`) — **opraveno 5. 10. 2026** a rampy
+  jsou zvlášť (skript jednotky **2.2**: běžná jízda jednou rampou 0,40 m/s², nouzové zastavení
+  a watchdog 1,0 m/s², viz [hardware.md](doc/hardware.md)). ⚠️ **Skript 2.2 se musí nahrát do
+  jednotky ručně** — se starým skriptem by nová binárka brzdila pod stopem jen 0,40 m/s² (z 1,7 m/s
+  ~3,6 m); driver to hlásí do `Trace`.
   ⚠️ **Past, kterou našlo až zařízení:** bourat pipeline z cizího vlákna **zatuhne**
   (`pipeline.Stop()` proti běžícímu `TryWaitForFrames`), `StopHold` pak zůstal držený a robot
   stál do restartu služby — proto je `IRecoverableCamera` **žádost a potvrzení**. ⚠️ **Bez odzbrojení detektoru by plánované stání

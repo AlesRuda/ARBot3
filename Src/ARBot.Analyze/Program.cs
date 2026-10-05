@@ -124,6 +124,8 @@ namespace ARBot.Analyze
                         return 0;
                     case "poses": PoseStampReport.Run(rec, (int)Arg(args, "--limit", 400)); return 0;
                     case "log": LogReport.Run(rec, Text(args, "--filter"), (int)Arg(args, "--limit", 0)); return 0;
+                    case "hold": HoldReport.Run(rec, Arg(args, "--before", 1.0), Arg(args, "--after", 3.0),
+                                                args.Any(a => a == "--estop")); return 0;
                     case "cameras" when args.Any(a => a == "--vypadky"):
                         CameraFramesReport.RunEpisodes(rec, Arg(args, "--gap", 1.0), Arg(args, "--freeze", 1.0)); return 0;
                     case "cameras": CameraFramesReport.Run(rec, (int)Arg(args, "--limit", 400),
@@ -362,6 +364,9 @@ namespace ARBot.Analyze
             Console.WriteLine("             konfiguraci ze zaznamu (A/B \"co by bylo, kdyby\")");
             Console.WriteLine("  poses      poza porizeni ve snimcich + o kolik se hranice kreslila vedle");
             Console.WriteLine("             (cte cele snimky - na velkem zaznamu to trva, viz --limit)");
+            Console.WriteLine("  hold       drzene zastaveni (StopHold): brzdeni pod holdem a rozjezd po uvolneni,");
+            Console.WriteLine("             epizoda po epizode z DriveCommandMsg.Held (--before= / --after= [s] casova osa);");
+            Console.WriteLine("             --estop = totez pro NOUZOVE zastaveni (rozjezd po uvolneni stopu)");
             Console.WriteLine("  log        textovy log aplikace ZE ZAZNAMU (zpravy Info z Trace);");
             Console.WriteLine("             --filter=<text> jen radky s podretezcem");
             Console.WriteLine("  cameras    chodi z kamer opravdu NOVE snimky? pocet ruznych obrazu a nejdelsi");

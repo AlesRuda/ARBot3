@@ -454,8 +454,8 @@ namespace ARBot.Common.Tests.Occupancy
             using var scene = DrivingScene.Create();
 
             // Zed musi lezet UVNITR okna zavazku, na ktere PathCollides drahu kontroluje:
-            //     check = v^2/(2*MaxDeceleration) + v*Ts + rozliseni
-            // Pri v = 0,5 m/s to je 0,52 m pro MaxDecceleration 0,30, ale jen 0,35 m pro 0,50 -
+            //     check = v^2/(2*MaxAcceleration) + v*Ts + rozliseni
+            // Pri v = 0,5 m/s to je 0,52 m pro MaxAcceleration 0,30, ale jen 0,35 m pro 0,50 -
             // a odstup klesne pod SafeDist az od (vzdalenost zdi - SafeDist). Drive tu bylo natvrdo
             // 0,8 m, takze test spadl, jakmile se v Profile zvysila decelerace (silnejsi brzda =
             // kratsi zavazek = kratsi dohled, coz je spravne chovani). 0,5 m se vejde do obou.

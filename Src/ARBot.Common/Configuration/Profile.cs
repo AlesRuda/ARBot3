@@ -104,7 +104,19 @@ namespace ARBot.Common.Configuration
         /// Magicky koeficient 0.45 je odhad z odezvy na jednotkovy skok, aby fungovat Regulator a nedochazelo k preregulovani
         /// </remarks>
         public static double MaxAcceleration = 0.40;// * WheelPerimeter * MotorMaxRPS / MotorGearBoxReduction ;
-        public static double MaxDecceleration = 0.40;// odhad na zaklade mereni pro Akceleraci 1 m/s^2;
+        // MaxDecceleration (0,40) zrusena 6. 10. 2026 (rozhodnuti autora): pro beznou jizdu plati JEDNA
+        // rampa MaxAcceleration pro rozjezd i brzdeni. Rozjezd a brzdeni s ruznou rampou by u zmeny
+        // rychlosti po kolech nebyly symetricke; zvlast je jen nouzove zastaveni
+        // (EmergencyDeceleration). Viz doc/decisions.md.
+
+        /// <summary>
+        /// Zpomaleni motorove jednotky pri NOUZOVEM zastaveni a watchdogu [m/s²] (skript 2.2,
+        /// <c>VAR 9</c>; viz <see cref="Devices.MotorRamps"/>). 1,0 = to, s cim robot fakticky
+        /// brzdil cele zari 2026: prevod zrychleni do skriptu byl do 5. 10. 2026 chybne 2,6x
+        /// strmejsi (0,40 → 1,04 m/s²), a nouzova zastaveni v zaznamech fungovala (z 1,7 m/s
+        /// ~1,4 m). Strmejsi hodnota se musi nejdriv zmerit (prokluz, naklad).
+        /// </summary>
+        public static double EmergencyDeceleration = 1.0;
 
         /// <summary>
         /// Robot se bude snazit zastavit dle udaju z lidaru LidarSafetyZone mru pred prekazkou.

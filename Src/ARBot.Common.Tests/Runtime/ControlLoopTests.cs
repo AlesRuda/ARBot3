@@ -502,6 +502,100 @@ namespace ARBot.Common.Tests.Runtime
             Assert.That(got[^1].Forvard, Is.LessThan(peak), "po zastarani drahy dobrzduje");
         }
 
+        // ---------------- Zastarala draha: rotace az do stani (5. 10. 2026) ----------------
+
+        /// <summary>
+        /// Smycka s konstantnim regulatorem a kratkym timeoutem drahy (250 ms): regulator se nastavi
+        /// jednou v t=0 a dal se neobnovuje, takze od taktu 300 ms je draha zastarala a dopredny
+        /// prikaz jde rampou <c>MaxAcceleration·Ts</c> (0,04 m/s za takt) k nule.
+        /// </summary>
+        private static (ControlLoop loop, Scheduler scheduler, SpyMotors motor,
+                        List<DriveCommandMsg> cmds, DelegateTarget collector, IDisposable conn)
+            StaleLoop(double speed, double rotation = 0.3)
+        {
+            var engine = new AsyncFusionEngine(new EKFModel());
+            var scheduler = new Scheduler();
+            var motor = new SpyMotors();
+            var loop = new ControlLoop(engine, motor, new VirtualClock(), scheduler,
+                                       period: TimeSpan.FromMilliseconds(100),
+                                       pathTimeout: TimeSpan.FromMilliseconds(250));
+            loop.Start();
+            loop.Regulator = new ConstRegulator { Speed = speed, Rotation = rotation };
+
+            var cmds = new List<DriveCommandMsg>();
+            var collector = new DelegateTarget(m => { if (m is DriveCommandMsg c) lock (cmds) cmds.Add(c); });
+            collector.Start();
+            var conn = loop.Output.Connect(collector);
+            return (loop, scheduler, motor, cmds, collector, conn);
+        }
+
+        /// <summary>
+        /// Draha zastarala, dopredny prikaz dobrzdil na nulu a kola stoji: robot se NESMI tocit na
+        /// miste k draze, ktera uz neplati (20260929-151634.rec: -0,5 rad/s po uvolneni holdu).
+        /// </summary>
+        [TestCase(true, TestName = "ZastaralaDraha_StojiciRobot_RotaceNula")]
+        [TestCase(false, TestName = "ZastaralaDraha_BezStavuMotoru_RotaceNula")]
+        public void ZastaralaDraha_PoDobrzdeni_RotaceSeNuluje(bool sKoly)
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            if (sKoly) Feed(loop, Motor(estop: false, wheelSpeed: 0));
+
+            // 0,08 m/s v t=0..200 ms, od 300 ms zastarala: 0,04 a pak 0.
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var tk = T0.AddMilliseconds(600);
+            var last = CmdAt(cmds, tk);
+            double difZTaktu = motor.LastDif;
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.EqualTo(0.0), "zastarala draha dobrzdila");
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.0), "stojici robot se ke stare draze netoci");
+            Assert.That(difZTaktu, Is.EqualTo(0.0));
+        }
+
+        [Test]
+        public void ZastaralaDraha_BehemDobrzdeni_RotaceZustava()
+        {
+            // Rychle: z 0,8 m/s trva dobrzdeni 20 taktu, v 600 ms je prikaz porad nad nulou -
+            // brzdit v zatacce po posledni trase dava smysl.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.8);
+            Feed(loop, Motor(estop: false, wheelSpeed: 0.6));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var last = CmdAt(cmds, T0.AddMilliseconds(600));
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.GreaterThan(0.0).And.LessThan(0.8), "dobrzduje rampou");
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12), "smer z posledni trasy se drzi");
+        }
+
+        [Test]
+        public void ZastaralaDraha_PrikazNaNuleAleKolaSeToci_RotaceZustava()
+        {
+            // Prikaz uz je nula, ale robot jeste dojizdi (kola se toci) - zatoceni nechat.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            Feed(loop, Motor(estop: false, wheelSpeed: 0.2));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var last = CmdAt(cmds, T0.AddMilliseconds(600));
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.EqualTo(0.0));
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12));
+        }
+
+        [Test]
+        public void PlatnaDraha_OtoceniNaMiste_RotaceZustava()
+        {
+            // Platny plan s nulovou doprednou rychlosti (planovac chce otocit na miste) neni zbytek
+            // stare drahy - rotace se nesmi nulovat.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.0);
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            scheduler.PumpDue(T0.AddMilliseconds(100));   // draha je cerstva (< 250 ms)
+            var last = CmdAt(cmds, T0.AddMilliseconds(100));
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.EqualTo(0.0));
+            Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12));
+        }
+
         // ---------------- Bezpecnost: vyjimka v taktu a zastaveni smycky ----------------
 
         /// <summary>Regulator, ktery pri kazdem volani spadne (NaN v poze, degenerovany usek...).</summary>

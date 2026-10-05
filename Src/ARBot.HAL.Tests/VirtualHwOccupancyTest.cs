@@ -390,7 +390,7 @@ public class VirtualHwOccupancyTest
         var planner = new LocalPathPlanner(grid.Size);
         var cfg = planner.Config;
         TestContext.Out.WriteLine($"MaxSpeed={cfg.MaxSpeed} SafeDist={cfg.SafeDist} PrefDist={cfg.PrefDist} "
-                                  + $"MaxDecel={cfg.MaxDeceleration} MinCostSpeed={cfg.MinCostSpeed}");
+                                  + $"MaxAcc={cfg.MaxAcceleration} MinCostSpeed={cfg.MinCostSpeed}");
 
         var plan = planner.Plan(grid, field, pose.X, pose.Y, pose.Theta, 5.0, 0.0);
         TestContext.Out.WriteLine($"plan: {plan.Status}, uzlu={plan.WayPoints?.Length ?? 0}, "

@@ -1,4 +1,5 @@
-﻿using ARBot.Common.Common;
+﻿using System.Globalization;
+using ARBot.Common.Common;
 using ARBot.Common.Devices;
 using ARBot.Common.Models;
 using System;
@@ -41,6 +42,17 @@ namespace ARBot.HAL.Devices.MotorDrivers
 ' var 5 - aktualni dopredna rychlost v miliontinach max rychlosti
 ' var 6 - aktualni rotacni rychlost v miliontinach max rychlosti, kladna hodnota je v matematickem smyslu
 ' var 7 - mark, pri jeho zmene se resetne timeout, po vyprseni timeoutu se robot zastavi
+' var 8 - nepouzita (do 6. 10. 2026 navrzena jako samostatne bezne zpomaleni; zruseno - bezna jizda
+'         ma JEDNU rampu var 1 pro rozjezd i brzdeni, jinak by zmena rychlosti nebyla symetricka)
+' var 9 - dopredne zpomaleni pri NOUZOVEM zastaveni a watchdogu v tisicinach max rychlosti za s
+'         (od verze 2.2; 0 = vychozi defEmDec). Zvlast proto, ze bezna jizda ma byt plynula
+'         a odpovidat modelu planovace, kdezto nouzove zastaveni ma zastavit co nejdriv, co dovoli
+'         trakce a naklad (doc/plan-drive-hold.md, registr hw-motor-rampa-jednotky).
+'
+' Jednotky zrychleni: tisiciny plneho rozsahu rychlosti za sekundu (plny rozsah = 1000 v var 3,
+' tedy MaxTheoreticalSpeed hostitele, 2,16 m/s). Host je pocita MotorAcceleration.ToScriptUnits.
+' Vychozi hodnoty plati, dokud host nic neposle (napr. po restartu jednotky) - skript tak
+' NIKDY nebezi s nulovou rampou, ktera by zmrazila brzdeni.
 
 Option Explicit
 
@@ -67,12 +79,25 @@ dim mark as integer
 'cas jednotky v ms pro razitko vzorku (radek T=), modulo 1000000000 (~11,6 dne);
 'host ho prevadi na svuj cas (DeviceClock) a pocita z nej rychlost kol - viz SDC2160Ex
 dim tick as integer
+'od verze 2.2: nouzove zpomaleni, priznak nouze a rampa pro tento krok
+dim emDeceleration as integer
+dim emergency as integer
+dim target as integer
+dim rate as integer
+
+'vychozi rampy, dokud host neposle vlastni (tisiciny max rychlosti za s pri plnem rozsahu 2,16 m/s):
+'185 = 0,40 m/s2 (Profile.MaxAcceleration), 463 = 1,0 m/s2 (nouzove zastaveni - s tim robot
+'fakticky jezdil do 5. 10. 2026, kdy byl prevod zrychleni chybne 2,6x strmejsi)
+dim defAcc as integer
+dim defEmDec as integer
+defAcc=185
+defEmDec=463
 
 timeout=0
 tick=0
 currentTimer=GetTimerCount(1)
 
-print("Version 2.1\r")
+print("Version 2.2\r")
 
 while true
 	lastTimer=currentTimer
@@ -100,6 +125,17 @@ while true
 	
 	acceleration=GetValue(_VAR, 1)
 	rotacceleration=GetValue(_VAR, 2)
+	emDeceleration=GetValue(_VAR, 9)
+	'nula (host jeste nic neposlal, restart jednotky) nesmi rampu zmrazit - vychozi hodnoty
+	if acceleration<=0 then
+		acceleration=defAcc
+	end if
+	if rotacceleration<=0 then
+		rotacceleration=acceleration
+	end if
+	if emDeceleration<=0 then
+		emDeceleration=defEmDec
+	end if
 
 	reqSpeed=GetValue(_VAR, 3)
 	reqRotSpeed=GetValue(_VAR, 4)
@@ -116,10 +152,13 @@ while true
 	'takze po uvolneni stopu nevznika zadny transient.
 	'Predpoklad: acceleration > 0. Pri nule by rampa zamrzla a curSpeed by nuly nikdy nedosahl,
 	'takze by se robot pod stopem vezl dal (a drzel posledni zatoceni); pri zaporne by dokonce
-	'vyrazil na plnou opacnym smerem. Skript se proti tomu branit neumi - hlida to host,
-	'viz MotorAcceleration.ToUnits (nikdy neposle nulu ani zapornou hodnotu).
+	'vyrazil na plnou opacnym smerem. Nulu od 2.2 nahradi vychozi hodnota (vyse), zapornou
+	'hlida host - viz MotorAcceleration.ToScriptUnits.
+	'Od 2.2 se pod stopem brzdi NOUZOVOU rampou (var 9), ne beznou.
+	emergency=0
 	di3=GetValue(_DI, 3)
 	if di3=0 then
+		emergency=1
 		reqSpeed=0
 		if curSpeed=0 then
 			reqRotSpeed=0
@@ -136,6 +175,7 @@ while true
 	'nez dojezd rovne. Pri emergency stopu host zije a jeho zatoceni je aktualni.
 	timeout-=time
 	if timeout<0 then
+		emergency=1
 		reqSpeed=0
 		reqRotSpeed=0
 		timeout=0
@@ -143,18 +183,44 @@ while true
 
 
 	'pocitani aktualni dopredne rychlosti
-	if curSpeed<1000*reqSpeed then
-		curSpeed+=time*acceleration
-		if curSpeed>1000*reqSpeed then
-			curSpeed=1000*reqSpeed
+	'Bezna jizda: jedna rampa acceleration pro rozjezd i brzdeni (symetrie). Pod nouzovym
+	'zastavenim nebo watchdogem se BRZDI emDeceleration. Brzdi se, kdyz se velikost rychlosti
+	'zmensuje - u jizdy vzad (curSpeed<0) je to RUST hodnoty.
+	target=1000*reqSpeed
+	rate=acceleration
+	if curSpeed>0 then
+		if target<curSpeed then
+			if emergency=1 then
+				rate=emDeceleration
+			end if
 		end if
-	end if		
-	if curSpeed>1000*reqSpeed then
-		curSpeed-=time*acceleration
-		if curSpeed<1000*reqSpeed then
-			curSpeed=1000*reqSpeed
+	end if
+	if curSpeed<0 then
+		if target>curSpeed then
+			if emergency=1 then
+				rate=emDeceleration
+			end if
 		end if
-	end if		
+	end if
+	if curSpeed<target then
+		curSpeed+=time*rate
+		if curSpeed>target then
+			curSpeed=target
+		end if
+	end if
+	if curSpeed>target then
+		curSpeed-=time*rate
+		if curSpeed<target then
+			curSpeed=target
+		end if
+	end if
+	'PREDCHOZI VARIANTA (do 2.1 jedna rampa acceleration pro rozjezd, brzdeni i nouzi):
+	'	if curSpeed<1000*reqSpeed then
+	'		curSpeed+=time*acceleration
+	'		...
+	'	if curSpeed>1000*reqSpeed then
+	'		curSpeed-=time*acceleration
+	'		...
 	
 	'pocitani aktualni rotacni rychlosti
 	if curRotSpeed<1000*reqRotSpeed then
@@ -202,6 +268,9 @@ while true
 	SetCommand(_VAR, 5, curSpeed)
 	SetCommand(_VAR, 6, curRotSpeed)
 
+	'ED= (od 2.2) - ucinne nouzove zpomaleni; host podle nej pozna, ze skript nouzovou rampu umi.
+	'Stary host radek preskoci (ceka na DI=), stejne jako T=.
+	print("ED=", emDeceleration, "\r")
 	print("T=", tick, "\r")
 	print("DI=", di3, "\r")
 	print("C=", GetValue(_C, 1), ":", GetValue(_C, 2), "\r")
@@ -233,6 +302,28 @@ end while
         double? prevRightEnc, prevLeftEnc;
         DateTime? prevEncTime;
         int cnt = 0;
+
+        /// <summary>
+        /// Nouzove zpomaleni, se kterym skript v jednotce POCITA (radek <c>ED=</c>, od skriptu 2.2),
+        /// v jednotkach skriptu; <c>null</c> = radek jeste neprisel (stary skript, nebo zacatek).
+        /// </summary>
+        volatile object scriptEmergencyUnits;
+        /// <summary>Kolik ramcu telemetrie uz prislo (kvuli hlaseni stareho skriptu).</summary>
+        int framesSeen;
+        /// <summary>Nouzove zpomaleni, ktere host poslal (jednotky skriptu); -1 = neposlal.</summary>
+        volatile int sentEmergencyUnits = -1;
+        /// <summary>Hlaseni o nouzove rampe uz odeslo (jednou za beh).</summary>
+        bool rampReported;
+        /// <summary>Po tolika ramcich bez <c>ED=</c> se ohlasi stary skript (~1 s pri 100 Hz).</summary>
+        const int FramesBeforeOldScriptWarning = 100;
+
+        /// <summary>
+        /// Nouzove zpomaleni, se kterym skript v jednotce skutecne pocita [m/s²] (radek <c>ED=</c>);
+        /// <c>null</c> = skript ho nehlasi, tedy je starsi nez 2.2 a pod nouzovym zastavenim brzdi
+        /// beznou rampou.
+        /// </summary>
+        public double? ScriptEmergencyDeceleration
+            => scriptEmergencyUnits is int u ? u / 1000.0 * maxPossibleSpeed : (double?)null;
 
         /// <summary>Citac casu ve skriptu jednotky bezi modulo tato hodnota [ms] (viz skript vyse).</summary>
         public const long DeviceTimeModulus = 1000000000;
@@ -295,9 +386,57 @@ end while
         /// Sets motor driver acceleration/deceleration
         /// </summary>
         /// <param name="acceleration"></param>
+        /// <summary>
+        /// Rampy zvlast (skript 2.2): <c>VAR 1/2</c> bezna jizda (rozjezd i brzdeni, dopredna
+        /// i rotacni slozka), <c>VAR 9</c> nouzove zastaveni a watchdog — v jednotkach skriptu
+        /// (<see cref="MotorAcceleration.ToScriptUnits"/>). Stary skript <c>VAR 9</c> ignoruje
+        /// a brzdi vsude beznou rampou; ohlasi se to do Trace (<see cref="ReportEmergencyRampOnce"/>).
+        /// </summary>
+        public void SetRamps(MotorRamps ramps)
+        {
+            SetAcceleration(ramps.Acceleration);
+            int em = MotorAcceleration.ToScriptUnits(ramps.EmergencyDeceleration, maxPossibleSpeed);
+            uart.WriteLine(string.Format("!VAR 9 {0}", em));
+            sentEmergencyUnits = em;
+        }
+
+        /// <summary>
+        /// Jednou za beh ohlasi do Trace, s jakou nouzovou rampou skript v jednotce pocita — nebo
+        /// ze ji nehlasi (stary skript pod 2.2: nouzove zastaveni pak brzdi beznou rampou, tedy po
+        /// oprave prevodu z 5. 10. 2026 jen 0,40 m/s²). Trace, ne Debug: tohle je presne ta vec,
+        /// ktera musi byt videt v zaznamu ze zarizeni (viz CLAUDE.md).
+        /// </summary>
+        void ReportEmergencyRampOnce()
+        {
+            if (rampReported) return;
+            framesSeen++;
+            if (scriptEmergencyUnits is int u)
+            {
+                // Dokud host rampy neposlal, skript hlasi svou vychozi hodnotu - pockat na shodu.
+                if (sentEmergencyUnits >= 0 && u != sentEmergencyUnits && framesSeen < FramesBeforeOldScriptWarning)
+                    return;
+                rampReported = true;
+                string shoda = sentEmergencyUnits < 0 ? "host rampy neposlal - vychozi ze skriptu"
+                             : u == sentEmergencyUnits ? "shodne s nastavenim"
+                             : $"NESHODA s nastavenim ({sentEmergencyUnits} jednotek)";
+                Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "SDC2160Ex: skript jednotky brzdi pri nouzovem zastaveni {0:F2} m/s² ({1} jednotek, {2}).",
+                    u / 1000.0 * maxPossibleSpeed, u, shoda));
+            }
+            else if (framesSeen >= FramesBeforeOldScriptWarning)
+            {
+                rampReported = true;
+                Trace.WriteLine("SDC2160Ex: skript v jednotce NEHLASI nouzovou rampu (ED=) - je v ni verze "
+                                + "starsi nez 2.2 (Src/RoboRun/RizeniDiffPodvozku.mbs). Nouzove zastaveni "
+                                + "brzdi BEZNOU rampou; nahrajte skript 2.2 (Roborun+).");
+            }
+        }
+
         public void SetAcceleration(double acceleration)
         {
-            int v = MotorAcceleration.ToUnits(acceleration, wheelCircumference);
+            // Jednotky SKRIPTU (tisiciny plneho rozsahu za s), ne nativniho !AC - do 5. 10. 2026 tu
+            // byl ToUnits a rampa vychazela 2,6x strmejsi (hw-motor-rampa-jednotky).
+            int v = MotorAcceleration.ToScriptUnits(acceleration, maxPossibleSpeed);
             Debug.WriteLine(string.Format("Akceleration={0}", v));
             uart.WriteLine(string.Format("!VAR 1 {0}", v));
             uart.WriteLine(string.Format("!VAR 2 {0}", v));
@@ -327,6 +466,11 @@ end while
             do
             {
                 str = uart.ReadLine();
+                // ED= (skript 2.2): nouzove zpomaleni, se kterym skript pocita.
+                if (str != null && str.StartsWith("ED="))
+                {
+                    if (int.TryParse(GetValue(str), out int ed)) scriptEmergencyUnits = ed;
+                }
                 if (str != null && str.StartsWith("T="))
                 {
                     var arrival = TimeBase.Now;
@@ -355,6 +499,7 @@ end while
             }
             while (str == null || !str.StartsWith("DI="));
             di = GetValue(str);
+            ReportEmergencyRampOnce();
 
             str = uart.ReadLine();
             str = GetValue(str);

@@ -44,7 +44,7 @@ using (var hold = controlLoop.StopRequest("restart kamer"))
    riskantního, nesmí dostat „stojí" od senzoru, který mlčí. Důsledek: **volající si musí nést
    vlastní timeout** (při `no_uart=true` by čekal navěky).
 4. **Brzdí se řízeně, ne tvrdou nulou** — tatáž rampa jako u zastaralé dráhy (směr z regulátoru,
-   dopředná `−MaxDecceleration·dt`). Je to mechanismus pro **plánované** události; nouzové
+   dopředná `−MaxAcceleration·dt`; do 6. 10. 2026 `MaxDecceleration`). Je to mechanismus pro **plánované** události; nouzové
    zastavení zůstává vedle, nedotčené a tvrdé.
 5. **Vlastní šev vedle `IRegulatorHolder`.** Mise i supervizor závisí na malém rozhraní
    (`IDriveHold`), ne na `ControlLoop` — jinak by se ztratila testovatelnost s fake objekty.
@@ -134,12 +134,43 @@ Tři vlastnosti, na kterých to stojí:
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- **[Řídicí smyčka umí držené zastavení (StopHold)](ukoly.md#lp-drzene-zastaveni-stophold)** — víc
-  epizod zotavení, a hlavně **za jízdy**: dosud robot stál bez mise, takže hold neměl co brzdit
-  (držel 2 s), a koordinace s bržděním je jen z testů.
-- **[Řídicí smyčka umí držené zastavení (StopHold)](ukoly.md#lp-drzene-zastaveni-stophold)** —
-  rozjezd po uvolnění holdu ověřit měřením: má to být rampa, ne skok na příkazovanou rychlost;
-  rampu má dělat regulátor sám (profil pohybu), ale otestované to není.
+- **[Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](ukoly.md#lp-zastaraly-regulator-toci-na-miste)** —
+  viz „Ověřeno ze záznamů" níž.
+- **[Rampa motorové jednotky je 2,6× strmější, než říká `Profile.MaxAcceleration`](ukoly.md#hw-motor-rampa-jednotky)** —
+  nalezeno při rozboru rozjezdu, rozhoduje autor.
+
+## ✅ Ověřeno ze záznamů (5. 10. 2026)
+
+`ARBot.Analyze hold` vezme epizody z `DriveCommandMsg.Held` a vypíše brzdění, rozjezd a časovou osu
+(příkaz, rotace, fúze, kola, gyro, stáří plánu). V záznamech od 13. 9. jsou čtyři epizody (16., 18.,
+23. a 29. 9.), všechny zotavení pravé D435, 1,6–6,2 s; **dvě padly do jízdy**:
+
+| | 23. 9. `20260923-143515` | 29. 9. `20260929-151634` |
+|---|---|---|
+| před holdem | fúze 0,47 m/s, kola 0,60 | fúze 0,13 m/s, kola 0,12 |
+| krok příkazu pod holdem | 0,050 m/s za takt (tehdy `MaxDecceleration` 0,50) | 0,040 m/s za takt |
+| kola stojí za / dráha | 0,35 s / 5 cm | 0,27 s / 3 cm |
+| první plán po uvolnění | za 13,1 s | za 8,7 s |
+| rozjezd s prvním plánem | příkaz 0 → 0,57 m/s za takt, za 1 s 1,53 | 0 → 0,51 m/s za takt, za 2 s 1,70 |
+
+- **Brzdění pod holdem za jízdy funguje, jak má:** rampa bez skoku, kola sledují příkaz se zpožděním
+  ~0,1 s.
+- **Rozjezd rampou není.** Po uvolnění chybí plán (regulátor je zastaralý), dopředný příkaz zůstává
+  nula — ale **rotace ze zastaralého regulátoru jde do motorů**: 29. 9. se robot točil na místě
+  −0,5 rad/s a obsluha zmáčkla nouzové zastavení. S prvním plánem pak příkaz skočí bez rampy; profil
+  pohybu ji nedělá, zrychlení omezí až motorová jednotka (kola ~1,9 m/s²). Obojí vedou nová témata výše.
+
+**Rozhodnutí autora týž den** ([decisions.md](decisions.md)): (1) u zastaralé dráhy stojící robot
+nerotuje — `ControlLoop` nuluje rotaci, jakmile dopředný příkaz dobrzdil a kola stojí (v kódu, 5 testů,
+⚠️ na zařízení neběželo); (2) skok příkazu je v pořádku, rozjezd omezí motorová jednotka.
+
+**Srovnání s nouzovým zastavením** (`ARBot.Analyze hold --estop`, 9 jízd 18.–29. 9., 16 epizod, z toho 11 s rozjezdem v záznamu):
+po uvolnění stopu přijde plán za **0,05–0,4 s** (po holdu 9–13 s; jediná výjimka 3,6 s je stop hned po
+holdu 29. 9.), takže zastaralá dráha tam nenastává. Rozjezd je jinak stejný: příkaz skočí za jeden
+takt až o 1,5–1,6 m/s, kola zrychlují plynule ~1,0–1,3 m/s² — rampou motorové jednotky, která je
+ovšem **2,6× strmější** než nastavených 0,40 m/s² (převod jednotek, `hw-motor-rampa-jednotky`).
+Převod je 5. 10. 2026 opravený (autor) a rampy jsou zvlášť (skript 2.2): běžná jízda jednou rampou
+0,40 m/s² (rozjezd i brzdění), pod nouzovým zastavením a watchdogem 1,0 m/s² — viz [hardware.md](hardware.md).
 - **[Zaseknuté kamery D435 si runtime zotaví sám za ~29 s](ukoly.md#prov-zotaveni-kamer-supervizor)** —
   kolik trvá recyklace kontextu, a tedy jak dlouhý hold to bude: změřeno na skutečné poruše,
   obnova 28–29 s.

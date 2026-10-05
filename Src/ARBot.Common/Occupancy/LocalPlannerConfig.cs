@@ -107,8 +107,12 @@ namespace ARBot.Common.Occupancy
         /// <summary>Maximalni dovolena rychlost [m/s].</summary>
         public double MaxSpeed = Profile.MaxAllowedSpeed;
 
-        /// <summary>Decelerace pouzita v brzdne obalce [m/s^2].</summary>
-        public double MaxDeceleration = Profile.MaxDecceleration;
+        /// <summary>
+        /// Zrychleni pouzite v brzdne obalce [m/s^2] — <see cref="Profile.MaxAcceleration"/>, tedy
+        /// TATAZ rampa jako rozjezd (do 6. 10. 2026 pole <c>MaxAcceleration</c> z
+        /// <c>Profile.MaxDecceleration</c>; zvlastni brzdna rampa zrusena rozhodnutim autora).
+        /// </summary>
+        public double MaxAcceleration = Profile.MaxAcceleration;
 
         /// <summary>Maximalni rychlost otaceni [rad/s] - pro cenu otoceni z aktualniho kurzu.</summary>
         public double MaxRotationSpeed = Profile.MaxAllowedRotationSpeed;
@@ -243,7 +247,7 @@ namespace ARBot.Common.Occupancy
         public double VBrake(double freeAhead)
         {
             if (freeAhead <= 0) return 0.0;
-            return Math.Min(MaxSpeed, Math.Sqrt(2.0 * MaxDeceleration * freeAhead));
+            return Math.Min(MaxSpeed, Math.Sqrt(2.0 * MaxAcceleration * freeAhead));
         }
 
         /// <summary>
@@ -273,7 +277,7 @@ namespace ARBot.Common.Occupancy
             if (!(closing > 1e-6)) return MaxSpeed;
             double margin = clearance - SafeDist;
             if (margin <= 0) return 0.0;
-            return Math.Min(MaxSpeed, Math.Sqrt(2.0 * MaxDeceleration * margin) / closing);
+            return Math.Min(MaxSpeed, Math.Sqrt(2.0 * MaxAcceleration * margin) / closing);
         }
 
         /// <summary>
@@ -299,7 +303,7 @@ namespace ARBot.Common.Occupancy
                 throw new ArgumentException(
                     $"LocalPlannerConfig: PrefDist ({PrefDist}) musi byt > SafeDist ({SafeDist}).");
             if (MaxSpeed <= 0) throw new ArgumentException("LocalPlannerConfig.MaxSpeed musi byt > 0.");
-            if (MaxDeceleration <= 0) throw new ArgumentException("LocalPlannerConfig.MaxDeceleration musi byt > 0.");
+            if (MaxAcceleration <= 0) throw new ArgumentException("LocalPlannerConfig.MaxAcceleration musi byt > 0.");
             if (MaxRotationSpeed <= 0) throw new ArgumentException("LocalPlannerConfig.MaxRotationSpeed musi byt > 0.");
             if (MinCostSpeed <= 0) throw new ArgumentException("LocalPlannerConfig.MinCostSpeed musi byt > 0.");
             if (EpsMin <= 0 || EpsMax < EpsMin)

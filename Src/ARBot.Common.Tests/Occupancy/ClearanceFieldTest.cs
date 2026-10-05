@@ -190,7 +190,7 @@ namespace ARBot.Common.Tests.Occupancy
         [Test]
         public void VBrake_ZastaviNaHraniciPotvrzeneho()
         {
-            var cfg = new LocalPlannerConfig { MaxSpeed = 0.8, MaxDeceleration = 0.3 };
+            var cfg = new LocalPlannerConfig { MaxSpeed = 0.8, MaxAcceleration = 0.3 };
 
             Assert.That(cfg.VBrake(0.0), Is.EqualTo(0.0), "na hranici potvrzeneho musi byt nula");
             Assert.That(cfg.VBrake(0.5), Is.EqualTo(Math.Sqrt(2 * 0.3 * 0.5)).Within(1e-9));

@@ -28,7 +28,7 @@ namespace ARBot.Common.Tests.Occupancy
             SafeDist = 0.4,
             PrefDist = 0.8,
             MaxSpeed = 0.8,
-            MaxDeceleration = 0.3,
+            MaxAcceleration = 0.3,
             MaxRotationSpeed = Math.PI / 6,
             HorizonM = 6.0,
         };
@@ -310,7 +310,7 @@ namespace ARBot.Common.Tests.Occupancy
             // Strop uz v PRVNIM uzlu (u robotu) musi byt srazeny brzdnou obalkou k hranici
             // potvrzeneho (0,5 m): sqrt(2*0,3*0,5) = 0,548 m/s, tedy vyrazne pod v_max 0,8.
             var cfg = s.Planner.Config;
-            double expected = Math.Sqrt(2 * cfg.MaxDeceleration * 0.5);
+            double expected = Math.Sqrt(2 * cfg.MaxAcceleration * 0.5);
             Assert.That(r.WayPoints[0].Speed, Is.LessThan(cfg.MaxSpeed - 0.1),
                         "u blizke hranice potvrzeneho se nesmi jet plnou rychlosti");
             Assert.That(r.WayPoints[0].Speed, Is.EqualTo(expected).Within(0.15),
@@ -356,7 +356,7 @@ namespace ARBot.Common.Tests.Occupancy
                         "v potvrzene volnem prostoru se robot nema plazit");
 
             // Kontrola konzistence: z rychlosti v prvnim uzlu se musi dat zastavit do konce planu.
-            double brakeDist = r.WayPoints[0].Speed * r.WayPoints[0].Speed / (2 * cfg.MaxDeceleration);
+            double brakeDist = r.WayPoints[0].Speed * r.WayPoints[0].Speed / (2 * cfg.MaxAcceleration);
             Assert.That(brakeDist, Is.LessThanOrEqualTo(r.LengthM + 1e-9),
                         "povolena rychlost prevysuje brzdnou drahu k hranici znameho");
         }
@@ -400,7 +400,7 @@ namespace ARBot.Common.Tests.Occupancy
 
             double margin = 0.45 - cfg.SafeDist;
             double expectedPodel = cfg.MaxSpeed * margin / cfg.EdgeMarginM;              // 0,267
-            double expectedKolmo = Math.Sqrt(2 * cfg.MaxDeceleration * margin);           // 0,173
+            double expectedKolmo = Math.Sqrt(2 * cfg.MaxAcceleration * margin);           // 0,173
 
             Assert.Multiple(() =>
             {
@@ -454,7 +454,7 @@ namespace ARBot.Common.Tests.Occupancy
         [Test]
         public void Obalka_KonfiguraceAValidace()
         {
-            var cfg = PlannerCfg();   // SafeDist 0,4, MaxSpeed 0,8, MaxDeceleration 0,3, EdgeMarginM 0,15
+            var cfg = PlannerCfg();   // SafeDist 0,4, MaxSpeed 0,8, MaxAcceleration 0,3, EdgeMarginM 0,15
             Assert.Multiple(() =>
             {
                 Assert.That(cfg.VAlong(cfg.SafeDist), Is.EqualTo(0.0), "na SafeDist podel nula");
@@ -1040,7 +1040,7 @@ namespace ARBot.Common.Tests.Occupancy
             SafeDist = 0.4,
             PrefDist = 0.8,
             MaxSpeed = 1.0,
-            MaxDeceleration = 0.5,
+            MaxAcceleration = 0.5,
             MaxRotationSpeed = Math.PI / 6,
             EdgeMarginM = edgeMargin,
             HorizonM = 25.0,
@@ -1106,8 +1106,8 @@ namespace ARBot.Common.Tests.Occupancy
             var cfg = s.Planner.Config;
             // Kolmo k prekazce vaze VClosing, tedy brzdna draha k SafeDist - u konce drahy z odstupu
             // 0,45 m, u robotu z jeho vlastniho odstupu.
-            double vKonec = Math.Sqrt(2 * cfg.MaxDeceleration * (0.45 - cfg.SafeDist));
-            double vURobotu = Math.Sqrt(2 * cfg.MaxDeceleration * (s.ClearanceAt(0, 0) - cfg.SafeDist));
+            double vKonec = Math.Sqrt(2 * cfg.MaxAcceleration * (0.45 - cfg.SafeDist));
+            double vURobotu = Math.Sqrt(2 * cfg.MaxAcceleration * (s.ClearanceAt(0, 0) - cfg.SafeDist));
             double expectedV0 = smoothing == PathSmoothingMode.Passable ? vKonec : vURobotu;
 
             var r = s.PlanFrom(0, 0, 0, 0.75);
@@ -1217,7 +1217,7 @@ namespace ARBot.Common.Tests.Occupancy
                         double t = (double)i / steps;
                         double x = x0 + dx * t, y = y0 + dy * t;
                         double vPred = Math.Min(vEnter,
-                            Math.Sqrt(vExit * vExit + 2 * cfg.MaxDeceleration * len * (1 - t)));
+                            Math.Sqrt(vExit * vExit + 2 * cfg.MaxAcceleration * len * (1 - t)));
                         double vAllowed = Math.Max(cfg.MinCostSpeed,
                             cfg.VEnvelope(s.ClearanceAt(x, y), ClosingAt(s, x, y, ux, uy)));
                         // 5 % rezerva: obalka je kvantovana na bunky, rampa je spojita (rozpor ~1-2 %).

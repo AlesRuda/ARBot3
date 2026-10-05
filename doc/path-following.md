@@ -112,7 +112,8 @@ chybu zmenšuje s druhou mocninou, vyšší strop rychlosti ji zvětšuje lineá
 
 ### Vrcholové stropy rychlosti a zpětný průchod
 V každém uzlu strop `v_uzel = min(v_max, ω_max·R, waypoint.Speed)`. Přes celou dráhu pak
-**zpětný průchod** s `MaxDecceleration`:
+**zpětný průchod** s `MaxAcceleration` (do 6. 10. 2026 `MaxDecceleration`; běžná jízda má od té
+doby jednu rampu pro rozjezd i brzdění):
 
 ```
 v_vstup(úsek) = min(v_uzel, √(v_výstup² + 2·d·L))       // od konce, d = decelerace, L = délka úseku
@@ -272,7 +273,7 @@ using (var hold = controlLoop.StopRequest("restart kamer"))
 kdokoli další, kdo chce robota dočasně podržet, se o ni pere s vyšší smyčkou. Hold to rozděluje —
 vyšší smyčky nastavují regulátor dál a o holdu nevědí.
 
-Chování ve smyčce: dopředná rychlost jde **rampou** `−MaxDecceleration·dt` (tedy stejně jako
+Chování ve smyčce: dopředná rychlost jde **rampou** `−MaxAcceleration·dt` (tedy stejně jako
 u zastaralé dráhy — brzdit v zatáčce po poslední trase je lepší než pustit řízení), rotace se
 nuluje teprve, až robot **skutečně stojí**. Nouzové zastavení zůstává vedle a je tvrdé.
 

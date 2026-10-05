@@ -184,7 +184,7 @@ namespace ARBot.Common.Tests.Runtime
         [Test]
         public void DrzeniZastaviRobota_ALE_RAMPOU()
         {
-            // Dobrzdeni z plne rychlosti pri MaxDecceleration 0,5 m/s^2 trva ~2,4 s, tedy ~120
+            // Dobrzdeni z plne rychlosti pri MaxAcceleration 0,5 m/s^2 trva ~2,4 s, tedy ~120
             // taktu po 20 ms - proto to okno. Kratsi okno by test "nakonec ma stat" shodilo,
             // ackoli rampa funguje spravne.
             const int Taktu = 200, Drzet = 30;
@@ -196,8 +196,8 @@ namespace ARBot.Common.Tests.Runtime
             double predDrzenim = motor.Forvard[Drzet - 1];
             Assert.That(predDrzenim, Is.GreaterThan(0.05), "robot mel pred drzenim jet");
 
-            // Prvni takt s drzenim NESMI byt skok na nulu - brzdi se rampou MaxDecceleration.
-            double krok = Profile.MaxDecceleration * 0.020;
+            // Prvni takt s drzenim NESMI byt skok na nulu - brzdi se rampou MaxAcceleration.
+            double krok = Profile.MaxAcceleration * 0.020;
             Assert.That(motor.Forvard[Drzet], Is.EqualTo(predDrzenim - krok).Within(1e-9),
                         "drzeni ma brzdit rampou, ne tvrdou nulou");
 

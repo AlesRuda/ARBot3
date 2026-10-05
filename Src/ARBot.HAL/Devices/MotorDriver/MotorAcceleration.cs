@@ -5,8 +5,16 @@ namespace ARBot.HAL.Devices.MotorDrivers
 {
     /// <summary>
     /// Prevod zrychleni [m/s^2] na jednotky ridici jednotky motoru (Roboteq SDC2160) - spolecny
-    /// pro <see cref="SDC2160"/> i <see cref="SDC2160Ex"/>, aby vzorec i pojistky byly na jednom
+    /// pro <see cref="SDC2160"/> i <see cref="SDC2160Ex"/>, aby vzorce i pojistky byly na jednom
     /// miste.
+    ///
+    /// <para>⚠️ <b>Dve ruzne jednotky.</b> <see cref="SDC2160"/> posila zrychleni nativnim prikazem
+    /// <c>!AC</c>/<c>!DC</c> v jednotkach 0,1 ot/min za sekundu (<see cref="ToUnits"/>).
+    /// <see cref="SDC2160Ex"/> ho posila do promenne MicroBasic skriptu (<c>!VAR 1/2</c>), ktery ho
+    /// bere v <b>tisicinach plneho rozsahu rychlosti za sekundu</b> (<see cref="ToScriptUnits"/>).
+    /// Do 5. 10. 2026 sel i do skriptu prvni prevod, takze rampa byla 0,6·MaxTheoreticalSpeed/obvod
+    /// = 2,6× strmejsi, nez rikal <c>Profile.MaxAcceleration</c> (0,40 m/s² → 1,04 m/s²; zmereno
+    /// ze zaznamu, registr <c>hw-motor-rampa-jednotky</c>).</para>
     ///
     /// <para><b>Proc pojistky.</b> Hodnota jde do rampy v ridici jednotce
     /// (<c>curSpeed += time * acceleration</c>, viz <c>Src/RoboRun/RizeniDiffPodvozku.mbs</c>)
@@ -42,13 +50,42 @@ namespace ARBot.HAL.Devices.MotorDrivers
                 throw new ArgumentOutOfRangeException(nameof(wheelCircumference),
                     "Obvod kola musi byt kladny.");
 
+            // 0,1 ot/min za sekundu: a / obvod [ot/s²] · 60 [ot/min za s] · 10.
+            return Guard(acceleration, magnitude => 10 * 60 * magnitude / wheelCircumference);
+        }
+
+        /// <summary>
+        /// Prevede zrychleni na jednotky RIDICIHO SKRIPTU (<c>RizeniDiffPodvozku.mbs</c>,
+        /// <see cref="SDC2160Ex"/>): tisiciny plneho rozsahu rychlosti za sekundu. Skript dela
+        /// <c>curSpeed += time[ms] · acceleration</c> nad rychlosti v miliontinach plneho rozsahu,
+        /// tedy za sekundu pribyde <c>acceleration / 1000</c> plneho rozsahu. Tytez pojistky jako
+        /// <see cref="ToUnits"/>.
+        /// </summary>
+        /// <param name="acceleration">Zrychleni [m/s^2].</param>
+        /// <param name="maxPossibleSpeed">Plny rozsah rychlosti, ktery skript bere jako 1000
+        /// (<c>Profile.MaxTheoreticalSpeed</c>) [m/s]; musi byt kladny.</param>
+        public static int ToScriptUnits(double acceleration, double maxPossibleSpeed)
+        {
+            if (maxPossibleSpeed <= 0 || double.IsNaN(maxPossibleSpeed))
+                throw new ArgumentOutOfRangeException(nameof(maxPossibleSpeed),
+                    "Plny rozsah rychlosti musi byt kladny.");
+
+            return Guard(acceleration, magnitude => 1000 * magnitude / maxPossibleSpeed);
+        }
+
+        /// <summary>
+        /// Spolecne pojistky obou prevodu: zaporna hodnota se bere jako velikost, vysledek je vzdy
+        /// aspon <see cref="MinUnits"/>.
+        /// </summary>
+        private static int Guard(double acceleration, Func<double, double> convert)
+        {
             double magnitude = Math.Abs(acceleration);
             if (double.IsNaN(magnitude))
                 magnitude = 0;
             if (magnitude != acceleration)
                 Debug.WriteLine($"SetAcceleration: zaporne/neplatne zrychleni {acceleration} -> {magnitude} m/s^2.");
 
-            int units = (int)Math.Round(10 * 60 * magnitude / wheelCircumference);
+            int units = (int)Math.Round(convert(magnitude));
             if (units < MinUnits)
             {
                 Debug.WriteLine($"SetAcceleration: {acceleration} m/s^2 dava {units} jednotek "

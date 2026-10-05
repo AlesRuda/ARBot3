@@ -585,6 +585,17 @@ robotu od nejbližší neprůjezdné buňky posledního gridu proti `SafeDist` a
 včetně odchylky v taktech pod `SafeDist` (malá = změnila se mapa, ne sledování). Nález:
 `lp-rychlostni-obalka-neridila`.
 
+**`hold`** (od 5. 10. 2026) — **držené zastavení (`StopHold`) ze záznamu**: epizody z přechodů
+`DriveCommandMsg.Held` (verze 3), pro každou rychlost před holdem, krok příkazu za takt proti rampě
+`MaxAcceleration·Ts`, čas a dráha do zastavení kol, první plán po uvolnění, rozjezd (krok příkazu,
+kdy se kola rozjela a dosáhla 90 % původní rychlosti) a časová osa takt po taktu (příkaz, rotace,
+fúze, kola, gyro, stáří posledního plánu); `--before=` / `--after=` [s] okno osy. ⚠️ Konstanty
+rampy jsou z dnešního kódu — binárky do 27. 9. 2026 měly 0,50 m/s², tedy 0,05 m/s za takt.
+**`--estop`** udělá totéž pro epizody **nouzového** zastavení (`DriveCommandMsg.EmergencyStop`), tedy
+rozjezd po uvolnění stopu na stanovišti. Nálezy:
+`lp-drzene-zastaveni-stophold`, `lp-zastaraly-regulator-toci-na-miste`, `lp-prikaz-rychlosti-bez-rampy`,
+`hw-motor-rampa-jednotky`.
+
 **`posegps`** (od 26. 9. 2026) — **kde je póza proti GPS a proti mapě a kdo ji opravoval**.
 Časová osa po oknech (`--bin=` [s], výchozí 10): odchylka pózy od GPS rozložená **podélně**
 a **příčně** vůči směru jízdy, dráha z kol proti GPS, odstup pózy i GPS od mapové sítě, koridor

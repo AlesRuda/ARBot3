@@ -565,7 +565,9 @@ namespace ARBot.Robot
                 Debug.WriteLine($"EncoderCounts={Profile.EncoderCounts}");
                 Debug.WriteLine($"MotorGearBoxReduction={Profile.MotorGearBoxReduction}");
                 Motor = new SDC2160Ex(UartMotor, Profile.MaxTheoreticalSpeed, Profile.MaxAllowedSpeed, Profile.WheelPerimeter, Profile.EncoderCounts * Profile.MotorGearBoxReduction);
-                Motor.SetAcceleration(Profile.MaxAcceleration);
+                // Rampy zvlast: bezna jizda (rozjezd i brzdeni) a nouzove zastaveni (skript 2.2). Se
+                // starym skriptem v jednotce plati jen bezna - driver to po startu ohlasi.
+                Motor.SetRamps(MotorRamps.FromProfile());
                 sensors.Add(Motor);
             }
 
@@ -672,7 +674,7 @@ namespace ARBot.Robot
             // Nastaveni se predava, aby slo za behu prepnout NOUZOVE ZASTAVENI (panel Tools →
             // Virtualni senzory). Bez nej se handshake mise Robotour v simulaci neda projit.
             sensors.Add((ISensor)(Motor = new VirtualMotors(SimulatedRobot, options: VirtualSensors)));
-            Motor.SetAcceleration(options.Acceleration);
+            Motor.SetRamps(new MotorRamps(options.Acceleration, Profile.EmergencyDeceleration));
 
             sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, sensorOptions));
             sensors.Add(IMU = new VirtualImu(SimulatedRobot, sensorOptions));

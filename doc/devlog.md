@@ -39,6 +39,17 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-06
+
+- **Běžná jízda jednou rampou** (autor): zrušeno samostatné běžné brzdění — `VAR 8` ze skriptu
+  jednotky 2.2, `MotorRamps.Deceleration` a `Profile.MaxDecceleration`; vše pro běžnou jízdu bere
+  `Profile.MaxAcceleration` (rampy ve smyčce, brzdná obálka plánovače — pole přejmenováno na
+  `LocalPlannerConfig.MaxAcceleration`, `ARBot.Analyze hold`). Zvlášť zůstává jen nouzové zastavení
+  a watchdog (`VAR 9`, 1,0 m/s²). Důvod: symetrie změny rychlosti (rozhodnutí v
+  [decisions.md](decisions.md)). Číselně beze změny (obě hodnoty byly 0,40). Testy Common 1 785,
+  Runtime 151, HAL 143. ⚠️ Skript 2.2 je potřeba nahrát do jednotky a nouzové zastavení ověřit
+  na robotu (`hw-motor-rampa-jednotky`).
+
 ## 2026-10-05
 
 - **Zamítnut vizuální dojezd na QR kód** (`mise-vizualni-dojezd-na-cil`, autor): v Robotouru se
@@ -57,6 +68,33 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   `SafeDist` (0,19–0,70 % taktů) jen při odchylce pár mm, tedy kvůli změně mapy. Téma `hotovo`.
   Při tom nalezeno a opraveno, že `drive` přehrával regulátor napevno lichoběžníkovým profilem
   (`an-drive-pevny-profil`): u jízd od 25. 9. rekonstrukce neseděla, teď 99,7–99,9 %.
+- **Držené zastavení ověřeno ze záznamů** (`lp-drzene-zastaveni-stophold` → `hotovo`): nový rozbor
+  `ARBot.Analyze hold`. Ze čtyř epizod zotavení kamer dvě za jízdy (23. a 29. 9.) — brzdění rampou,
+  stání za 0,27–0,35 s na 3–5 cm. Rozjezd po uvolnění ale rampou není a ukázal dvě nové vady:
+  plán přišel až za 9–13 s a zastaralý regulátor mezitím točil robotem na místě −0,5 rad/s
+  (29. 9. pak obsluha zmáčkla nouzové zastavení; `lp-zastaraly-regulator-toci-na-miste`), a příkaz
+  rychlosti skáče bez rampy (0 → 0,57 m/s za takt), zrychlení omezuje až motorová jednotka
+  (`lp-prikaz-rychlosti-bez-rampy`). Obojí čeká na rozhodnutí autora.
+- **Rozhodnutí autora a oprava:** stojící robot na zastaralé dráze nerotuje — `ControlLoop` nuluje
+  rotaci, když dráha zastarala, příkaz dobrzdil a kola stojí (5 nových testů; ⚠️ na zařízení
+  neběželo). Skok příkazu rychlosti bez rampy je v pořádku (zamítnuto jako vada). `hold --estop`
+  nad 9 jízdami: po uvolnění nouzového zastavení přijde plán za 0,05–0,4 s (po holdu 9–13 s), rozjezd
+  je jinak stejný. Nové zjištění: rampa motorové jednotky je **1,04 m/s²** místo nastavených 0,40 —
+  `ToUnits` počítá jednotky Roboteq `!AC`, ale `SDC2160Ex` je posílá skriptu, který je bere jinak
+  (`hw-motor-rampa-jednotky`, rozhoduje autor). Rozhodnutí: [decisions.md](decisions.md).
+- **Převod zrychlení pro skript motorové jednotky opraven** (autor): `MotorAcceleration.ToScriptUnits`
+  (`1000·a / MaxTheoreticalSpeed`, 0,40 m/s² → 185 jednotek místo 482), `SDC2160Ex` ho používá.
+  Testy HAL 138, Runtime 151. ⚠️ Důsledek: jednotka rozjíždí i brzdí pod nouzovým zastavením
+  0,40 místo 1,04 m/s², brzdná dráha z 1,7 m/s ~3,6 m místo ~1,4 m — hodnota `MaxAcceleration`
+  čeká na rozhodnutí autora. Na zařízení neběželo.
+- **Rampy motorové jednotky zvlášť** (autor: oddělit běžnou akceleraci od nouzového zastavení):
+  skript `RizeniDiffPodvozku.mbs` **2.2** — rozjezd (`VAR 1/2`), běžné brzdění (`VAR 8`), nouzové
+  zastavení i watchdog (`VAR 9`, 1,0 m/s²), výchozí hodnoty ve skriptu (nula rampu nezmrazí),
+  řádek `ED=`; hostitel `MotorRamps` / `IMotorControl.SetRamps`, `Profile.EmergencyDeceleration`,
+  driver hlásí do Trace starý skript; simulace brzdí pod stopem nouzovou rampou. Test hlídá, že
+  kopie skriptu u driveru = `.mbs` a že výchozí hodnoty ve skriptu = `Profile`. Testy HAL +5,
+  Common +3. ⚠️ **Skript 2.2 je potřeba nahrát do jednotky a nouzové zastavení ověřit na robotu**;
+  do té doby nenasazovat binárku s opraveným převodem. Rozhodnutí: [decisions.md](decisions.md).
 - **Rozbor dvou skoků v simulaci** (`records/20261005-075416.rec`, `SyntetickyKoridor` +
   posunutá vizuální mapa, `roadwidthmap=true`, tehdy ještě `localframe=world`): póza skočila
   příčně o **0,37 m** (07:54:51.5, way 101) a **0,40 m** + 3° kurzu (07:56:14.1, way 104),

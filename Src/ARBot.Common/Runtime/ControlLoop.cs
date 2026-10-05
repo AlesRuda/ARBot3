@@ -238,6 +238,7 @@ namespace ARBot.Common.Runtime
             if (regulatorFresh) { regulatorFresh = false; lastRegulatorTick = tk; }
 
             double forvard = 0, rotationSpeed = 0;
+            bool stale = false;
             if (reg != null)
             {
                 var r = reg.Control(rs.InFrame(Frame));
@@ -245,7 +246,8 @@ namespace ARBot.Common.Runtime
                 if (tk - lastRegulatorTick > pathTimeout)
                 {
                     // Zastarala draha: rizeni (smer) z posledni trasy, dopredna rychlost rampou k nule.
-                    double decel = Profile.MaxDecceleration * period.TotalSeconds;
+                    stale = true;
+                    double decel = Profile.MaxAcceleration * period.TotalSeconds;
                     forvard = Math.Max(0, lastForward - decel);
                 }
                 else
@@ -262,10 +264,22 @@ namespace ARBot.Common.Runtime
             bool held = holds.IsHeld;
             if (held)
             {
-                double decelHold = Profile.MaxDecceleration * period.TotalSeconds;
+                double decelHold = Profile.MaxAcceleration * period.TotalSeconds;
                 forvard = Math.Max(0, lastForward - decelHold);
                 if (holds.Standing == true) rotationSpeed = 0;
             }
+
+            // Zastarala draha a robot UZ STOJI: rotace z regulatoru se nuluje. Smer z posledni trasy
+            // ma smysl, dokud se po ni dobrzduje (zatacka za jizdy); jakmile je dopredny prikaz na
+            // nule a kola stoji, je to otaceni na miste k draze, ktera uz neplati. Nalezeno
+            // 5. 10. 2026 v 20260929-151634.rec: po uvolneni holdu (zotaveni kamer) prisel novy plan
+            // az za 8,7 s a robot se mezitim tocil na miste -0,5 rad/s, az obsluha zmackla nouzove
+            // zastaveni (lp-zastaraly-regulator-toci-na-miste, rozhodnuti autora).
+            // Neznamy stav motoru (bez mereni) se bere jako stani: podle naseho prikazu robot stoji
+            // a k neplatne draze ho otacet neni proc. Platny plan s nulovou rychlosti (otoceni na
+            // miste z planovace) se NETYKA - to je zamer, ne zbytek stare drahy.
+            if (stale && forvard <= 0 && holds.Standing != false)
+                rotationSpeed = 0;
 
             // Nouzove zastaveni: dopredna rychlost na nulu, rotace az kdyz robot SKUTECNE stoji.
             // Dokud se kola jeste toci, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi

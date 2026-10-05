@@ -42,10 +42,19 @@ namespace ARBot.HAL.Devices.MotorDrivers
         }
 
         /// <inheritdoc/>
-        public void Drive(double forvardSpeed, double difSpeed) => robot.Drive(forvardSpeed, difSpeed);
+        public void Drive(double forvardSpeed, double difSpeed)
+        {
+            // Nouzove zastaveni brzdi NOUZOVOU rampou jako skript jednotky (2.2) - priznak se
+            // predava s kazdym prikazem, protoze se v panelu da prepnout kdykoli.
+            robot.EmergencyBraking = options.EmergencyStop;
+            robot.Drive(forvardSpeed, difSpeed);
+        }
 
         /// <inheritdoc/>
         public void SetAcceleration(double acceleration) => robot.SetAcceleration(acceleration);
+
+        /// <inheritdoc/>
+        public void SetRamps(MotorRamps ramps) => robot.SetRamps(ramps);
 
         /// <summary>
         /// Posune simulaci na aktualni cas a vrati odometrii: <b>kumulativni</b> enkodery
@@ -61,8 +70,9 @@ namespace ARBot.HAL.Devices.MotorDrivers
                        out double leftSpeed, out double rightSpeed,
                        out double left, out double right);
 
-            // Nouzove zastaveni je jen HLASENY priznak - kola zastavuje ControlLoop tim, ze pod nim
-            // posila Drive(0, ...), takze simulovany robot dobrzdi svou rampou jako na zeleze.
+            // Nouzove zastaveni je HLASENY priznak - kola zastavuje ControlLoop tim, ze pod nim
+            // posila Drive(0, ...), a simulovany robot dobrzdi NOUZOVOU rampou (EmergencyBraking,
+            // nastavuje Drive) jako skript jednotky 2.2.
             return new MotorStateBase(options.EmergencyStop, left, right,
                                       voltage: 24.0, leftMotorCurrent: 0, rightMotorCurrent: 0,
                                       leftWheelSpeed: leftSpeed, rightWheelSpeed: rightSpeed)

@@ -285,13 +285,13 @@ dohánět), aby budoucí rychlý replay měl co potřebuje.
 dráze** (path controller nedostal novou trasu déle než `PathControlTimeOut`, tedy 500 ms):
 
 ```csharp
-double decel = Profile.MaxDecceleration * period.TotalSeconds;
+double decel = Profile.MaxAcceleration * period.TotalSeconds;   // do 6. 10. 2026 MaxDecceleration
 forvard = Math.Max(0, lastForward - decel);
 ```
 
 Je to **výpočet příkazu do budoucna** — vydaná hodnota platí do příštího taktu. `decel` je ale
 krok diskrétní rampy `v(k) = v(k−1) − a·Δt`, a aby ta rampa měla skutečně strmost
-`MaxDecceleration` [m/s²], musí být `Δt` **odstup mezi zásahy**. V ustáleném stavu je `Δt = period`
+`MaxAcceleration` [m/s²], musí být `Δt` **odstup mezi zásahy**. V ustáleném stavu je `Δt = period`
 a je to totožné — proto to nikdy nevadilo.
 
 Rozejde se to jen při nepravidelném taktu: při odstupu 200 ms robot jel těch 200 ms `lastForward`,

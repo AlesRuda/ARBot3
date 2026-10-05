@@ -549,6 +549,25 @@ primární zdroj, komentář v `SDC2160Ex.cs` je jen kopie. **Do jednotky se nah
 (Roborun+ / MicroBasic) a jde to i pod starou binárku (řádek `T=` přeskočí). Že jednotka čas posílá, je vidět v záznamu
 (`MotorStateBase.DeviceTimeMs ≥ 0`, `fusionreplay` blok 9).
 
+**Od 5. 10. 2026 je skript ve verzi 2.2 — rampy zvlášť** (rozhodnutí autora, `hw-motor-rampa-jednotky`):
+`VAR 1/2` **běžná jízda** (jedna rampa pro rozjezd i brzdění) a **`VAR 9` brzdění pod nouzovým
+zastavením (`DI3`) a watchdogem** — brzdí se, když velikost rychlosti klesá (u jízdy vzad roste
+hodnota). Samostatné běžné brzdění (`VAR 8`) se 6. 10. 2026 zrušilo (autor): s různou rampou pro
+rozjezd a brzdění by změna rychlosti nebyla symetrická. Jednotky
+všech ramp: **tisíciny plného rozsahu rychlosti za sekundu** (`MotorAcceleration.ToScriptUnits`,
+plný rozsah = `Profile.MaxTheoreticalSpeed` 2,16 m/s); do 5. 10. sel do skriptu převod pro nativní
+`!AC` a rampa byla 2,6× strmější, než říkal `Profile`. Hodnoty z hostitele: `MotorRamps.FromProfile()`
+= `MaxAcceleration` 0,40 / **`EmergencyDeceleration` 1,0 m/s²** (to, s čím
+robot fakticky brzdil celé září). **Nula v proměnné rampu nezmrazí**: skript dosadí výchozí hodnoty
+(`defAcc` 185 = 0,40 m/s², `defEmDec` 463 = 1,0 m/s²), takže i po restartu jednotky, než host rampy
+pošle, brzdí pod stopem nouzovou rampou. Skript každý cyklus posílá řádek **`ED=`** (účinné nouzové
+zpomalení) před `T=`; driver ho čte a jednou za běh ohlásí do `Trace` — s hodnotou, nebo že
+**v jednotce je starší skript** (pak nouzové zastavení brzdí běžnou rampou, po opravě převodu
+0,40 m/s²: z 1,7 m/s ~3,6 m). Starý driver řádek `ED=` přeskočí jako `T=`.
+⚠️ **Skript 2.2 je potřeba nahrát do jednotky (Roborun+) a nouzové zastavení na robotu ověřit**
+(brzdná dráha, `ARBot.Analyze hold --estop`) — dokud tam není, nenasazovat binárku s opraveným
+převodem. Kopii u driveru hlídá test `KopieSkriptuUDriveru_ShodnaSMbs`.
+
 Porty **znovu najde skript [`OrangePi5Ultra/find-serial-ports.sh`](../OrangePi5Ultra/find-serial-ports.sh)**
 (pasivně, bez zápisu do portů): inventura `by-id` / `lsusb` / živých `ttyS*`, pak posluch
 a rozpoznání podle toho, co která periferie vysílá, a nakonec výpis hotových `Uart*=`

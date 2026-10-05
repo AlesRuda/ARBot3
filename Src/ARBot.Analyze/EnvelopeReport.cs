@@ -71,7 +71,7 @@ namespace ARBot.Analyze
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "OBALKA, SE KTEROU SE POCITA: {0}, SafeDist={1:F2} m, MaxSpeed={2:F2} m/s, "
                 + "EdgeMargin={3:F2} m, a={4:F2} m/s2, podlaha={5:F2} m/s",
-                cfg.Envelope, cfg.SafeDist, cfg.MaxSpeed, cfg.EdgeMarginM, cfg.MaxDeceleration,
+                cfg.Envelope, cfg.SafeDist, cfg.MaxSpeed, cfg.EdgeMarginM, cfg.MaxAcceleration,
                 cfg.MinCostSpeed));
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "  plnou rychlost PODEL prekazky dostane az odstup >= {0:F2} m; pri odstupu {1:F2} m "
@@ -79,7 +79,7 @@ namespace ARBot.Analyze
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "  brzdna obalka: na podlahu {0:F2} m/s klesne az pri volnu pod {1:F3} m "
                 + "(v = sqrt(2*a*volno))", cfg.MinCostSpeed,
-                cfg.MinCostSpeed * cfg.MinCostSpeed / (2 * cfg.MaxDeceleration)));
+                cfg.MinCostSpeed * cfg.MinCostSpeed / (2 * cfg.MaxAcceleration)));
             Console.WriteLine();
 
             var rows = plans[0].HasEnvelope

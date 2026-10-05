@@ -1190,6 +1190,11 @@ rychlosti 1,20 → 0,17 m/s a o zatáčku, obě kola šla na dorazovou decelerac
 zůstal dvě sekundy zmražený. Nešlo o asymetrii vlevo/vpravo: při zatáčce doprava byl rozdíl ustavený
 **dřív**, než kola do limitu narazila.
 
+**Od 5. 10. 2026 má simulovaný robot rampy jako skript jednotky 2.2** (`SimulatedRobot.SetRamps`):
+běžná jízda jednou rampou (rozjezd i brzdění), dopředná složka pod nouzovým zastavením z panelu
+(`VirtualMotors` předává `EmergencyBraking`) brzdí nouzovým zpomalením; rotace má jednu rampu.
+Bez `SetRamps` platí jedna rampa jako dřív. Viz [hardware.md](hardware.md).
+
 **Skutečný řadič to tak nedělá** — a to rozhodlo. `Src/RoboRun/RizeniDiffPodvozku.mbs` (tentýž
 skript je v komentáři u [`SDC2160Ex`](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs)) rampuje
 **zvlášť dopřednou a zvlášť rotační složku**, každou svou akcelerací (`var 1` / `var 2`; náš driver
