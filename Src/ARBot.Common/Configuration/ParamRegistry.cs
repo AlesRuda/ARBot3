@@ -99,6 +99,14 @@ namespace ARBot.Common.Configuration
               + "'passable' (puvodni: staci tvrdy odstup SafeDist podel usecky - pro A/B). "
               + "Puvodni pravidlo optimalizovalo DELKU, kdezto A* CAS, takze zahazovalo objizdku, "
               + "kterou cena koupila, a drahu pritisklo na mez prujezdnosti.");
+        public static readonly BoolParam SmoothCorners = Bool("smoothcorners", "true", K_RIZENI,
+              "Druhy pruchod vyhlazovani s poctivym casem ROHU (od 5. 10. 2026, jen pri smooth=time): "
+              + "po sobe jdouci uzly se slouci do jedine usecky jete nejvyssi rychlosti, ktera se vejde pod "
+              + "obalku, kdyz ji regulator odjede rychleji nez puvodni lomenou caru i s jejimi rohy "
+              + "(strop rohu jako v PathPlanneru). Bez nej zustaly v uzkem sikmem pruchodu schody 45° po "
+              + "bunkach a regulator na nich lezl 0,04-0,10 m/s pri obalce 0,6-0,9 "
+              + "(lp-schody-v-uzine-regulator-brzdi). false = puvodni chovani (A/B). Tvrdy odstup SafeDist "
+              + "se nemeni. NEOVERENO NA HW.");
         public static readonly StringParam MotionProfile = Vycet("motionprofile", "latency", new[] { "latency", "trapezoid" }, K_RIZENI,
               "Kinematicky profil regulatoru drahy (IMotionProfile): 'latency' (vychozi od 25. 9. 2026: "
               + "spojity zakon v = -a*L + sqrt((a*L)^2 + 2a*x + ve^2) se zpozdenim smycky L, viz "
@@ -113,12 +121,13 @@ namespace ARBot.Common.Configuration
               + "skutecnym zpozdenim (~0,2-0,25 s: takt + mrtva doba + nabeh motoru) kmita a pri "
               + "dojezdu prejede cil (simulace 25. 9. 2026: L = 0,1 prejede o 8 cm, L <= 0,15 kmita "
               + "v zatacce vic nez puvodni profil). Musi byt > 0.", ParamParsers.Kladne);
-        public static readonly StringParam LocalFrame = Vycet("localframe", "world", new[] { "world", "odom" }, K_RIZENI,
-              "Soustava lokalni vrstvy (occupancy grid, lokalni planovac, regulator drahy): 'world' "
-              + "(vychozi, puvodni chovani: grid se kresli globalni pozou, takze kazda korekce z GPS, "
-              + "koridoru nebo korelace posune jeho obsah proti robotu, ackoli se robot nepohnul) "
-              + "nebo 'odom' (odometricka poza z fuze - spojita, korekce do ni neskacou; svetovy cil "
-              + "se prevadi transformaci v case snimku, takze korekce posune cil, ne prekazky). "
+        public static readonly StringParam LocalFrame = Vycet("localframe", "odom", new[] { "world", "odom" }, K_RIZENI,
+              "Soustava lokalni vrstvy (occupancy grid, lokalni planovac, regulator drahy): 'odom' "
+              + "(vychozi od 5. 10. 2026, pokyn autora: odometricka poza z fuze - spojita, korekce do ni "
+              + "neskacou; svetovy cil se prevadi transformaci v case snimku, takze korekce posune cil, "
+              + "ne prekazky) nebo 'world' (puvodni chovani: grid se kresli globalni pozou, takze kazda "
+              + "korekce z GPS, koridoru nebo korelace posune jeho obsah proti robotu, ackoli se robot "
+              + "nepohnul; v simulaci 5. 10. 2026 dva skoky 0,37 / 0,40 m z koridoru). "
               + "Zmereno nad jizdami 25. a 29. 9. 2026: korekce dnes posouvaji grid za 5 s p99 "
               + "1,4-2,1 m, max 4,3 m; cenou za 'odom' je drift odometrie (2-5 % drahy v zaznamech "
               + "pred skriptem 2.1). ⚠️ NEOVERENO NA HW. Viz doc/occupancy-and-local-planning.md.");

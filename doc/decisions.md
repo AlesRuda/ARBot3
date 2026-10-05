@@ -13,6 +13,36 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-05 — Výchozí `localframe=odom` a druhý průchod vyhlazování s poctivým časem rohů
+
+**Co (1):** lokální vrstva pracuje ve výchozím stavu v **odometrické** soustavě (`localframe=odom`,
+pokyn autora); `world` vrací původní chování. **Proč:** v simulaci 5. 10. (`20261005-075416.rec`)
+posunulo první měření koridoru po naučení šířky úseku pózu skokem 0,37 / 0,40 m — a ve `world`
+s ní i grid a plán. Na zařízení zatím nejelo; potvrdit nebo vrátit po první jízdě
+(`lp-grid-odometricka-soustava`).
+
+**Co (2):** vyhlazování dráhy má druhý průchod `MergeCorners` (`smoothcorners=`, výchozí true):
+uzly prvního průchodu se sloučí do úsečky jeté nejvyšší rychlostí pod obálkou, když ji regulátor
+odjede rychleji než původní lomenou čáru **včetně jejích rohů** (`PathPlanner.CornerSpeed`, nově
+sdílený). Autor zvolil variantu „vyhlazování s tolerancí" před „strop rohu v obálce plánovače"
+a „jen zobrazit `VLimit` v grafu".
+
+**Proč takhle a ne tolerancí kolem bezpečných buněk:** přehrání plánovače nad gridem ze záznamu
+ukázalo, že schody nedrží tvrdý odstup (zkratka byla průjezdná), ale časová kontrola prvního
+průchodu, která rohy neviděla, a rampa vázaná na vjezdovou rychlost. Tolerance by nezměnila nic.
+Počítat rohy nad buňkami A\* je špatně (rastr šikmé čáry má rohy všude) — musí se počítat nad tím,
+co první průchod opravdu vyrobí.
+
+**Důsledky:** v úzkém šikmém průjezdu 15 → 4 uzly, nejnižší strop regulátoru 0,03 → 0,38 m/s;
+v simulaci dojezd o ~18 s dřív. Tvrdý odstup `SafeDist` beze změny, ale dráha jede v úzkém pásu
+blíž okraji (p50 odstupu 0,427 proti 0,474 m). Bezpečnost sloučeného úseku stojí na tom, že
+`PathResult` drží `WayPoints[k].Speed` podél celého úseku — strop vjezdového uzlu je obálka
+v nejhorším místě, kde by rampa jinak obálku překročila. ⚠️ Na zařízení neběželo.
+
+**Odkazy:** `LocalPathPlanner.MergeCorners`, `PathPlanner.CornerSpeed`,
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) („Druhý průchod"),
+`lp-schody-v-uzine-regulator-brzdi`.
+
 ### 2026-10-04 — Přiřazení hrany posuzuje všechny hrany, ne 4 nejbližší úseky
 
 **Co:** `EdgeAssociator` bere do χ² **všechny** průjezdné hrany sítě (`assock=0`, nový výchozí),

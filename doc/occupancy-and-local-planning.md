@@ -148,8 +148,8 @@ historie stejně nepotřebujeme.
 
 ### Soustava lokální vrstvy: svět, nebo odometrie (`localframe=`, od 4. 10. 2026)
 
-Osy gridu jsou srovnané se světem i dál — mění se, **jakou pózou** se do něj zapisuje. Ve výchozím
-`localframe=world` je to globální póza z fúze, takže **každá korekce** z GPS, koridoru nebo korelace
+Osy gridu jsou srovnané se světem i dál — mění se, **jakou pózou** se do něj zapisuje. V původním
+`localframe=world` (výchozí do 5. 10. 2026) je to globální póza z fúze, takže **každá korekce** z GPS, koridoru nebo korelace
 (skokem, nebo postupně přes `corridorslew=`) posune obsah gridu proti robotu, ačkoli se robot nepohnul
 (`lp-grid-posun-pomalou-korekci`: 10 m za 30 s → `EscapingBlocked`). Změřeno nad jízdami 25. a 29. 9.
 (`ARBot.Analyze fusionreplay` blok 10): za 5 s **p99 1,4–2,1 m, max až 4,3 m**, pootočení p90
@@ -187,7 +187,13 @@ právě tento drift, zisk je ve chvostech. Registr: `lp-grid-odometricka-soustav
   `SyntetickyRovny.osm`, 40 s v každé soustavě): v `odom` drží pravou polovinu proti pravdě stejně
   (konec běhu −0,444 m proti −0,462 m ve `world`, cíl −0,5 m), plány 100 % `Ok`, transformace se
   korekcemi mění o desítky cm a desetiny stupně a grid na webu sedí na mapu.
-  ⚠️ **Na zařízení neběželo**; výchozí zůstává `world`.
+  ⚠️ **Na zařízení neběželo.**
+- **Od 5. 10. 2026 je `odom` VÝCHOZÍ** (pokyn autora; `localframe=world` vrací původní chování).
+  První jízda na zařízení tedy pojede v odometrické soustavě — v simulaci, testech i na robotu.
+  Podnět: v simulaci 5. 10. (`20261005-075416.rec`, posunutá vizuální mapa, tehdy ještě `world`)
+  posunulo první měření koridoru po naučení šířky úseku pózu skokem o 0,37 a 0,40 m — a s ní
+  grid i plán. Výchozí hodnoty vlastností `LocalNavigator.Frame` / `ControlLoop.Frame` zůstaly
+  `World` (runtime je nastavuje z parametru; testy na nich stojí).
 
 ### Rozměry
 
@@ -742,6 +748,59 @@ poctivé vyhlazování nepovede robota středem 3,8m kanálu — skončí na 0,5
 je jiná páka (tvar obálky / `EdgeMarginM`) a míchat ji sem by znamenalo dvě rozhodnutí v jednom.
 A pořadí pořád platí: **kolik z toho v terénu dělá vyhlazování a kolik rozmazání gridu chybou
 kurzu, změřené není** — zisk se má měřit až nad záznamem se správným kurzem. Na HW to neběželo.
+
+### ✅ Druhý průchod: poctivý čas rohů (`smoothcorners=`, 5. 10. 2026)
+
+**Nález** (`lp-schody-v-uzine-regulator-brzdi`, simulace `20261005-124937.rec`, zúžení 1 m skloněné
+~17° k osám gridu): graf rychlostního profilu ukazoval 0,6–0,9 m/s, robot jel **0,04–0,10 m/s**.
+Graf kreslí obálku plánovače (`RegulatorWayPoint.Speed`); `PathResult` k ní přidá **strop rohu**
+`ω_max·r`, kde poloměr plyne z tolerance uzlu a je oseknutý polovinou kratšího sousedního úseku.
+Plán šel po **schodech 45° po jedné buňce** (5–7 cm), takže `VLimit` padal až na **0,03 m/s**.
+
+**Proč schody zůstaly** (přehráno nad gridem ze záznamu): tvrdý odstup zkratku **nezamítal**
+(průjezdná přímka 1,9 m). Zamítal ji **první průchod** ze dvou důvodů: (a) rampa smí jet jen
+rychlostí vjezdového uzlu (0,72 m/s na buňkách s odstupem 0,49–0,51 m), kdežto přímka vede přes
+odstup 0,461 m s obálkou 0,49 m/s; (b) čas zkratky se srovnává s jemným dělením, **jako by se
+rohy jely obálkou** — schody „trvaly" 2,12 s, zkratka 2,95 s, ve skutečnosti schody 15–20 s.
+⚠️ **Původní nápad „tolerance kolem bezpečných buněk" by tedy nepomohl vůbec** — tvrdý odstup
+nebyl to, co zkratku drželo.
+
+**Léčba** — druhý průchod `MergeCorners` nad výsledkem prvního (jen `smooth=time`, ne únik):
+1. **Poctivý čas lomené čáry**: strop vrcholu = min(obálka buňky uzlu, roh přes
+   `PathPlanner.CornerSpeed` se skutečným úhlem a délkami úseků, tolerancí jako v `BuildWayPoints`);
+   zpětný brzdný průchod; **dopředné zrychlení** z rychlosti, kterou robot do vrcholu přinesl, na
+   strop úseku (`PathResult` drží `WayPoints[k].Speed` podél úseku, ne strop rohu).
+2. **Sloučený úsek** jede nejvyšší konstantní rychlostí, při níž se rampa (drž ji, dobrzdi na
+   výjezd) vejde pod obálku — omezují jen vzorky, kde by brzdná křivka sama obálku překročila, takže
+   minimum v brzdné části strop nesrazí (jinak by se vrátilo plazení od začátku, které odstranila
+   změna 8. 9.). Zrychlení se do této **bezpečnostní** kontroly nepočítá, do času ano. Vjezdový uzel
+   dostane ten strop do `Speed` (rozpad obálky nese nejhorší místo úseku, takže dál platí
+   `Speed = max(podlaha, min(VClearance, VBrake))`); tolerance uzlu se bere z odstupu v uzlu.
+3. Sloučí se, když to **nezhorší čas** na témž rozpětí; krajní uzly rozpětí vjíždějí na obou
+   stranách stejně, obálkou bez rohu (jejich roh se sloučením změní), u robotu se na obou stranách
+   přičte cena počátečního otočení.
+
+⚠️ **Proč nad výsledkem prvního průchodu, ne nad buňkami A\*** — to byla první verze a test ji
+chytil: A\* kreslí schody **i v širokém prostoru** (každá šikmá čára je rastr) a první průchod je
+zdarma slije. Roh počítaný nad buňkami potrestal každou šikmou dráhu a vyhlazování pak přijalo
+přímku kolem skvrny při 0,33 m/s (`Vyhlazovani_SkvrnaStranouOdSpojnice_NesraziRychlostUzluURobotu`).
+Druhá chyba téže verze: bez dopředného zrychlení „jela" lomená čára za rohem jeho rychlostí celý
+další úsek, takže prohrávala i tam, kde nemá (jízda kolmo ke zdi).
+
+**Naměřeno:**
+
+| | uzlů | nejnižší `VLimit` regulátoru | rychlost 1. úseku |
+|---|---|---|---|
+| grid ze záznamu 12:50:41.658, `smoothcorners=false` | 15 | 0,03 m/s (rohy 45–63°) | 0,23 |
+| týž grid, `smoothcorners=true` | **4** | **0,38** (pak 1,20 a 0,60) | **0,38** |
+
+Bezobslužná simulace (`ARBot.Headless`, tytéž mapy jako ve záznamu, `localframe=odom`, cíl za
+zúžením, 130 s): obě varianty dojely (`Arrived`), s `true` cíl v okně **30–40 s** od startu proti
+**50–60 s**, zúžením ~0,22 m/s proti 0,10–0,12 m/s; odstup na dráze nikde pod `SafeDist`
+(min 0,400 / 0,403 m), ale **p50 0,427 proti 0,474 m** — přímka v úzkém pásu jede blíž okraji
+(tvrdá mez se nemění, rezerva nad ní ano). Jeden běh na variantu — rozptyl mezi běhy změřený není.
+⚠️ **Na HW neběželo.** `smoothcorners=false` vrací původní chování; testy
+`Vyhlazovani_SikmyUzkyKoridor_*` a šikmá scéna v invariantu rampy.
 ---
 
 ## Plánovač cesty

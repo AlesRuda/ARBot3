@@ -8514,13 +8514,63 @@ temata:
       - co: "Změřeno: `EscapingBlocked` hned po korekci ~10 m, detektor skoku nezasáhl (`posegps`, `nav`)"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Návrh 2. 10. 2026: grid v odometrické soustavě (`lp-grid-odometricka-soustava`) — od 4. 10. 2026 v kódu jako `localframe=odom` (výchozí `world`), čeká na jízdu na zařízení"
+      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Návrh 2. 10. 2026: grid v odometrické soustavě (`lp-grid-odometricka-soustava`) — od 4. 10. 2026 v kódu jako `localframe=odom`, od 5. 10. 2026 výchozí; čeká na jízdu na zařízení"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
     devlog: [2026-09-26]
     ceka_na: [lok-koridor-noedge-po-zatacce, lp-grid-odometricka-soustava]
+
+  - id: lp-schody-v-uzine-regulator-brzdi
+    oblast: lokalni-planovani
+    nazev: "V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9"
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-10-05
+    vyreseno: 2026-10-05
+    popis: >
+      Simulace `20261005-124937.rec` (`SyntetickyKoridor` + posunutá vizuální mapa, `localframe=odom`),
+      zúžení way 103 (šířka 1 m; ve vizuální mapě skloněné ~17° k osám gridu), 12:50:35–12:50:55:
+      `v0` plánu (rychlostní profil ve World pohledu) **0,6–0,9 m/s**, příkaz regulátoru **0,04–0,10 m/s**,
+      robot ujede ~1,2–1,6 m za 10 s. **Dva různé stropy:** graf kreslí `RegulatorWayPoint.Speed`, tedy
+      obálku occupancy plánovače (odstup od překážek, hranice potvrzeného). `PathResult` k ní přidá
+      **strop rohu** `ω_max · r`, kde poloměr plyne z tolerance uzlu `ε = d_min − SafeDist` (tady
+      0,06–0,11 m), a zpětným průchodem ho roztáhne dopředu — log `draha: uzlu=20–30 vLimit[0]=0,18–0,24
+      vLimitMin=0,03 nejostrejsiRoh=45–53° minPolomer=0,06 m`; vazba na dobu rotace s cílovým uzlem
+      0,2 m před robotem pak dá `vCmd` 0,06–0,09. **Příčina rohů:** při `SafeDist` 0,4 m zbývá v cestě
+      široké 1 m pás `d ≥ SafeDist` jen ~0,2 m; šikmá přímka se do něj nevejde, takže string-pulling
+      nechá schody po jedné buňce (5–7 cm, střídavě ±45°) — odchylka takového schodu od jeho střední
+      přímky je ~2 cm, tedy pod `ε`. Plánovač (cena = čas) o ceně rohů v regulátoru neví, takže
+      schodům nijak nebrání. **Není to vlastnost `localframe=odom`:** ve `world` (`20261005-075416.rec`,
+      70–100 s) totéž (`v0` 0,74–0,80, `vCmd` 0,08–0,10, `nejostrejsiRoh=45°`).
+      **Léčba (autor zvolil „vyhlazování s tolerancí", 5. 10. 2026):** přehrání plánovače nad gridem
+      ze záznamu ukázalo, že tvrdý odstup zkratku **nezamítá** — zamítala ji časová kontrola, která
+      neviděla rohy, a rampa vázaná na vjezdovou rychlost; tolerance kolem buněk by tedy nepomohla.
+      V kódu je proto druhý průchod vyhlazování `MergeCorners` (`smoothcorners=`, výchozí true):
+      uzly prvního průchodu se sloučí do úsečky jeté nejvyšší rychlostí pod obálkou, když ji regulátor
+      odjede rychleji než původní lomenou čáru i s jejími rohy (`PathPlanner.CornerSpeed`). Nad gridem
+      ze záznamu 15 → 4 uzly, nejnižší `VLimit` 0,03 → 0,38 m/s; simulace s cílem za zúžením dojela
+      o ~18 s dřív, odstup nikde pod `SafeDist`, ale p50 0,427 proti 0,474 m. Detail
+      `doc/occupancy-and-local-planning.md`, „Druhý průchod"; rozhodnutí `decisions.md` 5. 10. 2026.
+    kroky:
+      - co: "Rozbor záznamu `20261005-124937.rec`: dva stropy (obálka plánu vs. rohy v `PathResult`), schody 45° v pásu ~0,2 m; totéž ve `world`"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Rozhodnout léčbu (autor): vyhlazování s tolerancí"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Druhý průchod `MergeCorners` (`smoothcorners=`), sdílený `PathPlanner.CornerSpeed`; testy šikmého koridoru + šikmá scéna v invariantu rampy; přehrání nad gridem ze záznamu a A/B simulace"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Jízda na zařízení úzkým průjezdem: `ARBot.Analyze localplan` (v0 vs. vCmd) a odstup od okraje proti `smoothcorners=false`"
+        stav: otevreno
+    odkazy:
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+      - text: path-following.md
+        cesta: doc/path-following.md
+    devlog: [2026-10-05]
 
   - id: lp-grid-odometricka-soustava
     oblast: lokalni-planovani
@@ -8624,7 +8674,10 @@ temata:
       - co: "Fáze 2 (až po posouzení fáze 1 autorem): parametr `localframe=`, `LocalNavigator` (grid, plán, `SetGoal` přes transformaci, `PoseJumpDetector`), `ControlLoop`/regulátor, `FreeRunMission`, transformace odom → svět v `OccupancyGridMsg`/`LocalPlanMsg` pro web, UI a `ARBot.Analyze`. Hotovo: `LocalFrame` + `FrameTransform`, `RobotState.InFrame/ToWorldTransform`; `LocalNavigator.Frame` (světový cíl převáděn u každého snímku transformací v jeho čase, `SetLocalGoal` pro cíl vůči robotu, teleport v odom grid smaže, inicializace ne) a `ControlLoop.Frame` z jednoho parametru `localframe=world|odom` (výchozí `world`); FreeRun mrkev pózou téhož snímku přes `ILocalGoalSink.SetLocalGoal`; `OccupancyGridMsg` v2 / `LocalPlanMsg` v3 s `Frame` + transformací a `InWorldFrame()` (grid převzorkovaný nejbližším sousedem) — web, World pohled, `EvidenceCloud` (korelace) a `ARBot.Analyze` (`RecordFile.LocalLayerInWorld`; `drive` přehrává regulátor v soustavě plánu). Testy (`LocalNavigatorTest` +5, `LocalFrameTests` 12) a simulace: FreeRun 40 s v každé soustavě, v `odom` proti pravdě stejně (konec −0,444 m proti −0,462 m, cíl −0,5 m), plány 100 % `Ok`, grid na webu sedí na mapu"
         stav: hotovo
         kdy: 2026-10-04
-      - co: "Jízda na zařízení s `localframe=odom` (Track / FreeRun): grid po korekcích koridoru, `EscapingBlocked`/`GoalUnsafe` proti `world`, drift odometrie v gridu; pak rozhodnout výchozí soustavu (autor)"
+      - co: "Přepnout výchozí hodnotu na `localframe=odom` (pokyn autora; `world` = původní chování). Podnět: simulace `20261005-075416.rec` — v `world` dva skoky gridu 0,37 / 0,40 m od prvního měření koridoru po naučení šířky"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Jízda na zařízení s `localframe=odom` (Track / FreeRun): grid po korekcích koridoru, `EscapingBlocked`/`GoalUnsafe` proti `world`, drift odometrie v gridu; podle toho potvrdit výchozí `odom`, nebo vrátit `world` (autor)"
         stav: otevreno
       - co: "Změřit nad záznamy drift odometrické pózy na horizontu paměti gridu (sekundy, 12,8 m) a kolik korekcí se do gridu dnes promítá. ⚠️ Do nahrání `RizeniDiffPodvozku.mbs` 2.1 (čas z motorové jednotky) nese rychlost z kol ve fúzi bias +1,9 % (`lok-fuze-poza-pred-koly`) — v záznamech před tím ho drift odometrické pózy obsahuje"
         stav: otevreno

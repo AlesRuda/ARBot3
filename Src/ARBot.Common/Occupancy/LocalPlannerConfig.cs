@@ -70,6 +70,25 @@ namespace ARBot.Common.Occupancy
         /// </summary>
         public PathSmoothingMode Smoothing = PathSmoothingMode.TimeAware;
 
+        /// <summary>
+        /// Druhy pruchod vyhlazovani s poctivym casem rohu (<c>smoothcorners=</c>, vychozi true, od
+        /// 5. 10. 2026; plati jen pro <see cref="PathSmoothingMode.TimeAware"/> a ne pro unik): uzly
+        /// prvniho pruchodu se slouci do jedine usecky jete nejvyssi rychlosti pod obalkou, kdyz ji
+        /// regulator odjede rychleji nez puvodni lomenou caru i s jejimi rohy
+        /// (<c>PathPlanner.CornerSpeed</c>); vjezdovy uzel pak dostane tento strop. Bez toho v uzkem
+        /// sikmem prujezdu zustaly schody 45° po bunkach a regulator na nich lezl 0,04-0,10 m/s pri
+        /// obalce 0,6-0,9 (lp-schody-v-uzine-regulator-brzdi). Viz <c>LocalPathPlanner.MergeCorners</c>.
+        /// false = puvodni chovani pro A/B.
+        /// </summary>
+        public bool SmoothCorners = true;
+
+        /// <summary>
+        /// Rezerva, kterou <c>PathPlanner</c> ubira z tolerance uzlu pred vypoctem polomeru rohu [m]
+        /// (<c>Profile.PathEpsilonMargin</c>). Musi byt TATAZ jako v <c>PathPlanner</c> regulatoru,
+        /// jinak se cas rohu pocita pro jiny polomer, nez jaky se pojede.
+        /// </summary>
+        public double CornerEpsilonMargin = Profile.PathEpsilonMargin;
+
         // POZN.: bývalo tu pole SmoothMaxTimeLoss (5 %) - relativní tolerance, o kolik smí zkratka
         // zdržet. Bylo potřeba, dokud se čas zkratky počítal jako "délka / min(v)": rychlost se pak
         // po úseku nesměla měnit vůbec, takže jízda KOLMO k překážce (kde VClosing klesá s každou

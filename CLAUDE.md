@@ -210,7 +210,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   `RobotStateMsg` verze 2): integrál fúzovaných `v`, `ω` v checkpointech `AsyncFusionEngine`, **mimo
   kovarianci a mimo update** (korekce do ní neskáčou), inicializace ji nepřeruší. Únik korekcí přes
   rychlosti změřen ~1 % (`fusionreplay` blok 10). **Od téhož dne ji umí použít lokální vrstva:**
-  `localframe=odom` (výchozí `world`) přepne grid, plánovač i regulátor do odometrické soustavy,
+  `localframe=odom` (**výchozí od 5. 10. 2026**, `world` = původní chování) přepne grid, plánovač i regulátor do odometrické soustavy,
   světový cíl se převádí transformací v čase snímku a `OccupancyGridMsg` v2 / `LocalPlanMsg` v3
   nesou transformaci do světa (`InWorldFrame()` pro web, UI i `ARBot.Analyze`). Viz
   [occupancy-and-local-planning.md](doc/occupancy-and-local-planning.md). ⚠️ Na HW neběželo.
@@ -696,6 +696,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   aby mrkev ve zdi nevypadala jako dojezd. ⚠️ **Není to lék na špatnou mapu** — `Blocked` buněk bylo
   v témže záznamu p50 27,7 % (max 51,0 %) při rozbitém kurzu, takže část „nedosažitelnosti" může být
   chyba gridu, kterou zóna zakryje. ⚠️ **Na HW neběželo** (12 testů).
+  ✅ **Od 5. 10. 2026 má vyhlazování DRUHÝ PRŮCHOD s poctivým časem rohů** (`smoothcorners=`,
+  výchozí true): v úzkém šikmém průjezdu zůstávaly schody 45° po buňkách a `PathResult` na nich
+  kvůli poloměru pár centimetrů jel 0,04–0,10 m/s, ačkoli graf obálky ukazoval 0,6–0,9. Schody
+  **nedržel tvrdý odstup**, ale časová kontrola, která rohy neviděla. Rohy se musí počítat nad
+  výsledkem prvního průchodu, **ne nad buňkami A\*** (rastr šikmé čáry má rohy všude). ⚠️ Na HW
+  neběželo (`lp-schody-v-uzine-regulator-brzdi`).
   ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
   gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),
   pak přeměřit.

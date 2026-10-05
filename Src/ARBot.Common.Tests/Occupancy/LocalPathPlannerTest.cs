@@ -70,6 +70,14 @@ namespace ARBot.Common.Tests.Occupancy
                     for (int k = 0; k < 10; k++) Grid.ObserveOccupied(cx, cy, 1f);
                 });
 
+            /// <summary>Oznaci jako prekazku kazdou bunku obdelniku, jejiz STRED splnuje podminku.</summary>
+            public void MarkObstacleWhere(double x0, double y0, double x1, double y1, Func<double, double, bool> where)
+                => ForEachCell(x0, y0, x1, y1, (cx, cy) =>
+                {
+                    if (!where(Grid.CenterX(cx), Grid.CenterY(cy))) return;
+                    for (int k = 0; k < 10; k++) Grid.ObserveOccupied(cx, cy, 1f);
+                });
+
             /// <summary>Oznaci obdelnik jako "jiste mimo cestu" (semantika).</summary>
             public void MarkOffRoad(double x0, double y0, double x1, double y1)
                 => ForEachCell(x0, y0, x1, y1, (cx, cy) =>
@@ -1186,6 +1194,7 @@ namespace ARBot.Common.Tests.Occupancy
                 (jmeno: "skvrna stranou", scena: SkvrnaStranou(0.45), gx: 2.8, gy: 0.0),
                 (jmeno: "uzka brana",     scena: BranaScene(),        gx: 2.5, gy: 0.0),
                 (jmeno: "kolmo ke zdi",   scena: WallScene(SpeedEnvelopeMode.Directional), gx: 0.0, gy: 0.75),
+                (jmeno: "sikmy uzky koridor", scena: SikmyKoridor(true), gx: SikmyCilX, gy: SikmyCilY),
             };
             foreach (var (jmeno, s, gx, gy) in sceny)
             {
@@ -1217,6 +1226,77 @@ namespace ARBot.Common.Tests.Occupancy
                     }
                 }
             }
+        }
+
+        // ---------------- schody v uzkem sikmem koridoru (5. 10. 2026) ----------------
+
+        private const double SikmyUhel = 17.0 * Math.PI / 180.0;
+        private static readonly double SikmyCilX = 2.5 * Math.Cos(SikmyUhel);
+        private static readonly double SikmyCilY = 2.5 * Math.Sin(SikmyUhel);
+
+        /// <summary>
+        /// Cesta siroka 1 m, sklonena o 17° k osam gridu - replika zuzeni z simulace
+        /// <c>20261005-124937.rec</c> (lp-schody-v-uzine-regulator-brzdi). Pri <c>SafeDist</c> 0,4 m
+        /// zbyva pas <c>d &gt;= SafeDist</c> siroky ~0,25 m a A* v nem jde po schodech 45°.
+        /// </summary>
+        private static Scene SikmyKoridor(bool smoothCorners)
+        {
+            var cfg = SmoothCfg();
+            cfg.SmoothCorners = smoothCorners;
+            var s = Scene.Create(cfg);
+            double sin = Math.Sin(SikmyUhel), cos = Math.Cos(SikmyUhel);
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacleWhere(-3, -3, 3, 3, (x, y) => Math.Abs(-sin * x + cos * y) > 0.5);
+            s.Rebuild();
+            return s;
+        }
+
+        /// <summary>Nejvetsi zatoceni ve MEZILEHLEM uzlu [stupne].</summary>
+        private static double MaxTurnDeg(RegulatorWayPoint[] w)
+        {
+            double max = 0;
+            for (int i = 1; i < w.Length - 1; i++)
+            {
+                double a1 = Math.Atan2(w[i].Y - w[i - 1].Y, w[i].X - w[i - 1].X);
+                double a2 = Math.Atan2(w[i + 1].Y - w[i].Y, w[i + 1].X - w[i].X);
+                double d = Math.Abs(Math.IEEERemainder(a2 - a1, 2 * Math.PI)) * 180.0 / Math.PI;
+                if (d > max) max = d;
+            }
+            return max;
+        }
+
+        /// <summary>
+        /// Puvodni chovani (<c>smoothcorners=false</c>): casova kontrola porovnava zkratku se schody,
+        /// jako by se schody jely obalkou bez ohledu na rohy, a rampa nesmi pod vjezdovou rychlost -
+        /// takze schody 45° zustanou a regulator na nich leze (v zaznamu 0,04-0,10 m/s).
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_SikmyUzkyKoridor_BezPoctivychRohu_Schoduje()
+        {
+            var s = SikmyKoridor(false);
+            var r = s.Plan(SikmyCilX, SikmyCilY, SikmyUhel);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.Ok));
+            Assert.That(MaxTurnDeg(r.WayPoints), Is.GreaterThanOrEqualTo(40.0), "predpoklad: schody po bunkach");
+        }
+
+        /// <summary>
+        /// S poctivym casem rohu (<c>smoothcorners=true</c>, vychozi) se schody slouci: zkratka
+        /// pojede nizsi obalkou podel sebe, ale porad rychleji, nez regulator projede rohy 45°
+        /// s polomerem par centimetru. Tvrdy odstup zustava.
+        /// </summary>
+        [Test]
+        public void Vyhlazovani_SikmyUzkyKoridor_SPoctivymiRohy_JedeBezSchodu()
+        {
+            var s = SikmyKoridor(true);
+            var r = s.Plan(SikmyCilX, SikmyCilY, SikmyUhel);
+
+            Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.Ok));
+            Assert.That(MaxTurnDeg(r.WayPoints), Is.LessThan(20.0), "bez schodu 45°");
+            Assert.That(r.WayPoints.Length, Is.LessThanOrEqualTo(5));
+            Assert.That(MinClearanceAlongPath(s, r.WayPoints), Is.GreaterThanOrEqualTo(s.Planner.Config.SafeDist - 1e-6));
+            for (int k = 0; k < r.WayPoints.Length - 1; k++)
+                Assert.That(r.WayPoints[k].Speed, Is.GreaterThan(0.2), $"uzel {k}: nema lezt");
         }
 }
 }

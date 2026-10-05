@@ -533,6 +533,12 @@ namespace ARBot.Robot
                 ? PathSmoothingMode.Passable : PathSmoothingMode.TimeAware;
             if (plannerCfg.Smoothing == PathSmoothingMode.Passable)
                 Trace.WriteLine("smooth=passable: puvodni vyhlazovani jen podle tvrdeho odstupu (A/B).");
+            // smoothcorners= druhy pruchod vyhlazovani s poctivym casem rohu (jen pri smooth=time).
+            // Rezerva tolerance pro roh musi byt tataz, jakou dostane PathPlanner nize.
+            plannerCfg.SmoothCorners = ParamRegistry.SmoothCorners.Value;
+            plannerCfg.CornerEpsilonMargin = Profile.PathEpsilonMargin;
+            if (!plannerCfg.SmoothCorners)
+                Trace.WriteLine("smoothcorners=false: vyhlazovani bez druheho pruchodu pres rohy (A/B).");
 
             // wedgefill= sirka klinu mezi zornymi poli barvy, ve kterem se dopisuje semantika
             // interpolaci z okoli (0 = vypnuto, puvodni chovani). Viz WedgeFiller.

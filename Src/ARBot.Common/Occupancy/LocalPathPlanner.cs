@@ -73,6 +73,24 @@ namespace ARBot.Common.Occupancy
         private readonly OpenQueue open = new OpenQueue();
         private readonly List<int> pathCells = new List<int>();
         private readonly List<int> pulled = new List<int>();
+
+        /// <summary>Index kazdeho uzlu <see cref="pulled"/> v <see cref="pathCells"/> (pro obalku a cas).</summary>
+        private readonly List<int> pulledPos = new List<int>();
+
+        // smoothcorners (od 5. 10. 2026): usek z uzlu pulled[k], ktery druhy pruchod (MergeCorners)
+        // slouci a ktery se smi jet jen MINIMEM obalky podel sebe, si nese odstup a priblizovani
+        // v tom nejhorsim miste - BuildWayPoints z nich uzlu udela strop. NaN = usek jede obalkou
+        // uzlu (bez stropu). Zarovnano s pulled (posledni prvek je vzdy NaN - z posledniho uzlu
+        // se nejede).
+        private readonly List<float> pulledCapClr = new List<float>();
+        private readonly List<float> pulledCapClosing = new List<float>();
+
+        // Znovupouzite pracovni seznamy druheho pruchodu (MergeCorners).
+        private readonly List<int> mergedCells = new List<int>();
+        private readonly List<int> mergedPos = new List<int>();
+        private double[] chainLen = new double[0];
+        private double[] chainV = new double[0];
+        private double[] chainTmp = new double[0];
         private int generation;
 
         // Vzorkovani vysledne lomene cary (znovupouzite, aby Plan nealokoval na kazde volani).
@@ -669,12 +687,16 @@ namespace ARBot.Common.Occupancy
         private void StringPull()
         {
             pulled.Clear();
+            pulledPos.Clear();
+            pulledCapClr.Clear();
+            pulledCapClosing.Clear();
             if (pathCells.Count == 0) return;
 
             bool timeAware = cfg.Smoothing == PathSmoothingMode.TimeAware && !escape;
             if (timeAware) BuildPathTimes();
 
             pulled.Add(pathCells[0]);
+            pulledPos.Add(0);
             int anchor = 0;
             while (anchor < pathCells.Count - 1)
             {
@@ -687,8 +709,240 @@ namespace ARBot.Common.Occupancy
                     break;
                 }
                 pulled.Add(pathCells[next]);
+                pulledPos.Add(next);
                 anchor = next;
             }
+
+            for (int k = 0; k < pulled.Count; k++)
+            {
+                pulledCapClr.Add(float.NaN);
+                pulledCapClosing.Add(float.NaN);
+            }
+            if (timeAware && cfg.SmoothCorners) MergeCorners();
+        }
+
+        /// <summary>
+        /// DRUHY PRUCHOD vyhlazovani (<c>smoothcorners</c>, od 5. 10. 2026): slouci po sobe jdouci
+        /// uzly prvniho pruchodu do jedine usecky, kdyz ji regulator odjede RYCHLEJI, nez by odjel
+        /// puvodni lomenou caru i s jejimi rohy.
+        ///
+        /// <para><b>Proc:</b> prvni pruchod prijme zkratku, jen kdyz se vejde pod obalku pri
+        /// vjezdove rychlosti, a cas porovnava s jemnym delenim, jako by se jelo obalkou bez ohledu
+        /// na rohy. V uzkem sikmem pruchodu (pas <c>d &gt;= SafeDist</c> siroky par bunek) se obalka
+        /// meni bunku od bunky, takze zadna delsi zkratka neprojde a zustanou schody 45° po bunkach -
+        /// a ty regulator jede ~0,03 m/s (polomer rohu z tolerance a pulky kratsiho useku). Namereno
+        /// v simulaci: obalka 0,6-0,9 m/s, prikaz 0,04-0,10 m/s (lp-schody-v-uzine-regulator-brzdi).</para>
+        ///
+        /// <para><b>Proc nad vysledkem prvniho pruchodu, ne nad bunkami A*:</b> A* kresli schody
+        /// i v sirokem prostoru (kazda sikma cara je rastr) a prvni pruchod je zdarma slije do par
+        /// dlouhych useku. Roh pocitany nad bunkami by tak potrestal kazdou sikmou drahu a sloucilo by
+        /// se i plazeni kolem skvrny (chyceno testem
+        /// <c>Vyhlazovani_SkvrnaStranouOdSpojnice_NesraziRychlostUzluURobotu</c>).</para>
+        ///
+        /// <para><b>Poctivy cas lomene cary</b>: strop uzlu = min(obalka bunky uzlu, strop rohu
+        /// <see cref="PathPlanner.CornerSpeed"/> se skutecnym uhlem a delkami useku, toleranci jako
+        /// v <see cref="BuildWayPoints"/>), zpetny brzdny pruchod a cas rampy kazdeho useku.
+        /// <b>Slouceny usek</b> jede minimem obalky podel sebe (tvrda pruchodnost se overuje zvlast) -
+        /// rampa je tak pod obalkou konstrukci a uzel dostane tento strop
+        /// (<see cref="pulledCapClr"/>). Cas se porovnava na tymz rozpeti uzlu se stejnou vjezdovou
+        /// a vyjezdovou rychlosti. Rohy na koncich rozpeti se zmeni taky, ale nepocitaji se ani na
+        /// jedne strane.</para>
+        /// </summary>
+        private void MergeCorners()
+        {
+            int m = pulled.Count;
+            if (m < 3) return;
+
+            if (chainLen.Length < m) { chainLen = new double[m * 2]; chainV = new double[m * 2]; }
+            for (int k = 0; k < m - 1; k++)
+            {
+                int a = pulled[k], b = pulled[k + 1];
+                double dx = b % size - a % size, dy = b / size - a / size;
+                chainLen[k] = Math.Sqrt(dx * dx + dy * dy) * cellSize;
+            }
+
+            // Strop uzlu lomene cary (bez brzdeni): obalka bunky a roh, jak ho udela PathPlanner.
+            for (int k = 0; k < m; k++)
+            {
+                double v = pathVLim[pulledPos[k]];
+                if (k > 0 && k < m - 1)
+                {
+                    int p = pulled[k - 1], cur = pulled[k], q = pulled[k + 1];
+                    double theta = Math.Abs(Conversions.NormalizeOrientation(
+                        Math.Atan2(q / size - cur / size, q % size - cur % size)
+                        - Math.Atan2(cur / size - p / size, cur % size - p % size)));
+                    double eps = Clamp(clearance[cur] - cfg.SafeDist, cfg.EpsMin, cfg.EpsMax);
+                    double vCorner = PathPlanner.CornerSpeed(theta, eps, cfg.CornerEpsilonMargin,
+                        chainLen[k - 1], chainLen[k], motion.MaxRotationSpeed, out _);
+                    // Podlaha MinCostSpeed: otocka (roh 180°) by jinak dala nekonecny cas.
+                    v = Math.Min(v, Math.Max(cfg.MinCostSpeed, vCorner));
+                }
+                chainV[k] = v;
+            }
+
+            mergedCells.Clear();
+            mergedPos.Clear();
+            mergedCells.Add(pulled[0]);
+            mergedPos.Add(pulledPos[0]);
+            var capC = new List<float> { float.NaN };
+            var capS = new List<float> { float.NaN };
+            int i = 0;
+            while (i < m - 1)
+            {
+                int best = i + 1;
+                float bestClr = float.NaN, bestClosing = float.NaN;
+                for (int j = m - 1; j > i + 1; j--)
+                {
+                    if (!SegmentPassable(pulled[i], pulled[j])) continue;
+
+                    int a = pulled[i], b = pulled[j];
+                    double dx = b % size - a % size, dy = b / size - a / size;
+                    double len = Math.Sqrt(dx * dx + dy * dy) * cellSize;
+
+                    // Krajni uzly rozpeti: obalka bez rohu, na OBOU stranach stejne (roh v nich se
+                    // sloucenim zmeni a nepocita se ani jednou). Kdyby kotva nesla svuj stary roh
+                    // schodu (~0,05 m/s), omezil by celou sloucenou usecku - a schody by vyhraly vzdy.
+                    double vEnter = pathVLim[pulledPos[i]], vExit = pathVLim[pulledPos[j]];
+                    if (!MergedCruise(a, b, len, vEnter, vExit, out double vCruise,
+                                      out int idxBind, out double closingBind))
+                        continue;
+
+                    double tChain = ChainTime(i, j, vEnter, vExit);
+                    double tMerged = SegmentTime(len, vEnter, vCruise, vExit);
+                    if (i == 0)
+                    {
+                        // Cena pocatecniho otoceni na OBOU stranach, jako v prvnim pruchodu.
+                        int q = pulled[1];
+                        tChain += RotationTime(q % size - a % size, q / size - a / size);
+                        tMerged += RotationTime(dx, dy);
+                    }
+                    if (tMerged > tChain * (1 + 1e-6)) continue;
+
+                    best = j;
+                    if (idxBind >= 0)
+                    {
+                        bestClr = clearance[idxBind];
+                        bestClosing = (float)closingBind;
+                    }
+                    break;
+                }
+                capC[capC.Count - 1] = bestClr;
+                capS[capS.Count - 1] = bestClosing;
+                mergedCells.Add(pulled[best]);
+                mergedPos.Add(pulledPos[best]);
+                capC.Add(float.NaN);
+                capS.Add(float.NaN);
+                i = best;
+            }
+
+            if (mergedCells.Count == m) return;   // nic se neslucilo
+            pulled.Clear(); pulled.AddRange(mergedCells);
+            pulledPos.Clear(); pulledPos.AddRange(mergedPos);
+            pulledCapClr.Clear(); pulledCapClr.AddRange(capC);
+            pulledCapClosing.Clear(); pulledCapClosing.AddRange(capS);
+        }
+
+        /// <summary>
+        /// Poctivy cas lomene cary prvniho pruchodu mezi uzly <paramref name="i"/> a
+        /// <paramref name="j"/> [s]: stropy vnitrnich uzlu z <see cref="chainV"/> (obalka + roh),
+        /// krajni uzly <paramref name="vEnter"/> / <paramref name="vExit"/>, zpetny brzdny pruchod
+        /// v ramci rozpeti a cas rampy kazdeho useku. Dopredny (akceleracni) pruchod se nepocita -
+        /// stejne jako v <c>PathPlanner</c>.
+        /// </summary>
+        private double ChainTime(int i, int j, double vEnter, double vExit)
+        {
+            int span = j - i + 1;
+            if (chainTmp.Length < span) chainTmp = new double[span * 2];
+
+            // Stropy VRCHOLU (obalka + roh; krajni bez rohu) a zpetny brzdny pruchod.
+            for (int k = i; k <= j; k++)
+                chainTmp[k - i] = k == i ? vEnter : (k == j ? vExit : chainV[k]);
+            for (int k = j - 1; k >= i; k--)
+            {
+                double brake = motion.Dist2MaxSpeed(chainLen[k], chainTmp[k + 1 - i]);
+                if (brake < chainTmp[k - i]) chainTmp[k - i] = brake;
+            }
+
+            // Dopredu: kazdy usek z rychlosti, kterou robot do vrcholu opravdu prinesl, zrychli na
+            // strop USEKU (obalka v uzlu - PathResult drzi WayPoints[k].Speed podel useku, ne strop
+            // rohu) a dobrzdi na strop dalsiho vrcholu.
+            double vIn = chainTmp[0], time = 0;
+            for (int k = i; k < j; k++)
+            {
+                double cruise = Math.Max(vIn, pathVLim[pulledPos[k]]);
+                double vOut = chainTmp[k + 1 - i];
+                time += SegmentTime(chainLen[k], vIn, cruise, vOut);
+                double reached = Math.Min(cruise, motion.Dist2MaxSpeed(chainLen[k], vIn));
+                vIn = Math.Min(vOut, reached);
+            }
+            return time;
+        }
+
+        /// <summary>
+        /// Strop rychlosti SLOUCENEHO useku: nejvyssi konstantni rychlost, pri ktere se rampa
+        /// (drz ji, vcas dobrzdi na <paramref name="vExit"/>) vejde pod obalku v kazdem vzorku -
+        /// omezuji jen vzorky, kde by brzdna krivka sama obalku prekrocila; minimum, ktere lezi
+        /// v brzdne casti, strop nesrazi (jinak by se vratilo plazeni od zacatku, ktere 8. 9. 2026
+        /// odstranila zmena "strop uzlu = obalka v uzlu"). Zrychleni z <paramref name="vEnter"/> se
+        /// do teto kontroly zamerne NEPOCITA (je to bezpecnost - konzervativne jako v
+        /// <see cref="RampFits"/>), do casu ano. <paramref name="idxBind"/> = vzorek, ktery strop
+        /// urcil (-1 = nic nesrazilo pod <paramref name="vEnter"/>). <c>false</c> = mimo grid.
+        /// </summary>
+        private bool MergedCruise(int fromIdx, int toIdx, double len, double vEnter, double vExit,
+                                  out double vCruise, out int idxBind, out double closingBind)
+        {
+            vCruise = Math.Min(vEnter, motion.Dist2MaxSpeed(len, vExit));
+            idxBind = -1;
+            closingBind = 0;
+            double x0 = fromIdx % size, y0 = fromIdx / size;
+            double dx = toIdx % size - x0, dy = toIdx / size - y0;
+            double lenCells = Math.Sqrt(dx * dx + dy * dy);
+            if (!(lenCells > 0)) return false;
+            double ux = dx / lenCells, uy = dy / lenCells;
+            int steps = (int)Math.Ceiling(lenCells * 2.0) + 1;
+            for (int st = 0; st <= steps; st++)
+            {
+                double t = (double)st / steps;
+                int i = (int)Math.Round(x0 + dx * t);
+                int j = (int)Math.Round(y0 + dy * t);
+                if ((uint)i >= (uint)size || (uint)j >= (uint)size) return false;
+                int idx = i + j * size;
+                // Zbyvajici draha od STREDU bunky - tataz konvence jako v RampFits.
+                double remaining = ((x0 + dx - i) * ux + (y0 + dy - j) * uy) * cellSize;
+                if (remaining < 0) remaining = 0;
+                double c = Closing(idx, ux, uy);
+                double env = cfg.VCost(clearance[idx], c);
+                if (motion.Dist2MaxSpeed(remaining, vExit) > env && env < vCruise)
+                {
+                    vCruise = env;
+                    idxBind = idx;
+                    closingBind = c;
+                }
+            }
+            return vCruise > 0;
+        }
+
+        /// <summary>
+        /// Cas useku delky <paramref name="len"/> [s]: z <paramref name="vIn"/> zrychli na
+        /// <paramref name="vCruise"/> a vcas dobrzdi na <paramref name="vOut"/> - zrychleni i brzdeni
+        /// zakonem profilu (<see cref="IMotionProfile.Dist2MaxSpeed"/>). Integruje se lichobeznikove
+        /// pres vzorky po ~1/2 bunky, jako v <see cref="RampFits"/>.
+        /// </summary>
+        private double SegmentTime(double len, double vIn, double vCruise, double vOut)
+        {
+            if (!(len > 0)) return 0;
+            int steps = (int)Math.Ceiling(len / cellSize * 2.0) + 1;
+            double time = 0, vPrev = 0;
+            for (int st = 0; st <= steps; st++)
+            {
+                double s = len * st / steps;
+                double v = Math.Min(vCruise, Math.Min(motion.Dist2MaxSpeed(s, vIn),
+                                                      motion.Dist2MaxSpeed(len - s, vOut)));
+                if (!(v >= cfg.MinCostSpeed)) v = cfg.MinCostSpeed;
+                if (st > 0) time += (len / steps) * 0.5 * (1.0 / v + 1.0 / vPrev);
+                vPrev = v;
+            }
+            return time;
         }
 
         /// <summary>
@@ -790,6 +1044,19 @@ namespace ARBot.Common.Occupancy
             double vCruise = Math.Min(vEnter, motion.Dist2MaxSpeed(len, vExit));
             if (!(vCruise > 0)) return false;
 
+            return RampFits(x0, y0, dx, dy, lenCells, ux, uy, len, vCruise, vExit, budget);
+        }
+
+        /// <summary>
+        /// Vejde se rampa (drz <paramref name="vCruise"/>, vcas dobrzdi na <paramref name="vExit"/>)
+        /// podel usecky pod obalku v kazdem vzorku a odjede se do <paramref name="budget"/>? Usecka
+        /// zacina ve stredu bunky (<paramref name="x0"/>, <paramref name="y0"/>) a ma smer
+        /// (<paramref name="dx"/>, <paramref name="dy"/>) v bunkach.
+        /// </summary>
+        private bool RampFits(double x0, double y0, double dx, double dy, double lenCells,
+                              double ux, double uy, double len, double vCruise, double vExit,
+                              double budget)
+        {
             // Jeden pruchod vzorky: rampa pod obalkou + cas. Cas se integruje pres tytez vzorky
             // (lichobeznikove), ne uzavrenym vzorcem - ten by predpokladal konstantni deceleraci,
             // coz treba SqrtMotionProfile nema.
@@ -871,17 +1138,38 @@ namespace ARBot.Common.Occupancy
             // Vrcholy ve svetovych souradnicich; prvni bod je SKUTECNA poloha robotu (ne stred bunky).
             var xs = new List<double>(pulled.Count + 1);
             var ys = new List<double>(pulled.Count + 1);
+            // Strop zkratky z uzlu (smoothcorners) - zarovnany s xs; viz pulledCapClr.
+            var capClr = new List<float>(pulled.Count + 1);
+            var capClosing = new List<float>(pulled.Count + 1);
             xs.Add(robotX);
             ys.Add(robotY);
+            capClr.Add(pulledCapClr.Count > 0 ? pulledCapClr[0] : float.NaN);
+            capClosing.Add(pulledCapClosing.Count > 0 ? pulledCapClosing[0] : float.NaN);
             double minStep = grid.Resolution * 0.5;
             for (int k = 1; k < pulled.Count; k++)
             {
                 double x = grid.CenterX(grid.OriginX + pulled[k] % size);
                 double y = grid.CenterY(grid.OriginY + pulled[k] / size);
                 double dx = x - xs[xs.Count - 1], dy = y - ys[ys.Count - 1];
-                if (dx * dx + dy * dy < minStep * minStep) continue;   // PathPlanner nesnese nulovy usek
+                float cc = k < pulledCapClr.Count ? pulledCapClr[k] : float.NaN;
+                float cl = k < pulledCapClosing.Count ? pulledCapClosing[k] : float.NaN;
+                if (dx * dx + dy * dy < minStep * minStep)
+                {
+                    // PathPlanner nesnese nulovy usek. Strop vynechaneho uzlu plati pro usek, ktery
+                    // z nej vede - ten ted zacina v predchozim uzlu, takze se prenese tam (nizsi vyhraje).
+                    int last = capClr.Count - 1;
+                    if (!float.IsNaN(cc) && (float.IsNaN(capClr[last])
+                        || cfg.VEnvelope(cc, cl) < cfg.VEnvelope(capClr[last], capClosing[last])))
+                    {
+                        capClr[last] = cc;
+                        capClosing[last] = cl;
+                    }
+                    continue;
+                }
                 xs.Add(x);
                 ys.Add(y);
+                capClr.Add(cc);
+                capClosing.Add(cl);
             }
             int n = xs.Count;
             if (n < 2) return null;
@@ -944,11 +1232,31 @@ namespace ARBot.Common.Occupancy
                 // tam se rampa neoveruje, takze jedina zaruka je to minimum. Obe poloviny jsou pár.
                 int si = nodeSample[k];
                 double clr, closingAtMin, vClear;
+                // Tolerance uzlu se bere z odstupu V UZLU (tam se roh zaobluje), i kdyz strop
+                // rychlosti nize prevezme nejhorsi misto zkratky.
+                double nodeClr;
                 if (timeAwareNodes)
                 {
                     clr = sampleClear[si];
                     closingAtMin = sampleClosing[si];
                     vClear = cfg.VEnvelope(clr, closingAtMin);
+                    nodeClr = clr;
+
+                    // smoothcorners: zkratka z tohoto uzlu se smi jet jen minimem obalky podel sebe
+                    // (MergeCorners) - strop uzlu je tedy obalka v jejim nejhorsim miste.
+                    // PathResult drzi WayPoints[k].Speed podel celeho useku, takze tim regulator
+                    // obalku nikde neprekroci. Do rozpadu obalky jde to nejhorsi misto, aby platilo
+                    // Speed = max(podlaha, min(VClearance, VBrake)).
+                    if (k < capClr.Count && !float.IsNaN(capClr[k]))
+                    {
+                        double vCap = cfg.VEnvelope(capClr[k], capClosing[k]);
+                        if (vCap < vClear)
+                        {
+                            clr = capClr[k];
+                            closingAtMin = capClosing[k];
+                            vClear = vCap;
+                        }
+                    }
                 }
                 else
                 {
@@ -973,6 +1281,7 @@ namespace ARBot.Common.Occupancy
                         closingAtMin = sampleClosing[si];
                         vClear = cfg.VEnvelope(clr, closingAtMin);
                     }
+                    nodeClr = clr;
                 }
 
                 // Brzdna obalka: vzdalenost k hranici potvrzeneho, merena OD TOHOTO UZLU dopredu.
@@ -1003,7 +1312,7 @@ namespace ARBot.Common.Occupancy
                     // odstup SafeDist se nikdy neporusi.
                     Speed = last ? (finalGoal ? 0.0 : Math.Max(0.0, v))
                                  : Math.Max(cfg.MinCostSpeed, v),
-                    MaxPositionError = Clamp(clr - cfg.SafeDist, cfg.EpsMin, cfg.EpsMax),
+                    MaxPositionError = Clamp(nodeClr - cfg.SafeDist, cfg.EpsMin, cfg.EpsMax),
                 };
             }
 

@@ -39,6 +39,37 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-05
+
+- **Rozbor dvou skoků v simulaci** (`records/20261005-075416.rec`, `SyntetickyKoridor` +
+  posunutá vizuální mapa, `roadwidthmap=true`, tehdy ještě `localframe=world`): póza skočila
+  příčně o **0,37 m** (07:54:51.5, way 101) a **0,40 m** + 3° kurzu (07:56:14.1, way 104),
+  odometrie za týž krok 0,09 / 0,03 m. Oba přesně na **prvním měření koridoru po
+  `WidthNotTrusted`**: po 10 s resp. ~40 s bez příčného měření (`AmbiguousEdge`/`NoCorridor`)
+  prošla celá nasbíraná odchylka (`dLat` 0,40 / −0,49 m) jedním krokem (`corridorslew=0`).
+  Tatáž důvěra v šířku zároveň spustila přestavbu mapy (`RoadWidthMapUpdater`, 3,00 → 2,05 /
+  2,61 m), takže v náhledu skočila i fialová cesta — pózou ale přestavba nehýbe (`mapcorr=false`).
+  Oba skoky jsou správně v soustavě navigační mapy (přepočet z tabulky posunů `…Posunuty.osm`);
+  `ARBot.Analyze nav` je nehlásí, práh má 0,5 m. Neprověřeno: way 101 (3 m) změřena na 2,0 m;
+  kurz na západním konci při otáčení na místě ujede až o 14°.
+- **`localframe=odom` je VÝCHOZÍ** (pokyn autora, `lp-grid-odometricka-soustava`): ve `world`
+  by tytéž skoky posunuly grid i plán. `world` vrací původní chování. ⚠️ Na zařízení neběželo.
+- **Proč graf rychlostního profilu ukazuje 0,6–0,9 m/s a robot jede 0,1** (`20261005-124937.rec`,
+  12:50:42, zúžení 1 m): graf kreslí obálku occupancy plánovače, regulátor (`PathResult`) k ní přidá
+  strop rohů — a plán v pásu `d ≥ SafeDist` širokém ~0,2 m „schoduje“ po buňkách 45°. Totéž ve
+  `world`, s odometrickou soustavou to nesouvisí. Nové téma `lp-schody-v-uzine-regulator-brzdi`.
+- **Druhý průchod vyhlazování s poctivým časem rohů** (`smoothcorners=`, výchozí true,
+  `lp-schody-v-uzine-regulator-brzdi`): autor zvolil „vyhlazování s tolerancí", ale přehrání plánovače
+  nad gridem ze záznamu ukázalo, že tvrdý odstup zkratku nezamítá — zamítala ji časová kontrola bez
+  rohů a rampa vázaná na vjezdovou rychlost. `LocalPathPlanner.MergeCorners` proto nad výsledkem
+  prvního průchodu slučuje uzly do úsečky jeté nejvyšší rychlostí pod obálkou, když je rychlejší než
+  lomená čára včetně rohů (`PathPlanner.CornerSpeed`, nově sdílený; čas se zrychlením za rohem).
+  Dvě slepé uličky chytily testy: rohy nad buňkami A\* (trestaly každou šikmou dráhu — skvrna)
+  a čas bez zrychlení / strop minimem celé úsečky (jízda kolmo ke zdi). Nad gridem ze záznamu
+  15 → 4 uzly, `VLimit` min 0,03 → 0,38 m/s; A/B simulace (130 s, cíl za zúžením) dojezd v okně
+  30–40 s proti 50–60 s, odstup p50 0,427 proti 0,474 m, nikde pod `SafeDist`. Testy Common 1 766,
+  Runtime 151, HAL 133. ⚠️ Na HW neběželo. Rozhodnutí: [decisions.md](decisions.md) 5. 10. 2026.
+
 ## 2026-10-04
 
 - **Lokální vrstva v odometrické soustavě — fáze 2 `lp-grid-odometricka-soustava`** (v kódu,
