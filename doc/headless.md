@@ -449,6 +449,22 @@ Obnovuje se každou sekundu.
 - **Záznam v hlavičce** (od 6. 10. 2026, `prov-zaznam-nevidet-ze-nebezi`): „záznam: cesta (N MB)"
   s **rostoucí** velikostí, nebo oranžově „BEZ ZÁZNAMU — důvod" (ve fázi čekání „čeká se na volbu
   mise"), při poruše červeně „ZÁZNAM SELHAL". Detail a `fsync`: [record-replay.md](record-replay.md).
+- **Jízda v hlavičce** (od 6. 10. 2026, `prov-ujeto-v-misi-na-strance`): „jízda: teď 0.85 m/s ·
+  ujeto 123 m · průměr 0.33 m/s (v pohybu 0.50 m/s)". Okamžitá rychlost (fúzovaná `v`, záporná =
+  couvá) je tam vždy, ujeto a průměry jen za běžící mise. **Dva průměry schválně:** doba mise
+  zahrnuje i stání (servisní okna Robotouru, čekání na fix, držené zastavení), takže průměr přes ni
+  říká, jak rychle mise postupuje, kdežto průměr v pohybu (|v| ≥ 0,05 m/s) jak rychle robot jede.
+  Počítá to `Odometer` (`ARBot.Common/Diagnostics`) z **odometrické pózy** (`RobotStateMsg.OdomX/OdomY`),
+  ne z fúzované: ta při korekcích z GPS a koridoru skáče o metry a každý skok by se přičetl jako
+  ujetá dráha. Krok pod 5 cm se přičte až po nastřádání (šum při stání se nesčítá), posun rychlejší
+  než 5 m/s je nespojitost a nepočítá se. **Začátek mise** = poslední vzorek − `Elapsed` mise (obojí
+  z hodin dat); kvůli tomu si počítadlo vede **historii kontrolních bodů po 2 s na 12 h**, takže
+  nezáleží na tom, jestli se na stránku zrovna někdo dívá. Mise starší než historie se ukáže
+  s poznámkou „a víc — starší než historie". **Do záznamu ani do fúze to nejde** (rozhodnutí autora
+  6. 10. 2026): je to zobrazení; kdyby byla ujetá dráha potřeba v rozborech, patří spíš do
+  `MissionMsg` (mise ví, kdy začala), protože `∫|v|dt` ve fúzi by při stání sčítal šum a začátek
+  mise by stejně neznal. ⚠️ Na zařízení neběželo; ověřeno testy a headless se simulací (FreeRun:
+  19 m za 31 s, sedí na ujetou dráhu v půdorysu).
 
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 

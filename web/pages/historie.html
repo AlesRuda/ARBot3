@@ -30,7 +30,7 @@
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
     <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">29</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">35</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">36</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">160</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -432,6 +432,7 @@
       <li data-tema="mise-vizualni-dojezd-na-cil"><span class="mono">5. 10.</span> <span class="typ">zamítnuto</span> <a href="#mise-vizualni-dojezd-na-cil">Vizu&#225;ln&#237; dojezd posledn&#237;ch metrů podle QR k&#243;du</a></li>
       <li data-tema="mise-robotour-mapa-ostrov"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#mise-robotour-mapa-ostrov">K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</a></li>
       <li data-tema="prov-baterie-na-strance"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#prov-baterie-na-strance">Napět&#237; baterie nen&#237; na str&#225;nce n&#225;hledu a nic na něj nevaruje</a></li>
+      <li data-tema="prov-ujeto-v-misi-na-strance"><span class="mono">6. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#prov-ujeto-v-misi-na-strance">Ujet&#225; dr&#225;ha a průměrn&#225; rychlost mise na str&#225;nce n&#225;hledu</a></li>
       <li data-tema="prov-zaznam-nevidet-ze-nebezi"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#prov-zaznam-nevidet-ze-nebezi">V ter&#233;nu nen&#237; poznat, jestli se běh nahr&#225;v&#225; a kam</a></li>
     </ul>
   </div>
@@ -2059,6 +2060,16 @@
       <li class="otevreno">Ověřit na zař&#237;zen&#237;: napět&#237; v tabulce sed&#237; na Roborun+, varov&#225;n&#237; se neobjevuje za j&#237;zdy s plnou bateri&#237; (pokles pod z&#225;těž&#237;); př&#237;padně doladit <code>batwarn=</code> podle skutečn&#233;ho napět&#237; na svork&#225;ch</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/robotour-2026.html">robotour-2026.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
+  </article>
+  <article class="tema" id="prov-ujeto-v-misi-na-strance" data-stav="v-kodu">
+    <h3>Ujet&#225; dr&#225;ha a průměrn&#225; rychlost mise na str&#225;nce n&#225;hledu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 6. 10. 2026</span> <span>vyřešeno 6. 10. 2026</span></p>
+    <p>Př&#225;n&#237; autora: na webu headless vidět, kolik metrů robot v misi ujel a jakou průměrnou rychlost&#237;, a okamžitou rychlost tam, kam obsluha s mobilem kouk&#225; (dř&#237;v jen ř&#225;dek v tabulce dole). **V k&#243;du 6. 10. 2026:** ř&#225;dek „j&#237;zda:&quot; v hlavičce — teď, ujeto, průměr přes dobu mise a průměr v pohybu (doba mise zahrnuje st&#225;n&#237;). <code>Odometer</code> (<code>ARBot.Common/Diagnostics</code>) sč&#237;t&#225; dr&#225;hu z **odometrick&#233;** p&#243;zy (f&#250;zovan&#225; sk&#225;če při korekc&#237;ch), pr&#225;h 5 cm proti šumu při st&#225;n&#237;, nespojitost nad 5 m/s se nepoč&#237;t&#225;; zač&#225;tek mise = posledn&#237; vzorek − <code>Elapsed</code>, proto historie kontroln&#237;ch bodů po 2 s na 12 h. **Do f&#250;ze ani do z&#225;znamu to nejde** (autor): <code>∫|v|dt</code> ve f&#250;zi by při st&#225;n&#237; sč&#237;tal šum a zač&#225;tek mise by neznal; pro rozbory by patřilo sp&#237;š do <code>MissionMsg</code>.</p>
+    <ul class="kroky">
+      <li class="hotovo"><code>Odometer</code> + ř&#225;dek „j&#237;zda:“ v hlavičce str&#225;nky; 8 testů poč&#237;tadla, 2 testy str&#225;nky, ověřeno headless se simulac&#237; (FreeRun 19 m za 31 s, sed&#237; na půdorys) <span class="mono">6. 10. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: ujet&#225; dr&#225;ha sed&#237; na skutečnou (např. proti d&#233;lce trasy Tracku), st&#225;n&#237; v servisn&#237;m okně nepřid&#225;v&#225; metry</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/headless.md">headless.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-06">2026-10-06</a></p>
   </article>
   <article class="tema" id="prov-sit-soutezni-provoz" data-stav="hotovo">
     <h3>S&#237;ť robota pro soutěž — vlastn&#237; WiFi AP a kabel bez routeru</h3>

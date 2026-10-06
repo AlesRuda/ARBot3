@@ -844,6 +844,64 @@ namespace ARBot.Runtime.Tests.Web
             Assert.That(vadny.ToJson(running: true), Does.Not.Contain("\"record"));
         }
 
+        // ---------------- ujeto v misi a rychlost (6. 10. 2026) ----------------
+
+        private sealed class FakeMise : ARBot.Common.Missions.IMissionStatus
+        {
+            public string MissionName => "track";
+            public string PhaseText => "jede";
+            public ARBot.Common.Missions.MissionWait WaitingFor => ARBot.Common.Missions.MissionWait.None;
+            public TimeSpan Elapsed { get; set; }
+        }
+
+        [Test]
+        public void Jizda_UjetoVMisi_PrumeryAOkamzitaRychlost()
+        {
+            var mise = new FakeMise();
+            var st = new WebStatus { MissionSource = () => mise };
+            var t0 = ARBot.Common.Common.TimeBase.Now;
+
+            // Pred misi 10 m (nesmi se zapocitat), pak mise: 20 s stani a 40 s jizdy 0,5 m/s = 20 m.
+            double x = 0;
+            for (int i = 0; i <= 100; i++)
+            {
+                x = 0.1 * i;
+                st.Post(new RobotStateMsg { TimeStamp = t0.AddSeconds(0.1 * i), OdomX = x, X = x, V = 1.0 });
+            }
+            var konec = t0.AddSeconds(10);
+            for (int i = 1; i <= 200; i++)
+                st.Post(new RobotStateMsg { TimeStamp = konec.AddSeconds(0.1 * i), OdomX = x, X = x, V = 0 });
+            konec = konec.AddSeconds(20);
+            for (int i = 1; i <= 400; i++)
+                st.Post(new RobotStateMsg
+                {
+                    TimeStamp = konec.AddSeconds(0.1 * i), OdomX = x + 0.05 * i, X = 999 /* skoky fuze */, V = 0.5,
+                });
+            mise.Elapsed = TimeSpan.FromSeconds(60);
+
+            string json = st.ToJson(running: true);
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"missionDist\":20.0"));
+                Assert.That(json, Does.Contain("\"missionAvg\":0.33"));        // 20 m / 60 s
+                Assert.That(json, Does.Contain("\"missionMovingAvg\":0.50"));  // 20 m / 40 s
+                Assert.That(json, Does.Contain("\"speed\":0.50"));
+                Assert.That(json, Does.Not.Contain("missionDistTruncated"));
+            });
+        }
+
+        [Test]
+        public void Jizda_MiseNezacala_JenOkamzitaRychlost()
+        {
+            var st = new WebStatus { MissionSource = () => new FakeMise { Elapsed = TimeSpan.Zero } };
+            st.Post(new RobotStateMsg { TimeStamp = ARBot.Common.Common.TimeBase.Now, V = -0.2 });
+
+            string json = st.ToJson(running: true);
+            Assert.That(json, Does.Contain("\"speed\":-0.20"));
+            Assert.That(json, Does.Not.Contain("missionDist"));
+            Assert.That(json, Does.Not.Contain("missionAvg"));
+        }
+
         // ---------------- baterie (prov-baterie-na-strance, 6. 10. 2026) ----------------
 
         /// <summary>Monitor naplneny cerstvymi vzorky konstantniho napeti (cas = TimeBase.Now).</summary>

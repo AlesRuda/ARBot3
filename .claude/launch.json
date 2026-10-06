@@ -24,6 +24,12 @@
       "runtimeExecutable": "Src/ARBot.Headless/bin/x64/Release/net10.0/ARBot.Headless.exe",
       "runtimeArgs": ["virtualhw=true", "no_uart=true", "map=OSM/SyntetickyKoridor.osm", "web=8092", "mission=freerun", "record=true"],
       "port": 8092
+    },
+    {
+      "name": "headless-jizda",
+      "runtimeExecutable": "Src/ARBot.Headless/bin/x64/Release/net10.0/ARBot.Headless.exe",
+      "runtimeArgs": ["virtualhw=true", "no_uart=true", "map=OSM/SyntetickyKoridor.osm", "web=8093", "mission=freerun", "record=false"],
+      "port": 8093
     }
   ]
 }

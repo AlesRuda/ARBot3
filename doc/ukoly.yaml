@@ -8145,6 +8145,34 @@ temata:
     devlog: [2026-09-20]
     ceka_na: []
 
+  - id: prov-ujeto-v-misi-na-strance
+    oblast: provoz
+    nazev: Ujetá dráha a průměrná rychlost mise na stránce náhledu
+    druh: zamer
+    stav: v-kodu
+    nalezeno: 2026-10-06
+    vyreseno: 2026-10-06
+    popis: >
+      Přání autora: na webu headless vidět, kolik metrů robot v misi ujel a jakou průměrnou
+      rychlostí, a okamžitou rychlost tam, kam obsluha s mobilem kouká (dřív jen řádek v tabulce
+      dole). **V kódu 6. 10. 2026:** řádek „jízda:" v hlavičce — teď, ujeto, průměr přes dobu mise
+      a průměr v pohybu (doba mise zahrnuje stání). `Odometer` (`ARBot.Common/Diagnostics`) sčítá
+      dráhu z **odometrické** pózy (fúzovaná skáče při korekcích), práh 5 cm proti šumu při stání,
+      nespojitost nad 5 m/s se nepočítá; začátek mise = poslední vzorek − `Elapsed`, proto historie
+      kontrolních bodů po 2 s na 12 h. **Do fúze ani do záznamu to nejde** (autor): `∫|v|dt` ve fúzi
+      by při stání sčítal šum a začátek mise by neznal; pro rozbory by patřilo spíš do `MissionMsg`.
+    kroky:
+      - co: "`Odometer` + řádek „jízda:“ v hlavičce stránky; 8 testů počítadla, 2 testy stránky, ověřeno headless se simulací (FreeRun 19 m za 31 s, sedí na půdorys)"
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: "Ověřit na zařízení: ujetá dráha sedí na skutečnou (např. proti délce trasy Tracku), stání v servisním okně nepřidává metry"
+        stav: otevreno
+    odkazy:
+      - text: headless.md
+        cesta: doc/headless.md
+    devlog: [2026-10-06]
+    ceka_na: []
+
   - id: lp-drsnost-povrchu-rychlostni-strop
     oblast: lokalni-planovani
     nazev: Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě

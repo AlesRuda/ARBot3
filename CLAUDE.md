@@ -174,6 +174,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
     souboru, je i v `.rec`), ne záměr; `fsync` po založení, každých 5 s a při zastavení. 17. 9. se
     po jízdě nenašel žádný `.rec` a nebylo poznat proč. ⚠️ Na zařízení neběželo
     (`prov-zaznam-nevidet-ze-nebezi`; [record-replay.md](doc/record-replay.md)).
+  - **Od 6. 10. 2026 i JÍZDA**: okamžitá rychlost, ujeto v misi a průměr (přes dobu mise
+    i v pohybu). Dráha z **odometrické** pózy (`Odometer`), ne z fúzované — ta při korekcích skáče.
+    Do fúze ani záznamu vědomě nejde (autor). ⚠️ Na zařízení neběželo (`prov-ujeto-v-misi-na-strance`).
   - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
     měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: start po skutečném rebootu** (`prov-start-po-rebootu`; misi ze stránky robot
     14. 9. odjel, celý seznam Tracku ale neobjel). ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň

@@ -56,6 +56,12 @@ namespace ARBot.Robot.Web
         private readonly List<PlanViewPoint> trail = new List<PlanViewPoint>(TrailCapacity);
 
         /// <summary>
+        /// Ujeta draha z odometricke pozy (ne z fuzovane — ta pri korekcich skace). Z ni se v hlavicce
+        /// pocita „ujeto v misi" a prumerna rychlost. Plni se pod <c>gate</c>, viz <see cref="Odometer"/>.
+        /// </summary>
+        private readonly ARBot.Common.Diagnostics.Odometer odometer = new ARBot.Common.Diagnostics.Odometer();
+
+        /// <summary>
         /// Kdy naposled <b>vysla do streamu</b> zprava daneho druhu (klic = druh zpravy,
         /// u pojmenovanych zdroju i jmeno). Fan-out je synchronni na vlakne producenta, takze je to
         /// prakticky okamzik publikovani - ne cas porizeni (ten je o dobu zpracovani v pipeline starsi).
@@ -355,6 +361,10 @@ namespace ARBot.Robot.Web
             lock (gate)
             {
                 state = rs;
+                // Zprava verze 1 odometrii nenese (nuly) - pak aspon fuzovana poloha.
+                if (rs.HasOdom) odometer.Add(rs.TimeStamp, rs.OdomX, rs.OdomY, rs.V);
+                else odometer.Add(rs.TimeStamp, rs.X, rs.Y, rs.V);
+
                 if (trail.Count == 0)
                 {
                     trail.Add(new PlanViewPoint(rs.X, rs.Y));
@@ -693,7 +703,14 @@ namespace ARBot.Robot.Web
                 // Prazdny retezec u "neceka se na nic" je zamer: stranka pak radek vubec neukaze,
                 // misto aby psala "ceka se na: nic".
                 if (mise.Ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(mise.Ceka)).Append('"');
+
+                AppendMissionDistance(sb, mise.Uplynulo);
             }
+
+            // Okamzita rychlost do hlavicky - v tabulce dole je taky, ale tam ji obsluha s mobilem
+            // nevidi. Fuzovana v [m/s], zaporna = couva.
+            if (state != null && double.IsFinite(state.V))
+                sb.Append(",\"speed\":").Append(state.V.ToString("0.00", CultureInfo.InvariantCulture));
 
             // ZAZNAM do hlavicky: kam se nahrava a kolik uz je zapsano (rostouci cislo = zapis bezi),
             // nebo proc se nenahrava. Obsluha v terenu ma jen tuhle stranku.
@@ -726,6 +743,35 @@ namespace ARBot.Robot.Web
             AppendMissionPick(sb);
             AppendMagCal(sb);
             sb.Append('}');
+        }
+
+        /// <summary>
+        /// <b>Ujeto v misi a prumerna rychlost</b> do hlavicky (klice <c>missionDist</c> [m],
+        /// <c>missionAvg</c> [m/s] = draha / doba mise, <c>missionMovingAvg</c> [m/s] = draha / cas
+        /// v pohybu). Vola se pod <c>gate</c>.
+        ///
+        /// <para>Dva prumery schvalne: doba mise zahrnuje i stani (servisni okna Robotouru, cekani
+        /// na fix, drzene zastaveni), takze prumer pres ni rika „jak rychle mise postupuje",
+        /// kdezto prumer v pohybu „jak rychle robot jede". Ten druhy se ukazuje az po 1 s jizdy,
+        /// jinak by z drobku vysel nesmysl.</para>
+        ///
+        /// <para>Zacatek mise je <c>posledni vzorek − Elapsed</c> — oba casy jsou z hodin dat
+        /// (razitka zprav), takze se nemichaji zakladny. Dokud mise nezacala (<c>Elapsed</c> 0),
+        /// nevypisuje se nic.</para>
+        /// </summary>
+        private void AppendMissionDistance(StringBuilder sb, TimeSpan uplynulo)
+        {
+            double sec = uplynulo.TotalSeconds;
+            if (!(sec > 0) || odometer.LastTime == default) return;
+
+            var r = odometer.Since(odometer.LastTime - uplynulo);
+            sb.Append(",\"missionDist\":").Append(r.DistanceM.ToString("0.0", CultureInfo.InvariantCulture));
+            sb.Append(",\"missionAvg\":").Append((r.DistanceM / sec).ToString("0.00", CultureInfo.InvariantCulture));
+            if (r.MovingSec >= 1)
+                sb.Append(",\"missionMovingAvg\":")
+                  .Append((r.DistanceM / r.MovingSec).ToString("0.00", CultureInfo.InvariantCulture));
+            // Mise starsi nez historie pocitadla (12 h) - cislo je podhodnocene a stranka to musi rict.
+            if (r.Truncated) sb.Append(",\"missionDistTruncated\":true");
         }
 
         /// <summary>
@@ -905,6 +951,12 @@ namespace ARBot.Robot.Web
         }
 
         /// <summary>
+        /// Zdroj stavu mise pro test; <c>null</c> (vychozi) = bezici runtime
+        /// (<see cref="ARBotRuntime.CurrentMission"/>). Tentyz sev jako <see cref="BatterySource"/>.
+        /// </summary>
+        public Func<ARBot.Common.Missions.IMissionStatus> MissionSource { get; set; }
+
+        /// <summary>
         /// Snimek stavu mise porizeny <b>mimo nas zamek</b> — viz <see cref="ToJson"/>.
         /// Retezce nikdy nejsou <c>null</c>, aby se s nimi dalo pracovat pod zamkem bez dalsich
         /// dotazu na misi.
@@ -945,10 +997,17 @@ namespace ARBot.Robot.Web
         /// z ctenych vlastnosti bere zamek mise. Porucha se hlasi a vraci se prazdny snimek:
         /// stranka je v terenu jedine, co obsluha ma, takze nesmi spadnout kvuli misi.
         /// </summary>
-        private static MiseSnimek NactiMisi()
+        private MiseSnimek NactiMisi()
         {
             try
             {
+                if (MissionSource != null)
+                {
+                    var t = MissionSource();
+                    return t == null ? default
+                        : new MiseSnimek(t.MissionName, t.PhaseText, t.Elapsed,
+                                         ARBot.Common.Missions.MissionStatusText.WaitText(t.WaitingFor));
+                }
                 if (!ARBotRuntime.HasCurrent) return default;
                 var m = ARBotRuntime.Current.CurrentMission;
                 if (m == null) return new MiseSnimek(ARBotRuntime.Current.MissionNotCreatedReason);
@@ -1413,6 +1472,18 @@ function hlavicka(h){
    +(h.missionElapsed!==undefined?' ('+doba(h.missionElapsed)+')':'');
   if(h.waiting) m+='<br><span class=""ceka"">čeká se na: '+h.waiting+'</span>';
  }
+ // Jizda: okamzita rychlost vzdy, ujeto a prumery jen za bezici mise. Prumer pres celou dobu
+ // mise zahrnuje i stani (servisni okna, cekani), prumer v pohybu jen jizdu - proto oba.
+ var j=[];
+ if(h.speed!==undefined) j.push('teď <b>'+h.speed+'</b> m/s');
+ if(h.missionDist!==undefined){
+  var dm=h.missionDist;
+  j.push('ujeto <b>'+(dm>=1000?(dm/1000).toFixed(2)+' km':dm.toFixed(0)+' m')+'</b>'
+        +(h.missionDistTruncated?' (a víc — starší než historie)':''));
+  j.push('průměr '+h.missionAvg+' m/s'
+        +(h.missionMovingAvg!==undefined?' (v pohybu '+h.missionMovingAvg+' m/s)':''));
+ }
+ if(j.length) m+=(m?'<br>':'')+'<b>jízda:</b> '+j.join(' · ');
  // Drzene zastaveni je vlastni radek, ne soucast stavu mise: robot muze stat i bez mise
  // (treba pri restartu kamer) a clovek musi videt DUVOD, ne jen ze se nehybe.
  if(h.holds&&h.holds.length)

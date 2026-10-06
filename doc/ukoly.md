@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **247**: otevřeno **29** · v kódu, na HW neověřeno **35** · hotovo **160** · odloženo **14** · zamítnuto **9**.
+Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · hotovo **160** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -76,6 +76,7 @@ Témat celkem **247**: otevřeno **29** · v kódu, na HW neověřeno **35** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Rampa motorové jednotky je 2,6× strmější, než říká `Profile.MaxAcceleration`](#hw-motor-rampa-jednotky) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
+| v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
@@ -1996,6 +1997,18 @@ Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl 
 - [ ] Ověřit na zařízení: napětí v tabulce sedí na Roborun+, varování se neobjevuje za jízdy s plnou baterií (pokles pod zátěží); případně doladit `batwarn=` podle skutečného napětí na svorkách
 
 [robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
+
+<a id="prov-ujeto-v-misi-na-strance"></a>
+### 🧪 Ujetá dráha a průměrná rychlost mise na stránce náhledu
+
+`prov-ujeto-v-misi-na-strance` · záměr · **v kódu, na HW neověřeno** · nalezeno 6. 10. 2026 · vyřešeno 6. 10. 2026
+
+Přání autora: na webu headless vidět, kolik metrů robot v misi ujel a jakou průměrnou rychlostí, a okamžitou rychlost tam, kam obsluha s mobilem kouká (dřív jen řádek v tabulce dole). **V kódu 6. 10. 2026:** řádek „jízda:" v hlavičce — teď, ujeto, průměr přes dobu mise a průměr v pohybu (doba mise zahrnuje stání). `Odometer` (`ARBot.Common/Diagnostics`) sčítá dráhu z **odometrické** pózy (fúzovaná skáče při korekcích), práh 5 cm proti šumu při stání, nespojitost nad 5 m/s se nepočítá; začátek mise = poslední vzorek − `Elapsed`, proto historie kontrolních bodů po 2 s na 12 h. **Do fúze ani do záznamu to nejde** (autor): `∫|v|dt` ve fúzi by při stání sčítal šum a začátek mise by neznal; pro rozbory by patřilo spíš do `MissionMsg`.
+
+- [x] `Odometer` + řádek „jízda:“ v hlavičce stránky; 8 testů počítadla, 2 testy stránky, ověřeno headless se simulací (FreeRun 19 m za 31 s, sedí na půdorys) (6. 10. 2026)
+- [ ] Ověřit na zařízení: ujetá dráha sedí na skutečnou (např. proti délce trasy Tracku), stání v servisním okně nepřidává metry
+
+[headless.md](headless.md) · DevLog [2026-10-06](devlog.md#2026-10-06)
 
 <a id="prov-sit-soutezni-provoz"></a>
 ### ✅ Síť robota pro soutěž — vlastní WiFi AP a kabel bez routeru

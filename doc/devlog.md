@@ -77,6 +77,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   Runtime 156, HAL 143; ověřeno headless: čekání na misi → „BEZ ZÁZNAMU", FreeRun s `record=true` →
   cesta a MB rostou, hláška je v `.rec` i po tvrdém ukončení procesu. ⚠️ Na zařízení neběželo; proč
   17. 9. chybí běh 16:23–16:29, zůstává otevřené.
+- **Ujetá dráha a průměrná rychlost mise na stránce** (`prov-ujeto-v-misi-na-strance`, přání autora):
+  v hlavičce řádek „jízda: teď … m/s · ujeto … m · průměr … m/s (v pohybu … m/s)". Nový `Odometer`
+  (`ARBot.Common/Diagnostics`) sčítá dráhu z **odometrické** pózy (fúzovaná skáče při korekcích);
+  začátek mise = poslední vzorek − `Elapsed`, proto historie kontrolních bodů. Autor zvažoval dát
+  ujetou dráhu do EKF vedle odometrické pózy — zamítnuto: `∫|v|dt` by při stání sčítal šum
+  a začátek mise by fúze stejně neznala; pro rozbory by patřila spíš do `MissionMsg`. Ověření
+  v simulaci našlo vadu: FreeRun měří čas od prvního snímku, tedy před první `RobotStateMsg`,
+  a stránka hlásila „starší než historie" — podhodnocení se teď hlásí jen po zahození historie.
+  Testy: `OdometerTests` 8, webové 96 (`WebStatus.MissionSource` je nový šev pro test).
+  ⚠️ Na zařízení neběželo; headless FreeRun 19 m za 31 s sedí na půdorys.
 
 ## 2026-10-05
 
