@@ -804,6 +804,46 @@ namespace ARBot.Runtime.Tests.Web
             Assert.That(vadny.ToJson(running: true), Does.Not.Contain("\"holds\""));
         }
 
+        // ---------------- zaznam (prov-zaznam-nevidet-ze-nebezi, 6. 10. 2026) ----------------
+
+        [Test]
+        public void Zaznam_NahravaSe_CestaAVelikostVHlavicce()
+        {
+            var st = new WebStatus
+            {
+                RecordSource = () => new WebStatus.RecordInfo("/home/ales/arbot/records/20261006-120000.rec",
+                                                             12_582_912, null, false),
+            };
+            string json = st.ToJson(running: true);
+
+            Assert.That(json, Does.Contain("\"record\":\"/home/ales/arbot/records/20261006-120000.rec\""));
+            Assert.That(json, Does.Contain("\"recordMB\":12.0"));
+            Assert.That(json, Does.Not.Contain("recordOff"));
+        }
+
+        [Test]
+        public void Zaznam_BezZaznamu_DuvodAPriznakPoruchy()
+        {
+            var vypnuty = new WebStatus
+            {
+                RecordSource = () => new WebStatus.RecordInfo(null, 0, "record=false", false),
+            };
+            string j1 = vypnuty.ToJson(running: true);
+            Assert.That(j1, Does.Contain("\"recordOff\":\"record=false\""));
+            Assert.That(j1, Does.Not.Contain("recordFailed"));
+
+            var selhal = new WebStatus
+            {
+                RecordSource = () => new WebStatus.RecordInfo(null, 0, "soubor záznamu nejde založit (disk)", true),
+            };
+            string j2 = selhal.ToJson(running: true);
+            Assert.That(j2, Does.Contain("\"recordFailed\":true"));
+
+            // Vadny zdroj stranku neshodi.
+            var vadny = new WebStatus { RecordSource = () => throw new InvalidOperationException("test") };
+            Assert.That(vadny.ToJson(running: true), Does.Not.Contain("\"record"));
+        }
+
         // ---------------- baterie (prov-baterie-na-strance, 6. 10. 2026) ----------------
 
         /// <summary>Monitor naplneny cerstvymi vzorky konstantniho napeti (cas = TimeBase.Now).</summary>

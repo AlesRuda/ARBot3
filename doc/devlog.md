@@ -67,6 +67,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   červené „baterie … — NABÍT" v hlavičce. Start mise se neblokuje (autor). Virtuální motory mají
   nastavitelné napětí (panel *Virtuální senzory*, výchozí 12,8 V místo 24 V). Testy Common 1 780,
   Runtime 154, HAL 143; ověřeno headless se simulací a `batwarn=13`. ⚠️ Na zařízení neběželo.
+- **Je vidět, jestli a kam se nahrává** (`prov-zaznam-nevidet-ze-nebezi`, 17. 9. se po jízdě nenašel
+  `.rec`): hláška o záznamu jde z `WireRun` až po založení souboru („ZAZNAM: beh se nahrava do …" /
+  „BEZ ZAZNAMU - důvod" / „SELHAL") a je tím i v `.rec`; dřív se tiskl záměr před drátováním, jen do
+  journalu. `RecordPath` i v Run, `NoRecordReason`, `RecordFailed`, `RecordBytes`; stránka má v hlavičce
+  „záznam: cesta (N MB)" s rostoucí velikostí, jinak oranžově „BEZ ZÁZNAMU", červeně „ZÁZNAM SELHAL".
+  Soubor, který nejde založit, už neshodí `Start`. `RecordingTarget` dělá `fsync` po založení, každých
+  5 s a při zastavení (dřív jen `Flush()` do stránkové cache při `commit=120`). Testy Common 1 782,
+  Runtime 156, HAL 143; ověřeno headless: čekání na misi → „BEZ ZÁZNAMU", FreeRun s `record=true` →
+  cesta a MB rostou, hláška je v `.rec` i po tvrdém ukončení procesu. ⚠️ Na zařízení neběželo; proč
+  17. 9. chybí běh 16:23–16:29, zůstává otevřené.
 
 ## 2026-10-05
 

@@ -446,6 +446,9 @@ Obnovuje se každou sekundu.
   napětí nastavuje v panelu *Virtuální senzory* (dřív natvrdo 24 V, teď výchozí 12,8 V).
   ⚠️ Na zařízení neběželo; ověřeno testy a během headless se simulací (`batwarn=13` → varování
   v hlavičce i hláška v Trace).
+- **Záznam v hlavičce** (od 6. 10. 2026, `prov-zaznam-nevidet-ze-nebezi`): „záznam: cesta (N MB)"
+  s **rostoucí** velikostí, nebo oranžově „BEZ ZÁZNAMU — důvod" (ve fázi čekání „čeká se na volbu
+  mise"), při poruše červeně „ZÁZNAM SELHAL". Detail a `fsync`: [record-replay.md](record-replay.md).
 
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 

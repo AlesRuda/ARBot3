@@ -28,9 +28,16 @@ namespace ARBot.Common.Communication
     public sealed class RecordingTarget : MessageTarget
     {
         private readonly Stream data;
+        private readonly Stream indexStream;          // muze byt null
         private readonly MessageWriter writer;
         private readonly MessageIndexWriter index;   // muze byt null
         private long seq;
+        private long bytesWritten;
+
+        // Trvanlivost (fsync) - viz konstruktor, parametr durableInterval.
+        private readonly TimeSpan? durableInterval;
+        private DateTime lastSync = DateTime.MinValue;
+        private int durableSyncs;
 
         // Per-typ retence: limits = konfigurovane limity (typ mimo mapu = neomezeny),
         // inflight = aktualni pocet zprav daneho typu ve fronte + prave zpracovavanych.
@@ -51,12 +58,23 @@ namespace ARBot.Common.Communication
         /// Volitelne per-typ limity (MsgName -&gt; max zprav v obehu). null / prazdne =
         /// bezztratovy rezim (zadne zahazovani). Best-effort: napr. Blob=2, ostatni vysoke.
         /// </param>
+        /// <param name="durableInterval">
+        /// Jak casto delat <c>fsync</c> souboru (<c>FileStream.Flush(true)</c>) pri prubeznem flushi;
+        /// <c>null</c> = nikdy (jen spravovany <c>Flush()</c> do strankove cache, puvodni chovani).
+        /// Pri zastaveni se synchronizuje VZDY, kdyz je interval zadany. Plati jen pro
+        /// <see cref="FileStream"/>. <b>Proc ne pri kazdem flushi:</b> <c>OnFlush</c> se vola po kazde
+        /// davce zprav a zaznam tece az ~19 MB/s - fsync po davkach by stal vic nez zapis sam.
+        /// Viz prov-zaznam-nevidet-ze-nebezi.
+        /// </param>
         public RecordingTarget(Stream dataStream, Stream indexStream, Encoding encoding,
                                OverflowPolicy policy = OverflowPolicy.Block,
-                               IReadOnlyDictionary<string, int> perTypeLimits = null)
+                               IReadOnlyDictionary<string, int> perTypeLimits = null,
+                               TimeSpan? durableInterval = null)
             : base(policy)
         {
             data = dataStream ?? throw new ArgumentNullException(nameof(dataStream));
+            this.indexStream = indexStream;
+            this.durableInterval = durableInterval;
             var enc = encoding ?? Encoding.UTF8;
             writer = new MessageWriter(dataStream, enc);
             index = indexStream != null ? new MessageIndexWriter(indexStream, enc) : null;
@@ -72,6 +90,15 @@ namespace ARBot.Common.Communication
 
         /// <summary>Pocet dosud zapsanych zprav.</summary>
         public long Count => seq;
+
+        /// <summary>
+        /// Bajtu zapsanych do datoveho souboru (bez indexu). Cte se z jineho vlakna (stranka
+        /// nahledu: rostouci velikost = opravdu se nahrava), proto ne pres <c>data.Position</c>.
+        /// </summary>
+        public long BytesWritten => System.Threading.Interlocked.Read(ref bytesWritten);
+
+        /// <summary>DIAGNOSTIKA: kolikrat se soubor synchronizoval na disk (<c>fsync</c>).</summary>
+        public int DurableSyncs => System.Threading.Volatile.Read(ref durableSyncs);
 
         /// <summary>
         /// Prijeti zpravy na vlakne producenta. Stampuje <c>T_out</c> a pri konfigurovanych
@@ -134,6 +161,7 @@ namespace ARBot.Common.Communication
             long offset = data.Position;
             writer.Write(inner);
             long len = data.Position - offset;
+            System.Threading.Interlocked.Add(ref bytesWritten, len);
             if (index != null)
             {
                 long capture = (inner is IHasCaptureTime h) ? h.CaptureTime.Ticks : 0L;   // T_in
@@ -160,6 +188,9 @@ namespace ARBot.Common.Communication
         {
             writer.Flush();
             index?.Flush();
+            if (durableInterval.HasValue
+                && (TimeBase.Now - lastSync) >= durableInterval.Value)
+                Sync();
         }
 
         /// <inheritdoc/>
@@ -167,6 +198,28 @@ namespace ARBot.Common.Communication
         {
             writer.Flush();
             index?.Flush();
+            if (durableInterval.HasValue) Sync();
+        }
+
+        /// <summary>
+        /// <c>fsync</c> dat i indexu (jen <see cref="FileStream"/>). Selhani se hlasi do Trace
+        /// a zaznam bezi dal - trvanlivost je pojistka, ne podminka zapisu.
+        /// </summary>
+        private void Sync()
+        {
+            lastSync = TimeBase.Now;
+            bool any = false;
+            try
+            {
+                if (data is FileStream fd) { fd.Flush(true); any = true; }
+                if (indexStream is FileStream fi) { fi.Flush(true); any = true; }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"RecordingTarget: fsync zaznamu selhal: {ex.Message}");
+                return;
+            }
+            if (any) System.Threading.Interlocked.Increment(ref durableSyncs);
         }
 
         /// <summary>

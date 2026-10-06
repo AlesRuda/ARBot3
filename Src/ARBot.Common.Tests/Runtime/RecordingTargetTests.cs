@@ -86,5 +86,64 @@ namespace ARBot.Common.Tests.Runtime
                 Assert.That(entries[i].ArrivalTicks, Is.GreaterThan(0), $"T_out[{i}]");
             }
         }
+
+        // ---------------- viditelnost a trvanlivost zaznamu (prov-zaznam-nevidet-ze-nebezi) ----------------
+
+        /// <summary>
+        /// <see cref="RecordingTarget.BytesWritten"/> roste se zapisem a na konci sedi na delku dat -
+        /// stranka nahledu podle nej ukazuje, ze se OPRAVDU nahrava (rostouci velikost), ne jen
+        /// ze se nahravat melo.
+        /// </summary>
+        [Test]
+        public void BytesWritten_SediNaDelkuDat()
+        {
+            using var dataMs = new MemoryStream();
+            var rec = new RecordingTarget(dataMs, null, TestHelpers.Enc);
+            Assert.That(rec.BytesWritten, Is.EqualTo(0));
+            rec.Start();
+            for (int i = 0; i < 8; i++)
+                rec.Post(TestHelpers.MakeImu(T0.AddMilliseconds(i * 20), yaw: i * 0.01, omega: 0.1));
+            rec.Stop();
+
+            Assert.That(rec.BytesWritten, Is.EqualTo(dataMs.Length).And.GreaterThan(0));
+        }
+
+        /// <summary>
+        /// Do souboru se dela <c>fsync</c> (<c>FileStream.Flush(true)</c>): pri zapnutem intervalu
+        /// prubezne a VZDY pri zastaveni. 17. 9. 2026 se po behu nenasel zadny .rec a spravovany
+        /// <c>Flush()</c> plni jen strankovou cache (koren ma <c>commit=120</c>) - zaznam nemel
+        /// prezit odpojeni napajeni jen nahodou. MemoryStream se nesynchronizuje (nema co).
+        /// </summary>
+        [Test]
+        public void SouborSeSynchronizuje_PrubezneIPriZastaveni()
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"rectest-{Guid.NewGuid():N}.rec");
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+                {
+                    var rec = new RecordingTarget(fs, null, TestHelpers.Enc,
+                                                  durableInterval: TimeSpan.Zero);
+                    rec.Start();
+                    for (int i = 0; i < 5; i++)
+                        rec.Post(TestHelpers.MakeImu(T0.AddMilliseconds(i * 20), yaw: 0, omega: 0));
+                    rec.Stop();
+
+                    Assert.That(rec.DurableSyncs, Is.GreaterThanOrEqualTo(1), "aspon pri zastaveni");
+                    Assert.That(new FileInfo(path).Length, Is.EqualTo(rec.BytesWritten));
+                }
+
+                using var ms = new MemoryStream();
+                var mem = new RecordingTarget(ms, null, TestHelpers.Enc, durableInterval: TimeSpan.Zero);
+                mem.Start();
+                mem.Post(TestHelpers.MakeImu(T0, yaw: 0, omega: 0));
+                mem.Stop();
+                Assert.That(mem.DurableSyncs, Is.EqualTo(0), "MemoryStream nema co synchronizovat");
+            }
+            finally
+            {
+                try { File.Delete(path); } catch { }
+            }
+        }
     }
 }

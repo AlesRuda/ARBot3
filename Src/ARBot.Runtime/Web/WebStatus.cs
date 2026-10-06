@@ -695,6 +695,24 @@ namespace ARBot.Robot.Web
                 if (mise.Ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(mise.Ceka)).Append('"');
             }
 
+            // ZAZNAM do hlavicky: kam se nahrava a kolik uz je zapsano (rostouci cislo = zapis bezi),
+            // nebo proc se nenahrava. Obsluha v terenu ma jen tuhle stranku.
+            var rec = Record();
+            if (rec.HasValue)
+            {
+                if (!string.IsNullOrEmpty(rec.Value.Path))
+                {
+                    sb.Append(",\"record\":\"").Append(Escape(rec.Value.Path)).Append('"');
+                    sb.Append(",\"recordMB\":")
+                      .Append((rec.Value.Bytes / (1024.0 * 1024.0)).ToString("0.0", CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    sb.Append(",\"recordOff\":\"").Append(Escape(rec.Value.NoRecordReason ?? "bez záznamu")).Append('"');
+                    if (rec.Value.Failed) sb.Append(",\"recordFailed\":true");
+                }
+            }
+
             // VAROVANI BATERIE do hlavicky - tam obsluha s mobilem kouka, tabulka je az dole.
             var bat = Battery();
             if (bat.HasValue && bat.Value.Level == ARBot.Common.Diagnostics.BatteryLevel.Low)
@@ -827,6 +845,37 @@ namespace ARBot.Robot.Web
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.WriteLine("WebStatus: cteni baterie selhalo: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Stav zaznamu pro hlavicku: cesta, kam se OPRAVDU nahrava, a pocet zapsanych bajtu
+        /// (rostouci velikost = zapis bezi), nebo duvod, proc se nenahrava, a jestli je to porucha.
+        /// </summary>
+        public readonly record struct RecordInfo(string Path, long Bytes, string NoRecordReason, bool Failed);
+
+        /// <summary>
+        /// Zdroj stavu zaznamu. Vychozi cte bezici runtime; test si podstrci vlastni. Do 6. 10. 2026
+        /// stranka o nahravani nemela ani slovo a beh bez zaznamu byl v terenu k nerozeznani od behu
+        /// se zaznamem (prov-zaznam-nevidet-ze-nebezi).
+        /// </summary>
+        public Func<RecordInfo?> RecordSource { get; set; } = RecordZRuntime;
+
+        private static RecordInfo? RecordZRuntime()
+        {
+            if (!ARBotRuntime.HasCurrent) return null;
+            var r = ARBotRuntime.Current;
+            if (r.RecordPath == null && r.NoRecordReason == null) return null;   // runtime nebezi v Run
+            return new RecordInfo(r.RecordPath, r.RecordBytes, r.NoRecordReason, r.RecordFailed);
+        }
+
+        private RecordInfo? Record()
+        {
+            try { return RecordSource?.Invoke(); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("WebStatus: cteni stavu zaznamu selhalo: " + ex.Message);
                 return null;
             }
         }
@@ -1372,6 +1421,14 @@ function hlavicka(h){
  // a stranka napeti vubec neukazovala. Start mise se neblokuje, rozhoduje obsluha.
  if(h.batteryLow)
   m+=(m?'<br>':'')+'<span class=""chyba"">baterie '+h.batteryLow+' — NABÍT</span>';
+ // Zaznam: kam se nahrava a kolik MB (roste = zapis bezi), nebo proc ne. Porucha cervene,
+ // vypnuty zaznam (record=false, cekani na misi) oranzove.
+ var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+ if(h.record)
+  m+=(m?'<br>':'')+'<b>záznam:</b> '+esc(h.record)+' ('+h.recordMB+' MB)';
+ else if(h.recordOff)
+  m+=(m?'<br>':'')+'<span class=""'+(h.recordFailed?'chyba':'ceka')+'"">'
+   +(h.recordFailed?'ZÁZNAM SELHAL':'BEZ ZÁZNAMU')+' — '+esc(h.recordOff)+'</span>';
  document.getElementById('mise').innerHTML=m;
 }
 // Vyber mise. Ukazuje se JEN kdyz proces na volbu ceka (head.pick); jinak je panel pryc, aby

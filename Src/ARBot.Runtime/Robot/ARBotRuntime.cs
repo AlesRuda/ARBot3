@@ -134,12 +134,39 @@ namespace ARBot.Robot
         public FileMessageSource FileSource => fileSource;
 
         /// <summary>
-        /// Cesta k prehravanemu zaznamu (rezim View), jinak null. Pouziva ji telemetricky pohled,
-        /// ktery si nad souborem otevira VLASTNI read-only stream - soubor je otevreny
-        /// s <c>FileShare.Read</c>, takze sken nekoliduje s prehravanim.
-        /// Viz doc/telemetry-view.md.
+        /// Cesta k zaznamu: ve View <b>prehravany</b> soubor, v Run soubor, do ktereho se
+        /// <b>opravdu nahrava</b> (plni se az PO jeho zalozeni - od 6. 10. 2026, do te doby zustaval
+        /// v Run <c>null</c> a runtime sam nevedel, kam pise; prov-zaznam-nevidet-ze-nebezi);
+        /// <c>null</c> = bez zaznamu, duvod v <see cref="NoRecordReason"/>.
+        ///
+        /// <para>Telemetricky pohled a export GPX si nad souborem oteviraji vlastni read-only stream,
+        /// ale jen spolu s <see cref="FileSource"/>, tedy jen ve View - rozepsany zaznam v Run
+        /// necitaji.</para>
         /// </summary>
         public string RecordPath { get; private set; }
+
+        /// <summary>
+        /// V Run <b>proc se nenahrava</b> (<c>record=false</c>, ceka se na volbu mise, soubor nejde
+        /// zalozit …), nebo <c>null</c>, kdyz se nahrava (cesta v <see cref="RecordPath"/>). Cte to
+        /// stranka nahledu - beh bez zaznamu byl v terenu k nerozeznani od behu se zaznamem.
+        /// </summary>
+        public string NoRecordReason { get; private set; }
+
+        /// <summary>
+        /// <c>true</c> = nahravat se MELO, ale zaznam nejde zalozit (slozka, soubor) - porucha, ne
+        /// volba. Stranka to ukazuje cervene, kdezto vypnuty zaznam jen oranzove.
+        /// </summary>
+        public bool RecordFailed { get; private set; }
+
+        /// <summary>Bajtu zapsanych do datoveho souboru zaznamu v Run (rostouci = opravdu se nahrava).</summary>
+        public long RecordBytes => recording?.BytesWritten ?? 0;
+
+        /// <summary>
+        /// Jak casto zaznam v Run dela <c>fsync</c> (vedle synchronizace hned po zalozeni a pri
+        /// zastaveni). 5 s = pri vypadku napajeni prijde nanejvys tolik zaznamu; koren na zarizeni
+        /// ma <c>commit=120</c>, takze bez toho az 2 minuty (17. 9. 2026 se po behu nenasel zadny .rec).
+        /// </summary>
+        public static readonly TimeSpan RecordSyncInterval = TimeSpan.FromSeconds(5);
 
         /// <summary>
         /// Vyssi ridici smycka (occupancy grid + lokalni planovani) v rezimu Run; jinak null.
@@ -192,8 +219,18 @@ namespace ARBot.Robot
                 // "Run + zaznam" v UI tim profil prebiji. To poradi je zamerne: vyslovna
                 // volba cloveka nad nastavenim, stejne jako prikazova radka nad profilem.
                 // NoRecord (prazdny retezec) je treti moznost: "zadny zaznam, ani z parametru".
-                if (mode == Mode.Run) WireRun(file == null ? RecordPathFromParams()
-                                                           : file.Length == 0 ? null : file);
+                if (mode == Mode.Run)
+                {
+                    // Zamer, ne vysledek: jestli se opravdu nahrava, rozhodne az WireRun (zalozeni
+                    // souboru) - a teprve tam se to hlasi, uz s mostem do zaznamu.
+                    string duvod = null;
+                    bool selhalo = false;
+                    string cesta = file == null ? RecordPathFromParams(out duvod, out selhalo)
+                                 : file.Length == 0 ? null : file;
+                    if (cesta == null && duvod == null)
+                        duvod = "ceka se na volbu mise (zaznam zacne s misi)";
+                    WireRun(cesta, duvod, selhalo);
+                }
                 else WireView(file);
                 running = true;
             }
@@ -212,12 +249,22 @@ namespace ARBot.Robot
         ///
         /// <para>Nepodari-li se zalozit slozka, zaznam se VYNECHA a jede se dal: chybejici
         /// zaznam je horsi diagnostika, ale nespusteny robot je horsi vysledek.</para>
+        ///
+        /// <para><b>Nic nehlasi</b> (od 6. 10. 2026): vola se pred <see cref="WireRun"/>, kdy most
+        /// do zaznamu jeste nestoji, takze hlaska "beh se zaznamenava do …" koncila jen v journalu
+        /// a rikala ZAMER - 17. 9. 2026 v journalu byla, soubor nikdy nevznikl. Vysledek hlasi
+        /// <see cref="WireRun"/>; tady se jen vraci duvod, kdyz se nahravat nebude.</para>
         /// </summary>
-        private static string RecordPathFromParams()
+        private static string RecordPathFromParams(out string noRecordReason, out bool failed)
         {
+            noRecordReason = null;
+            failed = false;
             string raw = (ParamRegistry.Record.Value ?? string.Empty).Trim();
             if (raw.Length == 0 || string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
+            {
+                noRecordReason = raw.Length == 0 ? "record= neni nastavene" : "record=false";
                 return null;
+            }
 
             // DataRootOrBase, ne RootOrBase: pri nasazeni stinovou kopii (dataroot=) musi zaznam
             // skoncit v puvodnim adresari, ne u binarek, ktere se pri pristim startu prepisou.
@@ -236,11 +283,11 @@ namespace ARBot.Robot
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"record={raw}: slozku zaznamu nejde zalozit ({ex.Message}) -> bez zaznamu.");
+                noRecordReason = $"slozku zaznamu nejde zalozit ({ex.Message})";
+                failed = true;
                 return null;
             }
 
-            Trace.WriteLine($"record={raw}: beh se zaznamenava do {path}");
             return path;
         }
 
@@ -293,6 +340,8 @@ namespace ARBot.Robot
                 // 6) Zavri soubory replay/zaznamu.
                 fileSource = null;
                 RecordPath = null;
+                NoRecordReason = null;
+                RecordFailed = false;
                 CloseFiles();
 
                 running = false;
@@ -313,7 +362,10 @@ namespace ARBot.Robot
         public HwMode RequestedHwMode { get; set; }
             = ParamRegistry.VirtualHw.Value ? HwMode.Virtual : HwMode.Real;
 
-        private void WireRun(string? recordFile)
+        /// <param name="recordFile">Kam nahravat; <c>null</c> = bez zaznamu.</param>
+        /// <param name="noRecordReason">Proc se nenahrava (pri <paramref name="recordFile"/> = null).</param>
+        /// <param name="recordFailed">Nahravat se melo, ale uz priprava selhala (slozka).</param>
+        private void WireRun(string? recordFile, string? noRecordReason = null, bool recordFailed = false)
         {
             // Pockej na dokonceni asynchronniho initu ARBotHW pred dratovanim grafu.
             var hw = ARBotHW.Current;
@@ -1125,17 +1177,52 @@ namespace ARBot.Robot
             var router = new RoleRouter(stream, processing);
 
             // Volitelny zaznam (best-effort) jako odberatel Stream. Bloby nizky limit.
+            //
+            // VYSLEDEK, ne zamer (od 6. 10. 2026, prov-zaznam-nevidet-ze-nebezi): RecordPath se plni
+            // az po zalozeni souboru a hlaska jde do Trace TADY - most do zaznamu uz stoji, takze je
+            // i v samotnem .rec. Zalozeni, ktere selze, robota nezastavi (chybejici zaznam je horsi
+            // diagnostika, nespusteny robot horsi vysledek), ale DUVOD je videt na strance.
             if (!string.IsNullOrEmpty(recordFile))
             {
-                fileData = new FileStream(recordFile, FileMode.Create, FileAccess.Write, FileShare.Read);
-                fileIndex = new FileStream(recordFile + ".idx", FileMode.Create, FileAccess.Write, FileShare.Read);
+                try
+                {
+                    fileData = new FileStream(recordFile, FileMode.Create, FileAccess.Write, FileShare.Read);
+                    fileIndex = new FileStream(recordFile + ".idx", FileMode.Create, FileAccess.Write, FileShare.Read);
+                    // fsync hned po zalozeni: soubor (a jeho polozka v adresari) musi existovat i po
+                    // vypadku napajeni v prvnich minutach - koren ma commit=120.
+                    ((FileStream)fileData).Flush(true);
+                    ((FileStream)fileIndex).Flush(true);
+                }
+                catch (Exception ex)
+                {
+                    CloseFiles();
+                    noRecordReason = $"soubor zaznamu nejde zalozit ({ex.Message})";
+                    recordFailed = true;
+                    recordFile = null;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(recordFile))
+            {
                 // ImageMsg (odvozene RGB JPEG + backproject) best-effort (limit 2). CameraFrame je
                 // MERENI (primarni) - zaznamenava se VZDY (mimo mapu = neomezeny, bezztratova fronta);
                 // obrazy uvnitr jsou uz komprimovane (RGB Jpeg, Prob Png, Depth Deflate - viz CameraFrame.ToData).
                 var limits = new Dictionary<string, int> { ["ImageMsg"] = 2 };
                 recording = new RecordingTarget(fileData, fileIndex, Enc,
-                                                OverflowPolicy.DropNewest, limits);
+                                                OverflowPolicy.DropNewest, limits,
+                                                durableInterval: RecordSyncInterval);
                 connections.Add(stream.Connect(recording));
+                RecordPath = recordFile;
+                NoRecordReason = null;
+                RecordFailed = false;
+                Trace.WriteLine($"ZAZNAM: beh se nahrava do {recordFile}");
+            }
+            else
+            {
+                RecordPath = null;
+                NoRecordReason = noRecordReason ?? "bez zaznamu";
+                RecordFailed = recordFailed;
+                Trace.WriteLine($"ZAZNAM: {(recordFailed ? "SELHAL" : "BEZ ZAZNAMU")} - {NoRecordReason}");
             }
 
             // Kořenove zdroje ze senzoru ARBotHW (robustni: chybejici senzor se preskoci).

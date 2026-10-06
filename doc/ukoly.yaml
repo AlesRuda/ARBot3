@@ -7452,8 +7452,9 @@ temata:
     oblast: provoz
     nazev: V terénu není poznat, jestli se běh nahrává a kam
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-17
+    vyreseno: 2026-10-06
     popis: >
       Po jízdě 17. 9. 2026 (track po kalibraci magnetometru, podle obsluhy s dobrým kurzem) se
       nenašel žádný `*.rec` — a proč, to ze záznamů dohledat nejde, protože chybí právě ten
@@ -7510,19 +7511,28 @@ temata:
       než robotových; rozhodne obsah toho snímku.
       Nezávisle na tom platí, že chybějící `fsync` je vada sám o sobě: záznam nemá přežít
       odpojení napájení jen náhodou.
+      **V kódu 6. 10. 2026:** hláška o záznamu říká výsledek a je v `.rec`, stránka ukazuje cestu
+      a rostoucí velikost (nebo důvod, proč se nenahrává), `fsync` po založení, každých 5 s
+      a při zastavení. Proč 17. 9. chybí běh z 16:23–16:29, to kód nevysvětlí — zůstává otevřené.
     kroky:
       - co: Nález — proč to nejde dohledat (žádná stopa mimo journal, stránka mlčí)
         stav: hotovo
         kdy: 2026-09-17
-      - co: "`RecordPath` plnit i ve `WireRun` a dát na stránku řádek „nahrává se do …\" / „BEZ ZÁZNAMU\""
-        stav: otevreno
-      - co: Hlásit i případ `record=false` a hlášku zopakovat po připojení `TraceInfoBridge`
-        stav: otevreno
+      - co: "`RecordPath` plnit i ve `WireRun` a dát na stránku řádek „nahrává se do …\" / „BEZ ZÁZNAMU\" — hlavička: „záznam: cesta (N MB)\" s rostoucí velikostí, oranžově „BEZ ZÁZNAMU — důvod\", červeně „ZÁZNAM SELHAL\"; `NoRecordReason`, `RecordFailed`, `RecordBytes`"
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: Hlásit i případ `record=false` a hlášku zopakovat po připojení `TraceInfoBridge` — hláška jde z `WireRun` až po založení souboru, kdy most stojí, takže je i v `.rec` (ověřeno `ARBot.Analyze log`)
+        stav: hotovo
+        kdy: 2026-10-06
       - co: Na zařízení dohledat, proč záznam ze 17. 9. po kalibraci chybí — pokus 16:21 vysvětlen, běh v 16:29 NE
         stav: otevreno
-      - co: "Záznam přežije odpojení napájení: `fsync` (`Flush(true)`) v `OnFlush`, nebo aspoň hned po založení souboru"
-        stav: otevreno
-      - co: Hláška „beh se zaznamenava do …" má říkat výsledek, ne záměr (dnes se tiskne před `WireRun`)
+      - co: "Záznam přežije odpojení napájení: `fsync` (`Flush(true)`) v `OnFlush`, nebo aspoň hned po založení souboru — obojí: hned po založení (data i index) a pak nejvýš jednou za 5 s (`RecordSyncInterval`) a při zastavení; po každé dávce ne (~19 MB/s)"
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: 'Hláška „beh se zaznamenava do …" má říkat výsledek, ne záměr (dnes se tiskne před `WireRun`) — „ZAZNAM: beh se nahrava do …" / „BEZ ZAZNAMU" / „SELHAL" až po založení souboru; soubor, který nejde založit, už neshodí `Start`'
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: "Ověřit na zařízení: hlavička s cestou a rostoucí velikostí po volbě mise, „BEZ ZÁZNAMU\" ve fázi čekání; po vytažení napájení za jízdy zůstane `.rec` čitelný (chybí nanejvýš ~5 s)"
         stav: otevreno
     odkazy:
       - text: record-replay.md

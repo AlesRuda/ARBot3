@@ -81,6 +81,26 @@ limit 0 → hned zahozen; větší limit → přežije déle. **Drop se děje v 
 ne v `Consume` — jinak by fronta blokovala `Stream.Emit`. **Bloby dostanou nízký limit → zahazují se
 první.** Per-typ limity plní runtime (config). Bezztrátový (`Block`) jen offline.
 
+### Je vidět, jestli a kam se nahrává; záznam přežije výpadek napájení (od 6. 10. 2026)
+
+Po jízdě 17. 9. 2026 se nenašel žádný `.rec` a v terénu nebylo poznat, jestli se běh nahrává
+(`prov-zaznam-nevidet-ze-nebezi`). Hláška „beh se zaznamenava do …" se tiskla **před** drátováním
+runtime, tedy jen do journalu a jako **záměr** — 17. 9. v journalu byla, soubor nikdy nevznikl.
+Od 6. 10. 2026:
+- **Výsledek, ne záměr:** `WireRun` hlásí do Trace až po založení souboru „ZAZNAM: beh se nahrava
+  do …", jinak „ZAZNAM: BEZ ZAZNAMU - důvod" (`record=false`, `record=` nenastavené, čeká se na
+  volbu mise) nebo „ZAZNAM: SELHAL - …". Most do záznamu už v tu chvíli stojí, takže hláška je
+  **i v samotném `.rec`**. Soubor, který nejde založit, robota nezastaví (dřív by výjimka shodila
+  `Start`) — chybějící záznam je horší diagnostika, nespuštěný robot horší výsledek.
+- **`ARBotRuntime.RecordPath`** se plní i v Run (dřív jen ve View), vedle něj `NoRecordReason`,
+  `RecordFailed` a `RecordBytes`.
+- **Stránka náhledu** má v hlavičce „záznam: cesta (N MB)" — **rostoucí** velikost je důkaz, že
+  zápis běží — nebo oranžově „BEZ ZÁZNAMU — důvod", při poruše červeně „ZÁZNAM SELHAL".
+- **`fsync`:** hned po založení souboru (data i index) a pak nejvýš jednou za
+  `RecordSyncInterval` (5 s) a při zastavení. `RecordingTarget` předtím dělal jen spravovaný
+  `Flush()` do stránkové cache a kořen na zařízení má `commit=120`, takže výpadek napájení mohl
+  spolknout až 2 minuty. Častěji ne: `OnFlush` se volá po každé dávce a záznam teče až ~19 MB/s.
+
 ### Dva časy: `T_in` (pořízení) a `T_out` (příchod)
 
 Kvůli budoucí věrné reprodukci (a protože latence zpracování ovlivňuje, co řídicí smyčka „viděla":
