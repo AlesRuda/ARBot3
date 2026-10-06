@@ -89,7 +89,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   že sedí se zdrojem). ⚠️ **Pořadí je povinné a druhý krok se nesmí vynechat:** `ukoly.cs` vyrobí
   `historie.html` s **prázdnou** hlavičkou a teprve `menu.cs` do ní doplní společné menu webu;
   19. 9. 2026 se commitnul výstup jen z prvního kroku a CI (`generovane-soubory`) spadlo na
-  `git diff --exit-code`. Stav
+  `git diff --exit-code`. ⚠️ **Po každé změně stavu tématu dořeš `VAROVÁNÍ` z `ukoly.cs`
+  dřív, než ohlásíš hotovo** (od 6. 10. 2026): generátor hlásí neaktuální `ceka_na` — neuzavřené
+  téma čekající na uzavřené (čekání je splněné, odkaz odebrat a případně posunout stav) a uzavřené
+  téma čekající na neuzavřené. 6. 10. se jich takhle našlo sedm najednou; vznikají tím, že se
+  změní stav tématu, na které se čeká, a odkaz u čekajícího se zapomene. Stav
   **`v-kodu`** („hotové v kódu, na zařízení neběželo") je schválně samostatný — je to nejčastější
   stav v projektu a v seznamu musí být vidět. Sekce „Otevřené úkoly" v `doc/*.md` stav **nevedou**,
   jen odkazují na id v registru. Pravidla a schéma: [doc/plan-ukoly.md](doc/plan-ukoly.md).

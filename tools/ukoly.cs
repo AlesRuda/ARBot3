@@ -52,6 +52,12 @@ if (chyby.Count > 0)
     return 1;
 }
 
+// Varování, ne chyba: neaktuální čekání výstupy nerozbije, jen je potřeba ho dořešit ve zdroji.
+// Vzniká tím, že se změní stav tématu, na které se čeká, a odkaz u čekajícího se zapomene
+// (6. 10. 2026 se jich našlo šest najednou). Viz CLAUDE.md, pravidlo o registru úkolů.
+var varovani = Validace.NeaktualniCekani(registr);
+foreach (var v in varovani) Console.WriteLine($"VAROVÁNÍ {ZdrojCesta}: {v}");
+
 var md = MdVystup.Vyrob(registr);
 var html = HtmlVystup.Vyrob(registr);
 Zapis(MdCesta, md);
@@ -131,6 +137,29 @@ public static class Stavy
 
 public static class Validace
 {
+    /// <summary>
+    /// Neaktuální `ceka_na`: (a) neuzavřené téma čeká na uzavřené — čekání je splněné, odkaz
+    /// odebrat (a případně posunout stav čekajícího); (b) uzavřené téma čeká na neuzavřené —
+    /// hotové téma nemůže na nic čekat. Uzavřené na uzavřené je historie a nevadí.
+    /// </summary>
+    public static List<string> NeaktualniCekani(Registr r)
+    {
+        var stav = r.Temata.Where(t => !string.IsNullOrWhiteSpace(t.Id))
+                           .GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First().Stav);
+        var vysledek = new List<string>();
+        foreach (var t in r.Temata)
+            foreach (var d in t.CekaNa)
+            {
+                if (!stav.TryGetValue(d, out var ds)) continue;   // neznámé id hlásí Zkontroluj jako chybu
+                bool ja = Stavy.JeUzavreno(t.Stav), on = Stavy.JeUzavreno(ds);
+                if (!ja && on)
+                    vysledek.Add($"{t.Id} ({t.Stav}) čeká na `{d}`, které je už {ds} — čekání je splněné");
+                else if (ja && !on)
+                    vysledek.Add($"{t.Id} je {t.Stav}, ale čeká na `{d}` ({ds}) — uzavřené téma nemůže čekat");
+            }
+        return vysledek;
+    }
+
     public static List<string> Zkontroluj(Registr r)
     {
         var chyby = new List<string>();

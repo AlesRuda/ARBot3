@@ -1326,7 +1326,7 @@ temata:
         stav: otevreno
       - co: Podmínka 3 — strop na kumulovaný nesouhlas s GPS
         stav: otevreno
-    ceka_na: [lok-kompas-sigma-podlaha, lok-koridor-skoky-pozy]
+    ceka_na: [lok-koridor-skoky-pozy]
     odkazy:
       - text: rozhodnutí 20. 8. 2026
         cesta: doc/decisions.md
@@ -2023,7 +2023,7 @@ temata:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
     devlog: [2026-08-22, 2026-08-23, 2026-09-15, 2026-09-18]
-    ceka_na: [lok-bias-senzoru-jako-stav-ekf]
+    ceka_na: []
 
   - id: lok-koridor-za-jizdy-propada
     oblast: lokalizace
@@ -2600,7 +2600,7 @@ temata:
       - text: rozhodnutí 25. 8. 2026
         cesta: doc/decisions.md
     devlog: [2026-08-25, 2026-09-29]
-    ceka_na: [lok-kompas-sigma-podlaha]
+    ceka_na: []
 
   - id: lok-odometrie-pod-stopem
     oblast: lokalizace
@@ -3954,7 +3954,7 @@ temata:
       - text: rozhodnutí 3. 9. 2026
         cesta: doc/decisions.md
     devlog: [2026-09-02, 2026-09-03]
-    ceka_na: [lp-cil-astar-zona]
+    ceka_na: []
 
   - id: lp-rychlostni-obalka-neridila
     oblast: lokalni-planovani
@@ -7011,7 +7011,7 @@ temata:
       - text: decisions.md
         cesta: doc/decisions.md
     devlog: [2026-09-18, 2026-09-20, 2026-10-01]
-    ceka_na: [lok-prirazeni-hrany-chi2]
+    ceka_na: []
 
   - id: lok-assoc-velka-sigma-soubezna-ulice
     oblast: lokalizace
@@ -7944,7 +7944,7 @@ temata:
       - text: EnvelopeReport.cs
         cesta: Src/ARBot.Analyze/EnvelopeReport.cs
     devlog: [2026-09-07, 2026-09-18]
-    ceka_na: [lp-robot-se-plazi-vyhlazovani, hw-zelezo-od-kabelu-kamer]
+    ceka_na: []
 
   - id: vid-segmentace-pravda-d435
     oblast: videni
@@ -8684,8 +8684,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-26
+    vyreseno: 2026-10-05
     popis: >
       Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za ~30 s o ~10 m
       (`lok-koridor-noedge-po-zatacce`), ale po krocích ~2 cm na snímek (`corridorslew=0,5` m/s).
@@ -8706,13 +8707,16 @@ temata:
       - co: "Změřeno: `EscapingBlocked` hned po korekci ~10 m, detektor skoku nezasáhl (`posegps`, `nav`)"
         stav: hotovo
         kdy: 2026-09-26
-      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Návrh 2. 10. 2026: grid v odometrické soustavě (`lp-grid-odometricka-soustava`) — od 4. 10. 2026 v kódu jako `localframe=odom`, od 5. 10. 2026 výchozí; čeká na jízdu na zařízení"
+      - co: "Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Rozhodnuto: grid v odometrické soustavě (`lp-grid-odometricka-soustava`) — od 4. 10. 2026 v kódu jako `localframe=odom`, od 5. 10. 2026 výchozí"
+        stav: hotovo
+        kdy: 2026-10-05
+      - co: "Ověřit na zařízení: po velké postupné korekci pózy žádné `EscapingBlocked`/`GoalUnsafe` z posunutého gridu (`ARBot.Analyze localplan`, `nav`)"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
     devlog: [2026-09-26]
-    ceka_na: [lok-koridor-noedge-po-zatacce, lp-grid-odometricka-soustava]
+    ceka_na: [lp-grid-odometricka-soustava]
 
   - id: lp-schody-v-uzine-regulator-brzdi
     oblast: lokalni-planovani

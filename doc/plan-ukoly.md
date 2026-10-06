@@ -158,6 +158,9 @@ Povinné: `id`, `oblast`, `nazev`, `druh`, `stav`, `nalezeno`, `popis`. Ostatní
 Validace (chyba generátoru, ne varování): duplicitní id, neznámá oblast, neznámé id v `ceka_na`,
 cyklus v závislostech, `vyreseno` u stavu `otevreno`/`odlozeno`, `vyreseno` < `nalezeno`,
 krok `hotovo` bez data.
+**Varování** (výstupy se vyrobí, jen se vypíše `VAROVÁNÍ`; od 6. 10. 2026): neaktuální `ceka_na` —
+neuzavřené téma čeká na uzavřené (čekání je splněné), nebo uzavřené téma čeká na neuzavřené.
+Uzavřené na uzavřené je historie a nehlásí se.
 
 ## Výstupy
 

@@ -49,6 +49,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   [decisions.md](decisions.md)). Číselně beze změny (obě hodnoty byly 0,40). Testy Common 1 785,
   Runtime 151, HAL 143. ⚠️ Skript 2.2 je potřeba nahrát do jednotky a nouzové zastavení ověřit
   na robotu (`hw-motor-rampa-jednotky`).
+- **Registr úkolů: neaktuální čekání.** Prošlo se všech 24 `ceka_na`; sedm bylo neaktuálních
+  (téma čekalo na hotové, nebo hotové téma na otevřené) a odebralo se. `lp-grid-posun-pomalou-korekci`
+  je `v-kodu` (léčba = výchozí `localframe=odom`, zbývá jízda na zařízení). `tools/ukoly.cs` teď
+  takové čekání vypisuje jako `VAROVÁNÍ` (výstupy nerozbije) a `CLAUDE.md` ukládá dořešit je po
+  každé změně stavu (pokyn autora); nad stavem před úklidem hlásí přesně těch sedm.
 
 ## 2026-10-05
 
