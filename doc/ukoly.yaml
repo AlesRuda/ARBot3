@@ -9256,3 +9256,32 @@ temata:
         cesta: Src/ARBot.Analyze/Vn100Report.cs
     devlog: [2026-09-29]
     ceka_na: []
+
+  - id: hw-baterie-napeti-nizke
+    oblast: hw
+    nazev: Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-06
+    popis: >
+      Při výběru nových článků (6. 10. 2026) se ukázalo, že napětí baterie z motorové jednotky
+      (`GetValue(_V, 2)`, tedy napětí baterie, ne vnitřní) nebylo v dokumentovaných záznamech
+      nikdy nad 12,6 V — „po nabití" 12,5 V (Robotour 19. 9.), 1. 9. 12,3–12,6 V, 2. 9. 11,7–12,3 V.
+      Baterie jsou čtyři články WINA LiFePO4 3,2 V / 15 Ah a 4S LiFePO4 má v klidu mezi ~20 a 90 %
+      nabití 13,0–13,3 V; 12,5 V (3,12 V/článek) je ~10 %. Úbytek zátěží to není (elektronika
+      ~1,6 A, jízda 5–10 A). Vysvětlení: (a) odchylka měření nebo úbytek na vedení k jednotce,
+      (b) nenabitá baterie, (c) slabý nebo nevyrovnaný článek (např. 3 × 3,33 V + 2,5 V = 12,5 V).
+      Na tom závisí, jestli nové články pomůžou, i jestli `batwarn=` 11,6 V „v údajích jednotky"
+      varuje včas. Rozbor a varianty náhrady článků: hardware.md, „Napájení — trakční baterie".
+    kroky:
+      - co: "Multimetr: napětí balíku na svorkách proti řádku „baterie [V]“ na stránce náhledu, po plném nabití a po jízdě"
+        stav: otevreno
+      - co: "Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V); zjistit, jestli balík má BMS s vyvažováním"
+        stav: otevreno
+      - co: "Podle výsledku: nové články (4× WINA 15 Ah, nebo zakázkový balík 26650 4S6P ~20–24 Ah) a případně přeladit `batwarn=`"
+        stav: otevreno
+    odkazy:
+      - text: hardware.md
+        cesta: doc/hardware.md
+    devlog: [2026-10-06]
+    ceka_na: []

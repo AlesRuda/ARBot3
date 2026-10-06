@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · hotovo **160** · odloženo **14** · zamítnuto **9**.
+Témat celkem **249**: otevřeno **30** · v kódu, na HW neověřeno **36** · hotovo **160** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -41,6 +41,7 @@ Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
+| otevřeno | Hardware a senzory | [Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)](#hw-baterie-napeti-nizke) | 6. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -2320,6 +2321,19 @@ Rozbor jízd 29. 9. 2026 v Modřanech (`records/test/20260929-150844.rec` Track 
 - [ ] Minutový záznam s jednou otočkou na místě (rozpětí `|B|` přes otočku; 18. 9. zbytkové vodorovné železo 11–18 mG) — rozliší železo od driftu VPE; při železe nová `mission=magcal`
 
 [imu-and-frames.md](imu-and-frames.md), [Vn100Report.cs](../Src/ARBot.Analyze/Vn100Report.cs) · DevLog [2026-09-29](devlog.md#2026-09-29)
+
+<a id="hw-baterie-napeti-nizke"></a>
+### ⬜ Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)
+
+`hw-baterie-napeti-nizke` · vada · **otevřeno** · nalezeno 6. 10. 2026
+
+Při výběru nových článků (6. 10. 2026) se ukázalo, že napětí baterie z motorové jednotky (`GetValue(_V, 2)`, tedy napětí baterie, ne vnitřní) nebylo v dokumentovaných záznamech nikdy nad 12,6 V — „po nabití" 12,5 V (Robotour 19. 9.), 1. 9. 12,3–12,6 V, 2. 9. 11,7–12,3 V. Baterie jsou čtyři články WINA LiFePO4 3,2 V / 15 Ah a 4S LiFePO4 má v klidu mezi ~20 a 90 % nabití 13,0–13,3 V; 12,5 V (3,12 V/článek) je ~10 %. Úbytek zátěží to není (elektronika ~1,6 A, jízda 5–10 A). Vysvětlení: (a) odchylka měření nebo úbytek na vedení k jednotce, (b) nenabitá baterie, (c) slabý nebo nevyrovnaný článek (např. 3 × 3,33 V + 2,5 V = 12,5 V). Na tom závisí, jestli nové články pomůžou, i jestli `batwarn=` 11,6 V „v údajích jednotky" varuje včas. Rozbor a varianty náhrady článků: hardware.md, „Napájení — trakční baterie".
+
+- [ ] Multimetr: napětí balíku na svorkách proti řádku „baterie [V]“ na stránce náhledu, po plném nabití a po jízdě
+- [ ] Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V); zjistit, jestli balík má BMS s vyvažováním
+- [ ] Podle výsledku: nové články (4× WINA 15 Ah, nebo zakázkový balík 26650 4S6P ~20–24 Ah) a případně přeladit `batwarn=`
+
+[hardware.md](hardware.md) · DevLog [2026-10-06](devlog.md#2026-10-06)
 
 <a id="hw-neopixel-armbian"></a>
 ### 🧪 Driver NeoPixel (WS2812) přes SPI na Armbianu

@@ -29,7 +29,7 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">29</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">30</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">36</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">160</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
@@ -430,6 +430,7 @@
       <li data-tema="lp-zastaraly-regulator-toci-na-miste"><span class="mono">5. 10.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lp-zastaraly-regulator-toci-na-miste">Po uvolněn&#237; holdu chod&#237; pl&#225;n až za 9–13 s a zastaral&#253; regul&#225;tor mezit&#237;m toč&#237; robotem na m&#237;stě</a></li>
       <li data-tema="mise-cil-dosazitelnost"><span class="mono">5. 10.</span> <span class="typ">vyřešeno</span> <a href="#mise-cil-dosazitelnost">Zkouška dosažitelnosti c&#237;le z QR k&#243;du nebyla důvěryhodn&#225;</a></li>
       <li data-tema="mise-vizualni-dojezd-na-cil"><span class="mono">5. 10.</span> <span class="typ">zamítnuto</span> <a href="#mise-vizualni-dojezd-na-cil">Vizu&#225;ln&#237; dojezd posledn&#237;ch metrů podle QR k&#243;du</a></li>
+      <li data-tema="hw-baterie-napeti-nizke"><span class="mono">6. 10.</span> <span class="typ">nalezeno</span> <a href="#hw-baterie-napeti-nizke">Napět&#237; baterie z Roboteqa je na 4S LiFePO4 podezřele n&#237;zk&#233; (nikdy nad 12,6 V)</a></li>
       <li data-tema="mise-robotour-mapa-ostrov"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#mise-robotour-mapa-ostrov">K&#243;d se četl a mise ho zam&#237;tala „nevede trasa“ — robot st&#225;l na n&#225;měst&#237; spojen&#233;m se s&#237;t&#237; jen schody</a></li>
       <li data-tema="prov-baterie-na-strance"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#prov-baterie-na-strance">Napět&#237; baterie nen&#237; na str&#225;nce n&#225;hledu a nic na něj nevaruje</a></li>
       <li data-tema="prov-ujeto-v-misi-na-strance"><span class="mono">6. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#prov-ujeto-v-misi-na-strance">Ujet&#225; dr&#225;ha a průměrn&#225; rychlost mise na str&#225;nce n&#225;hledu</a></li>
@@ -2337,6 +2338,17 @@
       <li class="otevreno">Minutov&#253; z&#225;znam s jednou otočkou na m&#237;stě (rozpět&#237; <code>|B|</code> přes otočku; 18. 9. zbytkov&#233; vodorovn&#233; železo 11–18 mG) — rozliš&#237; železo od driftu VPE; při železe nov&#225; <code>mission=magcal</code></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/imu-and-frames.md">imu-and-frames.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Analyze/Vn100Report.cs">Vn100Report.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-29">2026-09-29</a></p>
+  </article>
+  <article class="tema" id="hw-baterie-napeti-nizke" data-stav="otevreno">
+    <h3>Napět&#237; baterie z Roboteqa je na 4S LiFePO4 podezřele n&#237;zk&#233; (nikdy nad 12,6 V)</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 6. 10. 2026</span></p>
+    <p>Při v&#253;běru nov&#253;ch čl&#225;nků (6. 10. 2026) se uk&#225;zalo, že napět&#237; baterie z motorov&#233; jednotky (<code>GetValue(_V, 2)</code>, tedy napět&#237; baterie, ne vnitřn&#237;) nebylo v dokumentovan&#253;ch z&#225;znamech nikdy nad 12,6 V — „po nabit&#237;&quot; 12,5 V (Robotour 19. 9.), 1. 9. 12,3–12,6 V, 2. 9. 11,7–12,3 V. Baterie jsou čtyři čl&#225;nky WINA LiFePO4 3,2 V / 15 Ah a 4S LiFePO4 m&#225; v klidu mezi ~20 a 90 % nabit&#237; 13,0–13,3 V; 12,5 V (3,12 V/čl&#225;nek) je ~10 %. &#218;bytek z&#225;těž&#237; to nen&#237; (elektronika ~1,6 A, j&#237;zda 5–10 A). Vysvětlen&#237;: (a) odchylka měřen&#237; nebo &#250;bytek na veden&#237; k jednotce, (b) nenabit&#225; baterie, (c) slab&#253; nebo nevyrovnan&#253; čl&#225;nek (např. 3 &#215; 3,33 V + 2,5 V = 12,5 V). Na tom z&#225;vis&#237;, jestli nov&#233; čl&#225;nky pomůžou, i jestli <code>batwarn=</code> 11,6 V „v &#250;daj&#237;ch jednotky&quot; varuje včas. Rozbor a varianty n&#225;hrady čl&#225;nků: hardware.md, „Nap&#225;jen&#237; — trakčn&#237; baterie&quot;.</p>
+    <ul class="kroky">
+      <li class="otevreno">Multimetr: napět&#237; bal&#237;ku na svork&#225;ch proti ř&#225;dku „baterie [V]“ na str&#225;nce n&#225;hledu, po pln&#233;m nabit&#237; a po j&#237;zdě</li>
+      <li class="otevreno">Multimetr: napět&#237; každ&#233;ho čl&#225;nku zvl&#225;šť v klidu (zdrav&#233; a vyrovnan&#233; do &#177;0,03 V); zjistit, jestli bal&#237;k m&#225; BMS s vyvažov&#225;n&#237;m</li>
+      <li class="otevreno">Podle v&#253;sledku: nov&#233; čl&#225;nky (4&#215; WINA 15 Ah, nebo zak&#225;zkov&#253; bal&#237;k 26650 4S6P ~20–24 Ah) a př&#237;padně přeladit <code>batwarn=</code></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-06">2026-10-06</a></p>
   </article>
   <article class="tema" id="hw-neopixel-armbian" data-stav="v-kodu">
     <h3>Driver NeoPixel (WS2812) přes SPI na Armbianu</h3>

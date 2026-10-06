@@ -41,6 +41,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-06
 
+- **Trakční baterie zdokumentována a vybrána náhrada** (`hw-baterie-napeti-nizke`): baterie jsou
+  čtyři články WINA LiFePO4 3,2 V / 15 Ah (22 × 90 × 120 mm, 3C trvale) v prostoru
+  92 × 65 × 285 mm, nabíječka pro LiFePO4 — do té doby to v repu nestálo nikde. Náhrada kus za kus
+  jsou tytéž články (GWL); větší kapacita (20–24 Ah) jen zakázkovým balíkem 26650 4S6P, válcové
+  20Ah CBAK mají jen 10 A trvale. **Nález:** napětí z Roboteqa nebylo v dokumentovaných záznamech
+  nikdy nad 12,6 V, ačkoli 4S LiFePO4 má v klidu 13,0–13,3 V — buď odchylka měření, nebo slabý
+  článek; rozhodne multimetr (balík na svorkách proti stránce, každý článek zvlášť). Detail:
+  [hardware.md](hardware.md), „Napájení — trakční baterie".
 - **Běžná jízda jednou rampou** (autor): zrušeno samostatné běžné brzdění — `VAR 8` ze skriptu
   jednotky 2.2, `MotorRamps.Deceleration` a `Profile.MaxDecceleration`; vše pro běžnou jízdu bere
   `Profile.MaxAcceleration` (rampy ve smyčce, brzdná obálka plánovače — pole přejmenováno na

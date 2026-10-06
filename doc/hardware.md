@@ -588,3 +588,52 @@ Poznámky:
   hypotéza, ne nález (týž FW při dobrých jízdách 12. a 18. 9.) — viz registr
   `lok-freerun-kurz-staci-na-zapad`.
 - Výběr platformového HAL (D435/T265 wrapper) viz [build-and-platforms.md](build-and-platforms.md).
+
+## Napájení — trakční baterie
+
+- **Baterie je 4S LiFePO4 ze čtyř článků WINA LiFePO4 Power 3,2 V / 15 Ah v hliníkovém pouzdře**
+  (12,8 V / 15 Ah, ~190 Wh), **nabíječka je pro LiFePO4** (autor, 6. 10. 2026). Do té doby to
+  v repu nestálo nikde; jediná stopa byla poznámka u `batwarn=`. Robot má jednu baterii, výměna
+  v terénu se dělat nebude (autor).
+  - Článek podle prodejce: **22 × 90 × 120 mm, 447 g**, 3C trvale (45 A), špička 5C (75 A),
+    2,5–3,65 V, ~2 000 cyklů. Prodává GWL / EV-Power (Praha), 10/2026 ~1 000 Kč za článek.
+    Čtyři články = ~1,8 kg, což sedí s udávanými ~2 kg celé baterie.
+  - **Prostor na baterii je 92 × 65 × 285 mm vnitřního volného místa (1,7 l)** (autor,
+    6. 10. 2026; předtím omylem 85 × 65 × 135 a 85 × 65 × 285). Články WINA v něm leží **2 × 2**:
+    strana 90 mm podél 92, dva vedle sebe (44 mm) podél 65, dva za sebou (240 mm) podél 285.
+    **Víc než čtyři se jich nevejde** (tři vedle sebe 66 mm, tři za sebou 360 mm) a větší WINA
+    36 Ah (185 × 135 × 25 mm) se nevejde vůbec.
+- **Náhrada (6. 10. 2026): čtyři nové články téhož typu.** Vejdou se tam, kde jsou dnešní,
+  a proudově vyhoví (3C = 45 A proti 2 × 20 A z SDC2160). Alternativy v prostoru 92 × 65 × 285:
+  - **válcové 20Ah (CBAK 40130FS / 40135FS, Ø 40 × 130–135 mm), 4S1P** — dva vedle sebe podél
+    92 mm, dva za sebou podél 285 mm; **20 Ah** (+33 %) ve čtyřech článcích. ⚠️ Prodejce uvádí
+    jen **10 A trvale** na článek, tedy na celou baterii — pro motory (2 × 20 A) nejspíš málo;
+    dokud není změřený proud z baterie, nedoporučeno.
+  - **válcové 15Ah (32140/33140, Ø 32–33,6 × 140 mm), 4S1P** — 15 Ah jako dnes, ~1,2 kg místo ~1,8 kg.
+  - **26650, 4S6P (24 článků)** — čtyři za sebou podél 285 mm (~262 mm), průřez 3 × 2
+    (79,5 × 53 mm); **~20 Ah** s články 3,4 Ah, ~24 Ah se 4Ah, ~2,1 kg. Větší kapacita
+    s dostatečným proudem, ale zakázkový balík (mnoho svarů).
+  - prizmatické 20 Ah (27 × 70 × 145 mm) se nevejdou: dva za sebou mají 290 mm.
+  Nové články před
+  sestavením **vyrovnat nahoře** (každý na 3,65 V, nebo paralelně), jinak balík drží nejslabší
+  článek.
+- **Požadavky na BMS:** ≥ 30 A trvale, ≥ 60 A krátkodobě — když BMS při rozjezdu odpojí, padne
+  i Orange Pi a záznam se usekne. Ochrana proti nabíjení pod 0 °C (robot jezdí venku).
+- ⚠️ **Napětí z Roboteqa je na LiFePO4 podezřele nízké a příčina není známá.** Čte se napětí
+  baterie (`GetValue(_V, 2)` ve skriptu, ne vnitřní napětí `_V, 1`). Hlášené hodnoty: Robotour
+  19. 9. 12,5 V „po nabití", 12,1 V dopoledne, medián 2. kola 10,6 V, konec 10,0 V; 1. 9. 12,3–12,6 V,
+  2. 9. 11,7–12,3 V. **Nad 12,6 V se v dokumentovaných záznamech neobjevilo nic**, kdežto 4S
+  LiFePO4 má v klidu mezi ~20 a 90 % nabití 13,0–13,3 V a 12,5 V (3,12 V/článek) znamená ~10 %.
+  Úbytek zátěží to není (elektronika ~1,6 A, jízda 5–10 A dají na odporu balíku desetiny voltu).
+  Tři vysvětlení: (a) **odchylka měření / úbytek na vedení** k jednotce (pak je `batwarn=` 11,6 V
+  „v údajích jednotky" správně), (b) **baterie nebyla nabitá** (krátké dobíjení na soutěži dá jen
+  povrchové napětí), (c) **slabý nebo nevyrovnaný článek** — třeba 3 × 3,33 V + 2,5 V = 12,5 V.
+  Rozhodne **multimetr: napětí balíku na svorkách proti stránce náhledu a napětí každého článku
+  zvlášť** (v klidu mají být do ±0,03 V od sebe). Konec 2. kola Robotouru (10,6 V medián, tedy
+  2,65 V/článek za jízdy) je při údaji bez odchylky úplně vybitá baterie.
+- ⚠️ **Napětí je u LiFePO4 špatné měřidlo stavu nabití:** mezi ~20 a 90 % je křivka skoro plochá
+  (13,0–13,3 V v klidu), takže `BatteryMonitor` varuje až těsně před koncem. Spolehlivý údaj
+  (stav nabití, proud) by dala BMS s rozhraním (Bluetooth/UART).
+- Spotřeba změřená není; odhad 50–80 W za jízdy (elektronika ~20 W) dává z 15 Ah 2–3 h provozu.
+  Ze záznamu jde odhadnout jen zčásti — `MotorStateBase` nese proudy **motorů**, ne proud
+  z baterie.
