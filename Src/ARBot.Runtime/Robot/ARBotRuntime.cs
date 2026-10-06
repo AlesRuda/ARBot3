@@ -1141,6 +1141,15 @@ namespace ARBot.Robot
             // Kořenove zdroje ze senzoru ARBotHW (robustni: chybejici senzor se preskoci).
             BuildSensorSources(hw, router);
 
+            // NAPETI BATERIE: median z motorove jednotky a varovani pod batwarn= (do Trace jen pri
+            // prechodu stavu, stranka nahledu cte tentyz objekt). Na Robotouru 19. 9. 2026 robot
+            // zastavil s vybitou baterii a stranka napeti vubec neukazovala (prov-baterie-na-strance).
+            Battery = new ARBot.Common.Diagnostics.BatteryMonitor(ParamRegistry.BatWarn.Value);
+            if (Battery.WarnVolts <= 0)
+                Trace.WriteLine("batwarn=0: na napeti baterie se nevaruje (jen se ukazuje).");
+            stages.Add(Battery);
+            connections.Add(stream.Connect(Battery));
+
             // Most Trace -> Info: debugovaci vystup (Debug.WriteLine i logy Avalonie) tece do Stream,
             // takze se ULOZI DO ZAZNAMU a da se precist zpetne - i z behu na zarizeni, kde k oknu
             // Debug output nikdo nesedi. Zalozeny a zapojeny do Trace je uz od zacatku dratovani
@@ -1285,6 +1294,12 @@ namespace ARBot.Robot
         /// Viz doc/map-correlation-localization.md.
         /// </summary>
         public ARBot.Common.Localization.CorridorLocalizer CorridorLocalizer { get; private set; }
+
+        /// <summary>
+        /// Napeti baterie (median z motorove jednotky) a varovani pod <c>batwarn=</c>; <c>null</c>
+        /// pred prvnim startem. Cte ho stranka nahledu. Viz prov-baterie-na-strance.
+        /// </summary>
+        public ARBot.Common.Diagnostics.BatteryMonitor Battery { get; private set; }
 
         /// <summary>Bezici mise FreeRun, nebo <c>null</c> (viz <c>mission=</c>).</summary>
         public ARBot.Common.Missions.FreeRunMission FreeRunMission { get; private set; }

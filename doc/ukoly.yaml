@@ -3083,9 +3083,9 @@ temata:
     oblast: mise
     nazev: Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-09-19
-    vyreseno: 2026-09-19
+    vyreseno: 2026-10-06
     popis: >
       Na soutěži 19. 9. 2026 (`20260919-101057.rec`, `-101903.rec`) se QR kód četl (535 a 195
       `QrCodeMsg`), ale mise ho pokaždé zamítla hláškou „na cíl nevede po síti žádná trasa (je mimo
@@ -3108,7 +3108,9 @@ temata:
       kódy zamítaly, a kód přečetl a přijal — stejně ve 3. a 4. kole. Je to nepřímý důkaz, že
       `mapprune` na zařízení účinkoval; Trace „ZAHOZENO 1" z `Kolo2.rec` nikdo nevyčetl a GPS
       mohla robota posadit jinam. Zobrazení zamítnutí na stránce ověřit nešlo — po nasazení
-      žádné zamítnutí nenastalo.
+      žádné zamítnutí nenastalo. **Uzavřeno 6. 10. 2026 (autor):** ostrovy se při načtení zahazují,
+      takže tuhle situaci už ani nejde vyzkoušet; zobrazení zamítnutí na stránce zůstává na zařízení
+      neověřené.
     kroky:
       - co: 'Rozbor `ARBot.Analyze route` (komponenty, cesty ostrova, nejbližší dvojice uzlů) a blok 1c v `mission`'
         stav: hotovo
@@ -3125,8 +3127,9 @@ temata:
       - co: 'Přijetí kódu z náměstí po nasazení — 2., 3. a 4. kolo kód přijat ze servisní zóny (Trace „ZAHOZENO 1“ v `Kolo2.rec` nevyčteno)'
         stav: hotovo
         kdy: 2026-09-19
-      - co: 'Zobrazení zamítnutí na stránce na robotu (po nasazení žádné zamítnutí nenastalo)'
-        stav: otevreno
+      - co: 'Zobrazení zamítnutí na stránce na robotu (po nasazení žádné zamítnutí nenastalo) — uzavřeno bez ověření (autor 6. 10. 2026): ostrov se dnes při načtení odstraní, takže to už nejde vyzkoušet'
+        stav: hotovo
+        kdy: 2026-10-06
     odkazy:
       - text: robotour-mission.md
         cesta: doc/robotour-mission.md
@@ -7068,8 +7071,9 @@ temata:
       - co: "Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama"
         stav: hotovo
         kdy: 2026-10-04
-      - co: "Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu"
-        stav: otevreno
+      - co: "Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu. **Autor 6. 10. 2026: přijme se hrana, která vyšla nejlépe** — rozbitý kurz se za jízdy poznat nedá, takže se veto ani χ² kurzu kvůli němu neoslabují. Kód beze změny (tak se chová už dnes); vědomě přijaté riziko, rozhodnutí v `decisions.md`"
+        stav: hotovo
+        kdy: 2026-10-06
       - co: "Ověřit na zařízení: podíl `AmbiguousEdge` a vítěz u GPS (`assocwhy`, `corridor`)"
         stav: otevreno
       - co: "Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste"
@@ -8097,8 +8101,9 @@ temata:
     oblast: provoz
     nazev: Napětí baterie není na stránce náhledu a nic na něj nevaruje
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-19
+    vyreseno: 2026-10-06
     popis: >
       Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl zapnutý od rána,
       při opravách po 1. kole se nepřipojil na nabíječku). V záznamu to bylo vidět, jen to nikdo
@@ -8108,10 +8113,19 @@ temata:
       z motorové jednotky jsou hlučné (5–17 V), takže se musí brát medián nebo filtr, ne poslední
       hodnota. Léčba: řádek s napětím (mediánem za pár sekund) v tabulce senzorů na stránce a
       varování pod prahem (`batwarn=`), případně odmítnout start mise pod tvrdším prahem.
+      **V kódu 6. 10. 2026:** `BatteryMonitor` (medián 5 s, zahazuje zprávy bez měření, hystereze
+      0,2 V, do Trace jen přechod stavu) jako stupeň runtime; stránka čte tentýž objekt — řádek
+      „baterie [V]" v tabulce a pod `batwarn=` (výchozí **11,6 V**, v údajích jednotky; 4 články
+      LiFePO4) červený řádek v hlavičce. **Start mise se neblokuje** (autor). Virtuální motory hlásí
+      nastavitelné napětí (panel *Virtuální senzory*, výchozí 12,8 V místo natvrdo 24 V).
     kroky:
       - co: Napětí baterie (medián) do stránky náhledu vedle kvality GPS
-        stav: otevreno
-      - co: Práh varování a hlášení do Trace (škrcené `PoruchaHlasic`)
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: "Práh varování a hlášení do Trace — `batwarn=` 11,6 V, hlášení jen při přechodu stavu (škrcení `PoruchaHlasic` netřeba); 6 testů monitoru, 3 testy stránky, ověřeno headless se simulací (`batwarn=13`)"
+        stav: hotovo
+        kdy: 2026-10-06
+      - co: "Ověřit na zařízení: napětí v tabulce sedí na Roborun+, varování se neobjevuje za jízdy s plnou baterií (pokles pod zátěží); případně doladit `batwarn=` podle skutečného napětí na svorkách"
         stav: otevreno
     odkazy:
       - text: robotour-2026.html
@@ -8480,8 +8494,9 @@ temata:
         kdy: 2026-09-24
       - co: "Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`). ⚠️ 29. 9. (`20260929-150844.rec`, `-151634.rec`) NEROZHODNE: přijato z jedné hrany jen **135 (1,6 %) a 306 (4,6 %)** cyklů, a to hlavně v první ~2 min; zbytek zamítlo přiřazení hrany (`AmbiguousEdge` 4 171 / 2 159, `EdgeMismatch` 1 121 / 1 932) — regrese opravená týž den (`lok-assoc-sousedni-usek`). Kurz odhadu − GPS kurz −3,3 ± 6,5° / +4,3 ± 11,2°, ale ten určoval kompas (`hw-vn100-zmena-po-27-9`), ne koridor. Přeměřit s `assocfloorlong=3`"
         stav: otevreno
-      - co: "Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)"
-        stav: otevreno
+      - co: "Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m). **Autor 6. 10. 2026:** cca **5 m**, mírně kolísá, od určitého místa jen **3 m**; do mapy se `width` **doplňovat nebude**. Na 5m úseku tedy příčná poloha z jedné hrany s mapovou šířkou ujede o ~1 m (polovina rozdílu), dokud se šířka nenaučí z oboustranného koridoru (`RoadWidthEstimator`, `roadwidthmap=`); na 3m úseku mapa sedí"
+        stav: hotovo
+        kdy: 2026-10-06
       - co: "Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami)"
         stav: hotovo
         kdy: 2026-09-26
@@ -9072,7 +9087,8 @@ temata:
       řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun
       hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu
       jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`).
-      Zpětně kompatibilní oběma směry. ⚠️ Skript v jednotce zatím není, na zařízení neběželo.
+      Zpětně kompatibilní oběma směry. Skript 2.1 je v jednotce (autor 6. 10. 2026); jízda s ním
+      zatím vyhodnocená není.
     kroky:
       - co: "Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`)"
         stav: hotovo
@@ -9086,8 +9102,9 @@ temata:
       - co: "Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace"
         stav: hotovo
         kdy: 2026-10-01
-      - co: "Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog"
-        stav: otevreno
+      - co: "Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog. **Autor 6. 10. 2026:** verze 2.1 v jednotce je. Ověření nouzového zastavení a watchdogu se přesouvá ke skriptu **2.2** (`hw-motor-rampa-jednotky`), který mění právě jejich rampu"
+        stav: hotovo
+        kdy: 2026-10-06
       - co: "Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00"
         stav: otevreno
     odkazy:

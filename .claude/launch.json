@@ -12,6 +12,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-c", "import os, http.server; os.chdir('web'); http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler, port=8766)"],
       "port": 8766
+    },
+    {
+      "name": "headless-baterie",
+      "runtimeExecutable": "Src/ARBot.Headless/bin/x64/Release/net10.0/ARBot.Headless.exe",
+      "runtimeArgs": ["virtualhw=true", "no_uart=true", "map=OSM/SyntetickyKoridor.osm", "web=8091", "batwarn=13"],
+      "port": 8091
     }
   ]
 }

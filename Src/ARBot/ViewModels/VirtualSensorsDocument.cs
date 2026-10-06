@@ -91,6 +91,10 @@ namespace ARBot.ViewModels
         /// </summary>
         [ObservableProperty] private bool emergencyStop;
 
+        /// <summary>Napeti baterie hlasene virtualnimi motory [V] - pro vyzkouseni varovani
+        /// baterie na strance nahledu (<c>batwarn=</c>).</summary>
+        [ObservableProperty] private decimal batteryVoltage;
+
         // --- Kalibrace magnetometru (mission=magcal, 8. 9. 2026) ------------------------
         // Otaceni RUKOU a naklon: presne to dela obsluha pri rotacnim testu. Pres motory to
         // nejde - mise zahodi regulator a ControlLoop posila Drive(0,0) kazdy takt.
@@ -171,6 +175,7 @@ namespace ARBot.ViewModels
 
             IsSystematicErrorActive = options.HasSystematicError;
             EmergencyStop = options.EmergencyStop;
+            BatteryVoltage = (decimal)options.BatteryVoltage;
 
             DepthNoiseM = (decimal)scene.DepthNoiseM;
             GrassRoughnessM = (decimal)scene.GrassRoughnessM;
@@ -210,6 +215,13 @@ namespace ARBot.ViewModels
 
         /// <summary>Motory drzi TUTEZ instanci nastaveni, takze prepnuti plati hned pri dalsim vzorku.</summary>
         partial void OnEmergencyStopChanged(bool value) => options.EmergencyStop = value;
+
+        /// <summary>Plati hned pri dalsim vzorku motoru (tataz instance nastaveni).</summary>
+        partial void OnBatteryVoltageChanged(decimal value)
+        {
+            if (value <= 0m) return;
+            options.BatteryVoltage = (double)value;
+        }
 
         partial void OnHandSpinDegPerSecChanged(decimal value)
         {

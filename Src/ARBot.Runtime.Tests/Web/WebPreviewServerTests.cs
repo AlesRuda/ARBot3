@@ -804,6 +804,51 @@ namespace ARBot.Runtime.Tests.Web
             Assert.That(vadny.ToJson(running: true), Does.Not.Contain("\"holds\""));
         }
 
+        // ---------------- baterie (prov-baterie-na-strance, 6. 10. 2026) ----------------
+
+        /// <summary>Monitor naplneny cerstvymi vzorky konstantniho napeti (cas = TimeBase.Now).</summary>
+        private static ARBot.Common.Diagnostics.BatteryMonitor Baterie(double volts, double warn = 11.6)
+        {
+            var m = new ARBot.Common.Diagnostics.BatteryMonitor(warn, report: _ => { });
+            var t = ARBot.Common.Common.TimeBase.Now;
+            for (int i = 0; i < 20; i++) m.Add(t.AddMilliseconds(-10 * (20 - i)), volts);
+            return m;
+        }
+
+        [Test]
+        public void Baterie_NapetiVTabulce_BezVarovaniNadPrahem()
+        {
+            var bat = Baterie(12.4);
+            var st = new WebStatus { BatterySource = () => bat };
+            string json = st.ToJson(running: true);
+
+            Assert.That(json, Does.Contain("\"battery\":12.40"));
+            Assert.That(json, Does.Not.Contain("batteryLow"));
+        }
+
+        [Test]
+        public void Baterie_PodPrahem_CervenyRadekVHlavicce()
+        {
+            var bat = Baterie(11.2);
+            var st = new WebStatus { BatterySource = () => bat };
+            string json = st.ToJson(running: true);
+
+            Assert.That(json, Does.Contain("\"battery\":11.20"));
+            Assert.That(json, Does.Contain("\"batteryLow\":\"11.2 V (práh 11.6 V)\""));
+        }
+
+        [Test]
+        public void Baterie_BezMereni_NicNevypise_AVadnyZdrojStrankuNeshodi()
+        {
+            var prazdny = new ARBot.Common.Diagnostics.BatteryMonitor(11.6, report: _ => { });
+            var st = new WebStatus { BatterySource = () => prazdny };
+            Assert.That(st.ToJson(running: true), Does.Not.Contain("battery"),
+                        "neznamo se nesmi ukazat jako 0 V ani varovat");
+
+            var vadny = new WebStatus { BatterySource = () => throw new InvalidOperationException("test") };
+            Assert.That(vadny.ToJson(running: true), Does.Not.Contain("battery"));
+        }
+
         /// <summary>
         /// Hlavicka musi rict, <b>ktera binarka bezi</b> a jak dlouho — na zarizeni se nasazuje casto
         /// a bez toho nejde poznat, jestli na Pi bezi to, co jsem pred chvili nahral, nebo predchozi

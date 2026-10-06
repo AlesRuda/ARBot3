@@ -85,6 +85,13 @@ namespace ARBot.HAL.Devices
         /// </summary>
         public bool EmergencyStop { get; set; }
 
+        /// <summary>
+        /// Napeti baterie hlasene virtualnimi motory [V]. Do 6. 10. 2026 natvrdo 24 V (robot ma
+        /// 4 clanky LiFePO4, tedy ~12,8 V). Meni se za behu z panelu <i>Virtualni senzory</i>, aby
+        /// slo v simulaci vyzkouset varovani baterie na strance nahledu (<c>batwarn=</c>).
+        /// </summary>
+        public double BatteryVoltage { get; set; } = 12.8;
+
         /// <summary>Smerodatna odchylka kurzu z IMU [rad] (~1 stupen).</summary>
         public double ImuHeadingNoiseRad { get; set; } = 0.017;
 

@@ -166,6 +166,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   - **Od 6. 9. 2026** stránka ukazuje i **kvalitu GPS** (fix, družice, DOP, sigma, nebo důvod, proč
     se poloha nepoužívá) a nabízí **Power off** (`poweroffcmd=`) — vypnutí celé desky se zastavením
     runtime, aby šlo robotovi bezpečně odpojit napájení.
+  - **Od 6. 10. 2026 i napětí baterie** (medián 5 s z motorové jednotky, `BatteryMonitor`) a pod
+    **`batwarn=`** (11,6 V v údajích jednotky, 4 články LiFePO4) červené „NABÍT" v hlavičce + hláška
+    do Trace při přechodu. Start mise neblokuje. ⚠️ Na zařízení neběželo (`prov-baterie-na-strance`).
   - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
     měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: start po skutečném rebootu** (`prov-start-po-rebootu`; misi ze stránky robot
     14. 9. odjel, celý seznam Tracku ale neobjel). ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň

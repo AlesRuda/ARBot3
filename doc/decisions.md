@@ -13,6 +13,23 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-06 — Přiřazení hrany: při rozbitém kurzu se bere hrana, která vyšla nejlépe
+
+**Co:** když blízké cesty vypadnou na azimutovém vetu nebo χ² kurzu a zbude jediná vzdálenější
+cesta, přiřazení ji **přijme** (vyhraje bez soupeře). Kód se nemění — přesně tak se chová od
+4. 10. (`assock=0`). Rozhodnutí autora.
+
+**Proč:** blízké cesty vypadávají jen tehdy, když je kurz rozbitý (železo, nezkalibrovaný
+kompas), a **rozbitý kurz se za jízdy poznat nedá** — jinak by se léčil přímo. Oslabit veto
+nebo χ² kurzu by znamenalo platit za tenhle případ i v jízdách s dobrým kurzem, kde veto
+spolehlivě odřezává kolmé ulice.
+
+**Důsledky:** vědomě přijaté riziko — offline přes 23 jízd to dělá +33 špatných přiřazení
+29. 9. a +6 23. 9. (`lok-assoc-velka-sigma-soubezna-ulice`). Proti tažení pózy na špatnou cestu
+zůstává limit kroku koridoru (`corridorslew=`, `corridorposlimit=`) a škrcení `corridorhz=`.
+
+**Odkazy:** `EdgeAssociator`, `lok-assoc-velka-sigma-soubezna-ulice`, rozhodnutí 4. 10. 2026 níže.
+
 ### 2026-10-06 — Běžná jízda jednou rampou: `VAR 8` a `MaxDecceleration` zrušeny
 
 **Co:** samostatné běžné brzdění se ruší — ve skriptu jednotky (`VAR 8`), v `MotorRamps`

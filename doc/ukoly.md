@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **247**: otevřeno **31** · v kódu, na HW neověřeno **34** · hotovo **159** · odloženo **14** · zamítnuto **9**.
+Témat celkem **247**: otevřeno **30** · v kódu, na HW neověřeno **34** · hotovo **160** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -37,7 +37,6 @@ Témat celkem **247**: otevřeno **31** · v kódu, na HW neověřeno **34** · 
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
-| otevřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
@@ -57,7 +56,7 @@ Témat celkem **247**: otevřeno **31** · v kódu, na HW neověřeno **34** · 
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
-| v kódu, na HW neověřeno | Mise | [Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody](#mise-robotour-mapa-ostrov) | 19. 9. 2026 |  |
+| v kódu, na HW neověřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu](#nav-detektor-b-jitter-drahy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
@@ -259,7 +258,7 @@ Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OS
 
 - [x] Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy (24. 9. 2026)
 - [ ] Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`). ⚠️ 29. 9. (`20260929-150844.rec`, `-151634.rec`) NEROZHODNE: přijato z jedné hrany jen **135 (1,6 %) a 306 (4,6 %)** cyklů, a to hlavně v první ~2 min; zbytek zamítlo přiřazení hrany (`AmbiguousEdge` 4 171 / 2 159, `EdgeMismatch` 1 121 / 1 932) — regrese opravená týž den (`lok-assoc-sousedni-usek`). Kurz odhadu − GPS kurz −3,3 ± 6,5° / +4,3 ± 11,2°, ale ten určoval kompas (`hw-vn100-zmena-po-27-9`), ne koridor. Přeměřit s `assocfloorlong=3`
-- [ ] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m)
+- [x] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m). **Autor 6. 10. 2026:** cca **5 m**, mírně kolísá, od určitého místa jen **3 m**; do mapy se `width` **doplňovat nebude**. Na 5m úseku tedy příčná poloha z jedné hrany s mapovou šířkou ujede o ~1 m (polovina rozdílu), dokud se šířka nenaučí z oboustranného koridoru (`RoadWidthEstimator`, `roadwidthmap=`); na 3m úseku mapa sedí (6. 10. 2026)
 - [x] Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami) (26. 9. 2026)
 - [x] 29. 9. 2026 (`20260929-150844.rec`, `-151634.rec`, `corridormininliers=20`): oboustranný koridor jen v **1,6 % a 1,2 %** snímků (135 a 78 cyklů), ne 28 % jako nad 25. 9. — a šířka z nich p50 **1,36 / 0,40 m** (mimo 1–8 m 24 / 88 %), tedy převážně nesmysl; při prahu 10 by jich bylo 2 432 / 1 051 se šířkou p50 **5,04 / 4,79 m**. Do přiřazení došlo jen 89 a 20 oboustranných cyklů, takže **naučená šířka nevznikla** (odhad se učí jen z oboustranného koridoru po přiřazení hrany) a `roadwidthmap=true` neměl co propsat. Jedna hrana 86 % a 70 % cyklů (převážně pravá) (29. 9. 2026)
 
@@ -284,13 +283,13 @@ Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Trac
 
 `lok-fuze-poza-pred-koly` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 1. 10. 2026
 
-Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1. **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. ⚠️ Skript v jednotce zatím není, na zařízení neběželo.
+Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1. **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. Skript 2.1 je v jednotce (autor 6. 10. 2026); jízda s ním zatím vyhodnocená není.
 
 - [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
 - [x] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii. Výsledek: razítka `SDC2160Ex` (vzor 12/12/9 ms) a rychlost `Δenc/Δrazítko` držená v EKF dopředu; `fusionreplay` bloky 8 a 9 (1. 10. 2026)
 - [x] Rozhodnout léčbu (autor): čas z motorové jednotky (řádek `T=`); okno rychlosti ve fúzi se nedělá (1. 10. 2026)
 - [x] Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace (1. 10. 2026)
-- [ ] Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog
+- [x] Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog. **Autor 6. 10. 2026:** verze 2.1 v jednotce je. Ověření nouzového zastavení a watchdogu se přesouvá ke skriptu **2.2** (`hw-motor-rampa-jednotky`), který mění právě jejich rampu (6. 10. 2026)
 - [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00
 
 [ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
@@ -307,7 +306,7 @@ Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). P
 - [x] Rozhodnout léčbu (autor): kandidáty řadit podle χ² přes VŠECHNY hrany, bez limitu 4 (návrh autora 4. 10.) (4. 10. 2026)
 - [x] V kódu: `RoadNetwork.EdgesWithin`, `EdgeAssociationConfig.Candidates` = 0 (všechny, výchozí), `assock=0` (1–16 = staré chování pro A/B); 3 nové testy (regrese 17. 9., dlouhá rovná cesta z 40 úseků = jedna hypotéza, `EdgesWithin`); `assocwhy --k= --jelk=` s výpisem změn (4. 10. 2026)
 - [x] Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama (4. 10. 2026)
-- [ ] Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu
+- [x] Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu. **Autor 6. 10. 2026: přijme se hrana, která vyšla nejlépe** — rozbitý kurz se za jízdy poznat nedá, takže se veto ani χ² kurzu kvůli němu neoslabují. Kód beze změny (tak se chová už dnes); vědomě přijaté riziko, rozhodnutí v `decisions.md` (6. 10. 2026)
 - [ ] Ověřit na zařízení: podíl `AmbiguousEdge` a vítěz u GPS (`assocwhy`, `corridor`)
 - [ ] Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste
 
@@ -1649,22 +1648,6 @@ Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další n
 
 [robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
-<a id="mise-robotour-mapa-ostrov"></a>
-### 🧪 Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody
-
-`mise-robotour-mapa-ostrov` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 19. 9. 2026
-
-Na soutěži 19. 9. 2026 (`20260919-101057.rec`, `-101903.rec`) se QR kód četl (535 a 195 `QrCodeMsg`), ale mise ho pokaždé zamítla hláškou „na cíl nevede po síti žádná trasa (je mimo mapu?)“ — a stránka náhledu dál psala „čeká se na QR kód“, takže obsluha myslela, že se kód nečte. Cíl `50.1038082,14.4240751` je přitom přesně uzel mapy na živé `footway`. Rozbor proti `MapMsg` a `GlobalNavMsg` ze záznamu: síť `Robotour2026-ver1.osm` má pod profilem Robot 2 komponenty souvislosti; ostrov je jediná cesta 956523901 (`highway=pedestrian` + `area=yes`, dlážděné náměstí, 40 uzlů, 139 m) spojená se sítí jen `highway=steps` (uzly 8852424426 a 8852424425, 0,9 m od sebe) — a schody profil Robot nepouští. Robot při zamítnutí stál 3–4 m od uzlu ostrova. `Probe` odpověděl podle grafu správně, ale hláška posílala člověka hledat chybu jinam a stránka ji neukázala. V 10:04 týž kód projel, protože robot stál o 50 m dál na chodníku. Léčba v kódu: řádky „QR kódy“ a „kód ZAMÍTNUT“ na stránce, hláška „z místa, kde robot stojí … síť rozpojená“, nový `ARBot.Analyze route` a blok 1c v `mission`. Ostrov je podle autora skutečný (robot tam nevyjede, GPS ho tam jen posadila), takže se neopravuje mapa, ale načtení: `mapprune=` (výchozí true, `NetworkIslands`) zahodí všechny komponenty kromě té s největší délkou cest v metrech (ne podle počtu uzlů, ne podle toho, kde robot stojí — právě ta póza je z chybné GPS). Offline z pózy na náměstí se póza přichytí na chodník 2,4 m vedle a cíl je dosažitelný (393 m). Co se zahodilo, jde do Trace; `mapprune=false` vrátí síť. Nasazeno před 2. kolem (11:37): robot startoval ze servisní zóny, kde se v 10:11 a 10:19 kódy zamítaly, a kód přečetl a přijal — stejně ve 3. a 4. kole. Je to nepřímý důkaz, že `mapprune` na zařízení účinkoval; Trace „ZAHOZENO 1" z `Kolo2.rec` nikdo nevyčetl a GPS mohla robota posadit jinam. Zobrazení zamítnutí na stránce ověřit nešlo — po nasazení žádné zamítnutí nenastalo.
-
-- [x] Rozbor `ARBot.Analyze route` (komponenty, cesty ostrova, nejbližší dvojice uzlů) a blok 1c v `mission` (19. 9. 2026)
-- [x] Stránka náhledu ukazuje počet přečtených/zamítnutých kódů a důvod zamítnutí (19. 9. 2026)
-- [x] Hláška zamítnutí říká, že trasa nevede z místa, kde robot stojí, a že síť může být rozpojená (19. 9. 2026)
-- [x] Ostrovy sítě zahodit při načtení mapy (`mapprune=`, `NetworkIslands`, 5 testů); `route` z náměstí: dosažitelné 393 m (19. 9. 2026)
-- [x] Přijetí kódu z náměstí po nasazení — 2., 3. a 4. kolo kód přijat ze servisní zóny (Trace „ZAHOZENO 1“ v `Kolo2.rec` nevyčteno) (19. 9. 2026)
-- [ ] Zobrazení zamítnutí na stránce na robotu (po nasazení žádné zamítnutí nenastalo)
-
-[robotour-mission.md](robotour-mission.md), [osm-nav.md](osm-nav.md) · DevLog [2026-09-19](devlog.md#2026-09-19), [2026-09-20](devlog.md#2026-09-20)
-
 <a id="mise-freerun-jedna-hrana"></a>
 ### 🧪 FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
 
@@ -1852,6 +1835,22 @@ Na soutěži 19. 9. 2026 stála mise Robotour 158 s v `ArmingAtDepot` (`20260919
 
 [robotour-mission.md](robotour-mission.md), [configuration.md](configuration.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
 
+<a id="mise-robotour-mapa-ostrov"></a>
+### ✅ Kód se četl a mise ho zamítala „nevede trasa“ — robot stál na náměstí spojeném se sítí jen schody
+
+`mise-robotour-mapa-ostrov` · vada · **hotovo** · nalezeno 19. 9. 2026 · vyřešeno 6. 10. 2026
+
+Na soutěži 19. 9. 2026 (`20260919-101057.rec`, `-101903.rec`) se QR kód četl (535 a 195 `QrCodeMsg`), ale mise ho pokaždé zamítla hláškou „na cíl nevede po síti žádná trasa (je mimo mapu?)“ — a stránka náhledu dál psala „čeká se na QR kód“, takže obsluha myslela, že se kód nečte. Cíl `50.1038082,14.4240751` je přitom přesně uzel mapy na živé `footway`. Rozbor proti `MapMsg` a `GlobalNavMsg` ze záznamu: síť `Robotour2026-ver1.osm` má pod profilem Robot 2 komponenty souvislosti; ostrov je jediná cesta 956523901 (`highway=pedestrian` + `area=yes`, dlážděné náměstí, 40 uzlů, 139 m) spojená se sítí jen `highway=steps` (uzly 8852424426 a 8852424425, 0,9 m od sebe) — a schody profil Robot nepouští. Robot při zamítnutí stál 3–4 m od uzlu ostrova. `Probe` odpověděl podle grafu správně, ale hláška posílala člověka hledat chybu jinam a stránka ji neukázala. V 10:04 týž kód projel, protože robot stál o 50 m dál na chodníku. Léčba v kódu: řádky „QR kódy“ a „kód ZAMÍTNUT“ na stránce, hláška „z místa, kde robot stojí … síť rozpojená“, nový `ARBot.Analyze route` a blok 1c v `mission`. Ostrov je podle autora skutečný (robot tam nevyjede, GPS ho tam jen posadila), takže se neopravuje mapa, ale načtení: `mapprune=` (výchozí true, `NetworkIslands`) zahodí všechny komponenty kromě té s největší délkou cest v metrech (ne podle počtu uzlů, ne podle toho, kde robot stojí — právě ta póza je z chybné GPS). Offline z pózy na náměstí se póza přichytí na chodník 2,4 m vedle a cíl je dosažitelný (393 m). Co se zahodilo, jde do Trace; `mapprune=false` vrátí síť. Nasazeno před 2. kolem (11:37): robot startoval ze servisní zóny, kde se v 10:11 a 10:19 kódy zamítaly, a kód přečetl a přijal — stejně ve 3. a 4. kole. Je to nepřímý důkaz, že `mapprune` na zařízení účinkoval; Trace „ZAHOZENO 1" z `Kolo2.rec` nikdo nevyčetl a GPS mohla robota posadit jinam. Zobrazení zamítnutí na stránce ověřit nešlo — po nasazení žádné zamítnutí nenastalo. **Uzavřeno 6. 10. 2026 (autor):** ostrovy se při načtení zahazují, takže tuhle situaci už ani nejde vyzkoušet; zobrazení zamítnutí na stránce zůstává na zařízení neověřené.
+
+- [x] Rozbor `ARBot.Analyze route` (komponenty, cesty ostrova, nejbližší dvojice uzlů) a blok 1c v `mission` (19. 9. 2026)
+- [x] Stránka náhledu ukazuje počet přečtených/zamítnutých kódů a důvod zamítnutí (19. 9. 2026)
+- [x] Hláška zamítnutí říká, že trasa nevede z místa, kde robot stojí, a že síť může být rozpojená (19. 9. 2026)
+- [x] Ostrovy sítě zahodit při načtení mapy (`mapprune=`, `NetworkIslands`, 5 testů); `route` z náměstí: dosažitelné 393 m (19. 9. 2026)
+- [x] Přijetí kódu z náměstí po nasazení — 2., 3. a 4. kolo kód přijat ze servisní zóny (Trace „ZAHOZENO 1“ v `Kolo2.rec` nevyčteno) (19. 9. 2026)
+- [x] Zobrazení zamítnutí na stránce na robotu (po nasazení žádné zamítnutí nenastalo) — uzavřeno bez ověření (autor 6. 10. 2026): ostrov se dnes při načtení odstraní, takže to už nejde vyzkoušet (6. 10. 2026)
+
+[robotour-mission.md](robotour-mission.md), [osm-nav.md](osm-nav.md) · DevLog [2026-09-19](devlog.md#2026-09-19), [2026-09-20](devlog.md#2026-09-20)
+
 <a id="mise-freerun-pomala-mrkev-blizko"></a>
 ### ✅ FreeRun jede ~0,8 m/s při povolených 1,7 — plán končí v mrkvi 1,5 m před robotem a regulátor k ní brzdí
 
@@ -1953,18 +1952,6 @@ Po jízdě 17. 9. 2026 (track po kalibraci magnetometru, podle obsluhy s dobrým
 
 [record-replay.md](record-replay.md), [ARBotRuntime.cs](../Src/ARBot.Runtime/Robot/ARBotRuntime.cs), [WebStatus.cs](../Src/ARBot.Runtime/Web/WebStatus.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
-<a id="prov-baterie-na-strance"></a>
-### ⬜ Napětí baterie není na stránce náhledu a nic na něj nevaruje
-
-`prov-baterie-na-strance` · vada · **otevřeno** · nalezeno 19. 9. 2026
-
-Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl zapnutý od rána, při opravách po 1. kole se nepřipojil na nabíječku). V záznamu to bylo vidět, jen to nikdo nečetl: medián napětí z `MotorStateBase` dopoledne 12,1 V (9:29) → 11,8 V (10:19) při stání, v `Kolo2.rec` 10,6 V a poslední vzorek 10,0 V, po nabití 12,5 V. Stránka náhledu napětí neukazuje a žádný práh na něj nehlídá — jediné místo, kde je, je záznam. Jednotlivé vzorky z motorové jednotky jsou hlučné (5–17 V), takže se musí brát medián nebo filtr, ne poslední hodnota. Léčba: řádek s napětím (mediánem za pár sekund) v tabulce senzorů na stránce a varování pod prahem (`batwarn=`), případně odmítnout start mise pod tvrdším prahem.
-
-- [ ] Napětí baterie (medián) do stránky náhledu vedle kvality GPS
-- [ ] Práh varování a hlášení do Trace (škrcené `PoruchaHlasic`)
-
-[robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
-
 <a id="prov-start-limit-sluzba"></a>
 ### 🧪 Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý
 
@@ -1995,6 +1982,19 @@ Zbytek nálezů auditu: po odpojení USB převodníku se senzor tvářil jako zd
 - [ ] Ověřit V4/V5/V6 na zařízení (odpojit převodník za běhu, `systemctl stop`)
 
 [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md), [build-and-test.yml](../.github/workflows/build-and-test.yml), [deploy/README.md](../deploy/README.md), [record-replay.md](record-replay.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
+
+<a id="prov-baterie-na-strance"></a>
+### 🧪 Napětí baterie není na stránce náhledu a nic na něj nevaruje
+
+`prov-baterie-na-strance` · vada · **v kódu, na HW neověřeno** · nalezeno 19. 9. 2026 · vyřešeno 6. 10. 2026
+
+Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl zapnutý od rána, při opravách po 1. kole se nepřipojil na nabíječku). V záznamu to bylo vidět, jen to nikdo nečetl: medián napětí z `MotorStateBase` dopoledne 12,1 V (9:29) → 11,8 V (10:19) při stání, v `Kolo2.rec` 10,6 V a poslední vzorek 10,0 V, po nabití 12,5 V. Stránka náhledu napětí neukazuje a žádný práh na něj nehlídá — jediné místo, kde je, je záznam. Jednotlivé vzorky z motorové jednotky jsou hlučné (5–17 V), takže se musí brát medián nebo filtr, ne poslední hodnota. Léčba: řádek s napětím (mediánem za pár sekund) v tabulce senzorů na stránce a varování pod prahem (`batwarn=`), případně odmítnout start mise pod tvrdším prahem. **V kódu 6. 10. 2026:** `BatteryMonitor` (medián 5 s, zahazuje zprávy bez měření, hystereze 0,2 V, do Trace jen přechod stavu) jako stupeň runtime; stránka čte tentýž objekt — řádek „baterie [V]" v tabulce a pod `batwarn=` (výchozí **11,6 V**, v údajích jednotky; 4 články LiFePO4) červený řádek v hlavičce. **Start mise se neblokuje** (autor). Virtuální motory hlásí nastavitelné napětí (panel *Virtuální senzory*, výchozí 12,8 V místo natvrdo 24 V).
+
+- [x] Napětí baterie (medián) do stránky náhledu vedle kvality GPS (6. 10. 2026)
+- [x] Práh varování a hlášení do Trace — `batwarn=` 11,6 V, hlášení jen při přechodu stavu (škrcení `PoruchaHlasic` netřeba); 6 testů monitoru, 3 testy stránky, ověřeno headless se simulací (`batwarn=13`) (6. 10. 2026)
+- [ ] Ověřit na zařízení: napětí v tabulce sedí na Roborun+, varování se neobjevuje za jízdy s plnou baterií (pokles pod zátěží); případně doladit `batwarn=` podle skutečného napětí na svorkách
+
+[robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
 
 <a id="prov-sit-soutezni-provoz"></a>
 ### ✅ Síť robota pro soutěž — vlastní WiFi AP a kabel bez routeru

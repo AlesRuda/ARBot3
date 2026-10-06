@@ -60,6 +60,13 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   kurzu 0,3 m/s. Test teď robota rozjede do plné rychlosti před startem GPS; totéž v
   `Gps_SumKurzuKlesaSRychlosti`. Dvě 15minutová selhání 5. 10. byla infrastruktura (úloha nedostala
   runner), ne kód.
+- **Napětí baterie na stránce náhledu** (`prov-baterie-na-strance`, na Robotouru 19. 9. robot
+  zastavil s vybitou baterií a stránka napětí neukazovala): `BatteryMonitor` (`ARBot.Common/Diagnostics`)
+  jako stupeň runtime — medián 5 s (vzorky skáčou 5–17 V), hystereze 0,2 V, do Trace jen přechod;
+  stránka: řádek „baterie [V]" a pod `batwarn=` (výchozí 11,6 V v údajích jednotky, 4 články LiFePO4)
+  červené „baterie … — NABÍT" v hlavičce. Start mise se neblokuje (autor). Virtuální motory mají
+  nastavitelné napětí (panel *Virtuální senzory*, výchozí 12,8 V místo 24 V). Testy Common 1 780,
+  Runtime 154, HAL 143; ověřeno headless se simulací a `batwarn=13`. ⚠️ Na zařízení neběželo.
 
 ## 2026-10-05
 

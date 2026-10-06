@@ -74,7 +74,7 @@ namespace ARBot.HAL.Devices.MotorDrivers
             // posila Drive(0, ...), a simulovany robot dobrzdi NOUZOVOU rampou (EmergencyBraking,
             // nastavuje Drive) jako skript jednotky 2.2.
             return new MotorStateBase(options.EmergencyStop, left, right,
-                                      voltage: 24.0, leftMotorCurrent: 0, rightMotorCurrent: 0,
+                                      voltage: options.BatteryVoltage, leftMotorCurrent: 0, rightMotorCurrent: 0,
                                       leftWheelSpeed: leftSpeed, rightWheelSpeed: rightSpeed)
             {
                 TimeStamp = ts,

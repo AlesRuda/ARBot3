@@ -587,6 +587,11 @@ namespace ARBot.Robot.Web
                 Num(sb, "planLength", plan?.LengthM); Num(sb, "clearance", plan?.MinClearanceM);
                 Num(sb, "offRoute", nav?.OffRouteDist); Num(sb, "routeLength", nav?.RouteLengthM);
                 Num(sb, "cpu", perf?.ProcessCpuPct);
+                // Napeti baterie (median za 5 s) - vedle kvality GPS, tedy mezi udaji o stavu
+                // robotu, ne pohybu. Neznamo (motory nehlasi) se nevypisuje vubec, ne jako 0.
+                var bat = Battery();
+                if (bat.HasValue && double.IsFinite(bat.Value.Volts))
+                    sb.Append(",\"battery\":").Append(bat.Value.Volts.ToString("0.00", CultureInfo.InvariantCulture));
                 AppendGps(sb);
                 if (perf != null) sb.Append(",\"missedTicks\":").Append(perf.MissedTicks);
                 if (mission != null)
@@ -690,6 +695,16 @@ namespace ARBot.Robot.Web
                 if (mise.Ceka.Length > 0) sb.Append(",\"waiting\":\"").Append(Escape(mise.Ceka)).Append('"');
             }
 
+            // VAROVANI BATERIE do hlavicky - tam obsluha s mobilem kouka, tabulka je az dole.
+            var bat = Battery();
+            if (bat.HasValue && bat.Value.Level == ARBot.Common.Diagnostics.BatteryLevel.Low)
+            {
+                sb.Append(",\"batteryLow\":\"")
+                  .Append(Escape(string.Format(CultureInfo.InvariantCulture, "{0:0.0} V (práh {1:0.0} V)",
+                                               bat.Value.Volts, BatteryWarnVolts())))
+                  .Append('"');
+            }
+
             AppendMissionPick(sb);
             AppendMagCal(sb);
             sb.Append('}');
@@ -791,6 +806,37 @@ namespace ARBot.Robot.Web
         /// </summary>
         public Func<System.Collections.Generic.IReadOnlyList<string>> HoldReasonsSource { get; set; }
             = HoldReasonsZRuntime;
+
+        /// <summary>
+        /// Zdroj stavu <b>baterie</b> (<see cref="ARBot.Common.Diagnostics.BatteryMonitor"/>). Vychozi
+        /// cte tentyz objekt, ktery hlasi prechody do Trace - stranka a Trace se tak nerozejdou; test
+        /// si podstrci vlastni. Viz prov-baterie-na-strance.
+        /// </summary>
+        public Func<ARBot.Common.Diagnostics.BatteryMonitor> BatterySource { get; set; } = BatteryZRuntime;
+
+        private static ARBot.Common.Diagnostics.BatteryMonitor BatteryZRuntime()
+            => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Battery : null;
+
+        /// <summary>Odecet baterie, nebo <c>null</c> (zadny monitor). Nesmi shodit stranku.</summary>
+        private ARBot.Common.Diagnostics.BatteryReading? Battery()
+        {
+            try
+            {
+                return BatterySource?.Invoke()?.Read();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("WebStatus: cteni baterie selhalo: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Prah varovani baterie [V] z monitoru (pro text varovani), nebo NaN.</summary>
+        private double BatteryWarnVolts()
+        {
+            try { return BatterySource?.Invoke()?.WarnVolts ?? double.NaN; }
+            catch { return double.NaN; }
+        }
 
         private static System.Collections.Generic.IReadOnlyList<string> HoldReasonsZRuntime()
             => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Navigator?.ControlLoop?.HoldReasons : null;
@@ -1202,7 +1248,7 @@ namespace ARBot.Robot.Web
 <script>
 var popisky={running:'běží',x:'X [m]',y:'Y [m]',theta:'kurz [rad]',v:'rychlost [m/s]',omega:'omega [rad/s]',
  planLength:'plán [m]',clearance:'odstup [m]',offRoute:'mimo trasu [m]',routeLength:'trasa [m]',
- cpu:'CPU procesu [%]',missedTicks:'zameškané takty',
+ cpu:'CPU procesu [%]',missedTicks:'zameškané takty',battery:'baterie [V] (medián 5 s)',
  gpsFix:'GPS fix',gpsSat:'GPS družic',gpsDop:'GPS DOP',gpsStd:'GPS sigma polohy [m]',
  gpsOdmitnuto:'GPS se NEPOUŽÍVÁ',
  missionCode:'kód',missionAbort:'přerušeno',missionCodes:'QR kódy',missionReject:'kód ZAMÍTNUT',
@@ -1322,6 +1368,10 @@ function hlavicka(h){
  // (treba pri restartu kamer) a clovek musi videt DUVOD, ne jen ze se nehybe.
  if(h.holds&&h.holds.length)
   m+=(m?'<br>':'')+'<span class=""ceka"">zastaveno: '+h.holds.join(', ')+'</span>';
+ // Vybita baterie: v hlavicce, cervene - na Robotouru 19. 9. robot zastavil s vybitou baterii
+ // a stranka napeti vubec neukazovala. Start mise se neblokuje, rozhoduje obsluha.
+ if(h.batteryLow)
+  m+=(m?'<br>':'')+'<span class=""chyba"">baterie '+h.batteryLow+' — NABÍT</span>';
  document.getElementById('mise').innerHTML=m;
 }
 // Vyber mise. Ukazuje se JEN kdyz proces na volbu ceka (head.pick); jinak je panel pryc, aby

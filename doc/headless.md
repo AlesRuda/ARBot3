@@ -434,6 +434,18 @@ Obnovuje se každou sekundu.
   ([ekf-fusion.md](ekf-fusion.md#kvalita-gps-fixu-brána-a-sigma-podle-dop-2026-09-06)). Přibylo
   6. 9. 2026, kdy odhad polohy ujel ~570 m se stojícím robotem a ze stránky **nešlo poznat, jestli
   robot vůbec má fix** — muselo se to hledat čtením kódu.
+- **Napětí baterie** (od 6. 10. 2026, `prov-baterie-na-strance`): v tabulce stavu řádek „baterie [V]
+  (medián 5 s)" a pod prahem **`batwarn=`** (výchozí 11,6 V, `0` = nevarovat) **červený řádek
+  v hlavičce** „baterie … — NABÍT". Počítá to `BatteryMonitor` (`ARBot.Common/Diagnostics`) jako
+  stupeň runtime: **medián**, protože vzorky z motorové jednotky skáčou 5–17 V; zprávy bez měření
+  (zástupný rámec driveru s 0 V) se zahazují; návrat z varování až o 0,2 V výš (napětí pod zátěží
+  kolísá). Do **Trace** jde jen **přechod** stavu, takže varování je v záznamu i bez otevřené
+  stránky a stránka čte tentýž objekt. **Start mise se neblokuje** (rozhodnutí autora). Práh je
+  v údajích **jednotky**, ne na svorkách: 4 články LiFePO4, jednotka po nabití hlásila 12,5 V,
+  robot jezdil na 11,8 V a na Robotouru 19. 9. 2026 ve 2. kole vypnul na 10,0–10,6 V. V simulaci se
+  napětí nastavuje v panelu *Virtuální senzory* (dřív natvrdo 24 V, teď výchozí 12,8 V).
+  ⚠️ Na zařízení neběželo; ověřeno testy a během headless se simulací (`batwarn=13` → varování
+  v hlavičce i hláška v Trace).
 
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 

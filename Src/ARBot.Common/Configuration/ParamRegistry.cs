@@ -68,6 +68,13 @@ namespace ARBot.Common.Configuration
               "Seriovy port ridici jednotky motoru (SDC2160). Default podle platformy (Profile.PortMotor).");
         public static readonly StringParam UartGPS = Text("UartGPS", Profile.PortGPS, K_HW,
               "Seriovy port GPS (uBlox). Default podle platformy (Profile.PortGPS).");
+        public static readonly DoubleParam BatWarn = Num("batwarn", "11.6", K_HW,
+              "Prah varovani napeti baterie [V] - median za 5 s z motorove jednotky; pod nim cervena "
+              + "radka v hlavicce stranky nahledu a hlaska do Trace (jen pri prechodu, navrat o 0,2 V "
+              + "vys). 0 = nevarovat (napeti se ukazuje dal). Hodnota je v udajich JEDNOTKY, ne na "
+              + "svorkach: 4 clanky LiFePO4, jednotka po nabiti hlasila 12,5 V, robot jezdil na 11,8 V "
+              + "a na Robotouru 19. 9. 2026 vypnul na 10,0-10,6 V (prov-baterie-na-strance). "
+              + "Start mise se neblokuje.", ParamParsers.Nezaporne);
         // Model magnetickeho pole v senzoru (8. 9. 2026). Je to NASTAVENI SENZORU (zapis do
         // registru 83 VN100), proto Hardware, ne Fuze - ta si jen odnasi dusledek v kurzu.
         public static readonly BoolParam NeoPixel = Bool("neopixel", "true", K_HW,
