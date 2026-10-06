@@ -175,7 +175,12 @@ public class VirtualGpsImuTest
         var origin = Origin();
         var robot = StandingRobot(0, 0, Math.PI / 4);      // kurz 45 stupnu
         robot.Drive(1.0, 0.0);                             // jede 1 m/s vpred
-        robot.Advance(TimeBase.Now);
+        // Rozjet AZ do plne rychlosti JESTE PRED startem GPS (rampa 1000 m/s2 -> 1 ms). Do 6. 10. 2026
+        // tu bylo Advance(TimeBase.Now), tedy rozjezd o nula sekund: kdyz prvni fix prisel driv nez
+        // ~0,3 ms (prah kurzu GpsCourseMinSpeedMps 0,3 m/s pri rampe 1000 m/s2), robot pro GPS jeste
+        // stal a kurz chybel - na rychlem Linuxovem runneru CI test obcas spadl. Fix s casem PRED
+        // casem robotu stav nemeni, takze rychlost zustane 1 m/s at prijde kdykoli.
+        robot.Advance(TimeBase.Now.AddMilliseconds(10));
 
         var options = new VirtualSensorOptions { GpsCrossTrackNoiseMps = 0 };   // bez sumu = presna kontrola
         using var gps = new VirtualGps(robot, origin, options);
@@ -221,7 +226,8 @@ public class VirtualGpsImuTest
         {
             var robot = StandingRobot(0, 0, 0.0);
             robot.Drive(speed, 0.0);
-            robot.Advance(TimeBase.Now);
+            // Plna rychlost jeste pred startem GPS - viz Gps_HlasiKurzNadZemi_KdyzRobotJede.
+            robot.Advance(TimeBase.Now.AddMilliseconds(10));
 
             var options = new VirtualSensorOptions { GpsCrossTrackNoiseMps = 0.1, GpsRateHz = 200 };
             using var gps = new VirtualGps(robot, origin, options);

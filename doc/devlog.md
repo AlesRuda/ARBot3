@@ -54,6 +54,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   je `v-kodu` (léčba = výchozí `localframe=odom`, zbývá jízda na zařízení). `tools/ukoly.cs` teď
   takové čekání vypisuje jako `VAROVÁNÍ` (výstupy nerozbije) a `CLAUDE.md` ukládá dořešit je po
   každé změně stavu (pokyn autora); nad stavem před úklidem hlásí přesně těch sedm.
+- **CI: nestabilní test `Gps_HlasiKurzNadZemi_KdyzRobotJede`** (spadl na Linuxu u `e70cdd5`, týž kód
+  u `6f94362` prošel): závod mezi rozjezdem simulovaného robotu (`Advance(TimeBase.Now)` = rozjezd
+  o nula sekund) a prvním fixem virtuální GPS — přišel-li fix dřív než ~0,3 ms, robot byl pod prahem
+  kurzu 0,3 m/s. Test teď robota rozjede do plné rychlosti před startem GPS; totéž v
+  `Gps_SumKurzuKlesaSRychlosti`. Dvě 15minutová selhání 5. 10. byla infrastruktura (úloha nedostala
+  runner), ne kód.
 
 ## 2026-10-05
 
