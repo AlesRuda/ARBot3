@@ -602,6 +602,20 @@ namespace ARBot.Robot.Web
                 var bat = Battery();
                 if (bat.HasValue && double.IsFinite(bat.Value.Volts))
                     sb.Append(",\"battery\":").Append(bat.Value.Volts.ToString("0.00", CultureInfo.InvariantCulture));
+                // Udaje z BMS (hw-bms-jbd-driver) - jen kdyz je jeji mereni cerstve, jinak radky chybi.
+                if (bat?.Bms is ARBot.Common.Devices.BmsState bmsMer)
+                {
+                    sb.Append(",\"batterySoc\":").Append(bmsMer.SocPercent.ToString(CultureInfo.InvariantCulture));
+                    sb.Append(",\"batteryCurrent\":").Append(bmsMer.Current.ToString("0.0", CultureInfo.InvariantCulture));
+                    if (bmsMer.CellVoltages.Length > 0)
+                        Str(sb, "batteryCells", string.Format(CultureInfo.InvariantCulture,
+                            "{0:0.000}–{1:0.000} V (Δ {2:0} mV)", bmsMer.CellMinV, bmsMer.CellMaxV,
+                            (bmsMer.CellMaxV - bmsMer.CellMinV) * 1000));
+                    if (double.IsFinite(bmsMer.TempMaxC))
+                        sb.Append(",\"batteryTemp\":").Append(bmsMer.TempMaxC.ToString("0.0", CultureInfo.InvariantCulture));
+                    Str(sb, "batteryAh", string.Format(CultureInfo.InvariantCulture,
+                        "{0:0.0} / {1:0.0} Ah, {2} cyklů", bmsMer.RemainingAh, bmsMer.NominalAh, bmsMer.Cycles));
+                }
                 AppendGps(sb);
                 if (perf != null) sb.Append(",\"missedTicks\":").Append(perf.MissedTicks);
                 if (mission != null)
@@ -731,14 +745,20 @@ namespace ARBot.Robot.Web
             }
 
             // VAROVANI BATERIE do hlavicky - tam obsluha s mobilem kouka, tabulka je az dole.
+            // S BMS v procentech (batwarnsoc=), bez ni v napeti z motoru (batwarn=).
             var bat = Battery();
             if (bat.HasValue && bat.Value.Level == ARBot.Common.Diagnostics.BatteryLevel.Low)
             {
-                sb.Append(",\"batteryLow\":\"")
-                  .Append(Escape(string.Format(CultureInfo.InvariantCulture, "{0:0.0} V (práh {1:0.0} V)",
-                                               bat.Value.Volts, BatteryWarnVolts())))
-                  .Append('"');
+                string text = bat.Value.Bms is ARBot.Common.Devices.BmsState bl
+                    ? string.Format(CultureInfo.InvariantCulture, "{0} % (práh {1:0} %)", bl.SocPercent, BatteryWarnSoc())
+                    : string.Format(CultureInfo.InvariantCulture, "{0:0.0} V (práh {1:0.0} V)", bat.Value.Volts, BatteryWarnVolts());
+                sb.Append(",\"batteryLow\":\"").Append(Escape(text)).Append('"');
             }
+            // Zasah ochrany BMS (napr. mraz pri nabijeni) - cervene, s duvodem. "Odpojene vybijeni"
+            // se neukazuje: s rozepnutym vybijenim nema Orange Pi napajeni (plan-bms-jbd.md).
+            if (bat?.Bms is ARBot.Common.Devices.BmsState bp && bp.Protection != ARBot.Common.Devices.BmsProtection.None)
+                sb.Append(",\"bmsProtection\":\"")
+                  .Append(Escape(ARBot.Common.Devices.BmsProtectionText.Popis(bp.Protection))).Append('"');
 
             AppendMissionPick(sb);
             AppendMagCal(sb);
@@ -930,6 +950,13 @@ namespace ARBot.Robot.Web
         private double BatteryWarnVolts()
         {
             try { return BatterySource?.Invoke()?.WarnVolts ?? double.NaN; }
+            catch { return double.NaN; }
+        }
+
+        /// <summary>Prah varovani podle BMS [%] z monitoru (pro text varovani), nebo NaN.</summary>
+        private double BatteryWarnSoc()
+        {
+            try { return BatterySource?.Invoke()?.WarnSocPercent ?? double.NaN; }
             catch { return double.NaN; }
         }
 
@@ -1204,6 +1231,7 @@ namespace ARBot.Robot.Web
             ARBot.HAL.ICamera c => nameof(CameraFrame) + ":" + (c.Name ?? string.Empty),
             ARBot.HAL.IIMU i => nameof(ARBot.Common.Models.IMUState) + ":" + (i.Name ?? string.Empty),
             ARBot.HAL.IGPS => nameof(ARBot.Common.Devices.GPSState),
+            ARBot.HAL.IBms => nameof(ARBot.Common.Devices.BmsState),
             ARBot.Common.Devices.IMotorControl => nameof(ARBot.Common.Devices.MotorStateBase),
             _ => null,
         };
@@ -1356,7 +1384,9 @@ namespace ARBot.Robot.Web
 <script>
 var popisky={running:'běží',x:'X [m]',y:'Y [m]',theta:'kurz [rad]',v:'rychlost [m/s]',omega:'omega [rad/s]',
  planLength:'plán [m]',clearance:'odstup [m]',offRoute:'mimo trasu [m]',routeLength:'trasa [m]',
- cpu:'CPU procesu [%]',missedTicks:'zameškané takty',battery:'baterie [V] (medián 5 s)',
+ cpu:'CPU procesu [%]',missedTicks:'zameškané takty',battery:'baterie [V] (z BMS, jinak medián 5 s z motorů)',
+ batterySoc:'baterie [%] (BMS)',batteryCurrent:'proud baterie [A] (+ nabíjení)',batteryCells:'články',
+ batteryTemp:'teplota BMS [°C]',batteryAh:'kapacita',
  gpsFix:'GPS fix',gpsSat:'GPS družic',gpsDop:'GPS DOP',gpsStd:'GPS sigma polohy [m]',
  gpsOdmitnuto:'GPS se NEPOUŽÍVÁ',
  missionCode:'kód',missionAbort:'přerušeno',missionCodes:'QR kódy',missionReject:'kód ZAMÍTNUT',
@@ -1492,6 +1522,8 @@ function hlavicka(h){
  // a stranka napeti vubec neukazovala. Start mise se neblokuje, rozhoduje obsluha.
  if(h.batteryLow)
   m+=(m?'<br>':'')+'<span class=""chyba"">baterie '+h.batteryLow+' — NABÍT</span>';
+ if(h.bmsProtection)
+  m+=(m?'<br>':'')+'<span class=""chyba"">BMS: ochrana — '+h.bmsProtection+'</span>';
  // Zaznam: kam se nahrava a kolik MB (roste = zapis bezi), nebo proc ne. Porucha cervene,
  // vypnuty zaznam (record=false, cekani na misi) oranzove.
  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};

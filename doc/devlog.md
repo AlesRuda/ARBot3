@@ -39,6 +39,37 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-08
+
+- **Baterie (pokračování 6. 10.):** změřeno 7. 10. **3,29 V na článek** — články jsou vyrovnané,
+  slabý článek jako příčina nízkého napětí z Roboteqa odpadá; zbývá porovnat svorky se stránkou
+  (`hw-baterie-napeti-nizke`). Články jsou ale po ~10 letech nafouklé a se ztrátou kapacity, takže
+  se mění za 4× WINA 15 Ah. Dnešní BMS je jednoduchá (vyvažuje, chrání, nic nehlásí); objednána
+  chytrá **JBD-SP04S020 60 A**, k Orange Pi přes USB–RS485 (UART BMS má na pinu VCC plus baterie).
+  Detail: [hardware.md](hardware.md), „Napájení — trakční baterie".
+- **Návrh driveru BMS** (`hw-bms-jbd-driver`): [plan-bms-jbd.md](plan-bms-jbd.md), odsouhlasený
+  autorem po částech. Jen vidět a zaznamenat, jen čtení, varování podle procent (`batwarnsoc=`)
+  s návratem k napětí bez BMS; protokol (`JbdProtocol`) oddělený od driveru, aby šel otestovat bez HW.
+- **Driver BMS hotový v kódu (fáze 1–3, `hw-bms-jbd-driver`)** podle
+  [plan-bms-jbd-kroky.md](plan-bms-jbd-kroky.md): zpráva `BmsState` (+ `BmsProtection` s českým
+  popisem) v katalogu záznamu; `JbdProtocol` (dotazy 0x03/0x04, hledání rámce včetně ozvěny
+  a `0xDD` uprostřed dat, rozbor); driver `JbdBms` (jen čtení, po chybě zpráva bez měření, vlastní
+  `IsError` po 3 chybách, výpadek/obnova do Trace jednou); parametr `UartBms=` (výchozí prázdný →
+  BMS se nezakládá), `VirtualBms` + panel *Virtuální senzory* (nabití, proud, BMS ano/ne);
+  `BatteryMonitor` varuje podle procent (`batwarnsoc=`, výchozí 20 %, hystereze 5 %), hlásí změny
+  ochran, bez čerstvé BMS dál podle napětí; stránka náhledu: stav nabití, proud, články, teplota,
+  kapacita, „baterie N % (práh M %) — NABÍT" a „BMS: ochrana — …". „BMS odpojila vybíjení" se
+  vědomě neukazuje (s rozepnutým vybíjením nemá Orange Pi napájení). Testy Common 1 801, HAL 168,
+  Runtime 161; ověřeno headless se simulovanou BMS (`batwarnsoc=90`). ⚠️ **Na zařízení neběželo** —
+  BMS nedorazila, rozložení bajtů je z veřejné dokumentace (fáze 4). Telemetrický pohled údaje BMS
+  neukazuje (sloupce jsou vyjmenované) → nové téma `hw-bms-telemetrie`.
+  Nezávislá finální kontrola našla dvě vady, opravené s testy: (a) tichá nebo jen pomalá BMS by přes
+  `Uart.ReportEx` psala do Trace každých 5 s celý zásobník `TimeoutException` (testovací port výjimku
+  nehází, takže to testy neviděly) → `Uart.ReportReadTimeouts`, pro BMS vypnuté, VN100 beze změny;
+  (b) nerozebratelná odpověď 0x04 zahodila i stav nabití z 0x03 → zpráva vyjde bez článků. Šest
+  drobností odloženo (věrohodnost registru při hledání rámce, hlavička po zestárnutí BMS ad.).
+  Testy po opravách: Common 1 801, HAL 172, Runtime 161.
+
 ## 2026-10-07
 
 - **Rozbor jízd 1. 10. 2026** (`records/test/20261001-144638.rec` Track Modřany 42 min při 1,7 m/s,
@@ -94,6 +125,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-06
 
+- **Trakční baterie zdokumentována a vybrána náhrada** (`hw-baterie-napeti-nizke`): baterie jsou
+  čtyři články WINA LiFePO4 3,2 V / 15 Ah (22 × 90 × 120 mm, 3C trvale) v prostoru
+  92 × 65 × 285 mm, nabíječka pro LiFePO4 — do té doby to v repu nestálo nikde. Náhrada kus za kus
+  jsou tytéž články (GWL); větší kapacita (20–24 Ah) jen zakázkovým balíkem 26650 4S6P, válcové
+  20Ah CBAK mají jen 10 A trvale. **Nález:** napětí z Roboteqa nebylo v dokumentovaných záznamech
+  nikdy nad 12,6 V, ačkoli 4S LiFePO4 má v klidu 13,0–13,3 V — buď odchylka měření, nebo slabý
+  článek; rozhodne multimetr (balík na svorkách proti stránce, každý článek zvlášť). Detail:
+  [hardware.md](hardware.md), „Napájení — trakční baterie".
 - **Běžná jízda jednou rampou** (autor): zrušeno samostatné běžné brzdění — `VAR 8` ze skriptu
   jednotky 2.2, `MotorRamps.Deceleration` a `Profile.MaxDecceleration`; vše pro běžnou jízdu bere
   `Profile.MaxAcceleration` (rampy ve smyčce, brzdná obálka plánovače — pole přejmenováno na

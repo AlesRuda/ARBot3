@@ -149,6 +149,19 @@
                                ToolTip.Tip="Co hlásí virtuální motory. Pod batwarn= (výchozí 11,6 V) svítí na stránce náhledu varovaní NABÍT."/>
             </StackPanel>
 
+            <!-- Virtualni BMS: zkouska varovani podle procent (batwarnsoc=) a navratu k napeti bez BMS. -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <CheckBox IsChecked="{Binding BmsPresent}" Content="BMS" Foreground="White"
+                          ToolTip.Tip="Bez BMS se varuje podle napětí z motorů (batwarn=)."/>
+                <TextBlock Text="nabití [%]" Foreground="White" VerticalAlignment="Center"/>
+                <NumericUpDown Value="{Binding BmsSocPercent}" Increment="1" Minimum="0" Maximum="100"
+                               FormatString="F0" Width="110" IsEnabled="{Binding BmsPresent}"
+                               ToolTip.Tip="Pod batwarnsoc= (výchozí 20 %) svítí na stránce náhledu NABÍT."/>
+                <TextBlock Text="proud [A]" Foreground="White" VerticalAlignment="Center"/>
+                <NumericUpDown Value="{Binding BmsCurrentA}" Increment="0.5" Minimum="-60" Maximum="30"
+                               FormatString="F1" Width="110" IsEnabled="{Binding BmsPresent}"/>
+            </StackPanel>
+
             <Separator Margin="0,6"/>
 
             <!-- ================= Systematické chyby ================= -->

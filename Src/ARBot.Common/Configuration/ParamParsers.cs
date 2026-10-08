@@ -292,6 +292,13 @@ namespace ARBot.Common.Configuration
                : ParamParseResult.Invalid("cekam procento radku pravdepodobnostniho obrazu: 0 az 100 "
                                           + "(vychozi 10; 0 = pevnych 25 bodu)");
 
+        /// <summary>Prah varovani stavu nabiti z BMS [%]: 0 az 100 (0 = nevarovat).</summary>
+        public static ParamParseResult BatWarnSoc(string text)
+            => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
+               && v >= 0 && v <= 100
+               ? ParamParseResult.Valid()
+               : ParamParseResult.Invalid("cekam procento stavu nabiti: 0 az 100 (vychozi 20; 0 = nevarovat)");
+
         /// <summary>
         /// Nejistota mapove sirky pro pricnou polohu z jedne hrany [m]: 0 az 5. Nula je povolena
         /// (verit mapove sirce presne), ale je to vedome rozhodnuti - u cest bez tagu width je

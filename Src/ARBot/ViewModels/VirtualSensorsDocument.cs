@@ -95,6 +95,15 @@ namespace ARBot.ViewModels
         /// baterie na strance nahledu (<c>batwarn=</c>).</summary>
         [ObservableProperty] private decimal batteryVoltage;
 
+        /// <summary>Je v simulaci BMS (jinak varování podle napětí z motorů).</summary>
+        [ObservableProperty] private bool bmsPresent;
+
+        /// <summary>Stav nabití virtuální BMS [%] - zkouška <c>batwarnsoc=</c>.</summary>
+        [ObservableProperty] private decimal bmsSocPercent;
+
+        /// <summary>Proud virtuální BMS [A], kladný = nabíjení.</summary>
+        [ObservableProperty] private decimal bmsCurrentA;
+
         // --- Kalibrace magnetometru (mission=magcal, 8. 9. 2026) ------------------------
         // Otaceni RUKOU a naklon: presne to dela obsluha pri rotacnim testu. Pres motory to
         // nejde - mise zahodi regulator a ControlLoop posila Drive(0,0) kazdy takt.
@@ -176,6 +185,9 @@ namespace ARBot.ViewModels
             IsSystematicErrorActive = options.HasSystematicError;
             EmergencyStop = options.EmergencyStop;
             BatteryVoltage = (decimal)options.BatteryVoltage;
+            BmsPresent = options.BmsPresent;
+            BmsSocPercent = (decimal)options.BmsSocPercent;
+            BmsCurrentA = (decimal)options.BmsCurrentA;
 
             DepthNoiseM = (decimal)scene.DepthNoiseM;
             GrassRoughnessM = (decimal)scene.GrassRoughnessM;
@@ -222,6 +234,17 @@ namespace ARBot.ViewModels
             if (value <= 0m) return;
             options.BatteryVoltage = (double)value;
         }
+
+        /// <summary>Platí hned při dalším vzorku BMS (tatáž instance nastavení).</summary>
+        partial void OnBmsPresentChanged(bool value) => options.BmsPresent = value;
+
+        partial void OnBmsSocPercentChanged(decimal value)
+        {
+            if (value < 0m || value > 100m) return;
+            options.BmsSocPercent = (double)value;
+        }
+
+        partial void OnBmsCurrentAChanged(decimal value) => options.BmsCurrentA = (double)value;
 
         partial void OnHandSpinDegPerSecChanged(decimal value)
         {

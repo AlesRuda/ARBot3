@@ -159,19 +159,25 @@ namespace ARBot.Common.Configuration
         /// v by-id plyne z USB deskriptoru, takze drzi. Predchozi "/dev/ttyS0" byl jen odhad a byl
         /// spatne: na RK3588 zadny /dev/ttyS0 neexistuje, jediny zivy onboard UART je ttyS7 a drzi
         /// si ho bluetooth.</para>
+        ///
+        /// <para>PortBms (chytrá BMS JBD přes USB–RS485) je zatím všude prázdný - cesta by-id se zjistí
+        /// až na robotu (doc/plan-bms-jbd.md, fáze 4).</para>
         /// </summary>
 #if IsX64
         public static string PortAHRS = "COM5";
         public static string PortMotor = "COM9";
         public static string PortGPS = "COM8";
+        public static string PortBms = null;
 #elif IsARM64
         public static string PortAHRS = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0";
         public static string PortMotor = "/dev/serial/by-id/usb-Roboteq_Motor_Controller_SDC2XXX-if00";
         public static string PortGPS = "/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00";
+        public static string PortBms = null;
 #else
         public static string PortAHRS = null;
         public static string PortMotor = null;
         public static string PortGPS = null;
+        public static string PortBms = null;
 #endif
 
         /// <summary>

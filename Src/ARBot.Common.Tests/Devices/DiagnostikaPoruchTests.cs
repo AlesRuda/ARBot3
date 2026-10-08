@@ -42,6 +42,7 @@ namespace ARBot.Common.Tests.Devices
             Path.Combine("Src", "ARBot.HAL", "Devices", "Uart", "Uart.cs"),
             Path.Combine("Src", "ARBot.HAL", "Devices", "GPS", "uBlox", "uBloxGps.cs"),
             Path.Combine("Src", "ARBot.HAL", "Devices", "AHRS", "VN100IMUBinary.cs"),
+            Path.Combine("Src", "ARBot.HAL", "Devices", "Bms", "JbdBms.cs"),
             Path.Combine("Src", "ARBot.Runtime", "Robot", "ARBotRuntime.cs"),
         };
 

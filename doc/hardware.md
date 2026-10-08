@@ -588,3 +588,99 @@ Poznámky:
   hypotéza, ne nález (týž FW při dobrých jízdách 12. a 18. 9.) — viz registr
   `lok-freerun-kurz-staci-na-zapad`.
 - Výběr platformového HAL (D435/T265 wrapper) viz [build-and-platforms.md](build-and-platforms.md).
+
+## Napájení — trakční baterie
+
+- **Baterie je 4S LiFePO4 ze čtyř článků WINA LiFePO4 Power 3,2 V / 15 Ah v hliníkovém pouzdře**
+  (12,8 V / 15 Ah, ~190 Wh), **nabíječka je pro LiFePO4** (autor, 6. 10. 2026). Do té doby to
+  v repu nestálo nikde; jediná stopa byla poznámka u `batwarn=`. Robot má jednu baterii, výměna
+  v terénu se dělat nebude (autor).
+  - Článek podle prodejce: **22 × 90 × 120 mm, 447 g**, 3C trvale (45 A), špička 5C (75 A),
+    2,5–3,65 V, ~2 000 cyklů. Prodává GWL / EV-Power (Praha), 10/2026 ~1 000 Kč za článek.
+    Čtyři články = ~1,8 kg, což sedí s udávanými ~2 kg celé baterie.
+  - **Prostor na baterii je 92 × 65 × 285 mm vnitřního volného místa (1,7 l)** (autor,
+    6. 10. 2026; předtím omylem 85 × 65 × 135 a 85 × 65 × 285). Články WINA v něm leží **2 × 2**:
+    strana 90 mm podél 92, dva vedle sebe (44 mm) podél 65, dva za sebou (240 mm) podél 285.
+    **Víc než čtyři se jich nevejde** (tři vedle sebe 66 mm, tři za sebou 360 mm) a větší WINA
+    36 Ah (185 × 135 × 25 mm) se nevejde vůbec.
+- **Náhrada (6. 10. 2026): čtyři nové články téhož typu.** Vejdou se tam, kde jsou dnešní,
+  a proudově vyhoví (3C = 45 A proti 2 × 20 A z SDC2160). Alternativy v prostoru 92 × 65 × 285:
+  - **válcové 20Ah (CBAK 40130FS / 40135FS, Ø 40 × 130–135 mm), 4S1P** — dva vedle sebe podél
+    92 mm, dva za sebou podél 285 mm; **20 Ah** (+33 %) ve čtyřech článcích. ⚠️ Prodejce uvádí
+    jen **10 A trvale** na článek, tedy na celou baterii — pro motory (2 × 20 A) nejspíš málo;
+    dokud není změřený proud z baterie, nedoporučeno.
+  - **válcové 15Ah (32140/33140, Ø 32–33,6 × 140 mm), 4S1P** — 15 Ah jako dnes, ~1,2 kg místo ~1,8 kg.
+  - **26650, 4S6P (24 článků)** — čtyři za sebou podél 285 mm (~262 mm), průřez 3 × 2
+    (79,5 × 53 mm); **~20 Ah** s články 3,4 Ah, ~24 Ah se 4Ah, ~2,1 kg. Větší kapacita
+    s dostatečným proudem, ale zakázkový balík (mnoho svarů).
+  - prizmatické 20 Ah (27 × 70 × 145 mm) se nevejdou: dva za sebou mají 290 mm.
+  Nové články před
+  sestavením **vyrovnat nahoře** (každý na 3,65 V, nebo paralelně), jinak balík drží nejslabší
+  článek.
+- **Požadavky na BMS:** ≥ 30 A trvale, ≥ 60 A krátkodobě — když BMS při rozjezdu odpojí, padne
+  i Orange Pi a záznam se usekne. Ochranu proti nabíjení pod 0 °C
+  navrhl asistent, **autor ji za podstatnou nepovažuje** (8. 10. 2026) — není to požadavek.
+- ⚠️ **Napětí z Roboteqa je na LiFePO4 podezřele nízké a příčina není známá.** Čte se napětí
+  baterie (`GetValue(_V, 2)` ve skriptu, ne vnitřní napětí `_V, 1`). Hlášené hodnoty: Robotour
+  19. 9. 12,5 V „po nabití", 12,1 V dopoledne, medián 2. kola 10,6 V, konec 10,0 V; 1. 9. 12,3–12,6 V,
+  2. 9. 11,7–12,3 V. **Nad 12,6 V se v dokumentovaných záznamech neobjevilo nic**, kdežto 4S
+  LiFePO4 má v klidu mezi ~20 a 90 % nabití 13,0–13,3 V a 12,5 V (3,12 V/článek) znamená ~10 %.
+  Úbytek zátěží to není (elektronika ~1,6 A, jízda 5–10 A dají na odporu balíku desetiny voltu).
+  Tři vysvětlení: (a) **odchylka měření / úbytek na vedení** k jednotce (pak je `batwarn=` 11,6 V
+  „v údajích jednotky" správně), (b) **baterie nebyla nabitá** (krátké dobíjení na soutěži dá jen
+  povrchové napětí), (c) **slabý nebo nevyrovnaný článek** — třeba 3 × 3,33 V + 2,5 V = 12,5 V.
+  Rozhodne **multimetr: napětí balíku na svorkách proti stránce náhledu a napětí každého článku
+  zvlášť** (v klidu mají být do ±0,03 V od sebe). Konec 2. kola Robotouru (10,6 V medián, tedy
+  2,65 V/článek za jízdy) je při údaji bez odchylky úplně vybitá baterie.
+  **Změřeno 7. 10. 2026 (autor): 3,29 V na článek**, balík ~13,16 V — články jsou vyrovnané
+  a zdravé, (c) tedy odpadá. Zbývá porovnat napětí na svorkách s údajem na stránce náhledu
+  ve stejnou chvíli: rozdíl ~0,7–0,8 V znamená (a).
+- **Dnešní BMS je jednoduchá** (autor, 7. 10. 2026): vyvažuje, chrání články a umí baterii
+  odpojit, ale nic nehlásí — o odpojení se robot dozví až tím, že zhasne.
+- **Chytrá BMS s UART** (zvažováno 7. 10. 2026) místo dnešní: vedle ochran dává **stav nabití** (počítání
+  náboje), **proud z baterie** (celková spotřeba včetně elektroniky — dnes neznámá), napětí
+  jednotlivých článků, teplotu a důvod odpojení. K Orange Pi přes USB–UART převodník jako VN100.
+  Kandidáti s veřejně popsaným protokolem: **JBD** (Jiabaida, UART + Bluetooth), **Daly** smart
+  (UART/RS485/Bluetooth), **JK** (aktivní vyvažování, RS485/Bluetooth). Pozor, zda má BMS
+  **dva porty** — často sdílí jeden mezi Bluetooth a UART, pak nejde mít zároveň aplikaci v mobilu
+  a připojení k Pi. Místo: v prostoru zbývá u článků 2 × 2 kapsa ~92 × 65 × 45 mm na konci.
+  **Doporučený typ (7. 10. 2026): JBD-SP04S020, varianta 60 A — objednána 8. 10. 2026** (driver hotový v kódu 8. 10. 2026, `UartBms=` + `batwarnsoc=`, na zařízení neběžel: [plan-bms-jbd.md](plan-bms-jbd.md)) — LiFePO4 4S, **UART a RS485
+  zároveň** (jeden port pro Orange Pi, druhý pro Bluetooth modul, ten se kupuje zvlášť),
+  vypnutí nabíjení při nízké teplotě, vyvažování 50–60 mA; ~1 000 Kč (Gobel Power, 10/2026).
+  **Připojení k Pi přes RS485** (převodník USB–RS485), UART nechat Bluetooth modulu: napěťová
+  úroveň UART u JBD není jednoznačně doložená (komunita i manuály uvádějí většinou 5 V TTL,
+  jinde 3,3 V) a ⚠️ **pin VCC na konektoru UART je plus baterie (~13 V)** — nic na něj
+  nepřipojovat, jinak hrozí zničení převodníku i Pi. Diferenciální RS485 úroveň neřeší a v robotu
+  s motory je odolnější. Kdyby se přece šlo přes UART: změřit klidovou úroveň linky TX na
+  konkrétním kuse a vzít převodník s přepínačem 3,3/5 V, zapojit jen TX, RX, GND.
+  Orange Pi RS485 nativně nemá (na liště jsou jen UART 3,3 V) → **převodník USB–RS485**,
+  nejlépe s čipem **FTDI** (unikátní sériové číslo, takže stabilní cesta v `/dev/serial/by-id/`
+  jako u ostatních UART zařízení; CH340 číslo nemá). V systému je to obyčejný sériový port,
+  směr přenosu řídí převodník sám.
+  ⚠️ **Deska 60A varianty má 138 × 102 × 10 mm a do prostoru baterie se nevejde** (102 mm proti
+  92 mm), takže se montuje vedle a do baterie vedou balanční a výkonové vodiče. Uvnitř by se vešla
+  JBD-SP04S010 (123 × 63 × 12 mm, do 21mm mezery vedle článků podél 285 mm), ale její proud se
+  nepodařilo ověřit — kupovat jen při ≥ 40 A trvale.
+  **Nastavení BMS (rešerše 8. 10. 2026, ověřit na kusu):** jmenovitá kapacita (u JBD „design /
+  nominal capacity" a „cycle capacity") se zadává **aplikací v mobilu** přes Bluetooth modul (JBD /
+  Xiaoxiang), driver robota je jen čte — na stránce náhledu je řádek „kapacita zbývá / jmenovitě Ah",
+  takže je hned vidět, jestli v BMS nezůstala tovární hodnota. Stav nabití počítá BMS z prošlého
+  náboje a **na 100 % se srovná při nabití na plné napětí** — po výměně článků a po nastavení
+  kapacity proto jednou plně nabít. Pod ~0,7 A prý proud neměří přesně (robot v klidu bere ~1,6 A).
+  ⚠️ **Teplotní čidla (NTC) zapojit:** rozpojené čidlo BMS čte jako **nejnižší** teplotu, takže
+  zasáhne ochrana „mráz" a nejspíš **zakáže nabíjení, případně i vybíjení** (robot by nejel);
+  zkratované jako nejvyšší. Nepoužité čidlo jde v aplikaci vypnout, ale je hlášeno, že pak některé
+  kusy nepouštějí vybíjení — vyzkoušet. Čidla jsou tedy potřeba hlavně proto, aby BMS nezablokovala
+  baterii (ochrana proti nabíjení pod 0 °C sama požadavkem není). Software robota počet čidel bere z BMS (0 = řádek
+  teploty na stránce chybí, „mráz při nabíjení" se ukáže jako ochrana v hlavičce).
+  **Levnější alternativa:** dnešní BMS ponechat a do záporného vodiče přidat **bočník
+  s převodníkem INA226 / INA228** na I2C Orange Pi — proud i napětí přesně, ale stav nabití
+  počítá náš software (integrál proudu, reset při plném nabití) a napětí článků nevidí.
+- **Články jsou po ~10 letech na výměnu** (autor, 7. 10. 2026): znatelný pokles kapacity a jsou
+  **značně nafouklé**. Vyrovnané napětí v klidu (3,29 V/článek) o kapacitě nic neříká.
+- ⚠️ **Napětí je u LiFePO4 špatné měřidlo stavu nabití:** mezi ~20 a 90 % je křivka skoro plochá
+  (13,0–13,3 V v klidu), takže `BatteryMonitor` varuje až těsně před koncem. Spolehlivý údaj
+  (stav nabití, proud) by dala BMS s rozhraním (Bluetooth/UART).
+- Spotřeba změřená není; odhad 50–80 W za jízdy (elektronika ~20 W) dává z 15 Ah 2–3 h provozu.
+  Ze záznamu jde odhadnout jen zčásti — `MotorStateBase` nese proudy **motorů**, ne proud
+  z baterie.

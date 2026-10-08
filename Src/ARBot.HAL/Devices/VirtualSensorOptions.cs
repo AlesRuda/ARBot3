@@ -92,6 +92,15 @@ namespace ARBot.HAL.Devices
         /// </summary>
         public double BatteryVoltage { get; set; } = 12.8;
 
+        /// <summary>Je v simulaci BMS? false = jako robot bez BMS: varování podle napětí z motorů.</summary>
+        public bool BmsPresent { get; set; } = true;
+
+        /// <summary>Stav nabití hlášený virtuální BMS [%] (zkouška <c>batwarnsoc=</c> na stránce).</summary>
+        public double BmsSocPercent { get; set; } = 80;
+
+        /// <summary>Proud hlášený virtuální BMS [A], kladný = nabíjení.</summary>
+        public double BmsCurrentA { get; set; } = -3.0;
+
         /// <summary>Smerodatna odchylka kurzu z IMU [rad] (~1 stupen).</summary>
         public double ImuHeadingNoiseRad { get; set; } = 0.017;
 

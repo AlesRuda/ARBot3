@@ -20,6 +20,12 @@
       "port": 8091
     },
     {
+      "name": "headless-bms",
+      "runtimeExecutable": "Src/ARBot.Headless/bin/x64/Release/net10.0/ARBot.Headless.exe",
+      "runtimeArgs": ["virtualhw=true", "no_uart=true", "map=OSM/SyntetickyKoridor.osm", "web=8094", "batwarnsoc=90", "record=true"],
+      "port": 8094
+    },
+    {
       "name": "headless-zaznam",
       "runtimeExecutable": "Src/ARBot.Headless/bin/x64/Release/net10.0/ARBot.Headless.exe",
       "runtimeArgs": ["virtualhw=true", "no_uart=true", "map=OSM/SyntetickyKoridor.osm", "web=8092", "mission=freerun", "record=true"],

@@ -16,6 +16,7 @@ using ARBot.Common.Maps.OsmNav.Graph;
 using ARBot.Common.Simulation;
 using ARBot.Common.Vision.Synthetic;
 using ARBot.HAL.Devices.GPSs;
+using ARBot.HAL.Devices.Bms;
 using System.Threading.Tasks;
 
 namespace ARBot.Robot
@@ -87,11 +88,13 @@ namespace ARBot.Robot
         public IMotorControl Motor { get; set; }
         public IGPS GPS { get; set; }
         public IIMU IMU { get; set; }
+        public IBms Bms { get; set; }
         //        public SndGenerator SndGenerator { get; set; }
         public NeoPixelProcessor NeoPixel { get; set; }
         protected IUart UartMotor { get; set; }
         protected IUart UartGPS { get; set; }
         protected IUart UartAHRS { get; set; }
+        protected IUart UartBms { get; set; }
 
         /// <summary>
         /// Zdroj <b>odhadu pozy</b> (fuze) pro metadata snimku — kamery z nej plni
@@ -136,7 +139,7 @@ namespace ARBot.Robot
         public HwMode Mode { get; private set; } = HwMode.None;
 
         // Porty UART senzoru zjistene v Init; senzory z nich vznikaji az v SetRealHW.
-        private string portAHRS, portMotor, portGPS;
+        private string portAHRS, portMotor, portGPS, portBms;
 
         protected ARBotHW()
         {
@@ -158,6 +161,7 @@ namespace ARBot.Robot
             portAHRS = ParamRegistry.UartAHRS.Value;
             portMotor = ParamRegistry.UartMotor.Value;
             portGPS = ParamRegistry.UartGPS.Value;
+            portBms = ParamRegistry.UartBms.Value;
 
             /*
             var f = new FTD2XX_NET.FTDI();
@@ -399,7 +403,7 @@ namespace ARBot.Robot
         /// </summary>
         private void MotionSensorsStop()
         {
-            foreach (var s in new object[] { Motor, GPS, IMU })
+            foreach (var s in new object[] { Motor, GPS, IMU, Bms })
             {
                 if (s == null) continue;
                 if (s is ISensor sensor) sensors.Remove(sensor);
@@ -409,14 +413,16 @@ namespace ARBot.Robot
             Motor = null;
             GPS = null;
             IMU = null;
+            Bms = null;
 
             // I porty - bez toho by je nasledny SetRealHW nemohl znovu otevrit (obsazene).
-            foreach (var u in new object[] { UartMotor, UartGPS, UartAHRS })
+            foreach (var u in new object[] { UartMotor, UartGPS, UartAHRS, UartBms })
                 (u as IDisposable)?.Dispose();
 
             UartMotor = null;
             UartGPS = null;
             UartAHRS = null;
+            UartBms = null;
         }
 
         /// <summary>
@@ -546,7 +552,7 @@ namespace ARBot.Robot
             // Do Trace, ne Debug: je to duvod, proc senzory nejedou, a v Release by po nem nezbyla stopa.
             bool noUart = ParamRegistry.NoUart.Value;
             if (noUart)
-                Trace.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor) preskoceny.");
+                Trace.WriteLine("ARBotHW: no_uart=true -> UART senzory (IMU/GPS/motor/BMS) preskoceny.");
 
             if (!noUart && !string.IsNullOrEmpty(portAHRS))
             {
@@ -576,6 +582,15 @@ namespace ARBot.Robot
                 UartGPS = new Uart("UartGPS", portGPS, 921600);
                 GPS = new uBloxGps(UartGPS);
                 sensors.Add(GPS);
+            }
+
+            // Chytra BMS (doc/plan-bms-jbd.md): jen cteni stavu baterie pro stranku a zaznam.
+            if (!noUart && !string.IsNullOrEmpty(portBms))
+            {
+                // Bez hlaseni timeoutu: driver cte s kratkym timeoutem a ticho BMS hlasi sam.
+                UartBms = new Uart("UartBms", portBms, JbdProtocol.BaudRate) { ReportReadTimeouts = false };
+                Bms = new JbdBms(UartBms);
+                sensors.Add(Bms);
             }
 
             // T265 se od 26. 9. 2026 NEZAKLADA (pokyn autora). Driver ji hledal ~1x za sekundu
@@ -678,6 +693,8 @@ namespace ARBot.Robot
 
             sensors.Add(GPS = new VirtualGps(SimulatedRobot, options.Origin, sensorOptions));
             sensors.Add(IMU = new VirtualImu(SimulatedRobot, sensorOptions));
+            // BMS cte TUTEZ instanci nastaveni jako panel (stav nabiti, proud, pritomnost BMS).
+            sensors.Add(Bms = new VirtualBms(VirtualSensors));
 
             Mode = HwMode.Virtual;
             Debug.WriteLine("ARBotHW: virtualni HW aktivni (kamery, motory, GPS a IMU ze simulace).");

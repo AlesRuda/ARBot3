@@ -68,6 +68,10 @@ namespace ARBot.Common.Configuration
               "Seriovy port ridici jednotky motoru (SDC2160). Default podle platformy (Profile.PortMotor).");
         public static readonly StringParam UartGPS = Text("UartGPS", Profile.PortGPS, K_HW,
               "Seriovy port GPS (uBlox). Default podle platformy (Profile.PortGPS).");
+        public static readonly StringParam UartBms = Text("UartBms", Profile.PortBms, K_HW,
+              "Seriovy port chytre BMS JBD (prevodnik USB-RS485, 9600 Bd). Prazdny = BMS se nezaklada "
+              + "(vychozi na vsech platformach, dokud se na robotu nezjisti cesta /dev/serial/by-id). "
+              + "Jen cteni. Viz doc/plan-bms-jbd.md.");
         public static readonly DoubleParam BatWarn = Num("batwarn", "11.6", K_HW,
               "Prah varovani napeti baterie [V] - median za 5 s z motorove jednotky; pod nim cervena "
               + "radka v hlavicce stranky nahledu a hlaska do Trace (jen pri prechodu, navrat o 0,2 V "
@@ -75,6 +79,11 @@ namespace ARBot.Common.Configuration
               + "svorkach: 4 clanky LiFePO4, jednotka po nabiti hlasila 12,5 V, robot jezdil na 11,8 V "
               + "a na Robotouru 19. 9. 2026 vypnul na 10,0-10,6 V (prov-baterie-na-strance). "
               + "Start mise se neblokuje.", ParamParsers.Nezaporne);
+        public static readonly DoubleParam BatWarnSoc = Num("batwarnsoc", "20", K_HW,
+              "Prah varovani stavu nabiti baterie [%] podle BMS; pod nim cervena radka v hlavicce stranky "
+              + "nahledu a hlaska do Trace (jen pri prechodu, navrat o 5 % vys). Plati, dokud chodi cerstva "
+              + "data z BMS (UartBms=); bez nich se varuje podle napeti (batwarn=). 0 = nevarovat.",
+              ParamParsers.BatWarnSoc);
         // Model magnetickeho pole v senzoru (8. 9. 2026). Je to NASTAVENI SENZORU (zapis do
         // registru 83 VN100), proto Hardware, ne Fuze - ta si jen odnasi dusledek v kurzu.
         public static readonly BoolParam NeoPixel = Bool("neopixel", "true", K_HW,
