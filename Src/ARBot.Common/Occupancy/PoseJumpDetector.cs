@@ -19,9 +19,16 @@ namespace ARBot.Common.Occupancy
     /// grid si nechal snimky ulozene s obracenym kurzem a prvni korelace s mapou z nich vysla se
     /// spatnym znamenkem. Namereno na zaznamu 20260819-233057.rec.</para>
     ///
-    /// <para>Male korekce (jednotky cm za cyklus) se schvalne NEHLASI - ty se vyperou samy diky
-    /// clampu a kratke pameti gridu; resamplovat grid by je jen rozmazalo. Totez plati pro sum
+    /// <para>Male korekce (jednotky cm za cyklus) se schvalne NEHLASI - v zornem poli je nova
+    /// pozorovani prepisi (clamp log-odds); resamplovat grid by je jen rozmazalo. Totez plati pro sum
     /// kurzu z filtru (namereno ~0,7 deg za 100 ms u stojiciho robotu).</para>
+    ///
+    /// <para>⚠️ <b>Mimo zorne pole se nevyperou</b> - grid nema casovy rozpad. Rada malych korekci pod
+    /// toleranci (limit kroku koridoru <c>corridorslew=</c> je drzi pod ni zamerne) tak muze posunout
+    /// pozu o metry proti obsahu gridu, aniz by detektor cokoli hlasil. Stalo se 1. 10. 2026
+    /// (Track, <c>20261001-144638.rec</c>): 5-7 mereni koridoru po 0,17-0,24 m posunulo pozu za 5-9 s
+    /// o 1,5-1,9 m do krajnice zapsane chvili predtim a robot stal v <c>RobotBlocked</c> 132 + 42 s.
+    /// Lecbou je lokalni vrstva v odometricke soustave (<c>localframe=odom</c>), ne nizsi tolerance.</para>
     /// </summary>
     public sealed class PoseJumpDetector
     {

@@ -146,6 +146,13 @@ Zamítnuto.
 pamětí, ne dokonalou lokalizací — na horizontu jednotek sekund je drift zanedbatelný a víc
 historie stejně nepotřebujeme.
 
+⚠️ **„Krátká paměť" platí jen pro buňky, které kamera znovu vidí** (oprava 7. 10. 2026). Časový
+rozpad grid **nemá** (viz „Zapomínání" níž), takže buňky pod robotem, za ním a ve slepé zóně do
+~0,3–0,5 m drží hodnotu, dokud robot stojí — a právě tam „cena" kousla: 1. 10. 2026 (Track,
+`20261001-144638.rec`) posunula řada malých korekcí koridoru pózu za 5–9 s o 1,5–1,9 m proti gridu,
+robot se ocitl v krajnici zapsané chvíli předtím a stál v `RobotBlocked` 132 + 42 s. Léčbou je
+odometrická soustava (`localframe=odom`, níž), ne kratší paměť.
+
 ### Soustava lokální vrstvy: svět, nebo odometrie (`localframe=`, od 4. 10. 2026)
 
 Osy gridu jsou srovnané se světem i dál — mění se, **jakou pózou** se do něj zapisuje. V původním
@@ -204,7 +211,8 @@ právě tento drift, zisk je ve chvostech. Registr: `lp-grid-odometricka-soustav
 | pokrytí | 12,8 × 12,8 m | robot ve středu |
 
 Dosah kamer je ~5 m dopředu; zbytek je paměť za robotem — potřebná při objíždění (překážka
-opustí zorné pole) a při couvání.
+opustí zorné pole) a při otáčení na místě. *(Původně tu stálo „a při couvání" — lokální vrstva ale
+couvání neplánuje, robot se otáčí na místě a jede vpřed.)*
 
 ### Dva kanály, log-odds ve `sbyte`
 
@@ -213,7 +221,8 @@ sbyte LOcc    // geometrie:  překážka × volno        (z CameraFrame.Grid / d
 sbyte LRoad   // sémantika:  cesta × mimo cestu      (z CameraFrame.ImageProbability / RGB)
 ```
 
-Fixed-point měřítko 0,1 (rozsah ±12,7), clamp na **±5** → `p ∈ ⟨0,007; 0,993⟩`.
+Fixed-point měřítko 0,05 (rozsah ±6,35), clamp na **±5** → `p ∈ ⟨0,007; 0,993⟩`. *(Návrh měl
+0,1 / ±12,7; kód má 0,05 od prvního commitu, opraveno v textu 7. 10. 2026.)*
 Dva kanály à 64 KB = **128 KB celkem** — vejde se do L2, žádná alokace za běhu.
 
 **Proč dva a ne jeden:** „je tam překážka" a „není to cesta" jsou dvě různá pozorování z různých
@@ -222,9 +231,16 @@ možnost říct *který* z nich zakázal průjezd — a to je informace, kterou 
 i při diagnostice. Jsou si ale **rovnocenné**: pro jízdu platí, že stačí, aby jeden z nich
 průjezd nedovolil (viz stavy buňky).
 
-**Zapomínání:** clamp ±5 dává přirozenou dobu přepsání (z plně obsazené na volnou ~25 pozorování
-při `l_free = −0,4`, tj. 2,5 s při 10 Hz). Volitelně pomalý decay k nule (průchod 65 k buněk je
-zanedbatelný).
+**Zapomínání:** clamp ±5 dává přirozenou dobu přepsání **novým pozorováním** (z plně obsazené na
+volnou ~25 pozorování při `l_free = −0,4`, tj. 2,5 s při 10 Hz; pod práh `Blocked` už ~10).
+~~Volitelně pomalý decay k nule~~ — ⚠️ **časový rozpad NENÍ a nikdy nebyl implementovaný**
+(byl jen v návrhu z 11. 8.; 18. 8. 2026 zamítnut, protože by nechal vyblednout i skutečné
+překážky — viz „Únik z blokované buňky"). Obsah buňky mění jen čtyři věci: nové pozorování,
+vypadnutí z okna 12,8 m (`MoveOrigin`), `grid.Clear()` po skoku pózy (`PoseJumpDetector`) a nová
+instance navigátoru po restartu. Buňky, které kamery nevidí (pod robotem, za ním, slepá zóna do
+~0,3–0,5 m), tedy **drží hodnotu libovolně dlouho, dokud robot stojí** — změřeno 1. 10. 2026:
+pod stojícím robotem beze změny 134 s, i když se s ním na místě otočilo o 49°
+(`ARBot.Analyze zasek`, rozbor v sekci „Uváznutí na konci Tracku 1. 10. 2026").
 
 `MaxZ` (2,5D, převisy/podjezdy) se zatím **neukládá** — přidá se, až bude potřeba.
 
@@ -418,7 +434,7 @@ ale okraj cesty; robot uvázl 5 cm od svobody.
 
 Relaxace gridu by nepomohla: `LRoad` sedí na clampu a robot stojí, takže žádné nové pozorování
 nepřichází — a buňku pod sebou dopředu hledící kamera nikdy neuvidí. Evidence-based zapomínání
-(které grid má) se tedy nemá o co opřít.
+(které grid má — tedy přepis novým pozorováním; časový rozpad nemá) se tedy nemá o co opřít.
 
 **Dělicí čára je proto kanál, ne vzdálenost:**
 
@@ -463,6 +479,68 @@ slepé zóně; čeká, až se takový `RobotBlocked` objeví v záznamu (`lp-zap
 **Na robotu ověřeno 25. 9. 2026** (Track, `20260925-142428.rec`): po posunu gridu korekcí pózy
 dvakrát `EscapingBlocked`, robot pokaždé za 6–10 s vyjel a pokračoval
 (`lp-grid-posun-pomalou-korekci`).
+
+### ⚠️ Uváznutí na konci Tracku 1. 10. 2026 — únik nestačil (rozbor 7. 10. 2026)
+
+Dotaz autora: proč robot na konci Tracku (`records/test/20261001-144638.rec`, binárka f848fdf —
+grid ještě **ve světě**, `localframe=odom` v ní nebyl) stál v blokované oblasti, nespustil se
+únikový manévr ani „vrtění na místě", a jestli grid nemá zapomínat stará měření. Rozbor
+`ARBot.Analyze zasek` (vznikl k tomu) a dvěma nezávislými skeptiky; registr
+[`lp-uvaznuti-v-zatackach`](ukoly.md#lp-uvaznuti-v-zatackach).
+
+**Co se stalo:** `RobotBlocked` **132,5 s** (15:25:22,6–15:27:35,0) a po 11 s jízdy znovu **42 s**
+(15:27:52 do `/stop` obsluhy). Robot stál na **volném asfaltu** — kamery ukazují silnici a v pásmu
+0,7–1,5 m před robotem bylo 737 ze 737 buněk `Free`.
+
+![Půdorys gridu v rámci robotu v 15:25:34: kanály, kdy kamera buňku naposledy viděla, jak dlouho se hodnota nezměnila](media/uvaznuti-20261001-152534-grid.png)
+![Snímky kamer téhož okamžiku: volný asfalt](media/uvaznuti-20261001-152534-kamery.png)
+
+**Proč:** robot jel ~1 m od levé krajnice (tráva, obrubník, plot) a hloubka ji zapsala do gridu.
+Pak přišla série měření koridoru (NIS 97 → 28) a **limit kroku** (`corridorslew=0.5`) ji rozložil na
+kroky 0,12–0,24 m — **pod tolerancí `PoseJumpDetector` (0,5 m), takže se grid nesmazal** — a póza se
+za 5 s posunula o **1,51 m** (podruhé za 9 s o 1,93 m) doleva. Grid ve světě zůstal na místě, takže se
+robot v něm ocitl **uprostřed pásu krajnice zapsaného 1–4 s předtím**: pod půdorysem 87–102 ze ~110
+buněk blokovaných **geometrií** (sémantika tam říkala „cesta" nebo nic), odstup 0,00 m. Korekce byly
+nejspíš oprávněné (vracely pózu, která v zatáčce při slepém koridoru ujela) — vadný je grid, který
+korekci nenásleduje (`lp-grid-posun-pomalou-korekci`, léčba `localframe=odom`).
+
+**Proč únik nepomohl:** `PlanEscape` smí přes geometrii **jen ze startovní buňky** a všichni sousedé
+byli geometricky blokovaní — únik dosáhl 1 buňky a východ neexistoval ani do 8 m, ačkoli bez zákazu
+geometrie ležel **0,53–0,90 m vpředu**. Únik se přitom dvakrát spustil (`EscapingBlocked`
+15:25:20–22 a 15:27:46–51), otočil robotem k východu a plížil se 0,05 m/s — ale korekce táhla pózu
+opačným směrem ~0,2 m/s a prohrál. Obě „NOUZOVE ZASTAVENI – kolize 0,00 m" jsou falešné:
+`PathCollides` nevyjímá startovní buňku únikové dráhy ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu)).
+
+**Proč se to nevyřešilo samo — a zapomínání:** grid **časový rozpad nemá** (viz „Zapomínání" výš).
+Buňky pod robotem a do 0,7 m kolem něj kamera během stání ani jednou neviděla (kamery zapisují až od
+~0,2–0,5 m před robotem) a jejich hodnota se **134 s nezměnila**. Otočka na místě to nespraví:
+obsluha ve druhém stání otočila robotem o 49° a pod půdorysem se nezměnila **ani jedna** buňka.
+Vyšší vrstvy jsou při `RobotBlocked` odzbrojené (detektor A bere jen platný plán, C od 29. 9. jen
+`NoRoute`), mise Track nemá timeout a nic se nehlásí ([`nav-uvaznuti-neohlasene`](ukoly.md#nav-uvaznuti-neohlasene));
+couvnutí ani otočka neexistují ([`nav-recovery-manevr`](ukoly.md#nav-recovery-manevr), odloženo). První
+stání ukončilo jen **smazání gridu**: obsluha robotem rychle otočila, fúze věřila kolům víc než gyru,
+kurz zaostal o 11–13° (skok 7–8,5° na snímek nad toleranci 5°) a detektor skoku grid smazal ([`lok-fuze-rucni-otoceni`](ukoly.md#lok-fuze-rucni-otoceni))
+— robot do 0,3 s jel. Zapomenout tedy stačilo.
+
+**Vzor přes celou jízdu:** 8 epizod úniku / uváznutí (445 s, 17,7 % mise) a **všech 8 ve dvou ~90°
+zatáčkách** cyklostezky; 29 z 32 začátků úniku přišlo do 0,2 s po odeslaném měření koridoru. V zatáčce
+koridor 7–14 s neměří ([`lok-koridor-slepy-v-zatacce`](ukoly.md#lok-koridor-slepy-v-zatacce)) a plán
+vede robot 0,42–0,74 m od vnitřní hrany, kdežto práh úniku je 0,35 m — malá korekce stačí.
+
+![Epizody stání v Tracku 1. 10. 2026: všechny ve dvou zatáčkách](media/uvaznuti-20261001-epizody-mapa.png)
+
+**Protifakty nad snímky gridu ze záznamu** (statické, ne replay jízdy; rozhoduje autor):
+
+| léčba | konec Tracku |
+|---|---|
+| `localframe=odom` (výchozí od 5. 10.) | odstraní spouštěč (korekce posune cíl, ne robota) — **hypotéza, na HW neověřeno** |
+| únik smí přes geometrii v půdorysu r ≤ 0,3 / 0,4 / 0,6 m | východ do 1,5 m ve 246 / 306 / 319 z 319 snímků `RobotBlocked`; totéž musí dostat `PathCollides` |
+| časový rozpad nepozorovaných buněk geometrie, poločas 10 / 30 / 60 s | běžné plánování / jen únik / nestačí; za jízdy by 10 s zasáhl ~10 % vzorků (hlavně po stání) |
+| rozpad jen sémantického kanálu | nepomůže (blokovala hloubka) |
+| otočka na místě | nepomůže sama (pod půdorys kamera nevidí) |
+
+⚠️ **18. 9. 2026 to bylo jinak** (`lp-zasek-v-blokovane-mape`, vysvětleno týmž měřidlem): skutečný
+slepý konec chodníku a `AlreadyAtGoal` s nedosažitelnou mrkví ([`lp-alreadyatgoal-lokalni-minimum`](ukoly.md#lp-alreadyatgoal-lokalni-minimum)).
 
 ---
 
@@ -1252,3 +1330,15 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
   rozhodnutí: dráhu po vyhlazení **odtlačit** gradientem vzdálenostního pole a rozšířit plochou
   část obálky (`EdgeMarginM`), aby A\* mělo vůbec důvod jet středem. Pořadí zůstává **nejdřív
   kurz**: zisk se má měřit nad záznamem se správným kurzem.
+- **[Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách](ukoly.md#lp-uvaznuti-v-zatackach)** —
+  korekce koridoru posunula pózu proti gridu ve světě ke krajnici; ověřit `localframe=odom` na témž
+  místě a rozhodnout druhou linii (únik přes půdorys, rozpad nepozorovaných buněk, zotavení). Detail
+  v sekci „Uváznutí na konci Tracku 1. 10. 2026".
+- **[Zapisovat pod půdorysem robota důkaz „volno"](ukoly.md#lp-zapis-volna-pod-robotem)** — znovu
+  otevřeno 7. 10. 2026, protože jeho spouštěcí podmínka (`RobotBlocked` kvůli hloubce pod půdorysem)
+  nastala; varianta bez zápisu je únik přes celý půdorys.
+- **[Kontrola kolize únikové dráhy nevyjímá startovní buňku](ukoly.md#lp-unik-kontrola-kolize-startu)** —
+  odtud falešné „NOUZOVE ZASTAVENI – kolize 0,00 m".
+- **[`AlreadyAtGoal` hlásí i nedosažitelnou mrkev](ukoly.md#lp-alreadyatgoal-lokalni-minimum)** —
+  lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu.
+- **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)**.

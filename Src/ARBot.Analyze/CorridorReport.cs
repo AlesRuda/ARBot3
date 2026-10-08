@@ -113,11 +113,11 @@ namespace ARBot.Analyze
             AssociationSigmas(rec, msgs);
             GeometryCheck(ok);
             ByPose(rec, ok, msgs);
-            PrahInlieru(msgs);
+            PrahInlieru(rec, msgs);
         }
 
         /// <summary>
-        /// <b>Co by udelal jiny prah inlieru?</b> <c>MinInliers</c> (dnes 25) zahazuje nejvic
+        /// <b>Co by udelal jiny prah inlieru?</b> <c>MinInliers</c> (do 29. 9. 2026 pevnych 25) zahazuje nejvic
         /// cyklu ze vsech bran — nad zaznamem ze 17. 9. 2026 to bylo 3 987 z 6 173. Prah je
         /// pritom naladeny na STARSIM zaznamu odjinud, takze otazka „je 25 spravne pro tenhle
         /// teren?" je legitimni — a da se zodpovedet BEZ noveho vyjezdu, protoze
@@ -134,12 +134,17 @@ namespace ARBot.Analyze
         /// dopocita i pro cykly, kde koridor VZNIKL, a porovna se s tim, co je ve zprave.
         /// Kdyz to nesedi, je vadna rekonstrukce a zbytek bloku nema cenu cist.</para>
         /// </summary>
-        private static void PrahInlieru(List<RoadCorridorMsg> msgs)
+        private static void PrahInlieru(RecordFile rec, List<RoadCorridorMsg> msgs)
         {
-            Console.WriteLine("PRAH INLIERU - co by pustil jiny MinInliers? (dnes 25)");
-
             var cfg = new ARBot.Common.Localization.CorridorConfig();
             double maxPar = cfg.MaxParallelErrorRad;
+
+            // Prah, se kterym zaznam JEL, ze zaznamu - ne z kodu. Od 30. 9. 2026 je corridorinliers=
+            // v PROCENTECH radku pravdepodobnostniho obrazu (sit 128 radku -> 13 bodu, plny snimek
+            // 480 -> 48), driv to byl pevny pocet bodu. Do 7. 10. 2026 tu natvrdo stalo "dnes 25",
+            // ackoli robot 1. 10. jel s 13.
+            int dnes = PrahZaznamu(rec, cfg, out string popisDnes);
+            Console.WriteLine($"PRAH INLIERU - co by pustil jiny MinInliers? (zaznam jel s {dnes}: {popisDnes})");
 
             // --- kontrola meridla proti zname odpovedi ---
             var kontrola = new Stats("");
@@ -163,7 +168,7 @@ namespace ARBot.Analyze
             // --- sweep prahu ---
             Console.WriteLine();
             Console.WriteLine("  prah   koridoru   z toho NotParallel   sirka p50   sirka p10-p90   mimo 1-8 m");
-            foreach (int prah in new[] { 10, 15, 20, 25, 30 })
+            foreach (int prah in new[] { 5, 8, 10, 15, 20, 25, 30 }.Append(dnes).Distinct().OrderBy(x => x))
             {
                 int vzniklo = 0, neparalelni = 0, mimo = 0;
                 var sirky = new Stats("");
@@ -178,13 +183,56 @@ namespace ARBot.Analyze
                     if (w < 1.0 || w > 8.0) mimo++;
                 }
                 Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                    "  {0,4}   {1,8}   {2,17}   {3,9:F2}   {4,6:F2}-{5,5:F2}   {6,5} ({7,4:F1} %)",
+                    "  {0,4}   {1,8}   {2,17}   {3,9:F2}   {4,6:F2}-{5,5:F2}   {6,5} ({7,4:F1} %){8}",
                     prah, vzniklo, neparalelni, sirky.Median, sirky.Percentile(10), sirky.Percentile(90),
-                    mimo, vzniklo > 0 ? 100.0 * mimo / vzniklo : 0));
+                    mimo, vzniklo > 0 ? 100.0 * mimo / vzniklo : 0, prah == dnes ? "   <- zaznam" : ""));
             }
             Console.WriteLine("  (sirka mimo 1-8 m = podpis prave te vady, proti ktere prah vznikl:");
             Console.WriteLine("   primka prolozena par body vyjde kolmo na cestu)");
             Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Ucinny prah inlieru (bodu na hranu), se kterym zaznam jel. Procentni vyznam
+        /// <c>corridorinliers=</c> (od 30. 9. 2026) se pozna podle radku, ktery k nemu runtime vypise
+        /// ("... radku pravdepodobnostniho obrazu (sit 128 radku: 13 / 13 bodu, plny snimek 480: ...)");
+        /// pocet radku podle <c>backproject=</c> (hist = plny snimek, jinak sit). Bez toho radku je
+        /// hodnota pevny pocet bodu (starsi binarka), bez vypisu konfigurace default z kodu.
+        /// </summary>
+        private static int PrahZaznamu(RecordFile rec, ARBot.Common.Localization.CorridorConfig cfg, out string popis)
+        {
+            var konf = LogConfig.Read(rec);
+            double? hodnota = konf.Num("corridorinliers");
+            string backproject = konf.Text("backproject") ?? "hist";
+            int? radkySit = null, radkyPlny = null;
+            var rx = new System.Text.RegularExpressions.Regex(
+                @"radku pravdepodobnostniho obrazu \(sit (\d+) radku: \d+ / \d+ bodu, plny snimek (\d+):");
+            foreach (var e in rec.Index)
+            {
+                if (e.MsgName != "Info" || !(rec.Read(e) is Info info) || info.Message == null) continue;
+                var m = rx.Match(info.Message);
+                if (!m.Success) continue;
+                radkySit = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                radkyPlny = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                break;
+            }
+            if (hodnota == null)
+            {
+                popis = konf.Any ? "corridorinliers v zaznamu neni, default z kodu" : "zaznam nema vypis konfigurace, default z kodu";
+                return cfg.MinInliersPercent > 0 ? cfg.EffectiveMinInliers(radkySit ?? 128) : cfg.MinInliers;
+            }
+            if (radkySit == null)
+            {
+                popis = string.Format(CultureInfo.InvariantCulture,
+                    "corridorinliers={0} jako PEVNY pocet bodu (binarka pred 30. 9. 2026)", hodnota.Value);
+                return (int)Math.Round(hodnota.Value);
+            }
+            bool hist = string.Equals(backproject, "hist", StringComparison.OrdinalIgnoreCase);
+            int radky = hist ? radkyPlny.Value : radkySit.Value;
+            var c = new ARBot.Common.Localization.CorridorConfig { MinInliersPercent = hodnota.Value };
+            popis = string.Format(CultureInfo.InvariantCulture, "corridorinliers={0} % z {1} radku (backproject={2})",
+                                  hodnota.Value, radky, backproject);
+            return c.EffectiveMinInliers(radky);
         }
 
         /// <summary>

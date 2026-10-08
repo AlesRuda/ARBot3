@@ -10,8 +10,15 @@ namespace ARBot.Common.Occupancy
     /// indexem <c>floor(x / Resolution)</c>. Grid je <b>kruhovy buffer</b> - do pameti se jde pres
     /// <c>index &amp; Mask</c>. Posun robotu tedy jen prepocita origin a vynuluje NOVE VSTOUPIVSI pruhy
     /// (O(sirka), ne O(N)); <b>rotace robotu se gridu vubec nedotkne</b> (zadny resampling, zadne
-    /// rozmazani). Cenou je zavislost na kvalite lokalizace - resi se clampem log-odds a kratkou
-    /// pameti (jednotky sekund), ne dokonalou lokalizaci.</para>
+    /// rozmazani). Cenou je zavislost na kvalite lokalizace - resi se clampem log-odds (bunku, kterou
+    /// kamera znovu vidi, nove pozorovani prepise za ~1-2 s), ne dokonalou lokalizaci.</para>
+    ///
+    /// <para><b>⚠️ Casovy rozpad (decay) grid NEMA</b> a nikdy nemel (zamitnut 18. 8. 2026 - nechal by
+    /// vyblednout i skutecne prekazky). Hodnotu bunky meni jen nove pozorovani (<see cref="AddOcc"/>,
+    /// <see cref="AddRoad"/>), vypadnuti z okna (<see cref="MoveOrigin"/>) a <see cref="Clear"/>.
+    /// Bunky, ktere kamery nevidi - pod robotem, za nim, slepa zona do ~0,3-0,5 m - tedy drzi hodnotu
+    /// libovolne dlouho, dokud robot stoji. Namereno 1. 10. 2026 (Track, <c>20261001-144638.rec</c>):
+    /// bunky pod stojicim robotem beze zmeny 134 s. Viz doc/occupancy-and-local-planning.md.</para>
     ///
     /// <para><b>Dva rovnocenne kanaly</b>, oba jako log-odds NEPRUJEZDNOSTI (kladne = neprujezdne):
     /// <see cref="Occ"/> z hloubky (geometrie) a <see cref="Road"/> z barvy (semantika). Stav bunky

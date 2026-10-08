@@ -39,6 +39,59 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-07
+
+- **Rozbor jízd 1. 10. 2026** (`records/test/20261001-144638.rec` Track Modřany 42 min při 1,7 m/s,
+  `-152906.rec` FreeRun 10 min; binárka f848fdf, tedy ještě grid ve světě, bez `localframe=odom`,
+  bez času z motorové jednotky). Dvě kola multiagentního rozboru se skeptiky; dotazy autora:
+  - **Proč robot na konci stál v blokované oblasti** (`lp-uvaznuti-v-zatackach`): `RobotBlocked`
+    132,5 + 42 s na volném asfaltu. Korekce koridoru (kroky 0,12–0,24 m, pod tolerancí
+    `PoseJumpDetector`) posunuly pózu za 5–9 s o 1,5–1,9 m do pásu krajnice, který hloubka zapsala
+    1–4 s předtím; `PlanEscape` přes geometrii nesmí (jen ze startovní buňky), východ ležel 0,5–0,9 m
+    vpředu. Únik se dvakrát spustil a prohrál s korekcí. Všech 8 epizod stání té jízdy (445 s) bylo
+    ve dvou 90° zatáčkách, 29 z 32 začátků úniku do 0,2 s po korekci koridoru. Hypotéza „mrkev padá
+    do krajnice" vyvrácená (stála na GPS, které tam ujíždí o metry). Detail a obrázky:
+    [occupancy-and-local-planning.md](occupancy-and-local-planning.md), sekce „Uváznutí na konci
+    Tracku 1. 10. 2026".
+  - **Proč žádný únikový manévr / vrtění na místě:** couvnutí a otočka neexistují
+    (`nav-recovery-manevr`, odloženo 27. 8.), detektory globální navigace jsou při `RobotBlocked`
+    odzbrojené a mise nemá timeout — a nic se ani neohlásí (`nav-uvaznuti-neohlasene`). Otočka by
+    nepomohla: obsluha robotem otočila o 49° a pod půdorysem se nezměnila ani jedna buňka.
+  - **Exponenciální zapomínání v gridu není a nikdy nebylo** — jen přepis novým pozorováním
+    (clamp ±5), posun okna a smazání po skoku pózy; „volitelně pomalý decay" z návrhu 11. 8. se
+    neimplementoval a 18. 8. byl zamítnut. Opraveny zavádějící komentáře o „krátké paměti"
+    (`OccupancyGrid`, `OccupancyGridConfig`, `PoseJumpDetector`) a texty v
+    [occupancy-and-local-planning.md](occupancy-and-local-planning.md) (i měřítko 0,05 místo 0,1
+    a „couvání") a [map-correlation-localization.md](map-correlation-localization.md).
+    Protifakt: rozpad nepozorovaných buněk geometrie s poločasem 10 s by konec Tracku vyřešil,
+    30 s jen umožnil únik; únik přes půdorys r 0,3 / 0,4 / 0,6 m by našel východ ve 246 / 306 / 319
+    z 319 snímků. Rozhoduje autor (`lp-uvaznuti-v-zatackach`, `lp-zapis-volna-pod-robotem` znovu
+    otevřeno, protože jeho spouštěcí podmínka nastala).
+- **18. 9. vysvětleno** (`lp-zasek-v-blokovane-mape` → `hotovo`): jiný jev — skutečný slepý konec
+  chodníku, koridor přiřadil chodník k ulici 4,9 m vedle (`lok-koridor-chodnik-k-ulici`)
+  a `AlreadyAtGoal` maskoval nedosažitelnou mrkev (`lp-alreadyatgoal-lokalni-minimum`).
+- **Doměřené úkoly z jízd 1. 10.** — ověřeno na HW a uzavřeno (`hotovo`): `lok-koridor-skoky-pozy`,
+  `lok-koridor-siroka-cyklostezka`, `lok-assoc-sousedni-usek`, `lok-prirazeni-hrany-chi2`,
+  `nav-detektor-c-kaskada`, `mise-freerun-jedna-hrana`, `hw-gps-fixtime-rozbity`,
+  `vid-segmentace-rozliseni-128`. Měřicí kroky přibyly u dalších ~20 témat (mj.
+  `prov-zameskane-takty-windows`: na Pi taky, příčina je fáze časovače proti mřížce `Scheduler`u,
+  dopad je latence ~100 ms; `vid-kalibrace-kamer-bias`: nerovnoběžnost hran NENÍ rozdíl yaw kamer;
+  `hw-vn100-zmena-po-27-9`: −2,2 mG/°C uvnitř jízdy; `lp-regulator-kmitani-rotace`: kmitání rotace
+  kleslo 6–9×, skoky rychlosti v Tracku ne).
+- **Nové nálezy** (registr): `lok-koridor-slepy-v-zatacce`, `lp-unik-kontrola-kolize-startu`
+  (falešné „kolize 0,00 m"), `lp-mazani-gridu-bez-stopy`, `lok-fuze-rucni-otoceni`,
+  `prov-zasek-procesu-1s` (celý proces stál 1,19 s), `hw-motor-davka-po-zaseku`,
+  `mise-freerun-sirka-bez-naucene`; souběžné výpadky obou D435 2,5–3,4 s (`hw-d435-vypadky-za-provozu`).
+- **ARBot.Analyze** (`nast-analyze-zasek-perf`): nové `zasek`, `perf` (fáze 4
+  [perf-monitoring.md](perf-monitoring.md)), `battery`, `odometer`, sdílený `LogConfig`; opraveny
+  `wedge` (četl všechny snímky, rychlost 1,2 místo 1,7), `nav` (detektor C po 29. 9.),
+  `corridor` (práh inlierů ze záznamu). Komentáře `Uart.cs` („timeout nikdy") a `TrackConfig`
+  („zaseknutí hlídají detektory") opraveny podle nálezů. Build x64 bez chyb, testy Common 1 801,
+  Runtime 158, HAL 143. ⚠️ Kódu robota se změny netýkají (jen komentáře); nic z toho na HW neběželo.
+- **Další krok:** jízda s HEAD (`localframe=odom`, čas z jednotky) po téže trati v Modřanech a nad
+  ní `zasek` / `localplan` v obou zatáčkách; rozhodnutí autora k `lp-uvaznuti-v-zatackach`,
+  `lp-zapis-volna-pod-robotem`, `nav-uvaznuti-neohlasene`.
+
 ## 2026-10-06
 
 - **Běžná jízda jednou rampou** (autor): zrušeno samostatné běžné brzdění — `VAR 8` ze skriptu

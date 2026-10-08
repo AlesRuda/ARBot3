@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · hotovo **160** · odloženo **14** · zamítnuto **9**.
+Témat celkem **260**: otevřeno **40** · v kódu, na HW neověřeno **28** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -18,12 +18,13 @@ Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
 | otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
 | otevřeno | Hardware a senzory | [Kamera D435 se za provozu odmlčí](#hw-d435-vypadky-za-provozu) | 31. 8. 2026 | [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) |
 | otevřeno | Nástroje, záznam a analýza | [Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](#nast-avalonia-headless-testy) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Měření výkonu řízení — stíhá řídicí smyčka svou periodu?](#prov-perf-monitoring) | 1. 9. 2026 |  |
-| otevřeno | Provoz na zařízení | [Řídicí smyčka na Windows zamešká 3–4 takty za sekundu, ačkoli práce trvá pod 1 ms](#prov-zameskane-takty-windows) | 1. 9. 2026 | [prov-perf-monitoring](#prov-perf-monitoring) |
+| otevřeno | Provoz na zařízení | [Řídicí smyčka zamešká takty (Windows 3–4/s, Orange Pi ~1/s), ačkoli práce trvá pod 1 ms — fáze časovače proti mřížce plánu](#prov-zameskane-takty-windows) | 1. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Akcelerometr VN100 měří o 7 % víc než g](#hw-vn100-akcelerometr-7pct) | 6. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou](#lok-gps-casova-korelace) | 6. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Vidění | [Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci](#vid-model96-2-na-npu) | 7. 9. 2026 |  |
@@ -35,41 +36,43 @@ Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené](#lp-zasek-v-blokovane-mape) | 18. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](#lp-drsnost-povrchu-rychlostni-strop) | 22. 9. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Reflex proti překlopení při najetí zadního kola na hrbol (nebrzdit, případně přidat)](#lp-reflex-klopeni-zadni-kolo) | 22. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)](#lok-freerun-kurz-staci-na-zapad) | 24. 9. 2026 |  |
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
+| otevřeno | Hardware a senzory | [Dávka rámců motorů přečtená z bufferu po záseku hlásí rychlost kol 0 (a jednou 7,4 m/s) jako platné měření](#hw-motor-davka-po-zaseku) | 7. 10. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
+| otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
+| otevřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
+| otevřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
+| otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 |  |
-| v kódu, na HW neověřeno | Vidění | [Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty](#vid-segmentace-rozliseni-128) | 6. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Klín mezi zornými poli barevných kamer brzdí robota](#lp-klin-mezi-zornymi-poli) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý](#prov-start-limit-sluzba) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Naučená šířka cesty jde dál do mapy — korelaci i kreslení](#lok-naucena-sirka-do-mapy) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Externí audit, druhá dávka — tichý senzor, zatuhlý Stop, razítka kamer, CI, licence](#prov-audit-druha-davka) | 15. 9. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Polovina cyklů koridoru se párovala na příčnou ulici](#lok-prirazeni-hrany-chi2) | 16. 9. 2026 |  |
-| v kódu, na HW neověřeno | Hardware a senzory | [`GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně](#hw-gps-fixtime-rozbity) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [V terénu není poznat, jestli se běh nahrává a kam](#prov-zaznam-nevidet-ze-nebezi) | 17. 9. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa](#mise-robotour-dalsi-nakladka) | 19. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Napětí baterie není na stránce náhledu a nic na něj nevaruje](#prov-baterie-na-strance) | 19. 9. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru](#lok-koridor-skoky-pozy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu](#nav-detektor-b-jitter-drahy) | 20. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu](#lok-skok-pozy-nedetekce) | 21. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu](#nast-profil-sceny) | 23. 9. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání](#hw-d435-vlakno-zatuhlo-po-restartu) | 24. 9. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“](#lok-koridor-siroka-cyklostezka) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Export otevřeného záznamu do GPX (stopa GPS a stopa fúze)](#nast-export-gpx) | 24. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost](#lp-regulator-kmitani-rotace) | 25. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách](#lp-grid-posun-pomalou-korekci) | 26. 9. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
-| v kódu, na HW neověřeno | Mise | [FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala](#mise-freerun-jedna-hrana) | 26. 9. 2026 |  |
-| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic](#lok-assoc-sousedni-usek) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí](#lok-fuze-poza-pred-koly) | 29. 9. 2026 |  |
-| v kódu, na HW neověřeno | Navigace po mapě | [Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu](#nav-detektor-c-kaskada) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou](#nav-mrkev-kolmy-prumet) | 29. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Přiřazení hrany vzalo ulici 15 m od pózy — veto podle rozbitého kurzu vyřadilo bližší cesty a limit 4 hran schoval soupeře](#lok-assoc-velka-sigma-soubezna-ulice) | 1. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Lokální vrstva v odometrické soustavě (`localframe=odom`) — odometrická póza (x, y, θ) jako vedlejší integrátor ve snapshotu fúze](#lp-grid-odometricka-soustava) | 2. 10. 2026 |  |
@@ -79,13 +82,12 @@ Témat celkem **248**: otevřeno **29** · v kódu, na HW neověřeno **36** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
-| odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | odloženo | Lokalizace a fúze senzorů | [Sigma korelace je slepá k množství důkazu](#lok-korelace-sigma-nepoctiva) | 19. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Určená osa korelace je vychýlená o 6°](#lok-tight-axis-angle-vychylena) | 19. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Eskalace stavu „lokalizace nepodložená mapou" a znovunalezení po ztrátě](#lok-korelace-eskalace-bez-shody) | 20. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Posun mapa–GPS jako stav filtru](#lok-korelace-posun-jako-stav-ekf) | 20. 8. 2026 |  |
-| odloženo | Lokalizace a fúze senzorů | [Tři podmínky, než korekce z mapy pustit naostro](#lok-korelace-tri-podminky-naostro) | 20. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
+| odloženo | Lokalizace a fúze senzorů | [Tři podmínky, než korekce z mapy pustit naostro](#lok-korelace-tri-podminky-naostro) | 20. 8. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Vrstva hranic občas shodí Mapsui při přehrávání](#nast-mapsui-pad-vrstvy-hranic) | 23. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s](#lok-korelace-dekorelacni-cas) | 25. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
 | odloženo | Lokalizace a fúze senzorů | [Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba](#lok-mapcorr-tvrdy-gate) | 25. 8. 2026 |  |
@@ -129,9 +131,11 @@ Nový `ARBot.Analyze gps` využívá, že stojící robot dává pravdu zadarmo:
 - [ ] Ověřit násobek na novém záznamu ze stání (drift a tau se mají posunout 20×)
 - [ ] Souvislá jízda 5–10 minut bez zastavení pro dekorelační čas za jízdy
 - [x] První měření za jízdy (17. 9., úsek 215 s / 96 m → T_d ~40 s); na 5–10 min to nestačí (17. 9. 2026)
+- [x] 1. 10. 2026 (`gps`): stání v Tracku (83 s, GPS výborná, 13–15 družic, HDOP 1,4–1,8) — odchylka fixu od průměru p50 0,17–0,47 m, T_d ~15–25 s z ~7 vzorků; kratší než tau a jiná kvalita než 6. 9., násobek 20× tím potvrdit nejde. Souvislá jízda FreeRun 583 s / 774 m: T_d ~60 s (~10 vzorků). Úsek Tracku je pro blok A2b nepoužitelný (skok enkodérů při záseku 15:15:41). ⚠️ Vady měřidla `gps`: nečte `gpsposstd`/`gpsdopsigma` ze záznamu (počítá s 1,5 m), A2b nedělí úsek na skoku enkodérů a kurz mrtvého odhadu bere z rozdílu kol (7. 10. 2026)
+- [ ] Opravit měřidlo `gps` (konfigurace ze záznamu přes `LogConfig`, dělení A2b na skoku enkodérů, kurz z fúze/IMU) a přeměřit FreeRun 1. 10.
 - [ ] Decimace nebo offset GPS jako stav EKF
 
-čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-17](devlog.md#2026-09-17)
+čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-17](devlog.md#2026-09-17), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-gps-kurz-korelovana-chyba"></a>
 ### ⬜ Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5
@@ -143,8 +147,9 @@ Dotaz autora na původ σ kurzu z GPS vedl k měření: sousední fixy se liší
 - [x] Korelace chyby GPS kurzu změřena (`ARBot.Analyze heading`) (12. 9. 2026)
 - [x] Frekvence GPS se měří (`FixRateHz`), tři místa s natvrdo 5 Hz opravena (12. 9. 2026)
 - [ ] Rozhodnout, jak σ obou referencí kurzu narovnat
+- [x] Přeměřeno při vyšší rychlosti 1. 10. 2026 (`heading`): FreeRun (v p50 1,40 m/s) σ GPS kurzu 2,21°, usazení na lagu 10 s, poctivá σ 21,9° proti modelu 12,1°; Track (1,69 m/s) σ 2,72°, usazení až na lagu 40 s, poctivá σ 54° proti modelu 10,1°. Při vyšší rychlosti model `atan2(0,3; v)` „náhodou sedí“ přestává platit — je 2–5× optimističtější. GPS kurz sám je spolehlivý (Doppler − směr posunu 0,2 ± 3,2–3,8°) (7. 10. 2026)
 
-čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
+čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-freerun-kurz-staci-na-zapad"></a>
 ### ⬜ Při jízdě FreeRun na jih ujel kurz VN100 i odhadu o desítky až 180° (atitudové řešení senzoru přestalo brát magnetometr)
@@ -160,8 +165,45 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Měřidlo `vn100` blok 6: sloupec „syrové gyro Z ve stání“ je nepoužitelný — stání pozná jen podle proudu motorů pod 0,5 A, takže zahrnuje i otáčení a doběh (29. 9. průměry po minutách skáčou o ±12 000 °/h). Stání brát z nulové rychlosti kol a GPS (ne z gyra, to by výběr zkreslilo)
 - [ ] Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`. ⚠️ 29. 9. předpoklad nenastal: syrové gyro čisté není (offset ~1 °/s) a odhad biasu ve VPE seděl. Jízda ale velký drift z 23. 9. nezopakovala, takže to hypotézu nevyvrací
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
+- [x] Jízdy 1. 10. 2026 (záznam v5; `heading --bin=60`, `vn100`): v Tracku na jižní větvi se yaw VN100 znovu odtrhl od vlastního magnetometru, slaběji než 23. 9. — „kurz z pole − yaw“ mimo ±7° od 15:05:38 do 15:20:38, nejvíc −28,6°; `IMU yaw − GPS kurz` +23 až +35° (15:08:38–15:12:38), po obrátce na sever −18°; kompenzované gyro proti GPS kurzu ujelo −46° za 9 min (~0,085 °/s); bias filtru v ose Z 3 200–3 600 °/h při ~51 °C, 2 060–2 110 °/h při ~43 °C. **FÚZE TO USTÁLA:** odhad − GPS kurz nejvýš 4,2° — podle protifaktu (`fusionreplay` bez koridoru ujede 35–43 m od sítě) díky koridoru. FreeRun na jih bez ujetí. K hypotéze FW: syrové gyro čisté není a odhad biasu ve VPE se mýlí ~0,06–0,085 °/s, předpoklad kroku tedy znovu nenastal (7. 10. 2026)
 
-[imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29)
+[imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lok-fuze-rucni-otoceni"></a>
+### ⬜ Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°
+
+`lok-fuze-rucni-otoceni` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+1. 10. 2026 (`20261001-144638.rec`, 15:27:34,5–35,2) obsluha otočila stojícím robotem o ~60° (gyro až 110 °/s). Smyčka přitom velela opačnou rotaci a kola se točila proti tělu (prokluz), fúzní `ω` spadlo na 5–13 °/s a kurz fúze zaostal za gyrem o 11–13°. Ve světové soustavě to `PoseJumpDetector` vzal jako skok kurzu a grid smazal (což náhodou ukončilo 132s `RobotBlocked`). ⚠️ V odometrické soustavě (`localframe=odom`, integruje fúzní `v`, `ω`) by grid po takovém zásahu zůstal pootočený o ~13° (obsah ve 3 m posunutý o ~0,7 m) a detektor by nic nehlásil — odvozené, na HW neověřené. V běžné jízdě se integrál gyra s kurzem fúze shoduje do ±2° za 10 s.
+
+- [x] Změřeno nad 1. 10. (gyro proti kolům, příkazu a kurzu fúze kolem 15:27:35) (7. 10. 2026)
+- [ ] Rozhodnout (autor): rozpor gyro / kola nad prahem = věřit gyru (prokluz), nebo aspoň hlásit
+
+[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lok-koridor-chodnik-k-ulici"></a>
+### ⬜ Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m
+
+`lok-koridor-chodnik-k-ulici` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+`20260918-154028.rec` 15:47:02,5–04,8 (binárka 9f649a0, bez `corridorslew`): robot na chodníku souběžném s ulicí (service 230064212, v mapě bez tagu `width`). Koridor změřil šířku 1,2–1,4 m; jakmile naučená šířka (1,3 m) nahradila mapové 3,0 m, prošla šířková brána. Service byla jediný kandidát (χ² 3,6), fúze přijala NIS 216 s R×1 a póza skočila o 4,8 m na osu ulice; grid se smazal a globální navigace přestala vidět, že je robot 4,9 m mimo trasu. Naučená šířka se bere jako šířka kterékoli hrany, takže úzký souběžný pás projde bránou široké ulice. Dnes by limit kroku skok rozložil na ~10 s a `localframe=odom` by neposunul grid; přiřazení samo by nejspíš proběhlo stejně (odvozeno, nepřehráno).
+
+- [x] Nalezeno nad 18. 9. (`zasek`, scratch rozbor `RoadCorridorMsg` / `MeasurementDiagMsg`, snímky) (7. 10. 2026)
+- [ ] Přehrát přiřazení nad 381–384 s dnešním `EdgeAssociator` (`assocwhy` / `assocreplay`) a rozhodnout o vazbě naučené šířky na hranu
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lok-koridor-slepy-v-zatacce"></a>
+### ⬜ V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m
+
+`lok-koridor-slepy-v-zatacce` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+Jízdy 1. 10. 2026 v Modřanech (`20261001-144638.rec`, `-152906.rec`). Po léčbě `assocfloorlong=3` (`lok-assoc-sousedni-usek`) je `AmbiguousEdge` na rovinkách 0–3 %, ale **do 30 m od dvou 90° zatáček 14–69 %** cyklů za jízdy: zakřivená cesta je v OSM lomená čára po 4–8 m s úseky lišícími se o 10–20° a sousední úsek téže cesty je legitimní druhý kandidát. Koridor má v zatáčce `Ok` jen 5–31 % cyklů (před ní 51–94 %), nejdelší mezera bez měření 7–14 s (4–16 m). Nesoulad pózy s mapou mezitím naroste na 1,5–3 m a koridor ho na výjezdu vrátí sérií korekcí (NIS 50–102). Korekce jdou správným směrem, ale grid ve světě se tím posune proti robotu (`lp-uvaznuti-v-zatackach`). Směr cesty z kamery je v zatáčce tětivou vychýlený o 10–24° ve směru zatáčení; když robot v zatáčce stál, stáhl tím kurz fúze o ~7° (odvozeno). Slepota sama zastavení nerozliší (FreeRun zatáčku projel s `AmbiguousEdge` 75 %).
+
+- [x] Změřeno nad 6 průjezdy Tracku a 2 FreeRunu (`corridor`, `assocwhy`, scratch rozbor po průjezdech) (7. 10. 2026)
+- [ ] Rozhodnout (autor): zakřivenou cestu přiřazovat jako jednu hypotézu (sousední úseky téže way jako polylinie / oblouk), aby v zatáčce nevycházelo `Ambiguous`; kurz z koridoru neposílat, když se sousední úseky liší o víc než ~5° nebo robot stojí
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-koridor-hranova-lokalizace"></a>
 ### 🧪 Lokalizace z hran cesty místo z plochy
@@ -182,8 +224,10 @@ Plošná korelace platí za informaci, kterou vnitřek cesty nenese; stačí naj
 - [x] Dohledat, proč korekce zhoršují PODÉLNOU chybu proti GPS — nalezeno (`fusionreplay` blok 4): koridor v zatáčkách srazí podélnou σ filtru (Hviezdoslavova 2,23 → 0,39 m), s `gpsposstd=30` pak GPS podélně táhne ~30× slaběji a chyba z obvodu kola (+1,8 %) zůstane; kde má malou σ i varianta bez (Kolo 3b), korekce podélně pomáhají (28. 9. 2026)
 - [x] Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. ⚠️ 27. 9. nerozhodne: GPS byla sama 4,7 m mimo cestu (3 družice na startu), podélná odchylka od GPS je proto k ničemu. Ukázalo ale, že koridor drží pózu na cestě (od osy 0,36 proti 3,58 m bez) a opakovaný průjezd sedí 0,49 proti 5,58 m bez. ✅ 29. 9. (Modřany, obvod kola opraven, GPS 14 družic, `fusionreplay --set=assocfloorlong=3`, protože robot jel ještě s nejednoznačností `lok-assoc-sousedni-usek`): |podélně od GPS| p50 / p90 Track **0,89 / 4,16 s korekcemi proti 1,11 / 2,07 bez**, FreeRun **2,27 / 4,23 proti 1,64 / 4,70**; σ podél 0,91–1,05 proti 1,12–1,22 m (rovná cyklostezka ji nesrazí). Podélná chyba je proti 25. 9. (6–7 m) na 1–2 m a rozdíl s / bez je řádu chyby GPS bez systematického směru — rozhodnutí o `gpsposstd` / `corridorstd` tím nic netlačí. Příčně korekce jasně pomáhají: od osy sítě 0,25 / 0,59 m proti 1,75 / 4,85 m, příčně od GPS 1,49 / 0,62 proti 2,73 / 5,08 m, p90 1,97 / 2,07 proti 6,68 / 10,39 m (29. 9. 2026)
 - [x] Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí (29. 9. 2026)
+- [x] Přehrání fúze nad jízdami 1. 10. 2026 (`20261001-144638.rec` Track 42 min, `-152906.rec` FreeRun 10 min; `fusionreplay`, měřidlo sedí na záznam p50 0,000 m), S koridorem proti BEZ: od osy sítě p50/p90 0,11/0,39 proti 7,63/32,47 m (Track) a 1,03/1,63 proti 2,58/7,52 m (FreeRun, pravá polovina); příčně od GPS 0,82/1,72 proti 6,96/31,64 m a 0,80/1,47 proti 2,79/8,31 m; opakovaný průjezd 0,10/0,34 proti 3,26/8,13 m. Bez koridoru by póza v Tracku 15:10–15:15 ujela od sítě o 35–43 m (tehdy ujel yaw VN100, `lok-freerun-kurz-staci-na-zapad`) (7. 10. 2026)
+- [ ] Podélná chyba s korekcemi (1. 10., binárka bez 9afb50c): póza je soustavně PŘED GPS — FreeRun p50 +6,2 m (p90 10,1), roste ~1 m/min; Track na jižní větvi do +10,9 m; bez koridoru 2,8/5,1 m. Koridor srazí podélnou σ (0,23 proti 0,98 m) a GPS se σ 30 m pak nestáhne dráhu nadsazenou o 1,3–1,4 % (`lok-fuze-poza-pred-koly`); protifakt `--set=gpsposstd=3` růst zastaví (2,6/2,8 m). Část (~2–3 m) je zpoždění GPS. Přeměřit s binárkou ≥ 9afb50c; zůstane-li póza před GPS, rozhodnout o `gpsposstd` / `corridorstd`
 
-čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29)
+čeká na [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) · [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-08-23](devlog.md#2026-08-23), [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-09-27](devlog.md#2026-09-27), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-naucena-sirka-do-mapy"></a>
 ### 🧪 Naučená šířka cesty jde dál do mapy — korelaci i kreslení
@@ -195,47 +239,11 @@ Odhad šířky zůstával uvnitř koridoru a nedosáhl na korelaci s mapou (jedi
 - [x] `RoadWidthOverrides`, `RoadWidthMapUpdater`, vrstva v mapě i na půdorysu (15. 9. 2026)
 - [x] Oprava maxima na sdíleném uzlu, práh proti účinné šířce, hláška s velikostí změny (15. 9. 2026)
 - [ ] Doladit `RebuildThresholdM` a `MinRebuildPeriodSec` z prvního záznamu
+- [x] Data z první jízdy s propisem (1. 10. 2026, `20261001-144638.rec` Track, `-152906.rec` FreeRun, `roadwidthmap=true`): 112 přestaveb za 42 min a 28 za 10 min, vždy 47 uzlů — jedna šířka pro celou cyklostezku (way 154101921), interval p50 13 s, |změna| p50 0,32 m. ~40 % přestaveb (45 ze 112) kmitá tam a zpět pod 0,4 m v úseku konstantní šířky, práh 0,25 m tedy leží v šumu (s 0,5 m by zbylo 28 a 5). Skutečná šířka má podle oboustranného koridoru dvě úrovně, ~3,4–3,8 a ~4,8–5,4 m, a jedno číslo na cestu mezi nimi přepíná; chybné hodnoty 1,88 a 2,37 m estimátor pustil při úniku a stání. Propis do `MapMsg` na zařízení běží; kreslení nikdo nekontroloval, korelace nejela (`mapcorr=false`) (7. 10. 2026)
 - [x] Zapnuto `roadwidthmap=true` v `config/pi-provoz.cfg` (pokyn autora) — 25. 9. 2026 autor šířku do mapy nepropsanou neviděl, ačkoli estimátor se ji naučil (Track `20260925-143643.rec`: 3,68 m proti mapovým 3 m, `WidthNotTrusted` jen 2,3 %); všechny čtyři záznamy běžely s `roadwidthmap=false (default)` (25. 9. 2026)
 - [ ] Ověřit na zařízení
 
-čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [plan-naucena-sirka-do-mapy.md](plan-naucena-sirka-do-mapy.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-25](devlog.md#2026-09-25)
-
-<a id="lok-prirazeni-hrany-chi2"></a>
-### 🧪 Polovina cyklů koridoru se párovala na příčnou ulici
-
-`lok-prirazeni-hrany-chi2` · vada · **v kódu, na HW neověřeno** · nalezeno 16. 9. 2026 · vyřešeno 16. 9. 2026
-
-Koridor bral nejbližší hranu sítě podle vzdálenosti, kurz do výběru nevstupoval — při chybě pózy 3–4 m vyhrála u křižovatky příčná ulice (1 114 z 2 256 cyklů nad měřicí jízdou) a šířková brána ji nechytila, protože v té mapě mají všechny cesty tutéž šířku. Teď vybírá `EdgeAssociator` přes χ² (Mahalanobis z příčné odchylky a azimutu, každá dělená svou σ — váhy se neodhadují, měří se), s podlahou na σ (bez ní by hlášená σ kurzu 1,1° proti skutečné chybě 15–20° zamítla všechno — počtvrté táž past), tvrdým vetem ±45° na azimut a odstupem od druhého kandidáta; při nejednoznačnosti se neposílá nic. Kandidáti se sbírají jako hypotézy, ne hrany, jinak by kolineární segment téže cesty zamítl každou rovnou cestu. Přitom se opravila živá vada: `Send()` odečítal směr přímky bez rozhodnutí o smyslu, takže u cesty kolmé na kurz šel do fúze kurz otočený (9,4 % přijatých cyklů); cena je, že koridor už nikdy neřekne „jsi otočený o 180°“. Ověřeno testy a simulací, na zařízení neběželo. 18. 9. 2026 po kalibraci kompasu: chyba kurzu odhadu proti GPS je sd 8–11° včetně stání a ~2–4° za jízdy, takže `assocfloorhdg` jde stáhnout spíš na **5°** než na 3°; před soutěží nezměněno. Robotour 19. 9. byla první jízda přes skutečné křižovatky (830 m městem). Rozbor z 27. 9. (`ARBot.Analyze assocreplay`, přepočet přiřazení nad záznamem, ověřený shodou 100 % verdiktů): na příčnou ulici se nepárovalo nic, hlavní ztráta je **nejednoznačnost** (~37 % proložených koridorů). Podlaha kurzu 5° místo 10° přidá ~10 % přijatých cyklů a všechny nové jsou u GPS; 3° přidá +28 %. Změněný vítěz (5 cyklů na 5°, 68 na 3°) je vždy tatáž cesta, jen správnější úsek zakřivené cesty — podle GPS dráhy i podle kurzu z GPS k lepšímu (3°: 64 : 0 směrem), ale jen z jednoho místa. Nově přijaté nemíří na příčnou ulici (osa proti kurzu z GPS nad 30° 0,0 %) — ta je za vetem 45° a do soutěže nevstupuje.
-
-- [x] Nález nad `20260916-164926.rec` a podklad pro přiřazení (χ² s hlášenými σ zamítne vše) (16. 9. 2026)
-- [x] `EdgeAssociator`, parametry `assoc*`, `RoadCorridorMsg` verze 6 se skóre (16. 9. 2026)
-- [x] Oprava orientace kurzu v `Send()` (složení na ±90°, smysl podle kurzu) (16. 9. 2026)
-- [x] Přeměřit nad měřicí jízdou — nahrazeno: odhad „2× víc měření“ ze 16. 9. ověřit nejde (spolu s ním padla příčná brána, zisky nejdou oddělit); místo něj přepočet nad Robotourem, kde nový kód skutečně jel (27. 9. 2026)
-- [x] Po opravě magnetometru snížit `assocfloorhdg` z 10° na 5° — výchozí od 27. 9. (autor); přepočtem: 5° = +10 % / +9 % Ok, 3° = +28 % / +24 %; nové cykly 100 % u GPS, změněný vítěz jen jiný úsek téže cesty a podle GPS k lepšímu (5°: 2 : 0, 3°: 28 : 0, zbytek nerozhodnutý) (27. 9. 2026)
-- [ ] Ověřit na zařízení: podíl `AmbiguousEdge` a `EdgeMismatch` v jízdě s podlahou 5°
-- [x] Ověřit na zařízení — 18. 9.: běží (χ² vítěze p50 0,004, nejednoznačných 3 z 3 147), ale trať je jediná OSM cesta, takže křižovatku to neotestovalo (18. 9. 2026)
-- [x] Vyčíslit nad Kolem 3b / 4: `AmbiguousEdge` 3 153 / 1 208 (38 / 37 % proložených), `EdgeMismatch` 6 / 3, χ² vítěze p50 0,058 / 0,040; nástroj `ARBot.Analyze assocreplay` (27. 9. 2026)
-
-[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-27](devlog.md#2026-09-27)
-
-<a id="lok-koridor-skoky-pozy"></a>
-### 🧪 Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
-
-`lok-koridor-skoky-pozy` · vada · **v kódu, na HW neověřeno** · nalezeno 20. 9. 2026 · vyřešeno 29. 9. 2026
-
-Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi RobotStateMsg o 0,6–4 m nad `|v|·dt`) přišlo do 0,1 s po přijatém měření `Corridor`, často v sériích jedním směrem (14:25:05–07 čtyři skoky −59° o 5,8 m; 15:42:32–34 pět skoků o 4 m) — koridor táhl pózu k jiné hraně nebo poloze, ne šum. Koridor byl přijat 1 404 z 1 404 (0 % zamítnuto, NIS p90 3,1, max 443): `GateMode.Soft` nezahodí nic, jen odtlumí, a `corridorstd=0,1` / `corridorhz=2` z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (robot je najednou v blokované části gridu). Ve FreeRun (Kolo3-navrat) 3 skoky, všechny také za koridorem. Měří to blok 1 `ARBot.Analyze nav`. Léčba je od 21. 9. v kódu: rychlostní limit kroku uvnitř filtru (`corridorslew=` m/s, `corridorheadingslew=` °/s, výchozí 0 = dnešní chování); hodnota vybraná týž den večer z Kola 3b/4 (`ARBot.Analyze corridorstd --slew= --hslew=`): `corridorslew=0.5`, `corridorheadingslew=3` v `pi-provoz.cfg`. „−59°" u skoků je směr posunu, ne otočení — korekce kurzu z koridoru jsou max 2°, limit kurzu je pojistka. Na zařízení neběželo.
-
-- [x] Změřit: skoky pózy vs. přijatá měření koridoru (blok 1 `nav`) (20. 9. 2026)
-- [x] Proměřit `corridorstd=` protifaktickým 1-D replayem (`ARBot.Analyze corridorstd`): 0,5–1,0 m odstraní kroky > 0,3 m (21 → 1 → 0 v Kolo3b), 5 m nepřidá nic a srazí informaci koridoru na 6× GPS; cena je pomalejší stažení driftu (odchylka p50 0,8–1,3 m, p90 2,4–2,6 m); inovace p50 0,06 m, ale 36 nad 2 m v sériích na téže hraně (změna hrany jen 6 ze 78); koridor za jízdu stáhl 20–28 m driftu (20. 9. 2026)
-- [x] Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu (21. 9. 2026)
-- [x] Mechanismus v kódu: `IMeasurement.MaxStep` + nafouknutí R v `Ekf.UpdateStep` (krok = přesně limit, P konzistentní, měření se nezahazuje), `corridorslew=` [m/s] a `corridorheadingslew=` [°/s] s Δt od předchozího odeslání (0,02–1 s), `MeasurementDiagMsg` v3 (`RInflation`, `StepLimited`), `ARBot.Analyze corridorstd --slew=` (blok 4), blok „limit kroku" v `ARBot.Analyze corrections`; výchozí 0 = dnešní chování; 16 testů; řetěz ověřen 45s simulací (`StepLimited` v záznamu, blok 4 stropuje krok přesně na limit) (21. 9. 2026)
-- [x] Zvolit hodnotu z dat: `ARBot.Analyze corridorstd Kolo3b.rec / Kolo4.rec --slew= --hslew=` (blok 4 příčně, nový blok 4b kurz): `corridorslew=0.5` = největší hodnota, při které v obou záznamech nezbyde kalibrovaný krok nad 0,3 m (bez limitu 21 / 16, 1,0 m/s nechá v Kole 4 23 kroků do 0,46 m), cena p50 odchylky 0,21 / 0,19 m (0,3 m/s by dalo 0,37 / 0,77 m); `corridorheadingslew=3` jen pojistka — korekce kurzu z koridoru max 2,0 / 0,6° (K p50 0,07), replay bez rozdílu; zapsáno do `config/pi-provoz.cfg` (21. 9. 2026)
-- [x] Měřidlo: `K_eff` v `corridorstd` je z okna 50 ms po měření a krok PODCEŇUJE — skok 14:25:05 (inovace 6,13 m, K·ν 5,83 m) je v `nav` bloku 1 vidět jako čtyři dílčí skoky 2,47 + 1,64 + 1,06 + 0,64 = 5,81 m za 1,6 s, fúze krok rozkládá, ne tlumí; přeměřit kalibraci přes delší okno (pořadí variant to nemění, jen výši ceny) — ❌ VYVRÁCENO 29. 9. 2026 (`fusionreplay` blok 6, Kolo 3b): čtyři dílčí skoky jsou ČTYŘI SAMOSTATNÁ měření koridoru po ~0,5 s, každé posune aktuální pózu o svůj vlastní krok (14:25:05.1 → 2,45 m, .6 → 1,63 m, 06.1 → 1,04 m, 06.7 → 0,61 m; nav blok 1: 2,47 / 1,64 / 1,06 / 0,64 m). Fúze krok nerozkládá — už první měření udělalo 2,45 m, ne 5,83 m, takže okno 50 ms měřilo krok jednoho měření SPRÁVNĚ a kalibrace podhodnocená není. Přeměřovat netřeba; volbu `corridorslew` jde dnes zkoušet přímo nad skutečným filtrem (`fusionreplay --set=corridorslew=…`) (29. 9. 2026)
-- [ ] Ověřit na zařízení: jízda s limitem, `MeasurementDiagMsg.StepLimited` v záznamu, žádný skok > 0,5 m po měření koridoru (`ARBot.Analyze nav`)
-- [x] Změřeno 29. 9. nad 12 jízdami s limitem (23.–29. 9., `corridorslew=0.5`): limit zasahuje (`StepLimited` 0,5–18 % měření), skoků je méně a menší (0–11 na jízdu, většinou 0,6–1 m; Kolo 3b bez limitu 14 až 2,5 m), ale NEZMIZELY — a `fusionreplay` blok 5 ukázal, že **všechny** udělal koridor (ve variantě bez koridoru žádný). Blok 6 (účinek jednoho odeslání na aktuální pózu) našel DVA úniky: (a) **kolmé skoky 0,6–0,85 m** = dvě odeslání v jednom 100ms intervalu pózy, každé v limitu: `VydatMerenie` i `LimitDt` berou JAKÝKOLI skok času zpět jako seek — škrcení se vynuluje a Δt dostane strop 1 s (limit 0,5 m); čas fixu jde zpět ve 22–26 % zpráv (párování dvou kamer, o 10–20 ms, max 0,17 s), u odeslání ve ~25 % (25. 9.: 927 z 2 924). (b) **podélné skoky 1–4 m** (27. 9. 17:26:01 jedno odeslání posunulo pózu 3,98 m podél hrany a 0,18 m kolmo): limit omezuje krok jen podél osy měření, podélná složka jde přes vazbu v kovarianci (typicky po inicializaci z GPS) (29. 9. 2026)
-- [x] Léčba (autor, obojí): (a) `corridorseekback=` (1 s, `SeekBackSec`) — menší skok zpět je Δt ≈ 0; (b) `IMeasurement.MaxPositionStep` + `Ekf.PositionIndices`, `corridorposlimit=true` — limit normy posunu polohy u příčného i kurzového měření. 8 nových testů (premisy se starým chováním padají), testy 1 719 / 148 / 129. Přehrání 7 jízd se zapnutou léčbou: skoků od koridoru 0 (dřív 2–11 na jízdu), přesnost stejná nebo lepší, měření o 25–35 % méně. Starší záznamy přehrávání pouští se starým chováním (klíče v logu nejsou) (29. 9. 2026)
-
-[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 21. 9.](decisions.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-21](devlog.md#2026-09-21), [2026-09-29](devlog.md#2026-09-29)
+čeká na [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) · [plan-naucena-sirka-do-mapy.md](plan-naucena-sirka-do-mapy.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-25](devlog.md#2026-09-25), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-skok-pozy-nedetekce"></a>
 ### 🧪 PoseJumpDetector skok pózy nehlásí, když přijde na snímek s časem pozadu
@@ -250,35 +258,6 @@ Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Rob
 
 [PoseJumpDetector.cs](../Src/ARBot.Common/Occupancy/PoseJumpDetector.cs), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-21](devlog.md#2026-09-21), [2026-10-01](devlog.md#2026-10-01)
 
-<a id="lok-koridor-siroka-cyklostezka"></a>
-### 🧪 Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“
-
-`lok-koridor-siroka-cyklostezka` · vada · **v kódu, na HW neověřeno** · nalezeno 24. 9. 2026 · vyřešeno 24. 9. 2026
-
-Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OSM/modrany2.osm`): **0 přijatých měření koridoru**, koridor se proložil v 0,2–0,3 % cyklů (18. 9. na Hviezdoslavově ~52 %). Za jízdy vadí `TooFewInliers` a `OneSideOnly`; přímky obou hran existují v ~50 % cyklů, ale s mediánem **21–25 inlierů** proti prahu `corridormininliers=25` (18. 9. 39–43), v Track na pravé straně jen 10 (rezidua 0,116 m). FreeRun proto měl mrkev z koridoru jen v 18 z 6 632 cyklů a jinak držel kurz — ten ujíždějící (`lok-freerun-kurz-staci-na-zapad`); na cestě ho držela lokální mapa. Segmentace sítě je na asfaltu čistá (`backproject --compare`), jde tedy o proložení hran na široké cestě (hrana daleko, řídké body). Mapa nemá u cyklostezky tag `width` (síť počítá s `roadwidth=3`). V Track navíc 34 % `NoPair` kvůli dvěma zamrznutím barvy (pravá 14:38:44, levá 14:40:53, obě zotavené). Kód detekce se od 21. 9. neměnil. **Léčba 24. 9. 2026: měření z JEDNÉ hrany** (`corridorsingle=`, výchozí true): kurz ze směru hrany (na šířce nezávisí), příčná poloha přes naučenou šířku, jinak mapovou s nejistotou `corridorsinglewidthstd=` (1 m) v σ — rozhodnutí autora. `ARBot.Analyze singleedge` nad týmiž záznamy: jedna hrana v 48–80 % snímků, kurz z ní proti GPS kurzu p50 −1,3 až +1,2°, robustní sd 2,4–4,9°; ve FreeRun drží u nuly, zatímco odhad fúze ujel na 30°+. `RoadCorridorMsg` verze 7. ⚠️ Chyba mapové šířky je bias příčné polohy (Modřany: mapa 3 m).
-
-- [x] Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy (24. 9. 2026)
-- [ ] Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`). ⚠️ 29. 9. (`20260929-150844.rec`, `-151634.rec`) NEROZHODNE: přijato z jedné hrany jen **135 (1,6 %) a 306 (4,6 %)** cyklů, a to hlavně v první ~2 min; zbytek zamítlo přiřazení hrany (`AmbiguousEdge` 4 171 / 2 159, `EdgeMismatch` 1 121 / 1 932) — regrese opravená týž den (`lok-assoc-sousedni-usek`). Kurz odhadu − GPS kurz −3,3 ± 6,5° / +4,3 ± 11,2°, ale ten určoval kompas (`hw-vn100-zmena-po-27-9`), ne koridor. Přeměřit s `assocfloorlong=3`
-- [x] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m). **Autor 6. 10. 2026:** cca **5 m**, mírně kolísá, od určitého místa jen **3 m**; do mapy se `width` **doplňovat nebude**. Na 5m úseku tedy příčná poloha z jedné hrany s mapovou šířkou ujede o ~1 m (polovina rozdílu), dokud se šířka nenaučí z oboustranného koridoru (`RoadWidthEstimator`, `roadwidthmap=`); na 3m úseku mapa sedí (6. 10. 2026)
-- [x] Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami) (26. 9. 2026)
-- [x] 29. 9. 2026 (`20260929-150844.rec`, `-151634.rec`, `corridormininliers=20`): oboustranný koridor jen v **1,6 % a 1,2 %** snímků (135 a 78 cyklů), ne 28 % jako nad 25. 9. — a šířka z nich p50 **1,36 / 0,40 m** (mimo 1–8 m 24 / 88 %), tedy převážně nesmysl; při prahu 10 by jich bylo 2 432 / 1 051 se šířkou p50 **5,04 / 4,79 m**. Do přiřazení došlo jen 89 a 20 oboustranných cyklů, takže **naučená šířka nevznikla** (odhad se učí jen z oboustranného koridoru po přiřazení hrany) a `roadwidthmap=true` neměl co propsat. Jedna hrana 86 % a 70 % cyklů (převážně pravá) (29. 9. 2026)
-
-[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="lok-assoc-sousedni-usek"></a>
-### 🧪 Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
-
-`lok-assoc-sousedni-usek` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 29. 9. 2026
-
-Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec` FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů, do fúze za celou Track jízdu (430 s) šly jen desítky měření z jedné hrany v první minutě, pak nic; póza mezitím ujela od GPS příčně až o **10 m** (FreeRun 16 m), tempem ~0,06 m/s, tedy ~2° kurzu. Nový `ARBot.Analyze assocwhy` (rozklad na hypotézy, přepočet sedí na záznam v 99,3 / 100 %): druhým kandidátem je ve **99 %** nejednoznačných cyklů **jiný úsek téže cyklostezky** (way 154101921; sousední 67–75 %, vzdálenější 23–32 %), jiná cesta jen 0,4–1,4 %. Ten úsek je od pózy p50 **46–51 m** (p90 106–119 m) a robot vedle něj vůbec nestojí — `RoadAxis.Relate` počítá příčnou polohu z **nekonečné přímky** úseku, takže ohyb 1,7° (p50) dá v té vzdálenosti osu ~0,8–1,0 m vedle: víc než `SameHypothesisLateralM` (0,5 m), a při podlaze příčné sigmy 3 m je rozdíl χ² ~0,1 proti požadovanému odstupu 4. `NearestEdges` přitom kandidáty řadí podle vzdálenosti k ÚSEČCE, ale skóre ji nepoužije vůbec. OSM rovinka je lomená čára po 20–180 m, takže to platí na celé její délce; slučování kolineárních úseků (16. 9.) chytí jen přímou návaznost. **Protifakt** (měření, ne změna kódu): k χ² přičíst `(podélný přesah / σ)²`, kde přesah je, o kolik póza leží za koncem úsečky, a σ = max(póza podél hrany, podlaha 3 m). Nejednoznačných 4 289 → 357 a 2 161 → 81, přiřazeno Ok 137 → 4 053 a 306 → 2 333, vybraná cesta do 2 m od GPS **99,9 % a 94,6 %** (dnes 97,8 % a 51,6 %). Příčný nesouhlas těch přiřazených p50 4,3 / 2,7 m je z velké části právě nashromážděný drift pózy. ⚠️ Za přiřazením jsou ještě brány šířky a „robot na cestě“, takže do fúze by šlo méně; ⚠️ příčná poloha z jedné hrany jde přes mapovou šířku 3 m proti skutečným ~5 m (`lok-koridor-siroka-cyklostezka`), tedy s biasem ~1 m.
-
-- [x] Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`) (29. 9. 2026)
-- [x] **Je to regrese z 26. 9.** (`d193c12`, `MaxEdgeDistanceM` 8 m → ∞ kvůli `lok-koridor-noedge-po-zatacce`): s limitem 8 m se úsek 50 m daleko do kandidátů vůbec nedostal. Přepočet s `--maxedge=8` sedí na starší záznamy 99,6–99,9 % (s ∞ jen 41–73 %), a dnešní Track by s 8 m měl Ok 3 779 cyklů místo 137. Oprava 26. 9. přitom získala jen pás 8–~9 m: nad ním zamítne kandidáta χ² s podlahou 3 m (`EdgeMismatch`). Protifakt s podélným přesahem na 13 záznamech (Hviezdoslavova, Robotour, Modřany): **nezávisí na limitu** (Ok s 8 m i ∞ v rozmezí ±6 %), **nezměnil vítěze ani jednou** mezi cykly přiřazenými dnes, ztráta ≤ 0,4 %, a navíc spraví nejednoznačnost sousedních úseků v zatáčkách, která existovala i s 8 m (Robotour Kolo 3b +780 a Kolo 4 +817 cyklů, vybraná cesta u GPS 100 %) (29. 9. 2026)
-- [x] Léčba (autor): podélný přesah do χ², `assocfloorlong=3` m (0 = nepočítá se), `MaxEdgeDistanceM` zůstává ∞. `RoadAxisMatch.OverhangM`, `EdgeAssociator`, 4 nové testy; `EdgeAssociator` dává nad 8 záznamy (39 871 cyklů) tentýž verdikt jako protifakt v měřidle ve 100 %. Změněná cesta jen v 9 cyklech 27. 9. (GPS 4,7 m mimo, nerozhodne). `FusionReplayReport` bere hodnotu z logu (starší záznam = 0) (29. 9. 2026)
-- [ ] Ověřit na zařízení: jízda po lomené rovince (Modřany) — podíl `AmbiguousEdge` (`corridor`), poslaná měření a příčná odchylka pózy od GPS (`posegps`)
-
-[map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
-
 <a id="lok-fuze-poza-pred-koly"></a>
 ### 🧪 Póza fúze ujede o ~1 % víc než kola, ačkoli obvod kola sedí
 
@@ -291,9 +270,10 @@ Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9
 - [x] Rozhodnout léčbu (autor): čas z motorové jednotky (řádek `T=`); okno rychlosti ve fúzi se nedělá (1. 10. 2026)
 - [x] Skript s řádkem `T=` (`Src/RoboRun/RizeniDiffPodvozku.mbs` verze 2.1, kopie v komentáři `SDC2160Ex.cs`), `DeviceClock` + parsování v driveru, `MotorStateBase` v4, blok 9 `fusionreplay` umí čas jednotky; 9 testů `DeviceClock`, 4 testy driveru / serializace (1. 10. 2026)
 - [x] Nahrát `RizeniDiffPodvozku.mbs` verze 2.1 do jednotky (Roborun+) a ověřit nouzové zastavení a watchdog. **Autor 6. 10. 2026:** verze 2.1 v jednotce je. Ověření nouzového zastavení a watchdogu se přesouvá ke skriptu **2.2** (`hw-motor-rampa-jednotky`), který mění právě jejich rampu (6. 10. 2026)
-- [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00
+- [ ] Jízda: `fusionreplay` blok 9 — čas jednotky ve všech vzorcích, interval ~11 ms, EKF z `Odo/speed` / enkodéry ~1,000; blok 8 — tětiva pózy / kola ~1,00. Měřit i podélnou chybu pózy na vjezdu do obou 90° zatáček v Modřanech (viz krok níž)
+- [x] Dopad na zařízení 1. 10. 2026 (binárka ještě bez opravy; `fusionreplay`, `posegps`, rozbor zatáček): tětiva pózy / tětiva GPS 1,013–1,014, póza / kola 1,017; s korekcemi koridoru je póza soustavně PŘED GPS (FreeRun do +10,7 m, Track na jižní větvi do +10,9 m, po obrátce −9,8 m), protože koridor podélnou σ srazí a GPS se σ 30 m dráhu nestáhne. Na vjezdu do 90° zatáčky se podélná chyba převede na příčnou — u Z1 (po ~830 m rovinky) kamera proti mapě ukazuje ~5,7 m — a je jedním ze zdrojů nesouladu, který pak korekce koridoru vrátí proti gridu ve světě (`lp-uvaznuti-v-zatackach`) (7. 10. 2026)
 
-[ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01)
+[ekf-fusion.md](ekf-fusion.md), [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [rozhodnutí 1. 10. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-01](devlog.md#2026-10-01), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-assoc-velka-sigma-soubezna-ulice"></a>
 ### 🧪 Přiřazení hrany vzalo ulici 15 m od pózy — veto podle rozbitého kurzu vyřadilo bližší cesty a limit 4 hran schoval soupeře
@@ -310,8 +290,9 @@ Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). P
 - [x] Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu. **Autor 6. 10. 2026: přijme se hrana, která vyšla nejlépe** — rozbitý kurz se za jízdy poznat nedá, takže se veto ani χ² kurzu kvůli němu neoslabují. Kód beze změny (tak se chová už dnes); vědomě přijaté riziko, rozhodnutí v `decisions.md` (6. 10. 2026)
 - [ ] Ověřit na zařízení: podíl `AmbiguousEdge` a vítěz u GPS (`assocwhy`, `corridor`)
 - [ ] Přeměřit nad jízdou v uliční síti z binárky s měřením z jedné hrany (Hviezdoslavova po 24. 9.), kde koridor měří častěji a σ polohy tolik neroste
+- [x] Protifakt nad jízdami 1. 10. 2026 (`assocwhy --k=0` proti `--jelk=4`; robot jel ještě s `assock=4`): neutrální — FreeRun mění 7 cyklů (Ok → Ambiguous, sousední úsek téže cesty), Track 98 Ok → Ambiguous, 24 NoCandidate → Ambiguous, 12 NoCandidate → Ok, 3 na jinou cestu (jen na startu ve stání, σ velká); vybraná cesta zůstává do 2 m od GPS ve 100 %. Souběžnou ulici modřanská trať netestuje (7. 10. 2026)
 
-[map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01)
+[map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu
@@ -385,7 +366,7 @@ Korelace s naměřenou sigmou 0,1 m přehlasuje GPS zhruba 400 : 1, takže zách
 - [ ] Podmínka 2 — rychlostní limit na aplikovanou korekci (proměřit v běhu bez GPS)
 - [ ] Podmínka 3 — strop na kumulovaný nesouhlas s GPS
 
-čeká na [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) · [rozhodnutí 20. 8. 2026](decisions.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
+[rozhodnutí 20. 8. 2026](decisions.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-25](devlog.md#2026-08-25), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="lok-korelace-dekorelacni-cas"></a>
 ### ⏸ Cykly korelace s mapou nejsou nezávislé — odstup je dekorelační čas 3 s
@@ -734,6 +715,24 @@ Porovnání naměřené šířky cesty s odhadem běželo před jeho aktualizac�
 
 [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18)
 
+<a id="lok-prirazeni-hrany-chi2"></a>
+### ✅ Polovina cyklů koridoru se párovala na příčnou ulici
+
+`lok-prirazeni-hrany-chi2` · vada · **hotovo** · nalezeno 16. 9. 2026 · vyřešeno 7. 10. 2026
+
+Koridor bral nejbližší hranu sítě podle vzdálenosti, kurz do výběru nevstupoval — při chybě pózy 3–4 m vyhrála u křižovatky příčná ulice (1 114 z 2 256 cyklů nad měřicí jízdou) a šířková brána ji nechytila, protože v té mapě mají všechny cesty tutéž šířku. Teď vybírá `EdgeAssociator` přes χ² (Mahalanobis z příčné odchylky a azimutu, každá dělená svou σ — váhy se neodhadují, měří se), s podlahou na σ (bez ní by hlášená σ kurzu 1,1° proti skutečné chybě 15–20° zamítla všechno — počtvrté táž past), tvrdým vetem ±45° na azimut a odstupem od druhého kandidáta; při nejednoznačnosti se neposílá nic. Kandidáti se sbírají jako hypotézy, ne hrany, jinak by kolineární segment téže cesty zamítl každou rovnou cestu. Přitom se opravila živá vada: `Send()` odečítal směr přímky bez rozhodnutí o smyslu, takže u cesty kolmé na kurz šel do fúze kurz otočený (9,4 % přijatých cyklů); cena je, že koridor už nikdy neřekne „jsi otočený o 180°“. Ověřeno testy a simulací, na zařízení neběželo. 18. 9. 2026 po kalibraci kompasu: chyba kurzu odhadu proti GPS je sd 8–11° včetně stání a ~2–4° za jízdy, takže `assocfloorhdg` jde stáhnout spíš na **5°** než na 3°; před soutěží nezměněno. Robotour 19. 9. byla první jízda přes skutečné křižovatky (830 m městem). Rozbor z 27. 9. (`ARBot.Analyze assocreplay`, přepočet přiřazení nad záznamem, ověřený shodou 100 % verdiktů): na příčnou ulici se nepárovalo nic, hlavní ztráta je **nejednoznačnost** (~37 % proložených koridorů). Podlaha kurzu 5° místo 10° přidá ~10 % přijatých cyklů a všechny nové jsou u GPS; 3° přidá +28 %. Změněný vítěz (5 cyklů na 5°, 68 na 3°) je vždy tatáž cesta, jen správnější úsek zakřivené cesty — podle GPS dráhy i podle kurzu z GPS k lepšímu (3°: 64 : 0 směrem), ale jen z jednoho místa. Nově přijaté nemíří na příčnou ulici (osa proti kurzu z GPS nad 30° 0,0 %) — ta je za vetem 45° a do soutěže nevstupuje.
+
+- [x] Nález nad `20260916-164926.rec` a podklad pro přiřazení (χ² s hlášenými σ zamítne vše) (16. 9. 2026)
+- [x] `EdgeAssociator`, parametry `assoc*`, `RoadCorridorMsg` verze 6 se skóre (16. 9. 2026)
+- [x] Oprava orientace kurzu v `Send()` (složení na ±90°, smysl podle kurzu) (16. 9. 2026)
+- [x] Přeměřit nad měřicí jízdou — nahrazeno: odhad „2× víc měření“ ze 16. 9. ověřit nejde (spolu s ním padla příčná brána, zisky nejdou oddělit); místo něj přepočet nad Robotourem, kde nový kód skutečně jel (27. 9. 2026)
+- [x] Po opravě magnetometru snížit `assocfloorhdg` z 10° na 5° — výchozí od 27. 9. (autor); přepočtem: 5° = +10 % / +9 % Ok, 3° = +28 % / +24 %; nové cykly 100 % u GPS, změněný vítěz jen jiný úsek téže cesty a podle GPS k lepšímu (5°: 2 : 0, 3°: 28 : 0, zbytek nerozhodnutý) (27. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 (`20261001-144638.rec` Track, `-152906.rec` FreeRun, binárka f848fdf, `assocfloorhdg=5`): za jízdy `AmbiguousEdge` 7,9 % a 6,6 %, `EdgeMismatch` 1,0 % a 0,9 % cyklů (z 1 906 `EdgeMismatch` v Tracku je 66 % ve stání při zastaveních v zatáčkách); χ² vítěze p50 0,085 a 0,073. Trasa vede přes T-křižovatky a obě místa Tracku leží na křižovatkách: na jinou cestu se přiřadilo 12 cyklů (3 odeslány), všechny v prvních 9 s na startu; za jízdy na příčnou ulici nic. Vybraná cesta do 2 m od GPS ve 100 % přiřazených cyklů (7. 10. 2026)
+- [x] Ověřit na zařízení — 18. 9.: běží (χ² vítěze p50 0,004, nejednoznačných 3 z 3 147), ale trať je jediná OSM cesta, takže křižovatku to neotestovalo (18. 9. 2026)
+- [x] Vyčíslit nad Kolem 3b / 4: `AmbiguousEdge` 3 153 / 1 208 (38 / 37 % proložených), `EdgeMismatch` 6 / 3, χ² vítěze p50 0,058 / 0,040; nástroj `ARBot.Analyze assocreplay` (27. 9. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-09-16](devlog.md#2026-09-16), [2026-09-18](devlog.md#2026-09-18), [2026-09-27](devlog.md#2026-09-27), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="lok-koridor-prah-inlieru-prisny"></a>
 ### ✅ `MinInliers=25` škrtí koridor 1,4–4× a proti čemu vznikl, to nechytá
 
@@ -777,6 +776,40 @@ Z dotazu autora „na kolik je nastaven parametr ovlivňující příčnou brán
 
 [map-correlation-localization.md](map-correlation-localization.md), [decisions.md](decisions.md) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-20](devlog.md#2026-09-20), [2026-10-01](devlog.md#2026-10-01)
 
+<a id="lok-koridor-skoky-pozy"></a>
+### ✅ Skoky pózy 0,6–4 m na rovných úsecích přicházejí všechny hned po přijatém měření koridoru
+
+`lok-koridor-skoky-pozy` · vada · **hotovo** · nalezeno 20. 9. 2026 · vyřešeno 7. 10. 2026
+
+Robotour 19. 9. 2026 (Kolo3b, Kolo4): 14 z 14 a 9 z 9 skoků pózy (posun mezi RobotStateMsg o 0,6–4 m nad `|v|·dt`) přišlo do 0,1 s po přijatém měření `Corridor`, často v sériích jedním směrem (14:25:05–07 čtyři skoky −59° o 5,8 m; 15:42:32–34 pět skoků o 4 m) — koridor táhl pózu k jiné hraně nebo poloze, ne šum. Koridor byl přijat 1 404 z 1 404 (0 % zamítnuto, NIS p90 3,1, max 443): `GateMode.Soft` nezahodí nic, jen odtlumí, a `corridorstd=0,1` / `corridorhz=2` z 18. 9. tomu nezabránily. Po skoku typicky `EscapingBlocked` (robot je najednou v blokované části gridu). Ve FreeRun (Kolo3-navrat) 3 skoky, všechny také za koridorem. Měří to blok 1 `ARBot.Analyze nav`. Léčba je od 21. 9. v kódu: rychlostní limit kroku uvnitř filtru (`corridorslew=` m/s, `corridorheadingslew=` °/s, výchozí 0 = dnešní chování); hodnota vybraná týž den večer z Kola 3b/4 (`ARBot.Analyze corridorstd --slew= --hslew=`): `corridorslew=0.5`, `corridorheadingslew=3` v `pi-provoz.cfg`. „−59°" u skoků je směr posunu, ne otočení — korekce kurzu z koridoru jsou max 2°, limit kurzu je pojistka. Na zařízení neběželo.
+
+- [x] Změřit: skoky pózy vs. přijatá měření koridoru (blok 1 `nav`) (20. 9. 2026)
+- [x] Proměřit `corridorstd=` protifaktickým 1-D replayem (`ARBot.Analyze corridorstd`): 0,5–1,0 m odstraní kroky > 0,3 m (21 → 1 → 0 v Kolo3b), 5 m nepřidá nic a srazí informaci koridoru na 6× GPS; cena je pomalejší stažení driftu (odchylka p50 0,8–1,3 m, p90 2,4–2,6 m); inovace p50 0,06 m, ale 36 nad 2 m v sériích na téže hraně (změna hrany jen 6 ze 78); koridor za jízdu stáhl 20–28 m driftu (20. 9. 2026)
+- [x] Rozhodnout léčbu: rychlostní limit korekce (autor souhlasí s principem; návrh `PoseSlew` na výstupu fúze 20. 9. zamítl kvůli dvěma pózám v systému — varianta uvnitř filtru se má nejdřív probrat), nebo `corridorstd` 0,5–1,0 v profilu (21. 9. 2026)
+- [x] Mechanismus v kódu: `IMeasurement.MaxStep` + nafouknutí R v `Ekf.UpdateStep` (krok = přesně limit, P konzistentní, měření se nezahazuje), `corridorslew=` [m/s] a `corridorheadingslew=` [°/s] s Δt od předchozího odeslání (0,02–1 s), `MeasurementDiagMsg` v3 (`RInflation`, `StepLimited`), `ARBot.Analyze corridorstd --slew=` (blok 4), blok „limit kroku" v `ARBot.Analyze corrections`; výchozí 0 = dnešní chování; 16 testů; řetěz ověřen 45s simulací (`StepLimited` v záznamu, blok 4 stropuje krok přesně na limit) (21. 9. 2026)
+- [x] Zvolit hodnotu z dat: `ARBot.Analyze corridorstd Kolo3b.rec / Kolo4.rec --slew= --hslew=` (blok 4 příčně, nový blok 4b kurz): `corridorslew=0.5` = největší hodnota, při které v obou záznamech nezbyde kalibrovaný krok nad 0,3 m (bez limitu 21 / 16, 1,0 m/s nechá v Kole 4 23 kroků do 0,46 m), cena p50 odchylky 0,21 / 0,19 m (0,3 m/s by dalo 0,37 / 0,77 m); `corridorheadingslew=3` jen pojistka — korekce kurzu z koridoru max 2,0 / 0,6° (K p50 0,07), replay bez rozdílu; zapsáno do `config/pi-provoz.cfg` (21. 9. 2026)
+- [x] Měřidlo: `K_eff` v `corridorstd` je z okna 50 ms po měření a krok PODCEŇUJE — skok 14:25:05 (inovace 6,13 m, K·ν 5,83 m) je v `nav` bloku 1 vidět jako čtyři dílčí skoky 2,47 + 1,64 + 1,06 + 0,64 = 5,81 m za 1,6 s, fúze krok rozkládá, ne tlumí; přeměřit kalibraci přes delší okno (pořadí variant to nemění, jen výši ceny) — ❌ VYVRÁCENO 29. 9. 2026 (`fusionreplay` blok 6, Kolo 3b): čtyři dílčí skoky jsou ČTYŘI SAMOSTATNÁ měření koridoru po ~0,5 s, každé posune aktuální pózu o svůj vlastní krok (14:25:05.1 → 2,45 m, .6 → 1,63 m, 06.1 → 1,04 m, 06.7 → 0,61 m; nav blok 1: 2,47 / 1,64 / 1,06 / 0,64 m). Fúze krok nerozkládá — už první měření udělalo 2,45 m, ne 5,83 m, takže okno 50 ms měřilo krok jednoho měření SPRÁVNĚ a kalibrace podhodnocená není. Přeměřovat netřeba; volbu `corridorslew` jde dnes zkoušet přímo nad skutečným filtrem (`fusionreplay --set=corridorslew=…`) (29. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 (binárka f848fdf; `20261001-144638.rec` Track 42 min / 3 260 m, `-152906.rec` FreeRun 10 min / 792 m; `corridorslew=0.5`, `corridorheadingslew=3`, `corridorseekback=1`, `corridorposlimit=true` z profilu — první jízdy s celou léčbou): skoků nad 0,5 m (`nav`) 0 a 0, `StepLimited` 29 z 6 512 a 6 z 1 886 měření, žádné uzavření ani penalizace hrany. Krok pózy mimo predikci nejvýš 0,54 m, tedy přesně na toleranci `PoseJumpDetector` — grid se proto nemaže a místo skoků vznikají SESUVY (1,5–2,2 m za 5–10 s); jejich důsledek v gridu vede `lp-grid-posun-pomalou-korekci` / `lp-uvaznuti-v-zatackach` (7. 10. 2026)
+- [x] Změřeno 29. 9. nad 12 jízdami s limitem (23.–29. 9., `corridorslew=0.5`): limit zasahuje (`StepLimited` 0,5–18 % měření), skoků je méně a menší (0–11 na jízdu, většinou 0,6–1 m; Kolo 3b bez limitu 14 až 2,5 m), ale NEZMIZELY — a `fusionreplay` blok 5 ukázal, že **všechny** udělal koridor (ve variantě bez koridoru žádný). Blok 6 (účinek jednoho odeslání na aktuální pózu) našel DVA úniky: (a) **kolmé skoky 0,6–0,85 m** = dvě odeslání v jednom 100ms intervalu pózy, každé v limitu: `VydatMerenie` i `LimitDt` berou JAKÝKOLI skok času zpět jako seek — škrcení se vynuluje a Δt dostane strop 1 s (limit 0,5 m); čas fixu jde zpět ve 22–26 % zpráv (párování dvou kamer, o 10–20 ms, max 0,17 s), u odeslání ve ~25 % (25. 9.: 927 z 2 924). (b) **podélné skoky 1–4 m** (27. 9. 17:26:01 jedno odeslání posunulo pózu 3,98 m podél hrany a 0,18 m kolmo): limit omezuje krok jen podél osy měření, podélná složka jde přes vazbu v kovarianci (typicky po inicializaci z GPS) (29. 9. 2026)
+- [x] Léčba (autor, obojí): (a) `corridorseekback=` (1 s, `SeekBackSec`) — menší skok zpět je Δt ≈ 0; (b) `IMeasurement.MaxPositionStep` + `Ekf.PositionIndices`, `corridorposlimit=true` — limit normy posunu polohy u příčného i kurzového měření. 8 nových testů (premisy se starým chováním padají), testy 1 719 / 148 / 129. Přehrání 7 jízd se zapnutou léčbou: skoků od koridoru 0 (dřív 2–11 na jízdu), přesnost stejná nebo lepší, měření o 25–35 % méně. Starší záznamy přehrávání pouští se starým chováním (klíče v logu nejsou) (29. 9. 2026)
+
+[global-navigation-runtime.md](global-navigation-runtime.md), [map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 21. 9.](decisions.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-21](devlog.md#2026-09-21), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lok-koridor-siroka-cyklostezka"></a>
+### ✅ Na široké cyklostezce (Modřany) koridor nedal ani jedno měření — Track se podle něj nekorigoval a FreeRun jel „rovně“
+
+`lok-koridor-siroka-cyklostezka` · vada · **hotovo** · nalezeno 24. 9. 2026 · vyřešeno 7. 10. 2026
+
+Všechny čtyři záznamy z 23. 9. 2026 (`records/test/20260923-*.rec`, mapa `OSM/modrany2.osm`): **0 přijatých měření koridoru**, koridor se proložil v 0,2–0,3 % cyklů (18. 9. na Hviezdoslavově ~52 %). Za jízdy vadí `TooFewInliers` a `OneSideOnly`; přímky obou hran existují v ~50 % cyklů, ale s mediánem **21–25 inlierů** proti prahu `corridormininliers=25` (18. 9. 39–43), v Track na pravé straně jen 10 (rezidua 0,116 m). FreeRun proto měl mrkev z koridoru jen v 18 z 6 632 cyklů a jinak držel kurz — ten ujíždějící (`lok-freerun-kurz-staci-na-zapad`); na cestě ho držela lokální mapa. Segmentace sítě je na asfaltu čistá (`backproject --compare`), jde tedy o proložení hran na široké cestě (hrana daleko, řídké body). Mapa nemá u cyklostezky tag `width` (síť počítá s `roadwidth=3`). V Track navíc 34 % `NoPair` kvůli dvěma zamrznutím barvy (pravá 14:38:44, levá 14:40:53, obě zotavené). Kód detekce se od 21. 9. neměnil. **Léčba 24. 9. 2026: měření z JEDNÉ hrany** (`corridorsingle=`, výchozí true): kurz ze směru hrany (na šířce nezávisí), příčná poloha přes naučenou šířku, jinak mapovou s nejistotou `corridorsinglewidthstd=` (1 m) v σ — rozhodnutí autora. `ARBot.Analyze singleedge` nad týmiž záznamy: jedna hrana v 48–80 % snímků, kurz z ní proti GPS kurzu p50 −1,3 až +1,2°, robustní sd 2,4–4,9°; ve FreeRun drží u nuly, zatímco odhad fúze ujel na 30°+. `RoadCorridorMsg` verze 7. ⚠️ Chyba mapové šířky je bias příčné polohy (Modřany: mapa 3 m).
+
+- [x] Měření z jedné hrany v kódu + `ARBot.Analyze singleedge` + testy (24. 9. 2026)
+- [x] Jízda na cyklostezce s `corridorsingle=true`: kurz odhadu proti GPS kurzu (`heading`), podíl přijatých z jedné hrany (`corridor`). ⚠️ 29. 9. (`20260929-150844.rec`, `-151634.rec`) NEROZHODNE: přijato z jedné hrany jen **135 (1,6 %) a 306 (4,6 %)** cyklů, a to hlavně v první ~2 min; zbytek zamítlo přiřazení hrany (`AmbiguousEdge` 4 171 / 2 159, `EdgeMismatch` 1 121 / 1 932) — regrese opravená týž den (`lok-assoc-sousedni-usek`). Kurz odhadu − GPS kurz −3,3 ± 6,5° / +4,3 ± 11,2°, ale ten určoval kompas (`hw-vn100-zmena-po-27-9`), ne koridor. Přeměřit s `assocfloorlong=3`. ✅ **1. 10. 2026** (`20261001-144638.rec` Track, `-152906.rec` FreeRun; binárka f848fdf s `assocfloorlong=3`, `corridorsingle=true` a od 30. 9. s branou inlierů 10 % řádků): `Ok` 62,3 % a 77,8 % cyklů, z jedné hrany 7 571 a 3 231 cyklů (převážně pravá), do fúze 3 262 a 943 snímků, z toho 31 / 38 % z jedné hrany. Kurz odhadu − GPS kurz nad 0,8 m/s 0,13 ± 3,32° a 0,79 ± 3,55° (|.| p50 1,2 / 1,3°) — drží i v době, kdy yaw VN100 ujel o +15 až +35° (Track 15:07–15:13). Proti 29. 9. 11–56× víc měření z jedné hrany; podíl na nárůstu má i nová brána inlierů (7. 10. 2026)
+- [x] Změřit skutečnou šířku cyklostezky (nebo doplnit `width` do mapy) — příčná poloha z mapové šířky je jinak posunutá. Z koridoru při prahu ≤ 15 vychází 4,85–5,3 m (mapa 3 m). **Autor 6. 10. 2026:** cca **5 m**, mírně kolísá, od určitého místa jen **3 m**; do mapy se `width` **doplňovat nebude**. Na 5m úseku tedy příčná poloha z jedné hrany s mapovou šířkou ujede o ~1 m (polovina rozdílu), dokud se šířka nenaučí z oboustranného koridoru (`RoadWidthEstimator`, `roadwidthmap=`); na 3m úseku mapa sedí (6. 10. 2026)
+- [x] Snížit `corridormininliers` — autor 26. 9. 2026: **20** v `config/pi-provoz.cfg` (FreeRun `20260925-144658.rec`: 2,7 → 28 % snímků, šířka p50 3,61 m, mimo 1–8 m 1,6 %; 12–15 by pustilo víc, ale s nesmyslnými šířkami) (26. 9. 2026)
+- [x] 29. 9. 2026 (`20260929-150844.rec`, `-151634.rec`, `corridormininliers=20`): oboustranný koridor jen v **1,6 % a 1,2 %** snímků (135 a 78 cyklů), ne 28 % jako nad 25. 9. — a šířka z nich p50 **1,36 / 0,40 m** (mimo 1–8 m 24 / 88 %), tedy převážně nesmysl; při prahu 10 by jich bylo 2 432 / 1 051 se šířkou p50 **5,04 / 4,79 m**. Do přiřazení došlo jen 89 a 20 oboustranných cyklů, takže **naučená šířka nevznikla** (odhad se učí jen z oboustranného koridoru po přiřazení hrany) a `roadwidthmap=true` neměl co propsat. Jedna hrana 86 % a 70 % cyklů (převážně pravá) (29. 9. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="lok-koridor-noedge-po-zatacce"></a>
 ### ✅ Po zatáčce je póza 12 m vedle cesty a koridor ji neopraví — hranu hledá jen do 8 m (`NoEdge`)
 
@@ -802,6 +835,20 @@ Pozorování autora z Track 25. 9. 2026 (`records/test/20260925-142428.rec`, Mod
 - [x] Ověřit na další jízdě: `posegps`, blok PŘÍMÉ ÚSEKY → kola / tětiva GPS ~1,00. ⚠️ 27. 9. (binárka s 0,923, Track a FreeRun Hviezdoslavova) NEPOUŽITELNÉ: po jednom 30s přímém okně (kola / tětiva 1,018 a 1,022, n = 1), GPS startovala na 3 družicích a ležela p50 4,7 m od cesty, jízdy 163 a 120 m. ✅ 29. 9. (Modřany, `20260929-150844.rec` Track a `-151634.rec` FreeRun, 425 a 405 m): kola / tětiva GPS **0,999** (p10–p90 0,96–1,02, n = 58) a **0,999** (0,98–1,00, n = 28), Doppler / kola 1,003 a 0,990. Obvod sedí. Vzorky motorů jsou bez mezer ≥ 0,1 s, měřidlo tedy dráhu z kol nepodhodnocuje. ⚠️ Póza přitom jede o 1,1 % dál než kola — to není obvod, viz `lok-fuze-poza-pred-koly` (29. 9. 2026)
 
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-29](devlog.md#2026-09-29)
+
+<a id="lok-assoc-sousedni-usek"></a>
+### ✅ Přiřazení hrany je „nejednoznačné“ se sousedním úsekem TÉŽE cesty — koridor na dlouhé rovince nepošle nic
+
+`lok-assoc-sousedni-usek` · vada · **hotovo** · nalezeno 29. 9. 2026 · vyřešeno 7. 10. 2026
+
+Pozorování autora z jízd 29. 9. 2026 v Modřanech (`20260929-150844.rec` Track, `-151634.rec` FreeRun): korekce z koridoru se neaplikovaly. Změřeno: `AmbiguousEdge` **51 % a 33 %** cyklů, do fúze za celou Track jízdu (430 s) šly jen desítky měření z jedné hrany v první minutě, pak nic; póza mezitím ujela od GPS příčně až o **10 m** (FreeRun 16 m), tempem ~0,06 m/s, tedy ~2° kurzu. Nový `ARBot.Analyze assocwhy` (rozklad na hypotézy, přepočet sedí na záznam v 99,3 / 100 %): druhým kandidátem je ve **99 %** nejednoznačných cyklů **jiný úsek téže cyklostezky** (way 154101921; sousední 67–75 %, vzdálenější 23–32 %), jiná cesta jen 0,4–1,4 %. Ten úsek je od pózy p50 **46–51 m** (p90 106–119 m) a robot vedle něj vůbec nestojí — `RoadAxis.Relate` počítá příčnou polohu z **nekonečné přímky** úseku, takže ohyb 1,7° (p50) dá v té vzdálenosti osu ~0,8–1,0 m vedle: víc než `SameHypothesisLateralM` (0,5 m), a při podlaze příčné sigmy 3 m je rozdíl χ² ~0,1 proti požadovanému odstupu 4. `NearestEdges` přitom kandidáty řadí podle vzdálenosti k ÚSEČCE, ale skóre ji nepoužije vůbec. OSM rovinka je lomená čára po 20–180 m, takže to platí na celé její délce; slučování kolineárních úseků (16. 9.) chytí jen přímou návaznost. **Protifakt** (měření, ne změna kódu): k χ² přičíst `(podélný přesah / σ)²`, kde přesah je, o kolik póza leží za koncem úsečky, a σ = max(póza podél hrany, podlaha 3 m). Nejednoznačných 4 289 → 357 a 2 161 → 81, přiřazeno Ok 137 → 4 053 a 306 → 2 333, vybraná cesta do 2 m od GPS **99,9 % a 94,6 %** (dnes 97,8 % a 51,6 %). Příčný nesouhlas těch přiřazených p50 4,3 / 2,7 m je z velké části právě nashromážděný drift pózy. ⚠️ Za přiřazením jsou ještě brány šířky a „robot na cestě“, takže do fúze by šlo méně; ⚠️ příčná poloha z jedné hrany jde přes mapovou šířku 3 m proti skutečným ~5 m (`lok-koridor-siroka-cyklostezka`), tedy s biasem ~1 m.
+
+- [x] Změřeno: druhý kandidát = úsek téže cesty 46–51 m daleko, protifakt s podélným přesahem (`ARBot.Analyze assocwhy`) (29. 9. 2026)
+- [x] **Je to regrese z 26. 9.** (`d193c12`, `MaxEdgeDistanceM` 8 m → ∞ kvůli `lok-koridor-noedge-po-zatacce`): s limitem 8 m se úsek 50 m daleko do kandidátů vůbec nedostal. Přepočet s `--maxedge=8` sedí na starší záznamy 99,6–99,9 % (s ∞ jen 41–73 %), a dnešní Track by s 8 m měl Ok 3 779 cyklů místo 137. Oprava 26. 9. přitom získala jen pás 8–~9 m: nad ním zamítne kandidáta χ² s podlahou 3 m (`EdgeMismatch`). Protifakt s podélným přesahem na 13 záznamech (Hviezdoslavova, Robotour, Modřany): **nezávisí na limitu** (Ok s 8 m i ∞ v rozmezí ±6 %), **nezměnil vítěze ani jednou** mezi cykly přiřazenými dnes, ztráta ≤ 0,4 %, a navíc spraví nejednoznačnost sousedních úseků v zatáčkách, která existovala i s 8 m (Robotour Kolo 3b +780 a Kolo 4 +817 cyklů, vybraná cesta u GPS 100 %) (29. 9. 2026)
+- [x] Léčba (autor): podélný přesah do χ², `assocfloorlong=3` m (0 = nepočítá se), `MaxEdgeDistanceM` zůstává ∞. `RoadAxisMatch.OverhangM`, `EdgeAssociator`, 4 nové testy; `EdgeAssociator` dává nad 8 záznamy (39 871 cyklů) tentýž verdikt jako protifakt v měřidle ve 100 %. Změněná cesta jen v 9 cyklech 27. 9. (GPS 4,7 m mimo, nerozhodne). `FusionReplayReport` bere hodnotu z logu (starší záznam = 0) (29. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 (`20261001-144638.rec` Track, `-152906.rec` FreeRun, binárka f848fdf s `assocfloorlong=3`): `AmbiguousEdge` 8,2 % a 6,5 % cyklů proti 51 % a 33 % 29. 9.; na rovinkách (dál než 30 m od dvou 90° zatáček) jen 3,2 % a 0,0 % cyklů za jízdy. Do fúze odešlo 3 262 a 943 snímků, póza − GPS příčně p50/p90 0,77/1,64 m a 0,73/1,35 m. Zbylá nejednoznačnost leží skoro celá v zatáčkách (21–69 %), kde je sousední úsek téže cesty legitimní druhý kandidát — podélný přesah to neléčí, vede se jako `lok-koridor-slepy-v-zatacce` (7. 10. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md), [rozhodnutí 29. 9. 2026](decisions.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-sirka-koridoru-plus-18-mm"></a>
 ### ❌ Šířka koridoru vychází o 18 mm větší — nejmenší kvadráty sledují průměr, medián sedí
@@ -831,6 +878,18 @@ Nejsilnější důkaz, že je cesta přehrazená, je „všechny buňky napří�
 
 [global-navigation-runtime.md (fáze 4b)](global-navigation-runtime.md), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-08-13](devlog.md#2026-08-13)
 
+<a id="nav-uvaznuti-neohlasene"></a>
+### ⬜ Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy
+
+`nav-uvaznuti-neohlasene` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+27. 8. autor rozhodl, že „zastavit a ohlásit" je zatím přijatelná odpověď na zásek (`nav-recovery-manevr`). Část „ohlásit" ale chybí: při `RobotBlocked` i `AlreadyAtGoal` jsou detektory `GlobalNavigator` odzbrojené (A bere jen platný plán, C od 29. 9. jen `NoRoute`, B potřebuje ujet 20 m), mise Track nemá timeout (`DrivingTimeoutSec = 0`, jeho komentář přitom tvrdil, že zaseknutí hlídají detektory — opraveno 7. 10.), do `Trace` nejde nic a stránka náhledu stav plánu neukazuje. 1. 10. 2026 robot stál v `RobotBlocked` 132 + 42 s (GN `Driving`, 0 uzavření, Trace prázdná), 18. 9. v `AlreadyAtGoal` ~6 min.
+
+- [x] Změřeno nad 1. 10. a 18. 9. (`nav`, `localplan`, `zasek`, log) (7. 10. 2026)
+- [ ] Rozhodnout (autor): řádek „stojím v blokované buňce N s, východ X m směrem Y“ na stránce a do Trace (škrceně), stav „uvázl“ v `GlobalNavMsg`, případně reakce mise
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
 <a id="nav-detektor-b-jitter-drahy"></a>
 ### 🧪 Detektor „bez postupu“ počítá ujetou dráhu ze součtu kroků pózy, takže jitter a skoky pózy berou jako jízdu
 
@@ -841,21 +900,9 @@ Nález mimochodem při rozboru Robotouru 19. 9. 2026 (`nav-phi-obracena-hrana`).
 - [x] Rozhodnout, zda dráhu okna filtrovat — `min(|Δpóza|, |v|·dt)`, 4 testy (stání se skoky neplní B, skutečné bloudění dál penalizuje, výpadek zpráv nepřičte fiktivní dráhu, A pozná stání i se skoky) (29. 9. 2026)
 - [ ] Ověřit na robotu: čekání před překážkou nebo v GoalBlocked bez penalizace hrany (Trace „PENALIZACE“ prázdné)
 - [x] Doklad ze záznamu (binárka ještě bez opravy): Track 27. 9. `20260927-172546.rec` 17:26:07 penalizace way 230064222 po skoku pózy o 157 m při startu GPS na 4 družicích — „ujeto za 15 s 177 m“ při rychlosti do 1,9 m/s; `min(|Δpóza|, |v|·dt)` by ten skok nezapočetl (29. 9. 2026)
+- [x] Záznam 1. 10. 2026 (`20261001-144638.rec`, oprava v binárce): 42 min bez penalizace (ClosureCount 0, Trace bez PENALIZACE) při 9 epizodách stání ≥ 10 s (únik až 33,9 s, `RobotBlocked` 132,4 a 42,0 s). Opravu ale NEROZLIŠUJE: kontrafakt detektoru B se starou dráhou Σ|Δpóza| dává také 0 událostí — jitter při stání vyrobil jen 0,4–3,5 m za epizodu (okno je 20 m) a skoků pózy > 0,5 m bylo 0. Rozlišující je stání nebo pomalá jízda se skokem pózy (start GPS na málo družicích jako 27. 9.) (7. 10. 2026)
 
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29)
-
-<a id="nav-detektor-c-kaskada"></a>
-### 🧪 Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu
-
-`nav-detektor-c-kaskada` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 29. 9. 2026
-
-Nález při ověřování `nav-phi-obracena-hrana` (29. 9. 2026) nad Track 25. 9. (`20260925-144200.rec`, Modřany). V 14:45:37 nouzové zastavení („kolize 0,00 m“), pak 22,8 s `RobotBlocked` (351 plánů). Detektor C počítá neúspěšné plány (`NoRoute`/`RobotBlocked`) po sobě a po 20 zavře aktuální hranu natvrdo a počítadlo vynuluje. Robot ale dál stál v téže blokované buňce, takže každých ~20 plánů (~1,4 s) přišlo další uzavření: 14:45:38–14:45:59 **15 uzavření + 1 penalizace, všechna na way 154101921** (cyklostezka, po které jel). Po každém uzavření se trasa přeplánovala jinudy a „aktuální hranou“ se stala nejbližší hrana nové trasy, takže se zavíraly hrany čím dál dál: odstup od trasy 0,1 → 4,5 → 18,9 → **78 m**, stav `OffRoute`, trasa 968 → 1 569 m. `RobotBlocked` přitom neříká, že je přehrazená cesta, ale že robot stojí v buňce, kterou mapa vede jako blokovanou — to je věc úniku (`lp-unik-z-blokovane-bunky`). Obsluha pak jízdu ukončila (14:46:31 `/stop`).
-
-- [x] Změřeno: 16 událostí za 21 s, odstup zavírané hrany až 78 m (`ARBot.Analyze nav`, Trace „UZAVRENI … RoadBlocked“) (29. 9. 2026)
-- [x] Léčba (autor): `RobotBlocked` se do detektoru C nepočítá a sérii `NoRoute` přeruší (jako `EscapingBlocked`). 2 nové testy, na starém kódu oba padají. Robota v blokované buňce vyprošťuje únikový manévr (zkouší se každý cyklus plánování; 25. 9. po 22,8 s `RobotBlocked` našel cestu ven), detektor C k tomu nic nepřidával (29. 9. 2026)
-- [ ] Ověřit na zařízení: stání v blokované buňce bez uzavírání hran (Trace „UZAVRENI … RoadBlocked“ jen u skutečného `NoRoute`)
-
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-29](devlog.md#2026-09-29)
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="nav-mrkev-kolmy-prumet"></a>
 ### 🧪 Je-li póza od trasy dál než 5,9 m, mrkev je kolmý průmět na trasu — robot má jet napříč cestou
@@ -875,9 +922,11 @@ Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na k
 
 `nav-recovery-manevr` · záměr · **odloženo** · nalezeno 13. 8. 2026
 
-Když detektor záseku zjistí, že robot nepostupuje, umí dnes jen počkat a pak uzavřít hranu sítě; couvnutí nebo otočka na místě v lokální vrstvě neexistuje. Zapsáno jako zbývající krok globální navigace už 13. 8.; 27. 8. při projití seznamu otevřených úkolů autor rozhodl, že zastavit a ohlásit je zatím přijatelná odpověď — priorita nízká.
+Když detektor záseku zjistí, že robot nepostupuje, umí dnes jen počkat a pak uzavřít hranu sítě; couvnutí nebo otočka na místě v lokální vrstvě neexistuje. Zapsáno jako zbývající krok globální navigace už 13. 8.; 27. 8. při projití seznamu otevřených úkolů autor rozhodl, že zastavit a ohlásit je zatím přijatelná odpověď — priorita nízká. **Podklad k přehodnocení (7. 10. 2026):** 1. 10. robot bez zotavení stál v `RobotBlocked` 132 + 42 s na artefaktu posunutého gridu, ne na překážce (`lp-uvaznuti-v-zatackach`); 18. 9. ~6 min ve slepém konci chodníku (`lp-zasek-v-blokovane-mape`). „Ohlásit" se přitom neděje vůbec (`nav-uvaznuti-neohlasene`). Klasický manévr by 1. 10. nepomohl: vzadu bylo 465 buněk blokovaných v pásmu 0,7–1,5 m a **otočka na místě buňky pod půdorysem znovu nepozoruje** — ověřeno přirozeným pokusem, obsluha robotem ve druhém stání otočila o 49° a pod půdorysem se nezměnila ani jedna buňka. Pomohlo jen zapomenutí gridu (smazání po skoku kurzu). 18. 9. by naopak pomohl návrat po vlastní stopě (~8 m).
 
-[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-08-13](devlog.md#2026-08-13), [2026-08-27](devlog.md#2026-08-27)
+- [x] Nálezy z HW: 1. 10. (`20261001-144638.rec`, stání 132 + 42 s, pomohlo jen smazání gridu) a 18. 9. (`20260918-154028.rec`, `-155329.rec`, slepý konec chodníku, z prvního nevyjel, z druhého až po otočení rukou) (7. 10. 2026)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-08-13](devlog.md#2026-08-13), [2026-08-27](devlog.md#2026-08-27), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="nav-osmnav-integrace"></a>
 ### ✅ Modul OSM navigace převzatý do ARBot.Common
@@ -968,6 +1017,19 @@ Robotour 19. 9. 2026: autor viděl, že robot „po prvním odbočení zamítl p
 
 [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-09-29](devlog.md#2026-09-29)
 
+<a id="nav-detektor-c-kaskada"></a>
+### ✅ Detektor C („přehrazeno“) při RobotBlocked zavírá hranu každých ~1,4 s — za 20 s zavřel 15 hran téže cesty až 78 m od robotu
+
+`nav-detektor-c-kaskada` · vada · **hotovo** · nalezeno 29. 9. 2026 · vyřešeno 7. 10. 2026
+
+Nález při ověřování `nav-phi-obracena-hrana` (29. 9. 2026) nad Track 25. 9. (`20260925-144200.rec`, Modřany). V 14:45:37 nouzové zastavení („kolize 0,00 m“), pak 22,8 s `RobotBlocked` (351 plánů). Detektor C počítá neúspěšné plány (`NoRoute`/`RobotBlocked`) po sobě a po 20 zavře aktuální hranu natvrdo a počítadlo vynuluje. Robot ale dál stál v téže blokované buňce, takže každých ~20 plánů (~1,4 s) přišlo další uzavření: 14:45:38–14:45:59 **15 uzavření + 1 penalizace, všechna na way 154101921** (cyklostezka, po které jel). Po každém uzavření se trasa přeplánovala jinudy a „aktuální hranou“ se stala nejbližší hrana nové trasy, takže se zavíraly hrany čím dál dál: odstup od trasy 0,1 → 4,5 → 18,9 → **78 m**, stav `OffRoute`, trasa 968 → 1 569 m. `RobotBlocked` přitom neříká, že je přehrazená cesta, ale že robot stojí v buňce, kterou mapa vede jako blokovanou — to je věc úniku (`lp-unik-z-blokovane-bunky`). Obsluha pak jízdu ukončila (14:46:31 `/stop`).
+
+- [x] Změřeno: 16 událostí za 21 s, odstup zavírané hrany až 78 m (`ARBot.Analyze nav`, Trace „UZAVRENI … RoadBlocked“) (29. 9. 2026)
+- [x] Léčba (autor): `RobotBlocked` se do detektoru C nepočítá a sérii `NoRoute` přeruší (jako `EscapingBlocked`). 2 nové testy, na starém kódu oba padají. Robota v blokované buňce vyprošťuje únikový manévr (zkouší se každý cyklus plánování; 25. 9. po 22,8 s `RobotBlocked` našel cestu ven), detektor C k tomu nic nepřidával (29. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 (`20261001-144638.rec`, binárka f848fdf s opravou 9261a1a): `RobotBlocked` 132,4 s (2 551 plánů) a 42,0 s (810 plánů) při GN `Driving`; ClosureCount 0 ve všech 12 580 `GlobalNavMsg`, v Trace ani řádek UZAVRENI / PENALIZACE, kdežto starý kód by nad touž sérií plánů zavřel 164 hran. `NoRoute` v jízdě nenastal, větev zavírání při skutečném přehrazení kryjí jen testy. ⚠️ Druhá strana téže mince: „robota v blokované buňce vyprošťuje únikový manévr“ (krok výš) 1. 10. neplatilo — únik přes geometrii nesmí a robot stál, dokud nezasáhla obsluha (`lp-uvaznuti-v-zatackach`, `nav-uvaznuti-neohlasene`). `ARBot.Analyze nav` popisuje C od 7. 10. ve verzi po 29. 9. a starší uzavření označí („dnešní binárka by C NEuzavřela“ — nad `20260925-144200.rec` všech 16) (7. 10. 2026)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="nav-zdroj-osm-dat"></a>
 ### ❌ Odkud se berou a jak se aktualizují výřezy `.osm`
 
@@ -1013,18 +1075,17 @@ Lokální plánovač dostane z trasy po síti cest jen jediný bod (mrkev), tak�
 
 čeká na [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) · [global-navigation-runtime.md](global-navigation-runtime.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [LocalPathPlanner.cs](../Src/ARBot.Common/Occupancy/LocalPathPlanner.cs) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-09-25](devlog.md#2026-09-25)
 
-<a id="lp-zasek-v-blokovane-mape"></a>
-### ⬜ Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — popsané, ne vysvětlené
+<a id="lp-zapis-volna-pod-robotem"></a>
+### ⬜ Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky
 
-`lp-zasek-v-blokovane-mape` · vada · **otevřeno** · nalezeno 18. 9. 2026
+`lp-zapis-volna-pod-robotem` · záměr · **otevřeno** · nalezeno 18. 8. 2026
 
-`20260918-154028.rec`: po dvou celých kolech Tracku robot na cestě k bodu 1/3 od ~320 s zpomalil na 0,05–0,12 m/s a od 380 s stál 7 minut do konce záznamu — plán délky 5 cm, potvrzeně volno 0,00 m, `Blocked` ~50 % buněk, stavy `AlreadyAtGoal`/`EscapingBlocked`, 4× „NOUZOVE ZASTAVENI - kolize 0,00 m“, hraniční body z kamer 1,7–2,8 m před robotem (něco tam bylo). Reset gridu při zotavení kamer (409 s) nepomohl — blokace se vrátila. `20260918-155329.rec`: po volbě mise 50–120 s `EscapingBlocked` s nouzovým zastavením v 59–85 % taktů, pak se rozjel. Co bylo před robotem, záznam bez snímků na obrazovce neříká; může to být skutečná překážka, tráva, do které mise dovedla, nebo mapa rozmazaná stáním. Vedlejší efekt pro koridor: ve stání nevzniká (0,6 % cyklů), takže celkové procento `Ok` v záznamu je číslo o stání, ne o koridoru.
+Původně krok 3 návrhu úniku z blokované buňky, vyčleněný 26. 9. 2026 (autor). Pomohl by jen tehdy, když robot stojí na zdánlivé překážce z HLOUBKY (posunutý grid po korekci pózy, šum těsně u robota) a ta pokrývá celý půdorys — únik smí z výchozí buňky odjet, ale do další geometricky blokované nevjede. Případ z 18. 8. by nevyřešil (tam blokovala barva a do semantického kanálu se psát nesmí), pomalý rozjezd po startu už řeší sjízdný půdorys v obálce (3. 9.). Riziko: zápis podle chybné pózy smaže skutečnou překážku ve slepé zóně kamer, kde ji nic hned nepřepíše. Posunutý grid se má řešit u příčiny (`lp-grid-posun-pomalou-korekci`). Vrátit se k tomu, až se v záznamu objeví `RobotBlocked` kvůli hloubce pod půdorysem. **Ta podmínka nastala 1. 10. 2026** (`20261001-144638.rec`, `lp-uvaznuti-v-zatackach`), proto znovu otevřeno (7. 10.) — rozhoduje autor. Varianta bez zápisu do gridu: únik bere jako průjezdný celý půdorys (dnes jen startovní buňku). Protifakt nad 319 snímky gridu ve stavu `RobotBlocked`: poloměr 0,3 m najde východ do 1,5 m ve 246, 0,4 m ve 306, 0,6 m ve všech; stejnou výjimku musí dostat kontrola kolize únikové dráhy (`lp-unik-kontrola-kolize-startu`). Příčinu (posun gridu) řeší `localframe=odom`, na HW neověřené.
 
-- [x] Nález (`ARBot.Analyze localplan --from=320`, `corridor`, `log`) (18. 9. 2026)
-- [ ] Podívat se na snímky z kamer v čase 320–400 s (View) a říct, co robota zastavilo
-- [ ] Rozhodnout, jestli je to `lp-unik-z-blokovane-bunky` / `lp-filtr-izolovanych-bunek`, nebo nová vada
+- [x] Spouštěč nastal 1. 10. 2026: `RobotBlocked` 132,4 s a 42,0 s na zdánlivé překážce z HLOUBKY pod půdorysem — buňka pod robotem B:G ve 42/42 a 77/78 snímcích gridu, v r ≤ 0,3 m 98 ze 110 resp. 87 ze 112 buněk geometrických, sémantika tam říkala „cesta“ nebo nic; únik pravidly `PlanEscape` bez východu do 8 m, bez zákazu geometrie 0,53–0,90 m vpředu (`ARBot.Analyze zasek`) (7. 10. 2026)
+- [ ] Rozhodnout (autor): zápis volna / únik přes půdorys, nebo nejdřív ověřit `localframe=odom` na zařízení
 
-[map-correlation-localization.md (sekce 18. 9. 2026)](map-correlation-localization.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-18](devlog.md#2026-09-18)
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-drsnost-povrchu-rychlostni-strop"></a>
 ### ⬜ Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě
@@ -1059,6 +1120,54 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 [path-following.md](path-following.md), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-09-22](devlog.md#2026-09-22)
 
+<a id="lp-alreadyatgoal-lokalni-minimum"></a>
+### ⬜ `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
+
+`lp-alreadyatgoal-lokalni-minimum` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+`LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere jako platný plán jen `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, takže detektor A je při `AlreadyAtGoal` vynulovaný. 18. 9. 2026 (`20260918-154028.rec`) tak robot stál 388–466 s a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s). Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`).
+
+- [x] Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0) (7. 10. 2026)
+- [ ] Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky (`GoalBlocked` / nový) a reakci globální navigace
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lp-mazani-gridu-bez-stopy"></a>
+### ⬜ Smazání gridu po skoku pózy nezanechá v Trace stopu
+
+`lp-mazani-gridu-bez-stopy` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+`LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu při výpadku kamer a ručním otočení, 15:15:43 při záseku procesu) a v logu záznamu o tom není ani řádek; smazání v 15:27:35, které jako jediné ukončilo 132s `RobotBlocked`, se dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz, velikost, `dt`).
+
+- [ ] Hláška do Trace přes `PoruchaHlasic`, test
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lp-unik-kontrola-kolize-startu"></a>
+### ⬜ Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
+
+`lp-unik-kontrola-kolize-startu` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola.
+
+- [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
+- [ ] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lp-uvaznuti-v-zatackach"></a>
+### ⬜ Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici
+
+`lp-uvaznuti-v-zatackach` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+`records/test/20261001-144638.rec` (Track Modřany, 42 min, binárka f848fdf — grid ještě ve SVĚTĚ, `localframe=odom` v ní nebyl): robot kvůli lokální mapě stál v 8 epizodách, celkem 445 s (17,7 % mise); 6 skončilo samo únikem, 2 (`RobotBlocked` 132,5 s a 42 s na konci) ne. **Všech 8 je ve dvou ~90° zatáčkách** cyklostezky (way 154101921), jediných ostrých ohybech trasy; jinde ani jedna. FreeRun hned potom zatáčky projel bez úniku. **Mechanismus (ověřen dvěma skeptiky):** v zatáčce koridor 7–14 s nic neměří (`lok-koridor-slepy-v-zatacce`) a nesoulad pózy s mapou naroste na 1,5–3 m — z podélného driftu pózy (`lok-fuze-poza-pred-koly`, na vjezdu až +5,7 m) nebo z chyby vzniklé až uvnitř zatáčky. Pak přijde série korekcí (|inovace| 1,3–3,3 m, limit kroku je rozloží na 0,07–0,53 m na měření, tedy pod toleranci `PoseJumpDetector`) a grid kotvený ve světě se proti robotu posune — robot se ocitne u (nebo v) vnitřní krajnici zapsané předtím. **29 z 32 začátků úniku přišlo do 0,2 s po odeslaném měření koridoru.** Plán v zatáčce vede robot s odstupem 0,42–0,74 m od vnitřní hrany, práh úniku je 0,35 m, takže rezerva je malá. Na konci (15:25:22 a 15:27:52) leželo pod robotem 87–102 ze ~110 buněk půdorysu blokovaných HLOUBKOU (krajnice zapsaná 1–4 s předtím), kamera je během stání ani jednou neviděla (hodnota beze změny 134 s; grid časový rozpad nemá) a únik (`PlanEscape`) přes geometrii nesmí — východ do 8 m neexistoval, bez zákazu geometrie by ležel 0,53–0,90 m vpředu. Kamery přitom ukazovaly volný asfalt. Couvnutí ani otočka na místě neexistují (`nav-recovery-manevr`, odloženo) a nic stání neohlásilo (`nav-uvaznuti-neohlasene`). První stání ukončilo jen smazání gridu po skoku kurzu, když obsluha robotem otočila (`lok-fuze-rucni-otoceni`). ⚠️ Hypotéza „mrkev 6 m po trase padá v zatáčce do krajnice" je **vyvrácená** — stála na GPS jako na pravdě, a ten má na místě bias, který se mezi průjezdy mění až o 2,8 m. ⚠️ Že `localframe=odom` odstraní spouštěč u všech 8 epizod, je hypotéza (korekce by posunula cíl, ne robota) — protifaktické přehrání plánovače nebylo.
+
+- [x] Rozbor (`ARBot.Analyze zasek`, `localplan`, `nav`, `fusionreplay`; dva nezávislí skeptici): mechanismus, čísla a snímky v occupancy-and-local-planning.md, sekce „Uváznutí na konci Tracku 1. 10. 2026“ (7. 10. 2026)
+- [ ] Ověřit `localframe=odom` na zařízení na TÉMŽE místě (obě zatáčky way 154101921 v Modřanech, 3× každým směrem): `EscapingBlocked`/`RobotBlocked` po korekci koridoru (`localplan`, `zasek`, `nav`)
+- [ ] Rozhodnout druhou linii (autor): únik smí přes geometrii v půdorysu (r ≤ 0,3–0,45 m, viz `lp-zapis-volna-pod-robotem`), časový rozpad JEN nepozorovaných buněk geometrie (poločas 10 s by konec Tracku vyřešil, 30 s jen umožnil únik, 60 s ne; za jízdy by zasáhl ~10 % vzorků), rezerva/hystereze mezi odstupem plánu a prahem úniku, nebo zotavení (`nav-recovery-manevr`)
+
+čeká na [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) · [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [ZasekReport.cs](../Src/ARBot.Analyze/ZasekReport.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
 <a id="lp-freerun-stisnene-podminky"></a>
 ### 🧪 První FreeRun na železe ve stísněném prostoru skončil nárazem
 
@@ -1069,8 +1178,9 @@ Rozbor 417 s záznamu novým `ARBot.Analyze localplan`: koridor se detekoval jen
 - [x] Rozbor záznamu, příkaz `ARBot.Analyze localplan`, zadání průzkumu (2. 9. 2026)
 - [x] Eskapovací zóna zrušena, stavy `GoalBlocked` / `GoalUnsafe`, parametr `safedist=` (3. 9. 2026)
 - [ ] Přeměřit FreeRun ve stísněném prostoru na zařízení
+- [x] Regresní kontrola na široké cestě (FreeRun 1. 10. 2026, `20261001-152906.rec`, koridor p50 3,68 m): `Ok` 97,1 %, `EscapingBlocked` / `RobotBlocked` / `NoRoute` 0, dráha pod `SafeDist` 0 z 11 204 plánů, robot pod `SafeDist` 0 % taktů. Stísněný prostor to nebyl, vlastní krok zůstává (7. 10. 2026)
 
-[plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [rozhodnutí 3. 9. 2026](decisions.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-03](devlog.md#2026-09-03)
+[plan-freerun-stisnene-podminky.md](plan-freerun-stisnene-podminky.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [rozhodnutí 3. 9. 2026](decisions.md) · DevLog [2026-09-02](devlog.md#2026-09-02), [2026-09-03](devlog.md#2026-09-03), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-klin-mezi-zornymi-poli"></a>
 ### 🧪 Klín mezi zornými poli barevných kamer brzdí robota
@@ -1081,11 +1191,11 @@ Barva D435 má při 640×480 jen 55° zorného pole a kamery jsou pootočené o 
 
 - [x] Měřidlo `ARBot.Analyze wedge` (zorná pole z intrinsik, rozpad příčin, simulace léčby) (13. 9. 2026)
 - [x] `WedgeFiller` se čtyřmi pojistkami a pěti opravami z měření (13. 9. 2026)
-- [ ] Přeměřit nad více záznamy (dva běhy se liší 4×)
+- [x] Přeměřit nad více záznamy (dva běhy se liší 4×) — 1. 10. 2026 s opraveným měřidlem (`wedge` četl všechny snímky a počítal s 1,2 místo 1,7 m/s ze záznamu): Track `VBrake` pod stropem 1,7 m/s v 14,7 % vzorků, s doplněním klínu 14,4 %, bez sémantiky 13,4 %; FreeRun 3,0 % ve všech variantách (12. 9.: 40,5 % pod 0,6 m/s). Díra v sémantice leží p50 ve 4,2 m, kde strop už neváže (volno 3,61 m stačí na 1,7 m/s) — klín na těchto jízdách rychlost nesráží. Gridy ze záznamu jsou už po `WedgeFiller`, takže simulace léčby ho aplikuje podruhé (7. 10. 2026)
 - [ ] Dopad ceny neznámých buněk (`UnknownCostFactor`) na tvar dráhy — neměřený
 - [x] Běh na zařízení — od 18. 9. (binárka s `bc08c06` nese i `WedgeFiller`, profil `wedgefill=` nepřepisuje, platí 6°); účinek nezměřen, `ARBot.Analyze wedge` nad `20260918-*` neběžel (18. 9. 2026)
 
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [record-replay.md](record-replay.md) · DevLog [2026-09-13](devlog.md#2026-09-13)
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [record-replay.md](record-replay.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-regulator-kmitani-rotace"></a>
 ### 🧪 Robot cuká — kvantovaný příkaz rotace kmitá a přes vazbu na rotaci trhá i dopřednou rychlost
@@ -1099,21 +1209,23 @@ Pozorování autora z FreeRun 25. 9. 2026: robot nejede plynule. Rekonstrukce re
 - [x] Simulace profilu se zpožděním pro `L` 0,1–0,5 s (FreeRun, dojezd, zatáčka) (25. 9. 2026)
 - [x] Léčba (autor): `LatencyMotionProfile` se zpožděním `L = 0,4 s`, výchozí (`motionprofile=latency`, `motionlatency=`; `trapezoid` = původní), `PathResult` beze změny; testy zákona a uzavřené smyčky (`LatencyMotionProfileTests`) (25. 9. 2026)
 - [ ] Ověřit jízdou A/B (`motionprofile=trapezoid` proti výchozímu): změny znaménka rotace, skoky `|dv|`, rychlost a příčná odchylka v `drive`
+- [x] Před/po na zařízení bez A/B (`drive`): Track Modřany 25. 9. s `trapezoid` (`20260925-142428/-143643/-144200.rec`) 1,5–2,3 změny znaménka ω/s, skoky |dv| 9,0–16,8 %, odchylka p99 3,9–4,5 cm; s `latency` 29. 9. a 1. 10. (`20260929-150844.rec`, `20261001-144638.rec`) 0,71 a 0,26/s, 39,0 a 11,3 %, p99 5,9 a 7,5 cm. Kmitání rotace kleslo 6–9×, jak simulace slibovala; skoky dopředné rychlosti v Tracku NE (11,3 % je uvnitř rozpětí trapezoid — popis výš cituje jen `-143643`), odchylka vzrostla z ~4 na 6–9 cm. FreeRun 25. 9. (3,1/s) proti 1. 10. (0,47/s) je zmatený změnou `freerunlook` 1,5 → 5. Na HW poprvé `latency` už 29. 9. (7. 10. 2026)
 
-[path-following.md](path-following.md), [rozhodnutí 25. 9. 2026](decisions.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
+[path-following.md](path-following.md), [rozhodnutí 25. 9. 2026](decisions.md) · DevLog [2026-09-25](devlog.md#2026-09-25), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-grid-posun-pomalou-korekci"></a>
 ### 🧪 Postupná korekce pózy (limit kroku) nesmaže grid — robot se ocitne v „historicky" nesjízdných buňkách
 
 `lp-grid-posun-pomalou-korekci` · vada · **v kódu, na HW neověřeno** · nalezeno 26. 9. 2026 · vyřešeno 5. 10. 2026
 
-Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za ~30 s o ~10 m (`lok-koridor-noedge-po-zatacce`), ale po krocích ~2 cm na snímek (`corridorslew=0,5` m/s). `PoseJumpDetector` porovnává posun s `|v|·dt + 0,5 m`, takže nezasáhl ani jednou (report `nav`: jediný skok 0,59 m ve stání) a world-kotvený grid zůstal namalovaný v rámci špatné pózy. Robot se po korekci ocitl v buňkách, které tam dřív zapsala tráva viděná z posunuté pózy: `EscapingBlocked` 14:34:18–14:34:28 (167 plánů za 10 s) a `GoalUnsafe`. Limit kroku byl navržen právě tak, aby detektor nespouštěl (21. 9.) — to platí pro malé korekce, ne pro součet 10 m. Totéž se dá čekat u každé velké, ale postupné opravy pózy. **Únikový manévr to zvládl** (autor: „to by měl řešit únikový manévr"): v obou epizodách (první zatáčka 14:32:22–28, po korekci 14:34:18–28) robot z blokované buňky vyjel za 6–10 s a pokračoval (`Ok`, v 1,66 resp. 0,22 m/s → pak přerušení timeoutem). Únik ale řeší jen „stojím v blokované buňce", ne „celá okolní mapa je posunutá" — posunutý grid se přepisuje až tím, co kamery znovu uvidí. S opraveným obvodem kola by velké korekce neměly vznikat. **Zastavení na konci ale způsobil jiný důvod:** 14:34:39 `Track: mise PRERUSENA - timeout jizdy k mistu 1/2 (limit 600 s)` (`mise-track-timeout-delka-useku`).
+Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za ~30 s o ~10 m (`lok-koridor-noedge-po-zatacce`), ale po krocích ~2 cm na snímek (`corridorslew=0,5` m/s). `PoseJumpDetector` porovnává posun s `|v|·dt + 0,5 m`, takže nezasáhl ani jednou (report `nav`: jediný skok 0,59 m ve stání) a world-kotvený grid zůstal namalovaný v rámci špatné pózy. Robot se po korekci ocitl v buňkách, které tam dřív zapsala tráva viděná z posunuté pózy: `EscapingBlocked` 14:34:18–14:34:28 (167 plánů za 10 s) a `GoalUnsafe`. Limit kroku byl navržen právě tak, aby detektor nespouštěl (21. 9.) — to platí pro malé korekce, ne pro součet 10 m. Totéž se dá čekat u každé velké, ale postupné opravy pózy. **Únikový manévr to zvládl** (autor: „to by měl řešit únikový manévr"): v obou epizodách (první zatáčka 14:32:22–28, po korekci 14:34:18–28) robot z blokované buňky vyjel za 6–10 s a pokračoval (`Ok`, v 1,66 resp. 0,22 m/s → pak přerušení timeoutem). Únik ale řeší jen „stojím v blokované buňce", ne „celá okolní mapa je posunutá" — posunutý grid se přepisuje až tím, co kamery znovu uvidí. S opraveným obvodem kola by velké korekce neměly vznikat. **Zastavení na konci ale způsobil jiný důvod:** 14:34:39 `Track: mise PRERUSENA - timeout jizdy k mistu 1/2 (limit 600 s)` (`mise-track-timeout-delka-useku`). ⚠️ **„Únik to zvládne" neplatí obecně — 1. 10. 2026 nezvládl** (`20261001-144638.rec`, `lp-uvaznuti-v-zatackach`): korekce koridoru posunuly pózu za 5 s o 1,51 m a za 9 s o 1,92 m (kroky 0,12–0,24 m, pod tolerancí detektoru skoku) a robot se ocitl uprostřed pásu krajnice, kterou hloubka zapsala 1–4 s předtím — pod půdorysem 87–102 ze ~110 buněk blokovaných geometrií. Únik smí přes geometrii jen ze startovní buňky, takže `RobotBlocked` 132,4 s a 42,0 s; kamery přitom ukazovaly volný asfalt. Grid časový rozpad nemá, buňky pod robotem se během stání nezměnily (134 s).
 
 - [x] Změřeno: `EscapingBlocked` hned po korekci ~10 m, detektor skoku nezasáhl (`posegps`, `nav`) (26. 9. 2026)
 - [x] Rozhodnout léčbu (autor): hlídat SOUČET korekcí (posun pózy proti odometrii za okno) a při překročení gridu věřit méně / smazat, nebo grid při korekci posouvat. Rozhodnuto: grid v odometrické soustavě (`lp-grid-odometricka-soustava`) — od 4. 10. 2026 v kódu jako `localframe=odom`, od 5. 10. 2026 výchozí (5. 10. 2026)
-- [ ] Ověřit na zařízení: po velké postupné korekci pózy žádné `EscapingBlocked`/`GoalUnsafe` z posunutého gridu (`ARBot.Analyze localplan`, `nav`)
+- [ ] Ověřit na zařízení: po velké postupné korekci pózy žádné `EscapingBlocked`/`GoalUnsafe` z posunutého gridu (`ARBot.Analyze localplan`, `nav`, `zasek`) — nejlépe na místě, kde se to 1. 10. stalo 8×: obě 90° zatáčky way 154101921 v Modřanech
+- [x] Další případ z HW, ještě s gridem ve světě (1. 10. 2026, `20261001-144638.rec`): 29 z 32 začátků úniku do 0,2 s po korekci koridoru, na konci `RobotBlocked` 132,4 + 42,0 s (viz popis a `lp-uvaznuti-v-zatackach`) (7. 10. 2026)
 
-čeká na [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) · [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
+čeká na [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) · [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-grid-odometricka-soustava"></a>
 ### 🧪 Lokální vrstva v odometrické soustavě (`localframe=odom`) — odometrická póza (x, y, θ) jako vedlejší integrátor ve snapshotu fúze
@@ -1131,10 +1243,10 @@ Track 25. 9. 2026 (`20260925-142428.rec`): korekce z koridoru posunuly pózu za 
 - [ ] Jízda na zařízení s `localframe=odom` (Track / FreeRun): grid po korekcích koridoru, `EscapingBlocked`/`GoalUnsafe` proti `world`, drift odometrie v gridu; podle toho potvrdit výchozí `odom`, nebo vrátit `world` (autor)
 - [ ] Změřit nad záznamy drift odometrické pózy na horizontu paměti gridu (sekundy, 12,8 m) a kolik korekcí se do gridu dnes promítá. ⚠️ Do nahrání `RizeniDiffPodvozku.mbs` 2.1 (čas z motorové jednotky) nese rychlost z kol ve fúzi bias +1,9 % (`lok-fuze-poza-pred-koly`) — v záznamech před tím ho drift odometrické pózy obsahuje
 - [x] Odhad úniku korekcí přes rychlosti na 1D modelu: s odometrií kol pod 1 % kroku, bez ní až 27 % (2. 10. 2026)
-- [ ] Změřit v replayi únik přes rychlosti: změna `v` a `ω` u každého měření polohy/kurzu, součet do `xOdom`/`θOdom`; zvlášť úseky s výpadkem motorů (frekvence `Odo/speed` už změřena: ~91 Hz; `SlipDetector` se nevolá, prokluz odometrii nevyřazuje)
+- [x] Změřit v replayi únik přes rychlosti: změna `v` a `ω` u každého měření polohy/kurzu, součet do `xOdom`/`θOdom`; zvlášť úseky s výpadkem motorů (frekvence `Odo/speed` už změřena: ~91 Hz; `SlipDetector` se nevolá, prokluz odometrii nevyřazuje). ✅ 1. 10. 2026 (`fusionreplay` blok 10 nad `20261001-144638.rec`, výpadek motorů 15:15:41,8–43,4 = 1,6 s): v oknech přes výpadek unikla odometrická póza proti variantě „jen kola + gyro“ za 5 s p50 0,026 / max 0,035 m, za 10 s max 0,037 m — maximum celé 42min jízdy, ale pod 4 cm a ~1 % p90 posunu gridu (mimo výpadek p50 0,002 m). Posun gridu korekcemi (první jízdy s `corridorseekback`/`corridorposlimit`) za 5 s p99 1,09 m (Track) a 0,78 m (FreeRun) proti 1,4–2,1 m dřív (7. 10. 2026)
 - [ ] Podle měření rozhodnout pojistku: vynulované řádky zisku pro `v` a `ω` u absolutních měření (podklad z fáze 1: únik za jízdy ~1 % posunu gridu, p90 ≤ 9 mm / 10 s — autor)
 
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [decisions.md](decisions.md) · DevLog [2026-10-04](devlog.md#2026-10-04)
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [decisions.md](decisions.md) · DevLog [2026-10-04](devlog.md#2026-10-04), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lp-schody-v-uzine-regulator-brzdi"></a>
 ### 🧪 V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9
@@ -1163,15 +1275,6 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 - [ ] Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?)
 
 [plan-drive-hold.md](plan-drive-hold.md), [ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs) · DevLog [2026-10-05](devlog.md#2026-10-05)
-
-<a id="lp-zapis-volna-pod-robotem"></a>
-### ⏸ Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky
-
-`lp-zapis-volna-pod-robotem` · záměr · **odloženo** · nalezeno 18. 8. 2026
-
-Původně krok 3 návrhu úniku z blokované buňky, vyčleněný 26. 9. 2026 (autor). Pomohl by jen tehdy, když robot stojí na zdánlivé překážce z HLOUBKY (posunutý grid po korekci pózy, šum těsně u robota) a ta pokrývá celý půdorys — únik smí z výchozí buňky odjet, ale do další geometricky blokované nevjede. Případ z 18. 8. by nevyřešil (tam blokovala barva a do semantického kanálu se psát nesmí), pomalý rozjezd po startu už řeší sjízdný půdorys v obálce (3. 9.). Riziko: zápis podle chybné pózy smaže skutečnou překážku ve slepé zóně kamer, kde ji nic hned nepřepíše. Posunutý grid se má řešit u příčiny (`lp-grid-posun-pomalou-korekci`). Vrátit se k tomu, až se v záznamu objeví `RobotBlocked` kvůli hloubce pod půdorysem.
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-26](devlog.md#2026-09-26)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď
@@ -1322,6 +1425,19 @@ Našlo se při psaní webového článku o regulátoru, kde se čísla nepřebí
 
 [path-following.md](path-following.md), [Profile.cs](../Src/ARBot.Common/Configuration/Profile.cs) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-09-25](devlog.md#2026-09-25)
 
+<a id="lp-zasek-v-blokovane-mape"></a>
+### ✅ Robot 18. 9. dvakrát stál minuty před blokovanou lokální mapou — vysvětleno, slepý konec chodníku
+
+`lp-zasek-v-blokovane-mape` · vada · **hotovo** · nalezeno 18. 9. 2026 · vyřešeno 7. 10. 2026
+
+`20260918-154028.rec`: po dvou celých kolech Tracku robot na cestě k bodu 1/3 od ~320 s zpomalil na 0,05–0,12 m/s a od 388 s stál ~6 minut do konce záznamu — plán délky 5 cm, potvrzeně volno 0,00 m, `Blocked` ~50 % buněk, stavy `AlreadyAtGoal`/`EscapingBlocked`, 4× „NOUZOVE ZASTAVENI - kolize 0,00 m“, hraniční body z kamer 1,7–2,8 m před robotem (něco tam bylo). `20260918-155329.rec`: po volbě mise 52–117 s `EscapingBlocked`, pak se rozjel. Vedlejší efekt pro koridor: ve stání nevzniká (0,6 % cyklů), takže celkové procento `Ok` v záznamu je číslo o stání, ne o koridoru. **Vysvětleno 7. 10. 2026** (`ARBot.Analyze zasek`, `nav`, snímky kamer): **NENÍ to mechanismus z 1. 10. 2026** (`lp-uvaznuti-v-zatackach`) — `RobotBlocked` v obou záznamech 0×, překážky skutečné. Globální navigace poslala ve 3. kole robota k místu 1/3 objížďkou 266 m místo 44 m (nejspíš po penalizaci way 230064222 chybou φ, `nav-phi-obracena-hrana`; neověřeno). Na konci footway 230064222 robot nesjel přes obrubník na ulici (OSM ji spojuje přímo s osou ulice, fyzicky je mezi nimi chodník a obrubník), ~8 m se plazil po 1,2–1,4 m širokém chodníku souběžně s ulicí (offRoute 0 → 4,9 m) do slepého rohu (obrubník, sloupky, svah). V 382 s koridor přiřadil chodník k ulici 4,9 m vedle a póza skočila o 4,8 m (`lok-koridor-chodnik-k-ulici`); `PoseJumpDetector` smazal grid a grid se postavil znovu z TÝCHŽ skutečných překážek. Od 388 s `AlreadyAtGoal` s mrkví 6,6–7,3 m daleko (lokální minimum, `lp-alreadyatgoal-lokalni-minimum`), detektor záseku odzbrojený, nic nehlásilo (`nav-uvaznuti-neohlasene`). V `155329` (restart na tomtéž chodníku) póza z GPS 3–5 m vedle, mrkev do svahu, únik s východem 5 cm se 65 s nerealizoval; ukončila to obsluha tlačítkem stop a otočením rukou. Opravy původního popisu: grid se mazal v 382,1 s detektorem skoku pózy, ne při zotavení kamer (to grid nemaže); „nouzové zastavení 59–85 %" v `155329` bylo HW tlačítko obsluhy.
+
+- [x] Nález (`ARBot.Analyze localplan --from=320`, `corridor`, `log`) (18. 9. 2026)
+- [x] Snímky z kamer 320–400 s (`ARBot.Analyze zasek --png=`): robot na úzkém chodníku za obrubníkem (ulice vlevo, svah a strom vpravo), na konci slepý roh se sloupky; překážky skutečné, ne artefakt gridu (7. 10. 2026)
+- [x] Rozhodnuto: ani `lp-unik-z-blokovane-bunky` (pod robotem blokovaná buňka nebyla), ani `lp-filtr-izolovanych-bunek` (souvislé plochy obrubníku a svahu). Nové vady: `lp-alreadyatgoal-lokalni-minimum`, `lok-koridor-chodnik-k-ulici`, `nav-uvaznuti-neohlasene` (7. 10. 2026)
+
+[map-correlation-localization.md (sekce 18. 9. 2026)](map-correlation-localization.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="an-drive-pevny-profil"></a>
 ### ✅ `ARBot.Analyze drive` přehrával regulátor napevno s lichoběžníkovým profilem
 
@@ -1378,11 +1494,11 @@ Chyba v montáži kamery (yaw o 1° při dohledu 3–6 m) posune celý bodový o
 
 - [ ] Chyba azimutu hran mapy: směr GPS stopy po úsecích proti azimutu hrany v OSM (Robotour 19. 9.)
 - [ ] Zbytek `kurz z koridoru − GPS kurz` napříč hranami: stejný na všech = kamera, různý = mapa (Robotour 19. 9.)
-- [ ] Nerovnoběžnost levé a pravé hrany koridoru (rozdíl yaw kamer) přes záznamy
+- [ ] Nerovnoběžnost levé a pravé hrany koridoru přes záznamy — změřeno 7. 10. 2026 (`dirL − dirR`, cykly Ok, v > 1 m/s): Modřany 1. 10. −1,57° (n 23 560) / −2,00°, v místech projetých oběma směry tělesová složka −1,36°; Hviezdoslavova 18. 9. +0,33 / −0,05°, 27. 9. +2,71°; Robotour 19. 9. +0,06 / +0,72°. Hodnota se mezi záznamy mění o ~4° a uvnitř 1. 10. závisí na změřené šířce (−0,7° při 3 m → −2,3° při 5 m), takže to NENÍ rozdíl yaw kamer. Zbývá rozložit: souměrná chyba průmětu (sklon/výška kamer), nebo vazba směru a šířky v proložení
 - [ ] Výška, sklon a náklon obou D435 z roviny země: robot stojí na rovné podlaze doma, krátký záznam, proložení roviny hloubkou (autor 1. 10. 2026; kamery jsou pevně přidělané, takže stačí jednorázově, průběžný hlídač není potřeba)
 - [ ] Změřit extrinsiky skutečných D435 — zbývá yaw (rovina země ho neurčí)
 
-[map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-23](devlog.md#2026-08-23), [2026-10-01](devlog.md#2026-10-01)
+[map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-20](devlog.md#2026-08-20), [2026-08-23](devlog.md#2026-08-23), [2026-10-01](devlog.md#2026-10-01), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="vid-model96-2-na-npu"></a>
 ### ⬜ Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci
@@ -1434,20 +1550,6 @@ Převod pixelu barevného obrazu na bod v prostoru byl mrtvý na všech platform
 - [ ] Ověřit extrinsiky a body hranice na skutečné D435
 
 [map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-21](devlog.md#2026-08-21)
-
-<a id="vid-segmentace-rozliseni-128"></a>
-### 🧪 Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
-
-`vid-segmentace-rozliseni-128` · záměr · **v kódu, na HW neověřeno** · nalezeno 6. 9. 2026 · vyřešeno 30. 9. 2026
-
-Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se. **Změřeno 29. 9. 2026** (`ARBot.Analyze probres`, pět záznamů 18.–29. 9., tentýž histogram na plném a zmenšeném snímku + síť ze záznamu, kontrola měřidla proti zapsaným hranám 0,000): hraničních bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí pevná brána `corridormininliers=20` v počtu bodů, ne kvalita bodů** — Modřany 29. 9.: Ok 43,0 / 20,6 % na plném snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky (20 × 128/480 = 5) histogram 41,6 / 20,8 % a síť 33,1 / 26,5 %. Na úzké Hviezdoslavově brána skoro nevadí (26,5 → 24,7 %). Přesnost z řidších bodů skoro netrpí (šířka p50 4–9 cm, příčně 2–4 cm, směr 0,4–0,7° proti plnému snímku). Grid: jeden řádek 128×128 ve 3–5 m pokrývá 0,06–0,24 m, tedy až ~5 buněk 5 cm; hustota zápisu se nemění. Detail a tabulka: `semantic-segmentation.md`, sekce „Síť mění rozlišení".
-
-- [x] Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid — `ARBot.Analyze probres` nad pěti záznamy (29. 9. 2026)
-- [x] Rozhodnout bránu koridoru pro síť 128×128 (autor): `corridormininliers` (a `SingleEdgeMinInliers`, dnes pevných 25) snížit, nebo je vyjádřit na 480 řádků a přepočítat podle výšky pravděpodobnostního obrazu. Navazuje na dřívější měření brány, se kterými `probres` souhlasí a vysvětluje je (počet bodů je vázaný na 128 řádků): Hviezdoslavova 18. 9. 25 → 20 jen +6–7 % (`lok-koridor-prah-inlieru-prisny`, inlierů je tam 40–50); Modřany 25. 9. 25 → 20 2,7 → 28 % (profil od 26. 9.; hrany tam měly 20–25 inlierů, tedy těsně nad 20); Modřany 23. 9. práh 12–15 bezpečný (šířka ~5 m), pod 10 roste `NotParallel` i rozptyl šířky a kurzu (`map-correlation-localization.md`); Modřany 29. 9. při 20 jen 1,6 / 1,2 % s nesmyslnou šířkou, při 10 tisíce se šířkou ~5 m (`lok-koridor-siroka-cyklostezka`). Brána 5 z `probres` je tedy přepočet, ne doporučená hodnota. Nižší brána zvedne i `NotParallel`; kvalita cyklů, které projdou jen s nižší branou, změřená není. ⚠️ `fusionreplay` bere proložení koridoru hotové z `RoadCorridorMsg`, takže `--set=corridormininliers=` na něj NEÚČINKUJE — pro dopad na pózu by musel proložení přepočítat ze snímků (jako `probres`). Rozhodnuto 30. 9. (autor): přeškálovat, v procentech řádků, i bránu jedné hrany (30. 9. 2026)
-- [x] Léčba (autor 30. 9.): brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu, `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, `CorridorSource` bere výšku obrazu ze snímku, bez ní platí absolutních 25. `probres` s branou 10 %: histogram plný vs. 128×128 dává totéž (Modřany 29. 9. 27,0 / 26,3 % a 11,5 / 11,5 %), síť 1,6 → 14,8 % a 0,4 → 7,2 %, Modřany 25. 9. 29,6 → 56,5 %, Hviezdoslavova 25,1 → 29,4 % a 23,4 → 28,1 %. Simulace FreeRun 75 s: 96,5 % Ok proti 95,5 % s absolutní branou. 6 nových testů; testy 1 725 / 151 / 129, build x64 i OrangePI (30. 9. 2026)
-- [ ] Ověřit na zařízení: jízda na široké cestě (Modřany) s `corridorinliers=10` — podíl oboustranného koridoru a jedné hrany (`corridor`, `probres`), šířka a kurz koridoru proti GPS
-
-[semantic-segmentation.md](semantic-segmentation.md), [OnnxBackProject.cs](../Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs), [ProbResolutionReport.cs](../Src/ARBot.Analyze/ProbResolutionReport.cs), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [rozhodnutí 30. 9. 2026](decisions.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-07](devlog.md#2026-09-07), [2026-09-29](devlog.md#2026-09-29), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="vid-nativni-knihovna-opravy"></a>
 ### ✅ Nativní knihovna měla chybějící exporty na x64 a špatnou volací konvenci na ARM
@@ -1532,6 +1634,20 @@ Druhá implementace „cesty z RGB" (`backproject=nn`): U-Net Model61.1 z ARBot2
 - [x] Modely do gitu, aby šla síť spustit na čerstvé kopii (7. 9. 2026)
 
 [semantic-segmentation.md](semantic-segmentation.md), [testset/README.md](../models/testset/README.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-07](devlog.md#2026-09-07)
+
+<a id="vid-segmentace-rozliseni-128"></a>
+### ✅ Dopad výpočtu ve 128×128 na hustotu dat pro grid a hranice cesty
+
+`vid-segmentace-rozliseni-128` · záměr · **hotovo** · nalezeno 6. 9. 2026 · vyřešeno 7. 10. 2026
+
+Síť počítá sjízdnost ve 128×128 (snímek 4:3 se přitom stlačí na čtverec), kdežto histogram barev pracoval nad plným snímkem 640×480 — hranice cesty a zápis do occupancy gridu tak dostávají řádově řidší data. Jaký to má dopad na hustotu gridu a přesnost hranic, naměřené není. Není to věc konfigurace: vyšší rozlišení vstupu znamená síť přetrénovat, takže stlačení i zvětšení nejbližším sousedem jsou replika tréninku a neopravují se. **Změřeno 29. 9. 2026** (`ARBot.Analyze probres`, pět záznamů 18.–29. 9., tentýž histogram na plném a zmenšeném snímku + síť ze záznamu, kontrola měřidla proti zapsaným hranám 0,000): hraničních bodů je ~4× méně a **oboustranný koridor na široké cestě zabíjí pevná brána `corridormininliers=20` v počtu bodů, ne kvalita bodů** — Modřany 29. 9.: Ok 43,0 / 20,6 % na plném snímku, 4,8 / 3,8 % ve 128×128, síť 1,6 / 0,4 %; s branou přepočtenou na řádky (20 × 128/480 = 5) histogram 41,6 / 20,8 % a síť 33,1 / 26,5 %. Na úzké Hviezdoslavově brána skoro nevadí (26,5 → 24,7 %). Přesnost z řidších bodů skoro netrpí (šířka p50 4–9 cm, příčně 2–4 cm, směr 0,4–0,7° proti plnému snímku). Grid: jeden řádek 128×128 ve 3–5 m pokrývá 0,06–0,24 m, tedy až ~5 buněk 5 cm; hustota zápisu se nemění. Detail a tabulka: `semantic-segmentation.md`, sekce „Síť mění rozlišení".
+
+- [x] Změřit dopad 128×128 proti plnému snímku na hranice cesty a occupancy grid — `ARBot.Analyze probres` nad pěti záznamy (29. 9. 2026)
+- [x] Rozhodnout bránu koridoru pro síť 128×128 (autor): `corridormininliers` (a `SingleEdgeMinInliers`, dnes pevných 25) snížit, nebo je vyjádřit na 480 řádků a přepočítat podle výšky pravděpodobnostního obrazu. Navazuje na dřívější měření brány, se kterými `probres` souhlasí a vysvětluje je (počet bodů je vázaný na 128 řádků): Hviezdoslavova 18. 9. 25 → 20 jen +6–7 % (`lok-koridor-prah-inlieru-prisny`, inlierů je tam 40–50); Modřany 25. 9. 25 → 20 2,7 → 28 % (profil od 26. 9.; hrany tam měly 20–25 inlierů, tedy těsně nad 20); Modřany 23. 9. práh 12–15 bezpečný (šířka ~5 m), pod 10 roste `NotParallel` i rozptyl šířky a kurzu (`map-correlation-localization.md`); Modřany 29. 9. při 20 jen 1,6 / 1,2 % s nesmyslnou šířkou, při 10 tisíce se šířkou ~5 m (`lok-koridor-siroka-cyklostezka`). Brána 5 z `probres` je tedy přepočet, ne doporučená hodnota. Nižší brána zvedne i `NotParallel`; kvalita cyklů, které projdou jen s nižší branou, změřená není. ⚠️ `fusionreplay` bere proložení koridoru hotové z `RoadCorridorMsg`, takže `--set=corridormininliers=` na něj NEÚČINKUJE — pro dopad na pózu by musel proložení přepočítat ze snímků (jako `probres`). Rozhodnuto 30. 9. (autor): přeškálovat, v procentech řádků, i bránu jedné hrany (30. 9. 2026)
+- [x] Léčba (autor 30. 9.): brána v PROCENTECH ŘÁDKŮ pravděpodobnostního obrazu, `corridorinliers=` a nový `corridorsingleinliers=`, obojí 10 % (síť 13 bodů, plný snímek 48, účinně ≥ 3); `corridormininliers=` zanikl, `CorridorSource` bere výšku obrazu ze snímku, bez ní platí absolutních 25. `probres` s branou 10 %: histogram plný vs. 128×128 dává totéž (Modřany 29. 9. 27,0 / 26,3 % a 11,5 / 11,5 %), síť 1,6 → 14,8 % a 0,4 → 7,2 %, Modřany 25. 9. 29,6 → 56,5 %, Hviezdoslavova 25,1 → 29,4 % a 23,4 → 28,1 %. Simulace FreeRun 75 s: 96,5 % Ok proti 95,5 % s absolutní branou. 6 nových testů; testy 1 725 / 151 / 129, build x64 i OrangePI (30. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 v Modřanech (`20261001-144638.rec` Track, `-152906.rec` FreeRun, `corridorinliers=10` = 13 bodů): oboustranné PROLOŽENÍ koridoru v 59,9 / 62,0 % cyklů (za jízdy 70,8 / 61,7 %) proti 1,5 / 0,3 % 29. 9. a 2,7 % 25. 9. s pevnou branou 20; přijato oboustranně 45,2 / 49,0 %, z jedné hrany 17,1 / 28,8 %. Šířka za jízdy p50 3,89 / 3,69 m (p10–p90 3,41–5,21 m), mimo 1–8 m 2,8 % (při 25 bodech 0,4 %); koridor − GPS kurz p50 +1,17 / +2,25° (robustní sd 1,74 / 1,80°), `NotParallel` 12,2 / 5,3 %. Kvalita cyklů, které projdou jen s nižší branou, zvlášť změřená není (7. 10. 2026)
+
+[semantic-segmentation.md](semantic-segmentation.md), [OnnxBackProject.cs](../Src/ARBot.Common/Vision/Nn/OnnxBackProject.cs), [ProbResolutionReport.cs](../Src/ARBot.Analyze/ProbResolutionReport.cs), [CorridorConfig.cs](../Src/ARBot.Common/Localization/CorridorConfig.cs), [rozhodnutí 30. 9. 2026](decisions.md) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-07](devlog.md#2026-09-07), [2026-09-29](devlog.md#2026-09-29), [2026-09-30](devlog.md#2026-09-30), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="vid-mezera-88-vs-95"></a>
 ### ✅ Síť dává 88 %, ačkoli notebook tvrdí 95 %
@@ -1622,6 +1738,18 @@ Mise `magcal` došla do verdiktu HOTOVO v 48. s (podmíněnost 330, `sd|B|` 0,00
 
 [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs), [MagCalCollector.cs](../Src/ARBot.Common/Calibration/MagCalCollector.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
+<a id="mise-freerun-sirka-bez-naucene"></a>
+### ⬜ FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)
+
+`mise-freerun-sirka-bez-naucene` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+FreeRun 1. 10. 2026 (`20261001-152906.rec`, `roadwidthmap=true`): ve všech 3 285 cyklech mrkve z jedné hrany se šířkou z mapy byla šířka přesně 3,00 m (výchozí `roadwidth`, mapa tagy `width` nemá), ačkoli oboustranný koridor měřil p50 3,69 m a naučená šířka se do mapy propisovala. `FreeRunMission.MapWidthAt` čte `RoadNetwork` bez překryvu naučené šířky (`ARBotRuntime`, f848fdf i HEAD). Cílová čára tak ležela 0,75 m od pravého kraje místo ~0,92 m (W/4). Závažnost nízká.
+
+- [x] Nalezeno při ověření `mise-freerun-jedna-hrana` (7. 10. 2026)
+- [ ] Předat FreeRunu šířku s překryvem naučené šířky
+
+[mission-freerun.md](mission-freerun.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+
 <a id="mise-robotour-armovani-rozptyl"></a>
 ### 🧪 Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS
 
@@ -1632,8 +1760,9 @@ Armování v depu čeká na okno kvalitních fixů GPS. Navržený práh 1,0 m b
 - [x] RMS místo maxima, práh 2,5 m (26. 8. 2026)
 - [x] Kvalita fixu a rozptyl okna ve `MissionMsg` a v panelu (26. 8. 2026)
 - [ ] Nastavit práh z naměřeného rozptylu na zařízení (vyčíst `spread=` z Kolo3a/3b)
+- [x] Spodní kotva prahu za volného nebe (`gps` nad `20261001-144638.rec`, stání 83 s, 13–15 družic): odchylka fixu od průměru p50 0,17 m, p90 0,37 m, max 0,56 m — RMS o řád pod prahem 2,5 m; dekorelační čas ~15 s, takže 5s okno armování vidí skoro jedinou realizaci. Podmínky depa mezi budovami to nenahrazuje (7. 10. 2026)
 
-[robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026](decisions.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-09-19](devlog.md#2026-09-19)
+[robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026](decisions.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-09-19](devlog.md#2026-09-19), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="mise-robotour-dalsi-nakladka"></a>
 ### 🧪 Změna pravidel Robotour 2026 — po vykládce další nakládka místo jízdy do depa
@@ -1648,20 +1777,6 @@ Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další n
 - [ ] Ověřit na robotu (skutečné kamery, stop tlačítko, stránka náhledu)
 
 [robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
-
-<a id="mise-freerun-jedna-hrana"></a>
-### 🧪 FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
-
-`mise-freerun-jedna-hrana` · vada · **v kódu, na HW neověřeno** · nalezeno 26. 9. 2026 · vyřešeno 26. 9. 2026
-
-Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, Modřany): mrkev byla ve směru robotu, ne v koridoru. Změřeno: mrkev z koridoru jen u 578 z 22 646 cyklů (3 %), zbytek `NoCorridor` / `NoPair`. Oboustranný koridor vznikl ve 2,7 % snímků (`corridormininliers=25`; při 20 by to bylo 28 % se šířkou p50 3,61 m), **jedna hrana v 86 %** (pravá 65 %, levá 21 %) a její směr proti GPS kurzu p50 0,24°, p90 5° (`ARBot.Analyze singleedge`). `CorridorSource` jednu hranu poznal (`SingleEdgeUsable`), ale FreeRun ji záměrně nebral s tím, že z ní nevznikne šířka ani příčná poloha. **Léčba (autor):** příčná poloha vůči hraně je změřená; se šířkou z mapy (blízká a rovnoběžná cesta) mrkev do středu pravé poloviny jako u koridoru, bez ní ve směru hrany se zachovaným odstupem. `freerunsingle=` (výchozí true), `FreeRunMsg` verze 2, 13 testů.
-
-- [x] Změřeno: 3 % mrkví z koridoru, jedna hrana v 86 % snímků (`freerun`, `corridor`, `singleedge`) (26. 9. 2026)
-- [x] Mrkev z jedné hrany (šířka z mapy / zachovaný odstup), `freerunsingle=`, `FreeRunMsg` v2, rozpad v `ARBot.Analyze freerun` (26. 9. 2026)
-- [ ] Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu. Částečně 29. 9. (`20260929-151634.rec`, Modřany na jih, 395 s): mrkev **z jedné hrany v 70 %** cyklů (4 603, z toho 2 764 se šířkou z mapy), rovně podle kurzu 30 %, z koridoru 12 cyklů (25. 9.: 3 % koridor, 97 % rovně). Měření koridoru z jedné hrany jsou převážně z pravé (285 z 306 přijatých). Zbývá pravá polovina: `freerun` hodnotí odchylku od požadované čáry jen u mrkví z koridoru (12 cyklů), pro jednu hranu to neměří
-- [x] `corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu (26. 9. 2026)
-
-[mission-freerun.md](mission-freerun.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-29](devlog.md#2026-09-29)
 
 <a id="mise-nouzove-zastaveni-controlloop"></a>
 ### ✅ Nouzové zastavení v řídicí smyčce a ve firmwaru motorů
@@ -1865,6 +1980,20 @@ Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, 2
 
 [mission-freerun.md](mission-freerun.md), [path-following.md](path-following.md) · DevLog [2026-09-25](devlog.md#2026-09-25), [2026-09-30](devlog.md#2026-09-30)
 
+<a id="mise-freerun-jedna-hrana"></a>
+### ✅ FreeRun jel 97 % času rovně podle kurzu — koridor z obou hran skoro nevznikal, jednu hranu mise ignorovala
+
+`mise-freerun-jedna-hrana` · vada · **hotovo** · nalezeno 26. 9. 2026 · vyřešeno 7. 10. 2026
+
+Pozorování autora z FreeRun 25. 9. 2026 (`records/test/20260925-144658.rec`, Modřany): mrkev byla ve směru robotu, ne v koridoru. Změřeno: mrkev z koridoru jen u 578 z 22 646 cyklů (3 %), zbytek `NoCorridor` / `NoPair`. Oboustranný koridor vznikl ve 2,7 % snímků (`corridormininliers=25`; při 20 by to bylo 28 % se šířkou p50 3,61 m), **jedna hrana v 86 %** (pravá 65 %, levá 21 %) a její směr proti GPS kurzu p50 0,24°, p90 5° (`ARBot.Analyze singleedge`). `CorridorSource` jednu hranu poznal (`SingleEdgeUsable`), ale FreeRun ji záměrně nebral s tím, že z ní nevznikne šířka ani příčná poloha. **Léčba (autor):** příčná poloha vůči hraně je změřená; se šířkou z mapy (blízká a rovnoběžná cesta) mrkev do středu pravé poloviny jako u koridoru, bez ní ve směru hrany se zachovaným odstupem. `freerunsingle=` (výchozí true), `FreeRunMsg` verze 2, 13 testů.
+
+- [x] Změřeno: 3 % mrkví z koridoru, jedna hrana v 86 % snímků (`freerun`, `corridor`, `singleedge`) (26. 9. 2026)
+- [x] Mrkev z jedné hrany (šířka z mapy / zachovaný odstup), `freerunsingle=`, `FreeRunMsg` v2, rozpad v `ARBot.Analyze freerun` (26. 9. 2026)
+- [x] Jízda FreeRun na zařízení: podíl mrkví z koridoru / jedné hrany / rovně (`freerun`), jestli robot drží pravou polovinu. Částečně 29. 9. (`20260929-151634.rec`, Modřany na jih, 395 s): mrkev **z jedné hrany v 70 %** cyklů (4 603, z toho 2 764 se šířkou z mapy), rovně podle kurzu 30 %, z koridoru 12 cyklů (25. 9.: 3 % koridor, 97 % rovně). Měření koridoru z jedné hrany jsou převážně z pravé (285 z 306 přijatých). Zbývá pravá polovina: `freerun` hodnotí odchylku od požadované čáry jen u mrkví z koridoru (12 cyklů), pro jednu hranu to neměří. ✅ **1. 10. 2026** (`20261001-152906.rec`, Modřany, 602 s, binárka f848fdf): mrkev z koridoru 60,7 %, z jedné hrany 30,1 % (pravá 3 174, levá 195), rovně 9,2 %. Robot drží pravou polovinu: u koridoru příčně p50 −0,99 m od osy při šířce 3,69 m (odchylka od čáry p50 −0,10 m, vlevo od osy jen 0,3 %), u pravé hrany p50 0,79 m od pravého kraje (v pravé polovině 99,3 % cyklů). Měřeno toutéž kamerou, která mrkev klade (scratch nad `FreeRunMsg` v2), nezávislá pravda chybí; mapová šířka u jedné hrany byla vždy výchozích 3,00 m (`mise-freerun-sirka-bez-naucene`) (7. 10. 2026)
+- [x] `corridormininliers=20` v `config/pi-provoz.cfg` (autor): oboustranný koridor 2,7 → 28 % snímků v témž záznamu (26. 9. 2026)
+
+[mission-freerun.md](mission-freerun.md) · DevLog [2026-09-26](devlog.md#2026-09-26), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="mise-track-timeout-delka-useku"></a>
 ### ✅ Timeout jízdy k místu Tracku (600 s) je kratší, než trvá první úsek v Modřanech
 
@@ -1893,27 +2022,28 @@ Mise Robotour jede na cíl z GPS, jejíž chyba ±2 m je pro „zastav u kódu" 
 
 `prov-perf-monitoring` · záměr · **otevřeno** · nalezeno 1. 9. 2026
 
-Do té doby nešlo z běhu poznat, jestli řídicí smyčka stíhá svých 10 taktů za sekundu. Měření sedí ve scheduleru (jediné místo, které zná plánovaný i skutečný čas taktu): obsazenost periody, zpoždění a zameškané takty, fronty a zahozené zprávy stupňů, CPU procesu — jednou za sekundu jako `PerfMsg` do proudu, tedy do UI i do záznamu, a panel Tools → Výkon (`perf=`, práh `perfwarn=`). První měření hned našlo zameškané takty na Windows (samostatné téma). Na zařízení `PerfMsg` chodí do záznamu od 4. 9. Fáze 3 (teplota, frekvence, CPU stroje přes HAL) a fáze 4 (`ARBot.Analyze perf`) se nezačaly; `perfwarn` je pořád odhad.
+Do té doby nešlo z běhu poznat, jestli řídicí smyčka stíhá svých 10 taktů za sekundu. Měření sedí ve scheduleru (jediné místo, které zná plánovaný i skutečný čas taktu): obsazenost periody, zpoždění a zameškané takty, fronty a zahozené zprávy stupňů, CPU procesu — jednou za sekundu jako `PerfMsg` do proudu, tedy do UI i do záznamu, a panel Tools → Výkon (`perf=`, práh `perfwarn=`). První měření hned našlo zameškané takty na Windows (samostatné téma). Na zařízení `PerfMsg` chodí do záznamu od 4. 9. Fáze 3 (teplota, frekvence, CPU stroje přes HAL) se nezačala; `perfwarn` je pořád odhad. **Fáze 4 hotová 7. 10. 2026 (`ARBot.Analyze perf`) a první rozbor ze zařízení:** Track 1. 10. obsazenost periody AVG p50 3,4 %, MAX p99 12,8 % (max 25,3 %), žádná sekunda ≥ 50 %, takže `perfwarn=70` nikdy nedoběhne; červený verdikt dělají výhradně zameškané takty (48 % sekund v Tracku, 25 % ve FreeRunu, 19 % 29. 9.) a ty nejsou z práce taktu, ale z fáze časovače (`prov-zameskane-takty-windows`). CPU procesu p50 20,5 %, max 31,6 %. `LocalNavigator` zahodil 83 snímků (0,09 %), avg 9,9 ms. Blok „mezery v proudech" našel zásek celého procesu (`prov-zasek-procesu-1s`) a souběžné výpadky obou kamer (`hw-d435-vypadky-za-provozu`). `RoadWidthMapUpdater` zahodil 1 295 zpráv (0,18 %) — neověřeno, jestli je to záměr.
 
 - [x] Fáze 1–2 — měření ve `Scheduler`u, `PerfCollector`, `PerfMsg`, panel Výkon, 23 testů (1. 9. 2026)
 - [x] `PerfMsg` v záznamu ze zařízení (headless, Orange Pi) (4. 9. 2026)
 - [ ] Fáze 3 — teplota, frekvence, CPU stroje, CPU čas taktu (přes HAL)
-- [ ] Fáze 4 — `ARBot.Analyze perf` nad záznamem
-- [ ] Nastavit `perfwarn` z měření na Orange Pi (dnes odhad 70 %)
+- [x] Fáze 4 — `ARBot.Analyze perf` nad záznamem (souhrn, po minutách, nejhorší intervaly, stupně, jádra, mezery v proudech z indexu a souběžné výpadky kamer); spuštěno nad 1. 10. a 29. 9. (7. 10. 2026)
+- [ ] Nastavit `perfwarn` z měření na Orange Pi (dnes odhad 70 %). Data jsou: obsazenost MAX p99 12,8 %, max 25,3 % (Track 1. 10.), FreeRun max 17,0 % — rozhodnutí autora
 
-[perf-monitoring.md](perf-monitoring.md), [plan-perf-monitoring.md](plan-perf-monitoring.md) · DevLog [2026-09-01](devlog.md#2026-09-01), [2026-09-04](devlog.md#2026-09-04), [2026-09-05](devlog.md#2026-09-05)
+[perf-monitoring.md](perf-monitoring.md), [plan-perf-monitoring.md](plan-perf-monitoring.md) · DevLog [2026-09-01](devlog.md#2026-09-01), [2026-09-04](devlog.md#2026-09-04), [2026-09-05](devlog.md#2026-09-05), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-zameskane-takty-windows"></a>
-### ⬜ Řídicí smyčka na Windows zamešká 3–4 takty za sekundu, ačkoli práce trvá pod 1 ms
+### ⬜ Řídicí smyčka zamešká takty (Windows 3–4/s, Orange Pi ~1/s), ačkoli práce trvá pod 1 ms — fáze časovače proti mřížce plánu
 
 `prov-zameskane-takty-windows` · vada · **otevřeno** · nalezeno 1. 9. 2026
 
-První měření nového panelu Výkon hned něco našlo: v simulaci na Windows scheduler nestihne 3–4 takty za sekundu a zpoždění jde až na 108 ms při periodě 100 ms, přestože vlastní práce taktu trvá pod milisekundu. Brzdí tedy časovač, ne řídicí kód. Padla tím podmínka, kterou si spec kladla pro dva odložené nálezy (dohánění zameškaných taktů, krok rampy dobrzdění z periody). Nic se neopravuje: číslo je z Windows, kde hrubé rozlišení časovače stačí jako vysvětlení; první krok je přeměřit totéž na Orange Pi a podle toho nastavit `perfwarn`.
+První měření nového panelu Výkon hned něco našlo: v simulaci na Windows scheduler nestihne 3–4 takty za sekundu a zpoždění jde až na 108 ms při periodě 100 ms, přestože vlastní práce taktu trvá pod milisekundu. Brzdí tedy časovač, ne řídicí kód. Padla tím podmínka, kterou si spec kladla pro dva odložené nálezy (dohánění zameškaných taktů, krok rampy dobrzdění z periody). Nic se neopravuje: číslo je z Windows, kde hrubé rozlišení časovače stačí jako vysvětlení; první krok je přeměřit totéž na Orange Pi a podle toho nastavit `perfwarn`. **Přeměřeno na Orange Pi 7. 10. 2026 a vysvětlení „hrubý časovač Windows" neplatí:** Track 1. 10. má zameškaný takt v 48 % sekund, FreeRun ve 25 %, 29. 9. v 19 %, vždy při obsazenosti periody p99 ≤ 13 %. Mechanismus (z `T_in`/`T_out` `DriveCommandMsg`): `Scheduler` kotví mřížku na první pumpu a `System.Threading.Timer` se stejnou periodou tiká ±2 ms kolem jejích bodů, takže takt vyjde buď za ~3 ms, nebo o celou periodu (~100 ms) pozdě — a fáze mezi oběma režimy přeskakuje (v Tracku cyklus ~4 min). Po záseku procesu 15:15:43 se fáze posunula na +32 ms a do konce (12,7 min) nebyl zameškaný ani jeden takt. **Skutečný dopad není „zameškaný takt", ale latence:** ve FreeRunu běželo 94,5 % taktů ~100 ms pozdě (řízení ze stavu `GetStateAt(tk)` o 0,1 s staršího), ačkoli červených sekund bylo jen 25 % — `MissedTicks` a verdikt to nevystihují, `DelayAvg` ano.
 
 - [x] Změřit v simulaci na Windows (1. 9. 2026)
-- [ ] Přeměřit totéž na Orange Pi a rozhodnout o dohánění taktů (data jsou v `PerfMsg` záznamů z Pi od 4. 9., chybí měřidlo `ARBot.Analyze perf`)
+- [x] Přeměřit totéž na Orange Pi (`ARBot.Analyze perf`, `20261001-144638.rec`, `-152906.rec`, `20260929-150844.rec`; mechanismus z `T_in`/`T_out` `DriveCommandMsg`): fáze časovače proti mřížce, viz popis (7. 10. 2026)
+- [ ] Rozhodnout (autor): kotva mřížky s odsazením nebo tolerance v `PumpDue`, dohánění zameškaných taktů; případně do `PerfMsg` přidat fázi pumpy proti mřížce
 
-čeká na [prov-perf-monitoring](#prov-perf-monitoring) · [perf-monitoring.md](perf-monitoring.md), [plan-perf-monitoring.md](plan-perf-monitoring.md) · DevLog [2026-09-01](devlog.md#2026-09-01)
+[perf-monitoring.md](perf-monitoring.md), [plan-perf-monitoring.md](plan-perf-monitoring.md) · DevLog [2026-09-01](devlog.md#2026-09-01), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-sigsegv-pri-stop"></a>
 ### ⬜ Nativní pád (SIGSEGV) při zastavování runtime je častý
@@ -1934,8 +2064,21 @@ Runtime naběhl, senzory i řídicí smyčka běžely, v 16:12:38 obsluha uvolni
 - [x] Rozbor záznamu — kdy to umlklo, co přežilo a co mají umlklá vlákna společného (17. 9. 2026)
 - [ ] Hlídač i na běžící smyčku (tep ze `Scheduler`u), aby zásek za jízdy vyrobil minidump
 - [ ] Ze zásobníků vláken určit blokujícího odběratele na větvi `processing`
+- [x] 1. 10. 2026 (`20261001-144638.rec`, 15:15:41,8) se celý proces zastavil na 1,19 s a sám se rozběhl — JINÝ jev (stál i zápis záznamu, Trace a časovač `PerfMsg`; tady tekl Trace 140 s a zásek byl trvalý), veden zvlášť jako `prov-zasek-procesu-1s`. Hlídač tepu s prahem ~1,5 s by ho nechytil (7. 10. 2026)
 
-[headless.md](headless.md), [RelaySource.cs](../Src/ARBot.Common/Communication/RelaySource.cs), [MessageSource.cs](../Src/ARBot.Common/Communication/MessageSource.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
+[headless.md](headless.md), [RelaySource.cs](../Src/ARBot.Common/Communication/RelaySource.cs), [MessageSource.cs](../Src/ARBot.Common/Communication/MessageSource.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="prov-zasek-procesu-1s"></a>
+### ⬜ Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek
+
+`prov-zasek-procesu-1s` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+Track 1. 10. 2026 (`20261001-144638.rec`) 15:15:41,819–43,010: mlčely VŠECHNY proudy včetně `Info`, kamer, zápisu záznamu a vlastního časovače `PerfMsg` (interval 1,43 s, 11 zameškaných taktů, CPU procesu 11,4 % ≈ jedno jádro), pak se proces sám rozběhl. Důsledky: host 1,23 s neposlal příkaz a watchdog motorové jednotky začal brzdit (1,73 → 0,95 m/s); fúze přes zásek extrapolovala a po příchodu dat skočil kurz o 7,1° → `PoseJumpDetector` smazal grid → plán 0,9 s velel 0,51 m/s; přetečení sériových bufferů dalo chybu CRC VN100 a ztrátu ~0,29 m enkodéru; `UartMotor` vyhodil `TimeoutException`, ačkoli jednotka vysílala (`hw-motor-davka-po-zaseku`). Za 42 + 10 min jediný případ. Je to jiný jev než `prov-zatuhnuti-za-behu-mise` (tam trvalý zásek, Trace tekl dál). Hypotéza blokující GC (sedí na ~1 vytížené jádro) neprokázaná; hlídač tepu s prahem ~1,5 s by ho nechytil.
+
+- [x] Změřeno (`ARBot.Analyze perf` blok 6, scratch rozbor T_in/T_out všech zpráv) (7. 10. 2026)
+- [ ] Sbírat v `PerfMsg` pauzy GC (`GC.GetTotalPauseDuration`, počet kolekcí gen 2) a čas zápisu záznamu, aby příští zásek šel přiřadit
+
+[perf-monitoring.md](perf-monitoring.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-start-limit-sluzba"></a>
 ### 🧪 Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý
@@ -1964,9 +2107,10 @@ Zbytek nálezů auditu: po odpojení USB převodníku se senzor tvářil jako zd
 - [x] V11 + V12 — `autorun=false` v profilu, potvrzení zápisu do flash, `set -euo pipefail` (15. 9. 2026)
 - [ ] V13 — ověřit podmínky tří proprietárních binárek, atribuce OSM (ODbL)
 - [ ] Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`)
-- [ ] Ověřit V4/V5/V6 na zařízení (odpojit převodník za běhu, `systemctl stop`)
+- [x] Ověřit V6 na zařízení — 1. 10. 2026 (`20261001-144638.rec`): `T_out − T_in` snímků p50 26–36 ms po 5 min, 42 min bez trendu, žádný snímek pozpátku ani z budoucnosti, i po restartu levé pipeline 15:21:57; zamrzlá barva se dál pozná (15:21:44) (7. 10. 2026)
+- [ ] Ověřit V4/V5 na zařízení (odpojit převodník za běhu, `systemctl stop`). 1. 10. jen zčásti: konečný `ReadTimeout` motorů vystřelil 15:15:43,4 a vlákno čte dál, ticho ale nezpůsobila linka (jednotka vysílala, 111 rámců v bufferu), nýbrž zásek celého procesu (`prov-zasek-procesu-1s`); `Stop()` na tichém UARTu ani `SilentTimeout` 5 s se nevyzkoušely
 
-[THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md), [build-and-test.yml](../.github/workflows/build-and-test.yml), [deploy/README.md](../deploy/README.md), [record-replay.md](record-replay.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
+[THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md), [build-and-test.yml](../.github/workflows/build-and-test.yml), [deploy/README.md](../deploy/README.md), [record-replay.md](record-replay.md) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-zaznam-nevidet-ze-nebezi"></a>
 ### 🧪 V terénu není poznat, jestli se běh nahrává a kam
@@ -1995,8 +2139,9 @@ Ve 2. kole Robotouru 2026 robot po 27 s jízdy zastavil s vybitou baterií (byl 
 - [x] Napětí baterie (medián) do stránky náhledu vedle kvality GPS (6. 10. 2026)
 - [x] Práh varování a hlášení do Trace — `batwarn=` 11,6 V, hlášení jen při přechodu stavu (škrcení `PoruchaHlasic` netřeba); 6 testů monitoru, 3 testy stránky, ověřeno headless se simulací (`batwarn=13`) (6. 10. 2026)
 - [ ] Ověřit na zařízení: napětí v tabulce sedí na Roborun+, varování se neobjevuje za jízdy s plnou baterií (pokles pod zátěží); případně doladit `batwarn=` podle skutečného napětí na svorkách
+- [x] Přehrání `BatteryMonitor` nad 1. 10. 2026 (`ARBot.Analyze battery`; binárka robota monitor ještě neměla): Track medián 5 s za jízdy p50 12,00 V, ve stání 12,40 V, nejnižší 11,30 V; při `batwarn=11,6` by varování pod zátěží ke konci 42min jízdy 2× krátce bliklo (15:23:07–25 a 15:27:21–25), ačkoli při stání bylo 12,4 V; FreeRun hned potom 1× (15:34:38–40). Podklad pro rozhodnutí o prahu / delším okně / kompenzaci proudem (autor) (7. 10. 2026)
 
-[robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20)
+[robotour-2026.html](../web/pages/robotour-2026.html), [headless.md](headless.md) · DevLog [2026-09-20](devlog.md#2026-09-20), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-ujeto-v-misi-na-strance"></a>
 ### 🧪 Ujetá dráha a průměrná rychlost mise na stránce náhledu
@@ -2007,8 +2152,9 @@ Přání autora: na webu headless vidět, kolik metrů robot v misi ujel a jakou
 
 - [x] `Odometer` + řádek „jízda:“ v hlavičce stránky; 8 testů počítadla, 2 testy stránky, ověřeno headless se simulací (FreeRun 19 m za 31 s, sedí na půdorys) (6. 10. 2026)
 - [ ] Ověřit na zařízení: ujetá dráha sedí na skutečnou (např. proti délce trasy Tracku), stání v servisním okně nepřidává metry
+- [x] Přehrání `Odometer` nad 1. 10. 2026 (`ARBot.Analyze odometer`; záznam bez odometrické pózy, takže integrál fúzovaných v, ω): Track 3 249,5 m za 2 157 s v pohybu (1,51 m/s); úsek k místu 1 1 176,7 m proti trase 1 151 m (+2,2 %), k místu 2 1 150,9 m proti 1 143 m (+0,7 %); proti GPS +2,4 % (nadsazená dráha z kol, `lok-fuze-poza-pred-koly`). Stání 83 s přidalo 0,0 m (práh 5 cm funguje). FreeRun 794,9 m. Měří algoritmus, ne stránku (7. 10. 2026)
 
-[headless.md](headless.md) · DevLog [2026-10-06](devlog.md#2026-10-06)
+[headless.md](headless.md) · DevLog [2026-10-06](devlog.md#2026-10-06), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="prov-sit-soutezni-provoz"></a>
 ### ✅ Síť robota pro soutěž — vlastní WiFi AP a kabel bez routeru
@@ -2262,8 +2408,9 @@ Při prvním běhu aplikace na Pi se pravá D435 po ~4600 s odmlčela; odpojená
 - [x] Supervizor zotavení kamer s drženým zastavením, ověřen na skutečné poruše (13. 9. 2026)
 - [x] Vyvrátit hypotézu T265 / `CLEAR_HALT` měřením na zařízení (14. 9. 2026)
 - [ ] Odstranit příčinu (kabel nebo port větve 2-1.3)
+- [x] Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný (7. 10. 2026)
 
-čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18)
+čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="hw-vn100-akcelerometr-7pct"></a>
 ### ⬜ Akcelerometr VN100 měří o 7 % víc než g
@@ -2316,10 +2463,23 @@ Rozbor jízd 29. 9. 2026 v Modřanech (`records/test/20260929-150844.rec` Track 
 - [x] Zjistit, co se na robotu mezi 27. a 29. 9. změnilo v okolí VN100 a odkud je senzor o 20 °C teplejší. Autor 29. 9.: na robotu se nic neměnilo (LED pásek byl i při kalibraci 17. 9., 40 cm od senzoru, nesvítí); teplota = dlouhé stání na přímém slunci (29. 9. 2026)
 - [x] Rozklad chyby kurzu na směr pole a VPE a `|B|` proti teplotě přes šest záznamů 25.–29. 9.: napříč dny ~−1,8 mG/°C (vysvětlí celých 7 %), uvnitř jízdy nerozhodne (rozsah 2–4 °C, jiné vlivy ±10 mG) (29. 9. 2026)
 - [x] Měřidlo: `ARBot.Analyze vn100` blok 7 — `|B|` proti teplotě senzoru po minutách a regrese v koších kurzu po 30° (od `IMUState` verze 5). Ověřeno nad `20260929-151634.rec` a `20260925-144658.rec` (čísla shodná s ručním rozborem); starší záznam bez teploty blok odmítne (29. 9. 2026)
+- [x] Záznamy 1. 10. 2026 (`20261001-144638.rec`, `-152906.rec`): senzor nebyl studený (start 50,5 °C), během Tracku chladl na 41,7 °C. Ve STEJNÉM místě a směru (49 košů po 20 m projetých dvakrát, ΔT −9 °C) bylo `|B|` vyšší o 19,9 mG (p10–p90 17,8–20,9), tj. **−2,2 mG/°C** — teplotní závislost pole je tím potvrzená uvnitř jízdy (zmatená už jen s dobou od zapnutí). Kurz s teplotou nesouvisí: na sever `IMU − GPS` −3,6° při 51 °C a −6,0° při 42 °C, na jih +3,1 až +3,7°; ujetí VPE (+12 až +23°, K = 0,0047 1/s, τ 215 s) přišlo v chladnější části jízdy. Otočka na místě v záznamech není (7. 10. 2026)
 - [ ] Jízda s chladným senzorem (bez dlouhého stání na slunci): vrátí-li se `|B|` k ~0,49–0,50 G a `IMU yaw − GPS kurz` k −3 … +1°, je příčinou ohřátí; pokud ne, hledat dál (poloha kabelů ke kamerám). Nejčistší je týž pokus za studena a po ohřátí na témž místě s otočkou na místě — teplota se pak neplete s kurzem ani s místem
 - [ ] Minutový záznam s jednou otočkou na místě (rozpětí `|B|` přes otočku; 18. 9. zbytkové vodorovné železo 11–18 mG) — rozliší železo od driftu VPE; při železe nová `mission=magcal`
 
-[imu-and-frames.md](imu-and-frames.md), [Vn100Report.cs](../Src/ARBot.Analyze/Vn100Report.cs) · DevLog [2026-09-29](devlog.md#2026-09-29)
+[imu-and-frames.md](imu-and-frames.md), [Vn100Report.cs](../Src/ARBot.Analyze/Vn100Report.cs) · DevLog [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="hw-motor-davka-po-zaseku"></a>
+### ⬜ Dávka rámců motorů přečtená z bufferu po záseku hlásí rychlost kol 0 (a jednou 7,4 m/s) jako platné měření
+
+`hw-motor-davka-po-zaseku` · vada · **otevřeno** · nalezeno 7. 10. 2026
+
+Po záseku procesu 1. 10. 2026 (`prov-zasek-procesu-1s`) přečetl `SDC2160Ex` 111 rámců z bufferu za 7 ms. Mají `HasMeasurement = true`, ale rychlost se počítá jako `Δenkodér / Δrazítko příchodu`, a razítka jsou od sebe < 1 ms — rychlost kol tedy vyjde 0,000 (a jednou 7,39 / 7,50 m/s). Fúze tak může dostat „stojím" přes PLATNÉ rámce, tedy obchvat opravy `hw-motor-chybovy-ramec`. V HEAD to řeší interval z času jednotky (řádek `T=`, 9afb50c) — ale jen se skriptem ≥ 2.1 v jednotce; se starým skriptem vada trvá.
+
+- [x] Nalezeno nad 1. 10. (rámce #166124–#166234, interval a rychlost) (7. 10. 2026)
+- [ ] Ověřit na záznamu s binárkou ≥ 9afb50c a skriptem 2.1/2.2, že dávka po záseku dá rychlost z času jednotky
+
+[SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 <a id="hw-neopixel-armbian"></a>
 ### 🧪 Driver NeoPixel (WS2812) přes SPI na Armbianu
@@ -2346,22 +2506,9 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 - [x] Panel motoru nevypisuje nuly z chybového rámce, řádek „Snímek" přizná chybějící měření (31. 8. 2026)
 - [x] Automaty misí a `StopHold` berou fail-rámec jako „žádná zpráva" (15. 9. 2026)
 - [ ] Ověřit na zařízení při skutečném výpadku telemetrie
+- [x] Track 1. 10. 2026 (`20261001-144638.rec`): dva fail-rámce (15:15:41,819 a 43,413) vznikly zásekem celého procesu 1,19 s (`prov-zasek-procesu-1s`), ne výpadkem jednotky. Fúze z nich „stojím“ nevzala (V min 0,567 m/s odpovídá kolům 0,46–0,60 m/s); pokles 1,9 → 0,57 m/s je skutečné zpomalení kol (watchdog jednotky, pak příkaz 0,51 m/s po smazání gridu). Automat mise ani `StopHold` fail-rámec neviděly (poslední stav ≤ 1 ms), jejich brány tedy ověřené nejsou. ⚠️ Obchvat: dávka 111 PLATNÝCH rámců po záseku má rychlost kol 0,000 (`hw-motor-davka-po-zaseku`) (7. 10. 2026)
 
-[rozhodnutí 27. 8. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-08-31](devlog.md#2026-08-31), [2026-09-15](devlog.md#2026-09-15)
-
-<a id="hw-gps-fixtime-rozbity"></a>
-### 🧪 `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
-
-`hw-gps-fixtime-rozbity` · vada · **v kódu, na HW neověřeno** · nalezeno 17. 9. 2026 · vyřešeno 27. 9. 2026
-
-`uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin být `*3600`. Výsledek je pak mimo — v záznamech ze 17. 9. 2026 vychází `FixTime` „**9 dní** 02:16:12", ačkoli v GPS týdnu jsou dny jen 0–6. Do UI to jde rovnou (`GpsDocument.FixTimeText`), takže panel GPS ukazuje nesmyslný čas fixu. Chyba je naštěstí **deterministická a invertovatelná**: platí `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají a jsou jediným absolutním časem, který nepochází z hodin Pi. 26. 9. se ukázalo, že na to doplácí i **export GPX**: posun proti UTC vycházel −07:45 místo +02:00 a vyexportovaný `Kolo3b.gpx` má čas 21:40Z u odpoledního kola. **Opraveno 27. 9.:** `FixTime` je u u-bloxu **UTC čas dne z UTC polí NAV-PVT** (bez bitu `validTime` nula = neznámý), tedy totéž co u NMEA, a `GPSState` je **verze 3**. Starší záznamy přepočítává jediná funkce `GPSState.UtcTimeOfDay()` (inverze rozbitého rozkladu a odečet 18 s GPS−UTC); používá ji export GPX, panel GPS i `ARBot.Analyze gps` (A0), jehož vlastní kopie inverze zmizela. Nad `20260925-142428.rec` dává UTC 12:24:22 z uložených „10 dní 22:12:40" a posun hodin Pi 6,9 s. Mimochodem opraven `PVTMessage.Year` (četl offset 2 místo 4; nikde se nepoužíval).
-
-- [x] Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek) (17. 9. 2026)
-- [x] `uBloxGps.FixTimeFrom` z UTC polí NAV-PVT, `GPSState` verze 3, `UtcTimeOfDay()` pro starší záznamy (GPX, panel, Analyze A0) (27. 9. 2026)
-- [x] Testy: inverze pro všech 7 × 24 hodin, UTC pole a offsety PVT, posun GPX nad záznamem verze 2 (12 testů) (27. 9. 2026)
-- [ ] Ověřit na zařízení: nový záznam má `GPSState` verze 3 a A0 / panel GPS ukáže UTC čas bez přepočtu
-
-[uBloxGps.cs](../Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-27](devlog.md#2026-09-27)
+[rozhodnutí 27. 8. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-08-31](devlog.md#2026-08-31), [2026-09-15](devlog.md#2026-09-15), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="hw-d435-vlakno-zatuhlo-po-restartu"></a>
 ### 🧪 Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání
@@ -2379,8 +2526,9 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 - [x] Záznamy 29. 9. (`20260929-150844.rec`, `-151634.rec`, 13,7 min, bez T265): jedno zamrznutí — pravá D435 15:18:10 barva stála 5 s → restart pipeline → 15× `QueryDevices selhalo: failed to set power state` → supervizor zotavení (držené zastavení 2 s, nový RealSense kontext) → obě D435 zpět 15:18:39, tedy **29 s**, bez `NativeCallWatch`. Restart pipeline sám kameru nevrátil, vrátil ji supervizor. Jinak jen krátká zamrznutí barvy ~1 s (10 + 5 a 13 + 6×). Kernel log z Pi neprověřen (29. 9. 2026)
 - [x] Průběžně z journalu Pi (28. 9., 14.–28. 9.): bez T265 zatím jen 1,2 h běhu a 5 restartů — všech 5 obnoveno, 4 do 5 s (80 %; s T265 20 % z 49, medián 33 s, 7× neobnoveno do konce služby, 6× NativeCallWatch), 1 přes supervizor za 29 s, žádné NativeCallWatch. Četnost zamrznutí beze změny (4,1 proti 3,2 za h, n = 5). Slibné, ale jedno ráno — přeměřit po delším provozu (28. 9. 2026)
 - [x] Rozhodnout léčbu zatuhlého vlákna — autor: nic neléčit, jen zapsat důkaz (restart služby by přerušil misi; decisions.md 24. 9.) (24. 9. 2026)
+- [x] Záznamy 1. 10. 2026 (`20261001-144638.rec` + `-152906.rec`, 52 min, bez T265): jedno zamrznutí ≥ 5 s — levá D435 15:21:44 barva stála 5 s → restart pipeline → 15:21:57 „pipeline připojena“, bez snímků 13,5 s, bez `NativeCallWatch` (limit 20 s, takže to znamená jen „žádné volání nad 20 s“) a bez supervizoru. Krátká zamrznutí barvy (~1 s) ve FreeRunu 33 za 10 min (29. 9. ~2,5/min) — neubyla. Kernel log neprověřen (n = 1, ověřovací krok zůstává) (7. 10. 2026)
 
-[hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-26](devlog.md#2026-09-26), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29)
+[hardware.md](hardware.md), [NativeCallWatch.cs](../Src/ARBot.HAL/Devices/Camera/NativeCallWatch.cs), [rozhodnutí 24. 9. 2026](decisions.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-26](devlog.md#2026-09-26), [2026-09-28](devlog.md#2026-09-28), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="hw-motor-rampa-jednotky"></a>
 ### 🧪 Rampa motorové jednotky je 2,6× strmější, než říká `Profile.MaxAcceleration`
@@ -2698,6 +2846,20 @@ Kalibrace z 11. 9., ověřená 12. 9., v záznamech ze 14. 9. už neúčinkuje: 
 
 [imu-and-frames.md](imu-and-frames.md), [panel magnetometru (snímek)](media/imu-magnetometr-2026-09-15.png) · DevLog [2026-09-15](devlog.md#2026-09-15), [2026-09-16](devlog.md#2026-09-16), [2026-09-17](devlog.md#2026-09-17), [2026-09-18](devlog.md#2026-09-18)
 
+<a id="hw-gps-fixtime-rozbity"></a>
+### ✅ `GPSState.FixTime` je nesmysl — ovladač u-bloxu skládá ITOW špatně
+
+`hw-gps-fixtime-rozbity` · vada · **hotovo** · nalezeno 17. 9. 2026 · vyřešeno 7. 10. 2026
+
+`uBloxGps.Read` rozkládá ITOW (čas v GPS týdnu [ms]) na dny/hodiny/minuty/sekundy a **sekundy dělí špatně**: `s = ITOW/1000 - ((d*24+h)*60 + m*60)`, kde místo `*60` má u hodin být `*3600`. Výsledek je pak mimo — v záznamech ze 17. 9. 2026 vychází `FixTime` „**9 dní** 02:16:12", ačkoli v GPS týdnu jsou dny jen 0–6. Do UI to jde rovnou (`GpsDocument.FixTimeText`), takže panel GPS ukazuje nesmyslný čas fixu. Chyba je naštěstí **deterministická a invertovatelná**: platí `TotalMs = ITOW + 84 960 000·D + 3 540 000·H`, takže se z uložené hodnoty dá ITOW spočítat zpátky — a `ARBot.Analyze gps` (blok A0) to dělá, protože starší záznamy se přepsat nedají a jsou jediným absolutním časem, který nepochází z hodin Pi. 26. 9. se ukázalo, že na to doplácí i **export GPX**: posun proti UTC vycházel −07:45 místo +02:00 a vyexportovaný `Kolo3b.gpx` má čas 21:40Z u odpoledního kola. **Opraveno 27. 9.:** `FixTime` je u u-bloxu **UTC čas dne z UTC polí NAV-PVT** (bez bitu `validTime` nula = neznámý), tedy totéž co u NMEA, a `GPSState` je **verze 3**. Starší záznamy přepočítává jediná funkce `GPSState.UtcTimeOfDay()` (inverze rozbitého rozkladu a odečet 18 s GPS−UTC); používá ji export GPX, panel GPS i `ARBot.Analyze gps` (A0), jehož vlastní kopie inverze zmizela. Nad `20260925-142428.rec` dává UTC 12:24:22 z uložených „10 dní 22:12:40" a posun hodin Pi 6,9 s. Mimochodem opraven `PVTMessage.Year` (četl offset 2 místo 4; nikde se nepoužíval).
+
+- [x] Nález a invertovatelnost ověřená na záznamech (den v týdnu vyšel 4 = čtvrtek) (17. 9. 2026)
+- [x] `uBloxGps.FixTimeFrom` z UTC polí NAV-PVT, `GPSState` verze 3, `UtcTimeOfDay()` pro starší záznamy (GPX, panel, Analyze A0) (27. 9. 2026)
+- [x] Testy: inverze pro všech 7 × 24 hodin, UTC pole a offsety PVT, posun GPX nad záznamem verze 2 (12 testů) (27. 9. 2026)
+- [x] Ověřeno na zařízení 1. 10. 2026 (binárka f848fdf obsahuje 8ebd41f): `20261001-144638.rec` a `-152906.rec` mají `GPSState` verze 3 u všech 25 156 / 6 021 fixů, `FixTime` je přímo UTC čas dne (12:46:30,10–13:28:25,70), žádný nulový ani nad 1 den, krok 100 ms; `gps` A0 ho ukazuje bez přepočtu. Posun hodin Pi proti UTC 8,50 s, stálý celých 42 min a navazující na 3,9 s (17. 9.) a 6,9 s (25. 9.) — jde tedy o UTC, ne o GPS čas (ten by vyskočil o 18 s). Panel GPS na zařízení není (headless), ve View čte tutéž `UtcTimeOfDay()` (7. 10. 2026)
+
+[uBloxGps.cs](../Src/ARBot.HAL/Devices/GPS/uBlox/uBloxGps.cs), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-17](devlog.md#2026-09-17), [2026-09-27](devlog.md#2026-09-27), [2026-10-07](devlog.md#2026-10-07)
+
 <a id="hw-vn100-hsi-run-ve-flash"></a>
 ### ✅ VN100 startuje s běžící palubní HSI (registr 44 = Run uložený do flash misí magcal)
 
@@ -2795,10 +2957,11 @@ Nástroj na ladění detekce terénu (Tools → Profil scény, `open=profile`). 
 File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových platných GPS fixů (ele, sat, hdop) a stopa fúze (RobotStateMsg) převedená přes počátek mapy ze záznamu (`MapMsg.BuildOrigin`, tatáž definice jako runtime; bez mapy se stopa vynechá). Nový segment při mezeře nad 2 s, póza proředěná na 10 Hz. Čas je UTC s posunem odvozeným z GPS (`FixTime`), protože razítka jsou místní čas nahrávajícího stroje bez zóny; bez GPS času se použije zóna PC. Fúzní stopa sedí na `GlobalNavMsg` runtime na 0,000 m (5 záznamů ze simulace); odvození UTC z GPS kryjí jen testy — na záznamu ze zařízení neověřeno. ⚠️ 26. 9. nad záznamy ze zařízení vyšel posun −07:45 místo +02:00: u-blox do 27. 9. skládal `FixTime` špatně (`hw-gps-fixtime-rozbity`, opraveno, čte se přes `GPSState.UtcTimeOfDay()`). GPX vyexportované dřív (`Kolo3b.gpx`) mají čas o hodiny vedle.
 
 - [x] Jádro `GpxExport` + testy, `MapMsg.BuildOrigin` sdílený s World pohledem, příkaz File → Export GPX… (24. 9. 2026)
-- [ ] Ověřit na záznamu ze zařízení (UTC z GPS času u-bloxu, výpadky fixu jako segmenty)
+- [ ] Ověřit na záznamu ze zařízení: výpadky fixu jako segmenty (1. 10. 2026 žádný výpadek nad 2 s, jediná mezera 1,2 s v záseku procesu)
+- [x] UTC na záznamu ze zařízení — `GpxExport.Build` nad `20261001-144638.rec`: 25 156 bodů GPS i fúze v jednom úseku, posun UTC+02:00 z GPS času správně (první bod 12:46:38,610Z). Čas v GPX jsou hodiny Pi minus zóna, nese tedy jejich posun +8,5 s proti GPS. V UI neproklikáno (7. 10. 2026)
 - [x] Podnabídka Export GPX: GPS i fúze v jednom souboru / do dvou souborů (`-gps`, `-fuze`) / jen GPS / jen fúze (autor 24. 9.; `GpxExportOptions.Tracks`, 4 testy). V běžící aplikaci neproklikáno (24. 9. 2026)
 
-[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27)
+[record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27), [2026-10-07](devlog.md#2026-10-07)
 
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem
@@ -3286,6 +3449,17 @@ Při File → Export GPX během replay aplikace zatuhla (okno nešlo posunout, m
 - [x] Ověřeno používáním aplikace na PC (autor): po upgradu se zatuhnutí neopakovalo (27. 9. 2026)
 
 [build-and-platforms.md](build-and-platforms.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27)
+
+<a id="nast-analyze-zasek-perf"></a>
+### ✅ `ARBot.Analyze`: rozbor uváznutí (`zasek`), výkon řízení (`perf`), baterie a ujetá dráha ze záznamu
+
+`nast-analyze-zasek-perf` · záměr · **hotovo** · nalezeno 7. 10. 2026 · vyřešeno 7. 10. 2026
+
+Při rozboru jízd 1. 10. 2026 vznikly v repu čtyři měřidla. `zasek`: buňka pod robotem (kanál, log-odds, odstup), hledání úniku pravidly `PlanEscape` bez horizontu (jak daleko je východ a jestli ho zatarasila geometrie), replay plánovače, stáří hodnot buněk, s `--frames` přehrání snímků kódem robota (kdy kamera buňku naposledy viděla), s `--png` půdorys a snímky kamer. `perf`: `PerfMsg` po sekundách a minutách, nejhorší intervaly, stupně, mezery v proudech a souběžné výpadky kamer (fáze 4 `prov-perf-monitoring`). `battery` a `odometer` přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad starším záznamem. Opraveny vady měřidel: `wedge` četl všechny snímky (čekal na 3. kameru) a počítal s rychlostí 1,2 místo 1,7 m/s ze záznamu, `nav` popisoval detektor C ve verzi před 29. 9., `corridor` psal práh inlierů „25" místo hodnoty ze záznamu. Ověřeno během nad záznamy (shoda replaye plánovače se záznamem 376/376 stavů), ARBot.Analyze testy nemá.
+
+- [x] `zasek`, `perf`, `battery`, `odometer`, `LogConfig` (konfigurace ze záznamu), opravy `wedge`, `nav`, `corridor` (7. 10. 2026)
+
+[record-replay.md](record-replay.md), [ZasekReport.cs](../Src/ARBot.Analyze/ZasekReport.cs), [PerfReport.cs](../Src/ARBot.Analyze/PerfReport.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 ## Web a dokumentace
 

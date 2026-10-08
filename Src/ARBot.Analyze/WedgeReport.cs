@@ -52,8 +52,26 @@ namespace ARBot.Analyze
         /// <summary>Kolik pásem na každou stranu od směru jízdy (±60°).</summary>
         private const int Bins = 12;
 
-        public static void Run(RecordFile rec, int limit, double wedgeDeg, double wedgeConf)
+        /// <param name="wedgeDeg">Sirka klinu pro simulaci lecby [st.]; NaN = <c>wedgefill=</c> ze zaznamu.</param>
+        /// <param name="maxSpeed">Strop rychlosti pro VBrake [m/s]; NaN = <c>maxspeed=</c> ze zaznamu.</param>
+        public static void Run(RecordFile rec, int limit, double wedgeDeg, double wedgeConf, double maxSpeed = double.NaN)
         {
+            // Planovac se musi pocitat s TOUZ konfiguraci, s jakou robot jel: VBrake je
+            // min(MaxSpeed, sqrt(2 a d)), takze s vychozim MaxSpeed (Profile 1,2 m/s) proti
+            // maxspeed=1.7 z profilu (Track 1. 10. 2026) se strop i prah „leze" posunou a podil
+            // „pod 1,2 m/s" se tvari jako „na stropu". Do 7. 10. 2026 se bral default z kodu.
+            var konf = LogConfig.Read(rec);
+            var cfg = new LocalPlannerConfig();
+            cfg.MaxSpeed = konf.Resolve("maxspeed", maxSpeed, cfg.MaxSpeed, out string puvodMax);
+            cfg.SafeDist = konf.Resolve("safedist", double.NaN, cfg.SafeDist, out string puvodSafe);
+            wedgeDeg = konf.Resolve("wedgefill", wedgeDeg, new OccupancyIntegratorConfig().WedgeFillDeg, out string puvodKlin);
+            if (konf.Version != null) Console.WriteLine(konf.Version);
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "konfigurace: MaxSpeed {0:F2} m/s {1}; MaxAcceleration {2:F2} m/s2 (Profile, neni v konfiguraci); "
+                + "SafeDist {3:F2} m {4}; wedgefill {5:F1} st. {6}",
+                cfg.MaxSpeed, puvodMax, cfg.MaxAcceleration, cfg.SafeDist, puvodSafe, wedgeDeg, puvodKlin));
+            Console.WriteLine();
+
             Geometrie(rec);
 
             var poses = new PoseTrack(rec);
@@ -116,8 +134,6 @@ namespace ARBot.Analyze
             var dosahVpravo = new Stats("vzdalenost souseda vpra");
             int sousedRozhodnuty = 0, sousedSlaby = 0, sousedZadny = 0;
             int bezPozy = 0, pouzito = 0;
-
-            var cfg = new LocalPlannerConfig();
 
             foreach (var e in entries)
             {
@@ -298,15 +314,27 @@ namespace ARBot.Analyze
         /// </summary>
         private static void Geometrie(RecordFile rec)
         {
+            // Kolik kamer v zaznamu je, rika INDEX (jmeno zpravy je v nem), takze se nemusi cist
+            // snimky. Do 7. 10. 2026 se tu cekalo na 3 kamery, jenze v zaznamech z robotu nesou
+            // CameraFrame jen dve D435 (Left, Right) - podminka se nesplnila nikdy a cetly se VSECHNY
+            // snimky zaznamu (Track 1. 10. 2026: 44 189 snimku, 70 GB) kvuli dvema popisum projekce.
+            // Strop na snimek bez popisu projekce (CameraFrame verze < 4) je proto, aby ani kamera,
+            // ktera popis nenese nikdy, nevynutila cteni celeho zaznamu.
+            const int MaxCteniNaKameru = 200;
+            var kamery = rec.Index.Where(e => e.MsgName == "CameraFrame")
+                                  .Select(e => e.Name ?? string.Empty).Distinct().ToList();
             var videno = new Dictionary<string, ARBot.Common.Devices.CameraFrame>();
+            var precteno = kamery.ToDictionary(k => k, k => 0);
             foreach (var e in rec.Index)
             {
                 if (e.MsgName != "CameraFrame") continue;
+                string jmenoIdx = e.Name ?? string.Empty;
+                if (videno.ContainsKey(jmenoIdx) || precteno[jmenoIdx] >= MaxCteniNaKameru) continue;
+                precteno[jmenoIdx]++;
                 if (!(rec.Read(e) is ARBot.Common.Devices.CameraFrame f)) continue;
                 string jmeno = f.Name ?? string.Empty;
-                if (f.Projection == null || videno.ContainsKey(jmeno)) continue;
-                videno[jmeno] = f;
-                if (videno.Count >= 3) break;
+                if (f.Projection != null && !videno.ContainsKey(jmeno)) videno[jmeno] = f;
+                if (kamery.All(k => videno.ContainsKey(k) || precteno[k] >= MaxCteniNaKameru)) break;
             }
 
             Console.WriteLine("--- Zorna pole z INTRINSIK v zaznamu ---");
@@ -322,7 +350,7 @@ namespace ARBot.Analyze
             {
                 var pr = kv.Value.Projection;
                 double yawDeg = YawDeg(pr.Transformation);
-                string radek = "  " + kv.Key.PadRight(6) + string.Format(CultureInfo.InvariantCulture,
+                string radek = "  " + kv.Key.PadRight(18) + string.Format(CultureInfo.InvariantCulture,
                     " montazni yaw {0,6:F1} st.", yawDeg);
 
                 if (pr.Intrinsics != null)
@@ -540,7 +568,10 @@ namespace ARBot.Analyze
         {
             Console.WriteLine("--- Jak casto by robot lezl (podil vzorku pod danou rychlosti) ---");
             Console.WriteLine("  prah      dnes   s doplnenim   (strop: bez semantiky)");
-            foreach (double prah in new[] { 0.2, 0.4, 0.6, 0.8, 1.0, cfg.MaxSpeed })
+            // Prahy nad 1,0 m/s jen pod stropem - strop sam je posledni radek („mimo strop").
+            var prahy = new[] { 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5 }.Where(p => p < cfg.MaxSpeed - 1e-9)
+                                                                    .Append(cfg.MaxSpeed);
+            foreach (double prah in prahy)
                 Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "  < {0:F2} m/s  {1,5:F1} %      {2,5:F1} %        {3,5:F1} %",
                     prah, 100.0 * Pod(dnes, prah), 100.0 * Pod(poDoplneni, prah),

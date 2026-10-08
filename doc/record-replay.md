@@ -548,6 +548,21 @@ opakovaně stavěla ad hoc a další sezení je nemělo čím zopakovat (viz [de
 23. 8. 2026). U `RANSAC`u, který je nedeterministický, je opakovatelnost měření podmínka, ne
 komfort — rozptyl mezi běhy téže konfigurace byl větší než rozdíl, který se zkoumal.
 
+**Od 7. 10. 2026** (rozbor jízd 1. 10., registr `nast-analyze-zasek-perf`):
+**`zasek`** — PROČ robot stojí v blokované oblasti: buňka pod robotem (kanál, log-odds, odstup),
+hledání úniku pravidly `PlanEscape` **bez horizontu** (jak daleko je východ a jestli ho zatarasila
+geometrie, plus protifakt bez zákazu geometrie), replay plánovače nad týmž gridem (sedí na záznam
+376/376 stavů), stáří hodnot buněk ze snapshotů, skoky pózy a korekce nevysvětlené rychlostí,
+globální navigace; `--frames` přehraje snímky kódem robota (kdy kamera buňku naposledy
+**viděla**), `--png=` nakreslí půdorys a snímky kamer v časech `--at=`, `--detail=t1,t2` řádkový
+výpis pózy, IMU, příkazů, motorů a měření koridoru. Časy jsou v sekundách od prvního
+`LocalPlanMsg` jako u `localplan`. **`perf`** — `PerfMsg` (fáze 4 [perf-monitoring.md](perf-monitoring.md)):
+rozložení, po minutách, nejhorší intervaly, stupně, mezery v proudech `T_in`/`T_out` z indexu
+a souběžné výpadky kamer (rozliší „stál proces" od „jen kamery"). **`battery`** a **`odometer`**
+přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad libovolným záznamem. Konfiguraci
+ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
+výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
+
 Příkazy: `corridor` (hranová lokalizace), `corridorfit` (A/B měření estimátoru proložení, viz níž),
 `edgebias` (odchylky hranových bodů od **známého** okraje vozovky — podle hranice, kamery
 a vzdálenosti; tímhle se našlo, že nejmenší kvadráty sledují průměr zešikmeného rozdělení),

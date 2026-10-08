@@ -32,9 +32,12 @@ namespace ARBot.Common.Occupancy
         /// <see cref="RoadUpdateFromProbability"/>.</summary>
         public float RoadUpdate = 0.60f;
 
-        /// <summary>Omezeni |log-odds| v bunce. Dava konecnou dobu prepsani (kratka pamet, aby
-        /// stara/mispozicovana data nezustala navzdy) - z plne obsazene na volnou ~25 pozorovani
-        /// pri <see cref="FreeUpdate"/> = -0,4, tj. 2,5 s pri 10 Hz.</summary>
+        /// <summary>Omezeni |log-odds| v bunce. Dava konecnou dobu prepsani NOVYM POZOROVANIM - z plne
+        /// obsazene na volnou ~25 pozorovani pri <see cref="FreeUpdate"/> = -0,4 (tj. 2,5 s pri 10 Hz),
+        /// pod prah Blocked uz ~10 pozorovani.
+        /// <para>⚠️ Plati JEN pro bunky, ktere kamera znovu vidi. Casovy rozpad grid nema, takze
+        /// stara nebo mispozicovana data mimo zorne pole (pod a za robotem) ZUSTANOU, dokud se nepohnou
+        /// z okna nebo se grid nesmaze - viz <see cref="OccupancyGrid"/>.</para></summary>
         public float Clamp = 5.0f;
 
         /// <summary>Krok fixed-point ulozeni do <c>sbyte</c>. 0,05 -&gt; rozsah +-6,35, tedy clamp +-5

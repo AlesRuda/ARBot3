@@ -815,6 +815,14 @@ Korekce jde přes EKF, takže obsah gridu zapsaný starou pózou je vůči nové
 zabudovaná obrana proti nepřesné lokalizaci. Při korekcích v jednotkách cm za cyklus se to samo
 vypere; resampling by naopak rozmazával.
 
+⚠️ **Vypere se to jen v zorném poli kamer** (oprava 7. 10. 2026). „Krátká paměť" je přepis novým
+pozorováním, časový rozpad grid nemá — buňky pod robotem, za ním a ve slepé zóně drží hodnotu, dokud
+robot stojí. A řada malých korekcí pod tolerancí detektoru skoku (limit kroku `corridorslew=` je
+tam drží záměrně) se sečte: 1. 10. 2026 (Track, `20261001-144638.rec`) posunulo 5–7 měření
+koridoru pózu za 5–9 s o 1,5–1,9 m proti gridu ve světě a robot zůstal stát v krajnici zapsané
+chvíli předtím (`RobotBlocked` 132 + 42 s). Léčba je lokální vrstva v odometrické soustavě
+(`localframe=odom`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md)).
+
 Pojistka proti **skoku** patří do `LocalNavigator`, ne do korelátoru: ten už si pro každý snímek
 bere `GetStateAt`, takže může porovnat pózu s předchozí a **když skočí víc, než vysvětlí rychlost,
 zahodit grid** (`Clear()`). Lokální pravidlo bez nového drátu — a chrání nejen před korelátorem,

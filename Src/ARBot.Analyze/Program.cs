@@ -107,11 +107,12 @@ namespace ARBot.Analyze
                                                  Arg(args, "--inliers", new ARBot.Common.Localization.CorridorConfig().MinInliersPercent));
                         return 0;
                     case "wedge":
+                        // --wedgefill= a --maxspeed= bez zadani = hodnota ze zaznamu (vypis konfigurace).
                         WedgeReport.Run(rec, (int)Arg(args, "--limit", 300),
-                                        Arg(args, "--wedgefill",
-                                            new ARBot.Common.Occupancy.OccupancyIntegratorConfig().WedgeFillDeg),
+                                        Arg(args, "--wedgefill", double.NaN),
                                         Arg(args, "--wedgeconf",
-                                            new ARBot.Common.Occupancy.OccupancyIntegratorConfig().WedgeFillConfidence));
+                                            new ARBot.Common.Occupancy.OccupancyIntegratorConfig().WedgeFillConfidence),
+                                        Arg(args, "--maxspeed", double.NaN));
                         return 0;
                     case "localplan":
                         LocalPlanReport.Run(rec, Arg(args, "--bin", 10), Arg(args, "--unreach", 0.3),
@@ -236,6 +237,43 @@ namespace ARBot.Analyze
                                         Arg(args, "--from", 0), Arg(args, "--to", double.MaxValue));
                         return 0;
                     case "truth": TruthReport.Run(rec, Arg(args, "--skip", 20), Arg(args, "--bin", 60)); return 0;
+                    case "zasek":
+                        {
+                            var zv = new ZasekReport.Volby
+                            {
+                                From = Arg(args, "--from", double.NaN),
+                                To = Arg(args, "--to", double.NaN),
+                                Png = Text(args, "--png"),
+                                Radius = Arg(args, "--radius", 1.5),
+                                Lookback = Arg(args, "--lookback", 120),
+                                Frames = args.Any(a => a == "--frames"),
+                                FrameStep = (int)Arg(args, "--framestep", 1),
+                                SafeDist = Arg(args, "--safedist", 0.4),
+                                EscapeMax = Arg(args, "--escapemax", 1.5),
+                                EscapeCost = Arg(args, "--escapecost", 4.0),
+                                MaxSpeed = Arg(args, "--maxspeed", 1.7),
+                                Every = (int)Arg(args, "--every", 1),
+                                SearchMax = Arg(args, "--searchmax", 8.0),
+                            };
+                            string at = Text(args, "--at");
+                            if (!string.IsNullOrWhiteSpace(at))
+                                zv.At.AddRange(at.Split(',').Select(s => double.Parse(s, CultureInfo.InvariantCulture)));
+                            string det = Text(args, "--detail");
+                            if (!string.IsNullOrWhiteSpace(det))
+                                zv.Detail = det.Split(',').Select(s => double.Parse(s, CultureInfo.InvariantCulture)).ToArray();
+                            ZasekReport.Run(rec, zv);
+                            return 0;
+                        }
+                    case "perf":
+                        PerfReport.Run(rec, Text(args, "--from"), Text(args, "--to"),
+                                       (int)Arg(args, "--top", 10), Arg(args, "--ticho", 0.2));
+                        return 0;
+                    case "battery":
+                        BatteryReport.Run(rec, Arg(args, "--batwarn", double.NaN));
+                        return 0;
+                    case "odometer":
+                        OdometerReport.Run(rec);
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -350,7 +388,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             azimutu v telesovem ramci + o kolik by kvuli tomu klinu prisla");
             Console.WriteLine("             dopredna rychlost (VBrake dnes vs. \"staci potvrzena geometrie\");");
             Console.WriteLine("             --limit=<n> kolik gridu vzorkovat, --wedgefill=<st.> a");
-            Console.WriteLine("             --wedgeconf=<0..1> pro A/B simulaci lecby (WedgeFiller)");
+            Console.WriteLine("             --wedgeconf=<0..1> pro A/B simulaci lecby (WedgeFiller), --maxspeed=<m/s>;");
+            Console.WriteLine("             wedgefill a maxspeed bez zadani ze zaznamu (vypis konfigurace)");
             Console.WriteLine("  localplan  lokalni planovac v case: stavy planu, byla mrkev DOSAZITELNA");
             Console.WriteLine("             (|pozadovany - dosazeny cil|), rychlost planu vs. skutecna,");
             Console.WriteLine("             epizody nedosazitelne mrkve (--bin=<s>, --unreach=<m>, detail okna");
@@ -438,6 +477,24 @@ namespace ARBot.Analyze
             Console.WriteLine("             bylo jeste pred nim - proti kontrolni skupine obycejnych mist");
             Console.WriteLine("             --pairlo=<m> --pairhi=<m> --top=<n>");
             Console.WriteLine("  types      jake zpravy zaznam obsahuje a kolik jich je");
+            Console.WriteLine("  zasek      PROC robot stoji v blokovane oblasti: bunka pod robotem (kanal, log-odds, EDT),");
+            Console.WriteLine("             hledani uniku pravidly PlanEscape BEZ horizontu (jak daleko je vychod, zatarasila");
+            Console.WriteLine("             ho geometrie?) + replay planovace, stari hodnot bunek ze snapshotu, skoky pozy,");
+            Console.WriteLine("             globalni navigace a log; --from= --to= [s od 1. LocalPlanMsg], --at=t1,t2 okoli");
+            Console.WriteLine("             robotu, --png=<prefix> pudorys + snimky kamer, --frames = prehrat snimky kodem");
+            Console.WriteLine("             robota (kdy kamera bunku naposledy VIDELA + overeni gridu proti snapshotum),");
+            Console.WriteLine("             --radius=1.5 --lookback=120 --safedist=0.4 --escapemax=1.5 --maxspeed=1.7 --every=1,");
+            Console.WriteLine("             --detail=t1,t2 radkovy vypis pozy, IMU, prikazu a mereni koridoru v okne");
+            Console.WriteLine("  perf       stihalo rizeni? PerfMsg po sekundach: takty, ZAMESKANE takty, obsazenost periody,");
+            Console.WriteLine("             zpozdeni taktu, CPU, verdikty (rozdeleni, po minutach, nejhorsi sekundy), stupne");
+            Console.WriteLine("             pipeline (zahozene zpravy, fronty), jadra + MEZERY V PROUDECH z indexu (zasek procesu,");
+            Console.WriteLine("             soubezne vypadky kamer); jen index a PerfMsg, zadne snimky. --from= --to=");
+            Console.WriteLine("             (HH:MM:SS nebo s od zacatku), --top=10, --ticho=0.2 [s]");
+            Console.WriteLine("  battery    napeti baterie: prehrani BatteryMonitor (dnesni kod) nad MotorStateBase.Voltage -");
+            Console.WriteLine("             mediany po minutach, prechody varovani, jizda vs. stani, podle proudu motoru;");
+            Console.WriteLine("             --batwarn=<V> (bez zadani ze zaznamu, jinak default dnesniho kodu)");
+            Console.WriteLine("  odometer   ujeta draha: prehrani Odometer (dnesni kod) nad odometrickou pozou z RobotStateMsg");
+            Console.WriteLine("             (u verze 1 integral v, omega), srovnani s fuzovanou polohou a GPS, useky mise Track");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");

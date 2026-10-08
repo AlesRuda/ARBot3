@@ -116,7 +116,7 @@ namespace ARBot.Analyze
             var cfg = new GlobalNavigatorConfig();
             Console.WriteLine($"  detektory: A bez pohybu (< {cfg.MinMotionM} m za {(cfg.NoMotionSec + cfg.EscalateSec).TotalSeconds:F0} s, {cfg.MaxRecoveries + 1}x -> uzavreni), "
                               + $"B bez postupu (pokles phi < {cfg.RequiredPhiDrop:F0} s na {cfg.ProgressWindowM:F0} m drahy: 1. penalizace x{cfg.PenaltyFactor}, 2. uzavreni), "
-                              + $"C prehrazeno ({cfg.BlockedPlanCount} selhani planu NoRoute/RobotBlocked po sobe -> uzavreni). TTL {cfg.ClosureTtl.TotalSeconds:F0} s.");
+                              + $"C prehrazeno ({cfg.BlockedPlanCount} planu NoRoute po sobe -> uzavreni; RobotBlocked od 29. 9. 2026 serii NULUJE, driv se pocital). TTL {cfg.ClosureTtl.TotalSeconds:F0} s.");
             var gnIdx = rec.Index.Where(e => e.MsgName == "GN").ToList();
             var znameZavrene = new HashSet<long>();
             int prev = 0; int udalosti = 0;
@@ -126,11 +126,20 @@ namespace ARBot.Analyze
                 udalosti++;
                 var t = nv.TimeStamp;
                 var okno = plans.Where(p => p.TimeStamp <= t && (t - p.TimeStamp).TotalSeconds <= 5).ToList();
-                int streak = 0;
+                // Serie selhani tak, jak ji pocita GlobalNavigator.OnLocalPlan: od 29. 9. 2026
+                // (9261a1a) jen NoRoute, kazdy jiny stav vcetne RobotBlocked ji vynuluje. Do te doby
+                // se pocital i RobotBlocked - druha serie je tu proto, aby u starsich zaznamu bylo
+                // videt, ze uzavreni zpusobilo stani v blokovane bunce (nav-detektor-c-kaskada).
+                int streak = 0, streakStary = 0;
                 foreach (var p in plans.Where(p => p.TimeStamp <= t).Reverse())
                 {
-                    if (p.PlanStatus == LocalPlanStatus.NoRoute || p.PlanStatus == LocalPlanStatus.RobotBlocked) streak++; else break;
+                    if (p.PlanStatus == LocalPlanStatus.NoRoute) streak++; else break;
                     if (streak > 200) break;
+                }
+                foreach (var p in plans.Where(p => p.TimeStamp <= t).Reverse())
+                {
+                    if (p.PlanStatus == LocalPlanStatus.NoRoute || p.PlanStatus == LocalPlanStatus.RobotBlocked) streakStary++; else break;
+                    if (streakStary > 200) break;
                 }
                 var poz15 = states.Where(s => s.TimeStamp <= t && (t - s.TimeStamp).TotalSeconds <= 15).ToList();
                 double ujel15 = Ujeto(poz15);
@@ -149,7 +158,10 @@ namespace ARBot.Analyze
                 }
 
                 string odhad;
-                if (streak >= cfg.BlockedPlanCount) odhad = $"C prehrazeno ({streak} selhani planu po sobe)";
+                // Serie se pocita nejvys do 200 (pak se hledani utne), proto ">200".
+                string Serie(int n) => n > 200 ? ">200" : n.ToString();
+                if (streak >= cfg.BlockedPlanCount) odhad = $"C prehrazeno ({Serie(streak)} planu NoRoute po sobe)";
+                else if (streakStary >= cfg.BlockedPlanCount) odhad = $"C ve verzi PRED 29. 9. 2026 ({Serie(streakStary)} planu NoRoute/RobotBlocked po sobe; dnesni binarka by C NEuzavrela)";
                 else if (ujel15 < cfg.MinMotionM) odhad = $"A bez pohybu ({ujel15:F2} m za 15 s)";
                 else if (!double.IsNaN(phiPred) && phiPred - nv.Phi < cfg.RequiredPhiDrop) odhad = $"B bez postupu (pokles phi {phiPred - nv.Phi:F1} s na {drahaOkna:F0} m)";
                 else odhad = "nejasne (zadny detektor podle zaznamu nesedi - mozna kombinace)";

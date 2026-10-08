@@ -119,7 +119,11 @@ namespace ARBot.HAL.Devices.Uart
                 // zastavuje se pod zamkem a zatuhne cely.
                 //
                 // Sekunda je nad periodou vsech dnesnich senzoru (motor okno 500 ms, VN100 100 Hz,
-                // GPS 10 Hz), takze v provozu se na ni nikdy nedojde - je to jen strop.
+                // GPS 10 Hz), takze za ZDRAVEHO behu se na ni nedojde - je to jen strop.
+                // ⚠️ Neplati "nikdy": 1. 10. 2026 (Track, 20261001-144638.rec, 15:15:41,8) stal cely
+                // proces 1,19 s a timeout motoru vystrelil, ackoli jednotka vysilala (111 radku
+                // cekalo v bufferu). Vyjimka tedy nemusi znamenat tichou linku. Registr
+                // prov-zasek-procesu-1s.
                 sp.ReadTimeout = DefaultReadTimeoutMs;
                 sp.WriteTimeout = DefaultWriteTimeoutMs;
 

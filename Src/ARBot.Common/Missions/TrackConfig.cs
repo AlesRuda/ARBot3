@@ -35,6 +35,13 @@ namespace ARBot.Common.Missions
         /// tenhle strop: zaseknuti hlidaji detektory v <c>GlobalNavigator</c> (bez pohybu, bez
         /// postupu, prehrazeno) a je videt na strance nahledu. Registr
         /// <c>mise-track-timeout-delka-useku</c>.</para>
+        ///
+        /// <para>⚠️ <b>Pro uvaznuti v lokalni mape to neplati</b> (zjisteno 7. 10. 2026): pri
+        /// <c>RobotBlocked</c> (a <c>AlreadyAtGoal</c>) jsou vsechny tri detektory odzbrojene
+        /// (A bere jen platny plan, C od 29. 9. jen <c>NoRoute</c>, B potrebuje ujet 20 m) a stav
+        /// planu na strance neni. 1. 10. 2026 (<c>20261001-144638.rec</c>) robot stal
+        /// v <c>RobotBlocked</c> 132 + 42 s a mise i globalni navigace hlasily „jede". Registr
+        /// <c>nav-uvaznuti-neohlasene</c>.</para>
         /// </summary>
         public double DrivingTimeoutSec = 0;
 

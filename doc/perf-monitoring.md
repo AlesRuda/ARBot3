@@ -4,6 +4,10 @@
 > testů** (celkem 1040 zelených). Fáze 3 (CPU stroje, teplota, frekvence, CPU čas taktu — vše
 > platformní přes HAL) a fáze 4 (`ARBot.Analyze perf`) zbývají.
 >
+> ✅ **Fáze 4 hotová 7. 10. 2026** (`ARBot.Analyze perf`) a s ní **první rozbor ze zařízení** —
+> viz „Měření na Orange Pi (1. 10. 2026)" níž. Zameškané takty jsou i na Pi a vysvětlení „hrubý
+> časovač Windows" neplatí: je to **fáze časovače proti mřížce plánu**, ne přetížení.
+>
 > ⚠️ **Na zařízení to neběželo.** Všechno ověření je na Windows v simulaci; hodnoty obsazenosti
 > na RK3588 budou jiné a **práh `perfwarn` je pořád odhad**. Rozpad po jádrech nemá jak se ověřit
 > na vývojovém stroji (big.LITTLE je vlastnost cílového HW) — test pokrývá jen správnost agregace.
@@ -217,6 +221,37 @@ proto první krok**, ne změna politiky dohánění.
 Obsazenost tedy měří *řídicí* práci, ne celou zátěž — a číslo pod 1 % je tak spíš zpráva o tom,
 že to nejdražší se počítá jinde.
 
+## Měření na Orange Pi (1. 10. 2026, rozbor 7. 10. 2026)
+
+`ARBot.Analyze perf` nad `records/test/20261001-144638.rec` (Track 42 min, 1,7 m/s, dvě D435
+a NPU), `-152906.rec` (FreeRun 10 min) a pro srovnání `20260929-150844.rec`:
+
+| Údaj | Track 1. 10. | FreeRun 1. 10. | Track 29. 9. |
+|---|---|---|---|
+| sekund se zameškaným taktem | **48,2 %** (2 638 taktů) | 25,1 % | 18,8 % |
+| zpoždění taktu MAX p50 | 99,7 ms | 99,2 ms | 3,3 ms |
+| obsazenost periody AVG p50 / MAX p99 / max | 3,4 / 12,8 / 25,3 % | max 17,0 % | — |
+| CPU procesu p50 / max | 20,5 / 31,6 % | 20,3 / 35,8 % | — |
+| `LocalNavigator` avg / zahozeno | 9,9 ms / 83 snímků (0,09 %) | — / 6 | 13,2 ms |
+
+**Práce taktu je malá** (nad 50 % obsazenosti ani jedna sekunda, takže `perfwarn=70` nikdy
+nedoběhne) a červený verdikt dělají výhradně zameškané takty. **Mechanismus** (z `T_in` / `T_out`
+`DriveCommandMsg`, prototyp v registru `prov-zameskane-takty-windows`): `Scheduler` kotví mřížku na
+první pumpu a `System.Threading.Timer` se stejnou periodou tiká **±2 ms kolem bodů mřížky** — takt
+tedy vyjde buď za ~3 ms, nebo o celou periodu (~100 ms) pozdě, a fáze mezi oběma režimy přeskakuje
+(v Tracku cyklus ~4 min: ~40 s všechno včas, pak ~3 min přeskakování). Po záseku procesu v 15:15:43
+se fáze posunula na +32 ms a **do konce jízdy (12,7 min) nebyl zameškaný ani jeden takt** při stejné
+zátěži. ⚠️ **Skutečný dopad je latence, ne „zameškaný takt":** ve FreeRunu běželo 94,5 % taktů
+~100 ms pozdě (řízení ze stavu `GetStateAt(tk)` o 0,1 s staršího), ačkoli červených sekund bylo jen
+25 % — `MissedTicks` a verdikt to nevystihují, `DelayAvg` ano. Opravovat se zatím nic nemá
+(rozhodnutí autora: kotva mřížky s odsazením / tolerance v `PumpDue` / dohánění).
+
+**Blok „mezery v proudech" našel dvě věci navíc:** zásek **celého procesu** na 1,19 s
+(15:15:41,8; mlčí i IMU, záznam a časovač `PerfMsg`; registr `prov-zasek-procesu-1s`) a **souběžné
+výpadky obou kamer** 1,0–3,4 s při běžícím IMU (4× v Tracku, 2× ve FreeRunu, 29. 9. žádný;
+`hw-d435-vypadky-za-provozu`). `RoadWidthMapUpdater` zahodil 1 295 zpráv (0,18 %) — zda je to
+záměr, ověřené není.
+
 ## Fáze
 
 1. **Smyčka + zpráva + panel** — ✅ hotovo 1. 9. 2026.
@@ -226,7 +261,7 @@ Obsazenost tedy měří *řídicí* práci, ne celou zátěž — a číslo pod 
    patří k teplotě: teprve spolu odliší „běželi jsme na úsporném jádru" od „frekvence spadla kvůli
    teplotě". CPU čas taktu je taky platformní (`QueryThreadCycleTime` / `clock_gettime` s
    `CLOCK_THREAD_CPUTIME_ID`) — .NET pro CPU čas *aktuálního vlákna* přenositelné API nemá.
-4. **`ARBot.Analyze perf`** — rozbor ze záznamu.
+4. **`ARBot.Analyze perf`** — rozbor ze záznamu. ✅ hotovo 7. 10. 2026.
 
 ## Dva nálezy, které měření odhalí — a které se zatím NEOPRAVUJÍ
 

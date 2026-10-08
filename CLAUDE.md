@@ -130,7 +130,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   kterou si spec kladla pro dva odložené nálezy (dohánění zameškaných taktů, krok rampy dobrzdění
   z periody): **akademické už nejsou.** Opravovat se ale pořád nemají — číslo je z Windows, kde
   hrubé rozlišení `System.Threading.Timer` samo stačí jako vysvětlení; **další krok je přeměřit
-  to na OrangePi**. Fáze 3 (teplota, frekvence, CPU stroje) a 4 (`ARBot.Analyze perf`) zbývají.
+  to na OrangePi**. Fáze 3 (teplota, frekvence, CPU stroje) zbývá.
+  ✅ **Fáze 4 (`ARBot.Analyze perf`) hotová a přeměřeno na Pi 7. 10. 2026** (jízdy 1. 10.):
+  zameškané takty jsou i na Pi (48 % sekund v Tracku, obsazenost periody p99 jen 13 %), takže
+  „hrubý časovač Windows" **neplatí** — je to **fáze časovače proti mřížce `Scheduler`u** (±2 ms
+  kolem jejích bodů, takt vyjde za ~3 ms, nebo o celou periodu pozdě). ⚠️ Skutečný dopad je
+  **latence** (FreeRun 94,5 % taktů ~100 ms pozdě), ne „zameškaný takt" — verdikt to nevystihuje.
+  Neopravuje se, rozhodne autor (`prov-zameskane-takty-windows`).
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
   (`Common ← HAL ← Runtime ← app`), kam patří fúze / adaptéry / řídicí smyčka.
 - [doc/headless.md](doc/headless.md) — **runtime bez UI**: od 4. 9. 2026 je řídicí runtime
@@ -633,6 +639,16 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   (fúze sjízdnosti z hloubky + z RGB, log-odds, kruhový buffer) a lokální plánování cesty nad ním
   (odstupy od překážek, rychlostní obálka, A\* → `RegulatorWayPoint[]`) + `LocalNavigator` jako vyšší
   řídicí smyčka. Hotové a napojené (`ARBot.Common/Occupancy`); **robot s tou vrstvou venku jel** (7., 12., 14. 9. 2026) a co se přitom ukázalo, jsou samostatná témata v registru (`lp-*`).
+  ⚠️ **Grid NEMÁ časový rozpad (decay) a nikdy neměl** — obsah mění jen nové pozorování (clamp
+  ±5), vypadnutí z okna 12,8 m a smazání po skoku pózy. „Krátká paměť ~2,5 s" platí jen pro buňky,
+  které kamera znovu vidí; **pod robotem a do ~0,5 m kolem něj drží hodnotu, dokud robot stojí.**
+  Kousnulo to 1. 10. 2026 (Track Modřany, binárka ještě s gridem ve světě): korekce koridoru
+  (kroky pod tolerancí detektoru skoku) posunuly pózu o 1,5–1,9 m do krajnice zapsané chvíli předtím,
+  únik přes geometrii nesmí a robot stál v `RobotBlocked` **132 + 42 s** na volném asfaltu; všech
+  8 epizod stání té jízdy bylo ve dvou 90° zatáčkách. Žádná vrstva to neohlásila, couvnutí/otočka
+  neexistují (a otočka by buňky pod robotem stejně nepřepsala). Léčba příčiny je `localframe=odom`
+  (na HW neověřené); druhá linie čeká na autora (`lp-uvaznuti-v-zatackach`). Měřidlo
+  `ARBot.Analyze zasek`.
   ⚠️ **Rozbor rychlostní obálky dotažen 7. 9. 2026 a hned něco našel** (`ARBot.Analyze envelope`
   nad `20260907-170728.rec`, FreeRun venku): robot se nezastavoval, **plazil se** — medián
   příkazované rychlosti **0,05 m/s** (podlaha `MinCostSpeed`) a v **53 %** plánů je na podlaze

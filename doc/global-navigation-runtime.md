@@ -339,6 +339,14 @@ plánech se zavřela „aktuální“ hrana, trasa se přeplánovala a zavřela 
 v každém cyklu plánování nad aktuální mapou a `RobotBlocked` znamená jen „v tomto cyklu cesta ven
 do `EscapeMaxLength` (1,5 m) nevede“. Ve 25. 9. únik po 22,8 s cestu našel a robot pokračoval;
 zavírání hran k tomu nic nepřidávalo.
+⚠️ **„Zkouší se nad aktuální mapou" ale nepomůže, když se mapa kolem robotu nemění** — a pod
+stojícím robotem a do ~0,5 m od něj se nemění, protože tam kamery nevidí a grid nemá časový
+rozpad. 1. 10. 2026 (`20261001-144638.rec`) robot stál v `RobotBlocked` **132 + 42 s** na
+artefaktu posunutého gridu (únik přes geometrii nesmí) a žádná vrstva nic neudělala ani
+neohlásila — oprava C to potvrdila (0 uzavření místo ~164), ale detektor A je při `RobotBlocked`
+odzbrojený a zotavení (řádek A2 tabulky níž) neexistuje. Viz `lp-uvaznuti-v-zatackach`,
+`nav-uvaznuti-neohlasene` a [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
+sekce „Uváznutí na konci Tracku 1. 10. 2026".
 
 *Zpřesnění (fáze 4b): průřez napříč cestou.* Nejsilnější důkaz přehrazení je „všechny buňky na
 kolmici k cestě v šířce `Node.Width + margin` jsou `Blocked`". Ten test **musí proběhnout na vlákně
