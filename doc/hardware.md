@@ -618,7 +618,8 @@ Poznámky:
   sestavením **vyrovnat nahoře** (každý na 3,65 V, nebo paralelně), jinak balík drží nejslabší
   článek.
 - **Požadavky na BMS:** ≥ 30 A trvale, ≥ 60 A krátkodobě — když BMS při rozjezdu odpojí, padne
-  i Orange Pi a záznam se usekne. Ochrana proti nabíjení pod 0 °C (robot jezdí venku).
+  i Orange Pi a záznam se usekne. Ochranu proti nabíjení pod 0 °C
+  navrhl asistent, **autor ji za podstatnou nepovažuje** (8. 10. 2026) — není to požadavek.
 - ⚠️ **Napětí z Roboteqa je na LiFePO4 podezřele nízké a příčina není známá.** Čte se napětí
   baterie (`GetValue(_V, 2)` ve skriptu, ne vnitřní napětí `_V, 1`). Hlášené hodnoty: Robotour
   19. 9. 12,5 V „po nabití", 12,1 V dopoledne, medián 2. kola 10,6 V, konec 10,0 V; 1. 9. 12,3–12,6 V,
@@ -660,6 +661,18 @@ Poznámky:
   92 mm), takže se montuje vedle a do baterie vedou balanční a výkonové vodiče. Uvnitř by se vešla
   JBD-SP04S010 (123 × 63 × 12 mm, do 21mm mezery vedle článků podél 285 mm), ale její proud se
   nepodařilo ověřit — kupovat jen při ≥ 40 A trvale.
+  **Nastavení BMS (rešerše 8. 10. 2026, ověřit na kusu):** jmenovitá kapacita (u JBD „design /
+  nominal capacity" a „cycle capacity") se zadává **aplikací v mobilu** přes Bluetooth modul (JBD /
+  Xiaoxiang), driver robota je jen čte — na stránce náhledu je řádek „kapacita zbývá / jmenovitě Ah",
+  takže je hned vidět, jestli v BMS nezůstala tovární hodnota. Stav nabití počítá BMS z prošlého
+  náboje a **na 100 % se srovná při nabití na plné napětí** — po výměně článků a po nastavení
+  kapacity proto jednou plně nabít. Pod ~0,7 A prý proud neměří přesně (robot v klidu bere ~1,6 A).
+  ⚠️ **Teplotní čidla (NTC) zapojit:** rozpojené čidlo BMS čte jako **nejnižší** teplotu, takže
+  zasáhne ochrana „mráz" a nejspíš **zakáže nabíjení, případně i vybíjení** (robot by nejel);
+  zkratované jako nejvyšší. Nepoužité čidlo jde v aplikaci vypnout, ale je hlášeno, že pak některé
+  kusy nepouštějí vybíjení — vyzkoušet. Čidla jsou tedy potřeba hlavně proto, aby BMS nezablokovala
+  baterii (ochrana proti nabíjení pod 0 °C sama požadavkem není). Software robota počet čidel bere z BMS (0 = řádek
+  teploty na stránce chybí, „mráz při nabíjení" se ukáže jako ochrana v hlavičce).
   **Levnější alternativa:** dnešní BMS ponechat a do záporného vodiče přidat **bočník
   s převodníkem INA226 / INA228** na I2C Orange Pi — proud i napětí přesně, ale stav nabití
   počítá náš software (integrál proudu, reset při plném nabití) a napětí článků nevidí.
