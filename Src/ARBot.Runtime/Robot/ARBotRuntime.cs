@@ -769,6 +769,10 @@ namespace ARBot.Robot
             // stupen vubec zaklada; corridorsend= jestli posila merenia do fuze (A/B se stejnou
             // zatezi). Viz doc/map-correlation-localization.md.
             bool corridorOn = ParamRegistry.Corridor.Value;
+            // Novy graf = nova lokalizace (tyz duvod jako u misi nize): bez toho by po Stop + Start
+            // bez lokalizace zustala reference na stary stupen a jeho odhad sirky by dal cetl
+            // RoadWidthMapUpdater i FreeRun.
+            CorridorLocalizer = null;
             if (!corridorOn)
             {
                 Trace.WriteLine("corridor=false: hranova lokalizace se nezaklada. "
@@ -956,8 +960,9 @@ namespace ARBot.Robot
                     // vubec nemusi byt zalozeny (corridor=false je vychozi) a hlavne vyzaduje mapu,
                     // kterou FreeRun nema. Parovani snimku je bezstavove vuci mape, takze dva
                     // zdroje vedle sebe si nevadi.
-                    // freerunsingle= mrkev i podle JEDINE hrany; sirku k ni bere z mapy, je-li
-                    // nactena (bez mapy drzi zmereny odstup od hrany). Viz FreeRunConfig.UseSingleEdge.
+                    // freerunsingle= mrkev i podle JEDINE hrany; sirku k ni bere NAUCENOU (tentyz odhad
+                    // lokalizace, ze ktereho cte i RoadWidthMapUpdater), jinak z mapy - obe jen s nactenou
+                    // mapou (bez mapy drzi zmereny odstup od hrany). Viz FreeRunConfig.UseSingleEdge.
                     freeRunCfg.UseSingleEdge = ParamRegistry.FreeRunSingle.Value;
                     // Odstup pozadovane cary od praveho kraje cesty: tatáz mez, od ktere planovac
                     // pusti plnou rychlost podel prekazky (SafeDist + EdgeMarginM), aby sledovala
@@ -965,17 +970,24 @@ namespace ARBot.Robot
                     freeRunCfg.MinRightEdgeClearanceM = plannerCfg.SafeDist + plannerCfg.EdgeMarginM;
                     if (!freeRunCfg.UseSingleEdge)
                         Trace.WriteLine("freerunsingle=false: FreeRun jede jen podle oboustranneho koridoru (A/B).");
-                    Func<RobotState, ARBot.Common.Localization.RoadCorridor, double?> freeRunWidth = null;
+                    Func<RobotState, ARBot.Common.Localization.RoadCorridor, ARBot.Common.Localization.RoadAxisMatch?> freeRunRoad = null;
                     var freeRunNet = RoadNetwork;
                     var freeRunGeo = fusionConfig.GeoReference;
                     if (freeRunNet != null && freeRunGeo != null)
-                        freeRunWidth = (p, c) => ARBot.Common.Missions.FreeRunMission.MapWidthAt(
+                        freeRunRoad = (p, c) => ARBot.Common.Missions.FreeRunMission.MapRoadAt(
                             freeRunNet, freeRunGeo, p, c, freeRunCfg);
+
+                    // Naucena sirka: odhad lokalizace (mise z nej jen cte). Bez lokalizace neni
+                    // naucena sirka nikde - ani v mape - a mise bere mapovou.
+                    var freeRunWidths = CorridorLocalizer?.Widths;
+                    if (freeRunRoad != null && freeRunWidths == null && freeRunCfg.UseSingleEdge)
+                        Trace.WriteLine("mission=freerun: sirka u jedine hrany jen z MAPY - naucenou "
+                                        + "dava lokalizace koridoru (corridor=true).");
 
                     var freeRun = new ARBot.Common.Missions.FreeRunMission(
                         engine, navigator,
                         new ARBot.Common.Localization.CorridorSource(engine),
-                        freeRunCfg, mapWidth: freeRunWidth);
+                        freeRunCfg, mapRoad: freeRunRoad, learnedWidths: freeRunWidths);
 
                     FreeRunMission = freeRun;
                     stages.Add(freeRun);

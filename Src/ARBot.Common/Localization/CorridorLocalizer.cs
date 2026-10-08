@@ -409,9 +409,9 @@ namespace ARBot.Common.Localization
         /// </summary>
         private (double WidthM, double StdM) SingleEdgeWidth(RoadAxisMatch axis)
         {
-            if (widths.TryGetWidth(axis.WayId, out double learned))
+            // Sirka i rozptyl jednim dotazem: odhad je sdileny s dalsimi vlakny (RoadWidthEstimator).
+            if (widths.TryGetWidth(axis.WayId, out double learned, out double mad))
             {
-                double mad = widths.DispersionOf(axis.WayId);
                 double std = double.IsNaN(mad) ? config.SingleEdgeLearnedWidthStdFloorM
                                                : Math.Max(config.SingleEdgeLearnedWidthStdFloorM, mad);
                 return (learned, std);

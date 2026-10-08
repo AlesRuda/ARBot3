@@ -61,11 +61,21 @@ namespace ARBot.Common.Logs
         public byte SingleSide;
         /// <summary>Znamenkovy odstup jedine hrany od robotu [m] (verze 2).</summary>
         public double EdgeOffset;
-        /// <summary>Byla u jedine hrany sirka z mapy? (verze 2)</summary>
+        /// <summary>
+        /// Byla u jedine hrany sirka ZNAMA (verze 2)? Ve verzi 2 to znamenalo vzdy mapovou; od verze 3
+        /// i naucenou — ktera to byla, rika <see cref="WidthLearned"/>. Cykly s MAPOVOU sirkou jsou
+        /// tedy <c>WidthFromMap &amp;&amp; !WidthLearned</c>. (Jmeno zustava kvuli kompatibilite zaznamu.)
+        /// </summary>
         public bool WidthFromMap;
 
-        /// <summary>Format verze 2: pridano mereni z jedine hrany.</summary>
-        public const int FormatVersion = 2;
+        /// <summary>
+        /// <b>Verze 3</b> (8. 10. 2026): byla sirka u jedine hrany NAUCENA z oboustrannych koridoru
+        /// (<c>true</c>), nebo mapova? Do te doby se brala vzdy mapova (bez tagu <c>width</c> 3 m).
+        /// </summary>
+        public bool WidthLearned;
+
+        /// <summary>Format verze 3: pridana naucena sirka u jedine hrany.</summary>
+        public const int FormatVersion = 3;
 
         /// <summary>Cas porizeni = <see cref="TimeStamp"/>.</summary>
         DateTime IHasCaptureTime.CaptureTime => TimeStamp;
@@ -94,6 +104,7 @@ namespace ARBot.Common.Logs
                 bw.Write(EdgeOffset);
                 bw.Write(WidthFromMap);
             }
+            if (Verze >= 3) bw.Write(WidthLearned);
         }
 
         public override void FromData(BinaryReader br)
@@ -117,6 +128,8 @@ namespace ARBot.Common.Logs
                 EdgeOffset = br.ReadDouble();
                 WidthFromMap = br.ReadBoolean();
             }
+            // Verze 2 naucenou sirku nezna - tehdy se brala vzdy mapova (false).
+            if (Verze >= 3) WidthLearned = br.ReadBoolean();
         }
 
         public override Message Build() => new FreeRunMsg();

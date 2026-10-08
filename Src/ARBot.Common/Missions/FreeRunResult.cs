@@ -51,10 +51,18 @@ namespace ARBot.Common.Missions
         public double EdgeOffset;
 
         /// <summary>
-        /// U jedine hrany: byla sirka z mapy (<c>true</c>, pak <see cref="Width"/> a
-        /// <see cref="Lateral"/> plati), nebo se drzel zmereny odstup od hrany (<c>false</c>)?
+        /// U jedine hrany: byla sirka znama (<c>true</c>, pak <see cref="Width"/> a <see cref="Lateral"/>
+        /// plati), nebo se drzel zmereny odstup od hrany (<c>false</c>)? Do 8. 10. 2026 vzdy mapova,
+        /// od te doby i naucena — rozlisi <see cref="WidthLearned"/>. Jmeno zustava kvuli
+        /// <see cref="Logs.FreeRunMsg.WidthFromMap"/> (kompatibilita zaznamu).
         /// </summary>
         public bool WidthFromMap;
+
+        /// <summary>
+        /// U jedine hrany se sirkou (<see cref="WidthFromMap"/>): byla sirka NAUCENA z oboustrannych
+        /// koridoru teze mapove cesty (<c>true</c>), nebo mapova (<c>false</c>)?
+        /// </summary>
+        public bool WidthLearned;
 
         /// <summary>
         /// Prevod na log-zpravu. Konvenci vlastni domena (viz CLAUDE.md) — <c>Logs</c> zustava
@@ -78,6 +86,7 @@ namespace ARBot.Common.Missions
                 SingleSide = (byte)SingleSide,
                 EdgeOffset = EdgeOffset,
                 WidthFromMap = WidthFromMap,
+                WidthLearned = WidthLearned,
             };
     }
 }

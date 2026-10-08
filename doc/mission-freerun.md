@@ -62,7 +62,7 @@ FreeRun ho má přirozeně z `RoadCorridor.Width`.
 | situace | co robot dělá |
 |---|---|
 | koridor je | mrkev v **pravé polovině**, odsazení **`Width/4` od osy** |
-| jen **jedna hrana** + šířka z mapy (od 26. 9. 2026) | osa z odstupu hrany a mapové šířky, mrkev v **pravé polovině** jako u koridoru |
+| jen **jedna hrana** + šířka (od 26. 9. 2026; od 8. 10. naučená, jinak z mapy) | osa z odstupu hrany a šířky, mrkev v **pravé polovině** jako u koridoru |
 | jen **jedna hrana**, šířka neznámá (od 26. 9. 2026) | mrkev **ve směru hrany se zachovaným změřeným odstupem** |
 | koridor ani hrana nejsou | mrkev **přímo vpřed** od aktuální pózy (drží aktuální kurz) |
 | překážka v pravé polovině | **překážka vyhraje** — A\* ji objede kudy může, i přes osu nebo mimo koridor, a pak se robot vrátí vpravo |
@@ -143,12 +143,37 @@ a znaménkový odstup `EdgeOffset` (kladný = hrana vlevo), tedy příčnou polo
 - **Bez šířky:** `mrkev_body = L·d`, tedy rovnoběžně s hranou se zachovaným odstupem. Příčná poloha
   vůči ose známá není, takže se na ni neřídí.
 
-Šířka z mapy (`FreeRunMission.MapWidthAt`) se bere jen tehdy, když je mapová cesta u pózy do
+Šířka se bere jen tehdy, když je mapová cesta u pózy (`FreeRunMission.MapRoadAt`) do
 `MapWidthMaxDistanceM` (8 m) **a** rovnoběžná s viděnou hranou do `MapWidthMaxAngleDeg` (20°) —
 jinak by u křižovatky šířku dala příčná ulice. Bez mapy (`map=` nezadané) jde vždy druhá varianta.
-V záznamu to nese **`FreeRunMsg` verze 2** (`SingleSide`, `EdgeOffset`, `WidthFromMap`) a rozpad
-ukazuje `ARBot.Analyze freerun`. ⚠️ **Na zařízení neběželo**; `freerunsingle=false` vrací chování
-do 26. 9. Stránka náhledu zatím ukazuje jen stav mise („jede podle pravé hrany, šířka z mapy").
+
+✅ **Od 8. 10. 2026 má přednost šířka NAUČENÁ** (`mise-freerun-sirka-bez-naucene`): mise čte
+**tentýž odhad**, ze kterého bere šířku lokalizace koridoru a ze kterého ji `RoadWidthMapUpdater`
+zapisuje do mapy — `CorridorLocalizer.Widths` (klíč OSM way). U jedné hrany vezme naučenou šířku
+mapové cesty z `MapRoadAt`, jakmile má odhad kvalitu (≥ 10 měření, MAD ≤ 0,10 m); do té doby
+mapovou. Do té doby se brala **jen mapová** — a bez tagu `width` je to vždy `roadwidth=` (3 m):
+1. 10. 2026 ve všech 3 285 cyklech z jedné hrany 3,00 m, ačkoli koridor měřil p50 3,69 m
+a naučená šířka se přitom do mapy propisovala, takže čára ležela 0,75 m od pravého kraje místo
+~0,92 m.
+
+- **Mise do odhadu nepíše**, píše jen lokalizace. Obě vidí tytéž snímky, takže zápis z obou by
+  každé měření dal do okna dvakrát (okno by pokrylo polovinu času a rozptyl by vyšel menší).
+- **Bez lokalizace (`corridor=false`) naučená šířka není nikde** — ani v mapě — a mise bere mapovou;
+  hlásí to do Trace. Na `roadwidthmap=` to nezávisí (ten řídí jen zápis do mapy).
+- **Odhad je od téhož dne thread-safe** (zámek): píše do něj vlákno lokalizace a čtou ho vlákna
+  `RoadWidthMapUpdater`u a FreeRunu. ⚠️ Updater ho do té doby četl **bez synchronizace** — test,
+  který čte právě zapisovanou cestu, bez zámku padá 3 z 3 (`ArgumentException` v `List.ToArray`,
+  `IndexOutOfRangeException`). Na zařízení se to (zatím) neprojevilo, nebo to nikdo nespojil.
+- ⚠️ **FreeRun tím přestal být čistou funkcí snímků**: co z odhadu přečte, závisí na tom, jak
+  daleko je s týmiž snímky vlákno lokalizace (rozdíl nejvýš pár měření v okně). Totéž už platí
+  pro `RoadWidthMapUpdater`.
+- ⚠️ Naučená šířka platí pro **celou** OSM cestu — kde se cesta skutečně zužuje, drží ji okno
+  20 měření (~2 s oboustranného koridoru).
+
+V záznamu to nese **`FreeRunMsg` verze 2** (`SingleSide`, `EdgeOffset`, `WidthFromMap`), od verze 3
+i `WidthLearned`, a rozpad ukazuje `ARBot.Analyze freerun`. ⚠️ **Na zařízení neběželo** (naučená
+šířka vůbec; jedna hrana s mapovou šířkou jela 29. 9. a 1. 10.); `freerunsingle=false` vrací chování
+do 26. 9. Stránka náhledu ukazuje stav mise („jede podle pravé hrany, šířka naučená / z mapy").
 
 ## Návrhové rozhodnutí: vytáhnout `CorridorSource`
 

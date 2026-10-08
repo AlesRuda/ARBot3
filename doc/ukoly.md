@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **263**: otevřeno **41** · v kódu, na HW neověřeno **30** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -50,7 +50,6 @@ Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · 
 | otevřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
-| otevřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
 | otevřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
@@ -82,6 +81,7 @@ Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
+| v kódu, na HW neověřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
@@ -1741,18 +1741,6 @@ Mise `magcal` došla do verdiktu HOTOVO v 48. s (podmíněnost 330, `sd|B|` 0,00
 
 [plan-vn100-kalibrace.md](plan-vn100-kalibrace.md), [MagCalMission.cs](../Src/ARBot.Common/Missions/MagCalMission.cs), [MagCalCollector.cs](../Src/ARBot.Common/Calibration/MagCalCollector.cs) · DevLog [2026-09-17](devlog.md#2026-09-17)
 
-<a id="mise-freerun-sirka-bez-naucene"></a>
-### ⬜ FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)
-
-`mise-freerun-sirka-bez-naucene` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-FreeRun 1. 10. 2026 (`20261001-152906.rec`, `roadwidthmap=true`): ve všech 3 285 cyklech mrkve z jedné hrany se šířkou z mapy byla šířka přesně 3,00 m (výchozí `roadwidth`, mapa tagy `width` nemá), ačkoli oboustranný koridor měřil p50 3,69 m a naučená šířka se do mapy propisovala. `FreeRunMission.MapWidthAt` čte `RoadNetwork` bez překryvu naučené šířky (`ARBotRuntime`, f848fdf i HEAD). Cílová čára tak ležela 0,75 m od pravého kraje místo ~0,92 m (W/4). Závažnost nízká.
-
-- [x] Nalezeno při ověření `mise-freerun-jedna-hrana` (7. 10. 2026)
-- [ ] Předat FreeRunu šířku s překryvem naučené šířky
-
-[mission-freerun.md](mission-freerun.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="mise-robotour-armovani-rozptyl"></a>
 ### 🧪 Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS
 
@@ -1780,6 +1768,20 @@ Pravidla Robotour dovolují po úspěšné vykládce rozhodnout se pro další n
 - [ ] Ověřit na robotu (skutečné kamery, stop tlačítko, stránka náhledu)
 
 [robotour-mission.md](robotour-mission.md) · DevLog [2026-09-19](devlog.md#2026-09-19)
+
+<a id="mise-freerun-sirka-bez-naucene"></a>
+### 🧪 FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)
+
+`mise-freerun-sirka-bez-naucene` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 8. 10. 2026
+
+FreeRun 1. 10. 2026 (`20261001-152906.rec`, `roadwidthmap=true`): ve všech 3 285 cyklech mrkve z jedné hrany se šířkou z mapy byla šířka přesně 3,00 m (výchozí `roadwidth`, mapa tagy `width` nemá), ačkoli oboustranný koridor měřil p50 3,69 m a naučená šířka se do mapy propisovala. `FreeRunMission.MapWidthAt` čte `RoadNetwork` bez překryvu naučené šířky (`ARBotRuntime`, f848fdf i HEAD). Cílová čára tak ležela 0,75 m od pravého kraje místo ~0,92 m (W/4). Závažnost nízká. **Oprava 8. 10. 2026:** mise čte tentýž odhad, ze kterého bere šířku lokalizace a `RoadWidthMapUpdater` ji zapisuje do mapy (`CorridorLocalizer.Widths`); u jedné hrany má naučená šířka přednost před mapovou (táž priorita jako lokalizace). Mise do odhadu nepíše (měření by bylo v okně dvakrát); bez `corridor=true` naučená šířka není nikde a bere se mapová. První verze téhož dne měla ve FreeRunu vlastní odhad — autor to zamítl: tentýž mechanismus už běží, jen ho FreeRun nečetl. Při tom se našel souběh: odhad neměl zámek a updater ho četl z jiného vlákna (test bez zámku padá 3 z 3) — opraveno zámkem. `FreeRunMsg` verze 3 (`WidthLearned`), stránka „šířka naučená", `ARBot.Analyze freerun` počítá naučené. ⚠️ FreeRun tím přestal být čistou funkcí snímků (odhad plní jiné vlákno).
+
+- [x] Nalezeno při ověření `mise-freerun-jedna-hrana` (7. 10. 2026)
+- [x] FreeRun čte naučenou šířku z odhadu lokalizace (`CorridorLocalizer.Widths`), `FreeRunMsg` v3 (8. 10. 2026)
+- [x] Odhad šířky thread-safe (souběh s `RoadWidthMapUpdater`, test souběhu) (8. 10. 2026)
+- [ ] Jízda FreeRun na zařízení: podíl mrkví z jedné hrany s naučenou šířkou (`ARBot.Analyze freerun`) a odstup od pravého kraje proti 1. 10.
+
+[mission-freerun.md](mission-freerun.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-08](devlog.md#2026-10-08)
 
 <a id="mise-nouzove-zastaveni-controlloop"></a>
 ### ✅ Nouzové zastavení v řídicí smyčce a ve firmwaru motorů

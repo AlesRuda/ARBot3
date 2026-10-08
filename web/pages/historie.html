@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">42</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">29</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">41</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">30</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">170</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">13</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -455,6 +455,7 @@
       <li data-tema="vid-segmentace-rozliseni-128"><span class="mono">7. 10.</span> <span class="typ">vyřešeno</span> <a href="#vid-segmentace-rozliseni-128">Dopad v&#253;počtu ve 128&#215;128 na hustotu dat pro grid a hranice cesty</a></li>
       <li data-tema="hw-bms-jbd-driver"><span class="mono">8. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#hw-bms-jbd-driver">Driver chytr&#233; BMS JBD — stav nabit&#237;, proud a čl&#225;nky do z&#225;znamu a na str&#225;nku</a></li>
       <li data-tema="hw-bms-telemetrie"><span class="mono">8. 10.</span> <span class="typ">začato</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
+      <li data-tema="mise-freerun-sirka-bez-naucene"><span class="mono">8. 10.</span> <span class="typ">vyřešeno</span> <a href="#mise-freerun-sirka-bez-naucene">FreeRun u jedn&#233; hrany bere š&#237;řku z mapy bez naučen&#233; š&#237;řky (vždy v&#253;choz&#237; 3 m)</a></li>
     </ul>
   </div>
 </section>
@@ -1860,16 +1861,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-vn100-kalibrace.md">plan-vn100-kalibrace.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Missions/MagCalMission.cs">MagCalMission.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Calibration/MagCalCollector.cs">MagCalCollector.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-17">2026-09-17</a></p>
   </article>
-  <article class="tema" id="mise-freerun-sirka-bez-naucene" data-stav="otevreno">
-    <h3>FreeRun u jedn&#233; hrany bere š&#237;řku z mapy bez naučen&#233; š&#237;řky (vždy v&#253;choz&#237; 3 m)</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
-    <p>FreeRun 1. 10. 2026 (<code>20261001-152906.rec</code>, <code>roadwidthmap=true</code>): ve všech 3 285 cyklech mrkve z jedn&#233; hrany se š&#237;řkou z mapy byla š&#237;řka přesně 3,00 m (v&#253;choz&#237; <code>roadwidth</code>, mapa tagy <code>width</code> nem&#225;), ačkoli oboustrann&#253; koridor měřil p50 3,69 m a naučen&#225; š&#237;řka se do mapy propisovala. <code>FreeRunMission.MapWidthAt</code> čte <code>RoadNetwork</code> bez překryvu naučen&#233; š&#237;řky (<code>ARBotRuntime</code>, f848fdf i HEAD). C&#237;lov&#225; č&#225;ra tak ležela 0,75 m od prav&#233;ho kraje m&#237;sto ~0,92 m (W/4). Z&#225;važnost n&#237;zk&#225;.</p>
-    <ul class="kroky">
-      <li class="hotovo">Nalezeno při ověřen&#237; <code>mise-freerun-jedna-hrana</code> <span class="mono">7. 10. 2026</span></li>
-      <li class="otevreno">Předat FreeRunu š&#237;řku s překryvem naučen&#233; š&#237;řky</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
-  </article>
   <article class="tema" id="mise-robotour-armovani-rozptyl" data-stav="v-kodu">
     <h3>Mise by se v depu nezarmovala nikdy — pr&#225;h rozptylu fixů byl pod šumem GPS</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 26. 8. 2026</span> <span>vyřešeno 26. 8. 2026</span></p>
@@ -1893,6 +1884,18 @@
       <li class="otevreno">Ověřit na robotu (skutečn&#233; kamery, stop tlač&#237;tko, str&#225;nka n&#225;hledu)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a></p>
+  </article>
+  <article class="tema" id="mise-freerun-sirka-bez-naucene" data-stav="v-kodu">
+    <h3>FreeRun u jedn&#233; hrany bere š&#237;řku z mapy bez naučen&#233; š&#237;řky (vždy v&#253;choz&#237; 3 m)</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span> <span>vyřešeno 8. 10. 2026</span></p>
+    <p>FreeRun 1. 10. 2026 (<code>20261001-152906.rec</code>, <code>roadwidthmap=true</code>): ve všech 3 285 cyklech mrkve z jedn&#233; hrany se š&#237;řkou z mapy byla š&#237;řka přesně 3,00 m (v&#253;choz&#237; <code>roadwidth</code>, mapa tagy <code>width</code> nem&#225;), ačkoli oboustrann&#253; koridor měřil p50 3,69 m a naučen&#225; š&#237;řka se do mapy propisovala. <code>FreeRunMission.MapWidthAt</code> čte <code>RoadNetwork</code> bez překryvu naučen&#233; š&#237;řky (<code>ARBotRuntime</code>, f848fdf i HEAD). C&#237;lov&#225; č&#225;ra tak ležela 0,75 m od prav&#233;ho kraje m&#237;sto ~0,92 m (W/4). Z&#225;važnost n&#237;zk&#225;. **Oprava 8. 10. 2026:** mise čte tent&#253;ž odhad, ze kter&#233;ho bere š&#237;řku lokalizace a <code>RoadWidthMapUpdater</code> ji zapisuje do mapy (<code>CorridorLocalizer.Widths</code>); u jedn&#233; hrany m&#225; naučen&#225; š&#237;řka přednost před mapovou (t&#225;ž priorita jako lokalizace). Mise do odhadu nep&#237;še (měřen&#237; by bylo v okně dvakr&#225;t); bez <code>corridor=true</code> naučen&#225; š&#237;řka nen&#237; nikde a bere se mapov&#225;. Prvn&#237; verze t&#233;hož dne měla ve FreeRunu vlastn&#237; odhad — autor to zam&#237;tl: tent&#253;ž mechanismus už běž&#237;, jen ho FreeRun nečetl. Při tom se našel souběh: odhad neměl z&#225;mek a updater ho četl z jin&#233;ho vl&#225;kna (test bez z&#225;mku pad&#225; 3 z 3) — opraveno z&#225;mkem. <code>FreeRunMsg</code> verze 3 (<code>WidthLearned</code>), str&#225;nka „š&#237;řka naučen&#225;&quot;, <code>ARBot.Analyze freerun</code> poč&#237;t&#225; naučen&#233;. ⚠️ FreeRun t&#237;m přestal b&#253;t čistou funkc&#237; sn&#237;mků (odhad pln&#237; jin&#233; vl&#225;kno).</p>
+    <ul class="kroky">
+      <li class="hotovo">Nalezeno při ověřen&#237; <code>mise-freerun-jedna-hrana</code> <span class="mono">7. 10. 2026</span></li>
+      <li class="hotovo">FreeRun čte naučenou š&#237;řku z odhadu lokalizace (<code>CorridorLocalizer.Widths</code>), <code>FreeRunMsg</code> v3 <span class="mono">8. 10. 2026</span></li>
+      <li class="hotovo">Odhad š&#237;řky thread-safe (souběh s <code>RoadWidthMapUpdater</code>, test souběhu) <span class="mono">8. 10. 2026</span></li>
+      <li class="otevreno">J&#237;zda FreeRun na zař&#237;zen&#237;: pod&#237;l mrkv&#237; z jedn&#233; hrany s naučenou š&#237;řkou (<code>ARBot.Analyze freerun</code>) a odstup od prav&#233;ho kraje proti 1. 10.</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/mission-freerun.md">mission-freerun.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a></p>
   </article>
   <article class="tema" id="mise-nouzove-zastaveni-controlloop" data-stav="hotovo">
     <h3>Nouzov&#233; zastaven&#237; v ř&#237;dic&#237; smyčce a ve firmwaru motorů</h3>

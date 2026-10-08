@@ -59,7 +59,8 @@ namespace ARBot.Common.Missions
         /// koridor, takze 97 % casu jela „rovne podle kurzu".</para>
         ///
         /// <para><b>Jak:</b> odstup hrany od robotu je zmereny, takze pricna poloha vuci hrane je
-        /// znama. Se sirkou z mapy (<see cref="FreeRunMission.MapWidthAt"/>) z ni vznikne osa cesty
+        /// znama. Se sirkou (naucenou lokalizaci z oboustrannych koridoru teze cesty, jinak z mapy;
+        /// <see cref="FreeRunMission.MapRoadAt"/>) z ni vznikne osa cesty
         /// a mrkev jde doprostred prave poloviny jako u oboustranneho koridoru; bez sirky jde mrkev
         /// ve smeru hrany se <b>zachovanym zmerenym odstupem</b>. <c>false</c> = chovani do 26. 9.</para>
         /// </summary>

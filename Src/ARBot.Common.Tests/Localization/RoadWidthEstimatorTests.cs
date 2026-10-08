@@ -142,4 +142,86 @@ public class RoadWidthEstimatorTests
 
         Assert.That(e.Samples(Way), Is.Zero);
     }
+
+    // ---------------------------------------------------------------- souběh (od 8. 10. 2026)
+
+    /// <summary>
+    /// Odhad je SDILENY: pise lokalizace ze sveho vlakna, ctou RoadWidthMapUpdater a FreeRunMission
+    /// ze svych. Do 8. 10. 2026 nemel zamek. Ctenari tu ctou PRAVE tu hranu, do ktere se zapisuje:
+    /// <c>List.Add</c> zvysi pocet prvku driv, nez hodnotu zapise, takze ctenar bez zamku obcas
+    /// vidi v okne nulu (median 1,5 misto 3) - a novymi hranami se zaroven zvetsuje slovnik.
+    /// <b>Overeno 8. 10. 2026 vyjmutim zamku: test pada 3 z 3</b> (<c>ArgumentException</c>
+    /// v <c>List.ToArray</c>, <c>IndexOutOfRangeException</c>) — tytez vyjimky mohl dosud hazet
+    /// <c>RoadWidthMapUpdater</c>, ktery odhad cetl soubezne s lokalizaci.
+    /// </summary>
+    [Test]
+    public void SoubeznyZapisACteni_bezVyjimkyASmysluplne()
+    {
+        var e = Estimator(minSamples: 1);
+        var konec = System.DateTime.UtcNow.AddMilliseconds(500);
+        System.Exception chyba = null;
+        int nesmysl = 0;
+        long aktualni = 1;
+
+        var pisatel = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                for (long way = 1; System.DateTime.UtcNow < konec; way++)
+                {
+                    System.Threading.Volatile.Write(ref aktualni, way);
+                    for (int i = 0; i < 25; i++) e.Add(way, 3.0);
+                }
+            }
+            catch (System.Exception ex) { chyba = ex; }
+        });
+        var ctenari = new System.Threading.Thread[3];
+        for (int k = 0; k < ctenari.Length; k++)
+        {
+            ctenari[k] = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    while (System.DateTime.UtcNow < konec)
+                    {
+                        long way = System.Threading.Volatile.Read(ref aktualni);
+                        if (e.TryGetWidth(way, out double w, out double mad) && (w != 3.0 || mad != 0))
+                            System.Threading.Interlocked.Increment(ref nesmysl);
+                        if (e.RawEstimate(way, 3.0) != 3.0) System.Threading.Interlocked.Increment(ref nesmysl);
+                        double d = e.DispersionOf(way);
+                        if (!double.IsNaN(d) && d != 0) System.Threading.Interlocked.Increment(ref nesmysl);
+                        _ = e.Count;
+                        _ = e.Samples(way);
+                    }
+                }
+                catch (System.Exception ex) { chyba = ex; }
+            });
+        }
+
+        pisatel.Start();
+        foreach (var t in ctenari) t.Start();
+        pisatel.Join();
+        foreach (var t in ctenari) t.Join();
+
+        Assert.That(chyba, Is.Null, chyba?.ToString());
+        Assert.That(nesmysl, Is.Zero, "ctenar videl sirku, ktera nikdy nebyla zapsana");
+        Assert.That(e.Count, Is.GreaterThan(1), "pisatel mel zalozit hodne hran - jinak test nic netestuje");
+    }
+
+    /// <summary>Sirka i rozptyl z jedne sady merení (atomicky dotaz pro ctenare z jineho vlakna).</summary>
+    [Test]
+    public void TryGetWidth_sRozptylem_odpovidaDispersionOf()
+    {
+        var e = Estimator();
+        Add(e, 5, 3.0);
+        Add(e, 5, 3.1);
+
+        Assert.That(e.TryGetWidth(Way, out double w, out double mad), Is.True);
+        Assert.That(w, Is.EqualTo(3.05).Within(1e-9));
+        Assert.That(mad, Is.EqualTo(e.DispersionOf(Way)).Within(1e-12));
+
+        var prazdny = Estimator();
+        Assert.That(prazdny.TryGetWidth(Way, out _, out double nic), Is.False);
+        Assert.That(double.IsNaN(nic), Is.True);
+    }
 }

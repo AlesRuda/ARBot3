@@ -69,6 +69,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   (b) nerozebratelná odpověď 0x04 zahodila i stav nabití z 0x03 → zpráva vyjde bez článků. Šest
   drobností odloženo (věrohodnost registru při hledání rámce, hlavička po zestárnutí BMS ad.).
   Testy po opravách: Common 1 801, HAL 172, Runtime 161.
+- **FreeRun: naučená šířka u jedné hrany** (`mise-freerun-sirka-bez-naucene`, nalezeno 7. 10.):
+  mise brala u jedné hrany jen mapovou šířku, tedy bez tagu `width` vždy 3 m (1. 10. koridor měřil
+  3,69 m), ačkoli lokalizace tutéž šířku znala a `RoadWidthMapUpdater` ji propisoval do mapy.
+  Teď FreeRun čte **tentýž odhad** (`CorridorLocalizer.Widths`) a naučená má přednost; sám do něj
+  nepíše. První verze měla ve FreeRunu vlastní odhad — autor ji zamítl (mechanismus už běží, jen ho
+  FreeRun nečetl). Při tom se našel **souběh**: odhad neměl zámek a updater ho četl z jiného vlákna;
+  test, který čte právě zapisovanou cestu, bez zámku padá 3 z 3 → zámek. `FreeRunMsg` v3
+  (`WidthLearned`), stránka „šířka naučená", `ARBot.Analyze freerun`. Testy Common 1 822, HAL 172,
+  Runtime 161. ⚠️ Na zařízení neběželo. Detail [mission-freerun.md](mission-freerun.md).
 
 ## 2026-10-07
 

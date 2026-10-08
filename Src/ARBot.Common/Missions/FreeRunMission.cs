@@ -46,25 +46,43 @@ namespace ARBot.Common.Missions
         private readonly AsyncFusionEngine engine;
         private readonly CorridorSource corridors;
         private readonly FreeRunConfig config;
-        private readonly Func<RobotState, RoadCorridor, double?> mapWidth;
+        private readonly Func<RobotState, RoadCorridor, RoadAxisMatch?> mapRoad;
+
+        /// <summary>
+        /// Sirka cest NAUCENA z oboustrannych koridoru — <b>tentyz odhad</b>, ze ktereho bere
+        /// sirku lokalizace (<see cref="CorridorLocalizer.Widths"/>) i zapis do mapy
+        /// (<c>RoadWidthMapUpdater</c>). Mise z nej <b>jen cte</b>: pise do nej vyhradne
+        /// lokalizace, ktera vidi tytez snimky — kdyby psala i mise, kazde merenie by v okne bylo
+        /// dvakrat (okno by pokrylo polovinu casu a rozptyl by vychazel mensi, nez je).
+        /// <c>null</c> = lokalizace nebezi (<c>corridor=false</c>), naucena sirka neni nikde
+        /// a u jedine hrany se bere mapova.
+        /// </summary>
+        private readonly RoadWidthEstimator learnedWidths;
 
         /// <param name="engine">Fuze — poza k casu snimku a aktualni poza pri jizde bez koridoru.</param>
         /// <param name="localGoal">Prijemce mrkve (lokalni navigator).</param>
         /// <param name="corridors">Mapove nezavisly zdroj koridoru.</param>
         /// <param name="config">Konfigurace mise; null = vychozi.</param>
         /// <param name="queueCapacity">Vstupni fronta snimku (DropOldest).</param>
-        /// <param name="mapWidth">
-        /// Sirka cesty z mapy v miste robotu pro mrkev podle JEDINE hrany (typicky
-        /// <see cref="MapWidthAt"/>); <c>null</c> = mise mapu nema a u jedine hrany drzi zmereny
-        /// odstup od ni. Funkce smi vratit <c>null</c> (sirka neznama).
+        /// <param name="mapRoad">
+        /// Mapova cesta v miste robotu, po ktere se jede (typicky <see cref="MapRoadAt"/>): klic
+        /// do naucene sirky a mapova sirka pro mrkev podle JEDINE hrany, dokud naucena neni.
+        /// <c>null</c> = mise mapu nema a u jedine hrany drzi zmereny odstup od ni. Funkce smi
+        /// vratit <c>null</c> (cesta neznama nebo neverohodna).
+        /// </param>
+        /// <param name="learnedWidths">
+        /// Odhad sirky z lokalizace (<see cref="CorridorLocalizer.Widths"/>); <c>null</c> = jen
+        /// mapova sirka. Mise z nej jen cte.
         /// </param>
         public FreeRunMission(AsyncFusionEngine engine, ILocalGoalSink localGoal,
                               CorridorSource corridors, FreeRunConfig config = null,
                               int queueCapacity = 4,
-                              Func<RobotState, RoadCorridor, double?> mapWidth = null)
+                              Func<RobotState, RoadCorridor, RoadAxisMatch?> mapRoad = null,
+                              RoadWidthEstimator learnedWidths = null)
             : base(OverflowPolicy.DropOldest, queueCapacity)
         {
-            this.mapWidth = mapWidth;
+            this.mapRoad = mapRoad;
+            this.learnedWidths = learnedWidths;
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
             this.localGoal = localGoal ?? throw new ArgumentNullException(nameof(localGoal));
             this.corridors = corridors ?? throw new ArgumentNullException(nameof(corridors));
@@ -118,7 +136,8 @@ namespace ARBot.Common.Missions
             if (result.FromCorridor) return "jede v koridoru";
             if (result.FromSingleEdge)
                 return (result.SingleSide == CorridorSide.Left ? "jede podle leve hrany" : "jede podle prave hrany")
-                       + (result.WidthFromMap ? ", sirka z mapy" : ", drzi odstup");
+                       + (!result.WidthFromMap ? ", drzi odstup"
+                          : result.WidthLearned ? ", sirka naucena" : ", sirka z mapy");
             return "bez koridoru, drzi kurz";
         }
 
@@ -206,14 +225,11 @@ namespace ARBot.Common.Missions
             else if (config.UseSingleEdge && src.SingleEdgeUsable && src.Corridor != null
                      && src.Corridor.HasSingleEdge)
             {
-                // Jedna hrana: smer cesty i pricna poloha vuci hrane jsou zmerene. Se sirkou z mapy
-                // vznikne osa a mrkev jde doprostred prave poloviny jako u oboustranneho koridoru;
-                // bez ni jde ve smeru hrany se zachovanym odstupem. Viz FreeRunConfig.UseSingleEdge.
+                // Jedna hrana: smer cesty i pricna poloha vuci hrane jsou zmerene. Se sirkou (naucenou,
+                // jinak z mapy) vznikne osa a mrkev jde doprostred prave poloviny jako u oboustranneho
+                // koridoru; bez ni jde ve smeru hrany se zachovanym odstupem. Viz FreeRunConfig.UseSingleEdge.
                 var c = src.Corridor;
-                double? w = null;
-                try { w = mapWidth?.Invoke(pose, c); }
-                catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"FreeRunMission: sirka z mapy selhala: {ex.Message}"); }
-                if (w.HasValue && !(w.Value > 0)) w = null;
+                var (w, learned) = SingleEdgeWidth(pose, c);
 
                 (bx, by) = CarrotBodySingleEdge(c, w, config);
                 width = w ?? 0;
@@ -222,6 +238,7 @@ namespace ARBot.Common.Missions
                 result.EdgeOffset = c.EdgeOffset;
                 result.DirectionRad = c.DirectionRad;
                 result.WidthFromMap = w.HasValue;
+                result.WidthLearned = learned;
                 if (w.HasValue)
                 {
                     result.Width = w.Value;
@@ -247,6 +264,38 @@ namespace ARBot.Common.Missions
 
             LastResult = result;
             return result;
+        }
+
+        /// <summary>Mapova cesta v miste robotu, nebo <c>null</c> (bez mapy, nenalezena, vyjimka).</summary>
+        private RoadAxisMatch? MapRoad(RobotState pose, RoadCorridor corridor)
+        {
+            if (mapRoad == null) return null;
+            try { return mapRoad(pose, corridor); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"FreeRunMission: mapova cesta selhala: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Sirka pro mrkev podle jedine hrany: <b>NAUCENA</b> (odhad lokalizace, kdyz ma pro tu
+        /// cestu kvalitu), jinak <b>MAPOVA</b>; <c>null</c> = mapova cesta neni.
+        ///
+        /// <para>⚠️ Do 8. 10. 2026 se brala jen mapova — a kde OSM nema tag <c>width</c> (bezny
+        /// stav), je to <c>roadwidth=</c>, tedy vzdy 3 m, ackoli lokalizace tutez sirku z oboustrannych
+        /// koridoru znala a <c>RoadWidthMapUpdater</c> ji propisoval do mapy (FreeRun 1. 10. 2026:
+        /// koridor p50 3,69 m, mise 3,00 m). Tataz priorita jako u <see cref="CorridorLocalizer"/>.</para>
+        /// </summary>
+        private (double? WidthM, bool Learned) SingleEdgeWidth(RobotState pose, RoadCorridor corridor)
+        {
+            var road = MapRoad(pose, corridor);
+            if (!road.HasValue) return (null, false);
+            if (learnedWidths != null && learnedWidths.TryGetWidth(road.Value.WayId, out double learned)
+                && learned > 0)
+                return (learned, true);
+            double map = road.Value.WidthM;
+            return map > 0 ? (map, false) : ((double?)null, false);
         }
 
         /// <summary>
@@ -360,20 +409,31 @@ namespace ARBot.Common.Missions
         }
 
         /// <summary>
-        /// Sirka cesty z mapy v miste robotu pro mrkev podle jedine hrany, nebo <c>null</c>, kdyz se
-        /// neda verit: mapova cesta je dal nez <see cref="FreeRunConfig.MapWidthMaxDistanceM"/>, nebo
-        /// neni rovnobezna s viditelnou hranou (<see cref="FreeRunConfig.MapWidthMaxAngleDeg"/> —
-        /// u krizovatky by sirku jinak dala pricna ulice).
+        /// Mapova cesta v miste robotu, po ktere se jede (klic do naucene sirky a mapova sirka),
+        /// nebo <c>null</c>, kdyz se neda verit: je dal nez <see cref="FreeRunConfig.MapWidthMaxDistanceM"/>,
+        /// nebo neni rovnobezna s viditelnym koridorem / hranou (<see cref="FreeRunConfig.MapWidthMaxAngleDeg"/>
+        /// — u krizovatky by ji jinak dala pricna ulice, a s ni i sirku cizi cesty).
+        /// </summary>
+        public static RoadAxisMatch? MapRoadAt(RoadNetwork network, GeoReference origin, RobotState pose,
+                                               RoadCorridor corridor, FreeRunConfig cfg)
+        {
+            if (network == null || origin == null || pose == null || corridor == null || cfg == null) return null;
+            var m = RoadAxis.Match(network, origin, pose.X, pose.Y, pose.Theta);
+            if (!m.Found || m.DistanceM > cfg.MapWidthMaxDistanceM) return null;
+            double dAng = Math.Abs(Conversions.NormalizeHalfOrientation(corridor.DirectionRad - m.HeadingRelRad));
+            if (dAng > cfg.MapWidthMaxAngleDeg * Math.PI / 180.0) return null;
+            return m;
+        }
+
+        /// <summary>
+        /// MAPOVA sirka cesty v miste robotu (<see cref="MapRoadAt"/>), nebo <c>null</c>. Mise sama
+        /// dava prednost sirce naucene z oboustrannych koridoru, viz <c>SingleEdgeWidth</c>.
         /// </summary>
         public static double? MapWidthAt(RoadNetwork network, GeoReference origin, RobotState pose,
                                          RoadCorridor corridor, FreeRunConfig cfg)
         {
-            if (network == null || origin == null || pose == null || corridor == null || cfg == null) return null;
-            var m = RoadAxis.Match(network, origin, pose.X, pose.Y, pose.Theta);
-            if (!m.Found || m.DistanceM > cfg.MapWidthMaxDistanceM || !(m.WidthM > 0)) return null;
-            double dAng = Math.Abs(Conversions.NormalizeHalfOrientation(corridor.DirectionRad - m.HeadingRelRad));
-            if (dAng > cfg.MapWidthMaxAngleDeg * Math.PI / 180.0) return null;
-            return m.WidthM;
+            var m = MapRoadAt(network, origin, pose, corridor, cfg);
+            return m.HasValue && m.Value.WidthM > 0 ? m.Value.WidthM : (double?)null;
         }
 
         /// <summary>

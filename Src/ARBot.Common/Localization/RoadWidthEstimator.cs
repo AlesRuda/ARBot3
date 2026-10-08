@@ -36,6 +36,13 @@ namespace ARBot.Common.Localization
     /// oboji odstranuje: okno + median se samy opravi a dokud si merenia nesednou, rekne „nevim"
     /// misto toho, aby vnutil spatne cislo.</para>
     ///
+    /// <para><b>Vlakna:</b> trida je <b>thread-safe</b> (jeden zamek nad vsemi metodami). Pise do ni
+    /// jen <see cref="CorridorLocalizer"/> ze sveho vlakna, ctou ji dalsi stupne ze svych —
+    /// <c>RoadWidthMapUpdater</c> (sirka do mapy) a <c>FreeRunMission</c> (sirka u jedine hrany).
+    /// ⚠️ Do 8. 10. 2026 zamek nemela a updater cetl slovniky soubezne se zapisem; soubezne cteni
+    /// <see cref="Dictionary{TKey,TValue}"/> pri zapisu (zvlast pri jeho zvetsovani) umi hodit
+    /// vyjimku nebo vratit nesmysl.</para>
+    ///
     /// <para>Viz doc/map-correlation-localization.md.</para>
     /// </summary>
     public sealed class RoadWidthEstimator
@@ -43,6 +50,12 @@ namespace ARBot.Common.Localization
         private readonly RoadWidthEstimatorConfig config;
         private readonly Dictionary<long, List<double>> window = new Dictionary<long, List<double>>();
         private readonly Dictionary<long, int> next = new Dictionary<long, int>();
+
+        /// <summary>
+        /// Zamek nad <see cref="window"/> a <see cref="next"/>. Kriticke sekce jsou kratke (okno ma
+        /// 20 hodnot), takze obycejny <c>lock</c> staci; ctenar drzi zamek jen po dobu jednoho dotazu.
+        /// </summary>
+        private readonly object gate = new object();
 
         public RoadWidthEstimator(RoadWidthEstimatorConfig config = null)
         {
@@ -54,10 +67,16 @@ namespace ARBot.Common.Localization
         public RoadWidthEstimatorConfig Config => config;
 
         /// <summary>Kolik hran uz ma nejaka merenia.</summary>
-        public int Count => window.Count;
+        public int Count
+        {
+            get { lock (gate) return window.Count; }
+        }
 
         /// <summary>Kolik merení je pro hranu <b>v okne</b> (ne kolik jich kdy proslo).</summary>
-        public int Samples(long wayId) => window.TryGetValue(wayId, out var w) ? w.Count : 0;
+        public int Samples(long wayId)
+        {
+            lock (gate) return window.TryGetValue(wayId, out var w) ? w.Count : 0;
+        }
 
         /// <summary>
         /// Zapracuje merenou sirku. Nesmyslna hodnota (nekladna) se zahodi — to neni merenie,
@@ -67,24 +86,27 @@ namespace ARBot.Common.Localization
         {
             if (!(measuredWidthM > 0)) return;
 
-            if (!window.TryGetValue(wayId, out var w))
+            lock (gate)
             {
-                w = new List<double>(config.WindowSize);
-                window[wayId] = w;
-                next[wayId] = 0;
-            }
+                if (!window.TryGetValue(wayId, out var w))
+                {
+                    w = new List<double>(config.WindowSize);
+                    window[wayId] = w;
+                    next[wayId] = 0;
+                }
 
-            if (w.Count < config.WindowSize)
-            {
-                w.Add(measuredWidthM);
-            }
-            else
-            {
-                // Kruhovy buffer: nejstarsi merenie vypadne. Diky tomu se odhad SAM OPRAVI
-                // ze spatneho zacatku - to je cely duvod, proc tahle trida vznikla.
-                int i = next[wayId];
-                w[i] = measuredWidthM;
-                next[wayId] = (i + 1) % config.WindowSize;
+                if (w.Count < config.WindowSize)
+                {
+                    w.Add(measuredWidthM);
+                }
+                else
+                {
+                    // Kruhovy buffer: nejstarsi merenie vypadne. Diky tomu se odhad SAM OPRAVI
+                    // ze spatneho zacatku - to je cely duvod, proc tahle trida vznikla.
+                    int i = next[wayId];
+                    w[i] = measuredWidthM;
+                    next[wayId] = (i + 1) % config.WindowSize;
+                }
             }
         }
 
@@ -94,15 +116,30 @@ namespace ARBot.Common.Localization
         /// ne duvod vratit mapovou hodnotu.
         /// </summary>
         public bool TryGetWidth(long wayId, out double widthM)
+            => TryGetWidth(wayId, out widthM, out _);
+
+        /// <summary>
+        /// Jako <see cref="TryGetWidth(long, out double)"/>, navic s rozptylem (MAD) teze sady
+        /// merení. <b>Atomicky</b> — dvojice volani <c>TryGetWidth</c> + <see cref="DispersionOf"/>
+        /// by mezi sebou mohla dostat nove merenie z vlakna lokalizace a sirka s rozptylem by
+        /// pak nepatrily k sobe.
+        /// </summary>
+        public bool TryGetWidth(long wayId, out double widthM, out double dispersionM)
         {
             widthM = 0;
-            if (!window.TryGetValue(wayId, out var w) || w.Count < config.MinSamples) return false;
+            dispersionM = double.NaN;
+            lock (gate)
+            {
+                if (!window.TryGetValue(wayId, out var w) || w.Count < config.MinSamples) return false;
 
-            double median = Median(w);
-            if (Dispersion(w, median) > config.MaxDispersionM) return false;
+                double median = Median(w);
+                double dispersion = Dispersion(w, median);
+                if (dispersion > config.MaxDispersionM) return false;
 
-            widthM = median;
-            return true;
+                widthM = median;
+                dispersionM = dispersion;
+                return true;
+            }
         }
 
         /// <summary>
@@ -110,22 +147,30 @@ namespace ARBot.Common.Localization
         /// </summary>
         public double DispersionOf(long wayId)
         {
-            if (!window.TryGetValue(wayId, out var w) || w.Count == 0) return double.NaN;
-            return Dispersion(w, Median(w));
+            lock (gate)
+            {
+                if (!window.TryGetValue(wayId, out var w) || w.Count == 0) return double.NaN;
+                return Dispersion(w, Median(w));
+            }
         }
 
         /// <summary>
         /// Odhad bez ohledu na kvalitu — DIAGNOSTIKA a kresleni. Pro rozhodovani pouzij
-        /// <see cref="TryGetWidth"/>; tohle umi vratit i cislo, kteremu se verit nema.
+        /// <see cref="TryGetWidth(long, out double)"/>; tohle umi vratit i cislo, kteremu se verit nema.
         /// </summary>
         public double RawEstimate(long wayId, double fallbackM)
-            => window.TryGetValue(wayId, out var w) && w.Count > 0 ? Median(w) : fallbackM;
+        {
+            lock (gate) return window.TryGetValue(wayId, out var w) && w.Count > 0 ? Median(w) : fallbackM;
+        }
 
         /// <summary>Zahodi vsechny odhady (novy beh, seek v zaznamu).</summary>
         public void Clear()
         {
-            window.Clear();
-            next.Clear();
+            lock (gate)
+            {
+                window.Clear();
+                next.Clear();
+            }
         }
 
         /// <summary>Median kopie (vstup se nesmi preusporadat - je to zivy kruhovy buffer).</summary>

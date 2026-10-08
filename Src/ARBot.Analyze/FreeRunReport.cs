@@ -53,12 +53,17 @@ namespace ARBot.Analyze
             // FreeRunMsg verze 2 (od 26. 9. 2026): mrkev i podle JEDINE hrany.
             int single = msgs.Count(m => !m.FromCorridor && m.SingleSide != 0);
             int singleMap = msgs.Count(m => !m.FromCorridor && m.SingleSide != 0 && m.WidthFromMap);
+            // FreeRunMsg verze 3 (od 8. 10. 2026): sirka u jedine hrany i NAUCENA z oboustrannych koridoru.
+            int singleLearned = msgs.Count(m => !m.FromCorridor && m.SingleSide != 0 && m.WidthFromMap && m.WidthLearned);
             int straight = msgs.Count - fromCorridor - single;
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "MELA MISE CO SLEDOVAT: mrkev z koridoru u {0} z {1} cyklu ({2:F0} %), podle jedne hrany "
-                + "u {3} ({4:F0} %; z toho se sirkou z mapy {5}), rovne podle kurzu {6} ({7:F0} %)",
+                + "u {3} ({4:F0} %; z toho se sirkou {5}, z nich naucenou {8}), rovne podle kurzu {6} ({7:F0} %)",
                 fromCorridor, msgs.Count, 100.0 * fromCorridor / msgs.Count,
-                single, 100.0 * single / msgs.Count, singleMap, straight, 100.0 * straight / msgs.Count));
+                single, 100.0 * single / msgs.Count, singleMap, straight, 100.0 * straight / msgs.Count,
+                singleLearned));
+            if (single > 0 && msgs.All(m => m.Verze < 3))
+                Console.WriteLine("  (zprava verze < 3 - sirka u jedine hrany byla vzdy mapova, naucenou mise nebrala)");
             if (msgs.All(m => m.Verze < 2))
                 Console.WriteLine("  (zprava verze 1 - jednu hranu mise tehdy jeste nepouzivala)");
             Console.WriteLine("  duvody (CorridorFixReason):");
