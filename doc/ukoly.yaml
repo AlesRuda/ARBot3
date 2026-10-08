@@ -9276,12 +9276,84 @@ temata:
     kroky:
       - co: "Multimetr: napětí balíku na svorkách proti řádku „baterie [V]“ na stránce náhledu, po plném nabití a po jízdě"
         stav: otevreno
-      - co: "Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V); zjistit, jestli balík má BMS s vyvažováním"
+      - co: "Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V). Autor 7. 10.: **3,29 V na článek** (balík ~13,16 V, v ploché části křivky) — slabý ani nevyrovnaný článek to není"
+        stav: hotovo
+        kdy: 2026-10-07
+      - co: "Zjistit, jestli balík má BMS s vyvažováním. Autor 7. 10.: má jednoduchou BMS — vyvažuje, chrání články a umí baterii odpojit, stav nabití ani nic jiného nehlásí"
+        stav: hotovo
+        kdy: 2026-10-07
+      - co: "Měření stavu nabití a proudu z baterie: buď chytrá BMS s UART místo dnešní (JBD/Daly/JK), nebo dnešní BMS ponechat a přidat bočník s převodníkem (INA226/INA228 na I2C Orange Pi, náboj počítá náš software)"
         stav: otevreno
-      - co: "Podle výsledku: nové články (4× WINA 15 Ah, nebo zakázkový balík 26650 4S6P ~20–24 Ah) a případně přeladit `batwarn=`"
+      - co: "Stav článků (autor 7. 10.): po ~10 letech znatelný pokles kapacity a články jsou značně nafouklé — vyměnit za 4× WINA 15 Ah"
+        stav: hotovo
+        kdy: 2026-10-07
+      - co: "Koupit 4× WINA 3,2 V / 15 Ah a chytrou BMS (doporučení JBD-SP04S020, varianta 60 A — deska 138 × 102 mm se do prostoru baterie nevejde, montovat vedle), sestavit s vyrovnáním článků nahoře. BMS JBD-SP04S020 60 A objednána 8. 10. 2026 (autor)"
+        stav: otevreno
+      - co: "Podle výsledku: přeladit `batwarn=`, případně driver BMS do HAL a stav baterie do záznamu"
         stav: otevreno
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
     devlog: [2026-10-06]
+    ceka_na: []
+
+  - id: hw-bms-jbd-driver
+    oblast: hw
+    nazev: Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku
+    druh: zamer
+    stav: v-kodu
+    nalezeno: 2026-10-08
+    vyreseno: 2026-10-08
+    popis: >
+      Nová BMS JBD-SP04S020 (60 A, objednána 8. 10. 2026) hlásí stav nabití z počítání náboje,
+      proud z baterie, napětí článků, teplotu a příznaky ochran; dnešní jednoduchá BMS nehlásí
+      nic a napětí z motorové jednotky je u LiFePO4 špatné měřidlo. Rozsah (autor): jen vidět
+      a zaznamenat — nic se podle toho neřídí, varování přejde z napětí na procenta
+      (`batwarnsoc=`). Jen čtení, připojení přes USB–RS485. Dvě vrstvy: `JbdProtocol` (bajty,
+      testovatelné bez HW) a tenký driver `JbdBms`. Návrh: plan-bms-jbd.md, kroky: plan-bms-jbd-kroky.md.
+      **V kódu 8. 10. 2026:** fáze 1–3 (testy Common 1 801, HAL 172, Runtime 161; po finální kontrole opraveny dvě vady), ověřeno headless
+      se simulovanou BMS (`batwarnsoc=90` → „baterie 80 % (práh 90 %) — NABÍT" a hláška do Trace).
+      Výchozí `UartBms=` je prázdný, takže bez profilu se BMS nezakládá. ⚠️ Na zařízení neběželo —
+      BMS ještě nedorazila; rozložení bajtů je z veřejné dokumentace.
+    kroky:
+      - co: "Fáze 1 — `JbdProtocol`, zpráva `BmsState`, `BmsProtection`, registrace v katalogu záznamu; testy na pevných bajtech"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Fáze 2 — driver `JbdBms`, `IBms`, parametr `UartBms`, `ARBotHW` (real i virtual), zdroj zpráv, stáří měření na stránce, `VirtualBms` v panelu"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Fáze 3 — `BatteryMonitor` podle stavu nabití (`batwarnsoc=`), řádky na stránce náhledu, hlášky do Trace"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Fáze 4 — na zařízení: zachytit skutečné rámce do testů, porovnat s aplikací v mobilu, cesta by-id do profilu"
+        stav: otevreno
+      - co: "Fáze 5 (volitelně) — `ARBot.Analyze battery`: spotřeba ze záznamu (průměrný a špičkový proud, Wh/km)"
+        stav: otevreno
+    odkazy:
+      - text: plan-bms-jbd.md
+        cesta: doc/plan-bms-jbd.md
+      - text: plan-bms-jbd-kroky.md
+        cesta: doc/plan-bms-jbd-kroky.md
+      - text: hardware.md
+        cesta: doc/hardware.md
+    devlog: [2026-10-08]
+    ceka_na: []
+
+  - id: hw-bms-telemetrie
+    oblast: nastroje
+    nazev: Údaje z BMS nejsou v telemetrickém pohledu
+    druh: zamer
+    stav: otevreno
+    nalezeno: 2026-10-08
+    popis: >
+      Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce
+      vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani
+      napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
+    kroky:
+      - co: "Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)"
+        stav: otevreno
+    odkazy:
+      - text: plan-bms-jbd.md
+        cesta: doc/plan-bms-jbd.md
+    devlog: [2026-10-08]
     ceka_na: []

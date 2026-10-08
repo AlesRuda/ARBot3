@@ -1231,7 +1231,8 @@ namespace ARBot.Robot
             // NAPETI BATERIE: median z motorove jednotky a varovani pod batwarn= (do Trace jen pri
             // prechodu stavu, stranka nahledu cte tentyz objekt). Na Robotouru 19. 9. 2026 robot
             // zastavil s vybitou baterii a stranka napeti vubec neukazovala (prov-baterie-na-strance).
-            Battery = new ARBot.Common.Diagnostics.BatteryMonitor(ParamRegistry.BatWarn.Value);
+            Battery = new ARBot.Common.Diagnostics.BatteryMonitor(ParamRegistry.BatWarn.Value,
+                                                                  warnSoc: ParamRegistry.BatWarnSoc.Value);
             if (Battery.WarnVolts <= 0)
                 Trace.WriteLine("batwarn=0: na napeti baterie se nevaruje (jen se ukazuje).");
             stages.Add(Battery);
@@ -2431,6 +2432,16 @@ namespace ARBot.Robot
                 var gps = hw.GPS;
                 var src = new SensorMessageSource<GPSState>(
                     h => gps.MeasurementArived += h, h => gps.MeasurementArived -= h);
+                connections.Add(src.Connect(router));
+                sources.Add(src);
+            }
+
+            // BMS (BmsState) - jen pro stranku, zaznam a BatteryMonitor; nic se podle ni neridi.
+            if (hw.Bms != null)
+            {
+                var bms = hw.Bms;
+                var src = new SensorMessageSource<BmsState>(
+                    h => bms.MeasurementArived += h, h => bms.MeasurementArived -= h);
                 connections.Add(src.Connect(router));
                 sources.Add(src);
             }

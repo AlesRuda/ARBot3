@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **249**: otevřeno **30** · v kódu, na HW neověřeno **36** · hotovo **160** · odloženo **14** · zamítnuto **9**.
+Témat celkem **251**: otevřeno **31** · v kódu, na HW neověřeno **37** · hotovo **160** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -42,6 +42,7 @@ Témat celkem **249**: otevřeno **30** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Nástroje, záznam a analýza | [Pohled v aplikaci s rozborem limitů jízdy pro aktuální nastavení](#nast-limity-jizdy-view) | 25. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)](#hw-baterie-napeti-nizke) | 6. 10. 2026 |  |
+| otevřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-koridor-skoky-pozy](#lok-koridor-skoky-pozy) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -78,6 +79,7 @@ Témat celkem **249**: otevřeno **30** · v kódu, na HW neověřeno **36** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
+| v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
@@ -2330,8 +2332,12 @@ Rozbor jízd 29. 9. 2026 v Modřanech (`records/test/20260929-150844.rec` Track 
 Při výběru nových článků (6. 10. 2026) se ukázalo, že napětí baterie z motorové jednotky (`GetValue(_V, 2)`, tedy napětí baterie, ne vnitřní) nebylo v dokumentovaných záznamech nikdy nad 12,6 V — „po nabití" 12,5 V (Robotour 19. 9.), 1. 9. 12,3–12,6 V, 2. 9. 11,7–12,3 V. Baterie jsou čtyři články WINA LiFePO4 3,2 V / 15 Ah a 4S LiFePO4 má v klidu mezi ~20 a 90 % nabití 13,0–13,3 V; 12,5 V (3,12 V/článek) je ~10 %. Úbytek zátěží to není (elektronika ~1,6 A, jízda 5–10 A). Vysvětlení: (a) odchylka měření nebo úbytek na vedení k jednotce, (b) nenabitá baterie, (c) slabý nebo nevyrovnaný článek (např. 3 × 3,33 V + 2,5 V = 12,5 V). Na tom závisí, jestli nové články pomůžou, i jestli `batwarn=` 11,6 V „v údajích jednotky" varuje včas. Rozbor a varianty náhrady článků: hardware.md, „Napájení — trakční baterie".
 
 - [ ] Multimetr: napětí balíku na svorkách proti řádku „baterie [V]“ na stránce náhledu, po plném nabití a po jízdě
-- [ ] Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V); zjistit, jestli balík má BMS s vyvažováním
-- [ ] Podle výsledku: nové články (4× WINA 15 Ah, nebo zakázkový balík 26650 4S6P ~20–24 Ah) a případně přeladit `batwarn=`
+- [x] Multimetr: napětí každého článku zvlášť v klidu (zdravé a vyrovnané do ±0,03 V). Autor 7. 10.: **3,29 V na článek** (balík ~13,16 V, v ploché části křivky) — slabý ani nevyrovnaný článek to není (7. 10. 2026)
+- [x] Zjistit, jestli balík má BMS s vyvažováním. Autor 7. 10.: má jednoduchou BMS — vyvažuje, chrání články a umí baterii odpojit, stav nabití ani nic jiného nehlásí (7. 10. 2026)
+- [ ] Měření stavu nabití a proudu z baterie: buď chytrá BMS s UART místo dnešní (JBD/Daly/JK), nebo dnešní BMS ponechat a přidat bočník s převodníkem (INA226/INA228 na I2C Orange Pi, náboj počítá náš software)
+- [x] Stav článků (autor 7. 10.): po ~10 letech znatelný pokles kapacity a články jsou značně nafouklé — vyměnit za 4× WINA 15 Ah (7. 10. 2026)
+- [ ] Koupit 4× WINA 3,2 V / 15 Ah a chytrou BMS (doporučení JBD-SP04S020, varianta 60 A — deska 138 × 102 mm se do prostoru baterie nevejde, montovat vedle), sestavit s vyrovnáním článků nahoře. BMS JBD-SP04S020 60 A objednána 8. 10. 2026 (autor)
+- [ ] Podle výsledku: přeladit `batwarn=`, případně driver BMS do HAL a stav baterie do záznamu
 
 [hardware.md](hardware.md) · DevLog [2026-10-06](devlog.md#2026-10-06)
 
@@ -2410,6 +2416,21 @@ Nalezeno při rozboru rozjezdu po uvolnění holdu a nouzového zastavení (`ARB
 - [ ] Ověřit na zařízení: zrychlení kol při rozjezdu ~0,40 m/s², brzdění pod nouzovým zastavením ~1,0 m/s² (z 1,7 m/s ~1,4 m) a při watchdogu (`ARBot.Analyze hold --estop`); případně změřit, jestli jde nouzová rampa strměji bez prokluzu a s nákladem
 
 [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [MotorAcceleration.cs](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-10-05](devlog.md#2026-10-05)
+
+<a id="hw-bms-jbd-driver"></a>
+### 🧪 Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku
+
+`hw-bms-jbd-driver` · záměr · **v kódu, na HW neověřeno** · nalezeno 8. 10. 2026 · vyřešeno 8. 10. 2026
+
+Nová BMS JBD-SP04S020 (60 A, objednána 8. 10. 2026) hlásí stav nabití z počítání náboje, proud z baterie, napětí článků, teplotu a příznaky ochran; dnešní jednoduchá BMS nehlásí nic a napětí z motorové jednotky je u LiFePO4 špatné měřidlo. Rozsah (autor): jen vidět a zaznamenat — nic se podle toho neřídí, varování přejde z napětí na procenta (`batwarnsoc=`). Jen čtení, připojení přes USB–RS485. Dvě vrstvy: `JbdProtocol` (bajty, testovatelné bez HW) a tenký driver `JbdBms`. Návrh: plan-bms-jbd.md, kroky: plan-bms-jbd-kroky.md. **V kódu 8. 10. 2026:** fáze 1–3 (testy Common 1 801, HAL 172, Runtime 161; po finální kontrole opraveny dvě vady), ověřeno headless se simulovanou BMS (`batwarnsoc=90` → „baterie 80 % (práh 90 %) — NABÍT" a hláška do Trace). Výchozí `UartBms=` je prázdný, takže bez profilu se BMS nezakládá. ⚠️ Na zařízení neběželo — BMS ještě nedorazila; rozložení bajtů je z veřejné dokumentace.
+
+- [x] Fáze 1 — `JbdProtocol`, zpráva `BmsState`, `BmsProtection`, registrace v katalogu záznamu; testy na pevných bajtech (8. 10. 2026)
+- [x] Fáze 2 — driver `JbdBms`, `IBms`, parametr `UartBms`, `ARBotHW` (real i virtual), zdroj zpráv, stáří měření na stránce, `VirtualBms` v panelu (8. 10. 2026)
+- [x] Fáze 3 — `BatteryMonitor` podle stavu nabití (`batwarnsoc=`), řádky na stránce náhledu, hlášky do Trace (8. 10. 2026)
+- [ ] Fáze 4 — na zařízení: zachytit skutečné rámce do testů, porovnat s aplikací v mobilu, cesta by-id do profilu
+- [ ] Fáze 5 (volitelně) — `ARBot.Analyze battery`: spotřeba ze záznamu (průměrný a špičkový proud, Wh/km)
+
+[plan-bms-jbd.md](plan-bms-jbd.md), [plan-bms-jbd-kroky.md](plan-bms-jbd-kroky.md), [hardware.md](hardware.md) · DevLog [2026-10-08](devlog.md#2026-10-08)
 
 <a id="hw-orangepi-bringup"></a>
 ### ✅ Zprovoznění cílové desky Orange Pi 5 Ultra (Armbian, RealSense, USB, SPI, GPU, WiFi)
@@ -2787,6 +2808,17 @@ Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rych
 - [ ] Implementace (Tools → Limity jízdy), výpočet sdílený s plánovačem
 
 [path-following.md](path-following.md), [configuration.md](configuration.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
+
+<a id="hw-bms-telemetrie"></a>
+### ⬜ Údaje z BMS nejsou v telemetrickém pohledu
+
+`hw-bms-telemetrie` · záměr · **otevřeno** · nalezeno 8. 10. 2026
+
+Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
+
+- [ ] Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)
+
+[plan-bms-jbd.md](plan-bms-jbd.md) · DevLog [2026-10-08](devlog.md#2026-10-08)
 
 <a id="nast-profil-sceny"></a>
 ### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu

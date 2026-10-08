@@ -249,10 +249,24 @@ namespace ARBot.HAL.Devices.Uart
             }
             catch (Exception ex)
             {
-                ReportEx(ex);
+                if (HlasitChybuCteni(ex, ReportReadTimeouts))
+                    ReportEx(ex);
             }
             return 0;
         }
+
+        /// <summary>
+        /// Hlásit vypršení <see cref="ReadTimeout"/> v <see cref="Read(byte[], int, int)"/> jako
+        /// poruchu? Výchozí <c>true</c> (beze změny pro VN100 a ostatní). Zařízení, které se jen
+        /// <b>dotazuje</b> (BMS JBD), čte s krátkým timeoutem a „zatím nic nepřišlo" je u něj běžný
+        /// stav; ticho si diagnostikuje driver sám. Bez vypnutí by tichá nebo jen pomalá BMS psala
+        /// do Trace každých 5 s celý zásobník (finální review driveru BMS, 8. 10. 2026).
+        /// </summary>
+        public bool ReportReadTimeouts { get; set; } = true;
+
+        /// <summary>Je chyba čtení porucha k hlášení? Timeout jen při <paramref name="hlasitTimeouty"/>.</summary>
+        public static bool HlasitChybuCteni(Exception ex, bool hlasitTimeouty)
+            => hlasitTimeouty || ex is not TimeoutException;
 
         /// <summary>
         /// Read async

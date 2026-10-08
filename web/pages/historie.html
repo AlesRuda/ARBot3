@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">30</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">36</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">31</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">37</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">160</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -435,6 +435,8 @@
       <li data-tema="prov-baterie-na-strance"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#prov-baterie-na-strance">Napět&#237; baterie nen&#237; na str&#225;nce n&#225;hledu a nic na něj nevaruje</a></li>
       <li data-tema="prov-ujeto-v-misi-na-strance"><span class="mono">6. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#prov-ujeto-v-misi-na-strance">Ujet&#225; dr&#225;ha a průměrn&#225; rychlost mise na str&#225;nce n&#225;hledu</a></li>
       <li data-tema="prov-zaznam-nevidet-ze-nebezi"><span class="mono">6. 10.</span> <span class="typ">vyřešeno</span> <a href="#prov-zaznam-nevidet-ze-nebezi">V ter&#233;nu nen&#237; poznat, jestli se běh nahr&#225;v&#225; a kam</a></li>
+      <li data-tema="hw-bms-jbd-driver"><span class="mono">8. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#hw-bms-jbd-driver">Driver chytr&#233; BMS JBD — stav nabit&#237;, proud a čl&#225;nky do z&#225;znamu a na str&#225;nku</a></li>
+      <li data-tema="hw-bms-telemetrie"><span class="mono">8. 10.</span> <span class="typ">začato</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
     </ul>
   </div>
 </section>
@@ -2345,8 +2347,12 @@
     <p>Při v&#253;běru nov&#253;ch čl&#225;nků (6. 10. 2026) se uk&#225;zalo, že napět&#237; baterie z motorov&#233; jednotky (<code>GetValue(_V, 2)</code>, tedy napět&#237; baterie, ne vnitřn&#237;) nebylo v dokumentovan&#253;ch z&#225;znamech nikdy nad 12,6 V — „po nabit&#237;&quot; 12,5 V (Robotour 19. 9.), 1. 9. 12,3–12,6 V, 2. 9. 11,7–12,3 V. Baterie jsou čtyři čl&#225;nky WINA LiFePO4 3,2 V / 15 Ah a 4S LiFePO4 m&#225; v klidu mezi ~20 a 90 % nabit&#237; 13,0–13,3 V; 12,5 V (3,12 V/čl&#225;nek) je ~10 %. &#218;bytek z&#225;těž&#237; to nen&#237; (elektronika ~1,6 A, j&#237;zda 5–10 A). Vysvětlen&#237;: (a) odchylka měřen&#237; nebo &#250;bytek na veden&#237; k jednotce, (b) nenabit&#225; baterie, (c) slab&#253; nebo nevyrovnan&#253; čl&#225;nek (např. 3 &#215; 3,33 V + 2,5 V = 12,5 V). Na tom z&#225;vis&#237;, jestli nov&#233; čl&#225;nky pomůžou, i jestli <code>batwarn=</code> 11,6 V „v &#250;daj&#237;ch jednotky&quot; varuje včas. Rozbor a varianty n&#225;hrady čl&#225;nků: hardware.md, „Nap&#225;jen&#237; — trakčn&#237; baterie&quot;.</p>
     <ul class="kroky">
       <li class="otevreno">Multimetr: napět&#237; bal&#237;ku na svork&#225;ch proti ř&#225;dku „baterie [V]“ na str&#225;nce n&#225;hledu, po pln&#233;m nabit&#237; a po j&#237;zdě</li>
-      <li class="otevreno">Multimetr: napět&#237; každ&#233;ho čl&#225;nku zvl&#225;šť v klidu (zdrav&#233; a vyrovnan&#233; do &#177;0,03 V); zjistit, jestli bal&#237;k m&#225; BMS s vyvažov&#225;n&#237;m</li>
-      <li class="otevreno">Podle v&#253;sledku: nov&#233; čl&#225;nky (4&#215; WINA 15 Ah, nebo zak&#225;zkov&#253; bal&#237;k 26650 4S6P ~20–24 Ah) a př&#237;padně přeladit <code>batwarn=</code></li>
+      <li class="hotovo">Multimetr: napět&#237; každ&#233;ho čl&#225;nku zvl&#225;šť v klidu (zdrav&#233; a vyrovnan&#233; do &#177;0,03 V). Autor 7. 10.: **3,29 V na čl&#225;nek** (bal&#237;k ~13,16 V, v ploch&#233; č&#225;sti křivky) — slab&#253; ani nevyrovnan&#253; čl&#225;nek to nen&#237; <span class="mono">7. 10. 2026</span></li>
+      <li class="hotovo">Zjistit, jestli bal&#237;k m&#225; BMS s vyvažov&#225;n&#237;m. Autor 7. 10.: m&#225; jednoduchou BMS — vyvažuje, chr&#225;n&#237; čl&#225;nky a um&#237; baterii odpojit, stav nabit&#237; ani nic jin&#233;ho nehl&#225;s&#237; <span class="mono">7. 10. 2026</span></li>
+      <li class="otevreno">Měřen&#237; stavu nabit&#237; a proudu z baterie: buď chytr&#225; BMS s UART m&#237;sto dnešn&#237; (JBD/Daly/JK), nebo dnešn&#237; BMS ponechat a přidat bočn&#237;k s převodn&#237;kem (INA226/INA228 na I2C Orange Pi, n&#225;boj poč&#237;t&#225; n&#225;š software)</li>
+      <li class="hotovo">Stav čl&#225;nků (autor 7. 10.): po ~10 letech znateln&#253; pokles kapacity a čl&#225;nky jsou značně nafoukl&#233; — vyměnit za 4&#215; WINA 15 Ah <span class="mono">7. 10. 2026</span></li>
+      <li class="otevreno">Koupit 4&#215; WINA 3,2 V / 15 Ah a chytrou BMS (doporučen&#237; JBD-SP04S020, varianta 60 A — deska 138 &#215; 102 mm se do prostoru baterie nevejde, montovat vedle), sestavit s vyrovn&#225;n&#237;m čl&#225;nků nahoře. BMS JBD-SP04S020 60 A objedn&#225;na 8. 10. 2026 (autor)</li>
+      <li class="otevreno">Podle v&#253;sledku: přeladit <code>batwarn=</code>, př&#237;padně driver BMS do HAL a stav baterie do z&#225;znamu</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-06">2026-10-06</a></p>
   </article>
@@ -2415,6 +2421,19 @@
       <li class="otevreno">Ověřit na zař&#237;zen&#237;: zrychlen&#237; kol při rozjezdu ~0,40 m/s&#178;, brzděn&#237; pod nouzov&#253;m zastaven&#237;m ~1,0 m/s&#178; (z 1,7 m/s ~1,4 m) a při watchdogu (<code>ARBot.Analyze hold --estop</code>); př&#237;padně změřit, jestli jde nouzov&#225; rampa strměji bez prokluzu a s n&#225;kladem</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs">SDC2160Ex.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs">MotorAcceleration.cs</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-05">2026-10-05</a></p>
+  </article>
+  <article class="tema" id="hw-bms-jbd-driver" data-stav="v-kodu">
+    <h3>Driver chytr&#233; BMS JBD — stav nabit&#237;, proud a čl&#225;nky do z&#225;znamu a na str&#225;nku</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span> <span>vyřešeno 8. 10. 2026</span></p>
+    <p>Nov&#225; BMS JBD-SP04S020 (60 A, objedn&#225;na 8. 10. 2026) hl&#225;s&#237; stav nabit&#237; z poč&#237;t&#225;n&#237; n&#225;boje, proud z baterie, napět&#237; čl&#225;nků, teplotu a př&#237;znaky ochran; dnešn&#237; jednoduch&#225; BMS nehl&#225;s&#237; nic a napět&#237; z motorov&#233; jednotky je u LiFePO4 špatn&#233; měřidlo. Rozsah (autor): jen vidět a zaznamenat — nic se podle toho neř&#237;d&#237;, varov&#225;n&#237; přejde z napět&#237; na procenta (<code>batwarnsoc=</code>). Jen čten&#237;, připojen&#237; přes USB–RS485. Dvě vrstvy: <code>JbdProtocol</code> (bajty, testovateln&#233; bez HW) a tenk&#253; driver <code>JbdBms</code>. N&#225;vrh: plan-bms-jbd.md, kroky: plan-bms-jbd-kroky.md. **V k&#243;du 8. 10. 2026:** f&#225;ze 1–3 (testy Common 1 801, HAL 172, Runtime 161; po fin&#225;ln&#237; kontrole opraveny dvě vady), ověřeno headless se simulovanou BMS (<code>batwarnsoc=90</code> → „baterie 80 % (pr&#225;h 90 %) — NAB&#205;T&quot; a hl&#225;ška do Trace). V&#253;choz&#237; <code>UartBms=</code> je pr&#225;zdn&#253;, takže bez profilu se BMS nezakl&#225;d&#225;. ⚠️ Na zař&#237;zen&#237; neběželo — BMS ještě nedorazila; rozložen&#237; bajtů je z veřejn&#233; dokumentace.</p>
+    <ul class="kroky">
+      <li class="hotovo">F&#225;ze 1 — <code>JbdProtocol</code>, zpr&#225;va <code>BmsState</code>, <code>BmsProtection</code>, registrace v katalogu z&#225;znamu; testy na pevn&#253;ch bajtech <span class="mono">8. 10. 2026</span></li>
+      <li class="hotovo">F&#225;ze 2 — driver <code>JbdBms</code>, <code>IBms</code>, parametr <code>UartBms</code>, <code>ARBotHW</code> (real i virtual), zdroj zpr&#225;v, st&#225;ř&#237; měřen&#237; na str&#225;nce, <code>VirtualBms</code> v panelu <span class="mono">8. 10. 2026</span></li>
+      <li class="hotovo">F&#225;ze 3 — <code>BatteryMonitor</code> podle stavu nabit&#237; (<code>batwarnsoc=</code>), ř&#225;dky na str&#225;nce n&#225;hledu, hl&#225;šky do Trace <span class="mono">8. 10. 2026</span></li>
+      <li class="otevreno">F&#225;ze 4 — na zař&#237;zen&#237;: zachytit skutečn&#233; r&#225;mce do testů, porovnat s aplikac&#237; v mobilu, cesta by-id do profilu</li>
+      <li class="otevreno">F&#225;ze 5 (volitelně) — <code>ARBot.Analyze battery</code>: spotřeba ze z&#225;znamu (průměrn&#253; a špičkov&#253; proud, Wh/km)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd-kroky.md">plan-bms-jbd-kroky.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/hardware.md">hardware.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a></p>
   </article>
   <article class="tema" id="hw-orangepi-bringup" data-stav="hotovo">
     <h3>Zprovozněn&#237; c&#237;lov&#233; desky Orange Pi 5 Ultra (Armbian, RealSense, USB, SPI, GPU, WiFi)</h3>
@@ -2735,6 +2754,15 @@
       <li class="otevreno">Implementace (Tools → Limity j&#237;zdy), v&#253;počet sd&#237;len&#253; s pl&#225;novačem</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
+  </article>
+  <article class="tema" id="hw-bms-telemetrie" data-stav="otevreno">
+    <h3>&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span></p>
+    <p>Zpr&#225;va <code>BmsState</code> (hw-bms-jbd-driver) jde do z&#225;znamu, ale telemetrick&#253; pohled m&#225; sloupce vyjmenovan&#233; ručně (<code>Src/ARBot/Telemetry/TelemetryColumns.cs</code>), takže stav nabit&#237;, proud ani napět&#237; čl&#225;nků v něm vidět nejsou. Pl&#225;n driveru pohled vědomě neměnil.</p>
+    <ul class="kroky">
+      <li class="otevreno">Sloupce <code>BmsState</code> do <code>TelemetryColumns</code> (stav nabit&#237;, proud, napět&#237; baterie, min/max čl&#225;nku, teplota, ochrany)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a></p>
   </article>
   <article class="tema" id="nast-profil-sceny" data-stav="v-kodu">
     <h3>Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</h3>

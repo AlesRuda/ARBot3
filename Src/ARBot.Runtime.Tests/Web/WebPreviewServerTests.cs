@@ -913,6 +913,56 @@ namespace ARBot.Runtime.Tests.Web
             return m;
         }
 
+        /// <summary>Monitor s čerstvým měřením z BMS (čas = TimeBase.Now).</summary>
+        private static ARBot.Common.Diagnostics.BatteryMonitor BaterieBms(int soc,
+            ARBot.Common.Devices.BmsProtection ochrana = ARBot.Common.Devices.BmsProtection.None)
+        {
+            var m = new ARBot.Common.Diagnostics.BatteryMonitor(11.6, report: _ => { }, warnSoc: 20);
+            m.Add(new ARBot.Common.Devices.BmsState
+            {
+                TimeStamp = ARBot.Common.Common.TimeBase.Now, SocPercent = soc, PackVoltage = 13.21,
+                Current = -4.3, RemainingAh = 9.6, NominalAh = 15, Cycles = 12,
+                CellVoltages = new[] { 3.28, 3.30, 3.31, 3.30 }, Temperatures = new[] { 24.5 },
+                Protection = ochrana, ChargeFetOn = true, DischargeFetOn = true,
+            });
+            return m;
+        }
+
+        [Test]
+        public void Bms_ProcentaProudClankyVTabulce()
+        {
+            var bat = BaterieBms(64);
+            string json = new WebStatus { BatterySource = () => bat }.ToJson(running: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"battery\":13.21"));
+                Assert.That(json, Does.Contain("\"batterySoc\":64"));
+                Assert.That(json, Does.Contain("\"batteryCurrent\":-4.3"));
+                Assert.That(json, Does.Contain("\"batteryCells\":\"3.280–3.310 V (Δ 30 mV)\""));
+                Assert.That(json, Does.Contain("\"batteryTemp\":24.5"));
+                Assert.That(json, Does.Contain("\"batteryAh\":\"9.6 / 15.0 Ah, 12 cyklů\""));
+                Assert.That(json, Does.Not.Contain("batteryLow"));
+                Assert.That(json, Does.Not.Contain("bmsProtection"));
+            });
+        }
+
+        [Test]
+        public void Bms_PodPrahem_HlavickaVProcentech()
+        {
+            var bat = BaterieBms(15);
+            string json = new WebStatus { BatterySource = () => bat }.ToJson(running: true);
+            Assert.That(json, Does.Contain("\"batteryLow\":\"15 % (práh 20 %)\""));
+        }
+
+        [Test]
+        public void Bms_Ochrana_VHlavicce()
+        {
+            var bat = BaterieBms(50, ARBot.Common.Devices.BmsProtection.ChargeUndertemp);
+            string json = new WebStatus { BatterySource = () => bat }.ToJson(running: true);
+            Assert.That(json, Does.Contain("\"bmsProtection\":\"mráz při nabíjení\""));
+        }
+
         [Test]
         public void Baterie_NapetiVTabulce_BezVarovaniNadPrahem()
         {

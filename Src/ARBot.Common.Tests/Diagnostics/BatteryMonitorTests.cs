@@ -107,5 +107,92 @@ namespace ARBot.Common.Tests.Diagnostics
             var r = m.Read(T0.AddMilliseconds(10 * BatteryMonitor.MinSamples));
             Assert.That(r.Volts, Is.EqualTo(12.4).Within(1e-9), "zastupny ramec s 0 V se do medianu nepocita");
         }
+
+        // ---------------- BMS (hw-bms-jbd-driver, doc/plan-bms-jbd.md) ----------------
+
+        private static BatteryMonitor MonitorBms(double warnSoc = 20, List<string> hlasky = null)
+            => new BatteryMonitor(11.6, report: s => hlasky?.Add(s), warnSoc: warnSoc);
+
+        private static BmsState Bms(double t, int soc, BmsProtection ochrana = BmsProtection.None)
+            => new BmsState
+            {
+                TimeStamp = T0.AddSeconds(t), SocPercent = soc, PackVoltage = 13.2, Current = -3,
+                CellVoltages = new[] { 3.3, 3.3, 3.3, 3.3 }, Protection = ochrana,
+                ChargeFetOn = true, DischargeFetOn = true,
+            };
+
+        [Test]
+        public void Bms_CerstvaData_VarujePodleProcent_NePodleNapeti()
+        {
+            var m = MonitorBms();
+            Feed(m, 0, 2, 12.4);              // napeti z motoru by bylo v poradku
+            m.Add(Bms(2, soc: 15));
+
+            var r = m.Read(T0.AddSeconds(2));
+            Assert.That(r.Level, Is.EqualTo(BatteryLevel.Low));
+            Assert.That(r.Bms, Is.Not.Null);
+            Assert.That(r.Volts, Is.EqualTo(13.2), "s BMS se ukazuje napeti baterie z BMS");
+        }
+
+        [Test]
+        public void Bms_Zestarla_NavratKNapetiZMotoru()
+        {
+            var m = MonitorBms();
+            m.Add(Bms(0, soc: 15));
+            Feed(m, 0, 8, 12.4);
+
+            var r = m.Read(T0.AddSeconds(8));
+            Assert.That(r.Bms, Is.Null, "stare procento nesmi viset na strance");
+            Assert.That(r.Level, Is.EqualTo(BatteryLevel.Ok));
+            Assert.That(r.Volts, Is.EqualTo(12.4).Within(1e-9));
+        }
+
+        [Test]
+        public void Bms_Hystereze_AJenPrechodyDoTrace()
+        {
+            var hlasky = new List<string>();
+            var m = MonitorBms(20, hlasky);
+            m.Add(Bms(0, 15));
+            m.Add(Bms(1, 22));   // pod 20 + 5 -> porad nizka
+            Assert.That(m.Read(T0.AddSeconds(1)).Level, Is.EqualTo(BatteryLevel.Low));
+            m.Add(Bms(2, 26));
+            Assert.That(m.Read(T0.AddSeconds(2)).Level, Is.EqualTo(BatteryLevel.Ok));
+            m.Add(Bms(3, 27));
+
+            Assert.That(hlasky.Count, Is.EqualTo(2), string.Join(" | ", hlasky));
+            Assert.That(hlasky[0], Does.Contain("15 %"));
+        }
+
+        [Test]
+        public void Bms_Ochrana_HlasiNastaveniAZruseniJednou()
+        {
+            var hlasky = new List<string>();
+            var m = MonitorBms(20, hlasky);
+            m.Add(Bms(0, 50));
+            m.Add(Bms(1, 50, BmsProtection.ChargeUndertemp));
+            m.Add(Bms(2, 50, BmsProtection.ChargeUndertemp));
+            m.Add(Bms(3, 50));
+
+            Assert.That(hlasky.Count, Is.EqualTo(2), string.Join(" | ", hlasky));
+            Assert.That(hlasky[0], Does.Contain("mráz při nabíjení"));
+            Assert.That(hlasky[1], Does.Contain("zrusena"));
+        }
+
+        [Test]
+        public void Bms_ZpravaBezMereni_NicNemeni()
+        {
+            var m = MonitorBms();
+            m.Add(BmsState.NoMeasurement(T0));
+            Assert.That(m.Read(T0).Bms, Is.Null);
+            Assert.That(m.Read(T0).Level, Is.EqualTo(BatteryLevel.Unknown));
+        }
+
+        [Test]
+        public void Bms_PrahNula_NeVaruje()
+        {
+            var m = MonitorBms(warnSoc: 0);
+            m.Add(Bms(0, 3));
+            Assert.That(m.Read(T0).Level, Is.EqualTo(BatteryLevel.Ok));
+        }
     }
 }

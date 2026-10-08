@@ -89,6 +89,7 @@ namespace ARBot.Common.Communication
             => CommonDefaults()
                 .Register(new GPSState())
                 .Register(new MotorStateBase())
+                .Register(new BmsState())
                 .Register(new CameraFrame());
     }
 }

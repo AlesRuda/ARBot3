@@ -41,6 +41,7 @@ namespace ARBot.Common.Tests.Communication
             {
                 Assert.That(k.ContainsKey(new GPSState().MsgName), Is.True, "GPSState");
                 Assert.That(k.ContainsKey(new MotorStateBase().MsgName), Is.True, "MotorStateBase");
+                Assert.That(k.ContainsKey(new BmsState().MsgName), Is.True, "BmsState");
                 Assert.That(k.ContainsKey(new CameraFrame().MsgName), Is.True, "CameraFrame");
                 Assert.That(k.ContainsKey(new IMUState().MsgName), Is.True, "IMUState");
             });

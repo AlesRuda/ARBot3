@@ -631,6 +631,40 @@ Poznámky:
   Rozhodne **multimetr: napětí balíku na svorkách proti stránce náhledu a napětí každého článku
   zvlášť** (v klidu mají být do ±0,03 V od sebe). Konec 2. kola Robotouru (10,6 V medián, tedy
   2,65 V/článek za jízdy) je při údaji bez odchylky úplně vybitá baterie.
+  **Změřeno 7. 10. 2026 (autor): 3,29 V na článek**, balík ~13,16 V — články jsou vyrovnané
+  a zdravé, (c) tedy odpadá. Zbývá porovnat napětí na svorkách s údajem na stránce náhledu
+  ve stejnou chvíli: rozdíl ~0,7–0,8 V znamená (a).
+- **Dnešní BMS je jednoduchá** (autor, 7. 10. 2026): vyvažuje, chrání články a umí baterii
+  odpojit, ale nic nehlásí — o odpojení se robot dozví až tím, že zhasne.
+- **Chytrá BMS s UART** (zvažováno 7. 10. 2026) místo dnešní: vedle ochran dává **stav nabití** (počítání
+  náboje), **proud z baterie** (celková spotřeba včetně elektroniky — dnes neznámá), napětí
+  jednotlivých článků, teplotu a důvod odpojení. K Orange Pi přes USB–UART převodník jako VN100.
+  Kandidáti s veřejně popsaným protokolem: **JBD** (Jiabaida, UART + Bluetooth), **Daly** smart
+  (UART/RS485/Bluetooth), **JK** (aktivní vyvažování, RS485/Bluetooth). Pozor, zda má BMS
+  **dva porty** — často sdílí jeden mezi Bluetooth a UART, pak nejde mít zároveň aplikaci v mobilu
+  a připojení k Pi. Místo: v prostoru zbývá u článků 2 × 2 kapsa ~92 × 65 × 45 mm na konci.
+  **Doporučený typ (7. 10. 2026): JBD-SP04S020, varianta 60 A — objednána 8. 10. 2026** (driver hotový v kódu 8. 10. 2026, `UartBms=` + `batwarnsoc=`, na zařízení neběžel: [plan-bms-jbd.md](plan-bms-jbd.md)) — LiFePO4 4S, **UART a RS485
+  zároveň** (jeden port pro Orange Pi, druhý pro Bluetooth modul, ten se kupuje zvlášť),
+  vypnutí nabíjení při nízké teplotě, vyvažování 50–60 mA; ~1 000 Kč (Gobel Power, 10/2026).
+  **Připojení k Pi přes RS485** (převodník USB–RS485), UART nechat Bluetooth modulu: napěťová
+  úroveň UART u JBD není jednoznačně doložená (komunita i manuály uvádějí většinou 5 V TTL,
+  jinde 3,3 V) a ⚠️ **pin VCC na konektoru UART je plus baterie (~13 V)** — nic na něj
+  nepřipojovat, jinak hrozí zničení převodníku i Pi. Diferenciální RS485 úroveň neřeší a v robotu
+  s motory je odolnější. Kdyby se přece šlo přes UART: změřit klidovou úroveň linky TX na
+  konkrétním kuse a vzít převodník s přepínačem 3,3/5 V, zapojit jen TX, RX, GND.
+  Orange Pi RS485 nativně nemá (na liště jsou jen UART 3,3 V) → **převodník USB–RS485**,
+  nejlépe s čipem **FTDI** (unikátní sériové číslo, takže stabilní cesta v `/dev/serial/by-id/`
+  jako u ostatních UART zařízení; CH340 číslo nemá). V systému je to obyčejný sériový port,
+  směr přenosu řídí převodník sám.
+  ⚠️ **Deska 60A varianty má 138 × 102 × 10 mm a do prostoru baterie se nevejde** (102 mm proti
+  92 mm), takže se montuje vedle a do baterie vedou balanční a výkonové vodiče. Uvnitř by se vešla
+  JBD-SP04S010 (123 × 63 × 12 mm, do 21mm mezery vedle článků podél 285 mm), ale její proud se
+  nepodařilo ověřit — kupovat jen při ≥ 40 A trvale.
+  **Levnější alternativa:** dnešní BMS ponechat a do záporného vodiče přidat **bočník
+  s převodníkem INA226 / INA228** na I2C Orange Pi — proud i napětí přesně, ale stav nabití
+  počítá náš software (integrál proudu, reset při plném nabití) a napětí článků nevidí.
+- **Články jsou po ~10 letech na výměnu** (autor, 7. 10. 2026): znatelný pokles kapacity a jsou
+  **značně nafouklé**. Vyrovnané napětí v klidu (3,29 V/článek) o kapacitě nic neříká.
 - ⚠️ **Napětí je u LiFePO4 špatné měřidlo stavu nabití:** mezi ~20 a 90 % je křivka skoro plochá
   (13,0–13,3 V v klidu), takže `BatteryMonitor` varuje až těsně před koncem. Spolehlivý údaj
   (stav nabití, proud) by dala BMS s rozhraním (Bluetooth/UART).

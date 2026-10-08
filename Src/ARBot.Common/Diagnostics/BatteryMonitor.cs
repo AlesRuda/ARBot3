@@ -19,16 +19,26 @@ namespace ARBot.Common.Diagnostics
         Low = 2,
     }
 
-    /// <summary>Okamzity odecet: medián napeti [V] (NaN = neznamo) a stav.</summary>
+    /// <summary>Okamzity odecet: napeti [V] (NaN = neznamo), stav a pripadne cerstve mereni z BMS.</summary>
     public readonly struct BatteryReading
     {
-        public BatteryReading(double volts, BatteryLevel level) { Volts = volts; Level = level; }
+        public BatteryReading(double volts, BatteryLevel level) : this(volts, level, null) { }
 
-        /// <summary>Median napeti za okno [V]; <c>NaN</c>, kdyz neni cerstve mereni.</summary>
+        public BatteryReading(double volts, BatteryLevel level, BmsState bms)
+        {
+            Volts = volts;
+            Level = level;
+            Bms = bms;
+        }
+
+        /// <summary>Napeti [V]: z BMS, kdyz je cerstva, jinak median z motorove jednotky; <c>NaN</c> = neznamo.</summary>
         public double Volts { get; }
 
-        /// <summary>Stav proti prahu varovani.</summary>
+        /// <summary>Stav proti prahu varovani (s BMS podle procent, bez ni podle napeti).</summary>
         public BatteryLevel Level { get; }
+
+        /// <summary>Posledni mereni z BMS, kdyz je cerstve; jinak <c>null</c>.</summary>
+        public BmsState Bms { get; }
     }
 
     /// <summary>
@@ -51,6 +61,11 @@ namespace ARBot.Common.Diagnostics
     ///
     /// <para>Cas je razitko zpravy (<see cref="TimeBase"/>), stari mereni se meri proti
     /// <c>now</c> volajiciho - v testech jde podstrcit vlastni.</para>
+    ///
+    /// <para><b>S BMS</b> (hw-bms-jbd-driver, doc/plan-bms-jbd.md): dokud je posledni
+    /// <see cref="BmsState"/> mladsi nez okno, plati jeji napeti a varuje se podle stavu nabiti
+    /// (<c>batwarnsoc=</c>, hystereze <see cref="SocHysteresis"/>); do Trace jdou i zmeny priznaku
+    /// ochran. Bez ni (nebo kdyz zestarne) dal podle napeti z motoru.</para>
     /// </summary>
     public sealed class BatteryMonitor : MessageTarget
     {
@@ -71,15 +86,25 @@ namespace ARBot.Common.Diagnostics
         private double median = double.NaN;
         private DateTime lastSample = DateTime.MinValue;
 
+        /// <summary>O kolik procent nad prahem se varovani podle BMS zrusi.</summary>
+        public const double SocHysteresis = 5.0;
+
+        private BmsState bms;
+        private DateTime bmsAt = DateTime.MinValue;
+        private bool lowSoc;
+        private BmsProtection lastProtection = BmsProtection.None;
+
         /// <param name="warnVolts">Prah varovani [V]; &lt;= 0 = nevarovat (napeti se dal ukazuje).</param>
-        /// <param name="windowSec">Okno medianu [s].</param>
+        /// <param name="windowSec">Okno medianu [s] - a zaroven jak dlouho plati posledni mereni z BMS.</param>
         /// <param name="hysteresis">O kolik nad prahem se varovani zrusi [V].</param>
         /// <param name="report">Kam hlasit prechody; null = <c>Trace.WriteLine</c>.</param>
+        /// <param name="warnSoc">Prah varovani podle BMS [%]; &lt;= 0 = nevarovat.</param>
         public BatteryMonitor(double warnVolts, double windowSec = DefaultWindowSec,
-                              double hysteresis = 0.2, Action<string> report = null)
+                              double hysteresis = 0.2, Action<string> report = null, double warnSoc = 0)
             : base(OverflowPolicy.DropOldest, 64)
         {
             WarnVolts = warnVolts;
+            WarnSocPercent = warnSoc;
             this.windowSec = windowSec > 0 ? windowSec : DefaultWindowSec;
             Hysteresis = Math.Max(0, hysteresis);
             this.report = report ?? (s => System.Diagnostics.Trace.WriteLine(s));
@@ -87,6 +112,9 @@ namespace ARBot.Common.Diagnostics
 
         /// <summary>Prah varovani [V]; &lt;= 0 = vypnuto.</summary>
         public double WarnVolts { get; }
+
+        /// <summary>Prah varovani podle BMS [%]; &lt;= 0 = vypnuto.</summary>
+        public double WarnSocPercent { get; }
 
         /// <summary>Hystereze navratu ze stavu nizkeho napeti [V].</summary>
         public double Hysteresis { get; }
@@ -136,6 +164,44 @@ namespace ARBot.Common.Diagnostics
         }
 
         /// <summary>
+        /// Prida mereni z BMS (zprava bez mereni se zahodi). Dokud je cerstve, ma prednost pred
+        /// napetim z motoru: varuje se podle procent a do Trace jdou prechody stavu nabiti a ochran.
+        /// </summary>
+        public void Add(BmsState b)
+        {
+            if (b == null || !b.HasMeasurement) return;
+            List<string> hlasky = null;
+            lock (gate)
+            {
+                bool wasLow = lowSoc;
+                if (WarnSocPercent > 0)
+                    lowSoc = lowSoc ? b.SocPercent < WarnSocPercent + SocHysteresis : b.SocPercent < WarnSocPercent;
+                else
+                    lowSoc = false;
+
+                if (lowSoc && !wasLow)
+                    (hlasky ??= new List<string>()).Add(string.Format(CultureInfo.InvariantCulture,
+                        "BATERIE: stav nabiti {0} % (BMS) pod prahem batwarnsoc={1:0} % - nabit.",
+                        b.SocPercent, WarnSocPercent));
+                else if (!lowSoc && wasLow)
+                    (hlasky ??= new List<string>()).Add(string.Format(CultureInfo.InvariantCulture,
+                        "BATERIE: stav nabiti {0} % zpet nad prahem ({1:0} % + {2:0} % hystereze).",
+                        b.SocPercent, WarnSocPercent, SocHysteresis));
+
+                if (b.Protection != lastProtection)
+                    (hlasky ??= new List<string>()).Add(b.Protection == BmsProtection.None
+                        ? "BMS: ochrana zrusena."
+                        : "BMS: ochrana - " + BmsProtectionText.Popis(b.Protection) + ".");
+                lastProtection = b.Protection;
+
+                bms = b;
+                bmsAt = b.TimeStamp;
+            }
+            if (hlasky != null)
+                foreach (var h in hlasky) report(h);
+        }
+
+        /// <summary>
         /// Odecet v case <paramref name="now"/>: median a stav, nebo <see cref="BatteryLevel.Unknown"/>
         /// s <c>NaN</c>, kdyz posledni mereni je starsi nez okno (motory zmlkly - stare cislo by lhalo).
         /// </summary>
@@ -143,6 +209,8 @@ namespace ARBot.Common.Diagnostics
         {
             lock (gate)
             {
+                if (bms != null && (now - bmsAt).TotalSeconds <= windowSec)
+                    return new BatteryReading(bms.PackVoltage, lowSoc ? BatteryLevel.Low : BatteryLevel.Ok, bms);
                 if (level == BatteryLevel.Unknown || (now - lastSample).TotalSeconds > windowSec)
                     return new BatteryReading(double.NaN, BatteryLevel.Unknown);
                 return new BatteryReading(median, level);
@@ -156,6 +224,7 @@ namespace ARBot.Common.Diagnostics
         protected override void Consume(Message msg)
         {
             if (msg is MotorStateBase m) Add(m);
+            else if (msg is BmsState b) Add(b);
         }
     }
 }
