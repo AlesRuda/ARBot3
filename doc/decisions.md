@@ -13,6 +13,26 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-09 — Souběžný nenamapovaný pás (chodník u ulice) se neléčí, téma odloženo
+
+**Co:** `lok-koridor-chodnik-k-ulici` se odkládá. Koridor dál smí přiřadit úzký pás, který v mapě
+chybí, k souběžné mapové cestě a táhnout k ní pózu; mapa se kvůli tomu neopravuje. Rozhodnutí autora.
+
+**Proč:** příčinou je **chybná mapa** — robot jel po nenamapovaném pokračování chodníku (18. 9.)
+a nenamapované pěšince (Kolo4). Bez mapy na to není rozumná léčba: na póze nezávislý rozlišovač
+„chodník × ulice 3–5 m vedle" chybí (GPS má v těch místech bias 2–6 m a 18. 9. stranila ulici),
+brány na odchylku od pózy nebo NIS by vrátily zámek z 15./18. 9. a vzaly koridoru stahování
+skutečného driftu (Kolo3b 4–6 m, Modřany 9 m), a ostatní nabízené opravy (věrohodnost šířky
+podle třídy OSM, opora v ujeté dráze, jedna hrana jen s naučenou šířkou, detektor překlopení
+šířky) pokrývají každá jen část případů nebo berou legitimní korekce.
+
+**Důsledky:** únos zůstává možný a dnes je tichý (~50 s, kroky pod tolerancí detektoru skoku,
+nic se nehlásí). Vrátit se k tomu, až se objeví znovu v jízdě nebo vznikne nezávislý důkaz
+„pás není celá cesta" (obrubník/schod v hloubce na hraně koridoru).
+
+**Odkazy:** `lok-koridor-chodnik-k-ulici` (rozbor 9. 10. 2026),
+[map-correlation-localization.md](map-correlation-localization.md).
+
 ### 2026-10-08 — Uváznutí: hlídat stání při jízdě (ne stav plánu), 20 s / 60 s, jen ohlásit
 
 **Co:** samostatný stupeň `StuckMonitor` hlídá, jestli robot, který **má jet** a nedrží ho STOP ani

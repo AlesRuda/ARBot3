@@ -41,12 +41,27 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-09
 
+- **Koridor: chodník přiřazený k ulici prověřen** (`lok-koridor-chodnik-k-ulici`): replay dnešního
+  `CorridorLocalizer` nad snímky z 18. 9. s provozním profilem (sedí na záznam do 2 mm), `assocwhy`,
+  prevalence přes 28 záznamů, snímky. **Dnes se to stane taky** — jedna hrana s mapovou šířkou 3 m
+  táhne pózu k ulici, pak se z chodníku naučí 1,3 m; únos trvá ~50 s místo 1,7 s a s krokem ≤ 0,49 m
+  ho `PoseJumpDetector` nevidí, takže se neohlásí nic. Robot jel po NENAMAPOVANÉM pokračování
+  chodníku (footway 437915594, dnes prohrává přiřazení jen přirážkou za podélný přesah). Druhý
+  případ: Kolo4 nenamapovaná pěšinka u dlažby (šířka 3,3 → 0,67 m, 66 s na špatné ose). GPS to
+  nerozezná (18. 9. stranila ulici). Opravena tvrzení z 7. 10. („R×1" je artefakt čtení,
+  „jediný kandidát" jen kvůli tehdejšímu `maxedge`). **Autor téma odložil:** hlavní problém je
+  chybná mapa, ta se opravovat nebude a rozumná léčba bez ní není ([decisions.md](decisions.md)).
 - **Hlídač uváznutí po sloučení s dnešními commity** (`nav-uvaznuti-neohlasene`): nový stav
   `LocalMinimum` (slepý konec) bere hlídač jako „mrkev X m nedosažitelná", stejně jako dřívější
   `AlreadyAtGoal` s mrkví daleko — bez toho by hlásil „stav plánu LocalMinimum". Tím je slepý konec
   vidět i na stránce a v Trace (poznámka „stránka ani Trace stav zatím neukazují" níže už neplatí).
   Texty témat `nav-detektor-c-mrtvy` a `lp-kolize-pri-stani` srovnané se stavem po sloučení (kontrola
   kolize je teď v `PathCollision`, běžná dráha beze změny). Test 1 nový. ⚠️ Na zařízení neběželo.
+  Druhá půlka téhož střetu: `AlreadyAtGoal` od 9. 10. znamená jen skutečný dojezd, kdežto hlídač ho
+  u mrkve daleko bral jako slepý konec. Teď rozlišuje podle verze `LocalPlanMsg` (v4 = binárka
+  s `LocalMinimum`): u nových záznamů je to dojezd (bez navigace konec jízdy, s jedoucí navigací
+  nová příčina `PlanAtGoal` „plán hlásí dojezd k mrkvi"), starší záznamy dál podle dosaženého bodu.
+  Přehrání 18. 9. beze změny. Testy 2 nové.
 - **Údaje z BMS v telemetrickém pohledu** (`hw-bms-telemetrie`): v `TelemetryColumns` deset sloupců
   ze `BmsState` hned za motory — nabití [%], U [V], I [A] (+ nabíjení), zbývá [Ah], článek min/max,
   Δ článků [mV], teplota, ochrana (v tabulce český popis přes `BmsProtectionText`, v grafu schod;

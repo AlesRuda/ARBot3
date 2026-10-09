@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **266**: otevřeno **39** · v kódu, na HW neověřeno **35** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **266**: otevřeno **38** · v kódu, na HW neověřeno **35** · hotovo **170** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -44,7 +44,6 @@ Témat celkem **266**: otevřeno **39** · v kódu, na HW neověřeno **35** · 
 | otevřeno | Hardware a senzory | [Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)](#hw-baterie-napeti-nizke) | 6. 10. 2026 |  |
 | otevřeno | Hardware a senzory | [Dávka rámců motorů přečtená z bufferu po záseku hlásí rychlost kol 0 (a jednou 7,4 m/s) jako platné měření](#hw-motor-davka-po-zaseku) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
@@ -99,6 +98,7 @@ Témat celkem **266**: otevřeno **39** · v kódu, na HW neověřeno **35** · 
 | odloženo | Lokalizace a fúze senzorů | [Tvrdý gate korekcí z mapy zahazoval právě ty korekce, které byly potřeba](#lok-mapcorr-tvrdy-gate) | 25. 8. 2026 |  |
 | odloženo | Lokální mapa a plánování | [Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď](#lp-filtr-izolovanych-bunek) | 7. 9. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Fúze extrapoluje bez omezení — ztráta GPS i IMU robota nezastaví](#lok-fuze-extrapoluje-bez-omezeni) | 15. 9. 2026 |  |
+| odloženo | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 
 ## Lokalizace a fúze senzorů
 
@@ -186,18 +186,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Rozhodnout (autor): rozpor gyro / kola nad prahem = věřit gyru (prokluz), nebo aspoň hlásit
 
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
-<a id="lok-koridor-chodnik-k-ulici"></a>
-### ⬜ Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m
-
-`lok-koridor-chodnik-k-ulici` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`20260918-154028.rec` 15:47:02,5–04,8 (binárka 9f649a0, bez `corridorslew`): robot na chodníku souběžném s ulicí (service 230064212, v mapě bez tagu `width`). Koridor změřil šířku 1,2–1,4 m; jakmile naučená šířka (1,3 m) nahradila mapové 3,0 m, prošla šířková brána. Service byla jediný kandidát (χ² 3,6), fúze přijala NIS 216 s R×1 a póza skočila o 4,8 m na osu ulice; grid se smazal a globální navigace přestala vidět, že je robot 4,9 m mimo trasu. Naučená šířka se bere jako šířka kterékoli hrany, takže úzký souběžný pás projde bránou široké ulice. Dnes by limit kroku skok rozložil na ~10 s a `localframe=odom` by neposunul grid; přiřazení samo by nejspíš proběhlo stejně (odvozeno, nepřehráno).
-
-- [x] Nalezeno nad 18. 9. (`zasek`, scratch rozbor `RoadCorridorMsg` / `MeasurementDiagMsg`, snímky) (7. 10. 2026)
-- [ ] Přehrát přiřazení nad 381–384 s dnešním `EdgeAssociator` (`assocwhy` / `assocreplay`) a rozhodnout o vazbě naučené šířky na hranu
-
-[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 <a id="lok-koridor-slepy-v-zatacce"></a>
 ### ⬜ V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m
@@ -409,6 +397,19 @@ Korekce polohy z korelace occupancy gridu s mapou se poprvé pustily naostro a z
 Nález V2 externího auditu: fúze nemá práh na stáří posledního měření, takže po výpadku GPS i IMU při živých kamerách jede odhad polohy dál z predikce a robot nezastaví. Autor 15. 9. 2026 rozhodl neřešit: pevný práh by robota zastavil i v legitimních případech a jeho hodnota se má vzít ze záznamu, ne odhadnout.
 
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-09-15](devlog.md#2026-09-15)
+
+<a id="lok-koridor-chodnik-k-ulici"></a>
+### ⏸ Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m
+
+`lok-koridor-chodnik-k-ulici` · vada · **odloženo** · nalezeno 7. 10. 2026
+
+`20260918-154028.rec` 15:47:02,5–04,8 (binárka 9f649a0, bez `corridorslew`): robot na chodníku souběžném s ulicí (service 230064212, v mapě bez tagu `width`). Koridor změřil šířku 1,2–1,4 m; jakmile naučená šířka (1,3 m) nahradila mapové 3,0 m, prošla šířková brána. Service byla jediný kandidát (χ² 3,6), fúze přijala NIS 216 s R×1 a póza skočila o 4,8 m na osu ulice; grid se smazal a globální navigace přestala vidět, že je robot 4,9 m mimo trasu. Naučená šířka se bere jako šířka kterékoli hrany, takže úzký souběžný pás projde bránou široké ulice. Dnes by limit kroku skok rozložil na ~10 s a `localframe=odom` by neposunul grid; přiřazení samo by nejspíš proběhlo stejně (odvozeno, nepřehráno). **Prověřeno 9. 10. 2026** (replay dnešního `CorridorLocalizer` nad snímky záznamu od 15:46:40 s provozním profilem, sedí na záznam do 0,002 m; `assocwhy`, `assocreplay`; prevalence přes 28 záznamů). Opravy tvrzení výše: „R×1" je artefakt čtení (`MeasurementDiagMsg` v2 nemá `RInflation`), Soft gate R nafoukl ×56 a krok 1,78 m vznikl i tak (`P` ≫ `R`); a service **nebyla jediný soupeř** — footway 437915594 (chodník Kazimírovy, jehož NENAMAPOVANÝM pokračováním robot jel; snímek: úzký chodník za obrubníkem, vlevo ulice s autem) vypadla jen kvůli tehdejšímu `maxedge` 8 m (8,2 m). Dnes ji přiřazení posoudí, ale prohraje kvůli přirážce za podélný přesah (χ² 9,46 proti 4,33, odstup 4,0–5,1 proti prahu 4). **Dnes se to stane taky — celé, jen pomaleji a potichu:** jedna hrana (od 24. 9.) s mapovou šířkou 3 m táhne pózu k ulici už 9 s před epizodou, pak se z chodníku naučí šířka 1,3 m (σ jedné hrany 0,12 místo 0,51 m); odstup od osy ulice 4,91 → 2,0 m za 10 s, 0,5 m za 50 s, 0,2–0,4 m do konce. Největší krok 0,49 m je pod tolerancí `PoseJumpDetector` 0,5 m, takže se neohlásí nic a grid se nesmaže. Limit kroku únos jen roztáhne z 1,7 s na ~50 s. **Kořen:** koridor nemá na póze nezávislou kontrolu, že viděný pás JE mapová cesta; šířková brána je od 15. 9. sebereferenční (šířka naučená z téhož chybně přiřazeného pásu) a jedna hrana šířku nekontroluje vůbec. GPS to nerozezná — tady stranila ulici (1,3 m od její osy, bias ~3 m), odstup chodník–ulice 3–5 m je uvnitř chyby GPS (spolehlivě až nad ~6 m). **Druhý doložený výskyt:** Kolo4 15:44:30–15:46:02 — nenamapovaná hliněná pěšinka souběžná s dlážděnou footway 50914020; naučená šířka se překlopila 3,3 → 0,67 m, 105 korekcí drželo pózu 66 s na ose dlažby, GPS 6,6–8,0 m vedle. Vstupní inovace jen 1,5–2 m, takže ho počet velkých korekcí vůbec nevidí. Jinak (13 825 korekcí v 17 záznamech): 13 epizod přiřazení jedné hrany k jiné cestě 8–25 m od GPS, všechny z jedné hrany; 1. 10. ani jedna. Zamítnuto rozborem (obnovuje zámek z 15./18. 9. nebo bere koridoru opravu skutečného driftu — Kolo3b stahoval 4–6 m, Modřany 29. 9. 9 m): brána na příčnou odchylku od pózy, přísnější χ² pro jediného kandidáta, relativní podlaha k·σ fúze, tvrdý Reject podle NIS. **Odloženo 9. 10. 2026 (autor):** hlavní problém je chybná mapa (souběžný pás v ní chybí) — mapa se opravovat nebude a rozumný způsob, jak se s tím vyrovnat bez ní, není vidět (nabízené opravy buď pokryjí jen část případů, nebo berou koridoru legitimní korekce). Vrátit se k tomu, až se únos objeví znovu v jízdě nebo vznikne na póze nezávislý důkaz „pás není celá cesta" (např. obrubník/schod v hloubce na hraně koridoru).
+
+- [x] Nalezeno nad 18. 9. (`zasek`, scratch rozbor `RoadCorridorMsg` / `MeasurementDiagMsg`, snímky) (7. 10. 2026)
+- [x] Přehráno přiřazení i celý koridor s dnešním kódem (fork replay nad snímky, `assocwhy`, `assocreplay`), prevalence přes 28 záznamů: dnes se to stane taky (potichu, ~50 s), druhý případ Kolo4 (9. 10. 2026)
+- [x] Rozhodnuto (autor): odložit — příčinou je chybná mapa, opravovat se nebude, rozumná léčba bez ní není (9. 10. 2026)
+
+[map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="lok-ekf-fuze-od-nuly"></a>
 ### ✅ EKF senzorická fúze napsaná od nuly s asynchronním zpracováním měření

@@ -9683,7 +9683,7 @@ temata:
     oblast: lokalizace
     nazev: Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m
     druh: vada
-    stav: otevreno
+    stav: odlozeno
     nalezeno: 2026-10-07
     popis: >
       `20260918-154028.rec` 15:47:02,5–04,8 (binárka 9f649a0, bez `corridorslew`): robot na
@@ -9694,16 +9694,50 @@ temata:
       4,9 m mimo trasu. Naučená šířka se bere jako šířka kterékoli hrany, takže úzký souběžný pás
       projde bránou široké ulice. Dnes by limit kroku skok rozložil na ~10 s a `localframe=odom`
       by neposunul grid; přiřazení samo by nejspíš proběhlo stejně (odvozeno, nepřehráno).
+      **Prověřeno 9. 10. 2026** (replay dnešního `CorridorLocalizer` nad snímky záznamu od 15:46:40
+      s provozním profilem, sedí na záznam do 0,002 m; `assocwhy`, `assocreplay`; prevalence přes
+      28 záznamů). Opravy tvrzení výše: „R×1" je artefakt čtení (`MeasurementDiagMsg` v2 nemá
+      `RInflation`), Soft gate R nafoukl ×56 a krok 1,78 m vznikl i tak (`P` ≫ `R`); a service
+      **nebyla jediný soupeř** — footway 437915594 (chodník Kazimírovy, jehož NENAMAPOVANÝM
+      pokračováním robot jel; snímek: úzký chodník za obrubníkem, vlevo ulice s autem) vypadla jen
+      kvůli tehdejšímu `maxedge` 8 m (8,2 m). Dnes ji přiřazení posoudí, ale prohraje kvůli přirážce
+      za podélný přesah (χ² 9,46 proti 4,33, odstup 4,0–5,1 proti prahu 4).
+      **Dnes se to stane taky — celé, jen pomaleji a potichu:** jedna hrana (od 24. 9.) s mapovou
+      šířkou 3 m táhne pózu k ulici už 9 s před epizodou, pak se z chodníku naučí šířka 1,3 m
+      (σ jedné hrany 0,12 místo 0,51 m); odstup od osy ulice 4,91 → 2,0 m za 10 s, 0,5 m za 50 s,
+      0,2–0,4 m do konce. Největší krok 0,49 m je pod tolerancí `PoseJumpDetector` 0,5 m, takže se
+      neohlásí nic a grid se nesmaže. Limit kroku únos jen roztáhne z 1,7 s na ~50 s.
+      **Kořen:** koridor nemá na póze nezávislou kontrolu, že viděný pás JE mapová cesta; šířková
+      brána je od 15. 9. sebereferenční (šířka naučená z téhož chybně přiřazeného pásu) a jedna
+      hrana šířku nekontroluje vůbec. GPS to nerozezná — tady stranila ulici (1,3 m od její osy,
+      bias ~3 m), odstup chodník–ulice 3–5 m je uvnitř chyby GPS (spolehlivě až nad ~6 m).
+      **Druhý doložený výskyt:** Kolo4 15:44:30–15:46:02 — nenamapovaná hliněná pěšinka souběžná
+      s dlážděnou footway 50914020; naučená šířka se překlopila 3,3 → 0,67 m, 105 korekcí drželo
+      pózu 66 s na ose dlažby, GPS 6,6–8,0 m vedle. Vstupní inovace jen 1,5–2 m, takže ho počet
+      velkých korekcí vůbec nevidí. Jinak (13 825 korekcí v 17 záznamech): 13 epizod přiřazení
+      jedné hrany k jiné cestě 8–25 m od GPS, všechny z jedné hrany; 1. 10. ani jedna.
+      Zamítnuto rozborem (obnovuje zámek z 15./18. 9. nebo bere koridoru opravu skutečného driftu
+      — Kolo3b stahoval 4–6 m, Modřany 29. 9. 9 m): brána na příčnou odchylku od pózy, přísnější χ²
+      pro jediného kandidáta, relativní podlaha k·σ fúze, tvrdý Reject podle NIS.
+      **Odloženo 9. 10. 2026 (autor):** hlavní problém je chybná mapa (souběžný pás v ní chybí) —
+      mapa se opravovat nebude a rozumný způsob, jak se s tím vyrovnat bez ní, není vidět
+      (nabízené opravy buď pokryjí jen část případů, nebo berou koridoru legitimní korekce).
+      Vrátit se k tomu, až se únos objeví znovu v jízdě nebo vznikne na póze nezávislý důkaz
+      „pás není celá cesta" (např. obrubník/schod v hloubce na hraně koridoru).
     kroky:
       - co: "Nalezeno nad 18. 9. (`zasek`, scratch rozbor `RoadCorridorMsg` / `MeasurementDiagMsg`, snímky)"
         stav: hotovo
         kdy: 2026-10-07
-      - co: "Přehrát přiřazení nad 381–384 s dnešním `EdgeAssociator` (`assocwhy` / `assocreplay`) a rozhodnout o vazbě naučené šířky na hranu"
-        stav: otevreno
+      - co: "Přehráno přiřazení i celý koridor s dnešním kódem (fork replay nad snímky, `assocwhy`, `assocreplay`), prevalence přes 28 záznamů: dnes se to stane taky (potichu, ~50 s), druhý případ Kolo4"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Rozhodnuto (autor): odložit — příčinou je chybná mapa, opravovat se nebude, rozumná léčba bez ní není"
+        stav: hotovo
+        kdy: 2026-10-09
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: lp-mazani-gridu-bez-stopy

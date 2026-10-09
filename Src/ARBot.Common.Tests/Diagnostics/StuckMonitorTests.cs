@@ -38,12 +38,16 @@ public class StuckMonitorTests
 
     private static LocalPlanMsg PlanMsg(LocalPlanStatus st, CellBlockReason start = CellBlockReason.None,
                                         double goalDist = 6.0, double clearance = 0.1,
-                                        double reqX = 6, double reachedX = 0)
-        => new LocalPlanMsg
+                                        double reqX = 6, double reachedX = 0, int verze = LocalPlanMsg.FormatVersion)
+    {
+        var m = new LocalPlanMsg
         {
             Status = (int)st, StartBlock = (byte)start, GoalDistanceM = goalDist, StartClearanceM = clearance,
             RequestedGoalX = reqX, ReachedGoalX = reachedX,
         };
+        m.Verze = verze;
+        return m;
+    }
 
     private sealed class Vysledek
     {
@@ -248,7 +252,7 @@ public class StuckMonitorTests
         {
             Nav = _ => GlobalNavStatus.NoGoal,
             FreeRun = _ => true,
-            Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: 1.5, reqX: 1.5, reachedX: 0.02),
+            Plan = _ => PlanMsg(LocalPlanStatus.LocalMinimum, goalDist: 1.5, reqX: 1.5, reachedX: 0.02),
         };
         var v = Prehraj(s, 25);
 
@@ -280,7 +284,7 @@ public class StuckMonitorTests
         });
     }
 
-    /// <summary>Jizda goal= bez mapy: skutecny dojezd (plan „dosahl" cile) neni stani, lokalni minimum ano.</summary>
+    /// <summary>Jizda goal= bez mapy: skutecny dojezd neni stani, slepy konec (LocalMinimum) ano.</summary>
     [Test]
     public void BezMapy_SkutecnyDojezdNeniStani_LokalniMinimumAno()
     {
@@ -292,11 +296,56 @@ public class StuckMonitorTests
         var minimum = Prehraj(new Scena
         {
             Nav = _ => null,
-            Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: 7.2, reqX: 7.2, reachedX: 0.01),
+            Plan = _ => PlanMsg(LocalPlanStatus.LocalMinimum, goalDist: 7.2, reqX: 7.2, reachedX: 0.01),
         }, 70);
 
         Assert.That(dojel.Lines, Is.Empty);
         Assert.That(minimum.Lines.Select(l => l.Line), Has.Some.StartsWith("UVAZL: robot stoji 60 s pri jizde - mrkev 7.2 m nedosazitelna"));
+    }
+
+    /// <summary>
+    /// Vyznam AlreadyAtGoal se 9. 10. 2026 zmenil (slepy konec ma vlastni stav LocalMinimum).
+    /// Ve STARSIM zaznamu (LocalPlanMsg verze &lt; 4) je AlreadyAtGoal s mrkvi daleko slepy konec
+    /// a s dosazenym cilem dojezd; od verze 4 je AlreadyAtGoal vzdy dojezd, i kdyz je mrkev daleko
+    /// (cilova zona), a nehada se.
+    /// </summary>
+    [Test]
+    public void AlreadyAtGoal_VyznamPodleVerzeZpravy()
+    {
+        var stary = Prehraj(new Scena
+        {
+            Nav = _ => null,
+            Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: double.NaN, reqX: 7.2, reachedX: 0.01, verze: 3),
+        }, 21);
+        var staryDojezd = Prehraj(new Scena
+        {
+            Nav = _ => null,
+            Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: double.NaN, reqX: 3, reachedX: 3, verze: 3),
+        }, 70);
+        var novyDojezd = Prehraj(new Scena
+        {
+            Nav = _ => null,
+            Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: 2.2, reqX: 2.2, reachedX: 0.01),
+        }, 70);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stary.Lines.Single().Line, Does.EndWith("mrkev 7.2 m nedosazitelna (lokalni minimum)."));
+            Assert.That(staryDojezd.Lines, Is.Empty);
+            Assert.That(novyDojezd.Lines, Is.Empty, "od verze 4 je AlreadyAtGoal dojezd, ne slepy konec");
+        });
+    }
+
+    /// <summary>
+    /// Navigace chce jet dal, ale lokalni plan hlasi skutecny dojezd k mrkvi - mrkev se neposouva.
+    /// Neni to slepy konec a hlaseni to nesmi tvrdit.
+    /// </summary>
+    [Test]
+    public void DojezdKMrkviPriJedouciNavigaci_JeVlastniPricina()
+    {
+        var v = Prehraj(new Scena { Plan = _ => PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: 0.1, reqX: 3, reachedX: 3) }, 21);
+        Assert.That(v.Lines.Single().Line, Does.EndWith("lokalni plan hlasi dojezd k mrkvi (0.1 m), navigace jede dal."));
+        Assert.That(v.Msgs.Last().Msg.Cause, Is.EqualTo((byte)StuckCause.PlanAtGoal));
     }
 
     // ---------------- priciny ----------------
@@ -370,10 +419,10 @@ public class StuckMonitorTests
     {
         var s = new Scena
         {
-            // kazdy paty takt Ok (Partial faze v lokalnim minimu), jinak AlreadyAtGoal s mrkvi daleko
+            // kazdy paty takt Ok (Partial faze v lokalnim minimu), jinak LocalMinimum (slepy konec, mrkev daleko)
             Plan = t => (int)Math.Round(t * 10) % 5 == 0
                 ? PlanMsg(LocalPlanStatus.Ok)
-                : PlanMsg(LocalPlanStatus.AlreadyAtGoal, goalDist: 7.2, reqX: 7.2, reachedX: 0.01),
+                : PlanMsg(LocalPlanStatus.LocalMinimum, goalDist: 7.2, reqX: 7.2, reachedX: 0.01),
         };
         var v = Prehraj(s, 65);
         Assert.That(v.Lines.Select(l => l.Line), Has.All.Contains("mrkev 7.2 m nedosazitelna"));

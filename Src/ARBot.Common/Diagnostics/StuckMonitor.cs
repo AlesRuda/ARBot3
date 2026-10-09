@@ -37,6 +37,11 @@ namespace ARBot.Common.Diagnostics
         GoalBlocked = 4,
         /// <summary>Plan vede dal (<c>Ok</c>/<c>Partial</c>), ale robot nejede.</summary>
         PlanButNoMotion = 5,
+        /// <summary>
+        /// Lokalni plan hlasi skutecny dojezd k mrkvi (<c>AlreadyAtGoal</c>), ale navigace / FreeRun
+        /// chce jet dal - mrkev se neposouva. Od 9. 10. 2026, kdy <c>AlreadyAtGoal</c> znamena jen dojezd.
+        /// </summary>
+        PlanAtGoal = 6,
     }
 
     /// <summary>Okamzity stav hlidace pro stranku nahledu.</summary>
@@ -285,16 +290,22 @@ namespace ARBot.Common.Diagnostics
             return false;
         }
 
-        /// <summary>
-        /// Skutecny dojezd: <c>AlreadyAtGoal</c>, kde plan „dosahl" pozadovaneho cile. Lokalni
-        /// minimum (18. 9. 2026: mrkev 7 m daleko) ma dosazeny bod na robotu, ne v cili.
-        /// </summary>
+        /// <summary>Skutecny dojezd lokalniho planu (<c>AlreadyAtGoal</c>, ktery neni stary slepy konec).</summary>
         private static bool IsGenuineArrival(LocalPlanMsg p)
-        {
-            if (p.PlanStatus != LocalPlanStatus.AlreadyAtGoal) return false;
-            double dx = p.RequestedGoalX - p.ReachedGoalX, dy = p.RequestedGoalY - p.ReachedGoalY;
-            return Math.Sqrt(dx * dx + dy * dy) < 0.05;
-        }
+            => p.PlanStatus == LocalPlanStatus.AlreadyAtGoal && !IsLegacyLocalMinimum(p);
+
+        /// <summary>
+        /// Slepy konec ve STARSIM zaznamu: <c>AlreadyAtGoal</c>, jehoz dosazeny bod je na robotu, ne
+        /// v cili (18. 9. 2026: mrkev 7 m daleko).
+        ///
+        /// <para>⚠️ <b>Vyznam <c>AlreadyAtGoal</c> se 9. 10. 2026 zmenil</b> (0ff5066,
+        /// lp-alreadyatgoal-lokalni-minimum): slepy konec ma vlastni stav <c>LocalMinimum</c>
+        /// a <c>AlreadyAtGoal</c> je uz jen skutecny dojezd. <c>LocalPlanMsg</c> verze 4 vznika jen
+        /// z binarky, ktera <c>LocalMinimum</c> uz ma (obe zmeny prisly do masteru tymz sloucenim),
+        /// takze u verze 4 se nehada; u starsich zaznamu rozhoduje dosazeny bod.</para>
+        /// </summary>
+        private static bool IsLegacyLocalMinimum(LocalPlanMsg p)
+            => p.PlanStatus == LocalPlanStatus.AlreadyAtGoal && p.Verze < 4 && ReqReached(p) >= 0.05;
 
         private StuckMsg Tick(List<string> lines)
         {
@@ -481,14 +492,22 @@ namespace ARBot.Common.Diagnostics
                     return st == LocalPlanStatus.EscapingBlocked ? kde + ", únik nepostupuje" : kde + ", únik nenalezen";
                 }
                 // Slepy konec: od 9. 10. 2026 vlastni stav LocalMinimum, ve starsich zaznamech
-                // AlreadyAtGoal s mrkvi daleko (skutecny dojezd sem nedojde - ten ukonci jizdu v Active).
+                // AlreadyAtGoal s mrkvi daleko (viz IsLegacyLocalMinimum).
                 case LocalPlanStatus.LocalMinimum:
-                case LocalPlanStatus.AlreadyAtGoal:
+                case LocalPlanStatus.AlreadyAtGoal when IsLegacyLocalMinimum(plan):
                 {
                     cause = StuckCause.CarrotUnreachable;
                     double d = double.IsFinite(plan.GoalDistanceM) ? plan.GoalDistanceM : ReqReached(plan);
                     return string.Format(CultureInfo.InvariantCulture, "mrkev {0:0.0} m nedosažitelná (lokální minimum)", d);
                 }
+                // Skutecny dojezd k mrkvi, ale navigace (nebo FreeRun) chce jet dal - mrkev se nepohnula.
+                // Bez navigace sem nedojde (dojezd jizdu ukonci v Active).
+                case LocalPlanStatus.AlreadyAtGoal:
+                    cause = StuckCause.PlanAtGoal;
+                    return double.IsFinite(plan.GoalDistanceM)
+                        ? string.Format(CultureInfo.InvariantCulture,
+                            "lokální plán hlásí dojezd k mrkvi ({0:0.0} m), navigace jede dál", plan.GoalDistanceM)
+                        : "lokální plán hlásí dojezd k mrkvi, navigace jede dál";
                 case LocalPlanStatus.GoalBlocked:
                 case LocalPlanStatus.GoalUnsafe:
                 {

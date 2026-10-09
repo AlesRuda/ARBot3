@@ -146,7 +146,8 @@ namespace ARBot.Telemetry
             Num<LocalPlanMsg>("plan mrkev [m]",
                 m => m.Verze >= 4 && double.IsFinite(m.GoalDistanceM) ? m.GoalDistanceM : (double?)null,
                 "Vzdálenost robotu od požadovaného lokálního cíle („mrkve“), zpráva verze 4. Velká "
-                + "hodnota u stavu AlreadyAtGoal = mrkev je nedosažitelná (lokální minimum)."),
+                + "hodnota u stavu LocalMinimum (slepý konec; ve starších záznamech AlreadyAtGoal) = mrkev "
+                + "je nedosažitelná."),
             new ColumnSpec
             {
                 MsgName = new LocalPlanMsg().MsgName,
@@ -171,7 +172,8 @@ namespace ARBot.Telemetry
                 "Jak dlouho trvá (trvalo) celé stání od jeho začátku — v koncové zprávě celková délka.", "F0"),
             Enum<StuckMsg, StuckCause>("stani pricina", m => m.Cause,
                 "Příčina stání podle lokálního plánu: bez plánu, v blokované buňce, nedosažitelná "
-                + "mrkev, cíl v překážce, nebo plán vede dál a robot nejede."),
+                + "mrkev (slepý konec), cíl v překážce, plán vede dál a robot nejede, nebo plán hlásí "
+                + "dojezd k mrkvi a navigace jede dál."),
 
             // --- globalni navigace ---
             Enum<GlobalNavMsg, GlobalNavStatus>("nav stav", m => m.Status,

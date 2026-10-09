@@ -399,7 +399,7 @@ na Streamu. Rozhodnutí autora 8. 10. 2026 (viz [decisions.md](decisions.md)):
 | **co je uváznutí** | robot **má jet** (cíl navigace `Driving`/`GoalInMap`/`OffRoute`, nebo běží FreeRun, nebo bez mapy chodí lokální plán, který není skutečný dojezd), **nedrží ho** STOP ani hold kamer, a **neujel 0,5 m** — **bez ohledu na stav plánu** (Kolo4 stálo v „platném" `GoalUnsafe`) |
 | **prahy** | od **20 s** „stojí N s při jízdě — příčina" (oranžově; může se vyřešit samo), od **60 s** „UVÁZL N s — příčina — zásah obsluhy" (červeně) |
 | **reakce** | **jen ohlásit**: řádek v hlavičce stránky náhledu, přechody do Trace (nástup, za UVÁZL každých 30 s, konec s důvodem), `StuckMsg` do záznamu (1 Hz po dobu stání). Nic se nepřerušuje ani nezavírá. |
-| **příčina** | převažující za posledních 10 s podle lokálního plánu: bez plánu (kamery/fúze), v buňce blokované hloubkou/barvou nebo těsně u překážky, mrkev X m nedosažitelná (slepý konec — `LocalMinimum`, ve starších záznamech `AlreadyAtGoal`), mrkev v překážce, plán vede dál a robot nejede. „Východ X m směrem Y" se **zatím nepočítá** (autor). |
+| **příčina** | převažující za posledních 10 s podle lokálního plánu: bez plánu (kamery/fúze), v buňce blokované hloubkou/barvou nebo těsně u překážky, mrkev X m nedosažitelná (slepý konec — `LocalMinimum`, ve starších záznamech `AlreadyAtGoal`), mrkev v překážce, plán vede dál a robot nejede, lokální plán hlásí dojezd k mrkvi a navigace jede dál. „Východ X m směrem Y" se **zatím nepočítá** (autor). |
 
 Detaily, které rozhodla data:
 
@@ -419,6 +419,12 @@ Detaily, které rozhodla data:
 - Pro příčinu nese **`LocalPlanMsg` verze 4** vzdálenost k mrkvi (`GoalDistanceM`), čím je blokovaná
   buňka pod robotem (`StartBlock`) a její odstup (`StartClearanceM`); u starších záznamů je příčina
   jen podle stavu plánu.
+- ⚠️ **`AlreadyAtGoal` se 9. 10. 2026 změnil význam** (`lp-alreadyatgoal-lokalni-minimum`): slepý
+  konec má vlastní stav `LocalMinimum` a `AlreadyAtGoal` je už jen skutečný dojezd. Hlídač proto
+  rozlišuje podle **verze zprávy**: od `LocalPlanMsg` v4 (vzniká jen z binárky, která už
+  `LocalMinimum` má) je `AlreadyAtGoal` dojezd — bez navigace konec jízdy, s jedoucí navigací příčina
+  „plán hlásí dojezd k mrkvi" —, ve starších záznamech se slepý konec pozná podle dosaženého bodu
+  daleko od mrkve.
 - **FreeRun „má jet" do konce běhu**, ne jen dokud chodí jeho zprávy: ty vznikají ze snímků, takže
   při výpadku kamer zmlknou, a navigace s mapou hlásí `NoGoal`. Do 9. 10. to hlídač bral jako „jízda
   skončila" a stání neohlásil (našla nezávislá kontrola) — teď je to příčina „bez lokálního plánu".
