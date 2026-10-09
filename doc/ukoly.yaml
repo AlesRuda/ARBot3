@@ -9837,17 +9837,25 @@ temata:
     oblast: nastroje
     nazev: Údaje z BMS nejsou v telemetrickém pohledu
     druh: zamer
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-08
+    vyreseno: 2026-10-09
     popis: >
       Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce
       vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani
       napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
+      **V kódu 9. 10. 2026:** deset sloupců za motory (nabití, U, I, zbývá Ah, článek min/max, Δ článků,
+      teplota, ochrana s českým popisem, příznak „bez měření"); zpráva bez měření dává prázdno, ne nulu.
+      Ověřeno buildem, testy telemetrie a záznamem ze simulace (12 zpráv BmsState za ~20 s);
+      ⚠️ v okně aplikace neproklikané.
     kroky:
       - co: "Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Otevřít záznam s BmsState v telemetrickém pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)"
         stav: otevreno
     odkazy:
       - text: plan-bms-jbd.md
         cesta: doc/plan-bms-jbd.md
-    devlog: [2026-10-08]
+    devlog: [2026-10-08, 2026-10-09]
     ceka_na: []

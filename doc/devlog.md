@@ -39,6 +39,16 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-09
+
+- **Údaje z BMS v telemetrickém pohledu** (`hw-bms-telemetrie`): v `TelemetryColumns` deset sloupců
+  ze `BmsState` hned za motory — nabití [%], U [V], I [A] (+ nabíjení), zbývá [Ah], článek min/max,
+  Δ článků [mV], teplota, ochrana (v tabulce český popis přes `BmsProtectionText`, v grafu schod;
+  obecný vyčtový sloupec kombinace `[Flags]` neumí) a příznak „BMS bez měření". Zpráva bez měření
+  i chybějící články/čidla dávají prázdno, ne nulu. Ověřeno buildem, testy telemetrie (39) a záznamem
+  ze simulace `records/20261009-080953.rec` (12 zpráv `BmsState` za ~20 s, `ARBot.Analyze types`);
+  ⚠️ v okně aplikace neproklikané (zůstává jako krok v registru).
+
 ## 2026-10-08
 
 - **Baterie (pokračování 6. 10.):** změřeno 7. 10. **3,29 V na článek** — články jsou vyrovnané,

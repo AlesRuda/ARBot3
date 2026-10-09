@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">42</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">29</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">41</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">30</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">170</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">13</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -455,6 +455,7 @@
       <li data-tema="vid-segmentace-rozliseni-128"><span class="mono">7. 10.</span> <span class="typ">vyřešeno</span> <a href="#vid-segmentace-rozliseni-128">Dopad v&#253;počtu ve 128&#215;128 na hustotu dat pro grid a hranice cesty</a></li>
       <li data-tema="hw-bms-jbd-driver"><span class="mono">8. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#hw-bms-jbd-driver">Driver chytr&#233; BMS JBD — stav nabit&#237;, proud a čl&#225;nky do z&#225;znamu a na str&#225;nku</a></li>
       <li data-tema="hw-bms-telemetrie"><span class="mono">8. 10.</span> <span class="typ">začato</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
+      <li data-tema="hw-bms-telemetrie"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
     </ul>
   </div>
 </section>
@@ -2913,15 +2914,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
-  <article class="tema" id="hw-bms-telemetrie" data-stav="otevreno">
-    <h3>&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span></p>
-    <p>Zpr&#225;va <code>BmsState</code> (hw-bms-jbd-driver) jde do z&#225;znamu, ale telemetrick&#253; pohled m&#225; sloupce vyjmenovan&#233; ručně (<code>Src/ARBot/Telemetry/TelemetryColumns.cs</code>), takže stav nabit&#237;, proud ani napět&#237; čl&#225;nků v něm vidět nejsou. Pl&#225;n driveru pohled vědomě neměnil.</p>
-    <ul class="kroky">
-      <li class="otevreno">Sloupce <code>BmsState</code> do <code>TelemetryColumns</code> (stav nabit&#237;, proud, napět&#237; baterie, min/max čl&#225;nku, teplota, ochrany)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a></p>
-  </article>
   <article class="tema" id="nast-profil-sceny" data-stav="v-kodu">
     <h3>Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 23. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
@@ -2944,6 +2936,16 @@
       <li class="hotovo">Podnab&#237;dka Export GPX: GPS i f&#250;ze v jednom souboru / do dvou souborů (<code>-gps</code>, <code>-fuze</code>) / jen GPS / jen f&#250;ze (autor 24. 9.; <code>GpxExportOptions.Tracks</code>, 4 testy). V běž&#237;c&#237; aplikaci neproklik&#225;no <span class="mono">24. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
+  </article>
+  <article class="tema" id="hw-bms-telemetrie" data-stav="v-kodu">
+    <h3>&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p>Zpr&#225;va <code>BmsState</code> (hw-bms-jbd-driver) jde do z&#225;znamu, ale telemetrick&#253; pohled m&#225; sloupce vyjmenovan&#233; ručně (<code>Src/ARBot/Telemetry/TelemetryColumns.cs</code>), takže stav nabit&#237;, proud ani napět&#237; čl&#225;nků v něm vidět nejsou. Pl&#225;n driveru pohled vědomě neměnil. **V k&#243;du 9. 10. 2026:** deset sloupců za motory (nabit&#237;, U, I, zb&#253;v&#225; Ah, čl&#225;nek min/max, Δ čl&#225;nků, teplota, ochrana s česk&#253;m popisem, př&#237;znak „bez měřen&#237;&quot;); zpr&#225;va bez měřen&#237; d&#225;v&#225; pr&#225;zdno, ne nulu. Ověřeno buildem, testy telemetrie a z&#225;znamem ze simulace (12 zpr&#225;v BmsState za ~20 s); ⚠️ v okně aplikace neproklikan&#233;.</p>
+    <ul class="kroky">
+      <li class="hotovo">Sloupce <code>BmsState</code> do <code>TelemetryColumns</code> (stav nabit&#237;, proud, napět&#237; baterie, min/max čl&#225;nku, teplota, ochrany) <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Otevř&#237;t z&#225;znam s BmsState v telemetrick&#233;m pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
   </article>
   <article class="tema" id="nast-rezim-simulate" data-stav="odlozeno">
     <h3>Režim Simulate — věrn&#253; přepočet běhu nad z&#225;znamem</h3>

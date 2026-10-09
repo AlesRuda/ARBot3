@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **263**: otevřeno **41** · v kódu, na HW neověřeno **30** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -53,7 +53,6 @@ Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · 
 | otevřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
-| otevřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
@@ -83,6 +82,7 @@ Témat celkem **263**: otevřeno **42** · v kódu, na HW neověřeno **29** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -2971,17 +2971,6 @@ Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rych
 
 [path-following.md](path-following.md), [configuration.md](configuration.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
 
-<a id="hw-bms-telemetrie"></a>
-### ⬜ Údaje z BMS nejsou v telemetrickém pohledu
-
-`hw-bms-telemetrie` · záměr · **otevřeno** · nalezeno 8. 10. 2026
-
-Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
-
-- [ ] Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)
-
-[plan-bms-jbd.md](plan-bms-jbd.md) · DevLog [2026-10-08](devlog.md#2026-10-08)
-
 <a id="nast-profil-sceny"></a>
 ### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
 
@@ -3008,6 +2997,18 @@ File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových
 - [x] Podnabídka Export GPX: GPS i fúze v jednom souboru / do dvou souborů (`-gps`, `-fuze`) / jen GPS / jen fúze (autor 24. 9.; `GpxExportOptions.Tracks`, 4 testy). V běžící aplikaci neproklikáno (24. 9. 2026)
 
 [record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="hw-bms-telemetrie"></a>
+### 🧪 Údaje z BMS nejsou v telemetrickém pohledu
+
+`hw-bms-telemetrie` · záměr · **v kódu, na HW neověřeno** · nalezeno 8. 10. 2026 · vyřešeno 9. 10. 2026
+
+Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil. **V kódu 9. 10. 2026:** deset sloupců za motory (nabití, U, I, zbývá Ah, článek min/max, Δ článků, teplota, ochrana s českým popisem, příznak „bez měření"); zpráva bez měření dává prázdno, ne nulu. Ověřeno buildem, testy telemetrie a záznamem ze simulace (12 zpráv BmsState za ~20 s); ⚠️ v okně aplikace neproklikané.
+
+- [x] Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany) (9. 10. 2026)
+- [ ] Otevřít záznam s BmsState v telemetrickém pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)
+
+[plan-bms-jbd.md](plan-bms-jbd.md) · DevLog [2026-10-08](devlog.md#2026-10-08), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem
