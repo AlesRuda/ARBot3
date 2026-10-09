@@ -653,6 +653,12 @@ Poznámky:
   nepřipojovat, jinak hrozí zničení převodníku i Pi. Diferenciální RS485 úroveň neřeší a v robotu
   s motory je odolnější. Kdyby se přece šlo přes UART: změřit klidovou úroveň linky TX na
   konkrétním kuse a vzít převodník s přepínačem 3,3/5 V, zapojit jen TX, RX, GND.
+  **Konektor RS485 na SP04S020** (rešerše 9. 10. 2026, neověřeno na kusu): oficiální pinout jsem
+  nenašel; komunita hlásí piny **A/H a B/L** a podle jednoho hlášení jsou v konektoru osazené
+  **jen tyto dva** (GND na konektoru není jisté). Protokol na RS485 je **týž proprietární jako na
+  UART** (ne Modbus) — sedí s tím, jak je udělaný driver. Nejjistější cesta k propojení je
+  **kabel „RS485-USB" od prodejce** (Gobel Power ho nabízí k desce, ~190 Kč), který má odpovídající
+  konektor; jinak schéma zapojení k desce z webu JBD a před připojením měřit multimetrem.
   Orange Pi RS485 nativně nemá (na liště jsou jen UART 3,3 V) → **převodník USB–RS485**,
   nejlépe s čipem **FTDI** (unikátní sériové číslo, takže stabilní cesta v `/dev/serial/by-id/`
   jako u ostatních UART zařízení; CH340 číslo nemá). V systému je to obyčejný sériový port,
