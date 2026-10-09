@@ -372,6 +372,60 @@ uzavření je **trvalé pro celou misi**.
 jen overlay v poli: dá se tak znovu aplikovat po případné přestavbě sítě, poslat do zprávy a zobrazit
 v UI (a ručně zrušit).
 
+### Hlídač uváznutí — „zastavit a ohlásit" (od 8. 10. 2026)
+
+`nav-uvaznuti-neohlasene`. Na zásek se od 27. 8. odpovídá „zastavit a ohlásit" (recovery manévr
+je odložený, `nav-recovery-manevr`) — jenže **ohlásit nikdo neuměl**: při stání globální navigace
+i mise hlásily „jede" a robot stál do zásahu obsluhy (1. 10. 132 + 42 s v `RobotBlocked`, 18. 9.
+~6 min v `AlreadyAtGoal`, Kolo4 268 s v `GoalUnsafe`). Detektory A/B/C to z konstrukce nevidí:
+
+- **A** vynuluje okno každý plán mimo `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, a stavy se při
+  stání střídají ~19× za sekundu (1. 10. bylo uvnitř `RobotBlocked` 16× `EscapingBlocked`), takže
+  se neozbrojí; první dvě spuštění jsou navíc tichá.
+- **B** potřebuje ujet 20 m. **C** počítá jen `NoRoute`, a ten plánovač **nikdy nevrátí**
+  (`bestIdx` začíná na startovní buňce) — od 29. 9. je C mrtvý (`nav-detektor-c-mrtvy`).
+- FreeRun ani jízda bez mapy globální navigaci nemají vůbec.
+
+**Řešení: samostatný stupeň `StuckMonitor`** (`ARBot.Common/Diagnostics`, vzor `BatteryMonitor`)
+na Streamu. Rozhodnutí autora 8. 10. 2026 (viz [decisions.md](decisions.md)):
+
+| | |
+|---|---|
+| **co je uváznutí** | robot **má jet** (cíl navigace `Driving`/`GoalInMap`/`OffRoute`, nebo běží FreeRun, nebo bez mapy chodí lokální plán, který není skutečný dojezd), **nedrží ho** STOP ani hold kamer, a **neujel 0,5 m** — **bez ohledu na stav plánu** (Kolo4 stálo v „platném" `GoalUnsafe`) |
+| **prahy** | od **20 s** „stojí N s při jízdě — příčina" (oranžově; může se vyřešit samo), od **60 s** „UVÁZL N s — příčina — zásah obsluhy" (červeně) |
+| **reakce** | **jen ohlásit**: řádek v hlavičce stránky náhledu, přechody do Trace (nástup, za UVÁZL každých 30 s, konec s důvodem), `StuckMsg` do záznamu (1 Hz po dobu stání). Nic se nepřerušuje ani nezavírá. |
+| **příčina** | převažující za posledních 10 s podle lokálního plánu: bez plánu (kamery/fúze), v buňce blokované hloubkou/barvou nebo těsně u překážky, mrkev X m nedosažitelná (lokální minimum), mrkev v překážce, plán vede dál a robot nejede. „Východ X m směrem Y" se **zatím nepočítá** (autor). |
+
+Detaily, které rozhodla data:
+
+- **Doba stání je klouzavé okno** („jak dlouho zpátky robot neujel 0,5 m"), ne kotva vynulovaná po
+  každém půlmetru — plížení 2,5 cm/s (2. 9., úzký prostor) jinak dávalo pilu „STÁNÍ → skončilo po
+  21 s → STÁNÍ". Pohyb je `Σ min(|Δpóza|, |v|·Δt)` z odometrické pózy (skok pózy ani otáčení na
+  místě není pohyb). Konec a sestup úrovně mají **hysterezi** (pod polovinu prahu).
+- **Příčina je převažující, ne poslední**: podle posledního plánu vyšlo 18. 9. uprostřed stání
+  o nedosažitelné mrkvi „povel je nulový".
+- **Čas je čas dat** (takt řídicí smyčky), takže hlídač jde **přehrát nad starým záznamem**:
+  `ARBot.Analyze uvazl`. Nad 50 záznamy (2. 9.–1. 10., Robotour; bez `20260918-155329` a `Kolo2`,
+  jejichž opravený index by přepsal existující `.idx.bad`) dal **UVÁZL pětkrát, pokaždé na skutečném
+  uváznutí** — 1. 10. 136 s, 18. 9. 148 a 167 s, Kolo4 278 s, 2. 9. 62 s (do konce záznamu) —
+  a „stojí" 19× (21–119 s; nejdelší, 119 s 2. 9., bylo plížení ~2,5 cm/s, které okno nedotáhlo
+  k 60 s; nejdelší skutečné stání, které se vyřešilo samo, 52 s 16. 9. hned po holdu kamer).
+  Druhé uváznutí z 1. 10. (48 s, ukončila ho obsluha) ohlásil jako „stojí" ve 20. s.
+- Pro příčinu nese **`LocalPlanMsg` verze 4** vzdálenost k mrkvi (`GoalDistanceM`), čím je blokovaná
+  buňka pod robotem (`StartBlock`) a její odstup (`StartClearanceM`); u starších záznamů je příčina
+  jen podle stavu plánu.
+- **FreeRun „má jet" do konce běhu**, ne jen dokud chodí jeho zprávy: ty vznikají ze snímků, takže
+  při výpadku kamer zmlknou, a navigace s mapou hlásí `NoGoal`. Do 9. 10. to hlídač bral jako „jízda
+  skončila" a stání neohlásil (našla nezávislá kontrola) — teď je to příčina „bez lokálního plánu".
+  ⚠️ Jízdu `goal=` **bez mapy** pozná hlídač jen z čerstvého plánu, takže výpadek kamer ji pořád
+  ukončí jako „jízda skončila" (jiný signál, že cíl trvá, tam není; režim pro testy).
+- `StuckMsg` nese **dvě doby**: `StandingSec` = klouzavé okno (jak dlouho zpátky neujel 0,5 m)
+  a `EpisodeSec` = celé stání od začátku (v koncové zprávě jeho délka); liší se při plížení
+  a pomalém rozjezdu.
+
+⚠️ **Na zařízení neběželo.** Prahy jsou z dat do 1. 10., tedy ještě s gridem ve světě; s
+`localframe=odom` se mix uváznutí může posunout (hypotéza) — přeměřit `uvazl` na nových jízdách.
+
 ## Stav a zprávy
 
 `GlobalNavStatus`: `NoGoal`, `Building` (staví se pole), `Driving`, `GoalInMap` (cíl už je v lokální

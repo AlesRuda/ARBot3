@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ARBot.Common.Common;
 using ARBot.Common.Configuration;
 using ARBot.Common.Devices;
+using ARBot.Common.Diagnostics;
 using ARBot.Common.Fusion;
 using ARBot.Common.Localization;
 using ARBot.Common.Logs;
@@ -140,6 +141,37 @@ namespace ARBot.Telemetry
                 "Počet waypointů, které plánovač předal regulátoru.", "F0"),
             Num<LocalPlanMsg>("plan vypocet [ms]", m => m.ComputeMs,
                 "Doba výpočtu jednoho lokálního plánu (A*). Diagnostika zátěže řídicí smyčky.", "F1"),
+            // Oba sloupce az od verze 4: starsi plan je nema a NaN / "None" by se cetlo jako udaj
+            // ("bunka neni blokovana"), ne jako "nevi se". NaN by navic v grafu rozbil rozsah osy.
+            Num<LocalPlanMsg>("plan mrkev [m]",
+                m => m.Verze >= 4 && double.IsFinite(m.GoalDistanceM) ? m.GoalDistanceM : (double?)null,
+                "Vzdálenost robotu od požadovaného lokálního cíle („mrkve“), zpráva verze 4. Velká "
+                + "hodnota u stavu AlreadyAtGoal = mrkev je nedosažitelná (lokální minimum)."),
+            new ColumnSpec
+            {
+                MsgName = new LocalPlanMsg().MsgName,
+                Header = "plan pod robotem",
+                Description = "Čím je blokovaná buňka pod robotem (zpráva verze 4): hloubka = fyzická "
+                              + "překážka, barva = mimo cestu. Robot v blokované buňce hledá únik; přes "
+                              + "hloubku ven nesmí.",
+                Format = "F0",
+                Value = m => m is LocalPlanMsg p && p.Verze >= 4 ? p.StartBlock : (double?)null,
+                Text = v => PodRobotem((CellBlockReason)(int)v),
+            },
+
+            // --- hlidac uvaznuti ---
+            Enum<StuckMsg, StuckLevel>("stani", m => m.Level,
+                "Hlídač uváznutí: Standing = robot stojí při jízdě přes 20 s (může se vyřešit samo), "
+                + "Stuck = přes 60 s, čeká na zásah obsluhy, None = stání skončilo. Viz "
+                + "doc/global-navigation-runtime.md."),
+            Num<StuckMsg>("stoji [s]", m => m.StandingSec,
+                "Jak dlouho zpátky robot neujel 0,5 m (klouzavé okno). V koncové zprávě (stání None) "
+                + "je to okno při konci; délka celé epizody je ve sloupci „stani epizoda“.", "F0"),
+            Num<StuckMsg>("stani epizoda [s]", m => m.EpisodeSec,
+                "Jak dlouho trvá (trvalo) celé stání od jeho začátku — v koncové zprávě celková délka.", "F0"),
+            Enum<StuckMsg, StuckCause>("stani pricina", m => m.Cause,
+                "Příčina stání podle lokálního plánu: bez plánu, v blokované buňce, nedosažitelná "
+                + "mrkev, cíl v překážce, nebo plán vede dál a robot nejede."),
 
             // --- globalni navigace ---
             Enum<GlobalNavMsg, GlobalNavStatus>("nav stav", m => m.Status,
@@ -447,6 +479,14 @@ namespace ARBot.Telemetry
                 Value = m => m is T typed ? (value(typed) ? 1.0 : 0.0) : (double?)null,
                 Text = v => v != 0 ? header : "-",
             };
+
+        /// <summary>Blokace bunky pod robotem slovy (kombinace priznaku se nesmi ukazat jako cislo).</summary>
+        private static string PodRobotem(CellBlockReason b)
+            => b == CellBlockReason.None ? "-"
+             : b == CellBlockReason.Geometry ? "hloubka"
+             : b == CellBlockReason.Semantics ? "barva"
+             : b == (CellBlockReason.Geometry | CellBlockReason.Semantics) ? "hloubka i barva"
+             : ((int)b).ToString();
 
         /// <summary>Vyctovy sloupec: v tabulce jmeno hodnoty, v grafu schod.</summary>
         private static ColumnSpec Enum<T, TEnum>(string header, Func<T, int> value, string description)

@@ -13,6 +13,29 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-08 — Uváznutí: hlídat stání při jízdě (ne stav plánu), 20 s / 60 s, jen ohlásit
+
+**Co:** samostatný stupeň `StuckMonitor` hlídá, jestli robot, který **má jet** a nedrží ho STOP ani
+hold, neujel 0,5 m. Od 20 s hlásí „stojí", od 60 s „UVÁZL — zásah obsluhy": stránka náhledu, Trace,
+`StuckMsg` do záznamu. Nic nepřerušuje ani nezavírá. Příčinu pojmenuje lokální plán; „východ
+X m směrem Y" se zatím nepočítá. Rozhodnutí autora (4 volby, všechny doporučené).
+
+**Proč:** (1) **stání, ne stav plánu** — Kolo4 (19. 9.) uvázlo na 268 s v „platném" `GoalUnsafe`,
+hlídání postavené na `RobotBlocked`/`AlreadyAtGoal` by ho minulo, a stavy se střídají ~19×/s.
+(2) **dva prahy** — žádný jeden práh v datech čistě neodděluje: samo vyřešená stání trvala až ~50 s,
+všechna nad 60 s byla skutečná uváznutí, ale obsluha dvě ukončila už po 32 a 39 s; oranžové „stojí"
+od 20 s je ukáže, červené UVÁZL od 60 s nemá v datech planý poplach. (3) **jen ohlásit** — trvá
+rozhodnutí z 27. 8. (zastavit a ohlásit; přerušení mise je na soutěži horší než čekání) a rozšířit
+uzavírání hran na stání se už dvakrát vymstilo (25. 9. kaskáda 15 uzavření, 14. 9. NoRoute → Abort).
+(4) **samostatný stupeň, ne globální navigace** — ta ve FreeRunu nemá cíl a bez mapy neexistuje.
+
+**Důsledky:** `LocalPlanMsg` verze 4 (kde robot stojí), nová `StuckMsg`, řádek v hlavičce stránky,
+`ARBot.Analyze uvazl` (přehrání téhož kódu nad záznamem: nad 50 záznamy UVÁZL 5× a vždy oprávněně).
+Detektory A/B/C se nemění — jejich vady jsou samostatná témata (`nav-detektor-c-mrtvy`).
+
+**Odkazy:** [global-navigation-runtime.md](global-navigation-runtime.md) („Hlídač uváznutí"),
+`nav-uvaznuti-neohlasene`, `ARBot.Common/Diagnostics/StuckMonitor.cs`.
+
 ### 2026-10-06 — Přiřazení hrany: při rozbitém kurzu se bere hrana, která vyšla nejlépe
 
 **Co:** když blízké cesty vypadnou na azimutovém vetu nebo χ² kurzu a zbude jediná vzdálenější

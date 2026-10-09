@@ -103,6 +103,21 @@ namespace ARBot.Common.Occupancy
         /// <summary>Nejmensi odstup od neprujezdneho podel cele drahy [m] (diagnostika bezpecnosti).</summary>
         public double MinClearanceM;
 
+        // --- Kde robot stoji (od 8. 10. 2026, nav-uvaznuti-neohlasene) ---
+        // Hlidac uvaznuti (StuckMonitor) z nich pojmenuje PRICINU stani: "v bunce blokovane hloubkou",
+        // "mrkev 7 m nedosazitelna". Planovac je ma v ruce kazdy cyklus; do 8. 10. ze zpravy nesly
+        // a ze zaznamu se daly jen rekonstruovat z gridu (ARBot.Analyze zasek). NaN = nevi se
+        // (plan nevznikl planovacem, napr. AbortedCollision bez planu).
+
+        /// <summary>Vzdalenost robotu od POZADOVANEHO cile [m] (pred orezem na grid); NaN = nevi se.</summary>
+        public double GoalDistanceM = double.NaN;
+
+        /// <summary>Cim je blokovana bunka POD robotem (<see cref="CellBlockReason.None"/> = neni).</summary>
+        public CellBlockReason StartBlock;
+
+        /// <summary>Odstup bunky pod robotem od nejblizsi neprujezdne [m]; NaN = nevi se.</summary>
+        public double StartClearanceM = double.NaN;
+
         // --- Diagnostika rychlostni obalky: PROC plan predepisuje zrovna takovou rychlost ---
         // Rychlost uzlu = max(MinCostSpeed, min(VClear(odstup, priblizovani), VBrake(freeAhead))).
         // Kdyz robot leze, je potreba vedet, ktery z clenu ji srazi - odstup od prekazek, mireni
@@ -205,6 +220,9 @@ namespace ARBot.Common.Occupancy
             CostSeconds = CostSeconds,
             LengthM = LengthM,
             MinClearanceM = MinClearanceM,
+            GoalDistanceM = GoalDistanceM,
+            StartBlock = (byte)StartBlock,
+            StartClearanceM = StartClearanceM,
             ExpandedCells = ExpandedCells,
             ComputeMs = ComputeMs,
             WayPoints = WayPoints,

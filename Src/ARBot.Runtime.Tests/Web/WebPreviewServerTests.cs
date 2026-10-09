@@ -928,6 +928,86 @@ namespace ARBot.Runtime.Tests.Web
             return m;
         }
 
+        /// <summary>
+        /// Hlidac uvaznuti, ktery prave „videl" robot stat <paramref name="sec"/> s pri jizde
+        /// (navigace Driving, plan RobotBlocked v hloubce); posledni takt = TimeBase.Now.
+        /// </summary>
+        private static ARBot.Common.Diagnostics.StuckMonitor Stoji(double sec)
+        {
+            var m = new ARBot.Common.Diagnostics.StuckMonitor(report: _ => { });
+            var konec = ARBot.Common.Common.TimeBase.Now;
+            int n = (int)Math.Round(sec * 10);
+            for (int k = 0; k <= n; k++)
+            {
+                var t = konec.AddSeconds((k - n) / 10.0);
+                m.Process(new LocalPlanMsg
+                {
+                    Status = (int)ARBot.Common.Occupancy.LocalPlanStatus.RobotBlocked,
+                    StartBlock = (byte)ARBot.Common.Occupancy.CellBlockReason.Geometry, TimeStamp = t,
+                });
+                m.Process(new GlobalNavMsg
+                {
+                    Status = (int)ARBot.Common.Maps.OsmNav.Navigation.GlobalNavStatus.Driving, HasGoal = true, TimeStamp = t,
+                });
+                m.Process(new DriveCommandMsg { TimeStamp = t });
+                m.Process(new RobotStateMsg { TimeStamp = t });
+            }
+            return m;
+        }
+
+        /// <summary>
+        /// Robot stoji pri jizde: navigace i mise v tu chvili hlasi „jede", takze bez radku v hlavicce
+        /// obsluha nepozna, ze robot uvazl (nav-uvaznuti-neohlasene). Text sklada hlidac (tentyz jde
+        /// do Trace), stranka jen vybarvi podle urovne.
+        /// </summary>
+        [Test]
+        public void Uvaznuti_VHlavicce_StojiAUvazl()
+        {
+            string kratce = new WebStatus { StuckSource = () => Stoji(10) }.ToJson(running: true);
+            string stoji = new WebStatus { StuckSource = () => Stoji(25) }.ToJson(running: true);
+            string uvazl = new WebStatus { StuckSource = () => Stoji(65) }.ToJson(running: true);
+            string vadny = new WebStatus { StuckSource = () => throw new InvalidOperationException("test") }.ToJson(running: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(kratce, Does.Not.Contain("stuck"));
+                Assert.That(stoji, Does.Contain("\"stuck\":\"stojí 25 s při jízdě — v buňce blokované hloubkou, únik nenalezen\""));
+                Assert.That(stoji, Does.Contain("\"stuckLevel\":1"));
+                Assert.That(uvazl, Does.Contain("\"stuck\":\"UVÁZL 65 s — v buňce blokované hloubkou, únik nenalezen — zásah obsluhy\""));
+                Assert.That(uvazl, Does.Contain("\"stuckLevel\":2"));
+                Assert.That(vadny, Does.Not.Contain("stuck"), "vadny zdroj nesmi shodit stranku");
+            });
+        }
+
+        /// <summary>
+        /// Stranka umi radek vykreslit: oranzove „stoji", cervene „UVAZL" (trida chyba).
+        /// </summary>
+        [Test]
+        public void Uvaznuti_StrankaHoVykresli()
+        {
+            string html = new WebStatus().ToHtml();
+            Assert.That(html, Does.Contain("h.stuck"));
+            Assert.That(html, Does.Contain("h.stuckLevel>=2?'chyba':'ceka'"));
+        }
+
+        /// <summary>
+        /// Odstup z planu bez drahy (AlreadyAtGoal) je double.MaxValue - v tabulce by z nej bylo
+        /// 309mistne cislo. Neukazuje se.
+        /// </summary>
+        [Test]
+        public void OdstupBezDrahy_SeNeukazuje()
+        {
+            var st = new WebStatus();
+            st.Post(new LocalPlanMsg
+            {
+                Status = (int)ARBot.Common.Occupancy.LocalPlanStatus.AlreadyAtGoal, MinClearanceM = double.MaxValue,
+                LengthM = 0, TimeStamp = ARBot.Common.Common.TimeBase.Now,
+            });
+            string json = st.ToJson(running: true);
+            Assert.That(json, Does.Not.Contain("\"clearance\""));
+            Assert.That(json, Does.Contain("\"planLength\":0"));
+        }
+
         [Test]
         public void Bms_ProcentaProudClankyVTabulce()
         {

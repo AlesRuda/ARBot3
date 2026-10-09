@@ -183,6 +183,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   - **Od 6. 10. 2026 i JÍZDA**: okamžitá rychlost, ujeto v misi a průměr (přes dobu mise
     i v pohybu). Dráha z **odometrické** pózy (`Odometer`), ne z fúzované — ta při korekcích skáče.
     Do fúze ani záznamu vědomě nejde (autor). ⚠️ Na zařízení neběželo (`prov-ujeto-v-misi-na-strance`).
+  - **Od 8. 10. 2026 i UVÁZNUTÍ**: robot, který má jet a nedrží ho STOP ani hold, a neujel 0,5 m —
+    od 20 s oranžově „stojí N s při jízdě — příčina", od 60 s červeně „UVÁZL — zásah obsluhy"
+    (`StuckMonitor`; i do Trace a do záznamu jako `StuckMsg`). Do té doby navigace i mise při stání
+    hlásily „jede". Jen hlásí, nic nepřerušuje (autor). Přehrání nad záznamem `ARBot.Analyze uvazl`
+    (nad 50 záznamy UVÁZL 5×, vždy oprávněně). ⚠️ Na zařízení neběželo (`nav-uvaznuti-neohlasene`).
   - **Ověřeno na Orange Pi 5. 9. 2026**: služba, SIGTERM → `Stop()` 7 ms, zámek, náhled včetně textu
     měřítka a živého snímku z D435, CPU 6,2 % ve fázi čekání. **Neověřeno: start po skutečném rebootu** (`prov-start-po-rebootu`; misi ze stránky robot
     14. 9. odjel, celý seznam Tracku ale neobjel). ⚠️ Jednou spadl na **SIGSEGV**, když byl na Pi zároveň

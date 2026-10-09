@@ -559,7 +559,10 @@ výpis pózy, IMU, příkazů, motorů a měření koridoru. Časy jsou v sekund
 `LocalPlanMsg` jako u `localplan`. **`perf`** — `PerfMsg` (fáze 4 [perf-monitoring.md](perf-monitoring.md)):
 rozložení, po minutách, nejhorší intervaly, stupně, mezery v proudech `T_in`/`T_out` z indexu
 a souběžné výpadky kamer (rozliší „stál proces" od „jen kamery"). **`battery`** a **`odometer`**
-přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad libovolným záznamem. Konfiguraci
+přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad libovolným záznamem. **`uvazl`**
+(od 8. 10. 2026) totéž s hlídačem uváznutí `StuckMonitor`: epizody stání při jízdě, převažující
+příčiny, řádky do Trace a srovnání se `StuckMsg`, má-li je záznam
+([global-navigation-runtime.md](global-navigation-runtime.md), „Hlídač uváznutí"). Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 

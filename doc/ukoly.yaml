@@ -9512,8 +9512,9 @@ temata:
     oblast: navigace
     nazev: Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-08
     popis: >
       27. 8. autor rozhodl, že „zastavit a ohlásit" je zatím přijatelná odpověď na zásek
       (`nav-recovery-manevr`). Část „ohlásit" ale chybí: při `RobotBlocked` i `AlreadyAtGoal`
@@ -9522,16 +9523,113 @@ temata:
       komentář přitom tvrdil, že zaseknutí hlídají detektory — opraveno 7. 10.), do `Trace` nejde nic
       a stránka náhledu stav plánu neukazuje. 1. 10. 2026 robot stál v `RobotBlocked` 132 + 42 s
       (GN `Driving`, 0 uzavření, Trace prázdná), 18. 9. v `AlreadyAtGoal` ~6 min.
+      **Řešení 8. 10. 2026 (rozhodnutí autora):** samostatný stupeň `StuckMonitor` — robot má jet
+      (cíl navigace / FreeRun / lokální plán bez mapy), nedrží ho STOP ani hold, a neujel 0,5 m
+      (klouzavé okno), bez ohledu na stav plánu (Kolo4 268 s v `GoalUnsafe`). Od 20 s „stojí",
+      od 60 s „UVÁZL — zásah obsluhy"; jen hlásí (hlavička stránky, Trace, `StuckMsg`), příčina
+      převažující za 10 s z lokálního plánu (`LocalPlanMsg` v4 nese vzdálenost mrkve a blokaci buňky
+      pod robotem); východ se nepočítá. `ARBot.Analyze uvazl` přehraje týž kód nad záznamem: nad 50
+      záznamy UVÁZL 5×, vždy oprávněně, „stojí" 19×.
     kroky:
       - co: "Změřeno nad 1. 10. a 18. 9. (`nav`, `localplan`, `zasek`, log)"
         stav: hotovo
         kdy: 2026-10-07
-      - co: "Rozhodnout (autor): řádek „stojím v blokované buňce N s, východ X m směrem Y“ na stránce a do Trace (škrceně), stav „uvázl“ v `GlobalNavMsg`, případně reakce mise"
+      - co: "Rozhodnuto (autor): stání při jízdě bez ohledu na stav plánu, 20 s / 60 s, jen ohlásit, bez výpočtu východu"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "`StuckMonitor` + `StuckMsg`, `LocalPlanMsg` v4, řádek na stránce, sloupce telemetrie, `ARBot.Analyze uvazl`; přehráno nad 50 záznamy"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Ověřit na zařízení: řádek na stránce a Trace při skutečném stání; přeměřit `uvazl` na jízdách s `localframe=odom`"
         stav: otevreno
     odkazy:
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
-    devlog: [2026-10-07]
+      - text: StuckMonitor.cs
+        cesta: Src/ARBot.Common/Diagnostics/StuckMonitor.cs
+    devlog: [2026-10-07, 2026-10-08]
+    ceka_na: []
+
+  - id: nav-detektor-c-mrtvy
+    oblast: navigace
+    nazev: "Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá"
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-08
+    popis: >
+      Nalezeno při rozboru `nav-uvaznuti-neohlasene`. Od 29. 9. počítá detektor C jen `NoRoute`,
+      ale `LocalPathPlanner.Search` začíná s `bestIdx = startIdx`, takže `target` je vždy ≥ 0 a větev
+      `NoRoute` je mrtvá — „nikam se nedá" vyjde jako `AlreadyAtGoal` (lokální minimum),
+      `GoalBlocked`/`GoalUnsafe` bez dráhy nebo `RobotBlocked`. V záznamech 0 plánů `NoRoute`; C
+      spouštějí jen testy. Dále: detektor A při prvních dvou spuštěních jen tiše zvýší čítač (do Trace
+      nic, ozve se až třetí, které zavře hranu), nuluje okno každým plánem mimo „platné" stavy
+      (při stání se stavy střídají ~19×/s), a `SetGoal`/`Cancel` jeho stav (`noMotionSince`,
+      `localPlanValid`) nenulují. Hlášení uváznutí už řeší `StuckMonitor`; tohle se týká reakce
+      navigace (uzavírání hran), kterou rozhoduje autor.
+    kroky:
+      - co: "Nalezeno (kód + 27 záznamů: 0× `NoRoute`)"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Rozhodnout (autor): smazat mrtvou větev a C, nebo C navázat na jiný signál; spuštění A do Trace"
+        stav: otevreno
+    odkazy:
+      - text: global-navigation-runtime.md
+        cesta: doc/global-navigation-runtime.md
+    devlog: [2026-10-08]
+    ceka_na: []
+
+  - id: lp-kolize-pri-stani
+    oblast: lokalni-planovani
+    nazev: "Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky"
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-08
+    popis: >
+      Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). `LocalNavigator.
+      PathCollides` počítá dosah kontroly `v²/(2a) + v·Ts + buňka`, takže při `v = 0` vyjde 0,05 m
+      a větev „robot stojí → nekontroluj" je mrtvá. U běžné dráhy hlásí kolizi už při odstupu pod
+      `SafeDist` (0,4 m), kdežto únik se spouští až pod `SafeDist − buňka/2` (0,375 m): robot stojící
+      v tom pásmu plánuje běžně, a když v cyklu nevznikne nová dráha, regulátor se zahodí,
+      ven jde `AbortedCollision` (přepíše stav plánovače) a neškrcená Trace „NOUZOVE ZASTAVENI".
+      Pravděpodobné vysvětlení Kola4 (19. 9.): uvnitř `GoalUnsafe` 9× „kolize 0,00 m" po 12–15 s.
+      Navíc po `ClearGoal` zůstává `activePath`, takže tatáž hláška může přijít i bez cíle (stanoviště).
+      Příbuzné `lp-unik-kontrola-kolize-startu` (úniková dráha).
+    kroky:
+      - co: "Nalezeno v kódu (f848fdf i HEAD)"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Ověřit nad Kolo4 (`localplan`, `log`) a rozhodnout: nekontrolovat stojící robot / sjednotit práh s únikem / mazat `activePath` s cílem"
+        stav: otevreno
+    odkazy:
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+    devlog: [2026-10-08]
+    ceka_na: []
+
+  - id: nav-doc-stavy-nesedi
+    oblast: navigace
+    nazev: "global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)"
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-08
+    popis: >
+      Nalezeno při rozboru `nav-uvaznuti-neohlasene`. Dokument uvádí `GlobalNavStatus` se stavy
+      `Building`, `StuckNoMotion`, `StuckNoProgress`, `RoadBlocked` (v kódu jen 0–5), tabulku
+      `RouteProgress` a `ToLogMessage()` (neexistuje, zprávu skládá `BuildMessage`), že `GlobalNavMsg`
+      nese stavy detektorů a čítače (nenese), že do fronty navigace chodí „dva druhy zpráv po 10 Hz"
+      (chodí vše z výstupu smyčky i lokální vrstvy, včetně snímků), a že C hlídá i stojící robot
+      s `Partial` (implementována jen série `NoRoute`). Komentář `NavReport.cs:179` („počet uzavření
+      může klesat") kódu neodpovídá.
+    kroky:
+      - co: "Sepsáno (5 nesouladů)"
+        stav: hotovo
+        kdy: 2026-10-08
+      - co: "Přepsat sekce „Stav a zprávy“ a „Tři detektory“ podle kódu"
+        stav: otevreno
+    odkazy:
+      - text: global-navigation-runtime.md
+        cesta: doc/global-navigation-runtime.md
+    devlog: [2026-10-08]
     ceka_na: []
 
   - id: lp-alreadyatgoal-lokalni-minimum

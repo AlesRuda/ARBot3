@@ -218,6 +218,9 @@ namespace ARBot.Common.Occupancy
             double goalRadius = double.IsNaN(goalRadiusM) ? cfg.GoalRadiusM : goalRadiusM;
             if (!(goalRadius > 0)) goalRadius = 0;   // chyta i NaN z volajiciho
             goalRadiusCells = goalRadius / cell;
+            // Vzdalenost k POZADOVANEMU cili (pred orezem na grid) - hlidac uvaznuti z ni pozna
+            // "mrkev 7 m daleko je nedosazitelna" u AlreadyAtGoal z lokalniho minima.
+            res.GoalDistanceM = Math.Sqrt((goalX - robotX) * (goalX - robotX) + (goalY - robotY) * (goalY - robotY));
             int i0 = grid.CellX(robotX) - grid.OriginX;
             int j0 = grid.CellY(robotY) - grid.OriginY;
             if ((uint)i0 >= (uint)size || (uint)j0 >= (uint)size)
@@ -246,6 +249,10 @@ namespace ARBot.Common.Occupancy
             // mezi se planuje bezne - start je prujezdny vzdy (robot na nem stoji) a soused dal od
             // prekazky ma odstup o bunku vyssi, tedy nad SafeDist.
             int s0 = i0 + j0 * size;
+            // Kde robot stoji - pro hlidac uvaznuti (StuckMonitor): "v bunce blokovane hloubkou",
+            // "tesne u prekazky". Plati pro vsechny stavy, ktere odsud vzniknou.
+            res.StartBlock = (CellBlockReason)blockReason[s0];
+            res.StartClearanceM = clearance[s0];
             double tightBelow = cfg.SafeDist - cell / 2;
             if (state[s0] == (byte)CellState.Blocked || clearance[s0] < tightBelow)
                 return PlanEscape(res, grid, robotX, robotY, heading, i0, j0, cell);

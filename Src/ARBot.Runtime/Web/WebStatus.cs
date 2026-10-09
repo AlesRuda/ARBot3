@@ -586,15 +586,23 @@ namespace ARBot.Robot.Web
             // a chce nas. Presne tak 17. 9. 2026 zatuhl runtime pri volbe mise. Snimek to poradi
             // rozplete: drzime vzdy jen jeden zamek. Viz doc/headless.md.
             var mise = NactiMisi();
+            // Hlidac uvaznuti take PRED zamkem - ma vlastni zamek a poradi "WebStatus -> cizi
+            // objekt" se tu uz jednou vymstilo (viz vyse).
+            var stuck = Stuck();
 
             lock (gate)
             {
                 sb.Append('{');
                 sb.Append("\"running\":").Append(running ? "true" : "false");
-                AppendHead(sb, mise);
+                AppendHead(sb, mise, stuck);
                 Num(sb, "x", state?.X); Num(sb, "y", state?.Y); Num(sb, "theta", state?.Theta);
                 Num(sb, "v", state?.V); Num(sb, "omega", state?.Omega);
-                Num(sb, "planLength", plan?.LengthM); Num(sb, "clearance", plan?.MinClearanceM);
+                // Udaje planu jen z CERSTVEHO planu (jinak by po vypadku kamer zustala stara cisla)
+                // a odstup jen skutecny: AlreadyAtGoal bez drahy nese double.MaxValue, ktery by se
+                // v tabulce vypsal jako 309mistne cislo.
+                bool planFresh = plan != null && (TimeBase.Now - planAt).TotalSeconds <= PlanFreshSec;
+                Num(sb, "planLength", planFresh ? plan.LengthM : (double?)null);
+                Num(sb, "clearance", planFresh && plan.MinClearanceM < 1e3 ? plan.MinClearanceM : (double?)null);
                 Num(sb, "offRoute", nav?.OffRouteDist); Num(sb, "routeLength", nav?.RouteLengthM);
                 Num(sb, "cpu", perf?.ProcessCpuPct);
                 // Napeti baterie (median za 5 s) - vedle kvality GPS, tedy mezi udaji o stavu
@@ -685,7 +693,7 @@ namespace ARBot.Robot.Web
         /// NTP), zatimco <c>now</c> je <b>systemovy</b> cas - jediny udaj, kde je spravne
         /// <c>DateTime.Now</c>, protoze je to kalendarni cas pro cloveka (viz CLAUDE.md).</para>
         /// </summary>
-        private void AppendHead(StringBuilder sb, MiseSnimek mise)
+        private void AppendHead(StringBuilder sb, MiseSnimek mise, ARBot.Common.Diagnostics.StuckReading? stuck)
         {
             var b = BuildInfo.Current;
             sb.Append(",\"head\":{");
@@ -759,6 +767,15 @@ namespace ARBot.Robot.Web
             if (bat?.Bms is ARBot.Common.Devices.BmsState bp && bp.Protection != ARBot.Common.Devices.BmsProtection.None)
                 sb.Append(",\"bmsProtection\":\"")
                   .Append(Escape(ARBot.Common.Devices.BmsProtectionText.Popis(bp.Protection))).Append('"');
+
+            // ROBOT STOJI PRI JIZDE (hlidac uvaznuti): v hlavicce, protoze navigace i mise v tu chvili
+            // hlasi "jede" a obsluha s mobilem jinak nepozna, ze ceka zbytecne. Text sklada C#
+            // (tentyz jde do Trace), stranka jen vybarvi: 1 = stoji (oranzove), 2 = UVAZL (cervene).
+            if (stuck.HasValue && stuck.Value.Level != ARBot.Common.Diagnostics.StuckLevel.None)
+            {
+                sb.Append(",\"stuck\":\"").Append(Escape(stuck.Value.Text)).Append('"');
+                sb.Append(",\"stuckLevel\":").Append((int)stuck.Value.Level);
+            }
 
             AppendMissionPick(sb);
             AppendMagCal(sb);
@@ -900,6 +917,29 @@ namespace ARBot.Robot.Web
 
         private static ARBot.Common.Diagnostics.BatteryMonitor BatteryZRuntime()
             => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Battery : null;
+
+        /// <summary>
+        /// Zdroj hlidace <b>uvaznuti</b> (<see cref="ARBot.Common.Diagnostics.StuckMonitor"/>). Vychozi
+        /// cte tentyz objekt, ktery hlasi do Trace; test si podstrci vlastni. Viz nav-uvaznuti-neohlasene.
+        /// </summary>
+        public Func<ARBot.Common.Diagnostics.StuckMonitor> StuckSource { get; set; } = StuckZRuntime;
+
+        private static ARBot.Common.Diagnostics.StuckMonitor StuckZRuntime()
+            => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Stuck : null;
+
+        /// <summary>Stav hlidace uvaznuti, nebo <c>null</c> (zadny hlidac). Nesmi shodit stranku.</summary>
+        private ARBot.Common.Diagnostics.StuckReading? Stuck()
+        {
+            try
+            {
+                return StuckSource?.Invoke()?.Read();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("WebStatus: cteni hlidace uvaznuti selhalo: " + ex.Message);
+                return null;
+            }
+        }
 
         /// <summary>Odecet baterie, nebo <c>null</c> (zadny monitor). Nesmi shodit stranku.</summary>
         private ARBot.Common.Diagnostics.BatteryReading? Battery()
@@ -1518,6 +1558,11 @@ function hlavicka(h){
  // (treba pri restartu kamer) a clovek musi videt DUVOD, ne jen ze se nehybe.
  if(h.holds&&h.holds.length)
   m+=(m?'<br>':'')+'<span class=""ceka"">zastaveno: '+h.holds.join(', ')+'</span>';
+ // Robot stoji pri jizde (hlidac uvaznuti): navigace i mise v tu chvili hlasi jede, takze bez
+ // tohohle radku obsluha nepozna, ze robot uvazl. 1 = stoji (muze se vyresit samo), 2 = UVAZL.
+ if(h.stuck)
+  m+=(m?'<br>':'')+'<span class=""'+(h.stuckLevel>=2?'chyba':'ceka')+'"">'
+   +h.stuck.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>';
  // Vybita baterie: v hlavicce, cervene - na Robotouru 19. 9. robot zastavil s vybitou baterii
  // a stranka napeti vubec neukazovala. Start mise se neblokuje, rozhoduje obsluha.
  if(h.batteryLow)

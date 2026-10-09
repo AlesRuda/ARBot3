@@ -274,6 +274,9 @@ namespace ARBot.Analyze
                     case "odometer":
                         OdometerReport.Run(rec);
                         return 0;
+                    case "uvazl":
+                        UvazlReport.Run(rec);
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -495,6 +498,8 @@ namespace ARBot.Analyze
             Console.WriteLine("             --batwarn=<V> (bez zadani ze zaznamu, jinak default dnesniho kodu)");
             Console.WriteLine("  odometer   ujeta draha: prehrani Odometer (dnesni kod) nad odometrickou pozou z RobotStateMsg");
             Console.WriteLine("             (u verze 1 integral v, omega), srovnani s fuzovanou polohou a GPS, useky mise Track");
+            Console.WriteLine("  uvazl      robot stal pri jizde: prehrani StuckMonitor (dnesni kod, prahy 20 s / 60 s) -");
+            Console.WriteLine("             epizody, priciny, radky do Trace; srovnani se StuckMsg ze zaznamu, ma-li je");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");

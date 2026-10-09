@@ -1250,6 +1250,15 @@ namespace ARBot.Robot
             stages.Add(Battery);
             connections.Add(stream.Connect(Battery));
 
+            // HLIDAC UVAZNUTI: robot ma jet (cil navigace / FreeRun), nedrzi ho STOP ani hold, a stoji.
+            // Jen hlasi - od 20 s "stoji", od 60 s "UVAZL" - do Trace, do zaznamu (StuckMsg) a na
+            // stranku nahledu (cte tentyz objekt). Do 8. 10. 2026 uvaznuti nehlasil nikdo: navigace
+            // i mise rikaly "jede" a robot stal do zasahu obsluhy (nav-uvaznuti-neohlasene).
+            Stuck = new ARBot.Common.Diagnostics.StuckMonitor();
+            stages.Add(Stuck);
+            connections.Add(stream.Connect(Stuck));
+            connections.Add(Stuck.Output.Connect(stream));
+
             // Most Trace -> Info: debugovaci vystup (Debug.WriteLine i logy Avalonie) tece do Stream,
             // takze se ULOZI DO ZAZNAMU a da se precist zpetne - i z behu na zarizeni, kde k oknu
             // Debug output nikdo nesedi. Zalozeny a zapojeny do Trace je uz od zacatku dratovani
@@ -1400,6 +1409,12 @@ namespace ARBot.Robot
         /// pred prvnim startem. Cte ho stranka nahledu. Viz prov-baterie-na-strance.
         /// </summary>
         public ARBot.Common.Diagnostics.BatteryMonitor Battery { get; private set; }
+
+        /// <summary>
+        /// Hlidac uvaznuti (robot stoji pri jizde) - stranka nahledu z nej cte radek „stojí / UVÁZL".
+        /// Viz nav-uvaznuti-neohlasene.
+        /// </summary>
+        public ARBot.Common.Diagnostics.StuckMonitor Stuck { get; private set; }
 
         /// <summary>Bezici mise FreeRun, nebo <c>null</c> (viz <c>mission=</c>).</summary>
         public ARBot.Common.Missions.FreeRunMission FreeRunMission { get; private set; }

@@ -78,6 +78,23 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   test, který čte právě zapisovanou cestu, bez zámku padá 3 z 3 → zámek. `FreeRunMsg` v3
   (`WidthLearned`), stránka „šířka naučená", `ARBot.Analyze freerun`. Testy Common 1 822, HAL 172,
   Runtime 161. ⚠️ Na zařízení neběželo. Detail [mission-freerun.md](mission-freerun.md).
+- **Hlídač uváznutí** (`nav-uvaznuti-neohlasene`): průzkum (4 paralelní mapy + kritik) potvrdil, že
+  stání nikdo neohlásí z konstrukce — detektor A se při střídání stavů plánu neozbrojí, C je mrtvý
+  (`NoRoute` plánovač nevrací → `nav-detektor-c-mrtvy`), FreeRun navigaci nemá. Autor rozhodl
+  (4 volby): stání při jízdě bez ohledu na stav plánu, 20 s „stojí" / 60 s „UVÁZL", jen ohlásit,
+  bez výpočtu východu ([decisions.md](decisions.md)). Hotové: `StuckMonitor` (stupeň na Streamu,
+  čas dat, klouzavé okno, hystereze, převažující příčina za 10 s), `StuckMsg`, `LocalPlanMsg` v4
+  (vzdálenost mrkve, blokace buňky pod robotem), řádek v hlavičce stránky, sloupce telemetrie,
+  `ARBot.Analyze uvazl`. Přehráno nad 50 záznamy: UVÁZL 5× (1. 10. 136 s, 18. 9. 148 + 167 s,
+  Kolo4 278 s, 2. 9. 62 s), vždy oprávněně; první verze s kotvou místo okna blikala při plížení
+  a hlásila příčinu podle posledního plánu — obojí opraveno podle dat. Přitom opraveno: odstup
+  v tabulce stránky u plánu bez dráhy (`double.MaxValue`) a zastaralé údaje plánu. Nové nálezy:
+  `lp-kolize-pri-stani`, `nav-doc-stavy-nesedi`. Nezávislá kontrola (4 pohledy, každý nález dva
+  oponenti) potvrdila 4 drobné vady, opravené: FreeRun při výpadku kamer hlídač ukončil jako „jízda
+  skončila" (teď „bez lokálního plánu"), telemetrie ukazovala u starých záznamů „None"/NaN a kombinaci
+  hloubka+barva jako „3", koncová `StuckMsg` míchala okno s délkou epizody (teď `EpisodeSec`).
+  Přehrání po opravách: tytéž epizody. Testy Common 1 850, HAL 172, Runtime 164.
+  ⚠️ Na zařízení neběželo. Detail [global-navigation-runtime.md](global-navigation-runtime.md).
 
 ## 2026-10-07
 

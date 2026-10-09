@@ -36,6 +36,20 @@ namespace ARBot.Common.Logs
         /// <summary>Doba planovani [ms] (integrace + EDT + A*).</summary>
         public double ComputeMs;
 
+        // --- Kde robot stoji (verze 4, 8. 10. 2026) ---
+        // Z nich hlidac uvaznuti (StuckMonitor) pojmenuje pricinu stani. Ve starsich verzich chybi
+        // (NaN / None) - ze starsiho zaznamu se pricina pozna jen hrubeji (podle stavu planu).
+
+        /// <summary>Vzdalenost robotu od POZADOVANEHO cile [m] (verze 4); NaN = nevi se.</summary>
+        public double GoalDistanceM = double.NaN;
+        /// <summary>Cim je blokovana bunka pod robotem (<see cref="CellBlockReason"/> jako byte, verze 4).</summary>
+        public byte StartBlock;
+        /// <summary>Odstup bunky pod robotem od nejblizsi neprujezdne [m] (verze 4); NaN = nevi se.</summary>
+        public double StartClearanceM = double.NaN;
+
+        /// <summary>Typovany pohled na <see cref="StartBlock"/>.</summary>
+        public CellBlockReason StartBlockReason => (CellBlockReason)StartBlock;
+
         // --- Rozpad rychlostni obalky PO UZLECH (verze 2) ---
         // Kazdy waypoint uz nese vyslednou Speed; tohle je jeji ROZPAD, tedy PROC je zrovna takova.
         // Po uzlech, ne jako minimum pres plan: rozdil mezi "leze uz u sebe" a "za dva metry se
@@ -175,8 +189,11 @@ namespace ARBot.Common.Logs
         /// (<see cref="MinFreeAheadM"/>, <see cref="MinVClear"/>, <see cref="MinVBrake"/>,
         /// <see cref="MinWayPointSpeed"/>).</para>
         /// <para><b>Verze 3</b> (2026-10-04) pridala soustavu planu <see cref="Frame"/> a transformaci
-        /// do sveta (lp-grid-odometricka-soustava).</para></summary>
-        public const int FormatVersion = 3;
+        /// do sveta (lp-grid-odometricka-soustava).</para>
+        /// <para><b>Verze 4</b> (2026-10-08) pridala, kde robot stoji: <see cref="GoalDistanceM"/>,
+        /// <see cref="StartBlock"/>, <see cref="StartClearanceM"/> (hlidac uvaznuti,
+        /// nav-uvaznuti-neohlasene).</para></summary>
+        public const int FormatVersion = 4;
 
         public LocalPlanMsg() : base("LocalPlanMsg", FormatVersion)
         {
@@ -225,6 +242,13 @@ namespace ARBot.Common.Logs
                 bw.Write(FrameDX);
                 bw.Write(FrameDY);
                 bw.Write(FrameDTheta);
+            }
+
+            if (Verze >= 4)
+            {
+                bw.Write(GoalDistanceM);
+                bw.Write(StartBlock);
+                bw.Write(StartClearanceM);
             }
         }
 
@@ -287,6 +311,14 @@ namespace ARBot.Common.Logs
                 FrameDX = br.ReadDouble();
                 FrameDY = br.ReadDouble();
                 FrameDTheta = br.ReadDouble();
+            }
+
+            // Do verze 3 vcetne se nevi, kde robot stoji (NaN / None).
+            if (Verze >= 4)
+            {
+                GoalDistanceM = br.ReadDouble();
+                StartBlock = br.ReadByte();
+                StartClearanceM = br.ReadDouble();
             }
         }
 

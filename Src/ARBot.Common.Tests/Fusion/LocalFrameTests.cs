@@ -173,8 +173,8 @@ namespace ARBot.Common.Tests.Fusion
         public void PlanMsg_RoundTripVerze3_NeseSoustavu_Verze2JeVeSvete()
         {
             var p = Plan();
+            p.Verze = 3;
             var zpet = RoundTrip(p, new LocalPlanMsg(), 3);
-            Assert.That(LocalPlanMsg.FormatVersion, Is.EqualTo(3));
             Assert.That(zpet.Frame, Is.EqualTo(LocalFrame.Odom));
             Assert.That(zpet.Transform, Is.EqualTo(p.Transform));
             Assert.That(zpet.WayPoints[1].X, Is.EqualTo(2));
@@ -183,6 +183,39 @@ namespace ARBot.Common.Tests.Fusion
             var v2 = RoundTrip(p, new LocalPlanMsg(), 2);
             Assert.That(v2.Frame, Is.EqualTo(LocalFrame.World));
             Assert.That(v2.Transform.IsIdentity, Is.True);
+        }
+
+        /// <summary>
+        /// Verze 4 (8. 10. 2026) nese, kde robot stoji - pro hlidac uvaznuti. Starsi verze ji nemaji
+        /// a cteni z nich da „nevi se" (NaN / None), ne nulu.
+        /// </summary>
+        [Test]
+        public void PlanMsg_RoundTripVerze4_NeseKdeRobotStoji_Verze3NeznaHo()
+        {
+            var p = Plan();
+            p.GoalDistanceM = 7.2;
+            p.StartBlock = (byte)ARBot.Common.Occupancy.CellBlockReason.Geometry;
+            p.StartClearanceM = 0.05;
+            Assert.That(LocalPlanMsg.FormatVersion, Is.EqualTo(4));
+            Assert.That(p.Verze, Is.EqualTo(4));
+
+            var zpet = RoundTrip(p, new LocalPlanMsg(), 4);
+            Assert.Multiple(() =>
+            {
+                Assert.That(zpet.GoalDistanceM, Is.EqualTo(7.2));
+                Assert.That(zpet.StartBlockReason, Is.EqualTo(ARBot.Common.Occupancy.CellBlockReason.Geometry));
+                Assert.That(zpet.StartClearanceM, Is.EqualTo(0.05));
+                Assert.That(zpet.Frame, Is.EqualTo(LocalFrame.Odom));
+            });
+
+            p.Verze = 3;
+            var v3 = RoundTrip(p, new LocalPlanMsg(), 3);
+            Assert.Multiple(() =>
+            {
+                Assert.That(double.IsNaN(v3.GoalDistanceM), Is.True);
+                Assert.That(v3.StartBlock, Is.EqualTo(0));
+                Assert.That(double.IsNaN(v3.StartClearanceM), Is.True);
+            });
         }
 
         private static T RoundTrip<T>(T msg, T empty, int verze) where T : Message

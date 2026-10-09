@@ -576,6 +576,41 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.RobotBlocked));
         }
 
+        /// <summary>
+        /// Plan nese, KDE robot stoji (od 8. 10. 2026, LocalPlanMsg v4): cim je blokovana bunka pod
+        /// nim, jeji odstup a vzdalenost k pozadovanemu cili. Z toho hlidac uvaznuti pojmenuje
+        /// pricinu stani („v bunce blokovane hloubkou").
+        /// </summary>
+        [Test]
+        public void Plan_NeseKdeRobotStoji()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacle(-0.1, -0.1, 0.1, 0.1);   // hloubka presne pod robotem
+            s.Rebuild();
+            var blok = s.Plan(2.0, 0.0);
+
+            var t = Scene.Create();
+            t.MarkFree(-3, -3, 3, 3);
+            t.Rebuild();
+            var volno = t.Plan(3.0, 4.0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(blok.StartBlock, Is.EqualTo(CellBlockReason.Geometry));
+                Assert.That(blok.StartClearanceM, Is.EqualTo(0.0).Within(1e-6));
+                Assert.That(blok.GoalDistanceM, Is.EqualTo(2.0).Within(1e-9));
+
+                Assert.That(volno.StartBlock, Is.EqualTo(CellBlockReason.None));
+                Assert.That(volno.StartClearanceM, Is.GreaterThan(1.0));
+                Assert.That(volno.GoalDistanceM, Is.EqualTo(5.0).Within(1e-9), "k POZADOVANEMU cili, pred orezem");
+
+                var m = blok.ToLogMessage();
+                Assert.That(m.StartBlockReason, Is.EqualTo(CellBlockReason.Geometry));
+                Assert.That(m.GoalDistanceM, Is.EqualTo(2.0).Within(1e-9));
+            });
+        }
+
         [Test]
         public void RobotBlizkoPrekazky_MuzePrestoOdjet()
         {
