@@ -9485,8 +9485,9 @@ temata:
     oblast: lokalni-planovani
     nazev: "Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“"
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-09
     popis: >
       `LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie
       (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje
@@ -9496,16 +9497,24 @@ temata:
       které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57,
       15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys
       (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola.
+      **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková
+      dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že
+      kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu.
+      Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid
+      neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo.
     kroky:
       - co: "Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m)"
         stav: hotovo
         kdy: 2026-10-07
       - co: "Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Při rozšíření úniku na celý půdorys (`lp-zapis-volna-pod-robotem`) rozšířit výjimku stejně"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: nav-uvaznuti-neohlasene
@@ -9636,8 +9645,9 @@ temata:
     oblast: lokalni-planovani
     nazev: "`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu"
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-09
     popis: >
       `LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem
       (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere
@@ -9646,18 +9656,26 @@ temata:
       a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev
       6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s).
       Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`).
+      **V kódu 9. 10. 2026:** stav `LocalMinimum` a detektor A při něm ozbrojený; řízení se nemění
+      (robot stojí jako dřív). Starší záznamy mají slepý konec pod `AlreadyAtGoal`. ⚠️ Na HW neběželo.
     kroky:
       - co: "Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0)"
         stav: hotovo
         kdy: 2026-10-07
-      - co: "Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky (`GoalBlocked` / nový) a reakci globální navigace"
+      - co: "Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky a reakci globální navigace — autor 9. 10.: varianta A, nový stav + detektor A"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "V kódu: nový stav `LocalMinimum` (`Partial` s plánem nulové délky), `AlreadyAtGoal` jen u `Ok`; globální navigace ho bere jako platný plán → detektor A; `ARBot.Analyze zasek` a `nav` ho počítají jako stání; 3 testy"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Ověřit na zařízení: ve slepém konci detektor A penalizuje/zavře hranu a trasa se přeplánuje"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
       - text: global-navigation-runtime.md
         cesta: doc/global-navigation-runtime.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: lok-koridor-chodnik-k-ulici
@@ -9691,8 +9709,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Smazání gridu po skoku pózy nezanechá v Trace stopu
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-09
     popis: >
       `LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo
       `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu
@@ -9701,13 +9720,19 @@ temata:
       dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch
       jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz,
       velikost, `dt`).
+      **V kódu 9. 10. 2026:** `PoseJumpDetector` popíše skok (druh posun/kurz, velikost, kolik vysvětlí
+      rychlost, `dt`, čas pozadu) a `LocalNavigator` ho zapíše přes `PoruchaHlasic` i se soustavou
+      a počtem smazání. 5 testů. ⚠️ Na HW neběželo.
     kroky:
       - co: "Hláška do Trace přes `PoruchaHlasic`, test"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Ověřit na zařízení: po skoku pózy je v journalu řádek „grid smazan“ s důvodem"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: lok-fuze-rucni-otoceni
@@ -9950,17 +9975,25 @@ temata:
     oblast: nastroje
     nazev: Údaje z BMS nejsou v telemetrickém pohledu
     druh: zamer
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-08
+    vyreseno: 2026-10-09
     popis: >
       Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce
       vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani
       napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
+      **V kódu 9. 10. 2026:** deset sloupců za motory (nabití, U, I, zbývá Ah, článek min/max, Δ článků,
+      teplota, ochrana s českým popisem, příznak „bez měření"); zpráva bez měření dává prázdno, ne nulu.
+      Ověřeno buildem, testy telemetrie a záznamem ze simulace (12 zpráv BmsState za ~20 s);
+      ⚠️ v okně aplikace neproklikané.
     kroky:
       - co: "Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Otevřít záznam s BmsState v telemetrickém pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)"
         stav: otevreno
     odkazy:
       - text: plan-bms-jbd.md
         cesta: doc/plan-bms-jbd.md
-    devlog: [2026-10-08]
+    devlog: [2026-10-08, 2026-10-09]
     ceka_na: []

@@ -383,6 +383,38 @@ namespace ARBot.Telemetry
                 "Kolik vzorků driver motorů zahodil před tímto (nestíhané čtení). Nenulové = "
                 + "měření chybí a odometrie ve fúzi je řidší, než by měla být.", "F0"),
 
+            // --- BMS (BmsState, hw-bms-telemetrie) - stav baterie z chytre BMS ---
+            // Zprava bez mereni (chyba komunikace) dava PRAZDNO, ne nulu; starsi zaznamy BmsState
+            // nemaji vubec. Viz doc/plan-bms-jbd.md.
+            Num<BmsState>("BMS nabití [%]", m => m.HasMeasurement ? m.SocPercent : null,
+                "Stav nabití baterie podle BMS (počítání prošlého náboje, na 100 % se srovná při "
+                + "plném nabití). Podle něj varuje stránka náhledu (batwarnsoc=).", "F0"),
+            Num<BmsState>("BMS U [V]", m => m.HasMeasurement ? m.PackVoltage : null,
+                "Napětí baterie změřené BMS na článcích. Proti „bat [V]“ z motorové jednotky ukáže "
+                + "úbytek na vedení a odchylku měření jednotky."),
+            Num<BmsState>("BMS I [A]", m => m.HasMeasurement ? m.Current : null,
+                "Proud z baterie podle BMS, kladně = nabíjení, záporně = odběr. Je to celý robot "
+                + "včetně elektroniky, ne jen motory („I L/R“).", "F1"),
+            Num<BmsState>("BMS zbývá [Ah]", m => m.HasMeasurement ? m.RemainingAh : null,
+                "Zbývající kapacita podle BMS. Jmenovitá kapacita se nastavuje aplikací v mobilu.", "F1"),
+            Num<BmsState>("BMS článek min [V]", m => m.HasMeasurement ? Konecne(m.CellMinV) : null,
+                "Napětí nejslabšího článku. Pod zátěží klesá jako první; podle něj zasahuje ochrana "
+                + "podpětí.", "F3"),
+            Num<BmsState>("BMS článek max [V]", m => m.HasMeasurement ? Konecne(m.CellMaxV) : null,
+                "Napětí nejsilnějšího článku. Při nabíjení podle něj zasahuje ochrana přepětí.", "F3"),
+            Num<BmsState>("BMS Δ článků [mV]", m => m.HasMeasurement ? Konecne((m.CellMaxV - m.CellMinV) * 1000) : null,
+                "Rozdíl nejsilnějšího a nejslabšího článku. Zdravá vyrovnaná baterie v klidu do ~30 mV; "
+                + "roste-li, je článek slabý nebo nevyrovnaný.", "F0"),
+            Num<BmsState>("BMS teplota [°C]", m => m.HasMeasurement ? Konecne(m.TempMaxC) : null,
+                "Nejvyšší teplota z čidel BMS. Prázdno = BMS čidla nehlásí.", "F1"),
+            Protection("BMS ochrana",
+                "Zásah ochrany BMS (podpětí, mráz při nabíjení, nadproud…). V tabulce popis, v grafu "
+                + "schod; „žádná“ = BMS nezasahuje. Při podpětí nebo nadproudu vybíjení BMS odpojí "
+                + "baterii a robot zhasne, takže takový stav se do záznamu většinou už nedostane."),
+            Flag<BmsState>("BMS bez měření", m => !m.HasMeasurement,
+                "Driver se s BMS nedomluvil (BMS mlčí, vadný součet, nesmyslná data) a vydal zprávu "
+                + "bez měření. Ostatní sloupce BMS jsou v takovém řádku prázdné."),
+
             // --- IMU (IMUState) - orientace a dynamika v telovem ramci FLU (X vpred, Y vlevo, Z nahoru) ---
             Num<IMUState>("IMU yaw [°]", m => Deg(m.YPR()?.Yaw),
                 "Kurz z IMU dopočtený z kvaternionu, ve stejné konvenci jako „theta“ (řídí ji přepínač Azimut). Proti "
@@ -459,6 +491,25 @@ namespace ARBot.Telemetry
         /// </summary>
         private static double? Deg(double? rad)
             => rad.HasValue ? Conversions.Rad2Deg(rad.Value) : (double?)null;
+
+        /// <summary>NaN (zprava bez clanku/cidel) na chybejici hodnotu - prazdno, ne „NaN“.</summary>
+        private static double? Konecne(double v) => double.IsFinite(v) ? v : (double?)null;
+
+        /// <summary>
+        /// Sloupec priznaku ochran BMS: v tabulce cesky popis (<see cref="BmsProtectionText"/>),
+        /// v grafu schod podle cisla priznaku. Popis bere i kombinace a nezname bity, coz obecny
+        /// <see cref="Enum{T, TEnum}"/> pro <c>[Flags]</c> neumi.
+        /// </summary>
+        private static ColumnSpec Protection(string header, string description)
+            => new ColumnSpec
+            {
+                MsgName = new BmsState().MsgName,
+                Header = header,
+                Description = description,
+                Format = "F0",
+                Value = m => m is BmsState b && b.HasMeasurement ? (int)b.Protection : (double?)null,
+                Text = v => BmsProtectionText.Popis((BmsProtection)(ushort)v),
+            };
 
         /// <summary>Velikost posunu transformace odom → svet (viz <c>RobotState.OdomToWorld</c>).</summary>
         private static double KorekcePosun(RobotStateMsg m)

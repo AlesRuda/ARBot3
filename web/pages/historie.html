@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">43</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">31</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">39</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">35</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">170</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">13</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -460,6 +460,10 @@
       <li data-tema="nav-detektor-c-mrtvy"><span class="mono">8. 10.</span> <span class="typ">nalezeno</span> <a href="#nav-detektor-c-mrtvy">Detektor C glob&#225;ln&#237; navigace je mrtv&#253; — lok&#225;ln&#237; pl&#225;novač <code>NoRoute</code> nikdy nevr&#225;t&#237;; prvn&#237; dvě spuštěn&#237; A jsou tich&#225;</a></li>
       <li data-tema="nav-doc-stavy-nesedi"><span class="mono">8. 10.</span> <span class="typ">nalezeno</span> <a href="#nav-doc-stavy-nesedi">global-navigation-runtime.md popisuje stavy a zpr&#225;vu, kter&#233; v k&#243;du nejsou (<code>StuckNoMotion</code>, <code>RouteProgress</code>, stav detektorů v <code>GlobalNavMsg</code>)</a></li>
       <li data-tema="nav-uvaznuti-neohlasene"><span class="mono">8. 10.</span> <span class="typ">vyřešeno</span> <a href="#nav-uvaznuti-neohlasene">Uv&#225;znut&#237; v lok&#225;ln&#237; mapě nikdo neohl&#225;s&#237; — glob&#225;ln&#237; navigace i mise hl&#225;s&#237; „jede“ a robot stoj&#237; do z&#225;sahu obsluhy</a></li>
+      <li data-tema="hw-bms-telemetrie"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
+      <li data-tema="lp-alreadyatgoal-lokalni-minimum"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-alreadyatgoal-lokalni-minimum"><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</a></li>
+      <li data-tema="lp-mazani-gridu-bez-stopy"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-mazani-gridu-bez-stopy">Smaz&#225;n&#237; gridu po skoku p&#243;zy nezanech&#225; v Trace stopu</a></li>
+      <li data-tema="lp-unik-kontrola-kolize-startu"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-unik-kontrola-kolize-startu">Kontrola kolize &#250;nikov&#233; dr&#225;hy nevyj&#237;m&#225; startovn&#237; buňku — falešn&#233; „NOUZOVE ZASTAVENI – kolize 0,00 m“</a></li>
     </ul>
   </div>
 </section>
@@ -1358,35 +1362,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-22">2026-09-22</a></p>
   </article>
-  <article class="tema" id="lp-alreadyatgoal-lokalni-minimum" data-stav="otevreno">
-    <h3><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
-    <p><code>LocalPathPlanner</code> přep&#237;še <code>Partial</code>, jehož nejbližš&#237; dosažiteln&#225; buňka je ta pod robotem (pl&#225;n &lt; 2 uzly), na <code>AlreadyAtGoal</code> bez ohledu na vzd&#225;lenost mrkve. <code>GlobalNavigator</code> bere jako platn&#253; pl&#225;n jen <code>Ok</code>/<code>Partial</code>/<code>GoalBlocked</code>/<code>GoalUnsafe</code>, takže detektor A je při <code>AlreadyAtGoal</code> vynulovan&#253;. 18. 9. 2026 (<code>20260918-154028.rec</code>) tak robot st&#225;l 388–466 s a 575–737 s ve slep&#233;m konci chodn&#237;ku: 4 168 pl&#225;nů <code>AlreadyAtGoal</code>, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložen&#233; f&#225;zi <code>Partial</code> (zavřel hrany v 556,6 s). T&#225;ž past jako 3. 9. u mrkve v tr&#225;vě (tam vzniklo <code>GoalBlocked</code>).</p>
-    <ul class="kroky">
-      <li class="hotovo">Nalezeno nad 18. 9. (<code>zasek</code>, <code>localplan</code>, k&#243;d f848fdf / 9f649a0) <span class="mono">7. 10. 2026</span></li>
-      <li class="otevreno">Rozhodnout (autor): stav pro nedosažitelnou mrkev při pl&#225;nu nulov&#233; d&#233;lky (<code>GoalBlocked</code> / nov&#253;) a reakci glob&#225;ln&#237; navigace</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
-  </article>
-  <article class="tema" id="lp-mazani-gridu-bez-stopy" data-stav="otevreno">
-    <h3>Smaz&#225;n&#237; gridu po skoku p&#243;zy nezanech&#225; v Trace stopu</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
-    <p><code>LocalNavigator</code> při skoku p&#243;zy (<code>PoseJumpDetector</code>) grid smaže a zv&#253;š&#237; jen poč&#237;tadlo <code>GridResets</code> — do <code>Trace</code> nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7&#215; (skoky kurzu při v&#253;padku kamer a ručn&#237;m otočen&#237;, 15:15:43 při z&#225;seku procesu) a v logu z&#225;znamu o tom nen&#237; ani ř&#225;dek; smaz&#225;n&#237; v 15:27:35, kter&#233; jako jedin&#233; ukončilo 132s <code>RobotBlocked</code>, se dalo dohledat jen z propadu zn&#225;m&#253;ch buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace&quot; (CLAUDE.md) — hl&#225;šen&#237; se škrcen&#237;m přes <code>PoruchaHlasic</code> (důvod: posun / kurz, velikost, <code>dt</code>).</p>
-    <ul class="kroky">
-      <li class="otevreno">Hl&#225;ška do Trace přes <code>PoruchaHlasic</code>, test</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
-  </article>
-  <article class="tema" id="lp-unik-kontrola-kolize-startu" data-stav="otevreno">
-    <h3>Kontrola kolize &#250;nikov&#233; dr&#225;hy nevyj&#237;m&#225; startovn&#237; buňku — falešn&#233; „NOUZOVE ZASTAVENI – kolize 0,00 m“</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
-    <p><code>LocalPathPlanner.PlanEscape</code> pust&#237; z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na n&#237; stoj&#237;), ale <code>LocalNavigator.PathCollides</code> pro &#250;nikovou dr&#225;hu kontroluje geometrii **bez v&#253;jimky pro start** (f848fdf i HEAD). Když po <code>EscapingBlocked</code> z geometricky blokovan&#233; buňky přijde cyklus bez nov&#233;ho pl&#225;nu (<code>RobotBlocked</code>), star&#225; &#250;nikov&#225; dr&#225;ha „koliduje v 0,00 m&quot;, regul&#225;tor se zahod&#237; a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m&quot;, kter&#233; vypad&#225; jako skutečn&#225; kolize. 1. 10. 2026 (<code>20261001-144638.rec</code>) 3&#215; (15:06:57, 15:27:51, 15:27:52), 18. 9. 4&#215;. Kdyby se &#250;nik rozš&#237;řil na cel&#253; půdorys (<code>lp-zapis-volna-pod-robotem</code>), mus&#237; stejnou v&#253;jimku dostat i tahle kontrola.</p>
-    <ul class="kroky">
-      <li class="hotovo">Nalezeno a přehr&#225;no nad z&#225;znamem (replika <code>PathCollides</code> nad posledn&#237; &#250;nikovou dr&#225;hou 15:27:51/52 našla G v 0,00 m) <span class="mono">7. 10. 2026</span></li>
-      <li class="otevreno">V&#253;jimka pro startovn&#237; buňku (resp. půdorys) v <code>PathCollides</code> pro &#250;nikovou dr&#225;hu, test</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
-  </article>
   <article class="tema" id="lp-uvaznuti-v-zatackach" data-stav="otevreno">
     <h3>Track 1. 10.: robot 7,4 min st&#225;l v 8 epizod&#225;ch, všechny ve dvou 90&#176; zat&#225;čk&#225;ch — korekce koridoru posunula p&#243;zu proti gridu ve světě ke krajnici</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
@@ -1501,6 +1476,39 @@
       <li class="otevreno">Zjistit, proč po zotaven&#237; kamer 9–13 s nevznik&#225; pl&#225;n (sn&#237;mky, grid, c&#237;l?)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Runtime/ControlLoop.cs">ControlLoop.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-05">2026-10-05</a></p>
+  </article>
+  <article class="tema" id="lp-alreadyatgoal-lokalni-minimum" data-stav="v-kodu">
+    <h3><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p><code>LocalPathPlanner</code> přep&#237;še <code>Partial</code>, jehož nejbližš&#237; dosažiteln&#225; buňka je ta pod robotem (pl&#225;n &lt; 2 uzly), na <code>AlreadyAtGoal</code> bez ohledu na vzd&#225;lenost mrkve. <code>GlobalNavigator</code> bere jako platn&#253; pl&#225;n jen <code>Ok</code>/<code>Partial</code>/<code>GoalBlocked</code>/<code>GoalUnsafe</code>, takže detektor A je při <code>AlreadyAtGoal</code> vynulovan&#253;. 18. 9. 2026 (<code>20260918-154028.rec</code>) tak robot st&#225;l 388–466 s a 575–737 s ve slep&#233;m konci chodn&#237;ku: 4 168 pl&#225;nů <code>AlreadyAtGoal</code>, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložen&#233; f&#225;zi <code>Partial</code> (zavřel hrany v 556,6 s). T&#225;ž past jako 3. 9. u mrkve v tr&#225;vě (tam vzniklo <code>GoalBlocked</code>). **V k&#243;du 9. 10. 2026:** stav <code>LocalMinimum</code> a detektor A při něm ozbrojen&#253;; ř&#237;zen&#237; se neměn&#237; (robot stoj&#237; jako dř&#237;v). Starš&#237; z&#225;znamy maj&#237; slep&#253; konec pod <code>AlreadyAtGoal</code>. ⚠️ Na HW neběželo.</p>
+    <ul class="kroky">
+      <li class="hotovo">Nalezeno nad 18. 9. (<code>zasek</code>, <code>localplan</code>, k&#243;d f848fdf / 9f649a0) <span class="mono">7. 10. 2026</span></li>
+      <li class="hotovo">Rozhodnout (autor): stav pro nedosažitelnou mrkev při pl&#225;nu nulov&#233; d&#233;lky a reakci glob&#225;ln&#237; navigace — autor 9. 10.: varianta A, nov&#253; stav + detektor A <span class="mono">9. 10. 2026</span></li>
+      <li class="hotovo">V k&#243;du: nov&#253; stav <code>LocalMinimum</code> (<code>Partial</code> s pl&#225;nem nulov&#233; d&#233;lky), <code>AlreadyAtGoal</code> jen u <code>Ok</code>; glob&#225;ln&#237; navigace ho bere jako platn&#253; pl&#225;n → detektor A; <code>ARBot.Analyze zasek</code> a <code>nav</code> ho poč&#237;taj&#237; jako st&#225;n&#237;; 3 testy <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: ve slep&#233;m konci detektor A penalizuje/zavře hranu a trasa se přepl&#225;nuje</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
+  </article>
+  <article class="tema" id="lp-mazani-gridu-bez-stopy" data-stav="v-kodu">
+    <h3>Smaz&#225;n&#237; gridu po skoku p&#243;zy nezanech&#225; v Trace stopu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p><code>LocalNavigator</code> při skoku p&#243;zy (<code>PoseJumpDetector</code>) grid smaže a zv&#253;š&#237; jen poč&#237;tadlo <code>GridResets</code> — do <code>Trace</code> nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7&#215; (skoky kurzu při v&#253;padku kamer a ručn&#237;m otočen&#237;, 15:15:43 při z&#225;seku procesu) a v logu z&#225;znamu o tom nen&#237; ani ř&#225;dek; smaz&#225;n&#237; v 15:27:35, kter&#233; jako jedin&#233; ukončilo 132s <code>RobotBlocked</code>, se dalo dohledat jen z propadu zn&#225;m&#253;ch buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace&quot; (CLAUDE.md) — hl&#225;šen&#237; se škrcen&#237;m přes <code>PoruchaHlasic</code> (důvod: posun / kurz, velikost, <code>dt</code>). **V k&#243;du 9. 10. 2026:** <code>PoseJumpDetector</code> pop&#237;še skok (druh posun/kurz, velikost, kolik vysvětl&#237; rychlost, <code>dt</code>, čas pozadu) a <code>LocalNavigator</code> ho zap&#237;še přes <code>PoruchaHlasic</code> i se soustavou a počtem smaz&#225;n&#237;. 5 testů. ⚠️ Na HW neběželo.</p>
+    <ul class="kroky">
+      <li class="hotovo">Hl&#225;ška do Trace přes <code>PoruchaHlasic</code>, test <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: po skoku p&#243;zy je v journalu ř&#225;dek „grid smazan“ s důvodem</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
+  </article>
+  <article class="tema" id="lp-unik-kontrola-kolize-startu" data-stav="v-kodu">
+    <h3>Kontrola kolize &#250;nikov&#233; dr&#225;hy nevyj&#237;m&#225; startovn&#237; buňku — falešn&#233; „NOUZOVE ZASTAVENI – kolize 0,00 m“</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p><code>LocalPathPlanner.PlanEscape</code> pust&#237; z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na n&#237; stoj&#237;), ale <code>LocalNavigator.PathCollides</code> pro &#250;nikovou dr&#225;hu kontroluje geometrii **bez v&#253;jimky pro start** (f848fdf i HEAD). Když po <code>EscapingBlocked</code> z geometricky blokovan&#233; buňky přijde cyklus bez nov&#233;ho pl&#225;nu (<code>RobotBlocked</code>), star&#225; &#250;nikov&#225; dr&#225;ha „koliduje v 0,00 m&quot;, regul&#225;tor se zahod&#237; a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m&quot;, kter&#233; vypad&#225; jako skutečn&#225; kolize. 1. 10. 2026 (<code>20261001-144638.rec</code>) 3&#215; (15:06:57, 15:27:51, 15:27:52), 18. 9. 4&#215;. Kdyby se &#250;nik rozš&#237;řil na cel&#253; půdorys (<code>lp-zapis-volna-pod-robotem</code>), mus&#237; stejnou v&#253;jimku dostat i tahle kontrola. **V k&#243;du 9. 10. 2026:** kontrola vytažen&#225; do <code>PathCollision.Collides</code> (testovateln&#225;), &#250;nikov&#225; dr&#225;ha vyj&#237;m&#225; buňku, na kter&#233; robot pr&#225;vě stoj&#237;; běžn&#225; dr&#225;ha beze změny. Přitom se uk&#225;zalo, že kontrola běž&#237; i ve st&#225;n&#237; (rezerva jedn&#233; buňky), takže falešn&#225; kolize šla i u stoj&#237;c&#237;ho robotu. Od zaveden&#237; <code>localframe=odom</code> (5. 10.) m&#225; b&#253;t geometrie pod robotem vz&#225;cn&#225; (korekce grid neposouvaj&#237;); zb&#253;v&#225; prokluz kol a ručn&#237; přesun. 6 testů. ⚠️ Na HW neběželo.</p>
+    <ul class="kroky">
+      <li class="hotovo">Nalezeno a přehr&#225;no nad z&#225;znamem (replika <code>PathCollides</code> nad posledn&#237; &#250;nikovou dr&#225;hou 15:27:51/52 našla G v 0,00 m) <span class="mono">7. 10. 2026</span></li>
+      <li class="hotovo">V&#253;jimka pro startovn&#237; buňku (resp. půdorys) v <code>PathCollides</code> pro &#250;nikovou dr&#225;hu, test <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Při rozš&#237;řen&#237; &#250;niku na cel&#253; půdorys (<code>lp-zapis-volna-pod-robotem</code>) rozš&#237;řit v&#253;jimku stejně</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
   </article>
   <article class="tema" id="lp-filtr-izolovanych-bunek" data-stav="odlozeno">
     <h3>Izolovan&#233; skvrny <code>Blocked</code> do 4 buněk brzd&#237; robota jako zeď</h3>
@@ -2952,15 +2960,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/configuration.md">configuration.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-25">2026-09-25</a></p>
   </article>
-  <article class="tema" id="hw-bms-telemetrie" data-stav="otevreno">
-    <h3>&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span></p>
-    <p>Zpr&#225;va <code>BmsState</code> (hw-bms-jbd-driver) jde do z&#225;znamu, ale telemetrick&#253; pohled m&#225; sloupce vyjmenovan&#233; ručně (<code>Src/ARBot/Telemetry/TelemetryColumns.cs</code>), takže stav nabit&#237;, proud ani napět&#237; čl&#225;nků v něm vidět nejsou. Pl&#225;n driveru pohled vědomě neměnil.</p>
-    <ul class="kroky">
-      <li class="otevreno">Sloupce <code>BmsState</code> do <code>TelemetryColumns</code> (stav nabit&#237;, proud, napět&#237; baterie, min/max čl&#225;nku, teplota, ochrany)</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a></p>
-  </article>
   <article class="tema" id="nast-profil-sceny" data-stav="v-kodu">
     <h3>Profil sc&#233;ny před robotem — surov&#233; body hloubky a vysvětlen&#237; klasifikace buněk gridu</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 23. 9. 2026</span> <span>vyřešeno 24. 9. 2026</span></p>
@@ -2983,6 +2982,16 @@
       <li class="hotovo">Podnab&#237;dka Export GPX: GPS i f&#250;ze v jednom souboru / do dvou souborů (<code>-gps</code>, <code>-fuze</code>) / jen GPS / jen f&#250;ze (autor 24. 9.; <code>GpxExportOptions.Tracks</code>, 4 testy). V běž&#237;c&#237; aplikaci neproklik&#225;no <span class="mono">24. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/record-replay.md">record-replay.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-24">2026-09-24</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-27">2026-09-27</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
+  </article>
+  <article class="tema" id="hw-bms-telemetrie" data-stav="v-kodu">
+    <h3>&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>záměr</span> <span>nalezeno 8. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p>Zpr&#225;va <code>BmsState</code> (hw-bms-jbd-driver) jde do z&#225;znamu, ale telemetrick&#253; pohled m&#225; sloupce vyjmenovan&#233; ručně (<code>Src/ARBot/Telemetry/TelemetryColumns.cs</code>), takže stav nabit&#237;, proud ani napět&#237; čl&#225;nků v něm vidět nejsou. Pl&#225;n driveru pohled vědomě neměnil. **V k&#243;du 9. 10. 2026:** deset sloupců za motory (nabit&#237;, U, I, zb&#253;v&#225; Ah, čl&#225;nek min/max, Δ čl&#225;nků, teplota, ochrana s česk&#253;m popisem, př&#237;znak „bez měřen&#237;&quot;); zpr&#225;va bez měřen&#237; d&#225;v&#225; pr&#225;zdno, ne nulu. Ověřeno buildem, testy telemetrie a z&#225;znamem ze simulace (12 zpr&#225;v BmsState za ~20 s); ⚠️ v okně aplikace neproklikan&#233;.</p>
+    <ul class="kroky">
+      <li class="hotovo">Sloupce <code>BmsState</code> do <code>TelemetryColumns</code> (stav nabit&#237;, proud, napět&#237; baterie, min/max čl&#225;nku, teplota, ochrany) <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Otevř&#237;t z&#225;znam s BmsState v telemetrick&#233;m pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-bms-jbd.md">plan-bms-jbd.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-08">2026-10-08</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
   </article>
   <article class="tema" id="nast-rezim-simulate" data-stav="odlozeno">
     <h3>Režim Simulate — věrn&#253; přepočet běhu nad z&#225;znamem</h3>

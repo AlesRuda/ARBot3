@@ -801,12 +801,14 @@ namespace ARBot.Analyze
         private static void Epizody(List<LocalPlanMsg> plany, List<Rozbor> rozbory, Volby v, Func<DateTime, double> T)
         {
             var ci = CultureInfo.InvariantCulture;
-            Console.WriteLine("=== 2. EPIZODY STANI (EscapingBlocked / RobotBlocked, zaznamenane plany, mezery do 1 s se preklenou) ===");
+            Console.WriteLine("=== 2. EPIZODY STANI (EscapingBlocked / RobotBlocked / LocalMinimum, zaznamenane plany, mezery do 1 s se preklenou) ===");
             var ep = new List<(DateTime od, DateTime d0, LocalPlanStatus st, int n)>();
             foreach (var p in plany)
             {
                 var st = (LocalPlanStatus)p.Status;
-                bool stani = st == LocalPlanStatus.RobotBlocked || st == LocalPlanStatus.EscapingBlocked;
+                // LocalMinimum (od 9. 10. 2026) = slepy konec; starsi zaznamy ho maji pod AlreadyAtGoal.
+                bool stani = st == LocalPlanStatus.RobotBlocked || st == LocalPlanStatus.EscapingBlocked
+                          || st == LocalPlanStatus.LocalMinimum;
                 if (!stani) continue;
                 if (ep.Count > 0 && ep[^1].st == st && (p.TimeStamp - ep[^1].d0).TotalSeconds <= 1.0)
                     ep[^1] = (ep[^1].od, p.TimeStamp, st, ep[^1].n + 1);

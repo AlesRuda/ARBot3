@@ -58,6 +58,18 @@ namespace ARBot.Common.Occupancy
         /// u producenta cile jina nez u <see cref="GoalBlocked"/>, proto zvlast.
         /// </summary>
         GoalUnsafe = 9,
+
+        /// <summary>
+        /// SLEPY KONEC: cil (mrkev) neni dosazitelny a nejblizsi dosazitelne misto je to, kde robot
+        /// stoji - k cili se nemuze priblizit. Plan nema drahu, robot stoji. Typicky konec chodniku
+        /// nebo zed mezi robotem a mrkvi. Do 9. 10. 2026 se tohle hlasilo jako
+        /// <see cref="AlreadyAtGoal"/> („jsem v cili“), ackoli mrkev byla metry daleko, takze globalni
+        /// navigace nepoznala zasek (lp-alreadyatgoal-lokalni-minimum; 18. 9. 2026 robot stal
+        /// minuty potichu). Starsi zaznamy maji tento pripad pod <see cref="AlreadyAtGoal"/>.
+        /// <para>Co s tim, rozhoduje producent cile - globalni navigace ho bere jako platny plan,
+        /// takze detektor zaseku po case zavre hranu a trasa se preplanuje.</para>
+        /// </summary>
+        LocalMinimum = 10,
     }
 
     /// <summary>

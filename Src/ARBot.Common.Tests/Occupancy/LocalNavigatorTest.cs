@@ -14,6 +14,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace ARBot.Common.Tests.Occupancy
@@ -286,6 +287,56 @@ namespace ARBot.Common.Tests.Occupancy
                 Assert.That(g.FrameDX, Is.EqualTo(100).Within(1e-6), "zprava nese transformaci odom -> svet");
                 Assert.That(g.FrameDY, Is.EqualTo(50).Within(1e-6));
             }
+        }
+
+        /// <summary>
+        /// Smazani gridu po skoku pozy zanecha stopu v Trace (lp-mazani-gridu-bez-stopy): do 9. 10.
+        /// 2026 se jen zvysilo pocitadlo a ve Tracku 1. 10. se 7 smazani dohledavalo z propadu
+        /// znamych bunek ve snapshotech. Bez skoku se nehlasi nic.
+        /// </summary>
+        [Test]
+        public void SkokPozy_SmazaniGriduJdeDoTrace()
+        {
+            var engine = Engine(T0);
+            var nav = MakeNavigator(engine);
+            nav.Frame = LocalFrame.World;
+            using var s = new Session(nav);
+
+            string bezSkoku = Zachyt(() =>
+            {
+                s.Send(Frame(T0.AddSeconds(1.0)));
+                s.Send(Frame(T0.AddSeconds(1.5)));
+            });
+            string seSkokem = Zachyt(() =>
+            {
+                engine.InitializePosition(100, 50, 0.5, T0.AddSeconds(1.7));
+                s.Send(Frame(T0.AddSeconds(2.0)));
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(bezSkoku, Does.Not.Contain("grid smazan"));
+                Assert.That(Regex.Matches(seSkokem, "grid smazan").Count, Is.EqualTo(1), seSkokem);
+                Assert.That(seSkokem, Does.Contain("skok pozy"));
+                Assert.That(seSkokem, Does.Contain("[World]"));
+            });
+        }
+
+        private static string Zachyt(Action akce)
+        {
+            var sb = new System.Text.StringBuilder();
+            var listener = new System.Diagnostics.TextWriterTraceListener(new System.IO.StringWriter(sb));
+            System.Diagnostics.Trace.Listeners.Add(listener);
+            try
+            {
+                akce();
+                System.Diagnostics.Trace.Flush();
+            }
+            finally
+            {
+                System.Diagnostics.Trace.Listeners.Remove(listener);
+            }
+            return sb.ToString();
         }
 
         /// <summary>

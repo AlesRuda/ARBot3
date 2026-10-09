@@ -39,6 +39,39 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-09
+
+- **Údaje z BMS v telemetrickém pohledu** (`hw-bms-telemetrie`): v `TelemetryColumns` deset sloupců
+  ze `BmsState` hned za motory — nabití [%], U [V], I [A] (+ nabíjení), zbývá [Ah], článek min/max,
+  Δ článků [mV], teplota, ochrana (v tabulce český popis přes `BmsProtectionText`, v grafu schod;
+  obecný vyčtový sloupec kombinace `[Flags]` neumí) a příznak „BMS bez měření". Zpráva bez měření
+  i chybějící články/čidla dávají prázdno, ne nulu. Ověřeno buildem, testy telemetrie (39) a záznamem
+  ze simulace `records/20261009-080953.rec` (12 zpráv `BmsState` za ~20 s, `ARBot.Analyze types`);
+  ⚠️ v okně aplikace neproklikané (zůstává jako krok v registru).
+- **Slepý konec už se netváří jako dojezd** (`lp-alreadyatgoal-lokalni-minimum`, varianta A podle
+  autora): nový stav lokálního plánu `LocalMinimum` — mrkev nedosažitelná a nejbližší dosažitelná
+  buňka je pod robotem. Dřív `LocalPathPlanner` takový `Partial` přepsal na `AlreadyAtGoal` bez
+  ohledu na vzdálenost mrkve a `GlobalNavigator` měl detektor záseku vypnutý (18. 9. robot stál
+  minuty u mrkve 7 m daleko). `AlreadyAtGoal` teď jen u `Ok`; navigace bere `LocalMinimum` jako
+  platný plán, takže detektor A po `NoMotionSec` penalizuje/zavře hranu. Řízení beze změny (robot
+  stojí jako dřív). `ARBot.Analyze zasek`/`nav` ho počítají jako stání. Testy Common 1 804 (3 nové),
+  HAL 172, Runtime 161. ⚠️ Na HW neběželo; starší záznamy mají slepý konec pod `AlreadyAtGoal`;
+  stránka ani Trace stav zatím neukazují (`nav-recovery-manevr`).
+- **Smazání gridu po skoku pózy jde do Trace** (`lp-mazani-gridu-bez-stopy`): `PoseJumpDetector`
+  si po skoku zapamatuje druh (posun / kurz / obojí), velikost, kolik z ní vysvětlí rychlost, `dt`
+  a jestli šlo o snímek s časem pozadu; `LocalNavigator` zapíše
+  „LocalNavigator: skok pozy - … [World] -> grid smazan (celkem N)" přes `PoruchaHlasic` (týž druh
+  nejvýš jednou za 5 s, jiný hned). Detekce beze změny. Testy Common 1 809 (5 nových), HAL 172,
+  Runtime 161. ⚠️ Na HW neběželo.
+- **Kontrola kolize únikové dráhy vyjímá buňku pod robotem** (`lp-unik-kontrola-kolize-startu`):
+  `LocalNavigator.PathCollides` vytažen do testovatelné `PathCollision.Collides` (beze změny chování
+  běžné dráhy) a úniková dráha nově nevidí kolizi v buňce, na které robot stojí — stejné pravidlo
+  jako `PlanEscape`. Dřív odtud falešné „NOUZOVE ZASTAVENI – kolize 0,00 m" a přerušený únik
+  (1. 10. 3×, 18. 9. 4×). Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky
+  k brzdné dráze), takže se falešná kolize hlásila i u stojícího robotu; podmínka „robot stojí"
+  v kódu byla mrtvá. Od `localframe=odom` má být geometrie pod robotem vzácná, zbývá prokluz kol
+  a ruční přesun. Testy Common 1 815 (6 nových), HAL 172, Runtime 161. ⚠️ Na HW neběželo.
+
 ## 2026-10-08
 
 - **Baterie (pokračování 6. 10.):** změřeno 7. 10. **3,29 V na článek** — články jsou vyrovnané,

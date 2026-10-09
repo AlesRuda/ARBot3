@@ -47,17 +47,21 @@ namespace ARBot.Common.Configuration
         /// Druhy cinitel je konstanta urcena merenim, reprezentuje zmacknuti pneumatiky vahou robotu
         /// </summary>
         public static double WheelRadius = 0.085944 * 0.923;
-#if true   //rychly motor
+#if true   //rychly motor: MY36GP-555, 12 V, 296 ot/min (katalog, naprazdno) - viz doc/hardware.md "Pohon"
         /// <summary>
         /// Prevodovy pomer prevodovky
         /// </summary>
         public static double MotorGearBoxReduction = 27;
         /// <summary>
-        /// Maximalni otacky nezatizeneho motoru za sekundu
+        /// Maximalni otacky nezatizeneho motoru za sekundu.
+        /// <para>⚠️ 260 ot/min na vystupu (katalog uvadi 296) a NEMENIT podle stitku: z teto hodnoty
+        /// vznika <see cref="MaxTheoreticalSpeed"/>, tedy plny rozsah prikazu pro motorovou jednotku
+        /// (rychlost i jednotky ramp) - musi sedet na max. otacky nastavene v Robotequ.</para>
         /// </summary>
         public static double MotorMaxRPS = 260.0 * MotorGearBoxReduction / 60.0;
         /// <summary>
-        /// Pocet pulzu encoderu na jednu otacku kola
+        /// Pocet pulzu encoderu na jednu otacku MOTORU (16 x 4 hrany). Na otacku kola je to
+        /// <c>EncoderCounts * MotorGearBoxReduction</c> - tak ho bere i driver (<c>SDC2160Ex</c>).
         /// </summary>
         public static double EncoderCounts = 16*4;
         /// <summary>

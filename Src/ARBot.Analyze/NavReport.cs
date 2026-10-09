@@ -86,7 +86,8 @@ namespace ARBot.Analyze
                 // Epizody stavu, ve kterem robot nejede k mrkvi.
                 var spatne = new HashSet<LocalPlanStatus> { LocalPlanStatus.RobotOutsideGrid, LocalPlanStatus.RobotBlocked,
                                                             LocalPlanStatus.NoRoute, LocalPlanStatus.EscapingBlocked,
-                                                            LocalPlanStatus.AbortedCollision, LocalPlanStatus.GoalBlocked };
+                                                            LocalPlanStatus.AbortedCollision, LocalPlanStatus.GoalBlocked,
+                                                            LocalPlanStatus.LocalMinimum };
                 Console.WriteLine("  epizody (>= 2 s) stavu mimo Ok/Partial:");
                 LocalPlanStatus? cur = null; DateTime from = default; int n = 0;
                 var epizody = new List<(LocalPlanStatus s, DateTime from, DateTime to, int n)>();

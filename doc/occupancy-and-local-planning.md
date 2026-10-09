@@ -236,7 +236,8 @@ volnou ~25 pozorování při `l_free = −0,4`, tj. 2,5 s při 10 Hz; pod práh 
 ~~Volitelně pomalý decay k nule~~ — ⚠️ **časový rozpad NENÍ a nikdy nebyl implementovaný**
 (byl jen v návrhu z 11. 8.; 18. 8. 2026 zamítnut, protože by nechal vyblednout i skutečné
 překážky — viz „Únik z blokované buňky"). Obsah buňky mění jen čtyři věci: nové pozorování,
-vypadnutí z okna 12,8 m (`MoveOrigin`), `grid.Clear()` po skoku pózy (`PoseJumpDetector`) a nová
+vypadnutí z okna 12,8 m (`MoveOrigin`), `grid.Clear()` po skoku pózy (`PoseJumpDetector`; od 9. 10. 2026 s řádkem v Trace
+„LocalNavigator: skok pozy - … -> grid smazan", škrceným na jeden za 5 s pro týž druh skoku) a nová
 instance navigátoru po restartu. Buňky, které kamery nevidí (pod robotem, za ním, slepá zóna do
 ~0,3–0,5 m), tedy **drží hodnotu libovolně dlouho, dokud robot stojí** — změřeno 1. 10. 2026:
 pod stojícím robotem beze změny 134 s, i když se s ním na místě otočilo o 49°
@@ -462,7 +463,12 @@ Dvě návaznosti, bez kterých by to nefungovalo:
 
 - **`LocalNavigator.PathCollides`** by únikovou dráhu okamžitě zahodil jako kolizi (vede přes
   `BLOCKED` a s malým odstupem). Pro únikovou dráhu se proto kolize posuzuje **jen podle geometrie**
-  — tedy tímtéž pravidlem, jakým se plánovala.
+  — tedy tímtéž pravidlem, jakým se plánovala. **Od 9. 10. 2026 včetně výjimky pro buňku pod
+  robotem** (kontrola je vytažená do `PathCollision.Collides`): plánovač z ní smí odjet, i když ji
+  blokuje geometrie, ale kontrola ji dřív hlásila jako kolizi v 0,00 m — falešné „NOUZOVE
+  ZASTAVENI" a přerušený únik ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu)).
+  ⚠️ Kontrola běží **i u stojícího robotu**: k brzdné dráze se přičítá rezerva jedné buňky, takže
+  se vždy prověří aspoň prvních 5 cm dráhy.
 - **`GlobalNavigator.OnLocalPlan`**: `EscapingBlocked` záměrně nepadne ani do „selhání", ani do
   „platný plán". Série selhání se vynuluje (uváznutí nesmí nakonec zavřít hranu, která je
   v pořádku) a detektor záseku zůstane odzbrojený, dokud únik trvá.
@@ -509,7 +515,8 @@ byli geometricky blokovaní — únik dosáhl 1 buňky a východ neexistoval ani
 geometrie ležel **0,53–0,90 m vpředu**. Únik se přitom dvakrát spustil (`EscapingBlocked`
 15:25:20–22 a 15:27:46–51), otočil robotem k východu a plížil se 0,05 m/s — ale korekce táhla pózu
 opačným směrem ~0,2 m/s a prohrál. Obě „NOUZOVE ZASTAVENI – kolize 0,00 m" jsou falešné:
-`PathCollides` nevyjímá startovní buňku únikové dráhy ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu)).
+`PathCollides` nevyjímá startovní buňku únikové dráhy ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu);
+opraveno 9. 10. 2026).
 
 **Proč se to nevyřešilo samo — a zapomínání:** grid **časový rozpad nemá** (viz „Zapomínání" výš).
 Buňky pod robotem a do 0,7 m kolem něj kamera během stání ani jednou neviděla (kamery zapisují až od
@@ -609,6 +616,16 @@ vycházelo jako `Partial` (stav pro legitimní „cíl za horizontem") a na konc
 rozhoduje **producent cíle** (mise, globální navigace), ne plánovač — ten neví, jestli cesta končí,
 nebo mrkev jen přestřelila zatáčku. `GlobalNavigator.OnLocalPlan` s nimi zatím zachází jako
 s `Partial` (plán platný, ne selhání), aby se chování nezměnilo potichu; reakce je otevřená.
+
+**Slepý konec se hlásí jako `LocalMinimum` (od 9. 10. 2026).** Když mrkev není dosažitelná a nejbližší
+dosažitelná buňka je ta pod robotem (zeď nebo konec chodníku mezi robotem a mrkví), plán nemá dráhu
+a robot stojí — dřív to ale vycházelo jako `AlreadyAtGoal` („jsem v cíli") bez ohledu na vzdálenost
+mrkve, takže globální navigace měla detektor záseku vypnutý a 18. 9. 2026 robot stál minuty u mrkve
+7 m daleko ([`lp-alreadyatgoal-lokalni-minimum`](ukoly.md#lp-alreadyatgoal-lokalni-minimum)).
+`AlreadyAtGoal` teď znamená jen skutečný dojezd (robot v cílové zóně nebo plán `Ok` kratší než hrana).
+`GlobalNavigator` bere `LocalMinimum` jako platný plán, takže detektor A po `NoMotionSec` hranu
+penalizuje/zavře a trasa se přeplánuje. ⚠️ **Starší záznamy mají slepý konec pod `AlreadyAtGoal`.**
+Na stránce náhledu ani v Trace se stav zatím neukazuje (`nav-recovery-manevr`). Na HW neběželo.
 
 ### Rychlostní obálka — jeden invariant místo zvláštních pravidel
 
@@ -1340,5 +1357,7 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[Kontrola kolize únikové dráhy nevyjímá startovní buňku](ukoly.md#lp-unik-kontrola-kolize-startu)** —
   odtud falešné „NOUZOVE ZASTAVENI – kolize 0,00 m".
 - **[`AlreadyAtGoal` hlásí i nedosažitelnou mrkev](ukoly.md#lp-alreadyatgoal-lokalni-minimum)** —
-  lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu.
-- **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)**.
+  lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu. Od 9. 10. 2026
+  v kódu jako stav `LocalMinimum` (výš).
+- **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)** — od
+  9. 10. 2026 v kódu: druh, velikost, vysvětlení rychlostí, `dt` a soustava jdou do Trace.

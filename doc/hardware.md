@@ -589,6 +589,27 @@ Poznámky:
   `lok-freerun-kurz-staci-na-zapad`.
 - Výběr platformového HAL (D435/T265 wrapper) viz [build-and-platforms.md](build-and-platforms.md).
 
+## Pohon — motory a kola
+
+- **Motory: MY36GP-555, 12 V, 296 ot/min** (autor, 9. 10. 2026) — planetová převodovka Ø 36 mm
+  s motorem řady 555; 296 ot/min je katalogová hodnota **naprázdno na výstupu převodovky** při 12 V.
+  Řídí je Roboteq SDC2160 (`SDC2160Ex`, skript `Src/RoboRun/RizeniDiffPodvozku.mbs`).
+- **Parametry v kódu** (`Profile.cs`, větev „rychlý motor"): převod **27 : 1**, otáčky naprázdno
+  **260 ot/min** na výstupu, enkodér **16 × 4 = 64 pulzů na otáčku MOTORU** (driver ho násobí
+  převodem → 1 728 pulzů na otáčku kola), poloměr kola 0,0859 m × 0,923 (stlačení pneumatiky,
+  změřeno), rozchod 0,41 m, strop rychlosti `maxspeed=` 1,2 m/s.
+- ⚠️ **260 v kódu ≠ 296 v katalogu — a neměnit podle katalogu.** Z `MotorMaxRPS` vzniká
+  `MaxTheoreticalSpeed` (2,16 m/s) a to je **plný rozsah** příkazů pro motorovou jednotku: driver
+  posílá rychlost jako tisíciny `MaxTheoreticalSpeed` a z ní počítá i jednotky ramp
+  (`MotorAcceleration.ToScriptUnits`). Hodnota tedy musí sedět na **maximální otáčky nastavené
+  v Robotequ** (MXRPM v uzavřené smyčce rychlosti), ne na štítek motoru — jinak se rozjede škála
+  rychlosti i ramp. Proč je tam 260 (měření pod zátěží, nebo nastavení jednotky), zapsané není;
+  ověřit čtením konfigurace jednotky (Roborun+). Převod 27 : 1 odpovídá katalogovým 296 ot/min
+  zhruba (555 má naprázdno ~8 000 ot/min, 8 000 / 27 ≈ 296); případná odchylka skutečného převodu
+  se v odometrii schová do změřeného poloměru kola.
+- Vypnutá větev `#else` v `Profile.cs` (6 400 ot/min, 50,9 : 1, enkodér 12) je **jiný, starší
+  motor**, ne alternativa k dnešnímu.
+
 ## Napájení — trakční baterie
 
 - **Baterie je 4S LiFePO4 ze čtyř článků WINA LiFePO4 Power 3,2 V / 15 Ah v hliníkovém pouzdře**
@@ -653,6 +674,12 @@ Poznámky:
   nepřipojovat, jinak hrozí zničení převodníku i Pi. Diferenciální RS485 úroveň neřeší a v robotu
   s motory je odolnější. Kdyby se přece šlo přes UART: změřit klidovou úroveň linky TX na
   konkrétním kuse a vzít převodník s přepínačem 3,3/5 V, zapojit jen TX, RX, GND.
+  **Konektor RS485 na SP04S020** (rešerše 9. 10. 2026, neověřeno na kusu): oficiální pinout jsem
+  nenašel; komunita hlásí piny **A/H a B/L** a podle jednoho hlášení jsou v konektoru osazené
+  **jen tyto dva** (GND na konektoru není jisté). Protokol na RS485 je **týž proprietární jako na
+  UART** (ne Modbus) — sedí s tím, jak je udělaný driver. Nejjistější cesta k propojení je
+  **kabel „RS485-USB" od prodejce** (Gobel Power ho nabízí k desce, ~190 Kč), který má odpovídající
+  konektor; jinak schéma zapojení k desce z webu JBD a před připojením měřit multimetrem.
   Orange Pi RS485 nativně nemá (na liště jsou jen UART 3,3 V) → **převodník USB–RS485**,
   nejlépe s čipem **FTDI** (unikátní sériové číslo, takže stabilní cesta v `/dev/serial/by-id/`
   jako u ostatních UART zařízení; CH340 číslo nemá). V systému je to obyčejný sériový port,

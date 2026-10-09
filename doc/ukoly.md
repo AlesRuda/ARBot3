@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **266**: otevřeno **43** · v kódu, na HW neověřeno **31** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **266**: otevřeno **39** · v kódu, na HW neověřeno **35** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,12 +46,8 @@ Témat celkem **266**: otevřeno **43** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
-| otevřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá](#nav-detektor-c-mrtvy) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)](#nav-doc-stavy-nesedi) | 8. 10. 2026 |  |
@@ -83,9 +79,13 @@ Témat celkem **266**: otevřeno **43** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
+| v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -1152,41 +1152,6 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 [path-following.md](path-following.md), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-09-22](devlog.md#2026-09-22)
 
-<a id="lp-alreadyatgoal-lokalni-minimum"></a>
-### ⬜ `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
-
-`lp-alreadyatgoal-lokalni-minimum` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere jako platný plán jen `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, takže detektor A je při `AlreadyAtGoal` vynulovaný. 18. 9. 2026 (`20260918-154028.rec`) tak robot stál 388–466 s a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s). Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`).
-
-- [x] Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0) (7. 10. 2026)
-- [ ] Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky (`GoalBlocked` / nový) a reakci globální navigace
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
-<a id="lp-mazani-gridu-bez-stopy"></a>
-### ⬜ Smazání gridu po skoku pózy nezanechá v Trace stopu
-
-`lp-mazani-gridu-bez-stopy` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu při výpadku kamer a ručním otočení, 15:15:43 při záseku procesu) a v logu záznamu o tom není ani řádek; smazání v 15:27:35, které jako jediné ukončilo 132s `RobotBlocked`, se dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz, velikost, `dt`).
-
-- [ ] Hláška do Trace přes `PoruchaHlasic`, test
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
-<a id="lp-unik-kontrola-kolize-startu"></a>
-### ⬜ Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
-
-`lp-unik-kontrola-kolize-startu` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola.
-
-- [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
-- [ ] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="lp-uvaznuti-v-zatackach"></a>
 ### ⬜ Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici
 
@@ -1319,6 +1284,45 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 - [ ] Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?)
 
 [plan-drive-hold.md](plan-drive-hold.md), [ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs) · DevLog [2026-10-05](devlog.md#2026-10-05)
+
+<a id="lp-alreadyatgoal-lokalni-minimum"></a>
+### 🧪 `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
+
+`lp-alreadyatgoal-lokalni-minimum` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere jako platný plán jen `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, takže detektor A je při `AlreadyAtGoal` vynulovaný. 18. 9. 2026 (`20260918-154028.rec`) tak robot stál 388–466 s a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s). Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`). **V kódu 9. 10. 2026:** stav `LocalMinimum` a detektor A při něm ozbrojený; řízení se nemění (robot stojí jako dřív). Starší záznamy mají slepý konec pod `AlreadyAtGoal`. ⚠️ Na HW neběželo.
+
+- [x] Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0) (7. 10. 2026)
+- [x] Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky a reakci globální navigace — autor 9. 10.: varianta A, nový stav + detektor A (9. 10. 2026)
+- [x] V kódu: nový stav `LocalMinimum` (`Partial` s plánem nulové délky), `AlreadyAtGoal` jen u `Ok`; globální navigace ho bere jako platný plán → detektor A; `ARBot.Analyze zasek` a `nav` ho počítají jako stání; 3 testy (9. 10. 2026)
+- [ ] Ověřit na zařízení: ve slepém konci detektor A penalizuje/zavře hranu a trasa se přeplánuje
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
+
+<a id="lp-mazani-gridu-bez-stopy"></a>
+### 🧪 Smazání gridu po skoku pózy nezanechá v Trace stopu
+
+`lp-mazani-gridu-bez-stopy` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu při výpadku kamer a ručním otočení, 15:15:43 při záseku procesu) a v logu záznamu o tom není ani řádek; smazání v 15:27:35, které jako jediné ukončilo 132s `RobotBlocked`, se dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz, velikost, `dt`). **V kódu 9. 10. 2026:** `PoseJumpDetector` popíše skok (druh posun/kurz, velikost, kolik vysvětlí rychlost, `dt`, čas pozadu) a `LocalNavigator` ho zapíše přes `PoruchaHlasic` i se soustavou a počtem smazání. 5 testů. ⚠️ Na HW neběželo.
+
+- [x] Hláška do Trace přes `PoruchaHlasic`, test (9. 10. 2026)
+- [ ] Ověřit na zařízení: po skoku pózy je v journalu řádek „grid smazan“ s důvodem
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
+
+<a id="lp-unik-kontrola-kolize-startu"></a>
+### 🧪 Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
+
+`lp-unik-kontrola-kolize-startu` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola. **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu. Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo.
+
+- [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
+- [x] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test (9. 10. 2026)
+- [ ] Při rozšíření úniku na celý půdorys (`lp-zapis-volna-pod-robotem`) rozšířit výjimku stejně
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď
@@ -3014,17 +3018,6 @@ Nápad autora (25. 9. 2026): parametry jízdy (strop rychlosti, zrychlení, rych
 
 [path-following.md](path-following.md), [configuration.md](configuration.md) · DevLog [2026-09-25](devlog.md#2026-09-25)
 
-<a id="hw-bms-telemetrie"></a>
-### ⬜ Údaje z BMS nejsou v telemetrickém pohledu
-
-`hw-bms-telemetrie` · záměr · **otevřeno** · nalezeno 8. 10. 2026
-
-Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil.
-
-- [ ] Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany)
-
-[plan-bms-jbd.md](plan-bms-jbd.md) · DevLog [2026-10-08](devlog.md#2026-10-08)
-
 <a id="nast-profil-sceny"></a>
 ### 🧪 Profil scény před robotem — surové body hloubky a vysvětlení klasifikace buněk gridu
 
@@ -3051,6 +3044,18 @@ File → Export GPX… ve View uloží celý záznam do GPX 1.1: stopa surových
 - [x] Podnabídka Export GPX: GPS i fúze v jednom souboru / do dvou souborů (`-gps`, `-fuze`) / jen GPS / jen fúze (autor 24. 9.; `GpxExportOptions.Tracks`, 4 testy). V běžící aplikaci neproklikáno (24. 9. 2026)
 
 [record-replay.md](record-replay.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-27](devlog.md#2026-09-27), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="hw-bms-telemetrie"></a>
+### 🧪 Údaje z BMS nejsou v telemetrickém pohledu
+
+`hw-bms-telemetrie` · záměr · **v kódu, na HW neověřeno** · nalezeno 8. 10. 2026 · vyřešeno 9. 10. 2026
+
+Zpráva `BmsState` (hw-bms-jbd-driver) jde do záznamu, ale telemetrický pohled má sloupce vyjmenované ručně (`Src/ARBot/Telemetry/TelemetryColumns.cs`), takže stav nabití, proud ani napětí článků v něm vidět nejsou. Plán driveru pohled vědomě neměnil. **V kódu 9. 10. 2026:** deset sloupců za motory (nabití, U, I, zbývá Ah, článek min/max, Δ článků, teplota, ochrana s českým popisem, příznak „bez měření"); zpráva bez měření dává prázdno, ne nulu. Ověřeno buildem, testy telemetrie a záznamem ze simulace (12 zpráv BmsState za ~20 s); ⚠️ v okně aplikace neproklikané.
+
+- [x] Sloupce `BmsState` do `TelemetryColumns` (stav nabití, proud, napětí baterie, min/max článku, teplota, ochrany) (9. 10. 2026)
+- [ ] Otevřít záznam s BmsState v telemetrickém pohledu aplikace a zkontrolovat sloupce a tooltipy (např. records/20261009-080953.rec ze simulace)
+
+[plan-bms-jbd.md](plan-bms-jbd.md) · DevLog [2026-10-08](devlog.md#2026-10-08), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="nast-rezim-simulate"></a>
 ### ⏸ Režim Simulate — věrný přepočet běhu nad záznamem

@@ -549,6 +549,40 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(r.HasPath, Is.False);
         }
 
+        /// <summary>
+        /// SLEPY KONEC (lp-alreadyatgoal-lokalni-minimum, 18. 9. 2026): mrkev je za zdi pres celou
+        /// mapu, robot dojede k nejblizsi dosazitelne bunce a dal to nejde. Do 9. 10. 2026 planovac
+        /// v tu chvili hlasil <c>AlreadyAtGoal</c> („jsem v cili“), ackoli mrkev byla metry daleko -
+        /// globalni navigace tomu verila a detektor zaseku se odzbrojil. Musi to byt
+        /// <c>LocalMinimum</c>; robot pritom stoji stejne (plan nema drahu).
+        /// </summary>
+        [Test]
+        public void SlepyKonec_HlasiLocalMinimum_NeAlreadyAtGoal()
+        {
+            var s = Scene.Create();
+            s.MarkFree(-3, -3, 3, 3);
+            s.MarkObstacle(1.0, -3.3, 1.2, 3.3);   // zed pres celou mapu, i pres nezname okraje
+            s.Rebuild();
+
+            double rx = 0, ry = 0;
+            LocalPlanResult r = null;
+            for (int cyklus = 0; cyklus < 6; cyklus++)
+            {
+                r = s.PlanFrom(rx, ry, 2.5, 0.0);   // mrkev 2,5 m vychodne, za zdi
+                if (!r.HasPath) break;
+                rx = r.ReachedGoalX;
+                ry = r.ReachedGoalY;
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.HasPath, Is.False, "predpoklad: robot dojel k nejblizsi dosazitelne bunce");
+                Assert.That(Math.Abs(2.5 - rx), Is.GreaterThan(1.0), "predpoklad: mrkev je porad daleko");
+                Assert.That(r.Status, Is.EqualTo(LocalPlanStatus.LocalMinimum),
+                            "nedosazitelna mrkev nesmi vypadat jako dojezd do cile");
+            });
+        }
+
         [Test]
         public void RobotMimoGrid_Hlasi()
         {
