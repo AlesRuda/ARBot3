@@ -9485,8 +9485,9 @@ temata:
     oblast: lokalni-planovani
     nazev: "Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“"
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-09
     popis: >
       `LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie
       (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje
@@ -9496,16 +9497,24 @@ temata:
       které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57,
       15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys
       (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola.
+      **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková
+      dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že
+      kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu.
+      Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid
+      neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo.
     kroky:
       - co: "Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m)"
         stav: hotovo
         kdy: 2026-10-07
       - co: "Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Při rozšíření úniku na celý půdorys (`lp-zapis-volna-pod-robotem`) rozšířit výjimku stejně"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: nav-uvaznuti-neohlasene

@@ -463,7 +463,12 @@ Dvě návaznosti, bez kterých by to nefungovalo:
 
 - **`LocalNavigator.PathCollides`** by únikovou dráhu okamžitě zahodil jako kolizi (vede přes
   `BLOCKED` a s malým odstupem). Pro únikovou dráhu se proto kolize posuzuje **jen podle geometrie**
-  — tedy tímtéž pravidlem, jakým se plánovala.
+  — tedy tímtéž pravidlem, jakým se plánovala. **Od 9. 10. 2026 včetně výjimky pro buňku pod
+  robotem** (kontrola je vytažená do `PathCollision.Collides`): plánovač z ní smí odjet, i když ji
+  blokuje geometrie, ale kontrola ji dřív hlásila jako kolizi v 0,00 m — falešné „NOUZOVE
+  ZASTAVENI" a přerušený únik ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu)).
+  ⚠️ Kontrola běží **i u stojícího robotu**: k brzdné dráze se přičítá rezerva jedné buňky, takže
+  se vždy prověří aspoň prvních 5 cm dráhy.
 - **`GlobalNavigator.OnLocalPlan`**: `EscapingBlocked` záměrně nepadne ani do „selhání", ani do
   „platný plán". Série selhání se vynuluje (uváznutí nesmí nakonec zavřít hranu, která je
   v pořádku) a detektor záseku zůstane odzbrojený, dokud únik trvá.
@@ -510,7 +515,8 @@ byli geometricky blokovaní — únik dosáhl 1 buňky a východ neexistoval ani
 geometrie ležel **0,53–0,90 m vpředu**. Únik se přitom dvakrát spustil (`EscapingBlocked`
 15:25:20–22 a 15:27:46–51), otočil robotem k východu a plížil se 0,05 m/s — ale korekce táhla pózu
 opačným směrem ~0,2 m/s a prohrál. Obě „NOUZOVE ZASTAVENI – kolize 0,00 m" jsou falešné:
-`PathCollides` nevyjímá startovní buňku únikové dráhy ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu)).
+`PathCollides` nevyjímá startovní buňku únikové dráhy ([`lp-unik-kontrola-kolize-startu`](ukoly.md#lp-unik-kontrola-kolize-startu);
+opraveno 9. 10. 2026).
 
 **Proč se to nevyřešilo samo — a zapomínání:** grid **časový rozpad nemá** (viz „Zapomínání" výš).
 Buňky pod robotem a do 0,7 m kolem něj kamera během stání ani jednou neviděla (kamery zapisují až od

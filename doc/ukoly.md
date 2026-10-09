@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **263**: otevřeno **39** · v kódu, na HW neověřeno **32** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **263**: otevřeno **38** · v kódu, na HW neověřeno **33** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,7 +46,6 @@ Témat celkem **263**: otevřeno **39** · v kódu, na HW neověřeno **32** · 
 | otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
@@ -81,6 +80,7 @@ Témat celkem **263**: otevřeno **39** · v kódu, na HW neověřeno **32** · 
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -1123,18 +1123,6 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 [path-following.md](path-following.md), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-09-22](devlog.md#2026-09-22)
 
-<a id="lp-unik-kontrola-kolize-startu"></a>
-### ⬜ Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
-
-`lp-unik-kontrola-kolize-startu` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola.
-
-- [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
-- [ ] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="lp-uvaznuti-v-zatackach"></a>
 ### ⬜ Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici
 
@@ -1279,6 +1267,19 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 
 - [x] Hláška do Trace přes `PoruchaHlasic`, test (9. 10. 2026)
 - [ ] Ověřit na zařízení: po skoku pózy je v journalu řádek „grid smazan“ s důvodem
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
+
+<a id="lp-unik-kontrola-kolize-startu"></a>
+### 🧪 Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
+
+`lp-unik-kontrola-kolize-startu` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola. **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu. Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo.
+
+- [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
+- [x] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test (9. 10. 2026)
+- [ ] Při rozšíření úniku na celý půdorys (`lp-zapis-volna-pod-robotem`) rozšířit výjimku stejně
 
 [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
 

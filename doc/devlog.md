@@ -63,6 +63,14 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   „LocalNavigator: skok pozy - … [World] -> grid smazan (celkem N)" přes `PoruchaHlasic` (týž druh
   nejvýš jednou za 5 s, jiný hned). Detekce beze změny. Testy Common 1 809 (5 nových), HAL 172,
   Runtime 161. ⚠️ Na HW neběželo.
+- **Kontrola kolize únikové dráhy vyjímá buňku pod robotem** (`lp-unik-kontrola-kolize-startu`):
+  `LocalNavigator.PathCollides` vytažen do testovatelné `PathCollision.Collides` (beze změny chování
+  běžné dráhy) a úniková dráha nově nevidí kolizi v buňce, na které robot stojí — stejné pravidlo
+  jako `PlanEscape`. Dřív odtud falešné „NOUZOVE ZASTAVENI – kolize 0,00 m" a přerušený únik
+  (1. 10. 3×, 18. 9. 4×). Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky
+  k brzdné dráze), takže se falešná kolize hlásila i u stojícího robotu; podmínka „robot stojí"
+  v kódu byla mrtvá. Od `localframe=odom` má být geometrie pod robotem vzácná, zbývá prokluz kol
+  a ruční přesun. Testy Common 1 815 (6 nových), HAL 172, Runtime 161. ⚠️ Na HW neběželo.
 
 ## 2026-10-08
 
