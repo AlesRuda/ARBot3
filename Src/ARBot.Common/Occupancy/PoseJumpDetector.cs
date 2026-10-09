@@ -105,10 +105,43 @@ namespace ARBot.Common.Occupancy
             double turned = Math.Abs(Conversions.NormalizeOrientation(theta - prevTheta));
             double explainedTurn = Math.Abs(omega) * dt;
 
+            bool backward = (t - prevTime).TotalSeconds <= 0;
             Remember(x, y, theta, t);
 
-            return moved > explained + ToleranceM
-                || turned > explainedTurn + ToleranceRad;
+            bool posun = moved > explained + ToleranceM;
+            bool kurz = turned > explainedTurn + ToleranceRad;
+            if (posun || kurz)
+                Describe(posun, kurz, moved, explained, turned, explainedTurn, dt, backward);
+            return posun || kurz;
+        }
+
+        /// <summary>
+        /// Druh posledniho skoku: <c>posun</c>, <c>kurz</c> nebo <c>posun+kurz</c>; <c>null</c> pred
+        /// prvnim skokem. Slouzi jako klic skrceni hlaseni (jiny druh jde ven hned).
+        /// </summary>
+        public string LastJumpKind { get; private set; }
+
+        /// <summary>
+        /// Popis posledniho skoku pro Trace (lp-mazani-gridu-bez-stopy): velikost posunu a otoceni,
+        /// kolik z nich vysvetli rychlost a za jak dlouho. Cisla s teckou (invariantni kultura),
+        /// stejne jako ostatni hlasky v Trace.
+        /// </summary>
+        public string LastJumpDescription { get; private set; }
+
+        private void Describe(bool posun, bool kurz, double moved, double explained,
+                              double turned, double explainedTurn, double dt, bool backward)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            LastJumpKind = posun && kurz ? "posun+kurz" : posun ? "posun" : "kurz";
+            var casti = new System.Collections.Generic.List<string>(2);
+            if (posun)
+                casti.Add(string.Format(ci, "posun {0:F2} m (rychlost vysvetli {1:F2} m)", moved, explained));
+            if (kurz)
+                casti.Add(string.Format(ci, "kurz {0:F1} deg (omega vysvetli {1:F1} deg)",
+                                        Conversions.Rad2Deg(turned), Conversions.Rad2Deg(explainedTurn)));
+            LastJumpDescription = "skok pozy - " + string.Join(", ", casti)
+                                + string.Format(ci, " za {0:F2} s", dt)
+                                + (backward ? " (cas pozadu - prehozene snimky)" : string.Empty);
         }
 
         private void Remember(double x, double y, double theta, DateTime t)

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **263**: otevřeno **40** · v kódu, na HW neověřeno **31** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **263**: otevřeno **39** · v kódu, na HW neověřeno **32** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,7 +46,6 @@ Témat celkem **263**: otevřeno **40** · v kódu, na HW neověřeno **31** · 
 | otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Mise | [FreeRun u jedné hrany bere šířku z mapy bez naučené šířky (vždy výchozí 3 m)](#mise-freerun-sirka-bez-naucene) | 7. 10. 2026 |  |
@@ -81,6 +80,7 @@ Témat celkem **263**: otevřeno **40** · v kódu, na HW neověřeno **31** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -1123,17 +1123,6 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 [path-following.md](path-following.md), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-09-22](devlog.md#2026-09-22)
 
-<a id="lp-mazani-gridu-bez-stopy"></a>
-### ⬜ Smazání gridu po skoku pózy nezanechá v Trace stopu
-
-`lp-mazani-gridu-bez-stopy` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu při výpadku kamer a ručním otočení, 15:15:43 při záseku procesu) a v logu záznamu o tom není ani řádek; smazání v 15:27:35, které jako jediné ukončilo 132s `RobotBlocked`, se dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz, velikost, `dt`).
-
-- [ ] Hláška do Trace přes `PoruchaHlasic`, test
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="lp-unik-kontrola-kolize-startu"></a>
 ### ⬜ Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“
 
@@ -1280,6 +1269,18 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 - [ ] Ověřit na zařízení: ve slepém konci detektor A penalizuje/zavře hranu a trasa se přeplánuje
 
 [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
+
+<a id="lp-mazani-gridu-bez-stopy"></a>
+### 🧪 Smazání gridu po skoku pózy nezanechá v Trace stopu
+
+`lp-mazani-gridu-bez-stopy` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu při výpadku kamer a ručním otočení, 15:15:43 při záseku procesu) a v logu záznamu o tom není ani řádek; smazání v 15:27:35, které jako jediné ukončilo 132s `RobotBlocked`, se dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz, velikost, `dt`). **V kódu 9. 10. 2026:** `PoseJumpDetector` popíše skok (druh posun/kurz, velikost, kolik vysvětlí rychlost, `dt`, čas pozadu) a `LocalNavigator` ho zapíše přes `PoruchaHlasic` i se soustavou a počtem smazání. 5 testů. ⚠️ Na HW neběželo.
+
+- [x] Hláška do Trace přes `PoruchaHlasic`, test (9. 10. 2026)
+- [ ] Ověřit na zařízení: po skoku pózy je v journalu řádek „grid smazan“ s důvodem
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď

@@ -39,6 +39,58 @@ public class PoseJumpDetectorTests
         Assert.That(d.Check(2.0, 0, theta: 0, v: 0.0, omega: 0, T0.AddSeconds(0.1)), Is.True);
     }
 
+    /// <summary>
+    /// Popis skoku do Trace (lp-mazani-gridu-bez-stopy): po skoku detektor rekne, CO videl -
+    /// druh, velikost, kolik vysvetli rychlost a za jak dlouho. Bez toho se smazani gridu
+    /// dohledavalo jen z propadu znamych bunek ve snapshotech.
+    /// </summary>
+    [Test]
+    public void SkokPosunem_PopisUvedePosunAVysvetleni()
+    {
+        var d = new PoseJumpDetector { ToleranceM = 0.5 };
+        d.Check(0, 0, theta: 0, v: 0.5, omega: 0, T0);
+        Assert.That(d.Check(2.0, 0, theta: 0, v: 0.5, omega: 0, T0.AddSeconds(0.1)), Is.True);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(d.LastJumpKind, Is.EqualTo("posun"));
+            Assert.That(d.LastJumpDescription, Does.Contain("posun 2.00 m"));
+            Assert.That(d.LastJumpDescription, Does.Contain("rychlost vysvetli 0.05 m"));
+            Assert.That(d.LastJumpDescription, Does.Contain("za 0.10 s"));
+        });
+    }
+
+    [Test]
+    public void SkokKurzem_PopisUvedeKurz()
+    {
+        var d = new PoseJumpDetector();
+        d.Check(0, 0, theta: 0, v: 0, omega: 0, T0);
+        Assert.That(d.Check(0, 0, theta: 10 * Math.PI / 180, v: 0, omega: 0, T0.AddSeconds(0.1)), Is.True);
+
+        Assert.That(d.LastJumpKind, Is.EqualTo("kurz"));
+        Assert.That(d.LastJumpDescription, Does.Contain("kurz 10.0 deg"));
+    }
+
+    [Test]
+    public void SkokPosunemIKurzem_DruhObsahujeObe()
+    {
+        var d = new PoseJumpDetector();
+        d.Check(0, 0, theta: 0, v: 0, omega: 0, T0);
+        Assert.That(d.Check(3, 0, theta: 0.5, v: 0, omega: 0, T0.AddSeconds(0.1)), Is.True);
+
+        Assert.That(d.LastJumpKind, Is.EqualTo("posun+kurz"));
+    }
+
+    [Test]
+    public void SkokNaSnimkuSCasemPozadu_PopisToRekne()
+    {
+        var d = new PoseJumpDetector();
+        d.Check(0, 0, theta: 0, v: 0, omega: 0, T0);
+        Assert.That(d.Check(2, 0, theta: 0, v: 0, omega: 0, T0.AddSeconds(-0.05)), Is.True);
+
+        Assert.That(d.LastJumpDescription, Does.Contain("cas pozadu"));
+    }
+
     [Test]
     public void MalaKorekce_NeniSkok()
     {

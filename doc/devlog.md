@@ -57,6 +57,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   stojí jako dřív). `ARBot.Analyze zasek`/`nav` ho počítají jako stání. Testy Common 1 804 (3 nové),
   HAL 172, Runtime 161. ⚠️ Na HW neběželo; starší záznamy mají slepý konec pod `AlreadyAtGoal`;
   stránka ani Trace stav zatím neukazují (`nav-recovery-manevr`).
+- **Smazání gridu po skoku pózy jde do Trace** (`lp-mazani-gridu-bez-stopy`): `PoseJumpDetector`
+  si po skoku zapamatuje druh (posun / kurz / obojí), velikost, kolik z ní vysvětlí rychlost, `dt`
+  a jestli šlo o snímek s časem pozadu; `LocalNavigator` zapíše
+  „LocalNavigator: skok pozy - … [World] -> grid smazan (celkem N)" přes `PoruchaHlasic` (týž druh
+  nejvýš jednou za 5 s, jiný hned). Detekce beze změny. Testy Common 1 809 (5 nových), HAL 172,
+  Runtime 161. ⚠️ Na HW neběželo.
 
 ## 2026-10-08
 

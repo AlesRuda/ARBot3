@@ -57,6 +57,9 @@ namespace ARBot.Common.Occupancy
         private readonly TimeSpan gridMsgPeriod;
         private readonly PoseJumpDetector poseJump = new PoseJumpDetector();
 
+        /// <summary>Skrceni hlaseni o smazani gridu po skoku pozy (serie skoku nesmi zahltit Trace).</summary>
+        private readonly ARBot.Common.Diagnostics.PoruchaHlasic jumpHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
+
         private readonly Stopwatch sw = new Stopwatch();
         private DateTime lastGridMsg;
         private DateTime lastFrameTime;
@@ -297,6 +300,11 @@ namespace ARBot.Common.Occupancy
             {
                 grid.Clear();
                 GridResets++;
+                // Stopa do Trace (lp-mazani-gridu-bez-stopy): do 9. 10. 2026 se jen zvysilo
+                // pocitadlo a smazani se dohledavalo z propadu znamych bunek ve snapshotech.
+                // Skrceno: tyz druh skoku nejvys jednou za 5 s, jiny druh hned.
+                jumpHlasic.Hlas("LocalNavigator: skok pozy " + poseJump.LastJumpKind,
+                                $"LocalNavigator: {poseJump.LastJumpDescription} [{frameKind}] -> grid smazan (celkem {GridResets})");
             }
 
             // Pocitadlo az PO dokonceni cele prace - jinak by pozorovatel (UI, test) videl

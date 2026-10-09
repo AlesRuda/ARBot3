@@ -236,7 +236,8 @@ volnou ~25 pozorování při `l_free = −0,4`, tj. 2,5 s při 10 Hz; pod práh 
 ~~Volitelně pomalý decay k nule~~ — ⚠️ **časový rozpad NENÍ a nikdy nebyl implementovaný**
 (byl jen v návrhu z 11. 8.; 18. 8. 2026 zamítnut, protože by nechal vyblednout i skutečné
 překážky — viz „Únik z blokované buňky"). Obsah buňky mění jen čtyři věci: nové pozorování,
-vypadnutí z okna 12,8 m (`MoveOrigin`), `grid.Clear()` po skoku pózy (`PoseJumpDetector`) a nová
+vypadnutí z okna 12,8 m (`MoveOrigin`), `grid.Clear()` po skoku pózy (`PoseJumpDetector`; od 9. 10. 2026 s řádkem v Trace
+„LocalNavigator: skok pozy - … -> grid smazan", škrceným na jeden za 5 s pro týž druh skoku) a nová
 instance navigátoru po restartu. Buňky, které kamery nevidí (pod robotem, za ním, slepá zóna do
 ~0,3–0,5 m), tedy **drží hodnotu libovolně dlouho, dokud robot stojí** — změřeno 1. 10. 2026:
 pod stojícím robotem beze změny 134 s, i když se s ním na místě otočilo o 49°
@@ -1352,4 +1353,5 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[`AlreadyAtGoal` hlásí i nedosažitelnou mrkev](ukoly.md#lp-alreadyatgoal-lokalni-minimum)** —
   lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu. Od 9. 10. 2026
   v kódu jako stav `LocalMinimum` (výš).
-- **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)**.
+- **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)** — od
+  9. 10. 2026 v kódu: druh, velikost, vysvětlení rychlostí, `dt` a soustava jdou do Trace.

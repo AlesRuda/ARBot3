@@ -9602,8 +9602,9 @@ temata:
     oblast: lokalni-planovani
     nazev: Smazání gridu po skoku pózy nezanechá v Trace stopu
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-09
     popis: >
       `LocalNavigator` při skoku pózy (`PoseJumpDetector`) grid smaže a zvýší jen počítadlo
       `GridResets` — do `Trace` nejde nic. Ve Tracku 1. 10. 2026 se grid smazal 7× (skoky kurzu
@@ -9612,13 +9613,19 @@ temata:
       dalo dohledat jen z propadu známých buněk ve snapshotech. Pravidlo „Diagnostika poruch
       jde do Trace" (CLAUDE.md) — hlášení se škrcením přes `PoruchaHlasic` (důvod: posun / kurz,
       velikost, `dt`).
+      **V kódu 9. 10. 2026:** `PoseJumpDetector` popíše skok (druh posun/kurz, velikost, kolik vysvětlí
+      rychlost, `dt`, čas pozadu) a `LocalNavigator` ho zapíše přes `PoruchaHlasic` i se soustavou
+      a počtem smazání. 5 testů. ⚠️ Na HW neběželo.
     kroky:
       - co: "Hláška do Trace přes `PoruchaHlasic`, test"
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Ověřit na zařízení: po skoku pózy je v journalu řádek „grid smazan“ s důvodem"
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-09]
     ceka_na: []
 
   - id: lok-fuze-rucni-otoceni
