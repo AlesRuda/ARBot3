@@ -562,6 +562,57 @@ public class GlobalNavigatorTests
                     "robot se nehybe (v = 0) - skoky pozy nesmi zasek zamaskovat");
     }
 
+    /// <summary>
+    /// Slepý konec (lp-alreadyatgoal-lokalni-minimum): lokální plán hlásí <c>LocalMinimum</c>
+    /// a robot stojí. Je to platný plán, takže detektor záseku musí zabrat a hranu zavřít —
+    /// dřív tentýž stav vycházel jako <c>AlreadyAtGoal</c> a robot stál potichu minuty.
+    /// </summary>
+    [Test]
+    public void LocalMinimum_DetektorAZasekPozna()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.LocalMinimum);
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 10; i++)
+            nav.Step(10, 0, t.AddSeconds(i));                           // robot stoji
+
+        Assert.That(nav.Closures.Any(c => c.Reason == ClosureReason.NoMotion), Is.True,
+                    "uvazly robot ve slepem konci je zasek, ne dojezd");
+    }
+
+    /// <summary>Skutečný dojezd k mrkvi (<c>AlreadyAtGoal</c>) zásek není — kontrola k testu výš.</summary>
+    [Test]
+    public void AlreadyAtGoal_DetektorANezavira()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 0,
+        };
+        var nav = Create(origin, sink, cfg);
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.AlreadyAtGoal);
+
+        var t = DateTime.UtcNow;
+        for (int i = 0; i < 10; i++)
+            nav.Step(10, 0, t.AddSeconds(i));
+
+        Assert.That(nav.Closures, Is.Empty);
+    }
+
     /// <summary>Pod nouzovym zastavenim robot legitimne stoji - zasek se nesmi hlasit.</summary>
     [Test]
     public void NoMotionUnderEmergencyStop_DoesNotCloseAnything()

@@ -29,8 +29,8 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">41</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">30</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">40</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">31</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">170</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">13</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
@@ -456,6 +456,7 @@
       <li data-tema="hw-bms-jbd-driver"><span class="mono">8. 10.</span> <span class="typ">začato i vyřešeno</span> <a href="#hw-bms-jbd-driver">Driver chytr&#233; BMS JBD — stav nabit&#237;, proud a čl&#225;nky do z&#225;znamu a na str&#225;nku</a></li>
       <li data-tema="hw-bms-telemetrie"><span class="mono">8. 10.</span> <span class="typ">začato</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
       <li data-tema="hw-bms-telemetrie"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#hw-bms-telemetrie">&#218;daje z BMS nejsou v telemetrick&#233;m pohledu</a></li>
+      <li data-tema="lp-alreadyatgoal-lokalni-minimum"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-alreadyatgoal-lokalni-minimum"><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</a></li>
     </ul>
   </div>
 </section>
@@ -1332,16 +1333,6 @@
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/path-following.md">path-following.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-22">2026-09-22</a></p>
   </article>
-  <article class="tema" id="lp-alreadyatgoal-lokalni-minimum" data-stav="otevreno">
-    <h3><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</h3>
-    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
-    <p><code>LocalPathPlanner</code> přep&#237;še <code>Partial</code>, jehož nejbližš&#237; dosažiteln&#225; buňka je ta pod robotem (pl&#225;n &lt; 2 uzly), na <code>AlreadyAtGoal</code> bez ohledu na vzd&#225;lenost mrkve. <code>GlobalNavigator</code> bere jako platn&#253; pl&#225;n jen <code>Ok</code>/<code>Partial</code>/<code>GoalBlocked</code>/<code>GoalUnsafe</code>, takže detektor A je při <code>AlreadyAtGoal</code> vynulovan&#253;. 18. 9. 2026 (<code>20260918-154028.rec</code>) tak robot st&#225;l 388–466 s a 575–737 s ve slep&#233;m konci chodn&#237;ku: 4 168 pl&#225;nů <code>AlreadyAtGoal</code>, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložen&#233; f&#225;zi <code>Partial</code> (zavřel hrany v 556,6 s). T&#225;ž past jako 3. 9. u mrkve v tr&#225;vě (tam vzniklo <code>GoalBlocked</code>).</p>
-    <ul class="kroky">
-      <li class="hotovo">Nalezeno nad 18. 9. (<code>zasek</code>, <code>localplan</code>, k&#243;d f848fdf / 9f649a0) <span class="mono">7. 10. 2026</span></li>
-      <li class="otevreno">Rozhodnout (autor): stav pro nedosažitelnou mrkev při pl&#225;nu nulov&#233; d&#233;lky (<code>GoalBlocked</code> / nov&#253;) a reakci glob&#225;ln&#237; navigace</li>
-    </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a></p>
-  </article>
   <article class="tema" id="lp-mazani-gridu-bez-stopy" data-stav="otevreno">
     <h3>Smaz&#225;n&#237; gridu po skoku p&#243;zy nezanech&#225; v Trace stopu</h3>
     <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span></p>
@@ -1465,6 +1456,18 @@
       <li class="otevreno">Zjistit, proč po zotaven&#237; kamer 9–13 s nevznik&#225; pl&#225;n (sn&#237;mky, grid, c&#237;l?)</li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/plan-drive-hold.md">plan-drive-hold.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/Src/ARBot.Common/Runtime/ControlLoop.cs">ControlLoop.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-05">2026-10-05</a></p>
+  </article>
+  <article class="tema" id="lp-alreadyatgoal-lokalni-minimum" data-stav="v-kodu">
+    <h3><code>AlreadyAtGoal</code> hl&#225;s&#237; i nedosažitelnou mrkev 7 m daleko — detektor z&#225;seku se odzbroj&#237; a robot stoj&#237; potichu</h3>
+    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 7. 10. 2026</span> <span>vyřešeno 9. 10. 2026</span></p>
+    <p><code>LocalPathPlanner</code> přep&#237;še <code>Partial</code>, jehož nejbližš&#237; dosažiteln&#225; buňka je ta pod robotem (pl&#225;n &lt; 2 uzly), na <code>AlreadyAtGoal</code> bez ohledu na vzd&#225;lenost mrkve. <code>GlobalNavigator</code> bere jako platn&#253; pl&#225;n jen <code>Ok</code>/<code>Partial</code>/<code>GoalBlocked</code>/<code>GoalUnsafe</code>, takže detektor A je při <code>AlreadyAtGoal</code> vynulovan&#253;. 18. 9. 2026 (<code>20260918-154028.rec</code>) tak robot st&#225;l 388–466 s a 575–737 s ve slep&#233;m konci chodn&#237;ku: 4 168 pl&#225;nů <code>AlreadyAtGoal</code>, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložen&#233; f&#225;zi <code>Partial</code> (zavřel hrany v 556,6 s). T&#225;ž past jako 3. 9. u mrkve v tr&#225;vě (tam vzniklo <code>GoalBlocked</code>). **V k&#243;du 9. 10. 2026:** stav <code>LocalMinimum</code> a detektor A při něm ozbrojen&#253;; ř&#237;zen&#237; se neměn&#237; (robot stoj&#237; jako dř&#237;v). Starš&#237; z&#225;znamy maj&#237; slep&#253; konec pod <code>AlreadyAtGoal</code>. ⚠️ Na HW neběželo.</p>
+    <ul class="kroky">
+      <li class="hotovo">Nalezeno nad 18. 9. (<code>zasek</code>, <code>localplan</code>, k&#243;d f848fdf / 9f649a0) <span class="mono">7. 10. 2026</span></li>
+      <li class="hotovo">Rozhodnout (autor): stav pro nedosažitelnou mrkev při pl&#225;nu nulov&#233; d&#233;lky a reakci glob&#225;ln&#237; navigace — autor 9. 10.: varianta A, nov&#253; stav + detektor A <span class="mono">9. 10. 2026</span></li>
+      <li class="hotovo">V k&#243;du: nov&#253; stav <code>LocalMinimum</code> (<code>Partial</code> s pl&#225;nem nulov&#233; d&#233;lky), <code>AlreadyAtGoal</code> jen u <code>Ok</code>; glob&#225;ln&#237; navigace ho bere jako platn&#253; pl&#225;n → detektor A; <code>ARBot.Analyze zasek</code> a <code>nav</code> ho poč&#237;taj&#237; jako st&#225;n&#237;; 3 testy <span class="mono">9. 10. 2026</span></li>
+      <li class="otevreno">Ověřit na zař&#237;zen&#237;: ve slep&#233;m konci detektor A penalizuje/zavře hranu a trasa se přepl&#225;nuje</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/occupancy-and-local-planning.md">occupancy-and-local-planning.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-07">2026-10-07</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-09">2026-10-09</a></p>
   </article>
   <article class="tema" id="lp-filtr-izolovanych-bunek" data-stav="odlozeno">
     <h3>Izolovan&#233; skvrny <code>Blocked</code> do 4 buněk brzd&#237; robota jako zeď</h3>

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **263**: otevřeno **41** · v kódu, na HW neověřeno **30** · hotovo **170** · odloženo **13** · zamítnuto **9**.
+Témat celkem **263**: otevřeno **40** · v kódu, na HW neověřeno **31** · hotovo **170** · odloženo **13** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -46,7 +46,6 @@ Témat celkem **263**: otevřeno **41** · v kódu, na HW neověřeno **30** · 
 | otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Koridor přiřadil 1,3 m široký chodník k ulici 4,9 m vedle a posunul pózu o 4,8 m](#lok-koridor-chodnik-k-ulici) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
@@ -81,6 +80,7 @@ Témat celkem **263**: otevřeno **41** · v kódu, na HW neověřeno **30** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
@@ -1123,18 +1123,6 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 [path-following.md](path-following.md), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-09-22](devlog.md#2026-09-22)
 
-<a id="lp-alreadyatgoal-lokalni-minimum"></a>
-### ⬜ `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
-
-`lp-alreadyatgoal-lokalni-minimum` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-`LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere jako platný plán jen `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, takže detektor A je při `AlreadyAtGoal` vynulovaný. 18. 9. 2026 (`20260918-154028.rec`) tak robot stál 388–466 s a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s). Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`).
-
-- [x] Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0) (7. 10. 2026)
-- [ ] Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky (`GoalBlocked` / nový) a reakci globální navigace
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="lp-mazani-gridu-bez-stopy"></a>
 ### ⬜ Smazání gridu po skoku pózy nezanechá v Trace stopu
 
@@ -1278,6 +1266,20 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 - [ ] Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?)
 
 [plan-drive-hold.md](plan-drive-hold.md), [ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs) · DevLog [2026-10-05](devlog.md#2026-10-05)
+
+<a id="lp-alreadyatgoal-lokalni-minimum"></a>
+### 🧪 `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
+
+`lp-alreadyatgoal-lokalni-minimum` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
+
+`LocalPathPlanner` přepíše `Partial`, jehož nejbližší dosažitelná buňka je ta pod robotem (plán < 2 uzly), na `AlreadyAtGoal` bez ohledu na vzdálenost mrkve. `GlobalNavigator` bere jako platný plán jen `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, takže detektor A je při `AlreadyAtGoal` vynulovaný. 18. 9. 2026 (`20260918-154028.rec`) tak robot stál 388–466 s a 575–737 s ve slepém konci chodníku: 4 168 plánů `AlreadyAtGoal`, ve všech mrkev 6,6–7,3 m daleko. Detektor A zabral jen ve vložené fázi `Partial` (zavřel hrany v 556,6 s). Táž past jako 3. 9. u mrkve v trávě (tam vzniklo `GoalBlocked`). **V kódu 9. 10. 2026:** stav `LocalMinimum` a detektor A při něm ozbrojený; řízení se nemění (robot stojí jako dřív). Starší záznamy mají slepý konec pod `AlreadyAtGoal`. ⚠️ Na HW neběželo.
+
+- [x] Nalezeno nad 18. 9. (`zasek`, `localplan`, kód f848fdf / 9f649a0) (7. 10. 2026)
+- [x] Rozhodnout (autor): stav pro nedosažitelnou mrkev při plánu nulové délky a reakci globální navigace — autor 9. 10.: varianta A, nový stav + detektor A (9. 10. 2026)
+- [x] V kódu: nový stav `LocalMinimum` (`Partial` s plánem nulové délky), `AlreadyAtGoal` jen u `Ok`; globální navigace ho bere jako platný plán → detektor A; `ARBot.Analyze zasek` a `nav` ho počítají jako stání; 3 testy (9. 10. 2026)
+- [ ] Ověřit na zařízení: ve slepém konci detektor A penalizuje/zavře hranu a trasa se přeplánuje
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď

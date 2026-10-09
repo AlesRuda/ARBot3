@@ -322,11 +322,18 @@ namespace ARBot.Common.Occupancy
             if (res.WayPoints == null || res.WayPoints.Length < 2)
             {
                 // Cil (nebo nejblizsi dosazitelna bunka) je blize nez jedna pouzitelna hrana - neni co
-                // predat regulatoru. U Ok/Partial je to "uz jsem tam". U GoalBlocked/GoalUnsafe stav
+                // predat regulatoru. U Ok je to "uz jsem tam". U GoalBlocked/GoalUnsafe stav
                 // ZUSTAVA: robot stoji na nejblizsi bezpecne bunce, cil nedosahl a nedosahne, a prave
                 // to ma byt videt (HasPath je false, ridit se podle toho neda).
-                if (res.Status == LocalPlanStatus.Ok || res.Status == LocalPlanStatus.Partial)
+                // U Partial je to SLEPY KONEC: cil dosazen neni (Partial = vede jen k nejlepsi
+                // dosazitelne bunce) a ta je pod robotem. Do 9. 10. 2026 to bylo AlreadyAtGoal bez
+                // ohledu na vzdalenost cile - 18. 9. 2026 robot stal minuty u mrkve 7 m daleko
+                // a globalni navigace to brala jako dojezd (lp-alreadyatgoal-lokalni-minimum).
+                // "Robot uz je v cilove zone" se resi na zacatku Plan(), sem se nedostane.
+                if (res.Status == LocalPlanStatus.Ok)
                     res.Status = LocalPlanStatus.AlreadyAtGoal;
+                else if (res.Status == LocalPlanStatus.Partial)
+                    res.Status = LocalPlanStatus.LocalMinimum;
             }
 
             return res;

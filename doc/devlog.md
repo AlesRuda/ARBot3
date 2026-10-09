@@ -48,6 +48,15 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   i chybějící články/čidla dávají prázdno, ne nulu. Ověřeno buildem, testy telemetrie (39) a záznamem
   ze simulace `records/20261009-080953.rec` (12 zpráv `BmsState` za ~20 s, `ARBot.Analyze types`);
   ⚠️ v okně aplikace neproklikané (zůstává jako krok v registru).
+- **Slepý konec už se netváří jako dojezd** (`lp-alreadyatgoal-lokalni-minimum`, varianta A podle
+  autora): nový stav lokálního plánu `LocalMinimum` — mrkev nedosažitelná a nejbližší dosažitelná
+  buňka je pod robotem. Dřív `LocalPathPlanner` takový `Partial` přepsal na `AlreadyAtGoal` bez
+  ohledu na vzdálenost mrkve a `GlobalNavigator` měl detektor záseku vypnutý (18. 9. robot stál
+  minuty u mrkve 7 m daleko). `AlreadyAtGoal` teď jen u `Ok`; navigace bere `LocalMinimum` jako
+  platný plán, takže detektor A po `NoMotionSec` penalizuje/zavře hranu. Řízení beze změny (robot
+  stojí jako dřív). `ARBot.Analyze zasek`/`nav` ho počítají jako stání. Testy Common 1 804 (3 nové),
+  HAL 172, Runtime 161. ⚠️ Na HW neběželo; starší záznamy mají slepý konec pod `AlreadyAtGoal`;
+  stránka ani Trace stav zatím neukazují (`nav-recovery-manevr`).
 
 ## 2026-10-08
 

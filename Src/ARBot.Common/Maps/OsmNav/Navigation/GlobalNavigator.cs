@@ -364,9 +364,14 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             // trasa se kolem zavrene hrany preplanovala a zavrela se dalsi: Track 25. 9. 2026
             // (20260925-144200.rec) 15 uzavreni teze cyklostezky za 21 s, az 78 m od robotu.
             // Registr nav-detektor-c-kaskada.
+            // LocalMinimum (od 9. 10. 2026): slepy konec - mrkev nedosazitelna a robot se k ni nema
+            // kam priblizit. Plan je platny (robot stoji z duvodu mapy, ne poruchy), takze detektor
+            // zaseku A po NoMotionSec penalizuje/zavre hranu a trasa se preplanuje. Do te doby to
+            // planovac hlasil jako AlreadyAtGoal a detektor byl odzbrojeny (lp-alreadyatgoal-lokalni-minimum).
             bool failed = status == LocalPlanStatus.NoRoute;
             localPlanValid = status == LocalPlanStatus.Ok || status == LocalPlanStatus.Partial
-                          || status == LocalPlanStatus.GoalBlocked || status == LocalPlanStatus.GoalUnsafe;
+                          || status == LocalPlanStatus.GoalBlocked || status == LocalPlanStatus.GoalUnsafe
+                          || status == LocalPlanStatus.LocalMinimum;
 
             planFailureStreak = failed ? planFailureStreak + 1 : 0;
         }

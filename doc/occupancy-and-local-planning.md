@@ -610,6 +610,16 @@ rozhoduje **producent cíle** (mise, globální navigace), ne plánovač — ten
 nebo mrkev jen přestřelila zatáčku. `GlobalNavigator.OnLocalPlan` s nimi zatím zachází jako
 s `Partial` (plán platný, ne selhání), aby se chování nezměnilo potichu; reakce je otevřená.
 
+**Slepý konec se hlásí jako `LocalMinimum` (od 9. 10. 2026).** Když mrkev není dosažitelná a nejbližší
+dosažitelná buňka je ta pod robotem (zeď nebo konec chodníku mezi robotem a mrkví), plán nemá dráhu
+a robot stojí — dřív to ale vycházelo jako `AlreadyAtGoal` („jsem v cíli") bez ohledu na vzdálenost
+mrkve, takže globální navigace měla detektor záseku vypnutý a 18. 9. 2026 robot stál minuty u mrkve
+7 m daleko ([`lp-alreadyatgoal-lokalni-minimum`](ukoly.md#lp-alreadyatgoal-lokalni-minimum)).
+`AlreadyAtGoal` teď znamená jen skutečný dojezd (robot v cílové zóně nebo plán `Ok` kratší než hrana).
+`GlobalNavigator` bere `LocalMinimum` jako platný plán, takže detektor A po `NoMotionSec` hranu
+penalizuje/zavře a trasa se přeplánuje. ⚠️ **Starší záznamy mají slepý konec pod `AlreadyAtGoal`.**
+Na stránce náhledu ani v Trace se stav zatím neukazuje (`nav-recovery-manevr`). Na HW neběželo.
+
 ### Rychlostní obálka — jeden invariant místo zvláštních pravidel
 
 > **Nikdy nejeď rychleji, než z čeho zastavíš na hranici potvrzeně průjezdného.**
@@ -1340,5 +1350,6 @@ Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle o
 - **[Kontrola kolize únikové dráhy nevyjímá startovní buňku](ukoly.md#lp-unik-kontrola-kolize-startu)** —
   odtud falešné „NOUZOVE ZASTAVENI – kolize 0,00 m".
 - **[`AlreadyAtGoal` hlásí i nedosažitelnou mrkev](ukoly.md#lp-alreadyatgoal-lokalni-minimum)** —
-  lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu.
+  lokální minimum (18. 9.), detektor záseku se odzbrojí a robot stojí potichu. Od 9. 10. 2026
+  v kódu jako stav `LocalMinimum` (výš).
 - **[Smazání gridu po skoku pózy nezanechá v Trace stopu](ukoly.md#lp-mazani-gridu-bez-stopy)**.

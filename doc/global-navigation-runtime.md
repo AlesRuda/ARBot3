@@ -347,6 +347,11 @@ neohlásila — oprava C to potvrdila (0 uzavření místo ~164), ale detektor A
 odzbrojený a zotavení (řádek A2 tabulky níž) neexistuje. Viz `lp-uvaznuti-v-zatackach`,
 `nav-uvaznuti-neohlasene` a [occupancy-and-local-planning.md](occupancy-and-local-planning.md),
 sekce „Uváznutí na konci Tracku 1. 10. 2026".
+✅ **Slepý konec (`LocalMinimum`, od 9. 10. 2026) detektor A ozbrojí:** lokální plánovač ho dřív
+hlásil jako `AlreadyAtGoal` a `OnLocalPlan` ho tedy nebral jako platný plán — 18. 9. 2026 robot
+stál 388–466 s a 575–737 s u mrkve 6,6–7,3 m daleko, aniž by detektor zabral
+(`lp-alreadyatgoal-lokalni-minimum`). Teď je `LocalMinimum` platný plán jako `Partial`, takže
+po `NoMotionSec` přijde penalizace a při opakování uzavření hrany. ⚠️ Na HW neběželo.
 
 *Zpřesnění (fáze 4b): průřez napříč cestou.* Nejsilnější důkaz přehrazení je „všechny buňky na
 kolmici k cestě v šířce `Node.Width + margin` jsou `Blocked`". Ten test **musí proběhnout na vlákně
