@@ -31,7 +31,7 @@ namespace ARBot.Common.Diagnostics
         NoPlan = 1,
         /// <summary>Robot stoji v blokovane bunce nebo tesne u prekazky (<c>RobotBlocked</c>/<c>EscapingBlocked</c>).</summary>
         InBlockedCell = 2,
-        /// <summary>Mrkev je daleko, ale nedosazitelna (<c>AlreadyAtGoal</c> z lokalniho minima).</summary>
+        /// <summary>Mrkev je daleko, ale nedosazitelna - slepy konec (<c>LocalMinimum</c>; ve starsich zaznamech <c>AlreadyAtGoal</c>).</summary>
         CarrotUnreachable = 3,
         /// <summary>Cilova zona mrkve je cela neprujezdna / tesna (<c>GoalBlocked</c>/<c>GoalUnsafe</c>).</summary>
         GoalBlocked = 4,
@@ -480,6 +480,9 @@ namespace ARBot.Common.Diagnostics
                         kde = "v blokované buňce";
                     return st == LocalPlanStatus.EscapingBlocked ? kde + ", únik nepostupuje" : kde + ", únik nenalezen";
                 }
+                // Slepy konec: od 9. 10. 2026 vlastni stav LocalMinimum, ve starsich zaznamech
+                // AlreadyAtGoal s mrkvi daleko (skutecny dojezd sem nedojde - ten ukonci jizdu v Active).
+                case LocalPlanStatus.LocalMinimum:
                 case LocalPlanStatus.AlreadyAtGoal:
                 {
                     cause = StuckCause.CarrotUnreachable;

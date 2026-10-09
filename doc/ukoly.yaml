@@ -9568,8 +9568,8 @@ temata:
     popis: >
       Nalezeno při rozboru `nav-uvaznuti-neohlasene`. Od 29. 9. počítá detektor C jen `NoRoute`,
       ale `LocalPathPlanner.Search` začíná s `bestIdx = startIdx`, takže `target` je vždy ≥ 0 a větev
-      `NoRoute` je mrtvá — „nikam se nedá" vyjde jako `AlreadyAtGoal` (lokální minimum),
-      `GoalBlocked`/`GoalUnsafe` bez dráhy nebo `RobotBlocked`. V záznamech 0 plánů `NoRoute`; C
+      `NoRoute` je mrtvá — „nikam se nedá" vyjde jako `LocalMinimum` (od 9. 10. 2026, předtím
+      `AlreadyAtGoal`), `GoalBlocked`/`GoalUnsafe` bez dráhy nebo `RobotBlocked`. V záznamech 0 plánů `NoRoute`; C
       spouštějí jen testy. Dále: detektor A při prvních dvou spuštěních jen tiše zvýší čítač (do Trace
       nic, ozve se až třetí, které zavře hranu), nuluje okno každým plánem mimo „platné" stavy
       (při stání se stavy střídají ~19×/s), a `SetGoal`/`Cancel` jeho stav (`noMotionSince`,
@@ -9594,15 +9594,16 @@ temata:
     stav: otevreno
     nalezeno: 2026-10-08
     popis: >
-      Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). `LocalNavigator.
-      PathCollides` počítá dosah kontroly `v²/(2a) + v·Ts + buňka`, takže při `v = 0` vyjde 0,05 m
+      Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). Kontrola kolize
+      rozjeté dráhy (od 9. 10. `PathCollision.Collides`, dřív `LocalNavigator.PathCollides`) počítá dosah `v²/(2a) + v·Ts + buňka`, takže při `v = 0` vyjde 0,05 m
       a větev „robot stojí → nekontroluj" je mrtvá. U běžné dráhy hlásí kolizi už při odstupu pod
       `SafeDist` (0,4 m), kdežto únik se spouští až pod `SafeDist − buňka/2` (0,375 m): robot stojící
       v tom pásmu plánuje běžně, a když v cyklu nevznikne nová dráha, regulátor se zahodí,
       ven jde `AbortedCollision` (přepíše stav plánovače) a neškrcená Trace „NOUZOVE ZASTAVENI".
       Pravděpodobné vysvětlení Kola4 (19. 9.): uvnitř `GoalUnsafe` 9× „kolize 0,00 m" po 12–15 s.
       Navíc po `ClearGoal` zůstává `activePath`, takže tatáž hláška může přijít i bez cíle (stanoviště).
-      Příbuzné `lp-unik-kontrola-kolize-startu` (úniková dráha).
+      Příbuzné `lp-unik-kontrola-kolize-startu` (úniková dráha — od 9. 10. vyjímá buňku pod robotem;
+      běžná dráha zůstala beze změny, takže tohle platí dál).
     kroky:
       - co: "Nalezeno v kódu (f848fdf i HEAD)"
         stav: hotovo

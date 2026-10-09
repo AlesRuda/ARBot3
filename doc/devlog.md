@@ -41,6 +41,12 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-09
 
+- **Hlídač uváznutí po sloučení s dnešními commity** (`nav-uvaznuti-neohlasene`): nový stav
+  `LocalMinimum` (slepý konec) bere hlídač jako „mrkev X m nedosažitelná", stejně jako dřívější
+  `AlreadyAtGoal` s mrkví daleko — bez toho by hlásil „stav plánu LocalMinimum". Tím je slepý konec
+  vidět i na stránce a v Trace (poznámka „stránka ani Trace stav zatím neukazují" níže už neplatí).
+  Texty témat `nav-detektor-c-mrtvy` a `lp-kolize-pri-stani` srovnané se stavem po sloučení (kontrola
+  kolize je teď v `PathCollision`, běžná dráha beze změny). Test 1 nový. ⚠️ Na zařízení neběželo.
 - **Údaje z BMS v telemetrickém pohledu** (`hw-bms-telemetrie`): v `TelemetryColumns` deset sloupců
   ze `BmsState` hned za motory — nabití [%], U [V], I [A] (+ nabíjení), zbývá [Ah], článek min/max,
   Δ článků [mV], teplota, ochrana (v tabulce český popis přes `BmsProtectionText`, v grafu schod;

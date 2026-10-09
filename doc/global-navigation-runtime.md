@@ -384,9 +384,9 @@ je odložený, `nav-recovery-manevr`) — jenže **ohlásit nikdo neuměl**: př
 i mise hlásily „jede" a robot stál do zásahu obsluhy (1. 10. 132 + 42 s v `RobotBlocked`, 18. 9.
 ~6 min v `AlreadyAtGoal`, Kolo4 268 s v `GoalUnsafe`). Detektory A/B/C to z konstrukce nevidí:
 
-- **A** vynuluje okno každý plán mimo `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe`, a stavy se při
-  stání střídají ~19× za sekundu (1. 10. bylo uvnitř `RobotBlocked` 16× `EscapingBlocked`), takže
-  se neozbrojí; první dvě spuštění jsou navíc tichá.
+- **A** vynuluje okno každý plán mimo `Ok`/`Partial`/`GoalBlocked`/`GoalUnsafe` (od 9. 10. i
+  `LocalMinimum`, slepý konec), a stavy se při stání střídají ~19× za sekundu (1. 10. bylo uvnitř
+  `RobotBlocked` 16× `EscapingBlocked`), takže se neozbrojí; první dvě spuštění jsou navíc tichá.
 - **B** potřebuje ujet 20 m. **C** počítá jen `NoRoute`, a ten plánovač **nikdy nevrátí**
   (`bestIdx` začíná na startovní buňce) — od 29. 9. je C mrtvý (`nav-detektor-c-mrtvy`).
 - FreeRun ani jízda bez mapy globální navigaci nemají vůbec.
@@ -399,7 +399,7 @@ na Streamu. Rozhodnutí autora 8. 10. 2026 (viz [decisions.md](decisions.md)):
 | **co je uváznutí** | robot **má jet** (cíl navigace `Driving`/`GoalInMap`/`OffRoute`, nebo běží FreeRun, nebo bez mapy chodí lokální plán, který není skutečný dojezd), **nedrží ho** STOP ani hold kamer, a **neujel 0,5 m** — **bez ohledu na stav plánu** (Kolo4 stálo v „platném" `GoalUnsafe`) |
 | **prahy** | od **20 s** „stojí N s při jízdě — příčina" (oranžově; může se vyřešit samo), od **60 s** „UVÁZL N s — příčina — zásah obsluhy" (červeně) |
 | **reakce** | **jen ohlásit**: řádek v hlavičce stránky náhledu, přechody do Trace (nástup, za UVÁZL každých 30 s, konec s důvodem), `StuckMsg` do záznamu (1 Hz po dobu stání). Nic se nepřerušuje ani nezavírá. |
-| **příčina** | převažující za posledních 10 s podle lokálního plánu: bez plánu (kamery/fúze), v buňce blokované hloubkou/barvou nebo těsně u překážky, mrkev X m nedosažitelná (lokální minimum), mrkev v překážce, plán vede dál a robot nejede. „Východ X m směrem Y" se **zatím nepočítá** (autor). |
+| **příčina** | převažující za posledních 10 s podle lokálního plánu: bez plánu (kamery/fúze), v buňce blokované hloubkou/barvou nebo těsně u překážky, mrkev X m nedosažitelná (slepý konec — `LocalMinimum`, ve starších záznamech `AlreadyAtGoal`), mrkev v překážce, plán vede dál a robot nejede. „Východ X m směrem Y" se **zatím nepočítá** (autor). |
 
 Detaily, které rozhodla data:
 

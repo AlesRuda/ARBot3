@@ -301,6 +301,18 @@ public class StuckMonitorTests
 
     // ---------------- priciny ----------------
 
+    /// <summary>
+    /// Slepy konec ma od 9. 10. 2026 vlastni stav <c>LocalMinimum</c> (driv <c>AlreadyAtGoal</c>
+    /// s mrkvi daleko) - hlidac ho pojmenuje stejne a vzdalenost bere z planu.
+    /// </summary>
+    [Test]
+    public void LocalMinimum_JeNedosazitelnaMrkev()
+    {
+        var v = Prehraj(new Scena { Plan = _ => PlanMsg(LocalPlanStatus.LocalMinimum, goalDist: 6.6) }, 21);
+        Assert.That(v.Lines.Single().Line, Is.EqualTo("STANI: robot stoji 20 s pri jizde - mrkev 6.6 m nedosazitelna (lokalni minimum)."));
+        Assert.That(v.Msgs.Last().Msg.Cause, Is.EqualTo((byte)StuckCause.CarrotUnreachable));
+    }
+
     /// <summary>Kolo4 (19. 9.): 268 s v GoalUnsafe - „platny" plan, a presto uvaznuti.</summary>
     [Test]
     public void GoalUnsafe_JePricina()
