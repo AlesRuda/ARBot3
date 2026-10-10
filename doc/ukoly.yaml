@@ -1675,14 +1675,17 @@ temata:
       - co: Extrinsiky color–depth přes HAL a do záznamu (`CameraFrame` layout v5)
         stav: hotovo
         kdy: 2026-08-21
-      - co: Ověřit extrinsiky a body hranice na skutečné D435
+      - co: "Ověřit extrinsiky na skutečné D435 — 10. 10. 2026 ze záznamů (`ARBot.Analyze projekce`): barva→hloubka posun −14,9 / −15,0 mm v X, rotace 0,8°, od 2. 9. stálé. Přitom nalezena vada hlavního bodu levé kamery, viz `vid-leva-kamera-hlavni-bod`"
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: Ověřit body hranice na skutečné D435 (až po opravě `vid-leva-kamera-hlavni-bod`, jinak se měří vada levé kamery)
         stav: otevreno
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
       - text: traversability-grid.md
         cesta: doc/traversability-grid.md
-    devlog: [2026-08-21]
+    devlog: [2026-08-21, 2026-10-10]
 
   - id: nast-telemetricky-pohled
     oblast: nastroje
@@ -6755,8 +6758,9 @@ temata:
         kdy: 2026-09-15
       - co: V13 — ověřit podmínky tří proprietárních binárek, atribuce OSM (ODbL)
         stav: otevreno
-      - co: "Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`)"
-        stav: otevreno
+      - co: "Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`). Změřeno 10. 10. 2026 nad 46 záznamy (`ARBot.Analyze gpskurz`, `motory`): `HeadVeh` (čte offset 64 = `headMot` místo 84) je SPÍCÍ — kurz vozidla nepřišel ani v jedné z ~200 tisíc zpráv, přijímač `headVehValid` nenastavuje. Prefixy `SDC2160Ex`: posunutý řádek skončí rámcem bez měření (0–2 na záznam), ne špatnou hodnotou; enkodéry bez jediného výstřelku; napětí má 0–87 nesmyslných hodnot na záznam (5–6 V, 16–18 V; chyba přenosu nebo měření jednotky), které pohltí 5s medián hlídače baterie. Rychlosti kol nad 3 m/s jsou známá vada razítek (rámce 2–6 ms po sobě, `lok-fuze-poza-pred-koly`). `HeadVeh` opraveno 10. 10. 2026 (offset 84, pojistka na zprávu bez pole, `uBloxGps.VehicleHeadingFrom`, 4 testy); prefixy `SDC2160Ex` se neopravují"
+        stav: hotovo
+        kdy: 2026-10-10
       - co: "Ověřit V6 na zařízení — 1. 10. 2026 (`20261001-144638.rec`): `T_out − T_in` snímků p50 26–36 ms po 5 min, 42 min bez trendu, žádný snímek pozpátku ani z budoucnosti, i po restartu levé pipeline 15:21:57; zamrzlá barva se dál pozná (15:21:44)"
         stav: hotovo
         kdy: 2026-10-07
@@ -10139,4 +10143,47 @@ temata:
       - text: plan-bms-jbd.md
         cesta: doc/plan-bms-jbd.md
     devlog: [2026-10-08, 2026-10-09]
+    ceka_na: []
+
+  - id: vid-leva-kamera-hlavni-bod
+    oblast: videni
+    nazev: Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-10
+    popis: >
+      Levá D435 má `Swap = true`, takže driver obrací pořadí pixelů a obraz se tím otočí o 180°.
+      Hlavní bod se proto musí převrátit spolu s ním. `D435Camera.CreateProjector` ho převrací
+      v intrinsice i v její inverzi, jenže `Intrinsics.Inverse()` vrací pro model bez zkreslení
+      (D435 má nulové koeficienty) TENTÝŽ objekt. Převrácení se tak provede dvakrát a zruší se.
+      Platí to pro hloubkovou i barevnou projekci. `ColorPixelTo3D` (body hranice cesty) navíc
+      bere barevnou intrinsiku i extrinsiky barva–hloubka (posun −14,9 mm v X) tak, jak jsou, bez
+      ohledu na otočení obrazu. Komentář v `ZasekReport.Projekce`, že intrinsika hloubky „už
+      zohledňuje otočení", tedy neplatí.
+      **Změřeno 10. 10. 2026** (`ARBot.Analyze projekce`; všechny záznamy 2. 9.–1. 10. mají stejné
+      hodnoty):
+      - Hloubka (480×270): PP (237,50; 135,47), odsazení od středu (−2,0; +1,0) px. Paprsky levé
+        kamery jsou pootočené o −0,95° vodorovně a +0,46° svisle.
+      - Barva (640×480): PP (318,28; 250,36), odsazení (−1,2; **+10,9**) px, tedy **+2,0° svisle**
+        (−0,2° vodorovně).
+      Chyba 2° ve sklonu posune místo, odkud se barva levé kamery zapíše do gridu, zhruba o 0,3 m
+      ve 2 m a o 0,6 m ve 3 m. Barva se bere z bližšího místa, než kam se zapíše.
+      Mohlo by to vysvětlit část nerovnoběžnosti hran koridoru (−1,4 až −2,0°) i rozdílu sklonů
+      kamer v `Profile` (−20,2 / −18,6°) z `vid-kalibrace-kamer-bias`, to ale prokázané není.
+      Kalibrace kamer v `Profile` mohla být naladěná proti této chybě, takže oprava se musí spojit
+      s přeměřením montáže.
+    kroky:
+      - co: "Změřit odsazení hlavního bodu a úhel ze záznamů (`ARBot.Analyze projekce`)"
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: "Rozhodnout (autor): opravit převrácení (inverze jako kopie, nebo převracet oba objekty zvlášť; barevná intrinsika a znaménko extrinsik v `ColorPixelTo3D`) a jak přeměřit montáž kamer v `Profile`"
+        stav: otevreno
+      - co: "Změřit dopad na hranice cesty a barvu v gridu přehráním s opravenou projekcí levé kamery"
+        stav: otevreno
+    odkazy:
+      - text: traversability-grid.md
+        cesta: doc/traversability-grid.md
+      - text: map-correlation-localization.md
+        cesta: doc/map-correlation-localization.md
+    devlog: [2026-10-10]
     ceka_na: []

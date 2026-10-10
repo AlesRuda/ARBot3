@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **266**: otevřeno **36** · v kódu, na HW neověřeno **36** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **267**: otevřeno **37** · v kódu, na HW neověřeno **36** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -48,6 +48,7 @@ Témat celkem **266**: otevřeno **36** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá](#nav-detektor-c-mrtvy) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)](#nav-doc-stavy-nesedi) | 8. 10. 2026 |  |
+| otevřeno | Vidění | [Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)](#vid-leva-kamera-hlavni-bod) | 10. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
@@ -1564,6 +1565,23 @@ Dokumentace vedla `Model96.2.rknn` jako převod z `.h5` větve (95,35 %), ale na
 
 čeká na [vid-trenink-nejde-zopakovat](#vid-trenink-nejde-zopakovat) · [semantic-segmentation.md](semantic-segmentation.md), [models/README.md](../models/README.md) · DevLog [2026-09-09](devlog.md#2026-09-09)
 
+<a id="vid-leva-kamera-hlavni-bod"></a>
+### ⬜ Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)
+
+`vid-leva-kamera-hlavni-bod` · vada · **otevřeno** · nalezeno 10. 10. 2026
+
+Levá D435 má `Swap = true`, takže driver obrací pořadí pixelů a obraz se tím otočí o 180°. Hlavní bod se proto musí převrátit spolu s ním. `D435Camera.CreateProjector` ho převrací v intrinsice i v její inverzi, jenže `Intrinsics.Inverse()` vrací pro model bez zkreslení (D435 má nulové koeficienty) TENTÝŽ objekt. Převrácení se tak provede dvakrát a zruší se. Platí to pro hloubkovou i barevnou projekci. `ColorPixelTo3D` (body hranice cesty) navíc bere barevnou intrinsiku i extrinsiky barva–hloubka (posun −14,9 mm v X) tak, jak jsou, bez ohledu na otočení obrazu. Komentář v `ZasekReport.Projekce`, že intrinsika hloubky „už zohledňuje otočení", tedy neplatí. **Změřeno 10. 10. 2026** (`ARBot.Analyze projekce`; všechny záznamy 2. 9.–1. 10. mají stejné hodnoty): - Hloubka (480×270): PP (237,50; 135,47), odsazení od středu (−2,0; +1,0) px. Paprsky levé
+  kamery jsou pootočené o −0,95° vodorovně a +0,46° svisle.
+- Barva (640×480): PP (318,28; 250,36), odsazení (−1,2; **+10,9**) px, tedy **+2,0° svisle**
+  (−0,2° vodorovně).
+Chyba 2° ve sklonu posune místo, odkud se barva levé kamery zapíše do gridu, zhruba o 0,3 m ve 2 m a o 0,6 m ve 3 m. Barva se bere z bližšího místa, než kam se zapíše. Mohlo by to vysvětlit část nerovnoběžnosti hran koridoru (−1,4 až −2,0°) i rozdílu sklonů kamer v `Profile` (−20,2 / −18,6°) z `vid-kalibrace-kamer-bias`, to ale prokázané není. Kalibrace kamer v `Profile` mohla být naladěná proti této chybě, takže oprava se musí spojit s přeměřením montáže.
+
+- [x] Změřit odsazení hlavního bodu a úhel ze záznamů (`ARBot.Analyze projekce`) (10. 10. 2026)
+- [ ] Rozhodnout (autor): opravit převrácení (inverze jako kopie, nebo převracet oba objekty zvlášť; barevná intrinsika a znaménko extrinsik v `ColorPixelTo3D`) a jak přeměřit montáž kamer v `Profile`
+- [ ] Změřit dopad na hranice cesty a barvu v gridu přehráním s opravenou projekcí levé kamery
+
+[traversability-grid.md](traversability-grid.md), [map-correlation-localization.md](map-correlation-localization.md) · DevLog [2026-10-10](devlog.md#2026-10-10)
+
 <a id="vid-inshadow-zahazuje-vzorky"></a>
 ### 🧪 Okluzní pravidlo zahazuje většinu barevných vzorků
 
@@ -1588,9 +1606,10 @@ Převod pixelu barevného obrazu na bod v prostoru byl mrtvý na všech platform
 
 - [x] `ColorPixelTo3D` a oprava báze `CameraProjection.TransformBack` (21. 8. 2026)
 - [x] Extrinsiky color–depth přes HAL a do záznamu (`CameraFrame` layout v5) (21. 8. 2026)
-- [ ] Ověřit extrinsiky a body hranice na skutečné D435
+- [x] Ověřit extrinsiky na skutečné D435 — 10. 10. 2026 ze záznamů (`ARBot.Analyze projekce`): barva→hloubka posun −14,9 / −15,0 mm v X, rotace 0,8°, od 2. 9. stálé. Přitom nalezena vada hlavního bodu levé kamery, viz `vid-leva-kamera-hlavni-bod` (10. 10. 2026)
+- [ ] Ověřit body hranice na skutečné D435 (až po opravě `vid-leva-kamera-hlavni-bod`, jinak se měří vada levé kamery)
 
-[map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-21](devlog.md#2026-08-21)
+[map-correlation-localization.md](map-correlation-localization.md), [traversability-grid.md](traversability-grid.md) · DevLog [2026-08-21](devlog.md#2026-08-21), [2026-10-10](devlog.md#2026-10-10)
 
 <a id="vid-nativni-knihovna-opravy"></a>
 ### ✅ Nativní knihovna měla chybějící exporty na x64 a špatnou volací konvenci na ARM
@@ -2173,7 +2192,7 @@ Zbytek nálezů auditu: po odpojení USB převodníku se senzor tvářil jako zd
 - [x] V10 — build čistého klonu, přeskakování testů bez nativní knihovny, CI workflow (15. 9. 2026)
 - [x] V11 + V12 — `autorun=false` v profilu, potvrzení zápisu do flash, `set -euo pipefail` (15. 9. 2026)
 - [ ] V13 — ověřit podmínky tří proprietárních binárek, atribuce OSM (ODbL)
-- [ ] Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`)
+- [x] Střední nálezy (`PVTMessage.HeadVeh`, prefixy řádků `SDC2160Ex`; `FixTime` z ITOW → `hw-gps-fixtime-rozbity`). Změřeno 10. 10. 2026 nad 46 záznamy (`ARBot.Analyze gpskurz`, `motory`): `HeadVeh` (čte offset 64 = `headMot` místo 84) je SPÍCÍ — kurz vozidla nepřišel ani v jedné z ~200 tisíc zpráv, přijímač `headVehValid` nenastavuje. Prefixy `SDC2160Ex`: posunutý řádek skončí rámcem bez měření (0–2 na záznam), ne špatnou hodnotou; enkodéry bez jediného výstřelku; napětí má 0–87 nesmyslných hodnot na záznam (5–6 V, 16–18 V; chyba přenosu nebo měření jednotky), které pohltí 5s medián hlídače baterie. Rychlosti kol nad 3 m/s jsou známá vada razítek (rámce 2–6 ms po sobě, `lok-fuze-poza-pred-koly`). `HeadVeh` opraveno 10. 10. 2026 (offset 84, pojistka na zprávu bez pole, `uBloxGps.VehicleHeadingFrom`, 4 testy); prefixy `SDC2160Ex` se neopravují (10. 10. 2026)
 - [x] Ověřit V6 na zařízení — 1. 10. 2026 (`20261001-144638.rec`): `T_out − T_in` snímků p50 26–36 ms po 5 min, 42 min bez trendu, žádný snímek pozpátku ani z budoucnosti, i po restartu levé pipeline 15:21:57; zamrzlá barva se dál pozná (15:21:44) (7. 10. 2026)
 - [ ] Ověřit V4/V5 na zařízení (odpojit převodník za běhu, `systemctl stop`). 1. 10. jen zčásti: konečný `ReadTimeout` motorů vystřelil 15:15:43,4 a vlákno čte dál, ticho ale nezpůsobila linka (jednotka vysílala, 111 rámců v bufferu), nýbrž zásek celého procesu (`prov-zasek-procesu-1s`); `Stop()` na tichém UARTu ani `SilentTimeout` 5 s se nevyzkoušely
 

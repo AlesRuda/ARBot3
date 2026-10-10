@@ -85,6 +85,21 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 - **Rozhodnutí autora:** prahy gridu zůstávají, jak jsou, a pruh `Unknown` u robotu je přirozený
   artefakt stereo hloubky (neplatný okraj, kde se snímky dvou infra kamer nepřekrývají).
   `vid-grid-prahy-realna-data` → hotovo, viz [decisions.md](decisions.md).
+- **Co dál přeměřit ze záznamů:** průzkum otevřených témat (6 agentů po oblastech a řazení podle
+  přínosu) dal 10 kandidátů. Hotové jsou první dva:
+  - **Hlavní bod levé D435 se nepřevrací** (nové `vid-leva-kamera-hlavni-bod`, nový příkaz
+    `projekce`). `Intrinsics.Inverse()` vrací pro model bez zkreslení tentýž objekt, takže se
+    převrácení v `CreateProjector` provede dvakrát a zruší. Barva levé kamery má tím paprsky
+    o 2,0° svisle jinde a hloubka o −0,95° / +0,46°; ve všech záznamech od 2. 9. stejně.
+    Oprava čeká na autora, protože kalibrace v `Profile` mohla být naladěná proti chybě.
+  - **Střední nálezy auditu** (`gpskurz`, `motory`). `HeadVeh` je spící, kurz vozidla v žádném
+    záznamu nepřišel. U prefixů `SDC2160Ex` končí posunutý řádek rámcem bez měření, ne špatnou
+    hodnotou. Nesmyslné napětí (5–6 V, 16–18 V) pohltí medián hlídače baterie a rychlosti kol nad
+    3 m/s jsou známá vada razítek.
+- **Kurz vozidla z GPS opraven** (`prov-audit-druha-davka`, pokyn autora): `PVTMessage.HeadVeh`
+  čte offset 84 místo 64 (do teď kurz pohybu). Kratší zpráva bez pole `headVeh` nesmí hlásit platný
+  kurz. Převod je v `uBloxGps.VehicleHeadingFrom`; 4 nové testy, záměrná chyba (offset 64)
+  zachycena, sady HAL 176 prošly. Spící vada, přijímač ten kurz dnes nehlásí; na zařízení neběželo.
 
 ## 2026-10-09
 

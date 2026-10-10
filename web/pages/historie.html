@@ -29,7 +29,7 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">36</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">37</span></label>
     <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">36</span></label>
     <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">171</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
@@ -466,6 +466,7 @@
       <li data-tema="lp-unik-kontrola-kolize-startu"><span class="mono">9. 10.</span> <span class="typ">vyřešeno</span> <a href="#lp-unik-kontrola-kolize-startu">Kontrola kolize &#250;nikov&#233; dr&#225;hy nevyj&#237;m&#225; startovn&#237; buňku — falešn&#233; „NOUZOVE ZASTAVENI – kolize 0,00 m“</a></li>
       <li data-tema="vid-grid-prahy-realna-data"><span class="mono">10. 10.</span> <span class="typ">vyřešeno</span> <a href="#vid-grid-prahy-realna-data">Prahy klasifikace a šumov&#253; model gridu sj&#237;zdnosti nejsou laděn&#233; na re&#225;ln&#253;ch datech</a></li>
       <li data-tema="vid-inshadow-zahazuje-vzorky"><span class="mono">10. 10.</span> <span class="typ">vyřešeno</span> <a href="#vid-inshadow-zahazuje-vzorky">Okluzn&#237; pravidlo zahazuje většinu barevn&#253;ch vzorků</a></li>
+      <li data-tema="vid-leva-kamera-hlavni-bod"><span class="mono">10. 10.</span> <span class="typ">nalezeno</span> <a href="#vid-leva-kamera-hlavni-bod">Lev&#225; D435 m&#225; otočen&#253; obraz, ale hlavn&#237; bod se nepřevrac&#237; (dvoj&#237; převr&#225;cen&#237; se zruš&#237;)</a></li>
     </ul>
   </div>
 </section>
@@ -1719,6 +1720,21 @@
     </ul>
     <p class="tema-odkazy">čeká na <a href="#vid-trenink-nejde-zopakovat">Tr&#233;nink segmentace se dnes ned&#225; zopakovat jedn&#237;m kliknut&#237;m</a> · <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/semantic-segmentation.md">semantic-segmentation.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/models/README.md">models/README.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-09">2026-09-09</a></p>
   </article>
+  <article class="tema" id="vid-leva-kamera-hlavni-bod" data-stav="otevreno">
+    <h3>Lev&#225; D435 m&#225; otočen&#253; obraz, ale hlavn&#237; bod se nepřevrac&#237; (dvoj&#237; převr&#225;cen&#237; se zruš&#237;)</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 10. 10. 2026</span></p>
+    <p>Lev&#225; D435 m&#225; <code>Swap = true</code>, takže driver obrac&#237; pořad&#237; pixelů a obraz se t&#237;m otoč&#237; o 180&#176;. Hlavn&#237; bod se proto mus&#237; převr&#225;tit spolu s n&#237;m. <code>D435Camera.CreateProjector</code> ho převrac&#237; v intrinsice i v jej&#237; inverzi, jenže <code>Intrinsics.Inverse()</code> vrac&#237; pro model bez zkreslen&#237; (D435 m&#225; nulov&#233; koeficienty) TENT&#221;Ž objekt. Převr&#225;cen&#237; se tak provede dvakr&#225;t a zruš&#237; se. Plat&#237; to pro hloubkovou i barevnou projekci. <code>ColorPixelTo3D</code> (body hranice cesty) nav&#237;c bere barevnou intrinsiku i extrinsiky barva–hloubka (posun −14,9 mm v X) tak, jak jsou, bez ohledu na otočen&#237; obrazu. Koment&#225;ř v <code>ZasekReport.Projekce</code>, že intrinsika hloubky „už zohledňuje otočen&#237;&quot;, tedy neplat&#237;. **Změřeno 10. 10. 2026** (<code>ARBot.Analyze projekce</code>; všechny z&#225;znamy 2. 9.–1. 10. maj&#237; stejn&#233; hodnoty): - Hloubka (480&#215;270): PP (237,50; 135,47), odsazen&#237; od středu (−2,0; +1,0) px. Paprsky lev&#233;
+  kamery jsou pootočen&#233; o −0,95&#176; vodorovně a +0,46&#176; svisle.
+- Barva (640&#215;480): PP (318,28; 250,36), odsazen&#237; (−1,2; **+10,9**) px, tedy **+2,0&#176; svisle**
+  (−0,2&#176; vodorovně).
+Chyba 2&#176; ve sklonu posune m&#237;sto, odkud se barva lev&#233; kamery zap&#237;še do gridu, zhruba o 0,3 m ve 2 m a o 0,6 m ve 3 m. Barva se bere z bližš&#237;ho m&#237;sta, než kam se zap&#237;še. Mohlo by to vysvětlit č&#225;st nerovnoběžnosti hran koridoru (−1,4 až −2,0&#176;) i rozd&#237;lu sklonů kamer v <code>Profile</code> (−20,2 / −18,6&#176;) z <code>vid-kalibrace-kamer-bias</code>, to ale prok&#225;zan&#233; nen&#237;. Kalibrace kamer v <code>Profile</code> mohla b&#253;t naladěn&#225; proti t&#233;to chybě, takže oprava se mus&#237; spojit s přeměřen&#237;m mont&#225;že.</p>
+    <ul class="kroky">
+      <li class="hotovo">Změřit odsazen&#237; hlavn&#237;ho bodu a &#250;hel ze z&#225;znamů (<code>ARBot.Analyze projekce</code>) <span class="mono">10. 10. 2026</span></li>
+      <li class="otevreno">Rozhodnout (autor): opravit převr&#225;cen&#237; (inverze jako kopie, nebo převracet oba objekty zvl&#225;šť; barevn&#225; intrinsika a znam&#233;nko extrinsik v <code>ColorPixelTo3D</code>) a jak přeměřit mont&#225;ž kamer v <code>Profile</code></li>
+      <li class="otevreno">Změřit dopad na hranice cesty a barvu v gridu přehr&#225;n&#237;m s opravenou projekc&#237; lev&#233; kamery</li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-10">2026-10-10</a></p>
+  </article>
   <article class="tema" id="vid-inshadow-zahazuje-vzorky" data-stav="v-kodu">
     <h3>Okluzn&#237; pravidlo zahazuje většinu barevn&#253;ch vzorků</h3>
     <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 14. 8. 2026</span> <span>vyřešeno 10. 10. 2026</span></p>
@@ -1739,9 +1755,10 @@
     <ul class="kroky">
       <li class="hotovo"><code>ColorPixelTo3D</code> a oprava b&#225;ze <code>CameraProjection.TransformBack</code> <span class="mono">21. 8. 2026</span></li>
       <li class="hotovo">Extrinsiky color–depth přes HAL a do z&#225;znamu (<code>CameraFrame</code> layout v5) <span class="mono">21. 8. 2026</span></li>
-      <li class="otevreno">Ověřit extrinsiky a body hranice na skutečn&#233; D435</li>
+      <li class="hotovo">Ověřit extrinsiky na skutečn&#233; D435 — 10. 10. 2026 ze z&#225;znamů (<code>ARBot.Analyze projekce</code>): barva→hloubka posun −14,9 / −15,0 mm v X, rotace 0,8&#176;, od 2. 9. st&#225;l&#233;. Přitom nalezena vada hlavn&#237;ho bodu lev&#233; kamery, viz <code>vid-leva-kamera-hlavni-bod</code> <span class="mono">10. 10. 2026</span></li>
+      <li class="otevreno">Ověřit body hranice na skutečn&#233; D435 (až po opravě <code>vid-leva-kamera-hlavni-bod</code>, jinak se měř&#237; vada lev&#233; kamery)</li>
     </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a></p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/map-correlation-localization.md">map-correlation-localization.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/traversability-grid.md">traversability-grid.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-08-21">2026-08-21</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-10">2026-10-10</a></p>
   </article>
   <article class="tema" id="vid-nativni-knihovna-opravy" data-stav="hotovo">
     <h3>Nativn&#237; knihovna měla chyběj&#237;c&#237; exporty na x64 a špatnou volac&#237; konvenci na ARM</h3>
@@ -2241,7 +2258,7 @@
       <li class="hotovo">V10 — build čist&#233;ho klonu, přeskakov&#225;n&#237; testů bez nativn&#237; knihovny, CI workflow <span class="mono">15. 9. 2026</span></li>
       <li class="hotovo">V11 + V12 — <code>autorun=false</code> v profilu, potvrzen&#237; z&#225;pisu do flash, <code>set -euo pipefail</code> <span class="mono">15. 9. 2026</span></li>
       <li class="otevreno">V13 — ověřit podm&#237;nky tř&#237; propriet&#225;rn&#237;ch bin&#225;rek, atribuce OSM (ODbL)</li>
-      <li class="otevreno">Středn&#237; n&#225;lezy (<code>PVTMessage.HeadVeh</code>, prefixy ř&#225;dků <code>SDC2160Ex</code>; <code>FixTime</code> z ITOW → <code>hw-gps-fixtime-rozbity</code>)</li>
+      <li class="hotovo">Středn&#237; n&#225;lezy (<code>PVTMessage.HeadVeh</code>, prefixy ř&#225;dků <code>SDC2160Ex</code>; <code>FixTime</code> z ITOW → <code>hw-gps-fixtime-rozbity</code>). Změřeno 10. 10. 2026 nad 46 z&#225;znamy (<code>ARBot.Analyze gpskurz</code>, <code>motory</code>): <code>HeadVeh</code> (čte offset 64 = <code>headMot</code> m&#237;sto 84) je SP&#205;C&#205; — kurz vozidla nepřišel ani v jedn&#233; z ~200 tis&#237;c zpr&#225;v, přij&#237;mač <code>headVehValid</code> nenastavuje. Prefixy <code>SDC2160Ex</code>: posunut&#253; ř&#225;dek skonč&#237; r&#225;mcem bez měřen&#237; (0–2 na z&#225;znam), ne špatnou hodnotou; enkod&#233;ry bez jedin&#233;ho v&#253;střelku; napět&#237; m&#225; 0–87 nesmysln&#253;ch hodnot na z&#225;znam (5–6 V, 16–18 V; chyba přenosu nebo měřen&#237; jednotky), kter&#233; pohlt&#237; 5s medi&#225;n hl&#237;dače baterie. Rychlosti kol nad 3 m/s jsou zn&#225;m&#225; vada raz&#237;tek (r&#225;mce 2–6 ms po sobě, <code>lok-fuze-poza-pred-koly</code>). <code>HeadVeh</code> opraveno 10. 10. 2026 (offset 84, pojistka na zpr&#225;vu bez pole, <code>uBloxGps.VehicleHeadingFrom</code>, 4 testy); prefixy <code>SDC2160Ex</code> se neopravuj&#237; <span class="mono">10. 10. 2026</span></li>
       <li class="hotovo">Ověřit V6 na zař&#237;zen&#237; — 1. 10. 2026 (<code>20261001-144638.rec</code>): <code>T_out − T_in</code> sn&#237;mků p50 26–36 ms po 5 min, 42 min bez trendu, ž&#225;dn&#253; sn&#237;mek pozp&#225;tku ani z budoucnosti, i po restartu lev&#233; pipeline 15:21:57; zamrzl&#225; barva se d&#225;l pozn&#225; (15:21:44) <span class="mono">7. 10. 2026</span></li>
       <li class="otevreno">Ověřit V4/V5 na zař&#237;zen&#237; (odpojit převodn&#237;k za běhu, <code>systemctl stop</code>). 1. 10. jen zč&#225;sti: konečn&#253; <code>ReadTimeout</code> motorů vystřelil 15:15:43,4 a vl&#225;kno čte d&#225;l, ticho ale nezpůsobila linka (jednotka vys&#237;lala, 111 r&#225;mců v bufferu), n&#253;brž z&#225;sek cel&#233;ho procesu (<code>prov-zasek-procesu-1s</code>); <code>Stop()</code> na tich&#233;m UARTu ani <code>SilentTimeout</code> 5 s se nevyzkoušely</li>
     </ul>

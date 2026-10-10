@@ -280,6 +280,15 @@ namespace ARBot.Analyze
                     case "okluze":
                         OkluzeReport.Run(rec, (int)Arg(args, "--framestep", 5), (int)Arg(args, "--limit", 0));
                         return 0;
+                    case "motory":
+                        MotoryReport.Run(rec, Arg(args, "--maxv", 3.0), Arg(args, "--maxi", 40.0), (int)Arg(args, "--vypis", 10));
+                        return 0;
+                    case "gpskurz":
+                        GpsKurzReport.Run(rec);
+                        return 0;
+                    case "projekce":
+                        ProjekceReport.Run(rec, (int)Arg(args, "--vzorku", 20));
+                        return 0;
                     case "prahy":
                         PrahyReport.Run(rec, (int)Arg(args, "--framestep", 5), Arg(args, "--lateral", 0.2),
                                         Arg(args, "--horizon", 5.5), Text(args, "--csv"),
@@ -512,6 +521,11 @@ namespace ARBot.Analyze
             Console.WriteLine("  okluze     okluzni pravidlo barvy: kolik barevnych vzorku zahodi stin za prvni prekazkou,");
             Console.WriteLine("             co ho vrha (vyska, velikost skvrny) a protifakty (stin podle vysky, ignorovat");
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
+            Console.WriteLine("  gpskurz    kolik GPSState nese kurz VOZIDLA (Orientation, u-blox headVeh) a jak se lisi od kurzu pohybu");
+            Console.WriteLine("  motory     vecne nesmyslne ramce motorove jednotky (rychlost, napeti, proud, vystrelek enkoderu)");
+            Console.WriteLine("             --maxv=3 --maxi=40 --vypis=10");
+            Console.WriteLine("  projekce   popis projekce kamer ze snimku: intrinsika hloubky a barvy, extrinsiky, orientace");
+            Console.WriteLine("             kamery a uhel, o ktery by neprevraceny hlavni bod pootocil paprsky (--vzorku=20)");
             Console.WriteLine("  prahy      prahy klasifikace a sum polarniho gridu: bunky, pres ktere robot vzapeti projel");
             Console.WriteLine("             (maji byt Free), proti prahum podle vzdalenosti; replika overena proti zaznamu.");
             Console.WriteLine("             --framestep=5 --lateral=0.2 --horizon=5.5 --csv=<soubor> (pripisuje histogramy)");

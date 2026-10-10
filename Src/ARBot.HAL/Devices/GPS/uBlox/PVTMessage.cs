@@ -112,7 +112,16 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             }
         }
 
-        public bool HeadVehValid => (Flags & 32) != 0;
+        /// <summary>
+        /// Plati <see cref="HeadVeh"/>? Bit <c>headVehValid</c> v <c>flags</c> a zaroven zprava dost
+        /// dlouha, aby pole <c>headVeh</c> (offset 84) vubec nesla - starsi protokol posilal NAV-PVT
+        /// bez nej (84 B), kdezto dnesni ma 92 B.
+        /// </summary>
+        public bool HeadVehValid => Payload.Length >= HeadVehOffset + 4 && (Flags & 32) != 0;
+
+        /// <summary>Offset pole <c>headVeh</c> v UBX-NAV-PVT (ICD: za <c>pDOP</c> 76, <c>flags3</c> 78
+        /// a rezervou 79-83).</summary>
+        public const int HeadVehOffset = 84;
 
         public byte Flags2
         {
@@ -272,13 +281,19 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
             }
         }
         /// <summary>
-        /// Heading of vehicle in deg
+        /// Kurz VOZIDLA ve stupnich (azimut), plati jen s <see cref="HeadVehValid"/>; u kratke zpravy NaN.
+        ///
+        /// <para>Do 10. 10. 2026 se cetl z offsetu 64, tedy vracel kurz POHYBU (<see cref="HeadMot"/>).
+        /// <c>uBloxGps</c> z nej plni <c>GPSState.Orientation</c>, ktere ma ve fuzi prednost s pevnou
+        /// sigmou a obchazi prah rychlosti i vylouceni jizdy vzad - pri couvani by sel do fuze kurz
+        /// otoceny o 180°. Spici: v zadnem ze 46 zaznamu 2. 9. - 1. 10. prijimac <c>headVehValid</c>
+        /// nenastavil (<c>ARBot.Analyze gpskurz</c>), takze se to nikdy neprojevilo.</para>
         /// </summary>
         public double HeadVeh
         {
             get
             {
-                return GetInt32(64) * 1e-5;
+                return Payload.Length >= HeadVehOffset + 4 ? GetInt32(HeadVehOffset) * 1e-5 : double.NaN;
             }
         }
     }

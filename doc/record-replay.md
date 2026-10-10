@@ -581,7 +581,11 @@ vzdálenosti jdou odchylka, `StdZ`, stoupání a jejich poměry k prahům, podí
 (nepřejetelná / vlastní odchylka / stoupání k vysokému sousedovi / stoupání v šumu). Histogramy jdou do CSV
 (`--csv=`), aby se daly sečíst přes záznamy. Volby: `--framestep=5 --lateral=0.2 --horizon=5.5`, výpis příkladů
 `--priklady=`, pokus s jiným dosahem proložení roviny `--planefit=` (replika pak se záznamem
-záměrně nesedí). Konfiguraci
+záměrně nesedí). **`projekce`** (10. 10. 2026) vypíše popis projekce kamer ze snímků: intrinsika
+hloubky a barvy, extrinsiky barva→hloubka, orientaci kamery v rámci robotu a úhel, o který by
+nepřevrácený hlavní bod pootočil paprsky (`vid-leva-kamera-hlavni-bod`). **`gpskurz`** spočítá
+zprávy GPS s kurzem vozidla (u-blox `headVeh`) a **`motory`** věcně nesmyslné rámce motorové
+jednotky (rychlost, napětí, proud, výstřelek enkodéru; `prov-audit-druha-davka`). Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 

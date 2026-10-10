@@ -1148,8 +1148,9 @@ namespace ARBot.Analyze
 
         /// <summary>
         /// Projekce hloubky a barvy pro snimek - TAK, JAK JE STAVI DRIVER na robotu.
-        /// Hloubka: <see cref="CameraProjectionInfo.CreateProjection"/> (intrinsika v popisu uz
-        /// zohlednuji otoceni obrazu). Barva: <c>D435Camera.CreateProjector</c> stavi
+        /// Hloubka: <see cref="CameraProjectionInfo.CreateProjection"/> (intrinsika v popisu jsou, jak
+        /// je driver pouzil - u leve kamery se prevraceni hlavniho bodu ZRUSILO, viz nize a tema
+        /// <c>vid-leva-kamera-hlavni-bod</c>). Barva: <c>D435Camera.CreateProjector</c> stavi
         /// <c>CameraProjection(i1, i1.Inverse(), colorToDepth, depthToColor)</c> a u leve kamery
         /// (<c>Swap = true</c>, ARBotHW) prevrati hlavni bod v <b>obou</b> intrinsikach - kdyz je
         /// model bez zkresleni, vraci <c>Inverse()</c> tentyz objekt, takze se prevraceni zrusi.

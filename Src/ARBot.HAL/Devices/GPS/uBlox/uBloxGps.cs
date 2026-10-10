@@ -74,7 +74,7 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
                 Hdop = pos.PDOP,
                 Altitude = pos.HeightMSL,
                 DynamicOrientation = Math.Atan2(pos.VelocityN, pos.VelocityE),
-                Orientation= pos.HeadVehValid?Conversions.Azimut2Orientation(Conversions.Deg2Rad(pos.HeadVeh)):(double?)null,
+                Orientation = VehicleHeadingFrom(pos),
                 Speed = pos.GroundSpeed,
                 TimeStamp = TimeBase.Now
             };
@@ -82,6 +82,14 @@ namespace ARBot.HAL.Devices.GPSs.uBlox
 
         /// <summary>Bit <c>validTime</c> v poli <c>valid</c> UBX-NAV-PVT: UTC cas dne je platny.</summary>
         public const byte ValidTime = 0x02;
+
+        /// <summary>
+        /// <see cref="GPSState.Orientation"/> (kurz VOZIDLA v matematicke orientaci, radiany) z UBX-NAV-PVT,
+        /// nebo null, kdyz ho prijimac nehlasi (<see cref="PVTMessage.HeadVehValid"/>). Viz
+        /// <see cref="PVTMessage.HeadVeh"/> - do 10. 10. 2026 se cetl kurz pohybu.
+        /// </summary>
+        public static double? VehicleHeadingFrom(PVTMessage pos)
+            => pos.HeadVehValid ? Conversions.Azimut2Orientation(Conversions.Deg2Rad(pos.HeadVeh)) : (double?)null;
 
         /// <summary>
         /// <see cref="GPSState.FixTime"/> z UTC poli UBX-NAV-PVT: <b>UTC cas dne</b>, tataz vec
