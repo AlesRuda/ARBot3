@@ -82,6 +82,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   - **Hrubý štěrk**, kde robot na konci uvízl: do 1 m je `StdZ` 2× vyšší než na asfaltu. Práh
     drsnosti ×0,15 by označil 19 % jeho buněk proti 0,5 % dlažby, to ale grid nezablokuje.
     Síť z barvy bere štěrk jako cestu a hlídač uváznutí při prokluzu kol nezasáhne.
+- **Rozhodnutí autora:** prahy gridu zůstávají, jak jsou, a pruh `Unknown` u robotu je přirozený
+  artefakt stereo hloubky (neplatný okraj, kde se snímky dvou infra kamer nepřekrývají).
+  `vid-grid-prahy-realna-data` → hotovo, viz [decisions.md](decisions.md).
 
 ## 2026-10-09
 

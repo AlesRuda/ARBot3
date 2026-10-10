@@ -13,6 +13,27 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-10 — Prahy klasifikace polárního gridu zůstávají, jak jsou
+
+**Co:** po změření nad 46 záznamy (`ARBot.Analyze prahy`, `vid-grid-prahy-realna-data`) se
+prahy ani šumový model gridu sjízdnosti nemění. Rozhodnutí autora.
+
+**Proč:**
+- **Málo falešných překážek.** Na zemi, přes kterou robot vzápětí projel, je jich 0,28 %, do 2 m
+  od robotu 0,15–0,17 %. Plazení a stání robota v terénu tedy nezpůsobují prahy.
+- **Každá možná změna má cenu, která převáží zisk:**
+  - spodní mez vzdálenosti sousedů u stoupání by zároveň ubrala skutečné hrany;
+  - rovina proložená do 3,5 m zlepší dálku, ale zhorší okolí robotu;
+  - přitvrzená drsnost mění i váhy důvěry;
+  - užší prstence zvednou počet `Unknown`.
+- **Kořeny ani hrubý štěrk** z Kola 3b úpravou prahů řešit nejde. Kořeny hloubka do 1,5 m
+  od asfaltu nerozliší. Štěrk je rozlišitelný jen do 1 m a v jedné buňce z pěti, což grid
+  nezablokuje.
+- **Pruh `Unknown` bokem od dráhy** je přirozený artefakt stereo hloubky (neplatný okraj, kde
+  se snímky dvou infra kamer nepřekrývají), ne výpadek.
+
+Přehlédnuté překážky (falešně volné buňky) tím změřené nejsou; projetá dráha je neodhalí.
+
 ### 2026-10-10 — Okluze barvy: stín podle výšky vrhače, výškou `MeanZ + √3·StdZ`, bez sebestínění
 
 **Co:** okluzní pravidlo v `OccupancyIntegrator` se změnilo (`vid-inshadow-zahazuje-vzorky`,

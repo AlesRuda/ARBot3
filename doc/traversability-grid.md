@@ -230,17 +230,20 @@ podhodnocené.
 - **`Unknown` u robotu.** V 0,5–0,75 m je 29 % projetých buněk `Unknown`:
   - ~22 p. b. je geometrie: okraj zorného pole, buňka s méně než 8 pixely.
   - ~8 % jsou buňky s dost pixely bez platné hloubky. Soustředí se 0,1–0,2 m bokem od dráhy
-    a jsou skoro stejné ve všech jízdách — nejspíš neplatný pruh levé kamery D435 nebo zákryt
-    vlastním tělem, ne náhodný výpadek. Ověřit.
+    a jsou skoro stejné ve všech jízdách. Je to **přirozený artefakt stereo hloubky** (autor).
+    Okraj obrazu jedné infra kamery druhá nevidí, a čím blíž je povrch, tím větší je disparita
+    a tím širší je pruh bez dat. V hloubce obou D435 je vidět jako svislý černý klín.
+
+**Rozhodnutí autora 10. 10. 2026: prahy zůstávají, jak jsou** (viz [decisions.md](decisions.md)).
+Kořeny ani hrubý štěrk z Kola 3b úpravou prahů řešit nejde, rozbor je v registru
+(`vid-grid-prahy-realna-data`).
 
 ## Otevřené úkoly (→ registr)
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
-- **[Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech](ukoly.md#vid-grid-prahy-realna-data)** —
-  ladění prahů a šumového modelu (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`) nad záznamem
-  z terénu; geometrie a klasifikátor jsou ověřené syntetickým testem. Patří k tomu i **radiální
-  hrany**, které lze zpřesnit z reálného podílu platných pixelů (teď `AssumedValidFraction`).
+- ~~Prahy klasifikace a šumový model gridu nejsou laděné na reálných datech~~ — změřeno 10. 10. 2026
+  a uzavřeno, prahy zůstávají (viz sekce výš a [registr](ukoly.md#vid-grid-prahy-realna-data)).
 - (bez tématu v registru) **Referenční plocha** — per-azimut profil místo jedné roviny, pokud zvlněný terén nestačí.
 - **[Obtížně sjízdný povrch (hrbol, prasklina) jako rychlostní strop v lokální mapě](ukoly.md#lp-drsnost-povrchu-rychlostni-strop)** —
   `StdZ` a odchylka od roviny pod prahem `MaxHeightDev` dnes zůstávají v polární buňce a dál nejdou;

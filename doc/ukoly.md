@@ -6,13 +6,12 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **266**: otevřeno **37** · v kódu, na HW neověřeno **36** · hotovo **170** · odloženo **14** · zamítnuto **9**.
+Témat celkem **266**: otevřeno **36** · v kódu, na HW neověřeno **36** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
 | stav | oblast | téma | nalezeno | čeká na |
 |---|---|---|---|---|
-| otevřeno | Vidění | [Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech](#vid-grid-prahy-realna-data) | 30. 7. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
@@ -1512,29 +1511,6 @@ Nalezeno při ověřování rozjezdu po uvolnění holdu (`ARBot.Analyze hold`).
 
 ## Vidění
 
-<a id="vid-grid-prahy-realna-data"></a>
-### ⬜ Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech
-
-`vid-grid-prahy-realna-data` · vada · **otevřeno** · nalezeno 30. 7. 2026
-
-Geometrie a klasifikátor polárního gridu jsou ověřené syntetickým testem a na živé kameře grid ukazuje data, ale prahy (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`), šumový model a radiální hrany z reálného podílu platných pixelů se nikdy neladily nad záznamem z terénu. Grid dnes plní occupancy mapu, nad kterou plánuje lokální navigace — a podle té mapy robot od 7. 9. 2026 venku jezdí; co z chování v terénu jde na vrub prahů gridu a co chyby kurzu nebo vyhlazování, změřené není (viz `lp-zasek-v-blokovane-mape`, `lp-robot-se-plazi-vyhlazovani`). **Změřeno 10. 10. 2026** (`ARBot.Analyze prahy`, 46 záznamů, z toho 33 s jízdou, replika klasifikace sedí ve všech buňkách). Pravdou jsou buňky, přes které robot vzápětí projel, bez okolí nepřejetelných věcí (lidé před robotem). Měří se tím jen falešné překážky: **0,28 %** projetých buněk (0,17 / 0,15 / 0,46 / 1,21 % v 0,5–1 / 1–2 / 2–3,5 / 3,5–5,5 m, medián po jízdách 0,13 / 0,26 / 0,66 % do 2 / 2–4 / nad 4 m, ve 2–4 m 0,03–4,9 % podle jízdy). Polovinu dělá stoupání k nízkému sousedovi: u robotu jsou sousedé 4–6 cm od sebe, takže `MaxSlope` 0,35 spustí už schod 1,5–2 cm, a spodní mez vzdálenosti 0,1 m by tam falešné překážky srazila o 70 %. Drsnost skoro nerozhoduje: `StdZ` na projeté zemi má p99 8–12× pod prahem a ani práh ×0,2 nepřidá skoro nic. Odchylka má p99 do 1,6 m plochou ~2,5 cm a od 2 m (mez proložení roviny) roste na 12,8 cm v 5,4 m. Rovina proložená do 3,5 m sníží p99 ve 3–5 m o 20–30 %, u robotu ji ale zvedne 2,4 → 3,0 cm. Platných pixelů je na projeté zemi ~100 % proti předpokládaným 60 %, užší prstence by ale za 2,5 m zvedly `Unknown`. Do 1 m je 8 % buněk s dost pixely bez hloubky, bokem od dráhy a ve všech jízdách stejně (podezření na neplatný pruh D435). První verzi závěrů opravila kontrola (kruhový filtr čisté populace, dvakrát započtený záznam, výklad lineárního růstu odchylky). Detail: [traversability-grid.md](traversability-grid.md), „Prahy a šum změřené nad jízdami". **Kolo3b po úsecích povrchu** (10. 10. 2026, `prahy --od= --do=`). Pomohlo by přitvrzení prahů s kořeny a se štěrkem? - **Kořeny pod asfaltem** (14:12:20–14:13:00): ne. Na místech, kde robot zakopl
-  (`bumps --depth`), hlásí hloubka do 1,5 m stejné `StdZ` (poměr 0,95–0,98) i výšku jako
-  obyčejný asfalt. `MaxSlope` ×0,5 by na dráze v úseku s kořeny označil 11 % buněk, ale
-  na asfaltu 4,8 % a na dlažbě 3,6 %, tedy falešné překážky všude a kořeny ani tak
-  soustavně.
-- **Hrubý štěrk** (od 14:32:45, robot v něm od 14:33:34 uvízl): do 1 m od robotu je
-  rozlišitelný. `StdZ` má medián 2,8 mm proti 1,2 mm na asfaltu a dlažbě. Práh drsnosti
-  ×0,15 by ho označil v 19 % buněk proti 0,5 % asfaltu a dlažby, v 1–2 m jen 3 %, dál
-  nic. Jedna buňka z pěti v jednom snímku ale occupancy grid nezablokuje. Síť z barvy bere
-  štěrk jako cestu. Hlídač uváznutí nezasáhl, protože se kola točila a fúze měla nenulovou
-  rychlost.
-
-- [x] Změřit prahy a šum nad záznamy ze zařízení (`ARBot.Analyze prahy`) (10. 10. 2026)
-- [ ] Rozhodnout (autor): stoupání (spodní mez vzdálenosti sousedů 0,1–0,2 m nebo `MaxSlope` výš), dosah proložení roviny (3,5 m: daleko lépe, u robotu hůř) nebo profil po azimutech, drsnost (práh 8–12× nad šumem, mění i důvěru), šířka prstenců (`AssumedValidFraction`)
-- [ ] Prověřit `Unknown` 0,1–0,2 m bokem od dráhy do 1 m (neplatný pruh D435, zákryt tělem) — v hloubce levé kamery je přes celou výšku svislý černý klín bez dat (snímky Kolo3b 14:31–14:33), nejspíš zákryt něčím na robotu
-
-[traversability-grid.md](traversability-grid.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-07-30](devlog.md#2026-07-30), [2026-10-10](devlog.md#2026-10-10)
-
 <a id="vid-kalibrace-kamer-bias"></a>
 ### ⬜ Chybná kalibrace kamer je bias, který lokalizace integruje
 
@@ -1658,6 +1634,30 @@ Na zařízení skákalo stáří gridu mezi 30 a 500 ms. CSV diagnostika ukázal
 - [x] Ověřeno na HW self-testem (gen2 = 0, 0 % snímků nad 100 ms) (1. 8. 2026)
 
 [traversability-grid.md](traversability-grid.md), [plan-camera-vision-refactor.md](plan-camera-vision-refactor.md), [selftest.md](selftest.md), [rozhodnutí 1. 8. 2026](decisions.md) · DevLog [2026-07-30](devlog.md#2026-07-30), [2026-08-01](devlog.md#2026-08-01)
+
+<a id="vid-grid-prahy-realna-data"></a>
+### ✅ Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech
+
+`vid-grid-prahy-realna-data` · vada · **hotovo** · nalezeno 30. 7. 2026 · vyřešeno 10. 10. 2026
+
+Geometrie a klasifikátor polárního gridu jsou ověřené syntetickým testem a na živé kameře grid ukazuje data, ale prahy (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`), šumový model a radiální hrany z reálného podílu platných pixelů se nikdy neladily nad záznamem z terénu. Grid dnes plní occupancy mapu, nad kterou plánuje lokální navigace — a podle té mapy robot od 7. 9. 2026 venku jezdí; co z chování v terénu jde na vrub prahů gridu a co chyby kurzu nebo vyhlazování, změřené není (viz `lp-zasek-v-blokovane-mape`, `lp-robot-se-plazi-vyhlazovani`). **Změřeno 10. 10. 2026** (`ARBot.Analyze prahy`, 46 záznamů, z toho 33 s jízdou, replika klasifikace sedí ve všech buňkách). Pravdou jsou buňky, přes které robot vzápětí projel, bez okolí nepřejetelných věcí (lidé před robotem). Měří se tím jen falešné překážky: **0,28 %** projetých buněk (0,17 / 0,15 / 0,46 / 1,21 % v 0,5–1 / 1–2 / 2–3,5 / 3,5–5,5 m, medián po jízdách 0,13 / 0,26 / 0,66 % do 2 / 2–4 / nad 4 m, ve 2–4 m 0,03–4,9 % podle jízdy). Polovinu dělá stoupání k nízkému sousedovi: u robotu jsou sousedé 4–6 cm od sebe, takže `MaxSlope` 0,35 spustí už schod 1,5–2 cm, a spodní mez vzdálenosti 0,1 m by tam falešné překážky srazila o 70 %. Drsnost skoro nerozhoduje: `StdZ` na projeté zemi má p99 8–12× pod prahem a ani práh ×0,2 nepřidá skoro nic. Odchylka má p99 do 1,6 m plochou ~2,5 cm a od 2 m (mez proložení roviny) roste na 12,8 cm v 5,4 m. Rovina proložená do 3,5 m sníží p99 ve 3–5 m o 20–30 %, u robotu ji ale zvedne 2,4 → 3,0 cm. Platných pixelů je na projeté zemi ~100 % proti předpokládaným 60 %, užší prstence by ale za 2,5 m zvedly `Unknown`. Do 1 m je 8 % buněk s dost pixely bez hloubky, bokem od dráhy a ve všech jízdách stejně (podezření na neplatný pruh D435). První verzi závěrů opravila kontrola (kruhový filtr čisté populace, dvakrát započtený záznam, výklad lineárního růstu odchylky). Detail: [traversability-grid.md](traversability-grid.md), „Prahy a šum změřené nad jízdami". **Kolo3b po úsecích povrchu** (10. 10. 2026, `prahy --od= --do=`). Pomohlo by přitvrzení prahů s kořeny a se štěrkem? - **Kořeny pod asfaltem** (14:12:20–14:13:00): ne. Na místech, kde robot zakopl
+  (`bumps --depth`), hlásí hloubka do 1,5 m stejné `StdZ` (poměr 0,95–0,98) i výšku jako
+  obyčejný asfalt. `MaxSlope` ×0,5 by na dráze v úseku s kořeny označil 11 % buněk, ale
+  na asfaltu 4,8 % a na dlažbě 3,6 %, tedy falešné překážky všude a kořeny ani tak
+  soustavně.
+- **Hrubý štěrk** (od 14:32:45, robot v něm od 14:33:34 uvízl): do 1 m od robotu je
+  rozlišitelný. `StdZ` má medián 2,8 mm proti 1,2 mm na asfaltu a dlažbě. Práh drsnosti
+  ×0,15 by ho označil v 19 % buněk proti 0,5 % asfaltu a dlažby, v 1–2 m jen 3 %, dál
+  nic. Jedna buňka z pěti v jednom snímku ale occupancy grid nezablokuje. Síť z barvy bere
+  štěrk jako cestu. Hlídač uváznutí nezasáhl, protože se kola točila a fúze měla nenulovou
+  rychlost.
+**Uzavřeno 10. 10. 2026 rozhodnutím autora: prahy zůstávají, jak jsou.** Falešných překážek je na sjízdné zemi málo a žádná z možných změn (stoupání, dosah roviny, drsnost, šířka prstenců) nepřinese víc, než stojí. Kořeny ani štěrk úpravou prahů řešit nejde. Pruh `Unknown` bokem od dráhy u robotu není výpadek, ale **přirozený artefakt stereo hloubky** (autor). Okraj obrazu jedné infra kamery druhá nevidí, a čím blíž je povrch, tím větší je disparita a tím širší je ten pruh. Stejný klín je u obou kamer.
+
+- [x] Změřit prahy a šum nad záznamy ze zařízení (`ARBot.Analyze prahy`) (10. 10. 2026)
+- [x] Rozhodnout (autor): stoupání (spodní mez vzdálenosti sousedů 0,1–0,2 m nebo `MaxSlope` výš), dosah proložení roviny (3,5 m: daleko lépe, u robotu hůř) nebo profil po azimutech, drsnost (práh 8–12× nad šumem, mění i důvěru), šířka prstenců (`AssumedValidFraction`) — rozhodnuto: nechat, jak je (10. 10. 2026)
+- [x] Prověřit `Unknown` 0,1–0,2 m bokem od dráhy do 1 m — svislý černý klín bez dat v hloubce obou kamer je artefakt stereo úlohy (neplatný okraj, kde se snímky dvou infra kamer nepřekrývají; s blížícím se povrchem roste disparita a klín se rozšiřuje), přirozená věc (autor) (10. 10. 2026)
+
+[traversability-grid.md](traversability-grid.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-07-30](devlog.md#2026-07-30), [2026-10-10](devlog.md#2026-10-10)
 
 <a id="vid-pathedges-zahazovany-vypocet"></a>
 ### ✅ Hranice cesty se počítaly a výsledek se zahazoval

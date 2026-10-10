@@ -471,8 +471,9 @@ temata:
     oblast: videni
     nazev: Prahy klasifikace a šumový model gridu sjízdnosti nejsou laděné na reálných datech
     druh: vada
-    stav: otevreno
+    stav: hotovo
     nalezeno: 2026-07-30
+    vyreseno: 2026-10-10
     popis: >
       Geometrie a klasifikátor polárního gridu jsou ověřené syntetickým testem a na živé kameře
       grid ukazuje data, ale prahy (`RoughRef`, `MaxSlope`, škálování `MaxHeightDev`), šumový
@@ -510,14 +511,22 @@ temata:
         nic. Jedna buňka z pěti v jednom snímku ale occupancy grid nezablokuje. Síť z barvy bere
         štěrk jako cestu. Hlídač uváznutí nezasáhl, protože se kola točila a fúze měla nenulovou
         rychlost.
+      **Uzavřeno 10. 10. 2026 rozhodnutím autora: prahy zůstávají, jak jsou.** Falešných překážek
+      je na sjízdné zemi málo a žádná z možných změn (stoupání, dosah roviny, drsnost, šířka
+      prstenců) nepřinese víc, než stojí. Kořeny ani štěrk úpravou prahů řešit nejde.
+      Pruh `Unknown` bokem od dráhy u robotu není výpadek, ale **přirozený artefakt stereo
+      hloubky** (autor). Okraj obrazu jedné infra kamery druhá nevidí, a čím blíž je povrch, tím
+      větší je disparita a tím širší je ten pruh. Stejný klín je u obou kamer.
     kroky:
       - co: Změřit prahy a šum nad záznamy ze zařízení (`ARBot.Analyze prahy`)
         stav: hotovo
         kdy: 2026-10-10
-      - co: "Rozhodnout (autor): stoupání (spodní mez vzdálenosti sousedů 0,1–0,2 m nebo `MaxSlope` výš), dosah proložení roviny (3,5 m: daleko lépe, u robotu hůř) nebo profil po azimutech, drsnost (práh 8–12× nad šumem, mění i důvěru), šířka prstenců (`AssumedValidFraction`)"
-        stav: otevreno
-      - co: Prověřit `Unknown` 0,1–0,2 m bokem od dráhy do 1 m (neplatný pruh D435, zákryt tělem) — v hloubce levé kamery je přes celou výšku svislý černý klín bez dat (snímky Kolo3b 14:31–14:33), nejspíš zákryt něčím na robotu
-        stav: otevreno
+      - co: "Rozhodnout (autor): stoupání (spodní mez vzdálenosti sousedů 0,1–0,2 m nebo `MaxSlope` výš), dosah proložení roviny (3,5 m: daleko lépe, u robotu hůř) nebo profil po azimutech, drsnost (práh 8–12× nad šumem, mění i důvěru), šířka prstenců (`AssumedValidFraction`) — rozhodnuto: nechat, jak je"
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: Prověřit `Unknown` 0,1–0,2 m bokem od dráhy do 1 m — svislý černý klín bez dat v hloubce obou kamer je artefakt stereo úlohy (neplatný okraj, kde se snímky dvou infra kamer nepřekrývají; s blížícím se povrchem roste disparita a klín se rozšiřuje), přirozená věc (autor)
+        stav: hotovo
+        kdy: 2026-10-10
     odkazy:
       - text: traversability-grid.md
         cesta: doc/traversability-grid.md
