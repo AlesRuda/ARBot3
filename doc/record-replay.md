@@ -573,7 +573,15 @@ dotazem ověřeným proti hrubé síle (časy měř v Release), a stín podle v�
 zachránil navíc. Replika měří proti **původnímu** pravidlu (`colorshadow=first`). Druhý
 integrátor s výchozí konfigurací (`colorshadow=height`) se v každém snímku porovnává s předpovědí
 repliky. **`zasek`** od 10. 10. 2026 přehrává pravidlem ze záznamu: chybí-li tam `colorshadow`,
-použije původní, s nímž jely všechny starší záznamy. Konfiguraci
+použije původní, s nímž jely všechny starší záznamy. **`prahy`** (od 10. 10. 2026,
+`vid-grid-prahy-realna-data`) měří prahy klasifikace a šum polárního gridu. Pravdou o sjízdnosti jsou buňky,
+přes které robot vzápětí projel. Budoucí dráha se integruje z fúzovaných `v` a `ω` v tělesovém rámci snímku,
+takže do ní neskáčou korekce pózy. Klasifikace se přepočítá a ověří proti třídě v záznamu. Do histogramů podle
+vzdálenosti jdou odchylka, `StdZ`, stoupání a jejich poměry k prahům, podíl platných pixelů a druh překážky
+(nepřejetelná / vlastní odchylka / stoupání k vysokému sousedovi / stoupání v šumu). Histogramy jdou do CSV
+(`--csv=`), aby se daly sečíst přes záznamy. Volby: `--framestep=5 --lateral=0.2 --horizon=5.5`, výpis příkladů
+`--priklady=`, pokus s jiným dosahem proložení roviny `--planefit=` (replika pak se záznamem
+záměrně nesedí). Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 

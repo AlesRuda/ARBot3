@@ -176,6 +176,63 @@ nemůže lhát, a nesoulad s gridem hlásí. Běží v Run i ve View. Body se ve
 z hloubky a z popisu projekce, který je v záznamu od CameraFrame v4. Poznámka níž o tom, že se
 intrinsiky nezaznamenávají, je tím zastaralá. Detail: [plan-profil-sceny.md](plan-profil-sceny.md).
 
+## Prahy a šum změřené nad jízdami (10. 10. 2026)
+
+`ARBot.Analyze prahy` (`vid-grid-prahy-realna-data`) běžel nad 46 záznamy, z toho 33 s jízdou;
+každý 5. snímek dává 50 410 snímků jedné kamery s budoucí dráhou. Replika klasifikace sedí na
+třídu v záznamu ve všech buňkách.
+
+**Pravdou je projetá dráha.** Buňka je projetá, když její těžiště leží do 0,2 m od dráhy, kterou
+robot vzápětí ujel. Dráha se integruje z fúzovaných `v`, `ω` od času expozice hloubky.
+Z projetých se vyřazují buňky, v jejichž okolí 3×3 je něco nepřejetelného (vrchol nad 0,25 m):
+to jsou lidé jdoucí před robotem. Měří se jen **falešné překážky** — přehlédnutou překážku tahle
+pravda neodhalí. Plánovač se navíc soustavným falešným překážkám vyhýbá, takže ty jsou
+podhodnocené.
+
+- **Falešné překážky na projeté zemi: 0,28 %** klasifikovaných buněk.
+  - Podle vzdálenosti: 0,17 % (0,5–1 m), 0,15 % (1–2 m), 0,46 % (2–3,5 m), 1,21 % (3,5–5,5 m).
+  - Medián po jízdách: 0,13 / 0,26 / 0,66 % (do 2 / 2–4 / nad 4 m).
+  - Mezi jízdami je velký rozptyl: ve 2–4 m od 0,03 do 4,9 %. Nejhorší jsou parky a Robotour;
+    část z toho jsou skutečné nerovnosti.
+  - Na jeden snímek kamery vychází ~0,6 falešné buňky na projeté dráze.
+- **Stoupání** dělá 0,15 % z 0,28 %, a to vždy k *nízkému* sousedovi (výškový rozdíl jednotek cm).
+  - U robotu jsou sousedé 4–6 cm od sebe (prstenec 5 cm), takže práh 0,35 spustí už **schod
+    1,5–2 cm**. Ten je pod prahem odchylky 4–5 cm a ~100× nad chybou průměru buňky; je to tedy
+    skutečný mikroreliéf nebo strukturovaná chyba hloubky, ne náhodný šum.
+  - Spodní mez vzdálenosti sousedů 0,1 m by do 1 m odstranila 70 % falešných překážek
+    (0,17 → 0,05 %). Ve všech buňkách by tam ubrala 4,9 → 2,9 % překážek a nevíme, kolik z nich
+    jsou skutečné obrubníky. Do 1 m jsou všichni sousedé blíž než 0,1 m, takže je to tam totéž
+    co `MaxSlope` ×2. Malá vzdálenost sama vysvětlí jen asi čtvrtinu tamních selhání, zbytek
+    by selhal i v obvyklé vzdálenosti.
+  - Za 2 m mají buňky, které stoupáním padnou, sousedy blíž než ostatní buňky (medián 0,66–0,80×).
+    Tam spodní mez působí opravdu jako mez, ne jako vyšší práh.
+- **Drsnost (`StdZ`) skoro nerozhoduje.**
+  - Na projeté zemi je p99 2,5 mm + 0,9 mm·r², práh `2,5 × RoughRef` = 25 mm + 10 mm·r², tedy
+    8–12× výš.
+  - Samotná drsnost shodí 0,00 % projetých a nejvýš 0,02 % všech buněk. I práh ×0,2 přidá na
+    projeté zemi jen +0,05 p. b.
+  - `StdZ` je rozptyl uvnitř buňky (včetně sklonu × délky buňky), ne šum jednoho bodu. Korelovaný
+    šum hloubky se projeví v průměru buňky, tedy v odchylce.
+  - `RoughRef` určuje i váhu důvěry `fRough`, takže jeho změna mění i váhy v occupancy gridu.
+- **Odchylka od roviny.**
+  - p99 je do 1,6 m plochá (~2,5 cm) a od 2 m roste až na 12,8 cm v 5,4 m. Práh 3 cm + 2 cm/m je
+    do 3 m 1,5–2,5× nad p99, ve 4–5,4 m už jen ~1,1–1,2×.
+  - Zlom ve 2 m je mez proložení roviny (`PlaneFitMaxRangeM`). **Rovina proložená do 3,5 m** sníží
+    p99 ve 3–5 m o 20–30 % (4,9 m: 11,8 → 8,8 cm), falešné překážky tam o 20–30 % a překážky ve
+    všech buňkách o ~3 p. b. U robotu ale p99 stoupne 2,4 → 3,0 cm.
+  - Zbytek roste zhruba lineárně, což odpovídá šumu hloubky: `σ_Z ∝ Z²` se u země pozorované pod
+    nízkým úhlem promítne do výšky ∝ r. Velká část růstu za 2 m je ale tvar terénu, který jedna
+    rovina neopíše.
+- **Podíl platných pixelů** na projeté zemi je p50 ≈ 1,0 proti `AssumedValidFraction` 0,6.
+  - Zúžit prstence ale není zadarmo. Do ~2,3 m rozhoduje podlaha 5 cm a nic se nezmění.
+  - Dál mají prstence 2 řádky obrazu a šly by na 1 (o 50 % užší). p10 počtu bodů ve 4,4–4,9 m
+    (16) by pak spadl na ~8 = `MinPointsPerCell` a přibylo by `Unknown`.
+- **`Unknown` u robotu.** V 0,5–0,75 m je 29 % projetých buněk `Unknown`:
+  - ~22 p. b. je geometrie: okraj zorného pole, buňka s méně než 8 pixely.
+  - ~8 % jsou buňky s dost pixely bez platné hloubky. Soustředí se 0,1–0,2 m bokem od dráhy
+    a jsou skoro stejné ve všech jízdách — nejspíš neplatný pruh levé kamery D435 nebo zákryt
+    vlastním tělem, ne náhodný výpadek. Ověřit.
+
 ## Otevřené úkoly (→ registr)
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.

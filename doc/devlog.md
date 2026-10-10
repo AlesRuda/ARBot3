@@ -67,6 +67,21 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
   Testy: 8 nových a 5 záměrných chyb zachyceno; sady 1875 / 164 / 172 prošly.
   ⚠️ Na zařízení neběželo.
+- **Prahy klasifikace a šum polárního gridu změřeny** (`vid-grid-prahy-realna-data`, nový
+  `ARBot.Analyze prahy`, 46 záznamů): pravdou jsou buňky, přes které robot vzápětí projel.
+  Falešné překážky 0,28 % (u robotu 0,17 %, za 3,5 m 1,2 %), polovinu dělá stoupání; u robotu ho
+  spustí schod 1,5–2 cm, protože sousedé jsou 5 cm od sebe. Drsnost skoro nerozhoduje (práh 8–12×
+  nad šumem). Odchylka roste od meze proložení roviny ve 2 m a rovina do 3,5 m ji ve 3–5 m sníží
+  o 20–30 %. Kontrola (2 recenzenti a ověřovatelé) opravila první verzi závěrů: kruhový filtr čisté
+  populace, dvakrát započtený záznam a hlavně výklad, že lineární růst odchylky není šum — šum
+  hloubky se do výšky promítá právě lineárně. Rozhodnutí o prazích čeká na autora.
+- **Kořeny a štěrk z Kola 3b proti prahům gridu** (`prahy --od= --do=`, nový ukazatel výčnělku
+  buňky `MaxZ − MeanZ`, snímky přes `zasek --at= --png=`):
+  - **Kořeny** prahy neoddělí. Do 1,5 m se místa zakopnutí v hloubce od asfaltu neliší a
+    `MaxSlope` ×0,5 by dělal falešné překážky všude (asfalt 4,8 %).
+  - **Hrubý štěrk**, kde robot na konci uvízl: do 1 m je `StdZ` 2× vyšší než na asfaltu. Práh
+    drsnosti ×0,15 by označil 19 % jeho buněk proti 0,5 % dlažby, to ale grid nezablokuje.
+    Síť z barvy bere štěrk jako cestu a hlídač uváznutí při prokluzu kol nezasáhne.
 
 ## 2026-10-09
 

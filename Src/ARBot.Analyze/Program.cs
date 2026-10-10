@@ -280,6 +280,12 @@ namespace ARBot.Analyze
                     case "okluze":
                         OkluzeReport.Run(rec, (int)Arg(args, "--framestep", 5), (int)Arg(args, "--limit", 0));
                         return 0;
+                    case "prahy":
+                        PrahyReport.Run(rec, (int)Arg(args, "--framestep", 5), Arg(args, "--lateral", 0.2),
+                                        Arg(args, "--horizon", 5.5), Text(args, "--csv"),
+                                        (int)Arg(args, "--priklady", 0), (int)Arg(args, "--prikladykrok", 50),
+                                        Arg(args, "--planefit", double.NaN), Text(args, "--od"), Text(args, "--do"));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -506,6 +512,12 @@ namespace ARBot.Analyze
             Console.WriteLine("  okluze     okluzni pravidlo barvy: kolik barevnych vzorku zahodi stin za prvni prekazkou,");
             Console.WriteLine("             co ho vrha (vyska, velikost skvrny) a protifakty (stin podle vysky, ignorovat");
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
+            Console.WriteLine("  prahy      prahy klasifikace a sum polarniho gridu: bunky, pres ktere robot vzapeti projel");
+            Console.WriteLine("             (maji byt Free), proti prahum podle vzdalenosti; replika overena proti zaznamu.");
+            Console.WriteLine("             --framestep=5 --lateral=0.2 --horizon=5.5 --csv=<soubor> (pripisuje histogramy)");
+            Console.WriteLine("             --priklady=<n> --prikladykrok=50 (vypis projetych prekazek k prohlidce);");
+            Console.WriteLine("             --planefit=<m> pokus s rovinou zeme prolozenou z jineho dosahu (replika pak nesedi);");
+            Console.WriteLine("             --od=HH:mm:ss --do=HH:mm:ss casove okno (cas dne snimku)");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");
