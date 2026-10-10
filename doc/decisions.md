@@ -13,6 +13,38 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-10 — Okluze barvy: stín podle výšky vrhače, výškou `MeanZ + √3·StdZ`, bez sebestínění
+
+**Co:** okluzní pravidlo v `OccupancyIntegrator` se změnilo (`vid-inshadow-zahazuje-vzorky`,
+`colorshadow=height` je výchozí, `first` vrací původní).
+- **Dřív:** barva se zahodila všude od první překážky v azimutu dál.
+- **Teď:** překážka s vrcholem `zT` v prstenci s vnější hranou `e` zakryje zem jen do
+  `e·Cz/(Cz − zT)`, kde `Cz` je výška kamery. Obě výšky jsou absolutně v rámci robotu.
+- **Výška vrhače** je `MeanZ + √3·StdZ`, ne `MaxZ`.
+- **Bez sebestínění:** vlastní prstenec překážky se nestíní.
+
+Rozhodnutí autora; vnější hranu a absolutní výšky doplnila kontrola.
+
+**Proč:** původní pravidlo zahodí 45,7 % barevných vzorků, nové 35,3 % (46 jízd). Stavba stojí
+~10 µs na snímek a dotaz na buňku zůstává jedno čtení z pole. Je to geometrie bez prahu, kdežto
+práh výšky vrhače (nad 15 cm) zachrání podobně, ale je to další číslo k ladění.
+- **Absolutní výšky, ne nad proloženou rovinou země:** barva se vzorkuje v bodě `(x, y, 0)` rámce
+  robotu. O tom, jestli pixel ukazuje překážku, proto rozhoduje paprsek k tomuto bodu. Výšky nad
+  rovinou by konec stínu posunuly poměrem `(Cz − c)/Cz`. První verze to měla špatně a našla to
+  kontrola. Rovina tím odpadla úplně, a s ní i snímky, kde se proloží špatně (1,5 %).
+- **Vnější hrana prstence, ne náběžná:** vrchol může ležet kdekoli v prstenci. Náběžná hrana by
+  stín zkrátila až o šířku prstence a do zakryté země by se zapsala barva překážky.
+- **Bez sebestínění:** zachrání víc (22,7 proti 19,9 % zahozených). Prstenec překážky se stejně
+  potvrdí jako překážka z hloubky.
+- **`MeanZ` zamítnuto měřením:** body svislé plochy leží v jednom prstenci, takže průměr je
+  polovina výšky a stín vychází krátký. Zem, kterou by průměr „zachránil“ navíc (4,6 %
+  zahozených), leží ze 63 % za překážkou nad 30 cm, tedy zakrytá; zapsala by se barva překážky.
+- **Proč ne `MaxZ`:** jeden ulétlý bod ho rozhodí celý. `MeanZ + √3·StdZ` je u svislé plochy
+  s rovnoměrně rozloženými body přesně její vrchol (`h/2 + √3·h/√12`) a jeden bod ho posune jen
+  o `(z − průměr)·√(3/n)`. Nad 46 jízdami dávají oba totéž (22,7 proti 22,7 % zahozených),
+  takže jde o pojistku, ne o zisk.
+- U buňky s body ve dvou hladinách vyjde nad `MaxZ`. Stín je pak delší, což je bezpečný směr.
+
 ### 2026-10-09 — Souběžný nenamapovaný pás (chodník u ulice) se neléčí, téma odloženo
 
 **Co:** `lok-koridor-chodnik-k-ulici` se odkládá. Koridor dál smí přiřadit úzký pás, který v mapě

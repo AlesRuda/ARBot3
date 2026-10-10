@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**. Registr obsahuje **85 parametrů** (k 1. 9.; **111 k 8. 10. 2026** po `UartBms` a `batwarnsoc`)
+> Konfigurace*). Jádro má **77 testů**. Registr obsahuje **85 parametrů** (k 1. 9.; **111 k 8. 10. 2026** po `UartBms` a `batwarnsoc` — ve skutečnosti už tehdy 113, číslo zaostalo; **114 k 10. 10. 2026** po `colorshadow`)
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -284,7 +284,7 @@ jako dvě skupiny téhož jména. Hlídá to `ParamRegistryTests.KazdaKategorieJ
 12. 9. 2026: `magmodel` měl kategorii *Hardware*, ale deklaraci uprostřed bloku *Fúze*).
 
 Kategorie *Řízení a plánování* (`K_RIZENI`) vznikla **12. 9. 2026** pro `envelope`, `smooth`
-a `safedist` (25. 9. 2026 přibyly `motionprofile` a `motionlatency`, 4. 10. 2026 `localframe`, 5. 10. 2026 `smoothcorners`). Do té doby byly pod *Hardware*, kam nepatří: neříkají, **čím je robot osazený**, ale
+a `safedist` (25. 9. 2026 přibyly `motionprofile` a `motionlatency`, 4. 10. 2026 `localframe`, 5. 10. 2026 `smoothcorners`, 10. 10. 2026 `colorshadow`). Do té doby byly pod *Hardware*, kam nepatří: neříkají, **čím je robot osazený**, ale
 **jak se rozhoduje, kudy a jak rychle jet**. `maxspeed` zůstal v *Hardware* — je to mez stroje,
 která jde i do driveru motorů, ne volba plánovače.
 

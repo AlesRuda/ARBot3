@@ -101,7 +101,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 111 klíčů s popisem a typem (8. 10. 2026)), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 114 klíčů s popisem a typem (10. 10. 2026)), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -738,6 +738,10 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   **nedržel tvrdý odstup**, ale časová kontrola, která rohy neviděla. Rohy se musí počítat nad
   výsledkem prvního průchodu, **ne nad buňkami A\*** (rastr šikmé čáry má rohy všude). ⚠️ Na HW
   neběželo (`lp-schody-v-uzine-regulator-brzdi`).
+  ✅ **Od 10. 10. 2026 je okluze barvy podle výšky** (`colorshadow=`, výchozí `height`, `first` = původní):
+  barvu za překážkou nezahodí celou, jen zem do `e·Cz/(Cz − zT)` (absolutní výšky v rámci robotu, vrchol
+  `MeanZ + √3·StdZ`, bez sebestínění). Zahozeno 45,7 → 35,3 % barevných vzorků (46 jízd, `ARBot.Analyze
+  okluze`); ⚠️ na HW neběželo (`vid-inshadow-zahazuje-vzorky`).
   ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
   gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),
   pak přeměřit.

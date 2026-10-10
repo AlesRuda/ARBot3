@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **266**: otevřeno **38** · v kódu, na HW neověřeno **35** · hotovo **170** · odloženo **14** · zamítnuto **9**.
+Témat celkem **266**: otevřeno **37** · v kódu, na HW neověřeno **36** · hotovo **170** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -17,7 +17,6 @@ Témat celkem **266**: otevřeno **38** · v kódu, na HW neověřeno **35** · 
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
-| otevřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
@@ -51,6 +50,7 @@ Témat celkem **266**: otevřeno **38** · v kódu, na HW neověřeno **35** · 
 | otevřeno | Navigace po mapě | [Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá](#nav-detektor-c-mrtvy) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)](#nav-doc-stavy-nesedi) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
+| v kódu, na HW neověřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
 | v kódu, na HW neověřeno | Vidění | [Zpětná projekce pixelu ignorovala hloubku](#vid-zpetna-projekce-hloubka) | 21. 8. 2026 |  |
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
@@ -1523,17 +1523,6 @@ Geometrie a klasifikátor polárního gridu jsou ověřené syntetickým testem 
 
 [traversability-grid.md](traversability-grid.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-07-30](devlog.md#2026-07-30)
 
-<a id="vid-inshadow-zahazuje-vzorky"></a>
-### ⬜ Okluzní pravidlo zahazuje většinu barevných vzorků
-
-`vid-inshadow-zahazuje-vzorky` · vada · **otevřeno** · nalezeno 14. 8. 2026
-
-Při zápisu barvy do occupancy gridu se za první překážkou v daném azimutu stíní celý zbytek paprsku, i místa, kam kamera zjevně vidí. Nad virtuálním HW to zahodilo ~5 200 z ~12 000 kandidátů, takže semantický kanál dostává řádově míň dat než geometrický a plocha mimo cestu se potvrzuje pomalu. Záměr pravidla je správný, míra ne; k rozmyšlení je stínit jen do jisté vzdálenosti nebo vzorek jen zeslabit. Neřešeno. 1. 10. 2026 (autor): nejdřív změřit nad skutečnými záznamy, až budou k dispozici — číslo ze 14. 8. je ze simulace. Rozhodne mezi stínem podle výšky překážky (`d·H/(h−H)`, výpočetně zanedbatelné, `PolarCell.MaxZ` je k dispozici) a ignorováním malých skvrn v hloubce.
-
-- [ ] Změřit podíl zahozených barevných vzorků nad skutečným záznamem (offline přehráním snímků, `ColorShadowed`) a kolik z nich stíní skvrny do pár buněk
-
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-08-14](devlog.md#2026-08-14), [2026-10-01](devlog.md#2026-10-01)
-
 <a id="vid-kalibrace-kamer-bias"></a>
 ### ⬜ Chybná kalibrace kamer je bias, který lokalizace integruje
 
@@ -1586,6 +1575,21 @@ Dokumentace vedla `Model96.2.rknn` jako převod z `.h5` větve (95,35 %), ale na
 - [ ] Sehnat float checkpoint lepších vah Model96.2
 
 čeká na [vid-trenink-nejde-zopakovat](#vid-trenink-nejde-zopakovat) · [semantic-segmentation.md](semantic-segmentation.md), [models/README.md](../models/README.md) · DevLog [2026-09-09](devlog.md#2026-09-09)
+
+<a id="vid-inshadow-zahazuje-vzorky"></a>
+### 🧪 Okluzní pravidlo zahazuje většinu barevných vzorků
+
+`vid-inshadow-zahazuje-vzorky` · vada · **v kódu, na HW neověřeno** · nalezeno 14. 8. 2026 · vyřešeno 10. 10. 2026
+
+Při zápisu barvy do occupancy gridu se za první překážkou v daném azimutu stíní celý zbytek paprsku, i místa, kam kamera zjevně vidí. Nad virtuálním HW to zahodilo ~5 200 z ~12 000 kandidátů, takže semantický kanál dostává řádově míň dat než geometrický a plocha mimo cestu se potvrzuje pomalu. Záměr pravidla je správný, míra ne; k rozmyšlení je stínit jen do jisté vzdálenosti nebo vzorek jen zeslabit. Neřešeno. 1. 10. 2026 (autor): nejdřív změřit nad skutečnými záznamy, až budou k dispozici — číslo ze 14. 8. je ze simulace. Rozhodne mezi stínem podle výšky překážky (`d·H/(h−H)`, výpočetně zanedbatelné, `PolarCell.MaxZ` je k dispozici) a ignorováním malých skvrn v hloubce. **Změřeno 9. 10. 2026** (`ARBot.Analyze okluze`, přehrání snímků 46 skutečných jízd 2. 9.–1. 10. a Robotouru, každý 5. snímek, replika smyčky integrátoru ověřená v každém snímku proti `LastStats` — nesedí 0): stín zahodí **45,7 %** barevných vzorků, které by se jinak zapsaly (podle jízdy 22–97 %; `ColorShadowed` číslo nadsazuje ~2×, protože počítá i buňky mimo zorné pole barvy). **Malé skvrny to nejsou:** skvrna 1 buňky vrhá 0,3 %, ignorovat skvrny do 4 buněk zachrání 2,3 % zahozených. Stín vrhá **nízký rozsáhlý drsný povrch** (vrchol nad rovinou země do 5 cm 73 %, skvrny nad 16 buněk 89 %, překážkou kvůli drsnosti/sklonu 79 %), vrhač je většinou blízko (do 2 m 49 %) a zahozený vzorek daleko za ním (přes 2 m 59 %); barva zahozených říká „cesta" jen v 26 %. **Ztráta je informační**: 67 % zahozených vzorků leží tam, kde hloubka nedává nic (za jejím dosahem 34 %, neznámo 23 %) nebo volno (10 %). **Stín podle výšky pomůže jen částečně**: zachrání 25 % zahozených (bez sebestínění 28 %), vrhá-li jen překážka s vrcholem nad 15 cm 28,5 %, jen výšková (ne drsnost/sklon) 17 % — zahozeno by pak zůstalo ~33–38 % kandidátů, protože v témž azimutu dál skoro vždy leží i něco vyššího (ve větší vzdálenosti i šum hloubky v `MaxZ`). Výška kamery nad rovinou země 0,51–0,55 m. **Výpočetní náročnost změřena 10. 10. 2026** (týž příkaz, Release na PC, 62 728 snímků) — rozhodovat nebude: u všech tří nejlepších pravidel je dotaz na buňku O(1) jako dnes (stín podle výšky přes prefixové maximum konce stínu podél azimutu, bez sebestínění totéž o prstenec dřív) a stavba za snímek stojí 4 µs (dnes), 4 µs (vrhač nad 15 cm), 8 µs (podle výšky, slouží oběma variantám) proti **2,3 ms** celého `Integrate`. Navíc je potřeba rovina země, kterou integrátor nemá: převzít ji z `CameraFrameProcessor` nestojí nic, proložit znovu z buněk ~66 µs (deterministicky, takže i nad starými záznamy totéž). Výška kamery jde z `CameraFrame.Projection`. Rychlý dotaz ověřen proti hrubé síle: nesedí 21 z 220 mil. zahozených vzorků, všechny na náběžné hraně prstence (`RadialBin` dostává `float`, porovnání je v `double` — táž nekonzistence je i v dnešním `InShadow`). Na Pi neměřeno. **Výška vrhače: `MaxZ` je správně** (10. 10. 2026, otázka autora, jestli nevzít průměr; 46 jízd). S `MeanZ` zachrání stín podle výšky víc (bez sebestínění 34,7 proti 28,4 % zahozených, zahozeno pak 29,9 proti 32,8 % kandidátů), ale těch 6,3 % navíc leží hlavně za VYSOKÝMI překážkami: vrhač, který by podle `MaxZ` stínil, má vrchol nad 30 cm v 63 % (výš než kamera 44 %) a v 60 % buňku s ≥ 64 body, tedy dobře změřenou. Body svislé plochy padnou do jednoho prstence, takže průměr je polovina výšky a stín vychází krátký — „zachráněná“ zem je ve skutečnosti zakrytá a do `LRoad` by se zapsala barva překážky. Robustní vrchol `MeanZ + √3·StdZ` (u svislé plochy s rovnoměrně rozloženými body přesně vrchol) dává totéž co `MaxZ` (28,3 %), takže `MaxZ` netáhnou nahoru osamělé šumové body a domněnka „dál v azimutu je šum v `MaxZ`“ neplatí — za zbytkem stínu je skutečně vysoká věc. **Rozhodnutí autora 10. 10. 2026: stín podle výšky, výškou vrhače `MeanZ + √3·StdZ`**, ne `MaxZ` — jeden ulétlý bod `MaxZ` rozhodí celý, kdežto tady posune odhad jen o `(z − průměr)·√(3/n)` (u 16 bodů na polovinu, u 64 na čtvrtinu); nad dnešními daty dávají totéž, takže je to pojistka, ne zisk. U buňky s body ve dvou hladinách (zem + převis) vyjde nad `MaxZ` (až 1,37× výšky) — stín delší, bezpečný směr. Otevřené zůstává sebestínění (se sebestíněním zachrání 25,0 %, bez něj 28,3 % zahozených). **V kódu 10. 10. 2026** (autor: bez sebestínění): `OccupancyIntegrator` s `ColorShadowMode.Height` je výchozí, `colorshadow=first` vrací původní pravidlo. Kontrola (3 recenzenti a ověřovatelé) našla v první verzi dvě chyby geometrie: výšky nad proloženou rovinou (barva se ale vzorkuje v `z = 0` rámce robotu, takže o zakrytí rozhoduje paprsek k tomuto bodu; konec stínu se posouval poměrem `(Cz − c)/Cz` a v 1,5 % snímků se špatně proloženou rovinou byl stín rozbitý) a vzdálenost vrhače z náběžné hrany prstence (stín kratší až o šířku prstence). Teď se počítá v absolutních výškách rámce robotu, s výškou kamery z hloubkové projekce a vnější hranou prstence, a rovina odpadla. Přeměřeno nad 46 jízdami: zahozeno **45,7 → 35,3 %** kandidátů. Integrátor v každém z 62 728 snímků dává přesně předpověď repliky. `Integrate` je v šumu (medián +0,8 %). `MeanZ` dál zamítnut (navíc zachráněné leží ze 63 % za překážkou nad 30 cm) a robustní vrchol = `MaxZ`. Kontrola zároveň opravila `ARBot.Analyze zasek`, který by staré záznamy přehrál novým pravidlem.
+
+- [x] Změřit podíl zahozených barevných vzorků nad skutečným záznamem (offline přehráním snímků, `ColorShadowed`) a kolik z nich stíní skvrny do pár buněk (9. 10. 2026)
+- [x] Rozhodnout (autor): stín podle výšky (zahozeno 46 → ~34 %), práh výšky vrhače, jiné pravidlo (stín jen do vzdálenosti, zeslabit místo zahodit), nebo nechat (10. 10. 2026)
+- [x] Rozhodnout (autor): sebestínění — stíní překážka i vlastní prstenec (zachrání 25,0 %), nebo jen prstence za ním (28,3 %) (10. 10. 2026)
+- [x] Implementovat v `OccupancyIntegrator` (absolutní výšky v rámci robotu, výška kamery z hloubkové projekce, vnější hrana prstence, prefixové maximum konce stínu podél azimutu), `colorshadow=`, 8 testů, kontrola a přeměření `ARBot.Analyze okluze` (10. 10. 2026)
+- [ ] Ověřit na zařízení: jízda s `colorshadow=height` — `okluze` nad novým záznamem (zahozeno, nesedí 0) a zda se plocha mimo cestu potvrzuje rychleji (rychlost, `freeAhead`) proti jízdám se starým pravidlem
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-08-14](devlog.md#2026-08-14), [2026-10-01](devlog.md#2026-10-01), [2026-10-09](devlog.md#2026-10-09), [2026-10-10](devlog.md#2026-10-10)
 
 <a id="vid-zpetna-projekce-hloubka"></a>
 ### 🧪 Zpětná projekce pixelu ignorovala hloubku

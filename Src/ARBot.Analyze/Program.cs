@@ -277,6 +277,9 @@ namespace ARBot.Analyze
                     case "uvazl":
                         UvazlReport.Run(rec);
                         return 0;
+                    case "okluze":
+                        OkluzeReport.Run(rec, (int)Arg(args, "--framestep", 5), (int)Arg(args, "--limit", 0));
+                        return 0;
                     case "types": Types(rec); return 0;
                     default: Usage(); return 1;
                 }
@@ -500,6 +503,9 @@ namespace ARBot.Analyze
             Console.WriteLine("             (u verze 1 integral v, omega), srovnani s fuzovanou polohou a GPS, useky mise Track");
             Console.WriteLine("  uvazl      robot stal pri jizde: prehrani StuckMonitor (dnesni kod, prahy 20 s / 60 s) -");
             Console.WriteLine("             epizody, priciny, radky do Trace; srovnani se StuckMsg ze zaznamu, ma-li je");
+            Console.WriteLine("  okluze     okluzni pravidlo barvy: kolik barevnych vzorku zahodi stin za prvni prekazkou,");
+            Console.WriteLine("             co ho vrha (vyska, velikost skvrny) a protifakty (stin podle vysky, ignorovat");
+            Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
             Console.WriteLine();
             Console.WriteLine("  --old-window=<ms>  hranice, na ktere se prijata merenia rozdeli (vychozi 60)");
             Console.WriteLine("  --limit=<n>        kolik snimku precist u poses/corridorfit (vychozi 400, 0 = vse)");

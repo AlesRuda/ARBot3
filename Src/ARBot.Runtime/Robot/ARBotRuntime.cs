@@ -594,12 +594,17 @@ namespace ARBot.Robot
 
             // wedgefill= sirka klinu mezi zornymi poli barvy, ve kterem se dopisuje semantika
             // interpolaci z okoli (0 = vypnuto, puvodni chovani). Viz WedgeFiller.
+            // colorshadow= okluzni pravidlo barvy ('first' = puvodni, A/B). Viz ColorShadowMode.
             var integratorCfg = new OccupancyIntegratorConfig
             {
                 WedgeFillDeg = ParamRegistry.WedgeFill.Value,
+                ColorShadow = string.Equals(ParamRegistry.ColorShadow.Value, "first", StringComparison.OrdinalIgnoreCase)
+                    ? ColorShadowMode.FirstObstacle : ColorShadowMode.Height,
             };
             if (integratorCfg.WedgeFillDeg <= 0)
                 Trace.WriteLine("wedgefill=0: klin mezi zornymi poli barvy se nedoplnuje (A/B).");
+            if (integratorCfg.ColorShadow == ColorShadowMode.FirstObstacle)
+                Trace.WriteLine("colorshadow=first: barva se za prvni prekazkou v azimutu nevzorkuje vubec (puvodni pravidlo, A/B).");
 
             // motionprofile= vybira kinematicky profil regulatoru drahy. Vychozi 'latency' je spojity
             // zakon se zpozdenim smycky (motionlatency=); 'trapezoid' vraci puvodni diskretni profil

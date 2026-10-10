@@ -39,8 +39,43 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-10
+
+- **Okluzní pravidlo: výpočetní náročnost změřena** (`vid-inshadow-zahazuje-vzorky`, na otázku
+  autora, proč volit mezi třemi pravidly se skoro stejným výsledkem): `okluze` tiskne časy za snímek.
+  Stín podle výšky, totéž bez sebestínění i práh výšky vrhače mají dotaz na buňku O(1) jako dnes;
+  stavba 4–8 µs proti 2,3 ms `Integrate` (62 728 snímků, Release na PC). Jediná nová závislost
+  je rovina země z `CameraFrameProcessor` (proložit znovu ~66 µs). Rychlá varianta ověřena proti
+  hrubé síle (21 neshod z 220 mil., všechny zaokrouhlení na hraně prstence). Náročnost tedy
+  nerozhoduje; rozhodnutí o pravidle dál čeká na autora.
+- **Výška vrhače pro stín podle výšky: `MaxZ`, ne průměr** (autorovi se stín podle výšky líbí
+  nejvíc, navrhl `MeanZ`): průměr zachrání o 6,3 % zahozených víc, ale z 63 % za překážkami nad
+  30 cm — body svislé plochy jsou v jednom prstenci, průměr je polovina výšky, stín je krátký
+  a zapsala by se barva překážky. `MeanZ + √3·StdZ` (vrchol svislé plochy) = `MaxZ`, takže zbytek
+  stínu nedělá šum v `MaxZ`, ale skutečně vysoké věci.
+- **Rozhodnutí autora:** stín podle výšky s výškou vrhače `MeanZ + √3·StdZ` (robustnost proti
+  ulétlému bodu, výsledek nad daty stejný jako `MaxZ`), bez sebestínění, viz
+  [decisions.md](decisions.md).
+- **Stín podle výšky v kódu** (`vid-inshadow-zahazuje-vzorky` → `v-kodu`): `OccupancyIntegrator`
+  s `ColorShadowMode.Height` je výchozí a `colorshadow=first` vrací původní pravidlo. Dotaz na
+  buňku je jedno čtení průběžného maxima konce stínu. Zahozeno 45,7 → **35,3 %** kandidátů;
+  `okluze` ověřuje integrátor proti replice ve všech 62 728 snímcích 46 jízd.
+- **Kontrola (3 recenzenti a ověřovatelé) našla v první verzi tři chyby:**
+  - výšky nad proloženou rovinou místo absolutních (barva se vzorkuje v `z = 0` rámce robotu);
+  - konec stínu od náběžné hrany prstence místo vnější;
+  - `zasek` přehrával staré záznamy novým pravidlem (teď bere `colorshadow` ze záznamu).
+
+  Testy: 8 nových a 5 záměrných chyb zachyceno; sady 1875 / 164 / 172 prošly.
+  ⚠️ Na zařízení neběželo.
+
 ## 2026-10-09
 
+- **Okluzní pravidlo barvy změřeno** (`vid-inshadow-zahazuje-vzorky`): nový `ARBot.Analyze okluze`
+  přehraje snímky a repliku smyčky integrátoru ověřuje v každém snímku proti `LastStats` (46 jízd,
+  nesedí 0). Stín zahodí **45,7 %** barevných vzorků (22–97 % podle jízdy); `ColorShadowed` nadsazuje
+  ~2×. Malé skvrny hypotézou nejsou (do 4 buněk 2,3 %); stín vrhá nízký rozsáhlý drsný povrch
+  (tráva) blízko robotu a zahodí barvu daleko za ním, 67 % ztráty je tam, kde hloubka nedává nic.
+  Stín podle výšky by ztrátu stáhl jen na ~34 %. Rozhodnutí o pravidle čeká na autora.
 - **Koridor: chodník přiřazený k ulici prověřen** (`lok-koridor-chodnik-k-ulici`): replay dnešního
   `CorridorLocalizer` nad snímky z 18. 9. s provozním profilem (sedí na záznam do 2 mm), `assocwhy`,
   prevalence přes 28 záznamů, snímky. **Dnes se to stane taky** — jedna hrana s mapovou šířkou 3 m

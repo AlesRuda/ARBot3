@@ -1195,8 +1195,9 @@ temata:
     oblast: videni
     nazev: Okluzní pravidlo zahazuje většinu barevných vzorků
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-08-14
+    vyreseno: 2026-10-10
     popis: >
       Při zápisu barvy do occupancy gridu se za první překážkou v daném azimutu stíní celý zbytek
       paprsku, i místa, kam kamera zjevně vidí. Nad virtuálním HW to zahodilo ~5 200 z ~12 000
@@ -1206,13 +1207,77 @@ temata:
       1. 10. 2026 (autor): nejdřív změřit nad skutečnými záznamy, až budou k dispozici — číslo
       ze 14. 8. je ze simulace. Rozhodne mezi stínem podle výšky překážky (`d·H/(h−H)`, výpočetně
       zanedbatelné, `PolarCell.MaxZ` je k dispozici) a ignorováním malých skvrn v hloubce.
+      **Změřeno 9. 10. 2026** (`ARBot.Analyze okluze`, přehrání snímků 46 skutečných jízd 2. 9.–1. 10.
+      a Robotouru, každý 5. snímek, replika smyčky integrátoru ověřená v každém snímku proti
+      `LastStats` — nesedí 0): stín zahodí **45,7 %** barevných vzorků, které by se jinak zapsaly
+      (podle jízdy 22–97 %; `ColorShadowed` číslo nadsazuje ~2×, protože počítá i buňky mimo zorné
+      pole barvy). **Malé skvrny to nejsou:** skvrna 1 buňky vrhá 0,3 %, ignorovat skvrny do 4 buněk
+      zachrání 2,3 % zahozených. Stín vrhá **nízký rozsáhlý drsný povrch** (vrchol nad rovinou země
+      do 5 cm 73 %, skvrny nad 16 buněk 89 %, překážkou kvůli drsnosti/sklonu 79 %), vrhač je
+      většinou blízko (do 2 m 49 %) a zahozený vzorek daleko za ním (přes 2 m 59 %); barva zahozených
+      říká „cesta" jen v 26 %. **Ztráta je informační**: 67 % zahozených vzorků leží tam, kde hloubka
+      nedává nic (za jejím dosahem 34 %, neznámo 23 %) nebo volno (10 %). **Stín podle výšky pomůže
+      jen částečně**: zachrání 25 % zahozených (bez sebestínění 28 %), vrhá-li jen překážka s vrcholem
+      nad 15 cm 28,5 %, jen výšková (ne drsnost/sklon) 17 % — zahozeno by pak zůstalo ~33–38 %
+      kandidátů, protože v témž azimutu dál skoro vždy leží i něco vyššího (ve větší vzdálenosti
+      i šum hloubky v `MaxZ`). Výška kamery nad rovinou země 0,51–0,55 m.
+      **Výpočetní náročnost změřena 10. 10. 2026** (týž příkaz, Release na PC, 62 728 snímků) —
+      rozhodovat nebude: u všech tří nejlepších pravidel je dotaz na buňku O(1) jako dnes (stín
+      podle výšky přes prefixové maximum konce stínu podél azimutu, bez sebestínění totéž o prstenec
+      dřív) a stavba za snímek stojí 4 µs (dnes), 4 µs (vrhač nad 15 cm), 8 µs (podle výšky, slouží
+      oběma variantám) proti **2,3 ms** celého `Integrate`. Navíc je potřeba rovina země, kterou
+      integrátor nemá: převzít ji z `CameraFrameProcessor` nestojí nic, proložit znovu z buněk
+      ~66 µs (deterministicky, takže i nad starými záznamy totéž). Výška kamery jde z
+      `CameraFrame.Projection`. Rychlý dotaz ověřen proti hrubé síle: nesedí 21 z 220 mil. zahozených
+      vzorků, všechny na náběžné hraně prstence (`RadialBin` dostává `float`, porovnání je
+      v `double` — táž nekonzistence je i v dnešním `InShadow`). Na Pi neměřeno.
+      **Výška vrhače: `MaxZ` je správně** (10. 10. 2026, otázka autora, jestli nevzít průměr; 46 jízd).
+      S `MeanZ` zachrání stín podle výšky víc (bez sebestínění 34,7 proti 28,4 % zahozených, zahozeno
+      pak 29,9 proti 32,8 % kandidátů), ale těch 6,3 % navíc leží hlavně za VYSOKÝMI překážkami:
+      vrhač, který by podle `MaxZ` stínil, má vrchol nad 30 cm v 63 % (výš než kamera 44 %) a v 60 %
+      buňku s ≥ 64 body, tedy dobře změřenou. Body svislé plochy padnou do jednoho prstence, takže
+      průměr je polovina výšky a stín vychází krátký — „zachráněná“ zem je ve skutečnosti zakrytá
+      a do `LRoad` by se zapsala barva překážky. Robustní vrchol `MeanZ + √3·StdZ` (u svislé plochy
+      s rovnoměrně rozloženými body přesně vrchol) dává totéž co `MaxZ` (28,3 %), takže `MaxZ`
+      netáhnou nahoru osamělé šumové body a domněnka „dál v azimutu je šum v `MaxZ`“ neplatí —
+      za zbytkem stínu je skutečně vysoká věc.
+      **Rozhodnutí autora 10. 10. 2026: stín podle výšky, výškou vrhače `MeanZ + √3·StdZ`**, ne `MaxZ`
+      — jeden ulétlý bod `MaxZ` rozhodí celý, kdežto tady posune odhad jen o `(z − průměr)·√(3/n)`
+      (u 16 bodů na polovinu, u 64 na čtvrtinu); nad dnešními daty dávají totéž, takže je to pojistka,
+      ne zisk. U buňky s body ve dvou hladinách (zem + převis) vyjde nad `MaxZ` (až 1,37× výšky) —
+      stín delší, bezpečný směr. Otevřené zůstává sebestínění (se sebestíněním zachrání 25,0 %,
+      bez něj 28,3 % zahozených).
+      **V kódu 10. 10. 2026** (autor: bez sebestínění): `OccupancyIntegrator` s
+      `ColorShadowMode.Height` je výchozí, `colorshadow=first` vrací původní pravidlo. Kontrola
+      (3 recenzenti a ověřovatelé) našla v první verzi dvě chyby geometrie:
+      výšky nad proloženou rovinou (barva se ale vzorkuje v `z = 0` rámce robotu, takže o zakrytí
+      rozhoduje paprsek k tomuto bodu; konec stínu se posouval poměrem `(Cz − c)/Cz` a v 1,5 %
+      snímků se špatně proloženou rovinou byl stín rozbitý) a vzdálenost vrhače z náběžné hrany
+      prstence (stín kratší až o šířku prstence). Teď se počítá v absolutních výškách rámce robotu,
+      s výškou kamery z hloubkové projekce a vnější hranou prstence, a rovina odpadla. Přeměřeno
+      nad 46 jízdami: zahozeno **45,7 → 35,3 %** kandidátů. Integrátor v každém z 62 728 snímků
+      dává přesně předpověď repliky. `Integrate` je v šumu (medián +0,8 %). `MeanZ` dál zamítnut
+      (navíc zachráněné leží ze 63 % za překážkou nad 30 cm) a robustní vrchol = `MaxZ`. Kontrola
+      zároveň opravila `ARBot.Analyze zasek`, který by staré záznamy přehrál novým pravidlem.
     kroky:
       - co: 'Změřit podíl zahozených barevných vzorků nad skutečným záznamem (offline přehráním snímků, `ColorShadowed`) a kolik z nich stíní skvrny do pár buněk'
+        stav: hotovo
+        kdy: 2026-10-09
+      - co: "Rozhodnout (autor): stín podle výšky (zahozeno 46 → ~34 %), práh výšky vrhače, jiné pravidlo (stín jen do vzdálenosti, zeslabit místo zahodit), nebo nechat"
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: 'Rozhodnout (autor): sebestínění — stíní překážka i vlastní prstenec (zachrání 25,0 %), nebo jen prstence za ním (28,3 %)'
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: 'Implementovat v `OccupancyIntegrator` (absolutní výšky v rámci robotu, výška kamery z hloubkové projekce, vnější hrana prstence, prefixové maximum konce stínu podél azimutu), `colorshadow=`, 8 testů, kontrola a přeměření `ARBot.Analyze okluze`'
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: 'Ověřit na zařízení: jízda s `colorshadow=height` — `okluze` nad novým záznamem (zahozeno, nesedí 0) a zda se plocha mimo cestu potvrzuje rychleji (rychlost, `freeAhead`) proti jízdám se starým pravidlem'
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-08-14, 2026-10-01]
+    devlog: [2026-08-14, 2026-10-01, 2026-10-09, 2026-10-10]
     ceka_na: []
 
 

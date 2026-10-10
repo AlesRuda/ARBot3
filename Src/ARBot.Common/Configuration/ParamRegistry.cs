@@ -157,6 +157,17 @@ namespace ARBot.Common.Configuration
               + "rychlost. NEDOPLNUJE se konstanta 'sjizdne': interpoluje se z nejblizsich bunek "
               + "pricne vlevo a vpravo, geometrie se nedoplnuje nikdy a doplnenim nemuze vzniknout "
               + "prekazka. Viz doc/occupancy-and-local-planning.md.", ParamParsers.Nezaporne);
+        public static readonly StringParam ColorShadow = Vycet("colorshadow", "height", new[] { "height", "first" }, K_RIZENI,
+              "Okluzni pravidlo barvy v occupancy gridu - kde se semanticky kanal NEvzorkuje, protoze barva "
+              + "v tom miste obrazu patri prekazce, ne zemi za ni. 'height' (vychozi od 10. 10. 2026, "
+              + "rozhodnuti autora): prekazka zakryje jen pas za svym prstencem podle sve vysky a vysky "
+              + "kamery, [e, e*H/(H-h)); vrchol prekazky MeanZ + sqrt(3)*StdZ (proti MaxZ ho jeden uletly "
+              + "bod nerozhodi), vlastni prstenec prekazky se nestini. 'first' = puvodni chovani pro A/B: "
+              + "od prvni prekazky v azimutu dal se barva nevzorkuje vubec. Zmereno nad 46 jizdami "
+              + "(ARBot.Analyze okluze): 'first' zahodi 45,7 % barevnych vzorku, ktere by se jinak zapsaly, "
+              + "'height' 32,8 % - stin vrha hlavne trava blizko robotu. Bez znale vysky kamery (zaznamy "
+              + "pred verzi CameraFrame 4) plati 'first'. NEOVERENO NA HW. Viz "
+              + "doc/occupancy-and-local-planning.md, 'Okluze'.");
         public static readonly DoubleParam SafeDist = Num("safedist", Fmt(Profile.SafeDist), K_RIZENI,
               "TVRDY minimalni odstup od prekazek [m] pro lokalni planovac: blize je neprujezdno. "
               + "Prenese se do Profile.SafeDist pri startu (stejne jako maxspeed). Musi byt > 0. "

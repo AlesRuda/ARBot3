@@ -1015,7 +1015,18 @@ namespace ARBot.Analyze
                     replay.Occ[dst] = m0.Occ[i + j * m0.Size];
                     replay.Road[dst] = m0.Road != null ? m0.Road[i + j * m0.Size] : (sbyte)0;
                 }
-            var icfg = new OccupancyIntegratorConfig();
+            // Okluzni pravidlo barvy, se kterym robot jel: ze zaznamu. Zaznamy pred 10. 10. 2026 klic
+            // colorshadow nemaji a jely puvodnim pravidlem prvni prekazky - vychozi konfigurace by je
+            // prehrala novym pravidlem a prehrany grid by se rozesel se snapshoty.
+            string stinZeZaznamu = LogConfig.Read(rec).Text("colorshadow");
+            var icfg = new OccupancyIntegratorConfig
+            {
+                ColorShadow = string.Equals(stinZeZaznamu, "height", StringComparison.OrdinalIgnoreCase)
+                    ? ColorShadowMode.Height : ColorShadowMode.FirstObstacle,
+            };
+            Console.WriteLine("okluzni pravidlo barvy pri prehrani: "
+                + (icfg.ColorShadow == ColorShadowMode.Height ? "height" : "first")
+                + (stinZeZaznamu == null ? " (colorshadow v zaznamu neni - puvodni pravidlo)" : " (ze zaznamu)"));
             var integ = new OccupancyIntegrator(replay, icfg);
             var wedge = new WedgeFiller(replay, icfg.WedgeFillDeg * Math.PI / 180.0 / 2.0,
                                         icfg.WedgeFillRangeM, icfg.WedgeFillMaxGapM, icfg.WedgeFillConfidence);

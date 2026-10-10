@@ -562,7 +562,18 @@ a souběžné výpadky kamer (rozliší „stál proces" od „jen kamery"). **`
 přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad libovolným záznamem. **`uvazl`**
 (od 8. 10. 2026) totéž s hlídačem uváznutí `StuckMonitor`: epizody stání při jízdě, převažující
 příčiny, řádky do Trace a srovnání se `StuckMsg`, má-li je záznam
-([global-navigation-runtime.md](global-navigation-runtime.md), „Hlídač uváznutí"). Konfiguraci
+([global-navigation-runtime.md](global-navigation-runtime.md), „Hlídač uváznutí"). **`okluze`**
+(od 9. 10. 2026) přehraje snímky a změří okluzní pravidlo barvy v integrátoru: kolik barevných
+vzorků zahodí stín, co ho vrhá (výška nad rovinou země, velikost skvrny, důvod klasifikace)
+a protifakty (stín podle výšky, práh výšky, ignorovat skvrny); replika smyčky se v každém snímku
+ověřuje proti `LastStats` integrátoru (`--framestep=5`, `--limit=`). Od 10. 10. 2026 tiskne
+i výpočetní náročnost: čas `Integrate` a stavby stínu jednotlivých pravidel za snímek, s O(1)
+dotazem ověřeným proti hrubé síle (časy měř v Release), a stín podle výšky s výškou vrhače
+`MaxZ` / `MeanZ` / `MeanZ + √3·StdZ` včetně toho, za jakým vrhačem leží vzorky, které by průměr
+zachránil navíc. Replika měří proti **původnímu** pravidlu (`colorshadow=first`). Druhý
+integrátor s výchozí konfigurací (`colorshadow=height`) se v každém snímku porovnává s předpovědí
+repliky. **`zasek`** od 10. 10. 2026 přehrává pravidlem ze záznamu: chybí-li tam `colorshadow`,
+použije původní, s nímž jely všechny starší záznamy. Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 

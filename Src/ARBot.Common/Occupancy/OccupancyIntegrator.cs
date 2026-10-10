@@ -25,9 +25,11 @@ namespace ARBot.Common.Occupancy
     ///
     /// <para><b>Semanticky kanal</b> (<see cref="CameraFrame.ImageProbability"/>) se vzorkuje stejnym
     /// gatherem, jen barevnou projekci - u bunky ZEME je rovinny predpoklad presne platny. Respektuje
-    /// se okluze: za prvni prekazkou v danem azimutu se uz nevzorkuje (jinak by se barva prekazky
-    /// pripsala zemi za ni). Naopak ZA dosahem hloubky se vzorkovat smi - barva dohledne dal a je to
-    /// jediny zdroj informace o ceste pred robotem.</para>
+    /// se okluze: zem, kterou zakryva prekazka, se nevzorkuje (jinak by se barva prekazky pripsala
+    /// zemi za ni). Ktera zem to je, rika <see cref="OccupancyIntegratorConfig.ColorShadow"/> -
+    /// od 10. 10. 2026 pas za prekazkou podle jeji vysky, puvodne vse za prvni prekazkou azimutu.
+    /// Naopak ZA dosahem hloubky se vzorkovat smi - barva dohledne dal a je to jediny zdroj
+    /// informace o ceste pred robotem.</para>
     ///
     /// <para><b>Vlaknova bezpecnost:</b> zadna (znovupouzity buffer stinu). Jedna instance = jedno vlakno.</para>
     /// </summary>
@@ -36,8 +38,29 @@ namespace ARBot.Common.Occupancy
         private readonly OccupancyGrid grid;
         private readonly OccupancyIntegratorConfig cfg;
 
-        // Pro kazdy azimut nejblizsi radialni prstenec s prekazkou (int.MaxValue = zadna) - stin.
+        // Pro kazdy azimut nejblizsi radialni prstenec s prekazkou (int.MaxValue = zadna) - stin
+        // pravidla FirstObstacle.
         private int[] shadowFrom = new int[0];
+
+        // Stin podle vysky (ColorShadowMode.Height): pro bunku [azimut, prstenec] nejvzdalenejsi konec
+        // stinu [m] pres prekazky v prstencich 0..prstenec vcetne (prefixove maximum podel azimutu);
+        // -inf = zadna prekazka. Bod v prstenci rb je ve stinu, kdyz konec pres prstence PRED nim
+        // presahuje jeho vzdalenost - dotaz na bunku je tedy jedno cteni z pole jako u FirstObstacle.
+        private double[] shadowEnd = new double[0];
+        // Plati pro posledni BuildShadow stin podle vysky? (false = FirstObstacle, i jako zaloha.)
+        private bool shadowByHeight;
+
+        /// <summary>
+        /// Vrchol prekazky pro stin podle vysky je <c>MeanZ + TopSigmaFactor·StdZ</c>: u svisle plochy
+        /// s rovnomerne rozlozenymi body (stred h/2, smerodatna odchylka h/√12) presne jeji vrchol,
+        /// a proti <c>MaxZ</c> ho jeden uletly bod neposune o celou vysku. Viz
+        /// <see cref="ColorShadowMode.Height"/>.
+        /// </summary>
+        public const float TopSigmaFactor = 1.7320508f;   // √3
+
+        /// <summary>Kamera nize nad rovinou z = 0 ramce robotu [m] je nesmysl (spatna transformace) -
+        /// stin podle vysky se pak nepocita a pouzije se <see cref="ColorShadowMode.FirstObstacle"/>.</summary>
+        public const double MinCameraHeightM = 0.1;
 
         /// <summary>Konfigurace zapisu.</summary>
         public OccupancyIntegratorConfig Config => cfg;
@@ -82,14 +105,17 @@ namespace ARBot.Common.Occupancy
             public int WroteRoad;
             /// <summary>Bunek, do kterych se zapsal aspon jeden kanal (navratova hodnota Integrate).</summary>
             public int Touched;
+            /// <summary>Pocital se stin podle vysky (<see cref="ColorShadowMode.Height"/>)? false = pravidlo
+            /// prvni prekazky - nastavene, nebo jako zaloha, kdyz hloubkova projekce nenese polohu kamery.</summary>
+            public bool ShadowByHeight;
 
             /// <inheritdoc/>
             public override string ToString()
                 => $"depth[grid={(HasPolarGrid ? 1 : 0)} proj={(HasDepthProjection ? 1 : 0)}] "
                  + $"color[prob={(HasProbability ? 1 : 0)} proj={(HasColorProjection ? 1 : 0)}] "
                  + $"cells={CellsInRange} dproj={DepthProjected} az={AzimuthOk} rad={RadialOk} occ={WroteOcc} "
-                 + $"shadow={ColorShadowed} noconf={ColorNoConfidence} cproj={ColorProjected} road={WroteRoad} "
-                 + $"touched={Touched}";
+                 + $"shadow={ColorShadowed}{(ShadowByHeight ? "(h)" : "")} noconf={ColorNoConfidence} "
+                 + $"cproj={ColorProjected} road={WroteRoad} touched={Touched}";
         }
 
         /// <param name="grid">Cilovy occupancy grid.</param>
@@ -143,7 +169,8 @@ namespace ARBot.Common.Occupancy
             double maxRange = ResolveMaxRange(polar, useDepth);
             if (maxRange <= 0) return 0;
 
-            if (useDepth) BuildShadow(polar);
+            if (useDepth) BuildShadow(depthProjection, polar);
+            stats.ShadowByHeight = useDepth && shadowByHeight;
 
             // Prevod svetove bunky do robot-rel. ramce = rotace o -heading.
             double cosH = Math.Cos(heading), sinH = Math.Sin(heading);
@@ -181,7 +208,7 @@ namespace ARBot.Common.Occupancy
                     double range = Math.Sqrt(r2);
 
                     bool wrote = false;
-                    int azimuth = -1;
+                    int azimuth = -1, rb = -1;
                     bool beyondDepthRange = true;   // dokud hloubka bunku nezaradi, je "za dosahem"
 
                     if (useDepth)
@@ -192,7 +219,7 @@ namespace ARBot.Common.Occupancy
                             stats.DepthProjected++;
                             azimuth = polar.AzimuthBinFromColumn((int)Math.Round(col), cfg.EdgeColumnTrim);
                             if (azimuth >= 0) stats.AzimuthOk++;
-                            int rb = azimuth >= 0 ? polar.RadialBin((float)range) : -1;
+                            rb = azimuth >= 0 ? polar.RadialBin((float)range) : -1;
                             if (rb >= 0)
                             {
                                 stats.RadialOk++;
@@ -216,7 +243,7 @@ namespace ARBot.Common.Occupancy
                     }
 
                     // Barvu za dosahem hloubky jen tehdy, kdyz je to povolene.
-                    bool inShadow = InShadow(azimuth, polar, range, useDepth);
+                    bool inShadow = InShadow(azimuth, rb, polar, range, useDepth);
                     if (useColor && inShadow) stats.ColorShadowed++;
                     bool colorAllowed = useColor
                                         && (cfg.RoadBeyondDepthRange || !beyondDepthRange)
@@ -269,8 +296,67 @@ namespace ARBot.Common.Occupancy
             return Math.Min(r, grid.Size * grid.Resolution * 0.5);
         }
 
+        /// <summary>
+        /// Pripravi stin pro dotazy <see cref="InShadow"/>: podle vysky (<see cref="ColorShadowMode.Height"/>),
+        /// kdyz je nastaveny a zna se vyska kamery, jinak pro kazdy azimut nejblizsi prstenec s prekazkou.
+        /// </summary>
+        private void BuildShadow(ICameraProjection depthProjection, PolarTraversabilityGrid polar)
+        {
+            shadowByHeight = cfg.ColorShadow == ColorShadowMode.Height && BuildHeightShadow(depthProjection, polar);
+            if (!shadowByHeight) BuildFirstObstacleShadow(polar);
+        }
+
+        /// <summary>
+        /// Stin podle vysky. Barva bunky se bere z pixelu, kam se promita bod <c>(x, y, 0)</c> ramce
+        /// robotu, takze ten pixel ukazuje prekazku presne tehdy, kdyz paprsek z kamery k bodu projde
+        /// pod jejim vrcholem: pro vrchol ve vzdalenosti <c>e</c> a vysce <c>zT</c> a kameru ve vysce
+        /// <c>Cz</c> plati <c>range &lt; e·Cz/(Cz − zT)</c>. Vysky jsou proto ABSOLUTNI v ramci
+        /// robotu (tamtez jsou body polarniho gridu), ne nad prolozenou rovinou zeme - ta by konec
+        /// stinu zmenila pomerem <c>(Cz − c)/Cz</c> (c = vyska roviny pod kamerou; nalezeno kontrolou
+        /// 10. 10. 2026), a navic nad snimky, kde se rovina prolozi spatne, by stin rozbila uplne.
+        ///
+        /// <para>Poloha kamery je z TEZE hloubkove projekce, ze ktere vznikl polarni grid. Vzdalenost
+        /// vrhace je VNEJSI hrana jeho prstence: vrchol muze lezet kdekoli v prstenci a nabezna hrana
+        /// by stin zkratila az o sirku prstence × <c>Cz/(Cz − zT)</c> - do zakryte zeme by se zapsala
+        /// barva prekazky. Vzdalenosti se meri od pocatku robotu, ne od paty kamery (~0,1 m bokem):
+        /// priblizeni, ktere konec stinu posune nejvys o (<c>Cz/(Cz − zT)</c> − 1) × ten posun.</para>
+        ///
+        /// <para>Vraci false, kdyz projekce polohu kamery nenese nebo je nesmyslna (pak plati pravidlo
+        /// prvni prekazky).</para>
+        /// </summary>
+        private bool BuildHeightShadow(ICameraProjection depthProjection, PolarTraversabilityGrid polar)
+        {
+            if (!(depthProjection is IDepthCameraProjection dp)) return false;
+            double camZ = dp.Transformation.Translation.Z;   // vyska kamery v ramci robotu
+            if (!(camZ >= MinCameraHeightM)) return false;   // i NaN
+
+            int A = polar.AzimuthCount, R = polar.RadialCount;
+            if (shadowEnd.Length < A * R) shadowEnd = new double[A * R];
+            var cells = polar.Cells;
+            var edges = polar.RadialEdges;
+            for (int a = 0; a < A; a++)
+            {
+                double end = double.NegativeInfinity;
+                for (int r = 0; r < R; r++)
+                {
+                    int idx = a * R + r;
+                    ref readonly var c = ref cells[idx];
+                    float top = c.MeanZ + TopSigmaFactor * c.StdZ;
+                    // top <= 0: prekazka pod urovni z = 0 (prohlubne) paprsek k zemi nezakryva.
+                    if (c.Class == TraversabilityClass.Obstacle && top > 0)
+                    {
+                        double d = top >= camZ ? double.PositiveInfinity
+                                               : edges[r + 1].Range * camZ / (camZ - top);
+                        if (d > end) end = d;
+                    }
+                    shadowEnd[idx] = end;
+                }
+            }
+            return true;
+        }
+
         /// <summary>Pro kazdy azimut najde nejblizsi prstenec s prekazkou - za nim je zem ve stinu.</summary>
-        private void BuildShadow(PolarTraversabilityGrid polar)
+        private void BuildFirstObstacleShadow(PolarTraversabilityGrid polar)
         {
             int a = polar.AzimuthCount, r = polar.RadialCount;
             if (shadowFrom.Length < a) shadowFrom = new int[a];
@@ -290,12 +376,24 @@ namespace ARBot.Common.Occupancy
         }
 
         /// <summary>
-        /// Je bod v dane vzdalenosti za prvni prekazkou daneho azimutu? (Tedy zem, kterou kamera
+        /// Je bod v dane vzdalenosti zakryty prekazkou daneho azimutu? (Tedy zem, kterou kamera
         /// nemuze videt - barva by tam patrila prekazce, ne zemi.) Bez hloubky se stin neurcuje.
         /// </summary>
-        private bool InShadow(int azimuth, PolarTraversabilityGrid polar, double range, bool useDepth)
+        /// <param name="rb">Radialni prstenec bodu (-1 = mimo dosah hloubky).</param>
+        private bool InShadow(int azimuth, int rb, PolarTraversabilityGrid polar, double range, bool useDepth)
         {
             if (!useDepth || azimuth < 0) return false;
+
+            if (shadowByHeight)
+            {
+                // Bez sebestineni: bod v prstenci rb zakryvaji jen prstence PRED nim. Mimo dosah
+                // hloubky (rb = -1) je bod bud pred prvnim prstencem (nic ho nezakryva), nebo za
+                // poslednim (zakryvaji vsechny).
+                if (range < polar.RadialEdges[0].Range) return false;
+                int R = polar.RadialCount;
+                int k = rb >= 0 ? rb - 1 : R - 1;
+                return k >= 0 && shadowEnd[azimuth * R + k] > range;
+            }
 
             int first = shadowFrom[azimuth];
             if (first == int.MaxValue) return false;

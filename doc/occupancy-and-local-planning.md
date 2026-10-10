@@ -283,8 +283,43 @@ API na gridu: `AzimuthBinFromColumn(column, edgeColumnTrim)` a `RadialBin(range)
 
 ### Okluze a dosah semantického kanálu
 
-- **Okluze:** pro každý azimut se najde nejbližší prstenec s překážkou; od jeho náběžné hrany dál
-  se `LRoad` **nevzorkuje** (barva by tam patřila překážce, ne zemi za ní).
+- **Okluze — stín podle výšky** (`colorshadow=height`, výchozí od 10. 10. 2026, rozhodnutí
+  autora, `vid-inshadow-zahazuje-vzorky`): `LRoad` se nevzorkuje tam, kde barevný pixel ukazuje
+  překážku místo země za ní.
+  - **Geometrie.** Barva buňky se bere z pixelu, kam se promítá bod `(x, y, 0)` rámce robotu.
+    Ten pixel ukazuje překážku, když paprsek z kamery k bodu projde pod jejím vrcholem.
+    Překážka s vrcholem `zT` v prstenci s vnější hranou `e` proto zakryje zem do `e·Cz/(Cz − zT)`.
+    `Cz` je výška kamery z hloubkové projekce a obě výšky jsou **absolutně v rámci robotu**.
+    Když `zT ≥ Cz`, zakrývá do nekonečna; když `zT ≤ 0`, nezakrývá nic.
+  - **Vrchol překážky** je `MeanZ + √3·StdZ`. U svislé plochy s rovnoměrně rozloženými body je to
+    přesně vrchol a jeden ulétlý bod ho posune jen o `(z − průměr)·√(3/n)`.
+  - **Vlastní prstenec** překážky se nestíní: ten se stejně potvrdí jako překážka z hloubky. Bod
+    za dosahem hloubky zakrývají všechny prstence.
+  - **Výpočet.** Dotaz na buňku je jedno čtení z pole: průběžné (prefixové) maximum konce stínu
+    podél azimutu. Stavba stojí ~10 µs na snímek a celé `Integrate` se změnilo v šumu měření
+    (medián +0,8 % z ~3 ms na PC).
+  - **Staré pravidlo** je `colorshadow=first`: od náběžné hrany první překážky v azimutu se
+    nevzorkuje nic. Platí i jako záloha, když hloubková projekce nenese polohu kamery.
+
+  ⚠️ **Změřeno nad 46 jízdami** (`ARBot.Analyze okluze`, nové pravidlo ověřené proti replice
+  ve všech 62 728 snímcích):
+  - Původní pravidlo zahodí **45,7 %** barevných vzorků (podle jízdy 22–97 %), nové **35,3 %**.
+  - Stín vrhá hlavně nízký rozsáhlý drsný povrch (tráva: vrchol do 5 cm 73 %, kvůli drsnosti
+    nebo sklonu 79 %), ne malé skvrny (do 4 buněk 2,3 %).
+  - Víc ztrátu stáhnout nejde: dál v azimutu skoro vždy leží něco vysokého, a není to šum —
+    robustní vrchol dává totéž co `MaxZ`.
+  - **`MeanZ` je jako výška vrhače zamítnut.** Body svislé plochy jsou v jednom prstenci, průměr
+    je polovina výšky a stín vyjde krátký. Zem, kterou by průměr „zachránil“ navíc, leží ze 63 %
+    za překážkou vyšší než 30 cm.
+
+  ⚠️ **Dvě chyby první verze našla kontrola 10. 10. 2026:**
+  - Výšky se počítaly nad **proloženou rovinou země**, ačkoli se barva vzorkuje v `z = 0` rámce
+    robotu. Konec stínu tím byl posunutý poměrem `(Cz − c)/Cz` (`c` = výška roviny pod kamerou).
+    V 1,5 % snímků, kde rovina ujela mimo pásmo proložení, byl stín rozbitý úplně.
+  - Vzdálenost vrhače se brala z **náběžné hrany** prstence, takže stín vycházel kratší až o šířku
+    prstence.
+
+  ⚠️ **Na zařízení neběželo.**
 - **Za dosahem hloubky se `LRoad` vzorkovat SMÍ** (`RoadBeyondDepthRange`, default zapnuto) — barva
   dohlédne dál než použitelná hloubka a je to jediný zdroj informace o cestě před robotem. Důvěra
   vzorku lineárně klesá mezi `RoadFullRangeM` (3 m) a `RoadMaxRangeM` (8 m).

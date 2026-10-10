@@ -2,6 +2,39 @@ using System;
 
 namespace ARBot.Common.Occupancy
 {
+    /// <summary>Okluzni pravidlo barvy, viz <see cref="OccupancyIntegratorConfig.ColorShadow"/>.</summary>
+    public enum ColorShadowMode
+    {
+        /// <summary>
+        /// Puvodni pravidlo: v kazdem azimutu se od nabezne hrany PRVNI prekazky dal barva nevzorkuje
+        /// vubec. Zmereno 9. 10. 2026 nad 46 jizdami: zahodi 45,7 % barevnych vzorku, ktere by se
+        /// jinak zapsaly - stin vrha hlavne nizka drsna plocha (trava) blizko robotu.
+        /// </summary>
+        FirstObstacle,
+
+        /// <summary>
+        /// <b>Stin podle vysky vrhace</b> (vychozi od 10. 10. 2026, rozhodnuti autora): prekazka
+        /// s vrcholem <c>zT</c> zakryje zem jen do vzdalenosti <c>e·Cz/(Cz − zT)</c>, kde <c>e</c> je
+        /// vnejsi hrana jejiho prstence a <c>Cz</c> vyska kamery - obe vysky ABSOLUTNE v ramci robotu,
+        /// protoze barva se vzorkuje v bode <c>(x, y, 0)</c> toho ramce (<c>zT ≥ Cz</c> = az do
+        /// nekonecna, <c>zT ≤ 0</c> = nic). Vlastni prstenec prekazky se NEstini - bod v prstenci
+        /// <c>rb</c> zakryvaji jen prstence pred nim; ten prstenec se stejne potvrdi jako prekazka
+        /// z hloubky.
+        ///
+        /// <para><b>Vrchol je <c>MeanZ + √3·StdZ</c>, ne <c>MaxZ</c>:</b> u svisle plochy s rovnomerne
+        /// rozlozenymi body (stred <c>h/2</c>, smerodatna odchylka <c>h/√12</c>) je to presne jeji
+        /// vrchol, a jeden uletly bod ho posune jen o <c>(z − prumer)·√(3/n)</c> misto cele vysky.
+        /// Prumer sam (<c>MeanZ</c>) je zamitnuty merenim: body svisle plochy lezi v jednom prstenci,
+        /// takze prumer je polovina vysky a stin by vysel kratky (zem „zachranena" prumerem navic lezi
+        /// z 63 % za prekazkou nad 30 cm, tedy zakryta).</para>
+        ///
+        /// <para>Poloha kamery se bere z hloubkove projekce (<c>IDepthCameraProjection.Transformation</c>);
+        /// projekce bez ni nebo kamera nize nez <c>MinCameraHeightM</c> = <see cref="FirstObstacle"/>.
+        /// Viz <c>vid-inshadow-zahazuje-vzorky</c> a doc/occupancy-and-local-planning.md, „Okluze".</para>
+        /// </summary>
+        Height,
+    }
+
     /// <summary>
     /// Konfigurace zapisu z <see cref="ARBot.Common.Devices.CameraFrame"/> do occupancy gridu
     /// (<see cref="OccupancyIntegrator"/>). Viz doc/occupancy-and-local-planning.md.
@@ -27,10 +60,18 @@ namespace ARBot.Common.Occupancy
 
         /// <summary>
         /// Zapisovat semanticky kanal i tam, kde hloubka nic nevi (za dosahem polarniho gridu)?
-        /// Ano je zamer: barva dohledne dal a je to jediny zdroj informace o cestě pred robotem.
-        /// Okluze se pritom porad respektuje (za prvni prekazkou v danem azimutu se nevzorkuje).
+        /// Ano je zamer: barva dohledne dal a je to jediny zdroj informace o ceste pred robotem.
+        /// Okluze se pritom porad respektuje (<see cref="ColorShadow"/>).
         /// </summary>
         public bool RoadBeyondDepthRange = true;
+
+        /// <summary>
+        /// <b>Okluzni pravidlo barvy</b> - kde se semanticky kanal NEvzorkuje, protoze barva v tom miste
+        /// obrazu patri prekazce, ne zemi za ni. Vychozi <see cref="ColorShadowMode.Height"/>;
+        /// <see cref="ColorShadowMode.FirstObstacle"/> je puvodni pravidlo pro A/B
+        /// (<c>colorshadow=first</c>). Viz doc/occupancy-and-local-planning.md, „Okluze".
+        /// </summary>
+        public ColorShadowMode ColorShadow = ColorShadowMode.Height;
 
         /// <summary>
         /// Maximalni vzdalenost [m], do ktere se vubec prochazi okoli robotu. 0 = odvodit z gridu
