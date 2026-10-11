@@ -368,6 +368,15 @@ temata:
       nouzové zastavení z `DriveCommandMsg`, přední Alert při čekání na stisk stopu). Na robotu
       nasazeno, runtime posílá 20 snímků/s bez chyb, ale **pásek nesvítí** — příčina je fyzická
       (úroveň 3,3 V proti 5 V WS2812, zapojení), musí se přeměřit.
+      **11. 10. 2026 přeměřeno osciloskopem:** SPI0-M2 má MOSI na pinu 19 (GPIO1_B2), pásek je
+      ale zapojený na **pin 13 = GPIO1_A1 = SPI4_MOSI_M2** — driver od 28. 9. posílal do pinu,
+      kde nic nevisí (a `POSTUP.md` uváděl třetí pin, GPIO1_B1 = MISO). Na Pi přepnutý overlay na
+      `spi4-m2-cs0-spidev` (`/dev/spidev4.0`), kód taky. Úroveň v pořádku (DIN u pásku 4,3 / 0,3 V).
+      S 6,4 MHz / 8 sub-bity pásek občas problikl jinou barvou vždy od první LED na proměnlivém
+      počtu LED — mezera uprostřed snímku (výklad: DMA nestíhá FIFO); poloviční datový tok
+      (3,2 MHz, 4 sub-bity, nula 1+3, jednička 2+2) ji odstranil. Runtime s tím na zařízení běží
+      (1.0.283.26181) a s nulovým úvodem před daty (120 B) zmizelo i občasné „zaseknutí" první LED
+      v červené; stavy za jízdy (brzda, blinkry, Alert) ověřené nejsou.
     kroky:
       - co: Driver + balíček `System.Device.Gpio`
         stav: hotovo
@@ -378,14 +387,26 @@ temata:
       - co: "Nasazeno na Orange Pi: journal „LED pasek bezi“, statistika spi0 20 přenosů/s × 864 B bez chyb, SPI skutečně 6,25 MHz (200 MHz / 32) — časování v tolerancích"
         stav: hotovo
         kdy: 2026-09-28
-      - co: "Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1). 28. 9. večer puštěn vzor high (SPI 6,25 MHz, linka vytížená ~71 %), autor: měření vyžaduje rozebrat robota — odloženo"
+      - co: "Pásek nesvítí — přeměřit (`deploy/spitest.sh`, osciloskop): MOSI SPI0 je na pinu 19, pásek na pinu 13 (SPI4_MOSI_M2); úroveň na DIN 4,3 / 0,3 V, hrana ~100 ns; `POSTUP.md` opraven"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Přepnout na SPI4: overlay `spi4-m2-cs0-spidev` na Pi (záloha `/boot/armbianEnv.txt.bak-20261011`), kód `/dev/spidev4.0`, setup skript a dokumentace"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Problikávání (mezera uprostřed snímku): časování 3,2 MHz / 4 sub-bity (`PulseConfig.OrangePi`) — na zařízení ověřeno skriptem, ne runtime"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Nasazeno (1.0.283.26181): KnightRider ve fázi čekání bez chyb. První verze (data od prvního bajtu přenosu) nechávala občas PRVNÍ LED rozsvícenou červeně (sedí na ztracený první bit snímku) — přidán nulový úvod 120 B (307 µs, `LeadingZeroBytes`), pak v pořádku"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Ověřit na zařízení stavy za jízdy: Alert při čekání na stop, brzda, blinkry, couvání, nouzové zastavení"
         stav: otevreno
     odkazy:
       - text: OrangePi5Ultra/POSTUP.md
         cesta: OrangePi5Ultra/POSTUP.md
       - text: deploy/README.md
         cesta: deploy/README.md
-    devlog: [2026-06-23, 2026-07-07, 2026-09-28]
+    devlog: [2026-06-23, 2026-07-07, 2026-09-28, 2026-10-11]
     ceka_na: []
 
   - id: nast-system-zprav-record-replay
@@ -3601,6 +3622,8 @@ temata:
       - co: "Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný"
         stav: hotovo
         kdy: 2026-10-07
+      - co: "Přeměřit výpadky BEZ HUBU (každá kamera na svém řadiči, společný hub a řadič jsou podezřelí ze souběžných výpadků) — 11. 10. se nedalo: obě kamery přímo v desce desku resetují (`hw-d435-primo-do-desky-reset`). Měřit 2–3 h čistého běhu, po kamerách; krátké souběžné výpadky jsou jen v záznamu"
+        stav: otevreno
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
@@ -3608,8 +3631,49 @@ temata:
         cesta: doc/plan-drive-hold.md
       - text: rozhodnutí 11. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-08-31, 2026-09-06, 2026-09-11, 2026-09-13, 2026-09-14, 2026-09-18, 2026-10-07]
-    ceka_na: [hw-vetev-usb-2-1-3]
+    devlog: [2026-08-31, 2026-09-06, 2026-09-11, 2026-09-13, 2026-09-14, 2026-09-18, 2026-10-07, 2026-10-11]
+    ceka_na: [hw-vetev-usb-2-1-3, hw-d435-primo-do-desky-reset]
+
+  - id: hw-d435-primo-do-desky-reset
+    oblast: hw
+    nazev: Dvě D435 přímo v desce — deska se při rozjezdu streamu resetuje
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-11
+    popis: >
+      Při pokusu přeměřit výpadky kamer bez hubu se Orange Pi s oběma D435 přímo v USB3 portech
+      (levá `fc000000`, pravá `fc400000`) tvrdě resetovala ve chvíli, kdy se rozjely pipeline obou
+      kamer — na baterii 13 bootů za 9 minut, pád do 0,1 s po „pipeline pripojena"; journal z bootu
+      končí kolem 8. s, pstore prázdný, tedy výpadek napájení. Na externím zdroji (bez proudového
+      omezení) pád trvá, i s oběma kamerami na USB 3.2; jedna kamera přímo (pravá i levá) projde.
+      Deska je na měniči 9 A z 12 V (výstup nejde zvednout), na liště 4,90 V bez kamery a 4,85 V
+      s jednou — ustálený úbytek je malý, takže jde o krátký propad při skoku odběru (osciloskopem
+      nechycený). Zapojení jedné kamery za běhu jednou shodilo i USB 2 hub s motorovou jednotkou
+      a pravou kameru na jiném řadiči. Vedle toho: levá D435 přímo v desce naskočila jen na USB 2
+      se třemi kabely (i s kabelem pravé), na obou portech a v obou orientacích USB-C; SuperSpeed
+      jen s kabelem od hubu — kabel má zůstat u ní. `UsbLinkCheck` to na zařízení poprvé ohlásil.
+      Robot dál jede s kamerami na napájeném hubu.
+    kroky:
+      - co: "Obě kamery přímo v desce: na baterii i na externím zdroji pád při rozjezdu streamu, jedna kamera (pravá i levá) projde"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Napětí na liště desky multimetrem: 4,90 V bez kamery, 4,85 V s jednou streamující"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "USB 2 u levé kamery: kabel / port / orientace / kamera — rozhodl kabel (SuperSpeed jen s kabelem od hubu)"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Kondenzátor u vstupu desky (autor), pak znovu obě kamery přímo a služba"
+        stav: otevreno
+      - co: "Kdyby nestačil: kamery napájet mimo desku (USB 3 injektor), nebo postupný rozjezd kamer v kódu"
+        stav: otevreno
+    odkazy:
+      - text: hardware.md
+        cesta: doc/hardware.md
+      - text: OrangePi5Ultra/POSTUP.md
+        cesta: OrangePi5Ultra/POSTUP.md
+    devlog: [2026-10-11]
+    ceka_na: []
 
   # ---------------------------------------------------------------- provoz
 
@@ -6069,8 +6133,12 @@ temata:
       - co: "Rozhodnout (autor) hodnotu `Profile.MaxAcceleration` po opravě: 0,40 m/s² znamená pod nouzovým zastavením brzdnou dráhu ~3,6 m z 1,7 m/s (dřív ~1,4 m); táž hodnota jde do plánovače (`LatencyMotionProfile`, `MaxDecceleration` zvlášť). Autor: oddělit běžnou akceleraci od nouzového zastavení — skript 2.2 (`VAR 9` nouzové + watchdog, výchozí hodnoty ve skriptu, řádek `ED=`), `MotorRamps`/`IMotorControl.SetRamps`, `Profile.EmergencyDeceleration` 1,0 m/s², driver hlásí starý skript do Trace, simulace brzdí pod stopem nouzovou rampou; testy HAL +5, Common +3. 6. 10. (autor): běžná jízda jen `MaxAcceleration` — `VAR 8`, `MotorRamps.Deceleration` i `Profile.MaxDecceleration` zrušeny, pole obálky plánovače přejmenováno na `LocalPlannerConfig.MaxAcceleration`"
         stav: hotovo
         kdy: 2026-10-05
-      - co: "Nahrát skript 2.2 do motorové jednotky (Roborun+) a v Trace ověřit hlášení `ED=` (1,00 m/s², shodné s nastavením)"
-        stav: otevreno
+      - co: "Nahrát skript 2.2 do motorové jednotky (Roborun+) a v Trace ověřit hlášení `ED=` — autor nahrál, binárka 1.0.283.26181 hlásí „brzdi pri nouzovem zastaveni 1.00 m/s² (463 jednotek, shodne s nastavenim)“"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Falešná hláška „starý skript“, když jednotka chybí: do kontroly se počítaly i neúspěšné rámce (500ms okno), po ~50 s bez jednotky přišla hláška (11. 10. při nahrávání skriptu); opraveno, test `NeuspesnyRamec_SeDoKontrolySkriptuNepocita`"
+        stav: hotovo
+        kdy: 2026-10-11
       - co: "Ověřit na zařízení: zrychlení kol při rozjezdu ~0,40 m/s², brzdění pod nouzovým zastavením ~1,0 m/s² (z 1,7 m/s ~1,4 m) a při watchdogu (`ARBot.Analyze hold --estop`); případně změřit, jestli jde nouzová rampa strměji bez prokluzu a s nákladem"
         stav: otevreno
     odkazy:
@@ -6080,7 +6148,7 @@ temata:
         cesta: Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs
       - text: plan-drive-hold.md
         cesta: doc/plan-drive-hold.md
-    devlog: [2026-10-05]
+    devlog: [2026-10-05, 2026-10-11]
     ceka_na: []
 
   - id: prov-zotaveni-kamer-supervizor

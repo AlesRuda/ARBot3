@@ -88,7 +88,7 @@ namespace ARBot.Common.Configuration
         // registru 83 VN100), proto Hardware, ne Fuze - ta si jen odnasi dusledek v kurzu.
         public static readonly BoolParam NeoPixel = Bool("neopixel", "true", K_HW,
               "LED pasek WS2812 (36 LED: predni svetla, blinkry, brzda, couvani, nouzove "
-              + "zastaveni) pres SPI /dev/spidev0.0 - jen na Orange Pi (Armbian), jinde se "
+              + "zastaveni) pres SPI /dev/spidev4.0 (pin 13) - jen na Orange Pi (Armbian), jinde se "
               + "ignoruje. Kdyz SPI nejde otevrit (overlay, prava), robot jede dal bez LED a duvod "
               + "je v Trace. false = pasek se nezaklada. Viz OrangePi5Ultra/POSTUP.md.");
         public static readonly BoolParam MagModel = Bool("magmodel", "true", K_HW,

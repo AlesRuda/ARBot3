@@ -122,6 +122,38 @@ namespace ARBot.HAL.Tests
                         "ohlasit prave jednou, ne kazdy ramec");
         }
 
+        /// <summary>
+        /// Ramec, ktery neprisel (jednotka odpojena, 500ms okno vyprsi), o skriptu nerika nic a do
+        /// pocitadla „ramcu bez ED=" nepatri. 11. 10. 2026 se na robotu po odpojeni jednotky kvuli
+        /// nahrani skriptu 2.2 ohlasil „stary skript", ackoli z jednotky neprisel jediny radek.
+        /// </summary>
+        [Test]
+        public void NeuspesnyRamec_SeDoKontrolySkriptuNepocita()
+        {
+            var uart = new ScriptedUart();
+            var driver = StoppedDriver(uart);
+            var zpravy = new List<string>();
+            var listener = new Zachyt(zpravy);
+            Trace.Listeners.Add(listener);
+            try
+            {
+                for (int i = 0; i < 99; i++)
+                {
+                    uart.Feed("DI=1", "?C=0:0", "?V=240", "?A=0:0");
+                    driver.ReadOneFrame();
+                }
+                driver.ReadOneFrame();   // nic nachystano = jednotka mlci, okno vyprsi
+                Assert.That(zpravy.Any(z => z.Contains("NEHLASI nouzovou rampu")), Is.False,
+                            "neuspesny ramec nesmi doplnit pocitadlo na prah");
+
+                uart.Feed("DI=1", "?C=0:0", "?V=240", "?A=0:0");
+                driver.ReadOneFrame();   // 100. PRIJATY ramec bez ED=
+            }
+            finally { Trace.Listeners.Remove(listener); }
+
+            Assert.That(zpravy.Count(z => z.Contains("NEHLASI nouzovou rampu")), Is.EqualTo(1));
+        }
+
         private sealed class Zachyt : TraceListener
         {
             private readonly List<string> cil;

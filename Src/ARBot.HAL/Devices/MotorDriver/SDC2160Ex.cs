@@ -499,7 +499,11 @@ end while
             }
             while (str == null || !str.StartsWith("DI="));
             di = GetValue(str);
-            ReportEmergencyRampOnce();
+            // Jen prijaty ramec rika neco o skriptu. Do 11. 10. 2026 se pocital i neuspesny (port
+            // chybi, 500ms okno vyprsi) a po ~50 s bez jednotky prisla falesna hlaska „stary
+            // skript" - na robotu presne tak, kdyz se jednotka odpojila kvuli nahrani skriptu 2.2.
+            if (!fail)
+                ReportEmergencyRampOnce();
 
             str = uart.ReadLine();
             str = GetValue(str);

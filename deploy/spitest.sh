@@ -1,37 +1,40 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------------
-# Premereni SPI0 (LED pasek WS2812) MULTIMETREM na 40pinove liste Orange Pi.
+# Premereni SPI pro LED pasek WS2812 na 40pinove liste Orange Pi (multimetr / osciloskop).
 #
 # NACPAK: 28. 9. 2026 runtime na /dev/spidev0.0 posilal 20 snimku/s (statistika spi0
-# bez chyb), ale pasek zustal tmavy. Za provozu je linka aktivni jen ~2 % casu
-# (864 B za ~1 ms kazdych 50 ms), takze multimetr na ni ukaze nulu. Tenhle skript
-# posila vzor NEPRETRZITE, a pak je na pinech videt stejnosmerna uroven:
+# bez chyb), ale pasek zustal tmavy. Za provozu je linka aktivni jen ~2 % casu,
+# takze multimetr na ni ukaze nulu. Tenhle skript posila vzor NEPRETRZITE:
 #
-#   vzor  high  (0xFF)  -> MOSI ~3,3 V, CLK ~1,65 V (strida 50 %), MISO/CS nic
-#   vzor  low   (0x00)  -> MOSI ~0 V,   CLK ~1,65 V
-#   vzor  half  (0xF0)  -> MOSI ~1,65 V
+#   vzor  high  (0xFF)  -> MOSI trvale v 1 (na osciloskopu rovna cara!), CLK kmita
+#   vzor  low   (0x00)  -> MOSI ~0 V,   CLK kmita
+#   vzor  half  (0xF0)  -> MOSI obdelnik (na osciloskopu nejlepe videt)
 #
-# Tim se rozhodne, na kterem fyzickem pinu je MOSI (podle pinoutu RK3588 GPIO1_B2 =
-# pin 19; OrangePi5Ultra/POSTUP.md do 28. 9. uvadel GPIO1_B1) a jaka je uroven
-# (WS2812 napajeny 5 V chce na DIN aspon ~3,5 V - 3,3 V z Pi je na hrane).
+# ✅ 11. 10. 2026 rozhodnuto osciloskopem: signal byl na pinu 19 (SPI0_MOSI_M2 = GPIO1_B2),
+# ale pasek je zapojeny na PIN 13 (GPIO1_A1 = SPI4_MOSI_M2). Overlay se proto prepnul na
+# spi4-m2-cs0-spidev a zarizeni je /dev/spidev4.0 (DEV niz; jine se zada druhym argumentem).
+# Uroven na DIN u pasku: log. 1 = 4,3 V, log. 0 = 0,3 V. Viz OrangePi5Ultra/POSTUP.md.
+#
+# ⚠️ Pri spravnem zapojeni vzor high i half rozsviti VSECHNY LED bile na plny jas
+# (kazda nenulova davka sub-bitu se cte jako jednicka) - odber 36 x 60 mA ~ 2,2 A.
 #
 # POUZITI (sluzba musi stat, jinak do SPI pise i ona):
 #   sudo systemctl stop arbot
 #   ./spitest.sh high      # Ctrl+C = konec
 #   ./spitest.sh low
+#   ./spitest.sh half /dev/spidev0.0   # jine SPI zarizeni
 #   sudo systemctl start arbot
 #
-# Zapisuje JEN do /dev/spidev0.0 (write() = poloduplexni prenos rychlosti z DT).
-# Pasek pri vzoru high dostane "same jednicky" = bila na plny jas na VSECH LED,
-# pokud je zapojeny spravne - pozor na odber (36 LED x 60 mA ~ 2,2 A).
+# Zapisuje JEN do zadaneho spidev (write() = poloduplexni prenos rychlosti, kterou
+# naposledy nastavil nekdo pres ioctl, jinak z DT).
 # ---------------------------------------------------------------------------------
 set -euo pipefail   # konec pri prvni chybe (i uprostred roury) - DeploySkriptyTests
-DEV=/dev/spidev0.0
+DEV=${2:-/dev/spidev4.0}
 case "${1:-}" in
     high) B='\377' ;;
     low)  B='\000' ;;
     half) B='\360' ;;
-    *) echo "pouziti: $0 high|low|half"; exit 1 ;;
+    *) echo "pouziti: $0 high|low|half [/dev/spidevX.Y]"; exit 1 ;;
 esac
 if fuser "$DEV" >/dev/null 2>&1; then
     echo "POZOR: $DEV drzi jiny proces (sudo systemctl stop arbot):"; fuser -v "$DEV"; exit 2

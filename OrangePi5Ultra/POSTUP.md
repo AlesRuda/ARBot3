@@ -35,7 +35,7 @@ Pi do funkčního stavu po reinstalaci Armbianu.
 
 ## 🔧 Jednotlivé kroky (a proč)
 
-### 1. Overlaye: GPU (`panthor`) + USB3 OTG→host (`dwc3-host`) + SPI (`spi0-m2`, NeoPixel)
+### 1. Overlaye: GPU (`panthor`) + USB3 OTG→host (`dwc3-host`) + SPI (`spi4-m2`, NeoPixel)
 **GPU — problém:** bez akcelerace KDE renderuje softwarově (llvmpipe),
 `kwin_wayland` žere ~2 jádra CPU. Mali-G610 (Valhall/CSF) potřebuje ovladač
 **`panthor`** (ne `panfrost`, ten G610 neumí).
@@ -46,30 +46,54 @@ zařízení (kamera, flash) se **vůbec nezaregistruje** (nulová reakce v dmesg
 Overlay **`dwc3-host`** ten OTG port přepne natvrdo na **host**.
 
 **SPI — pro NeoPixely (WS2812):** WS2812 se řídí přes **SPI MOSI** (přesné časování).
-Default není vyvedené žádné `/dev/spidev`. Overlay **`spi0-m2-cs0-spidev`** zapne
-SPI0 (mux M2) jako spidev na 40pin headeru.
+Default není vyvedené žádné `/dev/spidev`. Overlay **`spi4-m2-cs0-spidev`** zapne
+SPI4 (mux M2) jako spidev na 40pin headeru — **pin 13**, kam je pásek na robotu zapojený.
 
 **Řešení:** v `/boot/armbianEnv.txt`:
 ```bash
-overlays=panthor-gpu dwc3-host spi0-m2-cs0-spidev
+overlays=panthor-gpu dwc3-host spi4-m2-cs0-spidev
 ```
 ⚠️ **Háček s prefixem:** soubory `rk3588-dwc3-host.dtbo` a
-`rk3588-spi0-m2-cs0-spidev.dtbo` mají prefix `rk3588-`, ale Armbian s
+`rk3588-spi4-m2-cs0-spidev.dtbo` mají prefix `rk3588-`, ale Armbian s
 `overlay_prefix=rockchip-rk3588` hledá `rockchip-rk3588-*.dtbo` → **nenajde a tiše
 přeskočí**. Nutno zkopírovat pod správný název:
 ```bash
 cd /boot/dtb/rockchip/overlay
 sudo cp rk3588-dwc3-host.dtbo            rockchip-rk3588-dwc3-host.dtbo
-sudo cp rk3588-spi0-m2-cs0-spidev.dtbo   rockchip-rk3588-spi0-m2-cs0-spidev.dtbo
+sudo cp rk3588-spi4-m2-cs0-spidev.dtbo   rockchip-rk3588-spi4-m2-cs0-spidev.dtbo
 ```
 **Ověření po rebootu:**
 - GPU: `glxinfo -B | grep Renderer` → `Mali-G610 MC4 (Panfrost)` (ne `llvmpipe`)
 - OTG: `cat /proc/device-tree/usbdrd3_0/usb@fc000000/dr_mode` → `host`
-- SPI: `ls /dev/spidev0.0`
+- SPI: `ls /dev/spidev4.0`; komu patří piny:
+  `sudo grep -E "^pin 3[2-5] " /sys/kernel/debug/pinctrl/pinctrl-rockchip-pinctrl/pinmux-pins`
+  → `function spi4 group spi4m2-pins` (GPIO1_A0–A2) a `spi4m2-cs0` (GPIO1_A3)
 
-**NeoPixel zapojení (SPI0-M2):** datový vstup **DIN → SPI0_MOSI = GPIO1_B1**,
-**GND → GND**. (CLK=GPIO1_B3, MISO=GPIO1_B2, CS0=GPIO1_B4 — pro WS2812 netřeba.)
-Zařízení `/dev/spidev0.0`, max 50 MHz. V Pythonu např. `Adafruit_CircuitPython_NeoPixel_SPI`.
+**NeoPixel zapojení (SPI4-M2):** datový vstup **DIN → pin 13 = SPI4_MOSI_M2 = GPIO1_A1**,
+**GND → GND**. (MISO = pin 11 / GPIO1_A0, CLK = pin 15 / GPIO1_A2, CS0 = pin 16 / GPIO1_A3 —
+pro WS2812 netřeba, overlay je ale zabere.) Zařízení `/dev/spidev4.0`, max 50 MHz.
+Časování v runtime: 3,2 MHz a 4 sub-bity na bit (`SpiNeoPixelDriver.PulseConfig.OrangePi`).
+
+> ⚠️ **Do 11. 10. 2026 tu byl overlay `spi0-m2-cs0-spidev` a pásek NIKDY nesvítil.** SPI0-M2
+> má MOSI na **pinu 19** (GPIO1_B2), kdežto pásek je na robotu zapojený na **pin 13**
+> (GPIO1_A1 = SPI4_MOSI_M2) — od 28. 9. runtime posílal 20 snímků/s bez chyb do pinu, na kterém
+> nic nevisí. Tento dokument navíc uváděl „MOSI = GPIO1_B1", což je **MISO** (pin 21), tedy
+> třetí, taky špatný pin. Rozhodlo měření osciloskopem (signál na 19, na 13 nic) a výpis
+> pinctrl z device tree (pořadí ve skupině je CLK, MISO, MOSI). Pinout lišty Orange Pi 5 Ultra:
+> Adafruit Blinka `adafruit_blinka/board/orangepi/orangepi5ultra.py`.
+>
+> ⚠️ **A s 6,4 MHz / 8 sub-bity pásek občas problikl jinou barvou** — vždy od PRVNÍ LED
+> a pokaždé na jiném počtu LED, tedy podpis **mezery uprostřed snímku** (WS2812 ji vezme jako
+> reset a zbytek zapíše znovu od začátku, posunutý). Úrovně jsou v pořádku (na DIN u pásku
+> log. 1 = 4,3 V, log. 0 = 0,3 V, náběžná hrana ~100 ns), při zhasnutém pásku neprobliká nic,
+> jednička 4+4 chybu jen přesunula a **poloviční datový tok (3,2 MHz, 4 sub-bity) ji odstranil**.
+> Výklad: DMA při 6,25 MHz nestíhá plnit FIFO řadiče (SPI4 jede přes DMA, `dma2chan13`);
+> mezera sama osciloskopem chycená není.
+>
+> ⚠️ **A data nesmí začínat prvním bajtem přenosu:** bez úvodu první LED občas „zůstala
+> červená" (při KnightRider svítila jasně, když měla dohasínat) — sedí na ztracený první bit
+> snímku (první LED pak čte data posunutá o bit, tedy dvojnásobný jas). Driver proto před data
+> dává 120 nulových bajtů (307 µs, `PulseConfig.LeadingZeroBytes`) — zároveň je to reset WS2812.
 
 > Pozn.: existuje ještě 3. USB3 řadič SoC (`usb@fcd00000`/`usbhost3_0`), který je
 > v DT záměrně **disabled** — jeho combo-PHY (combphy2) je vyhrazena onboard 2.5G
@@ -339,6 +363,11 @@ realsense-viewer            # GUI (na desktopu) – depth, RGB, póza T265
 **Zapojení kamer — D435 na USB3, T265 na USB2, a POZOR na huby.** Po kroku 1
 (`dwc3-host`) jsou funkční **oba** USB3-A porty. D435 smí být buď přímo v desce, nebo
 za **jedním napájeným** hubem; co ji rozbije, je **řetěz dvou hubů za sebou**.
+
+> ⚠️ **Obě D435 přímo v desce ale na robotu NEJEDOU (11. 10. 2026):** deska napájená měničem
+> 9 A z 12 V se při rozjezdu streamu obou kamer tvrdě resetuje (jedna kamera přímo projde).
+> Test níž (30. 8.) kamery jen **otevřel**, nestreamoval. Robot proto jede s kamerami na
+> napájeném hubu; podrobnosti `doc/hardware.md`, „Dvě D435 přímo v desce".
 
 > ⚠️ **Řetěz dvou hubů v cestě D435 kamery rozbije, a projeví se to matoucími příznaky.**
 > Změřeno 30. 8. 2026, když obě D435 visely za řetězem dvou USB3 hubů (druhý byl napájený):

@@ -47,14 +47,16 @@ SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMrOyQDyZ2gYzUPmDzX1iyLKchoOHJBT
 log(){ echo; echo "============================================================"; echo "  $*"; echo "============================================================"; }
 if [ "$(id -u)" -ne 0 ]; then echo "Spust jako root:  sudo bash $0"; exit 1; fi
 
-# ----- 1) Overlaye: panthor (GPU) + dwc3-host (USB3 OTG->host) + spi0-m2 (SPI/NeoPixel) -----
-log "1) Overlaye: panthor-gpu + dwc3-host (USB3 OTG->host) + spi0-m2-cs0-spidev (SPI pro NeoPixel)"
+# ----- 1) Overlaye: panthor (GPU) + dwc3-host (USB3 OTG->host) + spi4-m2 (SPI/NeoPixel) -----
+# SPI4-M2, protoze pasek je zapojeny na pin 13 (GPIO1_A1 = SPI4_MOSI_M2). Do 11. 10. 2026 tu bylo
+# spi0-m2 (MOSI na pinu 19) a pasek nesvitil - viz POSTUP.md.
+log "1) Overlaye: panthor-gpu + dwc3-host (USB3 OTG->host) + spi4-m2-cs0-spidev (SPI pro NeoPixel)"
 ENVF=/boot/armbianEnv.txt
 DOVL=/boot/dtb/rockchip/overlay
 # Nektere overlaye maji v dodavce prefix 'rk3588-', ale Armbian s
 # overlay_prefix=rockchip-rk3588 hleda 'rockchip-rk3588-*.dtbo' -> zkopirujeme pod ten nazev,
 # jinak je tise preskoci a overlay se neaplikuje.
-for ov in dwc3-host spi0-m2-cs0-spidev; do
+for ov in dwc3-host spi4-m2-cs0-spidev; do
   if [ -f "$DOVL/rk3588-$ov.dtbo" ] && [ ! -f "$DOVL/rockchip-rk3588-$ov.dtbo" ]; then
     cp "$DOVL/rk3588-$ov.dtbo" "$DOVL/rockchip-rk3588-$ov.dtbo"
     echo "  zkopirovan overlay '$ov' pod spravny nazev"
@@ -64,7 +66,7 @@ if [ -f "$ENVF" ]; then
   cp -n "$ENVF" "$ENVF.bak.setup" 2>/dev/null || true
   cur=""
   grep -q '^overlays=' "$ENVF" && cur=$(grep '^overlays=' "$ENVF" | head -1 | cut -d= -f2)
-  for ov in panthor-gpu dwc3-host spi0-m2-cs0-spidev; do
+  for ov in panthor-gpu dwc3-host spi4-m2-cs0-spidev; do
     echo " $cur " | grep -q " $ov " || cur="$cur $ov"
   done
   cur=$(echo $cur | xargs)   # trim mezer
@@ -437,8 +439,8 @@ echo "  Ethernet:  nmcli device status            (eth-dhcp v siti, jinak eth-di
 echo "  Samba:     z Windows  \\\\<ip-pi>\\$SHARE_NAME   (jmeno $USERNAME + samba heslo)"
 echo "  .NET:      dotnet --info"
 echo "  RealSense: rs-enumerate-devices -s        (D435 na USB3, T265 na USB2)"
-echo "  SPI:       ls /dev/spidev0.0              (SPI0-M2 pro NeoPixel)"
+echo "  SPI:       ls /dev/spidev4.0              (SPI4-M2 pro NeoPixel)"
 echo
 echo "Kamery: D435 -> USB3 port, T265 -> USB2 port. Oba USB3-A porty jsou po"
 echo "tomto setupu funkcni (OTG port prepnut na host overlayem dwc3-host)."
-echo "NeoPixel: datovy vstup (DIN) -> SPI0_MOSI = GPIO1_B1, GND -> GND. Zarizeni /dev/spidev0.0."
+echo "NeoPixel: datovy vstup (DIN) -> pin 13 = SPI4_MOSI_M2 = GPIO1_A1, GND -> GND. Zarizeni /dev/spidev4.0."

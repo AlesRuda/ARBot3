@@ -1,4 +1,5 @@
-# LED pasek WS2812 (NeoPixel) jede pres /dev/spidev0.0 (overlay spi0-m2-cs0-spidev).
+# LED pasek WS2812 (NeoPixel) jede pres /dev/spidev4.0 (overlay spi4-m2-cs0-spidev, pin 13;
+# do 11. 10. 2026 /dev/spidev0.0). Pravidlo plati pro vsechna spidev, takze zmena nevadi.
 # Zarizeni je defaultne jen pro roota (crw------- root root), sluzba arbot ale bezi pod
 # uzivatelem ales -> bez tohohle pravidla pasek nesviti a v journalu je
 # "NeoPixel: LED pasek NEJEDE ... prava". Skupina dialout: v ni ales uz je kvuli UART.
@@ -6,5 +7,5 @@
 # Instalace (jednou, na Pi):
 #   sudo cp 99-arbot-spidev.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=spidev
-#   ls -l /dev/spidev0.0   # -> crw-rw---- root dialout
+#   ls -l /dev/spidev4.0   # -> crw-rw---- root dialout
 SUBSYSTEM=="spidev", GROUP="dialout", MODE="0660"

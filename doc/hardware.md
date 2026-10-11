@@ -290,8 +290,9 @@ hledání zvenčí. Nově je za hláškou „pipeline pripojena" i `USB 3.2`, a 
 i s léčbou** (fyzický replug), protože hloubka a barva se tam pro dvě kamery nevejdou — viz výpočet
 výš. **Neznámá hodnota není poplach** (librealsense ten údaj u některých zařízení nehlásí), stejná
 konvence jako u brány kvality GPS. Čtení je v `try`, takže diagnostika nemůže shodit připojení —
-precedens z 6. 9. 2026, kdy hlídka zamrzlého streamu shodila každý grab. **Na HW neověřeno**
-(na Windows bez kamery se to neprojeví; smysl to dá až na Pi).
+precedens z 6. 9. 2026, kdy hlídka zamrzlého streamu shodila každý grab. ✅ **Na HW ověřeno
+11. 10. 2026** — levá D435 přímo v desce na špatném kabelu: „USB 2.1 - POZOR, kamera nenabehla na
+SuperSpeed" (viz „Dvě D435 přímo v desce" níž).
 
 **Co je naopak z podezřelých venku:** **VN100 a GPS na témž hubu.** Na USB3 hubu jdou USB2 zařízení
 přes transaction translator, tedy po fyzicky oddělených vodičích než SuperSpeed lanes — o šířku
@@ -511,6 +512,47 @@ se to tak má nechat** — restart služby by přerušil misi, robot jede dál s
 [decisions.md](decisions.md), 24. 9. 2026). Registr:
 `hw-d435-vlakno-zatuhlo-po-restartu`. ⚠️ **Na zařízení neběželo.**
 
+### ❌ Dvě D435 přímo v desce: deska se při rozjezdu streamu RESETUJE (11. 10. 2026)
+
+Mělo jít o přeměření výpadků kamer **bez hubu** (společný hub a řadič obou kamer jsou podezřelí
+ze souběžných výpadků z 1. 10., `hw-d435-vypadky-za-provozu`). Změřit se to nedalo: s oběma
+kamerami přímo v USB3 portech desky (levá `fc000000`, pravá `fc400000`) se deska **tvrdě
+resetuje ve chvíli, kdy se rozjedou pipeline obou kamer** — journal z každého takového bootu končí
+kolem 8. s (zbytek se nestihl zapsat), pstore je prázdný, tedy výpadek napájení, ne pád jádra.
+
+| zapojení (vše přímo v desce) | výsledek |
+|---|---|
+| obě, baterie (levá na USB 2) | 13 bootů za 9 min, pád **do 0,1 s** po „pipeline pripojena" obou kamer |
+| obě, externí zdroj (levá na USB 2) | pád ~13 s po připojení pipeline |
+| obě, externí zdroj, **obě USB 3.2** | pád do 0,1 s, deska pak 6 min mimo síť |
+| jen pravá | drží |
+| jen levá | drží |
+
+- **Baterie to není** (externí zdroj bez proudového omezení, pád trvá) a není to ani jedna
+  kamera nebo port — vadí až **současný rozjezd dvou kamer** napájených z desky. Na napájeném hubu
+  tytéž kamery jezdily týdny.
+- **Ustálený úbytek je malý:** 5 V na liště desky 4,90 V bez kamery, 4,85 V s jednou streamující.
+  Deska je napájená **měničem 9 A z 12 V** (výstup nejde zvednout), kapacita tedy stačí. Zbývá
+  **krátký propad při skoku odběru** (rozjezd streamů a laserových projektorů), který multimetr
+  nezachytí. Podporuje to i to, že zapojení jedné kamery za běhu jednou shodilo zařízení na dvou
+  jiných řadičích (USB 2 hub s motorovou jednotkou a pravou kameru), data nesdílí nic, jen 5 V.
+  ⚠️ Osciloskopem propad chycený **není**.
+- **Další krok** (rozhodnutí autora): **kondenzátor u vstupu desky** (1 000–2 200 µF low-ESR),
+  případně kamery napájet mimo desku (USB 3 injektor). Levnější softwarová varianta by byla
+  rozjíždět kamery postupně — ale za provozu se rozjíždí i po restartu pipeline.
+- **Levá kamera chce dobrý kabel.** Přímo v desce naskočila **jen na USB 2** se třemi kabely
+  (včetně kabelu pravé kamery, se kterým pravá jede na 5 Gb/s), na obou portech i po otočení
+  USB-C — a s kabelem, který vedl do hubu, hned na SuperSpeed. Její SuperSpeed linka je tedy na
+  hraně a kabel od hubu má zůstat u ní. Jádro u ní SuperSpeed vůbec nezkouší (`new high-speed`
+  hned), na USB 2 nehlásí sériové číslo (`SerialNumber=0`).
+  ✅ Vedlejší výsledek: **`UsbLinkCheck` poprvé zabral na zařízení** — „USB 2.1 - POZOR, kamera
+  nenabehla na SuperSpeed".
+- ⚠️ **Když jedna kamera chybí, driver ji ~1×/s hledá** (`QueryDevices selhalo: failed to set
+  power state`) a sahá přitom na streamující kameru — týž mechanismus jako hon na T265
+  (`hw-d435-vlakno-zatuhlo-po-restartu`). Výpadky se proto nemají měřit s jednou kamerou odpojenou.
+
+Registr: `hw-d435-primo-do-desky-reset`.
+
 ### Sériové porty na Orange Pi
 
 Na Pi **nejede žádný onboard UART** — všechny tři sériové periferie visí na USB.
@@ -564,9 +606,12 @@ pošle, brzdí pod stopem nouzovou rampou. Skript každý cyklus posílá řáde
 zpomalení) před `T=`; driver ho čte a jednou za běh ohlásí do `Trace` — s hodnotou, nebo že
 **v jednotce je starší skript** (pak nouzové zastavení brzdí běžnou rampou, po opravě převodu
 0,40 m/s²: z 1,7 m/s ~3,6 m). Starý driver řádek `ED=` přeskočí jako `T=`.
-⚠️ **Skript 2.2 je potřeba nahrát do jednotky (Roborun+) a nouzové zastavení na robotu ověřit**
-(brzdná dráha, `ARBot.Analyze hold --estop`) — dokud tam není, nenasazovat binárku s opraveným
-převodem. Kopii u driveru hlídá test `KopieSkriptuUDriveru_ShodnaSMbs`.
+✅ **Skript 2.2 je v jednotce od 11. 10. 2026** (nahrál autor; binárka 1.0.283.26181 hlásí „skript
+jednotky brzdi pri nouzovem zastaveni 1.00 m/s² (463 jednotek, shodne s nastavenim)“).
+⚠️ **Nouzové zastavení na robotu ověřit zbývá** (brzdná dráha, `ARBot.Analyze hold --estop`).
+Kopii u driveru hlídá test `KopieSkriptuUDriveru_ShodnaSMbs`. ⚠️ Hláška „starý skript“ do
+11. 10. přišla i tehdy, když jednotka **chyběla** (počítaly se i neúspěšné rámce, po ~50 s) —
+opraveno, starší binárky ji při odpojené jednotce vypisují falešně.
 
 Porty **znovu najde skript [`OrangePi5Ultra/find-serial-ports.sh`](../OrangePi5Ultra/find-serial-ports.sh)**
 (pasivně, bez zápisu do portů): inventura `by-id` / `lsusb` / živých `ttyS*`, pak posluch

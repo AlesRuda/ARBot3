@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **268**: otevřeno **36** · v kódu, na HW neověřeno **38** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **269**: otevřeno **37** · v kódu, na HW neověřeno **38** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -19,7 +19,7 @@ Témat celkem **268**: otevřeno **36** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Lokální mapa a plánování | [Zapisovat pod půdorysem robota důkaz „volno" do kanálu hloubky](#lp-zapis-volna-pod-robotem) | 18. 8. 2026 |  |
 | otevřeno | Vidění | [Chybná kalibrace kamer je bias, který lokalizace integruje](#vid-kalibrace-kamer-bias) | 20. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyby senzorů (bias kompasu a gyra) jako stavy EKF](#lok-bias-senzoru-jako-stav-ekf) | 25. 8. 2026 |  |
-| otevřeno | Hardware a senzory | [Kamera D435 se za provozu odmlčí](#hw-d435-vypadky-za-provozu) | 31. 8. 2026 | [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) |
+| otevřeno | Hardware a senzory | [Kamera D435 se za provozu odmlčí](#hw-d435-vypadky-za-provozu) | 31. 8. 2026 | [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3), [hw-d435-primo-do-desky-reset](#hw-d435-primo-do-desky-reset) |
 | otevřeno | Nástroje, záznam a analýza | [Headless testy UI v Avalonii — ověřeno spikem, nezavedeno](#nast-avalonia-headless-testy) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Měření výkonu řízení — stíhá řídicí smyčka svou periodu?](#prov-perf-monitoring) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Řídicí smyčka zamešká takty (Windows 3–4/s, Orange Pi ~1/s), ačkoli práce trvá pod 1 ms — fáze časovače proti mřížce plánu](#prov-zameskane-takty-windows) | 1. 9. 2026 |  |
@@ -47,6 +47,7 @@ Témat celkem **268**: otevřeno **36** · v kódu, na HW neověřeno **38** · 
 | otevřeno | Navigace po mapě | [Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá](#nav-detektor-c-mrtvy) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)](#nav-doc-stavy-nesedi) | 8. 10. 2026 |  |
 | otevřeno | Vidění | [Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)](#vid-leva-kamera-hlavni-bod) | 10. 10. 2026 |  |
+| otevřeno | Hardware a senzory | [Dvě D435 přímo v desce — deska se při rozjezdu streamu resetuje](#hw-d435-primo-do-desky-reset) | 11. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Zastaralý regulátor, jehož rotace drží kola v pohybu, se nezastaví — robot dotáčí na místě podle staré dráhy](#lp-zastaraly-regulator-rotace-drzi-kola) | 11. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
@@ -2520,8 +2521,9 @@ Při prvním běhu aplikace na Pi se pravá D435 po ~4600 s odmlčela; odpojená
 - [x] Vyvrátit hypotézu T265 / `CLEAR_HALT` měřením na zařízení (14. 9. 2026)
 - [ ] Odstranit příčinu (kabel nebo port větve 2-1.3)
 - [x] Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný (7. 10. 2026)
+- [ ] Přeměřit výpadky BEZ HUBU (každá kamera na svém řadiči, společný hub a řadič jsou podezřelí ze souběžných výpadků) — 11. 10. se nedalo: obě kamery přímo v desce desku resetují (`hw-d435-primo-do-desky-reset`). Měřit 2–3 h čistého běhu, po kamerách; krátké souběžné výpadky jsou jen v záznamu
 
-čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07)
+čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3), [hw-d435-primo-do-desky-reset](#hw-d435-primo-do-desky-reset) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07), [2026-10-11](devlog.md#2026-10-11)
 
 <a id="hw-vn100-akcelerometr-7pct"></a>
 ### ⬜ Akcelerometr VN100 měří o 7 % víc než g
@@ -2609,19 +2611,38 @@ Po záseku procesu 1. 10. 2026 (`prov-zasek-procesu-1s`) přečetl `SDC2160Ex` 1
 
 [SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
+<a id="hw-d435-primo-do-desky-reset"></a>
+### ⬜ Dvě D435 přímo v desce — deska se při rozjezdu streamu resetuje
+
+`hw-d435-primo-do-desky-reset` · vada · **otevřeno** · nalezeno 11. 10. 2026
+
+Při pokusu přeměřit výpadky kamer bez hubu se Orange Pi s oběma D435 přímo v USB3 portech (levá `fc000000`, pravá `fc400000`) tvrdě resetovala ve chvíli, kdy se rozjely pipeline obou kamer — na baterii 13 bootů za 9 minut, pád do 0,1 s po „pipeline pripojena"; journal z bootu končí kolem 8. s, pstore prázdný, tedy výpadek napájení. Na externím zdroji (bez proudového omezení) pád trvá, i s oběma kamerami na USB 3.2; jedna kamera přímo (pravá i levá) projde. Deska je na měniči 9 A z 12 V (výstup nejde zvednout), na liště 4,90 V bez kamery a 4,85 V s jednou — ustálený úbytek je malý, takže jde o krátký propad při skoku odběru (osciloskopem nechycený). Zapojení jedné kamery za běhu jednou shodilo i USB 2 hub s motorovou jednotkou a pravou kameru na jiném řadiči. Vedle toho: levá D435 přímo v desce naskočila jen na USB 2 se třemi kabely (i s kabelem pravé), na obou portech a v obou orientacích USB-C; SuperSpeed jen s kabelem od hubu — kabel má zůstat u ní. `UsbLinkCheck` to na zařízení poprvé ohlásil. Robot dál jede s kamerami na napájeném hubu.
+
+- [x] Obě kamery přímo v desce: na baterii i na externím zdroji pád při rozjezdu streamu, jedna kamera (pravá i levá) projde (11. 10. 2026)
+- [x] Napětí na liště desky multimetrem: 4,90 V bez kamery, 4,85 V s jednou streamující (11. 10. 2026)
+- [x] USB 2 u levé kamery: kabel / port / orientace / kamera — rozhodl kabel (SuperSpeed jen s kabelem od hubu) (11. 10. 2026)
+- [ ] Kondenzátor u vstupu desky (autor), pak znovu obě kamery přímo a služba
+- [ ] Kdyby nestačil: kamery napájet mimo desku (USB 3 injektor), nebo postupný rozjezd kamer v kódu
+
+[hardware.md](hardware.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-10-11](devlog.md#2026-10-11)
+
 <a id="hw-neopixel-armbian"></a>
 ### 🧪 Driver NeoPixel (WS2812) přes SPI na Armbianu
 
 `hw-neopixel-armbian` · záměr · **v kódu, na HW neověřeno** · nalezeno 7. 7. 2026 · vyřešeno 7. 7. 2026
 
-`ArmbianSpiNeoPixelDriver` posílá sub-bity LED pásku jedním zápisem přes `/dev/spidev0.0`; `SpiDevice` vstupuje jako parametr, vlastníkem je volající. Buildy pro OrangePI zelené, ale na desce nikdy neběželo — časování `PulseConfig` proti SPI hodinám a reálný běh animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026 zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým driverem. Od 28. 9. 2026 ho `ARBotHW` na Orange Pi zakládá (`neopixel=`, výchozí true) a `NeoPixelBridge` mu podle pravidel z ARBot2 posílá stav robota (couvání, brzda, blinkry, nouzové zastavení z `DriveCommandMsg`, přední Alert při čekání na stisk stopu). Na robotu nasazeno, runtime posílá 20 snímků/s bez chyb, ale **pásek nesvítí** — příčina je fyzická (úroveň 3,3 V proti 5 V WS2812, zapojení), musí se přeměřit.
+`ArmbianSpiNeoPixelDriver` posílá sub-bity LED pásku jedním zápisem přes `/dev/spidev0.0`; `SpiDevice` vstupuje jako parametr, vlastníkem je volající. Buildy pro OrangePI zelené, ale na desce nikdy neběželo — časování `PulseConfig` proti SPI hodinám a reálný běh animační smyčky (`NeoPixelProcessor`: blinkry, KnightRider, Alert) zbývá ověřit. Driver navíc není v runtime nikde založený: blok NeoPixel v `ARBotHW.Init` je od 11. 7. 2026 zakomentovaný (jen FTDI varianta pro Windows), takže na Pi by nesvítilo nic ani s hotovým driverem. Od 28. 9. 2026 ho `ARBotHW` na Orange Pi zakládá (`neopixel=`, výchozí true) a `NeoPixelBridge` mu podle pravidel z ARBot2 posílá stav robota (couvání, brzda, blinkry, nouzové zastavení z `DriveCommandMsg`, přední Alert při čekání na stisk stopu). Na robotu nasazeno, runtime posílá 20 snímků/s bez chyb, ale **pásek nesvítí** — příčina je fyzická (úroveň 3,3 V proti 5 V WS2812, zapojení), musí se přeměřit. **11. 10. 2026 přeměřeno osciloskopem:** SPI0-M2 má MOSI na pinu 19 (GPIO1_B2), pásek je ale zapojený na **pin 13 = GPIO1_A1 = SPI4_MOSI_M2** — driver od 28. 9. posílal do pinu, kde nic nevisí (a `POSTUP.md` uváděl třetí pin, GPIO1_B1 = MISO). Na Pi přepnutý overlay na `spi4-m2-cs0-spidev` (`/dev/spidev4.0`), kód taky. Úroveň v pořádku (DIN u pásku 4,3 / 0,3 V). S 6,4 MHz / 8 sub-bity pásek občas problikl jinou barvou vždy od první LED na proměnlivém počtu LED — mezera uprostřed snímku (výklad: DMA nestíhá FIFO); poloviční datový tok (3,2 MHz, 4 sub-bity, nula 1+3, jednička 2+2) ji odstranil. Runtime s tím na zařízení běží (1.0.283.26181) a s nulovým úvodem před daty (120 B) zmizelo i občasné „zaseknutí" první LED v červené; stavy za jízdy (brzda, blinkry, Alert) ověřené nejsou.
 
 - [x] Driver + balíček `System.Device.Gpio` (7. 7. 2026)
 - [x] Založit driver v `ARBotHW` (Armbian), `NeoPixelBridge` podle ARBot2, hlášení poruch a zhasnutí při zastavení, pravidlo udev pro `/dev/spidev0.0`; 10 testů (28. 9. 2026)
 - [x] Nasazeno na Orange Pi: journal „LED pasek bezi“, statistika spi0 20 přenosů/s × 864 B bez chyb, SPI skutečně 6,25 MHz (200 MHz / 32) — časování v tolerancích (28. 9. 2026)
-- [ ] Pásek nesvítí — přeměřit multimetrem (`deploy/spitest.sh`): na kterém pinu je MOSI (DIN je na GPIO1_B2) a jaká je úroveň; pak opravit `POSTUP.md` (uvádí MOSI = GPIO1_B1). 28. 9. večer puštěn vzor high (SPI 6,25 MHz, linka vytížená ~71 %), autor: měření vyžaduje rozebrat robota — odloženo
+- [x] Pásek nesvítí — přeměřit (`deploy/spitest.sh`, osciloskop): MOSI SPI0 je na pinu 19, pásek na pinu 13 (SPI4_MOSI_M2); úroveň na DIN 4,3 / 0,3 V, hrana ~100 ns; `POSTUP.md` opraven (11. 10. 2026)
+- [x] Přepnout na SPI4: overlay `spi4-m2-cs0-spidev` na Pi (záloha `/boot/armbianEnv.txt.bak-20261011`), kód `/dev/spidev4.0`, setup skript a dokumentace (11. 10. 2026)
+- [x] Problikávání (mezera uprostřed snímku): časování 3,2 MHz / 4 sub-bity (`PulseConfig.OrangePi`) — na zařízení ověřeno skriptem, ne runtime (11. 10. 2026)
+- [x] Nasazeno (1.0.283.26181): KnightRider ve fázi čekání bez chyb. První verze (data od prvního bajtu přenosu) nechávala občas PRVNÍ LED rozsvícenou červeně (sedí na ztracený první bit snímku) — přidán nulový úvod 120 B (307 µs, `LeadingZeroBytes`), pak v pořádku (11. 10. 2026)
+- [ ] Ověřit na zařízení stavy za jízdy: Alert při čekání na stop, brzda, blinkry, couvání, nouzové zastavení
 
-[OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07), [2026-09-28](devlog.md#2026-09-28)
+[OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md), [deploy/README.md](../deploy/README.md) · DevLog [2026-06-23](devlog.md#2026-06-23), [2026-07-07](devlog.md#2026-07-07), [2026-09-28](devlog.md#2026-09-28), [2026-10-11](devlog.md#2026-10-11)
 
 <a id="hw-motor-chybovy-ramec"></a>
 ### 🧪 Chybový rámec motorového driveru se tvářil jako měření
@@ -2668,10 +2689,11 @@ Nalezeno při rozboru rozjezdu po uvolnění holdu a nouzového zastavení (`ARB
 - [x] Změřeno ze záznamů a dopočteno z převodu jednotek: rampa 1,04 m/s² místo 0,40 (5. 10. 2026)
 - [x] Rozhodnout (autor): opravit převod pro `SDC2160Ex` (jednotky = 1000·a / MaxTheoreticalSpeed) a případně zvednout `MaxAcceleration` na skutečně chtěnou hodnotu, nebo dnešní 1,04 m/s² zapsat jako skutečnost do `Profile`. Autor: opravit převod; v kódu (`MotorAcceleration.ToScriptUnits`, 3 nové testy) (5. 10. 2026)
 - [x] Rozhodnout (autor) hodnotu `Profile.MaxAcceleration` po opravě: 0,40 m/s² znamená pod nouzovým zastavením brzdnou dráhu ~3,6 m z 1,7 m/s (dřív ~1,4 m); táž hodnota jde do plánovače (`LatencyMotionProfile`, `MaxDecceleration` zvlášť). Autor: oddělit běžnou akceleraci od nouzového zastavení — skript 2.2 (`VAR 9` nouzové + watchdog, výchozí hodnoty ve skriptu, řádek `ED=`), `MotorRamps`/`IMotorControl.SetRamps`, `Profile.EmergencyDeceleration` 1,0 m/s², driver hlásí starý skript do Trace, simulace brzdí pod stopem nouzovou rampou; testy HAL +5, Common +3. 6. 10. (autor): běžná jízda jen `MaxAcceleration` — `VAR 8`, `MotorRamps.Deceleration` i `Profile.MaxDecceleration` zrušeny, pole obálky plánovače přejmenováno na `LocalPlannerConfig.MaxAcceleration` (5. 10. 2026)
-- [ ] Nahrát skript 2.2 do motorové jednotky (Roborun+) a v Trace ověřit hlášení `ED=` (1,00 m/s², shodné s nastavením)
+- [x] Nahrát skript 2.2 do motorové jednotky (Roborun+) a v Trace ověřit hlášení `ED=` — autor nahrál, binárka 1.0.283.26181 hlásí „brzdi pri nouzovem zastaveni 1.00 m/s² (463 jednotek, shodne s nastavenim)“ (11. 10. 2026)
+- [x] Falešná hláška „starý skript“, když jednotka chybí: do kontroly se počítaly i neúspěšné rámce (500ms okno), po ~50 s bez jednotky přišla hláška (11. 10. při nahrávání skriptu); opraveno, test `NeuspesnyRamec_SeDoKontrolySkriptuNepocita` (11. 10. 2026)
 - [ ] Ověřit na zařízení: zrychlení kol při rozjezdu ~0,40 m/s², brzdění pod nouzovým zastavením ~1,0 m/s² (z 1,7 m/s ~1,4 m) a při watchdogu (`ARBot.Analyze hold --estop`); případně změřit, jestli jde nouzová rampa strměji bez prokluzu a s nákladem
 
-[SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [MotorAcceleration.cs](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-10-05](devlog.md#2026-10-05)
+[SDC2160Ex.cs](../Src/ARBot.HAL/Devices/MotorDriver/SDC2160Ex.cs), [MotorAcceleration.cs](../Src/ARBot.HAL/Devices/MotorDriver/MotorAcceleration.cs), [plan-drive-hold.md](plan-drive-hold.md) · DevLog [2026-10-05](devlog.md#2026-10-05), [2026-10-11](devlog.md#2026-10-11)
 
 <a id="hw-bms-jbd-driver"></a>
 ### 🧪 Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku

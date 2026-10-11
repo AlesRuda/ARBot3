@@ -41,6 +41,38 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-11
 
+- **LED pásek: zapojený na jiný pin, než kam šla data** (`hw-neopixel-armbian`, na robotu
+  s osciloskopem). SPI0-M2 má MOSI na pinu 19 (GPIO1_B2, signál tam je), pásek je ale na **pinu 13
+  = GPIO1_A1 = SPI4_MOSI_M2** — od 28. 9. driver posílal do pinu, kde nic nevisí, a `POSTUP.md`
+  uváděl třetí, taky špatný pin (GPIO1_B1 = MISO; pořadí ve skupině pinctrl je CLK, MISO, MOSI).
+  Na Pi přepnut overlay na `spi4-m2-cs0-spidev` (záloha `armbianEnv.txt.bak-20261011`), v kódu
+  `/dev/spidev4.0`. Úroveň v pořádku (DIN u pásku 4,3 / 0,3 V). S 6,4 MHz pásek občas problikl
+  jinou barvou — **vždy od první LED, pokaždé na jiném počtu**, tedy mezera uprostřed snímku;
+  zhasnutý pásek neproblikl, jednička 4+4 chybu přesunula, **poloviční datový tok ji odstranil** →
+  `PulseConfig.OrangePi` (3,2 MHz, 4 sub-bity, nula 1+3, jednička 2+2), test kryje předvolbu,
+  kterou používá runtime. Opraveny `POSTUP.md`, `setup-orangepi.sh`, `spitest.sh` (druhý argument
+  = zařízení), pravidlo udev a `deploy/README.md`.
+  **Nasazeno na robota** (1.0.283.26181, na pokyn autora; profil se přepsal z repa, ale všech 23
+  hodnot z profilu shodných): pásek jede (KnightRider ve fázi čekání). První verze nechávala občas
+  **první LED rozsvícenou červeně** — sedí na ztracený první bit snímku (první LED čte data
+  posunutá o bit = dvojnásobný jas, ostatní, většinou zhasnuté, nic nepoznají); léčba nulový úvod
+  120 B před daty (`LeadingZeroBytes`, 307 µs = zároveň reset WS2812), pak v pořádku. Stavy za
+  jízdy (brzda, blinkry, Alert) neověřené.
+
+- **Skript 2.2 v motorové jednotce** (`hw-motor-rampa-jednotky`): autor nahrál, driver hlásí
+  nouzovou rampu 1,00 m/s² shodnou s nastavením. Při nahrávání (jednotka odpojená) přišla
+  **falešná** hláška „starý skript" — do kontroly se počítaly i neúspěšné rámce; opraveno + test
+  (bez opravy selže). Tahle oprava na robotu ještě není. Nouzové zastavení za jízdy neověřené.
+
+- **Měření výpadků D435 bez hubu se nedalo udělat: dvě kamery přímo v desce ji resetují**
+  (`hw-d435-primo-do-desky-reset`, nové téma). Pád do 0,1 s po připojení pipeline obou kamer, na
+  baterii 13 bootů za 9 min, na externím zdroji taky; jedna kamera přímo projde. Ustálený úbytek
+  malý (4,90 → 4,85 V s jednou kamerou, měnič 9 A), takže krátký propad při skoku odběru — další
+  krok kondenzátor u vstupu desky (autor). Vedle toho levá kamera přímo v desce naskočila jen na
+  USB 2 se třemi kabely a SuperSpeed až s kabelem od hubu; `UsbLinkCheck` to poprvé ohlásil na
+  zařízení. Služba se mezi pokusy zastavovala ručně (`systemctl stop`), aby se cyklus resetů
+  nerozjel. Detail: [hardware.md](hardware.md), „Dvě D435 přímo v desce".
+
 - **Rozjetá dráha se kontroluje, jen dokud ji smyčka jede** (`lp-kolize-pri-stani`, varianta (d),
   pokyn autora): `ControlLoop.IsDriving` (regulátor je aktuální a není dojetý — zastaralý, dobrzděný
   na nulu, kola stála) a `LocalNavigator` dráhu, kterou smyčka nejede, zahodí místo kontroly

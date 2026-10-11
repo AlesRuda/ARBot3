@@ -454,11 +454,13 @@ namespace ARBot.Robot
         /// a jen kdyz <c>neopixel=true</c>. Do 28. 9. 2026 se nezakladal vubec (blok v
         /// <see cref="Init"/> byl zakomentovany a jen pro FTDI na Windows).
         ///
-        /// <para>SPI0 (overlay <c>spi0-m2-cs0-spidev</c>, <c>/dev/spidev0.0</c>), 6,4 MHz a 8 sub-bitu
-        /// na bit WS2812: sub-bit 156 ns, nula 2+6 (313 ns vysoko), jednicka 5+3 (781 ns), bit
-        /// 1,25 us - v tolerancich datasheetu. Zapojeni: OrangePi5Ultra/POSTUP.md.</para>
+        /// <para>SPI4 (overlay <c>spi4-m2-cs0-spidev</c>, <c>/dev/spidev4.0</c>, DIN pasku na pinu 13 =
+        /// GPIO1_A1 = SPI4_MOSI_M2), casovani <see cref="SpiNeoPixelDriver.PulseConfig.OrangePi"/>.
+        /// Do 11. 10. 2026 tu bylo SPI0 (<c>/dev/spidev0.0</c>, pin 19) - jenze pasek je zapojeny
+        /// na pin 13, takze od 28. 9. driver posilal snimky do pinu, na kterem nic nevisi, a pasek
+        /// nesvitil. Zapojeni: OrangePi5Ultra/POSTUP.md.</para>
         ///
-        /// <para>⚠️ <c>SpiDevice.Create</c> soubor jeste neotevira - chyba prav (<c>/dev/spidev0.0</c>
+        /// <para>⚠️ <c>SpiDevice.Create</c> soubor jeste neotevira - chyba prav (<c>/dev/spidev4.0</c>
         /// je defaultne jen pro roota, sluzba bezi pod uzivatelem) by se ukazala az v animacni
         /// smycce. Proto se hned posle zhasnuty snimek: kdyz selze, pasek se nezalozi a duvod jde
         /// do Trace. Robot jede dal - LED nejsou podminka jizdy.</para>
@@ -473,25 +475,24 @@ namespace ARBot.Robot
             }
             try
             {
-                neoPixelSpi = System.Device.Spi.SpiDevice.Create(new System.Device.Spi.SpiConnectionSettings(0, 0)
+                neoPixelSpi = System.Device.Spi.SpiDevice.Create(new System.Device.Spi.SpiConnectionSettings(4, 0)
                 {
-                    ClockFrequency = 6_400_000,
+                    ClockFrequency = SpiNeoPixelDriver.OrangePiClockHz,
                     Mode = System.Device.Spi.SpiMode.Mode0,
                     DataBitLength = 8,
                 });
-                var driver = new ArmbianSpiNeoPixelDriver(neoPixelSpi,
-                    new SpiNeoPixelDriver.PulseConfig { T0H = 2, T0L = 6, T1H = 5, T1L = 3 });
+                var driver = new ArmbianSpiNeoPixelDriver(neoPixelSpi, SpiNeoPixelDriver.PulseConfig.OrangePi);
                 var dark = new Color[36];
                 for (int i = 0; i < dark.Length; i++) dark[i] = new Color(0, 0, 0);
                 driver.Send(dark);   // zkouska zapisu (prava, overlay) - viz vyse
                 NeoPixel = new NeoPixelProcessor(driver);
                 NeoPixel.StartTask();
-                Trace.WriteLine("NeoPixel: LED pasek bezi (/dev/spidev0.0, 6,4 MHz).");
+                Trace.WriteLine("NeoPixel: LED pasek bezi (/dev/spidev4.0, 3,2 MHz).");
             }
             catch (Exception ex)
             {
-                Trace.WriteLine("NeoPixel: LED pasek NEJEDE - /dev/spidev0.0 nejde otevrit nebo do nej"
-                                + " zapsat (overlay spi0-m2-cs0-spidev? prava - deploy/99-arbot-spidev.rules?): "
+                Trace.WriteLine("NeoPixel: LED pasek NEJEDE - /dev/spidev4.0 nejde otevrit nebo do nej"
+                                + " zapsat (overlay spi4-m2-cs0-spidev? prava - deploy/99-arbot-spidev.rules?): "
                                 + ex.Message);
                 NeoPixel = null;
                 neoPixelSpi?.Dispose();
