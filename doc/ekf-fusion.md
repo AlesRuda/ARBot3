@@ -240,6 +240,20 @@ driver jede po staru. `MotorStateBase` verze 4 nese surový čas jednotky (`Devi
 rychlosti ve fúzi se nedělá. ⚠️ **Skript se musí nahrát do jednotky a vyjet** — blok 9 pak má
 ukázat „pole rychlosti ze zprávy" ~1,000. Viz [decisions.md](decisions.md), 1. 10. 2026.
 
+✅ **Protifakt nad záznamy (11. 10. 2026, `ARBot.Analyze predstih`):** jízda s opravou zatím není,
+proto se oprava **napodobí**: z časů příchodu se odhadne perioda jednotky (ve všech devíti jízdách
+**10,975–10,989 ms** — jednotka vzorkuje pravidelně), z ní čas jednotky, ten projde `DeviceClock`
+jako v driveru a rychlost kol se spočte z enkodérů přes interval jednotky. Zdržené vzorky (dávka po
+zahlcení linky) se od ztracených rozliší podle toho, jestli posun proti času příchodu po mezeře
+**trvale** vzroste (minimum přes 5 s dopředu); ztracené byly jen ve dvou jízdách (29 a 33 period).
+Kde v dávce chybí, z časů příchodu poznat nejde, proto se ztracené periody v okolí události rozdělí
+vzorkům, které podle enkodéru nesou víc pohybu než jednu periodu (1. 10. by jinak zásek procesu
+v 15:15:42 dal výstřelek 27 m/s, nález kontroly; po opravě je největší rychlost kola 1,99 m/s).
+Fúze krmená jen `Odo/speed` pak ujede **1,0001–1,0004** dráhy z enkodérů (bez opravy 1,0185) a
+tětiva pózy / kola je v jízdách po opravě obvodu kola **1,000–1,002** (Track 29. 9. 1,007; bez opravy 1,012–1,017).
+Dopad na podélnou chybu proti GPS: [map-correlation-localization.md](map-correlation-localization.md),
+„Předstih pózy před GPS".
+
 ### Prokluz kol fúze nepozná (2026-10-04)
 
 Měřená kola jsou zároveň **hnaná** a motory jsou ve **zpětné vazbě** (viz níž, „Odometrie teče

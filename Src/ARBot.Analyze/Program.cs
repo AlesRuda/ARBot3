@@ -283,6 +283,9 @@ namespace ARBot.Analyze
                     case "motory":
                         MotoryReport.Run(rec, Arg(args, "--maxv", 3.0), Arg(args, "--maxi", 40.0), (int)Arg(args, "--vypis", 10));
                         return 0;
+                    case "predstih":
+                        FusionReplayReport.RunPredstih(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN), Text(args, "--set"));
+                        return 0;
                     case "prokluz":
                         ProkluzReport.Run(rec, Arg(args, "--abs", new ARBot.Common.Diagnostics.WheelSlipConfig().AbsThresholdRadS),
                                           Arg(args, "--rel", new ARBot.Common.Diagnostics.WheelSlipConfig().RelThreshold),
@@ -533,6 +536,9 @@ namespace ARBot.Analyze
             Console.WriteLine("  okluze     okluzni pravidlo barvy: kolik barevnych vzorku zahodi stin za prvni prekazkou,");
             Console.WriteLine("             co ho vrha (vyska, velikost skvrny) a protifakty (stin podle vysky, ignorovat");
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
+            Console.WriteLine("  predstih   predstih pozy pred GPS a protifakt opravy razitek odometrie (cas jednotky, 9afb50c):");
+            Console.WriteLine("             fuze S/BEZ koridoru s puvodni a opravenou odometrii, podelna chyba se znamenkem,");
+            Console.WriteLine("             po minutach, tetiva pozy / kola; --map= --maxedge= --set=klic=hodnota");
             Console.WriteLine("  prokluz    hlidac prokluzu kol (WheelSlipDetector, tentyz kod jako runtime) nad IMU a motory:");
             Console.WriteLine("             epizody, souhrn po druzich, radky do Trace; --sweep = varianty prahu;");
             Console.WriteLine("             --abs= --rel= --minon= --okno= --minuhel=[deg] --vypis=30");

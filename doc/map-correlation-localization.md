@@ -3882,6 +3882,72 @@ nic neříká. Přebíjí ho chyba obvodu kola.
 - Zahrnout nejistotu geometrie mapy do σ příčného měření z koridoru (`corridorstd=`), aby
   podélná jistota ze zatáček nebyla přehnaná.
 
+✅ **Přeměřeno 29. 9. a 1. 10. a vysvětleno 11. 10. 2026** — viz další sekce: po opravě obvodu kola
+zbyl předstih z razítek odometrie a s jejich opravou mizí.
+
+### Předstih pózy před GPS: způsobila ho razítka odometrie (protifakt 11. 10. 2026)
+
+S korekcemi z koridoru byla póza soustavně **před** GPS: 1. 10. ve FreeRunu p50 +6,2 m a rostla
+~1 m/min, v Tracku na jižní větvi do +10,9 m a po obrátce −9,5 m (posun podél cesty mění znaménko se
+směrem jízdy). Otázka z `lok-koridor-hranova-lokalizace` byla, jestli rozhodnout o poctivější σ GPS
+(`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. Podezřelá byla razítka odometrie
+(`lok-fuze-poza-pred-koly`, dráha z kol nadsazená o ~1,2–1,7 %), opravená v kódu 1. 10. (čas
+z motorové jednotky), ale bez jízdy. `ARBot.Analyze predstih` opravu **napodobí** nad starým
+záznamem (postup v [ekf-fusion.md](ekf-fusion.md), „Rychlost z kol nadsazuje dráhu") a přehraje fúzi
+s koridorem i bez, s původní i opravenou odometrií. Měřidlo sedí na záznam (p50 0,000 m).
+
+Podélná chyba proti GPS se znaménkem ve směru kurzu z GPS (+ = póza před GPS), za jízdy, p50
+(|podélně| p90):
+
+| jízda | s koridorem (jak jel) | s koridorem, odometrie opravená | bez koridoru | bez, opravená | tětiva pózy / kola |
+|---|---|---|---|---|---|
+| 1. 10. FreeRun | **+6,22** (10,10) | **+0,11** (1,01) | +2,61 (4,81) | −0,55 (1,24) | 1,017 → 1,000 |
+| 1. 10. Track | +1,83 (9,04) | −0,72 (2,12) | +1,84 (7,51) | −0,36 (4,90) | 1,017 → 1,000 |
+| 29. 9. FreeRun | +1,55 (5,29) | +0,05 (3,47) | +1,43 (4,70) | +0,07 (2,49) | 1,012 → 1,002 |
+| 29. 9. Track | +0,18 (1,84) | **−2,61** (4,36) | +0,80 (2,07) | −0,92 (2,00) | 1,014 → 1,007 |
+
+- **Po opravě obvodu kola (26. 9.) předstih s opravenou odometrií mizí.** 1. 10. Track po minutách
+  místo +10,9 / −9,5 m do ±2,7 m, většinou ±1 m; FreeRun přestal růst.
+- **Starší jízdy předstih jen zmenší** (25. 9. +10,2 → +5,0 a +6,8 → +3,7 m, Kolo 3b +3,6 → +2,7 m,
+  Kolo 4 +1,1 → +0,3 m): kola tam hlásí o **1,8–3,7 % víc** než tětiva GPS (neopravený obvod kola),
+  po opravě 0,997–0,999.
+- **Track 29. 9. je výjimka jiného druhu:** s opravou je póza **2,6 m za** GPS (s dnešním nastavením
+  koridoru — `assocfloorlong=3`, `corridorposlimit`, `corridorseekback=1` — 2,9 m). Nevzniká nadsazenou
+  dráhou, ale **počátečním posunem v první minutě** (s koridorem −5 až −6 m proti −1,8 m bez něj),
+  který pak GPS se σ 30 m stahuje jen ~0,5–1 m/min. Nadsazená dráha z kol ho v původní jízdě
+  náhodou kompenzovala.
+- **Zpoždění GPS** (dřív odhadované na 2–3 m předstihu) se **nepotvrdilo**. Razítko fixu je čas
+  příjmu, takže u přesné pózy by podélná odchylka v sekundách jízdy (`podélně / v`) byla právě
+  latence GPS: s opravenou odometrií vychází +0,08 / −0,44 / +0,03 s (1. 10. FreeRun, Track, 29. 9.
+  FreeRun), bez koridoru −0,42 / −0,22 / +0,05 s — latence je nejvýš desetiny sekundy a od zbytkových
+  chyb se oddělit nedá. (Sloupec „nejlepší posun τ" k tomu sloužit nemůže: minimalizuje celkovou
+  odchylku včetně příčné a do 11. 10. byl useknutý na 2 s.)
+
+**Závěr (opraven po nezávislé kontrole 11. 10. 2026):** velký předstih (+6 až +11 m) způsobovala
+razítka odometrie (před 26. 9. i obvod kola) a s jejich opravou mizí. **Mechanismus ale trvá:** koridor
+srazí podélnou σ na 0,2–0,3 m a GPS se σ 30 m pak pózu podélně skoro netáhne, takže se dál hromadí, co
+zbude — zbytkové měřítko kol (kola / tětiva GPS 0,997, tedy drift **−0,2 až −0,3 m/min**, na 830m
+rovince ~2–2,5 m **za** GPS), prokluz a počáteční posun (Track 29. 9.). Rozhodnutí o `gpsposstd` /
+`corridorstd` tedy **nezmizelo, jen se zmenšilo**. Podklad k němu — protifakt s opravenou odometrií
+a s koridorem (podélně se znaménkem p50 / |podélně| p90 [m], sklon po úsecích se stálým směrem
+[m/min], σ podél z P p50 [m]):
+
+| jízda | `gpsposstd=30` (dnes) | `gpsposstd=10` | `gpsposstd=3` |
+|---|---|---|---|
+| 1. 10. FreeRun | +0,11 / 1,01, −0,18, σ 0,22 | +0,03 / 0,99, −0,18, σ 0,20 | −0,19 / 0,76, −0,10, σ 0,14 |
+| 1. 10. Track | −0,72 / 2,12, −0,33, σ 0,28 | −0,47 / 1,87, −0,31, σ 0,24 | −0,38 / 1,29, −0,21, σ 0,14 |
+| 29. 9. FreeRun | +0,05 / 3,47, —, σ 1,07 | +0,08 / 1,21, —, σ 0,40 | +0,02 / 1,06, —, σ 0,15 |
+| 29. 9. Track¹ | −2,87 / 5,02, +0,15, σ 0,94 | −1,13 / 2,39, −0,01, σ 0,37 | −0,61 / 1,84, −0,01, σ 0,15 |
+
+¹ s dnešním nastavením koridoru (`assocfloorlong=3`, `corridorposlimit`, `corridorseekback=1`).
+
+Silnější GPS zmenší hlavně **počáteční posun** (Track 29. 9. −2,9 → −1,1 → −0,6 m) a p90; drift
+z měřítka kol (−0,2 až −0,3 m/min) stáhne až `gpsposstd=3` zhruba na polovinu. ⚠️ **Cenu silnější GPS
+tohle neměří** — přehrávají se jen úseky jízdy. `gpsposstd=30` vzniklo kvůli časově korelované chybě
+GPS (dekorelační čas ~40 s, stojícímu robotu ujížděla poloha 5,5 m/min, [ekf-fusion.md](ekf-fusion.md)),
+a ta by se se silnější GPS vrátila do stání i do příčné polohy. Rozhodne autor. ⚠️ **Celé je to
+protifakt, ne jízda** — potvrdit na první jízdě s binárkou ≥ 9afb50c (skript 2.1 je v jednotce od 6. 10.).
+
 ### Co z toho plyne
 
 Obě měření říkají totéž, každé jinou silou. **Koridor opravuje příčnou polohu a kurz.** V simulaci

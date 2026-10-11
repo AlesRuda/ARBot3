@@ -918,7 +918,7 @@ namespace ARBot.Analyze
             Console.WriteLine($"zprav k prehrani: {msgs.Count}");
 
             var recorded = msgs.OfType<RobotStateMsg>()
-                               .Select(r => new Sample { T = r.TimeStamp, X = r.X, Y = r.Y, Th = r.Theta, V = r.V }).ToList();
+                               .Select(r => new Sample { T = r.TimeStamp, X = r.X, Y = r.Y, Th = r.Theta, V = r.V, SigmaAlong = double.NaN }).ToList();
 
             return new Ctx
             {
@@ -1084,7 +1084,7 @@ namespace ARBot.Analyze
             var hdgOnly = RunVariant("jen kurz", true, c, origin, net, maxEdge, msgs, lateral: false, heading: true);
             var gpsCourse = gpsOk
                 .Where(g => g.DynamicOrientation.HasValue && (g.Speed ?? g.DynamicSpeed ?? 0) >= 0.5)
-                .Select(g => { var p = origin.ToLocal(g.Latitude, g.Longitude); return (T: g.TimeStamp, X: (double)p.X, Y: (double)p.Y, Course: g.DynamicOrientation.Value); })
+                .Select(g => { var p = origin.ToLocal(g.Latitude, g.Longitude); return (T: g.TimeStamp, X: (double)p.X, Y: (double)p.Y, Course: g.DynamicOrientation.Value, V: g.Speed ?? g.DynamicSpeed ?? 0); })
                 .ToList();
             AlongTrackAnalysis(new List<(string, List<Sample>)>
             {
@@ -1530,6 +1530,330 @@ namespace ARBot.Analyze
             return Math.Abs(rec[i].V) > 0.2 && Math.Abs((rec[i].T - t).TotalSeconds) < 0.2;
         }
 
+        // ------------------------------------------------------------------ predstih pozy pred GPS
+
+        /// <summary>
+        /// <b>Predstih pozy pred GPS a oprava razitek odometrie</b> (prikaz <c>predstih</c>, temata
+        /// <c>lok-koridor-hranova-lokalizace</c> a <c>lok-fuze-poza-pred-koly</c>).
+        ///
+        /// <para>1. 10. 2026 (binarka pred 9afb50c) byla poza s korekcemi koridoru soustavne PRED GPS
+        /// (FreeRun p50 +6 m, Track az +11 m). Vysvetleni: razitka odometrie (vzor 12/12/9 ms)
+        /// nadsazuji drahu z kol o ~1,9 %, koridor srazi podelnou sigmu a GPS se sigmou 30 m to
+        /// nestahne. Oprava (cas z motorove jednotky) je v kodu, ale jizda s ni neni - tady se proto
+        /// PREHRAJE: z casu prichodu se odhadne perioda jednotky, poskladaji se jeji tiky, projdou
+        /// <see cref="DeviceClock"/> (tentyz kod jako driver) a rychlost se spocte z enkoderu pres
+        /// interval jednotky (jako <c>SDC2160Ex</c>).</para>
+        ///
+        /// <para>Vysledek 11. 10. 2026: velky predstih s opravou mizi, ale mechanismus trva - koridor
+        /// srazi podelnou sigmu a GPS se sigmou 30 m netahne, takze se hromadi zbytkove meritko kol
+        /// (drift ~−0,2 m/min) a pocatecni posun. Proto blok se sklonem po usecich; rozhodnuti
+        /// o <c>gpsposstd</c> / <c>corridorstd</c> zustava (protifakt pres <c>--set=gpsposstd=</c>).</para>
+        /// </summary>
+        public static void RunPredstih(RecordFile rec, string mapOverride, double maxEdgeArg, string setText)
+        {
+            var ctx = Prepare(rec, mapOverride, maxEdgeArg, setText);
+            if (ctx == null) return;
+            var (c, origin, net, maxEdge) = (ctx.C, ctx.Origin, ctx.Net, ctx.MaxEdge);
+            var (msgs, frames, recorded) = (ctx.Msgs, ctx.Frames, ctx.Recorded);
+
+            var fixedMsgs = FixOdometryTiming(msgs);
+            if (fixedMsgs == null) return;
+
+            var withC = RunVariant("S koridorem", true, c, origin, net, maxEdge, msgs, frames: frames);
+            var withCFix = RunVariant("S kor., odo opr.", true, c, origin, net, maxEdge, fixedMsgs, frames: frames);
+            var noC = RunVariant("BEZ koridoru", false, c, origin, net, maxEdge, msgs);
+            var noCFix = RunVariant("BEZ kor., odo opr.", false, c, origin, net, maxEdge, fixedMsgs);
+
+            Console.WriteLine();
+            Console.WriteLine("1) OVERENI MERIDLA: varianta S koridorem proti zaznamenanym RobotStateMsg");
+            PrintDiff("  poloha |replay - zaznam|", withC.Samples, recorded, out _);
+
+            OdoTimingAnalysis(fixedMsgs, BuildFusionConfig(c, origin));
+            Console.WriteLine("   (blok 9 NAD OPRAVENOU odometrii: radek \"pole rychlosti ze zpravy\" ma vyjit ~1,000)");
+
+            var fcfg = BuildFusionConfig(c, origin);
+            var gpsOk = msgs.OfType<GPSState>().Where(g => g.IsFixed && DefaultMeasurementMapper.PositionRejectReason(g, fcfg) == null)
+                            .OrderBy(g => g.TimeStamp).ToList();
+            var gpsLocal = gpsOk.Select(g => { var p = origin.ToLocal(g.Latitude, g.Longitude); return (T: g.TimeStamp, X: (double)p.X, Y: (double)p.Y); }).ToList();
+            var gpsCourse = gpsOk
+                .Where(g => g.DynamicOrientation.HasValue && (g.Speed ?? g.DynamicSpeed ?? 0) >= 0.5)
+                .Select(g => { var p = origin.ToLocal(g.Latitude, g.Longitude); return (T: g.TimeStamp, X: (double)p.X, Y: (double)p.Y, Course: g.DynamicOrientation.Value, V: g.Speed ?? g.DynamicSpeed ?? 0); })
+                .ToList();
+            var moving = new HashSet<DateTime>(recorded.Where(s => Math.Abs(s.V) > 0.2).Select(s => s.T));
+            var varianty = new List<(string Name, List<Sample> S)>
+            {
+                ("zaznam (runtime)", recorded), (withC.Name, withC.Samples), (withCFix.Name, withCFix.Samples),
+                (noC.Name, noC.Samples), (noCFix.Name, noCFix.Samples),
+            };
+            AlongTrackAnalysis(varianty, gpsCourse, moving);
+            SignedAlongByMinute(varianty, gpsCourse, moving);
+            AlongDriftSlope(varianty, gpsCourse, moving);
+            ScaleAnalysis(msgs, gpsLocal, varianty);
+        }
+
+        /// <summary>
+        /// Prepise <c>MotorStateBase</c> tak, jak by je vyrobil driver po oprave 9afb50c (cas
+        /// z motorove jednotky), nad zaznamem, ktery cas jednotky nenese. Vraci novy seznam zprav
+        /// (tytez indexy), nebo <c>null</c>, kdyz neni co opravovat.
+        ///
+        /// <para><b>Predpoklad:</b> jednotka vzorkuje pravidelne (enkoder pribyva v kazdem vzorku
+        /// o stejny kus, DeviceClock: „po 11 ms"); jitter je jen v case prichodu. Perioda se
+        /// odhadne z casu prichodu (soucet intervalu / pocet period, zaokrouhleni intervalu na
+        /// periody), a prevod na cas aplikace i interval dela <see cref="DeviceClock"/> jako
+        /// v driveru.</para>
+        ///
+        /// <para><b>Ztracene vs. zdrzene vzorky.</b> Mezera v casech prichodu muze byt dvoji: linka
+        /// vzorky ZDRZELA a pak je posle v davce (zadny nechybi, tik roste o jednu periodu na
+        /// vzorek), nebo se vzorky ZTRATILY (tik poskoci o vic period). Rozhodne to, jestli posun
+        /// <c>r = prichod − k·P</c> po mezere TRVALE vzroste: bere se minimum <c>r</c> pres okno
+        /// <see cref="ZtrataOknoSec"/> dopredu (dorazena davka ma latenci zase malou, ztrata ne).
+        /// Prvni verze brala kazdou mezeru jako ztratu - cas jednotky pak po zahlceni linky utekl
+        /// dopredu o stovky ms a <c>DeviceClock</c> ho dohanel 0,5 ms/s (25. 9. latence p50 283 ms).</para>
+        /// </summary>
+        internal static List<Message> FixOdometryTiming(List<Message> msgs)
+        {
+            var idx = new List<int>();
+            for (int i = 0; i < msgs.Count; i++)
+                if (msgs[i] is MotorStateBase m && m.HasMeasurement) idx.Add(i);
+            Console.WriteLine();
+            Console.WriteLine("0) OPRAVA RAZITEK ODOMETRIE (emulace casu jednotky, 9afb50c):");
+            if (idx.Count < 100) { Console.WriteLine("   malo vzorku motoru"); return null; }
+            if (idx.Any(i => ((MotorStateBase)msgs[i]).HasDeviceTime))
+            {
+                Console.WriteLine("   zaznam uz nese cas jednotky - opravovat neni co (porovnej fusionreplay blok 9)");
+                return null;
+            }
+
+            var a = idx.Select(i => ((MotorStateBase)msgs[i]).TimeStamp).ToList();
+            // Perioda: nejdriv prumer kratkych intervalu, pak soucet / pocet period.
+            var kratke = new List<double>();
+            for (int k = 1; k < a.Count; k++)
+            {
+                double d = (a[k] - a[k - 1]).TotalMilliseconds;
+                if (d > 0 && d < 30) kratke.Add(d);
+            }
+            double p = kratke.Average();
+            for (int it = 0; it < 3; it++)
+            {
+                double sum = 0; long n = 0;
+                for (int k = 1; k < a.Count; k++)
+                {
+                    double d = (a[k] - a[k - 1]).TotalMilliseconds;
+                    if (d <= 0 || d > 1000) continue;
+                    sum += d; n += Math.Max(1, (long)Math.Round(d / p));
+                }
+                p = sum / n;
+            }
+
+            // Tik jednotky k·P + ztracene periody: dopredne minimum posunu r = prichod − k·P.
+            int nV = a.Count;
+            var r = new double[nV];
+            for (int k = 0; k < nV; k++) r[k] = (a[k] - a[0]).TotalMilliseconds - k * p;
+            var mDopredu = new double[nV];
+            var fronta = new LinkedList<int>();   // indexy s rostoucim r (monotonni fronta)
+            for (int k = nV - 1; k >= 0; k--)
+            {
+                while (fronta.Count > 0 && r[fronta.Last.Value] >= r[k]) fronta.RemoveLast();
+                fronta.AddLast(k);
+                while ((a[fronta.First.Value] - a[k]).TotalSeconds > ZtrataOknoSec) fronta.RemoveFirst();
+                mDopredu[k] = r[fronta.First.Value];
+            }
+            var ticky = new double[nV];
+            double ztracenoPer = 0;
+            for (int k = 0; k < nV; k++)
+            {
+                ticky[k] = k * p + (mDopredu[k] - mDopredu[0]);
+                if (k > 0)
+                {
+                    // Interval jednotky aspon pul periody (drift odhadu nesmi obratit poradi).
+                    if (ticky[k] < ticky[k - 1] + 0.5 * p) ticky[k] = ticky[k - 1] + 0.5 * p;
+                    double navic = (ticky[k] - ticky[k - 1]) / p - 1;
+                    if (navic > 0.5) ztracenoPer += navic;
+                }
+            }
+
+            // ZTRACENE PERIODY PODLE ENKODERU (nalez kontroly 11. 10. 2026). Z casu prichodu nejde
+            // poznat, KDE v davce po zaseku vzorky chybi - dopredne minimum je prida prvnimu vzorku
+            // po mezere. 1. 10. 15:15:41-43 (zasek procesu 1,19 s, 33 ztracenych period) tak prvni
+            // vzorek dostal 375 ms na 36,6 mm (0,1 m/s) a vzorek na konci davky, ktery ve skutecnosti
+            // nese ztracene periody (301,7 mm), jednu periodu - 27,4 m/s. Ztracene periody se proto
+            // v okoli udalosti (RozlozeniSec dopredu) rozdeli tem vzorkum, ktere nesou vic pohybu,
+            // nez odpovida jedne periode (nad 1,5 × median prirustku v okoli). Kdyz enkoder misto
+            // neukaze (robot stoji), zustane rozlozeni z casu prichodu.
+            var enc = idx.Select(i => 0.5 * (((MotorStateBase)msgs[i]).LeftEncoder + ((MotorStateBase)msgs[i]).RightEncoder)).ToList();
+            int presunuto = 0;
+            for (int k = 1; k < nV; k++)
+            {
+                double navic = (ticky[k] - ticky[k - 1]) / p - 1;
+                if (navic <= 0.5) continue;
+                int j = k;
+                while (j + 1 < nV && ticky[j + 1] - ticky[k] <= RozlozeniSec * 1000) j++;
+                var de = new List<double>();
+                for (int i = k; i <= j; i++) de.Add(Math.Abs(enc[i] - enc[i - 1]));
+                var srt = de.OrderBy(x => x).ToList();
+                double med = srt[srt.Count / 2];
+                if (!(med > 1e-4)) continue;   // robot stoji - enkoder misto neukaze
+                var prebytek = de.Select(x => Math.Max(0, x - 1.5 * med)).ToList();
+                double sumPreb = prebytek.Sum();
+                if (sumPreb < 0.5 * med * navic) continue;   // enkoder ztratu nevysvetli - nechat
+                // Novy rozpis intervalu v [k, j]: kazdy vzorek perioda (k: bez navic) + ztracene
+                // periody umerne prebytku pohybu. Soucet (tedy cas konce udalosti) se zachova.
+                double celkem = ticky[j] - ticky[k - 1];
+                double zbyva = celkem - (j - k + 1) * p;
+                double t = ticky[k - 1];
+                for (int i = k; i <= j; i++)
+                {
+                    t += p + zbyva * prebytek[i - k] / sumPreb;
+                    ticky[i] = t;
+                }
+                ticky[j] = ticky[k - 1] + celkem;   // presne zachovat konec (zaokrouhleni)
+                presunuto++;
+                k = j;
+            }
+
+            var clock = new DeviceClock(1_000_000_000);
+            var outMsgs = new List<Message>(msgs);
+            int bezIntervalu = 0, mezer = 0;
+            var lat = new List<double>();
+            MotorStateBase prev = null;
+            DateTime prevTs = default;
+            for (int k = 0; k < idx.Count; k++)
+            {
+                var m = (MotorStateBase)msgs[idx[k]];
+                if (k > 0 && (a[k] - a[k - 1]).TotalMilliseconds > 1.5 * p) mezer++;
+                long tick = (long)Math.Round(ticky[k]) % 1_000_000_000;
+                var mapped = clock.Map(tick, m.TimeStamp);
+                DateTime ts = mapped?.Time ?? m.TimeStamp;
+                if (mapped.HasValue) lat.Add(clock.LastLatencyMs);
+                // Jako SDC2160Ex: interval jednotky, po (re)synchronizaci interval razitek.
+                double dt = mapped?.DeltaMs is long dMs ? dMs / 1000.0
+                          : prev != null ? (ts - prevTs).TotalSeconds : 0;
+                if (!(mapped?.DeltaMs is long)) bezIntervalu++;
+                double vl = 0, vr = 0;
+                if (prev != null && dt > 0.001)
+                {
+                    vl = (m.LeftEncoder - prev.LeftEncoder) / dt;
+                    vr = (m.RightEncoder - prev.RightEncoder) / dt;
+                }
+                outMsgs[idx[k]] = new MotorStateBase(m.IsEmergencyStop, m.LeftEncoder, m.RightEncoder, m.Voltage,
+                                                     m.LeftMotorCurrent, m.RightMotorCurrent, vl, vr,
+                                                     hasMeasurement: true, deviceTimeMs: mapped.HasValue ? tick : -1)
+                                 { TimeStamp = ts };
+                prev = m; prevTs = ts;
+            }
+            lat.Sort();
+            double vMax = 0;
+            foreach (int i in idx)
+            {
+                var mm = (MotorStateBase)outMsgs[i];
+                vMax = Math.Max(vMax, Math.Max(Math.Abs(mm.LeftWheelSpeed), Math.Abs(mm.RightWheelSpeed)));
+            }
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "   ztracene periody rozdeleny podle enkoderu u {0} udalosti; nejvetsi |rychlost kola| po oprave {1:F2} m/s",
+                presunuto, vMax));
+            Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "   vzorku {0}; odhadnuta perioda jednotky {1:F4} ms; mezer v prichodu (> 1,5 periody) {2}, z toho ztraceno" +
+                " celkem {7:F0} period; synchronizaci hodin {3}; vzorku bez intervalu jednotky {4};" +
+                " latence prichodu proti odhadu p50 {5:F1} / p99 {6:F1} ms",
+                idx.Count, p, mezer, clock.Syncs, bezIntervalu,
+                lat.Count > 0 ? lat[lat.Count / 2] : double.NaN, lat.Count > 0 ? lat[(int)(0.99 * (lat.Count - 1))] : double.NaN,
+                ztracenoPer));
+            return outMsgs;
+        }
+
+        /// <summary>
+        /// <b>Sklon podelne chyby</b> [m/min] po usecich se stalym smerem jizdy (kurz z GPS do 45°
+        /// od zacatku useku, aspon 2 min a 100 fixu): linearni regrese podelne odchylky se znamenkem
+        /// na case. Zbytkova chyba meritka kol se s koridorem hromadi (GPS se sigmou 30 m ji podelne
+        /// nestahne) a v souhrnnem medianu se schova, kdyz robot jezdi tam a zpet (meni se znamenko).
+        /// Nalez kontroly 11. 10. 2026: s opravenou odometrii zbyva ~−0,16 m/min.
+        /// </summary>
+        private static void AlongDriftSlope(List<(string Name, List<Sample> S)> variants,
+                                            List<(DateTime T, double X, double Y, double Course, double V)> gps,
+                                            HashSet<DateTime> moving)
+        {
+            // Useky podle smeru (stejne pro vsechny varianty).
+            var useky = new List<(int Od, int Do)>();
+            int zac = 0;
+            for (int k = 1; k <= gps.Count; k++)
+            {
+                bool konec = k == gps.Count
+                             || Math.Abs(Conversions.NormalizeOrientation(gps[k].Course - gps[zac].Course)) > Math.PI / 4
+                             || (gps[k].T - gps[k - 1].T).TotalSeconds > 5;
+                if (!konec) continue;
+                if (k - zac >= 100 && (gps[k - 1].T - gps[zac].T).TotalSeconds >= 120) useky.Add((zac, k - 1));
+                zac = k;
+            }
+            Console.WriteLine();
+            Console.WriteLine($"   Sklon podelne chyby po usecich se stalym smerem (>= 2 min, {useky.Count} useku) [m/min], + = poza utika dopredu:");
+            Console.WriteLine("   varianta             median   vazeny prumer   min / max      useky (delka min: sklon)");
+            var mv = variants.Select(v => v.S.Where(x => moving.Contains(x.T)).ToList()).ToList();
+            for (int vi = 0; vi < variants.Count; vi++)
+            {
+                var sklony = new List<(double Sklon, double Min)>();
+                foreach (var (od, dok) in useky)
+                {
+                    double sx = 0, sy = 0, sxx = 0, sxy = 0; int n = 0;
+                    var t0 = gps[od].T;
+                    for (int k = od; k <= dok; k++)
+                    {
+                        var g = gps[k];
+                        if (!TryPoseAt(mv[vi], g.T, out var p)) continue;
+                        double a = Math.Cos(g.Course) * (p.X - g.X) + Math.Sin(g.Course) * (p.Y - g.Y);
+                        double t = (g.T - t0).TotalMinutes;
+                        sx += t; sy += a; sxx += t * t; sxy += t * a; n++;
+                    }
+                    if (n < 50) continue;
+                    double den = n * sxx - sx * sx;
+                    if (!(den > 0)) continue;
+                    sklony.Add(((n * sxy - sx * sy) / den, (gps[dok].T - t0).TotalMinutes));
+                }
+                if (sklony.Count == 0) { Console.WriteLine($"   {variants[vi].Name,-18} (zadny usek)"); continue; }
+                var serazene = sklony.Select(x => x.Sklon).OrderBy(x => x).ToList();
+                double vazeny = sklony.Sum(x => x.Sklon * x.Min) / sklony.Sum(x => x.Min);
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "   {0,-18} {1,7:F2}   {2,12:F2}   {3,6:F2} / {4,5:F2}   {5}",
+                    variants[vi].Name, serazene[serazene.Count / 2], vazeny, serazene[0], serazene[serazene.Count - 1],
+                    string.Join(", ", sklony.Select(x => string.Format(CultureInfo.InvariantCulture, "{0:F1}: {1:+0.00;-0.00}", x.Min, x.Sklon)))));
+            }
+        }
+
+        /// <summary>Okoli udalosti se ztracenymi periodami, ve kterem se rozdeluji podle enkoderu [s casu jednotky].</summary>
+        private const double RozlozeniSec = 2.0;
+
+        /// <summary>Jak daleko dopredu se hleda, jestli posun po mezere trva (ztrata), nebo zmizi (zdrzeni) [s].</summary>
+        private const double ZtrataOknoSec = 5.0;
+
+        /// <summary>Podelna chyba se znamenkem (+ = poza PRED GPS) po minutach za jizdy, rozklad podle kurzu z GPS.</summary>
+        private static void SignedAlongByMinute(List<(string Name, List<Sample> S)> variants,
+                                                List<(DateTime T, double X, double Y, double Course, double V)> gps,
+                                                HashSet<DateTime> moving)
+        {
+            Console.WriteLine();
+            Console.WriteLine("   Po minutach: podelne se znamenkem p50 [m] (+ = poza PRED GPS), za jizdy");
+            Console.WriteLine("   min    n   " + string.Join("  ", variants.Select(v => $"{v.Name,18}")));
+            if (gps.Count == 0) return;
+            var t0 = gps[0].T;
+            var mv = variants.Select(v => v.S.Where(x => moving.Contains(x.T)).ToList()).ToList();
+            foreach (var grp in gps.GroupBy(g => (int)((g.T - t0).TotalSeconds / 60)))
+            {
+                var bunky = new List<string>();
+                int n = 0;
+                for (int vi = 0; vi < variants.Count; vi++)
+                {
+                    var st = new Stats("");
+                    foreach (var g in grp)
+                    {
+                        if (!TryPoseAt(mv[vi], g.T, out var p)) continue;
+                        st.Add(Math.Cos(g.Course) * (p.X - g.X) + Math.Sin(g.Course) * (p.Y - g.Y));
+                    }
+                    n = Math.Max(n, st.Count);
+                    bunky.Add(string.Format(CultureInfo.InvariantCulture, "{0,18:F2}", st.Median));
+                }
+                if (n < 10) continue;
+                Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "   {0,3} {1,5}   {2}", grp.Key, n, string.Join("  ", bunky)));
+            }
+        }
+
         private static Variant RunVariant(string name, bool send, Dictionary<string, (string Value, string Origin)> c,
                                           GeoReference origin, RoadNetwork net, double maxEdge, List<Message> msgs,
                                           bool lateral = true, bool heading = true, List<FrameMark> frames = null,
@@ -1666,25 +1990,27 @@ namespace ARBot.Analyze
         /// </list>
         /// </summary>
         private static void AlongTrackAnalysis(List<(string Name, List<Sample> S)> variants,
-                                               List<(DateTime T, double X, double Y, double Course)> gps,
+                                               List<(DateTime T, double X, double Y, double Course, double V)> gps,
                                                HashSet<DateTime> moving)
         {
             Console.WriteLine();
             Console.WriteLine("4) PODELNA CHYBA PROTI GPS - rozbor (rozklad podle KURZU Z GPS, + = poza PRED GPS, jen za jizdy):");
-            Console.WriteLine("   varianta             n    podelne se znam. p50 [m]  |podelne| p50/p90   |celkem| p50   nejlepsi posun tau [s] -> |celkem| p50   sigma podel z P p50/p90 [m]");
+            Console.WriteLine("   varianta             n    podelne se znam. p50 [m]  |podelne| p50/p90   |celkem| p50   podelne/v p50 [s]   nejlepsi posun tau [s] -> |celkem| p50   sigma podel z P p50/p90 [m]");
             foreach (var (name, s) in variants)
             {
                 var mv = s.Where(x => moving.Contains(x.T)).ToList();
-                var signed = new Stats(""); var abs = new Stats(""); var tot = new Stats("");
+                var signed = new Stats(""); var abs = new Stats(""); var tot = new Stats(""); var casove = new Stats("");
                 foreach (var g in gps)
                 {
                     if (!TryPoseAt(mv, g.T, out var p)) continue;
                     double dx = p.X - g.X, dy = p.Y - g.Y;
                     double a = Math.Cos(g.Course) * dx + Math.Sin(g.Course) * dy;
                     signed.Add(a); abs.Add(Math.Abs(a)); tot.Add(Math.Sqrt(dx * dx + dy * dy));
+                    if (g.V >= 0.5) casove.Add(a / g.V);
                 }
+                // Rozsah -5 .. +8 s (do 11. 10. 2026 -1 .. +2 s: varianty s velkym predstihem koncily na mezi).
                 double bestTau = double.NaN, bestTot = double.MaxValue;
-                for (int k = -10; k <= 20; k++)
+                for (int k = -50; k <= 80; k++)
                 {
                     double tau = k * 0.1;
                     var st = new Stats("");
@@ -1698,12 +2024,14 @@ namespace ARBot.Analyze
                 var sig = new Stats("");
                 foreach (var x in mv) sig.Add(x.SigmaAlong);
                 Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
-                    "   {0,-18} {1,5}         {2,6:F2}               {3,5:F2} / {4,5:F2}      {5,5:F2}          {6,5:F1}  ->  {7,5:F2}                   {8,6:F2} / {9,6:F2}",
+                    "   {0,-18} {1,5}         {2,6:F2}               {3,5:F2} / {4,5:F2}      {5,5:F2}          {10,6:F2}            {6,5:F1}  ->  {7,5:F2}                   {8,6:F2} / {9,6:F2}",
                     name, signed.Count, signed.Median, abs.Median, abs.Percentile(90), tot.Median,
-                    bestTau, bestTot == double.MaxValue ? double.NaN : bestTot, sig.Median, sig.Percentile(90)));
+                    bestTau, bestTot == double.MaxValue ? double.NaN : bestTot, sig.Median, sig.Percentile(90), casove.Median));
             }
             Console.WriteLine("   Cist: varianta, jejiz nejlepsi tau je blizko 0, GPS VERNE SLEDUJE (i s jeji latenci) - ne nutne");
-            Console.WriteLine("   spravnou polohu. Mala sigma podel = GPS podelne skoro netahne.");
+            Console.WriteLine("   spravnou polohu. Mala sigma podel = GPS podelne skoro netahne. ⚠️ tau minimalizuje CELKOVOU");
+            Console.WriteLine("   odchylku (i pricnou), takze jako latence GPS je slaby; \"podelne/v\" je podelna odchylka v sekundach");
+            Console.WriteLine("   jizdy - u presne pozy by to byla latence GPS (razitko fixu = cas prijmu).");
         }
 
         /// <summary>Poza nejblizsi casu t (do 0,06 s) ze vzorku po ~0,1 s.</summary>

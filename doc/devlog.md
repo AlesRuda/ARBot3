@@ -41,6 +41,23 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-11
 
+- **Předstih pózy před GPS způsobila razítka odometrie** (bod 4 průzkumu,
+  `lok-koridor-hranova-lokalizace`). Nový `ARBot.Analyze predstih` napodobí nad starým záznamem opravu
+  9afb50c (čas z motorové jednotky): perioda jednotky z časů příchodu (10,975–10,989 ms ve všech devíti
+  jízdách), zdržené vs. ztracené vzorky podle trvalého posunu, ztracené periody rozdělené podle
+  enkodéru, `DeviceClock`, rychlost přes interval jednotky. S opravou předstih mizí: 1. 10. FreeRun
+  +6,2 → +0,1 m, Track +1,8 → −0,7 m (po minutách
+  místo +10,9 / −9,5 do ±2,7 m), 29. 9. FreeRun +1,6 → +0,05 m; starší jízdy jen zmenší (obvod kola
+  před 26. 9.). Zpoždění GPS je nejvýš desetiny sekundy, ne 2–3 m. Nezávislá kontrola opravila můj
+  první závěr („rozhodnutí o `gpsposstd` odpadá"): mechanismus trvá — s opravou zbývá drift −0,2 až
+  −0,3 m/min ze zbytkového měřítka kol a počáteční posun (Track 29. 9. −2,9 m); protifakt
+  `gpsposstd=10` / `3` je zmenší (−1,1 / −0,6 m). Rozhodnutí zůstává na autorovi. Měřidlo přitom
+  dostalo sklon podélné chyby po úsecích a latenci z podélné složky; první verze emulace brala každou
+  mezeru jako ztrátu (25. 9. latence p50 283 ms) — opraveno před měřením; kontrola pak našla, že
+  ztracené periody po záseku procesu 1. 10. padly na špatný vzorek (výstřelek 27 m/s) — rozděleny
+  podle enkodéru, čísla se pohnula v setinách. ⚠️ Protifakt, ne jízda — potvrdit na první jízdě
+  s binárkou ≥ 9afb50c.
+
 - **`odoratestd=` a hlídač prokluzu kol** (`lok-fuze-rucni-otoceni`, pokyn autora po měření
   z 10. 10.): `OdoRateStd` je parametr s výchozí hodnotou 0,3 (kola nesou 5,9 % integrálu `ω` místo
   24 %), přehrávání starších záznamů zůstává na 0,10. Nový `WheelSlipMonitor` porovnává otáčení

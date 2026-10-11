@@ -596,7 +596,15 @@ gyro a přírůstky gyra (podklad pro `OdoRateStd` a `SigmaAngAccel`) a varianty
 `IMUState` a `MotorStateBase`: epizody (začátek, délka, druh, rychlost, ∫kola, ∫gyro, rozdíl),
 souhrn po druzích, řádky do Trace po škrcení a s `--sweep` varianty prahů (`--abs=`, `--rel=`,
 `--minon=`, `--okno=`, `--minuhel=`); poslední řádek `SOUHRN;…` je pro souhrn přes víc záznamů.
-Hlídač od téhož dne posílá do záznamu **`WheelSlipMsg`** (verze 1). Konfiguraci
+Hlídač od téhož dne posílá do záznamu **`WheelSlipMsg`** (verze 1). **`predstih`** (11. 10. 2026)
+napodobí nad záznamem bez času motorové jednotky opravu razítek odometrie (perioda jednotky z časů
+příchodu, zdržené vs. ztracené vzorky, ztracené periody rozdělené podle enkodéru, `DeviceClock`,
+rychlost z enkodérů přes interval jednotky)
+a přehraje fúzi s koridorem i bez, s původní i opravenou odometrií: podélná chyba proti GPS se
+znaménkem (celkem, po minutách a sklon po úsecích se stálým směrem), podélná odchylka v sekundách
+jízdy (latence GPS), nejlepší časový posun GPS, tětiva pózy / kola a blok 9 nad
+opravenou odometrií (`lok-koridor-hranova-lokalizace`, [map-correlation-localization.md](map-correlation-localization.md)).
+Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 
