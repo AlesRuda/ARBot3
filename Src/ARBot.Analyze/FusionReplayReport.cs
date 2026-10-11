@@ -113,12 +113,13 @@ namespace ARBot.Analyze
         // ------------------------------------------------------------------ konfigurace z logu
 
         /// <summary>Ucinna konfigurace z logu: klic -&gt; (hodnota, puvod).</summary>
-        private static Dictionary<string, (string Value, string Origin)> ReadConfig(RecordFile rec, out string version)
+        internal static Dictionary<string, (string Value, string Origin)> ReadConfig(RecordFile rec, out string version)
         {
             var cfg = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
             version = null;
             var rx = new Regex(@"^\s+([A-Za-z_0-9]+)=(.*?)\s+\((default|profil|prikazova radka|zvoleno za behu)\)\s*$");
             bool inBlock = false;
+            int cizich = 0;
             foreach (var e in rec.Index)
             {
                 if (e.MsgName != "Info") continue;
@@ -128,7 +129,16 @@ namespace ARBot.Analyze
                 if (t.StartsWith("Konfigurace (ucinne hodnoty")) { inBlock = true; continue; }
                 if (!inBlock) continue;
                 var m = rx.Match(t);
-                if (!m.Success) { if (cfg.Count > 0) break; continue; }
+                if (!m.Success)
+                {
+                    // Do bloku muze vpadnout radek z jineho vlakna (driver, Trace) - blok konci az po
+                    // delsi rade cizich radku, ne po prvnim. Do 11. 10. 2026 se cteni na prvnim cizim
+                    // radku ukoncilo; od odoratestd= (34. klic ze 115) by to zaznam s 0,3 tise prehralo
+                    // s 0,10 (nalez kontroly).
+                    if (cfg.Count > 0 && ++cizich > 200) break;
+                    continue;
+                }
+                cizich = 0;
                 if (!cfg.ContainsKey(m.Groups[1].Value))
                     cfg[m.Groups[1].Value] = (m.Groups[2].Value.Trim(), m.Groups[3].Value);
             }
@@ -148,8 +158,9 @@ namespace ARBot.Analyze
         private static bool IsSet(Dictionary<string, (string Value, string Origin)> c, string key)
             => c.TryGetValue(key, out var v) && v.Origin != "default";
 
-        /// <summary>FusionConfig presne jako <c>ARBotRuntime.ApplyGpsQualityParams</c> + <c>ApplyImuHeadingParams</c>.</summary>
-        private static FusionConfig BuildFusionConfig(Dictionary<string, (string Value, string Origin)> c, GeoReference origin)
+        /// <summary>FusionConfig presne jako <c>ARBotRuntime.ApplyGpsQualityParams</c> + <c>ApplyImuHeadingParams</c>
+        /// + <c>ApplyOdoRateParam</c>.</summary>
+        internal static FusionConfig BuildFusionConfig(Dictionary<string, (string Value, string Origin)> c, GeoReference origin)
         {
             var f = new FusionConfig();
             if (IsSet(c, "gpsminsat")) f.GpsMinSatellites = (int)Math.Round(GetD(c, "gpsminsat", f.GpsMinSatellites));
@@ -162,6 +173,11 @@ namespace ARBot.Analyze
                 double hz = GetD(c, "imuheadinghz", 1);
                 f.CompassHeadingMinPeriodSec = hz > 0 ? 1.0 / hz : 0.0;
             }
+            // odoratestd= vznikl 11. 10. 2026 a zmenil vychozi 0,10 na 0,30. Binarka bez nej jela
+            // s 0,10, takze zaznam bez klice se musi prehrat s 0,10 (jinak by prehrani nesedelo na
+            // zaznam). Klic, ktery v logu je, plati vzdy - i s puvodem "default" je to hodnota, se
+            // kterou robot jel, a pozdejsi zmena vychozi hodnoty na ni nema vliv.
+            f.OdoRateStd = c.ContainsKey("odoratestd") ? GetD(c, "odoratestd", f.OdoRateStd) : FusionConfig.OdoRateStdLegacy;
             f.GeoReference = origin;
             return f;
         }

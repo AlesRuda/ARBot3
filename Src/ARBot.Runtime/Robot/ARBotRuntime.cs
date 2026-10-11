@@ -400,6 +400,7 @@ namespace ARBot.Robot
             var fusionConfig = new FusionConfig();
             ApplyGpsQualityParams(fusionConfig);
             ApplyImuHeadingParams(fusionConfig);
+            ApplyOdoRateParam(fusionConfig);
             FusionConfig = fusionConfig;
             var engine = new AsyncFusionEngine(new EKFModel(fusionConfig));
             fusionEngine = engine;   // drzime kvuli teleportu robotu (viz TeleportSimulatedRobot)
@@ -1264,6 +1265,17 @@ namespace ARBot.Robot
             connections.Add(stream.Connect(Stuck));
             connections.Add(Stuck.Output.Connect(stream));
 
+            // HLIDAC PROKLUZU KOL: uhlova rychlost z kol proti gyru (tentyz vzorec a rozchod jako
+            // Odo/rate ve fuzi). Jen hlasi - skoncene epizody do Trace (skrcene), WheelSlipMsg do
+            // zaznamu a radek na stranku nahledu; fuzi nemeni. Do 11. 10. 2026 nesla kola 24 %
+            // integralu omega a prokluz i otoceni rukou sly do kurzu bez jedineho hlaseni
+            // (lok-fuze-rucni-otoceni).
+            Slip = new ARBot.Common.Diagnostics.WheelSlipMonitor(
+                ARBot.Common.Diagnostics.WheelSlipConfig.From(FusionConfig));
+            stages.Add(Slip);
+            connections.Add(stream.Connect(Slip));
+            connections.Add(Slip.Output.Connect(stream));
+
             // Most Trace -> Info: debugovaci vystup (Debug.WriteLine i logy Avalonie) tece do Stream,
             // takze se ULOZI DO ZAZNAMU a da se precist zpetne - i z behu na zarizeni, kde k oknu
             // Debug output nikdo nesedi. Zalozeny a zapojeny do Trace je uz od zacatku dratovani
@@ -1420,6 +1432,12 @@ namespace ARBot.Robot
         /// Viz nav-uvaznuti-neohlasene.
         /// </summary>
         public ARBot.Common.Diagnostics.StuckMonitor Stuck { get; private set; }
+
+        /// <summary>
+        /// Hlidac prokluzu kol (otaceni z kol nesouhlasi s gyrem) - stranka nahledu z nej cte radek
+        /// „PROKLUZ kol". Viz lok-fuze-rucni-otoceni.
+        /// </summary>
+        public ARBot.Common.Diagnostics.WheelSlipMonitor Slip { get; private set; }
 
         /// <summary>Bezici mise FreeRun, nebo <c>null</c> (viz <c>mission=</c>).</summary>
         public ARBot.Common.Missions.FreeRunMission FreeRunMission { get; private set; }
@@ -2115,6 +2133,23 @@ namespace ARBot.Robot
                           + " stare chovani, pri kterem si filtr informaci z biasu nascita stokrat.",
                     hz, cfg.CompassHeadingMinPeriodSec));
             }
+        }
+
+        /// <summary>
+        /// Prenese <c>odoratestd=</c> (sigma uhlove rychlosti z kol) do
+        /// <see cref="FusionConfig.OdoRateStd"/>. Vychozi 0,3 je primo v <see cref="FusionConfig"/>;
+        /// do 11. 10. 2026 bylo 0,10 a kola nesla 24 % integralu ω (doc/ekf-fusion.md,
+        /// lok-fuze-rucni-otoceni).
+        /// </summary>
+        private static void ApplyOdoRateParam(FusionConfig cfg)
+        {
+            if (!ParamRegistry.OdoRateStd.IsSet) return;
+            cfg.OdoRateStd = ParamRegistry.OdoRateStd.Value;
+            Trace.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "odoratestd={0:F2} rad/s: sigma uhlove rychlosti z kol do fuze{1}", cfg.OdoRateStd,
+                cfg.OdoRateStd <= FusionConfig.OdoRateStdLegacy
+                    ? " - kola tim nesou aspon 24 % integralu omega (stare chovani)."
+                    : "."));
         }
 
         private void ApplyGoalParam(GeoReference origin)

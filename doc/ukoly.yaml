@@ -9371,7 +9371,8 @@ temata:
       z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy
       a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků
       (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky
-      1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1.
+      1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1 (⚠️ neplatí: kola
+      nesou 24 % ∫ω, změřeno 10. 10. 2026, viz `lok-fuze-rucni-otoceni`).
       **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie
       řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun
       hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu
@@ -9886,8 +9887,9 @@ temata:
     oblast: lokalizace
     nazev: Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-10-07
+    vyreseno: 2026-10-11
     popis: >
       1. 10. 2026 (`20261001-144638.rec`, 15:27:34,5–35,2) obsluha otočila stojícím robotem
       o ~60° (gyro až 110 °/s). Smyčka přitom velela opačnou rotaci a kola se točila proti tělu
@@ -9897,16 +9899,43 @@ temata:
       by grid po takovém zásahu zůstal pootočený o ~13° (obsah ve 3 m posunutý o ~0,7 m) a detektor
       by nic nehlásil — odvozené, na HW neověřené. V běžné jízdě se integrál gyra s kurzem fúze
       shoduje do ±2° za 10 s.
+      **Příčina změřena 10. 10. 2026** (`ARBot.Analyze gyrokola`, pět záznamů 12. 9.–1. 10. včetně
+      Kola 3b a 4): kola nesou **24 %** integrálu `ω`, ne ~3 %, jak tvrdila dokumentace („gyro
+      přehlasuje kola ~30 : 1" je informační podíl při `Q = 0`). Mezi měřeními (~5 ms) naroste
+      nejistota `ω` víc, než je `R` kol, takže rozhoduje poslední měření: po měření kol mají kola
+      váhu 0,67 a jsou posledním měřením 45 % času. Shodně ze zjednodušeného filtru (23,9–24,0 %),
+      z protifaktu celého enginu (23,7–24,0 %) i z událostí (otáčení rukou s koly stojícími,
+      64 epizod 12. 9.: λ 0,230–0,239). Otočení 1. 10. dá v ∫ω −19°, 12. 9. až 52°. V zatáčkách kola hlásí
+      o 3–7 % víc otočení než tělo (Kolo 3b p90 1,94), přes 74 zatáček Kola 3b to dělá 120° chyby
+      ∫ω. Vadné je `OdoRateStd` (0,10 rad/s; rozdíl kola − gyro má sd 0,10–0,19 rad/s rovně
+      a 0,17–0,29 v zatáčkách a k tomu systematický smyk), ne `SigmaAngAccel` (přírůstky gyra
+      za jízdy dávají 0,75–2,2 rad/s², 2 je na horní hraně). `OdoRateStd` 0,3 → podíl 5,9 %, otočení
+      −4,7°; 1,0 → 0,6 %, −0,5°. Detail a tabulka variant v ekf-fusion.md.
+      **Od 11. 10. 2026 v kódu** (rozhodnutí autora): `odoratestd=` s výchozí hodnotou 0,3 (přehrávání
+      starších záznamů 0,10) a hlídač `WheelSlipMonitor`, který rozdíl gyro / kola hlásí jako prokluz
+      (Trace, `WheelSlipMsg`, hlavička stránky, telemetrie) a fúzi nemění. Nad 50 záznamy 74 epizod,
+      z toho 11 za jízdy (`ARBot.Analyze prokluz`).
     kroky:
       - co: "Změřeno nad 1. 10. (gyro proti kolům, příkazu a kurzu fúze kolem 15:27:35)"
         stav: hotovo
         kdy: 2026-10-07
-      - co: "Rozhodnout (autor): rozpor gyro / kola nad prahem = věřit gyru (prokluz), nebo aspoň hlásit"
+      - co: "Změřit váhu gyra a kol v úhlovém kanálu EKF a protifakty `SigmaAngAccel` / `OdoRateStd` (`ARBot.Analyze gyrokola`)"
+        stav: hotovo
+        kdy: 2026-10-10
+      - co: "Rozhodnout (autor): `odoratestd=` jako parametr s výchozí 0,3 a rozdíl gyro / kola hlásit jako prokluz (fúzi neměnit)"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "V kódu: parametr `odoratestd=`, hlídač `WheelSlipMonitor` + `WheelSlipMsg`, řádek na stránce náhledu, telemetrie, `ARBot.Analyze prokluz`; prahy z přehrání nad 50 záznamy"
+        stav: hotovo
+        kdy: 2026-10-11
+      - co: "Ověřit na zařízení: otočení robotem rukou ukáže na stránce PROKLUZ a kurz fúze zaostane za gyrem jen o jednotky stupňů (záznam s `odoratestd` v logu, `ARBot.Analyze gyrokola --okna=`)"
         stav: otevreno
     odkazy:
       - text: ekf-fusion.md
         cesta: doc/ekf-fusion.md
-    devlog: [2026-10-07]
+      - text: headless.md
+        cesta: doc/headless.md
+    devlog: [2026-10-07, 2026-10-10, 2026-10-11]
     ceka_na: []
 
   - id: prov-zasek-procesu-1s

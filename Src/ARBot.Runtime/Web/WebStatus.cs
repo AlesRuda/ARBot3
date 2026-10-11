@@ -589,12 +589,14 @@ namespace ARBot.Robot.Web
             // Hlidac uvaznuti take PRED zamkem - ma vlastni zamek a poradi "WebStatus -> cizi
             // objekt" se tu uz jednou vymstilo (viz vyse).
             var stuck = Stuck();
+            // Hlidac prokluzu taky PRED zamkem (vlastni zamek, viz vyse).
+            var slip = Slip();
 
             lock (gate)
             {
                 sb.Append('{');
                 sb.Append("\"running\":").Append(running ? "true" : "false");
-                AppendHead(sb, mise, stuck);
+                AppendHead(sb, mise, stuck, slip);
                 Num(sb, "x", state?.X); Num(sb, "y", state?.Y); Num(sb, "theta", state?.Theta);
                 Num(sb, "v", state?.V); Num(sb, "omega", state?.Omega);
                 // Udaje planu jen z CERSTVEHO planu (jinak by po vypadku kamer zustala stara cisla)
@@ -693,7 +695,8 @@ namespace ARBot.Robot.Web
         /// NTP), zatimco <c>now</c> je <b>systemovy</b> cas - jediny udaj, kde je spravne
         /// <c>DateTime.Now</c>, protoze je to kalendarni cas pro cloveka (viz CLAUDE.md).</para>
         /// </summary>
-        private void AppendHead(StringBuilder sb, MiseSnimek mise, ARBot.Common.Diagnostics.StuckReading? stuck)
+        private void AppendHead(StringBuilder sb, MiseSnimek mise, ARBot.Common.Diagnostics.StuckReading? stuck,
+                                ARBot.Common.Diagnostics.WheelSlipReading? slip = null)
         {
             var b = BuildInfo.Current;
             sb.Append(",\"head\":{");
@@ -775,6 +778,16 @@ namespace ARBot.Robot.Web
             {
                 sb.Append(",\"stuck\":\"").Append(Escape(stuck.Value.Text)).Append('"');
                 sb.Append(",\"stuckLevel\":").Append((int)stuck.Value.Level);
+            }
+
+            // PROKLUZ KOL (hlidac prokluzu): otaceni z kol nesouhlasi s gyrem - kola hrabou, smyk,
+            // nebo s robotem nekdo otaci rukou. Probihajici oranzove, nedavno skonceny (do 30 s)
+            // jen jako informace - epizoda trva typicky 1-2 s a stranka se obnovuje po sekunde.
+            // Text sklada C# (WheelSlipDetector), stranka jen vybarvi.
+            if (slip.HasValue && slip.Value.Text.Length > 0)
+            {
+                sb.Append(",\"slip\":\"").Append(Escape(slip.Value.Text)).Append('"');
+                if (slip.Value.Recent) sb.Append(",\"slipRecent\":true");
             }
 
             AppendMissionPick(sb);
@@ -937,6 +950,29 @@ namespace ARBot.Robot.Web
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.WriteLine("WebStatus: cteni hlidace uvaznuti selhalo: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Zdroj hlidace <b>prokluzu kol</b> (<see cref="ARBot.Common.Diagnostics.WheelSlipMonitor"/>).
+        /// Vychozi cte tentyz objekt, ktery hlasi do Trace; test si podstrci vlastni. Viz lok-fuze-rucni-otoceni.
+        /// </summary>
+        public Func<ARBot.Common.Diagnostics.WheelSlipMonitor> SlipSource { get; set; } = SlipZRuntime;
+
+        private static ARBot.Common.Diagnostics.WheelSlipMonitor SlipZRuntime()
+            => ARBotRuntime.HasCurrent ? ARBotRuntime.Current.Slip : null;
+
+        /// <summary>Stav hlidace prokluzu, nebo <c>null</c> (zadny hlidac). Nesmi shodit stranku.</summary>
+        private ARBot.Common.Diagnostics.WheelSlipReading? Slip()
+        {
+            try
+            {
+                return SlipSource?.Invoke()?.Read();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine("WebStatus: cteni hlidace prokluzu selhalo: " + ex.Message);
                 return null;
             }
         }
@@ -1563,6 +1599,10 @@ function hlavicka(h){
  if(h.stuck)
   m+=(m?'<br>':'')+'<span class=""'+(h.stuckLevel>=2?'chyba':'ceka')+'"">'
    +h.stuck.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>';
+ // Prokluz kol (kola nesouhlasi s gyrem): probihajici oranzove, nedavno skonceny obycejne.
+ if(h.slip)
+  m+=(m?'<br>':'')+(h.slipRecent?'<span>':'<span class=""ceka"">')
+   +h.slip.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>';
  // Vybita baterie: v hlavicce, cervene - na Robotouru 19. 9. robot zastavil s vybitou baterii
  // a stranka napeti vubec neukazovala. Start mise se neblokuje, rozhoduje obsluha.
  if(h.batteryLow)

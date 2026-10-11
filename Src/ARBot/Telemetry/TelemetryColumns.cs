@@ -175,6 +175,23 @@ namespace ARBot.Telemetry
                 + "mrkev (slepý konec), cíl v překážce, plán vede dál a robot nejede, nebo plán hlásí "
                 + "dojezd k mrkvi a navigace jede dál."),
 
+            // --- hlidac prokluzu kol ---
+            Enum<WheelSlipMsg, WheelSlipLevel>("prokluz", m => m.Level,
+                "Hlídač prokluzu: Slip = otáčení z kol nesouhlasí s gyrem nad prahem (kola hrabou, smyk, "
+                + "otáčení rukou), None = prokluz skončil (koncová zpráva s délkou a integrály epizody). "
+                + "Viz doc/ekf-fusion.md."),
+            Enum<WheelSlipMsg, WheelSlipKind>("prokluz druh", m => m.Kind,
+                "Jak kola nesouhlasí s gyrem: kola stojí a robot se otáčí, kola proti robotu, kola víc "
+                + "než robot (prokluz), robot víc než kola (smyk)."),
+            Num<WheelSlipMsg>("prokluz kola [°/s]", m => Konecne(m.OdoRate * 180 / Math.PI),
+                "Průměrná úhlová rychlost z kol v okně hlídače (0,5 s).", "F1"),
+            Num<WheelSlipMsg>("prokluz gyro [°/s]", m => Konecne(m.GyroRate * 180 / Math.PI),
+                "Průměrná úhlová rychlost z gyra v okně hlídače (0,5 s).", "F1"),
+            Num<WheelSlipMsg>("prokluz rozdil [°]", m => (m.OdoAngle - m.GyroAngle) * 180 / Math.PI,
+                "O kolik se od začátku epizody liší otočení podle kol a podle gyra.", "F0"),
+            Num<WheelSlipMsg>("prokluz epizoda [s]", m => m.EpisodeSec,
+                "Jak dlouho prokluz trvá (v koncové zprávě celková délka).", "F1"),
+
             // --- globalni navigace ---
             Enum<GlobalNavMsg, GlobalNavStatus>("nav stav", m => m.Status,
                 "Stav globální navigace nad OSM sítí (bez cíle / jede k cíli / cíl dosažen / "

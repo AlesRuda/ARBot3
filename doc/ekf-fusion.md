@@ -224,7 +224,9 @@ naměřen 1,032–1,034), filtr to vyhladí na +1,9 %.
 
 Rozklad podle zdrojů (`fusionreplay` blok 8, tětiva pózy / kola na přímých úsecích) potvrzuje, že
 přebytek nevzniká v GPS ani v koridoru: bez GPS polohy, bez koridoru i jen z kol a IMU vychází
-1,016–1,019, s GPS 1,00–1,01. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1.
+1,016–1,019, s GPS 1,00–1,01. Odometrická `ω` má tutéž vadu, ale gyro ji ~~přehlasuje ~30 : 1~~
+přehlasovalo jen ~3 : 1 (kola nesla 24 % ∫ω při `OdoRateStd` 0,10, změřeno 10. 10.; od 11. 10.
+`odoratestd=0.3` → 5,9 %, viz „Kola nesou ~24 %" níž).
 Měří to `ARBot.Analyze fusionreplay`, bloky 8 a 9.
 
 ✅ **Léčba v kódu (1. 10. 2026, rozhodnutí autora): čas z motorové jednotky.** Skript v Roboteq
@@ -249,9 +251,11 @@ Postřeh autora 4. 10. 2026; že se `SlipDetector` nikde nevolá, ověřeno v k�
 
 Prokluz jde poznat jen proti **nezávislé** referenci:
 
-- **otáčení** — gyro proti `Odo/rate`; to fúze dělá a gyro kola přehlasuje **~30 : 1**
+- **otáčení** — gyro proti `Odo/rate`; to fúze dělá, ale gyro kola ~~přehlasuje **~30 : 1**
   (`GyroRateStd` 0,02 při 100 Hz proti `OdoRateStd` 0,10 při ~91 Hz), takže smyk v zatáčce do
-  kurzu neproteče;
+  kurzu neproteče~~. ⚠️ **Neplatí** (10. 10. 2026): to je informační podíl při `Q = 0`; s dnešním
+  `Q` kola nesly **24 %** integrálu `ω` a smyk do kurzu protékal, viz další sekce. Od 11. 10. 2026
+  nesou 5,9 % (`odoratestd=0.3`) a rozdíl gyro / kola se **hlásí jako prokluz** (`WheelSlipMonitor`);
 - **dopředná rychlost** — Doppler z GPS (10 Hz, rozlišení zhruba procenta), akcelerometr (šumí
   a má změřenou chybu měřítka +6,9 %), kamera.
 
@@ -260,6 +264,106 @@ Prokluz jde poznat jen proti **nezávislé** referenci:
 a stáhne ho jen GPS poloha se σ 30 m, tedy pomalu — další zdroj podélné chyby vedle obvodu kola
 a razítek odometrie. Pro odometrickou pózu lokální vrstvy (`lp-grid-odometricka-soustava`) to
 nevadí: za pár sekund paměti gridu je prokluz zanedbatelný.
+
+### ⚠️ Kola nesou ~24 % úhlové rychlosti, ne ~3 % (změřeno 2026-10-10)
+
+Tvrzení „gyro přehlasuje `Odo/rate` ~30 : 1" (výše i v tabulce „Co se škrtí a co ne") je
+**informační podíl**. Platil by, kdyby `ω` byla konstanta (`Q = 0`). Filtr ale `ω` modeluje jako
+náhodnou procházku se `SigmaAngAccel` = 2 rad/s². Gyro (100 Hz) a kola (91 Hz) se střídají po
+~5 ms a za tu dobu naroste nejistota `ω` o `4·0,005 = 0,02 (rad/s)²`, tedy víc než `R` kol (0,01)
+i gyra (0,0004). Rozhoduje proto **poslední měření**: po měření kol mají kola v posteriorní `ω`
+váhu **0,67**, po gyru gyro 0,986, a kola jsou posledním měřením **45 % času**. `OdomPose`
+i predikce `θ` integrují posteriorní `ω` drženou do dalšího uzlu, takže kola nesou **24 %**
+integrálu.
+
+Změřeno třemi nezávislými cestami (`ARBot.Analyze gyrokola`, pět záznamů 12. 9.–1. 10. včetně
+Kola 3b a 4):
+
+| cesta | podíl kol na ∫ω |
+|---|---|
+| filtr (θ, ω) jen s měřeními rychlosti a s časy ze záznamu | 23,9–24,0 % |
+| celý engine, kolům podstrčeno +0,02 rad/s | 23,7–24,0 % |
+| z událostí: `λ = (∫fúze − ∫gyro) / (∫kola − ∫gyro)` při otáčení rukou s koly stojícími (64 epizod, 12. 9.) | 0,230–0,239 (p10–p90) |
+| totéž při smyku nebo kolech proti tělu (6 epizod, 1. 10. a Kolo 3b) | 0,24 |
+
+Dopad:
+
+- **Otočení rukou** 1. 10. v 15:27:34 (`lok-fuze-rucni-otoceni`): ∫ω zaostane za gyrem o **19°**.
+  12. 9. (64 otočení rukou při kalibraci kompasu) až o **52°**. V `localframe=odom` je o tolik
+  pootočený grid.
+- **Zatáčky:** kola hlásí o **3–7 % víc** otočení než tělo (∫kola/∫gyro p50 1,033 / 1,054 /
+  1,072 / 1,043; v Kole 3b p90 1,94, tedy kořeny a štěrk). Čtvrtina toho jde do kurzu: součet
+  |∫fúze − ∫gyro| přes 74 zatáček Kola 3b je **120°**, tedy 1,6° na zatáčku.
+- **Trvalý posun kol** o 1,15 °/s posune kurz fúze, který drží kompas, o 1,9–3,4° (p50).
+
+**Chyba je v `OdoRateStd`, ne v `SigmaAngAccel`.** Přírůstky gyra za jízdy (sd 7,6–16,7 °/s za
+10 ms proti 0,3–0,7 °/s ve stání) dávají ekvivalent `√q` **0,75–2,2 rad/s²** (τ 10–100 ms). Při
+τ 0,5 s je to jen 0,3–0,7, takže `ω` je spíš zákmit než náhodná procházka. 2 rad/s² je tedy na
+horní hraně, ne nesmysl. Jestli je ta rychlá složka pohyb těla (patří do `Q`), nebo šum gyra za
+jízdy (patří do `R` gyra), z těchto dat rozlišit nejde; obě čtení ale berou váhu kolům, ne gyru.
+Snížit `SigmaAngAccel` na 0,25 zhorší sledování gyra (zpoždění). Rozdíl kola −
+gyro má přitom sd **0,10–0,19 rad/s v jízdě rovně a 0,17–0,29 v zatáčkách**. K tomu je systematický
+smyk podvozku 3–7 % a prokluz, takže deklarovaných 0,10 rad/s jako bílý šum je málo.
+
+| `SigmaAngAccel` | `OdoRateStd` | podíl kol | ∫ω − ∫gyro, otočení 1. 10. | Σ\|∫ω − ∫gyro\| zatáčky Kola 3b | RMS(ω − gyro) |
+|---|---|---|---|---|---|
+| 2 | **0,10 (do 11. 10.)** | 24 % | −19,0° | 120° | 1,5–3,6 °/s |
+| 1 | 0,10 | 12,9 % | −10,2° | 65° | 0,8–2,0 °/s |
+| 0,5 | 0,10 | 6,6 % | −5,2° | 33° | 0,9–1,2 °/s |
+| 0,25 | 0,10 | 4,3 % | −3,4° | 22° | 1,7–2,7 °/s |
+| 2 | **0,30 (od 11. 10.)** | 5,9 % | −4,7° | 31° | 0,4–1,1 °/s |
+| 2 | 1,00 | 0,6 % | −0,5° | 3° | 0,08–0,14 °/s |
+
+(RMS v čase `RobotStateMsg` přes čtyři jízdy; říká, kolik je ve fúzní `ω` něčeho jiného než gyra,
+a u `SigmaAngAccel` 0,25 roste zpožděním.) Výpadek gyra je vzácný: nejdelší mezera 1,19 s
+(zásek procesu 1. 10., `prov-zasek-procesu-1s`), jinak ≤ 0,09 s. I s `OdoRateStd` 1 by kola
+`ω` za výpadku nesla, s časovou konstantou ~50 ms.
+
+✅ **Od 11. 10. 2026 je `OdoRateStd` parametr `odoratestd=` s výchozí hodnotou 0,3** (rozhodnutí
+autora, `lok-fuze-rucni-otoceni`); `0.1` vrací staré chování. `SigmaAngAccel` zůstává 2. Přehrávání
+záznamu bez klíče `odoratestd` (`ARBot.Analyze fusionreplay`, `gyrokola`) použije 0,10, se kterou
+robot jel (`FusionConfig.OdoRateStdLegacy`). Test `OdoRateStdTests` drží mechanismus: s 0,3 nesou kola
+4–8 % integrálu `ω`, s 0,10 20–28 %. ⚠️ Na zařízení neběželo.
+
+### ✅ Prokluz kol se hlásí (`WheelSlipMonitor`, od 2026-10-11)
+
+Rozhodnutí autora 11. 10. 2026: rozdíl gyro / kola **hlásit jako prokluz**, fúzi neměnit (váhu
+kol stáhl `odoratestd=0.3`). Hlídač `WheelSlipDetector` / `WheelSlipMonitor`
+(`ARBot.Common/Diagnostics`, vzor hlídače uváznutí) porovnává úhlovou rychlost z kol (tentýž
+vzorec, rozchod a znaménko jako `Odo/rate`) s gyrem (`IMU/gyro`, jen IMU s absolutním kurzem):
+
+- **Průměr přes okno 0,5 s**, ne vzorek — rozdíl vzorek po vzorku má i bez prokluzu sd
+  0,10–0,29 rad/s (vibrace těla, které kola nevidí).
+- **Práh** `0,15 rad/s + 0,25·max(|ω̄kola|, |ω̄gyro|)`: poměrná část odfiltruje systematický smyk
+  podvozku v zatáčkách (kola hlásí o 3–7 % víc otočení než tělo).
+- **Epizoda začne**, když je rozdíl nad prahem aspoň 0,3 s **a** otočení podle kol a podle gyra se
+  rozešlo aspoň o **10°**; **skončí** po 0,5 s pod polovinou prahu. Délka a začátek epizody jsou
+  z **kumulativního rozdílu se znaménkem** (čas 10 % a 90 % celku, délka = rozdíl / 0,8): vibrace
+  gyra se v něm vyruší, kdežto součet |rozdílu| z 0,15s prokluzu udělal 1,5 s.
+- **Mezera v datech** nad 0,1 s (zásek procesu 1. 10. 2026, `prov-zasek-procesu-1s`) se
+  nevyhodnocuje — držená poslední hodnota by jinak vypadala jako prokluz. Úhly epizody se počítají
+  dál hned po mezeře (ztratí se jen mezera sama), epizoda skončí až po 1 s bez dat, i když jeden
+  zdroj přestane chodit úplně, a při zastavení runtime se probíhající prokluz ohlásí do Trace.
+- **Druh:** kola stojí a robot se otáčí (rukou, tlačení), kola hrabou (víc než robot), kola proti
+  robotu, smyk (robot víc než kola). Kdo „stojí", se rozhoduje i poměrem (pod pětinou druhé strany):
+  1. 10. se při uváznutí kola otočila o −49° a tělo o +6° — to je hrabání, ne „proti".
+
+**Kam se hlásí:** do Trace jeden řádek za skončenou epizodu (nejvýš jednou za 5 s, další se
+ohlásí souhrnem), do záznamu `WheelSlipMsg` (začátek, 1 Hz, konec s délkou a integrály), do
+hlavičky stránky náhledu (probíhající oranžově, skončená ještě 30 s) a do telemetrie (sloupce
+„prokluz…").
+
+**Přehrání nad 50 záznamy 2. 9.–1. 10. 2026** (`ARBot.Analyze prokluz`, tentýž kód; 3,4 h jízdy):
+**74 epizod**, z toho 63 ve stání (otáčení rukou při kalibraci kompasu, uváznutí, kdy kola hrabou
+na místě) a 11 za jízdy (kola hrabou 14. 9. o 237° proti tělu −12°, smyk v Kole 3b, otočení
+1. 10. v 15:27:35). Prahy jsou stabilní: varianty (abs 0,1–0,3, rel 0,15–0,4, okno 0,3–1 s,
+minimum 0,1–1 s, minimální rozdíl 0–20°) dávají 50–82 epizod. Podmínka 10° vyřadila osm
+nejasných epizod 5–10° (např. rozdíl, který se vyrušil). Nezávislá kontrola (workflow, čtyři
+pohledy s ověřením) našla v první verzi vady v délce epizody, v úhlech po mezeře v datech
+a v konci epizody při výpadku senzoru a testy, které procházely ze špatného důvodu; opraveno,
+31 testů hlídače a každé jeho pravidlo hlídá aspoň jeden test (ověřeno mutacemi). ⚠️ **Na zařízení
+neběželo** — ověřeno testy a přehráním záznamů; při `mission=magcal` hlásí otáčení rukou podle
+očekávání.
 
 ### Odometrie teče i pod nouzovým zastavením (2026-08-27)
 
@@ -844,6 +948,12 @@ výchozí **1 Hz** (`CompassHeadingMinPeriodSec = 1,0`), **0 = neomezeno** (star
 
 ⚠️ U T265 ber ten podíl s rezervou — `RelYawStd = 0,002` je v konfiguraci výslovně označené jako
 *„odhad, ne měření"*. Bez ní je to gyro 96,5 % / odometrie 3,5 %.
+
+⚠️ **Tabulka je informační podíl, ne skutečná váha** (10. 10. 2026). Platila by při konstantní `ω`.
+S `Q` filtru (`SigmaAngAccel` 2) rozhoduje poslední měření: při `OdoRateStd` 0,10 nesla odometrie
+**24 %** integrálu `ω`, od 11. 10. 2026 (`odoratestd=0.3`) **5,9 %**, viz „Kola nesou ~24 % úhlové
+rychlosti" výš. Závěr této sekce (kurz mezi odečty kompasu nese gyro) platí, jen ne v poměru
+78 : 2,8.
 
 **Ta asymetrie je fyzikálně obhajitelná, ne libovolná:** chyba gyra je převážně **bílá** (angular
 random walk), takže u něj je předpoklad nezávislosti zhruba počtivý — na rozdíl od kompasu, jehož

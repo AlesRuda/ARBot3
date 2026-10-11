@@ -585,7 +585,18 @@ záměrně nesedí). **`projekce`** (10. 10. 2026) vypíše popis projekce kamer
 hloubky a barvy, extrinsiky barva→hloubka, orientaci kamery v rámci robotu a úhel, o který by
 nepřevrácený hlavní bod pootočil paprsky (`vid-leva-kamera-hlavni-bod`). **`gpskurz`** spočítá
 zprávy GPS s kurzem vozidla (u-blox `headVeh`) a **`motory`** věcně nesmyslné rámce motorové
-jednotky (rychlost, napětí, proud, výstřelek enkodéru; `prov-audit-druha-davka`). Konfiguraci
+jednotky (rychlost, napětí, proud, výstřelek enkodéru; `prov-audit-druha-davka`).
+**`gyrokola`** (10. 10. 2026) přehraje fúzi (bez koridoru) a změří váhu kol a gyra v úhlovém kanálu:
+podíl kol na ∫ω ze zjednodušeného filtru i z protifaktu (kolům/gyru se podstrčí `--delta`),
+epizody otáčení s `λ = (∫fúze − ∫gyro)/(∫kola − ∫gyro)` a poměrem ∫kola/∫gyro, rozptyl kola −
+gyro a přírůstky gyra (podklad pro `OdoRateStd` a `SigmaAngAccel`) a varianty `--sigmy=`,
+`--odostd=`; `--okna=HH:mm:ss.f-HH:mm:ss.f` vypíše i zadaná okna (`lok-fuze-rucni-otoceni`,
+[ekf-fusion.md](ekf-fusion.md)). Trvá jednotky minut (18 přehrání paralelně). **`prokluz`**
+(11. 10. 2026) přehraje hlídač prokluzu kol (`WheelSlipDetector`, tentýž kód jako runtime) nad
+`IMUState` a `MotorStateBase`: epizody (začátek, délka, druh, rychlost, ∫kola, ∫gyro, rozdíl),
+souhrn po druzích, řádky do Trace po škrcení a s `--sweep` varianty prahů (`--abs=`, `--rel=`,
+`--minon=`, `--okno=`, `--minuhel=`); poslední řádek `SOUHRN;…` je pro souhrn přes víc záznamů.
+Hlídač od téhož dne posílá do záznamu **`WheelSlipMsg`** (verze 1). Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).
 

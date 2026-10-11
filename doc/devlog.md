@@ -39,6 +39,21 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-11
+
+- **`odoratestd=` a hlídač prokluzu kol** (`lok-fuze-rucni-otoceni`, pokyn autora po měření
+  z 10. 10.): `OdoRateStd` je parametr s výchozí hodnotou 0,3 (kola nesou 5,9 % integrálu `ω` místo
+  24 %), přehrávání starších záznamů zůstává na 0,10. Nový `WheelSlipMonitor` porovnává otáčení
+  z kol s gyrem (okno 0,5 s, práh 0,15 rad/s + 25 %, aspoň 0,3 s a 10°) a hlásí prokluz do Trace,
+  do záznamu (`WheelSlipMsg`), do hlavičky stránky náhledu a do telemetrie; fúzi nemění. Prahy
+  z přehrání nad 50 záznamy (`ARBot.Analyze prokluz`): 74 epizod, 63 ve stání (otáčení rukou,
+  uváznutí s hrabajícími koly), 11 za jízdy; varianty prahů 50–82. Nezávislá kontrola kódu
+  (workflow, 4 pohledy + ověření) našla v první verzi skutečné vady — délku epizody nafukovaly
+  vibrace gyra (0,15 s → 1,5 s), po mezeře 0,2 s se ztrácela i půlsekunda dat (úhel o 24 % menší),
+  epizoda při úplném výpadku senzoru neskončila nikdy — a testy, které procházely ze špatného
+  důvodu (poměrný práh ani brána 10° neměly test). Opraveno, 31 testů hlídače, každé pravidlo
+  ověřeno mutací. Rozhodnutí v [decisions.md](decisions.md). ⚠️ Na zařízení neběželo.
+
 ## 2026-10-10
 
 - **Okluzní pravidlo: výpočetní náročnost změřena** (`vid-inshadow-zahazuje-vzorky`, na otázku
@@ -100,6 +115,19 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   čte offset 84 místo 64 (do teď kurz pohybu). Kratší zpráva bez pole `headVeh` nesmí hlásit platný
   kurz. Převod je v `uBloxGps.VehicleHeadingFrom`; 4 nové testy, záměrná chyba (offset 64)
   zachycena, sady HAL 176 prošly. Spící vada, přijímač ten kurz dnes nehlásí; na zařízení neběželo.
+- **Kola nesou ~24 % úhlové rychlosti fúze, ne ~3 %** (`lok-fuze-rucni-otoceni`, třetí bod
+  průzkumu). Nový `ARBot.Analyze gyrokola` přehraje fúzi a měří podíl kol na ∫ω. Shodně vyšel
+  zjednodušeným filtrem, protifaktem celého enginu i z událostí: při otáčení rukou s koly
+  stojícími skončí v kurzu 23–24 % „nulového" otáčení kol (64 epizod 12. 9.; podíl je ve všech
+  pěti záznamech stejný). Mechanismus: `Q` úhlové rychlosti za ~5 ms mezi měřeními je větší než `R` kol, takže
+  vyhrává poslední měření. „Gyro přehlasuje kola ~30 : 1" byl informační podíl při `Q = 0`;
+  opraveno v ekf-fusion.md, configuration.md, CLAUDE.md a v komentáři `SlipDetector`.
+  Dopad: otočení rukou 1. 10. −19° v ∫ω, 12. 9. až −52°; zatáčky Kola 3b dohromady 120° (kola
+  hlásí o 3–7 % víc otočení než tělo). Vadné je `OdoRateStd`, ne `SigmaAngAccel` — přírůstky gyra
+  za jízdy dávají 0,75–2,2 rad/s², takže 2 je na horní hraně, ne nesmysl. `OdoRateStd` 0,3 srazí
+  podíl na 5,9 %, 1,0 na 0,6 %. Neopraveno, rozhodne autor. Nezávislá kontrola měřidla (workflow,
+  tři pohledy a ověření) našla dvě vady v třídění (otáčení na místě padalo do „stání" a stání se
+  posuzovalo jen na začátku intervalu); opraveno, podíl kol se nezměnil.
 
 ## 2026-10-09
 

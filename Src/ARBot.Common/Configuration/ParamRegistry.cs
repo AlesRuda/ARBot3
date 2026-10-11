@@ -258,6 +258,16 @@ namespace ARBot.Common.Configuration
               + "protoze jeho chyba je prevazne bila. Tataz lecba jako MinPeriod u korelace "
               + "s mapou. Viz doc/ekf-fusion.md.", ParamParsers.ImuHeadingHz);
 
+        public static readonly DoubleParam OdoRateStd = Num("odoratestd",
+              Fmt(new FusionConfig().OdoRateStd), K_FUZE,
+              "Sigma uhlove rychlosti z kol (Odo/rate) do fuze [rad/s]; 0.1 = chovani do "
+              + "11. 10. 2026. ⚠️ S 0.1 nesla kola 24 % integralu uhlove rychlosti, ne ~3 %: mezi "
+              + "merenimi (~5 ms) naroste nejistota omega vic nez R kol, takze rozhoduje posledni "
+              + "merenie, a otoceni robotem rukou nebo prokluz sel do kurzu (1. 10. -19 stupnu, "
+              + "12. 9. az -52). Rozdil kola - gyro ma sd 0,10-0,19 rad/s rovne a 0,17-0,29 "
+              + "v zatackach. Pri 0.3 nesou kola 5,9 %, gyro zbytek; za vypadku gyra omega unesou "
+              + "dal. Zmereno ARBot.Analyze gyrokola, viz doc/ekf-fusion.md.", ParamParsers.Kladne);
+
         public static readonly BoolParam MapCorrSend = Bool("mapcorrsend", "true", K_FUZE,
               "Posilat korekce z korelace do fuze, nebo je jen merit.");
         public static readonly StringParam MapCorrGate = Vycet("mapcorrgate", "soft", new[] { "soft", "reject" }, K_FUZE,

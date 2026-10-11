@@ -14,8 +14,11 @@ namespace ARBot.Common.Fusion
     /// (<c>curSpeed ± time·acceleration</c>, <c>Src/RoboRun/RizeniDiffPodvozku.mbs</c>), at ma trakci,
     /// nebo ne. Pri prokluzu se toci stejne, jen robot ujede mene — zrychleni kola je vzdy zrychleni
     /// rampy a mez <see cref="FusionConfig.MaxWheelAccel"/> neprekroci. Prokluz jde poznat jen
-    /// proti NEZAVISLE referenci: otaceni gyrem (to fuze dela, gyro prehlasuje <c>Odo/rate</c>
-    /// ~30 : 1), doprednou rychlost Dopplerem GPS (procenta, 10 Hz), akcelerometrem nebo kamerou.
+    /// proti NEZAVISLE referenci: otaceni gyrem (to fuze dela; „gyro prehlasuje <c>Odo/rate</c>
+    /// ~30 : 1" ale NEPLATILO - pri <c>OdoRateStd</c> 0,10 nesla kola 24 % integralu ω, od
+    /// 11. 10. 2026 <c>odoratestd=0.3</c> 5,9 %; rozdil gyro / kola od tehoz dne hlasi
+    /// <see cref="ARBot.Common.Diagnostics.WheelSlipMonitor"/>, tema <c>lok-fuze-rucni-otoceni</c>),
+    /// doprednou rychlost Dopplerem GPS (procenta, 10 Hz), akcelerometrem nebo kamerou.
     /// Viz doc/ekf-fusion.md („Prokluz kol fuze nepozna").</para>
     /// </summary>
     public class SlipDetector

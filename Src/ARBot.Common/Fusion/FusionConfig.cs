@@ -30,7 +30,30 @@ namespace ARBot.Common.Fusion
 
         // --- vychozi smerodatne odchylky merenia ---
         public double OdoSpeedStd = 0.05;      // [m/s]
-        public double OdoRateStd = 0.10;       // [rad/s]
+
+        /// <summary>
+        /// <b>Sigma uhlove rychlosti z kol</b> (<c>Odo/rate</c>) [rad/s]; parametr <c>odoratestd=</c>.
+        ///
+        /// <para><b>Do 11. 10. 2026 0,10.</b> S <see cref="SigmaAngAccel"/> 2 rad/s² naroste mezi
+        /// merenimi (gyro 100 Hz a kola 91 Hz se stridaji po ~5 ms) nejistota ω o 0,02 (rad/s)²,
+        /// tedy vic nez R kol (0,01). Rozhoduje proto posledni merenie: po merenii kol mela kola
+        /// v posteriorni ω vahu 0,67 a nesla <b>24 %</b> integralu ω — ne ~3 %, jak rikal
+        /// informacni podil (ten plati jen pro konstantni ω). Otoceni robotem rukou nebo prokluz
+        /// tak sel do kurzu: 1. 10. −19°, 12. 9. az −52°, zatacky Kola 3b dohromady 120°.</para>
+        ///
+        /// <para><b>Proc 0,3:</b> rozdil kola − gyro ma sd 0,10–0,19 rad/s v jizde rovne
+        /// a 0,17–0,29 v zatackach a k tomu systematicky smyk podvozku 3–7 % a prokluz, takze
+        /// 0,10 jako bily sum je malo. Pri 0,3 nesou kola 5,9 % integralu; za vypadku gyra ω unesou
+        /// dal (casova konstanta ~20 ms). <see cref="SigmaAngAccel"/> se nemeni — prirustky gyra za
+        /// jizdy davaji 0,75–2,2 rad/s². Zmereno <c>ARBot.Analyze gyrokola</c> nad peti zaznamy,
+        /// rozhodnuti autora 11. 10. 2026; doc/ekf-fusion.md, tema <c>lok-fuze-rucni-otoceni</c>.</para>
+        /// </summary>
+        public double OdoRateStd = 0.30;       // [rad/s]
+
+        /// <summary>Hodnota <see cref="OdoRateStd"/> do 11. 10. 2026 — s ni jely vsechny starsi zaznamy
+        /// (prehravani zaznamu bez klice <c>odoratestd</c> ji musi pouzit).</summary>
+        public const double OdoRateStdLegacy = 0.10;
+
         public double GyroRateStd = 0.02;      // [rad/s]
         public double CompassHeadingStd = 0.05; // [rad]
 

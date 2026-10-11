@@ -13,6 +13,30 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-11 — Sigma úhlové rychlosti z kol 0,3 a rozdíl gyro / kola se hlásí jako prokluz
+
+**Co:** `OdoRateStd` je parametr `odoratestd=` s výchozí hodnotou **0,3** (do teď 0,10 natvrdo),
+`SigmaAngAccel` zůstává 2. Rozdíl otáčení z kol a z gyra hlásí nový hlídač `WheelSlipMonitor`
+(Trace, `WheelSlipMsg`, hlavička stránky) — **jen hlásí, fúzi nemění**. Rozhodnutí autora
+(`lok-fuze-rucni-otoceni`).
+
+**Proč:**
+- **Kola nesla 24 % integrálu `ω`, ne ~3 %.** S procesním šumem `SigmaAngAccel` 2 rad/s² naroste
+  nejistota `ω` mezi měřeními (~5 ms) víc, než je `R` kol, takže vyhrává poslední měření.
+  Změřeno třemi cestami nad pěti záznamy (`ARBot.Analyze gyrokola`); otočení rukou 1. 10. dalo
+  v kurzu −19°, 12. 9. až −52°.
+- **Vadné bylo `OdoRateStd`, ne `SigmaAngAccel`.** Rozdíl kola − gyro má sd 0,10–0,19 rad/s
+  v jízdě rovně a 0,17–0,29 v zatáčkách a k tomu systematický smyk 3–7 %; přírůstky gyra za jízdy
+  dávají 0,75–2,2 rad/s², takže 2 sedí. Při 0,3 nesou kola 5,9 %, za výpadku gyra `ω` unesou dál.
+- **Prokluz z kol samotných poznat nejde** (jsou hnaná a ve zpětné vazbě), jen proti gyru —
+  a fúze ho tiše vstřebávala. Hlásit ho je levné a obsluha i rozbor záznamu vidí, kdy kola lhala.
+- **Proč jen hlásit:** s 0,3 je dopad prokluzu na kurz malý (10° rozdílu ≈ 0,6° kurzu) a nafukovat
+  `R` kol za prokluzu by byl další stavový mechanismus ve fúzi bez změřené potřeby.
+
+**Důsledky:** záznamy bez klíče `odoratestd` se přehrávají s 0,10 (`FusionConfig.OdoRateStdLegacy`).
+Prahy hlídače jsou z přehrání nad 50 záznamy (74 epizod, z toho 11 za jízdy; varianty 50–82).
+Na zařízení neběželo. Detail: [ekf-fusion.md](ekf-fusion.md).
+
 ### 2026-10-10 — Prahy klasifikace polárního gridu zůstávají, jak jsou
 
 **Co:** po změření nad 46 záznamy (`ARBot.Analyze prahy`, `vid-grid-prahy-realna-data`) se

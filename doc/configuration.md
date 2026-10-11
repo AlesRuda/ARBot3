@@ -1,7 +1,7 @@
 # Konfigurace aplikace — parametry, profily, panel
 
 > **Stav 2026-09-01:** **hotové a otestované** (`ARBot.Common/Configuration`, panel *Tools →
-> Konfigurace*). Jádro má **77 testů**. Registr obsahuje **85 parametrů** (k 1. 9.; **111 k 8. 10. 2026** po `UartBms` a `batwarnsoc` — ve skutečnosti už tehdy 113, číslo zaostalo; **114 k 10. 10. 2026** po `colorshadow`)
+> Konfigurace*). Jádro má **77 testů**. Registr obsahuje **85 parametrů** (k 1. 9.; **111 k 8. 10. 2026** po `UartBms` a `batwarnsoc` — ve skutečnosti už tehdy 113, číslo zaostalo; **114 k 10. 10. 2026** po `colorshadow`; **115 k 11. 10. 2026** po `odoratestd`)
 > a strážný test hlídá, že se neroze­jde se zdrojovým kódem.
 >
 > **Ověřeno za běhu:** aplikace nastartuje s profilem (`config=`), bezobslužný self-test s ním
@@ -388,13 +388,19 @@ Fúze posuzuje, **jak dobrý fix dostala**, místo aby brala každý stejně:
 | `gpsdopsigma=` | true | násobit sigmu polohy hodnotou DOP (`sigma = gpsposstd · max(1, DOP)`) |
 | `imuheadingstd=` | 5 | **podlaha σ kurzu z kompasu ve STUPNÍCH**; 0 = vypnuto |
 | `imuheadinghz=` | 1 | **kadence absolutního kurzu z kompasu** [Hz]; 0 = neomezeno |
+| `odoratestd=` | 0,3 | **σ úhlové rychlosti z kol** (`Odo/rate`) [rad/s]; 0,1 = chování do 11. 10. 2026 |
+
+⚠️ **`odoratestd=` (od 11. 10. 2026):** s 0,1 nesla kola **24 %** integrálu úhlové rychlosti fúze,
+ne ~3 % — mezi měřeními (~5 ms) naroste nejistota `ω` víc, než je `R` kol, takže rozhoduje poslední
+měření. Otočení robotem rukou nebo prokluz tak šel do kurzu (1. 10. −19°). S 0,3 nesou kola 5,9 %.
+Záznamy bez tohoto klíče se přehrávají s 0,1. Detail: [ekf-fusion.md](ekf-fusion.md).
 
 ⚠️ **`imuheadingstd=` je týž druh vady na druhém senzoru.** VN100 hlásí `YprU` (yaw 1σ)
 **0,059°**, ale jeho změřená chyba proti GPS je **3–5°** — do 12. 9. 2026 si to fúze brala jako
 σ měření přímo, takže kurz z kompasu **nevážila, přebírala**. Podlaha se sklada s `YprU`
 **kvadraticky** (ne maximem — když `YprU` vyskočí, σ má růst dál). Parser **odmítne hodnotu
 v intervalu (0; 0,1)**, protože `imuheadingstd=0.087` myšlené v radiánech by tiše nastavilo
-0,087 **stupně** a podlahu tím fakticky vyplo. `imuheadinghz=` je druhá polovina téhož: podlaha řeší, jak moc se věří **jednomu** vzorku, kadence to, že jich filtr bere **100 za sekundu jako nezávislé** — jenže sto odečtů téže konstanty nese informaci jednoho. ⚠️ **Škrtí se jen absolutní kurz, ne gyro:** `IMU/gyro` jde dál v plné kadenci a mezi odečty kompasu nese kurz právě ono (78 % informace o úhlové rychlosti; odometrie jen 2,8 %). Detaily a naměřená čísla:
+0,087 **stupně** a podlahu tím fakticky vyplo. `imuheadinghz=` je druhá polovina téhož: podlaha řeší, jak moc se věří **jednomu** vzorku, kadence to, že jich filtr bere **100 za sekundu jako nezávislé** — jenže sto odečtů téže konstanty nese informaci jednoho. ⚠️ **Škrtí se jen absolutní kurz, ne gyro:** `IMU/gyro` jde dál v plné kadenci a mezi odečty kompasu nese kurz právě ono (78 % informace o úhlové rychlosti; odometrie jen 2,8 %; ⚠️ to je informační podíl — při `OdoRateStd` 0,1 nesla odometrie **24 %** integrálu `ω` (změřeno 10. 10. 2026), od 11. 10. s `odoratestd=0.3` **5,9 %**, viz [ekf-fusion.md](ekf-fusion.md) a `lok-fuze-rucni-otoceni`). Detaily a naměřená čísla:
 [ekf-fusion.md](ekf-fusion.md).
 
 Podstatné je **škálování sigmy** — kvalita fixu je spojitá veličina, takže slabý fix dostane malou

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **267**: otevřeno **37** · v kódu, na HW neověřeno **36** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **267**: otevřeno **36** · v kódu, na HW neověřeno **37** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -41,7 +41,6 @@ Témat celkem **267**: otevřeno **37** · v kódu, na HW neověřeno **36** · 
 | otevřeno | Hardware a senzory | [VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C](#hw-vn100-zmena-po-27-9) | 29. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Napětí baterie z Roboteqa je na 4S LiFePO4 podezřele nízké (nikdy nad 12,6 V)](#hw-baterie-napeti-nizke) | 6. 10. 2026 |  |
 | otevřeno | Hardware a senzory | [Dávka rámců motorů přečtená z bufferu po záseku hlásí rychlost kol 0 (a jednou 7,4 m/s) jako platné měření](#hw-motor-davka-po-zaseku) | 7. 10. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
@@ -78,6 +77,7 @@ Témat celkem **267**: otevřeno **37** · v kódu, na HW neověřeno **36** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [V úzkém průjezdu plán „schoduje“ po buňkách 45° a regulátor kvůli tomu jede ~0,1 m/s, ačkoli obálka plánu dovoluje 0,6–0,9](#lp-schody-v-uzine-regulator-brzdi) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Po uvolnění holdu chodí plán až za 9–13 s a zastaralý regulátor mezitím točí robotem na místě](#lp-zastaraly-regulator-toci-na-miste) | 5. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Ujetá dráha a průměrná rychlost mise na stránce náhledu](#prov-ujeto-v-misi-na-strance) | 6. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°](#lok-fuze-rucni-otoceni) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [`AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu](#lp-alreadyatgoal-lokalni-minimum) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Smazání gridu po skoku pózy nezanechá v Trace stopu](#lp-mazani-gridu-bez-stopy) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize únikové dráhy nevyjímá startovní buňku — falešné „NOUZOVE ZASTAVENI – kolize 0,00 m“](#lp-unik-kontrola-kolize-startu) | 7. 10. 2026 |  |
@@ -175,18 +175,6 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07)
 
-<a id="lok-fuze-rucni-otoceni"></a>
-### ⬜ Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°
-
-`lok-fuze-rucni-otoceni` · vada · **otevřeno** · nalezeno 7. 10. 2026
-
-1. 10. 2026 (`20261001-144638.rec`, 15:27:34,5–35,2) obsluha otočila stojícím robotem o ~60° (gyro až 110 °/s). Smyčka přitom velela opačnou rotaci a kola se točila proti tělu (prokluz), fúzní `ω` spadlo na 5–13 °/s a kurz fúze zaostal za gyrem o 11–13°. Ve světové soustavě to `PoseJumpDetector` vzal jako skok kurzu a grid smazal (což náhodou ukončilo 132s `RobotBlocked`). ⚠️ V odometrické soustavě (`localframe=odom`, integruje fúzní `v`, `ω`) by grid po takovém zásahu zůstal pootočený o ~13° (obsah ve 3 m posunutý o ~0,7 m) a detektor by nic nehlásil — odvozené, na HW neověřené. V běžné jízdě se integrál gyra s kurzem fúze shoduje do ±2° za 10 s.
-
-- [x] Změřeno nad 1. 10. (gyro proti kolům, příkazu a kurzu fúze kolem 15:27:35) (7. 10. 2026)
-- [ ] Rozhodnout (autor): rozpor gyro / kola nad prahem = věřit gyru (prokluz), nebo aspoň hlásit
-
-[ekf-fusion.md](ekf-fusion.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
-
 <a id="lok-koridor-slepy-v-zatacce"></a>
 ### ⬜ V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m
 
@@ -257,7 +245,7 @@ Autor z náhledu webu a z měření ví, že při skocích pózy 0,6–4 m z Rob
 
 `lok-fuze-poza-pred-koly` · vada · **v kódu, na HW neověřeno** · nalezeno 29. 9. 2026 · vyřešeno 1. 10. 2026
 
-Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1. **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. Skript 2.1 je v jednotce (autor 6. 10. 2026); jízda s ním zatím vyhodnocená není.
+Vedlejší nález při ověření obvodu kola (`lok-odometrie-obvod-kola`, 29. 9. 2026): na přímých úsecích je kola / tětiva GPS 0,999, ale **tětiva pózy / tětiva GPS 1,011** v obou jízdách (`20260929-150844.rec`, `-151634.rec`; 25. 9. 1,018 proti 1,023). Podélně je póza před GPS o ~1 % dráhy (FreeRun +4 m za 280 s). Měřidlo dráhu z kol nepodhodnocuje (vzorky motorů po 12 ms, žádná mezera ≥ 0,1 s). Integrál `V` ze stavu fúze vychází o 2–3 % nad dráhou z kol, ale `V` proti kolům ve stejném okamžiku p50 0,94 (p10–p90 0,89–1,16) — ukazuje to spíš na časový posun mezi `RobotStateMsg` a `MotorStateBase` než na měřítko; neprověřeno. GPS s σ 30 m pózu nevrátí, takže to jde 1:1 do podélné chyby. Na rovince dlouhé 1 km je to ~10 m. **Příčina nalezena 1. 10. 2026: razítka odometrie.** `SDC2160Ex.GetMeasurement` bere razítko na **začátku** čtení (`ts = TimeBase.Now` před čekáním na řádek `DI=`) a rychlost počítá jako `Δenkodér / Δrazítko`. Kontrolér posílá v pravidelné periodě (enkodér přibude v každém vzorku o stejných ~13,8 mm), ale řádky chodí po sériové lince v dávkách, takže razítka mají vzor **12 / 12 / 9 ms** a vzorek po krátkém intervalu hlásí rychlost **1,334×** průměru sousedů (po dlouhém 0,857×). Integrál „hodnota platí zpětně" to vyruší přesně (enkodéry / integrál rychlostí 1,000 — proto `posegps` a měření obvodu kola sedí), **EKF ale měření drží dopředu**: integrál dopředu 1,032–1,034 × enkodéry, EKF krmený jen `Odo/speed` **1,0185–1,0192** ve všech čtyřech jízdách (25. 9. a 29. 9.). Rozklad (`fusionreplay` blok 8): fúze bez GPS i bez koridoru ujede 1,016–1,018 × kola, GPS polohu stahuje zpět na 1,00–1,01 (podle jízdy), korekce z koridoru nepřidávají nic soustavného. Měřidlo `posegps` (okna vybraná podmínkou na poměr pózy a kol) to nadsazovalo jen o ~0,005. **Protifakt:** rychlost z enkodérů přes okno 3 vzorků (~33 ms, celá perioda dávek) dá **1,0004–1,0008** (jízda s 1,6s mezerami 1,0022), přes 2 vzorky 1,006. Odometrická `ω` má tutéž vadu, ale gyro ji přehlasuje ~30 : 1 (⚠️ neplatí: kola nesou 24 % ∫ω, změřeno 10. 10. 2026, viz `lok-fuze-rucni-otoceni`). **Léčba (autor, 1. 10. 2026): čas z motorové jednotky.** Skript posílá před blokem telemetrie řádek `T=<ms>`, `SDC2160Ex` z něj bere interval pro rychlost i razítko (`DeviceClock`: posun hodin = minimum `příchod − čas jednotky`, stoupání omezené driftem, resync po restartu jednotky). Okno rychlosti ve fúzi se dělat nebude. `MotorStateBase` verze 4 (`DeviceTimeMs`). Zpětně kompatibilní oběma směry. Skript 2.1 je v jednotce (autor 6. 10. 2026); jízda s ním zatím vyhodnocená není.
 
 - [x] Změřeno: tětiva pózy 1,011 proti kolům 0,999 (`posegps`) (29. 9. 2026)
 - [x] Najít příčinu: přehrát fúzi jen z odometrie a IMU (`fusionreplay`) a porovnat dráhu s integrálem kol; prověřit časová razítka stavu proti odometrii. Výsledek: razítka `SDC2160Ex` (vzor 12/12/9 ms) a rychlost `Δenc/Δrazítko` držená v EKF dopředu; `fusionreplay` bloky 8 a 9 (1. 10. 2026)
@@ -287,6 +275,21 @@ Vedlejší nález při přeměření `lok-koridor-pricna-brana` (1. 10. 2026). P
 - [x] Protifakt nad jízdami 1. 10. 2026 (`assocwhy --k=0` proti `--jelk=4`; robot jel ještě s `assock=4`): neutrální — FreeRun mění 7 cyklů (Ok → Ambiguous, sousední úsek téže cesty), Track 98 Ok → Ambiguous, 24 NoCandidate → Ambiguous, 12 NoCandidate → Ok, 3 na jinou cestu (jen na startu ve stání, σ velká); vybraná cesta zůstává do 2 m od GPS ve 100 %. Souběžnou ulici modřanská trať netestuje (7. 10. 2026)
 
 [map-correlation-localization.md](map-correlation-localization.md), [EdgeAssociator.cs](../Src/ARBot.Common/Localization/EdgeAssociator.cs) · DevLog [2026-10-01](devlog.md#2026-10-01), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="lok-fuze-rucni-otoceni"></a>
+### 🧪 Při otočení robotem rukou fúze věří kolům místo gyra — kurz zaostane o 11–13°
+
+`lok-fuze-rucni-otoceni` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 11. 10. 2026
+
+1. 10. 2026 (`20261001-144638.rec`, 15:27:34,5–35,2) obsluha otočila stojícím robotem o ~60° (gyro až 110 °/s). Smyčka přitom velela opačnou rotaci a kola se točila proti tělu (prokluz), fúzní `ω` spadlo na 5–13 °/s a kurz fúze zaostal za gyrem o 11–13°. Ve světové soustavě to `PoseJumpDetector` vzal jako skok kurzu a grid smazal (což náhodou ukončilo 132s `RobotBlocked`). ⚠️ V odometrické soustavě (`localframe=odom`, integruje fúzní `v`, `ω`) by grid po takovém zásahu zůstal pootočený o ~13° (obsah ve 3 m posunutý o ~0,7 m) a detektor by nic nehlásil — odvozené, na HW neověřené. V běžné jízdě se integrál gyra s kurzem fúze shoduje do ±2° za 10 s. **Příčina změřena 10. 10. 2026** (`ARBot.Analyze gyrokola`, pět záznamů 12. 9.–1. 10. včetně Kola 3b a 4): kola nesou **24 %** integrálu `ω`, ne ~3 %, jak tvrdila dokumentace („gyro přehlasuje kola ~30 : 1" je informační podíl při `Q = 0`). Mezi měřeními (~5 ms) naroste nejistota `ω` víc, než je `R` kol, takže rozhoduje poslední měření: po měření kol mají kola váhu 0,67 a jsou posledním měřením 45 % času. Shodně ze zjednodušeného filtru (23,9–24,0 %), z protifaktu celého enginu (23,7–24,0 %) i z událostí (otáčení rukou s koly stojícími, 64 epizod 12. 9.: λ 0,230–0,239). Otočení 1. 10. dá v ∫ω −19°, 12. 9. až 52°. V zatáčkách kola hlásí o 3–7 % víc otočení než tělo (Kolo 3b p90 1,94), přes 74 zatáček Kola 3b to dělá 120° chyby ∫ω. Vadné je `OdoRateStd` (0,10 rad/s; rozdíl kola − gyro má sd 0,10–0,19 rad/s rovně a 0,17–0,29 v zatáčkách a k tomu systematický smyk), ne `SigmaAngAccel` (přírůstky gyra za jízdy dávají 0,75–2,2 rad/s², 2 je na horní hraně). `OdoRateStd` 0,3 → podíl 5,9 %, otočení −4,7°; 1,0 → 0,6 %, −0,5°. Detail a tabulka variant v ekf-fusion.md. **Od 11. 10. 2026 v kódu** (rozhodnutí autora): `odoratestd=` s výchozí hodnotou 0,3 (přehrávání starších záznamů 0,10) a hlídač `WheelSlipMonitor`, který rozdíl gyro / kola hlásí jako prokluz (Trace, `WheelSlipMsg`, hlavička stránky, telemetrie) a fúzi nemění. Nad 50 záznamy 74 epizod, z toho 11 za jízdy (`ARBot.Analyze prokluz`).
+
+- [x] Změřeno nad 1. 10. (gyro proti kolům, příkazu a kurzu fúze kolem 15:27:35) (7. 10. 2026)
+- [x] Změřit váhu gyra a kol v úhlovém kanálu EKF a protifakty `SigmaAngAccel` / `OdoRateStd` (`ARBot.Analyze gyrokola`) (10. 10. 2026)
+- [x] Rozhodnout (autor): `odoratestd=` jako parametr s výchozí 0,3 a rozdíl gyro / kola hlásit jako prokluz (fúzi neměnit) (11. 10. 2026)
+- [x] V kódu: parametr `odoratestd=`, hlídač `WheelSlipMonitor` + `WheelSlipMsg`, řádek na stránce náhledu, telemetrie, `ARBot.Analyze prokluz`; prahy z přehrání nad 50 záznamy (11. 10. 2026)
+- [ ] Ověřit na zařízení: otočení robotem rukou ukáže na stránce PROKLUZ a kurz fúze zaostane za gyrem jen o jednotky stupňů (záznam s `odoratestd` v logu, `ARBot.Analyze gyrokola --okna=`)
+
+[ekf-fusion.md](ekf-fusion.md), [headless.md](headless.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-10](devlog.md#2026-10-10), [2026-10-11](devlog.md#2026-10-11)
 
 <a id="lok-korelace-gridu-s-mapou"></a>
 ### ⏸ Korelace occupancy gridu s mapou jako oprava polohy a kurzu

@@ -63,6 +63,7 @@ namespace ARBot.Common.Communication
             c.Register(new MagCalMsg());
             c.Register(new TrackMsg());
             c.Register(new StuckMsg());
+            c.Register(new WheelSlipMsg());
             // POZN.: PolarTraversabilityGridMsg zrusen - grid je nyni soucasti CameraFrame
             // (viz doc/plan-camera-vision-refactor.md). Stare zaznamy s touto zpravou se pri replay
             // preskoci (neznamy typ), prehravani se nerozbije.

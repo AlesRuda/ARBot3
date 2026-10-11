@@ -283,6 +283,18 @@ namespace ARBot.Analyze
                     case "motory":
                         MotoryReport.Run(rec, Arg(args, "--maxv", 3.0), Arg(args, "--maxi", 40.0), (int)Arg(args, "--vypis", 10));
                         return 0;
+                    case "prokluz":
+                        ProkluzReport.Run(rec, Arg(args, "--abs", new ARBot.Common.Diagnostics.WheelSlipConfig().AbsThresholdRadS),
+                                          Arg(args, "--rel", new ARBot.Common.Diagnostics.WheelSlipConfig().RelThreshold),
+                                          Arg(args, "--minon", new ARBot.Common.Diagnostics.WheelSlipConfig().MinOnSec),
+                                          Arg(args, "--okno", new ARBot.Common.Diagnostics.WheelSlipConfig().WindowSec),
+                                          Arg(args, "--minuhel", new ARBot.Common.Diagnostics.WheelSlipConfig().MinAngleRad * 180 / Math.PI),
+                                          args.Contains("--sweep"), (int)Arg(args, "--vypis", 30));
+                        return 0;
+                    case "gyrokola":
+                        GyroKolaReport.Run(rec, Arg(args, "--delta", 0.02), Text(args, "--okna"), Text(args, "--set"),
+                                           Text(args, "--sigmy"), Text(args, "--odostd"), (int)Arg(args, "--vypis", 25));
+                        return 0;
                     case "gpskurz":
                         GpsKurzReport.Run(rec);
                         return 0;
@@ -521,6 +533,12 @@ namespace ARBot.Analyze
             Console.WriteLine("  okluze     okluzni pravidlo barvy: kolik barevnych vzorku zahodi stin za prvni prekazkou,");
             Console.WriteLine("             co ho vrha (vyska, velikost skvrny) a protifakty (stin podle vysky, ignorovat");
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
+            Console.WriteLine("  prokluz    hlidac prokluzu kol (WheelSlipDetector, tentyz kod jako runtime) nad IMU a motory:");
+            Console.WriteLine("             epizody, souhrn po druzich, radky do Trace; --sweep = varianty prahu;");
+            Console.WriteLine("             --abs= --rel= --minon= --okno= --minuhel=[deg] --vypis=30");
+            Console.WriteLine("  gyrokola   vaha gyra a kol v uhlovem kanalu fuze: podil kol na ∫ω (filtr, protifakt +--delta=0.02 rad/s),");
+            Console.WriteLine("             epizody otaceni (λ, ∫kola/∫gyro), varianty --sigmy=2,1,0.5,0.25 --odostd=0.1,0.3,1;");
+            Console.WriteLine("             --okna=HH:mm:ss.f-HH:mm:ss.f[,...] --vypis=25 --set=klic=hodnota");
             Console.WriteLine("  gpskurz    kolik GPSState nese kurz VOZIDLA (Orientation, u-blox headVeh) a jak se lisi od kurzu pohybu");
             Console.WriteLine("  motory     vecne nesmyslne ramce motorove jednotky (rychlost, napeti, proud, vystrelek enkoderu)");
             Console.WriteLine("             --maxv=3 --maxi=40 --vypis=10");

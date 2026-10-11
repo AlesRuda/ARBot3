@@ -991,6 +991,54 @@ namespace ARBot.Runtime.Tests.Web
         }
 
         /// <summary>
+        /// Hlidac prokluzu, ktery prave „videl" otaceni rukou s koly stojicimi (gyro 1 rad/s) po
+        /// dobu <paramref name="otaceniSec"/> s, a pak jeste <paramref name="klidSec"/> s klidu;
+        /// posledni vzorek = TimeBase.Now.
+        /// </summary>
+        private static ARBot.Common.Diagnostics.WheelSlipMonitor Otaceni(double otaceniSec, double klidSec)
+        {
+            var m = new ARBot.Common.Diagnostics.WheelSlipMonitor(report: _ => { });
+            var konec = ARBot.Common.Common.TimeBase.Now;
+            double celkem = 1 + otaceniSec + klidSec;
+            for (int k = 0; k * 0.01 <= celkem; k++)
+            {
+                double t = k * 0.01;
+                var ts = konec.AddSeconds(t - celkem);
+                double w = t >= 1 && t < 1 + otaceniSec ? 1.0 : 0.0;
+                m.Process(new ARBot.Common.Models.IMUState { TimeStamp = ts, HasAbsoluteHeading = true,
+                                         AngularVelocity = new System.Numerics.Vector3(0, 0, (float)w) });
+                m.Process(new ARBot.Common.Devices.MotorStateBase(false, 0, 0, 12, 0, 0, 0, 0) { TimeStamp = ts.AddMilliseconds(-3) });
+            }
+            return m;
+        }
+
+        /// <summary>
+        /// Prokluz kol v hlavicce (lok-fuze-rucni-otoceni): probihajici oranzove, nedavno skonceny
+        /// jako informace - epizoda trva 1-2 s a obsluha by ji jinak minula. Text sklada hlidac.
+        /// </summary>
+        [Test]
+        public void Prokluz_VHlavicce_ProbihajiciANedavny()
+        {
+            string trva = new WebStatus { SlipSource = () => Otaceni(3, 0) }.ToJson(running: true);
+            string skoncil = new WebStatus { SlipSource = () => Otaceni(2, 3) }.ToJson(running: true);
+            string nic = new WebStatus { SlipSource = () => Otaceni(0, 3) }.ToJson(running: true);
+            string vadny = new WebStatus { SlipSource = () => throw new InvalidOperationException("test") }.ToJson(running: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(trva, Does.Contain("\"slip\":\"PROKLUZ kol"));
+                Assert.That(trva, Does.Contain("kola stojí, robot se otáčí"));
+                Assert.That(trva, Does.Not.Contain("slipRecent"));
+                Assert.That(skoncil, Does.Contain("\"slip\":\"prokluz kol před"));
+                Assert.That(skoncil, Does.Contain("\"slipRecent\":true"));
+                Assert.That(nic, Does.Not.Contain("\"slip\""));
+                Assert.That(vadny, Does.Not.Contain("\"slip\""), "vadny zdroj nesmi shodit stranku");
+            });
+            string html = new WebStatus().ToHtml();
+            Assert.That(html, Does.Contain("h.slip"));
+        }
+
+        /// <summary>
         /// Odstup z planu bez drahy (AlreadyAtGoal) je double.MaxValue - v tabulce by z nej bylo
         /// 309mistne cislo. Neukazuje se.
         /// </summary>

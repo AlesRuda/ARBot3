@@ -466,6 +466,14 @@ Obnovuje se každou sekundu.
   mise by stejně neznal. ⚠️ Na zařízení neběželo; ověřeno testy a headless se simulací (FreeRun:
   19 m za 31 s, sedí na ujetou dráhu v půdorysu).
 
+- **Prokluz kol v hlavičce** (od 11. 10. 2026, `lok-fuze-rucni-otoceni`): oranžově „PROKLUZ kol
+  1.2 s: kola 0 °/s, robot 65 °/s — kola stojí, robot se otáčí (rukou? tlačení?)", dokud otáčení
+  z kol nesouhlasí s gyrem; skončená epizoda ještě 30 s jako „prokluz kol před N s (délka, rozdíl
+  X°) — druh", protože trvá typicky 1–2 s a stránka se obnovuje po sekundě. Počítá to
+  `WheelSlipMonitor` (`ARBot.Common/Diagnostics`, pravidla v [ekf-fusion.md](ekf-fusion.md)); tentýž
+  objekt hlásí do Trace a posílá `WheelSlipMsg` do záznamu. Jen hlásí. ⚠️ Na zařízení neběželo;
+  ověřeno testy a přehráním záznamů.
+
 ![Webový náhled headless: půdorys s occupancy gridem, senzory, stav](media/headless-web-nahled.png)
 
 *Snímek z běhu v simulaci (`virtualhw=true mission=freerun`, rovná mapa): zelená je potvrzeně

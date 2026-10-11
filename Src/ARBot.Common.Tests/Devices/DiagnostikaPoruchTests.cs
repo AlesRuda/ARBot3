@@ -38,6 +38,7 @@ namespace ARBot.Common.Tests.Devices
             Path.Combine("Src", "ARBot.Common", "Missions", "FreeRunMission.cs"),
             Path.Combine("Src", "ARBot.Common", "Maps", "OsmNav", "Navigation", "GlobalNavigator.cs"),
             Path.Combine("Src", "ARBot.Common", "Diagnostics", "StuckMonitor.cs"),
+            Path.Combine("Src", "ARBot.Common", "Diagnostics", "WheelSlipMonitor.cs"),
             Path.Combine("Src", "ARBot.Common", "Vision", "Qr", "QrScanner.cs"),
             Path.Combine("Src", "ARBot.Common", "Vision", "Qr", "ZXingQrDecoder.cs"),
             Path.Combine("Src", "ARBot.HAL", "Devices", "Uart", "Uart.cs"),

@@ -101,7 +101,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
 ## Doménová dokumentace
 
 - [doc/configuration.md](doc/configuration.md) — **konfigurace aplikace**: registr parametrů
-  (`ARBot.Common/Configuration`, 114 klíčů s popisem a typem (10. 10. 2026)), profily `klíč=hodnota` (`config=cesta`)
+  (`ARBot.Common/Configuration`, 115 klíčů s popisem a typem (11. 10. 2026)), profily `klíč=hodnota` (`config=cesta`)
   a panel *Tools → Konfigurace* s výpisem všech parametrů, jejich **původu** a uložením profilu.
   Precedence **default → soubor → příkazová řádka** (příkazová řádka přebíjí schválně, jinak by
   přestalo platit skriptované A/B měření). **Neznámý klíč nebo neplatná hodnota v profilu je chyba
@@ -183,6 +183,11 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   - **Od 6. 10. 2026 i JÍZDA**: okamžitá rychlost, ujeto v misi a průměr (přes dobu mise
     i v pohybu). Dráha z **odometrické** pózy (`Odometer`), ne z fúzované — ta při korekcích skáče.
     Do fúze ani záznamu vědomě nejde (autor). ⚠️ Na zařízení neběželo (`prov-ujeto-v-misi-na-strance`).
+  - **Od 11. 10. 2026 i PROKLUZ KOL**: otáčení z kol nesouhlasí s gyrem (průměr 0,5 s, práh
+    0,15 rad/s + 25 %, aspoň 0,3 s a 10°) → oranžově „PROKLUZ kol … — kola hrabou / kola stojí,
+    robot se otáčí …", skončený ještě 30 s; do Trace (škrceně) a do záznamu `WheelSlipMsg`
+    (`WheelSlipMonitor`). Jen hlásí, fúzi nemění (autor). Nad 50 záznamy 74 epizod, 11 za jízdy
+    (`ARBot.Analyze prokluz`). ⚠️ Na zařízení neběželo (`lok-fuze-rucni-otoceni`).
   - **Od 8. 10. 2026 i UVÁZNUTÍ**: robot, který má jet a nedrží ho STOP ani hold, a neujel 0,5 m —
     od 20 s oranžově „stojí N s při jízdě — příčina", od 60 s červeně „UVÁZL — zásah obsluhy"
     (`StuckMonitor`; i do Trace a do záznamu jako `StuckMsg`). Do té doby navigace i mise při stání
@@ -270,7 +275,9 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ✅ **Od 12. 9. 2026 se proto kurz z kompasu ŠKRTÍ na `imuheadinghz=` (výchozí 1 Hz,
   0 = neomezeno)** — poměr kompas : GPS spadl z 223 : 1 na **2,2 : 1**. ⚠️ **Škrtí se jen
   absolutní kurz, ne gyro:** `IMU/gyro` jde dál v plné kadenci a mezi odečty kompasu nese kurz
-  právě ono (78 % informace o úhlové rychlosti, odometrie jen 2,8 %). ⚠️ **Mapper je tím
+  právě ono (78 % informace o úhlové rychlosti, odometrie jen 2,8 % — ⚠️ jen informační podíl;
+  s tehdejším `OdoRateStd` 0,1 nesla odometrie **24 %** integrálu `ω`, změřeno 10. 10. 2026; od 11. 10.
+  `odoratestd=0.3` → 5,9 %, `lok-fuze-rucni-otoceni`). ⚠️ **Mapper je tím
   STAVOVÝ** — záruka record/replay platí pro dvě **čerstvé** instance, ne pro jednu sdílenou
   (zlomil se na tom golden replay test, opraven). Cílem zůstává bias jako stav EKF.
   Odtud otevřený úkol **„chyby senzorů jako stavy EKF"** (bias kompasu a gyra), jehož předpokladem
