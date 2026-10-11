@@ -604,6 +604,15 @@ a přehraje fúzi s koridorem i bez, s původní i opravenou odometrií: podéln
 znaménkem (celkem, po minutách a sklon po úsecích se stálým směrem), podélná odchylka v sekundách
 jízdy (latence GPS), nejlepší časový posun GPS, tětiva pózy / kola a blok 9 nad
 opravenou odometrií (`lok-koridor-hranova-lokalizace`, [map-correlation-localization.md](map-correlation-localization.md)).
+**`kolize`** (11. 10. 2026) projde zprávy `AbortedCollision` (NOUZOVE ZASTAVENI) a u každé vypíše
+rychlost, povel, poslední předanou dráhu (v **pořadí zpracování** — snímky dvou kamer chodí
+přeházeně) a její stáří, stav cíle (navigace, FreeRun), odstup buňky robotu (ze startu plánovače
+téhož cyklu) a kontrolu kolize **zopakovanou** nad gridem ze snímku `OccupancyGridMsg` ve vlastní
+soustavě gridu, včetně toho, jakou buňku trefila, a protifakty „postaru" (práh kolize `SafeDist`,
+platný do 11. 10. 2026), (d) smyčka dráhu už nejela (přibližná rekonstrukce pravidla
+`ControlLoop.IsDriving` z `DriveCommandMsg` a `MotorStateBase`, do jednoho taktu; od 11. 10. 2026
+se taková dráha nekontroluje) a (e) výjimka
+startu únikové dráhy (`lp-kolize-pri-stani`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md)).
 Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).

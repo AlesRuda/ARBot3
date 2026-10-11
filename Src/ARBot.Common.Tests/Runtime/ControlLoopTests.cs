@@ -404,9 +404,13 @@ namespace ARBot.Common.Tests.Runtime
         private sealed class ConstRegulator : IRegulator
         {
             public double Speed = 0.8, Rotation = 0.3;
+            public int Calls;
             public bool IsFinished => false;
             public RegulatorResult Control(IModelState state)
-                => new RegulatorResult { Speed = Speed, RotationSpeed = Rotation };
+            {
+                Calls++;
+                return new RegulatorResult { Speed = Speed, RotationSpeed = Rotation };
+            }
         }
 
         /// <summary>
@@ -594,6 +598,185 @@ namespace ARBot.Common.Tests.Runtime
 
             Assert.That(last.Forvard, Is.EqualTo(0.0));
             Assert.That(last.RotationSpeed, Is.EqualTo(0.3).Within(1e-12));
+        }
+
+        // ---------------- IsDriving: jede smycka jeste tenhle regulator? (11. 10. 2026) ----------------
+
+        [Test]
+        public void IsDriving_CerstvyRegulator_Ano()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            scheduler.PumpDue(T0.AddMilliseconds(100));
+            bool jede = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(jede, Is.True);
+        }
+
+        /// <summary>
+        /// Zastarala draha dobrzdila na nulu a kola stoji: smycka posila (0, 0) bez ohledu na regulator,
+        /// tedy ho uz nejede (LocalNavigator pak nad jeho drahou nekontroluje kolizi - lp-kolize-pri-stani).
+        /// </summary>
+        [TestCase(true, TestName = "IsDriving_DojetaDraha_StojiciRobot_Ne")]
+        [TestCase(false, TestName = "IsDriving_DojetaDraha_BezStavuMotoru_Ne")]
+        public void IsDriving_DojetaDraha_Ne(bool sKoly)
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            if (sKoly) Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var last = CmdAt(cmds, T0.AddMilliseconds(600));
+            bool jede = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.EqualTo(0.0), "predpoklad: dobrzdeno");
+            Assert.That(jede, Is.False, "dojetou drahu smycka nejede");
+            Assert.That(loop.Regulator, Is.SameAs(reg), "regulator se nezahazuje, jen se nejede");
+        }
+
+        [Test]
+        public void IsDriving_ZastaralaBehemDobrzdeni_Ano()
+        {
+            // Z 0,8 m/s se dobrzduje 20 taktu - po draze se porad jede (smer, rampa), kontrola kolize
+            // nad ni musi bezet dal.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.8);
+            var reg = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0.6));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var last = CmdAt(cmds, T0.AddMilliseconds(600));
+            bool jede = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.GreaterThan(0.0), "predpoklad: jeste se dobrzduje");
+            Assert.That(jede, Is.True);
+        }
+
+        [Test]
+        public void IsDriving_PrikazNaNuleAleKolaSeToci_Ano()
+        {
+            // Prikaz uz je nula, ale robot dojizdi a smycka drzi zatoceni z drahy - jeste ji jede.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0.2));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var last = CmdAt(cmds, T0.AddMilliseconds(600));
+            bool jede = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(last.Forvard, Is.EqualTo(0.0));
+            Assert.That(jede, Is.True);
+        }
+
+        [Test]
+        public void IsDriving_NovyRegulatorPoDojetiStareho_NovyAno_StaryNe()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var stary = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            Assert.That(loop.IsDriving(stary), Is.False, "predpoklad: stary je dojety");
+
+            var novy = new ConstRegulator { Speed = 0.08 };
+            loop.Regulator = novy;
+            bool novyPredTaktem = loop.IsDriving(novy);
+            scheduler.PumpDue(T0.AddMilliseconds(700));
+            bool novyPoTaktu = loop.IsDriving(novy), staryPoTaktu = loop.IsDriving(stary);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(novyPredTaktem, Is.True);
+            Assert.That(novyPoTaktu, Is.True);
+            Assert.That(staryPoTaktu, Is.False, "stary uz neni aktualni");
+        }
+
+        /// <summary>
+        /// Dojety regulator je pro tik MRTVY i kdyz se kola pak pohnou (strceni, tik enkoderu, vypadkovy
+        /// ramec): smycka podle nej nesmi znovu tocit - LocalNavigator jeho drahu uz nehlida. Nalez
+        /// revize 11. 10. 2026: nulovani rotace se puvodne posuzovalo kazdy takt znovu a po pohnuti
+        /// kol posilala smycka dif ≠ 0 podle drahy, ktera „nejede".
+        /// </summary>
+        [Test]
+        public void IsDriving_DojetyRegulator_KolaSePohnou_ZustavaMrtvy()
+        {
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            Assert.That(loop.IsDriving(reg), Is.False, "predpoklad: dojety");
+
+            Feed(loop, Motor(estop: false, wheelSpeed: 0.01));   // kola se pohnula
+            scheduler.PumpDue(T0.AddMilliseconds(700));
+            var cmd = CmdAt(cmds, T0.AddMilliseconds(700));
+            double dif = motor.LastDif;
+            bool jede = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(cmd.Forvard, Is.EqualTo(0.0));
+            Assert.That(cmd.RotationSpeed, Is.EqualTo(0.0), "dojety regulator uz netoci");
+            Assert.That(dif, Is.EqualTo(0.0));
+            Assert.That(jede, Is.False);
+        }
+
+        [Test]
+        public void IsDriving_DojetyRegulator_SeUzNevola()
+        {
+            // Dojety regulator je mrtvy i pro diagnostiku: jeho Control() se nevola (vyjimka ani
+            // PathResult.Last* by nepopisovaly nic, co jelo do motoru).
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = (ConstRegulator)loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            Assert.That(loop.IsDriving(reg), Is.False, "predpoklad: dojety");
+            int volani = reg.Calls;
+
+            for (int i = 7; i <= 9; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            var cmd = CmdAt(cmds, T0.AddMilliseconds(900));
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(reg.Calls, Is.EqualTo(volani), "dojety regulator se nevola");
+            Assert.That(cmd.Forvard, Is.EqualTo(0.0));
+            Assert.That(cmd.RotationSpeed, Is.EqualTo(0.0));
+        }
+
+        [Test]
+        public void IsDriving_TataInstanceZnovuNastavena_JeCerstva()
+        {
+            // Nove NASTAVENI je cerstve, i kdyz je to tataz instance (slot, ne identita regulatoru).
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            Feed(loop, Motor(estop: false, wheelSpeed: 0));
+            for (int i = 0; i <= 6; i++) scheduler.PumpDue(T0.AddMilliseconds(i * 100));
+            Assert.That(loop.IsDriving(reg), Is.False, "predpoklad: dojety");
+
+            loop.Regulator = reg;
+            bool hned = loop.IsDriving(reg);
+            scheduler.PumpDue(T0.AddMilliseconds(700));
+            var cmd = CmdAt(cmds, T0.AddMilliseconds(700));
+            bool poTaktu = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(hned, Is.True);
+            Assert.That(poTaktu, Is.True);
+            Assert.That(cmd.Forvard, Is.EqualTo(0.08).Within(1e-12), "cerstva draha se zase jede");
+        }
+
+        [Test]
+        public void IsDriving_RegulatorVymenenyNeboNull_Ne()
+        {
+            // Regulator zahodil nekdo jiny (mise, nouzove zastaveni navigatoru): ten puvodni smycka nejede.
+            var (loop, scheduler, motor, cmds, collector, conn) = StaleLoop(speed: 0.08);
+            var reg = loop.Regulator;
+            scheduler.PumpDue(T0.AddMilliseconds(100));
+            loop.Regulator = null;
+            bool poNull = loop.IsDriving(reg);
+            loop.Regulator = new ConstRegulator();
+            bool poVymene = loop.IsDriving(reg);
+            conn.Dispose(); loop.Stop(); collector.Stop();
+
+            Assert.That(poNull, Is.False);
+            Assert.That(poVymene, Is.False);
+            Assert.That(loop.IsDriving(null), Is.False);
         }
 
         // ---------------- Bezpecnost: vyjimka v taktu a zastaveni smycky ----------------

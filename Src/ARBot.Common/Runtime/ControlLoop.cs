@@ -58,11 +58,29 @@ namespace ARBot.Common.Runtime
         // zdroje zprav) -> nouzove zastaveni se NEuplatnuje, robot normalne jede.
         private volatile IMotorState lastMotor;
 
+        /// <summary>
+        /// Jedno nastaveni <see cref="Regulator"/>. NOVY slot = cerstvy regulator (i kdyz je to tataz
+        /// instance). Regulator a jeho cerstvost jsou tak JEDNA volatile reference: do 11. 10. 2026 to
+        /// byly dva zapisy (regulator + priznak) a tik, ktery se vklinil mezi ne, videl regulator
+        /// a cerstvost z ruznych nastaveni - novy posoudil podle stari stareho, nebo stary jel na takt
+        /// jako cerstvy (nalez revize opravy (d), lp-kolize-pri-stani).
+        /// </summary>
+        private sealed class RegulatorSlot
+        {
+            public readonly IRegulator Reg;
+            public RegulatorSlot(IRegulator reg) { Reg = reg; }
+        }
+
         // Aktualni regulator (nizsi smycka jej jede; vyssi smycka jej atomicky prehazuje pres Regulator).
-        private volatile IRegulator regulator;
-        private volatile bool regulatorFresh;   // Regulator byl nastaven; tik ho orazitkuje casem tk.
-        private DateTime lastRegulatorTick;      // cas posledni aktualizace regulatoru (v case tiku)
+        private volatile RegulatorSlot slot;
+        private RegulatorSlot tickSlot;          // slot, ktery tik naposledy prevzal (jen vlakno tiku)
+        private DateTime lastRegulatorTick;      // cas prevzeti tickSlot (v case tiku)
         private double lastForward;              // posledni dopredna rychlost (pro nouzove dobrzdeni)
+
+        // Slot, jehoz regulator smycka uz NEJEDE (viz IsDriving): zastaraly, dopredny prikaz po nem
+        // dobrzdil na nulu a robot stal. Nastavuje ho tik; novy slot ho prekryje sam (porovnava se
+        // identita slotu).
+        private volatile RegulatorSlot spentSlot;
 
         // Skrceni hlaseni poruch taktu: takt jede ~10x/s, trvala porucha by jinak zaplavila Trace
         // a s nim i zaznam, ve kterem se ta porucha hleda. Hodiny jsou cas TAKTU (ne stroje), aby
@@ -79,8 +97,29 @@ namespace ARBot.Common.Runtime
         /// </summary>
         public IRegulator Regulator
         {
-            get => regulator;
-            set { regulator = value; regulatorFresh = true; }
+            get => slot?.Reg;
+            set => slot = new RegulatorSlot(value);
+        }
+
+        /// <summary>
+        /// Jede smycka regulator <paramref name="reg"/>? <c>false</c>, kdyz uz neni aktualni (vymenil ho
+        /// nekdo jiny, nebo je <c>null</c>), nebo kdyz je <b>dojety</b>: zastaraly (dele nez
+        /// <see cref="Profile.PathControlTimeOut"/> bez obnovy), dopredny prikaz po nem dobrzdil na
+        /// nulu a kola stala (neznamy stav motoru = stoji). Dojety regulator je pro tik <b>mrtvy</b>:
+        /// posila (0, 0) bez ohledu na nej, i kdyz se kola pak znovu pohnou (strceni, tik enkoderu,
+        /// vypadkovy ramec motoru), dokud nepride NOVE nastaveni <see cref="Regulator"/>.
+        ///
+        /// <para>Pro <see cref="Occupancy.LocalNavigator"/>: kontrola kolize rozjete drahy ma smysl,
+        /// jen dokud ji smycka jede - jejim jedinym zasahem je zahodit regulator, a u dojeteho to
+        /// nic nezmeni (oprava (d), lp-kolize-pri-stani, 11. 10. 2026). Proto musi byt „dojety"
+        /// TRVALE (revize 11. 10. 2026: puvodne se jen zapamatoval, ale nulovani rotace se kazdy takt
+        /// posuzovalo znovu, takze po pohnuti kol smycka zase tocila podle drahy, kterou uz nikdo
+        /// nehlidal).</para>
+        /// </summary>
+        public bool IsDriving(IRegulator reg)
+        {
+            var s = slot;
+            return reg != null && s != null && ReferenceEquals(s.Reg, reg) && !ReferenceEquals(spentSlot, s);
         }
 
         /// <summary>
@@ -234,12 +273,17 @@ namespace ARBot.Common.Runtime
             // Rizeni regulatorem (Regulator). Vyssi smycka (mapa/OSM) jej nastavuje a obnovuje;
             // grid(y) z frames budou jeho vstupem. null = zadny cil -> stani; zastaraly regulator ->
             // nouzove dobrzdeni po posledni trase. Viz doc/path-following.md.
-            var reg = regulator;
-            if (regulatorFresh) { regulatorFresh = false; lastRegulatorTick = tk; }
+            var s = slot;
+            if (!ReferenceEquals(s, tickSlot)) { tickSlot = s; lastRegulatorTick = tk; }
+            var reg = s?.Reg;
+            bool spent = reg != null && ReferenceEquals(spentSlot, s);
 
             double forvard = 0, rotationSpeed = 0;
             bool stale = false;
-            if (reg != null)
+            // Dojety regulator se uz ani nevola: jeho prikaz by se stejne zahodil (blok nize posle
+            // (0, 0)), a volani by jen vyrabelo zavadejici stopu - vyjimku z regulatoru, ktery nikdo
+            // nejede, nebo diagnostiku (PathResult.Last*) prikazu, ktery do motoru nesel.
+            if (reg != null && !spent)
             {
                 var r = reg.Control(rs.InFrame(Frame));
                 rotationSpeed = r.RotationSpeed;
@@ -278,8 +322,17 @@ namespace ARBot.Common.Runtime
             // Neznamy stav motoru (bez mereni) se bere jako stani: podle naseho prikazu robot stoji
             // a k neplatne draze ho otacet neni proc. Platny plan s nulovou rychlosti (otoceni na
             // miste z planovace) se NETYKA - to je zamer, ne zbytek stare drahy.
+            //
+            // Tentyz stav znamena, ze smycka regulator uz NEJEDE (IsDriving): slot se zamkne jako dojety
+            // a od pristiho taktu se regulator ani nevola (vetev vyse), takze je mrtvy TRVALE - i kdyz
+            // se kola pak pohnou. Bez toho by po strceni nebo tiku enkoderu zacal znovu tocit na miste
+            // a samo by se to udrzelo (otaceni kola roztoci), zatimco LocalNavigator by jeho drahu uz
+            // nehlidal (lp-kolize-pri-stani, oprava (d); nalez revize 11. 10. 2026).
             if (stale && forvard <= 0 && holds.Standing != false)
+            {
                 rotationSpeed = 0;
+                spentSlot = s;
+            }
 
             // Nouzove zastaveni: dopredna rychlost na nulu, rotace az kdyz robot SKUTECNE stoji.
             // Dokud se kola jeste toci, ma smysl drzet zatoceni podle regulatoru (jako kdyz se brzdi

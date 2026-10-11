@@ -253,7 +253,9 @@ namespace ARBot.Common.Occupancy
             // "tesne u prekazky". Plati pro vsechny stavy, ktere odsud vzniknou.
             res.StartBlock = (CellBlockReason)blockReason[s0];
             res.StartClearanceM = clearance[s0];
-            double tightBelow = cfg.SafeDist - cell / 2;
+            // Tentyz prah pouziva kontrola kolize rozjete drahy (PathCollision) - jedno pravidlo,
+            // viz LocalPlannerConfig.TightClearance.
+            double tightBelow = cfg.TightClearance(cell);
             if (state[s0] == (byte)CellState.Blocked || clearance[s0] < tightBelow)
                 return PlanEscape(res, grid, robotX, robotY, heading, i0, j0, cell);
 

@@ -81,12 +81,26 @@ vzdáleností**:
 - Kontroluje se **jen úsek, na který je robot fakticky zavázaný** — od jeho polohy (průmět na dráhu)
   dopředu o `v²/(2a) + v·Ts + rezerva`. Dál do budoucna nemá smysl: tam překážku vyřeší příští
   úspěšné přeplánování objezdem.
-- **Kolize** = `Blocked` nebo odstup pod `SafeDist`. `Unknown` kolize **není** — to řeší rychlostní
-  obálka.
+- **Kolize** = `Blocked` nebo odstup pod `LocalPlannerConfig.TightClearance` = `SafeDist − buňka/2`
+  (0,375 m) — tentýž práh, pod kterým plánovač ze startu uniká (od 11. 10. 2026; dřív `SafeDist`
+  a v pásmu mezi vznikala falešná nouzová zastavení, viz „Falešné NOUZOVE ZASTAVENI" níž).
+  `Unknown` kolize **není** — to řeší rychlostní obálka.
 - Při kolizi se `ControlLoop.Regulator` zahodí **okamžitě** (`null` = robot stojí, bezpečný stav),
   ne až watchdogem. Hlásí se stavem `LocalPlanStatus.AbortedCollision` (jde do záznamu i UI).
 - Když je dráha volná, řízení se **nezahazuje** — dobrzdění zůstává na watchdogu, tedy řízené.
-- Stojící robot (`v ≈ 0`) nouzově nezastavuje: brzdná dráha je nulová, není co řešit.
+- **Kontroluje se jen dráha, kterou smyčka jede** (od 11. 10. 2026, oprava (d)):
+  `ControlLoop.IsDriving(regulátor)` je `false`, když regulátor už není aktuální (vyměnil ho někdo
+  jiný, `null` = stát), nebo je **dojetý** — zastaralý, dopředný příkaz po něm dobrzdil na nulu
+  a kola stála. Dojetý regulátor je pro smyčku **trvale mrtvý** (posílá (0, 0), i když se kola pak
+  pohnou), dokud nepřijde nový. Takovou dráhu `LocalNavigator` zahodí (`ExpiredPaths`, škrcená
+  hláška do `Trace`), regulátor ve smyčce nechá. Dokud se po dráze dobrzďuje nebo robot ještě
+  dojíždí, kontrola běží dál.
+- I u stojícího robotu (`v ≈ 0`) se kontroluje rezerva jedné buňky (prvních 5 cm dráhy včetně
+  buňky pod robotem): skutečná překážka pod 0,375 m nebo `Blocked` regulátor zahodí i ve stání
+  (ochrana při rozjezdu), pásmo 0,375–0,4 m od 11. 10. 2026 ne. Platí to **jen pro dráhu, kterou
+  smyčka jede** — tedy než ji po `PathControlTimeOut` dobrzdí a kola zastaví; točí-li zastaralý
+  regulátor robotem na místě, kola nezastaví a kontrola běží dál. Dojetá dráha se nekontroluje,
+  protože z ní se robot rozjet nemůže (bod výš).
 
 Zapojení v `ARBotRuntime.WireRun`; `ARBotRuntime.Navigator` je vystavený UI kvůli
 `SetGoal`. Barevná projekce se sestavuje stejným líným vzorem jako hloubková
@@ -520,6 +534,114 @@ slepé zóně; čeká, až se takový `RobotBlocked` objeví v záznamu (`lp-zap
 **Na robotu ověřeno 25. 9. 2026** (Track, `20260925-142428.rec`): po posunu gridu korekcí pózy
 dvakrát `EscapingBlocked`, robot pokaždé za 6–10 s vyjel a pokračoval
 (`lp-grid-posun-pomalou-korekci`).
+
+### Falešné „NOUZOVE ZASTAVENI – kolize 0,00 m" u běžné dráhy (změřeno 11. 10. 2026)
+
+`PathCollision.Collides` hlásí kolizi při odstupu pod `SafeDist` (0,4 m), kdežto plánovač uniká až
+pod `SafeDist − buňka/2` (0,375 m) a buňky s odstupem mezi tím bere jako start. Když v cyklu
+nevznikne nová dráha, kontrola staré dráhy pak „koliduje v 0,00 m", regulátor se zahodí a v logu je
+NOUZOVE ZASTAVENI (`lp-kolize-pri-stani`). Dosud odvozené z kódu; `ARBot.Analyze kolize` to ověřilo
+nad záznamy — kontrolu **zopakuje** (tentýž `PathCollision.Collides`) nad gridem ze snímku
+`OccupancyGridMsg` s dráhou, kterou runtime naposledy předal (v **pořadí zpracování**, ne podle času
+snímku — snímky dvou kamer chodí přeházeně), a s buňkou robotu, ze které **plánovač v témže cyklu
+startoval** (zpráva `AbortedCollision` je jeho výsledek s přepsaným stavem).
+
+V záznamech 2. 9.–1. 10. je hlášek **18, všechny „0,00 m"**: 13 u běžné dráhy (Kolo 4 9×, 18. 9. 4×)
+a 5 u únikové (1. 10. 3×, 23. 9., 25. 9.).
+
+**Běžná dráha (13) — zopakováno všech 13:**
+- robot **stál nebo se plazil** (|v| ≤ 0,06 m/s, 12× pod 0,05), za jízdy ani jednou;
+- trefa byla **vždy buňka s odstupem 0,381–0,391 m** (volná nebo neznámá), tedy v pásmu
+  0,375–0,4 m — skutečná překážka (pod 0,375 m nebo `Blocked`) ani jednou;
+- **6× buňka pod robotem** (robot stál v pásmu), **7× startovní buňka staré dráhy**: robot stál
+  v buňce s odstupem 0,4–0,424 m, plánovač z ní nenašel dráhu (`GoalUnsafe` / `Partial` bez dráhy —
+  robot už byl na nejbližším bezpečném místě) a kontrola trefila start dráhy, jejíž průmět je
+  desetiny mm od robotu;
+- navigace měla **cíl ve všech 13** (Kolo 4 `OffRoute`, 18. 9. `Driving`) — případ „stará dráha
+  po `ClearGoal`" se v datech nevyskytl;
+- dráha byla 8× čerstvá (≤ 0,4 s) a **5× stará 9–14 s** — tu už nižší smyčka nejela (po
+  `PathControlTimeOut` 0,5 s dobrzdí a stojícímu robotu nuluje otáčení), kontrola jen vyrobila hlášku.
+
+| navržená oprava | kolik z 13 odstraní | co ztratí |
+|---|---|---|
+| (a) nekontrolovat stojící robot (\|v\| < 0,05) | 12 (zůstane 1 při 0,06 m/s) | ochranu při rozjezdu ze stání |
+| **(b) práh kolize = práh úniku** (`SafeDist − buňka/2`, nebo `Blocked`) | **všech 13** (protifakt v `kolize`) | za jízdy by po dráze, kterou plánovač nenahradil, nezastavila na buňce v pásmu, až na bližší; podél buňky v pásmu 0,375–0,4 m nezastaví vůbec — změřené to není, všech 18 hlášek bylo do 0,07 m/s |
+| (c) mazat `activePath` s cílem | 0 | — |
+| (d) zahodit dráhu, kterou nižší smyčka už nejede (starší než `PathControlTimeOut` + dobrzdění) | 5 (protifakt v `kolize`) | nic — kontrola dráhy, kterou smyčka nejede, nemá fyzický zásah |
+
+(b) míří na příčinu (dva prahy pro totéž); plánovač by takovou dráhu sám nenaplánoval, protože
+mimo start žádá aspoň `SafeDist`. (d) je hygiena navíc.
+
+**Úniková dráha (5):** oprava z 9. 10. vyjímá buňku pod robotem. Dnešním kódem se zopakují 3 z 5:
+25. 9. trefa **startovní buňky dráhy** (geometrie) — tu by odstranila i výjimka pro buňku prvního bodu
+dráhy (protifakt (e)); 23. 9. trefí start dráhy, ale s výjimkou pak ještě další geometricky blokovanou
+buňku ~5 cm dál; 1. 10. 15:27:51 sousední geometricky blokovanou buňku. ⚠️ Tady je rekonstrukce
+nejistá — póza se v těch okamžicích posouvala korekcemi o 3–9 cm za 0,1 s — a výjimka startu by
+pomohla jen v jednom ze tří. Hlášky z 18. 9. (4×), dřív vedené jako úniková dráha
+(`lp-unik-kontrola-kolize-startu`), jsou podle téhož měření **běžná dráha** (`Partial`).
+
+✅ **Oprava (b) zrealizována 11. 10. 2026** (rozhodnutí autora): práh je jedno pravidlo
+`LocalPlannerConfig.TightClearance(buňka)` = `SafeDist − buňka/2`, které volá plánovač (start pod ním
+→ únik) i `PathCollision.Collides` (kolize běžné dráhy pod ním nebo v `Blocked`). Přehrání nad
+záznamy (`ARBot.Analyze kolize`) s novým kódem: z 13 hlášek u běžné dráhy se **nezopakuje žádná**
+(se starým prahem 13). Únikové dráhy se to netýká (geometrie, beze změny). 6 nových testů
+v `PathCollisionTests` (hodnota prahu, robot v pásmu, start staré dráhy v pásmu, překážka pod 0,375 m
+ve stání i za jízdy, plánovač a kontrola nad touž buňkou se shodnou); návrat ke starému prahu shodí 4
+z nich.
+⚠️ Na zařízení neběželo.
+
+✅ **Oprava (d) zrealizována 11. 10. 2026** (rozhodnutí autora): `LocalNavigator` kontroluje kolizi
+jen u dráhy, kterou řídicí smyčka **jede** — rozhoduje `ControlLoop.IsDriving(regulátor)`. Nejede
+ji, když regulátor už není aktuální (vyměnil ho někdo jiný, `null` = stát), nebo je **dojetý**:
+zastaralý (`PathControlTimeOut`), dopředný příkaz po něm dobrzdil na nulu a kola stála (neznámý stav
+motorů = stojí) — tentýž stav, ve kterém tik od 5. 10. 2026 nuluje rotaci
+(`lp-zastaraly-regulator-toci-na-miste`). Od té chvíle je dojetý regulátor pro tik **trvale mrtvý**:
+smyčka posílá (0, 0) bez ohledu na něj, i když se kola pak pohnou, dokud nepřijde nové nastavení
+`Regulator` — takže jediný zásah kontroly, zahodit regulátor, by nic nezměnil. Navigátor dráhu zahodí
+(počítadlo `ExpiredPaths` a škrcená hláška „rozjeta draha zahozena…" do `Trace`, aby se to dalo na
+zařízení odlišit od „kontrola běžela a nic nenašla") a regulátor ve smyčce nechá. Dokud se po dráze
+dobrzďuje nebo robot ještě dojíždí (kola se točí), kontrola běží dál. **Pravidlo drží smyčka, ne
+navigátor:** navigátor by stáří dráhy musel měřit časem snímků (ve 20–25 % mimo pořadí) a dobu
+dobrzdění odhadovat, kdežto smyčka ví, kdy dráhu přestala jet.
+
+⚠️ **Dvě vady první verze našla nezávislá revize týž den** (obě opravené, s testy):
+- **Dojetí bylo jen zapamatované, ne vynucené.** Příznak „dojetý" byl trvalý, ale nulování rotace se
+  každý takt posuzovalo znovu: když se po dojetí kola pohnula (strčení, tik enkodéru, výpadkový rámec
+  motorové jednotky, po kterém přijde skutečné měření), smyčka zase točila podle staré dráhy — a to
+  se samo udrží, protože rotace kola roztočí — zatímco navigátor dráhu už nehlídal. Reprodukováno
+  (dif 0,0615 při `IsDriving` = `false`). Proto je dojetý regulátor trvale mrtvý a smyčka ho už ani
+  nevolá (jeho výjimka ani diagnostika by nepopisovaly nic, co jelo do motorů). U dojetého regulátoru
+  tak pohnutí kol točení už neobnoví — ⚠️ **točení, které si zastaralý regulátor udrží sám, to ale
+  neřeší:** když dopředný příkaz dobrzdí na nulu a rotace z regulátoru drží kola v pohybu, „stojí"
+  nenastane, dráha se nezamkne a robot dotáčí podle staré dráhy (díra v opravě z 5. 10. 2026, nový
+  nález [`lp-zastaraly-regulator-rotace-drzi-kola`](ukoly.md#lp-zastaraly-regulator-rotace-drzi-kola)).
+  (d) tím bezpečnost nezhoršuje — `IsDriving` zůstává `true` a kontrola kolize běží.
+- **Souběh regulátoru a jeho čerstvosti.** Setter zapisoval regulátor a příznak „čerstvý" dvěma
+  zápisy; takt, který se vklínil mezi ně, posoudil nový regulátor podle stáří starého (u dojetého ho
+  označil za dojetý, navigátor by zahodil dráhu, kterou smyčka vzápětí jede), nebo naopak jel na
+  takt starý jako čerstvý. Dnes je to jedna volatile reference na „slot" (nové nastavení = nový slot,
+  i pro tutéž instanci).
+
+Přehrání (`ARBot.Analyze kolize`; protifakt (d) rekonstruuje pravidlo tiku **přibližně** — trvalé
+zamknutí prvním taktem s nulovým dopředným příkazem a stojícími koly po zastarání, stáří ale od času
+snímku a dopředný příkaz až po nouzovém zastavení, obojí se liší do jednoho taktu): samotná (d) by
+odstranila **5 ze 13** hlášek u běžné dráhy, právě ty nad dráhou starou 9–14 s (smyčka ji dojela
+0,5–0,6 s po předání); spolu s (b) nezbude žádná. Tři hlášky u únikové dráhy, které dnešní kód
+zopakuje, (d) neřeší — dráha byla čerstvá a smyčka ji jela. ⚠️ **Rekonstrukce nesmí posuzovat rotaci
+z příkazu:** binárky před 5. 10. 2026 u zastaralé dráhy točily na místě, takže první verze protifaktu
+(„příkaz je (0, 0)") nezabrala ani jednou. Testy: 10 případů v `ControlLoopTests` (`IsDriving`:
+čerstvý, dojetý se stavem motorů i bez něj, během dobrzdění, kola se točí, nový po dojetí starého,
+tatáž instance nastavená znovu, dojetý zůstane mrtvý i po pohnutí kol, dojetý se nevolá, vyměněný
+nebo `null`) a 3
+v `LocalNavigatorTest` (kontrola scény: jetá dráha s překážkou pod 0,375 m nouzově zastaví; dojetá
+i jinde zahozená se zahodí bez hlášky). Mutace: bez kroku (2c) spadnou 2, bez zamknutí 7, bez
+netečnosti dojetého (regulátor se volá dál) 2. Vyřeší to i případ „stará dráha po `ClearGoal`" (stanoviště), který se v datech
+nevyskytl. Známé meze (druhé kolo revize, neopravuje se): (1) po zaseknutí taktů (≥ `PathControlTimeOut`)
+razítkuje dohánění čerstvý regulátor časem mřížky, takže se v téže dávce může jevit zastaralý — a u
+stojícího robotu se zamkne jako dojetý až do dalšího předání (razítkování je staré chování, nová je jen
+trvalost; další snímek s cílem předá nový plán); (2) jeden výpadkový rámec motorů (stav neznámý = stojí)
+nebo přesná nula enkodéru při dojezdu dráhu zamkne a zbytek dojezdu jede bez zatáčení — dopředný příkaz
+je v tu chvíli už nulový. ⚠️ Na zařízení neběželo. Výjimka startu únikové dráhy (e) zůstává k rozhodnutí.
 
 ### ⚠️ Uváznutí na konci Tracku 1. 10. 2026 — únik nestačil (rozbor 7. 10. 2026)
 

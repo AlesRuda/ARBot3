@@ -37,7 +37,10 @@ Divergence (drift, prokluz, chyba odhadu) se řeší na dvou úrovních:
 2. **Nižší řídicí smyčka** (`ControlLoop`) jede aktuální `IRegulator` (`ControlLoop.Regulator`); když delší dobu
    nedostane novou dráhu (`Profile.PathControlTimeOut`), **nouzově dobrzdí po poslední známé
    trase**. Vyšší smyčka (lokální mapa + OSM) určuje kudy jet, aplikuje `Plan` a výsledek
-   atomicky předá nižší smyčce.
+   atomicky předá nižší smyčce. Jakmile je zastaralá dráha dobrzděná a kola stojí, smyčka ji
+   **nejede** (`ControlLoop.IsDriving` = `false`, od 11. 10. 2026) — trvale: posílá (0, 0), i když se
+   kola pak pohnou, dokud nepřijde nový regulátor — a lokální navigace ji přestane kontrolovat proti
+   mapě, viz [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
 
 ### Proč feedforward + přeplánování, ne proporcionální řízení (pure-pursuit `ω = v·κ`)
 Statické proporcionální řízení na příčnou/směrovou odchylku ignoruje dynamiku (rychlostní

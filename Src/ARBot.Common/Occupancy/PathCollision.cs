@@ -16,9 +16,22 @@ namespace ARBot.Common.Occupancy
         /// dopredu o <b>brzdnou drahu + jeden takt reakce + rezerva</b>. Dal do budoucna to nema smysl:
         /// tam prekazku vyresi priste uspesne preplanovani objezdem.
         ///
-        /// <para>Kolize = odstup pod <see cref="LocalPlannerConfig.SafeDist"/> nebo bunka
-        /// <see cref="CellState.Blocked"/>. <see cref="CellState.Unknown"/> kolize NENI - to resi
-        /// rychlostni obalka (nejed rychleji, nez z ceho zastavis na hranici potvrzeneho).</para>
+        /// <para>Kolize = odstup pod <see cref="LocalPlannerConfig.TightClearance"/> (<c>SafeDist −
+        /// bunka/2</c>, tentyz prah, pod kterym planovac unika) nebo bunka <see cref="CellState.Blocked"/>.
+        /// <see cref="CellState.Unknown"/> kolize NENI - to resi rychlostni obalka (nejed rychleji, nez
+        /// z ceho zastavis na hranici potvrzeneho).</para>
+        ///
+        /// <para><b>Do 11. 10. 2026 byl prah <see cref="LocalPlannerConfig.SafeDist"/></b>, tedy o pul
+        /// bunky prisnejsi nez planovac. Robot stojici v pasmu 0,375-0,4 m od prekazky (nebo tesne za
+        /// startem stare drahy, ktery v pasmu lezi) planoval bezne, ale kdyz v cyklu nevznikla nova
+        /// draha, kontrola stare drahy „kolidovala v 0,00 m", regulator se zahodil a v logu bylo
+        /// falesne NOUZOVE ZASTAVENI (lp-kolize-pri-stani; zaznamy 13x, robot stal nebo se plazil
+        /// do 0,06 m/s, trefa vzdy 0,381-0,391 m). Cena: drahu, kterou planovac nenahradil, kontrola
+        /// za jizdy nezastavi na bunce v pasmu 0,375-0,4 m - zastavi az na dalsi, blizsi bunce, a vede-li
+        /// draha jen PODEL bunky v pasmu, nezastavi vubec. Pasmo pritom dava jen odstup sqrt(58) nebo
+        /// sqrt(61) bunky (pole je exaktni euklidovske), tedy u rohu nebo samostatne bunky prekazky;
+        /// podel rovne steny (odstupy po celych bunkach) se nemeni nic. Planovac by takovou drahu sam
+        /// nenaplanoval (mimo start zada aspon SafeDist).</para>
         /// </summary>
         /// <param name="robotV">Rychlost robotu [m/s] (znamenko nehraje roli).</param>
         /// <param name="escapePath">Je draha UNIKEM z blokovane bunky? Pak se kolize posuzuje jen podle
@@ -47,11 +60,12 @@ namespace ARBot.Common.Occupancy
             // stejne pravidlo jako LocalPathPlanner.PlanEscape (start smi byt geometricky blokovany).
             // Bez vyjimky unikova draha "kolidovala v 0,00 m" s bunkou pod robotem, regulator se
             // zahodil a log hlasil falesne NOUZOVE ZASTAVENI (lp-unik-kontrola-kolize-startu,
-            // 1. 10. 2026 3x, 18. 9. 4x).
+            // 1. 10. 2026 3x; hlasky z 18. 9. byly podle mereni 11. 10. bezna draha, lp-kolize-pri-stani).
             int robotCx = grid.CellX(robotX), robotCy = grid.CellY(robotY);
 
             double step = grid.Resolution * 0.5;
             double traveled = 0;
+            double tight = cfg.TightClearance(grid.Resolution);   // jako planovac - viz popis metody
             for (int i = seg; i < path.Length - 1; i++)
             {
                 double x0 = path[i].X, y0 = path[i].Y;
@@ -75,7 +89,7 @@ namespace ARBot.Common.Occupancy
                     bool hit = escapePath
                         ? !(cx == robotCx && cy == robotCy)
                           && grid.BlockReason(cx, cy).HasFlag(CellBlockReason.Geometry)
-                        : grid.State(cx, cy) == CellState.Blocked || field.Distance(cx, cy) < cfg.SafeDist;
+                        : grid.State(cx, cy) == CellState.Blocked || field.Distance(cx, cy) < tight;
                     if (hit)
                     {
                         hitDistance = d;

@@ -127,6 +127,108 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(s.Collides(escape: true, v: 0, out _), Is.False);
         }
 
+        // ---------------- bezna draha: prah = prah uniku (lp-kolize-pri-stani, 11. 10. 2026) ----------------
+
+        /// <summary>Bunka (cx, cy) vzhledem k bunce robotu (0, 0) -> stred bunky ve svete.</summary>
+        private static (double X, double Y) Stred(int cx, int cy) => ((cx + 0.5) * Res, (cy + 0.5) * Res);
+
+        [Test]
+        public void TesnyOdstup_JeSafeDistMinusPulBunky()
+            => Assert.That(Cfg().TightClearance(Res), Is.EqualTo(0.375).Within(1e-12));
+
+        /// <summary>
+        /// Kolo 4 (19. 9.): robot stoji v bunce s odstupem 0,391 m - v pasmu mezi prahem uniku (0,375)
+        /// a SafeDist (0,4). Planovac z ni planuje bezne, kontrola stare drahy dela totez - do
+        /// 11. 10. 2026 tu hlasila „kolize 0,00 m".
+        /// </summary>
+        [Test]
+        public void BeznaDraha_RobotVPasmuPodSafeDist_NeniKolize()
+        {
+            var s = new Scene();
+            var o = Stred(-6, -5);                  // sqrt(36 + 25) * 0,05 = 0,3905 m od bunky robotu
+            s.Geometry(o.X, o.Y);
+            s.Field.Build(s.Grid);
+            Assume.That(s.Field.Distance(0, 0), Is.InRange(0.375, 0.4), "robot v pasmu");
+
+            Assert.That(s.Collides(escape: false, v: 0, out double hit), Is.False, $"hit {hit:F3}");
+        }
+
+        /// <summary>
+        /// Kolo 4 a 18. 9.: robot stoji v bezpecne bunce (0,424 m), ale stara draha zacina v sousedni
+        /// bunce v pasmu (0,391 m) a prumet robotu na ni padne na jeji zacatek. Do 11. 10. 2026
+        /// „kolize 0,00 m" na startu drahy.
+        /// </summary>
+        [Test]
+        public void BeznaDraha_StartStareDrahyVPasmu_NeniKolize()
+        {
+            var s = new Scene();
+            var o = Stred(6, 6);                    // bunka (0,1): (6,5) -> 0,3905; bunka robotu (0,0): (6,6) -> 0,424
+            s.Geometry(o.X, o.Y);
+            s.Field.Build(s.Grid);
+            Assume.That(s.Field.Distance(0, 1), Is.InRange(0.375, 0.4), "start drahy v pasmu");
+            Assume.That(s.Field.Distance(0, 0), Is.GreaterThanOrEqualTo(0.4), "robot v bezpecne bunce");
+            var path = new[]
+            {
+                new RegulatorWayPoint { X = 0.025, Y = 0.05, Speed = 0 },   // hranice bunek (0,0) / (0,1)
+                new RegulatorWayPoint { X = -1.0, Y = 0.05, Speed = 0 },
+            };
+
+            bool kolize = PathCollision.Collides(s.Grid, s.Field, Cfg(), path, 0.025, 0.0499, 0, false, out double hit);
+
+            Assert.That(kolize, Is.False, $"hit {hit:F3}");
+        }
+
+        [Test]
+        public void BeznaDraha_PrekazkaPodTesnymOdstupem_JeKolize()
+        {
+            var s = new Scene();
+            var o = Stred(-5, -5);                  // sqrt(50) * 0,05 = 0,354 m < 0,375
+            s.Geometry(o.X, o.Y);
+            s.Field.Build(s.Grid);
+            Assume.That(s.Field.Distance(0, 0), Is.LessThan(0.375));
+
+            Assert.That(s.Collides(escape: false, v: 0, out double hit), Is.True, "skutecne blizka prekazka zustava kolizi");
+            Assert.That(hit, Is.EqualTo(0).Within(1e-9));
+        }
+
+        [Test]
+        public void BeznaDraha_ZaJizdy_PrekazkaUDrahyPodTesnymOdstupem_JeKolize()
+        {
+            var s = new Scene();
+            // Bunky drahy (x, 0): (2,0) 0,403, (3,0) 0,381 (pasmo - jede se dal), (4,0) sqrt(53)*0,05 = 0,364
+            // < 0,375 -> kolize na prvnim vzorku v bunce (4,0), tj. 0,200-0,225 m (krok vzorku 0,025 m,
+            // podle zaokrouhleni souctu), uvnitr dosahu kontroly 0,15 + 0,03 + 0,05 = 0,23 m. Se starym
+            // prahem SafeDist by kolize byla uz v bunce (3,0), tj. v 0,15 m - mez 0,175 je mezi nimi.
+            var o = Stred(6, -7);
+            s.Geometry(o.X, o.Y);
+
+            bool kolize = s.Collides(escape: false, v: 0.3, out double hit);
+
+            Assert.That(kolize, Is.True);
+            Assert.That(hit, Is.GreaterThan(0.175).And.LessThanOrEqualTo(0.23));
+        }
+
+        /// <summary>
+        /// Planovac a kontrola kolize maji JEDNO pravidlo: robot v pasmu dostane od planovace bezny
+        /// plan (ne unik) a kontrola teze drahy pak NEhlasi kolizi. Pred 11. 10. 2026 se tu rozchazely.
+        /// </summary>
+        [Test]
+        public void Planovac_RobotVPasmu_PlanujeBezne_AKontrolaToSamePrijme()
+        {
+            var s = new Scene();
+            var o = Stred(-6, -5);
+            s.Geometry(o.X, o.Y);
+            s.Field.Build(s.Grid);
+            Assume.That(s.Field.Distance(0, 0), Is.InRange(0.375, 0.4));
+
+            var plan = new LocalPathPlanner(N, Cfg()).Plan(s.Grid, s.Field, 0.025, 0.025, 0, 1.0, 0.025);
+
+            Assert.That(plan.Status, Is.Not.EqualTo(LocalPlanStatus.EscapingBlocked), "v pasmu se neunika");
+            Assert.That(plan.HasPath, Is.True, $"stav {plan.Status}");
+            Assert.That(PathCollision.Collides(s.Grid, s.Field, Cfg(), plan.WayPoints, 0.025, 0.025, 0, false, out double hit),
+                        Is.False, $"kontrola musi prijmout drahu, kterou planovac z teze bunky naplanoval (hit {hit:F3})");
+        }
+
         [Test]
         public void Unik_StojiciRobot_PrekazkaZaRezervou_NeniKolize()
         {

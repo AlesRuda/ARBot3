@@ -576,6 +576,121 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(loop.Regulator, Is.SameAs(regulator), "stojici robot nema co nouzove zastavovat");
         }
 
+        // ---------------- draha, kterou smycka uz nejede (oprava (d), lp-kolize-pri-stani, 11. 10. 2026) ----------------
+
+        /// <summary>
+        /// Stojici robot dostal drahu, pak se cil zrusil (novy plan nevznikne) a vedle robotu se objevi
+        /// prekazka 0,3 m - pod tesnym odstupem 0,375 m, takze kontrola rozjete drahy by hlasila
+        /// „kolize 0,00 m". Prekazka je BOKEM (y = 0,3 m), mimo zorne pole kamery, aby ji dalsi snimek
+        /// neprepsal volnem.
+        /// </summary>
+        private sealed class StandingScene : IDisposable
+        {
+            public LocalNavigator Nav;
+            public ControlLoop Loop;
+            public Scheduler Scheduler;
+            public IRegulator Regulator;
+            public Session Session;
+
+            public static StandingScene Create()
+            {
+                var engine = Engine(T0);   // robot stoji v pocatku, mereni T0..T0+2,9 s
+                var nav = MakeNavigator(engine);
+                var scheduler = new Scheduler();
+                var loop = new ControlLoop(engine, new DummyMotors(), new VirtualClock(), scheduler,
+                                           period: TimeSpan.FromMilliseconds(100),
+                                           pathTimeout: TimeSpan.FromMilliseconds(250));
+                loop.Start();
+                nav.ControlLoop = loop;
+                nav.SetGoal(3.0, 0.0);
+                var session = new Session(nav);
+                session.Send(Frame(T0.AddSeconds(1.0)));
+                Assert.That(loop.Regulator, Is.Not.Null, "predpoklad sceny: robot dostal drahu");
+                return new StandingScene
+                {
+                    Nav = nav, Loop = loop, Scheduler = scheduler, Regulator = loop.Regulator, Session = session,
+                };
+            }
+
+            /// <summary>Takty smycky v case [od, do] po 100 ms (bez obnovy drahy).</summary>
+            public void Tick(double odS, double doS)
+            {
+                for (double t = odS; t <= doS + 1e-9; t += 0.1)
+                    Scheduler.PumpDue(T0.AddSeconds(t));
+            }
+
+            /// <summary>Prekazka bokem 0,3 m od robotu, zrusi cil a posle dalsi snimek.</summary>
+            public void ObstacleBesideAndRunWithoutNewPlan()
+            {
+                var g = Nav.Grid;
+                for (double x = -0.2; x <= 0.2; x += g.Resolution / 2)
+                    for (double y = 0.3; y <= 0.4; y += g.Resolution / 2)
+                        for (int k = 0; k < 10; k++)
+                            g.ObserveOccupied(g.CellX(x), g.CellY(y), 1f);
+                Nav.ClearGoal();
+                Session.Send(Frame(T0.AddSeconds(2.55)));
+            }
+
+            /// <summary>Skoncil posledni cyklus nouzovym zastavenim? <c>LastPlan</c> se nastavuje jeste
+            /// pred koncem cyklu (na rozdil od zprav, ktere sberac dostava na svem vlakne).</summary>
+            public bool Aborted() => Nav.LastPlan?.Status == LocalPlanStatus.AbortedCollision;
+
+            public void Dispose()
+            {
+                Session.Dispose();
+                Loop.Stop();
+            }
+        }
+
+        [Test]
+        public void DrahaKterouSmyckaJede_PrekazkaUStojicihoRobotu_NouzoveZastaveni()
+        {
+            // Kontrola sceny: dokud smycka drahu jede (takt jen v cerstvem okne), kontrola kolize bezi
+            // a prekazku pod tesnym odstupem nahlasi - jinak by test (d) nize nic nedokazoval.
+            using var scene = StandingScene.Create();
+            scene.Tick(1.0, 1.1);
+            Assert.That(scene.Loop.IsDriving(scene.Regulator), Is.True, "predpoklad: smycka drahu jede");
+
+            scene.ObstacleBesideAndRunWithoutNewPlan();
+
+            Assert.That(scene.Aborted(), Is.True, "smycka drahu jede -> kontrola kolize plati");
+            Assert.That(scene.Loop.Regulator, Is.Null);
+            Assert.That(scene.Nav.ExpiredPaths, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void DojetaDraha_SeZahodi_BezNouzovehoZastaveni()
+        {
+            // Draha zastarala, smycka dobrzdila na nulu a robot stoji: smycka ji uz nejede, jeji
+            // kontrola by jen vyrobila falesne NOUZOVE ZASTAVENI (zaznamy: 5 ze 13 nad drahou 9-14 s).
+            using var scene = StandingScene.Create();
+            scene.Tick(1.0, 2.5);
+            Assert.That(scene.Loop.IsDriving(scene.Regulator), Is.False, "predpoklad: draha je dojeta");
+
+            scene.ObstacleBesideAndRunWithoutNewPlan();
+
+            Assert.That(scene.Aborted(), Is.False, "drahu, kterou smycka nejede, nema smysl nouzove zastavovat");
+            Assert.That(scene.Nav.HasActivePath, Is.False, "dojeta draha se zahodi");
+            Assert.That(scene.Nav.ExpiredPaths, Is.EqualTo(1));
+            Assert.That(scene.Loop.Regulator, Is.SameAs(scene.Regulator),
+                        "regulator ve smycce zustava - smycka si zastaralou drahu resi sama");
+        }
+
+        [Test]
+        public void RegulatorZahozenyJinde_DrahaSeZahodi_BezNouzovehoZastaveni()
+        {
+            // Regulator zahodil nekdo jiny (mise: null = stat) - drahu uz nikdo nejede.
+            using var scene = StandingScene.Create();
+            scene.Tick(1.0, 1.1);
+            scene.Loop.Regulator = null;
+
+            scene.ObstacleBesideAndRunWithoutNewPlan();
+
+            Assert.That(scene.Aborted(), Is.False);
+            Assert.That(scene.Nav.HasActivePath, Is.False);
+            Assert.That(scene.Nav.ExpiredPaths, Is.EqualTo(1));
+        }
+
         [Test]
         public void CilLzeZrusit()
         {

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **267**: otevřeno **36** · v kódu, na HW neověřeno **37** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **268**: otevřeno **36** · v kódu, na HW neověřeno **38** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -44,10 +44,10 @@ Témat celkem **267**: otevřeno **36** · v kódu, na HW neověřeno **37** · 
 | otevřeno | Lokalizace a fúze senzorů | [V 90° zatáčce koridor 7–14 s neměří (nejednoznačnost sousedních úseků téže cesty) a chybu pak opraví sérií korekcí 1,5–3 m](#lok-koridor-slepy-v-zatacce) | 7. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Track 1. 10.: robot 7,4 min stál v 8 epizodách, všechny ve dvou 90° zatáčkách — korekce koridoru posunula pózu proti gridu ve světě ke krajnici](#lp-uvaznuti-v-zatackach) | 7. 10. 2026 | [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) |
 | otevřeno | Provoz na zařízení | [Celý proces na zařízení stál 1,19 s — dohnané takty, skok kurzu, smazaný grid a ztracená data ze sériových linek](#prov-zasek-procesu-1s) | 7. 10. 2026 |  |
-| otevřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [Detektor C globální navigace je mrtvý — lokální plánovač `NoRoute` nikdy nevrátí; první dvě spuštění A jsou tichá](#nav-detektor-c-mrtvy) | 8. 10. 2026 |  |
 | otevřeno | Navigace po mapě | [global-navigation-runtime.md popisuje stavy a zprávu, které v kódu nejsou (`StuckNoMotion`, `RouteProgress`, stav detektorů v `GlobalNavMsg`)](#nav-doc-stavy-nesedi) | 8. 10. 2026 |  |
 | otevřeno | Vidění | [Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)](#vid-leva-kamera-hlavni-bod) | 10. 10. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Zastaralý regulátor, jehož rotace drží kola v pohybu, se nezastaví — robot dotáčí na místě podle staré dráhy](#lp-zastaraly-regulator-rotace-drzi-kola) | 11. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
@@ -85,6 +85,7 @@ Témat celkem **267**: otevřeno **36** · v kódu, na HW neověřeno **37** · 
 | v kódu, na HW neověřeno | Navigace po mapě | [Uváznutí v lokální mapě nikdo neohlásí — globální navigace i mise hlásí „jede“ a robot stojí do zásahu obsluhy](#nav-uvaznuti-neohlasene) | 7. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -1171,17 +1172,18 @@ Druhá vrstva k rychlostnímu stropu z mapy, nezávislá na kameře: hrbol se oh
 
 čeká na [lp-grid-odometricka-soustava](#lp-grid-odometricka-soustava) · [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [ZasekReport.cs](../Src/ARBot.Analyze/ZasekReport.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
-<a id="lp-kolize-pri-stani"></a>
-### ⬜ Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky
+<a id="lp-zastaraly-regulator-rotace-drzi-kola"></a>
+### ⬜ Zastaralý regulátor, jehož rotace drží kola v pohybu, se nezastaví — robot dotáčí na místě podle staré dráhy
 
-`lp-kolize-pri-stani` · vada · **otevřeno** · nalezeno 8. 10. 2026
+`lp-zastaraly-regulator-rotace-drzi-kola` · vada · **otevřeno** · nalezeno 11. 10. 2026
 
-Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). Kontrola kolize rozjeté dráhy (od 9. 10. `PathCollision.Collides`, dřív `LocalNavigator.PathCollides`) počítá dosah `v²/(2a) + v·Ts + buňka`, takže při `v = 0` vyjde 0,05 m a větev „robot stojí → nekontroluj" je mrtvá. U běžné dráhy hlásí kolizi už při odstupu pod `SafeDist` (0,4 m), kdežto únik se spouští až pod `SafeDist − buňka/2` (0,375 m): robot stojící v tom pásmu plánuje běžně, a když v cyklu nevznikne nová dráha, regulátor se zahodí, ven jde `AbortedCollision` (přepíše stav plánovače) a neškrcená Trace „NOUZOVE ZASTAVENI". Pravděpodobné vysvětlení Kola4 (19. 9.): uvnitř `GoalUnsafe` 9× „kolize 0,00 m" po 12–15 s. Navíc po `ClearGoal` zůstává `activePath`, takže tatáž hláška může přijít i bez cíle (stanoviště). Příbuzné `lp-unik-kontrola-kolize-startu` (úniková dráha — od 9. 10. vyjímá buňku pod robotem; běžná dráha zůstala beze změny, takže tohle platí dál).
+Nalezeno druhým kolem revize opravy (d) (`lp-kolize-pri-stani`), reprodukováno testem s uzavřenou smyčkou (rychlost kol z předchozího příkazu). Oprava z 5. 10. 2026 (`lp-zastaraly-regulator-toci-na-miste`) nuluje rotaci zastaralé dráhy, až když dopředný příkaz dobrzdil na nulu **a kola stojí**. Jenže příkaz (0, ω) z regulátoru motorová jednotka jede jako otočku na místě, enkodéry tedy počítají, „stojí" nenastane a rotace jde dál — v reprodukci 39 taktů (0; 0,3 rad/s) po rampě, dráha se nezamkne jako dojetá (`ControlLoop.IsDriving` zůstává `true`, takže kontrola kolize z (d) běží a bezpečnost (d) to nezhoršuje). Totéž má větev držení (`StopHold`: rotace se nuluje jen při `Standing == true`). Skutečný spouštěč: plány přestanou chodit za jízdy (např. `GlobalNavigator` při NoRoute zavolá `ClearGoal`, nebo vypadnou snímky). `PathResult` řídí rotaci k dalšímu uzlu, takže otočka většinou doběhne (β → 0, příkaz pod jednotkou `CalcSpeed`), ale až o π. Na zařízení změřené není.
 
-- [x] Nalezeno v kódu (f848fdf i HEAD) (8. 10. 2026)
-- [ ] Ověřit nad Kolo4 (`localplan`, `log`) a rozhodnout: nekontrolovat stojící robot / sjednotit práh s únikem / mazat `activePath` s cílem
+- [x] Nalezeno revizí (d), reprodukováno v testu s uzavřenou smyčkou (39 taktů (0; 0,3 rad/s), `IsDriving` = true) (11. 10. 2026)
+- [ ] Rozhodnout (autor): nulovat rotaci zastaralé dráhy, jakmile dopředný příkaz dobrzdil na nulu, bez ohledu na kola (přijde se o zatáčení při dojezdu, který je u nulového příkazu krátký) / omezit dotáčení časem / nechat
+- [ ] Změřit na záznamech: kolikrát po zastarání dráhy rotace pokračovala při nulovém dopředném příkazu a jak dlouho (`ARBot.Analyze hold`)
 
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-08](devlog.md#2026-10-08)
+[ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs), [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-11](devlog.md#2026-10-11)
 
 <a id="lp-freerun-stisnene-podminky"></a>
 ### 🧪 První FreeRun na železe ve stísněném prostoru skončil nárazem
@@ -1322,13 +1324,31 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 
 `lp-unik-kontrola-kolize-startu` · vada · **v kódu, na HW neověřeno** · nalezeno 7. 10. 2026 · vyřešeno 9. 10. 2026
 
-`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52), 18. 9. 4×. Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola. **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu. Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo.
+`LocalPathPlanner.PlanEscape` pustí z buňky pod robotem i tehdy, když ji blokuje geometrie (robot na ní stojí), ale `LocalNavigator.PathCollides` pro únikovou dráhu kontroluje geometrii **bez výjimky pro start** (f848fdf i HEAD). Když po `EscapingBlocked` z geometricky blokované buňky přijde cyklus bez nového plánu (`RobotBlocked`), stará úniková dráha „koliduje v 0,00 m", regulátor se zahodí a v logu je „NOUZOVE ZASTAVENI - kolize 0.00 m", které vypadá jako skutečná kolize. 1. 10. 2026 (`20261001-144638.rec`) 3× (15:06:57, 15:27:51, 15:27:52); „18. 9. 4×“ zde vedené byly podle měření 11. 10. běžná dráha (`Partial`, `lp-kolize-pri-stani`). Kdyby se únik rozšířil na celý půdorys (`lp-zapis-volna-pod-robotem`), musí stejnou výjimku dostat i tahle kontrola. **V kódu 9. 10. 2026:** kontrola vytažená do `PathCollision.Collides` (testovatelná), úniková dráha vyjímá buňku, na které robot právě stojí; běžná dráha beze změny. Přitom se ukázalo, že kontrola běží i ve stání (rezerva jedné buňky), takže falešná kolize šla i u stojícího robotu. Od zavedení `localframe=odom` (5. 10.) má být geometrie pod robotem vzácná (korekce grid neposouvají); zbývá prokluz kol a ruční přesun. 6 testů. ⚠️ Na HW neběželo. **Přeměřeno 11. 10. 2026** (`ARBot.Analyze kolize`, dnešní kód nad gridem ze záznamu): z 5 historických hlášek u únikové dráhy (1. 10. 3×, 23. 9., 25. 9.) se 3 zopakují i s výjimkou — 25. 9. trefa **startovní buňky dráhy** (výjimka i pro ni by pomohla), 23. 9. start dráhy a za ním další geometrie ~5 cm, 1. 10. 15:27:51 sousední geometrie. Rekonstrukce je nejistá (póza se korekcemi posouvala o 3–9 cm za 0,1 s); výjimka startu dráhy by pomohla v 1 ze 3.
 
 - [x] Nalezeno a přehráno nad záznamem (replika `PathCollides` nad poslední únikovou dráhou 15:27:51/52 našla G v 0,00 m) (7. 10. 2026)
 - [x] Výjimka pro startovní buňku (resp. půdorys) v `PathCollides` pro únikovou dráhu, test (9. 10. 2026)
 - [ ] Při rozšíření úniku na celý půdorys (`lp-zapis-volna-pod-robotem`) rozšířit výjimku stejně
+- [ ] Rozhodnout (autor): vyjmout i buňku prvního bodu únikové dráhy (start plánu), ne jen buňku pod robotem — z 5 historických hlášek by pomohla v 1 (25. 9.); 23. 9. a 1. 10. 15:27:51 trefí geometrii dál po dráze (měření 11. 10. 2026, rekonstrukce nejistá)
 
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09)
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-09](devlog.md#2026-10-09), [2026-10-11](devlog.md#2026-10-11)
+
+<a id="lp-kolize-pri-stani"></a>
+### 🧪 Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky
+
+`lp-kolize-pri-stani` · vada · **v kódu, na HW neověřeno** · nalezeno 8. 10. 2026 · vyřešeno 11. 10. 2026
+
+Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). Kontrola kolize rozjeté dráhy (od 9. 10. `PathCollision.Collides`, dřív `LocalNavigator.PathCollides`) počítá dosah `v²/(2a) + v·Ts + buňka`, takže při `v = 0` vyjde 0,05 m a větev „robot stojí → nekontroluj" je mrtvá. U běžné dráhy hlásí kolizi už při odstupu pod `SafeDist` (0,4 m), kdežto únik se spouští až pod `SafeDist − buňka/2` (0,375 m): robot stojící v tom pásmu plánuje běžně, a když v cyklu nevznikne nová dráha, regulátor se zahodí, ven jde `AbortedCollision` (přepíše stav plánovače) a neškrcená Trace „NOUZOVE ZASTAVENI". Pravděpodobné vysvětlení Kola4 (19. 9.): uvnitř `GoalUnsafe` 9× „kolize 0,00 m" po 12–15 s. Navíc po `ClearGoal` zůstává `activePath`, takže tatáž hláška může přijít i bez cíle (stanoviště). Příbuzné `lp-unik-kontrola-kolize-startu` (úniková dráha — od 9. 10. vyjímá buňku pod robotem; běžná dráha zůstala beze změny, takže tohle platí dál). **Ověřeno nad záznamy 11. 10. 2026** (`ARBot.Analyze kolize`, kontrola zopakovaná nad gridem ze snímku s dráhou v pořadí zpracování a buňkou robotu ze startu plánovače): 13 hlášek u běžné dráhy (Kolo 4 9×, 18. 9. 4×), zopakováno všech 13; robot vždy stál nebo se plazil (|v| ≤ 0,06 m/s); trefa vždy buňka s odstupem 0,381–0,391 m (pásmo 0,375–0,4 m) — 6× pod robotem, 7× start staré dráhy (robot stál v buňce 0,4–0,424 m a plánovač z ní dráhu nedal); nikdy skutečná překážka; cíl měla navigace ve všech 13; dráha 5× stará 9–14 s.
+
+- [x] Nalezeno v kódu (f848fdf i HEAD) (8. 10. 2026)
+- [x] Ověřit nad Kolo4 a dalšími záznamy (`ARBot.Analyze kolize`): mechanismus potvrzen — 13 z 13 zopakováno, všechny trefy v pásmu 0,375–0,4 m (6× pod robotem, 7× start staré dráhy), robot stál, cíl vždy; „activePath po ClearGoal“ 0×. Nezávislá kontrola opravila první verzi měřidla (dráha podle času snímku místo pořadí zpracování, buňka robotu z `RobotStateMsg` místo ze startu plánovače) (11. 10. 2026)
+- [x] Rozhodnout (autor): (b) práh kolize = práh úniku (`SafeDist − buňka/2` nebo `Blocked`) odstraní všech 13 (za jízdy by zastavila až na bližší buňce, podél buňky v pásmu vůbec — neměřeno); (a) nekontrolovat stojící robot 12 z 13, ale ztratí ochranu při rozjezdu; (c) mazat `activePath` s cílem 0; navíc (d) zahodit dráhu starší než `PathControlTimeOut` + dobrzdění 5. Autor zvolil (b) (11. 10. 2026)
+- [x] V kódu (b): jedno pravidlo `LocalPlannerConfig.TightClearance` pro plánovač i `PathCollision.Collides`; 6 testů; přehrání nad záznamy: z 13 hlášek se nezopakuje žádná (`ARBot.Analyze kolize`) (11. 10. 2026)
+- [ ] Ověřit na zařízení: při stání u překážky (GoalUnsafe, Partial) už žádné „NOUZOVE ZASTAVENI – kolize 0,00 m“ (`ARBot.Analyze kolize` nad záznamem)
+- [x] Rozhodnout (autor): (d) zahodit dráhu, kterou nižší smyčka už nejede (5 z 13 hlášek měly dráhu starou 9–14 s). Autor zvolil (d) (11. 10. 2026)
+- [x] V kódu (d): `ControlLoop.IsDriving` (regulátor aktuální a není dojetý — zastaralý, dobrzděný na nulu, kola stála; dojetý je pro smyčku trvale mrtvý a nevolá se, regulátor s čerstvostí jedna reference) a `LocalNavigator` dráhu, kterou smyčka nejede, zahodí místo kontroly (+ škrcená Trace); 13 testů (10 + 3); přehrání: samotná (d) odstraní 5 ze 13, s (b) nezbude žádná (`ARBot.Analyze kolize`, protifakt (d)). Revize našla a opravila: dojetí jen zapamatované (po pohnutí kol smyčka zase točila), souběh setteru (11. 10. 2026)
+
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-08](devlog.md#2026-10-08), [2026-10-11](devlog.md#2026-10-11)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď

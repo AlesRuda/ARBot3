@@ -58,6 +58,21 @@ namespace ARBot.Common.Occupancy
         /// <summary>TVRDY minimalni odstup od neprujezdneho [m]. Bliz planovac nikdy nejde.</summary>
         public double SafeDist = Profile.SafeDist;
 
+        /// <summary>
+        /// <b>Tesny odstup</b> [m]: pod nim je bunka pro robot nebezpecne blizko prekazky. Planovac
+        /// z takoveho startu UNIKA (<see cref="LocalPathPlanner"/>) a kontrola rozjete drahy
+        /// (<see cref="PathCollision"/>) v nem hlasi KOLIZI. <c>SafeDist − bunka/2</c>: hystereze pul
+        /// bunky, aby robot na hranici SafeDist nekmital mezi unikem a beznym planovanim.
+        ///
+        /// <para><b>Jedno pravidlo pro oba</b> (od 11. 10. 2026, lp-kolize-pri-stani, rozhodnuti autora):
+        /// do te doby hlasila kontrola kolizi uz pod <see cref="SafeDist"/>, kdezto planovac unikal
+        /// az pod timto prahem. V pasmu mezi (0,375-0,4 m) robot planoval bezne a kontrola stare drahy
+        /// pak „kolidovala v 0,00 m" - v zaznamech 13x (Kolo 4, 18. 9.), robot stal nebo se plazil
+        /// (do 0,06 m/s), trefa vzdy bunka s odstupem 0,381-0,391 m, nikdy skutecna prekazka
+        /// (<c>ARBot.Analyze kolize</c>).</para>
+        /// </summary>
+        public double TightClearance(double cellSize) => SafeDist - cellSize / 2;
+
         /// <summary>Odstup, od ktereho uz se rychlost neomezuje [m] - jen v rezimu <see cref="SpeedEnvelopeMode.Radial"/>.</summary>
         public double PrefDist = Profile.PrefDist;
 

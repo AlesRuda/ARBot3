@@ -13,6 +13,60 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-11 — Rozjetá dráha se kontroluje, jen dokud ji řídicí smyčka jede
+
+**Co:** `LocalNavigator` zahodí rozjetou dráhu a přestane ji kontrolovat proti mapě, jakmile ji
+`ControlLoop` nejede: regulátor vyměnil někdo jiný, nebo je dojetý (zastaralý, dopředný příkaz
+dobrzděný na nulu, kola stála). Rozhoduje `ControlLoop.IsDriving`. Dojetý regulátor je pro smyčku
+**trvale mrtvý** — posílá (0, 0), i když se kola pak pohnou, dokud nepřijde nový. Rozhodnutí autora
+(`lp-kolize-pri-stani`, varianta d).
+
+**Proč:**
+- **Kontrola nemá u takové dráhy žádný zásah.** Jejím jediným zásahem je zahodit regulátor; smyčka
+  ale už posílá (0, 0) bez ohledu na něj. Kontrola jen vyráběla „NOUZOVE ZASTAVENI – kolize"
+  u robotu, který dávno stál — v záznamech 5 ze 13 hlášek nad dráhou starou 9–14 s.
+- **Pravidlo drží smyčka, ne navigátor.** Navržená podoba „dráha starší než `PathControlTimeOut`
+  + dobrzdění" by v navigátoru zopakovala timeout smyčky jiným časem (razítka snímků chodí ve
+  20–25 % mimo pořadí) a dobu dobrzdění by odhadovala. Smyčka ví přesně, kdy dráhu přestala jet —
+  ve stejném stavu, ve kterém od 5. 10. nuluje rotaci.
+
+- **Dojetí musí být vynucené, ne jen zapamatované** (nález revize týž den, reprodukovaný): první verze
+  si dojetí jen poznamenala, ale nulování rotace posuzovala každý takt znovu — po pohnutí kol smyčka
+  zase točila podle dráhy, kterou navigátor už nehlídal. Bez trvalé netečnosti by (d) bezpečnost
+  zhoršila. Zároveň se regulátor a jeho čerstvost předávají jednou volatile referencí („slot"),
+  protože dva zápisy dovolovaly taktu posoudit nový regulátor podle stáří starého.
+
+**Cena:** na bezpečnosti žádná — kontrola mizí jen tam, kde by její zásah nic nezměnil; dokud se po
+dráze dobrzďuje nebo kola dojíždějí, běží dál. **Změna chování smyčky:** dojetý regulátor se už
+nevolá a nezačne točit, když se kola pohnou (strčení, tik enkodéru) — dřív v tom případě znovu točil
+na místě. Točení, které si zastaralý regulátor udrží sám (rotace drží kola v pohybu, takže „stojí"
+nenastane), tím vyřešené **není** — samostatný nález `lp-zastaraly-regulator-rotace-drzi-kola`; tam
+`IsDriving` zůstává `true` a kontrola kolize běží. Regulátor ve smyčce zůstává.
+Bez smyčky (testy, nástroje) se nemění nic. Na zařízení neběželo. Detail:
+[occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
+### 2026-10-11 — Kontrola kolize rozjeté dráhy má týž práh jako únik plánovače
+
+**Co:** `PathCollision.Collides` hlásí kolizi běžné dráhy pod `SafeDist − buňka/2` (0,375 m) nebo
+v `Blocked`, ne už pod `SafeDist` (0,4 m). Je to jedno pravidlo
+`LocalPlannerConfig.TightClearance`, které volá i plánovač (pod ním se ze startu uniká). Rozhodnutí
+autora (`lp-kolize-pri-stani`, varianta b).
+
+**Proč:**
+- **Dva prahy pro totéž.** V pásmu 0,375–0,4 m plánovač plánoval běžně, ale kontrola staré dráhy
+  hlásila kolizi v 0,00 m — v záznamech 13× (Kolo 4, 18. 9.), robot stál nebo se plazil (do
+  0,06 m/s, 12× pod 0,05), trefa vždy buňka 0,381–0,391 m, nikdy skutečná překážka
+  (`ARBot.Analyze kolize`).
+- **Ostatní varianty:** nekontrolovat stojící robot by odstranilo 12 ze 13, ale vzalo by ochranu při
+  rozjezdu; mazat dráhu se zrušením cíle by neodstranilo nic (cíl byl vždy).
+
+**Cena:** dráhu, kterou plánovač v cyklu nenahradil, kontrola za jízdy nezastaví na buňce v pásmu
+0,375–0,4 m — zastaví až na další, bližší buňce, a vede-li dráha jen podél takové buňky, nezastaví
+vůbec. Pásmo dává jen odstup √58 nebo √61 buňky (pole je exaktní euklidovské), tedy u rohu nebo
+samostatné buňky překážky; podél rovné stěny se nemění nic. Plánovač by takovou dráhu sám
+nenaplánoval (mimo start žádá aspoň `SafeDist`); data za jízdy nejsou (všech 18 hlášek do 0,07 m/s).
+Na zařízení neběželo. Detail: [occupancy-and-local-planning.md](occupancy-and-local-planning.md).
+
 ### 2026-10-11 — Sigma úhlové rychlosti z kol 0,3 a rozdíl gyro / kola se hlásí jako prokluz
 
 **Co:** `OdoRateStd` je parametr `odoratestd=` s výchozí hodnotou **0,3** (do teď 0,10 natvrdo),

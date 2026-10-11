@@ -32,8 +32,9 @@ namespace ARBot.Common.Occupancy
         AbortedCollision = 6,
 
         /// <summary>
-        /// UNIK: robot stoji v blokovane bunce NEBO tesne u prekazky (odstup pod SafeDist, od
-        /// 3. 9. 2026 - drive to resila "eskapovaci zona") a plan vede k nejblizsi bunce, odkud muze
+        /// UNIK: robot stoji v blokovane bunce NEBO tesne u prekazky (odstup pod
+        /// <see cref="LocalPlannerConfig.TightClearance"/> = SafeDist − bunka/2, od 3. 9. 2026 - drive
+        /// to resila "eskapovaci zona") a plan vede k nejblizsi bunce, odkud muze
         /// pokracovat bezne planovani; tam zastavi. Neni to selhani - robot jede (pomalu, rychlostni
         /// obalka ho zdrzi sama).
         /// <para>Ven se smi jen pres bunky blokovane <b>semantikou</b>; pres geometricky blokovane

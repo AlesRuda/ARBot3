@@ -60,6 +60,10 @@ namespace ARBot.Common.Occupancy
         /// <summary>Skrceni hlaseni o smazani gridu po skoku pozy (serie skoku nesmi zahltit Trace).</summary>
         private readonly ARBot.Common.Diagnostics.PoruchaHlasic jumpHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
 
+        /// <summary>Skrceni hlaseni o zahozeni drahy, kterou smycka uz nejede (krok (2c)) - pri
+        /// stridani GoalUnsafe a planu by jinak slo do Trace az nekolikrat za sekundu.</summary>
+        private readonly ARBot.Common.Diagnostics.PoruchaHlasic expiredHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
+
         private readonly Stopwatch sw = new Stopwatch();
         private DateTime lastGridMsg;
         private DateTime lastFrameTime;
@@ -72,6 +76,11 @@ namespace ARBot.Common.Occupancy
         /// <summary>Je aktivni draha UNIKEM z blokovane bunky? Pak se kolize posuzuje jen podle
         /// geometrie - viz PathCollides a doc/occupancy-and-local-planning.md.</summary>
         private bool activePathIsEscape;
+
+        /// <summary>Regulator predany nizsi smycce spolu s <c>activePath</c> (<c>null</c> = draha se
+        /// jen eviduje, bez IPathPlanneru). Podle nej se pta <see cref="Runtime.ControlLoop.IsDriving"/>,
+        /// jestli smycka drahu jeste jede - viz krok (2c) v ProcessCore.</summary>
+        private IRegulator activeRegulator;
 
         /// <summary>Zadost o zahozeni rozjete drahy (z jineho vlakna - viz <see cref="RequestPathReset"/>).
         /// Vyzvedne se na zacatku dalsiho tiku, aby se s <c>activePath</c> pracovalo jen na vlakne
@@ -152,6 +161,10 @@ namespace ARBot.Common.Occupancy
 
         /// <summary>DIAGNOSTIKA: kolikrat se grid zahodil kvuli skoku pozy.</summary>
         public long GridResets { get; private set; }
+
+        /// <summary>DIAGNOSTIKA: kolikrat se rozjeta draha zahodila proto, ze ji nizsi smycka uz nejela
+        /// (dojeta zastarala draha, nebo regulator vymenil nekdo jiny) - viz krok (2c) v ProcessCore.</summary>
+        public long ExpiredPaths { get; private set; }
 
         /// <param name="engine">Fuze - dotazuje se na pozu v case snimku.</param>
         /// <param name="depthProjections">Projekce HLOUBKOVEHO streamu per kamera
@@ -240,7 +253,8 @@ namespace ARBot.Common.Occupancy
         /// Zrusi cil. Robot prestane dostavat novy plan a nizsi smycka po
         /// <c>Profile.PathControlTimeOut</c> nouzove dobrzdi po posledni trase (RIZENE dobrzdeni,
         /// ne tvrde zastaveni). Posledni draha se pritom porad hlida proti mape - kdyby na ni behem
-        /// dobrzdovani prekazka prece jen byla, rizeni se zahodi okamzite.
+        /// dobrzdovani prekazka prece jen byla, rizeni se zahodi okamzite. Jakmile robot dobrzdi
+        /// a stoji, draha se zahodi (smycka ji uz nejede, viz <see cref="Runtime.ControlLoop.IsDriving"/>).
         /// </summary>
         public void ClearGoal()
         {
@@ -313,7 +327,8 @@ namespace ARBot.Common.Occupancy
             finally { ProcessedFrames++; }
         }
 
-        /// <summary>Ma navigator rozjetou drahu? (Diagnostika a testy.)</summary>
+        /// <summary>Ma navigator rozjetou drahu - takovou, kterou nizsi smycka jeste jede (nebo ji
+        /// jen eviduje bez smycky)? (Diagnostika a testy.)</summary>
         public bool HasActivePath => activePath != null;
 
         /// <summary>
@@ -336,6 +351,7 @@ namespace ARBot.Common.Occupancy
                 pathResetRequested = false;
                 activePath = null;
                 activePathIsEscape = false;
+                activeRegulator = null;
                 if (Frame == LocalFrame.Odom) grid.Clear();
 
                 var loopToStop = ControlLoop;
@@ -353,6 +369,33 @@ namespace ARBot.Common.Occupancy
             wedge.Fill(pose.X, pose.Y, pose.Theta);
 
             lastFrameTime = frame.TimeStamp;
+
+            // (2c) Draha, kterou nizsi smycka uz NEJEDE, se zahodi (oprava (d), lp-kolize-pri-stani,
+            //      11. 10. 2026, rozhodnuti autora). Kontrola kolize v kroku (6) ma jediny zasah -
+            //      zahodit regulator - a u drahy, kterou smycka nejede, to nic nezmeni: bud uz
+            //      regulator neni jeji (vymenil ho nekdo jiny, null = stat), nebo je dojety
+            //      (zastaraly, dobrzdeny na nulu a robot stoji - smycka posila (0, 0) bez ohledu
+            //      na nej). Kontrolovat ji dal jen vyrabelo falesne „NOUZOVE ZASTAVENI - kolize"
+            //      u robotu, ktery uz stal: v zaznamech 5 ze 13 hlasek nad drahou starou 9-14 s.
+            //      Pokud se po ni jeste dobrzduje, smycka ji jede a kontrola bezi dal.
+            //      Bez smycky nebo bez regulatoru (testy, ladeni) se nevi -> draha zustava.
+            if (activePath != null && activeRegulator != null)
+            {
+                var loopNow = ControlLoop;
+                if (loopNow != null && !loopNow.IsDriving(activeRegulator))
+                {
+                    bool vymenen = !ReferenceEquals(loopNow.Regulator, activeRegulator);
+                    activePath = null;
+                    activePathIsEscape = false;
+                    activeRegulator = null;
+                    ExpiredPaths++;
+                    // Stopa do Trace (skrcene): bez ni by na zarizeni nesla odlisit „draha zahozena,
+                    // kontrola nebezela" od „kontrola bezela a nic nenasla" - v zaznamu by bylo obojí ticho.
+                    string druh = vymenen ? "regulator vymenil nekdo jiny" : "dojeta (zastarala, dobrzdena, kola stoji)";
+                    expiredHlasic.Hlas("LocalNavigator: draha " + (vymenen ? "vymenena" : "dojeta"),
+                                       $"LocalNavigator: rozjeta draha zahozena - nizsi smycka ji nejede ({druh}), kontrola kolize nad ni konci (celkem {ExpiredPaths})");
+                }
+            }
 
             // (3) Bez cile a bez rozjete drahy neni co resit - mapa se ale akumuluje dal.
             double gx, gy;
@@ -397,6 +440,7 @@ namespace ARBot.Common.Occupancy
                         }
                         activePath = plan.WayPoints;
                         activePathIsEscape = plan.Status == LocalPlanStatus.EscapingBlocked;
+                        activeRegulator = loop != null ? regulator : null;
                         handedOver = true;
                     }
                     catch (Exception ex)
@@ -411,6 +455,7 @@ namespace ARBot.Common.Occupancy
                 {
                     activePath = plan.WayPoints;   // bez IPathPlanneru jen evidujeme (testy/ladeni)
                     activePathIsEscape = plan.Status == LocalPlanStatus.EscapingBlocked;
+                    activeRegulator = null;
                     handedOver = true;
                 }
             }
@@ -420,12 +465,14 @@ namespace ARBot.Common.Occupancy
             //     dobrzdi az po Profile.PathControlTimeOut (500 ms) a z 0,8 m/s je brzdna draha
             //     dalsi ~1 m - to je pozde. Proto se draha KAZDY CYKLUS overuje proti aktualni mape
             //     a pri kolizi v dosahu brzdne drahy se rizeni zahazuje OKAMZITE (robot stoji).
+            //     Jen dokud ji smycka jede - dojetou zahodil krok (2c).
             if (!handedOver && activePath != null && PathCollides(activePath, pose, activePathIsEscape, out double hitDist))
             {
                 var loop = ControlLoop;
                 if (loop != null) loop.Regulator = null;   // ControlLoop: null = stat (bezpecny stav)
                 activePath = null;
                 activePathIsEscape = false;
+                activeRegulator = null;
 
                 // Trace, ne Debug: tohle je jedina hlaska, ktera vysvetluje, PROC navigator zahodil
                 // regulator a robot zastal. V Release by po ni nezustala stopa a v zaznamu by bylo

@@ -41,6 +41,41 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ## 2026-10-11
 
+- **Rozjetá dráha se kontroluje, jen dokud ji smyčka jede** (`lp-kolize-pri-stani`, varianta (d),
+  pokyn autora): `ControlLoop.IsDriving` (regulátor je aktuální a není dojetý — zastaralý, dobrzděný
+  na nulu, kola stála) a `LocalNavigator` dráhu, kterou smyčka nejede, zahodí místo kontroly
+  (+ škrcená hláška do `Trace`). Nezávislá revize našla v první verzi vadu, kterou reprodukovala:
+  dojetí se jen zapamatovalo, rotace se posuzovala každý takt znovu, takže po pohnutí kol smyčka zase
+  točila podle dráhy, kterou už nikdo nehlídal. Teď je dojetý regulátor trvale mrtvý a nevolá se,
+  a regulátor s čerstvostí se předávají jednou referencí („slot"; dva zápisy dovolovaly souběh).
+  Druhé kolo revize potvrdilo invariant (`IsDriving` = `false` ⇒ smyčka posílá (0, 0)) a našlo starší
+  díru v opravě z 5. 10.: zastaralý regulátor, jehož rotace drží kola v pohybu, se nezamkne a robot
+  dotáčí podle staré dráhy — nové téma `lp-zastaraly-regulator-rotace-drzi-kola` (k rozhodnutí). Přehrání: samotná (d) odstraní 5 ze 13 falešných hlášek (dráhy
+  staré 9–14 s, dojeté 0,5–0,6 s po předání), s (b) nezbude žádná, únikové dráhy se to netýká.
+  Protifakt (d) v `kolize` napřed nezabral nic, protože bral i rotaci z příkazu — staré binárky
+  u zastaralé dráhy točily. 13 testů (10 + 3), mutace je chytí (bez (2c) 2, bez zamknutí 7, bez
+  netečnosti dojetého 2); předpoklady testů `Assert`, ne `Assume` (to by při rozbití jen přeskočilo).
+  Rozhodnutí v [decisions.md](decisions.md). ⚠️ Na zařízení neběželo.
+
+- **Kontrola kolize rozjeté dráhy má práh úniku** (`lp-kolize-pri-stani`, varianta (b), pokyn
+  autora): jedno pravidlo `LocalPlannerConfig.TightClearance` = `SafeDist − buňka/2` pro plánovač
+  i `PathCollision.Collides`. Přehrání nad záznamy: z 13 falešných „NOUZOVE ZASTAVENI" u běžné dráhy
+  se nezopakuje žádné (se starým prahem 13); `kolize` teď místo protifaktu (b) ukazuje „postaru".
+  6 testů, návrat ke starému prahu shodí 4. Rozhodnutí v [decisions.md](decisions.md). ⚠️ Na zařízení
+  neběželo.
+
+- **Falešné „NOUZOVE ZASTAVENI – kolize 0,00 m" ověřeno nad záznamy** (bod 5 průzkumu,
+  `lp-kolize-pri-stani`). Nový `ARBot.Analyze kolize` u každé zprávy `AbortedCollision` zopakuje
+  kontrolu kolize (tentýž `PathCollision.Collides`) nad gridem ze snímku. V záznamech 18 hlášek,
+  všechny 0,00 m: 13 u běžné dráhy (Kolo 4, 18. 9.) — robot stál, zopakováno všech 13, trefa vždy
+  buňka s odstupem 0,381–0,391 m (pásmo mezi prahem kolize 0,4 a prahem úniku 0,375 m; 6× pod
+  robotem, 7× start staré dráhy), nikdy skutečná překážka, cíl vždy (případ „po ClearGoal" 0×),
+  dráha 5× stará 9–14 s. Oprava (b) „práh kolize = práh úniku" by odstranila všech 13. U únikové
+  dráhy (5) se i s výjimkou z 9. 10. zopakují 3, výjimka i pro start dráhy by pomohla v 1. Hlášky
+  z 18. 9., vedené 9. 10. jako úniková dráha, byly běžná dráha. Nezávislá kontrola opravila první
+  verzi měřidla (dráha podle času snímku místo pořadí zpracování, buňka robotu z `RobotStateMsg`
+  místo ze startu plánovače) — závěr (b) platí, čísla se změnila. Neopraveno, rozhodne autor.
+
 - **Předstih pózy před GPS způsobila razítka odometrie** (bod 4 průzkumu,
   `lok-koridor-hranova-lokalizace`). Nový `ARBot.Analyze predstih` napodobí nad starým záznamem opravu
   9afb50c (čas z motorové jednotky): perioda jednotky z časů příchodu (10,975–10,989 ms ve všech devíti
