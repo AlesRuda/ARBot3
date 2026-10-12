@@ -613,6 +613,13 @@ platný do 11. 10. 2026), (d) smyčka dráhu už nejela (přibližná rekonstruk
 `ControlLoop.IsDriving` z `DriveCommandMsg` a `MotorStateBase`, do jednoho taktu; od 11. 10. 2026
 se taková dráha nekontroluje) a (e) výjimka
 startu únikové dráhy (`lp-kolize-pri-stani`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md)).
+**`zotaveni`** (12. 10. 2026) sestaví kolem každého drženého zastavení (`DriveCommandMsg.Held`) časovou
+osu od uvolnění: snímky po kamerách **z indexu** (jméno, čas pořízení a příchodu — bez čtení obrazu),
+zpracování a zahození v `LocalNavigator` z `PerfMsg`, grid, **všechny** `LocalPlanMsg` i bez dráhy se
+stavem, cíl navigace, misi, příkaz smyčky ve slepé době (rotace na místě, nouzové zastavení) a hlášky;
+`--kontext` čte jen hlášky a pro každou recyklaci
+kontextu RealSense vypíše, za kolik sekund se která kamera připojila (CSV `ZOTAVENI;…`) — rychlé přes
+všechny záznamy ([plan-drive-hold.md](plan-drive-hold.md), `prov-zotaveni-kamer-slepy-po-uvolneni`).
 Konfiguraci
 ze záznamu čte sdílený `LogConfig`; `wedge` a `corridor` ji od té doby berou ze záznamu (dřív
 výchozí hodnoty — `wedge` počítal s 1,2 místo 1,7 m/s a četl všechny snímky).

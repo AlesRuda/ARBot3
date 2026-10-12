@@ -775,9 +775,12 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   zpátky, od zamrznutí do obnovy 29 s** (dřív táž porucha znamenala mrtvou kameru 343 s a 22 min,
   než přišel restart služby). ✅ **Brzdění pod holdem za jízdy ověřeno ze záznamů 5. 10. 2026**
   (`ARBot.Analyze hold`, 23. a 29. 9.): rampa, stání za 0,27–0,35 s na 3–5 cm. ⚠️ **Rozjezd po
-  uvolnění ale ukázal dvě vady** — plán přijde až za 9–13 s a zastaralý regulátor mezitím točil
+  uvolnění ale ukázal dvě vady** — plán přijde až za 8,7–13,1 s (ve všech čtyřech záznamech 8,7–16,9 s) a zastaralý regulátor mezitím točil
   robotem na místě (od 5. 10. 2026 smyčka u zastaralé dráhy a stojícího robotu rotaci nuluje,
-  `lp-zastaraly-regulator-toci-na-miste`), a příkaz rychlosti skáče bez rampy — to autor nechal,
+  `lp-zastaraly-regulator-toci-na-miste`; ⚠️ **příčina mezery změřena 12. 10. 2026:** držení se
+  uvolňovalo hned po novém kontextu RealSense a D435 se připojí až za 8–16 s, do té doby robot nemá
+  jediný snímek — `prov-zotaveni-kamer-slepy-po-uvolneni`, `ARBot.Analyze zotaveni`; od 12. 10.
+  2026 supervizor drží stop do prvního snímku kterékoli kamery, nejdéle 30 s, na HW neběželo), a příkaz rychlosti skáče bez rampy — to autor nechal,
   rozjezd omezí motorová jednotka. ⚠️ **Její rampa byla 1,04 m/s², ne nastavených 0,40**
   (převod jednotek pro `SDC2160Ex`, `hw-motor-rampa-jednotky`) — **opraveno 5. 10. 2026** a rampy
   jsou zvlášť (skript jednotky **2.2**: běžná jízda jednou rampou 0,40 m/s², nouzové zastavení

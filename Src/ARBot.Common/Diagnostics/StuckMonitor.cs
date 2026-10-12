@@ -72,7 +72,8 @@ namespace ARBot.Common.Diagnostics
         /// Od kolika sekund stani se hlasi „stoji" (oranzove) [s]. Rozhodnuti autora 8. 10. 2026.
         /// <para>V datech (27 zaznamu, 4 h aktivni jizdy) trva prvni pul metr po startu useku az 11 s
         /// a prodleva planu po uvolneni holdu kamer 10–20 s — 20 s je tedy nad beznym rozjezdem,
-        /// ale ukaze i uvaznuti, ktera obsluha ukoncila po 32 a 39 s.</para>
+        /// ale ukaze i uvaznuti, ktera obsluha ukoncila po 32 a 39 s. (Od 12. 10. 2026 je ta prodleva
+        /// po zotaveni kamer pod drzenim - supervizor drzi do prvniho snimku -, takze se nepocita.)</para>
         /// </summary>
         public double StandingSec = 20.0;
 

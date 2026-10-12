@@ -449,8 +449,10 @@ namespace ARBot.Robot.Web
             {
                 supervizor.RequestRecovery();
                 Trace.WriteLine("web: zadost o zotaveni kamer.");
-                HttpMini.WriteText(s, 200, "zotaveni kamer vyzadano - robot se zastavi a kamery "
-                                           + "se pripoji znovu (pár sekund)");
+                // Doba je zmerena (12. 10. 2026): zastaveni 2-6 s + pripojeni kamer 9-17 s, drzeni trva
+                // do prvniho snimku. Puvodni „par sekund" svadelo ke kliknuti znovu.
+                HttpMini.WriteText(s, 200, "zotaveni kamer vyzadano - robot se zastavi a stoji, dokud "
+                                           + "se kamery nepripoji znovu (obvykle 10-25 s)");
             }
             catch (Exception ex)
             {

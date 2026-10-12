@@ -590,6 +590,79 @@ public class GlobalNavigatorTests
                     "uvazly robot ve slepem konci je zasek, ne dojezd");
     }
 
+    /// <summary>
+    /// Pokusy detektoru A se počítají v JEDNOM souvislém stání: pohyb o <c>MinMotionM</c> čítač
+    /// vynuluje. Do 12. 10. 2026 se nenuloval nikdy, takže stání rozdělená jízdou se sčítala
+    /// a hranu uzavřela (nav-detektor-a-pokusy-bez-nulovani).
+    /// </summary>
+    [Test]
+    public void DetektorA_PohybVynulujePokusy()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 1,                         // uzavrit az pri DRUHEM pokusu
+        };
+        var nav = Create(origin, sink, cfg);
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);
+        var t = DateTime.UtcNow;
+
+        // 1. stani: jeden zapocteny pokus.
+        nav.Step(10, 0, 0.0, t);
+        nav.Step(10, 0, 0.0, t.AddSeconds(1.2));
+        // Jizda 0,6 m (vic nez MinMotionM 0,5).
+        nav.Step(10.3, 0, 0.6, t.AddSeconds(1.7));
+        nav.Step(10.6, 0, 0.6, t.AddSeconds(2.2));
+        // 2. stani: prvni pokus TOHOTO stani - bez nulovani by byl druhy a hranu by uzavrel.
+        nav.Step(10.6, 0, 0.0, t.AddSeconds(2.7));
+        nav.Step(10.6, 0, 0.0, t.AddSeconds(3.4));
+        Assert.That(nav.Closures.Any(c => c.Reason == ClosureReason.NoMotion), Is.False,
+                    "stani oddelena jizdou se nescitaji");
+
+        // Totez stani trva dal: druhy pokus v nem uz hranu uzavre.
+        nav.Step(10.6, 0, 0.0, t.AddSeconds(4.6));
+        Assert.That(nav.Closures.Any(c => c.Reason == ClosureReason.NoMotion), Is.True,
+                    "pokusy v jednom souvislem stani se pocitaji dal");
+    }
+
+    /// <summary>
+    /// Totéž, když se robot pohne při ODZBROJENÉM detektoru (únik z blokované buňky,
+    /// <c>EscapingBlocked</c>): i to je pohyb, který stání ukončil. Nulování jen v ozbrojeném stavu
+    /// nechávalo „stání → únik o 1,5 m → stání" hranu uzavřít (nález revize 12. 10. 2026).
+    /// </summary>
+    [Test]
+    public void DetektorA_PohybPriOdzbrojenemDetektoru_TakeVynulujePokusy()
+    {
+        var origin = Origin();
+        var sink = new FakeLocalGoal();
+        var cfg = new GlobalNavigatorConfig
+        {
+            NoMotionSec = TimeSpan.FromSeconds(1),
+            EscalateSec = TimeSpan.Zero,
+            MaxRecoveries = 1,
+        };
+        var nav = Create(origin, sink, cfg);
+        nav.SetGoal(origin.ToLLA(200, 0));
+        nav.OnLocalPlan(LocalPlanStatus.Ok);
+        var t = DateTime.UtcNow;
+
+        nav.Step(10, 0, 0.0, t);
+        nav.Step(10, 0, 0.0, t.AddSeconds(1.2));                       // 1. pokus
+        nav.OnLocalPlan(LocalPlanStatus.EscapingBlocked);               // detektor odzbrojen
+        nav.Step(10.3, 0, 0.6, t.AddSeconds(1.7));
+        nav.Step(10.6, 0, 0.6, t.AddSeconds(2.2));                     // unik 0,6 m
+        nav.OnLocalPlan(LocalPlanStatus.Ok);
+        nav.Step(10.6, 0, 0.0, t.AddSeconds(2.7));
+        nav.Step(10.6, 0, 0.0, t.AddSeconds(3.9));                     // 1. pokus noveho stani
+
+        Assert.That(nav.Closures.Any(c => c.Reason == ClosureReason.NoMotion), Is.False,
+                    "pohyb pri unikovem planu stani ukoncil");
+    }
+
     /// <summary>Skutečný dojezd k mrkvi (<c>AlreadyAtGoal</c>) zásek není — kontrola k testu výš.</summary>
     [Test]
     public void AlreadyAtGoal_DetektorANezavira()

@@ -286,6 +286,12 @@ namespace ARBot.Analyze
                     case "kolize":
                         KolizeReport.Run(rec, (int)Arg(args, "--vypis", 50));
                         return 0;
+                    case "zotaveni" when args.Any(a => a == "--kontext"):
+                        ZotaveniReport.RunKontext(rec, Arg(args, "--max", 120.0));
+                        return 0;
+                    case "zotaveni":
+                        ZotaveniReport.Run(rec, Arg(args, "--po", 3.0), Arg(args, "--max", 40.0), Arg(args, "--pred", 3.0));
+                        return 0;
                     case "predstih":
                         FusionReplayReport.RunPredstih(rec, Text(args, "--map"), Arg(args, "--maxedge", double.NaN), Text(args, "--set"));
                         return 0;
@@ -541,6 +547,10 @@ namespace ARBot.Analyze
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
             Console.WriteLine("  kolize     nouzova zastaveni AbortedCollision: rychlost, draha, cil, odstup bunky pod robotem,");
             Console.WriteLine("             kontrola kolize zopakovana nad gridem ze zaznamu (lp-kolize-pri-stani); --vypis=50");
+            Console.WriteLine("  zotaveni   casova osa kolem drzeneho zastaveni: snimky po kamerach, LocalNavigator (PerfMsg), grid,");
+            Console.WriteLine("             plany i bez drahy, cil navigace, hlasky; t = 0 je uvolneni (lp-zastaraly-regulator-toci-na-miste);");
+            Console.WriteLine("             --po=3 (s za prvnim planem s drahou), --max=40, --pred=3; --kontext = jen z hlasek: za kolik s");
+            Console.WriteLine("             od recyklace kontextu RealSense se ktera kamera pripojila (CSV ZOTAVENI;...)");
             Console.WriteLine("  predstih   predstih pozy pred GPS a protifakt opravy razitek odometrie (cas jednotky, 9afb50c):");
             Console.WriteLine("             fuze S/BEZ koridoru s puvodni a opravenou odometrii, podelna chyba se znamenkem,");
             Console.WriteLine("             po minutach, tetiva pozy / kola; --map= --maxedge= --set=klic=hodnota");

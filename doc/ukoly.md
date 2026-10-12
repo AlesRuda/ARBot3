@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **269**: otevřeno **37** · v kódu, na HW neověřeno **38** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **271**: otevřeno **37** · v kódu, na HW neověřeno **40** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -87,6 +87,8 @@ Témat celkem **269**: otevřeno **37** · v kódu, na HW neověřeno **38** · 
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver chytré BMS JBD — stav nabití, proud a články do záznamu a na stránku](#hw-bms-jbd-driver) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Nástroje, záznam a analýza | [Údaje z BMS nejsou v telemetrickém pohledu](#hw-bms-telemetrie) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
+| v kódu, na HW neověřeno | Navigace po mapě | [Detektor záseku A počítá pokusy na hraně po celou dobu běhu navigátoru — čítač se nikdy nenuluje, třetí stání kdykoli hranu uzavře](#nav-detektor-a-pokusy-bez-nulovani) | 12. 10. 2026 |  |
+| v kódu, na HW neověřeno | Provoz na zařízení | [Po zotavení kamer je robot 8–17 s slepý mimo držení — StopHold se uvolní hned po novém kontextu RealSense, kamery se připojí až za 8–16 s](#prov-zotaveni-kamer-slepy-po-uvolneni) | 12. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -957,6 +959,20 @@ Pozorování autora z Track 29. 9. 2026 (`20260929-150844.rec`): mrkev byla na k
 
 [global-navigation-runtime.md](global-navigation-runtime.md), [StuckMonitor.cs](../Src/ARBot.Common/Diagnostics/StuckMonitor.cs) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-08](devlog.md#2026-10-08)
 
+<a id="nav-detektor-a-pokusy-bez-nulovani"></a>
+### 🧪 Detektor záseku A počítá pokusy na hraně po celou dobu běhu navigátoru — čítač se nikdy nenuluje, třetí stání kdykoli hranu uzavře
+
+`nav-detektor-a-pokusy-bez-nulovani` · vada · **v kódu, na HW neověřeno** · nalezeno 12. 10. 2026 · vyřešeno 12. 10. 2026
+
+Nalezeno při rozboru `prov-zotaveni-kamer-slepy-po-uvolneni` (ověřeno v kódu). `GlobalNavigator.DetectNoMotion` po `NoMotionSec` + `EscalateSec` (10 + 5 s) bez ujetí `MinMotionM` (0,5 m) zvýší `recoveryCount` pro směrovou hranu a při překročení `MaxRecoveries` (2) ji tvrdě uzavře. `recoveryCount` se ale jen zvyšuje — nenuluje se pohybem, novým cílem ani vypršením uzavření — takže tři stání na téže hraně kdykoli za běh (i hodiny od sebe, z různých příčin) hranu uzavřou. Navíc během slepoty po zotavení kamer detektor nevidí, že plány nechodí: `localPlanValid` nese stav posledního plánu z doby před držením. Dopad z dat zatím nezměřený.
+
+- [x] Nalezeno v kódu (`recoveryCount` se v `GlobalNavigator.DetectNoMotion` jen zvyšoval) (12. 10. 2026)
+- [x] Rozhodnout (autor): nulovat čítač. Autor: ano (12. 10. 2026)
+- [x] V kódu: `recoveryCount` se nuluje ujetím `MinMotionM` od posledního pokusu, ať je detektor ozbrojený, nebo ne (i únik při odzbrojeném detektoru — nález revize; jen když navigace jede s cílem po hraně); 2 testy, mutace chycená. Slepotu po zotavení kamer řeší držení do prvního snímku (`prov-zotaveni-kamer-slepy-po-uvolneni`), takže `localPlanValid` se neměnilo (kromě vzácného případu, kdy kamery nepřijdou do 30 s). ⚠️ Až vznikne manévr zotavení (`nav-recovery-manevr`), jeho pohyb se do nulování počítat nesmí (12. 10. 2026)
+- [ ] Změřit nad záznamy, kolikrát se pokus započítal a jestli některé uzavření vzniklo ze stání v různých časech (`ARBot.Analyze nav`)
+
+[global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-10-12](devlog.md#2026-10-12)
+
 <a id="nav-recovery-manevr"></a>
 ### ⏸ Recovery manévr při záseku
 
@@ -1290,9 +1306,9 @@ Nalezeno rozborem držených zastavení (`ARBot.Analyze hold`, `lp-drzene-zastav
 - [x] Změřeno ze záznamu: plán za 13,1 / 8,7 s po uvolnění, rotace na místě −0,5 rad/s (gyro) při nulovém dopředném příkazu (5. 10. 2026)
 - [x] Rozhodnout (autor): u zastaralé dráhy nulovat rotaci, jakmile dopředný příkaz dojde na nulu / robot stojí (jako pod holdem), nebo jinak. Autor: ano — „plán je starý a robot zastavil, nevidím důvod, proč by měl rotovat“; v kódu (`ControlLoop`, 5 testů) (5. 10. 2026)
 - [ ] Ověřit na zařízení: po uvolnění holdu robot stojí (gyro ~0) do prvního nového plánu (`ARBot.Analyze hold`)
-- [ ] Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?)
+- [x] Zjistit, proč po zotavení kamer 9–13 s nevzniká plán (snímky, grid, cíl?): celá mezera je znovupřipojení kamer — od uvolnění do prvního snímku žádný snímek, s prvním snímkem grid i plán do 0,06 s; držení se uvolní hned po novém kontextu, kamery se připojí za 8–16 s (`ARBot.Analyze zotaveni`, 4 epizody). Navazuje `prov-zotaveni-kamer-slepy-po-uvolneni` (12. 10. 2026)
 
-[plan-drive-hold.md](plan-drive-hold.md), [ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs) · DevLog [2026-10-05](devlog.md#2026-10-05)
+[plan-drive-hold.md](plan-drive-hold.md), [ControlLoop.cs](../Src/ARBot.Common/Runtime/ControlLoop.cs) · DevLog [2026-10-05](devlog.md#2026-10-05), [2026-10-12](devlog.md#2026-10-12)
 
 <a id="lp-alreadyatgoal-lokalni-minimum"></a>
 ### 🧪 `AlreadyAtGoal` hlásí i nedosažitelnou mrkev 7 m daleko — detektor záseku se odzbrojí a robot stojí potichu
@@ -2268,6 +2284,21 @@ Přání autora: na webu headless vidět, kolik metrů robot v misi ujel a jakou
 
 [headless.md](headless.md) · DevLog [2026-10-06](devlog.md#2026-10-06), [2026-10-07](devlog.md#2026-10-07)
 
+<a id="prov-zotaveni-kamer-slepy-po-uvolneni"></a>
+### 🧪 Po zotavení kamer je robot 8–17 s slepý mimo držení — StopHold se uvolní hned po novém kontextu RealSense, kamery se připojí až za 8–16 s
+
+`prov-zotaveni-kamer-slepy-po-uvolneni` · vada · **v kódu, na HW neověřeno** · nalezeno 12. 10. 2026 · vyřešeno 12. 10. 2026
+
+Změřeno nad záznamy (`ARBot.Analyze zotaveni`, 4 zotavení pravé D435 16.–29. 9.). `CameraRecoverySupervisor` drží `StopHold` jen přes `ARBotHW.RecoverCameras`, který se vrátí hned po recyklaci kontextu (smyčky driverů se pak připojují samy, každou 1 s). D435 nahlásí „pipeline připojena" až 8,0 / 12,3 / 12,3 / 16,2 s po novém kontextu (první z nich; druhá vždy do 0,23 s), první snímek o 0,5–0,7 s později; do té doby nejde do navigátoru jediný snímek a nevzniká plán (grid i plán přijdou do 0,06 s od prvního snímku). Návrh počítal s oslepením „na pár sekund". Robot je tedy 8–17 s „smí jet", ale slepý: binárky před 5. 10. při tom točily na místě (16., 23., 29. 9.; 29. 9. obsluha zmáčkla stop), dnešní kód stojí (`lp-zastaraly-regulator-toci-na-miste`, oprava (d) z `lp-kolize-pri-stani`). Mimo držení je ale ozbrojený detektor záseku A globální navigace (23. 9. chybělo ~0,7–1,0 s do započtení pokusu, viz `nav-detektor-a-pokusy-bez-nulovani`) a stránka ukazuje „jede", ne „zastaveno: zotavení kamer". Kam se 8–16 s ztratí, ze záznamu poznat nejde (tichý dotaz „není tu", hlídač nativních volání až od 20 s): jedno dlouhé volání / rychlé tiché dotazy / několik serializovaných `QueryDevices` pod sdíleným zámkem. Doba sedí s počtem vláken, která se ptají (16.–23. 9. tři → 12–16 s, 29. 9. i 13. 9. dvě → ~8 s; 13. 9. byla T265 připojená a dávala pózu, takže se neptala), prokázané to ale není.
+
+- [x] Změřeno ze záznamů: 4 epizody, mezera = znovupřipojení kamer, držení se uvolní před ním (`ARBot.Analyze zotaveni`, `--kontext`) (12. 10. 2026)
+- [x] Rozhodnout (autor): držet `StopHold`, dokud obnovené kamery nepošlou první snímek. Autor: ano, do prvního snímku KTERÉKOLI kamery (recyklace odpojí všechny) (12. 10. 2026)
+- [x] V kódu: `CameraRecoverySupervisor.ZotavPodDrzenim` + `PrvniSnimekKamery` (přihlášení k událostem obou D435 před zotavením, snímky ze starého kontextu se nepočítají), nejdéle `PrvniSnimekTimeout` 30 s (pak se pustí, stránka hlásí stání a detektor A se může ozbrojit — vědomě), do Trace „první snímek po zotavení za N s“; z revize: čekání i po výjimce ze zotavení, `MinOdstup` od konce zotavení, ruční zotavení během zotavení, které zabralo, se ignoruje, texty stránky 10–25 s, `Dispose` neruší událost nedoběhnutého vlákna; 10 testů, mutace chycené (12. 10. 2026)
+- [x] Diagnostika doby dotazů na zařízení (`RealSenseShared.Query`) — autor rozhodl nedělat (12. 10. 2026)
+- [ ] Ověřit na zařízení: po zotavení stránka „zastaveno: zotavení kamer“ až do prvního snímku a v Trace „první snímek po zotavení za N s“ (`ARBot.Analyze zotaveni`)
+
+[plan-drive-hold.md](plan-drive-hold.md), [CameraRecoverySupervisor.cs](../Src/ARBot.Runtime/Robot/CameraRecoverySupervisor.cs) · DevLog [2026-10-12](devlog.md#2026-10-12)
+
 <a id="prov-sit-soutezni-provoz"></a>
 ### ✅ Síť robota pro soutěž — vlastní WiFi AP a kabel bez routeru
 
@@ -2451,14 +2482,14 @@ Na půdorysu stránky náhledu přibyla trasa globální navigace, dráha z lok�
 
 `prov-zotaveni-kamer-supervizor` · záměr · **hotovo** · nalezeno 12. 9. 2026 · vyřešeno 13. 9. 2026
 
-Zamrzlý stream D435 dřív znamenal mrtvou kameru na stovky sekund až do restartu služby. `CameraRecoverySupervisor` po 15 neúspěšných pokusech o připojení vezme držené zastavení, počká na stání, nechá kamery zaparkovat jejich vlastní smyčku (žádost a potvrzení — první verze bourala pipeline z cizího vlákna a zatuhla) a vymění sdílený RealSense kontext. Na robotu ověřeno 5× z 5 na skutečné poruše, obnova 28–29 s. Odstup po neúspěchu se zdvojnásobuje a po třech marných zotaveních za 15 min se to u dané kamery vzdá, aby jedna vadná kamera nestahovala dokola i zdravé. Je to obvaz, ne léčba příčiny: proč teardown vede k zaseknutí jen asi ve 4 % případů, se neví, a za jízdy by to znamenalo zastavení na ~28 s každých pár minut.
+Zamrzlý stream D435 dřív znamenal mrtvou kameru na stovky sekund až do restartu služby. `CameraRecoverySupervisor` po 15 neúspěšných pokusech o připojení vezme držené zastavení, počká na stání, nechá kamery zaparkovat jejich vlastní smyčku (žádost a potvrzení — první verze bourala pipeline z cizího vlákna a zatuhla) a vymění sdílený RealSense kontext. Na robotu ověřeno 5× z 5 na skutečné poruše, obnova 28–29 s. Odstup mezi zotaveními je stálých 60 s (od 12. 10. 2026 od konce zotavení) a po třech zotaveních za 15 min se to u dané kamery vzdá, aby jedna vadná kamera nestahovala dokola i zdravé. Je to obvaz, ne léčba příčiny: proč teardown vede k zaseknutí jen asi ve 4 % případů, se neví, a za jízdy by to znamenalo zastavení na ~28 s každých pár minut.
 
 - [x] Příčina změřena na živé poruše: reset USB ani odpojení `uvcvideo` nepomohly, jiný proces kameru zabral — zaseknutý je stav librealsense v našem procesu, ne zařízení (12. 9. 2026)
 - [x] Supervizor + tlačítko „Zotavit kamery“ na stránce náhledu (13. 9. 2026)
 - [x] Přestavba na žádost a potvrzení (`IRecoverableCamera`) po zatuhnutí první verze na robotu (13. 9. 2026)
 - [x] Ověření na skutečné poruše (5× z 5, 28–29 s) (13. 9. 2026)
 - [x] Druhá podoba záseku (kamera zmlkne bez selhaných dotazů) — počítá se každý neúspěšný pokus (13. 9. 2026)
-- [x] Rostoucí odstup a vzdání po třech marných zotaveních (tři pokusy o správné kritérium) (13. 9. 2026)
+- [x] Vzdání po třech zotaveních za 15 min (tři pokusy o správné kritérium; rostoucí odstup se týž den nahradil) (13. 9. 2026)
 
 [plan-drive-hold.md](plan-drive-hold.md), [hardware.md](hardware.md), [headless.md](headless.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14)
 

@@ -298,6 +298,16 @@ namespace ARBot.Robot
             return jmena;
         }
 
+        /// <summary>Hloubkove kamery (leva, prava D435 nebo jejich virtualni nahrada), ktere jsou.
+        /// Jejich snimek po zotaveni uvolni drzene zastaveni (<see cref="CameraRecoverySupervisor"/>).</summary>
+        public List<ICamera> DepthCameras()
+        {
+            var kamery = new List<ICamera>();
+            if (LeftCamera != null) kamery.Add(LeftCamera);
+            if (RightCamera != null) kamery.Add(RightCamera);
+            return kamery;
+        }
+
         public List<string> CamerasNeedingRecovery()
         {
             var jmena = new List<string>();
@@ -319,9 +329,11 @@ namespace ARBot.Robot
         /// restart sluzby. Tohle je tyz restart, jen uvnitr procesu. Viz doc/hardware.md.</para>
         ///
         /// <para>⚠️ <b>Kontext sdileji VSECHNY kamery</b> (zamer z 3. 9. kvuli <c>tm_boot</c>),
-        /// takze zotaveni jedne kamery vyradi na par sekund i druhou a T265. Proto se spousti az
+        /// takze zotaveni jedne kamery vyradi i druhou a T265. Proto se spousti az
         /// pri <see cref="CameraRecoveryNeeded"/>, a volajici ma pritom drzet robota
-        /// (<c>StopHold</c>) — jinak by robot par sekund jel naslepo.</para>
+        /// (<c>StopHold</c>) — jinak by robot jel naslepo. ⚠️ Metoda se vraci HNED po recyklaci
+        /// kontextu, ne az kamery vidi: D435 se pak pripoji samy za 8–16 s (zmereno 12. 10. 2026,
+        /// <c>ARBot.Analyze zotaveni</c>, prov-zotaveni-kamer-slepy-po-uvolneni).</para>
         ///
         /// <para>⚠️ <b>Na jine platforme nez OrangePI to zotaveni NEUMI</b> a vrati <c>false</c>:
         /// sdileny kontext je jen v HALArmbian a porucha se jinde nepozorovala.</para>

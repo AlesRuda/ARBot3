@@ -89,8 +89,12 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         private DateTime noMotionSince = DateTime.MinValue;
         private double noMotionStartOdo;
 
-        /// <summary>Kolikrat uz se na teto hrane zkousela naprava (detektor A).</summary>
+        /// <summary>Kolikrat uz se na teto hrane zkousela naprava (detektor A) v SOUCASNEM souvislem
+        /// stani; pohyb o <c>MinMotionM</c> od posledniho pokusu citac nuluje (od 12. 10. 2026).</summary>
         private readonly Dictionary<EdgeKey, int> recoveryCount = new();
+
+        /// <summary><see cref="travelledM"/> pri poslednim zapocteni pokusu detektoru A.</summary>
+        private double odoPriPokusu;
 
         /// <summary>Autoritativni seznam uzavrenych / penalizovanych hran.</summary>
         private readonly Dictionary<EdgeKey, EdgeClosure> closures = new();
@@ -698,6 +702,18 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
         /// </summary>
         private void DetectNoMotion(Edge edge, DateTime now)
         {
+            // Pohyb o MinMotionM od posledniho pokusu ukoncuje stani - a s nim i pocitani pokusu:
+            // MaxRecoveries omezuje pokusy v JEDNOM souvislem stani. Do 12. 10. 2026 se citac
+            // nenuloval nikdy, takze tri stani na tetez hrane kdykoli za beh navigatoru (i hodiny od
+            // sebe, z ruznych pricin) hranu tvrde uzavrela (nav-detektor-a-pokusy-bez-nulovani,
+            // rozhodnuti autora). Plati pro pohyb V JAKEMKOLI stavu, i pri odzbrojenem detektoru
+            // (unik EscapingBlocked, strceni pod stopem): nulovani jen v ozbrojenem stavu nechalo
+            // stani -> unik o 1,5 m -> stani hranu uzavrit (nalez revize 12. 10. 2026).
+            // ⚠️ Az vznikne manevr zotaveni (nav-recovery-manevr), jeho pohyb se sem pocitat NESMI -
+            // jinak by citac nuloval sam sebe a MaxRecoveries by nebylo prekroceno nikdy.
+            if (recoveryCount.Count > 0 && travelledM - odoPriPokusu >= cfg.MinMotionM)
+                recoveryCount.Clear();
+
             if (legitimniStani || !localPlanValid)
             {
                 noMotionSince = DateTime.MinValue;
@@ -711,7 +727,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
                 return;
             }
 
-            // Pohnul se dost -> okno klidu zacina znovu.
+            // Pohnul se dost -> okno klidu zacina znovu (citac pokusu vynuloval uz zacatek metody).
             if (travelledM - noMotionStartOdo >= cfg.MinMotionM)
             {
                 noMotionSince = now;
@@ -724,6 +740,7 @@ namespace ARBot.Common.Maps.OsmNav.Navigation
             var key = EdgeKey.Of(edge);
             recoveryCount.TryGetValue(key, out int tries);
             recoveryCount[key] = tries + 1;
+            odoPriPokusu = travelledM;
 
             // Zotaveni neexistuje, takze po vycerpani pokusu rovnou uzavreni.
             if (tries + 1 > cfg.MaxRecoveries)

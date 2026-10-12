@@ -13,6 +13,33 @@ Absolutní datum (ne „minulý týden"). Detailní doménovou dokumentaci nech 
 
 ## Rozhodnutí
 
+### 2026-10-12 — Po zotavení kamer držet stop do prvního snímku; pokusy detektoru A nulovat pohybem
+
+**Co:** (1) `CameraRecoverySupervisor` drží `StopHold` po recyklaci kontextu RealSense, dokud kterákoli
+D435 nepošle snímek (nejdéle 30 s), ne jen do recyklace. (2) Čítač pokusů detektoru záseku A
+(`GlobalNavigator.recoveryCount`) se nuluje, jakmile robot ujede `MinMotionM`. Rozhodnutí autora
+(`prov-zotaveni-kamer-slepy-po-uvolneni`, `nav-detektor-a-pokusy-bez-nulovani`).
+
+**Proč:**
+- **Slepá doba byla mimo držení.** Recyklace odpojí všechny kamery a D435 se připojí až za 8–16 s
+  (`ARBot.Analyze zotaveni`, 4 zotavení 16.–29. 9.); robot do té doby „smí jet" bez jediného snímku,
+  stránka ukazuje „jede" a detektor A se může ozbrojit (jede-li navigace s cílem a poslední plán byl
+  platný; ze čtyř epizod jen 23. 9., kde chybělo ~0,7–1,0 s do započtení pokusu).
+  Stačí snímek **kterékoli** kamery — s ním naběhne grid i plán (do 0,06 s).
+- **Timeout 30 s, ne nekonečno:** supervizor zaseknutý v čekání by nemohl zkusit další zotavení.
+  Po vypršení robot bez snímků stojí dál, ale už mimo držení — stránka od 20 s hlásí stání, od 60 s
+  „UVÁZL", a za podmínek výše se ozbrojí detektor A, který po 45 s stání může hranu uzavřít; vzácný
+  případ, vědomě ponechaný. Výjimka ze zotavení čekání na snímek nepřeskočí.
+- **Diagnostiku doby dotazů autor nechce** — příčina 8–16 s zůstává nezměřená.
+- **Čítač:** `MaxRecoveries` má omezovat pokusy v jednom stání, ne za celý běh — tři stání na téže
+  hraně hodiny od sebe ji tvrdě uzavřela. Nuluje se pohybem, ať je detektor ozbrojený, nebo ne (i únik
+  při odzbrojeném detektoru); až vznikne manévr zotavení, jeho pohyb se počítat nesmí.
+
+**Cena:** po zotavení robot stojí o 8–17 s déle **pod držením** místo mimo něj (fyzicky stál i dřív —
+dnešní kód zastaralou dráhu nejede); supervizor je v té době zaneprázdněný. Robot, který se pohne
+o 0,5 m a znovu uvízne, začne pokusy od nuly. Na zařízení neběželo. Detail:
+[plan-drive-hold.md](plan-drive-hold.md).
+
 ### 2026-10-11 — Rozjetá dráha se kontroluje, jen dokud ji řídicí smyčka jede
 
 **Co:** `LocalNavigator` zahodí rozjetou dráhu a přestane ji kontrolovat proti mapě, jakmile ji

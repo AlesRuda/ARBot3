@@ -371,7 +371,9 @@ celou. Při `backproject=npu` je přitom barva to, z čeho se počítá pravděp
 
 **Recyklace sdíleného `Context`u zaseknutou kameru probere.** Dělá to
 `CameraRecoverySupervisor` (viz [plan-drive-hold.md](plan-drive-hold.md)) — po 15 selhaných
-dotazech vezme `StopHold`, počká, až robot skutečně stojí, vymění kontext a pustí.
+dotazech vezme `StopHold`, počká, až robot skutečně stojí, vymění kontext a pustí — od 12. 10. 2026
+až po prvním snímku kterékoli kamery, nejdéle 30 s (kamery se po recyklaci připojují 8–16 s,
+[plan-drive-hold.md](plan-drive-hold.md)).
 
 **Změřeno na spontánní poruše** (13. 9. 2026, 16:49:55–16:50:24, robot stál bez mise):
 
@@ -477,7 +479,7 @@ týž den (implementuje `IRecoverableCamera`, takže se před výměnou kontextu
 a funguje). Jenže protože její poruchu recyklace **nelecí**, hlásila si o zotavení pořád dokola
 a supervizor kvůli ní **bral každých 60 s dolů i obě zdravé D435** a pokaždé zastavil robota.
 Léčba: **odstup se po neúspěšném zotavení zdvojnásobuje** (60 s → 2 → 4 … nejvýš 15 min) a do logu
-jde hláška, která rovnou říká, co s tím (fyzický replug). Ověřeno na robotu.
+jde hláška, která rovnou říká, co s tím (fyzický replug). Ověřeno na robotu. ⚠️ **Tahle podoba v kódu nezůstala:** týž den ji nahradilo třetí kritérium — vzdání po třech zotaveních za 15 min (`MaxZotaveniVOkne`), protože si zdvojnásobený odstup sám natahoval nad práh; odstup je stálých 60 s (`MinOdstup`, od 12. 10. 2026 měřený od konce zotavení).
 
 **Poučení, které platí obecně:** lék, který oslepí všechny kamery naraz, se **nesmí opakovat
 donekonečna**. Šedesátisekundový odstup, se kterým to bylo napsané, na to nestačil — u poruchy,

@@ -45,7 +45,7 @@ namespace ARBot.Runtime.Tests.Web
                 Assert.That(h, Does.Contain("id=\"kamery\""), "tlacitko zotaveni kamer zmizelo");
                 Assert.That(h, Does.Contain("Zotavit kamery"));
                 Assert.That(h, Does.Contain("/camerarecover"), "obsluha tlacitka nikam neposila");
-                Assert.That(h, Does.Contain("oslepne"), "clovek musi vedet, ze robot na par sekund oslepne");
+                Assert.That(h, Does.Contain("oslepne"), "clovek musi vedet, ze robot oslepne a stoji, dokud se kamery nepripoji (10-25 s)");
             });
         }
 

@@ -1656,10 +1656,11 @@ function akce(h){
  b.className = 'estop' + (estopDrzen ? ' drzi' : '');
 }
 function virtStopPrepni(){ virtStop(!estopDrzen); }
-// Zotaveni kamer: robot se pritom NA PAR SEKUND zastavi a OSLEPNE (kontext sdileji vsechny
-// kamery), takze potvrzeni - je to zasah do jizdy, ne prepnuti zobrazeni.
+// Zotaveni kamer: robot se pritom zastavi a OSLEPNE (kontext sdileji vsechny kamery) a stoji, dokud
+// se nektera nepripoji (od 12. 10. 2026 drzeni do prvniho snimku, celkem 10-25 s), takze potvrzeni -
+// je to zasah do jizdy, ne prepnuti zobrazeni.
 function zotavKamery(){
- if(!confirm('Zotavit kamery? Robot se zastaví a na pár sekund oslepne.'))return;
+ if(!confirm('Zotavit kamery? Robot se zastaví, oslepne a stojí, dokud se kamery nepřipojí znovu (obvykle 10–25 s).'))return;
  fetch('/camerarecover',{method:'POST'}).then(function(r){
   return r.text().then(function(txt){ alert(txt); tik(); });
  });

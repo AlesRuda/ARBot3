@@ -39,6 +39,32 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-12
+
+- **Po zotavení kamer se drží stop do prvního snímku; pokusy detektoru A se nulují pohybem**
+  (rozhodnutí autora k výsledku bodu 6). Recyklace kontextu odpojí všechny kamery, takže stačí snímek
+  kterékoli: `CameraRecoverySupervisor` se před zotavením přihlásí k událostem snímků obou D435
+  (`PrvniSnimekKamery`, snímky ze starého kontextu se nepočítají) a pustí až po prvním, nejdéle za 30 s.
+  Diagnostiku doby dotazů autor nechce. Čítač `recoveryCount` se nuluje ujetím `MinMotionM` od
+  posledního pokusu, ať je detektor ozbrojený, nebo ne. Dvě kola revize přidala: pořadí kroků
+  supervizoru do testovatelné `ZotavPodDrzenim` (bez testu by „počítat snímky až po zotavení" nic
+  nehlídalo), čekání na snímek i po výjimce ze zotavení, `MinOdstup` od konce zotavení, ignorovat ruční
+  zotavení zmáčknuté během zotavení, které zabralo, texty 10–25 s místo „pár sekund", nulování i při
+  odzbrojeném detektoru a opravu staré vady v `Dispose` (pád procesu při `Stop` během zotavení).
+  Po vypršení 30 s se pustí (stránka pak hlásí stání, detektor A se může ozbrojit) — vědomě.
+  12 testů (10 + 2), mutace chycené. ⚠️ Na zařízení neběželo.
+- **Proč po zotavení kamer 9–13 s nevzniká plán** (bod 6 průzkumu, `lp-zastaraly-regulator-toci-na-miste`).
+  Nový `ARBot.Analyze zotaveni` (časová osa kolem držení: snímky po kamerách z indexu, `LocalNavigator`
+  z `PerfMsg`, grid, všechny plány, cíl, hlášky; `--kontext` jen z hlášek přes všechny záznamy). Čtyři
+  zotavení 16.–29. 9.: celá mezera je znovupřipojení kamer — od uvolnění do prvního snímku nepřijde
+  jediný snímek, s prvním grid i plán do 0,06 s. Držení se uvolní hned po novém kontextu RealSense
+  (záměr návrhu, který čekal „pár sekund"), D435 se připojí za 8,0–16,3 s. Kam se ten čas ztratí, ze
+  záznamu nejde poznat. Nezávislé ověření opravilo můj první závěr („jedno dlouhé blokující volání"
+  data nedokazují) i příklad k detektoru záseku. Doba sedí s počtem vláken, která se ptají přes
+  sdílený zámek (dvě → ~8 s: 29. 9. i 13. 9., tři → 12–16 s), prokázané to ale není. Nová témata `prov-zotaveni-kamer-slepy-po-uvolneni`
+  (držet do prvního snímku? diagnostika dotazů) a `nav-detektor-a-pokusy-bez-nulovani` (čítač pokusů
+  se nenuluje), obě k rozhodnutí autora.
+
 ## 2026-10-11
 
 - **LED pásek: zapojený na jiný pin, než kam šla data** (`hw-neopixel-armbian`, na robotu

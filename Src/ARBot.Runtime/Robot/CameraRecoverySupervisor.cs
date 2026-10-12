@@ -17,11 +17,17 @@ namespace ARBot.Robot
     /// je zahodit sdileny kontext a zalozit novy. Viz doc/hardware.md.</para>
     ///
     /// <para><b>Proc to musi nekdo koordinovat.</b> Kontext sdileji VSECHNY kamery, takze zotaveni
-    /// na par sekund osleppi celeho robota. Supervizor proto nejdriv vezme
+    /// osleppi celeho robota. Supervizor proto nejdriv vezme
     /// <see cref="StopHold"/>, pocka, az robot SKUTECNE stoji, a teprve pak sahne na kamery.
     /// Bezpecnost ale na tehle choreografii nevisi: kdyby supervizor selhal nebo timeoutoval,
     /// ridici smycka dobrzdi sama, jakmile plan zestarne (<c>Profile.PathControlTimeOut</c>).
     /// Viz doc/plan-drive-hold.md.</para>
+    ///
+    /// <para><b>Drzeni trva do prvniho snimku kterekoli kamery</b> (od 12. 10. 2026,
+    /// prov-zotaveni-kamer-slepy-po-uvolneni, rozhodnuti autora), nejdele <see cref="PrvniSnimekTimeout"/>.
+    /// Recyklace odpoji vsechny kamery a D435 se pak pripoji samy az za 8–16 s (zmereno nad
+    /// 4 zotavenimi, <c>ARBot.Analyze zotaveni</c>; navrh pocital s „par sekundami"). Do te doby se
+    /// drzeni uvolnovalo hned po recyklaci, takze robot „smel jet" bez jedineho snimku.</para>
     ///
     /// <para>✅ <b>Ze to na D435 funguje, je ZMERENE</b> (13. 9. 2026): osm zaseku z osmi vyleceno,
     /// od zamrznuti do obnovy 28–36 s — proti 343 s a 22 minutam v epizodach, kde to skoncilo az
@@ -51,6 +57,14 @@ namespace ARBot.Robot
         /// holdem (tedy brzdi). Vypise se to ale jako varovani.
         /// </summary>
         private static readonly TimeSpan StaniTimeout = TimeSpan.FromSeconds(10);
+
+        /// <summary>
+        /// Jak dlouho se po zotaveni drzi robot, nez nektera kamera posle prvni snimek. Zmereno
+        /// 8–17 s od recyklace (12. 10. 2026). <b>Po vyprseni se drzeni uvolni stejne</b>: bez snimku
+        /// lokalni navigace nenaplanuje drahu a robot stoji dal, kdezto supervizor zaseknuty v cekani
+        /// by nemohl zkusit dalsi zotaveni. Vypise se to jako varovani.
+        /// </summary>
+        public static readonly TimeSpan PrvniSnimekTimeout = TimeSpan.FromSeconds(30);
 
         /// <summary>
         /// Nejkratsi odstup mezi dvema zotavenimi. Kdyby recyklace kontextu nepomahala, bez tohohle
@@ -190,9 +204,19 @@ namespace ARBot.Robot
                     }
 
                     zadostRucne = false;
-                    Zotav(rucne
+                    bool zabralo = Zotav(rucne
                         ? "zotaveni kamer (rucne ze stranky)"
                         : $"zotaveni kamer ({string.Join(", ", ziveZadosti)})");
+
+                    // Rucni zadost, ktera prisla BEHEM zotaveni, se zahodi - ale jen kdyz zotaveni
+                    // zabralo (prisel snimek): dalsi by hned strhlo kamery, ktere se zrovna pripojily
+                    // (od 12. 10. 2026 trva drzeni do prvniho snimku, celkem 10-25 s, a obsluha muze
+                    // kliknout znovu). Kdyz se kamery nevratily, klik plati a zotaveni probehne znovu.
+                    if (zadostRucne && zabralo)
+                    {
+                        zadostRucne = false;
+                        Trace.WriteLine("CameraRecovery: rucni zadost behem zotaveni, ktere zabralo, se ignoruje.");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -202,7 +226,8 @@ namespace ARBot.Robot
             }
         }
 
-        private void Zotav(string duvod)
+        /// <returns><c>true</c> = po zotaveni prisel snimek nektere kamery (zabralo).</returns>
+        private bool Zotav(string duvod)
         {
             lock (gate)
             {
@@ -216,35 +241,93 @@ namespace ARBot.Robot
                     Trace.WriteLine($"CameraRecovery: {duvod} - ridici smycka nebezi, "
                                     + "zotaveni jde rovnou.");
                     hw.RecoverCameras("CameraRecovery");
-                    return;
+                    posledniZotaveni = TimeBase.Now;
+                    return false;
                 }
 
-                using (var drzeni = hold.StopRequest(duvod))
+                if (!ZotavPodDrzenim(hold, duvod, hw.DepthCameras(), () => hw.RecoverCameras("CameraRecovery"),
+                                     konec.WaitHandle, StaniTimeout, PrvniSnimekTimeout, out bool prisel))
+                    return false;   // konec behu
+
+                // MinOdstup se meri od KONCE zotaveni: od 12. 10. 2026 drzeni trva do prvniho snimku
+                // (celkem 10-25 s, nejdele ~45 s), a mereno od zacatku by z 60 s volne jizdy zbylo malo.
+                posledniZotaveni = TimeBase.Now;
+                Trace.WriteLine($"CameraRecovery: hotovo (celkem {Recoveries}x), drzeni uvolneno.");
+                return prisel;
+            }
+        }
+
+        /// <summary>
+        /// <b>Jadro zotaveni pod drzenym zastavenim</b>, vytazene kvuli testum - poradi kroku je
+        /// bezpecnostni: (1) vezme hold, (2) prihlasi se k udalostem snimku <paramref name="kamery"/>,
+        /// (3) pocka na stani (nejdele <paramref name="staniTimeout"/>), (4) zavola
+        /// <paramref name="zotav"/>, (5) teprve POTOM zacne snimky pocitat a drzi, dokud nektera kamera
+        /// neposle snimek (nejdele <paramref name="snimekTimeout"/>). Pocitat snimky uz pred (4) by
+        /// pustilo drzeni hned - zdrava kamera posila ze stareho kontextu az do sveho uvolneni.
+        /// </summary>
+        /// <returns><c>false</c> = preruseno (<paramref name="konec"/>); hold se v obou pripadech uvolni.</returns>
+        /// <param name="snimekPrisel"><c>true</c> = po zotaveni prisel snimek nektere kamery.</param>
+        public static bool ZotavPodDrzenim(IDriveHold hold, string duvod, IEnumerable<ARBot.HAL.ICamera> kamery,
+                                           Action zotav, WaitHandle konec, TimeSpan staniTimeout, TimeSpan snimekTimeout,
+                                           out bool snimekPrisel)
+        {
+            snimekPrisel = false;
+            using (var drzeni = hold.StopRequest(duvod))
+            using (var snimek = new PrvniSnimekKamery(kamery))   // prihlasit PRED zotavenim
+            {
+                var doKdy = TimeBase.Now + staniTimeout;
+                while (!drzeni.IsStopped && TimeBase.Now < doKdy)
+                    if (konec.WaitOne(TimeSpan.FromMilliseconds(100))) return false;
+
+                if (!drzeni.IsStopped)
+                    Trace.WriteLine($"CameraRecovery: robot se do {staniTimeout.TotalSeconds:F0} s "
+                                    + "nezastavil (nebo motory nehlasi) - zotaveni jde presto, "
+                                    + "rizeni uz je pod drzenim.");
+                else
+                    Trace.WriteLine("CameraRecovery: robot stoji, jde se na zotaveni kamer.");
+
+                // Vyjimka ze zotaveni (typicky novy kontext RealSense nejde zalozit) NESMI preskocit cekani
+                // na snimek: RecoverCameras pusti kamery k pripojovani ve finally, takze by drzeni padlo
+                // hned a robot by byl slepy mimo drzeni - presne to, co tahle metoda odstranuje (nalez
+                // revize 12. 10. 2026). Proto zalogovat a cekat dal.
+                try { zotav(); }
+                catch (Exception ex)
                 {
-                    var doKdy = TimeBase.Now + StaniTimeout;
-                    while (!drzeni.IsStopped && TimeBase.Now < doKdy)
-                        if (konec.Wait(TimeSpan.FromMilliseconds(100))) return;
-
-                    if (!drzeni.IsStopped)
-                        Trace.WriteLine($"CameraRecovery: robot se do {StaniTimeout.TotalSeconds:F0} s "
-                                        + "nezastavil (nebo motory nehlasi) - zotaveni jde presto, "
-                                        + "rizeni uz je pod drzenim.");
-                    else
-                        Trace.WriteLine("CameraRecovery: robot stoji, jde se na zotaveni kamer.");
-
-                    hw.RecoverCameras("CameraRecovery");
+                    Trace.WriteLine($"CameraRecovery: zotaveni vyhodilo vyjimku, na snimek se presto ceka: {ex.Message}");
                 }
 
-                Trace.WriteLine($"CameraRecovery: hotovo (celkem {Recoveries}x), drzeni uvolneno. "
-                                + "Kamery se pripoji samy z noveho kontextu.");
+                // Drzet dal, dokud nektera kamera neposle snimek z noveho kontextu - viz hlavicka tridy.
+                snimek.Ostre();
+                var odZotaveni = TimeBase.Now;
+                bool prisel = snimek.Cekej(snimekTimeout, konec);
+                if (konec.WaitOne(0)) return false;
+                snimekPrisel = prisel;
+                if (prisel)
+                    Trace.WriteLine($"CameraRecovery: prvni snimek po zotaveni za "
+                                    + $"{(TimeBase.Now - odZotaveni).TotalSeconds:F1} s ({snimek.Kamera}) "
+                                    + "- drzeni se uvolnuje.");
+                else if (snimek.PocetKamer == 0)
+                    Trace.WriteLine("CameraRecovery: zadna hloubkova kamera neni - na snimek se neceka.");
+                else
+                    Trace.WriteLine($"CameraRecovery: zadna kamera do {snimekTimeout.TotalSeconds:F0} s "
+                                    + "po zotaveni neposlala snimek - drzeni se uvolnuje presto. Bez snimku "
+                                    + "lokalni navigace nenaplanuje drahu a robot stoji dal, ale UZ NE pod drzenim "
+                                    + "(stranka ukaze „jede“, detektor zaseku globalni navigace se ozbroji).");
+                return true;
             }
         }
 
         public void Dispose()
         {
             konec.Set();
-            try { vlakno.Join(TimeSpan.FromSeconds(2)); } catch (Exception ex) { Debug.WriteLine(ex); }
-            konec.Dispose();
+            bool dobehlo = false;
+            try { dobehlo = vlakno.Join(TimeSpan.FromSeconds(2)); } catch (Exception ex) { Debug.WriteLine(ex); }
+            // ⚠️ Udalost se rusi JEN kdyz vlakno dobehlo. Jinak muze byt jeste uvnitr zotaveni
+            // (RecoverCameras ceka az 5 s na uvolneni kamer) a pri navratu sahne na konec.WaitHandle
+            // nebo konec.Wait - na zrusenem objektu to hodi vyjimku mimo try ve smycce, tedy
+            // neosetrenou vyjimku na vlakne a pad procesu (nalez revize 12. 10. 2026; stara vada,
+            // nova cekani na snimek pridala jen dalsi misto). Neuvolneny event si vezme GC.
+            if (dobehlo) konec.Dispose();
         }
     }
         /// <summary>Kamery, u kterych uz se zotaveni nezkousi (dokud se samy nechytnou).</summary>

@@ -351,7 +351,9 @@ sekce „Uváznutí na konci Tracku 1. 10. 2026".
 hlásil jako `AlreadyAtGoal` a `OnLocalPlan` ho tedy nebral jako platný plán — 18. 9. 2026 robot
 stál 388–466 s a 575–737 s u mrkve 6,6–7,3 m daleko, aniž by detektor zabral
 (`lp-alreadyatgoal-lokalni-minimum`). Teď je `LocalMinimum` platný plán jako `Partial`, takže
-po `NoMotionSec` přijde penalizace a při opakování uzavření hrany. ⚠️ Na HW neběželo.
+po `NoMotionSec` + `EscalateSec` se započítá pokus a po `MaxRecoveries` + 1 pokusech v jednom
+souvislém stání (při výchozích hodnotách 45 s) se hrana uzavře; penalizaci detektor A nedělá.
+⚠️ Na HW neběželo.
 
 *Zpřesnění (fáze 4b): průřez napříč cestou.* Nejsilnější důkaz přehrazení je „všechny buňky na
 kolmici k cestě v šířce `Node.Width + margin` jsou `Blocked`". Ten test **musí proběhnout na vlákně
@@ -364,7 +366,7 @@ vrstva pošle a plán nevznikne, `LocalNavigator` průřez otestuje a výsledek 
 
 | detektor | reakce (v tomto pořadí) |
 |---|---|
-| **A** | (1) čekat `EscalateSec` (default 5 s) — lokální vrstva možná právě dobrzďuje; (2) `Recovery` — couvnutí/otočka na místě; **dnes taková recovery neexistuje** (otevřený úkol); (3) po `MaxRecoveries` se s hranou zachází jako u C |
+| **A** | (1) čekat `EscalateSec` (default 5 s) — lokální vrstva možná právě dobrzďuje; (2) `Recovery` — couvnutí/otočka na místě; **dnes taková recovery neexistuje** (otevřený úkol); (3) po `MaxRecoveries` se s hranou zachází jako u C. Pokusy se počítají v **jednom souvislém stání** — pohyb o `MinMotionM` od posledního pokusu čítač vynuluje, ať je detektor ozbrojený, nebo ne, pokud navigace jede s cílem po hraně (od 12. 10. 2026; do té doby se nenuloval nikdy a tři stání na téže hraně kdykoli za běh ji uzavřela, `nav-detektor-a-pokusy-bez-nulovani`). ⚠️ Až vznikne manévr zotavení (A2), jeho pohyb se do nulování počítat nesmí — jinak by čítač nuloval sám sebe a `MaxRecoveries` by nebylo překročeno nikdy |
 | **B** | **soft penalizace** hrany: `SetTraversalCost(e, base · PenaltyFactor)` (default 5×) — hrana se nezakáže, jen zdraží, takže robot zkusí jinudy a sem se vrátí jen když nic jiného není. Falešný poplach tak nezničí trasu. Při opakování na téže hraně → C |
 | **C** | **`SignApplier.CloseRoad(e)` a zároveň `CloseRoad(FindReverse(e))`** — fyzická zábrana blokuje oba směry. LPA\* přepočítá jen dotčenou část pole, trasa se objeví objezdem automaticky. Když se tím `CostToGoal` stane ∞ → stav `NoRoute` a rozhodnutí předá výš |
 
