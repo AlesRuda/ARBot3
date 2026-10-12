@@ -72,6 +72,11 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   USB 2 se třemi kabely a SuperSpeed až s kabelem od hubu; `UsbLinkCheck` to poprvé ohlásil na
   zařízení. Služba se mezi pokusy zastavovala ručně (`systemctl stop`), aby se cyklus resetů
   nerozjel. Detail: [hardware.md](hardware.md), „Dvě D435 přímo v desce".
+  **Večer na jiném zdroji obě kamery přímo v desce drží** — tedy napájecí cesta, ne kamery.
+  A měření bez hubu proběhlo: **3,1 h stojícího robotu, 0 zamrznutí, 0 restartů pipeline,
+  0 tvrdých záseků** (na hubu 28. 9. 4,1 zamrznutí/h). ⚠️ Zároveň ale jiný zdroj, bez motorové
+  jednotky a bez větráku (SoC 63–65 °C) — hub od napájení odděluje až kontrolní běh na témž zdroji
+  s hubem (`hw-d435-vypadky-za-provozu`).
 
 - **Rozjetá dráha se kontroluje, jen dokud ji smyčka jede** (`lp-kolize-pri-stani`, varianta (d),
   pokyn autora): `ControlLoop.IsDriving` (regulátor je aktuální a není dojetý — zastaralý, dobrzděný

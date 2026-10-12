@@ -537,9 +537,16 @@ kolem 8. s (zbytek se nestihl zapsat), pstore je prázdný, tedy výpadek napáj
   nezachytí. Podporuje to i to, že zapojení jedné kamery za běhu jednou shodilo zařízení na dvou
   jiných řadičích (USB 2 hub s motorovou jednotkou a pravou kameru), data nesdílí nic, jen 5 V.
   ⚠️ Osciloskopem propad chycený **není**.
-- **Další krok** (rozhodnutí autora): **kondenzátor u vstupu desky** (1 000–2 200 µF low-ESR),
-  případně kamery napájet mimo desku (USB 3 injektor). Levnější softwarová varianta by byla
-  rozjíždět kamery postupně — ale za provozu se rozjíždí i po restartu pipeline.
+- ✅ **Večer téhož dne na JINÉM zdroji obě kamery přímo v desce drží** (3,1 h bez restartu
+  desky) — příčinou resetů je tedy napájecí cesta před měničem, ne kamery ani deska. Čím se zdroje
+  liší a co z toho plyne pro napájení z baterie (s ní deska padala taky), zbývá zjistit; v úvahu
+  dál přichází **kondenzátor u vstupu desky** (1 000–2 200 µF low-ESR) nebo napájení kamer mimo
+  desku (USB 3 injektor). Softwarová varianta (rozjíždět kamery postupně) by nepokryla restart
+  pipeline za provozu.
+- ✅ **A měření bez hubu tím proběhlo:** stojící robot, 3,1 h, **0 zamrznutí streamu, 0 restartů
+  pipeline, 0 tvrdých záseků** (na hubu 28. 9. 4,1 zamrznutí/h). ⚠️ Současně se ale změnil i zdroj
+  (a chyběla motorová jednotka), takže hub od napájení odliší až kontrolní běh na témž zdroji
+  s kamerami na hubu. SoC bez větráku ustálený na 63–65 °C (škrcení od 75 °C).
 - **Levá kamera chce dobrý kabel.** Přímo v desce naskočila **jen na USB 2** se třemi kabely
   (včetně kabelu pravé kamery, se kterým pravá jede na 5 Gb/s), na obou portech i po otočení
   USB-C — a s kabelem, který vedl do hubu, hned na SuperSpeed. Její SuperSpeed linka je tedy na

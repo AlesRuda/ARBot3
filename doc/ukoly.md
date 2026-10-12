@@ -2521,7 +2521,8 @@ Při prvním běhu aplikace na Pi se pravá D435 po ~4600 s odmlčela; odpojená
 - [x] Vyvrátit hypotézu T265 / `CLEAR_HALT` měřením na zařízení (14. 9. 2026)
 - [ ] Odstranit příčinu (kabel nebo port větve 2-1.3)
 - [x] Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný (7. 10. 2026)
-- [ ] Přeměřit výpadky BEZ HUBU (každá kamera na svém řadiči, společný hub a řadič jsou podezřelí ze souběžných výpadků) — 11. 10. se nedalo: obě kamery přímo v desce desku resetují (`hw-d435-primo-do-desky-reset`). Měřit 2–3 h čistého běhu, po kamerách; krátké souběžné výpadky jsou jen v záznamu
+- [x] Přeměřit výpadky BEZ HUBU (každá kamera na svém řadiči) — 11. 10. večer po přepojení na jiný zdroj: obě D435 přímo v desce (levá `fc000000`, pravá `fc400000`, obě USB 3.2), stojící robot ve fázi čekání, 20:16:55–23:22:33 = **3,1 h: 0 zamrznutí ≥ 5 s, 0 restartů pipeline, 0 `QueryDevices selhalo`, 0 `NativeCallWatch`, 0 zásahů supervizoru**. Na hubu stojící robot 28. 9. 4,1 zamrznutí/h (čekaných ~12,7, P(0) ~3·10⁻⁶), tvrdé záseky 0,8–1,4/h (čekaných 2,6–4,3, P(0) 1–7 %). ⚠️ Současně jiný (stabilní) zdroj, bez motorové jednotky a bez větráku — hub od zdroje zatím oddělený není; krátké souběžné výpadky a ~1s zamrznutí barvy journal nevidí. SoC bez větráku ustálený na 63–65 °C (11. 10. 2026)
+- [ ] Kontrolní běh na stejném zdroji, kamery na hubu (2–3 h): vrátí-li se výpadky, je to hub / společný řadič, jinak napájení
 
 čeká na [hw-vetev-usb-2-1-3](#hw-vetev-usb-2-1-3), [hw-d435-primo-do-desky-reset](#hw-d435-primo-do-desky-reset) · [hardware.md](hardware.md), [plan-drive-hold.md](plan-drive-hold.md), [rozhodnutí 11. 9. 2026](decisions.md) · DevLog [2026-08-31](devlog.md#2026-08-31), [2026-09-06](devlog.md#2026-09-06), [2026-09-11](devlog.md#2026-09-11), [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-10-07](devlog.md#2026-10-07), [2026-10-11](devlog.md#2026-10-11)
 
@@ -2621,7 +2622,8 @@ Při pokusu přeměřit výpadky kamer bez hubu se Orange Pi s oběma D435 pří
 - [x] Obě kamery přímo v desce: na baterii i na externím zdroji pád při rozjezdu streamu, jedna kamera (pravá i levá) projde (11. 10. 2026)
 - [x] Napětí na liště desky multimetrem: 4,90 V bez kamery, 4,85 V s jednou streamující (11. 10. 2026)
 - [x] USB 2 u levé kamery: kabel / port / orientace / kamera — rozhodl kabel (SuperSpeed jen s kabelem od hubu) (11. 10. 2026)
-- [ ] Kondenzátor u vstupu desky (autor), pak znovu obě kamery přímo a služba
+- [x] Jiný zdroj (večer 11. 10.): obě kamery přímo v desce drží — 3,1 h bez restartu desky, rozjezd streamu prošel. Příčinou resetů je tedy napájecí cesta (zdroj před měničem), ne kamery ani deska (11. 10. 2026)
+- [ ] Zjistit, čím se zdroje liší (autor), a co z toho platí pro napájení z baterie na robotu (s baterií deska padala taky); pak kondenzátor u vstupu desky, nebo jiná napájecí cesta
 - [ ] Kdyby nestačil: kamery napájet mimo desku (USB 3 injektor), nebo postupný rozjezd kamer v kódu
 
 [hardware.md](hardware.md), [OrangePi5Ultra/POSTUP.md](../OrangePi5Ultra/POSTUP.md) · DevLog [2026-10-11](devlog.md#2026-10-11)
