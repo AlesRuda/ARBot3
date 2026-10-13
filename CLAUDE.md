@@ -511,6 +511,18 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   vize (BackProject), režimy Run/View/Simulace + otevřené úkoly.
 - [doc/traversability-grid.md](doc/traversability-grid.md) — polární grid sjízdnosti z hloubkové
   kamery (depth → point cloud → polární grid, klasifikace + důvěra), robot-centrický, per-kamera.
+  **Montáž kamer vůči zemi měří `ARBot.Analyze montaz`** (od 13. 10. 2026, přeměřitelné kdykoli):
+  do 27. 9. byla levá D435 skloněná o ~0,7° méně, než říká `Profile` (s opravou hlavního bodu
+  ~1,1°), pravá seděla.
+  ⚠️ **Mezi 27. a 29. 9. 2026 se obě D435 společně sklopily vůči zemi o ~2,4° (nos dolů)** —
+  **příčina (autor 13. 10. 2026): robot stál v horkém dni v autě a díly z PLA se zdeformovaly**
+  (VN100 29. 9. začíná na 54,5 °C a jen chladne, deformace trvalá), předělají se
+  (`hw-naklon-robotu-od-29-9`). **Jízdy 29. 9. a 1. 10. jely (a každá další do opravy pojede)
+  s montáží, kterou runtime nezná:** zkreslená je **sémantika v gridu** (barva přes rovinu země,
+  ve 3 m ~0,3–0,5 m vedle) a **absolutní výšky** (stín podle výšky), hloubková geometrie a hrany
+  koridoru při čistém sklopení skoro ne (spočteno; případnou změnu yaw kamer rovina země neurčí
+  a šla by do hran 1:1). Dotčené závěry jsou v registru označené. Do `Profile` se montáž zapíše
+  **až po opravě** a novém přeměření (rozhodnutí autora).
 - [doc/semantic-segmentation.md](doc/semantic-segmentation.md) — **sjízdnost z RGB neuronovou sítí**
   (`backproject=hist|nn`): druhá implementace `IBackProject` vedle histogramu barev, model
   **Model61.1** z ARBot2 (U-Net + MobileNetV2, 128×128, 112,5 MMAC) přes **ONNX Runtime**.
@@ -747,7 +759,8 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   neběželo (`lp-schody-v-uzine-regulator-brzdi`).
   ✅ **Od 10. 10. 2026 je okluze barvy podle výšky** (`colorshadow=`, výchozí `height`, `first` = původní):
   barvu za překážkou nezahodí celou, jen zem do `e·Cz/(Cz − zT)` (absolutní výšky v rámci robotu, vrchol
-  `MeanZ + √3·StdZ`, bez sebestínění). Zahozeno 45,7 → 35,3 % barevných vzorků (46 jízd, `ARBot.Analyze
+  `MeanZ + √3·StdZ`, bez sebestínění). Zahozeno 45,7 → 35,3 % barevných vzorků (46 jízd, z toho čtyři po sklopení kamer
+  z 29. 9. číslo nadsazují; `ARBot.Analyze
   okluze`); ⚠️ na HW neběželo (`vid-inshadow-zahazuje-vzorky`).
   ⚠️ **Nic z toho nejelo na HW** a **kolik z chování v terénu dělá vyhlazování a kolik rozmazání
   gridu chybou kurzu, změřené není** — takže **nejdřív kurz** (viz `imu-and-frames.md`),

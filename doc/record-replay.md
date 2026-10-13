@@ -613,6 +613,10 @@ platný do 11. 10. 2026), (d) smyčka dráhu už nejela (přibližná rekonstruk
 `ControlLoop.IsDriving` z `DriveCommandMsg` a `MotorStateBase`, do jednoho taktu; od 11. 10. 2026
 se taková dráha nekontroluje) a (e) výjimka
 startu únikové dráhy (`lp-kolize-pri-stani`, [occupancy-and-local-planning.md](occupancy-and-local-planning.md)).
+**`montaz`** (13. 10. 2026) změří výšku, sklon a náklon obou D435 vůči zemi z hloubky (rovina země
+proložená v rámci kamery, `GroundPlaneMount`) a porovná je s montáží z `Profile`, u levé kamery i s otočeným
+hlavním bodem; jeden záznam, nebo `--adresar` přes všechny jízdy se souhrnem, tabulkou jízd podle času,
+náklony z VN100 a CSV ([traversability-grid.md](traversability-grid.md), `vid-kalibrace-kamer-bias`).
 **`zotaveni`** (12. 10. 2026) sestaví kolem každého drženého zastavení (`DriveCommandMsg.Held`) časovou
 osu od uvolnění: snímky po kamerách **z indexu** (jméno, čas pořízení a příchodu — bez čtení obrazu),
 zpracování a zahození v `LocalNavigator` z `PerfMsg`, grid, **všechny** `LocalPlanMsg` i bez dráhy se

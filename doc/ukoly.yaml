@@ -1336,13 +1336,13 @@ temata:
       - co: 'Implementovat v `OccupancyIntegrator` (absolutní výšky v rámci robotu, výška kamery z hloubkové projekce, vnější hrana prstence, prefixové maximum konce stínu podél azimutu), `colorshadow=`, 8 testů, kontrola a přeměření `ARBot.Analyze okluze`'
         stav: hotovo
         kdy: 2026-10-10
-      - co: 'Ověřit na zařízení: jízda s `colorshadow=height` — `okluze` nad novým záznamem (zahozeno, nesedí 0) a zda se plocha mimo cestu potvrzuje rychleji (rychlost, `freeAhead`) proti jízdám se starým pravidlem'
+      - co: 'Ověřit na zařízení: jízda s `colorshadow=height` — `okluze` nad novým záznamem (zahozeno, nesedí 0) a zda se plocha mimo cestu potvrzuje rychleji (rychlost, `freeAhead`) proti jízdám se starým pravidlem ⚠️ (13. 10. 2026) Až po opravě dílů z PLA (`hw-naklon-robotu-od-29-9`): stín podle výšky bere absolutní výšky v rámci robotu, se sklopenými kamerami vychází delší (u pravé kamery překážka 0,15 m ve 4 m: konec stínu 5,6 → 10,2 m) a měření by mátl. Ze stejného důvodu je 35,3 % (46 jízd) nadhodnocené: na čtyřech jízdách 29. 9. a 1. 10. vychází stín delší a zahodí víc barvy, takže zisk 45,7 → 35,3 % je podhodnocený — přeměřit bez nich'
         stav: otevreno
     odkazy:
       - text: occupancy-and-local-planning.md
         cesta: doc/occupancy-and-local-planning.md
-    devlog: [2026-08-14, 2026-10-01, 2026-10-09, 2026-10-10]
-    ceka_na: []
+    devlog: [2026-08-14, 2026-10-01, 2026-10-09, 2026-10-10, 2026-10-13]
+    ceka_na: [hw-naklon-robotu-od-29-9]
 
 
   # ---- období P3
@@ -1621,10 +1621,10 @@ temata:
       - co: "Přeměřit podélnou chybu s opraveným obvodem kola (26. 9.) na příští jízdě; pak rozhodnout o poctivější σ GPS (`gpsposstd`) nebo o nejistotě mapy v `corridorstd`. ⚠️ 27. 9. nerozhodne: GPS byla sama 4,7 m mimo cestu (3 družice na startu), podélná odchylka od GPS je proto k ničemu. Ukázalo ale, že koridor drží pózu na cestě (od osy 0,36 proti 3,58 m bez) a opakovaný průjezd sedí 0,49 proti 5,58 m bez. ✅ 29. 9. (Modřany, obvod kola opraven, GPS 14 družic, `fusionreplay --set=assocfloorlong=3`, protože robot jel ještě s nejednoznačností `lok-assoc-sousedni-usek`): |podélně od GPS| p50 / p90 Track **0,89 / 4,16 s korekcemi proti 1,11 / 2,07 bez**, FreeRun **2,27 / 4,23 proti 1,64 / 4,70**; σ podél 0,91–1,05 proti 1,12–1,22 m (rovná cyklostezka ji nesrazí). Podélná chyba je proti 25. 9. (6–7 m) na 1–2 m a rozdíl s / bez je řádu chyby GPS bez systematického směru — rozhodnutí o `gpsposstd` / `corridorstd` tím nic netlačí. Příčně korekce jasně pomáhají: od osy sítě 0,25 / 0,59 m proti 1,75 / 4,85 m, příčně od GPS 1,49 / 0,62 proti 2,73 / 5,08 m, p90 1,97 / 2,07 proti 6,68 / 10,39 m"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí"
+      - co: "Změřit, jak rychle póza po výpadku koridoru (stání, jedna kamera) spadne na GPS při `gpsposstd=30` — ✅ 29. 9. změřeno na skutečném výpadku: Track `20260929-150844.rec` poslal korekce jen v první minutě (nejednoznačnost) a |póza − GPS| pak rostl 1,8 → 9,7 m za 6 min (`fusionreplay`, po minutách), varianta úplně bez koridoru 1,1 → 6,9 m. **Na GPS nespadne vůbec** — póza ujíždí příčně ~0,06 m/s (kurz ~2° vedle) a GPS se σ 30 m ji nevrátí ⚠️ (13. 10. 2026) Jízda byla s VN100 ve stavu po horkém autě (`hw-vn100-zmena-po-27-9`), rychlost ujíždění proto nemusí být typická; závěr o `gpsposstd=30` platí dál"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Přehrání fúze nad jízdami 1. 10. 2026 (`20261001-144638.rec` Track 42 min, `-152906.rec` FreeRun 10 min; `fusionreplay`, měřidlo sedí na záznam p50 0,000 m), S koridorem proti BEZ: od osy sítě p50/p90 0,11/0,39 proti 7,63/32,47 m (Track) a 1,03/1,63 proti 2,58/7,52 m (FreeRun, pravá polovina); příčně od GPS 0,82/1,72 proti 6,96/31,64 m a 0,80/1,47 proti 2,79/8,31 m; opakovaný průjezd 0,10/0,34 proti 3,26/8,13 m. Bez koridoru by póza v Tracku 15:10–15:15 ujela od sítě o 35–43 m (tehdy ujel yaw VN100, `lok-freerun-kurz-staci-na-zapad`)"
+      - co: "Přehrání fúze nad jízdami 1. 10. 2026 (`20261001-144638.rec` Track 42 min, `-152906.rec` FreeRun 10 min; `fusionreplay`, měřidlo sedí na záznam p50 0,000 m), S koridorem proti BEZ: od osy sítě p50/p90 0,11/0,39 proti 7,63/32,47 m (Track) a 1,03/1,63 proti 2,58/7,52 m (FreeRun, pravá polovina); příčně od GPS 0,82/1,72 proti 6,96/31,64 m a 0,80/1,47 proti 2,79/8,31 m; opakovaný průjezd 0,10/0,34 proti 3,26/8,13 m. Bez koridoru by póza v Tracku 15:10–15:15 ujela od sítě o 35–43 m (tehdy ujel yaw VN100, `lok-freerun-kurz-staci-na-zapad`) ⚠️ (13. 10. 2026) I 1. 10. byl VN100 ve stavu po horkém autě (`hw-vn100-zmena-po-27-9`; ujetí VPE ale přišlo v chladnější části jízdy a 23. 9. ujel yaw ještě víc), takže zda varianta bez koridoru typický drift nadsazuje, se neví"
         stav: hotovo
         kdy: 2026-10-07
       - co: "Podélná chyba s korekcemi (1. 10., binárka bez 9afb50c): póza je soustavně PŘED GPS — FreeRun p50 +6,2 m (p90 10,1), roste ~1 m/min; Track na jižní větvi do +10,9 m; bez koridoru 2,8/5,1 m. Koridor srazí podélnou σ (0,23 proti 0,98 m) a GPS se σ 30 m pak nestáhne dráhu nadsazenou o 1,3–1,4 % (`lok-fuze-poza-pred-koly`); protifakt `--set=gpsposstd=3` růst zastaví (2,6/2,8 m). Přeměřit s binárkou ≥ 9afb50c; zůstane-li póza před GPS, rozhodnout o `gpsposstd` / `corridorstd`. ✅ 11. 10. 2026 protifaktem (`ARBot.Analyze predstih`, oprava razítek odometrie napodobená nad záznamem): předstih mizí — 1. 10. FreeRun +6,22 → +0,11 m (p90 10,1 → 1,0), Track +1,83 → −0,72 m (po minutách místo +10,9/−9,5 do ±2,7 m), 29. 9. FreeRun +1,55 → +0,05 m; tětiva pózy / kola 1,000–1,002 (Track 29. 9. 1,007). Starší jízdy jen zmenší (obvod kola před 26. 9.). Zpoždění GPS je nejvýš desetiny sekundy (podélně / v s opravou −0,44 až +0,08 s), ne 2–3 m. ⚠️ Mechanismus ale trvá (nález kontroly): koridor srazí podélnou σ na 0,2–0,3 m, GPS se σ 30 m netáhne a zbytkové měřítko kol (kola / GPS 0,997) dává drift −0,2 až −0,3 m/min; Track 29. 9. má počáteční posun −2,9 m. Protifakt s opravou: `gpsposstd=10` → Track 29. 9. −1,1 m, `gpsposstd=3` → −0,6 m a drift zhruba poloviční; cenu silnější GPS (korelovaná chyba, stání) to neměří"
@@ -1638,7 +1638,7 @@ temata:
     odkazy:
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20, 2026-09-27, 2026-09-28, 2026-09-29, 2026-10-07, 2026-10-11]
+    devlog: [2026-08-21, 2026-08-23, 2026-09-15, 2026-09-16, 2026-09-18, 2026-09-20, 2026-09-27, 2026-09-28, 2026-09-29, 2026-10-07, 2026-10-11, 2026-10-13]
 
   - id: vid-kalibrace-kamer-bias
     oblast: videni
@@ -1668,9 +1668,17 @@ temata:
         stav: otevreno
       - co: 'Zbytek `kurz z koridoru − GPS kurz` napříč hranami: stejný na všech = kamera, různý = mapa (Robotour 19. 9.)'
         stav: otevreno
-      - co: "Nerovnoběžnost levé a pravé hrany koridoru přes záznamy — změřeno 7. 10. 2026 (`dirL − dirR`, cykly Ok, v > 1 m/s): Modřany 1. 10. −1,57° (n 23 560) / −2,00°, v místech projetých oběma směry tělesová složka −1,36°; Hviezdoslavova 18. 9. +0,33 / −0,05°, 27. 9. +2,71°; Robotour 19. 9. +0,06 / +0,72°. Hodnota se mezi záznamy mění o ~4° a uvnitř 1. 10. závisí na změřené šířce (−0,7° při 3 m → −2,3° při 5 m), takže to NENÍ rozdíl yaw kamer. Zbývá rozložit: souměrná chyba průmětu (sklon/výška kamer), nebo vazba směru a šířky v proložení"
+      - co: "Nerovnoběžnost levé a pravé hrany koridoru přes záznamy — změřeno 7. 10. 2026 (`dirL − dirR`, cykly Ok, v > 1 m/s): Modřany 1. 10. −1,57° (n 23 560) / −2,00°, v místech projetých oběma směry tělesová složka −1,36°; Hviezdoslavova 18. 9. +0,33 / −0,05°, 27. 9. +2,71°; Robotour 19. 9. +0,06 / +0,72°. Hodnota se mezi záznamy mění o ~4° a uvnitř 1. 10. závisí na změřené šířce (−0,7° při 3 m → −2,3° při 5 m), takže to NENÍ rozdíl yaw kamer. Zbývá rozložit: souměrná chyba průmětu (sklon/výška kamer), nebo vazba směru a šířky v proložení ⚠️ (13. 10. 2026) Přeměřeno nad dalšími jízdami (`dump`, cykly Ok, v > 1 m/s, p50): 27. 9. `-172546` +2,65° (n 435; výš uvedených +2,71° je z jiného výběru cyklů) a o pět minut později `-173033` −2,87° (n 547), 29. 9. `-150844` −2,33° (n 97), 1. 10. `-152906` −1,99° (podle šířky 3 / 4 / 5 m −1,04 / −1,65 / −4,22°) — znaménko se mění během jednoho dne. Sklopení kamer z deformace PLA (`hw-naklon-robotu-od-29-9`) to vysvětlit nemůže: hrany jdou přes hloubku a čisté sklopení dá 0,000° (spočteno); z chyb montáže jde do směru hran jen yaw kamer (sklon a náklon hrany jen posunou), mimo montáž ještě nepřevrácený hlavní bod a extrinsiky barva–hloubka levé kamery (`vid-leva-kamera-hlavni-bod`; odvozeno, neověřeno). `ParallelErrorRad` se ukládá v absolutní hodnotě, znaménko jde jen z `DirectionLeftRad − DirectionRightRad`"
         stav: otevreno
-      - co: 'Výška, sklon a náklon obou D435 z roviny země: robot stojí na rovné podlaze doma, krátký záznam, proložení roviny hloubkou (autor 1. 10. 2026; kamery jsou pevně přidělané, takže stačí jednorázově, průběžný hlídač není potřeba)'
+      - co: 'Výška, sklon a náklon obou D435 z roviny země: robot stojí na rovné podlaze doma, krátký záznam, proložení roviny hloubkou (autor 1. 10. 2026; kamery jsou pevně přidělané, takže stačí jednorázově, průběžný hlídač není potřeba; ⚠️ 13. 10. 2026 předpoklad pevné montáže nevydržel — díly z PLA se horkem zdeformovaly, `hw-naklon-robotu-od-29-9`, a `montaz` se má pouštět po každém podezření na mechanickou změnu). Změřeno 13. 10. 2026 z jízd místo podlahy (`ARBot.Analyze montaz`, přeměřitelné): 6.–27. 9. levá −19,46° / +0,76° / 0,527 m (s opravou PP −19,06°), pravá −18,53° / −1,25° / 0,529 m proti Profile −20,2 / +0,9 / 0,522 a −18,6 / −1,1 / 0,525; sklon blízko = daleko do 0,1°, příčný sklon cest ~0,16°. Od 29. 9. jiný stav robotu (`hw-naklon-robotu-od-29-9`)'
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Rozhodnout (autor): zapsat změřenou montáž do `Profile`? Rozhodnuto 13. 10. 2026: až po opravě dílů z PLA zdeformovaných horkem (`hw-naklon-robotu-od-29-9`) a novém přeměření — dnešní čísla jsou podklad, ne hodnota k zápisu"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Po opravě dílů přeměřit (`ARBot.Analyze montaz --od=<den opravy>`) a zapsat montáž do `Profile`; u levé kamery podle toho, jestli se opraví převrácení PP (`vid-leva-kamera-hlavni-bod`: pak varianta B)"
+        stav: otevreno
+      - co: "Volitelně: krátký záznam na rovné podlaze doma a `montaz --vse` jako kontrola bez sklonu terénu"
         stav: otevreno
       - co: Změřit extrinsiky skutečných D435 — zbývá yaw (rovina země ho neurčí)
         stav: otevreno
@@ -1679,7 +1687,8 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: traversability-grid.md
         cesta: doc/traversability-grid.md
-    devlog: [2026-08-20, 2026-08-23, 2026-10-01, 2026-10-07]
+    devlog: [2026-08-20, 2026-08-23, 2026-10-01, 2026-10-07, 2026-10-13]
+    ceka_na: [hw-naklon-robotu-od-29-9]
 
   - id: vid-zpetna-projekce-hloubka
     oblast: videni
@@ -4191,7 +4200,7 @@ temata:
         kdy: 2026-09-03
       - co: Přeměřit FreeRun ve stísněném prostoru na zařízení
         stav: otevreno
-      - co: "Regresní kontrola na široké cestě (FreeRun 1. 10. 2026, `20261001-152906.rec`, koridor p50 3,68 m): `Ok` 97,1 %, `EscapingBlocked` / `RobotBlocked` / `NoRoute` 0, dráha pod `SafeDist` 0 z 11 204 plánů, robot pod `SafeDist` 0 % taktů. Stísněný prostor to nebyl, vlastní krok zůstává"
+      - co: "Regresní kontrola na široké cestě (FreeRun 1. 10. 2026, `20261001-152906.rec`, koridor p50 3,68 m): `Ok` 97,1 %, `EscapingBlocked` / `RobotBlocked` / `NoRoute` 0, dráha pod `SafeDist` 0 z 11 204 plánů, robot pod `SafeDist` 0 % taktů. Stísněný prostor to nebyl, vlastní krok zůstává ⚠️ (13. 10. 2026) Jízda byla už s kamerami sklopenými deformací dílů z PLA (`hw-naklon-robotu-od-29-9`): okraje cesty ze sémantiky ležely v gridu dál od robotu (spočteno ~0,3–0,5 m ve 3 m), kontrola je tedy spíš optimistická"
         stav: hotovo
         kdy: 2026-10-07
     odkazy:
@@ -4201,7 +4210,7 @@ temata:
         cesta: doc/occupancy-and-local-planning.md
       - text: rozhodnutí 3. 9. 2026
         cesta: doc/decisions.md
-    devlog: [2026-09-02, 2026-09-03, 2026-10-07]
+    devlog: [2026-09-02, 2026-09-03, 2026-10-07, 2026-10-13]
     ceka_na: []
 
   - id: lp-rychlostni-obalka-neridila
@@ -7417,7 +7426,7 @@ temata:
       - co: "V kódu: `RoadNetwork.EdgesWithin`, `EdgeAssociationConfig.Candidates` = 0 (všechny, výchozí), `assock=0` (1–16 = staré chování pro A/B); 3 nové testy (regrese 17. 9., dlouhá rovná cesta z 40 úseků = jedna hypotéza, `EdgesWithin`); `assocwhy --k= --jelk=` s výpisem změn"
         stav: hotovo
         kdy: 2026-10-04
-      - co: "Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama"
+      - co: "Přeměřeno offline nad 23 jízdami (`assocwhy --k=0` proti `--k=4`): špatně −145, správně −152; 17. 9. všech 77 špatných pryč, 27. 9. po startu 97 správných → nejednoznačné (σ pózy desítky m), 29. 9. +33 a 23. 9. +6 špatných: blízké cesty vypadnou na směru a vzdálenější vyhraje sama ⚠️ (13. 10. 2026) Rozbitý kurz 29. 9. je stav VN100 po horkém autě (`hw-vn100-zmena-po-27-9`, příčina otevřená); ujetý kurz se ale objevil i 23. 9. a 1. 10., takže jak typická je četnost +33, se neví"
         stav: hotovo
         kdy: 2026-10-04
       - co: "Rozhodnout (autor): co s vyhrou osamělé vzdálenější cesty, když blízké vypadnou na směru (29. 9. +33) — odolnost veta / χ² kurzu vůči rozbitému kurzu. **Autor 6. 10. 2026: přijme se hrana, která vyšla nejlépe** — rozbitý kurz se za jízdy poznat nedá, takže se veto ani χ² kurzu kvůli němu neoslabují. Kód beze změny (tak se chová už dnes); vědomě přijaté riziko, rozhodnutí v `decisions.md`"
@@ -7435,7 +7444,7 @@ temata:
         cesta: doc/map-correlation-localization.md
       - text: EdgeAssociator.cs
         cesta: Src/ARBot.Common/Localization/EdgeAssociator.cs
-    devlog: [2026-10-01, 2026-10-07]
+    devlog: [2026-10-01, 2026-10-07, 2026-10-13]
     ceka_na: []
 
   - id: web-clanek-regulator
@@ -8871,7 +8880,7 @@ temata:
       - co: "Nahrávat i `UncompGyro` (a teplotu) vedle `Gyro` — rozliší chybný odhad biasu ve VPE od skutečného gyra. V kódu 24. 9. (`IMUState` verze 5, `YprRate` vyřazen kvůli lince, `vn100` blok 6); na zařízení neběželo"
         stav: hotovo
         kdy: 2026-09-24
-      - co: "Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro? ✅ 29. 9. 2026 (`20260929-150844.rec` Track na sever, `-151634.rec` FreeRun na jih, Modřany; pro srovnání 25. a 27. 9.): bias, který filtr VN odečítá v ose Z (`Gyro − UncompGyro`), je **3 400–4 060 °/h (~1 °/s)** a uvnitř jízdy stabilní (25. 9. 1 540–2 040, 27. 9. 1 110–1 550 °/h). **Kompenzované gyro přitom sedí:** `GPS kurz − ∫gyro` za ~7 min jen +9° / −30°, tedy nejvýš ~0,07 °/s. Offset ~1 °/s má tedy **syrové gyro** a VPE ho odhaduje správně — ne chybný odhad biasu jako 23. 9. Napříč pěti záznamy roste bias s teplotou senzoru (28–31 °C → 1,1–1,5 tis., 31–36 °C → 1,5–2,0 tis., 47–54 °C → 3,4–4,1 tis. °/h), uvnitř jízdy ale ne (Track: teplota klesá 54 → 52 °C, bias roste), takže je to jen podezření; 29. 9. byl senzor ohřátý dlouhým stáním na slunci (autor), viz `hw-vn100-zmena-po-27-9`. Velký drift z 23. 9. se nezopakoval, jen slabší podoba: ve FreeRun na jih se yaw za 7 min odtrhl od vlastního magnetometru (`kurz z pole − yaw` +1,3 → −22°) a `IMU yaw − GPS kurz` došel na +25°"
+      - co: "Jízda se záznamem verze 5: `ARBot.Analyze vn100` blok 6 — mění se bias filtru, nebo syrové gyro? ✅ 29. 9. 2026 (`20260929-150844.rec` Track na sever, `-151634.rec` FreeRun na jih, Modřany; pro srovnání 25. a 27. 9.): bias, který filtr VN odečítá v ose Z (`Gyro − UncompGyro`), je **3 400–4 060 °/h (~1 °/s)** a uvnitř jízdy stabilní (25. 9. 1 540–2 040, 27. 9. 1 110–1 550 °/h). **Kompenzované gyro přitom sedí:** `GPS kurz − ∫gyro` za ~7 min jen +9° / −30°, tedy nejvýš ~0,07 °/s. Offset ~1 °/s má tedy **syrové gyro** a VPE ho odhaduje správně — ne chybný odhad biasu jako 23. 9. Napříč pěti záznamy roste bias s teplotou senzoru (28–31 °C → 1,1–1,5 tis., 31–36 °C → 1,5–2,0 tis., 47–54 °C → 3,4–4,1 tis. °/h), uvnitř jízdy ale ne (Track: teplota klesá 54 → 52 °C, bias roste), takže je to jen podezření; 29. 9. byl senzor ohřátý — podle autora 29. 9. stáním na slunci, 13. 10. upřesnil: horkým autem, ve kterém se zdeformovaly díly z PLA (`hw-naklon-robotu-od-29-9`), viz `hw-vn100-zmena-po-27-9`. Velký drift z 23. 9. se nezopakoval, jen slabší podoba: ve FreeRun na jih se yaw za 7 min odtrhl od vlastního magnetometru (`kurz z pole − yaw` +1,3 → −22°) a `IMU yaw − GPS kurz` došel na +25°"
         stav: hotovo
         kdy: 2026-09-29
       - co: "Měřidlo `vn100` blok 6: sloupec „syrové gyro Z ve stání“ je nepoužitelný — stání pozná jen podle proudu motorů pod 0,5 A, takže zahrnuje i otáčení a doběh (29. 9. průměry po minutách skáčou o ±12 000 °/h). Stání brát z nulové rychlosti kol a GPS (ne z gyra, to by výběr zkreslilo)"
@@ -8892,7 +8901,7 @@ temata:
         cesta: Src/ARBot.Analyze/HeadingReferencesReport.cs
       - text: mission-freerun.md
         cesta: doc/mission-freerun.md
-    devlog: [2026-09-24, 2026-09-25, 2026-09-29, 2026-10-07]
+    devlog: [2026-09-24, 2026-09-25, 2026-09-29, 2026-10-07, 2026-10-13]
     ceka_na: []
 
   - id: lok-koridor-siroka-cyklostezka
@@ -8971,7 +8980,7 @@ temata:
       - co: "Léčba (autor): `freerunlook=3` v `config/pi-provoz.cfg` (strop obálky ~1,73 m/s, ale pevný bod `Compute` při 3 m je ~1,3 m/s — viz `lp-regulator-kmitani-rotace`); prodloužení hranice potvrzeného za průjezdní mrkev v kódu zatím ne"
         stav: hotovo
         kdy: 2026-09-25
-      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem — autor 30. 9.: ověřeno OK. FreeRun 29. 9. (`20260929-151634.rec`, `freerunlook=5`, profil `latency`): mrkev p50 5,09 m, příkaz p50 **1,67 m/s** (`drive`, takty za jízdy; 25. 9. 0,81), rychlost fúze p50 1,49 m/s, strop obálky p50 1,44 m/s, vazba na rotaci srazila rychlost ve 27 % taktů (25. 9. 35 %)"
+      - co: "Jízda FreeRun s léčbou: `drive` / `envelope` / `localplan` nad záznamem — autor 30. 9.: ověřeno OK. FreeRun 29. 9. (`20260929-151634.rec`, `freerunlook=5`, profil `latency`): mrkev p50 5,09 m, příkaz p50 **1,67 m/s** (`drive`, takty za jízdy; 25. 9. 0,81), rychlost fúze p50 1,49 m/s, strop obálky p50 1,44 m/s, vazba na rotaci srazila rychlost ve 27 % taktů (25. 9. 35 %) ⚠️ (13. 10. 2026) Strop obálky 29. 9. stojí i na sémantice roztažené sklopením kamer (`hw-naklon-robotu-od-29-9`, ve 3 m ~0,3–0,5 m dál), srovnání s 25. 9. tedy není čisté (změnil se i `freerunlook` a profil)"
         stav: hotovo
         kdy: 2026-09-30
     odkazy:
@@ -8979,7 +8988,7 @@ temata:
         cesta: doc/mission-freerun.md
       - text: path-following.md
         cesta: doc/path-following.md
-    devlog: [2026-09-25, 2026-09-30]
+    devlog: [2026-09-25, 2026-09-30, 2026-10-13]
     ceka_na: []
 
   - id: lp-regulator-kmitani-rotace
@@ -9606,7 +9615,7 @@ temata:
 
   - id: hw-vn100-zmena-po-27-9
     oblast: hw
-    nazev: VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°, ačkoli se na robotu nic neměnilo; jediná známá změna je ohřátí sluncem na 54 °C
+    nazev: VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°; robot předtím stál v horkém autě (senzor 54 °C, díly z PLA zdeformované)
     druh: vada
     stav: otevreno
     nalezeno: 2026-09-29
@@ -9625,11 +9634,22 @@ temata:
       železo vázané na tělo robota, jenže na jih se v Track (+1,3 / +3,8°) a ve FreeRun (+10,9°)
       liší a ve FreeRun se yaw za 7 min odtrhl od vlastního pole (+1,3 → −22°), takže to může být
       i drift VPE. Harmonický rozklad nerozhodne: kurz měl v jízdách rozptyl jen 44° a 27°.
-      **Autor 29. 9.: na robotu se nic neměnilo.** LED pásek (40 cm od senzoru, nesvítí) byl na
+      **Autor 29. 9.: na robotu se nic neměnilo.** ⚠️ **Neplatí (autor 13. 10. 2026):** robot stál
+      v horkém dni v autě a díly z PLA se zdeformovaly — obě D435 jsou od té doby sklopené o ~2,4°
+      (`hw-naklon-robotu-od-29-9`). Pokud je z PLA i uchycení VN100 nebo držáky kabelů v jeho okolí,
+      mohly se pohnout taky, a to by bez teploty vysvětlilo offset pole v tělese (a) i posun klopení
+      VN100; zda se pohnuly, se neví. Další kandidát jsou **kabely ke kamerám**: jsou změřený hlavní
+      zdroj železa (14. 9. vodorovně ~0,16 G, kalibrace ze 17. 9. je vázaná na jejich polohu)
+      a orientace kamer vůči zemi se prokazatelně změnila (jestli se pohnul držák kamer, nebo celé
+      tělo, data nerozliší); chyba kurzu má 1. 10. tentýž vzor sever/jih a s teplotou nesouvisí,
+      což ukazuje spíš na posunuté železo než na teplo (odvozeno). Pokles `|B|` o 7 % dál vysvětluje
+      teplo: sklon −1,8 mG/°C napříč dny je sice zmatený s deformací (horké body jsou právě jízdy po
+      ní), ale drží ho i měření uvnitř jízdy 1. 10. (−2,2 mG/°C, tentýž směr a místo; zmatené už jen
+      s dobou od zapnutí). LED pásek (40 cm od senzoru, nesvítí) byl na
       robotu už při kalibraci 17. 9., takže jeho železo je v ní; nedokončená `mission=magcal`
       28. 9. vrátila registr 23 shodný (`hw-magcal-uncompmag-kompenzovany`). Rušení závislé na
-      proudu motorů zanedbatelné (0,00035 G/A). **Teplotu autor vysvětluje dlouhým stáním na
-      přímém slunci** — a ta je jediná známá změna.
+      proudu motorů zanedbatelné (0,00035 G/A). **Teplotu autor vysvětloval dlouhým stáním na
+      přímém slunci**, 13. 10. upřesnil: horké auto.
       **Rozklad chyby kurzu** (`IMU yaw − GPS kurz` = `(kurz z pole − GPS kurz) − (kurz z pole − yaw)`,
       obojí z `heading`): (a) **směr samotného pole** proti GPS kurzu je 25. a 27. 9. +2,5 až +4,6°
       (≈ deklinace), 29. 9. **−0,8°** na sever a **+5,7°** na jih — posun ~3–4° s opačným znaménkem
@@ -9646,12 +9666,13 @@ temata:
       a offset magnetometru → pole o 7 % pod referencí registru 21 (0,4896 G) a o 3–4° jinam →
       VPE, které `|B|` s referencí porovnává, magnetometru méně věří a kurz se táhne za gyrem.
       Stejnoměrná změna citlivosti sama kurz neotočí — otočení dělá až offset (a), a ten je
-      malý. Příčina neurčena.
+      malý. Příčina neurčena. ⚠️ (13. 10. 2026) Offset (a) může vysvětlit i posunuté železo po
+      deformaci dílů z PLA (viz výš); teplem zůstává dobře podložený jen pokles `|B|`.
     kroky:
       - co: "Změřeno: `|B|`, `IMU yaw − GPS kurz` a teplota proti 25. a 27. 9. (`heading`, `vn100`)"
         stav: hotovo
         kdy: 2026-09-29
-      - co: "Zjistit, co se na robotu mezi 27. a 29. 9. změnilo v okolí VN100 a odkud je senzor o 20 °C teplejší. Autor 29. 9.: na robotu se nic neměnilo (LED pásek byl i při kalibraci 17. 9., 40 cm od senzoru, nesvítí); teplota = dlouhé stání na přímém slunci"
+      - co: "Zjistit, co se na robotu mezi 27. a 29. 9. změnilo v okolí VN100 a odkud je senzor o 20 °C teplejší. Autor 29. 9.: na robotu se nic neměnilo (LED pásek byl i při kalibraci 17. 9., 40 cm od senzoru, nesvítí); teplota = dlouhé stání na přímém slunci ⚠️ (13. 10. 2026) „Na robotu se nic neměnilo“ neplatí (autor): robot stál v horkém dni v autě a díly z PLA se zdeformovaly (`hw-naklon-robotu-od-29-9`); zdroj tepla upřesněn na horké auto"
         stav: hotovo
         kdy: 2026-09-29
       - co: "Rozklad chyby kurzu na směr pole a VPE a `|B|` proti teplotě přes šest záznamů 25.–29. 9.: napříč dny ~−1,8 mG/°C (vysvětlí celých 7 %), uvnitř jízdy nerozhodne (rozsah 2–4 °C, jiné vlivy ±10 mG)"
@@ -9663,17 +9684,22 @@ temata:
       - co: "Záznamy 1. 10. 2026 (`20261001-144638.rec`, `-152906.rec`): senzor nebyl studený (start 50,5 °C), během Tracku chladl na 41,7 °C. Ve STEJNÉM místě a směru (49 košů po 20 m projetých dvakrát, ΔT −9 °C) bylo `|B|` vyšší o 19,9 mG (p10–p90 17,8–20,9), tj. **−2,2 mG/°C** — teplotní závislost pole je tím potvrzená uvnitř jízdy (zmatená už jen s dobou od zapnutí). Kurz s teplotou nesouvisí: na sever `IMU − GPS` −3,6° při 51 °C a −6,0° při 42 °C, na jih +3,1 až +3,7°; ujetí VPE (+12 až +23°, K = 0,0047 1/s, τ 215 s) přišlo v chladnější části jízdy. Otočka na místě v záznamech není"
         stav: hotovo
         kdy: 2026-10-07
-      - co: "Jízda s chladným senzorem (bez dlouhého stání na slunci): vrátí-li se `|B|` k ~0,49–0,50 G a `IMU yaw − GPS kurz` k −3 … +1°, je příčinou ohřátí; pokud ne, hledat dál (poloha kabelů ke kamerám). Nejčistší je týž pokus za studena a po ohřátí na témž místě s otočkou na místě — teplota se pak neplete s kurzem ani s místem"
+      - co: "Jízda s chladným senzorem (po opravě dílů z PLA a bez horka): vrátí-li se `|B|` k ~0,49–0,50 G a `IMU yaw − GPS kurz` k −3 … +1°, je příčinou ohřátí; pokud ne, hledat dál (poloha kabelů ke kamerám). Nejčistší je týž pokus za studena a po ohřátí na témž místě s otočkou na místě — teplota se pak neplete s kurzem ani s místem"
         stav: otevreno
       - co: "Minutový záznam s jednou otočkou na místě (rozpětí `|B|` přes otočku; 18. 9. zbytkové vodorovné železo 11–18 mG) — rozliší železo od driftu VPE; při železe nová `mission=magcal`"
+        stav: otevreno
+      - co: "13. 10. 2026 (`ARBot.Analyze montaz`): ve stejném okně 27.–29. 9. se obě D435 sklopily vůči zemi o ~2,4° (nos dolů), na robotu se tedy fyzicky něco změnilo, viz `hw-naklon-robotu-od-29-9`. Medián klopení VN100 se posunul opačně (~+2°), takže sklopení těla nepotvrzuje. Příčina (autor týž den): horké auto, zdeformované díly z PLA"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Po opravě dílů z PLA (`hw-naklon-robotu-od-29-9`): oba kroky výš (jízda za studena, minutový záznam s otočkou na místě) a k nim klopení VN100 — vrátí-li se `|B|`, kurz proti GPS i klopení do stavu z 25./27. 9., byla změna z tepla a deformace; jinak nová `mission=magcal`"
         stav: otevreno
     odkazy:
       - text: imu-and-frames.md
         cesta: doc/imu-and-frames.md
       - text: Vn100Report.cs
         cesta: Src/ARBot.Analyze/Vn100Report.cs
-    devlog: [2026-09-29, 2026-10-07]
-    ceka_na: []
+    devlog: [2026-09-29, 2026-10-07, 2026-10-13]
+    ceka_na: [hw-naklon-robotu-od-29-9]
 
   # ---------------------------------------------------------------- 2026-10-07 (rozbor jízd 1. 10.)
 
@@ -9696,7 +9722,11 @@ temata:
       0,07–0,53 m na měření, tedy pod toleranci `PoseJumpDetector`) a grid kotvený ve světě se
       proti robotu posune — robot se ocitne u (nebo v) vnitřní krajnici zapsané předtím. **29 z 32
       začátků úniku přišlo do 0,2 s po odeslaném měření koridoru.** Plán v zatáčce vede robot
-      s odstupem 0,42–0,74 m od vnitřní hrany, práh úniku je 0,35 m, takže rezerva je malá.
+      s odstupem 0,42–0,74 m od vnitřní hrany, práh úniku je 0,35 m, takže rezerva je malá (⚠️ 13. 10. 2026:
+      jízda byla už se sklopenými kamerami, `hw-naklon-robotu-od-29-9` — kde vnitřní okraj tvořila jen
+      barva, ležel v gridu dál, než byl (u hrany rovnoběžné s robotem pravá kamera ~0,2–0,3 m ve 2 m,
+      do 0,15 m v 1 m; geometrie zatáčky a levá kamera nespočteny), skutečná rezerva tedy mohla být
+      menší; mechanismus stání — geometrie z hloubky — tím dotčen není).
       Na konci (15:25:22 a 15:27:52) leželo pod robotem 87–102 ze ~110 buněk půdorysu blokovaných
       HLOUBKOU (krajnice zapsaná 1–4 s předtím), kamera je během stání ani jednou neviděla (hodnota
       beze změny 134 s; grid časový rozpad nemá) a únik (`PlanEscape`) přes geometrii nesmí —
@@ -9721,7 +9751,7 @@ temata:
         cesta: doc/occupancy-and-local-planning.md
       - text: ZasekReport.cs
         cesta: Src/ARBot.Analyze/ZasekReport.cs
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-13]
     ceka_na: [lp-grid-odometricka-soustava]
 
   - id: lok-koridor-slepy-v-zatacce
@@ -10396,6 +10426,77 @@ temata:
     devlog: [2026-10-08, 2026-10-09]
     ceka_na: []
 
+  - id: hw-naklon-robotu-od-29-9
+    oblast: hw
+    nazev: "Mezi 27. a 29. 9. 2026 se obě D435 sklopily vůči zemi o ~2,4° — díly z PLA zdeformované horkem v autě, předělají se"
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-13
+    popis: >
+      **Příčina (autor 13. 10. 2026): robot stál v horkém dni v autě a díly z PLA se zdeformovaly**;
+      předělají se a `Profile` se upraví až po opravě. **Den sedí na teplotu VN100** (měřeno ze
+      záznamů, teplotu nesou od 25. 9.): poslední jízda se starou montáží 27. 9. 17:30 nejvýš 30,8 °C
+      (25. 9. nejvýš 36,5 °C), první jízda s novou 29. 9. 15:08 začíná na **54,5 °C** a už jen chladne
+      (47,1 °C v 15:23) — senzor tedy nejspíš vyjel přímo z horka (odvozeno); je to nejvyšší teplota
+      ve všech záznamech s teplotou.
+      28. 9. záznam nemá, takže ten den vyloučit nejde. 1. 10. začínal na 50,5 °C (vrchol 51,5 °C),
+      montáž se ale proti 29. 9. už nezměnila (levá −21,50 až −21,86°, pravá −20,41 až −20,83°) —
+      deformace je trvalá.
+      Změřeno `ARBot.Analyze montaz` (rovina země z hloubky, 29 jízd, z toho 28 bez krátké noční zkoušky 2. 9.). Do 27. 9. (24 jízd včetně Robotouru)
+      levá D435 −19,46° / +0,76°, pravá −18,53° / −1,25°; od 29. 9. (29. 9. a 1. 10., 4 jízdy) levá
+      −21,73° / +1,66°, pravá −20,63° / −2,37°. Sklony −2,27 / −2,10° a náklony +0,90 / −1,12° odpovídají
+      otočení obou kamer společně kolem příčné osy robotu nosem dolů o δ ≈ 2,4° (sklon `−δ·cos 29°`,
+      náklon `±δ·sin 29°`; ze sklonů 2,5°, z náklonů 2,1°), příčná (společná) složka změny náklonu jen −0,11°. Není to místem:
+      23. a 25. 9. jely tutéž mapu a seznam míst (`modrany2.osm` / `.track`) jako 29. 9. a 1. 10.
+      a vycházejí jako všechny jízdy do 27. 9. Není to měřítkem hloubky (mění jen výšku) ani shodnou vadou obou
+      D435 (levá má obraz otočený o 180°, posun sklonu by měla opačný). Kamery nerozliší, jestli se
+      naklonilo tělo, nebo společný držák kamer. VN100 to nerozhodne: `YPR().Pitch` kladné = nos nahoru
+      (`bumps` blok 1), sklopení těla o 2,4° by ho posunulo o −2,4°, medián přes jízdy se ale posunul
+      opačně (−1,26 → +0,89°, bez tří nesmyslných jízd 23. 9.) a mezi dvěma jízdami 29. 9. se liší
+      o 2,9° při kamerách shodných do 0,4° — závisí na trase a sklonu terénu (vliv teploty senzoru z dat oddělit nejde); ve stejném
+      okně se navíc změnil stav VN100 (`hw-vn100-zmena-po-27-9`). Je-li z PLA i uchycení VN100, mohl
+      posun klopení vzniknout i deformací jeho držáku — ověří se po opravě. Výška kamer klesla jen o 3–4 mm; pokles
+      hnané nápravy (kamery jsou skoro nad ní, ostruha ~0,35 m za ní) by je pro 2,4° snížil o ~16 mm
+      a valivý poloměr kol o ~17 %, kdežto měřítko kol proti GPS (`odometer`) se mezi 25. a 29. 9. změnilo
+      jen softwarem (`WheelRadius` činitel 0,94 → 0,923, 26. 9.) a po přepočtu je stejné do ~1 % (jízdy
+      27. 9. mají špatné GPS a nepočítají se). Podhuštěná hnaná kola to tedy nejsou; sedí spíš zvednutá
+      ostruha nebo sklopený držák kamer.
+      **Dopad na jízdy 29. 9. a 1. 10.** (runtime promítal obě kamery se starou montaží z `Profile`;
+      spočteno modelem a čtením kódu, na jízdě nezměřeno, 13. 10. 2026):
+      (1) **hloubková geometrie gridu skoro beze změny** — zem se v runtime zvedá o `a·sin δ`
+      (+126 mm ve 3 m u pravé kamery; levá je proti `Profile` sklopená efektivně jen o 1,7°, protože
+      do 27. 9. byla o 0,7° méně skloněná), referenční rovina (`FitReferencePlane`) to na rovném terénu odstraní beze
+      zbytku, body se posunou o ~2 cm vpřed; rezerva fitu na stoupání terénu ale klesla z ~4,3° na
+      ~1,9°; (2) **hrany koridoru** jdou přes hloubku (`ColorPixelTo3D`), čisté sklopení jim nemění
+      směr, šířku ani příčnou polohu (0,000°, 0 mm) — kdyby deformace změnila i **yaw** kamer, který
+      rovina země neurčí, šel by 1:1 do kurzu z koridoru; (3) **sémantika je roztažená**: kanál
+      `LRoad` bere barvu z průsečíku pixelu s rovinou `z = 0` (`OccupancyIntegrator.cs:258`), takže
+      barva zapsaná ve vzdálenosti r pochází z ~k·r — pravá kamera k 0,87 / 0,83 / 0,75 ve 2 / 3 / 5 m,
+      okraj cesty ve 3 m posunutý ven o 0,32–0,54 m (cesta 3–5 m); cesta tedy dopředu vypadá širší
+      (čísla levé kamery jsou nejistá kvůli `vid-leva-kamera-hlavni-bod`); (4) **stín barvy podle výšky**
+      (`colorshadow=height`, výchozí od 10. 10.) bere absolutní výšky, takže **do opravy** vychází
+      delší (u pravé kamery překážka 0,15 m ve 4 m: konec stínu 5,6 → 10,2 m); jízdy 29. 9. a 1. 10.
+      ho ještě neměly.
+      **Do opravy dílů tedy robot jezdí s montáží, kterou runtime nezná.** Jízdy po 1. 10. v záznamech nejsou.
+    kroky:
+      - co: "Změřeno ze záznamů (`ARBot.Analyze montaz`, tabulka jízd podle času; VN100 v téže tabulce)"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Zjistit příčinu (autor 13. 10. 2026): robot stál v horkém dni v autě a díly z PLA se zdeformovaly"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Předělat zdeformované díly z PLA (autor); při tom zkontrolovat i uchycení VN100 a vedení kabelů v jeho okolí — pokud jsou na dílech z PLA, mohly se pohnout taky (`hw-vn100-zmena-po-27-9`)"
+        stav: otevreno
+      - co: "Po opravě: jízda a `ARBot.Analyze montaz --od=<den opravy>`, změřenou montáž zapsat do `Profile` (rozhodnutí autora 13. 10. 2026: ne dřív; `vid-kalibrace-kamer-bias`)"
+        stav: otevreno
+    odkazy:
+      - text: traversability-grid.md
+        cesta: doc/traversability-grid.md
+      - text: MontazReport.cs
+        cesta: Src/ARBot.Analyze/MontazReport.cs
+    devlog: [2026-10-13]
+    ceka_na: []
+
   - id: vid-leva-kamera-hlavni-bod
     oblast: videni
     nazev: Levá D435 má otočený obraz, ale hlavní bod se nepřevrací (dvojí převrácení se zruší)
@@ -10427,7 +10528,10 @@ temata:
       - co: "Změřit odsazení hlavního bodu a úhel ze záznamů (`ARBot.Analyze projekce`)"
         stav: hotovo
         kdy: 2026-10-10
-      - co: "Rozhodnout (autor): opravit převrácení (inverze jako kopie, nebo převracet oba objekty zvlášť; barevná intrinsika a znaménko extrinsik v `ColorPixelTo3D`) a jak přeměřit montáž kamer v `Profile`"
+      - co: "Změřit vliv na montáž (`ARBot.Analyze montaz`, 13. 10. 2026): oprava posune sklon levé kamery o +0,40° (B − A), náklon ne a výšku o ~1 mm. ⚠️ Správný hlavní bod je `(W−1−PPx, H−1−PPy)`; vzorec dnes v driveru `W − PP` je o 1 px vedle (~0,21° ve sklonu) — oprava „inverze jako kopie“ by tedy nestačila, musí se změnit i vzorec"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Rozhodnout (autor): opravit převrácení (inverze jako kopie a zároveň vzorec `W−1−PP`, nebo převracet oba objekty zvlášť; barevná intrinsika a znaménko extrinsik v `ColorPixelTo3D`) a jak přeměřit montáž kamer v `Profile` (`montaz`, varianta B)"
         stav: otevreno
       - co: "Změřit dopad na hranice cesty a barvu v gridu přehráním s opravenou projekcí levé kamery"
         stav: otevreno
@@ -10436,5 +10540,5 @@ temata:
         cesta: doc/traversability-grid.md
       - text: map-correlation-localization.md
         cesta: doc/map-correlation-localization.md
-    devlog: [2026-10-10]
+    devlog: [2026-10-10, 2026-10-13]
     ceka_na: []

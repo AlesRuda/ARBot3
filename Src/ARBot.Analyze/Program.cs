@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -54,6 +55,42 @@ namespace ARBot.Analyze
             {
                 RouteReport.Run(Text(args, "--map"), Text(args, "--from"), Text(args, "--to"),
                                 Arg(args, "--roadwidth", 3), !args.Any(a => a == "--noprune"));
+                return 0;
+            }
+
+            // Montaz kamer z roviny zeme umi i vic zaznamu najednou (--adresar), proto pred otevrenim jednoho.
+            if (cmd == "montaz")
+            {
+                List<string> zaznamy;
+                MontazReport.Nastaveni nastaveni;
+                try
+                {
+                    zaznamy = MontazReport.Zaznamy(path, Text(args, "--adresar"), Text(args, "--vynechat"));
+                    nastaveni = new MontazReport.Nastaveni
+                    {
+                        Snimku = (int)Arg(args, "--snimku", 150),
+                        VMin = Arg(args, "--vmin", 0.2),
+                        WMax = Arg(args, "--wmax", 0.3),
+                        Vse = args.Any(a => a == "--vse"),
+                        RMin = Arg(args, "--rmin", 0.5),
+                        RMax = Arg(args, "--rmax", 2.5),
+                        MaxZ = Arg(args, "--maxz", 0.15),
+                        KrokPx = (int)Arg(args, "--krok", 3),
+                        Prah = Arg(args, "--prah", 0.03),
+                        MinSnimkuJizdy = (int)Arg(args, "--minsnimku", 20),
+                        PpOpraveno = args.Any(a => a == "--pp-opraveno"),
+                        Od = Datum(Text(args, "--od")),
+                        Do = Datum(Text(args, "--do")),
+                        Csv = Text(args, "--csv"),
+                    };
+                }
+                catch (Exception ex) when (ex is ArgumentException or IOException)
+                {
+                    Console.Error.WriteLine($"montaz: {ex.Message}");
+                    return 1;
+                }
+                if (zaznamy.Count == 0) { Console.Error.WriteLine("Zadny zaznam nenalezen."); return 1; }
+                MontazReport.Run(zaznamy, nastaveni);
                 return 0;
             }
 
@@ -352,6 +389,15 @@ namespace ARBot.Analyze
                    ? v : fallback;
         }
 
+        /// <summary>Datum z prepinace (<c>2026-09-29</c>, <c>20260929</c>, i s casem); <c>null</c> = nezadano.</summary>
+        private static DateTime? Datum(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            string[] formaty = { "yyyy-MM-dd", "yyyyMMdd", "yyyy-MM-dd HH:mm", "yyyy-MM-ddTHH:mm", "yyyyMMdd-HHmmss" };
+            if (DateTime.TryParseExact(s, formaty, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) return d;
+            throw new ArgumentException($"neplatne datum '{s}' (napr. 2026-09-29)");
+        }
+
         /// <summary>
         /// Vychozi model pro <c>backproject</c> — tentyz, jaky ma v defaultu <c>nnmodel=</c>.
         /// Resi se pres <see cref="ARBot.Common.Configuration.RepoPaths"/>, tedy proti koreni repa,
@@ -547,6 +593,12 @@ namespace ARBot.Analyze
             Console.WriteLine("             male skvrny); replika overena proti integratoru. --framestep=5 --limit=0");
             Console.WriteLine("  kolize     nouzova zastaveni AbortedCollision: rychlost, draha, cil, odstup bunky pod robotem,");
             Console.WriteLine("             kontrola kolize zopakovana nad gridem ze zaznamu (lp-kolize-pri-stani); --vypis=50");
+            Console.WriteLine("  montaz     vyska, sklon a naklon obou D435 z roviny zeme v hloubce (vid-kalibrace-kamer-bias): proti");
+            Console.WriteLine("             Profile ze zaznamu, u leve kamery i s otocenym hlavnim bodem (vid-leva-kamera-hlavni-bod);");
+            Console.WriteLine("             jeden zaznam, nebo --adresar=dir1;dir2 (vsechny *.rec, bez duplikatu) a souhrn pres jizdy;");
+            Console.WriteLine("             --vynechat=jmeno1,jmeno2.rec (jmeno i s priponou, nebo cesta) --od=2026-09-29 --do=...");
+            Console.WriteLine("             --snimku=150 --vmin=0.2 --wmax=0.3 --vse --rmin=0.5 --rmax=2.5 --maxz=0.15 --krok=3");
+            Console.WriteLine("             --prah=0.03 --minsnimku=20 --csv=soubor; --pp-opraveno = zaznamy po oprave prevraceni PP");
             Console.WriteLine("  zotaveni   casova osa kolem drzeneho zastaveni: snimky po kamerach, LocalNavigator (PerfMsg), grid,");
             Console.WriteLine("             plany i bez drahy, cil navigace, hlasky; t = 0 je uvolneni (lp-zastaraly-regulator-toci-na-miste);");
             Console.WriteLine("             --po=3 (s za prvnim planem s drahou), --max=40, --pred=3; --kontext = jen z hlasek: za kolik s");

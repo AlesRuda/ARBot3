@@ -643,6 +643,26 @@ Poznámky:
   `lok-freerun-kurz-staci-na-zapad`.
 - Výběr platformového HAL (D435/T265 wrapper) viz [build-and-platforms.md](build-and-platforms.md).
 
+## Mechanika — díly tištěné z PLA
+
+- ⚠️ **Díly z PLA nesnesou horké auto** (autor, 13. 10. 2026): robot stál v horkém dni v autě
+  a díly z PLA se zdeformovaly; podle záznamů to bylo mezi 27. 9. večer a 29. 9. odpoledne 2026
+  (28. 9. záznam nemá). Tehdy si toho nikdo nevšiml (29. 9. autor uváděl „na robotu se nic
+  neměnilo“) a robot tak jezdil — našlo se to až o dva
+  týdny později z dat: `ARBot.Analyze montaz` ukázal, že
+  se **obě D435 sklopily o ~2,4°** (nos dolů) proti všem jízdám do 27. 9. (`hw-naklon-robotu-od-29-9`,
+  [traversability-grid.md](traversability-grid.md), sekce „Montáž kamer z roviny země"). VN100 měl
+  29. 9. 47–54 °C proti 28–36 °C v jízdách 25. a 27. 9. (starší záznamy teplotu nenesou). Runtime přitom dál počítal se starou montaží
+  z `Profile`, takže **jízdy 29. 9. a 1. 10. jely s geometrií kamer, kterou neznal**.
+- PLA měkne už kolem **55–60 °C** (teplota skelného přechodu, orientační údaj výrobců) a tolik
+  interiér auta na slunci snadno přesáhne. Díly se předělají (materiál rozhodne autor).
+- **Po každém podezření na mechanickou změnu** (horko, náraz, přestavba) pustit nad první jízdou
+  `ARBot.Analyze montaz --od=<datum>` — skok v tabulce jízd podle času je vidět hned a stojí to
+  minuty, kdežto neznámá montáž tiše kazí grid. Při sklopení se nejvíc pokazí **sémantika** (barva se
+  do gridu promítá přes rovinu země, ve 3 m o ~0,3–0,5 m vedle) a **absolutní výšky** (stín barvy
+  podle výšky); hloubková geometrie a hrany koridoru se skoro nepohnou (spočteno,
+  [traversability-grid.md](traversability-grid.md)).
+
 ## Pohon — motory a kola
 
 - **Motory: MY36GP-555, 12 V, 296 ot/min** (autor, 9. 10. 2026) — planetová převodovka Ø 36 mm

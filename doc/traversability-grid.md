@@ -238,10 +238,135 @@ podhodnocené.
 Kořeny ani hrubý štěrk z Kola 3b úpravou prahů řešit nejde, rozbor je v registru
 (`vid-grid-prahy-realna-data`).
 
+## Montáž kamer z roviny země (13. 10. 2026)
+
+`ARBot.Analyze montaz` měří **výšku, sklon a náklon obou D435 vůči zemi** z hloubky, kterou nese každý
+snímek od 2. 9. 2026 (`ImageDepth` + `Projection`), a porovná je s montáží, se kterou runtime v jízdě
+počítal (`Projection.Transformation` = `Profile`). Jádro je `ARBot.Common/Vision/GroundPlaneMount.cs`
+(7 testů nad syntetickou zemí se známou montáží). Bod 7 průzkumu, `vid-kalibrace-kamer-bias`.
+
+**Jak to měří.** Pixely 0,5–2,5 m před robotem, které podle zadané montáže leží do 0,15 m od země
+(jen předvýběr), se spočtou v rámci kamery a proloží rovinou (RANSAC s pevným semenem, pak totální
+nejmenší čtverce). Z normály roviny jde přímo `pitch = atan2(n_z, −n_y)`, `roll = −asin(n_x)` a výška
+= vzdálenost středu kamery od roviny, tedy přesná inverze `Conversions.CameraToWorldTransform`.
+Výsledek **nezávisí na montáži použité k předvýběru** (test). **Yaw ani posun X/Y z roviny země
+určit nejde.** Bere se nejvýš 150 snímků na kameru a jízdu, jen **za jízdy rovně** (`|v| ≥ 0,2 m/s`,
+`|ω| ≤ 0,3 rad/s` — vyřadí ruční náklápění při kalibraci magnetometru i stání v depu); zamrzlý
+stream se přeskočí. Měří se tedy montáž **vůči zemi před robotem**, ne vůči gravitaci — přesně to,
+co předpokládá grid (země z = 0 v těle). Kontrola: záznam z virtuálního HW (`records/20260823-182213.rec`)
+vrátí montáž z `Profile` na 0,01° a 1 mm.
+
+**Varianty hlavního bodu** (jen skutečná levá D435, `vid-leva-kamera-hlavni-bod`): **A** = PP ze
+záznamu (jak počítal runtime), **B** = `(W−1−PPx, H−1−PPy)` — **jediný správný** PP obrazu otočeného
+o 180° (RealSense i `CameraProjection` mají střed pixelu na celém čísle), **C** = `(W−PPx, H−PPy)`, tedy
+vzorec, který je dnes v driveru — **o 1 px vedle** (~0,21° ve sklonu). Všechny tři počítají z týchž
+pixelů. Záznamy do opravy převrácení: A = dnešní stav, B = po opravě. Záznamy po opravě nesou už
+otočený PP — pak `--pp-opraveno` a platí jen A.
+
+**Přeměřit:**
+
+```
+ARBot.Analyze montaz --adresar="records/test;records/Robotour2026" --vynechat=20260918-155329,Kolo2 --csv=montaz.csv
+ARBot.Analyze montaz --adresar=... --od=2026-09-29          # jen jízdy od data (--do = před datem)
+ARBot.Analyze montaz zaznam.rec                             # jedna jízda
+```
+
+Záznamy se stejnou velikostí souboru se zpracují jen jednou — Kolo 1 je v `records/test` jako
+`20260919-*` i v `records/Robotour2026` jako `Kolo1a–d` a vezme se první v pořadí (`test/`); vynechá se
+i **kopie** záznamu z `--vynechat` pod jiným jménem. `--vynechat` bere jméno s příponou i bez, relativní
+i absolutní cestu; `--csv` soubor přepíše. Souhrn tiskne tabulku jízd podle času (skok v montáži je
+vidět hned), mediány mediánů jízd, varianty pro `Profile.cs`, společnou složku obou kamer (příčný sklon
+cest) a klopení/náklon z VN100 (`YPR().Pitch` **+ = nos nahoru**).
+
+**Výsledek** (46 záznamů 2. 9.–1. 10., z toho 29 jízd s ≥ 20 platnými snímky na kameru; ve zbylých 17
+robot nejel rovně aspoň 0,2 m/s, nebo chyběla kamera — testy 2. 9., 6. 9. odpoledne (jen pravá kamera),
+kalibrace magnetometru 10. 9., 12. 9. 13:10, dvě jízdy 17. 9. odpoledne, PreKolo a Kolo 1a–d; tabulka je
+bez krátké noční zkoušky 2. 9.):
+
+| | levá sklon / náklon / výška | levá B (po opravě PP) | pravá sklon / náklon / výška | VN100 klopení (+ = nos nahoru) |
+|---|---|---|---|---|
+| `Profile` (runtime) | −20,2° / +0,9° / 0,522 m | | −18,6° / −1,1° / 0,525 m | |
+| **6.–27. 9. + Robotour** (24 jízd) | **−19,46°** (−20,03…−19,16) / +0,76° / 0,527 m | −19,06° | **−18,53°** (−19,58…−18,15) / −1,25° / 0,529 m | −1,26° (bez tří nesmyslných jízd 23. 9.) |
+| **29. 9.–1. 10.** (4 jízdy) | **−21,73°** / +1,66° / 0,523 m | −21,36° | **−20,63°** / −2,37° / 0,525 m | +0,89° |
+
+- **Do 27. 9. byla levá kamera skloněná o ~0,7° méně, než říká `Profile`** (s opravou PP o ~1,1°),
+  pravá seděla na 0,1°. Rozdíl sklonů obou kamer v `Profile` (1,6°) tedy změřený není: je 0,9° (A), resp. 0,5° (B).
+  Náklony sedí na 0,15°, výšky jsou do 27. 9. o 4–6 mm větší (země = vrchol trávy, ne půda), od 29. 9.
+  o 0–2 mm.
+- **Sklon blízko (0,5–1,5 m) a daleko (1,5–2,5 m) je shodný do 0,1°** — hloubka D435 se v pásmu
+  nekřiví se vzdáleností.
+- **Příčný sklon cest je zanedbatelný**: společná složka náklonu obou kamer −0,14°, tedy ~0,16° sklonu.
+- **Oprava hlavního bodu posune sklon levé kamery o +0,40°** (B − A), náklon ne a výšku o ~1 mm — přesně
+  podle odvozeného `tan p_rt = tan p + δy + δx·tan r / cos p`.
+- ⚠️ **Mezi 27. a 29. 9. 2026 se obě D435 společně sklopily vůči zemi asi o 2,4°** (otočení kolem
+  příčné osy robotu, nos dolů; `hw-naklon-robotu-od-29-9`). **Příčina (autor 13. 10. 2026): robot stál
+  v horkém dni v autě a díly z PLA se zdeformovaly** — předělají se. Den sedí na teplotu VN100:
+  poslední jízda se starou montáží (27. 9. 17:30) nejvýš 30,8 °C, první s novou (29. 9. 15:08) začíná
+  na **54,5 °C** a už jen chladne — senzor nejspíš vyjel přímo z horka (odvozeno); 1. 10. se montáž proti 29. 9. už
+  nezměnila, deformace je trvalá. Rozbor, který k tomu vedl: sklony −2,27 / −2,10° a náklony +0,90 / −1,12°
+  odpovídají `−δ·cos 29°` a `±δ·sin 29°` při δ = 2,4° (ze sklonů 2,5°, z náklonů 2,1°), příčná
+  (společná) složka změny náklonu jen −0,11°. **Není to místem**: 23. a 25. 9. jely tutéž mapu a seznam míst (`modrany2.osm` / `.track`) jako
+  29. 9. a 1. 10. a vycházejí jako všechny jízdy do 27. 9. **Není to měřítkem hloubky** (to mění jen výšku)
+  ani shodnou vadou obou D435 (levá je otočená o 180°, posun sklonu by měla opačný). Kamery nerozliší,
+  jestli se naklonilo tělo, nebo společný držák kamer. **VN100 to nerozhodne:** sklopení těla by jeho
+  klopení posunulo o −2,4°, medián přes jízdy se ale posunul o +2,2° (nos nahoru, tedy opačně), a mezi
+  dvěma jízdami 29. 9. se liší o 2,9° při kamerách shodných do 0,4° — medián za jízdu závisí na trase,
+  sklonu terénu (vliv teploty senzoru z dat oddělit nejde); ve stejném okně se navíc změnil stav VN100 (`hw-vn100-zmena-po-27-9`).
+  Je-li z PLA i uchycení VN100, mohla jeho klopení posunout i deformace držáku. **Výška kamer klesla jen o 3–4 mm**; pokles hnané
+  nápravy (kamery jsou skoro nad ní, ostruha ~0,35 m za ní) by je pro 2,4° snížil o ~16 mm. Měřítko kol
+  proti GPS (`odometer`) se mezi 25. a 29. 9. změnilo jen softwarem (`WheelRadius` činitel 0,94 → 0,923,
+  26. 9.) a po přepočtu je stejné do ~1 % (jízdy 27. 9. mají špatné GPS), kdežto pokles nápravy o ~16 mm
+  by valivý poloměr změnil o ~17 %. Podhuštěná hnaná kola to tedy nejsou; sedí spíš zvednutá ostruha
+  nebo sklopený držák kamer — obojí s deformací dílů z PLA souhlasí.
+- ⚠️ **Co neznámá montáž dělá s gridem** (jízdy 29. 9. a 1. 10. a každá jízda do opravy dílů; runtime
+  promítá obě kamery se starou montáží z `Profile`; **spočteno** modelem a čtením kódu 13. 10. 2026,
+  na jízdě nezměřeno). Sklopení se jednotlivým cestám projeví velmi různě:
+  - **Hloubková geometrie skoro beze změny.** Zem se v runtime zvedá o `a·sin δ` (+42 / +126 / +210 mm
+    v 1 / 3 / 5 m při 2,4°, tj. u pravé kamery; levá je proti `Profile` sklopená efektivně jen o 1,7°,
+    protože do 27. 9. byla o 0,7° méně skloněná, u ní ~+30 / +90 / +150 mm), jenže referenční rovina
+    (`FitReferencePlane`) to na rovném terénu odstraní beze zbytku a klasifikace výšky a stoupání je
+    relativní k ní (drsnost `StdZ` je surová, sklopení ji zvětší jen o ~1 cm na metr šířky prstence).
+    Body se posunou o ~2 cm vpřed, napříč vůbec ne; jen azimut buňky hledaný přes rovinu `z = 0` vyjde
+    u 5–7 % vzorků země o sousední. Rezerva fitu
+    roviny na stoupání terénu (|MeanZ| ≤ 0,15 m do 2 m) ale klesla z ~4,3° na ~1,9°.
+  - **Hrany koridoru** jdou přes hloubku (`ColorPixelTo3D` → hloubkový paprsek → montáž), takže čisté
+    sklopení jim nemění směr, šířku ani příčnou polohu (0,000°, 0 mm). Kdyby deformace změnila i **yaw**
+    kamer, který rovina země neurčí, šel by do směru hran a kurzu z koridoru 1:1.
+  - **Sémantika (`LRoad`) je roztažená** — tahle cesta je na sklon citlivá. Barva se do buňky bere
+    z průsečíku pixelu s rovinou `z = 0` (`OccupancyIntegrator.cs:258`), takže barva zapsaná ve
+    vzdálenosti r pochází z bližšího bodu ~k·r: pravá kamera k = 0,87 / 0,83 / 0,75 ve 2 / 3 / 5 m,
+    okraj cesty je ve 3 m posunutý ven o 0,32–0,54 m (cesta 3–5 m). Cesta tedy dopředu vypadá širší
+    a pás trávy za okrajem se může jevit jako sjízdný. Čísla levé kamery jsou nejistá kvůli
+    nepřevrácenému hlavnímu bodu a extrinsikám (`vid-leva-kamera-hlavni-bod`).
+  - **Stín barvy podle výšky** (`colorshadow=height`, výchozí od 10. 10. 2026) bere absolutní výšky
+    v rámci robotu, takže se sklopenými kamerami vychází delší (u pravé kamery překážka 0,15 m ve 4 m:
+    konec stínu 5,6 → 10,2 m) a zahodí víc barvy — i 35,3 % zahozených nad 46 jízdami je proto na
+    jízdách 29. 9. a 1. 10. nadhodnocené (`vid-inshadow-zahazuje-vzorky`). Jízdy 29. 9. a 1. 10. ho ještě neměly; týká se jízd do opravy
+    a přehrávání těch záznamů dnešní binárkou.
+
+  **Jízdy 29. 9. a 1. 10. jely se zdeformovanými díly** — závěry z nich, které stojí na sémantice
+  v gridu nebo na absolutních výškách, jsou v registru označené (13. 10. 2026).
+- ⚠️ **Nejistota:** absolutní sklon a náklon levé kamery závisí na prahu inlierů a začátku pásma řádově
+  o 0,2° (revize 13. 10. 2026; rozdíl A/B ne). Klopení a náklon z VN100 jsou absolutně nespolehlivé
+  (akcelerometr +6,9 %), 23. 9. ve třech jízdách dokonce nesmyslné (7–28°), a ani jejich změna mezi
+  jízdami není montáž kamer — medián za jízdu závisí na trase a sklonu terénu, možná i na teplotě,
+  a mohla ho posunout i deformace držáku VN100, je-li z PLA (viz výš).
+  ⚠️ `ARBot.Analyze projekce` tiskne „náklon" jako `asin(M13)`, tedy s **opačným znaménkem** než
+  `Profile`, `montaz` a `GroundPlaneMount.Decompose` (pro `Profile` vypíše −0,90 / +1,10) — při
+  porovnávání výpisů pozor.
+
+**Do `Profile.cs`** se změřené hodnoty nezapsaly — **rozhodnutí autora 13. 10. 2026: až po opravě
+dílů z PLA** a novém přeměření (`montaz --od=<den opravy>`, `vid-kalibrace-kamer-bias`). Tabulka výš je
+tedy podklad, ne hodnota k zápisu. U levé kamery rozhodne i oprava převrácení PP (pak platí varianta B
+a v driveru vzorec `W−1−PP`, ne dnešní `W−PP`).
+
 ## Otevřené úkoly (→ registr)
 
 Stav a data vede [registr úkolů](ukoly.md); tady je jen seznam, co se téhle oblasti týká.
 
+- **[Montáž kamer v `Profile` neodpovídá změřené](ukoly.md#vid-kalibrace-kamer-bias)** a **[obě kamery se mezi 27.
+  a 29. 9. sklopily o ~2,4°](ukoly.md#hw-naklon-robotu-od-29-9)** (díly z PLA zdeformované horkem, předělají se) — viz
+  „Montáž kamer z roviny země" výš.
 - ~~Prahy klasifikace a šumový model gridu nejsou laděné na reálných datech~~ — změřeno 10. 10. 2026
   a uzavřeno, prahy zůstávají (viz sekce výš a [registr](ukoly.md#vid-grid-prahy-realna-data)).
 - (bez tématu v registru) **Referenční plocha** — per-azimut profil místo jedné roviny, pokud zvlněný terén nestačí.

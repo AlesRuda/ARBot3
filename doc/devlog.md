@@ -39,6 +39,42 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-13
+
+- **Montáž obou D435 z roviny země** (bod 7 průzkumu, `vid-kalibrace-kamer-bias`). Nový
+  `ARBot.Analyze montaz` (jádro `GroundPlaneMount` v `ARBot.Common/Vision`, 7 testů nad syntetickou
+  zemí): z hloubky v každém snímku proloží rovinu země v rámci kamery a z normály spočte sklon, náklon
+  a výšku; u levé kamery i s otočeným hlavním bodem (B = `W−1−PP`, C = dnešní vzorec driveru `W−PP`).
+  Kontrola na virtuálním HW vrátí `Profile` na 0,01°. Nad 29 jízdami: **do 27. 9. levá −19,46°
+  (Profile −20,2°, s opravou PP −19,06°), pravá −18,53° (Profile −18,6°)**, náklony a výšky sedí,
+  hloubka se se vzdáleností nekřiví. ⚠️ **Mezi 27. a 29. 9. se obě D435 společně sklopily vůči zemi
+  o ~2,4° (nos dolů)** — nové `hw-naklon-robotu-od-29-9`, ve stejném okně jako změna VN100. Tělo, nebo
+  společný držák kamer, z dat nerozhodnuto: **VN100 to nepotvrzuje** (`YPR().Pitch` + = nos nahoru,
+  medián se posunul o ~+2°, tedy opačně, a za jízdu závisí na trase). Výška kamer klesla jen o 3–4 mm
+  a měřítko kol je po přepočtu změny `WheelRadius` z 26. 9. stejné do ~1 %, takže pokles hnané nápravy
+  (podhuštění) to není. Revize (tři kola) našla: dnešní vzorec převrácení v driveru (`W−PP`) je o 1 px
+  vedle, správně je `W−1−PP`; `--vynechat` neznal příponu ani absolutní cestu a kopie vynechaného
+  záznamu pod jiným jménem (Kolo 1 je v `test/` i v `Robotour2026/`) by se otevřela; slévání
+  virtuálních a skutečných kamer v souhrnu; CSV se při opakovaném běhu zdvojovalo; **první výklad
+  VN100 měl obrácené znaménko** („naklonilo se tělo i s IMU"); nejistota absolutního sklonu levé
+  kamery ~0,2° (práh, pásmo). Do `Profile` se nezapsalo nic — rozhodne autor.
+- **Příčina sklopení kamer: horké auto a díly z PLA** (autor). Robot stál v horkém dni v autě a díly
+  z PLA se zdeformovaly; předělají se a **`Profile` se upraví až po opravě** a novém přeměření
+  (`montaz --od=`). Data tomu odpovídají (den přesně určit nejde, 28. 9. záznam nemá): VN100 má v poslední jízdě se starou montáží (27. 9. 17:30)
+  nejvýš 30,8 °C, první jízda s novou (29. 9. 15:08) začíná na **54,5 °C** a jen chladne; 1. 10. se
+  montáž už nezměnila, deformace je trvalá. Tím padá „na robotu se nic neměnilo" z 29. 9.
+  (`hw-vn100-zmena-po-27-9`) — offset pole v tělese může být posunutými kabely ke kamerám (změřený
+  hlavní zdroj železa), pokles `|B|` dál vysvětluje teplo (uvnitř jízdy 1. 10. −2,2 mG/°C).
+  **Co neznámá montáž dělá s gridem** (spočteno, workflow s ověřovatelem): hloubková geometrie
+  a hrany koridoru se skoro nepohnou (referenční rovina zvednutí země odstraní, čisté sklopení nemění
+  směr hran), ale **sémantika je roztažená** — barva jde do gridu přes rovinu `z = 0`, pravá kamera
+  bere barvu ve 3 m z 0,83 vzdálenosti a okraj cesty je o 0,3–0,5 m dál — a **stín podle výšky**
+  (absolutní výšky) vychází do opravy delší. Dotčené závěry z jízd 29. 9. a 1. 10. jsou v registru
+  označené; ověření `colorshadow=height` na zařízení čeká na opravu. Nerovnoběžnost hran koridoru
+  sklopení nevysvětlí — mění znaménko i mezi dvěma jízdami 27. 9. pět minut po sobě (+2,65 / −2,87°).
+  Nová sekce v `hardware.md`: díly z PLA nesnesou horké auto, po podezření na mechanickou změnu
+  pustit `montaz`.
+
 ## 2026-10-12
 
 - **Po zotavení kamer se drží stop do prvního snímku; pokusy detektoru A se nulují pohybem**
@@ -825,7 +861,9 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   proudu motorů). (2) **Mezi 27. a 29. 9. se změnil stav VN100** (nové `hw-vn100-zmena-po-27-9`):
   `|B|` 0,461 / 0,467 proti 0,494–0,505 G, `IMU yaw − GPS kurz` −5,5 / +10,8° proti −3 až +1°,
   senzor 47–54 °C proti 28–36 °C. Na robotu se podle autora nic neměnilo (LED pásek byl i při
-  kalibraci), teplotu způsobilo dlouhé stání na slunci. `|B|` leží přes šest záznamů na přímce
+  kalibraci), teplotu způsobilo dlouhé stání na slunci. *(⚠️ 13. 10. 2026: „nic se neměnilo“ neplatí
+  a teplo autor upřesnil na horké auto — díly z PLA se zdeformovaly, obě D435 sklopené o ~2,4°,
+  `hw-naklon-robotu-od-29-9`.)* `|B|` leží přes šest záznamů na přímce
   ~−1,8 mG/°C, což by pokles vysvětlilo, uvnitř jízdy se to ale potvrdit nedá. Chyba kurzu je
   v Track hlavně posunutý směr pole (~3–4°), ve FreeRun hlavně VPE, které se za polem táhne.
   Hypotéza „ohřátí“ čeká na jízdu se studeným senzorem. Měří to nový `vn100` blok 7 (`|B|`
