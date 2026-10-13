@@ -105,6 +105,22 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   a že **`Thread.GetCurrentProcessorId` .NET na Linuxu cachuje** — číslo jádra pro `LocalPlanMsg` v5
   (k rozhodnutí `CPUAffinity` / governor) se proto čte přes `sched_getcpu` (`AktualniJadro`). Testy
   souběhu a publikace ověřené mutací (bez kontroly verze / bez `Publish` padají). Na Pi neběželo.
+- **Bod 9: tvrdé záseky D435 po kamerách ze záznamů** (`hw-vetev-usb-2-1-3`). Workflow: časová osa
+  zapojení z dokumentace + `cameras --vypadky` a `log` nad 46 záznamy (5,1 h jízd) + vyhodnocení
+  + ověřovatel. Po přesazení pravé z `2-1.3` (14. 9.) jsou všechny 4 tvrdé záseky na pravé (1,03/h,
+  jako předtím na `2-1.3`), levá 0 — **zásek na portu nezůstal**. Spouštěč (zamrznutí) mají obě
+  kamery stejně. **Ověřovatel přišel s vysvětlením, které sedí na všechna data včetně 12 z 12: pořadí
+  výčtu.** `RealSenseShared.Query` končí první výjimkou a čtení streamující D435 hází „failed to set
+  power state" (dokazuje to hledání odpojené T265), takže kamera, která je ve výčtu za streamující,
+  se po restartu nenajde — do 13. 9. levá na `2-1.3`, pak pravá. Pravá se zasekla ve 4 ze 4 restartů
+  se streamující levou a vrátila se sama ve 2 ze 2, kdy restartovaly obě. Že výčet jde podle portu, je
+  odvozené; kabel ani porty 3–4 hubu vyloučené nejsou. Rozhodne výpis výjimky v `Query`, pravá na
+  nižším portu, nebo `Query`, které výjimku jednoho zařízení přeskočí — rozhoduje autor.
+  **Autor rozhodl pro opravu i zápis do Trace:** `RealSenseShared.Query` prochází zařízení přes nový
+  `VycetZarizeni` (`ARBot.HAL`, 6 testů) — chyba jednoho zařízení se zapíše a hledá se dál, `null` jen
+  když hledané nenašlo a něco hodilo. Trace říká, na kolikátém zařízení a v jakém kroku dotaz padl,
+  a škrceně i „přeskočeno, hledané nalezeno“ — přesně případ, který dřív končil tvrdým zásekem.
+  Na Pi neběželo; první jízda ukáže, jestli hypotéza sedí.
 
 ## 2026-10-12
 

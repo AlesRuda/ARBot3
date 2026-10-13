@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **273**: otevřeno **38** · v kódu, na HW neověřeno **41** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **273**: otevřeno **37** · v kódu, na HW neověřeno **42** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -30,7 +30,6 @@ Témat celkem **273**: otevřeno **38** · v kódu, na HW neověřeno **41** · 
 | otevřeno | Vidění | [U Model96.2 chybí float checkpoint lepších vah, optimalizace je nevyužitelná](#vid-model96-float-checkpoint) | 9. 9. 2026 | [vid-trenink-nejde-zopakovat](#vid-trenink-nejde-zopakovat) |
 | otevřeno | Hardware a senzory | [Po kalibraci zbývá konstantní posun kurzu −3,7°, který nejde rozložit](#hw-kurz-zbytek-konstanta) | 12. 9. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5](#lok-gps-kurz-korelovana-chyba) | 12. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
-| otevřeno | Hardware a senzory | [Tvrdé záseky kamer na větvi USB `2-1.3`](#hw-vetev-usb-2-1-3) | 13. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Nativní pád (SIGSEGV) při zastavování runtime je častý](#prov-sigsegv-pri-stop) | 14. 9. 2026 |  |
 | otevřeno | Mise | [Kalibrace magnetometru se po zápisu sama znehodnotí — kolektor sbírá dál](#mise-magcal-sber-po-zapisu) | 17. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Runtime zatuhl 4 s po odjezdu mise Track a hlídač ho nechytil](#prov-zatuhnuti-za-behu-mise) | 17. 9. 2026 |  |
@@ -57,6 +56,7 @@ Témat celkem **273**: otevřeno **38** · v kódu, na HW neověřeno **41** · 
 | v kódu, na HW neověřeno | Mise | [Mise by se v depu nezarmovala nikdy — práh rozptylu fixů byl pod šumem GPS](#mise-robotour-armovani-rozptyl) | 26. 8. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Chybový rámec motorového driveru se tvářil jako měření](#hw-motor-chybovy-ramec) | 27. 8. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [První FreeRun na železe ve stísněném prostoru skončil nárazem](#lp-freerun-stisnene-podminky) | 2. 9. 2026 |  |
+| v kódu, na HW neověřeno | Hardware a senzory | [Tvrdé záseky D435 — ne port `2-1.3`, ale kamera, která je ve výčtu později (`QueryDevices` padal na streamující kameře); od 13. 10. dotaz chybné zařízení přeskočí](#hw-vetev-usb-2-1-3) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Klín mezi zornými poli barevných kamer brzdí robota](#lp-klin-mezi-zornymi-poli) | 13. 9. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý](#prov-start-limit-sluzba) | 14. 9. 2026 |  |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Naučená šířka cesty jde dál do mapy — korelaci i kreslení](#lok-naucena-sirka-do-mapy) | 15. 9. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -2578,7 +2578,7 @@ Při prvním běhu aplikace na Pi se pravá D435 po ~4600 s odmlčela; odpojená
 - [x] 'Rešerše: cizí nevyřešený problém, propustnost USB ani sousedé na hubu to nejsou' (11. 9. 2026)
 - [x] Supervizor zotavení kamer s drženým zastavením, ověřen na skutečné poruše (13. 9. 2026)
 - [x] Vyvrátit hypotézu T265 / `CLEAR_HALT` měřením na zařízení (14. 9. 2026)
-- [ ] Odstranit příčinu (kabel nebo port větve 2-1.3)
+- [ ] Odstranit příčinu tvrdého záseku — 13. 10. 2026 ze záznamů: nejspíš ne kabel ani port `2-1.3`, ale pořadí výčtu v `QueryDevices` (kamera ve výčtu za streamující kamerou se nenajde); oprava v kódu týž den (dotaz chybné zařízení přeskočí), ověření na zařízení viz `hw-vetev-usb-2-1-3`
 - [x] Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný (7. 10. 2026)
 - [x] Přeměřit výpadky BEZ HUBU (každá kamera na svém řadiči) — 11. 10. večer po přepojení na jiný zdroj: obě D435 přímo v desce (levá `fc000000`, pravá `fc400000`, obě USB 3.2), stojící robot ve fázi čekání, 20:16:55–23:22:33 = **3,1 h: 0 zamrznutí ≥ 5 s, 0 restartů pipeline, 0 `QueryDevices selhalo`, 0 `NativeCallWatch`, 0 zásahů supervizoru**. Na hubu stojící robot 28. 9. 4,1 zamrznutí/h (čekaných ~12,7, P(0) ~3·10⁻⁶), tvrdé záseky 0,8–1,4/h (čekaných 2,6–4,3, P(0) 1–7 %). ⚠️ Současně jiný (stabilní) zdroj, bez motorové jednotky a bez větráku — hub od zdroje zatím oddělený není; krátké souběžné výpadky a ~1s zamrznutí barvy journal nevidí. SoC bez větráku ustálený na 63–65 °C (11. 10. 2026)
 - [ ] Kontrolní běh na stejném zdroji, kamery na hubu (2–3 h): vrátí-li se výpadky, je to hub / společný řadič, jinak napájení
@@ -2609,21 +2609,6 @@ Po ověření kalibrace zůstal kurz VN100 proti GPS o −3,7° vedle. Není to 
 - [ ] Průjezd téhož úseku s robotem otočeným o 180°
 
 [imu-and-frames.md](imu-and-frames.md) · DevLog [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18)
-
-<a id="hw-vetev-usb-2-1-3"></a>
-### ⬜ Tvrdé záseky kamer na větvi USB `2-1.3`
-
-`hw-vetev-usb-2-1-3` · vada · **otevřeno** · nalezeno 13. 9. 2026
-
-Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzickém USB portu, ať na něm visela kterákoli kamera (13. 9. se schválně prohodily; přiřazení portu ke kameře je změřené přes `CLEAR_HALT` během výpadku). Hypotéza „může za to T265“ padla měřením 14. 9.: bez ní se `CLEAR_HALT` (7,4 → 7,1–7,9/min) ani zamrzání streamu (3,4 → 3,6–4,2/h) nezměnily — a `CLEAR_HALT` teče 3–15/min i ve zdravém stavu, takže jako měřidlo je mrtvý. Další krok je kabel nebo port, ne software: autor 14. 9. večer přesadil kameru na volný port téhož hubu (testuje větev, ne hub ani řadič); vyhodnocení v DevLogu zatím není — a nula záseků za hodinu nic neznamená, za 3 h čistého běhu už ano. 18. 9. 15:47 přišel tvrdý zásek pravé D435 — té přesazené (supervizor zasahuje až po 15 selhaných dotazech, tedy táž třída jako 12 z 12 na `2-1.3`): buď zásek putuje s kamerou nebo kabelem, ne s portem, nebo je nový port na téže větvi. Port pravé kamery od 14. 9. zapsaný není (13. a 17. 9. se navíc hýbalo kabely kvůli magnetometru).
-
-- [x] Prohodit kamery mezi porty a sbírat epizody (8 z 8 na `2-1.3`) (13. 9. 2026)
-- [x] Běh bez T265 — hypotéza `CLEAR_HALT` vyvrácena, port potvrzen (12 z 12) (14. 9. 2026)
-- [x] Přesadit kameru z `2-1.3` na volný port téhož hubu (14. 9. 2026)
-- [ ] Vyhodnotit přesazení: zjistit port pravé kamery od 14. 9. (`/sys/bus/usb/devices/2-1.*/serial`), spočítat čistý běh služby 14.–19. 9. a přiřadit k němu zásek 18. 9. 15:47
-- [ ] Podle výsledku kabel / jiná větev hubu / řadič
-
-[hardware.md](hardware.md), [rozhodnutí 13. 9. 2026 (odpojení T265)](decisions.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18)
 
 <a id="hw-vn100-zmena-po-27-9"></a>
 ### ⬜ VN100 29. 9. — pole o 7 % slabší a kurz proti GPS −5,5 / +10,8°; robot předtím stál v horkém autě (senzor 54 °C, díly z PLA zdeformované)
@@ -2735,6 +2720,24 @@ Když se z řídicí jednotky motorů nepodaří přečíst telemetrii, driver v
 - [x] Track 1. 10. 2026 (`20261001-144638.rec`): dva fail-rámce (15:15:41,819 a 43,413) vznikly zásekem celého procesu 1,19 s (`prov-zasek-procesu-1s`), ne výpadkem jednotky. Fúze z nich „stojím“ nevzala (V min 0,567 m/s odpovídá kolům 0,46–0,60 m/s); pokles 1,9 → 0,57 m/s je skutečné zpomalení kol (watchdog jednotky, pak příkaz 0,51 m/s po smazání gridu). Automat mise ani `StopHold` fail-rámec neviděly (poslední stav ≤ 1 ms), jejich brány tedy ověřené nejsou. ⚠️ Obchvat: dávka 111 PLATNÝCH rámců po záseku má rychlost kol 0,000 (`hw-motor-davka-po-zaseku`) (7. 10. 2026)
 
 [rozhodnutí 27. 8. 2026](decisions.md), [hardware.md](hardware.md) · DevLog [2026-08-27](devlog.md#2026-08-27), [2026-08-31](devlog.md#2026-08-31), [2026-09-15](devlog.md#2026-09-15), [2026-10-07](devlog.md#2026-10-07)
+
+<a id="hw-vetev-usb-2-1-3"></a>
+### 🧪 Tvrdé záseky D435 — ne port `2-1.3`, ale kamera, která je ve výčtu později (`QueryDevices` padal na streamující kameře); od 13. 10. dotaz chybné zařízení přeskočí
+
+`hw-vetev-usb-2-1-3` · vada · **v kódu, na HW neověřeno** · nalezeno 13. 9. 2026 · vyřešeno 13. 10. 2026
+
+Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzickém USB portu, ať na něm visela kterákoli kamera (13. 9. se schválně prohodily; přiřazení portu ke kameře je změřené přes `CLEAR_HALT` během výpadku). Hypotéza „může za to T265“ padla měřením 14. 9.: bez ní se `CLEAR_HALT` (7,4 → 7,1–7,9/min) ani zamrzání streamu (3,4 → 3,6–4,2/h) nezměnily — a `CLEAR_HALT` teče 3–15/min i ve zdravém stavu, takže jako měřidlo je mrtvý. Další krok je kabel nebo port, ne software: autor 14. 9. večer přesadil kameru na volný port téhož hubu (testuje větev, ne hub ani řadič); vyhodnocení v DevLogu zatím není — a nula záseků za hodinu nic neznamená, za 3 h čistého běhu už ano. 18. 9. 15:47 přišel tvrdý zásek pravé D435 — té přesazené (supervizor zasahuje až po 15 selhaných dotazech, tedy táž třída jako 12 z 12 na `2-1.3`): buď zásek putuje s kamerou nebo kabelem, ne s portem, nebo je nový port na téže větvi. Port pravé kamery od 14. 9. zapsaný není (13. a 17. 9. se navíc hýbalo kabely kvůli magnetometru). **Vyhodnoceno ze záznamů 13. 10. 2026** (bod 9 průzkumu; `ARBot.Analyze cameras --vypadky` a `log` nad 46 záznamy 2. 9.–1. 10., 5,1 h jízd; port záznam nenese, bere se z časové osy zapojení): po přesazení 14. 9. (3,9 h) jsou **všechny 4 tvrdé záseky podoby A na pravé** (16. 9. 16:50, 18. 9. 15:47, 23. 9. 14:38, 29. 9. 15:18; 15–17× `QueryDevices selhalo: failed to set power state`, supervizor je vyléčil za 30–42 s), levá 0 — pravá 1,03/h (95% CI 0,28–2,63), jako na `2-1.3` 14. 9. (1,14/h). Zásek tedy na `2-1.3` nezůstal a kamera sama to není (do 13. 9. ho na `2-1.3` měla levá). Spouštěč (zamrznutí ≥ 5 s) mají obě kamery stejně často (levá 8, pravá 7, dohromady 3,85/h jako v journalu ve stání); liší se jen, co po něm přijde. **Nejlépe to vysvětluje POŘADÍ VÝČTU, tedy software** (hypotéza ověřovatele, kód ji potvrzuje): `RealSenseShared.Query` prochází zařízení popořadě, u každého čte sériové číslo a **první výjimka shodí celý dotaz**; čtení streamující D435 přitom hází právě „failed to set power state“ (v záznamech 14.–25. 9. to dokazuje hledání odpojené T265 ~1×/s). Kamera, která restartuje a je ve výčtu ZA streamující kamerou, se pak nenajde, dokud supervizor nezbourá všechno. Sedí na všechna data: do 13. 9. byla na vyšším portu (`2-1.3`) levá → zasekávala se levá (5 z 5), pravá na `2-1.2` se vracela sama; po prohození pravá na `2-1.3`, po přesazení na `2-1.4` → zasekává se pravá, 4 ze 4 restartů, kdy levá streamovala, a sama se vrátila 2 ze 2, kdy levá restartovala současně (19. 9. 10:21, 25. 9. 14:43). Že výčet jde podle čísla portu, je odvozené, ne změřené. Kabel, který 13. 9. zůstal v `2-1.3`, nebo vadné porty 3 a 4 hubu data nevylučují (n = 4–6). Vedle toho mají obě kamery společný spouštěč (souběžná zamrznutí 19. a 25. 9.); 11. 10. přímo v desce a na jiném zdroji nebylo za 3,1 h žádné, to ale testuje jen spouštěč, ne zásek. **Oprava v kódu 13. 10. 2026 (rozhodnutí autora):** `RealSenseShared.Query` při chybě jednoho zařízení zkusí další (`VycetZarizeni`, 6 testů); `null` vrací, jen když hledané nenašlo a něco hodilo. Do Trace jde, kde a v jakém kroku padlo (vyčtení seznamu / vytvoření zařízení / čtení údajů, „zařízení k/n"): při selhání jako dřív „QueryDevices selhalo: …“ s doplňkem, a když se hledané našlo za zařízením s chybou, škrceně „QueryDevices: … přeskočeno, hledané nalezeno jako zařízení k/n“ — právě to by do 13. 10. skončilo tvrdým zásekem.
+
+- [x] Prohodit kamery mezi porty a sbírat epizody (8 z 8 na `2-1.3`) (13. 9. 2026)
+- [x] Běh bez T265 — hypotéza `CLEAR_HALT` vyvrácena, port potvrzen (12 z 12) (14. 9. 2026)
+- [x] Přesadit kameru z `2-1.3` na volný port téhož hubu (14. 9. 2026)
+- [x] Vyhodnotit přesazení ze záznamů (bod 9): po 14. 9. 4 tvrdé záseky A, všechny pravá (odvozeně `2-1.4`), levá 0; spouštěč u obou stejný; nejlépe sedí pořadí výčtu v `QueryDevices` (viz popis) (13. 10. 2026)
+- [x] Rozhodnuto (autor 13. 10. 2026) a implementováno: `Query`, které výjimku jednoho zařízení přeskočí (`VycetZarizeni`, testy), a zápis do Trace, na kolikátém zařízení a v jakém kroku padla (13. 10. 2026)
+- [ ] Ověřit na zařízení (jízda nebo ≥ 3 h stání na hubu): v Trace místo sérií „QueryDevices selhalo“ hlášky „QueryDevices: zarizeni k/n (…) … preskoceno, hledane nalezeno“, tvrdé záseky A (≥ 15× selhaný dotaz, zásah supervizoru) 0 proti dřívějším ~1/h u kamery na vyšším portu, kamera po restartu pipeline zpět do pár sekund. Zůstane-li zásek, platí kabel / porty hubu
+- [ ] Bez kódu u robota: zapsat porty (`for d in /sys/bus/usb/devices/2-1.*; do echo -n "$d: "; cat $d/serial; done`), označit kabely; pravá na port s NIŽŠÍM číslem než levá → kdyby šlo o pořadí výčtu, zásek přejde na levou
+- [ ] Kdyby pořadí výčtu nevysvětlilo — kabel / porty 3 a 4 hubu (prohodit kabely na straně kamer, pak porty, ≥ 3 h ve stání)
+
+[hardware.md](hardware.md), [rozhodnutí 13. 9. 2026 (odpojení T265)](decisions.md) · DevLog [2026-09-13](devlog.md#2026-09-13), [2026-09-14](devlog.md#2026-09-14), [2026-09-18](devlog.md#2026-09-18), [2026-10-13](devlog.md#2026-10-13)
 
 <a id="hw-d435-vlakno-zatuhlo-po-restartu"></a>
 ### 🧪 Levá D435 po restartu pipeline (zamrzlá barva) úplně ztichla — vlákno kamery zatuhlo v nativním volání

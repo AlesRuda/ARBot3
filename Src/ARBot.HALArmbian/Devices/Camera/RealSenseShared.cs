@@ -85,36 +85,54 @@ namespace ARBot.HAL.Devices.Camera
         /// <summary>
         /// Zjistí, zda je mezi vyčtenými zařízeními takové, které splní <paramref name="match"/>.
         /// <b>Jediné místo, kudy se smí volat <c>QueryDevices</c>.</b>
+        ///
+        /// <para><b>Od 13. 10. 2026 přežije chybu jednoho zařízení</b> (<see cref="VycetZarizeni"/>,
+        /// <c>hw-vetev-usb-2-1-3</c>). Do té doby skončil první výjimkou — a čtení údajů D435, která právě
+        /// streamuje, hází „failed to set power state". Kamera, která po restartu pipeline hledala sama
+        /// sebe a byla ve výčtu ZA streamující kamerou, se proto nenašla nikdy a visela, dokud supervizor
+        /// nezboural všechny pipeline (tvrdý zásek podoby A; ze záznamů 2. 9.–1. 10. vždy ta kamera na
+        /// vyšším portu hubu, a jen když druhá streamovala). Teď se zařízení s chybou přeskočí, hledá se
+        /// dál a do Trace jde, kde a v jakém kroku padlo.</para>
         /// </summary>
-        /// <returns>true = je; false = dotaz prošel a zařízení mezi vyčtenými není (opravdu chybí);
-        /// <b>null = dotaz sám selhal</b> (typicky „failed to set power state" nad běžícími streamy) —
-        /// to NENÍ důkaz, že zařízení chybí.</returns>
+        /// <returns>true = je (i když jiné zařízení hodilo); false = dotaz prošel bez chyby a zařízení mezi
+        /// vyčtenými není (opravdu chybí); <b>null = nenalezeno a něco hodilo</b> (vyčtení seznamu, nebo
+        /// některé zařízení) — to NENÍ důkaz, že zařízení chybí.</returns>
         public static bool? Query(string caller, Func<Device, bool> match)
         {
+            VycetZarizeni.Vysledek v;
             try
             {
                 lock (gate)
                 {
                     using (var devices = Context.QueryDevices())
-                    {
-                        foreach (var d in devices)
-                        {
-                            using (d)
-                            {
-                                if (match(d))
-                                    return true;
-                            }
-                        }
-                    }
+                        v = VycetZarizeni.Najdi(devices.Count, i => devices[i], match, d => d.Dispose());
                 }
-                return false;
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"{caller}: QueryDevices selhalo: {ex.Message}");
+                // Selhalo uz samo vycteni seznamu, ne jedno zarizeni - tady pomoct nejde.
+                Trace.WriteLine($"{caller}: QueryDevices selhalo: {ex.Message} [vycteni seznamu zarizeni]");
                 return null;
             }
+
+            if (v.Nalezeno == null)
+            {
+                // Zacatek hlasky stejny jako do 13. 10. 2026 (rozbory hledaji „QueryDevices selhalo"),
+                // navic kde a v jakem kroku padlo. Neskrti se, jako driv - pocet radku je mira zaseku.
+                Trace.WriteLine($"{caller}: QueryDevices selhalo: {v.Chyby[0].Zprava} [{v.PopisChyb()}; hledane mezi ostatnimi neni]");
+            }
+            else if (v.Nalezeno == true && v.Chyby.Count > 0)
+            {
+                // Prave tenhle pripad do 13. 10. 2026 koncil tvrdym zasekem - skrcene, ale vzdy aspon prvni.
+                preskocenoHlasic.Hlas($"{caller}: QueryDevices preskocilo zarizeni",
+                    $"{caller}: QueryDevices: {v.PopisChyb()} - preskoceno, hledane nalezeno jako zarizeni "
+                    + $"{v.IndexNalezeneho + 1}/{v.Pocet} (do 13. 10. 2026 by dotaz selhal - hw-vetev-usb-2-1-3)");
+            }
+            return v.Nalezeno;
         }
+
+        /// <summary>Škrcení hlášky „zařízení přeskočeno, hledané nalezeno" (při restartu může přijít každou vteřinu).</summary>
+        private static readonly ARBot.Common.Diagnostics.PoruchaHlasic preskocenoHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
 
         /// <summary>Shoda podle sériového čísla, nebo (bez sériového čísla) podle podřetězce jména.</summary>
         public static Func<Device, bool> BySerialOrName(string sn, string namePart)

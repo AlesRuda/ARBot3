@@ -3626,7 +3626,7 @@ temata:
       - co: 'Vyvrátit hypotézu T265 / `CLEAR_HALT` měřením na zařízení'
         stav: hotovo
         kdy: 2026-09-14
-      - co: 'Odstranit příčinu (kabel nebo port větve 2-1.3)'
+      - co: 'Odstranit příčinu tvrdého záseku — 13. 10. 2026 ze záznamů: nejspíš ne kabel ani port `2-1.3`, ale pořadí výčtu v `QueryDevices` (kamera ve výčtu za streamující kamerou se nenajde); oprava v kódu týž den (dotaz chybné zařízení přeskočí), ověření na zařízení viz `hw-vetev-usb-2-1-3`'
         stav: otevreno
       - co: "Jízdy 1. 10. 2026 (52 min, bez T265; `ARBot.Analyze perf` blok 6, `cameras --vypadky`): jedno zamrznutí ≥ 5 s (levá 15:21:44, restart pipeline, snímky zpět za 13,5 s), ~1s zamrznutí barvy pod hlídkou ve FreeRunu 33 za 10 min (29. 9. ~2,5/min, tedy neubyla). NOVÉ: **souběžné výpadky OBOU kamer** (snímky nechodí vůbec, IMU běží) — Track 15:12:37,6 +3,0 s, 15:18:18,3 +2,7 s, 15:21:29,9 +2,5 s, 15:25:57,2 +1,0 s; FreeRun 15:31:05,6 +3,1 s, 15:35:03,5 +3,4 s; v logu nic, hlídka zamrzlého streamu je nevidí, plánování během nich stojí (při 1,7 m/s ~5 m) a po těch delších (2,5–3,4 s) se smazal grid (detektor skoku pózy přes mezeru). 29. 9. žádný"
         stav: hotovo
@@ -6260,10 +6260,11 @@ temata:
 
   - id: hw-vetev-usb-2-1-3
     oblast: hw
-    nazev: Tvrdé záseky kamer na větvi USB `2-1.3`
+    nazev: "Tvrdé záseky D435 — ne port `2-1.3`, ale kamera, která je ve výčtu později (`QueryDevices` padal na streamující kameře); od 13. 10. dotaz chybné zařízení přeskočí"
     druh: vada
-    stav: otevreno
+    stav: v-kodu
     nalezeno: 2026-09-13
+    vyreseno: 2026-10-13
     popis: >
       Dvanáct z dvanácti tvrdých záseků kamery RealSense přišlo na témž fyzickém USB portu, ať na
       něm visela kterákoli kamera (13. 9. se schválně prohodily; přiřazení portu ke kameře je
@@ -6277,6 +6278,32 @@ temata:
       tedy táž třída jako 12 z 12 na `2-1.3`): buď zásek putuje s kamerou nebo kabelem, ne
       s portem, nebo je nový port na téže větvi. Port pravé kamery od 14. 9. zapsaný není
       (13. a 17. 9. se navíc hýbalo kabely kvůli magnetometru).
+      **Vyhodnoceno ze záznamů 13. 10. 2026** (bod 9 průzkumu; `ARBot.Analyze cameras --vypadky`
+      a `log` nad 46 záznamy 2. 9.–1. 10., 5,1 h jízd; port záznam nenese, bere se z časové osy
+      zapojení): po přesazení 14. 9. (3,9 h) jsou **všechny 4 tvrdé záseky podoby A na pravé**
+      (16. 9. 16:50, 18. 9. 15:47, 23. 9. 14:38, 29. 9. 15:18; 15–17× `QueryDevices selhalo: failed to
+      set power state`, supervizor je vyléčil za 30–42 s), levá 0 — pravá 1,03/h (95% CI 0,28–2,63),
+      jako na `2-1.3` 14. 9. (1,14/h). Zásek tedy na `2-1.3` nezůstal a kamera sama to není (do 13. 9.
+      ho na `2-1.3` měla levá). Spouštěč (zamrznutí ≥ 5 s) mají obě kamery stejně často (levá 8,
+      pravá 7, dohromady 3,85/h jako v journalu ve stání); liší se jen, co po něm přijde.
+      **Nejlépe to vysvětluje POŘADÍ VÝČTU, tedy software** (hypotéza ověřovatele, kód ji potvrzuje):
+      `RealSenseShared.Query` prochází zařízení popořadě, u každého čte sériové číslo a **první výjimka
+      shodí celý dotaz**; čtení streamující D435 přitom hází právě „failed to set power state“ (v záznamech
+      14.–25. 9. to dokazuje hledání odpojené T265 ~1×/s). Kamera, která restartuje a je ve výčtu ZA
+      streamující kamerou, se pak nenajde, dokud supervizor nezbourá všechno. Sedí na všechna data:
+      do 13. 9. byla na vyšším portu (`2-1.3`) levá → zasekávala se levá (5 z 5), pravá na `2-1.2` se
+      vracela sama; po prohození pravá na `2-1.3`, po přesazení na `2-1.4` → zasekává se pravá, 4 ze 4
+      restartů, kdy levá streamovala, a sama se vrátila 2 ze 2, kdy levá restartovala současně
+      (19. 9. 10:21, 25. 9. 14:43). Že výčet jde podle čísla portu, je odvozené, ne změřené. Kabel, který
+      13. 9. zůstal v `2-1.3`, nebo vadné porty 3 a 4 hubu data nevylučují (n = 4–6). Vedle toho mají
+      obě kamery společný spouštěč (souběžná zamrznutí 19. a 25. 9.); 11. 10. přímo v desce a na jiném
+      zdroji nebylo za 3,1 h žádné, to ale testuje jen spouštěč, ne zásek.
+      **Oprava v kódu 13. 10. 2026 (rozhodnutí autora):** `RealSenseShared.Query` při chybě jednoho
+      zařízení zkusí další (`VycetZarizeni`, 6 testů); `null` vrací, jen když hledané nenašlo a něco
+      hodilo. Do Trace jde, kde a v jakém kroku padlo (vyčtení seznamu / vytvoření zařízení / čtení
+      údajů, „zařízení k/n"): při selhání jako dřív „QueryDevices selhalo: …“ s doplňkem, a když se
+      hledané našlo za zařízením s chybou, škrceně „QueryDevices: … přeskočeno, hledané nalezeno jako
+      zařízení k/n“ — právě to by do 13. 10. skončilo tvrdým zásekem.
     kroky:
       - co: Prohodit kamery mezi porty a sbírat epizody (8 z 8 na `2-1.3`)
         stav: hotovo
@@ -6287,16 +6314,24 @@ temata:
       - co: Přesadit kameru z `2-1.3` na volný port téhož hubu
         stav: hotovo
         kdy: 2026-09-14
-      - co: "Vyhodnotit přesazení: zjistit port pravé kamery od 14. 9. (`/sys/bus/usb/devices/2-1.*/serial`), spočítat čistý běh služby 14.–19. 9. a přiřadit k němu zásek 18. 9. 15:47"
+      - co: "Vyhodnotit přesazení ze záznamů (bod 9): po 14. 9. 4 tvrdé záseky A, všechny pravá (odvozeně `2-1.4`), levá 0; spouštěč u obou stejný; nejlépe sedí pořadí výčtu v `QueryDevices` (viz popis)"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Rozhodnuto (autor 13. 10. 2026) a implementováno: `Query`, které výjimku jednoho zařízení přeskočí (`VycetZarizeni`, testy), a zápis do Trace, na kolikátém zařízení a v jakém kroku padla"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Ověřit na zařízení (jízda nebo ≥ 3 h stání na hubu): v Trace místo sérií „QueryDevices selhalo“ hlášky „QueryDevices: zarizeni k/n (…) … preskoceno, hledane nalezeno“, tvrdé záseky A (≥ 15× selhaný dotaz, zásah supervizoru) 0 proti dřívějším ~1/h u kamery na vyšším portu, kamera po restartu pipeline zpět do pár sekund. Zůstane-li zásek, platí kabel / porty hubu"
         stav: otevreno
-      - co: Podle výsledku kabel / jiná větev hubu / řadič
+      - co: "Bez kódu u robota: zapsat porty (`for d in /sys/bus/usb/devices/2-1.*; do echo -n \"$d: \"; cat $d/serial; done`), označit kabely; pravá na port s NIŽŠÍM číslem než levá → kdyby šlo o pořadí výčtu, zásek přejde na levou"
+        stav: otevreno
+      - co: Kdyby pořadí výčtu nevysvětlilo — kabel / porty 3 a 4 hubu (prohodit kabely na straně kamer, pak porty, ≥ 3 h ve stání)
         stav: otevreno
     odkazy:
       - text: hardware.md
         cesta: doc/hardware.md
       - text: rozhodnutí 13. 9. 2026 (odpojení T265)
         cesta: doc/decisions.md
-    devlog: [2026-09-13, 2026-09-14, 2026-09-18]
+    devlog: [2026-09-13, 2026-09-14, 2026-09-18, 2026-10-13]
     ceka_na: []
 
   - id: hw-d435-vlakno-zatuhlo-po-restartu

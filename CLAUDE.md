@@ -510,9 +510,13 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   ⚠️ **`CLEAR_HALT` navíc není podpis poruchy, ale šum** — teče 3–15 za minutu v *každé* minutě,
   kdežto porucha přijde jednou za ~17 minut; jako měřidlo je mrtvý. *(Poučení: klidovou hodnotu
   měř dřív, než podle čísla začneš rozhodovat.)*
-  ✅ **Podezřelým je teď fyzická větev `2-1.3`** — **12 tvrdých záseků z 12** na tom portu, ať na
-  něm visí kterákoli kamera (kamery se 13. 9. schválně prohodily). Další krok je kabel/port, ne
-  software. ⚠️ Runtime přitom odpojenou T265 **hledá dál ~1×/s** (7 829 chybových řádků za
+  ~~**Podezřelým je teď fyzická větev `2-1.3`**~~ — **12 tvrdých záseků z 12** na tom portu, ať na
+  něm visela kterákoli kamera (kamery se 13. 9. schválně prohodily). ⚠️ **13. 10. 2026 ze záznamů:
+  po přesazení pravé jinam šel zásek s ní (4 ze 4), na `2-1.3` nezůstal** — nejlépe to vysvětluje
+  **pořadí výčtu**, tedy software: `RealSenseShared.Query` končí první výjimkou a čtení streamující
+  D435 hází „failed to set power state", takže kamera ve výčtu ZA streamující se po restartu nenajde
+  (hypotéza, `hw-vetev-usb-2-1-3`). **Od 13. 10. 2026 dotaz chybné zařízení přeskočí a do Trace píše,
+  kde padlo** (`VycetZarizeni`; v kódu, na Pi neběželo). ⚠️ Runtime přitom odpojenou T265 **hledá dál ~1×/s** (7 829 chybových řádků za
   168 min, přes sdílený zámek RealSense) — neškodí, ale zahlcuje journal.
   Podrobnosti a tabulky: [hardware.md](doc/hardware.md), [decisions.md](doc/decisions.md).
 - [doc/record-replay.md](doc/record-replay.md) — pipeline zpráv, záznam/přehrávání běhu,

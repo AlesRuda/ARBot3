@@ -426,6 +426,9 @@ Co bylo vyzkoušené a **nefunguje** (nezkoušej znovu): ~~reset USB portu~~ a ~
 
 #### Prohození kamer mezi porty (13. 9. 2026 večer) — předběžně to vypadá na PORT
 
+> ⚠️ **13. 10. 2026: nejspíš to port NENÍ, ale POŘADÍ VÝČTU** — viz „Tvrdé záseky po kamerách ze
+> záznamů" níž. Port `2-1.3` byl ve výčtu později než `2-1.2`; to samo stačí na tutéž tabulku.
+
 Autor prohodil kamery mezi USB porty (ověřeno na sériových číslech: `2-1.2` a `2-1.3` si je
 vyměnily). Předtím se zasekávala vždy **Left** (SN 740112071040), 5× z 5; pravá nikdy.
 
@@ -446,6 +449,52 @@ a další data budou srovnatelná.
 
 Rozhodovací pravidlo pro ně platí dál: **zásek na „Right" = port/kabel, zásek na „Left" = ta
 kamera.** (Jména driveru se váží na sériové číslo, takže se prohozením nezměnila.)
+
+#### Tvrdé záseky po kamerách ze záznamů (13. 10. 2026) — nejspíš POŘADÍ VÝČTU, ne port
+
+Bod 9 průzkumu (`hw-vetev-usb-2-1-3`): `ARBot.Analyze cameras --vypadky` a `log` nad 46 záznamy
+2. 9.–1. 10. (5,1 h jízd; port záznam nenese, bere se z časové osy zapojení — ta je odvozená
+z devlogu a tohoto souboru, pravá od 14. 9. odvozeně na `2-1.4` podle kernel logu z 25. 9.).
+
+| Období (zapojení) | h | Tvrdý zásek A levá / pravá | Zamrznutí ≥ 5 s levá / pravá |
+|---|---|---|---|
+| 6.–12. 9. (levá `2-1.3`, pravá `2-1.2`) | 0,80 | 2 / 0 | 2 / 3 |
+| 13. 9. před prohozením (journal, stání) | 1,58 | 5 / 0 | 5 / 4 |
+| 13.–14. 9. pravá na `2-1.3` (journal, stání) | ≥ 3,5 | 0 (+1 podoba B) / 7 | — |
+| **16. 9.–1. 10. pravá přesazená (`2-1.4`?)** | **3,90** | **0 / 4** | **8 / 7** |
+
+- **Po přesazení zásek na `2-1.3` nezůstal** — 4 ze 4 má pravá (16. 9. 16:50, 18. 9. 15:47,
+  23. 9. 14:38, 29. 9. 15:18), 1,03/h (95% CI 0,28–2,63) jako na `2-1.3` 14. 9. (1,14/h). A kamera
+  sama to není: do 13. 9. ho na `2-1.3` měla levá.
+- **Spouštěč je u obou stejný** (zamrznutí ≥ 5 s 8 / 7, ~1s zamrznutí barvy 318 / 294); liší se jen,
+  jestli restart pipeline skončí zásekem.
+- **Vysvětlení, které sedí na všechno: pořadí výčtu.** `RealSenseShared.Query` prochází zařízení
+  popořadě, u každého čte sériové číslo a **první výjimka shodí celý dotaz**. Čtení streamující D435
+  hází „failed to set power state" — v záznamech 14.–25. 9. to dokazuje hledání *odpojené* T265
+  (~1×/s „QueryDevices selhalo", na sběrnici přitom jen dvě streamující D435). Kamera, která
+  restartuje a ve výčtu je **za** streamující kamerou, se tedy nenajde, dokud supervizor nezbourá
+  všechny pipeline. Do 13. 9. byla „za" levá (`2-1.3` > `2-1.2`), potom pravá (`2-1.3`, `2-1.4`).
+  Časování to potvrzuje: pravá dostala zásek **ve 4 ze 4** restartů, kdy levá streamovala, a sama se
+  vrátila **ve 2 ze 2**, kdy levá restartovala současně (19. 9. 10:21, 25. 9. 14:43); zásek levé
+  12. 9. 13:13 skončil 2 s po zbourání pravé. Vysvětluje to i to, proč léčí jen recyklace kontextu,
+  která shodí **všechny** pipeline.
+- ⚠️ **Odvozené, ne změřené:** že výčet jde podle čísla portu. **Nevyloučené:** kabel, který 13. 9.
+  zůstal v `2-1.3` (prohodily se kabely, na kterém konci, zapsané není), a vadné porty 3 a 4 hubu
+  (`2-1.4` hlásil 1. 9. chybu −71). Statistická síla je malá (n = 4–6), journal z Pi v repu není.
+- **Jak to rozhodnout:** (a) do Trace při výjimce v `Query` zapsat, na kolikátém a na kterém zařízení
+  padla; (b) bez kódu pravou kameru na port s **nižším** číslem než levá — při pořadí výčtu přejde
+  zásek na levou; (c) `Query`, které výjimku jednoho zařízení přeskočí — předpověď: zásek A zmizí.
+- ✅ **Autor 13. 10. 2026 rozhodl pro (c) i (a) — v kódu, na zařízení neběželo.** `RealSenseShared.Query`
+  prochází zařízení přes `VycetZarizeni` (`ARBot.HAL`, testy): chyba jednoho zařízení se zapíše
+  a hledá se dál; `null` jen když hledané nenašlo a něco hodilo. Trace: při selhání „`<kamera>:
+  QueryDevices selhalo: <zpráva> [zarizeni k/n (krok): …; hledane mezi ostatnimi neni]`", a když se
+  hledané našlo ZA zařízením s chybou (do 13. 10. tvrdý zásek), škrceně „`<kamera>: QueryDevices:
+  zarizeni k/n (cteni udaju): failed to set power state - preskoceno, hledane nalezeno jako zarizeni
+  m/n`". Kroky: `vycteni seznamu zarizeni`, `vytvoreni zarizeni`, `cteni udaju`. Po první jízdě
+  s novou binárkou se tak ukáže, jestli hypotéza sedí (hlášky „preskoceno" a 0 záseků A), nebo ne.
+- Společný spouštěč obou kamer (souběžná zamrznutí ≥ 5 s 19. a 25. 9.; 1. 10. navíc šest souběžných
+  mezer 1–3,4 s) míří na hub, řadič, napájení nebo sdílený kontext; 11. 10. přímo v desce a na jiném
+  zdroji nebylo za 3,1 h žádné zamrznutí — to ale testuje jen spouštěč, ne zásek.
 
 #### ⚠️ Zásek má DVĚ podoby a ta druhá se dlouho schovávala
 
