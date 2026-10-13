@@ -232,7 +232,12 @@ a NPU), `-152906.rec` (FreeRun 10 min) a pro srovnání `20260929-150844.rec`:
 | zpoždění taktu MAX p50 | 99,7 ms | 99,2 ms | 3,3 ms |
 | obsazenost periody AVG p50 / MAX p99 / max | 3,4 / 12,8 / 25,3 % | max 17,0 % | — |
 | CPU procesu p50 / max | 20,5 / 31,6 % | 20,3 / 35,8 % | — |
-| `LocalNavigator` avg / zahozeno | 9,9 ms / 83 snímků (0,09 %) | — / 6 | 13,2 ms |
+| `LocalNavigator` avg / zahozeno | 9,9 ms / 83 zpráv (0,09 %) | — / 6 | 13,2 ms |
+
+⚠️ **Řádek `LocalNavigator` je zavádějící** (zjištěno 13. 10. 2026): `AvgMs` je průměr na **zprávu**
+a navigátor dostává z `ControlLoop.Output` i `RobotStateMsg` a `DriveCommandMsg` (10 Hz, `Consume` je hned
+vrátí), takže na snímek je to ~2× víc; „zahozeno" jsou zprávy libovolného typu, ne snímky, a zpráva
+rozpracovaná při odečtu se počítá jako zahozená. Správná čísla dává blok 7, viz další sekce.
 
 **Práce taktu je malá** (nad 50 % obsazenosti ani jedna sekunda, takže `perfwarn=70` nikdy
 nedoběhne) a červený verdikt dělají výhradně zameškané takty. **Mechanismus** (z `T_in` / `T_out`
@@ -251,6 +256,75 @@ zátěži. ⚠️ **Skutečný dopad je latence, ne „zameškaný takt":** ve F
 výpadky obou kamer** 1,0–3,4 s při běžícím IMU (4× v Tracku, 2× ve FreeRunu, 29. 9. žádný;
 `hw-d435-vypadky-za-provozu`). `RoadWidthMapUpdater` zahodil 1 295 zpráv (0,18 %) — zda je to
 záměr, ověřené není.
+
+## Lokální navigace na Pi (13. 10. 2026, `perf` blok 7)
+
+Bod 8 průzkumu (`lp-vykon-retezu-na-arm`). **Blok 7 `ARBot.Analyze perf`** čte `LocalPlanMsg.ComputeMs`
+po jednotlivých plánech: chvost (p99, p99,9, max), histogram, rozpad podle toho, jestli navigátor před
+plánem spal, po kamerách, cenu dávky za takt, čekání ve frontě, zpoždění plánu za zpracovaným snímkem,
+přepsané časy pořízení, po minutách a nejpomalejší plány. Přeměřit: `ARBot.Analyze perf zaznam.rec`
+(čte index a malé zprávy, jízda za ~1 min). Robot k tomu potřeba nebyl — všechny záznamy jsou z Pi.
+
+**Jak navigace dostává práci** (z kódu): `LocalNavigator` nepočítá jednou za takt řídicí smyčky ani
+po každém snímku kamery. Smyčka si na začátku taktu (100 ms) vezme z každé kamery nejnovější snímek
+a oba předá navigátoru — chodí tedy **po dávkách, obvykle dvojicích, ~9,4 snímku/s na kameru**, levá
+první. Nad každým snímkem s cílem proběhne `GetStateAt` (zámek fúze), zápis do gridu, klín, pole
+odstupů, A* s vyhlazováním, stavba regulátoru a kontrola kolize; `ComputeMs` měří tohle celé
+(wall-clock). **Rozpočet je ~100 ms na dávku.** Fronta má kapacitu 4 zprávy a za takt do ní přijdou
+čtyři (`RobotStateMsg`, `DriveCommandMsg`, levý a pravý snímek), takže rezervu nemá; nejstarší zahodí
+jen tehdy, když v ní při dalším taktu ještě něco leží. Regulátor si nový plán vyzvedne až v dalším
+taktu (0–100 ms navíc, ve zpoždění níž není).
+
+Výsledky nad **30 jízdami 6. 9.–1. 10. 2026** (26 v `records/test`, 4 v `records/Robotour2026`;
+binárky do `f848fdf2`, tedy **bez** změn od 1. 10. — `localframe=odom`, `smoothcorners`,
+`colorshadow=height`). Rozsahy jsou min–max mediánů / kvantilů jednotlivých jízd, bez jízdy
+6. 9. odpoledne, kde běžela jen pravá kamera (97,9 % jednosnímkových dávek):
+
+| Údaj | Rozsah přes jízdy | FreeRun 1. 10. | Track 1. 10. |
+|---|---|---|---|
+| vytížení jednoho jádra | 28–60 % | 35,7 % | 37,5 % |
+| `ComputeMs` p50 / p99 / max | 12–23 / 44–75 / 79–207 ms ¹ | 11,9 / 49,9 / 95 ms | 12,9 / 53,8 / 1 226 ms ¹ |
+| plán **po probuzení**: p50 / podíl nad 25 ms | 19–42 ms / 47–62 % | 19,2 ms / 47,1 % | 29,8 ms / 52,9 % |
+| plán **navazující**: p50 / podíl nad 25 ms | 10–22 ms / 2–13 % | 9,7 ms / 4,9 % | 11,4 ms / 3,0 % |
+| cena dávky za takt p50 / p99 | 32–56 / 74–107 ms | 34,4 / 85,6 ms | 46,8 / 82,2 ms |
+| dávek nad 100 ms | 0,1–3,4 % | 0,25 % | 0,10 % |
+| čekání ve frontě p90 / max | 22–59 / 71–144 ms | 41 / 90 ms | 47 / 84 ms |
+| zpoždění plánu za snímkem p50 / p99 | 57–83 / 118–144 ms | 61 / 125 ms | 67 / 126 ms |
+| plánů s přepsaným časem pořízení ² | 3–23 % | 5,3 % | 7,0 % |
+
+¹ Bez záseku celého procesu 1,19 s v Tracku 1. 10. (`prov-zasek-procesu-1s`) — stopky běžely přes
+něj, plán s `ComputeMs` 1 226 ms není výpočet.
+² Navigace pracuje nad živým slotem kamery z poolu bez kopie a čas snímku čte až po A*; když kamera
+slot mezitím přepíše, nese plán čas jiného (pozdějšího) snímku (registr `lp-navigator-zivy-slot-kamery`).
+Blok 7 páruje plán se skutečně zpracovaným snímkem a zpoždění počítá z něj.
+
+- **Řetěz se do taktu vejde.** Dávka nad 100 ms je v 0,1–3,4 % taktů (nejvíc Kolo 3a) a znamená hlavně,
+  že další dávka začne později — zahazuje se zřídka (Kolo 3a: 71 dávek nad 100 ms proti 7 zahozeným
+  zprávám v bloku 4). Plán stárne hlavně čekáním: medián ~60–80 ms od pořízení snímku, k tomu až takt,
+  než si ho smyčka vezme. Návrhový předpoklad „plánovač smí občas trvat 15 ms"
+  ([occupancy-and-local-planning.md](occupancy-and-local-planning.md)) změřený nebyl a na Pi neplatí.
+- ⚠️ **„Levá kamera je 2× dražší" byl omyl — drahý je první snímek po probuzení navigátoru.** Levá
+  jde v dávce první (≥ 99,9 % dvojic s oběma kamerami, pořadí kamer v kódu). Když je v taktu sama
+  pravá, je stejně pomalá (Track 12. 9.: pravá po probuzení p50 39,7 ms, 62 % nad 25 ms). Přehrání
+  stejných snímků na PC dává pro obě kamery stejnou práci (13,5 / 13,3 ms). Snímek zpracovaný hned za
+  předchozím je nad 25 ms jen ve 2–13 % (v pomalém módu, nad 2,5× mediánu navazujících, v 0–6 %).
+  Rozdělení po probuzení je dvouvrcholové: zhruba polovina plánů běží v pomalém módu (~4,5× při malé
+  práci), mediány se liší 1,4–3,5× (o 6–27 ms). **Mechanismus potvrzený není** — číslo jádra
+  navigátoru žádný záznam nenese. Odvozeno z tvaru (střední jistota; koše podle práce jsou z různých
+  úseků jízdy): konstantní pauza (GC, zámek) na to nesedí a „celý plán na malém jádře" tvar vyvrací;
+  sedí to na pomalou fázi ~40 ms po probuzení vlákna — malé jádro A55, nebo náběh frekvence. Stupeň
+  přitom podle kódu nemá vlastní vlákno (async `ConsumeLoop` pokračuje po prázdné frontě na vlákně
+  z poolu; odvozeno, neověřeno — komentáře v `MessageTarget.cs`, `LocalNavigator.cs` a
+  `ARBotRuntime.cs` tvrdí opak). Dopad je hlavně latence; do taktu se řetěz vejde.
+- Měřidlo ukazuje i **nejpomalejší plány se stavem** — vysoké hodnoty mají `GoalBlocked` /
+  `GoalUnsafe` s desítkami tisíc expandovaných buněk A* (FreeRun 1. 10.: p50 26 ms proti 11 ms u `Ok`).
+- **Od 13. 10. 2026 (v kódu, na Pi neběželo):** navigace si snímek kopíruje do vlastního poolu už při
+  předání a přepis slotu během kopírování hlídá verze slotu (`lp-navigator-zivy-slot-kamery`) —
+  přepsané časy v bloku 7 mají být 0 %. Do fronty navigace jdou jen snímky. **Zpráva plánu verze 5 nese
+  jádro CPU** na začátku a konci výpočtu (`sched_getcpu`; `Thread.GetCurrentProcessorId` .NET na
+  Linuxu cachuje) a blok 7 dělá rozpad podle jádra (0–3 A55, 4–7 A76). Z první jízdy tak bude vidět,
+  jestli pomalý první snímek po probuzení běží na malém jádře (→ afinita), nebo i na velkém
+  (→ frekvence, governor) — podklad pro rozhodnutí v `lp-vykon-retezu-na-arm`.
 
 ## Fáze
 

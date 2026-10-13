@@ -44,8 +44,11 @@ namespace ARBot.Common.Communication
                     OverflowPolicy.DropNewest => BoundedChannelFullMode.DropNewest,
                     _ => BoundedChannelFullMode.Wait
                 };
+                // itemDropped: zahozena zprava muze drzet poolovany zdroj (kopii snimku), ktery se
+                // musi vratit - jinak by DropOldest pool postupne vycerpal (LocalNavigator, 13. 10. 2026).
                 channel = Channel.CreateBounded<Message>(
-                    new BoundedChannelOptions(capacity) { SingleReader = true, FullMode = mode });
+                    new BoundedChannelOptions(capacity) { SingleReader = true, FullMode = mode },
+                    ZahozenoFrontou);
             }
         }
 
@@ -55,14 +58,21 @@ namespace ARBot.Common.Communication
         /// ktere potrebuji na vlakne producenta rozhodnout o zahozeni (drop) drive, nez se
         /// zprava dostane do fronty.
         /// </remarks>
-        public virtual void Post(Message msg)
+        public virtual void Post(Message msg) => PostCore(msg);
+
+        /// <summary>
+        /// Zaradi zpravu do fronty. <c>false</c> = nezaradila se (cil zastaven, nebo plna fronta
+        /// s <see cref="OverflowPolicy.DropNewest"/>) - kdo do fronty vklada poolovany zdroj, musi ho pak
+        /// vratit sam (zahozeni plnou frontou hlasi <see cref="OnDropped"/>).
+        /// </summary>
+        protected bool PostCore(Message msg)
         {
-            if (msg == null) return;
+            if (msg == null) return false;
             var writer = channel.Writer;
             if (writer.TryWrite(msg))
             {
                 Interlocked.Increment(ref written);
-                return;                           // rychla cesta (unbounded / je misto / drop politika)
+                return true;                      // rychla cesta (unbounded / je misto / drop politika)
             }
             if (policy == OverflowPolicy.Block)
             {
@@ -70,9 +80,24 @@ namespace ARBot.Common.Communication
                 {
                     writer.WriteAsync(msg).AsTask().GetAwaiter().GetResult();       // backpressure
                     Interlocked.Increment(ref written);
+                    return true;
                 }
                 catch (ChannelClosedException) { /* cil zastaven */ }
             }
+            return false;
+        }
+
+        /// <summary>
+        /// Zpravu zahodila plna fronta (<see cref="OverflowPolicy.DropOldest"/> / <see cref="OverflowPolicy.DropNewest"/>).
+        /// Volano na vlakne producenta uvnitr zapisu do fronty - musi byt kratke a nesmi psat do teze fronty.
+        /// Prepisuje ten, kdo do fronty vklada poolovane zdroje (vratit je).
+        /// </summary>
+        protected virtual void OnDropped(Message msg) { }
+
+        private void ZahozenoFrontou(Message msg)
+        {
+            try { OnDropped(msg); }
+            catch (Exception ex) { Hlas("vyjimka v OnDropped", ex); }
         }
 
         /// <summary>Spusti konzumni vlakno (idempotentni).</summary>

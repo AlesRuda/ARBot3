@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using ARBot.Common.Common;
 
 namespace ARBot.Common.Devices
@@ -42,6 +43,15 @@ namespace ARBot.Common.Devices
         /// <summary>Kapacita poolu (pocet slotu).</summary>
         public int Capacity => slots.Length;
 
+        private long vycerpano, roztrzeno;
+
+        /// <summary>Kolikrat se kopie nevesla - pool vycerpan (best-effort drop).</summary>
+        public long ExhaustedDrops => Interlocked.Read(ref vycerpano);
+
+        /// <summary>Kolikrat se kopie zahodila, protoze kamera zdrojovy slot behem kopirovani prepisovala
+        /// (<see cref="CameraFrame.CaptureGeneration"/>).</summary>
+        public long TornDrops => Interlocked.Read(ref roztrzeno);
+
         /// <summary>Pocet aktualne obsazenych slotu (diagnostika/testy).</summary>
         public int InUseCount
         {
@@ -50,9 +60,11 @@ namespace ARBot.Common.Devices
 
         /// <summary>
         /// Zkopiruje surova data <paramref name="src"/> do volneho slotu a vrati ho. Vraci <c>null</c>,
-        /// kdyz je pool vycerpan (best-effort drop) nebo je <paramref name="src"/> null. Grid se predava
-        /// referenci (viz trida). Kopie image bufferu znovupouziva existujici buffery slotu, pokud maji
-        /// spravny rozmer (jinak realokuje).
+        /// kdyz je pool vycerpan (best-effort drop), kdyz kamera zdrojovy slot behem kopirovani
+        /// prepisovala (<see cref="CameraFrame.CaptureGeneration"/> licha nebo zmenena - smes dvou zapisu se
+        /// nevrati; kdyz kamera slot mezi predanim a kopii stihla CELY naplnit znovu, vrati se konzistentni
+        /// novejsi snimek) nebo je <paramref name="src"/> null. Grid se predava referenci (viz trida).
+        /// Kopie image bufferu znovupouziva existujici buffery slotu, pokud maji spravny rozmer.
         /// </summary>
         public CameraFrame Acquire(CameraFrame src)
         {
@@ -64,10 +76,21 @@ namespace ARBot.Common.Devices
                 for (int i = 0; i < inUse.Length; i++)
                     if (!inUse[i]) { inUse[i] = true; idx = i; break; }
             }
-            if (idx < 0) return null;   // vycerpano -> drop
+            if (idx < 0) { Interlocked.Increment(ref vycerpano); return null; }   // vycerpano -> drop
 
-            CopyInto(slots[idx], src);  // memcpy mimo zamek (slot je uz rezervovany)
-            return slots[idx];
+            // Seqlock: verze pred kopii (acquire), kopie, bariera, verze po kopii. Licha = kamera prave
+            // pise; jina po kopii = zacala psat behem kopirovani. Zapisuje jen vlakno kamery.
+            int pred = Volatile.Read(ref src.CaptureGeneration);
+            if ((pred & 1) == 0)
+            {
+                CopyInto(slots[idx], src);  // memcpy mimo zamek (slot je uz rezervovany)
+                Interlocked.MemoryBarrier();
+                if (Volatile.Read(ref src.CaptureGeneration) == pred)
+                    return slots[idx];
+            }
+            Interlocked.Increment(ref roztrzeno);
+            lock (gate) inUse[idx] = false;
+            return null;
         }
 
         /// <summary>
@@ -147,17 +170,27 @@ namespace ARBot.Common.Devices
     /// nikdy nealokuje image buffery per grab a ctenar (<c>ControlLoop</c> pull) ma vzdy stabilni "latest".
     ///
     /// <para><b>Pouziva JEN vlakno kamery</b> (grab+Process pisou do slotu, vyber slotu je round-robin) ->
-    /// bez zamku. Kontrakt triple-bufferu: pri N&gt;=3 kamera prepisuje az slot, ktery byl publikovan pred
-    /// (N-1) grby - ctenar si mezitim stihl odnest svou (poolovanou) kopii pres <see cref="CameraFramePool"/>.
+    /// bez zamku. Kontrakt: kamera prepisuje az slot, ktery byl publikovan pred (N-1) grby - ctenar si
+    /// mezitim stihl odnest svou (poolovanou) kopii pres <see cref="CameraFramePool"/>.
     /// Handoff "latest" resi <c>SensorBase.lastMeasurement</c> pod jeho zamkem.</para>
+    ///
+    /// <para><b>Vychozi pocet slotu 8, ne 3</b> (13. 10. 2026, <c>lp-navigator-zivy-slot-kamery</c>): pri
+    /// 30 sn/s to je ~233 ms, nez kamera slot prepise, proti ~67 ms u triple bufferu. Duvod: nekteri
+    /// odberatele (navigace do 13. 10. 2026, koridor, mise, QR) cetli ZIVY slot az ze sve fronty, takze
+    /// v 2-23 % planu nesla navigace cas pozdejsiho snimku. Pameti je dost (~1,6 MB na slot a kameru).
+    /// Prepis behem kopirovani hlida verze slotu <see cref="CameraFrame.CaptureGeneration"/>
+    /// (<see cref="Next"/> ji nastavi na lichou, <see cref="Publish"/> na sudou).</para>
     /// </summary>
     public sealed class CaptureFramePool
     {
+        /// <summary>Vychozi pocet slotu (viz trida).</summary>
+        public const int DefaultCount = 8;
+
         private readonly CameraFrame[] slots;
         private int idx;
 
-        /// <param name="count">Pocet slotu (>=2). Default 3 = triple buffer (kamera neblokuje, ctenar ma stabilni snimek).</param>
-        public CaptureFramePool(int count = 3)
+        /// <param name="count">Pocet slotu (>=2). Vychozi <see cref="DefaultCount"/>.</param>
+        public CaptureFramePool(int count = DefaultCount)
         {
             if (count < 2) count = 2;
             slots = new CameraFrame[count];
@@ -178,6 +211,12 @@ namespace ARBot.Common.Devices
             var f = slots[idx];
             idx = (idx + 1) % slots.Length;
 
+            // Verze na LICHOU (zacina zapis) DRIV nez se slot zmeni; bariera, aby ji ctenar videl pred
+            // novymi daty. Slot, ktery se nepublikoval (snimek preskocen), zustava lichy, jen s jinou hodnotou.
+            int g = f.CaptureGeneration;
+            Volatile.Write(ref f.CaptureGeneration, (g & 1) == 0 ? g + 1 : g + 2);
+            Interlocked.MemoryBarrier();
+
             f.ImageRGB = wantRgb ? CameraFramePool.Ensure(f.ImageRGB, rgbW, rgbH) : null;
             f.ImageDepth = wantDepth ? CameraFramePool.Ensure(f.ImageDepth, depthW, depthH) : null;
             f.Grid = null;        // procesor spocte cerstvy grid
@@ -185,6 +224,20 @@ namespace ARBot.Common.Devices
             f.Projection = null;  // procesor doplni popis projekce (dtto - jinak by zustal stary)
             f.HasPose = false;    // pozu doplni kamera; jinak by ve slotu zustala poza minuleho snimku
             return f;
+        }
+
+        /// <summary>
+        /// Snimek ve slotu je hotovy (data, vize, poza i metadata) a predava se dal: verze na SUDOU (release -
+        /// vsechny zapisy do slotu jsou videt drive nez ona). Vola ji <c>SensorBase.Process</c> po zapisu
+        /// metadat, pod zamkem, pod kterym snimek zverejni - drivery ne. ⚠️ Bez toho zustane slot lichy
+        /// a <see cref="CameraFramePool.Acquire"/> ho bude povazovat za rozepsany - kopie (navigace, zaznam,
+        /// web) by se nevytvorila nikdy.
+        /// </summary>
+        public static void Publish(CameraFrame f)
+        {
+            if (f == null) return;
+            int g = f.CaptureGeneration;
+            if ((g & 1) == 1) Volatile.Write(ref f.CaptureGeneration, g + 1);
         }
     }
 }

@@ -137,6 +137,14 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   kolem jejích bodů, takt vyjde za ~3 ms, nebo o celou periodu pozdě). ⚠️ Skutečný dopad je
   **latence** (FreeRun 94,5 % taktů ~100 ms pozdě), ne „zameškaný takt" — verdikt to nevystihuje.
   Neopravuje se, rozhodne autor (`prov-zameskane-takty-windows`).
+  ✅ **Lokální navigace na Pi změřená ze záznamů 13. 10. 2026** (`perf` blok 7, 30 jízd): dávka
+  snímků za takt stojí p50 32–56 ms, p99 74–107 ms, nad 100 ms je 0,1–3,4 % taktů; plán je za
+  snímkem p50 57–83 ms. ⚠️ **„Levá kamera je dražší" byl omyl** — drahý je první snímek po probuzení
+  navigátoru (zhruba v polovině případů ~4,5×, mediány 1,4–3,5×) a levá jde vždy první; mechanismus
+  (malé jádro / frekvence) nepotvrzený (`lp-vykon-retezu-na-arm`); od 13. 10. nese zpráva plánu (v5)
+  jádro CPU, takže to rozhodne příští jízda. ⚠️ Navigace pracovala nad **živým slotem kamery bez kopie**
+  (3–23 % plánů neslo čas jiného snímku) — **od 13. 10. 2026 si snímek kopíruje**, přepis během kopírování
+  hlídá verze slotu a capture pool má 8 slotů (`lp-navigator-zivy-slot-kamery`; v kódu, na Pi neběželo).
 - [doc/architecture.md](doc/architecture.md) — struktura projektů, směr závislostí
   (`Common ← HAL ← Runtime ← app`), kam patří fúze / adaptéry / řídicí smyčka.
 - [doc/headless.md](doc/headless.md) — **runtime bez UI**: od 4. 9. 2026 je řídicí runtime

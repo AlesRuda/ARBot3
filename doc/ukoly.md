@@ -6,13 +6,13 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **272**: otevřeno **38** · v kódu, na HW neověřeno **40** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **273**: otevřeno **38** · v kódu, na HW neověřeno **41** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
 | stav | oblast | téma | nalezeno | čeká na |
 |---|---|---|---|---|
-| otevřeno | Lokální mapa a plánování | [Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
+| otevřeno | Lokální mapa a plánování | [Výkon lokální navigace na Pi: do taktu se vejde, ale první snímek po probuzení navigátoru bývá zhruba v polovině případů ~4,5× pomalejší](#lp-vykon-retezu-na-arm) | 10. 8. 2026 |  |
 | otevřeno | Lokalizace a fúze senzorů | [Náklon robota jde mimo fúzi (řídicí smyčka bere poslední došlé IMU)](#lok-ekf-pitch-roll-stav) | 11. 8. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Lokální mapa a plánování | [Koridor trasy jako měkká cena v lokálním A*](#lp-koridor-trasy-jako-cena) | 12. 8. 2026 | [lok-freerun-kurz-staci-na-zapad](#lok-freerun-kurz-staci-na-zapad) |
 | otevřeno | Navigace po mapě | [Detektor přehrazení bez průřezu koridorem (fáze 4b)](#nav-prurez-koridorem) | 13. 8. 2026 |  |
@@ -90,6 +90,7 @@ Témat celkem **272**: otevřeno **38** · v kódu, na HW neověřeno **40** · 
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Kontrola kolize staré dráhy běží i u stojícího robotu a hlásí „NOUZOVE ZASTAVENI – kolize 0,00 m“ v pásmu 0,375–0,4 m od překážky](#lp-kolize-pri-stani) | 8. 10. 2026 |  |
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor záseku A počítá pokusy na hraně po celou dobu běhu navigátoru — čítač se nikdy nenuluje, třetí stání kdykoli hranu uzavře](#nav-detektor-a-pokusy-bez-nulovani) | 12. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Po zotavení kamer je robot 8–17 s slepý mimo držení — StopHold se uvolní hned po novém kontextu RealSense, kamery se připojí až za 8–16 s](#prov-zotaveni-kamer-slepy-po-uvolneni) | 12. 10. 2026 |  |
+| v kódu, na HW neověřeno | Lokální mapa a plánování | [Navigace pracovala nad živým slotem kamery bez kopie — 3–23 % plánů neslo čas pořízení jiného snímku; od 13. 10. vlastní kopie](#lp-navigator-zivy-slot-kamery) | 13. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -1110,15 +1111,20 @@ Globální navigace si za jízdy uzavírá hrany sítě, které se ukázaly nepr
 ## Lokální mapa a plánování
 
 <a id="lp-vykon-retezu-na-arm"></a>
-### ⬜ Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený
+### ⬜ Výkon lokální navigace na Pi: do taktu se vejde, ale první snímek po probuzení navigátoru bývá zhruba v polovině případů ~4,5× pomalejší
 
 `lp-vykon-retezu-na-arm` · záměr · **otevřeno** · nalezeno 10. 8. 2026
 
-Occupancy grid, distanční transformace a A* běží v řídicí smyčce každý takt (10×/s). Při návrhu 10. 8. 2026 se ověření výkonu na cílové desce zapsalo jako zbývající krok a od té doby se řetěz měřil jen na Windows. Na Orange Pi je změřená vizuální část (zpracování snímku, síť na CPU i NPU) a obsazenost taktu se sleduje souhrnně (`PerfMsg`), ale rozpad na integraci + EDT + A* jako čísla z ARM chybí — takže se neví, kolik z periody 100 ms tam ten řetěz bere.
+Při návrhu 10. 8. 2026 se ověření výkonu na cílové desce zapsalo jako zbývající krok. **Změřeno 13. 10. 2026 ze záznamů** (`ARBot.Analyze perf` blok 7, nový; 30 jízd 6. 9.–1. 10. na Pi, binárky do `f848fdf2`, tedy bez změn od 1. 10. — `localframe=odom`, `smoothcorners`, `colorshadow=height`). Původní popis byl vedle: řetěz neběží jednou za takt řídicí smyčky, ale nad každým předaným snímkem — smyčka si na začátku taktu (100 ms) vezme z každé kamery nejnovější snímek a oba předá navigátoru, takže chodí po dávkách, obvykle dvojicích (~9,4/s na kameru, levá první). Rozpočet je ~100 ms na dávku (fronta 4 zprávy, za takt přijdou čtyři, při přetečení zahazuje nejstarší). `ComputeMs` měří celou práci nad snímkem (GetStateAt pod zámkem fúze, grid, klín, EDT, A* s vyhlazováním, regulátor, kontrola kolize; wall-clock). Výsledky (rozsahy přes jízdy, bez jízdy 6. 9. odpoledne jen s pravou kamerou): vytížení 28–60 % jednoho jádra; `ComputeMs` p50 12–23 ms, p99 44–75 ms; dávka za takt p50 32–56 ms, p99 74–107 ms, nad 100 ms 0,1–3,4 % taktů (další dávka pak začne později, zahazuje se zřídka); plán je za zpracovaným snímkem p50 57–83 ms, p99 118–144 ms (k tomu až takt, než si ho smyčka vezme). Návrhové „plánovač smí občas trvat 15 ms“ změřené nebylo a neplatí. **Nález: „levá kamera je 2× dražší“ je omyl** — drahý je první snímek po probuzení navigátoru (po probuzení p50 19–42 ms, nad 25 ms 47–62 %; navazující p50 10–22 ms, 2–13 %), a levá jde v dávce první. Pravá v taktu sama je stejně pomalá, přehrání týchž snímků na PC dává obě kamery stejně (13,5 / 13,3 ms). Rozdělení po probuzení je dvouvrcholové: zhruba polovina plánů v pomalém módu (~4,5× při malé práci), mediány 1,4–3,5× (o 6–27 ms). Odvozeno z tvaru (střední jistota): konstantní pauza (GC, zámek) nesedí, „celý plán na A55“ tvar vyvrací, sedí pomalá fáze ~40 ms po probuzení vlákna — malé jádro A55, nebo náběh frekvence. Podle kódu stupeň nemá vlastní vlákno (async `ConsumeLoop` pokračuje po prázdné frontě na vlákně z poolu) — odvozeno, neověřeno; komentáře v `MessageTarget.cs`, `LocalNavigator.cs` a `ARBotRuntime.cs` tvrdí opak. Mechanismus nepotvrzený, číslo jádra navigátoru žádný záznam nenese. Dopad hlavně na latenci, do taktu se řetěz vejde. **Od 13. 10. 2026 (v kódu)** nese zpráva plánu jádro na začátku a konci výpočtu (`LocalPlanMsg` v5) a do fronty navigace jdou jen snímky (dřív ji plnily i řídicí zprávy, které navigace zahazuje).
 
-- [ ] Změřit integraci + EDT + A* na Orange Pi (doba na takt, podíl periody)
+- [x] Změřit ze záznamů z Pi: `ARBot.Analyze perf` blok 7 (chvost `ComputeMs`, po probuzení / navazující, po kamerách, cena dávky za takt, fronta, zpoždění plánu za snímkem) — 30 jízd (13. 10. 2026)
+- [x] Číslo jádra na začátku a konci výpočtu do zprávy plánu (`LocalPlanMsg` verze 5) a rozpad podle jádra v `perf` bloku 7 — přes `sched_getcpu` (`AktualniJadro`), ne `Thread.GetCurrentProcessorId`, který .NET na Linuxu vrací z mezipaměti vlákna a obnovuje jen jednou za N volání (13. 10. 2026)
+- [ ] Jízda s novou binárkou a `perf` blok 7: běží pomalé plány po probuzení na malých jádrech 0–3 (A55), nebo i na velkých 4–7? (Mezičasy kroků a `IsThreadPoolThread` zatím ne — jen kdyby jádro nestačilo)
+- [ ] Levná zkouška bez nové telemetrie: prohodit pořadí kamer v pullu — postih se má přesunout na pravou kameru; když ne, vysvětlení přes pořadí padá
+- [ ] Rozhodnout (autor): `CPUAffinity=4-7`, governor `performance`, nebo vlastní vlákno navigace připnuté na velká jádra — a jestli to řešit, když se řetěz do taktu vejde. Podklad (13. 10.): rozhodne jízda výš. Pomalé plány na 0–3 = umístění vlákna → afinita (cílenější je připnout jen vlákno navigace; `CPUAffinity=4-7` dá celý proces, dnes ~1,6 jádra zátěže, jen na 4 velká jádra). Pomalé i na 4–7 = náběh frekvence → governor (`performance` drží všechna jádra trvale na maximu — teplo a spotřeba, deska bez větráku má v klidu 63–65 °C; mírnější je zvednout minimální frekvenci jen velkých jader). Obojí jde na Pi zkusit bez nové binárky
+- [ ] Přeměřit s dnešním kódem (`localframe=odom`, `smoothcorners`, `colorshadow=height` a další od 1. 10.) — nejbližší jízda, `perf` blok 7
 
-[occupancy-and-local-planning.md](occupancy-and-local-planning.md), [perf-monitoring.md](perf-monitoring.md), [LocalPathPlanner.cs](../Src/ARBot.Common/Occupancy/LocalPathPlanner.cs), [ClearanceField.cs](../Src/ARBot.Common/Occupancy/ClearanceField.cs) · DevLog [2026-08-10](devlog.md#2026-08-10)
+[perf-monitoring.md](perf-monitoring.md), [occupancy-and-local-planning.md](occupancy-and-local-planning.md), [PerfReport.cs](../Src/ARBot.Analyze/PerfReport.cs), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-08-10](devlog.md#2026-08-10), [2026-10-13](devlog.md#2026-10-13)
 
 <a id="lp-koridor-trasy-jako-cena"></a>
 ### ⬜ Koridor trasy jako měkká cena v lokálním A*
@@ -1367,6 +1373,22 @@ Nalezeno při rozboru `nav-uvaznuti-neohlasene` (kód, na datech neověřeno). K
 - [x] V kódu (d): `ControlLoop.IsDriving` (regulátor aktuální a není dojetý — zastaralý, dobrzděný na nulu, kola stála; dojetý je pro smyčku trvale mrtvý a nevolá se, regulátor s čerstvostí jedna reference) a `LocalNavigator` dráhu, kterou smyčka nejede, zahodí místo kontroly (+ škrcená Trace); 13 testů (10 + 3); přehrání: samotná (d) odstraní 5 ze 13, s (b) nezbude žádná (`ARBot.Analyze kolize`, protifakt (d)). Revize našla a opravila: dojetí jen zapamatované (po pohnutí kol smyčka zase točila), souběh setteru (11. 10. 2026)
 
 [occupancy-and-local-planning.md](occupancy-and-local-planning.md) · DevLog [2026-10-08](devlog.md#2026-10-08), [2026-10-11](devlog.md#2026-10-11)
+
+<a id="lp-navigator-zivy-slot-kamery"></a>
+### 🧪 Navigace pracovala nad živým slotem kamery bez kopie — 3–23 % plánů neslo čas pořízení jiného snímku; od 13. 10. vlastní kopie
+
+`lp-navigator-zivy-slot-kamery` · vada · **v kódu, na HW neověřeno** · nalezeno 13. 10. 2026 · vyřešeno 13. 10. 2026
+
+Driver D435 plní snímky do `CaptureFramePool` o třech slotech a `ControlLoop` předává odběratelům `ControlLoop.Output` (LocalNavigator, CorridorLocalizer, FreeRun, QrScanner, GlobalNavigator) TENTÝŽ objekt, bez kopie; kopii si dělá jen záznam (`RecordingTarget`) a webový náhled (`WebStatus`). Kamera slot po třech snímcích (~100 ms) přepíše. `LocalNavigator` čte čas snímku pro zprávu plánu až po A* (`frame.TimeStamp`, `LocalNavigator.cs:424`), takže když výpočet s čekáním přesáhne ~100 ms od pořízení, nese plán čas pořízení POZDĚJŠÍHO snímku. Změřeno 13. 10. 2026 (`perf` blok 7: plán spárovaný se skutečně zpracovaným snímkem nese jiný čas pořízení) u 3–23 % plánů ve 30 jízdách (Track a Robotour víc, Kolo 3a 23,5 %); v případu 1. 10. 15:15:43 (ComputeMs 1 226 ms, „zpoždění 1,1 ms“) je 1 226 ms zásek procesu a 1,1 ms tenhle přepsaný čas. Důsledky: časy v `LocalPlanMsg` (a z nich počítaná zpoždění a párování) nejsou spolehlivé. **Neověřené (odvozené):** totéž přepsání může během integrace podstrčit navigaci data jiného snímku (`Grid`, `ImageProbability`), tedy zápis jednoho snímku s pózou druhého. **Oprava v kódu 13. 10. 2026 (rozhodnutí autora):** navigace si snímek kopíruje do vlastního poolu už v `Post` — na vlákně taktu hned po předání, stejný vzor jako záznam a web (~1 ms na snímek autor přijal) — a kopii vrací po zpracování, když ji zahodí plná fronta (`MessageTarget.OnDropped`) i když se po zastavení nezařadí. Přepis během kopírování hlídá **verze slotu** (seqlock): `CaptureFramePool.Next` ji před zápisem nastaví na lichou, `SensorBase` po zápisu metadat na sudou a `CameraFramePool.Acquire` kopii s lichou nebo změněnou verzí zahodí — smíšená data dvou snímků se nezpracují nikde (platí i pro záznam a web; čítače `TornDrops`/`ExhaustedDrops`, škrcené hlášky do Trace). Capture pool kamery má místo 3 slotů **8** (~233 ms při 30 sn/s, +~25 MB). Do fronty navigace jdou jen snímky (řídicí zprávy z `ControlLoop.Output` ji dřív zbytečně plnily).
+
+- [x] Změřeno ze záznamů (`ARBot.Analyze perf` blok 7: plány s přepsaným časem pořízení, 3–23 % ve 30 jízdách) a dohledán mechanismus v kódu (13. 10. 2026)
+- [x] Rozhodnout (autor): číst čas snímku jednou na začátku `Process`, předávat odběratelům kopii z poolu (jako záznam), nebo zvětšit hloubku poolu — rozhodnuto 13. 10. 2026: vlastní kopie pro navigaci, hlídat přepis během kopírování, větší pool (13. 10. 2026)
+- [x] Implementováno: kopie v `LocalNavigator.Post` (pool = fronta + 2), verze slotu (`CaptureFramePool.Next` / `SensorBase` / `CameraFramePool.Acquire`), capture pool 8 slotů, `MessageTarget.OnDropped` a `PostCore`, do fronty navigace jen snímky, hlášky záznamu a webu; testy včetně souběhu (ověřeno mutací: bez kontroly verze padají) (13. 10. 2026)
+- [x] Ostatní odběratelé živého slotu (koridor, FreeRun, globální navigace, QR): čtou data hned na začátku zpracování, fronty 4 / 4 / 16 / 1 zprávy, změřeno do ~20 ms na zprávu — s 8 sloty (~233 ms) je rezerva velká, kopii jim zatím nepřidávat (13. 10. 2026)
+- [ ] Ověřit na zařízení: `perf` blok 7 nad jízdou s novou binárkou — přepsané časy u navigace 0 %, v Trace žádné „kopie snímku … vynechán“ ani „roztržená kopie“, obsazenost taktu (+2 kopie ~1 ms)
+- [ ] Volitelně: odlehčená kopie pro navigaci (jen pravděpodobnost a metadata; z RGB čte jen rozměr, hloubku nečte) — ušetří ~1 ms na snímek na vlákně taktu, chce ale rozměr barevného obrazu mimo `ImageRGB`
+
+[perf-monitoring.md](perf-monitoring.md), [LocalNavigator.cs](../Src/ARBot.Common/Occupancy/LocalNavigator.cs) · DevLog [2026-10-13](devlog.md#2026-10-13)
 
 <a id="lp-filtr-izolovanych-bunek"></a>
 ### ⏸ Izolované skvrny `Blocked` do 4 buněk brzdí robota jako zeď
@@ -2210,8 +2232,9 @@ Track 1. 10. 2026 (`20261001-144638.rec`) 15:15:41,819–43,010: mlčely VŠECHN
 
 - [x] Změřeno (`ARBot.Analyze perf` blok 6, scratch rozbor T_in/T_out všech zpráv) (7. 10. 2026)
 - [ ] Sbírat v `PerfMsg` pauzy GC (`GC.GetTotalPauseDuration`, počet kolekcí gen 2) a čas zápisu záznamu, aby příští zásek šel přiřadit
+- [x] 13. 10. 2026 (`perf` blok 7): v lokální navigaci je zásek vidět jako plán s `ComputeMs` 1 226 ms (stopky běžely přes něj) a nesmyslným zpožděním 1,1 ms (přepsaný slot kamery, `lp-navigator-zivy-slot-kamery`); snímky prvního doháněcího taktu plán nemají (13. 10. 2026)
 
-[perf-monitoring.md](perf-monitoring.md) · DevLog [2026-10-07](devlog.md#2026-10-07)
+[perf-monitoring.md](perf-monitoring.md) · DevLog [2026-10-07](devlog.md#2026-10-07), [2026-10-13](devlog.md#2026-10-13)
 
 <a id="prov-start-limit-sluzba"></a>
 ### 🧪 Služba se po pěti restartech v pěti minutách vzdá a robot je mrtvý

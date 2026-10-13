@@ -47,6 +47,16 @@ namespace ARBot.Common.Devices
         public DateTime DepthTimeStamp;
 
         /// <summary>
+        /// <b>Verze capture slotu</b> (seqlock, 13. 10. 2026, <c>lp-navigator-zivy-slot-kamery</c>) - NESERIALIZUJE
+        /// se. Kamera ji ve slotu <see cref="CaptureFramePool"/> nastavi na LICHOU, nez do nej zacne psat
+        /// (<see cref="CaptureFramePool.Next"/>), a na SUDOU, az je snimek hotovy a predava se dal
+        /// (<see cref="CaptureFramePool.Publish"/>). Kopie (<see cref="CameraFramePool.Acquire"/>) ji cte pred
+        /// a po kopirovani: licha nebo zmenena = kamera slot mezitim prepisovala, kopie je roztrzena
+        /// a zahodi se. Snimek mimo capture pool (prehravani, testy) ma 0 = hotovy.
+        /// </summary>
+        public int CaptureGeneration;
+
+        /// <summary>
         /// Polarni grid sjizdnosti dopocteny z <see cref="ImageDepth"/> (per kamera; muze byt null,
         /// dokud geometrie/projekce nedovoli grid sestavit). Pocita ho synchronne
         /// <see cref="ARBot.Common.Vision.ICameraFrameProcessor"/> na vlakne kamery a je soucasti

@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ARBot.Common.Common;
 using ARBot.Common.Devices;
 using ARBot.Common.Vision;
@@ -110,6 +112,107 @@ namespace ARBot.Common.Tests.Devices
             Assert.That(ReferenceEquals(f0b, f0), Is.True, "round-robin se vraci na prvni slot");
             Assert.That(ReferenceEquals(f0b.ImageRGB, rgb0), Is.True, "RGB buffer se recykluje");
             Assert.That(f0b.Grid, Is.Null, "Next vycisti Grid");
+        }
+
+        // ---------- verze slotu (seqlock), lp-navigator-zivy-slot-kamery, 13. 10. 2026 ----------
+
+        [Test]
+        public void Acquire_RozepsanySlot_SeZahodi_SlotSeVrati()
+        {
+            var pool = new CameraFramePool(2);
+            var src = Frame(1);
+            src.CaptureGeneration = 3;   // licha = kamera do slotu prave pise
+
+            Assert.That(pool.Acquire(src), Is.Null, "rozepsany slot se nekopiruje");
+            Assert.That(pool.TornDrops, Is.EqualTo(1));
+            Assert.That(pool.ExhaustedDrops, Is.EqualTo(0));
+            Assert.That(pool.InUseCount, Is.EqualTo(0), "slot zahozene kopie se vraci do poolu");
+
+            src.CaptureGeneration = 4;   // hotovo
+            Assert.That(pool.Acquire(src), Is.Not.Null);
+        }
+
+        [Test]
+        public void Acquire_Vycerpano_CitaSeZvlast()
+        {
+            var pool = new CameraFramePool(1);
+            Assert.That(pool.Acquire(Frame(1)), Is.Not.Null);
+            Assert.That(pool.Acquire(Frame(2)), Is.Null);
+            Assert.That(pool.ExhaustedDrops, Is.EqualTo(1));
+            Assert.That(pool.TornDrops, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Capture_NextLicha_PublishSuda_NepublikovanyZustavaLichy()
+        {
+            var pool = new CaptureFramePool(2);
+            var a = pool.Next(true, 8, 8, false, 0, 0);
+            int g1 = a.CaptureGeneration;
+            Assert.That(g1 & 1, Is.EqualTo(1), "Next = zacina zapis -> licha");
+            CaptureFramePool.Publish(a);
+            Assert.That(a.CaptureGeneration, Is.EqualTo(g1 + 1), "Publish = hotovo -> suda");
+
+            var b = pool.Next(true, 8, 8, false, 0, 0);   // nepublikovany (snimek preskocen)
+            int gb = b.CaptureGeneration;
+            var a2 = pool.Next(true, 8, 8, false, 0, 0);
+            Assert.That(ReferenceEquals(a2, a), Is.True);
+            Assert.That(a2.CaptureGeneration & 1, Is.EqualTo(1));
+            Assert.That(a2.CaptureGeneration, Is.Not.EqualTo(g1), "novy zapis = nova hodnota");
+
+            var b2 = pool.Next(true, 8, 8, false, 0, 0);
+            Assert.That(ReferenceEquals(b2, b), Is.True);
+            Assert.That(b2.CaptureGeneration & 1, Is.EqualTo(1), "nepublikovany slot zustava lichy");
+            Assert.That(b2.CaptureGeneration, Is.Not.EqualTo(gb), "... ale s jinou hodnotou");
+        }
+
+        [Test]
+        public void Capture_VychoziPocetSlotu8()
+        {
+            Assert.That(new CaptureFramePool().Count, Is.EqualTo(CaptureFramePool.DefaultCount));
+            Assert.That(CaptureFramePool.DefaultCount, Is.EqualTo(8));
+        }
+
+        /// <summary>
+        /// Soubeh: kamera (vlakno) dokola prepisuje sloty a kazdy vyplni JEDNOU hodnotou, ctenar porad
+        /// kopiruje tentyz slot. Kopie, ktera projde, nesmi byt nikdy roztrzena (smes dvou zapisu).
+        /// </summary>
+        [Test]
+        public void Acquire_SoubehSKamerou_NikdyNevratiRoztrzenouKopii()
+        {
+            var capture = new CaptureFramePool(2);
+            var slot = capture.Next(true, 512, 512, false, 0, 0);
+            Array.Fill(slot.ImageRGB.Data, (byte)0);
+            CaptureFramePool.Publish(slot);
+
+            var pool = new CameraFramePool(1);
+            using var konec = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
+            var kamera = Task.Run(() =>
+            {
+                byte v = 1;
+                while (!konec.IsCancellationRequested)
+                {
+                    var f = capture.Next(true, 512, 512, false, 0, 0);
+                    Array.Fill(f.ImageRGB.Data, v++);
+                    CaptureFramePool.Publish(f);
+                }
+            });
+
+            int ok = 0, roztrzene = 0;
+            while (!konec.IsCancellationRequested)
+            {
+                var c = pool.Acquire(slot);
+                if (c == null) continue;
+                var d = c.ImageRGB.Data;
+                byte prvni = d[0];
+                for (int i = 1; i < d.Length; i++)
+                    if (d[i] != prvni) { roztrzene++; break; }
+                ok++;
+                pool.Release(c);
+            }
+            kamera.Wait();
+
+            Assert.That(roztrzene, Is.EqualTo(0), "roztrzena kopie se nesmi vratit");
+            Assert.That(ok, Is.GreaterThan(0), "aspon nektere kopie musi projit");
         }
 
         [Test]

@@ -558,7 +558,10 @@ globální navigace; `--frames` přehraje snímky kódem robota (kdy kamera buň
 výpis pózy, IMU, příkazů, motorů a měření koridoru. Časy jsou v sekundách od prvního
 `LocalPlanMsg` jako u `localplan`. **`perf`** — `PerfMsg` (fáze 4 [perf-monitoring.md](perf-monitoring.md)):
 rozložení, po minutách, nejhorší intervaly, stupně, mezery v proudech `T_in`/`T_out` z indexu
-a souběžné výpadky kamer (rozliší „stál proces" od „jen kamery"). **`battery`** a **`odometer`**
+a souběžné výpadky kamer (rozliší „stál proces" od „jen kamery"); od 13. 10. 2026 i **blok 7 —
+lokální navigace po plánech** z `LocalPlanMsg` (chvost `ComputeMs`, po probuzení / navazující,
+po kamerách, cena dávky za takt, fronta, zpoždění plánu za zpracovaným snímkem, přepsané časy
+pořízení; [perf-monitoring.md](perf-monitoring.md), „Lokální navigace na Pi"). **`battery`** a **`odometer`**
 přehrají `BatteryMonitor` a `Odometer` z dnešního kódu nad libovolným záznamem. **`uvazl`**
 (od 8. 10. 2026) totéž s hlídačem uváznutí `StuckMonitor`: epizody stání při jízdě, převažující
 příčiny, řádky do Trace a srovnání se `StuckMsg`, má-li je záznam

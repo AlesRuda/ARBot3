@@ -327,7 +327,10 @@ namespace ARBot.Robot.Web
                 if ((TimeBase.Now - cameraInterest).TotalSeconds > CameraInterestSec) return;
             }
 
+            long roztrzenoPred = framePool.TornDrops;
             var copy = framePool.Acquire(cf);
+            if (copy == null && framePool.TornDrops > roztrzenoPred)
+                return;   // kamera slot behem kopirovani prepisovala - jen tento snimek (verze slotu), dalsi projde
             if (copy == null)
             {
                 // Drop je best-effort, ale NE ticho: presne tenhle stav (vycerpany pool) drzel

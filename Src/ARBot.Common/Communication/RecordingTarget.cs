@@ -50,6 +50,10 @@ namespace ARBot.Common.Communication
         // proto porizeme stabilni kopii; po zapisu (Consume) ji vratime. Vycerpani = best-effort drop.
         private readonly CameraFramePool framePool = new CameraFramePool(8);
 
+        /// <summary>Skrcena hlaska o snimku vynechanem kvuli roztrzene kopii (13. 10. 2026) - jinak by byla
+        /// mezera v zaznamu bez vysvetleni.</summary>
+        private readonly ARBot.Common.Diagnostics.PoruchaHlasic kopieHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
+
         /// <param name="dataStream">Datovy soubor (proud zprav).</param>
         /// <param name="indexStream">Sidecar index; null = bez indexu.</param>
         /// <param name="encoding">Kodovani (typicky UTF-8).</param>
@@ -114,8 +118,17 @@ namespace ARBot.Common.Communication
             // (zadna alokace, RT se nebrzdi). Kopie se vraci po zapisu v Consume.
             if (msg is CameraFrame cf)
             {
+                long roztrzenoPred = framePool.TornDrops;
                 var copy = framePool.Acquire(cf);
-                if (copy == null) return;   // pool vyschl -> drop
+                if (copy == null)
+                {
+                    // pool vyschl -> drop (best-effort); roztrzena kopie (kamera slot behem kopirovani
+                    // prepisovala, verze slotu) -> drop a skrcena stopa do Trace.
+                    if (framePool.TornDrops > roztrzenoPred)
+                        kopieHlasic.Hlas("RecordingTarget: roztrzena kopie snimku",
+                                         $"RecordingTarget: snimek {cf.Name} nezaznamenan - kamera slot behem kopirovani prepisovala (celkem {framePool.TornDrops})");
+                    return;
+                }
                 base.Post(new Envelope(copy, TimeBase.Now.Ticks));
                 return;
             }

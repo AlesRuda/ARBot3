@@ -220,6 +220,71 @@ namespace ARBot.Common.Tests.Occupancy
             Assert.That(plan.ComputeMs, Is.GreaterThan(0), "doba vypoctu se ma vyplnit");
         }
 
+        /// <summary>
+        /// Navigator si snimek kopiruje do vlastniho poolu uz v <c>Post</c> (lp-navigator-zivy-slot-kamery):
+        /// kdyz kamera zdrojovy slot hned potom prepise (jiny cas, jina data), navigace musi zpracovat
+        /// stav z okamziku <c>Post</c>. Bez kopie by tu snimek nesl cas mimo okno fuze a zahodil by se.
+        /// Kopie se po zpracovani vraci, takze pool nevyschne ani po mnoha snimcich, a plan nese jadro CPU.
+        /// </summary>
+        [Test]
+        public void Kopie_PrepisZdrojePoPostNavigaciNeovlivni_PoolSeVraci()
+        {
+            var nav = MakeNavigator(Engine(T0));
+            nav.SetGoal(3.0, 0.0);
+
+            var f = Frame(T0.AddSeconds(1.0));
+            nav.Post(f);                          // jeste bez startu - zustane ve fronte (jako kopie)
+            f.TimeStamp = T0.AddSeconds(50.0);    // kamera slot prepsala: cas mimo okno fuze ...
+            f.Grid = null;                        // ... a jina data
+            f.ImageProbability = null;
+
+            using var s = new Session(nav);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (nav.ProcessedFrames + nav.DroppedFrames < 1 && DateTime.UtcNow < deadline) Thread.Sleep(2);
+
+            Assert.That(nav.ProcessedFrames, Is.EqualTo(1), "zpracovala se kopie z okamziku Post");
+            Assert.That(nav.DroppedFrames, Is.EqualTo(0), "prepsany cas (mimo okno fuze) se nesmi projevit");
+            Assert.That(nav.LastPlan, Is.Not.Null);
+            Assert.That(nav.LastPlan.HasPath, Is.True, "grid z kopie, ne z prepsaneho slotu");
+            Assert.That(nav.LastPlan.TimeStamp, Is.EqualTo(T0.AddSeconds(1.0)));
+
+            for (int i = 0; i < 20; i++) s.Send(Frame(T0.AddSeconds(1.1 + 0.05 * i)));
+            Assert.That(nav.CopyExhaustedDrops, Is.EqualTo(0), "kopie se po zpracovani vraci do poolu");
+            Assert.That(nav.CopyTornDrops, Is.EqualTo(0));
+            Assert.That(nav.LastPlan.CpuStart, Is.GreaterThanOrEqualTo(0), "plan nese jadro CPU");
+            Assert.That(nav.LastPlan.CpuEnd, Is.GreaterThanOrEqualTo(0));
+            var plan = s.Snapshot().FindLast(m => m is LocalPlanMsg) as LocalPlanMsg;
+            Assert.That(plan.CpuStart, Is.GreaterThanOrEqualTo(0), "jadro jde i do zpravy");
+        }
+
+        /// <summary>Kopie, kterou zahodi plna fronta (DropOldest), se musi vratit do poolu (OnDropped).</summary>
+        [Test]
+        public void Kopie_ZahozenaFrontou_SeVraciDoPoolu()
+        {
+            var nav = MakeNavigator(Engine(T0));   // nenastartovany: fronta 4 zpravy, DropOldest, pool kopii 6
+            for (int i = 0; i < 12; i++) nav.Post(Frame(T0.AddSeconds(1.0 + 0.05 * i)));
+            Assert.That(nav.CopyExhaustedDrops, Is.EqualTo(0), "zahozene kopie se vraci - jinak by pool vyschl");
+
+            using var s = new Session(nav);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (nav.ProcessedFrames + nav.DroppedFrames < 4 && DateTime.UtcNow < deadline) Thread.Sleep(2);
+            Assert.That(nav.ProcessedFrames + nav.DroppedFrames, Is.EqualTo(4), "ve fronte zustaly 4 nejnovejsi");
+
+            for (int i = 0; i < 10; i++) s.Send(Frame(T0.AddSeconds(1.7 + 0.05 * i)));
+            Assert.That(nav.CopyExhaustedDrops, Is.EqualTo(0));
+        }
+
+        /// <summary>Po zastaveni navigatoru se snimek do fronty nezaradi - kopie se musi vratit, jinak by pool vyschl.</summary>
+        [Test]
+        public void Kopie_PostPoZastaveni_SeVraci()
+        {
+            var nav = MakeNavigator(Engine(T0));
+            nav.Start();
+            nav.Stop();
+            for (int i = 0; i < 12; i++) nav.Post(Frame(T0.AddSeconds(1.0 + 0.05 * i)));
+            Assert.That(nav.CopyExhaustedDrops, Is.EqualTo(0), "nezarazena kopie se vraci do poolu");
+        }
+
         [Test]
         public void SnimekMimoOknoHistorie_SeZahodi()
         {

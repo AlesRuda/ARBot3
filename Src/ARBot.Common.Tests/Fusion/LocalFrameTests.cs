@@ -196,8 +196,7 @@ namespace ARBot.Common.Tests.Fusion
             p.GoalDistanceM = 7.2;
             p.StartBlock = (byte)ARBot.Common.Occupancy.CellBlockReason.Geometry;
             p.StartClearanceM = 0.05;
-            Assert.That(LocalPlanMsg.FormatVersion, Is.EqualTo(4));
-            Assert.That(p.Verze, Is.EqualTo(4));
+            p.Verze = 4;
 
             var zpet = RoundTrip(p, new LocalPlanMsg(), 4);
             Assert.Multiple(() =>
@@ -216,6 +215,25 @@ namespace ARBot.Common.Tests.Fusion
                 Assert.That(v3.StartBlock, Is.EqualTo(0));
                 Assert.That(double.IsNaN(v3.StartClearanceM), Is.True);
             });
+        }
+
+        /// <summary>Verze 5 (13. 10. 2026) nese jadro CPU na zacatku a konci vypoctu; starsi daji -1.</summary>
+        [Test]
+        public void PlanMsg_RoundTripVerze5_NeseJadro_Verze4NeznaHo()
+        {
+            var p = Plan();
+            p.CpuStart = 2;
+            p.CpuEnd = 6;
+            Assert.That(LocalPlanMsg.FormatVersion, Is.EqualTo(5));
+            Assert.That(p.Verze, Is.EqualTo(5));
+
+            var zpet = RoundTrip(p, new LocalPlanMsg(), 5);
+            Assert.That((zpet.CpuStart, zpet.CpuEnd), Is.EqualTo(((short)2, (short)6)));
+            Assert.That(zpet.Frame, Is.EqualTo(LocalFrame.Odom), "starsi pole beze zmeny");
+
+            p.Verze = 4;
+            var v4 = RoundTrip(p, new LocalPlanMsg(), 4);
+            Assert.That((v4.CpuStart, v4.CpuEnd), Is.EqualTo(((short)-1, (short)-1)), "ve verzi 4 se jadro nevi");
         }
 
         private static T RoundTrip<T>(T msg, T empty, int verze) where T : Message

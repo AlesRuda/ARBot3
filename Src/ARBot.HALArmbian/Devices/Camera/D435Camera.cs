@@ -57,7 +57,7 @@ namespace ARBot.HAL.Devices.Camera
 
         /// <summary>Triple-buffer capture pool (krok 4): recyklovane buffery misto alokace per grab.
         /// Pouziva jen vlakno kamery (GetMeasurement) -> bez zamku.</summary>
-        private readonly CaptureFramePool capturePool = new CaptureFramePool(3);
+        private readonly CaptureFramePool capturePool = new CaptureFramePool();   // vychozi pocet slotu (8), viz CaptureFramePool
 
         /// <summary>Interval opakovanych pokusu o pripojeni, kdyz kamera chybi [ms].</summary>
         private const int ReconnectPeriodMs = 1000;
@@ -387,6 +387,7 @@ namespace ARBot.HAL.Devices.Camera
                         // k realnym vypadkum D435. Viz CameraVisionStep.
                         ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
 
+                        // Slot se publikuje (verze na sudou) az v SensorBase.Process, po zapisu metadat - viz CaptureFramePool.Publish.
                         return frame;
                     }
                 }

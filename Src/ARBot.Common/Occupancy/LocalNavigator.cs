@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using ARBot.Common.Communication;
 using ARBot.Common.Configuration;
 using ARBot.Common.Coordinates;
@@ -64,7 +65,22 @@ namespace ARBot.Common.Occupancy
         /// stridani GoalUnsafe a planu by jinak slo do Trace az nekolikrat za sekundu.</summary>
         private readonly ARBot.Common.Diagnostics.PoruchaHlasic expiredHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
 
+        /// <summary>
+        /// <b>Vlastni kopie snimku</b> (13. 10. 2026, <c>lp-navigator-zivy-slot-kamery</c>). Snimek z
+        /// <c>ControlLoop</c> je ZIVY slot kamery (<see cref="CaptureFramePool"/>) a kamera ho po nekolika
+        /// grabech prepise; navigator ho ale cte az ze sve fronty a po desitkach ms. Proto si v
+        /// <see cref="Post"/> - synchronne na vlakne taktu, hned po predani - porizuje kopii z vlastniho
+        /// poolu (stejny vzor jako zaznam a web) a vraci ji po zpracovani, resp. kdyz ji zahodi fronta.
+        /// Kapacita = fronta + 1 rozpracovany + 1 porizovany v <see cref="Post"/> drive, nez fronta zahodi
+        /// nejstarsi (zaklada konstruktor).
+        /// </summary>
+        private readonly CameraFramePool kopie;
+
+        /// <summary>Skrceni hlaseni o snimku, ktery se do navigace nedostal (kopie se nevesla nebo byla roztrzena).</summary>
+        private readonly ARBot.Common.Diagnostics.PoruchaHlasic kopieHlasic = new ARBot.Common.Diagnostics.PoruchaHlasic();
+
         private readonly Stopwatch sw = new Stopwatch();
+        private int cpuStartCyklu = -1;   // jadro na zacatku Process (do planu, viz CpuStart)
         private DateTime lastGridMsg;
         private DateTime lastFrameTime;
         private DateTime lastStatsLog;
@@ -149,6 +165,14 @@ namespace ARBot.Common.Occupancy
         /// case (starsi nez okno historie). Rostouci cislo = zpracovani nestiha nebo vypadla fuze.</summary>
         public long DroppedFrames { get; private set; }
 
+        /// <summary>DIAGNOSTIKA: snimky, ktere se do navigace vubec nedostaly - kopie se nevesla do poolu
+        /// (<see cref="CameraFramePool.ExhaustedDrops"/>) nebo kamera zdrojovy slot behem kopirovani
+        /// prepisovala (<see cref="CameraFramePool.TornDrops"/>). Do <see cref="DroppedFrames"/> se nepocitaji.</summary>
+        public long CopyExhaustedDrops => kopie.ExhaustedDrops;
+
+        /// <inheritdoc cref="CopyExhaustedDrops"/>
+        public long CopyTornDrops => kopie.TornDrops;
+
         /// <summary>
         /// O kolik smi poza pretect nad to, co vysvetli rychlost, nez se grid zahodi [m].
         /// Viz doc/map-correlation-localization.md ("Zpetna vazba na grid").
@@ -195,6 +219,7 @@ namespace ARBot.Common.Occupancy
                               IMotionProfile motionProfile = null)
             : base(OverflowPolicy.DropOldest, queueCapacity)
         {
+            kopie = new CameraFramePool(Math.Max(1, queueCapacity) + 2);
             this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
             depthProjectionResolver = depthProjections ?? throw new ArgumentNullException(nameof(depthProjections));
             colorProjectionResolver = colorProjections;
@@ -274,6 +299,43 @@ namespace ARBot.Common.Occupancy
         }
 
         /// <inheritdoc/>
+        /// <summary>
+        /// Snimek se do fronty nevklada sam, ale jeho kopie z vlastniho poolu (viz <c>kopie</c>) - porizena
+        /// TED, na vlakne producenta (takt), dokud je slot kamery cerstvy. Kdyz se kopie nevejde nebo je
+        /// roztrzena (kamera slot prave prepisovala), snimek se do navigace nedostane a jde o tom skrcena
+        /// hlaska do Trace. <b>Jine zpravy se do fronty nevkladaji vubec</b> (13. 10. 2026): z
+        /// <c>ControlLoop.Output</c> sem chodi i <c>RobotStateMsg</c> a <c>DriveCommandMsg</c> (a v simulaci
+        /// <c>GroundTruthMsg</c>), ktere <see cref="Consume"/> stejne zahodi - ve fronte o 4 mistech ale
+        /// vytlacovaly snimky.
+        /// </summary>
+        public override void Post(Message msg)
+        {
+            if (msg is CameraFrame cf)
+            {
+                long vycerpano = kopie.ExhaustedDrops, roztrzeno = kopie.TornDrops;
+                var c = kopie.Acquire(cf);
+                if (c == null)
+                {
+                    // Trace, ne Debug: vysvetluje, proc navigace snimek vynechala (viz CLAUDE.md).
+                    string druh = kopie.TornDrops > roztrzeno ? "roztrzena kopie (kamera slot behem kopirovani prepisovala)"
+                                : kopie.ExhaustedDrops > vycerpano ? "pool kopii vycerpan"
+                                : "kopie se nepovedla";
+                    kopieHlasic.Hlas("LocalNavigator: kopie snimku " + druh,
+                                     $"LocalNavigator: snimek {cf.Name} vynechan - {druh} (celkem vycerpano {kopie.ExhaustedDrops}, roztrzeno {kopie.TornDrops})");
+                    return;
+                }
+                if (!PostCore(c)) kopie.Release(c);   // navigator zastaven -> kopii vratit
+                return;
+            }
+            // Ostatni zpravy navigator nepotrebuje (Consume je zahodi) - do fronty nejdou.
+        }
+
+        /// <summary>Kopii snimku, kterou zahodila plna fronta, vratit do poolu (jinak by ho DropOldest vycerpal).</summary>
+        protected override void OnDropped(Message msg)
+        {
+            if (msg is CameraFrame cf) kopie.Release(cf);
+        }
+
         protected override void Consume(Message msg)
         {
             if (!(msg is CameraFrame frame)) return;
@@ -284,11 +346,13 @@ namespace ARBot.Common.Occupancy
             // Viz CLAUDE.md.
             try { Process(frame); }
             catch (Exception ex) { Trace.WriteLine($"LocalNavigator: cyklus selhal: {ex}"); }
+            finally { kopie.Release(frame); }   // vlastni kopie (Post) zpet do poolu; cizi snimek Release ignoruje
         }
 
         private void Process(CameraFrame frame)
         {
             sw.Restart();
+            cpuStartCyklu = ARBot.Common.Diagnostics.AktualniJadro.Cislo();
 
             // (1) Poza v case PORIZENI TOHOTO snimku (per kamera zvlast). null = mimo okno historie
             //     -> snimek zahodit, spatna poza by mapu otravila.
@@ -488,6 +552,10 @@ namespace ARBot.Common.Occupancy
             if (plan != null)
             {
                 plan.ComputeMs = sw.Elapsed.TotalMilliseconds;
+                // Jadro na zacatku a konci (RK3588: 0-3 A55, 4-7 A76) - rozlisi pomaly prvni snimek
+                // po probuzeni na malem jadru od nabehu frekvence (lp-vykon-retezu-na-arm).
+                plan.CpuStart = cpuStartCyklu;
+                plan.CpuEnd = ARBot.Common.Diagnostics.AktualniJadro.Cislo();
                 LastPlan = plan;
                 var planMsg = plan.ToLogMessage();
                 planMsg.Frame = Frame;

@@ -33,8 +33,20 @@ namespace ARBot.Common.Logs
         public double MinClearanceM;
         /// <summary>Pocet bunek expandovanych v A* (diagnostika vykonu).</summary>
         public int ExpandedCells;
-        /// <summary>Doba planovani [ms] (integrace + EDT + A*).</summary>
+        /// <summary>
+        /// Doba prace navigace nad jednim snimkem [ms], wall-clock: <c>GetStateAt</c> (zamek fuze, pripadne
+        /// liny prepocet EKF), zapis do gridu, klin, pole odstupu (EDT), A* s vyhlazovanim, stavba regulatoru
+        /// a kontrola kolize (<c>LocalNavigator.Process</c>). Bez cekani ve fronte a bez emitu zpravy;
+        /// obsahuje preempci, GC i zasek procesu. Rozbor ze zaznamu: <c>ARBot.Analyze perf</c>, blok 7.
+        /// </summary>
         public double ComputeMs;
+
+        /// <summary>
+        /// Jadro CPU na zacatku a na konci vypoctu (<c>AktualniJadro</c> = sched_getcpu na Linuxu, verze 5,
+        /// 13. 10. 2026); -1 = nevi se (starsi verze). RK3588: 0-3 male A55, 4-7 velke A76. Rozlisi,
+        /// jestli pomaly prvni snimek po probuzeni navigatoru bezi na malem jadru (lp-vykon-retezu-na-arm).
+        /// </summary>
+        public short CpuStart = -1, CpuEnd = -1;
 
         // --- Kde robot stoji (verze 4, 8. 10. 2026) ---
         // Z nich hlidac uvaznuti (StuckMonitor) pojmenuje pricinu stani. Ve starsich verzich chybi
@@ -192,8 +204,10 @@ namespace ARBot.Common.Logs
         /// do sveta (lp-grid-odometricka-soustava).</para>
         /// <para><b>Verze 4</b> (2026-10-08) pridala, kde robot stoji: <see cref="GoalDistanceM"/>,
         /// <see cref="StartBlock"/>, <see cref="StartClearanceM"/> (hlidac uvaznuti,
-        /// nav-uvaznuti-neohlasene).</para></summary>
-        public const int FormatVersion = 4;
+        /// nav-uvaznuti-neohlasene).</para>
+        /// <para><b>Verze 5</b> (2026-10-13) pridala jadro CPU na zacatku a konci vypoctu
+        /// (<see cref="CpuStart"/>, <see cref="CpuEnd"/>; lp-vykon-retezu-na-arm).</para></summary>
+        public const int FormatVersion = 5;
 
         public LocalPlanMsg() : base("LocalPlanMsg", FormatVersion)
         {
@@ -249,6 +263,12 @@ namespace ARBot.Common.Logs
                 bw.Write(GoalDistanceM);
                 bw.Write(StartBlock);
                 bw.Write(StartClearanceM);
+            }
+
+            if (Verze >= 5)
+            {
+                bw.Write(CpuStart);
+                bw.Write(CpuEnd);
             }
         }
 
@@ -319,6 +339,13 @@ namespace ARBot.Common.Logs
                 GoalDistanceM = br.ReadDouble();
                 StartBlock = br.ReadByte();
                 StartClearanceM = br.ReadDouble();
+            }
+
+            // Do verze 4 vcetne se jadro nevi (-1).
+            if (Verze >= 5)
+            {
+                CpuStart = br.ReadInt16();
+                CpuEnd = br.ReadInt16();
             }
         }
 

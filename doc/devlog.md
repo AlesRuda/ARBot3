@@ -74,6 +74,37 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   sklopení nevysvětlí — mění znaménko i mezi dvěma jízdami 27. 9. pět minut po sobě (+2,65 / −2,87°).
   Nová sekce v `hardware.md`: díly z PLA nesnesou horké auto, po podezření na mechanickou změnu
   pustit `montaz`.
+- **Výkon lokální navigace na Pi ze záznamů** (bod 8 průzkumu, `lp-vykon-retezu-na-arm`). Nový
+  **blok 7 `ARBot.Analyze perf`** čte `LocalPlanMsg.ComputeMs` po plánech (chvost, histogram, po
+  probuzení / navazující, po kamerách, cena dávky za takt, fronta, zpoždění plánu za zpracovaným
+  snímkem, přepsané časy pořízení). Robot k tomu potřeba nebyl: všech 30 jízd (26 v `records/test`,
+  4 v `records/Robotour2026`) jelo na Pi. Navigace dostává snímky **po dávkách jednou za takt**
+  (smyčka si vezme nejnovější z každé kamery, levá první), takže rozpočet je ~100 ms na dvojici
+  snímků — ne jeden výpočet za takt, jak předpokládal registr, ani 33 ms na snímek. Dávka stojí p50
+  32–56 ms, p99 74–107 ms, nad 100 ms 0,1–3,4 % taktů; plán je za snímkem p50 57–83 ms. **První
+  výsledek „levá kamera je 2× dražší“ byl omyl** — vyšetření (workflow s ověřovatelem: vzor v datech,
+  přehrání na PC, kód) ukázalo, že drahý je **první snímek po probuzení navigátoru** (zhruba v polovině
+  případů ~4,5×) a levá jde vždy první; pravá v taktu sama je stejně pomalá a na PC je práce pro obě
+  stejná. Kandidát je malé jádro A55 nebo náběh frekvence, potvrdit jde jen na zařízení. Vedlejší
+  nález `lp-navigator-zivy-slot-kamery`: navigace pracuje nad živým slotem kamery bez kopie, 3–23 %
+  plánů nese čas pořízení jiného snímku; spolu se zásekem procesu 1,19 s vysvětluje případ
+  „1 226 ms / zpoždění 1,1 ms“ z 1. 10. (1 226 ms je zásek, 1,1 ms přepsaný čas). Ověřovatelé
+  bloku 7 našli tři vady párování plánu se snímkem (příliš široké okno, těsná tolerance shody,
+  přepis před startem nepoznaný) — opraveny a přeměřeno. Opraveny komentáře `ComputeMs` (měří
+  i GetStateAt, klín, regulátor a kontrolu kolize, wall-clock) a v `perf-monitoring.md` „zahozeno
+  83 snímků“ (jsou to zprávy, `AvgMs` stupně je na zprávu). Měřeno na binárkách do 1. 10.; dnešní
+  kód (odom, smoothcorners, colorshadow) na Pi neběžel.
+- **Navigace si snímek kopíruje** (`lp-navigator-zivy-slot-kamery`, rozhodnutí autora: vlastní kopie
+  ~1 ms je v pořádku, hlídat přepis během kopírování, větší pool). Kopie v `LocalNavigator.Post` na
+  vlákně taktu (stejný vzor jako záznam a web), vrací se po zpracování, při zahození plnou frontou
+  (nový `MessageTarget.OnDropped` — bez něj by DropOldest pool vyčerpal) i po zastavení (`PostCore`).
+  Přepis hlídá **verze slotu** (seqlock): `CaptureFramePool.Next` lichá, `SensorBase` po zápisu metadat
+  sudá, `CameraFramePool.Acquire` roztrženou kopii zahodí — i pro záznam a web. Capture pool 3 → 8 slotů.
+  Do fronty navigace jen snímky. Ověřovatelé (souběh / pokrytí) potvrdili pořadí bariér i pro ARM
+  a publikaci ve všech driverech; našli, že `Publish` musí až za metadata v `SensorBase` (přesunuto)
+  a že **`Thread.GetCurrentProcessorId` .NET na Linuxu cachuje** — číslo jádra pro `LocalPlanMsg` v5
+  (k rozhodnutí `CPUAffinity` / governor) se proto čte přes `sched_getcpu` (`AktualniJadro`). Testy
+  souběhu a publikace ověřené mutací (bez kontroly verze / bez `Publish` padají). Na Pi neběželo.
 
 ## 2026-10-12
 

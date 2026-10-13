@@ -8295,30 +8295,116 @@ temata:
 
   - id: lp-vykon-retezu-na-arm
     oblast: lokalni-planovani
-    nazev: Výkon řetězu hloubka → grid → EDT → A* na ARM není změřený
+    nazev: "Výkon lokální navigace na Pi: do taktu se vejde, ale první snímek po probuzení navigátoru bývá zhruba v polovině případů ~4,5× pomalejší"
     druh: zamer
     stav: otevreno
     nalezeno: 2026-08-10
     popis: >
-      Occupancy grid, distanční transformace a A* běží v řídicí smyčce každý takt (10×/s).
-      Při návrhu 10. 8. 2026 se ověření výkonu na cílové desce zapsalo jako zbývající krok
-      a od té doby se řetěz měřil jen na Windows. Na Orange Pi je změřená vizuální část
-      (zpracování snímku, síť na CPU i NPU) a obsazenost taktu se sleduje souhrnně (`PerfMsg`),
-      ale rozpad na integraci + EDT + A* jako čísla z ARM chybí — takže se neví, kolik
-      z periody 100 ms tam ten řetěz bere.
+      Při návrhu 10. 8. 2026 se ověření výkonu na cílové desce zapsalo jako zbývající krok. **Změřeno
+      13. 10. 2026 ze záznamů** (`ARBot.Analyze perf` blok 7, nový; 30 jízd 6. 9.–1. 10. na Pi,
+      binárky do `f848fdf2`, tedy bez změn od 1. 10. — `localframe=odom`, `smoothcorners`,
+      `colorshadow=height`). Původní popis byl vedle: řetěz neběží jednou za takt řídicí smyčky, ale nad
+      každým předaným snímkem — smyčka si na začátku taktu (100 ms) vezme z každé kamery nejnovější
+      snímek a oba předá navigátoru, takže chodí po dávkách, obvykle dvojicích (~9,4/s na kameru, levá
+      první). Rozpočet je ~100 ms na dávku (fronta 4 zprávy, za takt přijdou čtyři, při přetečení
+      zahazuje nejstarší). `ComputeMs` měří celou práci nad snímkem (GetStateAt pod zámkem fúze, grid,
+      klín, EDT, A* s vyhlazováním, regulátor, kontrola kolize; wall-clock). Výsledky (rozsahy přes
+      jízdy, bez jízdy 6. 9. odpoledne jen s pravou kamerou): vytížení 28–60 % jednoho jádra;
+      `ComputeMs` p50 12–23 ms, p99 44–75 ms; dávka za takt p50 32–56 ms, p99 74–107 ms, nad 100 ms
+      0,1–3,4 % taktů (další dávka pak začne později, zahazuje se zřídka); plán je za zpracovaným
+      snímkem p50 57–83 ms, p99 118–144 ms (k tomu až takt, než si ho smyčka vezme). Návrhové
+      „plánovač smí občas trvat 15 ms“ změřené nebylo a neplatí. **Nález: „levá kamera je 2× dražší“ je
+      omyl** — drahý je první snímek po probuzení navigátoru (po probuzení p50 19–42 ms, nad 25 ms
+      47–62 %; navazující p50 10–22 ms, 2–13 %), a levá jde v dávce první. Pravá v taktu sama je stejně
+      pomalá, přehrání týchž snímků na PC dává obě kamery stejně (13,5 / 13,3 ms). Rozdělení po
+      probuzení je dvouvrcholové: zhruba polovina plánů v pomalém módu (~4,5× při malé práci), mediány
+      1,4–3,5× (o 6–27 ms). Odvozeno z tvaru (střední jistota): konstantní pauza (GC, zámek) nesedí,
+      „celý plán na A55“ tvar vyvrací, sedí pomalá fáze ~40 ms po probuzení vlákna — malé jádro A55,
+      nebo náběh frekvence. Podle kódu stupeň nemá vlastní vlákno (async `ConsumeLoop` pokračuje po
+      prázdné frontě na vlákně z poolu) — odvozeno, neověřeno; komentáře v `MessageTarget.cs`,
+      `LocalNavigator.cs` a `ARBotRuntime.cs` tvrdí opak. Mechanismus nepotvrzený, číslo jádra
+      navigátoru žádný záznam nenese. Dopad hlavně na latenci, do taktu se řetěz vejde. **Od 13. 10. 2026
+      (v kódu)** nese zpráva plánu jádro na začátku a konci výpočtu (`LocalPlanMsg` v5) a do fronty
+      navigace jdou jen snímky (dřív ji plnily i řídicí zprávy, které navigace zahazuje).
     kroky:
-      - co: Změřit integraci + EDT + A* na Orange Pi (doba na takt, podíl periody)
+      - co: "Změřit ze záznamů z Pi: `ARBot.Analyze perf` blok 7 (chvost `ComputeMs`, po probuzení / navazující, po kamerách, cena dávky za takt, fronta, zpoždění plánu za snímkem) — 30 jízd"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Číslo jádra na začátku a konci výpočtu do zprávy plánu (`LocalPlanMsg` verze 5) a rozpad podle jádra v `perf` bloku 7 — přes `sched_getcpu` (`AktualniJadro`), ne `Thread.GetCurrentProcessorId`, který .NET na Linuxu vrací z mezipaměti vlákna a obnovuje jen jednou za N volání"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Jízda s novou binárkou a `perf` blok 7: běží pomalé plány po probuzení na malých jádrech 0–3 (A55), nebo i na velkých 4–7? (Mezičasy kroků a `IsThreadPoolThread` zatím ne — jen kdyby jádro nestačilo)"
+        stav: otevreno
+      - co: "Levná zkouška bez nové telemetrie: prohodit pořadí kamer v pullu — postih se má přesunout na pravou kameru; když ne, vysvětlení přes pořadí padá"
+        stav: otevreno
+      - co: "Rozhodnout (autor): `CPUAffinity=4-7`, governor `performance`, nebo vlastní vlákno navigace připnuté na velká jádra — a jestli to řešit, když se řetěz do taktu vejde. Podklad (13. 10.): rozhodne jízda výš. Pomalé plány na 0–3 = umístění vlákna → afinita (cílenější je připnout jen vlákno navigace; `CPUAffinity=4-7` dá celý proces, dnes ~1,6 jádra zátěže, jen na 4 velká jádra). Pomalé i na 4–7 = náběh frekvence → governor (`performance` drží všechna jádra trvale na maximu — teplo a spotřeba, deska bez větráku má v klidu 63–65 °C; mírnější je zvednout minimální frekvenci jen velkých jader). Obojí jde na Pi zkusit bez nové binárky"
+        stav: otevreno
+      - co: "Přeměřit s dnešním kódem (`localframe=odom`, `smoothcorners`, `colorshadow=height` a další od 1. 10.) — nejbližší jízda, `perf` blok 7"
         stav: otevreno
     odkazy:
-      - text: occupancy-and-local-planning.md
-        cesta: doc/occupancy-and-local-planning.md
       - text: perf-monitoring.md
         cesta: doc/perf-monitoring.md
-      - text: LocalPathPlanner.cs
-        cesta: Src/ARBot.Common/Occupancy/LocalPathPlanner.cs
-      - text: ClearanceField.cs
-        cesta: Src/ARBot.Common/Occupancy/ClearanceField.cs
-    devlog: [2026-08-10]
+      - text: occupancy-and-local-planning.md
+        cesta: doc/occupancy-and-local-planning.md
+      - text: PerfReport.cs
+        cesta: Src/ARBot.Analyze/PerfReport.cs
+      - text: LocalNavigator.cs
+        cesta: Src/ARBot.Common/Occupancy/LocalNavigator.cs
+    devlog: [2026-08-10, 2026-10-13]
+    ceka_na: []
+
+  - id: lp-navigator-zivy-slot-kamery
+    oblast: lokalni-planovani
+    nazev: "Navigace pracovala nad živým slotem kamery bez kopie — 3–23 % plánů neslo čas pořízení jiného snímku; od 13. 10. vlastní kopie"
+    druh: vada
+    stav: v-kodu
+    nalezeno: 2026-10-13
+    vyreseno: 2026-10-13
+    popis: >
+      Driver D435 plní snímky do `CaptureFramePool` o třech slotech a `ControlLoop` předává odběratelům
+      `ControlLoop.Output` (LocalNavigator, CorridorLocalizer, FreeRun, QrScanner, GlobalNavigator)
+      TENTÝŽ objekt, bez kopie; kopii si dělá jen záznam (`RecordingTarget`) a webový náhled
+      (`WebStatus`). Kamera slot po třech
+      snímcích (~100 ms) přepíše. `LocalNavigator` čte čas snímku pro zprávu plánu až po A*
+      (`frame.TimeStamp`, `LocalNavigator.cs:424`), takže když výpočet s čekáním přesáhne ~100 ms
+      od pořízení, nese plán čas pořízení POZDĚJŠÍHO snímku. Změřeno 13. 10. 2026 (`perf` blok 7: plán
+      spárovaný se skutečně zpracovaným snímkem nese jiný čas pořízení) u 3–23 % plánů ve 30 jízdách
+      (Track a Robotour víc, Kolo 3a 23,5 %); v případu 1. 10. 15:15:43 (ComputeMs 1 226 ms, „zpoždění
+      1,1 ms“) je 1 226 ms zásek procesu a 1,1 ms tenhle přepsaný čas. Důsledky: časy v `LocalPlanMsg` (a z nich počítaná zpoždění
+      a párování) nejsou spolehlivé. **Neověřené (odvozené):** totéž přepsání může během integrace
+      podstrčit navigaci data jiného snímku (`Grid`, `ImageProbability`), tedy zápis jednoho snímku
+      s pózou druhého. **Oprava v kódu 13. 10. 2026 (rozhodnutí autora):** navigace si snímek kopíruje
+      do vlastního poolu už v `Post` — na vlákně taktu hned po předání, stejný vzor jako záznam a web
+      (~1 ms na snímek autor přijal) — a kopii vrací po zpracování, když ji zahodí plná fronta
+      (`MessageTarget.OnDropped`) i když se po zastavení nezařadí. Přepis během kopírování hlídá **verze
+      slotu** (seqlock): `CaptureFramePool.Next` ji před zápisem nastaví na lichou, `SensorBase` po zápisu
+      metadat na sudou a `CameraFramePool.Acquire` kopii s lichou nebo změněnou verzí zahodí — smíšená
+      data dvou snímků se nezpracují nikde (platí i pro záznam a web; čítače `TornDrops`/`ExhaustedDrops`,
+      škrcené hlášky do Trace). Capture pool kamery má místo 3 slotů **8** (~233 ms při 30 sn/s, +~25 MB).
+      Do fronty navigace jdou jen snímky (řídicí zprávy z `ControlLoop.Output` ji dřív zbytečně plnily).
+    kroky:
+      - co: "Změřeno ze záznamů (`ARBot.Analyze perf` blok 7: plány s přepsaným časem pořízení, 3–23 % ve 30 jízdách) a dohledán mechanismus v kódu"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Rozhodnout (autor): číst čas snímku jednou na začátku `Process`, předávat odběratelům kopii z poolu (jako záznam), nebo zvětšit hloubku poolu — rozhodnuto 13. 10. 2026: vlastní kopie pro navigaci, hlídat přepis během kopírování, větší pool"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Implementováno: kopie v `LocalNavigator.Post` (pool = fronta + 2), verze slotu (`CaptureFramePool.Next` / `SensorBase` / `CameraFramePool.Acquire`), capture pool 8 slotů, `MessageTarget.OnDropped` a `PostCore`, do fronty navigace jen snímky, hlášky záznamu a webu; testy včetně souběhu (ověřeno mutací: bez kontroly verze padají)"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Ostatní odběratelé živého slotu (koridor, FreeRun, globální navigace, QR): čtou data hned na začátku zpracování, fronty 4 / 4 / 16 / 1 zprávy, změřeno do ~20 ms na zprávu — s 8 sloty (~233 ms) je rezerva velká, kopii jim zatím nepřidávat"
+        stav: hotovo
+        kdy: 2026-10-13
+      - co: "Ověřit na zařízení: `perf` blok 7 nad jízdou s novou binárkou — přepsané časy u navigace 0 %, v Trace žádné „kopie snímku … vynechán“ ani „roztržená kopie“, obsazenost taktu (+2 kopie ~1 ms)"
+        stav: otevreno
+      - co: "Volitelně: odlehčená kopie pro navigaci (jen pravděpodobnost a metadata; z RGB čte jen rozměr, hloubku nečte) — ušetří ~1 ms na snímek na vlákně taktu, chce ale rozměr barevného obrazu mimo `ImageRGB`"
+        stav: otevreno
+    odkazy:
+      - text: perf-monitoring.md
+        cesta: doc/perf-monitoring.md
+      - text: LocalNavigator.cs
+        cesta: Src/ARBot.Common/Occupancy/LocalNavigator.cs
+    devlog: [2026-10-13]
     ceka_na: []
 
   - id: lp-filtr-izolovanych-bunek
@@ -10213,10 +10299,13 @@ temata:
         kdy: 2026-10-07
       - co: "Sbírat v `PerfMsg` pauzy GC (`GC.GetTotalPauseDuration`, počet kolekcí gen 2) a čas zápisu záznamu, aby příští zásek šel přiřadit"
         stav: otevreno
+      - co: "13. 10. 2026 (`perf` blok 7): v lokální navigaci je zásek vidět jako plán s `ComputeMs` 1 226 ms (stopky běžely přes něj) a nesmyslným zpožděním 1,1 ms (přepsaný slot kamery, `lp-navigator-zivy-slot-kamery`); snímky prvního doháněcího taktu plán nemají"
+        stav: hotovo
+        kdy: 2026-10-13
     odkazy:
       - text: perf-monitoring.md
         cesta: doc/perf-monitoring.md
-    devlog: [2026-10-07]
+    devlog: [2026-10-07, 2026-10-13]
     ceka_na: []
 
   - id: hw-motor-davka-po-zaseku

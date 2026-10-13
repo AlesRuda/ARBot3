@@ -200,6 +200,10 @@ namespace ARBot.Common.Devices
                                 ss.DropedOutNum = 0;
                             lastTimeStamp = ts;
                         }
+                        // Capture slot kamery je hotovy az TED (metadata vyse se pisou do slotu) -> verze
+                        // na sudou, drive nez ho kdokoli vyzvedne (lastMeasurement pod timtez zamkem).
+                        // Viz CaptureFramePool.Publish, lp-navigator-zivy-slot-kamery.
+                        if (v is CameraFrame cf) CaptureFramePool.Publish(cf);
                         lastMeasurement = v;
                     }
 

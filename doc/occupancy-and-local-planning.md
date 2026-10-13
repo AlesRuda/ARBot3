@@ -54,6 +54,15 @@ CameraFrame (Grid + ImageProbability + Projection)
 odebírá `CameraFrame` z `ControlLoop.Output` (řídicí smyčka je po pullu forwarduje), výstupem je
 nastavení `ControlLoop.Regulator` (atomická výměna, volatile — už existuje) plus zprávy na `Stream`.
 **Neběží na tiku `ControlLoop`** — tik má zůstat deterministický, plánovač smí občas trvat 15 ms.
+⚠️ **Změřeno 13. 10. 2026** (`ARBot.Analyze perf` blok 7, 30 jízd na Pi, [perf-monitoring.md](perf-monitoring.md)):
+snímky chodí po dávkách jednou za takt (obvykle levý a pravý) a celá práce nad snímkem (`ComputeMs`)
+má p50 12–23 ms a p99 44–75 ms; dávka snímků jednoho taktu se do 100 ms vejde v 96,6–99,9 % případů.
+Předpoklad „smí občas trvat 15 ms" tedy neplatí. První snímek po probuzení navigátoru bývá zhruba
+v polovině případů ~4,5× pomalejší než navazující (`lp-vykon-retezu-na-arm`), a podle kódu stupeň nemá
+vlastní vlákno — async `ConsumeLoop` pokračuje po prázdné frontě na vlákně z poolu (odvozeno,
+neověřeno). **Od 13. 10. 2026** si navigace snímek při předání kopíruje do vlastního poolu (dřív četla
+živý slot kamery, který kamera po pár snímcích přepsala — `lp-navigator-zivy-slot-kamery`) a do její
+fronty jdou jen snímky.
 
 Vstupní fronta je `OverflowPolicy.DropOldest` s malou kapacitou: když plánovač nestíhá, je správné
 zpracovat **nejnovější** snímek a staré zahodit (stará mapa je horší než žádná).

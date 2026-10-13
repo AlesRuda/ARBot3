@@ -25,7 +25,7 @@ namespace ARBot.HAL.Devices.Camera
         private readonly VirtualCameraOptions options;
 
         /// <summary>Recyklovane buffery snimku (stejny vzor jako <c>D435Camera</c>).</summary>
-        private readonly CaptureFramePool capturePool = new CaptureFramePool(3);
+        private readonly CaptureFramePool capturePool = new CaptureFramePool();   // vychozi pocet slotu (8), viz CaptureFramePool
 
         private CameraSettings settingsRGB;
         private CameraSettings settingsDepth;
@@ -140,6 +140,7 @@ namespace ARBot.HAL.Devices.Camera
             // k realnym vypadkum D435. Viz CameraVisionStep.
             ARBot.HAL.Devices.Camera.CameraVisionStep.Run(FrameProcessor, frame, Name);
 
+            // Slot se publikuje (verze na sudou) az v SensorBase.Process, po zapisu metadat - viz CaptureFramePool.Publish.
             return frame;
         }
 

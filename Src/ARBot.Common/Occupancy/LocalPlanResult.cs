@@ -214,8 +214,13 @@ namespace ARBot.Common.Occupancy
             return min;
         }
 
-        /// <summary>Doba vypoctu [ms] (integrace snimku + EDT + A*), plni <c>LocalNavigator</c>.</summary>
+        /// <summary>Doba prace navigace nad snimkem [ms] (GetStateAt, integrace, klin, EDT, A*, regulator,
+        /// kontrola kolize; wall-clock), plni <c>LocalNavigator</c> - viz <see cref="ARBot.Common.Logs.LocalPlanMsg.ComputeMs"/>.</summary>
         public double ComputeMs;
+
+        /// <summary>Jadro CPU (<c>AktualniJadro</c>) na zacatku a na konci vypoctu; -1 = nevi se.
+        /// RK3588: 0-3 male A55, 4-7 velke A76 (lp-vykon-retezu-na-arm).</summary>
+        public int CpuStart = -1, CpuEnd = -1;
 
         /// <summary>Cas pozy, ze ktere se planovalo.</summary>
         public DateTime TimeStamp;
@@ -238,6 +243,8 @@ namespace ARBot.Common.Occupancy
             StartClearanceM = StartClearanceM,
             ExpandedCells = ExpandedCells,
             ComputeMs = ComputeMs,
+            CpuStart = (short)CpuStart,
+            CpuEnd = (short)CpuEnd,
             WayPoints = WayPoints,
             TimeStamp = TimeStamp,
             // Rozpad obalky PO UZLECH (zprava verze 2) - bez nej se ze zaznamu nedalo rict, PROC
