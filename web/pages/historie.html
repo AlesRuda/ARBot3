@@ -32,9 +32,9 @@
   <p class="lead">Co se kdy ukázalo jako problém, co se s tím udělalo a co ještě čeká. Každá položka vede
   do dokumentace v repozitáři, kde jsou čísla a měření.</p>
   <form class="filtr" id="filtr" onsubmit="return false" autocomplete="off">
-    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">37</span></label>
-    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">43</span></label>
-    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">171</span></label>
+    <label><input type="checkbox" name="stav" value="otevreno" checked> <span class="stav stav-otevreno">otevřeno</span> <span class="mono">38</span></label>
+    <label><input type="checkbox" name="stav" value="v-kodu" checked> <span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span class="mono">42</span></label>
+    <label><input type="checkbox" name="stav" value="hotovo" checked> <span class="stav stav-hotovo">hotovo</span> <span class="mono">172</span></label>
     <label><input type="checkbox" name="stav" value="odlozeno" checked> <span class="stav stav-odlozeno">odloženo</span> <span class="mono">14</span></label>
     <label><input type="checkbox" name="stav" value="zamitnuto" checked> <span class="stav stav-zamitnuto">zam&#237;tnuto</span> <span class="mono">9</span></label>
     <input type="search" name="hledat" placeholder="hledat v textu…" aria-label="hledat v textu" hidden>
@@ -479,6 +479,7 @@
       <li data-tema="hw-naklon-robotu-od-29-9"><span class="mono">13. 10.</span> <span class="typ">nalezeno</span> <a href="#hw-naklon-robotu-od-29-9">Mezi 27. a 29. 9. 2026 se obě D435 sklopily vůči zemi o ~2,4&#176; — d&#237;ly z PLA zdeformovan&#233; horkem v autě, předělaj&#237; se</a></li>
       <li data-tema="hw-vetev-usb-2-1-3"><span class="mono">13. 10.</span> <span class="typ">vyřešeno</span> <a href="#hw-vetev-usb-2-1-3">Tvrd&#233; z&#225;seky D435 — ne port <code>2-1.3</code>, ale kamera, kter&#225; je ve v&#253;čtu později (<code>QueryDevices</code> padal na streamuj&#237;c&#237; kameře); od 13. 10. dotaz chybn&#233; zař&#237;zen&#237; přeskoč&#237;</a></li>
       <li data-tema="lp-navigator-zivy-slot-kamery"><span class="mono">13. 10.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#lp-navigator-zivy-slot-kamery">Navigace pracovala nad živ&#253;m slotem kamery bez kopie — 3–23 % pl&#225;nů neslo čas poř&#237;zen&#237; jin&#233;ho sn&#237;mku; od 13. 10. vlastn&#237; kopie</a></li>
+      <li data-tema="web-mathjax-presazuje-vzorce"><span class="mono">14. 10.</span> <span class="typ">nalezeno</span> <a href="#web-mathjax-presazuje-vzorce">Čl&#225;nky se vzorci po načten&#237; přesazuj&#237; vzorce (MathJax)</a></li>
       <li data-tema="web-pisma-problikavaji"><span class="mono">14. 10.</span> <span class="typ">nalezeno i vyřešeno</span> <a href="#web-pisma-problikavaji">Web při obnoven&#237; str&#225;nky problik&#225;val — p&#237;sma z Google Fonts se dotahovala až po vykreslen&#237;</a></li>
     </ul>
   </div>
@@ -3568,16 +3569,14 @@ Chyba 2&#176; ve sklonu posune m&#237;sto, odkud se barva lev&#233; kamery zap&#
 <section class="oblast">
   <p class="eyebrow">Oblast</p>
   <h2>Web a dokumentace</h2>
-  <article class="tema" id="web-pisma-problikavaji" data-stav="v-kodu">
-    <h3>Web při obnoven&#237; str&#225;nky problik&#225;val — p&#237;sma z Google Fonts se dotahovala až po vykreslen&#237;</h3>
-    <p class="tema-meta"><span class="stav stav-v-kodu">v k&#243;du, na HW neověřeno</span> <span>vada</span> <span>nalezeno 14. 10. 2026</span> <span>vyřešeno 14. 10. 2026</span></p>
-    <p>Autor si všiml, že se str&#225;nka při obnoven&#237; nejdř&#237;v vykresl&#237; jedn&#237;m p&#237;smem a po načten&#237; jin&#233;ho se překresl&#237;. Př&#237;činou byla p&#237;sma z Google Fonts s <code>display=swap</code>: text se nejdř&#237;v uk&#225;zal z&#225;ložn&#237;m p&#237;smem (Georgia / Arial / Consolas) a po stažen&#237; fontu se přepsal. Každ&#225; rodina nav&#237;c chod&#237; zvl&#225;šť pro <code>latin</code> a <code>latin-ext</code> a čeština potřebuje oboj&#237;, takže se str&#225;nka mohla překreslit i v&#237;ckr&#225;t. Oprava: tři rodiny (Newsreader, Archivo, JetBrains Mono; licence SIL OFL 1.1) hostuje web s&#225;m v <code>web/assets/fonts/</code>. Deklaruje je <code>site.css</code> s <code>font-display: block</code> (rozhodnut&#237; autora: radši počkat na p&#237;smo, než text přepsat). Každ&#225; str&#225;nka v hlavičce přednač&#237;t&#225; <code>latin</code> a <code>latin-ext</code> všech tř&#237; rodin, takže p&#237;sma jsou hotov&#225; dř&#237;v, než se str&#225;nka poprv&#233; vykresl&#237;. Ověřeno v prohl&#237;žeči nad lok&#225;ln&#237;m serverem na všech 22 str&#225;nk&#225;ch. Že str&#225;nka preload m&#225; a Google Fonts netah&#225;, hl&#237;d&#225; <code>tools/menu.cs</code> (a t&#237;m CI). Na <code>arbot.cz</code> to zat&#237;m neběž&#237;, protože změna nen&#237; zveřejněn&#225;. Tři čl&#225;nky se vzorci (MathJax z cdnjs) po načten&#237; vzorce znovu přesazuj&#237;. To je jin&#253; zdroj t&#233;hož dojmu a zat&#237;m se neřešil.</p>
+  <article class="tema" id="web-mathjax-presazuje-vzorce" data-stav="otevreno">
+    <h3>Čl&#225;nky se vzorci po načten&#237; přesazuj&#237; vzorce (MathJax)</h3>
+    <p class="tema-meta"><span class="stav stav-otevreno">otevřeno</span> <span>vada</span> <span>nalezeno 14. 10. 2026</span></p>
+    <p>Při opravě problik&#225;v&#225;n&#237; p&#237;sem (<code>web-pisma-problikavaji</code>) se uk&#225;zalo, že tři technick&#233; čl&#225;nky (<code>regulator-sledovani-drahy</code>, <code>model-diferencialniho-podvozku</code>, <code>detekce-kraje-vozovky</code>) po načten&#237; str&#225;nky ještě jednou překresl&#237; vzorce. S&#225;z&#237; je MathJax stažen&#253; z cdnjs, a ten vzorce nahrad&#237; až po sv&#233;m načten&#237;, takže se text pod nimi posune. Je to jin&#253; zdroj t&#233;hož dojmu jako u p&#237;sem. Zat&#237;m se neřešilo, rozhodne autor.</p>
     <ul class="kroky">
-      <li class="hotovo">P&#237;sma hostovan&#225; u webu, preload v hlavičk&#225;ch (i šablona <code>historie.html</code> v <code>tools/ukoly.cs</code>), <code>font-display: block</code>, kontrola v <code>tools/menu.cs</code> <span class="mono">14. 10. 2026</span></li>
-      <li class="otevreno">Zveřejnit a ověřit obnoven&#237; str&#225;nky na <code>arbot.cz</code></li>
-      <li class="otevreno">Rozhodnout (autor), jestli řešit přesazov&#225;n&#237; vzorců MathJaxem na třech čl&#225;nc&#237;ch (<code>regulator-sledovani-drahy</code>, <code>model-diferencialniho-podvozku</code>, <code>detekce-kraje-vozovky</code>)</li>
+      <li class="otevreno">Rozhodnout (autor), jestli a jak to řešit</li>
     </ul>
-    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/README.md">web/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/web/assets/site.css">site.css</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/tools/menu.cs">menu.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-14">2026-10-14</a></p>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/README.md">web/README.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-14">2026-10-14</a></p>
   </article>
   <article class="tema" id="web-dokumentace-devlog" data-stav="hotovo">
     <h3>Dokumentace v repozit&#225;ři — rozcestn&#237;k <code>CLAUDE.md</code>, dom&#233;nov&#233; <code>doc/*.md</code> a DevLog</h3>
@@ -3655,6 +3654,16 @@ Chyba 2&#176; ve sklonu posune m&#237;sto, odkud se barva lev&#233; kamery zap&#
       <li class="hotovo">Str&#225;nka čl&#225;nku, obr&#225;zek, odkaz v seznamu čl&#225;nků, skupina v gener&#225;toru menu <span class="mono">20. 9. 2026</span></li>
     </ul>
     <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/pages/robotour-2026.html">robotour-2026.html</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/robotour-mission.md">robotour-mission.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/global-navigation-runtime.md">global-navigation-runtime.md</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-19">2026-09-19</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-09-20">2026-09-20</a></p>
+  </article>
+  <article class="tema" id="web-pisma-problikavaji" data-stav="hotovo">
+    <h3>Web při obnoven&#237; str&#225;nky problik&#225;val — p&#237;sma z Google Fonts se dotahovala až po vykreslen&#237;</h3>
+    <p class="tema-meta"><span class="stav stav-hotovo">hotovo</span> <span>vada</span> <span>nalezeno 14. 10. 2026</span> <span>vyřešeno 14. 10. 2026</span></p>
+    <p>Autor si všiml, že se str&#225;nka při obnoven&#237; nejdř&#237;v vykresl&#237; jedn&#237;m p&#237;smem a po načten&#237; jin&#233;ho se překresl&#237;. Př&#237;činou byla p&#237;sma z Google Fonts s <code>display=swap</code>: text se nejdř&#237;v uk&#225;zal z&#225;ložn&#237;m p&#237;smem (Georgia / Arial / Consolas) a po stažen&#237; fontu se přepsal. Každ&#225; rodina nav&#237;c chod&#237; zvl&#225;šť pro <code>latin</code> a <code>latin-ext</code> a čeština potřebuje oboj&#237;, takže se str&#225;nka mohla překreslit i v&#237;ckr&#225;t. Oprava: tři rodiny (Newsreader, Archivo, JetBrains Mono; licence SIL OFL 1.1) hostuje web s&#225;m v <code>web/assets/fonts/</code>. Deklaruje je <code>site.css</code> s <code>font-display: block</code> (rozhodnut&#237; autora: radši počkat na p&#237;smo, než text přepsat). Každ&#225; str&#225;nka v hlavičce přednač&#237;t&#225; <code>latin</code> a <code>latin-ext</code> všech tř&#237; rodin, takže p&#237;sma jsou hotov&#225; dř&#237;v, než se str&#225;nka poprv&#233; vykresl&#237;. Ověřeno v prohl&#237;žeči nad lok&#225;ln&#237;m serverem na všech 22 str&#225;nk&#225;ch. Že str&#225;nka preload m&#225; a Google Fonts netah&#225;, hl&#237;d&#225; <code>tools/menu.cs</code> (a t&#237;m CI). Zveřejněno t&#253;ž den (<code>fbc8605</code>): <code>arbot.cz</code> pos&#237;l&#225; p&#237;sma ze <code>assets/fonts/</code>, prohl&#237;žeč je bere z preloadu a z Google nestahuje nic. Okamžik prvn&#237;ho vykreslen&#237; se na živ&#233;m webu změřit nepodařilo (panel prohl&#237;žeče nekreslil), ten je změřen&#253; jen lok&#225;lně. Přesazov&#225;n&#237; vzorců MathJaxem na třech čl&#225;nc&#237;ch je jin&#253; zdroj t&#233;hož dojmu, vede se zvl&#225;šť (<code>web-mathjax-presazuje-vzorce</code>).</p>
+    <ul class="kroky">
+      <li class="hotovo">P&#237;sma hostovan&#225; u webu, preload v hlavičk&#225;ch (i šablona <code>historie.html</code> v <code>tools/ukoly.cs</code>), <code>font-display: block</code>, kontrola v <code>tools/menu.cs</code> <span class="mono">14. 10. 2026</span></li>
+      <li class="hotovo">Zveřejnit a ověřit na <code>arbot.cz</code> (preload ze str&#225;nky, z Google nic) <span class="mono">14. 10. 2026</span></li>
+    </ul>
+    <p class="tema-odkazy"><a href="https://github.com/AlesRuda/ARBot3/blob/master/web/README.md">web/README.md</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/web/assets/site.css">site.css</a>, <a href="https://github.com/AlesRuda/ARBot3/blob/master/tools/menu.cs">menu.cs</a> · DevLog <a href="https://github.com/AlesRuda/ARBot3/blob/master/doc/devlog.md#2026-10-14">2026-10-14</a></p>
   </article>
 </section>
 <script>

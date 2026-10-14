@@ -10691,7 +10691,7 @@ temata:
     oblast: web
     nazev: Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení
     druh: vada
-    stav: v-kodu
+    stav: hotovo
     nalezeno: 2026-10-14
     vyreseno: 2026-10-14
     popis: >
@@ -10706,17 +10706,18 @@ temata:
       a `latin-ext` všech tří rodin, takže písma jsou hotová dřív, než se stránka poprvé vykreslí.
       Ověřeno v prohlížeči nad lokálním serverem na všech 22 stránkách. Že stránka preload má
       a Google Fonts netahá, hlídá `tools/menu.cs` (a tím CI).
-      Na `arbot.cz` to zatím neběží, protože změna není zveřejněná.
-      Tři články se vzorci (MathJax z cdnjs) po načtení vzorce znovu přesazují. To je jiný zdroj
-      téhož dojmu a zatím se neřešil.
+      Zveřejněno týž den (`fbc8605`): `arbot.cz` posílá písma ze `assets/fonts/`, prohlížeč je bere
+      z preloadu a z Google nestahuje nic. Okamžik prvního vykreslení se na živém webu změřit
+      nepodařilo (panel prohlížeče nekreslil), ten je změřený jen lokálně.
+      Přesazování vzorců MathJaxem na třech článcích je jiný zdroj téhož dojmu, vede se zvlášť
+      (`web-mathjax-presazuje-vzorce`).
     kroky:
       - co: "Písma hostovaná u webu, preload v hlavičkách (i šablona `historie.html` v `tools/ukoly.cs`), `font-display: block`, kontrola v `tools/menu.cs`"
         stav: hotovo
         kdy: 2026-10-14
-      - co: "Zveřejnit a ověřit obnovení stránky na `arbot.cz`"
-        stav: otevreno
-      - co: "Rozhodnout (autor), jestli řešit přesazování vzorců MathJaxem na třech článcích (`regulator-sledovani-drahy`, `model-diferencialniho-podvozku`, `detekce-kraje-vozovky`)"
-        stav: otevreno
+      - co: "Zveřejnit a ověřit na `arbot.cz` (preload ze stránky, z Google nic)"
+        stav: hotovo
+        kdy: 2026-10-14
     odkazy:
       - text: web/README.md
         cesta: web/README.md
@@ -10724,5 +10725,26 @@ temata:
         cesta: web/assets/site.css
       - text: menu.cs
         cesta: tools/menu.cs
+    devlog: [2026-10-14]
+    ceka_na: []
+
+  - id: web-mathjax-presazuje-vzorce
+    oblast: web
+    nazev: Články se vzorci po načtení přesazují vzorce (MathJax)
+    druh: vada
+    stav: otevreno
+    nalezeno: 2026-10-14
+    popis: >
+      Při opravě problikávání písem (`web-pisma-problikavaji`) se ukázalo, že tři technické články
+      (`regulator-sledovani-drahy`, `model-diferencialniho-podvozku`, `detekce-kraje-vozovky`)
+      po načtení stránky ještě jednou překreslí vzorce. Sází je MathJax stažený z cdnjs, a ten
+      vzorce nahradí až po svém načtení, takže se text pod nimi posune. Je to jiný zdroj téhož
+      dojmu jako u písem. Zatím se neřešilo, rozhodne autor.
+    kroky:
+      - co: "Rozhodnout (autor), jestli a jak to řešit"
+        stav: otevreno
+    odkazy:
+      - text: web/README.md
+        cesta: web/README.md
     devlog: [2026-10-14]
     ceka_na: []

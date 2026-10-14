@@ -53,9 +53,10 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   se nic mimo přednačtené (kromě řeckých/cyrilských subsetů JetBrains Mono tam, kde jsou takové
   znaky). `tools/menu.cs` nově **hlídá**, že stránka preload má a Google Fonts netahá (kód 1, CI
   `generovane-soubory`); ověřeno i negativně na kopii webu. Postup obnovy fontů a pravidlo pro
-  novou stránku: [web/README.md](../web/README.md), sekce *Písma*. ⚠️ **Zveřejněné není** (bez
-  commitu a push). ⚠️ Tři články se vzorci (MathJax z cdnjs) po načtení **přesazují vzorce** — jiný
-  zdroj téhož dojmu, neřešeno, rozhodne autor.
+  novou stránku: [web/README.md](../web/README.md), sekce *Písma*. Zveřejněno (`fbc8605`) a na
+  `arbot.cz` ověřené, že písma jdou z preloadu a z Google nic. ⚠️ Tři články se vzorci (MathJax
+  z cdnjs) po načtení **přesazují vzorce** — jiný zdroj téhož dojmu, neřešeno, rozhodne autor
+  (`web-mathjax-presazuje-vzorce`).
 
 ## 2026-10-13
 

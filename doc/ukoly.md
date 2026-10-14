@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **274**: otevřeno **37** · v kódu, na HW neověřeno **43** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **275**: otevřeno **38** · v kódu, na HW neověřeno **42** · hotovo **172** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -49,6 +49,7 @@ Témat celkem **274**: otevřeno **37** · v kódu, na HW neověřeno **43** · 
 | otevřeno | Hardware a senzory | [Dvě D435 přímo v desce — deska se při rozjezdu streamu resetuje](#hw-d435-primo-do-desky-reset) | 11. 10. 2026 |  |
 | otevřeno | Lokální mapa a plánování | [Zastaralý regulátor, jehož rotace drží kola v pohybu, se nezastaví — robot dotáčí na místě podle staré dráhy](#lp-zastaraly-regulator-rotace-drzi-kola) | 11. 10. 2026 |  |
 | otevřeno | Hardware a senzory | [Mezi 27. a 29. 9. 2026 se obě D435 sklopily vůči zemi o ~2,4° — díly z PLA zdeformované horkem v autě, předělají se](#hw-naklon-robotu-od-29-9) | 13. 10. 2026 |  |
+| otevřeno | Web a dokumentace | [Články se vzorci po načtení přesazují vzorce (MathJax)](#web-mathjax-presazuje-vzorce) | 14. 10. 2026 |  |
 | v kódu, na HW neověřeno | Hardware a senzory | [Driver NeoPixel (WS2812) přes SPI na Armbianu](#hw-neopixel-armbian) | 7. 7. 2026 |  |
 | v kódu, na HW neověřeno | Vidění | [Okluzní pravidlo zahazuje většinu barevných vzorků](#vid-inshadow-zahazuje-vzorky) | 14. 8. 2026 | [hw-naklon-robotu-od-29-9](#hw-naklon-robotu-od-29-9) |
 | v kódu, na HW neověřeno | Lokalizace a fúze senzorů | [Lokalizace z hran cesty místo z plochy](#lok-koridor-hranova-lokalizace) | 21. 8. 2026 | [lok-fuze-poza-pred-koly](#lok-fuze-poza-pred-koly) |
@@ -91,7 +92,6 @@ Témat celkem **274**: otevřeno **37** · v kódu, na HW neověřeno **43** · 
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor záseku A počítá pokusy na hraně po celou dobu běhu navigátoru — čítač se nikdy nenuluje, třetí stání kdykoli hranu uzavře](#nav-detektor-a-pokusy-bez-nulovani) | 12. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Po zotavení kamer je robot 8–17 s slepý mimo držení — StopHold se uvolní hned po novém kontextu RealSense, kamery se připojí až za 8–16 s](#prov-zotaveni-kamer-slepy-po-uvolneni) | 12. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Navigace pracovala nad živým slotem kamery bez kopie — 3–23 % plánů neslo čas pořízení jiného snímku; od 13. 10. vlastní kopie](#lp-navigator-zivy-slot-kamery) | 13. 10. 2026 |  |
-| v kódu, na HW neověřeno | Web a dokumentace | [Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení](#web-pisma-problikavaji) | 14. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -3723,18 +3723,16 @@ Při rozboru jízd 1. 10. 2026 vznikly v repu čtyři měřidla. `zasek`: buňka
 
 ## Web a dokumentace
 
-<a id="web-pisma-problikavaji"></a>
-### 🧪 Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení
+<a id="web-mathjax-presazuje-vzorce"></a>
+### ⬜ Články se vzorci po načtení přesazují vzorce (MathJax)
 
-`web-pisma-problikavaji` · vada · **v kódu, na HW neověřeno** · nalezeno 14. 10. 2026 · vyřešeno 14. 10. 2026
+`web-mathjax-presazuje-vzorce` · vada · **otevřeno** · nalezeno 14. 10. 2026
 
-Autor si všiml, že se stránka při obnovení nejdřív vykreslí jedním písmem a po načtení jiného se překreslí. Příčinou byla písma z Google Fonts s `display=swap`: text se nejdřív ukázal záložním písmem (Georgia / Arial / Consolas) a po stažení fontu se přepsal. Každá rodina navíc chodí zvlášť pro `latin` a `latin-ext` a čeština potřebuje obojí, takže se stránka mohla překreslit i víckrát. Oprava: tři rodiny (Newsreader, Archivo, JetBrains Mono; licence SIL OFL 1.1) hostuje web sám v `web/assets/fonts/`. Deklaruje je `site.css` s `font-display: block` (rozhodnutí autora: radši počkat na písmo, než text přepsat). Každá stránka v hlavičce přednačítá `latin` a `latin-ext` všech tří rodin, takže písma jsou hotová dřív, než se stránka poprvé vykreslí. Ověřeno v prohlížeči nad lokálním serverem na všech 22 stránkách. Že stránka preload má a Google Fonts netahá, hlídá `tools/menu.cs` (a tím CI). Na `arbot.cz` to zatím neběží, protože změna není zveřejněná. Tři články se vzorci (MathJax z cdnjs) po načtení vzorce znovu přesazují. To je jiný zdroj téhož dojmu a zatím se neřešil.
+Při opravě problikávání písem (`web-pisma-problikavaji`) se ukázalo, že tři technické články (`regulator-sledovani-drahy`, `model-diferencialniho-podvozku`, `detekce-kraje-vozovky`) po načtení stránky ještě jednou překreslí vzorce. Sází je MathJax stažený z cdnjs, a ten vzorce nahradí až po svém načtení, takže se text pod nimi posune. Je to jiný zdroj téhož dojmu jako u písem. Zatím se neřešilo, rozhodne autor.
 
-- [x] Písma hostovaná u webu, preload v hlavičkách (i šablona `historie.html` v `tools/ukoly.cs`), `font-display: block`, kontrola v `tools/menu.cs` (14. 10. 2026)
-- [ ] Zveřejnit a ověřit obnovení stránky na `arbot.cz`
-- [ ] Rozhodnout (autor), jestli řešit přesazování vzorců MathJaxem na třech článcích (`regulator-sledovani-drahy`, `model-diferencialniho-podvozku`, `detekce-kraje-vozovky`)
+- [ ] Rozhodnout (autor), jestli a jak to řešit
 
-[web/README.md](../web/README.md), [site.css](../web/assets/site.css), [menu.cs](../tools/menu.cs) · DevLog [2026-10-14](devlog.md#2026-10-14)
+[web/README.md](../web/README.md) · DevLog [2026-10-14](devlog.md#2026-10-14)
 
 <a id="web-dokumentace-devlog"></a>
 ### ✅ Dokumentace v repozitáři — rozcestník `CLAUDE.md`, doménové `doc/*.md` a DevLog
@@ -3826,4 +3824,16 @@ Stránka `web/pages/robotour-2026.html` ve stylu starších článků o soutěž
 - [x] Stránka článku, obrázek, odkaz v seznamu článků, skupina v generátoru menu (20. 9. 2026)
 
 [robotour-2026.html](../web/pages/robotour-2026.html), [robotour-mission.md](robotour-mission.md), [global-navigation-runtime.md](global-navigation-runtime.md) · DevLog [2026-09-19](devlog.md#2026-09-19), [2026-09-20](devlog.md#2026-09-20)
+
+<a id="web-pisma-problikavaji"></a>
+### ✅ Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení
+
+`web-pisma-problikavaji` · vada · **hotovo** · nalezeno 14. 10. 2026 · vyřešeno 14. 10. 2026
+
+Autor si všiml, že se stránka při obnovení nejdřív vykreslí jedním písmem a po načtení jiného se překreslí. Příčinou byla písma z Google Fonts s `display=swap`: text se nejdřív ukázal záložním písmem (Georgia / Arial / Consolas) a po stažení fontu se přepsal. Každá rodina navíc chodí zvlášť pro `latin` a `latin-ext` a čeština potřebuje obojí, takže se stránka mohla překreslit i víckrát. Oprava: tři rodiny (Newsreader, Archivo, JetBrains Mono; licence SIL OFL 1.1) hostuje web sám v `web/assets/fonts/`. Deklaruje je `site.css` s `font-display: block` (rozhodnutí autora: radši počkat na písmo, než text přepsat). Každá stránka v hlavičce přednačítá `latin` a `latin-ext` všech tří rodin, takže písma jsou hotová dřív, než se stránka poprvé vykreslí. Ověřeno v prohlížeči nad lokálním serverem na všech 22 stránkách. Že stránka preload má a Google Fonts netahá, hlídá `tools/menu.cs` (a tím CI). Zveřejněno týž den (`fbc8605`): `arbot.cz` posílá písma ze `assets/fonts/`, prohlížeč je bere z preloadu a z Google nestahuje nic. Okamžik prvního vykreslení se na živém webu změřit nepodařilo (panel prohlížeče nekreslil), ten je změřený jen lokálně. Přesazování vzorců MathJaxem na třech článcích je jiný zdroj téhož dojmu, vede se zvlášť (`web-mathjax-presazuje-vzorce`).
+
+- [x] Písma hostovaná u webu, preload v hlavičkách (i šablona `historie.html` v `tools/ukoly.cs`), `font-display: block`, kontrola v `tools/menu.cs` (14. 10. 2026)
+- [x] Zveřejnit a ověřit na `arbot.cz` (preload ze stránky, z Google nic) (14. 10. 2026)
+
+[web/README.md](../web/README.md), [site.css](../web/assets/site.css), [menu.cs](../tools/menu.cs) · DevLog [2026-10-14](devlog.md#2026-10-14)
 
