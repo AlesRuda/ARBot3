@@ -17,6 +17,11 @@
 //
 // Menu je schválně v tomhle souboru a ne ve vlastním datovém souboru (jako doc/ukoly.yaml):
 // je to sedm řádků, mění se jednou za pár měsíců a takhle je zdroj i pravidla na jednom místě.
+//
+// PÍSMA (od 14. 10. 2026): nástroj navíc HLÍDÁ (nepřepisuje), že každá stránka přednačítá písma
+// hostovaná u webu (blok <link rel="preload"> v <head>) a netahá Google Fonts. Stránka bez
+// preloadu by se zase vykreslila záložním písmem a pak přepsala — přesně to probliknutí, kvůli
+// kterému se písma přestěhovala k webu (web/README.md, sekce „Písma“). Chyba = kód 1 jako jinde.
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -65,6 +70,16 @@ var skupiny = new (string Polozka, string[] Stranky)[]
     }),
 };
 
+// ---------------------------------------------------------------- písma
+// Soubory v web/assets/fonts/, které musí každá stránka přednačítat: latin + latin-ext všech
+// tří rodin (čeština potřebuje obě). Ostatní subsety se stahují jen podle unicode-range.
+var pisma = new[]
+{
+    "newsreader-latin", "newsreader-latin-ext",
+    "archivo-latin", "archivo-latin-ext",
+    "jetbrains-mono-latin", "jetbrains-mono-latin-ext",
+};
+
 // ---------------------------------------------------------------- běh
 
 if (!Directory.Exists(WebRoot))
@@ -74,6 +89,10 @@ if (!Directory.Exists(WebRoot))
 }
 
 var chyby = new List<string>();
+
+foreach (var f in pisma)
+    if (!File.Exists(Path.Combine(WebRoot, "assets", "fonts", f + ".woff2")))
+        chyby.Add($"písmo assets/fonts/{f}.woff2 neexistuje");
 
 // Odkud se zvýrazní která položka. Klíč = stránka, hodnota = cesta položky v menu.
 var zvyrazni = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -115,6 +134,16 @@ foreach (var rel in soubory)
         chyby.Add($"{rel}: chybí blok <header class=\"sitehead\">…</header>");
         continue;
     }
+    // "pages/kontakt.html" -> "../", "index.html" -> ""
+    var prefix = string.Concat(Enumerable.Repeat("../", rel.Count(c => c == '/')));
+
+    foreach (var f in pisma)
+        if (!txt.Contains($"<link rel=\"preload\" href=\"{prefix}assets/fonts/{f}.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>"))
+            chyby.Add($"{rel}: chybí přednačtení písma assets/fonts/{f}.woff2 — zkopíruj blok <link rel=\"preload\"> "
+                    + "z pages/kontakt.html (bez něj stránka při načtení problikne)");
+    if (txt.Contains("fonts.googleapis.com") || txt.Contains("fonts.gstatic.com"))
+        chyby.Add($"{rel}: tahá písma z Google Fonts — web je hostuje sám (assets/fonts/, site.css)");
+
     if (!zvyrazni.TryGetValue(rel, out var aktivni))
     {
         chyby.Add($"{rel}: stránka není ani položkou menu, ani v žádné skupině — "
@@ -122,8 +151,6 @@ foreach (var rel in soubory)
         continue;
     }
 
-    // "pages/kontakt.html" -> "../", "index.html" -> ""
-    var prefix = string.Concat(Enumerable.Repeat("../", rel.Count(c => c == '/')));
     // Konce řádků se přebírají ze souboru: .gitattributes má `* text=auto`, takže na Windows
     // je pracovní kopie CRLF a na CI LF. Pevné "\n" by na Windows vyrobilo míchané konce
     // řádků uvnitř jinak CRLF souboru.

@@ -1063,19 +1063,58 @@ měření kruhové.
   (dekorelační čas) a **průměrovací křivka**: sd průměru z N po sobě jdoucích fixů proti
   `sd/√N`. Činitel nadsazení nad 1 znamená, že filtr považuje za nezávislá měření, která
   nezávislá nejsou — táž past jako `MinPeriod` u `MapCorrelator`.
-- **A2b — platí ten dekorační čas i za jízdy?** Mrtvý odhad z enkodérů (kurz z **rozdílu
-  kol**, ne z fúze — ta obsahuje kompas i GPS), tuhé zarovnání na dráhu z GPS (2D Procrustes)
-  a autokorelace zbytku. ⚠️ Součástí je **kontrola délkou okna**: totéž měřidlo se pustí na data
-  ze stání nakrájená na stejně dlouhá okna a porovná se s výsledkem z celých segmentů. Když okno
-  zkrátí zdánlivý `T_d`, je číslo z A2b artefakt a report to řekne.
+- **A2b — platí ten dekorační čas i za jízdy?** Referenční dráha, tuhé zarovnání na dráhu
+  z GPS (2D Procrustes: posun, rotace a měřítko) a autokorelace zbytku. **Od 13. 10. 2026**
+  (vady nalezené 7. 10., výsledky [ekf-fusion.md](ekf-fusion.md#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026)):
+  - **pět referenčních drah vedle sebe** — dráha z kol a kurz z gyra VN100 (`gyro`), ze syrového
+    gyra minus bias z oken klidu (`gyroraw`, záznamy od 24. 9.; medián každého okna, mezi okny
+    lineárně, bez vzorků, kde kompenzované gyro hlásí otáčení proti mediánu svého okna — 29. 9. se
+    v „klidu" z enkodérů otáčelo rukou), z integrálu `ω` fúze (`fuze`), z rozdílu kol (`kola`,
+    do 13. 10. jediná) a **dráha z rychlosti GPS** (`doppler`: `Speed` a kurz pohybu, bez kol a gyra).
+    Hlavní vybírá `--kurz=auto` (výchozí): odometrická s nejmenším zbytkem **mezi drahami
+    se srovnatelným pokrytím** (≥ 95 % doby nejdelší a stejný počet úseků — RMS nad kratšími úseky je
+    menší už tím, že se líp zarovnají). Kurz fúze se
+    nepoužívá — nese GPS kurz, koridor i kompas. ⚠️ Doppler **není čistá reference ani dolní mez**:
+    má vlastní chybu (šum rychlosti, kurz při malé rychlosti), a chybu společnou s polohou neuvidí;
+  - úsek se **dělí na přerušení dat** (mezera / nemožný skok enkodérů, mezera gyra a GPS, vždy
+    + 1 s ochrany) a ořízne se na pokrytí zdroje kurzu; tabulka přerušení je ve výpisu;
+  - jen fixy, které **pustila brána fúze** (`--brana=0` = všechny platné), počet vyřazených se tiskne;
+  - lokální ENU na **elipsoidu WGS84** (dřív koule — anizotropie 0,28 %, zarovnání ji nepohltí);
+  - `T_d` jemně (interpolace přechodu 1/e, dřív řídká řada lagů) a **kalibrace měřidla**: Monte
+    Carlo AR(1) na téže geometrii pro `T_d` 10 s … 1 000 s a náhodnou procházku, 96 pokusů na řádek;
+    výsledek je **pásmo** p10–p90 z kvantilů **monotonizovaných** přes `T_d` s hranami
+    **interpolovanými** mezi řádky; pásmo od prvního řádku je „zdola neomezeno" (pod 10 s se
+    netestuje), horní hrana se nehlásí v **plató** (medián od náhodné procházky k nerozeznání),
+    bod jen kde medián prokazatelně roste, a „nad p90 všech řádků" je jednostranný test na ~10 %.
+    ⚠️ Dvě dřívější verze z 13. 10. (tabulka do 300 s a „strop" jako nejvyšší medián; pásmo jako
+    množina řádků) dávaly šum — jejich čísla neplatí. Táž kalibrace (s odečtem průměru) je i u
+    **stání** v A2, které teď bere tytéž fixy (s branou) a dělí segment na mezerách GPS nad 1 s;
+  - horní mez **rychlé složky** (`T_d` ≤ 5 / 10 s) jako podíl rozptylu i jako RMS a **přírůstky
+    zbytku za τ** — mez RMS z přírůstku za 10 s (`/ 1,12`) na pomalém driftu reference nezávisí
+    (drift ji jen uvolní), pokud je chyba reference na GPS nezávislá;
+  - rozbor zvlášť proti hlavní dráze a proti Doppleru, souhrn a srovnávací tabulka všech drah;
+    nezávislých vzorků je `doba / 2·T_d` (integrál autokorelace AR(1) přes obě strany).
+    ⚠️ **`T_d` zbytku není `T_d` chyby GPS** — chyba reference ho posouvá oběma směry (pomalý drift
+    prodlužuje, rychlá chyba zkracuje; 14. 9. tytéž fixy 12,5 s proti Doppleru a 51,3 s proti gyru).
+    Na referenci nezávislá je jen mez z přírůstků; oddělit chybu GPS by šlo „three-cornered hat"
+    nad dvěma nezávislými drahami (zatím není).
+
+  ⚠️ Součástí je **kontrola délkou okna**: totéž měřidlo se pustí na data ze stání nakrájená na
+  stejně dlouhá okna a porovná se s výsledkem z celých segmentů. Když okno zkrátí zdánlivý `T_d`,
+  je číslo z A2b artefakt a report to řekne. Do 13. 10. 2026 tiskla „okno neomezuje" i tehdy, když
+  bylo stání kratší než okno jízdy (porovnávala data sama se sebou); teď řekne, že to nejde,
+  a otázku délky okna řeší kalibrace.
 - **A5 — skáče póza, nebo se plíží?** Sweep prahu `PoseJumpDetector` (0,05–1,0 m).
 - **A4 — přirozené A/B**: úseky stání, kde brána fix pustila, proti těm, kde ho odmítla.
   Stejné místo, stejné kamery. Report **řekne, když A/B nevzniklo** (jedna třída prázdná) — to
   je důvod pro cílený záznam, ne vada nástroje.
 
 Přepínače: `--minstand=<s>` (výchozí 20), `--standtol=<m>` (výchozí 0,005),
-`--minjizda=<s>` / `--mindraha=<m>` (výchozí 60 s / 20 m, pro A2b), `--maxdop=` /
-`--minsat=` přebijí bránu použitou při rozboru. Když žádný segment stání nevznikne, report
+`--minjizda=<s>` / `--mindraha=<m>` (výchozí 60 s / 20 m, pro A2b), `--kurz=auto|gyro|gyroraw|fuze|kola|doppler`,
+`--meritko=0` (zarovnání bez měřítka jako do 13. 10.), `--brana=0` (A2b ze všech platných fixů).
+Brána a σ GPS (`gpsposstd`, `gpsdopsigma`, `gpsmaxdop`, `gpsminsat`) se **čtou ze záznamu**
+(od 13. 10. 2026; dřív default z kódu, tedy 1,5 m, ačkoli robot jel s 30 m) a `--posstd=` /
+`--maxdop=` / `--minsat=` je přebijí. Když žádný segment stání nevznikne, report
 vypíše **rozdělení posunu kol** — pár milimetrů znamená šum enkodérů, metry znamenají, že robot
 opravdu jel.
 

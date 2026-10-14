@@ -528,6 +528,10 @@ hlásí, že zná polohu na 7 cm, zatímco se odhad hýbe o 5,5 m za minutu.
 
 ### Proč: 10 Hz měření, z nichž je nezávislé zhruba jedno za 25 s
 
+> ⚠️ **13. 10. 2026:** pro exponenciální autokorelaci připadá jeden nezávislý vzorek na `2·T_d`
+> a `T_d` tohohle stání je po kalibraci ≥ ~30–46 s, tedy jeden za ~60–90 s a víc. Viz
+> [níže](#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026).
+
 Nejsilnější nález je v časové korelaci. Odchylka fixu od průměru segmentu (tedy čistá chyba,
 protože robot stál) má **p50 4,4 m** a max 10,2 m, a je **silně korelovaná v čase**:
 
@@ -535,8 +539,11 @@ protože robot stál) má **p50 4,4 m** a max 10,2 m, a je **silně korelovaná 
 |---|---|---|---|---|---|---|---|
 | ρ | 0,99 | 0,91 | 0,77 | 0,63 | 0,38 | **0,12** | −0,12 |
 
-**Dekorelační čas `T_d` ≈ 40 s.** Průměrovací křivka to říká ještě názorněji — **průměrování
-nepomáhá vůbec**:
+**Dekorelační čas `T_d` ≈ 40 s.** *(⚠️ 13. 10. 2026: to je první lag řídké řady pod 1/e — jemně
+vychází 25,3 s a po kalibraci na geometrii téhož stání `T_d` ≥ ~30–46 s podle tvaru autokorelace,
+shora neomezeno; viz
+[níže](#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026).)* Průměrovací křivka to říká ještě
+názorněji — **průměrování nepomáhá vůbec**:
 
 | N (doba) | sd průměru | kdyby byly nezávislé | činitel nadsazení |
 |---|---|---|---|
@@ -551,7 +558,8 @@ které nesou informaci jednoho. Odtud ta σ 7 cm.
 ⚠️ **Dvě meze přesnosti, které to číslo nesmí přežít bez uvedení.** Odchylky se berou od
 **průměru segmentu**, čímž se odečte stejnosměrná složka — autokorelace na dlouhých lagách se tím
 uměle srazí, takže `T_d ≈ 40 s` je **spodní odhad** (a záporná ρ na 60–80 s je právě stopa po tom
-odečtení, ne fyzika). A stojí to jen na **~10 nezávislých vzorcích** (390 s / 40 s). Pro závěr
+odečtení, ne fyzika). A stojí to jen na **~10 nezávislých vzorcích** (390 s / 40 s; ⚠️ správně
+`doba / 2·T_d`, tedy ~4–8). Pro závěr
 „průměrování nepomáhá" to hraje ve prospěch opatrnosti, takže ho to nezeslabuje — ale přesnou
 hodnotu `T_d` je potřeba potvrdit na delším záznamu ze stání.
 
@@ -560,6 +568,10 @@ hodnotu `T_d` je potřeba potvrdit na delším záznamu ze stání.
 delší konstantou. Viz [map-correlation-localization.md](map-correlation-localization.md).
 
 ### Platí ten dekorelační čas i za jízdy? Z těchto dat se to změřit NEDÁ
+
+> ⚠️ **Překonáno 13. 10. 2026** — změřeno opraveným měřidlem nad všemi záznamy, viz
+> [níže](#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026). Tahle sekce zůstává jako historie
+> (proč na to tehdy data nebyla a proč kontrola oknem).
 
 Otázka autora: decimace na 40 s dává smysl při stání, ale co za jízdy? Multipath závisí na tom,
 co je kolem antény, takže při pohybu se chyba nejspíš dekoreluje **rychleji** — a decimovat pak
@@ -593,6 +605,144 @@ Krátké okno tedy zkrátí zdánlivý dekorelační čas **4×**, protože ode�
 **5–10 minut bez zastavení**. Do té doby je perioda decimace za jízdy neznámá a nastavovat ji
 podle hodnoty ze stání je střelba naslepo.
 
+### Za jízdy přeměřeno opraveným měřidlem (13. 10. 2026)
+
+Nad jízdami 17. 9. a 1. 10. dal blok A2b „`T_d` za jízdy ~40 s" (17. 9., 215 s / 96 m, měřeno 17. 9.)
+a „~60 s" (FreeRun 1. 10., 583 s / 774 m, měřeno 7. 10.). Audit 7. 10. našel v měřidle tři vady;
+13. 10. jsou opravené a tři kola adversariálního ověření (9 nezávislých ověřovatelů) našla v opravě
+i v závěrech další vady — opravené jsou taky a závěry níže jsou ty, které obstály. Přeměřeno nad
+všemi záznamy **ze zařízení** (`records/test`, `records/Robotour2026`; z kořenového `records/` jen
+stání 2. 9., zbytek jsou simulace nebo záznamy bez GPS) kromě dvou, které se otevírat nesmí.
+
+**Co se v měřidle změnilo** (podrobně [record-replay.md](record-replay.md#gps-proč-se-stojícímu-robotu-hýbe-poloha)):
+
+- brána a σ GPS **ze záznamu** (`LogConfig`) — dřív 1,5 m z kódu, ačkoli robot jel s `gpsposstd=30`;
+- úsek se **dělí na přerušení dat** — mezera nebo nemožný skok enkodérů, mezera gyra a GPS, vždy
+  s 1 s ochrany (dávka rámců z bufferu nese razítka příchodu). Track 1. 10. se tak dělí v 15:15:41,
+  kde po záseku procesu enkodéry skočily o **2 286 m**; úsek se ořízne na pokrytí zdroje kurzu;
+- **pět referenčních drah**: kola + kurz z gyra VN100 (kompenzovaného; syrového minus bias z oken
+  klidu), kola + integrál `ω` z fúze, kola + rozdíl kol, a **dráha z rychlosti GPS** (Doppler,
+  `Speed` a kurz pohybu; bez kol a gyra). Hlavní vybírá `auto` = odometrická s nejmenším zbytkem
+  mezi drahami se **srovnatelným pokrytím** (≥ 95 % doby a stejný počet úseků);
+- bias syrového gyra: **medián každého okna klidu, mezi okny lineárně**, bez vzorků, kde kompenzované
+  gyro hlásí otáčení proti mediánu okna (29. 9. 15:16 se v „klidu" z enkodérů otáčelo rukou
+  a syrové gyro tím „selhalo" se zbytkem 26,6 m — byl to artefakt měřidla, po opravě 0,75 m);
+- lokální ENU na **elipsoidu WGS84** (dřív koule: anizotropie 0,28 % = ±0,3–0,7 m na stovkách metrů);
+  zarovnání i s **měřítkem** (`--meritko=0` bez něj);
+- `T_d` se odečítá **jemně** (interpolace přechodu 1/e) — dřív první lag z řídké řady, takže
+  „~40 s" a „~60 s" znamenaly „mezi 25 a 40" a „mezi 40 a 60 s";
+- **kalibrace měřidla** (i pro stání): do týchž úseků se místo GPS vloží mrtvý odhad + AR(1) chyba
+  se **známým** `T_d` (10 s … 1 000 s a náhodná procházka, 96 pokusů na řádek), projde týmž
+  zarovnáním a odečtem; výsledek je **pásmo** p10–p90 s hranami interpolovanými mezi řádky (dolní
+  z obálky p90 zdola, horní z obálky p10 shora, tedy konečná jen když jsou zamítnuté i všechny delší
+  řádky), cenzurované zdola („pod 10 s se netestuje") i shora; dolní hrana uvnitř **plató** (medián
+  od náhodné procházky k nerozeznání) se hlásí jako začátek plató. ⚠️ Tři dřívější verze téhož dne
+  braly „strop" jako konec tabulky, pásmo jako množinu řádků a hrany přes plató — šum je trhal;
+  jejich čísla **neplatí**;
+- **horní mez rychlé složky** z přírůstků za 10 s (viz bod 3) a tabulka **přírůstků zbytku za τ**;
+- měří se jen z fixů, které **pustila brána fúze** (`--brana=0` = všechny): 27. 9. 17:25 brána
+  odmítla 22 fixů se skokem ~214 m a se všemi měl zbytek RMS 20–22 m místo 1,5 m (Doppler) / 3,0 m
+  (hlavní dráha).
+
+**1. FreeRun 1. 10.: „~60 s" měřilo drift mrtvého odhadu, ne GPS.** Tytéž fixy, pět drah:
+
+| referenční dráha | zbytek RMS | `T_d` naměřený | po kalibraci |
+|---|---|---|---|
+| kola (do 13. 10. jediná) | 19,7 m | 58,6 s | — |
+| kola + ω fúze | 18,5 m | 68,4 s | — |
+| kola + gyro (kompenzované) | 10,6 m | 57,7 s | — |
+| kola + syrové gyro − bias z oken klidu | 2,4 m | 63,1 s | nad p90 všech řádků |
+| **rychlost GPS (Doppler)** | **0,86 m** | **17,3 s** | ~16–42 s (medián ~25) |
+
+Chyba GPS je ve všech řádcích tatáž, takže rozdíl je drift reference (proti kolům je to ≥ 98 %
+rozptylu zbytku). Kompenzované gyro je zlé proto, že odhad biasu z VPE sice sleduje změnu skutečného
+biasu (2 547 → 2 060 °/h proti syrovému −2 425 … −1 951 °/h z oken klidu), ale je **o ~100–180 °/h
+vedle** (na obou koncích jízdy, ze dvou oken klidu; kompenzované gyro v klidu 176 °/h) — za 583 s to
+dá 20–30° kurzu
+(`lok-freerun-kurz-staci-na-zapad`). **17. 9. je jiný případ:** „~40 s" byl hrubý odečet ~26 s
+(ρ(25 s) = 0,38 proti kolům, 0,40 proti Doppleru) a obě dráhy dávají tutéž křivku — drift to
+doložený není; po kalibraci `T_d` zbytku ≥ ~69 s, shora neurčeno.
+
+**2. `T_d` ZBYTKU za jízdy — a proč to není `T_d` GPS.** Jízdy s aspoň 300 s použitelné jízdy
+(kalibrované pásmo p10–p90, v závorce bod mediánu, kde ho jde určit):
+
+| jízda | úseky / doba / dráha | hlavní dráha (RMS) | Doppler RMS | proti hlavní dráze | proti Doppleru | Doppler bez měřítka |
+|---|---|---|---|---|---|---|
+| 12. 9. 12:47 | 3 / 501 s / 300 m | gyro 0,86 m | 1,12 m | ≥ ~41 s | ≥ ~71 s | ≥ ~36 s |
+| 12. 9. 12:58 | 1 / 616 s / 383 m | gyro 0,76 m | 1,36 m | ~31–150 s (~55) | ≥ ~60 s | ≥ ~56 s |
+| 14. 9. 17:09 | 2 / 569 s / 255 m | gyro 0,82 m | 0,84 m | ≥ ~167 s | ~14–32 s (~21) | ~14–32 s (~20) |
+| 16. 9. 16:49 | 1 / 331 s / 246 m | gyro 1,37 m | 1,17 m | ≥ ~59 s | ≥ ~27 s | ≥ ~28 s |
+| 18. 9. 15:40 | 1 / 388 s / 272 m | gyro 1,13 m | 1,44 m | ≥ ~25 s | ~19–132 s (~35) | ~19–82 s (~32) |
+| 23. 9. 14:35 | 3 / 561 s / 459 m | gyro 0,86 m | 1,33 m | nad p90 všech řádků | ≥ ~24 s | ~21–419 s (~37) |
+| 23. 9. 14:49 | 1 / 317 s / 232 m | kola 0,70 m | 0,54 m | ≥ ~180 s (u plató) | ~11–42 s (~19) | ~12–47 s (~20) |
+| 25. 9. 14:24 | 2 / 573 s / 902 m | gyro 1,80 m | 0,71 m | ≥ ~40 s | ~18–46 s (~26) | ≥ ~72 s |
+| 25. 9. 14:46 | 4 / 1 364 s / 1 012 m | gyro 0,66 m | 0,57 m | ≥ ~54 s | ~44–283 s (~65) | ≥ ~152 s |
+| 29. 9. 15:08 | 2 / 350 s / 348 m | syrové gyro 0,60 m | 0,88 m | ≥ ~45 s | ≥ ~31 s | ≥ ~26 s |
+| 1. 10. Track | 6 / 2 050 s / 3 103 m | syrové gyro 13,0 m (žádná zdravá) | 1,11 m | nad p90 všech řádků | ≥ ~113 s | ≥ ~83 s |
+| 1. 10. FreeRun | 1 / 583 s / 774 m | syrové gyro 2,39 m | 0,86 m | nad p90 všech řádků | ~16–42 s (~25) | ~20–66 s (~35) |
+| Kolo 3b | 6 / 842 s / 601 m | gyro 0,96 m | 0,73 m | ≥ ~36 s | ~15–38 s (~22) | nad p90 všech řádků |
+| Kolo 4 | 3 / 421 s / 256 m | gyro 1,31 m | 1,87 m | nad p90 všech řádků | ≥ ~180 s (u plató) | ≥ ~71 s |
+
+Žádné pásmo tu nesahá pod ~11 s a většina je shora otevřená. **Pro chybu GPS to ale není ani dolní,
+ani horní mez:** zbytek míchá chybu GPS s chybou reference a ta posouvá `T_d` **oběma směry** —
+pomalý drift (gyro, kola) ho prodlužuje, rychlá chyba (prokluz, šum Dopplera) zkracuje. Tytéž fixy
+14. 9. dávají naměřených 12,5 s (Doppler) až 51,3 s (gyro); 29. 9. 15:16 Doppler „pod 10 s", kola
+≥ ~60 s. Dráha z Doppleru má **vlastní rychlou chybu**: za 1 s má větší přírůstek než nejlepší
+odometrie ve všech 13 jízdách se zdravou odometrií (0,11–0,26 proti 0,06–0,13 m) a celkový zbytek
+větší v 7 ze 14 jízd. Výsledek proti Doppleru závisí i na zarovnání: bez měřítka jde pásmo nahoru ve
+čtyřech jízdách (25. 9. obě, FreeRun, Kolo 3b, kde vyjde nad p90), dolů ve třech (12. 9. 12:47,
+Track, Kolo 4), jinde jen v šumu a 23. 9. 14:35 bez měřítka dostane horní hranu; 25. 9. 14:24
+a Kolo 3b se pásma nepřekrývají (buď AR(1) nesedí, nebo má dráha
+z Doppleru chybu měřítka — 1,045 v Kole 3b). **`T_d` celé chyby GPS za jízdy z těchto dat neplyne.**
+
+**3. Co na referenci nezávisí: za 10 s se chyba GPS změní málo.** Pro složku s `T_d` ≤ 10 s platí
+`E|Δr(10 s)|² ≥ 2·σ²·(1 − 1/e)`, takže její RMS je nejvýš přírůstek zbytku za 10 s / 1,12 — a pomalý
+drift reference mez jen uvolní, pokud je chyba reference na GPS nezávislá (to platí pro odometrii;
+v Tracku 1. 10., kde zdravá odometrie není, je minimum z Doppleru a mez je podmíněná). Na 14 jízdách
+≥ 300 s je **RMS změny zbytku za 10 s 0,31–0,79 m** (minimum přes odometrické dráhy; Track 0,69 m
+z Doppleru), takže **rychlá složka chyby GPS má RMS nejvýš ~0,3–0,7 m**; při slabé GPS na kratších
+jízdách víc (17. 9. 1,31 m, Kolo 3a 1,56 m, 27. 9. 17:25 1,45 m → mez ~1,2–1,4 m). Za 60 s je změna
+0,75–1,7 m (Kolo 4 2,6 m; minimum v šesti jízdách z Doppleru). **Horní mez** podílu rychlé složky
+na rozptylu zbytku je proti hlavní dráze pod polovinou v 10 ze 13 jízd mimo Track (11–42 %); ve
+třech (12. 9. 12:47, 29. 9. 15:08, Kolo 3b) je mez 55–70 %, takže podíl tam určit nejde; proti
+Doppleru je mez pod polovinou jen ve čtyřech (12. 9. 12:58, 25. 9. 14:46, Track, Kolo 4). Deset
+fixů za sekundu tedy nese nezávislou informaci jen o téhle části chyby.
+
+**4. Stání stejnou metodou.** Dlouhé stání **2. 9.** (`records/20260902-222601.rec`, 240 + 150 s;
+to je to „~40 s z 6. 9.", kdy se jen analyzovalo): jemně 25,3 s, po kalibraci AR(1) **`T_d` ≥ ~46 s**,
+shora neomezeno (hrana mezi 45 a 60 s je v šumu kalibrace). **AR(1) ale stání opakovaně zamítají:**
+11 z 28 stání je nad p90 všech řádků včetně náhodné procházky (všechna tři z Kola 1 na Robotouru,
+14. 9. 17:06, 25. 9. 14:24 a další krátká) — chyba v klidu je **hladší**, než AR(1) připouští
+(vyhlazuje ji filtr přijímače). S hladším modelem 2. řádu (Gauss–Markov se stejným časem přechodu
+1/e) vychází dolní hrana pro 2. 9. **~31 s** (simulace ověřovatele, táž geometrie), tedy **`T_d` ≥ ~30–46 s
+podle tvaru autokorelace**. Další dlouhá stání: PreKolo 19. 9. (244 s) ≥ ~59 s, 12. 9. 13:10 (224 s)
+~15–420 s, 10. 9. 17:08 (193 s) ≥ ~32 s, Kolo 4 (276 s ve dvou kusech) ≥ ~24 s, Kolo 3b ≥ ~28 s;
+čtyři krátká stání měřidlo nerozliší. Stání přímo měří chybu GPS (pravda je konstanta), takže tohle
+**je** vlastnost GPS — u stojícího robotu je `T_d` desítky sekund, jedna hodnota z dat neplyne.
+Jestli je za jízdy kratší, **data nerozhodnou** (bod 2).
+
+**Co z toho plyne:**
+
+- **Nafukovat σ ani decimovat podle sekundového `T_d` se nesmí** — za 10 s se chyba GPS mění nejvýš
+  o desítky centimetrů RMS (při slabé GPS ~1 m), takže 10 fixů za sekundu není 10 nezávislých
+  měření. `T_d` celé chyby za jízdy změřit nešlo; při stání jsou to desítky sekund (2. 9. ≥ ~30–46 s
+  podle tvaru autokorelace).
+- **Ekvivalentní σ je `σ_fix·√(2·f·T_d)`** pro exponenciální autokorelaci (jeden nezávislý vzorek na
+  `2·T_d`; obecně `√(f·∫ρ dτ)`), ne `√(f·T_d)`, jak se počítalo 6. 9. **Jestli `gpsposstd=30` GPS
+  přeceňuje, nebo podceňuje, nerozhodnuto:** záleží na σ jednoho fixu za jízdy a tu zarovnání schová.
+  Při stání 2. 9. byla σ, kterou fúze použila (1,5 m × DOP), p50 5,6 m proti naměřené sd fixu 3,5 m
+  na osu; 30 m × DOP (~112 m) by tam při mediánu DOP odpovídalo `T_d` ~50 s (při DOP 2–4,5 ~16–77 s),
+  tedy zhruba naměřenému (≥ ~30–46 s).
+- **Další krok k `T_d` za jízdy je oddělit chybu reference:** se dvěma na sobě nezávislými drahami
+  (zdravá odometrie a Doppler) dá „three-cornered hat" `C_GPS(τ) = (C_r1 + C_r2 − C_{r1−r2})/2`
+  autokovarianci samotné chyby GPS — za předpokladu, že chyba Dopplera nekoreluje s chybou polohy.
+
+⚠️ **Meze:** (a) kalibrace předpokládá **AR(1)**; „nad p90 všech řádků" je jednostranný test na
+hladině ~10 % — jedna jízda nad hranou důkaz není, opakovaně a výrazně ano (FreeRun proti
+syrovému gyru 63,1 proti 59,3 s); (b) **jedna jízda nese jen jednotky až desítky nezávislých
+vzorků** (`doba / 2·T_d`), proto jsou pásma široká; (c) Doppler je z téhož přijímače — chybu,
+kterou přijímač vnese do polohy i rychlosti zároveň, neuvidí.
+
 ### Vedlejší, ale použitelný výsledek: GPS zná POSUN mnohem líp než POLOHU
 
 Po tuhém zarovnání mrtvého odhadu na dráhu z GPS zbyde na 25 m jízdy odchylka **p50 0,52 m**
@@ -610,10 +760,14 @@ ne měření jednoho z nich. Oddělit je by chtěl delší úsek a nezávislou r
 
 ### Co z toho plyne pro léčbu
 
-1. **Decimace GPS polohy na dekorelační čas je nejsilnější páka** — je to faktor ~400
+1. **Decimace GPS polohy na dekorelační čas je nejsilnější páka** — ⚠️ *(13. 10. 2026: faktor
+   je `2·f·T_d`, ne `f·T_d`, a σ se nafukuje o `√(2·T_d·f)`)* — je to faktor ~400
    v předpokládané informaci (10 Hz proti jednomu nezávislému vzorku za 40 s). Nebo ekvivalentně
-   nafouknout σ o `√(T_d·f)`. ⚠️ **Perioda je ale změřená jen pro STÁNÍ**; za jízdy ji zatím
-   nikdo nezná (viz výše), takže při jízdě může decimace zahazovat užitečnou informaci.
+   nafouknout σ o `√(T_d·f)`. ~~⚠️ **Perioda je ale změřená jen pro STÁNÍ**; za jízdy ji zatím
+   nikdo nezná (viz výše), takže při jízdě může decimace zahazovat užitečnou informaci.~~
+   ✅ **Za jízdy změřeno 13. 10. 2026:** za 10 s se chyba mění nejvýš o desítky centimetrů RMS, takže
+   decimace „na sekundy" by byla špatně; `T_d` celé chyby za jízdy změřit nešlo (zbytek míchá chybu
+   reference), při stání jsou to desítky sekund (2. 9. ≥ ~30–46 s). Viz [výše](#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026).
 2. **`Q` úměrné rychlosti** (dnes je `ProcessNoise` na `v` nezávislé, viz `EKFModel`) je
    opodstatněné, ale samo o sobě to nestačí: i s malým `P` by 10 Hz korelovaných měření odhad
    přetáhlo.
@@ -633,8 +787,8 @@ A aby `N` korelovaných vzorků neslo informaci jednoho, má být `σ_eff = σ·
 
 | | |
 |---|---|
-| korelovaných vzorků `N = f·T_d` | 10 Hz × 40 s = **400** |
-| násobek `√N` | **20×** |
+| korelovaných vzorků `N = f·T_d` | 10 Hz × 40 s = **400** ⚠️ správně `2·f·T_d` = 800 (opraveno 13. 10. 2026, viz výhrada 1) |
+| násobek `√N` | **20×** ⚠️ správně ~28× |
 | `gpsposstd` 1,5 m → | **30 m** (dál se násobí DOP) |
 | předpokládané `τ` 57 s → | **~19 min** |
 | předpokládaný drift 5,5 m/min → | **~0,28 m/min** |
@@ -649,7 +803,13 @@ k hlášené nejistotě, která odpovídá skutečnosti.
 
 1. **Ten násobek je změřený jen pro STÁNÍ.** Za jízdy se `T_d` změřit nepodařilo, takže za jízdy
    může být 20× moc a GPS zbytečně slabá. Příznak, podle kterého to poznáš: globální navigace se
-   začne citelně opožďovat za skutečnou polohou.
+   začne citelně opožďovat za skutečnou polohou. ✅ **13. 10. 2026 přeměřeno:** `T_d` celé chyby
+   za jízdy z dat neplyne (za 10 s se mění nejvýš o desítky centimetrů RMS), při stání desítky sekund
+   (2. 9. ≥ ~30–46 s).
+   ⚠️ A **násobek byl odvozen o √2 nízko**: jeden nezávislý vzorek AR(1) připadá na `2·T_d`, takže
+   správně `√(2·f·T_d)` — 20× odpovídá `T_d` 20 s, 40 s by chtělo 28×, 60 s 35×. Jestli je 30 m
+   moc, nebo málo, **nerozhodnuto** — záleží na σ jednoho fixu za jízdy, kterou zarovnání schová (při
+   stání 2. 9. by to při mediánu DOP odpovídalo `T_d` ~50 s). Viz [výše](#za-jízdy-přeměřeno-opraveným-měřidlem-13-10-2026).
 2. **Neřeší to příčinu**, jen sílu následku. Správně je buď decimovat fixy na `T_d`, nebo dát
    offset GPS do stavu EKF — teprve to umí využít, že GPS zná **posun** mnohem líp než polohu.
 3. **`GpsPosStd` slouží dvěma věcem**: je to σ měření *a zároveň* počáteční nejistota polohy
@@ -912,7 +1072,9 @@ by `GpsCrossTrackStd` vyšlo **0,007 m/s**, tedy **45× méně** než předpokl�
 číslo by znamenalo σ dramaticky **podstřelit**.
 
 **Počtivá σ pro filtr**, který bere 5 Hz fixy jako nezávislé, je `σ_celková · √(τ·f)` — týž vzorec,
-jímž se odvodilo [`gpsposstd`](configuration.md):
+jímž se odvodilo [`gpsposstd`](configuration.md). ⚠️ *13. 10. 2026: pro exponenciální autokorelaci
+s časem přechodu 1/e `τ` připadá jeden nezávislý vzorek na `2·τ`, takže správně `σ·√(2·τ·f)` —
+čísla níž jsou tedy o √2 nízko (~118° / ~40°), je-li `τ` takhle definované:*
 
 | | σ celková | τ | počtivá σ | model `atan2(0,3; v)` |
 |---|---|---|---|---|

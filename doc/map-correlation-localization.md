@@ -3610,7 +3610,8 @@ Proložení stojí na ~40–45 bodech na stranu s rezidui 7 cm a **dosahuje ~7 m
 ⚠️ **Příčný nesouhlas (p50 0,06 m, p90 0,19 m) se tentokrát nesmí číst jako přesnost.** Korekce
 běžely naostro, takže póza je koridorem tažená a nesouhlas měří **konzistenci koridoru se sebou
 samým**, ne s pravdou. Totéž platí pro šířku proti *filtru*. Ground truth v záznamu není; jediná
-**nezávislá** reference je GPS, a ta má dekorelační čas ~40 s a zbytek proti odometrii p50 1,2–1,5 m
+**nezávislá** reference je GPS, a ta má dekorelační čas desítky sekund (13. 10. 2026: za jízdy se za 10 s
+mění nejvýš o ~0,3–0,8 m RMS, `T_d` celé chyby za jízdy neurčený) a zbytek proti odometrii p50 1,2–1,5 m
 (`ARBot.Analyze gps`, blok A2b), tedy o řád hrubší než to, co se má měřit. Zda korekce pózu
 **opravily nebo odtáhly**, se z těchhle dvou záznamů říct nedá.
 
@@ -3944,7 +3945,8 @@ a s koridorem (podélně se znaménkem p50 / |podélně| p90 [m], sklon po úsec
 Silnější GPS zmenší hlavně **počáteční posun** (Track 29. 9. −2,9 → −1,1 → −0,6 m) a p90; drift
 z měřítka kol (−0,2 až −0,3 m/min) stáhne až `gpsposstd=3` zhruba na polovinu. ⚠️ **Cenu silnější GPS
 tohle neměří** — přehrávají se jen úseky jízdy. `gpsposstd=30` vzniklo kvůli časově korelované chybě
-GPS (dekorelační čas ~40 s, stojícímu robotu ujížděla poloha 5,5 m/min, [ekf-fusion.md](ekf-fusion.md)),
+GPS (dekorelační čas desítky sekund — při stání 2. 9. po kalibraci ≥ ~30–46 s —, stojícímu robotu
+ujížděla poloha 5,5 m/min, [ekf-fusion.md](ekf-fusion.md)),
 a ta by se se silnější GPS vrátila do stání i do příčné polohy. Rozhodne autor. ⚠️ **Celé je to
 protifakt, ne jízda** — potvrdit na první jízdě s binárkou ≥ 9afb50c (skript 2.1 je v jednotce od 6. 10.).
 

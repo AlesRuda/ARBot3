@@ -39,6 +39,24 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
 
 ---
 
+## 2026-10-14
+
+- **Web problikával při každém obnovení** (hlášeno autorem; `web-pisma-problikavaji`). Příčina:
+  písma z Google Fonts s `display=swap` — stránka se vykreslila záložním písmem a po stažení fontu
+  překreslila, a protože každá rodina chodí zvlášť pro `latin` a `latin-ext` (čeština potřebuje
+  obojí), klidně víckrát. Léčba: tři rodiny (Newsreader, Archivo, JetBrains Mono, SIL OFL 1.1)
+  **hostuje web sám** v `web/assets/fonts/` (12 `woff2`, 384 kB, + licence), `@font-face`
+  v `site.css` s `font-display: block` (rozhodnutí autora: radši počkat, než přepsat), a každá
+  stránka v hlavičce **přednačítá** `latin` + `latin-ext` všech tří (šest `<link rel="preload">`,
+  i v šabloně `historie.html` v `tools/ukoly.cs`). Ověřeno v prohlížeči nad lokálním serverem na
+  všech 22 stránkách: písma hotová dřív než první vykreslení, z Google se nestahuje nic, nestahuje
+  se nic mimo přednačtené (kromě řeckých/cyrilských subsetů JetBrains Mono tam, kde jsou takové
+  znaky). `tools/menu.cs` nově **hlídá**, že stránka preload má a Google Fonts netahá (kód 1, CI
+  `generovane-soubory`); ověřeno i negativně na kopii webu. Postup obnovy fontů a pravidlo pro
+  novou stránku: [web/README.md](../web/README.md), sekce *Písma*. ⚠️ **Zveřejněné není** (bez
+  commitu a push). ⚠️ Tři články se vzorci (MathJax z cdnjs) po načtení **přesazují vzorce** — jiný
+  zdroj téhož dojmu, neřešeno, rozhodne autor.
+
 ## 2026-10-13
 
 - **Montáž obou D435 z roviny země** (bod 7 průzkumu, `vid-kalibrace-kamer-bias`). Nový
@@ -121,6 +139,31 @@ větou a **odkaž** do `decisions.md`; detaily domény odkaž do příslušného
   když hledané nenašlo a něco hodilo. Trace říká, na kolikátém zařízení a v jakém kroku dotaz padl,
   a škrceně i „přeskočeno, hledané nalezeno“ — přesně případ, který dřív končil tvrdým zásekem.
   Na Pi neběželo; první jízda ukáže, jestli hypotéza sedí.
+- **Bod 10: měřidlo `gps` opraveno a dekorelační čas GPS za jízdy přeměřen** (`lok-gps-casova-korelace`).
+  Tři vady ze 7. 10. opravené: brána a σ GPS ze záznamu (`LogConfig`; `gpsposstd=30` z profilu, ne
+  1,5 m z kódu), úsek A2b se dělí na přerušení dat (Track 1. 10. v 15:15:41, enkodéry tam skočily
+  o 2 286 m) a mrtvý odhad bere kurz z gyra VN100 místo z rozdílu kol. Přibylo: pět referenčních drah
+  vedle sebe (gyro, syrové gyro − bias z oken klidu, ω fúze, kola, **dráha z rychlosti GPS — Doppler**),
+  `auto` volba hlavní, jemný odečet 1/e, **kalibrace měřidla Monte Carlo** na téže geometrii (i pro
+  stání), mez rychlé složky z přírůstků, přírůstky za τ, jen fixy puštěné branou (27. 9. 17:25:
+  22 fixů se skokem ~214 m). **Tři kola adversariálního ověření (9 ověřovatelů) našla v opravě
+  i v závěrech podstatné vady — opravené týž den:** „strop" kalibrace byl jen konec tabulky a pásmo
+  se trhalo šumem (teď obálky kvantilů, interpolované hrany, cenzura zdola i shora, plató, 96 pokusů);
+  `auto` srovnávalo RMS nad různými úseky; **„selhání" syrového gyra 29. 9. byl artefakt** (v „klidu"
+  se otáčelo rukou); ENU na kouli (teď WGS84); **násobek σ chyběl √2** (správně `σ·√(2·f·T_d)`);
+  a závěry byly přestřelené — Doppler není čistá reference (vlastní rychlá chyba), **chyba reference
+  posouvá `T_d` zbytku oběma směry** (14. 9. tytéž fixy 12,5 s proti Doppleru, 51,3 s proti gyru),
+  „~40 s" 17. 9. nebyl drift, ale hrubý odečet ~26 s, a srovnávací stání bylo z 2. 9., ne 6. 9.
+  **Co obstálo:** FreeRun 1. 10. „~60 s" měřilo drift mrtvého odhadu (zbytek proti kolům 19,7 m,
+  proti Doppleru 0,86 m); **za 10 s se chyba GPS změní nejvýš o 0,3–0,8 m RMS** na 14 jízdách
+  ≥ 300 s (rychlá složka ≤ ~0,3–0,7 m, při slabé GPS ~1,2–1,4 m) — 10 fixů za sekundu tedy není
+  10 nezávislých měření; **při stání desítky sekund** (2. 9., 390 s: ≥ ~46 s pro AR(1), ~31 s pro
+  hladší model — stání AR(1) zamítají v 11 z 28 případů; PreKolo ≥ ~59 s). `T_d` celé chyby za jízdy
+  z těchto dat neplyne a jestli `gpsposstd=30` GPS přeceňuje, nerozhodnuto (při stání 2. 9. a mediánu
+  DOP odpovídá `T_d` ~50 s). Další krok: „three-cornered hat" nad odometrií a Dopplerem.
+  Vedlejší: kompenzované gyro jako reference selhalo 17. 9., 23. 9. 14:49 / 14:56 a 1. 10. (ve FreeRun
+  odhad biasu VPE sleduje změnu skutečného biasu, ale je o ~100–180 °/h vedle,
+  `lok-freerun-kurz-staci-na-zapad`), kola při prokluzu nezávisle na VN100.
 
 ## 2026-10-12
 

@@ -6,7 +6,7 @@
 přepíše další běh. Pravidla a schéma: [plan-ukoly.md](plan-ukoly.md). Totéž pro web:
 [web/pages/historie.html](../web/pages/historie.html).
 
-Témat celkem **273**: otevřeno **37** · v kódu, na HW neověřeno **42** · hotovo **171** · odloženo **14** · zamítnuto **9**.
+Témat celkem **274**: otevřeno **37** · v kódu, na HW neověřeno **43** · hotovo **171** · odloženo **14** · zamítnuto **9**.
 
 ## Otevřené a v kódu (kde jsme)
 
@@ -24,7 +24,7 @@ Témat celkem **273**: otevřeno **37** · v kódu, na HW neověřeno **42** · 
 | otevřeno | Provoz na zařízení | [Měření výkonu řízení — stíhá řídicí smyčka svou periodu?](#prov-perf-monitoring) | 1. 9. 2026 |  |
 | otevřeno | Provoz na zařízení | [Řídicí smyčka zamešká takty (Windows 3–4/s, Orange Pi ~1/s), ačkoli práce trvá pod 1 ms — fáze časovače proti mřížce plánu](#prov-zameskane-takty-windows) | 1. 9. 2026 |  |
 | otevřeno | Hardware a senzory | [Akcelerometr VN100 měří o 7 % víc než g](#hw-vn100-akcelerometr-7pct) | 6. 9. 2026 |  |
-| otevřeno | Lokalizace a fúze senzorů | [Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou](#lok-gps-casova-korelace) | 6. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
+| otevřeno | Lokalizace a fúze senzorů | [Chyba GPS fixu je korelovaná desítky sekund (stání ≥ ~30–46 s, za jízdy se za 10 s mění nejvýš o ~0,3–0,8 m), filtr ji bere jako nezávislou](#lok-gps-casova-korelace) | 6. 9. 2026 | [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) |
 | otevřeno | Vidění | [Lepší model Model96.2 dává 96,7 %, ale půlí snímkovou frekvenci](#vid-model96-2-na-npu) | 7. 9. 2026 |  |
 | otevřeno | Vidění | [Trénink segmentace se dnes nedá zopakovat jedním kliknutím](#vid-trenink-nejde-zopakovat) | 7. 9. 2026 |  |
 | otevřeno | Vidění | [U Model96.2 chybí float checkpoint lepších vah, optimalizace je nevyužitelná](#vid-model96-float-checkpoint) | 9. 9. 2026 | [vid-trenink-nejde-zopakovat](#vid-trenink-nejde-zopakovat) |
@@ -91,6 +91,7 @@ Témat celkem **273**: otevřeno **37** · v kódu, na HW neověřeno **42** · 
 | v kódu, na HW neověřeno | Navigace po mapě | [Detektor záseku A počítá pokusy na hraně po celou dobu běhu navigátoru — čítač se nikdy nenuluje, třetí stání kdykoli hranu uzavře](#nav-detektor-a-pokusy-bez-nulovani) | 12. 10. 2026 |  |
 | v kódu, na HW neověřeno | Provoz na zařízení | [Po zotavení kamer je robot 8–17 s slepý mimo držení — StopHold se uvolní hned po novém kontextu RealSense, kamery se připojí až za 8–16 s](#prov-zotaveni-kamer-slepy-po-uvolneni) | 12. 10. 2026 |  |
 | v kódu, na HW neověřeno | Lokální mapa a plánování | [Navigace pracovala nad živým slotem kamery bez kopie — 3–23 % plánů neslo čas pořízení jiného snímku; od 13. 10. vlastní kopie](#lp-navigator-zivy-slot-kamery) | 13. 10. 2026 |  |
+| v kódu, na HW neověřeno | Web a dokumentace | [Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení](#web-pisma-problikavaji) | 14. 10. 2026 |  |
 | odloženo | Nástroje, záznam a analýza | [Režim Simulate — věrný přepočet běhu nad záznamem](#nast-rezim-simulate) | 27. 7. 2026 |  |
 | odloženo | Navigace po mapě | [Recovery manévr při záseku](#nav-recovery-manevr) | 13. 8. 2026 |  |
 | odloženo | Lokalizace a fúze senzorů | [Korelace occupancy gridu s mapou jako oprava polohy a kurzu](#lok-korelace-gridu-s-mapou) | 19. 8. 2026 | [lok-korelace-tri-podminky-naostro](#lok-korelace-tri-podminky-naostro) |
@@ -132,22 +133,23 @@ Podnět autora: místo přidávání dalších referencí kurzu odhadovat bias k
 [ekf-fusion.md](ekf-fusion.md) · DevLog [2026-08-25](devlog.md#2026-08-25), [2026-09-07](devlog.md#2026-09-07), [2026-09-12](devlog.md#2026-09-12), [2026-09-18](devlog.md#2026-09-18), [2026-09-30](devlog.md#2026-09-30)
 
 <a id="lok-gps-casova-korelace"></a>
-### ⬜ Chyba GPS fixu je korelovaná ~40 s, filtr ji bere jako nezávislou
+### ⬜ Chyba GPS fixu je korelovaná desítky sekund (stání ≥ ~30–46 s, za jízdy se za 10 s mění nejvýš o ~0,3–0,8 m), filtr ji bere jako nezávislou
 
 `lok-gps-casova-korelace` · vada · **otevřeno** · nalezeno 6. 9. 2026
 
-Nový `ARBot.Analyze gps` využívá, že stojící robot dává pravdu zadarmo: chyba fixu má p50 4,4 m a dekorelační čas ~40 s, takže průměrování nepomůže vůbec, a filtr přitom bere 10 fixů za sekundu jako nezávislé — odhad ujíždí 5,5 m/min s časovou konstantou 57 s a hlásí sigmu 0,074 m. Prozatímní léčba: `gpsposstd` je parametr a v provozním profilu je 30 m (20× ze √400 korelovaných vzorků), jen pro Pi, ne jako default. Skutečná léčba je decimace nebo offset GPS jako stav EKF; za jízdy dekorelační čas změřit nešlo, nejdelší souvislá jízda v záznamech je 45 s. 17. 9. 2026 se za jízdy změřit DAL: souvislý úsek 215 s a 96 m dal dekorelační čas ~40 s (zbytek po zarovnání proti mrtvému odhadu z kol p50 3,58 m, p90 7,58 m) — tedy stejný řád jako ze stání, ale pořád jen ~5 nezávislých vzorků, takže je to orientační číslo. Ze stání (55 s) měl fix odchylku od průměru segmentu p50 9,68 m a maximum 17,3 m, průměrovací křivka je plochá (činitel nadsazení 10,6× při N = 100) a změřené Kalmanovo zesílení 0,32/0,29 říká, že GPS odhad pořád táhne. Tím je vysvětlené, co obsluha viděla na stránce po kalibraci magnetometru — poloha o „3–4 metry ujetá": chyba fixu té velikosti drží desítky sekund, takže nevypadá jako šum, ale jako posunutá stopa. Podmínky byly toho dne slabé: 4–6 družic a DOP 6,8–12, tedy na hraně brány `gpsmaxdop=10` (na startu se zamítlo 136, resp. 205 fixů po sobě).
+Nový `ARBot.Analyze gps` využívá, že stojící robot dává pravdu zadarmo: chyba fixu má p50 4,4 m a dekorelační čas ~40 s, takže průměrování nepomůže vůbec, a filtr přitom bere 10 fixů za sekundu jako nezávislé — odhad ujíždí 5,5 m/min s časovou konstantou 57 s a hlásí sigmu 0,074 m. Prozatímní léčba: `gpsposstd` je parametr a v provozním profilu je 30 m (20× ze √400 korelovaných vzorků), jen pro Pi, ne jako default. Skutečná léčba je decimace nebo offset GPS jako stav EKF; za jízdy dekorelační čas změřit nešlo, nejdelší souvislá jízda v záznamech je 45 s. 17. 9. 2026 se za jízdy změřit DAL: souvislý úsek 215 s a 96 m dal dekorelační čas ~40 s (zbytek po zarovnání proti mrtvému odhadu z kol p50 3,58 m, p90 7,58 m) — tedy stejný řád jako ze stání, ale pořád jen ~5 nezávislých vzorků, takže je to orientační číslo. Ze stání (55 s) měl fix odchylku od průměru segmentu p50 9,68 m a maximum 17,3 m, průměrovací křivka je plochá (činitel nadsazení 10,6× při N = 100) a změřené Kalmanovo zesílení 0,32/0,29 říká, že GPS odhad pořád táhne. Tím je vysvětlené, co obsluha viděla na stránce po kalibraci magnetometru — poloha o „3–4 metry ujetá": chyba fixu té velikosti drží desítky sekund, takže nevypadá jako šum, ale jako posunutá stopa. Podmínky byly toho dne slabé: 4–6 družic a DOP 6,8–12, tedy na hraně brány `gpsmaxdop=10` (na startu se zamítlo 136, resp. 205 fixů po sobě). **13. 10. 2026 opravené měřidlo (blok A2b, po třech kolech adversariálního ověření) přeměřilo všechny záznamy ze zařízení (kromě zakázaných 20260918-155329 a Kolo2):** „~60 s" z FreeRun 1. 10. měřilo drift mrtvého odhadu, ne GPS (zbytek proti kolům RMS 19,7 m, proti syrovému gyru 2,4 m, proti dráze z rychlosti GPS 0,86 m); „~40 s" ze 17. 9. byl hrubý odečet ~26 s, drift to doložený není. `T_d` celé chyby GPS za jízdy z těchto dat neplyne: zbytek míchá chybu reference, která ho posouvá oběma směry (14. 9. tytéž fixy 12,5 s proti Doppleru a 51,3 s proti gyru). Na referenci nezávisí mez z přírůstků — na 14 jízdách ≥ 300 s se chyba GPS za 10 s změní nejvýš o 0,3–0,8 m RMS (rychlá složka ≤ ~0,3–0,7 m; při slabé GPS ~1,2–1,4 m), takže 10 fixů za sekundu není 10 nezávislých měření. Při stání (pravda je konstanta) jsou to desítky sekund: 2. 9. (390 s) po kalibraci ≥ ~46 s pro AR(1) a ~31 s pro hladší model 2. řádu — stání AR(1) zamítají v 11 z 28 případů (chybu vyhlazuje filtr přijímače); PreKolo 19. 9. ≥ ~59 s. Násobek σ je `√(2·f·T_d)`, ne `√(f·T_d)`; jestli `gpsposstd=30` GPS přeceňuje, nebo podceňuje, nerozhodnuto (záleží na σ jednoho fixu za jízdy; při stání 2. 9. a mediánu DOP odpovídá `T_d` ~50 s).
 
 - [x] `ARBot.Analyze gps` (drift, K, tau, autokorelace, blok A2b za jízdy) (6. 9. 2026)
 - [x] `gpsposstd=` jako parametr, 30 m v `pi-provoz.cfg` (6. 9. 2026)
 - [ ] Ověřit násobek na novém záznamu ze stání (drift a tau se mají posunout 20×)
-- [ ] Souvislá jízda 5–10 minut bez zastavení pro dekorelační čas za jízdy
+- [x] Souvislá jízda 5–10 minut bez zastavení pro dekorelační čas za jízdy — takové úseky v záznamech jsou (25. 9. 14:46 úsek 708 s, 12. 9. 12:58 616 s, FreeRun 1. 10. 583 s, Track 1. 10. tři úseky 471–541 s a jeden 357 s); délka okna ale není jediná mez — rozhoduje vlastní chyba reference (drift odometrie, rychlá chyba Dopplera), viz krok 13. 10. (13. 10. 2026)
 - [x] První měření za jízdy (17. 9., úsek 215 s / 96 m → T_d ~40 s); na 5–10 min to nestačí (17. 9. 2026)
 - [x] 1. 10. 2026 (`gps`): stání v Tracku (83 s, GPS výborná, 13–15 družic, HDOP 1,4–1,8) — odchylka fixu od průměru p50 0,17–0,47 m, T_d ~15–25 s z ~7 vzorků; kratší než tau a jiná kvalita než 6. 9., násobek 20× tím potvrdit nejde. Souvislá jízda FreeRun 583 s / 774 m: T_d ~60 s (~10 vzorků). Úsek Tracku je pro blok A2b nepoužitelný (skok enkodérů při záseku 15:15:41). ⚠️ Vady měřidla `gps`: nečte `gpsposstd`/`gpsdopsigma` ze záznamu (počítá s 1,5 m), A2b nedělí úsek na skoku enkodérů a kurz mrtvého odhadu bere z rozdílu kol (7. 10. 2026)
-- [ ] Opravit měřidlo `gps` (konfigurace ze záznamu přes `LogConfig`, dělení A2b na skoku enkodérů, kurz z fúze/IMU) a přeměřit FreeRun 1. 10.
-- [ ] Decimace nebo offset GPS jako stav EKF
+- [x] Opravit měřidlo `gps` (konfigurace ze záznamu přes `LogConfig`, dělení A2b na skoku enkodérů, kurz z fúze/IMU) a přeměřit FreeRun 1. 10. — hotovo 13. 10.: brána a σ ze záznamu; úsek se dělí na přerušení dat (Track 1. 10. v 15:15:41, enkodéry skočily o 2 286 m) a ořízne na pokrytí zdroje kurzu; pět referenčních drah (gyro, syrové gyro − bias z oken klidu bez otáčení, ω fúze, kola, Doppler), `auto` mezi drahami se srovnatelným pokrytím; ENU na WGS84; zarovnání s měřítkem; jemný odečet 1/e; kalibrace Monte Carlo AR(1) po náhodnou procházku (96 pokusů, pásmo z obálek kvantilů s interpolovanými hranami, cenzura zdola i shora, plató), i pro stání; mez rychlé složky z přírůstků; jen fixy puštěné branou (27. 9. 17:25: 22 skoků ~214 m). Tři kola adversariálního ověření našla v opravě i v závěrech vady (strop kalibrace = konec tabulky, pásmo trhané šumem, auto nad různými úseky, artefakt biasu syrového gyra, koule místo elipsoidu, chybějící √2, chyba reference jen jednostranně) — opraveno a přeměřeno; výsledky v `ekf-fusion.md`, sekce „Za jízdy přeměřeno opraveným měřidlem“ (13. 10. 2026)
+- [ ] Decimace nebo offset GPS jako stav EKF (podle 13. 10. 2026: při stání `T_d` ≥ ~30–46 s, za jízdy neurčeno, rychlá složka ≤ ~0,3–0,7 m; σ násobit `√(2·f·T_d)`; ověřit přehráním fúze)
+- [ ] `T_d` chyby GPS za jízdy oddělit od chyby reference: „three-cornered hat“ nad dvěma nezávislými drahami (zdravá odometrie a Doppler), `C_GPS(τ) = (C_r1 + C_r2 − C_{r1−r2})/2` — předpoklad: chyba Dopplera nekoreluje s chybou polohy. Jinak jen nezávislá reference polohy (RTK, druhý přijímač)
 
-čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-17](devlog.md#2026-09-17), [2026-10-07](devlog.md#2026-10-07)
+čeká na [lok-bias-senzoru-jako-stav-ekf](#lok-bias-senzoru-jako-stav-ekf) · [ekf-fusion.md](ekf-fusion.md), [configuration.md](configuration.md), [GpsReport.cs](../Src/ARBot.Analyze/GpsReport.cs) · DevLog [2026-09-06](devlog.md#2026-09-06), [2026-09-17](devlog.md#2026-09-17), [2026-10-07](devlog.md#2026-10-07), [2026-10-13](devlog.md#2026-10-13)
 
 <a id="lok-gps-kurz-korelovana-chyba"></a>
 ### ⬜ Chyba kurzu z GPS není bílý šum a GPS běží 10 Hz, ne 5
@@ -178,6 +180,7 @@ Autor 23. 9. 2026 na cyklostezce v Modřanech (`OSM/modrany2.osm`): tam (mise Tr
 - [ ] Hypotéza FW (25. 9. 2026): senzor má FW 3.0.0.0, aktuální je v3.1.0.0 (březen 2023). Týž FW jel dobře 12. a 18. 9., takže sám drift nevysvětlí; ukáže-li jízda s `UncompGyro`, že ujíždí jen odhad biasu ve VPE (syrové gyro čisté), zjistit u VectorNavu (S/N 100016133), co 3.1 opravuje, a zvážit update — po něm znovu nahrát konfiguraci i kalibraci (`vnrestore.sh`) a ověřit `vnprobe.sh`. ⚠️ 29. 9. předpoklad nenastal: syrové gyro čisté není (offset ~1 °/s) a odhad biasu ve VPE seděl. Jízda ale velký drift z 23. 9. nezopakovala, takže to hypotézu nevyvrací
 - [ ] Pojistka ve fúzi: trvalý rozpor VN yaw / integrál gyra proti GPS kurzu za jízdy (Doppler je ověřeně spolehlivý) = VN přestat věřit, případně bias gyra jako stav EKF
 - [x] Jízdy 1. 10. 2026 (záznam v5; `heading --bin=60`, `vn100`): v Tracku na jižní větvi se yaw VN100 znovu odtrhl od vlastního magnetometru, slaběji než 23. 9. — „kurz z pole − yaw“ mimo ±7° od 15:05:38 do 15:20:38, nejvíc −28,6°; `IMU yaw − GPS kurz` +23 až +35° (15:08:38–15:12:38), po obrátce na sever −18°; kompenzované gyro proti GPS kurzu ujelo −46° za 9 min (~0,085 °/s); bias filtru v ose Z 3 200–3 600 °/h při ~51 °C, 2 060–2 110 °/h při ~43 °C. **FÚZE TO USTÁLA:** odhad − GPS kurz nejvýš 4,2° — podle protifaktu (`fusionreplay` bez koridoru ujede 35–43 m od sítě) díky koridoru. FreeRun na jih bez ujetí. K hypotéze FW: syrové gyro čisté není a odhad biasu ve VPE se mýlí ~0,06–0,085 °/s, předpoklad kroku tedy znovu nenastal (7. 10. 2026)
+- [x] 13. 10. 2026 (`gps` A2b, gyro jako mrtvý odhad proti GPS): ve FreeRun 1. 10. dá integrál kompenzovaného gyra zbytek RMS 10,6 m na 583 s, syrové gyro minus bias z oken klidu (dvě okna, na začátku a na konci jízdy, bias −2 425 až −1 951 °/h, mezi okny lineárně) 2,4 m, dráha z Doppleru 0,86 m. Odhad biasu VPE (`vn100` blok 6: 2 547 → 2 060 °/h) změnu skutečného biasu sleduje, ale je o ~100–180 °/h vedle (na obou koncích jízdy, ze dvou oken klidu) (kompenzované gyro v klidu 176 °/h) — za 583 s 20–30° kurzu. Kompenzované gyro jako reference selhalo i 17. 9. (7,8 m proti 4,6 m z kol a 3,0 m z Doppleru, slabá GPS), 23. 9. 14:49 a 14:56 (7,8 a 9,0 m proti 0,7 m z kol, resp. 0,57 m z Doppleru) a v Tracku 1. 10. (13,1 m proti 1,1 m z Doppleru; tam selhalo i syrové, 13,0 m). Dřívější „selhání syrového gyra 29. 9. 15:16“ byl artefakt měřidla (otáčení rukou v „klidu“) — po opravě 0,75 m, lepší než kompenzované (1,26 m); 25. 9. 14:24 po opravě 2,45 m, pořád horší než kompenzované (1,8 m) (13. 10. 2026)
 
 [imu-and-frames.md](imu-and-frames.md), [ekf-fusion.md](ekf-fusion.md), [HeadingReferencesReport.cs](../Src/ARBot.Analyze/HeadingReferencesReport.cs), [mission-freerun.md](mission-freerun.md) · DevLog [2026-09-24](devlog.md#2026-09-24), [2026-09-25](devlog.md#2026-09-25), [2026-09-29](devlog.md#2026-09-29), [2026-10-07](devlog.md#2026-10-07), [2026-10-13](devlog.md#2026-10-13)
 
@@ -1901,7 +1904,7 @@ Armování v depu čeká na okno kvalitních fixů GPS. Navržený práh 1,0 m b
 - [x] RMS místo maxima, práh 2,5 m (26. 8. 2026)
 - [x] Kvalita fixu a rozptyl okna ve `MissionMsg` a v panelu (26. 8. 2026)
 - [ ] Nastavit práh z naměřeného rozptylu na zařízení (vyčíst `spread=` z Kolo3a/3b)
-- [x] Spodní kotva prahu za volného nebe (`gps` nad `20261001-144638.rec`, stání 83 s, 13–15 družic): odchylka fixu od průměru p50 0,17 m, p90 0,37 m, max 0,56 m — RMS o řád pod prahem 2,5 m; dekorelační čas ~15 s, takže 5s okno armování vidí skoro jedinou realizaci. Podmínky depa mezi budovami to nenahrazuje (7. 10. 2026)
+- [x] Spodní kotva prahu za volného nebe (`gps` nad `20261001-144638.rec`, stání 83 s, 13–15 družic): odchylka fixu od průměru p50 0,17 m, p90 0,37 m, max 0,56 m — RMS o řád pod prahem 2,5 m; dekorelační čas ~15 s (13. 10. 2026 jemně 10,3 s, po kalibraci ≥ ~15 s), takže 5s okno armování vidí skoro jedinou realizaci. Podmínky depa mezi budovami to nenahrazuje (7. 10. 2026)
 
 [robotour-mission.md](robotour-mission.md), [rozhodnutí 26. 8. 2026](decisions.md) · DevLog [2026-08-26](devlog.md#2026-08-26), [2026-09-19](devlog.md#2026-09-19), [2026-10-07](devlog.md#2026-10-07)
 
@@ -3719,6 +3722,19 @@ Při rozboru jízd 1. 10. 2026 vznikly v repu čtyři měřidla. `zasek`: buňka
 [record-replay.md](record-replay.md), [ZasekReport.cs](../Src/ARBot.Analyze/ZasekReport.cs), [PerfReport.cs](../Src/ARBot.Analyze/PerfReport.cs) · DevLog [2026-10-07](devlog.md#2026-10-07)
 
 ## Web a dokumentace
+
+<a id="web-pisma-problikavaji"></a>
+### 🧪 Web při obnovení stránky problikával — písma z Google Fonts se dotahovala až po vykreslení
+
+`web-pisma-problikavaji` · vada · **v kódu, na HW neověřeno** · nalezeno 14. 10. 2026 · vyřešeno 14. 10. 2026
+
+Autor si všiml, že se stránka při obnovení nejdřív vykreslí jedním písmem a po načtení jiného se překreslí. Příčinou byla písma z Google Fonts s `display=swap`: text se nejdřív ukázal záložním písmem (Georgia / Arial / Consolas) a po stažení fontu se přepsal. Každá rodina navíc chodí zvlášť pro `latin` a `latin-ext` a čeština potřebuje obojí, takže se stránka mohla překreslit i víckrát. Oprava: tři rodiny (Newsreader, Archivo, JetBrains Mono; licence SIL OFL 1.1) hostuje web sám v `web/assets/fonts/`. Deklaruje je `site.css` s `font-display: block` (rozhodnutí autora: radši počkat na písmo, než text přepsat). Každá stránka v hlavičce přednačítá `latin` a `latin-ext` všech tří rodin, takže písma jsou hotová dřív, než se stránka poprvé vykreslí. Ověřeno v prohlížeči nad lokálním serverem na všech 22 stránkách. Že stránka preload má a Google Fonts netahá, hlídá `tools/menu.cs` (a tím CI). Na `arbot.cz` to zatím neběží, protože změna není zveřejněná. Tři články se vzorci (MathJax z cdnjs) po načtení vzorce znovu přesazují. To je jiný zdroj téhož dojmu a zatím se neřešil.
+
+- [x] Písma hostovaná u webu, preload v hlavičkách (i šablona `historie.html` v `tools/ukoly.cs`), `font-display: block`, kontrola v `tools/menu.cs` (14. 10. 2026)
+- [ ] Zveřejnit a ověřit obnovení stránky na `arbot.cz`
+- [ ] Rozhodnout (autor), jestli řešit přesazování vzorců MathJaxem na třech článcích (`regulator-sledovani-drahy`, `model-diferencialniho-podvozku`, `detekce-kraje-vozovky`)
+
+[web/README.md](../web/README.md), [site.css](../web/assets/site.css), [menu.cs](../tools/menu.cs) · DevLog [2026-10-14](devlog.md#2026-10-14)
 
 <a id="web-dokumentace-devlog"></a>
 ### ✅ Dokumentace v repozitáři — rozcestník `CLAUDE.md`, doménové `doc/*.md` a DevLog

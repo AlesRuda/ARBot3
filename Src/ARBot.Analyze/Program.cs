@@ -170,10 +170,15 @@ namespace ARBot.Analyze
                                                             (int)Arg(args, "--skip", 0),
                                                             Text(args, "--png")); return 0;
                     case "gps":
+                        // Brana a sigma GPS se ctou ze zaznamu (od 13. 10. 2026); --maxdop/--minsat/--posstd
+                        // je prepisou. --kurz = zdroj kurzu mrtveho odhadu v A2b, --meritko=0 = zarovnani
+                        // bez meritka (jako do 13. 10.), --brana=0 = A2b ze vsech platnych fixu (vychozi jen z pustenych branou).
                         GpsReport.Run(rec, Arg(args, "--minstand", 0),
                                       Arg(args, "--maxdop", 0), (int)Arg(args, "--minsat", 0),
                                       Arg(args, "--standtol", 0), Arg(args, "--minjizda", 0),
-                                      Arg(args, "--mindraha", 0));
+                                      Arg(args, "--mindraha", 0), Arg(args, "--posstd", 0),
+                                      Text(args, "--kurz"), Arg(args, "--meritko", 1) != 0,
+                                      Arg(args, "--brana", 1) != 0);
                         return 0;
                     case "vn100":
                         // --bref / --incl = referencni vektor pole z registru 21 (|B| a sklon).
@@ -524,7 +529,11 @@ namespace ARBot.Analyze
             Console.WriteLine("  gps        proc se stojicimu robotu hybe poloha: tahne ho GPS (efektivni");
             Console.WriteLine("             Kalmanovo zesileni), je chyba GPS casove korelovana, skace poza");
             Console.WriteLine("             nebo se plizi, a A/B useku, kde brana fix pustila proti odmitnutym");
-            Console.WriteLine("             (--minstand=<s>, --maxdop=, --minsat= prepisou branu)");
+            Console.WriteLine("             (--minstand=<s>; brana a sigma ze zaznamu, --maxdop=, --minsat=, --posstd=");
+            Console.WriteLine("             je prepisou). A2b = dekorelacni cas ZA JIZDY proti mrtvemu odhadu");
+            Console.WriteLine("             (--kurz=auto|gyro|gyroraw|fuze|kola|doppler, --meritko=0, --brana=0,");
+            Console.WriteLine("             --minjizda=, --mindraha=)");
+            Console.WriteLine("             s kalibraci meridla na teze geometrii");
             Console.WriteLine("  vn100      provereni samotneho VN100 ZE ZAZNAMU: co senzor tvrdi o sobe");
             Console.WriteLine("             (YprU), reaguje yaw na rozpor s vlastnim magnetometrem (zesileni");
             Console.WriteLine("             zpetne vazby), drift yaw proti poli a klidovy bias gyra.");

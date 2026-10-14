@@ -62,6 +62,10 @@ namespace ARBot.Analyze
         public string Text(string key)
             => hodnoty.TryGetValue(key, out var v) && v.Value != "(nenastaveno)" ? v.Value : null;
 
+        /// <summary>Puvod hodnoty klice v zaznamu (<c>default</c> / <c>profil</c> / ...); <c>null</c>, kdyz v zaznamu neni.</summary>
+        public string Puvod(string key)
+            => hodnoty.TryGetValue(key, out var v) ? v.Origin : null;
+
         /// <summary>Ciselna hodnota klice; <c>null</c>, kdyz v zaznamu neni nebo neni cislo.</summary>
         public double? Num(string key)
             => double.TryParse(Text(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double d) ? d : (double?)null;

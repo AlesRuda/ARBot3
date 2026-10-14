@@ -245,6 +245,14 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   fúze **jen jako úhlová rychlost z rozdílu** (na nepřekrývajícím se okně 0,5 s) — jako kurz by
   vnutil filtru libovolně otočený svět. Rozlišuje to `IMUState.HasAbsoluteHeading` (verze zprávy 3).
   **Absolutní kurz z ní nevznikne**, dokud nebude offset yaw stavem EKF.
+  ⚠️ **Chyba GPS je korelovaná desítky sekund** (13. 10. 2026, `ARBot.Analyze gps` po opravě měřidla
+  a třech kolech adversariálního ověření): při stání desítky sekund (2. 9. ≥ ~30–46 s podle tvaru
+  autokorelace); za jízdy se `T_d` celé chyby změřit nedá (zbytek proti referenční dráze míchá její
+  chybu, která ho posouvá oběma směry), ale na jízdách ≥ 300 s se chyba za 10 s změní nejvýš
+  o 0,3–0,8 m RMS (slabá GPS na kratších jízdách ~1,3–1,6 m) — 10 fixů za sekundu není 10 nezávislých
+  měření. Dřívější „~60 s za jízdy" měřilo drift mrtvého odhadu. Násobek σ je
+  `√(2·f·T_d)` (ne `√(f·T_d)`); jestli `gpsposstd=30` GPS přeceňuje, nerozhodnuto
+  (`lok-gps-casova-korelace`).
   ✅ **Od 4. 10. 2026 nese fúze i ODOMETRICKOU pózu** (`OdomPose`, `RobotState.OdomX/OdomY/OdomTheta`,
   `RobotStateMsg` verze 2): integrál fúzovaných `v`, `ω` v checkpointech `AsyncFusionEngine`, **mimo
   kovarianci a mimo update** (korekce do ní neskáčou), inicializace ji nepřeruší. Únik korekcí přes
@@ -276,6 +284,7 @@ komponent (viz odkazy níže). Při práci na dané oblasti si přečti příslu
   stav EKF. Detail [ekf-fusion.md](doc/ekf-fusion.md). ⚠️ **A těch 5° je nejspíš pořád řádově málo:**
   změřeno (`ARBot.Analyze heading`, blok o šumu GPS kurzu), že chyba kurzu z GPS je časově
   **korelovaná** (σ 8,4° / 4,1° při τ 10 s / 5 s), takže počtivá σ pro filtr je `σ·√(τ·f)`
+  (⚠️ pro exponenciální autokorelaci správně `σ·√(2·τ·f)`, tedy o √2 víc — 13. 10. 2026)
   = **83° / 29°** — a model `atan2(0,3; v)` = 23° to trefuje **náhodou, ne konstrukcí** (příčný
   šum rychlosti je ve skutečnosti 0,007 m/s, ne 0,3). ⚠️ **GPS je 10 Hz, ne 5** — to bylo
   v reportu natéčno a všechny přepočty tak byly dvakrát vedle; teď se frekvence **měří**

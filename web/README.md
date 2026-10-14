@@ -23,8 +23,9 @@ Dva soubory v repozitáři jsou **generované** a ručně se needitují (podrobn
 stránkách** (`tools/menu.cs`). Generují se ale **do repozitáře**, ne až při publikaci, takže
 předchozí odstavec platí dál: co tu leží, to se publikuje.
 
-Stránky jsou **obyčejné HTML soubory bez frameworku a bez JavaScriptu**; jediná externí věc jsou
-fonty z Google Fonts. ⚠️ **Jediná výjimka je `pages/historie.html`** (od 17. 9. 2026, rozhodnutí
+Stránky jsou **obyčejné HTML soubory bez frameworku a bez JavaScriptu**; jediná externí věc je
+**MathJax** z cdnjs na třech technických článcích se vzorci (sekce *Vzorce*). Písma jsou od
+14. 10. 2026 **hostovaná u webu** (sekce *Písma*), Google Fonts se už nepoužívají. ⚠️ **Jediná výjimka je `pages/historie.html`** (od 17. 9. 2026, rozhodnutí
 autora): inline skript bez knihoven pro filtr podle stavu a hledání v textu; bez JS stránka
 funguje celá, jen bez filtru. Je generovaný (`tools/ukoly.cs`), nepiš ho ručně. Všechny odkazy jsou **relativní**, takže web funguje stejně na
 `arbot.cz` i na `alesruda.github.io/ARBot3/` — díky tomu jde nová verze prohlédnout dřív,
@@ -226,7 +227,8 @@ web je nepoužívá.
   Články o soutěžích vznikly **jednorázovým skriptem**
   (v repu není — výstupem jsou ty `.html`, a kdyby tu skript zůstal, sváděl by k ruční úpravě,
   která by se při dalším běhu přepsala).
-- **Nová podstránka**: zkopíruj `pages/kontakt.html`, přepiš `<title>`, nadpis a obsah, zapiš ji
+- **Nová podstránka**: zkopíruj `pages/kontakt.html` (i s blokem `<link rel="preload">` písem
+  v hlavičce — `tools/menu.cs` hlídá, že tam je), přepiš `<title>`, nadpis a obsah, zapiš ji
   do `tools/menu.cs` (buď jako položku menu, nebo do některé skupiny) a pusť
   `dotnet run tools/menu.cs`. ⚠️ **Stránka, kterou `tools/menu.cs` nezná, je chyba**: generátor
   skončí kódem 1 a nepřepíše nic. Jinak by na ní nebylo zvýrazněné nic a vypadalo by to, že
@@ -246,6 +248,41 @@ web je nepoužívá.
 - **Schémata** na stránce *Jak to funguje* jsou inline SVG přímo v `pages/prezentace.html`,
   takže se dají opravit textovým editorem. Jejich PNG varianty (`doc/media/prezentace-schema-*.png`)
   slouží jen jako podklad pro Google Sites, web je nepoužívá.
+
+## Písma (od 14. 10. 2026)
+
+Tři rodiny — **Newsreader** (text), **Archivo** (nadpisy, menu), **JetBrains Mono** (štítky,
+čísla) — leží v `assets/fonts/` jako `.woff2` a `site.css` je na začátku deklaruje (`@font-face`).
+Licence je u všech **SIL Open Font License 1.1** (`assets/fonts/OFL-*.txt`), smí se tedy šířit
+s webem.
+
+**Proč ne Google Fonts:** tam byly s `display=swap` — stránka se nejdřív vykreslila záložním
+písmem (Georgia / Arial / Consolas) a po stažení fontu se **překreslila**; a protože každá rodina
+přichází zvlášť pro `latin` a `latin-ext` (čeština potřebuje obojí), problikávala při každém
+obnovení i několikrát (hlášeno autorem 14. 10. 2026). Teď:
+
+- každá stránka v `<head>` **přednačítá** (`<link rel="preload" … as="font" type="font/woff2"
+  crossorigin>`) šest souborů: `latin` + `latin-ext` všech tří rodin. Prohlížeč je stáhne hned
+  s HTML, takže jsou hotové **dřív, než se stránka poprvé vykreslí** — změřeno v Chromu na všech
+  22 stránkách (po obnovení fonty hotové za ~50–400 ms, první vykreslení až po nich);
+- `font-display: block` — kdyby font přece jen ještě nebyl (první návštěva na pomalé síti), text
+  počká (nejdéle ~3 s), místo aby se ukázal jiným písmem a pak přepsal (rozhodnutí autora);
+- `crossorigin` u preloadu je **povinné i pro vlastní server** — fonty se stahují v režimu CORS
+  a preload bez něj by se nepoužil (stáhlo by se to dvakrát);
+- ostatní subsety (`vietnamese`, `greek`, `cyrillic`) se nepřednačítají a stáhnou se jen tam,
+  kde je na stránce takový znak (`unicode-range`). Řecká písmena v běžném textu (σ, ω, Δ …)
+  sází záložní Georgia jako dřív — Newsreader ani Archivo řecké znaky nemají.
+
+**Hlídá to `tools/menu.cs`**: stránka bez kteréhokoli z šesti preloadů, nebo s odkazem na Google
+Fonts, je chyba (kód 1, nic se nepřepíše) a CI (`generovane-soubory`) spadne. Hlavička
+`pages/historie.html` se bere ze šablony v `tools/ukoly.cs` — měnit preload tedy i tam.
+
+**Obnova nebo změna fontů:** pravidla v `site.css` jsou převzatá z CSS Google Fonts
+(`https://fonts.googleapis.com/css2?family=Archivo:wght@500..700&family=JetBrains+Mono:wght@400..600&family=Newsreader:opsz,wght@6..72,400..600&display=block`
+s hlavičkou `User-Agent` moderního prohlížeče, aby vrátil `woff2`): soubory se uloží pod jménem
+`<rodina>-<subset>.woff2`, `unicode-range` a rozsahy vah se opíšou beze změny. Jsou to **proměnné
+fonty** (`font-weight: 500 700` atd.), Newsreader i s osou optické velikosti. Kdo přidá váhu
+mimo rozsah, musí stáhnout nové soubory, jinak ji prohlížeč dopočítá (syntetické tučné).
 
 ## Co se přeneslo z Google Sites
 
